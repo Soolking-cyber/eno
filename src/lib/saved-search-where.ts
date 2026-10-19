@@ -7,6 +7,7 @@ import { scopedListingWhere } from './edition-scope'
 import { toUrlParams, type SavedSearchParams } from './saved-search'
 import { attrFiltersFrom, attrWhere, rangeWhereFrom } from './attr-match'
 import { POSTED_FACET_KEY, postedOffered } from './posted-filter'
+import { VIDEO_FACET_KEY, videoOffered } from './video-filter'
 
 // Build the Prisma where for a saved search — IDENTICAL semantics to the public
 // feed (/api/listings) so "matches" line up with what the buyer would see.
@@ -92,6 +93,8 @@ async function whereFor(p: SavedSearchParams, phrase: DistrictInference | null, 
    * it still narrows the alert as it always did, as `attr_<key>`, while the explorer drops it from the opened feed.
    * ⚠️ `posted` filters `postedAt`, never `attributes` (posted-filter.ts), and only where the feed offers it — never
    * invisibly on vehicle hire; its window is measured back from when the alert runs ("posted this week").
+   * ⚠️ `hasVideo` ("Has video", video-filter.ts) is the `video` column, under the same offered-only rule; a multi facet's
+   * list (amenities, multi-facet.ts) is AND-ed inside attrWhere, so "no landlord + car access" alerts on rooms with both.
    * ⚠️ A TEACHERS alert counts no row, by decision: the cron scopes through scopedListingWhere's default, which leaves the
    * teachers category out (edition-scope.ts), and the owner's call (2026-10-09) is no saved search there at all —
    * saved-search.ts savedSearchOffered, which every Save-search / "Create an alert" entry point reads.
@@ -100,6 +103,7 @@ async function whereFor(p: SavedSearchParams, phrase: DistrictInference | null, 
   const link = new URLSearchParams(toUrlParams(p))
   for (const { key, value } of attrFiltersFrom(link)) {
     if (key === POSTED_FACET_KEY && !postedOffered(p.category, p.subcategory)) continue
+    if (key === VIDEO_FACET_KEY && !videoOffered(p.category, p.subcategory)) continue
     and.push(attrWhere(key, value))
   }
   and.push(...rangeWhereFrom(link))

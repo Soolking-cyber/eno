@@ -55,6 +55,7 @@ import type { DeleteHoldReason } from '@/lib/delete-hold-copy'
 import { LISTING_REMOVED, NOT_REMOVED } from '@/lib/listing-removed'
 import { tombstoneListingsTx } from '@/lib/core/listing-tombstone'
 import { POSTED_FACET_KEY } from '@/lib/posted-filter'
+import { VIDEO_FACET_KEY } from '@/lib/video-filter'
 import { cutText } from '@/lib/feed-text'
 import { REACTIVATION_SALE_RESET, type MarkSoldPatch } from '@/lib/trade-loop'
 import { withdrawSaleQuestions } from '@/lib/core/sale-withdraw'
@@ -174,8 +175,8 @@ export function sanitizeAttributes(raw: unknown): string | null {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
       // `posted` is a filter-only facet (src/lib/posted-filter.ts) that reads `postedAt`; a stored
-      // copy would be dead state nothing reads, so it is never kept.
-      if (k === POSTED_FACET_KEY) continue
+      // copy would be dead state nothing reads, so it is never kept. `hasVideo` likewise reads the video column.
+      if (k === POSTED_FACET_KEY || k === VIDEO_FACET_KEY) continue
       // The provider's licence values: never through this generic path (see the doc above).
       if (isProviderLicenceKey(k)) continue
       if (typeof v === 'string' && v && /^[a-z0-9_]+$/i.test(k)) clean[k] = cutText(v, 40)

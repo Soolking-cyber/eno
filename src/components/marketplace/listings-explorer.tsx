@@ -26,6 +26,7 @@ import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
 import { customFilterChipLabel } from './facet-chip-label'
+import { multiFacetValues, removeMultiFacetValue } from '@/lib/multi-facet'
 import { FacetBarFallback } from './facet-bar-fallback'
 import { LISTING_GRID, MAP_CARD_SIZES } from './listing-grid'
 import { LadderCompactRow, LadderSlot, useMdUp } from './ladder-compact-row'
@@ -3861,12 +3862,30 @@ export function ListingsExplorer({
     // ⛔ NAMED BY THE TAXONOMY, NOT BY THE STATE KEY (E-ACTIVE, 2026-09-29): "bedrooms: 2" and
     // "areaM2: 30-80" read as debug output on the one line that says what is narrowing the feed.
     const facetDefs = facetsFor(activeCategory, activeSubcategory === 'all' ? null : activeSubcategory)
-    Object.entries(customFilters).forEach(([k, v]) =>
+    Object.entries(customFilters).forEach(([k, v]) => {
+      const facet = facetDefs.find((f) => f.key === k)
+      // ⛔ ONE CHIP PER PICK OF A MULTI FACET (amenities — src/lib/multi-facet.ts), each clearing only itself: "No live-in
+      // landlord" and "Car access" are two filters to the reader, and one chip printing the raw list could only clear both.
+      if (facet?.multi) {
+        for (const one of multiFacetValues(k, v)) {
+          chips.push({
+            label: customFilterChipLabel(facet, k, one, lang, tr),
+            onClear: () => setCustomFilters((prev) => {
+              const n = { ...prev }
+              const rest = removeMultiFacetValue(k, prev[k], one)
+              if (rest) n[k] = rest
+              else delete n[k]
+              return n
+            }),
+          })
+        }
+        return
+      }
       chips.push({
-        label: customFilterChipLabel(facetDefs.find((f) => f.key === k), k, v, lang, tr),
+        label: customFilterChipLabel(facet, k, v, lang, tr),
         onClear: () => setCustomFilters((prev) => { const n = { ...prev }; delete n[k]; return n }),
-      }),
-    )
+      })
+    })
     return chips
   }
 

@@ -20,7 +20,7 @@ import { teacherListingProjection } from '@/lib/teachers/projection'
 
 const h = vi.hoisted(() => ({
   scope: { sellerId: { notIn: ['desk-1'] } } as { sellerId?: { notIn: string[] } },
-  calls: [] as { by: string[]; where: Prisma.ListingWhereInput }[],
+  calls: [] as { by: string[]; where: Prisma.ListingWhereInput; count?: Record<string, unknown> }[],
   groups: {} as Record<string, unknown[]>,
   throwOn: null as string | null,
   categoryCalls: 0,
@@ -32,8 +32,8 @@ const h = vi.hoisted(() => ({
 vi.mock('@/lib/db', () => ({
   db: {
     listing: {
-      groupBy: async (args: { by: string[]; where: Prisma.ListingWhereInput }) => {
-        h.calls.push({ by: args.by, where: args.where })
+      groupBy: async (args: { by: string[]; where: Prisma.ListingWhereInput; _count?: Record<string, unknown> }) => {
+        h.calls.push({ by: args.by, where: args.where, count: args._count })
         const key = args.by.join('+')
         if (h.throwOn === key) throw new Error('groupBy exploded')
         return h.groups[key] ?? []
@@ -908,5 +908,102 @@ describe('subcategoryDropPlan — what each sibling tap drops', () => {
 
   it('never drops a param that is not one of the category’s facets — the feed still applies it', () => {
     expect(subcategoryDropPlan(new URLSearchParams({ category: 'rentals', attr_nonsense: 'x' }), 'rentals')).toBeNull()
+  })
+})
+
+/**
+ * GoPlus partnership (2026-10-19): the amenities rail is MULTI-SELECT (src/lib/multi-facet.ts) and "Has video" reads the
+ * `video` COLUMN (src/lib/video-filter.ts). Same property as every rail above: an UNPICKED chip's number is what its tap
+ * returns; a PICKED chip reads the current result, exactly as a selected single-select chip does (its tap takes it back
+ * out, and no rail on this site prints what releasing a pick would give).
+ */
+describe('amenities (multi-select) and Has-video rails', () => {
+  const run = (query: Record<string, string>) =>
+    computeFacetCounts({ searchParams: new URLSearchParams(query), buildFilters, dimensions: ['attr'] })
+  /** A bucket of `n` rows sharing these amenity tokens, `video` of which carry a clip. */
+  const room = (amenities: string[], n: number, video = 0) =>
+    ({ attributes: null, facetTokens: amenities.length ? `|${amenities.map((a) => `amenities:${a}`).join('|')}|` : null, _count: { _all: n, areaM2: 0, video } })
+
+  it('counts an amenity as the tap would leave it: the current picks PLUS that one, AND-ed', async () => {
+    h.groups['attributes+facetTokens'] = [
+      room(['no-landlord', 'car-alley', 'aircon'], 3),
+      room(['no-landlord', 'aircon'], 5),
+      room(['car-alley'], 4),
+      room(['aircon'], 10),
+    ]
+    const out = await run({ category: 'rentals', subcategory: 'apartment-rental', attr_amenities: 'no-landlord' })
+    const a = out.attr!.amenities
+    // `all` is the current result (no-landlord applied): 3 + 5.
+    expect(a.all).toBe(8)
+    // The picked option reads the current result; adding car-alley leaves 3; adding aircon leaves 8 (a no-op).
+    expect(a.values['no-landlord']).toBe(8)
+    expect(a.values['car-alley']).toBe(3)
+    expect(a.values.aircon).toBe(8)
+    expect(a.values.pets).toBe(0)
+  })
+
+  it('with nothing picked it is the plain rule: every option over the released total', async () => {
+    h.groups['attributes+facetTokens'] = [room(['no-landlord', 'car-alley'], 3), room(['car-alley'], 4), room([], 6)]
+    const out = await run({ category: 'rentals', subcategory: 'apartment-rental' })
+    expect(out.attr!.amenities.all).toBe(13)
+    expect(out.attr!.amenities.values['no-landlord']).toBe(3)
+    expect(out.attr!.amenities.values['car-alley']).toBe(7)
+  })
+
+  it('applies the whole list to every OTHER rail, and agrees with the feed predicate row for row', async () => {
+    h.groups['attributes+facetTokens'] = [
+      { attributes: '{"bedrooms":"1"}', facetTokens: '|amenities:no-landlord|amenities:car-alley|', _count: { _all: 2, areaM2: 0, video: 0 } },
+      { attributes: '{"bedrooms":"1"}', facetTokens: '|amenities:no-landlord|', _count: { _all: 6, areaM2: 0, video: 0 } },
+      { attributes: '{"bedrooms":"2"}', facetTokens: '|amenities:car-alley|', _count: { _all: 9, areaM2: 0, video: 0 } },
+    ]
+    const out = await run({ category: 'rentals', subcategory: 'apartment-rental', attr_amenities: 'car-alley,no-landlord' })
+    // Only the 2-row bucket carries both — the bedrooms rail counts inside it.
+    expect(out.attr!.bedrooms.all).toBe(2)
+    expect(out.attr!.bedrooms.values['1']).toBe(2)
+    expect(out.attr!.bedrooms.values['2']).toBe(0)
+  })
+
+  it('reads Has video off the same groupBy — its non-null `video` count — with no query of its own', async () => {
+    h.counts = []
+    h.groups['attributes+facetTokens'] = [room(['no-landlord'], 4, 1), room(['aircon'], 6, 5)]
+    const out = await run({ category: 'rentals', subcategory: 'apartment-rental' })
+    expect(out.attr!.hasVideo).toEqual({ all: 10, values: { yes: 6 } })
+    const call = h.calls.find((c) => c.by.join('+') === 'attributes+facetTokens')
+    // The non-null `video` count rides on the attribute groupBy…
+    expect(call!.count).toMatchObject({ _all: true, video: true })
+    // …and only the Posted rail asks `count`s; Has video never does.
+    expect(h.counts.every((w) => !JSON.stringify(w).includes('video'))).toBe(true)
+  })
+
+  it('while Has video is on, every other chip counts only the rows with a video', async () => {
+    h.groups['attributes+facetTokens'] = [room(['no-landlord'], 4, 1), room(['car-alley'], 6, 5)]
+    const out = await run({ category: 'rentals', subcategory: 'apartment-rental', attr_hasVideo: 'yes' })
+    expect(out.attr!.amenities.values['no-landlord']).toBe(1)
+    expect(out.attr!.amenities.values['car-alley']).toBe(5)
+    expect(out.attr!.amenities.all).toBe(6)
+    // Its own rail is released: all rows, and the ones with a video.
+    expect(out.attr!.hasVideo).toEqual({ all: 10, values: { yes: 6 } })
+    // The attribute base released it (the column is applied in memory, by weight).
+    const call = h.calls.find((c) => c.by.join('+') === 'attributes+facetTokens')
+    expect(JSON.stringify(call!.where)).not.toContain('attr_hasVideo')
+  })
+
+  // A reviewer asked whether "Posted this week · N" still counts inside "Has video". It must: the Posted rail's base
+  // releases only `attr_posted`, so `attr_hasVideo` reaches its database `where` (this file's buildFilters echoes the
+  // params it is given; the real one turns it into `video IS NOT NULL` — attr-match.test.ts).
+  it('keeps Has video inside the Posted rail — its counts are built with the filter on', async () => {
+    h.counts = []
+    h.groups['attributes+facetTokens'] = [room(['no-landlord'], 4, 1)]
+    await run({ category: 'rentals', subcategory: 'apartment-rental', attr_hasVideo: 'yes' })
+    expect(h.counts.length).toBeGreaterThan(0)
+    for (const w of h.counts) expect(JSON.stringify(w)).toContain('"attr_hasVideo":"yes"')
+  })
+
+  it('offers neither rail outside apartments, and asks no video count there', async () => {
+    h.groups['attributes+facetTokens'] = [{ attributes: '{"bedrooms":"2"}', facetTokens: null, _count: { _all: 3, areaM2: 0 } }]
+    const out = await run({ category: 'rentals', subcategory: 'house-rental' })
+    expect(out.attr!.amenities).toBeUndefined()
+    expect(out.attr!.hasVideo).toBeUndefined()
+    expect(h.calls.find((c) => c.by.join('+') === 'attributes+facetTokens')!.count).not.toHaveProperty('video')
   })
 })

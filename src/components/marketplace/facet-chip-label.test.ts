@@ -96,3 +96,15 @@ describe('facetOptionLabel — one rule for every reader of an option', () => {
     expect(facetOptionLabel(facet('furnishing')!, facet('furnishing')!.options[0], 'fr', mt)).toMatch(/^‹.*›$/)
   })
 })
+
+// GoPlus partnership (2026-10-19): the explorer draws ONE chip per amenity pick (listings-explorer.tsx), each named here.
+describe('customFilterChipLabel — the apartment amenities and Has video', () => {
+  it('names one amenity pick by the facet and the option, in both languages', () => {
+    expect(customFilterChipLabel(facet('amenities'), 'amenities', 'no-landlord', 'en', en)).toBe('Amenities: No live-in landlord')
+    expect(customFilterChipLabel(facet('amenities'), 'amenities', 'car-alley', 'vi', vi)).toBe('Tiện ích: Hẻm xe hơi')
+  })
+  it('names the one-option "Has video" chip once, never "Has video: Has video"', () => {
+    expect(customFilterChipLabel(facet('hasVideo'), 'hasVideo', 'yes', 'en', en)).toBe('Has video')
+    expect(customFilterChipLabel(facet('hasVideo'), 'hasVideo', 'yes', 'vi', vi)).toBe('Có video')
+  })
+})

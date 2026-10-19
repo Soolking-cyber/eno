@@ -1,4 +1,5 @@
 import { migrateLegacyCategoryParams, rangeFacetsFor, facetsFor, facetParamName } from '@/lib/taxonomy'
+import { canonicalFacetValue } from '@/lib/multi-facet'
 import { queryForExplicitDistrict } from '@/components/marketplace/explorer-place'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 
@@ -76,7 +77,10 @@ export function applyFilterParams(p: URLSearchParams, customFilters: Record<stri
   Object.entries(customFilters).forEach(([key, val]) => {
     if (!val || val === 'all') return
     if (!facets.some((x) => x.key === key)) return // facet not valid for this (category, subcategory) — drop stale value
-    p.set(facetParamName(key, categorySlug, sub), val)
+    // A multi facet's list goes out canonical (taxonomy order, unknown parts dropped — src/lib/multi-facet.ts), so one
+    // search is one URL and one cache key; a list with nothing valid left is no filter.
+    const out = canonicalFacetValue(key, val)
+    if (out) p.set(facetParamName(key, categorySlug, sub), out)
   })
 }
 
@@ -93,7 +97,13 @@ export function parseFilterParams(p: URLSearchParams, categorySlug: string, subc
   const chipKeys = new Set(facetsFor(categorySlug, sub).filter((f) => f.kind !== 'range').map((f) => f.key))
   const out: Record<string, string> = {}
   p.forEach((value, key) => {
-    if (key.startsWith('attr_')) { if (chipKeys.has(key.replace('attr_', ''))) out[key.replace('attr_', '')] = value }
+    if (key.startsWith('attr_')) {
+      const k = key.replace('attr_', '')
+      // ⚠️ A multi facet's list is read canonical too: a stale part would otherwise sit in state as a chip that filters
+      // nothing — the exact thing this function's offered-only rule exists to prevent.
+      const v = chipKeys.has(k) ? canonicalFacetValue(k, value) : null
+      if (v) out[k] = v
+    }
     else if (key.startsWith('range_')) {
       const col = key.replace('range_', '')
       const f = rf.find((x) => x.range.column === col)

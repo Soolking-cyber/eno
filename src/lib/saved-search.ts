@@ -2,6 +2,8 @@ import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { inferDistrictFromQuery } from './district-query'
 import { CATEGORY_BY_SLUG, LISTING_TYPE_LABEL, facetParamName, rangeFacetsFor, type ListingType } from './taxonomy'
 import { TEACHERS_CATEGORY_SLUG } from './teachers/constants'
+import { canonicalFacetValue, isMultiFacetKey } from './multi-facet'
+import { VIDEO_FACET_KEY } from './video-filter'
 import { groupVnd, moneyLocale } from './vnd'
 
 // The serialized shape of a saved search — the subset of explorer filters we
@@ -31,7 +33,18 @@ export function normalizeParams(input: unknown): SavedSearchParams {
   const attrs: Record<string, string> = {}
   if (o.attrs && typeof o.attrs === 'object' && !Array.isArray(o.attrs)) {
     for (const [k, v] of Object.entries(o.attrs as Record<string, unknown>)) {
-      if (typeof v === 'string' && v && v !== 'all' && /^[a-z0-9_]+$/i.test(k)) attrs[k] = v.slice(0, 40)
+      if (!(typeof v === 'string' && v && v !== 'all' && /^[a-z0-9_]+$/i.test(k))) continue
+      /**
+       * ⚠️ A MULTI FACET'S LIST IS NOT CUT AT 40 CHARACTERS (amenities, src/lib/multi-facet.ts). Four picks run past it,
+       * and a cut through the fourth slug would silently drop that filter from the alert. It is CANONICALISED instead —
+       * only taxonomy values survive, so its length is bounded by the facet's own option list, never by the client.
+       */
+      if (isMultiFacetKey(k) || k === VIDEO_FACET_KEY) {
+        const list = canonicalFacetValue(k, v)
+        if (list) attrs[k] = list
+        continue
+      }
+      attrs[k] = v.slice(0, 40)
     }
   }
   return {

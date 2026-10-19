@@ -30,6 +30,7 @@ import type { SelectOption } from './custom-select'
 import { resultCountLabel } from './result-line'
 import { offeredKeys } from './count-chip'
 import { viewScope } from '@/lib/attr-match'
+import { multiFacetValues, toggleMultiFacetValue } from '@/lib/multi-facet'
 // ⚠️ TYPE-ONLY, AND IT HAS TO STAY THAT WAY. src/lib/facet-counts.ts reaches
 // edition-scope.ts → `import 'server-only'` → src/lib/db.ts, so a VALUE import from it in this
 // 'use client' file is a build error (and worse: vitest aliases `server-only` to a no-op module,
@@ -592,7 +593,9 @@ export function FacetBar({
       const present = scopeOk ? facetCounts.rangePresent?.[f.range.column] : undefined
       return present === 0 && value === 'all' ? [] : [{ f, offered: [] as string[] }]
     }
-    const offered = offeredKeys(facetDimension(f), f.options.map((o) => o.value), value, { hideNoOp: true })
+    // A multi facet's picks are each "selected" (kept on screen whatever their count — offeredKeys' rule for a picked option).
+    const selected = f.multi ? multiFacetValues(f.key, value) : value
+    const offered = offeredKeys(facetDimension(f), f.options.map((o) => o.value), selected, { hideNoOp: true })
     return offered.length ? [{ f, offered }] : []
   })
   const hasAdvanced = shownAdvFacets.length > 0
@@ -624,9 +627,11 @@ export function FacetBar({
     // The first facet trigger — focus makes the hand-off visible without forcing a panel open.
     el.querySelector<HTMLButtonElement>('button[aria-expanded]')?.focus()
   }, [openFilterSignal, hasAdvanced])
+  // A multi facet counts each pick — the badge says how many filters the panel can clear, and "No landlord + Car
+  // access" is two (each its own active chip in the explorer's row).
   const activeAdvCount =
     (conditionFilter !== 'all' ? 1 : 0) +
-    advFacets.filter((f) => f.key !== 'condition' && customFilters[f.key]).length
+    advFacets.filter((f) => f.key !== 'condition' && customFilters[f.key]).reduce((n, f) => n + (f.multi ? multiFacetValues(f.key, customFilters[f.key]).length : 1), 0)
 
   // A segmented toggle button (selected = filled blue; same height either way).
   // Fed to <Button variant="bare" size="none">: `bare` paints nothing, so both
@@ -644,6 +649,18 @@ export function FacetBar({
   // condition maps to the dedicated column; everything else to attr_* customFilters.
   const facetValue = (f: FacetDef) => (f.key === 'condition' ? conditionFilter : customFilters[f.key] || 'all')
   const setFacetValue = (f: FacetDef, v: string) => { if (f.key === 'condition') setConditionFilter(v); else setFacet(f.key, v) }
+  /**
+   * A multi facet's chip: its option in or out of the list AS IT STANDS IN STATE (the updater's `prev`), never as this render
+   * saw it — two taps landing before a re-render must AND both picks, not let the second overwrite the first.
+   */
+  const toggleMultiOption = (key: string, option: string) =>
+    setCustomFilters((prev) => {
+      const nextValue = toggleMultiFacetValue(key, prev[key], option)
+      const n = { ...prev }
+      if (nextValue) n[key] = nextValue
+      else delete n[key]
+      return n
+    })
   /**
    * A select facet's OPTIONS — the offered ones, labelled by facetOptionLabel (a place is never machine-translated, a
    * word is), each with its count — in its own field (CustomSelect `count`, optionCount), so the menu's search
@@ -801,12 +818,17 @@ export function FacetBar({
               // happen to have counts would make the panel's shape depend on the
               // payload, which is exactly what the degradation rule forbids.
               <div role="group" aria-labelledby={`${uid}-${f.key}-label`} className="flex flex-1 flex-wrap gap-1.5">
-                {opts.map((o) => (
-                  <Button key={o.value} variant="bare" size="none" type="button" aria-pressed={value === o.value} onClick={() => setFacetValue(f, value === o.value ? 'all' : o.value)} className={segBtn(value === o.value)}>
-                    {o.label}
-                    <ChipCount n={chipCount(dim, o.value)} selected={value === o.value} />
-                  </Button>
-                ))}
+                {opts.map((o) => {
+                  // ⛔ A MULTI FACET (amenities) TOGGLES ITS OPTION IN AND OUT OF THE LIST (src/lib/multi-facet.ts) — several
+                  // chips can be pressed at once, each its own aria-pressed toggle; the last one out clears the facet.
+                  const on = f.multi ? multiFacetValues(f.key, value).includes(o.value) : value === o.value
+                  return (
+                    <Button key={o.value} variant="bare" size="none" type="button" aria-pressed={on} onClick={() => (f.multi ? toggleMultiOption(f.key, o.value) : setFacetValue(f, on ? 'all' : o.value))} className={segBtn(on)}>
+                      {o.label}
+                      <ChipCount n={chipCount(dim, o.value)} selected={on} />
+                    </Button>
+                  )
+                })}
               </div>
             ) : (
               <div className="min-w-0 flex-1">

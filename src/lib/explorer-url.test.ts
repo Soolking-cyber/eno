@@ -150,4 +150,17 @@ describe('applyFilterParams', () => {
     expect(write({ bedrooms: '2' }, 'rentals')).toEqual({})
     expect(write({ bedrooms: '2' }, 'rentals', 'apartment-rental')).toEqual({ attr_bedrooms: '2' })
   })
+
+  // ⛔ A multi-select facet (apartment amenities, 2026-10-19 — src/lib/multi-facet.ts) goes out and comes back CANONICAL:
+  // one search is one URL (and one facet-count memo key), and a part the taxonomy does not know never becomes a chip.
+  it('writes and reads a multi facet canonical, dropping unknown parts — and a list with nothing left at all', () => {
+    expect(write({ amenities: 'car-alley,jacuzzi,no-landlord' }, 'rentals', 'apartment-rental')).toEqual({ attr_amenities: 'no-landlord,car-alley' })
+    expect(write({ amenities: 'jacuzzi' }, 'rentals', 'apartment-rental')).toEqual({})
+    expect(parseFilterParams(new URLSearchParams('attr_amenities=car-alley,no-landlord,jacuzzi'), 'rentals', 'apartment-rental')).toEqual({ amenities: 'no-landlord,car-alley' })
+    expect(parseFilterParams(new URLSearchParams('attr_amenities=jacuzzi'), 'rentals', 'apartment-rental')).toEqual({})
+    // Houses offer no amenities facet: the explorer's offered-only rule still drops it.
+    expect(parseFilterParams(new URLSearchParams('attr_amenities=no-landlord'), 'rentals', 'house-rental')).toEqual({})
+    // "Has video" is an ordinary one-option chip in the URL.
+    expect(write({ hasVideo: 'yes' }, 'rentals', 'apartment-rental')).toEqual({ attr_hasVideo: 'yes' })
+  })
 })

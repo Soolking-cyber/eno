@@ -194,3 +194,62 @@ describe('workIn — "Can teach in" reads the way a school means it', () => {
     expect(attrRowMatches(r, 'ageGroup', 'business')).toBe(true)
   })
 })
+
+// ── Apartment amenities, MULTI-SELECT (GoPlus partnership, 2026-10-19) — every pick, AND-ed ───────────────────────────
+describe('amenities — a comma list where the row must carry every pick', () => {
+  /** A Prisma where evaluated in JS over one row: AND / OR / contains — what the database is asked. */
+  type W = { AND?: W[]; OR?: W[]; attributes?: { contains: string }; facetTokens?: { contains: string } }
+  const holds = (w: W, r: { attributes: string | null; facetTokens: string | null }): boolean => {
+    if (w.AND) return w.AND.every((x) => holds(x, r))
+    if (w.OR) return w.OR.some((x) => holds(x, r))
+    if (w.attributes) return (r.attributes ?? '').includes(w.attributes.contains)
+    if (w.facetTokens) return (r.facetTokens ?? '').includes(w.facetTokens.contains)
+    return true // `{}` = no filter
+  }
+  const both = row(null, '|amenities:no-landlord|amenities:car-alley|amenities:aircon|')
+  const landlordOnly = row(null, '|amenities:no-landlord|amenities:aircon|')
+  const neither = row(null, '|amenities:aircon|')
+
+  it('AND-s the picks in the feed and in the counter alike', () => {
+    for (const [r, want] of [[both, true], [landlordOnly, false], [neither, false]] as const) {
+      expect(holds(attrWhere('amenities', 'no-landlord,car-alley') as W, r)).toBe(want)
+      expect(attrMatcher('amenities', 'no-landlord,car-alley')(r)).toBe(want)
+    }
+  })
+
+  it('reads the list in any order, the same as its canonical form', () => {
+    expect(attrWhere('amenities', 'car-alley,no-landlord')).toEqual(attrWhere('amenities', 'no-landlord,car-alley'))
+  })
+
+  it('a single pick is still the plain token match, and an old one-value link keeps working', () => {
+    expect(holds(attrWhere('amenities', 'pool') as W, row(null, '|amenities:pool|'))).toBe(true)
+    expect(attrMatcher('amenities', 'pool')(row(null, '|amenities:pool|'))).toBe(true)
+  })
+
+  it('drops unknown parts; a list with nothing valid left is NO filter, never an empty feed', () => {
+    expect(attrWhere('amenities', 'no-landlord,jacuzzi')).toEqual(attrWhere('amenities', 'no-landlord'))
+    expect(attrWhere('amenities', 'jacuzzi')).toEqual({})
+    expect(attrMatcher('amenities', 'jacuzzi')(neither)).toBe(true)
+  })
+
+  it('never builds a cross-facet needle out of a crafted value', () => {
+    expect(JSON.stringify(attrWhere('amenities', 'no-landlord|size:m'))).not.toContain('size')
+  })
+})
+
+// ── "Has video" (GoPlus partnership, 2026-10-19) — the `video` COLUMN, like Posted's postedAt ─────────────────────────
+describe('hasVideo — a column, never an attribute', () => {
+  it('is `video IS NOT NULL` for yes, and no filter for anything else', () => {
+    expect(attrWhere('hasVideo', 'yes')).toEqual({ video: { not: null } })
+    expect(attrWhere('hasVideo', 'no')).toEqual({})
+    expect(attrWhere('hasVideo', '')).toEqual({})
+  })
+  it('passes every grouped row in memory — facet-counts weighs buckets by their video count instead', () => {
+    expect(attrMatcher('hasVideo', 'yes')(row(null))).toBe(true)
+  })
+  it('leaves the teachers "Intro video" facet (key `video`, a token) exactly as it was', () => {
+    const teacher = row(null, '|video:has-video|')
+    expect(attrRowMatches(teacher, 'video', 'has-video')).toBe(true)
+    expect(JSON.stringify(attrWhere('video', 'has-video'))).toContain('|video:has-video|')
+  })
+})

@@ -186,6 +186,9 @@ describe('buildListingWhere — attribute filters, read by the feed’s own rule
     ['a District 2 cover alert finds a teacher covering Thủ Đức, its umbrella', { category: 'teachers', attrs: { coverArea: 'd2' } }, teacher('|cover:open|coverArea:thu-duc|'), true],
     ['two filters both still apply', { category: 'teachers', attrs: { workIn: 'ha-noi', native: 'native' } }, teacher('|workIn:ha-noi|native:non-native|'), false],
     ['a pool alert finds an apartment whose amenities are tokens', { category: 'rentals', subcategory: 'apartment-rental', attrs: { amenities: 'pool' } }, { attributes: '{"bedrooms":"2"}', facetTokens: '|amenities:pool|' }, true],
+    // ⛔ Multi-select amenities (2026-10-19, src/lib/multi-facet.ts): an alert for two picks needs a room with both.
+    ['a "No landlord + Car access" alert finds a room with both', { category: 'rentals', subcategory: 'apartment-rental', attrs: { amenities: 'no-landlord,car-alley' } }, { attributes: null, facetTokens: '|amenities:no-landlord|amenities:car-alley|amenities:aircon|' }, true],
+    ['…and never a room with only one of them', { category: 'rentals', subcategory: 'apartment-rental', attrs: { amenities: 'no-landlord,car-alley' } }, { attributes: null, facetTokens: '|amenities:no-landlord|' }, false],
     ['a weekly alert finds a car priced by the day', { category: 'rentals', subcategory: 'car-rental', attrs: { rentalPeriod: 'weekly' } }, { attributes: '{"rentalPeriod":"daily"}', facetTokens: null }, true],
     ['a "6+ bedrooms" alert finds a 7-bedroom home', { category: 'rentals', attrs: { bedrooms: '6' } }, { attributes: '{"bedrooms":"7"}', facetTokens: null }, true],
     ['a "Fits iPhone 14" alert finds a row that stores the device name', { category: 'electronics', attrs: { compatibleWith: 'iphone14' } }, { attributes: '{"compatibleWith":"iPhone 14 Pro Max"}', facetTokens: null }, true],
@@ -266,5 +269,27 @@ describe('buildListingWhere — range facets, by the explorer’s own mapping', 
     expect(readExplorerUrl(toUrlParams(stored)).customFilters).toEqual({ engineCc: '100-150', bikeType: 'scooter' })
     const feed = await buildFeedFilters(new URLSearchParams(toUrlParams(stored)))
     expect(rangeClauses(alert.AND)).toEqual(rangeClauses(feed.andFilters))
+  })
+})
+
+/**
+ * ⛔ A MULTI FACET'S LIST IS STORED WHOLE (amenities, 2026-10-19). normalizeParams cut every attribute value at 40
+ * characters; four amenity picks run past that, and the cut would land inside a slug and silently drop that filter
+ * from the alert. A multi value is canonicalised instead (taxonomy order, unknown parts dropped — multi-facet.ts).
+ */
+describe('normalizeParams — a multi-select list', () => {
+  it('drops a "Has video" value that is not its one meaningful value — never an alert that filters nothing', () => {
+    expect(normalizeParams({ category: 'rentals', subcategory: 'apartment-rental', attrs: { hasVideo: 'maybe' } }).attrs).toBeUndefined()
+    expect(normalizeParams({ category: 'rentals', subcategory: 'apartment-rental', attrs: { hasVideo: 'yes' } }).attrs).toEqual({ hasVideo: 'yes' })
+  })
+
+  it('keeps every pick, canonical, however long', () => {
+    const long = 'water-heater,fingerprint-lock,car-alley,no-landlord,private-wc,jacuzzi'
+    expect(normalizeParams({ category: 'rentals', subcategory: 'apartment-rental', attrs: { amenities: long } }).attrs)
+      .toEqual({ amenities: 'no-landlord,car-alley,private-wc,water-heater,fingerprint-lock' })
+  })
+  it('drops a list with nothing valid in it, and still cuts any other value at 40', () => {
+    expect(normalizeParams({ attrs: { amenities: 'jacuzzi' } }).attrs).toBeUndefined()
+    expect(normalizeParams({ attrs: { furnishing: 'x'.repeat(60) } }).attrs).toEqual({ furnishing: 'x'.repeat(40) })
   })
 })

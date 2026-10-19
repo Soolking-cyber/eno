@@ -9,6 +9,7 @@ import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { Prisma } from '@/generated/prisma/client'
 import { attrFiltersFrom, attrWhere, rangeWhereFrom } from '@/lib/attr-match'
 import { POSTED_FACET_KEY, postedOffered } from '@/lib/posted-filter'
+import { VIDEO_FACET_KEY, videoOffered } from '@/lib/video-filter'
 import { fold } from '@/lib/fold'
 import { textPredicate } from '@/lib/search-match'
 import { aliasesFor } from '@/generated/model-lineage'
@@ -601,6 +602,8 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
     // `posted` (src/lib/posted-filter.ts) filters a column, so a stray value would narrow ANY feed;
     // it applies only on a view whose Filter panel offers it — never invisibly on vehicle hire.
     if (key === POSTED_FACET_KEY && !postedOffered(category, subcategory)) continue
+    // `hasVideo` (src/lib/video-filter.ts) filters a column the same way — only where the Filter panel offers "Has video".
+    if (key === VIDEO_FACET_KEY && !videoOffered(category, subcategory)) continue
     andFilters.push(attrWhere(key, value, opts.now))
   }
 

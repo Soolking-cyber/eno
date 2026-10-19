@@ -783,3 +783,80 @@ describe('the teachers browse — "Can teach in", "Lives in", "In Vietnam now"',
     expect(within(listbox).getAllByRole('option').map((o) => o.textContent)).toEqual(['All · 10', 'Online · 4', 'Will move anywhere · 2', 'Ho Chi Minh City · 6', 'Hanoi · 3', 'District 7 (Phu My Hung) · 2', 'Gia Lai · 1'])
   })
 })
+
+/**
+ * ⛔ MULTI-SELECT AMENITIES (GoPlus partnership, 2026-10-19 — src/lib/multi-facet.ts): "No live-in landlord" AND
+ * "Car access" are two pressed chips of ONE facet, the value is their canonical comma list, and the last one out
+ * clears the facet. Every chip is its own aria-pressed toggle.
+ */
+describe('<FacetBar> — the multi-select amenities group', () => {
+  const COUNTS = Object.freeze({
+    attrScope: 'rentals/apartment-rental',
+    attr: {
+      // The tap-would-leave counts facet-counts.ts computes with no-landlord picked: `all` is that current result.
+      amenities: { all: 8, values: { 'no-landlord': 8, 'car-alley': 3, aircon: 8, pets: 0 } },
+    },
+  }) as unknown as FacetCounts
+  const apt = (over: Partial<FacetBarProps> = {}) =>
+    props({ activeCategory: 'rentals', activeSubcategory: 'apartment-rental', histogramQuery: 'category=rentals', facetCounts: COUNTS, ...over })
+  /** Applies the updater the bar handed to setCustomFilters to `prev`. */
+  const applied = (set: ReturnType<typeof vi.fn>, prev: Record<string, string>) => {
+    const arg = set.mock.calls.at(-1)![0]
+    return typeof arg === 'function' ? arg(prev) : arg
+  }
+
+  it('leads with GoPlus\'s two headline chips, drops the empty and the no-op ones, and keeps every pick pressed', async () => {
+    const user = userEvent.setup()
+    renderIn('en', <FacetBar {...apt({ customFilters: { amenities: 'no-landlord' } })} />)
+    const panel = await openPanel(user)
+    const group = within(panel).getByRole('group', { name: 'Amenities' })
+    // pets = 0 (empties the feed); aircon = 8 = all (every row in view has it — narrows nothing). no-landlord is picked.
+    expect(within(group).getAllByRole('button').map((b) => shown(b))).toEqual(['No live-in landlord8', 'Car access3'])
+    expect(within(group).getByRole('button', { name: /^No live-in landlord/ }).getAttribute('aria-pressed')).toBe('true')
+    expect(within(group).getByRole('button', { name: /^Car access/ }).getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('adds a second pick to the list — AND, canonical order — and takes one back out', async () => {
+    const user = userEvent.setup()
+    const set = vi.fn()
+    renderIn('en', <FacetBar {...apt({ customFilters: { amenities: 'no-landlord' }, setCustomFilters: set })} />)
+    const panel = await openPanel(user)
+    await user.click(within(panel).getByRole('button', { name: /^Car access/ }))
+    expect(applied(set, { amenities: 'no-landlord' })).toEqual({ amenities: 'no-landlord,car-alley' })
+    await user.click(within(panel).getByRole('button', { name: /^No live-in landlord/ }))
+    // The last pick out clears the facet entirely — no `amenities: ''` left behind as a dead filter.
+    expect(applied(set, { amenities: 'no-landlord' })).toEqual({})
+  })
+
+  it('counts each pick on the Filter badge', () => {
+    renderIn('en', <FacetBar {...apt({ customFilters: { amenities: 'no-landlord,car-alley', bedrooms: '1' } })} />)
+    const filter = screen.getByRole('button', { name: /^Filter/ })
+    expect(shown(filter)).toContain('3')
+  })
+
+  it('counts nothing on the badge for a list with no valid pick in it — no chip draws it and the feed ignores it', () => {
+    renderIn('en', <FacetBar {...apt({ customFilters: { amenities: 'jacuzzi' } })} />)
+    expect(shown(screen.getByRole('button', { name: /^Filter/ }))).not.toMatch(/\d/)
+  })
+
+  // A reviewer's catch (2026-10-19): the mocked setter above never re-renders, so it cannot show that taking ONE of
+  // two picks out keeps the other. Real state does.
+  it('takes one pick out of two and keeps the other — through real state, as the explorer holds it', async () => {
+    const user = userEvent.setup()
+    function Harness() {
+      const [filters, setFilters] = React.useState<Record<string, string>>({ amenities: 'no-landlord' })
+      return (
+        <>
+          <FacetBar {...apt({ customFilters: filters, setCustomFilters: setFilters })} />
+          <output data-testid="filters">{JSON.stringify(filters)}</output>
+        </>
+      )
+    }
+    renderIn('en', <Harness />)
+    const panel = await openPanel(user)
+    await user.click(within(panel).getByRole('button', { name: /^Car access/ }))
+    expect(screen.getByTestId('filters').textContent).toBe('{"amenities":"no-landlord,car-alley"}')
+    await user.click(within(panel).getByRole('button', { name: /^No live-in landlord/ }))
+    expect(screen.getByTestId('filters').textContent).toBe('{"amenities":"car-alley"}')
+  })
+})

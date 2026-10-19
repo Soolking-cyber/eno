@@ -5,6 +5,8 @@ import { DeskResolutionError, scopedListingWhere } from '@/lib/edition-scope'
 import { CATEGORY_BY_SLUG, LISTING_TYPES, categoryHasBrand, facetsFor, rangeFacetsFor, typesFor, type FacetDef } from '@/lib/taxonomy'
 import { attrFiltersFrom, attrMatcher, viewScope } from '@/lib/attr-match'
 import { POSTED_FACET_KEY, postedCutoff, postedNow } from '@/lib/posted-filter'
+import { VIDEO_FACET_KEY, VIDEO_FACET_ON, videoFilterOn } from '@/lib/video-filter'
+import { MULTI_SEP, multiFacetValues } from '@/lib/multi-facet'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { matchesProvinceRow } from '@/lib/province-match'
 import { districtTextMatches, longerDistrictSpellings } from '@/lib/district-match'
@@ -548,7 +550,7 @@ export type FacetCountOptions = {
  * `facetsFor(activeCategory, activeSubcategory)`; `priorityCategory` stands in for `category` for
  * the reason `defaultDimensions` gives. Null when the view has neither.
  */
-export function attrView(searchParams: URLSearchParams): { scope: string; facets: FacetDef[]; rangeColumns: string[] } | null {
+export function attrView(searchParams: URLSearchParams): { scope: string; facets: FacetDef[]; rangeColumns: string[]; video: boolean } | null {
   const category = searchParams.get('category') || searchParams.get('priorityCategory') || ''
   if (!category || category === 'all' || !CATEGORY_BY_SLUG[category]) return null
   const sub = searchParams.get('subcategory') || ''
@@ -556,7 +558,8 @@ export function attrView(searchParams: URLSearchParams): { scope: string; facets
   const facets = all.filter((f) => f.kind !== 'range' && f.key !== 'condition' && f.options.length > 0)
   const rangeColumns = all.flatMap((f) => (f.kind === 'range' && f.range ? [f.range.column] : []))
   if (!facets.length && !rangeColumns.length) return null
-  return { scope: viewScope(category, sub), facets, rangeColumns }
+  // Whether the view offers "Has video" — the attr groupBy then also counts non-null `video` (src/lib/video-filter.ts).
+  return { scope: viewScope(category, sub), facets, rangeColumns, video: facets.some((f) => f.key === VIDEO_FACET_KEY) }
 }
 
 /**
@@ -876,7 +879,9 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
         ? db.listing.groupBy({
             by: ['attributes', 'facetTokens'],
             where: attrBase,
-            _count: { _all: true, ...Object.fromEntries(view.rangeColumns.map((c) => [c, true])) } as Prisma.ListingCountAggregateInputType,
+            // + the non-null `video` count where the view offers "Has video" (src/lib/video-filter.ts): that chip's number,
+            // and the weight of every other chip while the filter is on — no query of its own (see the attr rail below).
+            _count: { _all: true, ...Object.fromEntries(view.rangeColumns.map((c) => [c, true])), ...(view.video ? { video: true } : {}) } as Prisma.ListingCountAggregateInputType,
           })
         : null,
       dealBase && !typeAndDeal ? db.listing.groupBy({ by: ['marketPosition'], where: dealBase, _count: { _all: true } }) : null,
@@ -997,16 +1002,54 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
       const actives = activeAttrs.map((a) => ({ key: a.key, test: attrMatcher(a.key, a.value) }))
       // Does a bucket pass every active attribute filter — except `skipKey`'s own, for that facet's rail?
       const survives = (b: Bucket, skipKey: string | null) => actives.every((a) => a.key === skipKey || a.test(b))
+      /**
+       * ⚠️ "HAS VIDEO" IS A COLUMN, SO WHILE IT IS ON A BUCKET COUNTS ONLY ITS ROWS WITH A VIDEO (src/lib/video-filter.ts).
+       * The attr base releases every `attr_*` (releasedParams), `attr_hasVideo` with them, and attrMatcher passes every
+       * bucket for it — a bucket's rows share their (attributes, facetTokens), so how many of them a chip would return
+       * with the filter on is exactly the bucket's non-null `video` count. Its own rail is released (counted on `n`).
+       * ⚠️ `rangePresent` below keeps the plain non-null counts: whether a size slider has rows to act on is a presence
+       * question, and with "Has video" on it can only over-report (show a slider), never hide one with rows behind it.
+       */
+      const videoOn = view.video && activeAttrs.some((a) => a.key === VIDEO_FACET_KEY && videoFilterOn(a.value))
+      const weight = (b: Bucket, skipKey: string | null) => (videoOn && skipKey !== VIDEO_FACET_KEY ? b.cols.video ?? 0 : b.n)
       const attr: Record<string, DimensionCounts> = {}
       for (const f of view.facets) {
         if (f.key === POSTED_FACET_KEY) continue // counted from postedRes below
-        const options = f.options.map((o) => ({ value: o.value, test: attrMatcher(f.key, o.value) }))
+        if (f.key === VIDEO_FACET_KEY) {
+          // One option, read off the same groupBy: every bucket's rows (`all`, the filter released) and its rows with a
+          // video (`yes`, what the tap returns).
+          let all = 0
+          let yes = 0
+          for (const b of buckets) {
+            if (!survives(b, f.key)) continue
+            all += b.n
+            yes += b.cols.video ?? 0
+          }
+          attr[f.key] = { all, values: { [VIDEO_FACET_ON]: yes } }
+          continue
+        }
+        /**
+         * ⛔ A MULTI FACET'S UNPICKED OPTION IS COUNTED AS ITS TAP WOULD LEAVE THE FEED (src/lib/multi-facet.ts): the current
+         * picks PLUS this one, AND-ed — the feed's own reading of the list it would send. A PICKED option reads the current
+         * result, the convention of every selected single-select chip on this site (whose tap releases it): a pressed chip
+         * says what it is giving you now, not what taking it out would give.
+         * Its `all` is that current result too (the picks applied, every other filter as well), which is what
+         * offeredKeys' no-op rule must compare with: an option every row in view already carries narrows nothing.
+         * With nothing picked both reduce to the single-facet rule — `all` is the released total.
+         */
+        const picks = f.multi ? multiFacetValues(f.key, activeAttrs.find((a) => a.key === f.key)?.value) : []
+        const inPicks = f.multi ? attrMatcher(f.key, picks.join(MULTI_SEP)) : null
+        const options = f.options.map((o) => ({
+          value: o.value,
+          test: attrMatcher(f.key, f.multi ? [...picks, o.value].join(MULTI_SEP) : o.value),
+        }))
         const values: Record<string, number> = Object.fromEntries(options.map((o) => [o.value, 0]))
         let all = 0
         for (const b of buckets) {
           if (!survives(b, f.key)) continue
-          all += b.n
-          for (const o of options) if (o.test(b)) values[o.value] += b.n
+          const n = weight(b, f.key)
+          if (!inPicks || inPicks(b)) all += n
+          for (const o of options) if (o.test(b)) values[o.value] += n
         }
         attr[f.key] = { all, values }
       }

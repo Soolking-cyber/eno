@@ -8,7 +8,7 @@
  * case-sensitive `LIKE '%needle%'` with the needle's own `%`/`_` escaped, which is exactly
  * `String.prototype.includes`, so a count computed here is what the tap returns.
  *
- * Three shapes of value, one function:
+ * The shapes of value, one module:
  *  · THE DEFAULT — `"key":"value"` in `attributes` (every facet a human posts, stored once) OR the
  *    `|key:value|` token in `facetTokens` (a multi-valued import, src/lib/facet-tokens.ts).
  *  · AN OPEN-ENDED TOP BUCKET (`orMore` in the taxonomy, e.g. bedrooms "6+") — its own stored
@@ -16,6 +16,10 @@
  *    A hand-written `3+` / `3plus` on the same facet means ≥3 the same way (old "3+" links).
  *  · ALIASED VALUES (compatibleWith) — the stored vocabulary is not the chip's: see
  *    COMPAT_DISPLAY_PREFIXES in electronics-specs.ts for the 2,638 rows that store a display string.
+ *  · A MULTI-SELECT LIST (apartment amenities, 2026-10-19) — `no-landlord,car-alley` is one clause PER PICK, AND-ed
+ *    (src/lib/multi-facet.ts reads the list for every caller).
+ * Two keys are COLUMNS, not attributes: `posted` (postedAt, posted-filter.ts) and `hasVideo` (video IS NOT NULL,
+ * video-filter.ts) — both pass every row in memory and are counted by facet-counts.ts its own way.
  * The request's `range_<column>` filters are read here too (`rangeWhereFrom`, 2026-10-09) — the feed's loop, shared with
  * the saved-search alert.
  */
@@ -24,6 +28,8 @@ import { TAXONOMY, isRangeColumn } from '@/lib/taxonomy'
 import { facetTokenFor } from '@/lib/facet-tokens'
 import { COMPAT_DISPLAY_PREFIXES } from '@/lib/electronics-specs'
 import { POSTED_FACET_KEY, postedCutoff } from '@/lib/posted-filter'
+import { VIDEO_FACET_KEY, videoFilterOn } from '@/lib/video-filter'
+import { isMultiFacetKey, multiFacetValues } from '@/lib/multi-facet'
 import { coverAreaFilterKeys } from '@/lib/teachers/cover'
 import { workInFilterKeys } from '@/lib/teachers/places'
 
@@ -131,15 +137,8 @@ export function attrNeedles(key: string, value: string): AttrNeedles {
   return { attributes, tokens: TOKENABLE.test(value) ? [facetTokenFor(key, value)] : [] }
 }
 
-/** The feed's WHERE clause for one attribute filter. */
-export function attrWhere(key: string, value: string, now?: Date): Prisma.ListingWhereInput {
-  // ⚠️ `posted` is a facet in the taxonomy and a COLUMN here (src/lib/posted-filter.ts): it filters
-  // `postedAt`, never `attributes`. An unknown window is no filter at all, never an error.
-  if (key === POSTED_FACET_KEY) {
-    // `now`: the request's ONE reference instant, so the grid and every count share a cutoff.
-    const cutoff = postedCutoff(value, now)
-    return cutoff ? { postedAt: { gte: cutoff } } : {}
-  }
+/** One value's clause: the row carries it in `attributes` OR in `facetTokens`. */
+function needleWhere(key: string, value: string): Prisma.ListingWhereInput {
   const n = attrNeedles(key, value)
   return {
     OR: [
@@ -149,7 +148,39 @@ export function attrWhere(key: string, value: string, now?: Date): Prisma.Listin
   }
 }
 
+/** The feed's WHERE clause for one attribute filter. */
+export function attrWhere(key: string, value: string, now?: Date): Prisma.ListingWhereInput {
+  // ⚠️ `posted` is a facet in the taxonomy and a COLUMN here (src/lib/posted-filter.ts): it filters
+  // `postedAt`, never `attributes`. An unknown window is no filter at all, never an error.
+  if (key === POSTED_FACET_KEY) {
+    // `now`: the request's ONE reference instant, so the grid and every count share a cutoff.
+    const cutoff = postedCutoff(value, now)
+    return cutoff ? { postedAt: { gte: cutoff } } : {}
+  }
+  // ⚠️ `hasVideo` too (src/lib/video-filter.ts): "Has video" is the `video` COLUMN — the video feed's own clause.
+  if (key === VIDEO_FACET_KEY) return videoFilterOn(value) ? { video: { not: null } } : {}
+  /**
+   * ⛔ A MULTI FACET'S VALUE IS A LIST, AND THE ROW MUST CARRY EVERY PICK (src/lib/multi-facet.ts) — one clause per
+   * value, AND-ed. A list with no valid value left is no filter at all, the same answer as an unknown Posted window.
+   */
+  if (isMultiFacetKey(key)) {
+    const picks = multiFacetValues(key, value)
+    return picks.length ? { AND: picks.map((v) => needleWhere(key, v)) } : {}
+  }
+  return needleWhere(key, value)
+}
+
 type AttrRow = { attributes?: string | null; facetTokens?: string | null }
+
+/** One value's in-memory test — `needleWhere`'s twin. */
+function needleMatcher(key: string, value: string): (row: AttrRow) => boolean {
+  const n = attrNeedles(key, value)
+  return (row) => {
+    const a = row.attributes ?? ''
+    const t = row.facetTokens ?? ''
+    return n.attributes.some((c) => a.includes(c)) || n.tokens.some((c) => t.includes(c))
+  }
+}
 
 /**
  * The same test in memory, for rows (or groupBy buckets) the chip counter already holds. Returns a
@@ -159,12 +190,15 @@ export function attrMatcher(key: string, value: string): (row: AttrRow) => boole
   // `posted` cannot be tested on a grouped (attributes, facetTokens) row — it is a column. Its counts
   // keep it IN the database `where` instead (facet-counts.ts), so in memory it passes every row.
   if (key === POSTED_FACET_KEY) return () => true
-  const n = attrNeedles(key, value)
-  return (row) => {
-    const a = row.attributes ?? ''
-    const t = row.facetTokens ?? ''
-    return n.attributes.some((c) => a.includes(c)) || n.tokens.some((c) => t.includes(c))
+  // `hasVideo` is a column too; facet-counts.ts counts it from the same groupBy's non-null `video` count (and weighs every
+  // other chip by it while the filter is on), so in memory it passes every row as well.
+  if (key === VIDEO_FACET_KEY) return () => true
+  // A multi facet: every pick, exactly as attrWhere AND-s them — and no pick left passes every row, as no filter does.
+  if (isMultiFacetKey(key)) {
+    const tests = multiFacetValues(key, value).map((v) => needleMatcher(key, v))
+    return (row) => tests.every((t) => t(row))
   }
+  return needleMatcher(key, value)
 }
 
 /** One-off form of `attrMatcher`. */

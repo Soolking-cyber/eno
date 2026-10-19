@@ -67,6 +67,9 @@ export const GET = route({ auth: 'public' }, async () => {
           // which is what it already assumes) — Swift Codable and the Android
           // `Json { ignoreUnknownKeys = true }` both drop unmodelled keys.
           optional: f.optional === true,
+          // MULTI-SELECT (FacetDef.multi — apartment amenities, 2026-10-19): a browse filter on it is a comma list of
+          // option values, every one required (src/lib/multi-facet.ts). ADDITIVE and a real boolean, like `optional`.
+          multi: f.multi === true,
           options: f.options.map((o) => ({ value: o.value, label: o.label, labelVi: o.labelVi })),
           range: f.range
             ? { min: f.range.min, max: f.range.max, step: f.range.step, unit: f.range.unit ?? null, column: f.range.column }

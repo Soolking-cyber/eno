@@ -50,3 +50,14 @@ describe('GET /api/categories — licenceCheck', () => {
     }
   })
 })
+
+// GoPlus partnership (2026-10-19): the apartment amenities facet is MULTI-SELECT (src/lib/multi-facet.ts) — the apps'
+// browse learns it from `multi`, a real boolean on every facet; "Has video" is filter-only, so it is not a post field.
+describe('GET /api/categories — multi', () => {
+  it('is true for exactly the rentals amenities facet, and a boolean everywhere', async () => {
+    const facets = (await categories()).flatMap((c) => (c.facets as Row[]).map((f): Row => ({ ...f, cat: c.slug })))
+    for (const f of facets) expect(typeof f.multi, `${f.cat}/${f.key}`).toBe('boolean')
+    expect(facets.filter((f) => f.multi).map((f) => `${f.cat}/${f.key}`)).toEqual(['rentals/amenities'])
+    expect(facets.some((f) => f.key === 'hasVideo')).toBe(false)
+  })
+})

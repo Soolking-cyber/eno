@@ -128,6 +128,18 @@ export type FacetDef = {
    */
   placeNames?: boolean
   /**
+   * MULTI-SELECT, AND-ED (GoPlus partnership, owner 2026-10-19: "add more filter chips so they can search one with no
+   * landlord, with car access etc"). A renter who wants "No live-in landlord" AND "Car access" picks both chips of ONE
+   * facet; the value travels as a comma list in canonical (taxonomy) order, `attr_amenities=no-landlord,car-alley`, and
+   * a row must carry EVERY picked value. The ONE reading of that list is src/lib/multi-facet.ts — the feed and the
+   * saved-search alert (attr-match.ts attrWhere), the chip counts (attrMatcher, and facet-counts.ts counting each
+   * option as "the rows this tap would leave"), the Filter panel's toggles, the explorer's URL round-trip and its
+   * active chips all go through it, so no reader can split the list differently. Unknown parts are dropped, never an
+   * error. Only for a multi-valued facet stored in `facetTokens` — a facet a human answers once (bedrooms) stays
+   * single-select, where a second pick could only ever empty the feed.
+   */
+  multi?: boolean
+  /**
    * `orMore` marks an OPEN-ENDED top bucket ("6+"): the chip matches its own stored value AND every
    * larger count — see `attrNeedles` in src/lib/attr-match.ts, which the feed filter and the chip
    * counts both read, so the count and the tap cannot disagree about what "6+" means.
@@ -643,12 +655,49 @@ export const TAXONOMY: CategoryDef[] = [
       // MULTI-VALUED (a flat has a balcony AND a pool), so it is stored as `facetTokens`
       // (src/lib/facet-tokens.ts), which only an importer can write — hence `derived`: the post
       // wizard never asks for it and it never gates publishing, but it filters like any facet.
-      { key: 'amenities', label: 'Amenities', labelVi: 'Tiện ích', kind: 'toggle', derived: true,
+      // ⛔ MULTI-SELECT SINCE 2026-10-19 (`multi` above, src/lib/multi-facet.ts) — the GoPlus partnership brought every
+      // room's own amenity list (23 keys, scripts/import-goplus.ts), and a renter narrows by several at once.
+      // ORDER IS THE CHIP ORDER, AND THE FIRST TWO ARE GOPLUS'S OWN HEADLINE FILTERS: "Không chung chủ" (the landlord
+      // does not live in the building) and "Hẻm xe hơi" (a car reaches the door) are what a renter in HCMC asks first,
+      // so they lead, then the house rules, then what is in the room, then the building. VIETNAMESE IS GOPLUS'S OWN
+      // WORDING (their site's labels), so a renter who searched there reads the same chip here.
+      // ⚠️ VALUES ARE STORAGE: `balcony`, `pool`, `gym` and `pets` were written by the classifier before 2026-10-19
+      // (src/lib/apartment-classify.ts) and keep their spelling; a value renamed here orphans every row holding it.
+      // The PDP lists a row's amenities in this order with these labels (src/lib/rental-facts.ts).
+      { key: 'amenities', label: 'Amenities', labelVi: 'Tiện ích', kind: 'toggle', derived: true, multi: true,
         subcats: ['apartment-rental'], options: [
+        { value: 'no-landlord', label: 'No live-in landlord', labelVi: 'Không chung chủ' },
+        { value: 'car-alley', label: 'Car access', labelVi: 'Hẻm xe hơi' },
+        { value: 'free-hours', label: 'No curfew', labelVi: 'Giờ giấc tự do' },
+        { value: 'pets', label: 'Pets allowed', labelVi: 'Cho nuôi thú cưng' },
+        { value: 'private-wc', label: 'Private bathroom', labelVi: 'WC riêng' },
+        { value: 'aircon', label: 'Air conditioning', labelVi: 'Máy lạnh' },
+        { value: 'window', label: 'Window', labelVi: 'Cửa sổ' },
         { value: 'balcony', label: 'Balcony', labelVi: 'Ban công' },
+        { value: 'kitchen', label: 'Kitchenette', labelVi: 'Kệ bếp' },
+        { value: 'fridge', label: 'Fridge', labelVi: 'Tủ lạnh' },
+        { value: 'washer', label: 'Shared washing machine', labelVi: 'Máy giặt chung' },
+        { value: 'water-heater', label: 'Water heater', labelVi: 'Máy nước nóng' },
+        { value: 'bed', label: 'Bed and mattress', labelVi: 'Giường nệm' },
+        { value: 'wardrobe', label: 'Wardrobe', labelVi: 'Tủ quần áo' },
+        { value: 'mezzanine', label: 'Mezzanine loft', labelVi: 'Gác lửng' },
+        { value: 'drying-yard', label: 'Drying area', labelVi: 'Sân phơi' },
+        { value: 'wifi', label: 'Wi-Fi', labelVi: 'Wifi' },
+        { value: 'elevator', label: 'Elevator', labelVi: 'Thang máy' },
+        { value: 'fingerprint-lock', label: 'Fingerprint lock', labelVi: 'Khoá vân tay' },
+        { value: 'security', label: '24/7 security', labelVi: 'An ninh 24/7' },
+        { value: 'parking', label: 'Motorbike parking', labelVi: 'Chỗ để xe' },
+        { value: 'ev-parking', label: 'E-bikes accepted', labelVi: 'Nhận xe điện' },
         { value: 'pool', label: 'Pool', labelVi: 'Hồ bơi' },
         { value: 'gym', label: 'Gym', labelVi: 'Phòng gym' },
-        { value: 'pets', label: 'Pets allowed', labelVi: 'Cho nuôi thú cưng' },
+      ] },
+      // "Has video" (GoPlus's "Có video" filter, 2026-10-19). FILTER-ONLY like `posted`: it reads the `video` COLUMN
+      // (src/lib/video-filter.ts — attr-match.ts turns it into `video IS NOT NULL`), never `attributes`. One option,
+      // named like its facet, so the active chip reads "Has video", never "Has video: Has video" (facet-chip-label.ts).
+      // ⚠️ KEY `hasVideo`, NOT `video` — the teachers category's "Intro video" facet owns `video` (a token, below).
+      { key: 'hasVideo', label: 'Has video', labelVi: 'Có video', kind: 'toggle', derived: true, filterOnly: true,
+        subcats: ['apartment-rental'], options: [
+        { value: 'yes', label: 'Has video', labelVi: 'Có video' },
       ] },
       { key: 'bedrooms', label: 'Bedrooms', labelVi: 'Phòng ngủ', kind: 'toggle',
         subcats: ['apartment-rental', 'house-rental', 'room-rental'], options: [
