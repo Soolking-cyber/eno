@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { LanguageProvider } from '@/context/language-context'
 import { teachGuideSchema } from '@/lib/teach-guides/schema'
-import { TeachKeyPoints, teachGuideSections } from './teach-guide-body'
+import { TeachKeyPoints, TeachNextStep, teachGuideSections } from './teach-guide-body'
 
 const guide = teachGuideSchema.parse({
   slug: 'a-guide',
@@ -38,6 +38,7 @@ const isLiveHref = (href: string) => href !== '/teach-in-vietnam/later-guide'
 const html = (node: React.ReactNode) => renderToStaticMarkup(<LanguageProvider>{node}</LanguageProvider>)
 const points = html(<TeachKeyPoints g={guide} isLiveHref={isLiveHref} />)
 const body = html(<>{teachGuideSections(guide, isLiveHref).map((s) => <section key={s.id}>{s.body}</section>)}</>)
+const nextStep = html(<TeachNextStep />)
 
 describe('teach guide body', () => {
   it('links a live guide and prints an unreleased one as its text', () => {
@@ -59,5 +60,9 @@ describe('teach guide body', () => {
   it('closes with the sources and the date they were checked', () => {
     expect(body).toContain('11 Oct 2026')
     expect(body).toContain('Government of Vietnam')
+  })
+  it('the next step says linked postings open the original advert — never that each one does (a school can post directly)', () => {
+    expect(nextStep).toContain('Current postings; linked ones open the original advert, where you apply. Never pay to get a job.')
+    expect(nextStep.replace(/<[^>]+>/g, ' ')).not.toMatch(/\beach\b/i)
   })
 })

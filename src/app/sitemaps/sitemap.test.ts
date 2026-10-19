@@ -250,6 +250,7 @@ import { canonicalDistrictSlug, isCuratedDistrict } from '@/lib/district-canonic
 import { storefrontCanonical } from '@/lib/storefront'
 import { EXPAT_GUIDE_PATHS, MARKETPLACE_GUIDE_PATHS, guideDates } from '@/lib/expat-guides'
 import { PHONE_GUIDE_PATHS } from '@/lib/phone-guides'
+import * as teachRegistry from '@/lib/teach-guides/registry'
 import { IPHONE_18_MODELS, IPHONE_DUO_MODEL } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -761,6 +762,23 @@ describe('the pages child: lastmod from what each page shows', () => {
     for (const p of EXPAT_GUIDE_PATHS) {
       const d = guideDates(p.slice(1))
       expect(lastmodOf(forum, `${HOST}${p}`), p).toBe(d.updated ?? d.published)
+    }
+  })
+
+  /**
+   * The teacher hub is code, not a registry entry: its <lastmod> is its newest edit, its own copy's or its newest live
+   * guide's, by the rule its page's dateModified reads too (registry.ts `teachHubNewest`, tested on fixture dates in
+   * teach-guides.test.ts). A sentinel answer shows the sitemap asks that rule, with the live guides: on 2026-10-18 the
+   * two candidate dates were the same day, so a real one could not tell.
+   */
+  it('dates the teacher hub by the one rule its page reads (registry.ts teachHubNewest)', async () => {
+    const rule = vi.spyOn(teachRegistry, 'teachHubNewest').mockReturnValue('2031-02-03')
+    try {
+      const xml = await (await pagesGET()).text()
+      expect(lastmodOf(xml, `${HOST}${teachRegistry.TEACH_BASE}`)).toBe('2031-02-03')
+      expect(rule.mock.calls.map(([live]) => live.map((e) => e.slug))).toEqual([teachRegistry.releasedGuides().map((e) => e.slug)])
+    } finally {
+      rule.mockRestore()
     }
   })
 

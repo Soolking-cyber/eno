@@ -21,14 +21,15 @@ export type TeachLink = { href: string; label: string; blurb: string }
 
 /**
  * The hub — or null before the first guide is released, when the hub itself is a 404 (teach-in-vietnam/page.tsx:
- * "no guide = no hub"). The blurb restates the hub's own meta description, so it promises nothing the page lacks.
+ * "no guide = no hub"). The blurb restates the hub's own meta description, so it promises nothing the page lacks —
+ * word for word, minus the subject the label already names (hub-page.test.tsx pins it): change the two together.
  */
 export function teachHubLink(now: Date = new Date()): TeachLink | null {
   if (!releasedGuides(now).length) return null
   return {
     href: TEACH_BASE,
     label: 'Teach English in Vietnam',
-    blurb: 'What you need, what you earn and how to start, Ho Chi Minh City first, with live job, school and rent numbers.',
+    blurb: 'What you need, what you earn and where the jobs are, Ho Chi Minh City first, with live job, school and rent numbers.',
   }
 }
 

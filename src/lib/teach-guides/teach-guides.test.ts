@@ -5,7 +5,21 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { forEachInline, forEachPlain, teachGuideSchema, type TeachGuide } from './schema'
 import { inlineHrefs, inlineText, parseInline } from './inline'
-import { TEACH_GUIDES, TEACH_SITE_PATHS, TEACH_START_PATHS, guideDates, isLive, isLiveTeachHref, isReleased, releaseDate, TEACH_BASE, teachGuideDates } from './registry'
+import {
+  TEACH_GUIDES,
+  TEACH_HUB_UPDATED,
+  TEACH_SITE_PATHS,
+  TEACH_START_PATHS,
+  guideDates,
+  hubNewest,
+  isLive,
+  isLiveTeachHref,
+  isReleased,
+  releaseDate,
+  TEACH_BASE,
+  teachGuideDates,
+  teachHubNewest,
+} from './registry'
 import { contentSlugs, renderIndex } from '../../../scripts/gen-teach-guides.mjs'
 import { contentDigest } from './digest'
 import { TEACH_CONTENT } from './content.generated'
@@ -152,6 +166,20 @@ describe('teach guides: the edition rule (no visa / itinerary / PayPal / permiss
   })
 })
 
+describe('teach guides: the hub states the canonical positions (briefs/STYLE.md ⚖️)', () => {
+  /**
+   * The work permit's experience test is "at least 2 years" (Decree 219/2025 Art 3(3)(a)), with an alternative proof
+   * to ask the employer about in writing — STYLE.md: never "normally". The hub's lead, the paragraph answer engines
+   * quote, said "the permit rules normally also ask for two years" until 2026-10-18 (teacher visibility plan B1). The
+   * hub is code, so this reads its visible text like the vocabulary rule above: a comment may name the word, a sentence
+   * may not. (If the hub ever needs "normally" for something else, narrow this — do not delete it.)
+   * hub-page.test.tsx renders the page and checks the lead and the short answers say it as the guides do.
+   */
+  it('the hub never hedges with "normally"', () => {
+    expect(visibleCodeText('src/app/[lang]/teach-in-vietnam/page.tsx').match(/\bnormally\b/i)).toBeNull()
+  })
+})
+
 describe('teach guides: money', () => {
   /**
    * A hand-typed đồng amount: digits (grouped or "25 million"/"500k") followed by a đồng word or mark,
@@ -257,6 +285,33 @@ describe('teach guides: the release gate', () => {
     expect(guideDates({ published: '2026-10-11', reviewed: '2026-10-11' })).toEqual({ published: '2026-10-11' })
     // Without `released`, a late review still moves the publication date (the guide was not live before it).
     expect(guideDates({ published: '2026-10-12', reviewed: '2026-10-20' })).toEqual({ published: '2026-10-20' })
+  })
+  /**
+   * The hub (code, not a registry entry) is dated by the later of its own copy's edit and its newest guide — page.tsx
+   * dateModified and title year, pages.xml <lastmod>. On fixture dates, both ways round: in the registry of 2026-10-18
+   * the two were the same day (wave 1a re-dated eight guides on the day of the hub's rewrite), and only fixtures can
+   * tell max() from either side alone (hub-page.test.tsx and sitemap.test.ts prove the page and the sitemap ask it).
+   */
+  it('the hub is dated by its newest edit: its own copy or its newest guide, whichever is later (hubNewest)', () => {
+    // The hub edited after every guide: its own date.
+    expect(hubNewest(['2026-10-11', '2026-10-18'], '2026-11-02')).toBe('2026-11-02')
+    // A guide updated after the hub's last edit: that guide's date — wherever it sits in the list.
+    expect(hubNewest(['2026-11-20', '2026-10-11'], '2026-11-02')).toBe('2026-11-20')
+    expect(hubNewest(['2026-10-11', '2026-11-20'], '2026-11-02')).toBe('2026-11-20')
+    expect(hubNewest([], '2026-10-18')).toBe('2026-10-18')
+  })
+  it('teachHubNewest applies it to the guides as their own pages date them, against TEACH_HUB_UPDATED unless given a date', () => {
+    const day = (e: { slug: string }) => {
+      const d = teachGuideDates(e.slug)
+      return d.updated ?? d.published
+    }
+    const live = TEACH_GUIDES.slice(0, 5)
+    const newestGuide = live.map(day).sort().at(-1)!
+    expect(teachHubNewest(live, '2000-01-01')).toBe(newestGuide)
+    expect(teachHubNewest(live, '2099-12-31')).toBe('2099-12-31')
+    // The default is the hub's own date: seen on the earliest-dated guide (on 2026-10-18, a week older than the hub's).
+    const oldest = TEACH_GUIDES.reduce((a, b) => (day(b) < day(a) ? b : a))
+    expect(teachHubNewest([oldest])).toBe(hubNewest([day(oldest)], TEACH_HUB_UPDATED))
   })
   it('a recorded first-live day sits between the wave date and the re-approval — never forward- or back-dating', () => {
     for (const e of TEACH_GUIDES.filter((x) => x.released)) {

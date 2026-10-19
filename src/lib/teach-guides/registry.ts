@@ -71,6 +71,17 @@ export type TeachGuideEntry = {
 
 export const TEACH_BASE = TEACH_HUB_PATH
 
+/**
+ * YYYY-MM-DD — the day the hub's own copy last changed (teach-in-vietnam/page.tsx: its title, description, lead,
+ * facts box and short answers). ⚠️ READER-VISIBLE EDITS ONLY, the same contract as a guide's `updated`: never a
+ * refactor, a test or a comment — move it in the same change as the copy. The hub is code, not a registry entry, so
+ * without this its dateModified, its date line and its sitemap <lastmod> would follow the newest GUIDE alone: an edit
+ * to the hub's own copy, on a day no guide changed, would reach readers and search engines undated. The hub is dated
+ * by the later of the two (`teachHubNewest`). Set by the national rewrite of 2026-10-18 (teacher visibility plan B1),
+ * the same day wave 1a re-approved eight guides.
+ */
+export const TEACH_HUB_UPDATED = '2026-10-18'
+
 export const TEACH_CLUSTERS: readonly { id: TeachCluster; title: string; lede: string }[] = [
   { id: 'decide', title: 'Decide', lede: 'Whether teaching in Vietnam suits you, and where.' },
   { id: 'qualify', title: 'Qualify', lede: 'The degree, certificate and checks employers and the work permit need.' },
@@ -206,6 +217,31 @@ export function guideDates(e: { published: string; reviewed?: string; updated?: 
   const reapproved = e.released && e.reviewed ? e.reviewed : undefined
   const updated = [e.updated, reapproved].filter((d): d is string => !!d).sort().at(-1)
   return { published, ...(updated && updated > published ? { updated } : {}) }
+}
+
+/**
+ * The hub's newest reader-visible edit — the rule itself, pure, so it can be tested on dates no guide or hub edit
+ * carries (as `guideDates` is for a guide): the later of the hub's own copy (`own`) and the newest of its guides' dates
+ * (YYYY-MM-DD, so the string order is the date order — teach-guides.test.ts checks every registry date is one).
+ */
+export function hubNewest(guides: readonly string[], own: string): string {
+  return [...guides, own].sort().at(-1)!
+}
+
+/**
+ * hubNewest for the live guides the hub lists (each dated as its own page is, `teachGuideDates`), against the hub's own
+ * date (`TEACH_HUB_UPDATED` unless a test injects another). ONE function for the hub's dateModified and title year
+ * (teach-in-vietnam/page.tsx) and its sitemap <lastmod> (pages.xml/build.ts), so the page and the sitemap cannot
+ * disagree.
+ */
+export function teachHubNewest(live: readonly { slug: string }[], own: string = TEACH_HUB_UPDATED): string {
+  return hubNewest(
+    live.map((e) => {
+      const d = teachGuideDates(e.slug)
+      return d.updated ?? d.published
+    }),
+    own,
+  )
 }
 
 /** The hub's "Start here", by the reader's situation. A slug that is not live yet is skipped there. */

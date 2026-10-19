@@ -210,9 +210,12 @@ export function TeachKeyPoints({ g, isLiveHref }: { g: TeachGuide; isLiveHref: (
  * teacher, stated only as far as it is true (CLAUDE.md claims rules; src/lib/teachers/*): the profile is free,
  * schools message you there (since 2026-10-13 any signed-in account may, within a daily limit on new chats; only a
  * business can ask about a cover lesson) and your phone, email and CV stay hidden until you choose to share them;
- * the school pages carry reviews written by teachers; jobs link to the original posting, where you apply.
+ * the school pages carry reviews written by teachers; linked jobs open the original posting, where you apply.
  * ⛔ No "we find you a job", no "verified schools", no "parents book you" — none of it is true (a parent may
  * message a teacher now, but nothing is booked through eno.vn).
+ * ⛔ "LINKED ONES" OPEN THE ORIGINAL ADVERT, NEVER "EACH" POSTING (one wording wherever eno.vn says it, 2026-10-18): an
+ * employer's own post has no original elsewhere (taxonomy.ts `linked={false}`), so "each" would be false the day a
+ * school posts directly. On 2026-10-18 all 38 teaching jobs were linked; "linked ones" stays true either way.
  */
 /** English chrome, as a constant (the guides' chrome follows the article, never `tr()` — see the file header). */
 const NEXT_STEP = 'Your next step on eno.vn'
@@ -227,7 +230,8 @@ export function TeachNextStep() {
     },
     // Most school pages have no review yet, so this promises the directory, not a body of reviews.
     { href: '/schools', title: 'Look up a school before you sign', text: 'Language centres, schools and universities in Ho Chi Minh City, with teachers’ reviews where they have been written and open jobs.' },
-    { href: '/c/jobs', title: 'Browse teaching jobs', text: 'Current postings, each linked to the original advert where you apply. Never pay to get a job.' },
+    // The teaching-jobs board (plan B2, 2026-10-18) — the page built for teaching-job searches; /c/jobs lists every kind of job.
+    { href: '/jobs-vietnam-expats', title: 'Browse teaching jobs', text: 'Current postings; linked ones open the original advert, where you apply. Never pay to get a job.' },
     { href: '/hcmc-rent-index', title: 'Check what rent costs by district', text: 'Median asking rents from thousands of live listings, updated daily.' },
   ]
   return (
