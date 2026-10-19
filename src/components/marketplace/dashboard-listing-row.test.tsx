@@ -173,4 +173,15 @@ describe('DashboardListingRow demand nudge', () => {
     render(<DashboardListingRow listing={saved(4)} onChanged={() => {}} />)
     expect(screen.queryByText(/people saved this/)).toBeNull()
   })
+
+  it('reads "lots of views" past 50 views with no contacts', () => {
+    render(<DashboardListingRow listing={{ ...saved(0), views: 80 } as unknown as SerializedListing} onChanged={() => {}} />)
+    expect(screen.getByText(/^Lots of views but no contacts yet/)).toBeTruthy()
+  })
+
+  it('⛔ never on a teacher profile — schools write to a teacher, which contactCount never counts', () => {
+    render(<DashboardListingRow listing={{ ...saved(7), views: 80, listingType: 'teacher' } as unknown as SerializedListing} onChanged={() => {}} />)
+    expect(screen.queryByText(/Lots of views but no contacts/)).toBeNull()
+    expect(screen.queryByText(/people saved this/)).toBeNull()
+  })
 })

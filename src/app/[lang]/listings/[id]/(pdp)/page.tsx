@@ -91,7 +91,7 @@ import { isVisaShopListing } from '@/lib/visa-shop'
 // The one switch that means "this deployment runs the visa chat" — see the gate on isVisaProduct.
 import { ITINERARY_THREADS_ENABLED, VISA_THREADS_ENABLED } from '@/lib/thread-kind'
 import { getTripAssistanceListingId } from '@/lib/trips/dm-thread'
-import { TrackView } from '@/components/marketplace/track-view'
+import { TrackView, TrackViewCount } from '@/components/marketplace/track-view'
 import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
 import { SaveListingButton } from '@/components/marketplace/save-listing-button'
 import { OwnerEditButton } from '@/components/marketplace/owner-edit-button'
@@ -314,12 +314,17 @@ export default async function ListingPage({ params }: Props) {
   if (rawListing.listingType === TEACHER_LISTING_TYPE) {
     const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
     return (
-      <TeacherProfileView
-        listing={{ id: listing.id, title: listing.title, images: listing.images, video: listing.video ?? null, updatedAt: rawListing.updatedAt }}
-        canonicalUrl={`${hostUrl}/listings/${listing.id}`}
-        indexable={rawListing.status === 'active'}
-        lang={(await params).lang === 'vi' ? 'vi' : 'en'}
-      />
+      <>
+        <TeacherProfileView
+          listing={{ id: listing.id, title: listing.title, images: listing.images, video: listing.video ?? null, updatedAt: rawListing.updatedAt }}
+          canonicalUrl={`${hostUrl}/listings/${listing.id}`}
+          indexable={rawListing.status === 'active'}
+          lang={(await params).lang === 'vi' ? 'vi' : 'en'}
+        />
+        {/* The view COUNTER only — never <TrackView>, whose ad-platform item would carry the teacher's name
+            (track-view.tsx TrackViewCount says why). Without it every teacher profile read 0 views. */}
+        <TrackViewCount id={listing.id} />
+      </>
     )
   }
   // The listing's SOURCE title (as posted) for the JSON-LD and the share text. The <title> and the share

@@ -18,13 +18,14 @@ const h = vi.hoisted(() => ({
   bumps: [] as Array<[string, string]>,
   listing: { id: 'L1', verified: true, status: 'active', seller: { ownerId: 'seller-1' } } as Row | null,
   viewer: null as string | null,
+  read: null as Row | null,
 }))
 
 vi.mock('@/lib/ratelimit', () => ({
   rateLimit: async () => { h.limiterCalls++; return { success: true } },
 }))
 vi.mock('@/lib/db', () => ({
-  db: { listing: { findUnique: async () => h.listing } },
+  db: { listing: { findUnique: async (args: Row) => { h.read = args; return h.listing } } },
 }))
 vi.mock('@/lib/admin', () => ({ getCurrentProfileId: async () => h.viewer }))
 vi.mock('@/lib/listing-counters', () => ({
@@ -77,6 +78,33 @@ describe('a person is counted, in whatever browser they opened the link', () => 
     expect((await view(ua)).body).toEqual({ ok: true, counted: false })
     h.viewer = null
     h.listing = { id: 'L1', verified: true, status: 'hidden', seller: { ownerId: 'seller-1' } }
+    expect((await view(ua)).body).toEqual({ ok: true, counted: false })
+    expect(h.bumps).toEqual([])
+  })
+})
+
+/**
+ * A TEACHER PROFILE IS COUNTED LIKE ANY LISTING (2026-10-19). Its page now mounts <TrackViewCount>, which POSTs here;
+ * before, it never did, and every teacher read 0 views. The route reads the row by id alone — no listing type — so a
+ * teacher row takes the same path, and the teacher's own signed-in view is the seller self-view it already excludes.
+ */
+describe('a teacher profile', () => {
+  const teacher = { id: 'L1', verified: true, status: 'active', listingType: 'teacher', seller: { ownerId: 'teacher-1' } }
+  const ua = PERSON_UAS['Facebook in-app (iOS)']
+
+  it('is counted for a visitor, signed out or signed in as anyone else', async () => {
+    h.listing = teacher
+    expect((await view(ua)).body).toEqual({ ok: true, counted: true })
+    h.viewer = 'school-1'
+    expect((await view(ua)).body).toEqual({ ok: true, counted: true })
+    expect(h.bumps).toEqual([['L1', 'views'], ['L1', 'views']])
+    // ⛔ By id alone: a type or category filter here would zero every teacher again, silently (counted:false is a 200).
+    expect(h.read?.where).toEqual({ id: 'L1' })
+  })
+
+  it('is not counted when the teacher opens their own profile', async () => {
+    h.listing = teacher
+    h.viewer = 'teacher-1'
     expect((await view(ua)).body).toEqual({ ok: true, counted: false })
     expect(h.bumps).toEqual([])
   })

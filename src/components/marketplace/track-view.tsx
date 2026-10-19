@@ -48,6 +48,21 @@ function isAutomated(): boolean {
   try { return navigator.webdriver === true } catch { return false }
 }
 
+/**
+ * Real, deduped server-side view counter (fire-and-forget — never blocks the page, errors ignored).
+ * The tab-local guard is the first dedup; the endpoint re-checks per (IP, listing) and excludes the
+ * seller's own views.
+ * ⚠️ Not under automation (`navigator.webdriver` — Selenium, Puppeteer, Playwright, every e2e
+ * suite). The server's bot-ua check is the guard and stays the guard; this catches the one shape
+ * it cannot see, a driven browser that sends a human user-agent. It costs no import, so the
+ * crawler list stays out of the listing page's bundle.
+ */
+function countView(id: string): void {
+  if (!isAutomated() && markViewedOnce(id)) {
+    fetch(`/api/listings/${id}/view`, { method: 'POST', keepalive: true }).catch(() => {})
+  }
+}
+
 export function TrackView({ id, title, price, currency, category, categorySlug, brandSlug }: { id: string; title: string; price: number; currency: Currency; category: string; categorySlug?: string | null; brandSlug?: string | null }) {
   const fired = useRef<string | null>(null)
   useEffect(() => {
@@ -59,16 +74,26 @@ export function TrackView({ id, title, price, currency, category, categorySlug, 
     recordView(categorySlug, brandSlug)
     // Remember the exact item so the buyer can re-find it ("Recently viewed").
     recordViewedListing(id)
-    // Real, deduped server-side view counter (fire-and-forget — never blocks the page,
-    // errors ignored). The tab-local guard above is the first dedup; the endpoint
-    // re-checks per (IP, listing) and excludes the seller's own views.
-    // ⚠️ Not under automation (`navigator.webdriver` — Selenium, Puppeteer, Playwright, every e2e
-    // suite). The server's bot-ua check is the guard and stays the guard; this catches the one shape
-    // it cannot see, a driven browser that sends a human user-agent. It costs no import, so the
-    // crawler list stays out of the listing page's bundle.
-    if (!isAutomated() && markViewedOnce(id)) {
-      fetch(`/api/listings/${id}/view`, { method: 'POST', keepalive: true }).catch(() => {})
-    }
+    countView(id)
   }, [id, title, price, currency, category, categorySlug, brandSlug])
+  return null
+}
+
+/**
+ * THE VIEW COUNTER ALONE — what a teacher profile mounts (2026-10-19). The teacher page returned before
+ * <TrackView> rendered, so `Listing.views` stayed 0 on every teacher profile (111 of 111, measured
+ * 2026-10-19) and nothing could say whether schools and parents ever open one.
+ * ⛔ NEVER <TrackView> ON A PERSON. Its GA4 view_item / Meta ViewContent carries the listing's title — a
+ * teacher's NAME — to the ad platforms as an "item", and a teacher consented to a public profile, not to
+ * that; its recordView / recordViewedListing would keep a person in someone's category history and
+ * "Recently viewed". This is only the anonymous counter the teacher's own dashboard reads.
+ */
+export function TrackViewCount({ id }: { id: string }) {
+  const fired = useRef<string | null>(null)
+  useEffect(() => {
+    if (fired.current === id) return
+    fired.current = id
+    countView(id)
+  }, [id])
   return null
 }

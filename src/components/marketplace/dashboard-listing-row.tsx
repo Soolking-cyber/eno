@@ -11,6 +11,7 @@ import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
 import { QuickDiscount } from './quick-discount'
 import { paysSalary } from '@/lib/taxonomy'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { ListingSparkline, type SparkPoint } from './listing-sparkline'
 import { useListingActions } from './use-listing-actions'
 import { MarkSoldFlow, soldSheetApplies } from './mark-sold-flow'
@@ -152,8 +153,10 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // Demand nudge — interest without conversion is almost always a price problem.
   // One quiet line, one plain action (never a scold). Saves beat views as the signal.
   // Never on a JOB: its price is its salary (taxonomy.ts paysSalary), and "a lower price sells it" is
-  // not advice for an employer.
-  const showNudge = status === 'active' && !paysSalary(listing.listingType) && listing.contactCount === 0 && (listing.savedCount >= 5 || listing.views > 50)
+  // not advice for an employer. Never on a TEACHER profile either: schools reach a teacher by message, which
+  // contactCount never counts, so since teacher views are counted (2026-10-19) "lots of views but no contacts —
+  // lower the price" would greet every teacher past 50 views.
+  const showNudge = status === 'active' && !paysSalary(listing.listingType) && listing.listingType !== TEACHER_LISTING_TYPE && listing.contactCount === 0 && (listing.savedCount >= 5 || listing.views > 50)
   const nudge = showNudge ? (
     <p className="mt-0.5 text-sm text-warning">
       {listing.savedCount >= 5
