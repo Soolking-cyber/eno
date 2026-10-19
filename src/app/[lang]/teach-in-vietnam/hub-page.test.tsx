@@ -69,6 +69,13 @@ vi.mock('@/lib/schools/queries', () => ({
 }))
 vi.mock('@/app/[lang]/hcmc-rent-index/load-rent-index', () => ({ loadRentIndex: async () => h.rent }))
 
+/**
+ * The request clock: the day every registered guide is live — the latest wave or re-approval day in the registry — so a
+ * guide re-approved on a later day (wave 1b, 2026-10-19) never fails these tests for the wrong reason, as a fixed date did:
+ * a guide is released only once its review day has come (registry.ts isReleased).
+ */
+h.now = new Date(`${TEACH_GUIDES.flatMap((e) => [e.published, e.reviewed ?? e.published]).sort().at(-1)}T05:00:00Z`)
+
 const RENT = { median: 7_123_456, n: 4_321, computedAt: '2026-10-17T19:00:00.000Z' }
 const knownRent = () => ({ known: true, index: { computedAt: RENT.computedAt, cityBands: { br1: { median: RENT.median, n: RENT.n } } } })
 

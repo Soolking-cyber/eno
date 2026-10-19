@@ -57,9 +57,9 @@
       ],
       [
        "eno.vn",
-       "A free teacher profile, a directory of Saigon employers, and job postings linked to the original ad",
+       "A free teacher profile, a directory of Saigon employers, and job postings, linked to the original ad where there is one",
        "Free; schools can find and message you; contact details hidden until you share them",
-       "Postings are linked from other sites and not verified; most schools have few or no reviews yet"
+       "Postings are not verified, and most are linked from other sites; most schools have few or no reviews yet"
       ]
      ]
     },
@@ -93,7 +93,7 @@
     },
     {
      "type": "p",
-     "text": "eno.vn's [teaching jobs page](/jobs-vietnam-expats) gathers postings from job boards and schools' careers pages; each opens the original ad, where you apply, and postings expire after 14 days. eno.vn has not verified the employers behind them and does not handle applications. [The school directory](/schools) lists Ho Chi Minh City employers (language centres, international and bilingual schools, universities and teacher agencies), with open jobs and a place where teachers who worked or interviewed there can vote and leave reviews (read by a moderator before they appear); most schools have few or no reviews yet. A free teacher profile, started at [teacher.eno.vn](https://teacher.eno.vn), lets schools and centres find you: anyone signed in to eno.vn can message you, and your phone number, email and CV stay hidden until you choose to share them in that chat."
+     "text": "eno.vn's [teaching jobs page](/jobs-vietnam-expats) gathers postings from job boards and schools' careers pages; a linked posting opens the original ad, where you apply, and expires within 14 days. eno.vn has not verified the employers behind them and does not handle applications. [The school directory](/schools) lists Ho Chi Minh City employers (language centres, international and bilingual schools, universities and teacher agencies), with open jobs and a place where teachers who worked or interviewed there can vote and leave reviews (read by a moderator before they appear); most schools have few or no reviews yet. A free teacher profile, started at [teacher.eno.vn](https://teacher.eno.vn), lets schools and centres find you: anyone signed in to eno.vn can message you, and your phone number, email and CV stay hidden until you choose to share them in that chat."
     }
    ]
   },
@@ -309,7 +309,7 @@
      "rows": [
       [
        "Monday",
-       "Check careers pages and job boards for new ads; eno.vn postings expire after 14 days, so a weekly check sees each one before it expires"
+       "Check careers pages and job boards for new ads; eno.vn's linked postings expire within 14 days, so check weekly"
       ],
       [
        "Tuesday",

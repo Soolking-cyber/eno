@@ -1,14 +1,16 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { TEACH_BASE, guideEntry, teachPath } from './registry'
+import { TEACH_BASE, TEACH_GUIDES, guideEntry, teachPath } from './registry'
 import { teachGuideLinks, teachHubLink, teachLinks } from './site-links'
 
 /**
  * Links INTO the teacher library from the rest of the site (teacher visibility plan, 2026-10-18): built from the registry,
  * so nothing links an unreleased guide or a 404 — and nothing links a typo, which would otherwise drop out silently.
  */
-const LIVE = new Date('2026-10-18T05:00:00Z')
+// The day every registered guide is live (its latest wave or re-approval day): a guide is released only once its review
+// day has come (registry.ts isReleased), so a fixed date broke on the next re-approval (wave 1b, 2026-10-19).
+const LIVE = new Date(`${TEACH_GUIDES.flatMap((e) => [e.published, e.reviewed ?? e.published]).sort().at(-1)}T05:00:00Z`)
 const BEFORE = new Date('2026-10-01T05:00:00Z')
 
 describe('teachHubLink', () => {

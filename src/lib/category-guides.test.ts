@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { CATEGORY_GUIDE_LIMIT, guidesForCategory } from './category-guides'
 import { MARKETPLACE_GUIDES } from './expat-guides'
 import { PHONE_GUIDES } from './phone-guides'
-import { TEACH_BASE, guideEntry, isLiveTeachHref, teachPath } from './teach-guides/registry'
+import { TEACH_BASE, TEACH_GUIDES, guideEntry, isLiveTeachHref, teachPath } from './teach-guides/registry'
 
 const slugs = (category: string, lang: 'en' | 'vi') => guidesForCategory(category, lang).map((g) => g.href.slice(1))
 
@@ -61,7 +61,9 @@ describe('guidesForCategory', () => {
    * on both renders (the library is English-only).
    */
   describe('the teacher library on the two teaching categories', () => {
-    const LIVE = new Date('2026-10-18T05:00:00Z')
+    // The day every registered guide is live (its latest wave or re-approval day): a guide is released only once its
+    // review day has come (registry.ts isReleased), so a fixed date broke on the next re-approval (wave 1b, 2026-10-19).
+    const LIVE = new Date(`${TEACH_GUIDES.flatMap((e) => [e.published, e.reviewed ?? e.published]).sort().at(-1)}T05:00:00Z`)
     const hrefs = (category: string, lang: 'en' | 'vi', now = LIVE) => guidesForCategory(category, lang, CATEGORY_GUIDE_LIMIT, now).map((g) => g.href)
 
     it('/c/jobs: finding a job, the requirements, the salary and the work-permit guide', () => {
