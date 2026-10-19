@@ -57,6 +57,9 @@ export type RentalCheckSource = {
   category?: { slug: string } | null
   /** Decides vehicle hire out (rentalCheckApplies). Every mount passes it; absent reads as a place. */
   subcategorySlug?: string | null
+  /** `chatOnlyPartner` (shared.ts isChatOnlyPartner) decides a partner that answers availability in its own chat out.
+   *  A card's `seller` carries it (serialize.ts); the PDP passes it; absent reads as an ordinary seller. */
+  seller?: { chatOnlyPartner?: boolean | null } | null
 }
 
 /**
@@ -129,9 +132,10 @@ export function parseBasket(raw: string | null): BasketItem[] {
   return out
 }
 
-/** A listing → a basket row, or null when the check does not apply (not a rental, or vehicle hire). */
+/** A listing → a basket row, or null when the check does not apply (not a rental, vehicle hire, or a chat-only
+ *  partner's listing — GoPlus answers its own availability, owner 2026-10-19). */
 export function basketItemFrom(l: RentalCheckSource, now = Date.now()): BasketItem | null {
-  if (!rentalCheckApplies(l.category?.slug, l.subcategorySlug)) return null
+  if (!rentalCheckApplies(l.category?.slug, l.subcategorySlug, l.seller?.chatOnlyPartner === true)) return null
   return cleanItem({
     id: l.id,
     title: l.title,

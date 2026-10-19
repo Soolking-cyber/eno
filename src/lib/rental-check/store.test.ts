@@ -127,6 +127,16 @@ describe('basket', () => {
     expect(addToBasket(rental(3))).toBe('added') // no subcategory = a place
   })
 
+  // ⛔ GoPlus partnership (2026-10-19): a chat-only partner answers availability in its own chat (shared.ts
+  // isChatOnlyPartner) — the basket refuses its listing on add; any other rental is unchanged.
+  it('refuses a chat-only partner\'s listing on add, and keeps an ordinary seller\'s', () => {
+    expect(addToBasket(rental(1, { subcategorySlug: 'apartment-rental', seller: { chatOnlyPartner: true } }))).toBe('refused')
+    expect(basketItemFrom(rental(1, { seller: { chatOnlyPartner: true } }))).toBeNull()
+    expect(getBasket()).toHaveLength(0)
+    expect(addToBasket(rental(2, { subcategorySlug: 'apartment-rental', seller: { chatOnlyPartner: false } }))).toBe('added')
+    expect(addToBasket(rental(3, { seller: null }))).toBe('added')
+  })
+
   it('drops a stored car or motorbike when reading the basket; a home (or a pre-field row) stays', () => {
     const row = (id: string, sub?: string | null) => ({ id, title: id, titleVi: null, image: null, price: 1, currency: 'VND', priceUnit: 'VND/day', addedAt: 1, ...(sub === undefined ? {} : { subcategorySlug: sub }) })
     localStorage.setItem(BASKET_KEY, JSON.stringify({ v: 1, items: [row('car', 'car-rental'), row('flat', 'apartment-rental'), row('bike', 'motorbike-rental'), row('old')] }))

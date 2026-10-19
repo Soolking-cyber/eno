@@ -1,4 +1,5 @@
 import 'server-only'
+import type { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { logError } from '@/lib/log'
 import { scopedListingWhere } from '@/lib/edition-scope'
@@ -90,6 +91,12 @@ export async function repointRentalDeskThreads(operatorId: string): Promise<void
   }
 }
 
+/** A chat-only partner's row, as a Listing where — shared.ts isChatOnlyPartner in SQL (see resolveCheckableRentals). */
+export const CHAT_ONLY_PARTNER_ROW = {
+  seller: { officialPartner: true, ownerId: { not: null } },
+  OR: [{ affiliateUrl: null }, { affiliateUrl: '' }],
+} satisfies Prisma.ListingWhereInput
+
 /** The columns the card snapshot is built from — nothing else is read. */
 export const CHECKABLE_RENTAL_SELECT = {
   id: true, title: true, titleVi: true, images: true, price: true, currency: true, priceUnit: true,
@@ -115,6 +122,12 @@ export type CheckableRental = {
  * marketplace listing read goes through (desk exclusion + the allow-list), so a request can only ever
  * snapshot a listing this edition would itself show. It THROWS on eno.vn when the desk cannot be
  * resolved, which the route surfaces as a 500 rather than an unfiltered read.
+ *
+ * ⛔ AND NOT A CHAT-ONLY PARTNER'S LISTING (GoPlus partnership, 2026-10-19) — the server half of shared.ts
+ * isChatOnlyPartner, the same three facts in SQL: an official partner WITH an owner, on a row that does not link out
+ * (`affiliateUrl` null or empty — partnerShown's `!!affiliateUrl`). The partner answers availability in its own chat;
+ * no toggle offers the check there, and a crafted body naming one is refused in the 409 like any other id.
+ * ⚠️ No NULL trap: the relation test is an EXISTS and the url test is IS NULL OR = '', so the NOT is never NULL.
  */
 export async function resolveCheckableRentals(ids: readonly string[]): Promise<CheckableRental[]> {
   if (!ids.length) return []
@@ -125,6 +138,7 @@ export async function resolveCheckableRentals(ids: readonly string[]): Promise<C
       verified: true,
       category: { slug: RENTAL_CHECK_CATEGORY_SLUG },
       OR: [{ subcategorySlug: null }, { subcategorySlug: { notIn: [...RENTAL_CHECK_EXCLUDED_SUBCATS] } }],
+      NOT: CHAT_ONLY_PARTNER_ROW,
     }),
     select: CHECKABLE_RENTAL_SELECT,
   })

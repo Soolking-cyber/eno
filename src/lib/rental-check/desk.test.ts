@@ -164,6 +164,7 @@ describe('resolveCheckableRentals', () => {
         {
           id: { in: ['L1', 'L2'] }, status: 'active', verified: true, category: { slug: 'rentals' },
           OR: [{ subcategorySlug: null }, { subcategorySlug: { notIn: ['motorbike-rental', 'car-rental', 'bicycle-rental', 'ebike-rental'] } }],
+          NOT: { seller: { officialPartner: true, ownerId: { not: null } }, OR: [{ affiliateUrl: null }, { affiliateUrl: '' }] },
         },
         { sellerId: { notIn: ['desk-1'] } },
       ],
@@ -187,6 +188,29 @@ describe('resolveCheckableRentals', () => {
     expect(notIn.notIn).toEqual(expect.arrayContaining(['car-rental', 'motorbike-rental']))
     expect([...notIn.notIn].sort()).toEqual([...RENTAL_CHECK_EXCLUDED_SUBCATS].sort())
     for (const sub of notIn.notIn) expect(rentalCheckApplies('rentals', sub), sub).toBe(false)
+  })
+
+  /**
+   * ⛔ A CHAT-ONLY PARTNER'S LISTING IS REFUSED BY THE SERVER (GoPlus partnership, 2026-10-19) — the same rule as the
+   * client's isChatOnlyPartner, so a crafted body naming one gets the 409 and nothing is written. The clause is evaluated
+   * here over every combination of the three facts and must exclude EXACTLY the rows the client predicate names.
+   */
+  it('refuses exactly the rows isChatOnlyPartner names — an official partner with an owner, on a row that does not link out', async () => {
+    const { isChatOnlyPartner } = await import('./shared')
+    const m = await load(false)
+    await m.resolveCheckableRentals(['L1'])
+    type Row = { affiliateUrl: string | null; seller: { officialPartner: boolean; ownerId: string | null } }
+    type W = { seller?: { officialPartner: boolean; ownerId: { not: null } }; OR?: { affiliateUrl: string | null }[] }
+    const not = (h.listingWhere as { AND: [{ NOT: W }] }).AND[0].NOT
+    // The Prisma clause in JS: every key of the object must hold (AND); OR over the url spellings.
+    const excluded = (r: Row) =>
+      r.seller.officialPartner === not.seller!.officialPartner && r.seller.ownerId !== null &&
+      not.OR!.some((c) => c.affiliateUrl === r.affiliateUrl)
+    for (const officialPartner of [true, false]) for (const ownerId of ['owner-1', null]) for (const affiliateUrl of [null, '', 'https://partner.example/x']) {
+      const r: Row = { affiliateUrl, seller: { officialPartner, ownerId } }
+      const client = isChatOnlyPartner({ officialPartner, hasOwner: ownerId !== null, linksOut: !!affiliateUrl })
+      expect(excluded(r), JSON.stringify(r)).toBe(client)
+    }
   })
 
   it('does not query for an empty list', async () => {

@@ -2,7 +2,7 @@
 
 import { useLanguage } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
-import { formatRating, moneyLocale } from '@/lib/vnd'
+import { formatMoneyFull, formatRating, moneyLocale } from '@/lib/vnd'
 
 /**
  * Locale-aware average rating: "4.8" for everyone, "4,8" (comma decimal — the
@@ -24,6 +24,17 @@ export function RatingValue({ value }: { value: number }) {
 export function CountValue({ value }: { value: number }) {
   const { lang } = useLanguage()
   return <>{new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(value)}</>
+}
+
+/**
+ * A whole đồng amount in the viewer's money format — "3,800 đ" (en) / "3.800 đ" (vi), src/lib/vnd.ts formatMoneyFull.
+ * For the listing page's rental costs (rental-facts.tsx): an electricity rate or a parking fee is not a listing price,
+ * so it takes neither <Price>'s "≈ $" estimate nor its unit parse — the caller prints the unit beside it.
+ * Same SSR-en-then-swap leaf as <CountValue>.
+ */
+export function VndValue({ value }: { value: number }) {
+  const { lang } = useLanguage()
+  return <>{formatMoneyFull(value, '₫', moneyLocale(lang))}</>
 }
 
 /**

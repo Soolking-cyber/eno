@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { canonicalFacetValue, isMultiFacetKey, multiFacetValue, multiFacetValues, removeMultiFacetValue, toggleMultiFacetValue } from './multi-facet'
-import { facetsFor } from './taxonomy'
+import { TAXONOMY, facetsFor } from './taxonomy'
 
 /**
  * The one reading of a multi-select facet's value (amenities — GoPlus partnership, 2026-10-19). Every reader of
@@ -58,6 +58,16 @@ describe('multi-facet', () => {
     expect(canonicalFacetValue('hasVideo', 'yes')).toBe('yes')
     expect(canonicalFacetValue('hasVideo', 'maybe')).toBeNull()
     expect(canonicalFacetValue('hasVideo', '')).toBeNull()
+  })
+
+  // A reviewer's catch (2026-10-19): `multi` is looked up BY KEY (isMultiFacetKey), so a second, single-select facet
+  // that reused a multi key elsewhere in the taxonomy would have its values read as an unknown list and silently
+  // dropped. Pin that no other facet shares a multi facet's key.
+  it('no single-select facet anywhere shares a multi facet\'s key', () => {
+    const byKey = new Map<string, boolean[]>()
+    for (const c of TAXONOMY) for (const f of c.facets) byKey.set(f.key, [...(byKey.get(f.key) ?? []), !!f.multi])
+    for (const [key, flags] of byKey) if (flags.some(Boolean)) expect(flags.every(Boolean), key).toBe(true)
+    expect(isMultiFacetKey('amenities')).toBe(true)
   })
 
   it('keeps every value a token can carry — the taxonomy slug shape facetTokens accepts', () => {

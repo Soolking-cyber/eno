@@ -92,8 +92,9 @@ export function RentalCheckToggle({
   className?: string
 }) {
   const { sellerId } = useAuth()
-  // ⚠️ THE SAME GATE THE MOUNTS USE (rentalCheckApplies): a rental, and not vehicle hire (2026-10-01).
-  if (!rentalCheckApplies(listing.category?.slug, listing.subcategorySlug)) return null
+  // ⚠️ THE SAME GATE THE MOUNTS USE (rentalCheckApplies): a rental, not vehicle hire (2026-10-01), and not a chat-only
+  // partner's listing — that partner answers availability in its own chat (shared.ts isChatOnlyPartner, 2026-10-19).
+  if (!rentalCheckApplies(listing.category?.slug, listing.subcategorySlug, listing.seller?.chatOnlyPartner === true)) return null
   if (sellerId && sellerId === listing.sellerId) return null
   // Two components, not one with a branch: only the PDP shows the count, and a card subscribed to
   // the count would re-render all ~48 of a feed's chips on every add instead of just its own.

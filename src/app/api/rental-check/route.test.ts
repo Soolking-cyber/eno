@@ -75,7 +75,9 @@ vi.mock('@/lib/ratelimit', () => ({
 }))
 vi.mock('@/lib/enforcement', () => ({ messagingGate: async () => h.gate }))
 vi.mock('@/lib/rental-check/desk', () => ({
-  resolveCheckableRentals: async (ids: string[]) => { h.checkableCalls.push(ids); return h.rentals.filter((r) => ids.includes(r.id)) },
+  // A row marked `chatOnlyPartner` stands for what the real predicate refuses (desk.ts CHAT_ONLY_PARTNER_ROW, proven
+  // against shared.ts isChatOnlyPartner in desk.test.ts): a GoPlus-style partner listing is never checkable.
+  resolveCheckableRentals: async (ids: string[]) => { h.checkableCalls.push(ids); return h.rentals.filter((r) => ids.includes(r.id) && !r.chatOnlyPartner) },
   resolveRentalOperatorProfileId: async () => h.operator,
   repointRentalDeskThreads: async (id: string) => { h.repointed.push(id) },
   ensureRentalDeskSeller: async () => { h.ensured += 1 },
@@ -238,6 +240,20 @@ describe('listings and the operator', () => {
     const res = await post(body({ listingIds: ['L1', 'L2', 'L9'] }))
     expect(res.status).toBe(409)
     expect(await res.json()).toEqual({ error: 'listings_unavailable', unavailable: ['L2', 'L9'] })
+    expectNothingWritten()
+    expect(h.kvDels).toContain(KEY)
+  })
+
+  /**
+   * ⛔ A CRAFTED BODY CANNOT ADD A CHAT-ONLY PARTNER'S LISTING (GoPlus partnership, owner 2026-10-19: "users should
+   * message that account to ask for availability"). No toggle offers it, and the route refuses it like any other id it
+   * cannot check: 409 naming it, nothing written, the claim released for a corrected retry.
+   */
+  it('409 for a chat-only partner listing smuggled into the body — nothing written', async () => {
+    h.rentals = [rental('L1'), { ...rental('GP1'), chatOnlyPartner: true }]
+    const res = await post(body({ listingIds: ['L1', 'GP1'] }))
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'listings_unavailable', unavailable: ['GP1'] })
     expectNothingWritten()
     expect(h.kvDels).toContain(KEY)
   })

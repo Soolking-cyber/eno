@@ -942,7 +942,7 @@ function ListingCardImpl({
             renders nothing for a non-rental or for the viewer's own listing. */}
         {/* ⚠️ NOT ON VEHICLE HIRE (2026-10-01): the check is a HOUSING service ("meet the landlord or
             agent"), so a car or motorbike card must not offer it — rentalCheckApplies owns the rule. */}
-        {rentalCheckApplies(listing.category?.slug, listing.subcategorySlug) && <RentalCheckToggle variant="card" listing={listing} />}
+        {rentalCheckApplies(listing.category?.slug, listing.subcategorySlug, listing.seller?.chatOnlyPartner === true) && <RentalCheckToggle variant="card" listing={listing} />}
 
         {/* Quick actions (5a #6) — desktop ONLY: Chat · Offer · Locate unfurl
             horizontally OUT of the save heart (top-right), sliding LEFT into place

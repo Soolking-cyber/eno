@@ -47,6 +47,8 @@ import { CATEGORY_COLOR_CLASSES } from '@/lib/types'
 import { Price } from '@/components/marketplace/price'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { FacetValue, facetValueStartsRaw } from './facet-value'
+import { RentalAmenities, RentalCosts, RentalFactRows } from '@/components/marketplace/rental-facts'
+import { amenityOptions, rentalCostRows, rentalFactHiddenKeys, rentalFactRows, rentalFactsApply } from '@/lib/rental-facts'
 import { LocalizedNav } from '@/components/ui/localized-nav'
 import { minPhotosFor } from '@/lib/publish-guard'
 import { priceUnitSuffix } from '@/lib/price-unit'
@@ -69,7 +71,7 @@ import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
 import { RentalCheckToggle } from '@/components/marketplace/rental-check-toggle'
-import { rentalCheckApplies } from '@/lib/rental-check/shared'
+import { isChatOnlyPartner, rentalCheckApplies } from '@/lib/rental-check/shared'
 import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/affiliate-booking'
 import { ImportProvenance } from '@/components/marketplace/import-provenance'
 import { importProvenance } from '@/lib/import-provenance'
@@ -500,6 +502,13 @@ export default async function ListingPage({ params }: Props) {
   // seller — it has every scalar column, unlike the serialized shape — and passed to the
   // shop link; the serialized seller deliberately doesn't carry the identity fields.
   const sellerBusinessVerified = listing.seller.isBusiness && isBusinessVerified(rawListing.seller)
+  /**
+   * A partner that answers availability in its OWN chat (GoPlus partnership, owner 2026-10-19: "users should message
+   * that account to ask for availability") — rental-check/shared.ts isChatOnlyPartner: the partner flag AS THIS PAGE
+   * SHOWS IT (serialize.ts partnerShown — a row that links out never counts) and an owner account to read the chat. Such
+   * a listing offers no eno availability check (below); the basket and the route refuse one as well.
+   */
+  const chatOnlyPartner = isChatOnlyPartner({ officialPartner: listing.seller.officialPartner, hasOwner: rawListing.seller.ownerId != null })
   const sellerHref = `/sellers/${listing.sellerId}`
   // Caution line for throttled/held/suspended sellers (warned is notice-only, never
   // public). Held/suspended pages are usually pulled (404) — direct-link stragglers
@@ -551,8 +560,24 @@ export default async function ListingPage({ params }: Props) {
   // Source row (pdp-09): the same "Nguồn" twice, one section above the other. SellerInfo's row stays —
   // it is the Decree 248 statement of who the reader deals with.
   if (sellerInfo?.kind === 'source' && sellerInfo.source.trim()) hiddenAttrs.add('source')
+  /**
+   * A RENTAL'S STRUCTURED FACTS (GoPlus partnership, owner 2026-10-19 — src/lib/rental-facts.ts): its monthly costs
+   * (deposit, electricity, water, service/management fee, parking), its occupancy rows (max occupants, floor, available
+   * from) and its amenities (the `amenities:*` tokens — the filter chips' own words). Each has its own section or row
+   * with an authored label; a WELL-FORMED raw key never reaches the generic table below, where it would print as
+   * machine-translated camelCase with an ungrouped number. ⚠️ Only on a place rental priced in đồng (rentalFactsApply),
+   * and only the well-formed keys (rentalFactHiddenKeys): any other listing, and a malformed value, keep their generic
+   * rows exactly as before.
+   */
+  const factsApply = rentalFactsApply({ categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, listingType: listing.listingType, currency: listing.currency })
+  if (factsApply) for (const k of rentalFactHiddenKeys(listing.attributes)) hiddenAttrs.add(k)
+  const costRows = factsApply ? rentalCostRows(listing.attributes) : []
+  const factRows = factsApply ? rentalFactRows(listing.attributes) : []
+  const amenities = factsApply ? amenityOptions(rawListing.facetTokens, rawListing.category.slug, rawListing.subcategorySlug) : []
+  // The rent row of "Costs" only for a price quoted per month — a figure without its period would be a guess.
+  const monthlyRent = factsApply && listing.price > 0 && priceUnitSuffix(listing.priceUnit) === 'month' ? listing.price : null
   const detailAttrs = attrs.filter(([k]) => !hiddenAttrs.has(k))
-  const showDetails = !!providerValues || detailAttrs.length > 0 || numericSpecs.length > 0 || detailOnlySpecs.length > 0
+  const showDetails = !!providerValues || detailAttrs.length > 0 || numericSpecs.length > 0 || detailOnlySpecs.length > 0 || factRows.length > 0
   // The Details rows this page renders, by the name rich-text.tsx gives each (the spec label lower-cased,
   // the attribute key as stored): the description hides its own row for any of them, so an imported
   // rental's Area / Bedrooms / Bathrooms are not printed twice, one table above the other.
@@ -1207,14 +1232,17 @@ export default async function ListingPage({ params }: Props) {
                     this is a client component, so whatever it is handed is serialised into the page's
                     RSC payload a second time, description and all. */}
                 {/* ⚠️ NOT ON VEHICLE HIRE (2026-10-01): a car or motorbike PDP showed this housing check —
-                    rentalCheckApplies is the one gate (src/lib/rental-check/shared.ts). */}
-                {rentalCheckApplies(rawListing.category.slug, rawListing.subcategorySlug) && listing.status === 'active' && (
+                    rentalCheckApplies is the one gate (src/lib/rental-check/shared.ts). ⛔ NOR ON A CHAT-ONLY
+                    PARTNER'S LISTING (2026-10-19, `chatOnlyPartner` above): the button AND its "Free service" line
+                    go — the partner answers availability in its own chat, the CTA above. */}
+                {rentalCheckApplies(rawListing.category.slug, rawListing.subcategorySlug, chatOnlyPartner) && listing.status === 'active' && (
                   <RentalCheckToggle
                     variant="pdp"
                     listing={{
                       id: listing.id,
                       sellerId: listing.sellerId,
                       subcategorySlug: rawListing.subcategorySlug,
+                      seller: { chatOnlyPartner },
                       title: listing.title,
                       titleVi: listing.titleVi,
                       images: listing.images.slice(0, 1),
@@ -1308,9 +1336,9 @@ export default async function ListingPage({ params }: Props) {
             </div>
             )}
 
-            {/* 8 — Description + Details. The wrapper renders only when one of them does: an empty
-                flex item in this gapped column would still earn a gap. */}
-            {(showDescription || showDetails) && (
+            {/* 8 — Description + Details (+ a rental's Costs and Amenities between them). The wrapper renders
+                only when one of them does: an empty flex item in this gapped column would still earn a gap. */}
+            {(showDescription || showDetails || costRows.length > 0 || amenities.length > 0) && (
             <div className="order-8 flex flex-col gap-8">
               {/* Section headers on this page share ONE treatment (text-lg font-semibold, matching
                   the shelf + reviews headers below) with more space above (section gap) than below. */}
@@ -1321,6 +1349,11 @@ export default async function ListingPage({ params }: Props) {
                 <ListingDescription text={listing.description} vi={listing.descriptionVi} i18n={i18n[listing.description]} className={`max-w-prose space-y-3 text-base leading-relaxed text-body ${repeatedFacts}`} />
               </div>
               )}
+
+              {/* A rental's monthly bill and its amenities (rental-facts.tsx) — what a renter compares before messaging,
+                  right after the words and before the reference table. Each renders only when the listing states it. */}
+              {costRows.length > 0 && <RentalCosts rent={monthlyRent} rows={costRows} />}
+              {amenities.length > 0 && <RentalAmenities items={amenities} />}
 
               {showDetails && (
                 <div className="space-y-2">
@@ -1342,6 +1375,8 @@ export default async function ListingPage({ params }: Props) {
                         <dd data-fab-avoid className="text-right font-medium text-foreground">{s.value}</dd>
                       </div>
                     ))}
+                    {/* A rental's occupancy rows — max occupants, floor, available from (rental-facts.tsx). */}
+                    {factRows.length > 0 && <RentalFactRows rows={factRows} />}
                     {detailAttrs.map(([k, v]) => {
                       // ⛔ ONE LABEL FUNCTION (taxonomy.ts detailRowLabel): this row's label is what the job-text screen reads
                       // beside a hiring post's value ("label: value"), so the two cannot drift. A job's text facts carry their

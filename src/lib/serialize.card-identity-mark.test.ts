@@ -62,3 +62,18 @@ describe('serializeListingCard — identityMark', () => {
     expect(card.identityMark).toBe(true)
   })
 })
+
+// GoPlus partnership (2026-10-19): the card carries ONE boolean for "this partner answers availability in its own chat"
+// (rental-check/shared.ts isChatOnlyPartner) — never the ownerId it is derived from.
+describe('serializeListingCard — seller.chatOnlyPartner', () => {
+  const seller = (officialPartner: boolean, ownerId: string | null) => ({ trustScore: 60, officialPartner, ownerId, owner: ownerId ? { accountType: 'business' } : null })
+  it('true only for an official partner with an owner, on a row that does not link out', () => {
+    expect(row({ seller: seller(true, 'owner-1') }).seller.chatOnlyPartner).toBe(true)
+    expect(row({ seller: seller(true, null) }).seller.chatOnlyPartner).toBe(false)
+    expect(row({ seller: seller(false, 'owner-1') }).seller.chatOnlyPartner).toBe(false)
+    expect(row({ seller: seller(true, 'owner-1'), affiliateUrl: 'https://partner.example/x' }).seller.chatOnlyPartner).toBe(false)
+  })
+  it('never ships the owner id', () => {
+    expect(JSON.stringify(row({ seller: seller(true, 'owner-1') }))).not.toContain('owner-1')
+  })
+})

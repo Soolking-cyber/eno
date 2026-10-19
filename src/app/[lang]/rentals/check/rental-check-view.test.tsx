@@ -212,6 +212,19 @@ describe('the list', () => {
     expect(document.querySelector('[data-rental-row="r1"]')).toBeTruthy()
   })
 
+  // ⛔ A CHAT-ONLY PARTNER'S ROOM (2026-10-19 — rental-check/shared.ts isChatOnlyPartner): live, but its partner answers
+  // availability in its own chat. Out of the list with ITS OWN line — never the vehicle-hire one (a reviewer's catch).
+  it('takes a chat-only partner\'s room out of the list with its own line, not the vehicle-hire one', async () => {
+    addToBasket(rental(1))
+    addToBasket(rental(2))
+    listingsAnswer = (ids) => ({ listings: ids.map((id) => ({ ...rental(Number(id.slice(1))), id, subcategorySlug: 'apartment-rental', seller: { chatOnlyPartner: id === 'r2' } })), evaluated: ids })
+    await mount()
+    await waitFor(() => expect(getBasket().map((i) => i.id)).toEqual(['r1']))
+    expect(toast).toHaveBeenCalledWith('Partner listings answer availability in chat — removed from your list.', expect.anything())
+    expect(toast).not.toHaveBeenCalledWith('Vehicle hire is not part of this check — removed from your list.', expect.anything())
+    expect(screen.queryByText('No longer available')).toBeNull()
+  })
+
   it('ignores an answer that does not say what it evaluated (no verdict, no marks)', async () => {
     addToBasket(rental(1))
     listingsAnswer = () => ({ listings: [] } as unknown as { listings: unknown[]; evaluated: string[] })

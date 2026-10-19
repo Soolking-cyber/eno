@@ -1753,7 +1753,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                     pointer-events inherits, so the chip opts back in. Absolute, so the popup's height
                     sync never sees it. The component renders nothing on the viewer's own listing. */}
                 {/* Not on vehicle hire (2026-10-01) — rentalCheckApplies, as on the grid card. */}
-                {rentalCheckApplies(card.category?.slug, card.subcategorySlug) && (
+                {rentalCheckApplies(card.category?.slug, card.subcategorySlug, card.seller?.chatOnlyPartner === true) && (
                   <div className="pointer-events-none absolute inset-x-0 top-0 aspect-square">
                     <RentalCheckToggle variant="card" listing={card} className="pointer-events-auto" />
                   </div>

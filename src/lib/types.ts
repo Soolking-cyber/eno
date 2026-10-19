@@ -136,6 +136,10 @@ export type SerializedListingCard = {
      *  ranking default that describes nobody, so no card shows it. Optional for the same reason as
      *  `officialPartner` — an older projection falls back to the IMPORT_SELLERS rule in cardHidesTrust. */
     unrated?: boolean
+    /** An official partner with an owner account, on a row that does not link out (rental-check/shared.ts
+     *  isChatOnlyPartner): it answers availability in its own chat, so no card offers eno's availability check.
+     *  Optional — an older projection (a recently-viewed card on the device) offers it, and the route refuses it. */
+    chatOnlyPartner?: boolean
   }
 }
 

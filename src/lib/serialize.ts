@@ -2,6 +2,7 @@ import type { Listing, Category, Seller, Prisma } from '@/generated/prisma/clien
 import { listedAt } from './stale'
 import { displayPriceUnit } from './price-unit'
 import { isUnratedStorefront, partnerShown } from './linked-seller'
+import { isChatOnlyPartner } from './rental-check/shared'
 import { isCommissionLink } from './affiliate-commission'
 import { categoryDescriptionFor, takesOffers } from './taxonomy'
 import type { SerializedListing, SerializedListingCard, SerializedCategory, CategoryColor } from './types'
@@ -321,6 +322,9 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
       isBusiness: l.seller.owner?.accountType === 'business',
       officialPartner,
       unrated: isUnratedStorefront({ ownerId: l.seller.ownerId, officialPartner }),
+      // A partner that answers availability in its own chat (rental-check/shared.ts isChatOnlyPartner) — the card offers
+      // no "check availability" chip there. A BOOLEAN, for the same reason as `unrated`: the ownerId never leaves.
+      chatOnlyPartner: isChatOnlyPartner({ officialPartner, hasOwner: l.seller.ownerId != null }),
     },
   }
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   RENTAL_CHECK_CHANNELS, RENTAL_CHECK_ID_RE, RENTAL_CHECK_REQUEST_ID_RE,
-  normaliseRentalContact, rentalContactHref, rentalCheckApplies, type RentalCheckChannel,
+  isChatOnlyPartner, normaliseRentalContact, rentalContactHref, rentalCheckApplies, type RentalCheckChannel,
 } from './shared'
 import { TAXONOMY } from '../taxonomy'
 
@@ -166,5 +166,33 @@ describe('rentalCheckApplies', () => {
     for (const sub of slugs) {
       if (!['car-rental', 'motorbike-rental', 'bicycle-rental', 'ebike-rental'].includes(sub)) expect(rentalCheckApplies('rentals', sub), sub).toBe(true)
     }
+  })
+})
+
+/**
+ * ⛔ A CHAT-ONLY PARTNER ANSWERS ITS OWN AVAILABILITY (GoPlus partnership, owner 2026-10-19: "users should message that
+ * account to ask for availability"). An official partner WITH an owner account, on a row that does not link out, gets no
+ * eno availability check — every other rental keeps it. Derived from data, never a seller id.
+ */
+describe('isChatOnlyPartner', () => {
+  it('is exactly: official partner AND an owner AND the row does not link out', () => {
+    expect(isChatOnlyPartner({ officialPartner: true, hasOwner: true })).toBe(true)
+    expect(isChatOnlyPartner({ officialPartner: true, hasOwner: true, linksOut: false })).toBe(true)
+    // An ownerless partner storefront has nobody to read the chat — eno's check stays.
+    expect(isChatOnlyPartner({ officialPartner: true, hasOwner: false })).toBe(false)
+    // An owned storefront that is not a partner (a member, a business) — unchanged.
+    expect(isChatOnlyPartner({ officialPartner: false, hasOwner: true })).toBe(false)
+    expect(isChatOnlyPartner({ officialPartner: null, hasOwner: true })).toBe(false)
+    expect(isChatOnlyPartner({ officialPartner: undefined, hasOwner: true })).toBe(false)
+    // A row that links out never shows the partner flag (linked-seller.ts partnerShown) and has nobody to chat to.
+    expect(isChatOnlyPartner({ officialPartner: true, hasOwner: true, linksOut: true })).toBe(false)
+  })
+
+  it('takes the check away from that listing only — every other rental keeps it', () => {
+    expect(rentalCheckApplies('rentals', 'apartment-rental', true)).toBe(false)
+    expect(rentalCheckApplies('rentals', null, true)).toBe(false)
+    expect(rentalCheckApplies('rentals', 'apartment-rental', false)).toBe(true)
+    expect(rentalCheckApplies('rentals', 'apartment-rental')).toBe(true)
+    expect(rentalCheckApplies('rentals', 'car-rental', false)).toBe(false)
   })
 })

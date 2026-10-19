@@ -206,14 +206,19 @@ export function RentalCheckView() {
         const live: SerializedListingCard[] = []
         const gone: string[] = []
         const vehicles: string[] = []
+        const partnerRooms: string[] = []
         for (const id of body.evaluated) {
           evaluated.current.add(id)
           const l = byId.get(id)
-          if (l && rentalCheckApplies(l.category?.slug, l.subcategorySlug)) live.push(l)
+          if (l && rentalCheckApplies(l.category?.slug, l.subcategorySlug, l.seller?.chatOnlyPartner === true)) live.push(l)
           // ⛔ VEHICLE HIRE ADDED BEFORE THE GATE (2026-10-01). A car or motorbike saved to this device's basket
           // before rentalCheckApplies existed carries no subcategory, so the store could not drop it on read
           // (store.ts cleanItem). It is still live, so "No longer available" would be false — it is taken out
           // of the list instead, and the route refuses it anyway (resolveCheckableRentals).
+          // ⚠️ A CHAT-ONLY PARTNER'S ROOM (2026-10-19 — shared.ts isChatOnlyPartner) is live too, but its partner answers
+          // availability in its own chat and the route refuses it: out of the list, with its OWN line — never the
+          // vehicle-hire one (a reviewer's catch).
+          else if (l && l.seller?.chatOnlyPartner === true && rentalCheckApplies(l.category?.slug, l.subcategorySlug)) partnerRooms.push(id)
           else if (l && l.category?.slug === RENTAL_CHECK_CATEGORY_SLUG) vehicles.push(id)
           else gone.push(id)
         }
@@ -223,6 +228,10 @@ export function RentalCheckView() {
           for (const id of vehicles) removeFromBasket(id)
           // Nothing to press, so the subtle pill (owner, 2026-09-21).
           subtleToast(tr('Vehicle hire is not part of this check — removed from your list.', 'Thuê xe không thuộc dịch vụ kiểm tra này — đã bỏ khỏi danh sách.'))
+        }
+        if (partnerRooms.length) {
+          for (const id of partnerRooms) removeFromBasket(id)
+          subtleToast(tr('Partner listings answer availability in chat — removed from your list.', 'Tin của đối tác được trả lời tình trạng phòng qua tin nhắn — đã bỏ khỏi danh sách.'))
         }
       })
       // A failed refresh leaves the saved snapshot on screen; the server checks again at send.

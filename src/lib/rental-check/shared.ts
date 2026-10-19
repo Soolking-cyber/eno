@@ -33,11 +33,28 @@ export const RENTAL_CHECK_CATEGORY_SLUG = 'rentals'
  * that module's only Prisma import is `import type`, erased at build, so a client bundle pays nothing.
  */
 export const RENTAL_CHECK_EXCLUDED_SUBCATS: readonly string[] = VEHICLE_RENTAL_SUBCATS
+/**
+ * ⛔ A CHAT-ONLY PARTNER ANSWERS ITS OWN LISTINGS (GoPlus partnership, owner 2026-10-19: "users should message that
+ * account to ask for availability"). An OFFICIAL PARTNER WITH AN OWNER ACCOUNT is reached in eno chat — it shares no
+ * phone (the contact route answers 403 partner_chat_only) and holds the room's real status itself — so eno's team
+ * checking the same room in parallel would put a second, slower answer between the renter and the one that has the
+ * keys. Three facts every surface already holds, never a seller id:
+ *  · `officialPartner` — Seller.officialPartner, the per-seller switch only scripts/set-official-partner.mjs flips;
+ *  · `hasOwner` — the storefront has an owner account (Seller.ownerId), i.e. someone to read the chat;
+ *  · `linksOut` — the ROW links out (affiliateUrl): such a row has nobody to chat to and never shows the partner flag
+ *    (linked-seller.ts partnerShown), so it keeps the check like any other rental.
+ * The server half is the same rule in SQL (desk.ts resolveCheckableRentals), so a crafted body cannot add one.
+ */
+export function isChatOnlyPartner(s: { officialPartner: boolean | null | undefined; hasOwner: boolean; linksOut?: boolean }): boolean {
+  return s.officialPartner === true && s.hasOwner && !s.linksOut
+}
+
 /** Does the availability check apply to a listing in this category/subcategory? THE gate for every
  *  RentalCheckToggle mount (card, map popup, PDP) and for the toggle itself. A null subcategory is a
- *  place (an unmapped Rever row is still a home — rental-places.ts RENTAL_PLACES). */
-export function rentalCheckApplies(categorySlug: string | null | undefined, subcategorySlug: string | null | undefined): boolean {
-  return categorySlug === RENTAL_CHECK_CATEGORY_SLUG && !(subcategorySlug && RENTAL_CHECK_EXCLUDED_SUBCATS.includes(subcategorySlug))
+ *  place (an unmapped Rever row is still a home — rental-places.ts RENTAL_PLACES). `chatOnlyPartner`
+ *  (isChatOnlyPartner above) takes it away from a partner that answers availability in its own chat. */
+export function rentalCheckApplies(categorySlug: string | null | undefined, subcategorySlug: string | null | undefined, chatOnlyPartner = false): boolean {
+  return !chatOnlyPartner && categorySlug === RENTAL_CHECK_CATEGORY_SLUG && !(subcategorySlug && RENTAL_CHECK_EXCLUDED_SUBCATS.includes(subcategorySlug))
 }
 export const RENTAL_CHECK_CHANNELS = ['zalo', 'whatsapp', 'email'] as const
 export type RentalCheckChannel = typeof RENTAL_CHECK_CHANNELS[number]

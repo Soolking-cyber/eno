@@ -10,6 +10,8 @@
  *   · the PDP button turns into "Added (n/5) · View list", pointing at the list page.
  */
 import React from 'react'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -176,6 +178,24 @@ describe('PDP button', () => {
     auth.sellerId = null
     const b = render(<RentalCheckToggle variant="pdp" listing={listing(1, 'property')} />)
     expect(b.container.textContent).toBe('')
+  })
+
+  // ⛔ GoPlus partnership (owner, 2026-10-19: "users should message that account to ask for availability"): a chat-only
+  // partner's listing shows neither the button NOR its free line, on the PDP or as a card chip — and nothing is added.
+  it('is absent — button and free line — on a chat-only partner\'s listing, and present for any other seller', () => {
+    const pdp = render(<RentalCheckToggle variant="pdp" listing={{ ...listing(1), seller: { chatOnlyPartner: true } }} />)
+    expect(pdp.container.textContent).toBe('')
+    const card = render(<RentalCheckToggle variant="card" listing={{ ...listing(1), seller: { chatOnlyPartner: true } }} />)
+    expect(card.container.textContent).toBe('')
+    expect(getBasket()).toHaveLength(0)
+    render(<RentalCheckToggle variant="pdp" listing={{ ...listing(2), seller: { chatOnlyPartner: false } }} />)
+    expect(screen.getByText(FREE)).toBeTruthy()
+  })
+
+  it('the listing page gates the button on the partner flag it derives from the seller row', () => {
+    const PAGE = readFileSync(join(process.cwd(), 'src/app/[lang]/listings/[id]/(pdp)/page.tsx'), 'utf8')
+    expect(PAGE).toContain('const chatOnlyPartner = isChatOnlyPartner({ officialPartner: listing.seller.officialPartner, hasOwner: rawListing.seller.ownerId != null })')
+    expect(PAGE).toContain('rentalCheckApplies(rawListing.category.slug, rawListing.subcategorySlug, chatOnlyPartner)')
   })
 })
 
