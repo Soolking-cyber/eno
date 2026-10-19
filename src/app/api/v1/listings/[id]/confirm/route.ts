@@ -5,6 +5,7 @@ import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
 import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 import { LICENCE_CHECK_REQUIRED_COPY } from '@/lib/licence-check-copy'
+import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // A confirm that would revive an e-Visa / Legal & permits listing eno has not checked (2026-10-14): the 409, never the
   // 404 below — the listing exists and waits for eno's licence check.
   if (!res.ok && res.error === 'licence_check_required') return apiError(409, res.error, LICENCE_CHECK_REQUIRED_COPY.en, r.rate)
+  // A confirm that would revive a hiring post whose stored text the job-text screen refuses (2026-10-19): 422 with its rule's
+  // sentence and `detail` '<field>:<snippet>' — never the 404 below; the listing exists, its words must change first.
+  if (!res.ok && res.code === 400) return apiOk({ error: { code: res.error, message: JOB_TEXT_REFUSAL[res.error].en, detail: res.detail } }, r.rate, 422)
   if (!res.ok) return apiError(404, 'not_found', 'Listing not found.', r.rate)
   return apiOk({ ok: true, bumped: res.bumped }, r.rate)
 }

@@ -33,7 +33,8 @@ export type SyncRow = {
   images?: unknown[]
   status?: string
 }
-export type SyncRowResult = { external_id: string | null; id?: string; action: 'created' | 'updated' | 'failed'; error?: string }
+/** `detail`: a failed update's pointer, passed on from the edit core — the job-text screen's '<field>:<snippet>' (2026-10-18). */
+export type SyncRowResult = { external_id: string | null; id?: string; action: 'created' | 'updated' | 'failed'; error?: string; detail?: string }
 
 const VALID_STATUS = new Set(['active', 'sold', 'hidden'])
 const cleanExt = (v: unknown) => (v != null ? String(v).trim().slice(0, 128) : '')
@@ -149,6 +150,9 @@ export async function syncListingsCore(
     const revives = row.status === 'active' && statusByExt.get(ext) !== 'active'
     // ⚠️ A REFUSED REVIVE FAILS THE ROW BEFORE ANY WRITE. Checking only at setStatusCore would apply
     // the row's edits and then refuse its status, leaving a half-applied row reported as failed.
+    // ⚠️ ONE EXCEPTION, knowingly (2026-10-19): a revived HIRING POST whose stored text the job-text screen refuses is
+    // refused at setStatusCore below, after the row's edits are written — the row stays hidden (no reader sees the text)
+    // and is reported failed with its `detail`. Pre-screening the merged text here would duplicate updateListingCore's merge.
     if (!publishDecision.ok && revives) {
       results.push({ external_id: ext, id, action: 'failed', error: publishDecision.code })
       continue
@@ -175,13 +179,17 @@ export async function syncListingsCore(
       }
       if (Object.keys(body).length) {
         const u = await updateListingCore(id, body)
-        if (!u.ok) { results.push({ external_id: ext, id, action: 'failed', error: u.error }); continue }
+        // The refusal's pointer rides along (a hiring post's job-text code: '<field>:<snippet>', the words to take out), so a
+        // partner can fix the row rather than guess at the bare code.
+        if (!u.ok) { results.push({ external_id: ext, id, action: 'failed', error: u.error, ...(u.detail ? { detail: u.detail } : {}) }); continue }
       }
       if (row.status !== undefined && VALID_STATUS.has(String(row.status))) {
         const st = await setStatusCore(id, String(row.status), undefined, { publishDecision })
-        // Only reachable in a race (the row went inactive between the read above and now): report
-        // it rather than counting a refused revive as an update.
-        if (!st.ok) { results.push({ external_id: ext, id, action: 'failed', error: st.error }); continue }
+        // A race (the row went inactive between the read above and now), or a revived hiring post whose stored text the
+        // job-text screen refuses (2026-10-19 — its `detail` '<field>:<snippet>' rides along, as an edit's does): reported
+        // rather than counted as an update. ⚠️ The row's edits above were applied (each passed the edit's own screen); only
+        // the status was refused — the text that decides it is the text after the edit.
+        if (!st.ok) { results.push({ external_id: ext, id, action: 'failed', error: st.error, ...(st.detail ? { detail: st.detail } : {}) }); continue }
       }
       updated++
       results.push({ external_id: ext, id, action: 'updated' })

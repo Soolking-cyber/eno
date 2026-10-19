@@ -17,7 +17,8 @@ import { getListingAnalytics } from '@/lib/listing-analytics'
 import { dispatchListingEventsBatch, generateWebhookSecret } from '@/lib/webhooks'
 import { after } from 'next/server'
 import { isIdentityBlockCode, publishBlockedBody } from '@/lib/compliance/publish-block-response'
-import { PublishBlockedError } from '@/lib/publish-guard'
+import { isJobTextBlockCode, PublishBlockedError } from '@/lib/publish-guard'
+import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 import { LICENCE_CHECK_REQUIRED_COPY, LISTING_CHANGED_COPY } from '@/lib/licence-check-copy'
 import { NOT_REMOVED } from '@/lib/listing-removed'
@@ -30,8 +31,10 @@ import { cutText } from '@/lib/feed-text'
 // key lives only in the MCP client's connection config and is NEVER a tool argument, so it
 // never reaches the model. Throwing ToolError yields an isError tool result the agent sees.
 
+/** `detail`: a pointer the agent can act on, sent beside the message when the refusal has one — the job-text screen's
+ *  '<field>:<snippet>' (2026-10-18), the field and the words to take out. */
 export class ToolError extends Error {
-  constructor(public code: string, message: string) { super(message) }
+  constructor(public code: string, message: string, public detail?: string) { super(message) }
 }
 
 const LISTING_INCLUDE = { category: true, seller: { include: { owner: { select: { accountType: true } } } } } as const
@@ -168,6 +171,10 @@ export const TOOLS: McpTool[] = [
         if (e instanceof PublishBlockedError && e.code === 'provider_licence_required') {
           throw new ToolError(e.code, 'This reads as an e-Visa or Legal & permits service, and those listings need the provider’s registered business name and licence number, which this tool cannot send. Create it with POST /api/v1/listings (attributes.providerLegalName and attributes.providerLicenceNo) or from the website; it then stays unpublished until eno has checked the licence.')
         }
+        // ⛔ A HIRING POST THE JOB-TEXT SCREEN REFUSED (job-listing.ts jobTextProblem, 2026-10-18): an answer the agent can act
+        // on — the code, its rule's sentence and `detail` '<field>:<snippet>' (the words to take out) — never the route's
+        // internal_error, which told it nothing and logged a crash.
+        if (e instanceof PublishBlockedError && isJobTextBlockCode(e.code)) throw new ToolError(e.code, JOB_TEXT_REFUSAL[e.code].en, e.detail)
         throw e
       }
     },
@@ -190,7 +197,11 @@ export const TOOLS: McpTool[] = [
       if (Array.isArray(args.images)) body.images = await rehostAll(args.images as string[])
       const res = await updateListingCore(id, body)
       // `listing_changed` (2026-10-14): eno's licence check changed the listing mid-edit — a sentence, since retrying is right.
-      if (!res.ok) throw new ToolError(res.error, res.error === 'listing_changed' ? LISTING_CHANGED_COPY.en : res.error)
+      // A hiring post's edit the job-text screen refused (2026-10-18): its rule's sentence, and `detail` '<field>:<snippet>'.
+      if (!res.ok) {
+        if (isJobTextBlockCode(res.error)) throw new ToolError(res.error, JOB_TEXT_REFUSAL[res.error].en, res.detail)
+        throw new ToolError(res.error, res.error === 'listing_changed' ? LISTING_CHANGED_COPY.en : res.error)
+      }
       // `held`: an e-Visa / Legal & permits listing still waiting for eno's licence check — unpublished, as on /api/v1.
       return res.held ? { ok: true, held: true } : { ok: true }
     },
@@ -212,8 +223,10 @@ export const TOOLS: McpTool[] = [
             : res.error === 'released_charge_listing_cap' ? RELEASED_CHARGE_CAP_MESSAGE
               // An e-Visa / Legal & permits listing eno has not checked (2026-10-14).
               : res.error === 'licence_check_required' ? LICENCE_CHECK_REQUIRED_COPY.en
-                : res.error
-        throw new ToolError(res.error, message)
+                // A hiring post whose stored text the job-text screen refuses (2026-10-19): its rule's sentence, and `detail`.
+                : isJobTextBlockCode(res.error) ? JOB_TEXT_REFUSAL[res.error].en
+                  : res.error
+        throw new ToolError(res.error, message, res.detail)
       }
       return { ok: true, status: res.status }
     },

@@ -6,7 +6,7 @@ import { diverseFeedHead, feedPagePlan } from '@/lib/feed-window'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
-import { containsContactInfo, findBannedWord, PublishBlockedError } from '@/lib/publish-guard'
+import { containsContactInfo, findBannedWord, isJobTextBlockCode, PublishBlockedError } from '@/lib/publish-guard'
 import { isIdentityBlockCode, publishBlockedJson, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
 import { localizeListingTitles } from '@/lib/translate'
 import { consolidateSellerHandle } from '@/lib/handle'
@@ -17,6 +17,7 @@ import { createListingCore } from '@/lib/core/listings'
 import { RELEASED_CHARGE_MAX_ACTIVE } from '@/lib/released-charge-copy'
 import { migrateLegacyCategoryParams, paysSalary, resolveListingType, TEACHER_PROFILE_REFUSAL } from '@/lib/taxonomy'
 import { PROVIDER_LICENCE_REFUSAL } from '@/lib/provider-licence'
+import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 import { idsFastPath, buildFeedFilters, resolveFeedFilters, buildFeedOrderBy, getSubcategoryCounts, countListingsCached } from './feed-query'
 import { computeFacetCounts, releasedParams, subcategoryDimension, subcategoryDropPlan, type FacetCounts } from '@/lib/facet-counts'
 import { PROVINCE_NAMES_EN } from '@/lib/province-match'
@@ -647,11 +648,14 @@ async function createListing(req: NextRequest) {
         // So does an e-Visa / Legal & permits post without the provider's registered name and licence number, or with one
         // that cannot be accepted (owner, 2026-10-14; `detail` '<field>:<reason>'): the current native builds still offer
         // both aisles but send no values, so they get "post from the website" rather than a bare code.
+        // And a hiring post the job-text screen refused (job-listing.ts jobTextProblem, 2026-10-18): the sentence of its rule —
+        // `detail` '<field>:<snippet>' names the field and the words to take out.
         {
           error: e.code,
           detail: e.detail,
           ...(e.code === 'teacher_profile_instead' ? { message: TEACHER_PROFILE_REFUSAL } : {}),
           ...(e.code === 'provider_licence_required' || e.code === 'provider_licence_invalid' ? { message: PROVIDER_LICENCE_REFUSAL } : {}),
+          ...(isJobTextBlockCode(e.code) ? { message: JOB_TEXT_REFUSAL[e.code] } : {}),
         },
         { status: e.code === 'account_restricted' ? 403 : e.code === 'duplicate_listing' ? 409 : 400 },
       )

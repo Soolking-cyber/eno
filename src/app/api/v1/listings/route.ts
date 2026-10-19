@@ -5,7 +5,8 @@ import { containsPhoneNumber } from '@/lib/phone'
 import { createListingCore } from '@/lib/core/listings'
 import { paysSalary, resolveListingType, TEACHER_PROFILE_REFUSAL } from '@/lib/taxonomy'
 import { postingGate } from '@/lib/enforcement'
-import { PublishBlockedError } from '@/lib/publish-guard'
+import { isJobTextBlockCode, PublishBlockedError } from '@/lib/publish-guard'
+import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 import { providerLicenceApiMessage } from '@/lib/licence-check-copy'
@@ -113,6 +114,10 @@ export async function POST(req: NextRequest) {
           // e-Visa / Legal & permits (2026-10-14): which attribute keys to send — or which value cannot be accepted, and why
           // (`detail` '<field>:<reason>' stays in the body for a client that branches on it).
           : e.code === 'provider_licence_required' || e.code === 'provider_licence_invalid' ? providerLicenceApiMessage(e.code, e.detail)
+          // A hiring post the job-text screen refused (job-listing.ts jobTextProblem, 2026-10-18): its rule's sentence — never
+          // the contact-info line below, which would send a partner to fix the wrong thing; `detail` '<field>:<snippet>'
+          // names the field and the words to take out.
+          : isJobTextBlockCode(e.code) ? JOB_TEXT_REFUSAL[e.code].en
           : 'Remove phone numbers, contact info or addresses from the title/description.'
         return { status: e.code === 'account_restricted' || e.code === 'released_charge_listing_cap' ? 403 : e.code === 'duplicate_listing' ? 409 : 422, body: { error: { code: e.code, message, ...(e.detail ? { detail: e.detail } : {}) } } }
       }

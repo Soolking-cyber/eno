@@ -11,6 +11,8 @@ import { DELETE_HOLD_COPY } from '@/lib/delete-hold-copy'
 import { TEACHER_PROFILE_REFUSAL } from '@/lib/taxonomy'
 import { PROVIDER_LICENCE_REFUSAL } from '@/lib/provider-licence'
 import { LISTING_CHANGED_COPY } from '@/lib/licence-check-copy'
+import { isJobTextBlockCode } from '@/lib/publish-guard'
+import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 import { serializeListing } from '@/lib/serialize'
 import { getPriceBand } from '@/lib/price-stat'
 import { topSellerReviews, sameSellerListings } from '@/lib/seller-metrics'
@@ -124,7 +126,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const r = await updateListingCore(id, body)
   // A move into a teacher's job-seeker post (taxonomy.ts TEACHER_SEEKING_POST, 2026-10-12) carries its bilingual sentence,
   // as POST /api/listings does; so do the two provider-licence refusals (with `detail` '<field>:<reason>' for an invalid
-  // value) and `listing_changed`, the 409 of an e-Visa / Legal & permits edit that raced an approval (owner, 2026-10-14).
+  // value), `listing_changed`, the 409 of an e-Visa / Legal & permits edit that raced an approval (owner, 2026-10-14), and
+  // the job-text screen's refusals of a hiring post's edit (2026-10-18; `detail` '<field>:<snippet>').
   if (!r.ok) return NextResponse.json({ error: r.error, ...(r.detail ? { detail: r.detail } : {}), ...refusalMessage(r.error) }, { status: r.code })
   // `held`: the listing is waiting for eno's licence check in e-Visa or Legal & permits — moved there, a value changed, or
   // not yet approved — and is unpublished until an admin approves it. The wizard says so and goes to the dashboard.
@@ -136,6 +139,7 @@ function refusalMessage(code: string): { message?: { en: string; vi: string } } 
   if (code === 'teacher_profile_instead') return { message: TEACHER_PROFILE_REFUSAL }
   if (code === 'provider_licence_required' || code === 'provider_licence_invalid') return { message: PROVIDER_LICENCE_REFUSAL }
   if (code === 'listing_changed') return { message: LISTING_CHANGED_COPY }
+  if (isJobTextBlockCode(code)) return { message: JOB_TEXT_REFUSAL[code] }
   return {}
 }
 

@@ -65,6 +65,13 @@ export const PUBLISH_OUTCOME_COPY: Record<string, string> = {
   location_required: 'No location set',
   category_not_postable: 'Tried to post into a form-only category (teachers)',
   teacher_profile_instead: 'A teacher posted Jobs › Teaching "looking for work" (sent to the teacher form)',
+  // The job-text screen on hiring posts, both editions (job-listing.ts jobTextProblem, 2026-10-18) — one code per rule, so
+  // a rule that refuses honest ads (word tests with no sense of who a phrase is about: "siêu thị thực phẩm" holds "thị thực",
+  // and students "under 12 years old" read as an age cap) shows up here as its own line.
+  job_residence_wording: 'Hiring post mentioned visas or residence cards',
+  job_discrimination: 'Hiring post set an age, gender, race, nationality or appearance requirement',
+  job_candidate_fee: 'Hiring post mentioned a fee or deposit for candidates',
+  job_adult_venue: 'Hiring post mentioned karaoke, massage, nightclub or hostess work',
   // ⚠️ These four come from branches OUTSIDE publish-guard — resolve-seller.ts and the
   // enforcement gate in enforcement.ts. A reviewer's privacy challenge sent me to read every
   // remaining branch of the route, which is how they were found missing: they would have shown

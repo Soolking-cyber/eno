@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { LanguageProvider, Tr } from '@/context/language-context'
 import { VI_OVERRIDES } from '@/generated/vi-overrides'
-import { facetsFor } from '@/lib/taxonomy'
+import { detailRowLabel, facetsFor } from '@/lib/taxonomy'
 
 /**
  * ⛔ A DETAILS LABEL IS THE TAXONOMY'S, IN BOTH LANGUAGES — never the raw attribute key through `<Tr>`.
@@ -30,11 +30,27 @@ describe('PDP Details labels', () => {
     renderToString(<LanguageProvider initialLang="vi" initialViDict={VI_OVERRIDES}>{node}</LanguageProvider>)
 
   it('the page renders the facet’s label pair, for every category (not only jobs and eSIM)', () => {
-    expect(PAGE).toContain('const labelFacet = !jobText ? attrFacets.find((f) => f.key === k) : undefined')
+    // The label comes from taxonomy.ts detailRowLabel — the one function the job-text screen reads too (2026-10-19).
+    expect(PAGE).toContain('const { jobText, facet: labelFacet, rawKey } = detailRowLabel(k, { categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, listingType: listing.listingType })')
     expect(PAGE).toContain('<Bilingual en={labelFacet.label} vi={labelFacet.labelVi} />')
     expect(PAGE).toContain('<FacetValue facet={labelFacet} value={v} pageLang={pageVariant} />')
     // ⚠️ The values are no longer scoped to jobs and eSIM (pdp-02, 2026-10-04).
     expect(PAGE).not.toContain('const facet = labelled ? labelFacet : undefined')
+  })
+
+  it('detailRowLabel: a job’s text fact, else the placement’s facet (never a filter-only one), else the raw key humanized', () => {
+    expect(detailRowLabel('employer', { categorySlug: 'jobs', subcategorySlug: 'teaching', listingType: 'job' })).toMatchObject({ jobText: { label: 'Employer', labelVi: 'Nhà tuyển dụng' }, en: 'Employer' })
+    // A text fact's pair is a JOB's: elsewhere the key is only a key.
+    expect(detailRowLabel('employer', { categorySlug: 'services', subcategorySlug: 'cleaning', listingType: 'service' })).toMatchObject({ jobText: undefined, facet: undefined, en: 'Employer' })
+    const bedrooms = detailRowLabel('bedrooms', { categorySlug: 'rentals', subcategorySlug: 'apartment-rental', listingType: 'rent' })
+    expect(bedrooms.facet?.labelVi).toBeTruthy()
+    expect(bedrooms.en).toBe(bedrooms.facet?.label)
+    expect(detailRowLabel('jobtype', { categorySlug: 'jobs', subcategorySlug: 'teaching', listingType: 'job' })).toMatchObject({ en: 'Type' })
+    // A key an API client invented: humanized as the page prints it (through <Tr>, its first letter raised).
+    expect(detailRowLabel('visaSponsorship', { categorySlug: 'jobs', subcategorySlug: 'teaching', listingType: 'job' })).toEqual({ jobText: undefined, facet: undefined, rawKey: 'visa sponsorship', en: 'Visa sponsorship' })
+    // A filter-only facet is never a row label; an inherited Object key is never a job text fact.
+    expect(detailRowLabel('posted', { categorySlug: 'jobs', subcategorySlug: 'teaching', listingType: 'job' }).facet).toBeUndefined()
+    expect(detailRowLabel('constructor', { categorySlug: 'jobs', subcategorySlug: 'teaching', listingType: 'job' })).toMatchObject({ jobText: undefined, en: 'Constructor' })
   })
 
   it('the defect was real: the raw key misses the dictionary and stays English', () => {

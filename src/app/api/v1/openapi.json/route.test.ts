@@ -121,3 +121,25 @@ describe('the partner API spec — e-Visa and Legal & permits wait for eno’s l
     expect((await schemas()).BulkListingInput.description).toMatch(/never lands in e-Visa or Legal & permits/)
   })
 })
+
+/**
+ * THE JOB-TEXT SCREEN ON THE WIRE (teacher visibility plan §3a item 6, 2026-10-18): a hiring post's text that fails it is
+ * refused with one code per rule (job-listing.ts jobTextProblem) — each listed where a partner looks for a create's and an
+ * edit's 422s, with the `detail` that names the field and the words; a sync's failed update passes that `detail` on.
+ */
+describe('the partner API spec — the job-text refusals', () => {
+  it('createListing and updateListing list every job-text code among their 422s, and say what `detail` holds', async () => {
+    const { JOB_TEXT_BLOCK_CODES } = await import('@/lib/publish-guard')
+    const paths = (await load()).SPEC.paths as unknown as Record<string, Record<string, { responses: Record<string, { description: string }> }>>
+    for (const [path, method] of [['/listings', 'post'], ['/listings/{id}', 'patch']] as const) {
+      const d = paths[path][method].responses['422'].description
+      for (const code of JOB_TEXT_BLOCK_CODES) expect(d, `${method} ${path}`).toContain(`\`${code}\``)
+      expect(d, `${method} ${path}`).toContain('"<field>:<words>"')
+    }
+  })
+
+  it('a sync result documents `detail` — a failed update’s pointer', async () => {
+    const schemas = (await load()).SPEC.components.schemas as unknown as Record<string, { properties: Record<string, { description: string }> }>
+    expect(schemas.SyncRowResult.properties.detail.description).toMatch(/<field>:<words>/)
+  })
+})

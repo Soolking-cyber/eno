@@ -2,7 +2,7 @@ import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
 import { categoryBrowsePath } from '@/lib/retired-categories'
 import { pdpBreadcrumbLd, subcategoryCrumb } from '@/lib/pdp-breadcrumb'
-import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, TEACHER_SEEKING_POST, facetsFor, isLicenceCheckSlot, isVisaProductSlot, salaryPriceFor } from '@/lib/taxonomy'
+import { FREE_TEXT_ATTRIBUTES, TEACHER_SEEKING_POST, detailRowLabel, isLicenceCheckSlot, isVisaProductSlot, salaryPriceFor } from '@/lib/taxonomy'
 import { PROVIDER_LICENCE_KEYS, providerLicenceOf } from '@/lib/provider-licence'
 import { ProviderLicenceRows } from './provider-licence-rows'
 import { TeacherProfileView } from '@/components/teachers/teacher-profile-view'
@@ -505,8 +505,6 @@ export default async function ListingPage({ params }: Props) {
       : null
 
   const attrs = listing.attributes ? Object.entries(listing.attributes) : []
-  // A filter-only facet (Posted) is never a property of the listing, even if a stray attribute says so.
-  const attrFacets = facetsFor(rawListing.category.slug, rawListing.subcategorySlug).filter((f) => !f.filterOnly)
   // Structured numeric specs (vehicles) — rendered first in Details, with units.
   // `value` is a ReactNode, not a string, so a grouped number can be a client leaf:
   // mileage used to be formatted here with a hardcoded 'en-US' and a vi buyer read
@@ -1065,8 +1063,11 @@ export default async function ListingPage({ params }: Props) {
                   {/* `max-w-full whitespace-normal` (break-ui, 2026-10-05): the condition is free text up to 60
                       characters (core/listings.ts), and as a nowrap pill "Như mới 99%, đã thay pin chính hãng, còn
                       bảo hành 6 tháng" was 369px wide on a 320px phone. It wraps inside the row now — the words
-                      are the seller's own and the warranty is in them, so they are not truncated. */}
-                  {listing.condition && (
+                      are the seller's own and the warranty is in them, so they are not truncated.
+                      ⛔ NEVER ON A JOB (2026-10-19): a job has no condition — every write path stores null for Jobs
+                      (taxonomy.ts storesCondition) — and free text printed here would be words the job-text screen
+                      never read; a row written before that rule prints none either. */}
+                  {listing.condition && rawListing.category.slug !== 'jobs' && (
                     <Badge data-fab-avoid size="md" className="max-w-full whitespace-normal font-semibold text-foreground [overflow-wrap:anywhere]">
                       <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />
                     </Badge>
@@ -1337,8 +1338,9 @@ export default async function ListingPage({ params }: Props) {
                       </div>
                     ))}
                     {detailAttrs.map(([k, v]) => {
-                      // A job's text facts carry their own label and are shown verbatim (JOB_TEXT_ATTRIBUTES).
-                      const jobText = listing.listingType === 'job' ? JOB_TEXT_ATTRIBUTES[k] : undefined
+                      // ⛔ ONE LABEL FUNCTION (taxonomy.ts detailRowLabel): this row's label is what the job-text screen reads
+                      // beside a hiring post's value ("label: value"), so the two cannot drift. A job's text facts carry their
+                      // own label and are shown verbatim (JOB_TEXT_ATTRIBUTES).
                       // ⚠️ THE LABEL AND THE VALUE ARE THE TAXONOMY'S FOR EVERY CATEGORY, IN BOTH LANGUAGES — the
                       // facet row carries its own labelVi ("Phòng ngủ"), and a raw key through <Tr> found
                       // Vietnamese only where the UI dictionary held that exact casing: it has "Bedrooms", not
@@ -1346,14 +1348,13 @@ export default async function ListingPage({ params }: Props) {
                       // VALUES followed on 2026-10-04 (pdp-02): a vi car hire said "Daily", "Delivered to you",
                       // "Automatic" in the server HTML, because only jobs and eSIM went through the option pair.
                       // <FacetValue> maps each stored value through the facet (./details-labels.test.tsx).
-                      const labelFacet = !jobText ? attrFacets.find((f) => f.key === k) : undefined
-                      const value = Array.isArray(v) ? v.map(String).join(', ') : String(v)
                       // ⚠️ SENTENCE CASE, NOT CSS `capitalize`. Taxonomy and job labels are already written in
                       // sentence case ('Apply by', 'eSIM', 'Full-time'), and `capitalize` title-cased every
                       // word of them into 'Apply By', 'ESIM', 'Full-Time'. Only a RAW key or value (stored
                       // lowercase, no label to borrow) gets its first letter raised — `first-letter:` works
                       // here because dt/dd are flex items, which are blockified.
-                      const rawKey = k.replace(/([A-Z])/g, ' $1').toLowerCase()
+                      const { jobText, facet: labelFacet, rawKey } = detailRowLabel(k, { categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, listingType: listing.listingType })
+                      const value = Array.isArray(v) ? v.map(String).join(', ') : String(v)
                       return (
                       <div key={k} className="flex items-start justify-between gap-4 py-2.5">
                         <dt className="text-muted-foreground first-letter:uppercase">

@@ -44,7 +44,7 @@ vi.mock('@/lib/price-histogram', () => ({}))
 
 import { NextRequest } from 'next/server'
 const { POST } = await import('./route')
-const { PublishBlockedError } = await import('@/lib/publish-guard')
+const { PublishBlockedError, JOB_TEXT_BLOCK_CODES } = await import('@/lib/publish-guard')
 
 const post = async () => {
   const res = await POST(new NextRequest('https://eno.vn/api/listings', {
@@ -114,5 +114,16 @@ describe('POST /api/listings — the provider-licence refusals', () => {
     const core = await import('@/lib/core/listings')
     vi.spyOn(core, 'createListingCore').mockResolvedValueOnce(created)
     expect(await post()).toEqual({ status: 201, body: created })
+  })
+})
+
+// The job-text screen on a hiring post (job-listing.ts jobTextProblem — teacher visibility plan §3a item 6, 2026-10-18):
+// fixable in the form, so a 400, with `detail` '<field>:<snippet>' (the field and the words) and the rule's bilingual
+// sentence for the native apps, which word no code of their own.
+describe('POST /api/listings — the job-text refusals', () => {
+  it.each(JOB_TEXT_BLOCK_CODES)('%s → 400 with the code, the field and the words, and its rule’s sentence', async (code) => {
+    h.createError = new PublishBlockedError(code, 'description:Vì sao')
+    const { JOB_TEXT_REFUSAL } = await import('@/lib/job-listing')
+    expect(await post()).toEqual({ status: 400, body: { error: code, detail: 'description:Vì sao', message: JOB_TEXT_REFUSAL[code] } })
   })
 })

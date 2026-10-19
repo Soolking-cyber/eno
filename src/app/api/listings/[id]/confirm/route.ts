@@ -3,6 +3,8 @@ import { checkListingOwner } from '@/lib/listing-owner'
 import { confirmCore } from '@/lib/core/listings'
 import { isIdentityBlockCode, publishBlockedJson, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
 import { LICENCE_CHECK_REQUIRED_COPY } from '@/lib/licence-check-copy'
+import { isJobTextBlockCode } from '@/lib/publish-guard'
+import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -37,7 +39,14 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   // A confirm that would REVIVE a sold/hidden listing, refused by the identity gate (gate on only).
   if (!res.ok && isIdentityBlockCode(res.error)) return NextResponse.json(publishBlockedJson(res.error), { status: PUBLISH_BLOCKED_STATUS })
   // …or by the licence check: an e-Visa / Legal & permits listing eno has not checked (409, 2026-10-14) — with the
-  // bilingual sentence for the native dashboards.
-  if (!res.ok) return NextResponse.json({ error: res.error, ...(res.error === 'licence_check_required' ? { message: LICENCE_CHECK_REQUIRED_COPY } : {}) }, { status: res.code })
+  // bilingual sentence for the native dashboards; or by the job-text screen: a revived hiring post whose stored text a job ad
+  // may not carry (400, 2026-10-19), with its rule's sentence and `detail` '<field>:<snippet>'.
+  if (!res.ok) {
+    return NextResponse.json({
+      error: res.error,
+      ...(res.code === 400 ? { detail: res.detail } : {}),
+      ...(res.error === 'licence_check_required' ? { message: LICENCE_CHECK_REQUIRED_COPY } : isJobTextBlockCode(res.error) ? { message: JOB_TEXT_REFUSAL[res.error] } : {}),
+    }, { status: res.code })
+  }
   return NextResponse.json({ ok: true })
 }

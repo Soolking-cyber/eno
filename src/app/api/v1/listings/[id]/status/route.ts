@@ -5,6 +5,8 @@ import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
 import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 import { LICENCE_CHECK_REQUIRED_COPY } from '@/lib/licence-check-copy'
+import { isJobTextBlockCode } from '@/lib/publish-guard'
+import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -35,6 +37,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // A relist of an e-Visa / Legal & permits listing eno has not checked (2026-10-14): the 409 setStatusCore answers — a
   // state the listing is in until eno's approval, not a malformed `status`, so never the 422 below.
   if (!res.ok && res.error === 'licence_check_required') return apiError(409, res.error, LICENCE_CHECK_REQUIRED_COPY.en, r.rate)
+  // A relist of a hiring post whose stored text the job-text screen refuses (2026-10-19): its rule's sentence and `detail`
+  // '<field>:<snippet>' in the error envelope (as PATCH answers an edit's) — never the malformed-`status` line below.
+  if (!res.ok && isJobTextBlockCode(res.error)) return apiOk({ error: { code: res.error, message: JOB_TEXT_REFUSAL[res.error].en, ...(res.detail ? { detail: res.detail } : {}) } }, r.rate, 422)
   if (!res.ok) return apiError(422, res.error, 'status must be one of: active, sold, hidden.', r.rate)
   return apiOk({ ok: true, status: res.status }, r.rate)
 }

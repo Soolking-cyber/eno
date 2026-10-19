@@ -862,7 +862,11 @@ export const SPEC = {
           external_id: { type: ['string', 'null'], description: 'Null only for a row that had no usable externalId.' },
           id: { type: 'string', description: 'Present for created and updated rows; absent when the row failed before a listing existed.' },
           action: { type: 'string', enum: ['created', 'updated', 'failed'] },
-          error: { type: 'string', description: 'Present only when `action` is "failed". Free prose, not a stable code — except the refusals of a re-activation, which carry their code verbatim: the `identity_*` codes, `released_charge_listing_cap`, and `licence_check_required` (an e-Visa or Legal & permits listing waiting for eno’s licence check — say, one moved there in the dashboard — cannot be put back on sale until eno approves it).' },
+          error: { type: 'string', description: 'Present only when `action` is "failed". Free prose, not a stable code — except the refusals of a re-activation, which carry their code verbatim: the `identity_*` codes, `released_charge_listing_cap`, `licence_check_required` (an e-Visa or Legal & permits listing waiting for eno’s licence check — say, one moved there in the dashboard — cannot be put back on sale until eno approves it), and the four `job_*` codes (a hiring post whose text a job ad may not carry — on an update as on a re-activation; see `detail`).' },
+          // 2026-10-18: an UPDATE the edit core refused with a pointer passes it on — today the job-text screen's '<field>:<words>'
+          // (core/sync.ts); since 2026-10-19 a refused re-activation's too. A create's refusal is the bulk core's prose, which
+          // already names the field and the words.
+          detail: { type: 'string', description: 'Present only on a failed update or re-activation whose refusal points at something — e.g. a hiring post\'s `job_*` code, where it is "<field>:<words>": the field and the words to take out or reword. A row whose edits were applied but whose `status: "active"` a `job_*` code refused stays as it was (sold or hidden) with those edits.' },
         },
       },
       AccessToken: {
@@ -1071,12 +1075,14 @@ export const SPEC = {
             ['duplicate_listing', 'idempotency_in_progress'],
           ),
           '422': fail(
-            'The payload was refused by validation or by a publish gate. Fix the content and re-post.',
+            'The payload was refused by validation or by a publish gate. Fix the content and re-post. The `job_*` codes refuse a hiring post (category `jobs`, `listingType` `job`) whose text a job ad may not carry: `error.message` says what kind of line, and `error.detail` is "<field>:<words>" — the field (`title`, `description`, `attributes.<key>`, `location`, `district` or `city`) and the words to take out or reword.',
             // ⚠️ The identity codes moved to 403 on 2026-09-23 with the seller identity gate: they are a
             // legal block, not a content one, and publish-block-response.ts fixes 403 for them.
             // `teacher_profile_instead`: Jobs › Teaching + `wanted` — a teacher looking for work makes a teacher profile.
             // `provider_licence_required` / `provider_licence_invalid` (2026-10-14): e-Visa / Legal & permits — see ListingInput.attributes.
-            ['invalid_input', 'unknown_category', 'category_not_postable', 'teacher_profile_instead', 'provider_licence_required', 'provider_licence_invalid', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required'],
+            // The four `job_*` codes (2026-10-18): a hiring post's text failed the job-text screen (job-listing.ts
+            // jobTextProblem), on both editions. ⚠️ The description names no rule's words: this spec is served on eno.vn.
+            ['invalid_input', 'unknown_category', 'category_not_postable', 'teacher_profile_instead', 'provider_licence_required', 'provider_licence_invalid', 'job_residence_wording', 'job_discrimination', 'job_candidate_fee', 'job_adult_venue', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required'],
           ),
         },
       },
@@ -1114,8 +1120,8 @@ export const SPEC = {
             ['urgent_quota', 'listing_changed'],
           ),
           '422': fail(
-            'Validation or a publish gate refused the edit. ⚠️ This status collapses several core-level 400s: the route maps everything that is not 404 or 409 onto 422. `provider_licence_invalid` carries `error.detail` "<field>:<reason>".',
-            ['title_too_short', 'invalid_price', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required', 'teacher_profile_instead', 'provider_licence_required', 'provider_licence_invalid', 'account_restricted', 'duplicate_listing', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+            'Validation or a publish gate refused the edit. ⚠️ This status collapses several core-level 400s: the route maps everything that is not 404 or 409 onto 422. `provider_licence_invalid` carries `error.detail` "<field>:<reason>", and the `job_*` codes (a hiring post\'s text) "<field>:<words>" — the field and the words to take out or reword.',
+            ['title_too_short', 'invalid_price', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required', 'teacher_profile_instead', 'provider_licence_required', 'provider_licence_invalid', 'job_residence_wording', 'job_discrimination', 'job_candidate_fee', 'job_adult_venue', 'account_restricted', 'duplicate_listing', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
         },
       },
@@ -1177,8 +1183,9 @@ export const SPEC = {
             ['licence_check_required'],
           ),
           '422': fail(
-            '`status` was absent or not one of the three allowed values. ⚠️ `invalid_status` is the ONLY code this status can carry: `setStatusCore`\'s error union also names `not_found`, but it never returns it (the row is proven to exist by the route\'s ownership check, which answers 404 above), and the route maps every other core failure onto 422 — the account-hold (`account_held`, `account_suspended`), released-charge cap (`released_charge_listing_cap`) and seller identity gate (`identity_*`) refusals are the exceptions and answer 403 above, and the licence check (`licence_check_required`) answers 409.',
-            ['invalid_status'],
+            '`status` was absent or not one of the three allowed values (`invalid_status`); or re-activating a hiring post (category `jobs`, `listingType` `job`) was refused because its stored text carries a line a job ad may not carry — the four `job_*` codes, the same refusals an edit gets: `error.message` says what kind of line, and `error.detail` is "<field>:<words>" — the field and the words to take out or reword (PATCH the listing first). `setStatusCore`\'s error union also names `not_found`, but it never returns it (the row is proven to exist by the route\'s ownership check, which answers 404 above), and the route maps every other core failure onto 422 — the account-hold (`account_held`, `account_suspended`), released-charge cap (`released_charge_listing_cap`) and seller identity gate (`identity_*`) refusals are the exceptions and answer 403 above, and the licence check (`licence_check_required`) answers 409.',
+            // 2026-10-19: a relist of a hiring post is screened like an edit (core/listings.ts reactivationJobTextProblem).
+            ['invalid_status', 'job_residence_wording', 'job_discrimination', 'job_candidate_fee', 'job_adult_venue'],
           ),
         },
       },
@@ -1209,6 +1216,11 @@ export const SPEC = {
           '409': fail(
             'The confirm would have re-activated a sold or hidden e-Visa or Legal & permits listing that is waiting for eno’s licence check. A confirm of a listing that is already active is never refused for this.',
             ['licence_check_required'],
+          ),
+          // 2026-10-19: a revive of a hiring post is screened like an edit (core/listings.ts reactivationJobTextProblem).
+          '422': fail(
+            'The confirm would have re-activated a sold or hidden hiring post (category `jobs`, `listingType` `job`) whose stored text carries a line a job ad may not carry — the four `job_*` codes, the same refusals an edit gets: `error.message` says what kind of line, and `error.detail` is "<field>:<words>" — the field and the words to take out or reword (PATCH the listing first). A confirm of a listing that is already active is never refused for this.',
+            ['job_residence_wording', 'job_discrimination', 'job_candidate_fee', 'job_adult_venue'],
           ),
         },
       },

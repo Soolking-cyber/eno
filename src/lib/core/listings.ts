@@ -29,7 +29,7 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
   }
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, isLicenceCheckSlot, licenceCheckHold, SUBCATEGORY_FALLBACK, servicePriceBasisOf, servicePriceBasisOfUnit, withoutInapplicablePriceBasis, withPriceBasis, servicePriceBasisApplies } from '@/lib/taxonomy'
+import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, isLicenceCheckSlot, licenceCheckHold, SUBCATEGORY_FALLBACK, servicePriceBasisOf, servicePriceBasisOfUnit, withoutInapplicablePriceBasis, withPriceBasis, servicePriceBasisApplies, detailRowLabel, storesCondition } from '@/lib/taxonomy'
 import { PROVIDER_LICENCE_KEYS, checkProviderLicence, providerLicenceFromInput, providerLicenceOf, sameProviderLicence, withProviderLicence, withoutProviderLicence, type ProviderLicence } from '@/lib/provider-licence'
 import { LICENCE_HELD_NOTE, LICENCE_STAMP_CLEARED, isLicenceWhitelisted, licenceCleared, licenceClearedWhere, licenceHeldMark } from '@/lib/licence-stamp'
 import { priceUnitSuffix } from '@/lib/price-unit'
@@ -41,7 +41,8 @@ import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
 import { identityGateEnforced } from '@/lib/compliance/account-state'
 import { assertSellerMayPublish, sellerPublishDecision, type SellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
-import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError, type IdentityBlockCode, type PublishBlockCode } from '@/lib/publish-guard'
+import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError, type IdentityBlockCode, type JobTextBlockCode, type PublishBlockCode } from '@/lib/publish-guard'
+import { isHiringPost, jobTextDetail, jobTextProblem, type JobTextField } from '@/lib/job-listing'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { moderateListingById } from '@/lib/ai-moderation'
 import { indexAndCheckProvenance } from '@/lib/image-provenance'
@@ -121,6 +122,52 @@ async function withDerivedAttributes(
 /** One of the provider's licence keys (provider-licence.ts PROVIDER_LICENCE_KEYS) — skipped by every generic attribute
  *  path: the 40-character cut, the generic content screen, the duplicate guard's facets, translation warming. */
 const isProviderLicenceKey = (k: string): boolean => (PROVIDER_LICENCE_KEYS as readonly string[]).includes(k)
+
+/**
+ * ⛔ A HIRING POST'S TEXT, FOR THE JOB-TEXT SCREEN (job-listing.ts jobTextProblem — teacher visibility plan §3a item 6,
+ * 2026-10-18), AS ITS PAGE PRINTS IT (2026-10-19): the title, the description (rendered by formatRichText — 'rich', read in
+ * that renderer's blocks), each attribute as its Details row — the page's own label for the key (taxonomy.ts
+ * detailRowLabel: a key an API client invented is humanized exactly as the page humanizes it) beside its value, ONE line:
+ * { visaSponsorship: 'yes' } reads "Visa sponsorship: yes" — the district, the city and the location, each named by the
+ * field a refusal's `detail` points at. The provider-licence keys are never printed as rows (the page's hiddenAttrs) and
+ * never stored on a job (sanitizeAttributes). What is passed is what will be stored: create's values, the values an edit
+ * writes (undefined = not sent, not screened, as for assertCleanTexts), or a re-activated row's stored ones.
+ */
+function jobTextFields(
+  t: { title?: string; description?: string; attributes?: string | null; location?: string | null; district?: string | null; city?: string | null },
+  place: { categorySlug: string; subcategorySlug: string | null; listingType: string },
+): JobTextField[] {
+  // A stored value that is not JSON (a legacy row) prints no Details rows — the page reads it through serialize.ts
+  // safeParse, which falls back to null — so it screens none either, and a relist or "still available" never throws on
+  // it (review, 2026-10-19).
+  let parsed: unknown = null
+  try { parsed = t.attributes ? JSON.parse(t.attributes) : null } catch { parsed = null }
+  const attrs = parsed ? Object.entries(parsed as Record<string, unknown>).filter(([k]) => !isProviderLicenceKey(k)) : []
+  return [
+    ['title', t.title], ['description', t.description, 'rich'],
+    ...attrs.map(([k, v]): JobTextField => [`attributes.${k}`, `${detailRowLabel(k, place).en}: ${Array.isArray(v) ? v.map(String).join(', ') : String(v)}`, 'line', k]),
+    // The district before the location: an edit derives the location from the district it sends, and create defaults it
+    // to the district — so a refusal names the field the poster actually wrote.
+    ['district', t.district], ['city', t.city], ['location', t.location],
+  ]
+}
+
+/**
+ * ⛔ A RE-ACTIVATION OF A HIRING POST IS SCREENED TOO (2026-10-19): a listing hidden or sold before the job-text screen
+ * existed — or one whose words the screen has since learned to refuse — must not go back on the page by a status change
+ * alone (setStatusCore's relist, confirmCore's revive: the dashboard, /api/v1, MCP, a sync). The row's stored printed
+ * fields, the same list an edit screens (jobTextFields); the same refusal and `detail` as an edit's. Null = it may go live.
+ */
+function reactivationJobTextProblem(row: {
+  title: string; description: string; attributes: string | null; location: string; district: string | null; city: string;
+  listingType: string | null; subcategorySlug: string | null; category?: { slug: string } | null
+}): { code: JobTextBlockCode; detail: string } | null {
+  // `category` is always selected; a row read without it is no hiring post to this check (as licenceGateForRevive reads it).
+  const categorySlug = row.category?.slug
+  if (!categorySlug || !isHiringPost(categorySlug, row.listingType)) return null
+  const p = jobTextProblem(jobTextFields(row, { categorySlug, subcategorySlug: row.subcategorySlug, listingType: row.listingType ?? 'job' }))
+  return p ? { code: p.code, detail: jobTextDetail(p) } : null
+}
 
 export function sanitizeAttributes(raw: unknown): string | null {
   const clean: Record<string, string> = {}
@@ -219,10 +266,12 @@ export type SoldMeta = {
  * relist that would take the storefront past its active-listing limit while a released charge stands.
  * `licence_check_required` (409, 2026-10-14) is a relist of an e-Visa or Legal & permits listing eno has
  * not checked (licenceGateForRevive) — waiting, not refused for good: it goes live with the approval.
+ * The four `job_*` codes (400, 2026-10-19) are a relist of a hiring post whose stored text the job-text screen refuses
+ * (reactivationJobTextProblem) — with `detail` '<field>:<snippet>', the field and the words to take out.
  * ⚠️ Spelled out as literals, not as `EnforcementBlockCode`: src/lib/api/errors.test.ts harvests this
  * union's string LITERALS to decide what is on the wire, and a named alias would be invisible to it.
  */
-export type ListingStatusErrorCode = 'invalid_status' | 'not_found' | 'account_held' | 'account_suspended' | 'released_charge_listing_cap' | 'licence_check_required' | IdentityBlockCode
+export type ListingStatusErrorCode = 'invalid_status' | 'not_found' | 'account_held' | 'account_suspended' | 'released_charge_listing_cap' | 'licence_check_required' | 'job_residence_wording' | 'job_discrimination' | 'job_candidate_fee' | 'job_adult_venue' | IdentityBlockCode
 
 /** The enforcement refusal a revive or a confirm gets while the storefront owner is held or suspended. */
 export type EnforcementBlockCode = 'account_held' | 'account_suspended'
@@ -311,7 +360,7 @@ export async function setStatusCore(
   status: string,
   soldMeta?: SoldMeta,
   opts?: { publishDecision?: SellerPublishDecision },
-): Promise<{ ok: true; status: string } | { ok: false; code: number; error: ListingStatusErrorCode }> {
+): Promise<{ ok: true; status: string } | { ok: false; code: number; error: ListingStatusErrorCode; detail?: string }> {
   if (!LISTING_STATUSES.has(status)) return { ok: false, code: 400, error: 'invalid_status' }
   let listingType: string | null | undefined
   // The status a relist READ — the write below is conditional on it (see `where`).
@@ -331,6 +380,8 @@ export async function setStatusCore(
       select: {
         status: true, sellerId: true, listingType: true, seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } },
         verified: true, subcategorySlug: true, attributes: true, verificationMethod: true, category: { select: { slug: true } },
+        // A hiring post's printed text — a relist is screened like an edit (reactivationJobTextProblem).
+        title: true, description: true, location: true, district: true, city: true,
       },
     })
     listingType = row?.listingType
@@ -354,6 +405,10 @@ export async function setStatusCore(
       if (licence.blocked) return { ok: false, code: 409, error: 'licence_check_required' }
       licenceDesk = licence.desk
       licenceGuard = licence.guard
+      // ⛔ …and a hiring post's stored text gets the job-text screen, as an edit's would (reactivationJobTextProblem): last,
+      // after the account's gates, since it is the one refusal the seller fixes in the listing itself.
+      const jobText = reactivationJobTextProblem(row)
+      if (jobText) return { ok: false, code: 400, error: jobText.code, detail: jobText.detail }
     }
   }
   // ⚠️ A RE-MARK OF A LISTING ALREADY SOLD IS NOT A NEW SALE (review of #26, 2026-09-23). Trust
@@ -512,7 +567,7 @@ async function purgeTeacherPages(
  * the day's activity earns a (daily-capped) trust reward. Intentionally does NOT
  * revalidate the cached page (recency surfaces live via the client feed).
  */
-export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' } | { ok: false; code: 403; error: IdentityBlockCode | EnforcementBlockCode | 'released_charge_listing_cap' } | { ok: false; code: 409; error: 'licence_check_required' }> {
+export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' } | { ok: false; code: 403; error: IdentityBlockCode | EnforcementBlockCode | 'released_charge_listing_cap' } | { ok: false; code: 409; error: 'licence_check_required' } | { ok: false; code: 400; error: JobTextBlockCode; detail: string }> {
   const now = new Date()
   const current = await db.listing.findUnique({
     where: { id: listingId },
@@ -522,6 +577,8 @@ export async function confirmCore(listingId: string, profileId: string): Promise
       seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } },
       // The licence facts — a revive of an e-Visa / Legal & permits row is gated (licenceGateForRevive), same read.
       verified: true, subcategorySlug: true, attributes: true, verificationMethod: true, category: { select: { slug: true } },
+      // A hiring post's printed text and its intent — a revive is screened like an edit (reactivationJobTextProblem).
+      listingType: true, title: true, description: true, location: true, district: true, city: true,
     },
   })
   // Typed 404 instead of letting the update's P2025 surface as a 500 — the row can
@@ -562,6 +619,10 @@ export async function confirmCore(listingId: string, profileId: string): Promise
     if (licence.blocked) return { ok: false, code: 409, error: 'licence_check_required' }
     licenceDesk = licence.desk
     licenceGuard = licence.guard
+    // ⛔ A revived hiring post's stored text gets the job-text screen, as on setStatusCore's relist. An ordinary confirm of a
+    // live listing is not screened: it puts nothing back on the page.
+    const jobText = reactivationJobTextProblem(current)
+    if (jobText) return { ok: false, code: 400, error: jobText.code, detail: jobText.detail }
   }
   const bump = canBump(current.postedAt, now.getTime())
   // ⛔ CONDITIONAL ON "NOT A TOMBSTONE" IN THE WRITE ITSELF (review, 2026-10-01) — a removal that
@@ -642,7 +703,7 @@ export async function updateListingCore(
   const current = await db.listing.findUnique({
     where: { id: listingId },
     select: {
-      title: true, description: true, district: true, location: true, brandSlug: true, model: true, subcategorySlug: true, verified: true, images: true, video: true,
+      title: true, description: true, district: true, location: true, city: true, brandSlug: true, model: true, subcategorySlug: true, verified: true, images: true, video: true,
       // The market band's key fields besides brand/model/shelf — a change to any of them moves the
       // listing to a different band (or out of banding entirely), so its "Good price" verdict is
       // cleared below. listingType decides eligibility: only a sale is judged against sale prices.
@@ -808,7 +869,9 @@ export async function updateListingCore(
     // cleared, keep the existing location (a non-nullable column — never write null).
     data.location = district || current.location
   }
-  if (body.condition !== undefined) data.condition = body.condition ? cutText(String(body.condition).trim(), 60) : null
+  if (body.condition !== undefined) data.condition = body.condition && storesCondition(current.category.slug) ? cutText(String(body.condition).trim(), 60) : null
+  // ⛔ A job has no condition (taxonomy.ts storesCondition): one written before the rule is cleared by the next edit.
+  if (!storesCondition(current.category.slug) && current.condition != null) data.condition = null
   // Price-negotiable toggle (edit): honored on the same edit path the wizard resubmits.
   // Same rule on EDIT, or "post as goods, switch category, enable offers" is a bypass.
   if (body.negotiable !== undefined) data.negotiable = current.category?.slug === 'services' || salaryPaid ? false : Boolean(body.negotiable)
@@ -1139,6 +1202,30 @@ export async function updateListingCore(
       return { ok: false, code: 400, error: e.code }
     }
     throw e
+  }
+  // ⛔ …AND A HIRING POST'S TEXT GETS CREATE'S JOB-TEXT SCREEN (job-listing.ts jobTextProblem — teacher visibility plan §3a
+  // item 6; owner 2026-10-18: both editions, hiring posts only), so publish-clean-then-edit is no way round it: over the
+  // fields this edit writes — or, when the edit TURNS a `wanted` post into a hiring one (the intent is editable, and a
+  // `wanted` post's text was never screened), over all the text the row will carry. `detail` '<field>:<snippet>' names the
+  // field and the words, for the wizard. `current.category` IS the category the row keeps: an edit never moves a listing
+  // between categories (this function's docblock) — the "moves" above are between subcategories and intents — so no edit
+  // carries text into Jobs past this check.
+  if (isHiringPost(current.category.slug, nextType)) {
+    const all = !isHiringPost(current.category.slug, current.listingType)
+    const p = jobTextProblem(jobTextFields({
+      title: title ?? (all ? current.title : undefined),
+      description: description ?? (all ? current.description : undefined),
+      attributes: data.attributes !== undefined ? (data.attributes as string | null) : all ? current.attributes : undefined,
+      location: data.location !== undefined ? (data.location as string) : all ? current.location : undefined,
+      district: data.district !== undefined ? (data.district as string | null) : all ? current.district : undefined,
+      city: data.city !== undefined ? (data.city as string) : all ? current.city : undefined,
+    }, {
+      // The labels of the placement the row will have (an attribute row's label can follow its subcategory's facets).
+      categorySlug: current.category.slug,
+      subcategorySlug: data.subcategorySlug !== undefined ? (data.subcategorySlug as string | null) : current.subcategorySlug,
+      listingType: nextType,
+    }))
+    if (p) return { ok: false, code: 400, error: p.code, detail: jobTextDetail(p) }
   }
 
   // Rebuild the folded search blob from the new values (fall back to current).
@@ -1580,7 +1667,8 @@ export async function createListingCore(input: {
   // is card/detail-rendered AND auto-syndicated to Telegram/Facebook, so a direct-
   // or partner-API caller could smuggle "Zalo 090… - bán súng đạn" past the gate —
   // 2026-07-06 launch audit; the UI wizard sends controlled geo names).
-  const conditionText = body.condition ? cutText(String(body.condition).trim(), 60) : null
+  // ⛔ None on a job (taxonomy.ts storesCondition): a job page prints no condition, so a Jobs post stores none.
+  const conditionText = body.condition && storesCondition(categorySlug) ? cutText(String(body.condition).trim(), 60) : null
   assertCleanTexts([
     district, conditionText, model, city, location,
     body.brand ? String(body.brand) : undefined,
@@ -1588,6 +1676,15 @@ export async function createListingCore(input: {
     // permits passes and this generic phone screen would not.
     ...(attributes ? Object.entries(JSON.parse(attributes) as Record<string, string>).filter(([k]) => !isProviderLicenceKey(k)).map(([, v]) => v) : []),
   ])
+  // ⛔ JOB TEXT (teacher visibility plan §3a item 6; approved in the plan, 2026-10-18 — job-listing.ts jobTextProblem): a
+  // HIRING post (Jobs, `job` intent — never a `wanted` one) carries no visa or residence wording, discriminatory
+  // requirement, candidate fee or adult-venue work, on either edition — over the title, the description, every attribute
+  // value, the location, the district and the city it will store. Refused with `detail` '<field>:<snippet>' (the field and
+  // the words that tripped it — the wizard shows them under the field), like the screens above: fixable, never cleaned.
+  if (isHiringPost(categorySlug, listingType)) {
+    const p = jobTextProblem(jobTextFields({ title, description, attributes, location, district, city }, { categorySlug, subcategorySlug, listingType }))
+    if (p) throw new PublishBlockedError(p.code, jobTextDetail(p))
+  }
 
   // Duplicate-listing protection: the same product can't be posted again while a copy of
   // it is still LIVE (repost-to-bump spam). Re-listing after sold/hidden/deleted is fine,

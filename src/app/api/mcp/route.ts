@@ -32,8 +32,9 @@ const CORS = {
 type Rpc = { jsonrpc?: string; id?: string | number | null; method?: string; params?: Record<string, unknown> }
 const rpcResult = (id: Rpc['id'], result: unknown) => ({ jsonrpc: '2.0', id: id ?? null, result })
 const rpcError = (id: Rpc['id'], code: number, message: string) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } })
-const toolErr = (id: Rpc['id'], code: string, message: string) =>
-  rpcResult(id, { content: [{ type: 'text', text: JSON.stringify({ error: { code, message } }) }], isError: true })
+// `detail` only when the refusal carries one (ToolError.detail — the job-text screen's '<field>:<snippet>', 2026-10-18).
+const toolErr = (id: Rpc['id'], code: string, message: string, detail?: string) =>
+  rpcResult(id, { content: [{ type: 'text', text: JSON.stringify({ error: { code, message, ...(detail ? { detail } : {}) } }) }], isError: true })
 
 // Handle one JSON-RPC message. Returns the response object, or null for notifications.
 async function handleMessage(msg: Rpc, auth: ApiAuth | null): Promise<object | null> {
@@ -86,7 +87,7 @@ async function handleMessage(msg: Rpc, auth: ApiAuth | null): Promise<object | n
         const result = await tool.handler(auth, parsed.data as Record<string, unknown>)
         return rpcResult(msg.id, { content: [{ type: 'text', text: JSON.stringify(result) }] })
       } catch (e) {
-        if (e instanceof ToolError) return toolErr(msg.id, e.code, e.message)
+        if (e instanceof ToolError) return toolErr(msg.id, e.code, e.message, e.detail)
         // ⚖️ AN IDENTITY REFUSAL IS AN ANSWER, NOT A CRASH: the code goes back verbatim with the same
         // English copy the partner API sends, so the agent can tell its operator to verify.
         // ⚠️ IDENTITY CODES ONLY, DELIBERATELY. The content refusals createListingCore also throws as

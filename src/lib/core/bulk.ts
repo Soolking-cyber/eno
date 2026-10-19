@@ -17,7 +17,8 @@ import { indexAndCheckProvenance } from '@/lib/image-provenance'
 import { storeListingImage, IMG_MAX_BYTES } from '@/lib/core/media'
 import { browseRankScore } from '@/lib/ranking'
 import { parseVnd } from '@/lib/vnd'
-import { isPostableCategory, paysSalary, resolveListingType, salaryMFromPrice, salaryPriceFor } from '@/lib/taxonomy'
+import { isPostableCategory, paysSalary, resolveListingType, salaryMFromPrice, salaryPriceFor, storesCondition } from '@/lib/taxonomy'
+import { isHiringPost, JOB_TEXT_REFUSAL, jobTextProblem } from '@/lib/job-listing'
 import { sellerPublishDecision, type SellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
 import { cutText } from '@/lib/feed-text'
 
@@ -153,6 +154,18 @@ export async function bulkImportCore(
       if (!Number.isFinite(price) || price < 0 || price > 1e12) { results.push({ row: rowNo, error: 'Invalid price' }); continue }
       if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsContactInfo(title) || containsContactInfo(description)) { results.push({ row: rowNo, error: 'Remove phone / contact info / address from the title and description' }); continue }
       { const bw = findBannedWord(`${title} ${description}`); if (bw) { results.push({ row: rowNo, error: `Contains a banned word ("${bw}")` }); continue } }
+      // ⛔ A HIRING ROW GETS THE JOB-TEXT SCREEN TOO (job-listing.ts jobTextProblem — teacher visibility plan §3a item 6,
+      // 2026-10-18): this core creates with its own db.listing.create, so createListingCore's screen never runs for a CSV,
+      // /api/v1 bulk, MCP bulk or partner-sync row, and a school could post round it. Every Jobs row is stored as a hiring
+      // post (the `job` intent, below), on either edition. A row's printed text is its title, its description — read as the
+      // page renders it, in formatRichText's blocks ('rich') — and its district (which is also its location; the city is
+      // fixed, a BulkRow carries no attributes, and a job's condition is never stored: below). Free prose like the screens
+      // above, naming the field, the words that tripped it and the rule; per row, before the duplicate lookup or any image
+      // work.
+      if (isHiringPost(cat.slug, resolveListingType(cat.slug, 'job'))) {
+        const p = jobTextProblem([['title', title], ['description', description, 'rich'], ['district', district]])
+        if (p) { results.push({ row: rowNo, error: `In the ${p.field}, “${p.snippet}”: ${JOB_TEXT_REFUSAL[p.code].en}` }); continue }
+      }
       // Restricted (low-trust) account → can't publish until its score recovers.
       if (seller.trustTier === 'restricted' && !released?.waivesRestricted) { results.push({ row: rowNo, error: 'Account restricted — wait for your trust score to recover before posting' }); continue }
 
@@ -224,7 +237,8 @@ export async function bulkImportCore(
             ? { price: salaryPriceFor(salaryM), priceUnit: 'VND/month', negotiable: false, listingType: jobType, salaryM }
             : { price, priceUnit: 'VND', negotiable: true }),
           location: district || 'Ho Chi Minh City', district, city: 'Ho Chi Minh City',
-          condition, images: JSON.stringify(hosted),
+          // ⛔ None on a job (taxonomy.ts storesCondition): the job page prints no condition, so a Jobs row stores none.
+          condition: storesCondition(cat.slug) ? condition : null, images: JSON.stringify(hosted),
           /**
            * ⛔ ONLY A URL WE ALREADY HOST. `video_url` arrives from the client, which uploads the
            * clip through the ordinary signed video flow and sends back what that returned — so the

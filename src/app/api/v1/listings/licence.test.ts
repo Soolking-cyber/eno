@@ -53,7 +53,8 @@ const { POST } = await import('./route')
 const { PATCH } = await import('./[id]/route')
 const { POST: statusPOST } = await import('./[id]/status/route')
 const { POST: confirmPOST } = await import('./[id]/confirm/route')
-const { PublishBlockedError } = await import('@/lib/publish-guard')
+const { PublishBlockedError, JOB_TEXT_BLOCK_CODES } = await import('@/lib/publish-guard')
+const { JOB_TEXT_REFUSAL } = await import('@/lib/job-listing')
 const { LICENCE_CHECK_REQUIRED_COPY, LISTING_CHANGED_COPY } = await import('@/lib/licence-check-copy')
 
 const auth = { authorization: 'Bearer k' }
@@ -136,6 +137,23 @@ describe('PATCH /api/v1/listings/{id}', () => {
   })
 })
 
+// The job-text screen on a hiring post (job-listing.ts jobTextProblem — teacher visibility plan §3a item 6, 2026-10-18).
+// ⛔ Its codes must not fall to the create route's last arm — "Remove phone numbers, contact info or addresses" — which
+// would send a partner to fix the wrong thing: each answers its rule's sentence, with `detail` '<field>:<snippet>'.
+describe('/api/v1/listings — the job-text refusals', () => {
+  it.each(JOB_TEXT_BLOCK_CODES)('POST: %s → 422 with its rule’s sentence, the field and the words — never the contact-info line', async (code) => {
+    h.createError = new PublishBlockedError(code, 'description:Visa')
+    const r = await post()
+    expect(r).toEqual({ status: 422, body: { error: { code, message: JOB_TEXT_REFUSAL[code].en, detail: 'description:Visa' } } })
+    expect(r.body.error.message).not.toMatch(/phone numbers/)
+  })
+
+  it('PATCH: a job-text refusal → 422 with its rule’s sentence, the field and the words in the envelope', async () => {
+    h.update = { ok: false, code: 400, error: 'job_discrimination', detail: 'title:female only' }
+    expect(await patch({ title: 'English teacher, female only' })).toEqual({ status: 422, body: { error: { code: 'job_discrimination', message: JOB_TEXT_REFUSAL.job_discrimination.en, detail: 'title:female only' } } })
+  })
+})
+
 describe('POST /api/v1/listings/{id}/status and /confirm — licence_check_required', () => {
   it('⛔ a relist of a listing waiting for eno’s licence check → 409 with the sentence, never the 422 "malformed status"', async () => {
     h.status = { ok: false, code: 409, error: 'licence_check_required' }
@@ -145,5 +163,27 @@ describe('POST /api/v1/listings/{id}/status and /confirm — licence_check_requi
   it('⛔ a confirm that would revive one → 409, never the 404 "not found"', async () => {
     h.confirm = { ok: false, code: 409, error: 'licence_check_required' }
     expect(await confirm()).toEqual({ status: 409, body: { error: { code: 'licence_check_required', message: LICENCE_CHECK_REQUIRED_COPY.en } } })
+  })
+})
+
+// A relist or a reviving confirm of a hiring post whose stored text the job-text screen refuses (2026-10-19 —
+// core/listings.ts reactivationJobTextProblem): 422 with the rule's sentence and `detail` '<field>:<snippet>' — never the
+// malformed-`status` 422 sentence, and never the confirm's 404.
+describe('POST /api/v1/listings/{id}/status and /confirm — a hiring post’s stored text', () => {
+  it('⛔ a relist → 422 with its rule’s sentence and the field and the words', async () => {
+    const { JOB_TEXT_REFUSAL } = await import('@/lib/job-listing')
+    h.status = { ok: false, code: 400, error: 'job_residence_wording', detail: 'attributes.visaSponsorship:Visa' }
+    expect(await relist()).toEqual({ status: 422, body: { error: { code: 'job_residence_wording', message: JOB_TEXT_REFUSAL.job_residence_wording.en, detail: 'attributes.visaSponsorship:Visa' } } })
+  })
+
+  it('⛔ a confirm that would revive one → 422 with the same, never the 404 "not found"', async () => {
+    const { JOB_TEXT_REFUSAL } = await import('@/lib/job-listing')
+    h.confirm = { ok: false, code: 400, error: 'job_adult_venue', detail: 'title:karaoke' }
+    expect(await confirm()).toEqual({ status: 422, body: { error: { code: 'job_adult_venue', message: JOB_TEXT_REFUSAL.job_adult_venue.en, detail: 'title:karaoke' } } })
+  })
+
+  it('a malformed status keeps its own sentence', async () => {
+    h.status = { ok: false, code: 400, error: 'invalid_status' }
+    expect(await relist()).toEqual({ status: 422, body: { error: { code: 'invalid_status', message: 'status must be one of: active, sold, hidden.' } } })
   })
 })

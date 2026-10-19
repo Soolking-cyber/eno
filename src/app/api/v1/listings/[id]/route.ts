@@ -7,6 +7,8 @@ import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
 import { LISTING_REMOVED } from '@/lib/listing-removed'
 import { TEACHER_PROFILE_REFUSAL } from '@/lib/taxonomy'
 import { LISTING_CHANGED_COPY, providerLicenceApiMessage } from '@/lib/licence-check-copy'
+import { isJobTextBlockCode } from '@/lib/publish-guard'
+import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,8 +52,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const message = res.error === 'teacher_profile_instead' ? TEACHER_PROFILE_REFUSAL.en
       : res.error === 'provider_licence_required' || res.error === 'provider_licence_invalid' ? providerLicenceApiMessage(res.error, res.detail)
       : res.error === 'listing_changed' ? LISTING_CHANGED_COPY.en
+      // The job-text screen's refusal of a hiring post's edit (job-listing.ts jobTextProblem, 2026-10-18), in its rule's words.
+      : isJobTextBlockCode(res.error) ? JOB_TEXT_REFUSAL[res.error].en
       : res.error
-    // `detail` ('<field>:<reason>' on provider_licence_invalid) rides in the error envelope, as on POST /listings.
+    // `detail` ('<field>:<reason>' on provider_licence_invalid; '<field>:<snippet>' on a job-text refusal) rides in the error
+    // envelope, as on POST /listings.
     return res.detail ? apiOk({ error: { code: res.error, message, detail: res.detail } }, r.rate, status) : apiError(status, res.error, message, r.rate)
   }
   // `held`: the listing waits for eno's licence check in e-Visa or Legal & permits (moved there, a value changed, or not

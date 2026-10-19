@@ -80,6 +80,8 @@ describe('an unrecognised code still reaches the operator', () => {
       'phone_taken', 'account_suspended', 'account_held', 'probation_listing_cap', 'exception',
       // createListingCore's released-scam-charge cap (released-charge-gate.ts, 2026-09-24).
       'released_charge_listing_cap',
+      // The job-text screen on a hiring post (job-listing.ts jobTextProblem, 2026-10-18).
+      'job_residence_wording', 'job_discrimination', 'job_candidate_fee', 'job_adult_venue',
     ]) expect(PUBLISH_OUTCOME_COPY[code]).toBeTruthy()
   })
 

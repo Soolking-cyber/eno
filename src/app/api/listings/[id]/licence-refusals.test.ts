@@ -76,6 +76,16 @@ describe('PATCH /api/listings/[id]', () => {
     expect(await patch({ title: 'e-Visa in 3 days' })).toEqual({ status: 200, body: { ok: true } })
   })
 
+  // The job-text screen on a hiring post's edit (job-listing.ts jobTextProblem, 2026-10-18): the field and the words
+  // ('<field>:<snippet>') and the rule's sentence.
+  it('a job-text refusal → 400 with the field and the words passed through, and its rule’s sentence', async () => {
+    const { JOB_TEXT_REFUSAL } = await import('@/lib/job-listing')
+    h.update = { ok: false, code: 400, error: 'job_candidate_fee', detail: 'description:Training fee required' }
+    expect(await patch({ description: 'Training fee required.' })).toEqual({ status: 400, body: { error: 'job_candidate_fee', detail: 'description:Training fee required', message: JOB_TEXT_REFUSAL.job_candidate_fee } })
+    h.update = { ok: false, code: 400, error: 'job_residence_wording', detail: 'title:visa' }
+    expect(await patch({ title: 'ESL teacher + visa' })).toEqual({ status: 400, body: { error: 'job_residence_wording', detail: 'title:visa', message: JOB_TEXT_REFUSAL.job_residence_wording } })
+  })
+
   it('every other refusal stays the bare code (no message, no detail)', async () => {
     h.update = { ok: false, code: 409, error: 'urgent_quota' }
     expect(await patch({ urgent: true })).toEqual({ status: 409, body: { error: 'urgent_quota' } })
@@ -98,6 +108,16 @@ describe('POST /api/listings/[id]/status and /confirm — a revive eno’s licen
     expect(await relist()).toEqual({ status: 403, body: { error: 'account_held' } })
     h.confirm = { ok: false, code: 404, error: 'not_found' }
     expect(await confirm()).toEqual({ status: 404, body: { error: 'not_found' } })
+  })
+
+  // A relist or a reviving confirm of a hiring post whose stored text the job-text screen refuses (2026-10-19 —
+  // core/listings.ts reactivationJobTextProblem): the field and the words, and the rule's sentence, as an edit's refusal.
+  it('⛔ a job-text refusal of a relist or a revive → 400 with the field and the words, and its rule’s sentence', async () => {
+    const { JOB_TEXT_REFUSAL } = await import('@/lib/job-listing')
+    h.status = { ok: false, code: 400, error: 'job_residence_wording', detail: 'attributes.visaSponsorship:Visa' }
+    expect(await relist()).toEqual({ status: 400, body: { error: 'job_residence_wording', detail: 'attributes.visaSponsorship:Visa', message: JOB_TEXT_REFUSAL.job_residence_wording } })
+    h.confirm = { ok: false, code: 400, error: 'job_candidate_fee', detail: 'description:Training fee required' }
+    expect(await confirm()).toEqual({ status: 400, body: { error: 'job_candidate_fee', detail: 'description:Training fee required', message: JOB_TEXT_REFUSAL.job_candidate_fee } })
   })
 
   it('the sentences are what the copy module says: curated pairs, typographic apostrophes', () => {
