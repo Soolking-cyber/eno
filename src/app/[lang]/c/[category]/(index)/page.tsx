@@ -11,7 +11,7 @@ import { byAreaChips, categoryMetadata, crumbNames, linkedTier, pageLang, rental
 import { CategoryGuides, OtherRentalsLink, PlaceName, RentalsDistricts } from '../category-text'
 import { CategoryFiltersLink } from '../category-filters-link'
 import { JobCityChips } from '../job-city-chips'
-import { TeacherProfileLink, TeachGuideLink, TeachingJobsLink } from '../teaching-links'
+import { PostJobLink, TeacherProfileLink, TeachGuideLink, TeachingJobsLink } from '../teaching-links'
 import { OfferServiceLink } from '../services-links'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { leadFirst } from '@/lib/category-lead'
@@ -330,6 +330,11 @@ export default async function CategoryPage({ params }: Props) {
       {/* …and both point at the teacher library's hub (teacher visibility plan, 2026-10-18). Marketplace only: eno.forum
           308s the library to eno.vn. */}
       {!IS_SERVICES && (isTeachers || cat.slug === TEACHING_JOBS.category) && <TeachGuideLink />}
+      {/* A school on /c/jobs gets its door AFTER the teacher lines, so those stay together (teacher visibility plan §4
+          channel 6; copy approved in the plan, 2026-10-18): "Hiring? Post your job ad", to the post form with Jobs picked —
+          postHereHref, as OfferServiceLink below. Both editions; on eno.forum, with no guide line, it follows the profile
+          line. */}
+      {cat.slug === TEACHING_JOBS.category && <PostJobLink href={postHereHref} />}
       {/* Owner, 2026-10-14: a provider's way in — "Post your service", Services already picked. */}
       {cat.slug === 'services' && <OfferServiceLink href={postHereHref} />}
 

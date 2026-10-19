@@ -4,9 +4,11 @@
  * every empty category page's "Post a listing") opens the form on that category when there is no draft to resume — a
  * draft wins — and only for a category this page offers. And a teacher offering lessons in Services › Languages is
  * pointed at the teacher profile, without being blocked ("a teacher should remain").
+ * The same way in serves a school (teacher visibility plan §4 channel 6, 2026-10-18): "Hiring? Post your job ad"
+ * (teaching-links.tsx PostJobLink) links `/post?category=jobs`, which must land on Hiring — a school can post in Teaching.
  */
 import { renderToString } from 'react-dom/server'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Each test cold-loads the whole post wizard under an edition re-import: seconds under a loaded suite.
@@ -47,6 +49,7 @@ async function wizardFor(edition: 'marketplace' | 'services') {
 const CATS = [
   { id: 'c-services', slug: 'services', name: 'Services', nameVi: 'Dịch vụ', icon: 'Wrench', color: 'cyan' },
   { id: 'c-electronics', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử', icon: 'Smartphone', color: 'blue' },
+  { id: 'c-jobs', slug: 'jobs', name: 'Jobs', nameVi: 'Việc làm', icon: 'Briefcase', color: 'violet' },
   // Never handed over by /post (not postable) — here to prove the wizard's OWN guard refuses it.
   { id: 'c-teachers', slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên', icon: 'GraduationCap', color: 'violet' },
 ] as unknown as SerializedCategory[]
@@ -124,6 +127,21 @@ describe('the post wizard — ways in for a provider', () => {
     await settle()
     expect(screen.queryByRole('button', { name: /Cleaning/ })).toBeNull()
     expect((screen.getByDisplayValue('iPhone 13') as HTMLInputElement).value).toBe('iPhone 13')
+  })
+
+  // The employer prompt's way in, on both editions (it shows on both): Jobs with Hiring picked, and Teaching takes it.
+  it.each(['marketplace', 'services'] as const)('%s: /post?category=jobs opens on Jobs with Hiring picked — a school can post in Teaching', async (edition) => {
+    window.history.replaceState(null, '', '/post?category=jobs')
+    const PostWizard = await wizardFor(edition)
+    render(<PostWizard categories={CATS} />)
+    await settle()
+    expect(screen.getByRole('button', { name: 'Hiring' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Looking for work' }).getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: /Teaching/ }))
+    await settle()
+    // Hiring in Teaching is a school's post: no teacher-profile hold, title or checklist step (that is "Looking for work").
+    expect(screen.queryAllByText('Teachers looking for work: create a teacher profile')).toHaveLength(0)
+    expect(screen.getByRole('button', { name: 'Hiring' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('Services › Languages shows the teacher-profile door as a pointer, never a hold', async () => {

@@ -7,7 +7,7 @@ import { PROVIDER_LICENCE_KEYS, providerLicenceOf } from '@/lib/provider-licence
 import { ProviderLicenceRows } from './provider-licence-rows'
 import { TeacherProfileView } from '@/components/teachers/teacher-profile-view'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
-import { TeacherProfileLink } from '@/app/[lang]/c/[category]/teaching-links'
+import { PostJobLink, TeacherProfileLink } from '@/app/[lang]/c/[category]/teaching-links'
 import { plainSnippet } from '@/lib/strip-md'
 import { feedIdentifiers } from '@/lib/product-feed'
 import { listingJsonLd } from '@/lib/listing-jsonld'
@@ -1433,9 +1433,17 @@ export default async function ListingPage({ params }: Props) {
               <SchoolLinkForJob employer={listing.attributes?.employer} sellerId={listing.sellerId} city={listing.city} className="order-12 flex items-start gap-2 text-sm" />
             )}
             {/* A TEACHING job's reader may be a teacher who would rather be found (owner, 2026-10-12): the profile form's
-                door, the line /c/jobs carries (teaching-links.tsx). Both editions — the teacher form is on both. */}
+                door, the line /c/jobs carries (teaching-links.tsx). Both editions — the teacher form is on both.
+                …or a school that is hiring (teacher visibility plan §4 channel 6; copy approved in the plan, 2026-10-18): the
+                post form's door, Jobs picked — /c/jobs carries it after the teacher lines too. ONE `order-12` item, so the
+                page's gap (24px, 32px from lg) falls around the pair, not between its lines: the two sit 12px apart, the
+                rhythm of these lines on /c/jobs (each mt-3), the teacher's first; equal order then paints the safety note
+                after it. Both editions — the post form is on both. */}
             {listing.listingType === 'job' && rawListing.category.slug === TEACHER_SEEKING_POST.category && rawListing.subcategorySlug === TEACHER_SEEKING_POST.subcategory && (
-              <TeacherProfileLink href={localizedHref('/teachers/join', pageVariant)} className="order-12 mt-0" />
+              <div className="order-12 space-y-3">
+                <TeacherProfileLink href={localizedHref('/teachers/join', pageVariant)} className="mt-0" />
+                <PostJobLink href={localizedHref('/post?category=jobs', pageVariant)} className="mt-0" />
+              </div>
             )}
             {safetyNote && (
               <p className="order-12 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">

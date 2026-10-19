@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ArrowRight } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
+import { POSTING_IS_FREE } from '@/lib/site-identity'
 import { TEACH_HUB_PATH } from '@/lib/teach-guides/hub-path'
 import { formatCountFull } from './category-copy'
 
@@ -68,6 +70,61 @@ export function TeacherProfileLink({ href, className }: { href: string; classNam
       {tr('Want schools to find you?', 'Muốn trường học tìm đến bạn?')}{' '}
       <Link href={href} data-cross-link="teacher-profile" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
         {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')} <ArrowRight className="h-4 w-4 shrink-0" />
+      </Link>
+    </p>
+  )
+}
+
+/**
+ * ⛔ THE SCHOOL SIDE'S WAY IN (teacher visibility plan §4 channel 6 "Now"; copy approved in the plan, 2026-10-18 — owner: "go
+ * with recommended"). Until this prompt every job on /c/jobs was a LINKED one — it opens the original posting, where you
+ * apply (the lede, live 2026-10-18: "Every listing here links to its original on a job site"; it is tiered by the linked
+ * share, category-copy.ts linkedTier, so a school's own post turns it to "Most…" by itself) — and nothing on a teaching
+ * job's page, /c/jobs or /schools asked a school to post its own. One prompt —
+ * on a teaching job's page in one group with the teacher's line, on /c/jobs after the teacher lines, and in /schools' link
+ * row: "Hiring? Post your job ad free on eno", to the post form with Jobs picked. The page passes `/post?category=jobs`
+ * through localizedHref, like every href in this file. With no draft to resume, the wizard opens on that category with its
+ * FIRST intent picked, and Jobs' first is Hiring (`job`) — never "Looking for work", which in Teaching would hold Publish
+ * behind the teacher-profile card (taxonomy.ts TEACHER_SEEKING_POST). post-wizard.services-entry.test.tsx renders that
+ * landing on both editions.
+ * ⛔ IT PROMISES ONLY WHAT IS TRUE TODAY: the ad goes up on eno (no photo needed for a job, up to 5,000 characters of
+ * description, live once published), and its page carries Chat now, so teachers write to the school in eno's chat — where
+ * a linked job is applied for on another site. NOT the plan's "your FULL job ad": a pasted ad is rarely publishable whole —
+ * the publish guard refuses contact details in the text (phone, email, links, handles), and the job-text screen refuses
+ * the lines a job ad may not carry (job-listing.ts jobTextProblem, which ships with this prompt) — so "full" would promise
+ * what the Publish button then refuses. NOT "…and appear in Google's job search": eno marks up no job yet, and the plan
+ * adds that clause only once first-party JobPosting is live.
+ * ⚠️ "FREE" ONLY THROUGH POSTING_IS_FREE (site-identity.ts — the fee clauses of the Terms and the Regulations, both
+ * editions), in two literal tr() pairs as the footer has them: the day a fee is announced, the word goes with the flag.
+ * ⚠️ prefetch={false}, WARMED ON INTENT: /post is prerendered, so Next's viewport prefetch fetches the wizard's route for
+ * every visitor who merely sees the link — the largest of its six chunks alone was 30.9 KiB of unused JS (measured on
+ * prod 2026-08-23, listings-explorer.tsx warmPost) — and this line sits near the top of /c/jobs and /schools. Pointer-down
+ * (touch) and mouse-enter (desktop hover) warm it, as warmPost does, so a tap still lands instantly.
+ * Both editions, like TeacherProfileLink: the post form is on both. `row`: the whole prompt is the link, in the classes
+ * of the row it joins (/schools' link row, the shape of its "Missing a school? Suggest it") — no paragraph, no arrow.
+ */
+export function PostJobLink({ href, row = false, className }: { href: string; row?: boolean; className?: string }) {
+  const { tr } = useLanguage()
+  const router = useRouter()
+  const warm = () => router.prefetch(href)
+  // The question avoids a second "tuyển dụng" in one line — both external reviewers, 2026-10-18, read the first draft
+  // ("Đăng miễn phí tin tuyển dụng đầy đủ") as translated.
+  const ask = tr('Hiring?', 'Bạn cần tuyển người?')
+  const act = POSTING_IS_FREE
+    ? tr('Post your job ad free on eno', 'Đăng tin tuyển dụng miễn phí trên eno')
+    : tr('Post your job ad on eno', 'Đăng tin tuyển dụng trên eno')
+  if (row) {
+    return (
+      <Link href={href} prefetch={false} onPointerDown={warm} onMouseEnter={warm} data-cross-link="post-job" className={className}>
+        {ask}{' '}{act}
+      </Link>
+    )
+  }
+  return (
+    <p className={cn('mt-3 max-w-prose text-sm text-body', className)}>
+      {ask}{' '}
+      <Link href={href} prefetch={false} onPointerDown={warm} onMouseEnter={warm} data-cross-link="post-job" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
+        {act} <ArrowRight className="h-4 w-4 shrink-0" />
       </Link>
     </p>
   )
