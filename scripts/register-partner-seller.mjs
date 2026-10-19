@@ -64,6 +64,34 @@ const PARTNERS = {
     avatarUrl: '/gmbr-logo.png',
     avatarColor: '#e02020',
   },
+  // Owner, 2026-10-19: "they will become our strategic partner for property rental sector … create goplus account
+  // contact@goplus.com.vn with this email and they users should message that account to ask for availability".
+  // scripts/import-goplus.ts writes GoPlus's vacant rooms into THIS storefront (resolved by the handle AND this email)
+  // and refreshes them weekly; renters reach GoPlus by eno chat — set-official-partner.mjs goplus keeps it chat-only.
+  goplus: {
+    email: 'contact@goplus.com.vn',
+    handle: 'goplus',
+    name: 'GoPlus',
+    // As the company states it in goplus.com.vn's own footer ("CÔNG TY TNHH DỊCH VỤ GOPLUS · MST 0319721165", read
+    // 2026-10-19). ⚠️ Taken from the partner's site, not checked against the national register — confirm it on
+    // masothue (MST 0319721165) before the official-partner badge vouches for it.
+    legalName: 'CÔNG TY TNHH DỊCH VỤ GOPLUS',
+    // GMBR's shape: what GoPlus does, in GoPlus's own terms (their site's description: "Ảnh chụp tại phòng, giá niêm
+    // yết sẵn, đặt lịch xem phòng trực tuyến, người thuê không trả phí môi giới"), then how a renter reaches them here,
+    // then the closing clause that keeps eno the marketplace introducing them — not trimmable.
+    bio: "Rooms and serviced apartments for rent across Ho Chi Minh City. In GoPlus's own words: photos taken in the room, prices listed up front, viewings booked online, and no brokerage fee for tenants. Message GoPlus here to check that a room is still free and to book a viewing. eno introduces GoPlus; the tenancy is arranged with them.",
+    // Their 512 px app icon (goplus.com.vn/icon-512.png, transparent), fitted to 500² like the other partner logos —
+    // 12.8% visible on set-partner-avatar's padded square (its floor is 8%). The wide "GoPlus" wordmark would be a sliver
+    // in a round avatar.
+    avatarUrl: '/goplus-logo.png',
+    // Their theme colour (site.webmanifest theme_color) — the ground under the INITIALS if the logo ever fails to load.
+    avatarColor: '#710105',
+    // ⛔ NO DAILY "CONFIRM AVAILABILITY" REMINDER. The weekly import IS the confirmation (it stamps
+    // availabilityConfirmedAt on every room still vacant), but the reminder's threshold is 3 days (src/lib/stale.ts), so
+    // a weekly feed would ping GoPlus "Confirm 2,500 listings are still available" four mornings a week for rooms it does
+    // not confirm by hand. Profile.dailyReminderOptIn is the account's own switch — GoPlus can turn it back on.
+    dailyReminderOptIn: false,
+  },
 }
 
 const KEY = process.argv[2]
@@ -193,7 +221,7 @@ try {
   console.log(`${APPLY ? 'WRITING' : 'DRY RUN — would write'}:`)
   if (existingAuth) console.log(`  ⚠️ ADOPTING the existing auth user ${existingAuth.id} and RESETTING its password`)
   console.log(`  auth user : ${P.email}  (password supplied via env: yes, ${PASSWORD.length} chars — not printed)`)
-  console.log(`  Profile   : accountType=business, displayName=${SELLER.name}`)
+  console.log(`  Profile   : accountType=business, displayName=${SELLER.name}, dailyReminderOptIn=${existingAuth ? 'unchanged (an adopted account keeps its own)' : P.dailyReminderOptIn ?? true}`)
   console.log(`  Seller    : ${JSON.stringify(SELLER)}`)
   console.log(`  Handle    : ${P.handle}  ->  https://eno.vn/${P.handle}`)
   console.log(`  officialPartner: NOT set here — run set-official-partner.mjs ${P.handle} --apply`)
@@ -236,10 +264,12 @@ try {
     // ⚠️ updatedAt is NOT NULL with NO default — Prisma's @updatedAt is applied by the CLIENT, so
     // a raw INSERT has to set it or the row is rejected. Same trap for any hand-written insert
     // into a Prisma-managed table; check information_schema before assuming defaults exist.
-    `insert into "Profile" (id, email, "displayName", "accountType", "updatedAt")
-     values ($1::uuid, $2, $3, 'business', now())
+    // "dailyReminderOptIn": the partner's own default (GoPlus: off — see its entry); an ADOPTED account keeps the
+    // preference it already had (`on conflict` leaves the column alone).
+    `insert into "Profile" (id, email, "displayName", "accountType", "dailyReminderOptIn", "updatedAt")
+     values ($1::uuid, $2, $3, 'business', $4, now())
      on conflict (id) do update set "accountType" = 'business', "displayName" = excluded."displayName", "updatedAt" = now()`,
-    [userId, P.email, SELLER.name],
+    [userId, P.email, SELLER.name, P.dailyReminderOptIn ?? true],
   )
   const s = await c.query(
     // Column list and values are aligned and in the same order — the only arrangement a reader can
@@ -251,6 +281,12 @@ try {
     [userId, SELLER.name, SELLER.legalName, SELLER.bio, SELLER.avatarUrl, SELLER.avatarColor, SELLER.verified, SELLER.verifiedSeller],
   )
   const sellerId = s.rows[0].id
+  // ⚠️ A PROFILE ROW MAY ALREADY EXIST FOR A FRESH auth user (a sign-up trigger, a race), and the `on conflict` above
+  // leaves the column alone — so a partner's own default is SET explicitly on an account this run created (a reviewer's
+  // catch: GoPlus would otherwise get the daily "confirm 2,500 listings" ping). An ADOPTED account keeps its own choice.
+  if (!existingAuth && P.dailyReminderOptIn !== undefined) {
+    await c.query(`update "Profile" set "dailyReminderOptIn" = $1, "updatedAt" = now() where id = $2::uuid`, [P.dailyReminderOptIn, userId])
+  }
   await c.query(`insert into "Handle" (handle, "sellerId", "createdAt") values ($1, $2, now())`, [P.handle, sellerId])
   await c.query('COMMIT')
 
