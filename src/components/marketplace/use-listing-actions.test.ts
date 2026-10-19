@@ -240,6 +240,15 @@ describe('useListingActions.setStatus — a relist refused by the account HOLD i
     expect((toastFn.error.mock.lastCall![1] as { duration: number }).duration).toBeGreaterThan(4000)
   })
 
+  it('⛔ a hiring post the job-text screen will not put back (2026-10-19) → rolled back, the route’s sentence, the words, and Edit', async () => {
+    const { JOB_TEXT_REFUSAL } = await import('@/lib/job-listing')
+    answer({ error: 'job_residence_wording', detail: 'attributes.visaSponsorship:Visa', message: JOB_TEXT_REFUSAL.job_residence_wording }, false)
+    const { hook, onChanged } = await relist()
+    expect(hook.result.current.status).toBe('sold')
+    expect(onChanged).toHaveBeenCalled()
+    expect(toastFn.error).toHaveBeenCalledWith(`${JOB_TEXT_REFUSAL.job_residence_wording.en} “Visa”`, expect.objectContaining({ id: 'relist-refusal:L1', action: { label: 'Edit', onClick: expect.any(Function) } }))
+  })
+
   it('any other failure keeps its silent rollback', async () => {
     answer({ error: 'invalid_status' }, false)
     const { hook } = await relist()

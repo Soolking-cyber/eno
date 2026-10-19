@@ -30,13 +30,13 @@ import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { isLicenceWhitelisted } from '@/lib/licence-whitelist'
 import { containsPhoneNumber } from '@/lib/phone'
-import { containsContactInfo, findBannedWord, minPhotosFor, publicSafeName } from '@/lib/publish-guard'
+import { containsContactInfo, findBannedWord, isJobTextBlockCode, minPhotosFor, publicSafeName } from '@/lib/publish-guard'
 import type { ClientPublishOutcome } from '@/lib/publish-funnel-codes'
 import { trackPostListing } from '@/lib/analytics'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, isLicenceCheckSlot, servicePriceBasisOf, servicePriceBasisApplies, servicePriceBasisOfUnit, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText } from '@/lib/taxonomy'
+import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, isLicenceCheckSlot, servicePriceBasisOf, servicePriceBasisApplies, servicePriceBasisOfUnit, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText, detailRowLabel } from '@/lib/taxonomy'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -181,6 +181,14 @@ function initAttrsFromEdit(edit?: ListingEditData): Record<string, string> {
     delete attrs.priceBasis
   }
   return attrs
+}
+
+/** A job-text refusal's `detail` '<field>:<snippet>' (job-listing.ts jobTextDetail, 2026-10-18): the field, then the poster's
+ *  own words that tripped the rule. The field never holds a colon (sanitizeAttributes keeps only [A-Za-z0-9_] keys); the
+ *  words may. */
+function splitJobTextDetail(detail: string | undefined): { field: string; snippet: string } | null {
+  const at = detail ? detail.indexOf(':') : -1
+  return detail && at > 0 && at < detail.length - 1 ? { field: detail.slice(0, at), snippet: detail.slice(at + 1) } : null
 }
 
 function initRangesFromEdit(edit?: ListingEditData): Record<string, number | null> {
@@ -426,6 +434,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // The one next step an identity refusal offers (verify / sign in) — rendered as a button beside
   // the error. Null for every other refusal, which the seller fixes in the form itself.
   const [errorAction, setErrorAction] = useState<'verify' | 'sign_in' | null>(null)
+  // The words the job-text screen refused and the field they are in (2026-10-18 — the server's `detail`): shown under that
+  // field while it still holds them, so the poster sees exactly what to take out or reword (titleNote / descNote below).
+  const [jobTextHit, setJobTextHit] = useState<{ field: string; snippet: string } | null>(null)
   const [categorySlug, setCategorySlug] = useState(edit?.categorySlug ?? '')
   const [subcategorySlug, setSubcategorySlug] = useState(edit?.subcategorySlug ?? '')
   const [listingType, setListingType] = useState(edit?.listingType ?? 'sell')
@@ -1205,6 +1216,40 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const contactInTextMsg = salaryPaid
     ? t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — ứng viên sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', 'Do not put a phone number, email, link or street address in your job post — candidates message you in the app. Remove it to post.')
     : t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', "Don't put a phone number, email, link or street address in your listing — buyers message you in the app. Remove it to post.")
+  /**
+   * ⛔ THE WORDS THE JOB-TEXT SCREEN REFUSED, UNDER THE FIELD THAT HOLDS THEM (owner, 2026-10-18: "go with recommended") — the
+   * server's snippet, so the poster reads exactly which words to take out or reword (job-listing.ts jobTextProblem). Shown
+   * only while the field still holds them: an edit that takes them out clears the note by itself. A trailing "…" marks words
+   * cut at 80 characters (job-listing.ts trippingWords). Compared AS THE SCREEN READ THEM (2026-10-19): it reads the page's
+   * blocks, where a paragraph's lines are joined by a space and "**bold**" loses its asterisks — so the words "thẻ tạm trú"
+   * it names are found in a description that breaks the line after "tạm".
+   * A field this form has no box for (an `attributes.*` value an API client wrote, or a place name) shows them beside the
+   * message instead (jobTextOffForm) — likewise only while the form's own value for it still holds them: the attribute as
+   * its Details row prints it, "label: value" (taxonomy.ts detailRowLabel, the screen's own reading — the words may be in
+   * the label: { visaSponsorship: 'yes' } reads "Visa sponsorship: yes"), or the picked ward and province it sends as
+   * district, city and location.
+   */
+  const jobTextNote = (snippet: string) => `${t('Hãy xóa hoặc sửa lại phần này:', 'Remove or reword this part:')} “${snippet}”`
+  const readAsScreened = (v: string) => v.replace(/\*\*/g, '').replace(/\s+/g, ' ')
+  const jobTextStill = (value: string | undefined) => !!jobTextHit && readAsScreened(value ?? '').includes(readAsScreened(jobTextHit.snippet.replace(/…$/, '')))
+  const titleNote = jobTextHit?.field === 'title' && jobTextStill(title) ? jobTextNote(jobTextHit.snippet) : undefined
+  const descNote = jobTextHit?.field === 'description' && jobTextStill(description) ? jobTextNote(jobTextHit.snippet) : undefined
+  const hitAttribute = jobTextHit?.field.startsWith('attributes.') ? jobTextHit.field.slice('attributes.'.length) : null
+  const attributeRow = (key: string) => (attrs[key] ? `${detailRowLabel(key, { categorySlug, subcategorySlug: subcategorySlug || null, listingType }).en}: ${attrs[key]}` : '')
+  const offFormValue = hitAttribute ? attributeRow(hitAttribute) : [ward?.name, province?.name].filter(Boolean).join(' ')
+  const jobTextOffForm = jobTextHit && jobTextHit.field !== 'title' && jobTextHit.field !== 'description' && jobTextStill(offFormValue) ? jobTextNote(jobTextHit.snippet) : undefined
+  /**
+   * ⛔ "REMOVE THIS DETAIL" (2026-10-19): an attribute this form has no control for (`attributes.*` that no facet chip
+   * renders — an API client's key, an imported fact) cannot be reworded here, so the refusal offers to drop it from the
+   * form's attributes; the poster then saves again, and the edit stores the attributes without it. Only while the note
+   * shows — the key still holds the words.
+   */
+  const removableDetail = hitAttribute && jobTextOffForm && !attrFacets.some((f) => f.key === hitAttribute) ? hitAttribute : null
+  const removeDetail = (key: string) => setAttrs((prev) => {
+    const next = { ...prev }
+    delete next[key]
+    return next
+  })
   // Jump to (and focus) the first still-missing field when a publish attempt fails.
   /**
    * Jump to ONE named field. Extracted from scrollToMissing so the mobile "still needed" list can
@@ -1254,6 +1299,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       if (!licenceSlot) return subcategorySlug ? 'category' : 'subcategory'
       const named = detail?.split(':')[0]
       return named === PROVIDER_LEGAL_NAME || named === PROVIDER_LICENCE_NO ? named : providerProblems[0]?.field ?? PROVIDER_LEGAL_NAME
+    }
+    // The job-text screen (job-listing.ts jobTextProblem, 2026-10-18): the server names the field the words are in
+    // ('<field>:<snippet>'). A place field is the location picker. The form asks a job for no free-text attribute, so an
+    // `attributes.*` field (an API client's) has nothing here to jump to — its words show beside the message instead.
+    if (isJobTextBlockCode(code)) {
+      const named = splitJobTextDetail(detail)?.field
+      return named === 'title' || named === 'description' ? named : named === 'location' || named === 'district' || named === 'city' ? 'location' : null
     }
     return null
   }
@@ -1310,7 +1362,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     setCategorySlug(''); setSubcategorySlug(''); setListingType('sell'); setAttrs({}); setRanges({})
     setTitle(''); setDescription(''); setPrice(''); setNegotiable(true); setUrgent(false)
     setCondition(''); setBrand(''); setModel(''); setProvince(null); setWard(null); setNearby(null)
-    setCatExpanded(false); setTouched({}); setAttempted(false); setError(''); setErrorAction(null)
+    setCatExpanded(false); setTouched({}); setAttempted(false); setError(''); setErrorAction(null); setJobTextHit(null)
     setDraftNotice(null)
   }
   /**
@@ -1333,7 +1385,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     if (!movingSale) setDescription('')
     // Kept context, not a draft: the autosave waits until the seller changes something.
     carriedDescription.current = movingSale ? description : ''
-    setCatExpanded(false); setTouched({}); setAttempted(false); setError(''); setErrorAction(null)
+    setCatExpanded(false); setTouched({}); setAttempted(false); setError(''); setErrorAction(null); setJobTextHit(null)
     setCreatedId(null); setHeldSlot(null); setFirstListing(false); setPublishIntentAt(null); setDraftNotice(null)
     setSubmitted(false)
     window.scrollTo({ top: 0, behavior: scrollBehavior() })
@@ -1448,6 +1500,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     submittingRef.current = true
     setSubmitting(true)
     setError('')
+    setJobTextHit(null)
     try {
       // Photo upload + the video sign→PUT→complete→transcode-poll pipeline moved
       // VERBATIM into usePostMedia (use-post-media.ts) — same order, same thrown
@@ -1569,6 +1622,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       const detail = e instanceof Error && typeof (e as Error & { detail?: unknown }).detail === 'string' ? (e as Error & { detail: string }).detail : undefined
       const identityMsg = identityBlockMessage(msg, tr)
       setErrorAction(identityBlockAction(msg))
+      // A job-text refusal names the field and the words ('<field>:<snippet>'): kept for the note under that field.
+      setJobTextHit(isJobTextBlockCode(msg) ? splitJobTextDetail(detail) : null)
       if (identityMsg) { setError(identityMsg); hapticError(); console.error(e); return }
       setError(
         // ⚠️ THE THREE SPECIFIC CAUSES COME FIRST, because "try again" is actively wrong for all
@@ -1626,6 +1681,18 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           // here for the i18n harvest.
           : msg === 'teacher_profile_instead'
           ? t('Giáo viên tìm việc: hãy tạo hồ sơ giáo viên. Các trường tìm hồ sơ giáo viên và nhắn tin trực tiếp cho bạn. Bạn đang tuyển giáo viên? Hãy chọn Tuyển dụng. Không tìm việc dạy học? Hãy chọn danh mục con khác.', 'Teachers looking for work: create a teacher profile instead. Schools search teacher profiles and message you directly. Hiring a teacher? Choose Hiring. Not looking for teaching work? Pick another subcategory.')
+          // The job-text screen's refusals (job-listing.ts jobTextProblem, 2026-10-18 — it ships with the "Hiring? Post your
+          // job ad" prompt; hiring posts, both editions): each names the kind of line, the words themselves show under the
+          // field (titleNote / descNote, else jobTextOffForm), and the jump goes there (fieldFor). The same sentences as
+          // the routes' `message` (job-listing.ts JOB_TEXT_REFUSAL), typed here for the i18n harvest.
+          : msg === 'job_residence_wording'
+          ? t('Tin tuyển dụng trên eno không được nhắc đến visa (thị thực) hay thẻ tạm trú — hãy xóa phần đó. Bạn vẫn có thể nhắc đến giấy phép lao động.', 'Job ads on eno can’t mention visas or residence cards — remove that line. A work permit is fine to mention.')
+          : msg === 'job_discrimination'
+          ? t('Tin tuyển dụng không được nêu yêu cầu về tuổi, giới tính, chủng tộc, quốc tịch hay ngoại hình — hãy xóa phần đó.', 'Job ads can’t set an age, gender, race, nationality or appearance requirement — remove that line.')
+          : msg === 'job_candidate_fee'
+          ? t('Tin tuyển dụng không được nhắc đến phí hay tiền đặt cọc mà ứng viên phải nộp — hãy xóa phần đó.', 'Job ads can’t mention a fee or deposit for candidates — remove that line.')
+          : msg === 'job_adult_venue'
+          ? t('Tin tuyển dụng không được nhắc đến việc làm ở karaoke, massage, hộp đêm hay làm tiếp viên nhà hàng — hãy xóa phần đó.', 'Job ads can’t mention karaoke, massage, nightclub or hostess work — remove that line.')
           : msg === 'photo_required'
           ? t('Cần ít nhất một ảnh để đăng tin.', 'You need at least one photo to post.')
           : msg === 'photos_min'
@@ -2122,7 +2189,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             {/* `className="max-w-2xl"` caps the label row to the control's width, so the counter ends
                 at the field's right edge. aria-required, NOT the native `required` attribute: native
                 would light up :invalid styling on a pristine form, and this form validates in state. */}
-            <Field label={salaryPaid ? t('Chức danh', 'Job title') : t('Tiêu đề', 'Title')} counter={`${title.length}/${TITLE_MAX}`} error={titleErr} className="max-w-2xl">
+            <Field label={salaryPaid ? t('Chức danh', 'Job title') : t('Tiêu đề', 'Title')} counter={`${title.length}/${TITLE_MAX}`} error={titleErr ?? titleNote} className="max-w-2xl">
               {/* `id` goes on the CONTROL, not the wrapper: scrollToMissing() does
                   getElementById('pw-title').focus() and that focus() is guarded by
                   `instanceof HTMLInputElement` — on a wrapper <div> it silently no-ops.
@@ -2139,7 +2206,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     // The example is the category's own (src/lib/post-copy.ts) — a phone title under
                     // Jobs taught sellers the wrong listing.
                     placeholder={tr(copy.title, copy.titleVi)}
-                    className={cn('max-w-2xl', err.title && 'ring-2 ring-destructive/60')}
+                    className={cn('max-w-2xl', (err.title || !!titleNote) && 'ring-2 ring-destructive/60')}
                   />
                 }
               />
@@ -2178,7 +2245,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               // everybody hits. The number sits OUTSIDE t() so the phrase is harvestable.
               counter={description.trim().length < 20 ? `${t('Tối thiểu 20 ký tự', 'Min. 20 characters')} · ${description.trim().length}` : `${description.length}/${DESC_MAX}`}
               hint={tr(copy.hint, copy.hintVi)}
-              error={descErr}
+              error={descErr ?? descNote}
               // "Polish with AI" rides in the label row (it had a row of its own between label and
               // field). Its tap-44 reach now spills ~4px past the 6px gap into the textarea's top edge
               // — which is why the textarea stays `relative`: a positioned box later in the DOM wins
@@ -2224,7 +2291,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     // label row carries tap-44, whose hit area reaches ~4px past the 6px gap into this
                     // box, and a positioned pseudo paints (and hit-tests) above an unpositioned sibling.
                     // A tap on the field's top edge must focus it, never rewrite the description with AI.
-                    className={cn('relative max-w-2xl resize-none', err.description && 'ring-2 ring-destructive/60')}
+                    className={cn('relative max-w-2xl resize-none', (err.description || !!descNote) && 'ring-2 ring-destructive/60')}
                   />
                 }
               />
@@ -2339,6 +2406,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           />
 
           {error && <p role="alert" className="text-sm font-semibold text-destructive">{error}</p>}
+          {error && jobTextOffForm && <p className="text-sm text-destructive">{jobTextOffForm}</p>}
+          {error && removableDetail && (
+            <Button type="button" variant="outline" size="sm" className="w-fit" onClick={() => removeDetail(removableDetail)}>
+              {t('Xóa thông tin này', 'Remove this detail')}
+            </Button>
+          )}
           {/* ⚠️ WHAT A RUNNING PUBLISH IS DOING, FOR A SCREEN READER: ONE region, mounted always (a live region that
               arrives together with its text is often not announced), outside both responsive copies so it is never
               heard twice. The visible lines beside the desktop button and in the mobile bar are aria-hidden. */}

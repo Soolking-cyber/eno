@@ -8,6 +8,7 @@ import { refusalToast } from '@/lib/refusal-toast'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
+import { isJobTextBlockCode } from '@/lib/publish-guard'
 import { ENFORCEMENT } from '@/lib/enforcement-machine'
 import { useUndoWindow } from '@/hooks/use-undo-window'
 import { useAuth } from '@/context/auth-context'
@@ -58,7 +59,7 @@ export function useListingActions(
         // flicked to Active and back with no reason given. That refusal now names the next step and
         // offers it. Other failures keep their existing silent rollback, deliberately: with the gate
         // off this hook must behave exactly as it did before the gate existed.
-        const d = await res.json().catch(() => ({})) as { error?: unknown }
+        const d = await res.json().catch(() => ({})) as { error?: unknown; detail?: unknown; message?: { en?: unknown; vi?: unknown } }
         rollback(); onChanged()
         const identityMsg = identityBlockMessage(d.error, tr)
         if (identityMsg) {
@@ -81,6 +82,15 @@ export function useListingActions(
           // not checked cannot be put back on sale by a Relist — it goes live with eno's approval, nothing the seller
           // taps. The route's own sentence (licence-check-copy.ts LICENCE_CHECK_REQUIRED_COPY), as a literal pair.
           refusalToast(tr('This listing is waiting for eno’s licence check, so it can’t be put back on sale yet. It goes live once eno’s team has checked the provider’s licence.', 'Tin này đang chờ eno kiểm tra giấy phép nên chưa thể mở bán lại. Tin sẽ được hiển thị sau khi đội ngũ eno kiểm tra giấy phép của nhà cung cấp.'), { id: `relist-refusal:${listing.id}` })
+        } else if (typeof d.error === 'string' && isJobTextBlockCode(d.error)) {
+          // ⛔ A HIRING POST THE JOB-TEXT SCREEN WILL NOT PUT BACK (2026-10-19 — core/listings.ts reactivationJobTextProblem): its
+          // stored words are ones a job ad may not carry, so the Relist is refused until they are edited out. The route's own
+          // bilingual sentence (job-listing.ts JOB_TEXT_REFUSAL), the words it names (`detail` '<field>:<snippet>'), and the
+          // way to the editor.
+          const m = d.message
+          const sentence = typeof m?.en === 'string' && typeof m.vi === 'string' ? tr(m.en, m.vi) : tr('This job ad has words a job ad on eno can’t carry. Edit them out, then relist it.', 'Một số từ trong tin tuyển dụng này không được phép xuất hiện trên eno. Hãy sửa lại rồi đăng lại tin.')
+          const words = typeof d.detail === 'string' && d.detail.includes(':') ? d.detail.slice(d.detail.indexOf(':') + 1) : ''
+          refusalToast(words ? `${sentence} “${words}”` : sentence, { id: `relist-refusal:${listing.id}`, step: { label: tr('Edit', 'Sửa'), onClick: () => router.push(`/listings/${listing.id}/edit`) } })
         }
         return false
       })
