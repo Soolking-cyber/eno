@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   CATEGORY_LINKED_SENTENCE,
+  TEACHERS_H1,
+  TEACHERS_PROFILE_SENTENCE,
   categoryMetadata,
   crumbNames,
   districtLinkedSentence,
@@ -22,6 +24,8 @@ import {
   type RentalsHeadline,
 } from './category-copy'
 import { SITE_NAME } from '@/lib/edition'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
+import { TEACHERS_COUNSEL_WORDS } from '@/test/teachers-counsel-words'
 
 /**
  * ⛔ EVERY CLAIM IS GATED ON A COUNT. These pin the gates rather than the prose: "Ho Chi Minh City"
@@ -361,17 +365,146 @@ describe('categoryMetadata in both languages (V2, CS-3)', () => {
     expect(categoryMetadata(jobs, 'some', 'eno.vn', 'vi').description).toBe('Xem tin việc làm tại Việt Nam. Một số tin ở đây dẫn tới tin gốc trên trang tuyển dụng.')
   })
 
-  it('teachers: people, not listings — the share-gate sentence in any tier (V2-9a)', () => {
+  /**
+   * Plan B3 (teacher visibility plan, approved in the plan, 2026-10-18): /c/teachers is written for the people hiring.
+   * The title is the H1 (Title Case in English), plus "Free to Message" in English while POSTING_IS_FREE holds and the
+   * title still fits 60 characters; the description opens with the hiring side, says what the profiles show (over live
+   * profiles — the next test has an empty page) and that the reader can message them. The Vietnamese is an interim,
+   * literal translation until counsel's wording (plan C1). The claims, and how each was checked, are in category-copy.ts.
+   */
+  it('teachers: written for the people hiring, the same in every tier (plan B3)', () => {
     const t = { slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên' }
-    for (const tier of ['none', 'all'] as const) {
-      expect(categoryMetadata(t, tier, 'eno.vn', 'en')).toEqual({
-        title: 'Teachers in Vietnam | eno.vn',
-        description: 'English and subject teachers looking for work in Vietnam. Their phone, email and CV are shared only when the teacher chooses to.',
-      })
-      expect(categoryMetadata(t, tier, 'eno.vn', 'vi')).toEqual({
-        title: 'Giáo viên ở Việt Nam | eno.vn',
-        description: 'Giáo viên tiếng Anh và các môn học đang tìm việc tại Việt Nam. Số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý.',
-      })
+    const description = {
+      en: 'Find English, IELTS and subject teachers in Vietnam. Profiles show experience and qualifications; some have an intro video. Message them on eno.',
+      vi: 'Tìm giáo viên dạy tiếng Anh, IELTS và các môn học tại Việt Nam. Hồ sơ nêu kinh nghiệm, bằng cấp và chứng chỉ; một số có video giới thiệu. Nhắn tin trên eno.',
+    }
+    for (const tier of ['none', 'all', 'most', 'some'] as const) {
+      expect(categoryMetadata(t, tier, 'eno.vn', 'en', 93)).toEqual({ title: 'Find English Teachers in Vietnam — Free to Message | eno.vn', description: description.en })
+      expect(categoryMetadata(t, tier, 'eno.vn', 'vi', 93)).toEqual({ title: 'Tìm giáo viên tiếng Anh tại Việt Nam | eno.vn', description: description.vi })
+      // eno.forum's longer name would take the English tail to 62, so the tail goes there (teachersTitle).
+      expect(categoryMetadata(t, tier, 'eno.forum', 'en', 93)).toEqual({ title: 'Find English Teachers in Vietnam | eno.forum', description: description.en })
+      expect(categoryMetadata(t, tier, 'eno.forum', 'vi', 93)).toEqual({ title: 'Tìm giáo viên tiếng Anh tại Việt Nam | eno.forum', description: description.vi })
+    }
+  })
+
+  /**
+   * ⛔ THE PROFILE SENTENCE ONLY OVER LIVE PROFILES, IN THE HEAD AS ON THE PAGE (review round 2, owner 2026-10-18: "go
+   * with recommended"). The lede drops it at 0 (category-lede.test.tsx); so does the description, and with it the
+   * og/twitter description (pageShare mirrors it): an emptied /c/teachers stays indexable through stale-noindex.ts's
+   * window.
+   */
+  it('teachers: the description says what profiles show only over live profiles — at 0, the lead and the close alone', () => {
+    const t = { slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên' }
+    for (const site of ['eno.vn', 'eno.forum'] as const) {
+      expect(categoryMetadata(t, 'none', site, 'en', 0).description).toBe('Find English, IELTS and subject teachers in Vietnam. Message them on eno.')
+      expect(categoryMetadata(t, 'none', site, 'vi', 0).description).toBe('Tìm giáo viên dạy tiếng Anh, IELTS và các môn học tại Việt Nam. Nhắn tin trên eno.')
+      for (const lang of ['en', 'vi'] as const) {
+        expect(categoryMetadata(t, 'none', site, lang, 0).description).not.toContain(TEACHERS_PROFILE_SENTENCE[lang])
+        expect(categoryMetadata(t, 'none', site, lang, 1).description).toContain(TEACHERS_PROFILE_SENTENCE[lang])
+        // Left out, the count is 0: no claim about profiles without the number that supports it.
+        expect(categoryMetadata(t, 'none', site, lang).description).toBe(categoryMetadata(t, 'none', site, lang, 0).description)
+        // The title never moves with the count (a cached head goes stale).
+        expect(categoryMetadata(t, 'none', site, lang, 0).title).toBe(categoryMetadata(t, 'none', site, lang, 93).title)
+      }
+    }
+  })
+
+  /** The wiring: the count the page's robots decision and its lede read (load-category.ts, one cache()'d call per render). */
+  it('teachers: (index)/page.tsx hands categoryMetadata its live count (source contract)', () => {
+    const src = readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]/(index)/page.tsx'), 'utf8')
+    const meta = src.slice(src.indexOf('export async function generateMetadata('), src.indexOf('export default async function'))
+    expect(meta).toMatch(/const \{ cat, live \} = loaded\n/)
+    expect(meta).toMatch(/categoryMetadata\(cat, live > 0 \? linkedTier\(await loadLinkedCount\(cat\.id\), live\) : 'none', SITE_NAME, pageLang\(lang\), live\)/)
+  })
+
+  it('teachers: the title is the H1, the description carries the lede\'s profile sentence, and both fit, in both languages on both sites', () => {
+    const t = { slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên' }
+    // NFC code points, as (home)/home-metadata.test.ts counts: a Vietnamese letter is one character however it was typed.
+    const chars = (s: string) => [...s.normalize('NFC')].length
+    for (const site of ['eno.vn', 'eno.forum'] as const) {
+      for (const lang of ['en', 'vi'] as const) {
+        const m = categoryMetadata(t, 'none', site, lang, 93)
+        expect(m.title.toLowerCase().startsWith(TEACHERS_H1[lang].toLowerCase()), `${site} ${lang}`).toBe(true)
+        expect(m.title.endsWith(` | ${site}`), `${site} ${lang}`).toBe(true)
+        expect(m.description).toContain(TEACHERS_PROFILE_SENTENCE[lang])
+        expect(chars(m.title), `${site} ${lang}: ${m.title}`).toBeLessThanOrEqual(60)
+        expect(chars(m.description), `${site} ${lang}`).toBeLessThanOrEqual(160)
+      }
+    }
+  })
+
+  /**
+   * ⛔ THE LAYOUT RENDERS THE H1 THE TITLE IS BUILT FROM (source contract, first-screen-contract.test.ts's way: the
+   * layout needs a database to render). category-lede.test.tsx holds <TeachersHeading> to TEACHERS_H1 and the test above
+   * holds the title to it, so restoring the generic "{name} in Vietnam" H1 in the layout fails here, not in a SERP.
+   */
+  it('teachers: (index)/layout.tsx renders <TeachersHeading /> as the teachers row\'s <h1>', () => {
+    const src = readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]/(index)/layout.tsx'), 'utf8')
+    const code = src.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    const h1 = code.match(/<h1 [^>]*>([\s\S]*?)<\/h1>/)?.[1] ?? ''
+    // The rentals headline is read for /c/rentals only, so the teachers row always reaches its own branch.
+    expect(code).toMatch(/const headline = cat\.slug === 'rentals' \? await loadRentalsHeadline\(cat\.id\) : null/)
+    expect(h1).toMatch(/^\s*\{headline \? <RentalsHeading headline=\{headline\} \/>\s*: cat\.slug === TEACHERS_CATEGORY_SLUG \? <TeachersHeading \/>\s*: <>/)
+    expect(code).toMatch(/import \{ TeachersHeading \} from '@\/components\/marketplace\/category-lede'/)
+    expect(code).toMatch(/import \{ TEACHERS_CATEGORY_SLUG \} from '@\/lib\/teachers\/constants'/)
+    expect(TEACHERS_CATEGORY_SLUG).toBe('teachers')
+  })
+
+  /**
+   * ⛔ UNTIL COUNSEL WORDS THE SCHOOL SIDE (plan C1, decision 4): no "foreign" (not guaranteed by code — TEACHERS_H1), none
+   * of the framing the counsel brief asks to avoid (supplying, referring or leasing teachers, brokering, recruiting,
+   * "connecting"), and no teacher's job search in a page written for the people hiring. The list is
+   * src/test/teachers-counsel-words.ts, the one category-lede.test.tsx holds the rendered lede to.
+   */
+  it('teachers: the interim Vietnamese says what the English says, and neither says what waits for counsel (plan C1)', () => {
+    const t = { slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên' }
+    for (const site of ['eno.vn', 'eno.forum'] as const) {
+      for (const lang of ['en', 'vi'] as const) {
+        for (const live of [0, 93]) {
+          const { title, description } = categoryMetadata(t, 'none', site, lang, live)
+          expect(`${title} ${description}`.normalize('NFC')).not.toMatch(TEACHERS_COUNSEL_WORDS)
+        }
+      }
+    }
+    for (const h of Object.values(TEACHERS_H1)) expect(h.normalize('NFC')).not.toMatch(TEACHERS_COUNSEL_WORDS)
+  })
+
+  it('teachers: no count, no "native" or "verified", no "listings" and no visa words, in the title or the description (plan B3)', () => {
+    const t = { slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên' }
+    for (const site of ['eno.vn', 'eno.forum'] as const) {
+      for (const lang of ['en', 'vi'] as const) {
+        for (const live of [0, 93]) {
+          const { title, description } = categoryMetadata(t, 'none', site, lang, live)
+          // `\d` would also catch a stray count: neither may carry one (a cached head goes stale).
+          expect(`${title.replace(site, '')} ${description}`).not.toMatch(/\d/)
+          expect(`${title} ${description}`).not.toMatch(/native|bản ngữ|bản xứ|verified|xác minh|xác thực|listing|tin đăng|visa|thị thực|residence|tạm trú|immigration|xuất nhập cảnh|TRC/i)
+        }
+        for (const h of Object.values(TEACHERS_H1)) expect(h).not.toMatch(/native|bản ngữ|verified|xác minh|\d/i)
+      }
+    }
+  })
+
+  it('teachers: "free to message" leaves the title the moment the fee flag does', async () => {
+    vi.resetModules()
+    vi.doMock('@/lib/site-identity', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('@/lib/site-identity')>()),
+      POSTING_IS_FREE: false,
+    }))
+    try {
+      const { categoryMetadata: meta } = await import('./category-copy')
+      const t = { slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên' }
+      expect(meta(t, 'none', 'eno.vn', 'en').title).toBe('Find English Teachers in Vietnam | eno.vn')
+      expect(meta(t, 'none', 'eno.vn', 'vi').title).toBe('Tìm giáo viên tiếng Anh tại Việt Nam | eno.vn')
+      expect(meta(t, 'none', 'eno.forum', 'en').title).toBe('Find English Teachers in Vietnam | eno.forum')
+      for (const site of ['eno.vn', 'eno.forum'] as const) {
+        for (const lang of ['en', 'vi'] as const) {
+          const m = meta(t, 'none', site, lang, 93)
+          expect(`${m.title} ${m.description}`).not.toMatch(/free|miễn phí/i)
+        }
+      }
+    } finally {
+      vi.doUnmock('@/lib/site-identity')
+      vi.resetModules()
     }
   })
 

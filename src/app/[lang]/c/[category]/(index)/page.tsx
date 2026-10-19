@@ -119,8 +119,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const headline = cat.slug === 'rentals' ? await loadRentalsHeadline(cat.id) : null
   const facts = headline ? await loadRentalsFacts(cat.id, live) : null
   const rentals = headline && facts ? rentalsMetadata(facts, pageLang(lang), SITE_NAME, headline) : null
-  // Every other category keeps its old wording only while none of its stock is linked (category-copy.ts).
-  const { title, description } = rentals ?? categoryMetadata(cat, live > 0 ? linkedTier(await loadLinkedCount(cat.id), live) : 'none', SITE_NAME, pageLang(lang))
+  // Every other category keeps its old wording only while none of its stock is linked (category-copy.ts). `live` goes in
+  // for /c/teachers, whose description says what profiles show only while one is live, as its lede does.
+  const { title, description } = rentals ?? categoryMetadata(cat, live > 0 ? linkedTier(await loadLinkedCount(cat.id), live) : 'none', SITE_NAME, pageLang(lang), live)
   // Empty, and empty for the whole window (src/lib/stale-noindex.ts). Queries only when `live` is 0.
   const emptyForTheWindow = await staleBelowFloor({ where: { categoryId: cat.id }, live, floor: MIN_CATEGORY_LISTINGS, teachers: cat.slug === TEACHERS_CATEGORY_SLUG })
   /**

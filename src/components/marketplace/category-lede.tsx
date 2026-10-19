@@ -46,12 +46,26 @@ export function CategoryLede({
     <>
       {total > 0 && (
         <>
-          <CountSentence name={name} nameVi={nameVi} total={total} top={top} />{' '}
+          <CountSentence name={name} nameVi={nameVi} slug={slug} total={total} top={top} />{' '}
         </>
       )}
-      <Provenance slug={slug} linked={linked} />
+      <Provenance slug={slug} linked={linked} total={total} />
     </>
   )
+}
+
+/**
+ * The /c/teachers H1 (teacher visibility plan B3, approved in the plan, 2026-10-18): category-copy.ts `TEACHERS_H1` as a
+ * literal `tr()` pair, so the harvester pre-translates it for the nine machine-translated languages; category-lede.test.tsx
+ * holds the two equal, and the `<title>` is built from the same map (category-copy.ts teachersTitle). The Vietnamese is
+ * an interim, literal translation until counsel's wording — TEACHERS_H1 says why it carries no "nước ngoài".
+ * ⚠️ A CLIENT COMPONENT FOR CategoryLede's REASON (above): `(index)/layout.tsx` is server code, and a heading rendered
+ * there as text could not follow a client-side language change. No props — the layout picks it from the category row
+ * it already has, so it awaits nothing new (the layout's contract test; category-copy.test.ts pins the branch).
+ */
+export function TeachersHeading() {
+  const { tr } = useLanguage()
+  return <>{tr('Find English teachers in Vietnam', 'Tìm giáo viên tiếng Anh tại Việt Nam')}</>
 }
 
 /**
@@ -60,24 +74,48 @@ export function CategoryLede({
  * ⚠️ ENGLISH IN LITERAL `tr()` FRAGMENTS, VIETNAMESE WHOLE — category-text.tsx's rule: the nine
  * machine-translated languages render from the English variant, and Vietnamese word order is not
  * English's. Singular at exactly 1. "0 listings" is never printed (the caller passes no sentence).
+ * ⛔ TEACHERS ARE COUNTED AS TEACHERS, THEIR SUBJECTS AFTER A COLON (plan B3, approved in the plan, 2026-10-18):
+ * "93 teachers: IELTS & exams (60), English (24) and Subjects in English (9)." / "93 giáo viên: IELTS & luyện thi (60),
+ * Tiếng Anh (24) và Môn học bằng tiếng Anh (9)." It read "93 listings in Teachers" — people counted as listings, the
+ * wording the owner had already ruled out for this category (2026-09-30). Same live count (one teacher, one profile
+ * listing), new noun. Not "including" / "gồm": those make the subjects kinds of teacher ("teachers, including English").
+ * The labels are the subcategories' own (taxonomy.ts), as on every other shelf.
+ * ⛔ THE COLON LIST ONLY WHEN IT ADDS UP TO THE COUNT (review round 2, owner 2026-10-18: "go with recommended"). A colon
+ * presents the subjects as the whole breakdown, but they are topSubcategories' (category-copy.ts): at most three, never
+ * "Other languages", never one holding the whole category. So one Chinese-only teacher (profile.ts teacherSubcategory
+ * files a teacher of other languages only under "other-languages") would have it read "94 teachers: IELTS & exams (60),
+ * English (24) and Subjects in English (9)." — which sum to 93. Whenever the listed counts do not sum to the total, the
+ * line is the count alone — "94 teachers." / "94 giáo viên.", the path every category takes with no subcategory to name.
+ * It adds up today: 60 + 24 + 9 = 93 (the live lede and GET /api/listings?category=teachers, 2026-10-18).
  */
-function CountSentence({ name, nameVi, total, top }: { name: string; nameVi: string; total: number; top: { name: string; nameVi: string; count: number }[] }) {
+function CountSentence({ name, nameVi, slug, total, top }: { name: string; nameVi: string; slug?: string; total: number; top: { name: string; nameVi: string; count: number }[] }) {
   const { lang, tr } = useLanguage()
   const n = (v: number) => formatCountFull(v, lang)
+  const teachers = slug === 'teachers'
+  // Teachers: the whole breakdown after the colon, or no list at all (above). Other shelves keep their "including …".
+  const listed = teachers && top.reduce((sum, t) => sum + t.count, 0) !== total ? [] : top
   if (lang === 'vi') {
-    const parts = top.map((t) => `${t.nameVi} (${n(t.count)})`)
+    const parts = listed.map((t) => `${t.nameVi} (${n(t.count)})`)
     // The category lower-cased mid-sentence, as districtMetadata writes it ("tin đăng điện tử"); the subcategories keep their label case (acronyms: "SIM", "TV").
-    return <>{`${n(total)} tin đăng ${nameVi.toLowerCase()}${parts.length ? `, gồm ${joinList(parts, 'vi')}` : ''}.`}</>
+    const what = teachers ? 'giáo viên' : `tin đăng ${nameVi.toLowerCase()}`
+    return <>{`${n(total)} ${what}${parts.length ? `${teachers ? ':' : ', gồm'} ${joinList(parts, 'vi')}` : ''}.`}</>
   }
   return (
     <>
-      {n(total)} {total === 1 ? tr('listing in') : tr('listings in')} <Bilingual en={name} vi={nameVi || name} />
-      {top.length > 0 && (
+      {n(total)}{' '}
+      {teachers ? (
+        total === 1 ? tr('teacher') : tr('teachers')
+      ) : (
         <>
-          , {tr('including')}{' '}
-          {top.map((t, i) => (
+          {total === 1 ? tr('listing in') : tr('listings in')} <Bilingual en={name} vi={nameVi || name} />
+        </>
+      )}
+      {listed.length > 0 && (
+        <>
+          {teachers ? ':' : <>, {tr('including')}</>}{' '}
+          {listed.map((t, i) => (
             <span key={t.name}>
-              {i > 0 && (i === top.length - 1 ? <> {tr('and')} </> : <>, </>)}
+              {i > 0 && (i === listed.length - 1 ? <> {tr('and')} </> : <>, </>)}
               <Bilingual en={t.name} vi={t.nameVi || t.name} /> ({n(t.count)})
             </span>
           ))}
@@ -105,18 +143,29 @@ export function TeacherCoverLink({ className }: { className?: string }) {
 }
 
 /** The second sentence: where the stock comes from, or — only where none of it is linked — the report sentence. */
-function Provenance({ slug, linked }: { slug?: string; linked: 'all' | 'most' | 'some' | 'none' }) {
+function Provenance({ slug, linked, total }: { slug?: string; linked: 'all' | 'most' | 'some' | 'none'; total: number }) {
   const { tr } = useLanguage()
   /**
    * ⛔ NOT THE TRUST CLAIM ON JOBS. Most jobs are LINKED postings (scripts/import-jobs.ts) whose "seller"
    * is the job board and whom eno.vn never vetted — "every listing comes from a seller with a public
    * trust score" would be false there, on the vertical where job scams live.
    */
-  // Teachers (2026-09-30): people, not listings — no seller-trust or bait-price claim.
+  // Teachers (2026-09-30): people, not listings — no seller-trust or bait-price claim. Written for the people hiring
+  // (plan B3, approved in the plan, 2026-10-18): what a profile shows, then who may write and what stays private, then
+  // the teachers' own door. The two sentences are category-copy.ts TEACHERS_PROFILE_SENTENCE (the description says it
+  // too; the claims are checked there) and TEACHERS_CONTACT_SENTENCE (the district ledes'), each a literal pair the tests
+  // hold equal to its map. ⛔ THE PROFILE SENTENCE ONLY OVER LIVE PROFILES (total > 0), like the count before it: on an
+  // empty page it would describe what nobody shows. The meta description follows the same count (category-copy.ts
+  // teachersDescription). Who may write, and the door, stay true at zero.
   if (slug === 'teachers') {
     return (
       <>
-        {tr('English and subject teachers looking for work in Vietnam. Schools, companies and other members can message a teacher; their phone, email and CV are shared only when the teacher chooses to. ', 'Giáo viên tiếng Anh và các môn học đang tìm việc tại Việt Nam. Trường học, công ty và các thành viên khác có thể nhắn tin cho giáo viên; số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý. ')}
+        {total > 0 && (
+          <>
+            {tr('Profiles show experience and qualifications; some have an intro video.', 'Hồ sơ nêu kinh nghiệm, bằng cấp và chứng chỉ; một số có video giới thiệu.')}{' '}
+          </>
+        )}
+        {tr('Schools, companies and other members can message a teacher; their phone, email and CV are shared only when the teacher chooses to.', 'Trường học, công ty và các thành viên khác có thể nhắn tin cho giáo viên; số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý.')}{' '}
         <Link href="/teachers/join" className="font-semibold text-brand underline">{tr('Teachers: create your free profile', 'Giáo viên: tạo hồ sơ miễn phí')}</Link>
         {/* The schools' cover-lesson door is NOT here: this paragraph is clamped on a phone — TeacherCoverLink below. */}
       </>

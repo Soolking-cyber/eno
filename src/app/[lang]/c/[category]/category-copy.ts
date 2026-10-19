@@ -2,6 +2,7 @@ import type { DistrictChip } from '@/lib/district-canonical'
 import { SITE_NAME } from '@/lib/edition'
 import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
 import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
+import { POSTING_IS_FREE } from '@/lib/site-identity'
 import { formatInteger } from '@/lib/vnd'
 
 /**
@@ -227,20 +228,121 @@ export const JOBS_LINKED_SENTENCE: Record<Exclude<LinkedTier, 'none'>, Record<Pa
 const JOBS_NOUN = { en: 'a job site', vi: 'trang tuyển dụng' } as const
 
 /**
- * ⛔ TEACHERS ARE PEOPLE, NOT LISTINGS (owner, 2026-09-30: no seller-trust or bait-price claim — the
- * note is in category-lede.tsx). CS-3 V2-9a: the page's own first sentence (category-lede.tsx), then
- * the share gate — a teacher's phone, email and CV reach a thread only after they tap "Share" there
- * (src/lib/teachers/share.ts), and the JSON-LD never carries them (teachers/jsonld.ts).
+ * ⛔ /c/teachers SPEAKS TO THE PEOPLE HIRING (teacher visibility plan B3, approved in the plan, 2026-10-18). It was
+ * "Teachers in Vietnam" over a description written for teachers ("…looking for work…", then the share gate), while the
+ * people who search for the page and can act on it — schools, centres and parents — are looking for a teacher (site
+ * audit §2.7). So the description opens with what THAT reader does ("Find …" / "Tìm …"), never with the teacher's
+ * job search: "looking for work" / "đang tìm việc" is the clause that made the old one a teacher's page, and whether
+ * the Vietnamese should say it at all is one of counsel's wording questions (the counsel brief, Q4.3).
+ * Teachers are still people, not listings (owner, 2026-09-30): no seller-trust or bait-price claim anywhere here.
+ *
+ * EVERY CLAIM WAS CHECKED AGAINST THE CODE AND THE 93 LIVE PROFILES (2026-10-18: GET /api/listings?category=teachers
+ * and each profile page's ProfilePage JSON-LD), and each holds without a count:
+ *   · experience — the band ("How long have you been teaching?") is required to publish (profile.ts, the `teaching`
+ *     step) and all 93 show one. Shows, never "experienced": 7 of them say "Under 1 year".
+ *   · qualifications — 92 of 93 list a degree or a certificate; the 93rd states them in its headline and About text.
+ *     They are data the teacher typed, never documents anyone checked (profile.ts, "QUALIFICATIONS ARE DATA") — so
+ *     never "verified".
+ *   · "some" intro videos — 26 of 93 show one. Required of every NEW profile (constants.ts TEACHER_VIDEO_REQUIRED_FROM),
+ *     optional for the profiles made before it, so "some" stays true as the share grows; "every" is false today.
+ *   · English, IELTS and subject teachers — the live subcategories (taxonomy.ts): IELTS & exams 60, English 24,
+ *     Subjects in English 9.
+ *   · who may write — any signed-in account, within a daily limit on NEW chats (the teacher DM ladder, dm-quota.ts;
+ *     TEACHERS_CONTACT_SENTENCE below has the rule). "Message them" promises no number, so a changed limit cannot
+ *     make it stale.
+ * ⛔ NO "NATIVE" AND NO "VERIFIED", in either language (never "bản ngữ"): 74 of the 93 are not native speakers, and
+ * the category page vouches for nobody. ⛔ NO COUNT in the title or the description — the lede counts
+ * (category-lede.tsx), at render.
+ *
+ * TEACHERS_PROFILE_SENTENCE is the lede's sentence after the count, word for word (category-lede.tsx renders it as a
+ * literal tr() pair; category-lede.test.tsx holds the two equal), so the page and its description say one thing. Both
+ * print it only over live profiles (total > 0; the description through teachersDescription): with none, it would
+ * describe what nobody shows.
+ * ⚠️ THE VIETNAMESE NAMES THE PROFILE'S OWN SECTIONS — "Kinh nghiệm", "Bằng cấp và chứng chỉ", "Video giới thiệu"
+ * (teacher-profile-view.tsx). "Bằng cấp" alone means degrees, and the English "qualifications" covers certificates too.
  */
-const TEACHERS_DESCRIPTION: Record<PageLang, string> = {
-  en: 'English and subject teachers looking for work in Vietnam. Their phone, email and CV are shared only when the teacher chooses to.',
-  vi: 'Giáo viên tiếng Anh và các môn học đang tìm việc tại Việt Nam. Số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý.',
+export const TEACHERS_PROFILE_SENTENCE: Record<PageLang, string> = {
+  en: 'Profiles show experience and qualifications; some have an intro video.',
+  vi: 'Hồ sơ nêu kinh nghiệm, bằng cấp và chứng chỉ; một số có video giới thiệu.',
+}
+/**
+ * Hiring side first (above). The Vietnamese is a literal translation of the English, an interim like TEACHERS_H1's
+ * (which says why): no "nước ngoài", no "đang tìm việc". Each stays within 160 NFC code points, the length the
+ * descriptions here are held to (category-copy.test.ts).
+ */
+const TEACHERS_DESCRIPTION: Record<PageLang, { lead: string; close: string }> = {
+  en: { lead: 'Find English, IELTS and subject teachers in Vietnam.', close: 'Message them on eno.' },
+  vi: { lead: 'Tìm giáo viên dạy tiếng Anh, IELTS và các môn học tại Việt Nam.', close: 'Nhắn tin trên eno.' },
+}
+
+/**
+ * The /c/teachers meta description (and og/twitter: `(index)/page.tsx` mirrors it through pageShare): the lead, then
+ * TEACHERS_PROFILE_SENTENCE, then the close.
+ * ⛔ THE PROFILE SENTENCE ONLY OVER LIVE PROFILES, AS ON THE PAGE (review round 2, owner 2026-10-18: "go with
+ * recommended"). `live` is the count the page's generateMetadata already holds — the one its robots decision and the
+ * lede read (load-category.ts, one cache()'d call per render). At 0 the description is the lead and the close alone: an
+ * emptied /c/teachers stays indexable through stale-noindex.ts's 14-day window, and its snippet would say "some have an
+ * intro video" over no profile at all.
+ */
+function teachersDescription(lang: PageLang, live: number): string {
+  const { lead, close } = TEACHERS_DESCRIPTION[lang]
+  return live > 0 ? `${lead} ${TEACHERS_PROFILE_SENTENCE[lang]} ${close}` : `${lead} ${close}`
+}
+
+/**
+ * The /c/teachers H1, sentence case — what the people hiring search for (plan B3: "Find English teachers in Vietnam").
+ * <TeachersHeading> (category-lede.tsx) renders it through a literal `tr()` pair so the string harvester can
+ * pre-translate it; category-lede.test.tsx holds the two equal, and category-copy.test.ts holds `(index)/layout.tsx`'s
+ * <h1> to <TeachersHeading> on this row. The <title> is this in Title Case (teachersTitle).
+ * ⚠️ THE VIETNAMESE IS AN INTERIM, LITERAL TRANSLATION OF THE ENGLISH. The school-side Vietnamese (title, H1, lede and
+ * description) waits for counsel's wording — plan C1 and decision 4, the counsel brief's Q4 — and for a native speaker
+ * (decision 8); their answer to Q4 may replace this. Until then it says what the English says, and no more:
+ *   ⛔ NO "NƯỚC NGOÀI" ("foreign"). Nothing in code keeps a Vietnamese teacher off this page — the nationality picker
+ *     offers Vietnam among its first choices (teachers/countries.ts COMMON_TEACHER_NATIONALITIES) — so "foreign" would
+ *     describe today's profiles, not a rule; and the brief asks counsel whether a section built for foreign teachers
+ *     falls under the employment-services rules at all (Q1.1).
+ *   ⛔ NO "cung cấp / giới thiệu / cho thuê giáo viên" (plan C1): eno does not supply, refer or lease teachers — the
+ *     reader finds them ("Tìm").
+ */
+export const TEACHERS_H1: Record<PageLang, string> = {
+  en: 'Find English teachers in Vietnam',
+  vi: 'Tìm giáo viên tiếng Anh tại Việt Nam',
+}
+
+/**
+ * The limit every /c/teachers `<title>` is held to, site name included, in NFC code points — the count
+ * (home)/home-metadata.test.ts uses. Past it, a results page is likely to cut the end off.
+ */
+const TITLE_MAX = 60
+const codePoints = (s: string) => [...s.normalize('NFC')].length
+
+/**
+ * The /c/teachers `<title>`: the H1 (Title Case in English), then — in English, only while POSTING_IS_FREE holds, and
+ * only where it fits — that messaging a teacher is free.
+ * ⛔ "FREE" IS READ FROM THE FLAG, NEVER TYPED (site-identity.ts POSTING_IS_FREE, which cites the clauses it rests on:
+ * Regulations Art. 8 and the Terms' Fees section — "contacting sellers … currently free", and a teacher is the seller of
+ * their profile). The day a fee is announced the tail goes with the flag, and nothing else here needs finding by grep.
+ * No edition gate: the Fees paragraph that says so is the same on both editions (terms/page.tsx `id: 'fees'`), and no
+ * code path charges for a message.
+ * ⛔ THE TAIL GOES BEFORE THE TITLE PASSES TITLE_MAX — never the site name, never the H1. "… — Free to Message | eno.vn"
+ * is 59; on eno.forum, whose name is three characters longer, it would be 62, so there the title is the H1 and the
+ * site name. Measured from the site name it is given, not keyed on the edition.
+ * ⚠️ NO VIETNAMESE TAIL, FOR NOW: the literal one ("— nhắn tin miễn phí") takes the interim title to 65 on eno.vn, and
+ * whether the school-side Vietnamese says "miễn phí" is part of the same counsel wording (Q4.1 — both proposed titles
+ * carry it). TEACHERS_H1 has the rule.
+ * ⛔ NO COUNT in a `<title>` (the plan's rule: a cached head goes stale).
+ */
+function teachersTitle(lang: PageLang, siteName: string): string {
+  const head = lang === 'vi' ? TEACHERS_H1.vi : 'Find English Teachers in Vietnam'
+  const site = ` | ${siteName}`
+  const free = lang === 'en' && POSTING_IS_FREE ? ' — Free to Message' : ''
+  return codePoints(`${head}${free}${site}`) <= TITLE_MAX ? `${head}${free}${site}` : `${head}${site}`
 }
 
 /**
  * What a /c/teachers/<district> lede says after its count, where any other category states
  * REPORT_SENTENCE (owner 2026-09-30: teachers are people, not listings; CS-3 claim 6). It is the
- * /c/teachers lede's own second sentence, word for word in both languages (category-lede.tsx — the
+ * /c/teachers lede's own contact sentence, word for word in both languages (category-lede.tsx — the
  * test holds the two together), and DistrictLede's English tr() literal (category-text.tsx).
  * ⛔ WHO MAY WRITE IS A DAILY LADDER, NOT A BUSINESS-ONLY GATE (owner, 2026-10-13 — the teacher DM
  * ladder, src/lib/teachers/dm-quota.ts): any signed-in account may start chats with a few new
@@ -267,7 +369,8 @@ export const TEACHERS_CONTACT_SENTENCE: Record<PageLang, string> = {
  * ⛔ NO "— Trusted listings" IN ANY TITLE (CS-3 claim 2, owner 2026-10-01): nothing verifies a listing,
  * and on /c/teachers it called people "listings". Every tier now reads "{name} in Vietnam | eno.vn" —
  * the linked tiers' title, which is also the page's own H1 ("{nameVi} ở Việt Nam" in Vietnamese,
- * `(index)/layout.tsx`).
+ * `(index)/layout.tsx`) — except /c/teachers, whose title and H1 are written for the people hiring
+ * (TEACHERS_H1, teachersTitle; plan B3, approved in the plan, 2026-10-18).
  * ⛔ THE CLOSING SENTENCE FOLLOWS THE LINKED TIER. Nothing linked: REPORT_SENTENCE (it replaced the
  * trust-score claim, which electronics and furniture once carried over shelves in which every sampled
  * row — 100/100, 2026-09-27 — links out to a source shop). Linked tiers say where the listing opens
@@ -279,10 +382,15 @@ export function categoryMetadata(
   linked: LinkedTier,
   siteName: string,
   lang: PageLang = 'en',
+  /**
+   * The category's live count (load-category.ts `live`). Only /c/teachers reads it (teachersDescription).
+   * ⛔ LEFT OUT IT IS 0 — a caller that does not pass the count claims nothing about what profiles show.
+   */
+  live = 0,
 ): { title: string; description: string } {
+  if (cat.slug === 'teachers') return { title: teachersTitle(lang, siteName), description: teachersDescription(lang, live) }
   const name = lang === 'vi' ? cat.nameVi || cat.name : cat.name
   const title = lang === 'vi' ? `${name} ở Việt Nam | ${siteName}` : `${name} in Vietnam | ${siteName}`
-  if (cat.slug === 'teachers') return { title, description: TEACHERS_DESCRIPTION[lang] }
   const lead = lang === 'vi' ? `Xem tin ${name.toLowerCase()} tại Việt Nam.` : `Browse ${name.toLowerCase()} for expats in Vietnam.`
   const tail =
     linked === 'none' ? REPORT_SENTENCE[lang]

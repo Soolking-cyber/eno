@@ -8,6 +8,8 @@ import { Tr } from '@/context/language-context'
 import { getCategoryRow } from '../load-category'
 import { loadRentalsHeadline } from '../category-data'
 import { RentalsHeading } from '../category-text'
+import { TeachersHeading } from '@/components/marketplace/category-lede'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { CategoryLedeBlock } from './category-lede-block'
 import { LEDE_PLACEMENT } from './lede-placement'
 import { VI_PILOT, localizedHref } from '@/lib/lang-pinned'
@@ -100,9 +102,14 @@ export default async function CategoryIndexLayout({
             truncated with an ellipsis (the whole H1 stays in the HTML). From sm it is the display heading it was.
             `max-sm:py-0.5`: `truncate` clips at the padding box, and the display cut's 1.12 line box sits tight on a
             Vietnamese stacked accent or a descender — 2px each side keeps them whole.
-            The phone exception is written into docs/design-language.md §1. */}
+            The phone exception is written into docs/design-language.md §1.
+            /c/teachers says what the people hiring look for — "Find English teachers in Vietnam" (plan B3, approved in the
+            plan, 2026-10-18; category-copy.ts TEACHERS_H1, which its <title> is built from and which says why its Vietnamese
+            is an interim) — from the row it already has, awaiting nothing. category-copy.test.ts pins this branch. */}
         <h1 className="h-display text-foreground max-sm:truncate max-sm:py-0.5 max-sm:[--text-display:var(--text-title)]">
-          {headline ? <RentalsHeading headline={headline} /> : <><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /> <Tr text="in Vietnam" /></>}
+          {headline ? <RentalsHeading headline={headline} />
+            : cat.slug === TEACHERS_CATEGORY_SLUG ? <TeachersHeading />
+            : <><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /> <Tr text="in Vietnam" /></>}
         </h1>
         {LEDE_PLACEMENT === 'layout' && <CategoryLedeBlock slug={cat.slug} />}
         {children}
