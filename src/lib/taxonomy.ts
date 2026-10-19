@@ -1729,6 +1729,14 @@ export const SUBCATEGORY_FALLBACK: Readonly<Record<string, string>> = { services
  */
 export const TEACHER_SEEKING_POST = { category: 'jobs', subcategory: 'teaching', listingType: 'wanted' } as const
 
+/**
+ * ⛔ A JOB HAS NO CONDITION (2026-10-19): the condition is free text (60 characters) printed as a chip under the title, a job
+ * is not "new" or "used", and the post form never asks a job for one — so a value an API client, a CSV or a sync row sends
+ * for a Jobs listing (either intent) is stored as null by create, edit and the bulk core, and the job page prints none: no
+ * words on a job page go round the job-text screen (job-listing.ts jobTextProblem) through it.
+ */
+export const storesCondition = (categorySlug: string | null | undefined): boolean => categorySlug !== 'jobs'
+
 /** Is this the Jobs › Teaching "looking for work" post a teacher profile replaces (TEACHER_SEEKING_POST)? */
 export function isTeacherSeekingPost(categorySlug: string, listingType: string | null | undefined, subcategorySlug: string | null | undefined): boolean {
   return categorySlug === TEACHER_SEEKING_POST.category && listingType === TEACHER_SEEKING_POST.listingType && subcategorySlug === TEACHER_SEEKING_POST.subcategory
@@ -2104,6 +2112,24 @@ export const JOB_TEXT_ATTRIBUTES: Record<string, { label: string; labelVi: strin
   postedOn: { label: 'Posted', labelVi: 'Ngày đăng' },
   applyBy: { label: 'Apply by', labelVi: 'Hạn nộp hồ sơ' },
   source: { label: 'Source', labelVi: 'Nguồn' },
+}
+
+/**
+ * ⛔ THE LABEL THE LISTING PAGE'S DETAILS PRINTS FOR AN ATTRIBUTE KEY — ONE FUNCTION, read by the page itself
+ * (listings/[id]/(pdp)/page.tsx) and by the job-text screen, which judges each attribute of a hiring post as the page prints
+ * it, "label: value" (core/listings.ts jobTextFields; 2026-10-19): a job's text fact's own pair (JOB_TEXT_ATTRIBUTES, a
+ * `job` intent only), else the facet's pair (any facet of the placement but a filter-only one), else the RAW KEY humanized
+ * ("visaSponsorship" → "visa sponsorship"), which the page prints through <Tr> with its first letter raised. A key an API
+ * client invented ({ visaSponsorship: 'yes' }) therefore reads "Visa sponsorship: yes" to the screen, exactly as the page
+ * shows it. `en` is the English label as printed.
+ */
+export type DetailRowLabel = { jobText?: { label: string; labelVi: string }; facet?: FacetDef; rawKey: string; en: string }
+export function detailRowLabel(key: string, place: { categorySlug: string; subcategorySlug?: string | null; listingType?: string | null }): DetailRowLabel {
+  const jobText = place.listingType === 'job' && Object.hasOwn(JOB_TEXT_ATTRIBUTES, key) ? JOB_TEXT_ATTRIBUTES[key] : undefined
+  const facet = !jobText ? facetsFor(place.categorySlug, place.subcategorySlug).filter((f) => !f.filterOnly).find((f) => f.key === key) : undefined
+  const rawKey = key.replace(/([A-Z])/g, ' $1').toLowerCase()
+  const label = jobText?.label ?? facet?.label ?? rawKey
+  return { jobText, facet, rawKey, en: label.charAt(0).toUpperCase() + label.slice(1) }
 }
 
 /**

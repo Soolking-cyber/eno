@@ -21,7 +21,9 @@
  *    fragment and trailing slash stripped), so the same posting re-staged with `?utm=…` is one row.
  * ⛔ 3. THE SOURCE'S WORDS ARE SCREENED like a seller's own post (publish-guard assertCleanTexts:
  *    phone, email, link, handle, banned words) plus a job denylist (discriminatory requirements,
- *    adult-venue work, fees). A hit drops the row; nothing is "cleaned" and published.
+ *    adult-venue work, fees). A hit drops the row; nothing is "cleaned" and published. The visa
+ *    screen (read word by word there: hasEmployerVisaWord) and the denylist also refuse the text of a hiring post an
+ *    employer writes on eno (jobTextProblem).
  * ⛔ 4. EVERY ROW HAS AN apply-by DATE: the posting's own deadline, capped at 14 days after it was posted
  *    (owner, 2026-09-25: "after 14 days posting autoremove the jobs and fetch fresh ones to have only high
  *    quality existing jobs").
@@ -34,8 +36,9 @@
  *    wording is kept verbatim in `attributes.salaryText` (PDP Details and <title>). A monthly VND
  *    figure still sets `salaryM` (a range's lower bound) so the Salary filter finds the job.
  */
-import { assertCleanTexts, PublishBlockedError } from './publish-guard'
+import { assertCleanTexts, PublishBlockedError, type JobTextBlockCode } from './publish-guard'
 import { buildSearchText, fold } from './fold'
+import { richTextBlocks } from './rich-text-blocks'
 
 export type JobCategory = 'teaching' | 'english'
 
@@ -288,13 +291,34 @@ const ABROAD = /\b(japan|korea|china|taiwan|thailand|cambodia|laos|myanmar|indon
  * ⛔ WHAT A JOB AD MUST NOT SAY FOR eno.vn TO REPUBLISH IT, beyond the contact screen: a requirement
  * by race, skin colour, gender or age (Labour Code 2019 art. 8 bans discrimination in recruitment);
  * work in adult venues; and a fee or deposit to be hired — the classic job scam. Matched on the
- * FOLDED text, so diacritics cannot slip a word past it.
+ * FOLDED text, so diacritics cannot slip a word past it. One list, read two ways: as it stands by the
+ * importer's drop (jobDenyReason, mapStagedJob below), and with honest negations ("no training fee")
+ * taken out first by the employer-text screen (employerDenyReason, jobTextProblem).
+ * ⛔ THE PLURAL AND THE PLAIN DEMAND COUNT TOO (round 4: the negations below already read "fees?" / "deposits?", so only
+ * the honest wording was recognised, and the classic scam passed in its plainest words): "Training fees required",
+ * "Registration fees apply", "Deposits required", "A deposit is required" (or "will be"), a placement or application fee
+ * ("Placement fee: 500 USD", "Teachers pay a 500 USD placement fee"), a deposit stated with an amount ("A deposit of
+ * 5,000,000 VND is required before you start" — up to two words before the figure: "of about 5 million", "of USD 500"),
+ * and "Females only" / "Ladies only". Measured first on the importer's staged corpus (47 files, 1,962 rows, 518 distinct
+ * titles, employers, pay lines, places and their joins): no JOB_DENY hit before or after, so no posting is newly dropped.
+ * ⚠️ Still a word test with no sense of who pays: "The school covers all application fees" is refused, as "We pay the
+ * training fee" always was — a fixable refusal (the snippet names the words).
  */
-const JOB_DENY: [RegExp, string][] = [
-  [/\b(caucasian|white (only|skin|faces?|teachers? only)|no (asians?|africans?|filipinos?|indians?|blacks?)|(female|male|women|men) only|aged? (under|below) \d{2}|under \d{2} (years old|yo)|(maximum|max) age|age limit|young and (pretty|attractive)|ngoai hinh (dep|ua nhin)|(nu|nam) duoi \d{2}|duoi \d{2} tuoi|chi tuyen (nu|nam))\b/, 'discriminatory'],
+export type JobDenyReason = 'discriminatory' | 'adult-venue' | 'fee'
+const JOB_DENY: [RegExp, JobDenyReason][] = [
+  [/\b(caucasian|white (only|skin|faces?|teachers? only)|no (asians?|africans?|filipinos?|indians?|blacks?)|(females?|males?|women|men|ladies) only|aged? (under|below) \d{2}|under \d{2} (years old|yo)|(maximum|max) age|age limit|young and (pretty|attractive)|ngoai hinh (dep|ua nhin)|(nu|nam) duoi \d{2}|duoi \d{2} tuoi|chi tuyen (nu|nam))\b/, 'discriminatory'],
   [/\b(karaoke|massage|hostess|bar girl|escort|nightclub|tiep vien nha hang|chan dai)\b/, 'adult-venue'],
-  [/\b(fee required|deposit required|pay (a |the )?(fee|deposit)|training fee|registration fee|phi dao tao|dat coc|nop phi|phi ho so|phi dang ky)\b/, 'fee'],
+  [/\b(fees? (is |are |will be )?required|deposits? (is |are |will be )?required|deposits? of ([a-z]+ ){0,2}([a-z]{0,3}[$€£₫] ?)?\d+[a-z]*|pay (a |the )?(fees?|deposits?)|(training|registration|placement|application) fees?|phi dao tao|dat coc|nop phi|phi ho so|phi dang ky)\b/, 'fee'],
 ]
+
+/** The JOB_DENY rule `text` breaks, or null — on the FOLDED text, padded so a rule can match at either end. The importer's
+ *  reading: no negation is taken out (employerDenyReason is the employer screen's). */
+export function jobDenyReason(text: string | null | undefined): JobDenyReason | null {
+  if (!text) return null
+  const folded = ` ${fold(text)} `
+  for (const [re, why] of JOB_DENY) if (re.test(folded)) return why
+  return null
+}
 
 export type JobDrop =
   | 'unknownSource' | 'badUrl' | 'noJobId' | 'badTitle' | 'badEmployer' | 'multiCountry' | 'badCategory'
@@ -331,13 +355,26 @@ const RESIDENCE_PHRASE = new RegExp(
     `|\\bresiden(ce|cy)${JOIN}(card|permit|status|sponsor|authori|applic|renew|extens)`,
 )
 /**
- * Vietnamese, toned (NFC, lower case): thẻ thường trú, or tạm trú as a word of its own unless đăng ký / đăng kí / khai báo
- * comes right before it (hasVisaWord's comment). ⛔ NO LOOKBEHIND: the browserslist admits Safari 16.0–16.3, where a
- * `(?<…)` literal is a SyntaxError for the whole chunk (cookie-consent.tsx, gate 2026-10-05) — so each forward match
- * checks the text before it instead.
+ * The residence permit and card by their other names, and an extension of the stay (toned, NFC, lower case, whole words):
+ * giấy phép cư trú, thẻ cư trú, gia hạn tạm trú, gia hạn lưu trú — never a bare "cư trú" / "lưu trú" ("cư trú tại Hà Nội" is
+ * where a Vietnamese teacher lives, "lưu trú" a hotel stay). Added 2026-10-19 after measuring the importer's corpus: every
+ * posting ever staged (47 files, 1,962 rows, 170 distinct links) and the 37 live job rows — 507 distinct titles, employers,
+ * pay lines, places and descriptions — hold none of the four, so no posting the importer takes today is dropped by them.
+ */
+const STAY_GAP = String.raw`[^\p{L}\p{N}]*`
+const FOREIGNER_STAY_PHRASE = new RegExp(
+  String.raw`(?:^|[^\p{L}\p{N}])(?:giấy${STAY_GAP}phép${STAY_GAP}cư${STAY_GAP}trú|thẻ${STAY_GAP}cư${STAY_GAP}trú|gia${STAY_GAP}hạn${STAY_GAP}(?:tạm|lưu)${STAY_GAP}trú)(?![\p{L}\p{N}])`,
+  'u',
+)
+/**
+ * Vietnamese, toned (NFC, lower case): thẻ thường trú, a FOREIGNER_STAY_PHRASE, or tạm trú as a word of its own unless
+ * đăng ký / đăng kí / khai báo comes right before it (hasVisaWord's comment). ⛔ NO LOOKBEHIND: the browserslist admits
+ * Safari 16.0–16.3, where a `(?<…)` literal is a SyntaxError for the whole chunk (cookie-consent.tsx, gate 2026-10-05) — so
+ * each forward match checks the text before it instead.
  */
 function hasForeignerStayWord(vi: string): boolean {
   if (/thẻ[^\p{L}\p{N}]*thường[^\p{L}\p{N}]*trú(?![\p{L}\p{N}])/u.test(vi)) return true
+  if (FOREIGNER_STAY_PHRASE.test(vi)) return true
   for (const m of vi.matchAll(/(^|[^\p{L}\p{N}])tạm[^\p{L}\p{N}]*trú(?![\p{L}\p{N}])/gu)) {
     if (!/(đăng k[ýí]|khai báo)[^\p{L}\p{N}]*$/u.test(vi.slice(0, (m.index ?? 0) + m[1].length))) return true
   }
@@ -371,7 +408,8 @@ function hasForeignerStayWord(vi: string): boolean {
  *    registration every resident makes — and thường trú only as thẻ thường trú (the card): a Vietnamese teacher's "hộ
  *    khẩu thường trú tại TP.HCM" or "cư trú tại Hà Nội" is household registration, not a visa. Separators between the
  *    syllables are free (tạm-trú, #tạmtrú) and "trú" must end the word (a name like "Thường Trúc" stays). Unaccented,
- *    only "the tam tru" and "ho tro tam tru" count, with "tru" ending the word.
+ *    only "the tam tru" and "ho tro tam tru" count, with "tru" ending the word. Since 2026-10-19 also giấy phép cư trú, thẻ
+ *    cư trú, gia hạn tạm trú and gia hạn lưu trú (FOREIGNER_STAY_PHRASE — measured on the corpus first).
  *  · The CJK and Russian words beside "visa": 在留, 居留, 체류, вид на жительство, ВНЖ, РВП.
  * ⚠️ FAIL-CLOSED, KNOWINGLY, like "revisa": informal Vietnamese "trc" (= trước, "gửi CV trc 30/10") drops a posting
  * too. Measured 2026-10-18 on every job ever staged (174) and the 38 live ones — 360 distinct titles,
@@ -380,11 +418,461 @@ function hasForeignerStayWord(vi: string): boolean {
  */
 export const hasVisaWord = (raw: string) => {
   const folded = fold(raw)
+  return /visa|thithuc/.test(folded.replace(/[^a-z0-9]+/g, '')) || visaKinWords(raw, folded)
+}
+
+/**
+ * Everything hasVisaWord matches BESIDE its "visa" / "thithuc" substring — the English residence phrases, TRC, the
+ * foreigner's Vietnamese stay words and the CJK and Russian words (the note above) — shared as written by the employer
+ * screen's word-level test (hasEmployerVisaWord), so the two can differ only in how they read "visa" and "thị thực".
+ */
+function visaKinWords(raw: string, folded: string): boolean {
   const spaced = ` ${folded.replace(/[^a-z0-9]+/g, ' ')} `
-  return /visa|thithuc/.test(folded.replace(/[^a-z0-9]+/g, '')) || RESIDENCE_PHRASE.test(folded) ||
+  return RESIDENCE_PHRASE.test(folded) ||
     /TRC(?!N)|T\.R\.C/.test(raw) || / trc(?!n)|trc | t r c |(the|ho ?tro) ?tam ?tru /.test(spaced) ||
     hasForeignerStayWord(raw.normalize('NFC').toLowerCase()) ||
     /비자|签证|簽證|ビザ|виза|在留|居留|체류|вид на жительство|ВНЖ|РВП/i.test(raw)
+}
+
+/**
+ * ⛔ THE EMPLOYER SCREEN READS "VISA" AND "THỊ THỰC" AS WORDS (owner, 2026-10-19: "go with recommended") — hasVisaWord with
+ * its one SUBSTRING test swapped for word tests, every other pattern shared as written (visaKinWords). A false match
+ * costs the importer nothing (a dropped posting); an employer refused on eno must reword a line their school really
+ * writes, and the substring refused the heading "Vì sao nên chọn chúng tôi?" ("why choose us" — "visao" once the spaces
+ * go), "advisable" and "kỳ thi thực hành" (a practical exam — "thithuc"). So, on one block as the reader sees it:
+ *  · "visa" as a WORD of the folded text, an "e-" / "e" before it and a plural allowed: visa, visas, e-visa, evisa,
+ *    visa-free, "Visa/TRC" — in ANY of the block's spellings (visaSpellings): as typed, and with its glued words split
+ *    ("WorkPermitVisa", "VISASupport"). ⛔ Never the split alone (round 4): it cuts a word typed with two leading capitals — a
+ *    held-Shift typo — into "V Isa" ("VIsa", "VISa", "E-VIsa", "VIsas" passed that way, where the importer's substring
+ *    refuses them). A hashtag is read as the glued words it is ("#visasupport", "#VisaSponsorship", "#VIsaSupport",
+ *    "#thithuc");
+ *  · "thị thực" WITH ITS TONES (NFC, lower case), the two syllables glued, spaced, or joined by one hyphen or underscore —
+ *    never "thi thực" (the exam), across a stop ("…tiếp thị. Thực hiện…" is two sentences) or a spaced dash (a title's
+ *    "Nhân viên tiếp thị - Thực tập sinh");
+ *  · "thi thuc" as words of the FOLDED text only when the block carries no mark at all (someone typing without accents:
+ *    "ho tro thi thuc") — in text that has marks, the unmarked syllables are other words.
+ * ⚠️ KNOWN FALSE POSITIVES, fail-closed and fixable (the refusal names the words): "siêu thị thực phẩm" (supermarket food),
+ * "tiếp thị thực phẩm" (food marketing) and "kinh nghiệm tiếp thị thực tế" hold "thị thực" as words; so does a paragraph
+ * whose line ends "…tiếp thị" above a line starting "Thực hiện…" — one paragraph on the page, read "…tiếp thị Thực hiện…"
+ * (a bullet or a full stop splits it); an unaccented "ky thi thuc hanh"; a "Visa card" salary payment; a lower-case hashtag
+ * that holds "visa" once folded ("#vìsao", "#visaochonchungtoi" — a camelCase one, "#VìSaoChọnChúngTôi", is read split).
+ * ⚠️ OUT OF SCOPE — MODERATION'S JOB, NOT THIS SCREEN'S: deliberate obfuscation — letters split by punctuation or spaces
+ * ("v.i.s.a", "V·I·S·A", "Vi|sa", "thị·thực"), homoglyphs, zero-width characters, text in images. IN SCOPE: anything a
+ * real poster writes plainly, text pasted from a PDF or a Word file with hard line breaks mid-sentence included
+ * (jobTextProblem reads the rendered paragraph, not the line).
+ */
+const VISA_WORD = /(?:^|[^a-z0-9])e?-?visas?(?![a-z0-9])/
+/** A hashtag holding the word — read on the SPLIT spellings only (review, 2026-10-19): as typed, "#VìSaoChọnChúngTôi" folds
+ *  to "#visaochonchungtoi"; split, it is "#vi sao chon chung toi", while "#VisaSponsorship" is "#visa sponsorship". */
+const VISA_HASHTAG = /#[a-z0-9_]*(?:visa|thithuc)/
+const THI_THUC_TONED = /(?:^|[^\p{L}\p{N}])thị(?:\s+|[_-])?thực(?![\p{L}\p{N}])/u
+const THI_THUC_UNMARKED = /(?:^|[^a-z0-9])thi(?:\s+|[_-])?thuc(?![a-z0-9])/
+/** Whether the text carries a mark — a tone or vowel mark once decomposed (U+0300–U+036F), or đ. */
+const hasMarks = (s: string): boolean => /[\u0300-\u036f]/.test(s.normalize('NFD')) || /[đĐ]/.test(s)
+/**
+ * The block's spellings the "visa" word test reads, folded (the note above): as typed; with its camelCase joins split
+ * ("WorkPermitVisa" → "Work Permit Visa"); and with its ACRONYMWord joins split as well ("VISASupport" → "VISA Support").
+ * ⚠️ The acronym split also cuts a word typed with two leading capitals ("VIsa" → "V Isa"), so it is never the only reading:
+ * "VIsa" is a word as typed, and "WorkPermitVIsa" once only its camelCase join is split (round 4).
+ */
+const visaSpellings = (raw: string, folded: string): string[] => {
+  const camel = raw.replace(/(\p{Ll})(\p{Lu})/gu, '$1 $2')
+  return [folded, fold(camel), fold(camel.replace(/(\p{Lu})(\p{Lu}\p{Ll})/gu, '$1 $2'))]
+}
+export const hasEmployerVisaWord = (raw: string): boolean => {
+  const folded = fold(raw)
+  const spellings = visaSpellings(raw, folded)
+  return spellings.some((s) => VISA_WORD.test(s)) || spellings.slice(1).some((s) => VISA_HASHTAG.test(s)) ||
+    THI_THUC_TONED.test(raw.normalize('NFC').toLowerCase()) ||
+    // Unmarked "thi thuc" on every spelling, so a camelCase hashtag ("#HoTroThiThuc" → "#ho tro thi thuc") is read too.
+    (!hasMarks(raw) && spellings.some((s) => THI_THUC_UNMARKED.test(s))) || visaKinWords(raw, folded)
+}
+
+const DENY_CODE: Record<JobDenyReason, JobTextBlockCode> = { discriminatory: 'job_discrimination', 'adult-venue': 'job_adult_venue', fee: 'job_candidate_fee' }
+
+/**
+ * Is this listing a HIRING post — the only kind the job-text screen reads (owner, 2026-10-18: "go with recommended")?
+ * Jobs' `job` intent; never its `wanted` one, where a person looking for work describes THEMSELVES ("Valid TRC", "two years
+ * in cafés") — a line about who they are, not a requirement an employer sets, so the job-ad rules do not apply to it.
+ */
+export const isHiringPost = (categorySlug: string | null | undefined, listingType: string | null | undefined): boolean =>
+  categorySlug === 'jobs' && listingType === 'job'
+
+/**
+ * ⛔ THE UNIT IS THE BLOCK THE READER SEES (the contract, 2026-10-19 — owner: "go with recommended"). Two review rounds asked
+ * for opposite things — "never join words across lines", then "per-line splitting is bypassed, because the page joins a
+ * paragraph's lines" — and both resolve into one rule: A HIRING POST IS SCREENED EXACTLY AS THE READER SEES IT. The
+ * description is rendered by formatRichText, and its blocks are that renderer's (src/lib/rich-text-blocks.ts, one parse for
+ * both): a paragraph is its consecutive non-blank lines joined with a space — so "…thẻ tạm" on one line and "trú" on the next
+ * is "…thẻ tạm trú", as the page prints it — while each list item ("- ", "* ", "• ", "1.", "1)", a tick), each "#" heading
+ * and each row of a fact table is a block of its own (a fact run that is not a table folds back into its paragraph, as on
+ * the page). Every other field — the title, a place, an attribute row ("Label: value", as Details prints it) — is ONE line,
+ * whatever line breaks an API client sent (an <h1> or a table cell shows them as spaces). Whitespace runs read as one space.
+ */
+export type JobTextField = readonly [field: string, text: string | null | undefined, kind?: 'rich' | 'line', key?: string]
+
+/** A field's text as the blocks the reader sees (the note above), whitespace runs as one space, empty ones dropped. */
+function blocksOf(text: string, kind: 'rich' | 'line' = 'line'): string[] {
+  const flat = (s: string) => s.replace(/\s+/g, ' ').trim()
+  return (kind === 'rich' ? richTextBlocks(text).map(flat) : [flat(text)]).filter(Boolean)
+}
+
+/**
+ * Where a SENTENCE ends inside a block, for the denylist (employerDenyReason) — sentence punctuation only: a run of up to
+ * eight . ! ? … ; (or their full-width forms) after two non-space characters and before a space or the end (bounded, so a
+ * long run of stops costs linear time). "25.000.000 đ" and "TP.HCM" are no ends; nor is a dash, which runs a clause on ("No
+ * training fee – deducted from your first salary" is one sentence, and its fee words count); nor a line break inside a
+ * paragraph, which the reader sees as a space ("No training fee\nwill be charged later" is one sentence).
+ */
+const SENTENCE_END = /(\S\S)[.!?…;。！？]{1,8}(?=\s|$)/gu
+
+/** A block's sentences, trimmed, empty ones dropped — the stops themselves go. */
+function sentencesOf(block: string): string[] {
+  const out: string[] = []
+  let from = 0
+  for (const m of block.matchAll(SENTENCE_END)) {
+    // The two characters a stop needs before it are the end of its own sentence (no lookbehind — hasForeignerStayWord's note).
+    out.push(block.slice(from, (m.index ?? 0) + m[1].length))
+    from = (m.index ?? 0) + m[0].length
+  }
+  out.push(block.slice(from))
+  return out.map((s) => s.trim()).filter(Boolean)
+}
+
+/** The longest snippet a refusal carries (a word run longer than this is cut, with "…"). */
+const SNIPPET_MAX = 80
+
+/**
+ * The poster's own words that trip the rule, cut from the refused block or sentence so they read exactly as shown — what
+ * they are asked to take out or reword ("Visa", "TRC", "training fee required", "tạm trú"). The fewest whole words around
+ * the FIRST hit (words come off the back while the rest still trips, then off the front) joined to the fewest around the
+ * LAST (front, then back), so a line with two ("hostess for a karaoke bar") shows both and one fix clears it. Exactly the
+ * first and the last when more words can only add hits — always so for the visa test; a negation taken out can make the rule
+ * trip on fewer words and not on more ("Training fee:" against "Training fee: none"), and then the cut lands on a hit near
+ * them. Edge punctuation goes ("Visa." → "Visa"), and so does a bracket or quote left without its pair ("(visa" → "visa"); a
+ * pair ("Visa (thị thực)") and a hashtag's # stay as typed.
+ * ⛔ TWO HITS FAR APART — the joined span past SNIPPET_MAX — give the FIRST hit's own words only (Opus, round 3): a whole
+ * paragraph is a block now, and a cut "first … last" run would end in "…" before the last hit and name words nobody could
+ * find. The first hit alone is one contiguous run of the block, so the wizard's note (post-wizard.tsx jobTextStill) still
+ * finds it in the field; the refusal comes back for the next hit once that one is fixed. A single run past the limit (one
+ * very long word) is cut, with "…", as ever.
+ * ⚠️ EACH CUT IS A BINARY SEARCH between a span that trips and one that does not, so a 5,000-character line costs a few
+ * dozen tests of the rule (O(n log n) in all), not one per word each way (measured 2026-10-18: ~350 ms for 1,200 words that way) — and it
+ * ends, like the word-by-word cut, on words that trip while one fewer does not.
+ */
+function trippingWords(piece: string, trips: (s: string) => boolean): string {
+  const words = [...piece.matchAll(/\S+/g)].map((m) => [m.index ?? 0, (m.index ?? 0) + m[0].length] as const)
+  const span = (a: number, b: number) => piece.slice(words[a][0], words[b - 1][1])
+  const narrow = (backFirst: boolean): [number, number] => {
+    let a = 0
+    let b = words.length
+    // The last end that still trips: [a, hi) trips, [a, lo) does not (an empty span never does).
+    const back = () => {
+      let lo = a
+      let hi = b
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (trips(span(a, mid))) hi = mid; else lo = mid }
+      b = hi
+    }
+    // The last start that still trips: [lo, b) trips, [hi, b) does not.
+    const front = () => {
+      let lo = a
+      let hi = b
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (trips(span(mid, b))) lo = mid; else hi = mid }
+      a = lo
+    }
+    if (backFirst) { back(); front() } else { front(); back() }
+    return [a, b]
+  }
+  const [first, last] = [narrow(true), narrow(false)]
+  // Edge punctuation and an unpaired bracket or quote off a cut — kept only while what is left still trips.
+  const tidy = (cut: string): string => {
+    let trimmed = cut.replace(/^[.,;:!?…]+|[.,;:!?…]+$/gu, '')
+    for (const [open, close] of [['(', ')'], ['[', ']'], ['“', '”'], ['«', '»']]) {
+      if (trimmed.startsWith(open) && !trimmed.includes(close)) trimmed = trimmed.slice(open.length)
+      if (trimmed.endsWith(close) && !trimmed.includes(open)) trimmed = trimmed.slice(0, -close.length)
+    }
+    return trimmed && trimmed !== cut && trips(trimmed) ? trimmed : cut
+  }
+  let out = tidy(span(Math.min(first[0], last[0]), Math.max(first[1], last[1])))
+  if (Array.from(out).length > SNIPPET_MAX) out = tidy(span(first[0], first[1]))
+  const chars = Array.from(out)
+  return chars.length > SNIPPET_MAX ? `${chars.slice(0, SNIPPET_MAX - 1).join('')}…` : out
+}
+
+/**
+ * ⛔ HONEST NEGATIONS ARE TAKEN OUT BEFORE JOB_DENY READS EMPLOYER TEXT (owner, 2026-10-18: "go with recommended") — "no age
+ * limit", "no training fee", "không thu phí đào tạo" say the OPPOSITE of the rule's words, which JOB_DENY reads as they
+ * stand ("without any fee", "không thu phí" and "không giới hạn tuổi", the owner's other examples, hold no JOB_DENY phrase). THE EMPLOYER SCREEN ONLY: the importer's drop (mapStagedJob) keeps
+ * JOB_DENY exactly as it was — a false drop costs it nothing. Read per SENTENCE (SENTENCE_END), with ONE rule:
+ *  · a negation goes only when it IS THE SENTENCE — ⛔ after three review rounds (codex + Opus, 2026-10-18) each found a new
+ *    way a fee rides on a negation inside a longer sentence, and a fifth the same for an age limit ("No age limit for men,
+ *    35 for women", "Age limit: none for native speakers, max 35 for others"): put off ("No training fee upfront –
+ *    deducted from your first salary", "Không thu phí đào tạo, trừ vào lương tháng đầu", "(No training fee) will be
+ *    deducted…"), a condition ("Without the registration fee, your application will not be processed", "Nếu không đặt cọc,
+ *    bạn sẽ mất suất"), partly waived ("Miễn phí đào tạo 3 tháng đầu"), or limited ("…quá 2 triệu", "…for the first month").
+ *    No list of such words can be finished, so none is kept: once the negations (FEE_NEGATIONS, "miễn phí" FREE_WORDS,
+ *    AGE_LOOKS_NEGATIONS) and the harmless ones beside them ("no experience needed", "không yêu cầu kinh nghiệm" —
+ *    HARMLESS_NEGATIONS) are taken out, every word left must be FILLER ("there is", "we", "for this role", "chúng tôi"…) —
+ *    else the sentence is read as written, and the refusal names the words. "No training fee." / "- Không thu phí đào tạo"
+ *    / "There is no age limit for this role." / "No training fee, no deposit." pass; "Lương cao, không thu phí đào tạo, có
+ *    hoa hồng" is refused — the safe side, and putting the negation on its own line passes it. The way a form writes such a
+ *    line is no extra word (Opus, round 3): a leading list marker or number ("1.", "a)", "-", "•", a tick, an emoji) and
+ *    one or two labels of a CLOSED set before a colon ("Benefits:", "Quyền lợi:" — LEAD) are dropped before the FILLER
+ *    test, so "1. No fees" and "Quyền lợi: không thu phí" pass while "No fees until you start, then a training fee" does not.
+ * A FEE negation is a negated noun phrase ("no" / "zero" / "without" / "không" / "ko" / "chẳng" + determiners and the fee's
+ * kind + the fee words), the employer's verb negated ("we do not charge / require / ask for", "không thu / lấy / yêu cầu /
+ * nhận / có"), the candidate's payment under a modal or "never" ("you don't have to pay", "no need to pay", "không phải /
+ * cần nộp"), or the fee words then "not required" / ": none" / ": free (of charge)" / ": không" / ": 0đ"; more items only
+ * after "or" / "nor" / "hay" / "hoặc". "Miễn phí" is FREE, a fee negation like those — unless a negation stands before it
+ * ("không (được / phải / còn) miễn phí": NOT free, so the fee words count). And a sentence whose NEXT sentence in the same
+ * field is a consequence ("Không đặt cọc. Không nhận việc.", "No training fee. No job.") is a condition: its fee words count
+ * (`condition`). An AGE-LIMIT or LOOKS negation is "no age limit", "no max age", "Age limit: none", "không yêu cầu ngoại hình
+ * đẹp", "không giới hạn tuổi". A removed phrase leaves " | ", so what is left never joins into a new phrase. Every case above
+ * is pinned, both ways, in job-listing.test.ts.
+ */
+const NJ = String.raw`[\s/&+-]+`
+const EN_DET = String.raw`(?:any|a|an|the|training|registration|application|recruitment|placement|agency|admin|joining|or|nor)`
+const EN_FEE = String.raw`(?:fees?|deposits?)`
+const EN_MORE = String.raw`(?:${NJ}(?:or|nor)(?:${NJ}${EN_DET}){0,4}${NJ}${EN_FEE})*`
+const EN_TAIL = String.raw`(?:${NJ}(?:(?:(?:is|are|will${NJ}be)${NJ})?(?:required|needed|charged|payable|necessary)|whatsoever|at${NJ}all)){0,2}`
+const EN_FEE_PHRASE = String.raw`(?:${NJ}${EN_DET}){0,4}${NJ}${EN_FEE}${EN_MORE}${EN_TAIL}(?![a-z0-9])`
+const VI_VERB = String.raw`(?:thu|lay|tinh|yeu cau|doi hoi|mat|ton|nhan|co|(?:phai|can|bat buoc)(?:${NJ}(?:nop|dong|dat|tra))?)`
+const VI_DET = String.raw`(?:bat ky|bat cu|khoan|loai|chi|tien|cac|moi|mot)`
+const VI_FEE = String.raw`(?:phi dao tao|phi ho so|phi dang ky|le phi|phi|dat coc|tien coc|coc)`
+const VI_MORE = String.raw`(?:${NJ}(?:hay|hoac)(?:${NJ}${VI_DET}){0,3}${NJ}${VI_FEE})*`
+const VI_TAIL = String.raw`(?:${NJ}(?:nao|gi|ca|het)){0,2}`
+/** The fee negations (the note above) — taken out only when what is left of the sentence is FILLER. */
+const FEE_NEGATIONS: readonly RegExp[] = [
+  // "no / zero / without (any, the, training…) fee(s) / deposit(s)", "… or registration fees", "… (is) required".
+  new RegExp(String.raw`\b(?:no|zero|without)${EN_FEE_PHRASE}`, 'g'),
+  // "we do not / never / don't charge / require / ask for (you) (a) fee", "you will not be charged a fee".
+  new RegExp(String.raw`\b(?:not|never|[a-z]+n['’]t)(?:${NJ}be)?${NJ}(?:charge[sd]?|charging|require[sd]?|ask(?:s|ed)?${NJ}for|collect|take)(?:${NJ}(?:you|candidates|applicants|teachers|staff))?${EN_FEE_PHRASE}`, 'g'),
+  // "you don't have to / no need to / are not required to pay (a) fee", "you never pay a deposit".
+  new RegExp(String.raw`\b(?:(?:no${NJ}need|not${NJ}required|not${NJ}have|never${NJ}have|[a-z]+n['’]t${NJ}have)${NJ}to|never)${NJ}pay${EN_FEE_PHRASE}`, 'g'),
+  // "training fee (is) not required", "deposit: none", "fee: free (of charge)".
+  new RegExp(String.raw`\b(?:(?:training|registration|application|placement|recruitment)${NJ})?${EN_FEE}(?:${NJ}(?:is|are|will${NJ}be))?${NJ}(?:not|never)${NJ}(?:required|needed|charged|payable|necessary)(?![a-z0-9])`, 'g'),
+  new RegExp(String.raw`\b(?:(?:training|registration|application|placement|recruitment)${NJ})?${EN_FEE}\s*[:=–—-]+\s*(?:none|nil|n/a|free(?:${NJ}of${NJ}charge)?)(?![a-z0-9])`, 'g'),
+  // "(hoàn toàn) không / ko / chẳng (thu / có / yêu cầu / phải nộp / cần đặt…) (bất kỳ, khoản…) phí (đào tạo / hồ sơ…) / đặt
+  // cọc / cọc".
+  new RegExp(String.raw`\b(?:hoan toan${NJ})?(?:khong|ko|chang)(?:${NJ}${VI_VERB})?(?:${NJ}${VI_DET}){0,3}${NJ}${VI_FEE}${VI_MORE}${VI_TAIL}(?![a-z0-9])`, 'g'),
+]
+/**
+ * "phí đào tạo: không (thu)", "đặt cọc: miễn phí", "phí hồ sơ: 0đ" (never "0.5 triệu") — as the END of the sentence only, so
+ * "phí đào tạo: không miễn phí" (not free) and "đặt cọc – không hoàn" (non-refundable) keep counting (Opus, round 4). Read
+ * BEFORE FREE_WORDS, which would otherwise take the "miễn phí" this form ends on (Opus, round 5); the end anchor means it can
+ * hide no "không" in front of a "miễn phí".
+ */
+const VI_FEE_ANSWER = new RegExp(String.raw`\b(?:phi dao tao|phi ho so|phi dang ky|le phi|dat coc|tien coc)\s*[:=–—-]+\s*(?:khong(?:${NJ}(?:co|thu|mat|can))?|mien phi|0(?![\d]|[.,]\d)(?:\s?(?:d|dong|vnd))?)(?=\s*$)`, 'g')
+/** "miễn phí (đào tạo / hồ sơ / đăng ký)" — FREE, a fee negation like those above; never when a negation stands before it. */
+const FREE_WORDS = new RegExp(String.raw`(\b(?:khong|ko|chang|chua)(?:${NJ}(?:duoc|phai|con|hoan toan|la)){0,2}${NJ})?\bmien${NJ}phi(?:${NJ}(?:dao tao|ho so|dang ky))?(?![a-z0-9])`, 'g')
+/** The age-limit and looks negations — taken out, like the fee ones, only when what is left of the sentence is FILLER. */
+const AGE_LOOKS_NEGATIONS: readonly RegExp[] = [
+  // "no (upper / maximum) age limit", "without any age limit", "no max age", "age limit: none".
+  new RegExp(String.raw`\b(?:no|without(?:${NJ}(?:an?|any))?)(?:${NJ}(?:upper|maximum|max|strict))?${NJ}age${NJ}(?:limits?|caps?|restrictions?|requirements?)(?![a-z0-9])`, 'g'),
+  new RegExp(String.raw`\bno${NJ}(?:maximum|max|upper)${NJ}age(?![a-z0-9])`, 'g'),
+  new RegExp(String.raw`\bage${NJ}limits?\s*[:=–—-]+\s*(?:none|nil|n/a)(?![a-z0-9])`, 'g'),
+  // "không (yêu cầu / cần / giới hạn / phân biệt …) (về) ngoại hình (đẹp / ưa nhìn) / độ tuổi / tuổi / giới tính".
+  new RegExp(String.raw`\bkhong(?:${NJ}(?:yeu cau|can|doi hoi|quan trong|phan biet|gioi han|bat buoc)){1,2}(?:${NJ}ve)?${NJ}(?:ngoai hinh(?:${NJ}(?:dep|ua nhin))?|do tuoi|tuoi|gioi tinh)(?![a-z0-9])`, 'g'),
+]
+/** Negations beside a fee negation that ask nothing of the candidate — taken out only to judge what is left. A CLOSED list. */
+const HARMLESS_NEGATIONS: readonly RegExp[] = [
+  new RegExp(String.raw`\b(?:no|without)${NJ}(?:(?:prior|previous|teaching|work)${NJ})?(?:experience|degree|certificates?|certification|overtime|uniform)(?:${NJ}(?:needed|required|necessary))?(?![a-z0-9])`, 'g'),
+  new RegExp(String.raw`\bkhong${NJ}(?:(?:can|yeu cau|doi hoi)${NJ})?(?:kinh nghiem|bang cap|chung chi|lam them gio|tang ca|dong phuc)(?![a-z0-9])`, 'g'),
+]
+/**
+ * ⛔ THE VIETNAMESE FILLER IS MATCHED WITH ITS TONES, BEFORE FOLDING (Opus, round 3). Folded, "trung tâm" (the centre) was the
+ * two filler syllables "trung" + "tam" — and "tam" is also tạm ("for now": "Tạm không thu phí đào tạo" waives the fee only
+ * for a while), "toi" also tới ("until"), "ty" also tỷ (a billion), "ca" also ca (a shift): a bare folded syllable let a word
+ * of time or money pass as filler. So each phrase below is taken out AS WRITTEN (NFC, lower case, whole words; its
+ * syllables joined by any space) and only then is the sentence folded — and no folded Vietnamese syllable is filler on its
+ * own. "sẽ" (will) is an auxiliary (AUXILIARIES). Text typed with NO marks at all matches the folded many-syllable phrases
+ * instead ("Trung tam khong thu phi dao tao"), never a lone syllable. A CLOSED list, like FILLER: pronouns, the
+ * school, the candidate, "committed", "absolutely", "all", "also", "and", "for", "with", "at", "is" / "will"…
+ * ⚠️ NOT "hay" / "hoặc" ("or"): they belong to the negation itself ("không thu phí đào tạo hay phí hồ sơ" — FEE_NEGATIONS'
+ * "or" chain), which reads the folded text, so they stay folded words of FILLER like "or" / "nor".
+ */
+const VI_FILLER_WORD = 'vifiller'
+const VI_FILLER_AUX = 'vifilleraux'
+const VI_FILLER_PHRASES = [
+  'chúng tôi', 'chúng mình', 'bên mình', 'bên em', 'trung tâm', 'công ty', 'nhà trường', 'tuyệt đối', 'cam kết', 'ứng viên',
+  'giáo viên', 'học viên', 'tất cả', 'tôi', 'mình', 'bên', 'trường', 'bạn', 'cũng', 'là', 'và', 'cho', 'với', 'đều', 'nhé',
+  'ở', 'tại', 'được',
+  // Southern sentence particles and "completely" (review, 2026-10-19): toned matching keeps "nha" apart from "nhà".
+  'nha', 'nhen', 'nghen', 'nè', 'hoàn toàn',
+]
+/** Whole words, NFC lower case, the longest phrase first; the capture keeps the character before it (no lookbehind). */
+const viFillerRe = (phrases: readonly string[]) =>
+  new RegExp(String.raw`(^|[^\p{L}\p{N}])(${[...phrases].sort((a, b) => b.length - a.length).map((x) => x.split(' ').join(String.raw`\s+`)).join('|')})(?![\p{L}\p{N}])`, 'gu')
+const VI_FILLER = viFillerRe(VI_FILLER_PHRASES)
+const VI_FILLER_AUX_RE = viFillerRe(['sẽ'])
+const VI_FILLER_UNMARKED = viFillerRe(VI_FILLER_PHRASES.filter((x) => x.includes(' ')).map(fold))
+/** The sentence with its Vietnamese filler as FILLER tokens (the note above), ready to fold. */
+function withViFiller(sentence: string): string {
+  const nfc = sentence.normalize('NFC').toLowerCase()
+  const toned = nfc.replace(VI_FILLER, `$1 ${VI_FILLER_WORD} `).replace(VI_FILLER_AUX_RE, `$1 ${VI_FILLER_AUX} `)
+  return hasMarks(nfc) ? toned : toned.replace(VI_FILLER_UNMARKED, `$1 ${VI_FILLER_WORD} `)
+}
+
+/**
+ * The words a sentence may hold beside a fee negation and still be only that negation (folded, one word each). A CLOSED
+ * list: no word of time, money, number, refund, condition or requirement is on it — not "required", "needed", "apply",
+ * "join", "upfront", "trước", "until", "if", "nếu", "trừ", "lương", "hoàn" (refund), "first", "tháng" or a digit (codex +
+ * Opus, round 4: "No training fee to apply – it is required to join", "Đặt cọc – không hoàn") — so any such word, bracketed
+ * or not, leaves the fee words counting. A fee predicate belongs to its negation, not here ("no fee required", "deposit is
+ * not required": FEE_NEGATIONS' tails), and "hoàn toàn" (completely) to the Vietnamese negation it comes before.
+ */
+const FILLER = new Set([
+  'there', 'is', 'are', 'be', 'do', 'does', 'did', 'will', 'would', 's', 'we', 'our', 'us', 'you', 'your', 'this', 'that',
+  'the', 'a', 'an', 'any', 'all', 'also', 'and', 'or', 'nor', 'of', 'for', 'to', 'at', 'candidates', 'candidate', 'applicants',
+  'applicant', 'teachers', 'teacher', 'staff', 'students', 'student', 'role', 'job', 'jobs', 'position', 'post', 'vacancy',
+  'school', 'centre', 'center', 'company', 'absolutely', 'completely', 'totally', 'entirely', 'strictly', 'whatsoever', 'ever',
+  'every', 'nationality', 'nationalities', 'welcome', 'welcomed',
+  // The Vietnamese filler, as the tokens VI_FILLER leaves (no other folded syllable: the note there) — and "hay" / "hoặc"
+  // ("or"), which the negation's own "or" chain reads folded.
+  VI_FILLER_WORD, VI_FILLER_AUX, 'hay', 'hoac',
+])
+/**
+ * The auxiliaries of FILLER — only BEFORE the first negation taken out ("we do not charge…", "there will be no…"), never after
+ * it, where they hand the fee on to someone else: "We don't charge a training fee — the school does", "…, the company will"
+ * (Opus, round 6), "…, trung tâm sẽ thu".
+ */
+const AUXILIARIES = new Set(['is', 'are', 'be', 'do', 'does', 'did', 'will', 'would', VI_FILLER_AUX])
+const onlyFiller = (text: string): boolean => {
+  const cut = text.indexOf('|')
+  const words = (s: string) => s.match(/[a-z0-9]+/g) ?? []
+  return words(cut < 0 ? text : text.slice(0, cut)).every((w) => FILLER.has(w))
+    && (cut < 0 || words(text.slice(cut)).every((w) => FILLER.has(w) && !AUXILIARIES.has(w)))
+}
+/**
+ * What a form puts before a line, dropped before the FILLER test (the note above): a run of list markers — a number or a
+ * letter with ".", ")", "/", ":" or "-" ("1.", "a)", "1/", "1 -"), a keycap number ("2️⃣"), a dash, a bullet, a tick, an
+ * emoji — then one or two labels of a CLOSED set before a colon, on the folded sentence. Never the negation's own "|" (a
+ * sentence that opens with its negation keeps it).
+ */
+const LEAD_LABEL = String.raw`(?:quyen loi|phuc loi|che do|luu y|chu y|notes?|benefits|perks|we offer|other)`
+const LEAD = new RegExp(String.raw`^\s*(?:(?:\d{1,3}|[a-z])\s?[.)/:-]|\d{1,3}\uFE0F?\u20E3|[^a-z0-9\s|])*\s*(?:${LEAD_LABEL}(?:\s*(?:&|and|va|,)?\s*${LEAD_LABEL})?\s*:)?`)
+/** A narrow CONSEQUENCE opening the next sentence of a field — the sentence before it a condition ("Không nhận việc."). */
+const OPENS_WITH_CONSEQUENCE = new RegExp(String.raw`^\s*(?:thi${NJ})?(?:no|khong|ko|chang)${NJ}(?:(?:duoc|the)${NJ})?(?:job|work|start|hire|place|class|contract|offer|interview|nhan(?:${NJ}(?:viec|lop))?|lam(?:${NJ}viec)?|di${NJ}lam|vao${NJ}lam|ky(?:${NJ}hop${NJ}dong)?|co${NJ}viec|giu${NJ}cho|hoc)(?=\s*(?:$|[,;:.!?()|—–-]))`)
+
+/**
+ * Which JOB_DENY rule a SENTENCE of employer text breaks, or null — the importer's matcher with honest negations taken out
+ * (the note above). `condition`: the field's next sentence opens with a consequence, so no fee negation here is honest.
+ */
+function employerDenyReason(text: string, opts: { only?: JobDenyReason; condition?: boolean } = {}): JobDenyReason | null {
+  const { only, condition = false } = opts
+  const folded = ` ${fold(text)} `
+  let read = folded
+  if (!condition) {
+    const rest = withoutNegations(folded)
+    // What is left must be FILLER — judged on the same sentence with its Vietnamese filler matched as written (withViFiller)
+    // and the form's lead (LEAD) dropped; JOB_DENY then reads `rest`, the sentence itself with its negations out.
+    if (rest !== folded) {
+      const probe = withoutNegations(` ${fold(withViFiller(text))} `).replace(LEAD, ' ')
+      if (onlyFiller(HARMLESS_NEGATIONS.reduce((t, re) => t.replace(re, ' '), probe))) read = rest
+    }
+  }
+  for (const [re, why] of JOB_DENY) if ((!only || why === only) && re.test(read)) return why
+  return null
+}
+
+/** A folded sentence with its honest negations as " | " (the note above). */
+function withoutNegations(folded: string): string {
+  // The "…: không / miễn phí" answer first; then "miễn phí" on the sentence as written — a fee negation taken out before it
+  // could hide the "không" that makes it NOT free ("phí đào tạo: không miễn phí", Opus round 4); then the rest.
+  const free = folded.replace(VI_FEE_ANSWER, ' | ').replace(FREE_WORDS, (words, negated: string | undefined) => (negated ? words : ' | '))
+  return [...FEE_NEGATIONS, ...AGE_LOOKS_NEGATIONS].reduce((t, re) => t.replace(re, ' | '), free)
+}
+
+/** A job-text refusal: which rule, which field, and the poster's own words that tripped it (trippingWords). */
+export type JobTextProblem = { code: JobTextBlockCode; field: string; snippet: string }
+
+/**
+ * ⛔ THE SAME SCREENS ON JOB TEXT AN EMPLOYER WRITES (teacher visibility plan §3a item 6; approved in the plan, 2026-10-18 —
+ * owner: "go with recommended"). Until then only IMPORTED rows were screened (mapStagedJob above): a Jobs post made through
+ * the wizard, /api/v1 or MCP published whatever its title and description said, and the plan pairs this screen with the
+ * prompt that invites schools to post (teaching-links.tsx PostJobLink) — the two ship together. createListingCore,
+ * updateListingCore, the bulk core (CSV, /api/v1 bulk, MCP bulk, a sync's creates) and a re-activation (setStatusCore,
+ * confirmCore) run it on every HIRING post (isHiringPost: Jobs, `job` intent — never a `wanted` post), over the text its
+ * page prints: the title, the description, each attribute row, the location, the district and the city (`fields`:
+ * [field, text, kind] — the field is what the refusal's `detail` names, and where the wizard points):
+ *  · hasEmployerVisaWord → `job_residence_wording`, ON BOTH EDITIONS (owner, 2026-10-18): the two builds write ONE database
+ *    and eno.vn shows the same rows, so a forum-made job ad is an eno.vn job ad — as the importer's drop has always run
+ *    whichever build imports (mapStagedJob's ⛔ carries no edition test). "Work permit" stays allowed: a labour document.
+ *  · JOB_DENY, negations taken out first (employerDenyReason) → `job_discrimination` / `job_adult_venue` /
+ *    `job_candidate_fee`.
+ * ⛔ AS THE READER SEES IT (the contract above JobTextField): the visa test judges a WHOLE block — a paragraph joined as the
+ * page joins it, a list item, a heading, a table row, a one-line field; the denylist judges each SENTENCE within a block
+ * (sentencesOf: sentence punctuation only, never a line break the reader sees as a space), where a fee negation is judged
+ * whole (employerDenyReason); a sentence's condition is read from the next sentence the reader reads in the same field.
+ * ⚠️ The price, knowingly: lines with no bullet and no stop are ONE run-on paragraph on the page ("Lương cao" / "Không thu
+ * phí đào tạo" / "Có hoa hồng" reads "Lương cao Không thu phí đào tạo Có hoa hồng"), so an honest negation on its own line
+ * there is judged with its neighbours and refused; the refusal names the words, and a "- ", "* " or "• " bullet, a numbered
+ * line or a full stop passes it ("+ ", "– " and "> " are no bullets to the renderer, so they do not).
+ * And the refusal carries the words that tripped it (`snippet`, trippingWords) — the routes send `detail`
+ * '<field>:<snippet>', and the wizard shows them under the field — so "remove that line" always names words the poster
+ * can find. The first hit wins, visa wording first (the importer's order). Refused, never cleaned: the poster takes the
+ * words out and publishes again.
+ * ⚠️ STILL FAIL-CLOSED, KNOWINGLY, like the importer — word tests with no sense of who a phrase is about: hasEmployerVisaWord's
+ * known false positives ("siêu thị thực phẩm", a "Visa card" salary), informal "trc" (= trước), and JOB_DENY refusing
+ * students "under 12 years old" or a hotel's "spa và massage". Each is a fixable refusal: the snippet shows the exact words.
+ * ⚠️ OUT OF SCOPE — moderation's job: deliberate obfuscation (hasEmployerVisaWord's note).
+ */
+export function jobTextProblem(fields: readonly JobTextField[]): JobTextProblem | null {
+  const read = fields.map(([field, text, kind]) => [field, text ? blocksOf(text, kind) : []] as const)
+  for (const [field, blocks] of read) {
+    for (const block of blocks) {
+      if (hasEmployerVisaWord(block)) return { code: 'job_residence_wording', field, snippet: trippingWords(block, hasEmployerVisaWord) }
+    }
+  }
+  // ⛔ AN ATTRIBUTE KEY IS ALSO READ AS THE IDENTIFIER IT IS (review, 2026-10-19), with the importer's glued reading
+  // (hasVisaWord): the page humanizes a key by its capitals (taxonomy.ts detailRowLabel), so "visasponsorship" prints
+  // whole and "VISA_SPONSORSHIP" prints letter-spaced — both visa wording on the page, both unreadable to the word-level
+  // test. A key is never prose, so the glued reading's false positives ("Vì sao", "advisable") cannot arise here, and no
+  // facet key or JOB_TEXT_ATTRIBUTES key trips it (job-listing.test.ts). The snippet is the label as the page prints it.
+  // After the printed text (its snippet is the narrower one), before the denylist.
+  for (const [field, text, , key] of fields) {
+    if (key && hasVisaWord(key)) return { code: 'job_residence_wording', field, snippet: (text ?? key).split(': ')[0] || key }
+  }
+  for (const [field, blocks] of read) {
+    const sentences = blocks.flatMap(sentencesOf)
+    for (let i = 0; i < sentences.length; i++) {
+      const condition = i + 1 < sentences.length && OPENS_WITH_CONSEQUENCE.test(` ${fold(sentences[i + 1])} `)
+      const why = employerDenyReason(sentences[i], { condition })
+      if (why) return { code: DENY_CODE[why], field, snippet: trippingWords(sentences[i], (s) => employerDenyReason(s, { only: why, condition }) !== null) }
+    }
+  }
+  return null
+}
+
+/** A refusal's `detail` on the wire: '<field>:<snippet>' (the field never holds a colon: sanitizeAttributes keeps only
+ *  [A-Za-z0-9_] keys). */
+export const jobTextDetail = (p: JobTextProblem): string => `${p.field}:${p.snippet}`
+
+/**
+ * The refusal beside each job-text code — POST + PATCH /api/listings send it as `message` (the native apps' sentence);
+ * /api/v1 and MCP send the English. The post wizard types the same sentences inline for the i18n harvest
+ * (core/listings.job-text.test.ts holds them equal). No ASCII apostrophes: the harvester reads single-quoted strings only.
+ * Each says what to take out — the words themselves ride in `detail` — and none names an edition: every rule runs on both.
+ * The residence one says the work permit may stay — the line a school most often writes beside it. "Job ads" / "Tin tuyển
+ * dụng": only hiring posts are screened (isHiringPost).
+ */
+export const JOB_TEXT_REFUSAL: Record<JobTextBlockCode, { en: string; vi: string }> = {
+  job_residence_wording: {
+    en: 'Job ads on eno can’t mention visas or residence cards — remove that line. A work permit is fine to mention.',
+    vi: 'Tin tuyển dụng trên eno không được nhắc đến visa (thị thực) hay thẻ tạm trú — hãy xóa phần đó. Bạn vẫn có thể nhắc đến giấy phép lao động.',
+  },
+  job_discrimination: {
+    en: 'Job ads can’t set an age, gender, race, nationality or appearance requirement — remove that line.',
+    vi: 'Tin tuyển dụng không được nêu yêu cầu về tuổi, giới tính, chủng tộc, quốc tịch hay ngoại hình — hãy xóa phần đó.',
+  },
+  job_candidate_fee: {
+    en: 'Job ads can’t mention a fee or deposit for candidates — remove that line.',
+    vi: 'Tin tuyển dụng không được nhắc đến phí hay tiền đặt cọc mà ứng viên phải nộp — hãy xóa phần đó.',
+  },
+  job_adult_venue: {
+    en: 'Job ads can’t mention karaoke, massage, nightclub or hostess work — remove that line.',
+    vi: 'Tin tuyển dụng không được nhắc đến việc làm ở karaoke, massage, hộp đêm hay làm tiếp viên nhà hàng — hãy xóa phần đó.',
+  },
 }
 /** Today's date in Vietnam, YYYY-MM-DD — every apply-by is a Vietnamese calendar day. */
 export const vnToday = (now: number) => new Date(now).toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' })
@@ -449,15 +937,13 @@ export function mapStagedJob(j: StagedJob, now: number): { ok: true; job: Mapped
     if (e instanceof PublishBlockedError) return { ok: false, reason: e.code === 'banned_words' ? 'bannedWords' : 'contactInText' }
     throw e
   }
-  // The FULL pay line is screened for fees/discrimination even when it is left off the listing for a visa word.
-  const folded = ` ${fold([rawTitle, employer, salaryFull].filter(Boolean).join(' '))} `
   // ⛔ eno.vn IS THE LICENSED EDITION: visa is "not even a mention" there (CLAUDE.md, owner 2026-07-31),
   // and src/lib/lang-segment.guard.test.ts holds the UI to it. An employer's "+ Visa Support" is not
   // eno offering visas, but the rule is literal, so such a posting is dropped rather than reworded.
   if (hasVisaWord([rawTitle, employer].filter(Boolean).join(' '))) return { ok: false, reason: 'visaMention' }
-  for (const [re, why] of JOB_DENY) {
-    if (re.test(folded)) return { ok: false, reason: why === 'adult-venue' ? 'adultVenue' : (why as JobDrop) }
-  }
+  // The FULL pay line is screened for fees/discrimination even when it is left off the listing for a visa word.
+  const deny = jobDenyReason([rawTitle, employer, salaryFull].filter(Boolean).join(' '))
+  if (deny) return { ok: false, reason: deny === 'adult-venue' ? 'adultVenue' : deny }
 
   const salary = parseJobPay(salaryText)
   const postedOn = vnDay(new Date(posted))

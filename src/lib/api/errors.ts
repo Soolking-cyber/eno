@@ -355,6 +355,13 @@ export type NicheApiErrorCode =
   | 'teacher_profile_instead' // Jobs › Teaching "looking for work" is a teacher profile, never a post (2026-10-12)
   | 'provider_licence_required' // e-Visa / Legal & permits: the provider's registered name + licence number are needed (2026-10-14)
   | 'provider_licence_invalid' // …and one of them cannot be accepted as written; detail '<field>:<reason>' (2026-10-14)
+  // The job-text screen on a hiring post, both editions (job-listing.ts jobTextProblem, 2026-10-18 — teacher visibility plan
+  // §3a item 6); `detail` '<field>:<snippet>' names the field and the words. Named without the word "visa": this array ships
+  // in eno.vn's JS, and a code is not a refusal that must name what it refuses (JOB_TEXT_REFUSAL's sentence is, and says it).
+  | 'job_residence_wording' // visa or residence-card wording
+  | 'job_discrimination' // an age, gender, race, nationality or appearance requirement
+  | 'job_candidate_fee' // a fee or deposit for candidates (an honest "no training fee" passes)
+  | 'job_adult_venue' // karaoke, massage, nightclub or hostess work
   | 'licence_check_required' // a licence-aisle row eno has not checked cannot go live — moderate 'approve', or a status change back to active (relist, confirm): approve it under Licence checks (409, 2026-10-14)
   | 'listing_changed' // PATCH /api/listings/[id] (and v1): the listing changed while it was being edited — reload and try again (409, 2026-10-14)
   | 'desk_unresolved' // /api/cron/licence-holds: eno's desk did not resolve, so the sweep refused to run (500, 2026-10-14)
@@ -784,6 +791,10 @@ const ALL = [
   'teacher_profile_instead',
   'provider_licence_required',
   'provider_licence_invalid',
+  'job_residence_wording',
+  'job_discrimination',
+  'job_candidate_fee',
+  'job_adult_venue',
   'licence_check_required',
   'listing_changed',
   'desk_unresolved',

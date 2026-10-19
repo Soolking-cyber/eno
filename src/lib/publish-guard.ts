@@ -53,8 +53,21 @@ export function minPhotosFor(categorySlug: string | null | undefined): number {
 // ⚠️ `identity_unverified` / `identity_expired` are LEGAL blocks, not quality blocks, and they are
 // listed first because they are checked first (see assertPublishable). Verification is required to
 // publish under NĐ 248/2026 — see docs/compliance-2026.md §1 and src/lib/compliance/account-state.ts.
-export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'identity_sign_in_required' | 'account_restricted' | 'released_charge_listing_cap' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required' | 'category_not_postable' | 'teacher_profile_instead' | 'provider_licence_required' | 'provider_licence_invalid'
+export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'identity_sign_in_required' | 'account_restricted' | 'released_charge_listing_cap' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required' | 'category_not_postable' | 'teacher_profile_instead' | 'provider_licence_required' | 'provider_licence_invalid' | 'job_residence_wording' | 'job_discrimination' | 'job_candidate_fee' | 'job_adult_venue'
 
+// ⚠️ THE JOB-TEXT CODES (teacher visibility plan §3a item 6, approved in the plan 2026-10-18 — owner: "go with recommended";
+// they ship with the "Hiring? Post your job ad" prompt) — job-listing.ts jobTextProblem, run on every HIRING post (Jobs,
+// `job` intent; never a `wanted` one) on BOTH editions by createListingCore (thrown), updateListingCore and a re-activation
+// (setStatusCore / confirmCore — returned, 2026-10-19), with `detail` '<field>:<snippet>' — the field ('title',
+// 'description', 'attributes.<key>', 'location', 'district', 'city') and the words that tripped the rule, which the wizard
+// shows under the field; the bulk core reports the same as its row's prose. One code per rule, so the publish funnel counts
+// each rule apart: `job_residence_wording` = visa or residence wording (hasVisaWord's patterns, "visa" and "thị thực" read as
+// words — job-listing.ts hasEmployerVisaWord; both editions: they write one database, and eno.vn shows the forum's rows);
+// `job_discrimination` / `job_candidate_fee` / `job_adult_venue` = the importer's JOB_DENY rules, honest negations taken out
+// first.
+// Fixable (remove the words), so 400 with the bilingual JOB_TEXT_REFUSAL as `message` on the session routes. Named
+// without the word "visa" on purpose: src/lib/api/errors.ts lists every code in a RUNTIME array eno.vn ships, and a code
+// is not a refusal that must name what it refuses — of this screen's copy, only the refusal sentence itself says it.
 // (`subcategory_partner_only` — O-34b's refusal of the visa slot to non-partners on eno.vn — was retired 2026-10-14: the
 // owner opened the e-Visa subcategory to every poster behind a licence check, taxonomy.ts licenceCheckHold.)
 // ⚠️ `teacher_profile_instead` (owner 2026-10-12) — Jobs › Teaching "looking for work" is a teacher profile, never a post
@@ -77,6 +90,11 @@ export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'ide
 
 /** The identity (legal) subset of the publish codes — the ones that answer 403 + publishBlockedBody. */
 export type IdentityBlockCode = Extract<PublishBlockCode, `identity_${string}`>
+
+/** The job-text screen's refusals (the ⚠️ note above) — a list the wizard's jump and the routes' sentences both read. */
+export type JobTextBlockCode = Extract<PublishBlockCode, `job_${string}`>
+export const JOB_TEXT_BLOCK_CODES: readonly JobTextBlockCode[] = ['job_residence_wording', 'job_discrimination', 'job_candidate_fee', 'job_adult_venue']
+export const isJobTextBlockCode = (code: string): code is JobTextBlockCode => (JOB_TEXT_BLOCK_CODES as readonly string[]).includes(code)
 
 export class PublishBlockedError extends Error {
   code: PublishBlockCode

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
-  JOB_BOARDS, JOB_SELLER_IDS, isExpiredJob, jobExternalId, jobNativeId, jobProvinces, jobStageProblem, jobType, mapStagedJob,
-  normaliseJobUrl, parseJobPay, pdpTombstoneTags, unshout, type StagedJob,
+  JOB_BOARDS, JOB_SELLER_IDS, JOB_TEXT_REFUSAL, hasEmployerVisaWord, hasVisaWord, isExpiredJob, isHiringPost, jobDenyReason, jobExternalId,
+  jobNativeId, jobProvinces, jobStageProblem, jobTextDetail, jobTextProblem, jobType, mapStagedJob, normaliseJobUrl, parseJobPay,
+  pdpTombstoneTags, unshout, type StagedJob,
 } from './job-listing'
+import { JOB_TEXT_BLOCK_CODES } from './publish-guard'
 import { IMPORT_SELLERS } from './import-sellers'
+import { JOB_TEXT_ATTRIBUTES, detailRowLabel, facetsFor, subcategoriesFor } from './taxonomy'
 
 // 2026-09-25 12:00 in Vietnam.
 const NOW = Date.parse('2026-09-25T05:00:00Z')
@@ -299,5 +302,401 @@ describe('stage, expiry, sellers', () => {
 
   it('tombstones both language variants of the PDP', () => {
     expect(pdpTombstoneTags('abc')).toEqual(['eno:isrtag:_N_T_/en/listings/abc', 'eno:isrtag:_N_T_/vi/listings/abc'])
+  })
+})
+
+/**
+ * ⛔ THE SAME SCREENS ON JOB TEXT AN EMPLOYER WRITES (teacher visibility plan §3a item 6; approved in the plan, 2026-10-18 —
+ * owner: "go with recommended"): jobTextProblem is what createListingCore / updateListingCore / the bulk core / a
+ * re-activation run on a HIRING post — the importer's own matchers (hasVisaWord's patterns, "visa" and "thị thực" read as
+ * words: hasEmployerVisaWord; JOB_DENY with honest negations taken out), never copies of them, on BOTH editions (no edition
+ * switch exists to pass), AS THE READER SEES THE POST (the 2026-10-19 contract: the page's blocks, sentences within them),
+ * and naming the words that tripped the rule. The core wiring: core/listings.job-text.test.ts and core/bulk.job-text.test.ts.
+ */
+describe('jobTextProblem — the importer’s screens on job text an employer writes', () => {
+  // The title and the description — read in formatRichText's blocks ('rich'), as the cores pass it.
+  const ad = (description: string, title = 'English teacher, District 7') => [['title', title], ['description', description, 'rich']] as const
+  const hit = (description: string) => jobTextProblem(ad(description))
+
+  it('visa or residence wording is refused — naming the field and the words — and "work permit" is fine', () => {
+    expect(hit('Full-time, 25 hours a week. Visa support provided.')).toEqual({ code: 'job_residence_wording', field: 'description', snippet: 'Visa' })
+    expect(jobTextProblem(ad('25 hours a week.', 'ESL teacher — TRC sponsorship'))).toEqual({ code: 'job_residence_wording', field: 'title', snippet: 'TRC' })
+    expect(hit('Hỗ trợ làm giấy phép lao động và thẻ tạm trú.')).toEqual({ code: 'job_residence_wording', field: 'description', snippet: 'tạm trú' })
+    expect(hit('Comprehensive work permit and visa/TRC support')).toMatchObject({ code: 'job_residence_wording', snippet: 'visa/TRC' })
+    expect(hit('#VisaSponsorship available')).toMatchObject({ snippet: '#VisaSponsorship' })
+    // A bracket left without its pair goes; a pair stays.
+    expect(hit('Quận 7 (visa support)')).toMatchObject({ snippet: 'visa' })
+    expect(hit('Visa (thị thực) hỗ trợ')).toMatchObject({ snippet: 'Visa (thị thực)' })
+    expect(hit('We file your work permit before you start.')).toBeNull()
+  })
+
+  /**
+   * ⛔ THE CONTRACT (2026-10-19 — it ends two rounds of opposite asks: "never join words across lines", then "per-line
+   * splitting is bypassed, because the page joins a paragraph's lines"): A HIRING POST IS SCREENED EXACTLY AS THE READER SEES
+   * IT. A paragraph is its lines joined with a space, as formatRichText prints it; each list item, heading and table row is
+   * a block of its own; a one-line field is one block.
+   */
+  it('⛔ as the reader sees it: a phrase hard-wrapped inside one paragraph is whole; the same words as two list items are judged apart', () => {
+    // Hard line breaks mid-sentence (text pasted from a PDF or a Word file) are spaces on the page.
+    expect(hit('We support the work permit and temporary residence\ncard')).toEqual({ code: 'job_residence_wording', field: 'description', snippet: 'temporary residence card' })
+    expect(hit('Hỗ trợ làm thẻ tạm\ntrú')).toEqual({ code: 'job_residence_wording', field: 'description', snippet: 'tạm trú' })
+    expect(hit('Lương 25 triệu, hỗ trợ giấy phép lao động và thị\nthực.')).toEqual({ code: 'job_residence_wording', field: 'description', snippet: 'thị thực' })
+    // …the same words as two list items are two blocks: each is judged on its own, and each passes.
+    expect(hit('- Hỗ trợ làm thẻ tạm\n- trú')).toBeNull()
+    expect(hit('- Tư vấn khóa học cho học viên, hỗ trợ tiếp thị\n- Thực hiện các công việc khác theo yêu cầu')).toBeNull()
+    // The denylist reads its sentence the same way: across a line break inside a paragraph, never across two list items.
+    expect(hit('No training fee\nwill be charged later')).toEqual({ code: 'job_candidate_fee', field: 'description', snippet: 'training fee will' })
+    expect(hit('- No training fee\n- will be charged later')).toBeNull()
+    // …while a real mention in its own item is still found, and named.
+    expect(hit('- Hỗ trợ tiếp thị\n- Hỗ trợ visa cho giáo viên nước ngoài')).toEqual({ code: 'job_residence_wording', field: 'description', snippet: 'visa' })
+    // ⚠️ The price of reading as the reader does, knowingly: lines with no bullet and no stop are ONE run-on paragraph on the
+    // page, so a negation on its own line there is judged with its neighbours — a bullet or a full stop makes it a sentence.
+    expect(hit('Lương cao\nKhông thu phí đào tạo\nCó hoa hồng')).toMatchObject({ code: 'job_candidate_fee', snippet: 'phí đào tạo' })
+    expect(hit('- Lương cao\n- Không thu phí đào tạo\n- Có hoa hồng')).toBeNull()
+    expect(hit('Lương cao.\nKhông thu phí đào tạo.\nCó hoa hồng.')).toBeNull()
+  })
+
+  it('every block the renderer makes is a block here: heading, tick and numbered items, a table row, a fact line folded back, bold', () => {
+    expect(hit('# Visa support\nWe help every teacher.')).toMatchObject({ code: 'job_residence_wording', snippet: 'Visa' })
+    expect(hit('✓ Hỗ trợ thị thực')).toMatchObject({ code: 'job_residence_wording', snippet: 'thị thực' })
+    expect(hit('1. Hỗ trợ tạm trú')).toMatchObject({ code: 'job_residence_wording', snippet: 'tạm trú' })
+    // Three fact lines are a table; each row is "label: value".
+    expect(hit('Type: Full-time\nHours: 25 a week\nSupport: TRC and housing')).toMatchObject({ code: 'job_residence_wording', snippet: 'TRC' })
+    // ONE fact line is prose again — folded back into its paragraph, where it joins the next line as on the page.
+    expect(hit('Contract: temporary\nResidence hall on campus.')).toMatchObject({ code: 'job_residence_wording', snippet: 'temporary Residence' })
+    // "**bold**" reads as the page prints it, without its asterisks.
+    expect(hit('We offer **visa** support.')).toMatchObject({ code: 'job_residence_wording', snippet: 'visa' })
+    // A one-line field is one block, whatever line breaks an API client sent.
+    expect(jobTextProblem([['title', 'ESL teacher, temporary\nresidence card provided']])).toMatchObject({ code: 'job_residence_wording', field: 'title' })
+    // Two sentences stay two: a full stop, a spaced dash in a title.
+    expect(hit('Lương thưởng hấp dẫn, hỗ trợ tiếp thị. Thực hiện công việc theo ca.')).toBeNull()
+    expect(jobTextProblem([['title', 'Nhân viên tiếp thị - Thực tập sinh']])).toBeNull()
+  })
+
+  it('⛔ the employer screen reads "visa" and "thị thực" as WORDS — a school’s own heading is no visa (owner, 2026-10-19)', () => {
+    for (const ok of [
+      'Vì sao nên chọn chúng tôi?', 'Vì sao bạn nên chọn trung tâm chúng tôi?', 'Previous classroom experience is advisable.',
+      'Chuẩn bị cho kỳ thi thực hành.', 'Đơn vị sản xuất', 'Improvisation and drama classes', 'Davis Academy, Quận 7',
+      'Hỗ trợ tiếp thị • Thực hiện báo cáo tuần', 'Lương 10tr - Thưởng theo tháng ★ Thực hiện báo cáo',
+    ]) expect(hit(ok), ok).toBeNull()
+    const refused: [string, string][] = [
+      ['Visa support provided.', 'Visa'], ['We sponsor visas.', 'visas'], ['Help with the e-visa.', 'e-visa'], ['eVisa help', 'eVisa'],
+      ['Visa-free entry', 'Visa-free'], ['Comprehensive work permit and visa/TRC support', 'visa/TRC'],
+      ['#VisaSponsorship available', '#VisaSponsorship'], ['#visasupport available', '#visasupport'], ['VISASupport offered', 'VISASupport'],
+      ['Hỗ trợ thị thực cho giáo viên', 'thị thực'], ['THỊ THỰC lao động', 'THỊ THỰC'], ['Hỗ trợ thị-thực', 'thị-thực'],
+      // Unaccented writing — no mark anywhere in the block — reads the folded words.
+      ['Ho tro thi thuc cho giao vien', 'thi thuc'],
+    ]
+    for (const [text, snippet] of refused) expect(hit(text), text).toEqual({ code: 'job_residence_wording', field: 'description', snippet })
+    // ⚠️ KNOWN FALSE POSITIVE, fail-closed and fixable (the words are named): "thị thực" as words in "siêu thị thực phẩm".
+    expect(hit('Gần siêu thị thực phẩm.')).toEqual({ code: 'job_residence_wording', field: 'description', snippet: 'thị thực' })
+    // The importer keeps its substring test, unchanged: "Vì sao" still drops a staged posting there.
+    expect(hasVisaWord('Vì sao nên chọn chúng tôi?')).toBe(true)
+    expect(hasEmployerVisaWord('Vì sao nên chọn chúng tôi?')).toBe(false)
+  })
+
+  it('⛔ an attribute KEY is read as the identifier it is — glued or letter-spaced on the page, it is still visa wording (2026-10-19)', () => {
+    const place = { categorySlug: 'jobs', subcategorySlug: 'teaching', listingType: 'job' }
+    const row = (k: string) => [`attributes.${k}`, `${detailRowLabel(k, place).en}: yes`, 'line', k] as const
+    for (const k of ['visasponsorship', 'VISA_SPONSORSHIP', 'visaSponsorship', 'eVisa', 'thithuc', 'TRC']) {
+      const p = jobTextProblem([['title', 'English teacher'], row(k)])
+      expect(p, k).toMatchObject({ code: 'job_residence_wording', field: `attributes.${k}` })
+      // The snippet is the label as the page prints it, so the wizard can find the row it names.
+      expect(`${detailRowLabel(k, place).en}: yes`.includes(p!.snippet), k).toBe(true)
+    }
+    // No key eno itself writes on a job trips the glued reading — every jobs facet, every subcategory, every job text fact.
+    const keys = new Set<string>(Object.keys(JOB_TEXT_ATTRIBUTES))
+    for (const sub of [null, ...subcategoriesFor('jobs').map((c) => c.slug)]) for (const f of facetsFor('jobs', sub)) keys.add(f.key)
+    expect(keys.size).toBeGreaterThan(5)
+    for (const k of keys) expect(jobTextProblem([row(k)]), k).toBeNull()
+  })
+
+  it('⛔ a held-Shift typo is still the word — "VIsa", "VISa", "E-VIsa": the glued-word split is never the only reading (round 4)', () => {
+    // The ACRONYMWord split reads "VIsa" as "V Isa"; as typed it is one word, and the importer's substring refuses it too.
+    const refused: [string, string][] = [
+      ['VIsa support', 'VIsa'], ['VISa support', 'VISa'], ['VIsa support provided.', 'VIsa'], ['We offer VIsa sponsorship', 'VIsa'],
+      ['Work permit & VIsa', 'VIsa'], ['VIsas sponsored', 'VIsas'], ['E-VIsa help', 'E-VIsa'], ['ViSa support', 'ViSa'],
+      ['#VIsaSupport available', '#VIsaSupport'], ['WorkPermitVIsa', 'WorkPermitVIsa'],
+      // A hashtag read glued as typed: an unaccented camelCase "#HoTroThiThuc" (hỗ trợ thị thực) is the word it holds.
+      ['#HoTroThiThuc', '#HoTroThiThuc'],
+    ]
+    for (const [text, snippet] of refused) {
+      expect(hit(text), text).toEqual({ code: 'job_residence_wording', field: 'description', snippet })
+      expect(hasVisaWord(text), text).toBe(true)
+    }
+    // …and every honest case stays: shouted, title-cased, "visa" inside a longer word, a name, "vis-à-vis".
+    for (const ok of [
+      'VÌ SAO NÊN CHỌN CHÚNG TÔI?', 'Vì Sao Nên Chọn Chúng Tôi?', 'ADVISABLE', 'IMPROVISATION', 'DAVIS ACADEMY', 'Visagio consulting',
+      'VISAGIO', 'Teaching vis-à-vis the parents', 'ViSaigon English Club', 'ĐƠN VỊ SẢN XUẤT',
+    ]) expect(hit(ok), ok).toBeNull()
+    // A camelCase hashtag is read split (review, 2026-10-19): "#VìSaoChọnChúngTôi" is "#vi sao chon…", no visa — while
+    // "#HoTroThiThuc" (unmarked, split "#ho tro thi thuc") and "#VisaSponsorship" still are.
+    expect(hit('#VìSaoChọnChúngTôi')).toBeNull()
+    expect(hit('#HoTroThiThuc')).toMatchObject({ code: 'job_residence_wording' })
+    expect(hit('#VisaSponsorship')).toMatchObject({ code: 'job_residence_wording' })
+    // ⚠️ KNOWN FALSE POSITIVE, fail-closed and fixable: a LOWER-CASE hashtag holding "visa" once folded.
+    expect(hit('#vìsao')).toMatchObject({ code: 'job_residence_wording' })
+  })
+
+  it('⚠️ out of scope — moderation’s job: letters split by punctuation or spaces; a spaced "T. R. C." stays caught (a shared pattern)', () => {
+    for (const spelled of ['V·I·S·A support', 'Vi|sa support', 'v.i.s.a support', 'Hỗ trợ thị·thực']) expect(hit(spelled), spelled).toBeNull()
+    for (const spelled of ['Work permit and T. R. C.', 'e-visa', 'Visa - TRC']) expect(hit(spelled), spelled).toMatchObject({ code: 'job_residence_wording' })
+  })
+
+  it('the residence permit and card by their other names, and an extension of the stay (both screens — measured first)', () => {
+    for (const text of ['Hỗ trợ giấy phép cư trú', 'Hỗ trợ làm thẻ cư trú', 'Hỗ trợ gia hạn tạm trú', 'Hỗ trợ gia hạn lưu trú']) {
+      expect(hit(text), text).toMatchObject({ code: 'job_residence_wording' })
+      expect(hasVisaWord(text), text).toBe(true)
+    }
+    // Where someone lives, or a hotel stay, is not a residence permit.
+    for (const text of ['Giáo viên cư trú tại Hà Nội', 'Có chỗ lưu trú cho giáo viên ở xa']) {
+      expect(hit(text), text).toBeNull()
+      expect(hasVisaWord(text), text).toBe(false)
+    }
+  })
+
+  it('the snippet is the poster’s own words around every hit in the block, edge punctuation trimmed', () => {
+    expect(hit('Training fee required.')).toEqual({ code: 'job_candidate_fee', field: 'description', snippet: 'Training fee required' })
+    expect(jobTextProblem(ad('Evening shifts.', 'English-speaking hostess for a karaoke bar'))).toEqual({ code: 'job_adult_venue', field: 'title', snippet: 'hostess for a karaoke' })
+    expect(hit('Yêu cầu: nữ dưới 30 tuổi, ngoại hình ưa nhìn.')).toMatchObject({ code: 'job_discrimination', snippet: 'nữ dưới 30 tuổi, ngoại hình ưa nhìn' })
+    // Two hits close together both show — one fix clears the line.
+    expect(hit('Visa and TRC support')).toMatchObject({ snippet: 'Visa and TRC' })
+    // A word run past 80 characters is cut, with "…".
+    const long = `#Visa${'x'.repeat(120)}`
+    expect(hit(long)?.snippet).toBe(`${long.slice(0, 79)}…`)
+    expect(jobTextDetail({ code: 'job_residence_wording', field: 'description', snippet: 'Vì sao: x' })).toBe('description:Vì sao: x')
+  })
+
+  it('⛔ two hits far apart in one block give the FIRST hit’s own words — contiguous in the block, never a cut "first … last" (Opus, round 3)', () => {
+    const middle = ' We teach small classes of adults and teenagers in the evenings, with lesson plans written by our academic team.'
+    const paragraph = `Visa support for every teacher.${middle}${middle}\nWe also help with the TRC.`
+    expect(hit(paragraph)).toEqual({ code: 'job_residence_wording', field: 'description', snippet: 'Visa' })
+    // …and so for the denylist, inside one long sentence.
+    const sentence = `Training fee required, ${'with weekly lessons and evening classes for adults and children, '.repeat(2)}and a deposit required`
+    expect(hit(sentence)).toEqual({ code: 'job_candidate_fee', field: 'description', snippet: 'Training fee' })
+    // The words the refusal names are one run of the block — so the field, read as the page reads it, still holds them.
+    const { snippet } = hit(paragraph)!
+    expect(paragraph.replace(/\s+/g, ' ')).toContain(snippet)
+  })
+
+  it('⛔ the way a form writes a negation is no extra word: a leading marker or number, a closed set of labels (Opus, round 3)', () => {
+    for (const honest of [
+      '1. No fees', '- Không thu phí đào tạo', 'Benefits: no training fee', 'Quyền lợi: không thu phí', 'a) No training fee', 'b) No deposit',
+      '• No deposit', '✅ Không đặt cọc', '2) Phúc lợi: không thu phí đào tạo', 'Chế độ phúc lợi: không thu phí đào tạo', 'Notes: no fees',
+      'We offer: no training fee', 'Lưu ý: không thu phí đào tạo.', 'Perks: no registration fee',
+      // More markers a form writes (review, 2026-10-19): "1/", "1 -", "1:", a keycap number.
+      '1/ No fees', '1 - No fees', '3: No deposit', '2️⃣ Không thu phí đào tạo',
+      // Southern particles and "completely" are no extra word.
+      'Không thu phí nha', 'Không thu phí đào tạo nhen', 'Hoàn toàn không thu phí',
+    ]) {
+      // In a one-line field the marker is still there; in the description a list marker is already the renderer's.
+      expect(jobTextProblem([['title', honest]]), honest).toBeNull()
+      expect(hit(honest), honest).toBeNull()
+    }
+    expect(hit('No fees. Deposit required.')).toEqual({ code: 'job_candidate_fee', field: 'description', snippet: 'Deposit required' })
+    expect(hit('No fees until you start, then a training fee.')).toEqual({ code: 'job_candidate_fee', field: 'description', snippet: 'training fee' })
+    // A label outside the closed set is a word like any other: the fee words count.
+    expect(hit('Condition: no training fee')).toMatchObject({ code: 'job_candidate_fee' })
+    expect(jobTextProblem([['title', '3. Training fee required']])).toMatchObject({ code: 'job_candidate_fee', snippet: 'Training fee required' })
+  })
+
+  it('⛔ Vietnamese filler is matched with its tones before folding — a syllable that is also a word of time or money is no filler (Opus, round 3)', () => {
+    expect(hit('Tạm không thu phí đào tạo.')).toMatchObject({ code: 'job_candidate_fee', field: 'description' })
+    expect(hit('Không thu phí đào tạo tới tháng sau.')).toMatchObject({ code: 'job_candidate_fee' })
+    for (const honest of [
+      'Trung tâm không thu phí đào tạo.', 'Công ty tuyệt đối không thu phí đào tạo.', 'Bên mình không thu phí đào tạo nhé.',
+      'Chúng tôi cam kết không thu phí đào tạo hay phí hồ sơ.', 'Nhà trường không thu phí đào tạo cho giáo viên.',
+    ]) expect(hit(honest), honest).toBeNull()
+    // "sẽ" (will) after the negation hands the fee on to someone else, like "will" does.
+    expect(hit('Chúng tôi không thu phí đào tạo, trung tâm sẽ thu.')).toMatchObject({ code: 'job_candidate_fee' })
+    // Typed without any mark, the many-syllable phrases still count — a lone syllable never does.
+    expect(hit('Trung tam khong thu phi dao tao')).toBeNull()
+    expect(hit('Tam khong thu phi dao tao')).toMatchObject({ code: 'job_candidate_fee' })
+  })
+
+  it('each JOB_DENY rule has its own code — discrimination, a candidate fee, adult-venue work', () => {
+    expect(hit('Female only, under 30 years old.')).toMatchObject({ code: 'job_discrimination', field: 'description' })
+    expect(hit('Ứng viên đặt cọc 2.000.000 đ.')).toEqual({ code: 'job_candidate_fee', field: 'description', snippet: 'đặt cọc' })
+    expect(hit('Phí đào tạo 2 triệu.')).toMatchObject({ code: 'job_candidate_fee', snippet: 'Phí đào tạo' })
+    expect(hit('No Asians.')).toMatchObject({ code: 'job_discrimination', snippet: 'No Asians' })
+  })
+
+  it('every field passed is screened, named by its key; visa wording is reported before a denylist hit', () => {
+    const fields = [...ad('25 hours a week.'), ['attributes.salaryText', '20,000,000 VND + visa'], ['attributes.employer', 'Female only school'], ['district', 'Quận 7']] as const
+    expect(jobTextProblem(fields)).toEqual({ code: 'job_residence_wording', field: 'attributes.salaryText', snippet: 'visa' })
+    expect(jobTextProblem(fields.filter(([f]) => f !== 'attributes.salaryText'))).toEqual({ code: 'job_discrimination', field: 'attributes.employer', snippet: 'Female only' })
+    expect(jobTextProblem([['location', 'Visa Tower, Quận 1']])).toMatchObject({ code: 'job_residence_wording', field: 'location' })
+  })
+
+  it('a clean teaching ad passes, and absent fields are skipped', () => {
+    const clean = 'Teach English to adults and teenagers at our centre in District 7. 20–25 teaching hours a week, '
+      + 'Monday to Saturday. Bachelor’s degree and a 120-hour TEFL certificate required; we apply for your work permit. '
+      + 'Lương 25.000.000–30.000.000 đ/tháng, hợp đồng 12 tháng.'
+    expect(jobTextProblem(ad(clean))).toBeNull()
+    expect(jobTextProblem([['title', undefined], ['description', null], ['city', '']])).toBeNull()
+  })
+
+  /**
+   * ⛔ HONEST NEGATIONS PASS THE EMPLOYER SCREEN (owner, 2026-10-18: "go with recommended") — both ways. A negation (fee,
+   * age limit or looks) goes only when it is the whole sentence (what is left is filler): review rounds kept finding a fee or
+   * a limit riding on a negation inside a longer sentence (codex + Opus, 2026-10-18).
+   */
+  it('honest negations pass: "no age limit", "no training fee", "without any fee", "không thu phí (đào tạo)", "không giới hạn tuổi"…', () => {
+    for (const honest of [
+      'No age limit.', 'No age limit — every nationality welcome.', 'There is no age limit for this role.', 'No upper age limit', 'no max age',
+      'No age limit, no experience needed.', 'Age limit: none',
+      'No training fee.', 'No training fee, no deposit.', 'No training fee, no experience needed.', 'No fees or deposits', 'without any fee',
+      'There is no training fee for this position.', 'There will be no training fee.', 'No training & registration fee',
+      'We do not charge any training fee', 'We will never charge a training fee.', 'You never pay a deposit.', 'You will never be asked for a deposit.',
+      'You don’t have to pay a training fee.', 'No registration fee is required.', 'No training fee will be charged.', 'Deposit is not required.',
+      'Training fee: none', 'Training fee: free of charge',
+      'Không thu phí đào tạo.', 'Không thu phí (đào tạo)', 'Không thu phí', 'Không giới hạn tuổi', 'Không cần đặt cọc.', 'Không yêu cầu đặt cọc.',
+      'Chúng tôi cam kết không thu phí đào tạo.', 'Hoàn toàn không thu phí đào tạo.', 'Không có phí đào tạo.', 'Ko thu phí đào tạo.',
+      'Không thu phí đào tạo hay phí hồ sơ',
+      'Không thu phí đào tạo, không nhận tiền cọc.', 'Không phải đóng phí đào tạo hay đặt cọc gì.', 'Không thu phí đào tạo, không làm thêm giờ.',
+      'Phí đào tạo: không', 'Phí đào tạo: 0đ', 'Phí đào tạo: miễn phí', 'Đặt cọc: miễn phí', 'Miễn phí đào tạo.', 'Ứng viên được miễn phí đào tạo.',
+      'Không yêu cầu ngoại hình đẹp',
+      // A next sentence that is no consequence leaves the negation honest — "không được" alone is a house rule, not one.
+      'No training fee. No experience needed.', 'Không thu phí đào tạo.\nKhông yêu cầu kinh nghiệm.', 'Không thu phí đào tạo.\nKhông được hút thuốc.',
+    ]) expect(hit(honest), honest).toBeNull()
+  })
+
+  it('⛔ …and the fee words still count in any longer sentence: limited, put off, partly waived, a condition, or beside other words', () => {
+    const refused: [string, string, string][] = [
+      ['Training fee required', 'job_candidate_fee', 'Training fee required'],
+      ['Age limit 35', 'job_discrimination', 'Age limit'],
+      ['Age limit: no more than 35', 'job_discrimination', 'Age limit'],
+      ['No age limit, female only', 'job_discrimination', 'age limit, female only'],
+      // An age limit only partly waived is still one — the age negation is held to the same whole-sentence rule (Opus, round 5).
+      ['No age limit for men, 35 for women', 'job_discrimination', 'age limit for men'],
+      ['Age limit: none for native speakers, max 35 for others', 'job_discrimination', 'Age limit'],
+      ['No age limit as long as you are healthy.', 'job_discrimination', 'age limit as'],
+      ['Không yêu cầu ngoại hình đẹp, chỉ cần ưa nhìn', 'job_discrimination', 'ngoại hình đẹp, chỉ'],
+      ['No training fee, but a deposit required', 'job_candidate_fee', 'training fee, but a deposit required'],
+      ['No training fee and a deposit required', 'job_candidate_fee', 'training fee and a deposit required'],
+      ['No experience, training fee required', 'job_candidate_fee', 'training fee required'],
+      ['No fee and registration deposit required.', 'job_candidate_fee', 'deposit required'],
+      // Limited, put off or partly waived (Opus, rounds 2 and 3).
+      ['No training fee for the first month', 'job_candidate_fee', 'training fee for the first'],
+      ['Không thu phí đào tạo quá 2 triệu', 'job_candidate_fee', 'phí đào tạo quá'],
+      ['No extra training fee', 'job_candidate_fee', 'training fee'],
+      ['Phí đào tạo: 0.5 triệu', 'job_candidate_fee', 'Phí đào tạo'],
+      ['No training fee upfront – deducted from your first salary', 'job_candidate_fee', 'training fee upfront'],
+      ['No training fee – deducted from your first salary', 'job_candidate_fee', 'training fee – deducted'],
+      ['(No training fee) will be deducted from your first salary.', 'job_candidate_fee', 'training fee) will'],
+      ['Không thu phí đào tạo, trừ vào lương tháng đầu', 'job_candidate_fee', 'phí đào tạo, trừ'],
+      ['Không thu phí đào tạo trước, trừ vào lương tháng đầu', 'job_candidate_fee', 'phí đào tạo trước'],
+      ['Không thu phí đào tạo (trừ vào lương)', 'job_candidate_fee', 'phí đào tạo (trừ'],
+      ['Miễn phí đào tạo 3 tháng đầu', 'job_candidate_fee', 'phí đào tạo 3'],
+      ['Miễn phí đào tạo nếu làm đủ 12 tháng', 'job_candidate_fee', 'phí đào tạo nếu'],
+      // A condition (codex + Opus): in the sentence, or as the field's next sentence.
+      ['Nobody starts without paying the training fee.', 'job_candidate_fee', 'training fee'],
+      ['If you don’t pay the deposit, you lose the place.', 'job_candidate_fee', 'pay the deposit'],
+      ['Without a training fee, you cannot start.', 'job_candidate_fee', 'training fee, you cannot'],
+      ['Without the registration fee, your application will not be processed', 'job_candidate_fee', 'registration fee, your application'],
+      ['Nếu không đặt cọc, bạn sẽ mất suất', 'job_candidate_fee', 'đặt cọc'],
+      ['No training fee, no job.', 'job_candidate_fee', 'training fee, no'],
+      ['Không nộp phí đào tạo, không nhận lớp.', 'job_candidate_fee', 'nộp phí đào tạo'],
+      ['Không đặt cọc, không nhận việc.', 'job_candidate_fee', 'đặt cọc, không'],
+      ['Không đặt cọc - không nhận việc', 'job_candidate_fee', 'Không đặt cọc - không'],
+      ['Không đặt cọc. Không nhận việc.', 'job_candidate_fee', 'đặt cọc'],
+      ['No training fee.\nNo job.', 'job_candidate_fee', 'training fee'],
+      // NOT free: a negation before "miễn phí" — read before any fee negation is taken out (Opus, round 4).
+      ['Học viên không được miễn phí đào tạo.', 'job_candidate_fee', 'không được miễn phí đào tạo'],
+      ['Không phải miễn phí đào tạo.', 'job_candidate_fee', 'phí đào tạo'],
+      ['Phí đào tạo: không miễn phí', 'job_candidate_fee', 'Phí đào tạo'],
+      ['Phí hồ sơ: không được miễn phí', 'job_candidate_fee', 'Phí hồ sơ'],
+      ['Phí đào tạo: không hoàn toàn miễn phí', 'job_candidate_fee', 'Phí đào tạo: không hoàn'],
+      // The fee handed on to someone else: no auxiliary after the negation (Opus, round 6).
+      ['We don’t charge a training fee — the school does.', 'job_candidate_fee', 'training fee — the school does'],
+      ['We won’t charge you a training fee, the company will.', 'job_candidate_fee', 'training fee, the company will'],
+      // No requirement, refund or condition word is filler (codex + Opus, round 4).
+      ['No training fee to apply – it is required to join.', 'job_candidate_fee', 'training fee to apply'],
+      ['Đặt cọc – không hoàn', 'job_candidate_fee', 'Đặt cọc'],
+      // "and" / "và" carries no negation on, and other words beside a fee negation keep it counting — the safe side for an
+      // honest line too; on its own line it passes.
+      ['Không thu phí đào tạo và phí hồ sơ', 'job_candidate_fee', 'phí đào tạo và phí hồ sơ'],
+      ['Không yêu cầu kinh nghiệm, phí đào tạo 2tr', 'job_candidate_fee', 'phí đào tạo'],
+      ['Không yêu cầu ngoại hình đẹp, chỉ tuyển nữ', 'job_discrimination', 'ngoại hình đẹp, chỉ tuyển nữ'],
+      ['Lương cao, không thu phí đào tạo, có hoa hồng', 'job_candidate_fee', 'phí đào tạo'],
+      ['Miễn phí đào tạo nghiệp vụ cho nhân viên mới', 'job_candidate_fee', 'phí đào tạo nghiệp'],
+    ]
+    for (const [text, code, snippet] of refused) expect(hit(text), text).toEqual({ code, field: 'description', snippet })
+  })
+
+  it('⛔ the plural and the plain demand count too — the classic scam in its plainest words (round 4)', () => {
+    const refused: [string, string, string][] = [
+      ['Training fees required.', 'job_candidate_fee', 'Training fees required'],
+      ['Training fees: 2,000,000 VND.', 'job_candidate_fee', 'Training fees'],
+      ['Registration fees apply.', 'job_candidate_fee', 'Registration fees'],
+      ['Deposits required.', 'job_candidate_fee', 'Deposits required'],
+      ['A deposit is required.', 'job_candidate_fee', 'deposit is required'],
+      ['A fee is required to apply.', 'job_candidate_fee', 'fee is required'],
+      ['A deposit of 5,000,000 VND is required before you start.', 'job_candidate_fee', 'deposit of 5,000,000'],
+      ['A refundable deposit of USD 500 before you start.', 'job_candidate_fee', 'deposit of USD 500'],
+      ['Teachers pay a 500 USD placement fee.', 'job_candidate_fee', 'placement fee'],
+      ['Placement fee: 500 USD.', 'job_candidate_fee', 'Placement fee'],
+      ['Application fees: 1,000,000 VND', 'job_candidate_fee', 'Application fees'],
+      ['Teachers pay the fees before training.', 'job_candidate_fee', 'pay the fees'],
+      ['Females only.', 'job_discrimination', 'Females only'],
+      ['Ladies only.', 'job_discrimination', 'Ladies only'],
+      ['Males only', 'job_discrimination', 'Males only'],
+    ]
+    for (const [text, code, snippet] of refused) {
+      expect(hit(text), text).toEqual({ code, field: 'description', snippet })
+      // One list: the importer drops each of them too.
+      expect(jobDenyReason(text), text).toBe(code === 'job_candidate_fee' ? 'fee' : 'discriminatory')
+    }
+    // …and the honest wording of each still passes: the negations already read "fees?" / "deposits?" and these fee kinds.
+    for (const honest of [
+      'No training fees.', 'No fees required.', 'No deposits required.', 'No deposit is required.', 'No placement fees.', 'No application fee.',
+      'Placement fee: none', 'We do not charge placement fees.', 'You never pay deposits.', 'Male and female teachers welcome.',
+    ]) expect(hit(honest), honest).toBeNull()
+    // ⚠️ KNOWN REFUSALS — THE TRADE-OFF, PINNED (review, 2026-10-19): a word test cannot tell who pays. Round 3 asked for
+    // more fee demands refused, round 4 for fewer honest lines refused — opposite asks, so the line stays where it is and
+    // these are refused, fail-closed and fixable (the snippet names the words; "No fees" or "free" passes). A fee demand
+    // worded outside the list ("a fee of 2,000,000 đ") is the report button's — the board says "Never pay to get a job".
+    for (const known of ['The school covers all application fees.', 'We pay the training fee.', 'We reimburse your registration fees.'])
+      expect(hit(known), known).toMatchObject({ code: 'job_candidate_fee' })
+  })
+
+  it('⛔ the importer keeps JOB_DENY exactly as it was — it reads no negation (a false drop costs it nothing)', () => {
+    expect(jobDenyReason('No training fee')).toBe('fee')
+    expect(jobDenyReason('No age limit')).toBe('discriminatory')
+    expect(map({ title: 'English teacher, no training fee' })).toEqual({ ok: false, reason: 'fee' })
+  })
+
+  it('jobDenyReason is the importer’s own matcher: the folded text, diacritics no way round it', () => {
+    expect(jobDenyReason('CHỈ TUYỂN NỮ')).toBe('discriminatory')
+    expect(jobDenyReason('Phí đào tạo 500.000 đ')).toBe('fee')
+    expect(jobDenyReason('Massage therapist')).toBe('adult-venue')
+    expect(jobDenyReason('English teacher, full-time')).toBeNull()
+    expect(jobDenyReason(undefined)).toBeNull()
+    // The importer still drops by the same rule (mapStagedJob's reasons are unchanged by sharing the matcher).
+    expect(map({ title: 'English teacher, training fee required' })).toEqual({ ok: false, reason: 'fee' })
+  })
+
+  it('isHiringPost: Jobs’ `job` intent only — never a `wanted` post, never another category', () => {
+    expect(isHiringPost('jobs', 'job')).toBe(true)
+    expect(isHiringPost('jobs', 'wanted')).toBe(false)
+    expect(isHiringPost('services', 'job')).toBe(false)
+    expect(isHiringPost('jobs', null)).toBe(false)
+  })
+
+  it('every job-text code has its sentence, in both languages, saying what to take out — no edition named, no ASCII apostrophe', () => {
+    expect(Object.keys(JOB_TEXT_REFUSAL).sort()).toEqual([...JOB_TEXT_BLOCK_CODES].sort())
+    for (const code of JOB_TEXT_BLOCK_CODES) {
+      const { en, vi } = JOB_TEXT_REFUSAL[code]
+      expect(en, code).toMatch(/^Job ads .* — remove that line\./)
+      expect(vi, code).toMatch(/^Tin tuyển dụng .* — hãy xóa phần đó\./)
+      // Every rule runs on both editions, so no sentence names one.
+      expect(`${en}${vi}`, code).not.toMatch(/eno\.vn|eno\.forum/)
+      // The i18n harvester reads single-quoted t()/tr() arguments only: an ASCII apostrophe would end the string.
+      expect(`${en}${vi}`, code).not.toContain("'")
+    }
+    // The residence rule says the work permit may stay; the fee rule no longer claims a "none" is refused (negations pass).
+    expect(JOB_TEXT_REFUSAL.job_residence_wording.en).toBe('Job ads on eno can’t mention visas or residence cards — remove that line. A work permit is fine to mention.')
+    expect(JOB_TEXT_REFUSAL.job_residence_wording.vi).toMatch(/giấy phép lao động/)
+    expect(JOB_TEXT_REFUSAL.job_candidate_fee.en).not.toMatch(/none/)
   })
 })
