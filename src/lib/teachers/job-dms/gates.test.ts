@@ -142,6 +142,25 @@ describe('ingest', () => {
   it('accepts a clean post', () => {
     expect(checkPost(ok, NOW)).toMatchObject({ ok: true })
   })
+  it('masks a contact in the short printed fields too — never in the Apply line, which IS the way to apply (opus, gate 7a)', () => {
+    const c = checkPost({
+      ...ok, source: 'linkedin', externalKey: '4012345678', url: 'https://www.linkedin.com/jobs/view/4012345678/',
+      title: 'GV tiếng Anh – Zalo 0901 234 567', company: 'Trung tâm ABC hr@abc.edu.vn', locationText: 'Q7 · zalo.me/0901234567',
+    }, NOW)
+    if (!c.ok) throw new Error(c.reason)
+    for (const v of [c.post.title, c.post.company, c.post.locationText]) expect(v).not.toMatch(/\d{3}|@|zalo\.me/)
+    expect(c.post.title).toMatch(/^GV tiếng Anh – Zalo /)
+    const g = checkPost({ ...ok, sourceName: 'Việc làm GV 0909 123 456' }, NOW)
+    if (!g.ok) throw new Error(g.reason)
+    expect(g.post.sourceName).not.toMatch(/\d{3}/)
+    // ⛔ masked BEFORE the 200-character cut: a number across the boundary never survives as a fragment (gate 7a2)
+    const edge = checkPost({ ...ok, title: `${'x'.repeat(185)} Zalo 0901 234 567 hr@abc.edu.vn` }, NOW)
+    if (!edge.ok) throw new Error(edge.reason)
+    expect(edge.post.title!.length).toBeLessThanOrEqual(200)
+    expect(edge.post.title).not.toMatch(/\d{3}|@abc/)
+    const intake = checkPost({ ...ok, source: 'intake', externalKey: 'abc', url: undefined, applyText: 'Zalo 0901 234 567 (Ms Lan)' }, NOW)
+    expect(intake.ok && intake.post.applyText).toBe('Zalo 0901 234 567 (Ms Lan)')
+  })
   it('refuses a link that is not the source\'s own canonical form', () => {
     expect(checkPost({ ...ok, url: 'https://evil.example/groups/1/posts/2' }, NOW)).toMatchObject({ ok: false, reason: 'url' })
     expect(checkPost({ ...ok, source: 'linkedin', url: 'https://www.linkedin.com/comm/jobs/view/1/?tracking=x' }, NOW)).toMatchObject({ ok: false, reason: 'url' })
@@ -485,5 +504,61 @@ describe('gate 6c', () => {
       'You never stop sending these messages even after I asked you twice to leave me be',
       'Please don’t stop the job alerts — said no one ever. I have complained about these twice',
     ]) expect(mayBeOptOut(t), t).toBe(true)
+  })
+})
+
+describe('gate 6h — the same wish in other verbs', () => {
+  it('"keep them stopped", "turn off the job alerts", "switch these off" pause', () => {
+    for (const t of [
+      'Why did you stop the job messages? Please keep them stopped, I do not want any more of them',
+      'Please turn off the job alerts, I have already found a full-time school for this year',
+      'Can you switch these off? I found a school last week and I am happy there, thank you',
+      'Turn off notifications please, I am leaving Vietnam at the end of this month anyway',
+      'Leave the job alerts off for now please, I will switch them on again myself in January',
+    ]) expect(mayBeOptOut(t), t).toBe(true)
+  })
+  it('…and other things turned off or kept are not', () => {
+    for (const t of [
+      'I have to turn off my phone during class, but the school in job 2 looks good to me, thanks',
+      'Keep them coming! The cover lesson in Thao Dien last week was great and they want me back',
+      'The school asked me to switch off the projector after class, is that normal for a cover lesson?',
+      // gate 7a: a bare "it/this"
+      'I need to turn it off before the lesson starts, sorry for the late reply about the school in Thu Duc',
+      'Can you turn this off? The school form keeps asking me for a photo and I already uploaded one',
+    ]) expect(mayBeOptOut(t), t).toBe(false)
+  })
+})
+
+describe('gate 7b — "turn off", plainly asked, pauses; "don\'t turn off" keeps', () => {
+  it('the plainest ways to ask pause — first person included', () => {
+    for (const t of [
+      'I want to turn off these messages, I have found a job for next year already, thank you',
+      'How do I turn off the job alerts? I am not looking for work any more, thanks for your help',
+      'Can we switch them off? We are a school and we only wanted to post our own job here',
+      "I'd like you to turn them off please, I am moving back home to Canada next month",
+      // the accepted cheap error: a teacher describing their phone is paused, and PAUSE_ACK offers "Keep sending jobs"
+      'I usually turn off job notifications during class, but keep the jobs coming, job 2 looks good',
+      // gate 7a2: other determiners and nouns, and a short bare "turn this off"
+      'Please turn off my job alerts, I am not teaching any more after this term ends in December',
+      "Switch those off please, I'm leaving Vietnam for good at the end of the month",
+      'Turn off all your messages, I have never asked for any of these and I do not want them',
+      "Turn off eno's messages please, I found a full-time job at a school in District 7",
+      'Turn off the job DMs please, I already have enough classes for this year, thanks a lot',
+      'Turn this off please',
+      'turn it off',
+      'Turn all of my messages off, I have a contract with a school until next summer now',
+    ]) expect(mayBeOptOut(t), t).toBe(true)
+  })
+  it('"please don\'t turn off / switch off …" asks to KEEP them', () => {
+    for (const t of [
+      "Please don't turn off the job alerts, I still want them even though I'm busy this week",
+      'Do not switch these off, they are useful to me and I read every one of them carefully',
+      "Don't ever switch off the job messages please, they found me my current cover classes",
+      // gate 7c: every shape the turn-off rule reads
+      "Please don't turn off job alerts, I check them every evening after my classes finish",
+      "Don't turn off all the job alerts please, they are the best part of my morning coffee",
+      "Please don't turn it off, I like getting them",
+      "Don't switch eno messages off, I rely on them for cover lessons in District 2 and Thu Duc",
+    ]) expect(mayBeOptOut(t), t).toBe(false)
   })
 })

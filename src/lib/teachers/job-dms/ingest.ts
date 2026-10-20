@@ -109,19 +109,25 @@ export function checkPost(raw: unknown, now: Date): IngestCheck {
   if (!cleaned) return { ok: false, key: k, reason: 'text' }
   const text = maskContacts(cleaned)
   const groupPublic = typeof r.groupPublic === 'boolean' ? r.groupPublic : null
+  // ⛔ The short fields a message prints are masked too — a LinkedIn title "GV tiếng Anh – Zalo 0901 234 567", a group
+  // named after a phone number (opus, gate 7a). Only the Apply line keeps its contact: it IS the application path.
+  // ⛔ MASKED BEFORE IT IS CUT (codex + opus, gate 7a2): cut first, a contact across the 200-character boundary loses its
+  // tail and no longer reads as one. Twice the cap is cleaned and masked (a contact across the cut lies wholly inside it),
+  // then clipped to the cap.
+  const masked = (v: unknown) => { const s = str(v, 2 * INGEST_LIMITS.short); return s ? str(maskContacts(s), INGEST_LIMITS.short) : null }
   return {
     ok: true,
     post: {
       source,
       externalKey: key,
-      sourceName,
+      sourceName: masked(r.sourceName) ?? '—',
       sourceRef: str(r.sourceRef, INGEST_LIMITS.short),
       groupPublic: source === 'fb' ? groupPublic : null,
       url,
       applyText: source === 'intake' ? applyLine(r.applyText) : null,
-      title: str(r.title, INGEST_LIMITS.short),
-      company: str(r.company, INGEST_LIMITS.short),
-      locationText: str(r.locationText, INGEST_LIMITS.short),
+      title: masked(r.title),
+      company: masked(r.company),
+      locationText: masked(r.locationText),
       text,
       lang: str(r.lang, 8),
       postedAt,

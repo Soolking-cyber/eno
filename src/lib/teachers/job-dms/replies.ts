@@ -79,6 +79,32 @@ export function mayBeOptOut(text: string | null | undefined): boolean {
   return t.length > 0 && longOptOut(t, text)
 }
 
+/** The messages, by name or "them/these/those" — never a bare "it/this" in a long reply (a phone, a projector). */
+const MSGS = '(them|these|those|(the |these |those |my |your |all |all the |all these |all those |all your |all my |all of the |all of these |all of those |all of your |all of my |eno |eno s )?(job |eno )?(messages|alerts|offers|notifications|texts|emails|dms|updates))'
+const NOT_A_SUBJECT = '(?<!\\b(you|u|they|it|eno|why|who|which|that) )'
+const DONT = '(please )?((don t|do not|dont)( ever| you dare)?|never( ever)?)'
+/**
+ * Asking to KEEP them (opus, gates 6a–7c): "please DON'T (ever) stop the job alerts", "don't you dare stop them", "never
+ * stop the job alerts!", "don't turn off / switch off job alerts" — every shape the turn-off rule reads (MSGS) —, "why
+ * did you stop the job messages?", "I hope you won't stop them". Only those: "WILL you stop messaging me?", "you won't
+ * stop, will you", "why don't you stop sending me these", "don't you ever stop sending me these?", "you don't stop
+ * sending me jobs" and "DID you stop sending me these like I asked?" (opus, gate 6e) are the opposite — a question about
+ * stopping can be either, and a wrong pause is the cheap error.
+ */
+// ⚠️ 'g' — used ONLY with String.replace (which resets lastIndex); a .test() on it would be stateful.
+const KEEP_ASKS = new RegExp([
+  `${NOT_A_SUBJECT}\\b${DONT} stop (the|these|sending|your|them)\\b`,
+  `${NOT_A_SUBJECT}\\b${DONT} (turn|switch|shut) (off (${MSGS}|it|this)|(${MSGS}|it|this) off)\\b`,
+  '\\bwhy (did|would|have) you (stop|stopped)\\b',
+  '\\b(hope|wish) (that )?(you |eno )?(won t|will not|don t|do not|never) (ever )?stop\\b',
+].join('|'), 'g')
+/** "Please keep them stopped", "leave the job alerts off" (codex, gate 6h). */
+const KEEP_THEM_OFF = new RegExp(`\\b(keep|leave) ${MSGS}( switched| turned)? (stopped|off)\\b`)
+/** "Turn off the job alerts", "switch those off", "how do I turn off my job alerts?" (codex + opus, gates 6h–7a2). */
+const TURN_THEM_OFF = new RegExp(`\\b(turn|switch|shut) (${MSGS} off|off ${MSGS})\\b`)
+/** A SHORT reply that is just "turn this off" / "turn it off" (opus, gate 7a2) — in a long one, "it" can be anything. */
+const TURN_IT_OFF = /\b(turn|switch|shut) (it|this) off\b|\b(turn|switch|shut) off (it|this)\b/
+
 function longOptOut(t: string, raw: string): boolean {
   // ⚠️ No "keep sending" override: "Why do you KEEP MESSAGING me? … stop it" and "do not CONTINUE SENDING" are the
   // angriest opt-outs (opus, gate 3f). A wish to go on only answers the weak "not interested" below.
@@ -87,13 +113,9 @@ function longOptOut(t: string, raw: string): boolean {
   // "Suez" are not (opus, gate 6c), and nor is "they aren't spam" (codex, gate 6c) — but "I just love spam" is.
   const threatened = /\b(report|block|sue)(ed|ing)? (you|this|these|it|eno|your)\b|\b(police|lawyer|harass\w*)\b|(?<!\b(aren t|are not|isn t|is not|not|never|no|any) )\b(complain\w*|spam(my|ming|med)?)\b/.test(t)
   const notAboutUs = t
-    // Asking to KEEP them (opus, gates 6a + 6c): "please DON'T (ever) stop the job alerts", "don't you dare stop them",
-    // "never stop the job alerts!", "why did you stop the job messages?", "I hope you won't stop them". Only those shapes:
-    // "WILL you stop messaging me?", "you won't stop, will you", "why don't you stop sending me these", "don't you ever stop
-    // sending me these?", "you don't stop sending me jobs" and "DID you stop sending me these like I asked?" (opus, gate
-    // 6e) are the opposite — a question about stopping can be either, and a wrong pause is the cheap error. A threat or a
-    // complaint in the reply leaves every "stop" where it is ("if you don't stop the job messages I'll report you").
-    .replace(threatened ? /$^/ : /(?<!\b(you|u|they|it|eno|why|who|which|that) )\b(please )?((don t|do not|dont)( ever| you dare)?|never( ever)?) stop (the|these|sending|your)\b|\bwhy (did|would|have) you (stop|stopped)\b|\b(hope|wish) (that )?(you |eno )?(won t|will not|don t|do not|never) (ever )?stop\b/g, ' ')
+    // Asking to KEEP them is taken out (KEEP_ASKS) — unless the reply threatens or complains, which leaves every "stop"
+    // where it is ("if you don't stop the job messages I'll report you" — codex + opus, gate 6b).
+    .replace(threatened ? /$^/ : KEEP_ASKS, ' ')
     .replace(/\bbus stop\b|\bstop by\b|\bstop (teaching|working|doing)\b|\b(never|didn t|did not|doesn t|does not|don t|do not) (text|message|reply|answer|call|write|email)s? (me )?back\b/g, ' ')
     // what the TEACHER sends or is sent about one job: "I'll stop sending CVs", "don't send me the address", "no more
     // messages from the school", "remove me from the shortlist", "I opt out of nights" (gates 3b–3d)
@@ -110,6 +132,13 @@ function longOptOut(t: string, raw: string): boolean {
   // "Did you stop / have you stopped sending me these (like I asked)?" — a question about stopping can be either, so it
   // pauses (opus, gate 6e); "WHY did you stop …?" was taken out above as a wish to keep them.
   if (/\b(did|have|has) (you|eno) (stop|stopped) (sending|messaging|texting|contacting|emailing|the|these|this|your|all|any)\b/.test(notAboutUs)) return true
+  // The same wish in other verbs: "please keep them stopped", "leave the job alerts off", "turn off the job alerts",
+  // "switch these off", "how do I turn off the job alerts?" (codex + opus, gates 6h–7b) — the messages by name or
+  // "them/these", never a bare "it/this" (a phone, a projector). ⚠️ No first-person exclusion: "I want to turn off these
+  // messages" is the plainest opt-out, so a teacher DESCRIBING their phone ("I turn off notifications in class") is
+  // paused too — the cheap error (PAUSE_ACK offers Keep); "don't turn off …" was taken out above as a wish to keep them.
+  if (KEEP_THEM_OFF.test(notAboutUs) || TURN_THEM_OFF.test(notAboutUs)) return true
+  if (t.length <= 40 && TURN_IT_OFF.test(notAboutUs)) return true
   // Weak — "stop" near a word about messages — unless the reply is plainly about a job ("Stop - I meant job 3, please
   // send me the details" — opus, gate 4b).
   // ⚠️ "about a job" = a numbered job AND a request about it — never a bare "applied" or "interview" ("Please stop the job
