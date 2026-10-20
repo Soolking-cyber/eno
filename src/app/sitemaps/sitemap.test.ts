@@ -38,7 +38,7 @@ type Row = {
 type HelpRow = { id: string; editedAt: Date | null; createdAt: Date; updatedAt: Date }
 /** The fields of a rent-index district row that `pages.xml` reads (D3): its slug, count and cells. */
 type Stat = { n: number; median: number | null }
-type RentRow = { slug: string; total: number; cells: Record<'apartment' | 'house' | 'room', Stat>; bands: Record<'br1' | 'br2' | 'br3plus', Stat> }
+type RentRow = { slug: string; total: number; cells: Record<'apartment' | 'house' | 'room', Stat>; bands: Record<'studio' | 'br1' | 'br2' | 'br3plus', Stat> }
 type RentLookup = { known: true; index: { computedAt: string; districts: RentRow[] } } | { known: false }
 const h = vi.hoisted(() => ({
   rows: [] as Row[],
@@ -919,11 +919,11 @@ describe('the pages builder and the IndexNow collector', () => {
  */
 describe('the pages child: rentals district pages that carry the rent block (D3)', () => {
   const stat = (n: number): Stat => ({ n, median: n ? 12_000_000 : null })
-  const rentRow = (slug: string, total: number, cells: Partial<Record<'apartment' | 'house' | 'room' | 'br1' | 'br2' | 'br3plus', number>>): RentRow => ({
+  const rentRow = (slug: string, total: number, cells: Partial<Record<'apartment' | 'house' | 'room' | 'studio' | 'br1' | 'br2' | 'br3plus', number>>): RentRow => ({
     slug,
     total,
     cells: { apartment: stat(cells.apartment ?? 0), house: stat(cells.house ?? 0), room: stat(cells.room ?? 0) },
-    bands: { br1: stat(cells.br1 ?? 0), br2: stat(cells.br2 ?? 0), br3plus: stat(cells.br3plus ?? 0) },
+    bands: { studio: stat(cells.studio ?? 0), br1: stat(cells.br1 ?? 0), br2: stat(cells.br2 ?? 0), br3plus: stat(cells.br3plus ?? 0) },
   })
   /** `n` live imported places in `district` — what the district page counts as `total`. */
   const places = (n: number, district: string, over: Partial<Row> = {}) => Array.from({ length: n }, (_, i) => row({
@@ -940,6 +940,21 @@ describe('the pages child: rentals district pages that carry the rent block (D3)
     expect(rentalsLocs(xml)).toEqual([`${HOST}/c/rentals/d7`])
     expect(lastmodOf(xml, `${HOST}/c/rentals/d7`)).toBeUndefined()
     expect(xml).toContain(`<loc>${HOST}/c/rentals/d7</loc></url>`)
+  })
+
+  /**
+   * ⛔ RULES v5: A DISTRICT WHOSE APARTMENTS ARE ALL STUDIOS IS SUBMITTED EXACTLY AS BEFORE. In a real snapshot a band is a
+   * subset of the apartment cell at the same floor, so the Studio band can change which figures the block prints, never
+   * whether there is a block (district-rent-cells.test.ts checks that over every consistent shape) — these rows are the
+   * 2026-10-20 shape: every counted apartment a GoPlus Studio or Duplex room, the 1-bedroom band under the floor.
+   */
+  it('submits a district whose counted apartments are all Studio rooms, and not one under the floor (rules v5)', async () => {
+    h.rent = snap([
+      rentRow('d7', 40, { apartment: 12, studio: 12 }),
+      rentRow('d3', 40, { apartment: MIN_INDEXABLE_LISTINGS - 1, studio: MIN_INDEXABLE_LISTINGS - 1 }),
+    ])
+    h.rows = [...places(40, 'Quận 7'), ...places(40, 'Quận 3')]
+    expect(rentalsLocs(await (await pagesGET()).text())).toEqual([`${HOST}/c/rentals/d7`])
   })
 
   it('leaves out can-gio (one house), cu-chi (two houses) and a row whose total is under the floor', async () => {

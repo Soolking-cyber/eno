@@ -21,7 +21,7 @@ import {
  * Vietnamese until vi-overrides is regenerated, and that run would also pull in hundreds of unreviewed
  * machine translations for strings elsewhere (plan v4, R2). Unchanged `<Tr>` strings stay.
  * The 2026-10-20 method fix (the sources line, the 16 October line) follows the same rule; its Vietnamese was written
- * with the change, not taken from CS-2.
+ * with the change, not taken from CS-2. So does rules v5's studio band (its label, its definition, the 21 October line).
  *
  * ⚠️ NUMBERS STAY OUTSIDE THE TRANSLATED SENTENCES. A `<Tr>` key is the exact English string; a
  * sentence with a count baked in is a new key on every snapshot and would never match its override
@@ -36,10 +36,12 @@ function TypeLabel({ t }: { t: RentType }) {
 }
 
 /**
- * An apartment bedroom band's label (CS-2 R2-2…R2-4). Literal pairs, one per band, so a band added in
- * rent-index.ts fails to compile here until it has approved copy.
+ * An apartment band's label (CS-2 R2-2…R2-4; "Studio" since rules v5 — Vietnamese uses the word, as the post form's
+ * own Studio chips do, taxonomy.ts). Literal pairs, one per band, so a band added in rent-index.ts fails to compile
+ * here until it has approved copy.
  */
 const BAND_LABEL: Record<ApartmentBand, { en: string; vi: string }> = {
+  studio: { en: 'Studio', vi: 'Studio' },
   br1: { en: '1 bedroom', vi: '1 phòng ngủ' },
   br2: { en: '2 bedrooms', vi: '2 phòng ngủ' },
   br3plus: { en: '3 or more bedrooms', vi: 'Từ 3 phòng ngủ' },
@@ -86,14 +88,23 @@ export function Unavailable() {
 /**
  * One city-wide figure on the ruled band: its label, the median, the middle half, ₫/m² and the count.
  * Shared by the type row and the bedroom-band row, so both print a figure one way.
+ * ⚠️ `four`: the band row holds FOUR figures since rules v5 (Studio, 1, 2, 3+), so from md it steps the figure down
+ * one size more than the three-up type row (xl gets the full size back) and tightens the gutter. MEASURED offline —
+ * these components rendered, the project's Tailwind compiled, Chromium at 390/768/1024/1280px, Open Runde loaded, in EN
+ * and VI, today's figures and every band at eight digits ("88,800,000 đ"): with the type row's sizes, 12 band figures
+ * wrapped or overflowed at 768px (today's "6,500,000 đ" among them) and 6 wrapped at 1024px; with these, none at any
+ * width (2026-10-21). Literal class strings, so Tailwind sees them.
  */
-function Figure({ label, s, locale }: { label: ReactNode; s: Stats; locale: MoneyLocale }) {
+function Figure({ label, s, locale, four = false }: { label: ReactNode; s: Stats; locale: MoneyLocale; four?: boolean }) {
   return (
-    <div className="min-w-0 py-4 md:px-6 md:first:pl-0">
+    <div className={four ? 'min-w-0 py-4 md:px-4 md:first:pl-0' : 'min-w-0 py-4 md:px-6 md:first:pl-0'}>
       <p className="text-sm font-semibold text-muted-foreground">{label}</p>
       {publishable(s) ? (
         <>
-          <p className="mt-1 text-3xl font-bold tabular-nums text-foreground md:text-2xl lg:text-3xl">
+          <p className={four
+            ? 'mt-1 text-3xl font-bold tabular-nums text-foreground md:text-xl lg:text-2xl xl:text-3xl'
+            : 'mt-1 text-3xl font-bold tabular-nums text-foreground md:text-2xl lg:text-3xl'}
+          >
             {shown(s.median, locale)} <span className="whitespace-nowrap text-sm font-semibold text-muted-foreground"><Tr text="per month" /></span>
           </p>
           <p className="mt-1 text-xs text-body">
@@ -104,7 +115,7 @@ function Figure({ label, s, locale }: { label: ReactNode; s: Stats; locale: Mone
           )}
         </>
       ) : (
-        <p className="mt-1 text-3xl font-bold text-muted-foreground md:text-2xl lg:text-3xl">—</p>
+        <p className={four ? 'mt-1 text-3xl font-bold text-muted-foreground md:text-xl lg:text-2xl xl:text-3xl' : 'mt-1 text-3xl font-bold text-muted-foreground md:text-2xl lg:text-3xl'}>—</p>
       )}
       <p className="mt-2 text-xs text-muted-foreground">{count(s.n, locale)} <Tr text="listings" /></p>
     </div>
@@ -113,6 +124,8 @@ function Figure({ label, s, locale }: { label: ReactNode; s: Stats; locale: Mone
 
 /** Three figures on one ruled band, not three bordered tiles (flat-surface canon §3b; C-BOXES). */
 const BAND_ROW = 'grid border-t border-border md:grid-cols-3 md:divide-x md:divide-border max-md:divide-y max-md:divide-border'
+/** The apartment bands' row: the same ruled band with four figures (rules v5's Studio beside 1, 2 and 3+ bedrooms). */
+const BAND_ROW_FOUR = 'grid border-t border-border md:grid-cols-4 md:divide-x md:divide-border max-md:divide-y max-md:divide-border'
 
 export function Headline({ index, locale }: { index: RentIndex; locale: MoneyLocale }) {
   return (
@@ -126,16 +139,17 @@ export function Headline({ index, locale }: { index: RentIndex; locale: MoneyLoc
       <div className={BAND_ROW}>
         {RENT_TYPES.map((t) => <Figure key={t} label={<TypeLabel t={t} />} s={index.cityWide[t]} locale={locale} />)}
       </div>
-      {/* ⚠️ THE BANDS ARE A SUBSET OF THE APARTMENT FIGURE ABOVE, NOT A SPLIT OF IT: a studio or an
-          apartment with no bedroom count has no band but still counts in "Apartments" (rules v3, R-d). */}
-      {/* Like BedroomTable: no row of three "— 0 listings" when no apartment carries a count. */}
+      {/* ⚠️ THE BANDS ARE A SUBSET OF THE APARTMENT FIGURE ABOVE, NOT A SPLIT OF IT: an apartment with
+          no bedroom count and no studio type has no band but still counts in "Apartments" (rules v3, R-d;
+          the Studio band since v5 — rent-index.ts `apartmentBand`). */}
+      {/* Like BedroomTable: no row of "— 0 listings" when no apartment is in any band. */}
       {APARTMENT_BANDS.some((b) => index.cityBands[b].n > 0) && (
         <>
           <h3 className="mt-6 mb-2 text-sm font-bold text-foreground">
             <Bilingual en="Apartments by number of bedrooms" vi="Căn hộ theo số phòng ngủ" />
           </h3>
-          <div className={BAND_ROW}>
-            {APARTMENT_BANDS.map((b) => <Figure key={b} label={<BandLabel b={b} />} s={index.cityBands[b]} locale={locale} />)}
+          <div className={BAND_ROW_FOUR}>
+            {APARTMENT_BANDS.map((b) => <Figure key={b} label={<BandLabel b={b} />} s={index.cityBands[b]} locale={locale} four />)}
           </div>
         </>
       )}
@@ -250,11 +264,13 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
 }
 
 /**
- * Apartments by bedroom band in each district (rules v3, R-d). The same `Cell` as the district table,
- * so a band under MIN_CELL_N prints "—" and its count, never a median of a handful.
- * ⚠️ A DISTRICT WITH NO BANDED APARTMENT AT ALL IS LEFT OUT (a row of three "— 0 listings" says
+ * Apartments by band in each district (rules v3, R-d; the Studio column since v5). The same `Cell` as the district
+ * table, so a band under MIN_CELL_N prints "—" and its count, never a median of a handful.
+ * ⚠️ A DISTRICT WITH NO BANDED APARTMENT AT ALL IS LEFT OUT (a row of "— 0 listings" says
  * nothing); one with any banded listing keeps its row, dashes included, so the counts stay visible.
  * ⚠️ NAMES ONLY, NO LINKS: the district table above already links each row at the indexing floor.
+ * ⚠️ TWO-UP BELOW md, NOT THE DISTRICT TABLE'S THREE: four band cells in a 366px row leave ~80px each, narrower than
+ * "12,000,000 ₫" (a cell's figure never wraps), so the four sit as two rows of two under the district's name.
  */
 export function BedroomTable({ index, lang, locale }: { index: RentIndex; lang: string; locale: MoneyLocale }) {
   const rows = index.districts.filter((d) => APARTMENT_BANDS.some((b) => d.bands[b].n > 0))
@@ -283,8 +299,8 @@ export function BedroomTable({ index, lang, locale }: { index: RentIndex; lang: 
           </thead>
           <tbody className="max-md:block">
             {rows.map((d) => (
-              <tr key={d.slug} className="border-t border-border max-md:grid max-md:grid-cols-3 max-md:gap-x-3 max-md:py-3">
-                <th scope="row" className="text-left align-top font-semibold text-foreground max-md:col-span-3 max-md:pb-2 md:min-w-[9rem] md:py-2 md:pr-4">
+              <tr key={d.slug} className="border-t border-border max-md:grid max-md:grid-cols-2 max-md:gap-x-3 max-md:gap-y-2 max-md:py-3">
+                <th scope="row" className="text-left align-top font-semibold text-foreground max-md:col-span-2 max-md:pb-2 md:min-w-[9rem] md:py-2 md:pr-4">
                   {lang === 'vi' ? d.name : d.nameEn}
                   <DistrictNote d={d} />
                 </th>
@@ -389,8 +405,14 @@ export function Methodology({ index, locale, snapshot }: { index: RentIndex | nu
           </li>
           <li>
             <Bilingual
-              en="Apartments are also split by bedrooms: 1, 2, and 3 or more. The all-apartment figures still include every apartment."
-              vi="Căn hộ còn được chia theo số phòng ngủ: 1, 2, và từ 3 trở lên. Số liệu căn hộ chung vẫn gồm mọi căn hộ."
+              en="Apartments are also split into studios and by bedrooms: 1, 2, and 3 or more. The all-apartment figures still include every apartment."
+              vi="Căn hộ còn được chia thành studio và theo số phòng ngủ: 1, 2, và từ 3 trở lên. Số liệu căn hộ chung vẫn gồm mọi căn hộ."
+            />{' '}
+            {/* ⛔ THE STUDIO RULE IN WORDS (rules v5, rent-index.ts `apartmentBand`): the stored type with 1 bedroom,
+                or the Studio bedrooms chip — the two ways a listing's own record says it is one room. */}
+            <Bilingual
+              en="A studio is an apartment listed as Studio or Duplex with 1 bedroom, or with Studio as its number of bedrooms."
+              vi="Studio là căn hộ được đăng với loại Studio hoặc Duplex và 1 phòng ngủ, hoặc chọn Studio ở mục số phòng ngủ."
             />{' '}
             <Bilingual
               en="Serviced and mini apartments count as apartments, in their bedroom band. Not every source labels them, so the index does not report them separately."
@@ -444,6 +466,15 @@ export function Methodology({ index, locale, snapshot }: { index: RentIndex | nu
             <Bilingual
               en="On 16 October 2026 the sources changed: eno.vn stopped importing listings from Batdongsan.com.vn, Muaban.net, Rever.vn and Honeycomb House, and dropped Nhatot.com listings flagged as company ads. On 20 October 2026 they changed again: eno.vn stopped listing homes from Nhatot.com and added GoPlus's own listings. Figures from before either date are not comparable with later ones."
               vi="Ngày 16/10/2026, nguồn dữ liệu đã thay đổi: eno.vn ngừng nhập tin từ Batdongsan.com.vn, Muaban.net, Rever.vn và Honeycomb House, đồng thời bỏ các tin trên Nhatot.com được đánh dấu là tin của doanh nghiệp. Ngày 20/10/2026, nguồn lại thay đổi: eno.vn ngừng đăng tin từ Nhatot.com và bổ sung tin đăng của GoPlus. Số liệu trước mỗi mốc này không so sánh được với số liệu sau đó."
+            />
+          </li>
+          {/* ⛔ RULES v5, DATED LIKE THE SOURCE CHANGES ABOVE AND AFTER THEM. Only the 1-bedroom figures stop being
+              comparable: the all-apartment, 2-bedroom and 3+ figures are computed as before (rent-index.ts v5).
+              ⚠️ THE DATE IS THE DAY v5 WENT LIVE — re-date both languages (and the r2 test) if it ships later. */}
+          <li>
+            <Bilingual
+              en="From 21 October 2026 a studio or duplex room is its own band (Studio); until then one listed with 1 bedroom counted in the 1-bedroom band, so 1-bedroom figures from before that date are not comparable with later ones."
+              vi="Từ ngày 21/10/2026, căn hộ studio hoặc duplex được tách thành nhóm riêng (Studio); trước đó, những căn này nếu được đăng 1 phòng ngủ thì được tính vào nhóm 1 phòng ngủ, nên số liệu 1 phòng ngủ trước ngày này không so sánh được với số liệu sau đó."
             />
           </li>
           <li><Tr text="Districts 2 and 9 were merged into Thu Duc City in 2021, but many listings still use the old names. They get their own rows and are also counted in Thu Duc City, so the district rows do not add up to the city total." /></li>

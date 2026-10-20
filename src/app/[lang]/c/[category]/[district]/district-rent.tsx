@@ -34,6 +34,8 @@ export type DistrictRentProps = {
 function CellLabel({ kind }: { kind: RentCellKind }) {
   const { tr } = useLanguage()
   switch (kind) {
+    // Rules v5's studio band (rent-index.ts `apartmentBand`): the index's own label, in both languages.
+    case 'studio': return <>{tr('Studio', 'Studio')}</>
     case 'br1': return <>{tr('1-bedroom apartments', 'Căn hộ 1 phòng ngủ')}</>
     case 'br2': return <>{tr('2-bedroom apartments', 'Căn hộ 2 phòng ngủ')}</>
     case 'br3plus': return <>{tr('Apartments, 3+ bedrooms', 'Căn hộ từ 3 phòng ngủ')}</>

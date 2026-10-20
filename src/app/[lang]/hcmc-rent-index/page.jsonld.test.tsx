@@ -78,6 +78,8 @@ describe('/hcmc-rent-index JSON-LD, as rendered', () => {
     expect(keysDeep(nodes).filter((k) => /licen[cs]e/i.test(k))).toEqual([])
     const dataset = nodes.find((n) => n['@type'] === 'Dataset')!
     expect(dataset.usageInfo).toBe('https://eno.vn/hcmc-rent-index#cite')
+    // Rules v5: the bands the page and the CSV publish, Studio among them.
+    expect(dataset.description).toContain('for apartments (also for studios and by 1, 2 and 3+ bedrooms), houses and rooms')
   })
 
   it.each(['en', 'vi'] as const)('%s: without figures — the breadcrumb alone: no FAQPage, no Dataset', async (lang) => {

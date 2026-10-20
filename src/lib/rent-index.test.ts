@@ -5,10 +5,11 @@ import { hammingHex } from './image-hash-url'
 import { RENTAL_IMPORT_SELLERS } from './import-sellers'
 import { HOME_RENTAL_SUBCATS } from './rental-homes'
 import { NOT_INDEXED_HOMES,
-  apartmentBand, assignDistrict, bedroomCount, computeRentIndex, dedupeCandidateIds, distinctShots, isMonthlyRent,
+  apartmentBand, apartmentType, assignDistrict, bedroomCount, computeRentIndex, dedupeCandidateIds, distinctShots, isMonthlyRent,
   quantile, rentSources, sameUnitByPhotos, shotDistance,
-  rentIndexCsv, roundForDisplay, BAND_CSV_TYPE, CSV_COLUMNS, IMPORT_SOURCE_NAME, MIN_CELL_N, MAX_MONTHLY_VND, MIN_MONTHLY_VND,
-  MONTHLY_BARE_VND_SELLERS, MONTHLY_UNIT, RENT_INDEX_RULE_INPUTS, RENT_INDEX_RULES_VERSION, type RentRow,
+  rentIndexCsv, roundForDisplay, APARTMENT_BANDS, BAND_CSV_TYPE, CSV_BAND_ORDER, CSV_COLUMNS, IMPORT_SOURCE_NAME, MIN_CELL_N,
+  MAX_MONTHLY_VND, MIN_MONTHLY_VND, MONTHLY_BARE_VND_SELLERS, MONTHLY_UNIT, RENT_INDEX_RULE_INPUTS, RENT_INDEX_RULES_VERSION,
+  STUDIO_APT_TYPES, type RentRow,
 } from './rent-index'
 
 const BDS = 'bds-vn-import-seller-0001'
@@ -252,8 +253,12 @@ describe('computeRentIndex — cross-posts are proven by photos (R-b)', () => {
 })
 
 describe('computeRentIndex — apartment bands (R-d)', () => {
-  it('bands 1, 2 and 3+; a studio and a missing count get no band', () => {
-    expect([null, 0, 1, 2, 3, 4, 6].map(apartmentBand)).toEqual([null, null, 'br1', 'br2', 'br3plus', 'br3plus', 'br3plus'])
+  it('bands 1, 2 and 3+ by the count; a missing count with no studio type gets no band', () => {
+    expect([null, 1, 2, 3, 4, 6].map((n) => apartmentBand(n, null))).toEqual([null, 'br1', 'br2', 'br3plus', 'br3plus', 'br3plus'])
+    // A serviced flat, a penthouse or an officetel is banded by its bedrooms, like an apartment with no type.
+    for (const t of ['serviced', 'penthouse', 'officetel']) {
+      expect([null, 1, 2, 3].map((n) => apartmentBand(n, t)), t).toEqual([null, 'br1', 'br2', 'br3plus'])
+    }
   })
 
   it('publishes each band from its own rows, as a subset of the apartment cell', () => {
@@ -269,7 +274,85 @@ describe('computeRentIndex — apartment bands (R-d)', () => {
     expect(d1.bands.br1).toMatchObject({ n: 10, median: 5_500_000 })
     expect(d1.bands.br2).toMatchObject({ n: 10, median: 34_500_000 })
     expect(d1.bands.br3plus).toMatchObject({ n: 3, median: null })
+    expect(d1.bands.studio).toMatchObject({ n: 0, median: null })
     expect(idx.cityBands.br1.n).toBe(10)
+  })
+})
+
+/**
+ * ⛔ RULES v5 — A STUDIO OR DUPLEX ROOM IS ITS OWN BAND (2026-10-21). GoPlus files its Studio and Duplex rooms as
+ * bedrooms '1' plus `aptType` (goplus-listing.ts UNIT_LABEL), and on 20 October they were 2,377 of the 2,516 rows in
+ * the 1-bedroom band. These pin what the band holds, and that `br1` is a one-bedroom flat again.
+ */
+describe('computeRentIndex — the studio band (rules v5)', () => {
+  /** The facet JSON GoPlus stores for each unit type (goplus-listing.ts UNIT_LABEL), and a member's posts. */
+  const GOPLUS_STUDIO = '{"bedrooms":"1","aptType":"studio"}'
+  const GOPLUS_DUPLEX = '{"bedrooms":"1","aptType":"duplex"}'
+  const GOPLUS_1BR = '{"bedrooms":"1","aptType":"serviced"}'
+
+  it('reads the stored type exactly — never trimmed, re-cased or guessed — and nothing unreadable', () => {
+    expect(apartmentType(GOPLUS_STUDIO)).toBe('studio')
+    expect(apartmentType('{"aptType":"duplex"}')).toBe('duplex')
+    expect(apartmentType('{"aptType":"Studio"}')).toBe('Studio')
+    expect(apartmentType('{"aptType":" studio"}')).toBe(' studio')
+    for (const bad of [null, '', '{}', 'not json', '[]', '{"aptType":1}', '{"aptType":null}', '{"aptType":["studio"]}', '{"bedrooms":"1"}']) {
+      expect(apartmentType(bad), String(bad)).toBeNull()
+    }
+    expect(STUDIO_APT_TYPES).toEqual(['studio', 'duplex'])
+  })
+
+  it('is a Studio or Duplex stored with one bedroom, or a stored 0 — and only those', () => {
+    for (const t of STUDIO_APT_TYPES) {
+      expect([0, 1].map((n) => apartmentBand(n, t)), t).toEqual(['studio', 'studio'])
+      // ⚠️ Any other count keeps the band it gives: a three-bedroom duplex flat is not a studio, and a type with no
+      // count is no more a studio than a missing count is (a portal's "Duplex" may be a family flat).
+      expect([null, 2, 3, 6].map((n) => apartmentBand(n, t)), t).toEqual([null, 'br2', 'br3plus', 'br3plus'])
+    }
+    // The post form's "Studio" bedrooms chip stores '0': a studio whatever the type says, or with none.
+    expect([null, 'serviced', 'penthouse'].map((t) => apartmentBand(0, t))).toEqual(['studio', 'studio', 'studio'])
+    // The chips' own values only, exactly as stored: a hand-typed "Studio" is not a studio here, as it is not to the filter.
+    expect(['Studio', ' studio', 'studio ', 'STUDIO', 'Duplex', 'loft', ''].map((t) => apartmentBand(1, t))).toEqual(Array(7).fill('br1'))
+  })
+
+  it('takes GoPlus\'s Studio and Duplex rooms out of the 1-bedroom band, which keeps its serviced one-bedroom flats', () => {
+    const idx = computeRentIndex([
+      ...many(MIN_CELL_N, { attributes: GOPLUS_STUDIO }),
+      ...many(MIN_CELL_N, { attributes: GOPLUS_DUPLEX, areaM2: 60 }),
+      ...many(MIN_CELL_N, { attributes: GOPLUS_1BR, areaM2: 90 }).map((r, i) => ({ ...r, price: 7_000_000 + i * 100_000 })),
+    ])
+    const d1 = idx.districts.find((d) => d.slug === 'd1')!
+    expect(d1.bands.studio).toMatchObject({ n: 20, median: 5_500_000 })
+    expect(d1.bands.br1).toMatchObject({ n: 10, median: 7_450_000 })
+    expect(idx.cityBands.studio.n).toBe(20)
+    expect(idx.cityBands.br1.n).toBe(10)
+    // The all-sizes figure still counts every apartment, studios included: v5 moved no row out of it.
+    expect(d1.cells.apartment.n).toBe(30)
+    expect(idx.cityWide.apartment.n).toBe(30)
+  })
+
+  it('puts no row in two bands, and every banded row inside the apartment cell', () => {
+    const shapes = [GOPLUS_STUDIO, GOPLUS_DUPLEX, GOPLUS_1BR, '{"bedrooms":"0"}', '{"bedrooms":"2","aptType":"duplex"}',
+      '{"bedrooms":"3","aptType":"studio"}', '{"aptType":"studio"}', '{"aptType":"penthouse"}', null, '{"bedrooms":"6"}']
+    const rows = shapes.flatMap((a, k) => many(3, { attributes: a, areaM2: 40 + k * 10 }))
+    const idx = computeRentIndex(rows)
+    const bandN = APARTMENT_BANDS.reduce((sum, b) => sum + idx.cityBands[b].n, 0)
+    // Three shapes have no band: a Studio with no count, a penthouse with no count, and no facets at all.
+    expect(bandN).toBe(idx.cityWide.apartment.n - 3 * 3)
+    expect(idx.cityBands).toMatchObject({
+      studio: { n: 3 * 3 }, // Studio · Duplex (each with '1') · a stored 0
+      br1: { n: 3 },
+      br2: { n: 3 }, // the two-bedroom duplex
+      br3plus: { n: 3 * 2 }, // the "three-bedroom studio" keeps its count's band; the six-bedroom flat
+    })
+  })
+
+  it('bands apartments only: a house or a room filed as a studio is not banded', () => {
+    const idx = computeRentIndex([
+      row({ subcategorySlug: 'house-rental', attributes: GOPLUS_STUDIO }),
+      row({ subcategorySlug: 'room-rental', attributes: '{"bedrooms":"0","aptType":"studio"}', areaM2: 31 }),
+    ])
+    expect(idx.used).toBe(2)
+    for (const b of APARTMENT_BANDS) expect(idx.cityBands[b].n, b).toBe(0)
   })
 })
 
@@ -424,20 +507,42 @@ describe('rentIndexCsv', () => {
     const lines = rentIndexCsv(idx).trimEnd().split('\r\n')
     expect(lines[0]).toBe(CSV_COLUMNS.join(','))
     expect(CSV_COLUMNS.at(-1)).toBe('rules_version')
-    // (3 types + 3 apartment bands) × (city + d1)
-    expect(lines).toHaveLength(1 + 6 * 2)
+    // (3 types + 4 apartment bands) × (city + d1)
+    expect(lines).toHaveLength(1 + 7 * 2)
     const d1Apartment = lines.find((l) => l.includes(',district,d1,') && l.includes(',apartment,'))!
     expect(d1Apartment.startsWith('2026-09-27T00:00:00.000Z,district,d1,District 1,,apartment,10,5500000,3250000,7750000,10,')).toBe(true)
-    expect(d1Apartment.endsWith(',4')).toBe(true)
+    expect(d1Apartment.endsWith(`,${RENT_INDEX_RULES_VERSION}`)).toBe(true)
     // many() rows are two-bedroom: the 2-bedroom band row carries them, the others are empty.
     expect(lines.find((l) => l.includes(',district,d1,') && l.includes(`,${BAND_CSV_TYPE.br2},`))).toContain(`,${BAND_CSV_TYPE.br2},10,5500000,`)
-    expect(lines.find((l) => l.includes(',city,') && l.includes(`,${BAND_CSV_TYPE.br1},`))).toMatch(/,apartment_1br,0,,,,0,,4$/)
+    expect(lines.find((l) => l.includes(',city,') && l.includes(`,${BAND_CSV_TYPE.br1},`))).toMatch(/,apartment_1br,0,,,,0,,5$/)
+    expect(lines.find((l) => l.includes(',city,') && l.includes(`,${BAND_CSV_TYPE.studio},`))).toMatch(/,apartment_studio,0,,,,0,,5$/)
     // A suppressed cell keeps its n and leaves the statistics empty.
-    expect(lines.find((l) => l.includes(',city,') && l.includes(',house,'))).toMatch(/,house,0,,,,0,,4$/)
-    // The header is the one it was under v3: v4 moved the number, never a column (the CSV route is unchanged).
+    expect(lines.find((l) => l.includes(',city,') && l.includes(',house,'))).toMatch(/,house,0,,,,0,,5$/)
+    // The header is the one it was under v3: v4 and v5 moved the number, never a column (the CSV route is unchanged).
     expect(lines[0]).toBe('snapshot_utc,scope,district_slug,district_name,part_of,type,n,median_vnd_month,p25_vnd_month,p75_vnd_month,n_with_area,median_vnd_per_m2_month,rules_version')
     // Every row says which rules made it.
     for (const l of lines.slice(1)) expect(l.split(',').at(-1)).toBe(String(RENT_INDEX_RULES_VERSION))
+  })
+
+  /**
+   * ⛔ v5 ADDS A ROW TYPE AND MOVES NO EXISTING ROW. Each scope's block keeps the six rows every earlier file had, in
+   * their order, with `apartment_studio` appended after them; the first data row is still the city's all-apartment row
+   * (infra/vn-node/eno-warmup.sh reads the snapshot and `rules_version` from it).
+   */
+  it('appends the studio row to each scope, after the six rows of every earlier file', () => {
+    const studios = many(MIN_CELL_N, { attributes: '{"bedrooms":"1","aptType":"studio"}' })
+    const idx = computeRentIndex([...many(MIN_CELL_N, { areaM2: 80 }), ...studios], new Map(), new Date('2026-10-21T00:00:00Z'))
+    const types = rentIndexCsv(idx).trimEnd().split('\r\n').slice(1).map((l) => l.split(',').slice(1, 6).join(','))
+    const block = ['apartment', 'house', 'room', 'apartment_1br', 'apartment_2br', 'apartment_3plus_br', 'apartment_studio']
+    expect(types).toEqual([
+      ...block.map((t) => `city,all,Ho Chi Minh City,,${t}`),
+      ...block.map((t) => `district,d1,District 1,,${t}`),
+    ])
+    const studioRow = rentIndexCsv(idx).split('\r\n').find((l) => l.includes(',city,') && l.includes(',apartment_studio,'))!
+    expect(studioRow).toContain(',apartment_studio,10,5500000,')
+    // Every band is in the file exactly once per scope, whatever order the page shows them in.
+    expect([...CSV_BAND_ORDER].sort()).toEqual([...APARTMENT_BANDS].sort())
+    expect(new Set(Object.values(BAND_CSV_TYPE)).size).toBe(APARTMENT_BANDS.length)
   })
 })
 
@@ -447,13 +552,19 @@ describe('rentIndexCsv', () => {
  * which `assignDistrict` reads — D0 moving Thảo Điền into `d2` changed published rows with no rule
  * constant changing. If this fails: bump RENT_INDEX_RULES_VERSION, say in the page's methodology what
  * changed, and pin both numbers below.
- * ⚠️ v4 KEEPS v3's FINGERPRINT ON PURPOSE: it moved no rule — it marks the 16 October 2026 source change
- * (rent-index.ts says why). A version may move without its inputs; the inputs may never move without it.
+ * ⚠️ v4 KEPT v3's FINGERPRINT ('63023d4c6c71ba50') ON PURPOSE: it moved no rule — it marked the 16 October 2026 source
+ * change (rent-index.ts says why). A version may move without its inputs; the inputs may never move without it.
+ * ⛔ v5 MOVES IT, BECAUSE v5 IS A RULE: the studio band (its types at one bedroom, the stored 0) and the band list.
  */
 describe('the rules fingerprint', () => {
-  it('is pinned to rules version 4 — the v3 rules, unchanged', () => {
+  it('is pinned to rules version 5 — the studio band', () => {
     const fingerprint = createHash('sha256').update(JSON.stringify(RENT_INDEX_RULE_INPUTS)).digest('hex').slice(0, 16)
-    expect({ version: RENT_INDEX_RULES_VERSION, fingerprint }).toEqual({ version: 4, fingerprint: '63023d4c6c71ba50' })
+    expect({ version: RENT_INDEX_RULES_VERSION, fingerprint }).toEqual({ version: 5, fingerprint: '4e4e903033f3d78c' })
+  })
+
+  it('covers the studio rule — its types at one bedroom and the stored 0 — and the band list', () => {
+    expect(RENT_INDEX_RULE_INPUTS.studio).toEqual({ aptTypes: ['studio', 'duplex'], withBedrooms: 1, zeroBedrooms: 'studio' })
+    expect(RENT_INDEX_RULE_INPUTS.bands).toEqual(['studio', 'br1', 'br2', 'br3plus'])
   })
 
   it('types exactly the shared list of home subcategories, less the ones named as not indexed', () => {

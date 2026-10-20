@@ -7,6 +7,7 @@ import { HereLink, P, SeoArticle, type ArticleContent } from '@/components/marke
 import { LiveCounts } from '@/components/marketplace/live-count'
 import { Row, Rows } from '@/components/ui/rows'
 import { loadRentIndex } from '@/app/[lang]/hcmc-rent-index/load-rent-index'
+import { MIN_CELL_N } from '@/lib/rent-index'
 import { listSchools } from '@/lib/schools/queries'
 import type { SchoolKind } from '@/lib/schools/constants'
 import { formatMoneyFull } from '@/lib/vnd'
@@ -350,10 +351,17 @@ export default async function TeachHubPage() {
   if (!live.length) notFound()
   const bySlug = new Map(live.map((g) => [g.slug, g]))
   const [schools, rent] = await Promise.all([schoolCounts(), rentIndexSafe()])
+  /**
+   * ⛔ "A ONE-BEDROOM APARTMENT" IS THE 1-BEDROOM BAND AND NOTHING ELSE. Since rules v5 `br1` holds one-bedroom flats
+   * only: the GoPlus Studio and Duplex rooms that were 94% of it on 20 October (2,377 of 2,516) are the Studio band
+   * (src/lib/rent-index.ts `apartmentBand`). No other band ever stands in for it — under the publishing floor the facts
+   * line and the cost answer's pointer to it both go, and the page says nothing rather than relabel a studio figure.
+   * The floor is checked here as well as by the null median the rules leave below it, as the index page does.
+   */
   const br1 = rent.known ? rent.index.cityBands.br1 : null
   const rentDate = rent.known ? formatArticleDate(rent.index.computedAt.slice(0, 10), 'en') : null
   // ONE condition for the facts box's rent line and the cost answer that points "above" at it.
-  const rentFact = br1?.median && rentDate ? { median: br1.median, n: br1.n, date: rentDate } : null
+  const rentFact = br1?.median && br1.n >= MIN_CELL_N && rentDate ? { median: br1.median, n: br1.n, date: rentDate } : null
 
   // No school count and no rent figure: no box (a heading over an empty list, or over the job count alone, is worse than none).
   const facts = !((schools && schools.total > 0) || rentFact) ? null : (

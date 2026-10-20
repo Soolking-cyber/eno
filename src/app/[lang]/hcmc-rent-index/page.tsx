@@ -88,7 +88,7 @@ function jsonLd(index: RentIndex | null, lang: string): Record<string, unknown>[
       '@type': 'Dataset',
       name: 'Ho Chi Minh City Rent Index',
       description:
-        `Median, 25th and 75th percentile monthly asking rent in Vietnamese đồng for apartments (also by 1, 2 and 3+ bedrooms), houses and rooms in each Ho Chi Minh City district, computed daily by ${SITE_NAME} from live rental listings. Houses with no bedroom count are left out as commercial. Cells with fewer than ${MIN_CELL_N} listings are not published. Asking prices, not signed leases.`,
+        `Median, 25th and 75th percentile monthly asking rent in Vietnamese đồng for apartments (also for studios and by 1, 2 and 3+ bedrooms), houses and rooms in each Ho Chi Minh City district, computed daily by ${SITE_NAME} from live rental listings. Houses with no bedroom count are left out as commercial. Cells with fewer than ${MIN_CELL_N} listings are not published. Asking prices, not signed leases.`,
       url: URL_,
       creator: { '@type': 'Organization', name: SITE_NAME, url: ORIGIN },
       // ⚠️ NO `license` (owner, 2026-09-27; ruling R-f, restated by owner decision 9): the terms are "free to cite

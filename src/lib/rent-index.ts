@@ -54,8 +54,19 @@ import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
  * 0 live Nhà Tốt listings at 11:21 UTC). The page's dated line separates them only from files made before 16 October.
  * ⚠️ A LATER CHANGE OF SOURCES NEEDS NO BUMP TO BE SEEN: each snapshot names its own sources (`rentSources`).
  * Bump again for a rule, or for a deliberate source change a downloaded file must not be compared across.
+ *
+ * ⛔ v5 (2026-10-21, the studio band — owner: "resolve open with recommended") CHANGES A RULE, SO THE FINGERPRINT MOVES:
+ * a studio or duplex room is its own band (`studio`, `apartmentBand`) and `br1` is a one-bedroom flat again. GoPlus
+ * files its Studio and Duplex rooms as one bedroom plus the type in `aptType` (src/lib/goplus-listing.ts UNIT_LABEL),
+ * so from 20 October they were most of the 1-bedroom band: 2,377 of its 2,516 listings in the 2026-10-20 17:09 UTC
+ * snapshot (the public feed's Apartment type counts, 17:18 UTC: Studio 1,154 and Duplex 1,223, every one '1' bedroom),
+ * whose median fell from 6.0M ₫ (19 October) to 4.5M ₫ — and the teach hub printed it as "a one-bedroom apartment".
+ * ONLY `br1` MOVES (and `studio` is new): the all-sizes apartment figure, `br2` and `br3plus` are computed exactly as
+ * under v4, since a studio or duplex filed with two or more bedrooms keeps its bedroom band. The page dates the change.
+ * Expected on the same rows (the feed's 2,606, run through this file — with `aptType` dropped they reproduce every n and
+ * median of the live v4 CSV): Studio 2,377 at 4.5M ₫, 1 bedroom 139 at 6.6M ₫, 2 bedrooms 75 at 8.8M ₫, 3+ 5 (—).
  */
-export const RENT_INDEX_RULES_VERSION = 4
+export const RENT_INDEX_RULES_VERSION = 5
 
 /** A cell below this many listings prints "—" and its count, never a median of three. */
 export const MIN_CELL_N = 10
@@ -200,17 +211,38 @@ const typeOf = (subcategorySlug: string | null): RentType | undefined =>
   subcategorySlug && Object.hasOwn(TYPE_OF, subcategorySlug) ? TYPE_OF[subcategorySlug as IndexedHome] : undefined
 
 /**
- * ⛔ APARTMENT BEDROOM BANDS: 1, 2 AND 3+ (R-d). An all-sizes apartment median mostly measures the
- * SIZE MIX: 65% of District 1's apartments with a count are one-bedroom, so its ₫10.0M said little
+ * ⛔ APARTMENT BANDS: STUDIO, THEN 1, 2 AND 3+ BEDROOMS (R-d; `studio` since v5). An all-sizes apartment median mostly
+ * measures the SIZE MIX: 65% of District 1's apartments with a count are one-bedroom, so its ₫10.0M said little
  * about a two-bedroom (API scope, 2026-09-27: 1-bedroom ₫8.6M, 2-bedroom ₫31M). The count is the
  * `bedrooms` facet every importer stores through `roomCountValue` (src/lib/taxonomy.ts): '1'…'5'
- * exact, '6' for six or more. ⚠️ A STUDIO ('0', members only) AND A MISSING COUNT GET NO BAND — a
- * studio is not a one-bedroom flat, and a missing count is not a studio. Both still count in the
- * all-sizes apartment figure. Houses and rooms are not banded.
+ * exact, '6' for six or more. In display order; the CSV keeps its own (CSV_BAND_ORDER).
+ *
+ * ⛔ A STUDIO IS NOT A ONE-BEDROOM FLAT, AND SINCE v5 IT HAS ITS OWN BAND, read from what the listing STORES, never from
+ * its title or its size (`apartmentType`, `bedroomCount`) — and only where a count of 0 or 1 is stored, so every row
+ * in the band is one room by its own record:
+ *  · `aptType` 'studio' or 'duplex' (STUDIO_APT_TYPES) with '1' bedroom stored. That is how GoPlus files its Studio and
+ *    Duplex rooms — '1' plus the type (goplus-listing.ts UNIT_LABEL; taxonomy.ts aptType: "STUDIO LIVES HERE, not as
+ *    bedrooms=0") — and what a member's optional "Apartment type" chip in the post form stores beside the required
+ *    count. GoPlus's Duplex is one room with a sleeping loft: 1,073 of its 1,223 live Duplex rooms list "Gác lửng"
+ *    (mezzanine loft) among their amenities, against 27 of 1,154 Studios (the public feed's counts, 2026-10-20).
+ *  · bedrooms '0' — the post form's "Studio" chip under Bedrooms, whatever the type. Members only: no importer stores a
+ *    0 (roomCountValue). Under v3/v4 it got no band; a band named Studio that left out a listing whose seller picked
+ *    "Studio" would say less than its name. (None is live: 0 on 2026-10-20.)
+ * ⚠️ A STUDIO OR DUPLEX FILED WITH ANY OTHER COUNT KEEPS THE BAND ITS COUNT GIVES IT. Two or more bedrooms: a two-storey
+ * duplex flat with three bedrooms is not a studio — the classifier for the retired import sources wrote 'duplex' from a
+ * portal's own type field (scripts/classify-apartment-rentals.ts), and a member may pick Duplex with 3 bedrooms. No count:
+ * no band, as for any apartment — a portal's "Duplex" with no count is as likely a family flat as a loft room (opus,
+ * plan review). None of either is live (2026-10-20: every Studio and Duplex has '1'), so this moves no figure today; it
+ * keeps the band's name true when one is.
+ * ⚠️ A MISSING COUNT STILL GETS NO BAND — a missing count is not a studio. It counts in the all-sizes apartment figure,
+ * like every banded row. Houses and rooms are not banded.
  */
-export const APARTMENT_BANDS = ['br1', 'br2', 'br3plus'] as const
+export const APARTMENT_BANDS = ['studio', 'br1', 'br2', 'br3plus'] as const
 export type ApartmentBand = (typeof APARTMENT_BANDS)[number]
-export function apartmentBand(bedrooms: number | null): ApartmentBand | null {
+/** The apartment types that are the studio band when stored with one bedroom (the taxonomy's `aptType` values, exactly). */
+export const STUDIO_APT_TYPES: readonly string[] = ['studio', 'duplex']
+export function apartmentBand(bedrooms: number | null, aptType: string | null): ApartmentBand | null {
+  if (bedrooms === 0 || (bedrooms === 1 && aptType !== null && STUDIO_APT_TYPES.includes(aptType))) return 'studio'
   if (bedrooms === null || bedrooms < 1) return null
   return bedrooms === 1 ? 'br1' : bedrooms === 2 ? 'br2' : 'br3plus'
 }
@@ -227,6 +259,22 @@ export function bedroomCount(attributes: string | null): number | null {
   const raw = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>).bedrooms : undefined
   const n = typeof raw === 'string' && /^\d{1,2}$/.test(raw.trim()) ? Number(raw.trim()) : typeof raw === 'number' ? raw : NaN
   return Number.isInteger(n) && n >= 0 ? n : null
+}
+
+/**
+ * The stored apartment type (`aptType` in the facet JSON — 'studio', 'duplex', 'serviced', …), or null. Read the way
+ * `bedroomCount` reads its count: anything unreadable is null, never a guess, and never from the title.
+ * ⚠️ EXACTLY AS STORED — not trimmed, not lower-cased — because that is how the Apartment type chips filter on it
+ * (src/lib/attr-match.ts: a case-sensitive `"aptType":"studio"`), so the studio band holds the listings those chips
+ * find. Every writer stores the taxonomy's own lower-case values (the post form's chips, the GoPlus importer, the
+ * classifier); a hand-typed value from the API is neither a chip match nor a studio here.
+ */
+export function apartmentType(attributes: string | null): string | null {
+  if (!attributes) return null
+  let parsed: unknown
+  try { parsed = JSON.parse(attributes) } catch { return null }
+  const raw = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>).aptType : undefined
+  return typeof raw === 'string' ? raw : null
 }
 
 /**
@@ -256,7 +304,7 @@ export type RentRow = {
   district: string | null
   areaM2: number | null
   sellerId: string
-  /** The facet JSON; only `bedrooms` is read (`bedroomCount`). */
+  /** The facet JSON; only `bedrooms` (`bedroomCount`) and, for an apartment, `aptType` (`apartmentType`) are read. */
   attributes: string | null
 }
 
@@ -291,7 +339,7 @@ export type DistrictRow = {
   /** Listings assigned to this district across all three types — > 0 means /c/rentals/<slug> is non-empty. */
   total: number
   cells: Record<RentType, Stats>
-  /** Apartments by bedroom band. Each band's n is a subset of `cells.apartment.n`. */
+  /** Apartments by band (studio, then bedrooms). Each band's n is a subset of `cells.apartment.n`; the bands never overlap. */
   bands: Record<ApartmentBand, Stats>
 }
 
@@ -305,7 +353,7 @@ export type RentIndex = {
   used: number
   excluded: Record<ExclusionReason, number>
   cityWide: Record<RentType, Stats>
-  /** City-wide apartments by bedroom band. */
+  /** City-wide apartments by band (studio, then bedrooms). */
   cityBands: Record<ApartmentBand, Stats>
   districts: DistrictRow[]
   /** Used rows whose district matched no curated district, or more than one. City-wide only. */
@@ -481,7 +529,7 @@ function classify(rows: RentRow[], excluded: Excluded): Used[] {
     const perM2Raw = area !== null && area >= MIN_AREA_M2 && area <= MAX_AREA_M2 ? price / area : null
     const perM2 = perM2Raw !== null && perM2Raw >= MIN_VND_PER_M2 && perM2Raw <= MAX_VND_PER_M2 ? perM2Raw : null
     kept.push({
-      id: r.id, type, band: type === 'apartment' ? apartmentBand(bedrooms) : null,
+      id: r.id, type, band: type === 'apartment' ? apartmentBand(bedrooms, apartmentType(r.attributes)) : null,
       price, perM2, district: assignDistrict(r.district), sellerId: r.sellerId,
     })
   }
@@ -611,7 +659,8 @@ const field = (v: string | number | null): string => {
 /**
  * ⚠️ `rules_version` IS THE LAST COLUMN (R-e), SO A SCRIPT THAT READS COLUMNS BY POSITION KEEPS WORKING.
  * It says which version of the method produced the row: files of two versions are not comparable (v2 → v3 moved
- * rules; v3 → v4 marks the 16 October 2026 source change — RENT_INDEX_RULES_VERSION says why).
+ * rules; v3 → v4 marks the 16 October 2026 source change; v4 → v5 takes studios out of `apartment_1br` —
+ * RENT_INDEX_RULES_VERSION says why).
  */
 export const CSV_COLUMNS = [
   'snapshot_utc', 'scope', 'district_slug', 'district_name', 'part_of', 'type',
@@ -624,10 +673,25 @@ export const CSV_COLUMNS = [
  * `apartment` ROW — summing n over every row double-counts; the page's methodology says so.
  */
 export const BAND_CSV_TYPE: Record<ApartmentBand, string> = {
+  studio: 'apartment_studio',
   br1: 'apartment_1br',
   br2: 'apartment_2br',
   br3plus: 'apartment_3plus_br',
 }
+
+/**
+ * ⚠️ THE CSV'S BAND ROWS IN THEIR OWN ORDER: v5's studio row is APPENDED to each scope's block, after the three band rows
+ * every earlier file had, rather than put first as the page shows it. So each scope's first six rows keep their types
+ * and their order (a script that took "the city block's fourth row" as the 1-bedroom figure still reads the
+ * 1-bedroom figure), the first data row is still the city's all-apartment row (infra/vn-node/eno-warmup.sh reads the
+ * snapshot and `rules_version` from it), and the header is unchanged. A new `type` value, not a new column — a column
+ * would have moved `rules_version` off the end (R-e).
+ * ⚠️ WHAT IT DOES NOT KEEP: a reader that counts SIX ROWS PER SCOPE. Each block is seven rows now, so every district
+ * block after the city's starts one row further down per block before it — as v3 moved them when it added the bedroom
+ * rows (3 → 6). Read a row by its `scope`, `district_slug` and `type`; `rules_version` 5 is the mark that it changed.
+ * rent-index.test.ts holds this to the same bands as APARTMENT_BANDS, so a band cannot be left out of the file.
+ */
+export const CSV_BAND_ORDER: readonly ApartmentBand[] = ['br1', 'br2', 'br3plus', 'studio']
 
 /**
  * The CSV the page links to. ⛔ SAME `RentIndex` OBJECT AS THE TABLE — the route passes the value the
@@ -645,7 +709,7 @@ export function rentIndexCsv(index: RentIndex): string {
   }
   const row = (scope: string, slug: string, name: string, partOf: string | null, cells: Record<RentType, Stats>, bands: Record<ApartmentBand, Stats>) => {
     for (const t of RENT_TYPES) line(scope, slug, name, partOf, t, cells[t])
-    for (const b of APARTMENT_BANDS) line(scope, slug, name, partOf, BAND_CSV_TYPE[b], bands[b])
+    for (const b of CSV_BAND_ORDER) line(scope, slug, name, partOf, BAND_CSV_TYPE[b], bands[b])
   }
   row('city', 'all', 'Ho Chi Minh City', null, index.cityWide, index.cityBands)
   for (const d of index.districts) row('district', d.slug, d.nameEn, d.partOf, d.cells, d.bands)
@@ -666,6 +730,8 @@ export const RENT_INDEX_RULE_INPUTS = {
   bareVndSellers: [...MONTHLY_BARE_VND_SELLERS].sort(),
   types: TYPE_OF,
   bands: APARTMENT_BANDS,
+  // v5: which stored apartment types are the studio band at a stored '1', and that a stored '0' is a studio whatever the type.
+  studio: { aptTypes: STUDIO_APT_TYPES, withBedrooms: 1, zeroBedrooms: 'studio' },
   roundVnd: ROUND_VND,
   displayStepVnd: DISPLAY_STEP_VND,
   commercial: 'house-without-bedroom-count',

@@ -55,6 +55,13 @@ describe('DistrictRent', () => {
     expect(text(render(lang, 'thu-duc'))).toContain(lang === 'vi' ? 'Toàn bộ TP Thủ Đức, gồm cả các tin vẫn ghi Quận 2 hoặc Quận 9' : 'All of Thu Duc City, including listings still labelled District 2 or 9')
     expect(text(render(lang, 'd7'))).not.toMatch(/Thu Duc|Thủ Đức/)
   })
+  it.each(['en', 'vi'] as const)('%s: the Studio band (rules v5) — its own label, first, beside the bedroom bands', (lang) => {
+    const el = render(lang, 'd12', [{ kind: 'studio', median: 4_150_000, n: 860 }, { kind: 'br1', median: 6_000_000, n: 12 }])
+    expect([...el.querySelectorAll('dt')].map((d) => d.textContent)).toEqual(lang === 'vi' ? ['Studio', 'Căn hộ 1 phòng ngủ'] : ['Studio', '1-bedroom apartments'])
+    expect([...[...el.querySelectorAll('dd')][0].querySelectorAll('span')].map((x) => x.textContent)).toEqual(
+      lang === 'vi' ? ['4.200.000 đ', 'mỗi tháng', '860 tin'] : ['4,200,000 đ', 'per month', '860 listings'],
+    )
+  })
   it('the all-sizes label, and nothing with no cell', () => {
     expect(render('en', 'd7', [{ kind: 'apartment', median: 9_000_000, n: 40 }]).querySelector('dt')!.textContent).toBe('Apartments, all sizes')
     expect(render('en', 'd7', []).innerHTML).toBe('')

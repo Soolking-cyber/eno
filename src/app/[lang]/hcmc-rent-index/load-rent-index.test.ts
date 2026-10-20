@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { RentRow } from '@/lib/rent-index'
+import { RENT_INDEX_RULES_VERSION, type RentRow } from '@/lib/rent-index'
 
 /**
  * The loader's one new read (owner decision 9's method fix, 2026-10-20): the names of the OFFICIAL PARTNERS among the
@@ -16,6 +16,8 @@ const h = vi.hoisted(() => ({
   sellers: [] as Seller[],
   queries: [] as SellerQuery[],
   failSellers: false,
+  /** The key parts the snapshot is cached under (`unstable_cache`'s second argument). */
+  keyParts: [] as string[],
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -36,7 +38,7 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: object) => w }))
-vi.mock('next/cache', () => ({ unstable_cache: (fn: unknown) => fn }))
+vi.mock('next/cache', () => ({ unstable_cache: (fn: unknown, keyParts: string[]) => { h.keyParts = keyParts; return fn } }))
 
 const load = async () => (await import('./load-rent-index')).loadRentIndex()
 
@@ -112,5 +114,29 @@ describe('loadRentIndex — the snapshot names its sources', () => {
     expect(error).toHaveBeenCalledTimes(1)
     expect(error.mock.calls[0][0]).toBe('[hcmc-rent-index] snapshot failed')
     expect(String(error.mock.calls[0][1])).toContain('database unreachable')
+  })
+})
+
+/**
+ * ⛔ A SNAPSHOT MADE UNDER OTHER RULES IS NEVER READ (rules v5, the Studio band). The cache key carries the rules
+ * version, and cache-handler.cjs prefixes every key with the build id besides, so v5 code can only ever read a
+ * snapshot v5 code computed — one with a `studio` band in every `bands` record. Both gate seats asked what a v4-shaped
+ * snapshot would do to the new readers (2026-10-21): this is why there is none to read.
+ */
+describe('the snapshot cache key (rules v5)', () => {
+  it('is the rules version, and the snapshot it holds is banded by the v5 rules', async () => {
+    h.rows = [
+      row({ attributes: '{"bedrooms":"1","aptType":"studio"}' }),
+      row({ attributes: '{"bedrooms":"1","aptType":"duplex"}' }),
+      row({ attributes: '{"bedrooms":"1","aptType":"serviced"}' }),
+    ]
+    const got = await load()
+    expect(h.keyParts).toEqual(['hcmc-rent-index', `rules-v${RENT_INDEX_RULES_VERSION}`])
+    expect(RENT_INDEX_RULES_VERSION).toBe(5)
+    if (!got.known) throw new Error('the snapshot did not load')
+    expect(got.index.rulesVersion).toBe(5)
+    expect(got.index.cityBands.studio.n).toBe(2)
+    expect(got.index.cityBands.br1.n).toBe(1)
+    for (const d of got.index.districts) expect(Object.keys(d.bands).sort()).toEqual(['br1', 'br2', 'br3plus', 'studio'])
   })
 })

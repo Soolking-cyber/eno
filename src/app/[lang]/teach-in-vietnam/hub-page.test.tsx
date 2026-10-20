@@ -16,6 +16,7 @@ import {
 import { forEachInline, forEachPlain } from '@/lib/teach-guides/schema'
 import { teachHubLink } from '@/lib/teach-guides/site-links'
 import { formatArticleDate } from '@/lib/dates'
+import { MIN_CELL_N } from '@/lib/rent-index'
 
 /**
  * /teach-in-vietnam, THE HUB (teacher visibility plan B1, 2026-10-18): one national page that answers first.
@@ -258,6 +259,47 @@ describe('the facts box (plan B1)', () => {
     expect(box).toContain(
       `A one-bedroom apartment in Ho Chi Minh City has a median asking rent of ${moneyText(RENT.median)} a month (${RENT.n.toLocaleString('en-US')} listings, eno.vn Rent Index, ${formatArticleDate('2026-10-17', 'en')}).`,
     )
+  })
+})
+
+/**
+ * ⛔ RULES v5 (2026-10-21): "a one-bedroom apartment" is the 1-bedroom band alone — the GoPlus Studio and Duplex rooms
+ * that were 94% of it on 20 October are the Studio band now. Under the publishing floor the hub says nothing about rent:
+ * never another band's figure under the one-bedroom words, never a median of a handful.
+ */
+describe('the rent line reads the 1-bedroom band only, and says nothing under the floor (rules v5)', () => {
+  const withBands = (cityBands: Record<string, { median: number | null; n: number }>) =>
+    ({ known: true, index: { computedAt: RENT.computedAt, cityBands } })
+  const rentWords = /one-bedroom|Rent Index|median/
+
+  it.each([
+    ['under the floor, as the rules leave it (no median)', { br1: { median: null, n: 9 } }],
+    ['a median below the floor (the rules never write one; checked here too)', { br1: { median: 6_000_000, n: 9 } }],
+    ['only the Studio band publishes', { studio: { median: 4_400_000, n: 2_377 }, br1: { median: null, n: 3 } }],
+  ])('%s: no rent line in the facts box, and the cost answer points at nothing', async (_, bands) => {
+    h.rent = withBands(bands)
+    const r = await render()
+    const box = text(r.content.ledeRow)
+    expect(box).not.toMatch(rentWords)
+    expect(box).not.toContain(moneyText(4_400_000))
+    expect(box).not.toContain(moneyText(6_000_000))
+    expect(answerText(r.answers, 'cost-of-living')).not.toMatch(/Rent decides the gap|Rent Index|median/)
+  })
+
+  it('prints the 1-bedroom band, never the Studio band, when both publish', async () => {
+    h.rent = withBands({ studio: { median: 4_400_000, n: 2_377 }, br1: { median: 6_500_000, n: 139 } })
+    const r = await render()
+    const box = text(r.content.ledeRow)
+    expect(box).toContain(`A one-bedroom apartment in Ho Chi Minh City has a median asking rent of ${moneyText(6_500_000)} a month (139 listings,`)
+    expect(box).not.toContain(moneyText(4_400_000))
+    expect(answerText(r.answers, 'cost-of-living')).toContain(`the median one-bedroom asks ${moneyText(6_500_000)} a month`)
+  })
+
+  it('prints the 1-bedroom band at the publishing floor exactly — n ≥ MIN_CELL_N, where the index itself publishes it', async () => {
+    h.rent = withBands({ br1: { median: 6_100_000, n: MIN_CELL_N } })
+    const r = await render()
+    expect(text(r.content.ledeRow)).toContain(`A one-bedroom apartment in Ho Chi Minh City has a median asking rent of ${moneyText(6_100_000)} a month (${MIN_CELL_N} listings,`)
+    expect(answerText(r.answers, 'cost-of-living')).toContain(`the median one-bedroom asks ${moneyText(6_100_000)} a month`)
   })
 })
 

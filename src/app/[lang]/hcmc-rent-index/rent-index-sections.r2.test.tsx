@@ -31,7 +31,7 @@ const index: RentIndex = {
   used: 80,
   excluded: { notResidential: 1, notForRent: 2, currency: 3, unit: 4, belowBand: 5, aboveBand: 6, commercial: 777, crossPosted: 8 },
   cityWide: Object.fromEntries(RENT_TYPES.map((t) => [t, empty])) as RentIndex['cityWide'],
-  cityBands: bands({ br1: pub(400, 8_600_000), br2: pub(120, 31_000_000), br3plus: { ...empty, n: MIN_CELL_N - 1 } }),
+  cityBands: bands({ studio: pub(2_377, 4_400_000), br1: pub(400, 8_600_000), br2: pub(120, 31_000_000), br3plus: { ...empty, n: MIN_CELL_N - 1 } }),
   districts: [
     // d1: one band at the threshold, one just under it, one empty.
     district('d1', 'Quận 1', 'District 1', bands({ br1: pub(MIN_CELL_N, 8_600_000), br2: { ...empty, n: MIN_CELL_N - 1 } })),
@@ -50,6 +50,8 @@ const html = (lang: 'en' | 'vi', node: React.ReactNode) => {
   return el
 }
 const locale = (lang: 'en' | 'vi') => (lang === 'vi' ? 'vi' : 'en') as 'en' | 'vi'
+/** A row's cell for one band — the columns follow APARTMENT_BANDS (Studio first since rules v5). */
+const bandCell = (cells: Element[], b: (typeof APARTMENT_BANDS)[number]) => cells[APARTMENT_BANDS.indexOf(b)]
 
 describe('the bedroom table', () => {
   it.each(['en', 'vi'] as const)('%s: publishes only cells with n ≥ MIN_CELL_N, and skips districts with no banded apartment', (lang) => {
@@ -58,19 +60,18 @@ describe('the bedroom table', () => {
     expect(rows.map((r) => r.querySelector('th')!.textContent)).toEqual([lang === 'vi' ? 'Quận 1' : 'District 1'])
     const cells = [...rows[0].querySelectorAll('td')]
     expect(cells).toHaveLength(APARTMENT_BANDS.length)
-    // br1 at the threshold publishes; br2 under it and br3plus empty print the dash.
-    expect(cells[0].textContent).toContain(formatMoneyFull(8_600_000, '₫', locale(lang)))
-    expect(cells[1].textContent).toContain('—')
-    expect(cells[2].textContent).toContain('—')
-    expect(cells[1].textContent).not.toMatch(/\d{1,3}[.,]\d{3}[.,]\d{3}/)
+    // br1 at the threshold publishes; br2 under it, br3plus and the studio band empty print the dash.
+    expect(bandCell(cells, 'br1').textContent).toContain(formatMoneyFull(8_600_000, '₫', locale(lang)))
+    for (const b of ['studio', 'br2', 'br3plus'] as const) expect(bandCell(cells, b).textContent, b).toContain('—')
+    expect(bandCell(cells, 'br2').textContent).not.toMatch(/\d{1,3}[.,]\d{3}[.,]\d{3}/)
   })
 
   it('never prints a median under the threshold, even when the snapshot carries one', () => {
     const odd: RentIndex = { ...index, districts: [district('d1', 'Quận 1', 'District 1', bands({ br1: pub(MIN_CELL_N - 1, 9_900_000), br2: pub(MIN_CELL_N, 8_600_000) }))] }
     const cells = [...html('en', <BedroomTable index={odd} lang="en" locale="en" />).querySelectorAll('tbody td')]
-    expect(cells[0].textContent).toContain('—')
-    expect(cells[0].textContent).not.toContain('9,900,000')
-    expect(cells[1].textContent).toContain('8,600,000')
+    expect(bandCell(cells, 'br1').textContent).toContain('—')
+    expect(bandCell(cells, 'br1').textContent).not.toContain('9,900,000')
+    expect(bandCell(cells, 'br2').textContent).toContain('8,600,000')
     const head = html('en', <Headline index={{ ...index, cityBands: bands({ br1: pub(MIN_CELL_N - 1, 9_900_000) }) }} locale="en" />)
     expect(head.textContent).not.toContain('9,900,000')
   })
@@ -206,5 +207,68 @@ describe('the method names the snapshot\'s sources', () => {
     expect(items[at]).toBe(lang === 'vi'
       ? 'Ngày 16/10/2026, nguồn dữ liệu đã thay đổi: eno.vn ngừng nhập tin từ Batdongsan.com.vn, Muaban.net, Rever.vn và Honeycomb House, đồng thời bỏ các tin trên Nhatot.com được đánh dấu là tin của doanh nghiệp. Ngày 20/10/2026, nguồn lại thay đổi: eno.vn ngừng đăng tin từ Nhatot.com và bổ sung tin đăng của GoPlus. Số liệu trước mỗi mốc này không so sánh được với số liệu sau đó.'
       : 'On 16 October 2026 the sources changed: eno.vn stopped importing listings from Batdongsan.com.vn, Muaban.net, Rever.vn and Honeycomb House, and dropped Nhatot.com listings flagged as company ads. On 20 October 2026 they changed again: eno.vn stopped listing homes from Nhatot.com and added GoPlus\'s own listings. Figures from before either date are not comparable with later ones.')
+  })
+})
+
+/**
+ * ⛔ RULES v5 (2026-10-21): a studio or duplex room is its own band, Studio — shown first wherever the bands are, defined
+ * in the method in both languages, and dated in one line after the 16 and 20 October source changes.
+ */
+describe('rules v5: the Studio band on the page', () => {
+  it.each(['en', 'vi'] as const)('%s: the city-wide band row has four figures, Studio first, on a four-up ruled band', (lang) => {
+    const el = html(lang, <Headline index={index} locale={locale(lang)} />)
+    const row = [...el.querySelectorAll('div.grid')].at(-1)!
+    expect(row.className).toContain('md:grid-cols-4')
+    const figures = [...row.children]
+    expect(figures).toHaveLength(4)
+    expect(figures.map((f) => f.querySelector('p')!.textContent)).toEqual(
+      lang === 'vi' ? ['Studio', '1 phòng ngủ', '2 phòng ngủ', 'Từ 3 phòng ngủ'] : ['Studio', '1 bedroom', '2 bedrooms', '3 or more bedrooms'],
+    )
+    expect(figures[0].textContent).toContain(formatMoneyFull(4_400_000, '₫', locale(lang)))
+    expect(figures[0].textContent).toContain(lang === 'vi' ? '2.377' : '2,377')
+    // ⚠️ THE MEASURED SIZE STEP-DOWN (`Figure`'s `four`): with the type row's sizes 12 band figures wrapped or overflowed at
+    // 768px, so each band figure — its median, or the dash under the floor — steps down from md and is full size again at
+    // xl, on a tighter gutter. Without this a refactor that drops `four` keeps four columns and passes everything else.
+    for (const f of figures) {
+      expect(f.className).toContain('md:px-4')
+      expect(f.querySelectorAll('p')[1].className).toContain('md:text-xl lg:text-2xl xl:text-3xl')
+    }
+    // The type row above keeps its three columns and its sizes.
+    const typeRow = [...el.querySelectorAll('div.grid')][0]
+    expect(typeRow.className).toContain('md:grid-cols-3')
+    for (const f of typeRow.children) expect(f.querySelectorAll('p')[1].className).toContain('md:text-2xl lg:text-3xl')
+  })
+
+  it.each(['en', 'vi'] as const)('%s: the bedroom table has a Studio column first, and keeps a district whose only banded flats are studios', (lang) => {
+    const studiosOnly: RentIndex = { ...index, districts: [district('d12', 'Quận 12', 'District 12', bands({ studio: pub(862, 4_200_000) }))] }
+    const el = html(lang, <BedroomTable index={studiosOnly} lang={lang} locale={locale(lang)} />)
+    // The band headers (the first, "District", is a <Tr> this harness leaves in English).
+    expect([...el.querySelectorAll('thead th')].slice(1).map((th) => th.textContent)).toEqual(
+      lang === 'vi' ? ['Studio', '1 phòng ngủ', '2 phòng ngủ', 'Từ 3 phòng ngủ'] : ['Studio', '1 bedroom', '2 bedrooms', '3 or more bedrooms'],
+    )
+    const cells = [...el.querySelectorAll('tbody td')]
+    expect(bandCell(cells, 'studio').textContent).toContain(formatMoneyFull(4_200_000, '₫', locale(lang)))
+    expect(bandCell(cells, 'br1').textContent).toContain('—')
+    // Below md the four cells sit two by two under the district's name, each labelled.
+    const tr = el.querySelector('tbody tr')!
+    expect(tr.className).toContain('max-md:grid-cols-2')
+    expect(tr.querySelector('th')!.className).toContain('max-md:col-span-2')
+    expect(bandCell(cells, 'studio').querySelector('span')!.textContent).toBe('Studio')
+  })
+
+  it.each(['en', 'vi'] as const)('%s: the method defines Studio and dates the change in one line, after the source changes', (lang) => {
+    const items = [...html(lang, <Methodology index={index} locale={locale(lang)} snapshot="21 October 2026" />).querySelectorAll('li')]
+      .map((li) => li.textContent!)
+    const bandsLine = items.find((t) => t.startsWith(lang === 'vi' ? 'Căn hộ còn được chia' : 'Apartments are also split'))!
+    expect(bandsLine).toContain(lang === 'vi'
+      ? 'Căn hộ còn được chia thành studio và theo số phòng ngủ: 1, 2, và từ 3 trở lên. Số liệu căn hộ chung vẫn gồm mọi căn hộ. Studio là căn hộ được đăng với loại Studio hoặc Duplex và 1 phòng ngủ, hoặc chọn Studio ở mục số phòng ngủ.'
+      : 'Apartments are also split into studios and by bedrooms: 1, 2, and 3 or more. The all-apartment figures still include every apartment. A studio is an apartment listed as Studio or Duplex with 1 bedroom, or with Studio as its number of bedrooms.')
+    const sources = items.findIndex((t) => t.startsWith(lang === 'vi' ? 'Ngày 16/10/2026' : 'On 16 October 2026'))
+    // Word for word: the date, the band, what it counted as until then, and that only the 1-bedroom figures break.
+    expect(items[sources + 1]).toBe(lang === 'vi'
+      ? 'Từ ngày 21/10/2026, căn hộ studio hoặc duplex được tách thành nhóm riêng (Studio); trước đó, những căn này nếu được đăng 1 phòng ngủ thì được tính vào nhóm 1 phòng ngủ, nên số liệu 1 phòng ngủ trước ngày này không so sánh được với số liệu sau đó.'
+      : 'From 21 October 2026 a studio or duplex room is its own band (Studio); until then one listed with 1 bedroom counted in the 1-bedroom band, so 1-bedroom figures from before that date are not comparable with later ones.')
+    // The old "split by bedrooms: 1, 2, and 3 or more" sentence, which a Studio column would contradict, is gone.
+    expect(items.join(' ')).not.toContain(lang === 'vi' ? 'Căn hộ còn được chia theo số phòng ngủ' : 'Apartments are also split by bedrooms')
   })
 })
