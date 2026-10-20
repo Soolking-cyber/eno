@@ -81,3 +81,25 @@ describe('applyEnforcement — the home page follows a pull', () => {
     expect(h.purged.map((p) => p.path)).not.toContain('/')
   })
 })
+
+// ── …and /c/teachers, under the same condition (2026-10-20) ──────────────────────────────────────────────────────
+//
+// /c/teachers' 6h-ISR HTML names every live teacher profile — its grid's cards and the "More teachers" list
+// (c/[category]/teacher-links.tsx) — so a held teacher stayed named and linked there for up to six hours. The transition
+// reads ids only, so the purge rides the home page's: once per transition that pulled or restored anything.
+describe('applyEnforcement — /c/teachers follows a pull, as the home page does', () => {
+  it('a hold that pulls listings purges /c/teachers once, after the commit', async () => {
+    h.sellers = [{ id: 's1' }]
+    h.reads = [[{ id: 'l1' }, { id: 'l2' }]]
+    expect(await applyEnforcement('p1', { state: 'held', reason: 'admin_manual', expiresAt: null }, { decidedBy: 'mod@eno.vn' })).toBe(true)
+    const teachers = h.purged.filter((p) => p.path === '/c/teachers')
+    expect(teachers).toHaveLength(1)
+    expect(teachers[0].committed).toBe(true)
+  })
+
+  it('a transition that pulls nothing purges no /c/teachers', async () => {
+    h.sellers = [{ id: 's1' }]
+    expect(await applyEnforcement('p1', { state: 'throttled', reason: 'admin_manual', expiresAt: null }, { decidedBy: 'mod@eno.vn' })).toBe(true)
+    expect(h.purged.map((p) => p.path)).not.toContain('/c/teachers')
+  })
+})

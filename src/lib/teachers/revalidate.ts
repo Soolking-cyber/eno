@@ -18,12 +18,30 @@ import { legacyDistrictKey } from '@/lib/teachers/profile'
  * rewrote, every identity holder who has not hidden the mark (automatic since 2026-10-16 — a failed purge of a lapse or a
  * revocation is retried), and a teacher who hid it in the last 7 days.
  * Moved out of publish.ts on 2026-10-13, when the home page gained its "Find a teacher" shelf.
- * ⚠️ NOT EVERY WRITER: moderation (reject, unpublish, a confirmed report, an approval), an enforcement hold and the AI /
- * provenance auto-holds purge a teacher's listing page and the home page, but not /c/teachers or the district page, which
- * keep the profile for their own ISR window — a known follow-up (those generic paths do not know the row's district).
- * And two seller doors write a teacher's listing with no teacher purge and no profile sync at all (pre-existing, and
- * each a defect of its own — a person is never "sold", setStatusCore says so): the daily availability review's "sold"
- * (api/listings/availability) and a "still available" confirm that revives a hidden row (core/listings.ts confirmCore).
+ * ⚠️ NOT EVERY WRITER — THE GENERIC TAKEDOWN DOORS PURGE /c/teachers TOO, BUT NO DISTRICT PAGE (2026-10-20). Since SEO
+ * plan §3(a) item 12, /c/teachers' 6h-ISR HTML names EVERY live profile — its grid's cards and a plain link to each
+ * profile past them ("More teachers", c/[category]/teacher-links.tsx) — so a takedown that left it alone kept the pulled
+ * profile named and linked there for up to six hours. Each of these purges the listing page, the home page and
+ * /c/teachers, both languages, by the same helpers the home page goes through:
+ *   · for a teacher's row only, read off the row the door already reads or writes (`listingType`, no extra read):
+ *     moderation's reject, unpublish and confirmed report, single and bulk (api/admin/moderate purgeHome /
+ *     refreshListingSurfaces' `teachers`), and the AI and image-provenance auto-holds (ai-moderation.ts,
+ *     image-provenance.ts);
+ *   · on every call, as each purges the home page (the category is not known there): the admin console's bulk hide,
+ *     remove and unverify (api/admin/listings) and an enforcement transition that pulls or restores listings
+ *     (enforcement.ts applyEnforcement);
+ *   · on every erasure, even when the teacher row cannot be read (core/account-erasure.ts purgeErasedSurfaces —
+ *     refreshListingSurfaces' `teachers`): /c/teachers is one fixed path, so nothing has to be read to purge it. The
+ *     erasure is a writer above too: a row it did read adds that teacher's district page (revalidateTeacherPages).
+ * None of the others purges the district page — those paths do not know the row's district: it keeps the profile for
+ * its own ISR window, the known follow-up. A moderation APPROVAL (the publish direction) purges the listing page and the
+ * home page only, so a re-approved profile rejoins /c/teachers on that page's own window. The licence sweep never pulls
+ * a teacher profile: its read is pinned to the services category's two licence aisles (core/licence-check.ts).
+ * And two seller doors write a teacher's listing with no profile sync at all (pre-existing, and each a defect of its own
+ * — a person is never "sold", setStatusCore says so): the daily availability review's "sold" (api/listings/availability),
+ * which since 2026-10-20 at least purges /c/teachers and the home page for a teacher's row (revalidateTeacherPages(null,
+ * [])) — still no district page — and a "still available" confirm that revives a hidden row (core/listings.ts
+ * confirmCore), which purges no teacher page.
  * ⚠️ Nor does a relist through a generic door (setStatusCore — the dashboard row's Relist, /api/v1, MCP) pass the gates
  * the teacher's own Visibility switch does (publish.ts setTeacherStatus: a job goal or public cover, the trust tier):
  * pre-existing too. It does sync the profile, and it purges these pages.

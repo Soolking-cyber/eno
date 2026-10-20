@@ -18,6 +18,10 @@ const h = vi.hoisted(() => ({
   notifications: [] as Row[],
   updates: [] as Row[],
   refreshed: [] as string[][],
+  /** The options each refreshListingSurfaces call carried (`home`, `teachers`). */
+  refreshOpts: [] as Row[],
+  /** Every listing read's arguments. */
+  reads: [] as Row[],
 }))
 
 function matches(row: Row | null, where: Row): boolean {
@@ -31,7 +35,7 @@ vi.mock('@/lib/db', () => {
   return {
     db: {
       listing: {
-        findUnique: async () => (h.row ? { ...h.row, seller: { ownerId: 'owner-1' } } : null),
+        findUnique: async (a: Row) => { h.reads.push(a); return h.row ? { ...h.row, seller: { ownerId: 'owner-1' } } : null },
         update: (a: Row) => op(() => {
           h.updates.push(a)
           if (!matches(h.row, a.where)) throw Object.assign(new Error('No record was found for an update.'), { code: 'P2025' })
@@ -56,14 +60,14 @@ vi.mock('@/lib/db', () => {
 })
 vi.mock('@/generated/prisma/client', () => ({ Prisma: { sql: (...a: unknown[]) => a, join: (a: unknown[]) => a } }))
 vi.mock('@/lib/image-hash', () => ({ hashFromUrl: (u: string) => `hex:${u}`, hexToBits: (x: string) => x }))
-vi.mock('@/lib/listing-surfaces', () => ({ refreshListingSurfaces: (ids: string[]) => { h.refreshed.push(ids) } }))
+vi.mock('@/lib/listing-surfaces', () => ({ refreshListingSurfaces: (ids: string[], _op: string, opts: Row) => { h.refreshed.push(ids); h.refreshOpts.push(opts) } }))
 
 const { indexAndCheckProvenance } = await import('./image-provenance')
 
 beforeEach(() => {
   h.row = { id: 'COPY', images: JSON.stringify(['a.jpg', 'b.jpg', 'c.jpg']), status: 'active', sellerId: 's2', verified: true }
   h.duringQueries = null
-  h.reports = []; h.notifications = []; h.updates = []; h.refreshed = []
+  h.reports = []; h.notifications = []; h.updates = []; h.refreshed = []; h.refreshOpts = []; h.reads = []
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
@@ -75,6 +79,21 @@ describe('indexAndCheckProvenance — the hold', () => {
     expect(h.reports).toHaveLength(1)
     expect(h.notifications).toHaveLength(1)
     expect(h.refreshed).toEqual([['COPY']])
+  })
+
+  // ⛔ /c/teachers' 6h-ISR HTML names every live teacher profile (its grid and the "More teachers" list — 2026-10-20): a
+  // held profile leaves that page as it leaves the home page.
+  it('a held TEACHER profile purges /c/teachers too — its type read with the row the check already reads', async () => {
+    h.row!.listingType = 'teacher'
+    await indexAndCheckProvenance('COPY')
+    expect(h.refreshOpts).toEqual([{ home: true, teachers: true }])
+    expect(h.reads[0].select).toMatchObject({ listingType: true })
+  })
+
+  it('a held listing of any other kind purges no /c/teachers', async () => {
+    h.row!.listingType = 'sell'
+    await indexAndCheckProvenance('COPY')
+    expect(h.refreshOpts).toEqual([{ home: true, teachers: false }])
   })
 
   it('⛔ the hide carries the tombstone guard in its OWN where (atomic with the write)', async () => {

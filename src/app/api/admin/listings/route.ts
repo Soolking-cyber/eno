@@ -21,6 +21,7 @@ import { withdrawSaleQuestions } from '@/lib/core/sale-withdraw'
 import { attributeBag, isLicenceCheckSlot, LICENCE_CHECK_SUBCATEGORIES, VISA_CATEGORY_SLUG } from '@/lib/taxonomy'
 import { checkProviderLicence, isEnterpriseCodeForm, providerLicenceFromInput, providerLicenceOf } from '@/lib/provider-licence'
 import { LICENCE_HELD_NOTE, LICENCE_STAMP_CLEARED, LICENCE_STAMP_PREFIX, isLicenceWhitelisted, licenceClearedWhere, licenceWhitelistWhere, licenceStampFor, licenceStateOf } from '@/lib/licence-stamp'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -526,6 +527,11 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
   }
 
   revalidatePublicPath('/')
+  // ⛔ …AND /c/teachers (2026-10-20): its 6h-ISR HTML names every live teacher profile — the grid's cards and the "More
+  // teachers" list under them (c/[category]/teacher-links.tsx) — so a profile this console hid, removed or unverified
+  // stayed named and linked there for up to six hours. Every action, as '/' is: the batch arrives as ids, and reading
+  // their categories for this alone is not worth one regeneration.
+  revalidatePublicPath(`/c/${TEACHERS_CATEGORY_SLUG}`)
   // ⛔ EACH LISTING'S OWN PAGE TOO. This purged only "/", so a bulk hide/delete/unverify of scam or
   // illegal stock kept every PDP serving for up to the 30-day ISR window — and a bulk verify/activate
   // kept serving the cached 404/sold page. The helper also re-syncs AI search (upsert if still

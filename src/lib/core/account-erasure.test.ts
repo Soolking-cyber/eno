@@ -711,13 +711,13 @@ describe('eraseAccount — Sign in with Apple', () => {
 describe('eraseAccount — the public pages the account was on', () => {
   const paths = () => h.revalidated.map((r) => r.path)
 
-  it('after the commit: every deleted listing\'s page (both languages are revalidatePublicPath\'s job) and the home page; AI search re-synced', async () => {
+  it('after the commit: every deleted listing\'s page (both languages are revalidatePublicPath\'s job), the home page and /c/teachers (every erasure: a fixed path, nothing to read); AI search re-synced', async () => {
     h.listings = [
       { id: 'l1', images: JSON.stringify(['https://proj/listings/1.webp']), video: null },
       { id: 'l2', images: JSON.stringify(['https://proj/listings/2.webp']), video: null },
     ]
     expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
-    expect(paths()).toEqual(['/listings/l1', '/listings/l2', '/'])
+    expect(paths()).toEqual(['/listings/l1', '/listings/l2', '/', '/c/teachers'])
     expect(h.revalidated.every((r) => r.committed)).toBe(true)
     await vi.waitFor(() => expect(h.reindexed).toEqual(['l1', 'l2']))
   })
@@ -757,7 +757,7 @@ describe('eraseAccount — the public pages the account was on', () => {
     h.teacherRowFails = true
     h.revalidated = []
     expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
-    expect(paths()).toEqual(['/listings/l1', '/']) // the listing pages still go; only the teacher pages are unknown
+    expect(paths()).toEqual(['/listings/l1', '/', '/c/teachers']) // the listing pages and /c/teachers still go; only the district page is unknown
   })
 
   it('an account with no storefront deletes no listing and purges nothing', async () => {

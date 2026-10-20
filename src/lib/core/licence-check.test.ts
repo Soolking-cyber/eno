@@ -254,6 +254,25 @@ describe('sweepLicenceHolds', () => {
     expect(h.refreshed[0]).toEqual({ ids: r.pulledIds, op: 'licence.sweep', opts: { home: true } })
   })
 
+  /**
+   * ⛔ WHY THE SWEEP NEEDS NO /c/teachers PURGE (2026-10-20). Every other takedown of a teacher profile purges /c/teachers,
+   * whose 6h-ISR HTML names every live profile (its grid and the "More teachers" list); this one cannot pull a profile
+   * at all — its read is the services category's two licence aisles (pinned above), and a teacher profile lives in its
+   * own category. A live teacher row, even one whose subcategory slug were an aisle's, is never read or pulled.
+   */
+  it('never reads or pulls a teacher profile, so it has no /c/teachers to purge', async () => {
+    h.rows.push(
+      listing('teacher', { categorySlug: 'teachers', subcategorySlug: 'ielts-exam', listingType: 'teacher', attributes: null }),
+      listing('teacher-odd-slug', { categorySlug: 'teachers', listingType: 'teacher', attributes: attrs(null) }),
+    )
+    const r = await sweepLicenceHolds({ now: before })
+    expect(r.pulledIds).not.toContain('teacher')
+    expect(r.pulledIds).not.toContain('teacher-odd-slug')
+    expect(row('teacher').verified).toBe(true)
+    expect(row('teacher-odd-slug').verified).toBe(true)
+    expect(h.refreshed.map((c) => c.opts)).toEqual([{ home: true }])
+  })
+
   it('a row approved or edited since the read is not pulled, and gets no audit row', async () => {
     h.afterRead = () => {
       // An admin approves `hidden` (its stamp is written); the seller edits `active`'s values.

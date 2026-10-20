@@ -63,6 +63,9 @@ const h = vi.hoisted(() => ({
   notifyFails: [] as string[],
   /** The TrustEvent ledger chargedReportIds reads: `report_confirmed` rows already written. */
   ledger: [] as Row[],
+  /** Listing id → its `listingType`, as the takedown write (`db.listing.update`) returns the row. Unlisted ids are
+   *  ordinary listings ('sell'). A 'teacher' row's takedown purges /c/teachers too (2026-10-20). */
+  listingTypes: {} as Record<string, string>,
   /** Listing ids the licence pre-filter (licenceBlockedIds) finds uncleared — an e-Visa / Legal & permits row eno has
    *  not checked (2026-10-14). */
   licenceBlocked: [] as string[],
@@ -95,10 +98,11 @@ vi.mock('@/lib/db', () => {
       },
       listing: {
         findUnique: async (a: Row) => { rec('listing.findUnique', a); return h.listing },
+        // The written row, as Prisma's update returns it (no `select`): the route reads its listingType.
         update: async (a: Row) => {
           rec('listing.update', a)
           if (h.listingUpdateThrows) throw new Error('takedown write failed')
-          return {}
+          return { id: a.where.id, listingType: h.listingTypes[a.where.id] ?? 'sell' }
         },
         // `approve`'s write since 2026-10-14 — conditional (never a tombstone, the licence guard).
         updateMany: async (a: Row) => { rec('listing.updateMany', a); return { count: 1 } },
@@ -292,6 +296,7 @@ beforeEach(() => {
   h.licenceBlocked = []
   h.licenceBlockedQueue = []
   h.approveCount = 1
+  h.listingTypes = {}
 })
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -1412,5 +1417,70 @@ describe('the accepted wire change — and what it must NOT swallow', () => {
     h.report = { id: 'r1', status: 'open', targetProfileId: 'p1', targetSellerId: null, listingId: 'l1', severity: null, reporterProfileId: null }
     h.listingUpdateThrows = true
     expect((await post({ action: 'confirm-report', id: 'r1' })).text).toBe('{"error":"takedown_failed","listingId":"l1"}')
+  })
+})
+
+/**
+ * ⛔ A TAKEDOWN OF A TEACHER'S PROFILE PURGES /c/teachers TOO (2026-10-20). That page's 6h-ISR HTML names every live
+ * profile — its grid's cards and, since SEO plan §3(a) item 12, a plain link to each profile past them ("More teachers",
+ * c/[category]/teacher-links.tsx) — so a profile pulled here stayed named and linked there for up to six hours. Read off
+ * the row the takedown already reads or writes (`listingType`), so another category's takedown purges exactly what it
+ * did before, and nothing is read for it. Both languages, beside the home page.
+ */
+describe('/c/teachers — every moderation takedown of a teacher profile purges it, and only then', () => {
+  const TEACHER_PAGES = ['/en/c/teachers', '/vi/c/teachers']
+  const rep = (over: Row = {}) => ({ id: 'r1', status: 'open', targetProfileId: 'p1', targetSellerId: null, listingId: 'l1', severity: null, reporterProfileId: null, ...over })
+
+  it('unpublish: a teacher profile → its page, the home page and /c/teachers; another listing → no /c/teachers', async () => {
+    h.listingTypes = { l1: 'teacher' }
+    expect((await post({ action: 'unpublish', id: 'l1' })).text).toBe('{"ok":true}')
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en', '/vi', ...TEACHER_PAGES])
+    // No read for it: the write's own row said so.
+    expect(called('listing.findUnique')).toHaveLength(0)
+    h.revalidated = []
+    h.listingTypes = {}
+    await post({ action: 'unpublish', id: 'l1' })
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en', '/vi'])
+  })
+
+  it('confirm-report: a teacher profile taken down → /c/teachers too; a failed takedown purges nothing', async () => {
+    h.listingTypes = { l1: 'teacher' }
+    h.report = rep()
+    expect((await post({ action: 'confirm-report', id: 'r1' })).text).toBe('{"ok":true}')
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en', '/vi', ...TEACHER_PAGES])
+    h.revalidated = []; h.calls = []; h.fx = []
+    h.report = rep()
+    h.listingUpdateThrows = true
+    expect((await post({ action: 'confirm-report', id: 'r1' })).status).toBe(500)
+    expect(h.revalidated).toEqual([])
+  })
+
+  it('confirm-report of another listing purges no /c/teachers', async () => {
+    h.report = rep()
+    await post({ action: 'confirm-report', id: 'r1' })
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en', '/vi'])
+  })
+
+  it('bulk-confirm: /c/teachers after the takedown of each teacher profile in the batch — not after the others', async () => {
+    h.listingTypes = { l2: 'teacher' }
+    h.batchReports = [rep({ id: 'r1', listingId: 'l1' }), rep({ id: 'r2', listingId: 'l2' })]
+    const r = await post({ action: 'bulk-confirm', ids: ['r1', 'r2'] })
+    expect(r.text).toBe('{"ok":true,"confirmed":2,"skipped":0}')
+    expect(h.revalidated).toEqual([
+      '/en/listings/l1', '/vi/listings/l1', '/en', '/vi',
+      '/en/listings/l2', '/vi/listings/l2', '/en', '/vi', ...TEACHER_PAGES,
+    ])
+  })
+
+  it('reject: a removed teacher profile → /c/teachers too, its type read with the row the removal already reads', async () => {
+    h.listing = { id: 'l1', verified: true, listingType: 'teacher' }
+    expect((await post({ action: 'reject', id: 'l1' })).status).toBe(200)
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en', '/vi', ...TEACHER_PAGES])
+    expect(called('listing.findUnique')).toHaveLength(1)
+    expect(args('listing.findUnique')!.select).toEqual({ id: true, verified: true, listingType: true })
+    h.revalidated = []
+    h.listing = { id: 'l1', verified: true, listingType: 'sell' }
+    await post({ action: 'reject', id: 'l1' })
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en', '/vi'])
   })
 })

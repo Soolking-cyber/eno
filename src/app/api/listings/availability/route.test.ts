@@ -17,6 +17,12 @@ const h = vi.hoisted(() => ({
   profile: {} as Row,
   updateMany: [] as Row[],
   ranked: [] as unknown[],
+  /** Every path purged (revalidatePublicPath — both languages are its own business). */
+  purged: [] as string[],
+  /** Listing id → listingType, as the ownership read returns it. Unlisted ids are ordinary listings. */
+  types: {} as Record<string, string>,
+  /** The ownership read's arguments. */
+  reads: [] as Row[],
 }))
 
 vi.mock('@/lib/admin', () => ({
@@ -27,7 +33,7 @@ vi.mock('@/lib/admin', () => ({
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true }) }))
 vi.mock('@/lib/client-ip', () => ({ clientIp: () => '127.0.0.1' }))
 vi.mock('@/lib/log', () => ({ logError: () => {} }))
-vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: () => {} }))
+vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: (path: string) => { h.purged.push(path) } }))
 vi.mock('@/lib/listing-index', () => ({ removeFromIndex: async () => {} }))
 vi.mock('@/lib/ranking', () => ({ recomputeRankScoreForListings: async (ids: unknown) => { h.ranked.push(ids) } }))
 vi.mock('next/server', async (orig) => ({ ...(await orig<typeof import('next/server')>()), after: () => {} }))
@@ -35,7 +41,7 @@ vi.mock('@/lib/db', () => ({
   db: {
     seller: { findUnique: async () => ({ id: 's1' }) },
     listing: {
-      findMany: async (a: Row) => (a.where.id.in as string[]).map((id) => ({ id })),
+      findMany: async (a: Row) => { h.reads.push(a); return (a.where.id.in as string[]).map((id) => ({ id, listingType: h.types[id] ?? 'sell' })) },
       updateMany: async (a: Row) => { h.updateMany.push(a); return { count: (a.where.id.in as string[]).length } },
     },
     profile: { update: async () => ({}) },
@@ -55,6 +61,9 @@ beforeEach(() => {
   h.profile = { id: 'p1', enforcementState: 'good_standing', availabilitySkips: 0 }
   h.updateMany = []
   h.ranked = []
+  h.purged = []
+  h.types = {}
+  h.reads = []
 })
 
 describe('POST /api/listings/availability — a held or suspended seller cannot bump pulled listings', () => {
@@ -85,5 +94,35 @@ describe('POST /api/listings/availability — a held or suspended seller cannot 
     h.profile.enforcementState = 'held'
     const r = await post({ confirm: [], sold: ['L3'] })
     expect(r.body).toEqual({ ok: true, confirmed: 0, markedSold: 1 })
+  })
+})
+
+/**
+ * ⛔ A TEACHER'S PROFILE MARKED "SOLD" HERE IS TAKEN DOWN, AND THE PAGES THAT NAME IT ARE PURGED (2026-10-20).
+ * /c/teachers' 6h-ISR HTML names every live profile — its grid and the "More teachers" list
+ * (c/[category]/teacher-links.tsx) — and the home page's "Find a teacher" shelf shows up to eight, so both are purged,
+ * once for the batch, through the teacher pages' own helper (teachers/revalidate.ts). Read off the ownership read the
+ * door already makes: another listing marked sold purges only its own page, as before.
+ */
+describe('POST /api/listings/availability — a teacher profile marked sold leaves /c/teachers and the home shelf', () => {
+  it('a teacher profile in the sold set → its page, /c/teachers and the home page, once for the batch', async () => {
+    h.types = { T1: 'teacher', T2: 'teacher' }
+    const r = await post({ confirm: [], sold: ['L1', 'T1', 'T2'] })
+    expect(r.body).toEqual({ ok: true, confirmed: 0, markedSold: 3 })
+    expect(h.purged).toEqual(['/listings/L1', '/listings/T1', '/listings/T2', '/c/teachers', '/'])
+    // No extra read for it: the ownership read carries the type.
+    expect(h.reads).toHaveLength(1)
+    expect(h.reads[0].select).toEqual({ id: true, listingType: true })
+  })
+
+  it('only other listings sold → their own pages, and no /c/teachers or home purge', async () => {
+    await post({ confirm: [], sold: ['L1', 'L2'] })
+    expect(h.purged).toEqual(['/listings/L1', '/listings/L2'])
+  })
+
+  it('nothing marked sold → no read and no purge at all', async () => {
+    await post({ confirm: ['L1'], sold: [] })
+    expect(h.reads).toHaveLength(0)
+    expect(h.purged).toEqual([])
   })
 })

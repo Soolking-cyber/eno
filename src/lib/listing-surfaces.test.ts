@@ -90,6 +90,46 @@ describe('refreshListingSurfaces — what the world sees follows the database', 
     expect(h.purged).toEqual(['/listings/a', '/'])
   })
 
+  /**
+   * ⛔ /c/teachers WHEN THE CALLER SAYS A TEACHER'S PROFILE IS AMONG THE IDS (2026-10-20): its 6h-ISR HTML names every
+   * live profile — the grid's cards and the "More teachers" list (c/[category]/teacher-links.tsx) — so a pulled profile
+   * must leave it as it leaves the home page. Never for another category: `teachers` absent or false purges no
+   * /c/teachers.
+   */
+  it('/c/teachers too when the ids hold a teacher profile — and not otherwise', async () => {
+    refreshListingSurfaces(['t'], 'x', { home: true, teachers: true })
+    await flush()
+    expect(h.purged).toEqual(['/listings/t', '/', '/c/teachers'])
+    h.purged = []
+    refreshListingSurfaces(['a'], 'x', { home: true, teachers: false })
+    refreshListingSurfaces(['b'], 'x', { home: true })
+    await flush()
+    expect(h.purged).toEqual(['/listings/a', '/', '/listings/b', '/'])
+  })
+
+  it('a failing "/" purge does not stop the /c/teachers one, nor the reindex', async () => {
+    h.throwOn.add('/')
+    refreshListingSurfaces(['t'], 'x', { home: true, teachers: true })
+    await flush()
+    expect(h.purged).toEqual(['/listings/t', '/c/teachers'])
+    expect(h.reindexed).toEqual(['t'])
+  })
+
+  /** As the product-page test above: the string is only half of it — Next must tag the cached category page with it. */
+  it('the /c/teachers purge names a tag the category page actually carries, in both languages', async () => {
+    refreshListingSurfaces(['t'], 'x', { teachers: true })
+    await flush()
+    const path = h.purged.find((p) => p.startsWith('/c/'))!
+    const root = join(process.cwd(), 'src/app')
+    const page = join(root, '[lang]/c/[category]/(index)/page.tsx')
+    const routeKey = '/' + relative(root, page).split(sep).join('/').replace(/\.tsx$/, '')
+    for (const lang of ['en', 'vi']) {
+      // revalidatePublicPath purges `/<lang><path>` for each language (revalidate-lang.ts): Next's tag is `_N_T_` + that.
+      const { tags } = await getImplicitTags(routeKey, `/${lang}/c/teachers`, null)
+      expect(tags, lang).toContain(`_N_T_/${lang}${path}`)
+    }
+  })
+
   it('nothing to do for no ids', async () => {
     refreshListingSurfaces([])
     await flush()

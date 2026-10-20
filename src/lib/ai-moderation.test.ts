@@ -24,6 +24,10 @@ const h = vi.hoisted(() => ({
   notifications: [] as Row[],
   updates: [] as Row[],
   refreshed: [] as string[][],
+  /** The options each refreshListingSurfaces call carried (`home`, `teachers`). */
+  refreshOpts: [] as Row[],
+  /** Every listing read's arguments. */
+  reads: [] as Row[],
   /** Make the report insert fail with an ordinary (non-P2025) error. */
   reportFails: false,
 }))
@@ -40,7 +44,7 @@ vi.mock('@/lib/db', () => {
   return {
     db: {
       listing: {
-        findUnique: async () => (h.row ? { ...h.row, seller: { trustTier: 'standard', ownerId: 'owner-1' } } : null),
+        findUnique: async (a: Row) => { h.reads.push(a); return h.row ? { ...h.row, seller: { trustTier: 'standard', ownerId: 'owner-1' } } : null },
         update: (a: Row) => op(() => {
           h.updates.push(a)
           if (!matches(h.row, a.where)) throw Object.assign(new Error('No record was found for an update.'), { code: 'P2025' })
@@ -75,14 +79,14 @@ vi.mock('@/lib/gemini', () => ({
 }))
 vi.mock('@/lib/sharp-lazy', () => ({ getSharp: async () => { throw new Error('no images in these tests') } }))
 vi.mock('@/lib/ssrf', () => ({ safeFetch: async () => { throw new Error('no images in these tests') } }))
-vi.mock('@/lib/listing-surfaces', () => ({ refreshListingSurfaces: (ids: string[]) => { h.refreshed.push(ids) } }))
+vi.mock('@/lib/listing-surfaces', () => ({ refreshListingSurfaces: (ids: string[], _op: string, opts: Row) => { h.refreshed.push(ids); h.refreshOpts.push(opts) } }))
 
 const { moderateListingById } = await import('./ai-moderation')
 
 beforeEach(() => {
   h.row = { id: 'L1', title: 'Pistol', description: 'real one', images: '[]', status: 'active', verified: true, identityHold: false }
   h.duringClassify = null
-  h.reports = []; h.notifications = []; h.updates = []; h.refreshed = []; h.reportFails = false
+  h.reports = []; h.notifications = []; h.updates = []; h.refreshed = []; h.refreshOpts = []; h.reads = []; h.reportFails = false
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
@@ -99,6 +103,21 @@ describe('moderateListingById — the hold', () => {
   it('⛔ the hide carries the tombstone guard in its OWN where (atomic with the write)', async () => {
     await moderateListingById('L1')
     expect(h.updates[0].where).toEqual({ id: 'L1', status: { not: 'removed' } })
+  })
+
+  // ⛔ /c/teachers' 6h-ISR HTML names every live teacher profile (its grid and the "More teachers" list — 2026-10-20), and
+  // the teacher save runs this hold too (teachers/publish.ts): a held profile leaves that page as it leaves the home page.
+  it('a held TEACHER profile purges /c/teachers too — its type read with the row the hold already reads', async () => {
+    h.row!.listingType = 'teacher'
+    await moderateListingById('L1')
+    expect(h.refreshOpts).toEqual([{ home: true, teachers: true }])
+    expect(h.reads[0].select).toMatchObject({ listingType: true })
+  })
+
+  it('a held listing of any other kind purges no /c/teachers', async () => {
+    h.row!.listingType = 'sell'
+    await moderateListingById('L1')
+    expect(h.refreshOpts).toEqual([{ home: true, teachers: false }])
   })
 
   it('a row the seller HID meanwhile is still held (only the tombstone is refused)', async () => {

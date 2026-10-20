@@ -3,6 +3,7 @@ import { after } from 'next/server'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { reindexListing } from '@/lib/listing-index'
 import { logError } from '@/lib/log'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 
 /**
  * Above this many ids, purge the whole /listings/[id] route once instead of path by path — the same
@@ -26,8 +27,16 @@ export const REVALIDATE_CAP = 3000
  * own — `continue`, not `break`, so one failure cannot leave the rest stale — and the reindex runs in
  * after() when there is one. reindexListing upserts a still-public row and deletes anything else,
  * so the same call serves a takedown and a publish.
+ *
+ * `teachers`: one of the ids is, or may be, a teacher's profile. ⛔ /c/teachers' 6h-ISR HTML names EVERY live profile —
+ * its grid's cards and, since 2026-10-20, a plain link to each profile past them ("More teachers",
+ * c/[category]/teacher-links.tsx) — so a profile pulled without this stayed named and linked there for up to six hours.
+ * The takedown doors that pass it take it from the row they already read (`listingType`) and read nothing more for it,
+ * so another category's takedown leaves /c/teachers alone. The account erasure passes it on every erasure: it cannot
+ * always read the teacher row, and nothing has to be read to purge one fixed path (core/account-erasure.ts
+ * purgeErasedSurfaces).
  */
-export function refreshListingSurfaces(ids: string[], op = 'listingSurfaces', opts: { home?: boolean } = {}): void {
+export function refreshListingSurfaces(ids: string[], op = 'listingSurfaces', opts: { home?: boolean; teachers?: boolean } = {}): void {
   if (!ids.length) return
   // ⚠️ A failed purge is LOGGED ONCE, not swallowed: outside a request scope every call throws, and a
   // takedown whose purge silently did nothing is exactly the bug this helper exists to end.
@@ -44,6 +53,7 @@ export function refreshListingSurfaces(ids: string[], op = 'listingSurfaces', op
   // The home page's ISR HTML (6h) carries listings in its first-paint rails — an auto-held listing
   // must not stay there either.
   if (opts.home) purge('/')
+  if (opts.teachers) purge(`/c/${TEACHERS_CATEGORY_SLUG}`)
   const reindex = async () => {
     for (const id of ids) await reindexListing(id).catch((e) => logError(e, { op: `${op}.reindex`, listingId: id }))
   }

@@ -6,12 +6,13 @@ import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 // `{ teachers: true }` on every read here: each one is pinned to ONE categoryId, so the default
 // teacher exclusion (scopedListingWhere) can only ever empty /c/teachers — it hides nothing elsewhere.
 import { loadCategory } from '../load-category'
-import { loadDistrictChips, loadJobCities, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline, loadTeachingJobsCount, TEACHING_JOBS } from '../category-data'
+import { loadDistrictChips, loadJobCities, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline, loadTeacherLinks, loadTeachingJobsCount, TEACHING_JOBS } from '../category-data'
 import { byAreaChips, categoryMetadata, crumbNames, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
 import { CategoryGuides, OtherRentalsLink, PlaceName, RentalsDistricts } from '../category-text'
 import { CategoryFiltersLink } from '../category-filters-link'
 import { JobCityChips } from '../job-city-chips'
 import { PostJobLink, TeacherProfileLink, TeachGuideLink, TeachingJobsLink } from '../teaching-links'
+import { MoreTeachers, TEACHER_LINKS_MAX, teachersPastGrid } from '../teacher-links'
 import { OfferServiceLink } from '../services-links'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { leadFirst } from '@/lib/category-lead'
@@ -57,21 +58,20 @@ const DISTRICT_CHIPS = 80
 const OTHER_CATEGORY_CHIP = cn(PILL_BOX, PILL_REST, 'py-1.5 hover:bg-accent hover:text-accent-foreground')
 
 /**
- * ⛔ THIS PAGE LIVES IN THE `(index)` ROUTE GROUP, WITH ITS `loading.tsx`, SO THAT THE SKELETON DOES
- * NOT WRAP `[district]`. A `loading.tsx` wraps its own segment's page AND every child segment in a
- * Suspense boundary; at `c/[category]/loading.tsx` it sat above `/c/<cat>/<district>`, so every
- * `notFound()` there went out as 200 + noindex (live 2026-09-27: /c/rentals/thao-dien, /tay-ho,
- * /phu-my-hung, /district-2, /thanh-pho-thu-duc) and a 308 could never have been a 308. The group
- * changes no URL; `[district]` renders with no boundary above it, so its 404 and 308 set the real
- * status (guarded by district-status-contract.test.ts).
+ * ⛔ THIS PAGE LIVES IN THE `(index)` ROUTE GROUP SO THAT A LOADING BOUNDARY NEVER WRAPS `[district]` (its
+ * `loading.tsx` lived here until UX3 FAST-8 removed it — below). A `loading.tsx` wraps its own segment's
+ * page AND every child segment in a Suspense boundary; at `c/[category]/loading.tsx` it sat above
+ * `/c/<cat>/<district>`, so every `notFound()` there went out as 200 + noindex (live 2026-09-27:
+ * /c/rentals/thao-dien, /tay-ho, /phu-my-hung, /district-2, /thanh-pho-thu-duc) and a 308 could never
+ * have been a 308. The group changes no URL; `[district]` renders with no boundary above it, so its 404
+ * and 308 set the real status (guarded by district-status-contract.test.ts).
  *
- * ⛔ EVERYTHING THIS PAGE RETURNS IS UNDER THAT BOUNDARY, SO FOR A CRAWLER IT IS HIDDEN. React moves the
- * finished boundary into `<div hidden id="S:0">` (the rule is in crawler-visible-html-contract.test.ts),
- * which is why the Header, `<main>`, breadcrumb, H1 and Footer moved to `(index)/layout.tsx` (SEO wave B,
- * H1b) and this page returns a fragment inside that `<main>`: the JSON-LD, the chips, the grid and
- * the links under it (and the lede, only if `LEDE_PLACEMENT` says 'page'). The grid keeps its skeleton
- * on purpose (owner's hybrid). Anything a crawler must read goes in the layout, and what the layout
- * waits on is rationed and measured (see there). No `<Suspense>` here either (contract test).
+ * ⛔ NO LOADING BOUNDARY SINCE UX3 FAST-8 (2026-10-05): what this page returns — the JSON-LD, the chips, the grid,
+ * the "More teachers" list and the links under them (and the lede, only if `LEDE_PLACEMENT` says 'page') — renders
+ * inline in the first HTML, where a crawler reads it, instead of in a `<div hidden id="S:0">` boundary.
+ * crawler-visible-html-contract.test.ts holds the rule, the measurements and the history. The Header, `<main>`,
+ * breadcrumb, H1 and Footer stay in `(index)/layout.tsx` (SEO wave B, H1b), and this page returns a fragment inside
+ * that `<main>`. No `<Suspense>` here either (contract test).
  * ⚠️ THE GROUP IS IN THIS PAGE'S CACHE TAG (`_N_T_/[lang]/c/[category]/(index)/page`). Nothing purges
  * it by pattern today; if something ever does, purge `'/c/[category]', 'layout'` — see the (pdp) note
  * in listings/[id]/(pdp)/layout.tsx for the same trap.
@@ -212,7 +212,7 @@ export default async function CategoryPage({ params }: Props) {
   const scopedWhere = await scopedListingWhere(
     homes ? { AND: [base, RENTAL_PLACES, { subcategorySlug: { in: [...HOME_RENTAL_SUBCATS] } }] }
     : rentalsFacts ? { AND: [base, RENTAL_PLACES] } : base, { teachers: true })
-  const [raw, otherCatRows, chips, rentals, jobCities, teachingJobs] = await Promise.all([
+  const [raw, otherCatRows, chips, rentals, jobCities, teachingJobs, teacherRows] = await Promise.all([
     // Card projection: this page only renders <ListingCard> slots — the full row (description,
     // attributes, searchText, whole Seller) tripled the ISR payload. The order is buildFeedOrderBy('newest').
     // `teachers: true` again inside the window, which re-applies the scope: without it /c/teachers was empty.
@@ -237,6 +237,11 @@ export default async function CategoryPage({ params }: Props) {
     cat.slug === 'jobs' && total > 0 ? loadJobCities(cat.id) : Promise.resolve([]),
     // /c/teachers only: the live count on its "Jobs › Teaching (N)" link (nav audit N8, teaching-links.tsx).
     cat.slug === TEACHERS_CATEGORY_SLUG ? loadTeachingJobsCount() : Promise.resolve(0),
+    // /c/teachers only: every live profile as a link target, for the "More teachers" list under the grid (SEO plan
+    // §3(a) item 12, teacher-links.tsx) — the grid's PAGE_SIZE more than the list may show, so taking the grid's own
+    // cards out still leaves TEACHER_LINKS_MAX. Beside the window, so the ISR render waits for no extra round trip.
+    // ⛔ THE WINDOW'S OWN `scopedWhere`, one source of truth: whatever narrows the grid's set narrows the list with it.
+    cat.slug === TEACHERS_CATEGORY_SLUG ? loadTeacherLinks(scopedWhere, PAGE_SIZE + TEACHER_LINKS_MAX) : Promise.resolve([]),
   ])
   // Each "Other categories" chip is a way IN, so it wears the entry label — "Find a teacher", not
   // "Teachers" (nav audit N8, category-entry-label.ts). Only the label: slug and href are the category's.
@@ -247,6 +252,19 @@ export default async function CategoryPage({ params }: Props) {
   // ⚡ PAYLOAD (speed plan item 8): /vi embeds no titleI18n (vi renders from titleVi); /en keeps all 9 MT
   // title variants for the client-side language swap. Same slim as the home + district ISR feeds.
   const listings = await localizeListingTitles(diversifyBySeller(raw, { sharedSeats }).slice(0, PAGE_SIZE).map(serializeListingCard), lang === 'vi' ? 'vi' : undefined)
+  /**
+   * ⛔ /c/teachers: EVERY LIVE PROFILE THE GRID DOES NOT SHOW, AS A PLAIN LINK UNDER IT (SEO plan §3(a) item 12;
+   * teacher-links.tsx has the three designs and why this one). Show-more is a button, and crawlers do not click
+   * buttons: about 45 of 93 profiles had no crawlable link. Taken out by the grid's RENDERED ids, so no profile is
+   * linked twice and none falls between the two. `[]` on every other category — nothing was read for it.
+   */
+  const moreTeachers = teachersPastGrid(teacherRows, listings)
+  // ⚠️ LOUD AT THE CAP: past TEACHER_LINKS_MAX the list stops reaching every profile, and that is the day for real
+  // pagination (teacher-links.tsx), not a bigger number. Only when the read itself was cut short — a profile hidden
+  // between the count and the read is not a reason to warn.
+  if (teacherRows.length >= PAGE_SIZE + TEACHER_LINKS_MAX && total > listings.length + moreTeachers.length) {
+    console.warn(`[c/teachers] ${total - listings.length - moreTeachers.length} live teacher profile(s) have no link on /c/teachers — the "More teachers" list is at TEACHER_LINKS_MAX (${TEACHER_LINKS_MAX}); see teacher-links.tsx`)
+  }
   // ⚠️ "BY AREA" ONLY WHERE THERE ARE AREAS TO BROWSE (byAreaChips: three places with five or more).
   const districts = byAreaChips(chips, DISTRICT_CHIPS)
   // Registry-driven (src/lib/category-guides.ts) and only over real stock: a guide rail under an
@@ -396,6 +414,10 @@ export default async function CategoryPage({ params }: Props) {
           </div>
           {rentals && <RentalsDistricts allHcmc={rentals.allHcmc} top={rentals.top} />}
           <CategoryGuides guides={guides} />
+          {/* /c/teachers: a plain, followed link to every live profile the grid above does not show — what Show-more
+              loads on a tap, in the HTML for crawlers (teacher-links.tsx). AFTER the guide rail, so a reader who finished
+              the grid meets the guides first, not a long block of names. Nothing on any other category. */}
+          {isTeachers && <MoreTeachers teachers={moreTeachers} />}
           <section className="mt-12 border-t border-border pt-8">
             <h2 className="h-section text-foreground"><Tr text="Other categories" /></h2>
             <div className="mt-4 flex flex-wrap gap-2">

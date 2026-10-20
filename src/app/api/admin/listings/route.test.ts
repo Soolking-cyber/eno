@@ -449,5 +449,20 @@ describe('takedowns purge each listing\'s own page (audit #2)', () => {
       expect(h.purged).toEqual(expect.arrayContaining(['/', '/listings/a', '/listings/b']))
     }
   })
+
+  /**
+   * ⛔ …AND /c/teachers (2026-10-20): its 6h-ISR HTML names every live teacher profile — the grid's cards and the "More
+   * teachers" list (c/[category]/teacher-links.tsx) — so a profile this console pulled stayed named and linked there for
+   * up to six hours. The batch arrives as ids, so like '/' it is purged on every action, once.
+   */
+  it('⛔ a bulk hide / unverify / delete purges /c/teachers once, beside "/"', async () => {
+    for (const action of ['hide', 'unverify', 'delete']) {
+      h.purged = []; h.calls = []; h.counts = []; h.returns = []
+      const r = await post({ action, ids: ['a', 'b'] })
+      expect(r.status, `${action}: ${r.text}`).toBe(200)
+      expect(h.purged.filter((p) => p === '/c/teachers'), action).toHaveLength(1)
+      expect(h.purged.filter((p) => p === '/'), action).toHaveLength(1)
+    }
+  })
 })
 

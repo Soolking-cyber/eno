@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { hashFromUrl, hexToBits } from '@/lib/image-hash'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 import { NOT_REMOVED } from '@/lib/listing-removed'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 
 // ── Cross-app image provenance (stolen-photo / duplicate-across-sellers detection) ────────
 // Complements the seller-scoped duplicate guard: this looks across the WHOLE platform. A new
@@ -36,7 +37,8 @@ export async function indexAndCheckProvenance(listingId: string): Promise<void> 
   try {
     const l = await db.listing.findUnique({
       where: { id: listingId },
-      select: { id: true, images: true, status: true, sellerId: true, seller: { select: { ownerId: true } } },
+      // `listingType`: a held teacher profile leaves /c/teachers too (refreshListingSurfaces' `teachers`, below).
+      select: { id: true, images: true, status: true, sellerId: true, listingType: true, seller: { select: { ownerId: true } } },
     })
     if (!l || l.status !== 'active') return
     const hexes = Array.from(new Set(parseImages(l.images).map(hashFromUrl).filter((h): h is string => !!h)))
@@ -113,8 +115,9 @@ export async function indexAndCheckProvenance(listingId: string): Promise<void> 
         }))
       }
       await db.$transaction(writes)
-      // Same as ai-moderation: the held page must not keep serving from the 30-day ISR cache.
-      refreshListingSurfaces([l.id], 'imageProvenance', { home: true })
+      // Same as ai-moderation: the held page must not keep serving from the 30-day ISR cache — nor a held teacher
+      // profile stay named on /c/teachers' 6h-ISR HTML.
+      refreshListingSurfaces([l.id], 'imageProvenance', { home: true, teachers: l.listingType === TEACHER_LISTING_TYPE })
       console.warn(`[image-provenance] auto-held ${l.id} (reused ${best}/${hexes.length} from ${originalId})`)
     }
   } catch (e) {

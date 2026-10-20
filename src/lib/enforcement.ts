@@ -10,6 +10,7 @@ import { partitionByIdentityGate, settleHolds } from './compliance/seller-publis
 import { licenceBlockedIds } from './core/licence-check'
 import { deskSellerIds } from './edition-scope'
 import { licenceClearedWhere } from './licence-stamp'
+import { TEACHERS_CATEGORY_SLUG } from './teachers/constants'
 import {
   ENFORCEMENT,
   ENFORCEMENT_REASON,
@@ -559,6 +560,11 @@ export async function applyEnforcement(
     // since 2026-10-13, the "Find a teacher" shelf — so a held seller's cards leave it within the edge cache's five
     // minutes, not its six hours (a pull purged only the listing pages before). Once per transition, both languages.
     if (revalidateIds.length) { try { revalidatePublicPath('/') } catch { /* no request scope */ } }
+    // …and /c/teachers, under the same condition (2026-10-20): its 6h-ISR HTML names every live teacher profile — the
+    // grid's cards and the "More teachers" list under them (c/[category]/teacher-links.tsx) — so a held teacher stayed
+    // named and linked there for up to six hours. Unconditional on the category: the pull reads ids only, a restore has
+    // only the recorded ids, and a read for this alone is not worth it — one regeneration per transition, as for '/'.
+    if (revalidateIds.length) { try { revalidatePublicPath(`/c/${TEACHERS_CATEGORY_SLUG}`) } catch { /* no request scope */ } }
     // A downgrade restore the identity gate parked instead of publishing — the admin set-state
     // console reports it; system callers (syncEnforcement) pass no callback and it is logged.
     // AFTER the commit: settleHolds re-checks the owner, closing the window between the decision

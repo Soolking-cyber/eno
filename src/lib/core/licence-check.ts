@@ -212,6 +212,10 @@ export async function sweepLicenceHolds({ dryRun = false, now = new Date(), maxP
   } finally {
     // Whatever was pulled before a failure still leaves the page cache, the home rails and AI search — and a clean night
     // that pulled nothing purges nothing (commit gate).
+    // ⚠️ NOT /c/teachers, which every other takedown of a teacher's profile purges (teachers/revalidate.ts lists them;
+    // here it would be refreshListingSurfaces' `teachers`): the read above is pinned to the services category's two
+    // licence aisles, and a teacher profile lives in its own category, so this sweep never pulls one
+    // (licence-check.test.ts pins both). Widen the read, and this is the place.
     if (pulledIds.length) refreshListingSurfaces(pulledIds, 'licence.sweep', { home: true })
   }
   return { ...counts, ...refusal, pulled: pulledIds.length, pulledIds }

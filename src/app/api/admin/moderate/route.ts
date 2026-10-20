@@ -16,6 +16,7 @@ import { licenceClearedWhere } from '@/lib/licence-stamp'
 import { NOT_REMOVED } from '@/lib/listing-removed'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 import { takeDownReportedContent } from '@/lib/reported-content'
+import { TEACHER_LISTING_TYPE, TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,9 +75,17 @@ async function settleAppeal(reportIds: string[], onHeld?: (n: number) => void): 
  * and, since that day, the "Find a teacher" shelf, which has NO client fetch behind it — so a listing pulled here stayed
  * on the home page, clickable, for up to six hours. Called after each takedown write that landed (reject goes through
  * refreshListingSurfaces' `home` instead); best effort: the takedown itself has, and a stale home heals on its window.
+ * ⛔ …AND /c/teachers WHEN THE LISTING IS A TEACHER'S PROFILE (2026-10-20). That page's 6h-ISR HTML names every live
+ * profile — its grid's cards and, since SEO plan §3(a) item 12, a plain link to each profile past them ("More teachers",
+ * c/[category]/teacher-links.tsx) — so a profile pulled here stayed named and linked there for up to six hours.
+ * `teacher` is read off the row the takedown itself wrote (its `listingType`; reject reads it with the row it already
+ * reads): no extra read, and another category's takedown leaves /c/teachers alone. Each purge is tried on its own.
  */
-function purgeHome(op: string): void {
+function purgeHome(op: string, teacher = false): void {
   try { revalidatePublicPath('/') } catch (e) { logError(e, { op }) }
+  if (teacher) {
+    try { revalidatePublicPath(`/c/${TEACHERS_CATEGORY_SLUG}`) } catch (e) { logError(e, { op }) }
+  }
 }
 
 // Single admin endpoint for the moderation queue. Every action re-checks the
@@ -270,14 +279,15 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         // visible in Cloud Logging but changed nothing the operator sees.
         if (report.listingId) {
           try {
-            await db.listing.update({ where: { id: report.listingId }, data: { verified: false, identityHold: false } })
+            const pulled = await db.listing.update({ where: { id: report.listingId }, data: { verified: false, identityHold: false } })
             revalidatePublicPath(`/listings/${report.listingId}`)
             // ⚠️ AFTER EVERY LANDED TAKEDOWN, not once after the loop. A later step that throws (a notice, a dock) ends
             // the request as internal_error, and a purge waiting for the loop's end would never be asked for. Not once
             // at the first one either: Next keeps ONE pending entry per tag, applied when the response completes and
             // stamped with the LAST call's time — the stamp is what decides which cached copies are stale — so a home
             // page regenerated between two takedowns of this batch must be older than the last of them.
-            purgeHome('moderate.bulkConfirm.home')
+            // /c/teachers too when the row is a teacher's profile (the row the write returns — see purgeHome).
+            purgeHome('moderate.bulkConfirm.home', pulled.listingType === TEACHER_LISTING_TYPE)
           } catch (e) {
             logError(e, { op: 'moderate.unverifyListing', reportId: rid, listingId: report.listingId })
             // Do NOT throw: the trust dock above already landed for THIS report, and aborting the
@@ -388,7 +398,8 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // status — so a confirmed report without one weighs nothing). An APPEALED report on the listing
       // (re-opened, its earlier charge still standing) is decided the same way: the charge it already
       // carries keeps standing, exactly as when the old cascade deleted the report.
-      const listing = await db.listing.findUnique({ where: { id }, select: { id: true, verified: true } })
+      // `listingType`: whether the removal also purges /c/teachers (below) — read with the row, never on its own.
+      const listing = await db.listing.findUnique({ where: { id }, select: { id: true, verified: true, listingType: true } })
       if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       const stamp = new Date()
       // ⚠️ LABELLED AS A REMOVAL CLOSURE (`listing-removed:<admin>`, trust-math.ts) so staff can tell this
@@ -409,7 +420,9 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // and de-indexes anything no longer public. The old hard delete purged the page only.
       // `home`: the home page's 6h-ISR HTML carries cards too — its feed, rails and, since 2026-10-13, its "Find a
       // teacher" shelf — so a removed listing leaves it within the edge cache's five minutes, not its six hours.
-      refreshListingSurfaces([id], 'moderate.reject', { home: true })
+      // `teachers`: a removed teacher profile leaves /c/teachers the same way — its grid and its "More teachers" list
+      // name every live profile (see purgeHome).
+      refreshListingSurfaces([id], 'moderate.reject', { home: true, teachers: listing.listingType === TEACHER_LISTING_TYPE })
       // The reporters' case rooms now survive the removal, so tell them how it ended — only for the
       // rows THIS call resolved (matched by the resolve stamp), as notifyDismissedReporters does.
       // Best-effort: the decision has landed.
@@ -438,9 +451,9 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
     case 'unpublish': {
       // A takedown that leaves no report, so it also drops the licence hold's mark (licence-stamp.ts LICENCE_HELD_NOTE):
       // approving the listing's licence later must not publish what a moderator unpublished.
-      await db.listing.update({ where: { id }, data: { verified: false, identityHold: false, verificationNotes: null } })
+      const pulled = await db.listing.update({ where: { id }, data: { verified: false, identityHold: false, verificationNotes: null } })
       revalidatePublicPath(`/listings/${id}`)
-      purgeHome('moderate.unpublish.home')
+      purgeHome('moderate.unpublish.home', pulled.listingType === TEACHER_LISTING_TYPE)
       return NextResponse.json({ ok: true })
     }
 
@@ -539,15 +552,18 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // ⚠️ IF THIS FAILS, THE REQUEST FAILS. It used to swallow the error and return 200, so an
       // admin confirming a scam report was told the listing was pulled while it stayed public.
       let takedownFailed = false
+      // A teacher's profile, by the row the takedown wrote: /c/teachers is purged with the home page (see purgeHome).
+      let teacher = false
       if (report.listingId) {
         try {
-          await db.listing.update({ where: { id: report.listingId }, data: { verified: false, identityHold: false } })
+          const pulled = await db.listing.update({ where: { id: report.listingId }, data: { verified: false, identityHold: false } })
+          teacher = pulled.listingType === TEACHER_LISTING_TYPE
           revalidatePublicPath(`/listings/${report.listingId}`)
         } catch (e) {
           logError(e, { op: 'moderate.unverifyListing', reportId: id, listingId: report.listingId })
           takedownFailed = true
         }
-        if (!takedownFailed) purgeHome('moderate.confirm.home')
+        if (!takedownFailed) purgeHome('moderate.confirm.home', teacher)
         // ⛔ …AND OUT OF EVERY HOLD'S RESTORE LIST (review of the scam-hold release, 2026-09-24). The
         // sync above ran FIRST, so a hold it applied (a confirmed scam) has just pulled this very
         // listing and recorded it — and a listing an earlier hold pulled is recorded already. Both are

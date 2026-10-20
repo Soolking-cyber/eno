@@ -1,5 +1,6 @@
 import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
+import type { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { subcategoriesFor } from '@/lib/taxonomy'
 import { topSubcategories, type TopSubcategory } from './category-copy'
@@ -86,6 +87,37 @@ export const loadTeachingJobsCount = cache(async (): Promise<number> =>
     }),
   }),
 )
+
+/** A teacher profile as /c/teachers' "More teachers" list links it (teacher-links.tsx): the listing and the name it shows. */
+export type TeacherLink = { id: string; title: string }
+
+/**
+ * /c/teachers only — the live teacher profiles as link targets, in the page's own order, at most `take` (SEO plan
+ * §3(a) item 12). The page links every one its grid does not show (teacher-links.tsx `teachersPastGrid`): past the
+ * first page the profiles arrived only through "Show more", a button, and crawlers do not click buttons — about 45 of
+ * 93 live profiles had no crawlable link.
+ * ⛔ `where` IS THE GRID'S OWN — the `scopedWhere` `(index)/page.tsx` builds once (live, scoped with
+ * `{ teachers: true }`, this category) and hands its window: one source of truth, not a second predicate rebuilt by
+ * convention. It is the set /c/teachers' grid and its Show-more already page over (load-category.ts counts it;
+ * /api/listings serves it for `category=teachers`), so the list can name only a profile the page already shows — and
+ * whatever narrows the grid's set one day (a noindex or opt-out rule, a demo exclusion) narrows the list with it.
+ * Nothing is scoped again here: the page's `where` already is.
+ * ⚠️ ONLY `id` AND `title` — the card's own link target and the name it prints. A teacher row's title IS the profile's
+ * name as stored (teachers/projection.ts), and the card prints exactly that, never translated (listing-card.tsx) — so a
+ * masked or short name is listed exactly as its card shows it. Nothing the card does not already show.
+ * ⚠️ `rankScore desc, id desc` IS THE PAGE'S ORDER — its window's (`(index)/page.tsx`), the API's tail past the window
+ * and the home shelf's (core/teacher-shelf.ts) — so the list continues where the grid stops, under the ranking already
+ * disclosed; no new ordering rule. Read once per ISR render, beside the window, never per request (no `cache()`: one
+ * call per render, keyed on a `where` built for it).
+ */
+export async function loadTeacherLinks(where: Prisma.ListingWhereInput, take: number): Promise<TeacherLink[]> {
+  return db.listing.findMany({
+    where,
+    orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
+    select: { id: true, title: true },
+    take,
+  })
+}
 
 /**
  * HCMC's `?province=` name ('Ho Chi Minh'), read from vn-units by the code DISTRICTS is keyed to —

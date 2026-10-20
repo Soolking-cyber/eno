@@ -9,6 +9,8 @@ import { logError } from '@/lib/log'
 import { ApiError, route } from '@/lib/api/handler'
 import { blocksPosting, normalizeEnforcementState } from '@/lib/enforcement-machine'
 import { NOT_REMOVED } from '@/lib/listing-removed'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { revalidateTeacherPages } from '@/lib/teachers/revalidate'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -52,10 +54,12 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
 
   // Ownership-scope the sold set up front: the revalidatePath/removeFromIndex loops below
   // must never run over raw client ids the caller doesn't own (cache-purge amplification).
-  const sold = soldRequested.length
+  // `listingType` rides the same read: a teacher's profile among them purges the teacher pages too (below).
+  const soldRows = soldRequested.length
     // ⛔ NOT a tombstone: marking one 'sold' would bring it back into the seller's dashboard.
-    ? (await db.listing.findMany({ where: { id: { in: soldRequested }, sellerId: seller.id, ...NOT_REMOVED }, select: { id: true } })).map((l) => l.id)
+    ? await db.listing.findMany({ where: { id: { in: soldRequested }, sellerId: seller.id, ...NOT_REMOVED }, select: { id: true, listingType: true } })
     : []
+  const sold = soldRows.map((l) => l.id)
 
   // ⛔ THE HOLD GUARD, EXTENDED TO THE BATCH (owner, 2026-09-24) — the twin of confirmCore's refusal
   // (core/listings.ts, "THE HOLD LEAK"). A held or suspended seller's live rows are the ones the hold
@@ -100,6 +104,12 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
   // /api/listings fetch — so revalidating its detail page every day per listing is
   // pure ISR-write waste (the dominant write driver). Let it ride its time window.
   for (const id of sold) revalidatePublicPath(`/listings/${id}`)
+  // ⛔ A TEACHER'S PROFILE MARKED "SOLD" HERE IS TAKEN DOWN (status 'sold' is not live), and /c/teachers' 6h-ISR HTML
+  // names every live profile — its grid's cards and the "More teachers" list under them (c/[category]/teacher-links.tsx)
+  // — as the home page's "Find a teacher" shelf shows up to eight: so both are purged (2026-10-20), once for the batch
+  // (the loop above has the profile's own page). Not its district page: this read does not know the district, and
+  // that is the generic doors' known gap (teachers/revalidate.ts).
+  if (soldRows.some((l) => l.listingType === TEACHER_LISTING_TYPE)) revalidateTeacherPages(null, [])
   after(() => { for (const id of sold) removeFromIndex(id) }) // pull sold items from AI search
   // The seller engaged with the review → reset the consecutive-skip counter.
   if (profile.availabilitySkips > 0) after(() => db.profile.update({ where: { id: profile.id }, data: { availabilitySkips: 0 } }).catch((e) => logError(e, { op: 'availability.resetSkips' })))

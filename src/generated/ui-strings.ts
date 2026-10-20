@@ -1658,6 +1658,7 @@ export const UI_STRINGS: string[] = [
   "More jobs from {name}",
   "More like this",
   "More reactions",
+  "More teachers",
   "More…",
   "Morning",
   "Most contacted",

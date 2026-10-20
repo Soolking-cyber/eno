@@ -9,6 +9,7 @@ import { db } from '@/lib/db'
 import { safeFetch } from '@/lib/ssrf'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 import { NOT_REMOVED } from '@/lib/listing-removed'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 
 // ── AI illegal-content moderation (Tier 2, async post-publish) ─────────────────────────
 // The inline word-scan (publish-guard) blocks CLEAR prohibited text at publish time. This
@@ -142,7 +143,8 @@ export async function moderateListingById(listingId: string): Promise<void> {
     const l = await db.listing.findUnique({
       where: { id: listingId },
       select: {
-        id: true, title: true, description: true, images: true, status: true,
+        // `listingType`: a held teacher profile leaves /c/teachers too (refreshListingSurfaces' `teachers`, below).
+        id: true, title: true, description: true, images: true, status: true, listingType: true,
         seller: { select: { trustTier: true, ownerId: true } },
       },
     })
@@ -192,8 +194,9 @@ export async function moderateListingById(listingId: string): Promise<void> {
     }
     await db.$transaction(writes)
     // Drop the cached page NOW: the edit path re-rendered it with this content moments before the
-    // hold landed, and the PDP's ISR window is 30 days. Also removes it from AI search.
-    refreshListingSurfaces([l.id], 'aiModeration', { home: true })
+    // hold landed, and the PDP's ISR window is 30 days. Also removes it from AI search. A teacher's profile (the
+    // teacher save runs this too, teachers/publish.ts) also leaves /c/teachers, whose 6h-ISR HTML names every live one.
+    refreshListingSurfaces([l.id], 'aiModeration', { home: true, teachers: l.listingType === TEACHER_LISTING_TYPE })
     console.warn(`[ai-moderation] auto-held ${l.id} (${result.category}, ${result.confidence.toFixed(2)})`)
   } catch (e) {
     // P2025 = the guarded hide matched no row: the listing was removed (or erased) while it was being

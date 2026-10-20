@@ -122,11 +122,12 @@ export async function eraseAccount(profileId: string, actor: EraseActor, signals
    * ⛔ THE CARDS' PAGES ARE PURGED ONCE THE ACCOUNT IS GONE (2026-10-13). The erasure deleted every listing and purged
    * nothing: each listing page kept serving its cached copy for its 30-day ISR window, and the home page — whose "Find a
    * teacher" shelf, trending and businesses rails bake cards into its 6h-ISR HTML — kept the erased person's card for up
-   * to six hours. Purged after the commit: every deleted listing's page, the home page, and for a teacher /c/teachers and
-   * their district page. ⚠️ NOT EVERY PAGE THE ACCOUNT WAS ON: the other /c/<category> pages and the storefront page still
-   * heal on their own ISR windows (a follow-up, not this change). The district needs the teacher row, which goes with the
-   * profile, so it is read here, before anything is deleted, and OUTSIDE the transaction on purpose: a failed read there
-   * would abort the erasure, here it only narrows the purge.
+   * to six hours. Purged after the commit: every deleted listing's page, the home page, /c/teachers — on every erasure
+   * since 2026-10-20, even when the row below cannot be read (purgeErasedSurfaces) — and for a teacher their district
+   * page. ⚠️ NOT EVERY PAGE THE ACCOUNT WAS ON: the other /c/<category> pages and the storefront page still heal on their
+   * own ISR windows (a follow-up, not this change). The district needs the teacher row, which goes with the profile, so
+   * it is read here, before anything is deleted, and OUTSIDE the transaction on purpose: a failed read there would abort
+   * the erasure, here it only narrows the purge — the district page is the one that needs the row.
    */
   const teacherRow = await readTeacherRow(profile.id)
   /** The listings the transaction deletes — purged after it commits, never when it rolls back. */
@@ -393,15 +394,23 @@ async function readTeacherRow(profileId: string): Promise<TeacherRow | null> {
 }
 
 /**
- * After the commit: every deleted listing's page and the home page purged, and AI search re-synced (refreshListingSurfaces
- * — it de-indexes a row that no longer exists); for a teacher, /c/teachers and their district page too (teachers/
- * revalidate.ts — the profile's own listing page is in the first purge already, being one of the storefront's listings).
+ * After the commit: every deleted listing's page, the home page and /c/teachers purged, and AI search re-synced
+ * (refreshListingSurfaces — it de-indexes a row that no longer exists); for a teacher whose row was read, their district
+ * page too (teachers/revalidate.ts — the profile's own listing page is in the first purge already, being one of the
+ * storefront's listings).
+ * ⛔ /c/teachers ON EVERY ERASURE, EVEN WHEN THE TEACHER ROW CANNOT BE READ (2026-10-20). Its 6h-ISR HTML names every
+ * live profile — the grid's cards and, past them, the "More teachers" list (c/[category]/teacher-links.tsx) — and it is
+ * one fixed path: nothing has to be read to purge it. Purged only with the row (readTeacherRow answers null on an
+ * error), a failed read left the erased teacher named there for up to six hours. Unconditional, as in enforcement and
+ * the admin bulk tool: an erasure is rare, and one that deleted no listing leaves refreshListingSurfaces nothing to purge
+ * (it returns early). With the row, revalidateTeacherPages purges /c/teachers and '/' again ('/' was purged twice
+ * before this too); purges coalesce, so each page still regenerates once (teachers/revalidate.ts).
  * Each step on its own guard: the rows are gone either way, and a stale page heals on its own window, so nothing here
  * may fail the erasure.
  */
 function purgeErasedSurfaces(listingIds: string[], teacher: TeacherRow | null): void {
   try {
-    refreshListingSurfaces(listingIds, 'accountErasure', { home: true })
+    refreshListingSurfaces(listingIds, 'accountErasure', { home: true, teachers: true })
   } catch (e) {
     logError(e, { op: 'account-erasure.surfaces' })
   }
