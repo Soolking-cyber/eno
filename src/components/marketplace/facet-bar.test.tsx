@@ -828,6 +828,26 @@ describe('<FacetBar> — the multi-select amenities group', () => {
     expect(applied(set, { amenities: 'no-landlord' })).toEqual({})
   })
 
+  // Live QA, 2026-10-20: centred against ~20 rows of chips, the label sat ~350px below the group's top at desktop width.
+  it('⛔ pins the group\'s label to its FIRST row of chips from `sm` up — every single-pick row stays centred', async () => {
+    const user = userEvent.setup()
+    renderIn('en', <FacetBar {...apt({ customFilters: { amenities: 'no-landlord' } })} />)
+    const panel = await openPanel(user)
+    const group = within(panel).getByRole('group', { name: 'Amenities' })
+    const row = group.parentElement!
+    const label = document.getElementById(group.getAttribute('aria-labelledby')!)!
+    expect(row.className).toContain('sm:items-start')
+    expect(row.className).not.toContain('sm:items-center')
+    expect(label.className).toContain('sm:pt-2.5')
+    const others = [...panel.querySelectorAll('label[id$="-label"]')].filter((l) => l !== label)
+    // Never a vacuous pass: the panel must show other rows to compare against (posted, size, the single-pick toggles).
+    expect(others.length).toBeGreaterThan(0)
+    for (const other of others) {
+      expect(other.parentElement!.className, other.textContent ?? '').toContain('sm:items-center')
+      expect(other.className, other.textContent ?? '').not.toContain('sm:pt-2.5')
+    }
+  })
+
   it('counts each pick on the Filter badge', () => {
     renderIn('en', <FacetBar {...apt({ customFilters: { amenities: 'no-landlord,car-alley', bedrooms: '1' } })} />)
     const filter = screen.getByRole('button', { name: /^Filter/ })
