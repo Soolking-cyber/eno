@@ -99,6 +99,11 @@ describe('jobAdSightingOf — a mapped ad → its history row', () => {
   it('reads only the pay the importer reads: an hourly range, an open "from", and nothing from USD or "competitive"', () => {
     expect(sightingOf({ ...teast, salary: '500,000–570,000 VND/hour' })).toMatchObject({ salaryMin: 500_000, salaryMax: 570_000, salaryCurrency: 'VND', salaryPeriod: 'hour' })
     expect(sightingOf({ ...teast, salary: 'From 12,000,000 VND/month' })).toMatchObject({ salaryMin: 12_000_000, salaryMax: null, salaryPeriod: 'month' })
+    // "Từ" is the same open "from" — and the listing the importer makes from the same staged row reads it the same way: no
+    // single price, the floor as its salary (until 2026-10-20 parseJobPay read an exact 12,000,000 đ: an ASCII-only \b).
+    const tu = { ...teast, salary: 'Từ 12.000.000 VNĐ/tháng' }
+    expect(sightingOf(tu)).toMatchObject({ salaryMin: 12_000_000, salaryMax: null, salaryCurrency: 'VND', salaryPeriod: 'month' })
+    expect(mapped(tu)).toMatchObject({ price: 0, priceUnit: 'VND/month', salaryM: 12 })
     for (const salary of ['USD 1,900 – 2,350 per month (gross)', 'Competitive salary', 'Up to 60.000.000 VND/ month', null]) {
       expect(sightingOf({ ...teast, salary }), String(salary)).toMatchObject({ salaryMin: null, salaryMax: null, salaryCurrency: null, salaryPeriod: null })
     }

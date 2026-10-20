@@ -85,6 +85,7 @@ import { SellerInfo } from '@/components/marketplace/seller-info'
 import { buildSellerInfo } from '@/lib/seller-info'
 import { approximateArea, hasRealCoords } from '@/lib/geo'
 import { isVehicleHireReference } from '@/lib/rental-places'
+import { isLinkedJobReference } from '@/lib/job-listing'
 import { VisaInAppNote, VisaPartnerNote, VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
 import { IosAppHidden } from '@/components/marketplace/ios-app-hidden'
 import { appReviewGate } from '@/lib/app-review-gates'
@@ -204,10 +205,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // The titles' price: the Vietnamese variant groups it the Vietnamese way (CS-3 V2b-1); a stated salary
   // stays as the posting wrote it.
   const titlePrice = isTeacher ? '' : isJobListing && jobSalary ? jobSalary : listing.price > 0 && vi ? `${formatMoneyFull(listing.price, listing.currency, 'vi')}${rateUnitLabel}` : priceLabel
-  // A linked job closes on its apply-by date, but this page is ISR-cached for 30 days. `unavailable_after`
-  // tells Google the date itself, from row data, so it is stable across regenerations.
-  // safeAffiliateUrl, the page's own predicate: a link the page will not trust makes it an ordinary listing.
-  const jobApplyByMeta = !!safeAffiliateUrl(listing.affiliateUrl) && typeof jobAttrs.applyBy === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(jobAttrs.applyBy) ? jobAttrs.applyBy : null
   // Meta description: the listing body when the seller wrote one; otherwise a
   // composed fallback ("TITLE — PRICE, CATEGORY in LOCATION on eno.vn") so an
   // empty body never ships a junk description like "21,000,000 VND · ".
@@ -231,11 +228,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: isTeacher ? `${titleFor} — ${teacherRole} | ${SITE_NAME}` : titlePrice ? `${titleFor} — ${titlePrice} | ${SITE_NAME}` : `${titleFor} | ${SITE_NAME}`,
     description: desc,
     // Only publicly-live listings (verified + active) are indexable; sold/hidden/held are not.
-    // ⛔ An imported vehicle-hire reference is live but noindex — src/lib/rental-places.ts says why.
+    // ⛔ An imported vehicle-hire reference is live but noindex — src/lib/rental-places.ts says why — and so, since
+    // 2026-10-20, is a LINKED job (job-listing.ts isLinkedJobReference; until then it was indexed with `unavailable_after`
+    // set to its apply-by date, which a page that is not indexed no longer needs). listing-robots.test.ts beside this file.
+    // ⚠️ A change here reaches every page with the deploy that ships it: the ISR cache is keyed by BUILD_ID
+    // (cache-handler.cjs), so each page's first request after a deploy renders anew, and the deploy's own `eno-html` tag
+    // purge (infra/vn-node/eno-deploy.sh) drops the edge copy — nothing to purge by hand, unless it ran --skip-purge.
     robots: listing.verified && listing.status === 'active'
       ? (isVehicleHireReference({ affiliateUrl: listing.affiliateUrl, subcategorySlug: listing.subcategorySlug, categorySlug: listing.category.slug })
+        || isLinkedJobReference({ affiliateUrl: listing.affiliateUrl, listingType: listing.listingType })
         ? { index: false, follow: true }
-        : jobApplyByMeta ? { index: true, follow: true, unavailable_after: `${jobApplyByMeta}T23:59:59+07:00` } : undefined)
+        : undefined)
       : { index: false, follow: true },
     alternates: {
       canonical: `${hostUrl}/listings/${id}`,

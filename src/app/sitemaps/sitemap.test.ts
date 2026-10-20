@@ -368,6 +368,24 @@ describe('the listing children', () => {
     expect(locs(await (await child('listings-0.xml')).text())).toEqual([`${HOST}/listings/car-own`])
   })
 
+  /**
+   * Linked jobs (scripts/import-jobs.ts — 35 of the 35 live jobs on 2026-10-20) are reference stock like the vehicle hire
+   * above: `noindex, follow` on the PDP since teacher visibility plan item 18 (job-listing.ts isLinkedJobReference), and
+   * never submitted. A job an employer posts on eno has no affiliateUrl: indexable, and submitted. The board that lists the
+   * linked ones (/jobs-vietnam-expats) and /c/jobs are submitted on linked jobs alone, as they are today.
+   */
+  it('never submits a linked job, still submits a job an employer posted on eno, and keeps the board and /c/jobs', async () => {
+    const teaching = { categoryId: 'cat-empty', subcategorySlug: 'teaching', listingType: 'job' } as const
+    const linked = row({ id: 'job-linked', ...teaching, affiliateUrl: 'https://teast.co/job/power-english-esl-7f3a', sellerId: 'teast-co-import-seller-0001' })
+    h.rows = [linked, row({ id: 'job-own', ...teaching })]
+    expect(locs(await (await child('listings-0.xml')).text())).toEqual([`${HOST}/listings/job-own`])
+    h.rows = [linked]
+    expect(locs(await (await indexGET()).text())).toEqual([`${HOST}/sitemaps/pages.xml`])
+    const pages = locs(await (await pagesGET()).text())
+    expect(pages.filter((u) => u.includes('/listings/'))).toEqual([])
+    expect(pages).toEqual(expect.arrayContaining([`${HOST}/jobs-vietnam-expats`, `${HOST}/c/jobs`]))
+  })
+
   it('404 anything that is not a bounded listings-<k>.xml, and answer an empty urlset past the end', async () => {
     for (const bad of ['listings.xml', 'listings-01.xml', 'listings--1.xml', 'listings-200.xml', 'foo.xml', 'pages.txt']) {
       expect((await child(bad)).status, bad).toBe(404)

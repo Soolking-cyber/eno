@@ -134,6 +134,24 @@ export const JOB_SOURCES: Record<string, BoardKey> = {
 
 export const JOB_SELLER_IDS: string[] = Object.values(JOB_BOARDS).map((b) => b.sellerId)
 
+/**
+ * ⛔ A LINKED JOB IS BROWSABLE BUT NOT INDEXABLE (teacher visibility plan, item 18 — owner decision 10, approved; applied
+ * 2026-10-20, once the teaching board at /jobs-vietnam-expats had shipped). A linked job is what this module makes: a job
+ * board's or a school's posting, copied as a few facts (title, employer, place, pay, dates) with an Apply link to the
+ * original. As a page it adds nothing over the posting itself — the plan measured 7 search impressions across all 38 —
+ * which is the vehicle-hire case exactly (rental-places.ts isVehicleHireReference), so it gets the same treatment: the
+ * listing page serves it `noindex, follow` (generateMetadata, src/app/[lang]/listings/[id]/(pdp)/page.tsx), and no sitemap
+ * lists it (`submittedListingWhere`, src/lib/sitemap.ts, submits no row with an `affiliateUrl`). What stays indexable is
+ * what carries the value: the board, /c/jobs, and every job an employer posts on eno itself.
+ * ⚠️ THE SHAPE, NOT THE SELLER IDS, as for vehicle hire: a JOB that LINKS OUT. The STORED link, like the sitemap's rule
+ * and the board's `linked` (jobs-vietnam-expats/board.ts): a row whose link fails the page's safeAffiliateUrl is still a
+ * copied posting. An employer's own post has no `affiliateUrl` (nothing a user sends can set one) and stays indexable;
+ * so do a Wanted ad filed under Jobs and a teacher profile, and a link-out row of any other kind keeps its own rule.
+ */
+export function isLinkedJobReference(l: { affiliateUrl: string | null; listingType: string | null }): boolean {
+  return !!l.affiliateUrl && l.listingType === 'job'
+}
+
 /** The row key a (source, url) pair maps to — the same key mapStagedJob gives it — or null. */
 export function jobExternalId(source: string, url: string): { sellerId: string; externalId: string } | null {
   const board = JOB_SOURCES[source]
@@ -240,8 +258,12 @@ const num = (s: string) => Number(s.replace(/[.,\s]/g, ''))
 /** The bounds a stated amount must sit inside to be read at all: a month's pay, an hour's. */
 const PAY_BOUNDS = { month: [1_000_000, 500_000_000], hour: [20_000, 5_000_000] } as const
 
-/** The one reading of a pay line both parsers share: its amounts, its period, and the line as read (whitespace-collapsed). */
-function readJobPay(text: string | null | undefined): { t: string; lo: number; hi: number; period: 'month' | 'hour' } | null {
+/**
+ * The one reading of a pay line both parsers share: its amounts, its period, and whether it opens with "from" / "từ" —
+ * decided HERE, once, so the listing's price (parseJobPay) and the history log's range (parseJobPayRange) cannot read
+ * one line two ways.
+ */
+function readJobPay(text: string | null | undefined): { lo: number; hi: number; period: 'month' | 'hour'; from: boolean } | null {
   if (!text) return null
   const t = text.replace(/\s+/g, ' ').trim()
   if (/(^|[^\p{L}])(up to|tối đa|max(imum)?)(?!\p{L})/iu.test(t)) return null
@@ -253,19 +275,25 @@ function readJobPay(text: string | null | undefined): { t: string; lo: number; h
   if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) return null
   const period = /^(month|tháng)$/i.test(m[3]!) ? 'month' : 'hour'
   if (lo < PAY_BOUNDS[period][0] || lo > PAY_BOUNDS[period][1]) return null
-  return { t, lo, hi, period }
+  // The pattern admits "from " / "từ " only as the line's first word, so a prefix test, with the pattern's own flags, reads
+  // it. ⛔ NOT `\b` (2026-10-20): parseJobPay tested /^(from|từ)\b/i on its own, and JavaScript's \b is ASCII-only — it never
+  // matches after "ừ" — so it read "Từ 12.000.000 VNĐ/tháng" as an exact 12,000,000 đ while the log read "from". Latent, not
+  // stored: measured that day, no pay line ever staged (48 stage files since 2026-09-25, 1,997 rows) opens with "Từ" and
+  // a đồng figure — the one "Từ" line, "Từ $ 2,000 /tháng", is USD, which neither reading takes — and every mapped row came
+  // out byte-identical under this fix; none of the 12 live jobs with a price states it so either.
+  return { lo, hi, period, from: /^(?:from|từ) /iu.test(t) }
 }
 
 /**
  * A stated VND amount per month or per hour → what to store. Only the forms we can read without
  * guessing: "15,000,000–20,000,000 VND / month", "500.000 VNĐ/giờ", "From 12,000,000 VND/month".
- * A single amount is the price; a RANGE (or "from") is price 0 with `salaryM` = its lower bound.
+ * A single amount is the price; a RANGE (or "from" / "từ") is price 0 with `salaryM` = its lower bound.
  * "Up to …" (a ceiling, not a price), USD, per day/year, or anything unparsed → null (price 0).
  */
 export function parseJobPay(text: string | null | undefined): JobPay {
   const p = readJobPay(text)
   if (!p) return null
-  const single = p.hi === p.lo && !/^(from|từ)\b/i.test(p.t)
+  const single = p.hi === p.lo && !p.from
   if (p.period === 'month') return { price: single ? p.lo : 0, priceUnit: 'VND/month', salaryM: Math.floor(p.lo / 1_000_000) }
   return { price: single ? p.lo : 0, priceUnit: 'VND/hour', salaryM: null }
 }
@@ -278,9 +306,7 @@ export function parseJobPay(text: string | null | undefined): JobPay {
 export function parseJobPayRange(text: string | null | undefined): { min: number; max: number | null; currency: 'VND'; period: 'month' | 'hour' } | null {
   const p = readJobPay(text)
   if (!p) return null
-  // The pattern admits "from " / "từ " only as the line's first word, so a prefix test reads it — not parseJobPay's
-  // `\b`, which is ASCII-only and never matches after "ừ".
-  const openEnded = p.hi === p.lo && /^(?:from|từ) /iu.test(p.t)
+  const openEnded = p.hi === p.lo && p.from
   return { min: p.lo, max: openEnded || p.hi > PAY_BOUNDS[p.period][1] ? null : p.hi, currency: 'VND', period: p.period }
 }
 

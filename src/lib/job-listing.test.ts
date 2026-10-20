@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  JOB_BOARDS, JOB_SELLER_IDS, JOB_TEXT_REFUSAL, hasEmployerVisaWord, hasVisaWord, isExpiredJob, isHiringPost, jobDenyReason, jobExternalId,
+  JOB_BOARDS, JOB_SELLER_IDS, JOB_TEXT_REFUSAL, hasEmployerVisaWord, hasVisaWord, isExpiredJob, isHiringPost, isLinkedJobReference, jobDenyReason, jobExternalId,
   jobNativeId, jobProvinces, jobStageProblem, jobTextDetail, jobTextProblem, jobType, mapStagedJob, normaliseJobUrl, parseJobPay,
   parseJobPayRange, pdpTombstoneTags, unshout, type StagedJob,
 } from './job-listing'
@@ -50,6 +50,10 @@ describe('mapStagedJob — a real CareerLink row', () => {
     // A single stated figure IS the price.
     const one = map({ salary: '50,000,000 VND / month' })
     expect(one.ok && [one.job.price, one.job.salaryM]).toEqual([50_000_000, 50])
+    // …and "Từ" (Vietnamese "from") before one figure is not: the card would state a floor as the pay. The posting's
+    // own words stay in salaryText, and the Salary filter still finds the job by its floor (2026-10-20 — the ASCII \b).
+    const tu = map({ salary: 'Từ 12.000.000 VNĐ/tháng' })
+    expect(tu.ok && [tu.job.price, tu.job.priceUnit, tu.job.salaryM, tu.job.attributes.salaryText]).toEqual([0, 'VND/month', 12, 'Từ 12.000.000 VNĐ/tháng'])
   })
 
   it('caps apply-by at 14 days after posting, and refuses a job already closed', () => {
@@ -192,6 +196,16 @@ describe('places, pay, type, text', () => {
   it('reads only VND pay it can state honestly', () => {
     expect(parseJobPay('15,000,000–20,000,000 VND / month')).toEqual({ price: 0, priceUnit: 'VND/month', salaryM: 15 })
     expect(parseJobPay('From 12,000,000 VND/month')).toEqual({ price: 0, priceUnit: 'VND/month', salaryM: 12 })
+    // "Từ" is "from": no single price, in any case — JavaScript's ASCII-only \b never matched after "ừ" (2026-10-20).
+    expect(parseJobPay('Từ 12.000.000 VNĐ/tháng')).toEqual({ price: 0, priceUnit: 'VND/month', salaryM: 12 })
+    expect(parseJobPay('TỪ 12.000.000 VNĐ/THÁNG')).toEqual({ price: 0, priceUnit: 'VND/month', salaryM: 12 })
+    expect(parseJobPay('từ 500.000 đ/giờ')).toEqual({ price: 0, priceUnit: 'VND/hour', salaryM: null })
+    // …read on the line as READ — whitespace folded, then trimmed — so a leading space, a no-break space or a tab after
+    // the word changes nothing, in either reading (the "from" flag is decided once, in readJobPay).
+    for (const line of [' Từ 12.000.000 VNĐ/tháng', 'Từ\u00a012.000.000 VNĐ/tháng', 'From\t12,000,000 VND/month']) {
+      expect(parseJobPay(line), JSON.stringify(line)).toEqual({ price: 0, priceUnit: 'VND/month', salaryM: 12 })
+      expect(parseJobPayRange(line), JSON.stringify(line)).toEqual({ min: 12_000_000, max: null, currency: 'VND', period: 'month' })
+    }
     expect(parseJobPay('50,000,000 VND / month')).toEqual({ price: 50_000_000, priceUnit: 'VND/month', salaryM: 50 })
     expect(parseJobPay('500,000–570,000 VND/hour')).toEqual({ price: 0, priceUnit: 'VND/hour', salaryM: null })
     expect(parseJobPay('550.000 VNĐ/giờ')).toEqual({ price: 550_000, priceUnit: 'VND/hour', salaryM: null })
@@ -221,12 +235,17 @@ describe('places, pay, type, text', () => {
       expect(parseJobPayRange(line), String(line)).toBeNull()
       expect(parseJobPay(line), String(line)).toBeNull()
     }
-    // The two readings agree on every line either reads: the listing's floor is the log's min.
-    for (const line of ['15,000,000–20,000,000 VND / month', '50,000,000 VND / month', '500,000–570,000 VND/hour', 'From 12,000,000 VND/month', '470,000 VND / hour']) {
+    // The two readings agree on every line either reads: the listing's floor is the log's min, and the listing states a
+    // price EXACTLY when the log reads one figure (max = min) — so "Từ …", which the log reads as open-ended, cannot be
+    // read as an exact amount (parseJobPay did, until 2026-10-20, and the old check, `price === 0 || price === min`, let it
+    // through — measured: with the old parseJobPay and only that check, this test passes).
+    for (const line of ['15,000,000–20,000,000 VND / month', '50,000,000 VND / month', '500,000–570,000 VND/hour', 'From 12,000,000 VND/month', '470,000 VND / hour',
+      'Từ 12.000.000 VNĐ/tháng', 'TỪ 12.000.000 VNĐ/THÁNG', 'từ 500.000 đ/giờ', 'Từ 10.000.000 - 15.000.000 VNĐ/tháng', '500,000–5,600,000 VND/hour']) {
       const pay = parseJobPay(line)!
       const range = parseJobPayRange(line)!
       expect(pay.priceUnit, line).toBe(`VND/${range.period}`)
       expect(pay.price === 0 || pay.price === range.min, line).toBe(true)
+      expect(pay.price > 0, line).toBe(range.max === range.min)
       expect(pay.salaryM, line).toBe(range.period === 'month' ? Math.floor(range.min / 1_000_000) : null)
     }
   })
@@ -331,6 +350,20 @@ describe('stage, expiry, sellers', () => {
 
   it('tombstones both language variants of the PDP', () => {
     expect(pdpTombstoneTags('abc')).toEqual(['eno:isrtag:_N_T_/en/listings/abc', 'eno:isrtag:_N_T_/vi/listings/abc'])
+  })
+
+  // Plan item 18 (2026-10-20): the listing page serves a linked job `noindex, follow` — (pdp)/listing-robots.test.ts runs
+  // the page itself. The predicate: a JOB whose stored row links out, whatever the link; nothing else.
+  it('isLinkedJobReference: what this module makes — a job that links out — and nothing else', () => {
+    const r = map()
+    if (!r.ok) throw new Error(r.reason)
+    expect(isLinkedJobReference({ affiliateUrl: r.job.affiliateUrl, listingType: 'job' })).toBe(true) // import-jobs.ts mutableOf
+    expect(isLinkedJobReference({ affiliateUrl: 'http://www.careerlink.vn/x/1', listingType: 'job' })).toBe(true)
+    expect(isLinkedJobReference({ affiliateUrl: null, listingType: 'job' })).toBe(false) // an employer's own post
+    expect(isLinkedJobReference({ affiliateUrl: '', listingType: 'job' })).toBe(false)
+    expect(isLinkedJobReference({ affiliateUrl: r.job.affiliateUrl, listingType: 'wanted' })).toBe(false)
+    expect(isLinkedJobReference({ affiliateUrl: 'https://rever.vn/x', listingType: 'rent' })).toBe(false)
+    expect(isLinkedJobReference({ affiliateUrl: r.job.affiliateUrl, listingType: null })).toBe(false)
   })
 })
 
