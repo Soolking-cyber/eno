@@ -223,6 +223,10 @@ describe('isRequiredFacet — the publish gate', () => {
       // importers fill from each source's own property-type field; a resident posting an ordinary
       // flat has no type to pick, so it must never block publishing.
       'rentals/aptType',
+      // 2026-10-20: the apartment amenities (no live-in landlord, car access…) became a POST question (owner: "also add
+      // those filter chips when someone posts in our app") after living as an importer-only `derived` filter. A seller
+      // ticks what the flat has; one who ticks none must still publish (standing leniency policy).
+      'rentals/amenities',
       // 2026-10-01: "English: Required" is the jobs facet's ONLY option. Required, every employer had to
       // tick it to publish, so a role that needs no English could not be posted without claiming it did.
       'jobs/english',

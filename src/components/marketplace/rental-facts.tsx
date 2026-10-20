@@ -99,6 +99,7 @@ const AMENITY_ICON: Readonly<Record<string, IconComponent>> = {
   balcony: Flower2,
   kitchen: CookingPot,
   fridge: Refrigerator,
+  'private-washer': WashingMachine,
   washer: WashingMachine,
   'water-heater': Heater,
   bed: BedDouble,

@@ -11,6 +11,8 @@ import { licenceStampFor } from '@/lib/licence-stamp'
  */
 const h = vi.hoisted(() => ({
   listing: null as Record<string, unknown> | null,
+  /** What the page asked the database for — a column it does not select never reaches the form. */
+  listingQuery: null as { select?: Record<string, unknown> } | null,
   desk: [] as string[] | Error,
   wizardProps: null as Record<string, unknown> | null,
 }))
@@ -23,7 +25,7 @@ vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => ({ id: 'owner-1' 
 vi.mock('@/lib/db', () => ({
   db: {
     seller: { findUnique: async () => ({ id: 'seller-1' }) },
-    listing: { findUnique: async () => h.listing },
+    listing: { findUnique: async (q: { select?: Record<string, unknown> }) => { h.listingQuery = q; return h.listing } },
     category: { findMany: async () => [{ id: 'c-services', slug: 'services', name: 'Services', nameVi: 'Dịch vụ', icon: 'Wrench', color: 'cyan' }] },
     brand: { findUnique: async () => null },
   },
@@ -93,5 +95,44 @@ describe('the edit screen and the licence check', () => {
 
   it('outside the two aisles there is nothing to check: approved', async () => {
     expect((await editFor(row({ subcategorySlug: 'cleaning', attributes: null }))).licence).toEqual({ approved: true, exempt: false, exemptAisles: [] })
+  })
+})
+
+/**
+ * ⛔ THE APARTMENT AMENITIES THE FORM OPENS ON (owner, 2026-10-20: "also add those filter chips when someone posts in our
+ * app"). A seller's picks live in `facetTokens`, not `attributes`, and the wizard sends the facet on EVERY save, which the
+ * server REPLACES — so a page that did not select the column, or built `edit.attributes` from `attributes` alone, would
+ * open the chips empty and the first untouched save would wipe the picks (reviewer's catch: reverting this wiring passed
+ * every other test). multi-facet.ts editFormAttributes is the rule; this pins that the page uses it.
+ */
+describe('the edit screen and the apartment amenities', () => {
+  const flat = (over: Record<string, unknown>) => row({
+    title: 'Bright 1-bedroom flat near the river', description: 'Quiet street, ten minutes from the centre.', price: 9_000_000,
+    categoryId: 'c-rentals', category: { slug: 'rentals' }, subcategorySlug: 'apartment-rental', listingType: 'rent', priceUnit: 'VND/month',
+    attributes: JSON.stringify({ rentalPeriod: 'monthly', furnishing: 'fully', bedrooms: '1' }),
+    ...over,
+  })
+
+  it('⛔ selects `facetTokens` and opens the chips on its picks — in taxonomy order, other tokens and answers as they are', async () => {
+    const edit = await editFor(flat({ facetTokens: '|amenities:pets|rentalPeriod:weekly|amenities:no-landlord|' }))
+    expect(h.listingQuery?.select).toMatchObject({ facetTokens: true, attributes: true })
+    expect(edit.attributes).toEqual({ rentalPeriod: 'monthly', furnishing: 'fully', bedrooms: '1', amenities: 'no-landlord,pets' })
+    // The raw column itself is not handed to the client.
+    expect(edit).not.toHaveProperty('facetTokens')
+  })
+
+  it('a pick an older write left in `attributes` opens pressed too, so the first save moves it to the tokens', async () => {
+    const edit = await editFor(flat({ attributes: JSON.stringify({ rentalPeriod: 'monthly', amenities: 'pool' }), facetTokens: '|amenities:gym|' }))
+    expect(edit.attributes).toEqual({ rentalPeriod: 'monthly', amenities: 'pool,gym' })
+  })
+
+  it('a stored JSON `null` opens the form with no answers — never a crashed edit page', async () => {
+    expect((await editFor(flat({ attributes: 'null', facetTokens: null }))).attributes).toEqual({})
+  })
+
+  // codex, 2026-10-20: a Wanted ad's picks are wishes; switched to Rent they must not come back pressed as facts.
+  it('⛔ a Wanted ad opens with no picks, whatever its tokens hold', async () => {
+    const edit = await editFor(flat({ listingType: 'wanted', facetTokens: '|amenities:pool|rentalPeriod:weekly|' }))
+    expect(edit.attributes).toEqual({ rentalPeriod: 'monthly', furnishing: 'fully', bedrooms: '1' })
   })
 })

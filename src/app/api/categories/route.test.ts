@@ -60,4 +60,15 @@ describe('GET /api/categories — multi', () => {
     expect(facets.filter((f) => f.multi).map((f) => `${f.cat}/${f.key}`)).toEqual(['rentals/amenities'])
     expect(facets.some((f) => f.key === 'hasVideo')).toBe(false)
   })
+
+  // Owner, 2026-10-20: "also add those filter chips when someone posts in our app" — the amenities are a POST field now,
+  // never one that blocks publishing: a client's post gate must read them as multi AND optional, on apartments only.
+  it('⛔ offers the apartment amenities as a post field: multi, optional, every option with both labels', async () => {
+    const rentals = (await categories()).find((c) => c.slug === 'rentals')!
+    const amenities = (rentals.facets as Row[]).find((f) => f.key === 'amenities')!
+    expect(amenities).toMatchObject({ multi: true, optional: true, kind: 'toggle', subcats: ['apartment-rental'], range: null })
+    expect(amenities.options.length).toBeGreaterThan(20)
+    for (const o of amenities.options as Row[]) expect(o).toEqual({ value: expect.stringMatching(/^[a-z0-9][a-z0-9-]*$/), label: expect.any(String), labelVi: expect.any(String) })
+    expect((amenities.options as Row[]).slice(0, 2).map((o) => o.value)).toEqual(['no-landlord', 'car-alley'])
+  })
 })

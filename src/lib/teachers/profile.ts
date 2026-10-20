@@ -688,7 +688,7 @@ export function teacherSubcategory(t: Pick<TeacherInput, 'subjects'>): string {
 }
 
 /**
- * The derived facet tokens (all multi-valued facets go to `facetTokens`, which no public write path can reach — see
+ * The derived facet tokens (all multi-valued facets go to `facetTokens`, which no seller-typed text can reach — see
  * src/lib/facet-tokens.ts). Since 2026-10-08:
  *   · workIn:<every teach area> ("Can teach in"), always — the key is kept, so old attr_workIn links need no alias;
  *     ⛔ never a city-level copy of a district pick: "anywhere in HCMC" is its own token, and a District 7 teacher

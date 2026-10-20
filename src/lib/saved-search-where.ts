@@ -78,7 +78,7 @@ async function whereFor(p: SavedSearchParams, phrase: DistrictInference | null, 
   /**
    * ⛔ FACET FILTERS BY THE FEED'S OWN RULES, READ OFF THE ALERT'S OWN LINK (2026-10-09). Every `attr_*` but `posted`
    * was matched here as the plain text `"key":"value"` in `attributes`, while the feed reads it through attr-match.ts:
-   * the importer-only `facetTokens` column, the derived expansions (a city's "Can teach in" also finds its districts and
+   * the `facetTokens` column, the derived expansions (a city's "Can teach in" also finds its districts and
    * "anywhere" — places.ts workInFilterKeys; a cover area its umbrella — cover.ts; "weekly" also priced by the day), the
    * open-ended "6+" bucket and the "Fits" chips whose rows store a device name. Apartment amenities live only in tokens,
    * so "pool" never fired.

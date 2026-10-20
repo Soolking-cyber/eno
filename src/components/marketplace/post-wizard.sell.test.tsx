@@ -42,7 +42,7 @@ const { PostWizard } = await import('./post-wizard')
 const { PostSuccess } = await import('./post-wizard-sections')
 const { DraftNotice, PublishButton, PublishLabel } = await import('./post-wizard-parts')
 const { POST_CATEGORY_RANK } = await import('./post-wizard-category')
-const { brandModelPayload, draftHasContent } = await import('./post-wizard-payload')
+const { attributesPayload, brandModelPayload, draftHasContent } = await import('./post-wizard-payload')
 
 afterEach(() => cleanup())
 
@@ -241,7 +241,9 @@ describe('post wizard — brand and model on an EDIT (review, 2026-10-04)', () =
   it('every poster is asked the e-visa chips since O-34 was retired (owner, 2026-10-14), and every answer is sent', () => {
     const src = readFileSync(join(__dirname, 'post-wizard.tsx'), 'utf8')
     expect(src).toContain('const catFacets = askableFacetsFor(categorySlug, subcategorySlug)')
-    expect(src).toContain('attributes: Object.fromEntries(Object.entries(attrs).filter(([, v]) => v)),')
+    // Since 2026-10-20 through attributesPayload (the apartment amenities go as a list) — which still sends every answer.
+    expect(src).toContain('attributes: attributesPayload(attrs, attrFacets),')
+    expect(attributesPayload({ visaEntryType: 'single', visaSpeed: '1H', serviceLocation: '' }, [])).toEqual({ visaEntryType: 'single', visaSpeed: '1H' })
     expect(src).not.toMatch(/VISA_PRODUCT_FACET_KEYS|officialPartner, existing/)
   })
 

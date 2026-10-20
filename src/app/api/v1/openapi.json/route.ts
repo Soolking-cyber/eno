@@ -637,7 +637,9 @@ export const SPEC = {
             type: 'object',
             additionalProperties: true,
             description: [
-              'Category-specific facets. Keys must be simple identifiers (letters, digits, underscore) and values non-empty strings — other entries are dropped, and every value is cut to 40 characters. Two keys are the exception, and are read only in a licence aisle:',
+              'Category-specific facets. Keys must be simple identifiers (letters, digits, underscore) and values non-empty strings — other entries are dropped, and every value is cut to 40 characters.',
+              'A MULTI-SELECT facet (`multi: true` in GET /api/categories — today `amenities` on rentals/apartment-rental) takes an array of its option values, or a comma list: only the options of the facet the listing’s own subcategory declares are kept (anything else is dropped, never an error), and the picks are stored as the listing’s amenities — never as an attribute. Optional, and read for a `rent` listing only: a `wanted` one, or a listing filed in a subcategory without the facet, stores none.',
+              'Two keys are the exception, and are read only in a licence aisle:',
               '`providerLegalName` (≤160 characters) and `providerLicenceNo` (≤60) — the provider’s registered business name and its licence number (in Legal & permits: a licence or registration number, or the 10-digit enterprise code), exactly as written on the licence.',
               'REQUIRED for a listing in services/visa-legal (e-Visa) or services/legal-permits — picked, or inferred from the words (see `subcategorySlug`) — from any shop but eno’s own: without both, the create is refused with 422 `provider_licence_required`; with them, the listing is stored unpublished (`held`) until eno has checked them against the licence.',
               'Validated, never cut: a value that cannot be accepted (a personal ID number, a phone number or other contact details, a disallowed word, a malformed number) is refused with 422 `provider_licence_invalid`, `error.detail` "<field>:<reason>".',
@@ -699,6 +701,7 @@ export const SPEC = {
             additionalProperties: true,
             description: [
               'Category-specific facets, under the same rules as `ListingInput.attributes`: identifier keys and non-empty string values are kept, every value cut to 40 characters; a derived layer (e.g. providerType) is re-applied on top, so this is a replace-with-sanitized-set, not a merge with what is stored.',
+              '⚠️ EXCEPT A MULTI-SELECT FACET (`amenities` on rentals/apartment-rental): its stored picks are replaced only when this object NAMES the key — an array or comma list of option values, `[]` or `""` clearing them — and left as they are when it does not. Values are validated against the facet of the subcategory the listing will be in; a move to a subcategory without the facet, or a switch to `listingType: "wanted"`, drops the picks.',
               '⛔ On an e-Visa or Legal & permits listing (services/visa-legal, services/legal-permits) `providerLegalName` (≤160) and `providerLicenceNo` (≤60) are read too, uncut and validated as on create (422 `provider_licence_invalid`, `error.detail` "<field>:<reason>"), and shown publicly. Attributes sent WITHOUT both keys on such a listing — from any shop but eno’s own — are refused with 422 `provider_licence_required`, since a replace would otherwise drop them.',
               'A change of either value, or a move into or between the two aisles, unpublishes the listing until eno has checked them again (`held`); an edit of a listing that was never approved keeps it unpublished. An approved listing whose values and aisle stay the same stays live.',
             ].join(' '),

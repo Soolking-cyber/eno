@@ -1,4 +1,5 @@
 import { facetsFor, freeTextAttributesFor, typesFor } from '@/lib/taxonomy'
+import { MULTI_SEP } from '@/lib/multi-facet'
 import { providerLicenceKeysFor } from '@/lib/provider-licence'
 import { UNLINKED_CATEGORIES } from '@/lib/retired-categories'
 
@@ -75,10 +76,15 @@ export function subcategoryChangeReset<R>(
   // freeTextAttributesFor, the same rule enrichment writes by — never as a hidden value on any shelf.
   const freeText = freeTextAttributesFor(cur.categorySlug, nextSub || null)
   const licenceKeys = providerLicenceKeysFor(cur.categorySlug, nextSub || null)
+  // A MULTI facet's value is a comma list (multi-facet.ts — apartment amenities, 2026-10-20): it stays only where the new
+  // shelf asks that facet AND offers every pick in it.
+  const offered = (f: (typeof facets)[number], v: string) => f.multi
+    ? v.split(MULTI_SEP).map((p) => p.trim()).filter(Boolean).every((p) => f.options.some((o) => o.value === p))
+    : f.options.some((o) => o.value === v)
   const asked = (k: string, v: string) =>
     freeText.includes(k) ||
     licenceKeys.includes(k) ||
-    facets.some((f) => f.key === k && f.kind !== 'range' && (f.options.length === 0 || f.options.some((o) => o.value === v)))
+    facets.some((f) => f.key === k && f.kind !== 'range' && (f.options.length === 0 || offered(f, v)))
   const attrs = Object.fromEntries(Object.entries(cur.attrs).filter(([k, v]) => asked(k, v)))
   const ranges = Object.fromEntries(Object.entries(cur.ranges).filter(([k]) => facets.some((f) => f.key === k && f.kind === 'range'))) as Record<string, R>
   const conditionFacet = facets.find((f) => f.key === 'condition')

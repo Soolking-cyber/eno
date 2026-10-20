@@ -137,6 +137,8 @@ export type FacetDef = {
    * active chips all go through it, so no reader can split the list differently. Unknown parts are dropped, never an
    * error. Only for a multi-valued facet stored in `facetTokens` — a facet a human answers once (bedrooms) stays
    * single-select, where a second pick could only ever empty the feed.
+   * ⛔ A multi facet the POST FORM ASKS (not `derived` — amenities since 2026-10-20) is written from a seller's picks by
+   * multi-facet.ts sellerFacetTokens ONLY: the facet's own option values, never in `attributes`, other tokens untouched.
    */
   multi?: boolean
   /**
@@ -652,9 +654,16 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'serviced', label: 'Serviced / mini', labelVi: 'Dịch vụ / mini' },
         { value: 'officetel', label: 'Officetel', labelVi: 'Officetel' },
       ] },
-      // MULTI-VALUED (a flat has a balcony AND a pool), so it is stored as `facetTokens`
-      // (src/lib/facet-tokens.ts), which only an importer can write — hence `derived`: the post
-      // wizard never asks for it and it never gates publishing, but it filters like any facet.
+      // MULTI-VALUED (a flat has a balcony AND a pool), so it is stored as `facetTokens` (src/lib/facet-tokens.ts), never
+      // in `attributes` — core/listings.ts sanitizeAttributes drops every multi key.
+      // ⛔ ASKED IN THE POST FORM SINCE 2026-10-20 (owner: "also add those filter chips when someone posts in our app") — the
+      // web wizard, which the iOS/Android apps show too, and /api/categories (`multi` + `optional`). Until then it was
+      // `derived` (importer-only). ⚠️ `optional`: never required to publish (standing leniency policy) — a seller who picks
+      // none publishes exactly as before. A seller's picks reach `facetTokens` ONLY through multi-facet.ts sellerFacetTokens
+      // (createListingCore / updateListingCore), which keeps nothing but THIS facet's own option values — no typed character
+      // can become a token — and replaces only the `amenities:*` tokens. ⛔ Asked of a `rent` ad only, never a "Looking to
+      // rent" one: the page lists amenities on a rent ad only, so a Wanted ad's picks would filter but show nowhere
+      // (multi-facet.ts sellerMultiFacets, reviewer's catch 2026-10-20).
       // ⛔ MULTI-SELECT SINCE 2026-10-19 (`multi` above, src/lib/multi-facet.ts) — the GoPlus partnership brought every
       // room's own amenity list (23 keys, scripts/import-goplus.ts), and a renter narrows by several at once.
       // ORDER IS THE CHIP ORDER, AND THE FIRST TWO ARE GOPLUS'S OWN HEADLINE FILTERS: "Không chung chủ" (the landlord
@@ -664,7 +673,12 @@ export const TAXONOMY: CategoryDef[] = [
       // ⚠️ VALUES ARE STORAGE: `balcony`, `pool`, `gym` and `pets` were written by the classifier before 2026-10-19
       // (src/lib/apartment-classify.ts) and keep their spelling; a value renamed here orphans every row holding it.
       // The PDP lists a row's amenities in this order with these labels (src/lib/rental-facts.ts).
-      { key: 'amenities', label: 'Amenities', labelVi: 'Tiện ích', kind: 'toggle', derived: true, multi: true,
+      // ⛔ TWO WASHERS, NEVER ONE NEUTRAL ONE (reviewer's catch, 2026-10-20). GoPlus's `washer` is a BUILDING key — the
+      // shared machine (goplus-listing.ts GOPLUS_BUILDING_WIDE_KEYS; 596 rooms carry it, measured that day) — and its
+      // label states exactly that. Asked of a seller, it left a flat with its own machine a choice between skipping it and
+      // claiming "shared", so `private-washer` sits beside it, in the words GoPlus's own staff type ("Máy giặt riêng").
+      // Relabelling `washer` "Washing machine" instead would have dropped a true "shared" from 596 room pages.
+      { key: 'amenities', label: 'Amenities', labelVi: 'Tiện ích', kind: 'toggle', optional: true, multi: true,
         subcats: ['apartment-rental'], options: [
         { value: 'no-landlord', label: 'No live-in landlord', labelVi: 'Không chung chủ' },
         { value: 'car-alley', label: 'Car access', labelVi: 'Hẻm xe hơi' },
@@ -676,6 +690,7 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'balcony', label: 'Balcony', labelVi: 'Ban công' },
         { value: 'kitchen', label: 'Kitchenette', labelVi: 'Kệ bếp' },
         { value: 'fridge', label: 'Fridge', labelVi: 'Tủ lạnh' },
+        { value: 'private-washer', label: 'Private washing machine', labelVi: 'Máy giặt riêng' },
         { value: 'washer', label: 'Shared washing machine', labelVi: 'Máy giặt chung' },
         { value: 'water-heater', label: 'Water heater', labelVi: 'Máy nước nóng' },
         { value: 'bed', label: 'Bed and mattress', labelVi: 'Giường nệm' },

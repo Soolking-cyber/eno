@@ -352,8 +352,13 @@ function PickerGlyph({ slug, name, className, stroke, selected }: { slug: string
 /** Single-pick chip row. `icon` (a CategoryIcon registry name — subcategories and
  *  listing types carry one in the taxonomy) renders the same glyph family the home
  *  grid and browse rail use, at the §4 chip step (14px) re-tiered to the UI stroke.
- *  Text-only options (condition, attribute facets) simply pass no icon. */
-export function Chips({ options, value, onPick }: { options: { value: string; label: string; icon?: string }[]; value: string; onPick: (v: string) => void }) {
+ *  Text-only options (condition, attribute facets) simply pass no icon.
+ *  ⛔ A LIST `value` MAKES IT A MULTI-PICK ROW (apartment amenities, owner 2026-10-20): several chips pressed at once, each
+ *  its own aria-pressed toggle — the Filter panel's multi chips (facet-bar.tsx), in this form's chip style. `onPick`
+ *  still names the one option tapped; the caller toggles it in or out of the list. */
+export function Chips({ options, value, onPick }: { options: { value: string; label: string; icon?: string }[]; value: string | readonly string[]; onPick: (v: string) => void }) {
+  // ONE predicate for the pill, aria-pressed and the glyph's fill, so the three can never disagree about a chip.
+  const on = (v: string) => (typeof value === 'string' ? value === v : value.includes(v))
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((o) => (
@@ -362,7 +367,7 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
           size="none"
           key={o.value}
           type="button"
-          aria-pressed={value === o.value}
+          aria-pressed={on(o.value)}
           onClick={() => onPick(o.value)}
           // py-2.5 + tap-44: 40px drawn, 44px hit. The 2px the pseudo reaches past each edge sits
           // inside the row's 8px gap, so no chip's hit area ever lands on its neighbour's.
@@ -374,11 +379,11 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
           // says chips that must sit apart take `tint` — the same idiom as VndInput's unit chips.
           // No border: a canon-token border cannot reach 1.4.11's 3:1 on this canvas (line-strong
           // measures ~1.4:1), and the visible label is what identifies the control.
-          className={cn('icon-own-ink relative gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors cursor-pointer tap-44', value === o.value ? 'bg-primary text-white' : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground')}
+          className={cn('icon-own-ink relative gap-1.5 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors cursor-pointer tap-44', on(o.value) ? 'bg-primary text-white' : 'bg-tint text-body hover:bg-accent hover:text-accent-foreground')}
         >
           {o.icon && (
             // Fill marks the pick (owner, 2026-08-07: "use icons filling only when selected").
-            // `value === o.value` is the same comparison that paints the pill and sets
+            // `on(o.value)` is the same predicate that paints the pill and sets
             // aria-pressed above — the glyph cannot drift out of sync with either.
             // ⚠️ The `[--color-brand-100:transparent]` that used to be here is deleted, not
             // moved: it neutralized the (then unconditional) wash on exactly the chip that now
@@ -387,7 +392,7 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
               slug={o.value}
               name={o.icon}
               stroke={STROKE_UI}
-              selected={value === o.value}
+              selected={on(o.value)}
               className="h-3.5 w-3.5 shrink-0"
             />
           )}

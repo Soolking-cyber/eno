@@ -56,6 +56,7 @@ import { LISTING_REMOVED, NOT_REMOVED } from '@/lib/listing-removed'
 import { tombstoneListingsTx } from '@/lib/core/listing-tombstone'
 import { POSTED_FACET_KEY } from '@/lib/posted-filter'
 import { VIDEO_FACET_KEY } from '@/lib/video-filter'
+import { isMultiFacetKey, sellerFacetTokens } from '@/lib/multi-facet'
 import { cutText } from '@/lib/feed-text'
 import { REACTIVATION_SALE_RESET, type MarkSoldPatch } from '@/lib/trade-loop'
 import { withdrawSaleQuestions } from '@/lib/core/sale-withdraw'
@@ -85,7 +86,8 @@ export const LISTING_STATUSES = new Set(['active', 'sold', 'hidden'])
  *  array / falsy input → null. ⛔ Never the provider's registered name or licence number
  *  (PROVIDER_LICENCE_KEYS, owner 2026-10-14): a licence number cut to 40 is another licence,
  *  and both carry their own screen — the licence blocks in createListingCore and
- *  updateListingCore write them, uncut, and only inside a licence aisle. */
+ *  updateListingCore write them, uncut, and only inside a licence aisle. ⛔ Nor a multi-select
+ *  facet's key (amenities, 2026-10-20): its picks go to `facetTokens` (multi-facet.ts sellerFacetTokens). */
 /**
  * DERIVED facets — computed from what the app already knows, never asked of the poster.
  *
@@ -179,6 +181,10 @@ export function sanitizeAttributes(raw: unknown): string | null {
       if (k === POSTED_FACET_KEY || k === VIDEO_FACET_KEY) continue
       // The provider's licence values: never through this generic path (see the doc above).
       if (isProviderLicenceKey(k)) continue
+      // ⛔ A MULTI-SELECT FACET (apartment amenities — src/lib/multi-facet.ts) NEVER LIVES HERE (owner, 2026-10-20). Its picks
+      // are `facetTokens`, written only by sellerFacetTokens from the taxonomy's own values. Kept here, a seller's
+      // `"amenities":"no-landlord"` would match the amenities filter — attr-match.ts reads `attributes` too — unvalidated.
+      if (isMultiFacetKey(k)) continue
       if (typeof v === 'string' && v && /^[a-z0-9_]+$/i.test(k)) clean[k] = cutText(v, 40)
     }
   }
@@ -718,6 +724,8 @@ export async function updateListingCore(
       negotiable: true, salaryM: true, affiliateUrl: true, priceUnit: true,
       // A rent row's unit is re-stamped only when its `rentalPeriod` attribute changes (below).
       attributes: true,
+      // A seller's multi-select picks (apartment amenities) are replaced in place, every other token kept (below).
+      facetTokens: true,
       seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } },
       status: true,
       // eno's licence-check stamp and its time (src/lib/licence-stamp.ts) — the licence block below decides on them, and
@@ -981,6 +989,27 @@ export async function updateListingCore(
       current.category.slug,
       attrSub,
     )
+  }
+  // ⛔ THE SELLER'S MULTI-SELECT PICKS (apartment amenities — owner 2026-10-20: "also add those filter chips when someone
+  // posts in our app") → `facetTokens`, through the one public writer (multi-facet.ts sellerFacetTokens): a facet is
+  // replaced only when `attributes` NAMES it, only with the options of the facet the row's shelf declares, and every other
+  // token stays (an importer's, a teacher's). A move to a shelf that does not ask it drops its picks, and so does an edit
+  // to "Looking to rent" — only a `rent` ad answers them (sellerMultiFacets). On the subcategory and intent the row will
+  // have — this edit's (a Wanted ad's catch-all above included), else the stored ones.
+  // ⚠️ NOT a compare-and-set on the column: an importer rewriting this row's tokens between the read and this write loses
+  // to the seller's save until its next run — the same last-writer-wins every other column of an edit has.
+  // ⚠️ `current.category.slug` IS the category after this save too: an edit never changes a row's category — only its
+  // subcategory, within that category (`subcategoriesFor(current.category.slug)` above). A `categorySlug` in the body is
+  // ignored here, as everywhere in this function.
+  {
+    const tokenSub = data.subcategorySlug !== undefined ? (data.subcategorySlug as string | null) : current.subcategorySlug
+    const tokens = sellerFacetTokens(
+      current.facetTokens,
+      body.attributes,
+      { categorySlug: current.category.slug, subcategorySlug: tokenSub, listingType: nextType },
+      { subcategorySlug: current.subcategorySlug, listingType: current.listingType },
+    )
+    if (tokens !== undefined) data.facetTokens = tokens
   }
   // Precise pin from "use my current location".
   if (body.city !== undefined && body.city) data.city = cutText(String(body.city).trim(), 80)
@@ -1627,6 +1656,11 @@ export async function createListingCore(input: {
   const attributes = provider
     ? withProviderLicence(derivedAttributes, provider.legalName && provider.licenceNo ? provider : null)
     : derivedAttributes
+  // ⛔ THE SELLER'S MULTI-SELECT PICKS (apartment amenities — owner 2026-10-20) → `facetTokens`, through the one public
+  // writer (multi-facet.ts sellerFacetTokens): only the options of the facet the RESOLVED subcategory declares, so a post
+  // filed anywhere that does not ask the facet stores none — nor does a "Looking to rent" ad (only `rent` answers them).
+  // sanitizeAttributes above has already kept the key out of `attributes`. Nothing picked → no column written, as before.
+  const facetTokens = sellerFacetTokens(null, body.attributes, { categorySlug, subcategorySlug, listingType }) ?? null
 
   // Structured numeric specs (range facets) → dedicated columns, each clamped to the
   // category's declared range (non-sparse: every declared column is read).
@@ -1744,6 +1778,7 @@ export async function createListingCore(input: {
       subcategorySlug,
       listingType,
       attributes,
+      ...(facetTokens ? { facetTokens } : {}),
       ...rangeData,
       brandSlug,
       model,

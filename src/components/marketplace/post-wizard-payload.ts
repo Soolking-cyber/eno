@@ -1,4 +1,22 @@
-import type { RangeMeta } from '@/lib/taxonomy'
+import type { FacetDef, RangeMeta } from '@/lib/taxonomy'
+import { isMultiFacetKey, multiFacetPicks } from '@/lib/multi-facet'
+
+/**
+ * The `attributes` a post-wizard submit sends. Pure, so the rule below is tested rather than re-derived.
+ * Every answered single-select facet as it is (an empty answer is not sent — as before). ⛔ EACH MULTI-SELECT FACET THE
+ * FORM ASKS ON THIS SHELF (apartment amenities, owner 2026-10-20) GOES AS THE LIST OF ITS PICKS, AND IT GOES EVEN WHEN
+ * EMPTY: the server replaces a multi facet's stored picks only when the body NAMES it (multi-facet.ts sellerFacetTokens —
+ * an API client that never mentions amenities must not wipe them), so a seller who un-picks the last chip has to say
+ * "none" rather than say nothing. A multi value the shelf does not ask (left from another shelf) is not sent at all.
+ */
+export function attributesPayload(
+  attrs: Record<string, string>,
+  facets: readonly Pick<FacetDef, 'key' | 'multi' | 'options'>[],
+): Record<string, string | string[]> {
+  const out: Record<string, string | string[]> = Object.fromEntries(Object.entries(attrs).filter(([k, v]) => v && !isMultiFacetKey(k)))
+  for (const f of facets) if (f.multi) out[f.key] = multiFacetPicks(f, attrs[f.key])
+  return out
+}
 
 /**
  * The precise numeric specs (range facets → their dedicated columns: year, mileageKm, engineL, areaM2,

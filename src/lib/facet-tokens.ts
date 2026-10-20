@@ -10,10 +10,23 @@
  * would match the filter — a free-text attribute is 40 chars, which is plenty. A public
  * `attr__f=…` param could also address the private key directly.
  *
- * So the tokens get their OWN column, which no public write path can reach: `sanitizeAttributes()`
- * (the one route a human seller's attributes take) does not know this field exists, and neither
- * does the post wizard. Only an importer writes it, through Prisma. That makes the injection
- * impossible by construction rather than by a validation rule someone must remember.
+ * So the tokens get their OWN column, which no FREE TEXT can reach: `sanitizeAttributes()` (the one
+ * route a human seller's attributes take) never writes it, and drops every multi facet's key from
+ * `attributes` as well. Importers write it through Prisma; the teacher publish core writes a teacher's.
+ *
+ * ⛔ ONE PUBLIC WRITER, SAFE BY CONSTRUCTION (owner, 2026-10-20: "also add those filter chips when someone
+ * posts in our app" — the apartment amenities). A seller's picks of a multi facet the post form asks reach
+ * this column ONLY through multi-facet.ts `sellerFacetTokens`, from createListingCore / updateListingCore
+ * (the web wizard and the apps' webview of it, /api/v1's create and edit — MCP and a partner sync send no
+ * attributes). Its tokens are built from the TAXONOMY'S OWN option values for that listing's (category,
+ * subcategory) — the seller's input only decides which of them are in — so not one seller-typed character
+ * can become a token, and a value can never carry a `|` or `:`. It replaces only that facet's tokens
+ * (`replaceFacetTokens` below) and keeps every other one: a teacher's coverArea/workIn, an importer's sizes
+ * or rental periods. The injection the reviewers rejected stays impossible by construction, not by a rule
+ * someone must remember.
+ * ⚠️ prisma/schema.prisma's note on the column ("only importers write it") predates this writer, and THIS header is the
+ * rule. It is left as it was on purpose: eno-deploy.sh refuses any prisma/ change without SCHEMA_OK, comment or not —
+ * reword it with the next real schema change, never in a commit of its own.
  *
  * FORMAT — `|key:value|key:value|`, leading and trailing bars included, so a `contains` for
  * `|key:value|` can never match a PREFIX of a longer value (`|size:m|` vs `|size:m-l|`) and the key
@@ -70,4 +83,31 @@ export function parseFacetTokens(tokens: string | null | undefined): FacetPair[]
 /** Values a listing carries for one facet key (empty when it carries none). */
 export function facetValues(tokens: string | null | undefined, key: string): string[] {
   return parseFacetTokens(tokens).filter((p) => p.key === key).map((p) => p.value)
+}
+
+/**
+ * `stored` with every token of `keys` taken out and `next`'s values for those keys put in — ⛔ EVERY OTHER TOKEN KEPT,
+ * in its order: a teacher's coverArea/workIn and an importer's sizes or rental periods are not the caller's to touch.
+ * The new values go through buildFacetTokens' own shape check; a key with no (valid) value left carries no token.
+ * Null when nothing at all is left, so the column holds NULL rather than `||`.
+ */
+export function replaceFacetTokens(
+  stored: string | null | undefined,
+  keys: readonly string[],
+  next: Readonly<Record<string, readonly string[]>>,
+): string | null {
+  const replaced = new Set(keys)
+  const kept = parseFacetTokens(stored).filter((p) => !replaced.has(p.key)).map((p) => `${p.key}:${p.value}`)
+  const added = parseFacetTokens(buildFacetTokens(Object.fromEntries(keys.map((k) => [k, [...(next[k] ?? [])]]))))
+    .map((p) => `${p.key}:${p.value}`)
+  const all = [...new Set([...kept, ...added])]
+  return all.length ? `|${all.join('|')}|` : null
+}
+
+/** Whether two stored values carry the same tokens, whatever their order — so a save that re-sends the same picks writes
+ *  nothing new. */
+export function sameFacetTokens(a: string | null | undefined, b: string | null | undefined): boolean {
+  const x = new Set(parseFacetTokens(a).map((p) => `${p.key}:${p.value}`))
+  const y = new Set(parseFacetTokens(b).map((p) => `${p.key}:${p.value}`))
+  return x.size === y.size && [...x].every((t) => y.has(t))
 }

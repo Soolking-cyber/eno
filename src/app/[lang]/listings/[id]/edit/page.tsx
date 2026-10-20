@@ -10,6 +10,7 @@ import { categoryHasBrand, isPostableCategory, LICENCE_CHECK_SUBCATEGORIES, NON_
 import { LISTING_REMOVED } from '@/lib/listing-removed'
 import { deskSellerIds } from '@/lib/edition-scope'
 import { LICENCE_WHITELIST, licenceCleared } from '@/lib/licence-stamp'
+import { editFormAttributes } from '@/lib/multi-facet'
 
 /** A pre-salary-rule job's monthly price as whole millions on the salary facet's scale, or null.
  *  ⚠️ ROUNDED DOWN (salaryMFromPrice), never to the nearest: an untouched 12,500,000 ₫ job opened and
@@ -42,6 +43,8 @@ export default async function EditListingPage({ params }: Props) {
         id: true, sellerId: true, title: true, description: true, price: true, negotiable: true, urgentUntil: true,
         categoryId: true, subcategorySlug: true, listingType: true, condition: true,
         brandSlug: true, model: true, attributes: true, priceUnit: true,
+        // A seller's multi-select picks (apartment amenities) live here, not in `attributes` — the chips open on them.
+        facetTokens: true,
         year: true, mileageKm: true, engineL: true, engineCc: true, areaM2: true, salaryM: true,
         district: true, city: true, lat: true, lng: true, images: true, video: true, status: true,
         // The licence-check stamp (src/lib/licence-stamp.ts) — read for `edit.licence` below, never sent to the client.
@@ -99,7 +102,9 @@ export default async function EditListingPage({ params }: Props) {
     condition: listing.condition,
     brand: brandName,
     model: showBrand ? listing.model : null,
-    attributes: safeParse<Record<string, string>>(listing.attributes, {}),
+    // ⛔ …WITH THE MULTI-SELECT PICKS FROM `facetTokens` (apartment amenities, owner 2026-10-20): the form sends that facet on
+    // every save and the server REPLACES it, so a form opened without them would save an apartment's amenities away.
+    attributes: editFormAttributes(safeParse<Record<string, string>>(listing.attributes, {}), listing.facetTokens, listing.category.slug, listing.subcategorySlug, listing.listingType),
     // The stored unit is what buyers see — a rent edit opens its period chip on it (initAttrsFromEdit).
     priceUnit: listing.priceUnit,
     year: listing.year,

@@ -48,7 +48,8 @@ import { publishSteps } from './post-wizard-steps'
 import { TeacherProfileInstead, TeacherProfileLine } from './post-wizard-teacher'
 import { LicenceCheckNote, ProviderLicenceFields, licenceGuessHint, licenceHeldToast, licenceMovedOutToast, type LicenceSlot } from './post-wizard-evisa'
 import { PROVIDER_LEGAL_NAME, PROVIDER_LICENCE_KEYS, PROVIDER_LICENCE_NO, providerLicenceOf, providerLicenceProblems, sameProviderLicence } from '@/lib/provider-licence'
-import { brandModelPayload, draftHasContent, rangeColumnsPayload } from './post-wizard-payload'
+import { attributesPayload, brandModelPayload, draftHasContent, rangeColumnsPayload } from './post-wizard-payload'
+import { multiFacetPicks, sellerMultiFacets, toggleMultiFacetValue } from '@/lib/multi-facet'
 import { categoryChangeLosesAnswers, categoryChangeReset, orderPostCategories, subcategoryChangeReset } from './post-wizard-category'
 import { postCopyFor } from '@/lib/post-copy'
 import { clearDraftPhotos, draftPhotosEpoch, loadDraftPhotos, saveDraftPhotos } from '@/lib/post-draft-photos'
@@ -943,7 +944,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // own registration by ticking "Individual" on a business account. Browse still filters on it.
   const catFacets = askableFacetsFor(categorySlug, subcategorySlug)
   const hasCondition = catFacets.some((f) => f.key === 'condition')
-  const attrFacets = catFacets.filter((f) => f.key !== 'condition')
+  // ⛔ A MULTI-SELECT facet (apartment amenities) only on an ad that answers it — a `rent` ad, never "Looking to rent"
+  // (multi-facet.ts sellerMultiFacets: its page would never list them). Hidden, it is not sent either (attributesPayload);
+  // its picks stay in `attrs`, so a seller who flips the intent back finds them pressed.
+  const sellerMulti = sellerMultiFacets(categorySlug, subcategorySlug, listingType)
+  const attrFacets = catFacets.filter((f) => f.key !== 'condition' && (!f.multi || sellerMulti.some((m) => m.key === f.key)))
   // In Rentals only a vehicle rental has a brand; an apartment asked for one read as a broken form.
   const brandShownFor = (sub: string) => categoryHasBrand(categorySlug) && (categorySlug !== 'rentals' || VEHICLE_RENTAL_SUBS.has(sub))
   const vehicleRental = categorySlug === 'rentals' && VEHICLE_RENTAL_SUBS.has(subcategorySlug)
@@ -956,7 +961,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const salaryFacet = salaryPaid ? rangeFacetsFor(categorySlug, subcategorySlug).find((f) => f.range.column === 'salaryM') : undefined
   const salary = salaryFacet ? ranges[salaryFacet.key] ?? null : null
   const salaryAmount = salaryPriceFor(salary)
-  const orderedFacets = [...attrFacets].filter((f) => f !== salaryFacet).sort((a, b) => Number(!isRequiredFacet(a)) - Number(!isRequiredFacet(b)))
+  // Required first, then the optional ones — and a MULTI-SELECT facet last of all (apartment amenities, 2026-10-20): its
+  // two dozen chips ahead of "Bathrooms" would bury the short questions under the long one. The sort is stable.
+  const facetRank = (f: (typeof attrFacets)[number]) => (isRequiredFacet(f) ? 0 : f.multi ? 2 : 1)
+  const orderedFacets = [...attrFacets].filter((f) => f !== salaryFacet).sort((a, b) => facetRank(a) - facetRank(b))
 
   // Sale-vs-rent quick switch for rentable items (Vehicles/Property ↔ Rentals). AI
   // defaults rentable items to a sale category; one tap flips the WHOLE category to
@@ -1514,7 +1522,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         categorySlug,
         subcategorySlug: subcategorySlug || null,
         listingType,
-        attributes: Object.fromEntries(Object.entries(attrs).filter(([, v]) => v)),
+        // Answered facets — and each multi-select one (apartment amenities) as its list of picks, sent even when empty:
+        // the server replaces it only when named (post-wizard-payload.ts attributesPayload).
+        attributes: attributesPayload(attrs, attrFacets),
         // Precise numeric specs → dedicated columns (year/mileageKm/engineL/salaryM). A spec cleared on
         // an edit is sent as null, and a JOB'S SALARY is sent on every edit — the rules and why are in
         // post-wizard-payload.ts.
@@ -2313,11 +2323,18 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   the optional electronics specs (Storage, RAM, Connectivity) ahead of the required
                   Warranty and Colour, so the seller answered three questions nobody asked for before
                   reaching the two that block Publish. The sort is stable, so each group keeps its
-                  taxonomy order; `pw-details` (the scroll anchor) now lands on a required facet. */}
+                  taxonomy order; `pw-details` (the scroll anchor) now lands on a required facet.
+                  A MULTI-SELECT facet (apartment amenities — owner 2026-10-20: "also add those filter chips
+                  when someone posts in our app") comes last, optional, with a hint that several apply. */}
               {orderedFacets.map((f, fi) => (
-                <Field group key={f.key} id={fi === 0 ? 'pw-details' : undefined} label={tr(f.label, f.labelVi)} optional={!isRequiredFacet(f)} error={err.details && isRequiredFacet(f) && !attrs[f.key] ? t('Hãy chọn một mục', 'Pick one') : undefined}>
+                <Field group key={f.key} id={fi === 0 ? 'pw-details' : undefined} label={tr(f.label, f.labelVi)} optional={!isRequiredFacet(f)} hint={f.multi ? t('Chọn tất cả các mục phù hợp', 'Pick all that apply') : undefined} error={err.details && isRequiredFacet(f) && !attrs[f.key] ? t('Hãy chọn một mục', 'Pick one') : undefined}>
                   {f.kind === 'range' && f.range ? (
                     <RangeSpecInput range={f.range} value={ranges[f.key] ?? null} onChange={(v) => setRanges((prev) => ({ ...prev, [f.key]: v }))} />
+                  ) : f.multi ? (
+                    // ⛔ SEVERAL PRESSED AT ONCE, each its own aria-pressed toggle — the Filter panel's chips, the browse filter's
+                    // own words (taxonomy labels). The form keeps the picks as the canonical comma list; a tap toggles one in or
+                    // out, reading the LATEST state (two quick taps keep both — the updater's `prev`, never this render's).
+                    <Chips options={f.options.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))} value={multiFacetPicks(f, attrs[f.key])} onPick={(v) => setAttrs((prev) => ({ ...prev, [f.key]: toggleMultiFacetValue(f.key, prev[f.key], v) ?? '' }))} />
                   ) : (
                     <Chips options={f.options.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))} value={attrs[f.key] || ''} onPick={(v) => setAttrs((prev) => ({ ...prev, [f.key]: prev[f.key] === v ? '' : v }))} />
                   )}

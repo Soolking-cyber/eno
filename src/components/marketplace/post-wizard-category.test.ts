@@ -117,6 +117,15 @@ describe('post wizard — a SUBCATEGORY change (the picker and the "Gợi ý" su
     expect(freeTextAttributesFor('services', 'legal-permits')).not.toContain('providerLicenceNo')
   })
 
+  // The apartment amenities (owner, 2026-10-20) are a MULTI facet: its value is a comma list, which the single-value test
+  // (`option === value`) could never match — so a shelf that asks it keeps the list when it offers every pick.
+  it('a MULTI facet’s list stays on a shelf that asks it and offers every pick — and goes, with Undo, anywhere else', () => {
+    const flat = { categorySlug: 'rentals', attrs: { rentalPeriod: 'monthly', amenities: 'no-landlord,car-alley' }, ranges: {} as Record<string, number | null>, condition: '', brand: '', model: '' }
+    expect(subcategoryChangeReset(flat, 'apartment-rental', { brandShown: false })).toMatchObject({ attrs: flat.attrs, lost: false })
+    expect(subcategoryChangeReset({ ...flat, attrs: { amenities: 'no-landlord,jacuzzi' } }, 'apartment-rental', { brandShown: false })).toMatchObject({ attrs: {}, lost: true })
+    expect(subcategoryChangeReset(flat, 'house-rental', { brandShown: false })).toMatchObject({ attrs: { rentalPeriod: 'monthly' }, lost: true })
+  })
+
   it('brand and model go only when the new shelf HIDES the Brand field (a vehicle rental → an apartment)', () => {
     const bike = { categorySlug: 'rentals', attrs: { rentalPeriod: 'daily' }, ranges: {} as Record<string, number | null>, condition: '', brand: 'Honda', model: 'Vision' }
     expect(subcategoryChangeReset(bike, 'apartment-rental', { brandShown: false })).toMatchObject({ brand: '', model: '', lost: true })

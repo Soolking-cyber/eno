@@ -587,8 +587,10 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
    * ⚠️ TWO PLACES A FACET VALUE CAN LIVE, AND A FILTER MUST ACCEPT EITHER. Everything a human
    * posts answers each facet ONCE and lives in `attributes` ({"size":"m"}). An imported product
    * sold in eight sizes cannot say that, so multi-valued facets live in `facetTokens`
-   * (`|size:m|size:l|`, src/lib/facet-tokens.ts) — a column no public write path reaches, which
-   * is what makes matching it with a `contains` safe.
+   * (`|size:m|size:l|`, src/lib/facet-tokens.ts) — a column no seller-typed text reaches (its one
+   * public writer, a seller's apartment amenities since 2026-10-20, builds every token from the
+   * taxonomy's own values — multi-facet.ts sellerFacetTokens), which is what makes matching it with a
+   * `contains` safe.
    * ⚠️ ONLY A TAXONOMY-SHAPED VALUE BUILDS A TOKEN NEEDLE. Facet values are slugs (`eu-44-plus`,
    * `xs-s`); without that check `?attr_size=m|sport:running` assembles `|size:m|sport:running|`,
    * a cross-facet needle no chip can express (a reviewer's catch).
