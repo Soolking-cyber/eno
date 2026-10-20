@@ -7,7 +7,7 @@ import { ArrowRight, User } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { CATEGORY_ENTRY_LABELS } from '@/lib/category-entry-label'
 import { localizedHref } from '@/lib/lang-pinned'
-import { teacherJoinUrl } from '@/lib/teachers/host'
+import { teacherJoinUrl, teacherSurfaceHref } from '@/lib/teachers/host'
 import { keepTeacherJoinInApp } from '@/components/teachers/teacher-join-click'
 import { TEACH_HUB_PATH } from '@/lib/teach-guides/hub-path'
 import { IS_SERVICES } from '@/lib/edition'
@@ -38,6 +38,9 @@ const DOOR_LINK = 'relative tap-44 inline-flex items-center gap-1 font-semibold 
  * the sign-up form on its own host — in the iOS / Android app on this host instead (keepTeacherJoinInApp). The server
  * render and the hydration render both draw the last of those (useDashboard's server snapshot holds no dashboard), so the
  * swap happens after hydration, a page below the fold.
+ * ⛔ ON eno.forum EVERY LINK HERE BUT THE CARDS GOES TO eno.vn DIRECTLY (teacherSurfaceHref / teacherJoinUrl): the forum 308s
+ * the teacher pages there (owner decision 6, 2026-10-20; src/lib/teachers/surface.ts). A card still opens /listings/<id>,
+ * whose PDP sends a teacher's profile on to eno.vn ((pdp)/layout.tsx) — one hop, and <ListingCard> stays untouched.
  * ⚠️ NO NEW COPY: the title is the category's entry label ("Find a teacher" — category-entry-label.ts), the door lines are
  * the plate's and /c/jobs' own. No counts, and no "free" (POSTING_IS_FREE governs that word).
  * ⚠️ ONE EXCEPTION, THE OWNER'S (teacher visibility plan, approved 2026-10-18): a second line to the teacher library's hub,
@@ -66,7 +69,7 @@ export function TeacherShelf({
   const title = CATEGORY_ENTRY_LABELS.teachers
   return (
     <div data-teacher-shelf="" className="col-span-full min-w-0 border-t border-border pt-6 pb-4 not-last:border-b">
-      <Shelf icon={User} title={tr(title.name, title.nameVi)} seeAllHref={localizedHref('/c/teachers', lang)}>
+      <Shelf icon={User} title={tr(title.name, title.nameVi)} seeAllHref={teacherSurfaceHref(localizedHref('/c/teachers', lang))}>
         {listings.map((l) => (
           <div key={l.id} className={RAIL_CARD_W}>
             <ListingCard listing={l} onOpen={onOpen} />
@@ -75,11 +78,11 @@ export function TeacherShelf({
       </Shelf>
       <p className="mt-4 max-w-prose text-sm text-body">
         {teacherProfile ? (
-          <a href={localizedHref('/teachers/edit', lang)} data-cross-link="home-teacher-edit" className={DOOR_LINK}>
+          <a href={teacherSurfaceHref(localizedHref('/teachers/edit', lang))} data-cross-link="home-teacher-edit" className={DOOR_LINK}>
             {tr('Your teacher profile', 'Hồ sơ giáo viên của bạn')} <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
           </a>
         ) : teacherDraft ? (
-          <a href={localizedHref('/teachers/join', lang)} data-cross-link="home-teacher-continue" className={DOOR_LINK}>
+          <a href={teacherSurfaceHref(localizedHref('/teachers/join', lang))} data-cross-link="home-teacher-continue" className={DOOR_LINK}>
             {tr('Continue your teacher profile', 'Tiếp tục hồ sơ giáo viên')} <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
           </a>
         ) : (

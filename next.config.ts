@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { appRootSegments, markdown404Source } from "./src/lib/root-segments";
 import { INDEXNOW_KEY_REWRITE } from "./src/lib/indexnow-key";
 import { retiredCategoryRedirects } from "./src/lib/retired-categories";
+import { forumTeacherRedirects } from "./src/lib/teachers/surface-redirects";
 import { unknownAppReviewGates } from "./src/lib/app-review-gates";
 import { unknownAppleSignInTokens } from "./src/lib/apple-signin";
 import type { NextConfig } from "next";
@@ -997,6 +998,14 @@ const nextConfig: NextConfig = {
             { source: '/teach-in-vietnam/:slug', destination: 'https://eno.vn/teach-in-vietnam/:slug', permanent: true },
           ]
         : []),
+      /**
+       * THE WHOLE TEACHER SURFACE LIVES ON eno.vn — SERVICES EDITION ONLY (owner decision 6, 2026-10-20), the library's
+       * rule above extended to the rest: teacher.eno.forum, /c/teachers (+ district pages), /teachers/<…> and /schools
+       * (+ every school page), each to the same path there, permanently, query kept. The rules and their exclusions are
+       * in src/lib/teachers/surface-redirects.ts, the map in surface.ts beside it; a teacher's /listings/<id> is the
+       * PDP's to decide ((pdp)/layout.tsx). On a marketplace build this entry does not exist.
+       */
+      ...(EDITION_ENV === "services" ? forumTeacherRedirects() : []),
       /**
        * `/motorbikes-for-sale-vietnam` → /c/vehicles, 308, BOTH EDITIONS (owner, 2026-10-17; the HCMC motorbike-
        * rental hub from 2026-10-03, with /c/vehicles itself redirected until it became a shelf again). The rules,

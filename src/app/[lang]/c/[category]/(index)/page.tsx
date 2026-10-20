@@ -31,6 +31,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { pageShare } from '@/lib/site-identity'
 import { langAlternates, localizedHref } from '@/lib/lang-pinned'
+import { teacherSurfaceHref } from '@/lib/teachers/host'
 import Link from 'next/link'
 import { ArrowRight } from '@/components/ui/icons'
 import { Badge } from '@/components/ui/badge'
@@ -286,7 +287,10 @@ export default async function CategoryPage({ params }: Props) {
   const isTeachers = cat.slug === TEACHERS_CATEGORY_SLUG
   // N8: the teaching cross-links, in the page's language (localizedHref — the `/vi` twin on a Vietnamese page).
   const teachingJobsHref = localizedHref(`/?${new URLSearchParams(TEACHING_JOBS).toString()}`, pageLang(lang))
-  const teacherJoinHref = localizedHref('/teachers/join', pageLang(lang))
+  // On eno.forum the sign-up form — like every teacher page, the "Other categories" chip to /c/teachers included — is
+  // eno.vn's, linked directly rather than through the forum's 308 (teacherSurfaceHref, src/lib/teachers/surface.ts); on
+  // eno.vn every href is exactly what it was.
+  const teacherJoinHref = teacherSurfaceHref(localizedHref('/teachers/join', pageLang(lang)))
   // The post form with THIS category already picked (the wizard preselects a postable `?category=` when there is no
   // draft to resume) — /c/services' "Post your service" line and every empty page's "Post a listing".
   const postHereHref = localizedHref(`/post?${new URLSearchParams({ category: cat.slug }).toString()}`, pageLang(lang))
@@ -422,7 +426,7 @@ export default async function CategoryPage({ params }: Props) {
             <h2 className="h-section text-foreground"><Tr text="Other categories" /></h2>
             <div className="mt-4 flex flex-wrap gap-2">
               {otherCats.map((c) => (
-                <Badge key={c.slug} size="md" interactive render={<Link href={localizedHref(`/c/${c.slug}`, pageLang(lang))} />} className={OTHER_CATEGORY_CHIP}>
+                <Badge key={c.slug} size="md" interactive render={<Link href={teacherSurfaceHref(localizedHref(`/c/${c.slug}`, pageLang(lang)))} />} className={OTHER_CATEGORY_CHIP}>
                   <Bilingual en={c.name} vi={c.nameVi || c.name} />
                 </Badge>
               ))}
@@ -475,7 +479,7 @@ export default async function CategoryPage({ params }: Props) {
                   <span className="text-xs font-semibold text-ink-4"><Tr text="Explore other categories" /></span>
                   <div className="flex flex-wrap justify-center gap-2">
                     {otherCats.map((c) => (
-                      <Badge key={c.slug} size="md" interactive render={<Link href={localizedHref(`/c/${c.slug}`, pageLang(lang))} />} className={OTHER_CATEGORY_CHIP}>
+                      <Badge key={c.slug} size="md" interactive render={<Link href={teacherSurfaceHref(localizedHref(`/c/${c.slug}`, pageLang(lang)))} />} className={OTHER_CATEGORY_CHIP}>
                         <Bilingual en={c.name} vi={c.nameVi || c.name} />
                       </Badge>
                     ))}

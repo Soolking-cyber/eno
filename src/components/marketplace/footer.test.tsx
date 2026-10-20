@@ -157,12 +157,33 @@ describe('Footer links', () => {
       const { container } = await renderFooter(edition, 'en')
       const heading = [...container.querySelectorAll('h3')].find((h) => h.textContent === 'Explore')
       const links = [...(heading?.parentElement?.querySelectorAll('ul a') ?? [])].map((a) => [a.getAttribute('href'), a.textContent])
+      // ⛔ eno.forum links eno.vn's /c/teachers directly — the forum 308s its own there (src/lib/teachers/surface.ts).
+      const teachers = edition === 'services' ? 'https://eno.vn/c/teachers' : '/c/teachers'
       expect(links.slice(0, 5), edition).toEqual([
-        ['/c/rentals', 'Rentals'], ['/c/jobs', 'Jobs'], ['/c/services', 'Services'], ['/c/teachers', 'Find a teacher'], ['/c/electronics', 'Electronics'],
+        ['/c/rentals', 'Rentals'], ['/c/jobs', 'Jobs'], ['/c/services', 'Services'], [teachers, 'Find a teacher'], ['/c/electronics', 'Electronics'],
       ])
       const lead = new Set(['rentals', 'jobs', 'services', 'teachers', 'electronics'])
       const rest = NAV_CATEGORIES.filter((c) => !FOOTER_HIDDEN_CATEGORIES.has(c.slug) && !lead.has(c.slug)).map((c) => `/c/${c.slug}`)
       expect(links.slice(5).map(([href]) => href), edition).toEqual(rest)
+      cleanup()
+    }
+  })
+
+  /**
+   * ⛔ THE FOOTER IS ON EVERY FORUM PAGE, SO IT MUST LINK NO PAGE THE FORUM 308s TO eno.vn (owner decision 6, 2026-10-20):
+   * a teacher page is eno.vn's own URL there (src/lib/teachers/surface.ts — whose test pins `isTeacherSurfacePath` to the
+   * forum's real redirect rules). eno.vn's footer keeps every relative link it had.
+   */
+  it('⛔ eno.forum links no page it 308s to eno.vn; eno.vn keeps its relative /c/teachers', async () => {
+    const { isTeacherSurfacePath } = await import('@/lib/teachers/surface')
+    for (const lang of ['en', 'vi'] as const) {
+      const forum = await renderFooter('services', lang)
+      expect(forum.hrefs.filter((h) => h.startsWith('/') && isTeacherSurfacePath(h.split(/[?#]/)[0])), lang).toEqual([])
+      expect(forum.hrefs, lang).toContain('https://eno.vn/c/teachers')
+      cleanup()
+      const vn = await renderFooter('marketplace', lang)
+      expect(vn.hrefs, lang).toContain('/c/teachers')
+      expect(vn.hrefs.filter((h) => h.startsWith('https://eno.vn/')), lang).toEqual([])
       cleanup()
     }
   })

@@ -1,5 +1,7 @@
 import { storefrontBaseHost } from '@/lib/storefront-host'
 import { TEACHER_SUBDOMAIN } from '@/lib/teachers/constants'
+import { IS_SERVICES } from '@/lib/edition'
+import { FORUM_TEACHER_HOST, TEACHER_SIGNUP_ORIGIN, isTeacherSurfacePath, teacherSurfaceUrl } from '@/lib/teachers/surface'
 
 /**
  * teacher.<base> — the teacher sign-up host (owner, 2026-09-30: "teacher.eno.vn is a form like page").
@@ -34,13 +36,28 @@ export function apexOrigin(appUrl: string | null | undefined): string {
 
 /**
  * The link INTO the sign-up form from any page of the app (owner, 2026-10-09: "redirect to teacher.eno.vn to create their
- * profile"): its own host, edition-aware — https://teacher.eno.vn/ or https://teacher.eno.forum/ (both live). A build with
- * no app URL (a bare local run) falls back to the same form on this host. NEXT_PUBLIC_APP_URL is inlined at build, so a
+ * profile"): its own host — https://teacher.eno.vn/. ⛔ eno.forum's own, teacher.eno.forum, 308s there since 2026-10-20
+ * (owner decision 6, src/lib/teachers/surface.ts), so the forum links eno.vn's form directly rather than a redirect. A build
+ * with no app URL (a bare local run) falls back to the same form on this host. NEXT_PUBLIC_APP_URL is inlined at build, so a
  * client component reads the deployment's own value.
  */
 export function teacherJoinUrl(appUrl: string | null | undefined = process.env.NEXT_PUBLIC_APP_URL): string {
   const origin = teacherOrigin(appUrl)
-  return origin ? `${origin}/` : '/teachers/join'
+  if (!origin) return '/teachers/join'
+  return teacherHost(appUrl) === FORUM_TEACHER_HOST ? `${TEACHER_SIGNUP_ORIGIN}/` : `${origin}/`
+}
+
+/**
+ * An href as THIS edition links it, for a link that may point at a teacher page. On eno.forum a teacher-surface path —
+ * /c/teachers and below, /teachers/<…>, /schools and below (`isTeacherSurfacePath`) — is eno.vn's page, which the forum
+ * 308s to (owner decision 6, 2026-10-20; src/lib/teachers/surface.ts): the link goes there directly, query kept, instead of
+ * through a redirect — and an in-app <Link> to it never asks the forum for an RSC payload that answers with a cross-origin
+ * 308. Every other href, and every href on eno.vn, comes back exactly as given.
+ */
+export function teacherSurfaceHref(href: string): string {
+  if (!IS_SERVICES || !href.startsWith('/')) return href
+  const end = href.search(/[?#]/)
+  return isTeacherSurfacePath(end < 0 ? href : href.slice(0, end)) ? teacherSurfaceUrl(href) : href
 }
 
 /**

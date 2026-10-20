@@ -17,6 +17,7 @@ import { isBrowseSurface } from '@/lib/browse-surface'
 import { LANGUAGES } from '@/lib/i18n/langs'
 import { hereVariant, localizedHref } from '@/lib/lang-pinned'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
+import { teacherSurfaceHref } from '@/lib/teachers/host'
 import { isPostFlowPath } from '@/lib/post-flow-path'
 import { useIsPhone } from '@/hooks/use-is-phone'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
@@ -466,7 +467,9 @@ export function Header() {
       return
     }
     releaseSearchPanel()
-    router.push(it.type === 'category' ? localizedHref(`/c/${it.slug}`, navVariant()) : `/listings/${it.listing.id}`)
+    // A category's page as this edition links it: on eno.forum "Find a teacher" is eno.vn's /c/teachers (teacherSurfaceHref),
+    // which the router opens as the cross-site page it is rather than asking the forum for a payload that 308s.
+    router.push(it.type === 'category' ? teacherSurfaceHref(localizedHref(`/c/${it.slug}`, navVariant())) : `/listings/${it.listing.id}`)
   }
   const onSearchKeyDown = (e: React.KeyboardEvent) => {
     if (!instantOpen || suggestItems.length === 0) return
@@ -1211,9 +1214,11 @@ export function Header() {
                                 Vietnamese reader to the English-pinned `/c/furniture-appliances` ("Home in
                                 Vietnam" under a VI banner). `localizedHref` gives the `/vi` twin of a piloted
                                 path and leaves every other path as it is — the server variant, like the logo's
-                                href (the panel only renders after a focus, so this never meets hydration). */}
+                                href (the panel only renders after a focus, so this never meets hydration).
+                                `teacherSurfaceHref`: on eno.forum "Find a teacher" is eno.vn's page, linked directly
+                                (the forum 308s it there — src/lib/teachers/surface.ts); anything else is unchanged. */}
                             <Button asChild variant="bare" size="none" className={cn(chipVariants({ size: 'md', tone: 'neutral' }), 'relative tap-44 whitespace-normal')}>
-                              <Link href={localizedHref(`/c/${c.slug}`, variant)} prefetch={false} onClick={() => { releaseSearchPanel(); setShowSuggestions(false) }}>
+                              <Link href={teacherSurfaceHref(localizedHref(`/c/${c.slug}`, variant))} prefetch={false} onClick={() => { releaseSearchPanel(); setShowSuggestions(false) }}>
                                 {tr(c.name, c.nameVi)}
                               </Link>
                             </Button>

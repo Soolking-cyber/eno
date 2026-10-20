@@ -1,5 +1,6 @@
 import type { Prisma } from '@/generated/prisma/client'
 import { scopedListingWhere } from '@/lib/edition-scope'
+import { IS_SERVICES } from '@/lib/edition'
 
 /**
  * THE SITEMAP IS AN INDEX NOW — /sitemap.xml names child sitemaps, and every child is capped.
@@ -45,6 +46,7 @@ export function siteOrigin(): string {
  *   · `verified: true, status: 'active'` — exactly what the PDP serves without `noindex`
  *     (src/app/[lang]/listings/[id]/(pdp)/page.tsx: robots is undefined only for verified+active).
  *   · `scopedListingWhere` — the edition boundary: the licensed marketplace never submits the desk.
+ *   · teacher profiles ON eno.vn ONLY — eno.forum 308s each to eno.vn (src/lib/teachers/surface.ts), so it submits none.
  *   · `affiliateUrl: null` — imported stock is crawlable, not submitted (see pages.xml/build.ts).
  *
  * ⚠️ NESTED IN AN `AND`, NOT SPREAD: whatever shape scopedListingWhere returns, the extra key cannot
@@ -54,8 +56,15 @@ export function siteOrigin(): string {
  * only ADD conditions — the three rules above always apply.
  */
 export async function submittedListingWhere(extra: Prisma.ListingWhereInput = {}) {
-  // `{ teachers: true }`: teacher profiles are public and indexed by owner decision (2026-09-30).
-  return { AND: [await scopedListingWhere({ ...extra, verified: true, status: 'active' }, { teachers: true }), { affiliateUrl: null }] }
+  /**
+   * Teacher profiles are public and indexed by owner decision (2026-09-30) — on eno.vn. ⛔ eno.forum hands every teacher
+   * page to eno.vn with a 308 (owner decision 6, 2026-10-20; src/lib/teachers/surface.ts), and a submitted URL that
+   * redirects is a Search Console error, so there the scope's default teacher exclusion stands. Every derivation from this
+   * predicate follows, which is the point: the forum's listing children and the index's count, its /c/teachers/<district>
+   * combos (pages.xml/build.ts) and a storefront whose ONLY own listing is a profile (the seller aggregate there) — a
+   * page left with nothing of its own on the forum, and the rule for those is "crawlable, not asked for".
+   */
+  return { AND: [await scopedListingWhere({ ...extra, verified: true, status: 'active' }, { teachers: !IS_SERVICES }), { affiliateUrl: null }] }
 }
 
 /** How many `listings-<k>.xml` children `total` submitted listings need (0 → none). */

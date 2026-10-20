@@ -7,6 +7,7 @@ import { PROVIDER_LICENCE_KEYS, providerLicenceOf } from '@/lib/provider-licence
 import { ProviderLicenceRows } from './provider-licence-rows'
 import { TeacherProfileView } from '@/components/teachers/teacher-profile-view'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { teacherSurfaceHref } from '@/lib/teachers/host'
 import { PostJobLink, TeacherProfileLink } from '@/app/[lang]/c/[category]/teaching-links'
 import { plainSnippet } from '@/lib/strip-md'
 import { feedIdentifiers } from '@/lib/product-feed'
@@ -1476,7 +1477,10 @@ export default async function ListingPage({ params }: Props) {
               <SchoolLinkForJob employer={listing.attributes?.employer} sellerId={listing.sellerId} city={listing.city} className="order-12 flex items-start gap-2 text-sm" />
             )}
             {/* A TEACHING job's reader may be a teacher who would rather be found (owner, 2026-10-12): the profile form's
-                door, the line /c/jobs carries (teaching-links.tsx). Both editions — the teacher form is on both.
+                door, the line /c/jobs carries (teaching-links.tsx). Both editions — on eno.forum the form is eno.vn's, linked
+                directly like /c/jobs' (teacherSurfaceHref): the forum 308s /teachers/* there since 2026-10-20
+                (src/lib/teachers/surface.ts), and this <Link> prefetches, so a forum path would cost every view a failed
+                cross-origin payload fetch.
                 …or a school that is hiring (teacher visibility plan §4 channel 6; copy approved in the plan, 2026-10-18): the
                 post form's door, Jobs picked — /c/jobs carries it after the teacher lines too. ONE `order-12` item, so the
                 page's gap (24px, 32px from lg) falls around the pair, not between its lines: the two sit 12px apart, the
@@ -1484,7 +1488,7 @@ export default async function ListingPage({ params }: Props) {
                 after it. Both editions — the post form is on both. */}
             {listing.listingType === 'job' && rawListing.category.slug === TEACHER_SEEKING_POST.category && rawListing.subcategorySlug === TEACHER_SEEKING_POST.subcategory && (
               <div className="order-12 space-y-3">
-                <TeacherProfileLink href={localizedHref('/teachers/join', pageVariant)} className="mt-0" />
+                <TeacherProfileLink href={teacherSurfaceHref(localizedHref('/teachers/join', pageVariant))} className="mt-0" />
                 <PostJobLink href={localizedHref('/post?category=jobs', pageVariant)} className="mt-0" />
               </div>
             )}

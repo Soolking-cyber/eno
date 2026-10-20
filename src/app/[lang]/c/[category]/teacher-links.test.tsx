@@ -341,7 +341,16 @@ describe('every other category — unchanged', () => {
       // Every link is one the page already drew: the grid's cards, "Refine in full search", the "Other categories" chips.
       const grid = gridOf(el)
       expect(grid).toHaveLength(GRID)
-      expect(links(el).filter((l) => !grid.some((g) => g.href === l.href)).map((l) => l.href)).toEqual(['/?category=electronics', '/c/jobs', '/c/teachers'])
+      // ⛔ The teachers chip is eno.vn's page on eno.forum (the forum 308s its own — src/lib/teachers/surface.ts).
+      expect(links(el).filter((l) => !grid.some((g) => g.href === l.href)).map((l) => l.href)).toEqual(['/?category=electronics', '/c/jobs', 'https://eno.vn/c/teachers'])
+    })
+
+    it(`${lang}: on eno.vn the same chip links its own /c/teachers, as it always did — and nothing links eno.vn absolutely`, async () => {
+      h.services = false
+      const { el } = await render('electronics', lang, phones(93))
+      const hrefs = links(el).map((l) => l.href ?? '')
+      expect(hrefs).toContain('/c/teachers')
+      expect(hrefs.filter((href) => href.startsWith('https://eno.vn'))).toEqual([])
     })
   }
 

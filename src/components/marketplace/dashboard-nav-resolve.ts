@@ -7,6 +7,7 @@
 
 import { IS_SERVICES } from '@/lib/edition'
 import { fillTemplate } from '@/lib/i18n/placeholders'
+import { teacherSurfaceHref } from '@/lib/teachers/host'
 import type { NavGroup, NavItem, NavRole } from './dashboard-nav'
 
 /** A concrete, renderable rail row (account-panel's RailItem shape). */
@@ -87,6 +88,10 @@ const toRail = (it: NavItem, ctx: NavResolveCtx): ResolvedNavItem | null => {
   // The teacher row with no profile yet but a saved draft: back into the form, where it reopens (see teacherDraft above).
   const draft = it.requiresTeacher && ctx.hasTeacher !== true ? ctx.teacherDraft ?? null : null
   if (draft) href = '/teachers/join'
+  // ⛔ On eno.forum the teacher pages are eno.vn's (the forum 308s them — src/lib/teachers/surface.ts): that row links them
+  // there directly, so its <Link> is a plain cross-site navigation, not an in-app one answered by a redirect. Every other
+  // row, and every row on eno.vn, keeps its href (teacherSurfaceHref hands back anything that is not a teacher page).
+  href = teacherSurfaceHref(href)
   return {
     ...(draft && it.draftHint ? {
       hint: fillTemplate(it.draftHint.vi ? ctx.label(it.draftHint.en, it.draftHint.vi) : it.draftHint.en, it.draftHint.en, { n: String(draft.index), total: String(draft.total) }),

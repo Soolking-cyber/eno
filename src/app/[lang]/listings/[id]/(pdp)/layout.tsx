@@ -1,5 +1,7 @@
-import { notFound } from 'next/navigation'
-import { isListingViewable } from './get-listing'
+import { notFound, permanentRedirect } from 'next/navigation'
+import { IS_SERVICES } from '@/lib/edition'
+import { teacherSurfaceUrl } from '@/lib/teachers/surface'
+import { isListingViewable, isTeacherListing } from './get-listing'
 
 /**
  * ⛔ THIS LAYOUT DECIDES WHETHER THERE IS A LISTING PAGE AT ALL: a real 404, or the page. It renders
@@ -70,5 +72,23 @@ export default async function ListingLayout({
 }) {
   const { id } = await params
   if (!(await isListingViewable(id))) notFound()
+  /**
+   * ⛔ ON eno.forum A TEACHER'S PROFILE IS eno.vn's PAGE — a 308 to the same path there, decided HERE, before anything of
+   * the page renders (owner decision 6, 2026-10-20; src/lib/teachers/surface.ts is the whole map). The path cannot say the
+   * row is a teacher, so next.config's path rules cannot; this layout is the first thing that knows.
+   * ⚠️ WHY THE STATUS IS RIGHT: this layout renders in the shell, with no loading boundary above it (see the top of this
+   * file), so a redirect thrown here sets the response's status and Location exactly as its notFound() sets a real 404 —
+   * the shape of /c/<cat>/<twin>'s permanentRedirect, which www.eno.forum answers 308, x-nextjs-cache HIT. ISR stores the
+   * 308 with its Location (Next's app-page handler re-serves a cached entry's status) — never a 200 page — and an in-app
+   * (RSC) request gets the redirect inside its payload, as Next encodes one, so the router leaves for eno.vn. /listings/*
+   * never passes the HTML Worker (a no-script route), so no edge copy holds either answer. A purge of /listings/<id>
+   * re-renders the same 308.
+   * ⚠️ AFTER THE VIEWABILITY CHECK, ON PURPOSE: a teacher row that is not public is the 404 here that it is on eno.vn, and
+   * generateMetadata — which 404s that same row — can then never race a redirect; a live one never makes it throw, so the
+   * 308 is the only answer the request has.
+   * ⚠️ A NON-TEACHER ROW IS UNTOUCHED: the question reads the row the page reads next, through the same cache(), so it adds
+   * no query and the page renders as before. eno.vn never asks (IS_SERVICES): its PDP makes the one query it always made.
+   */
+  if (IS_SERVICES && (await isTeacherListing(id))) permanentRedirect(teacherSurfaceUrl(`/listings/${encodeURIComponent(id)}`))
   return children
 }

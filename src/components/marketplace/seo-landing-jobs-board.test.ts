@@ -40,7 +40,9 @@ describe('/jobs-vietnam-expats — the English teaching jobs board', () => {
   it('keeps the computed robots, the hourly ISR, the profile prompt, the guides (marketplace only) and the never-pay section', () => {
     expect(page).toContain('...(await seoLandingRobots(LANDING_TARGET))')
     expect(page).toMatch(/^export const revalidate = 3600$/m)
-    expect(page).toContain(`lede={<TeacherProfileLink href={localizedHref('/teachers/join', lang)} className="mt-4" />}`)
+    // Through teacherSurfaceHref since 2026-10-20: on eno.forum the form is eno.vn's, linked directly (the forum 308s
+    // /teachers/* — src/lib/teachers/surface.ts); on eno.vn the localized path comes back untouched (host.surface.test.ts).
+    expect(page).toContain(`lede={<TeacherProfileLink href={teacherSurfaceHref(localizedHref('/teachers/join', lang))} className="mt-4" />}`)
     expect(page).toContain('content={IS_SERVICES ? CONTENT : { ...CONTENT, related: [...(CONTENT.related ?? []), ...teachLinks(TEACH_RELATED)] }}')
     expect(page).toContain("title: 'Never pay to get a job'")
   })

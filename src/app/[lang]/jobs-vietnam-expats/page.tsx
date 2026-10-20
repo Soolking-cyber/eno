@@ -5,6 +5,7 @@ import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landin
 import { seoLandingRobots } from '@/components/marketplace/seo-landing-robots'
 import { teachLinks } from '@/lib/teach-guides/site-links'
 import { localizedHref } from '@/lib/lang-pinned'
+import { teacherSurfaceHref } from '@/lib/teachers/host'
 import { TeacherProfileLink } from '../c/[category]/teaching-links'
 import { LANDING_TARGET } from './landing-target'
 import { loadTeachingBoard, TeachingJobsBoard } from './teaching-board'
@@ -135,9 +136,9 @@ export default async function Page({ params }: { params: Promise<{ lang: string 
       // Added to whatever `related` the content carries (none today), never replacing it.
       content={IS_SERVICES ? CONTENT : { ...CONTENT, related: [...(CONTENT.related ?? []), ...teachLinks(TEACH_RELATED)] }}
       // The profile prompt /c/jobs carries (teaching-links.tsx), with the href built the way /c/jobs builds it: this was
-      // the one jobs page without it, and a teacher reading jobs may rather be found. Both editions, like /c/jobs' — the
-      // profile form exists on both.
-      lede={<TeacherProfileLink href={localizedHref('/teachers/join', lang)} className="mt-4" />}
+      // the one jobs page without it, and a teacher reading jobs may rather be found. Both editions, like /c/jobs' — on
+      // eno.forum it is eno.vn's form, linked directly (the forum 308s /teachers/*: teacherSurfaceHref, src/lib/teachers/surface.ts).
+      lede={<TeacherProfileLink href={teacherSurfaceHref(localizedHref('/teachers/join', lang))} className="mt-4" />}
       // ⚠️ THE BOARD REPLACES THE 8-CARD RAIL: it lists every live teaching job, so the rail would only repeat its eight
       // newest. Its own read decides SeoLanding's empty state too ("just getting started"), so a day with no teaching job
       // still shows that. A read that fails while `next build` prerenders shows the plain CTA, as a failed rail did; one

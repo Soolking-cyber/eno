@@ -105,7 +105,9 @@ describe('/c/[category] wires both links through localizedHref, each on its own 
 
   it('the hrefs are localized in the page language', () => {
     expect(page).toMatch(/teachingJobsHref = localizedHref\(`\/\?\$\{new URLSearchParams\(TEACHING_JOBS\)\.toString\(\)\}`, pageLang\(lang\)\)/)
-    expect(page).toMatch(/teacherJoinHref = localizedHref\('\/teachers\/join', pageLang\(lang\)\)/)
+    // Through teacherSurfaceHref too: on eno.forum the form is eno.vn's, linked directly (src/lib/teachers/surface.ts); on
+    // eno.vn it returns the localized path untouched (src/lib/teachers/host.surface.test.ts).
+    expect(page).toMatch(/teacherJoinHref = teacherSurfaceHref\(localizedHref\('\/teachers\/join', pageLang\(lang\)\)\)/)
   })
 
   it('the jobs line is on /c/teachers, the profile line on /c/jobs', () => {
@@ -283,7 +285,8 @@ describe('each surface renders <PostJobLink>, to the post form with Jobs picked,
     expect(pdp).toMatch(new RegExp([
       String.raw`\{listing\.listingType === 'job' && rawListing\.category\.slug === TEACHER_SEEKING_POST\.category && rawListing\.subcategorySlug === TEACHER_SEEKING_POST\.subcategory && \(`,
       String.raw`<div className="order-12 space-y-3">`,
-      String.raw`<TeacherProfileLink href=\{localizedHref\('/teachers/join', pageVariant\)\} className="mt-0" />`,
+      // Through teacherSurfaceHref, like /c/jobs' (2026-10-20): on eno.forum the form is eno.vn's, linked directly.
+      String.raw`<TeacherProfileLink href=\{teacherSurfaceHref\(localizedHref\('/teachers/join', pageVariant\)\)\} className="mt-0" />`,
       String.raw`<PostJobLink href=\{localizedHref\('/post\?category=jobs', pageVariant\)\} className="mt-0" />`,
       String.raw`</div>\s*\)\}`,
     ].join(String.raw`\s*`)))

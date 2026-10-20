@@ -31,6 +31,7 @@ import { isIndexableCount } from '@/lib/index-floor'
 import { submittedListingWhere, urlsetXml, siteOrigin } from '@/lib/sitemap'
 import { storefrontCanonicals } from '@/lib/storefront'
 import { awardYearsForSitemap, schoolsForSitemap } from '@/lib/schools/queries'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 
 /**
  * THE BODY OF /sitemaps/pages.xml, MOVED OUT OF ITS ROUTE FILE (SEO wave B, I4) SO A SECOND CALLER CAN
@@ -191,7 +192,8 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
      */
     db.listing.groupBy({
       by: ['categoryId'],
-      // Teachers included: /c/teachers is submitted like any category with a live row (2026-09-30).
+      // Teachers included: /c/teachers is submitted like any category with a live row (2026-09-30) — from eno.vn; the forum
+      // skips it in the category loop below (it 308s there since 2026-10-20), but its profiles still date the forum's home.
       where: await scopedListingWhere({ verified: true, status: 'active' }, { teachers: true }),
       _max: { postedAt: true },
     }),
@@ -662,6 +664,13 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
    */
   for (const c of categories) {
     if (!liveCategoryIds.has(c.id) || isRetiredNavCategory(c.slug)) continue
+    /**
+     * ⛔ NOR /c/teachers FROM eno.forum, which 308s it to eno.vn (owner decision 6, 2026-10-20; src/lib/teachers/surface.ts)
+     * — a submitted URL that redirects is a Search Console error. Its district pages, the profiles and the profile-only
+     * storefronts leave through `submittedListingWhere` (src/lib/sitemap.ts). Skipped here rather than taken out of
+     * `byCategory`: the forum's home still shows the teacher shelf, so a new profile still dates it (`siteLastmod`).
+     */
+    if (IS_SERVICES && c.slug === TEACHERS_CATEGORY_SLUG) continue
     urls.push(`  <url><loc>${hostUrl}/c/${c.slug}</loc>${lm(catMax.get(c.slug))}</url>\n`)
   }
 

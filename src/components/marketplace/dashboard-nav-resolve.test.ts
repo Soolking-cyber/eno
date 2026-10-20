@@ -2,12 +2,17 @@
 // viewer tiers, storefront URL substitution, label localization fallback, badge binding.
 // No React — the icon is an opaque pass-through here.
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NavGroup, NavItem } from './dashboard-nav'
 import { DASHBOARD_NAV } from './dashboard-nav'
 import { resolveNavGroups, type NavResolveCtx } from './dashboard-nav-resolve'
 
 const icon = (() => null) as unknown as NavItem['icon']
+
+/** The edition, as a switch (vitest runs as eno.forum): the teacher row's href is edition-aware since 2026-10-20. */
+const h = vi.hoisted(() => ({ services: true }))
+vi.mock('@/lib/edition', async (orig) => ({ ...(await orig<typeof import('@/lib/edition')>()), get IS_SERVICES() { return h.services } }))
+afterEach(() => { h.services = true })
 
 /** vi wins when present — a deterministic stand-in for the app's tr(). */
 const label = (_en: string, vi: string) => vi
@@ -129,15 +134,24 @@ describe('real DASHBOARD_NAV config', () => {
 
 describe('the "Teacher profile" row (cover lessons, 2026-10-07)', () => {
   it('shows only to a viewer with a teacher profile — the way back to /teachers/edit, also in the apps', async () => {
+    h.services = false // eno.vn — the apps' host
     const { DASHBOARD_NAV } = await import('./dashboard-nav')
     const hrefs = (c: NavResolveCtx) => resolveNavGroups(DASHBOARD_NAV, c).flatMap((g) => g.items.map((i) => i.href))
     expect(hrefs(ctx())).not.toContain('/teachers/edit')
     expect(hrefs(ctx({ hasTeacher: true }))).toContain('/teachers/edit')
   })
+
+  it('⛔ on eno.forum it is eno.vn\'s editor, linked directly (the forum 308s /teachers/*); no other row changes', () => {
+    const forum = resolveNavGroups(DASHBOARD_NAV, ctx({ hasTeacher: true })).flatMap((g) => g.items.map((i) => i.href))
+    expect(forum.filter((href) => !href.startsWith('/'))).toEqual(['https://eno.vn/teachers/edit'])
+    expect(forum).not.toContain('/teachers/edit')
+    expect(resolveNavGroups(DASHBOARD_NAV, ctx({ teacherDraft: { index: 3, total: 6 } })).flatMap((g) => g.items.map((i) => i.href))).toContain('https://eno.vn/teachers/join')
+  })
 })
 
 describe('…and for an UNFINISHED teacher profile (owner, 2026-10-11)', () => {
-  const teacherRow = (c: NavResolveCtx) => resolveNavGroups(DASHBOARD_NAV, c).flatMap((g) => g.items).find((i) => i.href.startsWith('/teachers/'))
+  // As eno.vn renders it; the forum's is the same row on eno.vn's host (above).
+  const teacherRow = (c: NavResolveCtx) => { h.services = false; return resolveNavGroups(DASHBOARD_NAV, c).flatMap((g) => g.items).find((i) => i.href.startsWith('/teachers/')) }
   it('a saved draft with no profile: the row shows, goes back into the form, and says where it reopens', () => {
     const row = teacherRow(ctx({ teacherDraft: { index: 3, total: 6 } }))
     expect(row?.href).toBe('/teachers/join')

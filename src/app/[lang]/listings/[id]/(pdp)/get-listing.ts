@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { isGoneListing } from '@/lib/gone-listing'
 import { isJournaledGone } from '@/lib/gone-listing-ids'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 // `{ teachers: true }` on every read here: each one is pinned to ONE listing id, so the default
 // teacher exclusion (scopedListingWhere) would only 404 a teacher's own profile page.
 
@@ -77,3 +78,16 @@ export const getListing = cache(async (id: string) =>
     include: { category: true, seller: { include: { owner: { select: { accountType: true, lastSeenAt: true, avatarUrl: true } } } } },
   }),
 )
+
+/**
+ * Is this listing a teacher's profile — a page eno.forum hands to eno.vn (`layout.tsx`, src/lib/teachers/surface.ts)?
+ * The services edition asks it, and only of a row `isListingViewable` has passed.
+ * ⚠️ THROUGH `getListing`, NOT A QUERY OF ITS OWN: the page body and `generateMetadata` read that same row through the
+ * same `cache()` (the gone-row path in `isListingViewable` above already relies on that sharing), so asking costs this
+ * request no query it would not make anyway, and no time: the page body's FIRST statement awaits this row, so it already
+ * gated every byte the page renders — the layout only awaits the same promise a step earlier. A row the layout 404s is
+ * never read here. `listingType`, like the page's own teacher branch (the teacher publish core is the only writer of that
+ * type, and every such row is in the teachers category — edition-scope.ts teachersCategoryId).
+ */
+export const isTeacherListing = async (id: string): Promise<boolean> =>
+  (await getListing(id))?.listingType === TEACHER_LISTING_TYPE

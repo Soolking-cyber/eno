@@ -28,7 +28,8 @@ const h = vi.hoisted(() => {
   const tr = (en: string) => en
   const language = { lang: 'en', t: (k: string) => k, tr, setLang: () => {} }
   const auth = { user: null, profile: null, loading: false, openSignIn: () => {} }
-  return { push, router, language, auth }
+  // The edition the teacher-surface links read (src/lib/teachers/host.ts teacherSurfaceHref); vitest's default is services.
+  return { push, router, language, auth, services: true }
 })
 
 vi.mock('next/navigation', () => ({
@@ -49,6 +50,7 @@ vi.mock('@/lib/safe-back', () => ({ useSafeBack: () => () => {} }))
 vi.mock('./notification-bell', () => ({ NotificationBell: () => <button type="button" aria-label="Notifications" /> }))
 vi.mock('./app-download', () => ({ AppDownload: () => null }))
 vi.mock('./ai-concierge', () => ({ AISearchButton: () => <button type="button" aria-label="AI" /> }))
+vi.mock('@/lib/edition', async (orig) => ({ ...(await orig<typeof import('@/lib/edition')>()), get IS_SERVICES() { return h.services } }))
 
 import { Header } from './header'
 
@@ -165,19 +167,28 @@ describe('recent searches are rows, each with its own ✕', () => {
 })
 
 describe('a first visit still opens on somewhere to go', () => {
-  it('with no history, focusing shows the category shortcuts as links to their pages', async () => {
-    render(<Header />)
-    act(() => field().focus())
-    const list = await waitFor(() => {
-      const ul = document.querySelector('ul[aria-labelledby="header-search-categories"]')
-      expect(ul).not.toBeNull()
-      return ul!
+  for (const edition of ['marketplace', 'services'] as const) {
+    it(`${edition}: with no history, focusing shows the category shortcuts as links to their pages`, async () => {
+      h.services = edition === 'services'
+      try {
+        render(<Header />)
+        act(() => field().focus())
+        const list = await waitFor(() => {
+          const ul = document.querySelector('ul[aria-labelledby="header-search-categories"]')
+          expect(ul).not.toBeNull()
+          return ul!
+        })
+        const links = [...list.querySelectorAll('a')].map((a) => [a.getAttribute('href'), a.textContent])
+        // The owner's lead order (2026-10-10) arrives from the route; Teachers is a way in, so it reads "Find a teacher".
+        // ⛔ On eno.forum it is eno.vn's page, linked directly — the forum 308s its own (src/lib/teachers/surface.ts).
+        const teachers = edition === 'services' ? 'https://eno.vn/c/teachers' : '/c/teachers'
+        expect(links).toEqual([['/c/rentals', 'Rentals'], ['/c/jobs', 'Jobs'], ['/c/services', 'Services'], [teachers, 'Find a teacher'], ['/c/electronics', 'Electronics']])
+        expect(screen.getByText('Categories').id).toBe('header-search-categories')
+      } finally {
+        h.services = true
+      }
     })
-    const links = [...list.querySelectorAll('a')].map((a) => [a.getAttribute('href'), a.textContent])
-    // The owner's lead order (2026-10-10) arrives from the route; Teachers is a way in, so it reads "Find a teacher".
-    expect(links).toEqual([['/c/rentals', 'Rentals'], ['/c/jobs', 'Jobs'], ['/c/services', 'Services'], ['/c/teachers', 'Find a teacher'], ['/c/electronics', 'Electronics']])
-    expect(screen.getByText('Categories').id).toBe('header-search-categories')
-  })
+  }
 })
 
 describe('the placeholder ladder', () => {

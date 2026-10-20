@@ -177,7 +177,9 @@ describe('localizedHref at each link site (source contract)', () => {
   const SITES: [string, RegExp[]][] = [
     ['src/components/marketplace/header.tsx', [/href=\{localizedHref\('\/', variantOfLanguage\(lang\)\)\}\s*prefetch=\{false\}\s*data-header-logo/]],
     ['src/components/marketplace/mobile-nav.tsx', [/<Link href=\{localizedHref\('\/', variantOfLanguage\(lang\)\)\} prefetch=\{at\('\/'\)/]],
-    ['src/components/marketplace/footer.tsx', [/<a href=\{localizedHref\(`\/c\/\$\{cat\.slug\}`, variantOfLanguage\(lang\)\)\}/]],
+    // Inside teacherSurfaceHref since 2026-10-20: on eno.forum "Find a teacher" is eno.vn's page (src/lib/teachers/surface.ts);
+    // on eno.vn it hands back the localized href untouched (src/lib/teachers/host.surface.test.ts).
+    ['src/components/marketplace/footer.tsx', [/<a href=\{teacherSurfaceHref\(localizedHref\(`\/c\/\$\{cat\.slug\}`, variantOfLanguage\(lang\)\)\)\}/]],
     // prefetch={false} since speed plan item 7 (the PDP crumbs' rule).
     ['src/app/[lang]/c/[category]/(index)/layout.tsx', [/<Link href=\{localizedHref\('\/', lang\)\} prefetch=\{false\} \/>/]],
     ['src/app/[lang]/c/[category]/[district]/page.tsx', [/<Link href=\{localizedHref\('\/', lang\)\} \/>/, /<Link href=\{localizedHref\(`\/c\/\$\{cat\.slug\}`, lang\)\} \/>/, /<Link href=\{localizedHref\(`\/c\/\$\{cat\.slug\}`, lang\)\} className=/]],
@@ -189,7 +191,8 @@ describe('localizedHref at each link site (source contract)', () => {
     for (const re of patterns) expect(s, String(re)).toMatch(re)
   })
   it('the sibling-category badges on the category page, both of them', () => {
-    expect(src('src/app/[lang]/c/[category]/(index)/page.tsx').match(/render=\{<Link href=\{localizedHref\(`\/c\/\$\{c\.slug\}`, pageLang\(lang\)\)\} \/>\}/g)).toHaveLength(2)
+    // Inside teacherSurfaceHref, like the footer's (the chip to /c/teachers is eno.vn's page on eno.forum).
+    expect(src('src/app/[lang]/c/[category]/(index)/page.tsx').match(/render=\{<Link href=\{teacherSurfaceHref\(localizedHref\(`\/c\/\$\{c\.slug\}`, pageLang\(lang\)\)\)\} \/>\}/g)).toHaveLength(2)
   })
   it('the category head takes the pilot alternates (langAlternates is null off the list, and on eno.forum)', () => {
     const s = src('src/app/[lang]/c/[category]/(index)/page.tsx')

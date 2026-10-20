@@ -58,6 +58,7 @@ const h = vi.hoisted(() => ({
 const CATEGORY_SLUGS: Record<string, string> = vi.hoisted(() => ({
   'cat-rentals': 'rentals', 'cat-fashion': 'fashion-beauty', 'cat-books': 'books-stationery', 'cat-hobbies': 'hobbies-sports', 'cat-pets': 'pets', 'cat-services': 'services', 'cat-empty': 'jobs',
   'cat-furniture': 'furniture-appliances', 'cat-food': 'food-drink', 'cat-electronics': 'electronics', 'cat-vehicles': 'vehicles',
+  'cat-teachers': 'teachers',
 }))
 /**
  * Seller id → handle. `sub_shop` is served on its own subdomain, `subshop.eno.vn` (a subdomain is the
@@ -159,7 +160,7 @@ vi.mock('@/lib/db', () => ({
 
     seller: {
       findMany: async ({ where }: { where?: Where } = {}) =>
-        ['import-seller', 'old-shop', 'sub-shop', 'brand-shop', 'desk-seller', 'own-seller']
+        ['import-seller', 'old-shop', 'sub-shop', 'brand-shop', 'desk-seller', 'own-seller', 'mixed-seller', ...Array.from({ length: 12 }, (_, i) => `teacher-seller-${i}`)]
           .map((id) => ({ id, handle: SELLER_HANDLES[id] ? { handle: SELLER_HANDLES[id] } : null }))
           .filter((s) => matches(s, where)),
     },
@@ -240,9 +241,13 @@ vi.mock('@/lib/edition', async (orig) => ({
   get IS_SERVICES() { return h.services },
 }))
 
-/** The licensed-marketplace scope, emulated: the desk seller's rows are invisible to every read. */
+/**
+ * The licensed-marketplace scope, emulated: the desk seller's rows are invisible to every read — and teacher profiles too,
+ * unless the read opts in (`{ teachers: true }`), as the real scope's default exclusion does (edition-scope.ts).
+ */
 vi.mock('@/lib/edition-scope', () => ({
-  scopedListingWhere: async (w: object) => ({ AND: [w, { sellerId: { notIn: ['desk-seller'] } }] }),
+  scopedListingWhere: async (w: object, opts?: { teachers?: boolean }) =>
+    ({ AND: [w, { sellerId: { notIn: ['desk-seller'] } }, ...(opts?.teachers ? [] : [{ categoryId: { not: 'cat-teachers' } }])] }),
 }))
 
 import { GET as indexGET } from '@/app/sitemap.xml/route'
@@ -258,6 +263,7 @@ import { EXPAT_GUIDE_PATHS, MARKETPLACE_GUIDE_PATHS, guideDates } from '@/lib/ex
 import { PHONE_GUIDE_PATHS } from '@/lib/phone-guides'
 import * as teachRegistry from '@/lib/teach-guides/registry'
 import { IPHONE_18_MODELS, IPHONE_DUO_MODEL } from '@/app/[lang]/iphone-18-vietnam/lowest-prices'
+import { isTeacherSurfacePath } from '@/lib/teachers/surface'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -1069,5 +1075,62 @@ describe('the school directory in the pages child (2026-10-04)', () => {
     h.schools = [{ slug: 'vus', status: 'active', reviews: 1, jobs: 1, lastmod: new Date('2026-10-03T03:00:00Z') }]
     const { xml } = await buildPagesSitemap({ rentIndex: 'require' })
     expect(xml).not.toContain('/schools')
+  })
+})
+
+/**
+ * ⛔ eno.forum HANDS THE TEACHER SURFACE TO eno.vn (owner decision 6, 2026-10-20; src/lib/teachers/surface.ts), so its
+ * sitemaps submit no teacher page — a submitted URL that redirects is a Search Console error: not /c/teachers, not a
+ * district page of it, not a profile, and not a storefront whose only own listing is a profile (a page with nothing of its
+ * own left on the forum). eno.vn submits every one of them, as before. Measured 2026-10-20: www.eno.forum submitted
+ * /c/teachers, all 112 live profiles and 111 profile-only storefronts.
+ */
+describe('the teacher surface: eno.vn submits it, eno.forum none of it', () => {
+  const TEACHERS = Array.from({ length: 11 }, (_, i) => `teacher-${String(i).padStart(2, '0')}`)
+  const fixtures = () => [
+    // Eleven live profiles in one district (a district page at the floor), each its own handle-less person.
+    ...TEACHERS.map((id, i) => row({ id, sellerId: `teacher-seller-${i}`, categoryId: 'cat-teachers', listingType: 'teacher', district: 'Quận 2' })),
+    // A teacher who also sells something of their own, and a profile that is not public.
+    row({ id: 'teacher-of-mixed', sellerId: 'mixed-seller', categoryId: 'cat-teachers', listingType: 'teacher', district: 'Quận 2' }),
+    row({ id: 'mixed-dress', sellerId: 'mixed-seller' }),
+    row({ id: 'teacher-hidden', sellerId: 'teacher-seller-11', categoryId: 'cat-teachers', listingType: 'teacher', status: 'hidden' }),
+    row({ id: 'own-dress' }),
+  ]
+  const submitted = async () => {
+    const index = locs(await (await indexGET()).text())
+    const listings = (await Promise.all(index.filter((l) => l.includes('/listings-')).map(async (l) => locs(await (await child(l.split('/').pop()!)).text())))).flat()
+    return { pages: locs((await buildPagesSitemap({ rentIndex: 'require' })).xml), listings }
+  }
+  const isTeacherUrl = (u: string) => isTeacherSurfacePath(new URL(u).pathname) || /\/(listings\/teacher-|sellers\/teacher-seller-)/.test(u)
+
+  it('eno.vn: /c/teachers, its district page, every live profile and every profile-only storefront', async () => {
+    h.rows = fixtures()
+    const { pages, listings } = await submitted()
+    expect(pages).toEqual(expect.arrayContaining([`${HOST}/c/teachers`, `${HOST}/c/teachers/d2`, `${HOST}/sellers/mixed-seller`]))
+    for (let i = 0; i < 11; i++) expect(pages).toContain(`${HOST}/sellers/teacher-seller-${i}`)
+    expect(listings).toEqual(expect.arrayContaining([...TEACHERS, 'teacher-of-mixed', 'mixed-dress', 'own-dress'].map((id) => `${HOST}/listings/${id}`)))
+    expect(listings).not.toContain(`${HOST}/listings/teacher-hidden`)
+  })
+
+  it('⛔ eno.forum: no teacher URL at all — and exactly those leave: every other category, district, storefront and listing stays', async () => {
+    h.rows = fixtures()
+    const vn = await submitted()
+    h.services = true
+    const forum = await submitted()
+    expect([...forum.pages, ...forum.listings].filter(isTeacherUrl)).toEqual([])
+    // The teacher who also sells keeps a storefront: it still has a listing of its own on the forum.
+    expect(forum.pages).toContain(`${HOST}/sellers/mixed-seller`)
+    expect(forum.listings).toEqual(vn.listings.filter((u) => !isTeacherUrl(u)))
+    const shelves = (urls: string[]) => urls.filter((u) => /\/(c|sellers)\//.test(u))
+    expect(shelves(forum.pages)).toEqual(shelves(vn.pages).filter((u) => !isTeacherUrl(u)))
+  })
+
+  it('the forum\'s home is still dated by a new profile: its shelf shows teachers, so /c/teachers leaves the loop, not the aggregate', async () => {
+    const NEW = new Date('2026-10-19T00:00:00Z')
+    h.rows = [...fixtures(), row({ id: 'teacher-newest', sellerId: 'teacher-seller-0', categoryId: 'cat-teachers', listingType: 'teacher', postedAt: NEW, updatedAt: NEW })]
+    h.services = true
+    const xml = (await buildPagesSitemap({ rentIndex: 'require' })).xml
+    expect(xml).toContain(`<loc>${HOST}</loc><lastmod>${NEW.toISOString()}</lastmod>`)
+    expect(xml).not.toContain(`${HOST}/c/teachers`)
   })
 })

@@ -27,6 +27,7 @@ import { SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
 import { IS_MARKETPLACE, IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 import { TEACH_HUB_PATH } from '@/lib/teach-guides/hub-path'
+import { teacherSurfaceHref } from '@/lib/teachers/host'
 
 /**
  * One footer entry.
@@ -619,7 +620,9 @@ function FooterBody() {
                     <li key={cat.slug}>
                       {/* max-sm: a 44px row per link (D-TAP) with no gap between rows, so no row's hit
                           area can overlap its neighbour's — the tap-44 trap, avoided by real height. */}
-                      <a href={localizedHref(`/c/${cat.slug}`, variantOfLanguage(lang))} className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center max-sm:text-sm">{tr(cat.name, cat.nameVi)}</a>
+                      {/* teacherSurfaceHref: on eno.forum "Find a teacher" is eno.vn's page (the forum 308s it there,
+                          src/lib/teachers/surface.ts), linked directly; every other category, and eno.vn, unchanged. */}
+                      <a href={teacherSurfaceHref(localizedHref(`/c/${cat.slug}`, variantOfLanguage(lang)))} className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center max-sm:text-sm">{tr(cat.name, cat.nameVi)}</a>
                     </li>
                   ))}
                 </ul>

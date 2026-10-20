@@ -9,6 +9,9 @@ import type { SerializedListingCard } from '@/lib/types'
  * as the title in both languages, See all → /c/teachers, the cards as the feed draws them minus the LCP hints (lazy
  * photos — the page's one preload stays feed card 0's), the full-width grid row the explorer's CSS keys on, and the
  * door's three states — the sign-up host (edition-aware), a saved draft, the viewer's own profile.
+ * ⛔ ON eno.forum EVERY LINK BUT THE CARDS IS eno.vn's OWN URL (owner decision 6, 2026-10-20 — the forum 308s its teacher
+ * pages and its teacher host there, src/lib/teachers/surface.ts). vitest runs as eno.forum; `marketplaceShelf` re-imports
+ * the shelf as eno.vn, whose links are exactly what they were.
  */
 const h = vi.hoisted(() => ({ lang: 'en', cards: [] as Array<Record<string, unknown>>, joinClicks: [] as unknown[][] }))
 
@@ -45,6 +48,15 @@ function shelf(props: Partial<React.ComponentProps<typeof TeacherShelf>> = {}) {
 
 afterEach(() => { cleanup(); vi.unstubAllEnvs(); h.lang = 'en'; h.cards = []; h.joinClicks = [] })
 
+/** The shelf as eno.vn renders it: the edition is a module-level constant, so the shelf is re-imported with it set. */
+const marketplaceShelf = async () => {
+  vi.resetModules()
+  vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
+  const { TeacherShelf: Shelf } = await import('./teacher-shelf')
+  return (props: Partial<React.ComponentProps<typeof TeacherShelf>> = {}) =>
+    render(<Shelf listings={teachers(3)} onOpen={vi.fn()} teacherProfile={false} teacherDraft={false} {...props} />)
+}
+
 describe('TeacherShelf', () => {
   it('below the rails\' floor (two cards) it renders nothing; at three it renders', () => {
     expect(shelf({ listings: teachers(2) }).root()).toBeNull()
@@ -71,8 +83,11 @@ describe('TeacherShelf', () => {
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Tìm giáo viên')
   })
 
-  it('"See all" opens /c/teachers', () => {
+  it('"See all" opens /c/teachers — eno.vn\'s page on eno.forum, linked directly', async () => {
     shelf()
+    expect(screen.getByRole('link', { name: /See all/ }).getAttribute('href')).toBe('https://eno.vn/c/teachers')
+    cleanup()
+    ;(await marketplaceShelf())()
     expect(screen.getByRole('link', { name: /See all/ }).getAttribute('href')).toBe('/c/teachers')
   })
 
@@ -99,9 +114,9 @@ describe('TeacherShelf', () => {
       expect(a.closest('p')!.textContent).toMatch(/^Want schools to find you\? Create a teacher profile/)
     })
 
-    it('eno.forum\'s own host (its app URL is www) — and the bare local build\'s same-host form', () => {
+    it('⛔ eno.forum (its app URL is www) links eno.vn\'s form — its own teacher host 308s there; a bare local build keeps the same-host form', () => {
       vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://www.eno.forum')
-      expect(door().getAttribute('href')).toBe('https://teacher.eno.forum/')
+      expect(door().getAttribute('href')).toBe('https://teacher.eno.vn/')
       cleanup()
       vi.stubEnv('NEXT_PUBLIC_APP_URL', '')
       expect(door().getAttribute('href')).toBe('/teachers/join')
@@ -114,20 +129,28 @@ describe('TeacherShelf', () => {
       expect(h.joinClicks[0][1]).toBe('en')
     })
 
-    it('a saved draft: "Continue your teacher profile" on THIS host', () => {
+    it('a saved draft: "Continue your teacher profile" on THIS host — on eno.forum, eno.vn\'s form', async () => {
       shelf({ teacherDraft: true })
-      const a = screen.getByRole('link', { name: /Continue your teacher profile/ })
-      expect(a.getAttribute('href')).toBe('/teachers/join')
+      let a = screen.getByRole('link', { name: /Continue your teacher profile/ })
+      expect(a.getAttribute('href')).toBe('https://eno.vn/teachers/join')
       expect(a.getAttribute('data-cross-link')).toBe('home-teacher-continue')
       expect(screen.queryByText(/Want schools to find you/)).toBeNull()
+      cleanup()
+      ;(await marketplaceShelf())({ teacherDraft: true })
+      a = screen.getByRole('link', { name: /Continue your teacher profile/ })
+      expect(a.getAttribute('href')).toBe('/teachers/join')
     })
 
-    it('a profile: "Your teacher profile" → /teachers/edit (it wins over a stale draft flag)', () => {
+    it('a profile: "Your teacher profile" → /teachers/edit (it wins over a stale draft flag) — on eno.forum, eno.vn\'s', async () => {
       shelf({ teacherProfile: true, teacherDraft: true })
-      const a = screen.getByRole('link', { name: /Your teacher profile/ })
-      expect(a.getAttribute('href')).toBe('/teachers/edit')
+      let a = screen.getByRole('link', { name: /Your teacher profile/ })
+      expect(a.getAttribute('href')).toBe('https://eno.vn/teachers/edit')
       expect(a.getAttribute('data-cross-link')).toBe('home-teacher-edit')
       expect(screen.queryByRole('link', { name: /Create a teacher profile|Continue your teacher profile/ })).toBeNull()
+      cleanup()
+      ;(await marketplaceShelf())({ teacherProfile: true, teacherDraft: true })
+      a = screen.getByRole('link', { name: /Your teacher profile/ })
+      expect(a.getAttribute('href')).toBe('/teachers/edit')
     })
 
     it('in Vietnamese, the existing curated lines', () => {
@@ -143,13 +166,6 @@ describe('TeacherShelf', () => {
    * module-level constant and vitest runs as eno.forum, so the marketplace render re-imports the shelf with the edition set.
    */
   describe('the guide line', () => {
-    const marketplaceShelf = async () => {
-      vi.resetModules()
-      vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
-      const { TeacherShelf: Shelf } = await import('./teacher-shelf')
-      return (props: Partial<React.ComponentProps<typeof TeacherShelf>> = {}) =>
-        render(<Shelf listings={teachers(3)} onOpen={vi.fn()} teacherProfile={false} teacherDraft={false} {...props} />)
-    }
 
     it('on eno.vn: links the hub in every door state, with the target declared English', async () => {
       const draw = await marketplaceShelf()

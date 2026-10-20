@@ -51,9 +51,16 @@ describe('the teachers plate: "Create a teacher profile" → the sign-up host', 
     expect(plate.querySelectorAll('[data-subcat]').length).toBe((SUBCATEGORIES.teachers ?? []).length)
   })
 
-  it('follows the edition: eno.forum (www) → https://teacher.eno.forum/; no app URL → the form on this host', () => {
+  // ⛔ eno.forum's own teacher host 308s to teacher.eno.vn since 2026-10-20 (owner decision 6, src/lib/teachers/surface.ts),
+  // so the forum links eno.vn's form directly instead of a redirect.
+  it('follows the app URL: eno.forum (www) → https://teacher.eno.vn/ (its own host 308s there); no app URL → the form on this host', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://www.eno.forum')
-    expect(teacherJoinUrl()).toBe('https://teacher.eno.forum/')
+    expect(teacherJoinUrl()).toBe('https://teacher.eno.vn/')
+    expect(teacherJoinUrl('https://eno.forum')).toBe('https://teacher.eno.vn/')
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    expect(teacherJoinUrl()).toBe('https://teacher.eno.vn/')
+    // Any other app URL keeps its own host's form, as before (a preview's, say).
+    expect(teacherJoinUrl('https://staging.example')).toBe('https://teacher.staging.example/')
     vi.stubEnv('NEXT_PUBLIC_APP_URL', '')
     expect(teacherJoinUrl()).toBe('/teachers/join')
   })
