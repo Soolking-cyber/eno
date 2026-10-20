@@ -1,0 +1,3 @@
+# A local run (README.md, "Local run") makes these; neither belongs in git or in the image.
+__pycache__/
+.venv/

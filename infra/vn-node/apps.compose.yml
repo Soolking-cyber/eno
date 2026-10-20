@@ -34,6 +34,13 @@ services:
       # and why the rest stay on the public route: src/lib/supabase/server-fetch.ts. Runtime-only like the two above —
       # `next build` never sees it; rollback is deleting this line and recreating the container, no rebuild.
       SUPABASE_INTERNAL_FETCH: 'true'
+      # The Laya engine the teacher job-DM matcher asks about each job post (src/lib/teachers/job-dms/laya.ts): its own
+      # container, eno-laya, on supabase_default with no published port (jobs.compose.yml, laya-server/README.md). Not a
+      # secret, runtime-only like the switches above. eno.vn ONLY — teachers live on the marketplace, so eno-forum has
+      # no such line. Laya RECORDS, it decides nothing (job-dms/facts.ts LAYA_ROLE). ⚠️ UNREACHABLE IS "NOT AVAILABLE",
+      # NEVER AN ERROR: the rules decide as always, and posts are stored without Laya's answers. So this line may ship
+      # before eno-laya exists, and rolling Laya back needs no edit here.
+      LAYA_ENGINE_URL: 'http://eno-laya:8790'
     # ⛔ THE OPTIMIZER CACHE SURVIVES THE DEPLOY, AND UNTIL 2026-09-14 IT DID NOT.
     # `docker inspect eno-vn-app` returned `Mounts: []`: 173MB / 3,330 encoded variants sat in
     # the container layer and every `up -d --force-recreate` threw them away. Measured on this

@@ -21,5 +21,10 @@ export const GET = route({ auth: 'cron' }, async ({ req }) => {
   // quiet success (codex, gates 3c + 3f).
   // ⚠️ 'deadline' too: a run that ran out of time left teachers unread — the next run continues, but it is visible.
   // `stop` FIRST: eno-cron.sh prints the first 200 bytes, and the worst case below is ~170 (opus, gate 5a).
-  return { ok: r.failed === 0 && r.stopped !== 'no-operator' && r.stopped !== 'busy' && r.stopped !== 'deadline', ...(r.stopped ? { stop: r.stopped } : {}), m: r.mode, s: r.sent, f: r.failed, st: r.stops, pz: r.paused ?? 0, lp: r.lapsed ?? 0, rd: r.read, rdy: r.ready, h: r.held, d: r.dropped, x: r.expired, t: r.teachers, sh: r.shadow, sk: r.skipped }
+  // ok = no failure and no stop but the two that ARE the job done — an allow-list, so a stop added later is never a
+  // quiet success (opus, gate 6g).
+  const body = { ok: r.failed === 0 && (r.stopped === undefined || r.stopped === 'quiet' || r.stopped === 'ceiling'), ...(r.stopped ? { stop: r.stopped } : {}), m: r.mode, s: r.sent, f: r.failed, st: r.stops, pz: r.paused ?? 0, lp: r.lapsed ?? 0, rd: r.read, rdy: r.ready, h: r.held, d: r.dropped, x: r.expired, t: r.teachers, sh: r.shadow, sk: r.skipped }
+  // ⛔ …and NOT a 200: eno-cron.sh fails the unit only on a non-200, so an `ok: false` answered 200 was a quiet success
+  // after all — `systemctl --failed` never showed it (found 2026-10-20 checking gate 6f; the invite route already did this).
+  return body.ok ? body : Response.json(body, { status: 500 })
 })

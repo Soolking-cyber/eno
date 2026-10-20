@@ -1,0 +1,63 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# eno · the teacher-jobs side container on 162.4.176.233: eno-laya, the Laya decision engine the job-DM matcher asks
+# about each job post (infra/vn-node/laya-server; the caller is src/lib/teachers/job-dms/laya.ts, through
+# LAYA_ENGINE_URL in apps.compose.yml).
+#
+#   docker compose -f /opt/eno/app/infra/vn-node/jobs.compose.yml up -d
+#
+# ⛔ NOT IN eno-deploy.sh — built and started by hand, only when laya-server/ changes (laya-server/README.md says why
+# and has the build, verify and rollback commands).
+#
+# ⛔ `name: eno-jobs` IS LOAD-BEARING. Without it, this file's project would be named after its directory — `vn-node`,
+# the SAME project as apps.compose.yml — so every `up` here would report eno-vn-app and eno-forum-app as orphans (and
+# eno-deploy.sh's `up` would report eno-laya), one `--remove-orphans` away from removing the marketplace.
+name: eno-jobs
+
+services:
+  eno-laya:
+    image: eno-laya:local
+    # The image exists only on this box (laya-server/README.md builds it); `never` makes a missing image an error at
+    # `up` rather than a pull attempt.
+    pull_policy: never
+    container_name: eno-laya
+    restart: unless-stopped
+    # ⛔ NO `ports:`, EVER. The server has no authentication — the network is the boundary. Docker publishes past ufw,
+    # so a published port is an unauthenticated endpoint on the internet (the class of mistake that once exposed the
+    # Supabase pooler), and even a loopback-only one is a way in that nothing needs. The app containers reach it on
+    # this network as http://eno-laya:8790 (src/lib/laya-infra.test.ts holds this line).
+    networks: [supabase_default]
+    # A tenant on a shared production box (beside Postgres, both Next.js apps and eno-mt), never a dedicated inference
+    # host. Matches LAYA_THREADS=3 in the image. `cpus` is only a ceiling; `cpu_shares` (a quarter of the default 1024)
+    # makes it YIELD under contention, so a run's predictions never slow Postgres or a page (opus, gate 6d).
+    cpus: 3
+    cpu_shares: 256
+    # ⚠️ A HARD CEILING, NO SWAP. Measured 2026-10-20 on the owner's Mac (laya-server/README.md): a physical footprint
+    # of 2.3 GB at peak, over the load and a batch of 3,000-character posts (`ps` RSS, which also counts freed pages
+    # macOS had not reclaimed yet, read 3.3 GB). Past 3 GB the kernel kills THIS container, never Postgres;
+    # `restart` brings it back once the model has loaded again (1–3 minutes), and meanwhile the app reads an
+    # unreachable Laya as "not available".
+    # Re-measure on the box with `docker stats` (README) before trusting the headroom.
+    # ⚠️ 4g, not 3g (review 2026-10-20): Linux RSS for torch runs above the Mac's footprint, 3 GB left ~100 MB over the
+    # measured peak, and the box has ~10 GB free — the cheaper failure is a little idle RAM, not an OOM loop.
+    mem_limit: 4g
+    memswap_limit: 4g
+    # And under HOST memory pressure the OOM killer takes this before anything that serves users or holds data.
+    oom_score_adj: 500
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    # Nothing in the container writes outside /tmp: the model is baked and was already rewritten at build (see the
+    # Dockerfile's first load), and HF_HOME points at /tmp.
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    # The healthcheck is in the image (a python urllib probe of /healthz; Dockerfile HEALTHCHECK).
+
+# Created by the Supabase stack; the app containers are on it too (apps.compose.yml).
+networks:
+  supabase_default:
+    external: true

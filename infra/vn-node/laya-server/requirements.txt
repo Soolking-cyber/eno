@@ -1,0 +1,18 @@
+# eno · Laya runtime (server.py). The versions the lead pipeline measured working together on 2026-09-23
+# (~/eno-lead-pipeline/laya-server), kept EXACTLY so this container answers like the runs that were measured.
+#
+# ⚠️ WHY PYTHON 3.11 AND torch 2.2.2, NOT NEWER. torch 2.2.2 is the LAST x86_64 macOS wheel (the owner's Mac, where the
+# pipeline measured Laya), which pins transformers < 5 and numpy < 2 with it; and torch 2.2.2 + Python 3.12 fails on
+# ModernBERT, the encoder's architecture ("Dynamo is not supported on Python 3.12+"). The image (linux/amd64) uses
+# the same pins for parity — a newer torch here would be a different runtime from the one every number was taken on.
+# ⚠️ torch IS INSTALLED FIRST, FROM THE CPU INDEX (Dockerfile). Resolved from PyPI on linux/x86_64, torch==2.2.2 is
+# the CUDA build and brings ~2.5 GB of nvidia-* wheels; the CPU index's 2.2.2+cpu satisfies the pin below, so
+# `pip install -r` leaves it in place (the Dockerfile asserts it).
+# ⚠️ Change a pin only together with a re-measurement (README.md, "Local run").
+laya==0.3.6
+torch==2.2.2
+transformers==4.57.6
+tokenizers==0.22.2
+safetensors==0.8.0
+huggingface_hub==0.36.2
+numpy==1.26.4

@@ -21,33 +21,24 @@ if (!url) { console.error('Set DIRECT_URL'); process.exit(1) }
 
 const TABLES = ['ExternalJobPost', 'TeacherJobDmConsent', 'TeacherJobDm', 'TeacherJobDmDay']
 
-// ⚠️ "IF NOT EXISTS" NEVER REPAIRS A TABLE (codex, gate 3b): an existing table with other columns would pass silently and
-// fail on Prisma's first read. So the columns each CREATE below names — read from this file's own text, the way
-// ddl.test.ts reads them — are checked against the database, in --check and before COMMIT.
-const SELF = readFileSync(new URL(import.meta.url), 'utf8')
-const expectedColumns = (t) => [...(new RegExp(`create table if not exists "${t}" \\(([\\s\\S]*?)\\n  \\)\``).exec(SELF)?.[1] ?? '').matchAll(/^\s+"(\w+)" /gm)].map((m) => m[1]).sort()
-async function columnDrift(t) {
-  const have = (await client.query(`select column_name from information_schema.columns where table_schema = 'public' and table_name = $1`, [t])).rows.map((r) => r.column_name).sort()
-  const want = expectedColumns(t)
-  const missing = want.filter((c) => !have.includes(c)), extra = have.filter((c) => !want.includes(c))
-  return missing.length || extra.length ? `missing [${missing.join(', ')}] extra [${extra.join(', ')}]` : null
-}
+// ⚠️ "IF NOT EXISTS" NEVER REPAIRS A TABLE (codex, gate 3b): an existing table of another shape would pass silently and
+// fail on Prisma's first read — or, missing its unique index, record one offer twice. So the tables' exact SHAPE is
+// checked against the database, in --check and inside the transaction before COMMIT, by scripts/teacher-job-dms-shape.sql
+// — one row per difference: every column's type, NOT NULL and default, every constraint's definition, every index's
+// columns, RLS on and no policy. infra/vn-node/job-dms/install.sh runs the SAME file on the box before it enables
+// anything (codex + opus, gates 6c–6f: one definition, both places).
+const SHAPE_SQL = readFileSync(new URL('./teacher-job-dms-shape.sql', import.meta.url), 'utf8')
+const shapeProblems = async () => (await client.query(SHAPE_SQL)).rows.map((r) => r.problem)
 
 const client = new pg.Client({ connectionString: url })
 await client.connect()
 
 if (check) {
-  let bad = 0
-  for (const t of TABLES) {
-    const r = await client.query(`select to_regclass($1) as t`, [`public."${t}"`])
-    if (!r.rows[0].t) { console.log(`MISSING  ${t}`); bad++; continue }
-    const drift = await columnDrift(t)
-    const rls = (await client.query(`select relrowsecurity from pg_class where oid = $1::regclass`, [`public."${t}"`])).rows[0].relrowsecurity
-    console.log(`${drift || !rls ? 'WRONG  ' : 'ok     '}  ${t}${drift ? `  columns: ${drift}` : ''}${rls ? '' : '  RLS OFF'}`)
-    if (drift || !rls) bad++
-  }
+  const problems = await shapeProblems()
+  for (const t of TABLES) if (!problems.some((p) => p.split(' ').filter(Boolean)[1] === t)) console.log(`ok     ${t}`)
+  for (const p of problems) console.log(`WRONG  ${p}`)
   await client.end()
-  process.exit(bad ? 3 : 0)
+  process.exit(problems.length ? 3 : 0)
 }
 
 await client.query('begin')
@@ -169,11 +160,13 @@ for (const t of TABLES) {
 }
 console.log('ok  RLS on (no policies)')
 
-for (const t of TABLES) {
-  const drift = await columnDrift(t)
-  if (drift) { console.error(`${t} exists with other columns (${drift}) — rolled back; fix the table by hand, then re-run.`); await client.query('rollback'); process.exit(1) }
+const problems = await shapeProblems()
+if (problems.length) {
+  console.error(`The tables exist in another shape — rolled back; fix them by hand, then re-run:\n  ${problems.join('\n  ')}`)
+  await client.query('rollback')
+  process.exit(1)
 }
-console.log('ok  every table has exactly its columns')
+console.log('ok  every table has exactly its shape (scripts/teacher-job-dms-shape.sql): columns, constraints, indexes, RLS, no policy')
 
 await client.query('commit')
 await client.end()

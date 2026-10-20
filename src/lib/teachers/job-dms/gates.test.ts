@@ -427,3 +427,63 @@ describe('gate 4c', () => {
     expect(mayBeOptOut('Stop sending these job alerts, I already applied elsewhere and got the position, thank you')).toBe(true)
   })
 })
+
+describe('gate 5d', () => {
+  it('explicit stop words win over talk of a job', () => {
+    expect(mayBeOptOut("Please stop the job messages, I'll apply to job 3 myself, thanks for all the help")).toBe(true)
+    expect(isStopReply("Stop. Don't send me job 4 or anything else, I have found a job now, thank you")).toBe(true)
+  })
+})
+
+describe('gate 6a', () => {
+  it('asking to KEEP the alerts, or why they stopped, is not an opt-out', () => {
+    expect(mayBeOptOut("Please don't stop the job alerts, they're great and I applied to two of them already")).toBe(false)
+    expect(mayBeOptOut('Why did you stop the job messages? I have not had any for a week now, is something wrong')).toBe(false)
+  })
+})
+
+describe('gate 6b', () => {
+  it('a threat or a complaint keeps its "stop"', () => {
+    expect(mayBeOptOut("If you don't stop the job messages I'll report you as spam, I never asked for any of this")).toBe(true)
+    expect(mayBeOptOut('You never stop messaging me, every single day another one, this is too much honestly')).toBe(true)
+  })
+})
+
+describe('gate 6c', () => {
+  it('keeping the alerts, in more words, is not an opt-out', () => {
+    for (const t of [
+      "Please don't stop the job alerts, they aren't spam at all, I really like getting them every day",
+      "Please don't stop the job alerts, I'll report back on the interviews I get from them this week",
+      "I hope you won't stop the job alerts, they have been really useful for me this month, thanks",
+      "Please don't ever stop the job messages, they found me two good classes already this month",
+      'Why did you stop the job messages? I liked getting them and I applied to two of the schools',
+      // gate 6d
+      'Please don’t stop the job alerts, no complaints at all, they have been really helpful to me',
+      'Never stop the job alerts! I found my current school through one of them last month',
+      'Don’t you dare stop the job alerts, I read every one of them the morning it arrives',
+    ]) expect(mayBeOptOut(t), t).toBe(false)
+  })
+
+  it('…and the same words that ask to STOP still pause (a miss is the costly error)', () => {
+    for (const t of [
+      'Will you stop messaging me? I have told you before that I am not looking for work now',
+      'Would you stop sending me these messages, I am not interested in teaching any more',
+      "You won't stop messaging me, will you? This is the third time this week, honestly",
+      "Why don't you stop sending me these messages? I asked you last week already",
+      "You don't stop sending me jobs even though I asked you not to send them to me",
+      "Can you stop the job messages? I'll apply to job 3 myself if I want it, thanks",
+      "Oh please don't stop the messages, I just love spam from people I never gave my number to",
+      "Please don't stop the job alerts... just kidding, stop sending me these messages or I will block your number",
+      "If you don't stop the job messages I'll report you to Facebook, this is the last warning",
+      'Did you stop the job alerts? Good. Please stop all the job messages from now on, thank you',
+      // gate 6e: a question about stopping can be either — it pauses (the cheap error), and the PAUSE_ACK offers "Keep"
+      "Did you stop the job alerts? I haven't had one in a week and I was looking forward to them",
+      'Did you stop sending me these messages like I asked you to last week? I am still getting them',
+      'Have you stopped messaging me yet? I asked twice already and they keep on coming every day',
+      "Don't you ever stop sending me these? I have told you I am not looking for any work now",
+      // gate 6d: the same new keep-shapes, said by someone who wants it to end
+      'You never stop sending these messages even after I asked you twice to leave me be',
+      'Please don’t stop the job alerts — said no one ever. I have complained about these twice',
+    ]) expect(mayBeOptOut(t), t).toBe(true)
+  })
+})

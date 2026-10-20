@@ -1,5 +1,6 @@
 import 'server-only'
 import { createHash } from 'node:crypto'
+import { lookup } from 'node:dns/promises'
 
 /**
  * LAYA ON THE BOX — the second reader of a job post (owner, 2026-10-20: "a matching algorythm with laya in the box").
@@ -84,7 +85,38 @@ export function layaUrl(): string | null {
   }
 }
 
-/** `<model>@<revision>#q<questions sha>` — stored with every answer so a model or question change re-reads posts. */
+/** A private or loopback address — the only kind the box's own engine can have. */
+export function privateAddress(ip: string): boolean {
+  if (/^(127|10)\.\d+\.\d+\.\d+$/.test(ip) || /^192\.168\.\d+\.\d+$/.test(ip)) return true
+  const b = /^172\.(\d+)\.\d+\.\d+$/.exec(ip)
+  if (b) return +b[1] >= 16 && +b[1] <= 31
+  const v6 = ip.toLowerCase()
+  return v6 === '::1' || /^f[cd][0-9a-f]{2}:/.test(v6)
+}
+
+/**
+ * layaUrl() with its NAME resolved — or null unless every address it resolves to is private or loopback. While no
+ * eno-laya container exists (before the install, after `compose down`), the name goes to the host's resolvers with their
+ * search domains, and a wildcard there would answer with a public address: the post text would leave the box over plain
+ * HTTP (opus, gate 6g). Every request then goes to the checked ADDRESS — the name is never resolved twice.
+ */
+export async function layaBase(): Promise<string | null> {
+  const u = layaUrl()
+  if (!u) return null
+  const url = new URL(u)
+  const host = url.hostname.replace(/^\[|\]$/g, '')
+  if (/^[\d.]+$/.test(host) || host.includes(':')) return u // an address already — and layaUrl took loopback only
+  try {
+    const addrs = await lookup(host, { all: true })
+    if (!addrs.length || !addrs.every((a) => privateAddress(a.address))) return null
+    url.hostname = addrs[0].family === 6 ? `[${addrs[0].address}]` : addrs[0].address
+    return url.toString().replace(/\/+$/, '')
+  } catch {
+    return null
+  }
+}
+
+/** `<model>@<revision>#q<questions sha>` — stored with every answer, so each names the model and questions behind it. */
 export async function layaEngineId(base: string): Promise<string | null> {
   try {
     // ⛔ redirect 'error': a 3xx from anything answering as the engine must not carry the request — or a post — elsewhere
@@ -107,8 +139,9 @@ export async function layaEngineId(base: string): Promise<string | null> {
  * minutes, never its 15-minute window, and the posts it did not reach are simply stored without its answers.
  */
 export async function layaAnswers(texts: readonly string[], opts: { timeoutMs?: number; budgetMs?: number } = {}): Promise<{ engine: string; answers: (LayaAnswers | null)[] } | null> {
-  const base = layaUrl()
-  if (!base || !texts.length) return null
+  if (!texts.length) return null
+  const base = await layaBase()
+  if (!base) return null
   const engine = await layaEngineId(base)
   if (!engine) return null
   const answers: (LayaAnswers | null)[] = texts.map(() => null)

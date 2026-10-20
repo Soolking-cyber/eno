@@ -83,7 +83,17 @@ function longOptOut(t: string, raw: string): boolean {
   // ⚠️ No "keep sending" override: "Why do you KEEP MESSAGING me? … stop it" and "do not CONTINUE SENDING" are the
   // angriest opt-outs (opus, gate 3f). A wish to go on only answers the weak "not interested" below.
   const goOn = /\b(keep|continue|please do) (sending|send)\b/.test(t) && !/\b(do not|don t|dont|never|why do you|why are you|stop) (keep|continue)/.test(t)
+  // A threat or a complaint about THESE messages — aimed at us, whole words: "I'll report back", "blocks of lessons" and
+  // "Suez" are not (opus, gate 6c), and nor is "they aren't spam" (codex, gate 6c) — but "I just love spam" is.
+  const threatened = /\b(report|block|sue)(ed|ing)? (you|this|these|it|eno|your)\b|\b(police|lawyer|harass\w*)\b|(?<!\b(aren t|are not|isn t|is not|not|never|no|any) )\b(complain\w*|spam(my|ming|med)?)\b/.test(t)
   const notAboutUs = t
+    // Asking to KEEP them (opus, gates 6a + 6c): "please DON'T (ever) stop the job alerts", "don't you dare stop them",
+    // "never stop the job alerts!", "why did you stop the job messages?", "I hope you won't stop them". Only those shapes:
+    // "WILL you stop messaging me?", "you won't stop, will you", "why don't you stop sending me these", "don't you ever stop
+    // sending me these?", "you don't stop sending me jobs" and "DID you stop sending me these like I asked?" (opus, gate
+    // 6e) are the opposite — a question about stopping can be either, and a wrong pause is the cheap error. A threat or a
+    // complaint in the reply leaves every "stop" where it is ("if you don't stop the job messages I'll report you").
+    .replace(threatened ? /$^/ : /(?<!\b(you|u|they|it|eno|why|who|which|that) )\b(please )?((don t|do not|dont)( ever| you dare)?|never( ever)?) stop (the|these|sending|your)\b|\bwhy (did|would|have) you (stop|stopped)\b|\b(hope|wish) (that )?(you |eno )?(won t|will not|don t|do not|never) (ever )?stop\b/g, ' ')
     .replace(/\bbus stop\b|\bstop by\b|\bstop (teaching|working|doing)\b|\b(never|didn t|did not|doesn t|does not|don t|do not) (text|message|reply|answer|call|write|email)s? (me )?back\b/g, ' ')
     // what the TEACHER sends or is sent about one job: "I'll stop sending CVs", "don't send me the address", "no more
     // messages from the school", "remove me from the shortlist", "I opt out of nights" (gates 3b–3d)
@@ -94,6 +104,12 @@ function longOptOut(t: string, raw: string): boolean {
     .replace(/\bopt (me )?out of (nights?|weekends?|mornings?|evenings?|afternoons?|the (night|weekend|morning|evening|afternoon))\b/g, ' ')
   // Strong: "stop sending/messaging me" (the address-like objects were taken out above).
   if (/\bstop (sending|messaging|texting|contacting|emailing) ((me|us)\b|(these|this|the|your|any|all)( job)? (messages|alerts|offers|jobs|texts|emails)\b)/.test(notAboutUs)) return true
+  // "Please stop the job messages, I'll apply to job 3 myself" — explicit stop words win over any talk of a job (opus, 5d),
+  // asked as a question too ("Can you stop the job messages?"); the keep-shapes were taken out above.
+  if (/\bstop (the|these|this|your|all|any)( job)? (messages|alerts|offers|texts|emails|notifications)\b/.test(notAboutUs)) return true
+  // "Did you stop / have you stopped sending me these (like I asked)?" — a question about stopping can be either, so it
+  // pauses (opus, gate 6e); "WHY did you stop …?" was taken out above as a wish to keep them.
+  if (/\b(did|have|has) (you|eno) (stop|stopped) (sending|messaging|texting|contacting|emailing|the|these|this|your|all|any)\b/.test(notAboutUs)) return true
   // Weak — "stop" near a word about messages — unless the reply is plainly about a job ("Stop - I meant job 3, please
   // send me the details" — opus, gate 4b).
   // ⚠️ "about a job" = a numbered job AND a request about it — never a bare "applied" or "interview" ("Please stop the job
