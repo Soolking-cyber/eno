@@ -554,3 +554,27 @@ describe('gateTranslation — numbered placeholders are entities', () => {
     expect(gateTranslation('{0} says you bought {1} for {2}.', 'Продавец говорит, что вы купили {1} за {2}. {0}', 'ru', 'en')).toBeNull()
   })
 })
+
+describe('gateTranslation — live chat (shortOk)', () => {
+  it('keeps a correct one-word answer the length test would refuse', () => {
+    // 'Không' → "No" is 0.4 of the length; 'Ừ' → "Yes" is 3.0
+    expect(gateTranslation('Không', 'No', 'en', 'vi')).toBe('length-ratio')
+    expect(gateTranslation('Không', 'No', 'en', 'vi', { shortOk: true })).toBeNull()
+    expect(gateTranslation('Ừ', 'Yes', 'en', 'vi', { shortOk: true })).toBeNull()
+  })
+  it('still applies the length test to a longer line, and every other check to a short one', () => {
+    const long = 'Phòng còn trống không anh, em muốn xem vào chiều mai'
+    expect(gateTranslation(long, 'Ok', 'en', 'vi', { shortOk: true })).toBe('length-ratio')
+    expect(gateTranslation('Không', '', 'en', 'vi', { shortOk: true })).toBe('empty')
+  })
+  it('refuses the invented Vietnamese page openings m2m100 produces for short input', () => {
+    expect(gateTranslation('hi there', 'Lời bài hát: Xin chào', 'vi', 'en', { shortOk: true })).toBe('boilerplate')
+    // and a one-word line may not come back as an invented paragraph: the ceiling stays for short lines
+    expect(gateTranslation('hi there', 'Lời bài hát: Tu La Fu Huynh và những người bạn', 'vi', 'en', { shortOk: true })).toBe('length-ratio')
+    expect(gateTranslation('see more', 'Xem thêm: tin', 'vi', 'en', { shortOk: true })).toBe('boilerplate')
+    // a LISTING line may truly open that way — only short chat lines get this check
+    expect(gateTranslation('Next: the latest news from the district', 'Tiếp theo: Tin tức mới nhất từ quận', 'vi', 'en')).toBeNull()
+    // the same words in an ordinary sentence are fine — the pattern needs the opening AND its colon
+    expect(gateTranslation('how are the reviews', 'Đánh giá về phòng này thế nào', 'vi', 'en', { shortOk: true })).toBeNull()
+  })
+})

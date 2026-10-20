@@ -44,3 +44,29 @@ MT_LOCAL_URL=http://eno-mt:8088
 
 `src/lib/translate.ts` then prefers it over Google automatically. Unset it and the app falls
 straight back to the paid providers, which is the rollback.
+
+## The chat lane — a second instance for people who are waiting
+
+The server has ONE inference worker behind a first-come lock, so a chat line queued behind a listing import waited
+out whole bulk slices (about 6 s behind one batch, measured) and lost the chat route's 8 s budget. The fix is a second
+container from the SAME image that only chat and the concierge use (a listing's first view stays on the shared
+server — hundreds of strings would queue chat behind them again):
+
+```bash
+docker run -d --name eno-mt-chat --restart unless-stopped \
+  --network supabase_default --cpus 2 -m 2g \
+  -e MT_INTRA_THREADS=2 eno-mt:local
+```
+
+and, on BOTH env files, then a deploy so the apps read it:
+
+```
+MT_CHAT_URL=http://eno-mt-chat:8088
+```
+
+`src/lib/mt-local.ts` sends chat and concierge requests there and everything else to `MT_LOCAL_URL`; if the chat lane does not
+answer, the request falls back to the shared server with whatever time is left. Unset `MT_CHAT_URL` and everything
+shares one server again — that is the rollback. Same rule as above: no published port.
+
+⚠️ Neither container is in a compose file yet, so a box rebuild or migration does not bring them back by itself
+(`eno-mt` was missing for two weeks after the 2026-09-20 move). After any box change: `docker ps --filter name=eno-mt`.

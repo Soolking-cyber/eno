@@ -22,6 +22,7 @@ import {
 } from '@/lib/i18n/mt-client'
 import { LANG_COOKIE, variantOfLanguage } from '@/lib/lang-variant'
 import { pilotOnHost, pinnedPair, pinnedVariant } from '@/lib/lang-pinned'
+import { SIGNED_IN_ACCOUNT_EVENT, signedInAccount } from '@/lib/signed-in-account'
 
 // Re-exported so the many existing importers of the roster keep working
 // (the canonical definition now lives in the isomorphic @/lib/i18n/langs).
@@ -343,23 +344,39 @@ function LanguageProviderInner({
   // firing anyway 401s, and although .catch() swallows the JS error the browser still
   // logs the failed request to console — Lighthouse flags that on every guest page load
   // (Best Practices 100→96), and each one burned a function invocation for nothing.
+  //
+  // ⛔ THE "ALREADY SAVED" MARKER IS PER ACCOUNT. It used to hold only the language, per browser, so
+  // after an account switch in the same browser the new account matched the old one's marker and was
+  // never saved — its Profile.locale stayed whatever it was, and a chat partner's translate strip
+  // compared against that stale value (owner test, 2026-10-20). AuthProvider announces the account
+  // (src/lib/signed-in-account.ts); until it has, nothing is sent.
+  const [account, setAccount] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    const onAccount = (e: Event) => setAccount((e as CustomEvent<{ userId: string | null }>).detail.userId)
+    window.addEventListener(SIGNED_IN_ACCOUNT_EVENT, onAccount)
+    // An announcement made before this listener attached (AuthProvider is a CHILD, so its effects run first).
+    setAccount(signedInAccount())
+    return () => window.removeEventListener(SIGNED_IN_ACCOUNT_EVENT, onAccount)
+  }, [])
   useEffect(() => {
     if (typeof document === 'undefined' || !/(^|;\s*)sb-[^=]*-auth-token/.test(document.cookie)) return
+    if (!account) return
     // ⛔ THE VISITOR'S LANGUAGE, NOT THE ARTICLE'S (V1): on a pinned guide `lang` can be the article's, and
     // syncing it would switch an English member's notifications to Vietnamese for reading one guide. So
     // there the locale is their own preference — which also carries a choice made on the guide itself,
     // even one the page cannot show (English on an unpaired Vietnamese guide).
     const locale = pinnedHere(variantOfLanguage(initialLang)) ? preferredLanguage() : lang
-    // Skip when the settled language was already synced (persisted marker), so a
+    // Skip when THIS ACCOUNT's settled language was already synced (persisted marker), so a
     // hard load doesn't re-POST the same locale on every visit.
-    if (safeGetItem('lang-synced') === locale) return
+    const marker = `${account}|${locale}`
+    if (safeGetItem('lang-synced') === marker) return
     const id = setTimeout(() => {
       fetch('/api/profile/locale', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ locale }) })
-        .then((r) => { if (r.ok) safeSetItem('lang-synced', locale) })
+        .then((r) => { if (r.ok) safeSetItem('lang-synced', marker) })
         .catch(() => {})
     }, 800)
     return () => clearTimeout(id)
-  }, [lang])
+  }, [lang, account])
 
   // Seed BOTH translation systems (t() dictionary + <Tr>/tr cache) from one map
   // of {englishSource: translation}, then repaint consumers.

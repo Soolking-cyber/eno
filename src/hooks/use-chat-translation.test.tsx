@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { useChatTranslation } from './use-chat-translation'
@@ -75,7 +76,7 @@ describe('gate OFF (the shipped default) — unchanged everywhere', () => {
     as(ua)
     const { result } = mount()
     await waitFor(() => expect(translateCalls()).toHaveLength(1))
-    expect(JSON.parse(String(translateCalls()[0][1].body))).toEqual({ conversationId: CONVO, messageIds: ['m1'], target: 'en' })
+    expect(JSON.parse(String(translateCalls()[0][1].body))).toEqual({ conversationId: CONVO, messageIds: ['m1'], target: 'en', v: 2 })
     expect(result.current.available).toBe(true)
     expect(result.current.enabled).toBe(true)
     expect(result.current.needsNotice).toBe(false)
@@ -183,7 +184,8 @@ describe.each([['iOS app', IOS_APP], ['Android app', ANDROID_APP]])('gate ON, in
   })
 
   it('no language mismatch → nothing to ask about', async () => {
-    const { result } = mount({ counterpartLang: 'en' })
+    // same stored language AND the incoming line reads as mine
+    const { result } = mount({ counterpartLang: 'en', messages: [{ id: 'm1', mine: false, body: 'Is the flat still free next month?', kind: 'text' }, MESSAGES[1]] })
     await settle()
     expect(result.current.available).toBe(false)
     expect(result.current.needsNotice).toBe(false)
@@ -245,5 +247,201 @@ describe.each([['iOS app', IOS_APP], ['Android app', ANDROID_APP]])('gate ON, in
     await settle()
     expect(result.current.needsNotice).toBe(true)
     expect(translateCalls()).toHaveLength(0)
+  })
+})
+
+describe('retries are per message, and bounded', () => {
+  type Props = { messages: typeof MESSAGES }
+  const mountWith = (initial: Props, wrapper?: React.ComponentType<{ children: React.ReactNode }>) =>
+    renderHook((p: Props) => useChatTranslation({ conversationId: CONVO, userId: ME, myLang: 'en', counterpartLang: 'vi', messages: p.messages }), { initialProps: initial, wrapper })
+  const answer = (item: Record<string, unknown>) =>
+    fetchMock.mockImplementation(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ items: [item] }) }))
+
+  it('a message the server marks `retry` is asked again on the next refetch — and given up after 4 tries', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    answer({ id: 'm1', text: MESSAGES[0].body, translated: false, retry: true })
+    const { rerender } = mountWith({ messages: MESSAGES })
+    await waitFor(() => expect(translateCalls()).toHaveLength(1))
+    // each refetch (the 15s poll) hands the hook a NEW array — the retry rides it
+    for (let n = 2; n <= 4; n++) {
+      rerender({ messages: [...MESSAGES] })
+      await waitFor(() => expect(translateCalls()).toHaveLength(n))
+    }
+    rerender({ messages: [...MESSAGES] })
+    await settle()
+    expect(translateCalls()).toHaveLength(4)
+  })
+
+  it('a definite answer is never asked again', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    const { rerender, result } = mountWith({ messages: MESSAGES })
+    await waitFor(() => expect(result.current.translationFor('m1')).toBe('Hello, is the flat still free?'))
+    rerender({ messages: [...MESSAGES] })
+    await settle()
+    expect(translateCalls()).toHaveLength(1)
+  })
+
+  it('⛔ keeps working after its effects re-run without a remount (Next\'s back/forward state cache, <Activity>)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    // Hidden ⇒ React runs every effect cleanup but keeps the state; shown ⇒ it re-runs the effects. A thread you
+    // navigate away from and back to goes through exactly this.
+    let setMode: (m: 'visible' | 'hidden') => void = () => {}
+    const Host = ({ children }: { children: React.ReactNode }) => {
+      const [mode, set] = React.useState<'visible' | 'hidden'>('visible')
+      setMode = set
+      return <React.Activity mode={mode}>{children}</React.Activity>
+    }
+    const { rerender } = mountWith({ messages: [] }, Host)
+    await settle()
+    act(() => setMode('hidden'))
+    await settle()
+    act(() => setMode('visible'))
+    await settle()
+    // A message arrives after coming back: it must still be sent.
+    rerender({ messages: MESSAGES })
+    await waitFor(() => expect(translateCalls()).toHaveLength(1))
+  })
+})
+
+describe('the messages decide, not only the stored language', () => {
+  it('⛔ a STALE stored language (says mine) no longer hides a Vietnamese line from an English reader', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    const { result } = mount({ counterpartLang: 'en' }) // stored 'en', but they wrote Vietnamese
+    await waitFor(() => expect(translateCalls()).toHaveLength(1))
+    expect(result.current.available).toBe(true)
+    expect(JSON.parse(String(translateCalls()[0][1].body)).messageIds).toEqual(['m1'])
+  })
+
+  it('⛔ an UNKNOWN stored language (an unowned desk, a never-synced account) does too — unaccented Vietnamese included', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    const { result } = mount({ counterpartLang: null, messages: [{ id: 'm1', mine: false, body: 'xin chao, ban khoe khong', kind: 'text' }] })
+    await waitFor(() => expect(translateCalls()).toHaveLength(1))
+    expect(result.current.showToggle).toBe(true)
+  })
+
+  it('asks only about the lines that read as another language — not greetings, not my language', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    mount({ messages: [
+      { id: 'g', mine: false, body: 'hi', kind: 'text' },
+      { id: 'e', mine: false, body: 'Is parking included?', kind: 'text' },
+      { id: 'v', mine: false, body: 'Bạn khỏe không', kind: 'text' },
+    ] })
+    await waitFor(() => expect(translateCalls()).toHaveLength(1))
+    expect(JSON.parse(String(translateCalls()[0][1].body)).messageIds).toEqual(['v'])
+  })
+})
+
+describe('one foreign line does not flip a same-language thread', () => {
+  it('a Vietnamese reader, a Vietnamese counterpart (stored vi), and one "Thanks" → no strip, no request', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    const { result } = renderHook(() =>
+      useChatTranslation({
+        conversationId: CONVO, userId: ME, myLang: 'vi', counterpartLang: 'vi',
+        messages: [
+          { id: 'a', mine: false, body: 'Phòng còn trống anh nhé', kind: 'text' },
+          { id: 'b', mine: false, body: 'Thanks', kind: 'text' },
+        ],
+      }),
+    )
+    await settle()
+    expect(result.current.available).toBe(false)
+    expect(translateCalls()).toHaveLength(0)
+  })
+
+  it('a recalled message keeps no translation', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    const { result, rerender } = renderHook((p: { deleted: boolean }) =>
+      useChatTranslation({ conversationId: CONVO, userId: ME, myLang: 'en', counterpartLang: 'vi', messages: [{ ...MESSAGES[0], deleted: p.deleted }] }),
+      { initialProps: { deleted: false } })
+    await waitFor(() => expect(result.current.translationFor('m1')).toBe('Hello, is the flat still free?'))
+    rerender({ deleted: true })
+    expect(result.current.translationFor('m1')).toBeUndefined()
+  })
+})
+
+describe('long messages are packed under the route\'s character cap', () => {
+  it('three 2,000-character introductions go as separate requests, not one refused batch', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    const long = (n: number) => `Tôi là giáo viên tiếng Anh có nhiều năm kinh nghiệm ${n} `.repeat(40).slice(0, 2000)
+    mount({ messages: [1, 2, 3].map((n) => ({ id: `l${n}`, mine: false, body: long(n), kind: 'text' })) })
+    await waitFor(() => expect(translateCalls().length).toBeGreaterThanOrEqual(2))
+    const sizes = translateCalls().map(([, init]) => (JSON.parse(String(init.body)).messageIds as string[]).length)
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(3)
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(2) // 2 × 2,000 ≤ 4,500 < 3 × 2,000
+  })
+})
+
+describe('a stale stored language no longer raises the strip alone', () => {
+  it('stored "en" for a counterpart who clearly writes Vietnamese, read by a Vietnamese reader → no strip, nothing sent', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    const { result } = renderHook(() =>
+      useChatTranslation({
+        conversationId: CONVO, userId: ME, myLang: 'vi', counterpartLang: 'en',
+        messages: [
+          { id: 'a', mine: false, body: 'Phòng còn trống không anh?', kind: 'text' },
+          { id: 'b', mine: false, body: 'Em muốn xem phòng chiều mai', kind: 'text' },
+        ],
+      }),
+    )
+    await settle()
+    expect(result.current.available).toBe(false)
+    expect(result.current.needsNotice).toBe(false)
+    expect(translateCalls()).toHaveLength(0)
+  })
+
+  it('a message longer than one request may carry is never sent (the route would refuse it whole, every time)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    mount({ messages: [{ id: 'huge', mine: false, body: 'Tôi là giáo viên tiếng Anh. '.repeat(200), kind: 'text' }, MESSAGES[0]] })
+    await waitFor(() => expect(translateCalls()).toHaveLength(1))
+    expect(JSON.parse(String(translateCalls()[0][1].body)).messageIds).toEqual(['m1'])
+  })
+})
+
+describe('nothing stored about the other side — one line is enough', () => {
+  it('⛔ the owner\'s case: a support thread (no stored language) that opens with just "xin chao" shows the strip and asks', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    const { result } = mount({ counterpartLang: null, messages: [{ id: 'x', mine: false, body: 'xin chao', kind: 'text' }] })
+    await waitFor(() => expect(translateCalls()).toHaveLength(1))
+    expect(result.current.showToggle).toBe(true)
+  })
+
+  it('a Vietnamese reader of a support desk that wrote just "good" sees it translated', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    renderHook(() => useChatTranslation({ conversationId: CONVO, userId: ME, myLang: 'vi', counterpartLang: null,
+      messages: [{ id: 'g', mine: false, body: 'good', kind: 'text' }, { id: 'h', mine: false, body: 'hi', kind: 'text' }] }))
+    await waitFor(() => expect(translateCalls()).toHaveLength(1))
+    expect(JSON.parse(String(translateCalls()[0][1].body)).messageIds).toEqual(['g'])
+  })
+
+  it('a message up to the route\'s own cap is still sent, alone', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    const body = 'Tôi là giáo viên tiếng Anh. '.repeat(170).slice(0, 4_800)
+    mount({ messages: [{ id: 'big', mine: false, body, kind: 'text' }] })
+    await waitFor(() => expect(translateCalls()).toHaveLength(1))
+    expect(JSON.parse(String(translateCalls()[0][1].body)).messageIds).toEqual(['big'])
+  })
+})
+
+describe('French for an English reader, with nothing stored about the writer', () => {
+  it('a support thread that opens in French is translated', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    as(DESKTOP)
+    mount({ counterpartLang: null, messages: [{ id: 'f', mine: false, body: 'Bonjour, merci beaucoup', kind: 'text' }] })
+    await waitFor(() => expect(translateCalls()).toHaveLength(1))
+    expect(JSON.parse(String(translateCalls()[0][1].body)).messageIds).toEqual(['f'])
   })
 })

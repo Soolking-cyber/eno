@@ -14,6 +14,7 @@ import { classifyGate, noteGateOpen, pressedInChrome, settleGateSignIn, type Pre
 import { armIntent, dropIntent, markIntentRouted, pathnameOf, readIntent, type PendingIntent } from '@/lib/pending-intent'
 import type { SignInGate, SignInMethod } from '@/lib/signup-prompt'
 import { warmFacebookSignIn } from '@/lib/facebook-flag'
+import { announceSignedInAccount } from '@/lib/signed-in-account'
 /**
  * ⚠️ THE IDENTITY RULES LIVE IN A PURE MODULE — see auth-identity.ts for why (they shipped wrong
  * once, and testing them must not drag next/navigation and the Supabase browser client along).
@@ -322,6 +323,12 @@ const flushBeforeSignOut = createSignOutFlush()
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  // LanguageProvider sits ABOVE this provider and keys its saved-language marker by account
+  // (src/lib/signed-in-account.ts). Announced only once auth has settled, so "still booting" is
+  // never mistaken for "signed out".
+  useEffect(() => {
+    if (!loading) announceSignedInAccount(user?.id ?? null)
+  }, [loading, user?.id])
   const [signInOpen, setSignInOpen] = useState(false)
   const [signInCtx, setSignInCtx] = useState<SignInContext | null>(null)
   /**

@@ -80,6 +80,7 @@ export function MessageBubble({
   className,
   quote,
   meta,
+  chipsFrom,
   children,
 }: {
   mine?: boolean
@@ -99,6 +100,13 @@ export function MessageBubble({
    * and tints; the thread decides what the line says.
    */
   meta?: React.ReactNode
+  /**
+   * ⛔ WHERE THE CONTACT CHIPS COME FROM WHEN THE BUBBLE SHOWS A TRANSLATION: the sender's ORIGINAL words. A chip
+   * is a tappable Zalo/WhatsApp link; it must only ever come from what the person actually wrote — the text the
+   * scam warnings and a report also read — never from a machine translation, which could carry a number the
+   * sender never typed. Absent ⇒ the displayed string, as before.
+   */
+  chipsFrom?: string
   children: React.ReactNode
 }) {
   return (
@@ -125,7 +133,7 @@ export function MessageBubble({
           the STRING here rather than at the call sites, so `children` stays a bare string for the
           ContactChips scanner below — which only fires for string children. */}
       {typeof children === 'string' ? <span className="whitespace-pre-line">{shownLines(children)}</span> : children}
-      {typeof children === 'string' ? <ContactChips text={children} mine={mine} /> : null}
+      {typeof children === 'string' ? <ContactChips text={chipsFrom ?? children} mine={mine} /> : null}
       {meta ? (
         /**
          * ⚠️ THE TINT IS PER SIDE AND IT IS NOT COSMETIC. Outside the bubble this line sat on the

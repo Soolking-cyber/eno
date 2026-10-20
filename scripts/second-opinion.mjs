@@ -133,6 +133,10 @@ const UNREVIEWABLE = [
   // owner's cleanup journals — 1.9 MB of data no reviewer can read line by line. Reviewed instead through
   // src/lib/gone-listing-ids.ts and its test (count, a known id from each journal, SuperSports absent).
   ':(exclude)src/data/gone-listing-ids.json',
+  // The Vietnamese mark-restoration table: a minified, SERVER-ONLY table generated from eno's own Vietnamese text by
+  // scripts/gen-chat-lang-data.py (2026-10-20) — ~110KB with no logic. Its reader (vi-restore.ts), its generator and
+  // a shape test are reviewed normally. (chat-lang-data.ts ships to browsers, so it is NOT excluded.)
+  ':(exclude)src/lib/vi-restore-data.ts',
 ]
 
 /**

@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { detectContentLang } from '@/lib/detect-lang'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { detectChatLang, foreignTo, threadLanguage } from '@/lib/chat-lang'
 import {
   CHAT_TRANSLATION_CONSENT_EVENT,
   chatTranslationAskFirst,
@@ -31,27 +31,43 @@ import {
 // poll/realtime re-render never re-requests, and cache by (id + target language) so a
 // language switch re-keys instead of serving a stale translation.
 
-type ChatMsg = { id: string; mine: boolean; body: string; kind?: string; pending?: boolean; failed?: boolean }
+type ChatMsg = { id: string; mine: boolean; body: string; kind?: string; pending?: boolean; failed?: boolean; deleted?: boolean }
 
-type TranslateItem = { id: string; text: string; translated: boolean }
+// `retry`: the server could not translate this one THIS time (see the route) — ask again later, don't bank it.
+type TranslateItem = { id: string; text: string; translated: boolean; retry?: boolean }
 
 const MAX_IDS_PER_REQUEST = 50
+// The route refuses a request over 5,000 characters (413), and a 4xx is final for every id in it — so three long
+// teacher introductions in one batch left the whole backlog untranslated. Pack by characters too, under that cap;
+// one message up to the cap itself still goes, alone.
+const MAX_CHARS_PER_REQUEST = 4_500
+const ROUTE_CHAR_CAP = 5_000
 
-// Map a supported UI language to the coarse script `detectContentLang` reports, so we can
-// cheaply skip a message the counterpart already wrote in the viewer's own script (no API
-// call, no cost). Latin-script langs (en/fr/ms/vi-as-plain-latin…) map to null here and
-// simply fall through to the server, which is the correct place to make the call for them.
-function scriptOf(lang: string): string | null {
-  const base = lang.split('-')[0]
-  switch (base) {
-    case 'ko': return 'ko'
-    case 'ja': return 'ja'
-    case 'zh': return 'zh'
-    case 'ru': return 'ru'
-    case 'th': return 'th'
-    default: return null
+/** Split ids into requests of at most 50 ids and MAX_CHARS_PER_REQUEST characters (one long message rides alone). */
+function packBatches(ids: string[], lengthOf: (id: string) => number): string[][] {
+  const out: string[][] = []
+  let cur: string[] = []
+  let chars = 0
+  for (const id of ids) {
+    const len = lengthOf(id)
+    if (cur.length && (cur.length >= MAX_IDS_PER_REQUEST || chars + len > MAX_CHARS_PER_REQUEST)) {
+      out.push(cur)
+      cur = []
+      chars = 0
+    }
+    cur.push(id)
+    chars += len
   }
+  if (cur.length) out.push(cur)
+  return out
 }
+// Tries per message per mount before it is left as the original. A retry rides the next refetch (the 15s poll,
+// realtime, focus), so without a cap it was re-sent — and re-charged against the budget — every 15s for as long as
+// the thread stayed open. Two caps, because the two failures differ: a message the server REFUSED (`retry` — the box
+// model rejected that one line) is unlikely to change, so 4 tries; a whole-batch blip (503/429/network — a box
+// restart, a deploy) is worth riding out, so 20 (≈5 min of polls).
+const MAX_TRIES = 4
+const MAX_TRANSIENT_TRIES = 20
 
 function safeGet(key: string): string | null {
   try { return localStorage.getItem(key) } catch { return null }
@@ -71,7 +87,7 @@ function safeSet(key: string, value: string) {
 // a no-op: nothing was ever translatable. Undefined is still allowed for local rows.
 function isTranslatable(m: ChatMsg): boolean {
   const plain = !m.kind || m.kind === 'text'
-  return !m.mine && plain && !!m.body.trim() && !m.pending && !m.failed
+  return !m.mine && plain && !!m.body.trim() && !m.pending && !m.failed && !m.deleted
 }
 
 export function useChatTranslation(opts: {
@@ -89,9 +105,31 @@ export function useChatTranslation(opts: {
 }) {
   const { conversationId, userId, myLang, counterpartLang, messages } = opts
 
-  // A mismatch requires BOTH languages known and different. myLang is always known; the
-  // counterpart's is null until their locale syncs, and we never invent one.
-  const mismatch = !!counterpartLang && counterpartLang !== myLang
+  // ⛔ THE MESSAGES DECIDE, NOT ONLY THE STORED LANGUAGE. The strip used to need the counterpart's STORED app
+  // language to differ from mine — and that value is often wrong or missing: an account used in English still had
+  // 'vi' stored (its language was saved per browser, not per account), every unowned desk (support, rentals) has
+  // none, and an account that never synced has none. Then the strip never showed, so nothing was ever translated
+  // (owner test, 2026-10-20). Now an incoming line that READS as another language (src/lib/chat-lang.ts — the same
+  // detector the server uses) counts too; the stored language still counts on its own.
+  // ⚠️ THREAD-LEVEL, NOT ONE LINE: a Vietnamese landlord's 'Thanks' in a Vietnamese thread must not turn it into a
+  // translation thread — most of their lines must read as foreign, and there must be enough of them (writesForeign).
+  // ⚠️ AND A STALE STORED LANGUAGE NO LONGER RAISES IT ALONE: when their lines clearly read as MY language, a stored
+  // value that says otherwise is out of date — no strip, and in the apps no notice for a translation that would never
+  // be sent.
+  const declared = !!counterpartLang && counterpartLang !== myLang
+  const { foreignIds, theirs } = useMemo(() => {
+    const ids = new Set<string>()
+    const bodies: string[] = []
+    for (const m of messages) {
+      if (!isTranslatable(m)) continue
+      bodies.push(m.body)
+      if (foreignTo(detectChatLang(m.body).lang, myLang)) ids.add(m.id)
+    }
+    return { foreignIds: ids, theirs: threadLanguage(bodies, myLang) }
+  }, [messages, myLang])
+  // Stored language differs → yes, unless their lines clearly read as mine (stale). Stored language is mine → only
+  // strong evidence overrides it. Nothing stored (an unowned desk, an account that never saved one) → one foreign line.
+  const mismatch = declared ? !theirs.mine : counterpartLang ? theirs.foreign : theirs.some
 
   /**
    * ⚠️ APP STORE GATE `app-ai-notice` (plan R8, Guideline 5.1.2(i), D14) — src/lib/chat-translation-consent.ts.
@@ -169,11 +207,18 @@ export function useChatTranslation(opts: {
   const [translations, setTranslations] = useState<Record<string, string>>({})
   const attemptedRef = useRef<Set<string>>(new Set())
   const inflightRef = useRef<Set<string>>(new Set())
+  const triesRef = useRef<Map<string, number>>(new Map())
   const cacheKey = useCallback((id: string) => `${id}::${myLang}`, [myLang])
   // Guards setState after UNMOUNT only — never used to discard results on a deps change
   // (a messages append re-runs the effect but the in-flight results are still valid).
+  // ⚠️ SET TRUE IN THE EFFECT, NOT ONLY AT INIT: React re-runs effects after a cleanup without remounting — StrictMode
+  // does it on purpose, and a thread kept alive by Next's back/forward state cache does it on every return — and a
+  // cleanup-only effect left this false for good, so every later batch broke out before sending anything.
   const mountedRef = useRef(true)
-  useEffect(() => () => { mountedRef.current = false }, [])
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
 
   useEffect(() => {
     // `awaitingConsent` — the app-ai-notice gate: no answer yet ⇒ no request (see the note above).
@@ -184,11 +229,11 @@ export function useChatTranslation(opts: {
       if (!isTranslatable(m)) continue
       const key = cacheKey(m.id)
       if (attemptedRef.current.has(key) || inflightRef.current.has(key)) continue
-      // Already in the viewer's own script — no translation needed, no API call.
-      if (scriptOf(myLang) && detectContentLang(m.body) === scriptOf(myLang)) {
-        attemptedRef.current.add(key)
-        continue
-      }
+      // Only a line that reads as another language is asked about: one in my language, a greeting both of us know,
+      // or one too short to call would come back unchanged from the server anyway.
+      if (!foreignIds.has(m.id)) continue
+      // Longer than one request may carry: the route would refuse it whole, every time. Left as written.
+      if (m.body.length > ROUTE_CHAR_CAP) { attemptedRef.current.add(key); continue }
       wanted.push(m.id)
     }
     if (!wanted.length) return
@@ -201,21 +246,29 @@ export function useChatTranslation(opts: {
     // mountedRef guards setState after unmount; the whole backlog is processed in <=50-id
     // chunks so an initial batch over 50 isn't stranded.
     void (async () => {
-      for (let i = 0; i < wanted.length; i += MAX_IDS_PER_REQUEST) {
-        if (!mountedRef.current) break
-        const batch = wanted.slice(i, i + MAX_IDS_PER_REQUEST)
+      const bodyLength = new Map(messages.map((m) => [m.id, m.body.length]))
+      const batches = packBatches(wanted, (id) => bodyLength.get(id) ?? 0)
+      for (const [n, batch] of batches.entries()) {
+        if (!mountedRef.current) {
+          // Hidden or gone: release what was not sent, so a return to the thread asks for it again.
+          for (const rest of batches.slice(n)) for (const id of rest) inflightRef.current.delete(cacheKey(id))
+          break
+        }
         let retryable = false
+        const retryIds = new Set<string>()
         try {
           const res = await fetch('/api/messages/translate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ conversationId, messageIds: batch, target: myLang }),
+            // v: 2 — this client honours per-message `retry` (an older tab would bank those ids as done).
+            body: JSON.stringify({ conversationId, messageIds: batch, target: myLang, v: 2 }),
           })
           if (res.ok) {
             const data = (await res.json().catch(() => null)) as { items?: TranslateItem[] } | null
             if (data?.items && mountedRef.current) {
               const next: Record<string, string> = {}
               for (const it of data.items) {
+                if (it.retry) { retryIds.add(it.id); continue }
                 const original = messages.find((m) => m.id === it.id)?.body
                 // Store only a REAL translation — a degraded passthrough (translated:false or
                 // unchanged text) is left as the original so we never label source a translation.
@@ -231,19 +284,29 @@ export function useChatTranslation(opts: {
         } catch {
           retryable = true // network error — fail safe (originals remain), retry on a later append
         } finally {
+          // An answer that landed while the thread was hidden (or gone) was not shown: leave its ids free, so coming
+          // back asks again rather than banking them as done.
+          const shown = mountedRef.current
           batch.forEach((id) => {
             const k = cacheKey(id)
             inflightRef.current.delete(k)
-            if (!retryable) attemptedRef.current.add(k)
+            if (!shown) return
+            if (!retryable && !retryIds.has(id)) { attemptedRef.current.add(k); return }
+            const tries = (triesRef.current.get(k) ?? 0) + 1
+            triesRef.current.set(k, tries)
+            if (tries >= (retryable ? MAX_TRANSIENT_TRIES : MAX_TRIES)) attemptedRef.current.add(k)
           })
         }
       }
     })()
-  }, [enabled, available, awaitingConsent, messages, myLang, conversationId, cacheKey])
+  }, [enabled, available, awaitingConsent, messages, foreignIds, myLang, conversationId, cacheKey])
 
+  // A message recalled AFTER it was translated keeps no translation: the bubble is a tombstone now.
+  const deletedIds = useMemo(() => new Set(messages.filter((m) => m.deleted).map((m) => m.id)), [messages])
   const translationFor = useCallback(
-    (id: string): string | undefined => (enabled && available && !awaitingConsent ? translations[cacheKey(id)] : undefined),
-    [enabled, available, awaitingConsent, translations, cacheKey],
+    (id: string): string | undefined =>
+      enabled && available && !awaitingConsent && !deletedIds.has(id) ? translations[cacheKey(id)] : undefined,
+    [enabled, available, awaitingConsent, translations, cacheKey, deletedIds],
   )
 
   // The one-time notice shows where the strip would be, and only while a translation WOULD apply: a

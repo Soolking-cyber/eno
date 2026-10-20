@@ -22,6 +22,14 @@ import 'server-only'
  */
 
 const MT_URL = process.env.MT_LOCAL_URL
+/**
+ * ⛔ A SEPARATE SERVER FOR PEOPLE WHO ARE WAITING. eno-mt has ONE inference worker behind a first-come lock, so a
+ * chat line queued behind a listing import waited out whole bulk slices — about 6s behind one batch, measured — and
+ * lost the chat route's 8s budget. MT_CHAT_URL names a second instance of the same image that only interactive
+ * callers use (infra/vn-node/mt-server/README.md), so chat never queues behind bulk. Unset ⇒ everything shares
+ * MT_LOCAL_URL, exactly as before; an unreachable chat lane falls back to it.
+ */
+const MT_CHAT_URL = process.env.MT_CHAT_URL
 
 /**
  * How long a BACKGROUND caller waits for the box model.
@@ -76,10 +84,35 @@ export async function localTranslate(
   source: string,
   target: string,
   timeoutMs = LONG_TIMEOUT_MS,
+  /** interactive: use the chat lane when there is one · shortOk: see gateTranslation (callers that cache nothing). */
+  opts?: { interactive?: boolean; shortOk?: boolean },
 ): Promise<LocalMtResult | null> {
   if (!MT_URL || texts.length === 0) return null
+  if (opts?.interactive && MT_CHAT_URL && MT_CHAT_URL !== MT_URL) {
+    const started = Date.now()
+    // At most half the budget (and 4s): an idle lane answers a chat line in well under a second, and a HUNG lane must
+    // leave time for the shared server, or one wedged container fails every chat translation.
+    const laneTimeout = Math.min(4_000, Math.floor(timeoutMs / 2))
+    const lane = await translateAt(MT_CHAT_URL, texts, source, target, laneTimeout, opts)
+    if (lane) return lane
+    // The chat lane is down or slow: whatever time is left goes to the shared server rather than to nothing.
+    const left = timeoutMs - (Date.now() - started)
+    if (left < 1000) return null
+    return translateAt(MT_URL, texts, source, target, left, opts)
+  }
+  return translateAt(MT_URL, texts, source, target, timeoutMs, opts)
+}
+
+async function translateAt(
+  base: string,
+  texts: string[],
+  source: string,
+  target: string,
+  timeoutMs: number,
+  opts?: { shortOk?: boolean },
+): Promise<LocalMtResult | null> {
   try {
-    const res = await fetch(`${MT_URL}/translate`, {
+    const res = await fetch(`${base}/translate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ texts, source, target }),
@@ -108,7 +141,7 @@ export async function localTranslate(
     const rejects: Partial<Record<MtReject, number>> = {}
     const values = texts.map((src, i) => {
       const hyp = typeof out[i] === 'string' ? (out[i] as string) : ''
-      const reject = gateTranslation(src, hyp, target, source)
+      const reject = gateTranslation(src, hyp, target, source, { shortOk: opts?.shortOk })
       if (reject) {
         rejects[reject] = (rejects[reject] ?? 0) + 1
         return null

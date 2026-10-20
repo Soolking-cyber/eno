@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
 import { LanguageProvider, useLanguage, Tr, type Language } from '@/context/language-context'
+import { announceSignedInAccount } from '@/lib/signed-in-account'
 
 /**
  * ⛔ THE SERVER NOW PICKS THE LANGUAGE (src/proxy.ts → the `[lang]` segment), SO THE PROVIDER MUST
@@ -216,6 +217,7 @@ describe('LanguageProvider on a fixed-language guide', () => {
     const fetchSpy = vi.fn(() => Promise.resolve({ ok: true } as Response))
     vi.stubGlobal('fetch', fetchSpy)
     document.cookie = 'sb-x-auth-token=1; path=/'
+    announceSignedInAccount('u1')
     const sent = () => (fetchSpy.mock.calls as unknown as [string, { body: string }][]).map((c) => JSON.parse(c[1].body).locale)
     try {
       // an English device on a Vietnamese guide: 'en', not the page's 'vi'
@@ -240,6 +242,46 @@ describe('LanguageProvider on a fixed-language guide', () => {
       expect(sent()).toEqual(['vi'])
     } finally {
       document.cookie = 'sb-x-auth-token=; path=/; max-age=0'
+      announceSignedInAccount(null)
+      vi.unstubAllGlobals()
+      vi.useRealTimers()
+    }
+  })
+
+  it('⛔ the saved-language marker is per ACCOUNT: switching accounts in one browser saves the new account too', async () => {
+    vi.useFakeTimers()
+    const fetchSpy = vi.fn(() => Promise.resolve({ ok: true } as Response))
+    vi.stubGlobal('fetch', fetchSpy)
+    document.cookie = 'sb-x-auth-token=1; path=/'
+    delete store['lang-synced']
+    store.lang = 'en'
+    // Only the profile save — the provider fetches its UI dictionary through the same spy.
+    const sent = () => (fetchSpy.mock.calls as unknown as [string, { body: string }][])
+      .filter((c) => c[0] === '/api/profile/locale').map((c) => JSON.parse(c[1].body).locale)
+    const settle = async () => { await act(async () => { vi.advanceTimersByTime(2000) }) }
+    try {
+      at(EN)
+      // auth not settled yet: nothing is sent, because the marker could not name the account
+      announceSignedInAccount(null)
+      render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+      await settle()
+      expect(sent()).toEqual([])
+      // account A settles → saved once
+      act(() => { announceSignedInAccount('account-a') })
+      await settle()
+      expect(sent()).toEqual(['en'])
+      // the same account on a later load: nothing to send
+      cleanup(); fetchSpy.mockClear()
+      render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+      await settle()
+      expect(sent()).toEqual([])
+      // account B signs in on the SAME browser with the same language: B is saved too
+      act(() => { announceSignedInAccount('account-b') })
+      await settle()
+      expect(sent()).toEqual(['en'])
+    } finally {
+      document.cookie = 'sb-x-auth-token=; path=/; max-age=0'
+      announceSignedInAccount(null)
       vi.unstubAllGlobals()
       vi.useRealTimers()
     }

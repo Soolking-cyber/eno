@@ -329,6 +329,9 @@ function isEcho(src: string, hyp: string, target?: string): boolean {
  */
 const BOILERPLATE =
   /(is designed to be used|the following is (a|the) list|for the manufacture of|in accordance with the provisions of)/i
+// m2m100's Vietnamese openings when it invents a page around a short input — "Lời bài hát: …" (song lyrics) for a
+// two-word chat line, measured 2026-10-20. Anchored to the start: these words are ordinary INSIDE a sentence.
+const BOILERPLATE_VI_OPENING = /^\s*(lời bài hát|đánh giá (về|tại)|xem thêm|tiếp theo|đạo diễn)\s*:/iu
 
 
 /**
@@ -367,7 +370,14 @@ const BAND_HIGH = 2.5
 // Full-width braces count: restorePlaceholders names `｛0｝` back too.
 const numberedPlaceholders = (x: string) => [...x.matchAll(/[{｛]\s*(\d+)\s*[}｝]/g)].map((m) => m[1]).sort().join(',')
 
-export function gateTranslation(src: string, hyp: string, target?: string, source?: string): MtReject | null {
+/**
+ * `shortOk`: the caller writes nothing to the shared, permanent Translation table — live chat, whose only cache is a
+ * private 24-hour entry — so a line of three words or fewer gets a looser LENGTH test. The band exists to stop a
+ * permanent bad cache row, and on a one-word reply it refuses correct answers: 'Không' → "No" (0.4) and 'Ừ' → "Yes"
+ * (3.0) were both rejected, and a rejection with no paid provider left the line untranslated. A floor (0.2) and a
+ * ceiling still apply, and every other check runs.
+ */
+export function gateTranslation(src: string, hyp: string, target?: string, source?: string, opts?: { shortOk?: boolean }): MtReject | null {
   if (!hyp || !hyp.trim()) return 'empty'
 
   // ⚠️ BEFORE the entity checks, because an echo passes every one of them.
@@ -387,9 +397,16 @@ export function gateTranslation(src: string, hyp: string, target?: string, sourc
 
   const expected = density(target) / density(source)
   const ratio = hyp.length / Math.max(src.length, 1)
-  if (ratio < expected * BAND_LOW || ratio > expected * BAND_HIGH) return 'length-ratio'
+  const short = !!opts?.shortOk && (src.trim().match(/\S+/g)?.length ?? 0) <= 3
+  if (short) {
+    // A short reply may shrink a lot ('Không' → "No") but not vanish ('Bạn khỏe không' → "Hi"), and it may not grow
+    // into a paragraph the model invented — with room for a short phrase ('Ừ' → "Yes" is 3×).
+    if (ratio < expected * 0.2 || hyp.length > Math.max(src.length * expected * BAND_HIGH, 24)) return 'length-ratio'
+  } else if (ratio < expected * BAND_LOW || ratio > expected * BAND_HIGH) return 'length-ratio'
 
-  if (BOILERPLATE.test(hyp)) return 'boilerplate'
+  // The Vietnamese openings are checked on short chat lines only: a listing line may truly begin "Director: …" or
+  // "Next: …", and its translation then truly begins "Đạo diễn: …" / "Tiếp theo: …".
+  if (BOILERPLATE.test(hyp) || (short && BOILERPLATE_VI_OPENING.test(hyp))) return 'boilerplate'
 
   // Degenerate repetition: the decoder looping on one phrase. Only meaningful once there are
   // enough words for the ratio to mean something.

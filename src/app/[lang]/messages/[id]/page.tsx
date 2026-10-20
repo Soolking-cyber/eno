@@ -3286,7 +3286,10 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   // bare string so ContactChips' scanner still runs — it only fires for a string
                   // child, and wrapping the text to add the timestamp would have silently disabled
                   // the Zalo/WhatsApp chips on every message in the thread.
-                  return <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-full" quote={quoteNode} meta={metaNode}>{shown}</MessageBubble>
+                  // `chipsFrom`: while a translation is shown, the tappable Zalo/WhatsApp chips come from the sender's
+                  // ORIGINAL words — a translation can never put a number to tap in front of anyone. Otherwise the
+                  // bubble scans what it shows, exactly as before.
+                  return <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-full" quote={quoteNode} meta={metaNode} chipsFrom={shown !== m.body ? m.body : undefined}>{shown}</MessageBubble>
                 })()}
                 </div>
                 </ChatCardMetaProvider>

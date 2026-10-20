@@ -21,6 +21,23 @@ const AZURE_CODE: Record<Lang, string> = {
 
 
 const AZURE_KEY = process.env.AZURE_TRANSLATOR_KEY
+
+/**
+ * ⛔ A REJECTED KEY IS NOT A PROVIDER. Azure answers 401 when the key itself is wrong — not a
+ * blip, so retrying cannot help. Measured on the box 2026-10-20: every Azure call answered
+ * 401001 ("credentials are missing or invalid") while AZURE_TRANSLATOR_KEY was still set, and the
+ * code went on treating "a key is set" as "a paid provider exists". That cost more than one
+ * wasted round trip per call: the same-language passthrough below is decided by whether a paid
+ * provider exists, so unaccented Vietnamese bound for an English reader was held back for the
+ * dead key, came back untranslated, and failed the whole chat batch — every time.
+ * So an auth refusal benches Azure for AZURE_AUTH_BENCH_MS, and every decision asks
+ * `azureUsable()` instead of the bare key. A fixed key is picked up when the bench expires.
+ */
+const AZURE_AUTH_BENCH_MS = 60 * 60 * 1000
+let azureBenchedUntil = 0
+export function azureUsable(now = Date.now()): boolean {
+  return !!AZURE_KEY && now >= azureBenchedUntil
+}
 const AZURE_REGION = process.env.AZURE_TRANSLATOR_REGION
 const AZURE_ENDPOINT = process.env.AZURE_TRANSLATOR_ENDPOINT || 'https://api.cognitive.microsofttranslator.com'
 
@@ -199,6 +216,12 @@ async function azureTranslate(chunk: string[], target: Lang): Promise<string[] |
       }
       if (!res.ok) {
         console.error('[translate] azure error', res.status, await res.text().catch(() => ''))
+        // 401 only: the KEY itself is wrong. A 403 is quota or a disabled subscription (F0's 403001) — left exactly
+        // as it was, retried on the next call.
+        if (res.status === 401) {
+          azureBenchedUntil = Date.now() + AZURE_AUTH_BENCH_MS
+          console.warn(`[translate] azure key refused (401) — Azure treated as not configured for ${AZURE_AUTH_BENCH_MS / 60000} min`)
+        }
         return null
       }
       const json = await res.json()
@@ -322,7 +345,7 @@ async function payFor(
   if (texts.length === 0) return []
   const usable = (r: string[] | null): r is string[] => Array.isArray(r) && r.length === texts.length
   let paid: string[] | null = null
-  if (AZURE_KEY) { const a = await azureTranslate(texts, target); if (usable(a)) paid = a }
+  if (azureUsable()) { const a = await azureTranslate(texts, target); if (usable(a)) paid = a }
   if (paid && billed) {
     billed.chars += texts.reduce((n, t) => n + t.length, 0)
     billed.strings += texts.length
@@ -339,6 +362,12 @@ async function translateChunk(
    * callers (chat), not a way to disable local translation — see the call site.
    */
   paidFirst?: boolean,
+  /**
+   * hintFor: a source language the CALLER established (live chat runs its own detector, src/lib/chat-lang.ts,
+   * which reads unaccented Vietnamese that detectContentLang cannot) — it wins over sourceLangFor and counts
+   * as a positive detection. shortOk: the caller caches nothing (see gateTranslation).
+   */
+  extra?: { hintFor?: (text: string) => string | undefined; shortOk?: boolean; lane?: boolean },
 ): Promise<ChunkResult | null> {
   // A caller that asks the paid provider first is by definition latency-critical, so it must
   // also not wait out a batch on the local side when it falls back.
@@ -364,7 +393,8 @@ async function translateChunk(
     // Group by DETECTED source: one server round trip per source language, not per string.
     const bySource = new Map<string, { text: string; i: number }[]>()
     for (const item of pending) {
-      const { lang: source, detected } = sourceLangFor(item.text)
+      const hinted = extra?.hintFor?.(item.text)
+      const { lang: source, detected } = hinted ? { lang: hinted, detected: true } : sourceLangFor(item.text)
       // A same-language leg is not a translation. Mark it rather than dropping it through to
       // the paid provider, which would BILL for translating Vietnamese into Vietnamese — the
       // exact shape of the Tiki backfill plus eager 'vi' warming.
@@ -375,7 +405,7 @@ async function translateChunk(
         // ⚠️ An UNDETECTED source is only left for the paid provider when there IS one. With no
         // paid key the string has nowhere else to go, and marking it failed would re-run the
         // same losing inference on every render forever (codex). Serve it, cache nothing.
-        if (detected || !AZURE_KEY) { passthrough[item.i] = true }
+        if (detected || !azureUsable()) { passthrough[item.i] = true }
         continue
       }
       const group = bySource.get(source)
@@ -384,7 +414,7 @@ async function translateChunk(
     }
     const rejects: Record<string, number> = {}
     for (const [source, group] of bySource) {
-      const local = await localTranslate(group.map((g) => g.text), source, target, localTimeout)
+      const local = await localTranslate(group.map((g) => g.text), source, target, localTimeout, { interactive: !!extra?.lane, shortOk: extra?.shortOk })
       if (!local) continue // server down — everything in this group falls through to paid
       group.forEach((g, n) => { out[g.i] = local.values[n] })
       for (const [reason, count] of Object.entries(local.rejects)) {
@@ -444,8 +474,18 @@ export async function translateBatch(
      * to itself" — both look like output === input. A live request needs that distinction
      * to answer retryably instead of handing back originals the client would cache as
      * final (codex + Gemini, review of the chat-translate endpoint).
+     *
+     * `failedTexts`, when the caller passes a Set, receives every SOURCE string that came back as
+     * fallback — so a live caller can answer the strings that DID translate and retry only the
+     * rest. Without it one refused string sank the whole chat batch: `providerFailed` is a single
+     * flag, and the chat route answered 503 for every message in it (owner test, 2026-10-20).
      */
-    stats?: { providerFailed: boolean }
+    stats?: { providerFailed: boolean; failedTexts?: Set<string> }
+    /**
+     * Source language per input string, decided by the caller — live chat's own detector. Strings it names skip
+     * sourceLangFor; the rest are detected as before.
+     */
+    sourceHint?: Map<string, string>
     /**
      * Attribution tag for the `[translate:spend]` billable-char log — 'warm' | 'warm-cron' |
      * 'api' | 'chat' | 'health' | … Lets a future cost spike be diagnosed by source in the logs,
@@ -497,7 +537,7 @@ export async function translateBatch(
     // serve the free cache hits, pass misses through as source, call NO provider.
     if (opts?.cachedOnly) {
       for (const t of misses) out.set(t, t)
-    } else if (!AZURE_KEY && !localMtConfigured()) {
+    } else if (!azureUsable() && !localMtConfigured()) {
       // ⚠️ localMtConfigured() BELONGS IN THIS GUARD. Without it a box running ONLY the
       // self-hosted model — the whole point of MT_LOCAL_URL — takes this branch and passes
       // every string through untranslated, silently, because the check only ever asked
@@ -527,12 +567,24 @@ export async function translateBatch(
         // translate a named placeholder like a word, and a template that lost its placeholder falls back
         // to English for every reader of that language.
         const sendable = chunk.map(numberPlaceholders)
-        const translated = await translateChunk(sendable.map((s) => s.text), target, billed, LATENCY_CRITICAL.has(opts?.source ?? ''))
+        const hints = opts?.sourceHint
+        const hintBySent = hints ? new Map(sendable.map((sent, k) => [sent.text, hints.get(chunk[k])])) : null
+        const translated = await translateChunk(sendable.map((s) => s.text), target, billed, LATENCY_CRITICAL.has(opts?.source ?? ''), {
+          hintFor: hintBySent ? (t) => hintBySent.get(t) : undefined,
+          // Live chat only: its sole cache is a private 24-hour entry, never the shared table (see gateTranslation).
+          shortOk: opts?.source === 'chat' && !!opts?.skipWrite,
+          // The chat lane is for a person waiting on a short line — chat and the concierge — not a listing's first
+          // view, whose hundreds of strings would queue chat behind them all over again.
+          lane: opts?.source === 'chat' || opts?.source === 'concierge',
+        })
         // A response with a DIFFERENT length than the request is misaligned — pairing
         // translated[i] with chunk[i] would cache wrong translations forever (audit).
         if (!translated || translated.values.length !== chunk.length) {
           for (const t of chunk) out.set(t, t) // failure/misalignment → source fallback
-          if (opts?.stats) opts.stats.providerFailed = true
+          if (opts?.stats) {
+            opts.stats.providerFailed = true
+            for (const t of chunk) opts.stats.failedTexts?.add(t)
+          }
           continue
         }
         await Promise.all(
@@ -552,7 +604,10 @@ export async function translateBatch(
             // would ever retry it. Serve source, mark the batch as failed, cache nothing.
             if (value == null) {
               out.set(src, src)
-              if (opts?.stats) opts.stats.providerFailed = true
+              if (opts?.stats) {
+                opts.stats.providerFailed = true
+                opts.stats.failedTexts?.add(src)
+              }
               return
             }
             out.set(src, value)
@@ -634,7 +689,7 @@ const EAGER_WARM_LANGS: Lang[] = (['vi', 'zh-Hans', 'ko', 'ja', 'ru'] as Lang[])
  */
 export async function warmTranslations(texts: string[], langs: Lang[] = EAGER_WARM_LANGS): Promise<void> {
   const clean = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
-  if (clean.length === 0 || (!AZURE_KEY && !localMtConfigured())) return
+  if (clean.length === 0 || (!azureUsable() && !localMtConfigured())) return
   // ⚠️ A GLOBAL, FAIL-CLOSED CEILING ON THE ONLY UNCAPPED PAID CALL IN THE PUBLISH PATH.
   // This runs from `after()` on EVERY listing create and bulk-import row, and it calls Google/Azure
   // translate once per language — six of them. Until now nothing bounded it: chargeCharBudget()

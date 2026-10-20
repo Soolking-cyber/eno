@@ -25,15 +25,26 @@ const h = vi.hoisted(() => ({
     dictionary: {} as Record<string, string>,
     hang: false,
     providerDown: false,
+    // Strings the provider refuses one by one (the box model's gate) — reported through failedTexts.
+    refuse: new Set<string>(),
+    admin: null as string | null,
+    writerLocales: [] as string[],
     afterWork: [] as Array<() => unknown>,
   },
 }))
 
-vi.mock('@/lib/admin', () => ({ getCurrentProfileId: () => Promise.resolve(h.state.userId) }))
+vi.mock('@/lib/admin', () => ({
+  getCurrentProfileId: () => Promise.resolve(h.state.userId),
+  getAdmin: () => Promise.resolve(h.state.admin),
+}))
+vi.mock('@/lib/support-thread', () => ({ SUPPORT_SELLER_ID: 'eno-support-desk' }))
 
 vi.mock('@/lib/db', () => ({
   db: {
     conversation: { findUnique: () => Promise.resolve(h.state.convo) },
+    profile: {
+      findMany: (args: Row) => Promise.resolve((args.where.id.in as string[]).map((id, i) => ({ id, locale: h.state.writerLocales[i] ?? null }))),
+    },
     message: {
       findMany: (args: Row) => {
         h.state.messageWhere = args.where
@@ -50,10 +61,13 @@ vi.mock('next/server', async (orig) => ({
 }))
 
 vi.mock('@/lib/translate', () => ({
-  LANGS: ['en', 'vi', 'ko', 'ja'],
+  LANGS: ['en', 'vi', 'ko', 'ja', 'fr'],
   translateBatch: (texts: string[], target: string, opts?: Row) => {
     h.state.translateCalls.push({ texts, target, opts })
     if (h.state.providerDown && opts?.stats) opts.stats.providerFailed = true
+    for (const t of texts) {
+      if (h.state.refuse.has(t) && opts?.stats) { opts.stats.providerFailed = true; opts.stats.failedTexts?.add(t) }
+    }
     if (h.state.hang) {
       // Never wins the race, but DOES eventually resolve — that is the case where the
       // route must still bank the paid result instead of discarding it.
@@ -87,8 +101,9 @@ vi.mock('@/lib/ratelimit', () => ({
 import { POST } from './route'
 import crypto from 'crypto'
 
-const key = (target: string, body: string) =>
-  `chat-tr:${target}:${crypto.createHash('sha1').update(body).digest('hex')}`
+// Per conversation: every test thread is 'c1'.
+const key = (target: string, body: string, conversationId = 'c1') =>
+  `chat-tr:${target}:${conversationId}:${crypto.createHash('sha1').update(body).digest('hex')}`
 
 async function post(body: unknown): Promise<{ status: number; json: Row }> {
   const req = new Request('http://test/api/messages/translate', {
@@ -103,7 +118,7 @@ const OK = { conversationId: 'c1', messageIds: ['m1'], target: 'vi' }
 beforeEach(() => {
   h.state.userId = 'me'
   h.state.convo = { buyerProfileId: 'me', sellerProfileId: 'them' }
-  h.state.rows = [{ id: 'm1', body: 'hello' }]
+  h.state.rows = [{ id: 'm1', body: 'see you at the school gate' }]
   h.state.messageWhere = null
   h.state.rateOk = true
   h.state.rateCalls = []
@@ -112,9 +127,12 @@ beforeEach(() => {
   h.state.kvCounters = { day: 0, user: 0 }
   h.state.kvThrows = false
   h.state.translateCalls = []
-  h.state.dictionary = { hello: 'xin chào' }
+  h.state.dictionary = { 'see you at the school gate': 'xin chào' }
   h.state.hang = false
   h.state.providerDown = false
+  h.state.refuse = new Set()
+  h.state.admin = null
+  h.state.writerLocales = []
   h.state.afterWork = []
 })
 
@@ -164,6 +182,7 @@ describe('chat translate — the server decides what is translatable', () => {
       conversationId: 'c1',
       kind: 'text',
       senderProfileId: { not: 'me' },
+      deletedAt: null, // a message taken back never comes back as a translation
     })
   })
 
@@ -184,7 +203,7 @@ describe('chat translate — spend', () => {
   })
 
   it('an ephemeral cache hit is free: no limiter, no budget, no provider', async () => {
-    h.state.kvHits.set(key('vi', 'hello'), 'xin chào')
+    h.state.kvHits.set(key('vi', 'see you at the school gate'), 'xin chào')
     const { json } = await post(OK)
     expect(json.items).toEqual([{ id: 'm1', text: 'xin chào', translated: true }])
     expect(h.state.translateCalls).toHaveLength(0)
@@ -193,13 +212,13 @@ describe('chat translate — spend', () => {
   })
 
   it('charges only the MISSES, then caches the result for next time', async () => {
-    h.state.rows = [{ id: 'm1', body: 'hello' }, { id: 'm2', body: 'bye' }]
-    h.state.kvHits.set(key('vi', 'hello'), 'xin chào')
-    h.state.dictionary = { bye: 'tạm biệt' }
+    h.state.rows = [{ id: 'm1', body: 'see you at the school gate' }, { id: 'm2', body: 'the kitchen is quite small' }]
+    h.state.kvHits.set(key('vi', 'see you at the school gate'), 'xin chào')
+    h.state.dictionary = { 'the kitchen is quite small': 'tạm biệt' }
     const { json } = await post({ ...OK, messageIds: ['m1', 'm2'] })
-    expect(h.state.translateCalls[0].texts).toEqual(['bye']) // NOT the cached one
-    expect(h.state.kvCounters).toEqual({ day: 3, user: 3 }) // 'bye'.length
-    expect(h.state.kvWrites).toEqual([[key('vi', 'bye'), 'tạm biệt']])
+    expect(h.state.translateCalls[0].texts).toEqual(['the kitchen is quite small']) // NOT the cached one
+    expect(h.state.kvCounters).toEqual({ day: 26, user: 26 }) // 'the kitchen is quite small'.length
+    expect(h.state.kvWrites).toEqual([[key('vi', 'the kitchen is quite small'), 'tạm biệt']])
     expect(json.items).toEqual([
       { id: 'm1', text: 'xin chào', translated: true },
       { id: 'm2', text: 'tạm biệt', translated: true },
@@ -216,14 +235,14 @@ describe('chat translate — spend', () => {
 
   it('degrades to cache-only when the daily budget is spent — thins out, does not die', async () => {
     h.state.kvCounters = { day: 999_999, user: 0 }
-    h.state.rows = [{ id: 'm1', body: 'hello' }, { id: 'm2', body: 'bye' }]
-    h.state.kvHits.set(key('vi', 'hello'), 'xin chào')
+    h.state.rows = [{ id: 'm1', body: 'see you at the school gate' }, { id: 'm2', body: 'the kitchen is quite small' }]
+    h.state.kvHits.set(key('vi', 'see you at the school gate'), 'xin chào')
     const { status, json } = await post({ ...OK, messageIds: ['m1', 'm2'] })
     expect(status).toBe(200)
     expect(h.state.translateCalls).toHaveLength(0) // no paid call
     expect(json.items).toEqual([
       { id: 'm1', text: 'xin chào', translated: true }, // the free hit still serves
-      { id: 'm2', text: 'bye', translated: false },     // honest: not a translation
+      { id: 'm2', text: 'the kitchen is quite small', translated: false },     // honest: not a translation
     ])
   })
 
@@ -277,7 +296,7 @@ describe('chat translate — honest answers', () => {
     const deferred = h.state.afterWork.map((fn) => fn())
     await vi.advanceTimersByTimeAsync(30_000)
     await Promise.all(deferred)
-    expect(h.state.kvWrites).toEqual([[key('vi', 'hello'), 'xin chào']])
+    expect(h.state.kvWrites).toEqual([[key('vi', 'see you at the school gate'), 'xin chào']])
     vi.useRealTimers()
   })
 
@@ -305,12 +324,226 @@ describe('chat translate — honest answers', () => {
   })
 
   it('two messages with identical bodies both resolve — one provider item, two items out', async () => {
-    h.state.rows = [{ id: 'm1', body: 'hello' }, { id: 'm2', body: 'hello' }]
+    h.state.rows = [{ id: 'm1', body: 'see you at the school gate' }, { id: 'm2', body: 'see you at the school gate' }]
     const { json } = await post({ ...OK, messageIds: ['m1', 'm2'] })
-    expect(h.state.translateCalls[0].texts).toEqual(['hello'])
+    expect(h.state.translateCalls[0].texts).toEqual(['see you at the school gate'])
     expect(json.items).toEqual([
       { id: 'm1', text: 'xin chào', translated: true },
       { id: 'm2', text: 'xin chào', translated: true },
     ])
+  })
+})
+
+describe('chat translate — the support desk', () => {
+  // Both support seller rows are unowned: sellerProfileId is null, so an operator is neither party.
+  const SUPPORT = { buyerProfileId: 'writer', sellerProfileId: null, sellerId: 'eno-support-desk' }
+
+  it('an admin translates a support thread it can read (the GET route\'s iAmSupport grant)', async () => {
+    h.state.userId = 'operator'
+    h.state.admin = 'ops@eno.vn'
+    h.state.convo = SUPPORT
+    const { status, json } = await post(OK)
+    expect(status).toBe(200)
+    expect(json.items).toEqual([{ id: 'm1', text: 'xin chào', translated: true }])
+    expect(h.state.messageWhere).toMatchObject({ senderProfileId: { not: 'operator' } })
+  })
+
+  it('a non-admin who is not a party is still refused on a support thread', async () => {
+    h.state.userId = 'stranger'
+    h.state.convo = SUPPORT
+    expect((await post(OK)).status).toBe(403)
+    expect(h.state.translateCalls).toHaveLength(0)
+  })
+
+  it('an admin gains nothing on an ORDINARY buyer-seller thread', async () => {
+    h.state.userId = 'operator'
+    h.state.admin = 'ops@eno.vn'
+    h.state.convo = { buyerProfileId: 'a', sellerProfileId: 'b', sellerId: 'shop-1' }
+    expect((await post(OK)).status).toBe(403)
+    expect(h.state.messageWhere).toBeNull()
+  })
+})
+
+describe('chat translate — a failure is per message, not per batch', () => {
+  it('answers what translated and marks only the refused one retryable', async () => {
+    h.state.rows = [{ id: 'm1', body: 'see you at the school gate' }, { id: 'm2', body: 'Daikin FTKB25' }]
+    h.state.refuse = new Set(['Daikin FTKB25'])
+    const { status, json } = await post({ ...OK, messageIds: ['m1', 'm2'], v: 2 })
+    expect(status).toBe(200)
+    expect(json.items).toEqual([
+      { id: 'm1', text: 'xin chào', translated: true },
+      { id: 'm2', text: 'Daikin FTKB25', translated: false, retry: true },
+    ])
+    // only the real translation is banked; the refused one stays a miss for the retry
+    expect(h.state.kvWrites).toEqual([[key('vi', 'see you at the school gate'), 'xin chào']])
+  })
+
+  it('still 503s when EVERY string failed — the provider is down, not picky', async () => {
+    h.state.rows = [{ id: 'm1', body: 'see you at the school gate' }]
+    h.state.refuse = new Set(['see you at the school gate'])
+    const { status, json } = await post(OK)
+    expect(status).toBe(503)
+    expect(json.items).toBeUndefined()
+  })
+})
+
+describe('chat translate — the route decides what each line needs', () => {
+  it('unaccented Vietnamese for an English reader: marks restored, sent as Vietnamese', async () => {
+    h.state.rows = [{ id: 'm1', body: 'phong co may lanh khong' }]
+    h.state.dictionary = { 'phòng có máy lạnh không': 'The room has air conditioning' }
+    const { status, json } = await post({ ...OK, target: 'en' })
+    expect(status).toBe(200)
+    expect(h.state.translateCalls[0].texts).toEqual(['phòng có máy lạnh không'])
+    expect(h.state.translateCalls[0].opts.sourceHint.get('phòng có máy lạnh không')).toBe('vi')
+    expect(json.items).toEqual([{ id: 'm1', text: 'The room has air conditioning', translated: true }])
+    // banked under the ORIGINAL body, so the next read of the same line is a free hit
+    expect(h.state.kvWrites).toEqual([[key('en', 'phong co may lanh khong'), 'The room has air conditioning']])
+  })
+
+  it('the owner\'s line \'xin chao\' is answered from the phrasebook', async () => {
+    h.state.rows = [{ id: 'm1', body: 'xin chao' }]
+    const { json } = await post({ ...OK, target: 'en' })
+    expect(json.items).toEqual([{ id: 'm1', text: 'Hello', translated: true }])
+    expect(h.state.translateCalls).toHaveLength(0)
+  })
+
+  it('a line already in the reader\'s language, or a greeting both know, costs nothing at all', async () => {
+    h.state.rows = [{ id: 'm1', body: 'hi' }, { id: 'm2', body: 'good morning everyone' }]
+    const { status, json } = await post({ ...OK, messageIds: ['m1', 'm2'], target: 'en' })
+    expect(status).toBe(200)
+    expect(h.state.translateCalls).toHaveLength(0)
+    expect(h.state.rateCalls).toHaveLength(0)
+    expect(h.state.kvCounters).toEqual({ day: 0, user: 0 })
+    expect(json.items).toEqual([
+      { id: 'm1', text: 'hi', translated: false },
+      { id: 'm2', text: 'good morning everyone', translated: false },
+    ])
+  })
+
+  it('English for a Vietnamese reader is sent as English', async () => {
+    const { json } = await post(OK)
+    expect(h.state.translateCalls[0].opts.sourceHint.get('see you at the school gate')).toBe('en')
+    expect(json.items).toEqual([{ id: 'm1', text: 'xin chào', translated: true }])
+  })
+
+  it('a change of case alone is not a translation', async () => {
+    h.state.dictionary = { 'see you at the school gate': 'See you at the school gate.' }
+    const { json } = await post(OK)
+    // not a translation — and the reader sees the sender's own words, not a re-cased copy
+    expect(json.items).toEqual([{ id: 'm1', text: 'see you at the school gate', translated: false }])
+  })
+})
+
+describe('chat translate — the phrasebook and questions', () => {
+  it('a common line is looked up: no limiter, no budget, no provider', async () => {
+    h.state.rows = [{ id: 'm1', body: 'Bạn khỏe không' }]
+    const { json } = await post({ ...OK, target: 'en' })
+    expect(json.items).toEqual([{ id: 'm1', text: 'How are you?', translated: true }])
+    expect(h.state.translateCalls).toHaveLength(0)
+    expect(h.state.rateCalls).toHaveLength(0)
+  })
+
+
+})
+
+describe('chat translate — older tabs and added contact details', () => {
+  it('a client without v:2 gets the whole-batch 503 it understands, never a partial 200 it would bank as final', async () => {
+    h.state.rows = [{ id: 'm1', body: 'see you at the school gate' }, { id: 'm2', body: 'Daikin FTKB25' }]
+    h.state.refuse = new Set(['Daikin FTKB25'])
+    expect((await post({ ...OK, messageIds: ['m1', 'm2'] })).status).toBe(503)
+  })
+
+
+
+  it('a number the original already had is fine', async () => {
+    h.state.rows = [{ id: 'm1', body: 'call me on 0909 123 456 after lunch' }]
+    h.state.dictionary = { 'call me on 0909 123 456 after lunch': 'gọi tôi số 0909 123 456 sau bữa trưa' }
+    const { json } = await post(OK)
+    expect(json.items).toEqual([{ id: 'm1', text: 'gọi tôi số 0909 123 456 sau bữa trưa', translated: true }])
+  })
+
+  it("tidies the model's Vietnamese: no list dash, no archaic 'ngươi'", async () => {
+    h.state.rows = [{ id: 'm1', body: 'where are you staying this week' }]
+    h.state.dictionary = { 'where are you staying this week': '- Ngươi ở đâu tuần này' }
+    const { json } = await post(OK)
+    expect(json.items[0].text).toBe('Bạn ở đâu tuần này')
+  })
+})
+
+describe('chat translate — French, Malay, times and prices', () => {
+  it('a French line for an English reader is sent as French when the writer\'s stored language is French', async () => {
+    h.state.rows = [{ id: 'm1', body: 'Bonjour, merci beaucoup' }]
+    h.state.writerLocales = ['fr']
+    h.state.dictionary = { 'Bonjour, merci beaucoup': 'Hello, thank you very much' }
+    const { json } = await post({ ...OK, target: 'en' })
+    expect(h.state.translateCalls[0].opts.sourceHint.get('Bonjour, merci beaucoup')).toBe('fr')
+    expect(json.items[0]).toMatchObject({ translated: true })
+  })
+
+  it('a time written another way is not "an added contact"', async () => {
+    h.state.rows = [{ id: 'm1', body: 'lop hoc tu 8h30 - 9h30 gia 5tr' }]
+    h.state.dictionary = { 'lớp học từ 8h30 - 9h30 giá 5tr': 'Class from 8.30 - 9.30, price 5 million' }
+    const { json } = await post({ ...OK, target: 'en' })
+    expect(json.items[0]).toMatchObject({ translated: true })
+  })
+
+
+})
+
+describe('chat translate — second review round', () => {
+  it('a body of literal null is a 400, not a 500', async () => {
+    const res = await POST(new Request('http://test/api/messages/translate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: 'null' }))
+    expect(res.status).toBe(400)
+  })
+
+
+
+
+
+
+
+
+  it('the restored line coming back unchanged is no translation — never shown or cached as the English', async () => {
+    h.state.rows = [{ id: 'm1', body: 'phong co may lanh khong' }]
+    h.state.dictionary = {} // the provider hands back exactly what it was sent: 'phòng có máy lạnh không'
+    const { json } = await post({ ...OK, target: 'en' })
+    expect(json.items).toEqual([{ id: 'm1', text: 'phong co may lanh khong', translated: false }])
+    expect(h.state.kvWrites).toHaveLength(0)
+  })
+})
+
+describe('chat translate — the private cache is per conversation', () => {
+  it('a line cached in another thread is not a free hit here', async () => {
+    h.state.kvHits.set(key('vi', 'see you at the school gate', 'other-thread'), 'xin chào')
+    await post(OK)
+    expect(h.state.translateCalls).toHaveLength(1) // paid again: nothing learned about the other thread
+    expect(h.state.kvWrites[0][0]).toBe(key('vi', 'see you at the school gate', 'c1'))
+  })
+})
+
+describe('chat translate — contact details are the bubble\'s job, not the route\'s', () => {
+  it('a translation is returned as the model wrote it; the tappable chips come from the original (MessageBubble chipsFrom)', async () => {
+    h.state.rows = [{ id: 'm1', body: 'hen gap luc 10h30 sang mai' }]
+    h.state.dictionary = { 'hẹn gặp lúc 10h30 sáng mai': 'See you at 10:30 tomorrow morning' }
+    const { json } = await post({ ...OK, target: 'en' })
+    expect(json.items).toEqual([{ id: 'm1', text: 'See you at 10:30 tomorrow morning', translated: true }])
+  })
+
+  it('an English line with uncommon words is not sent as French just because the writer\'s stored language is French', async () => {
+    h.state.rows = [{ id: 'm1', body: 'Kindly revert regarding the aircon' }]
+    h.state.writerLocales = ['fr']
+    await post({ ...OK, target: 'vi' })
+    const hint = h.state.translateCalls[0]?.opts.sourceHint.get('Kindly revert regarding the aircon')
+    expect(hint).toBe('en')
+  })
+})
+
+describe('chat translate — an echo dressed up is still an echo', () => {
+  it('the restored line coming back with a full stop or a capital is no translation', async () => {
+    h.state.rows = [{ id: 'm1', body: 'phong co may lanh khong' }]
+    h.state.dictionary = { 'phòng có máy lạnh không': 'Phòng có máy lạnh không.' }
+    const { json } = await post({ ...OK, target: 'en' })
+    expect(json.items).toEqual([{ id: 'm1', text: 'phong co may lanh khong', translated: false }])
+    expect(h.state.kvWrites).toHaveLength(0)
   })
 })

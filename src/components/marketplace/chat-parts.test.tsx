@@ -38,3 +38,16 @@ describe('MessageBubble line breaks', () => {
     expect(textOf(container)).toContain('line 199')
   })
 })
+
+describe('MessageBubble — chips come from the sender\'s own words', () => {
+  it('a translation that carries a number the sender never typed gets no chip', () => {
+    const translated = 'The kitchen is small, call 0909 123 456'
+    const { queryByText } = render(<MessageBubble chipsFrom="Bếp khá nhỏ">{translated}</MessageBubble>)
+    expect(queryByText('Zalo')).toBeNull()
+  })
+  it('the sender\'s own number keeps its chip while the translation is shown', () => {
+    const translated = 'Call me at 0909 123 456'
+    const { getByText } = render(<MessageBubble chipsFrom="Gọi em 0909 123 456 nhé">{translated}</MessageBubble>)
+    expect(getByText('Zalo')).toBeTruthy()
+  })
+})
