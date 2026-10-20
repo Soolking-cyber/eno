@@ -457,3 +457,32 @@ describe('gate 2c reviewer findings on the reader (opus, 2026-10-20)', () => {
     expect(readPost('Instructor needed for our kindergarten in District 7, 400k/h', POSTED).kind).toBe('job_offer')
   })
 })
+
+describe('gate 2d reviewer findings on the reader (opus, 2026-10-20)', () => {
+  it('"năm" (a year) is not "nam"; class words before an age range', () => {
+    expect(readPost('Tuyển giáo viên nước ngoài, lương 300 triệu/năm, Quận 3', POSTED).deny).toBeNull()
+    expect(readPost('Cần giáo viên nước ngoài dạy lớp người đi làm 25-40 tuổi tại Quận 3', POSTED).deny).toBeNull()
+    expect(readPost('Hiring a teacher to teach working professionals 25-40 years old in District 3', POSTED).deny).toBeNull()
+  })
+  it('sports and arts jobs for kids are not English teaching jobs', () => {
+    expect(readPost('We are hiring swimming instructors for kids in District 7', POSTED).kind).toBe('other')
+    expect(readPost('Football coach needed for our kindergarten in District 2', POSTED).kind).toBe('other')
+    expect(readPost('Piano teacher needed for our kids, District 3', POSTED).kind).toBe('other')
+    expect(readPost('English teacher needed for our kindergarten; we also run art classes. District 2', POSTED).kind).toBe('job_offer')
+  })
+  it('"7h tối" is 7pm', () => {
+    expect(readSchedule(foldPost('Cần giáo viên nước ngoài dạy thay lúc 7h tối mai, Quận 3'), POSTED)).toMatchObject({ part: 'eve', hour: 19 })
+    expect(readSchedule(foldPost('cover at 7 in the evening tomorrow'), POSTED)).toMatchObject({ part: 'eve', hour: 19 })
+  })
+})
+
+describe('gate 3b reviewer findings on the reader (opus, 2026-10-20)', () => {
+  it('"tới" is a range\'s "to", not "tối" (evening)', () => {
+    expect(readSchedule(foldPost('Cần giáo viên nước ngoài dạy thay từ 7h tới 9h sáng mai, Quận 3'), POSTED)).toMatchObject({ part: 'am', hour: 7 })
+  })
+  it('a men-only "(nam)" is refused; hiring words before an age range are not the class', () => {
+    expect(readPost('Cần giáo viên bản ngữ (nam), 400k/h, Quận 3', POSTED).deny).toBe('gender')
+    expect(readPost('Tuyển giáo viên nước ngoài và nhân viên 22-30 tuổi, Quận 3', POSTED).deny).toBe('discriminatory')
+    expect(readPost('English teachers wanted in District 3, staff must be 25-35 years old', POSTED).deny).toBe('discriminatory')
+  })
+})

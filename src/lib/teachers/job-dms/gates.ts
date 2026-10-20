@@ -14,7 +14,7 @@
 import { ANYWHERE, ONLINE, isHcmcDistrict, workInFilterKeys } from '@/lib/teachers/places'
 import { coverAreaFilterKeys } from '@/lib/teachers/cover'
 import type { Employment, JobKind, Pay, Requirements, Schedule } from './extract'
-import { lessonDateOf, lessonDayOf } from './facts'
+import { lessonDateOf, lessonDayOf, vnAt } from './facts'
 
 /** The teacher columns the gates read (TeacherProfile, never a name or contact field except the first-name greeting). */
 export type MatchTeacher = {
@@ -134,6 +134,8 @@ export function fit(t: MatchTeacher, job: MatchJob, now: Date): Fit {
     // too close to read a day for is refused here too, not left to decide() (opus, gate 2b).
     const day = job.schedule.day ?? (part ? lessonDayOf(job.postedAt, part, job.schedule.hour ?? null) : null)
     if (part && !job.schedule.day && !date && !day) return no('cover-too-late')
+    // A dated cover with a clock hour stops an hour before it, as facts.ts's expiry does (opus, gate 2d).
+    if (date && job.schedule.hour !== null && job.schedule.hour !== undefined && now.getTime() >= vnAt(date, job.schedule.hour).getTime() - 3_600_000) return no('cover-too-late')
     // …and a day read from an older post is checked against today as a dated one is (opus, gate 2c).
     if (!date && !job.schedule.day && part) {
       const d = lessonDateOf(job.postedAt, part, job.schedule.hour ?? null)

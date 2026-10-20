@@ -982,6 +982,11 @@ export async function deleteTeacherProfile(profileId: string): Promise<boolean> 
     if (tp.listingId) await writeIdentityMarkCard(tx, tp.listingId, false)
     // deleteMany: deleteListingCore above already removes the profile with its listing.
     await tx.teacherProfile.deleteMany({ where: { id: tp.id } })
+    // The job-messages switch and its record go with the profile: a profile made again later must be asked again
+    // (job-dms/consent.ts), never inherit an old "on" it did not see the notice for.
+    await tx.teacherJobDmConsent.deleteMany({ where: { profileId } })
+    await tx.teacherJobDm.deleteMany({ where: { profileId } })
+    await tx.teacherJobDmDay.deleteMany({ where: { profileId } })
     // And any unfinished copy (normally gone at publish): a deleted profile leaves nothing of the teacher's behind.
     await tx.teacherDraft.deleteMany({ where: { profileId } })
   })

@@ -69,7 +69,8 @@ export function asksOf(f: Pick<RuleFacts, 'requirements'>): string[] {
   const r = f.requirements
   const out: string[] = []
   if (r.degree === 'required') out.push('a degree')
-  if (r.tefl === 'required') out.push('a TEFL/TESOL/CELTA certificate')
+  // gates.ts counts a PGCE or a teaching licence too (codex, gate 2d) — the words say so.
+  if (r.tefl === 'required') out.push('a teaching certificate (TEFL/TESOL/CELTA or similar)')
   if (r.minYears) out.push(`${r.minYears}+ years' experience`)
   if (r.native === 'required') out.push('native English speakers')
   return out

@@ -91,6 +91,10 @@ model Profile {
   /// When this teacher was last emailed about school messages, and their opt-out (2026-10-12).
   teacherMessageEmailState TeacherMessageEmailState?
   teacherMessageEmailThreads TeacherMessageEmailThread[]
+  /// Teacher job DMs (owner, 2026-10-20) — src/lib/teachers/job-dms. Relation fields only: no Profile column.
+  teacherJobDmConsent     TeacherJobDmConsent?
+  teacherJobDms           TeacherJobDm[]
+  teacherJobDmDays        TeacherJobDmDay[]
   messageReactions        MessageReaction[]
   notifications           Notification[]          @relation("RecipientNotifications")
   trustEvents             TrustEvent[]            @relation("SubjectTrustEvents")
@@ -1357,6 +1361,105 @@ model JobAdSighting {
   applyBy           DateTime? @db.Date
 
   @@index([board, firstSeenAt])
+}
+
+/// TEACHER JOB DMs (owner, 2026-10-20: "send related jobs cover lessons to our teachers in chat inside eno.vn from the admin
+/// account") — src/lib/teachers/job-dms. A job or cover post from a Facebook group (contacts redacted on the Mac), a
+/// LinkedIn job-alert email or a post the outreach team forwarded. ⛔ PRIVATE: never a Listing, never public, never
+/// quoted to anyone — a teacher gets eno's own summary and the link. Deleted after JOB_DM_RULES.retentionDays.
+/// DDL: scripts/teacher-job-dms-ddl.mjs (RLS on, no policies).
+model ExternalJobPost {
+  id           String    @id @default(cuid())
+  /// 'fb' | 'linkedin' | 'intake'
+  source       String
+  /// fb: '<groupId>:<postId>' · linkedin: the job id · intake: the forwarded email's Message-ID hash
+  externalKey  String
+  /// the group's name / 'LinkedIn' / 'Forwarded by the eno team'
+  sourceName   String
+  /// the group id or the alert's search
+  sourceRef    String?
+  /// fb: the group is PUBLIC (a member-only post cannot be opened by the teacher — never sent); null = not known
+  groupPublic  Boolean?
+  /// the canonical link the teacher opens (FB permalink, linkedin.com/jobs/view/<id>)
+  url          String?
+  /// intake only: the "Apply:" line the team member wrote — the application path
+  applyText    String?
+  title        String?
+  company      String?
+  locationText String?
+  /// the post text (redacted), ≤ 6000 chars (CHECK)
+  text         String
+  /// run.ts textSig: the same ad cross-posted to several groups (or forwarded twice) has one signature — the first kept
+  textSig      String?
+  lang         String?
+  postedAt     DateTime?
+  receivedAt   DateTime  @default(now())
+  /// 'new' | 'ready' | 'held' | 'dropped' | 'expired'
+  status       String    @default("new")
+  statusReason String?
+  /// extract.ts RuleFacts + laya answers + the merged decision (facts.ts), versioned by factsVersion
+  facts        Json?
+  factsVersion String?
+  expiresAt    DateTime?
+  updatedAt    DateTime  @default(now())
+
+  @@unique([source, externalKey])
+  @@index([status, receivedAt])
+  @@index([expiresAt])
+  @@index([textSig])
+}
+
+/// The teacher's "Message me matching jobs and cover lessons in eno chat" switch — its OWN consent (VN PDP Law 91/2025:
+/// specific, unbundled, provable), apart from the email and staff-call opt-ins. On: optIn + optInAt + noticeVersion
+/// (JOB_DM_NOTICE_VERSION); off: withdrawnAt (history, as coverWithdrawnAt). invitedAt = the one bell invite went out.
+model TeacherJobDmConsent {
+  profileId     String    @id @db.Uuid
+  profile       Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  optIn         Boolean   @default(false)
+  optInAt       DateTime?
+  noticeVersion String?
+  withdrawnAt   DateTime?
+  invitedAt     DateTime?
+  updatedAt     DateTime  @default(now())
+}
+
+/// One job offered to one teacher. ⛔ THE NEVER-TWICE LEDGER: unique (profileId, jobKey, mode) — written in the SAME batch
+/// transaction as the message (insertMessage alongside), so a DM and its rows commit together or not at all. 'shadow'
+/// rows are what a shadow run would have sent; they never block or count for 'live'.
+model TeacherJobDm {
+  id             String   @id @default(cuid())
+  profileId      String   @db.Uuid
+  profile        Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  /// 'post:<ExternalJobPost.id>' | 'listing:<Listing.id>'
+  jobKey         String
+  /// 'live' | 'shadow'
+  mode           String
+  /// 'jobs' | 'cover' — the message it went in (a shadow run keeps live's one-of-each-a-day by it)
+  kind           String
+  /// the Vietnam date it was offered, YYYY-MM-DD
+  day            String
+  conversationId String?
+  score          Int
+  reasons        Json     @default("[]")
+  /// shadow only: the message text that would have been sent (graded before go-live)
+  preview        String?
+  createdAt      DateTime @default(now())
+
+  @@unique([profileId, jobKey, mode])
+  @@index([profileId, day])
+}
+
+/// ⛔ THE PER-DAY CAP, as a key: one row per (teacher, Vietnam day, kind) — 'jobs' | 'cover'. Inserted with the message
+/// (alongside): a second message of the same kind the same day violates the key and rolls the whole batch back.
+model TeacherJobDmDay {
+  profileId      String   @db.Uuid
+  profile        Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  day            String
+  kind           String
+  conversationId String
+  sentAt         DateTime @default(now())
+
+  @@id([profileId, day, kind])
 }
 
 // A lead signal + the dedupe key so contactCount counts distinct viewers, not clicks.

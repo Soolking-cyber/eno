@@ -236,3 +236,36 @@ describe('gate 2c', () => {
     expect(fit(teacher({ coverSlots: ['tue-eve'] }), j, NOW).blocker).toBe('cover-in-the-past')
   })
 })
+
+describe('gate 2d', () => {
+  it('stops: a long message with an unmistakable phrase; "không nhận" alone declines one cover', () => {
+    expect(isStopReply('Please stop sending me job messages, I did not opt in and do not contact me again')).toBe(true)
+    expect(isStopReply('Thanks for the jobs, the second one looks great, I applied this morning and will tell you')).toBe(false)
+    expect(isStopReply('Không nhận')).toBe(false)
+    expect(isStopReply('ko nhận')).toBe(false)
+    expect(isStopReply('Không nhận nữa')).toBe(true)
+    expect(isStopReply('Không nhận tin nhắn nữa')).toBe(true)
+  })
+  it('an Apply line with money in any form is dropped', () => {
+    const fwd = { source: 'intake', externalKey: 'msg:abc', sourceName: 'Forwarded by the eno team', text: 'English teacher needed in D7' }
+    expect(checkPost({ ...fwd, applyText: 'Send 500k cash to secure your place' }, NOW)).toMatchObject({ ok: true, post: { applyText: null } })
+  })
+  it('the asks line names a teaching certificate, as the gate counts it', () => {
+    const r = composeDm({ firstName: null, kind: 'jobs', first: false, items: [{ key: 'post:1', title: 'Teaching job — Hanoi', asks: ['a teaching certificate (TEFL/TESOL/CELTA or similar)'], source: 'Posted on LinkedIn', link: 'https://www.linkedin.com/jobs/view/1/' }] })
+    expect(r.text).toContain('The post asks for a teaching certificate (TEFL/TESOL/CELTA or similar).')
+  })
+  it('a dated cover with a time is too late an hour before it', () => {
+    const j = jobOf('Our centre needs a cover teacher today at 6pm in Binh Thanh, kids 8-10, 400k/h')
+    expect(fit(teacher({ coverSlots: ['wed-eve'] }), j, new Date('2026-10-21T10:30:00Z')).blocker).toBe('cover-too-late') // 17:30 ICT
+  })
+})
+
+describe('gate 3b', () => {
+  it('a long reply that stops sending something else is not a STOP', () => {
+    expect(isStopReply("Thanks, I'll stop sending CVs to schools that never reply, job 2 looks great though")).toBe(false)
+  })
+  it('an Apply line with a name like Tiến or an address is kept', () => {
+    const fwd = { source: 'intake', externalKey: 'msg:abc', sourceName: 'Forwarded by the eno team', text: 'English teacher needed in D7' }
+    expect(checkPost({ ...fwd, applyText: 'Ask for Mr Tiến at 12 D2 street' }, NOW)).toMatchObject({ ok: true, post: { applyText: 'Ask for Mr Tiến at 12 D2 street' } })
+  })
+})

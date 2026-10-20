@@ -62,7 +62,9 @@ export function maskContacts(text: string): string {
 function applyLine(v: unknown): string | null {
   const s = str(v, INGEST_LIMITS.apply)?.replace(/[\r\n]+/g, ' ') ?? null
   if (!s) return null
-  return /\b(fees?|deposits?|pay|payment|transfer|bank|phi|dat coc|chuyen khoan|nop tien)\b/i.test(fold(s)) ? null : s
+  // Money in any form — "send 500k cash to secure your place" too (codex, gate 2d).
+  // ⚠️ Not "tiền" alone (the name Tiến) nor a bare "12 D…" (an address — opus, gate 3b): money words and amounts only.
+  return /\b(fees?|deposits?|pay|payment|transfer|bank|cash|money|phi|dat coc|chuyen khoan|(nop|gui|dong|chuyen) tien)\b|\b\d+ ?(k|tr|trieu|million|vnd|vnđ|dong|usd)\b|\$\s?\d/i.test(fold(s)) ? null : s
 }
 
 const FB_POST = /^https:\/\/(www\.|m\.)?facebook\.com\/groups\/[\w.-]+\/(posts|permalink)\/\d+\/?$/

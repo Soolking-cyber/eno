@@ -14,6 +14,9 @@ const tx = {
   teacherProfile: { findUnique: vi.fn(), update: vi.fn(), deleteMany: vi.fn() },
   listing: { update: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
   teacherDraft: { deleteMany: vi.fn() },
+  teacherJobDmConsent: { deleteMany: vi.fn() },
+  teacherJobDm: { deleteMany: vi.fn() },
+  teacherJobDmDay: { deleteMany: vi.fn() },
 }
 /** The reads outside the transaction (setTeacherStatus). */
 const outside = { teacherProfile: { findUnique: vi.fn() } }
@@ -392,6 +395,14 @@ describe('deleteTeacherProfile', () => {
     expect(await deleteTeacherProfile('p1')).toBe(true)
     expect(purged()).toEqual(expect.arrayContaining(['/listings/l1', '/c/teachers', '/c/teachers/d4', '/']))
     expect(tx.teacherProfile.deleteMany).toHaveBeenCalledWith({ where: { id: 'tp1' } })
+  })
+
+  it("the job-messages switch and its record go with the profile — a profile made again must be asked again", async () => {
+    outside.teacherProfile.findUnique.mockResolvedValue({ id: 'tp1', listingId: 'l1', currentDistrictKey: null, currentDistrict: null, private: null })
+    await deleteTeacherProfile('p1')
+    expect(tx.teacherJobDmConsent.deleteMany).toHaveBeenCalledWith({ where: { profileId: 'p1' } })
+    expect(tx.teacherJobDm.deleteMany).toHaveBeenCalledWith({ where: { profileId: 'p1' } })
+    expect(tx.teacherJobDmDay.deleteMany).toHaveBeenCalledWith({ where: { profileId: 'p1' } })
   })
 
   it('no profile: nothing deleted, nothing purged', async () => {

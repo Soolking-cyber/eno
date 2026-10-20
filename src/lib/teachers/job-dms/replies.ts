@@ -20,7 +20,11 @@ export const JOB_DM_KEEP_TEXTS = { en: 'Keep sending jobs', vi: 'Gửi tiếp vi
 export function isStopReply(text: string | null | undefined): boolean {
   if (!text) return false
   const t = fold(text).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
-  if (!t || t.length > 60) return false
+  if (!t) return false
+  // A long message counts only on an unmistakable opt-out phrase (codex, gate 2d): "… please stop sending me job messages,
+  // I did not opt in and do not contact me again".
+  // "I'll stop sending CVs to schools" is not one (opus, gate 3b): the phrase must be about messages TO the teacher.
+  if (t.length > 60) return /\b(stop (sending|messaging|texting|contacting) (me|us)|unsubscribe me|unsubscribe from|opt (me )?out|(do not|don t|dont) (contact|message|text|send) me|remove me from|no more (job )?messages)\b/.test(t)
   if (t === fold(JOB_DM_STOP_TEXTS.en) || t === fold(JOB_DM_STOP_TEXTS.vi)) return true
   // "dừng" / "hủy" WITH their marks are unambiguous — read on the text as typed, before folding.
   const typed = text.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/\s+/g, ' ').trim()
@@ -31,7 +35,8 @@ export function isStopReply(text: string | null | undefined): boolean {
   // adults", "Không nhận được link", "Dũng gửi CV ạ" are not stops (codex + opus, gate 2c). The chip is the sure path.
   if (/^(please |pls |kindly )?(stop|unsubscribe|opt out)( (sending|messaging|texting|contacting))?( (me|us))?( (jobs?|job messages?|these|this|them|messages?|now|please|pls|thanks|thank you|any more|anymore|again))*$/.test(t)) return true
   if (/^(please |pls )?(do not|don t|dont) (send|message|text|contact)( (me|us))?( (jobs?|job messages?|these|this|them|messages?|any more|anymore|again|please|thanks|thank you))*$/.test(t)) return true
-  if (/^(xin |vui long )?(khong|ko|k) (nhan|muon nhan)( (tin|tin nhan|viec|viec lam|nua|them|a|nhe|nha|cam on))*$/.test(t)) return true
+  // "không nhận" alone declines ONE cover (opus, gate 2d): a stop needs "nữa" / "thêm" (any more) or "tin nhắn" (messages).
+  if (/^(xin |vui long )?(khong|ko|k) (nhan|muon nhan)( (tin|viec|viec lam))?( (tin nhan|nua|them))( (nua|them|a|nhe|nha|cam on|tin nhan))*$/.test(t)) return true
   // "đừng gửi nữa" only typed with its marks — folded, "dung gui" is also "Dũng gửi …"
   return /^(xin )?đừng (gửi|nhắn)( (nữa|tin|tin nhắn|việc|việc làm|nhé|nha|ạ|cho mình|cho tôi|cho em))*$/u.test(text.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/\s+/g, ' ').trim())
 }

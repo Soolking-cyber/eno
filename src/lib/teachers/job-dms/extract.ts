@@ -112,8 +112,9 @@ const has = (t: string, re: { test: (s: string) => boolean }) => re.test(t)
  * after the gender word, or "preferred/only" right after it, counts.
  */
 /** Vietnamese, folded: "giáo viên bản ngữ nữ", ", nữ,", "(nữ)", "nữ giáo viên" — "nữ" is female (opus, gate 1e). ⚠️ "nam"
- *  is also "Việt Nam" and "south" (Nam Phi), so it counts only standing alone. */
-const VI_GENDER_ASK = /\b(giao vien|gv|co giao|ung vien|tuyen|can)( [a-z]+){0,2} nu\b(?! (sinh|hoc sinh|sinh vien))|[,(/;:]\s*(nu|nam)\s*[,)/;]|\bnu (giao vien|gv)\b|\b(chi|uu tien) (tuyen )?(nu|nam)\b/
+ *  is also "Việt Nam", "south" (Nam Phi) and, folded, "năm" (a year: "300 triệu/năm" — opus, gate 2d), so it counts only
+ *  in a gender field ("Giới tính: Nam", exclusiveGender). */
+const VI_GENDER_ASK = /\b(giao vien|gv|co giao|ung vien|tuyen|can)( [a-z]+){0,2} nu\b(?! (sinh|hoc sinh|sinh vien))|[,(;:]\s*nu\s*[,);/]|\(\s*nam\s*\)|\bnu (giao vien|gv)\b|\b(chi|uu tien) (tuyen )?(nu|nam)\b/
 const GENDER_ASK = /\b(fe)?males?\b[^.!?\n]{0,40}\b(teachers?|tutors?|candidates?|applicants?|staff|speakers?)\b|\b(need|needs|looking for|want|wanted|hiring|seeking)\b[^.!?\n]{0,20}\b(an? |\d+ )?(man|men|woman|women|lady|ladies|girl|guy|boy)\b|\b(man|woman|lady|girl|guy)\b[^.!?\n]{0,30}\b(english |esl |native )?teachers?\b|\b(fe)?males? (are )?(preferred|prefered|priority|prior|only)\b|\bfemail\b|\((fe)?male\)|\b(gv|giao vien|co giao|thay giao) (nu|nam)\b|\buu tien (gv |giao vien )?(nu|nam)\b|\b(lady|ladies|woman|women|man|men|girl|guy) teachers?\b/
 const COUNTRY = '(the )?(us|usa|u\\.s\\.?a?|united states|america|americans?|uk|u\\.k\\.|united kingdom|england|britain|great britain|british|scotland|wales|ireland|irish|canada|canadians?|australia|australians?|new zealand|south africa|south africans?|philippines|the philippines|nigeria|ghana|kenya|uganda|zimbabwe|cameroon|india|europe|eu|european union|europeans?|ukraine|russia|serbia|belarus|poland|germany|france|spain|italy|netherlands|sweden|norway|denmark|finland|romania|bulgaria|hungary|czech republic|czechia|slovakia|croatia|greece|portugal|jamaica|singapore|malaysia|pakistan|kazakhstan|georgia|armenia|turkey|brazil|mexico|colombia)'
 /**
@@ -222,7 +223,7 @@ export function denyReason(text: string): DenyReason | null {
   // "Requirements: max 40 years old" — a candidate's age with no person noun (opus, gate 1c); the students' ("students
   // under 18 years old") are the class.
   for (const m of t.matchAll(/\b(max(imum)?|under|below|not over|no older than|up to|over|above|at least|min(imum)?|duoi|tren|khong qua)\.?\s*:?\s*(1[89]|[2-9]\d)\s*(years? old|yrs? old|y\.?o\.?|tuoi)\b|\b(1[89]|[2-6]\d)\s*(-|–|~|den|toi|to)\s*([2-6]\d)\s*(tuoi|years? old)\b/g)) {
-    if (!/\b(students?|learners?|kids?|children|pupils?|class(es)?|adults?|hoc sinh|hoc vien|sinh vien|nguoi lon|be|tre)\b[^.!?\n]{0,20}$/.test(t.slice(Math.max(0, (m.index ?? 0) - 30), m.index))) return 'discriminatory'
+    if (!/\b(students?|learners?|kids?|children|pupils?|class(es)?|adults?|working professionals|working adults|hoc sinh|hoc vien|sinh vien|nguoi lon|nguoi di lam|cac be|cho be|day be|tre em|tre)\b[^.!?\n]{0,20}$/.test(t.slice(Math.max(0, (m.index ?? 0) - 30), m.index))) return 'discriminatory'
   }
   // A post about work OUTSIDE Vietnam (China, Korea, the Middle East …) on a Vietnam group: not a job here.
   if (has(t, /\b(teach|teaching|jobs?|positions?|schools?) (in|at) (china|korea|japan|taiwan|thailand|cambodia|dubai|uae|saudi arabia|qatar|kuwait|oman|spain|turkey)\b/) && !has(t, /\b(vietnam|viet nam|hcmc|saigon|hanoi|ha noi|da nang)\b/)) return 'not-vietnam'
@@ -256,7 +257,7 @@ const TEACH_ROLE = { test: (t: string) => TEACHER_NOUN.test(t) || /\b(esl|efl|te
 /** Assistant/intern roles are not teaching jobs here (owner, 2026-09-25: "no assistant no intern things"). */
 const ASSISTANT_ONLY = /\b(teaching assistants?|teacher'?s? assistants?|ta|tas|tro giang|tro ly|interns?|internship|thuc tap)\b/
 /** A teacher NOUN once the assistant phrases are taken out — "Hiring Teacher Assistants" names no teacher (opus, gate 1c). */
-const TEACHER_NOUN = /\b(teachers?|tutors?|lecturers?|educators?|homeroom|giao vien|gv)\b|\b(english|esl|efl|ielts|toeic|toefl|language|phonics|cambridge|speaking|communication|kids?) (trainers?|coach(es)?|instructors?)\b|\b(trainers?|coach(es)?|instructors?)\b[^.!?\n]{0,25}\b(english|esl|ielts|phonics|kindergarten|preschool|kids|young learners?)\b|\b(kindergarten|preschool|young learners?) (trainers?|instructors?)\b/
+const TEACHER_NOUN = /\b(teachers?|tutors?|lecturers?|educators?|homeroom|giao vien|gv)\b|\b(english|esl|efl|ielts|toeic|toefl|language|phonics|cambridge|speaking|communication|kids?) (trainers?|coach(es)?|instructors?)\b|\b(trainers?|coach(es)?|instructors?)\b[^.!?\n]{0,25}\b(english|esl|ielts|phonics)\b|\binstructors?\b[^.!?\n]{0,25}\b(kindergarten|preschool|young learners?)\b|\b(kindergarten|preschool|young learners?) (english )?(trainers?|instructors?)\b/
 const withoutAssistants = (t: string) => t
   .replace(/\b(teaching assistants?|teacher'?s? assistants?|tro giang|tro ly|interns?|internship|thuc tap)\b/g, ' ')
   // "Teacher Recruitment Specialist", "Teacher Training Coordinator" — a job ABOUT teachers (opus, gate 1d)
@@ -279,6 +280,12 @@ const PARENT = /\b(my|our) (son|daughter|kids?|child|children|boy|girl|little on
 const SCHOOL = /\b(english|language|foreign language|ielts|kids|learning) (center|centre|school|academy|club|institute)\b|\b(trung tam|truong|he thong|anh ngu|ngoai ngu)\b|\b(international|bilingual|private|public|primary|secondary|high|kindergarten|preschool|montessori) (school|kindergarten|kindy)\b|\b(our|the) (center|centre|school|academy|campus|campuses|company|branch|branches|students)\b|\b(academy|college|university|institute|edu|education)\b/
 const AGENCY = /\b(recruit(er|ers|ment agency)|agency|on behalf of|my clients?|our (partner|client) schools?|placement|headhunt(er|ing)?)\b/
 
+/** Teaching ANOTHER subject or activity and no English — "swimming instructors for kids", "football coach for our
+ *  kindergarten", "piano teacher" (opus, gate 2d): eno's teachers teach English. */
+const OTHER_SUBJECT_ONLY = (t: string) =>
+  /\b(piano|guitar|violin|drums|music|singing|art|drawing|painting|dance|dancing|ballet|swimming|swim|football|soccer|basketball|tennis|badminton|volleyball|yoga|chess|martial arts|taekwondo|karate|judo|boxing|cooking|lifeguard|gymnastics)\b/.test(t)
+  && !/\b(english|esl|efl|ielts|toeic|toefl|phonics|cambridge|tieng anh)\b/.test(t)
+
 /** Teaching VIETNAMESE (to foreigners): a job for a Vietnamese speaker, not one of eno's teachers'. */
 const VIETNAMESE_TEACHING = { test: (t: string) => /\b(vietnamese (language )?(teachers?|tutors?|lessons?|classes?)|teachers? of vietnamese|teach(ing)? vietnamese|learn(ing)? vietnamese|day tieng viet|tieng viet cho nguoi nuoc ngoai)\b/.test(t) && !/\benglish (teachers?|tutors?|classes?|lessons?)\b/.test(t) }
 
@@ -294,7 +301,7 @@ const NOT_AN_OFFER_HEAD = /\b(beware|scammers?|scam alert|warning|blacklist(ed)?
  */
 export function readKind(t: string, listing = false): JobKind {
   if (listing) {
-    if (!has(withoutAssistants(t), TEACHER_NOUN) || has(t, NON_TEACHING_ROLE) || VIETNAMESE_TEACHING.test(t) || (has(t, /\bvolunteer(s|ing)?\b/) && !has(t, /\b(paid|salary|vnd|usd|per hour|\/h|\d+k)\b/))) return 'other'
+    if (!has(withoutAssistants(t), TEACHER_NOUN) || has(t, NON_TEACHING_ROLE) || OTHER_SUBJECT_ONLY(t) || VIETNAMESE_TEACHING.test(t) || (has(t, /\bvolunteer(s|ing)?\b/) && !has(t, /\b(paid|salary|vnd|usd|per hour|\/h|\d+k)\b/))) return 'other'
     return has(t, COVER) ? 'cover_request' : 'job_offer'
   }
   if (has(t.slice(0, 200), NOT_AN_OFFER_HEAD)) return 'other'
@@ -305,6 +312,7 @@ export function readKind(t: string, listing = false): JobKind {
   const teacherWord = has(withoutAssistants(t), TEACHER_NOUN)
   if (has(t, ASSISTANT_ONLY) && !teacherWord) return 'other'
   if (has(t, NON_TEACHING_ROLE) && !teacherWord) return 'other'
+  if (OTHER_SUBJECT_ONLY(t)) return 'other'
   const teach = has(t, TEACH_ROLE)
   const classWord = has(t, /\b(class|classes|lesson|lessons|students|kids|learners|lop|tiet)\b/)
   const hiring = has(t, HIRING_CUE) || employer
@@ -604,13 +612,22 @@ export function readSchedule(t: string, postedAt: Date): Schedule | null {
   return { date: date ? iso(date.y, date.m, date.day) : null, day, part, hour, label: [dayLabel, partLabel].filter(Boolean).join(', ') }
 }
 
+/** A part-of-day word right after a time is its meridiem: "7h tối" / "7 in the evening" is 19:00 (opus, gate 2d). */
+function meridiemAfter(t: string, at: number): 'am' | 'pm' | undefined {
+  const next = t.slice(at, at + 16)
+  if (/^\s*(toi\b(?!\s*\d)|chieu|in the (evening|afternoon)|at night|tonight|this (evening|afternoon))\b/.test(next)) return 'pm'
+  if (/^\s*(sang|in the morning|this morning)\b/.test(next)) return 'am'
+  return undefined
+}
+
 function readTime(t: string): { part: 'am' | 'pm' | 'eve' | null; hour: number | null } {
   const partOf = (h: number): 'am' | 'pm' | 'eve' | null => (h >= 6 && h < 12 ? 'am' : h >= 12 && h < 17 ? 'pm' : h >= 17 && h <= 21 ? 'eve' : null)
   // A RANGE takes its meridiem from either end ("7:30–8:30 PM", "6pm-7:30") — measured: "7:30–8:30 PM tonight" was
   // read as a morning from its first number.
-  const range = /\b(\d{1,2})(?::(\d{2})|h(\d{2})?)?\s*(am|pm)?\s*(?:-|to|den)\s*(\d{1,2})(?::(\d{2})|h(\d{2})?)?\s*(am|pm)?\b/.exec(t)
+  // "từ 7h tới 9h sáng" — folded "tới" (to) is "toi", a separator here, never "tối" (opus, gate 3b).
+  const range = /\b(\d{1,2})(?::(\d{2})|h(\d{2})?)?\s*(am|pm)?\s*(?:-|to|den|toi)\s*(\d{1,2})(?::(\d{2})|h(\d{2})?)?\s*(am|pm)?\b/.exec(t)
   if (range && (range[2] !== undefined || range[3] !== undefined || range[6] !== undefined || range[7] !== undefined || range[4] || range[8])) {
-    const ap = range[4] || range[8]
+    const ap = range[4] || range[8] || meridiemAfter(t, (range.index ?? 0) + range[0].length)
     let h = Number(range[1])
     if (h <= 23) {
       if (ap === 'pm' && h < 12) h += 12
@@ -622,14 +639,15 @@ function readTime(t: string): { part: 'am' | 'pm' | 'eve' | null; hour: number |
   // A single clock time: "18:00", "6pm", "6:30 pm", "8h30".
   for (const m of t.matchAll(/\b(\d{1,2})(?::(\d{2})|h(\d{2})?)? ?(am|pm|a\.m\.|p\.m\.)?\b/g)) {
     const raw = m[0]
-    if (!/[:h]|am|pm/.test(raw)) continue // a bare number is not a time
+    // A bare number is not a time — unless "at 7 in the evening" says so.
+    if (!/[:h]|am|pm/.test(raw) && !(meridiemAfter(t, (m.index ?? 0) + raw.length) && /\b(at|luc)\s*$/.test(t.slice(Math.max(0, (m.index ?? 0) - 6), m.index)))) continue
     // "Posted at 09:00 · cover needed 18:00" — the time the post was written is not the lesson's (codex, gate 1d).
     if (/\b(posted|updated|published|dang)( at| luc)?\s*$/.test(t.slice(Math.max(0, (m.index ?? 0) - 14), m.index))) continue
     // "2h class", "a 2h lesson" — a duration: a bare "Nh" is a clock time only after "at/from/lúc/từ/starts".
     if (/^\d{1,2}h$/.test(raw.trim()) && !/\b(at|from|luc|tu|starts?|starting|bat dau|vao)\s*$/.test(t.slice(Math.max(0, (m.index ?? 0) - 14), m.index))) continue
     let h = Number(m[1])
     if (h > 23) continue
-    const ap = m[4]?.replace(/\./g, '')
+    const ap = m[4]?.replace(/\./g, '') || meridiemAfter(t, (m.index ?? 0) + raw.length)
     if (ap === 'pm' && h < 12) h += 12
     if (ap === 'am' && h === 12) h = 0
     if (!ap && h >= 1 && h <= 6) h += 12
