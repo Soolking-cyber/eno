@@ -314,7 +314,8 @@ describe('each surface renders <PostJobLink>, to the post form with Jobs picked,
     const row = schools.indexOf('<p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">')
     const rowEnd = schools.indexOf('</p>', row)
     const at = schools.indexOf(`<PostJobLink row href={localizedHref('/post?category=jobs', lang)} className="font-semibold text-accent-foreground hover:underline" />`)
-    const awards = schools.indexOf('<Link href={AWARDS_PATH}', row)
+    // The Teachers' Choice link goes straight to the open year's page (plan P1 item 17, 2026-10-20 — schools-page.test.tsx).
+    const awards = schools.indexOf('<Link href={`${AWARDS_PATH}/${awardYear}`}', row)
     expect(row).toBeGreaterThan(-1)
     expect(at).toBeGreaterThan(awards)
     expect(at).toBeLessThan(rowEnd)
@@ -322,7 +323,7 @@ describe('each surface renders <PostJobLink>, to the post form with Jobs picked,
     // then the prompt, then the row's own </p> — a `{cond && (` opened anywhere before it (around the awards link and the
     // prompt, or the prompt alone) would put `)}` or `</>` between the prompt and the </p>.
     expect(schools).toMatch(new RegExp([
-      String.raw`<Link href=\{AWARDS_PATH\}[^\n]*</Link>`,
+      String.raw`<Link href=\{\`\$\{AWARDS_PATH\}/\$\{awardYear\}\`\}[^\n]*</Link>`,
       String.raw`\{/\*[^]*?\*/\}`,
       String.raw`<PostJobLink row href=\{localizedHref\('/post\?category=jobs', lang\)\} className="font-semibold text-accent-foreground hover:underline" />`,
       String.raw`</p>`,

@@ -48,8 +48,9 @@ const h = vi.hoisted(() => ({
   failCount: false,
   failFindMany: false,
   services: false,
-  // Active schools with their newest PUBLISHED review's approval date (null = none published).
-  schools: [] as { slug: string; status: string; published: Date | null }[],
+  // Schools with what their page lists (public reviews, live jobs) and the newest date among those (queries.ts
+  // schoolsForSitemap, which index-rule.test.tsx runs for real against the page).
+  schools: [] as { slug: string; status: string; reviews: number; jobs: number; lastmod: Date | null }[],
   failSchools: false,
   // Closed Teachers' Choice years (queries.ts awardYearsForSitemap).
   awardYears: [] as { year: number; lastmod: Date }[],
@@ -98,18 +99,23 @@ function matches(row: Record<string, unknown>, where: Where | undefined): boolea
   })
 }
 
-// The /schools read in the pages child (src/lib/schools/queries.ts schoolsForSitemap): active schools with
-// a PUBLIC review, dated by the newest approval. Its SQL is covered by queries.probe.test.ts.
-vi.mock('@/lib/schools/queries', () => ({
-  schoolsForSitemap: async () => {
-    if (h.failSchools) throw new Error('fake db: schools unavailable')
-    return h.schools
-      .filter((x) => x.status === 'active' && x.published)
-      .sort((a, b) => (a.slug < b.slug ? -1 : 1))
-      .map((x) => ({ slug: x.slug, lastmod: x.published }))
-  },
-  awardYearsForSitemap: async () => h.awardYears,
-}))
+// The /schools read in the pages child (src/lib/schools/queries.ts schoolsForSitemap): the active schools whose page
+// passes THE index rule — the real page-seo.ts schoolPageIndexable, the function the page's robots call — dated by
+// the newest thing the page lists. Its reads are run against the real page in src/app/[lang]/schools/[slug]/
+// index-rule.test.tsx, and its review SQL against a real Postgres in queries.probe.test.ts.
+vi.mock('@/lib/schools/queries', async () => {
+  const { schoolPageIndexable } = await vi.importActual<typeof import('@/lib/schools/page-seo')>('@/lib/schools/page-seo')
+  return {
+    schoolsForSitemap: async () => {
+      if (h.failSchools) throw new Error('fake db: schools unavailable')
+      return h.schools
+        .filter((x) => x.status === 'active' && schoolPageIndexable(x))
+        .sort((a, b) => (a.slug < b.slug ? -1 : 1))
+        .map((x) => ({ slug: x.slug, lastmod: x.lastmod }))
+    },
+    awardYearsForSitemap: async () => h.awardYears,
+  }
+})
 
 vi.mock('@/lib/db', () => ({
   db: {
@@ -1025,18 +1031,21 @@ describe('the pages child: rentals district pages that carry the rent block (D3)
 })
 
 describe('the school directory in the pages child (2026-10-04)', () => {
-  it('submits /schools and only the schools with a published review, dated by the newest approval', async () => {
+  it('submits /schools and every school page the index rule passes — a public review OR an open job — dated by what it lists', async () => {
     h.schools = [
-      { slug: 'ila-vietnam', status: 'active', published: new Date('2026-10-02T03:00:00Z') },
-      { slug: 'vus', status: 'active', published: new Date('2026-10-03T03:00:00Z') },
-      { slug: 'no-reviews-yet', status: 'active', published: null },
-      { slug: 'hidden-school', status: 'hidden', published: new Date('2026-10-04T03:00:00Z') },
+      { slug: 'ila-vietnam', status: 'active', reviews: 1, jobs: 0, lastmod: new Date('2026-10-02T03:00:00Z') },
+      { slug: 'vus', status: 'active', reviews: 2, jobs: 1, lastmod: new Date('2026-10-03T03:00:00Z') },
+      // ⛔ Job-only: indexable on its page, and until 2026-10-20 never submitted (plan P1 item 17).
+      { slug: 'rmit-university-vietnam', status: 'active', reviews: 0, jobs: 1, lastmod: new Date('2026-10-05T03:00:00Z') },
+      { slug: 'no-reviews-yet', status: 'active', reviews: 0, jobs: 0, lastmod: null },
+      { slug: 'hidden-school', status: 'hidden', reviews: 1, jobs: 1, lastmod: new Date('2026-10-04T03:00:00Z') },
     ]
     const { xml } = await buildPagesSitemap({ rentIndex: 'require' })
-    expect(xml).toContain(`<loc>${HOST}/schools</loc><lastmod>2026-10-03`)
+    expect(xml).toContain(`<loc>${HOST}/schools</loc><lastmod>2026-10-05`)
     expect(xml).toContain(`<loc>${HOST}/teachers/cover</loc></url>`) // the cover-lessons landing (2026-10-07)
     expect(xml).toContain(`<loc>${HOST}/schools/ila-vietnam</loc><lastmod>2026-10-02`)
     expect(xml).toContain(`<loc>${HOST}/schools/vus</loc>`)
+    expect(xml).toContain(`<loc>${HOST}/schools/rmit-university-vietnam</loc><lastmod>2026-10-05`)
     expect(xml).not.toContain('/schools/no-reviews-yet')
     expect(xml).not.toContain('/schools/hidden-school')
     expect(xml).not.toContain('/schools/awards') // no year closed yet
@@ -1057,7 +1066,7 @@ describe('the school directory in the pages child (2026-10-04)', () => {
 
   it('is not submitted from eno.forum (its copy is a duplicate)', async () => {
     h.services = true
-    h.schools = [{ slug: 'vus', status: 'active', published: new Date('2026-10-03T03:00:00Z') }]
+    h.schools = [{ slug: 'vus', status: 'active', reviews: 1, jobs: 1, lastmod: new Date('2026-10-03T03:00:00Z') }]
     const { xml } = await buildPagesSitemap({ rentIndex: 'require' })
     expect(xml).not.toContain('/schools')
   })

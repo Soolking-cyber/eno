@@ -21,12 +21,16 @@ import { KindLabel, PayRange, SchoolLogo } from '@/components/schools/school-bit
 import { AwardBadge } from '@/components/schools/award-badge'
 import { getSchoolPage, type SchoolPage } from '@/lib/schools/queries'
 import { KIND_LABEL, PAY_MAX_AGE_YEARS, PAY_MIN_REPORTS, TAG_LABEL } from '@/lib/schools/constants'
+import { schoolOrgLd, schoolPageIndexable, schoolPageJobsOnly, schoolPageTitle, shownWebsite, type SchoolPageContent } from '@/lib/schools/page-seo'
 
 /**
  * /schools/<slug> — one school: the teachers' score, pay ranges, what is good and bad, the reviews and
  * the school's open jobs. ISR like the list (moderation purges it); live counts come from the client.
  * ⚠️ NOINDEX UNTIL IT HAS SOMETHING OF ITS OWN (plan review 2026-10-04): a directory entry with no
  * review and no job is a thin page, hundreds of them would read as a doorway farm.
+ * ⛔ THAT RULE IS page-seo.ts schoolPageIndexable, AND pages.xml SUBMITS BY THE SAME FUNCTION (queries.ts
+ * schoolsForSitemap, 2026-10-20) — never restate it here: two rules is how job-only pages came to be indexable
+ * and never submitted.
  * ⚠️ No loading.tsx in this segment, so notFound() is a real 404 (see c/[category]/(index)/page.tsx).
  */
 export const revalidate = 300
@@ -42,19 +46,28 @@ async function load(slug: string) {
   return SLUG.test(slug) && slug.length <= 80 ? getSchoolPage(slug) : null
 }
 
+/** What the page has of its own — the one input to its index rule and its title (page-seo.ts). */
+const contentOf = (page: SchoolPage): SchoolPageContent => ({ reviews: page.reviews.length, jobs: page.jobs.length })
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params
+  const { lang, slug } = await params
   const page = await load(slug)
   if (!page) return { title: `Not found | ${SITE_NAME}`, robots: { index: false } }
   const { school } = page
-  const title = `${school.name}: teacher reviews, pay and jobs | ${SITE_NAME}`
-  const description = `What teachers say about ${school.name} (${KIND_LABEL[school.kind].en.toLowerCase()}, Ho Chi Minh City): votes, what is good and bad, pay reported by teachers and open jobs.`
+  const content = contentOf(page)
+  const kind = `${KIND_LABEL[school.kind].en.toLowerCase()}, Ho Chi Minh City`
+  // The share cards stay English on both variants (a share scraper sends no language — /about says why); the <title>
+  // follows the variant.
+  const title = `${schoolPageTitle(school.name, content, 'en')} | ${SITE_NAME}`
+  const description = schoolPageJobsOnly(content)
+    ? `Open teaching jobs at ${school.name} (${kind}). No reviews or pay reports from teachers yet.`
+    : `What teachers say about ${school.name} (${kind}): votes, what is good and bad, pay reported by teachers and open jobs.`
   const path = `/schools/${school.slug}`
   return {
-    title,
+    title: lang === 'vi' ? `${schoolPageTitle(school.name, content, 'vi')} | ${SITE_NAME}` : title,
     description,
     alternates: { canonical: path },
-    ...(page.reviews.length || page.jobs.length ? {} : { robots: { index: false, follow: true } }),
+    ...(schoolPageIndexable(content) ? {} : { robots: { index: false, follow: true } }),
     ...pageShare({ title, description, url: path }),
   }
 }
@@ -66,16 +79,19 @@ export default async function SchoolPageRoute({ params }: Props) {
   const { school } = page
   const loc = moneyLocale(lang)
   const summary = lang === 'vi' && school.summaryVi ? school.summaryVi : school.summary
-  const host = school.website ? safeHost(school.website) : null
+  const website = shownWebsite(school.website)
+  const pageUrl = `${ORIGIN}/schools/${school.slug}`
   const jsonLd = [
     {
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
       itemListElement: [
         { '@type': 'ListItem', position: 1, name: 'Schools', item: `${ORIGIN}/schools` },
-        { '@type': 'ListItem', position: 2, name: school.name, item: `${ORIGIN}/schools/${school.slug}` },
+        { '@type': 'ListItem', position: 2, name: school.name, item: pageUrl },
       ],
     },
+    // The school itself, from what this page shows and nothing else (page-seo.ts says what is left out, and why).
+    schoolOrgLd({ pageUrl, name: school.name, kind: school.kind, website }),
   ]
 
   return (
@@ -141,7 +157,7 @@ export default async function SchoolPageRoute({ params }: Props) {
           <div className="mt-10 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-10">
             <aside className="flex flex-col gap-6 lg:col-start-2 lg:row-start-1">
               <PaySection pay={page.pay} />
-              <AboutCard school={school} host={host} />
+              <AboutCard school={school} website={website} />
             </aside>
             <div className="mt-10 flex min-w-0 flex-col gap-10 lg:col-start-1 lg:row-start-1 lg:mt-0">
               <TagSection good={page.goodTags} bad={page.badTags} reviews={page.reviews.length} />
@@ -185,8 +201,11 @@ export default async function SchoolPageRoute({ params }: Props) {
   )
 }
 
-/** The directory facts in full: every area (the header names three), the curricula and the school's own site. */
-function AboutCard({ school, host }: { school: SchoolPage['school']; host: string | null }) {
+/**
+ * The directory facts in full: every area (the header names three), the curricula and the school's own site — the
+ * one page-seo.ts shownWebsite accepts, which is also the only one the structured data may name.
+ */
+function AboutCard({ school, website }: { school: SchoolPage['school']; website: { href: string; host: string } | null }) {
   return (
     <section aria-labelledby="about-h" className="rounded-2xl bg-card p-4 ring-1 ring-border">
       <h2 id="about-h" className="text-sm font-semibold text-muted-foreground"><Bilingual en="About" vi="Thông tin" /></h2>
@@ -207,12 +226,12 @@ function AboutCard({ school, host }: { school: SchoolPage['school']; host: strin
             <dd className="mt-1 flex flex-wrap gap-1.5">{school.curricula.map((c) => <Badge key={c} variant="outline">{c}</Badge>)}</dd>
           </div>
         )}
-        {host && (
+        {website && (
           <div>
             <dt className="text-xs text-muted-foreground"><Bilingual en="Website" vi="Trang web" /></dt>
             <dd className="mt-0.5">
-              <a href={school.website!} target="_blank" rel="nofollow noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
-                {host} <ExternalLink aria-hidden className="size-3.5" />
+              <a href={website.href} target="_blank" rel="nofollow noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
+                {website.host} <ExternalLink aria-hidden className="size-3.5" />
               </a>
             </dd>
           </div>
@@ -220,15 +239,6 @@ function AboutCard({ school, host }: { school: SchoolPage['school']; host: strin
       </dl>
     </section>
   )
-}
-
-function safeHost(url: string): string | null {
-  try {
-    const u = new URL(url)
-    return u.protocol === 'https:' || u.protocol === 'http:' ? u.hostname.replace(/^www\./, '') : null
-  } catch {
-    return null
-  }
 }
 
 function PaySection({ pay }: { pay: SchoolPage['pay'] }) {

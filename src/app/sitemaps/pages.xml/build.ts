@@ -507,15 +507,21 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
   /**
    * THE TEACHER-RANKED SCHOOL DIRECTORY (2026-10-04). Teachers' own reviews, not imported adverts, so the
    * 2026-09-17 rule does not keep it out. MARKETPLACE ONLY, like its footer link: eno.forum's copy is a
-   * duplicate. A school page is submitted once it has a PUBLISHED review — before it has a review or an
-   * open job it is noindex (src/app/[lang]/schools/[slug]/page.tsx) — and /schools links all the others.
-   * Dated by the newest approval. ⚠️ A failed read submits /schools alone, undated, rather than failing
-   * the whole sitemap over one feature.
+   * duplicate. ⛔ A school page is submitted EXACTLY when it answers index — one function decides both
+   * (src/lib/schools/page-seo.ts schoolPageIndexable: a public review or an open job, 2026-10-20; this used to
+   * want a review, so the job-only pages were indexable and never submitted) — and /schools links all the
+   * others. Dated by the newest review approval or job posting the page lists. ⚠️ A failed read submits
+   * /schools alone, undated, rather than failing the whole sitemap over one feature.
+   * ⚠️ A JOB-ONLY PAGE IS SUBMITTED ON PURPOSE, AND THE 2026-09-17 RULE STILL HOLDS (teacher visibility plan P1
+   * item 17: "Retitle job-only school pages '<School>: open teaching jobs' and submit them"). That rule stops us
+   * asking Google for imported LISTING urls, which restate another site's advert; this page is eno's own
+   * directory entry — the school's kind, areas, curricula, website and summary — with its open jobs listed, and
+   * those job listings themselves stay unsubmitted (submittedListingWhere).
    */
   if (!IS_SERVICES) {
     // Inside .then so a SYNCHRONOUS throw (a client built before the School model) is caught too. The PAGE's
-    // visibility rule (schoolsForSitemap), so a school whose only approved review is not public yet is not
-    // submitted while it answers noindex.
+    // rule on the PAGE's reads (schoolsForSitemap), so a school whose only approved review is not public yet,
+    // and that lists no job, is not submitted while it answers noindex.
     const reviewed = await Promise.resolve()
       .then(() => schoolsForSitemap())
       .catch(() => null)

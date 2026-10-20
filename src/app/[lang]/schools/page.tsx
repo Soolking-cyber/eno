@@ -46,6 +46,10 @@ export default async function SchoolsPage({ params }: { params: Promise<{ lang: 
   const rows = await listAllSchools()
   const present = new Set(rows.flatMap((r) => r.districts))
   const areas = HCMC_AREAS.filter((a) => present.has(a))
+  // ONE year for the Teachers' Choice link's label AND its target (plan P1 item 17, 2026-10-20): straight to that year's
+  // page — the bare AWARDS_PATH answers a 307 to it (awards/page.tsx). Read per render (ISR, 5 min), so both move on
+  // to the new year together.
+  const awardYear = currentAwardYear()
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
@@ -71,7 +75,7 @@ export default async function SchoolsPage({ params }: { params: Promise<{ lang: 
                 <Link href={TEACH_HUB_PATH} hrefLang="en" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Guide to teaching in Vietnam" vi="Cẩm nang dạy học ở Việt Nam (tiếng Anh)" /></Link>
               )}
               <Link href="/schools/suggest" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Missing a school? Suggest it" vi="Thiếu trường? Đề xuất ngay" /></Link>
-              <Link href={AWARDS_PATH} className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Teachers' Choice {y}" vi="Giáo viên bình chọn {y}" values={{ y: String(currentAwardYear()) }} /></Link>
+              <Link href={`${AWARDS_PATH}/${awardYear}`} className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Teachers' Choice {y}" vi="Giáo viên bình chọn {y}" values={{ y: String(awardYear) }} /></Link>
               {/* The school side's way in (teacher visibility plan §4 channel 6; copy approved in the plan, 2026-10-18 —
                   teaching-links.tsx PostJobLink): "Hiring? Post your job ad free on eno", to the post form with Jobs picked.
                   Last in the row, after the teachers' links, at the row's top level — no edition gate around it (the test

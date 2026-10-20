@@ -8,8 +8,9 @@ import { LISTING_CARD_SELECT, serializeListingCard, safeParse } from '@/lib/seri
 import { verifiedProfileIds } from '@/lib/kyc/identity'
 import { ELIGIBLE_ACCOUNT_AGE_DAYS, REQUIRE_PHONE, REVIEWS_NEED_PROOF, VOTES_NEED_IDENTITY, type SchoolKind, type GoodTag, type BadTag, isGoodTag, isBadTag } from './constants'
 import { compareSchools, isGenericEmployer, normEmployer, summarisePay, type PaySummary, type SchoolSort } from './logic'
-import { inHcmc, jobSchoolId, type JobPlace } from './job-match'
+import { inHcmc, jobSchoolId, jobSchoolIds, type JobPlace } from './job-match'
 import { schoolLogo } from './logos'
+import { schoolPageIndexable } from './page-seo'
 
 /**
  * Server reads for /schools. Every public number is computed HERE at read time from the rows, with the
@@ -137,11 +138,11 @@ async function eligibleVotes(schoolIds: string[]): Promise<Map<string, { up: num
        and ${voterSql()}`)
 }
 
-/** The PUBLIC reviews: published by a moderator AND by an author who counts (reviewAuthorSql). */
-async function visibleReviewIds(schoolIds: string[]): Promise<{ id: string; schoolId: string }[]> {
+/** The PUBLIC reviews: published by a moderator AND by an author who counts (reviewAuthorSql); `moderatedAt` dates pages.xml. */
+async function visibleReviews(schoolIds: string[]): Promise<{ id: string; schoolId: string; moderatedAt: Date | null }[]> {
   if (!schoolIds.length) return []
-  return db.$queryRaw<{ id: string; schoolId: string }[]>`
-    select r.id, r."schoolId" as "schoolId"
+  return db.$queryRaw<{ id: string; schoolId: string; moderatedAt: Date | null }[]>`
+    select r.id, r."schoolId" as "schoolId", r."moderatedAt" as "moderatedAt"
       from "SchoolReview" r
       join "Profile" p on p.id = r."profileId"
       join "School" s on s.id = r."schoolId"
@@ -153,7 +154,7 @@ async function visibleReviewIds(schoolIds: string[]): Promise<{ id: string; scho
 /** Public reviews per school. */
 async function publishedReviewCounts(schoolIds: string[]): Promise<Map<string, number>> {
   const out = new Map<string, number>()
-  for (const r of await visibleReviewIds(schoolIds)) out.set(r.schoolId, (out.get(r.schoolId) ?? 0) + 1)
+  for (const r of await visibleReviews(schoolIds)) out.set(r.schoolId, (out.get(r.schoolId) ?? 0) + 1)
   return out
 }
 
@@ -199,18 +200,22 @@ async function jobsCategoryId(): Promise<string | null> {
 }
 
 /**
- * Live job listings → school ids (job-match.ts jobSchoolId: the school's own linked shop anywhere, else an
- * EXACT normalised employer against the alias table for a job in HCMC). Active jobs are a few hundred rows;
+ * Live job listings → school ids, newest first (job-match.ts jobSchoolIds: the school's own linked shop anywhere,
+ * and an EXACT normalised employer against the alias table for a job in HCMC). Active jobs are a few hundred rows;
  * one scan per request is cheaper and more truthful than a materialised table that has to follow every import.
+ * ⚠️ EACH SCHOOL JUDGED ALONE (2026-10-20), so a school's entry does not depend on which other schools were passed:
+ * the page passes its one school, the board and pages.xml pass every school, and all three get the same jobs for it.
+ * They used to differ for a job one school's shop posted under another school's name — on the named school's page,
+ * not in its board count — and pages.xml now submits a page by its jobs too (page-seo.ts schoolPageIndexable).
  */
-async function jobsBySchool(schools: { id: string; sellerId: string | null }[]): Promise<Map<string, string[]>> {
-  const out = new Map<string, string[]>()
+async function jobsBySchool(schools: { id: string; sellerId: string | null }[]): Promise<Map<string, { id: string; postedAt: Date }[]>> {
+  const out = new Map<string, { id: string; postedAt: Date }[]>()
   const catId = await jobsCategoryId()
   if (!catId || !schools.length) return out
   const [jobs, aliases] = await Promise.all([
     db.listing.findMany({
       where: await scopedListingWhere({ categoryId: catId, status: 'active', verified: true }),
-      select: { id: true, attributes: true, sellerId: true, city: true },
+      select: { id: true, attributes: true, sellerId: true, city: true, postedAt: true },
       orderBy: { postedAt: 'desc' },
       // Live jobs were 25 on 2026-10-04; the cap only bounds a pathological import.
       take: 5000,
@@ -221,8 +226,9 @@ async function jobsBySchool(schools: { id: string; sellerId: string | null }[]):
   const bySeller = new Map(schools.filter((s) => s.sellerId).map((s) => [s.sellerId as string, s.id]))
   for (const j of jobs) {
     const employer = safeParse<Record<string, unknown>>(j.attributes, {})?.employer
-    const sid = jobSchoolId({ employer, sellerId: j.sellerId, city: j.city }, bySeller, byAlias)
-    if (sid) out.set(sid, [...(out.get(sid) ?? []), j.id])
+    for (const sid of jobSchoolIds({ employer, sellerId: j.sellerId, city: j.city }, bySeller, byAlias)) {
+      out.set(sid, [...(out.get(sid) ?? []), { id: j.id, postedAt: j.postedAt }])
+    }
   }
   return out
 }
@@ -288,7 +294,7 @@ async function loadSchoolPage(slug: string) {
   })
   if (!school) return null
   const ids = [school.id]
-  const visible = (await visibleReviewIds(ids)).map((r) => r.id)
+  const visible = (await visibleReviews(ids)).map((r) => r.id)
   const [votes, pay, jobIds, reviewRows, awards] = await Promise.all([
     eligibleVotes(ids), payReports(ids), jobsBySchool([school]),
     db.schoolReview.findMany({
@@ -320,7 +326,7 @@ async function loadSchoolPage(slug: string) {
     for (const t of r.goodTags) goodCounts.set(t, (goodCounts.get(t) ?? 0) + 1)
     for (const t of r.badTags) badCounts.set(t, (badCounts.get(t) ?? 0) + 1)
   }
-  const jobIdsHere = jobIds.get(school.id) ?? []
+  const jobIdsHere = (jobIds.get(school.id) ?? []).map((j) => j.id)
   const jobRows = jobIdsHere.length
     ? await db.listing.findMany({ where: await scopedListingWhere({ id: { in: jobIdsHere.slice(0, 24) } }), select: { ...LISTING_CARD_SELECT, attributes: true }, orderBy: { postedAt: 'desc' } })
     : []
@@ -359,20 +365,28 @@ async function eligibleReviewVotes(reviewIds: string[], schoolId: string): Promi
 }
 
 /**
- * Schools for pages.xml: active, with at least one PUBLIC review (the page's own rule — published AND by an
- * author who counts), dated by the newest approval. ⚠️ The same rule as the page's noindex, so the sitemap
- * never submits a school page that answers noindex (diff review).
+ * Schools for pages.xml: EXACTLY the school pages that answer index. ⛔ THE PAGE'S OWN RULE AND THE PAGE'S OWN READS
+ * (plan P1 item 17, 2026-10-20): an active school is submitted when page-seo.ts schoolPageIndexable passes on its
+ * PUBLIC reviews (visibleReviews — published AND by an author who counts) and the jobs its page lists (jobsBySchool,
+ * each school judged alone) — the function and the inputs src/app/[lang]/schools/[slug]/page.tsx gives its robots.
+ * Until then this submitted a review only, so every job-only page was indexable and never submitted.
+ * Dated by the newest thing the page lists: a review's approval or a job's posting (null when neither has a date).
  */
 export async function schoolsForSitemap(): Promise<{ slug: string; lastmod: Date | null }[]> {
-  return db.$queryRaw<{ slug: string; lastmod: Date | null }[]>`
-    select s.slug as slug, max(r."moderatedAt") as lastmod
-      from "School" s
-      join "SchoolReview" r on r."schoolId" = s.id and r.status = 'published'
-      join "Profile" p on p.id = r."profileId"
-     where s.status = 'active'
-       and ${reviewAuthorSql()}
-     group by s.slug
-     order by s.slug`
+  const schools = await db.school.findMany({ where: { status: 'active' }, select: { id: true, slug: true, sellerId: true }, orderBy: { slug: 'asc' } })
+  const [reviews, jobs] = await Promise.all([visibleReviews(schools.map((s) => s.id)), jobsBySchool(schools)])
+  const newest = (a: Date | null, b: Date | null | undefined) => (b && (!a || b > a) ? b : a)
+  const reviewed = new Map<string, { n: number; lastmod: Date | null }>()
+  for (const r of reviews) {
+    const c = reviewed.get(r.schoolId) ?? { n: 0, lastmod: null }
+    reviewed.set(r.schoolId, { n: c.n + 1, lastmod: newest(c.lastmod, r.moderatedAt) })
+  }
+  return schools.flatMap((s) => {
+    const rv = reviewed.get(s.id) ?? { n: 0, lastmod: null }
+    const listed = jobs.get(s.id) ?? []
+    if (!schoolPageIndexable({ reviews: rv.n, jobs: listed.length })) return []
+    return [{ slug: s.slug, lastmod: listed.reduce<Date | null>((d, j) => newest(d, j.postedAt), rv.lastmod) }]
+  })
 }
 
 // ── live state for the client islands (no-store) ───────────────────────────────────────────────
