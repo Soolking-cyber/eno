@@ -20,5 +20,6 @@ export const GET = route({ auth: 'cron' }, async ({ req }) => {
   // A run with no operator, or one that found the run lock held, does nothing — not even STOPs: a failure to see, not a
   // quiet success (codex, gates 3c + 3f).
   // ⚠️ 'deadline' too: a run that ran out of time left teachers unread — the next run continues, but it is visible.
-  return { ok: r.failed === 0 && r.stopped !== 'no-operator' && r.stopped !== 'busy' && r.stopped !== 'deadline', m: r.mode, pz: r.paused ?? 0, rd: r.read, rdy: r.ready, h: r.held, d: r.dropped, x: r.expired, t: r.teachers, s: r.sent, sh: r.shadow, sk: r.skipped, f: r.failed, st: r.stops, ...(r.stopped ? { stop: r.stopped } : {}) }
+  // `stop` FIRST: eno-cron.sh prints the first 200 bytes, and the worst case below is ~170 (opus, gate 5a).
+  return { ok: r.failed === 0 && r.stopped !== 'no-operator' && r.stopped !== 'busy' && r.stopped !== 'deadline', ...(r.stopped ? { stop: r.stopped } : {}), m: r.mode, s: r.sent, f: r.failed, st: r.stops, pz: r.paused ?? 0, lp: r.lapsed ?? 0, rd: r.read, rdy: r.ready, h: r.held, d: r.dropped, x: r.expired, t: r.teachers, sh: r.shadow, sk: r.skipped }
 })

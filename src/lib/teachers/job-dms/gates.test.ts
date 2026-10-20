@@ -420,3 +420,10 @@ describe('gate 4b', () => {
     ]) expect(mayBeOptOut(t)).toBe(false)
   })
 })
+
+describe('gate 4c', () => {
+  it('a bare "applied" or "interview" does not excuse an opt-out', () => {
+    expect(mayBeOptOut('Please stop the job messages, I got hired after an interview last week, thanks for everything')).toBe(true)
+    expect(mayBeOptOut('Stop sending these job alerts, I already applied elsewhere and got the position, thank you')).toBe(true)
+  })
+})

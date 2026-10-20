@@ -93,10 +93,12 @@ function longOptOut(t: string, raw: string): boolean {
     .replace(/\bremove me from (the|this|that|your) (shortlist|interview|application|class|schedule|roster|timetable|group chat)\b/g, ' ')
     .replace(/\bopt (me )?out of (nights?|weekends?|mornings?|evenings?|afternoons?|the (night|weekend|morning|evening|afternoon))\b/g, ' ')
   // Strong: "stop sending/messaging me" (the address-like objects were taken out above).
-  if (/\bstop (sending|messaging|texting|contacting|emailing) (me|us)\b/.test(notAboutUs)) return true
+  if (/\bstop (sending|messaging|texting|contacting|emailing) ((me|us)\b|(these|this|the|your|any|all)( job)? (messages|alerts|offers|jobs|texts|emails)\b)/.test(notAboutUs)) return true
   // Weak — "stop" near a word about messages — unless the reply is plainly about a job ("Stop - I meant job 3, please
   // send me the details" — opus, gate 4b).
-  const aboutAJobEarly = /\b(job \d|send (me )?(the )?(details|address|link|info|location)|still (open|available)|apply|applying|applied|interview)\b/.test(t)
+  // ⚠️ "about a job" = a numbered job AND a request about it — never a bare "applied" or "interview" ("Please stop the job
+  // messages, I got hired after an interview" is an opt-out — opus, gate 4c).
+  const aboutAJobEarly = /\bjob \d+\b/.test(t) && /\b(send|details|address|link|info|location|meant|still (open|available)|apply|applying)\b/.test(t)
   if (!aboutAJobEarly && /\bstop\b[^.!?]{0,40}\b(message|messages|messaging|texting|sending|send|jobs?|job (messages|alerts|offers)|alerts?|offers?|these|this|them|it|contacting|emails?|notifications?)\b/.test(notAboutUs)) return true
   if (/\b(unsubscribe|opt (me )?out|remove me|delete me|take me off|leave me alone|no longer interested|(revoke|withdraw) (my )?consent|do not consent|don t consent)\b/.test(notAboutUs)) return true
   // "not interested" is about ONE job as often as about these messages ("not interested in job 1, but job 2 …" — codex +
@@ -107,7 +109,7 @@ function longOptOut(t: string, raw: string): boolean {
   // A message that OPENS with stop / unsubscribe, and "I never consented / signed up" (gate 4a): at least a pause —
   // unless it is plainly about a job ("Stop - I meant job 3, send me the details", "I never asked for job 3's address" —
   // opus, gate 4b).
-  const aboutAJob = /\b(job \d|send (me )?(the )?(details|address|link|info|location)|still (open|available)|apply|applying|applied|interview)\b/.test(t)
+  const aboutAJob = aboutAJobEarly
   if (!aboutAJob && /^(stop|unsubscribe)\b/.test(t) && !/^stop (by|at)\b/.test(t)) return true
   if (!aboutAJob && /\b(never|did not|didn t|didnt) (consent|consented|agree|agreed|sign up|signed up|opt in|opted in|ask for|asked for)\b/.test(notAboutUs)) return true
   // "… do not want any further contact from your service" (codex, gate 3m)

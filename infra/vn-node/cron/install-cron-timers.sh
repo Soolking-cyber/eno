@@ -123,6 +123,14 @@ declare -A SCHED=(
   # that made the mark automatic (or any IDENTITY_MARK_NOTICE_VERSION bump), run the route once by hand: its selection
   # covers every identity holder, so that run IS the backfill (identity-reconcile's loop does it too).
   [identity-marks]="*-*-* 17:05:00 UTC"
+  # Teacher job DMs (owner, 2026-10-20 — src/lib/teachers/job-dms/run.ts): every 30 minutes 01:00–13:30 UTC = 08:00–20:30
+  # ICT, so a cover request reaches a matching teacher the same day. Each run reads the new job posts (rules + Laya), and
+  # in 'live' mode sends at most one jobs message and one cover message per teacher per day from the jobs desk. POLICY
+  # (below): installed disabled; enabled by hand after `?dryRun=1`. The send mode itself is a kv key (shadow by default).
+  [teacher-job-dms]="*-*-* 01..13:00,30:00 UTC"
+  # The one-time bell invite to switch on job messages (src/app/api/cron/job-dms-invite): daily 03:00 UTC = 10:00 ICT, so
+  # a teacher who published since yesterday is invited once. POLICY too.
+  [job-dms-invite]="*-*-* 03:00:00 UTC"
 )
 # ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It writes only price/affiliateUrl
 # on imported rows and emails nobody — never on a hidden row (prices land on active|sold, restores take sold only).
@@ -217,7 +225,9 @@ in_list(){ local x=$1 j; shift; for j in "$@"; do [ "$j" = "$x" ] && return 0; d
 #   systemctl enable --now eno-cron-affiliate-prices.timer
 # partner-stock (2026-10-17): POLICY while the owner's five-per-shop second-hand showcase stands — its restock of sold rows
 # would push shops past five, and the route answers {skipped} without ?force=1 anyway. Enable only after the cap is lifted.
-POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices partner-stock)
+# teacher-job-dms + job-dms-invite (2026-10-20): POLICY — they message teachers; enable each by hand after its dry run:
+#   systemctl enable --now eno-cron-teacher-job-dms.timer eno-cron-job-dms-invite.timer
+POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices partner-stock teacher-job-dms job-dms-invite)
 
 # ⚠️ ONE JOB ONLY: `ENO_CRON_ONLY=<job> bash install-cron-timers.sh` writes, reloads and enables just
 # that job's units (if it is in SAFE) and leaves every other unit as it is. A full re-run DISABLES the
@@ -285,6 +295,9 @@ for job in "${!SCHED[@]}"; do
   # ⚠️ teacher-message-emails sends from eno.vn ONLY (teachers live there, and both editions share the database): the
   # route answers {skipped:'marketplace_only'} on eno.forum, and the unit never calls it there.
   [ "$job" = teacher-message-emails ] && TARGET="eno.vn 3001"
+  # ⚠️ The teacher job DMs too — teachers are eno.vn's; both routes answer {skipped:'marketplace_only'} on eno.forum.
+  [ "$job" = teacher-job-dms ] && TARGET="eno.vn 3001"
+  [ "$job" = job-dms-invite ] && TARGET="eno.vn 3001"
   # ⚠️ licence-holds runs ONCE, on eno.vn, whatever host this installer was run for: the listings and the ISR
   # invalidations are in the shared database, so a pull there is a pull on both sites; a second run would find nothing.
   [ "$job" = licence-holds ] && TARGET="eno.vn 3001"

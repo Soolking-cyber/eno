@@ -258,7 +258,7 @@ describe('runJobDms', () => {
     await runJobDms({ dryRun: false, now: DAY })
     expect(calls.consentUpdates).toContainEqual({
       where: { optIn: true, pausedAt: { lt: new Date(DAY.getTime() - 14 * 86_400_000) } },
-      data: { optIn: false, withdrawnAt: DAY, updatedAt: DAY },
+      data: { optIn: false, withdrawnAt: DAY, pausedAt: null, updatedAt: DAY },
     })
   })
 

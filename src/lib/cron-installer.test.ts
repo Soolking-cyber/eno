@@ -59,6 +59,15 @@ describe('install-cron-timers.sh — the teacher job-match emails are never on a
     expect(SCRIPT).toContain('[ "$job" = teacher-message-emails ] && TARGET="eno.vn 3001"')
   })
 
+  it('⛔ the teacher job DMs (2026-10-20) are POLICY — they message teachers — every 30 min in the daytime, on eno.vn only', () => {
+    for (const job of ['teacher-job-dms', 'job-dms-invite']) {
+      expect(list('POLICY').words).toContain(job)
+      for (const name of ['SAFE', 'EMAIL', 'MANUAL']) expect(list(name).words, `${name} holds ${job}`).not.toContain(job)
+      expect(SCRIPT).toContain(`[ "$job" = ${job} ] && TARGET="eno.vn 3001"`)
+    }
+    expect(SCRIPT).toMatch(/^\s*\[teacher-job-dms\]="\*-\*-\* 01\.\.13:00,30:00 UTC"$/m)
+  })
+
   it('⛔ licence-holds (2026-10-14) is SAFE — any full re-run enables it — at 00:00 ICT sharp, once, on eno.vn', () => {
     // Without the timer VietKite's grandfather never ends, so the job may not drift into a list a re-run leaves off.
     expect(list('SAFE').words).toContain('licence-holds')

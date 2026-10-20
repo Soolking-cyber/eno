@@ -15,6 +15,8 @@
 //     transfer abroad. ⛔ Its meaning is AI_NOTICE_VERSION (profile.ts): the form sends it as `aiNotice` whenever an
 //     opt-in is on, and the server stamps it on the opt-in — change what the note says the AI receives, who runs it or
 //     where, and that version must be bumped in the same change.
+//     Edit only: one link to /teachers/job-messages — the job-messages switch is its own consent, on its own page, under
+//     its own notice (src/lib/teachers/job-dms/consent.ts), never a third switch saved with this form.
 //   · Every teacher: "Show “Identity verified” on my profile" (owner, 2026-10-15) — AUTOMATIC since 2026-10-16 (owner: "if
 //     they verify it should be auto not need to ask"): the mark shows by itself while the identity check is live and the
 //     profile's name is within the ID's, so the switch is ON by default and is the teacher's way to HIDE it (and show it
@@ -50,6 +52,7 @@ import { IosVerifyElsewhereNote, iosVerifyElsewhereText } from '@/components/mar
 import { useIosHideKyc } from '@/hooks/use-ios-hide-kyc'
 import { markLineReason, markTrustLine, type MarkSwitch } from '@/components/teachers/identity-mark-switch'
 import { unlockCompressionAudio } from '@/lib/compression-audio'
+import { IS_MARKETPLACE } from '@/lib/edition'
 
 export type FinishMedia = {
   busy: '' | 'photo' | 'video' | 'saving'
@@ -451,6 +454,8 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
             description={tr('About jobs that match your profile, and to introduce you to those schools. Needs your phone number above.', 'Về các việc làm phù hợp với hồ sơ của bạn, và để giới thiệu bạn với các trường đó. Cần số điện thoại ở trên.')}
           />
           <AiNote />
+          {/* eno.vn only: the jobs desk runs there (the page is eno.vn-only too). */}
+          {mode === 'edit' && IS_MARKETPLACE && <p className="text-sm"><Link href="/teachers/job-messages" className="font-semibold text-accent-foreground hover:underline">{tr('Get matching jobs and cover lessons in eno chat', 'Nhận việc làm và buổi dạy thay phù hợp qua tin nhắn eno')}</Link></p>}
         </Fieldset>
       )}
 

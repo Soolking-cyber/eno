@@ -472,6 +472,82 @@ describe('/privacy — teacher job matching (Anthropic)', () => {
   })
 })
 
+/**
+ * ⛔ TEACHER JOB MESSAGES (owner, 2026-10-20 — src/lib/teachers/job-dms). The jobs desk's chat messages are their OWN
+ * consent (the "Job messages" page — consent.ts), matched on eno's own server (gates.ts reads the profile; the on-box AI
+ * model reads only the posts), so NO recipient row and no transfer abroad: the Anthropic row above stays the email/staff
+ * matching's alone. The numbers the policy prints are the code's own (JOB_DM_RULES), and the switch it quotes is the one
+ * the page shows (job-messages-panel.tsx).
+ */
+describe('/privacy — teacher job messages (the jobs desk)', () => {
+  const EN = [
+    'Job messages for teachers: if you switch on “Message me matching jobs and cover lessons in eno chat” (on the “Job messages” page of your teacher profile), our jobs desk — shown in chat as “Alex · eno.vn” — may send you automatic messages in eno.vn chat',
+    'We find them in Facebook teaching-job groups, in LinkedIn job-alert emails, in job posts our team forwards to us and among eno.vn’s own job listings.',
+    'The posts we collect are kept privately on our server in Vietnam: they are never published, are used only to find jobs and cover lessons for teachers who switched this on, and their content is deleted 30 days after we receive them — only a post’s identifier at its source is kept, for up to 6 months, so the same post is never sent twice.',
+    'if a reply may be asking us to stop, we pause the messages and ask you — tap “Keep sending jobs” to get them again, and if you don’t, they switch off after 14 days.',
+    'To choose the jobs for you we use where you live (in Vietnam or abroad), the places you can teach, the work you want, your subjects, age groups, English level, degree, certificate types, years of experience and expected salary — and, while cover lessons are on, your cover areas, free periods and hourly rate.',
+    'This runs on our own server in Vietnam: no AI company outside Vietnam receives your profile for it.',
+    'You get at most one jobs message and one cover-lesson message a day, each with at most five jobs, and at most two messages until you reply',
+    'We keep the time you switch it on, with the version of the notice shown beside the switch, and the time you switch it off; reply STOP in that chat, or switch it off on the same page, at any time.',
+    'With a teacher’s consent only, given on the “Job messages” page of their teacher profile: to send them automatic messages in eno.vn chat about jobs and cover lessons that fit their profile',
+    'Job messages for teachers: if a teacher switches on job messages, our own server in Vietnam reads job and cover-lesson posts and picks the ones that fit the teacher’s profile.',
+    'an AI language model that runs on that same server also reads the posts, never the teacher’s profile, and its readings are only recorded, to check and improve the rules.',
+    'a post that asks for a particular gender, age, race or nationality, or charges candidates a fee, is never sent — nor is one that names a nationality, gender or age in a way the rules cannot tell apart from such a request.',
+    'no score is shown to anyone, and no application is made on anyone’s behalf. Replying STOP in the chat, or switching it off on the “Job messages” page, stops it.',
+  ]
+  const VI = [
+    'Tin nhắn việc làm cho giáo viên: nếu bạn bật “Nhắn cho tôi các việc làm và buổi dạy thay phù hợp qua tin nhắn eno” (tại trang “Tin nhắn việc làm” trong hồ sơ giáo viên)',
+    'hiển thị trong tin nhắn là “Alex · eno.vn”',
+    'và nội dung được xóa sau 30 ngày kể từ khi chúng tôi nhận được — chỉ giữ mã định danh của tin tại nguồn, tối đa 6 tháng, để không gửi trùng một tin.',
+    'không có công ty AI nào ngoài Việt Nam nhận hồ sơ của bạn cho việc này.',
+    'Bạn nhận tối đa một tin nhắn việc làm và một tin nhắn dạy thay mỗi ngày, mỗi tin tối đa năm việc, và tối đa hai tin nhắn cho đến khi bạn trả lời',
+    'bạn có thể trả lời STOP trong cuộc trò chuyện đó, hoặc tắt tại cùng trang đó, bất cứ lúc nào.',
+    'Chỉ khi giáo viên đồng ý tại trang “Tin nhắn việc làm” trong hồ sơ giáo viên: để gửi cho giáo viên tin nhắn tự động',
+    'chỉ đọc các tin tuyển dụng và không bao giờ đọc hồ sơ của giáo viên, và kết quả đọc của mô hình chỉ được ghi lại',
+    'tin nào yêu cầu một giới tính, độ tuổi, chủng tộc hay quốc tịch cụ thể, hoặc thu phí ứng viên, sẽ không bao giờ được gửi — cũng như tin nêu quốc tịch, giới tính hay độ tuổi',
+    'nếu một tin trả lời có thể là yêu cầu dừng, chúng tôi tạm dừng tin nhắn và hỏi bạn — chạm “Gửi tiếp việc làm” để nhận lại, nếu không, mục này sẽ tự tắt sau 14 ngày.',
+  ]
+
+  it('⛔ the numbers it prints are the code’s own', async () => {
+    const { JOB_DM_RULES } = await import('@/lib/teachers/job-dms/constants')
+    expect(JOB_DM_RULES.retentionDays).toBe(30) // "their content is deleted 30 days after we receive them"
+    expect(JOB_DM_RULES.shellDays).toBe(180) // "only a post’s identifier … for up to 6 months"
+    expect(JOB_DM_RULES.pauseToWithdrawDays).toBe(14) // "they switch off after 14 days"
+    expect(JOB_DM_RULES.perDayPerKind).toBe(1) // "one jobs message and one cover-lesson message a day"
+    expect(JOB_DM_RULES.jobsPerDm).toBe(5) // "each with at most five jobs"
+    expect(JOB_DM_RULES.unansweredMax).toBe(2) // "at most two messages until you reply"
+  })
+
+  it('⛔ both editions, both languages: the switch, the sources, the 30-day posts, what is used, on our own server, the caps, STOP', async () => {
+    for (const site of ['marketplace', 'services'] as const) {
+      const en = await policy(site)
+      for (const s of EN) expect(en, `${site}: ${s}`).toContain(s)
+      cleanup()
+      const vi = await policy(site, 'vi')
+      for (const s of VI) expect(vi, `${site}: ${s}`).toContain(s)
+      cleanup()
+    }
+  })
+
+  it('⛔ names no AI company for it — neither paragraph speaks of Anthropic, Claude, Google or Gemini', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const page = readFileSync(join(__dirname, 'page.tsx'), 'utf8')
+    const paras = [...page.matchAll(/(?:en|vi): '((?:Job messages for teachers|Tin nhắn việc làm cho giáo viên):[^']*)'/g)].map((m) => m[1])
+    expect(paras).toHaveLength(4) // what we collect + automated decisions, in each language
+    for (const p of paras) expect(p).not.toMatch(/Anthropic|Claude|Google|Gemini/)
+  })
+
+  it('the switch it quotes is the switch the page shows — the label, word for word, in both languages', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const panel = readFileSync(join(__dirname, '..', '..', '..', 'components', 'teachers', 'job-messages-panel.tsx'), 'utf8')
+    // ⚠️ No literal `tr` + `('` here: scripts/gen-ui-strings.mjs walks test files too.
+    expect(panel).toContain(`'Message me matching jobs and cover lessons in eno chat', 'Nhắn cho tôi các việc làm và buổi dạy thay phù hợp qua tin nhắn eno'`)
+    expect(panel).toContain(`'Job messages', 'Tin nhắn việc làm'`)
+  })
+})
+
 describe('/privacy — round-2 corrections hold', () => {
   it('⛔ the essential-storage paragraph points at the full table instead of implying nothing else is kept', async () => {
     const text = await policy('marketplace')

@@ -45,6 +45,8 @@ export type RunResult = {
   failed: number
   /** teachers newly paused this run (a reply that may have asked to stop) */
   paused?: number
+  /** pauses nobody lifted, switched off this run (JOB_DM_RULES.pauseToWithdrawDays) */
+  lapsed?: number
   stopped?: 'quiet' | 'ceiling' | 'no-operator' | 'busy' | 'lock-error' | 'deadline'
 }
 
@@ -75,7 +77,7 @@ export function isQuiet(now: Date): boolean {
  * teacher has since overruled by switching back on must not switch them off again (opus, gate 3a). Only teachers whose
  * switch is ON are read; 60 days back at most (a run is every 30 minutes — a backlog that old is an outage, not a reply).
  */
-async function processStops(operatorId: string, now: Date): Promise<{ n: number; pending: Set<string>; failed: number; paused: number }> {
+async function processStops(operatorId: string, now: Date): Promise<{ n: number; pending: Set<string>; failed: number; paused: number; lapsed: number }> {
   const rows = await db.$queryRaw<{ conversationId: string; teacher: string; body: string; at: Date; paused: boolean }[]>`
     select m."conversationId", c."buyerProfileId"::text as teacher, m.body, m."createdAt" as at, (k."pausedAt" is not null) as paused
       from "Message" m
@@ -118,10 +120,10 @@ async function processStops(operatorId: string, now: Date): Promise<{ n: number;
   // who asked to stop and never came back (codex + opus, gate 4b). No message — they were told when it paused.
   const lapsed = await db.teacherJobDmConsent.updateMany({
     where: { optIn: true, pausedAt: { lt: new Date(now.getTime() - JOB_DM_RULES.pauseToWithdrawDays * 86_400_000) } },
-    data: { optIn: false, withdrawnAt: now, updatedAt: now },
+    // pausedAt cleared with it: a later switch-on starts clean (opus, gate 4c)
+    data: { optIn: false, withdrawnAt: now, pausedAt: null, updatedAt: now },
   })
-  n += lapsed.count
-  return { n, pending, failed, paused }
+  return { n, pending, failed, paused, lapsed: lapsed.count }
 }
 
 // ── 2. Read new posts ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -382,6 +384,7 @@ async function runOnce(opts: { dryRun: boolean }, now: Date, mode: JobDmsMode, w
     const s = await processStops(operatorId, now)
     res.stops = s.n
     res.paused = s.paused
+    res.lapsed = s.lapsed
     res.failed += s.failed
     stopPending = s.pending
   }

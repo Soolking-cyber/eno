@@ -77,6 +77,13 @@
  * same anonymous daily totals and classes; live with the deploy (it describes counting, no new recipient or purpose).
  * ⛔ The gate holds this one (production carries 2026-10-17): it refuses a deploy on any other Vietnamese day — re-date
  * it to that day and retake the fingerprint.
+ * And the deploy day of TEACHER JOB MESSAGES (owner, 2026-10-20 — src/lib/teachers/job-dms): the "Job messages for
+ * teachers" paragraph (the switch on its own page, the sources, the posts kept privately on our server and deleted 30 days
+ * after we receive them, what of the profile is used, matched on our own server in Vietnam with no AI company abroad, the
+ * caps, STOP, the one in-app invite), its consent purpose and its automated-decisions paragraph. Live with the deploy — a
+ * new, opt-in feature, OFF until the teacher switches it on. Dated 2026-10-20 — the PLANNED day: deployed on any other
+ * Vietnamese day, re-date it to that day in the deploy's commit and retake the fingerprint (page.test.tsx says the value);
+ * the amendment gate refuses the deploy until then.
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -85,7 +92,7 @@
  * line, `export const PRIVACY_TEXT_PUBLISHED: string = 'YYYY-MM-DD'`: that is the shape the gate reads.
  * ⚠️ Typed, never read from the clock: the page prerenders, and a build-time date would move with every rebuild.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-18'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-20'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -94,4 +101,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-18'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '7a0b13011ab9c4ab'
+export const PRIVACY_TEXT_FINGERPRINT = '0b6c81712782e05b'
