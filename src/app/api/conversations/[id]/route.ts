@@ -7,6 +7,7 @@ import { writerVerified as writerVerification } from '@/lib/teachers/writer-veri
 import { getAdmin } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
+import { JOBS_DESK_SELLER_ID, JOB_DM_NOTICE_VERSION } from '@/lib/teachers/job-dms/constants'
 import { ApiError, route } from '@/lib/api/handler'
 import { actingAccountMismatch } from '@/lib/api/acting-account'
 import { MESSAGE_ROW_SELECT, serializeMessage } from '@/lib/messages'
@@ -26,6 +27,38 @@ import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+/**
+ * THE LISTING-LESS "eno team" DESKS — unowned Seller rows a person's thread is with, by seller id: the rental desks (the
+ * availability check, src/lib/rental-check/desk-ids.ts) and the jobs desk (teacher job DMs,
+ * src/lib/teachers/job-dms/constants.ts). Every one gets the same chrome below — no storefront, no trust, no review
+ * prompt, either side — and the thread says which desk it is (`desk`).
+ * ⚠️ NOT THE SUPPORT DESK, which keeps its "eno Support" page and its link (see counterpartStorefront below).
+ * ⚠️ A NEW DESK GOES HERE AND IN edition-scope.ts's reachableDeskSellerIds, or its thread loses this chrome — or vanishes
+ * from the inbox and thread-open the day the allow-list is armed.
+ */
+const DESK_BY_SELLER_ID: ReadonlyMap<string, 'rental' | 'jobs'> = new Map<string, 'rental' | 'jobs'>([
+  ...RENTAL_DESK_SELLER_IDS.map((id) => [id, 'rental'] as const),
+  [JOBS_DESK_SELLER_ID, 'jobs'],
+])
+
+/**
+ * Is this teacher's "Message me matching jobs and cover lessons in eno chat" switch ON — on, under the CURRENT notice
+ * (JOB_DM_NOTICE_VERSION), which is the rule the jobs desk sends by (src/lib/teachers/job-dms/desk.ts sendJobDm)?
+ * ⚠️ FAILS SOFT TO false: a failed read (or the table not migrated yet) costs the teacher the two quick replies, never
+ * the thread — they can still type STOP.
+ * ⚠️ A PAUSED switch (pausedAt — run.ts) is still ON here, on purpose: the pause note asks the teacher to choose, and the
+ * two chips under it ARE the choice — "Keep sending jobs" (their own tap re-arms it) or "Stop job messages" (for good).
+ */
+async function jobMessagesSwitchOn(profileId: string): Promise<boolean> {
+  try {
+    const c = await db.teacherJobDmConsent.findUnique({ where: { profileId }, select: { optIn: true, noticeVersion: true } })
+    return !!c?.optIn && c.noticeVersion === JOB_DM_NOTICE_VERSION
+  } catch (e) {
+    console.error('[conversations] job-messages switch read failed', e)
+    return false
+  }
+}
 
 /**
  * The e-Visa context of a thread that is BOUND to a case (Conversation.visaApplicationId).
@@ -256,21 +289,22 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
   // When I'm the seller, the counterpart is the buyer's own storefront (if they have
   // one) — fetch its trust fields in the same lookup that resolves the deep-link id.
   /**
-   * ⚠️ A RENTAL-DESK THREAD HAS NO STOREFRONT ON EITHER SIDE. The requester's counterpart is the
-   * unowned "eno team" desk: it has no page worth linking, and its `memberSince` is the day the row
-   * was lazily created, so the trust meta below would label eno's own team a "New user". The
-   * operator's counterpart is a person asking for help, not a trading partner — their shop (if any)
-   * has nothing to do with the request. And with no seller id the buyer's review prompt cannot fire:
+   * ⚠️ A DESK THREAD (DESK_BY_SELLER_ID — the rental desks, the jobs desk) HAS NO STOREFRONT ON EITHER SIDE. The
+   * person's counterpart is an unowned "eno team" desk: it has no page worth linking, and its `memberSince` is the day the
+   * row was lazily created, so the trust meta below would label eno's own team a "New user". The
+   * operator's counterpart is a person asking for help (or a teacher eno writes to about jobs), not a trading partner —
+   * their shop (if any) has nothing to do with the thread. And with no seller id the buyer's review prompt cannot fire:
    * there was no deal to review. So: no seller id, no trust, both ways.
    */
-  const isRentalDeskThread = (RENTAL_DESK_SELLER_IDS as readonly string[]).includes(convo.seller.id)
-  const buyerStorefront = iAmBuyer || isRentalDeskThread
+  const desk = DESK_BY_SELLER_ID.get(convo.seller.id) ?? null
+  const isDeskThread = desk !== null
+  const buyerStorefront = iAmBuyer || isDeskThread
     ? null
     : await db.seller.findUnique({
         where: { ownerId: convo.buyerProfileId },
         select: { id: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true },
       })
-  const counterpartSellerId = isRentalDeskThread ? null : iAmBuyer ? convo.seller.id : (buyerStorefront?.id ?? null)
+  const counterpartSellerId = isDeskThread ? null : iAmBuyer ? convo.seller.id : (buyerStorefront?.id ?? null)
   /**
    * ⛔ IS THERE A STOREFRONT TO LINK? The header name deep-links `/sellers/<id>`, and an OWNERLESS shop that
    * had listings and has no public one left is gone — it 404s (src/lib/storefront-gone.ts, owner 2026-10-02:
@@ -285,7 +319,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
    * ⚠️ THE SUPPORT DESK SKIPS EVEN THAT. It is unowned with no listings BY CONSTRUCTION (support-thread.ts),
    * so never gone, and its thread is the one every buyer has — so it is answered by id (linked), not
    * re-proved every poll. The other edition's desk can't reach this route (`SUPPORT_SELLER_ID` is
-   * build-scoped) and still answers correctly through the probes; the rental desk already has no seller id.
+   * build-scoped) and still answers correctly through the probes; the rental and jobs desks already have no seller id.
    */
   const counterpartStorefront = !!counterpartSellerId && !(iAmBuyer && convo.seller.id !== SUPPORT_SELLER_ID && await isStorefrontGone(convo.seller, isPublicListing(convo.listing) ? 1 : 0))
 
@@ -295,7 +329,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
   // (asymmetric honesty). The raw responseRate number is intentionally NOT sent — the
   // response bucket needs a per-thread 90d conversation count we don't add to this
   // frequently-polled endpoint, so the client renders only score/tenure/new state.
-  const trustSrc = isRentalDeskThread ? null : iAmBuyer ? convo.seller : buyerStorefront
+  const trustSrc = isDeskThread ? null : iAmBuyer ? convo.seller : buyerStorefront
   const NEW_ACCOUNT_MS = 30 * 24 * 60 * 60 * 1000
   // Counterpart PRESENCE (owner 2026-07-23: bidirectional in threads) — the other
   // PERSON's heartbeat: the seller's owner Profile when I'm the buyer, the buyer's
@@ -365,6 +399,13 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     ? await writerVerification(convo.buyerProfileId).catch(() => null)
     : null
   /**
+   * THE JOBS DESK, THE TEACHER'S SIDE ONLY (teacher job DMs, 2026-10-20): whether their job-messages switch is on. The
+   * thread page offers "Keep sending jobs" / "Stop job messages" only then — after a STOP the desk's own acknowledgement
+   * is the newest message, and "Keep sending jobs" under it would promise what a switched-off teacher will not get. One
+   * primary-key read, for this thread kind and side only (nobody else pays it); fails soft (jobMessagesSwitchOn).
+   */
+  const jobMessagesOn = desk === 'jobs' && iAmBuyer ? await jobMessagesSwitchOn(convo.buyerProfileId) : null
+  /**
    * …AND THE MIRROR, FOR THE SCHOOL (owner, 2026-10-15; AUTOMATIC since 2026-10-16): "Identity verified" about the
    * TEACHER, to the school or member writing to them (src/lib/teachers/identity-mark.ts, the ONE predicate the profile
    * line and the card tick ask too): shown while the teacher's identity check is LIVE and the profile's name is within the
@@ -404,6 +445,11 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     me: meId,
     /** 'visa' | 'itinerary' | 'listing' — what this thread is ABOUT. */
     kind,
+    // Which "eno team" desk this listing-less thread is with ('rental' | 'jobs', DESK_BY_SELLER_ID) — present only on a
+    // desk thread, so every other payload is unchanged. The jobs desk's tappable links and quick replies key on it.
+    ...(desk ? { desk } : {}),
+    // The teacher's side of a jobs-desk thread only: their job-messages switch (see jobMessagesOn above).
+    ...(jobMessagesOn !== null ? { jobMessagesOn } : {}),
     // App Store gate `ios-hide-visa` — present only when true (see above), so the gate-off payload is unchanged.
     ...(eVisaProduct ? { eVisaProduct: true } : {}),
     // The seller of the listing reveals nothing here (they ARE the contact) — the client
@@ -487,7 +533,15 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     //    (the row keeps it for dispute review — see prisma/schema.prisma) and what folds reactions
     //    per viewer so the raw profileIds never leave the server. Both are invisible when missed:
     //    the thread renders correctly while having been handed the text it is hiding.
-    messages: [...convo.messages].reverse().map((m) => serializeMessage(m, meId)),
+    // ⛔ THE JOBS DESK'S OWN MESSAGES ARE FLAGGED `fromDesk` — the one sender whose links the thread page draws as links
+    //    (src/lib/chat-links.ts) and under whose newest message the teacher gets the two quick replies. The desk OPERATOR
+    //    is the thread's sellerProfileId (the rental-desk pattern); the teacher's messages — and any from an operator the
+    //    thread has since been re-pointed away from — are not flagged. A boolean, never the sender's id. Jobs desk only:
+    //    no other thread's messages change shape.
+    messages: [...convo.messages].reverse().map((m) => {
+      const wire = serializeMessage(m, meId)
+      return desk === 'jobs' && !!convo.sellerProfileId && m.senderProfileId === convo.sellerProfileId ? { ...wire, fromDesk: true as const } : wire
+    }),
     // The site-wide top five, so the quick reaction bar shows what people actually use rather than
     // five glyphs picked in a constant. Cached for an hour per instance — see reaction-tally.ts.
     topReactions: await globalTopReactions(),

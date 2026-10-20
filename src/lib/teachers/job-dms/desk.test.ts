@@ -48,7 +48,7 @@ describe('pauseJobDms', () => {
     const [, , text, opts] = calls[0]
     expect(text).toContain('Keep sending jobs')
     const flip = (opts as { alongside: { sql: string }[] }).alongside[2]
-    expect(flip.sql).toMatch(/set "pausedAt" =[\s\S]*"pausedAt" is null[\s\S]*"optInAt" < [\s\S]*1 \/ \(select count/)
+    expect(flip.sql).toMatch(/set "pausedAt" =[\s\S]*"pausedAt" is null[\s\S]*"optInAt" <= [\s\S]*1 \/ \(select count/)
     impl = async () => { throw { code: 'P2010', meta: { driverAdapterError: { cause: { code: '22012' } } } } }
     expect(await pauseJobDms('t-1', 'op-1', 'c1', NOW, NOW)).toBe(false)
   })

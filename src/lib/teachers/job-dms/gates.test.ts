@@ -379,8 +379,9 @@ describe('gate 3i: the keep reader', () => {
 })
 
 describe('gate 3j', () => {
-  it('an opening STOP in capitals withdraws however it goes on; "Stop - I meant job 3" does not', () => {
-    expect(isStopReply('STOP I already found work and never consented to these messages, thank you')).toBe(true)
+  it('a STOP that goes on without a sentence end is a PAUSE (gate 4a: no capitals special case); "Stop - I meant job 3" too', () => {
+    expect(isStopReply('STOP I already found work and never consented to these messages, thank you')).toBe(false)
+    expect(mayBeOptOut('STOP I already found work and never consented to these messages, thank you')).toBe(true)
     expect(isStopReply('Stop - I meant job 3 not job 2, please send me the details for job 3, thanks')).toBe(false)
   })
 })
@@ -397,5 +398,25 @@ describe('gate 3m', () => {
     expect(isStopReply('Stop, I meant job 3 not job 2 — please send me the details for job 3, thanks a lot')).toBe(false)
     expect(isStopReply('Ngừng lại, cho em hỏi job 3 có còn tuyển không ạ, em cảm ơn anh nhiều lắm luôn ạ')).toBe(false)
     expect(mayBeOptOut('Stop — I already found a job and do not want any further contact from your service')).toBe(true)
+  })
+})
+
+describe('gate 3n', () => {
+  it('a shouted STOP that goes on to something else pauses, never withdraws', () => {
+    expect(isStopReply('STOP, I meant job 3 not job 2 — please send job 3 details when you can, thanks')).toBe(false)
+    expect(isStopReply('STOP sending me the address by email, call me, job 2 looks great, applying today')).toBe(false)
+    expect(isStopReply('STOP please, I have a job now and I do not need these messages any more, thanks')).toBe(false)
+    expect(mayBeOptOut('STOP please, I have a job now and I do not need these messages any more, thanks')).toBe(true)
+    expect(isStopReply('STOP. I have a job now and I do not need these messages any more, thanks a lot')).toBe(true)
+  })
+})
+
+describe('gate 4b', () => {
+  it('a reply about a job is not an opt-out, even when it opens with stop', () => {
+    for (const t of [
+      'Stop - I meant job 3 not job 2, please send me the details for job 3, thanks a lot',
+      "I never asked for job 3's address, I asked about job 2 — is it still open? thanks so much",
+      'STOP sending me the address by email, call me instead, job 2 looks great, applying today',
+    ]) expect(mayBeOptOut(t)).toBe(false)
   })
 })

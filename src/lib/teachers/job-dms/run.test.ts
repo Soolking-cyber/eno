@@ -9,7 +9,7 @@ vi.mock('server-only', () => ({}))
 
 type Row = Record<string, unknown>
 const T = { posts: [] as Row[], dms: [] as Row[], teachers: [] as Row[] }
-const calls = { teacherWhere: [] as unknown[], createMany: [] as Row[][] }
+const calls = { teacherWhere: [] as unknown[], createMany: [] as Row[][], consentUpdates: [] as unknown[] }
 
 /**
  * SQL's three-valued logic, as Postgres runs Prisma's filters: a comparison with NULL is UNKNOWN (null here), NOT UNKNOWN
@@ -69,6 +69,7 @@ vi.mock('@/lib/db', () => ({
     },
     teacherProfile: { findMany: vi.fn(async (a: { where: unknown }) => { calls.teacherWhere.push(a.where); return T.teachers }) },
     teacherJobMatch: { findMany: vi.fn(async () => []) },
+    teacherJobDmConsent: { updateMany: vi.fn(async (a: unknown) => { calls.consentUpdates.push(a); return { count: 0 } }) },
     teacherJobDmDay: { findMany: vi.fn(async () => []) },
     conversation: { findMany: vi.fn(async () => []) },
     listing: { findMany: vi.fn(async () => []) },
@@ -125,7 +126,7 @@ const teacher = {
 
 beforeEach(() => {
   T.posts = []; T.dms = []; T.teachers = [teacher]
-  calls.teacherWhere = []; calls.createMany = []
+  calls.teacherWhere = []; calls.createMany = []; calls.consentUpdates = []
   mode.value = 'shadow'; desk.operator = 'op-1'
   sendJobDm.mockClear(); honourStop.mockClear(); pauseJobDms.mockClear(); resumeJobDms.mockClear(); layaAnswers.mockClear(); stops.rows = []; lock.held = false
 })
@@ -251,6 +252,14 @@ describe('runJobDms', () => {
     T.posts.push(post('repost'))
     await runJobDms({ dryRun: false, now: DAY })
     expect(T.posts.find((p) => p.id === 'repost')).toMatchObject({ status: 'ready' })
+  })
+
+  it('a pause nobody lifted for 14 days becomes a withdrawal', async () => {
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(calls.consentUpdates).toContainEqual({
+      where: { optIn: true, pausedAt: { lt: new Date(DAY.getTime() - 14 * 86_400_000) } },
+      data: { optIn: false, withdrawnAt: DAY, updatedAt: DAY },
+    })
   })
 
   it('live, in quiet hours: reads but sends nothing', async () => {

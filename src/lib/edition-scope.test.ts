@@ -568,7 +568,8 @@ describe('the rental desks', () => {
     const m = await load({ services: false, allow: 'info@vietkite.com.vn' })
     h.sellersFor = partnersAndDesk
     const scope = await m.editionSellerScope()
-    expect(scope.sellerId?.in).toEqual(['vietkite', 'eno-support-desk', 'eno-rental-desk'])
+    // …and eno.vn's jobs desk (teacher job DMs) — see 'the jobs desk' below.
+    expect(scope.sellerId?.in).toEqual(['vietkite', 'eno-support-desk', 'eno-rental-desk', 'eno-jobs-desk'])
     expect(scope.sellerId?.notIn).toContain('eno-rental-desk-forum')
     expect(await m.isSellerHiddenHere('eno-rental-desk')).toBe(false)
     expect(await m.isSellerHiddenHere('eno-support-desk')).toBe(false)
@@ -603,6 +604,86 @@ describe('the rental desks', () => {
 
     m = await load({ services: true })
     expect(await m.marketplaceListingScope()).toEqual({})
+  })
+})
+
+/**
+ * THE JOBS DESK (teacher job DMs, 2026-10-20 — src/lib/teachers/job-dms/constants.ts): an unowned seller, ONE for both
+ * editions, that anchors a teacher's listing-less "Alex · eno.vn" thread. Teachers live on eno.vn only, so:
+ *   · eno.vn keeps it reachable when the allow-list is armed (like its rental desk) — the teacher's and the operator's
+ *     inbox, badge and thread-open;
+ *   · eno.forum hides it from every seller-level gate, armed or not — a teacher who also uses the forum must not find it;
+ *   · and, as for every desk, NONE of it reaches a LISTING predicate — on the forum the hide must not come through
+ *     editionHiddenSellerIds(), which is also the forum's listing scope.
+ * Re-imported per case with the edition set first, like the rental desks above.
+ */
+describe('the jobs desk', () => {
+  const load = async (opts: { services: boolean; allow?: string }) => {
+    vi.resetModules()
+    h.services = opts.services
+    if (opts.allow === undefined) delete process.env.MARKETPLACE_ALLOWED_OWNER_EMAILS
+    else process.env.MARKETPLACE_ALLOWED_OWNER_EMAILS = opts.allow
+    return import('./edition-scope')
+  }
+  const clear = () => { delete process.env.MARKETPLACE_ALLOWED_OWNER_EMAILS; delete process.env.HIDDEN_DESK_OWNER_EMAILS }
+  beforeEach(clear)
+  afterEach(() => { clear(); vi.resetModules() })
+  const partnersAndDesk = (emails: string[]) => emails.includes('info@vietkite.com.vn') ? [{ id: 'vietkite' }] : [{ id: 'desk-1' }]
+
+  it('eno.vn shows it — no hide-list names it', async () => {
+    const m = await load({ services: false })
+    expect(await m.isSellerHiddenHere('eno-jobs-desk')).toBe(false)
+    expect((await m.editionSellerScope()).sellerId?.notIn).not.toContain('eno-jobs-desk')
+  })
+
+  it('eno.vn with the allow-list ARMED keeps it reachable, while an unknown seller stays invisible', async () => {
+    const m = await load({ services: false, allow: 'info@vietkite.com.vn' })
+    h.sellersFor = partnersAndDesk
+    expect((await m.editionSellerScope()).sellerId?.in).toContain('eno-jobs-desk')
+    expect(await m.isSellerHiddenHere('eno-jobs-desk')).toBe(false)
+    expect(await m.isSellerHiddenHere('brand-new-seller')).toBe(true)
+  })
+
+  it('eno.forum hides it from the inbox, the badge and thread-open — and only it', async () => {
+    const m = await load({ services: true })
+    expect(await m.isSellerHiddenHere('eno-jobs-desk')).toBe(true)
+    expect(await m.editionSellerScope()).toEqual({ sellerId: { notIn: ['eno-jobs-desk'] } })
+    // The forum's own desks are untouched.
+    expect(await m.isSellerHiddenHere('eno-support-desk-forum')).toBe(false)
+    expect(await m.isSellerHiddenHere('eno-rental-desk')).toBe(false)
+    expect(await m.isSellerHiddenHere('eno-rental-desk-forum')).toBe(false)
+  })
+
+  it('eno.forum hides it with the allow-list ARMED too — never in the reachable list', async () => {
+    const m = await load({ services: true, allow: 'info@vietkite.com.vn' })
+    h.sellersFor = partnersAndDesk
+    const scope = await m.editionSellerScope()
+    expect(scope.sellerId?.in).not.toContain('eno-jobs-desk')
+    expect(scope.sellerId?.notIn).toEqual(['eno-jobs-desk'])
+    expect(await m.isSellerHiddenHere('eno-jobs-desk')).toBe(true)
+  })
+
+  it('eno.forum answers it without a lookup — a fixed id, nothing to fail', async () => {
+    const m = await load({ services: true, allow: 'info@vietkite.com.vn' })
+    // A failing lookup would make the forum's allow-list fail OPEN (show everyone) — the desk must not depend on it.
+    h.throwOnQuery = new Error('connection reset')
+    h.lastWhere = null
+    await expect(m.isSellerHiddenHere('eno-jobs-desk')).resolves.toBe(true)
+    expect(h.lastWhere).toBeNull()
+  })
+
+  it('⛔ the LISTING scope is byte-identical on both editions — the desk id enters no listing predicate', async () => {
+    let m = await load({ services: true })
+    expect(await m.editionHiddenSellerIds()).toEqual([])
+    expect(await m.marketplaceListingScope()).toEqual({})
+
+    m = await load({ services: true, allow: 'info@vietkite.com.vn' })
+    h.sellersFor = partnersAndDesk
+    expect(await m.marketplaceListingScope()).toEqual({ sellerId: { in: ['vietkite', 'desk-1'], notIn: [] } })
+
+    m = await load({ services: false })
+    h.sellersFor = partnersAndDesk
+    expect(await m.marketplaceListingScope()).toEqual({ sellerId: { notIn: ['desk-1'] } })
   })
 })
 

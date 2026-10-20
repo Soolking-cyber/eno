@@ -48,6 +48,8 @@ export const JOB_DM_RULES = {
   retentionDays: 30,
   /** a purged post's shell (source, key, signature — no content) stops it being stored and sent again; gone after this */
   shellDays: 180,
+  /** a PAUSE nobody lifted becomes a withdrawal after this many days — the consent record then says what happened */
+  pauseToWithdrawDays: 14,
 } as const
 
 /** kv_store key of the send mode. kv_store is UNLOGGED: after a crash the key is gone and the mode falls back to shadow. */

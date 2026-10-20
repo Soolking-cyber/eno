@@ -114,6 +114,13 @@ async function processStops(operatorId: string, now: Date): Promise<{ n: number;
       console.error('[job-dms] reply', teacher, e)
     }
   }
+  // A pause that nobody lifted in JOB_DM_RULES.pauseToWithdrawDays is a withdrawal: the record must say "off" for a teacher
+  // who asked to stop and never came back (codex + opus, gate 4b). No message — they were told when it paused.
+  const lapsed = await db.teacherJobDmConsent.updateMany({
+    where: { optIn: true, pausedAt: { lt: new Date(now.getTime() - JOB_DM_RULES.pauseToWithdrawDays * 86_400_000) } },
+    data: { optIn: false, withdrawnAt: now, updatedAt: now },
+  })
+  n += lapsed.count
   return { n, pending, failed, paused }
 }
 

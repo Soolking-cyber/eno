@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * GET /api/conversations/[id] on a RENTAL-DESK thread — the counterpart carries no storefront and no
- * trust, on either side.
+ * GET /api/conversations/[id] on a DESK thread — the rental desks and, since 2026-10-20, the jobs desk (teacher job DMs,
+ * "Alex · eno.vn") — the counterpart carries no storefront and no trust, on either side, and the thread says which desk
+ * it is (`desk`).
  *
  * Why it matters, concretely: the desk Seller row is created lazily, so its `memberSince` is recent
  * and its `reviewCount` is 0 — the header would call eno's own team a "New user", link to an empty
@@ -27,6 +28,10 @@ const h = vi.hoisted(() => ({
   publicListing: { id: 'L-public' } as Row | null,
   anyListing: null as Row | null,
   goneProbes: 0,
+  /** The teacher's job-messages switch row (TeacherJobDmConsent), how often it was read, and a read failure. */
+  jobConsent: null as Row | null,
+  jobConsentReads: 0,
+  jobConsentFails: false,
 }))
 
 vi.mock('next/server', async (orig) => {
@@ -53,10 +58,18 @@ vi.mock('@/lib/db', () => ({
     // The public probe asks `verified`; the any-listing probe does not.
     listing: { findFirst: async ({ where }: { where: Row }) => { h.goneProbes += 1; return 'verified' in where ? h.publicListing : h.anyListing } },
     review: { findUnique: async () => null },
+    teacherJobDmConsent: {
+      findUnique: async () => {
+        h.jobConsentReads += 1
+        if (h.jobConsentFails) throw new Error('relation "TeacherJobDmConsent" does not exist')
+        return h.jobConsent
+      },
+    },
   },
 }))
 
 const { GET } = await import('./route')
+const { JOB_DM_NOTICE_VERSION } = await import('@/lib/teachers/job-dms/constants')
 
 const NEW = new Date()
 function thread(over: Row = {}): Row {
@@ -82,6 +95,9 @@ beforeEach(() => {
   h.publicListing = { id: 'L-public' }
   h.anyListing = null
   h.goneProbes = 0
+  h.jobConsent = null
+  h.jobConsentReads = 0
+  h.jobConsentFails = false
 })
 
 describe('a rental-desk thread', () => {
@@ -218,5 +234,125 @@ describe('counterpart.storefront — a gone shop is not linked; a desk is', () =
     const { body } = await get()
     expect(body.counterpart.storefront).toBe(false)
     expect(h.goneProbes).toBe(0)
+  })
+})
+
+/**
+ * THE JOBS DESK (teacher job DMs, 2026-10-20 — src/lib/teachers/job-dms/constants.ts): the same chrome as the rental desk —
+ * one desk set, not a copy of the check — plus the two facts the thread page needs: `desk: 'jobs'`, and `fromDesk` on the
+ * messages the desk OPERATOR (the thread's sellerProfileId) wrote, which are the only ones whose links are drawn and under
+ * whose newest one the teacher gets the two quick replies.
+ */
+describe('a jobs-desk thread', () => {
+  const jobs = (over: Row = {}): Row => thread({ seller: { ...thread().seller, id: 'eno-jobs-desk', name: 'Alex · eno.vn' }, ...over })
+
+  it('the TEACHER sees "Alex · eno.vn" with no storefront link and no trust chip — and pays no probe', async () => {
+    h.publicListing = null
+    h.convo = jobs()
+    const { status, body } = await get()
+    expect(status).toBe(200)
+    expect(body.counterpart.name).toBe('Alex · eno.vn')
+    expect(body.counterpart.sellerId).toBeNull()
+    expect(body.counterpart.storefront).toBe(false)
+    expect(body.counterpart.trust).toBeNull()
+    expect(body.listing).toBeNull()
+    expect(body.kind).toBeNull()
+    expect(body.desk).toBe('jobs')
+    expect(h.goneProbes).toBe(0)
+  })
+
+  it("the OPERATOR sees the teacher, without the teacher's shop or trust — and does not look it up", async () => {
+    h.me = 'op-1'
+    h.convo = jobs()
+    const { body } = await get()
+    expect(body.counterpart.name).toBe('Anna')
+    expect(body.counterpart.sellerId).toBeNull()
+    expect(body.counterpart.trust).toBeNull()
+    expect(body.iAmSeller).toBe(true)
+    expect(body.desk).toBe('jobs')
+    expect(h.storefrontLookups).toBe(0)
+  })
+
+  it("flags exactly the operator's messages `fromDesk` — never the teacher's, nor a former operator's", async () => {
+    // Newest first, as the route reads them; the payload is chronological.
+    h.convo = jobs({
+      messages: [
+        { id: 'm4', senderProfileId: 'op-before-repoint', body: 'an older operator' },
+        { id: 'm3', senderProfileId: 'op-1', body: '1. Cover lesson https://eno.vn/listings/1' },
+        { id: 'm2', senderProfileId: 'asker-1', body: 'Keep sending jobs' },
+        { id: 'm1', senderProfileId: 'op-1', body: 'Hi, this is Alex from eno.vn.' },
+      ],
+    })
+    const { body } = await get()
+    expect(body.messages.map((m: Row) => [m.id, m.fromDesk ?? null])).toEqual([['m1', true], ['m2', null], ['m3', true], ['m4', null]])
+  })
+
+  /**
+   * The teacher's job-messages switch rides along for the two quick replies: after a STOP the desk's acknowledgement is
+   * the newest message, and the pair must not come back under it. On = opted in under the CURRENT notice.
+   */
+  it("tells the TEACHER whether their job-messages switch is on — under the current notice only", async () => {
+    h.convo = jobs()
+    h.jobConsent = { optIn: true, noticeVersion: JOB_DM_NOTICE_VERSION }
+    expect((await get()).body.jobMessagesOn).toBe(true)
+    h.jobConsent = { optIn: false, noticeVersion: JOB_DM_NOTICE_VERSION }
+    expect((await get()).body.jobMessagesOn).toBe(false)
+    // An opt-in under an older notice no longer counts (the desk does not send by it either).
+    h.jobConsent = { optIn: true, noticeVersion: '2000-01-01' }
+    expect((await get()).body.jobMessagesOn).toBe(false)
+    h.jobConsent = null
+    expect((await get()).body.jobMessagesOn).toBe(false)
+  })
+
+  it('a failed switch read is false — the thread still opens', async () => {
+    h.convo = jobs()
+    h.jobConsentFails = true
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { status, body } = await get()
+    err.mockRestore()
+    expect(status).toBe(200)
+    expect(body.jobMessagesOn).toBe(false)
+  })
+
+  it('nobody else pays the read or gets the field — not the operator, not a rental-desk thread', async () => {
+    h.me = 'op-1'
+    h.convo = jobs()
+    expect('jobMessagesOn' in (await get()).body).toBe(false)
+    h.me = 'asker-1'
+    h.convo = thread()
+    expect('jobMessagesOn' in (await get()).body).toBe(false)
+    expect(h.jobConsentReads).toBe(0)
+  })
+
+  it('flags nothing on a thread with no operator', async () => {
+    h.convo = jobs({ sellerProfileId: null, messages: [{ id: 'm1', senderProfileId: 'op-1', body: 'x' }] })
+    const { body } = await get()
+    expect(body.messages[0].fromDesk).toBeUndefined()
+  })
+})
+
+describe('the desk flag stays on the desks', () => {
+  const msgs = [{ id: 'm1', senderProfileId: 'op-1', body: 'https://eno.vn/listings/1' }]
+
+  it("a rental-desk thread says 'rental' — and its messages are never flagged (links are the jobs desk's alone)", async () => {
+    h.convo = thread({ messages: msgs })
+    const { body } = await get()
+    expect(body.desk).toBe('rental')
+    expect(body.messages[0].fromDesk).toBeUndefined()
+  })
+
+  it('an ordinary thread carries neither key — its payload is unchanged', async () => {
+    h.convo = thread({ seller: { ...thread().seller, id: 'some-shop', name: 'Some Shop' }, messages: msgs })
+    const { body } = await get()
+    expect('desk' in body).toBe(false)
+    expect('fromDesk' in body.messages[0]).toBe(false)
+  })
+
+  it('the support desk is not one of them: it keeps its seller id and its link', async () => {
+    h.publicListing = null
+    h.convo = thread({ seller: { ...thread().seller, id: 'eno-support-desk', name: 'eno Support' }, messages: msgs })
+    const { body } = await get()
+    expect('desk' in body).toBe(false)
+    expect(body.counterpart.sellerId).toBe('eno-support-desk')
   })
 })

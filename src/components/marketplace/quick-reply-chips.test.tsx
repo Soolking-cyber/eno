@@ -16,7 +16,8 @@ vi.mock('@/context/language-context', () => ({
   useLanguage: () => ({ lang: LANG, tr: (en: string, vi?: string) => (LANG === 'vi' && vi != null ? vi : en) }),
 }))
 
-import { QuickReplyChips, chipContext, teacherThreadChips } from './quick-reply-chips'
+import { JobsDeskReplyChips, QuickReplyChips, chipContext, jobsDeskChips, jobsDeskChipsShown, teacherThreadChips } from './quick-reply-chips'
+import { JOB_DM_KEEP_TEXTS, JOB_DM_STOP_TEXTS, isStopReply } from '@/lib/teachers/job-dms/replies'
 import type { OpenerListing } from '@/lib/openers'
 
 const text = (html: string) => html.replace(/<!-- -->/g, '').replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
@@ -178,5 +179,80 @@ describe('teacherThreadChips — ⛔ only a chip that goes away once used sends 
 
   it('the hiring opener is the one the profile and the cards send', () => {
     expect(teacherThreadChips(base, en)[0].text).toMatch(/^Hello, we are hiring a teacher/)
+  })
+})
+
+/**
+ * THE JOBS DESK'S TWO REPLIES (teacher job DMs, 2026-10-20). Both SEND on tap, so both must go once used — they show only
+ * while the desk's message is the newest in the thread — and the words they send are the fixed ones the server reads
+ * (src/lib/teachers/job-dms/replies.ts), never a machine translation.
+ */
+describe('jobsDeskChips — the words a tap sends', () => {
+  const en = (e: string) => e
+  const vi = (_e: string, v: string) => v
+  /** A stand-in for tr() in one of the nine MT languages: the label is translated, and must not become the message. */
+  const ko = (e: string) => `[ko] ${e}`
+
+  it('English: "Keep sending jobs" and "Stop job messages", each sending exactly its label', () => {
+    expect(jobsDeskChips(en, 'en')).toEqual([
+      { label: 'Keep sending jobs', text: 'Keep sending jobs' },
+      { label: 'Stop job messages', text: 'Stop job messages' },
+    ])
+  })
+
+  it('Vietnamese: "Gửi tiếp việc làm" and "Dừng tin nhắn việc làm", each sending exactly its label', () => {
+    expect(jobsDeskChips(vi, 'vi')).toEqual([
+      { label: 'Gửi tiếp việc làm', text: 'Gửi tiếp việc làm' },
+      { label: 'Dừng tin nhắn việc làm', text: 'Dừng tin nhắn việc làm' },
+    ])
+  })
+
+  it('⛔ an MT language sends the ENGLISH words — the label may be translated, the message never is', () => {
+    const chips = jobsDeskChips(ko, 'ko')
+    expect(chips.map((c) => c.label)).toEqual(['[ko] Keep sending jobs', '[ko] Stop job messages'])
+    expect(chips.map((c) => c.text)).toEqual([JOB_DM_KEEP_TEXTS.en, JOB_DM_STOP_TEXTS.en])
+  })
+
+  it('⛔ the stop chip sends what the server reads as a stop, in both languages — and the keep chip does not', () => {
+    for (const [tr, lang] of [[en, 'en'], [vi, 'vi'], [ko, 'ko']] as const) {
+      const [keep, stop] = jobsDeskChips(tr, lang)
+      expect(isStopReply(stop.text)).toBe(true)
+      expect(isStopReply(keep.text)).toBe(false)
+    }
+  })
+})
+
+describe('jobsDeskChipsShown — under the newest desk message, gone once answered', () => {
+  const desk = { mine: false, fromDesk: true }
+  const teacher = { mine: true }
+
+  it('shows while the newest message is the desk\'s', () => {
+    expect(jobsDeskChipsShown([desk])).toBe(true)
+    expect(jobsDeskChipsShown([desk, teacher, desk])).toBe(true)
+    expect(jobsDeskChipsShown([teacher, desk, desk])).toBe(true)
+  })
+
+  it('goes once the teacher has answered — sending, sent or failed', () => {
+    expect(jobsDeskChipsShown([desk, teacher])).toBe(false)
+    expect(jobsDeskChipsShown([desk, { mine: true, fromDesk: undefined }])).toBe(false)
+  })
+
+  it('in a jobs-desk thread every message that is not the teacher\'s is the desk\'s — a live one with no server flag too (opus, gate 4a); never a recalled one, nor an empty thread', () => {
+    expect(jobsDeskChipsShown([])).toBe(false)
+    expect(jobsDeskChipsShown([{ mine: false }])).toBe(true)
+    expect(jobsDeskChipsShown([desk, { mine: false, fromDesk: true, deleted: true }])).toBe(false)
+  })
+
+  it('never on the operator\'s own side, where the desk\'s messages are `mine`', () => {
+    expect(jobsDeskChipsShown([{ mine: true, fromDesk: true }])).toBe(false)
+  })
+})
+
+describe('JobsDeskReplyChips', () => {
+  it('renders the two chips in the viewer\'s language', () => {
+    LANG = 'en'
+    expect(text(renderToString(<JobsDeskReplyChips onSend={() => {}} />))).toBe('Keep sending jobs Stop job messages')
+    LANG = 'vi'
+    expect(text(renderToString(<JobsDeskReplyChips onSend={() => {}} />))).toBe('Gửi tiếp việc làm Dừng tin nhắn việc làm')
   })
 })

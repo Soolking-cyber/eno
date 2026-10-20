@@ -40,7 +40,9 @@ import { OBJECTIONABLE_CONTENT, composerFreeForRefused, objectionableCopy } from
 import { teacherAwaitingReplyMessage } from '@/lib/teachers/dm-limit-copy'
 import { openerVoice } from '@/lib/teachers/first-message'
 import { TrustMeta } from '@/components/marketplace/trust-meta'
-import { QuickReplyChips, MarkSoldPrompt, chipContext } from '@/components/marketplace/quick-reply-chips'
+import { QuickReplyChips, MarkSoldPrompt, chipContext, JobsDeskReplyChips, jobsDeskChipsShown } from '@/components/marketplace/quick-reply-chips'
+import { isStopReply } from '@/lib/teachers/job-dms/replies'
+import { jobsDeskLinks } from '@/lib/chat-links'
 import { MarkSoldFlow, soldSheetApplies, type MarkSoldRequest } from '@/components/marketplace/mark-sold-flow'
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
 import { SaleQuestions, type SaleQuestionsState } from '@/components/marketplace/sale-questions'
@@ -291,7 +293,13 @@ type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?
    */
   deleted?: boolean
   /** The message this one replies to. `body` is '' when that message was itself recalled. */
-  replyTo?: { id: string; body: string; mine: boolean; deleted: boolean } | null }
+  replyTo?: { id: string; body: string; mine: boolean; deleted: boolean } | null
+  /**
+   * Written by the jobs desk's operator (the thread GET sets it on a jobs-desk thread only): its links are drawn as links
+   * and its newest message carries the teacher's two replies. Optional — a cached thread, a realtime append and my own
+   * sends lack it, and absent is plain text, as every message was before.
+   */
+  fromDesk?: boolean }
 
 /**
  * What the composer holds while a reply is armed — and what a retry re-attaches.
@@ -335,6 +343,13 @@ type Thread = {
    * (the fallback threadKind itself fails closed to), never as a desk thread.
    */
   kind?: 'visa' | 'itinerary' | 'listing' | null
+  /**
+   * The "eno team" desk this listing-less thread is with — 'rental' (the availability check) or 'jobs' (teacher job DMs,
+   * "Alex · eno.vn"). Present only on a desk thread; absent on every other one and on a cached thread from an older build.
+   */
+  desk?: 'rental' | 'jobs' | null
+  /** The TEACHER's side of a jobs-desk thread only: their job-messages switch is on — the two quick replies need it. */
+  jobMessagesOn?: boolean
   /** App Store gate `ios-hide-visa`: a partner's e-Visa product thread — sent only to the iOS app with the gate on. */
   eVisaProduct?: boolean
   iAmSeller?: boolean // true = I'm the listing's seller → hide "request contact" (I'm the contact)
@@ -3289,7 +3304,12 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   // `chipsFrom`: while a translation is shown, the tappable Zalo/WhatsApp chips come from the sender's
                   // ORIGINAL words — a translation can never put a number to tap in front of anyone. Otherwise the
                   // bubble scans what it shows, exactly as before.
-                  return <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-full" quote={quoteNode} meta={metaNode} chipsFrom={shown !== m.body ? m.body : undefined}>{shown}</MessageBubble>
+                  // Tappable links: the jobs desk's own messages only, and only as written — never a translation, whose
+                  // words are a machine's (src/lib/chat-links.ts says which links). Every other bubble: plain, as before.
+                  // A message that arrived live has no server flag: in a jobs-desk thread, the teacher's only counterpart is
+                  // the desk (codex, gate 4b).
+                  const deskLinks = thread.desk === 'jobs' && (m.fromDesk === true || (!m.mine && thread.iAmSeller === false)) && shown === m.body
+                  return <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-full" quote={quoteNode} meta={metaNode} chipsFrom={shown !== m.body ? m.body : undefined} linkify={deskLinks ? jobsDeskLinks : undefined}>{shown}</MessageBubble>
                 })()}
                 </div>
                 </ChatCardMetaProvider>
@@ -3554,6 +3574,23 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
               onInsert={insertQuickReply}
               onSend={(t) => send(t)}
               composerText={text}
+              className="px-4 pt-1.5"
+            />
+          )}
+          {/* The JOBS DESK (teacher job DMs): the TEACHER's two replies, "Keep sending jobs" / "Stop job messages", while the
+              desk's message is the newest in the thread — so they sit right under it, and go the moment the teacher has
+              answered (jobsDeskChipsShown) — and only while their job-messages switch is on: after a STOP the desk's
+              acknowledgement is the newest message, and the pair must not come back under it. Each SENDS on tap
+              (quick-reply-chips.tsx says why that is safe here and which words go out). The listing chips above never
+              render here: a desk thread has no listing and no 'listing' kind. */}
+          {thread && thread.desk === 'jobs' && thread.iAmSeller === false && thread.jobMessagesOn === true && !thread.closed && jobsDeskChipsShown(thread.messages) && (
+            <JobsDeskReplyChips
+              onSend={(t) => {
+                // A STOP takes the pair away at once — the switch the server will turn off is not re-read until the next
+                // load, and the desk's acknowledgement must not bring the chips back under it (codex, gate 4a).
+                if (isStopReply(t)) setThread((prev) => (prev ? { ...prev, jobMessagesOn: false } : prev))
+                send(t)
+              }}
               className="px-4 pt-1.5"
             />
           )}

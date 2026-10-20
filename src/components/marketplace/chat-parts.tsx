@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Send } from '@/components/ui/icons'
 import { IconButton } from '@/components/ui/icon-button'
 import { Button } from '@/components/ui/button'
 import { contactLinksFor, extractPhoneNumber } from '@/lib/phone'
+import type { TextSegment } from '@/lib/chat-links'
 import { cn } from '@/lib/utils'
 
 // Shared chat primitives used by both threads (messages/[id] person-to-person + messages/ai).
@@ -81,6 +82,7 @@ export function MessageBubble({
   quote,
   meta,
   chipsFrom,
+  linkify,
   children,
 }: {
   mine?: boolean
@@ -91,6 +93,13 @@ export function MessageBubble({
    * The quoted message this one replies to, rendered ABOVE the text inside the same bubble.
    */
   quote?: React.ReactNode
+  /**
+   * TAPPABLE LINKS, for the one sender whose links may be drawn — the jobs desk's own messages (src/lib/chat-links.ts
+   * `jobsDeskLinks`, passed by the thread page). Absent — every other message in the app — the text renders exactly
+   * as before: plain, never scanned. A string child only, like ContactChips; `children` itself stays the bare string,
+   * so the phone scanner and the line cap below still read the message as written.
+   */
+  linkify?: (text: string) => readonly TextSegment[]
   /**
    * The timestamp / "Sending…" / "Not sent" line, rendered INSIDE the bubble under the text.
    * Owner, 2026-08-16: "the timer is inside chat bubble at same place under text".
@@ -132,7 +141,11 @@ export function MessageBubble({
           one run-on paragraph. pre-line keeps the newlines and still collapses runs of spaces. It wraps
           the STRING here rather than at the call sites, so `children` stays a bare string for the
           ContactChips scanner below — which only fires for string children. */}
-      {typeof children === 'string' ? <span className="whitespace-pre-line">{shownLines(children)}</span> : children}
+      {typeof children === 'string' ? (
+        <span className="whitespace-pre-line">
+          {linkify ? <LinkedText segments={linkify(shownLines(children))} mine={mine} failed={failed} /> : shownLines(children)}
+        </span>
+      ) : children}
       {typeof children === 'string' ? <ContactChips text={chipsFrom ?? children} mine={mine} /> : null}
       {meta ? (
         /**
@@ -157,6 +170,33 @@ export function MessageBubble({
         </div>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * A linkified message's runs (MessageBubble `linkify`). The link wears the house in-text link — semibold, underlined
+ * (in running text a link must read as one without its colour) — in the bubble's own ink: `text-accent-foreground` on a
+ * received bubble's `tint`, white on the brand-blue sent one (the operator's view of the desk's messages).
+ * ⚠️ `[overflow-wrap:anywhere]` ON THE LINK TOO: a URL has no break opportunity, and the bubble's own rule (break-ui,
+ * 2026-10-05) is what keeps a 584px link inside a 230px bubble at 320px — restated so the anchor can never opt out.
+ * It leaves the app, to an address only the allow-list vouches for: noopener + noreferrer, and nofollow (it is a
+ * message, not an endorsement), never target=_blank without them.
+ */
+function LinkedText({ segments, mine, failed }: { segments: readonly TextSegment[]; mine?: boolean; failed?: boolean }) {
+  return (
+    <>
+      {segments.map((s, i) => s.href ? (
+        <a
+          key={i}
+          href={s.href}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className={cn('font-semibold underline underline-offset-2 [overflow-wrap:anywhere]', failed ? 'text-destructive' : mine ? 'text-white' : 'text-accent-foreground')}
+        >
+          {s.text}
+        </a>
+      ) : <Fragment key={i}>{s.text}</Fragment>)}
+    </>
   )
 }
 

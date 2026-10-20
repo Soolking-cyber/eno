@@ -126,8 +126,8 @@ describe('notification bell — private text is shown as written', () => {
 
 describe('notificationTextAsWritten — an allowlist that fails closed', () => {
   it('machine-translates only the measured eno-copy / public types', () => {
-    for (const t of ['system', 'dispute', 'reminder', 'price_drop', 'milestone', 'saved_search', 'forum_reply', 'visa_result']) {
-      expect(notificationTextAsWritten(t)).toBe(false)
+    for (const t of ['system', 'dispute', 'reminder', 'price_drop', 'milestone', 'saved_search', 'forum_reply', 'visa_result', 'teacher_message', 'teacher_jobs_invite', 'teacher_jobs']) {
+      expect(notificationTextAsWritten(t), t).toBe(false)
     }
   })
   it('a verification row: the title (eno copy) is translated, the body (a reviewer note) is not', () => {

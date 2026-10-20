@@ -9,6 +9,7 @@ import { TRIP_DESK_OWNER_EMAILS } from '@/lib/trips/dm-thread'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { FOREIGN_RENTAL_DESK_SELLER_ID, RENTAL_DESK_SELLER_ID, RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
+import { JOBS_DESK_SELLER_ID } from '@/lib/teachers/job-dms/constants'
 
 /**
  * The server half of the edition split: the `where` fragment that keeps the visa/trip desk's
@@ -290,10 +291,13 @@ export const editionAllowedSellerIds = cache(async (): Promise<string[] | null> 
  * `Conversation.sellerId`.
  *
  * ⚠️ `{}` WHEN NEITHER RULE APPLIES, so a deployment with no allow-list and no hide-list spreads
- * nothing and pays nothing — the property the services edition has always relied on.
+ * nothing and pays nothing. ⚠️ eno.forum NO LONGER QUALIFIES (2026-10-20): it always hides eno.vn's jobs desk
+ * (`deskIdsHiddenHere`), so its inbox and badge carry `notIn: ['eno-jobs-desk']` — one id on an indexed column, the
+ * same price eno.vn pays for the forum's rental desk. Its LISTING scope still pays nothing (see deskIdsHiddenHere).
  */
 export async function editionSellerScope(): Promise<{ sellerId?: { in?: string[]; notIn?: string[] } }> {
-  const [hidden, allowed] = await Promise.all([editionHiddenSellerIds(), editionAllowedSellerIds()])
+  const [listed, allowed] = await Promise.all([editionHiddenSellerIds(), editionAllowedSellerIds()])
+  const hidden = [...listed, ...deskIdsHiddenHere()]
   if (!hidden.length && allowed === null) return {}
   return {
     sellerId: {
@@ -305,6 +309,8 @@ export async function editionSellerScope(): Promise<{ sellerId?: { in?: string[]
 
 export async function isSellerHiddenHere(sellerId: string | null | undefined): Promise<boolean> {
   if (!sellerId) return false
+  // A desk the other edition owns: a fixed id, answered before any lookup (see deskIdsHiddenHere).
+  if (deskIdsHiddenHere().includes(sellerId)) return true
   const [hidden, allowed] = await Promise.all([editionHiddenSellerIds(), editionAllowedSellerIds()])
   if (hidden.includes(sellerId)) return true
   return allowed !== null && !allowed.includes(sellerId) && !reachableDeskSellerIds().includes(sellerId)
@@ -323,11 +329,15 @@ export async function isSellerHiddenHere(sellerId: string | null | undefined): P
  * armed today.)
  *
  * ⚠️ PER EDITION, AND ASYMMETRIC ON PURPOSE:
- *   · eno.vn     — its own support desk and its own rental desk. The forum's rental desk stays out
- *                  (and is in `editionHiddenSellerIds()` besides), so a forum-origin thread never
- *                  surfaces on the licensed marketplace.
+ *   · eno.vn     — its own support desk, its own rental desk and the JOBS desk (teacher job DMs,
+ *                  src/lib/teachers/job-dms/constants.ts — teachers live on eno.vn only, so there is
+ *                  one desk and it is marketplace-only). The forum's rental desk stays out (and is in
+ *                  `editionHiddenSellerIds()` besides), so a forum-origin thread never surfaces on the
+ *                  licensed marketplace.
  *   · eno.forum  — its own support desk and BOTH rental desks. Rentals exist on both editions, and
- *                  the operator works the queue from eno.forum, where every request is visible.
+ *                  the operator works the queue from eno.forum, where every request is visible. NOT the
+ *                  jobs desk: the forum hides it outright (`deskIdsHiddenHere`) — so the operator reads
+ *                  teachers' replies to the jobs desk on eno.vn.
  *
  * ⚠️ NOT IN `marketplaceListingScope()`, `deskSellerIds()` OR THE VERTEX HELPERS. These rows have no
  * listings; admitting them to a LISTING predicate would change nothing today and would be the wrong
@@ -336,7 +346,22 @@ export async function isSellerHiddenHere(sellerId: string | null | undefined): P
 function reachableDeskSellerIds(): string[] {
   return IS_SERVICES
     ? [SUPPORT_SELLER_ID, ...RENTAL_DESK_SELLER_IDS]
-    : [SUPPORT_SELLER_ID, RENTAL_DESK_SELLER_ID]
+    : [SUPPORT_SELLER_ID, RENTAL_DESK_SELLER_ID, JOBS_DESK_SELLER_ID]
+}
+
+/**
+ * ⛔ THE OTHER EDITION'S DESKS THAT THIS ONE HIDES AT THE SELLER-LEVEL GATES ONLY — `editionSellerScope()` (the inbox, the
+ * unread badge) and `isSellerHiddenHere()` (thread-open, the seller pages) — and nowhere else.
+ *   · eno.forum  — eno.vn's JOBS desk. Its threads are eno.vn's teacher job DMs: a teacher who also uses eno.forum must not
+ *                  find "Alex · eno.vn" there (the two editions share one database).
+ *   · eno.vn     — nothing here; the forum's rental desk is hidden through `editionHiddenSellerIds()`, as it always was.
+ * ⚠️ NOT THROUGH `editionHiddenSellerIds()`, UNLIKE THE FORUM RENTAL DESK ON eno.vn, AND THAT IS THE POINT: on eno.forum that
+ * list is also the LISTING scope's `notIn` (`marketplaceListingScope()`'s services branch), so a desk id there would turn
+ * every forum listing query's `{}` into an AND for a seller that has no listings — the "no desk id enters a listing
+ * predicate" rule above, pinned by edition-scope.test.ts. A fixed id, so no lookup and nothing to fail.
+ */
+function deskIdsHiddenHere(): readonly string[] {
+  return IS_SERVICES ? [JOBS_DESK_SELLER_ID] : []
 }
 
 const sellerIdsForEmails = async (emails: readonly string[]): Promise<string[]> => {
@@ -413,6 +438,8 @@ const readSellerIdsForEmails = async (emails: readonly string[]): Promise<string
  * because `deskSellerIds()` is edition-blind and would otherwise have made eno.forum 404 its OWN
  * storefront and its own threads. With the list chosen per edition the guard is no longer needed —
  * and leaving it in would have kept the forum's new exclusions from ever applying.
+ * ⚠️ NOT THE WHOLE ANSWER ON eno.forum: eno.vn's jobs desk is hidden there by `deskIdsHiddenHere()`, outside this list on
+ * purpose (it feeds the forum's listing scope). A gate asks `isSellerHiddenHere()` / `editionSellerScope()`, never this.
  */
 export const editionHiddenSellerIds = cache(async (): Promise<string[]> => {
   const ids = await readSellerIdsForEmails(editionHiddenEmails())

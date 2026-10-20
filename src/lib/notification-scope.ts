@@ -35,6 +35,13 @@ export const SERVICES_ONLY_NOTIFICATION_TYPES = [
 ] as const
 
 /**
+ * The other direction: marketplace-only types a services-edition bell must not show. The teacher job messages
+ * (teachers live on eno.vn; job-dms/desk.ts) link to the jobs desk thread, which eno.forum hides (edition-scope.ts) —
+ * on eno.forum the row could only open a thread that will not load, and the invite a page about a feature it does not run.
+ */
+export const MARKETPLACE_ONLY_NOTIFICATION_TYPES = ['teacher_jobs', 'teacher_jobs_invite'] as const
+
+/**
  * ⛔ ONE PREDICATE, USED BY EVERY QUERY THAT COUNTS OR LISTS NOTIFICATIONS. The list, the unread
  * COUNT and the native badge must filter identically or a badge shows a number the feed cannot show
  * and the user cannot clear — and a badge that cannot be cleared teaches people to ignore the badge.
@@ -44,6 +51,6 @@ export const SERVICES_ONLY_NOTIFICATION_TYPES = [
 export function notificationScope(userId: string, isMarketplace: boolean) {
   return {
     recipientId: userId,
-    ...(isMarketplace ? { type: { notIn: [...SERVICES_ONLY_NOTIFICATION_TYPES] } } : {}),
+    type: { notIn: isMarketplace ? [...SERVICES_ONLY_NOTIFICATION_TYPES] : [...MARKETPLACE_ONLY_NOTIFICATION_TYPES] },
   }
 }

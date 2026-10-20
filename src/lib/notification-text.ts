@@ -18,6 +18,10 @@
  *   forum_reply    a PUBLIC Help Center comment, translated on its own page too (api/forum/comments)
  *   teacher_message eno's fixed bilingual copy only — "new message about your teacher profile", no name, no message
  *                  text (src/lib/teachers/notify.ts, 2026-10-07; worded for any sender since the DM ladder, 2026-10-13)
+ *   teacher_jobs_invite eno's fixed bilingual copy only — the one-time invite to the job-messages switch, no name, no job
+ *                  (src/lib/teachers/job-dms/invite.ts, 2026-10-20)
+ *   teacher_jobs   eno's fixed bilingual copy only — "jobs that match your profile", naming only eno's own jobs desk
+ *                  ("Alex · eno.vn"), never a poster, a school or a job's text (src/lib/teachers/job-dms/desk.ts, 2026-10-20)
  *   visa_result    eno's bilingual template + the e-Visa case reference (src/lib/visa/result.ts). KEPT on the list on
  *                  purpose (opus, review): its readers are visa applicants, many reading in one of the nine machine-
  *                  translated languages, and this is the row that tells them the result. The reference is a case code,
@@ -44,6 +48,7 @@
  */
 const MACHINE_TRANSLATABLE: ReadonlySet<string> = new Set([
   'system', 'dispute', 'reminder', 'price_drop', 'milestone', 'saved_search', 'forum_reply', 'visa_result', 'teacher_message',
+  'teacher_jobs_invite', 'teacher_jobs',
 ])
 
 /**

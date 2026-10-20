@@ -142,7 +142,7 @@ async function ringTeacher(teacherProfileId: string, conversationId: string): Pr
 }
 
 const STOP_ACK = 'Got it — no more job messages from us. You can switch them back on any time at https://eno.vn/teachers/job-messages'
-const PAUSE_ACK = 'I’ve paused job messages for now, in case you’d rather not get them. Tap “Keep sending jobs” to get them again, or “Stop job messages” to turn them off.'
+const PAUSE_ACK = 'I’ve paused job messages for now, in case you’d rather not get them. Tap “Keep sending jobs” to get them again, or “Stop job messages” to turn them off. If you do neither, they switch off in 14 days.'
 
 /**
  * A reply that MAY have asked to stop (replies.ts mayBeOptOut): PAUSE — no withdrawal — and say so once, in one locked
@@ -160,7 +160,7 @@ export async function pauseJobDms(teacherProfileId: string, operatorId: string, 
         update "TeacherJobDmConsent" set "pausedAt" = ${now}, "updatedAt" = ${now}
          where "profileId" = ${teacherProfileId}::uuid and "optIn" and "pausedAt" is null
            -- a switch-on AFTER the reply overrules it (opus, gate 3k): the reply must be newer than the grant in force
-           and "optInAt" < ${replyAt}
+           and "optInAt" <= ${replyAt}
          returning 1)
       select 1 / (select count(*)::int from p) as ok`,
   ]

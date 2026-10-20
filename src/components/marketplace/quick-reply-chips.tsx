@@ -11,6 +11,7 @@ import { haptic } from '@/lib/haptics'
 import { timeAgo } from '@/lib/types'
 import { openersFor, openerString, type OpenerListing } from '@/lib/openers'
 import { teacherOpener, type OpenerVoice } from '@/lib/teachers/first-message'
+import { JOB_DM_KEEP_TEXTS, JOB_DM_STOP_TEXTS } from '@/lib/teachers/job-dms/replies'
 
 /**
  * Who has said what so far — the two facts the chip set keys off (inbox-13). Messages are in the
@@ -68,6 +69,59 @@ export function teacherThreadChips(
           : { label: tr('We are hiring', 'Chúng tôi đang tuyển'), text: teacherOpener(tr, 'hire', 'school'), complete: true },
         { label: tr('Ask: start date and schedule', 'Hỏi ngày bắt đầu và lịch dạy'), text: tr('Two questions: when could you start, and what teaching schedule are you looking for?', 'Cho mình hỏi bạn có thể bắt đầu từ khi nào và mong muốn lịch dạy như thế nào ạ?'), complete: true },
       ]
+}
+
+/**
+ * THE JOBS DESK'S TWO REPLIES (teacher job DMs, owner 2026-10-20) — the TEACHER's answers to "Hi, this is Alex from
+ * eno.vn …" in their jobs-desk thread. Pure, so it is pinned by a test.
+ * ⛔ BOTH SEND ON TAP, SO BOTH GO ONCE USED (the rule on teacherThreadChips above): the pair shows only while the desk's
+ * message is the newest one in the thread (jobsDeskChipsShown) — a tap appends the teacher's reply and the pair is gone
+ * until the desk writes again, so a second tap can never post the same words twice.
+ * ⛔ THE SENT WORDS ARE FIXED, NEVER TRANSLATED: the server reads "Stop job messages" / "Dừng tin nhắn việc làm" (and STOP)
+ * as switching job messages OFF (src/lib/teachers/job-dms/replies.ts, isStopReply — the cron and these chips read the
+ * same constants). So a chip sends the Vietnamese words on a Vietnamese screen and the English ones on every other —
+ * never tr()'s machine translation in the nine MT languages, which the server would not recognise. The LABEL is tr()'d
+ * like any chip's; in English and Vietnamese it is exactly the text it sends (pinned by a test).
+ */
+export function jobsDeskChips(tr: (en: string, vi: string) => string, lang: string): { label: string; text: string }[] {
+  const words = lang === 'vi' ? 'vi' : 'en'
+  return [
+    { label: tr('Keep sending jobs', 'Gửi tiếp việc làm'), text: JOB_DM_KEEP_TEXTS[words] },
+    { label: tr('Stop job messages', 'Dừng tin nhắn việc làm'), text: JOB_DM_STOP_TEXTS[words] },
+  ]
+}
+
+/**
+ * Whether the teacher gets the pair: the NEWEST message in the thread is the desk's (`fromDesk`, set by the thread GET for
+ * the desk operator's messages only) — so the chips sit directly under the newest desk message, and anything newer (the
+ * teacher's reply, sending or failed; a recalled desk message) takes them away. Messages in the viewer's frame.
+ */
+export function jobsDeskChipsShown(messages: readonly { mine: boolean; fromDesk?: boolean; deleted?: boolean }[]): boolean {
+  const last = messages[messages.length - 1]
+  // ⚠️ Not `fromDesk === true` alone: a message that arrived live (realtime) carries no server flag, and in a jobs-desk
+  // thread the teacher's only counterpart IS the desk — the caller mounts this for that thread only (opus, gate 4a).
+  return !!last && !last.mine && !last.deleted
+}
+
+/**
+ * The pair itself, in the house chip row (the same `xs` `ghost` chips as QuickReplyChips below). The thread page mounts it
+ * in the quick-reply slot above the composer — where every quick reply lives, lifted with the keyboard — for the teacher
+ * side of a jobs-desk thread, while jobsDeskChipsShown says so AND the teacher's job-messages switch is on (the thread
+ * GET's `jobMessagesOn`: after a STOP the desk's acknowledgement is the newest message, and the pair must not return).
+ */
+export function JobsDeskReplyChips({ onSend, className }: { onSend: (text: string) => void; className?: string }) {
+  const { tr, lang } = useLanguage()
+  return (
+    <div className={className}>
+      <div className="flex gap-1 overflow-x-auto scrollbar-none">
+        {jobsDeskChips(tr, lang).map((c) => (
+          <Chip key={c.text} size="xs" tone="ghost" onClick={() => { haptic(); onSend(c.text) }}>
+            {c.label}
+          </Chip>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // The one chip look, shared by the quick-reply chips, the "Keep it live" dismiss below and the
