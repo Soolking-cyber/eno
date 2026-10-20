@@ -42,7 +42,7 @@ import { buildSearchText, fold } from './fold'
 import { facetsFor, listingMoneyFor } from './taxonomy'
 import { PublishBlockedError, assertCleanTexts, minPhotosFor } from './publish-guard'
 import { dropNearDuplicates, type ImageSizeFloor, type PhotoOutcome } from './import-photo-check'
-import { buildFacetTokens } from './facet-tokens'
+import { buildFacetTokens, facetValues } from './facet-tokens'
 import { districtOf } from './honeycomb-listing'
 import { NHATOT_CITIES, nhatotCoords, nhatotStreetName } from './nhatot-listing'
 import { deriveVerification, type VerificationRow } from './compliance/derive-verification'
@@ -145,6 +145,16 @@ export type GoplusProject = {
   ward: string | null
   street: string | null
   geo: { lat: number; lng: number; approx: boolean } | null
+  /**
+   * The BUILDING's own amenity keys — what GoPlus's room page lists under "Tiện ích chung của toà" (the building's shared
+   * amenities) beside the room's own. ⚠️ Only the per-building DETAIL endpoint (/api/public/projects/<id>) carries the
+   * full list (`amenityKeys`); the list endpoint carries a 4-key preview (`feats`). Missing them lost "No live-in
+   * landlord", "Car access" and "No curfew" on ~31% of rooms (field QA, 2026-10-20).
+   */
+  amenityKeys: string[]
+  /** true when `amenityKeys` is the detail endpoint's full list; false = the list's 4-key preview (or nothing). */
+  amenitiesComplete: boolean
+  roomCount: number | null
 }
 
 const FEE_IDS = new Set<GoplusFee['id']>(['electric', 'water', 'service', 'parking'])
@@ -194,13 +204,50 @@ export function stageGoplusProject(raw: unknown): GoplusProject | null {
   if (!isObj(raw) || typeof raw.projectId !== 'string' || !PROJECT_ID.test(raw.projectId)) return null
   const g = isObj(raw.geo) ? raw.geo : null
   const lat = g ? n(g.lat) : null, lng = g ? n(g.lng) : null
+  const keys = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && /^[a-z_]{2,30}$/.test(x)) : null)
+  const full = keys(raw.amenityKeys)
+  const roomCount = n(raw.roomCount)
   return {
     projectId: raw.projectId,
     district: s(raw.district),
     ward: s(raw.ward),
     street: s(raw.street),
     geo: lat !== null && lng !== null ? { lat, lng, approx: g?.approx === true } : null,
+    // The detail endpoint's `amenityKeys` is the building's whole list; the list endpoint's `feats` only a preview.
+    amenityKeys: full ?? keys(raw.feats) ?? [],
+    // Complete only when EVERY entry was a key we read (a reviewer's catch): an array of objects or renamed keys is a
+    // changed shape, never "this building has no amenities".
+    amenitiesComplete: full !== null && Array.isArray(raw.amenityKeys) && full.length === raw.amenityKeys.length,
+    roomCount: roomCount !== null && Number.isInteger(roomCount) && roomCount >= 0 ? roomCount : null,
   }
+}
+
+/**
+ * The building's amenities a room may show as its own. ⛔ ONLY THE BUILDING-WIDE ONES, unless the building is this one
+ * room: "no live-in landlord", "no curfew", "car alley", "pets", a lift, a fingerprint lock, parking, security, wifi,
+ * a shared washer, a drying yard are facts of the BUILDING (GoPlus shows them on every room's page) — but a building
+ * listing "private bathroom" or "air conditioning" does not make it true of every room, so room-kind keys stay the
+ * room's own list (a building of ONE room passes all of them: it IS the room).
+ */
+export const GOPLUS_BUILDING_WIDE_KEYS: ReadonlySet<string> = new Set([
+  'no_landlord', 'free_hours', 'car_alley', 'pet', 'elevator', 'fingerprint', 'parking', 'ev_parking', 'security', 'wifi',
+  'washer', 'drying_yard',
+])
+export function goplusBuildingAmenityKeys(project: Pick<GoplusProject, 'amenityKeys' | 'roomCount'> | null): string[] {
+  if (!project) return []
+  return project.roomCount === 1 ? [...project.amenityKeys] : project.amenityKeys.filter((k) => GOPLUS_BUILDING_WIDE_KEYS.has(k))
+}
+
+/**
+ * An EXISTING row's amenity tokens on a run whose building list was only the preview (amenitiesPartial): the room's own
+ * amenities as read now, plus the BUILDING-WIDE ones the row already holds — never the stored list whole (a room's own
+ * change still lands) and never a building-wide amenity dropped because one request failed (reviewers' catch, 2026-10-20).
+ * In taxonomy order, so a partial week writes the same string a full week would.
+ */
+export function goplusPartialTokens(mapped: string | null, stored: string | null): string | null {
+  const wide = new Set([...GOPLUS_BUILDING_WIDE_KEYS].map((k) => GOPLUS_AMENITY_VALUES[k]).filter(Boolean))
+  const keep = new Set([...facetValues(mapped, 'amenities'), ...facetValues(stored, 'amenities').filter((v) => wide.has(v))])
+  return buildFacetTokens({ amenities: amenityOptions().map((o) => o.value).filter((v) => keep.has(v)) })
 }
 
 export const goplusExternalId = (roomId: string) => `goplus:${roomId}`
@@ -448,6 +495,12 @@ export type GoplusMapped = {
   sourceAt: Date
   /** Amenity keys GoPlus sent that this file does not know yet — a report, never stored. */
   unknownAmenities: string[]
+  /**
+   * True when the building's full amenity list was NOT read this run (its detail request failed — the list's 4-key preview
+   * stood in): the importer then keeps an EXISTING row's amenity tokens rather than rewrite them from a partial list, so a
+   * flaky request never flips a room's amenities week to week. A NEW row is created with what is known.
+   */
+  amenitiesPartial: boolean
   /** The refreshable fields: written on create AND on update. Never status / verified / images / video. */
   mutable: {
     title: string
@@ -511,7 +564,8 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
   const street = nhatotStreetName(room.street ?? project.street)
   const floor = goplusFloor(room.floor)
   const fees = goplusFees(room)
-  const am = goplusAmenities(room.amenityKeys)
+  // The room's own keys + its building's building-wide ones (goplusBuildingAmenityKeys) — what GoPlus's room page shows.
+  const am = goplusAmenities([...room.amenityKeys, ...goplusBuildingAmenityKeys(project)])
   const extras = goplusExtras(room.amenities, am.list)
   const tenants = typeof room.maxTenants === 'number' && room.maxTenants >= 1 && room.maxTenants <= 20 ? Math.floor(room.maxTenants) : null
   const deposit = typeof room.deposit === 'number' && room.deposit > 0 && room.deposit <= GOPLUS_PRICE_MAX ? Math.round(room.deposit) : null
@@ -588,6 +642,7 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
       videos,
       sourceAt,
       unknownAmenities: am.unknown,
+      amenitiesPartial: !project.amenitiesComplete,
       mutable: {
         title,
         titleVi,

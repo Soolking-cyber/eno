@@ -5,6 +5,7 @@ import {
   goplusPhotoPlan, goplusReadProblem, goplusRoomIdOf, goplusSellerRefusal, goplusSourceKey, goplusStoredPhotoKey,
   goplusStoredVideoHex, goplusUnit, goplusVideoAction, goplusVideoHex, goplusVideoObjectName, goplusVideoVerdict,
   goplusWard, isGoplusImageUrl, isGoplusVideoUrl, mapGoplusRoom, mp4Info, planGoplusExpiry, stageGoplusProject,
+  goplusBuildingAmenityKeys, GOPLUS_BUILDING_WIDE_KEYS, goplusPartialTokens,
   stageGoplusRoom, type GoplusProject, type GoplusRoom,
 } from './goplus-listing'
 import { parseFacetTokens } from './facet-tokens'
@@ -75,8 +76,8 @@ describe('stageGoplusRoom / stageGoplusProject — whitelists', () => {
     expect(stageGoplusRoom({ ...RAW_ROOM, availableDate: '2026-02-31' })!.availableDate).toBeNull()
     expect(stageGoplusRoom({ ...RAW_ROOM, availableDate: '2026-99-99' })!.availableDate).toBeNull()
   })
-  it('a building: id, district, ward, street and its map point', () => {
-    expect(stageGoplusProject(RAW_PROJECT)).toEqual({ projectId: 'PRJ-9b078ddb12efe4b1632a', district: 'Quận 12', ward: 'Phường Trung Mỹ Tây', street: 'Ql1a', geo: { lat: 10.8598, lng: 106.6209, approx: true } })
+  it('a building: id, district, ward, street, its map point — and (only from the detail endpoint) its amenities', () => {
+    expect(stageGoplusProject(RAW_PROJECT)).toEqual({ projectId: 'PRJ-9b078ddb12efe4b1632a', district: 'Quận 12', ward: 'Phường Trung Mỹ Tây', street: 'Ql1a', geo: { lat: 10.8598, lng: 106.6209, approx: true }, amenityKeys: [], amenitiesComplete: false, roomCount: null })
     expect(stageGoplusProject({ ...RAW_PROJECT, geo: null })!.geo).toBeNull()
     expect(stageGoplusProject({ ...RAW_PROJECT, projectId: 'nope' })).toBeNull()
   })
@@ -498,5 +499,65 @@ describe('the read, the storefront, the expiry, the exit code', () => {
     expect(goplusApplyExitCode({ ...clean, uploadFailed: 1 }, null, false)).toBe(1)
     expect(goplusApplyExitCode({ ...clean, tombstoneFailed: true }, null, false)).toBe(1)
     expect(goplusApplyExitCode(clean, null, false)).toBe(0)
+  })
+})
+
+/**
+ * THE BUILDING'S SHARED AMENITIES (field QA of the live import, 2026-10-20 — three verifiers): GoPlus's room page lists the
+ * building's "Tiện ích chung của toà" beside the room's own, and only /api/public/projects/<id> carries them in full. The
+ * import read rooms alone, and ~31% of rooms lost "No live-in landlord", "Car access", "No curfew", a fingerprint lock…
+ */
+describe('building amenities', () => {
+  const tokens = (r: ReturnType<typeof mapped>) => parseFacetTokens(r.mutable.facetTokens).map((t) => t.value)
+  const DETAIL = { ...RAW_PROJECT, roomCount: 24, amenityKeys: ['no_landlord', 'free_hours', 'car_alley', 'pet', 'window', 'private_wc', 'elevator', 'fingerprint', 'parking', 'security', 'wifi'] }
+
+  it('stages the detail endpoint\'s full list as complete, and the list endpoint\'s 4-key preview as partial', () => {
+    const full = stageGoplusProject(DETAIL)!
+    expect(full.amenitiesComplete).toBe(true)
+    expect(full.amenityKeys).toContain('fingerprint')
+    expect(full.roomCount).toBe(24)
+    const preview = stageGoplusProject({ ...RAW_PROJECT, feats: ['no_landlord', 'free_hours', 'car_alley', 'pet'], amenityKeys: null })!
+    expect(preview.amenitiesComplete).toBe(false)
+    expect(preview.amenityKeys).toEqual(['no_landlord', 'free_hours', 'car_alley', 'pet'])
+    expect(stageGoplusProject(RAW_PROJECT)!.amenityKeys).toEqual([])
+    // A changed shape (objects, renamed keys) is never read as "no amenities".
+    expect(stageGoplusProject({ ...DETAIL, amenityKeys: [{ key: 'wifi' }] })!.amenitiesComplete).toBe(false)
+    expect(stageGoplusProject({ ...DETAIL, amenityKeys: [] })!.amenitiesComplete).toBe(true)
+  })
+
+  it('adds the building-wide ones to a room of a many-room building — never a room-kind key like a private bathroom', () => {
+    const r = mapped(room({ amenityKeys: ['aircon', 'kitchen'] }), stageGoplusProject(DETAIL)!)
+    const t = tokens(r)
+    for (const v of ['no-landlord', 'free-hours', 'car-alley', 'pets', 'elevator', 'fingerprint-lock', 'parking', 'security', 'wifi']) expect(t).toContain(v)
+    expect(t).toContain('aircon')
+    expect(t).not.toContain('private-wc')
+    expect(t).not.toContain('window')
+    expect(r.amenitiesPartial).toBe(false)
+  })
+
+  it('passes every key of a ONE-room building (it is the room) — furnished becomes the furnishing attribute', () => {
+    const r = mapped(room({ amenityKeys: [] }), stageGoplusProject({ ...DETAIL, roomCount: 1, amenityKeys: ['private_wc', 'aircon', 'furnished', 'no_landlord'] })!)
+    expect(tokens(r)).toEqual(expect.arrayContaining(['private-wc', 'aircon', 'no-landlord']))
+    expect(JSON.parse(r.mutable.attributes).furnishing).toBe('fully')
+  })
+
+  it('marks a room whose building list was only the preview as partial (the importer then keeps its stored tokens)', () => {
+    const r = mapped(room(), stageGoplusProject({ ...RAW_PROJECT, feats: ['no_landlord'], amenityKeys: null })!)
+    expect(r.amenitiesPartial).toBe(true)
+    expect(tokens(r)).toContain('no-landlord')
+  })
+
+  it('a partial week keeps the stored BUILDING-WIDE amenities and takes the room\'s own as read now — in taxonomy order', () => {
+    const stored = '|amenities:no-landlord|amenities:private-wc|amenities:fingerprint-lock|amenities:aircon|'
+    const now = '|amenities:car-alley|amenities:aircon|amenities:balcony|'
+    // fingerprint-lock + no-landlord (building-wide) kept; private-wc (room-kind, no longer the room's) dropped; balcony added.
+    expect(goplusPartialTokens(now, stored)).toBe('|amenities:no-landlord|amenities:car-alley|amenities:aircon|amenities:balcony|amenities:fingerprint-lock|')
+    expect(goplusPartialTokens(null, null)).toBeNull()
+  })
+
+  it('the building-wide set is building facts only, and every one of them maps to a filter chip', () => {
+    expect([...GOPLUS_BUILDING_WIDE_KEYS].sort()).toEqual(['car_alley', 'drying_yard', 'elevator', 'ev_parking', 'fingerprint', 'free_hours', 'no_landlord', 'parking', 'pet', 'security', 'washer', 'wifi'])
+    expect(goplusAmenities([...GOPLUS_BUILDING_WIDE_KEYS]).unknown).toEqual([])
+    expect(goplusBuildingAmenityKeys(null)).toEqual([])
   })
 })

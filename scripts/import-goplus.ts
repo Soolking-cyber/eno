@@ -122,7 +122,7 @@ import type { SellerPublishDecision } from '../src/lib/compliance/seller-publish
 import { licenceClearedSql, licenceClearedWhere } from '../src/lib/licence-stamp'
 import {
   GOPLUS_CATEGORY_SLUG, GOPLUS_EMAIL, GOPLUS_HANDLE, GOPLUS_MAX_PHOTOS_DEFAULT, GOPLUS_SUBCAT, GOPLUS_MIN_PHOTOS, GOPLUS_PAGE_MAX, GOPLUS_PHOTO_FLOOR,
-  GOPLUS_VACANT_STATUS, goplusExternalId,
+  GOPLUS_VACANT_STATUS, goplusExternalId, goplusPartialTokens,
   GOPLUS_PHOTO_PREFIX, GOPLUS_PROJECTS_API, GOPLUS_ROOMS_API, GOPLUS_UA, GOPLUS_UA_TOKEN, GOPLUS_VIDEO_MAX_BYTES,
   goplusApplyExitCode, goplusPhotoAction, goplusPhotoPlan, goplusPublishGate, goplusReadProblem, goplusSellerRefusal, goplusSourceKey,
   goplusVideoAction, goplusVideoObjectName, goplusVideoVerdict, mapGoplusRoom, mp4Info, planGoplusExpiry,
@@ -387,6 +387,34 @@ async function readOnce(): Promise<Read> {
     ?? (orphans > Math.max(10, 0.01 * rooms.size) ? `${orphans} rooms name a building the building list lacks — the list came back short` : null)
   return { rooms: [...rooms.values()], projects, total: totals[0] ?? 0, pages, fetchedAt, problem, unstageable: rawIds.size - rooms.size }
 }
+/**
+ * THE BUILDINGS' FULL AMENITY LISTS (field QA, 2026-10-20): the list endpoint carries a 4-key preview (`feats`); the full
+ * `amenityKeys` — GoPlus's "Tiện ích chung của toà", shown on every room's page — is only in /api/public/projects/<id>.
+ * Read for every building with a VACANT room in `scope`, through the same robots-checked, spaced, capped requests
+ * (~800 a week). A 429 or a challenge STOPS the run like any read; a building whose detail fails otherwise keeps the
+ * list's preview, marked partial (amenitiesComplete false) — its existing rows then keep their stored amenities.
+ */
+async function readBuildingDetails(projects: Map<string, GoplusProject>, scope: readonly GoplusRoom[]): Promise<{ read: number; failed: number }> {
+  const ids = [...new Set(scope.filter((r) => r.statusId === GOPLUS_VACANT_STATUS && r.projectId && projects.has(r.projectId)).map((r) => r.projectId!))]
+  let read = 0, failed = 0
+  await Promise.all(ids.map(async (id) => {
+    const got = await goplusGet(`${GOPLUS_PROJECTS_API}/${encodeURIComponent(id)}`, 'json', 5 * 1024 * 1024)
+    let staged: GoplusProject | null = null
+    if (got.kind === 'ok') {
+      try {
+        const body = JSON.parse(got.body.toString('utf8')) as Record<string, unknown>
+        staged = stageGoplusProject(body && typeof body === 'object' && 'data' in body ? body.data : body)
+      } catch { staged = null }
+    }
+    const listed = projects.get(id)!
+    if (!staged || staged.projectId !== id || !staged.amenitiesComplete) { failed++; return }
+    read++
+    // Place facts stay the list's when the detail lacks one; the amenity list and room count are the detail's.
+    projects.set(id, { ...listed, district: staged.district ?? listed.district, ward: staged.ward ?? listed.ward, street: staged.street ?? listed.street, geo: staged.geo ?? listed.geo, amenityKeys: staged.amenityKeys, amenitiesComplete: true, roomCount: staged.roomCount ?? listed.roomCount })
+  }))
+  return { read, failed }
+}
+
 /** ⛔ Read once more when pages shifted (a room let or added mid-read), then refuse — never write from a short read. */
 async function readCatalogue(): Promise<Read> {
   const first = await readOnce()
@@ -611,6 +639,12 @@ async function main() {
     const unknownAmenities = new Map<string, number>()
     let scope = read.rooms
     if (IDS.length) scope = scope.filter((r) => IDS.includes(r.id))
+    const details = await readBuildingDetails(read.projects, LIMIT ? scope.slice(0, LIMIT * 3) : scope)
+    console.log(`buildings         ${details.read} full amenity lists read${details.failed ? ` · ${details.failed} FAILED (their rooms keep their stored amenities this run)` : ''}`)
+    /** ⛔ MANY FAILED = THE ENDPOINT CHANGED, NOT A BLIP (a reviewer's catch): over 20% (and 10) of the buildings unread fails
+     *  the run (exit 1 — the job alerts, no success stamp) after it is written, rather than living on 4-key previews. */
+    const detailsBroken = details.failed >= Math.max(10, 0.2 * (details.read + details.failed))
+    if (detailsBroken) console.error(`⛔ ${details.failed} of ${details.read + details.failed} building detail reads failed — /api/public/projects/<id> may have changed shape`)
     const mapped: GoplusMapped[] = []
     /** VACANT rooms this read REFUSED (mapping or the content screen) — a verdict the second read's rescue must not undo. */
     const refusedVacant = new Set<string>()
@@ -739,7 +773,10 @@ async function main() {
       const cur = existing.get(r.externalId)
       // ⛔ A TOMBSTONE IS LEFT AS IT IS (listing-removed.ts): a moderator's or admin's removal is the record (Law 122/2025).
       if (cur?.status === 'removed') { stat.removedLeftAlone++; return }
-      const data = { ...r.mutable, categoryId: category.id }
+      // A building whose full amenity list was not read this run: an existing row keeps the BUILDING-WIDE amenities it
+      // holds and takes the room's own as read now (goplusPartialTokens — no flip-flop on a flaky request, no frozen
+      // room); a new row is created with what is known.
+      const data = { ...r.mutable, categoryId: category.id, ...(r.amenitiesPartial && cur ? { facetTokens: goplusPartialTokens(r.mutable.facetTokens, cur.facetTokens as string | null) } : {}) }
       // ⛔ Written only in the aisle every write, release, rollback and the expiry are pinned to (reviewers' catches): a row
       // created — or refreshed, or revived — into another one could never be refreshed, expired or rolled back again.
       if (r.mutable.subcategorySlug !== GOPLUS_SUBCAT) { stat.errored++; console.warn(`  ! ${r.externalId}: mapped into "${r.mutable.subcategorySlug}", not ${GOPLUS_SUBCAT} — skipped`); return }
@@ -954,7 +991,7 @@ async function main() {
     const photoFailed = stat.photoFailed ?? 0
     const fetchFailedMany = photoFailed >= 5 && photoFailed > 0.05 * batch.length
     if (fetchFailedMany) console.error(`⛔ ${photoFailed} room(s) skipped on photo fetches that failed — retried on the next run`)
-    process.exitCode = Math.max(goplusApplyExitCode({ errored: stat.errored, uploadFailed: stat.uploadFailed, tombstoneFailed }, stopped, expiryRefused), fetchFailedMany && !stopped && !expiryRefused ? 1 : 0)
+    process.exitCode = Math.max(goplusApplyExitCode({ errored: stat.errored, uploadFailed: stat.uploadFailed, tombstoneFailed }, stopped, expiryRefused), (fetchFailedMany || detailsBroken) && !stopped && !expiryRefused ? 1 : 0)
     /** ⛔ THE LAST LINE, printed only when the row loop reached the END of the batch — never after a crash or a stop. */
     if (stopped === null) console.log('APPLY COMPLETED')
   } finally {
