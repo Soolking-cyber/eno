@@ -2,6 +2,7 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { kv } from '@/lib/ratelimit'
 import { HOME_HIDDEN_TEACHER_LISTING_IDS } from '@/lib/teachers/constants'
 import { COVER_CONSENT_VERSION } from '@/lib/teachers/cover'
@@ -259,10 +260,12 @@ async function loadJobs(now: Date): Promise<Job[]> {
       },
     })
   }
-  // eno.vn's own live teaching jobs (board imports, apply at source through the eno page).
+  // eno.vn's own live teaching jobs (board imports, apply at source through the eno page) — through the edition scope
+  // like every listing read (edition-lint Rule A): a desk or hidden seller's row is never offered, and its page would not
+  // open for the teacher anyway.
   const since = new Date(now.getTime() - 14 * 86_400_000)
   const listings = await db.listing.findMany({
-    where: { ...TEACHING_JOB_WHERE, createdAt: { gte: since } },
+    where: await scopedListingWhere({ ...TEACHING_JOB_WHERE, createdAt: { gte: since } }),
     select: { id: true, title: true, description: true, city: true, salaryM: true, attributes: true, createdAt: true },
     take: 500,
   })

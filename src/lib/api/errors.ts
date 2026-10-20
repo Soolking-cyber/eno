@@ -362,6 +362,9 @@ export type NicheApiErrorCode =
   | 'job_discrimination' // an age, gender, race, nationality or appearance requirement
   | 'job_candidate_fee' // a fee or deposit for candidates (an honest "no training fee" passes)
   | 'job_adult_venue' // karaoke, massage, nightclub or hostess work
+  // POST /api/cron/job-posts — the teacher job-DM post door (src/lib/teachers/job-dms/ingest.ts), cron-only
+  | 'too_many_posts' // more posts in one delivery than INGEST_LIMITS.posts (413)
+  | 'key_in_two_sources' // one externalKey under two sources in one delivery (400)
   | 'licence_check_required' // a licence-aisle row eno has not checked cannot go live — moderate 'approve', or a status change back to active (relist, confirm): approve it under Licence checks (409, 2026-10-14)
   | 'listing_changed' // PATCH /api/listings/[id] (and v1): the listing changed while it was being edited — reload and try again (409, 2026-10-14)
   | 'desk_unresolved' // /api/cron/licence-holds: eno's desk did not resolve, so the sweep refused to run (500, 2026-10-14)
@@ -795,6 +798,8 @@ const ALL = [
   'job_discrimination',
   'job_candidate_fee',
   'job_adult_venue',
+  'too_many_posts',
+  'key_in_two_sources',
   'licence_check_required',
   'listing_changed',
   'desk_unresolved',

@@ -88,6 +88,10 @@ vi.mock('@/lib/ratelimit', () => ({
 }))
 const DBNULL = Symbol('DbNull')
 vi.mock('@/generated/prisma/client', () => ({ Prisma: { DbNull: DBNULL } }))
+const scoped = vi.hoisted(() => ({ wheres: [] as unknown[] }))
+vi.mock('@/lib/edition-scope', () => ({
+  scopedListingWhere: async (w: object) => { scoped.wheres.push(w); return { AND: [w, { sellerId: { notIn: ['desk'] } }] } },
+}))
 const layaAnswers = vi.fn(async () => null)
 vi.mock('./laya', () => ({ layaAnswers: (...a: unknown[]) => (layaAnswers as (...x: unknown[]) => unknown)(...a) }))
 const desk = { operator: 'op-1' as string | null }
@@ -145,6 +149,15 @@ describe('runJobDms', () => {
     expect(calls.createMany[0]).toEqual([expect.objectContaining({ profileId: 't-1', jobKey: 'post:1', mode: 'shadow' })])
     expect(String(calls.createMany[0][0].preview)).toContain('Hi Sam, this is Alex from eno.vn.')
     expect(sendJobDm).not.toHaveBeenCalled()
+  })
+
+  it('eno.vn\'s own teaching jobs are read through the edition scope (edition-lint Rule A)', async () => {
+    const { db } = await import('@/lib/db')
+    T.posts = [post('1')]
+    scoped.wheres = []
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(scoped.wheres).toEqual([expect.objectContaining({ status: 'active', verified: true, listingType: 'job', subcategorySlug: 'teaching' })])
+    expect(vi.mocked(db.listing.findMany).mock.calls.at(-1)?.[0]).toMatchObject({ where: { AND: [scoped.wheres[0], { sellerId: { notIn: ['desk'] } }] } })
   })
 
   it('both modes match only teachers who switched job messages on under the current notice', async () => {
