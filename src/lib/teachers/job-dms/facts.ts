@@ -60,12 +60,59 @@ export function partStartVn(isoDate: string, part: keyof typeof PART_START_H): D
   return new Date(new Date(`${isoDate}T00:00:00.000Z`).getTime() + (PART_START_H[part] - 7) * 3_600_000)
 }
 
+const PART_END_H = { am: 12, pm: 17, eve: 21 } as const
+const HOUR_MS = 3_600_000
+/** A Vietnam date at an hour ('2026-10-21', 18 → 2026-10-21T11:00Z). */
+export function vnAt(isoDate: string, hour: number): Date {
+  return new Date(new Date(`${isoDate}T00:00:00.000Z`).getTime() + (hour - 7) * HOUR_MS)
+}
+/** How long before a lesson a cover is still worth offering: a teacher has to see it, reply and travel. */
+const COVER_LEAD_MS = HOUR_MS
+/**
+ * The lesson day of a cover that names a time or a part of the day and no date. With a clock hour ("at 8pm"): the post
+ * day while the lesson is at least an hour ahead, null from then until three hours after it, the next day after that —
+ * "cover at 8pm" posted at 18:00 is tonight's (opus, gate 2b: the most urgent covers were dropped). With a part only:
+ * the post day while it is still ahead, the next day once it has ended, null while it is under way. Vietnam dates.
+ */
+export function lessonDateOf(posted: Date, part: keyof typeof PART_START_H, hour: number | null = null): string | null {
+  const today = new Date(posted.getTime() + 7 * HOUR_MS).toISOString().slice(0, 10)
+  const tomorrow = new Date(new Date(`${today}T00:00:00.000Z`).getTime() + DAY_MS).toISOString().slice(0, 10)
+  if (hour !== null) {
+    // Tonight's while an hour ahead; too late from then until three hours after it — "cover needed at 6pm" posted at
+    // 18:05 is a no-show tonight, not tomorrow's (codex + opus, gate 2c); later than that, tomorrow's.
+    const lesson = vnAt(today, hour).getTime()
+    if (posted.getTime() < lesson - COVER_LEAD_MS) return today
+    return posted.getTime() >= lesson + 3 * HOUR_MS ? tomorrow : null
+  }
+  if (posted.getTime() < partStartVn(today, part).getTime()) return today
+  const endToday = new Date(new Date(`${today}T00:00:00.000Z`).getTime() + (PART_END_H[part] - 7) * 3_600_000)
+  if (posted.getTime() < endToday.getTime()) return null
+  return new Date(new Date(`${today}T00:00:00.000Z`).getTime() + DAY_MS).toISOString().slice(0, 10)
+}
+const DOW = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
+/** lessonDateOf's weekday ('mon'..'sun'), or null. */
+export function lessonDayOf(posted: Date, part: keyof typeof PART_START_H, hour: number | null = null): string | null {
+  const d = lessonDateOf(posted, part, hour)
+  return d ? DOW[new Date(`${d}T00:00:00.000Z`).getUTCDay()] : null
+}
+
 export function expiryOf(f: RuleFacts, meta: PostMeta): Date {
   const posted = meta.postedAt ?? meta.receivedAt
   if (f.kind === 'cover_request') {
-    // A cover is worth offering only before its lesson: "tonight 6–7:30pm" stops at 17:00, not at midnight (opus, gate 1c).
-    if (f.schedule?.date && f.schedule.part) return partStartVn(f.schedule.date, f.schedule.part)
-    if (f.schedule?.date) return endOfVnDay(f.schedule.date)
+    // A cover is worth offering only before its lesson: an hour before a stated time, else from the start of its part
+    // of the day ("tonight 6–7:30pm" stops at 17:00, not at midnight — opus, gate 1c).
+    const s = f.schedule
+    if (s?.date && s.hour !== null && s.hour !== undefined) return new Date(vnAt(s.date, s.hour).getTime() - COVER_LEAD_MS)
+    if (s?.date && s.part) return partStartVn(s.date, s.part)
+    if (s?.date) return endOfVnDay(s.date)
+    // A time and no date ("cover needed at 6pm"): see lessonDateOf. Posted once that part of the day has begun, it is
+    // too late to offer (opus, gate 2a: "cover at 6pm" posted at 17:30 was offered as tomorrow's) — expired now.
+    if (s?.part) {
+      const hour = s.hour ?? null
+      const d = lessonDateOf(posted, s.part, hour)
+      if (!d) return posted
+      return hour !== null ? new Date(vnAt(d, hour).getTime() - COVER_LEAD_MS) : partStartVn(d, s.part)
+    }
     return new Date(posted.getTime() + JOB_DM_RULES.coverUndatedHours * 3_600_000)
   }
   return new Date(posted.getTime() + JOB_DM_RULES.jobFreshDays * DAY_MS)

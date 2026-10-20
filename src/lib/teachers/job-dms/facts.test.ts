@@ -52,3 +52,46 @@ describe('decide — ready / held / dropped', () => {
     expect(decide(readPost(COVER, NOW), meta(), null, NOW, 'veto').reason).toBe('laya-unavailable')
   })
 })
+
+describe('expiry of a timed cover with no date (codex, gate 1e)', () => {
+  it('is the post day\'s part, or the next day\'s once it has begun', () => {
+    const meta = (postedAt: Date): PostMeta => ({ source: 'fb', postedAt, receivedAt: postedAt, groupPublic: true, url: 'https://www.facebook.com/groups/1/posts/2/', applyText: null })
+    const morning = new Date('2026-10-21T02:00:00Z') // 09:00 ICT
+    expect(decide(readPost('Urgent: our centre needs a cover teacher at 6pm in District 3, kids class', morning), meta(morning), null, morning).expiresAt.toISOString()).toBe('2026-10-21T10:00:00.000Z')
+    const late = new Date('2026-10-21T14:30:00Z') // 21:30 ICT — that evening is over: tomorrow's
+    expect(decide(readPost('Urgent: our centre needs a cover teacher at 6pm in District 3, kids class', late), meta(late), null, late).expiresAt.toISOString()).toBe('2026-10-22T10:00:00.000Z')
+  })
+  it('posted while that part of the day is under way, it is too late to offer (opus, gate 2a)', () => {
+    const meta = (postedAt: Date): PostMeta => ({ source: 'fb', postedAt, receivedAt: postedAt, groupPublic: true, url: 'https://www.facebook.com/groups/1/posts/2/', applyText: null })
+    const evening = new Date('2026-10-21T10:30:00Z') // 17:30 ICT
+    expect(decide(readPost('Urgent: our centre needs a cover teacher at 6pm in District 3, kids class', evening), meta(evening), null, evening)).toMatchObject({ status: 'dropped', reason: 'expired' })
+  })
+})
+
+describe('same-evening covers with a clock time (opus, gate 2b)', () => {
+  const meta = (postedAt: Date): PostMeta => ({ source: 'fb', postedAt, receivedAt: postedAt, groupPublic: true, url: 'https://www.facebook.com/groups/1/posts/2/', applyText: null })
+  const POST = 'Urgent: our centre needs a cover teacher at 8pm in District 3, kids class'
+  it('posted at 18:00 for 8pm: offered until 19:00 that evening', () => {
+    const at = new Date('2026-10-21T11:00:00Z') // 18:00 ICT
+    expect(decide(readPost(POST, at), meta(at), null, at)).toMatchObject({ status: 'ready', expiresAt: new Date('2026-10-21T12:00:00.000Z') })
+  })
+  it('posted at 19:30 for 8pm: too late — dropped', () => {
+    const at = new Date('2026-10-21T12:30:00Z') // 19:30 ICT
+    expect(decide(readPost(POST, at), meta(at), null, at)).toMatchObject({ status: 'dropped', reason: 'expired' })
+  })
+  it('a dated cover with a time: an hour before it', () => {
+    const at = new Date('2026-10-21T02:00:00Z')
+    expect(decide(readPost('Our centre needs a cover teacher tomorrow at 6pm in District 3, kids class', at), meta(at), null, at).expiresAt.toISOString()).toBe('2026-10-22T10:00:00.000Z')
+  })
+})
+
+describe('gate 2c: a timed cover posted just after it began is a no-show tonight, not tomorrow', () => {
+  const meta = (postedAt: Date): PostMeta => ({ source: 'fb', postedAt, receivedAt: postedAt, groupPublic: true, url: 'https://www.facebook.com/groups/1/posts/2/', applyText: null })
+  it('18:05 for 6pm → dropped; 21:30 for 6pm → tomorrow 17:00', () => {
+    const POST = 'Urgent: our centre needs a cover teacher at 6pm in District 3, kids class'
+    const just = new Date('2026-10-21T11:05:00Z')
+    expect(decide(readPost(POST, just), meta(just), null, just)).toMatchObject({ status: 'dropped', reason: 'expired' })
+    const late = new Date('2026-10-21T14:30:00Z')
+    expect(decide(readPost(POST, late), meta(late), null, late).expiresAt.toISOString()).toBe('2026-10-22T10:00:00.000Z')
+  })
+})

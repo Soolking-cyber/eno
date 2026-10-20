@@ -101,7 +101,7 @@ describe('readPay', () => {
 
 describe('readSchedule', () => {
   it('tomorrow evening', () => {
-    expect(readSchedule(foldPost('cover tomorrow 6-7:30pm'), POSTED)).toEqual({ date: '2026-10-22', day: 'thu', part: 'eve', label: 'Thu 22 Oct, evening' })
+    expect(readSchedule(foldPost('cover tomorrow 6-7:30pm'), POSTED)).toEqual({ date: '2026-10-22', day: 'thu', part: 'eve', hour: 18, label: 'Thu 22 Oct, evening' })
   })
   it('a weekday is the next one on or after the post day', () => {
     expect(readSchedule(foldPost('this Saturday morning'), POSTED)).toMatchObject({ date: '2026-10-24', day: 'sat', part: 'am' })
@@ -399,5 +399,61 @@ describe('gate 1d reviewer findings (codex + opus, 2026-10-20)', () => {
   })
   it('a job about teachers is not a teaching job', () => {
     expect(r('Teacher Recruitment Specialist · Apollo · Ho Chi Minh City', true).kind).toBe('other')
+  })
+})
+
+describe('gate 1e reviewer findings (codex + opus, 2026-10-20)', () => {
+  const r = (s: string, listing = false) => readPost(s, POSTED, { listing })
+  it('Vietnamese gender and age asks with words between', () => {
+    expect(r('Tuyển giáo viên bản ngữ nữ dạy mầm non tại Quận 7').deny).toBe('gender')
+    expect(r('Tuyển giáo viên nước ngoài, nữ, 25-30 tuổi, Quận 3').deny).toBe('gender')
+    expect(r('Tuyển giáo viên nước ngoài (nữ) dạy tại Quận 3').deny).toBe('gender')
+    expect(r('Cần nữ giáo viên nước ngoài tại Quận 3').deny).toBe('gender')
+    expect(r('Tuyển giáo viên nước ngoài 25-35 tuổi, Quận 3').deny).toBe('discriminatory')
+    expect(r('Cần giáo viên nước ngoài dạy học viên 18-25 tuổi tại Quận 3').deny).toBeNull()
+    expect(r('Tuyển giáo viên nước ngoài tại Việt Nam, Quận 3').deny).toBeNull()
+  })
+  it('other nationality adjectives are held', () => {
+    expect(r('Our centre in District 3 is hiring: French teachers only').mention ?? r('Our centre in District 3 is hiring: French teachers only').deny).toBeTruthy()
+  })
+  it('listing titles: a non-teaching role, or a trainer/coach/instructor of something else, is not a teaching job', () => {
+    expect(r('Teacher Sales Consultant · ABC · Ho Chi Minh City', true).kind).toBe('other')
+    expect(r('Sales Trainer · Prudential · Ho Chi Minh City', true).kind).toBe('other')
+    expect(r('Yoga Instructor · Wellness Co · Hanoi', true).kind).toBe('other')
+    expect(r('Football Coach · Sports Academy · Hanoi', true).kind).toBe('other')
+    expect(r('IELTS Instructor · ILA · Ho Chi Minh City', true).kind).toBe('job_offer')
+    expect(r('We are hiring yoga instructors for our studio in District 3').kind).toBe('other')
+  })
+  it('a quarter is not a district, "in Q1" still is', () => {
+    expect(readPlaces(foldPost('Hanoi centre hiring, start Q3')).places).toEqual(['ha-noi'])
+    expect(readPlaces(foldPost('Our centre in Q1 is hiring')).places).toEqual(expect.arrayContaining(['d1', 'ho-chi-minh-city']))
+  })
+})
+
+describe('gate 2a reviewer findings on the reader (opus, 2026-10-20)', () => {
+  it('"nữ sinh" is the class, not an ask; an instructor for an English centre is a teaching role', () => {
+    expect(readPost('Cần giáo viên nước ngoài dạy nữ sinh lớp 10 tại Quận 3', POSTED).deny).toBeNull()
+    expect(readPost("We're hiring instructors for our English centre in District 3", POSTED).kind).toBe('job_offer')
+  })
+})
+
+describe('gate 2b reviewer findings on the reader (opus, 2026-10-20)', () => {
+  it('"Giới tính: Nam/Nữ" is inclusive; "người lớn 25-40 tuổi" is the class', () => {
+    expect(readPost('Tuyển giáo viên nước ngoài tại Quận 3. Giới tính: Nam/Nữ', POSTED).deny).toBeNull()
+    expect(readPost('Cần giáo viên nước ngoài dạy người lớn 25-40 tuổi tại Quận 3', POSTED).deny).toBeNull()
+  })
+  it('a clock time is kept as the start hour', () => {
+    expect(readSchedule(foldPost('cover at 8pm tonight'), POSTED)).toMatchObject({ part: 'eve', hour: 20 })
+    expect(readSchedule(foldPost('cover this evening'), POSTED)).toMatchObject({ part: 'eve', hour: null })
+  })
+})
+
+describe('gate 2c reviewer findings on the reader (opus, 2026-10-20)', () => {
+  it('"tại Việt Nam, nữ" is an ask, not "nam, nữ"', () => {
+    expect(readPost('Tuyển GV nước ngoài tại Việt Nam, nữ, Quận 3', POSTED).deny).toBe('gender')
+    expect(readPost('Tuyển giáo viên nước ngoài, giới tính: nam, nữ, Quận 3', POSTED).deny).toBeNull()
+  })
+  it('"Instructor needed, kindergarten" is a teaching role', () => {
+    expect(readPost('Instructor needed for our kindergarten in District 7, 400k/h', POSTED).kind).toBe('job_offer')
   })
 })

@@ -1,7 +1,8 @@
 /**
  * TEACHER JOB DMs (owner, 2026-10-20) — the shared constants. "Hi, this is Alex from eno.vn, we've found these jobs that
  * match your profile …": job and cover-lesson posts from Facebook groups, LinkedIn job alerts, posts the outreach team
- * forwards and eno.vn's own teaching listings, matched on the box (rules + Laya) and sent in eno chat from the jobs desk.
+ * forwards and eno.vn's own teaching listings, matched on the box (rules decide; Laya's answers are recorded) and sent in
+ * eno chat from the jobs desk.
  *
  * ⛔ IMPORT-FREE (like rental-check/desk-ids.ts): edition-scope.ts and the chat UI read these ids, and neither may pick up
  * a server module through this file.
