@@ -7,12 +7,13 @@ Every process the reader would start (docker exec doveadm / printenv, curl) goes
 replaces: a little in-memory INBOX that answers doveadm the way Dovecot's flow/pager formatters print, and an ingest that
 answers like src/app/api/cron/job-posts/route.ts.
 
-The two DKIM fixtures (stored zlib-compressed, byte-exact) were signed ONCE by dkimpy 1.1.8 (an independent DKIM
-implementation) with a throwaway 2048-bit key made for these tests only (its private half was deleted; only the public
-TXT record below is kept) — so the verifier here is checked against someone else's canonicalisation, not its own.
+The DKIM fixtures (stored zlib-compressed, byte-exact) were signed ONCE by dkimpy 1.1.8 (an independent DKIM
+implementation) with throwaway 2048-bit keys made for these tests only (the private halves were deleted; only the public
+TXT records below are kept) — so the verifier here is checked against someone else's canonicalisation, not its own.
 SIGNED_ALERT_RELAXED: a LinkedIn job-alert digest (multipart/alternative, quoted-printable text + HTML,
 c=relaxed/relaxed). SIGNED_LISTINGS_SIMPLE: an HTML-only "Jobs you may be interested in" mail (8bit, a folded Subject,
 trailing spaces and blank lines in the body, c=simple/simple, From over-signed). Both: d=linkedin.com, s=test2026.
+SIGNED_ALERT_2026: signed the way LinkedIn signs since mid-2026 (its comment).
 """
 import base64
 import contextlib
@@ -27,6 +28,7 @@ import stat
 import sys
 import tempfile
 import unittest
+import unittest.mock
 import zlib
 from email.message import EmailMessage
 
@@ -89,8 +91,55 @@ SIGNED_LISTINGS_SIMPLE = zlib.decompress(base64.b64decode(
     'xP3o+xbne8aD4i9zolfpLTFWwsSg2PUqyxuHM5+leed18t+/Sn3GU8bfaygIncavexriXjGV5dJvEERPIw=='
 ))
 
+#: A 2026 alert, signed the way LinkedIn signed its real 11 Oct 2026 alert (research 2026-10-21): TWO signatures,
+#: d=maild.linkedin.com on top and d=linkedin.com under it, c=relaxed/relaxed, a lower-case h= with spaces around the
+#: colons and From listed twice (over-signed); To is the LinkedIn account, vietnameno@gmail.com; the text part's first
+#: line runs into "Manage your job alerts: <link with the recipient's tokens>". Signed by dkimpy 1.1.8 with its own
+#: throwaway key (the private half deleted), selectors test2026d / test2026b.
+TEST_DKIM_TXT_2026 = ('v=DKIM1; k=rsa; p='
+                      'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyGq1HCdEgw9smfxRgTO7BUloCYaX2VXsrpdX4veQIObCJn1JE/VBB53x'
+                      'aduZJUM9kcutUXQVDP92LlFDKwMoo9GssqQghQ07FMf3TH8Y+uG/7NMWrkPKyDGdjEkk/XCgnSqDsKDvoSNHIfQykbKyY0OymxmB'
+                      'n8zWOxIjwl44ahv5rujVEcbjpmddJ3IBSBX4c/7qscN3PXF/YQHA5wTHvSbfFqGul6LHSlIc6XNaa0yHv0LraaGpsfZpXaNGKWyS'
+                      'ZdJzh/Zhxus91ZENrkWCfHq5Q+2RVncl2vXmVZfjBl21+IIiHzho1fRaBpdIJoHx6rus8LZ2izwHe8ZprYCA8wIDAQAB')
+SIGNED_ALERT_2026 = zlib.decompress(base64.b64decode(
+    'eNrNV9ly2sASfaeKf5hyVfySyNpYBLbsCIEBs5jdNi+UlgEJtDGSWPz1t0dAbEic6yW36roMSK3W0ej06Z7ucqPeYvr2zNOimOAiWsn8'
+    'JdJkEmpMaGlCNneJDJlgR9tgk93/XqZTyJRdzXbMC8f2Fti0vQvDdy+RLf/8k3kpm17IRpvoEoVyhMNI4IRcAhPJfL4gZOFcyl8iS3bs'
+    'MGJiL4z10CC2jpnADyNURKd2VISbN8zhMcxUd8DrlSHCbuBoET62Go4WhmCK/ATA8L0IexETbQPq6NouZlaYhLbvwSk8bI4N+nQXh6E2'
+    'w4xtwsmU+C78mAk4gNDzS6Rb8qKkZzvZrquP23orWklmedQS1NzGLjzy2ubOmXXLXGbd6OdCTqbvrst98znbz7tEvw2GSpNlv48LbK0/'
+    '73LufKB2N1VxGBRGq/z4XhE6dX2wnfZYdj3vbsSsF+JFzTYbqtYGJP5RL9ftOs+rYTzV+gOenbm+9NwaeUFn5HTarhVtnueG5Q+eczZ+'
+    'aHcb2VL7eXzX11u9Kg+4D9icql1A6q82hXgZLasVVyIh4cJe6XvzIV5I80eL1Wv1dTaQbp/UOquybGN2F0ffhWG+JDacUOrOGwZejmsP'
+    'mUcMSNZ2UfeaZt302m3d7D6uV+XZOi6MYr8czqpz69l1ibdmZ9PHqc5vY8XXOpWaN6xKq/pTJdNfDMiowt5GNMzPs8d1NnbdwtLcdoyN'
+    'pi6702b48FTJTTeVMBi3OKevjpvb8qK6GDaFmGyMQViJBYGfyXI6Vf6MxEHgRxqGdYC43yFr/fJY1JSKD8j6N1Ef6/y/y/pE1HD7J2S9'
+    'EzXV6GdkHQynt05HNXEm07eyS/8hrhdm+npAZvOq0p3Oc9kHx79vDwzsV7LZTa1dLt/pXMfJC805z3/vrGrZ8hMgzX3RN6rNwW22VzFt'
+    '86HOkmW7WVfW9Y2XUe646rjZtEbqKFsvS6XVc6dpD5eLNr5zW73vhmdw3b47fi6VKYOBuCCPY27V8r1cx+g9C5o4G42MzaZcawy7hdvx'
+    'eplb5prTvlE2ektx2mg5vczwfhlZUstcLJ6VTrVtuxTpqZdbKxynNnKr/HopPpn5SqbD5XLSSHRX2VpLiduOKDWb97ja6mU6fDwd5kd1'
+    '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'
+    'jcYhJOxe6+wuW5IMvH5/FtNN+z+XORWl'
+))
+
 
 def dkim_lookup(name):
+    if name in ('test2026d._domainkey.maild.linkedin.com', 'test2026b._domainkey.linkedin.com'):
+        return [TEST_DKIM_TXT_2026]
     return [TEST_DKIM_TXT] if name == 'test2026._domainkey.linkedin.com' else []
 
 
@@ -129,6 +178,30 @@ def delivered(raw, *, auth='bridge@eno.vn', proto='ESMTPSA', by='mail.eno.vn', h
     up = 'Received: from mail-sa1.linkedin.com ([108.174.3.150]) by mx.cloudflare.net; Tue, 20 Oct 2026 01:15:01 +0000\n'
     return (top + hop + arh + 'X-Rspamd-Server: rspamd-mailcow\n' + (up if upstream else '')).encode() \
         + raw.replace(b'\r\n', b'\n')
+
+
+#: What Gmail's AUTOMATIC forwarding (vietnameno@gmail.com's filter → alex@eno.vn) puts on top of the message it resends
+#: unchanged — Received, ARC-*, X-Forwarded-*, a second Delivered-To / Return-Path, its own Authentication-Results: none
+#: a field LinkedIn signed or one read_message allows only once (the headers of real Gmail forwards, 2015–2026).
+GMAIL_FORWARD_TRACE = (
+    b'Received: from mail-sor-f41.google.com (mail-sor-f41.google.com [209.85.220.41]) by mx.cloudflare.net; '
+    b'Tue, 20 Oct 2026 01:15:03 +0000\n'
+    b'ARC-Seal: i=2; a=rsa-sha256; t=1760922902; cv=pass; d=google.com; s=arc-20240605; b=QUJD\n'
+    b'ARC-Message-Signature: i=2; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20240605;\n'
+    b'\th=to:subject:message-id:date:from:mime-version:dkim-signature:delivered-to; bh=QUJD; b=QUJD\n'
+    b'ARC-Authentication-Results: i=2; mx.google.com; dkim=pass header.i=@linkedin.com; spf=pass;\n'
+    b'\tdmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=linkedin.com\n'
+    b'X-Google-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=1e100.net; s=20230601; h=x; bh=QUJD; b=QUJD\n'
+    b'X-Forwarded-Encrypted: i=2; AJvYcCVexample@eno.vn\n'
+    b'X-Gm-Message-State: AOJu0YwExample\n'
+    b'X-Forwarded-To: alex@eno.vn\n'
+    b'X-Forwarded-For: vietnameno@gmail.com alex@eno.vn\n'
+    b'Delivered-To: vietnameno@gmail.com\n'
+    b'Received: by 2002:a05:7010:1a2b:b0:3a1:1c2d:3e4f with SMTP id x11csp123456; Mon, 19 Oct 2026 18:15:02 -0700\n'
+    b'Return-Path: <s-1@bounce.linkedin.com>\n'
+    b'Received: from mail-sa1.linkedin.com (mail-sa1.linkedin.com. [108.174.3.150]) by mx.google.com with ESMTPS; '
+    b'Mon, 19 Oct 2026 18:15:01 -0700\n'
+    b'Authentication-Results: mx.google.com; dkim=pass header.i=@linkedin.com; dmarc=pass header.from=linkedin.com\n')
 
 
 #: The run tests' synthetic alerts carry this instead of a LinkedIn DKIM signature (Runs.setUp honours it): the real
@@ -403,12 +476,37 @@ class LinkedInLayouts(unittest.TestCase):
         self.assertEqual(cards(text)['4099999999'][:3],
                          ('Giáo viên tiếng Anh', 'Trung tâm Anh ngữ ABC', 'Thành phố Hồ Chí Minh, Việt Nam'))
 
+    def test_insight_lines_and_vietnamese_place_names(self):
+        # real alerts: "1 school alum" is an insight line like "25 school alumni" (Oct 2024), and a place can come as
+        # "Thành Phố Quảng Ngãi" (June 2025) — with an unknown insight line under it the card must not shift either
+        text = ('Graphic Design Intern\nRoots and Wings Legal\nSingapore\n1 school alum\nApply with resume & profile\n'
+                'View job: https://www.linkedin.com/comm/jobs/view/4045964524/\n')
+        self.assertEqual(cards(text)['4045964524'][:3], ('Graphic Design Intern', 'Roots and Wings Legal', 'Singapore'))
+        self.assertTrue(m._is_loc('Thành Phố Quảng Ngãi') and m._is_loc('Tỉnh Bình Dương') and m._is_loc('TP. HCM'))
+        text = ('Production Intern\nGE Vernova\nThành Phố Quảng Ngãi\nYour profile matches several required qualifications\n'
+                'View job: https://www.linkedin.com/comm/jobs/view/4144064904/\n')
+        self.assertEqual(cards(text)['4144064904'][:3], ('Production Intern', 'GE Vernova', 'Thành Phố Quảng Ngãi'))
+
     def test_alert_phrase(self):
         self.assertEqual(m.alert_phrase('“english teacher”: ILA Vietnam - English Teacher and more', ''), 'english teacher')
         self.assertEqual(m.alert_phrase('Your job alert for ESL teacher in Hanoi, Vietnam', ''), 'ESL teacher in Hanoi, Vietnam')
         self.assertEqual(m.alert_phrase('30+ new jobs for "IELTS"', ''), 'IELTS')
         self.assertIsNone(m.alert_phrase("Children's teacher at ABC and 9 more jobs", ''))
         self.assertEqual(m.alert_phrase('New jobs', 'Your job alert for kindergarten teacher\n...'), 'kindergarten teacher')
+        # LinkedIn 2026 runs "Manage your job alerts: <link>" onto the line, and the link carries the recipient's own
+        # tokens: the phrase stops before it, and nothing from a link is ever a phrase
+        line = ('Your job alert for student in MumbaiManage your job alerts: https://www.linkedin.com/comm/jobs/alerts?'
+                'lipi=urn%3Ali%3Apage%3Ax&midToken=AQHF&midSig=1x&otpToken=MTAw')
+        self.assertEqual(m.alert_phrase('IN - Specialist: Full-time and Part-time at Apple', line + '\n\nx'), 'student in Mumbai')
+        self.assertIsNone(m.alert_phrase('New jobs', 'Your job alert for https://www.linkedin.com/comm/jobs/alerts?midToken=AQ\n'))
+        self.assertIsNone(m.alert_phrase('“www.linkedin.com/comm/x?midToken=AQ”', ''))
+        self.assertEqual(m.alert_phrase('New jobs for "ESL/EFL teacher"', ''), 'ESL/EFL teacher')
+        # a refused quoted phrase does not hide the subject's own "job alert for …" (opus, gate 8a)
+        self.assertEqual(m.alert_phrase('"a=b" job alert for ESL teacher', ''), 'ESL teacher')
+        # a link with no scheme is a link too (opus, gate 8c); a slash between words is not
+        self.assertEqual(m.alert_phrase('New jobs', 'Your job alert for teacher lnkd.in/eAbC12x?trk=1\n'), 'teacher')
+        self.assertEqual(m.alert_phrase('New jobs', 'Your job alert for ESL/EFL teacher in Ha Noi\n'),
+                         'ESL/EFL teacher in Ha Noi')
 
 
 class Canonicalisation(unittest.TestCase):
@@ -507,17 +605,65 @@ class LinkedInAuth(unittest.TestCase):
 
     def test_signed_but_for_someone_else_is_refused(self):
         # opus, gate 7a: a genuine alert another subscriber received, replayed into this mailbox — To is signed (below),
-        # so it cannot be rewritten, and it is not alex@eno.vn
+        # so it cannot be rewritten, and it is not our subscriber. Ours: the LinkedIn account vietnameno@gmail.com, whose
+        # Gmail filter forwards here (owner, 2026-10-21), or alex@eno.vn itself.
+        self.assertEqual(m.LINKEDIN_ALERT_TO, ('vietnameno@gmail.com', 'alex@eno.vn'))
         real = m.dkim_verify
         try:
             m.dkim_verify = lambda *a, **k: ('pass', 'd=linkedin.com s=test')
-            for to, want in (('alex@eno.vn', 'pass'), ('Alex <alex@eno.vn>, x@example.com', 'pass'), ('someone@example.com', 'fail')):
+            for to, want in (('vietnameno@gmail.com', 'pass'), ('Eno Vietnam <VietnamEno@gmail.com>', 'pass'),
+                             ('alex@eno.vn', 'pass'), ('Alex <alex@eno.vn>, x@example.com', 'pass'),
+                             ('someone@example.com', 'fail'), ('vietnameno@gmail.com.evil.example', 'fail'),
+                             ('"vietnameno@gmail.com" <x@example.com>', 'fail'),
+                             # ⛔ Gmail delivers these to our inbox, but to LinkedIn they can be ANOTHER member's account
+                             # (opus, gate 8g): exact, case aside
+                             ('vietnameno+jobs@gmail.com', 'fail'), ('viet.nameno@gmail.com', 'fail'),
+                             ('vietnameno@googlemail.com', 'fail')):
                 raw = delivered(alert(PLAIN_DIGEST).replace(b'To: alex@eno.vn', b'To: ' + to.encode(), 1))
                 verdict, why = li_auth(raw)
                 self.assertEqual(verdict, want, to)
-            self.assertIn('not addressed to alex@eno.vn', why)
+            self.assertIn('not addressed to vietnameno@gmail.com or alex@eno.vn', why)
         finally:
             m.dkim_verify = real
+
+    def test_an_alert_auto_forwarded_by_gmail_still_verifies(self):
+        raw = delivered(GMAIL_FORWARD_TRACE + SIGNED_ALERT_RELAXED)
+        self.assertEqual(li_auth(raw, lookup=dkim_lookup)[0], 'pass')
+        o = m.read_message(raw, cfg(), dkim_lookup, NOW)
+        self.assertEqual((o.status, o.kind), ('posts', 'linkedin'), o.why)
+        self.assertTrue(o.posts)
+
+    def test_the_2026_signing_two_signatures_lower_case_and_over_signed(self):
+        mail = m.Mail(delivered(SIGNED_ALERT_2026))
+        self.assertEqual(m.dkim_verify(mail, 'linkedin.com', dkim_lookup, NOW, required=('from', 'to')),
+                         ('pass', 'd=maild.linkedin.com s=test2026d'))
+        # the d=linkedin.com signature under it is found when the top one cannot be checked
+        only = lambda name: dkim_lookup(name) if name.endswith('._domainkey.linkedin.com') else []  # noqa: E731
+        self.assertEqual(m.dkim_verify(mail, 'linkedin.com', only, NOW, required=('from', 'to')),
+                         ('pass', 'd=linkedin.com s=test2026b'))
+        self.assertEqual(m.dkim_verify(mail, 'linkedin.com', no_key, NOW, required=('from', 'to'))[0], 'fail')
+
+    def test_a_2026_alert_forwarded_by_gmail_gives_clean_posts(self):
+        o = m.read_message(delivered(GMAIL_FORWARD_TRACE + SIGNED_ALERT_2026), cfg(), dkim_lookup, NOW)
+        self.assertEqual((o.status, o.kind, o.notice), ('posts', 'linkedin', ''), o.why)
+        self.assertEqual([(p['externalKey'], p['title'], p['company'], p['locationText'], p['url']) for p in o.posts], [
+            ('4412345678', 'English Teacher', 'ILA Vietnam', 'Ho Chi Minh City, Vietnam',
+             'https://www.linkedin.com/jobs/view/4412345678/'),
+            ('4423456789', 'Giáo viên tiếng Anh', 'Trung tâm Anh ngữ ABC', 'Thành Phố Quảng Ngãi',
+             'https://www.linkedin.com/jobs/view/4423456789/')])
+        self.assertEqual({p['sourceRef'] for p in o.posts}, {'english teacher in Vietnam'})
+        # ⛔ the recipient's tokens (every link in the mail carries them) reach no field
+        sent = json.dumps(o.posts)
+        for token in ('midToken', 'midSig', 'otpToken', 'AQHtest', 'trackingId', 'lipi', '?'):
+            self.assertNotIn(token, sent)
+
+    def test_only_saved_search_alerts_by_default(self):
+        self.assertEqual(cfg().linkedin_senders, ('jobalerts-noreply@linkedin.com',))
+        # a "jobs you may be interested in" mail (jobs-listings@) is not LinkedIn here unless the setting adds its sender
+        o = m.read_message(delivered(SIGNED_LISTINGS_SIMPLE), cfg(), dkim_lookup, NOW)
+        self.assertEqual((o.status, o.why), ('skip', 'sender is on neither list'))
+        both = cfg(linkedin_senders='jobalerts-noreply@linkedin.com jobs-listings@linkedin.com')
+        self.assertEqual(m.read_message(delivered(SIGNED_LISTINGS_SIMPLE), both, dkim_lookup, NOW).kind, 'linkedin')
 
     def test_a_second_to_header_is_refused(self):
         raw = delivered(SIGNED_ALERT_RELAXED.replace(b'From: LinkedIn', b'To: alex@eno.vn\r\nFrom: LinkedIn', 1))
@@ -630,10 +776,14 @@ class TeamAuth(unittest.TestCase):
     def test_settings_are_checked(self):
         for env in ({'team': 'not-an-address'}, {'max_kb': 'lots'}, {'give_up_hours': 'inf'}, {'give_up_hours': 'nan'},
                     {'give_up_hours': '0'}, {'give_up_hours': '1000'},
-                    {'team': 'jobalerts-noreply@linkedin.com'}, {'dovecot_container': 'x; rm -rf /'}):
+                    {'team': 'jobalerts-noreply@linkedin.com'}, {'dovecot_container': 'x; rm -rf /'},
+                    {'linkedin_silent_days': '61'}, {'linkedin_silent_days': '-1'}, {'linkedin_silent_days': 'week'},
+                    {'linkedin_silent_days': '2.5'}, {'linkedin_silent_days': '²'}, {'linkedin_silent_days': '٣'}):
             with self.assertRaises(m.ConfigError, msg=env):
                 cfg(**env)
         self.assertEqual(cfg(linkedin_senders='jobs@linkedin.com evil@example.com').linkedin_senders, ('jobs@linkedin.com',))
+        self.assertEqual([cfg(**e).silent_days for e in ({}, {'linkedin_silent_days': '0'}, {'linkedin_silent_days': '14'})],
+                         [7, 0, 14])
 
 
 # ── Team forwards ───────────────────────────
@@ -885,7 +1035,8 @@ class Runs(unittest.TestCase):
         self.assertEqual([p['source'] for p in sent].count('intake'), 1)  # uid 8 (spoofed) was skipped
         self.assertTrue(all(len({p['source'] for p in batch}) == 1 for batch in box.posted))  # one source per request
         self.assertEqual(state(self.tmp), {'version': 1, 'uidvalidity': 1700000000, 'lastUid': 11, 'pending': {},
-                                           'updatedAt': '2026-10-20T03:00:00Z'})
+                                           'updatedAt': '2026-10-20T03:00:00Z',
+                                           'linkedinAt': '2026-10-20T01:15:00Z'})  # the newest alert with jobs: its Date
         self.assertIn('uid=8 team: skip', out)
         self.assertIn('uid=10 linkedin: skip — not authenticated as LinkedIn — own DKIM check: no DKIM signature', out)
         self.assertNotIn('Hiring a native English teacher', out)  # no content in the log
@@ -1045,9 +1196,177 @@ class Runs(unittest.TestCase):
             6: forward('Teacher wanted', subject='Re: JOB: x'),                                    # a reply
             7: signed_for_test(delivered(alert('No jobs today.'))),                                # no jobs
         }
+        nid = m.notice_id(m.Mail(inbox[7]))
+        self.assertEqual(nid, hashlib.sha256(b'<alert-1@linkedin.com>').hexdigest()[:12])  # the MESSAGE, not its UID
         box = FakeBox(inbox, uidnext=8)
-        code, _ = run(box, self.tmp, lookup=no_key)
-        self.assertEqual((code, state(self.tmp)['lastUid'], box.posted), (m.EXIT_OK, 7, []))
+        code, out = run(box, self.tmp, lookup=no_key)
+        # uid 7 — LinkedIn wrote from the alert address with no job in it — is a notice a person must read (LinkedIn
+        # switches off an alert nobody opens for 3 months, and writes first): read once, the checkpoint moves past it …
+        self.assertEqual((code, state(self.tmp)['lastUid'], box.posted), (m.EXIT_NOTICE, 7, []))
+        self.assertEqual(state(self.tmp)['notices'], {nid: {'uid': 7, 'at': '2026-10-20T03:00:00Z'}})
+        self.assertIn(f'uid=7 linkedin: posts — LINKEDIN NOTICE {nid}, no job in it (template -)', out)
+        self.assertIn('open it in alex@eno.vn', out)
+        self.assertNotIn('No jobs today', out)  # never its content
+        # … and it WAITS: every run fails until someone has read it and acknowledged it (codex + opus, gates 8a–8d)
+        for _ in range(2):
+            code, out = run(FakeBox(inbox, uidnext=8), self.tmp, lookup=no_key)
+            self.assertEqual(code, m.EXIT_NOTICE, out)
+            self.assertIn(f'LINKEDIN NOTICE waiting since 2026-10-20T03:00:00Z: 1 not acknowledged — {nid} (uid=7)', out)
+            self.assertIn(f'python3 -I /opt/eno/bin/eno-job-mailbox.py --ack-notices {nid}', out)
+
+        def ack(*ids):
+            with contextlib.redirect_stdout(io.StringIO()) as said:
+                code = m.ack_notices(cfg(self.tmp), list(ids), now=NOW + dt.timedelta(hours=1))
+            return code, said.getvalue()
+
+        fd = m.take_lock(os.path.join(self.tmp, 'state.json'))  # a run in progress: try again later
+        try:
+            self.assertEqual(ack(nid)[0], m.EXIT_ERROR)
+        finally:
+            os.close(fd)
+        # only ids that are waiting, all or nothing (opus, gate 8e: never one that came after the line was read)
+        code, said = ack(nid, '0123456789ab')
+        self.assertEqual(code, m.EXIT_ERROR)
+        self.assertIn(f'not waiting: 0123456789ab — nothing acknowledged. Waiting now: {nid}', said)
+        self.assertIn(nid, state(self.tmp)['notices'])
+        code, said = ack(nid)
+        self.assertEqual(code, m.EXIT_OK)
+        self.assertIn(f'acknowledged 1 LinkedIn notice(s): {nid}', said)
+        st = state(self.tmp)
+        self.assertEqual((st['lastUid'], st.get('notices'), st['acked']), (7, None, {nid: '2026-10-20T04:00:00Z'}))
+        self.assertEqual(run(FakeBox(inbox, uidnext=8), self.tmp, lookup=no_key)[0], m.EXIT_NOTHING)
+        # ⛔ an acknowledged notice is never raised again — a --since-days re-read (codex + opus, gate 8e) …
+        code, out = run(FakeBox(inbox, uidnext=8), self.tmp, lookup=no_key, since_days=3)
+        self.assertEqual(code, m.EXIT_OK, out)
+        self.assertIn(f'uid=7: LINKEDIN NOTICE {nid} was acknowledged 2026-10-20T04:00:00Z — not raised again', out)
+        self.assertNotIn('notices', state(self.tmp))
+        # … or a rebuilt mailbox, where the same message has another UID
+        write_state(self.tmp, uidvalidity=1800000000, lastUid=0, linkedinAt=m.iso(NOW),
+                    acked=state(self.tmp)['acked'])
+        code, out = run(FakeBox({3: inbox[7]}, uidvalidity=1900000000, uidnext=4), self.tmp, lookup=no_key)
+        self.assertEqual(code, m.EXIT_OK, out)
+        self.assertIn('not raised again', out)
+        # a dry run says a waiting notice and never exits 5
+        dry = tempfile.mkdtemp(prefix='eno-job-mailbox-test-')
+        self.addCleanup(os.rmdir, dry)
+        code, out = run(FakeBox(inbox, uidnext=8), dry, lookup=no_key, dry_run=True)
+        self.assertEqual(code, m.EXIT_OK)
+        self.assertIn('LINKEDIN NOTICE waiting', out)
+
+    def test_a_waiting_notice_is_the_message_not_its_uid(self):
+        notice = signed_for_test(delivered(alert('No jobs today.')))
+        nid = m.notice_id(m.Mail(notice))
+        # with no Message-ID, the id is what every delivery leaves as it was — not the per-delivery trace on top
+        bare = alert('No jobs today.').replace(b'Message-ID: <alert-1@linkedin.com>\n', b'')
+        self.assertNotIn(b'Message-ID', bare)
+        self.assertEqual(m.notice_id(m.Mail(delivered(bare))), m.notice_id(m.Mail(GMAIL_FORWARD_TRACE + delivered(bare))))
+        self.assertNotEqual(m.notice_id(m.Mail(delivered(bare))),
+                            m.notice_id(m.Mail(delivered(bare.replace(b'No jobs today.', b'No jobs today!')))))
+        run(FakeBox({7: notice}, uidnext=8), self.tmp, lookup=no_key)
+        # the mailbox is rebuilt and the same message comes back as uid 2: still one notice, first seen when it was
+        write_state(self.tmp, **{**state(self.tmp), 'uidvalidity': 1800000000})
+        code, out = run(FakeBox({2: notice}, uidvalidity=1900000000, uidnext=3), self.tmp, lookup=no_key,
+                        now=NOW + dt.timedelta(hours=2))
+        self.assertEqual((code, state(self.tmp)['notices']), (m.EXIT_NOTICE, {nid: {'uid': 2, 'at': m.iso(NOW)}}))
+
+    def test_waiting_notices_are_checked_and_never_dropped(self):
+        many = {f'{u:012x}': {'uid': u, 'at': '2026-10-19T00:00:00Z'} for u in range(100, 160)}
+        junk = {'x': {'uid': 1, 'at': '2026-10-19T00:00:00Z'}, 'abcdefabcdef': {'uid': 'one', 'at': 'not a time'},
+                '0123456789ab': '2026-10-19T00:00:00Z'}
+        write_state(self.tmp, uidvalidity=1700000000, lastUid=2, notices={**many, **junk},
+                    acked={'ffffffffffff': '2026-10-19T00:00:00Z', 'nope': 'x'})
+        loaded = m.load_state(os.path.join(self.tmp, 'state.json'))
+        self.assertEqual((sorted(loaded['notices']), loaded['acked']),
+                         (sorted(many), {'ffffffffffff': '2026-10-19T00:00:00Z'}))  # junk dropped on load
+        # sixty waiting and one more: none is dropped — a dropped one is one nobody read (codex, gate 8f) — and the new one,
+        # with a LOWER uid than the old ones (they came before a rebuild), is there too
+        notice = signed_for_test(delivered(alert('No jobs today.')))
+        nid = m.notice_id(m.Mail(notice))
+        code, out = run(FakeBox({3: notice}, uidnext=4), self.tmp, lookup=no_key)
+        kept = state(self.tmp)['notices']
+        self.assertEqual((code, sorted(kept)), (m.EXIT_NOTICE, sorted([*many, nid])))
+        self.assertIn('61 not acknowledged', out)
+        self.assertIn(f'--ack-notices {",".join(sorted(many))},{nid}', out)  # oldest first, all of them
+        # an acknowledged id is kept however many there are: it is never raised again
+        ids = list(kept)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(m.ack_notices(cfg(self.tmp), ids), m.EXIT_OK)
+        self.assertEqual(sorted(state(self.tmp)['acked']), sorted([*ids, 'ffffffffffff']))
+        # a notice a --since-days re-read finds waits too, though that re-read leaves the checkpoint alone
+        write_state(self.tmp, uidvalidity=1700000000, lastUid=3, linkedinAt=m.iso(NOW))
+        code, _ = run(FakeBox({3: notice}, uidnext=4), self.tmp, lookup=no_key, since_days=3)
+        self.assertEqual((code, state(self.tmp)['lastUid'], state(self.tmp)['notices']),
+                         (m.EXIT_NOTICE, 3, {nid: {'uid': 3, 'at': m.iso(NOW)}}))
+
+    def test_a_silent_linkedin_fails_every_run_until_an_alert_with_jobs_comes(self):
+        # codex + opus, gate 8a: a one-run exit 5 is gone at the next timer run, and a switched-off alert, a deleted
+        # Gmail filter or a stopped forward all look like "nothing new" — so silence itself is what fails, every run.
+        quiet = NOW - dt.timedelta(days=8)
+        write_state(self.tmp, uidvalidity=1700000000, lastUid=11, linkedinAt=m.iso(quiet))
+        for _ in range(2):  # the "nothing new" path, run after run
+            code, out = run(FakeBox(self.inbox(), uidnext=12), self.tmp)
+            self.assertEqual(code, m.EXIT_NOTICE, out)
+            self.assertIn('LINKEDIN SILENT: no LinkedIn alert with jobs since 2026-10-12T03:00:00Z (8 days)', out)
+            self.assertIn('vietnameno@gmail.com', out)
+        # a dry run says it and exits as usual; the setting 0 turns it off; 7 days is not yet silence
+        code, out = run(FakeBox(self.inbox(), uidnext=12), self.tmp, dry_run=True)
+        self.assertEqual(code, m.EXIT_NOTHING)
+        self.assertIn('LINKEDIN SILENT', out)
+        self.assertEqual(run(FakeBox(self.inbox(), uidnext=12), self.tmp, env={'linkedin_silent_days': '0'})[0],
+                         m.EXIT_NOTHING)
+        write_state(self.tmp, uidvalidity=1700000000, lastUid=11, linkedinAt=m.iso(NOW - dt.timedelta(days=7)))
+        self.assertEqual(run(FakeBox(self.inbox(), uidnext=12), self.tmp)[0], m.EXIT_NOTHING)
+        # a checkpoint with no clock in it is not silence yet — a quiet run starts the clock there (codex, gate 8c) …
+        write_state(self.tmp, uidvalidity=1700000000, lastUid=11)
+        self.assertEqual(run(FakeBox(self.inbox(), uidnext=12), self.tmp)[0], m.EXIT_NOTHING)
+        self.assertEqual((state(self.tmp)['lastUid'], state(self.tmp)['linkedinAt']), (11, m.iso(NOW)))
+        # … so a week of quiet runs after it is silence
+        code, out = run(FakeBox(self.inbox(), uidnext=12), self.tmp, now=NOW + dt.timedelta(days=8))
+        self.assertEqual(code, m.EXIT_NOTICE, out)
+        # a --since-days re-read leaves the checkpoint where it is, but an alert it recovers moves the clock (codex, 8b)
+        write_state(self.tmp, uidvalidity=1700000000, lastUid=11, linkedinAt=m.iso(quiet))
+        code, out = run(FakeBox(self.inbox(), uidnext=12), self.tmp, since_days=3)
+        st = state(self.tmp)
+        self.assertEqual((code, st['lastUid'], st['linkedinAt']), (m.EXIT_OK, 11, '2026-10-20T01:15:00Z'), out)
+        self.assertEqual(run(FakeBox(self.inbox(), uidnext=12), self.tmp)[0], m.EXIT_NOTHING)  # the next timer run
+        # silent, then an alert with jobs arrives: the run reads it, records its Date, and the silence is over
+        write_state(self.tmp, uidvalidity=1700000000, lastUid=8, linkedinAt=m.iso(quiet))
+        code, out = run(FakeBox(self.inbox(), uidnext=12), self.tmp)
+        self.assertEqual(code, m.EXIT_OK, out)
+        self.assertNotIn('LINKEDIN SILENT', out)
+        self.assertEqual(state(self.tmp)['linkedinAt'], '2026-10-20T01:15:00Z')
+        # a clock ahead of now (the box's clock stepped back, a hand edit) cannot mute the check (codex, gate 8e): a quiet
+        # run puts it back to now, and a run that reads an alert dated a day ahead keeps it at now
+        write_state(self.tmp, uidvalidity=1700000000, lastUid=11, linkedinAt=m.iso(NOW + dt.timedelta(days=30)))
+        self.assertEqual(run(FakeBox(self.inbox(), uidnext=12), self.tmp)[0], m.EXIT_NOTHING)
+        self.assertEqual(state(self.tmp)['linkedinAt'], m.iso(NOW))
+        self.assertEqual(run(FakeBox(self.inbox(), uidnext=12), self.tmp, now=NOW + dt.timedelta(days=8))[0],
+                         m.EXIT_NOTICE)
+        ahead = {12: signed_for_test(delivered(alert('ESL Tutor\nApollo English\nHanoi, Vietnam\n'
+                                                     'View job: https://www.linkedin.com/comm/jobs/view/4090000002/',
+                                                     date='Tue, 20 Oct 2026 20:00:00 +0000')))}
+        write_state(self.tmp, uidvalidity=1700000000, lastUid=11, linkedinAt=m.iso(quiet))
+        self.assertEqual(run(FakeBox(ahead, uidnext=13), self.tmp)[0], m.EXIT_OK)
+        self.assertEqual(state(self.tmp)['linkedinAt'], m.iso(NOW))
+        # a mailbox rebuilt (UIDVALIDITY changed) keeps the clock: it is about LinkedIn, not the mailbox
+        write_state(self.tmp, uidvalidity=1600000000, lastUid=99, linkedinAt=m.iso(quiet))
+        inbox = {u: raw for u, raw in self.inbox().items() if u not in (5, 9)}  # no LinkedIn alert left in the window
+        code, out = run(FakeBox(inbox, uidnext=12), self.tmp)
+        self.assertEqual((code, state(self.tmp)['linkedinAt']), (m.EXIT_NOTICE, m.iso(quiet)), out)
+
+    def test_a_feed_broken_from_the_first_run_fails_too(self):
+        # codex + opus, gate 8b: no alert with jobs EVER — the filter, the forward or the account's address wrong from
+        # the start — must not read as "nothing new" for ever: the clock runs from the reader's first run
+        inbox = {6: forward(POST_EN), 7: signed_for_test(delivered(alert('No jobs today.')))}  # a team post, a notice
+        code, _ = run(FakeBox(inbox, uidnext=8), self.tmp)
+        self.assertEqual((code, state(self.tmp)['linkedinAt']), (m.EXIT_NOTICE, m.iso(NOW)))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(m.ack_notices(cfg(self.tmp), list(state(self.tmp)['notices'])), m.EXIT_OK)  # read; clock runs
+        code, out = run(FakeBox(inbox, uidnext=8), self.tmp, now=NOW + dt.timedelta(days=6))
+        self.assertEqual(code, m.EXIT_NOTHING, out)
+        code, out = run(FakeBox(inbox, uidnext=8), self.tmp, now=NOW + dt.timedelta(days=8))
+        self.assertEqual(code, m.EXIT_NOTICE, out)
+        self.assertIn('LINKEDIN SILENT: no LinkedIn alert with jobs since 2026-10-20T03:00:00Z (8 days)', out)
 
     def test_a_spent_time_budget_saves_what_was_read_and_the_next_run_carries_on(self):
         # opus, gate 7b3: a run that would outlast the unit's timeout stops READING; the checkpoint covers what it read
@@ -1154,6 +1473,22 @@ class Runs(unittest.TestCase):
         with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as e:
             m.main(['--nope'])
         self.assertEqual(e.exception.code, m.EXIT_ERROR)
+        for bad in (['--ack-notices', '0123456789ab', '--dry-run'], ['--ack-notices', '0123456789ab', '--since-days', '3'],
+                    ['--ack-notices'], ['--ack-notices', ','], ['--ack-notices', '7'], ['--ack-notices', 'uid=7']):
+            with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as e:
+                m.main(bad)
+            self.assertEqual(e.exception.code, m.EXIT_ERROR, bad)
+
+    def test_main_ack_notices_uses_the_settings_state_file(self):
+        waiting = {'0123456789ab': {'uid': 7, 'at': '2026-10-20T03:00:00Z'},
+                   'ba9876543210': {'uid': 9, 'at': '2026-10-20T03:30:00Z'}}
+        write_state(self.tmp, uidvalidity=1700000000, lastUid=9, notices=waiting)
+        env = {'ENO_JOB_MAILBOX_STATE': os.path.join(self.tmp, 'state.json')}
+        with unittest.mock.patch.dict(os.environ, env), contextlib.redirect_stdout(io.StringIO()) as said:
+            self.assertEqual(m.main(['--ack-notices', ' 0123456789AB ']), m.EXIT_OK)
+        self.assertIn('acknowledged 1 LinkedIn notice(s): 0123456789ab — 1 still waiting', said.getvalue())
+        self.assertEqual(list(state(self.tmp)['notices']), ['ba9876543210'])
+        self.assertEqual(list(state(self.tmp)['acked']), ['0123456789ab'])
 
 
 if __name__ == '__main__':

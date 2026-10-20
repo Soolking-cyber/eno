@@ -23,8 +23,10 @@ makes a message a candidate, never a post.
 
 ⛔ AUTHENTICATED OR SKIPPED (plan v2 and both plan reviews: "anyone can email JOB: …"):
   · LinkedIn — THIS SCRIPT'S OWN DKIM CHECK, and nothing else: a valid linkedin.com signature (dkim_verify: RSA-SHA256
-    in plain Python, the key from DNS) that covers From AND To, no l= — and To is alex@eno.vn, so a genuine alert
-    someone else subscribed to cannot be replayed into this mailbox (opus, gate 7a).
+    in plain Python, the key from DNS) that covers From AND To, no l= — and To is OUR LinkedIn subscriber
+    (LINKEDIN_ALERT_TO), so a genuine alert someone else subscribed to cannot be replayed into this mailbox (opus, 7a).
+    The LinkedIn account is vietnameno@gmail.com (owner, 2026-10-21): a Gmail filter AUTO-forwards its alerts here,
+    and automatic forwarding resends the message itself — From, To, the body and LinkedIn's signature unchanged.
     ⛔ NO Authentication-Results HEADER IS EVER TRUSTED (codex, gate 7a). Outside mail reaches mailcow through
     Cloudflare → the eno-inbound-bridge Worker → mx.eno.vn:465 as the SASL user bridge@eno.vn
     (eno-cf-inbound-bridge-traps) — an AUTHENTICATED submission, for which rspamd checks nothing (dkim `check_authed`
@@ -60,7 +62,10 @@ is run by hand in a terminal, never by the timer.
 
 Exit codes: 0 new mail read (and sent) · 2 nothing new (the unit counts it as success: SuccessExitStatus=2) · 3 a held
 message was given up this run (the unit fails, once — README) · 4 Dovecot or the app unreachable or refusing (the unit
-fails; the checkpoint stayed where it was) · 1 a bug or a bad setting.
+fails; the checkpoint stayed where it was) · 5 LinkedIn needs a person, every run until it is done: a LINKEDIN NOTICE not
+yet acknowledged (LinkedIn wrote from the alert address with no job in it — it switches off an alert nobody opens for 3
+months, and writes first; read it, then --ack-notices <its id>), or LINKEDIN SILENT (no alert with jobs for
+LINKEDIN_SILENT_DAYS) · 1 a bug or a bad setting.
 """
 from __future__ import annotations
 
@@ -92,6 +97,10 @@ import urllib.parse
 
 #: ⛔ A constant on purpose (module header): the only mailbox this script may ever read.
 MAILBOX_USER = 'alex@eno.vn'
+#: ⛔ Whose LinkedIn alerts are read — the signed To must name one of these (the replay rule, module header). The
+#: account is vietnameno@gmail.com (owner, 2026-10-21: "Linkedin already exists so set with that gmail"); a Gmail filter
+#: forwards its alerts to MAILBOX_USER. MAILBOX_USER itself stays for an alert ever sent here directly.
+LINKEDIN_ALERT_TO = ('vietnameno@gmail.com', MAILBOX_USER)
 MAILBOX = 'INBOX'
 DOVECOT_CONTAINER = 'mailcowdockerized-dovecot-mailcow-1'
 #: CRON_SECRET is read from here (the eno.vn edition — the ingest route is marketplace-only).
@@ -106,8 +115,11 @@ SETTINGS_PATH = '/etc/default/eno-job-mailbox'
 #: (with danh@ and lap@) — the people most likely to forward a Zalo job post.
 DEFAULT_TEAM = ('lap@eno.vn', 'danh@eno.vn', 'quynh@eno.vn', 'anh@eno.vn', 'thao@eno.vn', 'bao@eno.vn', 'support@eno.vn',
                 'alex@eno.vn', 'will@eno.vn', 'freya@eno.vn')
-#: LinkedIn sends alerts from several addresses (saved-search alerts, "jobs you may be interested in").
-DEFAULT_LINKEDIN_SENDERS = ('jobalerts-noreply@linkedin.com', 'jobs-listings@linkedin.com', 'jobalerts@linkedin.com')
+#: The SAVED-SEARCH alerts' sender, and only it (measured 2026-10-21 on 16 real alerts, Oct 2024 – 11 Oct 2026, all
+#: X-LinkedIn-Class SAVEDSEARCH): jobs-listings@ and jobs-noreply@ send recommendations that are not tied to an alert's
+#: search or place (a 2026 one offered a Lebanon teaching job) in a layout read here as the wrong fields, and no real mail
+#: from jobalerts@ was found. ENO_JOB_MAILBOX_LINKEDIN_SENDERS can add them back.
+DEFAULT_LINKEDIN_SENDERS = ('jobalerts-noreply@linkedin.com',)
 LINKEDIN_DOMAIN = 'linkedin.com'
 #: ⛔ The Cloudflare inbound bridge's SASL login: every outside message arrives authenticated as this (module header).
 BRIDGE_SENDER = 'bridge@eno.vn'
@@ -135,11 +147,18 @@ MAX_LINKEDIN_SIGNATURES = 3
 RUN_BUDGET_S = 400
 MAX_JOBS_PER_ALERT = 50
 GIVE_UP_HOURS = 24.0
+#: ⛔ THE FEED MUST NOT DIE QUIETLY (codex + opus, gate 8a). Nobody opens these alerts, so LinkedIn switches them off
+#: after 3 months; a deleted Gmail filter, a changed primary address or a broken forward look the same from here —
+#: nothing arrives, and every run would say "nothing new". So this many days without an alert with jobs — counted from
+#: the newest one read, or from the reader's first run until one comes — fail EVERY run (EXIT_NOTICE, "LINKEDIN
+#: SILENT") until alerts come again. Six daily alerts across Vietnam go a week without one new job only when something
+#: is broken. 0 (the setting) turns it off.
+LINKEDIN_SILENT_DAYS = 7
 
 LINKEDIN_SOURCE_NAME = 'LinkedIn'
 TEAM_SOURCE_NAME = 'Forwarded by the eno team'
 
-EXIT_OK, EXIT_ERROR, EXIT_NOTHING, EXIT_GAVE_UP, EXIT_UNREACHABLE = 0, 1, 2, 3, 4
+EXIT_OK, EXIT_ERROR, EXIT_NOTHING, EXIT_GAVE_UP, EXIT_UNREACHABLE, EXIT_NOTICE = 0, 1, 2, 3, 4, 5
 
 _ADDR = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
                    r'[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$')
@@ -193,6 +212,12 @@ class Config:
         # ⚠️ At least an hour: 0 would give up a LinkedIn alert on its first DNS hiccup (opus, gate 7b); at most 30 days.
         if not 16 * 1024 <= self.max_bytes <= 10 * 1024 * 1024 or not dt.timedelta(hours=1) <= self.give_up <= dt.timedelta(days=30):
             raise ConfigError('ENO_JOB_MAILBOX_MAX_KB (16-10240) / ENO_JOB_MAILBOX_GIVE_UP_HOURS (1-720) out of range')
+        raw_silent = (env.get('ENO_JOB_MAILBOX_LINKEDIN_SILENT_DAYS') or '').strip()
+        if raw_silent and not re.fullmatch(r'[0-9]{1,3}', raw_silent):  # not isdigit(): "²" is a digit to it (opus, 8e)
+            raise ConfigError('ENO_JOB_MAILBOX_LINKEDIN_SILENT_DAYS must be a whole number of days')
+        self.silent_days = int(raw_silent) if raw_silent else LINKEDIN_SILENT_DAYS
+        if self.silent_days > 60:
+            raise ConfigError('ENO_JOB_MAILBOX_LINKEDIN_SILENT_DAYS out of range (0 = off, up to 60)')
 
 
 def with_settings_file(env: dict[str, str], path: str = SETTINGS_PATH) -> dict[str, str]:
@@ -1034,12 +1059,17 @@ def to_addresses(mail: Mail) -> set[str]:
 
 def linkedin_auth(mail: Mail, cfg: Config, lookup, now: dt.datetime) -> tuple[str, str]:
     """('pass' | 'fail' | 'temp', why) — the module header's LinkedIn rule: our own DKIM check of a linkedin.com
-    signature covering From and To, and To is this mailbox. No Authentication-Results header is consulted."""
+    signature covering From and To, and To is our subscriber (LINKEDIN_ALERT_TO). No Authentication-Results header is
+    consulted.
+    ⛔ To is compared EXACTLY, case aside — never as "the inbox it reaches" (opus, gate 8g): Gmail delivers
+    vietnameno+x@ and viet.nameno@ to our inbox, but to LinkedIn they can be another member's account, and that
+    member's alerts must not count as ours. LinkedIn writes the address as the account stores it; if a dry run shows
+    another spelling of ours, LINKEDIN_ALERT_TO is changed — by a person, after looking."""
     verdict, own = dkim_verify(mail, LINKEDIN_DOMAIN, lookup, now, required=('from', 'to'))
     if verdict != 'pass':
         return verdict, f'own DKIM check: {own}'
-    if MAILBOX_USER not in to_addresses(mail):
-        return 'fail', f'signed, but not addressed to {MAILBOX_USER} — an alert someone else subscribed to'
+    if not to_addresses(mail) & {a.lower() for a in LINKEDIN_ALERT_TO}:
+        return 'fail', f'signed, but not addressed to {" or ".join(LINKEDIN_ALERT_TO)} — an alert someone else subscribed to'
     return 'pass', f'own DKIM check {own}'
 
 
@@ -1060,7 +1090,8 @@ _NOISE = re.compile(r'^(?:' + '|'.join([
     r'(?:be an )?early applicant', r'new', r'reposted.*', r'top applicant',
     r"you(?:'re| are) (?:a|one of the) top applicants?.*", r'how you match.*',
     r'(?:over )?\d[\d,.]*\+? applicants?',
-    r'\d+ (?:company |school )?alumni(?: works? here)?', r'\d+ connections?(?: works? here)?', r'alumni',
+    r'\d+ (?:company |school )?alum(?:ni|nae|nus|na)?(?: works? here)?', r'\d+ connections?(?: works? here)?',
+    r'alum(?:ni|nae|nus|na)?',
     r'in your network', r'responses managed off linkedin',
     r'(?:hiring|recruiting) (?:multiple|\d+) (?:candidates|people)',
     r'(?:posted |reposted )?\d+ (?:second|minute|hour|day|week|month)s? ago', r'just now', r'today', r'yesterday',
@@ -1095,9 +1126,11 @@ _VN_PLACES = ('ho chi minh', 'hcm', 'hcmc', 'tp hcm', 'tp. hcm', 'tphcm', 'thanh
               'buon ma thuot', 'dak lak', 'quang nam', 'hoi an', 'quang ngai', 'tay ninh', 'tien giang',
               'ben tre', 'an giang', 'dong thap', 'vinh long', 'soc trang', 'ca mau', 'bac giang', 'phu tho',
               r'district \d+', r'quan \d+')
+#: A place may come as "Thành Phố Quảng Ngãi" even in an English alert (a real one, June 2025): "city/province of" first.
 _LOCATION = re.compile(r'(?:^|,\s*)(?:viet ?nam|vn)\s*(?:\((?:remote|hybrid|on-?site)\))?$|'
                        r'\b(?:remote|hybrid|on-?site)\b|\bmetropolitan area\b|'
-                       r'^(?:' + '|'.join(p.replace('.', r'\.') if '\\' not in p else p for p in _VN_PLACES) + r')\b')
+                       r'^(?:(?:thanh pho|tinh|tp\.?)\s+)?'
+                       r'(?:' + '|'.join(p.replace('.', r'\.') if '\\' not in p else p for p in _VN_PLACES) + r')\b')
 
 
 def _job_ids(line: str) -> list[str]:
@@ -1270,22 +1303,31 @@ def parse_linkedin(text: str, html_mode: bool) -> list[tuple[str, tuple]]:
 
 
 _QUOTED = re.compile(r'(?:^|[\s(:])[“"«‘\']([^“”"«»‘’\']{2,120})[”"»’\'](?=$|[\s:,.)!?])')
+#: ⛔ Where a search phrase ends. LinkedIn's 2026 text part runs its "Manage your job alerts: <link>" onto the opening
+#: line — "Your job alert for student in MumbaiManage your job alerts: https://…&midToken=…&midSig=…" (a real alert,
+#: 11 Oct 2026) — and those links carry the recipient's own tokens (midToken, midSig, otpToken: treated as sign-in
+#: material), so nothing from a link may ever reach sourceRef.
+_PHRASE_END = re.compile(r'manage (?:your )?(?:job )?alerts?|https?:|www\.|\b(?:[a-z0-9-]+\.)+[a-z]{2,}/', re.I)
+
+
+def _phrase(s: str) -> str | None:
+    s = re.sub(r'[\s.!:]+$', '', _PHRASE_END.split(s, 1)[0].strip())
+    if not s or re.search(r'linkedin\.com|[?=]', s, re.I):
+        return None
+    return clip(s, SHORT_MAX)
 
 
 def alert_phrase(subject: str, text: str) -> str | None:
     """The alert's search ("english teacher") when the subject names it — quoted, or "job alert for …" — else the
-    "Your job alert for …" line of the body."""
-    m = _QUOTED.search(subject)
-    if m:
-        return clip(m.group(1).strip(), SHORT_MAX)
-    m = (re.search(r'\bjob alert for\s+(.+?)[\s.!:]*$', subject, re.I)
-         or re.search(r'\bnew jobs? for\s+(.+?)[\s.!:]*$', subject, re.I))
-    if m:
-        return clip(m.group(1).strip(), SHORT_MAX)
+    "Your job alert for …" line of the body; cut where a link or LinkedIn's "Manage your job alerts" starts."""
+    for m in (_QUOTED.search(subject), re.search(r'\bjob alert for\s+(.+?)[\s.!:]*$', subject, re.I),
+              re.search(r'\bnew jobs? for\s+(.+?)[\s.!:]*$', subject, re.I)):
+        if m and (p := _phrase(m.group(1))):
+            return p
     for line in text.split('\n')[:15]:
         m = re.match(r'^your job alert for\s+(.+?)[\s.!:]*$', line.strip(), re.I)
         if m:
-            return clip(m.group(1).strip(), SHORT_MAX)
+            return _phrase(m.group(1))
     return None
 
 
@@ -1308,6 +1350,9 @@ def guess_lang(text: str) -> str:
 _VI_LETTERS = frozenset('àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ')
 
 
+NO_JOBS = 'no LinkedIn job links in the alert'
+
+
 def linkedin_posts(mail: Mail, now: dt.datetime) -> tuple[list[dict], str]:
     plain, htm = body_texts(mail)
     subject = decode_words(mail.first('subject') or '')
@@ -1319,7 +1364,7 @@ def linkedin_posts(mail: Mail, now: dt.datetime) -> tuple[list[dict], str]:
         text = html_to_text(htm, links='marker')
         jobs = [j for j in parse_linkedin(text, html_mode=True) if j[1] and j[1][0]]
     if not jobs:
-        return [], 'no LinkedIn job links in the alert'
+        return [], NO_JOBS
     when, too_old = posted_at(mail, now)
     if too_old:
         return [], f'the alert is older than {POSTED_MAX_AGE_DAYS} days'
@@ -1429,10 +1474,12 @@ def team_posts(mail: Mail, now: dt.datetime) -> tuple[list[dict], str]:
 # ── Reading one message ─────────────────────
 
 class Outcome:
-    """What one message gave: posts to send ('posts'), nothing (skip — done for good), or try again later (retry)."""
+    """What one message gave: posts to send ('posts'), nothing (skip — done for good), or try again later (retry).
+    `notice`: LinkedIn wrote, but not jobs — the notice's id (notice_id); a person must read it (EXIT_NOTICE)."""
 
-    def __init__(self, status: str, kind: str = '-', posts: list[dict] | None = None, why: str = ''):
-        self.status, self.kind, self.posts, self.why = status, kind, posts or [], why
+    def __init__(self, status: str, kind: str = '-', posts: list[dict] | None = None, why: str = '',
+                 notice: str = ''):
+        self.status, self.kind, self.posts, self.why, self.notice = status, kind, posts or [], why, notice
 
 
 #: ⛔ Fields a message carries at most once (RFC 5322 §3.6). DKIM signs the LAST instance of a name and the MIME parser
@@ -1460,6 +1507,15 @@ def read_message(raw: bytes, cfg: Config, lookup, now: dt.datetime) -> Outcome:
             if verdict != 'pass':
                 return Outcome('skip', 'linkedin', why=f'not authenticated as LinkedIn — {why}')
             posts, what = linkedin_posts(mail, now)
+            if what == NO_JOBS:
+                # ⚠️ LinkedIn writes from the alert address without jobs too — an alert made or deleted, and two weeks
+                # before it switches off an alert nobody has opened for 3 months (this reader never opens one) — and a
+                # changed layout reads as no jobs as well. Either way a person must look (research 2026-10-21).
+                tpl, nid = _tok(mail.first('x-linkedin-template') or '-'), notice_id(mail)
+                return Outcome('posts', 'linkedin', [], f'LINKEDIN NOTICE {nid}, no job in it (template {tpl}): an alert '
+                               f'made or deleted, LinkedIn about to switch off an alert nobody opened for 3 months, or '
+                               f'a layout this reader no longer reads — open it in {MAILBOX_USER} (auth: {why})',
+                               notice=nid)
             return Outcome('posts', 'linkedin', posts, f'{what} (auth: {why})')
         if sender in cfg.team:
             ok, why = team_auth(mail, sender, cfg)
@@ -1548,7 +1604,89 @@ def load_state(path: str) -> dict | None:
         return None
     st['pending'] = {k: v for k, v in st.get('pending', {}).items()
                      if isinstance(k, str) and k.isdigit() and isinstance(v, str) and parse_iso(v)}
+    if not (isinstance(st.get('linkedinAt'), str) and parse_iso(st['linkedinAt'])):
+        st.pop('linkedinAt', None)
+    notices = st.pop('notices', None)
+    if isinstance(notices, dict):
+        kept = {k: v for k, v in notices.items() if isinstance(k, str) and _NOTICE_ID.match(k) and isinstance(v, dict)
+                and isinstance(v.get('uid'), int) and isinstance(v.get('at'), str) and parse_iso(v['at'])}
+        if kept:
+            st['notices'] = kept
+    acked = st.pop('acked', None)
+    if isinstance(acked, dict):
+        kept = {k: v for k, v in acked.items() if isinstance(k, str) and _NOTICE_ID.match(k) and isinstance(v, str)
+                and parse_iso(v)}
+        if kept:
+            st['acked'] = kept
     return st
+
+
+#: ⛔ A notice is the MESSAGE, not its UID (codex + opus, gate 8e): a UID means something only until the mailbox is
+#: rebuilt, and a re-read (--since-days, a rebuild's window) must find an acknowledged notice acknowledged. So its id is
+#: its Message-ID's hash (notice_id), the waiting ones are kept as id → {uid (now), at (first seen)}, and acknowledged
+#: ids stay in `acked`. ⛔ NEITHER LIST IS CAPPED (codex, gate 8f): dropping a waiting notice forgets one nobody has read,
+#: and dropping an acknowledged id raises it again. Both grow only as fast as LinkedIn writes notices and a person reads
+#: them — a few a year.
+_NOTICE_ID = re.compile(r'^[0-9a-f]{12}$')
+
+
+def notice_id(mail: Mail) -> str:
+    """The Message-ID's hash — or, with none, the hash of what each delivery leaves as it was (Date, Subject, the body),
+    never of the raw message: every delivery puts its own Received and Delivered-To on top (opus, gate 8g)."""
+    mid = (mail.first('message-id') or '').strip()
+    basis = (mid.encode('utf-8') if mid else
+             b'\n'.join(((mail.first('date') or '').encode('utf-8'), (mail.first('subject') or '').encode('utf-8'),
+                         mail.body)))
+    return hashlib.sha256(basis).hexdigest()[:12]
+
+
+def notices_waiting(notices: dict[str, dict]) -> None:
+    """Say, every run, which LINKEDIN NOTICEs no one has acknowledged yet (they fail the unit until then), and the exact
+    command that acknowledges THESE — never one that arrives after this line was read."""
+    ids = sorted(notices, key=lambda k: (notices[k]['at'], k))
+    listed = ', '.join(f'{k} (uid={notices[k]["uid"]})' for k in ids)
+    log(f'LINKEDIN NOTICE waiting since {notices[ids[0]]["at"]}: {len(ids)} not acknowledged — {listed}. Read them in '
+        f'{MAILBOX_USER} (LinkedIn may be about to switch an alert off), click what they ask, then: '
+        f'python3 -I /opt/eno/bin/eno-job-mailbox.py --ack-notices {",".join(ids)}')
+
+
+def ack_notices(cfg: Config, ids: list[str], now: dt.datetime | None = None) -> int:
+    """--ack-notices ID[,ID…]: a person has read THESE notices, so they stop failing the unit and a re-read never raises
+    them again. Only ids that are waiting; nothing else in the state changes."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    lock = take_lock(cfg.state_path)
+    if lock is None:
+        log('a run holds the lock — try again in a minute')
+        return EXIT_ERROR
+    try:
+        st = load_state(cfg.state_path) or {}
+        waiting = st.get('notices') or {}
+        unknown = [i for i in ids if i not in waiting]
+        if unknown:
+            log(f'not waiting: {",".join(unknown)} — nothing acknowledged. Waiting now: '
+                f'{",".join(sorted(waiting)) or "none"} (the last "LINKEDIN NOTICE waiting" line has the command)')
+            return EXIT_ERROR
+        acked = {**(st.get('acked') or {}), **{i: iso(now) for i in ids}}
+        left = {k: v for k, v in waiting.items() if k not in ids}
+        rest = {k: v for k, v in st.items() if k not in ('notices', 'acked')}
+        save_state(cfg.state_path, {**rest, 'acked': acked, **({'notices': left} if left else {})})
+        log(f'acknowledged {len(ids)} LinkedIn notice(s): {",".join(ids)}' + (f' — {len(left)} still waiting' if left
+                                                                               else ''))
+        return EXIT_OK
+    finally:
+        os.close(lock)
+
+
+def linkedin_silence(cfg: Config, at: dt.datetime | None, now: dt.datetime, dry_run: bool) -> bool:
+    """True when LinkedIn has gone quiet — no alert with jobs for cfg.silent_days days since the last one read, or since
+    the reader's first run (LINKEDIN_SILENT_DAYS) — said in the log every run it lasts; a dry run only says it."""
+    if not cfg.silent_days or at is None or now - at <= dt.timedelta(days=cfg.silent_days):
+        return False
+    log(f'LINKEDIN SILENT: no LinkedIn alert with jobs since {iso(at)} ({(now - at).days} days). LinkedIn switches off '
+        f'alerts nobody opens for 3 months, and a deleted Gmail filter or a stopped forward look the same: check the '
+        f'job alerts of the LinkedIn account {LINKEDIN_ALERT_TO[0]} and its Gmail filter (README, "LinkedIn alerts"). '
+        'ENO_JOB_MAILBOX_LINKEDIN_SILENT_DAYS=0 turns this check off.')
+    return not dry_run
 
 
 def save_state(path: str, st: dict) -> None:
@@ -1629,13 +1767,30 @@ def _run(cfg: Config, dry_run: bool, since_days: int | None, runner, lookup, now
             'days again')
     last_uid = state['lastUid'] if valid else 0
     pending: dict[str, str] = dict(state['pending']) if valid else {}
+    # The newest LinkedIn alert with jobs read so far (its Date) — kept through a mailbox reset: it is about LinkedIn.
+    # ⚠️ Never ahead of now (codex, gate 8e): a clock set in the future — the box's clock stepped back, a hand edit —
+    # would keep the silence check quiet until that time; a quiet run and a reading run both bring it back to now.
+    known = linkedin_at = parse_iso(state.get('linkedinAt', '')) if state is not None else None
+    # ⛔ LINKEDIN NOTICEs no one has acknowledged — kept through a reset too, and failing every run until --ack-notices
+    # (codex + opus, gates 8a–8d: a one-run exit 5 is gone at the next timer run, before anyone has looked) — and the
+    # acknowledged ones, which a re-read never raises again (gate 8e).
+    notices: dict[str, dict] = dict(state.get('notices') or {}) if state is not None else {}
+    read_notices: dict[str, str] = dict(state.get('acked') or {}) if state is not None else {}
     by_uid = valid and since_days is None
     # A --since-days re-read on a good checkpoint sends that window again (the server dedupes) and leaves the
     # checkpoint alone: the window need not reach back to it.
     moves = not (valid and since_days is not None)
     if by_uid and last_uid >= uidnext - 1:
         log(f'nothing new (lastUid {last_uid}, uidnext {uidnext})')
-        return EXIT_NOTHING
+        if (known is None or known > now) and not dry_run:
+            # a checkpoint with no clock (written before it existed, or by hand) or one ahead of now starts it here: a
+            # quiet inbox must not keep the silence check off for ever (codex, gates 8c, 8e)
+            linkedin_at = now
+            save_state(cfg.state_path, {**state, 'linkedinAt': iso(now)})
+        if notices:
+            notices_waiting(notices)
+        silent = linkedin_silence(cfg, linkedin_at, now, dry_run)
+        return EXIT_NOTICE if (silent or notices) and not dry_run else EXIT_NOTHING
     if by_uid:
         span = ['UID', f'{last_uid + 1}:*']
     else:
@@ -1787,23 +1942,49 @@ def _run(cfg: Config, dry_run: bool, since_days: int | None, runner, lookup, now
         for k in sorted(set(pending) - set(held) - {str(u) for u in cands if outcomes.get(u) is not None}, key=int):
             log(f'uid={k}: held since {pending[k]}, no longer a candidate (moved, deleted or not matched) — dropped')
 
+    dated = [t for o in outcomes.values() if o.kind == 'linkedin' for p in o.posts
+             if (t := parse_iso(p.get('postedAt') or ''))]
+    # Until a first alert with jobs comes, the clock runs from the reader's first run (codex + opus, gate 8b): a feed
+    # broken from the day it was set up — the filter, the forward, the account's address — must fail too. An alert may
+    # be dated up to a day ahead (posted_at); the clock never is.
+    linkedin_at = min(max([t for t in (linkedin_at, *dated) if t], default=None) or now, now)
+    known_notices = {k: dict(v) for k, v in notices.items()}
+    for uid in sorted(outcomes):
+        nid = outcomes[uid].notice
+        if nid and nid in read_notices:
+            log(f'uid={uid}: LINKEDIN NOTICE {nid} was acknowledged {read_notices[nid]} — not raised again')
+        elif nid:
+            # the same message read again (a re-read, a rebuilt mailbox) is the same notice: first seen stays, uid is now
+            notices[nid] = {'uid': uid, 'at': notices.get(nid, {}).get('at') or iso(now)}
     posts_total = sum(len(q) for q in queue.values())
     summary = (f'{len(cands)} message(s){" (capped)" if capped else ""}, {posts_total} post(s)'
                + ('' if dry_run else f' — accepted {sent["accepted"]}, duplicate {sent["duplicate"]}, '
                                      f'rejected {sent["rejected"]}'))
+    ledger = {**({'notices': notices} if notices else {}), **({'acked': read_notices} if read_notices else {})}
     if dry_run:
         log(f'--dry-run: {summary}; would move lastUid {last_uid} -> {new_last if moves else last_uid} '
             '(if every post is acked); nothing sent, nothing saved')
     elif moves:
         save_state(cfg.state_path, {'version': 1, 'uidvalidity': uidvalidity, 'lastUid': new_last, 'pending': held,
-                                    'updatedAt': iso(now)})
+                                    'updatedAt': iso(now), 'linkedinAt': iso(linkedin_at), **ledger})
         log(f'{summary}; lastUid {last_uid} -> {new_last}' + (f', {len(held)} held' if held else ''))
     else:
+        # The checkpoint is left alone, but an alert this re-read recovered still moves the clock (codex, gate 8b), and a
+        # notice it read waits like any other.
+        if linkedin_at != known or notices != known_notices:
+            rest = {k: v for k, v in state.items() if k not in ('notices', 'acked')}
+            save_state(cfg.state_path, {**rest, 'linkedinAt': iso(linkedin_at), **ledger})
         log(f'{summary}; --since-days re-read: checkpoint left at lastUid {last_uid}')
+    # Said before any exit code is chosen: a run that also gave something up (3) or could not send (4) still logs them.
+    if notices:
+        notices_waiting(notices)
+    silent = linkedin_silence(cfg, linkedin_at, now, dry_run)
     if dovecot_failed or app_failed:
         return EXIT_UNREACHABLE
     if gave_up and not dry_run:
         return EXIT_GAVE_UP
+    if (silent or notices) and not dry_run:
+        return EXIT_NOTICE
     return EXIT_OK if cands else EXIT_NOTHING
 
 
@@ -1824,15 +2005,27 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument('--dry-run', action='store_true', help='print what would be sent; send nothing, save nothing')
     ap.add_argument('--since-days', type=int, metavar='N',
                     help='read the last N days (1-60) instead of from the checkpoint; the server dedupes')
+    ap.add_argument('--ack-notices', metavar='ID[,ID…]',
+                    help='these LINKEDIN NOTICEs (ids from the "waiting" line) have been read: they stop failing the '
+                         'unit and are never raised again (nothing else runs)')
     args = ap.parse_args(argv)
     if args.since_days is not None and not 1 <= args.since_days <= POSTED_MAX_AGE_DAYS:
         ap.error(f'--since-days must be 1-{POSTED_MAX_AGE_DAYS}')
+    ack = None
+    if args.ack_notices is not None:
+        ack = list(dict.fromkeys(x.strip().lower() for x in args.ack_notices.split(',') if x.strip()))
+        if not ack or not all(_NOTICE_ID.match(x) for x in ack):
+            ap.error('--ack-notices takes the ids the "LINKEDIN NOTICE waiting" line prints (12 hex characters each)')
+        if args.dry_run or args.since_days is not None:
+            ap.error('--ack-notices runs alone')
     try:
         cfg = Config(with_settings_file(dict(os.environ)))
     except ConfigError as e:
         log(f'bad setting: {e}')
         return EXIT_ERROR
     try:
+        if ack is not None:
+            return ack_notices(cfg, ack)
         return run_once(cfg, dry_run=args.dry_run, since_days=args.since_days)
     except Exception as e:  # noqa: BLE001 — a bug: the unit fails (1); the type and our line, never content
         tb = e.__traceback__

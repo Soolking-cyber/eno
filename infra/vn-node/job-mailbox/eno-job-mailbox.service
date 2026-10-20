@@ -13,7 +13,8 @@ EnvironmentFile=-/etc/default/eno-job-mailbox
 # -I (isolated): no PYTHON* variable and no file next to the script can shadow a standard-library module.
 ExecStart=/usr/bin/python3 -I /opt/eno/bin/eno-job-mailbox.py
 # ⛔ 2 = "nothing new", which is most runs. Without this line every quiet half hour would mark the unit failed and bury
-# the real failures — 4 (Dovecot or the app unreachable or refusing) and 1 (a bug, a bad setting) — in
+# the real failures — 4 (Dovecot or the app unreachable or refusing), 3 (a held message given up), 5 (LinkedIn needs a
+# person: a notice not yet acknowledged, or the alerts gone silent) and 1 (a bug, a bad setting) — in
 # `systemctl --failed`.
 SuccessExitStatus=2
 # A tenant on the production box: it yields the CPU to the site and can never grow past a small cap. A hard cap only:
