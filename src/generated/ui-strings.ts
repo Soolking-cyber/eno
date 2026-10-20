@@ -3965,6 +3965,7 @@ export const UI_STRINGS: string[] = [
   "eno’s team checked this teacher’s ID document and a selfie, and the name above matches that ID. Nationality, qualifications and work permits are as the teacher states. Ask to see documents before hiring.",
   "eno’s team is checking your ID.",
   "eno’s team is checking your ID. It shows once approved.",
+  "estimate",
   "explains what we check and what to watch for when meeting or paying.",
   "failed",
   "for hire.",

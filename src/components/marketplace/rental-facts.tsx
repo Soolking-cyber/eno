@@ -42,6 +42,10 @@ function Row({ name, children }: { name: LabelPair; children: ReactNode }) {
  * up before messaging. Rendered only when the listing states at least one cost beyond the rent (the caller checks).
  * `rent` is the monthly price, or null when the listing is not priced per month (then no rent row — a number without
  * its period would be a guess).
+ * ⛔ A GUESSED AMOUNT IS NEVER PRINTED AS FACT (owner, 2026-10-20: "fix error electricity prices with closest guess" —
+ * CostRow.estimated, an impossible GoPlus electricity rate read as its closest plausible typo): "≈ 4,000 đ / kWh estimate",
+ * the "≈" bound to the figure by a no-break space. ⚠️ THE WORD IS PLAIN TEXT, never a hover title (a reviewer's catch,
+ * 2026-10-20): a tooltip reaches no touch or keyboard reader, so everyone reads the same "estimate".
  */
 export function RentalCosts({ rent, rows }: { rent: number | null; rows: readonly CostRow[] }) {
   return (
@@ -50,7 +54,11 @@ export function RentalCosts({ rent, rows }: { rent: number | null; rows: readonl
       <dl className="divide-y divide-border text-sm">
         {rent != null && rent > 0 && <Row name={RENT_ROW}><VndValue value={rent} /><Per per={RENT_PER} /></Row>}
         {rows.map((r) => (
-          <Row key={r.key} name={r.name}><VndValue value={r.amount} /><Per per={r.per} /></Row>
+          <Row key={r.key} name={r.name}>
+            {r.estimated && <>≈&nbsp;</>}
+            <VndValue value={r.amount} /><Per per={r.per} />
+            {r.estimated && <> <span className="text-xs font-normal text-muted-foreground"><Bilingual en={RENTAL_FACT_LABELS.estimate.label} vi={RENTAL_FACT_LABELS.estimate.labelVi} /></span></>}
+          </Row>
         ))}
       </dl>
     </div>

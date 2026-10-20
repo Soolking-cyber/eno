@@ -50,6 +50,41 @@ describe('<RentalCosts>', () => {
   it('draws no rent row when the price is not quoted per month', () => {
     expect(text('en', <RentalCosts rent={null} rows={rentalCostRows(ATTRS)} />)).not.toContain('Rent')
   })
+
+  /**
+   * ⛔ A GUESSED AMOUNT IS NEVER PRINTED AS FACT (owner, 2026-10-20: "fix error electricity prices with closest guess"):
+   * the importer read GoPlus's "44,000 đ / kWh" as 4,000 and flagged it; the row says "≈ 4,000 đ / kWh estimate" — the
+   * word in plain sight, never a hover title a touch or keyboard reader cannot open (a reviewer's catch, 2026-10-20).
+   */
+  it('prints a guessed rate as "≈ … estimate" in both languages, the word as plain text', () => {
+    const rows = rentalCostRows({ ...ATTRS, electricityPrice: '4000', electricityEstimated: '4000' })
+    const dd = (lang: 'en' | 'vi') => {
+      const html = renderToString(<LanguageProvider initialLang={lang} initialViDict={VI_OVERRIDES}><RentalCosts rent={3_500_000} rows={rows} /></LanguageProvider>).replaceAll('<!-- -->', '')
+      const div = document.createElement('div')
+      div.innerHTML = html
+      const row = [...div.querySelectorAll('dl > div')].find((r) => /Electricity|Tiền điện/.test(r.querySelector('dt')?.textContent ?? ''))!
+      return row.querySelector('dd')!
+    }
+    const shown = (d: Element) => (d.textContent ?? '').replace(/\s+/g, ' ').trim()
+    const en = dd('en')
+    expect(shown(en)).toBe('≈ 4,000 đ / kWh estimate')
+    // The "≈" is held to its figure by a no-break space — never left alone at a line's end.
+    expect(en.textContent).toContain('≈\u00a04,000')
+    // Nothing hidden from anyone: no hover-only title, no screen-reader-only text, no aria-hidden part.
+    expect(en.querySelector('[title], .sr-only, [aria-hidden]')).toBeNull()
+    expect(shown(dd('vi'))).toBe('≈ 4.000 đ / kWh ước tính')
+    // Only the guessed row: every stated amount prints as before, with no "≈" and no "estimate".
+    const all = text('en', <RentalCosts rent={3_500_000} rows={rows} />)
+    expect(all.match(/≈/g)).toHaveLength(1)
+    expect(all.match(/estimate/g)).toHaveLength(1)
+    expect(all).toContain('Water100,000 đ / person per month')
+  })
+
+  it('a stated rate prints no "≈" and no "estimate"', () => {
+    const en = text('en', <RentalCosts rent={3_500_000} rows={rentalCostRows(ATTRS)} />)
+    expect(en).not.toContain('≈')
+    expect(en).not.toMatch(/estimate/i)
+  })
 })
 
 describe('<RentalFactRows>', () => {

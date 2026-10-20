@@ -47,7 +47,7 @@ import { districtOf } from './honeycomb-listing'
 import { NHATOT_CITIES, nhatotCoords, nhatotStreetName } from './nhatot-listing'
 import { deriveVerification, type VerificationRow } from './compliance/derive-verification'
 import { decideBeforeStatus, decideOwned, type SellerPublishDecision } from './compliance/seller-publish-decision'
-import { plausibleFee } from './rental-facts'
+import { ELECTRICITY_ESTIMATED, plausibleFee } from './rental-facts'
 
 // ─── the source ─────────────────────────────────────────────────────────────────────────────────
 
@@ -370,6 +370,67 @@ export function goplusFees(room: Pick<GoplusRoom, 'fees' | 'price'>): GoplusFees
 }
 
 /**
+ * GoPlus's typical electricity rate, đ/kWh: the median AND the mode of the 2,757 plausible rates (measured 2026-10-20 —
+ * 4,000 ×1,442 · 3,800 ×783 · 3,500 ×322 · 3,900 ×128). goplusElectricityGuess reads a mistyped rate as the candidate
+ * nearest it.
+ */
+export const GOPLUS_ELECTRICITY_TYPICAL = 4_000
+/**
+ * ⛔ HOW FAR A GUESS MAY LAND FROM GOPLUS_ELECTRICITY_TYPICAL: 2× either way, 2,000 … 8,000 đ/kWh (a reviewer's catch,
+ * 2026-10-20). Every plausible rate GoPlus states is 3,100 … 5,000 (all 2,757, measured that day), so a reading beyond
+ * 2× is no reading: a bare "10", "100" or "1,000,000" printed "≈ 10,000 đ / kWh" — the page's ceiling, 2.5× the typical
+ * rate — decided by nothing but its count of zeros. Such a rate is dropped, as before the guess existed.
+ */
+export const GOPLUS_ELECTRICITY_GUESS_MAX_OFF = 2
+
+/**
+ * ⚠️ AN IMPOSSIBLE ELECTRICITY RATE IS READ AS ITS CLOSEST PLAUSIBLE TYPO, NOT DROPPED (owner, 2026-10-20: "fix error
+ * electricity prices with closest guess"). 30 rooms state a rate no tariff has — 44,000 · 400,000 · 3,800,000 · 3,900,000
+ * · 4,000,000 · 40,000 · 33,800 · 400 đ/kWh (measured 2026-10-20) — and the plausibility test (rental-facts.ts plausibleFee)
+ * used to drop all of them. Each is a slip of the keys on a real rate: zeros added or lost (3,800,000 → 3,800; 400 →
+ * 4,000) or one key struck twice (44,000 → 4,000; 33,800 → 3,800). So the candidates are exactly those two slips undone:
+ * the figure times 10^k (k = −6…3, whole numbers only), and the figure with ONE digit deleted that REPEATS the digit
+ * before it. ⚠️ ONLY A REPEATED DIGIT (a reviewer's catch, 2026-10-20): deleting any digit read 43,000 — 4,300 with a
+ * zero added, a live GoPlus rate on 11 rooms — as 4,000, and 150,000 as 10,000: a significant digit lost, because the
+ * result sat nearer 4,000. The plausible candidates compete, and the one nearest GOPLUS_ELECTRICITY_TYPICAL on a log
+ * scale wins (|ln(c / typical)| — "how many times off", so 2,000 and 8,000 are equally far from 4,000); a tie goes to the
+ * smaller figure (none is reachable from these two slips — a deleted-digit candidate keeps the figure's first digit, so
+ * it sits on the same side of 4,000 as the ÷10^k one; the rule only keeps the answer off the Set's order). A winner more
+ * than GOPLUS_ELECTRICITY_GUESS_MAX_OFF times off, or no plausible candidate → null, and no rate is stored. A plausible
+ * figure is itself, `estimated: false`.
+ * ⛔ A GUESS IS NEVER STATED AS FACT: the mapper stores the guessed figure a second time, as `electricityEstimated`, and
+ * the page prints the rate as "≈ 4,000 đ / kWh estimate" while the two agree (rental-facts.ts ELECTRICITY_ESTIMATED).
+ */
+export function goplusElectricityGuess(v: number | null | undefined): { value: number; estimated: boolean } | null {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return null
+  const plausible = (c: number) => plausibleFee('electricityPrice', String(c))
+  const stated = plausible(v)
+  if (stated !== null) return { value: stated, estimated: false }
+  const candidates = new Set<number>()
+  // Divided for k < 0, never multiplied by 10^k: 380,000,000 × 10^-5 is 3,800.0000000000005 in floating point (not whole,
+  // so the candidate would be lost); 380,000,000 / 10^5 is exactly 3,800.
+  for (let k = -6; k <= 3; k++) {
+    const c = k < 0 ? v / 10 ** -k : v * 10 ** k
+    if (Number.isInteger(c)) candidates.add(c)
+  }
+  // One key struck twice, undone: a digit equal to the one before it is deleted — so never the first digit, never a
+  // leading zero (a doubled 0 is the ÷10 above). A digit with no twin is a real digit of the rate and is never dropped.
+  const digits = String(v)
+  if (/^\d+$/.test(digits)) {
+    for (let i = 1; i < digits.length; i++) if (digits[i] === digits[i - 1]) candidates.add(Number(digits.slice(0, i) + digits.slice(i + 1)))
+  }
+  // |ln(c / typical)|, ordered by the ratio ≥ 1 itself: the same order, and a true tie stays a tie — 5,000 and 3,200 are
+  // both exactly 1.25 off, while Math.log puts ln 1.25 and |ln 0.8| two ulps apart (measured), deciding by rounding noise.
+  const off = (c: number) => (c >= GOPLUS_ELECTRICITY_TYPICAL ? c / GOPLUS_ELECTRICITY_TYPICAL : GOPLUS_ELECTRICITY_TYPICAL / c)
+  let best: number | null = null
+  for (const c of candidates) {
+    if (plausible(c) === null) continue
+    if (best === null || off(c) < off(best) || (off(c) === off(best) && c < best)) best = c
+  }
+  return best === null || off(best) > GOPLUS_ELECTRICITY_GUESS_MAX_OFF ? null : { value: best, estimated: true }
+}
+
+/**
  * GoPlus amenity key → eno's `amenities` facet VALUE (kebab-case — facet-tokens.ts SAFE_VALUE). The values are storage:
  * `balcony` and `pets` keep the spelling the taxonomy already had. `furnished` is not here — it is the `furnishing`
  * attribute ('fully'), a facet of its own.
@@ -620,12 +681,19 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
    * own data holds 4,000,000 đ "per kWh" and 10,000,000 đ parking a month (measured 2026-10-19). A figure outside its
    * range is not what its unit says, so it is not stored at all — the page would refuse to print it anyway, and a stored
    * one would sit in the generic table as a raw number. Water only with its unit (an amount without its basis says nothing).
+   * ⚠️ ELECTRICITY ALONE IS GUESSED INSTEAD (owner, 2026-10-20: "fix error electricity prices with closest guess"): an
+   * impossible rate is read as its closest plausible typo (goplusElectricityGuess) and stored FLAGGED — the same figure
+   * again as `electricityEstimated` — so the page prints "≈ … estimate", never a guessed number as fact. Re-read every
+   * week like every attribute: the flag goes the week GoPlus corrects the figure. Every other fee keeps the drop rule.
    */
   const fee = (key: string, v: number | null, unit?: string | null) => (v ? plausibleFee(key, String(v), unit ?? undefined) : null)
   const depositOk = fee('deposit', deposit)
   if (depositOk) attrs.deposit = String(depositOk)
-  const electricity = fee('electricityPrice', fees.electricity)
-  if (electricity) attrs.electricityPrice = String(electricity)
+  const electricity = goplusElectricityGuess(fees.electricity)
+  if (electricity) {
+    attrs.electricityPrice = String(electricity.value)
+    if (electricity.estimated) attrs[ELECTRICITY_ESTIMATED] = attrs.electricityPrice
+  }
   const water = fees.waterUnit ? fee('waterPrice', fees.water, fees.waterUnit) : null
   if (water && fees.waterUnit) { attrs.waterPrice = String(water); attrs.waterUnit = fees.waterUnit }
   const service = fee('serviceFee', fees.service)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RENTAL_FACT_KEYS, amenityOptions, plausibleFee, rentalCostRows, rentalFactHiddenKeys, rentalFactRows, rentalFactsApply } from './rental-facts'
+import { ELECTRICITY_ESTIMATED, RENTAL_FACT_KEYS, RENTAL_FACT_LABELS, amenityOptions, plausibleFee, rentalCostRows, rentalFactHiddenKeys, rentalFactRows, rentalFactsApply } from './rental-facts'
 
 /**
  * A rental's structured facts for the listing page (GoPlus partnership, 2026-10-19). The importer writes every value as
@@ -57,6 +57,38 @@ describe('rentalCostRows', () => {
     expect(rentalCostRows(null)).toEqual([])
     expect(rentalCostRows({ bedrooms: '2' })).toEqual([])
   })
+
+  // Owner, 2026-10-20: "fix error electricity prices with closest guess" — the importer's guess carries its flag, and a
+  // row that knows it is a guess is never printed as fact (rental-facts.tsx).
+  it('⛔ knows a GUESSED electricity rate: estimated iff electricityEstimated holds the very figure printed, electricity only', () => {
+    expect(ELECTRICITY_ESTIMATED).toBe('electricityEstimated')
+    const rows = rentalCostRows({ ...GOPLUS, electricityPrice: '4000', electricityEstimated: '4000' })
+    expect(rows.map((r) => [r.key, r.estimated])).toEqual([
+      ['deposit', false], ['electricityPrice', true], ['waterPrice', false], ['serviceFee', false], ['parkingFee', false],
+    ])
+    expect(rows.find((r) => r.key === 'electricityPrice')).toMatchObject({ amount: 4_000, per: { label: 'kWh', labelVi: 'kWh' } })
+    expect(rentalCostRows(GOPLUS).every((r) => r.estimated === false)).toBe(true)
+    for (const flag of ['1', '0', 'true', 'yes', '', '4000.5', '-4000', 4_001, true, null]) {
+      expect(rentalCostRows({ electricityPrice: '4000', electricityEstimated: flag })[0].estimated, JSON.stringify(flag)).toBe(false)
+    }
+    // The flag never makes an implausible rate printable — the row's amount test is unchanged.
+    expect(rentalCostRows({ electricityPrice: '4000000', electricityEstimated: '4000000' })).toEqual([])
+  })
+
+  /**
+   * Reviewers' catch (2026-10-20): the editor sends every stored attribute back, so a yes/no flag outlived a corrected
+   * rate and called a person's real figure a guess. Bound to the figure, a rate edited since is stated as fact.
+   */
+  it('⛔ a rate corrected since the guess is no longer an estimate — the stale flag is ignored', () => {
+    const corrected = { ...GOPLUS, electricityPrice: '3500', electricityEstimated: '4000' }
+    expect(rentalCostRows(corrected).find((r) => r.key === 'electricityPrice')).toMatchObject({ amount: 3_500, estimated: false })
+    // …and the stale flag never reaches the generic table as a raw figure.
+    expect(rentalFactHiddenKeys(corrected)).toEqual(expect.arrayContaining(['electricityPrice', 'electricityEstimated']))
+  })
+
+  it('the estimate\'s word is an authored pair', () => {
+    expect(RENTAL_FACT_LABELS.estimate).toEqual({ label: 'estimate', labelVi: 'ước tính' })
+  })
 })
 
 describe('rentalFactRows', () => {
@@ -108,7 +140,7 @@ describe('amenityOptions', () => {
 
 describe('RENTAL_FACT_KEYS', () => {
   it('hides every key this module draws from the generic Details table — and no facet key', () => {
-    expect([...RENTAL_FACT_KEYS].sort()).toEqual(['availableFrom', 'deposit', 'electricityPrice', 'floor', 'maxTenants', 'parkingFee', 'serviceFee', 'waterPrice', 'waterUnit'])
+    expect([...RENTAL_FACT_KEYS].sort()).toEqual(['availableFrom', 'deposit', 'electricityEstimated', 'electricityPrice', 'floor', 'maxTenants', 'parkingFee', 'serviceFee', 'waterPrice', 'waterUnit'])
     for (const k of ['bedrooms', 'aptType', 'furnishing']) expect(RENTAL_FACT_KEYS).not.toContain(k)
   })
 })
@@ -145,6 +177,16 @@ describe('rentalFactsApply + rentalFactHiddenKeys', () => {
   })
 
   it('every key it can hide is one this module knows', () => {
-    for (const k of rentalFactHiddenKeys({ ...GOPLUS, availableFrom: '2030-01-01' })) expect(RENTAL_FACT_KEYS).toContain(k)
+    for (const k of rentalFactHiddenKeys({ ...GOPLUS, availableFrom: '2030-01-01', electricityEstimated: '3800' })) expect(RENTAL_FACT_KEYS).toContain(k)
+  })
+
+  // A guessed rate's flag (owner, 2026-10-20) is machine data: "electricity estimated: 4000" in the generic table says nothing.
+  it('⛔ hides a well-formed estimate flag — even beside a rate the row cannot print — and nothing else', () => {
+    expect(rentalFactHiddenKeys({ ...GOPLUS, electricityPrice: '4000', electricityEstimated: '4000' }).sort()).toEqual(
+      ['deposit', 'electricityEstimated', 'electricityPrice', 'floor', 'maxTenants', 'parkingFee', 'serviceFee', 'waterPrice', 'waterUnit'],
+    )
+    expect(rentalFactHiddenKeys({ electricityPrice: '4000000', electricityEstimated: '4000' })).toEqual(['electricityEstimated'])
+    // Any other value is not the importer's flag: it keeps its generic row, like every malformed value here.
+    expect(rentalFactHiddenKeys({ electricityPrice: '4000', electricityEstimated: 'yes' })).toEqual(['electricityPrice'])
   })
 })

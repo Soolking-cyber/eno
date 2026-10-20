@@ -6,9 +6,11 @@ import {
   goplusStoredVideoHex, goplusUnit, goplusVideoAction, goplusVideoHex, goplusVideoObjectName, goplusVideoVerdict,
   goplusWard, isGoplusImageUrl, isGoplusVideoUrl, mapGoplusRoom, mp4Info, planGoplusExpiry, stageGoplusProject,
   goplusBuildingAmenityKeys, GOPLUS_BUILDING_WIDE_KEYS, goplusPartialTokens, goplusOverlaySlug,
-  stageGoplusRoom, type GoplusProject, type GoplusRoom,
+  stageGoplusRoom, type GoplusProject, type GoplusRoom, goplusElectricityGuess, GOPLUS_ELECTRICITY_TYPICAL,
+  GOPLUS_ELECTRICITY_GUESS_MAX_OFF,
 } from './goplus-listing'
 import { parseFacetTokens } from './facet-tokens'
+import { ELECTRICITY_ESTIMATED, plausibleFee, rentalCostRows } from './rental-facts'
 import { isOverlayImageUrl, overlayImagePath } from './image-mark-url'
 import type { VerificationRow } from './compliance/derive-verification'
 
@@ -114,6 +116,62 @@ describe('goplusFees', () => {
   it('⛔ a zero is never published (it would read as free)', () => {
     expect(goplusFees(room({ fees: [{ id: 'electric', price: 0, unit: 'kWh' }], price: { base: 1, electric: 0, water: 0, waterUnit: 'person', service: 0 } })))
       .toEqual({ electricity: null, water: null, waterUnit: null, service: null, parking: null })
+  })
+})
+
+/**
+ * THE ELECTRICITY GUESS (owner, 2026-10-20: "fix error electricity prices with closest guess"): every impossible rate
+ * measured on GoPlus that day (30 rooms) reads as its closest plausible typo, flagged as an estimate; a plausible rate is
+ * itself; nothing plausible within reach → null, the rate is not stored (the drop rule as before).
+ */
+describe('goplusElectricityGuess', () => {
+  it.each([
+    [44_000, 4_000], [33_800, 3_800], [400_000, 4_000], [3_800_000, 3_800], [3_900_000, 3_900], [4_000_000, 4_000],
+    [40_000, 4_000], [400, 4_000],
+  ])('the measured %i đ/kWh → ≈ %i, estimated', (v, want) => {
+    expect(goplusElectricityGuess(v)).toEqual({ value: want, estimated: true })
+    expect(plausibleFee('electricityPrice', String(v))).toBeNull()   // each really is outside the page's range
+  })
+  it('a plausible rate is itself — never "estimated" — up to both edges of the page\'s range', () => {
+    expect(goplusElectricityGuess(3_800)).toEqual({ value: 3_800, estimated: false })
+    expect(goplusElectricityGuess(500)).toEqual({ value: 500, estimated: false })
+    expect(goplusElectricityGuess(10_000)).toEqual({ value: 10_000, estimated: false })
+  })
+  it('nothing to read: zero, negative, NaN, infinite, missing', () => {
+    for (const v of [0, -3_800, -44_000, Number.NaN, Number.POSITIVE_INFINITY, null, undefined]) expect(goplusElectricityGuess(v)).toBeNull()
+  })
+  it('no plausible candidate → null: no trailing zeros to drop and no key struck twice', () => {
+    expect(goplusElectricityGuess(123_456_789)).toBeNull()
+    expect(goplusElectricityGuess(1e21)).toBeNull()
+  })
+  it('the candidate nearest the typical 4,000 on a LOG scale wins', () => {
+    expect(GOPLUS_ELECTRICITY_TYPICAL).toBe(4_000)
+    // 33,800: the doubled 3 dropped (3,800 — 1.05× off) beats ÷10 (3,380 — 1.18×).
+    expect(goplusElectricityGuess(33_800)?.value).toBe(3_800)
+    // 44,000: the doubled 4 dropped (4,000) beats ÷10 (4,400).
+    expect(goplusElectricityGuess(44_000)?.value).toBe(4_000)
+    // ÷10^k is a DIVISION: 380,000,000 × 10^-5 is not a whole number in floating point, 380,000,000 / 10^5 is.
+    expect(goplusElectricityGuess(380_000_000)).toEqual({ value: 3_800, estimated: true })
+  })
+  // A reviewer's catch (2026-10-20): deleting ANY digit let a real one go whenever what was left sat nearer 4,000.
+  it('⛔ deletes only a digit that REPEATS the one before it — a real digit of the rate is never dropped', () => {
+    // 4,300 is a live GoPlus rate (11 rooms, 2026-10-20): 43,000 is it with a zero added, never 4,000 with a stray 3.
+    for (const [v, want] of [[43_000, 4_300], [45_000, 4_500], [42_000, 4_200], [34_000, 3_400], [25_000, 2_500]] as const) {
+      expect(goplusElectricityGuess(v), String(v)).toEqual({ value: want, estimated: true })
+    }
+  })
+  // A reviewer's catch (2026-10-20): "10", "100", "1,000,000" all printed "≈ 10,000 đ / kWh" — the page's ceiling.
+  it('⛔ a reading more than 2× from 4,000 is no reading: null, and the rate is dropped as before', () => {
+    expect(GOPLUS_ELECTRICITY_GUESS_MAX_OFF).toBe(2)
+    // 1 → 1,000 (4×) · 10, 100, 1,000,000, 10,000,000 → 10,000 (2.5×) · 190 → 1,900 and 19,000 → 1,900 (2.1×) ·
+    // 12,000 → 1,200 (3.3×) · 81,000 → 8,100 and 82,000 → 8,200 (2.05×) · 150,000 → 1,500 (2.7×) · 160,000 → 1,600 (2.5×).
+    for (const v of [1, 10, 100, 190, 1_000_000, 10_000_000, 12_000, 19_000, 81_000, 82_000, 150_000, 160_000]) {
+      expect(goplusElectricityGuess(v), String(v)).toBeNull()
+    }
+    // Exactly 2× either way is still a reading.
+    expect(goplusElectricityGuess(20_000)).toEqual({ value: 2_000, estimated: true })
+    expect(goplusElectricityGuess(200)).toEqual({ value: 2_000, estimated: true })
+    expect(goplusElectricityGuess(80_000)).toEqual({ value: 8_000, estimated: true })
   })
 })
 
@@ -237,17 +295,43 @@ describe('mapGoplusRoom — the variants', () => {
     expect(r.mutable.titleVi).toBe('Duplex · Phường Trung Mỹ Tây, Quận 12')
   })
   // GoPlus's own outliers (2026-10-19): 4,000,000 đ "per kWh", 10,000,000 đ parking, a 3,500 đ deposit — never stored
-  // (rental-facts.ts plausibleFee, the page's own test); a water price without a unit is not stored either.
-  it('stores no fee outside its plausible range, and no water price without its unit', () => {
+  // as stated (rental-facts.ts plausibleFee, the page's own test); a water price without a unit is not stored either.
+  // ⚠️ Since 2026-10-20 the electricity rate alone is GUESSED rather than dropped — flagged (goplusElectricityGuess).
+  it('stores no fee outside its plausible range (electricity: its closest guess, flagged), and no water price without its unit', () => {
     // The water fee's unit is unknown AND the room's own price block names none (the mapper falls back to it).
     const r = mapped(room({ deposit: 3500, price: { ...room().price, waterUnit: null }, fees: [{ id: 'electric', price: 4_000_000, unit: 'kWh' }, { id: 'parking', price: 10_000_000, unit: 'xe/tháng' }, { id: 'service', price: 150_000, unit: 'tháng' }, { id: 'water', price: 100_000, unit: 'thùng' }] }))
     const a = JSON.parse(r.mutable.attributes)
     expect(a.deposit).toBeUndefined()
-    expect(a.electricityPrice).toBeUndefined()
+    expect(a.electricityPrice).toBe('4000')
+    expect(a.electricityEstimated).toBe('4000')
     expect(a.parkingFee).toBeUndefined()
     expect(a.serviceFee).toBe('150000')
     expect(a.waterPrice).toBeUndefined()
     expect(a.waterUnit).toBeUndefined()
+  })
+  // Owner, 2026-10-20: "fix error electricity prices with closest guess" — and a guess is never stated as fact.
+  it('an impossible electricity rate is stored as its closest guess WITH the estimate flag — strings only — and the page reads it so', () => {
+    for (const [stated, want] of [[44_000, '4000'], [33_800, '3800'], [3_900_000, '3900'], [400, '4000']] as const) {
+      const a = JSON.parse(mapped(room({ fees: [{ id: 'electric', price: stated, unit: 'kWh' }] })).mutable.attributes) as Record<string, unknown>
+      expect(a.electricityPrice, String(stated)).toBe(want)
+      // The flag is the guessed figure itself, so a rate corrected later is no longer read as the guess.
+      expect(a[ELECTRICITY_ESTIMATED], String(stated)).toBe(want)
+      expect(Object.values(a).every((v) => typeof v === 'string')).toBe(true)
+      expect(rentalCostRows(a).find((c) => c.key === 'electricityPrice')).toMatchObject({ amount: Number(want), estimated: true })
+    }
+    // The price block's figure is guessed the same way when fees[] has no electricity line.
+    expect(JSON.parse(mapped(room({ fees: [], price: { ...room().price, electric: 44_000 } })).mutable.attributes))
+      .toMatchObject({ electricityPrice: '4000', electricityEstimated: '4000' })
+  })
+  it('a plausible electricity rate carries no flag; one with no plausible reading stores neither key', () => {
+    const plain = JSON.parse(mapped().mutable.attributes) as Record<string, unknown>
+    expect(plain.electricityPrice).toBe('3800')
+    expect(Object.hasOwn(plain, ELECTRICITY_ESTIMATED)).toBe(false)
+    for (const stated of [123_456_789, 10]) {   // nothing to read · a reading 2.5× off (GOPLUS_ELECTRICITY_GUESS_MAX_OFF)
+      const none = JSON.parse(mapped(room({ fees: [{ id: 'electric', price: stated, unit: 'kWh' }], price: { ...room().price, electric: null } })).mutable.attributes) as Record<string, unknown>
+      expect(none.electricityPrice, String(stated)).toBeUndefined()
+      expect(none[ELECTRICITY_ESTIMATED], String(stated)).toBeUndefined()
+    }
   })
   // A reviewer's catch (2026-10-19): a fees[] water line with an unreadable unit never borrows the price block's unit.
   it('a fees[] line priced 0 does not hide the price block\'s real figure', () => {

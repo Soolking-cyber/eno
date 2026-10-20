@@ -25,9 +25,10 @@ export type LabelPair = { label: string; labelVi: string }
 
 /**
  * ⛔ THE PLAUSIBLE CEILING OF EACH AMOUNT, in đồng — above it the figure is not what its unit says, so it is neither
- * printed nor imported (scripts/import-goplus.ts drops it at the source with the same table). Measured on GoPlus's own
- * 2,669 rooms (2026-10-19): electricity p99 5,000 đ/kWh but a max of 4,000,000 (a monthly flat rate typed into the
- * per-kWh field); water p99 150,000 đ/person, max 4,000,000; per m³ max 50,000; service p99 300,000, max 2,000,000;
+ * printed nor imported (scripts/import-goplus.ts drops it at the source with the same table — except electricity, read
+ * since 2026-10-20 as its closest plausible typo and stored FLAGGED: ELECTRICITY_ESTIMATED). Measured on GoPlus's own
+ * 2,669 rooms (2026-10-19): electricity p99 5,000 đ/kWh but a max of 4,000,000 (a rate with zeros added — read as
+ * ≈ 4,000 since 2026-10-20); water p99 150,000 đ/person, max 4,000,000; per m³ max 50,000; service p99 300,000, max 2,000,000;
  * parking p99 300,000, max 10,000,000. A reviewer's catch: "200,000 đ / kWh" would be a wrong promise.
  */
 export const RENTAL_FEE_MAX: Readonly<Record<string, number>> = {
@@ -41,8 +42,8 @@ export const RENTAL_FEE_MAX: Readonly<Record<string, number>> = {
 /**
  * …and its plausible FLOOR: below it the figure is in another unit — a deposit of "3500" meant 3.5 million, a fee of
  * "150" meant 150,000 (a reviewer's catch: "Deposit 3,500 đ" would be a wrong promise). GoPlus's own minimums (10-19):
- * electricity 400 đ/kWh (under any tariff — dropped), water 50,000 đ/person and 2,500 đ/m³, service 20,000, parking
- * 50,000.
+ * electricity 400 đ/kWh (under any tariff — the importer reads it as ≈ 4,000 since 2026-10-20, ELECTRICITY_ESTIMATED),
+ * water 50,000 đ/person and 2,500 đ/m³, service 20,000, parking 50,000.
  */
 export const RENTAL_FEE_MIN: Readonly<Record<string, number>> = {
   deposit: 100_000,
@@ -99,10 +100,31 @@ export const RENTAL_FACT_LABELS = {
   availableFrom: { label: 'Available from', labelVi: 'Trống từ ngày' },
   groundFloor: { label: 'Ground floor', labelVi: 'Tầng trệt' },
   mezzanineFloor: { label: 'Mezzanine', labelVi: 'Tầng lửng' },
+  // A guessed amount (CostRow.estimated): the word printed after its unit, in plain sight (rental-facts.tsx).
+  estimate: { label: 'estimate', labelVi: 'ước tính' },
 } as const satisfies Record<string, LabelPair>
 
-/** Every attribute key this module can draw. The page hides the WELL-FORMED ones (rentalFactHiddenKeys), never all. */
-export const RENTAL_FACT_KEYS: readonly string[] = [...COSTS.map((c) => c.key), 'waterUnit', 'maxTenants', 'floor', 'availableFrom']
+/**
+ * ⛔ THE FLAG BESIDE A GUESSED AMOUNT (owner, 2026-10-20: "fix error electricity prices with closest guess"): it holds
+ * THE GUESSED FIGURE ITSELF — the importer's closest reading of an impossible rate (goplus-listing.ts
+ * goplusElectricityGuess: 44,000 đ/kWh read as 4,000 → `electricityPrice: '4000', electricityEstimated: '4000'`) — and the
+ * row says "≈ … estimate", never the guess as fact, only WHILE `electricityPrice` STILL IS THAT FIGURE. ⚠️ BOUND TO THE
+ * FIGURE, NOT A YES/NO (reviewers' catch, 2026-10-20): the editor sends every stored attribute back, so a bare '1' outlived
+ * a corrected rate and printed a person's real 3,500 as "≈ 3,500 estimate"; a figure edited since is no longer the guess,
+ * and the stale flag is ignored. In practice the two move TOGETHER: no form asks the rate (the taxonomy has no
+ * electricity field — the edit screen only carries it back unchanged), and the weekly import rewrites `attributes` whole
+ * (import-goplus.ts MUTABLE_KEYS), so a figure GoPlus corrects loses its flag that week. Only an /api/v1 write can set
+ * one without the other. Like `waterUnit`, it qualifies a cost and prints nothing itself. Any seller's API post can carry
+ * the key too — it then only calls that seller's own figure an estimate. Electricity only: every other implausible fee
+ * is still dropped. Nothing else reads the rate: the feeds, JSON-LD and search text never print it.
+ */
+export const ELECTRICITY_ESTIMATED = 'electricityEstimated'
+
+/**
+ * Every attribute key this module can draw — plus the two that only qualify a cost (`waterUnit`, ELECTRICITY_ESTIMATED).
+ * The page hides the WELL-FORMED ones (rentalFactHiddenKeys), never all.
+ */
+export const RENTAL_FACT_KEYS: readonly string[] = [...COSTS.map((c) => c.key), 'waterUnit', ELECTRICITY_ESTIMATED, 'maxTenants', 'floor', 'availableFrom']
 
 /**
  * Do these sections apply to this listing at all? A PLACE rental (the availability check's own gate — never vehicle hire,
@@ -113,7 +135,8 @@ export function rentalFactsApply(l: { categorySlug: string | null | undefined; s
   return l.listingType === 'rent' && (l.currency === '₫' || l.currency === 'VND') && rentalCheckApplies(l.categorySlug, l.subcategorySlug)
 }
 
-export type CostRow = { key: string; name: LabelPair; amount: number; per: LabelPair | null }
+/** `estimated`: the amount is a guess (ELECTRICITY_ESTIMATED) — the page prints "≈" before it and "estimate" after it. */
+export type CostRow = { key: string; name: LabelPair; amount: number; per: LabelPair | null; estimated: boolean }
 
 /** A positive whole number (of people), from the stored string — else null. */
 function wholePositive(v: unknown): number | null {
@@ -167,6 +190,9 @@ export function rentalFactHiddenKeys(attributes: Record<string, unknown> | null 
   const out: string[] = []
   for (const c of COSTS) if (costAmount(c.key, attributes) != null) out.push(c.key)
   if (costAmount('waterPrice', attributes) != null) out.push('waterUnit')
+  // The estimate flag is machine data — a raw "electricity estimated: 4000" says nothing to a reader — so a well-formed one
+  // is hidden even when it no longer matches the rate (a corrected figure) or sits beside a rate the row cannot print.
+  if (wholePositive(attributes[ELECTRICITY_ESTIMATED]) != null) out.push(ELECTRICITY_ESTIMATED)
   const tenants = wholePositive(attributes.maxTenants)
   if (tenants != null && tenants <= 50) out.push('maxTenants')
   if (floorOf(attributes.floor) != null) out.push('floor')
@@ -177,6 +203,7 @@ export function rentalFactHiddenKeys(attributes: Record<string, unknown> | null 
 /**
  * The monthly-cost rows a listing states, in print order: deposit, electricity, water, service fee, parking. Empty when
  * it states none — the page then draws no block at all (the rent alone is already the price in the buy box).
+ * The electricity row is `estimated` while ELECTRICITY_ESTIMATED holds the very figure it prints (see there).
  */
 export function rentalCostRows(attributes: Record<string, unknown> | null | undefined): CostRow[] {
   if (!attributes) return []
@@ -184,8 +211,9 @@ export function rentalCostRows(attributes: Record<string, unknown> | null | unde
   for (const c of COSTS) {
     const amount = costAmount(c.key, attributes)
     if (amount == null) continue
+    const estimated = c.key === 'electricityPrice' && wholePositive(attributes[ELECTRICITY_ESTIMATED]) === amount
     const per = c.key === 'waterPrice' ? WATER_PER[String(attributes.waterUnit)] : c.per
-    rows.push({ key: c.key, name: c.name, amount, per })
+    rows.push({ key: c.key, name: c.name, amount, per, estimated })
   }
   return rows
 }
