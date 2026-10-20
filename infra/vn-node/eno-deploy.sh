@@ -1156,3 +1156,24 @@ say "12. IndexNow (advisory: nothing here can fail or roll back this deploy)"
 # the long outbound crons; this one builds three sitemaps and sends at most one small POST.
 timeout 300 /opt/eno/bin/eno-cron.sh indexnow eno.vn 3001 \
   || warn "indexnow: exit $? (advisory; see /tmp/eno-cron-indexnow.out)"
+
+say "13. the job mailbox reader (advisory): refreshed from this commit if it is installed"
+# Teacher job DMs (infra/vn-node/job-mailbox/README.md). Its unit runs the INSTALLED copy, so — step 4's rule for
+# eno-build.sh — the copy that runs must be the copy in this commit, or a fix shipped here never reaches the box (codex +
+# opus, gate 7b). Refreshed ONLY when already installed: the first install is a dry run by hand, never a deploy's side
+# effect, and the timer is left enabled or not as it is. Warn-only, like step 12: the deploy is complete.
+# The new script is COMPILED by the box's own python3 before anything is replaced (a copy that cannot start is never
+# swapped in — opus, gate 7b2); then the units, then the script by an atomic rename — a run the timer starts meanwhile
+# reads the old file or the new one, never half of one (codex, gate 7c); then the timer is restarted if it runs, so a
+# changed schedule takes effect (opus, gate 7b2).
+if [ -f /opt/eno/bin/eno-job-mailbox.py ]; then
+  install -m 0755 "$APP/infra/vn-node/job-mailbox/eno-job-mailbox.py" /opt/eno/bin/.eno-job-mailbox.py.new \
+    && python3 -I -c 'import sys; compile(open(sys.argv[1], "rb").read(), sys.argv[1], "exec")' /opt/eno/bin/.eno-job-mailbox.py.new \
+    && install -m 0644 "$APP/infra/vn-node/job-mailbox/eno-job-mailbox.service" \
+                       "$APP/infra/vn-node/job-mailbox/eno-job-mailbox.timer" /etc/systemd/system/ \
+    && systemctl daemon-reload \
+    && mv -f /opt/eno/bin/.eno-job-mailbox.py.new /opt/eno/bin/eno-job-mailbox.py \
+    && systemctl try-restart eno-job-mailbox.timer \
+    && ok "job mailbox reader refreshed from $(git -C "$APP" log --oneline -1 -- infra/vn-node/job-mailbox | cut -c1-40)" \
+    || warn "job mailbox reader: could not refresh it (job-mailbox/README.md, Install)"
+fi

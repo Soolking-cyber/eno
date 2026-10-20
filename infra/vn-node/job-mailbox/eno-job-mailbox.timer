@@ -1,0 +1,16 @@
+[Unit]
+Description=eno · job mailbox reader, every 30 minutes 07:00-21:00 Vietnam time
+
+[Timer]
+# ⚠️ UTC, SPELLED OUT (install-cron-timers.sh): the box runs ICT, and a bare time here would be read as local — the
+# mistake that once put a "18:15 UTC" backup at 18:15 local peak. 00:00-14:00 UTC = 07:00-21:00 ICT, on the hour and
+# the half hour: 29 runs a day, the last at 21:00.
+OnCalendar=*-*-* 00..13:00,30:00 UTC
+OnCalendar=*-*-* 14:00:00 UTC
+# A run missed while the box was off happens at boot, whatever the hour. Harmless: this only reads mail and stores
+# posts; the job-DM cron keeps its own quiet hours (JOB_DM_RULES.quietFromHour/quietToHour).
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

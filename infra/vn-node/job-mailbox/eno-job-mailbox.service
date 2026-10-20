@@ -1,0 +1,29 @@
+[Unit]
+Description=eno · read LinkedIn job alerts and team "JOB:" forwards from alex@eno.vn into the job-post ingest
+# Wants, not Requires (eno-docker-prune's rule): if docker is slow to settle the run still starts and the script's own
+# checks decide — Dovecot or the app not answering is exit 4, a visible failure, never a silent skip.
+Wants=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+# Optional settings (team list, server names, size cap, give-up hours) — README "Settings". Absent = the defaults.
+EnvironmentFile=-/etc/default/eno-job-mailbox
+# The installed COPY (README "Install"): a deploy rewrites the checkout, and a script must not change under its own run.
+# -I (isolated): no PYTHON* variable and no file next to the script can shadow a standard-library module.
+ExecStart=/usr/bin/python3 -I /opt/eno/bin/eno-job-mailbox.py
+# ⛔ 2 = "nothing new", which is most runs. Without this line every quiet half hour would mark the unit failed and bury
+# the real failures — 4 (Dovecot or the app unreachable or refusing) and 1 (a bug, a bad setting) — in
+# `systemctl --failed`.
+SuccessExitStatus=2
+# A tenant on the production box: it yields the CPU to the site and can never grow past a small cap. A hard cap only:
+# this box has no swap, so a MemoryHigh would throttle instead of kill (eno-storage-backup.service).
+Nice=10
+MemoryMax=256M
+# A normal run takes seconds; a hung docker exec or curl must end as a visible failure, not block the next half hour.
+TimeoutStartSec=600
+# The 0600 header file that hands CRON_SECRET to curl lives in this unit's own /tmp; everything it writes is private.
+PrivateTmp=yes
+UMask=0077
+StandardOutput=journal
+StandardError=journal
