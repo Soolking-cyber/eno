@@ -1420,6 +1420,9 @@ model TeacherJobDmConsent {
   noticeVersion String?
   withdrawnAt   DateTime?
   invitedAt     DateTime?
+  /// set when a reply MAY have asked to stop (replies.ts mayBeOptOut): nothing is sent until the teacher says "Keep sending
+  /// jobs" or switches it on again — never lifted by time or by any other reply (run.ts processStops)
+  pausedAt      DateTime?
   updatedAt     DateTime  @default(now())
 }
 

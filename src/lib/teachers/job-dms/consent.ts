@@ -41,8 +41,9 @@ export type JobDmConsentRow = {
   noticeVersion: string | null
   withdrawnAt: Date | null
   invitedAt: Date | null
+  pausedAt: Date | null
 }
-const ROW_SELECT = { optIn: true, optInAt: true, noticeVersion: true, withdrawnAt: true, invitedAt: true } as const
+const ROW_SELECT = { optIn: true, optInAt: true, noticeVersion: true, withdrawnAt: true, invitedAt: true, pausedAt: true } as const
 
 type Tx = Prisma.TransactionClient
 /**
@@ -61,8 +62,9 @@ export async function readJobDmConsent(profileId: string): Promise<JobDmConsentR
 }
 
 /** ⛔ MAY THE JOBS DESK MESSAGE THIS TEACHER? Only with the switch ON under the notice in force. */
-export function jobDmConsented(row: Pick<JobDmConsentRow, 'optIn' | 'noticeVersion'> | null | undefined): boolean {
-  return !!row && row.optIn && row.noticeVersion === JOB_DM_NOTICE_VERSION
+export function jobDmConsented(row: (Pick<JobDmConsentRow, 'optIn' | 'noticeVersion'> & { pausedAt?: Date | null }) | null | undefined): boolean {
+  // ⚠️ A PAUSED switch is not a consent to send (codex, gate 3m): the one gate says so itself, so no caller can forget it.
+  return !!row && row.optIn && row.noticeVersion === JOB_DM_NOTICE_VERSION && !row.pausedAt
 }
 
 /**
@@ -73,21 +75,28 @@ export function jobDmConsented(row: Pick<JobDmConsentRow, 'optIn' | 'noticeVersi
  *                   switch draws. `on && !current` = an ON under an older notice — the page says "switch it on again";
  *   teacher       — the account has a teacher profile (live or hidden), which an ON needs.
  */
-export type JobDmState = { on: boolean; noticeVersion: string | null; current: boolean; teacher: boolean }
-export function jobDmStateOf(row: Pick<JobDmConsentRow, 'optIn' | 'noticeVersion'> | null, teacher: boolean): JobDmState {
-  return { on: row?.optIn === true, noticeVersion: row?.noticeVersion ?? null, current: jobDmConsented(row), teacher }
+/** `paused`: ON, but held after a reply that may have asked to stop (run.ts) — the switch shows OFF, and switching it on
+ *  lifts the pause (jobDmConsentWrites). */
+export type JobDmState = { on: boolean; noticeVersion: string | null; current: boolean; teacher: boolean; paused: boolean }
+export function jobDmStateOf(row: (Pick<JobDmConsentRow, 'optIn' | 'noticeVersion'> & { pausedAt?: Date | null }) | null, teacher: boolean): JobDmState {
+  const paused = row?.optIn === true && !!row?.pausedAt
+  // The page draws `current` (job-messages-panel.tsx) — OFF while paused, so switching it on lifts the pause.
+  return { on: row?.optIn === true, noticeVersion: row?.noticeVersion ?? null, current: jobDmConsented(row), teacher, paused }
 }
 
 /** The evidence a switch writes over the stored row — null when it changes nothing. Pure. */
 export function jobDmConsentWrites(
   on: boolean,
-  stored: Pick<JobDmConsentRow, 'optIn' | 'noticeVersion'> | null,
+  stored: (Pick<JobDmConsentRow, 'optIn' | 'noticeVersion'> & { pausedAt?: Date | null }) | null,
   now: Date,
-): { optIn: boolean; optInAt?: Date; noticeVersion?: string; withdrawnAt?: Date; updatedAt: Date } | null {
+): { optIn?: boolean; optInAt?: Date; noticeVersion?: string; withdrawnAt?: Date; pausedAt?: null; updatedAt: Date } | null {
   const wasOn = stored?.optIn === true
   if (on) {
-    if (wasOn && stored?.noticeVersion === JOB_DM_NOTICE_VERSION) return null
-    return { optIn: true, optInAt: now, noticeVersion: JOB_DM_NOTICE_VERSION, updatedAt: now }
+    // ON over an ON under today's notice writes nothing — except to lift a PAUSE (run.ts): the teacher saying "on" again
+    // is the clearest "keep sending" there is, and a fresh grant — `optInAt` moves, so the reply that paused it (from
+    // before) is never read again and cannot pause it a second time (opus, gate 3j).
+    if (wasOn && stored?.noticeVersion === JOB_DM_NOTICE_VERSION) return stored?.pausedAt ? { optInAt: now, pausedAt: null, updatedAt: now } : null
+    return { optIn: true, optInAt: now, noticeVersion: JOB_DM_NOTICE_VERSION, pausedAt: null, updatedAt: now }
   }
   return wasOn ? { optIn: false, withdrawnAt: now, updatedAt: now } : null
 }

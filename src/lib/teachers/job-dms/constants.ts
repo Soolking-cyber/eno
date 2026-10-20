@@ -46,6 +46,8 @@ export const JOB_DM_RULES = {
   quietToHour: 8,
   /** ExternalJobPost rows older than this are deleted (the post text is third-party content) */
   retentionDays: 30,
+  /** a purged post's shell (source, key, signature — no content) stops it being stored and sent again; gone after this */
+  shellDays: 180,
 } as const
 
 /** kv_store key of the send mode. kv_store is UNLOGGED: after a crash the key is gone and the mode falls back to shadow. */

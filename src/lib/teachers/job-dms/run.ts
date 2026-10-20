@@ -1,5 +1,6 @@
 import 'server-only'
 import { createHash } from 'node:crypto'
+import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { kv } from '@/lib/ratelimit'
 import { HOME_HIDDEN_TEACHER_LISTING_IDS } from '@/lib/teachers/constants'
@@ -11,8 +12,8 @@ import { decide } from './facts'
 import { fit, vnToday, type MatchJob, type MatchTeacher } from './gates'
 import { layaAnswers } from './laya'
 import { asksOf, composeDm, payText, sourceLine, titleOf, type DmItem } from './compose'
-import { honourStop, resolveJobsOperatorProfileId, sendJobDm } from './desk'
-import { isStopReply } from './replies'
+import { honourStop, pauseJobDms, resolveJobsOperatorProfileId, resumeJobDms, sendJobDm } from './desk'
+import { isKeepReply, isStopReply, mayBeOptOut } from './replies'
 
 /**
  * ONE RUN of the teacher job DMs (GET /api/cron/teacher-job-dms, every 30 minutes in the daytime):
@@ -42,7 +43,9 @@ export type RunResult = {
   shadow: number
   skipped: number
   failed: number
-  stopped?: 'quiet' | 'ceiling' | 'no-operator'
+  /** teachers newly paused this run (a reply that may have asked to stop) */
+  paused?: number
+  stopped?: 'quiet' | 'ceiling' | 'no-operator' | 'busy' | 'lock-error' | 'deadline'
 }
 
 // Posts read per run: the rules take milliseconds; Laya (record-only) gets at most 4 minutes of a run and the posts it
@@ -72,23 +75,46 @@ export function isQuiet(now: Date): boolean {
  * teacher has since overruled by switching back on must not switch them off again (opus, gate 3a). Only teachers whose
  * switch is ON are read; 60 days back at most (a run is every 30 minutes — a backlog that old is an outage, not a reply).
  */
-async function processStops(operatorId: string, now: Date): Promise<number> {
-  const rows = await db.$queryRaw<{ conversationId: string; teacher: string; body: string }[]>`
-    select m."conversationId", c."buyerProfileId"::text as teacher, m.body
+async function processStops(operatorId: string, now: Date): Promise<{ n: number; pending: Set<string>; failed: number; paused: number }> {
+  const rows = await db.$queryRaw<{ conversationId: string; teacher: string; body: string; at: Date; paused: boolean }[]>`
+    select m."conversationId", c."buyerProfileId"::text as teacher, m.body, m."createdAt" as at, (k."pausedAt" is not null) as paused
       from "Message" m
       join "Conversation" c on c.id = m."conversationId"
       join "TeacherJobDmConsent" k on k."profileId" = c."buyerProfileId" and k."optIn"
      where c."sellerId" = ${JOBS_DESK_SELLER_ID} and c."listingId" is null and m."senderProfileId" = c."buyerProfileId"
        and m."deletedAt" is null and m."createdAt" > k."optInAt" and m."createdAt" > ${new Date(now.getTime() - 60 * 86_400_000)}
-     order by m."createdAt" asc`
-  const done = new Set<string>()
-  let n = 0
+     order by m."createdAt" asc, m.id asc`
+  // Per teacher, their replies in order since they switched on: a STOP withdraws (honourStop); otherwise the LAST word
+  // between "may be an opt-out" (mayBeOptOut) and "keep sending" (isKeepReply) decides — PAUSE (pauseJobDms, stored,
+  // lifted only by an explicit keep or a switch-on) or RESUME (resumeJobDms). Other replies change nothing: a "thanks"
+  // after an ambiguous opt-out does not lift its pause (codex + opus, gate 3i).
+  // The LATEST of stop / pause / keep decides — a "Keep sending jobs" typed after a STOP, before the run read either,
+  // is the teacher's last word (codex, gate 3l).
+  type Verdict = { last?: 'stop' | 'pause' | 'keep'; lastAt?: Date; conversationId: string; paused: boolean }
+  const byTeacher = new Map<string, Verdict>()
   for (const r of rows) {
-    if (done.has(r.teacher) || !isStopReply(r.body)) continue
-    done.add(r.teacher)
-    if (await honourStop(r.teacher, operatorId, r.conversationId, now)) n++
+    const v = byTeacher.get(r.teacher) ?? { conversationId: r.conversationId, paused: r.paused }
+    const word = isStopReply(r.body) ? 'stop' : isKeepReply(r.body) ? 'keep' : mayBeOptOut(r.body) ? 'pause' : null
+    if (word) { v.last = word; v.lastAt = r.at; v.conversationId = r.conversationId }
+    byTeacher.set(r.teacher, v)
   }
-  return n
+  const pending = new Set<string>()
+  let n = 0, failed = 0, paused = 0
+  for (const [teacher, v] of byTeacher) {
+    // One teacher's failure (a lock timeout, 55P03 — opus, gate 3d) never stops the others: their reply is still there,
+    // so the next run retries it — counted as a failure (the route reports it), and that teacher is sent nothing now.
+    try {
+      if (v.last === 'stop') { if (await honourStop(teacher, operatorId, v.conversationId, now)) n++ }
+      // Only a change is written: a paused teacher is not paused again, nor a running one resumed, every run (codex, 3k).
+      else if (v.last === 'pause') { pending.add(teacher); if (!v.paused && await pauseJobDms(teacher, operatorId, v.conversationId, v.lastAt!, now)) paused++ }
+      else if (v.last === 'keep' && v.paused) await resumeJobDms(teacher, now)
+    } catch (e) {
+      failed++
+      pending.add(teacher)
+      console.error('[job-dms] reply', teacher, e)
+    }
+  }
+  return { n, pending, failed, paused }
 }
 
 // ── 2. Read new posts ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -102,20 +128,27 @@ type Counts = Pick<RunResult, 'read' | 'ready' | 'held' | 'dropped'>
  * the only differences.
  */
 export function textSig(text: string): string {
+  // The TEXT alone — and a LinkedIn alert's text already opens with "title · company · place" (the mailbox reader builds it
+  // so), so two jobs under one boilerplate description still differ, and the same ad from a group with no title fields
+  // still matches (codex, gates 3c, 3f, 3h).
   const core = foldPost(text).replace(/\[(email|phone|link)\]/g, ' ').replace(/\bsee (more|less)\b/g, ' ').replace(/[^a-z0-9]+/g, '').slice(0, 500)
   return createHash('sha256').update(core).digest('hex').slice(0, 32)
 }
 
 /** A copy held only for its ROUTE — the group is private or unknown, no link, no date, no Apply line — leaves the job to
  *  another copy; any other verdict is about the words, which the copies share. */
-function takesTheJob(status: string, reason: string | null): boolean {
-  return !(status === 'held' && !!reason && /^(group-|no-link|undated|no-apply-path)/.test(reason))
+function takesTheJob(_status: string, reason: string | null): boolean {
+  // Whatever the row's status now — a route-held copy is 'expired' once its time is up (opus, gate 3g) — its reason
+  // says it waited on its route, not its words.
+  return !(!!reason && /^(group-|no-link|undated|no-apply-path)/.test(reason))
 }
 
 async function readNewPosts(now: Date, write: boolean): Promise<Counts> {
   const posts = await db.externalJobPost.findMany({
-    where: { OR: [{ status: 'new' }, { status: { in: ['ready', 'held'] }, factsVersion: { not: RULES_VERSION } }] },
-    orderBy: { receivedAt: 'asc' },
+    // ⚠️ Never a purged shell: re-reading '[deleted]' under a new rules version would overwrite its signature — the
+    // very thing the shell is kept for (opus, gate 3e).
+    where: { OR: [{ status: 'new' }, { status: { in: ['ready', 'held'] }, factsVersion: { not: RULES_VERSION } }], NOT: { text: PURGED_TEXT } },
+    orderBy: [{ receivedAt: 'asc' }, { id: 'asc' }],
     take: READ_PER_RUN,
     select: { id: true, source: true, text: true, title: true, company: true, locationText: true, postedAt: true, receivedAt: true, groupPublic: true, url: true, applyText: true },
   })
@@ -129,11 +162,14 @@ async function readNewPosts(now: Date, write: boolean): Promise<Counts> {
   const earlier = await db.externalJobPost.findMany({
     // ⚠️ NULL-SAFE: `NOT: { statusReason: 'duplicate' }` is SQL `NOT (x = 'duplicate')`, NULL — so FALSE — for every
     // ready post (no reason): no earlier copy was ever found (opus, gate 3a). Hence the explicit OR with null.
-    where: { textSig: { in: [...new Set(sigs)] }, id: { notIn: posts.map((p) => p.id) }, status: { not: 'new' }, OR: [{ statusReason: null }, { statusReason: { not: 'duplicate' } }] },
+    // …and received in the last JOB_DM_RULES.retentionDays: a school reposting its ad a month later is a vacancy still
+    // open, for teachers who switched on since (opus, gate 3l) — the shells' 180 days keep only the door's same-KEY answer.
+    where: { textSig: { in: [...new Set(sigs)] }, id: { notIn: posts.map((p) => p.id) }, status: { not: 'new' }, receivedAt: { gte: new Date(now.getTime() - JOB_DM_RULES.retentionDays * 86_400_000) }, OR: [{ statusReason: null }, { statusReason: { not: 'duplicate' } }] },
     select: { textSig: true, status: true, statusReason: true },
   })
   const taken = new Set(earlier.filter((e) => takesTheJob(e.status, e.statusReason)).map((e) => e.textSig))
-  const laya = await layaAnswers(texts)
+  // A dry run is counts only: Laya is not asked (opus, gate 3c — minutes of model time and post text for a probe).
+  const laya = write ? await layaAnswers(texts) : null
   for (let i = 0; i < posts.length; i++) {
     const p = posts[i]
     // … or an earlier one in this batch.
@@ -163,11 +199,32 @@ async function readNewPosts(now: Date, write: boolean): Promise<Counts> {
 async function expireAndPurge(now: Date): Promise<number> {
   const exp = await db.externalJobPost.updateMany({ where: { status: { in: ['ready', 'held'] }, expiresAt: { lt: now } }, data: { status: 'expired', updatedAt: now } })
   const cutoff = new Date(now.getTime() - JOB_DM_RULES.retentionDays * 86_400_000)
-  await db.externalJobPost.deleteMany({ where: { receivedAt: { lt: cutoff } } })
+  await purgeJobPosts(now)
   // Shadow rows carry a would-be message (the teacher's first name + job lines): kept only as long as the posts they cite.
   await db.teacherJobDm.deleteMany({ where: { mode: 'shadow', createdAt: { lt: cutoff } } })
   return exp.count
 }
+
+/**
+ * RETENTION, in two steps (opus, gate 3c: deleting the row also deleted the key that stops a re-sent post being stored
+ * — and offered — again). At JOB_DM_RULES.retentionDays the post's CONTENT goes: its text, title, company, place, link,
+ * Apply line, facts, group name and reference; the row stays as a shell — source, key (the post's id at its source),
+ * text signature, status and its reason, and timestamps — so the door
+ * answers 'duplicate' to the same post and the never-twice ledger's 'post:<id>' keys keep meaning one job. Shells go at
+ * JOB_DM_RULES.shellDays. Called by the run and by every delivery to the door (api/cron/job-posts).
+ */
+export async function purgeJobPosts(now: Date): Promise<void> {
+  const contentCutoff = new Date(now.getTime() - JOB_DM_RULES.retentionDays * 86_400_000)
+  await db.externalJobPost.updateMany({
+    where: { receivedAt: { lt: contentCutoff }, NOT: { text: PURGED_TEXT } },
+    // ⚠️ STATUS IS KEPT: a copy held for its route ('held' · group-private) must stay one that does not take the job from
+    // another copy (takesTheJob) — re-marking it 'expired' would (opus, gate 3d).
+    data: { text: PURGED_TEXT, title: null, company: null, locationText: null, url: null, applyText: null, facts: Prisma.DbNull, sourceName: '', sourceRef: null, lang: null, updatedAt: now },
+  })
+  await db.externalJobPost.deleteMany({ where: { receivedAt: { lt: new Date(now.getTime() - JOB_DM_RULES.shellDays * 86_400_000) } } })
+}
+/** What a purged post's text reads (the column is NOT NULL, at least one character — the DDL's CHECK). */
+export const PURGED_TEXT = '[deleted]'
 
 // ── 4. Jobs and teachers ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -175,7 +232,7 @@ type Job = MatchJob & { item: Omit<DmItem, 'key'> }
 
 async function loadJobs(now: Date): Promise<Job[]> {
   const posts = await db.externalJobPost.findMany({
-    where: { status: 'ready', expiresAt: { gt: now } },
+    where: { status: 'ready', expiresAt: { gt: now }, NOT: { text: PURGED_TEXT } },
     select: { id: true, source: true, sourceName: true, url: true, applyText: true, postedAt: true, receivedAt: true, facts: true },
     take: 2000,
   })
@@ -231,7 +288,7 @@ async function loadTeachers(): Promise<TeacherRow[]> {
       status: 'live',
       listing: { status: 'active', verified: true },
       ...(HOME_HIDDEN_TEACHER_LISTING_IDS.length ? { NOT: { listingId: { in: [...HOME_HIDDEN_TEACHER_LISTING_IDS] } } } : {}),
-      profile: { teacherJobDmConsent: { optIn: true, noticeVersion: JOB_DM_NOTICE_VERSION } },
+      profile: { teacherJobDmConsent: { optIn: true, noticeVersion: JOB_DM_NOTICE_VERSION, pausedAt: null } },
     },
     select: {
       profileId: true, fullName: true, livesIn: true, currentCity: true, teachAreas: true, jobTypes: true, ageGroups: true, subjects: true,
@@ -277,17 +334,50 @@ export function planFor(t: MatchTeacher, jobs: readonly Job[], offered: Readonly
 
 // ── 5. The run ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/** One run at a time (opus, gate 3c: two overlapping runs could race a thread's cleanup against the other's message). */
+const RUN_LOCK_KEY = 'job-dms:run'
+/** Sending stops here — the lock lives 20 minutes, the route 15. */
+const RUN_DEADLINE_MS = 12 * 60_000
+
 export async function runJobDms(opts: { dryRun: boolean; now?: Date }): Promise<RunResult> {
   const now = opts.now ?? new Date()
   const mode = await readMode()
   const write = !opts.dryRun
   const res: RunResult = { mode: opts.dryRun ? 'dry' : mode, stops: 0, read: 0, ready: 0, held: 0, dropped: 0, expired: 0, teachers: 0, sent: 0, shadow: 0, skipped: 0, failed: 0 }
+  if (!write) return runOnce(opts, now, mode, write, res)
+  // Held 20 minutes at most: a run that died leaves no lock behind for longer. The value is
+  // this run's own token, and only its owner releases it (codex + opus, gate 3d: a run past the TTL must not delete the
+  // NEXT run's lock). A store that cannot be reached is a failure the route reports — never a quiet "busy".
+  const token = `${now.toISOString()}#${Math.random().toString(36).slice(2)}`
+  let won: 'OK' | null
+  // TTL 20 minutes, past the route's 15-minute maxDuration: no live run outlasts its lock (codex, gate 3e).
+  try { won = await kv.set(RUN_LOCK_KEY, token, { nx: true, ex: 1200 }) } catch { return { ...res, stopped: 'lock-error', failed: 1 } }
+  if (won !== 'OK') return { ...res, stopped: 'busy' }
+  try {
+    return await runOnce(opts, now, mode, write, res)
+  } finally {
+    // Compare-and-delete in one statement (opus, gate 3e: a get then a del could delete a successor's lock).
+    try { await db.$executeRaw`delete from kv_store where key = ${RUN_LOCK_KEY} and value = to_jsonb(${token}::text)` } catch { /* the TTL frees it */ }
+  }
+}
+
+async function runOnce(opts: { dryRun: boolean }, now: Date, mode: JobDmsMode, write: boolean, res: RunResult): Promise<RunResult> {
 
   const operatorId = await resolveJobsOperatorProfileId()
   if (!operatorId) return { ...res, stopped: 'no-operator' }
 
   // A STOP is read in every mode (codex + opus, gate 3b): withdrawal never waits for live sending.
-  if (write) res.stops = await processStops(operatorId, now)
+  let stopPending = new Set<string>()
+  // Replies are read as of this moment; a send then holds if the teacher wrote after it (desk.ts — opus, gate 3h).
+  const repliesReadAt = new Date()
+  const deadline = Date.now() + RUN_DEADLINE_MS
+  if (write) {
+    const s = await processStops(operatorId, now)
+    res.stops = s.n
+    res.paused = s.paused
+    res.failed += s.failed
+    stopPending = s.pending
+  }
   Object.assign(res, await readNewPosts(now, write))
   if (write) res.expired = await expireAndPurge(now)
 
@@ -319,6 +409,7 @@ export async function runJobDms(opts: { dryRun: boolean; now?: Date }): Promise<
   const day = vnToday(now)
 
   for (const t of teachers) {
+    if (stopPending.has(t.profileId)) { res.skipped++; continue }
     const plan = planFor(t, jobs, offered.get(t.profileId) ?? new Set(), emailed.get(t.profileId) ?? new Set(), now)
     for (const kind of ['cover', 'jobs'] as const) {
       const picks = plan[kind]
@@ -339,8 +430,10 @@ export async function runJobDms(opts: { dryRun: boolean; now?: Date }): Promise<
         continue
       }
       if (res.sent >= JOB_DM_RULES.maxDmsPerRun) return { ...res, stopped: 'ceiling' }
+      // A run ends well inside its lock's 20 minutes, so no second run can start while it still sends (codex, gate 3h).
+      if (Date.now() > deadline) return { ...res, stopped: 'deadline' }
       try {
-        const out = await sendJobDm({ teacherProfileId: t.profileId, operatorId, kind, day, text: dm.text, jobs: chosen.map((p) => ({ key: p.job.key, score: p.score, reasons: p.reasons })) })
+        const out = await sendJobDm({ teacherProfileId: t.profileId, operatorId, kind, day, text: dm.text, repliesReadAt, jobs: chosen.map((p) => ({ key: p.job.key, score: p.score, reasons: p.reasons })) })
         if (out.sent) { res.sent++; hasThread.add(t.profileId); sentToday.add(`${t.profileId}:${kind}`) } else res.skipped++
       } catch (e) {
         // One teacher's failure never stops the run (teacher-message-emails' rule).

@@ -2,7 +2,7 @@ import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { INGEST_LIMITS, checkPost } from '@/lib/teachers/job-dms/ingest'
-import { JOB_DM_RULES } from '@/lib/teachers/job-dms/constants'
+import { purgeJobPosts } from '@/lib/teachers/job-dms/run'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -56,9 +56,9 @@ export const POST = route({ auth: 'cron' }, async ({ req }) => {
       skipDuplicates: true,
     })
   }
-  // The retention bound holds even while the matcher's timer is off: what is past JOB_DM_RULES.retentionDays goes here
-  // too, on every delivery (opus, gate 3b — run.ts purges as well).
-  await db.externalJobPost.deleteMany({ where: { receivedAt: { lt: new Date(now.getTime() - JOB_DM_RULES.retentionDays * 86_400_000) } } })
+  // The retention bound holds even while the matcher's timer is off: run.ts purgeJobPosts on every delivery too (opus,
+  // gate 3b) — the content at 30 days, the shell that keeps a post from coming back at 180.
+  await purgeJobPosts(now)
   return {
     accepted: fresh.map((p) => p.externalKey),
     duplicate: list.filter((p) => seen.has(`${p.source}\u0000${p.externalKey}`)).map((p) => p.externalKey),

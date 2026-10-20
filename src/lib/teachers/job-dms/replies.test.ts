@@ -58,7 +58,8 @@ describe('isStopReply — a whole short message that asks to stop', () => {
     expect(isStopReply(undefined)).toBe(false)
   })
 
-  it('a long message is never read as a stop, whatever it starts with', () => {
-    expect(isStopReply(`stop ${'please '.repeat(20)}`)).toBe(false)
+  it('a long message is a stop only when it OPENS with the word (codex, gate 3g: "STOP. I found work …")', () => {
+    expect(isStopReply(`stop ${'please '.repeat(20)}`)).toBe(true)
+    expect(isStopReply(`thanks, I applied for job 2 and ${'it went well '.repeat(6)} — stop by tomorrow?`)).toBe(false)
   })
 })

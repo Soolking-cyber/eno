@@ -98,11 +98,14 @@ await client.query(`
     "noticeVersion" text,
     "withdrawnAt" timestamp(3),
     "invitedAt" timestamp(3),
+    "pausedAt" timestamp(3),
     "updatedAt" timestamp(3) not null default current_timestamp,
     constraint "TeacherJobDmConsent_pkey" primary key ("profileId"),
     -- an opt-in is provable: ON always carries its time and the notice it was given under
     constraint "TeacherJobDmConsent_evidence" check (not "optIn" or ("optInAt" is not null and "noticeVersion" is not null))
   )`)
+// A table created before "pausedAt" existed gets it here (codex + opus, gate 3k): nullable, so instant and safe.
+await client.query(`alter table "TeacherJobDmConsent" add column if not exists "pausedAt" timestamp(3)`)
 console.log('ok  TeacherJobDmConsent')
 
 await client.query(`

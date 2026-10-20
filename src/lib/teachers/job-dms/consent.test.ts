@@ -87,14 +87,14 @@ afterEach(() => { vi.restoreAllMocks() })
 
 describe('jobDmConsentWrites — the evidence each act writes (pure)', () => {
   it('an ON over nothing: the switch, its time and the notice it was given under', () => {
-    expect(jobDmConsentWrites(true, null, NOW)).toEqual({ optIn: true, optInAt: NOW, noticeVersion: JOB_DM_NOTICE_VERSION, updatedAt: NOW })
+    expect(jobDmConsentWrites(true, null, NOW)).toEqual({ optIn: true, optInAt: NOW, noticeVersion: JOB_DM_NOTICE_VERSION, pausedAt: null, updatedAt: NOW })
   })
   it('an ON over an ON under today’s notice writes NOTHING — the grant on record stays the first one', () => {
     expect(jobDmConsentWrites(true, row({ optIn: true, optInAt: EARLIER, noticeVersion: JOB_DM_NOTICE_VERSION }), NOW)).toBeNull()
   })
   it('an ON over an older notice’s ON, or over an OFF, is a FRESH grant: both stamps move', () => {
     for (const stored of [row({ optIn: true, optInAt: EARLIER, noticeVersion: OLD_NOTICE }), row({ optIn: false, optInAt: EARLIER, noticeVersion: JOB_DM_NOTICE_VERSION, withdrawnAt: EARLIER })]) {
-      expect(jobDmConsentWrites(true, stored, NOW)).toEqual({ optIn: true, optInAt: NOW, noticeVersion: JOB_DM_NOTICE_VERSION, updatedAt: NOW })
+      expect(jobDmConsentWrites(true, stored, NOW)).toEqual({ optIn: true, optInAt: NOW, noticeVersion: JOB_DM_NOTICE_VERSION, pausedAt: null, updatedAt: NOW })
     }
   })
   it('⛔ an OFF over an ON stamps the withdrawal and KEEPS the last grant (its time and notice are history)', () => {
@@ -106,6 +106,10 @@ describe('jobDmConsentWrites — the evidence each act writes (pure)', () => {
   it('an OFF over an OFF, or over no row, writes nothing (no second withdrawal time)', () => {
     expect(jobDmConsentWrites(false, null, NOW)).toBeNull()
     expect(jobDmConsentWrites(false, row({ withdrawnAt: EARLIER, optInAt: EARLIER, noticeVersion: JOB_DM_NOTICE_VERSION }), NOW)).toBeNull()
+  })
+  it('an ON over an ON under today\'s notice lifts a PAUSE, and writes nothing else', () => {
+    expect(jobDmConsentWrites(true, { optIn: true, noticeVersion: JOB_DM_NOTICE_VERSION, pausedAt: NOW }, NOW)).toEqual({ optInAt: NOW, pausedAt: null, updatedAt: NOW })
+    expect(jobDmConsentWrites(true, { optIn: true, noticeVersion: JOB_DM_NOTICE_VERSION, pausedAt: null }, NOW)).toBeNull()
   })
 })
 
@@ -119,8 +123,8 @@ describe('jobDmConsented — the one gate', () => {
     expect(jobDmConsented(undefined)).toBe(false)
   })
   it('the page’s state says ON-but-lapsed apart from ON', () => {
-    expect(jobDmStateOf({ optIn: true, noticeVersion: OLD_NOTICE }, true)).toEqual({ on: true, noticeVersion: OLD_NOTICE, current: false, teacher: true })
-    expect(jobDmStateOf(null, false)).toEqual({ on: false, noticeVersion: null, current: false, teacher: false })
+    expect(jobDmStateOf({ optIn: true, noticeVersion: OLD_NOTICE }, true)).toEqual({ on: true, noticeVersion: OLD_NOTICE, current: false, teacher: true, paused: false })
+    expect(jobDmStateOf(null, false)).toEqual({ on: false, noticeVersion: null, current: false, teacher: false, paused: false })
   })
   it('⚠️ the lock key is the one desk.ts sendJobDm takes first in its batch — `teacher-job-dm:` + the profile id', () => {
     expect(jobDmLockKey('p1')).toBe('teacher-job-dm:p1')
@@ -148,7 +152,7 @@ describe('setJobDmConsent — the switch', () => {
     vi.setSystemTime(NOW)
     try {
       const s = await setJobDmConsent('p1', true, JOB_DM_NOTICE_VERSION)
-      expect(s).toEqual({ on: true, noticeVersion: JOB_DM_NOTICE_VERSION, current: true, teacher: true })
+      expect(s).toEqual({ on: true, noticeVersion: JOB_DM_NOTICE_VERSION, current: true, teacher: true, paused: false })
       expect(h.rows.get('p1')).toMatchObject({ optIn: true, optInAt: NOW, noticeVersion: JOB_DM_NOTICE_VERSION, withdrawnAt: null })
       expect(h.calls).toEqual(['begin', 'lock_timeout', 'lock', 'teacher', 'read', 'create', 'commit'])
       expect(h.lockKeys).toEqual(['teacher-job-dm:p1'])
@@ -173,7 +177,7 @@ describe('setJobDmConsent — the switch', () => {
   it('an ON over an older notice re-stamps it under today’s; the last withdrawal stays as history', async () => {
     h.rows.set('p1', row({ optIn: false, optInAt: EARLIER, noticeVersion: OLD_NOTICE, withdrawnAt: EARLIER, invitedAt: EARLIER }))
     const s = await setJobDmConsent('p1', true, JOB_DM_NOTICE_VERSION)
-    expect(s).toEqual({ on: true, noticeVersion: JOB_DM_NOTICE_VERSION, current: true, teacher: true })
+    expect(s).toEqual({ on: true, noticeVersion: JOB_DM_NOTICE_VERSION, current: true, teacher: true, paused: false })
     const r = h.rows.get('p1')!
     expect(r.noticeVersion).toBe(JOB_DM_NOTICE_VERSION)
     expect(r.optInAt!.getTime()).toBeGreaterThan(EARLIER.getTime())
@@ -184,7 +188,7 @@ describe('setJobDmConsent — the switch', () => {
   it('⛔ an OFF stamps the withdrawal and keeps the grant as history', async () => {
     h.rows.set('p1', row({ optIn: true, optInAt: EARLIER, noticeVersion: JOB_DM_NOTICE_VERSION }))
     const s = await setJobDmConsent('p1', false, null)
-    expect(s).toEqual({ on: false, noticeVersion: JOB_DM_NOTICE_VERSION, current: false, teacher: true })
+    expect(s).toEqual({ on: false, noticeVersion: JOB_DM_NOTICE_VERSION, current: false, teacher: true, paused: false })
     const r = h.rows.get('p1')!
     expect(r.optIn).toBe(false)
     expect(r.withdrawnAt).toBeInstanceOf(Date)
@@ -200,20 +204,20 @@ describe('setJobDmConsent — the switch', () => {
     }
     h.teachers.clear()
     h.rows.set('p1', row({ optIn: true, optInAt: EARLIER, noticeVersion: JOB_DM_NOTICE_VERSION }))
-    expect(await setJobDmConsent('p1', false, undefined)).toEqual({ on: false, noticeVersion: JOB_DM_NOTICE_VERSION, current: false, teacher: false })
+    expect(await setJobDmConsent('p1', false, undefined)).toEqual({ on: false, noticeVersion: JOB_DM_NOTICE_VERSION, current: false, teacher: false, paused: false })
     expect(h.rows.get('p1')?.optIn).toBe(false)
   })
 
   it('an OFF with nothing to withdraw writes nothing (no row is made for it)', async () => {
     const s = await setJobDmConsent('p1', false, null)
-    expect(s).toEqual({ on: false, noticeVersion: null, current: false, teacher: true })
+    expect(s).toEqual({ on: false, noticeVersion: null, current: false, teacher: true, paused: false })
     expect(h.rows.size).toBe(0)
     expect(h.calls).not.toContain('create')
   })
 
   it('readJobDmState reads only', async () => {
     h.rows.set('p1', row({ optIn: true, optInAt: EARLIER, noticeVersion: OLD_NOTICE }))
-    expect(await readJobDmState('p1')).toEqual({ on: true, noticeVersion: OLD_NOTICE, current: false, teacher: true })
+    expect(await readJobDmState('p1')).toEqual({ on: true, noticeVersion: OLD_NOTICE, current: false, teacher: true, paused: false })
     expect(h.calls.filter((c) => ['create', 'update', 'updateMany'].includes(c))).toEqual([])
   })
 })

@@ -15,7 +15,7 @@ vi.mock('@/lib/db', () => ({
     $queryRaw: vi.fn((s: TemplateStringsArray, ...v: unknown[]) => ({ sql: s.join('?'), v })),
   },
 }))
-const { honourStop } = await import('./desk')
+const { honourStop, pauseJobDms } = await import('./desk')
 const NOW = new Date('2026-10-21T03:00:00Z')
 
 beforeEach(() => { calls.length = 0; impl = async () => ({ id: 'm1' }) })
@@ -26,7 +26,8 @@ describe('honourStop', () => {
     const [, sender, text, opts] = calls[0]
     expect(sender).toBe('op-1')
     expect(text).toContain('no more job messages')
-    const [lock, flip] = (opts as { alongside: { sql: string; v: unknown[] }[] }).alongside
+    const [timeout, lock, flip] = (opts as { alongside: { sql: string; v: unknown[] }[] }).alongside
+    expect(timeout.sql).toContain("set_config('lock_timeout'")
     expect(lock.sql).toContain('pg_advisory_xact_lock')
     expect(lock.v).toEqual(['teacher-job-dm:t-1'])
     expect(flip.sql).toMatch(/update "TeacherJobDmConsent" set "optIn" = false[\s\S]*1 \/ \(select count/)
@@ -38,5 +39,17 @@ describe('honourStop', () => {
   it('any other failure rolls back both and is thrown — the next run retries the STOP', async () => {
     impl = async () => { throw new Error('connection lost') }
     await expect(honourStop('t-1', 'op-1', 'c1', NOW)).rejects.toThrow('connection lost')
+  })
+})
+
+describe('pauseJobDms', () => {
+  it('sets the pause and says so in one batch; already paused → the batch aborts and nothing is said twice', async () => {
+    expect(await pauseJobDms('t-1', 'op-1', 'c1', NOW, NOW)).toBe(true)
+    const [, , text, opts] = calls[0]
+    expect(text).toContain('Keep sending jobs')
+    const flip = (opts as { alongside: { sql: string }[] }).alongside[2]
+    expect(flip.sql).toMatch(/set "pausedAt" =[\s\S]*"pausedAt" is null[\s\S]*"optInAt" < [\s\S]*1 \/ \(select count/)
+    impl = async () => { throw { code: 'P2010', meta: { driverAdapterError: { cause: { code: '22012' } } } } }
+    expect(await pauseJobDms('t-1', 'op-1', 'c1', NOW, NOW)).toBe(false)
   })
 })

@@ -35,6 +35,9 @@ function cond(row: Row, where: Row | undefined): B {
       if ('not' in o) parts.push(o.not === null ? !isNull : isNull ? null : x !== o.not)
       if ('gt' in o) parts.push(isNull ? null : (x as Date).getTime() > (o.gt as Date).getTime())
       if ('lt' in o) parts.push(isNull ? null : (x as Date).getTime() < (o.lt as Date).getTime())
+      if ('gte' in o) parts.push(isNull ? null : (x as Date).getTime() >= (o.gte as Date).getTime())
+      if ('lte' in o) parts.push(isNull ? null : (x as Date).getTime() <= (o.lte as Date).getTime())
+      for (const op of Object.keys(o)) if (!['in', 'notIn', 'not', 'gt', 'lt', 'gte', 'lte'].includes(op)) throw new Error(`mock: unsupported operator ${op}`)
       continue
     }
     parts.push(v === null ? isNull : isNull ? null : x === v)
@@ -52,8 +55,12 @@ vi.mock('@/lib/db', () => ({
         return rows.slice(0, a.take ?? 1e9).map((r) => ({ ...r }))
       }),
       update: vi.fn(async (a: { where: { id: string }; data: Row }) => { Object.assign(T.posts.find((r) => r.id === a.where.id)!, a.data) }),
-      updateMany: vi.fn(async () => ({ count: 0 })),
-      deleteMany: vi.fn(async () => ({ count: 0 })),
+      updateMany: vi.fn(async (a: { where?: Row; data: Row }) => {
+        const rows = T.posts.filter((r) => match(r, a.where))
+        for (const r of rows) Object.assign(r, Object.fromEntries(Object.entries(a.data).map(([k, v]) => [k, v === DBNULL ? null : v])))
+        return { count: rows.length }
+      }),
+      deleteMany: vi.fn(async (a: { where?: Row }) => { const before = T.posts.length; T.posts = T.posts.filter((r) => !match(r, a.where)); return { count: before - T.posts.length } }),
     },
     teacherJobDm: {
       findMany: vi.fn(async () => T.dms),
@@ -66,22 +73,37 @@ vi.mock('@/lib/db', () => ({
     conversation: { findMany: vi.fn(async () => []) },
     listing: { findMany: vi.fn(async () => []) },
     $queryRaw: vi.fn(async () => stops.rows),
+    $executeRaw: vi.fn(async (_s: TemplateStringsArray, key: string, token: string) => { if (key === 'job-dms:run' && lock.token === token) lock.held = false; return 1 }),
   },
 }))
 const mode = { value: 'shadow' as string | null }
-vi.mock('@/lib/ratelimit', () => ({ kv: { get: vi.fn(async () => mode.value) } }))
-vi.mock('./laya', () => ({ layaAnswers: vi.fn(async () => null) }))
+const lock = { held: false, token: '' }
+vi.mock('@/lib/ratelimit', () => ({
+  kv: {
+    get: vi.fn(async (k: string) => (k === 'job-dms:run' ? (lock.held ? lock.token : null) : mode.value)),
+    set: vi.fn(async (_k: string, v: string) => (lock.held ? null : ((lock.held = true), (lock.token = v), 'OK'))),
+    del: vi.fn(async () => { lock.held = false }),
+  },
+}))
+const DBNULL = Symbol('DbNull')
+vi.mock('@/generated/prisma/client', () => ({ Prisma: { DbNull: DBNULL } }))
+const layaAnswers = vi.fn(async () => null)
+vi.mock('./laya', () => ({ layaAnswers: (...a: unknown[]) => (layaAnswers as (...x: unknown[]) => unknown)(...a) }))
 const desk = { operator: 'op-1' as string | null }
 const sendJobDm = vi.fn(async () => ({ sent: true, conversationId: 'c1', messageId: 'm1' }))
 const honourStop = vi.fn(async () => true)
-const stops = { rows: [] as { conversationId: string; teacher: string; body: string }[] }
+const pauseJobDms = vi.fn(async () => true)
+const resumeJobDms = vi.fn(async () => true)
+const stops = { rows: [] as { conversationId: string; teacher: string; body: string; at?: Date; paused?: boolean }[] }
 vi.mock('./desk', () => ({
   resolveJobsOperatorProfileId: vi.fn(async () => desk.operator),
   sendJobDm: (...a: unknown[]) => (sendJobDm as (...x: unknown[]) => unknown)(...a),
   honourStop: (...a: unknown[]) => (honourStop as (...x: unknown[]) => unknown)(...a),
+  pauseJobDms: (...a: unknown[]) => (pauseJobDms as (...x: unknown[]) => unknown)(...a),
+  resumeJobDms: (...a: unknown[]) => (resumeJobDms as (...x: unknown[]) => unknown)(...a),
 }))
 
-const { runJobDms, textSig } = await import('./run')
+const { runJobDms, textSig, purgeJobPosts, PURGED_TEXT } = await import('./run')
 const { JOB_DM_NOTICE_VERSION } = await import('./constants')
 
 const DAY = new Date('2026-10-21T03:00:00Z') // Wed 10:00 ICT
@@ -105,7 +127,7 @@ beforeEach(() => {
   T.posts = []; T.dms = []; T.teachers = [teacher]
   calls.teacherWhere = []; calls.createMany = []
   mode.value = 'shadow'; desk.operator = 'op-1'
-  sendJobDm.mockClear(); honourStop.mockClear(); stops.rows = []
+  sendJobDm.mockClear(); honourStop.mockClear(); pauseJobDms.mockClear(); resumeJobDms.mockClear(); layaAnswers.mockClear(); stops.rows = []; lock.held = false
 })
 
 describe('runJobDms', () => {
@@ -129,7 +151,7 @@ describe('runJobDms', () => {
     await runJobDms({ dryRun: false, now: DAY })
     mode.value = 'live'
     await runJobDms({ dryRun: false, now: DAY })
-    for (const w of calls.teacherWhere) expect(w).toMatchObject({ profile: { teacherJobDmConsent: { optIn: true, noticeVersion: JOB_DM_NOTICE_VERSION } } })
+    for (const w of calls.teacherWhere) expect(w).toMatchObject({ profile: { teacherJobDmConsent: { optIn: true, noticeVersion: JOB_DM_NOTICE_VERSION, pausedAt: null } } })
   })
 
   it('a copy held only for its route (a private group) does not take the job from a public copy', async () => {
@@ -182,6 +204,55 @@ describe('runJobDms', () => {
     expect(r.stops).toBe(1)
   })
 
+  it('a STOP that failed is counted, retried next run, and that teacher is sent nothing now', async () => {
+    mode.value = 'live'
+    T.posts = [post('1')]
+    stops.rows = [{ conversationId: 'c1', teacher: 't-1', body: 'STOP' }]
+    honourStop.mockImplementationOnce(async () => { throw new Error('lock timeout') })
+    const r = await runJobDms({ dryRun: false, now: DAY })
+    expect(r).toMatchObject({ failed: 1, stops: 0, sent: 0, skipped: 1 })
+    expect(sendJobDm).not.toHaveBeenCalled()
+  })
+
+  it('a reply that may be an opt-out PAUSES that teacher (stored) — no withdrawal — until an explicit "keep sending"', async () => {
+    mode.value = 'live'
+    T.posts = [post('1')]
+    stops.rows = [{ conversationId: 'c1', teacher: 't-1', body: "I don't want to receive these job messages anymore, please take note, thanks" }]
+    const r = await runJobDms({ dryRun: false, now: DAY })
+    expect(honourStop).not.toHaveBeenCalled()
+    expect(pauseJobDms).toHaveBeenCalledWith('t-1', 'op-1', 'c1', undefined, DAY)
+    expect(sendJobDm).not.toHaveBeenCalled()
+    expect(r).toMatchObject({ sent: 0, skipped: 1, paused: 1 })
+    // a "thanks" after it changes nothing — the pause is lifted only by an explicit keep (or a switch-on); the row now
+    // reads as paused, so the run does not pause it again
+    stops.rows = [{ ...stops.rows[0], paused: true }, { conversationId: 'c1', teacher: 't-1', body: 'thanks for your help!', paused: true }]
+    pauseJobDms.mockClear()
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(resumeJobDms).not.toHaveBeenCalled()
+    expect(pauseJobDms).not.toHaveBeenCalled()
+    expect(sendJobDm).not.toHaveBeenCalled()
+    // "Keep sending jobs" lifts it
+    stops.rows = [...stops.rows, { conversationId: 'c1', teacher: 't-1', body: 'Keep sending jobs', paused: true }]
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(resumeJobDms).toHaveBeenCalledWith('t-1', DAY)
+    expect(sendJobDm).toHaveBeenCalledTimes(1)
+    expect(sendJobDm).toHaveBeenCalledWith(expect.objectContaining({ repliesReadAt: expect.any(Date) }))
+  })
+
+  it('the latest word decides: a "Keep sending jobs" after a STOP is not a withdrawal', async () => {
+    stops.rows = [{ conversationId: 'c1', teacher: 't-1', body: 'STOP' }, { conversationId: 'c1', teacher: 't-1', body: 'Keep sending jobs' }]
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(honourStop).not.toHaveBeenCalled()
+  })
+
+  it('a copy older than 30 days does not take the job from a repost', async () => {
+    T.posts = [post('old', { status: 'ready', textSig: textSig(AD), receivedAt: new Date(DAY.getTime() - 40 * 86_400_000), factsVersion: 'x' })]
+    T.posts[0].status = 'expired'
+    T.posts.push(post('repost'))
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(T.posts.find((p) => p.id === 'repost')).toMatchObject({ status: 'ready' })
+  })
+
   it('live, in quiet hours: reads but sends nothing', async () => {
     mode.value = 'live'
     T.posts = [post('1')]
@@ -197,11 +268,40 @@ describe('runJobDms', () => {
     expect(sendJobDm).toHaveBeenCalledWith(expect.objectContaining({ teacherProfileId: 't-1', operatorId: 'op-1', kind: 'jobs', jobs: [expect.objectContaining({ key: 'post:1' })] }))
   })
 
-  it('dry run: counts only — no post is written', async () => {
+  it('dry run: counts only — no post is written, Laya is not asked', async () => {
     T.posts = [post('1')]
     const r = await runJobDms({ dryRun: true, now: DAY })
     expect(r).toMatchObject({ mode: 'dry', read: 1, ready: 1 })
     expect(T.posts[0]).toMatchObject({ status: 'new' })
     expect(calls.createMany).toEqual([])
+    expect(layaAnswers).not.toHaveBeenCalled()
   })
+
+  it('the lock is released by its owner only', async () => {
+    T.posts = [post('1')]
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(lock.held).toBe(false)
+  })
+
+  it('one run at a time: a second run while the lock is held does nothing', async () => {
+    lock.held = true
+    T.posts = [post('1')]
+    expect(await runJobDms({ dryRun: false, now: DAY })).toMatchObject({ stopped: 'busy', read: 0 })
+    expect(T.posts[0]).toMatchObject({ status: 'new' })
+  })
+
+  it('retention: content goes at 30 days, the shell (key + signature) stays to 180 days, then goes', async () => {
+    const old = (id: string, days: number) => post(id, { status: 'ready', textSig: textSig(AD), receivedAt: new Date(DAY.getTime() - days * 86_400_000) })
+    T.posts = [old('fresh', 5), old('month', 31), old('half-year', 181)]
+    await purgeJobPosts(DAY)
+    expect(T.posts.map((p) => p.id)).toEqual(['fresh', 'month'])
+    expect(T.posts[1]).toMatchObject({ text: PURGED_TEXT, title: null, url: null, facts: null, status: 'ready', textSig: textSig(AD) })
+    expect(T.posts[0]).toMatchObject({ text: AD })
+  })
+
+  it('a signature is the text alone — a LinkedIn text opens with its title line, so boilerplate under two titles differs', () => {
+    expect(textSig('English Teacher · ILA · Hanoi\nStandard description.')).not.toBe(textSig('IELTS Teacher · ILA · Hanoi\nStandard description.'))
+    expect(textSig('Same words. See more')).toBe(textSig('Same words.'))
+  })
+
 })

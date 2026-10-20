@@ -3,7 +3,7 @@ import { readPost } from './extract'
 import { fit, type MatchJob, type MatchTeacher } from './gates'
 import { composeDm, payText, sourceLine, titleOf } from './compose'
 import { checkPost, maskContacts } from './ingest'
-import { isStopReply, JOB_DM_STOP_TEXTS } from './replies'
+import { isKeepReply, isStopReply, mayBeOptOut, JOB_DM_STOP_TEXTS } from './replies'
 
 const NOW = new Date('2026-10-21T02:00:00Z') // Wed 21 Oct, 09:00 Vietnam
 
@@ -239,8 +239,8 @@ describe('gate 2c', () => {
 
 describe('gate 2d', () => {
   it('stops: a long message with an unmistakable phrase; "không nhận" alone declines one cover', () => {
-    expect(isStopReply('Please stop sending me job messages, I did not opt in and do not contact me again')).toBe(true)
-    expect(isStopReply('Thanks for the jobs, the second one looks great, I applied this morning and will tell you')).toBe(false)
+    expect(mayBeOptOut('Please stop sending me job messages, I did not opt in and do not contact me again')).toBe(true)
+    expect(mayBeOptOut('Thanks for the jobs, the second one looks great, I applied this morning and will tell you')).toBe(false)
     expect(isStopReply('Không nhận')).toBe(false)
     expect(isStopReply('ko nhận')).toBe(false)
     expect(isStopReply('Không nhận nữa')).toBe(true)
@@ -262,10 +262,140 @@ describe('gate 2d', () => {
 
 describe('gate 3b', () => {
   it('a long reply that stops sending something else is not a STOP', () => {
-    expect(isStopReply("Thanks, I'll stop sending CVs to schools that never reply, job 2 looks great though")).toBe(false)
+    expect(mayBeOptOut("Thanks, I'll stop sending CVs to schools that never reply, job 2 looks great though")).toBe(false)
   })
   it('an Apply line with a name like Tiến or an address is kept', () => {
     const fwd = { source: 'intake', externalKey: 'msg:abc', sourceName: 'Forwarded by the eno team', text: 'English teacher needed in D7' }
     expect(checkPost({ ...fwd, applyText: 'Ask for Mr Tiến at 12 D2 street' }, NOW)).toMatchObject({ ok: true, post: { applyText: 'Ask for Mr Tiến at 12 D2 street' } })
+  })
+})
+
+describe('gate 3c: long replies', () => {
+  it('only an opt-out from THESE messages counts', () => {
+    for (const t of [
+      "Please don't send me the address by email, just call me — job 2 looks great, applying today",
+      'I got no more messages from the school about job 2, can you check for me please?',
+      'Remove me from the shortlist for job 3, I found another position, thank you so much',
+      'I opt out of nights but day shifts work for me, so the second one would be perfect',
+    ]) expect(mayBeOptOut(t)).toBe(false)
+    for (const t of [
+      'Please stop sending me job messages, I am not looking for work at the moment, thank you',
+      "Hi Alex, I'd like to unsubscribe from these, I already have a full-time job now. Thanks",
+    ]) expect(mayBeOptOut(t)).toBe(true)
+  })
+})
+
+describe('gate 3d: long replies — a missed STOP is the costly failure', () => {
+  it('plain long opt-outs count, in English and Vietnamese', () => {
+    for (const t of [
+      'Stop messaging me, I never signed up for any of this, who gave you my number?!',
+      "Don't contact me again please, I am not a teacher and I do not want these messages",
+      'dont text me anymore, I have a job already and I really do not need this at all',
+      'Mình không muốn nhận tin nhắn nữa, cảm ơn bạn nhiều nhé, chúc bạn một ngày vui vẻ',
+    ]) expect(mayBeOptOut(t)).toBe(true)
+  })
+  it('an object that is plainly something else does not', () => {
+    expect(mayBeOptOut("I unsubscribed from the school newsletter; please keep sending these jobs, they're useful")).toBe(false)
+    expect(mayBeOptOut('Please do not send me the address by email, just call me — job 2 looks great, applying today')).toBe(false)
+  })
+})
+
+describe('gate 3e: long replies fail toward stopping', () => {
+  it('opt-outs in any wording count', () => {
+    for (const t of [
+      'Please stop these job alerts immediately; I already found work and do not need any further updates',
+      'No more job messages, I found a job already, thanks for everything so far, really appreciate it',
+      'Please remove me from your database, I am leaving Vietnam next month and will not be teaching',
+      "I opt out, I have a job in Hanoi now and won't need these anymore, thank you for your help",
+      'Stop sending these job offers, not interested at all, I have told you this before twice now',
+      'Đừng gửi tin cho tôi nữa, tôi có việc rồi, cảm ơn nhiều nhé, chúc bạn một ngày tốt lành',
+      'Ngừng gửi tin nhắn cho mình nhé, mình không còn tìm việc nữa, cảm ơn bạn nhiều lắm luôn',
+    ]) expect(mayBeOptOut(t)).toBe(true)
+  })
+  it('plainly about something else does not', () => {
+    for (const t of [
+      'You never text me back when I apply, is job 2 still open? I sent my CV yesterday morning',
+      'Trường ko nhắn tin lại cho em về job 2, anh check giúp em được không ạ, em cảm ơn anh nhiều',
+      'Is the school near the bus stop on Nguyen Hue? I can stop by tomorrow morning to drop my CV',
+    ]) expect(mayBeOptOut(t)).toBe(false)
+  })
+})
+
+describe('gate 3f: long replies', () => {
+  it('a complaint about being messaged is a STOP, whatever words it uses', () => {
+    for (const t of [
+      'Why do you keep messaging me? I never signed up for this, stop it now please, this is the third time',
+      'Please do not continue sending me these job messages, I already have a job and I do not need it',
+      'Đừng gửi tiếp nữa nhé, tôi có việc rồi, cảm ơn bạn nhiều, chúc một ngày vui vẻ và thành công',
+    ]) expect(mayBeOptOut(t)).toBe(true)
+  })
+  it('"not interested" in one job, and "thôi gửi CV", are not', () => {
+    for (const t of [
+      "I'm not interested in job 1, but job 2 looks perfect; please send me the details when you can",
+      'Not interested in the Hanoi one, but please send more in HCMC like the District 7 job, thanks',
+      'Mình sẽ thôi gửi CV cho trường đó vì họ không trả lời, job 2 thì mình đã ứng tuyển rồi nhé',
+    ]) expect(mayBeOptOut(t)).toBe(false)
+    expect(mayBeOptOut('Not interested at all, I have a job already and I do not teach any more, sorry')).toBe(true)
+  })
+})
+
+describe('gate 3g: free text never withdraws by itself — it pauses', () => {
+  it('a long message withdraws only when it opens with STOP', () => {
+    expect(isStopReply('STOP. I have already found work and never agreed to any of this. Thank you.')).toBe(true)
+    expect(isStopReply('Dừng lại nhé, mình đã có việc rồi và không cần các tin này nữa, cảm ơn bạn nhiều')).toBe(true)
+    expect(isStopReply("I don't want to receive these job messages anymore, please take note, thank you.")).toBe(false)
+    expect(mayBeOptOut("I don't want to receive these job messages anymore, please take note, thank you.")).toBe(true)
+  })
+  it('a delivery instruction about one job is at most a pause, never a withdrawal', () => {
+    const t = 'Please stop sending me the address by email; call me instead because I want to apply today.'
+    expect(isStopReply(t)).toBe(false)
+  })
+})
+
+describe('gate 3h', () => {
+  it('a long message withdraws only on a standalone opening STOP; others go to the pause', () => {
+    expect(isStopReply('Stop by the school tomorrow? I would like to drop off my CV and certificates in person')).toBe(false)
+    expect(isStopReply('Hủy buổi phỏng vấn job 2 giúp em nhé, em bận đột xuất, em xin lỗi anh nhiều ạ')).toBe(false)
+    expect(isStopReply('STOP! I have already found work and never agreed to any of this, thanks')).toBe(true)
+  })
+  it('revoking consent, and a channel opt-out, may be opt-outs', () => {
+    expect(mayBeOptOut('I revoke my consent to receive job alerts and any future employment messages, effective immediately')).toBe(true)
+    expect(mayBeOptOut("Don't text me on WhatsApp or here ever again, I never gave you my number, thanks")).toBe(true)
+  })
+})
+
+describe('gate 3h: a channel preference is a pause, not a pass', () => {
+  it('"don\'t message me on Zalo, email me instead" pauses (cheap: the teacher writes again and it lifts)', () => {
+    expect(mayBeOptOut('Please do not message me on Zalo, email me instead please — job 2 sounds great, applying now')).toBe(true)
+    expect(isStopReply('Please do not message me on Zalo, email me instead please — job 2 sounds great, applying now')).toBe(false)
+  })
+})
+
+describe('gate 3i: the keep reader', () => {
+  it('the chip and its typed forms lift a pause; a thank-you does not', () => {
+    for (const t of ['Keep sending jobs', 'Gửi tiếp việc làm', 'keep sending please', 'Yes keep sending me jobs', 'gửi tiếp nhé']) expect(isKeepReply(t)).toBe(true)
+    for (const t of ['thanks!', 'ok', 'Why do you keep sending me these?', 'please stop']) expect(isKeepReply(t)).toBe(false)
+  })
+})
+
+describe('gate 3j', () => {
+  it('an opening STOP in capitals withdraws however it goes on; "Stop - I meant job 3" does not', () => {
+    expect(isStopReply('STOP I already found work and never consented to these messages, thank you')).toBe(true)
+    expect(isStopReply('Stop - I meant job 3 not job 2, please send me the details for job 3, thanks')).toBe(false)
+  })
+})
+
+describe('gate 3l', () => {
+  it('an all-caps STOP that goes somewhere else is not a withdrawal', () => {
+    expect(isStopReply('STOP by the school tomorrow? I want to deliver my CV and certificates in person')).toBe(false)
+    expect(isStopReply('STOP? Why would I stop, I love these jobs — please keep them coming, thank you')).toBe(false)
+  })
+})
+
+describe('gate 3m', () => {
+  it('"Stop, I meant job 3" is not a withdrawal; "no further contact" may be an opt-out', () => {
+    expect(isStopReply('Stop, I meant job 3 not job 2 — please send me the details for job 3, thanks a lot')).toBe(false)
+    expect(isStopReply('Ngừng lại, cho em hỏi job 3 có còn tuyển không ạ, em cảm ơn anh nhiều lắm luôn ạ')).toBe(false)
+    expect(mayBeOptOut('Stop — I already found a job and do not want any further contact from your service')).toBe(true)
   })
 })

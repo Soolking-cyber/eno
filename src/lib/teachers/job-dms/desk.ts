@@ -63,26 +63,33 @@ export async function sendJobDm(a: {
   kind: 'jobs' | 'cover'
   day: string
   text: string
+  /** when the run read the teacher's replies: anything they wrote after it holds this send (the next run reads it) */
+  repliesReadAt: Date
   jobs: readonly { key: string; score: number; reasons: readonly string[] }[]
 }): Promise<SendOutcome> {
   // A cheap pre-check of the guard below, so a teacher who switched off or went hidden since the run planned does not
   // get an empty "Alex · eno.vn" thread (codex + opus, gate 3a). The guard inside the batch stays the one that counts.
-  const consent = await db.teacherJobDmConsent.findUnique({ where: { profileId: a.teacherProfileId }, select: { optIn: true, noticeVersion: true } })
-  if (!consent?.optIn || consent.noticeVersion !== JOB_DM_NOTICE_VERSION) return { sent: false, reason: 'held' }
+  const consent = await db.teacherJobDmConsent.findUnique({ where: { profileId: a.teacherProfileId }, select: { optIn: true, noticeVersion: true, pausedAt: true } })
+  if (!consent?.optIn || consent.noticeVersion !== JOB_DM_NOTICE_VERSION || consent.pausedAt) return { sent: false, reason: 'held' }
   await ensureJobsDeskSeller()
   const existing = await db.conversation.findFirst({ where: { buyerProfileId: a.teacherProfileId, sellerId: JOBS_DESK_SELLER_ID, listingId: null }, select: { id: true } })
   const thread = await getOrCreateListinglessThread(db, { buyerProfileId: a.teacherProfileId, sellerId: JOBS_DESK_SELLER_ID, sellerProfileId: a.operatorId })
   const convo = { id: thread.id, buyerProfileId: a.teacherProfileId, sellerProfileId: a.operatorId, listingId: null, sellerId: JOBS_DESK_SELLER_ID }
   const alongside: Prisma.PrismaPromise<unknown>[] = [
+    // A bounded wait for the teacher's lock, as consent.ts takes it (opus, gate 3c).
+    db.$executeRaw`select set_config('lock_timeout', '3000ms', true)`,
     db.$executeRaw`select pg_advisory_xact_lock(hashtext(${jobDmLockKey(a.teacherProfileId)}))`,
     db.$queryRaw`select 1 / (case when
-        exists (select 1 from "TeacherJobDmConsent" c where c."profileId" = ${a.teacherProfileId}::uuid and c."optIn" and c."noticeVersion" = ${JOB_DM_NOTICE_VERSION})
+        exists (select 1 from "TeacherJobDmConsent" c where c."profileId" = ${a.teacherProfileId}::uuid and c."optIn" and c."noticeVersion" = ${JOB_DM_NOTICE_VERSION} and c."pausedAt" is null)
         and exists (select 1 from "TeacherProfile" tp where tp."profileId" = ${a.teacherProfileId}::uuid and tp.status = 'live')
         and (select count(*) from "Message" m
                where m."conversationId" = ${thread.id} and m."senderProfileId" = ${a.operatorId}::uuid
                  and m."createdAt" > coalesce((select max(t."createdAt") from "Message" t
                                                where t."conversationId" = ${thread.id} and t."senderProfileId" = ${a.teacherProfileId}::uuid), 'epoch'::timestamp)
             ) < ${JOB_DM_RULES.unansweredMax}::int
+        -- and nothing the teacher wrote since the run read their replies: a STOP typed seconds ago is read first
+        and not exists (select 1 from "Message" r where r."conversationId" = ${thread.id} and r."senderProfileId" = ${a.teacherProfileId}::uuid
+                          and r."createdAt" >= ${a.repliesReadAt} and r."deletedAt" is null)
       then 1 else 0 end) as ok`,
     db.teacherJobDmDay.create({ data: { profileId: a.teacherProfileId, day: a.day, kind: a.kind, conversationId: thread.id } }),
     ...a.jobs.map((j) => db.teacherJobDm.create({
@@ -96,7 +103,7 @@ export async function sendJobDm(a: {
   } catch (e) {
     const why = abortReason(e)
     // A thread this call opened and that holds nothing goes again — no empty desk thread is left behind.
-    if (!existing) await db.conversation.deleteMany({ where: { id: thread.id, messages: { none: {} } } }).catch(() => undefined)
+    if (!existing) await db.conversation.deleteMany({ where: { id: thread.id, messages: { none: {} } } }).catch((c) => console.error('[job-dms] empty thread left', thread.id, c))
     if (why) return { sent: false, reason: why }
     throw e
   }
@@ -135,6 +142,43 @@ async function ringTeacher(teacherProfileId: string, conversationId: string): Pr
 }
 
 const STOP_ACK = 'Got it — no more job messages from us. You can switch them back on any time at https://eno.vn/teachers/job-messages'
+const PAUSE_ACK = 'I’ve paused job messages for now, in case you’d rather not get them. Tap “Keep sending jobs” to get them again, or “Stop job messages” to turn them off.'
+
+/**
+ * A reply that MAY have asked to stop (replies.ts mayBeOptOut): PAUSE — no withdrawal — and say so once, in one locked
+ * transaction like honourStop: the compare-and-set sets pausedAt only where it is not set (a re-run aborts the batch on
+ * 22012 and sends nothing), then the note goes out. The pause holds every send (sendJobDm's guard) until the teacher
+ * taps "Keep sending jobs" (resumeJobDms) or switches job messages on again (consent.ts) — never by time, never by any
+ * other reply (codex + opus, gate 3i: a pause that lifted on "thanks", or lapsed after 60 days, resumed sending to
+ * someone who had asked to stop).
+ */
+export async function pauseJobDms(teacherProfileId: string, operatorId: string, conversationId: string, replyAt: Date, now: Date): Promise<boolean> {
+  const alongside: Prisma.PrismaPromise<unknown>[] = [
+    db.$executeRaw`select set_config('lock_timeout', '3000ms', true)`,
+    db.$executeRaw`select pg_advisory_xact_lock(hashtext(${jobDmLockKey(teacherProfileId)}))`,
+    db.$queryRaw`with p as (
+        update "TeacherJobDmConsent" set "pausedAt" = ${now}, "updatedAt" = ${now}
+         where "profileId" = ${teacherProfileId}::uuid and "optIn" and "pausedAt" is null
+           -- a switch-on AFTER the reply overrules it (opus, gate 3k): the reply must be newer than the grant in force
+           and "optInAt" < ${replyAt}
+         returning 1)
+      select 1 / (select count(*)::int from p) as ok`,
+  ]
+  try {
+    await insertMessage({ id: conversationId, buyerProfileId: teacherProfileId, sellerProfileId: operatorId, listingId: null, sellerId: JOBS_DESK_SELLER_ID }, operatorId, PAUSE_ACK, { alongside })
+  } catch (e) {
+    if (abortReason(e) === 'held') return false // already paused, or switched off
+    throw e
+  }
+  console.info('[job-dms] paused', { profileId: teacherProfileId })
+  return true
+}
+
+/** "Keep sending jobs": lift a pause (no message — the teacher's own words are the answer). */
+export async function resumeJobDms(teacherProfileId: string, now: Date): Promise<boolean> {
+  const r = await db.teacherJobDmConsent.updateMany({ where: { profileId: teacherProfileId, optIn: true, pausedAt: { not: null } }, data: { pausedAt: null, updatedAt: now } })
+  return r.count === 1
+}
 
 /**
  * A teacher's STOP, read from the desk thread: the withdrawal and its acknowledgement are ONE transaction (codex, gates
@@ -147,6 +191,7 @@ const STOP_ACK = 'Got it — no more job messages from us. You can switch them b
  */
 export async function honourStop(teacherProfileId: string, operatorId: string, conversationId: string, now: Date): Promise<boolean> {
   const alongside: Prisma.PrismaPromise<unknown>[] = [
+    db.$executeRaw`select set_config('lock_timeout', '3000ms', true)`,
     db.$executeRaw`select pg_advisory_xact_lock(hashtext(${jobDmLockKey(teacherProfileId)}))`,
     db.$queryRaw`with w as (
         update "TeacherJobDmConsent" set "optIn" = false, "withdrawnAt" = ${now}, "updatedAt" = ${now}
