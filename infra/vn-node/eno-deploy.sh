@@ -1166,9 +1166,11 @@ say "13. the job mailbox reader (advisory): refreshed from this commit if it is 
 # swapped in — opus, gate 7b2); then the units, then the script by an atomic rename — a run the timer starts meanwhile
 # reads the old file or the new one, never half of one (codex, gate 7c); then the timer is restarted if it runs, so a
 # changed schedule takes effect (opus, gate 7b2).
+# Compiled by /usr/bin/python3 — the interpreter the unit runs, not whichever the deploy's PATH finds — and the temp
+# file removed whatever happens (opus, gate 7b4).
 if [ -f /opt/eno/bin/eno-job-mailbox.py ]; then
   install -m 0755 "$APP/infra/vn-node/job-mailbox/eno-job-mailbox.py" /opt/eno/bin/.eno-job-mailbox.py.new \
-    && python3 -I -c 'import sys; compile(open(sys.argv[1], "rb").read(), sys.argv[1], "exec")' /opt/eno/bin/.eno-job-mailbox.py.new \
+    && /usr/bin/python3 -I -c 'import sys; compile(open(sys.argv[1], "rb").read(), sys.argv[1], "exec")' /opt/eno/bin/.eno-job-mailbox.py.new \
     && install -m 0644 "$APP/infra/vn-node/job-mailbox/eno-job-mailbox.service" \
                        "$APP/infra/vn-node/job-mailbox/eno-job-mailbox.timer" /etc/systemd/system/ \
     && systemctl daemon-reload \
@@ -1176,4 +1178,5 @@ if [ -f /opt/eno/bin/eno-job-mailbox.py ]; then
     && systemctl try-restart eno-job-mailbox.timer \
     && ok "job mailbox reader refreshed from $(git -C "$APP" log --oneline -1 -- infra/vn-node/job-mailbox | cut -c1-40)" \
     || warn "job mailbox reader: could not refresh it (job-mailbox/README.md, Install)"
+  rm -f /opt/eno/bin/.eno-job-mailbox.py.new
 fi

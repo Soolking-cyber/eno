@@ -292,7 +292,7 @@ class FakeBox:
     # ── the ingest ──
     def curl(self, argv, data):
         assert 'test-secret-123' not in ' '.join(argv), 'the secret reached argv'
-        assert argv[argv.index('--max-time') + 1] == '120' and '--fail' in argv
+        assert argv[argv.index('--max-time') + 1] == '120' and '--fail-with-body' in argv
         hdr = [argv[i + 1] for i, x in enumerate(argv) if x == '-H' and argv[i + 1].startswith('@')]
         assert len(hdr) == 1
         path = hdr[0][1:]
@@ -304,6 +304,8 @@ class FakeBox:
         assert 'Host: eno.vn' in argv and argv[argv.index('-X') + 1] == 'POST' and m.APP_URL in argv
         if self.app_down:
             return 7, b'', b'curl: (7) Failed to connect to 127.0.0.1 port 3001'
+        if getattr(self, 'refuse_whole', None):
+            return 22, json.dumps(self.refuse_whole).encode(), b'curl: (22) The requested URL returned error: 413'
         posts = json.loads(data)['posts']
         assert 1 <= len(posts) <= 50
         self.posted.append(posts)
@@ -993,6 +995,22 @@ class Runs(unittest.TestCase):
         self.assertEqual(code, m.EXIT_UNREACHABLE)
         self.assertEqual((state(self.tmp)['lastUid'], state(self.tmp)['pending']), (4, {}))  # no give-up clock
         self.assertIn('app unreachable or refusing: curl exit 7', out)
+
+    def test_a_request_refused_whole_says_the_servers_code(self):
+        write_state(self.tmp, uidvalidity=1700000000, lastUid=4)
+        box = FakeBox(self.inbox(), uidnext=12)
+        box.refuse_whole = {'error': 'too_many_posts', 'max': 50, 'text': 'Call Ms Lan 0909'}
+        code, out = run(box, self.tmp)
+        self.assertEqual((code, state(self.tmp)['lastUid']), (m.EXIT_UNREACHABLE, 4))
+        self.assertIn('app unreachable or refusing: curl exit 22 (too_many_posts)', out)
+        self.assertNotIn('0909', out)
+        # an "error" that is not a plain code is not logged at all
+        for bad in ({'error': 'call 0909123456'}, {'error': 'call0909123456'}, {'error': {'text': 'Call 0909'}}, ['x'], 'nope'):
+            box = FakeBox(self.inbox(), uidnext=12)
+            box.refuse_whole = bad
+            code, out = run(box, self.tmp)
+            self.assertIn('app unreachable or refusing: curl exit 22: ', out, bad)
+            self.assertNotIn('0909', out, bad)
 
     def test_a_200_without_the_three_lists_is_an_app_failure(self):
         write_state(self.tmp, uidvalidity=1700000000, lastUid=4)

@@ -1350,8 +1350,8 @@ _FWD_BANNER = re.compile(r'^(?:-{2,}\s*(?:forwarded message|original message|tin
                          r'thư đã chuyển tiếp)\s*-{2,}|begin forwarded message:?)$', re.I)
 _FWD_FIELD = re.compile(r'^(?:from|date|sent|subject|to|cc|reply-to|từ|ngày|gửi|chủ đề|tới|đến)\s*:', re.I)
 _QUOTE_INTRO = re.compile(r'^(?:on .{4,200} wrote:|vào .{4,200} đã viết:)$', re.I)
-#: A contact in the subject: ingest.ts masks contacts in `text` only, so a title carrying one is dropped (title is
-#: optional; the post's own text, masked there, keeps it). The same four patterns as ingest.ts maskContacts.
+#: A contact in the subject: the title is dropped here (it is optional; the post's own text keeps the line), on top of
+#: ingest.ts, which masks every printed short field too since part 7a. The same four patterns as ingest.ts maskContacts.
 _CONTACT = re.compile(r'[\w.+-]+@[\w-]+(?:\.[\w-]+)+|\b(?:https?://)?(?:zalo\.me|wa\.me|m\.me|t\.me|line\.me|fb\.me)/\S+|'
                       r'(?:\+?84|0)(?:[\s.-]?\d){8,10}\b|\+\d{1,3}(?:[\s.-]?\d){7,12}\b', re.I)
 
@@ -1505,11 +1505,18 @@ class App:
             fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(fd, 'w') as f:
                 f.write(f'Authorization: Bearer {self.secret()}\n')
-            rc, out, err = self.runner(['curl', '--fail', '-sS', '--max-time', '120', '-X', 'POST', APP_URL,
+            rc, out, err = self.runner(['curl', '--fail-with-body', '-sS', '--max-time', '120', '-X', 'POST', APP_URL,
                                         '-H', f'Host: {APP_HOST}', '-H', 'Content-Type: application/json',
                                         '-H', f'@{path}', '--data-binary', '@-'], data=body, timeout=150)
         if rc != 0:
-            raise AppError(f'curl exit {rc}: {_short(err)}')
+            # A request refused WHOLE (a 4xx/5xx; curl 8.5 on the box): its error CODE says why — logged only when it IS a
+            # plain code like the door's ("too_many_posts"), never anything else from the body (opus, 7b4 + fix7).
+            try:
+                code = json.loads(out).get('error') if rc == 22 and out else None
+            except (ValueError, AttributeError):
+                code = None
+            why = f' ({code})' if isinstance(code, str) and re.fullmatch(r'[a-z_]{1,40}', code) else ''
+            raise AppError(f'curl exit {rc}{why}: {_short(err)}')
         try:
             res = json.loads(out)
         except ValueError:
