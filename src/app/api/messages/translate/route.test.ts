@@ -25,8 +25,11 @@ const h = vi.hoisted(() => ({
     dictionary: {} as Record<string, string>,
     hang: false,
     providerDown: false,
-    // Strings the provider refuses one by one (the box model's gate) — reported through failedTexts.
-    refuse: new Set<string>(),
+    // Strings that fail one by one because nothing answered for them (their server was down) — failedTexts only.
+    outage: new Set<string>(),
+    // Strings the box model answered and its gate refused — failedTexts AND refusedTexts, the way translateBatch
+    // reports a refusal (src/lib/translate.ts, ChunkResult.refused).
+    refused: new Set<string>(),
     admin: null as string | null,
     writerLocales: [] as string[],
     afterWork: [] as Array<() => unknown>,
@@ -65,15 +68,21 @@ vi.mock('@/lib/translate', () => ({
   translateBatch: (texts: string[], target: string, opts?: Row) => {
     h.state.translateCalls.push({ texts, target, opts })
     if (h.state.providerDown && opts?.stats) opts.stats.providerFailed = true
+    const failed = (t: string) => h.state.outage.has(t) || h.state.refused.has(t)
     for (const t of texts) {
-      if (h.state.refuse.has(t) && opts?.stats) { opts.stats.providerFailed = true; opts.stats.failedTexts?.add(t) }
+      if (!failed(t) || !opts?.stats) continue
+      opts.stats.providerFailed = true
+      opts.stats.failedTexts?.add(t)
+      if (h.state.refused.has(t)) opts.stats.refusedTexts?.add(t)
     }
+    // A failed string comes back as itself — translateBatch's source fallback.
+    const result = () => texts.map((t) => (failed(t) ? t : h.state.dictionary[t] ?? t))
     if (h.state.hang) {
       // Never wins the race, but DOES eventually resolve — that is the case where the
       // route must still bank the paid result instead of discarding it.
-      return new Promise<string[]>((r) => setTimeout(() => r(texts.map((t) => h.state.dictionary[t] ?? t)), 30_000))
+      return new Promise<string[]>((r) => setTimeout(() => r(result()), 30_000))
     }
-    return Promise.resolve(texts.map((t) => h.state.dictionary[t] ?? t))
+    return Promise.resolve(result())
   },
 }))
 
@@ -130,7 +139,8 @@ beforeEach(() => {
   h.state.dictionary = { 'see you at the school gate': 'xin chào' }
   h.state.hang = false
   h.state.providerDown = false
-  h.state.refuse = new Set()
+  h.state.outage = new Set()
+  h.state.refused = new Set()
   h.state.admin = null
   h.state.writerLocales = []
   h.state.afterWork = []
@@ -365,25 +375,112 @@ describe('chat translate — the support desk', () => {
 })
 
 describe('chat translate — a failure is per message, not per batch', () => {
-  it('answers what translated and marks only the refused one retryable', async () => {
+  it('answers what translated and marks only the one nothing answered for retryable', async () => {
     h.state.rows = [{ id: 'm1', body: 'see you at the school gate' }, { id: 'm2', body: 'Daikin FTKB25' }]
-    h.state.refuse = new Set(['Daikin FTKB25'])
+    h.state.outage = new Set(['Daikin FTKB25'])
     const { status, json } = await post({ ...OK, messageIds: ['m1', 'm2'], v: 2 })
     expect(status).toBe(200)
     expect(json.items).toEqual([
       { id: 'm1', text: 'xin chào', translated: true },
       { id: 'm2', text: 'Daikin FTKB25', translated: false, retry: true },
     ])
-    // only the real translation is banked; the refused one stays a miss for the retry
+    // only the real translation is banked; the failed one stays a miss for the retry
     expect(h.state.kvWrites).toEqual([[key('vi', 'see you at the school gate'), 'xin chào']])
   })
 
   it('still 503s when EVERY string failed — the provider is down, not picky', async () => {
     h.state.rows = [{ id: 'm1', body: 'see you at the school gate' }]
-    h.state.refuse = new Set(['see you at the school gate'])
+    h.state.outage = new Set(['see you at the school gate'])
     const { status, json } = await post(OK)
     expect(status).toBe(503)
     expect(json.items).toBeUndefined()
+  })
+})
+
+describe('chat translate — a refusal is final, an outage is retried', () => {
+  // 2026-10-21, the owner's "hey": the box model answered "hhhhhhhhhhhhhhhhhhhhhhhhhh", the gate refused it, and the
+  // route 503'd it as if the provider were down — asked for six times in 90s, each re-running the model; never shown.
+  const TWO = { ...OK, messageIds: ['m1', 'm2'], v: 2 }
+  beforeEach(() => {
+    h.state.rows = [{ id: 'm1', body: 'see you at the school gate' }, { id: 'm2', body: 'the kitchen is quite small' }]
+    h.state.dictionary = {
+      'see you at the school gate': 'hẹn gặp ở cổng trường', 'the kitchen is quite small': 'bếp khá nhỏ',
+    }
+  })
+
+  it('every miss refused: a 200 of the originals — final, no retry flag, nothing banked', async () => {
+    h.state.refused = new Set(['see you at the school gate', 'the kitchen is quite small'])
+    const { status, json } = await post(TWO)
+    expect(status).toBe(200)
+    expect(json.items).toEqual([
+      { id: 'm1', text: 'see you at the school gate', translated: false },
+      { id: 'm2', text: 'the kitchen is quite small', translated: false },
+    ])
+    expect(h.state.kvWrites).toHaveLength(0)
+  })
+
+  it('a refusal beside a translation: the translation is answered and banked, the refusal is final', async () => {
+    h.state.refused = new Set(['see you at the school gate'])
+    const { status, json } = await post(TWO)
+    expect(status).toBe(200)
+    expect(json.items).toEqual([
+      { id: 'm1', text: 'see you at the school gate', translated: false },
+      { id: 'm2', text: 'bếp khá nhỏ', translated: true },
+    ])
+    expect(h.state.kvWrites).toEqual([[key('vi', 'the kitchen is quite small'), 'bếp khá nhỏ']])
+  })
+
+  it('a refusal beside an outage: the refusal is final, only the outage is retried', async () => {
+    h.state.refused = new Set(['see you at the school gate'])
+    h.state.outage = new Set(['the kitchen is quite small'])
+    const { status, json } = await post(TWO)
+    expect(status).toBe(200)
+    expect(json.items).toEqual([
+      { id: 'm1', text: 'see you at the school gate', translated: false },
+      { id: 'm2', text: 'the kitchen is quite small', translated: false, retry: true },
+    ])
+    expect(h.state.kvWrites).toHaveLength(0)
+  })
+
+  it('unaccented Vietnamese refused: shown as written, not as the mark-restored text that was sent', async () => {
+    h.state.rows = [{ id: 'm1', body: 'phong co may lanh khong' }]
+    h.state.refused = new Set(['phòng có máy lạnh không'])
+    const { status, json } = await post({ ...OK, target: 'en', v: 2 })
+    expect(status).toBe(200)
+    expect(h.state.translateCalls[0].texts).toEqual(['phòng có máy lạnh không'])
+    expect(json.items).toEqual([{ id: 'm1', text: 'phong co may lanh khong', translated: false }])
+    expect(h.state.kvWrites).toHaveLength(0)
+  })
+
+  it('an older client (no v: 2) whose every miss was refused gets the originals too — a 200, not a 503', async () => {
+    h.state.rows = [{ id: 'm1', body: 'see you at the school gate' }]
+    h.state.refused = new Set(['see you at the school gate'])
+    const { status, json } = await post(OK)
+    expect(status).toBe(200)
+    expect(json.items).toEqual([{ id: 'm1', text: 'see you at the school gate', translated: false }])
+  })
+
+  it('an older client still gets the whole-batch 503 when an outage sits beside the refusal', async () => {
+    h.state.refused = new Set(['see you at the school gate'])
+    h.state.outage = new Set(['the kitchen is quite small'])
+    expect((await post({ ...OK, messageIds: ['m1', 'm2'] })).status).toBe(503)
+  })
+
+  it('a real outage is still a 503 for a v: 2 client — every miss down', async () => {
+    h.state.outage = new Set(['see you at the school gate', 'the kitchen is quite small'])
+    const { status, json } = await post(TWO)
+    expect(status).toBe(503)
+    expect(json.items).toBeUndefined()
+  })
+
+  it('a refusal is logged as counts, never as the words', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    h.state.refused = new Set(['see you at the school gate'])
+    await post(TWO)
+    const lines = warn.mock.calls.map((c) => c.join(' '))
+    warn.mockRestore()
+    expect(lines).toContain('[chat-tr] {"reason":"refused","strings":2,"refused":1}')
+    expect(lines.join('\n')).not.toContain('school gate')
   })
 })
 
@@ -449,7 +546,7 @@ describe('chat translate — the phrasebook and questions', () => {
 describe('chat translate — older tabs and added contact details', () => {
   it('a client without v:2 gets the whole-batch 503 it understands, never a partial 200 it would bank as final', async () => {
     h.state.rows = [{ id: 'm1', body: 'see you at the school gate' }, { id: 'm2', body: 'Daikin FTKB25' }]
-    h.state.refuse = new Set(['Daikin FTKB25'])
+    h.state.outage = new Set(['Daikin FTKB25'])
     expect((await post({ ...OK, messageIds: ['m1', 'm2'] })).status).toBe(503)
   })
 

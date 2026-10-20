@@ -278,6 +278,24 @@ type ChunkResult = {
    * source, cache nothing, report no failure. (codex and agy, reviewing this diff.)
    */
   passthrough: boolean[]
+  /**
+   * True where the value is null because the box model ANSWERED and its gate refused the output, and there is NO paid
+   * provider left to ask — no key, or one a 401 benched (`azureUsable()`; Azure is the only paid provider — payFor):
+   * a REFUSAL, not an outage. A 401 from ANY request benches the key for all of them, so a concurrent one landing
+   * first is no exception: this request's retry would meet the same bench, the box, and the same refusal. ⛔ Asking again is
+   * pointless — m2m100 decodes greedily (beam_size=1) and the gate is a pure function, so the same line comes back the
+   * same way and is refused the same way. Measured 2026-10-21 on the owner's support thread: "hey" came back
+   * "hhhhhhhhhhhhhhhhhhhhhhhhhh", the gate refused it (length-ratio), Azure was benched, and the chunk was returned as
+   * null — reported exactly like a box that was down, so the chat route answered 503 and the client asked again six
+   * times in 90s, re-running the model each time.
+   * A string whose server did NOT answer is never marked here: that stays an outage, and retrying it is right.
+   * ⚠️ NOR IS A REFUSAL WHILE THE KEY IS STILL USABLE — "no paid provider ANSWERED" is not "none EXISTS". A key that
+   * failed THIS time (a thrown fetch, a 5xx, a 429) is asked FIRST by the retry, and answers it once it is back:
+   * measured 2026-10-21 (review probe), an Azure network error beside a refusal was answered final, and the next ask,
+   * Azure back, translated the line. A 403 leaves the key usable too, as it does everywhere (azureTranslate does not
+   * bench it): if a quota 403 should end the retries, bench it there — one notion of "a paid provider exists", not two.
+   */
+  refused?: boolean[]
 }
 
 /**
@@ -374,6 +392,8 @@ async function translateChunk(
   const localTimeout = paidFirst ? INTERACTIVE_TIMEOUT_MS : undefined
   const out: (string | null)[] = new Array(chunk.length).fill(null)
   const passthrough: boolean[] = new Array(chunk.length).fill(false)
+  // ChunkResult.refused, while it is being decided: the box model answered this string and its gate said no.
+  const gateRefused: boolean[] = new Array(chunk.length).fill(false)
   let pending = chunk.map((text, i) => ({ text, i }))
 
   // ⛔ PAID-FIRST IS AN ORDERING, NOT A BYPASS. An earlier version simply skipped local for
@@ -416,7 +436,11 @@ async function translateChunk(
     for (const [source, group] of bySource) {
       const local = await localTranslate(group.map((g) => g.text), source, target, localTimeout, { interactive: !!extra?.lane, shortOk: extra?.shortOk })
       if (!local) continue // server down — everything in this group falls through to paid
-      group.forEach((g, n) => { out[g.i] = local.values[n] })
+      group.forEach((g, n) => {
+        out[g.i] = local.values[n]
+        // The server answered; a null from it is the gate's verdict, and the same line gets the same verdict again.
+        if (local.values[n] == null) gateRefused[g.i] = true
+      })
       for (const [reason, count] of Object.entries(local.rejects)) {
         rejects[reason] = (rejects[reason] ?? 0) + (count ?? 0)
       }
@@ -434,7 +458,13 @@ async function translateChunk(
   if (!paid || paid.length !== remaining.length) {
     // No paid answer. Keep whatever the box model DID translate; the rest stay null and the
     // caller leaves them untranslated rather than caching source text as a translation.
-    return out.some((v) => v != null) || passthrough.some(Boolean) ? { values: out, passthrough } : null
+    // ⛔ A REFUSAL IS AN ANSWER. Returning null here also for a chunk whose only answers were refusals is what made
+    // the owner's "hey" a dead provider on 2026-10-21 (ChunkResult.refused). Null is kept for "nothing answered".
+    // ⚠️ FINAL ONLY WITH NO PAID PROVIDER LEFT: a usable key that failed this time is the retry's first stop. Asked
+    // AFTER payFor, on purpose — a 401 in this very request benched the key, and then the refusal is final.
+    return out.some((v) => v != null) || passthrough.some(Boolean) || gateRefused.some(Boolean)
+      ? { values: out, passthrough, refused: azureUsable() ? undefined : gateRefused }
+      : null
   }
   pending.forEach((p, n) => { out[p.i] = paid![n] })
   return { values: out, passthrough }
@@ -479,8 +509,15 @@ export async function translateBatch(
      * fallback — so a live caller can answer the strings that DID translate and retry only the
      * rest. Without it one refused string sank the whole chat batch: `providerFailed` is a single
      * flag, and the chat route answered 503 for every message in it (owner test, 2026-10-20).
+     *
+     * `refusedTexts`, when passed, receives the strings among `failedTexts` that failed by REFUSAL — the box model
+     * answered, its gate refused the output, no paid provider is left to ask (ChunkResult.refused) — so a live caller
+     * can answer them as final instead of retrying an outage that is not one: on 2026-10-21 the owner's "hey" was 503'd
+     * and asked for six times in 90s. ⚠️ PURELY ADDITIVE: a refused string still sets `providerFailed` and still lands
+     * in `failedTexts`, exactly as before (/api/translate answers `partial` from `providerFailed`), and what this
+     * function returns and caches is unchanged for every caller.
      */
-    stats?: { providerFailed: boolean; failedTexts?: Set<string> }
+    stats?: { providerFailed: boolean; failedTexts?: Set<string>; refusedTexts?: Set<string> }
     /**
      * Source language per input string, decided by the caller — live chat's own detector. Strings it names skip
      * sourceLangFor; the rest are detected as before.
@@ -607,6 +644,8 @@ export async function translateBatch(
               if (opts?.stats) {
                 opts.stats.providerFailed = true
                 opts.stats.failedTexts?.add(src)
+                // Which kind of failure: a refusal is final, an outage is not (see `stats`).
+                if (translated.refused?.[i]) opts.stats.refusedTexts?.add(src)
               }
               return
             }

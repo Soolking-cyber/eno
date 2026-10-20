@@ -63,9 +63,10 @@ function packBatches(ids: string[], lengthOf: (id: string) => number): string[][
 }
 // Tries per message per mount before it is left as the original. A retry rides the next refetch (the 15s poll,
 // realtime, focus), so without a cap it was re-sent — and re-charged against the budget — every 15s for as long as
-// the thread stayed open. Two caps, because the two failures differ: a message the server REFUSED (`retry` — the box
-// model rejected that one line) is unlikely to change, so 4 tries; a whole-batch blip (503/429/network — a box
-// restart, a deploy) is worth riding out, so 20 (≈5 min of polls).
+// the thread stayed open. Two caps: a whole-batch blip (503/429/network — a box restart, a deploy) is worth riding
+// out, so 20 (≈5 min of polls); one message marked `retry` — nothing answered it while others translated — gets 4,
+// because each try re-runs that line through the model and the paid key (codex, opus, 2026-10-21). A line the box model
+// refuses with no paid provider left is not marked `retry` at all: the server answers it as its original, final.
 const MAX_TRIES = 4
 const MAX_TRANSIENT_TRIES = 20
 

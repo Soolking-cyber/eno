@@ -70,8 +70,10 @@ const hash = (text: string) => crypto.createHash('sha1').update(text).digest('he
 const cacheKey = (target: string, conversationId: string, body: string) => `chat-tr:${target}:${conversationId}:${hash(body)}`
 const today = () => new Date().toISOString().slice(0, 10)
 
-// `retry`: this one did not translate THIS time (the box model refused it, or its chunk failed) — the client
-// asks again later instead of banking the original as final. Absent on every other item.
+// `retry`: this one did not translate THIS time and may next time (its server was down or slow, or the box model
+// refused it while the paid provider the retry asks first had only failed) — the client asks again later instead of
+// banking the original as final. Absent on every other item, a line the box model REFUSED with no paid provider left
+// to ask included: that one is answered as its original, final (step 2).
 type Item = { id: string; text: string; translated: boolean; retry?: true }
 
 /**
@@ -271,7 +273,9 @@ export const POST = route({ auth: 'userId' }, async ({ req, userId: meId }) => {
   //   · transient (limiter, accounting down, provider down, provider slow) ⇒ 429/503, which
   //     the client leaves un-attempted and retries;
   //   · the one DELIBERATE 200-with-originals is a genuinely exhausted daily budget — see
-  //     the note at that branch for why retrying is the wrong behaviour there.
+  //     the note at that branch for why retrying is the wrong behaviour there;
+  //   · a line the box model REFUSED with no paid provider left to ask is not a provider problem at all: the same
+  //     model refuses it again, so it is answered as its original, final — like an echo (see `refused` below).
   const overBudget = { day: false, user: false }
   // Bodies whose translation failed on THIS call while others in the batch succeeded (see below).
   let retryBodies = new Set<string>()
@@ -308,7 +312,7 @@ export const POST = route({ auth: 'userId' }, async ({ req, userId: meId }) => {
     }
 
     if (!overBudget.day && !overBudget.user) {
-      const stats = { providerFailed: false, failedTexts: new Set<string>() }
+      const stats = { providerFailed: false, failedTexts: new Set<string>(), refusedTexts: new Set<string>() }
       // What actually goes out: the planned text (marks restored where needed) with its decided source language.
       const sends = misses.map((b) => planByBody.get(b)!.send)
       const sourceHint = new Map(misses.map((b) => [planByBody.get(b)!.send, planByBody.get(b)!.source]))
@@ -329,7 +333,7 @@ export const POST = route({ auth: 'userId' }, async ({ req, userId: meId }) => {
           if (!late || late.length !== misses.length) return
           // Only what really translated is banked. A failed string comes back as what was SENT — for unaccented
           // Vietnamese that is the mark-restored text, which differs from the body and would otherwise be cached
-          // as if it were the English.
+          // as if it were the English. A refused one is skipped too: translateBatch names it in failedTexts as well.
           const done: Array<[string, string]> = []
           misses.forEach((b, i) => {
             if (stats.failedTexts.has(sends[i])) return
@@ -342,29 +346,42 @@ export const POST = route({ auth: 'userId' }, async ({ req, userId: meId }) => {
         throw new ApiError('translate_timeout', 503)
       }
       // ⚠️ A FAILURE IS PER STRING, NOT PER BATCH. `failedTexts` names each source that came back as
-      // fallback. Every one failed (or the provider failed without saying which) ⇒ the provider is down:
-      // 503, exactly as before. SOME failed ⇒ answer the ones that translated and mark the rest
-      // `retry` — this used to be a 503 for the whole batch, so one string the box model refused (or an
-      // unaccented Vietnamese line sent to a dead paid key) threw away every good translation beside it
-      // and re-billed all of them on each retry.
+      // fallback. Every one DOWN (or the provider failed without saying which) ⇒ the provider is down:
+      // 503, exactly as before. SOME down ⇒ answer the others and mark those `retry` — this used to be a 503 for the
+      // whole batch, so one string that did not translate (or an unaccented Vietnamese line sent to a dead paid key)
+      // threw away every good translation beside it and re-billed all of them on each retry.
       // failedTexts names what was SENT; map it back to the message bodies.
       const failed = new Set(misses.filter((_, i) => stats.failedTexts.has(sends[i])))
+      // ⛔ A REFUSAL IS AN ANSWER, NOT AN OUTAGE. `refused` — the box model answered, its gate refused the output, and
+      // no paid provider is left to ask (no key, or a benched one; translateBatch names nothing else) — fails the same
+      // way on every retry (greedy decoding, a pure gate), so only `down` is retried or worth a 503. A refusal beside a
+      // paid key that merely FAILED is `down`: the retry asks that key first (2026-10-21 review probe).
+      // Measured 2026-10-21: the owner's "hey" came back "hhhhhhhhhhhhhhhhhhhhhhhhhh", was refused, and — counted as
+      // down — was answered 503 and asked for six times in 90s, each one re-running the model; it never showed.
+      const refused = new Set(misses.filter((_, i) => stats.refusedTexts.has(sends[i])))
+      const down = new Set([...failed].filter((b) => !refused.has(b)))
       // An older client (no `v: 2`) banks every id in a 200 as final, so it only ever gets the whole-batch answer.
+      // A refused line is final either way, so it never needs v: 2.
       const partialOk = body.v === 2
-      const allFailed = (stats.providerFailed && failed.size === 0) || (failed.size > 0 && (!partialOk || misses.every((m) => failed.has(m))))
+      const allFailed = (stats.providerFailed && failed.size === 0)
+        || (down.size > 0 && (!partialOk || misses.every((m) => down.has(m))))
       if (!timed || timed.length !== misses.length || allFailed) {
-        trace('unavailable', { strings: misses.length, failed: failed.size })
+        trace('unavailable', { strings: misses.length, failed: failed.size, refused: refused.size })
         // The provider is DOWN (or misaligned): `timed` is source fallback, not translation.
         // `stats.providerFailed` is why translateBatch grew an out-param — output===input is
         // otherwise indistinguishable from text that legitimately translates to itself, and
         // guessing would 503-loop every same-language thread.
         throw new ApiError('translate_unavailable', 503)
       }
-      retryBodies = failed
-      if (failed.size) trace('partial', { strings: misses.length, failed: failed.size })
+      retryBodies = down // only an outage is asked for again
+      if (down.size) trace('partial', { strings: misses.length, failed: down.size })
+      if (refused.size) trace('refused', { strings: misses.length, refused: refused.size })
       const good: Array<[string, string]> = []
       misses.forEach((src, i) => {
-        if (failed.has(src)) return
+        if (down.has(src)) return
+        // Refused: the original, final, never cached — what an echo gets below; asking again meets the same model and
+        // no paid provider, so it gets the same refusal.
+        if (refused.has(src)) { translatedByBody.set(src, src); return }
         const value = finish(src, timed[i] ?? src)
         if (value === null) translatedByBody.set(src, src) // an echo: the original, final
         else good.push([src, value])
