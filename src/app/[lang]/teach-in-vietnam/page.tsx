@@ -14,7 +14,7 @@ import { formatMoneyFull } from '@/lib/vnd'
 import { formatArticleDate } from '@/lib/dates'
 import { moneyText, TEACHER_APP_ORIGIN } from '@/lib/teach-guides/inline'
 import { requestNow } from '@/lib/teach-guides/request-clock'
-import { releasedGuides, TEACH_BASE, TEACH_CLUSTERS, TEACH_START_PATHS, teachGuideDates, teachHubNewest, teachPath, type TeachGuideEntry } from '@/lib/teach-guides/registry'
+import { releasedGuides, TEACH_BASE, TEACH_CLUSTERS, TEACH_START_PATHS, teachGuideDates, teachHubNewest, teachPath, vnToday, type TeachGuideEntry } from '@/lib/teach-guides/registry'
 import { TEACH_ROBOTS } from '@/lib/teach-guides/robots'
 
 /**
@@ -359,7 +359,11 @@ export default async function TeachHubPage() {
    * The floor is checked here as well as by the null median the rules leave below it, as the index page does.
    */
   const br1 = rent.known ? rent.index.cityBands.br1 : null
-  const rentDate = rent.known ? formatArticleDate(rent.index.computedAt.slice(0, 10), 'en') : null
+  // The snapshot's day in Saigon (vnToday: UTC+7, no DST), as /hcmc-rent-index prints it ("Snapshot: 21 October 2026").
+  // Its UTC date is the day before for a snapshot computed between 00:00 and 07:00 ICT. A time that does not parse prints
+  // no rent line, as under the floor.
+  const rentAt = rent.known ? Date.parse(rent.index.computedAt) : NaN
+  const rentDate = Number.isFinite(rentAt) ? formatArticleDate(vnToday(new Date(rentAt)), 'en') : null
   // ONE condition for the facts box's rent line and the cost answer that points "above" at it.
   const rentFact = br1?.median && br1.n >= MIN_CELL_N && rentDate ? { median: br1.median, n: br1.n, date: rentDate } : null
 

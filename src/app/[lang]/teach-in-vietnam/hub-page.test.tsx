@@ -77,6 +77,7 @@ vi.mock('@/app/[lang]/hcmc-rent-index/load-rent-index', () => ({ loadRentIndex: 
  */
 h.now = new Date(`${TEACH_GUIDES.flatMap((e) => [e.published, e.reviewed ?? e.published]).sort().at(-1)}T05:00:00Z`)
 
+// 19:00 UTC on the 17th is 02:00 on the 18th in Saigon: the rent line prints the 18th (the snapshot's Saigon day).
 const RENT = { median: 7_123_456, n: 4_321, computedAt: '2026-10-17T19:00:00.000Z' }
 const knownRent = () => ({ known: true, index: { computedAt: RENT.computedAt, cityBands: { br1: { median: RENT.median, n: RENT.n } } } })
 
@@ -257,8 +258,18 @@ describe('the facts box (plan B1)', () => {
     const lines = (renderToStaticMarkup(<>{content.ledeRow}</>).match(/<li>[\s\S]*?<\/li>/g) ?? []).map(plain)
     expect(lines).toContain('38 teaching jobs in Vietnam listed now — browse them.')
     expect(box).toContain(
-      `A one-bedroom apartment in Ho Chi Minh City has a median asking rent of ${moneyText(RENT.median)} a month (${RENT.n.toLocaleString('en-US')} listings, eno.vn Rent Index, ${formatArticleDate('2026-10-17', 'en')}).`,
+      `A one-bedroom apartment in Ho Chi Minh City has a median asking rent of ${moneyText(RENT.median)} a month (${RENT.n.toLocaleString('en-US')} listings, eno.vn Rent Index, ${formatArticleDate('2026-10-18', 'en')}).`,
     )
+  })
+  it('dates the rent line by the snapshot’s day in Saigon, as /hcmc-rent-index does, never its UTC day', async () => {
+    for (const [computedAt, day] of [
+      ['2026-10-20T19:07:00.000Z', '2026-10-21'], // 02:07 in Saigon: still the 20th in UTC
+      ['2026-10-21T16:59:59.000Z', '2026-10-21'], // 23:59:59 in Saigon
+      ['2026-10-21T17:00:00.000Z', '2026-10-22'], // midnight in Saigon
+    ]) {
+      h.rent = { known: true, index: { computedAt, cityBands: { br1: { median: RENT.median, n: RENT.n } } } }
+      expect(text((await render()).content.ledeRow), computedAt).toContain(`eno.vn Rent Index, ${formatArticleDate(day, 'en')}).`)
+    }
   })
 })
 
@@ -283,6 +294,16 @@ describe('the rent line reads the 1-bedroom band only, and says nothing under th
     expect(box).not.toMatch(rentWords)
     expect(box).not.toContain(moneyText(4_400_000))
     expect(box).not.toContain(moneyText(6_000_000))
+    expect(answerText(r.answers, 'cost-of-living')).not.toMatch(/Rent decides the gap|Rent Index|median/)
+  })
+
+  it('a snapshot time that does not parse: no rent line and no pointer to it, never a garbled date', async () => {
+    h.rent = { known: true, index: { computedAt: 'not a time', cityBands: { br1: { median: RENT.median, n: RENT.n } } } }
+    const r = await render()
+    const box = text(r.content.ledeRow)
+    expect(box).not.toMatch(rentWords)
+    expect(box).not.toContain(moneyText(RENT.median))
+    expect(box).not.toMatch(/Invalid|NaN/)
     expect(answerText(r.answers, 'cost-of-living')).not.toMatch(/Rent decides the gap|Rent Index|median/)
   })
 
@@ -350,7 +371,7 @@ describe('the short answers come first (plan B1, "answer first")', () => {
   it('every figure in an answer is one its guides print (the hub restates; it never adds a fact)', async () => {
     const { answers } = await render()
     // The live Rent Index median is this page's own data (the facts box prints it), not a guide's.
-    const live = [moneyText(RENT.median), RENT.n.toLocaleString('en-US'), formatArticleDate(RENT.computedAt.slice(0, 10), 'en')]
+    const live = [moneyText(RENT.median), RENT.n.toLocaleString('en-US'), formatArticleDate('2026-10-18', 'en')]
     for (const a of answers) {
       const said = live.reduce((t, s) => t.split(s).join(' '), text(a.a))
       if (!a.guides.length) {
@@ -453,7 +474,7 @@ describe('the short answers come first (plan B1, "answer first")', () => {
     for (const a of answers) expect([...runs(text(a.a))].filter((r) => above.has(r)), a.id).toEqual([])
     // It bites: the first draft's cost answer repeated the facts box's rent sentence, and its first answer the lead's decree.
     const copies = [
-      `A one-bedroom apartment has a median asking rent of ${moneyText(RENT.median)} a month (${RENT.n.toLocaleString('en-US')} listings, eno.vn Rent Index, ${formatArticleDate('2026-10-17', 'en')}).`,
+      `A one-bedroom apartment has a median asking rent of ${moneyText(RENT.median)} a month (${RENT.n.toLocaleString('en-US')} listings, eno.vn Rent Index, ${formatArticleDate('2026-10-18', 'en')}).`,
       'The work permit is the gate: a bachelor’s degree plus at least 2 years of relevant experience (Decree 219/2025), a police check.',
     ]
     for (const c of copies) expect([...runs(c)].some((r) => above.has(r)), c).toBe(true)
@@ -467,7 +488,7 @@ describe('the short answers come first (plan B1, "answer first")', () => {
     expect(hrefs(renderToStaticMarkup(<>{a.a}</>))).toContain('/hcmc-rent-index')
     // The listing count and the date are the facts box's (tested above); the answer only points at them.
     expect(withRent).not.toContain(RENT.n.toLocaleString('en-US'))
-    expect(withRent).not.toContain(formatArticleDate('2026-10-17', 'en'))
+    expect(withRent).not.toContain(formatArticleDate('2026-10-18', 'en'))
     h.rent = { known: false }
     const without = await render()
     const t = answerText(without.answers, 'cost-of-living')
