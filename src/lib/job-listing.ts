@@ -237,13 +237,11 @@ export type JobPay = { price: number; priceUnit: 'VND/month' | 'VND/hour'; salar
 
 const num = (s: string) => Number(s.replace(/[.,\s]/g, ''))
 
-/**
- * A stated VND amount per month or per hour → what to store. Only the forms we can read without
- * guessing: "15,000,000–20,000,000 VND / month", "500.000 VNĐ/giờ", "From 12,000,000 VND/month".
- * A single amount is the price; a RANGE (or "from") is price 0 with `salaryM` = its lower bound.
- * "Up to …" (a ceiling, not a price), USD, per day/year, or anything unparsed → null (price 0).
- */
-export function parseJobPay(text: string | null | undefined): JobPay {
+/** The bounds a stated amount must sit inside to be read at all: a month's pay, an hour's. */
+const PAY_BOUNDS = { month: [1_000_000, 500_000_000], hour: [20_000, 5_000_000] } as const
+
+/** The one reading of a pay line both parsers share: its amounts, its period, and the line as read (whitespace-collapsed). */
+function readJobPay(text: string | null | undefined): { t: string; lo: number; hi: number; period: 'month' | 'hour' } | null {
   if (!text) return null
   const t = text.replace(/\s+/g, ' ').trim()
   if (/(^|[^\p{L}])(up to|tối đa|max(imum)?)(?!\p{L})/iu.test(t)) return null
@@ -253,13 +251,37 @@ export function parseJobPay(text: string | null | undefined): JobPay {
   const lo = num(m[1]!)
   const hi = m[2] ? num(m[2]) : lo
   if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) return null
-  const single = hi === lo && !/^(from|từ)\b/i.test(t)
-  if (/^(month|tháng)$/i.test(m[3]!)) {
-    if (lo < 1_000_000 || lo > 500_000_000) return null
-    return { price: single ? lo : 0, priceUnit: 'VND/month', salaryM: Math.floor(lo / 1_000_000) }
-  }
-  if (lo < 20_000 || lo > 5_000_000) return null
-  return { price: single ? lo : 0, priceUnit: 'VND/hour', salaryM: null }
+  const period = /^(month|tháng)$/i.test(m[3]!) ? 'month' : 'hour'
+  if (lo < PAY_BOUNDS[period][0] || lo > PAY_BOUNDS[period][1]) return null
+  return { t, lo, hi, period }
+}
+
+/**
+ * A stated VND amount per month or per hour → what to store. Only the forms we can read without
+ * guessing: "15,000,000–20,000,000 VND / month", "500.000 VNĐ/giờ", "From 12,000,000 VND/month".
+ * A single amount is the price; a RANGE (or "from") is price 0 with `salaryM` = its lower bound.
+ * "Up to …" (a ceiling, not a price), USD, per day/year, or anything unparsed → null (price 0).
+ */
+export function parseJobPay(text: string | null | undefined): JobPay {
+  const p = readJobPay(text)
+  if (!p) return null
+  const single = p.hi === p.lo && !/^(from|từ)\b/i.test(p.t)
+  if (p.period === 'month') return { price: single ? p.lo : 0, priceUnit: 'VND/month', salaryM: Math.floor(p.lo / 1_000_000) }
+  return { price: single ? p.lo : 0, priceUnit: 'VND/hour', salaryM: null }
+}
+
+/**
+ * The same reading as parseJobPay, as the amounts themselves — the D3 job-ad history log's pay (src/lib/job-ad-sightings.ts),
+ * never a listing's: min = the lower amount; max = the upper one, the amount itself for a single figure, and null for
+ * "from <one amount>" (or an upper amount past the period's bound). Every line parseJobPay refuses is refused here too.
+ */
+export function parseJobPayRange(text: string | null | undefined): { min: number; max: number | null; currency: 'VND'; period: 'month' | 'hour' } | null {
+  const p = readJobPay(text)
+  if (!p) return null
+  // The pattern admits "from " / "từ " only as the line's first word, so a prefix test reads it — not parseJobPay's
+  // `\b`, which is ASCII-only and never matches after "ừ".
+  const openEnded = p.hi === p.lo && /^(?:from|từ) /iu.test(p.t)
+  return { min: p.lo, max: openEnded || p.hi > PAY_BOUNDS[p.period][1] ? null : p.hi, currency: 'VND', period: p.period }
 }
 
 /** The jobs `jobtype` facet value, from the posting's employment type (or its title). */

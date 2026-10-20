@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   JOB_BOARDS, JOB_SELLER_IDS, JOB_TEXT_REFUSAL, hasEmployerVisaWord, hasVisaWord, isExpiredJob, isHiringPost, jobDenyReason, jobExternalId,
   jobNativeId, jobProvinces, jobStageProblem, jobTextDetail, jobTextProblem, jobType, mapStagedJob, normaliseJobUrl, parseJobPay,
-  pdpTombstoneTags, unshout, type StagedJob,
+  parseJobPayRange, pdpTombstoneTags, unshout, type StagedJob,
 } from './job-listing'
 import { JOB_TEXT_BLOCK_CODES } from './publish-guard'
 import { IMPORT_SELLERS } from './import-sellers'
@@ -200,6 +200,35 @@ describe('places, pay, type, text', () => {
     expect(parseJobPay('Competitive')).toBeNull()
     expect(parseJobPay('15 VND / month')).toBeNull()
     expect(parseJobPay(null)).toBeNull()
+  })
+
+  it('parseJobPayRange: the same reading, as its amounts (the D3 history log) — and it refuses exactly what parseJobPay refuses', () => {
+    expect(parseJobPayRange('15,000,000–20,000,000 VND / month')).toEqual({ min: 15_000_000, max: 20_000_000, currency: 'VND', period: 'month' })
+    expect(parseJobPayRange('50,000,000 VND / month')).toEqual({ min: 50_000_000, max: 50_000_000, currency: 'VND', period: 'month' })
+    expect(parseJobPayRange('500,000–570,000 VND/hour')).toEqual({ min: 500_000, max: 570_000, currency: 'VND', period: 'hour' })
+    expect(parseJobPayRange('550.000 VNĐ/giờ')).toEqual({ min: 550_000, max: 550_000, currency: 'VND', period: 'hour' })
+    // "From" one amount has no top — in Vietnamese too, where an ASCII \b never matches after "ừ".
+    expect(parseJobPayRange('From 12,000,000 VND/month')).toEqual({ min: 12_000_000, max: null, currency: 'VND', period: 'month' })
+    expect(parseJobPayRange('Từ 12.000.000 VNĐ/tháng')).toEqual({ min: 12_000_000, max: null, currency: 'VND', period: 'month' })
+    expect(parseJobPayRange('From 10,000,000 - 15,000,000 VND / month')).toEqual({ min: 10_000_000, max: 15_000_000, currency: 'VND', period: 'month' })
+    // An upper amount past the period's bound is not a top.
+    expect(parseJobPayRange('500,000–5,600,000 VND/hour')).toEqual({ min: 500_000, max: null, currency: 'VND', period: 'hour' })
+    // Real refused lines from the staged corpus: a ceiling, USD, no amount, a junk figure, an hourly rate labelled monthly,
+    // an amount past the hourly bound, "tr" shorthand — and nothing at all.
+    const refusedLines = ['Up to 550.000 VNĐ/Hour - Gross', '$1,500–2,000 / month', 'Competitive', '15 VND / month', '450,000 VND / month',
+      '5,040,000 VND / hour', '15tr-50tr ₫/tháng', 'USD 1,900 – 2,350 per month (gross)', null]
+    for (const line of refusedLines) {
+      expect(parseJobPayRange(line), String(line)).toBeNull()
+      expect(parseJobPay(line), String(line)).toBeNull()
+    }
+    // The two readings agree on every line either reads: the listing's floor is the log's min.
+    for (const line of ['15,000,000–20,000,000 VND / month', '50,000,000 VND / month', '500,000–570,000 VND/hour', 'From 12,000,000 VND/month', '470,000 VND / hour']) {
+      const pay = parseJobPay(line)!
+      const range = parseJobPayRange(line)!
+      expect(pay.priceUnit, line).toBe(`VND/${range.period}`)
+      expect(pay.price === 0 || pay.price === range.min, line).toBe(true)
+      expect(pay.salaryM, line).toBe(range.period === 'month' ? Math.floor(range.min / 1_000_000) : null)
+    }
   })
 
   it('maps employment types to the jobtype facet', () => {

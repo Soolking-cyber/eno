@@ -39,6 +39,10 @@
  *    purge-isr-listings.mjs writes the route-wide ones the same way).
  * ⚠️ AFTER AN --apply: `node scripts/vertex-backfill.mjs` (new rows) and `node scripts/vertex-reconcile.mjs`
  *    (hidden ones), if semantic search is on — script writes skip the app's Vertex sync.
+ * D3 — EVERY --apply WITH A STAGE ALSO LOGS THE ADS IT TOOK IN to the internal job-ad history (JobAdSighting,
+ *    src/lib/job-ad-sightings.ts): one batched upsert at the stage's `stagedAt`, facts only — never refreshed once a
+ *    moderator removed the ad's listing. It never fails or holds up the import — a failed write (the table not made yet:
+ *    scripts/job-ad-sightings-ddl.mjs) is logged and the run carries on; a row the database refuses loses only itself.
  */
 import 'dotenv/config'
 import { closeSync, copyFileSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, realpathSync, statSync, unlinkSync, writeSync } from 'node:fs'
@@ -57,6 +61,7 @@ import {
   JOB_BOARDS, JOB_SELLER_IDS, isExpiredJob, jobExternalId, jobStageProblem, mapStagedJob, pdpTombstoneTags,
   type JobDrop, type JobStage, type MappedJob,
 } from '../src/lib/job-listing'
+import { jobAdSightingOf, recordJobAdSightings, sightingsToLog, type JobAdSighting } from '../src/lib/job-ad-sightings'
 
 const BUCKET = 'listings'
 const argv = process.argv
@@ -216,6 +221,9 @@ async function main() {
   const drops: Partial<Record<JobDrop | 'noCover' | 'dupInStage', string[]>> = {}
   const drop = (why: keyof typeof drops, label: string) => { (drops[why] ??= []).push(label) }
   const keep: MappedJob[] = []
+  /** D3: the history row of every ad kept below — the same ads, as their parsed facts (src/lib/job-ad-sightings.ts). */
+  const sighted: JobAdSighting[] = []
+  let unlogged = 0 // kept ads the history log's own screens refused (jobAdSightingOf → null), said in the plan line
   // The screen's hide journal and review file go to the durable --journal-dir on --apply, with the rest.
   const screen = new ImportScreen('jobs', { db, sellerIds: [...JOB_SELLER_IDS], ...(journal ? { dir: journal } : {}) })
   const seen = new Set<string>()
@@ -234,6 +242,15 @@ async function main() {
     // advertising classifier passes it — the banned-word half is what applies).
     if (!(await screen.check({ title: r.job.title, description: r.job.description, descriptionVi: r.job.descriptionVi, category: 'jobs', subcategory: r.job.subcategorySlug, merchant: r.job.sellerName, extraTexts: [r.job.location], externalId: r.job.externalId, url: r.job.affiliateUrl }))) continue
     keep.push({ ...r.job, coverPath: coverFile })
+    // ⛔ The history log never fails an import, and this runs before any write: a row it cannot make is skipped, said so.
+    try {
+      const sighting = jobAdSightingOf(j, r.job)
+      if (sighting) sighted.push(sighting)
+      else unlogged++
+    } catch (e) {
+      unlogged++
+      console.warn(`  ! job-ad history log: no row for ${r.job.externalId} — ${String((e as Error)?.message ?? e).replace(/\s+/g, ' ').slice(0, 160)}`)
+    }
   }
   screen.report()
 
@@ -258,6 +275,8 @@ async function main() {
     },
   }) : []
   const storedBy = new Map(stored.map((s) => [s.externalId, s]))
+  /** D3: the ads the history log takes — the run's sightings minus any whose listing a moderator REMOVED (sightingsToLog). */
+  const toLog = sightingsToLog(sighted, stored)
   const plan = keep.map((k) => {
     const s = storedBy.get(k.externalId)
     const mutable = mutableOf(k, category.id)
@@ -287,6 +306,7 @@ async function main() {
   console.log(`plan              create ${toCreate.length}${LIMIT ? ` (--limit ${LIMIT})` : ''} · update ${toUpdate.length} · unchanged ${plan.length - plan.filter((p) => !p.s).length - toUpdate.length}`)
   console.log(`expire            ${EXPIRE ? `${expired.length} of ${activeJobs.length} active job rows are past apply-by` : 'OFF (--expire not passed)'}`)
   console.log(`gone (re-checked) ${stage?.gone?.length ?? 0} in the stage → ${goneRows.length} active rows to hide${goneRows.length ? `: ${goneRows.map((r) => r.externalId).join(', ')}` : ''}`)
+  console.log(`history log       ${toLog.length} ads → JobAdSighting (D3, internal) at the stage's stagedAt${sighted.length > toLog.length ? ` (${sighted.length - toLog.length} removed by moderation left out)` : ''}${unlogged ? ` (${unlogged} kept ads not logged: a fact failed the log's screens)` : ''}${APPLY ? '' : ' — not written on a dry run'}`)
   for (const p of plan) {
     const k = p.k
     console.log(`  ${pad(p.s ? (p.changed!.length ? 'UPDATE' : 'same') : 'CREATE', 6)} ${pad(k.externalId, 34)} ${pad(k.city, 12)} ${pad(k.price ? `${k.price.toLocaleString('vi-VN')} ${k.priceUnit}` : 'salary: see details', 24)} ${k.applyBy}  ${k.title.slice(0, 70)}`)
@@ -295,6 +315,10 @@ async function main() {
     const p = plan[0]!
     console.log(`\n── sample row, as stored (create-only fields included) ──`)
     console.log(JSON.stringify({ ...p.mutable, externalId: p.k.externalId, status: 'active', verified: true, images: ['<cover>'], postedAt: p.k.postedAt.toISOString(), attributes: p.k.attributes }, null, 2))
+  }
+  if (toLog[0]) {
+    console.log(`\n── sample history row (D3, JobAdSighting — parsed facts only; seen at the stage's stagedAt) ──`)
+    console.log(JSON.stringify({ ...toLog[0], listingId: storedBy.get(toLog[0].externalId)?.id ?? null }, null, 2))
   }
 
   if (!APPLY) {
@@ -329,8 +353,10 @@ async function main() {
   }
   const trustOf = async (id: string) => sellerById.get(id)?.trustScore ?? (await db.seller.findUnique({ where: { id }, select: { trustScore: true } }))?.trustScore ?? 100
 
-  const stat = { created: 0, updated: 0, uploadFailed: 0, raced: 0, errored: 0, hidden: 0 }
+  const stat = { created: 0, updated: 0, uploadFailed: 0, raced: 0, errored: 0, hidden: 0, sightings: 0 }
   const touched: string[] = []
+  /** externalId → its eno listing, for the history log: the rows already stored (any status), then the ones created below. */
+  const listingIdOf = new Map(stored.map((s) => [s.externalId!, s.id]))
   for (const p of toUpdate) {
     try {
       const data: Partial<Mutable> = {}
@@ -369,12 +395,20 @@ async function main() {
         select: { id: true },
       })
       if (CREATED) recordDurably(CREATED, JSON.stringify({ id: created.id, externalId: p.k.externalId }))
+      listingIdOf.set(p.k.externalId, created.id)
       stat.created++
     } catch (e) {
       /** P2002 = the unique (sellerId, externalId): another run created it between read and write. */
       if ((e as { code?: string }).code === 'P2002') stat.raced++
       else { stat.errored++; console.warn(`  ! ${p.k.externalId}: ${(e as Error).message.slice(0, 160)}`) }
     }
+  }
+  // ── D3: the job-ad history log — after the listing writes (so it knows the new ids), before anything that can throw.
+  // ⛔ NEVER THROWS (src/lib/job-ad-sightings.ts): a failure is warned on stderr and the import goes on.
+  if (stage && toLog.length) {
+    const logged = await recordJobAdSightings(db, toLog.map((s) => ({ ...s, listingId: listingIdOf.get(s.externalId) ?? null })), stage.stagedAt)
+    stat.sightings = logged.written
+    console.log(`history log       ${logged.ok ? `${logged.ads} ads recorded (${logged.written} rows new or moved on)` : `FAILED — ${logged.error}`}`)
   }
   const retire = [...new Map([...expired, ...goneRows].map((r) => [r.id, r])).values()]
   if (retire.length) {

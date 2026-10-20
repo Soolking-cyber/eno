@@ -1295,6 +1295,65 @@ model TeacherJobMatch {
   @@index([emailedAt, decision])
 }
 
+/// D3 — THE JOB-AD HISTORY LOG (~/eno-seo-teachers-2026-10/PLAN.md §3(d), 2026-10-19: "Start the log now … store
+/// first_seen, last_seen and parsed fields for every ingested ad. Publish later, only after counsel"). One row per
+/// third-party job ad scripts/import-jobs.ts takes in — one its run keeps: mapped, past every screen, cover found — keyed
+/// by the importer's own externalId; each later daily stage that carries the ad moves lastSeenAt and seenCount and
+/// refreshes the facts. The one writer is src/lib/job-ad-sightings.ts.
+/// ⛔ INTERNAL ONLY: no page, feed, API or email reads it, and nothing from it is published before counsel and each
+/// board's terms allow — then aggregates only, never ad text, "work permit support" and never a visa or TRC figure.
+/// ⛔ PARSED FACTS ONLY: no ad text, no pay line as written, no email or phone, no employer line read as a person's, no visa /
+/// TRC / residence field. The one flag is workPermitSupport, kept as the boolean alone (never the words it was read from).
+/// ⚠️ DELIBERATELY FK-FREE (the WhatsAppInbound call): `listingId` is a plain pointer, so this ships as one additive
+/// CREATE TABLE that takes no lock on the busy Listing table, and an ad's history outlives its row.
+/// DDL: scripts/job-ad-sightings-ddl.mjs (RLS on, anon/authenticated revoked) — run on production BEFORE the deploy.
+model JobAdSighting {
+  /// `<board>:<the board's own job id>` — the ad's Listing.externalId (jobExternalId, src/lib/job-listing.ts).
+  externalId        String    @id
+  /// The JOB_BOARDS key: "careerlink", "teast", "vtj"…
+  board             String
+  /// The `stagedAt` of the first and of the latest stage that carried the ad — when the pipeline re-checked it live, not
+  /// the import's clock. ⚠️ The pipeline stages a posting for at most 14 days after its (latest) posting date.
+  firstSeenAt       DateTime
+  lastSeenAt        DateTime
+  /// Stages that carried the ad, imported in time order (the daily job's order; the pipeline stages once a day); a stage
+  /// imported twice counts once. ⚠️ A stage whose time falls strictly between firstSeenAt and lastSeenAt is not counted,
+  /// so a backfill from old stage files must run NEWEST FIRST.
+  seenCount         Int       @default(1)
+  /// The eno listing the ad is (or was) published as, once one exists.
+  listingId         String?
+  /// The posting's own title, whitespace-collapsed and un-shouted — without the " — employer" the listing title adds. The
+  /// words the public listing shows, past the phone, contact and visa screens; a person's name inside it is not detected.
+  title             String
+  /// The vn-units province (Listing.city); the importer parses no district.
+  city              String
+  /// As the board shows it — a line the name check reads as a person's ("Ms Ngân English", "Chị Hoa", "Nguyễn Thị Lan")
+  /// is left out (namesAPerson, a heuristic: titles, common surnames, common English given names).
+  employer          String?
+  /// The jobs `jobtype` facet value: fulltime | parttime | contract | temporary.
+  employmentType    String?
+  /// The pay the importer reads (parseJobPayRange): VND a month or an hour; salaryMax is null for "from …".
+  salaryMin         Int?
+  salaryMax         Int?
+  salaryCurrency    String?
+  salaryPeriod      String?
+  /// "Work permit support" (workPermitSupportOf), read from the title and the RAW pay/benefit line: true = the ad says
+  /// the employer provides, supports, sponsors, arranges or helps with a work permit; null = it names a work permit
+  /// without saying so ("must hold a work permit"); false = it names none. The boolean only — never the words.
+  workPermitSupport Boolean?
+  /// The pipeline's search (teaching | english), and eno's Jobs subcategory (teaching | job-other).
+  category          String
+  subcategory       String
+  /// Vietnam days. postedOn is the EARLIEST posting day any stage carried, lastPostedOn the LATEST: a board that re-posts
+  /// the job under the same link moves lastPostedOn, never firstSeenAt — count re-posts by lastPostedOn's week.
+  /// ⚠️ applyBy is the listing's: the posting's own deadline, capped at 14 days after posting.
+  postedOn          DateTime  @db.Date
+  lastPostedOn      DateTime  @db.Date
+  applyBy           DateTime? @db.Date
+
+  @@index([board, firstSeenAt])
+}
+
 // A lead signal + the dedupe key so contactCount counts distinct viewers, not clicks.
 // viewerId = Supabase auth user id (no app Profile table required for Phase 1).
 model ContactReveal {
