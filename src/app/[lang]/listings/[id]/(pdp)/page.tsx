@@ -8,6 +8,9 @@ import { ProviderLicenceRows } from './provider-licence-rows'
 import { TeacherProfileView } from '@/components/teachers/teacher-profile-view'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { teacherSurfaceHref } from '@/lib/teachers/host'
+import { getTeacherPageRow } from '@/lib/teachers/page-row'
+import { teacherRobots, teacherSearchFacts, teacherSearchVerdict } from '@/lib/teachers/search-floor'
+import { teacherTitleLine } from '@/lib/teachers/search-title'
 import { PostJobLink, TeacherProfileLink } from '@/app/[lang]/c/[category]/teaching-links'
 import { plainSnippet } from '@/lib/strip-md'
 import { feedIdentifiers } from '@/lib/product-feed'
@@ -221,25 +224,39 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // composed fallback sentence is English, so it keeps the English price with it.
   const ogDesc = titlePrice && bodyDesc ? `${titlePrice} · ${desc}` : desc
 
-  // ⛔ "IN VIETNAM" ONLY FOR A TEACHER WHO LIVES THERE (teacher onboarding redesign, 2026-10-08): a teacher abroad has no
-  // city (projection.ts teacherHome writes '' — never the old Hồ Chí Minh fallback), and the title must not place them in
-  // Vietnam any more than the profile's JSON-LD does (jsonld.ts homeLocation). The wording is the owner's to change.
-  const teacherRole = listing.city ? (vi ? 'Giáo viên tại Việt Nam' : 'Teacher in Vietnam') : (vi ? 'Giáo viên' : 'Teacher')
+  /**
+   * ⛔ A TEACHER PROFILE'S <title> AND ROBOTS COME FROM ITS PROFILE ROW (SEO plan P1 items 14 and 15, owner 2026-10-20) —
+   * the ONE row the page renders (src/lib/teachers/page-row.ts, cache()d: this read IS the view's read).
+   *   · <title>: "<Name> — IELTS & English teacher, Ho Chi Minh City | eno.vn" (search-title.ts) — the h1's name, then what
+   *     they teach and the city they live in, each only when the profile says it. ⛔ No place for a teacher abroad or one
+   *     who has not said (the old "Teacher in Vietnam" rule — never a city they do not live in), and never a price.
+   *   · robots: `noindex, follow` while the search verdict leaves the profile out (search-floor.ts) — under the quality
+   *     floor (About under 30 words and no intro video), a masked name, or the teacher's own "Hide my profile from search
+   *     engines". The sitemaps leave out exactly these (src/lib/sitemap.ts). ⚠️ The page is ISR: every input of the
+   *     verdict is written by a path that purges it — a profile save (saveTeacherProfile), the video's own moves, and
+   *     the switch (search-visibility.ts).
+   * A broken row (a listing without its profile) is titled by the listing and left out of search.
+   */
+  const teacherRow = isTeacher ? await getTeacherPageRow(listing.id) : null
+  const teacherSearch = isTeacher ? teacherSearchVerdict(teacherSearchFacts(teacherRow, listing)) : null
+  const teacherTitle = isTeacher ? `${teacherRow?.fullName ?? listing.title} — ${teacherTitleLine(teacherRow ?? {}, vi ? 'vi' : 'en')} | ${SITE_NAME}` : null
   return {
-    title: isTeacher ? `${titleFor} — ${teacherRole} | ${SITE_NAME}` : titlePrice ? `${titleFor} — ${titlePrice} | ${SITE_NAME}` : `${titleFor} | ${SITE_NAME}`,
+    title: teacherTitle ?? (titlePrice ? `${titleFor} — ${titlePrice} | ${SITE_NAME}` : `${titleFor} | ${SITE_NAME}`),
     description: desc,
     // Only publicly-live listings (verified + active) are indexable; sold/hidden/held are not.
     // ⛔ An imported vehicle-hire reference is live but noindex — src/lib/rental-places.ts says why — and so, since
     // 2026-10-20, is a LINKED job (job-listing.ts isLinkedJobReference; until then it was indexed with `unavailable_after`
     // set to its apply-by date, which a page that is not indexed no longer needs). listing-robots.test.ts beside this file.
+    // ⛔ A teacher profile: its search verdict (above).
     // ⚠️ A change here reaches every page with the deploy that ships it: the ISR cache is keyed by BUILD_ID
     // (cache-handler.cjs), so each page's first request after a deploy renders anew, and the deploy's own `eno-html` tag
     // purge (infra/vn-node/eno-deploy.sh) drops the edge copy — nothing to purge by hand, unless it ran --skip-purge.
     robots: listing.verified && listing.status === 'active'
-      ? (isVehicleHireReference({ affiliateUrl: listing.affiliateUrl, subcategorySlug: listing.subcategorySlug, categorySlug: listing.category.slug })
-        || isLinkedJobReference({ affiliateUrl: listing.affiliateUrl, listingType: listing.listingType })
-        ? { index: false, follow: true }
-        : undefined)
+      ? (teacherSearch ? teacherRobots(teacherSearch)
+        : isVehicleHireReference({ affiliateUrl: listing.affiliateUrl, subcategorySlug: listing.subcategorySlug, categorySlug: listing.category.slug })
+          || isLinkedJobReference({ affiliateUrl: listing.affiliateUrl, listingType: listing.listingType })
+          ? { index: false, follow: true }
+          : undefined)
       : { index: false, follow: true },
     alternates: {
       canonical: `${hostUrl}/listings/${id}`,
@@ -315,16 +332,17 @@ export default async function ListingPage({ params }: Props) {
 
   const listing = serializeListing(rawListing)
   // ⛔ A TEACHER IS A PERSON, NOT A PRODUCT (2026-09-30): its own page — no price, offers, map,
-  // Product JSON-LD, seller-contact reveal or safety price copy. Only live rows reach here
-  // (the guard above), so the page is indexable exactly when any listing is.
+  // Product JSON-LD, seller-contact reveal or safety price copy. Only live rows reach here (the guard
+  // above); whether search engines are asked to index it is the profile's search verdict (2026-10-20 —
+  // generateMetadata's robots tag, and the view's JSON-LD from the same cache()d row).
   if (rawListing.listingType === TEACHER_LISTING_TYPE) {
     const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
     return (
       <>
         <TeacherProfileView
-          listing={{ id: listing.id, title: listing.title, images: listing.images, video: listing.video ?? null, updatedAt: rawListing.updatedAt }}
-          canonicalUrl={`${hostUrl}/listings/${listing.id}`}
-          indexable={rawListing.status === 'active'}
+          listing={{ id: listing.id, title: listing.title, images: listing.images, video: listing.video ?? null, createdAt: rawListing.createdAt, updatedAt: rawListing.updatedAt }}
+          hostUrl={hostUrl}
+          live={rawListing.status === 'active'}
           lang={(await params).lang === 'vi' ? 'vi' : 'en'}
         />
         {/* The view COUNTER only — never <TrackView>, whose ad-platform item would carry the teacher's name

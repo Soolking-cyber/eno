@@ -1162,6 +1162,11 @@ model TeacherProfile {
   identityMarkAt            DateTime?
   identityMarkNoticeVersion String?
   identityMarkWithdrawnAt   DateTime?
+  /// "HIDE MY PROFILE FROM SEARCH ENGINES" (owner decision 14, 2026-10-20) — the teacher's own switch, saved only by its
+  /// own endpoint (PUT /api/teachers/me/search → src/lib/teachers/search-visibility.ts; never in TeacherInput or a draft).
+  /// On: the profile page is `noindex` and left out of every sitemap — eno still shows it to everyone. One verdict with
+  /// the quality floor: src/lib/teachers/search-floor.ts. Column: scripts/teacher-search-hide-ddl.mjs (additive only).
+  hideFromSearch            Boolean   @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   private            TeacherPrivate?

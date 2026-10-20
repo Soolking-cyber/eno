@@ -23,6 +23,8 @@ vi.mock('@/lib/db', () => ({
         h.wheres.push(where)
         return 'verified' in where ? h.publicRow : h.anyRow
       },
+      // The sitemap predicate's teacher read (src/lib/teachers/search-index.ts, 2026-10-20): no live teacher here.
+      findMany: async () => [],
     },
     seller: {
       findMany: async ({ where }: { where: unknown }) => {

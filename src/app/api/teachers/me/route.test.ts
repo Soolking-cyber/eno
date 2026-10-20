@@ -464,6 +464,14 @@ describe('GET /api/teachers/me — what the edit form loads', () => {
     expect(body.teacher).toMatchObject({ id: 'tp-b', videoVersion: 7, videoOnRequest: true, videoUrl: null, hasPrivateVideo: true, listingLive: true })
     expect(JSON.stringify(body)).not.toContain('intro.mp4')
   })
+  // "Hide my profile from search engines" (owner decision 14, 2026-10-20): the edit form's switch loads from this row —
+  // every scalar column rides `teacher` as stored, so the column needs no route change (review round 1 asked).
+  it('returns "Hide my profile from search engines" as stored — on and off', async () => {
+    for (const hideFromSearch of [true, false]) {
+      h.mine = { id: 'tp-b', fullName: 'B', hideFromSearch, private: null, listing: { status: 'active', verified: true } }
+      expect((await get()).teacher).toMatchObject({ id: 'tp-b', hideFromSearch })
+    }
+  })
   it('⛔ returns a not-yet-migrated row AS STORED — no runtime adapter re-reads the old columns (D1)', async () => {
     h.mine = { id: 'tp-b', situationVersion: null, teachAreas: [], preferredCities: ['ha-noi'], private: null, listing: null }
     const body = await get()

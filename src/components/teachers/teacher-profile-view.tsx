@@ -6,9 +6,23 @@
 // the English level, the experience band, the taught languages — through src/lib/teachers/profile-view.ts (one pure
 // derivation, tested there). ⛔ The old columns (preferredCities, openToOnline, coverAreas, nativeSpeaker,
 // yearsExperience, currentDistrict) are WRITTEN MIRRORS now and are never read back here as answers (plan review D1).
+//
+// SEARCH DISPLAY (SEO plan P1 items 14 and 15, owner 2026-10-20): the profile is offered to search engines only while
+// its search verdict lets it in (src/lib/teachers/search-floor.ts — the quality floor, a masked name, the teacher's own
+// "Hide my profile from search engines"): the JSON-LD below follows it, and the PDP's robots tag follows the same row
+// (src/lib/teachers/page-row.ts, read once per request). A visible trail — site › Find a teacher › name — leads up to
+// /c/teachers, with its BreadcrumbList; the ProfilePage carries the listing's creation day as dateCreated.
 import { Fragment } from 'react'
 import Image from 'next/image'
-import { db } from '@/lib/db'
+import Link from 'next/link'
+import { SITE_NAME } from '@/lib/edition'
+import { localizedHref } from '@/lib/lang-pinned'
+import { categoryBrowsePath } from '@/lib/retired-categories'
+import { categoryEntryLabel } from '@/lib/category-entry-label'
+import { pdpBreadcrumbLd } from '@/lib/pdp-breadcrumb'
+import { getTeacherPageRow } from '@/lib/teachers/page-row'
+import { teacherPublicVideo, teacherSearchFacts, teacherSearchVerdict } from '@/lib/teachers/search-floor'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
 import { Tr } from '@/context/language-context'
 import { LocalizedText } from '@/components/marketplace/listing-content'
@@ -90,38 +104,34 @@ function Row({ label, children }: { label: React.ReactNode; children: React.Reac
   )
 }
 
-export async function TeacherProfileView({ listing, canonicalUrl, indexable, lang }: {
-  listing: { id: string; title: string; images: string[]; video: string | null; updatedAt: Date | string }
-  canonicalUrl: string
-  indexable: boolean
+export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
+  listing: { id: string; title: string; images: string[]; video: string | null; createdAt: Date | string; updatedAt: Date | string }
+  /** The site's origin (NEXT_PUBLIC_APP_URL) — the canonical URL and the trail's links are built on it. */
+  hostUrl: string
+  /** The listing is live (published and active): only then is the profile shared or described to search engines at all. */
+  live: boolean
   /** The server-rendered language (en | vi) — country and place names are named in it. */
   lang: string
 }) {
-  const tpRow = await db.teacherProfile.findUnique({
-    where: { listingId: listing.id },
-    select: {
-      fullName: true, headline: true, bio: true, photoUrl: true, videoUrl: true, nationality: true,
-      languages: true, availableFrom: true, jobTypes: true, ageGroups: true, subjects: true, experience: true,
-      degreeLevel: true, degreeMajor: true, degreeInstitution: true, degreeYear: true, certificates: true, expectedSalaryM: true, updatedAt: true,
-      // The v2 situation (2026-10-08) — where they live and the one teach-area list; the cover reach is derived from them.
-      livesIn: true, currentCity: true, currentDistrictKey: true, currentProvince: true, teachAreas: true,
-      teachLanguages: true, englishLevel: true, experienceBand: true,
-      coverOpen: true, coverSlots: true, coverRateVnd: true, coverConfirmedAt: true, coverConsentVersion: true,
-      videoOnRequest: true, private: { select: { videoPath: true } },
-      // "Identity verified" (owner, 2026-10-15): read for ONE boolean below (identityMarkShownOnCard), never rendered —
-      // the mark's inputs and the listing's card cache (Listing.identityMarkNotice, through the row's own listing relation,
-      // in this same read: no query of its own — at most one primary-key lookup more, once per ISR render) are split off
-      // with `private`, so `tp` never carries them (the account id least of all).
-      profileId: true, identityMarkOn: true, identityMarkWithdrawnAt: true, listing: { select: { identityMarkNotice: true } },
-    },
-  })
+  const canonicalUrl = `${hostUrl}/listings/${listing.id}`
+  // ONE ROW, shared with the PDP's generateMetadata (cache()d — src/lib/teachers/page-row.ts says what it holds).
+  const tpRow = await getTeacherPageRow(listing.id)
   // ⛔ Only THAT a private intro video exists leaves this query (2026-10-07) — its storage path is never rendered, put in
   // the JSON-LD or handed to a client component, so it is split off here, before `tp` is used anywhere. The mark's
-  // inputs and the card cache go the same way: whether a teacher HID the mark is theirs, never the page's.
+  // inputs and the card cache go the same way: whether a teacher HID the mark is theirs, never the page's — and so does
+  // "Hide my profile from search engines", which only the search verdict below reads (from `tpRow`).
   const {
-    private: tpPrivate, profileId: _profileId, identityMarkOn: _markOn, identityMarkWithdrawnAt: _markHiddenAt, listing: _markCard, ...tpPublic
-  } = tpRow ?? { private: null, profileId: null, identityMarkOn: false, identityMarkWithdrawnAt: null, listing: null }
-  const tp = tpRow ? (tpPublic as Omit<NonNullable<typeof tpRow>, 'private' | 'profileId' | 'identityMarkOn' | 'identityMarkWithdrawnAt' | 'listing'>) : null
+    private: tpPrivate, profileId: _profileId, identityMarkOn: _markOn, identityMarkWithdrawnAt: _markHiddenAt, listing: _markCard,
+    hideFromSearch: _hideFromSearch, ...tpPublic
+  } = tpRow ?? { private: null, profileId: null, identityMarkOn: false, identityMarkWithdrawnAt: null, listing: null, hideFromSearch: false }
+  const tp = tpRow ? (tpPublic as Omit<NonNullable<typeof tpRow>, 'private' | 'profileId' | 'identityMarkOn' | 'identityMarkWithdrawnAt' | 'listing' | 'hideFromSearch'>) : null
+  /**
+   * ⛔ THE SEARCH VERDICT (owner decisions 7 and 14, 2026-10-20 — src/lib/teachers/search-floor.ts), from the very row
+   * this page prints: the name in the h1, the About text below, the video the player plays. The PDP's robots tag asks it
+   * of the same cache()d row, so the JSON-LD and the tag cannot disagree. Out → no structured data at all.
+   */
+  const search = teacherSearchVerdict(teacherSearchFacts(tpRow, listing))
+  const describe = live && search.indexable
   /**
    * "IDENTITY VERIFIED" — THE PROFILE LINE (owner, 2026-10-15; AUTOMATIC since 2026-10-16): shown while the teacher's
    * identity check is LIVE and the name above is within the ID's, unless they hid it (src/lib/teachers/identity-mark.ts
@@ -145,9 +155,10 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
   // ⛔ PRIVACY WINS (video.ts, the planner's both-homes rule) — on the teacher's CHOICE alone: a teacher who keeps their video
   // private is shown no public player even if a stale public URL survives somewhere (only a deploy window can leave one),
   // with or without a private video stored (gate review, 2026-10-07). The on-request line needs one stored.
+  // The public player's rule is search-floor.ts teacherPublicVideo — the search verdict counts exactly this video.
   const keptPrivate = tp?.videoOnRequest === true
   const videoOnRequest = keptPrivate && !!tpPrivate?.videoPath
-  const publicVideo = keptPrivate ? null : (tp?.videoUrl ?? listing.video)
+  const publicVideo = teacherPublicVideo(tp, listing.video)
   const cat = CATEGORY_BY_SLUG[TEACHERS_CATEGORY_SLUG]
   // A listing without its profile is a broken row (the publish core writes both in one transaction);
   // render the bare minimum rather than a 500.
@@ -198,7 +209,22 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
   const ld = tp && teacherProfileLd({
     url: canonicalUrl, fullName: tp.fullName, headline: tp.headline, photoUrl: photo, nationality: countryName(tp.nationality, 'en'),
     languages: knows, homeLocation: homeLocationName(situation), degreeLevel: tp.degreeLevel, degreeMajor: tp.degreeMajor,
-    degreeInstitution: tp.degreeInstitution, certificates: certificates.map((c) => ({ type: c.type, provider: c.provider })), updatedAt: tp.updatedAt,
+    degreeInstitution: tp.degreeInstitution, certificates: certificates.map((c) => ({ type: c.type, provider: c.provider })),
+    createdAt: listing.createdAt, updatedAt: tp.updatedAt,
+  })
+  /**
+   * THE TRAIL — site › Find a teacher › name (SEO plan P1 item 14): the visible crumbs and their BreadcrumbList, from one
+   * model (pdpBreadcrumbLd, the product page's — NAV-10). The middle crumb is the category's ENTRY label ("Find a
+   * teacher" / "Tìm giáo viên", category-entry-label.ts — a link INTO /c/teachers wears it), named in the page's language
+   * like the product trail. The root is SITE_NAME: this page renders on eno.forum too. The last crumb is the h1's name —
+   * nothing the page does not already print.
+   */
+  const entry = categoryEntryLabel({ slug: TEACHERS_CATEGORY_SLUG, name: cat?.name ?? 'Teachers', nameVi: cat?.nameVi })
+  const pageLang = lang === 'vi' ? 'vi' : 'en'
+  const breadcrumbLd = pdpBreadcrumbLd({
+    hostUrl, siteName: SITE_NAME, lang: pageLang,
+    category: { slug: TEACHERS_CATEGORY_SLUG, name: entry.name, nameVi: entry.nameVi },
+    subcategory: null, title: name, canonicalUrl,
   })
   // The line under the headline: nationality · English level · experience · where they live — each only once answered.
   const facts: { key: string; node: React.ReactNode }[] = tp ? [
@@ -213,9 +239,31 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
   return (
     // data-rum: the page-speed totals tell a teacher profile from any other listing page (src/lib/rum/shared.ts).
     <div className="flex min-h-page flex-col" data-rum="teacher">
-      {indexable && ld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />}
+      {/* ⛔ Structured data only for a profile search engines are asked to index (the search verdict, above). */}
+      {describe && ld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />}
+      {describe && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(breadcrumbLd) }} />}
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+        {/* The way up (the /c page's trail, ui/breadcrumb — hidden in the native app by its data-crumb-trail). The leaf
+            repeats the h1 just below, so a phone shows only the way up: one line, no wrap. */}
+        <Breadcrumb className="mb-4">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              {/* `relative tap-44`: a 44px touch target around the short crumb, no layout change (home-06). */}
+              <BreadcrumbLink render={<Link href={localizedHref('/', pageLang)} prefetch={false} />} className="relative tap-44 hover:text-accent-foreground">{SITE_NAME}</BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
+            <BreadcrumbItem>
+              <BreadcrumbLink render={<Link href={localizedHref(categoryBrowsePath(TEACHERS_CATEGORY_SLUG), pageLang)} prefetch={false} />} className="relative tap-44 hover:text-accent-foreground">
+                <Bilingual en={entry.name} vi={entry.nameVi || entry.name} />
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="hidden text-line-strong sm:block">/</BreadcrumbSeparator>
+            <BreadcrumbItem className="hidden min-w-0 sm:inline-flex">
+              <BreadcrumbPage className="truncate font-medium">{name}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
         <div className="grid gap-8 lg:grid-cols-[1fr_20rem]">
           <div className="space-y-8">
             <header className="flex items-start gap-4">
@@ -243,8 +291,9 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
               </div>
               {/* SHARE (owner, 2026-10-11: "make it easy to share on facebook and zalo or whatsapp") — the page's own
                   link; Facebook and Zalo build the card from its Open Graph tags (the photo, name and headline — never a
-                  price, the PDP's generateMetadata). Only a profile schools can see is worth sharing. */}
-              {indexable && (
+                  price, the PDP's generateMetadata). Only a profile schools can see is worth sharing — one left out of
+                  search engines (the search verdict) is still on eno, so it is still shared. */}
+              {live && (
                 <ShareButton
                   url={canonicalUrl}
                   title={tp?.headline ? `${name} — ${tp.headline}` : name}

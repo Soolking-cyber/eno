@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { loadSeller, SellerStorefront, storefrontMetaDescription } from '@/components/marketplace/seller-storefront'
 import { storefrontCanonical } from '@/lib/storefront'
 import { pageShare } from '@/lib/site-identity'
+import { storefrontTeacherRobots } from '@/lib/teachers/search-index'
 
 // Per-request render, like the canonical [handle] storefront (which is force-dynamic
 // on purpose). Without this the page was STATICALLY cached — no dynamic API in scope,
@@ -45,6 +46,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // The share card carries the canonical URL and the site's preview image (C-SHARE).
     ...pageShare({ title: `${seller.name} | ${SITE_NAME}`, description, url: canonical }),
     alternates: { canonical },
+    // ⛔ A teacher-only storefront carries its profile's search verdict (src/lib/teachers/search-index.ts) — the 111
+    // storefronts the sitemap submitted on 2026-10-20 were all of this kind. Undefined for every other shop.
+    robots: await storefrontTeacherRobots(id, seller._count.listings),
   }
 }
 

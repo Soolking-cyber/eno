@@ -13,6 +13,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { loadSeller, SellerStorefront, storefrontMetaDescription } from '@/components/marketplace/seller-storefront'
 import { pageShare } from '@/lib/site-identity'
+import { storefrontTeacherRobots } from '@/lib/teachers/search-index'
 import SubdomainStorefront from '@/app/[lang]/s/[handle]/page'
 import { isSellerHiddenHere } from '@/lib/edition-scope'
 import { Tr } from '@/context/language-context'
@@ -101,6 +102,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       // The SITE's card, not the shop banner: banners are 1280×300 (banner-image.tsx), and a 1.91:1 unfurl
       // crop keeps only the middle 45% of that artwork — a sliver of the creative, words cut mid-line.
       ...pageShare({ title: `${seller.name} | ${SITE_NAME}`, description, url: canonical }),
+      // ⛔ A teacher-only storefront carries its profile's search verdict (src/lib/teachers/search-index.ts); the
+      // cache()d loadSeller above (non-null here) holds the shop's own live count. Undefined for every other shop.
+      robots: await storefrontTeacherRobots(seller.id, (await loadSeller(seller.id))?._count.listings ?? 0),
     }
   }
   return {

@@ -409,6 +409,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const [coverLive, setCoverLive] = useState(true)
   // "Show my profile to schools" outside the Visibility switch (the done screen, the cover card) is on its way.
   const [showing, setShowing] = useState(false)
+  // "Hide my profile from search engines" (owner decision 14, 2026-10-20) — edit only, saved on toggle through its own
+  // endpoint (PUT /api/teachers/me/search). As the SERVER last said it: null = not loaded (the switch is disabled), never
+  // moved ahead of an answer. `searchMessage`: the line after a refusal or a failure.
+  const [searchHidden, setSearchHidden] = useState<boolean | null>(null)
+  const [searchBusy, setSearchBusy] = useState(false)
+  const [searchMessage, setSearchMessage] = useState<'' | 'rate_limited' | 'failed'>('')
   // The intro video (2026-10-07, owner: "show their intro video in profile or hide and send upon request"): whether a
   // PRIVATE one is stored — its address never reaches the form — and the version this form loaded, sent back as
   // `videoBase` so a stale window can never publish, hide, replace or delete a newer choice (src/lib/teachers/video.ts).
@@ -1306,6 +1312,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         setTeacherProfileId(typeof tp.id === 'string' ? tp.id : null)
         setStatus(tp.status === 'hidden' ? 'hidden' : 'live')
         setListingLive(tp.listingLive !== false)
+        setSearchHidden(tp.hideFromSearch === true)
         setProfileListingId(typeof tp.listingId === 'string' ? tp.listingId : null)
         setPublicAs({ fullName: typeof tp.fullName === 'string' ? tp.fullName : '', headline: typeof tp.headline === 'string' ? tp.headline : '' })
         // A deep link (`/teachers/edit?step=finish` — the done screen's "Add more to stand out").
@@ -1848,6 +1855,26 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       if (d.error === 'no_teaching_goal') return tr('Pick the work you want, or switch cover lessons on, and save first.', 'Hãy chọn công việc bạn muốn hoặc bật dạy thay rồi lưu lại trước đã.')
     } catch { /* said below, like any other failure */ }
     return tr('Could not change visibility.', 'Không đổi được chế độ hiển thị.')
+  }
+  /**
+   * "Hide my profile from search engines" (owner decision 14, 2026-10-20): saved at once (PUT /api/teachers/me/search —
+   * src/lib/teachers/search-visibility.ts). The switch moves only on the server's answer; a tap while one is on its way
+   * is dropped. A hide is never refused by the server's limiter, so a 429 can only answer a show.
+   */
+  const toggleSearchHidden = async (hide: boolean) => {
+    if (searchBusy) return
+    setSearchBusy(true)
+    setSearchMessage('')
+    try {
+      const res = await fetch('/api/teachers/me/search', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hidden: hide }) })
+      const d = await res.json().catch(() => null) as { hidden?: unknown } | null
+      if (res.ok && typeof d?.hidden === 'boolean') { setSearchHidden(d.hidden); return }
+      setSearchMessage(res.status === 429 ? 'rate_limited' : 'failed')
+    } catch {
+      setSearchMessage('failed')
+    } finally {
+      setSearchBusy(false)
+    }
   }
   /** The Visibility switch (Photo & publish): a refusal on the form's line, brought into view above the action bar. */
   const toggleStatus = async (live: boolean) => {
@@ -2607,7 +2634,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
                 onRemovePrivateVideo: removePrivateVideo, cvName, cvFile, onCvPick: setCvFile, onCvDiscard: () => setCvFile(null),
                 onCvRemove: mode === 'edit' ? removeCv : null,
               }}
-              edit={mode === 'edit' ? { live: status === 'live', listingLive, onToggleLive: toggleStatus, onDelete: deleteProfile } : null}
+              edit={mode === 'edit' ? {
+                live: status === 'live', listingLive, onToggleLive: toggleStatus, onDelete: deleteProfile,
+                searchHidden, searchBusy, searchMessage, onToggleSearchHidden: (hide) => { void toggleSearchHidden(hide) },
+              } : null}
             />
           )}
           {formError && <p role="alert" data-form-error className="text-sm text-destructive">{formError}</p>}

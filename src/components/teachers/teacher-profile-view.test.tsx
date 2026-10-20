@@ -40,8 +40,13 @@ const { TeacherProfileView } = await import('./teacher-profile-view')
  * in" / "Would move to" from the one teach-area list, the English level and the experience band once answered, the
  * taught languages, cover's "Can travel to" from the DERIVED reach — and the video and contact rules as they were.
  */
+/**
+ * ABOUT TEXT OVER THE SEARCH FLOOR (37 words — src/lib/teachers/search-floor.ts): the base profile is one search engines are
+ * asked to index, so its JSON-LD is there; the floor's own cases are in their describe block below.
+ */
+const BIO = 'I have taught English to children and adults for many years. My lessons are lively, carefully planned and built around what each learner needs, and I love helping shy students find their voice and speak with confidence.'
 const ROW = {
-  fullName: 'Jane Doe', headline: 'CELTA teacher with 5 years in Saigon', bio: '', photoUrl: 'https://x/p.webp', videoUrl: null,
+  fullName: 'Jane Doe', headline: 'CELTA teacher with 5 years in Saigon', bio: BIO, photoUrl: 'https://x/p.webp', videoUrl: null,
   nationality: 'GB', languages: ['French'], availableFrom: null, jobTypes: ['fulltime'], ageGroups: ['adults'], subjects: ['general-english'],
   experience: [], degreeLevel: null, degreeMajor: '', degreeInstitution: '', degreeYear: null, certificates: [], expectedSalaryM: null,
   updatedAt: new Date('2026-10-08T00:00:00Z'),
@@ -49,22 +54,28 @@ const ROW = {
   teachAreas: ['online', 'd4', 'd7', 'ha-noi'], teachLanguages: [], englishLevel: 'native', experienceBand: '5-10-years',
   coverOpen: false, coverSlots: [], coverRateVnd: null, coverConfirmedAt: null, coverConsentVersion: null,
   videoOnRequest: false, private: { videoPath: null },
+  // "Hide my profile from search engines" (owner decision 14, 2026-10-20) — off: the teacher has not asked.
+  hideFromSearch: false,
   // the account, the mark's inputs and the listing's card cache (loaded in the same query) — read for one boolean, never
   // rendered. Untouched switch columns (false, null): NOT hidden — the mark is automatic since 2026-10-16.
   profileId: 'acct-7f3a9c2e-uuid', identityMarkOn: false, identityMarkWithdrawnAt: null, listing: { identityMarkNotice: IDENTITY_MARK_NOTICE_VERSION },
   // ⛔ the OLD columns — written mirrors, which the page must never read back as answers
   preferredCities: ['ho-chi-minh-city', 'da-nang'], openToOnline: false, coverAreas: ['d1'], nativeSpeaker: false, yearsExperience: 0, currentDistrict: 'Quận 1',
 }
-const LISTING = { id: 'L1', title: 'Jane Doe', images: [], video: null, updatedAt: new Date('2026-10-08T00:00:00Z') }
+const LISTING = { id: 'L1', title: 'Jane Doe', images: [], video: null as string | null, createdAt: new Date('2026-10-02T03:04:05Z'), updatedAt: new Date('2026-10-08T00:00:00Z') }
 
-async function page(lang: 'en' | 'vi', over: Record<string, unknown> = {}, indexable = true) {
+async function page(lang: 'en' | 'vi', over: Record<string, unknown> = {}, live = true, listing = LISTING) {
   h.row = { ...ROW, ...over }
-  const node = await TeacherProfileView({ listing: LISTING, canonicalUrl: 'https://eno.vn/listings/L1', indexable, lang })
+  const node = await TeacherProfileView({ listing, hostUrl: 'https://eno.vn', live, lang })
   const html = renderToString(<LanguageProvider initialLang={lang} initialViDict={{}}>{node}</LanguageProvider>)
   const el = document.createElement('div')
   el.innerHTML = html
+  // Every JSON-LD block, parsed — the ProfilePage and the BreadcrumbList (2026-10-20), each found by its @type.
+  const lds = [...el.querySelectorAll('script[type="application/ld+json"]')].map((x) => JSON.parse(x.textContent ?? 'null'))
   const ldText = el.querySelector('script[type="application/ld+json"]')?.textContent
   return {
+    lds,
+    crumbs: lds.find((x) => x?.['@type'] === 'BreadcrumbList') ?? null,
     el,
     text: (el.textContent ?? '').replace(/\s+/g, ' '),
     /** the "label → chips" of one row of the Teaching list */
@@ -282,6 +293,10 @@ describe('sharing the profile (owner, 2026-10-11)', () => {
     expect((await page('vi')).el.querySelector('button[aria-label="Chia sẻ"]')).toBeTruthy()
     expect((await page('en', {}, false)).el.querySelector('button[aria-label="Share"]')).toBeNull()
   })
+  it('⛔ a live profile left out of search engines is still shared — it is still on eno (owner decision 14, 2026-10-20)', async () => {
+    expect((await page('en', { hideFromSearch: true })).el.querySelector('button[aria-label="Share"]')).toBeTruthy()
+    expect((await page('en', { bio: 'Hi.' })).el.querySelector('button[aria-label="Share"]')).toBeTruthy()
+  })
 })
 
 
@@ -353,7 +368,7 @@ describe('the "Identity verified" line', () => {
   })
   it('no profile row behind the listing: no line, and no read', async () => {
     h.row = null
-    const node = await TeacherProfileView({ listing: LISTING, canonicalUrl: 'https://eno.vn/listings/L1', indexable: true, lang: 'en' })
+    const node = await TeacherProfileView({ listing: LISTING, hostUrl: 'https://eno.vn', live: true, lang: 'en' })
     const html = renderToString(<LanguageProvider initialLang="en" initialViDict={{}}>{node}</LanguageProvider>)
     expect(html).not.toContain('data-identity-line')
     expect(h.markCalls).toEqual([])
@@ -372,5 +387,106 @@ describe('the "Identity verified" line', () => {
   it('a row whose listing relation is gone hands the predicate no cache (null) — it then reads nothing and says false', async () => {
     await page('en', { listing: null })
     expect(h.markCalls[0][1]).toBeNull()
+  })
+})
+
+/**
+ * ⛔ THE SEARCH VERDICT ON THE PAGE (owner decisions 7 and 14, 2026-10-20 — src/lib/teachers/search-floor.ts): the JSON-LD
+ * (ProfilePage AND BreadcrumbList) is there only while search engines are asked to index the profile — About text of 30
+ * words or more, OR an intro video the page plays; never for a masked name or once the teacher hid it from search
+ * engines. The PDP's robots tag follows the same row (listing-title-lang.test.ts); the page itself renders either way.
+ */
+describe('the search verdict — the JSON-LD only for a profile search engines may index', () => {
+  const words = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(' ')
+  const types = (p: { lds: { '@type': string }[] }) => p.lds.map((x) => x['@type'])
+
+  it('30 words of About or more: ProfilePage and BreadcrumbList', async () => {
+    expect(types(await page('en'))).toEqual(['ProfilePage', 'BreadcrumbList'])
+    expect(types(await page('en', { bio: words(30) }))).toEqual(['ProfilePage', 'BreadcrumbList'])
+  })
+  it('⛔ under the floor (29 words, no video): no structured data at all — the page still renders, About and all', async () => {
+    const p = await page('en', { bio: words(29) })
+    expect(p.lds).toEqual([])
+    expect(p.text).toContain('word28')
+    expect(p.text).toContain('Jane Doe')
+    expect((await page('en', { bio: '' })).lds).toEqual([])
+  })
+  it('an intro video the page PLAYS lifts a short About over the floor — the profile\'s or the listing\'s', async () => {
+    expect(types(await page('en', { bio: '', videoUrl: 'https://x/v.mp4' }))).toEqual(['ProfilePage', 'BreadcrumbList'])
+    expect(types(await page('en', { bio: '' }, true, { ...LISTING, video: 'https://x/l.mp4' }))).toEqual(['ProfilePage', 'BreadcrumbList'])
+  })
+  it('⛔ a video kept private (sent on request) plays nowhere on the page, so it does not count', async () => {
+    const p = await page('en', { bio: '', videoUrl: 'https://x/v.mp4', videoOnRequest: true, private: { videoPath: 'p1/v.mp4' } })
+    expect(p.text).toContain('Sent on request')
+    expect(p.lds).toEqual([])
+  })
+  it('⛔ a masked name ("nn***") never — whatever else the profile holds', async () => {
+    expect((await page('en', { fullName: 'nn***', videoUrl: 'https://x/v.mp4' })).lds).toEqual([])
+  })
+  it('⛔ "Hide my profile from search engines" on: no structured data — and the switch itself is nowhere in the HTML', async () => {
+    const p = await page('en', { hideFromSearch: true, videoUrl: 'https://x/v.mp4' })
+    expect(p.lds).toEqual([])
+    expect(p.text).toContain('Jane Doe')
+    expect(p.el.innerHTML).not.toMatch(/hideFromSearch|search engines/i)
+    expect((await page('en')).el.innerHTML).not.toMatch(/hideFromSearch/)
+  })
+  it('a listing that is not live: nothing, whatever its profile', async () => {
+    expect((await page('en', {}, false)).lds).toEqual([])
+  })
+  // ⛔ The mock above answers any select with the whole fixture, so a field dropped from the ONE row's select
+  // (page-row.ts TEACHER_PAGE_SELECT) would pass every case here while production read `undefined` — the switch ignored
+  // by the JSON-LD and the PDP's robots tag alike. Pinned (verifier, 2026-10-20: that mutation passed this suite).
+  it('⛔ the ONE row it reads selects every field the verdict asks — the name, the About text, the video, the switch', async () => {
+    await page('en')
+    expect(h.queries).toHaveLength(1)
+    expect(h.queries[0].select).toMatchObject({ fullName: true, bio: true, videoUrl: true, videoOnRequest: true, hideFromSearch: true })
+  })
+})
+
+/**
+ * THE TRAIL — site › Find a teacher › name (SEO plan P1 item 14, 2026-10-20): visible on the page, with its BreadcrumbList.
+ * The suite runs as the services edition (vitest.config.ts), so the root is "eno.forum" — SITE_NAME, never a literal.
+ */
+describe('the trail — site › Find a teacher › name', () => {
+  const trail = (el: HTMLElement) => el.querySelector('nav[data-crumb-trail]')
+  it('visible: the site, then "Find a teacher" up to /c/teachers, then the name', async () => {
+    const p = await page('en')
+    const nav = trail(p.el)!
+    expect(nav).toBeTruthy()
+    expect([...nav.querySelectorAll('a')].map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['eno.forum', '/'], ['Find a teacher', '/c/teachers']])
+    expect(nav.querySelector('[aria-current="page"]')?.textContent).toBe('Jane Doe')
+    // Before the profile itself: the way up comes first.
+    expect(nav.compareDocumentPosition(p.el.querySelector('h1')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+  it('in Vietnamese: "Tìm giáo viên" — the category\'s entry label, authored', async () => {
+    const p = await page('vi')
+    expect([...trail(p.el)!.querySelectorAll('a')].map((a) => a.textContent)).toEqual(['eno.forum', 'Tìm giáo viên'])
+    expect(p.crumbs.itemListElement[1]).toEqual({ '@type': 'ListItem', position: 2, name: 'Tìm giáo viên', item: 'https://eno.vn/c/teachers' })
+  })
+  it('the BreadcrumbList: the same three levels, the last the h1\'s name at the canonical URL', async () => {
+    const { crumbs } = await page('en')
+    expect(crumbs).toEqual({
+      '@context': 'https://schema.org/', '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'eno.forum', item: 'https://eno.vn' },
+        { '@type': 'ListItem', position: 2, name: 'Find a teacher', item: 'https://eno.vn/c/teachers' },
+        { '@type': 'ListItem', position: 3, name: 'Jane Doe', item: 'https://eno.vn/listings/L1' },
+      ],
+    })
+  })
+  it('⛔ a masked name is printed exactly as the h1 prints it — never unmasked, and with no structured data', async () => {
+    const p = await page('en', { fullName: 'nn***' })
+    expect(trail(p.el)!.querySelector('[aria-current="page"]')?.textContent).toBe('nn***')
+    expect(p.el.querySelector('h1')?.textContent).toBe('nn***')
+    expect(p.crumbs).toBeNull()
+  })
+})
+
+describe('the ProfilePage — dateCreated', () => {
+  it('is the LISTING\'s createdAt; dateModified stays the profile\'s updatedAt', async () => {
+    const { ld } = await page('en')
+    expect(ld['@type']).toBe('ProfilePage')
+    expect(ld.dateCreated).toBe('2026-10-02T03:04:05.000Z')
+    expect(ld.dateModified).toBe('2026-10-08T00:00:00.000Z')
   })
 })

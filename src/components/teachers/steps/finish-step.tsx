@@ -22,7 +22,8 @@
 //     is IDENTITY_MARK_NOTICE_VERSION). With a profile it saves ON TOGGLE through its own endpoint, never with the
 //     profile; before one exists (join) it is held on the page and a hide rides the first Publish (teacher-form.tsx; the
 //     rules: ../identity-mark-switch.ts). One line says what holds the mark back, from the server's reason.
-//   · Edit only: "Show my profile to schools" (saves at once) and Delete.
+//   · Edit only: "Show my profile to schools" (saves at once), "Hide my profile from search engines" (saves at once —
+//     owner decision 14, 2026-10-20) and Delete.
 // Publish itself — the tap that is the consent — and its notice live in the action bar (teacher-form.tsx).
 // ⛔ iOS (`ios-hide-kyc`): every "Verify my identity" here is plain text naming the website, never a link.
 
@@ -81,6 +82,16 @@ export type FinishEdit = {
   listingLive: boolean
   onToggleLive: (live: boolean) => void
   onDelete: () => void
+  /**
+   * "Hide my profile from search engines" (owner decision 14, 2026-10-20) as the server last said it — null: not loaded,
+   * so the switch is disabled (nothing is guessed). Saved on toggle (teacher-form.tsx toggleSearchHidden).
+   */
+  searchHidden: boolean | null
+  /** Its save is on its way: a tap meanwhile is dropped, and the switch shows the last answer until the next one lands. */
+  searchBusy: boolean
+  /** The line after a refusal or a failure — '' for none. */
+  searchMessage: '' | 'rate_limited' | 'failed'
+  onToggleSearchHidden: (hide: boolean) => void
 }
 
 /** The "Identity verified" switch as the form holds it (teacher-form.tsx), with its save. */
@@ -453,6 +464,23 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
             description={tr('Saves at once. While it is off, schools cannot find or open your profile.', 'Lưu ngay. Khi tắt, các trường không tìm thấy và không mở được hồ sơ của bạn.')}
           />
           {edit.live && !edit.listingLive && <p className="text-sm text-muted-foreground">{tr('Your profile is under review and not visible right now. Contact support if you think this is a mistake.', 'Hồ sơ của bạn đang được xem xét và tạm thời không hiển thị. Liên hệ hỗ trợ nếu bạn cho rằng có nhầm lẫn.')}</p>}
+          {/* ⛔ SEARCH ENGINES ONLY (owner decision 14, 2026-10-20): on, the profile PAGE asks search engines to leave it out
+              of their results and leaves eno's sitemaps, and so does a storefront that has nothing else to show
+              (src/lib/teachers/search-floor.ts, search-index.ts) — eno still shows it, and its card stays on eno's other
+              pages (/c/teachers, the home shelf, the district pages, a shop with stock), which stay indexable: the helper
+              says so ("profile page", "its card still shows on eno's other pages"). It promises no timing: a page a search
+              engine already lists drops out when it next visits. */}
+          <SwitchRow
+            id="tf-search-hidden"
+            checked={edit.searchHidden === true}
+            onChange={edit.searchHidden === null ? undefined : (next) => { if (!edit.searchBusy) edit.onToggleSearchHidden(next) }}
+            disabled={edit.searchHidden === null}
+            label={tr('Hide my profile from search engines', 'Ẩn hồ sơ khỏi công cụ tìm kiếm')}
+            description={tr('Asks Google and other search engines to leave your profile page out of their results — it can take them a while. Your profile stays on eno for everyone, and its card still shows on eno’s other pages, such as the teacher lists.', 'Yêu cầu Google và các công cụ tìm kiếm khác không hiển thị trang hồ sơ của bạn trong kết quả tìm kiếm — việc này có thể mất một thời gian. Hồ sơ vẫn hiển thị trên eno với mọi người, và thẻ hồ sơ vẫn xuất hiện ở các trang khác của eno, như danh sách giáo viên.')}
+          />
+          {edit.searchBusy && <p role="status" className="text-xs text-muted-foreground">{tr('Saving…', 'Đang lưu…')}</p>}
+          {edit.searchMessage === 'rate_limited' && <p role="status" className="rounded-xl bg-tint px-3.5 py-2.5 text-sm text-body">{tr('Too many requests — please try again in a few minutes.', 'Quá nhiều yêu cầu — vui lòng thử lại sau vài phút.')}</p>}
+          {edit.searchMessage === 'failed' && <p role="alert" className="text-sm text-destructive">{tr('Could not save the switch. Please try again.', 'Không lưu được công tắc. Vui lòng thử lại.')}</p>}
           <AlertDialog>
             <AlertDialogTrigger render={<Button variant="ghost" size="sm" type="button" className="text-destructive" />}>
               <Trash2 className="size-4" />{tr('Delete my teacher profile', 'Xoá hồ sơ giáo viên')}

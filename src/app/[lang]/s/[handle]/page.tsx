@@ -26,6 +26,7 @@ import Link from 'next/link'
 import { StorefrontBanner } from '@/components/marketplace/storefront-banner'
 import { headers } from 'next/headers'
 import { canonicalAppHost, storefrontByLabel, storefrontCanonical } from '@/lib/storefront'
+import { storefrontTeacherRobots } from '@/lib/teachers/search-index'
 import { storefrontHandleFromHost } from '@/lib/storefront-host'
 import { getVisaShopSeller } from '@/lib/visa-shop'
 import { ShareButton } from '@/components/marketplace/share-button'
@@ -96,6 +97,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
      * for a handle that cannot be a host, and which of two handles sharing a label the host serves.
      */
     alternates: { canonical: await storefrontCanonical(shop.handle, origin) },
+    // ⛔ A teacher-only storefront carries its profile's search verdict (src/lib/teachers/search-index.ts); the cache()d
+    // loadSeller above (non-null here) holds the shop's own live count. Undefined for every other shop.
+    robots: await storefrontTeacherRobots(shop.sellerId, (await loadSeller(shop.sellerId))?._count.listings ?? 0),
   }
 }
 

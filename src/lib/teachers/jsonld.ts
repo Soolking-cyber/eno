@@ -23,6 +23,12 @@ export type TeacherLdInput = {
   degreeMajor: string | null
   degreeInstitution: string | null
   certificates: { type: string; provider: string }[]
+  /**
+   * The profile page's `dateCreated` — its LISTING's createdAt (SEO plan P1 item 14, 2026-10-20): the page IS the listing,
+   * made by the save that first published the profile (publish.ts, in the transaction that writes the profile). An
+   * invalid date is left out rather than thrown on.
+   */
+  createdAt: Date | string
   updatedAt: Date
 }
 
@@ -46,6 +52,7 @@ export function teacherProfileLd(t: TeacherLdInput) {
     '@context': 'https://schema.org/',
     '@type': 'ProfilePage',
     url: t.url,
+    ...(Number.isFinite(new Date(t.createdAt).getTime()) ? { dateCreated: new Date(t.createdAt).toISOString() } : {}),
     dateModified: t.updatedAt.toISOString(),
     mainEntity: {
       '@type': 'Person',

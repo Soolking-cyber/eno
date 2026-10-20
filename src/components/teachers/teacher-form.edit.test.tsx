@@ -437,6 +437,34 @@ describe('the edit page’s other doors', () => {
     await waitFor(() => expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({ status: 'hidden' }))
   })
 
+  /**
+   * "Hide my profile from search engines" (owner decision 14, 2026-10-20): loaded from GET /api/teachers/me (the row's
+   * hideFromSearch), saved AT ONCE through its own endpoint — never with the profile save — and moved only by the
+   * server's answer; a failed save leaves it where the server last said and says so.
+   */
+  it('"Hide my profile from search engines" loads as saved and saves at once through its own endpoint', async () => {
+    row = { ...ROW, hideFromSearch: true }
+    const replies: Array<{ status?: number; json: unknown }> = [{ json: { hidden: false } }, { status: 500, json: { error: 'internal' } }]
+    const f = fakeFetch({
+      'GET /api/teachers/me': () => ({ json: { teacher: row, publishGate: { ok: true, code: null } } }),
+      'PUT /api/teachers/me/search': () => replies.shift() ?? { status: 500, json: {} },
+    })
+    vi.stubGlobal('fetch', f.fn)
+    const user = mount()
+    await user.click(await screen.findByRole('button', { name: 'Photo & publish' }))
+    const sw = await screen.findByRole('switch', { name: 'Hide my profile from search engines' })
+    expect(sw.getAttribute('aria-checked')).toBe('true')
+    await user.click(sw)
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Hide my profile from search engines' }).getAttribute('aria-checked')).toBe('false'))
+    expect(f.calls.filter((c) => c.url === '/api/teachers/me/search')).toEqual([{ url: '/api/teachers/me/search', method: 'PUT', body: { hidden: false } }])
+    // Never the profile save.
+    expect(f.calls.some((c) => c.url === '/api/teachers/me' && c.method === 'PUT')).toBe(false)
+    // A failed save: the switch stays where the server last said, and the line says so.
+    await user.click(screen.getByRole('switch', { name: 'Hide my profile from search engines' }))
+    expect(await screen.findByText('Could not save the switch. Please try again.')).toBeTruthy()
+    expect(screen.getByRole('switch', { name: 'Hide my profile from search engines' }).getAttribute('aria-checked')).toBe('false')
+  })
+
   it('/join for an account that already has a profile, with answers just made: review them in the profile, or keep it', async () => {
     putDraft(COMPLETE, 'about')
     mount('join')

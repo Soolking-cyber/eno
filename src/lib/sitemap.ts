@@ -1,6 +1,7 @@
 import type { Prisma } from '@/generated/prisma/client'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { IS_SERVICES } from '@/lib/edition'
+import { teacherSitemapScope } from '@/lib/teachers/search-index'
 
 /**
  * THE SITEMAP IS AN INDEX NOW — /sitemap.xml names child sitemaps, and every child is capped.
@@ -48,23 +49,35 @@ export function siteOrigin(): string {
  *   · `scopedListingWhere` — the edition boundary: the licensed marketplace never submits the desk.
  *   · teacher profiles ON eno.vn ONLY — eno.forum 308s each to eno.vn (src/lib/teachers/surface.ts), so it submits none.
  *   · `affiliateUrl: null` — imported stock is crawlable, not submitted (see pages.xml/build.ts).
+ *   · ⛔ A TEACHER PROFILE ONLY WHILE ITS SEARCH VERDICT LETS IT IN (owner decisions 7 and 14, 2026-10-20 —
+ *     src/lib/teachers/search-floor.ts): not under the quality floor (an About text of fewer than 30 words and
+ *     no intro video), never for a masked name, never once the teacher switched "Hide my profile from search
+ *     engines" on — exactly the profiles whose page answers `noindex`. Measured 2026-10-20: 30 of the 112 live.
+ *     It narrows every user of this predicate: the listing children and the index's count, and pages.xml's
+ *     category × district combos (a teacher under the floor no longer counts toward a district's ten) and its
+ *     storefront block (a teacher-only storefront is submitted only while its profile is — search-index.ts).
  *
  * ⚠️ NESTED IN AN `AND`, NOT SPREAD: whatever shape scopedListingWhere returns, the extra key cannot
  * collide with it (the note that used to sit on this query in sitemap.xml/route.ts).
  *
  * `extra` narrows further (the category × district block passes `district: { not: null }`); it can
- * only ADD conditions — the three rules above always apply.
+ * only ADD conditions — the four rules above always apply.
  */
 export async function submittedListingWhere(extra: Prisma.ListingWhereInput = {}) {
   /**
-   * Teacher profiles are public and indexed by owner decision (2026-09-30) — on eno.vn. ⛔ eno.forum hands every teacher
-   * page to eno.vn with a 308 (owner decision 6, 2026-10-20; src/lib/teachers/surface.ts), and a submitted URL that
-   * redirects is a Search Console error, so there the scope's default teacher exclusion stands. Every derivation from this
-   * predicate follows, which is the point: the forum's listing children and the index's count, its /c/teachers/<district>
-   * combos (pages.xml/build.ts) and a storefront whose ONLY own listing is a profile (the seller aggregate there) — a
-   * page left with nothing of its own on the forum, and the rule for those is "crawlable, not asked for".
+   * Teacher profiles are public and indexed by owner decision (2026-09-30) — on eno.vn, those that pass the search verdict
+   * (2026-10-20, src/lib/teachers/search-index.ts), through the last element. ⛔ eno.forum hands every teacher page to
+   * eno.vn with a 308 (owner decision 6, 2026-10-20; src/lib/teachers/surface.ts), and a submitted URL that redirects is a
+   * Search Console error, so there the scope's default teacher exclusion stands. Every derivation from this predicate
+   * follows, which is the point: the forum's listing children and the index's count, its /c/teachers/<district> combos
+   * (pages.xml/build.ts) and a storefront whose ONLY own listing is a profile (the seller aggregate there) — a page left
+   * with nothing of its own on the forum, and the rule for those is "crawlable, not asked for".
    */
-  return { AND: [await scopedListingWhere({ ...extra, verified: true, status: 'active' }, { teachers: !IS_SERVICES }), { affiliateUrl: null }] }
+  const [scoped, teachers] = await Promise.all([
+    scopedListingWhere({ ...extra, verified: true, status: 'active' }, { teachers: !IS_SERVICES }),
+    teacherSitemapScope(),
+  ])
+  return { AND: [scoped, { affiliateUrl: null }, teachers] }
 }
 
 /** How many `listings-<k>.xml` children `total` submitted listings need (0 → none). */

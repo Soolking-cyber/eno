@@ -17,6 +17,9 @@ const h = vi.hoisted(() => ({
   loaded: null as Row | null,
   hidden: false,
   loadSellerCalls: [] as string[],
+  /** A teacher-only storefront's robots (src/lib/teachers/search-index.ts, 2026-10-20): what it answers, what it was asked. */
+  robots: undefined as { index: false; follow: true } | undefined,
+  robotsCalls: [] as unknown[][],
 }))
 
 const stub = () => null
@@ -36,6 +39,9 @@ vi.mock('@/components/marketplace/seller-storefront', () => ({
   OTHER_LISTINGS: 24,
 }))
 vi.mock('@/lib/site-identity', () => ({ pageShare: () => ({}) }))
+vi.mock('@/lib/teachers/search-index', () => ({
+  storefrontTeacherRobots: async (...a: unknown[]) => { h.robotsCalls.push(a); return h.robots },
+}))
 // The page bodies' UI — irrelevant to metadata, stubbed so the modules load without a DOM.
 for (const path of [
   '@/components/marketplace/header', '@/components/marketplace/footer', '@/components/marketplace/listings-explorer',
@@ -59,6 +65,8 @@ beforeEach(() => {
   h.loaded = null // gone: loadSeller answers null
   h.hidden = false
   h.loadSellerCalls = []
+  h.robots = undefined
+  h.robotsCalls = []
 })
 
 describe('eno.vn/<handle> generateMetadata', () => {
@@ -75,9 +83,20 @@ describe('eno.vn/<handle> generateMetadata', () => {
   })
 
   it('a live shop keeps its title', async () => {
-    h.loaded = { id: 'seller-1' }
+    h.loaded = { id: 'seller-1', _count: { listings: 4 } }
     const m = await meta(handlePage, 'supersports')
     expect(String(m.title)).toContain('SuperSports')
+    expect(m.robots).toBeUndefined()
+  })
+
+  // ⛔ A TEACHER-ONLY STOREFRONT CARRIES ITS PROFILE'S SEARCH VERDICT (owner decisions 7 and 14, 2026-10-20): the route
+  // asks with the seller's id and the shop's own live count (loadSeller's scoped `_count`, which never counts a teacher).
+  it('asks the teacher-storefront rule with the seller and its own count — and uses its answer', async () => {
+    h.loaded = { id: 'seller-1', _count: { listings: 0 } }
+    h.robots = { index: false, follow: true }
+    const m = await meta(handlePage, 'supersports')
+    expect(h.robotsCalls).toEqual([['seller-1', 0]])
+    expect(m.robots).toEqual({ index: false, follow: true })
   })
 })
 
@@ -94,8 +113,17 @@ describe('<handle>.eno.vn (/s/<handle>) generateMetadata', () => {
   })
 
   it('a live shop keeps its title', async () => {
-    h.loaded = { id: 'seller-1' }
+    h.loaded = { id: 'seller-1', _count: { listings: 4 } }
     const m = await meta(subdomainPage, 'supersports')
     expect(String(m.title)).toContain('SuperSports')
+    expect(m.robots).toBeUndefined()
+  })
+
+  it('asks the teacher-storefront rule with the seller and its own count — and uses its answer', async () => {
+    h.loaded = { id: 'seller-1', _count: { listings: 0 } }
+    h.robots = { index: false, follow: true }
+    const m = await meta(subdomainPage, 'supersports')
+    expect(h.robotsCalls).toEqual([['seller-1', 0]])
+    expect(m.robots).toEqual({ index: false, follow: true })
   })
 })

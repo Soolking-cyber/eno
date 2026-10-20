@@ -6,7 +6,7 @@ const base = {
   url: 'https://eno.vn/listings/x', fullName: 'Jane Doe', headline: 'CELTA teacher', photoUrl: 'https://x/p.webp',
   nationality: 'United Kingdom', languages: ['English', 'French'], homeLocation: 'Ho Chi Minh City' as string | null, degreeLevel: 'bachelor',
   degreeMajor: 'Linguistics', degreeInstitution: 'Leeds', certificates: [{ type: 'celta', provider: 'Cambridge' }],
-  updatedAt: new Date('2026-09-30T00:00:00Z'),
+  createdAt: new Date('2026-09-28T09:30:00Z') as Date | string, updatedAt: new Date('2026-09-30T00:00:00Z'),
 }
 
 describe('teacherProfileLd', () => {
@@ -20,6 +20,17 @@ describe('teacherProfileLd', () => {
   it('carries no contact data at all', () => {
     const s = JSON.stringify(teacherProfileLd(base))
     expect(s).not.toMatch(/telephone|email|contactPoint/i)
+  })
+  // SEO plan P1 item 14 (2026-10-20): Google's ProfilePage reads dateCreated beside dateModified.
+  it('carries dateCreated — the listing\'s createdAt, as given (a Date or the ISO string an RSC prop becomes)', () => {
+    expect(teacherProfileLd(base).dateCreated).toBe('2026-09-28T09:30:00.000Z')
+    expect(teacherProfileLd({ ...base, createdAt: '2026-09-28T09:30:00.000Z' }).dateCreated).toBe('2026-09-28T09:30:00.000Z')
+    expect(teacherProfileLd(base).dateModified).toBe('2026-09-30T00:00:00.000Z')
+  })
+  it('an unreadable createdAt is left out, never thrown on (the page must render)', () => {
+    const ld = teacherProfileLd({ ...base, createdAt: 'not a date' })
+    expect('dateCreated' in ld).toBe(false)
+    expect(ld['@type']).toBe('ProfilePage')
   })
   it('lists the degree and certificates as credentials', () => {
     const creds = teacherProfileLd(base).mainEntity.hasCredential as { name: string }[]

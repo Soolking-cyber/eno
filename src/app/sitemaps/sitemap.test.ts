@@ -30,6 +30,9 @@ type Row = {
   model?: string | null
   brandSlug?: string | null
   currency?: string | null
+  /** A teacher listing's own video column and its profile row — what the search verdict reads (2026-10-20). */
+  video?: string | null
+  teacherProfile?: { fullName: string; bio: string; videoUrl: string | null; videoOnRequest: boolean; hideFromSearch: boolean } | null
 }
 
 type HelpRow = { id: string; editedAt: Date | null; createdAt: Date; updatedAt: Date }
@@ -1087,13 +1090,15 @@ describe('the school directory in the pages child (2026-10-04)', () => {
  */
 describe('the teacher surface: eno.vn submits it, eno.forum none of it', () => {
   const TEACHERS = Array.from({ length: 11 }, (_, i) => `teacher-${String(i).padStart(2, '0')}`)
+  // A profile the search verdict lets into the sitemaps (30 words of About text) — the verdict is the next block's subject.
+  const teacherProfile = { fullName: 'A Teacher', bio: Array.from({ length: 30 }, (_, i) => `w${i}`).join(' '), videoUrl: null, videoOnRequest: false, hideFromSearch: false }
   const fixtures = () => [
     // Eleven live profiles in one district (a district page at the floor), each its own handle-less person.
-    ...TEACHERS.map((id, i) => row({ id, sellerId: `teacher-seller-${i}`, categoryId: 'cat-teachers', listingType: 'teacher', district: 'Quận 2' })),
+    ...TEACHERS.map((id, i) => row({ id, sellerId: `teacher-seller-${i}`, categoryId: 'cat-teachers', listingType: 'teacher', district: 'Quận 2', teacherProfile })),
     // A teacher who also sells something of their own, and a profile that is not public.
-    row({ id: 'teacher-of-mixed', sellerId: 'mixed-seller', categoryId: 'cat-teachers', listingType: 'teacher', district: 'Quận 2' }),
+    row({ id: 'teacher-of-mixed', sellerId: 'mixed-seller', categoryId: 'cat-teachers', listingType: 'teacher', district: 'Quận 2', teacherProfile }),
     row({ id: 'mixed-dress', sellerId: 'mixed-seller' }),
-    row({ id: 'teacher-hidden', sellerId: 'teacher-seller-11', categoryId: 'cat-teachers', listingType: 'teacher', status: 'hidden' }),
+    row({ id: 'teacher-hidden', sellerId: 'teacher-seller-11', categoryId: 'cat-teachers', listingType: 'teacher', status: 'hidden', teacherProfile }),
     row({ id: 'own-dress' }),
   ]
   const submitted = async () => {
@@ -1127,10 +1132,74 @@ describe('the teacher surface: eno.vn submits it, eno.forum none of it', () => {
 
   it('the forum\'s home is still dated by a new profile: its shelf shows teachers, so /c/teachers leaves the loop, not the aggregate', async () => {
     const NEW = new Date('2026-10-19T00:00:00Z')
-    h.rows = [...fixtures(), row({ id: 'teacher-newest', sellerId: 'teacher-seller-0', categoryId: 'cat-teachers', listingType: 'teacher', postedAt: NEW, updatedAt: NEW })]
+    h.rows = [...fixtures(), row({ id: 'teacher-newest', sellerId: 'teacher-seller-0', categoryId: 'cat-teachers', listingType: 'teacher', postedAt: NEW, updatedAt: NEW, teacherProfile })]
     h.services = true
     const xml = (await buildPagesSitemap({ rentIndex: 'require' })).xml
     expect(xml).toContain(`<loc>${HOST}</loc><lastmod>${NEW.toISOString()}</lastmod>`)
     expect(xml).not.toContain(`${HOST}/c/teachers`)
+  })
+})
+
+/**
+ * ⛔ TEACHER PROFILES ONLY WHILE THEIR SEARCH VERDICT LETS THEM IN (owner decisions 7 and 14, 2026-10-20 —
+ * src/lib/teachers/search-floor.ts, through submittedListingWhere): an About text of 30 words or more OR an intro video
+ * the page plays — never a masked name, never once the teacher hid the profile from search engines, never a listing
+ * without its profile. Exactly the profiles whose page answers `noindex`; the index's count and every child agree, and a
+ * teacher-only storefront follows its profile out of pages.xml.
+ */
+describe('teacher profiles in the sitemaps (the search verdict)', () => {
+  const thirty = Array.from({ length: 30 }, (_, i) => `w${i}`).join(' ')
+  const profile = (over: Partial<NonNullable<Row['teacherProfile']>> = {}) =>
+    ({ fullName: 'Jane Doe', bio: thirty, videoUrl: null, videoOnRequest: false, hideFromSearch: false, ...over })
+  const teacherRow = (id: string, tp: Row['teacherProfile'], over: Partial<Row> = {}) =>
+    row({ id, listingType: 'teacher', categoryId: 'cat-services', sellerId: 'own-seller', teacherProfile: tp, video: null, ...over })
+
+  it('the listing child submits a profile over the floor, or with a video it plays — and none of the rest', async () => {
+    h.rows = [
+      row({ id: 'own-item', sellerId: 'old-shop' }),
+      teacherRow('t-words', profile()),
+      teacherRow('t-video', profile({ bio: '', videoUrl: 'https://x/v.mp4' })),
+      teacherRow('t-listing-video', profile({ bio: '' }), { video: 'https://x/l.mp4' }),
+      teacherRow('t-thin', profile({ bio: thirty.split(' ').slice(0, 29).join(' ') })),
+      teacherRow('t-private', profile({ bio: '', videoUrl: 'https://x/v.mp4', videoOnRequest: true })),
+      teacherRow('t-masked', profile({ fullName: 'nn***', videoUrl: 'https://x/v.mp4' })),
+      teacherRow('t-hidden', profile({ hideFromSearch: true, videoUrl: 'https://x/v.mp4' })),
+      teacherRow('t-broken', null, { video: 'https://x/l.mp4' }),
+      // A teacher row that is not live is out on the old rules, verdict or not.
+      teacherRow('t-paused', profile(), { status: 'hidden' }),
+    ]
+    expect(locs(await (await child('listings-0.xml')).text()).map((u) => u.split('/').pop())).toEqual(['own-item', 't-listing-video', 't-video', 't-words'])
+  })
+
+  it('the index counts with the SAME predicate: a profile under the floor fills no child', async () => {
+    const own = Array.from({ length: LISTINGS_PER_SITEMAP }, (_, i) => row({ id: `own-${String(i).padStart(6, '0')}` }))
+    h.rows = [...own, teacherRow('t-thin', profile({ bio: 'Hi.' }))]
+    expect(locs(await (await indexGET()).text())).toEqual([`${HOST}/sitemaps/pages.xml`, `${HOST}/sitemaps/listings-0.xml`])
+    h.rows = [...own, teacherRow('t-words', profile())]
+    expect(locs(await (await indexGET()).text())).toContain(`${HOST}/sitemaps/listings-1.xml`)
+  }, 60_000)
+
+  it('a teacher-only storefront follows its profile: submitted while it is in, left out once it is not', async () => {
+    h.rows = [teacherRow('t-1', profile())]
+    expect(locs(await (await pagesGET()).text())).toContain(`${HOST}/sellers/own-seller`)
+    for (const tp of [profile({ bio: '' }), profile({ hideFromSearch: true }), profile({ fullName: 'ab***' })]) {
+      h.rows = [teacherRow('t-1', tp)]
+      expect(locs(await (await pagesGET()).text()), JSON.stringify(tp)).not.toContain(`${HOST}/sellers/own-seller`)
+    }
+    // A seller with a listing of its own beside the profile keeps its storefront — under the floor or HIDDEN alike: the page
+    // is about its stock and keeps its robots tag (review round 2), so the sitemap keeps asking for it. Only the profile
+    // URL itself leaves.
+    for (const tp of [profile({ bio: '' }), profile({ hideFromSearch: true })]) {
+      h.rows = [teacherRow('t-1', tp), row({ id: 'own-item', sellerId: 'own-seller' })]
+      expect(locs(await (await pagesGET()).text()), JSON.stringify(tp)).toContain(`${HOST}/sellers/own-seller`)
+      expect(locs(await (await child('listings-0.xml')).text())).toEqual([`${HOST}/listings/own-item`])
+    }
+  })
+
+  it('the IndexNow collector sees what the children list: a profile left out is never pinged as present', async () => {
+    h.rows = [row({ id: 'own-item' }), teacherRow('t-hidden', profile({ hideFromSearch: true })), teacherRow('t-words', profile())]
+    const { urls } = await collectSitemaps()
+    expect(urls.has(`${HOST}/listings/t-words`)).toBe(true)
+    expect(urls.has(`${HOST}/listings/t-hidden`)).toBe(false)
   })
 })

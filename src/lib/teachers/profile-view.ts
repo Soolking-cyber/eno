@@ -91,10 +91,11 @@ export function teachAreaRows(t: PublicSituation): { canTeachIn: string[]; would
  * The JSON-LD homeLocation's name, in English (structured data is not localised): the city for a teacher living in a
  * city (city level only — the page's own "Lives in" line is the finer one), the province for "somewhere else". ⛔ null
  * for a teacher abroad or unanswered — the field is then left out, never filled with a place they do not live in.
+ * `lang` 'vi' names it in Vietnamese — the profile's Vietnamese <title> (search-title.ts); the JSON-LD keeps English.
  */
-export function homeLocationName(t: PublicSituation): string | null {
-  const line = t.livesIn === 'city' && isHub(t.currentCity) ? placeLabel(t.currentCity, 'en')
-    : t.livesIn === 'elsewhere' && isPickableProvince(t.currentProvince) ? provinceName(t.currentProvince, 'en')
+export function homeLocationName(t: PublicSituation, lang: 'en' | 'vi' = 'en'): string | null {
+  const line = t.livesIn === 'city' && isHub(t.currentCity) ? placeLabel(t.currentCity, lang)
+    : t.livesIn === 'elsewhere' && isPickableProvince(t.currentProvince) ? provinceName(t.currentProvince, lang)
     : ''
   return line || null
 }
