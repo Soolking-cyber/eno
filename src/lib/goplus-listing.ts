@@ -712,13 +712,34 @@ export function goplusSourceKey(url: string): string {
   return createHash('sha256').update(url).digest('hex').slice(0, 16)
 }
 
-/** The public URL prefix every photo this importer stores starts with (`storageUrl` = NEXT_PUBLIC_SUPABASE_URL). */
+/**
+ * ⛔ THE eno.vn MARK, LIKE EVERY OTHER LISTING PHOTO (owner, 2026-10-20: "why goplus apartments dont have eno.vn wordmark";
+ * standing rule 2026-09-13: "consistent sizing and placement of eno.vn watermark on all images"). Photos are stored CLEAN
+ * in the app-drawn overlay folder (`listings/affiliate/m/`, image-mark-url.ts — the name carries the mark's ink and the
+ * photo's size), under the slug `goplus-<source key>`, so the app draws the same eno.vn mark in the same corner as on
+ * every import; GoPlus's own logo sits mid-photo, the mark in a corner. The first import (2026-10-20, until this change)
+ * stored them unmarked under `partner/goplus/` — LEGACY: still recognised as the importer's, and re-hosted once into the
+ * overlay folder by the next run (goplusPhotoAction).
+ */
+export const goplusOverlaySlug = (sourceKey: string) => `goplus-${sourceKey}`
+/** The legacy (unmarked, 2026-10-20 first import) photo folder's public URL prefix. */
 export const goplusPhotoUrlPrefix = (storageUrl: string) => `${storageUrl.replace(/\/+$/, '')}/storage/v1/object/public/listings/${GOPLUS_PHOTO_PREFIX}/`
-/** The source key a stored photo URL carries, or null when the URL is not one of ours (a person's own upload). */
-export function goplusStoredPhotoKey(url: unknown, storageUrl: string): string | null {
+/** The overlay folder's public URL prefix (image-mark-url.ts overlayPrefix — the app marks exactly these). */
+export const goplusOverlayUrlPrefix = (storageUrl: string) => `${storageUrl.replace(/\/+$/, '')}/storage/v1/object/public/listings/affiliate/m/`
+/** A legacy, unmarked GoPlus photo (re-hosted into the overlay folder on the next run). */
+export function isLegacyGoplusPhoto(url: unknown, storageUrl: string): boolean {
   const tail = storedTail(url, goplusPhotoUrlPrefix(storageUrl))
-  const m = tail === null ? null : /^([0-9a-f]{16})(?:-h[0-9a-f]{16})?\.webp$/.exec(tail)
-  return m ? m[1] : null
+  return tail !== null && /^[0-9a-f]{16}(?:-h[0-9a-f]{16})?\.webp$/.test(tail)
+}
+/** The source key a stored photo URL carries — overlay or legacy — or null when it is not one of ours (a person's upload). */
+export function goplusStoredPhotoKey(url: unknown, storageUrl: string): string | null {
+  const legacy = storedTail(url, goplusPhotoUrlPrefix(storageUrl))
+  const lm = legacy === null ? null : /^([0-9a-f]{16})(?:-h[0-9a-f]{16})?\.webp$/.exec(legacy)
+  if (lm) return lm[1]
+  // overlayImagePath: `goplus-<key>-<ts36>-<rand>-i<cover><contain>-<W>x<H>[-h<16hex>].webp`
+  const over = storedTail(url, goplusOverlayUrlPrefix(storageUrl))
+  const om = over === null ? null : /^goplus-([0-9a-f]{16})-[0-9a-z]+-[0-9a-z]+-i[dl][dl]-\d{1,5}x\d{1,5}(?:-h[0-9a-f]{16})?\.webp$/.exec(over)
+  return om ? om[1] : null
 }
 /**
  * The object name after a storage prefix — matched on the URL's PATH, not its host (a reviewer's catch, 2026-10-19):
@@ -745,7 +766,8 @@ function storedTail(url: unknown, prefix: string): string | null {
 export function goplusPhotoAction(stored: readonly string[], desired: readonly string[], storageUrl: string, refresh: boolean): 'human' | 'unchanged' | 'rehost' {
   const keys = stored.map((u) => goplusStoredPhotoKey(u, storageUrl))
   if (keys.some((k) => k === null)) return 'human'
-  if (refresh || !keys.length) return 'rehost'
+  // A legacy, unmarked gallery is re-hosted once into the overlay folder — the eno.vn mark (goplusOverlaySlug).
+  if (refresh || !keys.length || stored.some((u) => isLegacyGoplusPhoto(u, storageUrl))) return 'rehost'
   const want = new Set(desired.map(goplusSourceKey))
   return keys.every((k) => want.has(k!)) ? 'unchanged' : 'rehost'
 }

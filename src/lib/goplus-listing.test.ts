@@ -1,14 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   GOPLUS_AMENITY_VALUES, GOPLUS_EMAIL, amenityOptions, goplusPublishGate, GOPLUS_EXPIRY_GUARD_FLOOR, GOPLUS_MIN_PHOTOS, GOPLUS_PRICE_UNIT, GOPLUS_VIDEO_MAX_BYTES,
   goplusAmenities, goplusApplyExitCode, goplusDistrict, goplusExtras, goplusFees, goplusFloor, goplusPhotoAction,
   goplusPhotoPlan, goplusReadProblem, goplusRoomIdOf, goplusSellerRefusal, goplusSourceKey, goplusStoredPhotoKey,
   goplusStoredVideoHex, goplusUnit, goplusVideoAction, goplusVideoHex, goplusVideoObjectName, goplusVideoVerdict,
   goplusWard, isGoplusImageUrl, isGoplusVideoUrl, mapGoplusRoom, mp4Info, planGoplusExpiry, stageGoplusProject,
-  goplusBuildingAmenityKeys, GOPLUS_BUILDING_WIDE_KEYS, goplusPartialTokens,
+  goplusBuildingAmenityKeys, GOPLUS_BUILDING_WIDE_KEYS, goplusPartialTokens, goplusOverlaySlug,
   stageGoplusRoom, type GoplusProject, type GoplusRoom,
 } from './goplus-listing'
 import { parseFacetTokens } from './facet-tokens'
+import { isOverlayImageUrl, overlayImagePath } from './image-mark-url'
 import type { VerificationRow } from './compliance/derive-verification'
 
 /**
@@ -342,12 +343,25 @@ describe('stored media — names that say which source they came from', () => {
   const SB = 'https://sb.eno.vn'
   const src = RAW_ROOM.images[0]
   const key = goplusSourceKey(src)
-  const ours = `${SB}/storage/v1/object/public/listings/partner/goplus/${key}-h0123456789abcdef.webp`
-  it('the source key is stable, 16 hex, and read back from the stored URL', () => {
+  // The overlay folder (the app-drawn eno.vn mark — image-mark-url.ts overlayImagePath), under goplusOverlaySlug.
+  const ours = `${SB}/storage/v1/object/public/listings/${overlayImagePath(goplusOverlaySlug(key), { cover: 'dark', contain: 'light' }, 1280, 960, '0123456789abcdef', 'mgx1abc', 'q7k2z')}`
+  // The first import's unmarked copies (2026-10-20).
+  const legacy = `${SB}/storage/v1/object/public/listings/partner/goplus/${key}-h0123456789abcdef.webp`
+  it('the source key is stable, 16 hex, and read back from the stored URL — overlay or legacy', () => {
     expect(key).toMatch(/^[0-9a-f]{16}$/)
     expect(goplusSourceKey(src)).toBe(key)
     expect(goplusStoredPhotoKey(ours, SB)).toBe(key)
+    expect(goplusStoredPhotoKey(legacy, SB)).toBe(key)
+    // Another import's overlay photo (no goplus- slug) is NOT ours.
     expect(goplusStoredPhotoKey(`${SB}/storage/v1/object/public/listings/affiliate/m/x-ild-1x1.webp`, SB)).toBeNull()
+    expect(goplusStoredPhotoKey(`${SB}/storage/v1/object/public/listings/affiliate/m/sofa-mgx1abc-q7k2z-idl-800x800.webp`, SB)).toBeNull()
+  })
+  it('⛔ an overlay photo is one the app MARKS with eno.vn (owner 2026-10-20: "why goplus apartments dont have eno.vn wordmark")', () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', SB)
+    try {
+      expect(isOverlayImageUrl(ours)).toBe(true)
+      expect(isOverlayImageUrl(legacy)).toBe(false)
+    } finally { vi.unstubAllEnvs() }
   })
   it('photos: a person\'s own upload stands; a gallery still all in the source is unchanged; a removed one is re-hosted', () => {
     expect(goplusPhotoAction([ours, `${SB}/storage/v1/object/public/listings/1760000000000-abc123-h0123456789abcdef.webp`], RAW_ROOM.images, SB, false)).toBe('human')
@@ -355,6 +369,9 @@ describe('stored media — names that say which source they came from', () => {
     expect(goplusPhotoAction([ours], RAW_ROOM.images.slice(1), SB, false)).toBe('rehost')
     expect(goplusPhotoAction([ours], RAW_ROOM.images, SB, true)).toBe('rehost')
     expect(goplusPhotoAction([], RAW_ROOM.images, SB, false)).toBe('rehost')
+    // ⛔ A LEGACY (unmarked) gallery is re-hosted ONCE into the overlay folder, even with nothing changed at GoPlus.
+    expect(goplusPhotoAction([legacy], RAW_ROOM.images, SB, false)).toBe('rehost')
+    expect(goplusPhotoAction([ours, legacy], RAW_ROOM.images, SB, false)).toBe('rehost')
   })
   it('video: the minted shape the listing editor accepts (core/media.ts VIDEO_PATH_RE), its tail naming the source', () => {
     const v = 'https://goplus.com.vn/images/video/e56a4b5e2e4e7ed5e2349408.mp4'

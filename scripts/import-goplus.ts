@@ -52,9 +52,10 @@
  *
  * ⛔ 3. MEDIA ARE COPIED, CHECKED, AND STORED ONCE. Photos: each fetched and measured with the shared real-photo test
  * (import-photo-check.ts: text cards, logos, slivers; the same shot twice counts once); a room left with fewer than 3
- * real distinct photos (the rentals publish floor) is not created. Kept ones are stored CLEAN — GoPlus burns its own
- * logo into every photo, and the owner chose no second, eno mark — under listings/partner/goplus/<hash of the source
- * URL>-h<dHash>.webp (makeImageHost mark 'none'): a re-run lands on the same object and reuses it. Video: the first of a
+ * real distinct photos (the rentals publish floor) is not created. Kept ones are stored CLEAN in the app-drawn overlay
+ * folder (makeImageHost mark 'overlay', slug goplus-<hash of the source URL>) so the app draws the same eno.vn mark as on
+ * every import (owner 2026-10-20 — GoPlus's own logo sits mid-photo, eno's in a corner); the first import's unmarked
+ * copies under listings/partner/goplus/ are re-hosted once (goplusPhotoAction). Video: the first of a
  * room's clips that is an MP4/MOV ≤ 50 MB, ≤ 60 s, with a picture track (read from the file's own header — mp4Info),
  * stored in listing-videos under the minted name every listing video has, its tail the source's hash, so next week's run
  * knows it already holds it. Every object uploaded is listed (fsync) in the run's manifest before its row is written; a
@@ -122,8 +123,8 @@ import type { SellerPublishDecision } from '../src/lib/compliance/seller-publish
 import { licenceClearedSql, licenceClearedWhere } from '../src/lib/licence-stamp'
 import {
   GOPLUS_CATEGORY_SLUG, GOPLUS_EMAIL, GOPLUS_HANDLE, GOPLUS_MAX_PHOTOS_DEFAULT, GOPLUS_SUBCAT, GOPLUS_MIN_PHOTOS, GOPLUS_PAGE_MAX, GOPLUS_PHOTO_FLOOR,
-  GOPLUS_VACANT_STATUS, goplusExternalId, goplusPartialTokens,
-  GOPLUS_PHOTO_PREFIX, GOPLUS_PROJECTS_API, GOPLUS_ROOMS_API, GOPLUS_UA, GOPLUS_UA_TOKEN, GOPLUS_VIDEO_MAX_BYTES,
+  GOPLUS_VACANT_STATUS, goplusExternalId, goplusPartialTokens, goplusOverlaySlug,
+  GOPLUS_PROJECTS_API, GOPLUS_ROOMS_API, GOPLUS_UA, GOPLUS_UA_TOKEN, GOPLUS_VIDEO_MAX_BYTES,
   goplusApplyExitCode, goplusPhotoAction, goplusPhotoPlan, goplusPublishGate, goplusReadProblem, goplusSellerRefusal, goplusSourceKey,
   goplusVideoAction, goplusVideoObjectName, goplusVideoVerdict, mapGoplusRoom, mp4Info, planGoplusExpiry,
   stageGoplusProject, stageGoplusRoom,
@@ -555,7 +556,7 @@ async function hostPhotos(ctx: Ctx, r: GoplusMapped): Promise<Hosted> {
     let url: string | null = null
     for (let attempt = 0; attempt < 3 && !url; attempt++) {
       if (attempt) await sleep(2000 * attempt)
-      url = await ctx.host.fromBuffer(judged[i].body!, goplusSourceKey(judged[i].src))
+      url = await ctx.host.fromBuffer(judged[i].body!, goplusOverlaySlug(goplusSourceKey(judged[i].src)))
     }
     if (!url) return { decision: 'uploadFailed' }
     /** Listed BEFORE its row is written, so an object a later failure orphans is on the cleanup list. */
@@ -752,7 +753,8 @@ async function main() {
     const sb = createClient(storageUrl, SECRET, { auth: { persistSession: false } })
     const t = stamp()
     const ctx: Ctx = {
-      host: makeImageHost({ storage: sb.storage.from('listings'), storageUrl, bucket: 'listings', edge: HOST_EDGE, quality: 82, mark: 'none', prefix: GOPLUS_PHOTO_PREFIX }),
+      // ⛔ The app-drawn eno.vn mark, like every import (goplus-listing.ts goplusOverlaySlug): stored clean in the overlay folder.
+      host: makeImageHost({ storage: sb.storage.from('listings'), storageUrl, bucket: 'listings', edge: HOST_EDGE, quality: 82, mark: 'overlay' }),
       videos: sb.storage.from('listing-videos'),
       storageUrl,
       manifest: join(journal!, `goplus-uploaded-objects-${t}.txt`),
