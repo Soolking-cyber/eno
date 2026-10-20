@@ -35,6 +35,7 @@ const index: RentIndex = {
     district('d7', 'Quận 7 (Phú Mỹ Hưng)', 'District 7 (Phu My Hung)', MIN_INDEXABLE_LISTINGS),
   ],
   unassigned: 0,
+  sources: [],
 }
 
 const render = (lang: 'en' | 'vi') => {

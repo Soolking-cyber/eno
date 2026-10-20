@@ -10,9 +10,12 @@ import { copyText } from '@/lib/copy-text'
  * "Cite this data" — THE BACKLINK MECHANISM of /hcmc-rent-index (owner, 2026-09-27), so it is built to
  * be copied, not read: a ready-to-paste HTML link and a plain-text citation, each with its own button.
  *
- * ⚠️ NOT AN OPEN LICENCE. The terms are "free to cite and quote, credit eno.vn with a link" — the page
- * no longer claims CC BY, and neither does the Dataset JSON-LD. `id="cite"` is the anchor the JSON-LD
- * `usageInfo` points at, so the terms have one home.
+ * ⚠️ NOT AN OPEN LICENCE. The terms are owner decision 9's: free to cite and quote, credit eno.vn, and a link is
+ * WELCOME AND MAY BE NOFOLLOW — never required. It used to ask for the credit "with a link", and Google's spam policies
+ * list requiring a link in terms of use, without letting the linking site qualify it (nofollow), as link spam; whether
+ * a citing page links, and how, is the citer's call. No CC BY, and no `license` in the Dataset JSON-LD (owner ruling
+ * R-f stands). `id="cite"` is the anchor the JSON-LD `usageInfo` points at, so the terms have one home; the page's
+ * third FAQ answer says the same.
  *
  * ⚠️ THE SNIPPET IS ENGLISH ON BOTH LANGUAGES. It is pasted into somebody else's article, where the
  * dataset's English name and an English month are the stable form; the chrome around it translates.
@@ -40,8 +43,11 @@ export function CiteBox({ url, htmlSnippet, citation }: { url: string; htmlSnipp
   return (
     <section id="cite" className="mt-12 max-w-3xl scroll-mt-24 rounded-2xl border-2 border-accent-foreground/30 bg-card p-5" aria-labelledby="cite-heading">
       <h2 id="cite-heading" className="h-section text-foreground mb-2">{tr('Cite this data', 'Trích dẫn dữ liệu này')}</h2>
+      {/* One whole sentence (the nine machine-translated languages get it in one piece), then the address it credits. */}
       <p className="text-sm text-body">
-        {tr('Free to cite and quote. Please credit eno.vn with a link to', 'Được tự do trích dẫn. Vui lòng ghi nguồn eno.vn kèm liên kết đến')}{' '}
+        {tr('Free to cite and quote. Please credit eno.vn; a link is welcome and may be nofollow.', 'Được tự do trích dẫn. Vui lòng ghi nguồn eno.vn; chúng tôi hoan nghênh liên kết, kể cả liên kết nofollow.')}
+      </p>
+      <p className="mt-1 text-sm">
         <a href={url} className="break-words font-semibold text-accent-foreground hover:underline">{url}</a>
       </p>
 

@@ -1,6 +1,7 @@
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { districtTextMatches } from '@/lib/district-match'
 import { hashFromUrl } from '@/lib/image-hash-url'
+import type { RENTAL_IMPORT_SELLERS } from '@/lib/import-sellers'
 import { MONTHLY_BARE_VND_SELLERS, MONTHLY_UNIT } from '@/lib/price-unit'
 import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
 
@@ -15,8 +16,12 @@ import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
  * renders these constants and the exclusion counts this function returns, so the published rules and
  * the applied rules are the same values rather than a paragraph that drifts from the code.
  *
- * ⚠️ WHAT THE ROWS ARE, MEASURED (2026-09-27): ~25,500 live rentals, every one in Hồ Chí Minh, from
- * five imported sources plus whatever members post. Asking prices, not signed leases.
+ * ⚠️ WHAT THE ROWS ARE CHANGES WITH THE CATALOGUE, SO THE PAGE NO LONGER STATES IT IN WORDS — each snapshot
+ * names its own sources (`rentSources`, below). Measured: ~25,500 live rentals from five imported sources plus
+ * members' posts (2026-09-27); 720 read and 481 counted, all of them apartments, after the 13–16 October cuts
+ * (2026-10-19); 2,830 read and 2,591 counted, still no house or room, once GoPlus's rooms began arriving (the live
+ * page and CSV, snapshot 2026-10-20 07:49 UTC).
+ * Asking prices, not signed leases.
  */
 
 /**
@@ -33,8 +38,24 @@ import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
  * part for `d2` — still inside the Thủ Đức union row. The fingerprint test (rent-index.test.ts)
  * covers the constants below AND the curated spellings `assignDistrict` reads, so neither can change
  * again without this number moving.
+ *
+ * ⛔ v4 (2026-10-20, owner decision 9's method fix) CHANGES NO RULE — THE FINGERPRINT IS v3's — AND STILL
+ * BREAKS COMPARABILITY, which is what this number tells a reader: the page says "not comparable with snapshots made
+ * under earlier rules" and every CSV row carries it as `rules_version`, the ONLY machine-readable mark a downloaded
+ * file has. On 16 October 2026 the rows themselves changed: eno.vn stopped importing from Batdongsan.com.vn,
+ * Muaban.net, Rever.vn and Honeycomb House and dropped Nhatot.com's company ads (411a31ddc, fb17b6966; the owner-run
+ * retirement the same day). With the 13 October 7-day cut before it, the index went from 15,141 counted listings
+ * (10 October snapshot) to 481 (19 October), and from three home types to apartments alone. Nothing marked that
+ * break — a v3 file from 10 October and one from 19 October looked comparable — so v4 marks it from the deploy that
+ * carries it, and the methodology states the date in words.
+ * ⚠️ WHAT v4 CANNOT DO: v3 files saved between 16 October and that deploy are already post-change under the old
+ * number, and they straddle a second break: on 20 October GoPlus's rooms arrived and every Nhà Tốt listing left
+ * (481 counted on 19 October; 2,479 — GoPlus's rooms and one member's post — in the 20 October 10:59 UTC snapshot;
+ * 0 live Nhà Tốt listings at 11:21 UTC). The page's dated line separates them only from files made before 16 October.
+ * ⚠️ A LATER CHANGE OF SOURCES NEEDS NO BUMP TO BE SEEN: each snapshot names its own sources (`rentSources`).
+ * Bump again for a rule, or for a deliberate source change a downloaded file must not be compared across.
  */
-export const RENT_INDEX_RULES_VERSION = 3
+export const RENT_INDEX_RULES_VERSION = 4
 
 /** A cell below this many listings prints "—" and its count, never a median of three. */
 export const MIN_CELL_N = 10
@@ -73,10 +94,69 @@ export { MONTHLY_BARE_VND_SELLERS, MONTHLY_UNIT }
 
 /**
  * ⛔ NO PER-SOURCE NUMBERS ARE PUBLISHED (owner, 2026-09-27). The page names the sources in aggregate
- * in its methodology and nowhere breaks a figure down by them — not on the page, not in the CSV. So
- * nothing here groups by seller; `sellerId` is read for one purpose only, the cross-seller duplicate
- * rule below.
+ * in its methodology and nowhere breaks a figure down by them — not on the page, not in the CSV. So no
+ * statistic here groups by seller; `sellerId` is read for two purposes only: the cross-seller duplicate
+ * rule below, and NAMING the sources a snapshot counted (`rentSources` — names, never a count).
  */
+
+/**
+ * ⛔ WHERE THE FIGURES CAME FROM IS COMPUTED, NOT WRITTEN (owner decision 9's method fix, 2026-10-20). The
+ * methodology named five portals in a fixed sentence that went false on 16 October 2026 (four of them stopped being
+ * imported and Nhatot.com's company ads were dropped) and again on 20 October (GoPlus's rooms arrived, under a
+ * partner's own storefront, linking nowhere). So each snapshot carries the sources of the rows it COUNTED — `used`,
+ * after every rule and the cross-post merge, never a row a rule left out — and the page names exactly those.
+ *  · `import` — an ownerless import storefront (RENTAL_IMPORT_SELLERS): nobody can post into one through the app, so
+ *    every row of it was written by that site's importer. Named by IMPORT_SOURCE_NAME.
+ *  · `partner` — an OFFICIAL PARTNER's own storefront (`Seller.officialPartner`, which eno alone sets). Named by the
+ *    storefront's own name, which the loader reads — '' if it has none (the app refuses a name under 2 characters, so
+ *    only a direct database write could), and still a partner: never relabelled a member (codex, gate review).
+ *  · `members` — every other seller: listings posted by eno.vn members.
+ * ⚠️ EACH KIND CLAIMS ONLY WHAT ITS CLASSIFICATION PROVES. An import's rows are not described as linking back to the
+ * original advert: the importers store that link, but the index never reads it, so it could not vouch for each row
+ * (codex, gate review).
+ */
+export type RentSource =
+  | { kind: 'import'; name: string }
+  | { kind: 'partner'; name: string }
+  | { kind: 'members' }
+
+/**
+ * The name each rental import storefront carries — the one its importer pins (it refuses to write into a storefront
+ * named otherwise), so it is the name the listing pages already print ("Rent on Nhatot.com"). rent-index.test.ts
+ * checks each against its importer. ⚠️ TYPED BY RENTAL_IMPORT_SELLERS, so a new rental importer fails tsc here until
+ * it is named — otherwise its rows would be labelled as members' posts.
+ */
+export const IMPORT_SOURCE_NAME: Record<(typeof RENTAL_IMPORT_SELLERS)[number], string> = {
+  'bds-vn-import-seller-0001': 'Batdongsan.com.vn',
+  'cmub0wead0000zrq418bqq27m': 'Rever.vn',
+  'nhatot-import-seller-0001': 'Nhatot.com',
+  'muaban-net-import-seller-0001': 'Muaban.net',
+  'honeycomb-import-seller-0001': 'Honeycomb House',
+}
+
+export const isImportSource = (sellerId: string): sellerId is keyof typeof IMPORT_SOURCE_NAME =>
+  Object.hasOwn(IMPORT_SOURCE_NAME, sellerId)
+
+const SOURCE_ORDER: Record<RentSource['kind'], number> = { import: 0, partner: 1, members: 2 }
+
+/**
+ * Each source of these sellers' rows once: imports, then partners, then members, by name within a kind — an order
+ * that says nothing about size. `partners` maps EVERY official partner among them to its storefront name, '' included
+ * (the loader reads it); a seller in neither list is a member. Pure.
+ */
+export function rentSources(sellerIds: Iterable<string>, partners: ReadonlyMap<string, string>): RentSource[] {
+  const seen = new Map<string, RentSource>()
+  for (const id of sellerIds) {
+    const partner = partners.get(id)
+    const s: RentSource = isImportSource(id) ? { kind: 'import', name: IMPORT_SOURCE_NAME[id] }
+      : partner !== undefined ? { kind: 'partner', name: partner }
+      : { kind: 'members' }
+    seen.set(s.kind === 'members' ? s.kind : `${s.kind}|${s.name}`, s)
+  }
+  const name = (s: RentSource) => (s.kind === 'members' ? '' : s.name)
+  return [...seen.values()].sort((a, b) =>
+    SOURCE_ORDER[a.kind] - SOURCE_ORDER[b.kind] || (name(a) < name(b) ? -1 : name(a) > name(b) ? 1 : 0))
+}
 
 /**
  * Whether a row's price is quoted per month: the explicit unit, or a bare 'VND' from one of the two
@@ -230,6 +310,8 @@ export type RentIndex = {
   districts: DistrictRow[]
   /** Used rows whose district matched no curated district, or more than one. City-wide only. */
   unassigned: number
+  /** Where the used rows came from (`rentSources`): names only, never a count per source. Empty when nothing was used. */
+  sources: RentSource[]
 }
 
 /** Type-7 (linear interpolation) quantile of an ascending array — what R, NumPy and Excel's PERCENTILE.INC use. */
@@ -442,11 +524,13 @@ export function dedupeCandidateIds(rows: RentRow[]): string[] {
 /**
  * `photos` maps a listing id to its stored image URLs; only `dedupeCandidateIds(rows)` need to be in
  * it. A candidate without photos is simply counted — no evidence, no merge.
+ * `partners` maps an official partner's seller id to its storefront name, for `sources` only — no figure reads it.
  */
 export function computeRentIndex(
   rows: RentRow[],
   photos: ReadonlyMap<string, string[]> = new Map(),
   now: Date = new Date(),
+  partners: ReadonlyMap<string, string> = new Map(),
 ): RentIndex {
   const excluded = noExclusions()
   const kept = classify(rows, excluded)
@@ -508,6 +592,7 @@ export function computeRentIndex(
     cityBands: byBand(used),
     districts,
     unassigned: used.filter((r) => r.district === null).length,
+    sources: rentSources(new Set(used.map((r) => r.sellerId)), partners),
   }
 }
 
@@ -525,7 +610,8 @@ const field = (v: string | number | null): string => {
 
 /**
  * ⚠️ `rules_version` IS THE LAST COLUMN (R-e), SO A SCRIPT THAT READS COLUMNS BY POSITION KEEPS WORKING.
- * It says which rules produced the row: a v2 file and a v3 file are not comparable.
+ * It says which version of the method produced the row: files of two versions are not comparable (v2 → v3 moved
+ * rules; v3 → v4 marks the 16 October 2026 source change — RENT_INDEX_RULES_VERSION says why).
  */
 export const CSV_COLUMNS = [
   'snapshot_utc', 'scope', 'district_slug', 'district_name', 'part_of', 'type',

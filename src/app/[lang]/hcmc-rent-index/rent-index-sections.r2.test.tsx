@@ -39,6 +39,7 @@ const index: RentIndex = {
     district('can-gio', 'Cần Giờ', 'Can Gio District', bands({})),
   ],
   unassigned: 0,
+  sources: [{ kind: 'import', name: 'Nhatot.com' }, { kind: 'partner', name: 'GoPlus' }, { kind: 'members' }],
 }
 
 const html = (lang: 'en' | 'vi', node: React.ReactNode) => {
@@ -143,5 +144,67 @@ describe('the v3 method', () => {
     const src = readFileSync('src/app/[lang]/hcmc-rent-index/rent-index-sections.tsx', 'utf8')
     expect(src).not.toMatch(/(?:en|vi)="[^"]*(?:version|phiên bản) \d/)
     expect(src).not.toMatch(/(?:en|vi)="[^"]*\d{1,3}[.,]000/)
+  })
+})
+
+/**
+ * ⛔ OWNER DECISION 9's METHOD FIX (2026-10-20): the methodology names the SNAPSHOT's sources, not five portals in a
+ * fixed sentence that went false on 16 October, and says in one dated line what changed that day.
+ */
+describe('the method names the snapshot\'s sources', () => {
+  const sourceLine = (el: HTMLElement) =>
+    [...el.querySelectorAll('p')].find((p) => /Sources in this snapshot|Nguồn của số liệu lần này/.test(p.textContent!))?.textContent ?? null
+
+  it.each(['en', 'vi'] as const)('%s: names exactly the snapshot\'s sources, store names as stored', (lang) => {
+    const line = sourceLine(html(lang, <Methodology index={index} locale={locale(lang)} snapshot="20 October 2026" />))
+    expect(line).toBe(lang === 'vi'
+      ? 'Nguồn của số liệu lần này: Nhatot.com (tin được nhập từ trang đó) · GoPlus (tin đăng của đối tác chính thức của eno.vn) · tin do thành viên eno.vn đăng. Số liệu luôn được gộp chung, không bao giờ tách theo nguồn.'
+      : 'Sources in this snapshot: Nhatot.com (listings imported from that site) · GoPlus (an official eno.vn partner\'s own listings) · listings posted by eno.vn members. The figures are always pooled and never broken down by source.')
+  })
+
+  it.each(['en', 'vi'] as const)('%s: a partner with no stored name is still named a partner, never members', (lang) => {
+    const nameless: RentIndex = { ...index, sources: [{ kind: 'partner', name: '' }] }
+    const line = sourceLine(html(lang, <Methodology index={nameless} locale={locale(lang)} snapshot="20 October 2026" />))
+    expect(line).toBe(lang === 'vi'
+      ? 'Nguồn của số liệu lần này: tin đăng của đối tác chính thức của eno.vn. Số liệu luôn được gộp chung, không bao giờ tách theo nguồn.'
+      : 'Sources in this snapshot: an official eno.vn partner\'s own listings. The figures are always pooled and never broken down by source.')
+  })
+
+  it('names no source the snapshot does not hold — the old five-portal sentence is gone', () => {
+    const one: RentIndex = { ...index, sources: [{ kind: 'partner', name: 'GoPlus' }] }
+    for (const lang of ['en', 'vi'] as const) {
+      const line = sourceLine(html(lang, <Methodology index={one} locale={locale(lang)} snapshot="20 October 2026" />))!
+      expect(line).toContain('GoPlus')
+      expect(line).not.toMatch(/batdongsan|nhatot|muaban|rever|honeycomb|thành viên|members/i)
+    }
+    const text = html('en', <Methodology index={index} locale="en" snapshot="20 October 2026" />).textContent!
+    expect(text).not.toContain('Compiled from public listings on Batdongsan, Nhatot, Muaban, Rever, Honeycomb')
+  })
+
+  it.each(['en', 'vi'] as const)('%s: with no snapshot, or nothing counted, it names no source and still says the figures are pooled', (lang) => {
+    for (const idx of [null, { ...index, sources: [] }]) {
+      const el = html(lang, <Methodology index={idx} locale={locale(lang)} snapshot={null} />)
+      expect(sourceLine(el)).toBeNull()
+      expect(el.textContent).toContain(lang === 'vi' ? 'Số liệu luôn được gộp chung, không bao giờ tách theo nguồn.' : 'The figures are always pooled and never broken down by source.')
+    }
+  })
+
+  it.each(['en', 'vi'] as const)('%s: states the 16 and 20 October 2026 source changes in one line, beside the version', (lang) => {
+    const items = [...html(lang, <Methodology index={index} locale={locale(lang)} snapshot="20 October 2026" />).querySelectorAll('li')]
+      .map((li) => li.textContent!)
+    const at = items.findIndex((t) => t.startsWith(lang === 'vi' ? 'Ngày 16/10/2026' : 'On 16 October 2026'))
+    expect(at).toBeGreaterThan(0)
+    expect(items[at - 1]).toContain(`${lang === 'vi' ? 'Quy tắc phiên bản' : 'Rules version'} ${RENT_INDEX_RULES_VERSION}.`)
+    expect(items[at]).toContain(lang === 'vi'
+      ? 'Số liệu trước mỗi mốc này không so sánh được với số liệu sau đó.'
+      : 'Figures from before either date are not comparable with later ones.')
+    // It names the storefronts as the code pins them: the four that stopped on 16 October, Nhatot.com (filtered that day,
+    // gone on 20 October) and GoPlus (added on 20 October).
+    for (const name of ['Batdongsan.com.vn', 'Muaban.net', 'Rever.vn', 'Honeycomb House', 'Nhatot.com', 'GoPlus']) expect(items[at]).toContain(name)
+    // Word for word: WHAT happened is the claim — eno.vn STOPPED importing four sites and DROPPED Nhatot.com's company
+    // ads. A flipped verb ("started importing") kept every name and the closing sentence, and passed (verify pass).
+    expect(items[at]).toBe(lang === 'vi'
+      ? 'Ngày 16/10/2026, nguồn dữ liệu đã thay đổi: eno.vn ngừng nhập tin từ Batdongsan.com.vn, Muaban.net, Rever.vn và Honeycomb House, đồng thời bỏ các tin trên Nhatot.com được đánh dấu là tin của doanh nghiệp. Ngày 20/10/2026, nguồn lại thay đổi: eno.vn ngừng đăng tin từ Nhatot.com và bổ sung tin đăng của GoPlus. Số liệu trước mỗi mốc này không so sánh được với số liệu sau đó.'
+      : 'On 16 October 2026 the sources changed: eno.vn stopped importing listings from Batdongsan.com.vn, Muaban.net, Rever.vn and Honeycomb House, and dropped Nhatot.com listings flagged as company ads. On 20 October 2026 they changed again: eno.vn stopped listing homes from Nhatot.com and added GoPlus\'s own listings. Figures from before either date are not comparable with later ones.')
   })
 })

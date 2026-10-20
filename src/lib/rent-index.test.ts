@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { hammingHex } from './image-hash-url'
+import { RENTAL_IMPORT_SELLERS } from './import-sellers'
 import { HOME_RENTAL_SUBCATS } from './rental-homes'
 import { NOT_INDEXED_HOMES,
   apartmentBand, assignDistrict, bedroomCount, computeRentIndex, dedupeCandidateIds, distinctShots, isMonthlyRent,
-  quantile, sameUnitByPhotos, shotDistance,
-  rentIndexCsv, roundForDisplay, BAND_CSV_TYPE, CSV_COLUMNS, MIN_CELL_N, MAX_MONTHLY_VND, MIN_MONTHLY_VND,
+  quantile, rentSources, sameUnitByPhotos, shotDistance,
+  rentIndexCsv, roundForDisplay, BAND_CSV_TYPE, CSV_COLUMNS, IMPORT_SOURCE_NAME, MIN_CELL_N, MAX_MONTHLY_VND, MIN_MONTHLY_VND,
   MONTHLY_BARE_VND_SELLERS, MONTHLY_UNIT, RENT_INDEX_RULE_INPUTS, RENT_INDEX_RULES_VERSION, type RentRow,
 } from './rent-index'
 
@@ -321,6 +323,92 @@ describe('computeRentIndex — what is published', () => {
     expect(Object.keys(idx.cityWide.apartment)).not.toContain('sources')
     const csv = rentIndexCsv(idx)
     expect(csv).not.toMatch(/Batdongsan|Nhatot|,source,/)
+    // The sources are NAMED (the methodology line), never counted: a kind and a name, nothing else.
+    expect(idx.sources).toEqual([{ kind: 'import', name: 'Batdongsan.com.vn' }, { kind: 'import', name: 'Nhatot.com' }])
+    for (const s of idx.sources) expect(Object.keys(s).sort()).toEqual(['kind', 'name'])
+  })
+})
+
+/**
+ * ⛔ THE SOURCES THE PAGE NAMES ARE THE SNAPSHOT'S (owner decision 9's method fix, 2026-10-20). The methodology once
+ * named five portals in a fixed sentence that went false on 16 October; now it names `index.sources`, so these pin
+ * what that list may hold: the sellers of the rows the figures were COMPUTED from, and nobody else.
+ */
+describe('computeRentIndex — the sources it names', () => {
+  const GOPLUS = 'goplus-partner-seller'
+  const partners = new Map([[GOPLUS, 'GoPlus']])
+  const at = new Date('2026-10-20T00:00:00Z')
+
+  it('names the sellers of the counted rows only — never one whose rows a rule left out', () => {
+    const idx = computeRentIndex([
+      row(), // Nhatot.com, counted
+      row({ sellerId: GOPLUS, areaM2: 31 }), // the partner, counted
+      row({ sellerId: 'some-member', areaM2: 32 }), // a member's own post, counted
+      row({ sellerId: BDS, priceUnit: 'VND', listingType: 'wanted' }), // a renter's post: not counted
+      row({ sellerId: 'muaban-net-import-seller-0001', subcategorySlug: 'office-rental' }), // not a home
+      row({ sellerId: 'honeycomb-import-seller-0001', currency: '$' }), // not in đồng
+    ], new Map(), at, partners)
+    expect(idx.used).toBe(3)
+    expect(idx.sources).toEqual([{ kind: 'import', name: 'Nhatot.com' }, { kind: 'partner', name: 'GoPlus' }, { kind: 'members' }])
+  })
+
+  it("leaves out a seller whose only row was merged into another seller's as a cross-post", () => {
+    const a = row({ price: 15_000_000, areaM2: 70, district: 'Quận 7' })
+    const b = { ...a, id: 'bds-twin', sellerId: BDS, priceUnit: 'VND' }
+    const idx = computeRentIndex([a, b], new Map([[a.id, SHOTS], [b.id, SHOTS]]), at)
+    expect(idx.excluded.crossPosted).toBe(1)
+    expect(idx.sources).toEqual([{ kind: 'import', name: 'Nhatot.com' }])
+  })
+
+  it('names each source once, imports then partners then members, by name — whatever order the rows come in', () => {
+    const rows = [
+      row({ sellerId: 'member-b', areaM2: 40 }), row({ sellerId: GOPLUS, areaM2: 41 }), row({ sellerId: 'zz-partner', areaM2: 42 }),
+      row({ sellerId: 'member-a', areaM2: 43 }), row({ areaM2: 44 }), row({ sellerId: BDS, priceUnit: 'VND', areaM2: 45 }),
+      row({ sellerId: GOPLUS, areaM2: 46 }), row({ areaM2: 47 }),
+    ]
+    const both = new Map([...partners, ['zz-partner', 'Another Partner']])
+    const want = [
+      { kind: 'import', name: 'Batdongsan.com.vn' }, { kind: 'import', name: 'Nhatot.com' },
+      { kind: 'partner', name: 'Another Partner' }, { kind: 'partner', name: 'GoPlus' }, { kind: 'members' },
+    ]
+    expect(computeRentIndex(rows, new Map(), at, both).sources).toEqual(want)
+    expect(computeRentIndex([...rows].reverse(), new Map(), at, both).sources).toEqual(want)
+  })
+
+  it('names nothing when nothing is counted', () => {
+    expect(computeRentIndex([], new Map(), at, partners).sources).toEqual([])
+    expect(computeRentIndex([row({ listingType: 'wanted' })], new Map(), at, partners).sources).toEqual([])
+  })
+
+  it('takes an import storefront\'s name from the code, never from the partner map, and a stranger is a member', () => {
+    expect(rentSources([NHATOT], new Map([[NHATOT, 'Not Nhatot']]))).toEqual([{ kind: 'import', name: 'Nhatot.com' }])
+    // Without the loader's map (a test, a snapshot computed elsewhere) a partner reads as a member — never as an import.
+    expect(rentSources([GOPLUS], new Map())).toEqual([{ kind: 'members' }])
+  })
+
+  it('keeps a partner with no stored name a partner — never relabelled a member', () => {
+    expect(rentSources([GOPLUS, 'some-member'], new Map([[GOPLUS, '']]))).toEqual([{ kind: 'partner', name: '' }, { kind: 'members' }])
+  })
+})
+
+describe('IMPORT_SOURCE_NAME', () => {
+  /** Where each rental importer pins its storefront's id and name — it refuses to write into one named otherwise. */
+  const PINNED: Record<(typeof RENTAL_IMPORT_SELLERS)[number], string> = {
+    'bds-vn-import-seller-0001': 'scripts/import-batdongsan-rentals.ts',
+    'cmub0wead0000zrq418bqq27m': 'scripts/import-rever-rentals.ts',
+    'nhatot-import-seller-0001': 'src/lib/nhatot-listing.ts',
+    'muaban-net-import-seller-0001': 'scripts/muaban-net-map.ts',
+    'honeycomb-import-seller-0001': 'src/lib/honeycomb-listing.ts',
+  }
+
+  it("is each rental importer's own storefront name, for every rental importer", () => {
+    expect(Object.keys(IMPORT_SOURCE_NAME).sort()).toEqual([...RENTAL_IMPORT_SELLERS].sort())
+    for (const id of RENTAL_IMPORT_SELLERS) {
+      const src = readFileSync(PINNED[id], 'utf8')
+      expect(src, PINNED[id]).toMatch(new RegExp(`SELLER_ID = '${id}'`))
+      const pinned = src.match(/SELLER_NAME = '([^']+)'/)?.[1]
+      expect(IMPORT_SOURCE_NAME[id], PINNED[id]).toBe(pinned)
+    }
   })
 })
 
@@ -340,12 +428,14 @@ describe('rentIndexCsv', () => {
     expect(lines).toHaveLength(1 + 6 * 2)
     const d1Apartment = lines.find((l) => l.includes(',district,d1,') && l.includes(',apartment,'))!
     expect(d1Apartment.startsWith('2026-09-27T00:00:00.000Z,district,d1,District 1,,apartment,10,5500000,3250000,7750000,10,')).toBe(true)
-    expect(d1Apartment.endsWith(',3')).toBe(true)
+    expect(d1Apartment.endsWith(',4')).toBe(true)
     // many() rows are two-bedroom: the 2-bedroom band row carries them, the others are empty.
     expect(lines.find((l) => l.includes(',district,d1,') && l.includes(`,${BAND_CSV_TYPE.br2},`))).toContain(`,${BAND_CSV_TYPE.br2},10,5500000,`)
-    expect(lines.find((l) => l.includes(',city,') && l.includes(`,${BAND_CSV_TYPE.br1},`))).toMatch(/,apartment_1br,0,,,,0,,3$/)
+    expect(lines.find((l) => l.includes(',city,') && l.includes(`,${BAND_CSV_TYPE.br1},`))).toMatch(/,apartment_1br,0,,,,0,,4$/)
     // A suppressed cell keeps its n and leaves the statistics empty.
-    expect(lines.find((l) => l.includes(',city,') && l.includes(',house,'))).toMatch(/,house,0,,,,0,,3$/)
+    expect(lines.find((l) => l.includes(',city,') && l.includes(',house,'))).toMatch(/,house,0,,,,0,,4$/)
+    // The header is the one it was under v3: v4 moved the number, never a column (the CSV route is unchanged).
+    expect(lines[0]).toBe('snapshot_utc,scope,district_slug,district_name,part_of,type,n,median_vnd_month,p25_vnd_month,p75_vnd_month,n_with_area,median_vnd_per_m2_month,rules_version')
     // Every row says which rules made it.
     for (const l of lines.slice(1)) expect(l.split(',').at(-1)).toBe(String(RENT_INDEX_RULES_VERSION))
   })
@@ -357,11 +447,13 @@ describe('rentIndexCsv', () => {
  * which `assignDistrict` reads — D0 moving Thảo Điền into `d2` changed published rows with no rule
  * constant changing. If this fails: bump RENT_INDEX_RULES_VERSION, say in the page's methodology what
  * changed, and pin both numbers below.
+ * ⚠️ v4 KEEPS v3's FINGERPRINT ON PURPOSE: it moved no rule — it marks the 16 October 2026 source change
+ * (rent-index.ts says why). A version may move without its inputs; the inputs may never move without it.
  */
 describe('the rules fingerprint', () => {
-  it('is pinned to rules version 3', () => {
+  it('is pinned to rules version 4 — the v3 rules, unchanged', () => {
     const fingerprint = createHash('sha256').update(JSON.stringify(RENT_INDEX_RULE_INPUTS)).digest('hex').slice(0, 16)
-    expect({ version: RENT_INDEX_RULES_VERSION, fingerprint }).toEqual({ version: 3, fingerprint: '63023d4c6c71ba50' })
+    expect({ version: RENT_INDEX_RULES_VERSION, fingerprint }).toEqual({ version: 4, fingerprint: '63023d4c6c71ba50' })
   })
 
   it('types exactly the shared list of home subcategories, less the ones named as not indexed', () => {

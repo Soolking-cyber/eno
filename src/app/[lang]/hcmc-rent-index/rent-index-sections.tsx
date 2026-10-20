@@ -8,7 +8,7 @@ import { isIndexableCount } from '@/lib/index-floor'
 import {
   APARTMENT_BANDS, DISPLAY_STEP_VND, MAX_AREA_M2, MAX_MONTHLY_VND, MAX_VND_PER_M2, MIN_AREA_M2, MIN_CELL_N,
   MIN_MONTHLY_VND, MIN_VND_PER_M2, RENT_INDEX_RULES_VERSION, RENT_TYPES, ROUND_VND, roundForDisplay,
-  type ApartmentBand, type DistrictRow, type ExclusionReason, type RentIndex, type RentType, type Stats,
+  type ApartmentBand, type DistrictRow, type ExclusionReason, type RentIndex, type RentSource, type RentType, type Stats,
 } from '@/lib/rent-index'
 
 /**
@@ -20,6 +20,8 @@ import {
  * the Vietnamese from the owner-approved copy sheet CS-2 (2026-09-30). A new `<Tr>` key has no curated
  * Vietnamese until vi-overrides is regenerated, and that run would also pull in hundreds of unreviewed
  * machine translations for strings elsewhere (plan v4, R2). Unchanged `<Tr>` strings stay.
+ * The 2026-10-20 method fix (the sources line, the 16 October line) follows the same rule; its Vietnamese was written
+ * with the change, not taken from CS-2.
  *
  * ⚠️ NUMBERS STAY OUTSIDE THE TRANSLATED SENTENCES. A `<Tr>` key is the exact English string; a
  * sentence with a count baked in is a new key on every snapshot and would never match its override
@@ -314,10 +316,44 @@ function ExclusionLabel({ k }: { k: ExclusionReason }) {
 }
 
 /**
+ * One source of the snapshot (rent-index.ts `rentSources`). The storefront's name stays as stored in both languages;
+ * only what kind of source it is translates — and each kind says only what its classification proves of every row
+ * (rent-index.ts `RentSource`). A partner with no stored name prints its kind alone, never a member's label.
+ */
+function SourceLabel({ s }: { s: RentSource }) {
+  if (s.kind === 'members') return <Bilingual en="listings posted by eno.vn members" vi="tin do thành viên eno.vn đăng" />
+  const kind = s.kind === 'import'
+    ? <Bilingual en="listings imported from that site" vi="tin được nhập từ trang đó" />
+    : <Bilingual en="an official eno.vn partner's own listings" vi="tin đăng của đối tác chính thức của eno.vn" />
+  if (!s.name) return kind
+  return (
+    <>
+      <span className="font-semibold text-foreground">{s.name}</span>{' ('}{kind}{')'}
+    </>
+  )
+}
+
+/**
  * The rules, rendered from the constants that apply them. `index` is null when the figures could not
  * be read: the method still renders — it is true either way — and only the counts disappear.
+ *
+ * ⛔ THE SOURCES ARE THE SNAPSHOT'S, NEVER A SENTENCE (owner decision 9's method fix, 2026-10-20). "Compiled from public
+ * listings on Batdongsan, Nhatot, Muaban, Rever, Honeycomb and eno.vn members" stayed on the page after 16 October,
+ * when four of the five stopped being imported, and said nothing of GoPlus once its rooms were most of the index. The
+ * line now names `index.sources` — the sellers of the rows the figures were computed from — and nothing else; with no
+ * snapshot it names none rather than guess. Names only, never a count per source (owner, 2026-09-27).
+ * ⛔ THE 16 OCTOBER LINE IS HISTORY, so it is written, not computed: what changed that day (411a31ddc and the owner-run
+ * retirement; RENT_INDEX_RULES_VERSION has the detail) and that figures from before it are not comparable. Every name
+ * in it is a storefront name the code pins (IMPORT_SOURCE_NAME), and it says nothing about those sites beyond eno's own
+ * import and the one flag the Nhatot.com importer reads (`company_ad`, src/lib/nhatot-listing.ts).
+ * ⚠️ THE BARE-VND SENTENCE STILL NAMES Batdongsan.com.vn AND Rever.vn, ON PURPOSE: it states a rule `isMonthlyRent`
+ * still applies, and every applied rule is published (rent-index.ts header); the sources line above it is what says
+ * which sources a snapshot holds.
  */
 export function Methodology({ index, locale, snapshot }: { index: RentIndex | null; locale: MoneyLocale; snapshot: ReactNode | null }) {
+  // `?? []`: a snapshot cached before `sources` existed would otherwise throw here (the build id and the v4 key both
+  // retire such an entry; this is the third belt).
+  const sources = index?.sources ?? []
   return (
     <section className="mt-12 max-w-3xl" aria-labelledby="method">
       <h2 id="method" className="h-section text-foreground mb-3"><Tr text="How the index is calculated" /></h2>
@@ -327,7 +363,21 @@ export function Methodology({ index, locale, snapshot }: { index: RentIndex | nu
           <Tr text="The index is recalculated once a day from every published rental listing on eno.vn in Ho Chi Minh City." />
           {snapshot && <> <Tr text="This snapshot" />: <strong className="font-semibold text-foreground">{snapshot}</strong>.</>}
         </p>
-        <p><Tr text="Compiled from public listings on Batdongsan, Nhatot, Muaban, Rever, Honeycomb and eno.vn members. Most are imported from those sites and link back to the original advert; the figures are always pooled and never broken down by source." /></p>
+        <p>
+          {sources.length > 0 && (
+            <>
+              <Bilingual en="Sources in this snapshot:" vi="Nguồn của số liệu lần này:" />{' '}
+              {sources.map((s, i) => (
+                <span key={s.kind === 'members' ? s.kind : `${s.kind}:${s.name}`}>
+                  {i > 0 && ' · '}
+                  <SourceLabel s={s} />
+                </span>
+              ))}
+              .{' '}
+            </>
+          )}
+          <Bilingual en="The figures are always pooled and never broken down by source." vi="Số liệu luôn được gộp chung, không bao giờ tách theo nguồn." />
+        </p>
         <ul className="list-disc space-y-1 pl-5">
           <li><Tr text="Only apartments, houses and rooms. Offices, vehicle hire and nightly stays are left out." /></li>
           <li><Tr text="Only monthly prices in đồng. A price without a monthly unit counts only from the two sources whose importers were checked to store monthly rent (Batdongsan.com.vn and Rever.vn)." /></li>
@@ -388,6 +438,12 @@ export function Methodology({ index, locale, snapshot }: { index: RentIndex | nu
             <Bilingual
               en="Figures are not comparable with snapshots made under earlier rules."
               vi="Số liệu không so sánh được với các lần tính theo quy tắc cũ."
+            />
+          </li>
+          <li>
+            <Bilingual
+              en="On 16 October 2026 the sources changed: eno.vn stopped importing listings from Batdongsan.com.vn, Muaban.net, Rever.vn and Honeycomb House, and dropped Nhatot.com listings flagged as company ads. On 20 October 2026 they changed again: eno.vn stopped listing homes from Nhatot.com and added GoPlus's own listings. Figures from before either date are not comparable with later ones."
+              vi="Ngày 16/10/2026, nguồn dữ liệu đã thay đổi: eno.vn ngừng nhập tin từ Batdongsan.com.vn, Muaban.net, Rever.vn và Honeycomb House, đồng thời bỏ các tin trên Nhatot.com được đánh dấu là tin của doanh nghiệp. Ngày 20/10/2026, nguồn lại thay đổi: eno.vn ngừng đăng tin từ Nhatot.com và bổ sung tin đăng của GoPlus. Số liệu trước mỗi mốc này không so sánh được với số liệu sau đó."
             />
           </li>
           <li><Tr text="Districts 2 and 9 were merged into Thu Duc City in 2021, but many listings still use the old names. They get their own rows and are also counted in Thu Duc City, so the district rows do not add up to the city total." /></li>

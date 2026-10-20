@@ -4,8 +4,8 @@ import { loadRentIndex } from '@/app/[lang]/hcmc-rent-index/load-rent-index'
 
 /**
  * /hcmc-rent-index.csv — the table on /hcmc-rent-index as a file, on the same terms: free to cite and
- * quote, crediting eno.vn with a link to the page (the terms live in the page's cite box, #cite). No
- * open licence is claimed here or anywhere (owner, 2026-09-27).
+ * quote, crediting eno.vn; a link to the page is welcome and may be nofollow, never required (owner decision 9 —
+ * the terms live in the page's cite box, #cite). No open licence is claimed here or anywhere (owner, 2026-09-27).
  *
  * ⛔ THE SAME SNAPSHOT AS THE PAGE, NOT A SECOND QUERY. Both call `loadRentIndex()`, which reads one
  * cached daily computation; neither route keeps an ISR copy of its own, so there is no second clock

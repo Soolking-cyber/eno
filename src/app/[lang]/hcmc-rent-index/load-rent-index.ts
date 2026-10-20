@@ -2,7 +2,7 @@ import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { provinceWhere } from '@/lib/province-match'
-import { computeRentIndex, dedupeCandidateIds, RENT_INDEX_RULES_VERSION, type RentIndex } from '@/lib/rent-index'
+import { computeRentIndex, dedupeCandidateIds, isImportSource, RENT_INDEX_RULES_VERSION, type RentIndex } from '@/lib/rent-index'
 
 /**
  * The one read behind /hcmc-rent-index AND /hcmc-rent-index.csv.
@@ -63,6 +63,33 @@ function parseImages(json: string | null): string[] {
   }
 }
 
+/**
+ * The OFFICIAL PARTNERS among the sellers phase 1 returned, seller id → storefront name: the one thing the methodology's
+ * source line needs from the database (rent-index.ts `rentSources`). WORDS ONLY — no figure reads it.
+ * ⚠️ ONLY IDS THE SCOPED READ ALREADY RETURNED, so it can name no seller this edition hides; an import storefront is
+ * never asked (its name is pinned in code, IMPORT_SOURCE_NAME). Chunked like phase 2, so the `IN` list stays inside
+ * Postgres' bind-parameter limit however many sellers the rentals category grows (codex, gate review).
+ * ⚠️ A FAILURE THROWS, LIKE BOTH PHASES — never cached, retried by the next request (`loadRentIndex` holds a minute).
+ * Both gate seats asked whether a label should be able to fail the figures; it should, because the alternative is
+ * worse here: a snapshot computed without its partners would be CACHED FOR A DAY either naming a partner's rooms as
+ * members' posts or naming no source at all — the false or empty method line this change exists to end — while a
+ * failure costs at most FAILURE_HOLD_MS, on a two-column read of a few rows the same pool answered milliseconds before.
+ * ⚠️ A NAMELESS PARTNER STAYS A PARTNER ('' — the app refuses a storefront name under 2 characters, so only a direct
+ * database write produces one); the page then prints the kind without a name.
+ */
+async function partnerNames(rows: { sellerId: string }[]): Promise<Map<string, string>> {
+  const ids = [...new Set(rows.map((r) => r.sellerId))].filter((id) => !isImportSource(id))
+  const names = new Map<string, string>()
+  for (let i = 0; i < ids.length; i += PHOTO_CHUNK) {
+    const partners = await db.seller.findMany({
+      where: { id: { in: ids.slice(i, i + PHOTO_CHUNK) }, officialPartner: true },
+      select: { id: true, name: true },
+    })
+    for (const p of partners) names.set(p.id, p.name.trim())
+  }
+  return names
+}
+
 const compute = async (): Promise<RentIndex> => {
   const started = Date.now()
   const rows = await db.listing.findMany({
@@ -89,9 +116,10 @@ const compute = async (): Promise<RentIndex> => {
     })
     for (const r of chunk) photos.set(r.id, parseImages(r.images))
   }
-  const index = computeRentIndex(rows, photos)
+  const partners = await partnerNames(rows)
+  const index = computeRentIndex(rows, photos, new Date(), partners)
   // One line per computed snapshot: how long a cold one takes is what H4's warm-up and D3 budget for.
-  console.info(`[hcmc-rent-index] snapshot v${index.rulesVersion}: ${rows.length} rows, ${candidates.length} photo candidates, ${index.excluded.crossPosted} cross-posts, ${Date.now() - started} ms`)
+  console.info(`[hcmc-rent-index] snapshot v${index.rulesVersion}: ${rows.length} rows, ${candidates.length} photo candidates, ${index.excluded.crossPosted} cross-posts, sources ${index.sources.map((s) => (s.kind === 'members' ? s.kind : s.name || s.kind)).join(' + ') || 'none'}, ${Date.now() - started} ms`)
   return index
 }
 compute.toString = () => 'hcmc-rent-index-snapshot'

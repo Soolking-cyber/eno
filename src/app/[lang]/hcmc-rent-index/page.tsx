@@ -8,13 +8,13 @@ import { moneyLocale } from '@/lib/vnd'
 import { Tr } from '@/context/language-context'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { teachGuideLinks } from '@/lib/teach-guides/site-links'
-import { VI_OVERRIDES } from '@/generated/vi-overrides'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { MIN_CELL_N, type RentIndex } from '@/lib/rent-index'
 import { loadRentIndex } from './load-rent-index'
 import { BedroomTable, DistrictTable, Headline, Methodology, Unavailable } from './rent-index-sections'
 import { CiteBox } from './cite-box'
+import { faqPageJsonLd } from './faq'
 
 /**
  * /hcmc-rent-index — median asking rent by district and property type in Ho Chi Minh City, computed
@@ -59,28 +59,6 @@ export const metadata: Metadata = {
   }),
 }
 
-/**
- * ⚠️ PLAIN STATEMENTS WITH NO NUMBERS IN THEM, so each is one stable `<Tr>` key with curated
- * Vietnamese — and so the FAQPage JSON-LD can never quote a figure the table beside it no longer shows.
- */
-const FAQS: { q: string; a: string }[] = [
-  {
-    q: 'How much is rent in Ho Chi Minh City?',
-    a: 'It depends mostly on the type of home and the district. The figures at the top of this page are the city-wide medians of current asking rents for apartments, houses and rooms, and the table below them gives the same figures for each district, so you can compare any district with the city as a whole.',
-  },
-  {
-    q: 'Are these the rents people actually pay?',
-    a: 'No — they are asking prices from live listings. Signed rents are often lower after negotiation, and a long lease or paying several months up front usually earns a discount. Use the index to compare districts and spot an outlier, not as a quote.',
-  },
-  {
-    q: 'Can I use this data in an article or report?',
-    a: 'Yes. The figures are free to cite and quote. Please credit eno.vn with a link to https://eno.vn/hcmc-rent-index. The full table is available as a CSV download, with the snapshot time on every row.',
-  },
-]
-
-/** The FAQ as the reader sees it — the same curated Vietnamese `<Tr>` renders, so the JSON-LD matches the page. */
-const inLang = (en: string, lang: string) => (lang === 'vi' ? VI_OVERRIDES[en] ?? en : en)
-
 function jsonLd(index: RentIndex | null, lang: string): Record<string, unknown>[] {
   const nodes: Record<string, unknown>[] = [
     {
@@ -96,17 +74,7 @@ function jsonLd(index: RentIndex | null, lang: string): Record<string, unknown>[
    * ⚠️ THE FAQ NODE, LIKE THE DATASET, ONLY WITH FIGURES: its first answer points at "the figures at the
    * top of this page", which a could-not-read render does not show (opus, diff review).
    */
-  if (index) {
-    nodes.push({
-      '@context': 'https://schema.org',
-      '@type': 'FAQPage',
-      mainEntity: FAQS.map((f) => ({
-        '@type': 'Question',
-        name: inLang(f.q, lang),
-        acceptedAnswer: { '@type': 'Answer', text: inLang(f.a, lang) },
-      })),
-    })
-  }
+  if (index) nodes.push(faqPageJsonLd(lang))
   /**
    * ⚠️ THE DATASET IS DECLARED ONLY WHEN THERE ARE FIGURES. A Dataset node with a `dateModified` of a
    * snapshot that could not be read would describe data the page is not showing.
@@ -123,8 +91,9 @@ function jsonLd(index: RentIndex | null, lang: string): Record<string, unknown>[
         `Median, 25th and 75th percentile monthly asking rent in Vietnamese đồng for apartments (also by 1, 2 and 3+ bedrooms), houses and rooms in each Ho Chi Minh City district, computed daily by ${SITE_NAME} from live rental listings. Houses with no bedroom count are left out as commercial. Cells with fewer than ${MIN_CELL_N} listings are not published. Asking prices, not signed leases.`,
       url: URL_,
       creator: { '@type': 'Organization', name: SITE_NAME, url: ORIGIN },
-      // ⚠️ NO `license` (owner, 2026-09-27): the terms are "free to cite and quote, with a credit link",
-      // which is not an open licence, and naming CC BY here would grant more than the page does.
+      // ⚠️ NO `license` (owner, 2026-09-27; ruling R-f, restated by owner decision 9): the terms are "free to cite
+      // and quote; credit eno.vn; a link is welcome and may be nofollow", which is not an open licence, and naming
+      // CC BY here would grant more than the page does. hcmc-rent-index.test.ts fails if a `license` key appears.
       // `usageInfo` points at the one place the terms are written: the cite box.
       usageInfo: `${URL_}#cite`,
       isAccessibleForFree: true,
@@ -229,7 +198,8 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
           <h2 id="faq" className="h-section text-foreground mb-4"><Tr text="Frequently asked questions" /></h2>
           <div className="grid gap-x-14 gap-y-5 lg:grid-cols-2">
             {/* ⚠️ LITERAL <Tr>s, SO scripts/gen-ui-strings.mjs HARVESTS THEM for the nine MT languages (every
-                diff reviewer). FAQS above feeds the JSON-LD; hcmc-rent-index.test.ts fails if the two drift. */}
+                diff reviewer) — and a literal <Bilingual> where FAQS carries `aVi` (the harvest reads its `en`).
+                FAQS (./faq.ts) feeds the JSON-LD; hcmc-rent-index.test.ts fails if the two drift. */}
             <div>
               <h3 className="text-sm font-bold text-foreground"><Tr text="How much is rent in Ho Chi Minh City?" /></h3>
               <p className="mt-1 text-sm leading-relaxed text-body"><Tr text="It depends mostly on the type of home and the district. The figures at the top of this page are the city-wide medians of current asking rents for apartments, houses and rooms, and the table below them gives the same figures for each district, so you can compare any district with the city as a whole." /></p>
@@ -240,7 +210,7 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
             </div>
             <div>
               <h3 className="text-sm font-bold text-foreground"><Tr text="Can I use this data in an article or report?" /></h3>
-              <p className="mt-1 text-sm leading-relaxed text-body"><Tr text="Yes. The figures are free to cite and quote. Please credit eno.vn with a link to https://eno.vn/hcmc-rent-index. The full table is available as a CSV download, with the snapshot time on every row." /></p>
+              <p className="mt-1 text-sm leading-relaxed text-body"><Bilingual en="Yes. The figures are free to cite and quote. Please credit eno.vn; a link to https://eno.vn/hcmc-rent-index is welcome and may be nofollow. The full table is available as a CSV download, with the snapshot time on every row." vi="Có. Các số liệu được tự do trích dẫn. Vui lòng ghi nguồn eno.vn; chúng tôi hoan nghênh liên kết đến https://eno.vn/hcmc-rent-index, kể cả liên kết nofollow. Toàn bộ bảng có thể tải về dưới dạng CSV, mỗi dòng đều ghi thời điểm số liệu." /></p>
             </div>
           </div>
         </section>
