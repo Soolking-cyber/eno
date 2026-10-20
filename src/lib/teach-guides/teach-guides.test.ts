@@ -4,7 +4,7 @@ import ts from 'typescript'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { forEachInline, forEachPlain, teachGuideSchema, type TeachGuide } from './schema'
-import { inlineHrefs, inlineText, parseInline } from './inline'
+import { checkSourceUrl, inlineHrefs, inlineText, parseInline } from './inline'
 import {
   TEACH_GUIDES,
   TEACH_HUB_UPDATED,
@@ -24,6 +24,8 @@ import { contentSlugs, renderIndex } from '../../../scripts/gen-teach-guides.mjs
 import { contentDigest } from './digest'
 import { TEACH_CONTENT } from './content.generated'
 import { isRetiredNavCategory } from '@/lib/retired-categories'
+import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
+import { canonicalDistrictSlug, isCuratedDistrict } from '@/lib/district-canonical'
 
 /**
  * THE GUARDS ON THE TEACH-IN-VIETNAM LIBRARY. The guides are generated text checked against a fact base;
@@ -217,15 +219,52 @@ describe('teach guides: links', () => {
     if (path.startsWith(`${TEACH_BASE}/`)) return teachSlugs.has(path.slice(TEACH_BASE.length + 1))
     return TEACH_SITE_PATHS.includes(path)
   }
-  /** Where a site path's page lives: route groups and the category route included. */
+  /** `/c/<category>/<district>`: a category × district page (c/[category]/[district]/page.tsx). */
+  const DISTRICT_PAGE = /^\/c\/[^/]+\/[^/]+$/
+  /** Where a site path's page lives: route groups, the category route and its district route included. */
   const pageFile = (p: string) =>
-    p === '/' ? join(APP, '(home)', 'page.tsx') : p.startsWith('/c/') ? join(APP, 'c', '[category]', '(index)', 'page.tsx') : join(APP, p, 'page.tsx')
+    p === '/'
+      ? join(APP, '(home)', 'page.tsx')
+      : DISTRICT_PAGE.test(p)
+        ? join(APP, 'c', '[category]', '[district]', 'page.tsx')
+        : p.startsWith('/c/')
+          ? join(APP, 'c', '[category]', '(index)', 'page.tsx')
+          : join(APP, p, 'page.tsx')
   it('every site path a guide may link is a page on disk, and no category path is a retired one', () => {
     expect(TEACH_SITE_PATHS.filter((p) => !existsSync(pageFile(p)))).toEqual([])
     expect(TEACH_SITE_PATHS.filter((p) => p.startsWith('/c/') && isRetiredNavCategory(p.split('/')[2]))).toEqual([])
+    expect(new Set(TEACH_SITE_PATHS).size).toBe(TEACH_SITE_PATHS.length)
   })
-  /** eno.vn pages a guide may cite as a SOURCE: the linkable site pages, plus the Rent Index data file. */
-  const SOURCE_PATHS = new Set<string>([...TEACH_SITE_PATHS, '/hcmc-rent-index.csv'])
+  /**
+   * The district pages a guide may link (registry.ts TEACH_RENTALS_DISTRICT_PATHS): rentals only, every curated Ho Chi Minh
+   * City place, each at the one URL the route answers for it — its own canonical, never a spelling it 308s.
+   */
+  it('the district pages a guide may link are the rentals pages of the curated places, each at its canonical URL', () => {
+    const districtPaths = TEACH_SITE_PATHS.filter((p) => DISTRICT_PAGE.test(p))
+    expect(districtPaths.filter((p) => !p.startsWith('/c/rentals/'))).toEqual([])
+    const slugs = districtPaths.map((p) => p.slice('/c/rentals/'.length))
+    expect(slugs.filter((s) => !isCuratedDistrict(s) || canonicalDistrictSlug(s) !== s)).toEqual([])
+    expect([...slugs].sort()).toEqual(DISTRICTS.map((d) => d.slug).filter(isCuratedDistrict).sort())
+  })
+  it('a guide may link /teachers/cover and a district rentals page — never a spelling that redirects, nor another category', () => {
+    for (const ok of ['/teachers/cover', '/c/rentals/d1', '/c/rentals/d2', '/c/rentals/d9', '/c/rentals/thu-duc', '/c/rentals/binh-thanh', '/c/rentals/nha-be'])
+      expect(resolves(ok), ok).toBe(true)
+    // `quan-2`, `thao-dien` and `district-2` are d2's spellings — a 308 to it, or a 404 with it while it is empty
+    // ([district]/page.tsx `resolve`); `all` is the explorer's "every district".
+    for (const bad of ['/c/rentals/quan-2', '/c/rentals/thao-dien', '/c/rentals/district-2', '/c/rentals/all', '/c/rentals/cau-giay', '/c/jobs/d1', '/c/teachers/d7'])
+      expect(resolves(bad), bad).toBe(false)
+  })
+  /**
+   * eno.vn pages a guide may cite as a SOURCE: the linkable site pages, plus the Rent Index data file — never a district
+   * rentals page, which 404s while empty (checkSourceUrl; the Sources list does not go through district-links.ts).
+   */
+  const SOURCE_PATHS = new Set<string>([...TEACH_SITE_PATHS.filter((p) => !p.startsWith('/c/rentals/')), '/hcmc-rent-index.csv'])
+  it('a district rentals page is never a source, though every other rentals page may be', () => {
+    for (const bad of ['https://eno.vn/c/rentals/d1', 'https://www.eno.vn/c/rentals/thu-duc#rent'])
+      expect(() => checkSourceUrl(bad), bad).toThrow(/district rentals page/)
+    for (const ok of ['https://eno.vn/c/rentals', 'https://eno.vn/hcmc-rent-index', 'https://eno.vn/hcmc-rent-index.csv'])
+      expect(() => checkSourceUrl(ok), ok).not.toThrow()
+  })
   it('the Rent Index data file a guide may cite exists', () => {
     expect(existsSync('src/app/hcmc-rent-index.csv/route.ts')).toBe(true)
   })

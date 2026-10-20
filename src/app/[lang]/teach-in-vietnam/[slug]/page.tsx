@@ -6,7 +6,9 @@ import { SeoArticle, type ArticleContent } from '@/components/marketplace/seo-ar
 import { TeachKeyPoints, TeachNextStep, teachGuideSections } from '@/components/marketplace/teach-guide-body'
 import { guideEntry, isLive, isLiveTeachHref, releasedGuides, TEACH_BASE, teachGuideDates, teachPath } from '@/lib/teach-guides/registry'
 import { teachGuideContent } from '@/lib/teach-guides/content'
+import { districtLinksAsText } from '@/lib/teach-guides/district-links'
 import { requestNow } from '@/lib/teach-guides/request-clock'
+import { TEACH_ROBOTS } from '@/lib/teach-guides/robots'
 import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
 
 /**
@@ -44,6 +46,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description: hit.guide.description,
     alternates: { canonical: path },
+    // Discover's large image preview and nothing else: index and follow stay the default (robots.ts).
+    robots: TEACH_ROBOTS,
     ...pageShare({ title, description: hit.guide.description, url: path, type: 'article' }),
   }
 }
@@ -55,7 +59,10 @@ export default async function TeachGuidePage({ params }: Props) {
   const hit = load(slug, now)
   if (!hit) notFound()
   const { entry, guide } = hit
-  const isLiveHref = (href: string) => isLiveTeachHref(href, now)
+  // A district rentals page under the indexing floor now (a 404 when empty), whatever it was on the approval day: its
+  // link renders as plain text, like a guide not yet released (district-links.ts).
+  const districtText = await districtLinksAsText(guide)
+  const isLiveHref = (href: string) => isLiveTeachHref(href, now) && !districtText.has(href.split('#')[0])
 
   const related = guide.related
     .map((s) => guideEntry(s))

@@ -14,6 +14,7 @@ import { formatArticleDate } from '@/lib/dates'
 import { moneyText, TEACHER_APP_ORIGIN } from '@/lib/teach-guides/inline'
 import { requestNow } from '@/lib/teach-guides/request-clock'
 import { releasedGuides, TEACH_BASE, TEACH_CLUSTERS, TEACH_START_PATHS, teachGuideDates, teachHubNewest, teachPath, type TeachGuideEntry } from '@/lib/teach-guides/registry'
+import { TEACH_ROBOTS } from '@/lib/teach-guides/robots'
 
 /**
  * /teach-in-vietnam — THE HUB of the teacher guide library (src/lib/teach-guides/registry.ts).
@@ -74,6 +75,8 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     description: DESCRIPTION,
     alternates: { canonical: TEACH_BASE },
+    // Discover's large image preview and nothing else: index and follow stay the default (robots.ts).
+    robots: TEACH_ROBOTS,
     ...pageShare({ title, description: DESCRIPTION, url: TEACH_BASE, type: 'article' }),
   }
 }

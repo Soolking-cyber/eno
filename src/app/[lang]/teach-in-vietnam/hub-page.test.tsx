@@ -205,6 +205,27 @@ describe('the hub is one national page (plan B1)', () => {
   })
 })
 
+/**
+ * Google Discover (plan §3a item 16): a large image preview, by the one robots directive that allows it — and nothing
+ * else, so the hub stays as indexable and followed as it was with no robots meta (src/lib/teach-guides/robots.ts).
+ */
+describe('robots: max-image-preview:large, index and follow as they were', () => {
+  it('the live hub allows a large image preview and states nothing else', async () => {
+    expect((await page.generateMetadata()).robots).toEqual({ 'max-image-preview': 'large' })
+  })
+
+  it('before its first guide the hub is a 404, and stays noindex', async () => {
+    const live = h.now
+    h.now = new Date('2026-10-01T05:00:00Z')
+    try {
+      expect(releasedGuides(h.now)).toEqual([])
+      expect((await page.generateMetadata()).robots).toEqual({ index: false })
+    } finally {
+      h.now = live
+    }
+  })
+})
+
 describe('the hub is dated by its own edits too (registry.ts TEACH_HUB_UPDATED)', () => {
   it('TEACH_HUB_UPDATED is a real day, not in the future, and no older than any short answer’s check', async () => {
     expect(new Date(`${TEACH_HUB_UPDATED}T00:00:00Z`).toISOString().slice(0, 10)).toBe(TEACH_HUB_UPDATED)

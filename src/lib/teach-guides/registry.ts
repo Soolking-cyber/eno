@@ -1,5 +1,7 @@
 import { TEACH_CONTENT } from './content.generated'
 import { TEACH_HUB_PATH } from './hub-path'
+import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
+import { canonicalDistrictSlug, isCuratedDistrict } from '@/lib/district-canonical'
 
 /**
  * THE TEACH-IN-VIETNAM LIBRARY — one registry for the hub, the route, the sitemap and "Keep reading".
@@ -253,6 +255,25 @@ export const TEACH_START_PATHS: readonly { title: string; slugs: readonly string
 ]
 
 /**
+ * The Ho Chi Minh City district rental pages a guide may link (teacher visibility plan B4, wave 1b row 7: district names in
+ * where-to-live link `/c/rentals/<district>`): `/c/rentals/<slug>` for each curated place — DISTRICTS without `all` — that
+ * is its own canonical, the test pages.xml applies before it submits one (build.ts `submittedRentalsDistricts`, rule 3).
+ * Any other spelling of a place (`quan-2`, `thao-dien`, `district-2`) 308s to its curated key while that key's page has
+ * rentals, and 404s with it otherwise ([district]/page.tsx `resolve` counts before it redirects) — either way it is not a
+ * page a guide may link. Derived, so it cannot drift from the places the route serves; validate.mjs holds the same paths
+ * as a literal list.
+ * ⚠️ A PATH, NOT A PROMISE OF LISTINGS: the page 404s while its district has no rental and is `noindex` after two weeks
+ * under the indexing floor (src/lib/index-floor.ts, stale-noindex.ts), and no offline check can know which. Two guards:
+ * the guide page renders a link to a district under the floor as plain text at render time (district-links.ts), and an
+ * editor links one only if https://eno.vn/sitemaps/pages.xml submits it on the approval day — `validate.mjs --live`
+ * refuses any other (2026-10-20: d2, d9, can-gio, cu-chi and hoc-mon answered 404). The `thu-duc` umbrella also lists
+ * District 2, Thao Dien and District 9 homes (district-canonical.ts), so while `d2` or `d9` is empty those names link there.
+ */
+const TEACH_RENTALS_DISTRICT_PATHS: readonly string[] = DISTRICTS.filter((d) => isCuratedDistrict(d.slug) && canonicalDistrictSlug(d.slug) === d.slug).map(
+  (d) => `/c/rentals/${d.slug}`,
+)
+
+/**
  * The eno.vn pages (other than the guides themselves) a guide may link — EXACT paths. The editorial
  * validator (~/eno-teach-guides/validate.mjs SITE_PATHS) holds the same list; teach-guides.test.ts checks
  * every internal link is a registry guide or one of these, and that each of these exists on disk.
@@ -261,5 +282,6 @@ export const TEACH_SITE_PATHS: readonly string[] = [
   '/', '/schools', '/jobs-vietnam-expats', '/hcmc-rent-index', '/c/rentals', '/c/jobs', '/c/teachers', '/help',
   '/renting-an-apartment-vietnam-foreigner', '/rental-deposit-vietnam', '/furnishing-a-home-in-vietnam',
   '/secondhand-furniture-ho-chi-minh-city', '/selling-up-before-you-leave-vietnam', '/esim-vietnam-guide',
-  '/motorbike-rental-ho-chi-minh-city', '/teach-in-vietnam', '/about', '/contact', '/safety',
+  '/motorbike-rental-ho-chi-minh-city', '/teach-in-vietnam', '/about', '/contact', '/safety', '/teachers/cover',
+  ...TEACH_RENTALS_DISTRICT_PATHS,
 ]

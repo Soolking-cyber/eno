@@ -30,6 +30,14 @@ describe('SeoListingGrid — the browse link', () => {
     expect(a!.getAttribute('rel')).toBe('nofollow')
   })
 
+  it('marks its heading and browse link with the article language it is handed — never a card — and nothing without one', () => {
+    const marks = (lang?: 'en' | 'vi') =>
+      [...new DOMParser().parseFromString(wrap(<SeoListingGrid listings={[]} title="Teaching jobs now" cta="Browse jobs" href="/c/jobs" heading="h-title" lang={lang} />), 'text/html').querySelectorAll('[lang]')]
+        .map((e) => `${e.tagName.toLowerCase()}:${e.textContent?.trim()}:${e.getAttribute('lang')}`)
+    expect(marks('en')).toEqual(['h2:Teaching jobs now:en', 'a:Browse jobs:en'])
+    expect(marks()).toEqual([])
+  })
+
   it('is unchanged without it', () => {
     const a = browse(wrap(<SeoListingGrid listings={[]} title="Homes for rent now" cta="Browse rentals" href="/c/rentals" />), '/c/rentals')
     expect(a).not.toBeNull()

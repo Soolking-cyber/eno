@@ -7,6 +7,7 @@ import { formatCalendarDay } from '@/lib/calendar-day'
 import { DistrictRent } from './district-rent'
 import { DistrictFilterRow } from './district-filter-row'
 import { scopedListingWhere } from '@/lib/edition-scope'
+import { districtPageRows } from '@/lib/district-page-base'
 import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
 import { HOME_RENTAL_SUBCATS, HOMES_ONLY_PARAM } from '@/lib/rental-homes'
 // `{ teachers: true }` on every read here: each one is pinned to ONE categoryId, so the default
@@ -100,9 +101,9 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
    * predicate and this page's stay the same set.
    */
   const placesOnly = categorySlug === 'rentals'
-  const base = await scopedListingWhere(placesOnly
-    ? { AND: [{ categoryId: cat.id, verified: true, status: 'active' }, RENTAL_PLACES] }
-    : { categoryId: cat.id, verified: true, status: 'active' }, { teachers: true })
+  // The live category rows (places only for rentals) — one definition, shared with the teach guides' district links,
+  // which must count exactly what this page counts (district-page-base.ts).
+  const base = await scopedListingWhere(districtPageRows(cat), { teachers: true })
   /**
    * ⛔ THE SAME SCOPE THE FEED WILL USE, RESOLVED ONCE. This page used to select districts by exact
    * stored name while every sort and Show-more from it sent the slug to /api/listings, which

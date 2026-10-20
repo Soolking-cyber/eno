@@ -79,6 +79,9 @@ export function checkSourceUrl(url: string): void {
   if (ENO_FORUM_HOST.test(url)) throw new Error(`teach-guides source: eno.forum is the other edition: "${url}"`)
   if (ENO_VN_HOST.test(url) && !ENO_VN_SITE.test(url) && !isTeacherApp(url)) throw new Error(`teach-guides source: an eno.vn subdomain other than the teacher app: "${url}"`)
   if (/^https:\/\/(?:www\.)?eno\.vn\/teach-in-vietnam(?:[/?#]|$)/i.test(url)) throw new Error(`teach-guides source: a guide cannot be a source (it may not be released): "${url}"`)
+  // A district rentals page 404s while its district has no place to rent, and the Sources list does not go through the
+  // guide page's district check (district-links.ts) — cite the Rent Index for a district's figures instead.
+  if (/^https:\/\/(?:www\.)?eno\.vn\/c\/rentals\/[^/?#]/i.test(url)) throw new Error(`teach-guides source: a district rentals page cannot be a source (it 404s while empty): "${url}"`)
 }
 
 /** Validate an href from guide content. Internal = a plain root path; external = https only. */

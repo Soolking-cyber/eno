@@ -7,6 +7,7 @@ import { organizationId } from '@/lib/site-identity'
 import { AFFILIATION } from '@/lib/site-legal'
 import { CROSS_SITE_REL, MARKETPLACE_LINKS } from '@/lib/cross-site-links'
 import { formatArticleDate } from '@/lib/dates'
+import { pinnedVariant } from '@/lib/lang-pinned'
 import { Header } from './header'
 import { Footer } from './footer'
 import { keepReading } from './seo-article-related'
@@ -53,6 +54,8 @@ import { CrossSitePromo } from '@/components/marketplace/cross-site-promo'
  * ⚠️ PLAIN CONSTANTS, NOT `tr()`: they follow the article, and `tr()` follows the visitor. A reader in a
  * third language gets the article's language here, as they get it in the prose.
  * The Vietnamese is from the owner-approved copy sheet CS-2 (2026-09-30, rows V1-1 to V1-6).
+ * ⚠️ AN ARTICLE WITH A DECLARED LANGUAGE AT A URL THAT IS NOT PINNED (the teach-in-vietnam library) renders under the
+ * VISITOR's `<html lang>`, so it marks its own text with its language instead — see `ArticleText`.
  */
 
 /**
@@ -178,6 +181,25 @@ export type ArticleContent = {
    * "On this page", and a repeated block inside the prose column would read as boilerplate in the text.
    */
   afterSections?: React.ReactNode
+}
+
+/**
+ * ⛔ THE ARTICLE'S OWN WORDS CARRY ITS LANGUAGE WHERE `<html lang>` MAY NOT (teacher visibility plan §3a item 9).
+ * `<html lang>` is the variant the server rendered (src/app/[lang]/layout.tsx): the article's language on a pinned URL
+ * (src/lib/lang-pinned.ts FIXED_LANG), the VISITOR's everywhere else. So an article that declares a `lang` at a URL that
+ * is not pinned — the teach-in-vietnam hub and guides, English for every reader — was declared Vietnamese, prose and all,
+ * on every Vietnamese render, and `lang` is what a screen reader picks its voice by. Such a page wraps its own text in
+ * `<div lang>` (`textLang` in SeoArticle): unstyled blocks, which their children's margins collapse through, so the page
+ * lays out as before (measured 2026-10-19 in Chromium on the real hub and a guide, 390 and 1280 px: every box in `<main>`
+ * the same). No redirect and no new URL; canonical and hreflang are untouched. A pinned URL, and an article
+ * with no declared language, render exactly as before (lang-pinned's own rule decides, so pinning the library later
+ * would retire this by itself).
+ * ⚠️ TWO ISLANDS STAY OUTSIDE AND KEEP THE PAGE'S LANGUAGE: the listing rail, whose prices are written in the visitor's
+ * (price.tsx — "Lương: xem chi tiết" on a Vietnamese render), and CrossSitePromo, which is `tr()` copy. The rail's own
+ * heading and browse link ARE the article's words, so they take `textLang` themselves (SeoListingGrid `lang`).
+ */
+function ArticleText({ lang, children }: { lang: 'en' | 'vi' | undefined; children: React.ReactNode }) {
+  return lang ? <div lang={lang}>{children}</div> : <>{children}</>
 }
 
 /** The prose column. Two of them only when `railAfter` puts the page-width rail between the sections. */
@@ -353,6 +375,8 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
   const railAt = rail && content.railAfter ? content.sections.findIndex((s) => s.id === content.railAfter) : -1
   const leadSections = railAt >= 0 ? content.sections.slice(0, railAt + 1) : content.sections
   const restSections = railAt >= 0 ? content.sections.slice(railAt + 1) : []
+  // ArticleText: a declared language the URL does not pin (pinnedVariant answers null for a negotiating path).
+  const textLang = content.lang && pinnedVariant(content.canonical) !== content.lang ? content.lang : undefined
 
   /**
    * ⚠️ THE PUBLISHER IS THIS DEPLOYMENT, DERIVED FROM ITS OWN ORIGIN. It is the same defect the
@@ -420,131 +444,139 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
       <Header />
 
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
-        {content.breadcrumb && content.breadcrumb.length > 1 && (
-          <nav aria-label={chrome.breadcrumb} className="mb-4">
-            <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-ink-4">
-              {content.breadcrumb.map((c, i, all) => (
-                <li key={c.href} className="flex items-center gap-x-1.5">
-                  {i < all.length - 1 ? (
-                    <>
-                      <Link href={c.href} prefetch={false} className="hover:text-accent-foreground hover:underline">{c.label}</Link>
-                      <ChevronRight className="size-3.5 text-ink-4" aria-hidden />
-                    </>
-                  ) : (
-                    <span aria-current="page" className="text-body">{c.label}</span>
-                  )}
-                </li>
-              ))}
-            </ol>
-          </nav>
-        )}
-        <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
-        <h1 className="h-display max-w-3xl text-foreground">{content.h1}</h1>
-        {/* The date, as ContentPage places its "Last updated" line: under the title, before the lede.
-            No relative time (ISR HTML would freeze "3 days ago") and no invented "reviewed by". */}
-        <p className="mt-3 text-sm text-ink-4" lang={articleLang}>
-          {revised ? DATE_LINE[articleLang].updated : DATE_LINE[articleLang].published}{' '}
-          <time dateTime={modified}>{formatArticleDate(modified, articleLang)}</time> · {SITE_NAME}
-        </p>
-        <p className="mt-4 max-w-3xl text-base leading-relaxed text-body">{content.intro}</p>
-        {content.ledeRow}
-        {content.cta && <ArticleCta cta={content.cta} className="mt-6" />}
+        <ArticleText lang={textLang}>
+          {content.breadcrumb && content.breadcrumb.length > 1 && (
+            <nav aria-label={chrome.breadcrumb} className="mb-4">
+              <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-ink-4">
+                {content.breadcrumb.map((c, i, all) => (
+                  <li key={c.href} className="flex items-center gap-x-1.5">
+                    {i < all.length - 1 ? (
+                      <>
+                        <Link href={c.href} prefetch={false} className="hover:text-accent-foreground hover:underline">{c.label}</Link>
+                        <ChevronRight className="size-3.5 text-ink-4" aria-hidden />
+                      </>
+                    ) : (
+                      <span aria-current="page" className="text-body">{c.label}</span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          )}
+          <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
+          <h1 className="h-display max-w-3xl text-foreground">{content.h1}</h1>
+          {/* The date, as ContentPage places its "Last updated" line: under the title, before the lede.
+              No relative time (ISR HTML would freeze "3 days ago") and no invented "reviewed by". */}
+          <p className="mt-3 text-sm text-ink-4" lang={articleLang}>
+            {revised ? DATE_LINE[articleLang].updated : DATE_LINE[articleLang].published}{' '}
+            <time dateTime={modified}>{formatArticleDate(modified, articleLang)}</time> · {SITE_NAME}
+          </p>
+          <p className="mt-4 max-w-3xl text-base leading-relaxed text-body">{content.intro}</p>
+          {content.ledeRow}
+          {content.cta && <ArticleCta cta={content.cta} className="mt-6" />}
 
-        {content.disclosure && (
-          // Lines and a tinted panel rather than a shouty callout: this is a statement of who is
-          // responsible for what, and it should read as information, not as a warning.
-          <aside className="mt-6 flex max-w-3xl items-start gap-3 rounded-xl bg-tint p-4">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
-            <p className="text-sm leading-relaxed text-body">{content.disclosure}</p>
-          </aside>
-        )}
+          {content.disclosure && (
+            // Lines and a tinted panel rather than a shouty callout: this is a statement of who is
+            // responsible for what, and it should read as information, not as a warning.
+            <aside className="mt-6 flex max-w-3xl items-start gap-3 rounded-xl bg-tint p-4">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
+              <p className="text-sm leading-relaxed text-body">{content.disclosure}</p>
+            </aside>
+          )}
 
-        {/* "On this page" — a plain anchor list. These guides run long by design and a reader who
-            arrived from a query about one of the sections should be able to reach it. It is also
-            how Google finds the jump links it sometimes shows under a result. */}
-        {content.sections.length >= 4 && (
-          <nav aria-label={chrome.onThisPage} className="mt-8 max-w-3xl border-t border-border pt-5">
-            <p className="eyebrow mb-3 text-ink-4">{chrome.onThisPage}</p>
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {content.sections.map((s) => (
-                <li key={s.id}>
-                  <a href={`#${s.id}`} className="text-sm font-semibold text-body hover:text-accent-foreground hover:underline">
-                    {s.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        )}
+          {/* "On this page" — a plain anchor list. These guides run long by design and a reader who
+              arrived from a query about one of the sections should be able to reach it. It is also
+              how Google finds the jump links it sometimes shows under a result. */}
+          {content.sections.length >= 4 && (
+            <nav aria-label={chrome.onThisPage} className="mt-8 max-w-3xl border-t border-border pt-5">
+              <p className="eyebrow mb-3 text-ink-4">{chrome.onThisPage}</p>
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {content.sections.map((s) => (
+                  <li key={s.id}>
+                    <a href={`#${s.id}`} className="text-sm font-semibold text-body hover:text-accent-foreground hover:underline">
+                      {s.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )}
 
-        <ArticleSections sections={leadSections} className="mt-10" />
+          <ArticleSections sections={leadSections} className="mt-10" />
+        </ArticleText>
 
         {/* Full width, not the 3xl prose column: in 768px the grid's four cards were ~180px and every
             price broke onto two lines, against the owner's one-line card price (2026-09-13). At the
             page width the cards are the SEO landing pages' own size. */}
         {/* A phone guide gets the second-hand phones rail by default (phone-guides-rail.ts, 2026-10-03).
-            With `railAfter` it sits right after that section and the rest of the prose follows it. */}
-        {rail && <SeoListingRail {...rail} className="mt-14" heading="h-title" />}
+            With `railAfter` it sits right after that section and the rest of the prose follows it.
+            Outside ArticleText, like CrossSitePromo: its prices are in the visitor's language; its heading and
+            browse link are the article's words and carry textLang. */}
+        {rail && <SeoListingRail {...rail} lang={textLang} className="mt-14" heading="h-title" />}
 
-        {restSections.length > 0 && <ArticleSections sections={restSections} className="mt-14" />}
+        <ArticleText lang={textLang}>
+          {restSections.length > 0 && <ArticleSections sections={restSections} className="mt-14" />}
 
-        {content.afterSections}
+          {content.afterSections}
 
-        {content.cta?.repeatAtEnd && <ArticleCta cta={content.cta} className="mt-10" />}
+          {content.cta?.repeatAtEnd && <ArticleCta cta={content.cta} className="mt-10" />}
 
-        {related.length > 0 && (
-          <section className="mt-14 max-w-3xl">
-            <h2 className="h-title mb-4 text-foreground">{chrome.keepReading}</h2>
-            {/* Ruled rows, not a grid of bordered cards (flat-surface canon §3b; C-BOXES): one column,
-                so every chevron sits on the same right edge and each title gets the full measure. */}
-            <Rows bordered>
-              {related.map((r) => (
-                <Row key={r.href} className="py-0">
-                  <Link href={r.href} className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
-                    <span className="min-w-0">
-                      <span className="block text-base font-bold text-foreground group-hover:text-accent-foreground">{r.label}</span>
-                      <span className="mt-1 block line-clamp-2 text-sm leading-relaxed text-body">{r.blurb}</span>
-                    </span>
-                    <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
-                  </Link>
-                </Row>
-              ))}
-            </Rows>
-          </section>
-        )}
+          {related.length > 0 && (
+            <section className="mt-14 max-w-3xl">
+              <h2 className="h-title mb-4 text-foreground">{chrome.keepReading}</h2>
+              {/* Ruled rows, not a grid of bordered cards (flat-surface canon §3b; C-BOXES): one column,
+                  so every chevron sits on the same right edge and each title gets the full measure. */}
+              <Rows bordered>
+                {related.map((r) => (
+                  <Row key={r.href} className="py-0">
+                    <Link href={r.href} className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
+                      <span className="min-w-0">
+                        <span className="block text-base font-bold text-foreground group-hover:text-accent-foreground">{r.label}</span>
+                        <span className="mt-1 block line-clamp-2 text-sm leading-relaxed text-body">{r.blurb}</span>
+                      </span>
+                      <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
+                    </Link>
+                  </Row>
+                ))}
+              </Rows>
+            </section>
+          )}
 
-        {content.faqs.length > 0 && (
-          <section className="mt-14 max-w-3xl">
-            <h2 className="h-title mb-4 text-foreground">{chrome.faq}</h2>
-            <div className="space-y-6">
-              {content.faqs.map((f, i) => (
-                <div key={i}>
-                  <h3 className="text-base font-bold text-foreground">{f.q}</h3>
-                  <p className="mt-1 max-w-[60ch] text-base leading-relaxed text-body">{f.a}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+          {content.faqs.length > 0 && (
+            <section className="mt-14 max-w-3xl">
+              <h2 className="h-title mb-4 text-foreground">{chrome.faq}</h2>
+              <div className="space-y-6">
+                {content.faqs.map((f, i) => (
+                  <div key={i}>
+                    <h3 className="text-base font-bold text-foreground">{f.q}</h3>
+                    <p className="mt-1 max-w-[60ch] text-base leading-relaxed text-body">{f.a}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </ArticleText>
 
         {content.crossSitePromo && <CrossSitePromo />}
 
-        {/* ⚠️ THE AFFILIATION LINE IS NOT OPTIONAL ON A PAGE THAT LINKS TO THE SISTER SITE, and every
-            page rendered by this component does. A recommendation between two sites in one brand
-            family is only honest if the reader is told they are in one brand family — and the
-            constant may never be reworded to say the sites are unrelated, which they are not. When
-            CrossSitePromo is rendered it already carries this line; showing it twice is worse than
-            showing it once, hence the guard. */}
-        {!content.crossSitePromo && (
-          <p className="mt-14 max-w-3xl border-t border-border pt-6 text-xs leading-relaxed text-muted-foreground">
-            {chrome.affiliation}
-          </p>
-        )}
+        <ArticleText lang={textLang}>
+          {/* ⚠️ THE AFFILIATION LINE IS NOT OPTIONAL ON A PAGE THAT LINKS TO THE SISTER SITE, and every
+              page rendered by this component does. A recommendation between two sites in one brand
+              family is only honest if the reader is told they are in one brand family — and the
+              constant may never be reworded to say the sites are unrelated, which they are not. When
+              CrossSitePromo is rendered it already carries this line; showing it twice is worse than
+              showing it once, hence the guard. */}
+          {!content.crossSitePromo && (
+            <p className="mt-14 max-w-3xl border-t border-border pt-6 text-xs leading-relaxed text-muted-foreground">
+              {chrome.affiliation}
+            </p>
+          )}
 
-        <p className="mt-8 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          <ArrowUpRight className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />
-          {chrome.publishedBy[0]}<strong className="font-semibold text-foreground">{SITE_NAME}</strong>{chrome.publishedBy[1]}
-        </p>
+          <p className="mt-8 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+            <ArrowUpRight className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />
+            {chrome.publishedBy[0]}<strong className="font-semibold text-foreground">{SITE_NAME}</strong>{chrome.publishedBy[1]}
+          </p>
+        </ArticleText>
       </main>
 
       <Footer />
