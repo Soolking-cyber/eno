@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { ApiError, route } from '@/lib/api/handler'
+import { rateLimit } from '@/lib/ratelimit'
 import { counterpartOf, hasCallConsent, loadConversationForCall, setCallConsent, threadPermitRefusal } from '@/lib/calls/server/eligibility'
 
 export const runtime = 'nodejs'
@@ -40,10 +41,13 @@ export const GET = route({ auth: 'userId', rateLimit: { bucket: 'calls:consent:g
 })
 
 export const POST = route(
-  { auth: 'userId', rateLimit: { bucket: 'calls:consent', limit: 30, window: '1 h' }, body: consentBody },
+  // A loose cap on the route; GRANTS have their own tighter one below — so no amount of toggling ever leaves a person
+  // unable to withdraw (round-9 review: one shared 30 / h bucket could).
+  { auth: 'userId', rateLimit: { bucket: 'calls:consent', limit: 300, window: '1 h' }, body: consentBody },
   async ({ params, userId, body }) => {
     const { convo, refusal, other } = await thread(params.id, userId)
     if (body.allow && refusal) return NextResponse.json({ error: refusal.error }, { status: refusal.status })
+    if (body.allow && !(await rateLimit('calls:consent:grant', userId, 30, '1 h')).success) throw new ApiError('rate_limited', 429)
     if (convo.buyerProfileId !== userId && convo.sellerProfileId !== userId) throw new ApiError('not_participant', 403)
     // Nobody on the other side (an unclaimed storefront) has nothing to withdraw from.
     if (other && other !== userId) await setCallConsent(convo.id, userId, other, body.allow)

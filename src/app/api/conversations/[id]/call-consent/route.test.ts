@@ -10,10 +10,11 @@ const h = vi.hoisted(() => ({
   convo: null as Row | null,
   refusal: null as { error: string; status: number } | null,
   writes: [] as unknown[][],
+  grantLimited: false,
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => (h.me ? { id: h.me } : null), getCurrentProfileId: async () => h.me, getAdmin: async () => null }))
-vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true, resetSec: 0 }) }))
+vi.mock('@/lib/ratelimit', () => ({ rateLimit: async (bucket: string) => ({ success: !(h.grantLimited && bucket === 'calls:consent:grant'), resetSec: 0 }) }))
 vi.mock('@/lib/calls/server/eligibility', () => ({
   loadConversationForCall: async () => h.convo,
   threadPermitRefusal: async () => h.refusal,
@@ -31,6 +32,7 @@ beforeEach(() => {
   h.convo = { id: 'c1', buyerProfileId: 'buyer', sellerProfileId: 'seller', sellerId: 'shop', listingId: 'l1', visaApplicationId: null }
   h.refusal = null
   h.writes = []
+  h.grantLimited = false
 })
 
 describe('GET call-consent', () => {
@@ -68,6 +70,13 @@ describe('POST call-consent', () => {
     h.refusal = { error: 'calls_thread_unavailable', status: 403 }
     const r = await post(false)
     expect(r.status).toBe(200)
+    expect(h.writes).toEqual([['c1', 'buyer', 'seller', false]])
+  })
+
+  it('⛔ grants have their own rate limit — a person who used it up can still WITHDRAW (round-9 review)', async () => {
+    h.grantLimited = true
+    expect((await post(true)).status).toBe(429)
+    expect((await post(false)).status).toBe(200)
     expect(h.writes).toEqual([['c1', 'buyer', 'seller', false]])
   })
 

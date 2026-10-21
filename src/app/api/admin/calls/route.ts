@@ -54,6 +54,40 @@ export const PUT = route({ auth: 'admin', body: putBody }, async ({ admin, body 
   if (body.mode === 'all' && !MODE_ALL_OPEN) throw new ApiError('invalid_input', 400)
   // ⛔ Not ON unless the sweep is running (config.ts SWEEP_FRESH_S) — 503 not_configured: enable the timer first.
   if (body.mode !== 'off' && !(await sweepIsFresh())) throw new ApiError('not_configured', 503)
+  let unknown: string[] = []
+  if (body.mode === 'off' && !body.cohortEmails && body.video === undefined && body.relay === undefined) {
+    // ⛔ THE KILL SWITCH NEEDS NO READ (round-9 review): only `mode` changes, in SQL, so a row this process cannot read
+    // (a database blip) can still be switched off. Writing back what was read is only needed when other fields change.
+    await writeOrNotConfigured(db.$executeRaw`
+      INSERT INTO public.call_config (id, mode, updated_at, updated_by) VALUES (1, 'off', now(), ${admin})
+      ON CONFLICT (id) DO UPDATE SET mode = 'off', updated_at = now(), updated_by = EXCLUDED.updated_by`)
+  } else {
+    unknown = await writeWholeSwitch(admin, body)
+  }
+  resetCallsConfigCache()
+  if (body.mode === 'off') {
+    // EVERY live call, not the first thousand (commit-gate review): sweep in batches until a batch comes back short.
+    for (let round = 0; round < 50; round++) {
+      const batch = await sweepStale({ killAll: true, limit: 1000 })
+      for (const { row, reason } of batch) after(() => afterCallEnded(row, reason))
+      if (batch.length < 1000) break
+    }
+  }
+  return { ...(await describe()), unknown }
+})
+
+/** A write that reaches a database the calls DDL has not: 503 not_configured, never a 500. */
+async function writeOrNotConfigured(write: Promise<unknown>): Promise<void> {
+  try {
+    await write
+  } catch (e) {
+    if (e instanceof Error && /42P01|call_config" does not exist/.test(e.message)) throw new ApiError('not_configured', 503)
+    throw e
+  }
+}
+
+/** Mode plus cohort / video / relay: what was READ is written back for every field the body leaves out. */
+async function writeWholeSwitch(admin: string, body: z.infer<typeof putBody>): Promise<string[]> {
   resetCallsConfigCache()
   const current = await readCallsConfig()
   // A switch that could not be READ is not "everything off": writing it back would erase the cohort and video setting.
@@ -72,24 +106,10 @@ export const PUT = route({ auth: 'admin', body: putBody }, async ({ admin, body 
   }
   const video = body.video ?? current.video
   const relay = body.relay ?? current.relay
-  try {
-    await db.$executeRaw`
-      INSERT INTO public.call_config (id, mode, cohort, video, relay, updated_at, updated_by)
-      VALUES (1, ${body.mode}, ${cohort}::uuid[], ${video}, ${relay}, now(), ${admin})
-      ON CONFLICT (id) DO UPDATE SET mode = EXCLUDED.mode, cohort = EXCLUDED.cohort, video = EXCLUDED.video,
-        relay = EXCLUDED.relay, updated_at = now(), updated_by = EXCLUDED.updated_by`
-  } catch (e) {
-    if (e instanceof Error && /42P01|call_config" does not exist/.test(e.message)) throw new ApiError('not_configured', 503)
-    throw e
-  }
-  resetCallsConfigCache()
-  if (body.mode === 'off') {
-    // EVERY live call, not the first thousand (commit-gate review): sweep in batches until a batch comes back short.
-    for (let round = 0; round < 50; round++) {
-      const batch = await sweepStale({ killAll: true, limit: 1000 })
-      for (const { row, reason } of batch) after(() => afterCallEnded(row, reason))
-      if (batch.length < 1000) break
-    }
-  }
-  return { ...(await describe()), unknown }
-})
+  await writeOrNotConfigured(db.$executeRaw`
+    INSERT INTO public.call_config (id, mode, cohort, video, relay, updated_at, updated_by)
+    VALUES (1, ${body.mode}, ${cohort}::uuid[], ${video}, ${relay}, now(), ${admin})
+    ON CONFLICT (id) DO UPDATE SET mode = EXCLUDED.mode, cohort = EXCLUDED.cohort, video = EXCLUDED.video,
+      relay = EXCLUDED.relay, updated_at = now(), updated_by = EXCLUDED.updated_by`)
+  return unknown
+}

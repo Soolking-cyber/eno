@@ -4,8 +4,9 @@
 //   set -a; . ./.env; set +a; node scripts/calls-ddl.mjs
 //   psql "$DIRECT_URL" -v ON_ERROR_STOP=1 -f scripts/rls-guard.sql     # then: no open relation listed
 //
-// RUN ON PRODUCTION BEFORE THE DEPLOY THAT TURNS CALLS ON. The code treats a missing table as "calls off" (the
-// call config route answers mode 'off'), so shipping the code first is harmless — the button simply never shows.
+// RUN ON PRODUCTION BEFORE THE DEPLOY (the house order: DB first). The code reads a missing switch table as "calls
+// off" (the call config route answers mode 'off'), so the UI never reaches another call table before this has run —
+// though a hand-made request to a call route would still get a 500 until then.
 // Design: ~/eno-calls-research-2026-10/DESIGN.md (v3). Code: src/lib/calls/server/*.
 //
 // ⛔ POSTGRES IS THE SOURCE OF TRUTH FOR A CALL; REALTIME IS ONLY THE FAST PATH. A broadcast sent while a phone's
