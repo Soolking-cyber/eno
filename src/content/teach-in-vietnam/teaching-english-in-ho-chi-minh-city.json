@@ -4,7 +4,7 @@
  "description": "Saigon's teaching market on one page: who hires, 2026 pay by employer type, the work-permit basics, rent by district and the order to do things in.",
  "h1": "Teaching English in Ho Chi Minh City: the jobs, the pay, the papers and the rent in 2026",
  "eyebrow": "Teaching in Saigon",
- "intro": "Ho Chi Minh City is Vietnam's largest market for foreign English teachers: it had 1,961 licensed language and IT centres in August 2025, plus international and bilingual schools, public-school programmes, kindergartens and universities. Most newcomers start at a language centre, paid by the hour for evening and weekend classes with children. To work legally you need a degree, usually 2 years' relevant experience, a teaching certificate, a clean criminal record and a work permit that your employer applies for.",
+ "intro": "Ho Chi Minh City is Vietnam's largest market for foreign English teachers: it had 1,961 licensed language and IT centres in August 2025, plus international and bilingual schools, public-school programmes, kindergartens and universities. Most newcomers start at a language centre, paid by the hour for evening and weekend classes with children. To work legally you need a degree, at least 2 years' relevant experience, a teaching certificate, a clean criminal record and a work permit that your employer applies for.",
  "keyPoints": [
   "**Pay is mostly hourly.** In July–October 2026 job ads, centres offered {{vnd:390000-600000}} an hour, most new-teacher offers {{vnd:430000-560000}}; a full-time load of 78–95 contact hours a month at {{vnd:450000-550000}} an hour comes to roughly {{vnd:35000000-52000000}} gross.",
   "**Centre hours are evenings and weekends**, mostly with children and teens (6–16 at VUS); public-school agency work is weekday daytime from September to May and largely stops over the summer.",
@@ -185,7 +185,7 @@
     },
     {
      "type": "p",
-     "text": "Bonuses are modest and conditional. Completion bonuses are the most common: Apollo's 2026 package has a KPI-based {{vnd:13500000}} at contract end, and Wall Street English pays one month's salary after a one-year contract. Sign-on and relocation bonuses in 2025–26 ads ran from about {{vnd:3000000-15000000}}. Vietnamese law does not require a 13th-month or Tet bonus ([Labour Code, Art. 104](https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html)). The [salary guide](/teach-in-vietnam/english-teacher-salary-in-vietnam) breaks pay down by employer, city and qualification."
+     "text": "Bonuses are modest and conditional. Completion bonuses are the most common: Apollo's 2026 package has a KPI-based {{vnd:13500000}} at contract end, and Wall Street English pays one month's salary after a one-year contract. Sign-on and relocation bonuses in 2025–26 ads ran from about {{vnd:3000000-15000000}}. Vietnamese law does not require a 13th-month or Tet bonus ([Labour Code, Art. 104](https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html)). The [salary guide](/teach-in-vietnam/english-teacher-salary-in-vietnam) breaks pay down by employer, city and qualification. The guide to [whether teaching English in Vietnam is worth it](/teach-in-vietnam/is-teaching-english-in-vietnam-worth-it) sets this pay against living costs and other Asian markets."
     },
     {
      "type": "p",
@@ -345,7 +345,7 @@
    "blocks": [
     {
      "type": "p",
-     "text": "The [step-by-step guide to becoming a teacher in Vietnam](/teach-in-vietnam/how-to-become-an-english-teacher-in-vietnam) covers each stage in detail. In short:"
+     "text": "The [step-by-step guide to becoming a teacher in Vietnam](/teach-in-vietnam/how-to-become-an-english-teacher-in-vietnam) covers each stage in detail, and [the Teach in Vietnam guides](/teach-in-vietnam) go deeper on every step below. In short:"
     },
     {
      "type": "steps",

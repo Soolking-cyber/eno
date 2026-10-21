@@ -101,7 +101,7 @@
     },
     {
      "type": "p",
-     "text": "A second school can put you on a part-time labour contract and file a permit of its own. Your timetable has to leave room for it: centres teach mostly on weekday evenings and weekends, and VUS defines part-time as 12–18 hours a week ([VUS](https://teachenglish.vus.edu.vn/?p=979)). In Ho Chi Minh City the [Department of Home Affairs](https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html) issues permits for practically every language centre and school (Decision 6093/QĐ-UBND, 21 September 2026). The employer files 60 to 10 days before your start date, the decree allows up to 10 working days for a decision and the city publishes 5. The city fee is {{vnd:600000}} for a new permit, paid by the employer ([Resolution 09/2022/NQ-HĐND](https://luatvietnam.vn/thue/nghi-quyet-09-2022-nq-hdnd-239822-d2.html)). Since Decision 346/QĐ-BNV (24 March 2026), a permit for a new employer means re-submitting proof of your degree and experience, so keep your certified copies and translations ready."
+     "text": "A second school can put you on a part-time labour contract and file a permit of its own. Your timetable has to leave room for it: centres teach mostly on weekday evenings and weekends, and VUS defines part-time as 12–18 hours a week ([VUS](https://teachenglish.vus.edu.vn/?p=979)). In Ho Chi Minh City the [Department of Home Affairs](https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html) issues permits for practically every language centre and school (Decision 6093/QĐ-UBND, 21 September 2026). The employer files 60 to 10 days before your start date, the decree allows up to 10 working days for a decision and the city publishes 5. The city fee is {{vnd:600000}} for a new permit, paid by the employer ([Resolution 09/2022/NQ-HĐND](https://luatvietnam.vn/thue/nghi-quyet-09-2022-nq-hdnd-239822-d2.html)). Since [Decision 526/QĐ-BNV](https://moha.gov.vn/Upload/a4c1b76d-88ab-49da-ac58-d23e8a518284Quyet%20dinh%20so%20526.QD-BNV.pdf) (13 May 2026), a permit for a second employer in the same role no longer asks for your degree and experience proof. Keep your certified copies and translations ready anyway, and ask the second school what it will file."
     },
     {
      "type": "h3",
@@ -247,7 +247,7 @@
    "blocks": [
     {
      "type": "p",
-     "text": "eno.vn teacher profiles are free and include a cover-lesson setting. Anyone signed in to eno.vn can message you there, each account within a daily limit on new chats, but only business accounts (schools, centres and companies) can ask you about a cover lesson."
+     "text": "eno.vn teacher profiles are free and include a cover-lesson setting; [the cover lessons page](/teachers/cover) shows how it works for teachers and for schools. Anyone signed in to eno.vn can message you there, each account within a daily limit on new chats, but only business accounts (schools, centres and companies) can ask you about a cover lesson."
     },
     {
      "type": "steps",
@@ -379,9 +379,9 @@
    "url": "https://luatvietnam.vn/thue/nghi-quyet-09-2022-nq-hdnd-239822-d2.html"
   },
   {
-   "title": "Decision 346/QĐ-BNV on administrative procedures for foreign employees",
-   "publisher": "EY Vietnam",
-   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/decision-346-qd-bnv-on-the-amendment-and-supplementation-of-administrative-procedures-for-foreign-employees-working-in-vietnam"
+   "title": "Quyết định 526/QĐ-BNV sửa đổi, bổ sung Quyết định 346/QĐ-BNV (13 May 2026)",
+   "publisher": "Ministry of Home Affairs",
+   "url": "https://moha.gov.vn/Upload/a4c1b76d-88ab-49da-ac58-d23e8a518284Quyet%20dinh%20so%20526.QD-BNV.pdf"
   },
   {
    "title": "Bộ luật Lao động 2019 (Labour Code 2019)",

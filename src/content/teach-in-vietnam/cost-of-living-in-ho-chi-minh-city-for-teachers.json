@@ -1,10 +1,10 @@
 {
  "slug": "cost-of-living-in-ho-chi-minh-city-for-teachers",
  "title": "Cost of living in Ho Chi Minh City for teachers (2026)",
- "description": "Rent by district from 15,141 October 2026 listings, power and water tariffs, frugal and comfortable budgets, start-up cash and what a Saigon teacher can save.",
+ "description": "Rent by district (15,141 listings, 10 October 2026), power and water tariffs, frugal and comfortable budgets, start-up cash and what a Saigon teacher can save.",
  "h1": "What it costs to live in Ho Chi Minh City on a teacher's pay in 2026",
  "eyebrow": "Pay and money",
- "intro": "On a full-time language-centre income, Ho Chi Minh City is affordable: a frugal single teacher spends roughly a third to just over half of take-home pay, while a comfortable 1-bedroom lifestyle uses most or all of it. Rent decides the gap: a private room takes roughly 9–15% of net pay, a local-market 1-bedroom 17–33%, and an expat serviced flat roughly 34–49%. The figures below come from eno.vn's Rent Index (15,141 listings, October 2026), official tariffs, Numbeo's crowd-sourced prices and 2026 job ads.",
+ "intro": "On a full-time language-centre income, Ho Chi Minh City is affordable: a frugal single teacher spends roughly a third to just over half of take-home pay, while a comfortable 1-bedroom lifestyle uses most or all of it. Rent decides the gap: a private room takes roughly 9–15% of net pay, a local-market 1-bedroom 17–33%, and an expat serviced flat roughly 34–49%. The figures below come from eno.vn's Rent Index (15,141 listings, 10 October 2026), official tariffs, Numbeo's crowd-sourced prices and 2026 job ads.",
  "keyPoints": [
   "**Rent:** city-wide median asking rents on 10 October 2026 were {{vnd:3900000}} a month for a room, {{vnd:6800000}} for a 1-bedroom and {{vnd:13000000}} for a 2-bedroom; a 1-bedroom in District 2 (Thao Dien/An Phu) had a median of {{vnd:10000000}}.",
   "**Two budgets:** about {{vnd:14000000-17000000}} a month living frugally in a private room, and about {{vnd:25000000-35000000}} for a comfortable life in a 1-bedroom flat.",
@@ -19,7 +19,7 @@
    "blocks": [
     {
      "type": "p",
-     "text": "Rent is the number that decides your budget. eno.vn's [HCMC Rent Index](/hcmc-rent-index) pools 15,141 monthly asking prices from Batdongsan, Nhatot, Muaban, Rever, Honeycomb and eno.vn members (snapshot of 10 October 2026). City-wide, the median is **{{vnd:3900000}} a month for a room**, {{vnd:6800000}} for a 1-bedroom flat and {{vnd:13000000}} for a 2-bedroom, and the middle half of 1-bedroom listings ask {{vnd:5400000-9000000}}."
+     "text": "Rent is the number that decides your budget. eno.vn's [HCMC Rent Index](/hcmc-rent-index) gives median asking rents for homes listed on eno.vn, and its page names the sources behind each snapshot. This guide uses the snapshot of 10 October 2026, which pooled 15,141 monthly asking prices from Batdongsan, Nhatot, Muaban, Rever, Honeycomb and eno.vn members. City-wide, the median is **{{vnd:3900000}} a month for a room**, {{vnd:6800000}} for a 1-bedroom flat and {{vnd:13000000}} for a 2-bedroom, and the middle half of 1-bedroom listings ask {{vnd:5400000-9000000}}."
     },
     {
      "type": "p",
@@ -156,7 +156,7 @@
     },
     {
      "type": "p",
-     "text": "If you have seen much higher figures, they are probably Numbeo's. Its crowd-sourced 1-bedroom ‘city centre’ rent is {{vnd:15200000}} a month (range {{vnd:12000000-25000000}}) and ‘outside centre’ {{vnd:7700000}} ([Numbeo, updated 5 October 2026](https://www.numbeo.com/cost-of-living/in/Ho-Chi-Minh-City)). That sample is small (1,080 entries from 109 contributors in a year) and leans towards serviced flats aimed at expats, so read Numbeo as the price of a serviced apartment and the Rent Index as the local market."
+     "text": "If you have seen much higher figures, they are probably Numbeo's. Its crowd-sourced 1-bedroom ‘city centre’ rent is {{vnd:15200000}} a month (range {{vnd:12000000-25000000}}) and ‘outside centre’ {{vnd:7700000}} ([Numbeo, updated 5 October 2026](https://www.numbeo.com/cost-of-living/in/Ho-Chi-Minh-City)). That sample is small (1,080 entries from 109 contributors in a year) and leans towards serviced flats aimed at expats, so read Numbeo as the price of a serviced apartment and the Rent Index figures above as the local market."
     },
     {
      "type": "p",
@@ -422,7 +422,7 @@
     },
     {
      "type": "table",
-     "caption": "Frugal monthly budget for one teacher in Ho Chi Minh City, October 2026 (eno.vn estimate from Rent Index medians, official tariffs and Numbeo prices).",
+     "caption": "Frugal monthly budget for one teacher in Ho Chi Minh City, October 2026 (eno.vn estimate from Rent Index medians of 10 October 2026, official tariffs and Numbeo prices).",
      "headers": [
       "Item",
       "A month",
@@ -493,7 +493,7 @@
     },
     {
      "type": "table",
-     "caption": "Comfortable monthly budget for one teacher in Ho Chi Minh City, October 2026 (eno.vn estimate from Rent Index medians, official tariffs and Numbeo prices).",
+     "caption": "Comfortable monthly budget for one teacher in Ho Chi Minh City, October 2026 (eno.vn estimate from Rent Index medians of 10 October 2026, official tariffs and Numbeo prices).",
      "headers": [
       "Item",
       "A month",
@@ -748,7 +748,7 @@
   },
   {
    "q": "Why does Numbeo show much higher rents than the eno.vn Rent Index?",
-   "a": "Numbeo is crowd-sourced from about a thousand entries a year and leans towards serviced flats aimed at expats. The eno.vn Rent Index covered over 15,000 asking prices across the local market in October 2026. Neither is signed-lease data, so use Numbeo for serviced apartments and the Rent Index for typical flats and rooms."
+   "a": "Numbeo is crowd-sourced from about a thousand entries a year and leans towards serviced flats aimed at expats. The eno.vn Rent Index figures in this guide come from its 10 October 2026 snapshot, which covered over 15,000 asking prices across the local market. Neither is signed-lease data, so use Numbeo for serviced apartments and those figures for typical flats and rooms."
   },
   {
    "q": "Is it legal for my landlord to charge a flat rate for electricity?",

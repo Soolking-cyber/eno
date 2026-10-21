@@ -8,7 +8,7 @@
  "keyPoints": [
   "**Job volume**: Ho Chi Minh City had 1,961 licensed language and IT centres in August 2025, plus public-school programmes, bilingual and international schools. Hanoi is the clear second market; Da Nang, Hai Phong, Nha Trang and Can Tho are small.",
   "**Pay barely differs by city**: in July–October 2026 ads, Saigon centres offered {{vnd:390000-600000}} an hour (most new-teacher offers {{vnd:430000-560000}}), Hanoi {{vnd:550000-650000}} and Da Nang {{vnd:500000-570000}}.",
-  "**Rent is the big cost gap**: Numbeo puts a city-centre one-bedroom at {{vnd:15220000}} a month in Saigon, {{vnd:13630000}} in Da Nang and {{vnd:10600000}} in Hanoi; ordinary local-market one-bedrooms in Saigon are much cheaper ({{vnd:6800000}} median on the eno.vn Rent Index, October 2026).",
+  "**Rent is the big cost gap**: Numbeo puts a city-centre one-bedroom at {{vnd:15220000}} a month in Saigon, {{vnd:13630000}} in Da Nang and {{vnd:10600000}} in Hanoi; ordinary local-market one-bedrooms in Saigon are much cheaper ({{vnd:6800000}} median on the eno.vn Rent Index, 10 October 2026).",
   "**Climate decides it for many**: Saigon is hot all year with a rainy season; Hanoi has a cold, damp winter with smog; Da Nang and Nha Trang face storms and floods from about September to December.",
   "**A job tagged 'Ho Chi Minh City' may not be in Saigon**: since 1 July 2025 the city includes Binh Duong and Ba Ria–Vung Tau. Always ask for the campus address."
  ],
@@ -191,7 +191,7 @@
     },
     {
      "type": "p",
-     "text": "Numbeo's 'city centre' figure mostly reflects serviced flats aimed at expats. For Saigon there is a larger sample: the [eno.vn HCMC Rent Index](/hcmc-rent-index), built from 15,141 asking-price listings (snapshot 10 October 2026). It shows what ordinary local-market homes cost by district. Its city-wide medians were {{vnd:3900000}} a month for a room, {{vnd:6800000}} for a one-bedroom and {{vnd:13000000}} for a two-bedroom."
+     "text": "Numbeo's 'city centre' figure mostly reflects serviced flats aimed at expats. For Saigon, the [eno.vn HCMC Rent Index](/hcmc-rent-index) snapshot of 10 October 2026 was a larger sample, built from 15,141 asking-price listings, and showed what ordinary local-market homes cost by district. Its city-wide medians were {{vnd:3900000}} a month for a room, {{vnd:6800000}} for a one-bedroom and {{vnd:13000000}} for a two-bedroom."
     },
     {
      "type": "p",
@@ -316,7 +316,7 @@
    "blocks": [
     {
      "type": "p",
-     "text": "Yes, but if you change employer, your work permit does not move with you. Under [Decree 219/2025/ND-CP](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html), in force since 7 August 2025, a permit is issued for a specific employer, and working for a different employer needs a new permit, even for the same job. Since [Decision 346/QĐ-BNV](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/decision-346-qd-bnv-on-the-amendment-and-supplementation-of-administrative-procedures-for-foreign-employees-working-in-vietnam) (24 March 2026) you also re-submit your degree and experience proof, so keep your authenticated documents and certified translations safe. Working for the same employer in another province is different: Decree 219 requires no extra permit, but the employer must notify the authority at least 3 days before you start work there (Art 22(5)); ask the employer to confirm this in writing before a transfer."
+     "text": "Yes, but if you change employer, your work permit does not move with you. Under [Decree 219/2025/ND-CP](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html), in force since 7 August 2025, a permit is issued for a specific employer, and working for a different employer needs a new permit, even for the same job. Since [Decision 526/QĐ-BNV](https://moha.gov.vn/Upload/a4c1b76d-88ab-49da-ac58-d23e8a518284Quyet%20dinh%20so%20526.QD-BNV.pdf) (13 May 2026), that permit no longer asks for your degree and experience proof if the job is the same and your current permit is still valid. A different job, or a permit that has already ended, means a full new application, so keep your authenticated documents and certified translations safe, and ask the new employer what it will file. Working for the same employer in another province is different: Decree 219 requires no extra permit, but the employer must notify the authority at least 3 days before you start work there (Art 22(5)); ask the employer to confirm this in writing before a transfer."
     },
     {
      "type": "p",
@@ -463,9 +463,9 @@
    "url": "https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html"
   },
   {
-   "title": "Decision 346/QD-BNV on administrative procedures for foreign employees working in Vietnam",
-   "publisher": "EY Vietnam",
-   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/decision-346-qd-bnv-on-the-amendment-and-supplementation-of-administrative-procedures-for-foreign-employees-working-in-vietnam"
+   "title": "Quyết định 526/QĐ-BNV sửa đổi, bổ sung Quyết định 346/QĐ-BNV (13 May 2026)",
+   "publisher": "Ministry of Home Affairs",
+   "url": "https://moha.gov.vn/Upload/a4c1b76d-88ab-49da-ac58-d23e8a518284Quyet%20dinh%20so%20526.QD-BNV.pdf"
   },
   {
    "title": "Quyết định 6093/QĐ-UBND TP Hồ Chí Minh 2026",

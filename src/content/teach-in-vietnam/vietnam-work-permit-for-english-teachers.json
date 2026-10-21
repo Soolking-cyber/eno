@@ -19,8 +19,14 @@
    "title": "Which law applies and who issues the permit in Ho Chi Minh City",
    "blocks": [
     {
+     "type": "callout",
+     "tone": "note",
+     "title": "What changed in 2025–26",
+     "text": "Older guides miss three changes. On 7 August 2025 [Decree 219/2025/ND-CP](https://congbaocdn.chinhphu.vn/CongBaoCP/VanBan/2025/8/45798/58141-1-20251073-1074219-2025-nd-cp.pdf) replaced the foreign-worker rules of Decrees 152/2020 and 70/2023 and cut the experience required of an 'expert', the category teachers are filed under, from 3 years to 2. Permits in Ho Chi Minh City no longer go through the old labour department (DOLISA): the city's published procedure list, [Decision 6093/QĐ-UBND](https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html) of 21 September 2026, names the Department of Home Affairs as the office that handles permits for employers outside export-processing zones, industrial parks and high-tech parks. And since 11 September 2026 a public document from an Apostille Convention country needs one apostille instead of consular legalisation ([Decree 293/2026/ND-CP](https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/7/293_2026_nd-cp_23072026_1-signed.signed.pdf)), except documents from Germany, Austria and Czechia, which objected, and Thai documents until 28 February 2027."
+    },
+    {
      "type": "p",
-     "text": "Work permits rest on the Labour Code 2019 (Articles 151–157) and [Decree 219/2025/ND-CP](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html), which took effect on 7 August 2025 and replaced the foreign-worker rules of Decrees 152/2020 and 70/2023. Permits issued under the old decrees stay valid until they expire; everything after that follows Decree 219. The Ministry of Home Affairs publishes the national procedures, currently in [Decision 346/QĐ-BNV](https://luatvietnam.vn/lao-dong/quyet-dinh-346-qd-bnv-2026-cong-bo-thu-tuc-hanh-chinh-sua-doi-cho-lao-dong-nuoc-ngoai-tai-viet-nam-430146-d1.html) of 24 March 2026."
+     "text": "Work permits rest on the Labour Code 2019 (Articles 151–157) and [Decree 219/2025/ND-CP](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html), which took effect on 7 August 2025 and replaced the foreign-worker rules of Decrees 152/2020 and 70/2023. Permits issued under the old decrees stay valid until they expire; everything after that follows Decree 219. The Ministry of Home Affairs publishes the national procedures, currently in [Decision 346/QĐ-BNV](https://luatvietnam.vn/lao-dong/quyet-dinh-346-qd-bnv-2026-cong-bo-thu-tuc-hanh-chinh-sua-doi-cho-lao-dong-nuoc-ngoai-tai-viet-nam-430146-d1.html) of 24 March 2026 as amended by [Decision 526/QĐ-BNV](https://moha.gov.vn/Upload/a4c1b76d-88ab-49da-ac58-d23e8a518284Quyet%20dinh%20so%20526.QD-BNV.pdf) of 13 May 2026."
     },
     {
      "type": "p",
@@ -270,7 +276,7 @@
       },
       {
        "title": "Authenticate your home-country documents",
-       "text": "Apostille or legalise your degree, experience letters and teaching certificate in the country that issued them. Order the criminal record so it will still be under 6 months old on the filing date, and authenticate it too. Keep the originals: you will need them again for an extension or a new job."
+       "text": "Apostille or legalise your degree, experience letters and teaching certificate in the country that issued them. Order the criminal record so it will still be under 6 months old on the filing date, and authenticate it too. Keep the originals: a new job in a different role, or a full new application after a gap between permits, needs them again."
       },
       {
        "title": "In Ho Chi Minh City: health check, copies and translations",
@@ -302,7 +308,7 @@
     },
     {
      "type": "p",
-     "text": "Plan on more than the official 5 to 10 working days. End to end, including gathering and authenticating documents from abroad, practitioners report anything from 1 to 6 months."
+     "text": "Plan on more than the official 5 to 10 working days. End to end, including gathering and authenticating documents from abroad, practitioners report anything from 1 to 6 months. The order that saves the most time, documents first, is set out in [how to become an English teacher in Vietnam](/teach-in-vietnam/how-to-become-an-english-teacher-in-vietnam)."
     }
    ]
   },
@@ -405,7 +411,7 @@
     },
     {
      "type": "p",
-     "text": "An extension needs a fresh health certificate, two photos, the valid permit and your passport, but no new criminal record. Since [Decision 346/QĐ-BNV](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/decision-346-qd-bnv-on-the-amendment-and-supplementation-of-administrative-procedures-for-foreign-employees-working-in-vietnam) you also re-submit proof of your degree and experience at an extension and for a new permit after it, so keep the authenticated originals and certified translations safe."
+     "text": "An extension needs a fresh health certificate, two photos, the valid permit and your passport, but no new criminal record. Decision 346/QĐ-BNV had added proof of your degree and experience to the dossier for an extension and for the new permit after it in the same job. [Decision 526/QĐ-BNV](https://moha.gov.vn/Upload/a4c1b76d-88ab-49da-ac58-d23e8a518284Quyet%20dinh%20so%20526.QD-BNV.pdf) of 13 May 2026 removed it. Keep the authenticated originals and certified translations safe anyway, and ask your employer what it will file."
     },
     {
      "type": "p",
@@ -427,7 +433,7 @@
     },
     {
      "type": "p",
-     "text": "Decree 219 gives a shorter dossier for a move made while your current permit is valid: the current employer's confirmation that you work there, a copy of the existing permit, your passport, photos and the new employer's form. It lists no new criminal record or health certificate. Since 24 March 2026, though, Decision 346/QĐ-BNV makes experts re-submit their degree and experience proof in this case. Line up the end and start dates with both schools, and ask the new one exactly what it will file."
+     "text": "Decree 219 gives a shorter dossier for a move made while your current permit is valid: the current employer's confirmation that you work there, a copy of the existing permit, your passport, photos and the new employer's form. It lists no new criminal record or health certificate. Decision 346/QĐ-BNV (24 March 2026) had added experts' degree and experience proof to a move in the same job, but Decision 526/QĐ-BNV of 13 May 2026 removed it. A different job, or a move after your old permit has ended, means a full new application with that proof. Line up the end and start dates with both schools, and ask the new one exactly what it will file."
     },
     {
      "type": "h3",
@@ -630,9 +636,9 @@
    "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/chuong-11"
   },
   {
-   "title": "Decision 346/QĐ-BNV on the amendment of administrative procedures for foreign employees",
-   "publisher": "EY Vietnam",
-   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/decision-346-qd-bnv-on-the-amendment-and-supplementation-of-administrative-procedures-for-foreign-employees-working-in-vietnam"
+   "title": "Quyết định 526/QĐ-BNV sửa đổi, bổ sung Quyết định 346/QĐ-BNV (13 May 2026)",
+   "publisher": "Ministry of Home Affairs",
+   "url": "https://moha.gov.vn/Upload/a4c1b76d-88ab-49da-ac58-d23e8a518284Quyet%20dinh%20so%20526.QD-BNV.pdf"
   },
   {
    "title": "Từ 10/9/2026, lao động nước ngoài sẽ bị phạt nếu không có giấy phép lao động",

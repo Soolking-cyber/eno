@@ -10,7 +10,7 @@
   "Since 11 September 2026 Vietnam applies the Apostille Convention: US, UK, Canadian, Australian, Irish, New Zealand, South African and Philippine checks need **one apostille from the issuing country**, then a certified Vietnamese translation. German, Austrian and Czech checks still go through embassy legalisation.",
   "Order the national, official check: FBI Identity History Summary (US$18), ACRO (listed at £70), RCMP fingerprint check (CAD 25 plus fingerprinting), AFP hard copy (A$57), Garda certificate (free), New Zealand Ministry of Justice record (free), SAPS clearance, NBI clearance.",
   "Living in Ho Chi Minh City already? Ask HCMC Police for Phiếu lý lịch tư pháp số 1 at 161 Nguyễn Du (or the Thủ Dầu Một and Bà Rịa counters): {{vnd:200000}}, 5 working days as standard. The old Department of Justice counter no longer issues it.",
-  "You do not need a new check to extend your permit, or to move to a new employer in the same role while your permit is still valid. The move still needs a new permit, and since March 2026 both cases need your degree and experience proof again."
+  "You do not need a new check to extend your permit, or to move to a new employer in the same role while your permit is still valid. The move still needs a new permit, but since May 2026 neither case asks for your degree and experience proof again."
  ],
  "sections": [
   {
@@ -374,7 +374,7 @@
    "blocks": [
     {
      "type": "table",
-     "caption": "Criminal record in each work-permit situation (Decree 219 Articles 18, 20 and 27; MOHA Decision 346/QĐ-BNV)",
+     "caption": "Criminal record in each work-permit situation (Decree 219 Articles 18, 20 and 27; MOHA Decision 346/QĐ-BNV as amended by Decision 526/QĐ-BNV)",
      "headers": [
       "Situation",
       "New criminal record?",
@@ -389,23 +389,23 @@
       [
        "New employer, same position and field, while your permit is still valid",
        "No",
-       "Still a new permit for the new employer; since 24 March 2026 you re-submit degree and experience proof"
+       "Still a new permit for the new employer; since 13 May 2026, no degree or experience proof"
       ],
       [
        "Extending your permit (once, up to 2 years)",
        "No",
-       "Fresh health certificate; since Decision 346, degree and experience proof again"
+       "Fresh health certificate; since Decision 526, no degree or experience proof"
       ],
       [
        "New permit after the one extension (same employer and position)",
        "No",
-       "Health certificate again; since Decision 346, degree and experience proof again"
+       "Health certificate again; since Decision 526, no degree or experience proof"
       ]
      ]
     },
     {
      "type": "p",
-     "text": "Changing employer always needs a new work permit, even for the same job ([EY on Decision 346/QĐ-BNV](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/decision-346-qd-bnv-on-the-amendment-and-supplementation-of-administrative-procedures-for-foreign-employees-working-in-vietnam)). Keep your apostilled originals and certified translations for every renewal and job change. If your case is anything other than the rows above, for example a different position, ask the new employer which route they will file and whether they need a fresh check."
+     "text": "Changing employer always needs a new work permit, even for the same job ([Decision 526/QĐ-BNV](https://moha.gov.vn/Upload/a4c1b76d-88ab-49da-ac58-d23e8a518284Quyet%20dinh%20so%20526.QD-BNV.pdf)). Keep your apostilled originals and certified translations for every renewal and job change. If your case is anything other than the rows above, for example a different position, ask the new employer which route they will file and whether they need a fresh check."
     },
     {
      "type": "p",
@@ -477,9 +477,9 @@
    "url": "https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html"
   },
   {
-   "title": "Decision 346/QD-BNV on administrative procedures for foreign employees working in Vietnam",
-   "publisher": "EY Vietnam",
-   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/decision-346-qd-bnv-on-the-amendment-and-supplementation-of-administrative-procedures-for-foreign-employees-working-in-vietnam"
+   "title": "Quyết định 526/QĐ-BNV sửa đổi, bổ sung Quyết định 346/QĐ-BNV (13 May 2026)",
+   "publisher": "Ministry of Home Affairs",
+   "url": "https://moha.gov.vn/Upload/a4c1b76d-88ab-49da-ac58-d23e8a518284Quyet%20dinh%20so%20526.QD-BNV.pdf"
   },
   {
    "title": "Hoàn thiện hành lang pháp lý trong công tác quản lý và cấp phiếu lý lịch tư pháp",

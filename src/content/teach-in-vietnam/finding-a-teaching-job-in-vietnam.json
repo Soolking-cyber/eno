@@ -41,7 +41,7 @@
        "Teaching job boards",
        "Vietnam Teaching Jobs, Teast, TEFL.org Jobs Centre, ESLbase; Schrole and TES for international schools",
        "Many ads in one place, filters by city and job type",
-       "Boards do not verify employers; reposts and expired ads; 'HCMC' tags can mean a provincial campus"
+       "Boards do not check employers for you (VTJ calls its employers verified but does not say how); reposts and expired ads; 'HCMC' tags can mean a provincial campus"
       ],
       [
        "Facebook groups",
@@ -94,6 +94,83 @@
     {
      "type": "p",
      "text": "eno.vn's [teaching jobs page](/jobs-vietnam-expats) gathers postings from job boards and schools' careers pages; a linked posting opens the original ad, where you apply, and expires within 14 days. eno.vn has not verified the employers behind them and does not handle applications. [The school directory](/schools) lists Ho Chi Minh City employers (language centres, international and bilingual schools, universities and teacher agencies), with open jobs and a place where teachers who worked or interviewed there can vote and leave reviews (read by a moderator before they appear); most schools have few or no reviews yet. A free teacher profile, started at [teacher.eno.vn](https://teacher.eno.vn), lets schools and centres find you: anyone signed in to eno.vn can message you, and your phone number, email and CV stay hidden until you choose to share them in that chat."
+    },
+    {
+     "type": "h3",
+     "text": "Job sites side by side, as checked on 19 October 2026"
+    },
+    {
+     "type": "p",
+     "text": "We checked each site on 19 October 2026, on its own pages where it let us read them. Treat the counts as a snapshot: ads come and go every day, each site counts in its own way, and three sites blocked our check, so they have no figure. The sites are listed in no order of preference."
+    },
+    {
+     "type": "table",
+     "caption": "Where English teaching jobs in Vietnam were advertised, as checked on 19 October 2026 (each site's own pages where it let us read them; counts change daily)",
+     "headers": [
+      "Site",
+      "What it is and who posts",
+      "Cost to you and what you need to apply",
+      "Jobs listed on 19 October 2026",
+      "Watch out for"
+     ],
+     "rows": [
+      [
+       "Vietnam Teaching Jobs",
+       "A Vietnam teaching-job board run from Da Nang; centres, chains, schools and education companies pay to post, from {{vnd:2000000}} for a 30-day ad",
+       "Free to join and apply; you need a VTJ teacher account",
+       "42 in Vietnam; 24 under its Ho Chi Minh City filter, which also catches ads naming several cities",
+       "The first page of results included ads posted in late July 2026. It also sells teachers paid paperwork services and courses, and you need none of them to apply. It calls its employers verified without saying what it checks."
+      ],
+      [
+       "Teast",
+       "A teaching-job board that began in Asia and now lists jobs worldwide; centres, schools and agencies post",
+       "Free; every Vietnam ad listed gave an email address to apply to, so no account was needed",
+       "Its page titles said 74 for Vietnam and 41 for Ho Chi Minh City, but the pages listed 21 and 9 jobs",
+       "Title counts are higher than the jobs listed, and expired ads stay online, marked as expired"
+      ],
+      [
+       "TES",
+       "A job board used mainly by international schools",
+       "Ads are public; applying through TES needs a TES account, and some schools send you to their own site",
+       "Not counted: the site blocked our check",
+       "Mostly roles for licensed teachers or PGCE holders; check closing dates"
+      ],
+      [
+       "Indeed Vietnam",
+       "A general job search engine; employers and recruiters post",
+       "Indeed says its job-search tools are free; some ads take applications on Indeed, which needs an account, and others send you to the employer's site",
+       "Not counted: the site blocked our check",
+       "Check each ad's date and location; the counts search engines showed for it were months old"
+      ],
+      [
+       "LinkedIn",
+       "A professional network's job listings; schools and education companies post",
+       "LinkedIn's help says many jobs can be applied for on the company's own site without signing in; Easy Apply needs a LinkedIn account",
+       "Not counted: the site blocked our check",
+       "Counts change with the search words and include roles that are not teaching"
+      ],
+      [
+       "Employers' careers pages",
+       "Each employer's own vacancies: VUS and Apollo use an online form, ISHCMC the Cognita Careers portal, BIS HCMC the Nord Anglia portal",
+       "Free; an online form, the group's application system or email",
+       "One employer per site; BIS HCMC's portal showed no open positions that day",
+       "Small centres rarely have one, and a page can show nothing for months; fake recruiters copy real schools' names"
+      ],
+      [
+       "Facebook groups",
+       "Public and private groups where centres, agencies, recruiters and other teachers post",
+       "Free; you need a Facebook account to read posts and reply",
+       "No job counts; the groups we checked had about 50,000 to 100,000 members each",
+       "Anyone can post, member numbers say nothing about activity or moderation, and scammers copy real schools"
+      ],
+      [
+       "eno.vn",
+       "A page of teaching jobs linked from job boards and schools' careers pages, or posted directly on eno.vn by schools and other employers, free",
+       "Free; a linked job's Apply button opens the original ad, with no eno.vn account needed; for a job posted directly, you message the poster on eno.vn after signing in",
+       "36 in Vietnam, 12 of them in Ho Chi Minh City; all 36 linked, from 14 sites",
+       "eno.vn has not verified the employers, and every job listed that day was also on the site it links to"
+      ]
+     ]
     }
    ]
   },
@@ -264,7 +341,7 @@
    "blocks": [
     {
      "type": "p",
-     "text": "This plan assumes you have a degree and a TEFL, TESOL or CELTA and want a language-centre or public-school job in Ho Chi Minh City. International-school candidates should start months earlier."
+     "text": "This plan assumes you have a degree and a TEFL, TESOL or CELTA and want a language-centre or public-school job in Ho Chi Minh City. International-school candidates should start months earlier. If you are still getting the certificate or the documents together, start with [the steps to becoming an English teacher in Vietnam](/teach-in-vietnam/how-to-become-an-english-teacher-in-vietnam)."
     },
     {
      "type": "steps",

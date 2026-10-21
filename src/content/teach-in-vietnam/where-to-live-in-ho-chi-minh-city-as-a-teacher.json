@@ -4,7 +4,7 @@
  "description": "Ten Saigon neighbourhoods compared for teachers: median asking rents from eno.vn's Rent Index, metro access, flood-prone streets and the new ward names.",
  "h1": "Where to live in Ho Chi Minh City as an English teacher: areas, rents and commutes",
  "eyebrow": "Living in Saigon",
- "intro": "Choose by commute first: most language-centre teaching happens on weekday evenings and at weekends, so many teachers aim to live within 20–25 minutes of their main centre. Binh Thanh, Phu Nhuan and District 3 give central access at mid-range rents, District 2 (Thao Dien) and District 7 (Phu My Hung) suit international-school jobs nearby, and Go Vap and Tan Binh have the lowest one-bedroom rents of the ten areas compared here. These are the old district names; since July 2025 official addresses use new wards.",
+ "intro": "Choose by commute first: most language-centre teaching happens on weekday evenings and at weekends, so many teachers aim to live within 20–25 minutes of their main centre. Binh Thanh, Phu Nhuan and District 3 give central access at mid-range rents, District 2 (Thao Dien) and District 7 (Phu My Hung) suit international-school jobs nearby, and Go Vap and Tan Binh had the lowest one-bedroom rents compared here on 10 October 2026. These are the old district names; since July 2025 official addresses use new wards.",
  "keyPoints": [
   "**Commute beats district label**: find out which centre or centres you will teach at before you sign a lease, then search within about 20–25 minutes of them.",
   "**One-bedroom medians** on the [eno.vn HCMC Rent Index](/hcmc-rent-index) (10 October 2026): {{vnd:5200000}} a month in Go Vap, {{vnd:7500000}} in Binh Thanh and District 3, {{vnd:8600000}} in District 1 and {{vnd:10000000}} in District 2. Room medians run {{vnd:3800000-5300000}} across the ten areas below.",
@@ -20,14 +20,14 @@
    "blocks": [
     {
      "type": "p",
-     "text": "Most centre work is weekday evenings and weekends, often split across more than one branch. Many teachers on forums say the ride to work matters more than which district you live in, so the best area is usually the one closest to where you actually teach. Ask your employer for the address of every centre you might be scheduled at before you commit to a 12-month lease. [Working at a language centre in Ho Chi Minh City](/teach-in-vietnam/language-centre-jobs-in-ho-chi-minh-city) explains how those schedules work."
+     "text": "Most centre work is weekday evenings and weekends, often split across more than one branch. Many teachers on forums say the ride to work matters more than which district you live in, so the best area is usually the one closest to where you actually teach. Ask your employer for the address of every centre you might be scheduled at before you commit to a 12-month lease. [Working at a language centre in Ho Chi Minh City](/teach-in-vietnam/language-centre-jobs-in-ho-chi-minh-city) explains how those schedules work. If you have not found a job yet, [teaching English in Ho Chi Minh City](/teach-in-vietnam/teaching-english-in-ho-chi-minh-city) covers who hires and what they pay."
     },
     {
      "type": "ul",
      "items": [
       "**Teaching at centres across the central city**: Binh Thanh, Phu Nhuan, District 3 or District 10 give central access at mid-range rents. District 1 costs a little more and can be noisy.",
       "**Teaching at an international school in Thao Dien or Phu My Hung**: live near the campus. BIS and ISHCMC have campuses in An Khanh ward (old District 2); SSIS is in Tan Hung ward and Canadian International School in Tan My ward (old District 7). See [international school jobs in Vietnam](/teach-in-vietnam/international-school-jobs-in-vietnam).",
-      "**Keeping costs down**: Go Vap and Tan Binh have the lowest one-bedroom medians of the ten areas below, at the price of longer rides to the centre and no metro.",
+      "**Keeping costs down**: Go Vap and Tan Binh had the lowest one-bedroom medians of the ten areas below on 10 October 2026, at the price of longer rides to the centre and no metro.",
       "**Wanting to ride the metro to work**: Binh Thanh (Van Thanh, Tan Cang stations), Thao Dien/An Phu or Thu Duc, if your job is along the line."
      ]
     },
@@ -43,7 +43,7 @@
    "blocks": [
     {
      "type": "p",
-     "text": "The [eno.vn HCMC Rent Index](/hcmc-rent-index) pools asking prices from live listings on the main property sites and eno.vn, removes duplicates and publishes a median only where there are at least 10 listings. These are **asking prices, not signed leases**, so expect to settle a little lower, especially on a 12-month lease. Rows use the old district names because most listings still do. All figures below are the 10 October 2026 snapshot; the index is updated regularly, so check it for current numbers."
+     "text": "The [eno.vn HCMC Rent Index](/hcmc-rent-index) gives median asking rents for homes listed on eno.vn, by district and type of home. It removes duplicates, publishes a median only where there are at least 10 listings and names the sources behind each snapshot. These are **asking prices, not signed leases**, so expect to settle a little lower, especially on a 12-month lease. Rows use the old district names because most listings still do. All figures below are the 10 October 2026 snapshot, which pooled asking prices from live listings on the main property sites and eno.vn; the index is updated regularly and its sources have changed since, so check it for current numbers."
     },
     {
      "type": "table",
@@ -57,28 +57,28 @@
      ],
      "rows": [
       [
-       "District 1",
+       "[District 1](/c/rentals/d1)",
        "{{vnd:8600000}} / {{vnd:5300000}}",
        "Yes: Ben Thanh, Opera House, Ba Son",
        "Being central; short rides to centres in the core. Noisy near Bui Vien",
        "Calmette (tide, 2025 list)"
       ],
       [
-       "District 3",
+       "[District 3](/c/rentals/d3)",
        "{{vnd:7500000}} / {{vnd:4650000}}",
        "No",
        "Central living for less than District 1",
        "None named on these lists; check the street"
       ],
       [
-       "Binh Thanh",
+       "[Binh Thanh](/c/rentals/binh-thanh)",
        "{{vnd:7500000}} / {{vnd:4500000}}",
        "Yes: Van Thanh, Tan Cang",
        "Between District 1 and Thao Dien; the most one-bedroom listings of the central districts",
        "Ung Van Khiem (rain); Binh Quoi Road and the Thanh Da peninsula (tide)"
       ],
       [
-       "Phu Nhuan",
+       "[Phu Nhuan](/c/rentals/phu-nhuan)",
        "{{vnd:7300000}} / {{vnd:4700000}}",
        "No",
        "Mid-range rents close to the centre",
@@ -92,21 +92,21 @@
        "Nguyen Van Huong, Mai Chi Tho (tide)"
       ],
       [
-       "District 7 (Phu My Hung)",
+       "[District 7](/c/rentals/d7) (Phu My Hung)",
        "{{vnd:7000000}} / {{vnd:4000000}}",
        "No",
        "Schools and FV Hospital in the south",
        "Tran Xuan Soan, Huynh Tan Phat, Pham Huu Lau, Le Van Luong (tide)"
       ],
       [
-       "Tan Binh",
+       "[Tan Binh](/c/rentals/tan-binh)",
        "{{vnd:6500000}} / {{vnd:4200000}}",
        "No",
        "Lower rents, airport side of the city",
        "None named on these lists; check the street"
       ],
       [
-       "Go Vap",
+       "[Go Vap](/c/rentals/go-vap)",
        "{{vnd:5200000}} / {{vnd:3800000}}",
        "No",
        "Lowest rents of the ten; longer rides",
@@ -120,7 +120,7 @@
        "None named on these lists; check the street"
       ],
       [
-       "Thu Duc",
+       "[Thu Duc](/c/rentals/thu-duc)",
        "{{vnd:6800000}} / {{vnd:4100000}}",
        "Yes: Thu Duc, High-Tech Park, National University and more",
        "Jobs in the east and along the metro",
@@ -130,7 +130,7 @@
     },
     {
      "type": "p",
-     "text": "The Thu Duc row is the old Thu Duc City as a whole, which also counts listings still labelled District 2 or District 9. District 1's two-bedroom median ({{vnd:30000000}}, from only 81 listings) is pulled up by luxury stock, so don't compare all-apartment medians between District 1 and District 2 directly. For the full set of districts and housing types, see the [Rent Index](/hcmc-rent-index); to see what is on the market now, browse [rentals on eno.vn](/c/rentals)."
+     "text": "The Thu Duc row is the old Thu Duc City as a whole, which also counts listings still labelled District 2 or District 9. District 1's two-bedroom median ({{vnd:30000000}}, from only 81 listings) is pulled up by luxury stock, so don't compare all-apartment medians between District 1 and District 2 directly. For every district and housing type the index currently covers, see the [Rent Index](/hcmc-rent-index); to see what is on the market now, browse [rentals on eno.vn](/c/rentals)."
     }
    ]
   },
@@ -343,7 +343,7 @@
     },
     {
      "type": "p",
-     "text": "On typical full-time take-home pay of about {{vnd:30500000-44300000}} a month, depending on the area, a room takes roughly 9–17%, a one-bedroom roughly 12–33% and an expat serviced flat 34–49% (eno.vn and Numbeo data; see the [English teacher salary guide](/teach-in-vietnam/english-teacher-salary-in-vietnam) for pay and the [cost of living guide](/teach-in-vietnam/cost-of-living-in-ho-chi-minh-city-for-teachers) for a full budget). Numbeo's centre figure is much higher than eno.vn's District 1 median ({{vnd:8600000}}) because it skews to expat-oriented, often serviced flats, while the Rent Index covers the whole local market."
+     "text": "On typical full-time take-home pay of about {{vnd:30500000-44300000}} a month, depending on the area, a room takes roughly 9–17%, a one-bedroom roughly 12–33% and an expat serviced flat 34–49% (eno.vn and Numbeo data; see the [English teacher salary guide](/teach-in-vietnam/english-teacher-salary-in-vietnam) for pay and the [cost of living guide](/teach-in-vietnam/cost-of-living-in-ho-chi-minh-city-for-teachers) for a full budget). Numbeo's centre figure is much higher than eno.vn's District 1 median ({{vnd:8600000}}) because it skews to expat-oriented, often serviced flats, while the Rent Index's 10 October 2026 snapshot drew on the wider local market."
     },
     {
      "type": "p",
@@ -439,7 +439,7 @@
   },
   {
    "q": "Is Thao Dien worth the higher rent?",
-   "a": "Usually only if you work there, for example at an international school in An Khanh ward. For a centre job elsewhere, you pay the highest one-bedroom median of the ten areas in this guide and then commute back into the city."
+   "a": "Usually only if you work there, for example at an international school in An Khanh ward. For a centre job elsewhere, you pay the highest one-bedroom median of the ten areas in this guide (10 October 2026) and then commute back into the city."
   },
   {
    "q": "Do I need to update my address on documents after the 2025 merger?",
@@ -451,11 +451,11 @@
   },
   {
    "q": "Why are Numbeo rents so much higher than eno.vn's?",
-   "a": "Numbeo is crowd-sourced and skews to expat-oriented, often serviced flats. The eno.vn Rent Index is built from thousands of local-market listings. Neither is signed-lease data; use eno.vn for typical flats and Numbeo as a rough guide to serviced apartments."
+   "a": "Numbeo is crowd-sourced and skews to expat-oriented, often serviced flats. The eno.vn Rent Index figures in this guide come from its 10 October 2026 snapshot, built from thousands of local-market listings. Neither is signed-lease data; use those figures for typical flats and Numbeo as a rough guide to serviced apartments."
   },
   {
    "q": "Is it worth living far out to save money?",
-   "a": "District 12, Binh Tan and Tan Phu have some of the lowest medians in the Rent Index, but none is on Metro Line 1 and rides to central centres are long. For evening and weekend shifts, the time and ride-hailing costs often eat the saving."
+   "a": "District 12, Binh Tan and Tan Phu had some of the lowest medians in the Rent Index's 10 October 2026 snapshot, but none is on Metro Line 1 and rides to central centres are long. For evening and weekend shifts, the time and ride-hailing costs often eat the saving."
   }
  ],
  "sources": [
