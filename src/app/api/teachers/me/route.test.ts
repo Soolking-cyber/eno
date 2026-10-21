@@ -37,7 +37,10 @@ const h = vi.hoisted(() => ({
   markState: { shown: false, reason: 'unverified' } as Row, // what identityMarkState answers (the "Identity verified" state line)
   markThrows: false,
   markInputs: [] as Row[],
+  vertex: true, // a Vertex client is configured — "Improve with AI" can run (getGeminiVertex)
 }))
+// The env must not decide it (the shell's .env leaks into vitest): Vertex on or off as each test says.
+vi.mock('@/lib/gemini', async (orig) => ({ ...(await orig<Record<string, unknown>>()), getGeminiVertex: () => (h.vertex ? {} : null) }))
 vi.mock('next/server', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   after: (fn: () => unknown) => { if (h.afterThrows) throw new Error('after: outside a request scope'); h.afterWork.push(fn) },
@@ -110,7 +113,7 @@ beforeEach(() => {
   h.decisionFails = false; h.logged = []
   h.created = false; h.live = true; h.afterWork = []; h.capi = []; h.capiOn = true; h.appleLinked = false; h.facebookLinked = false; h.facebookThrows = false; h.appleAsked = 0; h.appleThrows = false; h.sendRejects = false; h.afterThrows = false; h.tiktok = []; h.ttOn = false; h.ttRejects = false; h.consentRows = []; h.consentRowFails = false; h.metaStalls = null
   h.me = { id: 'p-b', accountType: 'individual', email: 'b@example.com' }
-  h.markState = { shown: false, reason: 'unverified' }; h.markThrows = false; h.markInputs = []
+  h.markState = { shown: false, reason: 'unverified' }; h.markThrows = false; h.markInputs = []; h.vertex = true
   fo.after = []; fo.committed = true
 })
 
@@ -549,6 +552,20 @@ describe('GET /api/teachers/me — the "Identity verified" state line, the hide 
     expect(h.logged).toHaveLength(1)
     h.mine = null // the join form's read too
     expect(await get()).toMatchObject({ teacher: null, identityMark: null, identityMarkHidden: false })
+  })
+})
+
+// "Improve with AI" under the About text (owner, 2026-10-21): the edit page is static, so the form learns from this read
+// whether a Vertex client is configured — in BOTH payloads (the join form reads it too).
+describe('GET /api/teachers/me — whether "Improve with AI" can run', () => {
+  it('`bioAi` follows the Vertex client — with a profile and without one', async () => {
+    for (const vertex of [true, false]) {
+      h.vertex = vertex
+      h.mine = { id: 'tp-b', fullName: 'B', private: null, listing: { status: 'active', verified: true } }
+      expect((await get()).bioAi).toBe(vertex)
+      h.mine = null
+      expect(await get()).toMatchObject({ teacher: null, bioAi: vertex })
+    }
   })
 })
 

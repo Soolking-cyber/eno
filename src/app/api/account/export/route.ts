@@ -96,10 +96,12 @@ export async function GET() {
     })))
     .catch(() => null)
   // Consent records this account acted under (2026-10-15): reading a CV with the AI — the notice version and its hash,
-  // never a value from the CV (src/app/api/teachers/me/import). (Sign in with LinkedIn, removed 2026-10-16, was never
-  // switched on, so no LinkedIn consent row exists to list.)
+  // never a value from the CV (src/app/api/teachers/me/import) — and (2026-10-21) "Improve with AI" on the About text:
+  // the notice version and its hash, what was sent as counts and flags, the outcome, never the text
+  // (src/app/api/teachers/me/bio-rewrite). (Sign in with LinkedIn, removed 2026-10-16, was never switched on, so no
+  // LinkedIn consent row exists to list.)
   const consentRecords = await db.complianceAudit.findMany({
-    where: { actorId: profile.id, action: { in: ['teacher.import.consent', 'teacher.import.result'] } },
+    where: { actorId: profile.id, action: { in: ['teacher.import.consent', 'teacher.import.result', 'teacher.bio.consent', 'teacher.bio.result'] } },
     orderBy: { occurredAt: 'asc' },
     select: { action: true, occurredAt: true, detail: true },
   })

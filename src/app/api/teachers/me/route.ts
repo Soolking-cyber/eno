@@ -5,6 +5,7 @@ import { pendingOnboardingStep } from '@/lib/auth-policy'
 import { afterIndividualOnboarding, individualOnboardingWrite } from '@/lib/core/first-onboarding'
 import { route, ApiError } from '@/lib/api/handler'
 import { photoOverridden, teacherPhotoKey } from '@/lib/teachers/photo-verdict'
+import { getGeminiVertex } from '@/lib/gemini'
 import { db } from '@/lib/db'
 import { isCurrentUserAppleLinkedByClaims, isCurrentUserFacebookLinkedByClaims } from '@/lib/admin'
 import { sendMetaCapiEvent, metaUserDataFromHeaders, metaCapiConfigured } from '@/lib/meta-capi'
@@ -50,7 +51,11 @@ export const dynamic = 'force-dynamic'
  *   · `identityMarkStamps` — `{ at, withdrawnAt }`, the switch's last show and last hide as stored (ISO, or null — both
  *     null with no profile): what the form sends back as `base` when it shows the mark AGAIN (PUT
  *     /api/teachers/me/identity-mark), so a tab that is no longer current is refused instead of un-hiding over a newer
- *     hide.
+ *     hide;
+ *   · `bioAi` — whether "Improve with AI" under the About text can run (owner, 2026-10-21 — POST
+ *     /api/teachers/me/bio-rewrite): a Vertex client is configured (getGeminiVertex — the join page's CV door asks the
+ *     same, start.cvImport). In BOTH payloads, because the edit page is static: getGeminiVertex() there would run at build
+ *     time, not against the running server's env. Off, the button is not shown; the route refuses on its own anyway.
  * ⛔ No runtime adapter (plan review D1): a row the backfill has not migrated comes back as stored (`situationVersion`
  * null, an empty teach-area list) and the edit form asks for what is missing.
  */
@@ -81,6 +86,7 @@ export const GET = route({ auth: 'profile' }, async ({ profile }) => {
     at: tp?.identityMarkAt ? tp.identityMarkAt.toISOString() : null,
     withdrawnAt: tp?.identityMarkWithdrawnAt ? tp.identityMarkWithdrawnAt.toISOString() : null,
   }
+  const bioAi = getGeminiVertex() !== null
   if (!tp) {
     return {
       teacher: null,
@@ -88,6 +94,7 @@ export const GET = route({ auth: 'profile' }, async ({ profile }) => {
       identityMark,
       identityMarkHidden: identityMarkHiddenNow,
       identityMarkStamps,
+      bioAi,
       prefill: {
         displayName: profile.displayName ?? null,
         avatarUrl: profile.avatarUrl && isListingImageUrl(profile.avatarUrl) ? profile.avatarUrl : null,
@@ -103,7 +110,7 @@ export const GET = route({ auth: 'profile' }, async ({ profile }) => {
   // The saved photo was asked about (Admin's re-check, 2026-10-16 — /api/cron/teacher-photo-recheck) and not approved since:
   // the edit form says why, beside the photo. ADVISORY like publishGate: a failed read is null (no line), never a failed page.
   const photoAsk = await savedPhotoAsk(profile.id, tp.photoUrl).catch((e) => { logError(e, { op: 'teachers.me.photoAsk' }); return null })
-  return { teacher: { ...rest, listingLive, phone: priv?.phone ?? '', cvFileName: priv?.cvFileName ?? null, hasPrivateVideo: !!priv?.videoPath }, publishGate, identityMark, identityMarkHidden: identityMarkHiddenNow, identityMarkStamps, photoAsk }
+  return { teacher: { ...rest, listingLive, phone: priv?.phone ?? '', cvFileName: priv?.cvFileName ?? null, hasPrivateVideo: !!priv?.videoPath }, publishGate, identityMark, identityMarkHidden: identityMarkHiddenNow, identityMarkStamps, photoAsk, bioAi }
 })
 
 /** The reason the saved photo was asked about — none once an admin approved it, or for a photo changed since. */

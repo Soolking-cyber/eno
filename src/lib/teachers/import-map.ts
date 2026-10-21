@@ -116,23 +116,26 @@ function headlineOf(v: unknown): string {
 }
 
 /**
- * The file's summary as the bio: kept in the teacher's own words, sentence by sentence — a sentence Publish would
+ * A text as a bio Publish accepts: kept in the writer's own words, sentence by sentence — a sentence Publish would
  * refuse (a phone, an email, a link, a visa word…) is dropped rather than the whole bio. Cut at a sentence end ≤2000.
+ * The CV import's summary goes through it, and so does the AI rewrite of the About text (bio-context.ts) — its answer
+ * with the default screen, and the teacher's own text on its way to the model with `refused` = the contact details
+ * alone (bio-context.ts says why).
  */
-function bioOf(v: unknown): string {
+export function publishableBio(v: unknown, refused: (text: string) => boolean = importTextRefused): string {
   if (typeof v !== 'string') return ''
   // ⚠️ PARAGRAPHS ARE BLANK-LINE SEPARATED; a single break is a wrapped line and joins with a space (review, 2026-10-16:
   // split on every break, a phone number wrapped across two lines passed each line's screen and the re-joined bio).
   const paragraphs = v.replace(/\r\n?/g, '\n').split(/\n\s*\n/).map((p) => p.replace(/\s+/g, ' ').trim()).filter(Boolean)
   const kept: string[][] = []
   for (const p of paragraphs) {
-    const ok = p.split(/(?<=[.!?…])\s+/).map((x) => x.trim()).filter(Boolean).filter((x) => !importTextRefused(x))
+    const ok = p.split(/(?<=[.!?…])\s+/).map((x) => x.trim()).filter(Boolean).filter((x) => !refused(x))
     if (ok.length) kept.push(ok)
   }
   // ⛔ …and the WHOLE bio is screened as Publish will screen it: what a sentence-by-sentence screen cannot see (a
   // number spread over two sentences) drops sentences from the end until the text passes — or nothing is imported.
   const joined = () => kept.map((ok) => ok.join(' ')).join('\n\n').trim()
-  while (kept.length && importTextRefused(joined())) {
+  while (kept.length && refused(joined())) {
     kept[kept.length - 1].pop()
     if (!kept[kept.length - 1].length) kept.pop()
   }
@@ -338,7 +341,7 @@ export function mapTeacherImport(raw: unknown, opts: { now: Date }): TeacherImpo
   if (fullName) fields.fullName = fullName
   const headline = headlineOf(r.headline)
   if (headline) fields.headline = headline
-  const bio = bioOf(r.summary)
+  const bio = publishableBio(r.summary)
   if (bio) fields.bio = bio
   const nationality = typeof r.nationalityCode === 'string' ? r.nationalityCode.trim().toUpperCase() : ''
   if (COUNTRIES.has(nationality)) fields.nationality = nationality
