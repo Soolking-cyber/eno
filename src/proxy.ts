@@ -8,6 +8,7 @@ import { LANG_COOKIE, langVariantFor, type LangVariant } from '@/lib/lang-varian
 import { pinnedRoute } from '@/lib/lang-pinned'
 import { IOS_APP_UNAVAILABLE } from '@/lib/ios-hide-visa'
 import { iosHideKycRefusesApi, iosHideVisaRefusesApi } from '@/lib/ios-hide-visa-api'
+import { linkJunkFreePath } from '@/lib/link-junk'
 
 // Edge-ingress guard. When EDGE_SECRET is set, every /api/* request (except crons,
 // which are invoked off-Cloudflare with their own CRON_SECRET bearer) must carry the
@@ -353,6 +354,29 @@ export function proxy(req: NextRequest) {
   }
 
   /**
+   * ⛔ PUNCTUATION A CHAT APP TOOK INTO A LINK IS NOT PART OF THE ADDRESS (2026-10-21; src/lib/link-junk.ts says why and
+   * what). A page GET/HEAD whose path ends in it goes to the same path without it, on the SAME host, query kept:
+   * `teacher.eno.vn/,` → `teacher.eno.vn/` (the form — the comma used to 301 to the apex's 404), `eno.vn/teachers/join.`
+   * → `/teachers/join`. Before every routing branch, so each one sees the clean path. ⚠️ SAME HOST ON PURPOSE: Next hands
+   * a redirect to the request's own host to the browser as a RELATIVE Location (server/web/adapter.js), so the visitor
+   * stays on the public host they asked for — behind nginx `req.nextUrl` can carry the internal one, and it never shows.
+   */
+  if ((req.method === 'GET' || req.method === 'HEAD') && !isApi(req.nextUrl.pathname)) {
+    const clean = linkJunkFreePath(req.nextUrl.pathname)
+    if (clean !== null) {
+      const to = req.nextUrl.clone()
+      to.pathname = clean
+      const res = NextResponse.redirect(to, 301)
+      // ⚠️ PRIVATE AND BOUNDED (review): a 301 with no lifetime is kept by browsers indefinitely, so a route that one day
+      // ended in one of these marks could not be reached again by anyone who had met the redirect — a day is the bound.
+      // And only the visitor's own browser may keep it: the query is kept whole and may carry anything (a sign-in
+      // link's token), so no shared cache stores the Location, and a deploy's tag purge has nothing of it to evict.
+      res.headers.set('Cache-Control', 'private, max-age=86400')
+      return withCors(res, origin)
+    }
+  }
+
+  /**
    * ⛔ teacher.<base> — THE TEACHER SIGN-UP FORM, AND NOTHING ELSE (2026-09-30). `/` renders the form's
    * first half; every other PAGE path 301s to the apex so the site is never duplicated on this host
    * (Opus plan review: a whole-app mirror splits SEO and puts every page under a second origin).
@@ -546,7 +570,8 @@ export function proxy(req: NextRequest) {
  * This matcher was `['/api/:path*', '/', '/s/:path*']` so the storefront rewrite stayed off the hot
  * path. Server-rendering the visitor's language needs EVERY page request rewritten into `[lang]`, so
  * the cost that comment avoided is now the feature: one cookie read and one header parse per page
- * request. Assets stay off it — `_next/`, and any path with a dot, never reach this function.
+ * request. Assets stay off it — `_next/`, and any path with a dot, never reach this function (one ENDING in punctuation
+ * does, for the link-junk redirect: the last entry).
  * ⚠️ THE EDGE PIN BELOW IS STILL `/api/*` ONLY: page requests return from `rewriteToLang` before it.
  */
 export const config = {
@@ -563,5 +588,14 @@ export const config = {
     // files, and `sdc_store.eno.vn/llms.txt` is the URL Search Console had crawled. Next anchors the
     // value (`^…$`) against the Host header's lowercased hostname, port removed.
     { source: '/:path*', has: [{ type: 'host', value: '.*_.*' }] },
+    // ⛔ …and a path that ENDS in punctuation a chat app took into a link (2026-10-21, the link-junk redirect above;
+    // src/lib/link-junk.ts). The page entry skips every DOTTED path, so without this `/teachers/join.`, `…join.)`,
+    // `…join.,` and `…join.%E2%80%9D` never reached it. The same marks as link-junk.ts's RAW_MARKS and ENCODED_MARKS
+    // (spelled out — Next reads `config` statically, so no constant can be shared; a test holds the two together).
+    // Next tries the raw path and then the decoded one, and the raw one carries the encodings. No file or route
+    // handler of ours ends in one of these, so no asset joins this function. ⚠️ A matcher cannot ask the method, so a
+    // WRITE to such a dotted path now comes here too: the redirect leaves it alone and it ends where it did, on a 404
+    // (the [lang] not-found instead of Next's) — measured, 0 such writes in the box's logs for 2026-09-21 → 10-21.
+    '/((?!_next/).*(?:[,.;:!\'"\\)\\]}>]|%2[127CEce]|%29|%3[ABEabe]|%5[Dd]|%7[Dd]|%[Ee]2%80%(?:9[89CDcd]|[Aa]6)|%[Ee][Ff]%[Bb][Cc]%8[Cc]|%[Ee]3%80%8[12]))',
   ],
 }

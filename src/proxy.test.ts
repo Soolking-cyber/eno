@@ -477,3 +477,119 @@ describe('underscore hosts', () => {
     for (const host of ['eno.vn', 'www.eno.forum', 'sdcstore.eno.vn', 'random-test-xyz.eno.vn']) expect(re.test(host), host).toBe(false)
   })
 })
+
+/**
+ * ⛔ "teacher.eno.vn," IN A ZALO MESSAGE OPENED `teacher.eno.vn/,` — WHICH 301'd TO THE APEX, WHERE `/,` IS NO PAGE (2026-10-21,
+ * 24 visits in a week, every one a 404; src/lib/link-junk.ts). The tail goes, the host and the query stay.
+ */
+describe('punctuation a chat app took into a link', () => {
+  const run = async (host: string, path: string, method = 'GET') => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    const res = proxy(new NextRequest(`https://${host}${path}`, { method, headers: { host, 'accept-language': 'en' } }))
+    const target = res.headers.get('x-middleware-rewrite')
+    return { status: res.status, location: res.headers.get('location'), rewrite: target ? new URL(target).pathname : null }
+  }
+
+  it('teacher.eno.vn/, from Zalo opens the form on the same host, its query kept', async () => {
+    const r = await run('teacher.eno.vn', '/,?zarsrc=30&utm_source=zalo&utm_medium=zalo&utm_campaign=zalo')
+    expect(r.status).toBe(301)
+    const to = new URL(r.location!)
+    expect(to.host).toBe('teacher.eno.vn')
+    expect(to.pathname).toBe('/')
+    expect(to.search).toBe('?zarsrc=30&utm_source=zalo&utm_medium=zalo&utm_campaign=zalo')
+    // …where `/` is the form, exactly as before.
+    expect(await run('teacher.eno.vn', '/?zarsrc=30')).toMatchObject({ status: 200, location: null, rewrite: '/en/teachers/join' })
+    // And a real path there still leaves for the apex.
+    expect(await run('teacher.eno.vn', '/c/teachers')).toMatchObject({ status: 301, location: 'https://eno.vn/c/teachers' })
+  })
+
+  it('the apex, www and a storefront keep their host; the path loses only its tail', async () => {
+    const cases: [string, string, string][] = [
+      ['eno.vn', '/teachers/join,', 'https://eno.vn/teachers/join'],
+      ['eno.vn', '/teachers/join.', 'https://eno.vn/teachers/join'],
+      ['eno.vn', '/c/teachers):', 'https://eno.vn/c/teachers'],
+      ['eno.vn', '/listings/abc%E2%80%A6?ref=x', 'https://eno.vn/listings/abc?ref=x'],
+      ['www.eno.vn', '/,', 'https://www.eno.vn/'],
+      ['apple.eno.vn', '/,', 'https://apple.eno.vn/'],
+    ]
+    for (const [host, path, want] of cases) {
+      expect(await run(host, path), `${host}${path}`).toMatchObject({ status: 301, location: want })
+      expect((await run(host, path, 'HEAD')).location, `HEAD ${host}${path}`).toBe(want)
+    }
+  })
+
+  it('a clean path, a write and an API call are left exactly as they were', async () => {
+    expect(await run('eno.vn', '/c/rentals')).toMatchObject({ location: null, rewrite: '/en/c/rentals' })
+    expect(await run('apple.eno.vn', '/')).toMatchObject({ location: null, rewrite: '/en/s/apple' })
+    expect((await run('eno.vn', '/,', 'POST')).location).toBeNull()
+    // A write to a dotted path the new matcher entry now brings here is not moved either: it goes on to the [lang]
+    // not-found, a 404 as before.
+    expect(await run('eno.vn', '/md/home,', 'POST')).toMatchObject({ location: null, rewrite: '/en/md/home,' })
+    expect(await run('eno.vn', '/api/listings,')).toMatchObject({ location: null, rewrite: null })
+  })
+
+  it('⛔ a path that looks like another host stays a path on ours — never a relative //host', async () => {
+    for (const path of ['//evil.example/x,', '/\\evil.example/x.', '///evil.example,']) {
+      const loc = new URL((await run('eno.vn', path)).location!)
+      expect(loc.host, path).toBe('eno.vn')
+      expect(loc.pathname.startsWith('//'), path).toBe(false)
+    }
+  })
+
+  it('⛔ NEXT\'S OWN MATCHER sends every mark link-junk.ts strips here, after a dot too — and still no file', async () => {
+    // Review, 2026-10-21: the first matcher entry took only a path ENDING in a dot, so `/teachers/join.)` — a full stop
+    // inside brackets — never reached the proxy, and a `new RegExp` over the source cannot show what Next compiles
+    // (path-to-regexp). unstable_doesMiddlewareMatch runs Next's own compiler and route matcher.
+    const { config } = await import('./proxy')
+    const { unstable_doesMiddlewareMatch: reaches } = await import('next/experimental/testing/server')
+    const { RAW_MARKS, ENCODED_MARKS } = await import('@/lib/link-junk')
+    const marks = [...RAW_MARKS, ...ENCODED_MARKS, ...ENCODED_MARKS.map((m) => m.toLowerCase())]
+    for (const mark of marks) {
+      const paths = [`/teachers/join.${mark}`, `/teachers/join${mark}`, `/c/teachers...${mark}`, `/c/teachers.)${mark}`]
+      for (const path of paths) {
+        expect(reaches({ config, url: path }), path).toBe(true)
+        expect((await run('eno.vn', path)).location, path).toMatch(/^https:\/\/eno\.vn\/(teachers\/join|c\/teachers)$/)
+      }
+    }
+    for (const path of ['/icon.svg', '/llms.txt', '/robots.txt', '/sitemaps/listings-0.xml', '/_next/static/chunks/a.js',
+      '/_next/static/chunks/a.js)', '/md/home', '/app', '/listing-images/x.webp', '/agents.md', '/hcmc-rent-index.csv']) {
+      expect(reaches({ config, url: path }), path).toBe(false)
+    }
+    for (const path of ['/', '/c/rentals', '/listings/abc', '/,']) expect(reaches({ config, url: path }), path).toBe(true)
+  })
+
+  it('the redirect is the visitor\'s browser\'s alone, and for a day — not a shared cache\'s, not for ever', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    const res = proxy(new NextRequest('https://teacher.eno.vn/,', { headers: { host: 'teacher.eno.vn' } }))
+    expect(res.headers.get('cache-control')).toBe('private, max-age=86400')
+  })
+
+  it('eno.forum\'s hosts the same: the tail goes, the host stays', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://www.eno.forum')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    for (const [host, path, want] of [
+      ['www.eno.forum', '/,', 'https://www.eno.forum/'],
+      ['www.eno.forum', '/vietnam-evisa.)', 'https://www.eno.forum/vietnam-evisa'],
+      ['apple.eno.forum', '/c/rentals,', 'https://apple.eno.forum/c/rentals'],
+      // (teacher.eno.forum never gets here: next.config 308s it to teacher.eno.vn first, whose proxy then cleans the
+      // link — measured on the services build, 2026-10-21.)
+    ]) {
+      const res = proxy(new NextRequest(`https://${host}${path}`, { headers: { host } }))
+      expect(res.status, `${host}${path}`).toBe(301)
+      expect(res.headers.get('location'), `${host}${path}`).toBe(want)
+    }
+  })
+
+  it('⛔ the visitor stays on the host they asked: nothing switches off Next\'s same-host RELATIVE Location', async () => {
+    // proxy() answers `https://<request host>/…`; Next's adapter turns a redirect to the request's own host into a
+    // relative Location (server/web/adapter.js) — unless next.config sets skipMiddlewareUrlNormalize, which would hand
+    // the browser whatever host nginx gave Next. Measured on the production build, 2026-10-21: `Location: /?zarsrc=30…`.
+    const { readFileSync } = await import('node:fs')
+    expect(readFileSync('next.config.ts', 'utf8')).not.toMatch(/skipMiddlewareUrlNormalize/)
+  })
+})
