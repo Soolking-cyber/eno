@@ -2,7 +2,7 @@
 
 // "Message teacher" (owner, 2026-09-30; the DM ladder, 2026-10-13): any signed-in account may start the chat, within its
 // daily limit of NEW teachers (src/lib/teachers/dm-quota.ts — 3 unverified, 10 identity-verified, 30 as a verified
-// business). The block asks where the account stands BEFORE it stashes an opener, so a refusal is said here, with the
+// business). The block asks where the account stands BEFORE it opens the chat, so a refusal is said here, with the
 // step that lifts it; the server refuses the same count either way. The teacher's phone, email and CV are never here —
 // they arrive in the thread only after the teacher taps "Share".
 import { useEffect, useRef, useState } from 'react'
@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { IosVerifyElsewhereNote } from '@/components/marketplace/ios-browser-only-note'
 import { useIosHideKyc } from '@/hooks/use-ios-hide-kyc'
 import { stashCompose } from '@/lib/quick-contact'
-import { openerVoice, teacherOpener } from '@/lib/teachers/first-message'
+import { openerVoice } from '@/lib/teachers/first-message'
 import { teacherDmLimitMessage, teacherDmStep, type TeacherDmRefusalFacts } from '@/lib/teachers/dm-limit-copy'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { cn } from '@/lib/utils'
@@ -23,8 +23,8 @@ import { cn } from '@/lib/utils'
 export const TEACHER_CONTACT_ID = 'teacher-contact'
 export const TEACHER_CONTACT_EVENT = 'eno:teacher-contact'
 
-/** GET /api/teachers/dm-quota — where the account stands today on the teacher DM ladder. */
-type Quota = TeacherDmRefusalFacts & { remaining: number; hasThread: boolean }
+/** GET /api/teachers/dm-quota — where the account stands today on the teacher DM ladder, and its thread with this teacher. */
+type Quota = TeacherDmRefusalFacts & { remaining: number; hasThread: boolean; threadId?: string | null }
 
 export function TeacherContact({ listingId, name, image, cover = false }: {
   listingId: string
@@ -116,24 +116,31 @@ export function TeacherContact({ listingId, name, image, cover = false }: {
         if (q) setQuota(q)
         if (q && !q.hasThread && q.remaining <= 0) { setRefused(q); return }
         setRefused(null)
-        openChat()
+        openChat(q ?? quota)
       })
       return
     }
     openChat()
   }
-  const openChat = () => {
+  const openChat = (q: Quota | null = quota) => {
     setBusy(true)
+    // Backstop: never leave a permanently spinning button if the navigation stalls.
+    setTimeout(() => setBusy(false), 8000)
+    // A writer who already has a thread with this teacher goes back INTO it — its own replies and chips — never to the
+    // first-contact chooser again (opus, gate 13c: "We are hiring" a second time, or words typed for a teacher who has not
+    // answered the last two, which the server holds and drops).
+    if (q?.threadId) { router.push(`/messages/${q.threadId}`); return }
+    // ⛔ NOTHING IS SENT HERE (owner, 2026-10-21: "dont send the message directly … they can select from available quick
+    // send chips"): /messages/pending shows the teacher and the opener chips, and the thread starts only with the message
+    // the writer picks or types there. A school's cover button asks for the cover-lesson opener among them.
     stashCompose({
       listingId,
-      body: teacherOpener(tr, intent.current === 'cover' && accountType === 'business' ? 'cover' : 'hire', openerVoice(accountType)),
+      pick: { voice: openerVoice(accountType), cover: intent.current === 'cover' && accountType === 'business' },
       listingTitle: name,
       listingImage: image,
       currency: '₫',
     })
     router.push('/messages/pending')
-    // Backstop: never leave a permanently spinning button if the navigation stalls.
-    setTimeout(() => setBusy(false), 8000)
   }
 
   // The first-screen "Message" button (TeacherContactJump) runs THIS start — one action, one set of rules

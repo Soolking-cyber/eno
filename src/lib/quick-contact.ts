@@ -50,6 +50,14 @@ export function stashCompose(payload: {
    * promised a form and delivered a line of chat — see the note on it in contact-composer.
    */
   plan?: boolean
+  /**
+   * "Let the writer choose", not "send this text" (owner, 2026-10-21: "when write message teacher button is clicked dont
+   * send the message directly make sure it opens message and they can select from available quick send chips"). The
+   * teacher page's Message button stashes THIS and no body: /messages/pending then shows the teacher and the writer's
+   * opener chips (quick-reply-chips.tsx teacherThreadChips — `voice` as first-message.ts openerVoice, `cover` adds the
+   * cover-lesson opener a school asked for) and creates the thread only with the message the writer picks or types.
+   */
+  pick?: { voice: 'school' | 'person'; cover: boolean }
 }): boolean {
   const offerAmount = payload.offerAmount ?? null
   try {
@@ -62,6 +70,7 @@ export function stashCompose(payload: {
       trackPrice: offerAmount ?? (payload.price ?? null),
       currency: payload.currency,
       plan: payload.plan === true,
+      ...(payload.pick ? { pick: { voice: payload.pick.voice === 'school' ? 'school' : 'person', cover: payload.pick.cover === true } } : {}),
     }))
     return true
   } catch {

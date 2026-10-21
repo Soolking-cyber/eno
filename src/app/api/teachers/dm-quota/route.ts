@@ -18,7 +18,7 @@ export const GET = route(
     const listingId = new URL(req.url).searchParams.get('listingId')?.trim().slice(0, 64) || null
     const s = await teacherDmStanding(profileId, { ip: clientIp(req), listingId })
     return NextResponse.json(
-      { tier: s.tier, limit: s.limit, used: s.used, remaining: s.remaining, resetAt: s.resetAt, next: s.next, nextLimit: s.nextLimit, reason: s.reason, hasThread: s.hasThread },
+      { tier: s.tier, limit: s.limit, used: s.used, remaining: s.remaining, resetAt: s.resetAt, next: s.next, nextLimit: s.nextLimit, reason: s.reason, hasThread: s.hasThread, threadId: s.threadId ?? null },
       { headers: { 'Cache-Control': 'private, no-store' } },
     )
   },

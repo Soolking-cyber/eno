@@ -517,8 +517,10 @@ describe('teacherDmStanding — what the profile page shows and the early check 
 
   it('hasThread: whether THIS account already has a thread with THIS teacher — so a spent day still lets it reopen one', async () => {
     h.s.convos = [opened('L1'), opened('L2'), opened('L3')]
-    expect(await teacherDmStanding(P, { ip: IP, listingId: 'L1', now: NOW })).toMatchObject({ remaining: 0, hasThread: true })
+    const found = await teacherDmStanding(P, { ip: IP, listingId: 'L1', now: NOW })
+    expect(found).toMatchObject({ remaining: 0, hasThread: true, threadId: h.s.convos[0].id }) // the Message button goes back into it
     expect(h.s.uniqueQueries).toEqual([{ reader: 'db', listingId: 'L1', buyerProfileId: P }])
+    expect(await teacherDmStanding(P, { ip: IP, listingId: 'L9', now: NOW })).not.toHaveProperty('threadId')
     expect((await teacherDmStanding(P, { ip: IP, listingId: 'L9', now: NOW })).hasThread).toBe(false)
     h.s.uniqueQueries = []
     expect((await teacherDmStanding(P, { ip: IP, now: NOW })).hasThread).toBe(false)

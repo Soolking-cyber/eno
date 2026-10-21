@@ -35,8 +35,10 @@ vi.mock('@/hooks/use-ios-hide-kyc', () => ({ useIosHideKyc: () => ios.hideKyc })
 import { TEACHER_CONTACT_ID, TeacherContact, TeacherContactJump } from './teacher-contact'
 
 /** The one-tap openers (src/lib/teachers/first-message.ts): a business speaks as the school, anyone else as a person. */
-const PERSON_OPENER = 'Hello, I am looking for a teacher and your profile looks like a good fit — are you open to talking?'
-const SCHOOL_OPENER = 'Hello, we are hiring a teacher and your profile looks like a good fit — are you open to talking?'
+// ⛔ The button never sends (owner, 2026-10-21): it stashes "let the writer choose" in its voice — /messages/pending shows
+// the opener chips. No body is ever stashed here.
+const PERSON_PICK = { pick: { voice: 'person', cover: false } }
+const SCHOOL_PICK = { pick: { voice: 'school', cover: false } }
 
 /** GET /api/teachers/dm-quota's answer (src/app/api/teachers/dm-quota/route.ts): an unverified account, 0 of 3 used. */
 const standing = (o: Record<string, unknown> = {}) => ({
@@ -102,7 +104,8 @@ describe('TeacherContactJump — "Message" beside the name', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Message' }))
     expect(stash).toHaveBeenCalledTimes(1)
     // A person, never "we are hiring" on behalf of a school it is not.
-    expect(stash.mock.calls[0][0]).toMatchObject({ listingId: 't1', listingTitle: 'Ms Lan', body: PERSON_OPENER })
+    expect(stash.mock.calls[0][0]).toMatchObject({ listingId: 't1', listingTitle: 'Ms Lan', ...PERSON_PICK })
+    expect(stash.mock.calls[0][0]).not.toHaveProperty('body')
     expect(push).toHaveBeenCalledWith('/messages/pending')
     expect(screen.queryByRole('status')).toBeNull()
   })
@@ -126,7 +129,7 @@ describe('TeacherContactJump — "Message" beside the name', () => {
     profile()
     await settle()
     fireEvent.click(screen.getByRole('button', { name: 'Message' }))
-    expect(stash.mock.calls[0][0].body).toBe(SCHOOL_OPENER)
+    expect(stash.mock.calls[0][0]).toMatchObject(SCHOOL_PICK)
     expect(push).toHaveBeenCalledWith('/messages/pending')
   })
 
@@ -177,7 +180,7 @@ describe('TeacherContact — the daily limit', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole('status')).toBeNull()
     expect(stash).toHaveBeenCalledTimes(1)
-    expect(stash.mock.calls[0][0].body).toBe(PERSON_OPENER)
+    expect(stash.mock.calls[0][0]).toMatchObject(PERSON_PICK)
     expect(push).toHaveBeenCalledWith('/messages/pending')
   })
 
@@ -221,8 +224,18 @@ describe('TeacherContact — the daily limit', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Message teacher' }))
     expect(screen.queryByRole('status')).toBeNull()
     expect(stash).toHaveBeenCalledTimes(1)
-    expect(stash.mock.calls[0][0].body).toBe(PERSON_OPENER)
+    expect(stash.mock.calls[0][0]).toMatchObject(PERSON_PICK)
     expect(push).toHaveBeenCalledWith('/messages/pending')
+  })
+
+  it('a writer who already has a thread with this teacher goes back INTO it — no chooser, nothing stashed (opus, gate 13c)', async () => {
+    Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'business' })
+    quotaAnswer = { ...BUSINESS, hasThread: true, threadId: 'c9' }
+    render(<TeacherContact listingId="t1" name="Ms Lan" image={null} cover />)
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Ask about a cover lesson' }))
+    expect(push).toHaveBeenCalledWith('/messages/c9')
+    expect(stash).not.toHaveBeenCalled()
   })
 
   it('a failed ask changes nothing: the tap goes through and the server decides', async () => {
@@ -275,7 +288,7 @@ describe('TeacherContact — the daily limit', () => {
 })
 
 describe('TeacherContact — cover lessons (2026-10-07)', () => {
-  it('offers "Ask about a cover lesson" only on a cover teacher, and sends the cover opener', async () => {
+  it('offers "Ask about a cover lesson" only on a cover teacher, and asks the chooser for the cover opener', async () => {
     Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'business' })
     quotaAnswer = BUSINESS
     const { unmount } = render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
@@ -285,7 +298,7 @@ describe('TeacherContact — cover lessons (2026-10-07)', () => {
     render(<TeacherContact listingId="t1" name="Ms Lan" image={null} cover />)
     await settle()
     fireEvent.click(screen.getByRole('button', { name: 'Ask about a cover lesson' }))
-    expect(stash.mock.calls[0][0].body).toMatch(/cover teacher/)
+    expect(stash.mock.calls[0][0]).toMatchObject({ pick: { voice: 'school', cover: true } })
     expect(push).toHaveBeenCalledWith('/messages/pending')
   })
 
@@ -333,7 +346,7 @@ describe('TeacherContactJump on a cover teacher', () => {
     )
     await settle()
     fireEvent.click(screen.getByRole('button', { name: 'Message' }))
-    expect(stash.mock.calls[0][0].body).toBe(PERSON_OPENER)
+    expect(stash.mock.calls[0][0]).toMatchObject(PERSON_PICK)
     expect(push).toHaveBeenCalledWith('/messages/pending')
   })
 })

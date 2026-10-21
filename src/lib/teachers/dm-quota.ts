@@ -70,6 +70,8 @@ export type TeacherDmStanding = TeacherDmTierInfo & {
   resetAt: string
   reason: TeacherDmReason | null
   hasThread: boolean
+  /** That thread's id, when there is one: the teacher page's Message button goes back into it (2026-10-21). */
+  threadId?: string
 }
 
 const DAY_MS = 86_400_000
@@ -207,11 +209,12 @@ export async function teacherDmStanding(profileId: string, opts: { ip?: string |
   // ⛔ AFTER the count, never beside it (codex, gate 2026-10-13): a thread another tap commits between the two reads is
   // then either counted AND found, or neither — never counted yet unfound, which would refuse a double tap at the last
   // slot that openTeacherThread's lock would have answered with that very thread.
-  const hasThread = opts.listingId
-    ? !!(await db.conversation.findUnique({ where: { listingId_buyerProfileId: { listingId: opts.listingId, buyerProfileId: profileId } }, select: { id: true } }))
-    : false
+  const thread = opts.listingId
+    ? await db.conversation.findUnique({ where: { listingId_buyerProfileId: { listingId: opts.listingId, buyerProfileId: profileId } }, select: { id: true } })
+    : null
   const poolUsed = tier.pooled ? await poolUsedNow(poolKeyFor(opts.ip, day)) : 0
-  return shape(tier, used, poolUsed, resetAt, hasThread)
+  const standing = shape(tier, used, poolUsed, resetAt, !!thread)
+  return thread ? { ...standing, threadId: thread.id } : standing
 }
 
 export type OpenTeacherThread =
