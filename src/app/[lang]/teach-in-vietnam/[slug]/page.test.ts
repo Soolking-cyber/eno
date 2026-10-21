@@ -27,6 +27,7 @@ vi.mock('@/lib/teach-guides/district-links', () => ({
 vi.mock('@/components/marketplace/seo-article', () => ({ SeoArticle: () => null }))
 vi.mock('@/components/marketplace/teach-guide-body', () => ({
   TeachKeyPoints: () => null,
+  TeachDataLink: () => null,
   TeachNextStep: () => null,
   teachGuideSections: (_g: unknown, isLiveHref: (href: string) => boolean) => {
     h.isLiveHref = isLiveHref
@@ -94,6 +95,31 @@ describe('in-text district links: only while the district page is at the indexin
     const live = h.isLiveHref!
     expect([live('/c/rentals/d2'), live('/c/rentals/d2#rent')]).toEqual([false, false])
     expect([live('/c/rentals/d1'), live('/schools'), live(teachPath(TEACH_GUIDES[1].slug))]).toEqual([true, true, true])
+  })
+})
+
+/**
+ * The "Data" line (2026-10-21): the two guides the HCMC Teacher Cost & Pay Index restates — the salary guide's take-home
+ * table, the cost-of-living guide's rents — link it under their key points; no other guide does. Component code only: the
+ * guides' JSON, and so their review digests, are untouched.
+ */
+describe('the "Data" line under the key points', () => {
+  type Lede = { props: { content: { ledeRow: { props: { children: unknown } } } } }
+  const dataLinks = async (slug: string) => {
+    h.now = LIVE
+    const el = (await page.default({ params: Promise.resolve({ lang: 'en', slug }) })) as unknown as Lede
+    return ([el.props.content.ledeRow.props.children].flat(2) as ({ props?: { href?: string; label?: string } } | false)[])
+      .filter((k): k is { props: { href: string; label: string } } => !!k && k.props?.href === '/hcmc-teacher-cost-pay-index')
+      .map((k) => k.props.label)
+  }
+  const D1_GUIDES = ['english-teacher-salary-in-vietnam', 'cost-of-living-in-ho-chi-minh-city-for-teachers']
+
+  it.each(D1_GUIDES)('%s links the index, by its own name', async (slug) => {
+    expect(await dataLinks(slug)).toEqual(['HCMC Teacher Cost & Pay Index'])
+  })
+
+  it('no other guide carries it', async () => {
+    for (const e of TEACH_GUIDES.filter((g) => !D1_GUIDES.includes(g.slug))) expect(await dataLinks(e.slug), e.slug).toEqual([])
   })
 })
 

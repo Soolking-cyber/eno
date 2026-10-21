@@ -118,6 +118,27 @@ describe('/hcmc-rent-index words, as rendered', () => {
     expect(el.textContent).not.toMatch(/\bvisas?\b|\bitinerar|lịch trình|paypal/i)
   })
 
+  /**
+   * ⛔ A BRAND ANCHOR IN THE COPY-SNIPPET, NEVER A KEYWORD ONE (owner decision 9; the D1 plan's companion fix, 2026-10-21):
+   * the link's words are "eno.vn"; the dataset's name stays beside it, unlinked. English on both languages, as before.
+   */
+  it.each(['en', 'vi'] as const)('%s: the HTML snippet links "eno.vn", with the dataset’s name and month beside the link', async (lang) => {
+    const { el } = await render(lang)
+    const snippet = el.querySelector('#cite pre code')!.textContent!
+    expect(snippet).toBe('HCMC Rent Index, October 2026 (<a href="https://eno.vn/hcmc-rent-index">eno.vn</a>)')
+    const parsed = document.createElement('div')
+    parsed.innerHTML = snippet
+    expect([...parsed.querySelectorAll('a')].map((a) => [a.textContent, a.getAttribute('href')])).toEqual([['eno.vn', 'https://eno.vn/hcmc-rent-index']])
+  })
+
+  it.each(['en', 'vi'] as const)('%s: links the HCMC Teacher Cost & Pay Index beside the teacher guides, marked English on every render', async (lang) => {
+    const { el } = await render(lang)
+    const a = el.querySelector('a[href="/hcmc-teacher-cost-pay-index"]')!
+    expect(a.textContent).toBe('HCMC Teacher Cost & Pay Index')
+    // The client sets <html lang> to the visitor's language, the machine-translated ones too: an English label says so itself.
+    expect(a.getAttribute('lang')).toBe('en')
+  })
+
   it('the services build still answers 404 before reading the snapshot — the page stays marketplace-only', async () => {
     vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'services')
     vi.resetModules()

@@ -11,6 +11,7 @@ import { teachGuideLinks } from '@/lib/teach-guides/site-links'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { MIN_CELL_N, type RentIndex } from '@/lib/rent-index'
+import { TEACHER_COST_INDEX_NAME, TEACHER_COST_INDEX_PATH } from '@/lib/teacher-cost-index'
 import { loadRentIndex } from './load-rent-index'
 import { BedroomTable, DistrictTable, Headline, Methodology, Unavailable } from './rent-index-sections'
 import { CiteBox } from './cite-box'
@@ -154,7 +155,10 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
   const citation = index
     ? `${SITE_NAME} (${citedOn.slice(-4)}). Ho Chi Minh City Rent Index, ${citedOn}. ${URL_}`
     : `${SITE_NAME}. Ho Chi Minh City Rent Index. ${URL_}`
-  const htmlSnippet = `<a href="${URL_}">HCMC Rent Index, ${SITE_NAME} (${citedMonth})</a>`
+  // ⛔ A BRAND ANCHOR, NEVER A KEYWORD ONE (owner decision 9 and the D1 plan: the copy-snippet links "eno.vn", as the
+  // Teacher Cost & Pay Index's does) — the dataset's name stays in the text beside the link, where it credits without
+  // optimising an anchor. It used to link the words "HCMC Rent Index, eno.vn (October 2026)".
+  const htmlSnippet = `HCMC Rent Index, ${citedMonth} (<a href="${URL_}">${SITE_NAME}</a>)`
 
   return (
     <div className="flex min-h-page flex-col blob-bg">
@@ -224,20 +228,20 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
         </p>
         {/* The two teacher guides built on this index (teacher visibility plan, 2026-10-18 — measurement in
             src/lib/teach-guides/site-links.ts): it is the page most cited for HCMC rent, and it linked neither. English
-            guides, so the link text is the guide's own English label, marked `lang` on a Vietnamese page. */}
-        {teachGuides.length > 0 && (
-          <p className="mt-3 max-w-3xl text-sm text-body">
-            <Bilingual en="Teaching in Ho Chi Minh City?" vi="Dạy học ở TP.HCM?" />{' '}
-            {teachGuides.map((g, i) => (
-              <span key={g.href}>
-                {i > 0 && ' · '}
-                <Link href={g.href} hrefLang="en" lang={lang === 'en' ? undefined : 'en'} className="font-semibold text-accent-foreground hover:underline">
-                  {g.label}
-                </Link>
-              </span>
-            ))}
-          </p>
-        )}
+            guides, so the link text is the guide's own English label, marked `lang="en"` — on every render, since the
+            client sets `<html lang>` to a machine-translated language too (language-context.tsx; opus, D1 gate review).
+            Then the HCMC Teacher Cost & Pay Index (D1, 2026-10-21), the data page built on this one, English as well. */}
+        <p className="mt-3 max-w-3xl text-sm text-body">
+          <Bilingual en="Teaching in Ho Chi Minh City?" vi="Dạy học ở TP.HCM?" />{' '}
+          {[...teachGuides, { href: TEACHER_COST_INDEX_PATH, label: TEACHER_COST_INDEX_NAME }].map((g, i) => (
+            <span key={g.href}>
+              {i > 0 && ' · '}
+              <Link href={g.href} hrefLang="en" lang="en" className="font-semibold text-accent-foreground hover:underline">
+                {g.label}
+              </Link>
+            </span>
+          ))}
+        </p>
       </main>
       <Footer />
     </div>

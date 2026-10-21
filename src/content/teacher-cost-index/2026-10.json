@@ -1,0 +1,1170 @@
+{
+  "edition": "2026-10",
+  "frozenAt": "2026-10-21T05:11:39.330Z",
+  "note": "The series starts with this edition, on Rent Index rules version 5: from 21 October 2026 a studio or duplex room is its own band (Studio), so the 1-bedroom figures count one-bedroom flats only and are not comparable with 1-bedroom figures from before that date.",
+  "seriesBreak": null,
+  "rent": {
+    "source": "https://eno.vn/hcmc-rent-index.csv",
+    "csvSha256": "98d7bc599ab1f3cadaca1339586ca1af23c9c28d17bbbcff3b998011daea6651",
+    "snapshotUtc": "2026-10-21T05:07:42.038Z",
+    "rulesVersion": 5,
+    "sources": "GoPlus (an official eno.vn partner's own listings) · listings posted by eno.vn members",
+    "minCellN": 10,
+    "cells": [
+      {
+        "scope": "city",
+        "districtSlug": "all",
+        "districtName": "Ho Chi Minh City",
+        "partOf": null,
+        "band": "studio",
+        "n": 2377,
+        "medianVnd": 4500000
+      },
+      {
+        "scope": "city",
+        "districtSlug": "all",
+        "districtName": "Ho Chi Minh City",
+        "partOf": null,
+        "band": "br1",
+        "n": 139,
+        "medianVnd": 6600000
+      },
+      {
+        "scope": "city",
+        "districtSlug": "all",
+        "districtName": "Ho Chi Minh City",
+        "partOf": null,
+        "band": "br2",
+        "n": 75,
+        "medianVnd": 8800000
+      },
+      {
+        "scope": "city",
+        "districtSlug": "all",
+        "districtName": "Ho Chi Minh City",
+        "partOf": null,
+        "band": "br3plus",
+        "n": 5,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "thu-duc",
+        "districtName": "Thu Duc City",
+        "partOf": null,
+        "band": "studio",
+        "n": 126,
+        "medianVnd": 4200000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "thu-duc",
+        "districtName": "Thu Duc City",
+        "partOf": null,
+        "band": "br1",
+        "n": 3,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "thu-duc",
+        "districtName": "Thu Duc City",
+        "partOf": null,
+        "band": "br2",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d1",
+        "districtName": "District 1",
+        "partOf": null,
+        "band": "studio",
+        "n": 39,
+        "medianVnd": 6500000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d1",
+        "districtName": "District 1",
+        "partOf": null,
+        "band": "br1",
+        "n": 7,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d1",
+        "districtName": "District 1",
+        "partOf": null,
+        "band": "br2",
+        "n": 2,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d3",
+        "districtName": "District 3",
+        "partOf": null,
+        "band": "studio",
+        "n": 12,
+        "medianVnd": 6300000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d3",
+        "districtName": "District 3",
+        "partOf": null,
+        "band": "br1",
+        "n": 1,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d3",
+        "districtName": "District 3",
+        "partOf": null,
+        "band": "br2",
+        "n": 1,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d4",
+        "districtName": "District 4",
+        "partOf": null,
+        "band": "studio",
+        "n": 2,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d4",
+        "districtName": "District 4",
+        "partOf": null,
+        "band": "br1",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d4",
+        "districtName": "District 4",
+        "partOf": null,
+        "band": "br2",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d5",
+        "districtName": "District 5",
+        "partOf": null,
+        "band": "studio",
+        "n": 4,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d5",
+        "districtName": "District 5",
+        "partOf": null,
+        "band": "br1",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d5",
+        "districtName": "District 5",
+        "partOf": null,
+        "band": "br2",
+        "n": 1,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d6",
+        "districtName": "District 6",
+        "partOf": null,
+        "band": "studio",
+        "n": 14,
+        "medianVnd": 4750000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d6",
+        "districtName": "District 6",
+        "partOf": null,
+        "band": "br1",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d6",
+        "districtName": "District 6",
+        "partOf": null,
+        "band": "br2",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d7",
+        "districtName": "District 7 (Phu My Hung)",
+        "partOf": null,
+        "band": "studio",
+        "n": 12,
+        "medianVnd": 4750000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d7",
+        "districtName": "District 7 (Phu My Hung)",
+        "partOf": null,
+        "band": "br1",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d7",
+        "districtName": "District 7 (Phu My Hung)",
+        "partOf": null,
+        "band": "br2",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d8",
+        "districtName": "District 8",
+        "partOf": null,
+        "band": "studio",
+        "n": 10,
+        "medianVnd": 6450000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d8",
+        "districtName": "District 8",
+        "partOf": null,
+        "band": "br1",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d8",
+        "districtName": "District 8",
+        "partOf": null,
+        "band": "br2",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d10",
+        "districtName": "District 10",
+        "partOf": null,
+        "band": "studio",
+        "n": 11,
+        "medianVnd": 6200000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d10",
+        "districtName": "District 10",
+        "partOf": null,
+        "band": "br1",
+        "n": 3,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d10",
+        "districtName": "District 10",
+        "partOf": null,
+        "band": "br2",
+        "n": 5,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d11",
+        "districtName": "District 11",
+        "partOf": null,
+        "band": "studio",
+        "n": 12,
+        "medianVnd": 5850000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d11",
+        "districtName": "District 11",
+        "partOf": null,
+        "band": "br1",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d11",
+        "districtName": "District 11",
+        "partOf": null,
+        "band": "br2",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d12",
+        "districtName": "District 12",
+        "partOf": null,
+        "band": "studio",
+        "n": 846,
+        "medianVnd": 4100000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d12",
+        "districtName": "District 12",
+        "partOf": null,
+        "band": "br1",
+        "n": 16,
+        "medianVnd": 5600000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "d12",
+        "districtName": "District 12",
+        "partOf": null,
+        "band": "br2",
+        "n": 2,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "binh-tan",
+        "districtName": "Binh Tan District",
+        "partOf": null,
+        "band": "studio",
+        "n": 33,
+        "medianVnd": 3700000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "binh-tan",
+        "districtName": "Binh Tan District",
+        "partOf": null,
+        "band": "br1",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "binh-tan",
+        "districtName": "Binh Tan District",
+        "partOf": null,
+        "band": "br2",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "binh-thanh",
+        "districtName": "Binh Thanh District",
+        "partOf": null,
+        "band": "studio",
+        "n": 120,
+        "medianVnd": 5500000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "binh-thanh",
+        "districtName": "Binh Thanh District",
+        "partOf": null,
+        "band": "br1",
+        "n": 12,
+        "medianVnd": 8800000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "binh-thanh",
+        "districtName": "Binh Thanh District",
+        "partOf": null,
+        "band": "br2",
+        "n": 17,
+        "medianVnd": 9400000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "go-vap",
+        "districtName": "Go Vap District",
+        "partOf": null,
+        "band": "studio",
+        "n": 686,
+        "medianVnd": 4800000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "go-vap",
+        "districtName": "Go Vap District",
+        "partOf": null,
+        "band": "br1",
+        "n": 58,
+        "medianVnd": 6650000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "go-vap",
+        "districtName": "Go Vap District",
+        "partOf": null,
+        "band": "br2",
+        "n": 33,
+        "medianVnd": 7900000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "phu-nhuan",
+        "districtName": "Phu Nhuan District",
+        "partOf": null,
+        "band": "studio",
+        "n": 36,
+        "medianVnd": 5550000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "phu-nhuan",
+        "districtName": "Phu Nhuan District",
+        "partOf": null,
+        "band": "br1",
+        "n": 4,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "phu-nhuan",
+        "districtName": "Phu Nhuan District",
+        "partOf": null,
+        "band": "br2",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "tan-binh",
+        "districtName": "Tan Binh District",
+        "partOf": null,
+        "band": "studio",
+        "n": 159,
+        "medianVnd": 5500000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "tan-binh",
+        "districtName": "Tan Binh District",
+        "partOf": null,
+        "band": "br1",
+        "n": 21,
+        "medianVnd": 6000000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "tan-binh",
+        "districtName": "Tan Binh District",
+        "partOf": null,
+        "band": "br2",
+        "n": 10,
+        "medianVnd": 8150000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "tan-phu",
+        "districtName": "Tan Phu District",
+        "partOf": null,
+        "band": "studio",
+        "n": 65,
+        "medianVnd": 4000000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "tan-phu",
+        "districtName": "Tan Phu District",
+        "partOf": null,
+        "band": "br1",
+        "n": 10,
+        "medianVnd": 7000000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "tan-phu",
+        "districtName": "Tan Phu District",
+        "partOf": null,
+        "band": "br2",
+        "n": 3,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "binh-chanh",
+        "districtName": "Binh Chanh District",
+        "partOf": null,
+        "band": "studio",
+        "n": 10,
+        "medianVnd": 5250000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "binh-chanh",
+        "districtName": "Binh Chanh District",
+        "partOf": null,
+        "band": "br1",
+        "n": 4,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "binh-chanh",
+        "districtName": "Binh Chanh District",
+        "partOf": null,
+        "band": "br2",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "hoc-mon",
+        "districtName": "Hoc Mon District",
+        "partOf": null,
+        "band": "studio",
+        "n": 54,
+        "medianVnd": 3400000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "hoc-mon",
+        "districtName": "Hoc Mon District",
+        "partOf": null,
+        "band": "br1",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "hoc-mon",
+        "districtName": "Hoc Mon District",
+        "partOf": null,
+        "band": "br2",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "nha-be",
+        "districtName": "Nha Be District",
+        "partOf": null,
+        "band": "studio",
+        "n": 120,
+        "medianVnd": 2300000
+      },
+      {
+        "scope": "district",
+        "districtSlug": "nha-be",
+        "districtName": "Nha Be District",
+        "partOf": null,
+        "band": "br1",
+        "n": 0,
+        "medianVnd": null
+      },
+      {
+        "scope": "district",
+        "districtSlug": "nha-be",
+        "districtName": "Nha Be District",
+        "partOf": null,
+        "band": "br2",
+        "n": 1,
+        "medianVnd": null
+      }
+    ]
+  },
+  "model": {
+    "version": 1,
+    "inputs": {
+      "year": 2026,
+      "law": "PIT Law 109/2025/QH15",
+      "assumptions": "tax resident, 12-month labour contract, no dependants",
+      "referenceGrossVnd": [
+        40000000,
+        45000000
+      ],
+      "insurancePerMille": {
+        "pension": 80,
+        "health": 15
+      },
+      "insuranceSalaryCapVnd": 50600000,
+      "personalDeductionVnd": 15500000,
+      "taxBrackets": [
+        [
+          10000000,
+          5
+        ],
+        [
+          30000000,
+          10
+        ],
+        [
+          60000000,
+          20
+        ],
+        [
+          100000000,
+          30
+        ],
+        [
+          null,
+          35
+        ]
+      ]
+    },
+    "takeHome": [
+      {
+        "grossVnd": 40000000,
+        "insuranceVnd": 3800000,
+        "taxVnd": 1570000,
+        "takeHomeVnd": 34630000
+      },
+      {
+        "grossVnd": 45000000,
+        "insuranceVnd": 4275000,
+        "taxVnd": 2022500,
+        "takeHomeVnd": 38702500
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "scope": "city",
+      "districtSlug": "all",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 13,
+      "sharePctWhole": 13,
+      "leftAfterRentVnd": 30130000
+    },
+    {
+      "scope": "city",
+      "districtSlug": "all",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 11.6,
+      "sharePctWhole": 12,
+      "leftAfterRentVnd": 34202500
+    },
+    {
+      "scope": "city",
+      "districtSlug": "all",
+      "band": "br1",
+      "grossVnd": 40000000,
+      "sharePct": 19.1,
+      "sharePctWhole": 19,
+      "leftAfterRentVnd": 28030000
+    },
+    {
+      "scope": "city",
+      "districtSlug": "all",
+      "band": "br1",
+      "grossVnd": 45000000,
+      "sharePct": 17.1,
+      "sharePctWhole": 17,
+      "leftAfterRentVnd": 32102500
+    },
+    {
+      "scope": "city",
+      "districtSlug": "all",
+      "band": "br2",
+      "grossVnd": 40000000,
+      "sharePct": 25.4,
+      "sharePctWhole": 25,
+      "leftAfterRentVnd": 25830000
+    },
+    {
+      "scope": "city",
+      "districtSlug": "all",
+      "band": "br2",
+      "grossVnd": 45000000,
+      "sharePct": 22.7,
+      "sharePctWhole": 23,
+      "leftAfterRentVnd": 29902500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "thu-duc",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 12.1,
+      "sharePctWhole": 12,
+      "leftAfterRentVnd": 30430000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "thu-duc",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 10.9,
+      "sharePctWhole": 11,
+      "leftAfterRentVnd": 34502500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d1",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 18.8,
+      "sharePctWhole": 19,
+      "leftAfterRentVnd": 28130000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d1",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 16.8,
+      "sharePctWhole": 17,
+      "leftAfterRentVnd": 32202500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d3",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 18.2,
+      "sharePctWhole": 18,
+      "leftAfterRentVnd": 28330000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d3",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 16.3,
+      "sharePctWhole": 16,
+      "leftAfterRentVnd": 32402500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d6",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 13.7,
+      "sharePctWhole": 14,
+      "leftAfterRentVnd": 29880000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d6",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 12.3,
+      "sharePctWhole": 12,
+      "leftAfterRentVnd": 33952500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d7",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 13.7,
+      "sharePctWhole": 14,
+      "leftAfterRentVnd": 29880000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d7",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 12.3,
+      "sharePctWhole": 12,
+      "leftAfterRentVnd": 33952500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d8",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 18.6,
+      "sharePctWhole": 19,
+      "leftAfterRentVnd": 28180000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d8",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 16.7,
+      "sharePctWhole": 17,
+      "leftAfterRentVnd": 32252500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d10",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 17.9,
+      "sharePctWhole": 18,
+      "leftAfterRentVnd": 28430000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d10",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 16,
+      "sharePctWhole": 16,
+      "leftAfterRentVnd": 32502500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d11",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 16.9,
+      "sharePctWhole": 17,
+      "leftAfterRentVnd": 28780000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d11",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 15.1,
+      "sharePctWhole": 15,
+      "leftAfterRentVnd": 32852500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d12",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 11.8,
+      "sharePctWhole": 12,
+      "leftAfterRentVnd": 30530000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d12",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 10.6,
+      "sharePctWhole": 11,
+      "leftAfterRentVnd": 34602500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d12",
+      "band": "br1",
+      "grossVnd": 40000000,
+      "sharePct": 16.2,
+      "sharePctWhole": 16,
+      "leftAfterRentVnd": 29030000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "d12",
+      "band": "br1",
+      "grossVnd": 45000000,
+      "sharePct": 14.5,
+      "sharePctWhole": 14,
+      "leftAfterRentVnd": 33102500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "binh-tan",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 10.7,
+      "sharePctWhole": 11,
+      "leftAfterRentVnd": 30930000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "binh-tan",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 9.6,
+      "sharePctWhole": 10,
+      "leftAfterRentVnd": 35002500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "binh-thanh",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 15.9,
+      "sharePctWhole": 16,
+      "leftAfterRentVnd": 29130000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "binh-thanh",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 14.2,
+      "sharePctWhole": 14,
+      "leftAfterRentVnd": 33202500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "binh-thanh",
+      "band": "br1",
+      "grossVnd": 40000000,
+      "sharePct": 25.4,
+      "sharePctWhole": 25,
+      "leftAfterRentVnd": 25830000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "binh-thanh",
+      "band": "br1",
+      "grossVnd": 45000000,
+      "sharePct": 22.7,
+      "sharePctWhole": 23,
+      "leftAfterRentVnd": 29902500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "binh-thanh",
+      "band": "br2",
+      "grossVnd": 40000000,
+      "sharePct": 27.1,
+      "sharePctWhole": 27,
+      "leftAfterRentVnd": 25230000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "binh-thanh",
+      "band": "br2",
+      "grossVnd": 45000000,
+      "sharePct": 24.3,
+      "sharePctWhole": 24,
+      "leftAfterRentVnd": 29302500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "go-vap",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 13.9,
+      "sharePctWhole": 14,
+      "leftAfterRentVnd": 29830000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "go-vap",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 12.4,
+      "sharePctWhole": 12,
+      "leftAfterRentVnd": 33902500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "go-vap",
+      "band": "br1",
+      "grossVnd": 40000000,
+      "sharePct": 19.2,
+      "sharePctWhole": 19,
+      "leftAfterRentVnd": 27980000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "go-vap",
+      "band": "br1",
+      "grossVnd": 45000000,
+      "sharePct": 17.2,
+      "sharePctWhole": 17,
+      "leftAfterRentVnd": 32052500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "go-vap",
+      "band": "br2",
+      "grossVnd": 40000000,
+      "sharePct": 22.8,
+      "sharePctWhole": 23,
+      "leftAfterRentVnd": 26730000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "go-vap",
+      "band": "br2",
+      "grossVnd": 45000000,
+      "sharePct": 20.4,
+      "sharePctWhole": 20,
+      "leftAfterRentVnd": 30802500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "phu-nhuan",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 16,
+      "sharePctWhole": 16,
+      "leftAfterRentVnd": 29080000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "phu-nhuan",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 14.3,
+      "sharePctWhole": 14,
+      "leftAfterRentVnd": 33152500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "tan-binh",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 15.9,
+      "sharePctWhole": 16,
+      "leftAfterRentVnd": 29130000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "tan-binh",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 14.2,
+      "sharePctWhole": 14,
+      "leftAfterRentVnd": 33202500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "tan-binh",
+      "band": "br1",
+      "grossVnd": 40000000,
+      "sharePct": 17.3,
+      "sharePctWhole": 17,
+      "leftAfterRentVnd": 28630000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "tan-binh",
+      "band": "br1",
+      "grossVnd": 45000000,
+      "sharePct": 15.5,
+      "sharePctWhole": 16,
+      "leftAfterRentVnd": 32702500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "tan-binh",
+      "band": "br2",
+      "grossVnd": 40000000,
+      "sharePct": 23.5,
+      "sharePctWhole": 24,
+      "leftAfterRentVnd": 26480000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "tan-binh",
+      "band": "br2",
+      "grossVnd": 45000000,
+      "sharePct": 21.1,
+      "sharePctWhole": 21,
+      "leftAfterRentVnd": 30552500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "tan-phu",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 11.6,
+      "sharePctWhole": 12,
+      "leftAfterRentVnd": 30630000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "tan-phu",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 10.3,
+      "sharePctWhole": 10,
+      "leftAfterRentVnd": 34702500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "tan-phu",
+      "band": "br1",
+      "grossVnd": 40000000,
+      "sharePct": 20.2,
+      "sharePctWhole": 20,
+      "leftAfterRentVnd": 27630000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "tan-phu",
+      "band": "br1",
+      "grossVnd": 45000000,
+      "sharePct": 18.1,
+      "sharePctWhole": 18,
+      "leftAfterRentVnd": 31702500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "binh-chanh",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 15.2,
+      "sharePctWhole": 15,
+      "leftAfterRentVnd": 29380000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "binh-chanh",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 13.6,
+      "sharePctWhole": 14,
+      "leftAfterRentVnd": 33452500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "hoc-mon",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 9.8,
+      "sharePctWhole": 10,
+      "leftAfterRentVnd": 31230000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "hoc-mon",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 8.8,
+      "sharePctWhole": 9,
+      "leftAfterRentVnd": 35302500
+    },
+    {
+      "scope": "district",
+      "districtSlug": "nha-be",
+      "band": "studio",
+      "grossVnd": 40000000,
+      "sharePct": 6.6,
+      "sharePctWhole": 7,
+      "leftAfterRentVnd": 32330000
+    },
+    {
+      "scope": "district",
+      "districtSlug": "nha-be",
+      "band": "studio",
+      "grossVnd": 45000000,
+      "sharePct": 5.9,
+      "sharePctWhole": 6,
+      "leftAfterRentVnd": 36402500
+    }
+  ]
+}

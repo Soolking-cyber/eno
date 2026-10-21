@@ -655,6 +655,8 @@ const field = (v: string | number | null): string => {
   const s = typeof v === 'string' && /^[=+\-@\t\r]/.test(v) ? `'${v}` : String(v)
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
+/** The same field, for the other CSV built on this index (src/lib/teacher-cost-index.ts): one quoting and one formula guard. */
+export const csvField = field
 
 /**
  * ⚠️ `rules_version` IS THE LAST COLUMN (R-e), SO A SCRIPT THAT READS COLUMNS BY POSITION KEEPS WORKING.

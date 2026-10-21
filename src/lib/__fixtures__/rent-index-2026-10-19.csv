@@ -1,0 +1,121 @@
+snapshot_utc,scope,district_slug,district_name,part_of,type,n,median_vnd_month,p25_vnd_month,p75_vnd_month,n_with_area,median_vnd_per_m2_month,rules_version
+2026-10-19T08:17:40.813Z,city,all,Ho Chi Minh City,,apartment,481,9000000,6000000,14000000,481,160000,3
+2026-10-19T08:17:40.813Z,city,all,Ho Chi Minh City,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,city,all,Ho Chi Minh City,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,city,all,Ho Chi Minh City,,apartment_1br,175,6000000,5000000,8000000,175,175000,3
+2026-10-19T08:17:40.813Z,city,all,Ho Chi Minh City,,apartment_2br,208,11000000,8000000,14500000,208,160000,3
+2026-10-19T08:17:40.813Z,city,all,Ho Chi Minh City,,apartment_3plus_br,98,15000000,11625000,17000000,98,140000,3
+2026-10-19T08:17:40.813Z,district,thu-duc,Thu Duc City,,apartment,88,7000000,5500000,12000000,88,159000,3
+2026-10-19T08:17:40.813Z,district,thu-duc,Thu Duc City,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,thu-duc,Thu Duc City,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,thu-duc,Thu Duc City,,apartment_1br,42,5800000,5000000,7000000,42,162000,3
+2026-10-19T08:17:40.813Z,district,thu-duc,Thu Duc City,,apartment_2br,37,8000000,5500000,13000000,37,133000,3
+2026-10-19T08:17:40.813Z,district,thu-duc,Thu Duc City,,apartment_3plus_br,9,,,,9,,3
+2026-10-19T08:17:40.813Z,district,d1,District 1,,apartment,19,8000000,5850000,15000000,19,178000,3
+2026-10-19T08:17:40.813Z,district,d1,District 1,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d1,District 1,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d1,District 1,,apartment_1br,14,6700000,5275000,8375000,14,192000,3
+2026-10-19T08:17:40.813Z,district,d1,District 1,,apartment_2br,3,,,,3,,3
+2026-10-19T08:17:40.813Z,district,d1,District 1,,apartment_3plus_br,2,,,,2,,3
+2026-10-19T08:17:40.813Z,district,d3,District 3,,apartment,18,10000000,8250000,12500000,18,165000,3
+2026-10-19T08:17:40.813Z,district,d3,District 3,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d3,District 3,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d3,District 3,,apartment_1br,13,9000000,8000000,10000000,13,167000,3
+2026-10-19T08:17:40.813Z,district,d3,District 3,,apartment_2br,3,,,,3,,3
+2026-10-19T08:17:40.813Z,district,d3,District 3,,apartment_3plus_br,2,,,,2,,3
+2026-10-19T08:17:40.813Z,district,d4,District 4,,apartment,3,,,,3,,3
+2026-10-19T08:17:40.813Z,district,d4,District 4,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d4,District 4,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d4,District 4,,apartment_1br,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d4,District 4,,apartment_2br,2,,,,2,,3
+2026-10-19T08:17:40.813Z,district,d4,District 4,,apartment_3plus_br,1,,,,1,,3
+2026-10-19T08:17:40.813Z,district,d5,District 5,,apartment,8,,,,8,,3
+2026-10-19T08:17:40.813Z,district,d5,District 5,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d5,District 5,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d5,District 5,,apartment_1br,4,,,,4,,3
+2026-10-19T08:17:40.813Z,district,d5,District 5,,apartment_2br,2,,,,2,,3
+2026-10-19T08:17:40.813Z,district,d5,District 5,,apartment_3plus_br,2,,,,2,,3
+2026-10-19T08:17:40.813Z,district,d6,District 6,,apartment,8,,,,8,,3
+2026-10-19T08:17:40.813Z,district,d6,District 6,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d6,District 6,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d6,District 6,,apartment_1br,4,,,,4,,3
+2026-10-19T08:17:40.813Z,district,d6,District 6,,apartment_2br,2,,,,2,,3
+2026-10-19T08:17:40.813Z,district,d6,District 6,,apartment_3plus_br,2,,,,2,,3
+2026-10-19T08:17:40.813Z,district,d7,District 7 (Phu My Hung),,apartment,21,8500000,6000000,14500000,21,210000,3
+2026-10-19T08:17:40.813Z,district,d7,District 7 (Phu My Hung),,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d7,District 7 (Phu My Hung),,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d7,District 7 (Phu My Hung),,apartment_1br,12,6500000,5450000,8750000,12,177000,3
+2026-10-19T08:17:40.813Z,district,d7,District 7 (Phu My Hung),,apartment_2br,8,,,,8,,3
+2026-10-19T08:17:40.813Z,district,d7,District 7 (Phu My Hung),,apartment_3plus_br,1,,,,1,,3
+2026-10-19T08:17:40.813Z,district,d8,District 8,,apartment,15,9000000,8250000,10500000,15,121000,3
+2026-10-19T08:17:40.813Z,district,d8,District 8,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d8,District 8,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d8,District 8,,apartment_1br,2,,,,2,,3
+2026-10-19T08:17:40.813Z,district,d8,District 8,,apartment_2br,10,9000000,7875000,9750000,10,111000,3
+2026-10-19T08:17:40.813Z,district,d8,District 8,,apartment_3plus_br,3,,,,3,,3
+2026-10-19T08:17:40.813Z,district,d10,District 10,,apartment,8,,,,8,,3
+2026-10-19T08:17:40.813Z,district,d10,District 10,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d10,District 10,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d10,District 10,,apartment_1br,3,,,,3,,3
+2026-10-19T08:17:40.813Z,district,d10,District 10,,apartment_2br,2,,,,2,,3
+2026-10-19T08:17:40.813Z,district,d10,District 10,,apartment_3plus_br,3,,,,3,,3
+2026-10-19T08:17:40.813Z,district,d11,District 11,,apartment,15,14000000,10000000,14750000,15,127000,3
+2026-10-19T08:17:40.813Z,district,d11,District 11,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d11,District 11,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d11,District 11,,apartment_1br,1,,,,1,,3
+2026-10-19T08:17:40.813Z,district,d11,District 11,,apartment_2br,6,,,,6,,3
+2026-10-19T08:17:40.813Z,district,d11,District 11,,apartment_3plus_br,8,,,,8,,3
+2026-10-19T08:17:40.813Z,district,d12,District 12,,apartment,33,7500000,6000000,8000000,33,108000,3
+2026-10-19T08:17:40.813Z,district,d12,District 12,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d12,District 12,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,d12,District 12,,apartment_1br,6,,,,6,,3
+2026-10-19T08:17:40.813Z,district,d12,District 12,,apartment_2br,17,7300000,6800000,8000000,17,121000,3
+2026-10-19T08:17:40.813Z,district,d12,District 12,,apartment_3plus_br,10,8000000,8000000,10250000,10,98000,3
+2026-10-19T08:17:40.813Z,district,binh-tan,Binh Tan District,,apartment,13,5200000,4000000,6000000,13,133000,3
+2026-10-19T08:17:40.813Z,district,binh-tan,Binh Tan District,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,binh-tan,Binh Tan District,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,binh-tan,Binh Tan District,,apartment_1br,8,,,,8,,3
+2026-10-19T08:17:40.813Z,district,binh-tan,Binh Tan District,,apartment_2br,4,,,,4,,3
+2026-10-19T08:17:40.813Z,district,binh-tan,Binh Tan District,,apartment_3plus_br,1,,,,1,,3
+2026-10-19T08:17:40.813Z,district,binh-thanh,Binh Thanh District,,apartment,43,12000000,10500000,17000000,43,230000,3
+2026-10-19T08:17:40.813Z,district,binh-thanh,Binh Thanh District,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,binh-thanh,Binh Thanh District,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,binh-thanh,Binh Thanh District,,apartment_1br,15,7000000,6300000,12750000,15,240000,3
+2026-10-19T08:17:40.813Z,district,binh-thanh,Binh Thanh District,,apartment_2br,23,15000000,11500000,17250000,23,213000,3
+2026-10-19T08:17:40.813Z,district,binh-thanh,Binh Thanh District,,apartment_3plus_br,5,,,,5,,3
+2026-10-19T08:17:40.813Z,district,go-vap,Go Vap District,,apartment,19,5900000,5200000,8250000,19,163000,3
+2026-10-19T08:17:40.813Z,district,go-vap,Go Vap District,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,go-vap,Go Vap District,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,go-vap,Go Vap District,,apartment_1br,13,5500000,5000000,5900000,13,180000,3
+2026-10-19T08:17:40.813Z,district,go-vap,Go Vap District,,apartment_2br,4,,,,4,,3
+2026-10-19T08:17:40.813Z,district,go-vap,Go Vap District,,apartment_3plus_br,2,,,,2,,3
+2026-10-19T08:17:40.813Z,district,phu-nhuan,Phu Nhuan District,,apartment,24,17000000,9500000,20000000,24,208000,3
+2026-10-19T08:17:40.813Z,district,phu-nhuan,Phu Nhuan District,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,phu-nhuan,Phu Nhuan District,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,phu-nhuan,Phu Nhuan District,,apartment_1br,6,,,,6,,3
+2026-10-19T08:17:40.813Z,district,phu-nhuan,Phu Nhuan District,,apartment_2br,13,18000000,14000000,21000000,13,250000,3
+2026-10-19T08:17:40.813Z,district,phu-nhuan,Phu Nhuan District,,apartment_3plus_br,5,,,,5,,3
+2026-10-19T08:17:40.813Z,district,tan-binh,Tan Binh District,,apartment,100,13000000,8150000,15000000,100,163000,3
+2026-10-19T08:17:40.813Z,district,tan-binh,Tan Binh District,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,tan-binh,Tan Binh District,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,tan-binh,Tan Binh District,,apartment_1br,23,6500000,5250000,7900000,23,196000,3
+2026-10-19T08:17:40.813Z,district,tan-binh,Tan Binh District,,apartment_2br,51,13000000,9900000,14750000,51,171000,3
+2026-10-19T08:17:40.813Z,district,tan-binh,Tan Binh District,,apartment_3plus_br,26,15000000,14250000,17000000,26,140000,3
+2026-10-19T08:17:40.813Z,district,tan-phu,Tan Phu District,,apartment,30,10000000,7075000,14625000,30,137000,3
+2026-10-19T08:17:40.813Z,district,tan-phu,Tan Phu District,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,tan-phu,Tan Phu District,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,tan-phu,Tan Phu District,,apartment_1br,7,,,,7,,3
+2026-10-19T08:17:40.813Z,district,tan-phu,Tan Phu District,,apartment_2br,10,9000000,7475000,11000000,10,130000,3
+2026-10-19T08:17:40.813Z,district,tan-phu,Tan Phu District,,apartment_3plus_br,13,15000000,10000000,15000000,13,136000,3
+2026-10-19T08:17:40.813Z,district,binh-chanh,Binh Chanh District,,apartment,9,,,,9,,3
+2026-10-19T08:17:40.813Z,district,binh-chanh,Binh Chanh District,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,binh-chanh,Binh Chanh District,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,binh-chanh,Binh Chanh District,,apartment_1br,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,binh-chanh,Binh Chanh District,,apartment_2br,8,,,,8,,3
+2026-10-19T08:17:40.813Z,district,binh-chanh,Binh Chanh District,,apartment_3plus_br,1,,,,1,,3
+2026-10-19T08:17:40.813Z,district,nha-be,Nha Be District,,apartment,7,,,,7,,3
+2026-10-19T08:17:40.813Z,district,nha-be,Nha Be District,,house,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,nha-be,Nha Be District,,room,0,,,,0,,3
+2026-10-19T08:17:40.813Z,district,nha-be,Nha Be District,,apartment_1br,2,,,,2,,3
+2026-10-19T08:17:40.813Z,district,nha-be,Nha Be District,,apartment_2br,3,,,,3,,3
+2026-10-19T08:17:40.813Z,district,nha-be,Nha Be District,,apartment_3plus_br,2,,,,2,,3

@@ -105,6 +105,9 @@ const RESERVED = new Set([
   'first-month-in-vietnam', 'forum', 'housing-vietnam-expats', 'iphone-18-vietnam',
   // The rent-index data page (2026-09-27). Its CSV sibling needs no entry: a handle cannot contain a dot.
   'hcmc-rent-index',
+  // The HCMC Teacher Cost & Pay Index built on it (D1, 2026-10-21) — the same two reasons; its editions live under it.
+  // Unclaimed when reserved (measured 2026-10-21: eno.vn/hcmc-teacher-cost-pay-index 404).
+  'hcmc-teacher-cost-pay-index',
   // ⚠️ THE PER-MODEL LANDING PAGES, ADDED 2026-09-19. A member holding @iphone-18-pro-vietnam
   // would shadow the route entirely — /[handle] renders the storefront in place, so the SEO page
   // simply stops existing with no error anywhere.

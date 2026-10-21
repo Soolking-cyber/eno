@@ -733,6 +733,7 @@ const EYEBROW_ALLOW = new Set([
   'src/components/marketplace/seo-landing.tsx', // SEO topic · place (owner-kept 2026-08-05)
   'src/components/marketplace/seo-article.tsx', // SEO topic · place + its "On this page" rail label
   'src/app/[lang]/hcmc-rent-index/page.tsx', // "Data · Ho Chi Minh City" — the same topic · place form
+  'src/app/[lang]/hcmc-teacher-cost-pay-index/sections.tsx', // the Teacher Cost & Pay Index's "Data · Ho Chi Minh City", as the Rent Index's
   'src/components/marketplace/content-page.tsx', // the "On this page" rail label, not a kicker
   'src/components/marketplace/trending-searches.tsx', // a section label over a chip row
   'src/app/[lang]/iphone-18-vietnam/duo-card.tsx', // a dated sale line ("On sale 23 October")

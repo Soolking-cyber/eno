@@ -21,9 +21,15 @@ import { copyText } from '@/lib/copy-text'
  * dataset's English name and an English month are the stable form; the chrome around it translates.
  * `copyText` (src/lib/copy-text.ts) because navigator.clipboard is absent in the Android WebView; the
  * text stays selectable either way, so a failed copy costs the shortcut and never shows "Copied".
+ *
+ * ⚠️ ONE BOX FOR BOTH DATA PAGES, ONE WORDING OF THE TERMS: the HCMC Teacher Cost & Pay Index uses it too
+ * (src/app/[lang]/hcmc-teacher-cost-pay-index). That page prints the same English on both language variants until
+ * counsel answers (src/lib/teacher-cost-index.ts), so it passes `english` and the box says every word in English
+ * there — the same pairs, their English half.
  */
-export function CiteBox({ url, htmlSnippet, citation }: { url: string; htmlSnippet: string; citation: string }) {
-  const { tr } = useLanguage()
+export function CiteBox({ url, htmlSnippet, citation, english = false }: { url: string; htmlSnippet: string; citation: string; english?: boolean }) {
+  const { tr: visitorTr } = useLanguage()
+  const tr: typeof visitorTr = english ? (en) => en : visitorTr
   const [copied, setCopied] = useState<'html' | 'text' | null>(null)
 
   const copy = async (which: 'html' | 'text') => {

@@ -206,6 +206,20 @@ export function TeachKeyPoints({ g, isLiveHref }: { g: TeachGuide; isLiveHref: (
 }
 
 /**
+ * "Data" — one line under the key points of a guide whose figures an eno.vn data page carries further: the salary and
+ * cost-of-living guides point at the HCMC Teacher Cost & Pay Index, which divides the Rent Index's rents by the salary
+ * guide's take-home pay (src/lib/teacher-cost-index.ts TEACHER_COST_INDEX_GUIDES picks the guides). ⛔ COMPONENT CODE,
+ * NEVER THE GUIDE'S JSON: an edit there voids its review digest (registry.ts `reviewedDigest`).
+ */
+export function TeachDataLink({ href, label, text }: { href: string; label: string; text: string }) {
+  return (
+    <p className="mt-4 max-w-3xl text-sm leading-relaxed text-body">
+      <span className="font-semibold text-foreground">Data:</span> <HereLink href={href}>{label}</HereLink> — {text}
+    </p>
+  )
+}
+
+/**
  * The "next step" aside after a guide's last section (SeoArticle `afterSections`) — what eno.vn itself offers a
  * teacher, stated only as far as it is true (CLAUDE.md claims rules; src/lib/teachers/*): the profile is free,
  * schools message you there (since 2026-10-13 any signed-in account may, within a daily limit on new chats; only a

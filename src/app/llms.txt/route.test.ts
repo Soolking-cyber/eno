@@ -270,6 +270,20 @@ describe('/llms.txt on the marketplace', () => {
     }
   })
 
+  /**
+   * eno.vn's own data, each page with its file (d1-spec §13: the Rent Index CSV was missing here): an agent asked for HCMC
+   * rents, or for what a teacher keeps after rent, should find the open files without scraping a page.
+   */
+  it('lists the data pages and both CSVs under Data feeds, each as a link', async () => {
+    const body = await bodyOf()
+    const feeds = body.split('## Data feeds')[1].split('## Notes')[0]
+    for (const href of [
+      'https://eno.vn/hcmc-rent-index', 'https://eno.vn/hcmc-rent-index.csv',
+      'https://eno.vn/hcmc-teacher-cost-pay-index', 'https://eno.vn/hcmc-teacher-cost-pay-index.csv',
+    ]) expect(feeds).toContain(`](${href})`)
+    expect(feeds).toContain('[HCMC Teacher Cost & Pay Index](https://eno.vn/hcmc-teacher-cost-pay-index) — monthly editions')
+  })
+
   it('follows the shelf: a city, a motorbike or a moving sale appears the day stock does', async () => {
     h.facts = {
       ...MEASURED,
@@ -347,6 +361,12 @@ describe('/llms.txt on the services edition', () => {
     const body = await bodyOf()
     for (const g of EXPAT_GUIDES) expect(body).toContain(`[${g.label}](https://www.eno.forum/${g.slug}): ${g.blurb}`)
     for (const g of [...MARKETPLACE_GUIDES, ...PHONE_GUIDES]) expect(body).not.toContain(`/${g.slug})`)
+  })
+
+  it('names neither data page: the Rent Index and the Teacher Cost & Pay Index are marketplace only', async () => {
+    const body = await bodyOf()
+    expect(body).not.toContain('hcmc-rent-index')
+    expect(body).not.toContain('hcmc-teacher-cost-pay-index')
   })
 
   it('⛔ claims nothing is free — POSTING_IS_FREE is the marketplace\'s rule, not this edition\'s', async () => {

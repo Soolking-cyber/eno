@@ -17,6 +17,8 @@ import { forEachInline, forEachPlain } from '@/lib/teach-guides/schema'
 import { teachHubLink } from '@/lib/teach-guides/site-links'
 import { formatArticleDate } from '@/lib/dates'
 import { MIN_CELL_N } from '@/lib/rent-index'
+import { cellFigures, editionMonth, shareText } from '@/lib/teacher-cost-index'
+import { EDITIONS } from '@/lib/teacher-cost-index-editions'
 
 /**
  * /teach-in-vietnam, THE HUB (teacher visibility plan B1, 2026-10-18): one national page that answers first.
@@ -261,6 +263,22 @@ describe('the facts box (plan B1)', () => {
       `A one-bedroom apartment in Ho Chi Minh City has a median asking rent of ${moneyText(RENT.median)} a month (${RENT.n.toLocaleString('en-US')} listings, eno.vn Rent Index, ${formatArticleDate('2026-10-18', 'en')}).`,
     )
   })
+  /**
+   * The HCMC Teacher Cost & Pay Index's headline (2026-10-21): its newest edition's one-bedroom share, dated by its edition
+   * and quoting no median — a frozen monthly figure, never a second "today" beside the live rent line it follows.
+   */
+  it('carries the Teacher Cost & Pay Index line under the rent line: its edition, its link and its one-bedroom share', async () => {
+    const { content } = await render()
+    const e = EDITIONS[0]
+    const f = cellFigures(e, 'city', 'all', 'br1')!
+    const lines = (renderToStaticMarkup(<>{content.ledeRow}</>).match(/<li>[\s\S]*?<\/li>/g) ?? []).map(plain)
+    expect(lines.at(-1)).toBe(
+      `The HCMC Teacher Cost & Pay Index (${editionMonth(e.edition)} edition) puts the median one-bedroom's asking rent at ${shareText(f.shareWhole)} of a full-time language-centre teacher's modelled take-home pay.`,
+    )
+    expect(lines.at(-2)).toMatch(/^A one-bedroom apartment in Ho Chi Minh City has a median asking rent of /)
+    expect(hrefs(renderToStaticMarkup(<>{content.ledeRow}</>))).toContain('/hcmc-teacher-cost-pay-index')
+  })
+
   it('dates the rent line by the snapshot’s day in Saigon, as /hcmc-rent-index does, never its UTC day', async () => {
     for (const [computedAt, day] of [
       ['2026-10-20T19:07:00.000Z', '2026-10-21'], // 02:07 in Saigon: still the 20th in UTC
@@ -292,6 +310,8 @@ describe('the rent line reads the 1-bedroom band only, and says nothing under th
     const r = await render()
     const box = text(r.content.ledeRow)
     expect(box).not.toMatch(rentWords)
+    // Nor the Teacher Cost & Pay Index's share: it is said only under the live rent line.
+    expect(box).not.toContain('Teacher Cost & Pay Index')
     expect(box).not.toContain(moneyText(4_400_000))
     expect(box).not.toContain(moneyText(6_000_000))
     expect(answerText(r.answers, 'cost-of-living')).not.toMatch(/Rent decides the gap|Rent Index|median/)

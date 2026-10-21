@@ -1,6 +1,5 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import ts from 'typescript'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { forEachInline, forEachPlain, teachGuideSchema, type TeachGuide } from './schema'
@@ -26,6 +25,7 @@ import { TEACH_CONTENT } from './content.generated'
 import { isRetiredNavCategory } from '@/lib/retired-categories'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { canonicalDistrictSlug, isCuratedDistrict } from '@/lib/district-canonical'
+import { EDITION_BANNED, visibleCodeText } from '@/test/edition-words'
 
 /**
  * THE GUARDS ON THE TEACH-IN-VIETNAM LIBRARY. The guides are generated text checked against a fact base;
@@ -47,28 +47,6 @@ function plainStrings(g: TeachGuide): string[] {
   const out: string[] = []
   forEachPlain(g, (text) => out.push(text))
   return out
-}
-/**
- * Every piece of text a reader could see in a TS/TSX file: string literals, template text and JSX text, read with
- * the TypeScript parser. Comments are never nodes, so nothing has to be stripped (a regex stripper both hid text
- * after `https://` and swallowed code after `://*`; the vocabulary in comments that explain the rule is not text).
- */
-function visibleCodeText(file: string): string {
-  const sf = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
-  const out: string[] = []
-  // JSX text keeps its entities raw (`&nbsp;`, `&#118;`): decode them, or `tạm&nbsp;trú` would pass.
-  const decode = (t: string) =>
-    t.replace(/&nbsp;/g, ' ').replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
-  const visit = (n: ts.Node) => {
-    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) out.push(n.text)
-    else if (ts.isJsxText(n)) out.push(decode(n.text))
-    else if (ts.isTemplateExpression(n)) out.push(n.head.text, ...n.templateSpans.map((sp) => sp.literal.text))
-    // Identifiers too: a `<PayPalButton />` or `ROUTES.itinerary` renders a forum surface without a single literal.
-    else if (ts.isIdentifier(n)) out.push(n.text)
-    ts.forEachChild(n, visit)
-  }
-  visit(sf)
-  return out.join('\n')
 }
 /** Every string value in a parsed JSON document — the vocabulary guard reads text, not escapes. */
 const allStrings = (v: unknown): string[] =>
@@ -127,7 +105,8 @@ describe('teach guides: the edition rule (no visa / itinerary / PayPal / permiss
   // comments that explain this rule — and so name the words — are not text at all.
   // ⛔ These pages compile on the licensed marketplace. See registry.ts and CLAUDE.md (the edition split).
   // Multi-word terms match across any run of whitespace (a wrapped JSX line, a double or non-breaking space).
-  const BANNED = /\bvisas?\b|\be-?visas?\b|evisa|thị\s+thực|itinerar|paypal|temporary\s+residence|residence\s+card|residence\s+permit|\bTRCs?\b|immigration|nhập\s+cảnh|tạm\s+trú|overstay|border\s+run|entry\s+permit|exit\s+permit|extend\s+your\s+stay|sponsorship\s+letter/i
+  // The rule itself lives in src/test/edition-words.ts (EDITION_BANNED), one copy for every test that reads eno.vn copy.
+  const BANNED = EDITION_BANNED
   it('registry.ts carries none of it — nor passport / VietKite / hộ chiếu (expat-guides.test.ts registry rule)', () => {
     const text = visibleCodeText('src/lib/teach-guides/registry.ts')
     expect(text.match(BANNED)).toBeNull()

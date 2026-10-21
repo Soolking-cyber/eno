@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation'
 import { SITE_NAME } from '@/lib/edition'
 import { pageShare } from '@/lib/site-identity'
 import { SeoArticle, type ArticleContent } from '@/components/marketplace/seo-article'
-import { TeachKeyPoints, TeachNextStep, teachGuideSections } from '@/components/marketplace/teach-guide-body'
+import { TeachDataLink, TeachKeyPoints, TeachNextStep, teachGuideSections } from '@/components/marketplace/teach-guide-body'
+import { TEACHER_COST_INDEX_GUIDES, TEACHER_COST_INDEX_NAME, TEACHER_COST_INDEX_PATH } from '@/lib/teacher-cost-index'
 import { guideEntry, isLive, isLiveTeachHref, releasedGuides, TEACH_BASE, teachGuideDates, teachPath } from '@/lib/teach-guides/registry'
 import { teachGuideContent } from '@/lib/teach-guides/content'
 import { districtLinksAsText } from '@/lib/teach-guides/district-links'
@@ -81,7 +82,19 @@ export default async function TeachGuidePage({ params }: Props) {
       { label: 'Teach in Vietnam', href: TEACH_BASE },
       { label: entry.label, href: teachPath(slug) },
     ],
-    ledeRow: <TeachKeyPoints g={guide} isLiveHref={isLiveHref} />,
+    ledeRow: (
+      <>
+        <TeachKeyPoints g={guide} isLiveHref={isLiveHref} />
+        {/* The data page built on this guide's figures, for the two guides it restates (teacher-cost-index.ts). */}
+        {(TEACHER_COST_INDEX_GUIDES as readonly string[]).includes(slug) && (
+          <TeachDataLink
+            href={TEACHER_COST_INDEX_PATH}
+            label={TEACHER_COST_INDEX_NAME}
+            text="what Ho Chi Minh City apartment rents take from a full-time teacher's modelled take-home pay, by district, every month."
+          />
+        )}
+      </>
+    ),
     sections: teachGuideSections(guide, isLiveHref),
     afterSections: <TeachNextStep />,
     // The inventory the guide has just explained how to use (SeoArticle `rail`): it renders only with at

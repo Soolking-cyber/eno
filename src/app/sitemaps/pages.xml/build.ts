@@ -23,6 +23,8 @@ import { IPHONE_17_MODELS, IPHONE_18_MODELS, IPHONE_DUO_MODEL, usedPriceWhere } 
 import { isRetiredNavCategory } from '@/lib/retired-categories'
 import { loadRentIndex } from '@/app/[lang]/hcmc-rent-index/load-rent-index'
 import type { RentIndex } from '@/lib/rent-index'
+import { TEACHER_COST_INDEX_PATH, editionPageLastmod, editionPath, seriesLastmod } from '@/lib/teacher-cost-index'
+import { EDITIONS as TEACHER_COST_INDEX_EDITIONS, ERRATA as TEACHER_COST_INDEX_ERRATA } from '@/lib/teacher-cost-index-editions'
 import { publishableCells } from '@/lib/district-rent-cells'
 import { canonicalDistrictSlug, districtLinkSlug, isCuratedDistrict } from '@/lib/district-canonical'
 import { districtScopeForSlug } from '@/lib/district-slug'
@@ -504,6 +506,22 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
   // Known here unless frozen (`'optional'` mode) or eno.forum (never read): the throw above covers the route.
   if (rentIndex?.known) {
     urls.push(`  <url><loc>${hostUrl}/hcmc-rent-index</loc>${lm(rentIndex.index.computedAt)}</url>\n`)
+  }
+  /**
+   * THE HCMC TEACHER COST & PAY INDEX (D1, src/lib/teacher-cost-index.ts) — our own analysis, like the Rent Index above,
+   * and MARKETPLACE ONLY like it (the routes 404 on the services build). From the frozen editions, never the snapshot, so
+   * no read can fail here. The series page, dated as its Dataset's `dateModified` is (`seriesLastmod`: the newest freeze
+   * or a later erratum to any edition); then every SUPERSEDED edition, which is self-canonical and indexable (owner
+   * decision 4) — the newest edition is not submitted, because its canonical is the series page while it is newest
+   * ([edition]/page.tsx). ⚠️ A SUPERSEDED EDITION IS NOT DATED BY ITS FREEZE ALONE (`editionPageLastmod`): its figures
+   * never move, but its canonical, its "newest" line and its editions list change at every later freeze (verifier round).
+   */
+  if (!IS_SERVICES) {
+    const [newest, ...superseded] = TEACHER_COST_INDEX_EDITIONS
+    if (newest) {
+      urls.push(`  <url><loc>${hostUrl}${TEACHER_COST_INDEX_PATH}</loc>${lm(seriesLastmod(TEACHER_COST_INDEX_EDITIONS, TEACHER_COST_INDEX_ERRATA))}</url>\n`)
+      for (const e of superseded) urls.push(`  <url><loc>${hostUrl}${editionPath(e.edition)}</loc>${lm(editionPageLastmod(e, newest, TEACHER_COST_INDEX_ERRATA))}</url>\n`)
+    }
   }
 
   /**

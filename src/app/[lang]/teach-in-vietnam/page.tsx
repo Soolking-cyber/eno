@@ -8,6 +8,8 @@ import { LiveCounts } from '@/components/marketplace/live-count'
 import { Row, Rows } from '@/components/ui/rows'
 import { loadRentIndex } from '@/app/[lang]/hcmc-rent-index/load-rent-index'
 import { MIN_CELL_N } from '@/lib/rent-index'
+import { TEACHER_COST_INDEX_NAME, TEACHER_COST_INDEX_PATH, cellFigures, editionMonth, shareText } from '@/lib/teacher-cost-index'
+import { EDITIONS } from '@/lib/teacher-cost-index-editions'
 import { listSchools } from '@/lib/schools/queries'
 import type { SchoolKind } from '@/lib/schools/constants'
 import { formatMoneyFull } from '@/lib/vnd'
@@ -366,6 +368,15 @@ export default async function TeachHubPage() {
   const rentDate = Number.isFinite(rentAt) ? formatArticleDate(vnToday(new Date(rentAt)), 'en') : null
   // ONE condition for the facts box's rent line and the cost answer that points "above" at it.
   const rentFact = br1?.median && br1.n >= MIN_CELL_N && rentDate ? { median: br1.median, n: br1.n, date: rentDate } : null
+  /**
+   * The HCMC Teacher Cost & Pay Index's headline (src/lib/teacher-cost-index.ts): its newest edition's one-bedroom share of
+   * a teacher's modelled take-home pay. ⚠️ A FROZEN MONTHLY FIGURE, NOT TODAY'S: it is dated by its edition and quotes no
+   * median, so it never reads as a second, different "today" beside the live one above. ⛔ ONLY UNDER THE RENT LINE
+   * (`rentFact`), so under the floor the box still says nothing about rent; and only while the edition publishes a
+   * one-bedroom figure (`cellFigures`, at the floor) — never another band's share under the one-bedroom words.
+   */
+  const costIndex = EDITIONS[0]
+  const costShare = rentFact && costIndex ? cellFigures(costIndex, 'city', 'all', 'br1') : null
 
   // No school count and no rent figure: no box (a heading over an empty list, or over the job count alone, is worse than none).
   const facts = !((schools && schools.total > 0) || rentFact) ? null : (
@@ -399,6 +410,13 @@ export default async function TeachHubPage() {
             A one-bedroom apartment in Ho Chi Minh City has a median asking rent of{' '}
             <strong className="font-semibold text-foreground whitespace-nowrap">{formatMoneyFull(rentFact.median, '₫', 'en')}</strong> a month (
             {rentFact.n.toLocaleString('en-US')} listings, <HereLink href="/hcmc-rent-index">eno.vn Rent Index</HereLink>, {rentFact.date}).
+          </li>
+        )}
+        {costShare && (
+          <li>
+            The <HereLink href={TEACHER_COST_INDEX_PATH}>{TEACHER_COST_INDEX_NAME}</HereLink> ({editionMonth(costIndex.edition)} edition)
+            puts the median one-bedroom&apos;s asking rent at <strong className="font-semibold text-foreground">{shareText(costShare.shareWhole)}</strong> of
+            a full-time language-centre teacher&apos;s modelled take-home pay.
           </li>
         )}
       </ul>

@@ -57,6 +57,9 @@ const h = vi.hoisted(() => ({
   failSchools: false,
   // Closed Teachers' Choice years (queries.ts awardYearsForSitemap).
   awardYears: [] as { year: number; lastmod: Date }[],
+  // The Teacher Cost & Pay Index's editions, newest first, and its errata, when a test swaps in its own (null = the real files).
+  costEditions: null as { edition: string; frozenAt: string }[] | null,
+  costErrata: null as { edition: string; at: string; text: string }[] | null,
 }))
 const CATEGORY_SLUGS: Record<string, string> = vi.hoisted(() => ({
   'cat-rentals': 'rentals', 'cat-fashion': 'fashion-beauty', 'cat-books': 'books-stationery', 'cat-hobbies': 'hobbies-sports', 'cat-pets': 'pets', 'cat-services': 'services', 'cat-empty': 'jobs',
@@ -220,6 +223,12 @@ function maxOf(rows: Row[], fields: Partial<Record<keyof Row, true>>, acc: Recor
   return out
 }
 
+/** The Teacher Cost & Pay Index's frozen editions and errata: the real files, or a test's own (getters, read per build). */
+vi.mock('@/lib/teacher-cost-index-editions', async (orig) => {
+  const real = await orig<typeof import('@/lib/teacher-cost-index-editions')>()
+  return { ...real, get EDITIONS() { return h.costEditions ?? real.EDITIONS }, get ERRATA() { return h.costErrata ?? real.ERRATA } }
+})
+
 /** The rent index's snapshot, as the page reads it. `rentReads` pins that eno.forum never asks. */
 vi.mock('@/app/[lang]/hcmc-rent-index/load-rent-index', () => ({
   loadRentIndex: async () => { h.rentReads++; return h.rent },
@@ -311,6 +320,8 @@ beforeEach(() => {
   h.schools = []
   h.failSchools = false
   h.awardYears = []
+  h.costEditions = null
+  h.costErrata = null
 })
 afterEach(() => { vi.unstubAllEnvs() })
 
@@ -1051,6 +1062,60 @@ describe('the pages child: rentals district pages that carry the rent block (D3)
     h.failFindMany = true
     await expect(child('listings-0.xml')).rejects.toThrow(/findMany unavailable/)
     quiet.mockRestore()
+  })
+})
+
+/**
+ * THE HCMC TEACHER COST & PAY INDEX (D1): the series page, dated as its Dataset's dateModified (the newest freeze or a later
+ * erratum to any edition); every SUPERSEDED edition, dated by its own record or the newest freeze, whichever is later —
+ * its canonical, its "newest" line and its editions list move at every later freeze (verifier round). Never the newest
+ * edition's own URL, whose canonical is the series page while it is newest (owner decision 4). Marketplace only.
+ */
+describe('the pages child: the HCMC Teacher Cost & Pay Index', () => {
+  const lastmodOf = (xml: string, loc: string) => xml.match(new RegExp(`<loc>${loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</loc>(?:<lastmod>([^<]+)</lastmod>)?</url>`))?.[1]
+  const SERIES = `${HOST}/hcmc-teacher-cost-pay-index`
+  const THREE = [
+    { edition: '2026-12', frozenAt: '2026-12-01T01:00:00.000Z' },
+    { edition: '2026-11', frozenAt: '2026-11-01T01:00:00.000Z' },
+    { edition: '2026-10', frozenAt: '2026-10-21T05:11:39.330Z' },
+  ]
+
+  it('submits the series page, dated as its Dataset’s dateModified — and not the newest edition’s own URL', async () => {
+    const { EDITIONS, ERRATA } = await vi.importActual<typeof import('@/lib/teacher-cost-index-editions')>('@/lib/teacher-cost-index-editions')
+    const xml = await (await pagesGET()).text()
+    expect(locs(xml)).toContain(SERIES)
+    // The newest freeze or a later erratum to any edition, worked out here by hand.
+    const latest = [EDITIONS[0].frozenAt, ...ERRATA.map((x) => x.at)].reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a))
+    expect(lastmodOf(xml, SERIES)).toBe(latest)
+    const { teacherCostIndexDataset } = await vi.importActual<typeof import('@/lib/teacher-cost-index')>('@/lib/teacher-cost-index')
+    expect(lastmodOf(xml, SERIES)).toBe(teacherCostIndexDataset(EDITIONS, { origin: HOST, name: 'eno.vn' }, ERRATA).dateModified)
+    expect(locs(xml).filter((u) => u.startsWith(`${SERIES}/`))).toEqual(EDITIONS.slice(1).map((e) => `${SERIES}/${e.edition}`))
+  })
+
+  it('once superseded, an edition is submitted at its own address, dated by the newest freeze: its page moved then', async () => {
+    h.costEditions = THREE
+    h.costErrata = []
+    const xml = await (await pagesGET()).text()
+    expect(lastmodOf(xml, SERIES)).toBe('2026-12-01T01:00:00.000Z')
+    expect(locs(xml).filter((u) => u.startsWith(`${SERIES}/`))).toEqual([`${SERIES}/2026-11`, `${SERIES}/2026-10`])
+    // 2026-11's canonical flipped to itself, and 2026-10's "newest" line and editions list gained December, on 1 December.
+    expect(lastmodOf(xml, `${SERIES}/2026-11`)).toBe('2026-12-01T01:00:00.000Z')
+    expect(lastmodOf(xml, `${SERIES}/2026-10`)).toBe('2026-12-01T01:00:00.000Z')
+  })
+
+  it('an erratum to a superseded edition dates that edition’s page and the series (the Dataset says it) — no other edition', async () => {
+    h.costEditions = THREE
+    h.costErrata = [{ edition: '2026-10', at: '2026-12-05T03:00:00.000Z', text: 'A corrected district name.' }]
+    const xml = await (await pagesGET()).text()
+    expect(lastmodOf(xml, `${SERIES}/2026-10`)).toBe('2026-12-05T03:00:00.000Z')
+    expect(lastmodOf(xml, `${SERIES}/2026-11`)).toBe('2026-12-01T01:00:00.000Z')
+    expect(lastmodOf(xml, SERIES)).toBe('2026-12-05T03:00:00.000Z')
+  })
+
+  it('on eno.forum: none of it', async () => {
+    h.services = true
+    const urls = locs(await (await pagesGET()).text())
+    expect(urls.filter((u) => u.includes('hcmc-teacher-cost-pay-index'))).toEqual([])
   })
 })
 

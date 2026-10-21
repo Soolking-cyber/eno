@@ -80,9 +80,9 @@ export const TEACH_BASE = TEACH_HUB_PATH
  * without this its dateModified, its date line and its sitemap <lastmod> would follow the newest GUIDE alone: an edit
  * to the hub's own copy, on a day no guide changed, would reach readers and search engines undated. The hub is dated
  * by the later of the two (`teachHubNewest`). Set by the national rewrite of 2026-10-18 (teacher visibility plan B1),
- * the same day wave 1a re-approved eight guides.
+ * the same day wave 1a re-approved eight guides; moved by the facts box's Teacher Cost & Pay Index line (2026-10-21).
  */
-export const TEACH_HUB_UPDATED = '2026-10-18'
+export const TEACH_HUB_UPDATED = '2026-10-21'
 
 export const TEACH_CLUSTERS: readonly { id: TeachCluster; title: string; lede: string }[] = [
   { id: 'decide', title: 'Decide', lede: 'Whether teaching in Vietnam suits you, and where.' },

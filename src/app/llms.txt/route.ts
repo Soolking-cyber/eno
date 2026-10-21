@@ -4,6 +4,7 @@ import { SERVICES_LLMS_WHEN_TO_USE, SERVICES_SITE_DESCRIPTION } from '@/lib/edit
 import { EXPAT_GUIDES, MARKETPLACE_GUIDES, expatGuidePath } from '@/lib/expat-guides'
 import { PHONE_GUIDES } from '@/lib/phone-guides'
 import { releasedGuides, TEACH_BASE, TEACH_CLUSTERS, teachPath } from '@/lib/teach-guides/registry'
+import { TEACHER_COST_INDEX_CSV_PATH, TEACHER_COST_INDEX_NAME, TEACHER_COST_INDEX_PATH } from '@/lib/teacher-cost-index'
 import { LANGUAGES } from '@/lib/i18n/langs'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
 import { RETIRED_NAV_CATEGORIES } from '@/lib/retired-categories'
@@ -303,6 +304,15 @@ function teachSection(): string {
   return `\n\n## Teaching in Vietnam\n\nGuides for teachers moving to Vietnam, Ho Chi Minh City first; start at the [Teach in Vietnam hub](${SITE_ORIGIN}${TEACH_BASE}). Each lists its sources and the date its facts were checked.\n\n${groups.join('\n\n')}`
 }
 
+/**
+ * eno.vn's own data, each page with its file: the HCMC Rent Index (daily) and the HCMC Teacher Cost & Pay Index built on
+ * it (monthly, src/lib/teacher-cost-index.ts). Marketplace only, like both pages — the services body names neither.
+ * Their terms are the cite box on each page, so they are pointed at, not restated — and never with the word "free", which
+ * this document reserves for the posting-fee claim (route.test.ts: it disappears the moment POSTING_IS_FREE does).
+ */
+const DATA_SECTION = `- [HCMC Rent Index](${SITE_ORIGIN}/hcmc-rent-index) — median asking rent in Ho Chi Minh City by district and apartment size, recalculated daily; the table as [CSV](${SITE_ORIGIN}/hcmc-rent-index.csv), open, no auth; the citation terms are on the page.
+- [${TEACHER_COST_INDEX_NAME}](${SITE_ORIGIN}${TEACHER_COST_INDEX_PATH}) — monthly editions: those apartment rents as a share of a full-time English teacher's modelled take-home pay, by district; every edition as [CSV](${SITE_ORIGIN}${TEACHER_COST_INDEX_CSV_PATH}), open, no auth; the citation terms are on the page.`
+
 function marketplaceBody(f: SiteFacts | null): string {
   return `# ${SITE_NAME}
 
@@ -337,6 +347,7 @@ ${DEVELOPER_SECTION}
 ## Data feeds
 
 - [Sitemap](${SITE_ORIGIN}/sitemap.xml) — open, no auth.
+${DATA_SECTION}
 - Google product feed at ${SITE_ORIGIN}/api/feeds/google-shopping — AUTHENTICATED, returns 401 without credentials. It exists for Merchant Center, not for general agent use; do not treat it as a public data source.
 
 ## Notes

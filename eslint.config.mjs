@@ -245,6 +245,13 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // teach-guides.test.ts instead (both editions, so no visa / itinerary / PayPal wording).
     "src/app/\\[lang\\]/teach-in-vietnam/page.tsx",
     "src/components/marketplace/teach-guide-body.tsx",
+    // THE HCMC TEACHER COST & PAY INDEX (src/lib/teacher-cost-index.ts, 2026-10-21) — English-only for a stricter reason
+    // than the guides: its copy states teacher pay, which is not printed in Vietnamese before counsel answers (d1-spec
+    // §11), so it is literal English on BOTH language variants and must never become a tr() pair that the translation
+    // layer would fill in. Its vocabulary is policed by teacher-cost-index.test.ts and its page test instead.
+    "src/app/\\[lang\\]/hcmc-teacher-cost-pay-index/page.tsx",
+    "src/app/\\[lang\\]/hcmc-teacher-cost-pay-index/\\[edition\\]/page.tsx",
+    "src/app/\\[lang\\]/hcmc-teacher-cost-pay-index/sections.tsx",
     // THE PHONE-BUYING CLUSTER (src/lib/phone-guides.ts) — sixteen articles, eight topics, each
     // topic written twice: once in English for English queries, once in Vietnamese for Vietnamese
     // ones.
