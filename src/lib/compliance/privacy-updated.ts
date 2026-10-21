@@ -81,9 +81,10 @@
  * teachers" paragraph (the switch on its own page, the sources, the posts kept privately on our server and deleted 30 days
  * after we receive them, what of the profile is used, matched on our own server in Vietnam with no AI company abroad, the
  * caps, STOP, the one in-app invite), its consent purpose and its automated-decisions paragraph. Live with the deploy — a
- * new, opt-in feature, OFF until the teacher switches it on. Dated 2026-10-20 — the PLANNED day: deployed on any other
- * Vietnamese day, re-date it to that day in the deploy's commit and retake the fingerprint (page.test.tsx says the value);
- * the amendment gate refuses the deploy until then.
+ * new, opt-in feature, OFF until the teacher switches it on. Dated 2026-10-21 — still the PLANNED day: the owner said
+ * "deploy" on 2026-10-21 (the first plan was 2026-10-20). Deployed on any other Vietnamese day, re-date it to that day in
+ * the deploy's commit and retake the fingerprint (page.test.tsx says the value); the amendment gate refuses the deploy
+ * until then.
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -92,7 +93,7 @@
  * line, `export const PRIVACY_TEXT_PUBLISHED: string = 'YYYY-MM-DD'`: that is the shape the gate reads.
  * ⚠️ Typed, never read from the clock: the page prerenders, and a build-time date would move with every rebuild.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-20'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-21'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -101,4 +102,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-20'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '0b6c81712782e05b'
+export const PRIVACY_TEXT_FINGERPRINT = '9364b00640aeef0b'
