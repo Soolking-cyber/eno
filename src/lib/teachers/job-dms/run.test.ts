@@ -327,3 +327,24 @@ describe('runJobDms', () => {
   })
 
 })
+
+describe('a LinkedIn job is read once per field (the first alert, 2026-10-21)', () => {
+  const li = (id: string, title: string, company: string, place: string) => post(id, {
+    source: 'linkedin', title, company, locationText: place, text: `${title} · ${company} · ${place}`, groupPublic: null,
+    url: `https://www.linkedin.com/jobs/view/${id}/`, sourceName: 'LinkedIn',
+  })
+  it('English jobs in Ho Chi Minh City are kept; the Vietnamese one is dropped as for Vietnamese teachers', async () => {
+    T.posts = [
+      li('4479590744', 'English Second Language Teacher- Vietnam', 'English 1', 'Ho Chi Minh City, Ho Chi Minh City, Vietnam'),
+      li('4479360254', 'PYP Stem Specialist Teacher', 'Tesla Education', 'Ho Chi Minh City, Vietnam'),
+      li('4480000002', 'Teacher', 'ABC', 'Ho Chi Minh City, Ho Chi Minh City, Vietnam'), // read twice, a short title went over
+      li('4480720160', 'Giáo Viên Tiếng Anh Mầm non – Pathway School', 'Pathway School', 'Ho Chi Minh City, Ho Chi Minh City, Vietnam'),
+    ]
+    await runJobDms({ dryRun: false, now: DAY })
+    const row = (id: string) => T.posts.find((p) => p.id === id)
+    expect(row('4479590744')).toMatchObject({ status: 'ready', statusReason: null })
+    expect(row('4479360254')).toMatchObject({ status: 'ready', statusReason: null })
+    expect(row('4480000002')).toMatchObject({ status: 'ready', statusReason: null })
+    expect(row('4480720160')).toMatchObject({ status: 'dropped', statusReason: 'deny:vietnamese-oriented' })
+  })
+})

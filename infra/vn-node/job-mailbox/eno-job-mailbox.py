@@ -1308,6 +1308,10 @@ _QUOTED = re.compile(r'(?:^|[\s(:])[“"«‘\']([^“”"«»‘’\']{2,120})[
 #: 11 Oct 2026) — and those links carry the recipient's own tokens (midToken, midSig, otpToken: treated as sign-in
 #: material), so nothing from a link may ever reach sourceRef.
 _PHRASE_END = re.compile(r'manage (?:your )?(?:job )?alerts?|https?:|www\.|\b(?:[a-z0-9-]+\.)+[a-z]{2,}/', re.I)
+#: LinkedIn's mail confirming a NEW alert — it carries jobs too — says "Your job alert for Teacher in Ho Chi Minh City,
+#: Vietnam has been created" (measured 2026-10-21, the first alert through the Gmail forward): in that sentence, and
+#: only there, the search is what comes before "has been created" (codex, gate 10a).
+_ALERT_FOR = r'job alert for\s+(.+?)(?:\s+has been created)?[\s.!:]*$'
 
 
 def _phrase(s: str) -> str | None:
@@ -1320,12 +1324,12 @@ def _phrase(s: str) -> str | None:
 def alert_phrase(subject: str, text: str) -> str | None:
     """The alert's search ("english teacher") when the subject names it — quoted, or "job alert for …" — else the
     "Your job alert for …" line of the body; cut where a link or LinkedIn's "Manage your job alerts" starts."""
-    for m in (_QUOTED.search(subject), re.search(r'\bjob alert for\s+(.+?)[\s.!:]*$', subject, re.I),
+    for m in (_QUOTED.search(subject), re.search(r'\b' + _ALERT_FOR, subject, re.I),
               re.search(r'\bnew jobs? for\s+(.+?)[\s.!:]*$', subject, re.I)):
         if m and (p := _phrase(m.group(1))):
             return p
     for line in text.split('\n')[:15]:
-        m = re.match(r'^your job alert for\s+(.+?)[\s.!:]*$', line.strip(), re.I)
+        m = re.match(r'^your ' + _ALERT_FOR, line.strip(), re.I)
         if m:
             return _phrase(m.group(1))
     return None

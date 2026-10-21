@@ -164,7 +164,10 @@ async function readNewPosts(now: Date, write: boolean): Promise<Counts> {
   })
   const c: Counts = { read: posts.length, ready: 0, held: 0, dropped: 0 }
   if (!posts.length) return c
-  const texts = posts.map((p) => [p.title, p.company, p.locationText, p.text].filter(Boolean).join('\n'))
+  // A LinkedIn job's text IS its fields — "title · company · place", built from them by eno-job-mailbox.py — so it is
+  // read once: read twice, the place doubled every "Ho Chi Minh" the language rule counts (the first alert, 2026-10-21 —
+  // extract.ts PLACE_NAMES). Every other source as before.
+  const texts = posts.map((p) => (p.source === 'linkedin' ? p.text : [p.title, p.company, p.locationText, p.text].filter(Boolean).join('\n')))
   const sigs = posts.map((p) => textSig(p.text))
   // An EARLIER copy that was already read (posts are read oldest first, so a still-'new' one is a LATER copy — it must
   // never make this one the duplicate) and was not itself dropped as one; a copy that waits only on its ROUTE (a private

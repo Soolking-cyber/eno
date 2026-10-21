@@ -501,6 +501,12 @@ class LinkedInLayouts(unittest.TestCase):
         self.assertIsNone(m.alert_phrase('New jobs', 'Your job alert for https://www.linkedin.com/comm/jobs/alerts?midToken=AQ\n'))
         self.assertIsNone(m.alert_phrase('“www.linkedin.com/comm/x?midToken=AQ”', ''))
         self.assertEqual(m.alert_phrase('New jobs for "ESL/EFL teacher"', ''), 'ESL/EFL teacher')
+        # LinkedIn's "alert created" mail (it carries jobs too — the first one through the Gmail forward, 2026-10-21)
+        created = 'Your job alert for Teacher in Ho Chi Minh City, Vietnam has been created'
+        self.assertEqual(m.alert_phrase(created, ''), 'Teacher in Ho Chi Minh City, Vietnam')
+        self.assertEqual(m.alert_phrase('New jobs', created + '.\n...'), 'Teacher in Ho Chi Minh City, Vietnam')
+        # …and only in that sentence: a quoted search keeps its words (codex, gate 10a)
+        self.assertEqual(m.alert_phrase('New jobs for "art that has been created"', ''), 'art that has been created')
         # a refused quoted phrase does not hide the subject's own "job alert for …" (opus, gate 8a)
         self.assertEqual(m.alert_phrase('"a=b" job alert for ESL teacher', ''), 'ESL teacher')
         # a link with no scheme is a link too (opus, gate 8c); a slash between words is not

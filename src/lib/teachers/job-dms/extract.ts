@@ -23,7 +23,7 @@ import { VN_PROVINCES } from '@/lib/vn-areas'
 import { HCMC, ONLINE, TOWN_ALIASES, provinceKeyOf } from '@/lib/teachers/places'
 
 /** Bump when a rule below changes what it extracts: stored facts carry it, and a run re-reads posts under an older one. */
-export const RULES_VERSION = 'job-rules-2026-10-20'
+export const RULES_VERSION = 'job-rules-2026-10-21'
 
 export type JobKind = 'job_offer' | 'cover_request' | 'job_seeker' | 'other'
 export type Employment = 'full_time' | 'part_time' | 'cover' | 'private' | 'online'
@@ -768,6 +768,10 @@ export function readSubjects(t: string): string[] {
 // The whole reading
 // ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/** "không cần bản ngữ" (native not needed) is the opposite of a foreigner cue (opus, gate 1d): negated cues go first. */
+const withoutNegatedCues = (t: string) =>
+  t.replace(/\b(khong can|khong yeu cau|khong bat buoc|khong nhat thiet|ko can|k can)\s+(la\s+)?(giao vien |gv )?(nguoi )?(ban ngu|ban xu|nuoc ngoai|native)\b/g, ' ')
+
 /**
  * A post written in Vietnamese is for a FOREIGN teacher only with a cue saying so (eno's linked-jobs rule, exportJobs
  * foreignerOriented: "giáo viên nước ngoài", "bản ngữ", native, foreigner, expat, Tây) — most Vietnamese-language
@@ -775,8 +779,7 @@ export function readSubjects(t: string): string[] {
  * ⚠️ "nước ngoài" alone is not a cue ("dạy tiếng Việt cho người nước ngoài") — it must sit next to a teacher word.
  */
 export function vietnameseWithoutForeignerCue(text: string): boolean {
-  // "không cần bản ngữ" (native not needed) is the opposite of a foreigner cue (opus, gate 1d): negated cues go first.
-  const t = foldPost(text).replace(/\b(khong can|khong yeu cau|khong bat buoc|khong nhat thiet|ko can|k can)\s+(la\s+)?(giao vien |gv )?(nguoi )?(ban ngu|ban xu|nuoc ngoai|native)\b/g, ' ')
+  const t = withoutNegatedCues(foldPost(text))
   if (!writtenInVietnamese(text, t)) return false
   return !/\b(giao vien|gv|thay|co) (nuoc ngoai|ban ngu|ban xu|tay|philippines|phi)\b|\b(nguoi )?ban ngu\b|\bnative\b|\bforeign(er|ers)?\b|\bexpats?\b|\bnguoi nuoc ngoai (day|giang day)\b/.test(t)
 }
@@ -784,18 +787,43 @@ export function vietnameseWithoutForeignerCue(text: string): boolean {
 /**
  * Whether a post is WRITTEN in Vietnamese: by its accents (NFC first — a decomposed "ế" is two code points, opus, gate
  * 1a), or, typed without accents ("Trung tam tuyen giao vien tieng Anh tai Quan 7, luong 8 trieu" — codex, gate 1a), by
- * how many of its words are Vietnamese-only. ⚠️ The word list leaves out place-name syllables (quan, hoc, cau, lam,
- * tien …) and English look-alikes (can, day, gap, so), so an English post naming "Quan 7" or "Hoc Mon" is not one.
+ * how many of its words are Vietnamese-only. ⚠️ The word list leaves out English look-alikes (can, day, gap, so) and
+ * the syllables that are mostly places (quan, hoc, cau, lam, tien …), and a place name is ONE word (PLACE_NAMES, below),
+ * so an English post naming "Quan 7", "Hoc Mon" or "Ho Chi Minh City" is not one.
  */
 const VI_ONLY_WORDS = new Set('tuyen giao vien luong trieu lop nguoi duoc khong nhung cua voi lien thoi gian yeu kinh nghiem uu sinh truong ngay thang buoi chieu viec tieng nhan hoac cac mot nhieu hien tai dia gio tuan tro giang dang ky ung muon minh chung chi bang cap ho so phu huynh'.split(' '))
+/**
+ * ⛔ A PLACE NAME IS ONE WORD, NOT ITS SYLLABLES. The word list needs họ, chỉ, mình, phụ huynh, trợ giảng, liên hệ,
+ * buổi chiều — ho, chi, minh, phu, giang, lien, chieu folded — and those are also the syllables of Ho Chi Minh City, Phu
+ * Nhuan, Kien Giang, Lien Chieu, so every "Ho Chi Minh" counted as THREE Vietnamese words: "English teachers wanted …
+ * GEMS - Ho Chi Minh City, Vietnam … Public Schools in Ho Chi Minh City, Vietnam" (held-out 4, n=3006) had six and was
+ * dropped, and so were four English jobs of the first LinkedIn alert (2026-10-21 — with run.ts reading each field twice).
+ * A place the place reader knows (districts, hubs, provinces — not a short name that needs a place word beside it: "SG",
+ * "Huế", "Vinh"), matched as it matches them, now counts once: a Vietnamese-only word if a syllable of it is one, else
+ * an ordinary word. The accents are measured as before.
+ */
+const PLACE_NAMES: RegExp[] = [...DISTRICT_NEEDLES, ...HUB_NEEDLES, ...PROVINCE_NEEDLES]
+  .filter((n) => !n.cue)
+  .map((n) => new RegExp(n.re.source, n.re.flags.includes('g') ? n.re.flags : `${n.re.flags}g`))
+
 function writtenInVietnamese(text: string, folded: string): boolean {
   const nfc = text.normalize('NFC')
   const marks = (nfc.match(/[ăâđêôơưàáạảãằắặẳẵầấậẩẫèéẹẻẽềếệểễìíịỉĩòóọỏõồốộổỗờớợởỡùúụủũừứựửữỳýỵỷỹ]/gi) ?? []).length
   const letters = (nfc.match(/\p{L}/gu) ?? []).length
   if (letters && marks / letters >= 0.06) return true
-  const tokens = folded.match(/[a-z]+/g) ?? []
-  const vi = tokens.filter((w) => VI_ONLY_WORDS.has(w)).length
-  return vi >= 4 && vi / tokens.length >= 0.2
+  let rest = ` ${folded.replace(/[^a-z0-9]+/g, ' ')} `
+  let places = 0
+  let viPlaces = 0
+  for (const re of PLACE_NAMES) {
+    rest = rest.replace(re, (name) => {
+      places++
+      if (name.split(' ').some((w) => VI_ONLY_WORDS.has(w))) viPlaces++
+      return ' '
+    })
+  }
+  const tokens = rest.match(/[a-z]+/g) ?? []
+  const vi = tokens.filter((w) => VI_ONLY_WORDS.has(w)).length + viPlaces
+  return vi >= 4 && vi / (tokens.length + places) >= 0.2
 }
 
 /** Read every fact a rule can state. `postedAt` anchors "tomorrow"/"Saturday" for cover requests; `listing` — see readKind. */

@@ -486,3 +486,30 @@ describe('gate 3b reviewer findings on the reader (opus, 2026-10-20)', () => {
     expect(readPost('English teachers wanted in District 3, staff must be 25-35 years old', POSTED).deny).toBe('discriminatory')
   })
 })
+
+describe('a place name is one word, not its syllables (the first LinkedIn alert, 2026-10-21)', () => {
+  // A LinkedIn job as run.ts reads it: its text, "title · company · place" — each field once.
+  const linkedin = (title: string, company: string, place: string) => readPost(`${title} · ${company} · ${place}`, POSTED, { listing: true })
+  it('an English job in Ho Chi Minh City is not "Vietnamese-oriented" (four of the first six were dropped as one)', () => {
+    expect(linkedin('English Second Language Teacher- Vietnam', 'English 1', 'Ho Chi Minh City, Ho Chi Minh City, Vietnam').deny).toBeNull()
+    expect(linkedin('PYP Stem Specialist Teacher', 'Tesla Education', 'Ho Chi Minh City, Vietnam').deny).toBeNull()
+    expect(linkedin('AI Lecturer', 'EON TECH', 'Ho Chi Minh City, Vietnam').deny).toBeNull()
+    expect(linkedin('Teacher', 'ABC', 'Ho Chi Minh City, Ho Chi Minh City, Vietnam').deny).toBeNull()
+  })
+  it('a short English post that names its places is English (held-out 4, n=3006)', () => {
+    expect(readPost('English teachers wanted - new academic year 2026-2027 GEMS - Ho Chi Minh City, Vietnam Up To 470,000 VND per hour Job Description: - Public Schools in Ho Chi Minh City, Vietnam See more', POSTED).deny).toBeNull()
+    expect(readPost('IELTS teacher, Phu Nhuan, Ho Chi Minh City', POSTED).deny).toBeNull()
+  })
+  it('a Vietnamese job is still one: a place counts once — as a Vietnamese word when a syllable of it is one', () => {
+    expect(linkedin('Giáo Viên Tiếng Anh Mầm non – Pathway School', 'Pathway School', 'Ho Chi Minh City, Ho Chi Minh City, Vietnam').deny).toBe('vietnamese-oriented')
+    // Typed without accents, where the place made the fourth Vietnamese word (opus, gate 10c): still four.
+    expect(linkedin('Giao vien tieng Anh', 'ABC Center', 'Ho Chi Minh City, Vietnam').deny).toBe('vietnamese-oriented')
+    expect(readPost('Tuyen GV tieng Anh tai Ho Chi Minh, luong 8tr', POSTED).deny).toBe('vietnamese-oriented')
+    expect(readPost('Can GV day IELTS tai Ho Chi Minh, luong cao, lien he 09xx', POSTED).deny).toBe('vietnamese-oriented') // opus, gate 10d
+    expect(readPost('Trung tam tuyen giao vien tieng Anh tai Ho Chi Minh, luong 8 trieu', POSTED).deny).toBe('vietnamese-oriented')
+    // The same syllables as WORDS still count: liên hệ, phụ huynh, buổi chiều, giờ — typed without accents.
+    expect(readPost('Can tuyen tro giang, lien he phu huynh buoi chieu, gio lam viec linh hoat, Quan 7', POSTED).deny).toBe('vietnamese-oriented')
+    // The accents are measured as before — place names included (codex, gate 10a).
+    expect(readPost('Tuyen GV tieng Anh, Quận 7, Hồ Chí Minh', POSTED).deny).toBe('vietnamese-oriented')
+  })
+})
