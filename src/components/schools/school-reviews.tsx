@@ -262,7 +262,7 @@ function ReportReview({ reviewId }: { reviewId: string }) {
           </DialogHeader>
           <RadioGroup value={reason} onValueChange={(v) => setReason(v as ReportReason)} className="flex flex-col gap-1" aria-label={tr('Reason', 'Lý do')}>
             {REPORT_REASONS.map((k) => (
-              <Radio key={k} value={k} className="min-h-10 justify-start rounded-xl px-2 text-sm text-foreground hover:bg-muted">
+              <Radio key={k} value={k} className="min-h-10 justify-start whitespace-normal rounded-xl px-2 text-left text-sm text-foreground hover:bg-muted">
                 <RadioDot /> {tr(REPORT_REASON_LABEL[k].en, REPORT_REASON_LABEL[k].vi)}
               </Radio>
             ))}

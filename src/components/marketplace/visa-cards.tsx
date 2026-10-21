@@ -2474,7 +2474,7 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
                 // Photos-only asks for no date, so only the consent gates the send.
                 disabled={busy || !consented || (!quickFlow && unpromisable) || (quickFlow && !photosOnly && !entryDateOk)}
                 onClick={() => void onSendToDesk(quickFlow && !photosOnly ? entryDate : undefined)}
-                className="rounded-xl px-3.5 py-2.5 text-xs"
+                className="max-w-full whitespace-normal rounded-xl px-3.5 py-2.5 text-xs"
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
                 {photosOnly

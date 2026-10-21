@@ -144,7 +144,7 @@ export function SuggestForm() {
               {tr('A listed school has the same website. Is it this one?', 'Một trường trong danh sách có cùng website. Có phải nơi này không?')}{' '}
               <Link href={`/schools/${found.slug}`} className="font-semibold text-accent-foreground hover:underline">{found.name}</Link>
             </p>
-            <Button type="button" variant="outline" size="sm" className="self-start" disabled={busy} onClick={() => void submit(true)}>
+            <Button type="button" variant="outline" size="sm" className="self-start whitespace-normal" disabled={busy} onClick={() => void submit(true)}>
               {tr('No, it is a different school: send it', 'Không, đây là nơi khác: gửi đề xuất')}
             </Button>
           </div>

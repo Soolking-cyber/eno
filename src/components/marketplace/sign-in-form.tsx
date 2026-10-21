@@ -1330,7 +1330,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
           variant="bare"
           size="none"
           onClick={() => { retryOnCaptchaSolvedRef.current = null; setStage('input'); setPassword(''); setError(null); setReveal(false) }}
-          className="w-full pt-1 text-center text-sm font-semibold text-accent-foreground hover:underline cursor-pointer"
+          className="w-full pt-1 text-center text-sm font-semibold text-accent-foreground hover:underline cursor-pointer whitespace-normal"
         >
           {tab === 'email'
             ? t('Forgot it? Use a code or link instead', 'Quên mật khẩu? Dùng mã hoặc liên kết')
@@ -1358,7 +1358,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
         </span>
         <p className="mt-4 text-lg font-bold text-foreground">{t('Check your email', 'Kiểm tra email của bạn')}</p>
         <p className="mt-1.5 text-sm text-muted-foreground">{t('We sent a magic link to', 'Chúng tôi đã gửi liên kết đăng nhập tới')}</p>
-        <p className="text-sm font-semibold text-foreground">{email}</p>
+        <p className="text-sm font-semibold text-foreground [overflow-wrap:anywhere]">{email}</p>
         {/* "Open Gmail" / "Open Outlook" by the address's domain (auth-06): one tap to the inbox the link
             went to, instead of leaving the visitor to find it. A new tab, so this screen (and resend) stays. */}
         {webmail && (
@@ -1652,7 +1652,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
           {stage === 'code' && (
             <div className="space-y-3">
               <p className="text-center text-xs text-muted-foreground">
-                {t('Enter the 6-digit code sent to', 'Nhập mã 6 số gửi tới')} <strong className="text-foreground">{email}</strong>
+                {t('Enter the 6-digit code sent to', 'Nhập mã 6 số gửi tới')} <strong className="text-foreground [overflow-wrap:anywhere]">{email}</strong>
               </p>
               <p className="-mt-1.5 text-center text-2xs text-ink-4">{t('Check spam if it is not there in a minute.', 'Nếu chưa thấy sau một phút, hãy kiểm tra thư rác.')}</p>
               {/* ⚠️ w-10 ON BOTH STRIPS, AND THE OLD ONE OVERFLOWED — MEASURED, NOT REASONED.

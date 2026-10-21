@@ -270,7 +270,7 @@ function BrandRow({ brand, brands, open, onOpenChange, onSaved }: { brand: Brand
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={null}>Merge into…</SelectItem>
-                  {brands.filter((x) => x.id !== brand.id).map((x) => <SelectItem key={x.id} value={x.id}>{x.name}</SelectItem>)}
+                  {brands.filter((x) => x.id !== brand.id).map((x) => <SelectItem key={x.id} value={x.id} className="[&>:first-child]:whitespace-normal">{x.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Button variant="ghost" size="none" onClick={() => setMergeConfirm(true)} disabled={!mergeId || saving} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-accent-foreground hover:bg-muted hover:text-accent-foreground disabled:opacity-40">

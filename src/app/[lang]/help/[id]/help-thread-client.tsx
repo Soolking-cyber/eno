@@ -62,7 +62,7 @@ function CommentRow({ comment, nested = false }: { comment: HelpComment; nested?
             </Badge>
           )}
         </p>
-        <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-body">{body}</p>
+        <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-body [overflow-wrap:anywhere]">{body}</p>
         <div className="mt-2 flex items-center gap-1">
           <HelpVote id={comment.id} kind="comment" score={comment.score} viewerVote={comment.viewerVote} size="sm" />
           {/* App Store gate `ugc-safety` (R5): report this reply into the moderation queue. Renders nothing
@@ -252,7 +252,7 @@ export function HelpThreadClient({
         )}
       </div>
 
-      <h1 className="mt-3 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{title}</h1>
+      <h1 className="mt-3 text-2xl font-bold tracking-tight text-foreground sm:text-3xl [overflow-wrap:anywhere]">{title}</h1>
       <p className="mt-2 text-xs text-muted-foreground">
         {post.author.name}
         {/* ⚠️ AN OFFICIAL ANSWER SHOWS WHEN ITS COPY LAST CHANGED, NOT A RELATIVE "2 months ago" (C-DATES).
@@ -281,7 +281,7 @@ export function HelpThreadClient({
       {/* Headings, paragraphs and lists (rich-text.tsx formatHelpBody), not a pre-line <p> printing
           "•" characters (C-HELP-RENDER). Sub-heads are only guessed on the eno team's own answers;
           a community post keeps its lines and lists. 60ch holds the measure inside the 3xl column. */}
-      <div className="mt-5 max-w-[60ch] text-base leading-relaxed text-body">
+      <div className="mt-5 max-w-[60ch] text-base leading-relaxed text-body [overflow-wrap:anywhere]">
         {formatHelpBody(body, { implicitHeadings: post.official, headingLevel: 2 })}
       </div>
 

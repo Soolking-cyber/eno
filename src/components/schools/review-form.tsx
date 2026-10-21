@@ -172,7 +172,7 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
             {tr('Your account is new, so the review also waits until the account is {n} days old.', 'Tài khoản của bạn còn mới, nên đánh giá sẽ chờ đến khi tài khoản được {n} ngày tuổi.').replace('{n}', String(ELIGIBLE_ACCOUNT_AGE_DAYS))}
           </p>
         )}
-        <Button variant="outline" className="mt-4" asChild><Link href={`/schools/${slug}`}>{tr('Back to {name}', 'Quay lại {name}').replace('{name}', schoolName)}</Link></Button>
+        <Button variant="outline" className="mt-4 whitespace-normal" asChild><Link href={`/schools/${slug}`}>{tr('Back to {name}', 'Quay lại {name}').replace('{name}', schoolName)}</Link></Button>
       </div>
     )
   }

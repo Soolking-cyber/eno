@@ -103,7 +103,7 @@ export default async function AdminConversationPage({ params }: Props) {
                 const who = fromBuyer ? buyerName : sellerName
                 return (
                   <div key={m.id} className={`flex flex-col ${fromBuyer ? 'items-start' : 'items-end'}`}>
-                    <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${fromBuyer ? 'bg-tint text-foreground' : 'bg-primary/10 text-foreground'}`}>
+                    <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed [overflow-wrap:anywhere] ${fromBuyer ? 'bg-tint text-foreground' : 'bg-primary/10 text-foreground'}`}>
                       {m.kind === 'offer' ? (
                         <>
                           {/* Offer line derived from the structured offerAmount — legacy

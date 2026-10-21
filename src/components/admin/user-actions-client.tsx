@@ -177,7 +177,7 @@ export function UserActionsClient({ profileId, email, phone, verificationStatus,
             <AlertDialogTitle>Erase this account</AlertDialogTitle>
             <AlertDialogDescription>
               Irreversible. Listings, storefront, conversations, the profile and the sign-in are deleted; storage objects are queued for removal; the verification record survives pseudonymised. Refused while the account has open reports or an active hold — resolve those first.
-              {confirmWith ? <> Type <span className="font-mono text-foreground">{confirmWith}</span> to confirm.</> : <> This account has neither an email nor a phone, so it cannot be confirmed here.</>}
+              {confirmWith ? <> Type <span className="font-mono text-foreground [overflow-wrap:anywhere]">{confirmWith}</span> to confirm.</> : <> This account has neither an email nor a phone, so it cannot be confirmed here.</>}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2">

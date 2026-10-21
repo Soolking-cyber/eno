@@ -200,7 +200,7 @@ export function AvailabilityClient() {
                 ) : (
                   <span className="max-w-[55%] text-xs text-muted-foreground">{tr('Quick check needed — confirm what’s still available to keep your listings live.', 'Cần xác nhận nhanh — xác nhận món còn hàng để giữ tin của bạn hiển thị.')}</span>
                 )}
-                <Button variant="cta" size="none" onClick={submit} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm transition-colors disabled:opacity-50 cursor-pointer">
+                <Button variant="cta" size="none" onClick={submit} disabled={submitting} className="inline-flex shrink items-center gap-2 whitespace-normal rounded-xl px-5 py-2.5 text-sm transition-colors disabled:opacity-50 cursor-pointer">
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {soldCount > 0
                     ? fillTemplate(tr('Bump {availCount} · sold {soldCount}', 'Đẩy {availCount} · đã bán {soldCount}'), 'Bump {availCount} · sold {soldCount}', { availCount: formatInteger(availCount, moneyLocale(lang)), soldCount: formatInteger(soldCount, moneyLocale(lang)) })

@@ -44,7 +44,7 @@ export function AboutStep({ t, set, errors, errText, prefillName }: StepProps & 
           <Label htmlFor="tf-name">{tr('Full name', 'Họ và tên')}</Label>
           <FieldControl id="tf-name" render={<Input id="tf-name" autoComplete="name" value={t.fullName} maxLength={LIMITS.name} onChange={(e) => set('fullName', e.target.value)} />} />
           {prefillName && !t.fullName && (
-            <Chip size="sm" tone="neutral" className="relative tap-44 self-start" onClick={() => set('fullName', prefillName.slice(0, LIMITS.name))}>
+            <Chip size="sm" tone="neutral" className="relative tap-44 max-w-full self-start whitespace-normal text-left" onClick={() => set('fullName', prefillName.slice(0, LIMITS.name))}>
               {tr('Use my account name:', 'Dùng tên tài khoản:')} {prefillName}
             </Chip>
           )}

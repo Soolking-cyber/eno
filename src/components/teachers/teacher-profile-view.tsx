@@ -276,7 +276,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
               {photo
                 ? <Image src={photo} alt="" width={96} height={96} quality={60} priority fetchPriority="high" unoptimized={!isListingImageUrl(photo) || isMockImageUrl(photo)} className="size-24 shrink-0 rounded-full object-cover" />
                 : <span className="size-24 shrink-0 rounded-full bg-muted" />}
-              <div className="min-w-0">
+              <div className="min-w-0 [overflow-wrap:anywhere]">
                 <h1 className="text-2xl font-semibold text-foreground">{name}</h1>
                 {/* The teacher's own words, translated for the reader like a listing description is (LocalizedText). */}
                 {tp && <p className="mt-1 text-body"><LocalizedText text={tp.headline} /></p>}

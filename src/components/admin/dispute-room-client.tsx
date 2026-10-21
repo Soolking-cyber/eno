@@ -203,7 +203,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
           {data.reporter ? (
             <p className="mt-1 text-sm text-foreground">
               <span className="font-bold">{data.reporter.name}</span>
-              {data.reporter.email && <span className="text-muted-foreground"> · {data.reporter.email}</span>}
+              {data.reporter.email && <span className="text-muted-foreground [overflow-wrap:anywhere]"> · {data.reporter.email}</span>}
               <br />
               <span className="text-xs text-muted-foreground">trust {data.reporter.trustScore}{data.reporter.strikes > 0 && <span className="font-bold text-destructive"> · {data.reporter.strikes} false-report strikes</span>}</span>
               {data.reporter.sellerId && <> · <Link className="text-xs font-bold text-accent-foreground hover:underline" href={`/sellers/${data.reporter.sellerId}`}>storefront</Link></>}

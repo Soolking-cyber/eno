@@ -118,7 +118,7 @@ export function UsersClient({ initialFilter = 'all', initialQuery = '' }: { init
                       {u.enforcementState !== 'good_standing' && (
                         <Badge variant={STATE_VARIANT[u.enforcementState] ?? 'neutral'} className="capitalize">{u.enforcementState.replace('_', ' ')}</Badge>
                       )}
-                      {u.seller && <Badge variant={u.seller.verifiedSeller ? 'brand' : 'neutral'}>{u.seller.name} · {u.seller.listings} listing{u.seller.listings === 1 ? '' : 's'}</Badge>}
+                      {u.seller && <Badge variant={u.seller.verifiedSeller ? 'brand' : 'neutral'} className="max-w-full whitespace-normal">{u.seller.name} · {u.seller.listings} listing{u.seller.listings === 1 ? '' : 's'}</Badge>}
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                       {u.email ?? 'no email'}{u.phone ? ` · ${u.phone}` : ''} · trust {u.trustScore} ({u.trustTier})

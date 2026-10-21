@@ -404,7 +404,7 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
               <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50">
                 <Upload className="h-8 w-8 text-brand" strokeWidth={STROKE_DISPLAY} />
               </span>
-              <p className="mt-2 text-sm font-semibold text-foreground">{fileName || tr('Drop your CSV here, or click to choose', 'Thả CSV vào đây, hoặc bấm để chọn')}</p>
+              <p className="mt-2 max-w-full px-4 text-sm font-semibold text-foreground [overflow-wrap:anywhere]">{fileName || tr('Drop your CSV here, or click to choose', 'Thả CSV vào đây, hoặc bấm để chọn')}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">{tr('Up to 200 rows', 'Tối đa 200 dòng')}</p>
               <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f) }} />
             </div>

@@ -43,7 +43,7 @@ export function AdminSectionShell({
         className={cn('mx-auto w-full flex-1 px-3 py-8 sm:px-6 lg:px-8', width === 'narrow' ? 'max-w-4xl' : 'max-w-7xl')}
       >
         <div className="mb-5">
-          <h1 className="h-title text-foreground">{title}</h1>
+          <h1 className="h-title text-foreground [overflow-wrap:anywhere]">{title}</h1>
           {description && <div className="mt-1 max-w-3xl text-sm text-muted-foreground">{description}</div>}
         </div>
         {tabs && tabs.length > 1 && basePath && (

@@ -73,7 +73,7 @@ export function SchoolClaim({ schoolId, schoolName }: { schoolId: string; school
           </DialogHeader>
           <RadioGroup value={reason} onValueChange={(v) => setReason(v as typeof reason)} className="flex flex-col gap-1" aria-label={tr('What do you need?', 'Bạn cần gì?')}>
             {REASONS.map((r) => (
-              <Radio key={r.k} value={r.k} className="min-h-10 justify-start rounded-xl px-2 text-sm text-foreground hover:bg-muted">
+              <Radio key={r.k} value={r.k} className="min-h-10 justify-start whitespace-normal rounded-xl px-2 text-left text-sm text-foreground hover:bg-muted">
                 <RadioDot /> {tr(r.en, r.vi)}
               </Radio>
             ))}

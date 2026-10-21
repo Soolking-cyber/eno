@@ -26,7 +26,7 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-1.5">
       <dt className="text-xs text-muted-foreground">{k}</dt>
-      <dd className="text-right text-sm text-foreground">{v ?? '—'}</dd>
+      <dd className="min-w-0 text-right text-sm text-foreground [overflow-wrap:anywhere]">{v ?? '—'}</dd>
     </div>
   )
 }

@@ -196,7 +196,7 @@ function BoardRowItem({ row, rank }: { row: BoardRow; rank: number | null }) {
         <div className="min-w-0 flex-1">
           <p className="flex items-baseline gap-2">
             {rank !== null && <span className="text-xs font-semibold tabular-nums text-muted-foreground">#{rank}</span>}
-            <Link href={`/schools/${row.slug}`} className="line-clamp-2 text-base font-semibold text-foreground hover:underline">
+            <Link href={`/schools/${row.slug}`} className="line-clamp-2 break-words text-base font-semibold text-foreground hover:underline">
               {row.name}
             </Link>
           </p>

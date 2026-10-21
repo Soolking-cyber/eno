@@ -460,7 +460,7 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
       ) : contact ? (
         <>
           {contact.phone && <a href={`tel:${contact.phone.replace(/[^+\d]/g, '')}`} className="press flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted"><Phone className="h-3.5 w-3.5" /> {contact.phone}</a>}
-          {contact.email && <a href={`mailto:${contact.email}`} className="rounded-full px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted">{contact.email}</a>}
+          {contact.email && <a href={`mailto:${contact.email}`} className="rounded-full px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted [overflow-wrap:anywhere]">{contact.email}</a>}
           {/* ⚠️ NATIVE SHELL: never a navigation. A target=_blank link goes to Safari, which has no eno session
               (401); a same-window load resets Capacitor's bridge. So the app asks for the signed link as JSON
               and opens it in the in-app browser; a refusal stays here as the strip's alert. Web: unchanged.

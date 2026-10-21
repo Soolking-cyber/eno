@@ -373,7 +373,7 @@ function StopRow({
         onClick={onSelect}
         aria-current={selected ? 'true' : undefined}
         aria-label={fillTemplate(tr('Show {place} on the map', 'Xem {place} trên bản đồ'), 'Show {place} on the map', { place: String(stop.place) })}
-        className="flex w-full gap-2.5 px-3 py-3 text-left transition-colors hover:bg-tint/60"
+        className="flex w-full gap-2.5 whitespace-normal px-3 py-3 text-left transition-colors hover:bg-tint/60"
       >
         {body}
       </Button>

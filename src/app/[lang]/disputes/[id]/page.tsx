@@ -305,7 +305,7 @@ export default function DisputeRoomPage() {
                   <p className={cn('flex items-center gap-1.5 text-sm font-bold', d.cls)}>
                     <d.icon className="h-4 w-4" /> {d.text}
                   </p>
-                  {data.decisionNote && <p className="mt-1 whitespace-pre-wrap pl-6 text-sm text-body">{data.decisionNote}</p>}
+                  {data.decisionNote && <p className="mt-1 whitespace-pre-wrap pl-6 text-sm text-body [overflow-wrap:anywhere]">{data.decisionNote}</p>}
                   {data.role === 'respondent' && data.status === 'confirmed' && (
                     <Link href={`/appeal/${data.id}`} className="mt-2 inline-flex items-center gap-1 pl-6 text-sm font-bold text-accent-foreground hover:underline">
                       {t('Appeal with proof', 'Khiếu nại kèm bằng chứng')}
@@ -364,7 +364,7 @@ export default function DisputeRoomPage() {
                         // line variant on the accent-tinted bubble — the ink is the meaning.
                         <p className="mb-1 flex items-center gap-1 text-2xs font-bold text-accent-foreground"><ShieldCheck className={ICON_SIZE.xs} /> eno.vn</p>
                       )}
-                      {item.body && <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{item.body}</p>}
+                      {item.body && <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]">{item.body}</p>}
                       {item.images.length > 0 && (
                         <div className={cn('flex flex-wrap gap-2', item.body && 'mt-2')}>
                           {item.images.map((src, i) => (

@@ -38,7 +38,7 @@ export function HelpClient({ data }: { data: HelpCenterData }) {
           {/* Search box (px-3 + py-3 on a text-base input → 48px) */}
           <Skeleton className="mt-6 h-12 w-full rounded-xl" />
           {/* Topic chips (h-10 rounded-full) */}
-          <div className="-mx-3 mt-4 flex gap-2 px-3 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+          <div className="no-scrollbar -mx-3 mt-4 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
             {['w-24', 'w-28', 'w-20', 'w-32', 'w-24'].map((w, i) => (
               <Skeleton key={i} className={`h-10 shrink-0 rounded-full ${w}`} />
             ))}

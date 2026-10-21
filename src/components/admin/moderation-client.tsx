@@ -437,7 +437,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
         </div>
       )}
 
-      {c.detail && <p className="mt-2 text-xs text-foreground">“{c.detail}”</p>}
+      {c.detail && <p className="mt-2 text-xs text-foreground [overflow-wrap:anywhere]">“{c.detail}”</p>}
 
       {/* The reported party's formal reply (buyer-king SLA) — evidence BEFORE decision.
           One-shot dispute replies set sellerRespondedAt (not sellerResponse — the text

@@ -949,7 +949,7 @@ export function VisaCasesClient({ threads, embedded = false }: {
               <ReviewGrid payload={application.payload} tr={tr} />
               <Consent checked={declaration} onChange={setDeclaration}>{tr('I confirm that every answer is complete, true, and accurate. I understand false information can cause refusal and legal consequences.', 'Tôi xác nhận mọi câu trả lời đầy đủ, trung thực và chính xác. Tôi hiểu thông tin sai có thể dẫn đến từ chối và hậu quả pháp lý.')}</Consent>
               <Consent checked={authorization} onChange={setAuthorization}>{tr('I authorize eno to transfer these approved answers and images into a temporary secure hosted browser and prefill the official website. Browser recording, session logs, and automatic CAPTCHA solving are disabled. A person must still review the official form before declaration, payment, and submission.', 'Tôi cho phép eno chuyển các câu trả lời và hình ảnh đã duyệt này vào trình duyệt lưu trữ bảo mật tạm thời và điền trước trang web chính thức. Tính năng ghi hình trình duyệt, nhật ký phiên và tự động giải CAPTCHA đều bị tắt. Một người vẫn phải kiểm tra biểu mẫu chính thức trước khi xác nhận, thanh toán và nộp hồ sơ.')}</Consent>
-              <Button type="button" variant="cta" className="h-11" disabled={busy || !declaration || !authorization} onClick={() => void approvePrefill()}>
+              <Button type="button" variant="cta" className="min-h-11 whitespace-normal" disabled={busy || !declaration || !authorization} onClick={() => void approvePrefill()}>
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}{tr('Approve for official prefill', 'Duyệt để điền biểu mẫu chính thức')}
               </Button>
             </CardContent>

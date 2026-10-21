@@ -1035,7 +1035,10 @@ export function VerifyClient() {
             disabled={!accepted || retrySecs > 0 || declarationChanged}
             onClick={() => void start('A')}
             aria-busy={starting && tier === 'A'}
-            className="h-auto flex-col items-start gap-1 rounded-2xl p-4 text-left"
+            // ⚠️ whitespace-normal: Button's base is whitespace-nowrap, so the description never wrapped —
+            // on a phone both cards widened the grid past the page (96–229px measured at 320–390), and in
+            // two columns the passport line ran 46–218px out of its card (EN/VI, 640–768).
+            className="h-auto flex-col items-start gap-1 whitespace-normal rounded-2xl p-4 text-left"
           >
             {/* §2: tier-choice leads are BUTTON content, not nav chrome — the hand-typed 2.25
                 was tier drift; the UI default (lucide's own 2) is the law for this surface. */}
@@ -1051,7 +1054,7 @@ export function VerifyClient() {
             disabled={!accepted || retrySecs > 0 || declarationChanged}
             onClick={() => void start('B')}
             aria-busy={starting && tier === 'B'}
-            className="h-auto flex-col items-start gap-1 rounded-2xl p-4 text-left"
+            className="h-auto flex-col items-start gap-1 whitespace-normal rounded-2xl p-4 text-left"
           >
             <span className="flex items-center gap-2 font-bold"><IdCard className="h-5 w-5" />{tr('Foreign resident', 'Người nước ngoài')}</span>
             {/* ⚠️ THIS SENTENCE WAS FALSE AND HAD TO CHANGE. It said "read on your device, not

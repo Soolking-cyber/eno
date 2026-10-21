@@ -300,7 +300,7 @@ function ReviewCard({ review }: { review: HelpReview }) {
             />
           ))}
         </div>
-        <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-body">{text}</p>
+        <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-body [overflow-wrap:anywhere]">{text}</p>
         <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
           <span className="truncate">{review.author}</span>
           {review.verifiedBuyer && (
@@ -610,7 +610,7 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
           <p className="mt-1.5 text-sm text-body">
             <Tr text="Left by buyers after a completed deal. Open a seller to read every review on their storefront." />
           </p>
-          <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {data.reviews.map((review) => (
               <ReviewCard key={review.id} review={review} />
             ))}

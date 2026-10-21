@@ -93,7 +93,7 @@ export function TeachingStep({ t, set, update, errors, errText }: StepProps) {
         {/* The look lives on the <Button> itself, not on the trigger: a render child's className is concatenated,
             not merged (CLAUDE.md; ladder-compact-row.tsx, the first Collapsible call site). */}
         <CollapsibleTrigger
-          render={<Button variant="bare" size="none" type="button" className="flex min-h-11 w-full items-center justify-between gap-3 text-left" />}
+          render={<Button variant="bare" size="none" type="button" className="flex min-h-11 w-full items-center justify-between gap-3 text-left whitespace-normal" />}
         >
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-foreground">

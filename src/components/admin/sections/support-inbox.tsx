@@ -136,7 +136,7 @@ export function SupportInbox({ rows, open, messages }: { rows: SupportThreadRow[
               {messages.map((m) => (
                 <div
                   key={m.id}
-                  className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${m.fromCustomer ? 'bg-muted text-foreground' : 'ml-auto bg-accent text-accent-foreground'}`}
+                  className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm [overflow-wrap:anywhere] ${m.fromCustomer ? 'bg-muted text-foreground' : 'ml-auto bg-accent text-accent-foreground'}`}
                 >
                   {m.deleted ? <em className="text-muted-foreground">removed</em> : m.body}
                 </div>

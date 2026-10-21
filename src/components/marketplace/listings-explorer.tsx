@@ -4110,7 +4110,7 @@ export function ListingsExplorer({
                   {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
                 </Button>
               )}
-              <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2.5 text-sm font-semibold">
+              <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-normal">
                 <Link href="/post" prefetch={false} onPointerDown={warmPost} onMouseEnter={warmPost}>
                   {tr('Post a Wanted — let sellers come to you', 'Đăng tin cần tìm — để người bán tìm đến bạn')}
                 </Link>

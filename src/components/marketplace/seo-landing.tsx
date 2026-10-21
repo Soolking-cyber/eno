@@ -358,7 +358,7 @@ export async function SeoLanding({ content, lede, after, inventory }: {
             ))}
           </div>
         ) : (
-          <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold">
+          <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold whitespace-normal text-center">
             <LocalizedLink
               href={browseHref}
               className="mt-6 px-5 py-2.5 text-sm"

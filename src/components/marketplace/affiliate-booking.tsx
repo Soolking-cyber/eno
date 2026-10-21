@@ -131,7 +131,7 @@ export function AffiliateBooking({
           it measured 366x40 on 6 of 7 PDPs while its Chat twin (contact-composer.tsx) already
           reaches the 44px floor. On the PRIMITIVE, where cn() replaces the size's `min-h-10`, rather
           than on the <a> below: the house rule is that size overrides live on the primitive. */}
-      <Button asChild variant="cta" size="lg" className="w-full min-h-11">
+      <Button asChild variant="cta" size="lg" className="w-full min-h-11 whitespace-normal text-center">
         {/*
           * An anchor, not a router push: this leaves our origin entirely. Next's Link would
           * prefetch a third-party URL it cannot prefetch and adds nothing.
@@ -286,7 +286,7 @@ export function AffiliateCtaRepeat({ url, partnerName, booking, rental = false, 
   if (!safeUrl) return null
   return (
     <div className={cn('lg:hidden', className)}>
-      <Button asChild variant="cta" size="lg" className="w-full min-h-11">
+      <Button asChild variant="cta" size="lg" className="w-full min-h-11 whitespace-normal text-center">
         <a
           data-affiliate-cta-repeat="true"
           href={safeUrl}

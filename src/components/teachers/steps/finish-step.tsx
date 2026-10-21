@@ -388,7 +388,7 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
           <p className="mt-0.5 text-sm text-muted-foreground">{tr('PDF, up to 10 MB. Private: the person you are chatting with gets it only when you tap the Share button in that chat.', 'PDF, tối đa 10 MB. Riêng tư: người đang trò chuyện với bạn chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ.')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {(media.cvFile || media.cvName) && <span className="inline-flex items-center gap-2 text-sm text-body"><FileText className="size-4" />{media.cvFile?.name ?? media.cvName}</span>}
+          {(media.cvFile || media.cvName) && <span className="inline-flex min-w-0 items-center gap-2 text-sm text-body [overflow-wrap:anywhere]"><FileText className="size-4 shrink-0" />{media.cvFile?.name ?? media.cvName}</span>}
           <label className={pickerCls}>
             <FileText className="size-4" />
             {media.cvFile || media.cvName ? tr('Replace CV', 'Thay CV') : tr('Choose PDF', 'Chọn tệp PDF')}

@@ -591,7 +591,7 @@ export async function SellerStorefront({ id }: { id: string }) {
                       <ReportContentButton kind="review" id={r.id} className="-my-1" />
                     </span>
                   </div>
-                  <p className="mt-2 text-sm leading-relaxed text-body"><Tr text={r.text} /></p>
+                  <p className="mt-2 text-sm leading-relaxed text-body [overflow-wrap:anywhere]"><Tr text={r.text} /></p>
                 </li>
               ))}
             </ul>

@@ -100,7 +100,7 @@ export function FeedbackClient({ items: initial }: { items: FeedbackItem[] }) {
                         </a>
                       )}
                       {it.url && (
-                        <a href={it.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">
+                        <a href={it.url} target="_blank" rel="noreferrer" className="inline-flex min-w-0 items-center gap-1 hover:underline [overflow-wrap:anywhere]">
                           <ExternalLink className="h-3.5 w-3.5" /> {it.url}
                         </a>
                       )}
