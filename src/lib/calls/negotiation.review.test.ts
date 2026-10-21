@@ -525,8 +525,9 @@ describe('D8: the caller does not wait for ready without a bound', () => {
 // D13 — the reducer could mint idempotency keys the box's table refuses
 // ===========================================================================
 
-describe('D13: every idempotency key this side mints fits the box\'s call_signal_key CHECK (8–64 chars)', () => {
-  // scripts/calls-ddl.mjs: `idem text NOT NULL CHECK (length(idem) BETWEEN 8 AND 64)`. The module documented
+describe('D13: every idempotency key this side mints is 8–64 chars (the box accepts 1–64 since the commit-gate review)', () => {
+  // scripts/calls-ddl.mjs now says `CHECK (length(idem) BETWEEN 1 AND 64)` = protocol.ts idempotencyKeySchema exactly;
+  // this side still mints ≥ 8 (a fresh instanceId per reducer). Originally: `BETWEEN 8 AND 64`. The module documented
   // instanceId as "1–40 chars", so an engine that followed it with a short id would have EVERY POST refused by
   // the database — retried forever by the engine, the call never set up, nothing on screen saying why.
   it('an instanceId too short to yield an 8-character key is refused up front', () => {

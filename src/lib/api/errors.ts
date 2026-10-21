@@ -4,6 +4,7 @@ import type { ListingStatusErrorCode, ListingUpdateErrorCode } from '@/lib/core/
 import type { SellerUpdateErrorCode } from '@/lib/core/seller'
 import type { OwnerCheckErrorCode } from '@/lib/listing-owner'
 import type { ScamHoldRefusalCode } from '@/lib/scam-hold'
+import type { CallRefusalCode } from '@/lib/calls/server/eligibility'
 
 /**
  * THE ERROR VOCABULARY THAT IS ALREADY ON THE WIRE.
@@ -387,6 +388,21 @@ export type NicheApiErrorCode =
   | 'no_teaching_goal' // PATCH /api/teachers/me/status → live: no work picked and cover off, so nothing to show schools (D6, 2026-10-09)
   | 'terms_required' // PUT /api/teachers/me: a new account's first profile published without the Terms line on screen (2026-10-11)
   | 'onboarding_required' // PUT /api/teachers/me: a create while an onboarding step other than the account type is pending (the phone, once required)
+  // In-app calls (the modules under src/lib/calls/server, 2026-10-21) — the call button explains each one.
+  | 'calls_unavailable' // calls are off, or this person / the other person / this media kind is not in the beta (403)
+  | 'calls_not_verified' // the caller has no live verified identity (eKYC) — calls need one (403)
+  | 'calls_peer_not_verified' // video, or a teacher-thread call, needs the other person verified too (403)
+  | 'calls_consent_required' // the other person has not allowed calls from you in this thread — ask first (403)
+  | 'calls_thread_unavailable' // a support / desk / visa / itinerary / unclaimed thread cannot carry a call (403)
+  | 'calls_cooldown' // too many unanswered calls to this person, or they are being rung by too many people (429)
+  | 'call_in_progress' // you are already in a call (409)
+  | 'call_gone' // the call ended, was answered elsewhere, or timed out (409)
+  | 'protocol_mismatch' // the two phones run builds that cannot call each other — reload (409)
+  | 'wrong_tab' // an in-call event from a tab the box did not bind to this call (409)
+  | 'relay_unavailable' // the media relay could not issue credentials (503)
+  | 'invalid_sdp' // a session description the guard refused (400)
+  | 'reveal_conflict' // a second, different safety-code reveal for one call (409)
+  | 'call_request_cooldown' // a call request was sent in this thread in the last 24 h (429)
   | 'draft_stale' // PUT /api/teachers/me/draft: another tab or device saved the teacher draft since this revision (2026-10-11)
   | 'draft_gone' // PUT /api/teachers/me/draft: the draft was deleted (published, started over, expired) — never brought back
   | 'teacher_exists' // PUT /api/teachers/me/draft: the account has a teacher profile — no draft beside it
@@ -825,6 +841,20 @@ const ALL = [
   'no_teaching_goal',
   'terms_required',
   'onboarding_required',
+  'calls_unavailable',
+  'calls_not_verified',
+  'calls_peer_not_verified',
+  'calls_consent_required',
+  'calls_thread_unavailable',
+  'calls_cooldown',
+  'call_in_progress',
+  'call_gone',
+  'protocol_mismatch',
+  'wrong_tab',
+  'relay_unavailable',
+  'invalid_sdp',
+  'reveal_conflict',
+  'call_request_cooldown',
   'draft_stale',
   'draft_gone',
   'teacher_exists',
@@ -963,7 +993,7 @@ void _everyCodeIsListed
  * returning `admin_required`, a code the transition function itself never produces.
  */
 type UnlistedHelperCode = Exclude<
-  SellerUpdateErrorCode | ListingStatusErrorCode | OwnerCheckErrorCode | ScamHoldRefusalCode,
+  SellerUpdateErrorCode | ListingStatusErrorCode | OwnerCheckErrorCode | ScamHoldRefusalCode | CallRefusalCode,
   ApiErrorCode
 >
 const _everyHelperCodeIsAnApiCode:

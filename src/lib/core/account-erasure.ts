@@ -24,6 +24,8 @@ import {
   type QueuedKey,
 } from '@/lib/auth/apple-siwa'
 import type { Prisma } from '@/generated/prisma/client'
+import { endCallsOfIn, type EndedCallRow } from '@/lib/calls/server/session'
+import { afterCallEnded } from '@/lib/calls/server/finish'
 
 // ── ACCOUNT ERASURE (PDPL 91/2025: delete ≤20 days — we do it now) ──────────────────────────────
 //
@@ -132,6 +134,7 @@ export async function eraseAccount(profileId: string, actor: EraseActor, signals
   const teacherRow = await readTeacherRow(profile.id)
   /** The listings the transaction deletes — purged after it commits, never when it rolls back. */
   let erasedListingIds: string[] = []
+  let endedCalls: EndedCallRow[] = []
 
   // Interactive transaction: re-resolve the seller INSIDE the tx (a storefront
   // created concurrently must not survive as an orphan), then reports → reviews →
@@ -248,12 +251,35 @@ export async function eraseAccount(profileId: string, actor: EraseActor, signals
     // account becomes the daily retry's in the same commit that deletes the profile, so a process killed right after
     // the commit — before the revocation below — leaves them queued, not active and invisible to the retry for good.
     // Never fails this transaction: a missing table or a failed UPDATE answers instead (savepoint — see the helper).
+    // ⛔ IN-APP CALLS (scripts/calls-ddl.mjs, 2026-10-21): the call METADATA stays — who called whom, when, how it
+    // ended (Decree 333/2026 Art 16.6 system logs; a report's legal hold) — keyed by the participant hashes, but the
+    // PERSON goes: any call they are in ENDS first (under their call lock — the peer is told, both relay credentials
+    // are revoked after the commit, below), then caller_id / callee_id are NULLed, and their consents both ways and
+    // any busy lock are deleted, and they leave the beta cohort. No foreign keys exist to do this for us (deliberately —
+    // the table outlives accounts).
+    // Guarded by to_regclass: a database the calls DDL has not reached must not fail an erasure. Any OTHER failure does
+    // fail it — an erasure that left the person's id on their call records would not be one.
+    const callTables = await tx.$queryRaw<{ ok: boolean }[]>`SELECT to_regclass('public.call_session') IS NOT NULL AS ok`
+    if (callTables[0]?.ok) {
+      endedCalls = await endCallsOfIn(tx, profile.id, 'hangup')
+      await tx.$executeRaw`UPDATE public.call_session SET caller_id = NULL WHERE caller_id = ${profile.id}::uuid`
+      await tx.$executeRaw`UPDATE public.call_session SET callee_id = NULL WHERE callee_id = ${profile.id}::uuid`
+      await tx.$executeRaw`DELETE FROM public.call_lock WHERE profile_id = ${profile.id}::uuid`
+      await tx.$executeRaw`DELETE FROM public.call_consent WHERE granter_id = ${profile.id}::uuid OR grantee_id = ${profile.id}::uuid`
+      await tx.$executeRaw`UPDATE public.call_config SET cohort = array_remove(cohort, ${profile.id}::uuid) WHERE ${profile.id}::uuid = ANY(cohort)`
+    }
     appleQueue = await queueTokensForErasure(tx, profile.id)
     await tx.profile.delete({ where: { id: profile.id } })
   }, { timeout: 30_000 }) // an account with hundreds of listings writes hundreds of tombstones; Prisma's 5s default is for a form save
 
   // COMMITTED: what the world sees follows the database now (see `teacherRow` above). Best effort, never thrown.
   purgeErasedSurfaces(erasedListingIds, teacherRow)
+  // The calls just ended: relay credentials revoked, a ringing lock screen replaced. The erased person's id is taken off
+  // the row first, so no record is written into the thread in their name and no push names them (cards.ts).
+  for (const row of endedCalls) {
+    const gone = { ...row, caller_id: row.caller_id === profile.id ? null : row.caller_id, callee_id: row.callee_id === profile.id ? null : row.callee_id }
+    await afterCallEnded(gone, 'hangup').catch((e) => logError(e, { op: 'account-erasure.calls', callId: row.id }))
+  }
 
   // ⛔ THE DESK'S OBJECTS ARE QUEUED BEFORE THE AUTH USER GOES. `visa_applications.user_id`
   // references auth.users ON DELETE CASCADE (measured 2026-09-05), and the document rows cascade

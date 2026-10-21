@@ -43,6 +43,8 @@ import { cutText } from '@/lib/feed-text'
 //   'trip_status'   — a trip case moved to a new status              (metaJson)
 //   'trip_step'     — one step of the in-thread itinerary wizard     (metaJson)
 //   'availability_request' — a rental availability check, sent to the eno team (metaJson)
+//   'call'          — a call happened (or was missed) in this thread — plain body, written by the box
+//   'call_request'  — "<name> would like to call you": the recipient's Allow-calls card — plain body
 export const MESSAGE_KINDS = [
   'text', 'offer',
   'visa_step', 'visa_checkout', 'visa_result', 'visa_picker',
@@ -72,6 +74,13 @@ export const MESSAGE_KINDS = [
   // prices, a contact), because the request is a historical fact: what the person asked about, as it
   // was when they asked.
   'availability_request',
+  // ⚠️ IN-APP CALLS (src/lib/calls/server/cards.ts, 2026-10-21) — NOT CARDS, ON PURPOSE: no metaJson, a fixed bilingual
+  // body the box composes ("📞 Cuộc gọi nhỡ · Missed call"), so a tab or app build that predates calls still renders a
+  // readable bubble instead of an empty one. The thread draws its call row (icon, call back, Allow calls) from the
+  // kind. Authored only by the box: no route forwards a client-chosen kind (gate zero above), and the call record's
+  // author is always the CALLER of a call the box ended — the call request's, the participant who asked.
+  'call',
+  'call_request',
 ] as const
 export type MessageKind = (typeof MESSAGE_KINDS)[number]
 export type VisaCardKind = 'visa_step' | 'visa_checkout' | 'visa_result' | 'visa_picker'

@@ -18,7 +18,8 @@ if (PUBLIC && PRIVATE) {
   console.warn('[push] VAPID keys not set — web push disabled.')
 }
 
-export type PushPayload = { title: string; body?: string; url?: string; tag?: string; badge?: number }
+/** `silent`: show without sound or vibration (public/sw.js) — for a line that replaces one already on screen. */
+export type PushPayload = { title: string; body?: string; url?: string; tag?: string; badge?: number; silent?: boolean }
 
 /**
  * Send a Web Push to every device a profile registered. Dead endpoints (410

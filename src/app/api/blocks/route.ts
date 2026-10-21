@@ -1,9 +1,12 @@
+import { after } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
 import { maskEmailHandle } from '@/lib/utils'
 import { logError } from '@/lib/log'
 import { BLOCK_HANDLE_RE, BlockHandleKeyMissing, blockHandle, blockingOn, isStaffProfile, setUserBlock, unblockByHandle } from '@/lib/user-blocks'
+import { endCallsBetween } from '@/lib/calls/server/session'
+import { afterCallEnded } from '@/lib/calls/server/finish'
 
 // Blocking another user — App Store Guideline 1.2 (plan R3), behind the `ugc-safety` review gate.
 // See src/lib/user-blocks.ts for what a block does and why it notifies through the feedback queue.
@@ -76,6 +79,18 @@ export const POST = route(
     if (body.blocked && ((await isStaffProfile(target)) || (await isStaffProfile(profile.id)))) throw new ApiError('cannot_block_staff', 403)
 
     await setUserBlock(profile.id, target, body.blocked, { surface, conversationId: body.conversationId ?? null, sellerId: body.sellerId ?? null })
+    // ⛔ A BLOCK ENDS ANY LIVE CALL BETWEEN THE TWO, and revokes its relay credentials (in-app calls, DESIGN.md v3 §3.2
+    // step 9). The end itself runs HERE, inside the request (commit-gate review: a block answered 200 while its call ran
+    // on was the failure); only the revocation and the record wait for after(). A calls failure never fails the block —
+    // and the heartbeat route re-checks blocks every 15 s, so a call this misses still ends within seconds.
+    if (body.blocked) {
+      try {
+        const ended = await endCallsBetween(profile.id, target, 'blocked')
+        for (const row of ended) after(() => afterCallEnded(row, 'blocked'))
+      } catch (e) {
+        if (!(e instanceof Error && /42P01|call_session" does not exist/.test(e.message))) logError(e, { op: 'blocks.endCalls' })
+      }
+    }
     return { blocked: body.blocked }
   },
 )

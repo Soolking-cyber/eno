@@ -95,6 +95,10 @@ const RE_EMITTED_UNIONS = [
   { fn: 'advanceVisaDmFlow', type: 'VisaDmErrorCode', file: 'src/lib/visa/dm-flow.ts', floor: 20 },
   { fn: 'askVisaConcierge', type: 'VisaConciergeErrorCode', file: 'src/lib/visa/concierge.ts', floor: 6 },
   { fn: 'requestAssistance', type: 'AssistanceError', file: 'src/lib/trips/assistance.ts', floor: 4 },
+  // In-app calls: the call routes answer `{ error: permit.error }` / `{ error: limited.error }` from the eligibility
+  // checks (src/lib/calls/server/eligibility.ts), whose refusals are typed by the one named union.
+  { fn: 'callPermit', type: 'CallRefusalCode', file: 'src/lib/calls/server/eligibility.ts', floor: 9 },
+  { fn: 'callLimitRefusal', type: 'CallRefusalCode', file: 'src/lib/calls/server/eligibility.ts', floor: 9 },
 ] as const
 
 function codesReachingTheWireThroughAVariable(routeFiles: string[]): string[] {

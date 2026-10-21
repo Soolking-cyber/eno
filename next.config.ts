@@ -1353,9 +1353,12 @@ const nextConfig: NextConfig = {
           // (src/components/marketplace/kyc-capture.tsx) silently fell back to the file picker on every
           // device — the "camera doesn't work for verification" report. `(self)` allows only this
           // origin (third-party iframes still need both this grant AND an `allow="camera"` attribute),
-          // and the browser's per-site permission prompt stays the real gate. microphone/payment stay
-          // fully closed — the KYC flow requests `audio:false` and never needs them.
-          { key: "Permissions-Policy", value: "camera=(self), microphone=()," + xmPayment },
+          // and the browser's per-site permission prompt stays the real gate.
+          // ⚠️ `microphone=(self)` since in-app calls (2026-10-21, ~/eno-calls-research-2026-10/DESIGN.md):
+          // `microphone=()` blocked the mic for our own origin too, so every audio call would have died
+          // with NotAllowedError — the same trap `camera=()` once set for KYC. Same rule as the camera:
+          // this origin only, and the browser's prompt stays the gate. payment stays as it was.
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(self)," + xmPayment },
           { key: "X-DNS-Prefetch-Control", value: "on" },
           // Named endpoint group for the CSP `report-to` directive (Reporting API).
           { key: "Reporting-Endpoints", value: 'csp-endpoint="/api/csp-report"' },

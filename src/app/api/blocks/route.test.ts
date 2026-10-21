@@ -16,9 +16,18 @@ const h = vi.hoisted(() => ({
   rows: [] as Row[],
   keyMissing: false,
   dbDown: false,
+  afters: [] as Array<() => unknown>,
+  endedBetween: [] as Array<{ a: string; b: string; reason: string }>,
+  callsFinished: [] as string[],
 }))
 
 vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => h.me, getCurrentProfileId: async () => (h.me?.id as string) ?? null, getAdmin: async () => null }))
+// In-app calls (2026-10-21): a block ends any live call between the two — in after(), so the block never waits on it.
+vi.mock('next/server', async (orig) => ({ ...(await orig<Record<string, unknown>>()), after: (fn: () => unknown) => { h.afters.push(fn) } }))
+vi.mock('@/lib/calls/server/session', () => ({
+  endCallsBetween: async (a: string, b: string, reason: string) => { h.endedBetween.push({ a, b, reason }); return [{ id: 'call-1' }] },
+}))
+vi.mock('@/lib/calls/server/finish', () => ({ afterCallEnded: async (row: { id: string }, reason: string) => { h.callsFinished.push(`${row.id}:${reason}`) } }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true, resetSec: 0 }) }))
 vi.mock('@/lib/db', () => ({
   db: {
@@ -59,6 +68,7 @@ beforeEach(() => {
   h.rows = []
   h.keyMissing = false
   h.dbDown = false
+  h.afters = []; h.endedBetween = []; h.callsFinished = []
   vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
   // The real blockHandle signs with a key derived from this (user-blocks.ts).
   vi.stubEnv('SUPABASE_SECRET_KEY', 'test-secret-for-block-handles')
@@ -80,6 +90,18 @@ describe('POST /api/blocks', () => {
   it('from a thread: blocks the OTHER participant', async () => {
     expect(await post({ conversationId: 'c1', blocked: true })).toEqual({ status: 200, body: { blocked: true } })
     expect(h.blocks).toEqual([{ blocker: 'me', blocked: 'them', on: true, ctx: { surface: 'chat', conversationId: 'c1', sellerId: null } }])
+  })
+
+  it('⛔ a block ends any live call between the two INSIDE the request; only the revocation + record wait for after()', async () => {
+    expect((await post({ conversationId: 'c1', blocked: true })).status).toBe(200)
+    expect(h.endedBetween).toEqual([{ a: 'me', b: 'them', reason: 'blocked' }]) // before the response, not after it
+    expect(h.callsFinished).toEqual([])
+    for (const fn of h.afters) await fn()
+    expect(h.callsFinished).toEqual(['call-1:blocked'])
+    h.afters = []; h.endedBetween = []
+    expect((await post({ conversationId: 'c1', blocked: false })).status).toBe(200)
+    expect(h.endedBetween).toEqual([])
+    expect(h.afters).toEqual([])
   })
 
   it("refuses someone else's thread", async () => {

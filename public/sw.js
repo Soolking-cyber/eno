@@ -39,6 +39,9 @@ self.addEventListener('push', (event) => {
     icon: '/logo-mark.svg?v=2b609517',
     badge: '/logo-mark.svg?v=2b609517', // the MONOCHROME status-bar glyph — NOT the app-icon count (that's setAppBadge below)
     tag: data.tag || 'eno-reminder', // collapses repeats into one
+    // A same-tag replacement never re-alerts (renotify is false); `silent` also keeps it quiet where it shows anew —
+    // an in-app call's "answered" / "call ended" line replacing its ring (src/lib/calls/server/cards.ts).
+    silent: data.silent === true,
     data: { url: data.url || '/dashboard' },
     requireInteraction: false,
   }

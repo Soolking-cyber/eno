@@ -38,6 +38,12 @@ const h = vi.hoisted(() => ({
   duringAuthDelete: null as null | (() => void),
   /** ⛔ C1: the process dies right AFTER the erasure's transaction commits — before anything that follows it. */
   crashAfterCommit: false,
+  /** In-app calls (2026-10-21): whether the calls DDL has reached this database, and the statements the erasure ran. */
+  callTables: false,
+  callSql: [] as string[],
+  liveCalls: [] as Record<string, unknown>[],
+  callsEndedFor: [] as string[],
+  finishedCalls: [] as { row: Record<string, unknown>; reason: string }[],
   /** Writes the transaction made, applied on COMMIT and dropped on ROLLBACK (the mock $transaction below). */
   pendingTx: [] as Array<() => void>,
   txFails: false,
@@ -99,6 +105,8 @@ vi.mock('@/lib/db', () => {
     },
     profile: { delete: async () => { h.events.push('profile-deleted'); return {} } },
     teacherPrivate: { findFirst: async () => h.teacherPrivate },
+    $queryRaw: async () => [{ ok: h.callTables }],
+    $executeRaw: async (strings: TemplateStringsArray) => { h.callSql.push(strings.join('?').replace(/\s+/g, ' ').trim()); h.events.push('call-rows'); return 1 },
   }
   return {
     db: {
@@ -123,6 +131,14 @@ vi.mock('@/lib/db', () => {
     },
   }
 })
+vi.mock('@/lib/calls/server/session', () => ({
+  endCallsOfIn: async (_tx: unknown, profileId: string, reason: string) => {
+    h.callsEndedFor.push(`${profileId}:${reason}`); h.events.push('calls-ended'); return h.liveCalls
+  },
+}))
+vi.mock('@/lib/calls/server/finish', () => ({
+  afterCallEnded: async (row: Record<string, unknown>, reason: string) => { h.finishedCalls.push({ row, reason }); h.events.push('call-finished') },
+}))
 vi.mock('@/lib/core/storage-purge', () => ({
   purgeStorageObjects: async (urls: string[]) => {
     h.events.push('purged'); h.purged.push(...urls)
@@ -235,6 +251,7 @@ beforeEach(() => {
   h.ownedTop = [{ id: null, name: 'identity' }, { id: 'b1', name: 'licence.pdf' }]
   h.ownedIdentity = [{ id: 'i1', name: 'document-1.jpg' }, { id: 'i2', name: 'selfie-1.jpg' }]
   h.authDeleteStatus = 200; h.authDeleteBody = {}; h.duringAuthDelete = null; h.crashAfterCommit = false; h.pendingTx = []; h.txFails = false
+  h.callTables = false; h.callSql = []; h.liveCalls = []; h.callsEndedFor = []; h.finishedCalls = []
   h.appleRows = []; h.appleMissingTable = false; h.appleQueueTxFails = false; h.appleIdentity = 'none'
   h.appleOutcome = new Map(); h.appleSettleThrows = false; h.appleSweepFails = false; h.appleQueueTx = null; h.settleCalls = []
   h.duringIdentityRead = null; h.appleSettleSkips = false; h.authUser = 'gone'; h.queuedLeft = false
@@ -285,6 +302,54 @@ describe('eraseAccount', () => {
     // the purge got the public URLs (avatar, listing image, video, banner) and what it settled was cleared
     expect(h.purged).toEqual(expect.arrayContaining(['https://proj/listings/avatar.webp', 'https://proj/listings/1.webp', 'https://proj/listing-videos/1.mp4', 'https://proj/listings/banner.webp']))
     expect(h.cleared.length).toBe(h.purged.length)
+  })
+
+  it('⛔ in-app calls: the person leaves their call records — ids NULLed, consents and the busy lock deleted, out of the beta cohort — inside the transaction, before the profile row goes', async () => {
+    h.callTables = true
+    expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
+    expect(h.callSql).toEqual([
+      'UPDATE public.call_session SET caller_id = NULL WHERE caller_id = ?::uuid',
+      'UPDATE public.call_session SET callee_id = NULL WHERE callee_id = ?::uuid',
+      'DELETE FROM public.call_lock WHERE profile_id = ?::uuid',
+      'DELETE FROM public.call_consent WHERE granter_id = ?::uuid OR grantee_id = ?::uuid',
+      'UPDATE public.call_config SET cohort = array_remove(cohort, ?::uuid) WHERE ?::uuid = ANY(cohort)',
+    ])
+    expect(h.events.indexOf('call-rows')).toBeGreaterThan(-1)
+    expect(h.events.lastIndexOf('call-rows')).toBeLessThan(h.events.indexOf('profile-deleted'))
+    expect(h.events.indexOf('profile-deleted')).toBeLessThan(h.events.indexOf('committed'))
+  })
+
+  it('⛔ a call the person is IN ends first, inside the transaction; after the commit its relay credentials go — with their id off the row', async () => {
+    h.callTables = true
+    h.liveCalls = [
+      { id: 'call-1', caller_id: 'p1', callee_id: 'peer', state: 'ringing' },
+      { id: 'call-2', caller_id: 'other', callee_id: 'p1', state: 'connected' },
+    ]
+    expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
+    expect(h.callsEndedFor).toEqual(['p1:hangup'])
+    // ended BEFORE the ids are NULLed (the end needs them to find the calls and tell the peer), all before the commit
+    expect(h.events.indexOf('calls-ended')).toBeLessThan(h.events.indexOf('call-rows'))
+    expect(h.events.indexOf('calls-ended')).toBeLessThan(h.events.indexOf('committed'))
+    // the follow-up runs only once the erasure committed, never naming the erased person
+    expect(h.events.indexOf('call-finished')).toBeGreaterThan(h.events.indexOf('committed'))
+    expect(h.finishedCalls).toEqual([
+      { row: { id: 'call-1', caller_id: null, callee_id: 'peer', state: 'ringing' }, reason: 'hangup' },
+      { row: { id: 'call-2', caller_id: 'other', callee_id: null, state: 'connected' }, reason: 'hangup' },
+    ])
+  })
+
+  it('a failed transaction ends nothing for good and follows up on nothing', async () => {
+    h.callTables = true; h.txFails = true
+    h.liveCalls = [{ id: 'call-1', caller_id: 'p1', callee_id: 'peer', state: 'ringing' }]
+    await eraseAccount('p1', { kind: 'self' }).catch(() => null)
+    expect(h.finishedCalls).toEqual([])
+  })
+
+  it('a database the calls DDL has not reached erases exactly as before — no call statement runs', async () => {
+    h.callTables = false
+    expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
+    expect(h.callSql).toEqual([])
+    expect(h.events).not.toContain('call-rows')
   })
 
   it('if the desk objects cannot be enumerated, the auth user is KEPT — the cascade must not orphan scans', async () => {
