@@ -285,8 +285,10 @@ describe('canonical, superseded editions and the 404s', () => {
     expect(squash(s.main.textContent)).toContain(`Sources in the Rent Index snapshot these rents are from: ${NEXT_SOURCES}. The figures are always pooled`)
   })
 
-  it('an id that is not a frozen edition is a 404 by status: dynamicParams is off and the params list only frozen ids', async () => {
-    expect(one.dynamicParams).toBe(false)
+  it('an id that is not a frozen edition is a 404 by status: notFound(), the params list only frozen ids', async () => {
+    // ⛔ dynamicParams stays at its default: `false` 404ed even the prerendered 2026-10 behind proxy.ts's [lang]
+    // rewrite on the production build (preview 2026-10-21) — see the page's header.
+    expect('dynamicParams' in one).toBe(false)
     expect(one.generateStaticParams()).toEqual(real.map((e) => ({ edition: e.edition })))
     await expect(one.default({ params: Promise.resolve({ lang: 'en', edition: '2026-13' }) })).rejects.toThrow('NEXT_HTTP_ERROR_FALLBACK;404')
     expect((await one.generateMetadata({ params: Promise.resolve({ lang: 'en', edition: '2025-01' }) })).robots).toEqual({ index: false })

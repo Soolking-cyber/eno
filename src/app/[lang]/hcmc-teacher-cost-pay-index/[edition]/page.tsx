@@ -17,11 +17,13 @@ import { TeacherCostIndexMain } from '../sections'
  * edition is frozen it is superseded — self-canonical, indexable, in the sitemap (pages.xml/build.ts), with a line
  * pointing at the newest. ⚠️ The fallback if Google is slow to index superseded editions under this scheme is in
  * d1-spec §6: measure two editions after launch before changing it.
- * ⛔ `dynamicParams = false`: an id that is not a frozen edition is a 404 BY STATUS, before any render — never a 200
- * shell (see [handle]/not-found-contract.test.ts on why that matters).
+ * ⛔ NEVER `dynamicParams = false` HERE (measured 2026-10-21 on the production preview): behind proxy.ts's rewrite into
+ * `[lang]`, the standalone server answered even the PRERENDERED /hcmc-teacher-cost-pay-index/2026-10 with a 404
+ * ("NoFallbackError"), while the same flag works on /og/… which no rewrite reaches. So, as teach-in-vietnam/[slug]
+ * does, the params are prerendered and dynamicParams stays true: an id that is not a frozen edition renders
+ * notFound(), a real 404 BY STATUS — never a 200 shell (see [handle]/not-found-contract.test.ts on why that matters).
  * ⚠️ No loading.tsx in this segment, so notFound() is a real 404 (crawler-visible-html-contract.test.ts).
  */
-export const dynamicParams = false
 export function generateStaticParams() {
   return EDITIONS.map((e) => ({ edition: e.edition }))
 }
