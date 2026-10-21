@@ -578,12 +578,14 @@ export const config = {
   matcher: [
     '/api/:path*',
     // Every page path. Excluded: Next internals, the root-level route handlers that live OUTSIDE
-    // `[lang]` (md/, app, listing-images, sitemaps/), and anything with a dot — static files, metadata
+    // `[lang]` (md/, app, listing-images, sitemaps/, og/), and anything with a dot — static files, metadata
     // routes, `.well-known`, `*.md`, feeds. A storefront handle cannot contain a dot (HANDLE_RE), so
     // no page path is lost to that rule. `sitemaps/` only serves `.xml` children (already dotted) and
     // is listed so the bare directory path is not rewritten into a `[lang]` page that 404s; the
-    // handle is reserved in handle-format.ts for the same reason `listing-images` is.
-    '/((?!_next/|api(?:/|$)|md(?:/|$)|app$|listing-images(?:/|$)|sitemaps(?:/|$)|.*\\.).*)',
+    // handle is reserved in handle-format.ts for the same reason `listing-images` is. `og/` likewise
+    // (the teach guides' share cards, src/app/og/teach-in-vietnam — every one a `.png`); it needs no
+    // reserving, because a handle is three characters at least (HANDLE_RE).
+    '/((?!_next/|api(?:/|$)|md(?:/|$)|app$|listing-images(?:/|$)|sitemaps(?:/|$)|og(?:/|$)|.*\\.).*)',
     // ⛔ EVERY path on an underscore host (I2b): the entry above skips `/llms.txt` and the other dotted
     // files, and `sdc_store.eno.vn/llms.txt` is the URL Search Console had crawled. Next anchors the
     // value (`^…$`) against the Host header's lowercased hostname, port removed.

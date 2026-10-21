@@ -1,13 +1,16 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import type { ReactElement } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import type { ArticleContent } from '@/components/marketplace/seo-article'
 import { TEACH_GUIDES, isLive, teachPath } from '@/lib/teach-guides/registry'
 
 /**
  * A guide page's robots meta (teacher visibility plan §3a item 16, Google Discover): every live guide allows a large image
  * preview, by the one directive that does (src/lib/teach-guides/robots.ts), and says nothing about index or follow — both
- * stay the default they were with no robots meta. A guide that is not live keeps its noindex 404. The page's chrome and
- * renderer are stand-ins; the registry and the guides are the real ones.
+ * stay the default they were with no robots meta. A guide that is not live keeps its noindex 404. Its preview is its own
+ * share card (item 16's other half, share-cards.ts). The page's chrome and renderer are stand-ins; the registry and the
+ * guides are the real ones.
  */
 const h = vi.hoisted(() => ({
   now: new Date('2026-10-18T05:00:00Z'),
@@ -81,6 +84,24 @@ describe('a guide page’s robots meta: max-image-preview:large, index and follo
   it('a guide before its release day, and a slug that is no guide, stay noindex 404s', async () => {
     expect((await metadata(TEACH_GUIDES[0].slug, BEFORE)).robots).toEqual({ index: false })
     expect((await metadata('no-such-guide', LIVE)).robots).toEqual({ index: false })
+  })
+})
+
+describe('a guide previews as its own share card (plan §3a item 16, share-cards.ts)', () => {
+  it('og:image is the guide’s 1200x630 card — url, size and alt — and twitter:image the same card', async () => {
+    for (const e of TEACH_GUIDES) {
+      const m = await metadata(e.slug, LIVE)
+      const url = `/og/teach-in-vietnam/${e.slug}/1200x630.png`
+      expect(m.openGraph?.images, e.slug).toEqual([{ url, width: 1200, height: 630, alt: `${e.label} — Teach in Vietnam, eno.vn` }])
+      expect(m.twitter?.images, e.slug).toEqual([url])
+    }
+  })
+
+  it('the page hands the Article JSON-LD its card in Google’s three shapes, 16x9, 4x3, 1x1 (seo-article.image.test.tsx makes them absolute)', async () => {
+    h.now = LIVE
+    const slug = TEACH_GUIDES[0].slug
+    const el = (await page.default({ params: Promise.resolve({ lang: 'en', slug }) })) as ReactElement<{ content: ArticleContent }>
+    expect(el.props.content.image).toEqual(['1200x675', '1200x900', '1200x1200'].map((s) => `/og/teach-in-vietnam/${slug}/${s}.png`))
   })
 })
 

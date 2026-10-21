@@ -84,6 +84,13 @@ export const TEACH_BASE = TEACH_HUB_PATH
  */
 export const TEACH_HUB_UPDATED = '2026-10-21'
 
+/**
+ * The hub's H1 (teach-in-vietnam/page.tsx) — here, beside its date, because its share card prints it too (share-cards.ts):
+ * one string, so the card cannot go on promising a headline the page has dropped. It is hub copy like the rest of the page
+ * (hub-page.test.tsx pins it): change it with `TEACH_HUB_UPDATED`.
+ */
+export const TEACH_HUB_H1 = 'Teaching English in Vietnam: what you need, what you earn, where the jobs are'
+
 export const TEACH_CLUSTERS: readonly { id: TeachCluster; title: string; lede: string }[] = [
   { id: 'decide', title: 'Decide', lede: 'Whether teaching in Vietnam suits you, and where.' },
   { id: 'qualify', title: 'Qualify', lede: 'The degree, certificate and checks employers and the work permit need.' },

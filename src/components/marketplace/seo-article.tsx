@@ -83,6 +83,13 @@ export type ArticleContent = {
   /** Path only, e.g. `/moving-to-vietnam`. Used for `mainEntityOfPage`. */
   canonical: string
   /**
+   * The Article JSON-LD `image`: paths on this deployment (like `canonical`), made absolute here. Google's Article
+   * guidance asks for several shapes of one picture — the teach pages pass their share card in the three it names
+   * (src/lib/teach-guides/share-cards.ts). Optional: an article with no picture of its own declares none rather than
+   * borrowing the site's card.
+   */
+  image?: string[]
+  /**
    * ISO date (YYYY-MM-DD). With `updated`, the ONE source of both the visible date line and the Article
    * JSON-LD's datePublished/dateModified — so what a reader sees and what Google is told cannot drift.
    */
@@ -397,6 +404,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
     '@type': 'Article',
     headline: content.h1,
     description: content.intro,
+    ...(content.image?.length ? { image: content.image.map((path) => `${SITE_ORIGIN}${path}`) } : {}),
     inLanguage: content.lang ?? 'en',
     datePublished: content.published,
     dateModified: modified,

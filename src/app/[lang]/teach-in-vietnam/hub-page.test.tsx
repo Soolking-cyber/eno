@@ -189,6 +189,17 @@ describe('the hub is one national page (plan B1)', () => {
     expect(content.h1).toBe('Teaching English in Vietnam: what you need, what you earn, where the jobs are')
   })
 
+  it('previews as its own share card, which prints that H1: og:image and twitter:image the 1200x630 card, Google’s three shapes for the Article JSON-LD', async () => {
+    const meta = await page.generateMetadata()
+    const card = '/og/teach-in-vietnam/1200x630.png'
+    expect(meta.openGraph?.images).toEqual([
+      { url: card, width: 1200, height: 630, alt: 'Teaching English in Vietnam: what you need, what you earn, where the jobs are — Teach in Vietnam, eno.vn' },
+    ])
+    expect(meta.twitter?.images).toEqual([card])
+    const { content } = await render()
+    expect(content.image).toEqual(['1200x675', '1200x900', '1200x1200'].map((s) => `/og/teach-in-vietnam/${s}.png`))
+  })
+
   it('the hub’s title and H1 repeat no guide’s (the hub owns "teach English in Vietnam", the guides their own queries — plan B6)', async () => {
     const { content } = await render()
     const own = [((await page.generateMetadata()).title as string).replace(/ \| eno\.vn$/, ''), content.h1].map((s) => s.toLowerCase())

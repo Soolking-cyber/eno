@@ -32,8 +32,10 @@ describe('the [lang] segment', () => {
     // every URL under it has a dot, which proxy.ts's matcher already excludes, so no page is lost.
     // `hcmc-rent-index.csv` is the rent index's data file — a dotted route handler, like robots.txt — and
     // `hcmc-teacher-cost-pay-index.csv` the Teacher Cost & Pay Index's (D1), the same shape.
+    // `og` holds only `.png` route handlers, like `sitemaps` its `.xml` ones: the teach guides' share cards
+    // (/og/teach-in-vietnam/<slug>/1200x630.png, src/lib/teach-guides/share-cards.ts); the matcher skips `og/` itself too.
     const ALLOWED = new Set(['[lang]', 'api', 'app', 'md', 'llms.txt', 'openapi.json', 'robots.txt', 'sitemap.xml', 'sitemaps', 'hcmc-rent-index.csv', 'hcmc-teacher-cost-pay-index.csv',
-      'manifest.ts', 'icon.svg', 'apple-icon.png', 'favicon.ico', 'global-error.tsx', 'globals.css', 'listing-images'])
+      'manifest.ts', 'icon.svg', 'apple-icon.png', 'favicon.ico', 'global-error.tsx', 'globals.css', 'listing-images', 'og'])
     const extra = readdirSync('src/app').filter((n) => !ALLOWED.has(n))
     // A new root entry either belongs under [lang] (a page) or must be excluded in proxy.ts's matcher.
     expect(extra).toEqual([])

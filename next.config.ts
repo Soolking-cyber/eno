@@ -505,6 +505,13 @@ const nextConfig: NextConfig = {
     "/api/upload/video/transcode": ["./node_modules/ffmpeg-static/ffmpeg"],
     // The silent-video re-upload ask measures each clip's sound with the same binary (src/lib/core/video-audio-level.ts).
     "/api/cron/video-reupload-ask": ["./node_modules/ffmpeg-static/ffmpeg"],
+    // The teach share cards read their face at RUNTIME too — the cache handler keeps no build-time prerender, so a new
+    // container draws each card again on its first request (src/app/og/teach-in-vietnam/[...card]/route.tsx). The
+    // trace already follows the route's literal `process.cwd()` read into the bundle (measured on a minimal Turbopack
+    // standalone build with the same read, 2026-10-21); this names the file outright so a refactor of that read cannot
+    // leave the image without it.
+    // A glob key: Next matches it against the route's path (`[...card]` would be a character class).
+    "/og/teach-in-vietnam/**": ["./src/fonts/open-runde-bold.woff2"],
   },
   // Pin the workspace root so Turbopack doesn't pick up a stray lockfile higher
   // up the tree (e.g. ~/package-lock.json) as the project root.

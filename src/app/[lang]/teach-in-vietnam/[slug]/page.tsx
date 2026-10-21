@@ -10,6 +10,7 @@ import { teachGuideContent } from '@/lib/teach-guides/content'
 import { districtLinksAsText } from '@/lib/teach-guides/district-links'
 import { requestNow } from '@/lib/teach-guides/request-clock'
 import { TEACH_ROBOTS } from '@/lib/teach-guides/robots'
+import { teachCardImage, teachCardPaths } from '@/lib/teach-guides/share-cards'
 import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
 
 /**
@@ -49,7 +50,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     alternates: { canonical: path },
     // Discover's large image preview and nothing else: index and follow stay the default (robots.ts).
     robots: TEACH_ROBOTS,
-    ...pageShare({ title, description: hit.guide.description, url: path, type: 'article' }),
+    // The guide's own share card (share-cards.ts), not the marketplace's — og:image and, through pageShare, twitter:image.
+    ...pageShare({ title, description: hit.guide.description, url: path, type: 'article', images: [teachCardImage(slug)] }),
   }
 }
 
@@ -75,6 +77,8 @@ export default async function TeachGuidePage({ params }: Props) {
     h1: guide.h1,
     intro: guide.intro,
     canonical: teachPath(slug),
+    // The Article JSON-LD `image`: the guide's card in Google's three shapes, 16x9, 4x3 and 1x1.
+    image: teachCardPaths(slug),
     lang: 'en',
     ...teachGuideDates(slug),
     breadcrumb: [

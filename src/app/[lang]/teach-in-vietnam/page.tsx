@@ -16,8 +16,9 @@ import { formatMoneyFull } from '@/lib/vnd'
 import { formatArticleDate } from '@/lib/dates'
 import { moneyText, TEACHER_APP_ORIGIN } from '@/lib/teach-guides/inline'
 import { requestNow } from '@/lib/teach-guides/request-clock'
-import { releasedGuides, TEACH_BASE, TEACH_CLUSTERS, TEACH_START_PATHS, teachGuideDates, teachHubNewest, teachPath, vnToday, type TeachGuideEntry } from '@/lib/teach-guides/registry'
+import { releasedGuides, TEACH_BASE, TEACH_CLUSTERS, TEACH_HUB_H1, TEACH_START_PATHS, teachGuideDates, teachHubNewest, teachPath, vnToday, type TeachGuideEntry } from '@/lib/teach-guides/registry'
 import { TEACH_ROBOTS } from '@/lib/teach-guides/robots'
+import { teachCardImage, teachCardPaths } from '@/lib/teach-guides/share-cards'
 
 /**
  * /teach-in-vietnam — THE HUB of the teacher guide library (src/lib/teach-guides/registry.ts).
@@ -80,7 +81,8 @@ export async function generateMetadata(): Promise<Metadata> {
     alternates: { canonical: TEACH_BASE },
     // Discover's large image preview and nothing else: index and follow stay the default (robots.ts).
     robots: TEACH_ROBOTS,
-    ...pageShare({ title, description: DESCRIPTION, url: TEACH_BASE, type: 'article' }),
+    // The hub's own share card (share-cards.ts), not the marketplace's — og:image and, through pageShare, twitter:image.
+    ...pageShare({ title, description: DESCRIPTION, url: TEACH_BASE, type: 'article', images: [teachCardImage(null)] }),
   }
 }
 
@@ -476,7 +478,7 @@ export default async function TeachHubPage() {
 
   const content: ArticleContent = {
     eyebrow: 'Teach in Vietnam',
-    h1: 'Teaching English in Vietnam: what you need, what you earn, where the jobs are',
+    h1: TEACH_HUB_H1,
     intro:
       // ⚖️ The library's canonical position (briefs/STYLE.md): the permit's "expert" test is a degree plus AT LEAST 2
       // years of relevant experience (Decree 219/2025 Art 3(3)(a)); Art 19(3)(đ) lists an alternative proof for
@@ -487,6 +489,8 @@ export default async function TeachHubPage() {
       // the one place the hub says the 2-year rule in full (the first short answer shortens it).
       'To teach English legally in Vietnam you need a bachelor’s degree, a teaching certificate, a clean criminal record and a work permit, which your employer applies for. For the permit you need at least 2 years of relevant experience (Decree 219/2025); if you have less, an alternative proof exists, so ask your employer in writing which one they will file. Most teaching jobs are at language centres paid by the hour, and Ho Chi Minh City is the biggest market. These guides take you from deciding to your first payday and beyond.',
     canonical: TEACH_BASE,
+    // The Article JSON-LD `image`: the hub's card in Google's three shapes, 16x9, 4x3 and 1x1.
+    image: teachCardPaths(null),
     lang: 'en',
     ...hubDates(live),
     breadcrumb: [
