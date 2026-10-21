@@ -380,6 +380,7 @@ describe.skipIf(!live)('the call engine between two real browsers, through the r
 
   it('⛔ End while the start is still on its way gives it up AT ONCE — the slow start then never rings (client review)', async () => {
     const alice = pages.alice!; const bob = pages.bob!
+    abandoned.clear() // only THIS test's give-up counts (r9 review: the set outlives each test)
     startDelayMs = 3_000
     try {
       await alice.evaluate((convo) => { void (window as any).callEngine.startCall(convo, 'audio', null, null) }, CONVO)

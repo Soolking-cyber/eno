@@ -24,11 +24,36 @@ export class CallApiError extends Error {
 /** No call request may hang a screen: 15 s, then it fails like any other error (client review — "Starting…" forever). */
 const REQUEST_TIMEOUT_MS = 15_000
 
+/**
+ * AbortSignal.timeout where it exists; an AbortController on a timer where it does not (Safari < 16 — r9 review),
+ * whose timer `done` clears once the request has settled.
+ */
+function timeoutSignal(ms: number): { signal?: AbortSignal; done(): void } {
+  if (typeof AbortSignal === 'undefined') return { done() {} }
+  if ('timeout' in AbortSignal) return { signal: AbortSignal.timeout(ms), done() {} }
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  return { signal: controller.signal, done: () => clearTimeout(timer) }
+}
+
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
-  const signal = typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal ? AbortSignal.timeout(REQUEST_TIMEOUT_MS) : undefined
-  const res = await fetch(url, { cache: 'no-store', credentials: 'same-origin', signal, ...init })
+  // The bound covers the body as well as the headers: cleared only once both are in.
+  const bound = timeoutSignal(REQUEST_TIMEOUT_MS)
+  let res: Response
   let body: unknown = null
-  try { body = await res.json() } catch { /* an empty or non-JSON body */ }
+  try {
+    // The bound comes LAST: no caller's init can lift it.
+    res = await fetch(url, { cache: 'no-store', credentials: 'same-origin', ...init, signal: bound.signal })
+    try {
+      body = await res.json()
+    } catch (e) {
+      // An empty or non-JSON body reads as null — but a body the bound CUT OFF is a failed request, never a "success"
+      // with nothing in it (review: a slow start answered null, and the engine read .callId of it).
+      if (bound.signal?.aborted) throw e
+    }
+  } finally {
+    bound.done()
+  }
   if (!res.ok) {
     const code = body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string' ? (body as { error: string }).error : 'network_error'
     throw new CallApiError(code, res.status)

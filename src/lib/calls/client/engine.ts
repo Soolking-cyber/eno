@@ -11,7 +11,7 @@ import { createLadder, step as climb, type LadderState, type LadderAction } from
 import { normalizeLocalSdp, prepareRemoteSdp, sdpFingerprint, validateRemoteSdp } from '../sdp-guard'
 import { summarizeStats } from '../telemetry'
 import {
-  TAB_ID, CallApiError, abandonStart, acceptCallRequest, declineCallRequest, endBeacon, outcomeUnknown, fetchSnapshot, getCallDetails, getThreadCallState,
+  TAB_ID, CallApiError, abandonStart, acceptCallRequest, declineCallRequest, endBeacon, getRingingCall, outcomeUnknown, fetchSnapshot, getCallDetails, getThreadCallState,
   heartbeatRequest, revealRequest, sendSignal, startCallRequest, telemetryBeacon, type CallDetails, type RelayGrant,
 } from './api'
 import { callTopic, joinChannel, type CallChannel } from './realtime'
@@ -202,7 +202,9 @@ class CallEngine {
   /** Dismiss the end screen. */
   reset() {
     if (this.active || this.view.phase === 'incoming' || this.view.phase === 'preparing') return
+    const wasEnded = this.view.phase === 'ended'
     this.set({ ...IDLE })
+    if (wasEnded) this.recheckRinging()
   }
 
   // ── outgoing (§3.2 steps 1–2) ──────────────────────────────────────────────────────────────────────────────────
@@ -273,7 +275,9 @@ class CallEngine {
   // ── incoming (§3.2 steps 2–3) ──────────────────────────────────────────────────────────────────────────────────
   /** A ring on ring:<me>. Shows the incoming screen unless this tab is already in a call. */
   async onRing(callId: string): Promise<void> {
-    if (this.busy || this.ringing?.details.callId === callId || this.dismissed.has(callId)) return
+    if (this.busy || this.ringing?.details.callId === callId || this.dismissed.has(callId) || this.endedRings.has(callId)) return
+    // Two loads of the same ring at once (the broadcast and a resubscribe) both draw the SAME ring — harmless, and never
+    // a ring lost because a first load failed (review).
     const epoch = this.epoch
     let details: CallDetails
     try { details = await getCallDetails(callId) } catch { return }
@@ -513,6 +517,15 @@ class CallEngine {
   // ── lifecycle ──────────────────────────────────────────────────────────────────────────────────────────────────
   private fail(code: string) {
     this.set({ ...IDLE, phase: 'ended', error: code, callId: this.view.callId, peer: this.view.peer, listing: this.view.listing })
+  }
+
+  /**
+   * A ring that came while this tab was busy — starting, answering, in a call, or showing how one ended — was skipped
+   * (onRing). Asked again at the one moment the tab is truly free: its end screen just closed (reset). Nothing on
+   * screen is replaced, and a call whose answer failed may ring again for a second try. getRingingCall never throws.
+   */
+  private recheckRinging() {
+    void getRingingCall().then((callId) => { if (callId && !this.busy && this.view.phase === 'idle') void this.onRing(callId) })
   }
 
   /**
