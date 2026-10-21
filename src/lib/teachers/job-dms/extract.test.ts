@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { denyReason, foldPost, readKind, readPay, readPlaces, readAgeGroups, readPost, readRequirements, readSchedule, titleNamesOtherSubject } from './extract'
+import { denyReason, foldPost, readKind, readPay, readPlaces, readAgeGroups, readPost, readRequirements, readSchedule, titleNamesOtherSubject, languageNames } from './extract'
 
 // Wed 21 Oct 2026, 09:00 Vietnam time.
 const POSTED = new Date('2026-10-21T02:00:00Z')
@@ -570,6 +570,89 @@ describe('the first shadow grading (2026-10-21) — a TITLE for another subject,
     // the post asks for a native speaker: not for Vietnamese teachers, whatever its title's language
     expect(listing('Giáo viên tiếng Anh', 'Giáo viên tiếng Anh\nWe are hiring native speakers for kids classes in District 7.').deny).toBeNull()
   })
+  it('another language as the subject is read as THAT language — never a nationality beside the job (the second run, 2026-10-21)', () => {
+    const es = readPost('I am looking for 1 teacher who can teach Spanish for 1 kid class 2hours/ day in the morning (Monday to Friday) Address: Phạm Thị Nghĩ street, Vĩnh Lộc, Hồ Chí Minh Teacher can receive the class kindly message to zalo [phone] Thanks teachers! See less', POSTED)
+    expect(es.kind).toBe('job_offer')
+    expect(es.subjects).toContain('other-language')
+    expect(es.languages).toEqual(['spanish'])
+    // the labelled sets' three: German, Spanish, Mandarin (Chinese, as teachers name it)
+    expect(readPost('I run a language school and we are looking for 1 or 2 German-speaking individuals who are able to teach German.', POSTED).languages).toEqual(['german'])
+    expect(readPost('Looking for a Mandarin tutor for my 8 y.o. over the summer. Please message me.', POSTED).languages).toEqual(['chinese'])
+    // a nationality beside the job, or English named too: an English job, as before
+    expect(readPost('Korean kindergarten in Phu My Hung, District 7 is hiring a native teacher for kids, 450k an hour. Send your CV.', POSTED).languages).toEqual([])
+    expect(readPost('Hi everyone, we are looking for Filipino teachers who can work week days, teaching kindergarten and elementary level. It is offline class, in HCMC.', POSTED).languages).toEqual([]) // a nationality
+    // the fellow staff, not the subject; English as a requirement does not make it an English job (opus + codex, gate 12i)
+    expect(readPost('Korean kindergarten in D7 needs a native teacher to work with our Korean teachers, kids 4-6, 500k/h.', POSTED).languages).toEqual([])
+    expect(readPost('Spanish tutor needed for my daughter in District 2, must be fluent in English. Weekday evenings.', POSTED).languages).toEqual(['spanish'])
+    // ⛔ precision first (gates 12h–12j): the forms that misread an English job are not read at all
+    for (const text of [
+      'Native teacher to teach Korean kindergarten kids in Phu My Hung, 500k an hour.',
+      'You will work with our experienced Korean teachers in District 7.',
+      'Japanese teacher of English needed for our centre in District 1.',
+      'Each class has a Vietnamese teacher assistant, District 7.',
+      'Native teacher wanted for teaching a Korean class in Phu My Hung.',
+      'We have two Japanese classes and need a native teacher, District 2.',
+      'Korean teachers needed for our kindergarten, District 7.',
+      // a singular one only with "a/an" or opening a sentence: "the Vietnamese teacher" is a colleague
+      'Native teacher wanted, District 7: in each class the Vietnamese teacher supports you.',
+      // English as the subject taught, in any of its forms, makes it an English job
+      'We need a teacher of English for our kids in District 7; the school also offers Korean lessons.',
+      // another language or a hyphen after "teach X"; a colleague's verb after "a Vietnamese teacher" (opus, gate 12k)
+      'Native teacher to teach Vietnamese and Korean students in D7, 450k/h.',
+      'Native teacher to teach Korean-American kids in Phu My Hung.',
+      'Native teacher wanted in District 7. A Vietnamese teacher will assist you in every class.',
+      'Native teacher wanted, District 7. Vietnamese teacher supports in class.',
+      // ⛔ by whitelist (gate 12l): "a X teacher" is also how a post names a colleague — not read, a Spanish one too
+      'Native teacher for kids, 500k/h. There is a Vietnamese teacher in every class.',
+      'Native teacher wanted in District 7, with a Vietnamese teacher to support you.',
+      'Native teacher wanted in District 7; each class has a Vietnamese teacher (TA).',
+      'Korean teacher needed for our kindergarten in Phu My Hung.',
+      'Looking for a Spanish teacher in Saigon, beginner, 2 sessions a week.',
+      'We need native teachers to teach Vietnamese at our centre in District 3.',
+      'Native teacher teaching Vietnamese online, kids 6-10, weekday evenings.',
+      'Native teacher wanted for kids in District 7; the school also offers Korean lessons.',
+      // …and the whitelist's own edges (opus, gate 12m): the learners after "teachers of", colleagues as "tutors",
+      // English as what the children learn to speak, a class of Korean children
+      'We are looking for teachers of Korean kids in Phu My Hung, 500k/h.',
+      "You'll work alongside our Japanese tutors in District 7, native teacher wanted.",
+      'Native teacher to teach Vietnamese to speak English, kids 6-10.',
+      'Native teacher wanted to teach Korean classes in Phu My Hung.',
+      // the learners after "to" and "for", a list after "teachers of" (opus, gate 12n)
+      'Native teacher to teach Vietnamese to communicate in English, kids 6-10.',
+      'Native teacher to teach Korean to read and write in English.',
+      'Experienced in teaching Korean for kindergarten classes, native teacher wanted.',
+      'We need native teachers of Korean, Japanese and Vietnamese students in D7.',
+      // a colleague tutor; what the students do; "native English" is the English job (opus, gate 12o)
+      'Native teacher wanted, D7; each class has a Korean tutor to support you.',
+      'Native teacher wanted for our kindergarten in D7. Students learn Korean.',
+      'We need a native English speaker for kids in D7; we also teach Korean.',
+      // a post recruiting a native or foreign teacher is an English job (opus, gate 12p)
+      'Native teacher needed for kids 4-6 in Phu My Hung. We also teach Korean.',
+      'Native teacher wanted in D7; each class has a Korean tutor for support.',
+      'Foreign teacher wanted in D7, a Japanese tutor who assists you in class.',
+    ]) expect(readPost(text, POSTED).languages, text).toEqual([])
+    // "must speak English" is a requirement of the Spanish job, not an English one (codex + opus, gate 12n)
+    expect(readPost('Spanish tutor needed for my son in District 2; must speak English. Weekday evenings.', POSTED).languages).toEqual(['spanish'])
+    expect(readPost('Looking for someone who can teach Español. Weekday evenings, District 2.', POSTED).languages).toEqual(['spanish'])
+    // a teacher's own words: own keys only ("constructor" is a word), every language named (opus, gate 12m)
+    expect(languageNames('constructor')).toEqual(['constructor'])
+    expect(languageNames('Español y Français')).toEqual(['spanish', 'french'])
+    expect(readPost('Looking for a Spanish tutor for a beginner in Saigon, 2 sessions a week.', POSTED).languages).toEqual(['spanish'])
+    expect(readPost('We are recruiting for 3 areas: 1. German tutor for academic German 2. Math tutor', POSTED).languages).toEqual(['german'])
+    expect(readPost('I am looking for a qualified, professional teacher of Vietnamese as a foreign language in Da Nang.', POSTED).languages).toEqual(['vietnamese'])
+    // the learners, not the subject (opus, gate 12h)
+    expect(readPost('Native teacher needed to teach Vietnamese kids in District 7, 450k an hour.', POSTED).languages).toEqual([])
+    expect(readPost('Experienced teacher wanted, teaching Korean students in Phu My Hung, weekday evenings.', POSTED).languages).toEqual([])
+    const both = readPost('We are hiring a Korean teacher and an English teacher for our centre in District 7, 400k an hour. Send your CV.', POSTED)
+    expect(both.languages).toEqual([])
+    expect(both.subjects).not.toContain('other-language')
+    // a listing's title is read with its text: "Korean Teacher" is a Korean job, not another subject to drop
+    expect(titleNamesOtherSubject('Korean Teacher')).toBe(false)
+    // …and read by the same whitelist: "Korean Teacher" alone may name the teacher's nationality (gate 12l)
+    expect(readPost('Korean Teacher\nKorean classes for kids in District 7, part-time.', POSTED, { title: 'Korean Teacher' }).languages).toEqual([])
+    expect(readPost('Korean Language Teacher\nKorean classes for kids in District 7, part-time.', POSTED, { title: 'Korean Language Teacher' }).languages).toEqual(['korean'])
+  })
+
   it('a title that takes foreigners only is a nationality ask; so is a bracket anywhere; the prose\'s visa note is not', () => {
     for (const title of ['[Expat Only] English Teacher / Part-Time (20H/week) — Nam Uc Scotch AGS', 'English Teacher — expat teachers only', 'Only foreign teachers: ESL, District 7', 'ESL Teacher (non-Vietnamese teachers only)', 'Expat-Only English Teacher'])
       expect(listing(title).deny, title).toBe('nationality')

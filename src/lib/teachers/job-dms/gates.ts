@@ -14,6 +14,7 @@
 import { ANYWHERE, ONLINE, isHcmcDistrict, workInFilterKeys } from '@/lib/teachers/places'
 import { coverAreaFilterKeys } from '@/lib/teachers/cover'
 import type { Employment, JobKind, Pay, Requirements, Schedule } from './extract'
+import { languageNames } from './extract'
 import { lessonDateOf, lessonDayOf, vnAt } from './facts'
 
 /** The teacher columns the gates read (TeacherProfile, never a name or contact field except the first-name greeting). */
@@ -25,6 +26,8 @@ export type MatchTeacher = {
   jobTypes: readonly string[]
   ageGroups: readonly string[]
   subjects: readonly string[]
+  /** the other languages the teacher teaches (profile teachLanguages: 'Spanish', 'French' …), with 'other-language' */
+  teachLanguages?: readonly string[]
   englishLevel: string | null
   degreeLevel: string | null
   /** certificate TYPES only (tefl, tesol, celta, delta, tkt, pgce, teaching-license, other-cert) */
@@ -48,6 +51,8 @@ export type MatchJob = {
   schedule: Schedule | null
   ageGroups: readonly string[]
   subjects: readonly string[]
+  /** the other languages it teaches (extract.ts readLanguages), with the subject 'other-language' */
+  languages?: readonly string[]
   requirements: Requirements
   postedAt: Date
 }
@@ -66,7 +71,7 @@ export type Fit = {
 const CERTS_THAT_COUNT: ReadonlySet<string> = new Set(['tefl', 'tesol', 'celta', 'delta', 'pgce', 'teaching-license'])
 const DEGREES_THAT_COUNT: ReadonlySet<string> = new Set(['bachelor', 'master', 'phd'])
 /** Subjects that need the teacher to have said so — an IELTS class is not a general-English class. */
-const HARD_SUBJECTS: ReadonlySet<string> = new Set(['ielts', 'toefl-toeic', 'business-english', 'stem'])
+const HARD_SUBJECTS: ReadonlySet<string> = new Set(['ielts', 'toefl-toeic', 'business-english', 'stem', 'other-language'])
 
 /** The most specific physical places of a job: its HCMC districts if it names any, else its cities/provinces. */
 export function specificPlaces(places: readonly string[]): string[] {
@@ -171,7 +176,16 @@ export function fit(t: MatchTeacher, job: MatchJob, now: Date): Fit {
   }
   const hard = job.subjects.filter((s) => HARD_SUBJECTS.has(s))
   if (hard.length) {
-    if (!hard.some((s) => t.subjects.includes(s))) return no(`subject:${hard.join('+')}`)
+    const held = hard.filter((s) => t.subjects.includes(s))
+    if (!held.length) return no(`subject:${hard.join('+')}`)
+    // Another language: a teacher who fits it ONLY as a teacher of other languages must teach THAT one — a teacher who
+    // named none still may (2026-10-21: a Spanish class had gone to 16 English teachers). Any other hard subject fits on
+    // its own: "Private tutors wanted – German, Math & Computer Science" (labelled, n=2076) is three roles, the STEM
+    // teachers' too — so a "Spanish STEM" post reaches STEM teachers (codex, gate 12h: kept, as the multi-role reading).
+    if (held.length === 1 && held[0] === 'other-language') {
+      const theirs = (t.teachLanguages ?? []).flatMap(languageNames)
+      if (job.languages?.length && theirs.length && !job.languages.some((l) => theirs.includes(l))) return no('language')
+    }
     reasons.push('subject')
   } else if (job.subjects.some((s) => s !== 'general-english' && t.subjects.includes(s))) reasons.push('subject')
 

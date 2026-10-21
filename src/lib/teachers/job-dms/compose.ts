@@ -77,10 +77,13 @@ export function asksOf(f: Pick<RuleFacts, 'requirements'>): string[] {
 }
 
 /** The job's line title in eno's words: "Cover lesson · kids · phonics — Binh Thanh, Ho Chi Minh City". */
-export function titleOf(f: Pick<RuleFacts, 'kind' | 'employment' | 'ageGroups' | 'subjects' | 'places'>): string {
+export function titleOf(f: Pick<RuleFacts, 'kind' | 'employment' | 'ageGroups' | 'subjects' | 'places'> & { languages?: readonly string[] }): string {
   const kind = f.kind === 'cover_request' ? 'cover' : (['full_time', 'part_time', 'private', 'online'] as const).find((e) => f.employment.includes(e))
   const head = kind ? KIND_LABEL[kind] : 'Teaching job'
-  const bits = [head, ...f.ageGroups.map((a) => AGE_LABEL[a]).filter(Boolean), ...f.subjects.map((s) => SUBJECT_LABEL[s]).filter(Boolean)].slice(0, 4)
+  // Another language says which: "Part-time teaching job · kids · Spanish" (extract.ts readLanguages)
+  const languages = (f.languages ?? []).slice(0, 2).map((l) => l.charAt(0).toUpperCase() + l.slice(1))
+  // the language before the ages: four parts at most, and the language is what the teacher needs to see (opus, gate 12k)
+  const bits = [head, ...languages, ...f.ageGroups.map((a) => AGE_LABEL[a]).filter(Boolean), ...f.subjects.map((s) => SUBJECT_LABEL[s]).filter(Boolean)].slice(0, 4)
   const where = placeText(f.places)
   return `${bits.join(' · ')}${where ? ` — ${where}` : ''}`
 }

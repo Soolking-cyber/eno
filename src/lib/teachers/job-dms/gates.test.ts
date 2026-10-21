@@ -18,7 +18,7 @@ const jobOf = (text: string, key = 'post:1'): MatchJob => {
   const f = readPost(text, NOW)
   return {
     key, kind: f.kind === 'cover_request' ? 'cover_request' : 'job_offer', employment: f.employment, places: f.places, pay: f.pay,
-    schedule: f.schedule, ageGroups: f.ageGroups, subjects: f.subjects, requirements: f.requirements, postedAt: NOW,
+    schedule: f.schedule, ageGroups: f.ageGroups, subjects: f.subjects, languages: f.languages, requirements: f.requirements, postedAt: NOW,
   }
 }
 
@@ -64,6 +64,35 @@ describe('fit — jobs', () => {
   const dn = teacher({ currentCity: 'da-nang', teachAreas: ['da-nang'], jobTypes: ['fulltime'], expectedSalaryM: 25 })
   it('meets every stated requirement and the pay → fits', () => {
     expect(fit(dn, jobOf(FT), NOW).ok).toBe(true)
+  })
+  it('another language goes to the teachers who teach THAT language (2026-10-21: a Spanish class went to 16 English teachers)', () => {
+    const ES = 'I am looking for 1 teacher who can teach Spanish for 1 kid class 2 hours a day in the morning in District 7. Message me on Zalo.'
+    const job = jobOf(ES)
+    expect(job.subjects).toContain('other-language')
+    expect(fit(teacher(), job, NOW).blocker).toBe('subject:other-language')
+    const linguist = (teachLanguages: string[]) => teacher({ subjects: ['general-english', 'other-language'], teachLanguages })
+    expect(fit(linguist(['Spanish']), job, NOW).ok).toBe(true)
+    expect(fit(linguist(['French']), job, NOW).blocker).toBe('language')
+    expect(fit(linguist([]), job, NOW).ok).toBe(true) // a teacher who named no language still may
+    expect(fit(linguist(['']), job, NOW).ok).toBe(true) // a blank entry names nothing (opus, gate 12j)
+    // a teacher's own spelling counts as the job's (opus, gate 12h)
+    const zh = jobOf('Looking for a Mandarin tutor for my 8 year old in District 7, weekday evenings. Please message me.')
+    expect(zh.languages).toEqual(['chinese'])
+    // (a private tutoring job: a teacher who takes private work)
+    for (const name of ['Mandarin', 'Chinese (Mandarin)', 'chinese', 'Simplified Chinese', 'Tiếng Trung']) expect(fit({ ...linguist([name]), jobTypes: ['parttime', 'private'] }, zh, NOW).ok, name).toBe(true)
+    expect(fit(linguist(['French and Spanish']), job, NOW).ok).toBe(true) // every language named, not the first (opus, gate 12i)
+    expect(fit({ ...linguist(['Korean']), jobTypes: ['parttime', 'private'] }, zh, NOW).blocker).toBe('language')
+    // several roles in one post — "German, Math & Computer Science" (labelled, n=2076): the STEM teachers' too, and a
+    // language teacher only for THAT language
+    const roles = jobOf('Private tutors wanted – German, Math & Computer Science, for two boys in District 7. German tutor needed, Math tutor and Computer Science tutor, weekday evenings.')
+    expect(roles.languages).toEqual(['german'])
+    expect(fit({ ...teacher({ subjects: ['general-english', 'stem'] }), jobTypes: ['parttime', 'private'] }, roles, NOW).ok).toBe(true)
+    expect(fit({ ...linguist(['French']), jobTypes: ['parttime', 'private'] }, roles, NOW).blocker).toBe('language')
+    expect(fit({ ...linguist(['German']), jobTypes: ['parttime', 'private'] }, roles, NOW).ok).toBe(true)
+    expect(fit({ ...teacher({ subjects: ['general-english', 'stem', 'other-language'], teachLanguages: ['French'] }), jobTypes: ['parttime', 'private'] }, roles, NOW).ok).toBe(true)
+    expect(titleOf(readPost(ES, NOW))).toContain('Spanish')
+    expect(titleOf({ ...readPost(ES, NOW), ageGroups: ['kids', 'teens', 'adults'] })).toContain('Spanish') // never cut off (opus, gate 12k)
+    expect(titleOf({ ...readPost(ES, NOW), languages: ['spanish', 'french', 'german'] })).toContain('kids') // two languages at most (opus, gate 12o)
   })
   it('each stated requirement blocks when unmet', () => {
     expect(fit({ ...dn, degreeLevel: 'associate' }, jobOf(FT), NOW).blocker).toBe('degree')

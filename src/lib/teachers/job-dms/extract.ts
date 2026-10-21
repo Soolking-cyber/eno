@@ -23,7 +23,7 @@ import { VN_PROVINCES } from '@/lib/vn-areas'
 import { HCMC, ONLINE, TOWN_ALIASES, provinceKeyOf } from '@/lib/teachers/places'
 
 /** Bump when a rule below changes what it extracts: stored facts carry it, and a run re-reads posts under an older one. */
-export const RULES_VERSION = 'job-rules-2026-10-21b'
+export const RULES_VERSION = 'job-rules-2026-10-21c'
 
 export type JobKind = 'job_offer' | 'cover_request' | 'job_seeker' | 'other'
 export type Employment = 'full_time' | 'part_time' | 'cover' | 'private' | 'online'
@@ -75,6 +75,8 @@ export type RuleFacts = {
   schedule: Schedule | null
   ageGroups: ('kids' | 'teens' | 'adults')[]
   subjects: string[]
+  /** the other languages it teaches, when it teaches one (readLanguages): 'spanish', 'chinese' … */
+  languages: string[]
   requirements: Requirements
   /** set when the post must never be matched — see denyReason */
   deny: DenyReason | null
@@ -282,11 +284,78 @@ const PARENT = /\b(my|our) (son|daughter|kids?|child|children|boy|girl|little on
 const SCHOOL = /\b(english|language|foreign language|ielts|kids|learning) (center|centre|school|academy|club|institute)\b|\b(trung tam|truong|he thong|anh ngu|ngoai ngu)\b|\b(international|bilingual|private|public|primary|secondary|high|kindergarten|preschool|montessori) (school|kindergarten|kindy)\b|\b(our|the) (center|centre|school|academy|campus|campuses|company|branch|branches|students)\b|\b(academy|college|university|institute|edu|education)\b/
 const AGENCY = /\b(recruit(er|ers|ment agency)|agency|on behalf of|my clients?|our (partner|client) schools?|placement|headhunt(er|ing)?)\b/
 
+/** English named anywhere in a post: it is (also) an English job. */
+const ENGLISH_NAMED = /\b(english|esl|efl|ielts|toeic|toefl|phonics|cambridge|tieng anh)\b/
+
+/**
+ * ANOTHER LANGUAGE AS THE SUBJECT (the second shadow run, 2026-10-21: "I am looking for 1 teacher who can teach Spanish for
+ * 1 kid class" went to 16 English teachers): the languages a post teaches — taught, tutored or classed, never a nationality
+ * beside the job ("Korean kindergarten", "Japanese students"); none when it also names English (an English job, as
+ * before). The job is then 'other-language' (readSubjects) — for the teachers who teach that language (gates.ts: profile
+ * teachLanguages; 21 teachers hold the subject). Names as teachers write theirs, folded: Mandarin and Cantonese are Chinese.
+ * ⚠️ Not Filipino: in these groups "Filipino teachers" names the teachers' nationality (two labelled kindergarten jobs).
+ */
+const OTHER_LANGUAGES = 'spanish|espanol|french|francais|german|deutsch|japanese|korean|chinese|mandarin|cantonese|russian|italian|portuguese|thai|arabic|hindi|vietnamese|turkish|persian|indonesian|dutch'
+// ⛔ PRECISION FIRST, BY WHITELIST (gates 12h–12l: each exclusion list let a new phrasing through — a nationality, a class
+// of children, the fellow staff: "teach Korean kindergarten kids", "there is a Vietnamese teacher in every class", "a
+// Vietnamese teacher (TA)", "Korean teacher needed for our kindergarten", "teach Vietnamese at our centre", "the school
+// also offers Korean lessons"). A missed language job reads as it did before; a misread English job would reach no
+// English teacher ('other-language' is a hard subject). So only what cannot be anyone's nationality or a class of
+// children: "teach Spanish" before a sentence's end, "lessons", "as a foreign language", "for" a number or a/an/my/our …
+// ("teach Spanish for 1 kid class"), "to" foreigners, beginners, my/our … — never "for kindergarten classes", "to
+// communicate in English" (gate 12n), nor "learn Korean" (the students do: 12o); "a/an
+// Spanish TUTOR" before a parent's words — "for", "who", "needed", "to teach/speak" — never a colleague's ("a Korean
+// tutor to support you": 12o), or one opening a sentence or a list item — never "a Spanish teacher" nor "Spanish tutors", which are
+// also how a post names colleagues; "give/teach Spanish lessons"; "teacher of Spanish" ending its sentence ("teachers of
+// Korean kids", "of Korean, Japanese … students" are not); "Spanish language teacher". Never "classes": a class of
+// Korean children is one too (gate 12m).
+const LANGUAGE_TAUGHT = [
+  new RegExp(`\\b(?:teach(?:ing)?|tutor(?:ing)?) (${OTHER_LANGUAGES})(?=\\s*(?:$|[.!?;:)]|(?:lessons?|as a (?:second|foreign) language)\\b|for (?:\\d|(?:a|an|my|our|your|his|her|their|beginners|adults|foreigners|expats)\\b)|to (?:foreigners|expats|beginners|adults|my|our|your|his|her|their)\\b))`, 'g'),
+  new RegExp(`(?:\\b(?:a|an) |(?:^|[.!?:;•\\n]|\\d[.)]) *)(${OTHER_LANGUAGES}) (?:language )?tutor(?=\\s*(?:$|[.!?;:)]|(?:for|who|needed|wanted|required)\\b|to (?:teach|tutor|speak|practi[cs]e)\\b))`, 'g'),
+  new RegExp(`\\b(?:give|giving|provide|providing|teach|teaching) (${OTHER_LANGUAGES}) (?:language )?(?:lessons?|courses?)\\b`, 'g'),
+  new RegExp(`\\b(?:teachers?|tutors?|instructors?) of (${OTHER_LANGUAGES})(?=\\s*(?:$|[.!?;:)]|as a (?:second|foreign) language\\b))`, 'g'),
+  new RegExp(`\\b(${OTHER_LANGUAGES}) language (?:teachers?|tutors?)\\b`, 'g'),
+]
+const LANGUAGE_NAME: Record<string, string> = { mandarin: 'chinese', cantonese: 'chinese', espanol: 'spanish', francais: 'french', deutsch: 'german' }
+/** Only a word the language list knows is looked up — never a profile's "constructor" (opus, gate 12m). */
+const canonical = (w: string): string => LANGUAGE_NAME[w] ?? w
+/** English as what is TAUGHT — "English teacher", "teach English", ESL, IELTS …; "must be fluent in English" is a
+ *  requirement of a Spanish job, not an English job (codex + opus, gate 12i). */
+const ENGLISH_TAUGHT = /\b(english (teachers?|tutors?|class(es)?|lessons?|courses?|cent(er|re)s?|schools?|programm?e?s?|curriculum)|teach(ing)? english|to speak english|native english|english (native )?speakers?|(teachers?|tutors?) of english|esl|efl|ielts|toeic|toefl|phonics|cambridge|tieng anh)\b/
+export function readLanguages(t: string): string[] {
+  // …nor when it recruits a native or foreign teacher: in this market that is an English teacher, whatever else the post
+  // says ("Native teacher needed … We also teach Korean", "… a Korean tutor for support": opus, gate 12p)
+  if (ENGLISH_TAUGHT.test(t) || FOREIGNER_CUE.test(withoutNegatedCues(t))) return []
+  const out = new Set<string>()
+  for (const re of LANGUAGE_TAUGHT) for (const m of t.matchAll(re)) out.add(canonical(m[1]))
+  return [...out]
+}
+const LANGUAGE_WORD = new RegExp(`^(${OTHER_LANGUAGES})$`)
+/** Vietnamese names a teacher may write ("Tiếng Trung") — folded, as the jobs' names. */
+const VI_LANGUAGE_NAME: Record<string, string> = {
+  'tieng trung': 'chinese', 'tieng hoa': 'chinese', 'tieng han': 'korean', 'tieng nhat': 'japanese', 'tieng phap': 'french',
+  'tieng duc': 'german', 'tieng tay ban nha': 'spanish', 'tieng nga': 'russian', 'tieng thai': 'thai', 'tieng viet': 'vietnamese',
+}
+/**
+ * A teacher's own names for the languages they teach, as the jobs' are read — every one named, not the first word:
+ * "Mandarin", "Chinese (Mandarin)", "Simplified Chinese", "French and Spanish", "Español", "Tiếng Trung" (opus, gates
+ * 12h–12i). A language the list does not know is kept as written (no job will name it).
+ */
+export function languageNames(raw: string): string[] {
+  const t = ` ${foldPost(raw).replace(/[^a-z]+/g, ' ')} `
+  const out = new Set<string>()
+  for (const [vi, name] of Object.entries(VI_LANGUAGE_NAME)) if (t.includes(` ${vi} `)) out.add(name)
+  for (const w of t.trim().split(' ')) if (LANGUAGE_WORD.test(w)) out.add(canonical(w))
+  // a blank entry names nothing (opus, gate 12j)
+  return out.size ? [...out] : t.trim() ? [t.trim()] : []
+}
+
 /** Teaching ANOTHER subject or activity and no English — "swimming instructors for kids", "football coach for our
  *  kindergarten", "piano teacher" (opus, gate 2d): eno's teachers teach English. */
 const OTHER_SUBJECT_ONLY = (t: string) =>
   /\b(piano|guitar|violin|drums|music|singing|art|drawing|painting|dance|dancing|ballet|swimming|swim|football|soccer|basketball|tennis|badminton|volleyball|yoga|chess|martial arts|taekwondo|karate|judo|boxing|cooking|lifeguard|gymnastics)\b/.test(t)
-  && !/\b(english|esl|efl|ielts|toeic|toefl|phonics|cambridge|tieng anh)\b/.test(t)
+  && !ENGLISH_NAMED.test(t)
+
 
 /**
  * A ROLE TITLE FOR ANOTHER ACADEMIC SUBJECT (graded 2026-10-21 — the first shadow run offered "Secondary Economics
@@ -802,6 +871,7 @@ export function readSubjects(t: string): string[] {
   if (/\bbusiness english\b|\bcorporate (english|classes|training)\b/.test(t)) out.push('business-english')
   if (/\b(stem|math|maths|mathematics|science|physics|chemistry|biology|steam|robotics|coding|computer science|computing|ict)\b/.test(t)) out.push('stem')
   if (/\b(english|esl|efl|tieng anh|anh van|communication|conversation|speaking)\b/.test(t)) out.push('general-english')
+  if (readLanguages(t).length) out.push('other-language')
   return out
 }
 
@@ -908,6 +978,7 @@ export function readPost(text: string, postedAt: Date, opts: { listing?: boolean
     schedule: kind === 'cover_request' ? readSchedule(t, postedAt) : null,
     ageGroups: readAgeGroups(t),
     subjects: readSubjects(t),
+    languages: readLanguages(t),
     requirements: readRequirements(t),
     deny,
     mention: deny ? null : demographicMention(t),

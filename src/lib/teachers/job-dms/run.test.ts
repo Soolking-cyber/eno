@@ -332,6 +332,20 @@ describe('runJobDms', () => {
     expect(T.posts.filter((p) => p.status === 'new')).toHaveLength(2) // 59 of the 61 new ones, and the stale one
   })
 
+  it('a Spanish class goes to the teacher who teaches Spanish — not one who teaches French, nor an English teacher (2026-10-21)', async () => {
+    T.posts = [post('es', { text: 'I am looking for 1 teacher who can teach Spanish for 1 kid class 2 hours a day in the morning in District 7. Message me on Zalo.' })]
+    T.teachers = [
+      { ...teacher, profileId: 't-es', subjects: ['general-english', 'other-language'], teachLanguages: ['Spanish'] },
+      { ...teacher, profileId: 't-fr', subjects: ['general-english', 'other-language'], teachLanguages: ['French'] },
+      { ...teacher, profileId: 't-en' },
+    ]
+    await runJobDms({ dryRun: false, now: DAY })
+    const to = (id: string) => calls.createMany.flat().filter((r) => r.profileId === id).map((r) => r.jobKey)
+    expect(to('t-es')).toContain('post:es')
+    expect(to('t-fr')).not.toContain('post:es')
+    expect(to('t-en')).not.toContain('post:es')
+  })
+
   it('a copy older than 30 days does not take the job from a repost', async () => {
     T.posts = [post('old', { status: 'ready', textSig: textSig(AD), receivedAt: new Date(DAY.getTime() - 40 * 86_400_000), factsVersion: 'x' })]
     T.posts[0].status = 'expired'
@@ -443,5 +457,86 @@ describe("eno.vn's own listings — the first shadow grading (2026-10-21)", () =
     expect(offered.has('listing:esl')).toBe(true)
     expect(offered.has('listing:imported')).toBe(true)
     for (const id of ['econ', 'viet', 'expat', 'unproven', 'other-board']) expect(offered.has(`listing:${id}`), id).toBe(false)
+  })
+
+  it('a LinkedIn job also listed here is in a message once; two schools\' "English Teacher" stay two (2026-10-21)', async () => {
+    const title = 'Part-time English Teacher for Kids – Sunrise Academy, District 7'
+    T.listings = [
+      listing('sunrise', { title, description: 'Kids classes in District 7, part-time.' }),
+      listing('generic', { title: 'English Teacher', description: 'English for kids in District 7, part-time.' }),
+    ]
+    const li = (id: string, t: string, company: string) => post(id, {
+      source: 'linkedin', title: t, company, locationText: 'District 7, Ho Chi Minh City', text: `${t} · ${company} · District 7, Ho Chi Minh City`,
+      groupPublic: null, url: `https://www.linkedin.com/jobs/view/${id}/`, sourceName: 'LinkedIn',
+    })
+    T.posts = [li('4490000001', title, 'Sunrise Academy'), li('4490000002', 'English Teacher', 'Other School')]
+    await runJobDms({ dryRun: false, now: DAY })
+    const offered = new Set(calls.createMany.flat().map((r) => r.jobKey))
+    // the listing stays — its page and its pay; the LinkedIn copy gives way (gates 12h–12l)
+    expect(offered.has('listing:sunrise')).toBe(true)
+    expect(offered.has('post:4490000001')).toBe(false)
+    expect(offered.has('listing:generic')).toBe(true)
+    expect(offered.has('post:4490000002')).toBe(true)
+  })
+
+  it('two listings with the same long title are two jobs — one a day, as two same lines always were; only a LinkedIn copy ever gives way for good (gate 12l)', async () => {
+    const title = 'Full-time ESL Teacher for Kids – District 7, Ho Chi Minh City'
+    T.listings = [listing('a', { title, description: 'School A: kids classes in District 7, part-time.' }), listing('b', { title, description: 'School B: kids classes in District 7, part-time.' })]
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(calls.createMany.flat().map((r) => String(r.jobKey)).filter((k) => k.startsWith('listing:'))).toHaveLength(1)
+    await runJobDms({ dryRun: false, now: new Date(DAY.getTime() + 86_400_000) })
+    const offered = new Set(calls.createMany.flat().map((r) => r.jobKey))
+    expect(offered.has('listing:a')).toBe(true)
+    expect(offered.has('listing:b')).toBe(true)
+  })
+
+  it('…nor the listing today after its LinkedIn copy yesterday (codex, gate 12m)', async () => {
+    const title = 'Part-time English Teacher for Kids – Sunrise Academy, District 7'
+    T.listings = [listing('sunrise', { title, description: 'Kids classes in District 7, part-time.' })]
+    T.posts = [post('4490000001', {
+      source: 'linkedin', title, company: 'Sunrise Academy', locationText: 'District 7, Ho Chi Minh City', text: `${title} · Sunrise Academy · District 7, Ho Chi Minh City`,
+      groupPublic: null, url: 'https://www.linkedin.com/jobs/view/4490000001/', sourceName: 'LinkedIn',
+    })]
+    // the control: with nothing offered yesterday, the listing goes out (opus, gate 12o)
+    await runJobDms({ dryRun: true, now: DAY })
+    T.dms = [{ profileId: 't-1', jobKey: 'post:4490000001', kind: 'jobs', day: '2026-10-20', mode: 'shadow' }]
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(calls.createMany.flat().map((r) => r.jobKey)).not.toContain('listing:sunrise')
+    T.dms = []
+    calls.createMany = []
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(calls.createMany.flat().map((r) => r.jobKey)).toContain('listing:sunrise')
+  })
+
+  it('a teacher offered the listing yesterday is not offered its LinkedIn copy today (opus, gate 12k)', async () => {
+    const title = 'Part-time English Teacher for Kids – Sunrise Academy, District 7'
+    T.listings = [listing('sunrise', { title, description: 'Kids classes in District 7, part-time.' })]
+    T.posts = [post('4490000001', {
+      source: 'linkedin', title, company: 'Sunrise Academy', locationText: 'District 7, Ho Chi Minh City', text: `${title} · Sunrise Academy · District 7, Ho Chi Minh City`,
+      groupPublic: null, url: 'https://www.linkedin.com/jobs/view/4490000001/', sourceName: 'LinkedIn',
+    })]
+    T.dms = [{ profileId: 't-1', jobKey: 'listing:sunrise', kind: 'jobs', day: '2026-10-20', mode: 'shadow' }]
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(calls.createMany.flat().map((r) => r.jobKey)).not.toContain('post:4490000001')
+    // the control: without the listing, the LinkedIn copy goes out (opus, gate 12o)
+    T.listings = []
+    T.dms = []
+    calls.createMany = []
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(calls.createMany.flat().map((r) => r.jobKey)).toContain('post:4490000001')
+  })
+
+  it('…but a shorter title is not proof: another school\'s "Part-time English Teacher for Kids" stays its own job (codex + opus, gate 12h)', async () => {
+    // the very same six words, from two schools
+    T.listings = [listing('sunrise', { title: 'Part-time English Teacher for Kids', description: 'Sunrise Academy: kids classes in District 7, part-time.' })]
+    T.posts = [post('4490000003', {
+      source: 'linkedin', title: 'Part-time English Teacher for Kids', company: 'Moonlight School', locationText: 'District 7, Ho Chi Minh City',
+      text: 'Part-time English Teacher for Kids · Moonlight School · District 7, Ho Chi Minh City', groupPublic: null,
+      url: 'https://www.linkedin.com/jobs/view/4490000003/', sourceName: 'LinkedIn',
+    })]
+    await runJobDms({ dryRun: false, now: DAY })
+    const offered = new Set(calls.createMany.flat().map((r) => r.jobKey))
+    expect(offered.has('listing:sunrise')).toBe(true)
+    expect(offered.has('post:4490000003')).toBe(true)
   })
 })

@@ -277,12 +277,26 @@ export const PURGED_TEXT = '[deleted]'
 
 // ── 4. Jobs and teachers ─────────────────────────────────────────────────────────────────────────────────────────────
 
-type Job = MatchJob & { item: Omit<DmItem, 'key'> }
+/** `vacancy`: a LinkedIn job's or a listing's own specific title, folded — the same vacancy from both (vacancyTitle). */
+type Job = MatchJob & { item: Omit<DmItem, 'key'>; vacancy?: string[] }
+
+/**
+ * THE SAME VACANCY ON LINKEDIN AND AS AN ENO.VN LISTING (the second shadow run, 2026-10-21: "Expat Primary Teacher –
+ * Pathway School, District 2, HCMC (Full-time)" twice in 4 messages — the LinkedIn line reads as a made-up title, so the
+ * message's own same-line check, planFor, could not see it): the same WHOLE title, of eight words or more. Used by
+ * planFor, PER TEACHER only — never to delete a job for everyone: the LinkedIn copy gives way to the listing, in a message
+ * and on a later day. Two listings are never one job; a LinkedIn job and another school's listing may share a long title
+ * ("Full-time ESL Teacher – District 7, Ho Chi Minh City") — then a teacher gets the listing (codex + opus, 12h–12l).
+ */
+function vacancyTitles(title: string | null | undefined): string[] {
+  const t = title ? foldPost(title).replace(/[^a-z0-9]+/g, ' ').trim() : ''
+  return t.split(' ').length >= 8 ? [t] : []
+}
 
 async function loadJobs(now: Date): Promise<Job[]> {
   const posts = await db.externalJobPost.findMany({
     where: { status: 'ready', expiresAt: { gt: now }, NOT: { text: PURGED_TEXT } },
-    select: { id: true, source: true, sourceName: true, url: true, applyText: true, postedAt: true, receivedAt: true, facts: true },
+    select: { id: true, source: true, sourceName: true, title: true, url: true, applyText: true, postedAt: true, receivedAt: true, facts: true },
     take: 2000,
   })
   const jobs: Job[] = []
@@ -292,11 +306,12 @@ async function loadJobs(now: Date): Promise<Job[]> {
     const kind = f.kind === 'cover_request' ? 'cover_request' : 'job_offer'
     jobs.push({
       key: `post:${p.id}`, kind, employment: f.employment, places: f.places, pay: f.pay, schedule: f.schedule,
-      ageGroups: f.ageGroups, subjects: f.subjects, requirements: f.requirements, postedAt: p.postedAt ?? p.receivedAt,
+      ageGroups: f.ageGroups, subjects: f.subjects, languages: f.languages ?? [], requirements: f.requirements, postedAt: p.postedAt ?? p.receivedAt,
       item: {
         title: titleOf({ ...f, kind }), when: f.schedule?.label || undefined, pay: payText(f.pay), asks: asksOf(f),
         source: sourceLine(p.source as 'fb' | 'linkedin' | 'intake', p.sourceName), link: p.url ?? undefined, apply: p.applyText ?? undefined,
       },
+      vacancy: p.source === 'linkedin' ? vacancyTitles(p.title) : undefined,
     })
   }
   // eno.vn's own live teaching jobs (board imports, apply at source through the eno page) — through the edition scope
@@ -327,11 +342,12 @@ async function loadJobs(now: Date): Promise<Job[]> {
     const pay = l.salaryM ? { min: l.salaryM * 1_000_000, max: l.salaryM * 1_000_000, unit: 'month' as const, text: '' } : f.pay
     jobs.push({
       key: `listing:${l.id}`, kind: 'job_offer', employment: f.employment.filter((e) => e !== 'cover'), places, pay, schedule: null,
-      ageGroups: f.ageGroups, subjects: f.subjects, requirements: f.requirements, postedAt: l.createdAt,
+      ageGroups: f.ageGroups, subjects: f.subjects, languages: f.languages, requirements: f.requirements, postedAt: l.createdAt,
       item: {
         title: l.title.slice(0, 120), pay: typeof attrs.salaryText === 'string' && attrs.salaryText ? String(attrs.salaryText).slice(0, 60) : payText(pay),
         asks: asksOf(f), source: sourceLine('eno'), link: `https://eno.vn/listings/${l.id}`,
       },
+      vacancy: vacancyTitles(l.title),
     })
   }
   return jobs
@@ -347,7 +363,7 @@ async function loadTeachers(): Promise<TeacherRow[]> {
       profile: { teacherJobDmConsent: { optIn: true, noticeVersion: { in: [...JOB_DM_ON_VERSIONS] }, pausedAt: null } },
     },
     select: {
-      profileId: true, fullName: true, livesIn: true, currentCity: true, teachAreas: true, jobTypes: true, ageGroups: true, subjects: true,
+      profileId: true, fullName: true, livesIn: true, currentCity: true, teachAreas: true, jobTypes: true, ageGroups: true, subjects: true, teachLanguages: true,
       englishLevel: true, degreeLevel: true, certificates: true, yearsExperience: true, expectedSalaryM: true,
       coverOpen: true, coverConsentVersion: true, coverAreas: true, coverSlots: true, coverRateVnd: true,
     },
@@ -355,7 +371,7 @@ async function loadTeachers(): Promise<TeacherRow[]> {
   })
   return rows.map((r) => ({
     profileId: r.profileId, firstName: r.fullName || null, livesIn: r.livesIn, currentCity: r.currentCity, teachAreas: r.teachAreas,
-    jobTypes: r.jobTypes, ageGroups: r.ageGroups, subjects: r.subjects, englishLevel: r.englishLevel, degreeLevel: r.degreeLevel,
+    jobTypes: r.jobTypes, ageGroups: r.ageGroups, subjects: r.subjects, teachLanguages: r.teachLanguages, englishLevel: r.englishLevel, degreeLevel: r.degreeLevel,
     certificates: Array.isArray(r.certificates) ? (r.certificates as { type?: unknown }[]).map((c) => (typeof c?.type === 'string' ? c.type : '')).filter(Boolean) : [],
     yearsExperience: r.yearsExperience, expectedSalaryM: r.expectedSalaryM,
     coverUsable: r.coverOpen && r.coverConsentVersion === COVER_CONSENT_VERSION, coverAreas: r.coverAreas, coverSlots: r.coverSlots, coverRateVnd: r.coverRateVnd,
@@ -365,17 +381,27 @@ async function loadTeachers(): Promise<TeacherRow[]> {
 /** The jobs to offer one teacher, per kind: passed every gate, not offered before (this mode), best first, ≤ jobsPerDm. */
 export function planFor(t: MatchTeacher, jobs: readonly Job[], offered: ReadonlySet<string>, emailed: ReadonlySet<string>, now: Date) {
   const out: Record<'jobs' | 'cover', { job: Job; score: number; reasons: string[] }[]> = { jobs: [], cover: [] }
+  // A vacancy the teacher was already offered under the OTHER source is not offered again — yesterday's listing, today's
+  // LinkedIn copy, or the other way round (opus, codex, gates 12k–12m; vacancyTitles). Two listings are two jobs (12l).
+  const offeredAs = (src: string) => new Set(jobs.filter((j) => j.key.startsWith(src) && (offered.has(j.key) || emailed.has(j.key))).flatMap((j) => j.vacancy ?? []))
+  const hadListed = offeredAs('listing:')
+  const hadPosted = offeredAs('post:')
   for (const j of jobs) {
     if (offered.has(j.key) || emailed.has(j.key)) continue
+    const had = j.key.startsWith('post:') ? hadListed : hadPosted
+    if ((j.vacancy ?? []).some((v) => had.has(v))) continue
     const f = fit(t, j, now)
     if (!f.ok) continue
     out[j.kind === 'cover_request' ? 'cover' : 'jobs'].push({ job: j, score: f.score, reasons: [...f.reasons, ...f.notes] })
   }
   for (const k of ['jobs', 'cover'] as const) {
     // The same vacancy cross-posted in several groups (or on a board and in a group) reads as the same line: keep the
-    // best-scored copy so one message never lists a job twice.
+    // best-scored copy so one message never lists a job twice. A LinkedIn job beside its eno.vn listing reads differently
+    // (vacancyTitles): the listing stays — its page and its pay.
+    const listed = new Set(out[k].filter((p) => p.job.key.startsWith('listing:')).flatMap((p) => p.job.vacancy ?? []))
     const seen = new Set<string>()
     out[k] = out[k]
+      .filter((p) => !(p.job.key.startsWith('post:') && (p.job.vacancy ?? []).some((v) => listed.has(v))))
       .sort((a, b) => b.score - a.score || b.job.postedAt.getTime() - a.job.postedAt.getTime())
       .filter((p) => {
         const sig = `${p.job.item.title}|${p.job.item.pay ?? ''}|${p.job.item.when ?? ''}`.toLowerCase()
