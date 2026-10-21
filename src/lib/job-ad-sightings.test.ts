@@ -4,17 +4,24 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PrismaClient } from '@/generated/prisma/client'
-import { mapStagedJob, type MappedJob, type StagedJob } from './job-listing'
+import { JOB_BOARDS, JOB_SELLER_IDS, mapStagedJob, type MappedJob, type StagedJob } from './job-listing'
 import {
-  JOB_AD_SIGHTING_UPSERT_SQL, SIGHTING_CHUNK, SIGHTING_FIELDS, isCalendarDay, jobAdSightingOf, namesAPerson, recordJobAdSightings,
-  sightingUpsertParams, sightingsToLog, workPermitSupportOf, type JobAdSighting, type SightingDb,
+  JOB_AD_SIGHTING_UPSERT_SQL, SIGHTING_CHUNK, SIGHTING_ERASURE_COUNT_SQL, SIGHTING_ERASURE_UPDATE_SQL, SIGHTING_FIELDS,
+  SIGHTING_RETENTION_COUNT_SQL, SIGHTING_RETENTION_DELETE_SQL, SIGHTING_RETENTION_FLOOR_MONTHS, SIGHTING_RETENTION_MONTHS,
+  deleteSightingsPastRetention, eraseSightingsOfRemovedAds, erasureLine, isCalendarDay, jobAdSightingOf, monthsBefore, namesAPerson,
+  recordJobAdSightings, retentionCutoffProblem, retentionLine, sightingErasureParams, sightingRetentionCutoff, sightingUpsertParams,
+  sightingsToLog, workPermitSupportOf, type JobAdSighting, type SightingDb, type SightingUpkeepDb,
 } from './job-ad-sightings'
+import { LISTING_REMOVED, isRemovedStatus } from './listing-removed'
 
 /**
  * D3, the job-ad history log (src/lib/job-ad-sightings.ts): the mapping and its never-store rules, the write's batching, its
  * never-throw contract and its row-by-row retry against a fake client, the DDL pinned to schema.prisma, and — in PGlite —
  * the DDL script's own statements and the upsert EXECUTED: first and repeat sightings, a stage imported twice, a stage
- * imported late, a re-post, and a bad row that loses only itself — through the importer's real Prisma client too.
+ * imported late, a re-post, and a bad row that loses only itself — through the importer's real Prisma client too. Since
+ * 2026-10-21 (rule 4), the retention and the erasure the same ways: the cutoff's calendar and its guard, the statements'
+ * shapes, dry runs that only count, failures returned — and, in PGlite, both statements executed, a read-only session, and
+ * the erasure blanking exactly the ads sightingsToLog leaves out.
  */
 
 // 2026-10-19 12:00 in Vietnam.
@@ -378,6 +385,172 @@ describe('recordJobAdSightings — batched, never throws, and one bad row loses 
   })
 })
 
+// ── retention and erasure (rule 4) ──────────────────────────────────────────────────────────────────────────────────────
+const msOf = (iso: string) => Date.parse(iso)
+const isoOf = (t: number) => new Date(t).toISOString()
+/** A fake client for retention and erasure: every call recorded, `exec` the writes, `query` the dry run's counts. */
+const upkeepDb = (impl: { exec?: (sql: string, ...v: unknown[]) => Promise<number>; query?: (sql: string, ...v: unknown[]) => Promise<unknown> } = {}) => {
+  const calls: { kind: 'exec' | 'query'; sql: string; values: unknown[] }[] = []
+  const db: SightingUpkeepDb = {
+    $executeRawUnsafe: async (sql, ...values) => { calls.push({ kind: 'exec', sql, values }); return (impl.exec ?? (async () => 0))(sql, ...values) },
+    $queryRawUnsafe: async (sql, ...values) => { calls.push({ kind: 'query', sql, values }); return (impl.query ?? (async () => [{ n: 0 }]))(sql, ...values) },
+  }
+  return { db, calls }
+}
+/** Prisma 7's shape for a missing table (P2010, the SQLSTATE in the message), as the write's tests fake it. */
+const missingTable = () => Object.assign(new Error('Raw query failed. Code: `42P01`. Message: `relation "JobAdSighting" does not exist`'), { code: 'P2010' })
+const MISSING = 'the JobAdSighting table does not exist yet — run scripts/job-ad-sightings-ddl.mjs'
+
+describe('retention — 24 calendar months by lastSeenAt, refused when the cutoff is later than 23 months ago', () => {
+  // The run the decision names: the log began in October 2026, so the first rows can go in October 2028.
+  const RUN = msOf('2028-10-21T06:30:00.000Z')
+
+  it('monthsBefore: calendar months in UTC, the time of day kept, the day clamped to the month\'s last — as Postgres does', () => {
+    for (const [from, months, to] of [
+      ['2028-10-21T06:30:00.000Z', 24, '2026-10-21T06:30:00.000Z'],
+      ['2028-02-29T12:34:56.789Z', 24, '2026-02-28T12:34:56.789Z'], // no 29 February in 2026: its month's last day
+      ['2028-02-29T12:34:56.789Z', 48, '2024-02-29T12:34:56.789Z'],
+      ['2026-03-31T23:59:59.999Z', 1, '2026-02-28T23:59:59.999Z'],
+      ['2028-03-31T00:00:00.000Z', 1, '2028-02-29T00:00:00.000Z'],
+      ['2028-08-31T17:00:00.000Z', 23, '2026-09-30T17:00:00.000Z'],
+      ['2029-01-31T00:00:00.001Z', 23, '2027-02-28T00:00:00.001Z'],
+      ['2028-12-31T23:00:00.000Z', 24, '2026-12-31T23:00:00.000Z'],
+      ['2028-01-15T00:00:00.000Z', 13, '2026-12-15T00:00:00.000Z'], // across a year boundary
+      ['2026-10-21T00:00:00.000Z', 0, '2026-10-21T00:00:00.000Z'],
+    ] as const) expect(isoOf(monthsBefore(msOf(from), months)), `${from} − ${months}`).toBe(to)
+    expect(monthsBefore(NaN, 24)).toBeNaN()
+  })
+
+  it('the cutoff is exactly 24 months before the run: a run on 2028-10-21 deletes what was last seen before 2026-10-21', () => {
+    expect([SIGHTING_RETENTION_MONTHS, SIGHTING_RETENTION_FLOOR_MONTHS]).toEqual([24, 23])
+    expect(isoOf(sightingRetentionCutoff(RUN))).toBe('2026-10-21T06:30:00.000Z')
+    expect(isoOf(sightingRetentionCutoff(msOf('2026-10-21T06:30:00.000Z')))).toBe('2024-10-21T06:30:00.000Z')
+  })
+
+  it('⛔ the guard: a cutoff up to exactly 23 months before the clock passes; a millisecond later, a shorter retention or a NaN is refused', () => {
+    const floor = msOf('2026-11-21T06:30:00.000Z')
+    expect(monthsBefore(RUN, 23)).toBe(floor)
+    expect(retentionCutoffProblem(sightingRetentionCutoff(RUN), RUN)).toBeNull()
+    expect(retentionCutoffProblem(floor, RUN)).toBeNull()
+    expect(retentionCutoffProblem(floor + 1, RUN)).toBe('the cutoff 2026-11-21T06:30:00.001Z is later than 23 months ago (2026-11-21T06:30:00.000Z)')
+    for (const short of [22, 12, 1, 0]) expect(retentionCutoffProblem(monthsBefore(RUN, short), RUN), `${short} months`).toMatch(/is later than 23 months ago/)
+    expect(retentionCutoffProblem(NaN, RUN)).toMatch(/^no valid cutoff/)
+    expect(retentionCutoffProblem(sightingRetentionCutoff(RUN), NaN)).toMatch(/^no valid cutoff/)
+  })
+
+  it('--apply: ONE DELETE, its one parameter the cutoff', async () => {
+    const { db, calls } = upkeepDb({ exec: async () => 3 })
+    expect(await deleteSightingsPastRetention(db, { now: RUN, apply: true, clock: () => RUN })).toEqual({ ok: true, apply: true, cutoff: '2026-10-21T06:30:00.000Z', rows: 3 })
+    expect(calls).toEqual([{ kind: 'exec', sql: SIGHTING_RETENTION_DELETE_SQL, values: ['2026-10-21T06:30:00.000Z'] }])
+  })
+
+  it('a dry run only COUNTS, with the same cutoff — no write is sent', async () => {
+    const { db, calls } = upkeepDb({ query: async () => [{ n: 2 }] })
+    expect(await deleteSightingsPastRetention(db, { now: RUN, apply: false, clock: () => RUN })).toEqual({ ok: true, apply: false, cutoff: '2026-10-21T06:30:00.000Z', rows: 2 })
+    expect(calls).toEqual([{ kind: 'query', sql: SIGHTING_RETENTION_COUNT_SQL, values: ['2026-10-21T06:30:00.000Z'] }])
+  })
+
+  it('⛔ REFUSED — not one statement sent — when the run is dated more than a month ahead of the clock (exactly a month is the boundary), or is no time', async () => {
+    for (const apply of [true, false]) {
+      const { db, calls } = upkeepDb()
+      expect(await deleteSightingsPastRetention(db, { now: msOf('2028-11-21T06:30:00.001Z'), apply, clock: () => RUN })).toEqual({
+        ok: false, error: 'refused, nothing deleted — the cutoff 2026-11-21T06:30:00.001Z is later than 23 months ago (2026-11-21T06:30:00.000Z)',
+      })
+      expect(await deleteSightingsPastRetention(db, { now: NaN, apply, clock: () => RUN })).toMatchObject({ ok: false, error: expect.stringMatching(/^refused, nothing deleted — no valid cutoff/) })
+      expect(calls).toHaveLength(0)
+      // A run dated exactly a month ahead: its cutoff IS 23 months before the clock — allowed.
+      expect(await deleteSightingsPastRetention(db, { now: msOf('2028-11-21T06:30:00.000Z'), apply, clock: () => RUN })).toMatchObject({ ok: true, cutoff: '2026-11-21T06:30:00.000Z' })
+      expect(calls).toHaveLength(1)
+    }
+    // The clock is read when the step runs (Date.now by default): today's run is never refused.
+    const { db } = upkeepDb()
+    expect(await deleteSightingsPastRetention(db, { now: Date.now(), apply: false })).toMatchObject({ ok: true, rows: 0 })
+  })
+
+  it('⛔ never throws: a lost connection, a missing table, a malformed count, a client that throws at once — each RETURNED for the FAILED line', async () => {
+    const cases: [Parameters<typeof upkeepDb>[0], boolean, string][] = [
+      [{ exec: async () => { throw new Error('Connection terminated unexpectedly') } }, true, 'Connection terminated unexpectedly'],
+      [{ exec: async () => { throw missingTable() } }, true, MISSING],
+      [{ query: async () => { throw missingTable() } }, false, MISSING],
+      [{ query: async () => [] }, false, 'the count came back malformed'],
+      [{ query: async () => [{ n: '2' }] }, false, 'the count came back malformed'],
+      // A count that came back as a BigInt — `::int` dropped — would crash the summary JSON: an error here instead.
+      [{ query: async () => [{ n: BigInt(2) }] }, false, 'the count came back malformed'],
+    ]
+    for (const [impl, apply, error] of cases) {
+      const { db } = upkeepDb(impl)
+      expect(await deleteSightingsPastRetention(db, { now: RUN, apply, clock: () => RUN }), error).toEqual({ ok: false, error })
+    }
+    const sync: SightingUpkeepDb = { $executeRawUnsafe: () => { throw new Error('sync throw') }, $queryRawUnsafe: () => { throw new Error('sync throw') } }
+    for (const apply of [true, false]) expect(await deleteSightingsPastRetention(sync, { now: RUN, apply, clock: () => RUN })).toEqual({ ok: false, error: 'sync throw' })
+  })
+
+  it('one summary line, in the import\'s column style — FAILED, the word jobs-daily.sh keeps, on any failure', () => {
+    expect(retentionLine({ ok: true, apply: true, cutoff: '2026-10-21T06:30:00.000Z', rows: 0 }))
+      .toBe('history retention 0 rows deleted: last seen before 2026-10-21T06:30:00.000Z (24 months before this run)')
+    expect(retentionLine({ ok: true, apply: false, cutoff: '2026-10-21T06:30:00.000Z', rows: 1 }))
+      .toBe('history retention 1 row would be deleted: last seen before 2026-10-21T06:30:00.000Z (24 months before this run) — not written on a dry run')
+    expect(retentionLine({ ok: false, error: MISSING })).toBe(`history retention FAILED — ${MISSING}`)
+  })
+})
+
+describe('erasure through moderation — an ad whose listing a moderator removed loses its title and employer, nothing else', () => {
+  it('--apply: ONE UPDATE, its parameters each board\'s own storefront and the removed status', async () => {
+    const { db, calls } = upkeepDb({ exec: async () => 2 })
+    expect(await eraseSightingsOfRemovedAds(db, { apply: true })).toEqual({ ok: true, apply: true, rows: 2 })
+    const boardSellers = JSON.stringify(Object.fromEntries(Object.entries(JOB_BOARDS).map(([board, b]) => [board, b.sellerId])))
+    expect(calls).toEqual([{ kind: 'exec', sql: SIGHTING_ERASURE_UPDATE_SQL, values: [boardSellers, 'removed'] }])
+    expect(sightingErasureParams()).toEqual([boardSellers, LISTING_REMOVED])
+    // Every board, each to its own storefront — the pair jobExternalId gives a job listing — and only job storefronts.
+    const map = JSON.parse(sightingErasureParams()[0]) as Record<string, string>
+    expect(map.teast).toBe('teast-co-import-seller-0001')
+    expect(Object.keys(map).sort()).toEqual(Object.keys(JOB_BOARDS).sort())
+    expect(Object.values(map).sort()).toEqual([...JOB_SELLER_IDS].sort())
+  })
+
+  it('a dry run only COUNTS, with the same parameters — no write is sent', async () => {
+    const { db, calls } = upkeepDb({ query: async () => [{ n: 1 }] })
+    expect(await eraseSightingsOfRemovedAds(db, { apply: false })).toEqual({ ok: true, apply: false, rows: 1 })
+    expect(calls).toEqual([{ kind: 'query', sql: SIGHTING_ERASURE_COUNT_SQL, values: sightingErasureParams() }])
+  })
+
+  it('⛔ the predicate IS sightingsToLog\'s: status = LISTING_REMOVED says yes exactly where isRemovedStatus does', () => {
+    for (const status of ['active', 'sold', 'hidden', 'removed', 'pending', 'draft', 'Removed', 'removed ', '']) {
+      expect(status === sightingErasureParams()[1], status).toBe(isRemovedStatus(status))
+      expect(sightingsToLog([{ externalId: 'teast:x' }], [{ externalId: 'teast:x', status }]).length === 0, status).toBe(isRemovedStatus(status))
+    }
+  })
+
+  it('⛔ never throws: a lost connection, a missing table, a malformed count — each RETURNED for the FAILED line', async () => {
+    const cases: [Parameters<typeof upkeepDb>[0], boolean, string][] = [
+      [{ exec: async () => { throw new Error('Connection terminated unexpectedly') } }, true, 'Connection terminated unexpectedly'],
+      [{ exec: async () => { throw missingTable() } }, true, MISSING],
+      [{ query: async () => { throw missingTable() } }, false, MISSING],
+      [{ query: async () => [{}] }, false, 'the count came back malformed'],
+      // A message over several lines is still ONE line in the log.
+      [{ exec: async () => { throw new Error('canceling statement\n  due to lock timeout') } }, true, 'canceling statement due to lock timeout'],
+    ]
+    for (const [impl, apply, error] of cases) {
+      const { db } = upkeepDb(impl)
+      expect(await eraseSightingsOfRemovedAds(db, { apply }), error).toEqual({ ok: false, error })
+    }
+    const sync: SightingUpkeepDb = { $executeRawUnsafe: () => { throw new Error('sync throw') }, $queryRawUnsafe: () => { throw new Error('sync throw') } }
+    for (const apply of [true, false]) expect(await eraseSightingsOfRemovedAds(sync, { apply })).toEqual({ ok: false, error: 'sync throw' })
+  })
+
+  it('one summary line, in the same column style — FAILED on any failure', () => {
+    expect(erasureLine({ ok: true, apply: true, rows: 1 }))
+      .toBe('history erasure   1 row blanked: ads whose listing a moderator removed — title and employer cleared, counts, dates and pay kept')
+    expect(erasureLine({ ok: true, apply: false, rows: 0 }))
+      .toBe('history erasure   0 rows would be blanked: ads whose listing a moderator removed — title and employer cleared, counts, dates and pay kept — not written on a dry run')
+    expect(erasureLine({ ok: false, error: MISSING })).toBe(`history erasure   FAILED — ${MISSING}`)
+    // The label column is the history log's own: 18 characters.
+    for (const line of [erasureLine({ ok: true, apply: true, rows: 0 }), retentionLine({ ok: false, error: 'x' }), 'history log       12 ads recorded']) {
+      expect(line.slice(0, 18), line).toMatch(/^history (?:log {7}|retention |erasure {3})$/)
+    }
+  })
+})
+
 // ── the DDL, pinned to schema.prisma ────────────────────────────────────────────────────────────────────────────────────
 const ddlScript = readFileSync(join(process.cwd(), 'scripts/job-ad-sightings-ddl.mjs'), 'utf8')
 const ddlCode = ddlScript.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n')
@@ -459,6 +632,44 @@ describe('scripts/job-ad-sightings-ddl.mjs ↔ prisma/schema.prisma ↔ the upse
   })
 })
 
+describe('the retention and erasure statements — never a DELETE without the cutoff, the two texts only', () => {
+  const whereOf = (sql: string) => sql.slice(sql.indexOf(' WHERE ') + ' WHERE '.length)
+  const CUTOFF = `"lastSeenAt" < ($1::timestamptz AT TIME ZONE 'UTC')`
+
+  it('⛔ the module\'s ONE DELETE carries the cutoff and the database\'s own guard; the dry run\'s count is the same WHERE', async () => {
+    expect(SIGHTING_RETENTION_DELETE_SQL.startsWith(`DELETE FROM "JobAdSighting" WHERE ${CUTOFF}`)).toBe(true)
+    expect(SIGHTING_RETENTION_DELETE_SQL).toContain(`AND ($1::timestamptz AT TIME ZONE 'UTC') <= (now() AT TIME ZONE 'UTC') - interval '23 months'`)
+    expect(SIGHTING_RETENTION_COUNT_SQL).toBe(`SELECT count(*)::int AS n FROM "JobAdSighting" WHERE ${whereOf(SIGHTING_RETENTION_DELETE_SQL)}`)
+    expect(SIGHTING_RETENTION_DELETE_SQL).not.toMatch(/\bOR\b/i) // nothing can widen the cutoff
+    // Every statement the module exports that deletes carries the cutoff; its source deletes nowhere else, nor does the importer.
+    const mod = await import('./job-ad-sightings')
+    for (const [name, v] of Object.entries(mod)) if (typeof v === 'string' && /\bdelete\b/i.test(v)) expect(v, name).toContain(CUTOFF)
+    expect(readFileSync(join(process.cwd(), 'src/lib/job-ad-sightings.ts'), 'utf8').match(/DELETE\s+FROM/gi)).toEqual(['DELETE FROM'])
+    expect(readFileSync(join(process.cwd(), 'scripts/import-jobs.ts'), 'utf8')).not.toMatch(/DELETE\s+FROM/i)
+  })
+
+  it('⛔ the erasure sets the two texts only — the employer to NULL, the title to \'\' because the model\'s title is NOT NULL — and never matches a blank row again', () => {
+    expect(/ SET (.*) WHERE /.exec(SIGHTING_ERASURE_UPDATE_SQL)![1]).toBe(`"employer" = NULL, "title" = ''`)
+    expect(modelFields.find((f) => f.name === 'title')).toMatchObject({ type: 'String' }) // NOT NULL: '' (NULL only if it were nullable)
+    expect(modelFields.find((f) => f.name === 'employer')).toMatchObject({ type: 'String?' })
+    expect(whereOf(SIGHTING_ERASURE_UPDATE_SQL).startsWith(`(s."title" <> '' OR s."employer" IS NOT NULL)`)).toBe(true)
+    expect(SIGHTING_ERASURE_COUNT_SQL).toBe(`SELECT count(*)::int AS n FROM "JobAdSighting" AS s WHERE ${whereOf(SIGHTING_ERASURE_UPDATE_SQL)}`)
+    // The ad's OWN listing: its board's storefront ($1, by the row's board) and its externalId; removed = $2 (LISTING_REMOVED).
+    expect(SIGHTING_ERASURE_UPDATE_SQL).toContain(`l."sellerId" = ($1::jsonb ->> s."board")`)
+    expect(SIGHTING_ERASURE_UPDATE_SQL).toContain(`l."externalId" = s."externalId" AND l."status" = $2`)
+    // The one statement that writes updates the log, never the listing: "Listing" is only read, inside the EXISTS.
+    expect(SIGHTING_ERASURE_UPDATE_SQL.startsWith('UPDATE "JobAdSighting" AS s SET ')).toBe(true)
+    expect(SIGHTING_ERASURE_UPDATE_SQL.match(/\bUPDATE\b|\bSET\b/g)).toEqual(['UPDATE', 'SET'])
+  })
+
+  it('the Listing columns the erasure reads are the model\'s (the PGlite stand-in below has exactly these)', () => {
+    const listing = /^model Listing \{([\s\S]*?)^\}/m.exec(schema)![1]!
+    const typeOf = (f: string) => new RegExp(`^\\s+${f}\\s+(\\S+)`, 'm').exec(listing)?.[1]
+    expect(['id', 'sellerId', 'externalId', 'status'].map(typeOf)).toEqual(['String', 'String', 'String?', 'String'])
+    expect(listing).toMatch(/^\s+@@unique\(\[sellerId, externalId\]\)$/m)
+  })
+})
+
 describe('scripts/import-jobs.ts — the one ingest path, wired', () => {
   const src = readFileSync(join(process.cwd(), 'scripts/import-jobs.ts'), 'utf8')
   it('maps a sighting for exactly the ads it keeps, and writes them once — on --apply only, after the listing writes, before the retire step', () => {
@@ -487,6 +698,33 @@ describe('scripts/import-jobs.ts — the one ingest path, wired', () => {
     expect([...after.matchAll(/\bsighted\b(?!\.length)/g)]).toHaveLength(0)
     expect(src.indexOf(filter)).toBeLessThan(src.indexOf('history log       ${toLog.length}'))
   })
+
+  it('⛔ retention, then erasure, on EVERY --apply — after the history log\'s write and outside its `if`, before the retire step; a dry run only counts', () => {
+    const at = (s: string) => src.indexOf(s)
+    expect(src.match(/deleteSightingsPastRetention\(/g)).toHaveLength(1)
+    expect(src.match(/eraseSightingsOfRemovedAds\(/g)).toHaveLength(1)
+    expect(at('deleteSightingsPastRetention(db, { now, apply })')).toBeLessThan(at('eraseSightingsOfRemovedAds(db, { apply })'))
+    expect(src).toContain('console.log(retentionLine(retention))')
+    expect(src).toContain('console.log(erasureLine(erasure))')
+    expect(src.match(/historyUpkeep\(db, now, (?:true|false)\)/g)).toEqual(['historyUpkeep(db, now, false)', 'historyUpkeep(db, now, true)'])
+    const apply = at('const upkeep = await historyUpkeep(db, now, true)')
+    expect(apply).toBeGreaterThan(at('recordJobAdSightings(db,'))
+    expect(apply).toBeLessThan(at('const retire ='))
+    // Not inside the history log's `if (stage && toLog.length)`: that block has closed before the call.
+    const block = src.slice(at('if (stage && toLog.length) {'), apply)
+    expect(block.match(/\{/g)!.length).toBe(block.match(/\}/g)!.length)
+    // The dry run: after the history log's plan line, before the dry run returns — the session is read-only there.
+    const dry = at('if (!APPLY) await historyUpkeep(db, now, false)')
+    expect(dry).toBeGreaterThan(at('history log       ${toLog.length}'))
+    expect(dry).toBeLessThan(at('if (!APPLY) {'))
+    expect(at('const db = makeDb(!APPLY)')).toBeGreaterThan(-1)
+    // Their counts reach the summary JSON — the line jobs-daily.sh keeps, with every FAILED one — and a failed step is null
+    // there, never a 0 that reads as "nothing to do".
+    expect(src).toContain('stat.sightingsDeleted = upkeep.deleted')
+    expect(src).toContain('stat.sightingsBlanked = upkeep.blanked')
+    expect(src).toContain('return { deleted: retention.ok ? retention.rows : null, blanked: erasure.ok ? erasure.rows : null }')
+    expect(src).toContain('sightingsDeleted: 0 as number | null, sightingsBlanked: 0 as number | null')
+  })
 })
 
 // ── the statements, EXECUTED ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -505,9 +743,10 @@ const pglite = await (async (): Promise<{ PGlite: { create: () => Promise<Pg> } 
  * ⛔ THE DDL AND THE UPSERT, EXECUTED. PGlite is Postgres 17 compiled to WASM, in-process — no server, no port (production is
  * 17.6). The fixture is Supabase's default privileges (every new public table handed to anon and authenticated; one more
  * grant to PUBLIC here), so the script's REVOKE is proven against grants that exist. The session runs in Vietnam time, so
- * the UTC storage of the stage's time is proven too. A missing PGlite skips this block locally and FAILS it in CI. The last
- * test drives the importer's real PrismaClient and @prisma/adapter-pg over this PGlite (a stand-in pg.Pool), so the error
- * shape the row-by-row retry reads is the client's own, not a fake one.
+ * the UTC storage of the stage's time is proven too. A missing PGlite skips this block locally and FAILS it in CI. Two tests
+ * drive the importer's real PrismaClient and @prisma/adapter-pg over this PGlite (a stand-in pg.Pool), so the error shape
+ * the row-by-row retry reads, and the counts retention and erasure print, are the client's own, not a fake one. The
+ * erasure reads a stand-in "Listing" holding only the four columns it uses, pinned to the model.
  */
 describe.skipIf(!pglite && !process.env.CI)(`the DDL and JOB_AD_SIGHTING_UPSERT_SQL — run in PGlite${pglite ? '' : ' (SKIPPED: @electric-sql/pglite is not installed)'}`, () => {
   let pg: Pg
@@ -686,18 +925,19 @@ describe.skipIf(!pglite && !process.env.CI)(`the DDL and JOB_AD_SIGHTING_UPSERT_
     for (const row of bad) expect(await read(row.externalId), row.externalId).toBeUndefined()
   })
 
-  it('⛔ through the importer\'s REAL Prisma client and adapter-pg: each refused value loses only its own row, and a missing table is returned, not thrown', async () => {
-    /** A pg.Pool that runs adapter-pg's one call (performIO: { text, values, rowMode: 'array' }) in this PGlite — no server,
-     *  no port. Measured 2026-10-20 (Prisma 7.9.1): a refusal arrives as P2010, its SQLSTATE in meta.driverAdapterError. */
-    class LitePool extends Pool {
-      override async query(config: any): Promise<any> {
-        const r = await pg.query(config.text, config.values, { rowMode: 'array' })
-        return { rows: r.rows, fields: r.fields, rowCount: r.affectedRows ?? 0 }
-      }
-      override async end() {}
-      // ⛔ Never a real server: adapter-pg takes a connection only for a transaction, which this write never opens.
-      override async connect(): Promise<never> { throw new Error('LitePool opens no connection: every query runs in PGlite') }
+  /** A pg.Pool that runs adapter-pg's one call (performIO: { text, values, rowMode: 'array' }) in this PGlite — no server,
+   *  no port. Measured 2026-10-20 (Prisma 7.9.1): a refusal arrives as P2010, its SQLSTATE in meta.driverAdapterError. */
+  class LitePool extends Pool {
+    override async query(config: any): Promise<any> {
+      const r = await pg.query(config.text, config.values, { rowMode: 'array' })
+      return { rows: r.rows, fields: r.fields, rowCount: r.affectedRows ?? 0 }
     }
+    override async end() {}
+    // ⛔ Never a real server: adapter-pg takes a connection only for a transaction, which none of these statements opens.
+    override async connect(): Promise<never> { throw new Error('LitePool opens no connection: every query runs in PGlite') }
+  }
+
+  it('⛔ through the importer\'s REAL Prisma client and adapter-pg: each refused value loses only its own row, and a missing table is returned, not thrown', async () => {
     const prisma = new PrismaClient({ adapter: new PrismaPg(new LitePool()) })
     try {
       const base = sightingOf(teast)
@@ -729,4 +969,179 @@ describe.skipIf(!pglite && !process.env.CI)(`the DDL and JOB_AD_SIGHTING_UPSERT_
       await prisma.$disconnect()
     }
   }, 120_000) // the client's WASM query compiler loads on its first query: seconds, more on a loaded machine
+
+  // ── retention and erasure, EXECUTED (rule 4) ──────────────────────────────────────────────────────────────────────────
+  /** The two steps run against PGlite exactly as against production's PrismaClient: the write, plus the dry run's read. */
+  const upkeepPg: SightingUpkeepDb = { ...db, $queryRawUnsafe: async (sql, ...v) => (await pg.query(sql, v)).rows }
+  const count = async (where = 'true') => (await pg.query<{ n: number }>(`SELECT count(*)::int AS n FROM "JobAdSighting" WHERE ${where}`)).rows[0]!.n
+  /** A run in the past, so the database's own guard (now() − 23 months) holds whenever this suite runs. */
+  const RUN = Date.parse('2026-10-21T06:30:00.000Z')
+  const CUTOFF = '2024-10-21T06:30:00.000Z'
+  /** The Listing columns the erasure reads, as the model has them (pinned above), and nothing else. */
+  const LISTING_STAND_IN = `CREATE TABLE IF NOT EXISTS "Listing" (id text PRIMARY KEY, "sellerId" text NOT NULL, "externalId" text,
+    status text NOT NULL DEFAULT 'active', UNIQUE ("sellerId", "externalId"))`
+
+  it('monthsBefore is Postgres\'s own calendar — `timestamp - interval \'N months\'` — on every day that can be clamped, 2026–2030', async () => {
+    const instants: string[] = []
+    for (let y = 2026; y <= 2030; y++) for (let m = 0; m < 12; m++) for (const d of [1, 15, 28, 29, 30, 31]) for (const time of [[0, 0, 0, 0], [23, 59, 59, 999]]) {
+      const t = Date.UTC(y, m, d, ...(time as [number, number, number, number]))
+      if (new Date(t).getUTCMonth() === m) instants.push(new Date(t).toISOString())
+    }
+    const months = [1, 11, 12, 13, 23, 24, 25, 48]
+    const { rows } = await pg.query<{ ts: string; m: number; t: string }>(
+      `SELECT a.ts, b.m::int AS m, to_char((a.ts::timestamptz AT TIME ZONE 'UTC') - make_interval(months => b.m::int), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS t
+         FROM jsonb_array_elements_text($1::jsonb) AS a(ts), jsonb_array_elements_text($2::jsonb) AS b(m)`,
+      [JSON.stringify(instants), JSON.stringify(months)])
+    expect(instants.length).toBeGreaterThan(600)
+    expect(rows).toHaveLength(instants.length * months.length)
+    for (const r of rows) expect(new Date(monthsBefore(Date.parse(r.ts), r.m)).toISOString(), `${r.ts} − ${r.m}`).toBe(r.t)
+  })
+
+  it('⛔ RETENTION, executed: last seen a millisecond before the cutoff goes, at the cutoff stays — judged by lastSeenAt; counted first, in a READ-ONLY session that can write nothing', async () => {
+    const ad = (k: string): JobAdSighting => ({ ...sightingOf(teast), externalId: `teast:retention-${k}` })
+    const cutoff = sightingRetentionCutoff(RUN)
+    expect(new Date(cutoff).toISOString()).toBe(CUTOFF)
+    await upsert([ad('older')], new Date(cutoff - 1).toISOString())
+    await upsert([ad('at-cutoff')], CUTOFF)
+    await upsert([ad('after')], new Date(cutoff + 1).toISOString())
+    // First seen long before the cutoff, but seen again since: kept — retention reads lastSeenAt, never firstSeenAt.
+    await upsert([ad('seen-again')], '2024-01-01T00:00:00.000Z')
+    await upsert([ad('seen-again')], '2024-10-22T00:00:00.000Z')
+    const before = await count()
+
+    // The importer opens a dry run's session read-only: the count runs; the DELETE could not, and is returned, not thrown.
+    await pg.exec('SET default_transaction_read_only = on')
+    try {
+      expect(await deleteSightingsPastRetention(upkeepPg, { now: RUN, apply: false })).toEqual({ ok: true, apply: false, cutoff: CUTOFF, rows: 1 })
+      expect(await deleteSightingsPastRetention(upkeepPg, { now: RUN, apply: true })).toEqual({ ok: false, error: 'cannot execute DELETE in a read-only transaction' })
+    } finally {
+      await pg.exec('SET default_transaction_read_only = off')
+    }
+    expect(await count()).toBe(before)
+
+    expect(await deleteSightingsPastRetention(upkeepPg, { now: RUN, apply: true })).toEqual({ ok: true, apply: true, cutoff: CUTOFF, rows: 1 })
+    expect(await read('teast:retention-older')).toBeUndefined()
+    expect(await read('teast:retention-at-cutoff')).toMatchObject({ lastSeenAt: '2024-10-21 06:30:00' })
+    expect(await read('teast:retention-after')).toMatchObject({ lastSeenAt: '2024-10-21 06:30:00.001' })
+    expect(await read('teast:retention-seen-again')).toMatchObject({ firstSeenAt: '2024-01-01 00:00:00', lastSeenAt: '2024-10-22 00:00:00' })
+    expect(await count()).toBe(before - 1)
+    // The same run again deletes nothing.
+    expect(await deleteSightingsPastRetention(upkeepPg, { now: RUN, apply: true })).toEqual({ ok: true, apply: true, cutoff: CUTOFF, rows: 0 })
+  })
+
+  it('⛔ the DATABASE refuses a cutoff later than 23 months before now() too: sent one, the DELETE matches nothing, whatever the rows', async () => {
+    await upsert([{ ...sightingOf(teast), externalId: 'teast:retention-guarded' }], '2025-06-01T00:00:00.000Z')
+    const tooLate = new Date(monthsBefore(Date.now(), 1)).toISOString() // a cutoff the JS guard would refuse
+    expect(await count(`"externalId" = 'teast:retention-guarded' AND "lastSeenAt" < ('${tooLate}'::timestamptz AT TIME ZONE 'UTC')`)).toBe(1)
+    expect((await pg.query<{ n: number }>(SIGHTING_RETENTION_COUNT_SQL, [tooLate])).rows).toEqual([{ n: 0 }])
+    expect((await pg.query(SIGHTING_RETENTION_DELETE_SQL, [tooLate])).affectedRows).toBe(0)
+    expect(await read('teast:retention-guarded')).toBeDefined()
+  })
+
+  it('⛔ ERASURE, executed: exactly the ads whose own listing a moderator removed lose their title and employer — every other column kept; counted first; a second run changes nothing', async () => {
+    await pg.exec(LISTING_STAND_IN)
+    const TEAST = JOB_BOARDS.teast.sellerId
+    const ad = (k: string, over: Partial<JobAdSighting> = {}): JobAdSighting => ({ ...sightingOf(teast), externalId: `teast:erase-${k}`, listingId: `cl-${k}`, ...over })
+    const ads = [ad('active'), ad('removed'), ad('hidden'), ad('sold'), ad('unlisted'), ad('other-seller'), ad('no-employer', { employer: null }), ad('blank'), ad('cross-board')]
+    expect(await upsert(ads, STAGED_AT)).toBe(ads.length)
+    await pg.exec(`UPDATE "JobAdSighting" SET title = '', employer = NULL WHERE "externalId" = 'teast:erase-blank'`) // erased before
+    const listings = [
+      { id: 'cl-active', sellerId: TEAST, externalId: 'teast:erase-active', status: 'active' },
+      { id: 'cl-removed', sellerId: TEAST, externalId: 'teast:erase-removed', status: LISTING_REMOVED },
+      { id: 'cl-hidden', sellerId: TEAST, externalId: 'teast:erase-hidden', status: 'hidden' },
+      { id: 'cl-sold', sellerId: TEAST, externalId: 'teast:erase-sold', status: 'sold' },
+      // A listing under a seller that is not a job board's storefront is not the ad's, whatever its externalId says.
+      { id: 'cl-other-seller', sellerId: 'some-shop-seller', externalId: 'teast:erase-other-seller', status: LISTING_REMOVED },
+      { id: 'cl-no-employer', sellerId: TEAST, externalId: 'teast:erase-no-employer', status: LISTING_REMOVED },
+      { id: 'cl-blank', sellerId: TEAST, externalId: 'teast:erase-blank', status: LISTING_REMOVED },
+      // Nor is one under ANOTHER job board's storefront holding the same key (the importer never makes one; review,
+      // 2026-10-21): the ad's own listing, under TEAST's storefront, is live — its row keeps its text.
+      { id: 'cl-cross-board', sellerId: TEAST, externalId: 'teast:erase-cross-board', status: 'active' },
+      { id: 'cl-cross-board-vtj', sellerId: JOB_BOARDS.vtj.sellerId, externalId: 'teast:erase-cross-board', status: LISTING_REMOVED },
+    ]
+    for (const l of listings) await pg.query(`INSERT INTO "Listing" (id, "sellerId", "externalId", status) VALUES ($1, $2, $3, $4)`, [l.id, l.sellerId, l.externalId, l.status])
+    const rowsBefore = new Map(await Promise.all(ads.map(async (a) => [a.externalId, await read(a.externalId)] as const)))
+    const listingsBefore = (await pg.query('SELECT * FROM "Listing" ORDER BY id')).rows
+
+    expect(await eraseSightingsOfRemovedAds(upkeepPg, { apply: false })).toEqual({ ok: true, apply: false, rows: 2 })
+    for (const a of ads) expect(await read(a.externalId), a.externalId).toEqual(rowsBefore.get(a.externalId))
+
+    expect(await eraseSightingsOfRemovedAds(upkeepPg, { apply: true })).toEqual({ ok: true, apply: true, rows: 2 })
+    const erased = ['teast:erase-removed', 'teast:erase-no-employer', 'teast:erase-blank']
+    for (const a of ads) {
+      const before = rowsBefore.get(a.externalId)!
+      // Key, board, dates, seenCount, listing id, pay, work permit support and facets kept; the two texts gone on an erased row.
+      expect(await read(a.externalId), a.externalId).toEqual(erased.includes(a.externalId) ? { ...before, title: '', employer: null } : before)
+    }
+    // ⛔ The predicate IS sightingsToLog's: the rows left blank are exactly the ads it leaves out, given the job storefronts'
+    // listings as the importer reads them — in every state the importer makes. Only the cross-board key, which a writer
+    // other than the importer would have to make, tells them apart: sightingsToLog, keyed by externalId alone, leaves that
+    // ad out too, while the erasure, keyed by the ad's own storefront, keeps its text. The erasure is never the wider.
+    const blank = (await pg.query<{ k: string }>(`SELECT "externalId" AS k FROM "JobAdSighting" WHERE title = '' ORDER BY 1`)).rows.map((r) => r.k)
+    expect(blank).toEqual([...erased].sort())
+    const stored = listings.filter((l) => JOB_SELLER_IDS.includes(l.sellerId))
+    const leftOut = (from: typeof stored) => {
+      const kept = new Set(sightingsToLog(ads, from).map((a) => a.externalId))
+      return ads.map((a) => a.externalId).filter((k) => !kept.has(k))
+    }
+    expect(leftOut(stored.filter((l) => l.id !== 'cl-cross-board-vtj'))).toEqual(erased)
+    expect(leftOut(stored)).toEqual([...erased, 'teast:erase-cross-board'])
+    expect(await read('teast:erase-cross-board')).toMatchObject({ title: 'ESL Teacher', employer: 'Power English' })
+    // The listing table is only read.
+    expect((await pg.query('SELECT * FROM "Listing" ORDER BY id')).rows).toEqual(listingsBefore)
+    // Idempotent: nothing left to blank.
+    expect(await eraseSightingsOfRemovedAds(upkeepPg, { apply: false })).toEqual({ ok: true, apply: false, rows: 0 })
+    expect(await eraseSightingsOfRemovedAds(upkeepPg, { apply: true })).toEqual({ ok: true, apply: true, rows: 0 })
+  })
+
+  it('a listing a moderator RESTORES is logged again: its next NEWER sighting brings the two texts back, an older stage leaves the row blank', async () => {
+    const key = 'teast:erase-restored'
+    const row: JobAdSighting = { ...sightingOf(teast), externalId: key, listingId: 'cl-restored' }
+    await upsert([row], STAGED_AT)
+    await pg.query(`INSERT INTO "Listing" (id, "sellerId", "externalId", status) VALUES ('cl-restored', $1, $2, $3)`, [JOB_BOARDS.teast.sellerId, key, LISTING_REMOVED])
+    expect(await eraseSightingsOfRemovedAds(upkeepPg, { apply: true })).toEqual({ ok: true, apply: true, rows: 1 })
+    expect(await read(key)).toMatchObject({ title: '', employer: null, seenCount: 1 })
+
+    await pg.query(`UPDATE "Listing" SET status = 'active' WHERE id = 'cl-restored'`)
+    expect(sightingsToLog([row], [{ externalId: key, status: 'active' }])).toEqual([row]) // the importer logs it again
+    // An older stage imported late counts, and refreshes no fact: still blank.
+    await upsert([row], '2026-10-18T00:01:00.000Z')
+    expect(await read(key)).toMatchObject({ title: '', employer: null, seenCount: 2 })
+    // The next newer stage refreshes the facts as for any ad: the texts are back, and the erasure leaves the row alone.
+    await upsert([row], '2026-10-20T00:01:00.000Z')
+    expect(await read(key)).toMatchObject({ title: 'ESL Teacher', employer: 'Power English', seenCount: 3, lastSeenAt: '2026-10-20 00:01:00' })
+    expect(await eraseSightingsOfRemovedAds(upkeepPg, { apply: false })).toEqual({ ok: true, apply: false, rows: 0 })
+  })
+
+  it('⛔ both, through the importer\'s REAL Prisma client: counts come back as numbers the summary JSON can print, the parameters bind, a missing table is returned', async () => {
+    await pg.exec(LISTING_STAND_IN)
+    const prisma = new PrismaClient({ adapter: new PrismaPg(new LitePool()) })
+    try {
+      // Whatever the tests above left matching is settled first, so the counts below are this test's own.
+      await deleteSightingsPastRetention(upkeepPg, { now: RUN, apply: true })
+      await eraseSightingsOfRemovedAds(upkeepPg, { apply: true })
+      await upsert([{ ...sightingOf(teast), externalId: 'teast:prisma-retention-old' }], '2024-03-01T00:00:00.000Z')
+      await upsert([{ ...sightingOf(teast), externalId: 'teast:prisma-erase' }], STAGED_AT)
+      await pg.query(`INSERT INTO "Listing" (id, "sellerId", "externalId", status) VALUES ('cl-prisma-erase', $1, 'teast:prisma-erase', $2)`, [JOB_BOARDS.teast.sellerId, LISTING_REMOVED])
+      const dry = [await deleteSightingsPastRetention(prisma, { now: RUN, apply: false }), await eraseSightingsOfRemovedAds(prisma, { apply: false })]
+      expect(dry).toEqual([{ ok: true, apply: false, cutoff: CUTOFF, rows: 1 }, { ok: true, apply: false, rows: 1 }])
+      expect(JSON.parse(JSON.stringify(dry))).toEqual(dry) // no BigInt anywhere
+      expect(await deleteSightingsPastRetention(prisma, { now: RUN, apply: true })).toEqual({ ok: true, apply: true, cutoff: CUTOFF, rows: 1 })
+      expect(await eraseSightingsOfRemovedAds(prisma, { apply: true })).toEqual({ ok: true, apply: true, rows: 1 })
+      expect(await read('teast:prisma-retention-old')).toBeUndefined()
+      expect(await read('teast:prisma-erase')).toMatchObject({ title: '', employer: null, seenCount: 1, salaryMin: 40_000_000, board: 'teast' })
+
+      await pg.exec('ALTER TABLE "JobAdSighting" RENAME TO "JobAdSighting_away"')
+      try {
+        for (const apply of [false, true]) {
+          expect(await deleteSightingsPastRetention(prisma, { now: RUN, apply }), `retention ${apply}`).toEqual({ ok: false, error: MISSING })
+          expect(await eraseSightingsOfRemovedAds(prisma, { apply }), `erasure ${apply}`).toEqual({ ok: false, error: MISSING })
+        }
+      } finally {
+        await pg.exec('ALTER TABLE "JobAdSighting_away" RENAME TO "JobAdSighting"')
+      }
+    } finally {
+      await prisma.$disconnect()
+    }
+  }, 120_000)
 })

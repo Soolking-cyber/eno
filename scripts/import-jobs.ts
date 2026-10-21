@@ -43,6 +43,9 @@
  *    src/lib/job-ad-sightings.ts): one batched upsert at the stage's `stagedAt`, facts only — never refreshed once a
  *    moderator removed the ad's listing. It never fails or holds up the import — a failed write (the table not made yet:
  *    scripts/job-ad-sightings-ddl.mjs) is logged and the run carries on; a row the database refuses loses only itself.
+ *    Then, on EVERY --apply (rule 4 there): the RETENTION deletes the rows last seen more than 24 months before the run,
+ *    and the ERASURE blanks the title and employer of each ad whose listing a moderator removed — one line each, each its
+ *    own error boundary (a FAILED line, never a failed import). A dry run prints what each WOULD do, as counts.
  */
 import 'dotenv/config'
 import { closeSync, copyFileSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, realpathSync, statSync, unlinkSync, writeSync } from 'node:fs'
@@ -61,7 +64,10 @@ import {
   JOB_BOARDS, JOB_SELLER_IDS, isExpiredJob, jobExternalId, jobStageProblem, mapStagedJob, pdpTombstoneTags,
   type JobDrop, type JobStage, type MappedJob,
 } from '../src/lib/job-listing'
-import { jobAdSightingOf, recordJobAdSightings, sightingsToLog, type JobAdSighting } from '../src/lib/job-ad-sightings'
+import {
+  deleteSightingsPastRetention, eraseSightingsOfRemovedAds, erasureLine, jobAdSightingOf, recordJobAdSightings, retentionLine, sightingsToLog,
+  type JobAdSighting,
+} from '../src/lib/job-ad-sightings'
 
 const BUCKET = 'listings'
 const argv = process.argv
@@ -160,6 +166,20 @@ function mutableOf(j: MappedJob, categoryId: string) {
     affiliateUrl: j.affiliateUrl as string | null,
     searchText: j.searchText,
   }
+}
+
+/**
+ * D3: the history log's RETENTION, then its ERASURE (src/lib/job-ad-sightings.ts rule 4) — one line each. ⛔ NEITHER THROWS:
+ * a failure is its own FAILED line and the import goes on, as for the history log's write. `apply` false (a dry run, its
+ * session read-only) only counts what each would do. The rows each deleted or blanked go into the summary JSON — null for
+ * a step that failed, never a 0 that would read as "nothing to do".
+ */
+async function historyUpkeep(db: Db, now: number, apply: boolean): Promise<{ deleted: number | null; blanked: number | null }> {
+  const retention = await deleteSightingsPastRetention(db, { now, apply })
+  console.log(retentionLine(retention))
+  const erasure = await eraseSightingsOfRemovedAds(db, { apply })
+  console.log(erasureLine(erasure))
+  return { deleted: retention.ok ? retention.rows : null, blanked: erasure.ok ? erasure.rows : null }
 }
 
 async function verify(db: Db): Promise<number> {
@@ -307,6 +327,8 @@ async function main() {
   console.log(`expire            ${EXPIRE ? `${expired.length} of ${activeJobs.length} active job rows are past apply-by` : 'OFF (--expire not passed)'}`)
   console.log(`gone (re-checked) ${stage?.gone?.length ?? 0} in the stage → ${goneRows.length} active rows to hide${goneRows.length ? `: ${goneRows.map((r) => r.externalId).join(', ')}` : ''}`)
   console.log(`history log       ${toLog.length} ads → JobAdSighting (D3, internal) at the stage's stagedAt${sighted.length > toLog.length ? ` (${sighted.length - toLog.length} removed by moderation left out)` : ''}${unlogged ? ` (${unlogged} kept ads not logged: a fact failed the log's screens)` : ''}${APPLY ? '' : ' — not written on a dry run'}`)
+  // D3 retention and erasure: on a dry run, what each WOULD do (counts only); on --apply they run after the write below.
+  if (!APPLY) await historyUpkeep(db, now, false)
   for (const p of plan) {
     const k = p.k
     console.log(`  ${pad(p.s ? (p.changed!.length ? 'UPDATE' : 'same') : 'CREATE', 6)} ${pad(k.externalId, 34)} ${pad(k.city, 12)} ${pad(k.price ? `${k.price.toLocaleString('vi-VN')} ${k.priceUnit}` : 'salary: see details', 24)} ${k.applyBy}  ${k.title.slice(0, 70)}`)
@@ -353,7 +375,7 @@ async function main() {
   }
   const trustOf = async (id: string) => sellerById.get(id)?.trustScore ?? (await db.seller.findUnique({ where: { id }, select: { trustScore: true } }))?.trustScore ?? 100
 
-  const stat = { created: 0, updated: 0, uploadFailed: 0, raced: 0, errored: 0, hidden: 0, sightings: 0 }
+  const stat = { created: 0, updated: 0, uploadFailed: 0, raced: 0, errored: 0, hidden: 0, sightings: 0, sightingsDeleted: 0 as number | null, sightingsBlanked: 0 as number | null }
   const touched: string[] = []
   /** externalId → its eno listing, for the history log: the rows already stored (any status), then the ones created below. */
   const listingIdOf = new Map(stored.map((s) => [s.externalId!, s.id]))
@@ -410,6 +432,10 @@ async function main() {
     stat.sightings = logged.written
     console.log(`history log       ${logged.ok ? `${logged.ads} ads recorded (${logged.written} rows new or moved on)` : `FAILED — ${logged.error}`}`)
   }
+  // ── D3: retention, then erasure — after the history log, on EVERY --apply (a stage or not); neither throws.
+  const upkeep = await historyUpkeep(db, now, true)
+  stat.sightingsDeleted = upkeep.deleted
+  stat.sightingsBlanked = upkeep.blanked
   const retire = [...new Map([...expired, ...goneRows].map((r) => [r.id, r])).values()]
   if (retire.length) {
     /** 'hidden', never 'sold' or DELETE — a closed posting was not filled through eno. One-way: status is create-only. */

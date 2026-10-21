@@ -11,7 +11,8 @@
  *    it, the import screen passed it, its cover was there: what eno would publish. An ad a screen refuses is not logged, and
  *    neither is the refusal's reason (a 'visaMention' count would itself be a visa metric); a staged ad whose cover the
  *    pipeline failed to draw is logged the next day it is staged with one; an ad whose listing a moderator REMOVED is not
- *    logged from then on (sightingsToLog); a row its earlier sightings made stays as it was. A row holds only parsed facts:
+ *    logged from then on (sightingsToLog), and its earlier row loses its title and employer, though not its key, which can
+ *    spell the title (rule 4). A row holds only parsed facts:
  *    the role title, the province, the employer line, the employment type, the pay's numbers, work permit support, the
  *    category, the posting and apply-by days. Never the ad's text, the pay line as written, the link, a contact, an employer
  *    line the name check reads as a person's (namesAPerson — a heuristic), or a visa / TRC / residence field: the model has no column for one, and jobAdSightingOf
@@ -33,12 +34,31 @@
  *    ONLY ITSELF: Postgres refuses a whole statement for one value it cannot take (SQLSTATE class 22), so such a chunk is
  *    sent again one row at a time, and the outcome names the ads it refused alone. jobAdSightingOf makes those values
  *    unlikely in the first place — control characters and broken surrogates out, impossible days refused.
+ * ⛔ 4. KEPT 24 MONTHS; A MODERATOR'S REMOVAL BLANKS THE TITLE AND EMPLOYER (the owner's decision of 2026-10-21,
+ *    ~/eno-week5-2026-10-21/DECISIONS.md row 3: retention by lastSeenAt, and an erasure that keeps board, ids, dates,
+ *    counts and pay, so history counts do not move). Every --apply run, after the write, each step its own error boundary
+ *    like the write (never throws; one FAILED line):
+ *     · RETENTION (deleteSightingsPastRetention): a row whose lastSeenAt is more than SIGHTING_RETENTION_MONTHS calendar
+ *       months before the run is DELETED. Never a DELETE without that cutoff, and none at all when the cutoff comes out
+ *       later than SIGHTING_RETENTION_FLOOR_MONTHS before the clock — refused, checked again by the database itself.
+ *     · ERASURE (eraseSightingsOfRemovedAds): the row of an ad whose own listing a moderator removed — sightingsToLog's own
+ *       test, isRemovedStatus — keeps its key, board, dates, seenCount, listing id, pay, work permit support and facets,
+ *       and loses the two text columns: the employer to NULL, the title to '' (its column is NOT NULL; jobAdSightingOf never
+ *       makes an empty title, so '' marks an erased row). A blank row is never matched again, so a second run changes nothing.
+ *       ⚠️ NOT EVERY WORD OF THE AD — the ids stay, as the decision says. Where a board's job id is a URL slug (teast, vtj,
+ *       tta, eslgorilla, eslcafe, teflorg, languagelink, eslbase; vas and eiv, keyed by the last path segment), the KEY
+ *       spells the title, and now and then the employer: of the 164 ads staged by 2026-10-21, 54 keys hold at least half
+ *       the title's words and 4 of 149 every word of the employer. Any key, with its board, names the public posting. The
+ *       removed listing keeps the same key, on purpose (it is how the import knows not to recreate the ad;
+ *       core/listing-tombstone.ts), and the whole ad until its own retention scrub; the listing id leads to it. So a key
+ *       replaced here alone would still be in the database, and a restored ad would come back as a new row: the owner's call.
+ *    A dry run (its session read-only) only counts what each would do.
  */
 import { fold } from './fold'
 import { containsContactInfo } from './publish-guard'
 import { containsPhoneNumber } from './phone'
-import { hasVisaWord, parseJobPayRange, unshout, type BoardKey, type MappedJob, type StagedJob } from './job-listing'
-import { isRemovedStatus } from './listing-removed'
+import { JOB_BOARDS, hasVisaWord, parseJobPayRange, unshout, type BoardKey, type MappedJob, type StagedJob } from './job-listing'
+import { LISTING_REMOVED, isRemovedStatus } from './listing-removed'
 
 /** One JobAdSighting row as the writer sends it: a key, the eno listing, or a parsed fact — nothing else (SIGHTING_FIELDS). */
 export type JobAdSighting = {
@@ -304,8 +324,9 @@ export function jobAdSightingOf(staged: StagedJob, job: MappedJob): JobAdSightin
  * ⛔ A TOMBSTONE IS LEFT AS IT IS — IN THE LOG TOO. import-jobs.ts leaves a listing a moderator or admin REMOVED "not
  * refreshed, not recreated" (src/lib/listing-removed.ts); so the ads to log are the run's sightings minus every ad whose
  * stored listing is `removed`: from then on not counted, not refreshed (a row here is what eno would publish, and a removed
- * ad is not); a row the ad's earlier sightings made stays as it was. Any other status — a job hidden as expired or gone —
- * is still an ad the board carries, and is logged.
+ * ad is not); a row the ad's earlier sightings made keeps its counts and its key and loses its title and employer
+ * (eraseSightingsOfRemovedAds, the same test in SQL; rule 4 — the key can spell the title). Any other status — a job
+ * hidden as expired or gone — is still an ad the board carries, and is logged.
  */
 export function sightingsToLog<T extends { externalId: string }>(
   sighted: readonly T[],
@@ -381,6 +402,9 @@ function sqlStateOf(e: unknown): string | null {
   return /Code: `([0-9A-Z]{5})`/.exec(String(err?.message ?? ''))?.[1] ?? null
 }
 
+/** What every step here says when the production DDL has not run yet. */
+const MISSING_TABLE = 'the JobAdSighting table does not exist yet — run scripts/job-ad-sightings-ddl.mjs'
+
 /** 42P01 however it arrives (sqlStateOf), or the message naming the missing table. */
 function isMissingTable(e: unknown): boolean {
   const msg = String((e as { message?: unknown } | null)?.message ?? '')
@@ -452,9 +476,7 @@ export async function recordJobAdSightings(
       }
     }
   } catch (e) {
-    const error = isMissingTable(e)
-      ? 'the JobAdSighting table does not exist yet — run scripts/job-ad-sightings-ddl.mjs'
-      : messageOf(e, 300)
+    const error = isMissingTable(e) ? MISSING_TABLE : messageOf(e, 300)
     warn(`  ! job-ad history log NOT written (${unique.length} ads, ${written} rows before the failure): ${error}`)
     return { ok: false, ads: unique.length, written, error, refused: refusedIds }
   }
@@ -465,4 +487,144 @@ export async function recordJobAdSightings(
     return { ok: false, ads: unique.length, written, error, refused: refusedIds }
   }
   return { ok: true, ads: unique.length, written }
+}
+
+// ── retention and erasure (rule 4) ──────────────────────────────────────────────────────────────────────────────────────
+
+/** ⛔ A row is kept until its lastSeenAt is more than this many calendar months before the run (owner, 2026-10-21). */
+export const SIGHTING_RETENTION_MONTHS = 24
+/** ⛔ THE GUARD: a retention cutoff later than this many calendar months before the clock is refused — nothing deleted. */
+export const SIGHTING_RETENTION_FLOOR_MONTHS = 23
+
+/**
+ * `t` (epoch ms) less `months` calendar months, in UTC — the zone lastSeenAt is stored in — at the same time of day, the
+ * day clamped to the target month's last: 2028-02-29 − 24 months = 2026-02-28, 2026-03-31 − 1 month = 2026-02-28. That is
+ * Postgres's own `timestamp - interval 'N months'` (job-ad-sightings.test.ts compares the two in PGlite). NaN for NaN.
+ */
+export function monthsBefore(t: number, months: number): number {
+  const from = new Date(t)
+  const m = from.getUTCFullYear() * 12 + from.getUTCMonth() - months
+  const out = new Date(t)
+  out.setUTCFullYear(Math.floor(m / 12), m - Math.floor(m / 12) * 12 + 1, 0) // the target month's last day, same time…
+  if (from.getUTCDate() < out.getUTCDate()) out.setUTCDate(from.getUTCDate()) // …or the same day, when the month has it
+  return out.getTime()
+}
+
+/** The retention's cutoff for a run at `now`: a row last seen BEFORE it goes; one last seen at it, or later, stays. */
+export const sightingRetentionCutoff = (now: number) => monthsBefore(now, SIGHTING_RETENTION_MONTHS)
+
+const isoOf = (t: number) => (Number.isFinite(t) && Math.abs(t) <= 8.64e15 ? new Date(t).toISOString() : String(t))
+
+/**
+ * Why a retention cutoff must not be used, or null. ⛔ Read against the CLOCK, not the run's own time: a cutoff later than
+ * SIGHTING_RETENTION_FLOOR_MONTHS before it — a run dated in the future, a retention cut short, a slip in the arithmetic —
+ * would delete rows the owner chose to keep. Exactly 23 months is allowed; a millisecond later is not.
+ */
+export function retentionCutoffProblem(cutoff: number, clock: number): string | null {
+  const floor = monthsBefore(clock, SIGHTING_RETENTION_FLOOR_MONTHS)
+  if (!Number.isFinite(cutoff) || !Number.isFinite(floor)) return `no valid cutoff (${isoOf(cutoff)}; clock ${isoOf(clock)})`
+  return cutoff > floor ? `the cutoff ${isoOf(cutoff)} is later than ${SIGHTING_RETENTION_FLOOR_MONTHS} months ago (${isoOf(floor)})` : null
+}
+
+/**
+ * ⛔ THE RETENTION'S ONE PREDICATE — the DELETE and a dry run's count are built from it, so neither exists without the
+ * cutoff. $1 is the cutoff (ISO, read as UTC like every time here). Its second line is the guard once more, on the
+ * database's own clock and calendar: a cutoff later than 23 months before now() matches no row, whatever the caller sent.
+ */
+const RETENTION_WHERE = `"lastSeenAt" < ($1::timestamptz AT TIME ZONE 'UTC')
+    AND ($1::timestamptz AT TIME ZONE 'UTC') <= (now() AT TIME ZONE 'UTC') - interval '${SIGHTING_RETENTION_FLOOR_MONTHS} months'`
+export const SIGHTING_RETENTION_DELETE_SQL = `DELETE FROM "JobAdSighting" WHERE ${RETENTION_WHERE}`
+export const SIGHTING_RETENTION_COUNT_SQL = `SELECT count(*)::int AS n FROM "JobAdSighting" WHERE ${RETENTION_WHERE}`
+
+/**
+ * ⛔ THE ERASURE'S ONE PREDICATE — the UPDATE and a dry run's count are built from it: a row not yet blanked, of an ad
+ * whose OWN listing a moderator removed. Its own: the ad's externalId under its board's storefront ($1 = each board's seller
+ * id, as JSON — the pair jobExternalId gives every job listing), so a removed listing anywhere else never blanks the row,
+ * even one under another job storefront holding the same key, which the importer never makes. Removed by sightingsToLog's
+ * own test: status = $2 = LISTING_REMOVED, what isRemovedStatus compares with. sightingsToLog keys by externalId among the
+ * job storefronts' listings; a key belongs to one board, so the two pick the same ads in every state the importer makes,
+ * and the erasure is never the wider. A blank row never matches, so a second run changes nothing; nor does a row whose
+ * listing is live, hidden, sold or was never made.
+ */
+const ERASURE_WHERE = `(s."title" <> '' OR s."employer" IS NOT NULL)
+    AND EXISTS (SELECT 1 FROM "Listing" AS l WHERE l."sellerId" = ($1::jsonb ->> s."board")
+      AND l."externalId" = s."externalId" AND l."status" = $2)`
+/** The two texts only: the employer to NULL, the title to '' — the column is NOT NULL (prisma/schema.prisma). */
+export const SIGHTING_ERASURE_UPDATE_SQL = `UPDATE "JobAdSighting" AS s SET "employer" = NULL, "title" = '' WHERE ${ERASURE_WHERE}`
+export const SIGHTING_ERASURE_COUNT_SQL = `SELECT count(*)::int AS n FROM "JobAdSighting" AS s WHERE ${ERASURE_WHERE}`
+
+/** Each board's storefront, by board key — the erasure's $1. */
+const BOARD_SELLERS = JSON.stringify(Object.fromEntries(Object.entries(JOB_BOARDS).map(([board, b]) => [board, b.sellerId])))
+
+/** The erasure's two parameters: each board's storefront, as JSON, and the status a moderator's removal leaves. */
+export const sightingErasureParams = (): [string, string] => [BOARD_SELLERS, LISTING_REMOVED]
+
+/** The database surface retention and erasure need — a PrismaClient satisfies it: the write's, plus a read for a dry run. */
+export type SightingUpkeepDb = SightingDb & { $queryRawUnsafe(query: string, ...values: unknown[]): Promise<unknown> }
+
+/** What a retention run deleted (`apply`), or would delete (a dry run), and the cutoff it used. */
+export type RetentionOutcome = { ok: true; apply: boolean; cutoff: string; rows: number } | { ok: false; error: string }
+/** What an erasure run blanked (`apply`), or would blank (a dry run). */
+export type ErasureOutcome = { ok: true; apply: boolean; rows: number } | { ok: false; error: string }
+
+/** A `count(*)::int AS n` row as it comes back — `::int`, so through Prisma a number, never a BigInt the summary JSON could
+ *  not print. Anything else is an error, never a NaN in the log. */
+function countOf(rows: unknown): number {
+  const n = (rows as { n?: unknown }[] | null | undefined)?.[0]?.n
+  if (typeof n !== 'number' || !Number.isSafeInteger(n) || n < 0) throw new Error('the count came back malformed')
+  return n
+}
+
+/**
+ * ⛔ RETENTION (rule 4): deletes the rows last seen more than SIGHTING_RETENTION_MONTHS before the run at `now` — or, on a
+ * dry run (`apply` false), only counts them. Refused, nothing sent, when that cutoff is later than
+ * SIGHTING_RETENTION_FLOOR_MONTHS before `clock()`. NEVER THROWS: a failure is returned, for the import's one FAILED line.
+ */
+export async function deleteSightingsPastRetention(
+  db: SightingUpkeepDb,
+  { now, apply, clock = Date.now }: { now: number; apply: boolean; clock?: () => number },
+): Promise<RetentionOutcome> {
+  try {
+    const cutoff = sightingRetentionCutoff(now)
+    const problem = retentionCutoffProblem(cutoff, clock())
+    if (problem) return { ok: false, error: `refused, nothing deleted — ${problem}` }
+    const at = new Date(cutoff).toISOString()
+    const rows = apply
+      ? await db.$executeRawUnsafe(SIGHTING_RETENTION_DELETE_SQL, at)
+      : countOf(await db.$queryRawUnsafe(SIGHTING_RETENTION_COUNT_SQL, at))
+    return { ok: true, apply, cutoff: at, rows }
+  } catch (e) {
+    return { ok: false, error: isMissingTable(e) ? MISSING_TABLE : messageOf(e, 300) }
+  }
+}
+
+/**
+ * ⛔ ERASURE THROUGH MODERATION (rule 4): blanks the title and employer of every row whose ad's listing a moderator removed
+ * (its key, which can spell the title, stays) — or, on a dry run, only counts them. NEVER THROWS: a failure is returned,
+ * for the import's one FAILED line.
+ */
+export async function eraseSightingsOfRemovedAds(db: SightingUpkeepDb, { apply }: { apply: boolean }): Promise<ErasureOutcome> {
+  try {
+    const params = sightingErasureParams()
+    const rows = apply
+      ? await db.$executeRawUnsafe(SIGHTING_ERASURE_UPDATE_SQL, ...params)
+      : countOf(await db.$queryRawUnsafe(SIGHTING_ERASURE_COUNT_SQL, ...params))
+    return { ok: true, apply, rows }
+  } catch (e) {
+    return { ok: false, error: isMissingTable(e) ? MISSING_TABLE : messageOf(e, 300) }
+  }
+}
+
+const nRows = (n: number) => `${n} ${n === 1 ? 'row' : 'rows'}`
+
+/** The import's one line for the retention, in its column style (`history log       …`); FAILED on any failure. */
+export function retentionLine(o: RetentionOutcome): string {
+  if (!o.ok) return `history retention FAILED — ${o.error}`
+  return `history retention ${nRows(o.rows)} ${o.apply ? 'deleted' : 'would be deleted'}: last seen before ${o.cutoff} (${SIGHTING_RETENTION_MONTHS} months before this run)${o.apply ? '' : ' — not written on a dry run'}`
+}
+
+/** The import's one line for the erasure, in the same style; FAILED on any failure. */
+export function erasureLine(o: ErasureOutcome): string {
+  if (!o.ok) return `history erasure   FAILED — ${o.error}`
+  return `history erasure   ${nRows(o.rows)} ${o.apply ? 'blanked' : 'would be blanked'}: ads whose listing a moderator removed — title and employer cleared, counts, dates and pay kept${o.apply ? '' : ' — not written on a dry run'}`
 }
