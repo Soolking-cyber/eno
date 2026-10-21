@@ -32,7 +32,7 @@
 // ALTER below, as swept_at has. Production gets this version first (it has never run there).
 import pg from 'pg'
 
-const TABLES = ['call_session', 'call_lock', 'call_negotiation', 'call_signal_key', 'call_consent', 'call_telemetry', 'call_config']
+const TABLES = ['call_session', 'call_lock', 'call_negotiation', 'call_signal_key', 'call_consent', 'call_telemetry', 'call_config', 'call_abandon']
 
 const STATEMENTS = [
   [
@@ -61,6 +61,9 @@ const STATEMENTS = [
        edition              text        NOT NULL CHECK (edition IN ('marketplace', 'services')),
        relay_provider       text        NOT NULL CHECK (relay_provider IN ('cloudflare', 'eno')),
        caller_tab           text        NOT NULL,
+       -- The phone's own id for THIS start (one per attempt): a start whose response never came back is ended by it —
+       -- and a give-up that lands before the row exists leaves a tombstone the start finds (session.ts abandonStart).
+       start_id             text,
        callee_tab           text,
        -- The safety code (src/lib/calls/sas.ts): the caller's commitment, the callee's nonce, the caller's reveal —
        -- lowercase hex. None is secret once sent; all are cleared when the call ends. ⚠️ Each is written ONCE (first
@@ -192,6 +195,17 @@ const STATEMENTS = [
      )`,
   ],
   ['call_config.swept_at', `ALTER TABLE public.call_config ADD COLUMN IF NOT EXISTS swept_at timestamptz`],
+  [
+    // A start its phone gave up on before the answer came back (src/lib/calls/server/session.ts abandonStart): the
+    // start, still on its way, finds its id here and never rings. Random ids only — nothing personal; the sweep drops
+    // rows older than ten minutes.
+    'call_abandon table',
+    `CREATE TABLE IF NOT EXISTS public.call_abandon (
+       start_id    text        PRIMARY KEY CHECK (char_length(start_id) BETWEEN 8 AND 64),
+       created_at  timestamptz NOT NULL DEFAULT now()
+     )`,
+  ],
+  ['call_session.start_id', `ALTER TABLE public.call_session ADD COLUMN IF NOT EXISTS start_id text`],
   [
     // The one door to Realtime for calls: the server has already checked participation and call state, so this only
     // shape-checks the topic and event name. Topics: 'call:<conversationId>' (in-call events — the existing

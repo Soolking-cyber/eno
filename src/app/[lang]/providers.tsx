@@ -33,6 +33,7 @@ import { NativeBootstrap } from "@/components/native/native-bootstrap";
 import { NativePush } from "@/components/native/native-push";
 import { NativeBadge } from "@/components/native/native-badge";
 import { PwaBadge } from "@/components/native/pwa-badge";
+import { CallHost } from "@/components/calls/call-host";
 
 // The app's provider pyramid + persistent chrome, extracted VERBATIM from
 // src/app/[lang]/layout.tsx (audit §E) so the layout keeps only document concerns
@@ -75,6 +76,9 @@ export function Providers({
                     native shell and in a plain browser tab). */}
                 <NativeBadge />
                 <PwaBadge />
+                {/* In-app calls: a tiny host that loads the call runtime (ring listener, engine, call screen) only for
+                    people calls are on for — inside AuthProvider (it needs the user) and ChatProvider (order only). */}
+                <CallHost />
                 <FavoritesProvider>
                   <QueryProvider>
                     {/* One delay group for every ui/tooltip in the app: moving between adjacent

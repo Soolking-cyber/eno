@@ -7,6 +7,9 @@ import { MAX_OPAQUE_JSON_LENGTH, PEER_END_REASONS, callIdSchema, sasNonceSchema,
 import { endCall, loadCall, roleOf, type CallSessionRow, type EndedCallRow } from './session'
 import { afterCallEnded } from './finish'
 import { logError } from '@/lib/log'
+import { db } from '@/lib/db'
+import { maskEmailHandle } from '@/lib/utils'
+import { verifiedIdentityFor } from '@/lib/kyc/identity'
 
 /**
  * Shared pieces of the call routes (src/app/api/calls/**, src/app/api/conversations/[id]/call*). Kept tiny: every
@@ -23,6 +26,34 @@ export async function participantCall(callId: string, profileId: string): Promis
 }
 
 export const tabBody = z.strictObject({ tabId: tabIdSchema })
+
+export interface PeerCard {
+  name: string | null
+  avatarUrl: string | null
+  verified: boolean
+  memberSince: string | null
+  side: 'buyer' | 'seller' | null
+}
+
+/**
+ * Who the other person is, for a call screen (DESIGN.md v3 §4: role + listing first, so a stranger cannot pose as eno):
+ * display name, avatar, verified identity yes/no, member since, and which side of the listing they are on. ONE builder
+ * for both screens — the callee's (GET /api/calls/:id) and the caller's (GET /api/conversations/:id/call).
+ */
+export async function peerCard(peerId: string | null, buyerProfileId: string | null): Promise<PeerCard> {
+  if (!peerId) return { name: null, avatarUrl: null, verified: false, memberSince: null, side: null }
+  const [peer, identity] = await Promise.all([
+    db.profile.findUnique({ where: { id: peerId }, select: { displayName: true, email: true, avatarUrl: true, createdAt: true } }),
+    verifiedIdentityFor(peerId),
+  ])
+  return {
+    name: peer?.displayName || maskEmailHandle(peer?.email) || null,
+    avatarUrl: peer?.avatarUrl ?? null,
+    verified: identity !== null,
+    memberSince: peer?.createdAt.toISOString() ?? null,
+    side: buyerProfileId === null ? null : buyerProfileId === peerId ? 'buyer' : 'seller',
+  }
+}
 
 /**
  * A JSON body of at most `maxChars`, parsed — or a 400 bad_request. The read STOPS at the cap (round-6 review): a

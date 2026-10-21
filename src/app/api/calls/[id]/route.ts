@@ -1,9 +1,7 @@
 import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
-import { maskEmailHandle } from '@/lib/utils'
-import { verifiedIdentityFor } from '@/lib/kyc/identity'
-import { participantCall } from '@/lib/calls/server/http'
-import { RING_TIMEOUT_S, endReasonFor } from '@/lib/calls/server/session'
+import { participantCall, peerCard } from '@/lib/calls/server/http'
+import { RING_TIMEOUT_S, callClock, endReasonFor } from '@/lib/calls/server/session'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,10 +22,7 @@ export const GET = route({ auth: 'userId', rateLimit: { bucket: 'calls:details',
     where: { id: row.conversation_id },
     select: { buyerProfileId: true, listing: { select: { id: true, title: true } } },
   })
-  const peer = peerId
-    ? await db.profile.findUnique({ where: { id: peerId }, select: { displayName: true, email: true, avatarUrl: true, createdAt: true } })
-    : null
-  const peerVerified = peerId ? (await verifiedIdentityFor(peerId)) !== null : false
+  const [peer, clock] = await Promise.all([peerCard(peerId, convo?.buyerProfileId ?? null), callClock(row.id)])
   return {
     callId: row.id,
     conversationId: row.conversation_id,
@@ -38,18 +33,15 @@ export const GET = route({ auth: 'userId', rateLimit: { bucket: 'calls:details',
     protocolVersion: row.protocol_version,
     ringingAt: row.ringing_at.toISOString(),
     ringTimeoutSec: RING_TIMEOUT_S,
+    // How long it still rings, by the DATABASE's clock (session.ts callClock): the phone's own clock can be minutes
+    // off, and a ring timed from ringingAt on it could last one second (client review).
+    ringRemainingMs: clock?.ringRemainingMs ?? 0,
     connectedAt: row.connected_at?.toISOString() ?? null,
     commit: role === 'callee' && row.state === 'ringing' ? row.caller_commit : null,
     // The ids the commitment binds — stored at start (session.ts commitTag), so the callee gets exactly what the caller
     // committed with, whichever edition each of them is on.
     commitIds: row.caller_tag && row.callee_tag ? { caller: row.caller_tag, callee: row.callee_tag } : null,
-    peer: {
-      name: peer?.displayName || maskEmailHandle(peer?.email) || null,
-      avatarUrl: peer?.avatarUrl ?? null,
-      verified: peerVerified,
-      memberSince: peer?.createdAt.toISOString() ?? null,
-      side: peerId && convo ? (convo.buyerProfileId === peerId ? 'buyer' : 'seller') : null,
-    },
+    peer,
     listing: convo?.listing ? { id: convo.listing.id, title: convo.listing.title } : null,
   }
 })

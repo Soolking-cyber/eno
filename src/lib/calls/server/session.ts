@@ -2,6 +2,7 @@ import 'server-only'
 import { createHash, createHmac, randomUUID } from 'node:crypto'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
+import { logError } from '@/lib/log'
 import type { CallEndReason, CallMedia, CallRole } from '../types'
 import {
   MAX_SNAPSHOT_CANDIDATES_PER_NEG, MAX_SNAPSHOT_NEGOTIATIONS, resyncSnapshotSchema,
@@ -230,6 +231,8 @@ export interface StartInput {
   commit: string
   callerCaps: unknown
   callerRelayUser: string
+  /** The phone's id for this attempt (abandonStart). */
+  startId: string
 }
 
 export type StartResult =
@@ -245,11 +248,17 @@ export type StartResult =
   | { kind: 'blocked' }
   /** The callee withdrew their consent between the route's check and this transaction. */
   | { kind: 'consent_required' }
+  /** This very start was already given up by its phone (abandonStart's tombstone): nothing is rung. */
+  | { kind: 'abandoned' }
 
 export async function startCall(input: StartInput): Promise<StartResult> {
   const callId = randomUUID()
   return db.$transaction(async (tx) => {
     await lockPeople(tx, [input.callerId, input.calleeId])
+    // ⛔ A START ITS PHONE ALREADY GAVE UP ON never rings (client review): the give-up can land while the relay mint is
+    // still running — before this row exists — and leaves this tombstone, under the same caller lock.
+    const abandoned = await tx.$queryRaw<{ x: number }[]>`SELECT 1 AS x FROM public.call_abandon WHERE start_id = ${input.startId}`
+    if (abandoned[0]) return { kind: 'abandoned' } as const
 
     const merge = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM public.call_session
@@ -273,14 +282,14 @@ export async function startCall(input: StartInput): Promise<StartResult> {
     const rows = await tx.$queryRaw<CallSessionRow[]>`
       INSERT INTO public.call_session (
         id, conversation_id, caller_id, callee_id, caller_hash, callee_hash, caller_tag, callee_tag, media, state,
-        end_reason, protocol_version, edition, relay_provider, caller_tab, caller_commit, caller_caps, caller_relay_user,
+        end_reason, protocol_version, edition, relay_provider, caller_tab, start_id, caller_commit, caller_caps, caller_relay_user,
         caller_heartbeat_at, ended_at
       ) VALUES (
         ${callId}::uuid, ${input.conversationId}, ${input.callerId}::uuid, ${input.calleeId}::uuid,
         ${partyHash(input.callerId)}, ${partyHash(input.calleeId)},
         ${calleeBusy ? null : commitTag(input.callerId, input.conversationId)}, ${calleeBusy ? null : commitTag(input.calleeId, input.conversationId)}, ${input.media},
         ${calleeBusy ? 'ended' : 'ringing'}, ${calleeBusy ? 'unavailable' : null},
-        ${input.protocolVersion}, ${input.edition}, ${input.relay}, ${input.callerTab}, ${calleeBusy ? ZERO_COMMIT : input.commit},
+        ${input.protocolVersion}, ${input.edition}, ${input.relay}, ${input.callerTab}, ${input.startId}, ${calleeBusy ? ZERO_COMMIT : input.commit},
         ${calleeBusy ? null : JSON.stringify(input.callerCaps ?? null)}::jsonb,
         ${calleeBusy ? null : input.callerRelayUser}, now(), CASE WHEN ${calleeBusy} THEN now() END
       ) RETURNING *`
@@ -687,6 +696,60 @@ export async function endCallsOfIn(tx: Tx, profileId: string, reason: CallEndRea
 }
 
 /**
+ * The newest call ringing THIS person right now (fresh — session.ts FRESH), or null. The ring broadcast is a hint a
+ * page can miss — loading, or its socket reconnecting — so the call runtime asks here whenever its ring channel
+ * (re)subscribes (client review: a call that rang during page start-up never showed).
+ */
+export async function ringingCallFor(profileId: string): Promise<string | null> {
+  const rows = await db.$queryRaw<{ id: string }[]>`
+    SELECT id FROM public.call_session
+     WHERE callee_id = ${profileId}::uuid AND state = 'ringing' AND ${FRESH}
+     ORDER BY ringing_at DESC LIMIT 1`
+  return rows[0]?.id ?? null
+}
+
+/** How long a give-up is kept — far past any start still on its way (the relay mint, the transaction). */
+const ABANDON_KEEP_MIN = 10
+
+/**
+ * A START WHOSE RESPONSE NEVER CAME BACK (a timeout on a slow network): the phone has no call id to end it by, and the
+ * box may already be ringing the other person — or still minting the relay credential, with no row yet (client
+ * review, twice). Under the caller's lock: a tombstone for THIS start (startCall refuses it), then the call it already
+ * made, if any, ends — ringing 'cancelled', answered meanwhile as a hang-up. Only this caller's, only this start.
+ */
+export async function abandonStart(conversationId: string, callerId: string, startId: string): Promise<{ row: EndedCallRow; reason: CallEndReason }[]> {
+  return db.$transaction(async (tx) => {
+    await lockPeople(tx, [callerId])
+    await tx.$executeRaw`INSERT INTO public.call_abandon (start_id) VALUES (${startId}) ON CONFLICT (start_id) DO NOTHING`
+    const live = await tx.$queryRaw<{ id: string; state: CallStateName }[]>`
+      SELECT id, state FROM public.call_session
+       WHERE conversation_id = ${conversationId} AND caller_id = ${callerId}::uuid AND start_id = ${startId} AND state <> 'ended'`
+    const ended: { row: EndedCallRow; reason: CallEndReason }[] = []
+    for (const c of live) {
+      const reason: CallEndReason = c.state === 'ringing' ? 'cancelled' : 'hangup'
+      const row = await endCallIn(tx, { callId: c.id, reason })
+      if (row) ended.push({ row, reason })
+    }
+    return ended
+  }, { timeout: 10_000 })
+}
+
+/**
+ * The clock of one call, measured IN SQL against the database's own now() — never in JavaScript: @prisma/adapter-pg
+ * decodes timestamptz as UTC whatever the session's time zone (measured on a +07 database), and a phone's clock can be
+ * minutes off. Remaining ring, remaining time before the 2 h cap (null until connected), and how long ago it ended.
+ */
+export async function callClock(callId: string): Promise<{ ringRemainingMs: number; capRemainingMs: number | null; endedAgoMs: number | null } | null> {
+  const rows = await db.$queryRaw<{ ring: number; cap: number | null; ended: number | null }[]>`
+    SELECT GREATEST(0, EXTRACT(EPOCH FROM (ringing_at + make_interval(secs => ${RING_TIMEOUT_S}::int) - now())) * 1000)::float8 AS ring,
+           (EXTRACT(EPOCH FROM (connected_at + make_interval(secs => ${CALL_CAP_S}::int) - now())) * 1000)::float8 AS cap,
+           (EXTRACT(EPOCH FROM (now() - ended_at)) * 1000)::float8 AS ended
+      FROM public.call_session WHERE id = ${callId}::uuid`
+  const r = rows[0]
+  return r ? { ringRemainingMs: Math.round(r.ring), capRemainingMs: r.cap === null ? null : Math.round(r.cap), endedAgoMs: r.ended === null ? null : Math.round(r.ended) } : null
+}
+
+/**
  * What the §4 limits count (eligibility.ts callLimitRefusal): this pair's UNANSWERED calls in 24 h — every ended call
  * that never connected, a call to a busy person included (round-7 review: it still leaves a missed-call row, bell and
  * push) — the distinct callers who rang the callee in the last hour, and whether this caller is already one of them.
@@ -734,6 +797,10 @@ export async function sweepIsFresh(): Promise<boolean> {
 export const TELEMETRY_RETENTION_DAYS = 90
 
 export async function purgeOldTelemetry(): Promise<number> {
+  // Give-ups (abandonStart) are only needed while a start could still be on its way. Independent of the telemetry purge
+  // below (client review): one failing never stops the other.
+  await db.$executeRaw`DELETE FROM public.call_abandon WHERE created_at < now() - make_interval(mins => ${ABANDON_KEEP_MIN})`
+    .catch((e: unknown) => logError(e, { op: 'calls.purgeAbandons' }))
   return db.$executeRaw`
     DELETE FROM public.call_telemetry WHERE created_at < now() - make_interval(days => ${TELEMETRY_RETENTION_DAYS})`
 }

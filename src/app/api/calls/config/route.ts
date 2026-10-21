@@ -19,7 +19,9 @@ export const dynamic = 'force-dynamic'
 // behind one CGNAT address. A signed-out request does no database work at all; a signed-in one reads a cached row.
 export const GET = route({ auth: 'public' }, async () => {
   const profileId = await getCurrentProfileId()
-  const off = { enabled: false, video: false, protocolVersion: CALL_PROTOCOL_VERSION }
+  // `userId`: the account this answer is FOR — the client keys its 60 s copy by it, so an answer that lands after a
+  // switch of account is never filed under the previous one (client review).
+  const off = { enabled: false, video: false, protocolVersion: CALL_PROTOCOL_VERSION, userId: profileId }
   // Signed out: never cached — the answer must change the moment someone signs in.
   if (!profileId) return NextResponse.json(off, { headers: { 'Cache-Control': 'no-store' } })
   const { enabled, config } = await callsEnabledFor(profileId)
@@ -27,7 +29,7 @@ export const GET = route({ auth: 'public' }, async () => {
   // ⚠️ no-store here too: a browser cache is not keyed by who is signed in, so one account's answer must never be
   // served to the next account on a shared device (commit-gate review). The client keeps its own 60 s copy in memory.
   return NextResponse.json(
-    on ? { enabled: true, video: config.video, protocolVersion: CALL_PROTOCOL_VERSION } : off,
+    on ? { enabled: true, video: config.video, protocolVersion: CALL_PROTOCOL_VERSION, userId: profileId } : off,
     { headers: { 'Cache-Control': 'no-store' } },
   )
 })

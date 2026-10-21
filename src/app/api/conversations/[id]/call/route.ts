@@ -6,10 +6,10 @@ import { CALL_PROTOCOL_VERSION } from '@/lib/calls/types'
 import { sasNonceSchema, tabIdSchema } from '@/lib/calls/protocol'
 import { callLimitRefusal, callPermit, hasCallConsent, loadConversationForCall } from '@/lib/calls/server/eligibility'
 import { mintRelayCredential, relayConfigured, revokeRelayCredential } from '@/lib/calls/server/relay'
-import { RING_TIMEOUT_S, commitTag, startCall, sweepStale } from '@/lib/calls/server/session'
+import { RING_TIMEOUT_S, abandonStart, commitTag, startCall, sweepStale } from '@/lib/calls/server/session'
 import { afterCallEnded } from '@/lib/calls/server/finish'
 import { sendRingPush } from '@/lib/calls/server/cards'
-import { boundedCapabilities, relayForClient } from '@/lib/calls/server/http'
+import { boundedCapabilities, peerCard, relayForClient } from '@/lib/calls/server/http'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,7 +18,8 @@ export const dynamic = 'force-dynamic'
 //
 // GET  → what the button may offer here: audio / video each 'ok' or the refusal code that explains why not, and the
 //        consent state both ways ("Allow calls from <name>"), and — only when a call is possible — the two ids the
-//        safety-code commitment binds (session.ts commitTag: pseudonyms, never profile ids). No side effects.
+//        safety-code commitment binds (session.ts commitTag: pseudonyms, never profile ids) and the other person's card
+//        for the caller's screen (http.ts peerCard — the same one the callee's screen gets). No side effects.
 // POST → start a call. Gates in order (eligibility.ts): the runtime switch for BOTH people, the thread kind, neither
 //        suspended, no block, the caller verified (video / teacher threads: both), the callee's consent, the limits.
 //        Then one relay credential for the caller, then ONE transaction (session.ts startCall): cross-call merge, busy
@@ -31,12 +32,30 @@ export const dynamic = 'force-dynamic'
 // ⚠️ The commitment C is all the caller sends of the safety code (sas.ts step 1); nA and the certificate stay on the
 // phone. callId is minted here, AFTER C — which is why C cannot include it.
 
+/** The phone's id for one start attempt (abandonStart). */
+const startIdSchema = z.string().regex(/^[A-Za-z0-9_-]{8,64}$/)
+
+// DELETE { startId } → give up a start that never heard back (a timeout after the box may already have rung the other
+// person — the phone has no call id to end it by). Ends that start's call if it exists, and leaves a tombstone so a
+// start still on its way never rings (session.ts abandonStart). Only mine, only that start; idempotent. 200 { ended }.
+const abandonBody = z.strictObject({ startId: startIdSchema })
+
+export const DELETE = route(
+  { auth: 'userId', rateLimit: { bucket: 'calls:abandon', limit: 30, window: '1 m' }, body: abandonBody },
+  async ({ params, userId, body }) => {
+    const ended = await abandonStart(params.id, userId, body.startId)
+    for (const { row, reason } of ended) after(() => afterCallEnded(row, reason))
+    return { ended: ended.length }
+  },
+)
+
 const startBody = z.strictObject({
   v: z.int(),
   media: z.enum(['audio', 'video']),
   tabId: tabIdSchema,
   commit: sasNonceSchema,
   capabilities: boundedCapabilities,
+  startId: startIdSchema,
 })
 
 export const GET = route({ auth: 'userId', rateLimit: { bucket: 'calls:button', limit: 120, window: '1 m' } }, async ({ params, userId }) => {
@@ -48,12 +67,16 @@ export const GET = route({ auth: 'userId', rateLimit: { bucket: 'calls:button', 
     ? await Promise.all([hasCallConsent(convo.id, calleeId, userId), hasCallConsent(convo.id, userId, calleeId)])
     : [false, false]
   const relay = audio.ok ? relayConfigured(audio.config.relay) : false
+  // Only where a call is possible (client review): a blocked or suspended participant reads nothing more of the other
+  // person than the thread already shows — and a thread that cannot call costs no extra queries.
+  const peer = calleeId && (audio.ok || video.ok) ? await peerCard(calleeId, convo.buyerProfileId) : null
   return {
     protocolVersion: CALL_PROTOCOL_VERSION,
     audio: audio.ok ? (relay ? 'ok' : 'relay_unavailable') : audio.error,
     video: video.ok ? (relay ? 'ok' : 'relay_unavailable') : video.error,
     consent: { theyAllowMe, iAllowThem },
     commitIds: calleeId ? { caller: commitTag(userId, convo.id), callee: commitTag(calleeId, convo.id) } : null,
+    peer,
   }
 })
 
@@ -84,7 +107,7 @@ export const POST = route(
       result = await startCall({
         conversationId: convo.id, callerId: userId, calleeId: permit.calleeId, media: body.media,
         protocolVersion: body.v, edition: EDITION, relay: grant.provider, callerTab: body.tabId, commit: body.commit,
-        callerCaps: body.capabilities ?? null, callerRelayUser: grant.handle,
+        callerCaps: body.capabilities ?? null, callerRelayUser: grant.handle, startId: body.startId,
       })
     } catch (e) {
       // The credential was minted for a call that never existed — revoke it rather than leave it live for its TTL.
@@ -99,6 +122,8 @@ export const POST = route(
         throw new ApiError('blocked', 403)
       case 'consent_required':
         throw new ApiError('calls_consent_required', 403)
+      case 'abandoned':
+        throw new ApiError('call_gone', 409) // its phone gave up already — nobody is waiting for this answer
       case 'merge':
         return { kind: 'merge', callId: result.callId }
       case 'unavailable': {

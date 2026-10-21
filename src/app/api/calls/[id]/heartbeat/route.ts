@@ -2,7 +2,7 @@ import { after } from 'next/server'
 import { z } from 'zod'
 import { ApiError, route } from '@/lib/api/handler'
 import { liveCallRefusal } from '@/lib/calls/server/eligibility'
-import { CALL_CAP_S, endCall, heartbeat, sweepStale } from '@/lib/calls/server/session'
+import { callClock, endCall, heartbeat, sweepStale } from '@/lib/calls/server/session'
 import { afterCallEnded } from '@/lib/calls/server/finish'
 import { storeTelemetry } from '@/lib/calls/server/telemetry-store'
 import { participantCall, tabIdSchema } from '@/lib/calls/server/http'
@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic'
 // Body: { tabId, connected, telemetry? } — `connected` stamps the first connection once (the 2 h cap counts from it);
 // `telemetry` is the 30 s summary riding along (telemetry-store.ts), refused silently if malformed so a telemetry bug
 // can never end a call.
-// 200 { state, connectedAt, capAt } — capAt lets the screen warn at 1:55. 409 call_gone — ended, or not the bound tab
+// 200 { state, capInMs } — the time left before the 2 h cap (null until connected), so the screen can warn at 1:55. 409 call_gone — ended, or not the bound tab
 // (the phone then reads /state and tears down).
 
 const heartbeatBody = z.strictObject({ tabId: tabIdSchema, connected: z.boolean(), telemetry: z.unknown().optional() })
@@ -45,10 +45,8 @@ export const POST = route(
     const stale = await sweepStale({ onlyCall: row.id, limit: 1 })
     for (const s of stale) after(() => afterCallEnded(s.row, s.reason))
     if (stale.length) throw new ApiError('call_gone', 409)
-    return {
-      state: row.state,
-      connectedAt: row.connected_at?.toISOString() ?? null,
-      capAt: row.connected_at ? new Date(row.connected_at.getTime() + CALL_CAP_S * 1000).toISOString() : null,
-    }
+    // Time left before the 2 h cap, by the DATABASE's clock (session.ts callClock) — the phone adds it to its own now.
+    const clock = await callClock(row.id)
+    return { state: row.state, capInMs: clock?.capRemainingMs ?? null }
   },
 )

@@ -70,6 +70,9 @@ describe('the relay (relay.ts)', () => {
     expect([...list]).toEqual(expect.arrayContaining([...CLOUDFLARE_IPV4_RANGES]))
     expect(list.has('141.101.64.0/18')).toBe(true) // 141.101.90.1
     expect(list.has('162.158.0.0/15')).toBe(true) // 162.159.207.1
+    // ⛔ the block Cloudflare's TURN relays from, measured 2026-10-21 (all 36 relay candidates in 104.30.136–149.x):
+    // without it every real candidate was dropped (relay.ts)
+    expect(list.has('104.30.0.0/16')).toBe(true)
     for (const r of list) expect(r).not.toMatch(/^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.)/)
   })
 })

@@ -47,18 +47,23 @@ export interface RelayGrant {
 }
 
 /**
- * Cloudflare's published IPv4 ranges (cloudflare.com/ips-v4, read 2026-10-21) — the addresses its relayed candidates
- * can carry. ⚠️ Cloudflare documents its TURN SERVER addresses (141.101.90.1, 162.159.207.1 — both inside these) but
- * not its RELAYED ranges, and says the relay issues IPv4 only; its whole announced space is the honest superset. It
- * holds only addresses CLOUDFLARE operates — a WARP or Private Relay user's egress among them, never their ISP's — and
- * sdp-guard keeps a candidate only if it is `typ relay` (sanitizeCandidateLine), so a srflx or host line carrying any
- * address is dropped before this list is consulted. If calls ever connect nowhere with every candidate dropped, the route
- * logs 'calls.relay.candidates_dropped' — extend CALLS_RELAY_EXTRA_RANGES rather than widening this list by guess.
+ * The IPv4 ranges a Cloudflare-relayed candidate may carry: Cloudflare's published ranges (cloudflare.com/ips-v4, read
+ * 2026-10-21) PLUS the block its Realtime TURN actually relays from. ⛔ THAT BLOCK IS NOT PUBLISHED, AND IT IS NOT IN
+ * THE LIST ABOVE IT: measured 2026-10-21 against the live key — 36 relay candidates over three credentials, every one in
+ * 104.30.136–149.x — the first real-relay run of the call harness had every candidate dropped and no call could have
+ * connected. 104.30.0.0/16 sits inside Cloudflare's own ARIN allocation (104.16.0.0/12, CLOUDFLARENET). Cloudflare
+ * documents its TURN SERVER addresses (141.101.90.1, 162.159.207.1 — inside the published ranges) and says the relay
+ * issues IPv4 only. Everything here is an address CLOUDFLARE operates — a WARP or Private Relay user's egress among
+ * them, never their ISP's — and sdp-guard keeps a candidate only if it is `typ relay` (sanitizeCandidateLine), so a
+ * srflx or host line carrying any address is dropped before this list is consulted. If calls ever connect nowhere with
+ * every candidate dropped, the route logs 'calls.relay.candidates_dropped': measure again (a relay-policy gather, as
+ * ~/eno-calls-research-2026-10/relay-probe.mjs does) and extend this list — or CALLS_RELAY_EXTRA_RANGES on the box.
  */
 export const CLOUDFLARE_IPV4_RANGES: readonly string[] = [
   '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22', '141.101.64.0/18', '108.162.192.0/18',
   '190.93.240.0/20', '188.114.96.0/20', '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
   '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+  '104.30.0.0/16', // Realtime TURN's relayed addresses — measured, see above
 ]
 
 function envList(name: string): string[] {

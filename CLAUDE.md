@@ -99,8 +99,8 @@ from memory.
   tokens kept for revocation on account deletion, TN3194 — `scripts/apple-siwa-ddl.mjs`, 2026-10-08),
   `rum_daily` (the anonymous page-speed totals, speed plan item 5 — `scripts/rum-ddl.mjs`, 2026-10-16), and
   `_hide_secondhand_20261016` (the second-hand cap's pool — the only rows the weekly showcase job may publish, and where
-  its trims go; `src/lib/secondhand-showcase.ts` CAP_POOL_TABLE, `scripts/secondhand-pool-ddl.mjs`, 2026-10-17), and the seven in-app call tables `call_session` / `call_lock` / `call_negotiation` / `call_signal_key` /
-  `call_consent` / `call_telemetry` / `call_config` (the runtime switch) plus `broadcast_call_event()` and the realtime
+  its trims go; `src/lib/secondhand-showcase.ts` CAP_POOL_TABLE, `scripts/secondhand-pool-ddl.mjs`, 2026-10-17), and the eight in-app call tables `call_session` / `call_lock` / `call_negotiation` / `call_signal_key` /
+  `call_consent` / `call_telemetry` / `call_config` (the runtime switch) / `call_abandon` plus `broadcast_call_event()` and the realtime
   "own ring channel" policy (`scripts/calls-ddl.mjs`, 2026-10-21).
 
   **The safe flow — generate SQL, read it, apply only what is additive:**

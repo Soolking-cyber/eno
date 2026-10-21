@@ -169,6 +169,8 @@ export const LUCIDE_TO_SOLAR = {
   MapPinOff: 'map-point-remove',
   Mars: 'men',
   Megaphone: 'speaker',
+  Mic: 'microphone', // in-app calls (2026-10-21): the mute control
+  MicOff: 'muted',
   MessageCircle: 'chat-round',
   MessageSquare: 'chat-square',
   MessageSquareText: 'chat-square',
@@ -191,6 +193,8 @@ export const LUCIDE_TO_SOLAR = {
   Pencil: 'pen',
   PencilLine: 'pen-new-square',
   Phone: 'phone',
+  PhoneIncoming: 'incoming-call', // in-app calls: the ring screen
+  PhoneOff: 'end-call', // in-app calls: hang up / decline
   Plane: 'plane',
   PlaneTakeoff: 'plane',
   Play: 'play',
@@ -234,6 +238,7 @@ export const LUCIDE_TO_SOLAR = {
   StickyNote: 'notes',
   Store: 'shop',
   Sun: 'sun',
+  SwitchCamera: 'camera-rotate', // in-app calls: front / back camera
   Table: 'bedside-table',
   TabletSmartphone: 'tablet',
   Tag: 'tag',

@@ -1,6 +1,7 @@
 import { ApiError, route } from '@/lib/api/handler'
 import { storeTelemetry } from '@/lib/calls/server/telemetry-store'
 import { participantCall, readJsonCapped } from '@/lib/calls/server/http'
+import { callClock } from '@/lib/calls/server/session'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,7 +20,8 @@ const MAX_BODY_CHARS = 16 * 1024
 export const POST = route({ auth: 'userId', rateLimit: { bucket: 'calls:telemetry', limit: 30, window: '1 m' } }, async ({ req, params, userId }) => {
   const raw = await readJsonCapped(req, MAX_BODY_CHARS)
   const { row, role } = await participantCall(params.id, userId)
-  if (row.ended_at && Date.now() - row.ended_at.getTime() > LATE_WINDOW_MS) throw new ApiError('call_gone', 409)
+  // Measured in SQL (session.ts callClock), never by decoding ended_at in JavaScript.
+  if (row.ended_at && ((await callClock(row.id))?.endedAgoMs ?? Infinity) > LATE_WINDOW_MS) throw new ApiError('call_gone', 409)
   if (!(await storeTelemetry(row.id, role, raw))) throw new ApiError('bad_request', 400)
   return { ok: true }
 })

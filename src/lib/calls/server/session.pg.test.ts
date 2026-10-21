@@ -33,9 +33,9 @@ describe.skipIf(!live)('call session SQL against a real Postgres', () => {
   const people = { alice: randomUUID(), bob: randomUUID(), carol: randomUUID(), dave: randomUUID() }
   const convo = { ab: `convo-ab-${randomUUID().slice(0, 8)}`, cb: `convo-cb-${randomUUID().slice(0, 8)}`, ad: `convo-ad-${randomUUID().slice(0, 8)}` }
 
-  const start = (caller: string, callee: string, conversationId: string, tab = 'tab-caller') => s.startCall({
+  const start = (caller: string, callee: string, conversationId: string, tab = 'tab-caller', startId = randomUUID()) => s.startCall({
     conversationId, callerId: caller, calleeId: callee, media: 'audio', protocolVersion: 1, edition: 'marketplace',
-    relay: 'cloudflare', callerTab: tab, commit: COMMIT, callerCaps: { v: 1 }, callerRelayUser: `relay-${randomUUID()}`,
+    relay: 'cloudflare', callerTab: tab, commit: COMMIT, callerCaps: { v: 1 }, callerRelayUser: `relay-${randomUUID()}`, startId,
   })
   const accept = (callId: string, callee: string, tabId = 'tab-callee') => s.acceptCall({
     callId, calleeId: callee, tabId, nonce: NONCE_B, calleeCaps: { v: 1 }, calleeRelayUser: `relay-${randomUUID()}`,
@@ -58,6 +58,7 @@ describe.skipIf(!live)('call session SQL against a real Postgres', () => {
     await db.$executeRaw`DELETE FROM public.call_signal_key`
     await db.$executeRaw`DELETE FROM public.call_session`
     await db.$executeRaw`DELETE FROM realtime.sent`
+    await db.$executeRaw`DELETE FROM public.call_abandon`
     // Everyone allows everyone in every test thread — startCall re-checks consent inside its transaction.
     await db.$executeRaw`DELETE FROM public.call_consent`
     for (const c of Object.values(convo)) {
@@ -386,6 +387,50 @@ describe.skipIf(!live)('call session SQL against a real Postgres', () => {
     // nothing there yet: the implied grant is recorded, as implied
     await e.setCallConsent(convo.ab, people.dave, people.carol, true, e.CALL_CONSENT_IMPLIED_VERSION)
     expect(await row(people.dave, people.carol)).toEqual({ copy_version: e.CALL_CONSENT_IMPLIED_VERSION, revoked: false })
+  })
+
+  it('the ring a page missed can be read back: the newest FRESH ring for the callee, none once over (client review)', async () => {
+    expect(await s.ringingCallFor(people.bob)).toBeNull()
+    const { callId } = (await start(people.alice, people.bob, convo.ab)) as { callId: string }
+    expect(await s.ringingCallFor(people.bob)).toBe(callId)
+    expect(await s.ringingCallFor(people.alice)).toBeNull() // the caller is not rung
+    await db.$executeRaw`UPDATE public.call_session SET ringing_at = now() - make_interval(secs => ${s.RING_TIMEOUT_S + 5}) WHERE id = ${callId}::uuid`
+    expect(await s.ringingCallFor(people.bob)).toBeNull() // stale: not a ring any more
+  })
+
+  it('⛔ a start that never heard back is given up by ITS id: ended if made — and never rung if still on its way (client review)', async () => {
+    // made already: ringing → cancelled
+    const lost = randomUUID()
+    const a = (await start(people.alice, people.bob, convo.ab, 'tab-a', lost)) as { callId: string }
+    expect((await s.abandonStart(convo.ab, people.alice, randomUUID())).length).toBe(0) // another start's id: nothing
+    expect((await s.abandonStart(convo.ab, people.alice, lost)).map((x) => [x.row.id, x.reason])).toEqual([[a.callId, 'cancelled']])
+    // still on its way (the relay mint running): the give-up lands first, the start then refuses to ring
+    const early = randomUUID()
+    expect(await s.abandonStart(convo.ab, people.alice, early)).toEqual([])
+    expect(await start(people.alice, people.bob, convo.ab, 'tab-a', early)).toEqual({ kind: 'abandoned' })
+    expect(await s.ringingCallFor(people.bob)).toBeNull()
+    // the same tab's NEXT attempt is a new start and rings as usual; answered meanwhile, a give-up ends it as a hang-up
+    const next = randomUUID()
+    const b = (await start(people.alice, people.bob, convo.ab, 'tab-a', next)) as { kind: string; callId: string }
+    expect(b.kind).toBe('ringing')
+    await accept(b.callId, people.bob)
+    expect((await s.abandonStart(convo.ab, people.alice, next)).map((x) => x.reason)).toEqual(['hangup'])
+  })
+
+  it('the call clock is the DATABASE\'s: remaining ring, time to the cap, time since the end (client review)', async () => {
+    const { callId } = (await start(people.alice, people.bob, convo.ab)) as { callId: string }
+    const c1 = (await s.callClock(callId))!
+    expect(c1.ringRemainingMs).toBeGreaterThan((s.RING_TIMEOUT_S - 10) * 1000)
+    expect(c1.ringRemainingMs).toBeLessThanOrEqual(s.RING_TIMEOUT_S * 1000)
+    expect([c1.capRemainingMs, c1.endedAgoMs]).toEqual([null, null])
+    await accept(callId, people.bob)
+    await db.$executeRaw`UPDATE public.call_session SET state = 'connected', connected_at = now() - interval '10 minutes' WHERE id = ${callId}::uuid`
+    const c2 = (await s.callClock(callId))!
+    expect(Math.abs(c2.capRemainingMs! - (s.CALL_CAP_S - 600) * 1000)).toBeLessThan(10_000)
+    await s.endCall({ callId, reason: 'hangup' })
+    const c3 = (await s.callClock(callId))!
+    expect(c3.endedAgoMs).toBeGreaterThanOrEqual(0)
+    expect(c3.endedAgoMs).toBeLessThan(10_000)
   })
 
   it('the kill switch ends every live call; a block ends the calls between two people only', async () => {

@@ -35,6 +35,8 @@ import { Input } from '@/components/ui/input'
 import { EnoSlider } from '@/components/ui/slider'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { BlockUserButton } from '@/components/marketplace/block-user-button'
+import { CallButtons } from '@/components/calls/call-buttons'
+import { AllowCallsChip } from '@/components/calls/allow-calls-chip'
 import { ClosedThreadBanner } from '@/components/marketplace/closed-thread-banner'
 import { OBJECTIONABLE_CONTENT, composerFreeForRefused, objectionableCopy } from '@/lib/ugc-copy'
 import { teacherAwaitingReplyMessage } from '@/lib/teachers/dm-limit-copy'
@@ -420,6 +422,24 @@ type Thread = {
    * set, so an absent field simply means the bar shows the defaults.
    */
   topReactions?: string[]
+}
+
+/**
+ * In-app calls: the newest "<name> would like to call you" row from the other person — the one the Allow-calls chip
+ * sits under (src/components/calls/allow-calls-chip.tsx). One answer per thread: older requests show no second chip
+ * that could disagree with it. Memoised per messages array (a new message is a new array).
+ */
+const lastCallRequestOf = new WeakMap<Msg[], string | null>()
+function lastIncomingCallRequestId(messages: Msg[]): string | null {
+  let id = lastCallRequestOf.get(messages)
+  if (id === undefined) {
+    id = null
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].kind === 'call_request' && !messages[i].mine) { id = messages[i].id; break }
+    }
+    lastCallRequestOf.set(messages, id)
+  }
+  return id
 }
 
 /**
@@ -2593,6 +2613,15 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                 </div>
               )}
             </div>
+            {/* In-app calls (src/components/calls/call-buttons.tsx): renders nothing unless calls are on for this
+                person and this thread can carry one — never on a desk, visa or itinerary thread, never once closed. */}
+            {thread?.listing && thread.kind !== 'visa' && thread.kind !== 'itinerary' && !thread.closed && (
+              <CallButtons
+                conversationId={thread.id}
+                peer={{ name: thread.counterpart.name ?? null, avatarUrl: thread.counterpart.avatarUrl ?? null }}
+                listing={{ id: thread.listing.id, title: thread.listing.title }}
+              />
+            )}
             {/* Report this conversation (harassment / scam in chat) — the report links
                 the thread so an admin can read the exchange. */}
             {thread && <ReportButton conversationId={thread.id} className="shrink-0" />}
@@ -3336,6 +3365,8 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   />
                 )}
                 </div>
+                {/* "<name> would like to call you": the Allow-calls answer, on the recipient's side only, under the newest request. */}
+                {m.kind === 'call_request' && !m.mine && !thread.closed && m.id === lastIncomingCallRequestId(thread.messages) && <AllowCallsChip conversationId={thread.id} name={thread.counterpart.name ?? null} />}
                 {/* Reveal the original / re-hide it — only on an incoming message we translated. */}
                 {!m.mine && translate.translationFor(m.id) && (
                   <button
