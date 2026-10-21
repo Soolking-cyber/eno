@@ -31,6 +31,10 @@ const bodySchema = z.object({
   // which the domain accepts — so an API client could not make the one correction the alias exists
   // for. The empty string is the explicit "clear it" signal; see reviewKycCase.
   nationality: z.union([z.literal(''), z.string().regex(/^[A-Za-z]{1,3}$/)]).optional(),
+  /** A typed passport's number as the reviewer reads it off the photo — required to approve `passport_manual`. */
+  passportNumber: z.string().max(40).optional(),
+  /** …and its expiry date as read off the photo, when the applicant typed it (YYYY-MM-DD). */
+  documentExpiry: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 })
 
 export const POST = route(
@@ -47,6 +51,8 @@ export const POST = route(
       // forwarding the raw string, and a contract that depends on a helper's internals is one
       // refactor away from 400-ing a value its own schema advertises as valid (the Opus seat).
       nationality: body.nationality === undefined ? undefined : body.nationality.trim().toUpperCase(),
+      passportNumber: body.passportNumber,
+      documentExpiry: body.documentExpiry,
     })
     if (!result.ok) {
       if (result.code === 'not_found') throw new ApiError('not_found', 404)
@@ -69,6 +75,9 @@ export const POST = route(
       // (`ZZZ`, a typo, or a deliberately-unmapped `XXA`/`GBD`). Nothing about the CASE is wrong,
       // so it must not read as a conflict the reviewer should stop and investigate.
       if (result.code === 'nationality_invalid') throw new ApiError('nationality_invalid', 400)
+      if (result.code === 'number_required') throw new ApiError('number_required', 400)
+      if (result.code === 'number_mismatch') throw new ApiError('number_mismatch', 409)
+      if (result.code === 'expiry_required') throw new ApiError('expiry_required', 400)
       if (result.code === 'still_pending') throw new ApiError('internal_error', 500)
       throw new ApiError('internal_error', 500)
     }

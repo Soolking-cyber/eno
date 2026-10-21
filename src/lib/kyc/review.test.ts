@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { createHash } from 'node:crypto'
 
 const h = vi.hoisted(() => ({
   s: {
     row: null as Record<string, unknown> | null,
     clash: null as { id: string } | null,
+    /** The WHERE of the last duplicate lookup — how a test proves which digests approval matched. */
+    clashWhere: null as Record<string, unknown> | null,
     /** The WHERE of the last updateMany — how a test proves what the guard actually pinned. */
     lastWhere: null as Record<string, unknown> | null | undefined,
     /** What a `findFirst` BY ID answers — the pending row `resignKycCaptures` looks for. */
@@ -46,8 +49,11 @@ vi.mock('@/lib/db', () => {
        * `{ subjectHash, status: 'verified', NOT }`; `resignKycCaptures` asks `{ id, status:
        * 'pending' }`. Returning the clash to the second made every re-sign look like a hit.
        */
-      findFirst: async ({ where }: { where: Record<string, unknown> }) =>
-        where?.id !== undefined ? h.s.pendingById : h.s.clash,
+      findFirst: async ({ where }: { where: Record<string, unknown> }) => {
+        if (where?.id !== undefined) return h.s.pendingById
+        h.s.clashWhere = where
+        return h.s.clash
+      },
       findMany: async () => h.s.queue,
       update: async ({ data }: { data: Record<string, unknown> }) => { h.s.updates.push(data); return { id: 'iv1' } },
       // ⚠️ CONDITIONAL WRITE. `h.s.raced` stands in for another admin having decided the case
@@ -95,6 +101,12 @@ vi.mock('@/lib/compliance/recompute-verification', () => ({
 // only `logError` throws "No logWarn export is defined on the mock" the moment a test exercises an
 // unrecognised PAYMENTS_ADDRESS_SOURCES value (the Opus seat, 2026-09-09).
 vi.mock('@/lib/log', () => ({ logError: () => {}, logWarn: () => {}, logInfo: () => {} }))
+// Opaque like the real HMAC (see service.test.ts), and normalising like it, so a digest can be predicted.
+const digest = (issuer: string, raw: string) => createHash('sha256').update(`${issuer}:${raw.replace(/[\s<-]/g, '').toUpperCase()}`).digest('hex')
+vi.mock('@/lib/compliance/subject-hash', () => ({
+  hmacSubject: (raw: string, o?: { issuer?: string }) => digest(o?.issuer ?? '', raw),
+  subjectHashEquals: (a: string, b: string) => a === b,
+}))
 // ⚠️ MOCKED AT THE MODULE, not through the tx client: the real appendAudit takes an advisory lock
 // via `$executeRaw` and reads the chain head, neither of which a unit mock should be reimplementing.
 // What these tests must prove is WHAT is recorded — and, just as much, what is NOT.
@@ -136,7 +148,7 @@ const caseRow = (over: Record<string, unknown> = {}) => ({
   profile: { displayName: 'Anna Maria Eriksson' }, ...over,
 })
 
-beforeEach(() => { h.s.row = caseRow(); h.s.clash = null; h.s.pendingById = caseRow(); h.s.storage = 'present'; h.s.signFails = false; h.s.raced = false; h.s.writeConflict = false; h.s.txIsolation = null; h.s.updateThrows = null; h.s.queue = []; h.s.updates = []; h.s.lastWhere = null; h.s.recomputed = []; h.s.recomputeArgs = []; h.s.provisioned = []; h.s.provisionFails = false; h.s.notified = []; h.s.recomputeThrows = false; h.s.recomputedStatus = 'verified'; h.s.audits = [] })
+beforeEach(() => { h.s.row = caseRow(); h.s.clash = null; h.s.pendingById = caseRow(); h.s.storage = 'present'; h.s.signFails = false; h.s.raced = false; h.s.writeConflict = false; h.s.txIsolation = null; h.s.updateThrows = null; h.s.queue = []; h.s.updates = []; h.s.lastWhere = null; h.s.recomputed = []; h.s.recomputeArgs = []; h.s.provisioned = []; h.s.provisionFails = false; h.s.notified = []; h.s.recomputeThrows = false; h.s.recomputedStatus = 'verified'; h.s.audits = []; h.s.clashWhere = null })
 
 describe('reviewKycCase', () => {
   it('approving a good case verifies it and records WHO decided', async () => {
@@ -145,6 +157,103 @@ describe('reviewKycCase', () => {
     expect(h.s.updates[0]).toMatchObject({ status: 'verified', decidedBy: 'desk@eno.vn' })
     // The assurance must say a HUMAN carried it, not that the document was self-consistent.
     expect(h.s.updates[0].assuranceLevel).toBe('manual_review')
+  })
+
+  // ⛔ A TYPED PASSPORT (passport_manual, 2026-10-21). The MRZ rule used to turn its approval into a rejection;
+  // now the reviewer is the read: they re-type the number off the photo (and the expiry, when the applicant typed
+  // it), the number is looked up under every issuer, and the case stays filed issuer-less.
+  const typedCase = (over: Record<string, unknown> = {}) => caseRow({
+    method: 'passport_manual', nationality: null, subjectHash: digest('', 'X1234567'),
+    evidence: { ...caseRow().evidence, checksPassed: [], decisionInput: { surname: 'ERIKSSON', givenNames: 'ANNA MARIA', documentExpiry: '2030-01-01', mrzValid: false, accountName: 'Anna Maria Eriksson' } },
+    ...over,
+  })
+  const approveTyped = (over: Record<string, unknown> = {}) =>
+    reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW, ...over })
+  const read = { passportNumber: 'X1234567', documentExpiry: '2030-01-01' }
+  const looked = () => (h.s.clashWhere as { subjectHash: { in: string[] } }).subjectHash.in
+
+  it('⛔ a TYPED passport is approvable once the reviewer re-types its number and expiry — it stays filed issuer-less', async () => {
+    h.s.row = typedCase(); h.s.pendingById = typedCase()
+    const r = await approveTyped({ passportNumber: 'x123 4567', documentExpiry: '2030-01-01', nationality: 'SWE' })
+    expect(r).toEqual({ ok: true, status: 'verified' })
+    expect(h.s.updates[0]).toMatchObject({ status: 'verified', assuranceLevel: 'manual_review', nationality: 'SWE' })
+    // Nothing the reviewer types picks the namespace: no re-file.
+    expect(h.s.updates[0].subjectHash).toBeUndefined()
+    // Nothing machine-read it, and the record must not say otherwise.
+    expect(JSON.stringify(h.s.updates[0])).not.toContain('mrz_checksums')
+  })
+
+  it('⛔ …and never without the number, with a number the applicant did not type, or without the expiry they typed', async () => {
+    h.s.row = typedCase(); h.s.pendingById = typedCase()
+    expect(await approveTyped({ documentExpiry: '2030-01-01' })).toEqual({ ok: false, code: 'number_required' })
+    expect(await approveTyped({ passportNumber: 'X12', documentExpiry: '2030-01-01' })).toEqual({ ok: false, code: 'number_required' })
+    // One character off — the applicant's own number altered to slip past the duplicate check, or someone else's.
+    expect(await approveTyped({ passportNumber: 'X1234568', documentExpiry: '2030-01-01' })).toEqual({ ok: false, code: 'number_mismatch' })
+    expect(await approveTyped({ passportNumber: 'X1234567' })).toEqual({ ok: false, code: 'expiry_required' })
+    expect(await approveTyped({ passportNumber: 'X1234567', documentExpiry: '01/01/2030' })).toEqual({ ok: false, code: 'expiry_required' })
+    // A real calendar day, not just the shape of one.
+    expect(await approveTyped({ passportNumber: 'X1234567', documentExpiry: '2030-13-45' })).toEqual({ ok: false, code: 'expiry_required' })
+    expect(await approveTyped({ passportNumber: 'X1234567', documentExpiry: '2030-02-30' })).toEqual({ ok: false, code: 'expiry_required' })
+    expect(h.s.updates).toHaveLength(0)
+  })
+
+  // ⛔ THE SIX-MONTH FLOOR IS MEASURED ON WHAT THE REVIEWER READ, not on a date only the applicant typed — an
+  // expired passport typed as valid cannot be approved, and an approved one stores the reviewer's date.
+  it('⛔ the reviewer\'s expiry decides: a passport they read as expired cannot be approved', async () => {
+    h.s.row = typedCase(); h.s.pendingById = typedCase()
+    expect(await approveTyped({ passportNumber: 'X1234567', documentExpiry: '2024-05-01' })).toEqual({ ok: false, code: 'expired_at_review' })
+    expect(h.s.updates[0]).toMatchObject({ status: 'rejected', evidence: { reviewedExpiry: '2024-05-01' } })
+  })
+
+  it('a typed passport can be REJECTED without the reviewer typing anything — the gate is the approval\'s', async () => {
+    h.s.row = typedCase(); h.s.pendingById = typedCase()
+    expect(await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'reject', note: 'Number does not match the photo', now: NOW }))
+      .toEqual({ ok: true, status: 'rejected' })
+  })
+
+  it('an approved typed passport stores the expiry the reviewer read', async () => {
+    h.s.row = typedCase(); h.s.pendingById = typedCase()
+    await approveTyped({ passportNumber: 'X1234567', documentExpiry: '2031-03-15' })
+    expect((h.s.updates[0].documentExpiresAt as Date).toISOString()).toBe(new Date('2031-03-15T00:00:00+07:00').toISOString())
+    // …and the record says which date the decision was measured on, beside the applicant's own.
+    expect(h.s.updates[0]).toMatchObject({ evidence: { reviewedExpiry: '2031-03-15', decisionInput: { documentExpiry: '2030-01-01' } } })
+  })
+
+  // ⛔ A FLAGGED CASE STILL NEEDS THE REVIEWER'S EXPIRY: the server never re-reads the image, so the date the
+  // MRZ lines gave is a client's claim like the typed one.
+  it('⛔ a flagged case needs the reviewer\'s expiry too — lines from the client are a claim, not a read', async () => {
+    const flagged = typedCase({ evidence: { ...typedCase().evidence, readDisagreement: { number: true } } })
+    h.s.row = flagged; h.s.pendingById = flagged
+    expect(await approveTyped({ passportNumber: 'X1234567' })).toEqual({ ok: false, code: 'expiry_required' })
+    expect(await approveTyped(read)).toEqual({ ok: true, status: 'verified' })
+  })
+
+  // ⛔ EVERY ISSUER, WHATEVER THE REVIEWER TYPED — right, wrong (`NOR` for a Swedish passport) or nothing — so a
+  // passport already verified by camera on another account is found.
+  it('⛔ the number is looked up under every issuer, whatever nationality the reviewer typed', async () => {
+    for (const nationality of ['SWE', 'NOR', '', undefined]) {
+      h.s.row = typedCase(); h.s.pendingById = typedCase(); h.s.updates = []
+      h.s.clash = { id: 'iv_other' }
+      expect(await approveTyped({ ...read, nationality })).toEqual({ ok: false, code: 'duplicate_identity' })
+      expect(h.s.clashWhere).toMatchObject({ status: 'verified', NOT: { profileId: 'p1' } })
+      expect(looked()).toEqual(expect.arrayContaining([digest('', 'X1234567'), digest('SWE', 'X1234567'), digest('D', 'X1234567'), digest('XXA', 'X1234567')]))
+      expect(h.s.updates).toHaveLength(0)
+    }
+  })
+
+  // ⛔ AND THE OTHER ORDER: a camera-read case that waited while a TYPED one for the same passport was verified
+  // meets it through the issuer-less digest it carries (service.ts stores it).
+  it('⛔ a camera-read case also matches its issuer-less digest at approval, when it carries one', async () => {
+    const camera = caseRow({ evidence: { ...caseRow().evidence, anyIssuerHash: digest('', 'X1234567') } })
+    h.s.row = camera; h.s.pendingById = camera
+    h.s.clash = { id: 'iv_other' }
+    expect(await approveTyped()).toEqual({ ok: false, code: 'duplicate_identity' })
+    expect(looked()).toEqual(['sh_abc', digest('', 'X1234567')])
+  })
+
+  it('a camera-read case needs no number, and one filed before the issuer-less digest is matched on its own', async () => {
+    expect(await approveTyped()).toEqual({ ok: true, status: 'verified' })
+    expect(looked()).toEqual(['sh_abc'])
   })
 
   it('⛔ approving PROVISIONS what the verification unlocks', async () => {

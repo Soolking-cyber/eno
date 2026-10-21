@@ -58,6 +58,11 @@ const input = (over: Record<string, unknown> = {}, who = 'p1') => ({ tier: 'B' a
   surname: 'ERIKSSON', givenNames: 'ANNA MARIA', consentVersion: 'v1', ...over,
 })
 
+// A passport the camera did not read (2026-10-21): no MRZ, only what the seller typed — spaced and lower-case
+// on purpose, because that is how people copy a number.
+const typed = (over: Record<string, unknown> = {}, who = 'p1') =>
+  input({ mrzLine1: undefined, mrzLine2: undefined, passportNumber: 'x123 4567', documentExpiry: '2030-12-31', ...over }, who)
+
 beforeEach(() => {
   h.s.challenge = { ok: true, code: 'ACD349' }; h.s.consumed = 0; h.s.pendingRow = null
   h.s.clashRow = null; h.s.created = []; h.s.recomputed = []; h.s.pepper = true
@@ -112,25 +117,130 @@ describe('submitKycForReview', () => {
     expect(r).toEqual({ ok: false, code: 'already_pending' })
   })
 
-  it('the method is always passport_mrz, because nothing else can get in', async () => {
+  it('the method names the read: passport_mrz for a verifying MRZ, passport_manual for typed details', async () => {
     await submitKycForReview('p1', 'Anna Maria Eriksson', input(), NOW)
     expect(h.s.created[0].method).toBe('passport_mrz')
+    h.s.created = []
+    await submitKycForReview('p1', 'Anna Maria Eriksson', typed(), NOW)
+    expect(h.s.created[0].method).toBe('passport_manual')
   })
 
-  it('⛔ REFUSES A HAND-TYPED PASSPORT — no MRZ, no submission', async () => {
-    // Not a support-friendliness decision: verify-decision.ts:275 rejects a Tier B record with
-    // neither MRZ nor provider, so accepting hand entry here would only ever manufacture a
-    // rejection later. "Retake the data page" is the honest answer.
+  // ⛔ UNTIL 2026-10-21 THIS WAS "REFUSES A HAND-TYPED PASSPORT — no MRZ, no submission". The owner removed the
+  // typed code lines from the form ("too much to type and doesnt autofill") and chose a human check instead.
+  it('files a TYPED passport as pending and labels it honestly — never verified, never claiming a read', async () => {
+    const r = await submitKycForReview('p1', 'Anna Maria Eriksson', typed(), NOW)
+    expect(r).toEqual({ ok: true, verificationId: 'iv_new', status: 'pending' })
+    const row = h.s.created[0] as {
+      status: string; nationality: unknown; documentExpiresAt: Date; subjectHash: string
+      evidence: { nationalityFromMrz: boolean; decisionInput: { mrzValid: boolean }; checksPassed: string[] }
+    }
+    expect(row.status).toBe('pending')
+    expect(row.evidence.decisionInput.mrzValid).toBe(false)
+    expect(row.evidence.checksPassed).not.toContain('mrz_checksums')
+    expect(row.evidence.nationalityFromMrz).toBe(false)
+    expect(row.nationality).toBeNull() // read off the passport by the reviewer at approval
+    // The typed number is normalised before hashing, and with no nationality it hashes issuer-less.
+    expect(row.subjectHash).toBe(createHash('sha256').update(':X1234567').digest('hex'))
+    expect(row.documentExpiresAt.toISOString()).toBe(new Date('2030-12-31T00:00:00+07:00').toISOString())
+  })
+
+  it('⛔ a typed passport IGNORES a client-claimed nationality — nothing read it; the reviewer reads it at approval', async () => {
+    await submitKycForReview('p1', 'Anna Maria Eriksson', typed({ nationality: 'FRA' }), NOW)
+    expect(h.s.created[0].nationality).toBeNull()
+    // …so a claim cannot pick the namespace its digest is filed under either.
+    expect(h.s.created[0].subjectHash).toBe(createHash('sha256').update(':X1234567').digest('hex'))
+  })
+
+  // ⛔ A VERIFYING MRZ THE SELLER'S TYPING DISAGREES WITH (2026-10-21). The typed values win — the mod-10 check
+  // digits let `G`/`6`, `S`/`8`, `L`/`1` misreads through — but only into the reviewer's hands, with the read beside them.
+  it('a typed number that disagrees with a verifying MRZ is filed for a human, flagged — the read number never stored', async () => {
+    const r = await submitKycForReview('p1', 'Anna Maria Eriksson', input({ passportNumber: 'X1234568', documentExpiry: '2030-12-31' }), NOW)
+    expect(r.ok).toBe(true)
+    const row = h.s.created[0] as { method: string; subjectHash: string; evidence: { readDisagreement?: unknown; decisionInput: { mrzValid: boolean } } }
+    expect(row.method).toBe('passport_manual')
+    expect(row.evidence.decisionInput.mrzValid).toBe(false)
+    expect(row.evidence.readDisagreement).toEqual({ number: true })
+    expect(row.subjectHash).toBe(createHash('sha256').update(':X1234568').digest('hex'))
+  })
+
+  // ⛔ AN EXPIRED PASSPORT TYPED AS VALID cannot slip through either way: it is flagged with the date the lines
+  // gave, and approval measures the floor on the date the REVIEWER reads off the photo (review.test.ts).
+  it('⛔ a typed expiry that disagrees with a verifying MRZ is filed for a human, flagged with the date the lines gave', async () => {
+    const stale = buildMrz({ surname: 'ERIKSSON', given: 'ANNA MARIA', number: 'X1234567', nat: 'SWE', dob: '900101', exp: '240501' })
+    const r = await submitKycForReview('p1', 'Anna Maria Eriksson', input({ mrzLine1: stale.line1, mrzLine2: stale.line2, passportNumber: 'X1234567', documentExpiry: '2030-05-01' }), NOW)
+    expect(r.ok).toBe(true)
+    const row = h.s.created[0] as { method: string; status: string; evidence: { readDisagreement?: unknown } }
+    expect(row).toMatchObject({ method: 'passport_manual', status: 'pending' })
+    expect(row.evidence.readDisagreement).toEqual({ expiry: '2024-05-01' })
+  })
+
+  it('⛔ a malformed passport number is refused before the challenge even beside a verifying MRZ', async () => {
+    // The form refuses it too; without this the server would quietly drop the "correction" for the MRZ's.
+    const r = await submitKycForReview('p1', 'Anna Maria Eriksson', input({ passportNumber: 'X123/4567' }), NOW)
+    expect(r).toEqual({ ok: false, code: 'document_number_invalid' })
+    expect(h.s.consumed).toBe(0)
+  })
+
+  it('a camera-read passport is NOT refused here on a typed one\'s bare number — it carries the digest for its approval', async () => {
+    // A verified typed passport (issuer-less) with the same number may be a stranger abroad: that call is made at
+    // approval, in front of a human (review.test.ts), not here with the challenge already spent.
+    h.s.clashRow = { id: 'iv_other', subjectHash: createHash('sha256').update(':X1234567').digest('hex') }
+    expect((await submitKycForReview('p2', 'Anna Maria Eriksson', input({}, 'p2'), NOW)).ok).toBe(true)
+    h.s.clashRow = null; h.s.created = []
+    await submitKycForReview('p1', 'Anna Maria Eriksson', input(), NOW)
+    expect((h.s.created[0].evidence as { anyIssuerHash?: string }).anyIssuerHash).toBe(createHash('sha256').update(':X1234567').digest('hex'))
+    // A typed passport's own digest IS the issuer-less one, so it carries no second copy.
+    h.s.created = []
+    await submitKycForReview('p1', 'Anna Maria Eriksson', typed(), NOW)
+    expect((h.s.created[0].evidence as { anyIssuerHash?: string }).anyIssuerHash).toBeUndefined()
+  })
+
+  it('⛔ a SLIP that makes a valid passport look expired is not refused on the spot — the reviewer reads the date', async () => {
+    // The lines say 2030-12-31; the seller mistyped 2024. The form promised "our team will check it".
+    const r = await submitKycForReview('p1', 'Anna Maria Eriksson', input({ passportNumber: 'X1234567', documentExpiry: '2024-01-01' }), NOW)
+    expect(r).toEqual({ ok: true, verificationId: 'iv_new', status: 'pending' })
+    expect((h.s.created[0].evidence as { readDisagreement?: unknown }).readDisagreement).toEqual({ expiry: '2030-12-31' })
+  })
+
+  it('a typed number and expiry that AGREE with the MRZ change nothing — it is still the MRZ case', async () => {
+    await submitKycForReview('p1', 'Anna Maria Eriksson', input({ passportNumber: 'x123 4567', documentExpiry: '2030-12-31' }), NOW)
+    expect(h.s.created[0].method).toBe('passport_mrz')
+    expect((h.s.created[0].evidence as { readDisagreement?: unknown }).readDisagreement).toBeUndefined()
+  })
+
+  it('an MRZ whose check digits do not verify falls back to the typed details', async () => {
     const r = await submitKycForReview('p1', 'Anna Maria Eriksson',
-      input({ mrzLine1: undefined, mrzLine2: undefined }), NOW)
-    expect(r).toEqual({ ok: false, code: 'document_unreadable' })
+      typed({ mrzLine1: MRZ.line1, mrzLine2: MRZ.line2.replace(/^(.)/, (c) => (c === 'A' ? 'B' : 'A')) }), NOW)
+    expect(r.ok).toBe(true)
+    expect(h.s.created[0].method).toBe('passport_manual')
+  })
+
+  it('⛔ a typed passport number that cannot be one is refused BEFORE the challenge is spent', async () => {
+    for (const bad of [undefined, '', 'X12', 'X12345678901234567890123', 'X123/4567']) {
+      h.s.consumed = 0
+      const r = await submitKycForReview('p1', 'Anna Maria Eriksson', typed({ passportNumber: bad }), NOW)
+      expect(r, String(bad)).toEqual({ ok: false, code: 'document_number_invalid' })
+      expect(h.s.consumed).toBe(0)
+    }
     expect(h.s.created).toHaveLength(0)
   })
 
-  it('refuses an MRZ whose check digits do not verify', async () => {
-    const r = await submitKycForReview('p1', 'Anna Maria Eriksson',
-      input({ mrzLine2: MRZ.line2.replace(/^(.)/, (c) => (c === 'A' ? 'B' : 'A')) }), NOW)
-    expect(r).toEqual({ ok: false, code: 'document_unreadable' })
+  it('a typed passport still needs a name, and a readable expiry date', async () => {
+    expect(await submitKycForReview('p1', 'Anna Maria Eriksson', typed({ surname: undefined, givenNames: undefined }), NOW))
+      .toEqual({ ok: false, code: 'document_unreadable' })
+    expect(await submitKycForReview('p1', 'Anna Maria Eriksson', typed({ documentExpiry: undefined }), NOW))
+      .toEqual({ ok: false, code: 'rejected' })
+    expect(h.s.created).toHaveLength(0)
+  })
+
+  it('a typed passport meets other issuer-less digests here; its match against camera reads is the reviewer\'s, at approval', async () => {
+    // Another account's typed case for the same number, already verified with no nationality: the same digest.
+    h.s.clashRow = { id: 'iv_other', subjectHash: createHash('sha256').update(':X1234567').digest('hex') }
+    expect(await submitKycForReview('p2', 'Anna Maria Eriksson', typed({}, 'p2'), NOW)).toEqual({ ok: false, code: 'duplicate_identity' })
+    // A camera-read Swedish passport with the same number is NOT refused here — submission cannot know this one is
+    // Swedish, and refusing on a bare number refused strangers abroad. Approval looks it up under every issuer (review.test.ts).
+    h.s.clashRow = { id: 'iv_other', subjectHash: createHash('sha256').update('SWE:X1234567').digest('hex') }
+    expect((await submitKycForReview('p2', 'Anna Maria Eriksson', typed({}, 'p2'), NOW)).ok).toBe(true)
   })
 
   it('an expired passport is rejected on the six-month floor', async () => {
@@ -361,10 +471,12 @@ describe('tier A (CCCD) — a Vietnamese national ID has no MRZ', () => {
     expect(h.s.created).toHaveLength(0)
   })
 
-  it('leaves tier B requiring its MRZ', async () => {
-    // The rule that made tier A impossible is correct FOR PASSPORTS and must not be relaxed.
+  it('never judges tier B by the CCCD rule — without an MRZ it needs a passport number, not 12 digits', async () => {
+    // Until 2026-10-21 this pinned "tier B requires its MRZ". The owner removed the typed lines, so what is
+    // left to pin is that a passport claim without one takes the PASSPORT number check, before the challenge.
     const r = await submitKycForReview('p1', 'Anna Maria Eriksson', input({ mrzLine1: undefined, mrzLine2: undefined }), NOW)
-    expect(r).toMatchObject({ ok: false, code: 'document_unreadable' })
+    expect(r).toMatchObject({ ok: false, code: 'document_number_invalid' })
+    expect(h.s.consumed).toBe(0)
     expect(h.s.created).toHaveLength(0)
   })
 })

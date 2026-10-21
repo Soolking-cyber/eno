@@ -195,6 +195,12 @@ export type NicheApiErrorCode =
   // The reviewer typed a nationality that is not a country this app can assess — a typo, `ZZZ`, or
   // one of the deliberately-unmapped codes (`XXA`/`XXB`/`XXC`/`XXX`, `GBD`…`GBS`). The CASE is fine.
   | 'nationality_invalid'
+  // A typed passport (`passport_manual`, 2026-10-21) is approved only with its number re-typed off the photo
+  // by the reviewer: missing, or not the number the applicant typed. The CASE stays pending either way.
+  | 'number_required'
+  | 'number_mismatch'
+  // …and, when the applicant typed the expiry too, its date read off the photo.
+  | 'expiry_required'
   | 'image_decode_failed'
   | 'image_dimensions_invalid'
   | 'image_too_small_to_review'
@@ -684,6 +690,9 @@ const ALL = [
   'duplicate_identity',
   'evidence_unavailable',
   'nationality_invalid',
+  'number_required',
+  'number_mismatch',
+  'expiry_required',
   'image_decode_failed',
   'image_dimensions_invalid',
   'image_too_small_to_review',

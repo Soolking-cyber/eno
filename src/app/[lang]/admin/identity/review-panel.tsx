@@ -54,6 +54,9 @@ const ERROR_TEXT: Record<string, string> = {
   still_pending: 'The decision did not stick — reload and try again.',
   nationality_invalid: 'That is not a country code this app can assess. Use the alpha-3 code from the passport (ICAO “D” for Germany is accepted). Stateless/refugee codes (XXA, XXB, XXC, XXX) are not assessable — approve without a nationality and the wallet stays closed with an honest reason.',
   evidence_unavailable: 'Cannot approve: the captures for this case can no longer be produced. Use “Reload captures”; if they still fail, reject with a reason.',
+  number_required: 'Cannot approve a typed passport without its number: type the passport number exactly as it appears on the photo.',
+  number_mismatch: 'That is not the number the applicant typed. Check the photo again; if the applicant typed it wrong, reject with a reason so they can resubmit.',
+  expiry_required: 'Cannot approve a typed passport without its expiry date: enter the date exactly as it appears on the photo.',
   failed: 'Something went wrong. Nothing was changed.',
 }
 
@@ -71,6 +74,8 @@ type ReviewCase = {
     documentExpiresAt: string | null
     submittedAt: string
     method: string
+    /** The MRZ lines from the applicant's device disagreed with what they typed — the number as a flag, the expiry as a date. */
+    readDisagreement: { number?: true; expiry?: string } | null
     documentUrl: string | null
     selfieUrl: string | null
     checksPassed: string[]
@@ -97,6 +102,16 @@ type ReviewCase = {
  */
 export function IdentityReviewPanel({ item }: { item: ReviewCase }) {
   return <IdentityReviewPanelCase key={item.id} item={item} />
+}
+
+/**
+ * ⚠️ THE CALENDAR DAY IN VIETNAM, NOT `iso.slice(0, 10)`. `documentExpiresAt` is ICT midnight, whose UTC instant
+ * falls on the PREVIOUS day (review.ts `ictDate` says the same), so slicing showed every expiry a day early —
+ * harmless-looking until a reviewer has to compare dates on a typed passport (2026-10-21).
+ */
+function ictDay(iso: string | null): string | null {
+  // Vietnam keeps no daylight saving, so ICT is UTC+7 all year — exact, and no locale's date format involved.
+  return iso ? new Date(Date.parse(iso) + 7 * 3_600_000).toISOString().slice(0, 10) : null
 }
 
 function IdentityReviewPanelCase({ item }: { item: ReviewCase }) {
@@ -133,6 +148,11 @@ function IdentityReviewPanelCase({ item }: { item: ReviewCase }) {
    * to remove a wrong value, and it stays reachable.
    */
   const [natTouched, setNatTouched] = useState(false)
+  /** A typed passport's number as the reviewer reads it off the photo (`passport_manual` only; review.ts). */
+  const [seenNumber, setSeenNumber] = useState('')
+  /** …and its expiry — the date the six-month floor is then measured on (review.ts). */
+  const [seenExpiry, setSeenExpiry] = useState('')
+  const typedPassport = item.method === 'passport_manual'
   /** Which capture is open full-screen, if any. */
   const [full, setFull] = useState<null | { url: string; label: string }>(null)
   /** Survives `full` going null so the closing animation still has a title and an image. */
@@ -325,7 +345,7 @@ function IdentityReviewPanelCase({ item }: { item: ReviewCase }) {
     setBusy(true)
     try {
       const res = decision === 'approve'
-        ? await approveIdentityAction(item.id, natTouched ? nationality : undefined)
+        ? await approveIdentityAction(item.id, natTouched ? nationality : undefined, typedPassport ? seenNumber : undefined, typedPassport ? seenExpiry : undefined)
         : await rejectIdentityAction(item.id, note)
       if (res.ok) {
         toast.success(res.status === 'verified' ? 'Approved.' : 'Rejected.')
@@ -382,7 +402,7 @@ function IdentityReviewPanelCase({ item }: { item: ReviewCase }) {
       <dl className="grid gap-2 rounded-xl bg-tint p-3 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-xs text-muted-foreground">Document expires</dt>
-          <dd className="font-medium">{item.documentExpiresAt?.slice(0, 10) ?? 'not read'}</dd>
+          <dd className="font-medium">{ictDay(item.documentExpiresAt) ?? 'not read'}</dd>
         </div>
         <div>
           {/*
@@ -396,6 +416,21 @@ function IdentityReviewPanelCase({ item }: { item: ReviewCase }) {
           <dd className="font-medium">The selfie shows the same person as the photo on the document.</dd>
           <dd className="text-xs text-muted-foreground">No code or paper is needed in the selfie — applicants have not been asked for one since 2026-09-04. An older selfie may still show one: ignore it.</dd>
         </div>
+        {/* ⚠️ A TYPED PASSPORT (since 2026-10-21 the form no longer asks for the code lines when the camera
+            cannot read them): no check digit has verified these details, so the reviewer is now that check —
+            including the number, which approval needs re-typed (review.ts). */}
+        {typedPassport && (
+          <div className="sm:col-span-2">
+            <dt className="text-xs text-muted-foreground">Typed, not machine-read</dt>
+            <dd className="font-medium">Nothing machine-checked this passport&apos;s details. Check the name against the photo, type the number and the expiry date below as the photo shows them, and read the nationality off the passport.</dd>
+            {item.readDisagreement?.number && (
+              <dd className="font-medium text-destructive">The code lines read from the photo gave a different passport number from the one the applicant typed. Type what the photo shows: if it is not what they typed, approval is refused — reject with a reason so they can resubmit.</dd>
+            )}
+            {item.readDisagreement?.expiry && (
+              <dd className="font-medium text-destructive">The code lines read from the photo gave the expiry as {item.readDisagreement.expiry}; the applicant typed {ictDay(item.documentExpiresAt) ?? 'another date'}. Enter what the photo shows.</dd>
+            )}
+          </div>
+        )}
       </dl>
 
       {item.checksPassed.length > 0 && (
@@ -572,6 +607,42 @@ function IdentityReviewPanelCase({ item }: { item: ReviewCase }) {
       </Dialog>
 
       <div className="space-y-2">
+        {typedPassport && (
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor={`num-${item.id}`} className="text-sm text-body">
+              Passport number (as on the photo)
+            </label>
+            <Input
+              id={`num-${item.id}`}
+              value={seenNumber}
+              onChange={(e) => setSeenNumber(e.target.value.toUpperCase().slice(0, 30))}
+              placeholder="type it off the photo"
+              autoComplete="off"
+              className="w-48 font-mono uppercase"
+            />
+          </div>
+        )}
+        {typedPassport && (
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor={`exp-${item.id}`} className="text-sm text-body">
+              Expiry date (as on the photo)
+            </label>
+            <Input
+              id={`exp-${item.id}`}
+              type="date"
+              value={seenExpiry}
+              onChange={(e) => setSeenExpiry(e.target.value)}
+              className="w-48"
+            />
+            {/* ⚠️ A NUDGE, NOT A BLOCK: the reviewer's date is the one the six-month floor is measured on, and
+                nothing else cross-checks it, so a date that differs from the applicant's earns a second look. */}
+            {seenExpiry && ictDay(item.documentExpiresAt) && seenExpiry !== ictDay(item.documentExpiresAt) && (
+              <span className="text-xs font-medium text-destructive">
+                Differs from the applicant&apos;s {ictDay(item.documentExpiresAt)} — check the photo once more before approving.
+              </span>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <label htmlFor={`nat-${item.id}`} className="text-sm text-body">
             Nationality (alpha-3)
@@ -656,7 +727,7 @@ function IdentityReviewPanelCase({ item }: { item: ReviewCase }) {
             what submission concluded. Disabling on `!note` is a courtesy; the real rule is in
             `rejectIdentityAction`.
           */}
-          <Button variant="cta" size="sm" disabled={busy || evidenceMissing} onClick={() => void act('approve')}>
+          <Button variant="cta" size="sm" disabled={busy || evidenceMissing || (typedPassport && (!seenNumber.trim() || !seenExpiry))} onClick={() => void act('approve')}>
             Approve
           </Button>
           <Button variant="outline" size="sm" disabled={busy || !note.trim()} onClick={() => void act('reject')}>

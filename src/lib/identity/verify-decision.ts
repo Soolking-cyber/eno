@@ -342,18 +342,18 @@ export function decideTierB(input: TierBInput): TierBDecision {
   // one line is a fact about the name, not about the readers.
   const isTierB = (input.tier ?? 'B') === 'B'
 
-  // 1. The document must have been READ reliably — by verified MRZ check digits, OR by the
-  //    provider attesting to it. Either is sufficient; NEITHER is not.
-  //    ⚠️ DO NOT REQUIRE `mrzValid` UNCONDITIONALLY FOR A PASSPORT. VNPT's OCR returns parsed
-  //    fields, not MRZ lines, so `mrzValid` is honestly false on that path — and an unconditional
-  //    check would have rejected EVERY provider-verified passport. (Caught immediately after
-  //    de-faking the MRZ struct: removing the lie exposed that the guard was leaning on it.)
-  //    ⚠️ A CCCD HAS NO MRZ AT ALL, so requiring one there rejects every Tier A record — the branch
-  //    that was missing when both tiers shared a passport-shaped decision (codex).
-  const readReliably = input.mrzValid || !!input.provider
-  if (isTierB && !readReliably) {
-    return { status: 'rejected', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed, rejectReason: 'mrz_invalid' }
-  }
+  // 1. How the document was READ: verified MRZ check digits, or the provider attesting to it.
+  //    ⛔ NEITHER IS NO LONGER A REJECTION — A PASSPORT NOTHING MACHINE-READ WAITS FOR A HUMAN (owner,
+  //    2026-10-21). The typed code lines it used to demand were "too much to type and doesnt autofill",
+  //    and given the choice the owner took "our team checks by hand" over "retake until the camera reads it".
+  //    Such a record ends in the MRZ-only block at the bottom: `pending` until a reviewer has compared the
+  //    typed details with the photograph, `manual_review` once one approves — the control tier A has
+  //    always had. It was the real control for passports too: the server never re-reads the image, so
+  //    check digits a forger computes pass as well as read ones. What is lost is the check digits catching
+  //    an honest TYPO, which the reviewer now does. `mrz_invalid` stays in the union for rows refused
+  //    before this date.
+  //    ⚠️ A CCCD HAS NO MRZ AT ALL, and VNPT's OCR returns parsed fields, not MRZ lines, so
+  //    `mrzValid` is honestly false on both of those paths too.
   //    ⚠️ RECORD WHICH ONE ACTUALLY HAPPENED. This line used to push `mrz_checksums` for EVERY
   //    Tier B record that got past the guard — including the provider-attested ones, where no check
   //    digit was verified at all. Since verify-flow.ts:138 passes `mrzValid: false` on the only
@@ -503,7 +503,8 @@ export function decideTierB(input: TierBInput): TierBDecision {
     }
   }
 
-  // MRZ-only path: internally consistent, but NOTHING HAS ATTESTED THE DOCUMENT IS GENUINE.
+  // MRZ-only path — and, since 2026-10-21, the typed path (step 1): at best internally consistent,
+  // and NOTHING HAS ATTESTED THE DOCUMENT IS GENUINE.
   //
   // ⛔ THIS USED TO RETURN `verified` AND MUST NOT. With a provider present that was defensible —
   // the provider is the attestation. With the provider gone it is a mod-10 checksum on digits the

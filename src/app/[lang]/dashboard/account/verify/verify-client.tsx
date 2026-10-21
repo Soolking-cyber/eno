@@ -30,6 +30,7 @@ import { readMrz, readFailureHint, namesFromNameLine, hasWellFormedPrefix, type 
 // `@/lib/identity/mrz` (which re-exports it) so the visa namespace never appears in a marketplace call
 // site (agy, 2026-09-02). See the header of src/lib/identity/mrz.ts.
 import { parsePassportMrz } from '@/lib/identity/mrz'
+import { passportNumberShape } from '@/lib/kyc/passport-number'
 import { createMrzOcrEngine } from '@/lib/identity/mrz-ocr-tesseract'
 // ⛔ `declaration-text`, NOT `declaration` — the latter imports node:crypto, and a 'use client'
 // file importing it drags the whole Node crypto polyfill into the browser (measured: 435 KB
@@ -50,10 +51,10 @@ import { SITE_NAME } from '@/lib/edition'
 import { COMPANY } from '@/lib/site-legal'
 
 /**
- * Turn the still-missing MRZ fields into an actionable hint after a PARTIAL read: this capture read some
- * fields with valid check digits but not all. Each capture is self-contained (no cross-capture pooling),
- * so the honest guidance is to type the two lines — not to "capture again". Returns null when nothing was
- * recovered, so the UI shows the plain "type the two lines" fallback.
+ * The hint after a PARTIAL read: this capture read some fields with valid check digits but not all, and
+ * the ones it did read are prefilled. Since 2026-10-21 there are no code lines to type, so it names what
+ * is still missing FROM THE FORM (a date of birth is not on it); the alert around it says what to do
+ * next. Returns null when nothing was recovered, so the UI shows `readFailureHint`'s physical advice.
  */
 function missingFieldsHint(
   missing: Array<'passportNumber' | 'dateOfBirth' | 'expiry'>,
@@ -61,18 +62,57 @@ function missingFieldsHint(
 ): { en: string; vi: string } | null {
   const gotSomething = !!(pool.passportNumber || pool.dateOfBirth || pool.expiry || pool.nameLine)
   if (!gotSomething || missing.length === 0) return null
-  const names: Record<'passportNumber' | 'dateOfBirth' | 'expiry', { en: string; vi: string }> = {
+  const onForm = missing.filter((m): m is 'passportNumber' | 'expiry' => m !== 'dateOfBirth')
+  if (onForm.length === 0) {
+    return { en: 'We read part of your passport and filled in what we could.', vi: 'Chúng tôi đã đọc được một phần hộ chiếu và điền sẵn những gì đọc được.' }
+  }
+  const names: Record<'passportNumber' | 'expiry', { en: string; vi: string }> = {
     passportNumber: { en: 'the passport number', vi: 'số hộ chiếu' },
-    dateOfBirth: { en: 'the date of birth', vi: 'ngày sinh' },
     expiry: { en: 'the expiry date', vi: 'ngày hết hạn' },
   }
-  const join = (arr: string[], sep: string) =>
-    arr.length <= 1 ? (arr[0] ?? '') : `${arr.slice(0, -1).join(', ')}${sep}${arr[arr.length - 1]}`
-  const en = join(missing.map((m) => names[m].en), ' and ')
-  const vi = join(missing.map((m) => names[m].vi), ' và ')
+  const en = onForm.map((m) => names[m].en).join(' and ')
+  const vi = onForm.map((m) => names[m].vi).join(' và ')
   return {
-    en: `We read part of your passport but not ${en}. Please check the fields above and type the two lines below.`,
-    vi: `Chúng tôi chỉ đọc được một phần hộ chiếu, chưa có ${vi}. Vui lòng kiểm tra các ô ở trên và nhập hai dòng bên dưới.`,
+    en: `We read part of your passport but not ${en}.`,
+    vi: `Chúng tôi chỉ đọc được một phần hộ chiếu, chưa có ${vi}.`,
+  }
+}
+
+/**
+ * The camera's MRZ read, held against the details the seller confirmed above. `valid` = both lines parse
+ * with every check digit. A disagreement on either field is usually the seller correcting a misread — ICAO
+ * gives `G`/`6`, `S`/`8`, `L`/`1` values ten apart, and two misread digits can cancel — so, as the server
+ * does, the typed values are sent and a reviewer re-reads both off the photo (kyc/service.ts, review.ts).
+ */
+// The two disagreement templates, as flat `{ en, vi }` tables so the string harvest collects them (it reads
+// brace-free objects only — inline, beside their `values`, they never reached the MT catalogue).
+const NUMBER_DISAGREES = {
+  en: 'We read the passport number on your photo as {read}, but you entered {typed}. We will send what you entered, and our team will check it against the photo.',
+  vi: 'Chúng tôi đọc được số hộ chiếu trên ảnh là {read}, nhưng bạn đã nhập {typed}. Chúng tôi sẽ gửi thông tin bạn nhập và đội ngũ của chúng tôi sẽ đối chiếu với ảnh.',
+}
+const EXPIRY_DISAGREES = {
+  en: 'We read the expiry date on your photo as {read}, but you entered {typed}. We will send what you entered, and our team will check it against the photo.',
+  vi: 'Chúng tôi đọc được ngày hết hạn trên ảnh là {read}, nhưng bạn đã nhập {typed}. Chúng tôi sẽ gửi thông tin bạn nhập và đội ngũ của chúng tôi sẽ đối chiếu với ảnh.',
+}
+
+type MrzRead = {
+  valid: boolean
+  number: { read: string; typed: string } | null
+  expiry: { read: string; typed: string } | null
+}
+function mrzAgainst(line1: string, line2: string, typedNumber: string, typedExpiry: string): MrzRead {
+  const none = { valid: false, number: null, expiry: null }
+  if (!line1.trim() || !line2.trim()) return none
+  const parsed = parsePassportMrz(line1, line2)
+  if (!parsed.valid) return none
+  const number = typedNumber.toUpperCase().replace(/[\s<-]/g, '')
+  const readNumber = parsed.fields.passportNumber
+  const expiry = typedExpiry.trim()
+  const readExpiry = parsed.fields.passportExpiryDate?.slice(0, 10)
+  return {
+    valid: true,
+    number: number && readNumber && number !== readNumber ? { read: readNumber, typed: number } : null,
+    expiry: expiry && readExpiry && expiry !== readExpiry ? { read: readExpiry, typed: expiry } : null,
   }
 }
 
@@ -124,13 +164,22 @@ const SUBMIT_OUTCOMES: Record<string, { en: string; vi: string; enA?: string; vi
     // ⚠️ NAMES THE FIELD, NOT THE CAMERA. This used to arrive as `document_unreadable`, whose copy
     // says "photograph the card again" — for a number the seller TYPED. The web form now blocks this
     // before submit, so reaching here means another client; say something actionable anyway.
+    // The passport's (a typed number since 2026-10-21). The CCCD's is the `:A` entry below — its own `en`, not
+    // an `enA`, because the string harvest collects `en` values and a tier-A variant would lose its MT copy.
+    en: 'That passport number does not look right — type it exactly as printed on your passport, letters and digits only. Please check it and send again.',
+    vi: 'Số hộ chiếu chưa đúng — hãy nhập đúng như in trên hộ chiếu, chỉ gồm chữ và số. Vui lòng kiểm tra và gửi lại.',
+    resumable: true,
+  },
+  'document_number_invalid:A': {
     en: 'That CCCD number does not look right — it should be the 12 digits printed on your card. Please check it and send again.',
     vi: 'Số CCCD chưa đúng — cần đủ 12 chữ số như in trên thẻ. Vui lòng kiểm tra và gửi lại.',
     resumable: true,
   },
   document_unreadable: {
-    en: 'We could not read the details from what was sent, so we cleared the form. Start again and photograph the data page so the two lines of code across the bottom are sharp and completely inside the frame.',
-    vi: 'Chúng tôi không đọc được thông tin từ ảnh đã gửi nên đã xóa biểu mẫu. Hãy bắt đầu lại và chụp trang thông tin sao cho hai dòng mã ở dưới cùng rõ nét và nằm trọn trong khung.',
+    // ⚠️ KEEP THIS ENTRY SHORT: the string harvest reads `{ en, vi }` tables up to 1,200 characters between
+    // braces, and a longer first draft of this sentence pushed the whole entry out of the MT catalogue.
+    en: 'We could not read your name or passport number, so we cleared the form. Start again and check the details before you send.',
+    vi: 'Chúng tôi không đọc được họ tên hoặc số hộ chiếu nên đã xóa biểu mẫu. Hãy bắt đầu lại và kiểm tra thông tin trước khi gửi.',
     enA: 'We could not read the details from what was sent, so we cleared the form. Start again and photograph the side of the card with your photo on it, sharp and completely inside the frame.',
     viA: 'Chúng tôi không đọc được thông tin từ ảnh đã gửi nên đã xóa biểu mẫu. Hãy bắt đầu lại và chụp mặt thẻ có ảnh của bạn, rõ nét và nằm trọn trong khung.',
   },
@@ -169,22 +218,10 @@ export function VerifyClient() {
   const [givenNames, setGivenNames] = useState('')
   const [documentNumber, setDocumentNumber] = useState('')
   const [documentExpiry, setDocumentExpiry] = useState('')
+  /// The two MRZ lines as the CAMERA read them — never shown, never typed. ⛔ The seller typed them by hand
+  /// whenever the read failed until 2026-10-21, when the owner removed the boxes ("too much to type and
+  /// doesnt autofill"): without a read the typed details go to a human instead (see `mrzAgainst`).
   const [mrzLine1, setMrzLine1] = useState('')
-  /// ⛔ TWO SEPARATE FACTS, AND ONE FLAG FOR BOTH WAS THE BUG. `mrzDerived` = the values in the two
-  /// boxes came from a READ (so they are synthesized and will not match the passport character for
-  /// character); `mrzRevealed` = the seller asked to see them anyway. Collapsing keyed on a single
-  /// flag made the explanatory copy flip to "these are derived" on the first keystroke of the MANUAL
-  /// path — the opposite of what that seller needs to be told.
-  /// ⚠️ NEITHER is `mrzValid`: that flips the instant the last character is typed, which would
-  /// unmount the inputs under the seller's fingers (the same bug, caught on iOS today).
-  const [mrzDerived, setMrzDerived] = useState(false)
-  const [mrzRevealed, setMrzRevealed] = useState(false)
-  /// ⛔ "TYPED IN THESE TWO BOXES", WHICH IS NOT WHAT `userEditedRef` MEANS. That ref is set by every
-  /// field on the form — it gates whether a later read may prefill the NAME inputs — so keying the
-  /// collapse on it meant a seller who typed their surname while the read was still running got the
-  /// derived lines shown under "type exactly as printed": the original bug, reachable through
-  /// ordinary behaviour. Only the MRZ inputs set this one.
-  const mrzTypedRef = useRef(false)
   const [mrzLine2, setMrzLine2] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -365,7 +402,7 @@ export function VerifyClient() {
     latestUploadRef.current = uploadId
     docAttemptRef.current = attemptRef.current
     userEditedRef.current = false
-    setMrzLine1(''); setMrzLine2(''); setMrzDerived(false); setMrzRevealed(false); mrzTypedRef.current = false
+    setMrzLine1(''); setMrzLine2('')
     setSurname(''); setGivenNames(''); setDocumentNumber(''); setDocumentExpiry('')
     setScan(tier === 'B' ? 'reading' : 'idle'); setScanHint(null)
     setDocumentPath(path)
@@ -477,17 +514,8 @@ export function VerifyClient() {
         // rather than wrong: the server derives identity from line 2, which is check-validated.
         const nameLess = (l1: string) =>
           ((hasWellFormedPrefix(l1) ? l1.slice(0, 5) : 'P<') + '<'.repeat(44)).slice(0, 44)
-        // ⛔ DECIDED OUTSIDE THE STATE UPDATER. Setting state from inside another setter's updater is
-        // impure — StrictMode double-invokes it. ⚠️ AND NOT FROM `userEditedRef`: that means "touched
-        // ANY field on this form" (it gates name prefill), so a seller typing their surname during the
-        // read counted as having typed the MRZ boxes. `mrzTypedRef` tracks only these two inputs.
-        // ⛔ FROM THE REF, NOT FROM `mrzLine1`/`mrzLine2`. Those are the CLOSURE's values, captured
-        // when this handler was created — which is exactly why the two fills below use functional
-        // updaters. Reading them here made a RETAKE (which the copy invites) see the previous read's
-        // non-empty lines and conclude the seller had typed them, while the updaters saw the cleared
-        // state and filled both boxes: derived lines, expanded, under "type exactly as printed" —
-        // the original report, on the second attempt. The ref is cleared at both reset sites.
-        setMrzDerived(!mrzTypedRef.current)
+        // Functional updaters: `mrzLine1`/`mrzLine2` in this closure are the values from when the handler
+        // was created, and both reset sites clear the lines before a retake's read lands.
         setMrzLine1((v) => v.trim() ? v : nameLess(result.lines[0]))
         setMrzLine2((v) => v.trim() ? v : result.lines[1])
         // ⛔ FALL BACK TO THE POOLED LINE 1. A FUSED read carries no name by design, but the pool very
@@ -519,6 +547,17 @@ export function VerifyClient() {
         // found-but-unreadable band, "make sure the whole bottom edge is inside the frame" for a band
         // we never found. It was written and unit-tested for exactly this moment and was never
         // rendered, so every failed read fell through to a generic "type the two lines".
+        // ⚠️ AND KEEP WHAT THIS CAPTURE DID READ (2026-10-21): with no code lines to fall back to, a
+        // partial read that recovered the number or the expiry — each behind its own verified check
+        // digit — saves the seller typing it. Empty fields only, as on the success path.
+        const p = result.pool
+        const pooledNumber = p.passportNumber?.replace(/</g, '')
+        const pooledExpiry = p.expiry ? `20${p.expiry.slice(0, 2)}-${p.expiry.slice(2, 4)}-${p.expiry.slice(4, 6)}` : null
+        const { surname: pooledSurname, givenNames: pooledGiven } = namesFromNameLine(p.nameLine)
+        if (pooledNumber) setDocumentNumber((v) => v.trim() ? v : pooledNumber)
+        if (pooledExpiry) setDocumentExpiry((v) => v ? v : pooledExpiry)
+        if (pooledSurname) setSurname((v) => v.trim() ? v : pooledSurname)
+        if (pooledGiven) setGivenNames((v) => v.trim() ? v : pooledGiven)
         setScan('failed')
         setScanHint(missingFieldsHint(result.missing, result.pool) ?? readFailureHint(result))
       }
@@ -603,7 +642,7 @@ export function VerifyClient() {
     // ⚠️ CLEARS EVERYTHING, so the "we cleared the form" copy is true and a restarted tier-A attempt
     // cannot carry stale tier-B MRZ text. `accepted` stays — the declaration was read, not undone.
     setChallenge(null); setTier(null); setDocumentPath(null); setSelfiePath(null)
-    setSurname(''); setGivenNames(''); setDocumentNumber(''); setDocumentExpiry(''); setMrzLine1(''); setMrzLine2(''); setMrzDerived(false); setMrzRevealed(false); mrzTypedRef.current = false
+    setSurname(''); setGivenNames(''); setDocumentNumber(''); setDocumentExpiry(''); setMrzLine1(''); setMrzLine2('')
     setScan('idle'); setScanHint(null)
     setStarted(false) // back at the tier choice: the pre-flight panel is meaningful again
     // ⛔ RE-ASK ONLY WHEN THE SELLER DELIBERATELY WENT BACK — never on a submit failure, and that
@@ -641,6 +680,11 @@ export function VerifyClient() {
 
   const submit = useCallback(async () => {
     if (!tier || !challenge || !documentPath || !selfiePath) return
+    // ⚠️ MRZ ONLY FOR A PASSPORT, and only a read whose check digits verify. Without one the typed
+    // fields travel alone and the case waits for a reviewer who compares them with the photo
+    // (2026-10-21). A read the seller CORRECTED is still sent: the server sees the disagreement, files the
+    // typed values for a reviewer and flags what the lines said (kyc/service.ts).
+    const sendMrz = tier === 'B' && mrzAgainst(mrzLine1, mrzLine2, documentNumber, documentExpiry).valid
     setSubmitting(true)
     setError(null)
     try {
@@ -661,23 +705,16 @@ export function VerifyClient() {
           passportNumber: documentNumber.trim() || undefined,
           nationality: tier === 'A' ? 'VNM' : undefined,
           documentExpiry: documentExpiry || undefined,
-          // ⚠️ MRZ ONLY FOR A PASSPORT, and only because tier B's decision REQUIRES a reliable read:
-          // `decideTierB` rejects a tier B case with neither valid check digits nor a provider. A
-          // CCCD has no MRZ at all and its branch does not ask for one.
-          mrzLine1: tier === 'B' ? (mrzLine1.trim().toUpperCase() || undefined) : undefined,
+          mrzLine1: sendMrz ? mrzLine1.trim().toUpperCase() : undefined,
           // ⛔ THE RAW READ, UNCHANGED — AND A CLIENT THAT RE-MINTS CHECK DIGITS IS A BYPASS.
           // A previous pass wrote the confirmed number and expiry back into line 2 and recomputed the
-          // checksums, to close the mod-10 hole below. That turns the expiry box into self-service:
-          // a seller whose passport expired in 2024 edits the date to 2030, the client mints a valid
-          // composite, and the server — which prefers MRZ-derived fields — sees an unexpired document.
-          // It also destroys the read-vs-typed discrepancy a human reviewer needs. Whatever the OCR
-          // actually read is what gets submitted; the typed fields travel alongside it.
-          // ⚠️ THE MOD-10 HOLE IS THEREFORE STILL OPEN, and it is a SERVER problem: `G`/`6`, `S`/`8`
-          // and `L`/`1` have ICAO values differing by exactly ten, so those misreads leave every
-          // check digit valid and the MRZ number silently wins over the seller's correction.
-          // Closing it means reconciling the two SERVER-side — prefer the typed number when it
-          // differs from the MRZ only by such a substitution — which is not a client change.
-          mrzLine2: tier === 'B' ? (mrzLine2.trim().toUpperCase() || undefined) : undefined,
+          // checksums. That turns the expiry box into self-service: a seller whose passport expired in
+          // 2024 edits the date to 2030, the client mints a valid composite, and the server — which
+          // prefers MRZ-derived fields — sees an unexpired document. The lines go exactly as read, the
+          // typed fields beside them, and a disagreement is reconciled on the SERVER: the typed values are
+          // filed for a reviewer, flagged, who re-reads the number and expiry off the photo (the mod-10 hole:
+          // `G`/`6`, `S`/`8`, `L`/`1` misreads pass every check digit).
+          mrzLine2: sendMrz ? mrzLine2.trim().toUpperCase() : undefined,
         }),
       })
       // ⛔ ANY FAILURE HERE HAS ALREADY BURNED THE CHALLENGE (consumeChallenge burns the code on
@@ -712,7 +749,9 @@ export function VerifyClient() {
         // that support modules, so no nomodule polyfill bundle rescues them (codex + fable). It would
         // throw HERE, after resetAttempt() has burned the challenge and cleared the form, replacing
         // the explanation this whole table exists to give with nothing at all.
-        const raw = code && Object.prototype.hasOwnProperty.call(SUBMIT_OUTCOMES, code) ? SUBMIT_OUTCOMES[code] : undefined
+        // A `<code>:A` entry, where one exists, is that refusal's whole tier-A copy (see document_number_invalid).
+        const key = code && tier === 'A' && Object.prototype.hasOwnProperty.call(SUBMIT_OUTCOMES, `${code}:A`) ? `${code}:A` : code
+        const raw = key && Object.prototype.hasOwnProperty.call(SUBMIT_OUTCOMES, key) ? SUBMIT_OUTCOMES[key] : undefined
         const outcome = raw && tier === 'A' && raw.enA && raw.viA ? { ...raw, en: raw.enA, vi: raw.viA } : raw
         if (outcome?.terminal) { setTerminal(outcome); setError(null); return }
         setError(outcome
@@ -806,16 +845,14 @@ export function VerifyClient() {
   // ⛔ The identity fields the server actually needs, so submit can't fire with them BLANK — which
   // matters because onDocUploaded clears them for BOTH tiers (the mixed-document guard) and tier A
   // has no OCR to refill them, so the details step opens empty. Submitting blank wastes the
-  // single-use challenge on a certain refusal (codex). Tier A: the four typed fields. Tier B: the two
-  // MRZ lines the server re-derives identity from (the preview fields are filled from these).
-  // ⛔ Tier B gates on an ACTUALLY-VALID MRZ (parse + check digits), not merely non-empty lines, so a
-  // user who hand-types garbage can't pass the client gate, hit the server's mrz_invalid refusal, and
-  // burn the single-use challenge (fable, 2026-09-02) — plus the name, which the MRZ line 1 no longer
-  // carries (so a nameless read cannot submit; the human-confirmed typed name is authoritative).
-  // ⚠️ PARSED ONCE, because the per-field diagnosis below needs the SAME `checks` object the gate
-  // decides on — two calls would let the gate and the explanation disagree after an edit.
-  const mrzParsed = tier === 'B' && (mrzLine1.trim() || mrzLine2.trim()) ? parsePassportMrz(mrzLine1, mrzLine2) : null
-  const mrzValid = tier === 'B' && !!mrzLine1.trim() && !!mrzLine2.trim() && !!mrzParsed?.valid
+  // single-use challenge on a certain refusal (codex). Tier A: the four typed fields. Tier B: the
+  // name — which the MRZ line 1 never carries (the human-confirmed typed name is authoritative) — and,
+  // unless the camera's read verifies and agrees (`useMrz`), the passport number and expiry the
+  // reviewer will compare with the photo. ⛔ Until 2026-10-21 tier B demanded a valid MRZ and the seller
+  // typed both lines when the read failed; the owner removed that ("too much to type and doesnt
+  // autofill") and the server now files such a case from the typed fields (kyc/service.ts).
+  const mrzRead = tier === 'B' ? mrzAgainst(mrzLine1, mrzLine2, documentNumber, documentExpiry) : null
+  const useMrz = !!mrzRead?.valid && !mrzRead.number && !mrzRead.expiry
   // ⚠️ AT LEAST ONE name part, NOT both. Many holders have a single legal name (a mononym) whose passport
   // carries no given name — requiring both permanently locked them out of submit (agy, 2026-09-02). This
   // still blocks a fully nameless read (both empty), which is the case that mattered.
@@ -827,93 +864,28 @@ export function VerifyClient() {
   // A format this simple belongs in front of the button, not behind the network call.
   const cccdDigits = documentNumber.replace(/[\s.-]/g, '')
   const cccdNumberBad = tier === 'A' && cccdDigits.length > 0 && !/^\d{12}$/.test(cccdDigits)
+  // The same, for a passport nothing machine-read: the server's own `passportNumberShape` (4–22 letters
+  // and digits) and an expiry date, in front of the button for the same reason as the CCCD number above.
+  const passportDigits = documentNumber.toUpperCase().replace(/[\s<-]/g, '')
+  const passportNumberBad = tier === 'B' && !useMrz && passportDigits.length > 0 && !passportNumberShape(documentNumber)
+  const expiryMissing = tier === 'B' && !useMrz && !/^\d{4}-\d{2}-\d{2}$/.test(documentExpiry.trim())
   // ⚠️ NO EXPIRY REQUIRED FOR A CCCD. A card issued to someone over 60 reads "Không thời hạn" — no
   // expiry at all — and the server stores null for it. Requiring one here locked that entire cohort
   // out of verification while the server was perfectly willing to accept them.
   const detailsIncomplete = tier === 'A'
     ? (!surname.trim() || !givenNames.trim() || !cccdDigits || cccdNumberBad)
-    : (!mrzValid || nameMissing)
+    : (nameMissing || (!useMrz && (!passportDigits || passportNumberBad || expiryMissing)))
 
-  /**
-   * ⚠️ SAY WHICH LINE, OR WHICH CHECK DIGIT, IS WRONG. Hand-typing 88 characters of OCR-B off a
-   * passport on a phone WILL go wrong, and until now the only feedback was a Send button that stayed
-   * disabled — blind trial and error over 88 characters. Every one of these is derivable: a TD3 line
-   * is exactly 44 characters, and each field on line 2 carries its own mod-10 check digit, so the
-   * parser already knows precisely which seven-character group does not add up.
-   * ⛔ ALL FIVE CHECKS, not the three obvious ones (codex): `optionalData` and the trailing
-   * `composite` are check digits the parser validates too, and a mismatch in either is exactly the
-   * kind of typo — one character in the long filler run — a seller cannot find unaided.
-   * Built in JS: design-lint forbids a bare string literal in JSX.
-   */
-  // ⚠️ THE SAME NORMALISATION `parsePassportMrz` APPLIES INTERNALLY (`cleanLine` in lib/visa/mrz.ts:
-  // uppercase, strip whitespace, strip anything outside the MRZ alphabet) — VERIFIED, not assumed. Two
-  // reviewers have now filed "the diagnosis normalises but the gate parses raw, so a pasted lowercase
-  // line reads 44/44 with every check failing"; it does not, because the parser cleans first and the
-  // two are character-for-character identical. Keep them that way, or that finding becomes true.
-  const clean = (v: string) => v.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9<]/g, '')
-  // ⛔ THE CONFIRMED FIELDS AND THE MRZ MUST AGREE, OR THE SELLER'S CORRECTION IS THROWN AWAY.
-  // The MRZ checksum is mod-10 and the ICAO values of `G`/`6`, `S`/`8`, `L`/`1` differ by exactly ten,
-  // so those misreads leave every check digit valid: the read reports success with a WRONG passport
-  // number. The seller is told to check the details above, fixes the number — and the server prefers
-  // MRZ-derived fields, so the misread is what gets recorded against their identity.
-  // ⚠️ THE CLIENT MUST NOT "FIX" THIS BY REWRITING LINE 2. That was tried and is a bypass: re-minting
-  // check digits over a typed expiry lets anyone with an expired passport edit the date into a valid
-  // MRZ. The safe move is to refuse to submit a disagreement and show the seller where it is.
+  // ⛔ THE CONFIRMED FIELDS AND THE READ DISAGREE — say so, and say what happens, one sentence per field
+  // (`mrzAgainst` says why the two are handled differently). ⚠️ The client never rewrites line 2 to match:
+  // re-minting check digits over a typed expiry is a bypass.
   // ⛔ TEMPLATES, FILLED AFTER TRANSLATION: these sentences quote the reader's passport number and expiry
   // date. Sent whole to tr(), each would go to the machine translator and into the shared cache — a
   // passport number in a table every page reads. The template is translated; the values never leave.
-  const mrzDisagreement: { en: string; vi: string; values: Record<string, string> } | null = (() => {
-    if (tier !== 'B' || !mrzValid || !mrzParsed) return null
-    const typedNumber = documentNumber.trim().toUpperCase()
-    const readNumber = mrzParsed.fields.passportNumber
-    if (typedNumber && readNumber && typedNumber !== readNumber) {
-      return {
-        en: 'The code lines say your passport number is {read}, but the field above says {typed}. Correct whichever is wrong — the code lines are what we verify against.',
-        vi: 'Hai dòng mã ghi số hộ chiếu là {read}, nhưng ô ở trên ghi {typed}. Hãy sửa phần nào sai — chúng tôi đối chiếu theo hai dòng mã.',
-        values: { read: readNumber, typed: typedNumber },
-      }
-    }
-    const typedExpiry = documentExpiry.trim()
-    const readExpiry = mrzParsed.fields.passportExpiryDate?.slice(0, 10)
-    if (typedExpiry && readExpiry && typedExpiry !== readExpiry) {
-      return {
-        en: 'The code lines say your passport expires on {read}, but the field above says {typed}. Correct whichever is wrong — the code lines are what we verify against.',
-        vi: 'Hai dòng mã ghi ngày hết hạn là {read}, nhưng ô ở trên ghi {typed}. Hãy sửa phần nào sai — chúng tôi đối chiếu theo hai dòng mã.',
-        values: { read: readExpiry, typed: typedExpiry },
-      }
-    }
-    return null
-  })()
-
-  const mrzProblem: string | null = (() => {
-    if (tier !== 'B' || !mrzParsed || mrzParsed.valid) return null
-    const l1 = clean(mrzLine1), l2 = clean(mrzLine2)
-    const wrongLength = [l1.length !== 44 ? 1 : 0, l2.length !== 44 ? 2 : 0].filter(Boolean)
-    if (wrongLength.length > 0) {
-      const parts = wrongLength.map((n) => `${tr('line', 'dòng')} ${n}: ${n === 1 ? l1.length : l2.length}/44`)
-      return `${tr('Each line is exactly 44 characters', 'Mỗi dòng có đúng 44 ký tự')} — ${parts.join(', ')}.`
-    }
-    if (!l1.startsWith('P')) return tr('Line 1 of a passport starts with P.', 'Dòng 1 của hộ chiếu bắt đầu bằng chữ P.')
-    const names: Array<[keyof typeof mrzParsed.checks, string, string]> = [
-      ['passportNumber', 'the passport number', 'số hộ chiếu'],
-      ['dateOfBirth', 'the date of birth', 'ngày sinh'],
-      ['expiryDate', 'the expiry date', 'ngày hết hạn'],
-      ['optionalData', 'the characters after the expiry date', 'các ký tự sau ngày hết hạn'],
-      ['composite', 'the very last character of line 2', 'ký tự cuối cùng của dòng 2'],
-    ]
-    const bad = names.filter(([k]) => !mrzParsed.checks[k]).map(([, en, vi]) => tr(en, vi))
-    // ⛔ NEVER null WITH AN INVALID MRZ. Every path above should have named something, but if the
-    // parser ever refuses a line for a reason none of them covers, silence here is a dead Send button
-    // with no explanation — the exact failure this whole block exists to end (fable).
-    if (bad.length === 0) {
-      return tr(
-        "These two lines don't match what is printed on your passport yet — please check them character by character.",
-        'Hai dòng này chưa khớp với thông tin in trên hộ chiếu — vui lòng kiểm tra từng ký tự.',
-      )
-    }
-    const joined = bad.length <= 1 ? bad[0] : `${bad.slice(0, -1).join(', ')}${tr(' and ', ' và ')}${bad[bad.length - 1]}`
-    return `${tr("This doesn't add up yet — check", 'Chưa khớp — hãy kiểm tra')} ${joined}.`
-  })()
+  const mrzDisagreements: Array<{ en: string; vi: string; values: Record<string, string> }> = [
+    ...(mrzRead?.number ? [{ ...NUMBER_DISAGREES, values: { read: mrzRead.number.read, typed: mrzRead.number.typed } }] : []),
+    ...(mrzRead?.expiry ? [{ ...EXPIRY_DISAGREES, values: { read: mrzRead.expiry.read, typed: mrzRead.expiry.typed } }] : []),
+  ]
 
   // Which required field is still empty — the sentence form of `detailsIncomplete`, so the disabled
   // Send button is never a mystery. Built in JS: design-lint forbids a bare string literal in JSX.
@@ -929,7 +901,11 @@ export function VerifyClient() {
       else if (cccdNumberBad) bits.push(tr('a 12-digit CCCD number', 'số CCCD gồm 12 chữ số'))
     } else {
       if (nameMissing) bits.push(tr('your name as printed on the passport', 'họ tên như in trên hộ chiếu'))
-      if (!mrzValid) bits.push(tr('the two machine-readable lines below', 'hai dòng mã máy đọc bên dưới'))
+      if (!useMrz) {
+        if (!passportDigits) bits.push(tr('your passport number', 'số hộ chiếu của bạn'))
+        else if (passportNumberBad) bits.push(tr('your passport number as printed — letters and digits only', 'số hộ chiếu đúng như in — chỉ gồm chữ và số'))
+        if (expiryMissing) bits.push(tr('the expiry date', 'ngày hết hạn'))
+      }
     }
     if (bits.length === 0) return null
     const joined = bits.length <= 1
@@ -1227,9 +1203,10 @@ export function VerifyClient() {
                   primaryAction: {
                     label: tr('Send for review', 'Gửi để xét duyệt'),
                     onClick: () => void submit(),
-                    // ⛔ A DISAGREEMENT BLOCKS SEND. Letting it through means the seller's correction
-                    // is silently discarded in favour of a check-valid misread — see mrzDisagreement.
-                    disabled: submitting || !documentPath || !selfiePath || detailsIncomplete || !!mrzDisagreement,
+                    // ⚠️ A DISAGREEMENT NO LONGER BLOCKS SEND (2026-10-21). It did while the server silently
+                    // preferred the MRZ; it now files the correction for a reviewer, and says so above — see
+                    // mrzAgainst.
+                    disabled: submitting || !documentPath || !selfiePath || detailsIncomplete,
                     icon: submitting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : undefined,
                   },
                 }
@@ -1320,26 +1297,13 @@ export function VerifyClient() {
               </div>
 
               {/*
-                ⛔ THE MRZ IS ASKED FOR ON A PASSPORT AND ONLY ON A PASSPORT, and it is not busywork:
-                `decideTierB` REJECTS a tier B case that was not read reliably, and with the provider
-                integration blocked the check digits in these two lines are the only reliable read
-                available. A CCCD has no MRZ, and its branch does not ask for one.
+                ⛔ NO CODE LINES ON SCREEN (owner, 2026-10-21: "too much to type and doesnt autofill"). Until
+                then a failed read asked the seller to type both 44-character MRZ lines. The camera's read
+                now stays out of sight: it fills the fields above and is sent only while they still agree
+                with it (`useMrz`). Without a read, or after the seller corrects one, the typed details go to
+                a reviewer who compares them with the photo — the case is never refused for the missing lines.
               */}
-              {/*
-                ⛔ THE RAW LINES ARE FOR TYPING, NOT FOR CHECKING — and showing them after a good scan
-                asked the seller to do something impossible. What goes in these boxes is DERIVED, not
-                transcribed: line 1 is deliberately name-less on every path (see nameLess above, so a
-                misread name cannot overrule the typed one), and a FUSED line 2 carries filler in the
-                optional-data field and a freshly computed composite. Neither matches what is printed
-                on the passport. The copy nonetheless said "these are the two lines across the bottom
-                of your passport page — check they are right", so the owner compared them to his own
-                passport, found they did not match, and reported it as a bug. He was reading the
-                screen correctly; the screen was wrong.
-                So they appear only when the scan did NOT deliver and the seller has to type them.
-              */}
-              {/* SCAN STATUS — always visible for tier B. ⚠️ It must live OUTSIDE the typing block
-                  below: hiding the raw lines after a good read would otherwise have taken the
-                  "Read from your passport" confirmation and the name-still-needed hint with it. */}
+              {/* SCAN STATUS — always visible for tier B. */}
               {tier === 'B' && (
                 <div className="space-y-2">
                   {scan === 'reading' && (
@@ -1362,104 +1326,27 @@ export function VerifyClient() {
                   )}
                   {scan === 'failed' && (
                     <Alert>
-                      <AlertDescription className="text-xs">
-                        {scanHint
-                          ? (tr(scanHint.en, scanHint.vi))
-                          : tr('We could not read your passport this time — please type the two lines below.', 'Lần này chúng tôi không đọc được hộ chiếu — vui lòng tự nhập hai dòng bên dưới.')}
+                      <AlertDescription className="space-y-1 text-xs">
+                        {scanHint && <p>{tr(scanHint.en, scanHint.vi)}</p>}
+                        <p>
+                          {tr(
+                            'Go back and retake the passport photo, or fill in the details above and send — our team will compare them with your passport photo.',
+                            'Hãy quay lại chụp lại trang hộ chiếu, hoặc điền thông tin ở trên rồi gửi — đội ngũ của chúng tôi sẽ đối chiếu với ảnh hộ chiếu của bạn.',
+                          )}
+                        </p>
                       </AlertDescription>
                     </Alert>
                   )}
                 </div>
               )}
 
-              {/* ⛔ COLLAPSED AFTER A GOOD READ, NEVER REMOVED — and the difference matters. Hiding
-                  these outright made a whole class of misread UNCORRECTABLE: the MRZ check digits are
-                  mod-10, so any swap whose character values differ by a multiple of ten (G↔6, S↔8,
-                  L↔1) leaves every checksum valid. A passport number misread that way passes, the
-                  seller is told to "check the details above", they fix the visible field — and the
-                  hidden line 2 still carries the misread and is what gets submitted.
-                  ⚠️ NOT WHILE A READ IS IN FLIGHT either: inviting someone to type beside
-                  "Reading your passport…" is what strands a half-typed line. */}
-              {mrzDisagreement && (
-                <Alert variant="destructive">
+              {mrzDisagreements.map((d) => (
+                <Alert key={d.en}>
                   <AlertDescription className="text-xs">
-                    {fillBilingual(tr(mrzDisagreement.en, mrzDisagreement.vi), mrzDisagreement.en, mrzDisagreement.values)}
+                    {fillBilingual(tr(d.en, d.vi), d.en, d.values)}
                   </AlertDescription>
                 </Alert>
-              )}
-              {tier === 'B' && mrzDerived && scan === 'ok' && !mrzDisagreement
-                && !mrzTypedRef.current && (mrzLine1.trim() || mrzLine2.trim()) && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-expanded={mrzRevealed}
-                  aria-controls="mrz-lines"
-                  className="h-auto self-start p-0 text-xs font-medium text-muted-foreground underline underline-offset-2"
-                  // ⚠️ A TOGGLE, NOT A ONE-WAY REVEAL — and it stays mounted. Unmounting the control
-                  // on click drops keyboard focus to <body>. It also no longer calls `markEdited()`:
-                  // opening a panel changes no data, and that ref gates whether later reads may
-                  // prefill the NAME fields, which has nothing to do with looking at the code lines.
-                  onClick={() => setMrzRevealed((v) => !v)}
-                >
-                  {mrzRevealed
-                    ? tr('Hide the code lines', 'Ẩn hai dòng mã')
-                    : tr('Show the code lines', 'Hiện hai dòng mã')}
-                </Button>
-              )}
-              {/* ⛔ COLLAPSED ONLY ON A SUCCESSFUL READ THE SELLER HAS NOT OPENED. Every other state
-                  renders the inputs, INCLUDING while a read is in flight: gating them off during
-                  `reading` stranded anyone whose OCR engine never resolved — "Reading your passport…"
-                  forever, no inputs, and no way back to the manual path this block exists to be. */}
-              {/* ⛔ COLLAPSES ONLY ON A CLEAN, UNTOUCHED, AGREEING READ — every other state renders the
-                  inputs. Each clause is a bug that happened: `mrzRevealed` for the seller who opened
-                  it; `mrzTypedRef` because the first Backspace in line 2 made the line invalid, which
-                  made the disagreement vanish, which unmounted the inputs under the cursor;
-                  `mrzDisagreement` so a mod-10 misread cannot be corrected out of sight; and
-                  `scan === 'ok'` so a hung engine never hides the manual fallback. Expressed as one
-                  condition rather than an effect — the effect version was a conditional hook. */}
-              {tier === 'B' && !(
-                mrzDerived && scan === 'ok' && !mrzRevealed && !mrzDisagreement
-                && !mrzTypedRef.current && !mrzProblem
-              ) && (
-                <div id="mrz-lines" className="space-y-2">
-                  {/* ⛔ THE COPY MUST MATCH WHAT IS ACTUALLY IN THE BOXES. "Exactly as printed" is
-                      right when the seller is typing from the passport, and WRONG when a scan filled
-                      these: line 1 is name-less by design and a fused line 2 carries filler and a
-                      recomputed composite, so neither matches the page. Telling someone to compare
-                      them to their passport is what produced the original bug report. */}
-                  {/* ⛔ KEYED ON WHERE THE VALUES CAME FROM, NOT ON WHETHER THE BOXES HAVE TEXT. The
-                      earlier version checked the box contents, so on the MANUAL path the instruction
-                      flipped from "type exactly as printed" to "these are derived" on the seller's
-                      FIRST KEYSTROKE — the opposite of what they need. And the derived copy no longer
-                      claims the typed number "takes priority": the server prefers MRZ-derived fields,
-                      so saying otherwise would be a false promise about the one value that matters. */}
-                  <p className="text-xs text-muted-foreground">
-                    {mrzDerived
-                      ? tr(
-                          'These are rebuilt from what we read, so they will not match your passport character for character. They are also what we check your details against — so if the number or dates above are wrong, correct them HERE, or retake the photo.',
-                          'Hai dòng này được dựng lại từ kết quả đọc nên sẽ không trùng khớp từng ký tự với hộ chiếu. Đây cũng là phần chúng tôi dùng để đối chiếu — nếu số hộ chiếu hoặc ngày tháng ở trên bị sai, hãy sửa Ở ĐÂY, hoặc chụp lại ảnh.',
-                        )
-                      : tr(
-                          'Type the two lines of letters and numbers across the bottom of your passport page, exactly as printed.',
-                          'Hãy nhập hai dòng chữ và số ở cuối trang hộ chiếu, đúng như in trên hộ chiếu.',
-                        )}
-                  </p>
-                  <Input value={mrzLine1} onChange={(e) => { setMrzLine1(e.target.value); mrzTypedRef.current = !!(e.target.value.trim() || mrzLine2.trim()); markEdited() }} placeholder="P<VNMNGUYEN<<VAN<A<<<<<<<<<<<<<<<<<<<<<<<<<<" className="font-mono" />
-                  <Input value={mrzLine2} // ⚠️ CLEARED WHEN BOTH BOXES ARE EMPTY AGAIN. A single keystroke followed by Backspace otherwise
-                    // left the ref true with nothing in the boxes, so the next read filled them with derived
-                    // lines under "type exactly as printed" — the original report, one undo away.
-                    onChange={(e) => { setMrzLine2(e.target.value); mrzTypedRef.current = !!(e.target.value.trim() || mrzLine1.trim()); markEdited() }} placeholder="C12345678VNM9001011M3001011<<<<<<<<<<<<<<04" className="font-mono" />
-                  {/* Live diagnosis of a typed/edited MRZ — see mrzProblem. role=status, not alert:
-                      it changes on every keystroke and must not interrupt a screen reader mid-word. */}
-                  {mrzProblem && (
-                    <p role="status" aria-live="polite" className="text-xs font-medium text-destructive">{mrzProblem}</p>
-                  )}
-                  {mrzValid && (
-                    <p role="status" className="text-xs font-medium text-success">{tr('Both lines check out.', 'Hai dòng đã khớp.')}</p>
-                  )}
-                </div>
-              )}
+              ))}
             </div>
             )}
 

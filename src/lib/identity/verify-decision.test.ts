@@ -136,8 +136,12 @@ describe('Tier B decision', () => {
     }
   })
 
-  it('rejects an invalid MRZ and an expired passport, expiry reported first', () => {
-    expect(decideTierB({ ...base({ mrzValid: false }), accountName: 'x', now: NOW }).rejectReason).toBe('mrz_invalid')
+  it('holds a passport without a verified MRZ for a human (2026-10-21), and rejects an expired one, expiry reported first', () => {
+    const typed = decideTierB({ ...base({ mrzValid: false }), accountName: 'x', now: NOW })
+    expect(typed.status).toBe('pending')
+    expect(typed.rejectReason).toBeUndefined()
+    // ⛔ Typed AND expired is still refused at submission — the seller hears it now, not from a reviewer.
+    expect(decideTierB({ ...base({ mrzValid: false, documentExpiry: '2020-01-01' }), accountName: 'x', now: NOW }).rejectReason).toBe('document_expired')
     const expired = decideTierB({ ...base({ documentExpiry: '2020-01-01' }), accountName: 'nobody', now: NOW })
     // Name also mismatches — but expiry is what the user must fix first.
     expect(expired.rejectReason).toBe('document_expired')
@@ -369,10 +373,31 @@ describe('tier-aware decision', () => {
     expect(d.status).toBe('verified')
   })
 
-  it('but a passport with NEITHER check digits NOR a provider is refused', () => {
-    const d = decideTierB({ ...base({ mrzValid: false }), accountName: 'Anna Maria Eriksson', now: NOW })
-    expect(d.status).toBe('rejected')
-    expect(d.rejectReason).toBe('mrz_invalid')
+  // ⛔ THIS ASSERTED A REJECTION ('mrz_invalid') UNTIL 2026-10-21, AND THE CHANGE IS THE OWNER'S: the typed code
+  // lines were removed from the form, and a passport nothing machine-read now waits for a human instead.
+  it('a passport with NEITHER check digits NOR a provider waits for a human — and only a human clears it', () => {
+    const input = { ...base({ mrzValid: false }), accountName: 'Anna Maria Eriksson', now: NOW }
+    const d = decideTierB(input)
+    expect(d.status).toBe('pending')
+    // ⛔ NOTHING CLAIMS A READ THAT DID NOT HAPPEN — no check digit, no provider.
+    expect(d.checksPassed).not.toContain('mrz_checksums')
+    expect(d.checksPassed).not.toContain('provider_attested_read')
+
+    const approved = decideTierB({ ...input, humanReview: 'approved' })
+    expect(approved).toMatchObject({ status: 'verified', assurance: 'manual_review' })
+    expect(approved.checksPassed).toContain('human_review_approved')
+    expect(approved.checksPassed).not.toContain('mrz_checksums')
+    expect(approved.limitations).toContain(LIMITATION.noBiometricBinding)
+
+    expect(decideTierB({ ...input, humanReview: 'rejected' })).toMatchObject({ status: 'rejected', rejectReason: 'manual_review_rejected' })
+  })
+
+  it('…and still holds a typed passport to the six-month floor and a readable expiry, approved or not', () => {
+    const soon = { ...base({ mrzValid: false, documentExpiry: '2026-12-01' }), accountName: 'Anna Maria Eriksson', now: NOW }
+    expect(decideTierB(soon).rejectReason).toBe('document_expires_soon')
+    expect(decideTierB({ ...soon, humanReview: 'approved' }).rejectReason).toBe('document_expires_soon')
+    expect(decideTierB({ ...base({ mrzValid: false, documentExpiry: undefined }), accountName: 'Anna Maria Eriksson', now: NOW }).rejectReason)
+      .toBe('document_expiry_unreadable')
   })
 
   it('a passport still requires an expiry date', () => {

@@ -8,6 +8,12 @@ import { provisionWithinBudget } from './on-verified'
 import { logError } from '@/lib/log'
 import { ownsKycPath } from './store'
 import { notifyIdentityOutcome } from './notify-outcome'
+import { hmacSubject, subjectHashEquals } from '@/lib/compliance/subject-hash'
+import { passportNumberShape } from './passport-number'
+
+/** ICAO 9303 nationality codes that are not ISO alpha-3 (Germany's `D`, the British national classes, UN, EU,
+ *  Kosovo, stateless, refugee) — namespaces a camera read can file a passport under beyond `ISO_ALPHA3`. */
+const ICAO_ONLY_ISSUERS = ['D', 'GBD', 'GBN', 'GBO', 'GBP', 'GBS', 'UNO', 'UNA', 'UNK', 'EUE', 'RKS', 'XXA', 'XXB', 'XXC', 'XXX', 'XOM', 'XPO']
 // ⚠️ THE SAME HELPER THE WALLET GATE USES, deliberately. `isoNationality` carries the ICAO alias
 // `D → DEU` and rejects the deliberately-unmapped `XXA`/`XXB`/`XXC`/`XXX` and `GBD`…`GBS`. Accepting
 // a code here that on-verified.ts would later refuse would let a reviewer "fix" a case into a state
@@ -57,6 +63,9 @@ export type KycQueueItem = {
   documentExpiresAt: string | null
   submittedAt: string
   method: string
+  /** The MRZ lines the applicant's device sent verified, but disagreed with what they typed (since 2026-10-21):
+   *  the case was filed as typed. The number only as a flag (never stored); the expiry as the date the lines gave. */
+  readDisagreement: { number?: true; expiry?: string } | null
   /** Short-lived links to the two captures. Minted per request, never stored. */
   documentUrl: string | null
   selfieUrl: string | null
@@ -81,7 +90,14 @@ type Evidence = {
   nationalitySuggested?: string
   nationalitySuggestedFrom?: string
   nationalityFromMrz?: boolean
-  /** Exactly what decideTierB was given at submission — see the note in service.ts. */
+  /** The MRZ lines disagreed with the typing (since 2026-10-21) — see readDocument in service.ts. */
+  readDisagreement?: { number?: true; expiry?: string }
+  /** A camera-read passport's number digested with NO issuer (since 2026-10-21) — the namespace typed passports
+   *  are filed in, so approval meets one verified while this case waited (reviewKycCase). */
+  anyIssuerHash?: string
+  /** Exactly what decideTierB was given at submission — see the note in service.ts. One exception (2026-10-21): where
+   *  the typed expiry disagreed with the code lines, this keeps the APPLICANT'S date and submission judged the later
+   *  of it and `readDisagreement.expiry`; approval then judges the reviewer's own reading (`reviewedExpiry`). */
   decisionInput?: {
     surname?: string
     givenNames?: string
@@ -147,6 +163,7 @@ export async function listKycQueue(limit = 50): Promise<KycQueueItem[]> {
       nationality: r.nationality,
       nationalitySuggested: ev.nationalitySuggested ?? null,
       nationalityFromMrz: typeof ev.nationalityFromMrz === 'boolean' ? ev.nationalityFromMrz : null,
+      readDisagreement: ev.readDisagreement ?? null,
       // Null when the profile has been deleted (profileId is SetNull), which is also when the
       // signed links below refuse — a case with no account behind it can no longer be judged.
       email: r.profile?.email ?? null,
@@ -602,7 +619,7 @@ export async function resignKycCaptures(verificationId: string): Promise<{ docum
 export type ReviewDecision = 'approve' | 'reject'
 export type ReviewResult =
   | { ok: true; status: 'verified' | 'rejected' }
-  | { ok: false; code: 'not_found' | 'not_pending' | 'expired_at_review' | 'duplicate_identity' | 'still_pending' | 'evidence_unavailable' | 'nationality_invalid' | 'failed' }
+  | { ok: false; code: 'not_found' | 'not_pending' | 'expired_at_review' | 'duplicate_identity' | 'still_pending' | 'evidence_unavailable' | 'nationality_invalid' | 'number_required' | 'number_mismatch' | 'expiry_required' | 'failed' }
 
 /**
  * Approve or reject one case.
@@ -633,6 +650,16 @@ export async function reviewKycCase(input: {
    * Ignored on a rejection: a refused case is not a compliance record of anyone's nationality.
    */
   nationality?: string
+  /**
+   * ⛔ A TYPED PASSPORT'S NUMBER, AS THE REVIEWER READS IT OFF THE PHOTOGRAPH (since 2026-10-21). For a
+   * `passport_manual` case nothing machine-read the number, yet it is the duplicate-identity key — so an
+   * approval needs it re-typed, and it must match what the applicant typed. Ignored for every other method
+   * and on a rejection.
+   */
+  passportNumber?: string
+  /** A typed passport's expiry date (YYYY-MM-DD) as the reviewer reads it off the photograph — required when
+   *  the applicant typed it, and then the date the decision and the record use. */
+  documentExpiry?: string
   now?: Date
 }): Promise<ReviewResult> {
   const now = input.now ?? new Date()
@@ -742,9 +769,44 @@ export async function reviewKycCase(input: {
   // a rejection) has their OWN earlier verified row under this subjectHash; matching on
   // `NOT: { id }` found it and refused the renewal as a duplicate. The submit-side check had it
   // right with `NOT: { profileId }`; this is the same predicate. Caught by external review.
+  /**
+   * ⛔ A TYPED PASSPORT IS READ HERE, BY THE REVIEWER (`passport_manual`, since 2026-10-21 — the owner removed
+   * the typed MRZ lines and chose "our team checks by hand"). Its number is the duplicate-identity key and
+   * nothing machine-checked it, so a seller could type someone else's number to squat it, or their own with
+   * one character changed to verify a second account. So the reviewer re-types the number off the photo and
+   * it must match the applicant's: the submit path digested it with no issuer, which is `row.subjectHash`.
+   * ⚠️ THEN THE NUMBER IS LOOKED UP UNDER EVERY ISSUER, and the case stays filed issuer-less. Nothing the
+   * reviewer types picks a namespace: re-filing under their nationality let one misread (`NOR` for a Swedish
+   * passport) put the case where a later camera read of it never looks. Camera reads look issuer-less instead
+   * (`anyIssuerHash`, below and in service.ts), so the two meet in either order. A human is looking at this
+   * point, so the rare stranger abroad who shares the number is refused in front of someone who can see why.
+   * ⛔ AND THE REVIEWER READS THE EXPIRY OFF THE PHOTO TOO, ALWAYS, and that date is the one the six-month floor
+   * is measured on and the one stored — a statutory floor is not left to a date the applicant typed, nor to MRZ
+   * lines a client sent (the server never re-reads the image, so "the camera's" date is a claim like any other).
+   */
+  let reviewedExpiry: string | undefined
+  if (row.method === 'passport_manual') {
+    const seen = passportNumberShape(input.passportNumber)
+    if (!seen) return { ok: false, code: 'number_required' }
+    if (!row.subjectHash || !subjectHashEquals(hmacSubject(seen), row.subjectHash)) return { ok: false, code: 'number_mismatch' }
+    // A real calendar day, not just its shape: `2030-13-45` would become an Invalid Date or a rolled-over one.
+    const day = input.documentExpiry && /^\d{4}-\d{2}-\d{2}$/.test(input.documentExpiry) ? new Date(`${input.documentExpiry}T00:00:00Z`) : null
+    if (!day || Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== input.documentExpiry) return { ok: false, code: 'expiry_required' }
+    reviewedExpiry = input.documentExpiry
+    const issuers = ['', ...ICAO_ONLY_ISSUERS, ...ISO_ALPHA3]
+    const clash = row.profileId && await db.identityVerification.findFirst({
+      where: { subjectHash: { in: [...new Set(issuers)].map((issuer) => hmacSubject(seen, { issuer })) }, status: 'verified', NOT: { profileId: row.profileId } },
+      select: { id: true },
+    })
+    if (clash) return { ok: false, code: 'duplicate_identity' }
+  }
+
   if (row.subjectHash && row.profileId) {
+    // A camera-read passport also meets one TYPED on another account (filed issuer-less) that was verified
+    // while this case waited — submission only saw what was verified then.
+    const anyIssuerHash = ((row.evidence ?? {}) as Evidence).anyIssuerHash
     const clash = await db.identityVerification.findFirst({
-      where: { subjectHash: row.subjectHash, status: 'verified', NOT: { profileId: row.profileId } },
+      where: { subjectHash: { in: anyIssuerHash ? [row.subjectHash, anyIssuerHash] : [row.subjectHash] }, status: 'verified', NOT: { profileId: row.profileId } },
       select: { id: true },
     })
     if (clash) return { ok: false, code: 'duplicate_identity' }
@@ -766,7 +828,7 @@ export async function reviewKycCase(input: {
     givenNames: di?.givenNames ?? legacyName.split(' ').slice(0, -1).join(' '),
     // ⚠️ FORMATTED IN ICT, NOT VIA toISOString(). documentExpiresAt is an ICT midnight, whose UTC
     // instant falls on the previous calendar day.
-    documentExpiry: di?.documentExpiry ?? ictDate(row.documentExpiresAt),
+    documentExpiry: reviewedExpiry ?? di?.documentExpiry ?? ictDate(row.documentExpiresAt),
     // The method records how the document was READ at submission; an MRZ read then is still an MRZ
     // read now, so this is not re-derived.
     mrzValid: di?.mrzValid ?? row.method === 'passport_mrz',
@@ -782,7 +844,7 @@ export async function reviewKycCase(input: {
     const wrote = await decideOnce(row.id, {
       status: 'rejected', decidedAt: now, decidedBy: input.admin,
       rejectReason: decision.rejectReason ?? 'expired',
-      evidence: withNote(row.evidence, input.note),
+      evidence: withReviewedExpiry(withNote(row.evidence, input.note), reviewedExpiry),
     })
     if (!wrote) return { ok: false, code: 'not_pending' }
     // ⚠️ THE SELLER IS TOLD THE MACHINE'S REASON, not the reviewer's note: the reviewer pressed
@@ -841,8 +903,9 @@ export async function reviewKycCase(input: {
   const wrote = await decideOnce(row.id, {
     status: 'verified', decidedAt: now, decidedBy: input.admin,
     assuranceLevel: decision.assurance,
+    ...(reviewedExpiry ? { documentExpiresAt: new Date(`${reviewedExpiry}T00:00:00+07:00`) } : {}),
     ...(nationalityChanged ? { nationality: nationalityWrite ?? null } : {}),
-    evidence: nationalityChanged || nationalityAsserted
+    evidence: withReviewedExpiry(nationalityChanged || nationalityAsserted
       ? withNationality(
           withNote(row.evidence, input.note, decision.checksPassed),
           {
@@ -856,7 +919,7 @@ export async function reviewKycCase(input: {
             confirmedOnly: !nationalityChanged,
           },
         )
-      : withNote(row.evidence, input.note, decision.checksPassed),
+      : withNote(row.evidence, input.note, decision.checksPassed), reviewedExpiry),
   })
   if (!wrote) return { ok: false, code: 'not_pending' }
   // ⛔ "YOU ARE VERIFIED" — AND THE WALLET — ONLY WHEN THE PROFILE NOW READS VERIFIED. A revoked
@@ -915,6 +978,12 @@ async function settle(profileId: string, now: Date, notify: () => Promise<void>)
     try { logError(e, { at: 'kyc.review.recompute', profileId }) } catch { /* ignore */ }
   }
   await notify()
+}
+
+/** A typed passport's expiry as the reviewer read it off the photo (2026-10-21), kept beside the applicant's own
+ *  in `decisionInput` — the record says which date the decision was measured on, and who supplied each. */
+function withReviewedExpiry(evidence: Prisma.InputJsonObject, reviewedExpiry: string | undefined): Prisma.InputJsonObject {
+  return reviewedExpiry ? { ...evidence, reviewedExpiry } : evidence
 }
 
 function withNote(existing: unknown, note?: string, checksPassed?: string[]): Prisma.InputJsonObject {

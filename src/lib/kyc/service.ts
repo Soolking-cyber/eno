@@ -7,6 +7,7 @@ import { consumeChallenge } from '@/lib/identity/challenge'
 import { ownsKycPath } from './store'
 import { decideTierB } from '@/lib/identity/verify-decision'
 import { parsePassportMrz } from '@/lib/visa/mrz'
+import { passportNumberShape } from './passport-number'
 
 // ── SUBMITTING A FOREIGN SELLER'S PASSPORT FOR REVIEW ────────────────────────────────────────────
 //
@@ -35,10 +36,13 @@ export const kycSubmitSchema = z.object({
   /** Two storage paths already uploaded to the private bucket by the documents route. */
   documentPath: z.string().min(1).max(300),
   selfiePath: z.string().min(1).max(300),
-  /** MRZ lines from the passport data page, as read on the client or retyped by the seller. */
+  /** MRZ lines from the passport data page, as the camera read them on the client. The web form stopped
+   *  asking sellers to type them on 2026-10-21; an older client that still sends typed lines is accepted the
+   *  same way, and lines that do not verify fall back to the typed fields below. */
   mrzLine1: z.string().max(60).optional(),
   mrzLine2: z.string().max(60).optional(),
-  /** Fallbacks when the MRZ could not be read at all — the reviewer confirms them by eye. */
+  /** What the seller confirmed or typed. Without a verifying MRZ they ARE the passport's details, and the
+   *  reviewer compares them with the photograph before anything is verified. */
   surname: z.string().max(120).optional(),
   givenNames: z.string().max(120).optional(),
   passportNumber: z.string().max(40).optional(),
@@ -73,16 +77,14 @@ export type KycSubmitError =
 /**
  * Fold what the caller gave us into the fields decideTierB needs.
  *
- * ⛔ THE MRZ IS REQUIRED FOR A PASSPORT, AND I HAD THIS BACKWARDS AT FIRST. The first version
- * accepted hand-typed fields as a fallback "so a glare band does not bounce an honest seller" —
- * but verify-decision.ts:275 refuses a Tier B record with neither a valid MRZ nor a provider, so
- * that fallback could only ever produce `rejected`, and the reassuring comment described behaviour
- * that did not exist.
- *
- * Requiring it is also the better rule. EVERY ICAO passport has an MRZ; if it cannot be read, the
- * right answer is "retake the photo", not "tell us the number yourself" — a typed number is the
- * seller's claim about their own document, which is exactly what verification is supposed to test.
- * The hand-entered fields survive only as a cross-check the reviewer can compare against.
+ * ⛔ A PASSPORT NO LONGER NEEDS AN MRZ (owner, 2026-10-21) — this reverses the rule that stood here.
+ * It said "if the MRZ cannot be read, the right answer is retake the photo, not tell us the number
+ * yourself", and the form backed it by making the seller TYPE both 44-character lines whenever the
+ * camera failed: "too much to type and doesnt autofill". Asked to choose, the owner took "our team
+ * checks by hand" over "retake until it reads". So a passport whose MRZ did not verify is filed from
+ * the typed fields with `mrzValid: false` and method `passport_manual`, decideTierB holds it at
+ * `pending`, and the reviewer compares the name and expiry with the photograph. A verifying MRZ still
+ * wins wherever it is present, exactly as before.
  */
 /** A Vietnamese CCCD is 12 digits (docs/compliance-2026.md:432). Nothing here has ever handled the
  *  9-digit CMND it replaced. Spaces, dots and dashes are how people write it, not part of it. */
@@ -91,7 +93,27 @@ export function cccdDigits(raw: string | undefined | null): string | null {
   return /^\d{12}$/.test(digits) ? digits : null
 }
 
-function readDocument(input: KycSubmitInput) {
+/** Both MRZ lines present AND verifying — the only state in which they, not the typed fields, decide. */
+function mrzVerifies(input: KycSubmitInput): boolean {
+  return !!(input.mrzLine1 && input.mrzLine2 && parsePassportMrz(input.mrzLine1, input.mrzLine2).valid)
+}
+
+/** What a submission says about its document. `readDisagreement` = the MRZ verified but the seller typed a
+ *  different passport number or expiry (2026-10-21) — filed as typed for the reviewer, who re-enters both off
+ *  the photo; flagged with the read expiry date, never the read number. */
+type DocumentRead = {
+  surname: string
+  givenNames: string
+  documentExpiry?: string
+  nationality?: string
+  nationalityFromMrz: boolean
+  issuingState?: string
+  documentNumber?: string
+  mrzValid: boolean
+  readDisagreement?: { number?: true; expiry?: string }
+}
+
+function readDocument(input: KycSubmitInput): DocumentRead | null {
   // ⛔ TIER A HAS NO MRZ, AND REQUIRING ONE MADE EVERY CCCD SUBMISSION IMPOSSIBLE. This function is
   // the ONLY gate in front of the ONLY writer of `identity_verifications`, and it returned `null` for
   // anything without two MRZ lines — so a Vietnamese seller's submission was refused with
@@ -102,10 +124,9 @@ function readDocument(input: KycSubmitInput) {
   // submission has ever succeeded — and the tier A branch below `decideTierB` was written, tested and
   // unreachable, sitting underneath a guard that had already killed the request.
   //
-  // ⚠️ THE PARAGRAPH ABOVE IS ABOUT PASSPORTS AND IS STILL RIGHT. `verify-decision.ts` refuses a
-  // TIER B record with neither a valid MRZ nor a provider, so a hand-typed passport could only ever
-  // produce `rejected` — that is why tier B still requires the MRZ. `readReliably` there is gated on
-  // `isTierB`, so the same rule never applied to a national ID card and this is not a hole reopened.
+  // ⚠️ SINCE 2026-10-21 A PASSPORT WITHOUT A VERIFYING MRZ IS FILED FROM ITS TYPED FIELDS TOO (the
+  // docblock above), so both tiers now reach a human with a typed document number; only tier B still
+  // prefers a verifying MRZ when one arrives.
   //
   // ⛔ A PASSPORT FILED AS TIER A WITH THE MRZ OMITTED IS STILL NOT CLOSED HERE, and the block at the
   // tier check below says so in as many words: in v1 both tiers are decided by a HUMAN who is shown
@@ -145,9 +166,22 @@ function readDocument(input: KycSubmitInput) {
     }
   }
 
+  // ⛔ A VERIFYING MRZ CAN STILL DISAGREE WITH WHAT THE SELLER TYPED (2026-10-21). ICAO gives `G`/`6`, `S`/`8`,
+  // `L`/`1` values exactly ten apart, so a misread letter in the NUMBER passes every mod-10 check digit, and
+  // two misread expiry digits can cancel; the seller fixes it in the field above, and that correction used to
+  // lose to the MRZ silently. Now any disagreement files the TYPED values for a human (`passport_manual`),
+  // flagged — and the reviewer re-enters the number and the expiry off the photo before approving (review.ts),
+  // so neither a correction nor someone turning an expired 2024 into 2030 is decided by what was typed.
+  let readDisagreement: DocumentRead['readDisagreement']
   if (input.mrzLine1 && input.mrzLine2) {
     const mrz = parsePassportMrz(input.mrzLine1, input.mrzLine2)
-    if (mrz.valid) {
+    const typedAgainstMrz = passportNumberShape(input.passportNumber)
+    const readExpiry = mrz.fields.passportExpiryDate?.slice(0, 10)
+    const numberDiffers = !!(mrz.valid && typedAgainstMrz && mrz.fields.passportNumber && typedAgainstMrz !== mrz.fields.passportNumber)
+    const expiryDiffers = !!(mrz.valid && input.documentExpiry && readExpiry && input.documentExpiry !== readExpiry)
+    if (numberDiffers || expiryDiffers) {
+      readDisagreement = { ...(numberDiffers ? { number: true as const } : {}), ...(expiryDiffers ? { expiry: readExpiry } : {}) }
+    } else if (mrz.valid) {
       const f = mrz.fields
       return {
         surname: f.surname ?? input.surname ?? '',
@@ -180,7 +214,23 @@ function readDocument(input: KycSubmitInput) {
       }
     }
   }
-  return null
+  // ⛔ THE TYPED PASSPORT (2026-10-21, docblock above): no MRZ, lines that do not verify, or a verified read the
+  // seller corrected. The number must look like one (checked again in front of the challenge). ⛔ NO
+  // NATIONALITY, WHATEVER THE CLIENT SENDS: nothing read one; the reviewer reads it off the passport at
+  // approval, and the digest stays issuer-less (review.ts).
+  const typedNumber = passportNumberShape(input.passportNumber)
+  if (!typedNumber) return null
+  return {
+    surname: input.surname ?? '',
+    givenNames: input.givenNames ?? '',
+    documentExpiry: input.documentExpiry,
+    nationality: undefined,
+    nationalityFromMrz: false,
+    issuingState: undefined,
+    documentNumber: typedNumber,
+    mrzValid: false,
+    readDisagreement,
+  }
 }
 
 export async function submitKycForReview(
@@ -203,6 +253,12 @@ export async function submitKycForReview(
   //    ⚠️ SERVER-SIDE ON PURPOSE even though the web form now blocks it too — the native client
   //    submits to this same route, and a guard that lives only in one client is not a guard.
   if (input.tier === 'A' && !cccdDigits(input.passportNumber)) {
+    return { ok: false, code: 'document_number_invalid' }
+  }
+  // The same backstop for a passport (2026-10-21): a number that is supplied must be one — or a malformed
+  // correction is silently dropped for the MRZ's, where the form refuses it — and with no verifying MRZ a
+  // number is required, or the challenge burns on `document_unreadable`, whose copy says to retake the photo.
+  if (input.tier === 'B' && (input.passportNumber?.trim() ? !passportNumberShape(input.passportNumber) : !mrzVerifies(input))) {
     return { ok: false, code: 'document_number_invalid' }
   }
 
@@ -260,6 +316,14 @@ export async function submitKycForReview(
   // 5. ⛔ SAME HUMAN, SECOND ACCOUNT. The keyed digest exists precisely to catch this without
   //    holding the passport number. Anything already VERIFIED under this subject on another profile
   //    means one person is running two seller identities.
+  //    ⚠️ A TYPED PASSPORT (2026-10-21) has no nationality, so its digest is issuer-less, here and for good,
+  //    and here it only meets other issuer-less ones. Its real check is at APPROVAL: the reviewer re-types
+  //    the number off the photograph, it must match this digest, and it is looked up under every issuer
+  //    (review.ts). Not here: a bare number matched across every country before anyone has looked at the
+  //    photo let a seller squat a number just by typing it.
+  //    A camera-read passport meets the typed ones (filed issuer-less) at ITS approval, not here: it carries
+  //    that digest (`anyIssuerHash`) for review.ts to match, because a bare-number match refuses the rare
+  //    stranger abroad who shares the number, and that call is made in front of a human or not at all.
   const clash = await db.identityVerification.findFirst({
     where: { subjectHash, status: 'verified', NOT: { profileId } },
     select: { id: true, subjectHash: true },
@@ -271,7 +335,8 @@ export async function submitKycForReview(
   /**
    * ⛔ THE CLAIMED TIER IS CLIENT INPUT, AND BOTH DIFF REVIEWERS FOUND THE BYPASS IT OPENS: a
    * foreign passport submitted as `tier: 'A'` is judged by the CCCD branch, which skips the
-   * `mrzValid || provider` requirement entirely. There is no honest way to CLASSIFY the document
+   * passport rules (six-month floor, expiry required) entirely. (It also skipped the MRZ requirement,
+   * which tier B itself dropped on 2026-10-21.) There is no honest way to CLASSIFY the document
    * server-side here — we hold two images and no reader — so this closes what can be closed and is
    * explicit about what it cannot.
    *
@@ -296,7 +361,14 @@ export async function submitKycForReview(
     // so the decision layer was ready and only the caller was hardcoded.
     tier: input.tier,
     surname: doc.surname, givenNames: doc.givenNames,
-    documentExpiry: doc.documentExpiry, mrzValid: doc.mrzValid,
+    // ⚠️ WHERE THE TYPED EXPIRY DISAGREES WITH THE LINES, NEITHER DATE REFUSES THE CASE HERE (2026-10-21) — the
+    // later one is judged, and the reviewer's own reading decides at approval (review.ts). Judging the typed
+    // date refused a seller whose slip made a valid passport look expired; judging the read one refused an
+    // honest correction of a misread. Either way the form had promised "our team will check it".
+    documentExpiry: doc.readDisagreement?.expiry && doc.documentExpiry
+      ? [doc.readDisagreement.expiry, doc.documentExpiry].sort().at(-1)
+      : doc.documentExpiry,
+    mrzValid: doc.mrzValid,
     accountName, now,
   })
   if (decision.status === 'rejected') return { ok: false, code: 'rejected' }
@@ -308,7 +380,9 @@ export async function submitKycForReview(
       // ⚠️ THE METHOD NAMES WHAT WAS ACTUALLY DONE, and for tier A that is not an MRZ read — a CCCD
       // has no machine-readable zone in the passport sense. Recording `passport_mrz` for a national
       // ID card would put a false statement about our own procedure into the compliance record.
-      method: input.tier === 'A' ? 'cccd_manual' : 'passport_mrz',
+      // The same holds for a passport nothing machine-read (2026-10-21): `passport_manual`, and the
+      // review panel tells the reviewer what that asks of them.
+      method: input.tier === 'A' ? 'cccd_manual' : doc.mrzValid ? 'passport_mrz' : 'passport_manual',
       status: 'pending',
       subjectHash,
       /**
@@ -350,6 +424,10 @@ export async function submitKycForReview(
         // the reviewer is being asked to vouch, and "the strip said so" and "they typed it" are not
         // the same evidence. Absent on tier A, which has no MRZ at all.
         ...(input.tier === 'A' ? {} : { nationalityFromMrz: !!doc.nationalityFromMrz }),
+        // What the camera read where the seller typed something else — shown to the reviewer.
+        ...(doc.readDisagreement ? { readDisagreement: doc.readDisagreement } : {}),
+        // A camera-read passport's number with no issuer — what its approval matches typed passports on (review.ts).
+        ...(input.tier === 'B' && doc.mrzValid ? { anyIssuerHash: hmacSubject(doc.documentNumber, { issuer: '' }) } : {}),
         documentPath: input.documentPath,
         selfiePath: input.selfiePath,
         // ⛔ THE DECISION INPUTS ARE CARRIED, NOT REBUILT. reviewKycCase has to re-run decideTierB

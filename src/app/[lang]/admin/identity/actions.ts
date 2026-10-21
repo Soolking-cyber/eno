@@ -26,14 +26,15 @@ import { correctVerifiedIdentity, resignKycCaptures, reviewKycCase, type ReviewR
  * "no opinion, leave it"; `''` is "this document gives no assessable nationality — clear it". An
  * earlier version of this comment claimed that distinction while the line below destroyed it.
  */
-export async function approveIdentityAction(verificationId: string, nationality?: string): Promise<ReviewResult> {
+export async function approveIdentityAction(verificationId: string, nationality?: string, passportNumber?: string, documentExpiry?: string): Promise<ReviewResult> {
   const admin = await getAdmin()
   if (!admin) return { ok: false, code: 'not_found' }
   // ⛔ `''` IS FORWARDED, NOT SWALLOWED. Emptying the box is the reviewer saying "this document
   // gives no assessable nationality" — the only way to clear a wrong one, since the stateless codes
   // are deliberately unmapped. Folding it into `undefined` made that correction impossible.
   const nat = nationality === undefined ? undefined : nationality.trim().toUpperCase()
-  const result = await reviewKycCase({ verificationId, admin, decision: 'approve', nationality: nat })
+  // A typed passport's number (and typed expiry) as the reviewer read them off the photo — `passport_manual` (review.ts).
+  const result = await reviewKycCase({ verificationId, admin, decision: 'approve', nationality: nat, passportNumber, documentExpiry })
   if (result.ok) revalidatePublicPath('/admin/verification')
   return result
 }
