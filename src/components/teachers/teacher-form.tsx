@@ -53,7 +53,7 @@ import { teacherRefusedWords } from '@/lib/teachers/text-screen'
 import { PlansStep } from '@/components/teachers/steps/plans-step'
 import { WhereStep } from '@/components/teachers/steps/where-step'
 import { TeachingStep } from '@/components/teachers/steps/teaching-step'
-import { AboutStep } from '@/components/teachers/steps/about-step'
+import { AboutStep, type BioAiError } from '@/components/teachers/steps/about-step'
 import { CoverStep } from '@/components/teachers/steps/cover-step'
 import { FinishStep, type FinishIdentityMark } from '@/components/teachers/steps/finish-step'
 import { NO_MARK, markAfterSave, markFromMe, markRequest, type MarkSwitch } from '@/components/teachers/identity-mark-switch'
@@ -63,9 +63,12 @@ import { revalidateDashboard } from '@/hooks/use-dashboard'
 import { ShareButton, ShareChannels } from '@/components/marketplace/share-button'
 import { initialDoor, type Door, type TeacherStartProps } from '@/components/teachers/teacher-start'
 import { countTeacherFormEvent } from '@/lib/signup-counters'
-import { TeacherImportPanel, type ImportResult, type LastImport } from '@/components/teachers/teacher-import-panel'
+import { TeacherImportPanel, shownHash, type ImportResult, type LastImport } from '@/components/teachers/teacher-import-panel'
 import { untouchedImport, undoImport } from '@/components/teachers/import-summary'
 import { mergeImport } from '@/lib/teachers/import-map'
+import { aiConsentNeeded, askAiConsent } from '@/lib/ai-consent'
+import { BIO_OWN_TEXT_MIN } from '@/lib/teachers/bio-context'
+import { BIO_ACTION_LABEL, BIO_NOTICE, TEACHER_BIO_NOTICE_VERSION } from '@/lib/teachers/bio-notice'
 
 const DRAFT_KEY = 'eno.teacherDraft.v1'
 
@@ -220,6 +223,34 @@ function newDraftGen(): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
 }
 
+/** "Improve with AI" under the About text (owner, 2026-10-21) — the route (api/teachers/me/bio-rewrite) and its wait. */
+const BIO_REWRITE_URL = '/api/teachers/me/bio-rewrite'
+// The route gives up on the model at ~55 s (its own deadline, under maxDuration 60): past this the tab stops waiting.
+const BIO_GIVE_UP_MS = 65_000
+/**
+ * ⛔ WHAT "IMPROVE WITH AI" SENDS — the answers bio-notice.ts names, read FIELD BY FIELD from what a save keeps
+ * (normalizeForSave: a hidden answer is never sent), never `...t`: the name, the phone, the photo and video, the salary, the
+ * start month, cover and every consent stay on eno.vn (the server reads only these again — bio-context.ts teacherBioRequest).
+ */
+const BIO_REWRITE_FIELDS = [
+  'livesIn', 'currentCity', 'currentDistrictKey', 'currentProvince', 'jobTypes', 'relocate', 'teachAreas', 'teachAreasConfirmed',
+  'subjects', 'teachLanguages', 'ageGroups', 'experienceBand', 'experience', 'degreeLevel', 'degreeMajor', 'degreeInstitution',
+  'degreeYear', 'certificates', 'nationality', 'englishLevel', 'languages', 'headline', 'bio',
+] as const satisfies readonly (keyof TeacherInput)[]
+type BioRewriteAnswers = Pick<TeacherInput, (typeof BIO_REWRITE_FIELDS)[number]>
+const bioRewriteAnswers = (t: TeacherInput): BioRewriteAnswers => {
+  const kept = normalizeForSave(t)
+  return Object.fromEntries(BIO_REWRITE_FIELDS.map((k) => [k, kept[k]])) as BioRewriteAnswers
+}
+/** A refusal as the line About says (the route's answers: 401 · 409 notice_changed · 429 · 503 · 400 too_short · 502). */
+const bioErrorOf = (status: number, code: unknown): BioAiError =>
+  status === 401 ? 'session'
+    : status === 409 && code === 'notice_changed' ? 'notice'
+      : status === 429 ? 'rate'
+        : status === 503 ? 'unavailable'
+          : status === 400 && code === 'too_short' ? 'short'
+            : 'failed'
+
 /** `start`: the join page's first-paint decisions for the start screen (teachers/join/page.tsx) — absent, no doors. */
 type TeacherFormProps = {
   mode: Mode; draftHost: boolean; apexOrigin: string; goal?: 'cover' | null; start?: TeacherStartProps
@@ -313,6 +344,21 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   // profile yet — what the account already knows, OFFERED, never filled in unasked.
   const [publishGate, setPublishGate] = useState<{ ok: boolean; code: string | null } | null>(null)
   const [prefill, setPrefill] = useState<{ displayName: string | null; avatarUrl: string | null; phone: string | null } | null>(null)
+  // "IMPROVE WITH AI" UNDER THE ABOUT TEXT (owner, 2026-10-21): offered when GET /api/teachers/me says Gemini on Vertex is
+  // configured (`bioAi`, in both modes — the edit page is static, so no server prop could say it); false until known.
+  const [bioAiOn, setBioAiOn] = useState(false)
+  const [bioWorking, setBioWorking] = useState(false)
+  // A rewrite let go when the teacher left About is still running on the server, which takes one at a time per account
+  // (bio-rewrite's lock — a second tap would only meet a 429): the chip waits for it to settle (gate review, 2026-10-21).
+  const [bioSettling, setBioSettling] = useState(false)
+  const [bioError, setBioError] = useState<BioAiError>('')
+  // The last rewrite: Undo puts `before` back only while the text is still `after` (compare-and-swap — undoBio).
+  const [bioUndo, setBioUndo] = useState<{ before: string; after: string } | null>(null)
+  // Every tap takes a ticket, and an answer for an older one is dropped. `bioBusy` is the double-tap guard — state is a
+  // render late, a ref is not — and `bioAbort` the request on its way (let go when the teacher leaves About).
+  const bioSeq = useRef(0)
+  const bioBusy = useRef(false)
+  const bioAbort = useRef<AbortController | null>(null)
   // ⛔ THE TERMS LINE BESIDE PUBLISH (owner, 2026-10-11 — onboarding-gate.ts resumesInPlace): a new account that signed in
   // on this form never saw /onboard, so its first Publish is the assent — the line names the three documents and the
   // save sends `acceptTerms`; the SERVER records the account step (api/teachers/me PUT). Shown when this account is known
@@ -510,6 +556,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     ? stepKey
     : steps.find((s) => TEACHER_STEPS.indexOf(s) > TEACHER_STEPS.indexOf(stepKey)) ?? steps[steps.length - 1]
   const stepIdx = steps.indexOf(step)
+  // About ON SCREEN, read by an answer that lands some renders later ("Improve with AI" — improveBio). ⛔ Not just the step:
+  // the CV reader's panel takes the form's place on About too (cvHandy → door 'cv'), and an answer landing behind it would
+  // rewrite the text unseen and ride the reading's draft save (gate review, 2026-10-21).
+  const aboutOnScreen = step === 'about' && !(mode === 'join' && !draftHost && door === 'cv')
+  const aboutShown = useRef(aboutOnScreen)
+  aboutShown.current = aboutOnScreen
 
   // ── The profile photo check (owner, 2026-10-16): asked once per photo, on the step that shows it ────────────────────
   // A NEW photo only: on an edit, the saved one is never re-judged (the server does not either). The answer is for that
@@ -1239,6 +1291,110 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     sentStep.current = null
   }
 
+  // ── "Improve with AI" under the About text (owner, 2026-10-21: "once they write about them use ai … it should read all
+  // teacher info that was inputed and description they have and enhance it in short concise but very effective form") ──
+  /**
+   * POST /api/teachers/me/bio-rewrite — Gemini on Vertex rewrites the teacher's own About text from their answers
+   * (bio-context.ts, bio-ai.ts). It saves nothing: the answer only replaces the text on the page through set(), exactly
+   * like typing — so it reaches the draft on the next step change (join) or the profile on "Save changes" (edit).
+   *   · BUSY FIRST, THEN THE QUESTION (the post wizard's rule — codex, review): a double tap never sends twice, and in the
+   *     apps the Google AI question (family `teacher_bio`) comes before anything leaves; "Not now" sends nothing.
+   *   · ⛔ THE TEXT SENT IS THE TEXT REPLACED: the field is read-only and the bar's primary waits while it runs, and the
+   *     answer lands only for the current tap, on this mounted form, with About on screen and the text still the one
+   *     sent — anything else (another writer, Start over, another account) drops it unseen. Leaving About lets it go.
+   *   · The notice's words go as the page SHOWED them (`shown`, the CV reader's hash) with the version it showed: the
+   *     server records the consent before anything reaches Google, and refuses another version (409 notice_changed).
+   */
+  const improveBio = async () => {
+    if (!bioAiOn || bioBusy.current || busy !== '') return
+    // Signed out since About rendered (the session dropped mid-form): said, never a dead tap (gate review, 2026-10-22).
+    if (!uid) { setBioError('session'); return }
+    const sentT = tRef.current
+    const sent = sentT.bio
+    if (sent.trim().length < BIO_OWN_TEXT_MIN) return
+    const answers = bioRewriteAnswers(sentT)
+    const sentKey = JSON.stringify(answers)
+    bioBusy.current = true
+    setBioWorking(true)
+    setBioError('')
+    // The ticket comes with the busy flag, before the question: a tap let go while it waits (leaving About) stays let go.
+    const ticket = ++bioSeq.current
+    const mine = () => ticket === bioSeq.current && mounted.current
+    try {
+      if (aiConsentNeeded('teacher_bio', uid) && !(await askAiConsent('teacher_bio', { userId: uid }))) return
+      // The words beside the button, in the order shown (bio-notice.ts BIO_NOTICE_PARTS), in the page's language.
+      const shown = await shownHash([BIO_ACTION_LABEL, ...BIO_NOTICE].map((p) => tr(p.en, p.vi)).join('\n'))
+      if (!mine()) return
+      const ctl = new AbortController()
+      bioAbort.current = ctl
+      const slow = setTimeout(() => ctl.abort(), BIO_GIVE_UP_MS)
+      try {
+        const res = await fetch(BIO_REWRITE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ t: answers, lang, notice: TEACHER_BIO_NOTICE_VERSION, ...(shown ? { shown } : {}) }),
+          signal: ctl.signal,
+        })
+        const d = (await res.json().catch(() => ({}))) as { bio?: unknown; error?: unknown }
+        if (!mine() || !aboutShown.current || tRef.current.bio !== sent) return
+        // …and only the bio is read-only while it runs: an answer written from a headline, a nationality or a language
+        // changed meanwhile would state the old one (gate review, codex 2026-10-22) — said, and the next tap sends the new.
+        if (JSON.stringify(bioRewriteAnswers(tRef.current)) !== sentKey) { setBioError('changed'); return }
+        // ⛔ Never the teacher's own text handed back as a rewrite (the rephrase route's fake success — bio-context.ts):
+        // an answer identical to what was sent is said as "couldn't improve", never as "Rewritten with AI".
+        if (res.ok && typeof d.bio === 'string' && d.bio.trim() && d.bio !== sent) {
+          const after = d.bio
+          set('bio', after)
+          // A rewrite of the AI's own text keeps the teacher's words as Undo's target — never the first AI answer.
+          setBioUndo((prev) => ({ before: prev && prev.after === sent ? prev.before : sent, after }))
+          return
+        }
+        setBioError(bioErrorOf(res.status, d.error))
+      } catch {
+        // Offline or cut off — or no answer within BIO_GIVE_UP_MS (the abort above): the connection was fine and the AI was
+        // not, so that one is said as "not available right now" (gate review, opus 2026-10-22).
+        if (mine()) setBioError(ctl.signal.aborted ? 'unavailable' : 'network')
+      } finally {
+        clearTimeout(slow)
+        if (bioAbort.current === ctl) bioAbort.current = null
+      }
+    } finally {
+      // Released when THIS request settles — one at a time (bioBusy), so a tap let go by leaving About is released here
+      // too, never earlier: the server holds its own lock until the model has answered.
+      bioBusy.current = false
+      if (mounted.current) { setBioWorking(false); setBioSettling(false) }
+    }
+  }
+  /** Undo: the teacher's own text back — only while the text is still the AI's (an edit since is their newer word). */
+  const undoBio = () => {
+    const u = bioUndo
+    if (!u) return
+    if (tRef.current.bio === u.after) set('bio', u.before)
+    setBioUndo(null)
+  }
+  // The About text changed some other way (typed, pasted, a reloaded draft, Start over): the rewrite's Undo and a refusal's
+  // line were about a text that is no longer there — both go (gate review, codex 2026-10-22: a stale Undo came back once
+  // the text matched the AI's again; "Write a little more first" stayed after the teacher had). A rewrite landing keeps
+  // its Undo (`after` is the text) and clears the line, as a tap does.
+  useEffect(() => {
+    setBioUndo((u) => (u && t.bio !== u.after ? null : u))
+    setBioError('')
+  }, [t.bio])
+  // Leaving About (another step, or the CV reader in its place) with a rewrite on its way lets its ANSWER go — it lands on
+  // About alone — and frees the bar's primary, which must not stay disabled on another step. ⛔ The request itself is NOT
+  // aborted and the tap stays held until it settles (bioSettling): the server is still working under its one-at-a-time
+  // lock, and a tap meanwhile would only spend the teacher's hourly rewrites on a 429 (gate review, 2026-10-21).
+  useEffect(() => {
+    if (aboutOnScreen) return
+    setBioError('')
+    if (!bioBusy.current) return
+    bioSeq.current++
+    setBioWorking(false)
+    setBioSettling(true)
+  }, [aboutOnScreen])
+  // Unmounted (a sign-out or another account — TeacherForm): a rewrite on its way is cut off, and its answer dropped.
+  useEffect(() => () => { bioSeq.current++; bioAbort.current?.abort() }, [])
+
   // The teacher.eno.vn hand-off arrived complete and signed out: the sign-in opens, ONCE (closing it leaves "Sign in" on
   // the step it sits on).
   useEffect(() => {
@@ -1264,6 +1420,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       .then((d) => {
         if (!alive) return
         if (d?.publishGate) setPublishGate(d.publishGate)
+        setBioAiOn(d?.bioAi === true)
         // The "Identity verified" switch as stored — ON unless the teacher hid it (markFromMe: the server's own flag).
         if (ticket === markSeq.current) setMark(markFromMe(d))
         const tp = d?.teacher
@@ -1367,6 +1524,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     fetch('/api/teachers/me').then((r) => { answered = r.ok; return r.json() }).then((d) => {
       if (!alive) return
       if (d?.publishGate) setPublishGate(d.publishGate)
+      setBioAiOn(d?.bioAi === true)
       // No profile yet: the switch is held on this page (joinMarkHidden — its endpoint needs a profile), and the line says
       // what would hold the mark back.
       if (ticket === markSeq.current) setMark(markFromMe(d))
@@ -2276,8 +2434,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   }
   const savingLabel = tr('Saving…', 'Đang lưu…')
   // `() => publish()`, never `publish` itself: the bar hands its onClick the click event, which must not reach `opts`.
+  // ⛔ Next, Save changes and Publish WAIT while "Improve with AI" runs (bioWorking — About only): moving on or saving then
+  // would carry the text the answer is about to replace (the answer is dropped once the teacher has left About).
   const primary = mode === 'edit'
-    ? { label: busy === 'saving' ? savingLabel : tr('Save changes', 'Lưu thay đổi'), onClick: () => { void publish() }, disabled: busy !== '' }
+    ? { label: busy === 'saving' ? savingLabel : tr('Save changes', 'Lưu thay đổi'), onClick: () => { void publish() }, disabled: busy !== '' || bioWorking }
     : draftHost && step === LAST_PRE_SIGNIN
       // "Continue", not "Continue on eno.vn" (2026-10-16 — 85% of these visitors are in Facebook's in-app browser, and a
       // button that announces leaving reads as leaving): the line above it says where the next step happens.
@@ -2287,8 +2447,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         // Vietnamese is longer still) — the line above the bar already says sign-in comes next (browser run, 2026-10-09).
         ? { label: tr('Sign in', 'Đăng nhập'), onClick: signInToContinue, disabled: authLoading }
         : isLast
-          ? { label: busy === 'saving' ? savingLabel : tr('Publish profile', 'Đăng hồ sơ'), onClick: () => { void publish() }, disabled: busy !== '' }
-          : { label: tr('Next', 'Tiếp'), onClick: next }
+          ? { label: busy === 'saving' ? savingLabel : tr('Publish profile', 'Đăng hồ sơ'), onClick: () => { void publish() }, disabled: busy !== '' || bioWorking }
+          : { label: tr('Next', 'Tiếp'), onClick: next, disabled: bioWorking }
   const secondary = mode === 'edit'
     ? (!isLast ? { label: tr('Next step', 'Bước tiếp'), onClick: () => setStepKey(steps[stepIdx + 1]) } : stepIdx > 0 ? { label: tr('Back', 'Quay lại'), onClick: () => setStepKey(steps[stepIdx - 1]) } : undefined)
     : stepIdx > 0 ? { label: tr('Back', 'Quay lại'), onClick: () => setStepKey(steps[stepIdx - 1]) } : undefined
@@ -2747,7 +2907,16 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
           {step === 'plans' && <PlansStep {...plansProps} coverIntent={coverIntent} signedIn={!!user} draftHost={draftHost} districtNotSaying={districtNotSaying} onDistrictNotSaying={setDistrictNotSaying} />}
           {step === 'where' && <WhereStep {...stepProps} coverIntent={coverIntent} onGoTo={goTo} />}
           {step === 'teaching' && <TeachingStep {...stepProps} />}
-          {step === 'about' && <AboutStep {...stepProps} prefillName={prefill?.displayName ?? null} />}
+          {step === 'about' && (
+            <AboutStep
+              {...stepProps}
+              prefillName={prefill?.displayName ?? null}
+              bioAi={{
+                available: bioAiOn, working: bioWorking, settling: bioSettling, blocked: busy !== '', error: bioError,
+                canUndo: !!bioUndo && t.bio === bioUndo.after, onImprove: () => { void improveBio() }, onUndo: undoBio,
+              }}
+            />
+          )}
           {step === 'cover' && <CoverStep t={t} errors={errors} errText={errText} onCover={setCover} onGoTo={goTo} reconsentLine={reconfirm.cover} hidesProfile={mode === 'edit' && !t.coverOpen && !t.jobTypes.length} />}
           {step === 'finish' && (
             <FinishStep

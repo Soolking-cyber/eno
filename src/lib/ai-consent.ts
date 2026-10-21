@@ -30,6 +30,14 @@
  *   teacher_cv    the teacher form's "Fill it in from my CV" (2026-10-15) → POST /api/teachers/me/import: the CV or LinkedIn
  *                 profile PDF the teacher chooses (Gemini on Vertex reads it to fill the form; nothing is kept).
  *                 "Not now": unavailable — the teacher fills the form in, which is how it works without AI anyway.
+ *   teacher_bio   the teacher form's "Improve with AI" under "About you" (2026-10-21) → POST /api/teachers/me/bio-rewrite:
+ *                 the About text in the teacher's own words (minus the sentences where contact details are found — a
+ *                 name written in it goes too) and the form's answers, field by field — subjects, age groups,
+ *                 experience, teaching jobs, degree, certificates, nationality, languages, the work wanted, headline,
+ *                 where they live, can teach or would move to — never the name or phone FIELD, photo, video or CV
+ *                 (Gemini on Vertex rewrites the text; the answer only replaces it on the page, and no text is kept).
+ *                 The words: bio-notice.ts.
+ *                 "Not now": unavailable — the teacher writes it themselves, which is how it works without AI anyway.
  *
  * Handled without a question: typed SEARCH (/api/listings → semanticRank → Vertex AI Search). In the apps with the gate
  * on, the route never sends search words to Google (semantic-rank.ts `noAi`), so there is nothing to ask permission for.
@@ -61,7 +69,7 @@
  */
 import { nativeAppGate } from './app-review-gates'
 
-export const AI_FAMILIES = ['assistant', 'listing', 'photo_search', 'trip', 'document_check', 'teacher_cv'] as const
+export const AI_FAMILIES = ['assistant', 'listing', 'photo_search', 'trip', 'document_check', 'teacher_cv', 'teacher_bio'] as const
 export type AiFamily = (typeof AI_FAMILIES)[number]
 
 /** 'on' = allowed (in the notice or in Settings); 'off' = "Not now" / turned off; null = not asked yet. */

@@ -67,8 +67,9 @@ export const IMPORT_ACCEPT = '.pdf,application/pdf,.docx,application/vnd.openxml
  * The file as the route takes it: a PDF as is; a Word file as its VISIBLE text, read here (the server never opens a
  * ZIP — import-file.ts); a photo re-encoded small (HEIC included). The server sniffs the bytes again either way.
  */
-/** SHA-256 of the notice exactly as this page SHOWED it (any of the eleven languages) — recorded with the consent. */
-async function shownHash(shown: string): Promise<string | null> {
+/** SHA-256 of the notice exactly as this page SHOWED it (any of the eleven languages) — recorded with the consent. Also
+ *  the About step's "Improve with AI" notice (teacher-form.tsx improveBio, 2026-10-21): one hash, one shape. */
+export async function shownHash(shown: string): Promise<string | null> {
   try {
     const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(shown))
     return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, '0')).join('')

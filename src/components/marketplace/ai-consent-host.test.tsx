@@ -94,6 +94,21 @@ describe('the notice', () => {
     expect(toastMock).toHaveBeenCalledWith(expect.stringContaining('AI help is off'), SUBTLE_PILL)
   })
 
+  it('teacher_bio ("Improve with AI" under About you): names Google (Gemini), what goes, and what never does', async () => {
+    inApp()
+    mountHost()
+    let answer: boolean | undefined
+    await act(async () => { void askAiConsent('teacher_bio', { userId: ME }).then((a) => { answer = a }) })
+    expect(await screen.findByText('Use Google AI to improve your About text?')).toBeTruthy()
+    expect(screen.getByText(/sends your About text, in your own words .* to Google \(Gemini\) on Google Cloud, outside Vietnam, to rewrite it — with your answers in the teacher profile form\. Those are your subjects, .* would move to\./)).toBeTruthy()
+    // Exact, never an absolute "your name is never sent": a name written in the About text goes with it (gate review, 2026-10-22).
+    expect(screen.getByText(/Your profile’s name and phone number fields, photo, video and CV are never sent/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
+    await waitFor(() => expect(answer).toBe(false))
+    expect(store.get(aiConsentKey('teacher_bio', ME))).toBe('off')
+    expect(toastMock).toHaveBeenCalledWith(expect.stringContaining('Write it yourself'), SUBTLE_PILL)
+  })
+
   it('the assistant works without AI, so its "off" is silent', async () => {
     inApp()
     store.set(aiConsentKey('assistant', ME), 'off')
@@ -265,16 +280,16 @@ describe('Settings → Preferences → Google AI', () => {
     inApp()
     mountSettings()
     expect(await screen.findByText('Google AI')).toBeTruthy()
-    for (const label of ['eno AI assistant', 'AI help when posting', 'Search by photo', 'Reading your CV', 'Trip planning', 'e-Visa photo check']) {
+    for (const label of ['eno AI assistant', 'AI help when posting', 'Search by photo', 'Reading your CV', 'Improving your About text', 'Trip planning', 'e-Visa photo check']) {
       expect(screen.getByRole('switch', { name: label })).toBeTruthy()
     }
-    expect(screen.getAllByText('Not set yet — you will be asked the first time you use it.')).toHaveLength(6)
+    expect(screen.getAllByText('Not set yet — you will be asked the first time you use it.')).toHaveLength(7)
     const posting = screen.getByRole('switch', { name: 'AI help when posting' })
     expect(posting.getAttribute('aria-checked')).toBe('false')
     fireEvent.click(posting)
     await waitFor(() => expect(store.get(aiConsentKey('listing', ME))).toBe('on'))
     await waitFor(() => expect(screen.getByRole('switch', { name: 'AI help when posting' }).getAttribute('aria-checked')).toBe('true'))
-    expect(screen.getAllByText('Not set yet — you will be asked the first time you use it.')).toHaveLength(5)
+    expect(screen.getAllByText('Not set yet — you will be asked the first time you use it.')).toHaveLength(6)
     fireEvent.click(screen.getByRole('switch', { name: 'AI help when posting' }))
     await waitFor(() => expect(store.get(aiConsentKey('listing', ME))).toBe('off'))
   })

@@ -65,6 +65,14 @@ export function AiFeaturesSetting() {
             'CV bạn chọn trong biểu mẫu hồ sơ giáo viên được gửi đến Google (Gemini) để điền hồ sơ; eno không lưu tệp. Khi tắt: bạn tự điền hồ sơ.',
           )}
         />
+        <AiFamilySwitchRow
+          family="teacher_bio"
+          label={tr('Improving your About text', 'Cải thiện phần giới thiệu')}
+          description={tr(
+            '“Improve with AI” sends your About text and your answers in the teacher profile form to Google (Gemini) on Google Cloud, outside Vietnam, to rewrite the text — never your profile’s name or phone number field, photo, video or CV. Off: you write it yourself.',
+            '“Cải thiện bằng AI” gửi phần giới thiệu và các câu trả lời của bạn trong biểu mẫu hồ sơ giáo viên đến Google (Gemini) trên Google Cloud, ngoài Việt Nam, để viết lại đoạn giới thiệu — không bao giờ gồm mục họ tên hay số điện thoại trong hồ sơ, ảnh, video hay CV. Khi tắt: bạn tự viết.',
+          )}
+        />
         <TripAiSetting />
         <VisaPhotoCheckAiSetting />
       </div>

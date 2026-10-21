@@ -147,6 +147,22 @@ function AiConsentHostOn() {
           off,
         }
       }
+      // "Improve with AI" under "About you" (2026-10-21) — the kinds of answer it sends are bio-notice.ts BIO_NOTICE's.
+      case 'teacher_bio': {
+        const off = tr('Improving your About text with AI is off. Write it yourself, or turn it on in Settings → Preferences.', 'Cải thiện phần giới thiệu bằng AI đang tắt. Bạn tự viết, hoặc bật lại trong Cài đặt → Tùy chọn.')
+        return {
+          title: tr('Use Google AI to improve your About text?', 'Dùng Google AI để cải thiện phần giới thiệu?'),
+          // One sentence a tr(): gen-ui-strings harvests a literal of at most 400 characters, so one long body reached the
+          // nine machine-translated languages late, as English first (gate review, opus 2026-10-22).
+          body: [
+            tr('“Improve with AI” sends your About text, in your own words (minus sentences where we find contact details), to Google (Gemini) on Google Cloud, outside Vietnam, to rewrite it — with your answers in the teacher profile form.', '“Cải thiện bằng AI” gửi phần giới thiệu, nguyên văn (trừ những câu chúng tôi phát hiện có thông tin liên hệ), đến Google (Gemini) trên Google Cloud, ngoài Việt Nam, để viết lại — cùng các câu trả lời của bạn trong biểu mẫu hồ sơ giáo viên.'),
+            tr('Those are your subjects, age groups, experience, teaching jobs, degree, certificates, nationality, languages, the work you want, headline, and where you live, can teach or would move to.', 'Đó là môn dạy, lứa tuổi học viên, kinh nghiệm, công việc giảng dạy, bằng cấp, chứng chỉ, quốc tịch, ngôn ngữ, loại công việc bạn tìm, tiêu đề, và nơi bạn sống, có thể dạy hoặc sẵn sàng chuyển đến.'),
+            tr('Your profile’s name and phone number fields, photo, video and CV are never sent, and nothing is sent until you tap it. Not now: you write it yourself.', 'Mục họ tên và số điện thoại trong hồ sơ, ảnh, video và CV của bạn không bao giờ được gửi, và không có gì được gửi cho đến khi bạn nhấn nút. Để sau: bạn tự viết phần giới thiệu.'),
+          ].join(' '),
+          declined: off,
+          off,
+        }
+      }
       default:
         return undefined // trip: its words travel with the call (trip-cards.tsx) — they may not ship in eno.vn's build
     }
