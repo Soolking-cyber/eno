@@ -9,8 +9,8 @@ import { browseRankScore } from '@/lib/ranking'
 import { moderateListingById } from '@/lib/ai-moderation'
 import { initialSellerTrust } from '@/lib/trust'
 import { assertSellerMayPublish } from '@/lib/compliance/seller-publish-gate'
-import { assertCleanContactName, assertCleanTexts, PublishBlockedError } from '@/lib/publish-guard'
-import { teacherVisaMention } from '@/lib/teachers/visa-mention'
+import { PublishBlockedError } from '@/lib/publish-guard'
+import { teacherTextRefusal } from '@/lib/teachers/text-screen'
 import { deleteListingCore, parseVideoField } from '@/lib/core/listings'
 import { clearTombstones, writeTombstones, type TombstoneRef } from '@/lib/core/storage-tombstones'
 import { purgeStorageObjects } from '@/lib/core/storage-purge'
@@ -305,21 +305,18 @@ const STORED_COVER_SELECT = {
 // shelf included — live in src/lib/teachers/revalidate.ts since 2026-10-13: the account erasure purges the same list.
 
 /**
- * Screen every field a teacher typed. Throws PublishBlockedError with the listing wizard's codes — and as its detail
- * the KEY OF THE REFUSED FIELD ('bio', 'experience.2', …), never the word (plan, 2026-10-08): the form jumps to that
- * field, and a banned or visa word never reaches eno.vn's UI or wire.
+ * Screen every field a teacher typed — the ONE decision, src/lib/teachers/text-screen.ts teacherTextRefusal (shared with
+ * the CV import and the form). Throws PublishBlockedError with the listing wizard's codes — and as its detail the KEY OF
+ * THE REFUSED FIELD ('bio', 'experience.2', …), never the word (plan, 2026-10-08): nothing but the field goes on the wire.
+ * ⚠️ Since 2026-10-21 the FORM shows the teacher their own refused words, found in the text it already holds
+ * (teacherRefusedWords) — a teacher refused three times without being told which word published his complaint as his bio.
+ * ⛔ eno.vn carries no visa wording (licensing split) — on BOTH editions, since the row is shared: teacherTextRefusal runs
+ * the visa screen on EVERY field, the name included (a name like "Visa Help Vietnam" would be a listing of its own).
  */
 export function screenTeacherTexts(t: TeacherInput) {
   for (const [field, text] of teacherFreeTextFields(t)) {
-    try {
-      if (field === 'fullName') assertCleanContactName(text)
-      else assertCleanTexts([text])
-    } catch (e) {
-      if (e instanceof PublishBlockedError) throw new PublishBlockedError(e.code, field)
-      throw e
-    }
-    // ⛔ eno.vn carries no visa wording (licensing split) — on BOTH editions, since the row is shared.
-    if (teacherVisaMention(text)) throw new PublishBlockedError('banned_words', field)
+    const code = teacherTextRefusal(field, text)
+    if (code) throw new PublishBlockedError(code, field)
   }
 }
 

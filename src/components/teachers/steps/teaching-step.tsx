@@ -26,7 +26,12 @@ import { LanguagePicker } from '@/components/teachers/language-combobox'
 import { EXPERIENCE_BANDS, LIMITS, TEACHER_FORM_OPTIONS, TEACHER_OPTIONS, type CertificateEntry, type ExperienceEntry } from '@/lib/teachers/profile'
 import { thisMonth } from '@/components/teachers/teacher-form-rules'
 import { RADIO_CHIP, certName, type StepProps } from '@/components/teachers/steps/shared'
+import { teacherTextRefusal } from '@/lib/teachers/text-screen'
 import { cn } from '@/lib/utils'
+
+/** Does this one part hold what Publish refused with `code`? Asked while rendering, so an unexpected error marks nothing
+ *  rather than taking the step down — the server, which never swallows one, still decides. */
+const refusedPart = (s: string, code: string): boolean => { try { return teacherTextRefusal('text', s) === code } catch { return false } }
 
 const NO_EXPERIENCE: ExperienceEntry = { role: '', employer: '', city: '', from: '', to: '' }
 
@@ -67,7 +72,7 @@ export function TeachingStep({ t, set, update, errors, errText }: StepProps) {
         <Field invalid={!!errors.teachLanguages}>
           <Label htmlFor="tf-teach-langs">{tr('Which language do you teach?', 'Bạn dạy ngôn ngữ nào?')}</Label>
           <LanguagePicker id="tf-teach-langs" value={t.teachLanguages} onChange={(v) => set('teachLanguages', v)} max={LIMITS.teachLanguages} exclude={['en']} />
-          {errors.teachLanguages && <FieldError>{errText('teachLanguages', errors.teachLanguages)}</FieldError>}
+          {errors.teachLanguages && <FieldError>{errText('teachLanguages', errors.teachLanguages, t.teachLanguages)}</FieldError>}
         </Field>
       )}
 
@@ -109,18 +114,23 @@ export function TeachingStep({ t, set, update, errors, errText }: StepProps) {
               const id = `tf-exp-${i}`
               const err = errors[`experience.${i}`]
               const still = x.to === ''
+              // A refused TEXT (2026-10-21) marks the input that holds it, so the form lands there; any other row error marks the row.
+              // The server screens role, employer and city each on its own (profile.ts teacherFreeTextFields), so a refusal is
+              // always in one of the three.
+              const textBad = err === 'banned_words' || err === 'contact_in_text' ? [x.role, x.employer, x.city].map((s) => refusedPart(s, err)) : [false, false, false]
+              const rowInvalid = !!err && !textBad.some(Boolean)
               return (
-                <li key={i} className="space-y-3 border-b border-border pb-4" {...(err ? { 'data-invalid': '' } : {})}>
+                <li key={i} className="space-y-3 border-b border-border pb-4" {...(rowInvalid ? { 'data-invalid': '' } : {})}>
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <Field>
+                    <Field invalid={textBad[0]}>
                       <Label htmlFor={`${id}-role`}>{tr('Role', 'Vị trí')}</Label>
                       <FieldControl id={`${id}-role`} render={<Input id={`${id}-role`} value={x.role} maxLength={LIMITS.shortText} onChange={(e) => setJob(i, { role: e.target.value })} />} />
                     </Field>
-                    <Field>
+                    <Field invalid={textBad[1]}>
                       <Label htmlFor={`${id}-employer`}>{tr('School or company', 'Trường hoặc công ty')}</Label>
                       <FieldControl id={`${id}-employer`} render={<Input id={`${id}-employer`} value={x.employer} maxLength={LIMITS.shortText} onChange={(e) => setJob(i, { employer: e.target.value })} />} />
                     </Field>
-                    <Field>
+                    <Field invalid={textBad[2]}>
                       <Label htmlFor={`${id}-city`}>{tr('City (optional)', 'Thành phố (không bắt buộc)')}</Label>
                       <FieldControl id={`${id}-city`} render={<Input id={`${id}-city`} value={x.city} maxLength={LIMITS.shortText} onChange={(e) => setJob(i, { city: e.target.value })} />} />
                     </Field>
@@ -146,7 +156,7 @@ export function TeachingStep({ t, set, update, errors, errText }: StepProps) {
                   <Button variant="ghost" size="sm" type="button" onClick={() => set('experience', t.experience.filter((_, j) => j !== i))}>
                     <Trash2 className="size-4" />{tr('Remove this job', 'Xoá công việc này')}
                   </Button>
-                  {err && <p role="alert" className="text-sm text-destructive">{errText(`experience.${i}`, err)}</p>}
+                  {err && <p role="alert" className="text-sm text-destructive">{errText(`experience.${i}`, err, [x.role, x.employer, x.city])}</p>}
                 </li>
               )
             })}
@@ -175,13 +185,15 @@ export function TeachingStep({ t, set, update, errors, errText }: StepProps) {
           </ToggleGroup>
           {degreeDetails && (
             <div className="grid gap-3 sm:grid-cols-3">
-              <Field>
+              <Field invalid={!!errors.degreeMajor}>
                 <Label htmlFor="tf-degree-major">{tr('Major (optional)', 'Chuyên ngành (không bắt buộc)')}</Label>
                 <FieldControl id="tf-degree-major" render={<Input id="tf-degree-major" value={t.degreeMajor} maxLength={LIMITS.shortText} onChange={(e) => set('degreeMajor', e.target.value)} />} />
+                {errors.degreeMajor && <FieldError>{errText('degreeMajor', errors.degreeMajor, [t.degreeMajor])}</FieldError>}
               </Field>
-              <Field>
+              <Field invalid={!!errors.degreeInstitution}>
                 <Label htmlFor="tf-degree-uni">{tr('University (optional)', 'Trường đại học (không bắt buộc)')}</Label>
                 <FieldControl id="tf-degree-uni" render={<Input id="tf-degree-uni" value={t.degreeInstitution} maxLength={LIMITS.shortText} onChange={(e) => set('degreeInstitution', e.target.value)} />} />
+                {errors.degreeInstitution && <FieldError>{errText('degreeInstitution', errors.degreeInstitution, [t.degreeInstitution])}</FieldError>}
               </Field>
               <Field invalid={!!errors.degreeYear}>
                 <Label htmlFor="tf-degree-year">{tr('Year (optional)', 'Năm (không bắt buộc)')}</Label>
@@ -202,8 +214,14 @@ export function TeachingStep({ t, set, update, errors, errText }: StepProps) {
                 const id = `tf-cert-${i}`
                 const err = errors[`certificates.${i}`]
                 const name = certName(c.type, tr)
+                // ⛔ An error about ONE input marks that input (2026-10-21) — a refused provider text, the hours, the year: marking
+                // the row sent focus to its first control, Remove, where Enter deleted the certificate. A row-wide error (no
+                // type, a duplicate — both fixed by removing it) still marks the row.
+                // The provider is a certificate's only screened text (profile.ts teacherFreeTextFields): a text code is about it.
+                const providerBad = err === 'banned_words' || err === 'contact_in_text'
+                const fieldBad = providerBad || err === 'hours_range' || err === 'year_range'
                 return (
-                  <li key={`${c.type}-${i}`} className="space-y-3 border-b border-border pb-4" {...(err ? { 'data-invalid': '' } : {})}>
+                  <li key={`${c.type}-${i}`} className="space-y-3 border-b border-border pb-4" {...(err && !fieldBad ? { 'data-invalid': '' } : {})}>
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-foreground">{name}</p>
                       <Button variant="ghost" size="sm" type="button" onClick={() => set('certificates', t.certificates.filter((_, j) => j !== i))}>
@@ -211,21 +229,21 @@ export function TeachingStep({ t, set, update, errors, errText }: StepProps) {
                       </Button>
                     </div>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                      <Field>
+                      <Field invalid={err === 'hours_range'}>
                         <Label htmlFor={`${id}-hours`}>{tr('Hours (optional)', 'Số giờ (không bắt buộc)')}</Label>
                         <FieldControl id={`${id}-hours`} render={<Input id={`${id}-hours`} inputMode="numeric" value={c.hours ?? ''} onChange={(e) => setCert(i, { hours: num(e.target.value.replace(/\D/g, '')) })} />} />
                       </Field>
-                      <Field>
+                      <Field invalid={err === 'year_range'}>
                         <Label htmlFor={`${id}-year`}>{tr('Year (optional)', 'Năm (không bắt buộc)')}</Label>
                         <FieldControl id={`${id}-year`} render={<Input id={`${id}-year`} inputMode="numeric" value={c.year ?? ''} onChange={(e) => setCert(i, { year: num(e.target.value.replace(/\D/g, '')) })} />} />
                       </Field>
-                      <Field className="col-span-2 sm:col-span-1">
+                      <Field className="col-span-2 sm:col-span-1" invalid={providerBad}>
                         <Label htmlFor={`${id}-provider`}>{tr('Provider (optional)', 'Đơn vị cấp (không bắt buộc)')}</Label>
                         <FieldControl id={`${id}-provider`} render={<Input id={`${id}-provider`} value={c.provider} maxLength={LIMITS.shortText} onChange={(e) => setCert(i, { provider: e.target.value })} />} />
                       </Field>
                     </div>
                     {/* ⛔ The row's error names the certificate (plan, 2026-10-08): "CELTA: …". */}
-                    {err && <p role="alert" className="text-sm text-destructive">{name}: {errText(`certificates.${i}`, err)}</p>}
+                    {err && <p role="alert" className="text-sm text-destructive">{name}: {errText(`certificates.${i}`, err, [c.provider])}</p>}
                   </li>
                 )
               })}

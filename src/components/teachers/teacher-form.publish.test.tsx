@@ -297,8 +297,72 @@ describe('Publish', () => {
     const user = mount()
     await addVideo(user)
     await user.click(action('Publish profile'))
-    expect(await screen.findByRole('textbox', { name: 'About you (optional)' })).toBeTruthy()
+    const bio = await screen.findByRole('textbox', { name: 'About you (optional)' })
+    // The bio has its own error slot now (2026-10-21) — and a text the browser cannot point into keeps the general line.
+    expect(bio.getAttribute('aria-invalid')).toBe('true')
     expect(screen.getAllByText(/Please remove phone numbers, emails and links/).length).toBeGreaterThan(0)
+  })
+
+  it('a refusal the browser cannot point into keeps the lines it always had — never "shown under the field" with nothing shown', async () => {
+    putReply = () => ({ status: 422, json: { error: 'banned_words', detail: 'bio' } })
+    putDraft({ ...COMPLETE, bio: 'I teach young learners.' }, 'finish')
+    const user = mount()
+    await addVideo(user)
+    await user.click(action('Publish profile'))
+    expect((await screen.findAllByText('Your profile contains a word we do not allow. Please rephrase.')).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('This contains a word we do not allow. Please rephrase it.').length).toBeGreaterThan(0)
+    expect(screen.queryAllByText(/shown under the field/).length).toBe(0)
+  })
+
+  // ⛔ Owner, 2026-10-21: a teacher refused three times with "a word we do not allow" could not know which word. The form
+  // screens the texts as Publish will (text-screen.ts) and shows the teacher's OWN words under the field — nothing is sent.
+  it('⛔ a refused word is caught at Publish, before the save, and SHOWN under its field — quoted from the teacher\'s own text', async () => {
+    putDraft({ ...COMPLETE, bio: 'Experienced IELTS teacher. I hold a valid work visa until March and can start now.' }, 'finish')
+    const user = mount()
+    await addVideo(user)
+    await user.click(action('Publish profile'))
+    const bio = await screen.findByRole('textbox', { name: 'About you (optional)' })
+    await waitFor(() => expect(bio.getAttribute('aria-invalid')).toBe('true'))
+    expect((await screen.findAllByText(/We can’t publish this: “visa”\. Please rephrase or remove it\./)).length).toBeGreaterThan(0)
+    expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/teachers/me')).toBe(false)
+    // Rephrased: the mark goes — the quote AND the field's invalid state (editing a field clears its error).
+    await user.clear(bio)
+    await user.type(bio, 'Experienced IELTS teacher. I can start now.')
+    expect(screen.queryAllByText(/We can’t publish this/).length).toBe(0)
+    expect(bio.getAttribute('aria-invalid')).not.toBe('true')
+    expect(screen.queryAllByText(/word we do not allow/).length).toBe(0)
+  })
+
+  it('⛔ a refused certificate PROVIDER marks the provider input — focus never lands on Remove, where Enter deleted it', async () => {
+    putDraft({ ...COMPLETE, certificates: [{ type: 'celta', provider: 'Visa help desk', hours: null, year: null }] }, 'finish')
+    const user = mount()
+    await addVideo(user)
+    await user.click(action('Publish profile'))
+    const provider = await screen.findByRole('textbox', { name: 'Provider (optional)' })
+    await waitFor(() => expect(provider.getAttribute('aria-invalid')).toBe('true'))
+    await waitFor(() => expect(document.activeElement).toBe(provider))
+    expect((await screen.findAllByText(/We can’t publish this: “Visa”/)).length).toBeGreaterThan(0)
+    expect(calls.some((c) => c.method === 'PUT' && c.url === '/api/teachers/me')).toBe(false)
+  })
+
+  it('…and a certificate\'s hours out of range mark the HOURS input — again never Remove', async () => {
+    putDraft({ ...COMPLETE, certificates: [{ type: 'celta', provider: 'Cambridge', hours: 5000, year: null }] }, 'finish')
+    const user = mount()
+    // A validation error reopens the draft on its step (draftResumeStep); Next there marks the input.
+    const hours = await screen.findByRole('textbox', { name: 'Hours (optional)' })
+    await user.click(action('Next'))
+    await waitFor(() => expect(hours.getAttribute('aria-invalid')).toBe('true'))
+    await waitFor(() => expect(document.activeElement).toBe(hours))
+  })
+
+  it('…and ordinary words go through', async () => {
+    putReply = () => ({ json: { listingId: 'L1', teacherProfileId: 'tp1', live: true, noGoal: false, cover: null, video: null } })
+    putDraft({ ...COMPLETE, bio: 'I love Hoi An and its cao lầu. I am happy to take students on school trips.' }, 'finish')
+    const user = mount()
+    await addVideo(user)
+    await user.click(action('Publish profile'))
+    await waitFor(() => expect(lastPut()).toBeTruthy())
+    expect(lastPut()!.bio).toContain('its cao lầu')
   })
 })
 

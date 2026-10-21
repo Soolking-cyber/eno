@@ -11,8 +11,9 @@ import {
 } from '@/lib/teachers/places'
 import {
   DRAFT_STEPS, EMPTY_TEACHER, PRE_SIGNIN_STEPS, TEACHER_OPTIONS, TEACHER_STEPS, TEACHER_STEP_FIELDS, normalizeForSave, normalizeTeacherInput,
-  teacherSteps, validateTeacherInput, type Relocate, type TeacherErrors, type TeacherInput, type TeacherStep,
+  teacherFreeTextFields, teacherSteps, validateTeacherInput, type Relocate, type TeacherErrors, type TeacherInput, type TeacherStep,
 } from '@/lib/teachers/profile'
+import { teacherTextRefusal } from '@/lib/teachers/text-screen'
 import { storedLanguageLabel } from '@/components/teachers/language-list'
 
 export type Situation = Pick<TeacherInput, 'livesIn' | 'currentCity' | 'currentProvince' | 'currentDistrictKey'>
@@ -36,6 +37,24 @@ export function firstStepWithError(errors: TeacherErrors, steps: readonly Teache
 /** Validate `steps` the way the server will — on what a save keeps (normalizeForSave), never on hidden answers. */
 export function checkSteps(t: TeacherInput, steps: readonly TeacherStep[]): TeacherErrors {
   return validateTeacherInput(normalizeForSave(t), steps)
+}
+
+/**
+ * ⛔ THE TEXTS PUBLISH WILL REFUSE, refused in the browser at Publish (2026-10-21; text-screen.ts teacherTextRefusal — the
+ * server's own decision): the field shows the teacher's own words (steps/shared.tsx) instead of a save that comes back
+ * with "a word we do not allow" and nothing to find. AT PUBLISH ONLY — never on Next, never when a draft reopens: a text
+ * stops nothing sooner than the server always stopped it (commit gate, codex + opus).
+ */
+export function textRefusals(t: TeacherInput): TeacherErrors {
+  const e: TeacherErrors = {}
+  for (const [field, text] of teacherFreeTextFields(normalizeForSave(t))) {
+    const key = field as keyof TeacherErrors
+    let code: string | null = null
+    // An unexpected error refuses nothing here — the save goes, and the server (which never swallows one) decides.
+    try { code = e[key] ? null : teacherTextRefusal(field, text) } catch { code = null }
+    if (code) e[key] = code
+  }
+  return e
 }
 
 /**

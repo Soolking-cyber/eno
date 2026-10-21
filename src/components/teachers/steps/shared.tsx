@@ -8,6 +8,7 @@ import { chipVariants } from '@/components/ui/chip'
 import { cn } from '@/lib/utils'
 import { TEACHER_OPTIONS, type TeacherErrors, type TeacherInput } from '@/lib/teachers/profile'
 import type { DroppedField } from '@/components/teachers/teacher-form-rules'
+import { teacherRefusedWords } from '@/lib/teachers/text-screen'
 
 export type TeacherFormMode = 'join' | 'edit'
 
@@ -23,8 +24,11 @@ export type StepProps = {
    */
   update: (next: TeacherInput, touched: readonly (keyof TeacherInput)[], direct?: readonly DroppedField[]) => void
   errors: TeacherErrors
-  /** An error code → its words, for that field. */
-  errText: (field: string, code: string | undefined) => string
+  /**
+   * An error code → its words, for that field. `texts` — the field's own text(s) as typed (a job row: role, employer,
+   * city): a refused text then shows the teacher's OWN words that were refused (text-screen.ts teacherRefusedWords).
+   */
+  errText: (field: string, code: string | undefined, texts?: readonly (string | null | undefined)[]) => string
   mode: TeacherFormMode
 }
 
@@ -57,7 +61,8 @@ export function makeErrText(tr: (en: string, vi: string) => string) {
       case 'confirm': return tr('Please confirm these are the places you can teach — or change them.', 'Vui lòng xác nhận đây là những nơi bạn có thể dạy — hoặc thay đổi.')
       case 'other_city_required': return tr('Pick at least one other city — or change your answer to “Would you move for a job?”.', 'Chọn ít nhất một thành phố khác — hoặc đổi câu trả lời cho “Bạn có chuyển đi vì công việc không?”.')
       case 'goal_required': return tr('Switch on cover lessons — or go back to step 1 and pick the work you want.', 'Hãy bật nhận dạy thay — hoặc quay lại bước 1 và chọn công việc bạn muốn.')
-      // The publish screens' refusals, on the FIELD they refused (publish.ts PublishBlockedError names it, never the word).
+      // The publish screens' refusals, on the FIELD they refused (publish.ts PublishBlockedError names it, never the word) —
+      // these lines only when the words cannot be pointed at (`pointed` above, from the field's own text, comes first).
       case 'contact_in_text':
       case 'contact_in_name': return tr('Please remove phone numbers, emails and links here — the person you are chatting with gets your contact only when you share it in that chat.', 'Vui lòng xoá số điện thoại, email và liên kết ở đây — người đang trò chuyện với bạn chỉ nhận được liên hệ khi bạn chia sẻ trong tin nhắn với họ.')
       case 'banned_words': return tr('This contains a word we do not allow. Please rephrase it.', 'Nội dung này có từ không được phép. Vui lòng viết lại.')
@@ -65,8 +70,22 @@ export function makeErrText(tr: (en: string, vi: string) => string) {
       default: return code ? tr('Please check this value.', 'Vui lòng kiểm tra lại.') : ''
     }
   }
-  return (field: string, code: string | undefined): string => {
+  // ⛔ THE TEACHER'S OWN REFUSED WORDS, quoted (2026-10-21: a teacher refused three times without being told which word
+  // published his complaint as his bio). Found in the browser from the text it already holds — the server still sends only
+  // the field; and eno.vn's own copy names no rule and no word: the quote is the teacher's text, shown back to them alone.
+  const pointed = (field: string, code: string, words: readonly string[]): string => {
+    const quoted = words.map((w) => `“${w}”`).join(', ')
+    // A NAME cannot be reworded: the human route, as for the photo check.
+    if (code === 'banned_words' && field === 'fullName') return `${tr('We can’t publish this:', 'Không thể đăng nội dung này:')} ${quoted}. ${tr('If this is your name as written on your ID, tell us from the Help page.', 'Nếu đây là tên của bạn như trên giấy tờ tùy thân, hãy báo cho chúng tôi từ trang Trợ giúp.')}`
+    if (code === 'banned_words') return `${tr('We can’t publish this:', 'Không thể đăng nội dung này:')} ${quoted}. ${tr('Please rephrase or remove it.', 'Vui lòng viết lại hoặc xoá phần này.')}`
+    return `${tr('Please remove this:', 'Vui lòng xoá phần này:')} ${quoted} — ${tr('the person you are chatting with gets your contact only when you share it in that chat.', 'người đang trò chuyện với bạn chỉ nhận được liên hệ khi bạn chia sẻ trong tin nhắn với họ.')}`
+  }
+  return (field: string, code: string | undefined, texts?: readonly (string | null | undefined)[]): string => {
     if (!code) return ''
+    if (texts && (code === 'banned_words' || code === 'contact_in_text' || code === 'contact_in_name')) {
+      const words = teacherRefusedWords(code, texts)
+      if (words.length) return pointed(field, code, words)
+    }
     if (code === 'required') {
       switch (field) {
         case 'livesIn': return tr('Please tell us where you are now.', 'Vui lòng cho biết hiện bạn đang ở đâu.')

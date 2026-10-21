@@ -44,11 +44,12 @@ import { type CoverPatch } from '@/components/teachers/cover-fields'
 import { CoverSummary } from '@/components/teachers/cover-summary'
 import {
   ACCOUNT_STEPS, campaignQuery, checkSteps, decodeHandoff, draftPart, draftResumeStep, droppedAnswers, encodeHandoff, firstStepWithError,
-  forDraft, fromDraft, handoffPart, isTeacherStep, mergeReview, nothingDropped, nothingToSave, refusalEvents, sameDraftAnswers, step1Answered, type DroppedField,
+  forDraft, fromDraft, handoffPart, isTeacherStep, mergeReview, nothingDropped, nothingToSave, refusalEvents, sameDraftAnswers, step1Answered, textRefusals, type DroppedField,
 } from '@/components/teachers/teacher-form-rules'
 import { continueSourceEvent, type TeacherFormEvent } from '@/lib/signup-prompt'
 import { OpenInBrowser, type EscapeOffer } from '@/components/teachers/open-in-browser'
 import { makeErrText, type StepProps } from '@/components/teachers/steps/shared'
+import { teacherRefusedWords } from '@/lib/teachers/text-screen'
 import { PlansStep } from '@/components/teachers/steps/plans-step'
 import { WhereStep } from '@/components/teachers/steps/where-step'
 import { TeachingStep } from '@/components/teachers/steps/teaching-step'
@@ -1390,9 +1391,17 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     if (Object.keys(patch).length) setT({ ...cur, ...patch })
   }, [mode, prefill, door, uid, draftLoaded, loadFailed, setT])
 
-  const publishErrText = (code: string): string => {
+  /** The texts of one screened field as the server read them (what a save keeps) — to find the teacher's own refused words. */
+  const fieldTexts = (key: string): string[] => teacherFreeTextFields(normalizeForSave(t)).filter(([f]) => f === key).map(([, text]) => text)
+  const publishErrText = (code: string, texts?: readonly string[]): string => {
     if (code === 'contact_in_text' || code === 'contact_in_name') return tr('Please remove phone numbers, emails and links from your profile text — the person you are chatting with gets your contact only when you share it in that chat.', 'Vui lòng xoá số điện thoại, email và liên kết khỏi hồ sơ — người đang trò chuyện với bạn chỉ nhận được liên hệ khi bạn chia sẻ trong tin nhắn với họ.')
-    if (code === 'banned_words') return tr('Your profile contains a word we do not allow. Please rephrase.', 'Hồ sơ có từ không được phép. Vui lòng viết lại.')
+    // "Shown under the field" only when they are (review, 2026-10-21): an older tab or a reading the browser cannot
+    // reproduce finds no words, and then the line is the one it always was.
+    if (code === 'banned_words') {
+      return texts && teacherRefusedWords(code, texts).length
+        ? tr('Some words in your profile can’t be published — they’re shown under the field. Please rephrase them.', 'Một số từ trong hồ sơ không thể đăng — xem ngay dưới mục đó. Vui lòng viết lại.')
+        : tr('Your profile contains a word we do not allow. Please rephrase.', 'Hồ sơ có từ không được phép. Vui lòng viết lại.')
+    }
     if (code === 'account_restricted') return tr('Your account cannot publish right now.', 'Tài khoản của bạn hiện chưa thể đăng.')
     if (code.startsWith('identity_')) return tr('Please verify your identity in Account settings before publishing.', 'Vui lòng xác minh danh tính trong Cài đặt tài khoản trước khi đăng.')
     if (code === 'rate_limited') return tr('Too many saves — please wait a few minutes.', 'Lưu quá nhiều lần — vui lòng đợi vài phút.')
@@ -1580,6 +1589,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     // requires inventing a goal (plan review D6). A new profile with no goal is refused, as the server refuses it.
     const checked = checkSteps(t, TEACHER_STEPS)
     const all = mode === 'edit' ? splitGoalErrors(checked).other : checked
+    // …and the texts the server would refuse, refused HERE so the field can show the teacher's own words (2026-10-21).
+    for (const [k, v] of Object.entries(textRefusals(t)) as [keyof TeacherErrors, string][]) if (!all[k]) all[k] = v
     // ⛔ THE INTRO VIDEO "FROM NOW ON" (owner, 2026-10-16): a new profile, or one created since the cutoff, has one — a
     // public or a private video — as the server requires (publish.ts). Older profiles keep the old rule.
     if (videoRequired && !t.videoUrl && !privateVideo) all.videoUrl = 'required'
@@ -1690,9 +1701,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
           if (r !== 'superseded') { setFormError(staleCoverLine(r, reconsent)); revealFirstError({ formLineFirst: true }) }
           return
         }
-        // A screened text: the server names the FIELD it refused (never the word) — the form goes to it.
+        // A screened text: the server names the FIELD it refused (never the word) — the form goes to it, and the field
+        // shows the teacher's own refused words, found in the text it holds (steps/shared.tsx, text-screen.ts).
         if (typeof d.detail === 'string' && d.detail && typeof d.error === 'string' && !d.error.startsWith('identity_')) {
-          setFormError(publishErrText(String(d.error)))
+          setFormError(publishErrText(String(d.error), fieldTexts(d.detail)))
           refuse({ [d.detail]: d.error } as TeacherErrors)
           return
         }

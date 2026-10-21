@@ -48,7 +48,7 @@ export function AboutStep({ t, set, errors, errText, prefillName }: StepProps & 
               {tr('Use my account name:', 'Dùng tên tài khoản:')} {prefillName}
             </Chip>
           )}
-          {errors.fullName && <FieldError>{errText('fullName', errors.fullName)}</FieldError>}
+          {errors.fullName && <FieldError>{errText('fullName', errors.fullName, [t.fullName])}</FieldError>}
         </Field>
         <Field invalid={!!errors.nationality}>
           <Label htmlFor="tf-nat">{tr('Nationality', 'Quốc tịch')}</Label>
@@ -67,7 +67,7 @@ export function AboutStep({ t, set, errors, errText, prefillName }: StepProps & 
         </Fieldset>
       )}
 
-      <Field>
+      <Field invalid={!!errors.languages}>
         <Label htmlFor="tf-langs">{tr('Other languages you speak (optional)', 'Ngôn ngữ khác bạn nói được (không bắt buộc)')}</Label>
         <LanguagePicker id="tf-langs" value={t.languages} onChange={(v) => set('languages', v)} max={LIMITS.languages} exclude={taughtCodes} />
         {t.teachLanguages.length > 0 && (
@@ -75,6 +75,7 @@ export function AboutStep({ t, set, errors, errText, prefillName }: StepProps & 
             {tr('Already included, because you teach them:', 'Đã bao gồm, vì bạn dạy những ngôn ngữ này:')} {t.teachLanguages.map((n) => storedLanguageLabel(n, lang)).join(', ')}
           </FieldDescription>
         )}
+        {errors.languages && <FieldError>{errText('languages', errors.languages, t.languages)}</FieldError>}
       </Field>
 
       <Field invalid={!!errors.headline}>
@@ -87,13 +88,15 @@ export function AboutStep({ t, set, errors, errText, prefillName }: StepProps & 
             <span>{tr('Use suggestion:', 'Dùng gợi ý:')} <span className="font-normal">{suggestion}</span></span>
           </Chip>
         )}
-        {errors.headline && <FieldError>{errText('headline', errors.headline)}</FieldError>}
+        {errors.headline && <FieldError>{errText('headline', errors.headline, [t.headline])}</FieldError>}
       </Field>
 
-      <Field>
+      {/* ⛔ The bio had NO error slot (2026-10-21): a refused About text showed nothing at the field the teacher typed in. */}
+      <Field invalid={!!errors.bio}>
         <Label htmlFor="tf-bio">{tr('About you (optional)', 'Giới thiệu (không bắt buộc)')}</Label>
         <FieldControl id="tf-bio" render={<Textarea id="tf-bio" rows={5} value={t.bio} maxLength={LIMITS.bio} onChange={(e) => set('bio', e.target.value)} />} />
         <FieldDescription className="text-muted-foreground">{tr('Your teaching style and experience. No phone numbers or emails here.', 'Phong cách giảng dạy và kinh nghiệm của bạn. Không ghi số điện thoại hay email vào đây.')}</FieldDescription>
+        {errors.bio && <FieldError>{errText('bio', errors.bio, [t.bio])}</FieldError>}
       </Field>
     </div>
   )

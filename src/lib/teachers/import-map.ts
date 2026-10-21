@@ -22,10 +22,9 @@ import {
 } from '@/lib/teachers/profile'
 import { ALL_COUNTRY_CODES } from '@/lib/teachers/countries'
 import { LANGUAGES, type LanguageEntry } from '@/components/teachers/language-list'
-import { containsContactInfo, findBannedWord } from '@/lib/publish-guard'
-import { containsPhoneNumber, extractPhoneNumber } from '@/lib/phone'
+import { extractPhoneNumber } from '@/lib/phone'
 import { decodeEntities } from '@/lib/feed-text'
-import { teacherVisaMention } from '@/lib/teachers/visa-mention'
+import { teacherTextRefusal } from '@/lib/teachers/text-screen'
 
 /** The form answers an import may fill — steps 3 and 4 only (TEACHER_STEP_FIELDS.teaching + .about). */
 export const IMPORT_FIELDS = [
@@ -77,17 +76,17 @@ const int = (v: unknown): number | null => {
   return Number.isFinite(n) ? Math.round(n) : null
 }
 
-/** Would Publish refuse this text? (publish.ts screenTeacherTexts: assertCleanTexts + the visa screen.) */
-export function importTextRefused(text: string): boolean {
-  return containsPhoneNumber(text) || containsContactInfo(text) || !!findBannedWord(text) || teacherVisaMention(text)
+/** Would Publish refuse this text? The same decision (text-screen.ts teacherTextRefusal) — a name as a name: its contact codes. */
+export function importTextRefused(text: string, field: 'fullName' | 'text' = 'text'): boolean {
+  return teacherTextRefusal(field, text) !== null
 }
 
-/** A short text the form can hold and Publish accepts — else ''. */
-function safeShort(v: unknown, max: number): string {
+/** A short text the form can hold and Publish accepts — else ''. A name is screened as a name (contact details only). */
+function safeShort(v: unknown, max: number, field: 'fullName' | 'text' = 'text'): string {
   const s = oneLine(v)
   if (!s) return ''
   const cut = s.length > max ? s.slice(0, max).replace(/\s+\S*$/, '').trim() || s.slice(0, max) : s
-  return importTextRefused(cut) ? '' : cut
+  return importTextRefused(cut, field) ? '' : cut
 }
 
 /** "JOHN SMITH" → "John Smith" (CVs often print the name in capitals); anything else as written. */
@@ -97,9 +96,9 @@ function nameCase(s: string): string {
 }
 
 function fullNameOf(v: unknown): string {
-  const s = safeShort(v, LIMITS.name)
-  // …and Publish's own name screen (publish-guard assertCleanContactName: a phone, a link, a banned word).
-  if (s.length < 2 || /\d|@/.test(s) || !/\p{L}{2}/u.test(s) || importTextRefused(s)) return ''
+  const s = safeShort(v, LIMITS.name, 'fullName')
+  // …and Publish's own name screen (text-screen.ts teacherTextRefusal: a phone, contact details, a banned word, a visa).
+  if (s.length < 2 || /\d|@/.test(s) || !/\p{L}{2}/u.test(s) || importTextRefused(s, 'fullName')) return ''
   return nameCase(s)
 }
 

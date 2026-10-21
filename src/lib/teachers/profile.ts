@@ -652,8 +652,9 @@ export function validateTeacherInput(t: TeacherInput, steps: readonly TeacherSte
 
 /**
  * Every free-text field a teacher typed, by the key the form knows it under — the publish core screens each one and
- * names the FIELD it refused (never the word: a banned or visa word must not reach eno.vn's UI or wire), so the form
- * can jump to it. ⚠️ currentDistrict LEFT (2026-10-08): it is a curated district now, not free text.
+ * names the FIELD it refused (never the word on the wire), so the form can jump to it — and, since 2026-10-21, show the
+ * teacher's own refused words there, found in the text it holds (src/lib/teachers/text-screen.ts teacherRefusedWords).
+ * ⚠️ currentDistrict LEFT (2026-10-08): it is a curated district now, not free text.
  */
 export function teacherFreeTextFields(t: TeacherInput): [field: string, text: string][] {
   const out: [string, string][] = [
