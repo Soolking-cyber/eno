@@ -113,7 +113,7 @@ export function composeDm(a: { firstName: string | null; items: readonly DmItem[
   const name = (a.firstName || '').split(/\s+/)[0]?.replace(/[^\p{L}\p{M}'-]/gu, '').slice(0, 30)
   const hello = `Hi${name ? ` ${name}` : ''}, this is Alex from eno.vn.`
   const intro = a.first
-    ? ' You switched on job messages on eno.vn, so we send you jobs and cover lessons that fit your teacher profile.'
+    ? ' Job messages are on for your eno.vn teacher profile, so we send you jobs and cover lessons that fit it. To stop them, reply STOP or switch them off at https://eno.vn/teachers/job-messages'
     : ''
   const leadFor = (count: number) => a.kind === 'cover'
     ? `We've found ${count === 1 ? 'a cover lesson that matches' : 'cover lessons that match'} your free periods and areas:`

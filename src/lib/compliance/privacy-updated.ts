@@ -84,7 +84,11 @@
  * new, opt-in feature, OFF until the teacher switches it on. Dated 2026-10-21 — still the PLANNED day: the owner said
  * "deploy" on 2026-10-21 (the first plan was 2026-10-20). Deployed on any other Vietnamese day, re-date it to that day in
  * the deploy's commit and retake the fingerprint (page.test.tsx says the value); the amendment gate refuses the deploy
- * until then.
+ * until then. And the same day, in a later deploy (PLANNED for 2026-10-21 — the date stands): job messages are ON for
+ * every teacher until they switch them off (owner: "turn on for all now and they can turn off after first one", then "On
+ * for all today" over a 5-day notice — treated as not material, their call) — the paragraph's opening, its record and its
+ * one notice, the purpose's basis ("as part of the teacher service", no longer consent) and the automated-decisions
+ * opening. ⛔ Deployed on any later Vietnamese day, re-date both to that day, as above.
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -102,4 +106,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-21'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '9364b00640aeef0b'
+export const PRIVACY_TEXT_FINGERPRINT = '0df093d94f1a725e'

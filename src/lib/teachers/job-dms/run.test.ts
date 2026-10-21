@@ -93,6 +93,12 @@ vi.mock('@/lib/edition-scope', () => ({
   scopedListingWhere: async (w: object) => { scoped.wheres.push(w); return { AND: [w, { sellerId: { notIn: ['desk'] } }] } },
 }))
 const layaAnswers = vi.fn(async () => null)
+// eno's default-on switch-on (consent.ts enrolDefaultOn — its own tests in consent.test.ts): a spy here.
+const enrolDefaultOn = vi.fn(async () => 0)
+vi.mock('./consent', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./consent')>()),
+  enrolDefaultOn: (...a: unknown[]) => (enrolDefaultOn as (...x: unknown[]) => unknown)(...a),
+}))
 vi.mock('./laya', () => ({ layaAnswers: (...a: unknown[]) => (layaAnswers as (...x: unknown[]) => unknown)(...a) }))
 const desk = { operator: 'op-1' as string | null }
 const sendJobDm = vi.fn(async () => ({ sent: true, conversationId: 'c1', messageId: 'm1' }))
@@ -109,7 +115,7 @@ vi.mock('./desk', () => ({
 }))
 
 const { runJobDms, textSig, purgeJobPosts, PURGED_TEXT } = await import('./run')
-const { JOB_DM_NOTICE_VERSION } = await import('./constants')
+const { JOB_DM_DEFAULT_ON, JOB_DM_NOTICE_VERSION } = await import('./constants')
 
 const DAY = new Date('2026-10-21T03:00:00Z') // Wed 10:00 ICT
 const NIGHT = new Date('2026-10-21T15:00:00Z') // Wed 22:00 ICT
@@ -132,7 +138,7 @@ beforeEach(() => {
   T.posts = []; T.dms = []; T.teachers = [teacher]
   calls.teacherWhere = []; calls.createMany = []; calls.consentUpdates = []
   mode.value = 'shadow'; desk.operator = 'op-1'
-  sendJobDm.mockClear(); honourStop.mockClear(); pauseJobDms.mockClear(); resumeJobDms.mockClear(); layaAnswers.mockClear(); stops.rows = []; lock.held = false
+  sendJobDm.mockClear(); honourStop.mockClear(); pauseJobDms.mockClear(); resumeJobDms.mockClear(); layaAnswers.mockClear(); enrolDefaultOn.mockClear(); stops.rows = []; lock.held = false
 })
 
 describe('runJobDms', () => {
@@ -160,12 +166,25 @@ describe('runJobDms', () => {
     expect(vi.mocked(db.listing.findMany).mock.calls.at(-1)?.[0]).toMatchObject({ where: { AND: [scoped.wheres[0], { sellerId: { notIn: ['desk'] } }] } })
   })
 
-  it('both modes match only teachers who switched job messages on under the current notice', async () => {
+  it('both modes match only teachers with job messages on — their own switch-on, or eno\'s default-on — and not paused', async () => {
     T.posts = [post('1')]
     await runJobDms({ dryRun: false, now: DAY })
     mode.value = 'live'
     await runJobDms({ dryRun: false, now: DAY })
-    for (const w of calls.teacherWhere) expect(w).toMatchObject({ profile: { teacherJobDmConsent: { optIn: true, noticeVersion: JOB_DM_NOTICE_VERSION, pausedAt: null } } })
+    for (const w of calls.teacherWhere) expect(w).toMatchObject({ profile: { teacherJobDmConsent: { optIn: true, noticeVersion: { in: [JOB_DM_NOTICE_VERSION, JOB_DM_DEFAULT_ON] }, pausedAt: null } } })
+  })
+
+  it('a writing run switches on, first, every live teacher who never chose (default-on); a dry run never does; quiet hours wait', async () => {
+    T.posts = [post('1')]
+    await runJobDms({ dryRun: true, now: DAY })
+    expect(enrolDefaultOn).not.toHaveBeenCalled()
+    await runJobDms({ dryRun: false, now: NIGHT })
+    expect(enrolDefaultOn).not.toHaveBeenCalled()
+    enrolDefaultOn.mockResolvedValueOnce(3)
+    const r = await runJobDms({ dryRun: false, now: DAY })
+    expect(enrolDefaultOn).toHaveBeenCalledTimes(1)
+    expect(enrolDefaultOn).toHaveBeenCalledWith(DAY)
+    expect(r.enrolled).toBe(3)
   })
 
   it('a copy held only for its route (a private group) does not take the job from a public copy', async () => {

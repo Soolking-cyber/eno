@@ -2,24 +2,24 @@ import 'server-only'
 import type { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { HOME_HIDDEN_TEACHER_LISTING_IDS } from '@/lib/teachers/constants'
-import { JOB_DM_RULES } from './constants'
-import { JOB_DM_TX_OPTS, lockJobDmTeacher } from './consent'
+import { JOB_DM_DEFAULT_ON, JOB_DM_RULES } from './constants'
+import { JOB_DM_TX_OPTS, defaultOnTeacherWhere, lockJobDmTeacher } from './consent'
 
 /**
- * THE ONE-TIME INVITE (owner, 2026-10-20 — plan v2 "CONSENT": "Existing teachers get ONE in-app bell invite (once per
- * teacher, daily for new teachers)"). GET /api/cron/job-dms-invite, daily: each live teacher who has never used the job
- * messages switch gets ONE bell row — in the app only, never a web push (the permission was given for messages, not news
- * of a feature: /privacy says "in the app only") — pointing at /teachers/job-messages, where the
- * switch and its notice are. The invite consents to nothing and sends no job — the switch stays OFF until the teacher
- * turns it on there.
+ * THE ONE-TIME NOTICE (owner, 2026-10-20 — plan v2: "Existing teachers get ONE in-app bell invite (once per teacher, daily
+ * for new teachers)"; since 2026-10-21 job messages are ON by default — constants.ts JOB_DM_DEFAULT_ON — so it tells the
+ * teacher they are on and where to switch them off). GET /api/cron/job-dms-invite, daily: each live teacher not yet told
+ * gets ONE bell row — in the app only, never a web push (the permission was given for messages, not news of a feature:
+ * /privacy says "in the app only") — pointing at /teachers/job-messages, where the switch and its notice are. It sends no
+ * job and switches nothing: eno's default-on is consent.ts enrolDefaultOn's (each run).
  *
  * WHO — a teacher who has never been asked and never answered:
  *   · TeacherProfile status 'live' and its listing live (active + verified) — the teachers the jobs desk can reach once
  *     they opt in (run.ts loadTeachers reads the same); a teacher under review is invited on a later day, once live;
  *   · never the owner's DEMO profile (constants.ts HOME_HIDDEN_TEACHER_LISTING_IDS — not a teacher anyone can hire);
- *   · no TeacherJobDmConsent row, or one with no invite, no grant and no withdrawal (NEVER_ASKED). ⛔ A teacher who switched
- *     it ON already needs no invite; one who switched it OFF made a choice — never a bell over it; an ON under an older
- *     notice is a re-confirmation, a different message — not this one.
+ *   · no TeacherJobDmConsent row, or one never told (NOT_TOLD): no invite, no withdrawal, and no switch-on of the
+ *     teacher's own — none, or eno's default. ⛔ A teacher who switched it ON themselves already knows; one who switched
+ *     it OFF made a choice — never a bell over it.
  * ⛔ NEVER TWICE: `invitedAt` is CLAIMED FIRST — a compare-and-set (insert-if-absent, else an update WHERE never asked),
  * under the teacher's job-DM lock (consent.ts) — and the bell row is written in the SAME transaction: claim and bell
  * commit together or not at all, so a re-run, a parallel run or a crash can produce at worst no invite, never two, and
@@ -35,13 +35,13 @@ export const JOB_DM_INVITE = {
   maxPerRun: 200,
 } as const
 
-export const INVITE_TITLE = 'Nhận việc làm phù hợp qua tin nhắn eno · Get matching jobs in eno chat'
+export const INVITE_TITLE = 'Việc làm phù hợp qua tin nhắn eno · Matching jobs in eno chat'
 export const INVITE_BODY =
-  'Mới cho giáo viên: bật lên để eno.vn nhắn cho bạn các việc làm và buổi dạy thay phù hợp với hồ sơ. Nhấn để xem cách hoạt động. · ' +
-  'New for teachers: switch it on and eno.vn messages you the jobs and cover lessons that fit your profile. Tap to see how it works.'
+  'Mới cho giáo viên: eno.vn nhắn cho bạn các việc làm và buổi dạy thay phù hợp với hồ sơ. Nhấn để xem cách hoạt động hoặc tắt. · ' +
+  'New for teachers: eno.vn messages you the jobs and cover lessons that fit your profile. Tap to see how it works or to switch it off.'
 
-/** A row that has never been invited, granted or withdrawn — the only kind the claim may stamp. */
-const NEVER_ASKED = { invitedAt: null, optIn: false, optInAt: null, withdrawnAt: null } as const
+/** A row never told — no invite, no withdrawal, no switch-on of the teacher's own — the only kind the claim may stamp. */
+const NOT_TOLD = { invitedAt: null, withdrawnAt: null, OR: [{ noticeVersion: null }, { noticeVersion: JOB_DM_DEFAULT_ON }] } satisfies Prisma.TeacherJobDmConsentWhereInput
 
 /** 21:00–08:00 Vietnam time (UTC+7 all year): no invite inside it — a bell and a push at night are a nuisance. */
 export function inviteIsQuiet(now: number): boolean {
@@ -52,10 +52,8 @@ export function inviteIsQuiet(now: number): boolean {
 /** Who may be invited (above). The selection only: the claim re-checks under the lock. */
 export function inviteCandidateWhere(): Prisma.TeacherProfileWhereInput {
   return {
-    status: 'live',
-    listing: { status: 'active', verified: true },
-    NOT: { listingId: { in: [...HOME_HIDDEN_TEACHER_LISTING_IDS] } },
-    profile: { OR: [{ teacherJobDmConsent: { is: null } }, { teacherJobDmConsent: { is: NEVER_ASKED } }] },
+    ...defaultOnTeacherWhere(),
+    profile: { OR: [{ teacherJobDmConsent: { is: null } }, { teacherJobDmConsent: { is: NOT_TOLD } }] },
   }
 }
 
@@ -90,7 +88,7 @@ export async function claimAndInvite(profileId: string): Promise<boolean> {
     // ⛔ THE CLAIM: insert the row if there is none (ON CONFLICT DO NOTHING) — else stamp it only while never asked.
     const inserted = await tx.teacherJobDmConsent.createMany({ data: [{ profileId, invitedAt: now, updatedAt: now }], skipDuplicates: true })
     if (inserted.count !== 1) {
-      const claimed = await tx.teacherJobDmConsent.updateMany({ where: { profileId, ...NEVER_ASKED }, data: { invitedAt: now, updatedAt: now } })
+      const claimed = await tx.teacherJobDmConsent.updateMany({ where: { profileId, ...NOT_TOLD }, data: { invitedAt: now, updatedAt: now } })
       if (claimed.count !== 1) return false
     }
     await tx.notification.create({

@@ -8,7 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 type Row = { optIn: boolean; optInAt: Date | null; noticeVersion: string | null; withdrawnAt: Date | null; invitedAt: Date | null; updatedAt?: Date }
 const h = vi.hoisted(() => ({
   rows: new Map<string, Row>(),
-  teachers: new Map<string, { status: string }>(),
+  teachers: new Map<string, { status: string; listingId?: string | null; listing?: { status: string; verified: boolean } | null }>(),
+  /** what enrolDefaultOn's selection returns (the fake cannot evaluate a Prisma where) */
+  candidates: [] as string[],
+  wheres: [] as unknown[],
   /** Every database step, in order: 'begin', 'lock_timeout', 'lock', 'teacher', 'read', 'create', 'update', 'updateMany', 'commit'. */
   calls: [] as string[],
   lockKeys: [] as string[],
@@ -24,6 +27,7 @@ vi.mock('@/lib/db', () => {
     },
     teacherProfile: {
       findUnique: async ({ where }: { where: { profileId: string } }) => { h.calls.push('teacher'); return h.teachers.get(where.profileId) ?? null },
+      findMany: async ({ where }: { where: unknown }) => { h.calls.push('select'); h.wheres.push(where); return h.candidates.map((profileId) => ({ profileId })) },
     },
     teacherJobDmConsent: {
       findUnique: async ({ where }: { where: { profileId: string } }) => {
@@ -46,12 +50,36 @@ vi.mock('@/lib/db', () => {
         Object.assign(r, data)
         return { ...r }
       },
-      updateMany: async ({ where, data }: { where: { profileId: string; optIn?: boolean }; data: Partial<Row> }) => {
-        h.calls.push('updateMany')
+      upsert: async ({ where, create, update }: { where: { profileId: string }; create: Partial<Row> & { profileId: string }; update: Partial<Row> }) => {
+        h.calls.push('upsert')
         const r = h.rows.get(where.profileId)
-        if (!r || (where.optIn !== undefined && r.optIn !== where.optIn)) return { count: 0 }
-        Object.assign(r, data)
-        return { count: 1 }
+        if (r) { Object.assign(r, update); return { ...r } }
+        const { profileId, ...rest } = create
+        const fresh: Row = { optIn: false, optInAt: null, noticeVersion: null, withdrawnAt: null, invitedAt: null, ...rest }
+        h.rows.set(profileId, fresh)
+        return { ...fresh }
+      },
+      createMany: async ({ data, skipDuplicates }: { data: (Partial<Row> & { profileId: string })[]; skipDuplicates?: boolean }) => {
+        h.calls.push('createMany')
+        let count = 0
+        for (const { profileId, ...rest } of data) {
+          if (h.rows.has(profileId)) { if (skipDuplicates) continue; throw Object.assign(new Error('unique'), { code: 'P2002' }) }
+          h.rows.set(profileId, { optIn: false, optInAt: null, noticeVersion: null, withdrawnAt: null, invitedAt: null, ...rest })
+          count++
+        }
+        return { count }
+      },
+      updateMany: async ({ where, data }: { where: Record<string, unknown> & { profileId: string | { in: string[] } }; data: Partial<Row> }) => {
+        h.calls.push('updateMany')
+        const ids = typeof where.profileId === 'string' ? [where.profileId] : where.profileId.in
+        let count = 0
+        for (const id of ids) {
+          const r = h.rows.get(id) as Record<string, unknown> | undefined
+          if (!r || Object.entries(where).some(([k, v]) => k !== 'profileId' && r[k] !== v)) continue
+          Object.assign(r, data)
+          count++
+        }
+        return { count }
       },
     },
   }
@@ -68,9 +96,9 @@ vi.mock('@/lib/db', () => {
   }
 })
 
-const { JOB_DM_NOTICE_VERSION } = await import('./constants')
+const { JOB_DM_DEFAULT_ON, JOB_DM_NOTICE_VERSION } = await import('./constants')
 const {
-  JobDmNoTeacherProfileError, JobDmNoticeChangedError, jobDmConsentWrites, jobDmConsented, jobDmLockKey, jobDmStateOf,
+  JobDmNoTeacherProfileError, JobDmNoticeChangedError, enrolDefaultOn, jobDmConsentWrites, jobDmConsented, jobDmLockKey, jobDmStateOf,
   readJobDmState, setJobDmConsent, withdrawJobDms,
 } = await import('./consent')
 
@@ -80,7 +108,7 @@ const OLD_NOTICE = '2026-10-01'
 const row = (o: Partial<Row> = {}): Row => ({ optIn: false, optInAt: null, noticeVersion: null, withdrawnAt: null, invitedAt: null, ...o })
 
 beforeEach(() => {
-  h.rows.clear(); h.teachers.clear(); h.calls = []; h.lockKeys = []
+  h.rows.clear(); h.teachers.clear(); h.calls = []; h.lockKeys = []; h.candidates = []; h.wheres = []
   h.teachers.set('p1', { status: 'live' })
 })
 afterEach(() => { vi.restoreAllMocks() })
@@ -103,9 +131,17 @@ describe('jobDmConsentWrites — the evidence each act writes (pure)', () => {
     expect(w).not.toHaveProperty('optInAt')
     expect(w).not.toHaveProperty('noticeVersion')
   })
-  it('an OFF over an OFF, or over no row, writes nothing (no second withdrawal time)', () => {
-    expect(jobDmConsentWrites(false, null, NOW)).toBeNull()
+  it('an OFF over an OFF writes nothing (no second withdrawal time)', () => {
     expect(jobDmConsentWrites(false, row({ withdrawnAt: EARLIER, optInAt: EARLIER, noticeVersion: JOB_DM_NOTICE_VERSION }), NOW)).toBeNull()
+  })
+  it('⛔ an OFF over no row, or over the invite\'s row, writes an OFF — default-on would switch "never chose" on', () => {
+    expect(jobDmConsentWrites(false, null, NOW)).toEqual({ optIn: false, withdrawnAt: NOW, updatedAt: NOW })
+    expect(jobDmConsentWrites(false, row({ invitedAt: EARLIER }), NOW)).toEqual({ optIn: false, withdrawnAt: NOW, updatedAt: NOW })
+  })
+  it('an OFF over eno\'s default-on withdraws it; an ON over it is the teacher\'s own grant, recorded as such', () => {
+    const enrolled = row({ optIn: true, optInAt: EARLIER, noticeVersion: JOB_DM_DEFAULT_ON })
+    expect(jobDmConsentWrites(false, enrolled, NOW)).toEqual({ optIn: false, withdrawnAt: NOW, updatedAt: NOW })
+    expect(jobDmConsentWrites(true, enrolled, NOW)).toEqual({ optIn: true, optInAt: NOW, noticeVersion: JOB_DM_NOTICE_VERSION, pausedAt: null, updatedAt: NOW })
   })
   it('an ON over an ON under today\'s notice lifts a PAUSE, and writes nothing else', () => {
     expect(jobDmConsentWrites(true, { optIn: true, noticeVersion: JOB_DM_NOTICE_VERSION, pausedAt: NOW }, NOW)).toEqual({ optInAt: NOW, pausedAt: null, updatedAt: NOW })
@@ -114,8 +150,14 @@ describe('jobDmConsentWrites — the evidence each act writes (pure)', () => {
 })
 
 describe('jobDmConsented — the one gate', () => {
-  it('true ONLY for an ON under the notice in force', () => {
+  it('true ONLY for an ON under the notice in force — the teacher\'s own, or eno\'s default-on — and not paused', () => {
     expect(jobDmConsented({ optIn: true, noticeVersion: JOB_DM_NOTICE_VERSION })).toBe(true)
+    expect(jobDmConsented({ optIn: true, noticeVersion: JOB_DM_DEFAULT_ON })).toBe(true)
+    // ⚠️ default-on did not bump the notice: a teacher who switched on under it stays on (codex + opus, gate 11a)
+    expect(JOB_DM_NOTICE_VERSION).toBe('2026-10-20')
+    expect(jobDmConsented({ optIn: true, noticeVersion: '2026-10-20' })).toBe(true)
+    expect(jobDmConsented({ optIn: true, noticeVersion: JOB_DM_DEFAULT_ON, pausedAt: NOW })).toBe(false)
+    expect(jobDmConsented({ optIn: false, noticeVersion: JOB_DM_DEFAULT_ON })).toBe(false)
     expect(jobDmConsented({ optIn: true, noticeVersion: OLD_NOTICE })).toBe(false)
     expect(jobDmConsented({ optIn: true, noticeVersion: null })).toBe(false)
     expect(jobDmConsented({ optIn: false, noticeVersion: JOB_DM_NOTICE_VERSION })).toBe(false)
@@ -125,6 +167,13 @@ describe('jobDmConsented — the one gate', () => {
   it('the page’s state says ON-but-lapsed apart from ON', () => {
     expect(jobDmStateOf({ optIn: true, noticeVersion: OLD_NOTICE }, true)).toEqual({ on: true, noticeVersion: OLD_NOTICE, current: false, teacher: true, paused: false })
     expect(jobDmStateOf(null, false)).toEqual({ on: false, noticeVersion: null, current: false, teacher: false, paused: false })
+  })
+  it('a default-on teacher who never chose is drawn ON; their own OFF, or a teacher not default-on, is not', () => {
+    const on = { on: true, noticeVersion: null, current: true, teacher: true, paused: false }
+    expect(jobDmStateOf(null, true, true)).toEqual(on)
+    expect(jobDmStateOf(row({ invitedAt: EARLIER }), true, true)).toEqual(on)
+    expect(jobDmStateOf(row({ withdrawnAt: EARLIER }), true, true)).toEqual({ on: false, noticeVersion: null, current: false, teacher: true, paused: false })
+    expect(jobDmStateOf(null, true, false)).toEqual({ on: false, noticeVersion: null, current: false, teacher: true, paused: false })
   })
   it('⚠️ the lock key is the one desk.ts sendJobDm takes first in its batch — `teacher-job-dm:` + the profile id', () => {
     expect(jobDmLockKey('p1')).toBe('teacher-job-dm:p1')
@@ -154,7 +203,7 @@ describe('setJobDmConsent — the switch', () => {
       const s = await setJobDmConsent('p1', true, JOB_DM_NOTICE_VERSION)
       expect(s).toEqual({ on: true, noticeVersion: JOB_DM_NOTICE_VERSION, current: true, teacher: true, paused: false })
       expect(h.rows.get('p1')).toMatchObject({ optIn: true, optInAt: NOW, noticeVersion: JOB_DM_NOTICE_VERSION, withdrawnAt: null })
-      expect(h.calls).toEqual(['begin', 'lock_timeout', 'lock', 'teacher', 'read', 'create', 'commit'])
+      expect(h.calls).toEqual(['begin', 'lock_timeout', 'lock', 'teacher', 'read', 'upsert', 'commit'])
       expect(h.lockKeys).toEqual(['teacher-job-dm:p1'])
     } finally {
       vi.useRealTimers()
@@ -208,11 +257,20 @@ describe('setJobDmConsent — the switch', () => {
     expect(h.rows.get('p1')?.optIn).toBe(false)
   })
 
-  it('an OFF with nothing to withdraw writes nothing (no row is made for it)', async () => {
+  it('⛔ an OFF from a teacher with no row writes an OFF row — so no later run switches them on (default-on)', async () => {
+    h.teachers.set('p1', { status: 'live', listingId: 'l1', listing: { status: 'active', verified: true } })
+    expect((await readJobDmState('p1')).current).toBe(true)
     const s = await setJobDmConsent('p1', false, null)
     expect(s).toEqual({ on: false, noticeVersion: null, current: false, teacher: true, paused: false })
-    expect(h.rows.size).toBe(0)
-    expect(h.calls).not.toContain('create')
+    expect(h.rows.get('p1')).toMatchObject({ optIn: false, withdrawnAt: expect.any(Date), optInAt: null })
+    expect(h.calls.indexOf('lock')).toBeLessThan(h.calls.indexOf('upsert'))
+  })
+
+  it('an OFF over an OFF writes nothing more', async () => {
+    h.rows.set('p1', row({ withdrawnAt: EARLIER }))
+    await setJobDmConsent('p1', false, null)
+    expect(h.rows.get('p1')?.withdrawnAt).toEqual(EARLIER)
+    expect(h.calls.filter((c) => ['upsert', 'update'].includes(c))).toEqual([])
   })
 
   it('readJobDmState reads only', async () => {
@@ -254,5 +312,27 @@ describe('withdrawJobDms — the server’s withdrawal (a STOP reply)', () => {
     expect(await withdrawJobDms('p1', 'stop_reply', { tx: db as never, now: NOW })).toBe(true)
     expect(h.calls).toEqual(['updateMany'])
     expect(h.rows.get('p1')?.withdrawnAt).toEqual(NOW)
+  })
+})
+
+describe('enrolDefaultOn — eno switches job messages on for who never chose (owner, 2026-10-21)', () => {
+  it('an ON row stamped now + JOB_DM_DEFAULT_ON over no row and over the invite\'s row; an OFF and an own ON stay', async () => {
+    h.rows.set('invited', row({ invitedAt: EARLIER }))
+    h.rows.set('off', row({ optIn: false, withdrawnAt: EARLIER }))
+    h.rows.set('own', row({ optIn: true, optInAt: EARLIER, noticeVersion: JOB_DM_NOTICE_VERSION }))
+    // 'off' and 'own' in the selection too: a switch made between the selection and the writes (the writes re-check)
+    h.candidates = ['new', 'invited', 'off', 'own']
+    expect(await enrolDefaultOn(NOW)).toBe(2)
+    for (const id of ['new', 'invited']) expect(h.rows.get(id)).toMatchObject({ optIn: true, optInAt: NOW, noticeVersion: JOB_DM_DEFAULT_ON, withdrawnAt: null })
+    expect(h.rows.get('off')).toMatchObject({ optIn: false, withdrawnAt: EARLIER, optInAt: null })
+    expect(h.rows.get('own')).toMatchObject({ optIn: true, optInAt: EARLIER, noticeVersion: JOB_DM_NOTICE_VERSION })
+  })
+  it('selects live default-on teachers with no row or the invite\'s row; nobody → no write', async () => {
+    expect(await enrolDefaultOn(NOW)).toBe(0)
+    expect(h.wheres[0]).toMatchObject({
+      status: 'live', listing: { status: 'active', verified: true },
+      profile: { OR: [{ teacherJobDmConsent: { is: null } }, { teacherJobDmConsent: { is: { optIn: false, optInAt: null, withdrawnAt: null } } }] },
+    })
+    expect(h.calls).toEqual(['select'])
   })
 })

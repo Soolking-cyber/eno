@@ -69,7 +69,7 @@ vi.mock('@/lib/db', () => ({
 }))
 
 const { GET } = await import('./route')
-const { JOB_DM_NOTICE_VERSION } = await import('@/lib/teachers/job-dms/constants')
+const { JOB_DM_DEFAULT_ON, JOB_DM_NOTICE_VERSION } = await import('@/lib/teachers/job-dms/constants')
 
 const NEW = new Date()
 function thread(over: Row = {}): Row {
@@ -291,9 +291,11 @@ describe('a jobs-desk thread', () => {
    * The teacher's job-messages switch rides along for the two quick replies: after a STOP the desk's acknowledgement is
    * the newest message, and the pair must not come back under it. On = opted in under the CURRENT notice.
    */
-  it("tells the TEACHER whether their job-messages switch is on — under the current notice only", async () => {
+  it("tells the TEACHER whether their job-messages switch is on — their own under the current notice, or eno's default-on", async () => {
     h.convo = jobs()
     h.jobConsent = { optIn: true, noticeVersion: JOB_DM_NOTICE_VERSION }
+    expect((await get()).body.jobMessagesOn).toBe(true)
+    h.jobConsent = { optIn: true, noticeVersion: JOB_DM_DEFAULT_ON }
     expect((await get()).body.jobMessagesOn).toBe(true)
     h.jobConsent = { optIn: false, noticeVersion: JOB_DM_NOTICE_VERSION }
     expect((await get()).body.jobMessagesOn).toBe(false)

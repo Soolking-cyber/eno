@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 900
 
 /**
- * The job-messages INVITE (owner, 2026-10-20) — ONE in-app bell per live teacher who has never used the switch (no web
+ * The job-messages NOTICE (owner, 2026-10-20; ON by default since 2026-10-21) — ONE in-app bell per live teacher not yet told (no web
  * push: the push permission was given for messages, not for news of a feature — opus, gate 5b, Decree 91/2020),
  * pointing at /teachers/job-messages. Who, and why never twice: src/lib/teachers/job-dms/invite.ts.
  * Daily (a new teacher is invited on the next run): at most JOB_DM_INVITE.maxPerRun a run (`stopped: 'ceiling'`, a 200 —

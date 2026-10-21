@@ -481,28 +481,29 @@ describe('/privacy — teacher job matching (Anthropic)', () => {
  */
 describe('/privacy — teacher job messages (the jobs desk)', () => {
   const EN = [
-    'Job messages for teachers: if you switch on “Message me matching jobs and cover lessons in eno chat” (on the “Job messages” page of your teacher profile), our jobs desk — shown in chat as “Alex · eno.vn” — may send you automatic messages in eno.vn chat',
+    'Job messages for teachers: job messages are on for every teacher profile on eno.vn — since 21 October 2026, and for a new profile once it is live — until you switch off “Message me matching jobs and cover lessons in eno chat” (on the “Job messages” page of your teacher profile) or reply STOP. While they are on, our jobs desk — shown in chat as “Alex · eno.vn” — may send you automatic messages in eno.vn chat',
     'We find them in Facebook teaching-job groups, in LinkedIn job-alert emails, in job posts our team forwards to us and among eno.vn’s own job listings.',
-    'The posts we collect are kept privately on our server in Vietnam: they are never published, are used only to find jobs and cover lessons for teachers who switched this on, and their content is deleted 30 days after we receive them — only a post’s identifier at its source is kept, for up to 6 months, so the same post is never sent twice.',
+    'The posts we collect are kept privately on our server in Vietnam: they are never published, are used only to find jobs and cover lessons for teachers with job messages on, and their content is deleted 30 days after we receive them — only a post’s identifier at its source is kept, for up to 6 months, so the same post is never sent twice.',
     'if a reply may be asking us to stop, we pause the messages and ask you — tap “Keep sending jobs” to get them again, and if you don’t, they switch off after 14 days.',
     'To choose the jobs for you we use where you live (in Vietnam or abroad), the places you can teach, the work you want, your subjects, age groups, English level, degree, certificate types, years of experience and expected salary — and, while cover lessons are on, your cover areas, free periods and hourly rate.',
     'This runs on our own server in Vietnam: no AI company outside Vietnam receives your profile for it.',
     'You get at most one jobs message and one cover-lesson message a day, each with at most five jobs, and at most two messages until you reply',
-    'We keep the time you switch it on, with the version of the notice shown beside the switch, and the time you switch it off; reply STOP in that chat, or switch it off on the same page, at any time.',
-    'With a teacher’s consent only, given on the “Job messages” page of their teacher profile: to send them automatic messages in eno.vn chat about jobs and cover lessons that fit their profile',
-    'Job messages for teachers: if a teacher switches on job messages, our own server in Vietnam reads job and cover-lesson posts and picks the ones that fit the teacher’s profile.',
+    'We keep the time job messages were switched on for you — by us, or by you with the version of the notice shown beside the switch — and the time they were switched off; reply STOP in that chat, or switch them off on the same page, at any time: the first message says how.',
+    'We also tell each teacher once, in the app only, that job messages are on and where to switch them off.',
+    'For every teacher profile, as part of the teacher service, until the teacher switches it off on the “Job messages” page or replies STOP: to send them automatic messages in eno.vn chat about jobs and cover lessons that fit their profile',
+    'Job messages for teachers: for every teacher with job messages on — they are on until the teacher switches them off — our own server in Vietnam reads job and cover-lesson posts and picks the ones that fit the teacher’s profile.',
     'an AI language model that runs on that same server also reads the posts, never the teacher’s profile, and its readings are only recorded, to check and improve the rules.',
     'a post that asks for a particular gender, age, race or nationality, or charges candidates a fee, is never sent — nor is one that names a nationality, gender or age in a way the rules cannot tell apart from such a request.',
     'no score is shown to anyone, and no application is made on anyone’s behalf. Replying STOP in the chat, or switching it off on the “Job messages” page, stops it.',
   ]
   const VI = [
-    'Tin nhắn việc làm cho giáo viên: nếu bạn bật “Nhắn cho tôi các việc làm và buổi dạy thay phù hợp qua tin nhắn eno” (tại trang “Tin nhắn việc làm” trong hồ sơ giáo viên)',
+    'Tin nhắn việc làm cho giáo viên: tin nhắn việc làm được bật cho mọi hồ sơ giáo viên trên eno.vn — từ ngày 21 tháng 10 năm 2026, và với hồ sơ mới thì từ khi hồ sơ được hiển thị — cho đến khi bạn tắt “Nhắn cho tôi các việc làm và buổi dạy thay phù hợp qua tin nhắn eno” (tại trang “Tin nhắn việc làm” trong hồ sơ giáo viên) hoặc trả lời STOP.',
     'hiển thị trong tin nhắn là “Alex · eno.vn”',
     'và nội dung được xóa sau 30 ngày kể từ khi chúng tôi nhận được — chỉ giữ mã định danh của tin tại nguồn, tối đa 6 tháng, để không gửi trùng một tin.',
     'không có công ty AI nào ngoài Việt Nam nhận hồ sơ của bạn cho việc này.',
     'Bạn nhận tối đa một tin nhắn việc làm và một tin nhắn dạy thay mỗi ngày, mỗi tin tối đa năm việc, và tối đa hai tin nhắn cho đến khi bạn trả lời',
-    'bạn có thể trả lời STOP trong cuộc trò chuyện đó, hoặc tắt tại cùng trang đó, bất cứ lúc nào.',
-    'Chỉ khi giáo viên đồng ý tại trang “Tin nhắn việc làm” trong hồ sơ giáo viên: để gửi cho giáo viên tin nhắn tự động',
+    'bạn có thể trả lời STOP trong cuộc trò chuyện đó, hoặc tắt tại cùng trang đó, bất cứ lúc nào: tin nhắn đầu tiên sẽ hướng dẫn cách tắt.',
+    'Với mọi hồ sơ giáo viên, như một phần của dịch vụ dành cho giáo viên, cho đến khi giáo viên tắt tại trang “Tin nhắn việc làm” hoặc trả lời STOP: để gửi cho giáo viên tin nhắn tự động',
     'chỉ đọc các tin tuyển dụng và không bao giờ đọc hồ sơ của giáo viên, và kết quả đọc của mô hình chỉ được ghi lại',
     'tin nào yêu cầu một giới tính, độ tuổi, chủng tộc hay quốc tịch cụ thể, hoặc thu phí ứng viên, sẽ không bao giờ được gửi — cũng như tin nêu quốc tịch, giới tính hay độ tuổi',
     'nếu một tin trả lời có thể là yêu cầu dừng, chúng tôi tạm dừng tin nhắn và hỏi bạn — chạm “Gửi tiếp việc làm” để nhận lại, nếu không, mục này sẽ tự tắt sau 14 ngày.',
@@ -522,6 +523,9 @@ describe('/privacy — teacher job messages (the jobs desk)', () => {
     for (const site of ['marketplace', 'services'] as const) {
       const en = await policy(site)
       for (const s of EN) expect(en, `${site}: ${s}`).toContain(s)
+      // ON by default since 2026-10-21 (owner): the opt-in wording is gone
+      expect(en).not.toContain('; it stays off until you switch it on.')
+      expect(en).not.toContain('With a teacher’s consent only, given on the “Job messages” page')
       cleanup()
       const vi = await policy(site, 'vi')
       for (const s of VI) expect(vi, `${site}: ${s}`).toContain(s)

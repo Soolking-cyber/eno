@@ -122,6 +122,10 @@ describe('compose', () => {
     expect(text).toContain('Never pay a fee')
     expect(text).toContain('Reply STOP')
     expect(included).toEqual(['post:1'])
+    // ON by default (2026-10-21): the first message says why it came, and how to switch it off
+    expect(text).toContain('Job messages are on for your eno.vn teacher profile')
+    expect(text).toContain('switch them off at https://eno.vn/teachers/job-messages')
+    expect(composeDm({ firstName: 'Anna', items, kind: 'cover', first: false }).text).not.toContain('Job messages are on')
   })
   it('never carries a visa word: a visa-named group is renamed, a visa-worded job is left out', () => {
     expect(sourceLine('fb', 'Visa & Jobs Vietnam')).toBe('Posted in a Facebook teaching-jobs group')

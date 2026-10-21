@@ -19,11 +19,24 @@ export const JOBS_DESK_SELLER_ID = 'eno-jobs-desk'
 export const JOBS_DESK_NAME = 'Alex · eno.vn'
 
 /**
- * The consent notice the "Message me matching jobs" switch is given under (TeacherJobDmConsent.noticeVersion). An opt-in
- * counts only under THIS version: change what the notice says is used, by whom or where, and bump it in the same change
- * (an older opt-in then stops counting until the teacher switches it on again — finish-step.tsx's AI-notice rule).
+ * The notice the "Message me matching jobs" switch is shown with (TeacherJobDmConsent.noticeVersion of a teacher's OWN
+ * switch-on). An own switch-on counts only under THIS version: change what the notice says is used, by whom or where, and
+ * bump it in the same change (an older one then stops counting until the teacher switches it on again — finish-step.tsx's
+ * AI-notice rule). ⚠️ NOT bumped on 2026-10-21, when the notice gained "on … until you switch them off"
+ * (JOB_DM_DEFAULT_ON): who sends, from where, what is used and where it runs are unchanged — and a bump would have
+ * switched OFF exactly the teachers who had switched it on themselves (codex + opus, gate 11a).
  */
 export const JOB_DM_NOTICE_VERSION = '2026-10-20'
+
+/**
+ * ⛔ JOB MESSAGES ARE ON BY DEFAULT (owner, 2026-10-21: "turn on for all now and they can turn off after first one" —
+ * chosen over a 5-day notice and over opt-in, treated as not material: their call). eno switches them on for every
+ * live teacher who has not switched them off (consent.ts enrolDefaultOn, each run): a row with `optIn` true, `optInAt`
+ * the time eno did it and THIS as its `noticeVersion` — never the teacher's own switch-on, which records
+ * JOB_DM_NOTICE_VERSION. A teacher who switched off, replied STOP or let a pause lapse has a row saying so and is never
+ * switched on again by eno. Counted wherever an own switch-on is (consent.ts JOB_DM_ON_VERSIONS).
+ */
+export const JOB_DM_DEFAULT_ON = 'default-on-2026-10-21'
 
 export const JOB_DM_RULES = {
   /** at most this many jobs in one message */

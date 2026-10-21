@@ -6,19 +6,44 @@ vi.mock('server-only', () => ({}))
 const calls: unknown[][] = []
 let impl: () => Promise<unknown> = async () => ({ id: 'm1' })
 vi.mock('@/lib/messages', () => ({ insertMessage: (...a: unknown[]) => { calls.push(a); return impl() } }))
-vi.mock('@/lib/support-thread', () => ({ getOrCreateListinglessThread: vi.fn() }))
-vi.mock('@/lib/ratelimit', () => ({ rateLimit: vi.fn() }))
+vi.mock('@/lib/support-thread', () => ({ getOrCreateListinglessThread: vi.fn(async () => ({ id: 'c1' })) }))
+vi.mock('@/lib/ratelimit', () => ({ rateLimit: vi.fn(async () => ({ success: false })) }))
 vi.mock('@/lib/push', () => ({ sendPushToProfile: vi.fn() }))
+const consent = { row: null as null | { optIn: boolean; noticeVersion: string | null; pausedAt: Date | null } }
 vi.mock('@/lib/db', () => ({
   db: {
     $executeRaw: vi.fn((s: TemplateStringsArray, ...v: unknown[]) => ({ sql: s.join('?'), v })),
     $queryRaw: vi.fn((s: TemplateStringsArray, ...v: unknown[]) => ({ sql: s.join('?'), v })),
+    teacherJobDmConsent: { findUnique: vi.fn(async () => consent.row) },
+    seller: { createMany: vi.fn(async () => ({ count: 0 })) },
+    conversation: { findFirst: vi.fn(async () => ({ id: 'c1' })), deleteMany: vi.fn(async () => ({ count: 0 })) },
+    teacherJobDmDay: { create: vi.fn(() => ({ ledger: 'day' })) },
+    teacherJobDm: { create: vi.fn(() => ({ ledger: 'job' })) },
   },
 }))
-const { honourStop, pauseJobDms } = await import('./desk')
+const { honourStop, pauseJobDms, sendJobDm } = await import('./desk')
+const { JOB_DM_DEFAULT_ON, JOB_DM_NOTICE_VERSION } = await import('./constants')
 const NOW = new Date('2026-10-21T03:00:00Z')
 
-beforeEach(() => { calls.length = 0; impl = async () => ({ id: 'm1' }) })
+beforeEach(() => { calls.length = 0; impl = async () => ({ id: 'm1' }); consent.row = null })
+
+describe('sendJobDm — the switch it sends by (default-on, 2026-10-21)', () => {
+  const send = () => sendJobDm({ teacherProfileId: 't-1', operatorId: 'op-1', kind: 'jobs', day: '2026-10-21', text: 'Hi', repliesReadAt: NOW, jobs: [{ key: 'post:1', score: 1, reasons: [] }] })
+  it('eno\'s default-on is ON: the pre-check passes and the guard inside the batch names both versions', async () => {
+    consent.row = { optIn: true, noticeVersion: JOB_DM_DEFAULT_ON, pausedAt: null }
+    expect(await send()).toMatchObject({ sent: true })
+    const guard = (calls[0][3] as { alongside: { sql?: string; v?: unknown[] }[] }).alongside.find((q) => q.sql?.includes('"TeacherJobDmConsent"'))!
+    expect(guard.sql).toMatch(/c\."noticeVersion" = \?[^?]*or c\."noticeVersion" = \?/)
+    expect(guard.v).toEqual(expect.arrayContaining([JOB_DM_NOTICE_VERSION, JOB_DM_DEFAULT_ON]))
+  })
+  it('an ON under an older notice, a paused ON, an OFF or no row is held — no message', async () => {
+    for (const row of [{ optIn: true, noticeVersion: '2000-01-01', pausedAt: null }, { optIn: true, noticeVersion: JOB_DM_DEFAULT_ON, pausedAt: NOW }, { optIn: false, noticeVersion: JOB_DM_DEFAULT_ON, pausedAt: null }, null]) {
+      consent.row = row
+      expect(await send(), JSON.stringify(row)).toEqual({ sent: false, reason: 'held' })
+    }
+    expect(calls).toHaveLength(0)
+  })
+})
 
 describe('honourStop', () => {
   it('withdraws and acknowledges in one batch: the teacher lock, the compare-and-set, then the ack', async () => {

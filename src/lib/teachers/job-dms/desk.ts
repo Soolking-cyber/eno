@@ -5,8 +5,8 @@ import { insertMessage } from '@/lib/messages'
 import { getOrCreateListinglessThread } from '@/lib/support-thread'
 import { rateLimit } from '@/lib/ratelimit'
 import { sendPushToProfile } from '@/lib/push'
-import { JOBS_DESK_NAME, JOBS_DESK_SELLER_ID, JOB_DM_NOTICE_VERSION, JOB_DM_RULES } from './constants'
-import { jobDmLockKey } from './consent'
+import { JOBS_DESK_NAME, JOBS_DESK_SELLER_ID, JOB_DM_DEFAULT_ON, JOB_DM_NOTICE_VERSION, JOB_DM_RULES } from './constants'
+import { jobDmConsented, jobDmLockKey } from './consent'
 
 /**
  * THE JOBS DESK — who sends Alex's messages, and the one function that sends one.
@@ -70,7 +70,7 @@ export async function sendJobDm(a: {
   // A cheap pre-check of the guard below, so a teacher who switched off or went hidden since the run planned does not
   // get an empty "Alex · eno.vn" thread (codex + opus, gate 3a). The guard inside the batch stays the one that counts.
   const consent = await db.teacherJobDmConsent.findUnique({ where: { profileId: a.teacherProfileId }, select: { optIn: true, noticeVersion: true, pausedAt: true } })
-  if (!consent?.optIn || consent.noticeVersion !== JOB_DM_NOTICE_VERSION || consent.pausedAt) return { sent: false, reason: 'held' }
+  if (!jobDmConsented(consent)) return { sent: false, reason: 'held' }
   await ensureJobsDeskSeller()
   const existing = await db.conversation.findFirst({ where: { buyerProfileId: a.teacherProfileId, sellerId: JOBS_DESK_SELLER_ID, listingId: null }, select: { id: true } })
   const thread = await getOrCreateListinglessThread(db, { buyerProfileId: a.teacherProfileId, sellerId: JOBS_DESK_SELLER_ID, sellerProfileId: a.operatorId })
@@ -80,7 +80,8 @@ export async function sendJobDm(a: {
     db.$executeRaw`select set_config('lock_timeout', '3000ms', true)`,
     db.$executeRaw`select pg_advisory_xact_lock(hashtext(${jobDmLockKey(a.teacherProfileId)}))`,
     db.$queryRaw`select 1 / (case when
-        exists (select 1 from "TeacherJobDmConsent" c where c."profileId" = ${a.teacherProfileId}::uuid and c."optIn" and c."noticeVersion" = ${JOB_DM_NOTICE_VERSION} and c."pausedAt" is null)
+        exists (select 1 from "TeacherJobDmConsent" c where c."profileId" = ${a.teacherProfileId}::uuid and c."optIn"
+                  and (c."noticeVersion" = ${JOB_DM_NOTICE_VERSION} or c."noticeVersion" = ${JOB_DM_DEFAULT_ON}) and c."pausedAt" is null)
         and exists (select 1 from "TeacherProfile" tp where tp."profileId" = ${a.teacherProfileId}::uuid and tp.status = 'live')
         and (select count(*) from "Message" m
                where m."conversationId" = ${thread.id} and m."senderProfileId" = ${a.operatorId}::uuid

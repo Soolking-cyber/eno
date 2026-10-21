@@ -7,7 +7,8 @@ import { writerVerified as writerVerification } from '@/lib/teachers/writer-veri
 import { getAdmin } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
-import { JOBS_DESK_SELLER_ID, JOB_DM_NOTICE_VERSION } from '@/lib/teachers/job-dms/constants'
+import { JOBS_DESK_SELLER_ID } from '@/lib/teachers/job-dms/constants'
+import { JOB_DM_ON_VERSIONS } from '@/lib/teachers/job-dms/consent'
 import { ApiError, route } from '@/lib/api/handler'
 import { actingAccountMismatch } from '@/lib/api/acting-account'
 import { MESSAGE_ROW_SELECT, serializeMessage } from '@/lib/messages'
@@ -43,8 +44,8 @@ const DESK_BY_SELLER_ID: ReadonlyMap<string, 'rental' | 'jobs'> = new Map<string
 ])
 
 /**
- * Is this teacher's "Message me matching jobs and cover lessons in eno chat" switch ON — on, under the CURRENT notice
- * (JOB_DM_NOTICE_VERSION), which is the rule the jobs desk sends by (src/lib/teachers/job-dms/desk.ts sendJobDm)?
+ * Is this teacher's "Message me matching jobs and cover lessons in eno chat" switch ON — their own under the CURRENT
+ * notice, or eno's default-on (consent.ts JOB_DM_ON_VERSIONS), which is the rule the jobs desk sends by (desk.ts sendJobDm)?
  * ⚠️ FAILS SOFT TO false: a failed read (or the table not migrated yet) costs the teacher the two quick replies, never
  * the thread — they can still type STOP.
  * ⚠️ A PAUSED switch (pausedAt — run.ts) is still ON here, on purpose: the pause note asks the teacher to choose, and the
@@ -53,7 +54,7 @@ const DESK_BY_SELLER_ID: ReadonlyMap<string, 'rental' | 'jobs'> = new Map<string
 async function jobMessagesSwitchOn(profileId: string): Promise<boolean> {
   try {
     const c = await db.teacherJobDmConsent.findUnique({ where: { profileId }, select: { optIn: true, noticeVersion: true } })
-    return !!c?.optIn && c.noticeVersion === JOB_DM_NOTICE_VERSION
+    return !!c?.optIn && c.noticeVersion !== null && JOB_DM_ON_VERSIONS.includes(c.noticeVersion)
   } catch (e) {
     console.error('[conversations] job-messages switch read failed', e)
     return false

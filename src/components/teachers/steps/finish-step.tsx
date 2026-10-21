@@ -455,7 +455,7 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
           />
           <AiNote />
           {/* eno.vn only: the jobs desk runs there (the page is eno.vn-only too). */}
-          {mode === 'edit' && IS_MARKETPLACE && <p className="text-sm"><Link href="/teachers/job-messages" className="font-semibold text-accent-foreground hover:underline">{tr('Get matching jobs and cover lessons in eno chat', 'Nhận việc làm và buổi dạy thay phù hợp qua tin nhắn eno')}</Link></p>}
+          {mode === 'edit' && IS_MARKETPLACE && <p className="text-sm"><Link href="/teachers/job-messages" className="font-semibold text-accent-foreground hover:underline">{tr('Job messages: matching jobs and cover lessons in eno chat', 'Tin nhắn việc làm: việc làm và buổi dạy thay phù hợp qua tin nhắn eno')}</Link></p>}
         </Fieldset>
       )}
 

@@ -23,6 +23,10 @@ const h = vi.hoisted(() => ({
   wheres: [] as unknown[],
 }))
 
+/** Every field named equals the row's — an `OR` key: any of its alternatives does (invite.ts NOT_TOLD). */
+const fieldsMatch = (c: Record<string, unknown>, cond: Record<string, unknown>): boolean =>
+  Object.entries(cond).every(([k, v]) => (k === 'OR' ? (v as Record<string, unknown>[]).some((alt) => fieldsMatch(c, alt)) : c[k] === v))
+
 /** The selection's where, evaluated the way Postgres would for the shapes invite.ts writes (pinned separately below). */
 function matches(t: Teacher, where: Record<string, any>): boolean {
   if (where.status !== undefined && t.status !== where.status) return false
@@ -37,7 +41,7 @@ function matches(t: Teacher, where: Record<string, any>): boolean {
     const ok = or.some((alt) => {
       const is = alt.teacherJobDmConsent?.is
       if (is === null) return c === null
-      return c !== null && Object.entries(is as Record<string, unknown>).every(([k, v]) => (c as Record<string, unknown>)[k] === v)
+      return c !== null && fieldsMatch(c as Record<string, unknown>, is as Record<string, unknown>)
     })
     if (!ok) return false
   }
@@ -78,7 +82,7 @@ vi.mock('@/lib/db', () => {
       updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Partial<Consent> }) => {
         const { profileId, ...cond } = where as { profileId: string } & Record<string, unknown>
         const c = h.consents.get(profileId)
-        if (!c || !Object.entries(cond).every(([k, v]) => (c as Record<string, unknown>)[k] === v)) return { count: 0 }
+        if (!c || !fieldsMatch(c as Record<string, unknown>, cond)) return { count: 0 }
         Object.assign(c, data)
         return { count: 1 }
       },
@@ -111,6 +115,7 @@ vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
 const { GET } = await import('./route')
 const { HOME_HIDDEN_TEACHER_LISTING_IDS } = await import('@/lib/teachers/constants')
 const { INVITE_BODY, INVITE_TITLE, JOB_DM_INVITE, inviteCandidateWhere, inviteIsQuiet } = await import('@/lib/teachers/job-dms/invite')
+const { JOB_DM_DEFAULT_ON } = await import('@/lib/teachers/job-dms/constants')
 
 const DEMO = HOME_HIDDEN_TEACHER_LISTING_IDS[0]
 /** 10:00 in Vietnam — inside the daytime window. */
@@ -184,7 +189,7 @@ describe('GET /api/cron/job-dms-invite', () => {
     expect(per.size).toBe(5)
   })
 
-  it('⛔ WHO: never over an ON or an OFF, never twice, never the demo profile, never a hidden profile or a listing not live', async () => {
+  it('⛔ WHO: told once — never over a switch-on of their own or an OFF, never twice, never the demo profile, never a hidden profile or a listing not live', async () => {
     const at = new Date('2026-10-15T03:00:00.000Z')
     h.teachers = [
       teacher(), // p1 — no row: invited
@@ -196,23 +201,26 @@ describe('GET /api/cron/job-dms-invite', () => {
       teacher({ listing: { status: 'active', verified: false } }), // p7 — under review
       teacher({ listingId: null, listing: null }), // p8 — no listing
       teacher(), // p9 — a row with nothing in it yet: invited
+      teacher(), // p10 — switched on by eno (default-on, 2026-10-21): told
     ]
     h.consents.set('p2', { optIn: true, optInAt: at, noticeVersion: '2026-10-20', withdrawnAt: null, invitedAt: null })
     h.consents.set('p3', { optIn: false, optInAt: at, noticeVersion: '2026-10-20', withdrawnAt: at, invitedAt: null })
     h.consents.set('p4', { optIn: false, optInAt: null, noticeVersion: null, withdrawnAt: null, invitedAt: at })
     h.consents.set('p9', { optIn: false, optInAt: null, noticeVersion: null, withdrawnAt: null, invitedAt: null })
+    h.consents.set('p10', { optIn: true, optInAt: at, noticeVersion: JOB_DM_DEFAULT_ON, withdrawnAt: null, invitedAt: null })
     const r = await run()
-    expect(r.body).toMatchObject({ ok: true, invited: 2 })
-    expect(h.notifications.map((n) => n.recipientId)).toEqual(['p1', 'p9'])
+    expect(r.body).toMatchObject({ ok: true, invited: 3 })
+    expect(h.notifications.map((n) => n.recipientId)).toEqual(['p1', 'p9', 'p10'])
+    expect(h.consents.get('p10')).toMatchObject({ optIn: true, noticeVersion: JOB_DM_DEFAULT_ON }) // told, not switched
     expect(h.consents.get('p4')?.invitedAt).toEqual(at) // the first invite's time stays
   })
 
-  it('the selection, as written: live, a live listing, never the demo listing, never asked', () => {
+  it('the selection, as written: live, a live listing, never the demo listing, never told', () => {
     expect(inviteCandidateWhere()).toEqual({
       status: 'live',
       listing: { status: 'active', verified: true },
       NOT: { listingId: { in: [DEMO] } },
-      profile: { OR: [{ teacherJobDmConsent: { is: null } }, { teacherJobDmConsent: { is: { invitedAt: null, optIn: false, optInAt: null, withdrawnAt: null } } }] },
+      profile: { OR: [{ teacherJobDmConsent: { is: null } }, { teacherJobDmConsent: { is: { invitedAt: null, withdrawnAt: null, OR: [{ noticeVersion: null }, { noticeVersion: JOB_DM_DEFAULT_ON }] } } }] },
     })
   })
 

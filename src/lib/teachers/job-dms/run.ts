@@ -4,10 +4,10 @@ import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { kv } from '@/lib/ratelimit'
-import { HOME_HIDDEN_TEACHER_LISTING_IDS } from '@/lib/teachers/constants'
 import { COVER_CONSENT_VERSION } from '@/lib/teachers/cover'
 import { TEACHING_JOB_WHERE, provinceToCitySlug } from '@/lib/teachers/match-io'
-import { JOBS_DESK_SELLER_ID, JOB_DMS_MODE_KEY, JOB_DM_NOTICE_VERSION, JOB_DM_RULES, type JobDmsMode } from './constants'
+import { JOBS_DESK_SELLER_ID, JOB_DMS_MODE_KEY, JOB_DM_RULES, type JobDmsMode } from './constants'
+import { JOB_DM_ON_VERSIONS, defaultOnTeacherWhere, enrolDefaultOn } from './consent'
 import { RULES_VERSION, foldPost, readPost, type RuleFacts } from './extract'
 import { decide } from './facts'
 import { fit, vnToday, type MatchJob, type MatchTeacher } from './gates'
@@ -24,10 +24,10 @@ import { isKeepReply, isStopReply, mayBeOptOut } from './replies'
  * ⛔ MODES. 'shadow' (the default, and what a crash falls back to — kv_store is unlogged): nothing is sent; what WOULD be
  * sent is stored as TeacherJobDm rows (mode 'shadow', with the text) for grading. 'live': the messages go out, and
  * sendJobDm re-asserts the switch inside the message's transaction. Shadow rows never block or count in live.
- * ⛔ BOTH MODES MATCH ONLY TEACHERS WHO SWITCHED JOB MESSAGES ON under JOB_DM_NOTICE_VERSION — /privacy says a profile is
- * used for this "only for teachers who switched this on", and a shadow row holds a would-be message to a named teacher.
- * (A first version shadowed every live teacher; the consent review refuted it.) So the order of going live is: the
- * invite (job-dms-invite) → teachers switch it on → shadow rows to grade → 'live'.
+ * ⛔ BOTH MODES MATCH ONLY TEACHERS WITH JOB MESSAGES ON — their own switch-on under JOB_DM_NOTICE_VERSION, or eno's
+ * default-on (constants.ts JOB_DM_DEFAULT_ON; owner, 2026-10-21: "turn on for all now and they can turn off after first
+ * one"): each writing run first switches on every live teacher who never chose (consent.ts enrolDefaultOn — never one
+ * who switched off, replied STOP or let a pause lapse), and /privacy says so. Going live: shadow rows to grade → 'live'.
  * ⛔ dryRun: counts only — nothing classified, stored, recorded or sent.
  */
 
@@ -48,6 +48,8 @@ export type RunResult = {
   paused?: number
   /** pauses nobody lifted, switched off this run (JOB_DM_RULES.pauseToWithdrawDays) */
   lapsed?: number
+  /** teachers who never chose, switched on by eno this run (consent.ts enrolDefaultOn) */
+  enrolled?: number
   stopped?: 'quiet' | 'ceiling' | 'no-operator' | 'busy' | 'lock-error' | 'deadline'
 }
 
@@ -300,10 +302,9 @@ type TeacherRow = MatchTeacher & { firstName: string | null }
 async function loadTeachers(): Promise<TeacherRow[]> {
   const rows = await db.teacherProfile.findMany({
     where: {
-      status: 'live',
-      listing: { status: 'active', verified: true },
-      ...(HOME_HIDDEN_TEACHER_LISTING_IDS.length ? { NOT: { listingId: { in: [...HOME_HIDDEN_TEACHER_LISTING_IDS] } } } : {}),
-      profile: { teacherJobDmConsent: { optIn: true, noticeVersion: JOB_DM_NOTICE_VERSION, pausedAt: null } },
+      ...defaultOnTeacherWhere(),
+      // jobDmConsented, as a filter: ON — the teacher's own or eno's default — and not paused
+      profile: { teacherJobDmConsent: { optIn: true, noticeVersion: { in: [...JOB_DM_ON_VERSIONS] }, pausedAt: null } },
     },
     select: {
       profileId: true, fullName: true, livesIn: true, currentCity: true, teachAreas: true, jobTypes: true, ageGroups: true, subjects: true,
@@ -401,6 +402,9 @@ async function runOnce(opts: { dryRun: boolean }, now: Date, mode: JobDmsMode, w
   // Quiet hours hold a shadow run's would-be messages too: the shadow record is what live WOULD send (opus, gate 3a).
   if (write && isQuiet(now)) return { ...res, stopped: 'quiet' }
 
+  // Default-on (constants.ts JOB_DM_DEFAULT_ON): every live teacher who never chose is switched on first — never in a
+  // dry run, which writes nothing (its teacher count is then of those already on).
+  if (write) res.enrolled = await enrolDefaultOn(now)
   const [jobs, teachers] = await Promise.all([loadJobs(now), loadTeachers()])
   res.teachers = teachers.length
   if (!jobs.length || !teachers.length) return res

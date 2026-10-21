@@ -1,7 +1,8 @@
 import 'server-only'
 import type { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
-import { JOB_DM_NOTICE_VERSION } from './constants'
+import { HOME_HIDDEN_TEACHER_LISTING_IDS } from '@/lib/teachers/constants'
+import { JOB_DM_DEFAULT_ON, JOB_DM_NOTICE_VERSION } from './constants'
 
 /**
  * THE TEACHER'S OWN SWITCH FOR JOB MESSAGES (owner, 2026-10-20 — plan v2 "CONSENT"): "Message me matching jobs and cover
@@ -28,6 +29,11 @@ import { JOB_DM_NOTICE_VERSION } from './constants'
  * So an OFF waits for a message already on its way (which then went out BEFORE the withdrawal), and a message after an
  * OFF re-reads the consent and is held; the invite's claim (invite.ts) takes it too, so the row's one INSERT never races.
  * desk.ts honourStop takes it too: a STOP's withdrawal and its acknowledgement are one locked transaction.
+ * ⛔ ON BY DEFAULT SINCE 2026-10-21 (constants.ts JOB_DM_DEFAULT_ON): enrolDefaultOn (each run) writes an ON row for
+ * every live teacher who never chose — no row, or the invite's row with no grant and no withdrawal — stamped with the
+ * time and JOB_DM_DEFAULT_ON, so everything above (the send guard, STOP, the pause, the switch) works for them as for a
+ * teacher who switched on. A switch-OFF therefore always leaves a row saying OFF — over an ON, over the invite's row, or
+ * over none — and a teacher with that row is never switched on again by eno.
  */
 
 /** ⚠️ THE KEY desk.ts sendJobDm LOCKS (`'teacher-job-dm:' + teacherProfileId`) — keep the two identical. */
@@ -61,10 +67,57 @@ export async function readJobDmConsent(profileId: string): Promise<JobDmConsentR
   return db.teacherJobDmConsent.findUnique({ where: { profileId }, select: ROW_SELECT })
 }
 
-/** ⛔ MAY THE JOBS DESK MESSAGE THIS TEACHER? Only with the switch ON under the notice in force. */
+/** The `noticeVersion`s an ON counts under: the teacher's own switch-on under the notice in force, or eno's default-on. */
+export const JOB_DM_ON_VERSIONS: readonly string[] = [JOB_DM_NOTICE_VERSION, JOB_DM_DEFAULT_ON]
+
+/** ⛔ MAY THE JOBS DESK MESSAGE THIS TEACHER? Only with the switch ON — their own under the notice in force, or eno's default. */
 export function jobDmConsented(row: (Pick<JobDmConsentRow, 'optIn' | 'noticeVersion'> & { pausedAt?: Date | null }) | null | undefined): boolean {
   // ⚠️ A PAUSED switch is not a consent to send (codex, gate 3m): the one gate says so itself, so no caller can forget it.
-  return !!row && row.optIn && row.noticeVersion === JOB_DM_NOTICE_VERSION && !row.pausedAt
+  return !!row && row.optIn && row.noticeVersion !== null && JOB_DM_ON_VERSIONS.includes(row.noticeVersion) && !row.pausedAt
+}
+
+/** A teacher who never chose: no row, or the invite's row — no grant (eno's or theirs) and no withdrawal. */
+export function neverChose(row: Pick<JobDmConsentRow, 'optIn' | 'optInAt' | 'withdrawnAt'> | null | undefined): boolean {
+  return !row || (!row.optIn && !row.optInAt && !row.withdrawnAt)
+}
+
+/**
+ * The teachers job messages are on for by default (enrolDefaultOn) — the ones the jobs desk can reach (run.ts
+ * loadTeachers, invite.ts): a live profile with its listing live (active + verified), never the owner's demo profile.
+ */
+export function defaultOnTeacherWhere(): Prisma.TeacherProfileWhereInput {
+  return {
+    status: 'live',
+    listing: { status: 'active', verified: true },
+    ...(HOME_HIDDEN_TEACHER_LISTING_IDS.length ? { NOT: { listingId: { in: [...HOME_HIDDEN_TEACHER_LISTING_IDS] } } } : {}),
+  }
+}
+type TeacherReach = { status: string; listingId: string | null; listing: { status: string; verified: boolean } | null } | null
+/** defaultOnTeacherWhere, for a profile already read. */
+export function isDefaultOnTeacher(tp: TeacherReach): boolean {
+  return tp?.status === 'live' && tp.listing?.status === 'active' && tp.listing.verified === true
+    && !(tp.listingId && (HOME_HIDDEN_TEACHER_LISTING_IDS as readonly string[]).includes(tp.listingId))
+}
+const REACH_SELECT = { status: true, listingId: true, listing: { select: { status: true, verified: true } } } as const
+
+/**
+ * ⛔ eno SWITCHES JOB MESSAGES ON for every default-on teacher who never chose (constants.ts JOB_DM_DEFAULT_ON) — an ON
+ * row stamped now and JOB_DM_DEFAULT_ON: inserted where there is none, or set over the invite's row while it still holds
+ * no grant and no withdrawal. Each write is one statement whose own condition re-checks "never chose", so a teacher who
+ * switched OFF meanwhile (consent.ts setJobDmConsent writes an OFF row, under their lock) is never switched on: that
+ * OFF row makes the insert skip and the update miss. Returns how many it switched on. Never in a dry run (run.ts).
+ */
+export async function enrolDefaultOn(now: Date): Promise<number> {
+  const ids = (await db.teacherProfile.findMany({
+    where: { ...defaultOnTeacherWhere(), profile: { OR: [{ teacherJobDmConsent: { is: null } }, { teacherJobDmConsent: { is: { optIn: false, optInAt: null, withdrawnAt: null } } }] } },
+    select: { profileId: true },
+    take: 5000,
+  })).map((r) => r.profileId)
+  if (!ids.length) return 0
+  const on = { optIn: true, optInAt: now, noticeVersion: JOB_DM_DEFAULT_ON, updatedAt: now }
+  const inserted = await db.teacherJobDmConsent.createMany({ data: ids.map((profileId) => ({ profileId, ...on })), skipDuplicates: true })
+  const set = await db.teacherJobDmConsent.updateMany({ where: { profileId: { in: ids }, optIn: false, optInAt: null, withdrawnAt: null }, data: on })
+  return inserted.count + set.count
 }
 
 /**
@@ -78,7 +131,16 @@ export function jobDmConsented(row: (Pick<JobDmConsentRow, 'optIn' | 'noticeVers
 /** `paused`: ON, but held after a reply that may have asked to stop (run.ts) — the switch shows OFF, and switching it on
  *  lifts the pause (jobDmConsentWrites). */
 export type JobDmState = { on: boolean; noticeVersion: string | null; current: boolean; teacher: boolean; paused: boolean }
-export function jobDmStateOf(row: (Pick<JobDmConsentRow, 'optIn' | 'noticeVersion'> & { pausedAt?: Date | null }) | null, teacher: boolean): JobDmState {
+/** `defaultOn`: the account is a default-on teacher (isDefaultOnTeacher) — who never chose is drawn ON: eno switches it
+ *  on at the next run (enrolDefaultOn), and switching it off here writes the OFF that stops that. */
+export function jobDmStateOf(
+  row: (Pick<JobDmConsentRow, 'optIn' | 'noticeVersion'> & { pausedAt?: Date | null; optInAt?: Date | null; withdrawnAt?: Date | null }) | null,
+  teacher: boolean,
+  defaultOn = false,
+): JobDmState {
+  if (defaultOn && neverChose(row && { optIn: row.optIn, optInAt: row.optInAt ?? null, withdrawnAt: row.withdrawnAt ?? null })) {
+    return { on: true, noticeVersion: null, current: true, teacher, paused: false }
+  }
   const paused = row?.optIn === true && !!row?.pausedAt
   // The page draws `current` (job-messages-panel.tsx) — OFF while paused, so switching it on lifts the pause.
   return { on: row?.optIn === true, noticeVersion: row?.noticeVersion ?? null, current: jobDmConsented(row), teacher, paused }
@@ -87,18 +149,21 @@ export function jobDmStateOf(row: (Pick<JobDmConsentRow, 'optIn' | 'noticeVersio
 /** The evidence a switch writes over the stored row — null when it changes nothing. Pure. */
 export function jobDmConsentWrites(
   on: boolean,
-  stored: (Pick<JobDmConsentRow, 'optIn' | 'noticeVersion'> & { pausedAt?: Date | null }) | null,
+  stored: (Pick<JobDmConsentRow, 'optIn' | 'noticeVersion'> & { pausedAt?: Date | null; withdrawnAt?: Date | null }) | null,
   now: Date,
 ): { optIn?: boolean; optInAt?: Date; noticeVersion?: string; withdrawnAt?: Date; pausedAt?: null; updatedAt: Date } | null {
   const wasOn = stored?.optIn === true
   if (on) {
     // ON over an ON under today's notice writes nothing — except to lift a PAUSE (run.ts): the teacher saying "on" again
     // is the clearest "keep sending" there is, and a fresh grant — `optInAt` moves, so the reply that paused it (from
-    // before) is never read again and cannot pause it a second time (opus, gate 3j).
+    // before) is never read again and cannot pause it a second time (opus, gate 3j). An ON over eno's default-on is the
+    // teacher's own grant, recorded as such.
     if (wasOn && stored?.noticeVersion === JOB_DM_NOTICE_VERSION) return stored?.pausedAt ? { optInAt: now, pausedAt: null, updatedAt: now } : null
     return { optIn: true, optInAt: now, noticeVersion: JOB_DM_NOTICE_VERSION, pausedAt: null, updatedAt: now }
   }
-  return wasOn ? { optIn: false, withdrawnAt: now, updatedAt: now } : null
+  // OFF writes an OFF row over anything but an OFF — an ON, the invite's row, or none: under default-on (enrolDefaultOn)
+  // "no row" means ON at the next run, so the OFF must be on record to keep it off.
+  return !wasOn && stored?.withdrawnAt ? null : { optIn: false, withdrawnAt: now, updatedAt: now }
 }
 
 /** An ON from a page that showed another notice (or none): reload, read the notice in force, switch on again. */
@@ -123,9 +188,9 @@ const isTeacher = (tp: { status: string } | null): boolean => tp?.status === 'li
 export async function readJobDmState(profileId: string): Promise<JobDmState> {
   const [row, tp] = await Promise.all([
     readJobDmConsent(profileId),
-    db.teacherProfile.findUnique({ where: { profileId }, select: { status: true } }),
+    db.teacherProfile.findUnique({ where: { profileId }, select: REACH_SELECT }),
   ])
-  return jobDmStateOf(row, isTeacher(tp))
+  return jobDmStateOf(row, isTeacher(tp), isDefaultOnTeacher(tp))
 }
 
 /**
@@ -136,17 +201,20 @@ export async function setJobDmConsent(profileId: string, on: boolean, shownNotic
   if (on && shownNotice !== JOB_DM_NOTICE_VERSION) throw new JobDmNoticeChangedError()
   return db.$transaction(async (tx) => {
     await lockJobDmTeacher(tx, profileId)
-    const tp = await tx.teacherProfile.findUnique({ where: { profileId }, select: { status: true } })
+    const tp = await tx.teacherProfile.findUnique({ where: { profileId }, select: REACH_SELECT })
     const teacher = isTeacher(tp)
+    const defaultOn = isDefaultOnTeacher(tp)
     if (on && !teacher) throw new JobDmNoTeacherProfileError()
     const row = await tx.teacherJobDmConsent.findUnique({ where: { profileId }, select: ROW_SELECT })
     // The time is read AFTER the lock: an OFF that waited for a message on its way is stamped after that message.
     const write = jobDmConsentWrites(on, row, new Date())
-    if (!write) return jobDmStateOf(row, teacher)
+    if (!write) return jobDmStateOf(row, teacher, defaultOn)
+    // An upsert where there was no row: enrolDefaultOn takes no lock, and its ON row may land between the read and this
+    // write — the OFF (or the teacher's own ON) is still the right write over it.
     const saved = row
       ? await tx.teacherJobDmConsent.update({ where: { profileId }, data: write, select: ROW_SELECT })
-      : await tx.teacherJobDmConsent.create({ data: { profileId, ...write }, select: ROW_SELECT })
-    return jobDmStateOf(saved, teacher)
+      : await tx.teacherJobDmConsent.upsert({ where: { profileId }, create: { profileId, ...write }, update: write, select: ROW_SELECT })
+    return jobDmStateOf(saved, teacher, defaultOn)
   }, JOB_DM_TX_OPTS)
 }
 
