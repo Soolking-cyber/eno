@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('server-only', () => ({}))
 
 type Row = Record<string, unknown>
-const T = { posts: [] as Row[], dms: [] as Row[], teachers: [] as Row[] }
+const T = { posts: [] as Row[], dms: [] as Row[], teachers: [] as Row[], listings: [] as Row[] }
 const calls = { teacherWhere: [] as unknown[], createMany: [] as Row[][], consentUpdates: [] as unknown[] }
 
 /**
@@ -25,6 +25,7 @@ function cond(row: Row, where: Row | undefined): B {
   const parts: B[] = []
   for (const [k, v] of Object.entries(where)) {
     if (k === 'OR') { parts.push(or((v as Row[]).map((w) => cond(row, w)))); continue }
+    if (k === 'AND') { parts.push(and((v as Row[]).map((w) => cond(row, w)))); continue }
     if (k === 'NOT') { parts.push(not(cond(row, v as Row))); continue }
     const x = row[k]
     const isNull = x === null || x === undefined
@@ -37,7 +38,8 @@ function cond(row: Row, where: Row | undefined): B {
       if ('lt' in o) parts.push(isNull ? null : (x as Date).getTime() < (o.lt as Date).getTime())
       if ('gte' in o) parts.push(isNull ? null : (x as Date).getTime() >= (o.gte as Date).getTime())
       if ('lte' in o) parts.push(isNull ? null : (x as Date).getTime() <= (o.lte as Date).getTime())
-      for (const op of Object.keys(o)) if (!['in', 'notIn', 'not', 'gt', 'lt', 'gte', 'lte'].includes(op)) throw new Error(`mock: unsupported operator ${op}`)
+      if ('startsWith' in o) parts.push(isNull ? null : String(x).startsWith(o.startsWith as string))
+      for (const op of Object.keys(o)) if (!['in', 'notIn', 'not', 'gt', 'lt', 'gte', 'lte', 'startsWith'].includes(op)) throw new Error(`mock: unsupported operator ${op}`)
       continue
     }
     parts.push(v === null ? isNull : isNull ? null : x === v)
@@ -72,7 +74,7 @@ vi.mock('@/lib/db', () => ({
     teacherJobDmConsent: { updateMany: vi.fn(async (a: unknown) => { calls.consentUpdates.push(a); return { count: 0 } }) },
     teacherJobDmDay: { findMany: vi.fn(async () => []) },
     conversation: { findMany: vi.fn(async () => []) },
-    listing: { findMany: vi.fn(async () => []) },
+    listing: { findMany: vi.fn(async () => T.listings) },
     $queryRaw: vi.fn(async () => stops.rows),
     $executeRaw: vi.fn(async (_s: TemplateStringsArray, key: string, token: string) => { if (key === 'job-dms:run' && lock.token === token) lock.held = false; return 1 }),
   },
@@ -115,7 +117,9 @@ vi.mock('./desk', () => ({
 }))
 
 const { runJobDms, textSig, purgeJobPosts, PURGED_TEXT } = await import('./run')
+const { RULES_VERSION } = await import('./extract')
 const { JOB_DM_DEFAULT_ON, JOB_DM_NOTICE_VERSION } = await import('./constants')
+const { JOB_BOARDS, jobExternalId } = await import('@/lib/job-listing')
 
 const DAY = new Date('2026-10-21T03:00:00Z') // Wed 10:00 ICT
 const NIGHT = new Date('2026-10-21T15:00:00Z') // Wed 22:00 ICT
@@ -135,7 +139,7 @@ const teacher = {
 }
 
 beforeEach(() => {
-  T.posts = []; T.dms = []; T.teachers = [teacher]
+  T.posts = []; T.dms = []; T.teachers = [teacher]; T.listings = []
   calls.teacherWhere = []; calls.createMany = []; calls.consentUpdates = []
   mode.value = 'shadow'; desk.operator = 'op-1'
   sendJobDm.mockClear(); honourStop.mockClear(); pauseJobDms.mockClear(); resumeJobDms.mockClear(); layaAnswers.mockClear(); enrolDefaultOn.mockClear(); stops.rows = []; lock.held = false
@@ -278,6 +282,56 @@ describe('runJobDms', () => {
     expect(honourStop).not.toHaveBeenCalled()
   })
 
+  it('a post the RULES dropped is read again under new rules — never a duplicate, never one past its time', async () => {
+    const old = { status: 'dropped', factsVersion: 'job-rules-2026-10-20' }
+    T.posts = [
+      post('rules', { ...old, statusReason: 'deny:vietnamese-oriented' }),
+      // another job (the same words would be the first one's copy)
+      post('placeless', { ...old, statusReason: 'no-place', text: 'Our English centre in District 7 is hiring a full-time teacher for teens, 25M a month. Send your CV.' }),
+      post('dup', { ...old, statusReason: 'duplicate' }),
+      post('stale', { ...old, statusReason: 'kind:other', receivedAt: new Date(DAY.getTime() - 6 * 86_400_000) }),
+      post('aged', { ...old, statusReason: 'too-old' }),
+      // the first LinkedIn alert: an English job the place-name bug dropped, and a Vietnamese one rightly dropped (its title)
+      post('li-esl', { ...old, statusReason: 'deny:vietnamese-oriented', source: 'linkedin', title: 'English Second Language Teacher- Vietnam', text: 'English Second Language Teacher- Vietnam · English 1 · Ho Chi Minh City, Ho Chi Minh City, Vietnam', url: 'https://www.linkedin.com/jobs/view/1/' }),
+      post('li-vi', { ...old, statusReason: 'deny:vietnamese-oriented', source: 'linkedin', title: 'Giáo Viên IELTS Fulltime Từ 7.5', text: 'Giáo Viên IELTS Fulltime Từ 7.5 · IELTS ARENA · Ho Chi Minh City, Vietnam', url: 'https://www.linkedin.com/jobs/view/2/' }),
+    ]
+    await runJobDms({ dryRun: false, now: DAY })
+    const by = (id: string) => T.posts.find((p) => p.id === id)
+    expect(by('rules')).toMatchObject({ status: 'ready', statusReason: null })
+    expect(by('placeless')).toMatchObject({ status: 'ready' })
+    for (const id of ['dup', 'stale', 'aged']) expect(by(id), id).toMatchObject({ status: 'dropped', factsVersion: 'job-rules-2026-10-20' })
+    expect(by('li-esl')).toMatchObject({ status: 'ready' })
+    expect(by('li-vi')).toMatchObject({ status: 'dropped', statusReason: 'deny:vietnamese-oriented', factsVersion: RULES_VERSION })
+  })
+
+  it('a re-read copy never brings back a job a later copy already carries (opus, gate 12f)', async () => {
+    T.posts = [
+      post('a', { status: 'dropped', statusReason: 'deny:vietnamese-oriented', factsVersion: 'job-rules-2026-10-20', receivedAt: new Date('2026-10-21T00:30:00Z') }),
+      post('b', { status: 'ready', factsVersion: RULES_VERSION, textSig: textSig(AD) }),
+      // and a row from before versions were stored: read again too
+      post('legacy', { status: 'held', statusReason: 'undated', factsVersion: null, text: `${AD} (legacy)` }),
+    ]
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(T.posts.find((p) => p.id === 'a')).toMatchObject({ status: 'dropped', statusReason: 'duplicate' })
+    expect(T.posts.find((p) => p.id === 'legacy')).toMatchObject({ factsVersion: RULES_VERSION })
+  })
+
+  it('posts read under older rules never keep a NEW post waiting (codex + opus, gate 12c)', async () => {
+    T.posts = Array.from({ length: 60 }, (_, i) => post(`old-${i}`, { status: 'dropped', statusReason: 'kind:other', factsVersion: 'job-rules-2026-10-20', receivedAt: new Date('2026-10-21T00:30:00Z'), text: `${AD} (${i})` }))
+    T.posts.push(post('new'))
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(T.posts.find((p) => p.id === 'new')).toMatchObject({ status: 'ready' })
+    expect(T.posts.filter((p) => p.factsVersion === RULES_VERSION)).toHaveLength(60) // the run's budget
+  })
+
+  it('…nor a busy mailbox a fix: half of every run is kept for posts under older rules (opus, gate 12d)', async () => {
+    T.posts = Array.from({ length: 61 }, (_, i) => post(`new-${i}`, { text: `${AD} (${i})` }))
+    T.posts.push(post('stale', { status: 'ready', factsVersion: 'job-rules-2026-10-20', receivedAt: new Date('2026-10-21T00:30:00Z'), text: `${AD} (stale)` }))
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(T.posts.find((p) => p.id === 'stale')).toMatchObject({ factsVersion: RULES_VERSION })
+    expect(T.posts.filter((p) => p.status === 'new')).toHaveLength(2) // 59 of the 61 new ones, and the stale one
+  })
+
   it('a copy older than 30 days does not take the job from a repost', async () => {
     T.posts = [post('old', { status: 'ready', textSig: textSig(AD), receivedAt: new Date(DAY.getTime() - 40 * 86_400_000), factsVersion: 'x' })]
     T.posts[0].status = 'expired'
@@ -365,5 +419,29 @@ describe('a LinkedIn job is read once per field (the first alert, 2026-10-21)', 
     expect(row('4479360254')).toMatchObject({ status: 'ready', statusReason: null })
     expect(row('4480000002')).toMatchObject({ status: 'ready', statusReason: null })
     expect(row('4480720160')).toMatchObject({ status: 'dropped', statusReason: 'deny:vietnamese-oriented' })
+  })
+})
+
+describe("eno.vn's own listings — the first shadow grading (2026-10-21)", () => {
+  const listing = (id: string, o: Row): Row => ({ id, title: '', description: '', city: 'Hồ Chí Minh', salaryM: null, attributes: {}, createdAt: new Date('2026-10-20T01:00:00Z'), sellerId: 'a-school', ...o })
+  it('another subject, a Vietnamese job posted here and a foreigners-only one are never offered; an IMPORTED Vietnamese title still is', async () => {
+    T.listings = [
+      // fits the teacher in every other way (kids, part-time, District 7): only its TITLE keeps it out
+      listing('econ', { title: 'Economics Teacher — ABC Academy', description: 'Economics classes for kids, part-time, in District 7.' }),
+      listing('viet', { title: 'Giáo viên dạy tiếng anh giao tiếp', description: 'Phụ trách giảng dạy các lớp tiếng Anh giao tiếp cho trẻ em tại Quận 7, lương 5 triệu.', salaryM: 5 }),
+      listing('expat', { title: '[Expat Only] English Teacher / Part-Time (20H/week)', description: 'Kids classes in District 7.' }),
+      listing('esl', { title: 'ESL Teacher for kids — Power English', description: 'Teach English to kids in District 7, part-time.' }),
+      // filed under a job board's own seller: IMPORTED (job-listing.ts — the importer kept foreigner-oriented jobs only)
+      // as the importer files it (job-listing.ts jobExternalId — opus, gate 12d)
+      listing('imported', { title: 'Giáo viên tiếng Anh cho trẻ em', description: 'Dạy tiếng Anh cho trẻ em tại Quận 7, bán thời gian.', ...jobExternalId('careerlink-teach', 'https://www.careerlink.vn/tim-viec-lam/giao-vien-tieng-anh-da-nang/3629784') }),
+      // a board's seller without that board's id is not proof of an import (codex, gates 12b, 12c)
+      listing('unproven', { title: 'Giáo viên tiếng Anh giao tiếp', description: 'Dạy tiếng Anh giao tiếp cho trẻ em tại Quận 7, bán thời gian.', sellerId: JOB_BOARDS.careerlink.sellerId }),
+      listing('other-board', { title: 'Giáo viên tiếng Anh mầm non', description: 'Dạy tiếng Anh mầm non tại Quận 7, bán thời gian.', sellerId: JOB_BOARDS.careerlink.sellerId, externalId: 'teast:abc' }),
+    ]
+    await runJobDms({ dryRun: false, now: DAY })
+    const offered = new Set(calls.createMany.flat().map((r) => r.jobKey))
+    expect(offered.has('listing:esl')).toBe(true)
+    expect(offered.has('listing:imported')).toBe(true)
+    for (const id of ['econ', 'viet', 'expat', 'unproven', 'other-board']) expect(offered.has(`listing:${id}`), id).toBe(false)
   })
 })

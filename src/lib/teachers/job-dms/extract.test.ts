@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { denyReason, foldPost, readKind, readPay, readPlaces, readAgeGroups, readPost, readRequirements, readSchedule } from './extract'
+import { denyReason, foldPost, readKind, readPay, readPlaces, readAgeGroups, readPost, readRequirements, readSchedule, titleNamesOtherSubject } from './extract'
 
 // Wed 21 Oct 2026, 09:00 Vietnam time.
 const POSTED = new Date('2026-10-21T02:00:00Z')
@@ -511,5 +511,74 @@ describe('a place name is one word, not its syllables (the first LinkedIn alert,
     expect(readPost('Can tuyen tro giang, lien he phu huynh buoi chieu, gio lam viec linh hoat, Quan 7', POSTED).deny).toBe('vietnamese-oriented')
     // The accents are measured as before — place names included (codex, gate 10a).
     expect(readPost('Tuyen GV tieng Anh, Quận 7, Hồ Chí Minh', POSTED).deny).toBe('vietnamese-oriented')
+  })
+})
+
+describe('the first shadow grading (2026-10-21) — a TITLE for another subject, a TITLE for foreigners only', () => {
+  const listing = (title: string, text = title) => readPost(text, POSTED, { listing: true, title })
+  it('a title for another academic subject, with no English or STEM beside it, is not a job for eno\'s teachers', () => {
+    for (const title of [
+      'Secondary Economics Teacher (AY2027-2028) — Inspired Education',
+      'Psychology Teacher (Cambridge, AP), Hanoi — Korea Global School',
+      'Teacher of History',
+      'Lecturer/Associate Lecturer in Digital Media (Digital Animation) — RMIT University Vietnam LLC',
+    ]) expect(listing(title).kind, title).toBe('other')
+    // "excellent English required" is a qualification, and it is not in the title (codex, gate 12a)
+    expect(listing('Economics Teacher', 'Economics Teacher. Excellent English required. District 2.').kind).toBe('other')
+    // the role, not its employer or place: "— English Language School" is the school (codex, gates 12b, 12c)
+    for (const title of ['Economics Teacher — English Language School', 'Economics Teacher-English Language School', 'History Teacher, English Language School'])
+      expect(listing(title).kind, title).toBe('other')
+    // a stage or an audience is not the subject (codex, gate 12c)
+    for (const title of ['History Teacher for Kids', 'Kindergarten and Drama Teacher']) expect(listing(title).kind, title).toBe('other')
+    expect(listing('Hanoi - Economics Teacher').kind).toBe('other')
+    expect(listing('Lecturer in Law at Hanoi University').kind).toBe('other')
+  })
+  it('kept: a title that also names English or STEM; the words in the prose do not count', () => {
+    for (const title of ['English and History Teacher — ABC School', 'Maths and History Teacher'])
+      expect(listing(title).kind, title).toBe('job_offer')
+    // prose, not the role (codex + opus, gate 12a): "a 20-year history", "work history", "labour law", "office politics"
+    expect(listing('Computer Science Teacher', 'Computer Science Teacher — join a school with a 20-year history').kind).toBe('job_offer')
+    expect(listing('Native teacher, grades 6–9, Thu Duc', 'Native teacher, grades 6–9. Send your CV with your work history. Contract per Vietnamese labour law, no office politics.').kind).toBe('job_offer')
+    expect(listing('Teacher of Computer Science').subjects).toContain('stem')
+    // the employer after " at " is not the subject
+    expect(listing('Teacher at Hanoi Law University').kind).toBe('job_offer')
+    // an AI or data role is not a subject a teacher's profile holds ("AI Trainer" jobs train models)
+    for (const title of ['AI Lecturer', 'AI Trainer (Freelance)', 'Data Science Instructor']) expect(listing(title).kind, title).toBe('other')
+    // by the TITLE screen itself — the subject's own "science" is not STEM (codex + opus, gate 12f)
+    for (const title of ['Data Science Instructor', 'Social Science Teacher', 'Political Science Lecturer']) expect(titleNamesOtherSubject(title), title).toBe(true)
+    expect(titleNamesOtherSubject('Science and History Teacher')).toBe(false)
+    expect(listing('AI and Robotics Teacher').kind).toBe('job_offer')
+    expect(listing('Teacher (AI-assisted classroom)').kind).toBe('job_offer') // a duty, not the subject (opus, gate 12c)
+    // a Facebook post has no title and is not screened by one (the labelled sets: n=77, a kindergarten role beside it)
+    expect(readPost('SINGAPORE INTERNATIONAL SCHOOL IS LOOKING FOR TEACHERS: Business/Economics Teacher (Hanoi) Kindergarten Teacher (Hanoi, Hai Phong). Minimum 2 years of classroom teaching experience.', POSTED).kind).toBe('job_offer')
+  })
+  it('a job titled in Vietnamese only is for Vietnamese teachers — unless it names an English role or the post a foreigner', () => {
+    // a LinkedIn job's text is "title · company · place" (2026-10-21: too short to measure once a place is one word)
+    const li = (title: string, rest = ' · IELTS ARENA · Hanoi Capital Region') => readPost(title + rest, POSTED, { listing: true, title, fieldsOnly: true })
+    expect(li('Giáo Viên IELTS Fulltime Từ 7.5').deny).toBe('vietnamese-oriented')
+    expect(li('Giáo viên IELTS', ' · Foreign Language Center · Hanoi').deny).toBe('vietnamese-oriented') // the company is not a cue (codex, gate 12d)
+    // nor a school's name in a post with a body (codex, gate 12e)
+    expect(readPost('Giáo viên tiếng Anh — Foreign Language Center\nTrung tâm cần tuyển giáo viên tiếng Anh dạy trẻ em tại Quận 7, lương 8 triệu, làm việc buổi chiều và cuối tuần.', POSTED, { title: 'Giáo viên tiếng Anh — Foreign Language Center' }).deny).toBe('vietnamese-oriented')
+    expect(readPost('Giáo viên tiếng Anh — Foreign-Language Center\nTrung tâm cần tuyển giáo viên tiếng Anh dạy trẻ em tại Quận 7, lương 8 triệu, làm việc buổi chiều và cuối tuần.', POSTED).deny).toBe('vietnamese-oriented')
+    expect(readPost('Tuyển giáo viên nước ngoài dạy tiếng Anh tại Quận 7, lương theo giờ, foreigners welcome.', POSTED).deny).toBeNull()
+    expect(li('Giáo Viên Tiếng Anh Bản Ngữ / Native English Teacher').deny).toBeNull()
+    expect(li('Giáo viên nước ngoài dạy IELTS').deny).toBeNull()
+    expect(li('English Teacher – Hà Nội').deny).toBeNull()
+    expect(li('English Second Language Teacher- Vietnam', ' · English 1 · Ho Chi Minh City, Ho Chi Minh City, Vietnam').deny).toBeNull()
+    // a post with a body is measured by it: an English description under a Vietnamese title (opus, gate 12c)
+    expect(listing('Giáo viên tiếng Anh', 'Giáo viên tiếng Anh\nTESOL required, kids classes in District 7, 25M a month, Monday to Friday mornings, small classes of twelve, modern classrooms, friendly team.').deny).toBeNull()
+    // the post asks for a native speaker: not for Vietnamese teachers, whatever its title's language
+    expect(listing('Giáo viên tiếng Anh', 'Giáo viên tiếng Anh\nWe are hiring native speakers for kids classes in District 7.').deny).toBeNull()
+  })
+  it('a title that takes foreigners only is a nationality ask; so is a bracket anywhere; the prose\'s visa note is not', () => {
+    for (const title of ['[Expat Only] English Teacher / Part-Time (20H/week) — Nam Uc Scotch AGS', 'English Teacher — expat teachers only', 'Only foreign teachers: ESL, District 7', 'ESL Teacher (non-Vietnamese teachers only)', 'Expat-Only English Teacher'])
+      expect(listing(title).deny, title).toBe('nationality')
+    expect(readPost('ESL teacher wanted in District 3 (expats only), 450k an hour', POSTED).deny).toBe('nationality')
+    expect(readPost('ESL teacher wanted in District 3 (Foreign teachers only), 450k an hour', POSTED).deny).toBe('nationality')
+    // prose (opus, gate 12a): a visa note is not an ask
+    expect(listing('ESL Teacher — District 7', 'ESL Teacher. Foreigners only need a passport and a degree for the work permit; we sponsor it.').deny).toBeNull()
+    expect(listing('ESL Teacher at our only foreign-language centre').deny).toBeNull() // "only" is not about the teacher (opus, gate 12c)
+    // the role named for expats, without "only", is left to the owner (as "native" is a language level): not refused
+    expect(listing('Expat Primary Teacher – Pathway School, District 2, HCMC (Full-time)').deny).toBeNull()
   })
 })

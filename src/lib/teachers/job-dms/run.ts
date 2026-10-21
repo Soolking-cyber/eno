@@ -6,9 +6,10 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { kv } from '@/lib/ratelimit'
 import { COVER_CONSENT_VERSION } from '@/lib/teachers/cover'
 import { TEACHING_JOB_WHERE, provinceToCitySlug } from '@/lib/teachers/match-io'
+import { JOB_BOARDS } from '@/lib/job-listing'
 import { JOBS_DESK_SELLER_ID, JOB_DMS_MODE_KEY, JOB_DM_RULES, type JobDmsMode } from './constants'
 import { JOB_DM_ON_VERSIONS, defaultOnTeacherWhere, enrolDefaultOn } from './consent'
-import { RULES_VERSION, foldPost, readPost, type RuleFacts } from './extract'
+import { RULES_VERSION, foldPost, readPost, titleNamesOtherSubject, type RuleFacts } from './extract'
 import { decide } from './facts'
 import { fit, vnToday, type MatchJob, type MatchTeacher } from './gates'
 import { layaAnswers } from './laya'
@@ -129,6 +130,10 @@ async function processStops(operatorId: string, now: Date): Promise<{ n: number;
   return { n, pending, failed, paused, lapsed: lapsed.count }
 }
 
+/** IMPORTED: filed under a job board's own seller with that board's id — `<board>:<id>` (job-listing.ts jobExternalId). */
+const importedListing = (l: { sellerId: string; externalId: string | null }): boolean =>
+  Object.entries(JOB_BOARDS).some(([board, b]) => b.sellerId === l.sellerId && !!l.externalId?.startsWith(`${board}:`))
+
 // ── 2. Read new posts ────────────────────────────────────────────────────────────────────────────────────────────────
 
 type Counts = Pick<RunResult, 'read' | 'ready' | 'held' | 'dropped'>
@@ -156,14 +161,41 @@ function takesTheJob(_status: string, reason: string | null): boolean {
 }
 
 async function readNewPosts(now: Date, write: boolean): Promise<Counts> {
-  const posts = await db.externalJobPost.findMany({
-    // ⚠️ Never a purged shell: re-reading '[deleted]' under a new rules version would overwrite its signature — the
-    // very thing the shell is kept for (opus, gate 3e).
-    where: { OR: [{ status: 'new' }, { status: { in: ['ready', 'held'] }, factsVersion: { not: RULES_VERSION } }], NOT: { text: PURGED_TEXT } },
-    orderBy: [{ receivedAt: 'asc' }, { id: 'asc' }],
-    take: READ_PER_RUN,
-    select: { id: true, source: true, text: true, title: true, company: true, locationText: true, postedAt: true, receivedAt: true, groupPublic: true, url: true, applyText: true },
+  const select = { id: true, source: true, text: true, title: true, company: true, locationText: true, postedAt: true, receivedAt: true, groupPublic: true, url: true, applyText: true } as const
+  const orderBy = [{ receivedAt: 'asc' as const }, { id: 'asc' as const }]
+  // ⚠️ Never a purged shell: re-reading '[deleted]' under a new rules version would overwrite its signature — the very
+  // thing the shell is kept for (opus, gate 3e).
+  const fresh = await db.externalJobPost.findMany({ where: { status: 'new', NOT: { text: PURGED_TEXT } }, orderBy, take: READ_PER_RUN, select })
+  // Posts read under older rules: ready and held ones — and one the RULES dropped, while it could still be offered: a fix that
+  // lets a job through must reach the posts it was made for (the first LinkedIn alert, 2026-10-21 — "English Second
+  // Language Teacher- Vietnam" and three more, dropped as Vietnamese by the place-name bug, stayed dropped after its fix).
+  // Never a 'duplicate' (its copy carries the job), nor a drop for its age (still too old). Every statusReason is this
+  // function's (decide's, or 'duplicate'), so a 'deny:' is always a rules refusal.
+  const again = await db.externalJobPost.findMany({
+    where: {
+      AND: [
+        {
+          OR: [
+            { status: { in: ['ready', 'held'] } },
+            {
+              status: 'dropped', receivedAt: { gte: new Date(now.getTime() - JOB_DM_RULES.jobFreshDays * 86_400_000) },
+              OR: [{ statusReason: { startsWith: 'deny:' } }, { statusReason: { startsWith: 'kind:' } }, { statusReason: 'no-place' }],
+            },
+          ],
+        },
+        // NULL-SAFE, as `earlier` below: SQL's `<>` never matches a NULL (none measured — codex + opus, gate 12f)
+        { OR: [{ factsVersion: null }, { factsVersion: { not: RULES_VERSION } }] },
+      ],
+      NOT: { text: PURGED_TEXT },
+    },
+    orderBy, take: READ_PER_RUN, select,
   })
+  // EACH RUN READS BOTH: what NEW posts leave, and never less than half the run for those under older rules — a rules
+  // change never keeps a new post waiting behind them (codex + opus, gate 12c), nor a busy mailbox a fix waiting behind
+  // new posts (opus, gate 12d). Read OLDEST FIRST together: the earliest copy of a job takes it (below).
+  const nAgain = Math.min(again.length, Math.max(READ_PER_RUN - fresh.length, Math.floor(READ_PER_RUN / 2)))
+  const posts = [...again.slice(0, nAgain), ...fresh.slice(0, READ_PER_RUN - nAgain)]
+    .sort((a, b) => a.receivedAt.getTime() - b.receivedAt.getTime() || a.id.localeCompare(b.id))
   const c: Counts = { read: posts.length, ready: 0, held: 0, dropped: 0 }
   if (!posts.length) return c
   // A LinkedIn job's text IS its fields — "title · company · place", built from them by eno-job-mailbox.py — so it is
@@ -193,7 +225,9 @@ async function readNewPosts(now: Date, write: boolean): Promise<Counts> {
       if (write) await db.externalJobPost.update({ where: { id: p.id }, data: { status: 'dropped', statusReason: 'duplicate', textSig: sigs[i], factsVersion: RULES_VERSION, updatedAt: now } })
       continue
     }
-    const facts = readPost(texts[i], p.postedAt ?? p.receivedAt, { listing: p.source === 'linkedin' || p.source === 'intake' })
+    // A LinkedIn job's title is the role — what the job IS (extract.ts titleNamesOtherSubject). A forwarded job's is the
+    // email's subject, which may be anyone's words: not screened (opus, gate 12b).
+    const facts = readPost(texts[i], p.postedAt ?? p.receivedAt, { listing: p.source === 'linkedin' || p.source === 'intake', title: p.source === 'linkedin' ? p.title : null, fieldsOnly: p.source === 'linkedin' })
     const d = decide(facts, { source: p.source as 'fb' | 'linkedin' | 'intake', postedAt: p.postedAt, receivedAt: p.receivedAt, groupPublic: p.groupPublic, url: p.url, applyText: p.applyText }, laya?.answers[i] ?? null, now)
     if (takesTheJob(d.status, d.reason)) taken.add(sigs[i])
     c[d.status]++
@@ -271,16 +305,22 @@ async function loadJobs(now: Date): Promise<Job[]> {
   const since = new Date(now.getTime() - 14 * 86_400_000)
   const listings = await db.listing.findMany({
     where: await scopedListingWhere({ ...TEACHING_JOB_WHERE, createdAt: { gte: since } }),
-    select: { id: true, title: true, description: true, city: true, salaryM: true, attributes: true, createdAt: true },
+    select: { id: true, title: true, description: true, city: true, salaryM: true, attributes: true, createdAt: true, sellerId: true, externalId: true },
     take: 500,
   })
   for (const l of listings) {
     const attrs = (l.attributes ?? {}) as Record<string, unknown>
     const text = [l.title, typeof attrs.salaryText === 'string' ? attrs.salaryText : '', typeof attrs.jobtype === 'string' ? attrs.jobtype : '', l.description ?? ''].join('\n')
-    const f = readPost(text, l.createdAt)
-    // The importer already kept only foreigner-oriented, visa-free jobs (job-listing.ts) — its Vietnamese titles are
-    // not "for Vietnamese teachers"; every other refusal, and the demographic net, still applies.
-    if ((f.deny && f.deny !== 'vietnamese-oriented') || f.mention) continue
+    // Its TITLE says what the role is (graded 2026-10-21: "Secondary Economics Teacher" went to 25 English teachers,
+    // "[Expat Only] English Teacher" to 2) — that screen only: readKind's own screens, measured on the 38 live teaching
+    // listings, dropped "Teach English in Vietnam …" and "Cover teaching position" (opus, gate 12b).
+    const f = readPost(text, l.createdAt, { title: l.title })
+    if (titleNamesOtherSubject(l.title)) continue
+    // The importer already kept only foreigner-oriented, visa-free jobs (job-listing.ts) — an IMPORTED listing (a job
+    // board's own seller, with the board's id) with a Vietnamese title is not "for Vietnamese teachers". One a school
+    // posted here itself had no such check (graded 2026-10-21: "Giáo viên dạy tiếng anh giao tiếp", 5M a month, went to
+    // 10 teachers).
+    if ((f.deny && (f.deny !== 'vietnamese-oriented' || !importedListing(l))) || f.mention) continue
     const hub = provinceToCitySlug(l.city)
     const places = hub ? [hub, ...f.places.filter((k) => k !== hub)] : f.places
     if (!places.length) continue

@@ -23,7 +23,7 @@ import { VN_PROVINCES } from '@/lib/vn-areas'
 import { HCMC, ONLINE, TOWN_ALIASES, provinceKeyOf } from '@/lib/teachers/places'
 
 /** Bump when a rule below changes what it extracts: stored facts carry it, and a run re-reads posts under an older one. */
-export const RULES_VERSION = 'job-rules-2026-10-21'
+export const RULES_VERSION = 'job-rules-2026-10-21b'
 
 export type JobKind = 'job_offer' | 'cover_request' | 'job_seeker' | 'other'
 export type Employment = 'full_time' | 'part_time' | 'cover' | 'private' | 'online'
@@ -152,6 +152,8 @@ const NATIONALITY_ASK = new RegExp([
   String.raw`\((vietnamese|vietnamese people|vietnamese nationals?|vietnamese citizens?|nguoi viet( nam)?)( only)?\)|\bvietnamese (people|nationals?|citizens?) only\b|\bonly vietnamese (people|nationals?|citizens?|teachers?)\b`,
   String.raw`\b(eu|europeans?|filipinos?|filipinas?|philippines)\s*(&|and|/|or)\s*(filipinos?|filipinas?|philippines|native|nes|eu|europeans?)\b`,
   String.raw`\b(only|chi) (filipinos?|europeans?|eu|nes|westerners?)\b`,
+  // origin by exclusion, in brackets anywhere: "(expats only)", "[Foreigners Only]" — a title's own is titleAsksNationality
+  String.raw`[\[(]\s*(expats?|foreigners?|foreign|non.?vietnamese)( (teachers?|candidates?|applicants?))?[ -]only\s*[\])]`,
   // "Westerner or NES", "NATIVE SPEAKERS or WESTERNES" (sic) — the noun, never the adjective ("Western curriculum")
   String.raw`\bwesterne?r?s\b|\bwesterner\b`,
   // origin by proxy: "candidates with a European or Western educational background are highly preferred"
@@ -285,6 +287,45 @@ const AGENCY = /\b(recruit(er|ers|ment agency)|agency|on behalf of|my clients?|o
 const OTHER_SUBJECT_ONLY = (t: string) =>
   /\b(piano|guitar|violin|drums|music|singing|art|drawing|painting|dance|dancing|ballet|swimming|swim|football|soccer|basketball|tennis|badminton|volleyball|yoga|chess|martial arts|taekwondo|karate|judo|boxing|cooking|lifeguard|gymnastics)\b/.test(t)
   && !/\b(english|esl|efl|ielts|toeic|toefl|phonics|cambridge|tieng anh)\b/.test(t)
+
+/**
+ * A ROLE TITLE FOR ANOTHER ACADEMIC SUBJECT (graded 2026-10-21 — the first shadow run offered "Secondary Economics
+ * Teacher" to 25 English teachers, "Psychology Teacher (Cambridge, AP)" to 21, "Teacher of History" to 14, a digital-media
+ * lecturer to 8): no teacher's profile can say they teach it (profile.ts SUBJECTS), so it fits none. ⛔ THE TITLE ONLY —
+ * a listing's or a LinkedIn job's, which says what the job IS: across a whole post the words are prose ("work history",
+ * "labour law", "no office politics") and "excellent English required" is a qualification (codex + opus, gate 12a).
+ * Kept: a title that also names English or STEM ("English and History Teacher", "Maths and History Teacher") — not a
+ * stage or an audience: "History Teacher for Kids" is a History job (codex, gate 12c). A Facebook post has no title and
+ * is not screened. ⚠️ ACCEPTED, as before this rule (every such job then went to every English teacher): a free-text
+ * title that puts the employer first ("Teachers International — Economics Teacher") or English in a requirement
+ * ("Economics Teacher (English language required)") is still read as a job — the titles seen are "role — employer"
+ * (imports) and a bare role (LinkedIn) (codex, opus, gate 12d).
+ */
+const OTHER_ACADEMIC_TITLE = /\b(economics|psychology|history|geography|sociology|philosophy|politics|humanities|global perspectives|accounting|business studies|business administration|business management|human resources|digital media|animation|graphic design|drama|theatre|theater|physical education|social studies|religious studies|law|marketing|finance|engineering|nursing|hospitality|artificial intelligence|data science|machine learning|ai (lecturers?|trainers?)|social sciences?|political science)\b/
+const OTHER_ACADEMIC_ALL = new RegExp(OTHER_ACADEMIC_TITLE.source, 'g')
+const TEACHABLE_TITLE = /\b(english|esl|efl|tefl|tesol|celta|ielts|toeic|toefl|phonics|tieng anh|anh van|anh ngu|conversation|speaking|language|stem|math|maths|mathematics|science|physics|chemistry|biology|steam|robotics|coding|computer science|computing|ict)\b/
+const ROLE_WORD_EN = /\b(teachers?|lecturers?|tutors?|instructors?|trainers?|educators?|professors?)\b/
+const ROLE_WORD = /\b(teachers?|lecturers?|tutors?|instructors?|trainers?|educators?|professors?|giao vien)\b/
+const EMPLOYER_PHRASE = /\b(english|language|foreign language|ielts|esl)( (language|english))? (schools?|centres?|centers?|academy|academies|institutes?|colleges?)\b/g
+export function titleNamesOtherSubject(title: string): boolean {
+  // The ROLE part only — the part naming the teacher, or the first — and before " at ": an imported listing's title runs
+  // on into its employer and place. "Economics Teacher — English Language School" is not an English job (codex, gate
+  // 12b), "Hanoi - Economics Teacher" is an Economics one, and "Teacher at Hanoi Law University" may well be English.
+  const parts = title.split(/\s+[—–|·]\s+|\s+-\s+/).map(foldPost)
+  const role = (parts.find((x) => ROLE_WORD.test(x)) ?? parts[0]).split(/\s(?:at|@)\s/)[0]
+  // English or STEM is looked for OUTSIDE the other subject's own words ("Data Science Instructor" is not a Science job —
+  // codex + opus, gate 12f) and outside an employer left in the role ("History Teacher, English Language School", 12c).
+  return OTHER_ACADEMIC_TITLE.test(role) && !TEACHABLE_TITLE.test(role.replace(OTHER_ACADEMIC_ALL, ' ').replace(EMPLOYER_PHRASE, ' '))
+}
+
+/**
+ * A TITLE THAT TAKES FOREIGNERS ONLY — "[Expat Only] English Teacher" (graded 2026-10-21), "English Teacher — expat teachers
+ * only", "Only foreign teachers": origin by exclusion, refused whole. ⛔ The title only (and a bracket anywhere, in
+ * NATIONALITY_ASK): in a post's prose "foreigners only need a passport and a degree" is a visa note, not an ask (opus,
+ * gate 12a).
+ */
+const FOREIGNERS_ONLY_TITLE = /\b(expats?|foreigners?|foreign|non.?vietnamese)( (teachers?|candidates?|applicants?|nationals?))?[ -]only\b|\bonly (expats?|foreigners?|foreign (teachers?|candidates?|applicants?|nationals?)|non.?vietnamese)\b/
+export const titleAsksNationality = (title: string): boolean => FOREIGNERS_ONLY_TITLE.test(foldPost(title))
 
 /** Teaching VIETNAMESE (to foreigners): a job for a Vietnamese speaker, not one of eno's teachers'. */
 const VIETNAMESE_TEACHING = { test: (t: string) => /\b(vietnamese (language )?(teachers?|tutors?|lessons?|classes?)|teachers? of vietnamese|teach(ing)? vietnamese|learn(ing)? vietnamese|day tieng viet|tieng viet cho nguoi nuoc ngoai)\b/.test(t) && !/\benglish (teachers?|tutors?|classes?|lessons?)\b/.test(t) }
@@ -759,7 +800,7 @@ export function readSubjects(t: string): string[] {
   if (/\bcambridge\b|\b(starters|movers|flyers|ket|pet|fce|cae)\b/.test(t)) out.push('cambridge')
   if (/\bphonics\b/.test(t)) out.push('phonics')
   if (/\bbusiness english\b|\bcorporate (english|classes|training)\b/.test(t)) out.push('business-english')
-  if (/\b(stem|math|maths|mathematics|science|physics|chemistry|biology|steam|robotics|coding)\b/.test(t)) out.push('stem')
+  if (/\b(stem|math|maths|mathematics|science|physics|chemistry|biology|steam|robotics|coding|computer science|computing|ict)\b/.test(t)) out.push('stem')
   if (/\b(english|esl|efl|tieng anh|anh van|communication|conversation|speaking)\b/.test(t)) out.push('general-english')
   return out
 }
@@ -778,10 +819,26 @@ const withoutNegatedCues = (t: string) =>
  * posts in these groups recruit Vietnamese teachers and teaching assistants (trợ giảng), and no eno teacher is one.
  * ⚠️ "nước ngoài" alone is not a cue ("dạy tiếng Việt cho người nước ngoài") — it must sit next to a teacher word.
  */
+// "Foreign Language Center" is a school's name, not a cue (codex, gates 12d, 12e)
+const FOREIGNER_CUE = /\b(giao vien|gv|thay|co) (nuoc ngoai|ban ngu|ban xu|tay|philippines|phi)\b|\b(nguoi )?ban ngu\b|\bnative\b|\bforeign(er|ers)?\b(?![ -]languages?\b)|\bexpats?\b|\bnguoi nuoc ngoai (day|giang day)\b/
 export function vietnameseWithoutForeignerCue(text: string): boolean {
   const t = withoutNegatedCues(foldPost(text))
   if (!writtenInVietnamese(text, t)) return false
-  return !/\b(giao vien|gv|thay|co) (nuoc ngoai|ban ngu|ban xu|tay|philippines|phi)\b|\b(nguoi )?ban ngu\b|\bnative\b|\bforeign(er|ers)?\b|\bexpats?\b|\bnguoi nuoc ngoai (day|giang day)\b/.test(t)
+  return !FOREIGNER_CUE.test(t)
+}
+
+/**
+ * A LINKEDIN JOB TITLED IN VIETNAMESE ONLY — "Giáo Viên IELTS Fulltime Từ 7.5" (2026-10-21). Its text is nothing but
+ * "title · company · place" (eno-job-mailbox.py), too short for writtenInVietnamese's measure once a place is one word,
+ * so its title's language is the post's. Not with an English role word ("Giáo viên bản ngữ / Native English Teacher") or
+ * a foreigner cue IN THE TITLE ("Giáo viên nước ngoài") — the company's name is not one ("Foreign Language Center", codex,
+ * gate 12d). Only there: a post with a body is measured by it (writtenInVietnamese) — "Giáo viên tiếng Anh" over an
+ * English description is not for Vietnamese teachers (opus, gate 12c).
+ */
+const VI_ROLE = /\b(giao vien|giang vien|tro giang|gv)\b/
+const titleIsVietnameseOnly = (title: string): boolean => {
+  const t = withoutNegatedCues(foldPost(title))
+  return VI_ROLE.test(t) && !ROLE_WORD_EN.test(t) && !FOREIGNER_CUE.test(t)
 }
 
 /**
@@ -827,16 +884,19 @@ function writtenInVietnamese(text: string, folded: string): boolean {
 }
 
 /** Read every fact a rule can state. `postedAt` anchors "tomorrow"/"Saturday" for cover requests; `listing` — see readKind. */
-export function readPost(text: string, postedAt: Date, opts: { listing?: boolean } = {}): RuleFacts {
+export function readPost(text: string, postedAt: Date, opts: { listing?: boolean; title?: string | null; fieldsOnly?: boolean } = {}): RuleFacts {
   const t = foldPost(text)
-  const kind = readKind(t, opts.listing ?? false)
+  // `title`: the job's own title (a listing's, a LinkedIn job's) — what the role IS (titleNamesOtherSubject).
+  // `fieldsOnly`: the text is only the job's fields, no body — a LinkedIn job (titleIsVietnameseOnly).
+  const kind = opts.title && titleNamesOtherSubject(opts.title) ? 'other' : readKind(t, opts.listing ?? false)
   const { places, cityOnly } = readPlaces(t)
-  let deny = denyReason(text)
+  let deny = denyReason(text) ?? (opts.title && titleAsksNationality(opts.title) ? 'nationality' : null)
   // eno.vn carries no visa wording (licensing split). A post that is ONLY about visas/work permits — no teaching job
   // in it — is not a job. A teaching job that ALSO mentions permit support stays: the message never quotes the post,
   // and its own words pass isVisaWorded (compose.ts).
   if (!deny && isVisaWorded(text) && kind === 'other') deny = 'visa-only'
   if (!deny && vietnameseWithoutForeignerCue(text)) deny = 'vietnamese-oriented'
+  if (!deny && opts.fieldsOnly && opts.title && titleIsVietnameseOnly(opts.title)) deny = 'vietnamese-oriented'
   return {
     version: RULES_VERSION,
     kind,
