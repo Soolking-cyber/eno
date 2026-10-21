@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { EMPTY_TEACHER, normalizeTeacherInput, type TeacherInput } from '@/lib/teachers/profile'
-import { refusalEvents, step1Answered,
+import { cvPickError, refusalEvents, step1Answered, stepOfField,
   CAMPAIGN_TAG_MAX, DRAFT_FIELDS, campaignQuery, decodeHandoff, draftPart, draftResumeStep, droppedAnswers, encodeHandoff, handoffPart,
   mergeReview, nothingToSave, HANDOFF_FIELDS, forDraft, homeDefaultAreas, nextMonths, startChoice,
   suggestHeadline, withJobTypes, withRelocate, withSituation,
@@ -280,6 +280,45 @@ describe('refusalEvents', () => {
     expect(refusalEvents({ coverOpen: 'reach_required' })).toEqual(['publish_refused_other'])
     expect(refusalEvents({ videoUrl: 'required', subjects: 'required', fullName: 'required' }).sort()).toEqual(['publish_refused_other', 'publish_refused_video'])
     expect(refusalEvents({})).toEqual([])
+  })
+  it('the CV (required for a new profile since 2026-10-21) is its own counter, whatever its code', () => {
+    expect(refusalEvents({ cv: 'required' })).toEqual(['publish_refused_cv'])
+    expect(refusalEvents({ cv: 'upload_failed', videoUrl: 'required' }).sort()).toEqual(['publish_refused_cv', 'publish_refused_video'])
+  })
+})
+
+// The CV is no TeacherInput field (profile.ts TeacherErrors), so a refusal of it names its step itself (2026-10-21).
+describe('stepOfField', () => {
+  it('the CV is asked on Photo & publish — a refusal of it opens that step from any step of an edit', () => {
+    expect(stepOfField('cv')).toBe('finish')
+    expect(stepOfField('videoUrl')).toBe('finish')
+    expect(stepOfField('experience.2')).toBe('teaching')
+    expect(stepOfField('cvPath')).toBeUndefined() // only the CV's own key
+  })
+})
+
+// A CV pick is checked as the upload checks it (cv-store.ts: a PDF of at most 10 MB) — 2026-10-21.
+describe('cvPickError', () => {
+  const MB = 1024 * 1024
+  it('a PDF by its type, or by its name when the picker gives another type or none; 10 MB at most', () => {
+    expect(cvPickError({ type: 'application/pdf', name: 'cv.pdf', size: 2 * MB })).toBeNull()
+    expect(cvPickError({ type: '', name: 'Jane CV.PDF', size: 2 * MB })).toBeNull()
+    expect(cvPickError({ type: 'application/octet-stream', name: 'cv.pdf', size: 2 * MB })).toBeNull()
+    expect(cvPickError({ type: 'application/pdf', name: 'cv', size: 2 * MB })).toBeNull()
+    expect(cvPickError({ type: 'application/pdf', name: 'cv.pdf', size: 10 * MB })).toBeNull()
+    expect(cvPickError({ type: 'application/pdf', name: 'cv.pdf', size: 10 * MB + 1 })).toBe('size')
+  })
+  it('anything else is "type" — a Word file, a photo, a PDF-looking name with more after it', () => {
+    expect(cvPickError({ type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', name: 'cv.docx', size: 1000 })).toBe('type')
+    expect(cvPickError({ type: 'image/jpeg', name: 'cv.jpg', size: 1000 })).toBe('type')
+    expect(cvPickError({ type: '', name: 'cv.pdf.exe', size: 1000 })).toBe('type')
+    expect(cvPickError({ type: '', name: 'scan.jpg', size: 1000 })).toBe('type')
+  })
+  it('⛔ no type to go by and no other extension is NOT refused — an in-app browser\'s Drive PDF ("document", a number); the server\'s byte check decides', () => {
+    expect(cvPickError({ type: '', name: 'document', size: 2 * MB })).toBeNull()
+    expect(cvPickError({ type: 'application/octet-stream', name: '1000123456', size: 2 * MB })).toBeNull()
+    expect(cvPickError({ type: '', name: 'CV - Jane.Smith', size: 2 * MB })).toBeNull()
+    expect(cvPickError({ type: '', name: 'document', size: 10 * MB + 1 })).toBe('size')
   })
 })
 

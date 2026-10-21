@@ -417,6 +417,8 @@ export type NicheApiErrorCode =
   | 'cv_size'
   | 'cv_store_failed'
   | 'cv_missing'
+  | 'cv_required' // a profile created since TEACHER_CV_REQUIRED_FROM keeps its CV — replace it, never remove it
+  | 'cv_capacity' // the pending CV upload's per-connection day cap — "busy on this network", never "your limit"
   // Teacher CV import (POST /api/teachers/me/import, 2026-10-15):
   | 'import_unavailable' // CV reading is off on this server (no Vertex credentials) — the form hides the door; a stale tab gets this
   | 'import_capacity' // the CV reader's site-wide daily budget is spent — never the teacher's fault
@@ -868,6 +870,8 @@ const ALL = [
   'cv_size',
   'cv_store_failed',
   'cv_missing',
+  'cv_required',
+  'cv_capacity',
   'import_unavailable',
   'import_capacity',
   'import_rate_hour',

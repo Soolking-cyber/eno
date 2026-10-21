@@ -29,6 +29,10 @@ export type TombstoneReason = 'account_deleted' | 'visa_document_replaced' | 'vi
   // Teacher intro video (2026-10-07): a copy made before its save commits (deleted again in the commit when the row
   // references it), and an object a save displaced — moved to the other bucket, replaced, or removed.
   | 'teacher_video_pending' | 'teacher_video_replaced'
+  // A new teacher profile's CV (2026-10-21 — required at create): uploaded BEFORE the first Publish, tombstoned before the
+  // upload, and deleted again by the create that attaches it (publish.ts). One that no create claims is swept by its
+  // bucket's own rule (referenced iff a TeacherPrivate.cvPath holds it), an hour after it was made.
+  | 'teacher_cv_pending'
 type Writer = Pick<Prisma.TransactionClient, 'storageTombstone' | '$executeRaw'>
 
 /** Record that these objects are to be deleted once nothing references them. Pass the transaction

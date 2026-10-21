@@ -397,6 +397,127 @@ describe('the edit page’s other doors', () => {
     expect(calls.some((c) => c.url.startsWith('/api/teachers/me/cv'))).toBe(false)
   })
 
+  // ── THE CV "FROM NOW ON" (owner, 2026-10-21): a profile created since TEACHER_CV_REQUIRED_FROM that has a CV keeps one —
+  // replaced, never removed (DELETE → 409 cv_required); an older one (or a row with no creation time) keeps "optional".
+  // An edit never carries `cvUpload`: its picked CV goes up AFTER the save, attached at once by the CV route.
+  describe('the CV on an edit', () => {
+    const AFTER = '2026-10-24T03:00:00.000Z' // created after the cutoff (constants.ts TEACHER_CV_REQUIRED_FROM)
+    const cvSection = async (name: string) => within((await screen.findByRole('heading', { name })).closest('section')!)
+    const cvCalls = () => calls.filter((c) => c.url.startsWith('/api/teachers/me/cv'))
+    const routes = (extra: Record<string, (body: unknown) => { status?: number; json: unknown }>) => {
+      const f = fakeFetch({
+        'GET /api/teachers/me': () => ({ json: { teacher: row, publishGate: { ok: true, code: null } } }),
+        'PUT /api/teachers/me': () => ({ json: { listingId: 'L1', teacherProfileId: 'tp1', live: true, noGoal: false, cover: null, video: { onRequest: false, version: 0, hasPrivate: false, url: null } } }),
+        ...extra,
+      })
+      calls = f.calls
+      vi.stubGlobal('fetch', f.fn)
+    }
+
+    it('a legacy profile (no creation time, no CV) still saves — "CV (optional)", nothing asked for, nothing uploaded', async () => {
+      history.replaceState(null, '', '/teachers/edit?step=finish')
+      const user = mount()
+      const cv = await cvSection('CV (optional)')
+      expect(cv.getByText('Choose PDF')).toBeTruthy()
+      await user.click(action('Save changes'))
+      await waitFor(() => expect(lastPut()).toBeTruthy())
+      expect('cvUpload' in lastPut()!).toBe(false)
+      expect(cvCalls()).toEqual([])
+      expect(await screen.findByText('Profile saved')).toBeTruthy()
+      // The done screen asks for one, first.
+      expect(screen.getAllByRole('button', { name: /^Add / })[0].textContent).toBe('Add your CV')
+    })
+
+    it('⛔ a profile created since the cutoff with a CV: "CV", no Remove for the saved one — a new pick replaces it after the save', async () => {
+      row = { ...ROW, createdAt: AFTER, cvFileName: 'old-cv.pdf' }
+      routes({ 'POST /api/teachers/me/cv': () => ({ json: { ok: true, cvFileName: 'new-cv.pdf' } }) })
+      history.replaceState(null, '', '/teachers/edit?step=finish')
+      const user = mount()
+      const cv = await cvSection('CV')
+      expect(cv.getByText('old-cv.pdf')).toBeTruthy()
+      expect(cv.queryByRole('button', { name: 'Remove' })).toBeNull()
+      expect(cv.getByText('Replace CV')).toBeTruthy()
+      await user.upload(document.querySelector<HTMLInputElement>('input[accept="application/pdf,.pdf"]')!, new File(['%PDF-1.4'], 'new-cv.pdf', { type: 'application/pdf' }))
+      // A pending pick can still be let go — back to the saved one.
+      expect(cv.getByRole('button', { name: 'Keep my saved CV' })).toBeTruthy()
+      await user.click(action('Save changes'))
+      expect(await screen.findByText('Profile saved')).toBeTruthy()
+      // Uploaded AFTER the PUT, by the edit's own call (never a pending one), and never named by the save.
+      const put = calls.findIndex((c) => c.method === 'PUT')
+      expect(cvCalls().map((c) => `${c.method} ${c.url}`)).toEqual(['POST /api/teachers/me/cv'])
+      expect(calls.indexOf(cvCalls()[0])).toBeGreaterThan(put)
+      expect('cvUpload' in lastPut()!).toBe(false)
+      expect(screen.queryByRole('button', { name: 'Add your CV' })).toBeNull()
+    })
+
+    it('a 409 cv_required from the server (it knows the profile is new) is said, and the CV stays', async () => {
+      // No creation time on the row: the form does not know — the server does.
+      row = { ...ROW, cvFileName: 'old-cv.pdf' }
+      routes({ 'DELETE /api/teachers/me/cv': () => ({ status: 409, json: { error: 'cv_required' } }) })
+      history.replaceState(null, '', '/teachers/edit?step=finish')
+      const user = mount()
+      const cv = await cvSection('CV (optional)')
+      await user.click(cv.getByRole('button', { name: 'Remove' }))
+      expect(await screen.findByText('Your profile needs a CV — upload a new one to replace it.')).toBeTruthy()
+      expect(cv.getByText('old-cv.pdf')).toBeTruthy()
+    })
+
+    it('an older profile may still remove its CV; a removal that fails is said — never silent', async () => {
+      row = { ...ROW, createdAt: '2026-10-01T03:00:00.000Z', cvFileName: 'old-cv.pdf' }
+      let ok = false
+      routes({ 'DELETE /api/teachers/me/cv': () => (ok ? { json: { ok: true } } : { status: 500, json: { error: 'internal_error' } }) })
+      history.replaceState(null, '', '/teachers/edit?step=finish')
+      const user = mount()
+      const cv = await cvSection('CV (optional)')
+      await user.click(cv.getByRole('button', { name: 'Remove' }))
+      expect(await screen.findByText('Could not remove your CV. Please try again.')).toBeTruthy()
+      expect(cv.getByText('old-cv.pdf')).toBeTruthy()
+      ok = true
+      await user.click(cv.getByRole('button', { name: 'Remove' }))
+      await waitFor(() => expect(cv.queryByText('old-cv.pdf')).toBeNull())
+      expect(screen.queryByText('Could not remove your CV. Please try again.')).toBeNull()
+      expect(cv.getByText('Choose PDF')).toBeTruthy()
+    })
+
+    it('a CV upload that fails AFTER the save is said on the done screen — the save stands (never "Something went wrong")', async () => {
+      routes({ 'POST /api/teachers/me/cv': () => { throw new TypeError('Failed to fetch') } })
+      history.replaceState(null, '', '/teachers/edit?step=finish')
+      const user = mount()
+      await cvSection('CV (optional)')
+      await user.upload(document.querySelector<HTMLInputElement>('input[accept="application/pdf,.pdf"]')!, new File(['%PDF-1.4'], 'new-cv.pdf', { type: 'application/pdf' }))
+      await user.click(action('Save changes'))
+      expect(await screen.findByText('Profile saved')).toBeTruthy()
+      expect(screen.getByText('CV upload failed.')).toBeTruthy()
+      expect(screen.queryByText('Something went wrong. Please try again.')).toBeNull()
+      expect(screen.getAllByRole('button', { name: /^Add / })[0].textContent).toBe('Add your CV')
+    })
+
+    it('an edit form with no profile id (its load failed) saves as a CREATE — so its CV goes up first, as a pending upload the PUT names', async () => {
+      const { id: _id, ...noId } = ROW
+      row = noId
+      routes({ 'POST /api/teachers/me/cv?pending=1': () => ({ json: { ok: true, cvUpload: 'aaaaaaaa-0000-4000-8000-00000000000e', cvFileName: 'new-cv.pdf' } }) })
+      history.replaceState(null, '', '/teachers/edit?step=finish')
+      const user = mount()
+      await cvSection('CV (optional)')
+      await user.upload(document.querySelector<HTMLInputElement>('input[accept="application/pdf,.pdf"]')!, new File(['%PDF-1.4'], 'new-cv.pdf', { type: 'application/pdf' }))
+      await user.click(action('Save changes'))
+      expect(await screen.findByText('Profile saved')).toBeTruthy()
+      expect(cvCalls().map((c) => `${c.method} ${c.url}`)).toEqual(['POST /api/teachers/me/cv?pending=1'])
+      expect(calls.indexOf(cvCalls()[0])).toBeLessThan(calls.findIndex((c) => c.method === 'PUT'))
+      expect(lastPut()).toMatchObject({ teacherProfileId: null, cvUpload: 'aaaaaaaa-0000-4000-8000-00000000000e', cvFileName: 'new-cv.pdf' })
+    })
+
+    it('⛔ a CV refusal from the server opens Photo & publish from any step (stepOfField: cv → finish)', async () => {
+      routes({ 'PUT /api/teachers/me': () => ({ status: 400, json: { error: 'invalid_teacher_profile', fields: { cv: 'required' } } }) })
+      const user = mount()
+      expect(await screen.findByText('Where are you now?')).toBeTruthy()
+      await user.click(action('Save changes'))
+      const cv = await cvSection('CV (optional)')
+      expect(await cv.findByText(/^Please add your CV — a PDF up to 10 MB/)).toBeTruthy()
+      expect(screen.getByRole('heading', { name: 'CV (optional)' }).closest('section')!.hasAttribute('data-invalid')).toBe(true)
+    })
+  })
+
   it('?review=draft fills the hand-off’s answers over the saved profile, UNSAVED, and lets the draft go', async () => {
     putDraft({ ...COMPLETE, headline: 'IELTS teacher who loves phonics' }, 'about')
     history.replaceState(null, '', '/teachers/edit?review=draft')

@@ -58,6 +58,44 @@ export function videoRequiredSince(createdAt: Date | string | null | undefined):
 }
 
 /**
+ * THE CV IS REQUIRED "FROM NOW ON" (owner, 2026-10-21: "when teacher creates profile it says cv is optional, its not they
+ * should include cv"). Every NEW profile publishes with one, and a profile created from this moment on keeps one — it can
+ * be replaced, never removed (DELETE /api/teachers/me/cv → 409 cv_required). Profiles created before it keep the old rule
+ * (optional): 32 of the 124 live on 2026-10-21 had none.
+ * ⛔ ENFORCED BY THE SERVER AT CREATE, NOT BY THE FORM (two refuting plan reviews, 2026-10-21): the join form uploads the
+ * PDF BEFORE the PUT (POST /api/teachers/me/cv?pending=1) and the save that creates the profile attaches it in its own
+ * transaction (publish.ts) — the intro video's precedent. A form-only rule left a live profile with no CV whenever the
+ * upload after the PUT failed, was refused, or came from a tab opened before the rule.
+ * ⛔ THE DAY AFTER THE DEPLOY, 00:00 ICT — and re-dated in the deploy commit if the deploy slips, like the video's: a
+ * profile made on the deploy day under the OLD code (no CV) must never be held to "keep it". Creating always needs the CV,
+ * whatever this date; it decides only who may later remove one.
+ */
+export const TEACHER_CV_REQUIRED_FROM = '2026-10-23T00:00:00+07:00'
+/**
+ * Must this SAVED profile keep its CV — was it created since the cutoff? (A new profile always needs one: the caller says
+ * "no profile yet" itself.) An unknown creation time is an old profile: an edit is never blocked on a guess.
+ */
+export function cvRequiredSince(createdAt: Date | string | null | undefined): boolean {
+  if (createdAt === null || createdAt === undefined) return false
+  const t = new Date(createdAt).getTime()
+  return Number.isFinite(t) && t >= Date.parse(TEACHER_CV_REQUIRED_FROM)
+}
+/**
+ * The CV's ceiling, 10 MB — ONE number: the upload route's (cv-store.ts MAX_CV_BYTES is this), the private bucket's own
+ * file_size_limit (scripts/teachers-ddl.mjs) and the form's check at pick time (a file that can never go up is said when
+ * it is picked, not at Publish). Here because this file is import-free: the client reads it.
+ */
+export const TEACHER_CV_MAX_BYTES = 10 * 1024 * 1024
+/**
+ * A pending CV upload's token (POST /api/teachers/me/cv?pending=1 answers it as `cvUpload`; the first Publish names it):
+ * exactly the lower-case UUID v4 node's randomUUID() mints — anything else is no token. ⛔ Only this crosses the wire,
+ * never a path: the server rebuilds `<Profile.id>/<token>.pdf` from the caller's own id (cv-store.ts cvPathFor).
+ */
+export function isCvUploadToken(v: unknown): v is string {
+  return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(v)
+}
+
+/**
  * ⛔ THE "IDENTITY VERIFIED" RULE AND NOTICE VERSION (owner, 2026-10-15; AUTOMATIC since 2026-10-16) — the version of the
  * words shown beside the teacher's switch (the IdentityMarkNote on Photo & publish: what the mark shows, where — the
  * profile, its card in lists, the chip a school or member sees in chat — to whom, on which conditions, that it never shows

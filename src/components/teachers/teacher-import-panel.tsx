@@ -284,8 +284,9 @@ export function TeacherImportPanel(p: Props) {
             {/* Autofilled, not offered (owner, 2026-10-16) — so said here, with where to change it. */}
             {li.phoneAdded && li.phone && <li>{tr('We added the phone number from your CV:', 'Chúng tôi đã thêm số điện thoại trong CV:')} {li.phone} — {tr('it stays private. Change it on the last step.', 'số này được giữ riêng tư. Bạn có thể đổi ở bước cuối.')}</li>}
             {/* "When you publish", not "attached" (gate review, 2026-10-16): the file waits in this page until Publish uploads
-                it — a reload before then drops it, and the last step shows whether it is still there. */}
-            {li.cvAttached && <li>{tr('Your CV will be attached to your profile when you publish. It stays private — schools get it only when you share it in a chat. Remove it on the last step if you prefer.', 'CV của bạn sẽ được đính kèm vào hồ sơ khi bạn đăng. CV được giữ riêng tư — các trường chỉ nhận được khi bạn chia sẻ trong tin nhắn. Bạn có thể xoá ở bước cuối nếu muốn.')}</li>}
+                it — a reload before then drops it, and the last step shows whether it is still there. "Replace", not
+                "Remove" (2026-10-21): a new profile publishes with a CV now — another can be picked there, none cannot. */}
+            {li.cvAttached && <li>{tr('Your CV will be attached to your profile when you publish. It stays private — schools get it only when you share it in a chat. Replace it on the last step if you prefer.', 'CV của bạn sẽ được đính kèm vào hồ sơ khi bạn đăng. CV được giữ riêng tư — các trường chỉ nhận được khi bạn chia sẻ trong tin nhắn. Bạn có thể thay CV khác ở bước cuối nếu muốn.')}</li>}
           </ul>
         )}
         {p.stillToAnswer.length > 0 && (

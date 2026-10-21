@@ -11,6 +11,8 @@ type Row = Record<string, any>
 const U = 'https://sb.eno.vn/storage/v1/object/public/listing-videos/1700000000000-abcd12.mp4'
 const V = 'https://sb.eno.vn/storage/v1/object/public/listing-videos/1700000000001-efgh34.mp4'
 const P = 'p1/aaaaaaaa-0000-4000-8000-000000000000.mp4'
+// A new profile publishes with its CV (owner, 2026-10-21): the pending upload's token, found under the lock (publish.cv.test.ts).
+const CV_TOKEN = 'cccccccc-0000-4000-8000-000000000003'
 
 const h = vi.hoisted(() => ({
   pre: null as Row | null, // the pre-read (VIDEO_STATE_SELECT) and the locked read
@@ -90,7 +92,11 @@ const tx = {
   listing: { update: async (args: Row) => { h.listingWrites.push(args) }, create: async (args: Row) => { h.listingWrites.push(args); return { id: 'L1' } },
     // the save reads whether schools see it INSIDE its transaction (nothing after the commit may fail the request)
     findUnique: async () => ({ status: 'active', verified: true }) },
-  storageTombstone: { deleteMany: async ({ where }: Row) => { h.deletedPending.push(where); return { count: 1 } } },
+  storageTombstone: {
+    deleteMany: async ({ where }: Row) => { h.deletedPending.push(where); return { count: 1 } },
+    // The CV's pending upload, at the path the save rebuilds from the caller's id.
+    findUnique: async ({ where }: Row) => (where.bucket_path?.path === `p1/${CV_TOKEN}.pdf` ? { reason: 'teacher_cv_pending', notBefore: new Date(Date.now() + 55 * 60_000) } : null),
+  },
   teacherVideoShare: { updateMany: async ({ where }: Row) => { h.revoked.push(where); return { count: 2 } } },
 }
 vi.mock('@/lib/db', () => ({
@@ -130,6 +136,8 @@ const body = (o: Row = {}) => ({
   staffContactOptIn: false, matchEmailOptIn: false, publishNotice: PUBLISH_NOTICE_VERSION,
   coverOpen: false, coverSlots: [], coverRateVnd: null, coverConsent: false, coverNotice: COVER_CONSENT_VERSION,
   videoOnRequest: false, videoUrl: null, videoBase: 3,
+  // Create-only: an edit ignores it (publish.cv.test.ts).
+  cvUpload: CV_TOKEN, cvFileName: 'cv.pdf',
   ...o,
 })
 const save = (b: Row) => saveTeacherProfile({ id: 'p1', email: 'jane@example.com' }, b)

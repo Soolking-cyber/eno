@@ -37,13 +37,13 @@ import {
   AI_NOTICE_VERSION, DRAFT_STEPS, EMPTY_TEACHER, LIMITS, PRE_SIGNIN_STEPS, PUBLISH_NOTICE_VERSION, TEACHER_STEPS, TEACHER_STEP_FIELDS, teacherFreeTextFields, hasTeachingGoal, normalizeForSave,
   normalizeTeacherInput, splitGoalErrors, teacherSteps, isTeacherPhone, type TeacherErrors, type TeacherInput, type TeacherStep,
 } from '@/lib/teachers/profile'
-import { TEACHER_DRAFT_HASH_KEY, videoRequiredSince } from '@/lib/teachers/constants'
+import { TEACHER_DRAFT_HASH_KEY, cvRequiredSince, isCvUploadToken, videoRequiredSince } from '@/lib/teachers/constants'
 import { COVER_CONSENT_VERSION, coverStamp, mergeStaleCover, type SavedCover } from '@/lib/teachers/cover'
 import { HCMC, coverReachOf, placeLabel } from '@/lib/teachers/places'
 import { type CoverPatch } from '@/components/teachers/cover-fields'
 import { CoverSummary } from '@/components/teachers/cover-summary'
 import {
-  ACCOUNT_STEPS, campaignQuery, checkSteps, decodeHandoff, draftPart, draftResumeStep, droppedAnswers, encodeHandoff, firstStepWithError,
+  ACCOUNT_STEPS, campaignQuery, checkSteps, cvPickError, decodeHandoff, draftPart, draftResumeStep, droppedAnswers, encodeHandoff, firstStepWithError,
   forDraft, fromDraft, handoffPart, isTeacherStep, mergeReview, nothingDropped, nothingToSave, refusalEvents, sameDraftAnswers, step1Answered, textRefusals, type DroppedField,
 } from '@/components/teachers/teacher-form-rules'
 import { continueSourceEvent, type TeacherFormEvent } from '@/lib/signup-prompt'
@@ -194,6 +194,12 @@ const DRAFT_RETRY_MS = 30_000
 const DRAFT_LOAD_TIMEOUT_MS = 10_000
 // A save waits longer: one cut off client-side may still commit, and its retry would then meet a false conflict.
 const DRAFT_SAVE_TIMEOUT_MS = 30_000
+/**
+ * How long a new profile's CV, uploaded before its Publish (uploadPendingCv), is named again by a later Publish instead of
+ * uploaded twice. Half the hour the server keeps an upload nobody claimed (storage-tombstones.ts TOMBSTONE_GRACE_MS): older
+ * than this, it is uploaded again — never named so late that the sweep could be taking it.
+ */
+const CV_PENDING_REUSE_MS = 30 * 60_000
 /** A draft request that gives up after `ms`: a stalled network never holds the save queue, Publish or Start over. */
 function draftFetch(url: string, init: RequestInit = {}, ms = DRAFT_LOAD_TIMEOUT_MS): Promise<Response> {
   const ctl = new AbortController()
@@ -430,10 +436,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   // THE PROFILE PHOTO CHECK (owner, 2026-10-16): asked as soon as a photo is on the last step (POST /api/teachers/me/
   // photo-check), so a refusal is said beside the photo, not at Publish. The save judges it again itself.
   const [photoCheck, setPhotoCheck] = useState<{ url: string; state: 'checking' | 'ok' | 'fail' | 'unavailable'; reason?: 'not_photo' | 'no_face' } | null>(null)
-  // Edit: the saved photo, when it was created (the video rule) and whether the re-check asked the teacher to change it.
+  // Edit: the saved photo, when it was created (the video and CV rules) and whether the re-check asked the teacher to change it.
   const [savedPhotoUrl, setSavedPhotoUrl] = useState<string | null>(null)
   const [profileCreatedAt, setProfileCreatedAt] = useState<string | null>(null)
   const [savedHadVideo, setSavedHadVideo] = useState(false)
+  // …and whether a CV is saved (the CV rule's other half): from the load, true once an upload lands, false once one is removed.
+  const [savedHadCv, setSavedHadCv] = useState(false)
   const [photoAsk, setPhotoAsk] = useState<{ reason: string } | null>(null)
   // The TeacherProfile this form loaded — Save and Remove name it, and the server refuses another account's (409).
   const [teacherProfileId, setTeacherProfileId] = useState<string | null>(null)
@@ -493,6 +501,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   // (constants.ts TEACHER_VIDEO_REQUIRED_FROM) that has one — the server's own rule (publish.ts): a profile made after the
   // cutoff under the old code (a slipped deploy) never had one, and its edits never demand one.
   const videoRequired = mode === 'join' || (videoRequiredSince(profileCreatedAt) && savedHadVideo)
+  // THE CV "FROM NOW ON" (owner, 2026-10-21: "they should include cv") — the video's rule, with the video's guard
+  // (constants.ts TEACHER_CV_REQUIRED_FROM): every new profile, and a profile created since the cutoff that has one, which
+  // may replace it, never remove it. The server enforces both (publish.ts at create, the CV route's 409).
+  const cvRequired = mode === 'join' || (cvRequiredSince(profileCreatedAt) && savedHadCv)
 
   const step: TeacherStep = steps.includes(stepKey)
     ? stepKey
@@ -1303,6 +1315,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
           coverRateVnd: tp.coverRateVnd ?? null, consentCurrent: tp.coverConsentVersion === COVER_CONSENT_VERSION,
         })
         setCvName(tp.cvFileName ?? null)
+        setSavedHadCv(!!tp.cvFileName)
         setPrivateVideo(tp.hasPrivateVideo === true)
         setVideoBase(typeof tp.videoVersion === 'number' ? tp.videoVersion : null)
         setSavedPublicUrl(tp.videoUrl ?? null)
@@ -1523,16 +1536,67 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       setFormError(tr('Video upload failed. Please try again — keep it under 5 minutes.', 'Tải video thất bại. Vui lòng thử lại — giữ dưới 5 phút.'))
     } finally { setBusy(''); setVideoProgress(null) }
   }
+  /**
+   * An EDIT's picked CV, uploaded AFTER its save (the route attaches it at once, replacing the saved one). ⛔ Never throws
+   * (2026-10-21): a network error here used to land in publish()'s catch — "Something went wrong" over a save that had gone
+   * through. A failure is the form's line, on the done screen.
+   */
   const uploadCv = async (file: File): Promise<boolean> => {
-    const form = new FormData(); form.append('file', file)
-    const res = await fetch('/api/teachers/me/cv', { method: 'POST', body: form })
-    const d = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      setFormError(d.error === 'cv_type' ? tr('Your CV must be a PDF.', 'CV phải là tệp PDF.') : d.error === 'cv_size' ? tr('Your CV must be under 10 MB.', 'CV phải dưới 10 MB.') : tr('CV upload failed.', 'Tải CV thất bại.'))
+    try {
+      const form = new FormData(); form.append('file', file)
+      const res = await fetch('/api/teachers/me/cv', { method: 'POST', body: form })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setFormError(d.error === 'cv_type' ? tr('Your CV must be a PDF.', 'CV phải là tệp PDF.') : d.error === 'cv_size' ? tr('Your CV must be 10 MB or smaller.', 'CV phải có dung lượng tối đa 10 MB.') : tr('CV upload failed.', 'Tải CV thất bại.'))
+        return false
+      }
+      setCvName(d.cvFileName ?? file.name); setCvFile(null); setSavedHadCv(true)
+      return true
+    } catch {
+      setFormError(tr('CV upload failed.', 'Tải CV thất bại.'))
       return false
     }
-    setCvName(d.cvFileName ?? file.name); setCvFile(null)
-    return true
+  }
+  /**
+   * ⛔ A NEW PROFILE'S CV GOES UP BEFORE ITS PUBLISH (owner, 2026-10-21: "they should include cv") — POST
+   * /api/teachers/me/cv?pending=1: stored and tombstoned by the server, answered with a token the Publish names, and attached
+   * by the save that creates the profile (publish.ts) — so a profile is never created without it. The SAME File within
+   * CV_PENDING_REUSE_MS reuses its token: a Publish refused for something else (the photo check, a word) and tapped again
+   * uploads nothing twice, well inside the hour the server keeps an unclaimed upload (TOMBSTONE_GRACE_MS). Never throws.
+   */
+  const pendingCv = useRef<{ file: File; token: string; fileName: string; at: number } | null>(null)
+  const uploadPendingCv = async (file: File): Promise<{ token: string; fileName: string } | { error: 'type' | 'size' | 'rate' | 'busy' | 'upload_failed' }> => {
+    const kept = pendingCv.current
+    if (kept && kept.file === file && Date.now() - kept.at < CV_PENDING_REUSE_MS) return kept
+    pendingCv.current = null
+    // Its age counts from BEFORE the request: the server's clock started when it wrote the tombstone, before the upload.
+    const at = Date.now()
+    try {
+      const form = new FormData(); form.append('file', file)
+      const res = await fetch('/api/teachers/me/cv?pending=1', { method: 'POST', body: form })
+      const d = await res.json().catch(() => ({})) as { cvUpload?: unknown; cvFileName?: unknown; error?: unknown }
+      if (res.ok && isCvUploadToken(d.cvUpload)) {
+        const up = { file, token: d.cvUpload, fileName: typeof d.cvFileName === 'string' && d.cvFileName ? d.cvFileName : file.name, at }
+        pendingCv.current = up
+        return up
+      }
+      // A 429 is the ACCOUNT's upload limit (the route's own and its pending mode's), said as such — "try again" would only
+      // spend more of it; cv_capacity is the connection's day cap, said as "busy on this network" (commit gate, 2026-10-22).
+      return { error: d.error === 'cv_type' ? 'type' : d.error === 'cv_size' ? 'size' : d.error === 'cv_capacity' ? 'busy' : res.status === 429 ? 'rate' : 'upload_failed' }
+    } catch {
+      return { error: 'upload_failed' }
+    }
+  }
+  /**
+   * A CV pick, checked as the upload checks it (teacher-form-rules.ts cvPickError — owner, 2026-10-21: the CV is required,
+   * so a file that can never go up is said when it is picked, not at Publish). A refused pick is said on the CV section and
+   * not kept; a good one clears that line (a pick never goes through set()).
+   */
+  const pickCv = (file: File) => {
+    const why = cvPickError(file)
+    if (why) { setErrors((prev) => ({ ...prev, cv: why })); return }
+    setCvFile(file)
+    clearErrorsFor(['cv'])
   }
 
   // ── Hand-off, sign-in, publish ──────────────────────────────────────────────────────────────────────────────────
@@ -1594,6 +1658,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     // ⛔ THE INTRO VIDEO "FROM NOW ON" (owner, 2026-10-16): a new profile, or one created since the cutoff, has one — a
     // public or a private video — as the server requires (publish.ts). Older profiles keep the old rule.
     if (videoRequired && !t.videoUrl && !privateVideo) all.videoUrl = 'required'
+    // ⛔ THE CV "FROM NOW ON" (owner, 2026-10-21): a new profile, or one created since the cutoff that has one, has a CV —
+    // picked, or saved — as the server requires (publish.ts). Older profiles keep the old rule.
+    if (cvRequired && !cvFile && !cvName) all.cv = 'required'
     // A photo the check already refused is said there, never sent (the server would refuse it the same way).
     if (photoCheck && photoCheck.url === t.photoUrl && photoCheck.state === 'fail' && photoCheck.reason) all.photoUrl = photoCheck.reason
     if (Object.keys(all).length) {
@@ -1623,7 +1690,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       if (inFlight) await inFlight.catch(() => {})
     }
     try {
-      const body = {
+      // `cv`: the new profile's CV, uploaded before this PUT (below) — named by its token, create-only like the hide.
+      const bodyWith = (cv: { token: string; fileName: string } | null) => ({
         ...t,
         // ⛔ THE PUBLISH TAP IS THE CONSENT — under the notice beside it (the action bar's line and "What's public?").
         publishNotice: PUBLISH_NOTICE_VERSION,
@@ -1644,10 +1712,47 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         videoBase: mode === 'edit' ? videoBase : null,
         // ⛔ A save names the profile it edits, or claims there is none — never neither (api/teachers/me PUT).
         teacherProfileId: mode === 'edit' ? teacherProfileId : null,
+        // ⛔ THE CV A NEW PROFILE PUBLISHES WITH (owner, 2026-10-21): its pending upload's token and name (cvFirst, below) —
+        // CREATE-ONLY (the server ignores both on an edit, whose picked CV goes up after the save), never a path (publish.ts
+        // cvUploadOf). The KEY rides every join Publish, null when there is no upload: a create without it is a tab from
+        // before the CV was required, which the server answers "reload" (publish.ts) — this form is not one. An edit form
+        // whose profile never loaded (it claims a create too) sends a token only with a picked CV: without one, "reload"
+        // is the right answer for it as well (commit gate, opus 2026-10-22 — never "add your CV" to a teacher who has one).
+        ...(cv ? { cvUpload: cv.token, cvFileName: cv.fileName } : mode === 'join' ? { cvUpload: null } : {}),
+      })
+      // ⛔ A NEW PROFILE'S CV GOES UP FIRST (uploadPendingCv): a failed upload refuses this Publish on the CV, with nothing
+      // sent — counted as one that did not go through. A file the server will never take (renamed, too big) is let go, so the
+      // section asks for another; one that only failed to arrive stays, for the next tap. "New" is what this PUT claims: the
+      // join form always, and an edit form whose profile never loaded (it saves with no teacherProfileId, so it may only
+      // create — and the create needs the CV it names, or every Save there would be refused for it).
+      const cvFirst = async (): Promise<{ token: string; fileName: string } | null | 'refused'> => {
+        if ((mode === 'edit' && teacherProfileId) || !cvFile) return null
+        const up = await uploadPendingCv(cvFile)
+        if (!('error' in up)) return up
+        if (counting) countTeacherFormEvent('publish_failed')
+        if (up.error === 'type' || up.error === 'size') setCvFile(null)
+        refuse({ cv: up.error })
+        return 'refused'
       }
-      const res = await fetch('/api/teachers/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const put = (cv: { token: string; fileName: string } | null) =>
+        fetch('/api/teachers/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyWith(cv)) })
+      let cvSent = await cvFirst()
+      if (cvSent === 'refused') return
+      let res = await put(cvSent)
+      let d = await res.json().catch(() => ({}))
+      // The server no longer holds that upload (swept after its hour, or never this account's — publish.ts 'expired'): a
+      // fresh one, and this Publish sent once more — ONCE; a second refusal is said like any other.
+      if (!res.ok && cvSent && d.error === 'invalid_teacher_profile' && d.fields?.cv === 'expired') {
+        pendingCv.current = null
+        cvSent = await cvFirst()
+        if (cvSent === 'refused') return
+        res = await put(cvSent)
+        d = await res.json().catch(() => ({}))
+        // Refused again: that token is no good either — the next tap uploads afresh instead of naming it once more
+        // (commit gate, opus 2026-10-22: each such cycle spent two of the hour's uploads).
+        if (!res.ok && d.error === 'invalid_teacher_profile' && d.fields?.cv === 'expired') pendingCv.current = null
+      }
       saved = res.ok
-      const d = await res.json().catch(() => ({}))
       if (!res.ok) {
         if (counting) countTeacherFormEvent('publish_failed')
         if (d.error === 'invalid_teacher_profile' && d.fields) {
@@ -1717,7 +1822,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       // The server recorded the one-time account step with this Publish: the session knows it at once — before the CV
       // upload, which can fail or be cut short — so the onboarding gate never sends this account to /onboard afterwards.
       if (d.onboarded === true) markOnboarded('individual')
-      if (cvFile) await uploadCv(cvFile)
+      // A new profile's CV went in WITH it (the create attached its pending upload): saved now, its token spent. An edit's
+      // picked CV still goes up AFTER its save — its own call, which replaces the saved one and never throws (uploadCv).
+      if (cvSent) { setCvName(cvSent.fileName); setCvFile(null); setSavedHadCv(true); pendingCv.current = null }
+      else if (mode === 'edit' && cvFile) await uploadCv(cvFile)
       clearStored()
       // The cover AS STORED (the server returns it): the next save's base and the real "confirmed on" date —
       // never the form's own copy, whose order and date the server does not share (gate review).
@@ -1907,9 +2015,29 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     if (res.ok) window.location.assign('/')
     else setFormError(tr('Could not delete your profile.', 'Không xoá được hồ sơ.'))
   }
+  /** The saved CV's own Remove (edit). ⛔ Every outcome is said (2026-10-21 — it used to fail silently). */
   const removeCv = async () => {
-    const res = await fetch('/api/teachers/me/cv', { method: 'DELETE' })
-    if (res.ok) setCvName(null)
+    // ⛔ ONE CV CHANGE AT A TIME (commit gate, codex 2026-10-22): while this DELETE is on its way the form is busy, so no new
+    // pick and no Save can start — a Save's new upload committing first would otherwise be the CV this late DELETE finds
+    // under the server's lock, and removes.
+    if (busy) return
+    setBusy('saving')
+    setFormError('')
+    try {
+      const res = await fetch('/api/teachers/me/cv', { method: 'DELETE' })
+      const d = await res.json().catch(() => ({}))
+      // Removed — or already gone (another window): the section shows none either way.
+      if (res.ok || d.error === 'cv_missing') { setCvName(null); setSavedHadCv(false); return }
+      // A profile created since the cutoff keeps its CV (2026-10-21): replace it instead.
+      if (d.error === 'cv_required') setFormError(tr('Your profile needs a CV — upload a new one to replace it.', 'Hồ sơ của bạn cần có CV — hãy tải CV mới lên để thay.'))
+      else setFormError(tr('Could not remove your CV. Please try again.', 'Không xoá được CV. Vui lòng thử lại.'))
+    } catch {
+      setFormError(tr('Could not remove your CV. Please try again.', 'Không xoá được CV. Vui lòng thử lại.'))
+    } finally {
+      setBusy('')
+    }
+    // Said where it can be seen: the form's line sits under the whole step, far below the CV on a phone.
+    revealFirstError({ formLineFirst: true })
   }
 
   // ── Intro video (2026-10-07) ─────────────────────────────────────────────────────────────────────
@@ -2214,7 +2342,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
             : tr('Your answers are saved to your account each time you move to another step.', 'Câu trả lời được lưu vào tài khoản mỗi khi bạn chuyển sang bước khác.')}
           {/* ⛔ What a saved draft never keeps is given again where it is given (forDraft) — said where that is. */}
           {(step === 'cover' || step === 'finish') && draftLoaded && draftState !== 'error' ? (
-            <>{' '}{tr('The draft does not keep your photo, video, phone or the switches on this step — you set them again when you come back.', 'Bản nháp không lưu ảnh, video, số điện thoại và các công tắc ở bước này — bạn sẽ đặt lại khi quay lại.')}</>
+            <>{' '}{tr('The draft does not keep your photo, video, CV, phone or the switches on this step — you set them again when you come back.', 'Bản nháp không lưu ảnh, video, CV, số điện thoại và các công tắc ở bước này — bạn sẽ đặt lại khi quay lại.')}</>
           ) : null}
           {draftRev.current ? (
             <>
@@ -2342,8 +2470,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     )
   }
   if (done) {
-    // "Add more to stand out", most useful first — each opens the step that asks it.
+    // "Add more to stand out", most useful first — each opens the step that asks it. The CV first when none is saved (an
+    // older profile, or an edit whose upload after the save failed): schools ask for it first (owner, 2026-10-21).
     const more: { step: TeacherStep; label: string }[] = [
+      ...(!cvName ? [{ step: 'finish' as const, label: tr('Add your CV', 'Thêm CV của bạn') }] : []),
       ...(!t.videoUrl && !privateVideo ? [{ step: 'finish' as const, label: tr('Add an intro video', 'Thêm video giới thiệu') }] : []),
       ...(!t.bio ? [{ step: 'about' as const, label: tr('Say more about yourself', 'Giới thiệu thêm về bạn') }] : []),
       ...(!t.certificates.length ? [{ step: 'teaching' as const, label: tr('Add your certificates', 'Thêm chứng chỉ') }] : []),
@@ -2576,9 +2706,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
               {draftLine}
               <p className="mt-1 text-sm text-muted-foreground">{tr('Free. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
               {/* What Publish will ask for, said before the first answer (2026-10-17 — the bounce study's "say the video up
-                  front": since the video became required on 10-16, half of those who reached the last step stopped there). */}
+                  front": since the video became required on 10-16, half of those who reached the last step stopped there).
+                  The CV too since it is required (owner, 2026-10-21) — a PDF, which a teacher may first have to make. */}
               {mode === 'join' && !existing && step === 'plans' && (
-                <p className="mt-1 text-sm text-muted-foreground">{tr('You will add a clear photo of yourself and a short intro video (20–30 seconds is enough). Once you sign in, your answers are saved, so you can finish on a laptop.', 'Bạn sẽ thêm một ảnh rõ mặt và một video giới thiệu ngắn (20–30 giây là đủ). Sau khi đăng nhập, câu trả lời được lưu, nên bạn có thể hoàn tất trên máy tính.')}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{tr('You will add a clear photo of yourself, a short intro video (20–30 seconds is enough) and your CV as a PDF. Once you sign in, your answers are saved, so you can finish on a laptop.', 'Bạn sẽ thêm một ảnh rõ mặt, một video giới thiệu ngắn (20–30 giây là đủ) và CV dạng PDF. Sau khi đăng nhập, câu trả lời được lưu, nên bạn có thể hoàn tất trên máy tính.')}</p>
               )}
             </div>
             {importLine}
@@ -2638,12 +2769,14 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
               photoCheck={photoCheck && photoCheck.url === t.photoUrl ? photoCheck : null}
               photoAsk={mode === 'edit' && photoAsk && t.photoUrl === savedPhotoUrl ? photoAsk : null}
               videoRequired={videoRequired}
+              cvRequired={cvRequired}
               videoProgress={videoProgress}
               media={{
                 busy, onPhoto: uploadPhoto, onVideo: uploadVideo, privateVideo, savedPublicUrl, ownVideoUrl, ownVideoBusy, videoRemoving,
                 confirmVideoRemove, setConfirmVideoRemove, onWatchOwnVideo: watchOwnVideo, onCloseOwnVideo: () => setOwnVideoUrl(null),
                 onOwnVideoError: () => { setOwnVideoUrl(null); setFormError(tr('Your video could not be played. Tap Watch to try again.', 'Không phát được video của bạn. Bấm Xem để thử lại.')) },
-                onRemovePrivateVideo: removePrivateVideo, cvName, cvFile, onCvPick: setCvFile, onCvDiscard: () => setCvFile(null),
+                // A pick is checked as it is made (pickCv); letting it go takes its line with it.
+                onRemovePrivateVideo: removePrivateVideo, cvName, cvFile, onCvPick: pickCv, onCvDiscard: () => { setCvFile(null); clearErrorsFor(['cv']) },
                 onCvRemove: mode === 'edit' ? removeCv : null,
               }}
               edit={mode === 'edit' ? {

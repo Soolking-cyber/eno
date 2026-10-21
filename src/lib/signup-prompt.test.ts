@@ -457,4 +457,8 @@ describe('teacher form events after step 1, and the coarse source of step 1’s 
     }
     expect(isTeacherFormEvent('continue_meta')).toBe(false)
   })
+  it('the CV refusal (required for a new profile since 2026-10-21) is its own counted event — the route takes it', () => {
+    expect(isTeacherFormEvent('publish_refused_cv')).toBe(true)
+    expect(parseTeacherCounterKey(teacherCounterKey('2026-10-23', 'marketplace', 'publish_refused_cv', 'browser.phone.vi'))?.event).toBe('publish_refused_cv')
+  })
 })

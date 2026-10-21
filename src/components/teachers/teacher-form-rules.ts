@@ -14,6 +14,7 @@ import {
   teacherFreeTextFields, teacherSteps, validateTeacherInput, type Relocate, type TeacherErrors, type TeacherInput, type TeacherStep,
 } from '@/lib/teachers/profile'
 import { teacherTextRefusal } from '@/lib/teachers/text-screen'
+import { TEACHER_CV_MAX_BYTES } from '@/lib/teachers/constants'
 import { storedLanguageLabel } from '@/components/teachers/language-list'
 
 export type Situation = Pick<TeacherInput, 'livesIn' | 'currentCity' | 'currentProvince' | 'currentDistrictKey'>
@@ -23,8 +24,13 @@ export const isTeacherStep = (v: unknown): v is TeacherStep => typeof v === 'str
 /** The steps that need a session on eno.vn — everything after the four draft steps. */
 export const ACCOUNT_STEPS: readonly TeacherStep[] = TEACHER_STEPS.filter((s) => !DRAFT_STEPS.includes(s))
 
-/** The step a field (or an `experience.2` / `certificates.0` row) is asked on. */
+/**
+ * The step a field (or an `experience.2` / `certificates.0` row) is asked on — and the CV's (2026-10-21): no TeacherInput
+ * field (profile.ts TeacherErrors), asked on Photo & publish, so a refusal of it — the form's or the server's — opens that
+ * step from any step of an edit.
+ */
 export function stepOfField(key: string): TeacherStep | undefined {
+  if (key === 'cv') return 'finish'
   return TEACHER_STEPS.find((s) => (TEACHER_STEP_FIELDS[s] as readonly string[]).some((f) => key === f || key.startsWith(`${f}.`)))
 }
 
@@ -39,6 +45,7 @@ export function checkSteps(t: TeacherInput, steps: readonly TeacherStep[]): Teac
   return validateTeacherInput(normalizeForSave(t), steps)
 }
 
+type RefusalEvent = 'publish_refused_video' | 'publish_refused_photo' | 'publish_refused_cv' | 'publish_refused_goal' | 'publish_refused_other'
 /**
  * ⛔ THE TEXTS PUBLISH WILL REFUSE, refused in the browser at Publish (2026-10-21; text-screen.ts teacherTextRefusal — the
  * server's own decision): the field shows the teacher's own words (steps/shared.tsx) instead of a save that comes back
@@ -59,17 +66,36 @@ export function textRefusals(t: TeacherInput): TeacherErrors {
 
 /**
  * What a refused Publish was missing, in the counters' words (signup-prompt.ts publish_refused_*): the video, the photo,
- * the goal (no work wanted and cover off — profile.ts splitGoalErrors' pair), anything else — each that applies.
+ * the CV (2026-10-21 — required since), the goal (no work wanted and cover off — profile.ts splitGoalErrors' pair),
+ * anything else — each that applies.
  */
-export function refusalEvents(errs: TeacherErrors): Array<'publish_refused_video' | 'publish_refused_photo' | 'publish_refused_goal' | 'publish_refused_other'> {
-  const out = new Set<'publish_refused_video' | 'publish_refused_photo' | 'publish_refused_goal' | 'publish_refused_other'>()
+export function refusalEvents(errs: TeacherErrors): RefusalEvent[] {
+  const out = new Set<RefusalEvent>()
   for (const [k, v] of Object.entries(errs)) {
     if (k === 'videoUrl') out.add('publish_refused_video')
     else if (k === 'photoUrl') out.add('publish_refused_photo')
+    else if (k === 'cv') out.add('publish_refused_cv')
     else if ((k === 'jobTypes' && v === 'required') || (k === 'coverOpen' && v === 'goal_required')) out.add('publish_refused_goal')
     else out.add('publish_refused_other')
   }
   return [...out]
+}
+
+/**
+ * Can this picked file be the CV? Judged as the upload judges it (cv-store.ts — the bucket takes a PDF of at most
+ * TEACHER_CV_MAX_BYTES, and the server reads its first bytes): 'size' when it is over the limit, 'type' only when it is
+ * plainly something else — a known other type, or a known other extension with no type to go by — null when it may go up
+ * (owner, 2026-10-21: the CV is required, so a file that can never go up is said when it is picked, not at Publish).
+ * ⛔ NO TYPE IS NOT "NOT A PDF" (commit gate, opus 2026-10-22): Android's in-app browsers — Zalo's, Facebook's and
+ * Messenger's, the teacher funnel's own traffic — can hand over a Drive or storage-app PDF with an empty or
+ * octet-stream type and a name with no extension ("document", "1000123456"); refused here, a real PDF would block the
+ * Publish it is required for. Such a file goes up, and the server's %PDF- check decides.
+ */
+const NOT_PDF_EXT = /\.(?:docx?|odt|rtf|txt|pages|jpe?g|png|gif|webp|heic|heif|tiff?|bmp|zip|rar|7z|exe|apk|html?)$/i
+export function cvPickError(f: { type: string; name: string; size: number }): 'type' | 'size' | null {
+  const unknownType = !f.type || f.type === 'application/octet-stream' || f.type === 'binary/octet-stream'
+  if (f.type !== 'application/pdf' && !/\.pdf$/i.test(f.name) && (!unknownType || NOT_PDF_EXT.test(f.name))) return 'type'
+  return f.size > TEACHER_CV_MAX_BYTES ? 'size' : null
 }
 
 /**

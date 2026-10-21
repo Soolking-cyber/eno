@@ -60,7 +60,8 @@ const tx = {
   listing: { update: async (args: Row) => { h.listingWrites.push(args) }, create: async (args: Row) => { h.listingWrites.push(args); return { id: 'L-new' } },
     // the save reads whether schools see it INSIDE its transaction (nothing after the commit may fail the request)
     findUnique: async () => ({ status: 'active', verified: true }) },
-  storageTombstone: { deleteMany: async () => ({ count: 0 }) },
+  // A new profile publishes with its CV (owner, 2026-10-21): its pending upload is found under the lock (publish.cv.test.ts).
+  storageTombstone: { deleteMany: async () => ({ count: 0 }), findUnique: async () => ({ reason: 'teacher_cv_pending', notBefore: new Date(Date.now() + 55 * 60_000) }) },
   teacherVideoShare: { updateMany: async () => ({ count: 0 }) },
 }
 vi.mock('@/lib/db', () => ({
@@ -91,6 +92,8 @@ const body = (o: Row = {}) => ({
   // A new profile publishes with its intro video (owner, 2026-10-16), so the complete body carries one, shown publicly.
   photoUrl: 'https://sb.eno.vn/storage/v1/object/public/listings/a.webp', videoUrl: 'https://sb.eno.vn/storage/v1/object/public/listing-videos/1700000000001-abcd12.mp4', videoOnRequest: false, videoBase: 0,
   phone: '', matchEmailOptIn: false, staffContactOptIn: false, publishNotice: PUBLISH_NOTICE_VERSION, aiNotice: AI_NOTICE_VERSION,
+  // …and its CV (owner, 2026-10-21): the token of the upload made before this save — create-only, an edit ignores it.
+  cvUpload: 'dddddddd-0000-4000-8000-000000000004', cvFileName: 'cv.pdf',
   ...o,
 })
 /** The stored row the save finds — v2, consented under today's Publish notice. */

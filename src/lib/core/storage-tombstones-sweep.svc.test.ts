@@ -165,6 +165,22 @@ describe('the tombstone sweep', () => {
     expect(r).toMatchObject({ removed: 2, dropped: 1, failed: 0 })
   })
 
+  /**
+   * A NEW PROFILE'S CV, uploaded BEFORE its first Publish (2026-10-21 — POST /api/teachers/me/cv?pending=1): tombstoned
+   * 'teacher_cv_pending' before the upload, and the tombstone deleted by the create that attaches it (publish.ts). The sweep
+   * judges it by its BUCKET, never its reason — like every other CV: within its grace it is left alone (the create has the
+   * hour), unclaimed after it the file is removed, and one a TeacherPrivate row holds (a create whose delete did not land)
+   * keeps its file.
+   */
+  it('teacher-cvs pending uploads: untouched in their grace, removed unclaimed, kept once a TeacherPrivate row holds one', async () => {
+    h.teacherPaths = ['p1/claimed.pdf']
+    await writeTombstones(db, [{ bucket: 'teacher-cvs', path: 'p1/unclaimed.pdf' }, { bucket: 'teacher-cvs', path: 'p1/claimed.pdf' }], 'teacher_cv_pending', t0)
+    expect(await sweepTombstones(new Date(t0.getTime() + 30 * 60_000))).toMatchObject({ removed: 0, dropped: 0, queued: 2 })
+    const r = await sweepTombstones(later)
+    expect(h.removed).toEqual([{ bucket: 'teacher-cvs', paths: ['p1/unclaimed.pdf'] }])
+    expect(r).toMatchObject({ removed: 1, dropped: 1, failed: 0, queued: 0 })
+  })
+
   it('private business-verification bucket: an unreferenced object is removed', async () => {
     await writeTombstones(db, [{ bucket: 'business-verification', path: 'p1/identity/selfie-x.jpg' }], 'account_deleted', t0)
     const r = await sweepTombstones(later)

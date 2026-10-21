@@ -232,8 +232,14 @@ export const EMPTY_TEACHER: TeacherInput = {
   photoUrl: null, videoUrl: null, videoOnRequest: false, phone: '', matchEmailOptIn: false, staffContactOptIn: false,
 }
 
-/** Field → error code. Codes, not prose: the form words them bilingually. */
-export type TeacherErrors = Partial<Record<keyof TeacherInput | `experience.${number}` | `certificates.${number}`, string>>
+/**
+ * Field → error code. Codes, not prose: the form words them bilingually.
+ * `cv` (2026-10-21 — the CV is required for a new profile): the CV is no TeacherInput field — never in a draft or a
+ * hand-off, nor in TEACHER_STEP_FIELDS or validateTeacherInput, which drafts and draftResumeStep read (the video's required
+ * rule stays outside them too) — so its refusals (the save's 'required' / 'expired', the form's 'type' / 'size' /
+ * 'upload_failed') get a key of their own; the form's stepOfField places it on Photo & publish.
+ */
+export type TeacherErrors = Partial<Record<keyof TeacherInput | `experience.${number}` | `certificates.${number}` | 'cv', string>>
 
 /**
  * The wizard's steps, in order, and which fields each one owns — validation of a step checks only these.

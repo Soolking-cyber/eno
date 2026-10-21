@@ -306,9 +306,10 @@ export const isGateAction = (v: unknown): v is GateAction => typeof v === 'strin
  *   video_failed       — an error while preparing it in this browser or uploading it (not the check's refusal above)
  *   video_uploaded     — the video was uploaded (it is on the profile only once Publish goes through)
  *   publish_tap        — Publish tapped (signed in)
- *   publish_refused_*  — the form refused it, for: the video / the photo (missing, or the photo check's refusal) / the goal
- *                        (no work wanted and cover off) / anything else — each that applies, once per page
- *   publish_failed     — did not go through: the server refused it or did not answer
+ *   publish_refused_*  — the form refused it, for: the video / the photo (missing, or the photo check's refusal) / the CV
+ *                        (none picked or saved — required since 2026-10-21) / the goal (no work wanted and cover off) /
+ *                        anything else — each that applies, once per page
+ *   publish_failed     — did not go through: the server refused it or did not answer (the CV's upload just before it too)
  *   continue_<source>  — with step 1's Continue: where the link that brought this page came from (ad / groups / zalo /
  *                        other / none — continueSourceEvent), read from this page's own address, never stored
  *   escape_tap         — "Open in your browser" tapped inside Facebook's, Messenger's or Instagram's built-in browser
@@ -317,7 +318,8 @@ export const TEACHER_FORM_EVENTS = [
   'step1_ready', 'step1_answered', 'step1_blocked', 'step1_continue', 'published',
   'step_where', 'step_teaching', 'step_about', 'step_cover', 'step_finish',
   'video_picked', 'video_refused', 'video_failed', 'video_uploaded',
-  'publish_tap', 'publish_refused_video', 'publish_refused_photo', 'publish_refused_goal', 'publish_refused_other', 'publish_failed',
+  'publish_tap', 'publish_refused_video', 'publish_refused_photo', 'publish_refused_cv', 'publish_refused_goal', 'publish_refused_other',
+  'publish_failed',
   'continue_ad', 'continue_groups', 'continue_zalo', 'continue_other', 'continue_none',
   'escape_tap',
 ] as const

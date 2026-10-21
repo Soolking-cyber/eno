@@ -105,6 +105,20 @@ export function makeErrText(tr: (en: string, vi: string) => string) {
         case 'phone': return tr('Please add your phone number — our staff need it to call you.', 'Vui lòng thêm số điện thoại — nhân viên cần số này để gọi cho bạn.')
         case 'coverSlots': return tr('Please tap at least one period you are usually free.', 'Vui lòng bấm chọn ít nhất một buổi bạn thường rảnh.')
         case 'coverRateVnd': return tr('Please set your hourly rate.', 'Vui lòng đặt mức phí theo giờ.')
+        // Required for a new profile since 2026-10-21 (owner: "they should include cv") — and said to stay private.
+        case 'cv': return tr('Please add your CV — a PDF up to 10 MB. It stays private: schools get it only when you share it in a chat.', 'Vui lòng thêm CV — tệp PDF tối đa 10 MB. CV được giữ riêng tư: các trường chỉ nhận được khi bạn chia sẻ trong tin nhắn.')
+      }
+    }
+    // The CV's own refusals (2026-10-21): a pick the upload would never take, an upload that did not arrive, and one the
+    // server no longer held when Publish named it (the form has already tried it again once).
+    if (field === 'cv') {
+      switch (code) {
+        case 'type': return tr('Your CV must be a PDF.', 'CV phải là tệp PDF.')
+        case 'size': return tr('Your CV must be 10 MB or smaller.', 'CV phải có dung lượng tối đa 10 MB.')
+        case 'upload_failed': return tr('Your CV didn’t upload. Please try again.', 'Chưa tải được CV lên. Vui lòng thử lại.')
+        case 'rate': return tr('Too many CV uploads from this account — please try again in an hour.', 'Tài khoản này đã tải CV lên quá nhiều lần — vui lòng thử lại sau một giờ.')
+        case 'busy': return tr('CV uploads are busy on this network right now — please try again later, or from another connection.', 'Hiện có quá nhiều lượt tải CV từ mạng này — vui lòng thử lại sau, hoặc dùng kết nối khác.')
+        case 'expired': return tr('Your CV upload expired. Please tap Publish again.', 'CV tải lên đã hết hạn. Vui lòng bấm Đăng lần nữa.')
       }
     }
     // A certificate row with NO TYPE — only a draft from the previous form holds one (it added a row before its type

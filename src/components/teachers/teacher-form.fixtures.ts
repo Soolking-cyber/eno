@@ -52,7 +52,11 @@ export function unb64url(s: string): unknown {
 }
 
 export type Call = { url: string; method: string; body: unknown }
-/** A fetch fake: `routes` answers by "METHOD path" (query stripped); every call is recorded. */
+/**
+ * A fetch fake: `routes` answers by "METHOD path" — the whole URL first, query included, so one query can have its own
+ * answer ('POST /api/teachers/me/cv?pending=1', the join form's CV upload before its Publish); else the path alone
+ * (query stripped). Every call is recorded.
+ */
 export function fakeFetch(routes: Record<string, (body: unknown) => { status?: number; json: unknown }>) {
   const calls: Call[] = []
   const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -60,7 +64,7 @@ export function fakeFetch(routes: Record<string, (body: unknown) => { status?: n
     const method = (init?.method ?? 'GET').toUpperCase()
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body ?? null
     calls.push({ url, method, body })
-    const route = routes[`${method} ${url.split('?')[0]}`]
+    const route = routes[`${method} ${url}`] ?? routes[`${method} ${url.split('?')[0]}`]
     const r = route ? route(body) : { status: 404, json: { error: 'not_found' } }
     return new Response(JSON.stringify(r.json), { status: r.status ?? 200, headers: { 'Content-Type': 'application/json' } })
   })

@@ -9,7 +9,10 @@
 //     "make short intor video mandatory from now on"), optional for older ones; such a profile can replace its video,
 //     never remove it. "Who can watch it?" appears only once there IS a video. The video's homes and moves are
 //     src/lib/teachers/video.ts; the form never holds a private video's address (teacher-form.tsx owns those calls).
-//   · CV (optional, private) · Phone (private; required only while "Our staff may call me" is on — owner, 2026-10-08).
+//   · CV (private) — REQUIRED for a new profile and one created since TEACHER_CV_REQUIRED_FROM (owner, 2026-10-21: "they
+//     should include cv"), optional for older ones; such a profile can replace its CV, never remove it. A pick is
+//     checked as it is made (a PDF, 10 MB at most); a new profile's goes up just before its Publish (teacher-form.tsx).
+//   · Phone (private; required only while "Our staff may call me" is on — owner, 2026-10-08).
 //   · Job seekers only: "Email me jobs that match my profile" and "Our staff may call me" — LABELLED SWITCHES, OFF by
 //     default, each its own consent (plan review C2), with ONE AI note beside them naming Anthropic (Claude) and the
 //     transfer abroad. ⛔ Its meaning is AI_NOTICE_VERSION (profile.ts): the form sends it as `aiNotice` whenever an
@@ -73,6 +76,7 @@ export type FinishMedia = {
   onRemovePrivateVideo: () => void
   cvName: string | null
   cvFile: File | null
+  /** A picked file — checked by the form as it is picked (a PDF, 10 MB at most), and refused on the CV section if not. */
   onCvPick: (file: File) => void
   /** Lets go of a PICKED file that is not uploaded yet — back to the saved CV, or to none (gate review, 2026-10-08). */
   onCvDiscard: () => void
@@ -221,7 +225,7 @@ export function IdentityMarkSection({ mark }: { mark: FinishIdentityMark }) {
   )
 }
 
-export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGate, prefillAvatar, prefillPhone, imported = null, media, edit, optInsNoticeChanged, identityMark, photoCheck = null, photoAsk = null, videoRequired = false, videoProgress = null }: Pick<StepProps, 't' | 'set' | 'errors' | 'errText' | 'mode'> & {
+export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGate, prefillAvatar, prefillPhone, imported = null, media, edit, optInsNoticeChanged, identityMark, photoCheck = null, photoAsk = null, videoRequired = false, cvRequired = false, videoProgress = null }: Pick<StepProps, 't' | 'set' | 'errors' | 'errText' | 'mode'> & {
   signedIn: boolean
   /** The photo check's answer for the photo on the page (teacher-form.tsx) — null: not asked, or no check on this server. */
   photoCheck?: { state: 'checking' | 'ok' | 'fail' | 'unavailable'; reason?: 'not_photo' | 'no_face' } | null
@@ -229,6 +233,8 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
   photoAsk?: { reason: string } | null
   /** A new profile, or one created since the cutoff: the video is required, and can be replaced but never removed. */
   videoRequired?: boolean
+  /** The same for the CV (constants.ts TEACHER_CV_REQUIRED_FROM): a pick can still be let go, the SAVED CV only replaced. */
+  cvRequired?: boolean
   /** A clip over the storage ceiling being made smaller: its progress, 0–1. */
   videoProgress?: number | null
   publishGate: { ok: boolean; code: string | null } | null
@@ -238,8 +244,10 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
   /** The account's verified phone — filled in when the phone is empty and the form accepts it, offered here otherwise. */
   prefillPhone: string | null
   /**
-   * What "Fill it in from my CV" read (teacher CV import, 2026-10-15), OFFERED here and never used unasked: the phone
-   * number in the file (the notice beside the reading said so), and the PDF itself as the private CV schools may be sent.
+   * What "Fill it in from my CV" read (teacher CV import, 2026-10-15). Since 2026-10-16 both are FILLED IN, not offered
+   * (owner: "autofill as much as possible" — teacher-form.tsx applyImport): the phone into an empty field, the PDF as the
+   * picked CV when none is. Offered again here only once let go: the number while the field is empty, the file while no CV
+   * is picked or saved.
    */
   imported?: { phone: string | null; file: File | null } | null
   media: FinishMedia
@@ -382,24 +390,32 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
         {errors.videoUrl && <p role="alert" className="text-sm text-destructive">{errText('videoUrl', errors.videoUrl)}</p>}
       </section>
 
-      <section className="space-y-3">
+      <section className="space-y-3" {...(errors.cv ? { 'data-invalid': '' } : {})}>
         <div>
-          <h2 className="text-base font-semibold text-foreground">{tr('CV (optional)', 'CV (không bắt buộc)')}</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">{tr('PDF, up to 10 MB. Private: the person you are chatting with gets it only when you tap the Share button in that chat.', 'PDF, tối đa 10 MB. Riêng tư: người đang trò chuyện với bạn chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ.')}</p>
+          <h2 className="text-base font-semibold text-foreground">{cvRequired ? tr('CV', 'CV') : tr('CV (optional)', 'CV (không bắt buộc)')}</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">{cvRequired
+            ? tr('PDF, up to 10 MB. Schools ask for it first. Private: the person you are chatting with gets it only when you tap the Share button in that chat.', 'PDF, tối đa 10 MB. Các trường thường hỏi CV trước tiên. Riêng tư: người đang trò chuyện với bạn chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ.')
+            : tr('PDF, up to 10 MB. Private: the person you are chatting with gets it only when you tap the Share button in that chat.', 'PDF, tối đa 10 MB. Riêng tư: người đang trò chuyện với bạn chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ.')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {(media.cvFile || media.cvName) && <span className="inline-flex min-w-0 items-center gap-2 text-sm text-body [overflow-wrap:anywhere]"><FileText className="size-4 shrink-0" />{media.cvFile?.name ?? media.cvName}</span>}
           <label className={pickerCls}>
             <FileText className="size-4" />
             {media.cvFile || media.cvName ? tr('Replace CV', 'Thay CV') : tr('Choose PDF', 'Chọn tệp PDF')}
-            <input type="file" accept="application/pdf,.pdf" className="sr-only" disabled={!signedIn} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) media.onCvPick(f) }} />
+            {/* Not while a Publish is on its way: a new profile's pick is being uploaded for it right then. */}
+            <input type="file" accept="application/pdf,.pdf" className="sr-only" disabled={!signedIn || media.busy === 'saving'} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) media.onCvPick(f) }} />
           </label>
-          {media.onCvRemove && media.cvName && !media.cvFile && <Button variant="ghost" size="sm" type="button" onClick={media.onCvRemove}><Trash2 className="size-4" />{tr('Remove', 'Xoá')}</Button>}
+          {/* Required (a new profile, or one created since the cutoff): the saved CV is replaced, never removed — the server
+              refuses it (409 cv_required). */}
+          {/* ⛔ …and nothing about the CV changes while a Publish / Save is on its way (commit gate, codex 2026-10-22): that
+              save already carries the file it read when it started, so a Remove or "Keep my saved CV" tapped meanwhile
+              would be undone by it — every CV control waits, as the file input does. */}
+          {media.onCvRemove && media.cvName && !media.cvFile && !cvRequired && <Button variant="ghost" size="sm" type="button" disabled={media.busy === 'saving'} onClick={media.onCvRemove}><Trash2 className="size-4" />{tr('Remove', 'Xoá')}</Button>}
           {/* ⛔ A PICK IS NOT A COMMITMENT (gate review, 2026-10-08): a picked file is uploaded only by Publish / Save
               changes, and until then it can be let go — "Replace CV" alone left no way back to no CV, or to the saved
               one, short of abandoning the form. Over a saved CV it says which one stays. */}
           {media.cvFile && (
-            <Button variant="ghost" size="sm" type="button" onClick={media.onCvDiscard}>
+            <Button variant="ghost" size="sm" type="button" disabled={media.busy === 'saving'} onClick={media.onCvDiscard}>
               <X className="size-4" />{media.cvName ? tr('Keep my saved CV', 'Giữ CV đã lưu') : tr('Remove', 'Xoá')}
             </Button>
           )}
@@ -407,10 +423,11 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
         {/* The file the form was filled from, offered as the CV — a pick like any other (uploaded only by Publish). */}
         {imported?.file && !media.cvFile && !media.cvName && signedIn && (
           // max-w-full + a shrinking name: a long file name is cut, never wider than a 375px screen (review, 2026-10-16).
-          <Chip size="sm" tone="neutral" className="relative tap-44 max-w-full self-start" onClick={() => media.onCvPick(imported.file!)}>
+          <Chip size="sm" tone="neutral" className="relative tap-44 max-w-full self-start" disabled={media.busy === 'saving'} onClick={() => media.onCvPick(imported.file!)}>
             <FileText className="size-3.5 shrink-0" /><span className="shrink-0">{tr('Attach the CV you used earlier:', 'Đính kèm CV bạn đã dùng:')}</span><span className="min-w-0 truncate">{imported.file.name}</span>
           </Chip>
         )}
+        {errors.cv && <p role="alert" className="text-sm text-destructive">{errText('cv', errors.cv)}</p>}
       </section>
 
       <Field invalid={!!errors.phone}>
