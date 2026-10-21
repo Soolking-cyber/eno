@@ -396,6 +396,9 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
           <p className="mt-0.5 text-sm text-muted-foreground">{cvRequired
             ? tr('PDF, up to 10 MB. Schools ask for it first. Private: the person you are chatting with gets it only when you tap the Share button in that chat.', 'PDF, tối đa 10 MB. Các trường thường hỏi CV trước tiên. Riêng tư: người đang trò chuyện với bạn chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ.')
             : tr('PDF, up to 10 MB. Private: the person you are chatting with gets it only when you tap the Share button in that chat.', 'PDF, tối đa 10 MB. Riêng tư: người đang trò chuyện với bạn chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ.')}</p>
+          {/* Said where the file is chosen (gate review, codex + opus 2026-10-22; PDPL minimisation — dossier §8 q14c): a
+              required CV is the one upload that can carry what eno never asks for. */}
+          <p className="mt-0.5 text-sm text-muted-foreground">{tr('Leave out what schools don’t need — health details, ID numbers, your referees’ phone numbers.', 'Hãy bỏ những gì trường không cần — thông tin sức khỏe, số giấy tờ, số điện thoại của người giới thiệu.')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {(media.cvFile || media.cvName) && <span className="inline-flex min-w-0 items-center gap-2 text-sm text-body [overflow-wrap:anywhere]"><FileText className="size-4 shrink-0" />{media.cvFile?.name ?? media.cvName}</span>}

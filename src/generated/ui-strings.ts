@@ -1535,6 +1535,7 @@ export const UI_STRINGS: string[] = [
   "Latest listings",
   "Law on E-commerce No. 122/2025/QH15",
   "Leave out phone numbers and email addresses.",
+  "Leave out what schools don’t need — health details, ID numbers, your referees’ phone numbers.",
   "Left by buyers after a completed deal. Open a seller to read every review on their storefront.",
   "Legal & permits",
   "Legal & permits listings go live after a licence check",

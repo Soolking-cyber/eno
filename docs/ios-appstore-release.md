@@ -1003,7 +1003,8 @@ before the block — both now refuse it.
   `UPDATE` is in `210abe4fc`'s message, still to be checked against eno.vn's site name) and purge their notes
   from the Translation cache; copies Microsoft already processed cannot be recalled.
 - **R8 extended to Google AI (built `ccd83bc92`, dormant behind `app-ai-notice`; `document_check` added
-  2026-10-06).** What each family sends, and what "Not now" leaves:
+  2026-10-06, `teacher_cv` 2026-10-15, `teacher_bio` with the 2026-10-22 deploy).** What each family sends, and what
+  "Not now" leaves:
 
   | family | user action → route | sent to Google | Not now |
   |---|---|---|---|
@@ -1013,6 +1014,8 @@ before the block — both now refuse it.
   | e-Visa photo check (`document_check`) | a photo added in the e-Visa chat → `/api/visa/applications/[id]/extract` | the passport data page and the portrait (Gemini; it reads the passport fields) | the photo is saved and goes to the seller UNCHECKED (`unavailable`, `automatic_image_check_declined`; no Google call, never blocking) |
   | trip (eno.forum's own; on eno.vn a partner's — GMBR) | Build my plan → `/api/itineraries/generate`; stay/stop suggestions; trip chat concierge → `/api/trips/concierge` | trip details (cities, dates, travellers, budget, interests, notes) and questions (Gemini) | unavailable; the desk's people answer in the trip chat. ⚠️ In the apps on eno.vn there is no question at all: its words (`trip-ai-consent.tsx`) are always stubbed on eno.vn, so with the gate on the trip AI is refused |
   | typed search | `/api/listings` → semanticRank | nothing from the apps: Vertex is skipped (`noAi`), the answer served private/no-store | n/a |
+  | teacher CV reading (`teacher_cv`) | "Fill it in from my CV" in the teacher profile form → `/api/teachers/me/import` | the CV the teacher chooses — a PDF or a photo as it is, a Word file as the text the browser reads from it (Gemini on Vertex reads it to fill in the empty answers; its text is never kept) | unavailable; the teacher fills the form in |
+  | teacher About text (`teacher_bio`) | "Improve with AI" under About you → `/api/teachers/me/bio-rewrite` | the About text without its contact-detail sentences and the form's answers, read field by field (Gemini on Vertex suggests a better About text); never the name field, phone, email, photo, video, CV, salary, start month, cover lessons or a consent — the About text itself goes as written | unavailable; the teacher writes it themselves |
 
   Same storage limitation as chat translation (localStorage, per account per device; no server preference),
   with an in-memory fallback so blocked or full storage still holds the answer for the page. A CLIENT gate by
@@ -1156,7 +1159,7 @@ E-VISA (A SELLER'S SERVICE, NOT A GOVERNMENT SERVICE)
 eno is a marketplace operated by Eno Company Limited, not a government agency. e-Visa help is sold by a marketplace seller, VietKite [legal name, licence no. — agreement and licence attached: only if B3]. Every e-Visa product page names VietKite, says eno is not a government agency and links https://evisa.gov.vn. To test: sign in with the demo account → any "Vietnam E-Visa" listing → Apply in chat. The chat asks for two photos only (the passport data page and a portrait); before the first check the app asks permission to send them to Google (Gemini) for an automatic check — "Not now" skips it and the seller checks by hand. Please stop at the "Send to VietKite" button: everything up to it can be reviewed without submitting anything, and sending files a real case with the seller, who handles real passports. The service is fulfilled outside the app and paid to VietKite directly (3.1.3(e)). Identity verification (ID document + selfie) is not offered in the iOS app.
 
 AI AND TRANSLATION ASK FIRST
-Before a feature sends a person's text or photos to Google AI (Gemini) — the eno AI assistant, posting help, search by photo, the e-Visa photo check — the app asks "Use Google AI for …?" (Allow / Not now; changeable in Settings > Preferences > Google AI). Chat translation (Microsoft Azure AI Translator) asks once before anything is translated (Settings > Preferences > Chat translation).
+Before a feature sends a person's text or photos to Google AI (Gemini) — the eno AI assistant, posting help, search by photo, the e-Visa photo check, filling in a teacher profile from a CV, improving a teacher's About text — the app asks "Use Google AI for …?" (Allow / Not now; changeable in Settings > Preferences > Google AI). Chat translation (Microsoft Azure AI Translator) asks once before anything is translated (Settings > Preferences > Chat translation).
 
 PAYMENTS
 The app sells no digital content. Marketplace deals are agreed and paid directly between buyer and seller.
@@ -1224,7 +1227,10 @@ Functionality and only after the person allows the feature (§6, "R8 extended to
   Info → Name and Other Data (the passport fields Gemini reads). Linked; not tracking. "Not now" sends nothing to
   Google.
 - **User Content → Other User Content**: what a person types to eno AI (and the last few turns); a listing
-  description sent to Polish with AI. Linked; not tracking. (Trip details never reach Google from the apps on eno.vn:
+  description sent to Polish with AI; the CV a teacher chooses for "Fill it in from my CV" (`teacher_cv` — the whole
+  file, so also the Contact Info and Other Data a CV holds; a photographed CV is Photos or Videos too); a teacher's About
+  text and form answers sent to "Improve with AI" (`teacher_bio` — never the name field, phone, email, photo, video or
+  CV, though the About text goes as written; the answers include the nationality, already declared as Other Data). Linked; not tracking. (Trip details never reach Google from the apps on eno.vn:
   the trip AI is refused there with the gate on — §6.)
 - **Photos or Videos**: a listing's cover photo (Autofill from photo); a photo chosen for search by photo.
   Linked; not tracking.

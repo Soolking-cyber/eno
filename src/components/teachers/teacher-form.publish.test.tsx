@@ -412,6 +412,8 @@ describe('the CV — required for a new profile, uploaded before its Publish', (
     expect(screen.getByRole('heading', { name: 'CV' })).toBeTruthy()
     expect(screen.queryByText('CV (optional)')).toBeNull()
     expect(cv.getByText(/^PDF, up to 10 MB\. Schools ask for it first\. Private:/)).toBeTruthy()
+    // …and what to leave out of it, said where it is chosen (PDPL minimisation — gate review, 2026-10-22).
+    expect(cv.getByText('Leave out what schools don’t need — health details, ID numbers, your referees’ phone numbers.')).toBeTruthy()
     await addVideo(user, { cv: false })
     await user.click(action('Publish profile'))
     expect(await cv.findByText('Please add your CV — a PDF up to 10 MB. It stays private: schools get it only when you share it in a chat.')).toBeTruthy()

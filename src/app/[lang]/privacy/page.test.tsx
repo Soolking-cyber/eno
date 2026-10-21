@@ -381,7 +381,7 @@ describe('/privacy — Sign in with Apple', () => {
   // Teacher CV import (owner, 2026-10-15; autofill 2026-10-16) — both editions (one codebase, one database).
   it.each(['marketplace', 'services'] as const)('%s: the CV reading — Google reads the whole file, its text is never kept, the phone and a PDF fill in, and it decides nothing', async (site) => {
     const en = await policy(site)
-    expect(en).toContain('only when you choose “Fill it in from my CV” in the teacher profile form, the CV you choose — for a Word file, the text your browser reads from it — which the AI reads in full; we never keep its text (a PDF is kept only as the private CV attached to your profile, which you can remove)')
+    expect(en).toContain('only when you choose “Fill it in from my CV” in the teacher profile form, the CV you choose — for a Word file, the text your browser reads from it — which the AI reads in full; we never keep its text (a PDF is kept only as the private CV attached to your profile, which you can replace at any time and which is deleted with your profile)')
     expect(en).toContain('filling in a teacher profile from a CV you choose')
     expect(en).toContain('The phone number in your CV fills an empty phone field, and a CV that is a PDF is attached to your profile as your private CV unless you already have one')
     expect(en).toContain('Filling in a teacher profile from a CV: when you ask, an AI model (Google Gemini) reads the CV you choose')
@@ -398,6 +398,71 @@ describe('/privacy — Sign in with Apple', () => {
     expect(en).toContain('ask from the Help page for a member of our team to look at it — they can approve it')
     cleanup()
     expect(await policy(site, 'vi')).toContain('Ảnh hồ sơ giáo viên: một mô hình AI (Google Gemini) kiểm tra ảnh bạn chọn')
+  })
+  // "Improve with AI" under the teacher's About text (owner, 2026-10-21; deploy planned 2026-10-22) — what Google receives
+  // and never receives, the suggestion staying in the form, the two records and the export, and that it decides nothing.
+  it.each(['marketplace', 'services'] as const)('%s: the About-text rewrite — what Gemini gets and never gets, the suggestion stays in the form, the records, and it decides nothing', async (site) => {
+    const en = await policy(site)
+    // the Google row: what is sent, what never is, on the CV reader's terms — and its purpose, between the pinned clauses
+    expect(en).toContain('And, only when you tap “Improve with AI” under “About you” in the teacher profile form, to suggest a better About text: the About text as you wrote it, without any sentence where we find contact details, and your answers in that form (the subjects and languages you teach,')
+    expect(en).toContain('the work you want and your headline) — never the name or phone number fields of the form (a name you write in the About text goes with it), your email address, photo, video, CV, expected salary, start date, cover lessons or any consent — on the same terms.')
+    expect(en).toContain('checking that a teacher’s profile photo is a real photo showing a face, improving a teacher’s “About you” text when they ask, and suggesting an outcome to our team when it reviews a report or dispute (a member of our team decides).')
+    // the teacher paragraph: when, to whom, never what, Google's terms; the form keeps it; the records and the export
+    expect(en).toContain('If you tap “Improve with AI” under “About you”, Google’s Gemini AI reads the About text as you wrote it — any sentence where we find contact details is left out —')
+    expect(en).toContain('about your teaching, qualifications, nationality and languages,')
+    expect(en).toContain('it never receives the name or phone number fields of the form (a name you write in the About text goes with it), your email address, photo, intro video, CV, expected salary, start date, cover lessons or any consent you give, and Google does not use what it receives to train its AI and keeps it only briefly — for up to 90 days if its automated checks flag the request as misuse.')
+    expect(en).toContain('The suggestion replaces the text in the form, where you can undo or change it, and like anything you type there it is published only when you publish your profile or save your changes;')
+    expect(en).toContain('we keep two records of each request, neither holding any of the text: one made before anything is sent — when you asked, the version and a fingerprint of the words shown beside the button,')
+    expect(en).toContain('— and one of its outcome — whether a suggestion came back (or why not), the AI model, how many attempts it took and how many words it had; both are included when you download your data.')
+    // automated decisions: a suggestion, nothing decided
+    expect(en).toContain('Improving a teacher’s “About you” text: when you ask, an AI model (Google Gemini) reads your About text and some of your answers in the teacher profile form (see “Teacher profiles”) and suggests a better About text. It decides nothing about you: the suggestion only replaces the text in the form, you read it and can change or undo it, and nothing is published until you publish your profile or save your changes.')
+    expect(en).not.toMatch(/Gemini[^.]*job match/i)
+    cleanup()
+    const vi = await policy(site, 'vi')
+    expect(vi).toContain('Và, chỉ khi bạn bấm “Cải thiện bằng AI” dưới mục “Giới thiệu” trong biểu mẫu hồ sơ giáo viên, để gợi ý một phần giới thiệu tốt hơn:')
+    expect(vi).toContain('kiểm tra ảnh hồ sơ giáo viên là ảnh thật có khuôn mặt, cải thiện phần “Giới thiệu” của giáo viên khi giáo viên yêu cầu, và gợi ý hướng xử lý')
+    expect(vi).toContain('Nếu bạn bấm “Cải thiện bằng AI” dưới mục “Giới thiệu”, AI Gemini của Google đọc phần giới thiệu đúng như bạn đã viết')
+    expect(vi).toContain('về việc giảng dạy, bằng cấp, chứng chỉ, quốc tịch và ngôn ngữ,')
+    expect(vi).toContain('với mỗi lần yêu cầu, chúng tôi lưu hai bản ghi, không bản ghi nào chứa văn bản: một bản ghi lập trước khi dữ liệu được gửi đi')
+    expect(vi).toContain('cả hai bản ghi đều có trong dữ liệu bạn tải xuống.')
+    expect(vi).toContain('Cải thiện phần “Giới thiệu” của giáo viên: khi bạn yêu cầu, một mô hình AI (Google Gemini)')
+  })
+  // ⛔ THREE DATES THAT MOVE TOGETHER (gate review, opus 2026-10-22): the CV cutoff is 00:00 ICT the day after the policy's
+  // date, and the policy names that day — a deploy that slips and re-dates only PRIVACY_TEXT_PUBLISHED fails here, before a
+  // teacher who joined on the old optional rule is refused a removal.
+  it('the CV cutoff (TEACHER_CV_REQUIRED_FROM) is 00:00 ICT the day after PRIVACY_TEXT_PUBLISHED — and /privacy names that day, EN and VI', async () => {
+    const { PRIVACY_TEXT_PUBLISHED } = await import('@/lib/compliance/privacy-updated')
+    const { TEACHER_CV_REQUIRED_FROM } = await import('@/lib/teachers/constants')
+    const next = new Date(`${PRIVACY_TEXT_PUBLISHED}T00:00:00Z`)
+    next.setUTCDate(next.getUTCDate() + 1)
+    expect(TEACHER_CV_REQUIRED_FROM).toBe(`${next.toISOString().slice(0, 10)}T00:00:00+07:00`)
+    const [d, m, y] = [next.getUTCDate(), next.getUTCMonth(), next.getUTCFullYear()]
+    const month = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][m]
+    expect(await policy('marketplace')).toContain(`(a profile created before ${d} ${month} ${y} can also remove it)`)
+    cleanup()
+    expect(await policy('marketplace', 'vi')).toContain(`(hồ sơ tạo trước ngày ${d} tháng ${m + 1} năm ${y} cũng có thể gỡ CV)`)
+  })
+
+  // The CV REQUIRED for a new teacher profile (owner, 2026-10-21; deploy planned 2026-10-22): private as before, uploaded at
+  // Publish (a failed Publish's upload deleted), replaced at any time, deleted with the profile — and nothing promises a
+  // removal the form no longer offers. The 10 MB the policy prints is the private bucket's own limit.
+  it.each(['marketplace', 'services'] as const)('%s: a new teacher profile needs a CV — private, uploaded at Publish, replaced at any time, deleted with the profile', async (site) => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const ddl = readFileSync(join(__dirname, '..', '..', '..', '..', 'scripts', 'teachers-ddl.mjs'), 'utf8')
+    expect(ddl).toContain(`values ('teacher-cvs', 'teacher-cvs', false, ${10 * 1024 * 1024}, array['application/pdf'])`)
+    const en = await policy(site)
+    expect(en).toContain('A new teacher profile needs a CV — a PDF of up to 10 MB, kept private as described above; leave out what schools don’t need, such as health details, ID numbers or your referees’ phone numbers: it is uploaded when you publish your profile (an upload your profile does not end up using is deleted automatically), you can replace it at any time (a profile created before 23 October 2026 can also remove it), and it is deleted when you delete your profile.')
+    expect(en).toContain('Your phone number, email address and CV are never published: the account you are talking to receives them only if you tap “Share my phone, email & CV” in your conversation with it.')
+    expect(en).toContain('both stay private as described above, and you can change the number or replace the CV on the last step.')
+    for (const s of ['which you can remove)', 'remove the CV on the last step']) expect(en, s).not.toContain(s)
+    cleanup()
+    const vi = await policy(site, 'vi')
+    expect(vi).toContain('Hồ sơ giáo viên mới cần có CV — tệp PDF tối đa 10 MB, được giữ riêng tư như mô tả ở trên; hãy bỏ những gì trường không cần, như thông tin sức khỏe, số giấy tờ hay số điện thoại của người giới thiệu:')
+    expect(vi).toContain('bạn có thể thay CV bất cứ lúc nào (hồ sơ tạo trước ngày 23 tháng 10 năm 2026 cũng có thể gỡ CV), và CV bị xóa khi bạn xóa hồ sơ.')
+    expect(vi).toContain('bạn có thể thay tệp bất cứ lúc nào, và tệp bị xóa cùng hồ sơ)')
+    expect(vi).toContain('và bạn có thể đổi số hoặc thay CV khác ở bước cuối.')
+    for (const s of ['và bạn có thể xóa)', 'xóa CV ở bước cuối']) expect(vi, s).not.toContain(s)
   })
 
   it('the sign-up reminder lists Apple among the methods it remembers choosing', async () => {
@@ -966,9 +1031,12 @@ describe('the teacher form\'s own counts (2026-10-16)', () => {
       expect(text, site).toContain('posting, the teacher profile form, the header or tab bar')
       expect(text, site).toContain('and for the teacher profile form, how many times its first step was ready to use, answered, and continued — or stopped by a missing answer — and, with each Continue, whether the link that brought you was an ad’s, a Facebook group’s, Zalo’s, another or none;')
       // 2026-10-17: the rest of a new profile's way to Publish, and "Open in your browser" (signup-prompt.ts TEACHER_FORM_EVENTS).
-      expect(text, site).toContain('how many times each later step was reached, an intro video was chosen, turned down by the check in your browser, could not be prepared or uploaded, or was uploaded, and Publish was tapped, refused for the video, the photo, the kind of work or another answer, or did not go through; how many times “Open in Safari” or “Open in your browser” was tapped; and how many new teacher profiles were published')
+      // 2026-10-22: the required CV — a Publish refused on it is its own count (publish_refused_cv).
+      expect(text, site).toContain('how many times each later step was reached, an intro video was chosen, turned down by the check in your browser, could not be prepared or uploaded, or was uploaded, and Publish was tapped, refused for the video, the photo, the CV, the kind of work or another answer, or did not go through; how many times “Open in Safari” or “Open in your browser” was tapped; and how many new teacher profiles were published')
     }
     expect(await policy('marketplace', 'vi')).toContain('và với biểu mẫu hồ sơ giáo viên: số lần bước đầu tiên sẵn sàng để dùng')
+    cleanup()
+    expect(await policy('marketplace', 'vi')).toContain('bị từ chối vì video, ảnh, CV, loại công việc hoặc một câu trả lời khác')
     expect(await policy('marketplace', 'vi')).toContain('số lần bấm “Mở bằng Safari” hoặc “Mở bằng trình duyệt”')
   })
 })

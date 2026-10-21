@@ -89,6 +89,24 @@
  * for all today" over a 5-day notice — treated as not material, their call) — the paragraph's opening, its record and its
  * one notice, the purpose's basis ("as part of the teacher service", no longer consent) and the automated-decisions
  * opening. ⛔ Deployed on any later Vietnamese day, re-date both to that day, as above.
+ * And 2026-10-22 (planned — the deploy day of two teacher changes, owner 2026-10-21: "add ai enhancement once they write
+ * about them … use gemini 3.8 flash" and "it says cv is optional, its not they should include cv"): "Improve with AI"
+ * under the teacher's About text — the Google row (what it receives: the About text without its contact-detail
+ * sentences and the form's answers, never the name field, phone, email, photo, video, CV, salary, start date, cover
+ * lessons or a consent; on the CV reader's terms) and its purpose, a teacher-paragraph passage (when it runs, the
+ * suggestion replacing the form's text and published only with the profile, the consent and outcome records — counts,
+ * never text — in the data export) and an automated-decisions paragraph; and the CV REQUIRED for a new teacher profile
+ * — the teacher paragraph (a PDF of up to 10 MB uploaded at Publish, an upload no profile ends up using deleted
+ * automatically, replaced at any time, deleted with the profile), the CV reader's "replace the CV on the last step", the
+ * Google row's CV clause, and "the CV" among the counted Publish refusals (publish_refused_cv); and the Anthropic row's
+ * about text "as the teacher saved them" (it may be a suggestion the teacher kept). Live with the deploy — the owner's
+ * call: the rewrite is a new feature that runs only when the teacher asks (consent, recorded before anything is sent),
+ * and the CV rule tightens what a new profile needs and changes no recipient (schools still get a CV only through the
+ * Share tap).
+ * ⛔ If that deploy slips past 2026-10-22, re-date this AND TEACHER_CV_REQUIRED_FROM (src/lib/teachers/constants.ts —
+ * 00:00 ICT the day after the deploy) AND the CV sentence's "created before 23 October 2026" on /privacy (EN + VI) and
+ * its pins in page.test.tsx AND the dossier's 22/10 / 23/10 dates (docs/compliance/pdpl-dossier-draft.md) in that
+ * commit, then retake the fingerprint below; the amendment gate refuses the deploy until this matches the day.
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -97,7 +115,7 @@
  * line, `export const PRIVACY_TEXT_PUBLISHED: string = 'YYYY-MM-DD'`: that is the shape the gate reads.
  * ⚠️ Typed, never read from the clock: the page prerenders, and a build-time date would move with every rebuild.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-21'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-22'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -106,4 +124,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-21'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '0df093d94f1a725e'
+export const PRIVACY_TEXT_FINGERPRINT = '225288760fc05aa4'
