@@ -66,7 +66,7 @@ current instructions is what the drift warning above is about.
   (`zalo_oauth_token`), `next_cache`, and more. The flow was safe when it was written and became
   lethal as tables were added outside Prisma, with no warning from Prisma itself.
   **The safe flow is `prisma migrate diff` → read the SQL → apply only the additive statements**, in
-  full in [CLAUDE.md](../CLAUDE.md) and printed by the guard. `npm run db:push` / `db:setup` /
+  full in [prisma/CLAUDE.md](../prisma/CLAUDE.md) and printed by the guard. `npm run db:push` / `db:setup` /
   `db:reset` now refuse to run and print it. The non-destructive half — realtime triggers, unique
   indexes, rate-limiter functions, compliance objects — is `npm run db:ddl`, and that is what you
   want after a restore.

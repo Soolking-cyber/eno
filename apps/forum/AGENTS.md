@@ -14,7 +14,8 @@ that reaches no user. Reconciled 2026-09-06 against the live deployment.
 - **This directory is kept, not maintained.** Owner: *"dont delete project itself let it sit in git
   so we can host it later"*. It is dormant SOURCE — read it for reference, do not treat its presence
   as evidence that anything deploys from it.
-- **Two things here are still load-bearing and are named in root `CLAUDE.md`**: the Browserbase
+- **Two things here are still load-bearing and are named in root `CLAUDE.md` (Browserbase) and the
+  root's `src/lib/visa/CLAUDE.md` (the sync pairs)**: the Browserbase
   hosted-prefill operator flow (`src/lib/visa/hosted-prefill.ts` and its two routes), which has no
   equivalent in the root tree — porting or abandoning it is an owner decision, not a cleanup; and
   the six `src/lib/visa/*` files byte-coupled to their root copies by `src/lib/sync-pairs.test.ts`,

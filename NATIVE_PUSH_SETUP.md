@@ -88,7 +88,7 @@ does not — the plugin is simply not applied, and FCM cannot register (hence §
 
 ## 4. Create the DB table — OWNER-APPROVED prod write
 ⛔ **NEVER `npx prisma db push`** — this step used to say so, and since 2026-08 it DROPS the 18 tables
-Prisma does not manage (live visa PII, the rate limiter, the OTP chain…). Use CLAUDE.md "Schema changes" — the safe
+Prisma does not manage (live visa PII, the rate limiter, the OTP chain…). Use prisma/CLAUDE.md — the safe
 flow:
 1. Drop both cross-schema FKs (`profile_auth_fk`, `visa_applications_user_id_fkey`).
 2. `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
@@ -96,7 +96,7 @@ flow:
    index statements (the unique `token`, the `profileId` index) and its `ADD CONSTRAINT … FOREIGN KEY` to
    `Profile` — `psql -v ON_ERROR_STOP=1` inside `BEGIN/COMMIT`. Reject the run if any other statement would go in
    (any `DROP`, any `ALTER` of another table): the rest of the diff is other drift, not this step's.
-4. Restore both FKs, re-run the DDL scripts CLAUDE.md step 4 names, `npx prisma generate`.
+4. Restore both FKs, re-run the DDL scripts prisma/CLAUDE.md step 4 names, `npx prisma generate`.
 
 The table must exist BEFORE step 4b's `APNS_*` env — and so before step 5's deploy.
 ⚠️ **OPEN — decide before the table is created** (measured in code 2026-10-06): the model's FK is

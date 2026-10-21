@@ -93,7 +93,7 @@ It re-runs design-lint, edition-lint, `prisma generate` and `next build` on the 
 failure naming a missing table is almost never a code bug — check `DATABASE_URL`
 (`scripts/db-identity.mjs`).
 
-⚠️ **:3000 FOR THE MARKETPLACE, :3101 FOR THE FORUM** (`scripts/preview.mjs:51`). `CLAUDE.md`
+⚠️ **:3000 FOR THE MARKETPLACE, :3101 FOR THE FORUM** (`scripts/preview.mjs:51`). The `preview` skill
 records the owner on 2026-08-17: *"kill 3000 and 3100 use only 3000 from now on"*. This file
 said `:3100` until 2026-08-22; following that points `E2E_BASE` at a dead port, which does not
 fail loudly — it reads as a broken app.
@@ -144,7 +144,7 @@ chaining `node scripts/second-opinion.mjs && git commit` fails on the un-reviewe
 node scripts/second-opinion.mjs     # dispatches the panel against the STAGED diff, writes a receipt
 ```
 
-The panel is **agy + opus** (the OpenAI seat was removed 2026-09-23). Two labs must answer; a seat
+The panel is the seats in `REVIEWER_NAMES` (since 2026-09-29: codex + opus). Two labs must answer; a seat
 that errors or times out is NOT a pass. A REFUTED verdict does **not** block the commit — read the
 findings and verify each by measuring, because roughly a third of them do not survive checking on
 this repo. Re-run the script after any change, or the receipt no longer matches the diff hash.
@@ -228,6 +228,13 @@ evicts every chunk and image variant. A hand purge after a data change is
 `{"tags":["eno-html","eno-public"]}` on both zones. `--purge-everything` exists for emergencies and
 the script uses it on a licensing-leak rollback. The script also reads Cloudflare's `"success"`
 field rather than trusting HTTP 200 — a rejected purge comes back 200 with `"success": false`.
+
+What the tags cover (moved from the root CLAUDE.md, 2026-10-18; speed plan item 2): `eno-html` is
+every document the HTML Worker stores, `eno-public` everything an app `location /` answers through
+nginx — the tag table is in `infra/vn-node/nginx/eno.conf`. `/_next/static` stays cached on purpose:
+every recent build's files stay on disk (`infra/vn-node/eno-static-sync.sh`), so old HTML still
+hydrates. `/_next/image` and sb.eno.vn are purged nightly instead (`infra/vn-node/eno-edge-nightly-purge.sh`,
+the erasure bound). `purge_everything` evicted every chunk, font and image variant several times a day.
 
 ## 7. Prod smoke — BOTH domains
 
