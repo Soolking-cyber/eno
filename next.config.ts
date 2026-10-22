@@ -426,6 +426,20 @@ const nextConfig: NextConfig = {
   experimental: {
     inlineCss: false,
     /**
+     * ⛔ OFF: OPTIMISTIC ROUTING LEARNS `/[lang]` FROM THE `/vi` PILOT AND THEN CALLS EVERY ONE-SEGMENT PATH THE HOME PAGE.
+     * Next 16.3 (default on) remembers each route tree it prefetches as a pattern and predicts later URLs from it,
+     * without asking the server (segment-cache/optimistic-routes.ts). A Vietnamese page links the `/vi` twins
+     * (lang-pinned.ts: the logo, the brand cards, "Map view"), and `/vi`'s tree — `[lang]=vi` → (home) → page — fits
+     * its URL exactly, so it is stored as the pattern "one segment = the home page, lang = that segment". From then on
+     * `/post`, `/saved`, `/messages`, a guide, a shop's handle… are "known" to be home: the router never fetches their
+     * real tree, prefetches the home page's segment under the wrong URL (a 404 on the origin each time — measured
+     * 2026-10-22 on /brands in Vietnamese: `/post?_rsc=…` with `Next-Router-Segment-Prefetch: /$d$lang/(home)/__PAGE__`
+     * → 404), and every such tap waits on a full server round trip instead of its prefetch. English pages never link a
+     * `/en` URL, so they never learn it — which is why only Vietnamese visitors were hit. Off = each route's tree is
+     * asked for once (what every English visitor already gets; the edge Worker caches `_tree` answers).
+     */
+    optimisticRouting: false,
+    /**
      * ⛔ `optimizePackageImports: ["lucide-react"]` WAS DELETED HERE (2026-08-17) BECAUSE THE
      * PACKAGE IS NOT INSTALLED. Its comment claimed "lucide-react is imported across ~68 files";
      * the real count is ZERO — the icons moved to an external `<use>` sprite (see
