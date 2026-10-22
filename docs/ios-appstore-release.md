@@ -1055,6 +1055,10 @@ before the block — both now refuse it.
   guards the store text, but the 14 VietKite rows still carry "official assistance" and "VISA 24 GIỜ" on a Standard
   product (B4).
 - **5.2.2** — see D9.
+- **5.1.2(i) — teacher job matching on by default (owner, 2026-10-22: "On by default everywhere").** In the app too, the
+  two job-match switches start ON in a new teacher profile's form, so a teacher's profile fields go to Anthropic (Claude)
+  without a question first. Accepted risk (Appendix B; the dossier's [OWNER DECISION 2026-10-22]); a rejection citing it
+  goes back to the owner.
 - **Google sign-in on iOS** has never completed a round trip on a device. Build 3 runs it in
   `ASWebAuthenticationSession` (ephemeral: no "wants to use sb.eno.vn" alert, a Google login every time) instead of
   SFSafariViewController, whose custom-scheme return showed "Open in eno?"; P9's device checks cover it.
@@ -1236,6 +1240,41 @@ Functionality and only after the person allows the feature (§6, "R8 extended to
   Linked; not tracking.
 - **Search History**: eno AI sends the search words to Vertex AI Search (people who allowed it); typed
   search from the apps sends nothing to Google. App Functionality; not tracking.
+
+⚠️ **TEACHER PHONE REQUIRED, TEACHER JOB MATCHING ON BY DEFAULT (owner, 2026-10-22 — RE-ANSWER ON THE DEPLOY'S DAY
+[VERIFY]).** Owner: *"also phone number is mandatory and all toggles should be on by default go"* — toggles *"On by default
+everywhere"*, the native apps included; phone *"Everyone, on next save"*. The teacher form is the web page, so the app
+carries both with the deploy, without a new binary — which is exactly why the answers must be re-read now:
+- **Contact Info → Phone Number.** The teacher profile's private phone (`TeacherPrivate.phone`) is now REQUIRED on every
+  teacher-profile save — a new profile at Publish, an existing one without a phone the next time it is saved; a save that
+  only hides the profile or switches something off is never refused (`src/lib/teachers/profile.ts` `phoneWaived`). Never
+  published; it reaches a chat account only through the teacher's Share tap, and our staff use it for **recruitment calls
+  only while "Our staff may call me" is on** (calls about matching jobs, and introductions to those schools). Phone
+  Number is declared for App Functionality already; [VERIFY] whether those staff calls also make it **Developer's
+  Advertising or Marketing**, as the weekly digest does for Email Address.
+- **Contact Info → Email Address.** The job-match emails ("Email me jobs that match my profile") now go to every new
+  job-seeking teacher who leaves the default on — [VERIFY] whether they count as Developer's Advertising or Marketing
+  (declared already for the digest; check the job-match emails are covered by it).
+- **Anthropic (Claude) — never declared in this appendix.** Since 2026-10-08 the teacher job matching sends the exported
+  profile fields (headline and About text with the name's words taken out, nationality, native speaker or not, cities,
+  subjects, age groups, job types, experience, degree, certificate types, expected salary, start date — never the name,
+  photo, video, phone, email or CV) to Anthropic outside Vietnam (/privacy's "Anthropic (Claude)" row; the dossier's
+  §3.2 row 22 / B22). [VERIFY] the App Privacy reading: a service provider for App Functionality, over types already
+  declared (Other User Content, Other Data → nationality, Other Financial Info → the expected salary); not tracking —
+  ⚠️ "service provider" assumes processing for eno under its terms, and this route runs on the owner's consumer Claude
+  subscription with no DPA (dossier B22): [VERIFY] whether it counts as one.
+- **5.1.2(i) — ACCEPTED RISK.** The guideline wants permission before personal data goes to a third-party AI. The two
+  switches start ON in the form of a NEW teacher profile — in the app too — and a switch left on at Publish counts as
+  that permission; the AI note beside them names Anthropic and the transfer abroad, and either switch can be turned off
+  before Publish or at any time after (an existing profile keeps its own choice). Unlike `app-ai-notice` (Google), nothing
+  ASKS first. The owner accepted this ("everywhere"), recorded in docs/compliance/pdpl-dossier-draft.md
+  [OWNER DECISION 2026-10-22] (risk c); a rejection citing 5.1.2(i) goes back to the owner — the fallback would be
+  default OFF inside the app, which reverses "everywhere" and is theirs to decide.
+- **Owner checklist — ON THE DEPLOY'S DAY** (App Privacy answers are edited in App Store Connect without a new build,
+  and the change reaches the app with the web deploy): ☐ re-answer Phone Number / Email Address purposes (App
+  Functionality; Developer's Advertising or Marketing?) [VERIFY] ☐ decide whether to declare Anthropic. **At the next
+  submission:** ☐ say in the review notes that teacher job matching is on by default and can be switched off before
+  Publish ☐ re-read /privacy's teacher paragraph and Anthropic row against what the reviewer will see.
 
 ⚠️ **Whatever the gates say:** a published listing's text and photos go to Gemini for prohibited-item
 moderation (non-Trusted sellers, plus a 5% sample of Trusted ones) — not optional, so **Photos or Videos**

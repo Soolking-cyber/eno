@@ -234,7 +234,7 @@ unless the owner accepts that window (docs/ios-appstore-release.md §5).
 | Personal info → Name | collected | the account / seller name; the name on the passport page the photo check reads |
 | Personal info → Other info | collected | the passport fields the check reads (date and place of birth, sex, nationality, passport number and dates, personal ID number, passport type and issuing authority — `extract/route.svc.ts`); the CCCD / business-registration (ERC) number on the switch-to-business form; the KYC document number |
 | Financial info → Purchase history | collected | the sale loop's record of what an account bought (`Listing.soldToProfileId` / `saleConfirmedAt`); nothing is paid in the app |
-| Financial info → Payment info, Other financial info (wallet) | **no, from 1.0.3** | forum-only: the payments path (`src/lib/payments/**`) is a stub on eno.vn, `crossmint.stub.ts` replaces the wallet adapter, and `/dashboard/wallet`, `/dashboard/payout`, `/api/seller/payout` are `.forum.svc.` (404 on eno.vn, measured 2026-10-06) |
+| Financial info → Payment info, Other financial info (wallet) | **no, from 1.0.3** — ⚠️ [VERIFY] stale since 2026-10-08 for Other financial info: Anthropic receives a teacher's expected salary (teacher job matching — the block below) — re-answer on the deploy's day | forum-only: the payments path (`src/lib/payments/**`) is a stub on eno.vn, `crossmint.stub.ts` replaces the wallet adapter, and `/dashboard/wallet`, `/dashboard/payout`, `/api/seller/payout` are `.forum.svc.` (404 on eno.vn, measured 2026-10-06) |
 | ~~Government ID — passport image and MRZ, read on-device~~ | **DELETE these rows** | Play has no such type, and eno.vn's check reads the passport on the server (Gemini) — the fields are Personal info → Other info above, the images Photos |
 
 **Government apps declaration** (App content): **No**. The store text and every e-Visa product page say eno is not
@@ -243,6 +243,33 @@ The photo check: Google (Gemini) processes the two images for eno, asked first i
 `document_check` once `app-ai-notice` is on; "Not now" sends them to the seller unchecked.
 ⚠️ OPEN (with B1's lawyer): whether Name / Other info — read off the photos the seller receives — also count as
 shared with the seller.
+
+⚠️ **TEACHER PHONE REQUIRED, TEACHER JOB MATCHING ON BY DEFAULT (owner, 2026-10-22 — RE-ANSWER ON THE DEPLOY'S DAY
+[VERIFY]).** Owner: *"also phone number is mandatory and all toggles should be on by default go"* — toggles *"On
+by default everywhere"* (the native apps included), phone *"Everyone, on next save"*. The teacher form is the web page, so
+every install carries both with the deploy:
+- **Personal info → Phone number.** The teacher profile's private phone (`TeacherPrivate.phone`) is now REQUIRED on every
+  teacher-profile save (a new profile at Publish; an existing one without a phone at its next save; never for a save that
+  only hides the profile or switches something off). Never published; shared with a chat account only by the teacher's
+  own Share tap; used by our staff for **recruitment calls only while "Our staff may call me" is on**. Purposes to
+  re-check [VERIFY]: App functionality, and possibly **Developer communications** or **Advertising or marketing** for
+  those calls (and for the job-match emails, under Email address).
+- **Anthropic (Claude) — not in this section yet.** The teacher job matching sends the exported profile fields (never
+  the name, photo, video, phone, email or CV) to Anthropic outside Vietnam (/privacy's "Anthropic (Claude)" row). As a
+  service provider processing for eno it would be "collected", not "shared", in Play's terms — ⚠️ but that reading
+  assumes processing under a contract, and this route runs on the owner's consumer Claude subscription with no DPA
+  (dossier B22), so it may be "shared" — [VERIFY] which, with the data types it
+  touches (App activity → Other user-generated content: headline and About text; Personal info → Other info:
+  nationality; Financial info → Other financial info: the expected salary — which the 1.0.3 table answers "no" for
+  the wallet only; iOS declares it, Appendix B there).
+- **On by default.** The two job-match switches start ON in the form of a NEW teacher profile; a switch left on at
+  Publish counts as consent; either can be switched off before Publish or at any time after; an existing profile keeps
+  its own choice. An accepted risk — App Store 5.1.2(i) on iOS, PDP Law 91/2025 and Decree 91/2020 anti-spam in
+  Vietnam — recorded in docs/compliance/pdpl-dossier-draft.md [OWNER DECISION 2026-10-22]. Play's User Data policy asks
+  for prominent disclosure and consent where data use is not expected — [VERIFY] whether a pre-ticked switch satisfies it.
+- **Owner checklist — ON THE DEPLOY'S DAY** (the Data safety form is edited in Play Console without a new build, and
+  the change reaches the app with the web deploy): ☐ re-answer Phone number (and Email address) purposes in Data safety
+  ☐ add the teacher-profile types Anthropic receives ☐ keep the answers app-wide (§8).
 
 ⛔ **PLAY'S "FINANCIAL FEATURES" DECLARATION IS A SEPARATE FORM AND THE OLD CHECKLIST HAD NONE.**
 The forum edition (versionCode 1–4) shipped a payments path and a wallet adapter; eno.vn (1.0.3) ships neither.
@@ -254,7 +281,7 @@ Answer from what the app actually does. Collected, linked to the user unless the
 | Category | Collected | Purpose |
 |---|---|---|
 | Name, email address | yes | account, seller identity |
-| Phone number | yes | account, seller contact |
+| Phone number | yes | account, seller contact; the teacher profile's private phone — required since 2026-10-22, shared only by the teacher's Share tap, staff recruitment calls while "Our staff may call me" is on (§6) |
 | User IDs | yes | account |
 | Photos | yes | listing images, identity verification captures, the e-Visa photos (§6) |
 | ~~Government ID~~ | — | no such Play type: the KYC images are Photos, the document number Personal info → Other info (§6) |
