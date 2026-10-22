@@ -45,7 +45,9 @@ export async function POST(req: NextRequest) {
       const directive = r['violated-directive'] || r['effectiveDirective'] || r['effective-directive'] || 'unknown'
       const blocked = r['blocked-uri'] || r['blockedURL'] || r['blocked-url'] || 'unknown'
       const doc = r['document-uri'] || r['documentURL'] || ''
-      console.warn(`[csp] ${directive} blocked=${String(blocked).slice(0, 200)} doc=${String(doc).slice(0, 200)}`)
+      // `enforce` = the CSP blocked it; `report` = only the Report-Only eval probe saw it (next.config.ts, review item 24).
+      const disp = r['disposition'] === 'report' || r['disposition'] === 'enforce' ? r['disposition'] : 'unknown'
+      console.warn(`[csp] ${directive} disp=${disp} blocked=${String(blocked).slice(0, 200)} doc=${String(doc).slice(0, 200)}`)
     }
   } catch {
     /* ignore malformed reports */

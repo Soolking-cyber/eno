@@ -1342,6 +1342,20 @@ const nextConfig: NextConfig = {
       "report-to csp-endpoint",
       "report-uri /api/csp-report",
     ].join("; ");
+    /**
+     * ⚠️ MEASURING, NOT ENFORCING (security review 2026-10-22, item 24). The enforced script-src above keeps
+     * 'unsafe-eval', and nothing records what still needs it. This report-only twin is that script-src minus
+     * 'unsafe-eval' and nothing else, so it blocks nothing and reports only an eval() the live site actually runs (a
+     * GTM custom-JavaScript variable, a library's `new Function`) — /api/csp-report logs it as `disp=report`. A week
+     * of traffic with none is the evidence for dropping 'unsafe-eval' from the enforced policy; a report names what
+     * needs it. The stronger fix (per-request nonces + 'strict-dynamic') would make every page render dynamically,
+     * which the ISR and the HTML edge cache rule out today — an owner decision, written up in the runbook.
+     */
+    const cspEvalProbe = [
+      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.googletagmanager.com https://challenges.cloudflare.com" + gsiScript,
+      "report-to csp-endpoint",
+      "report-uri /api/csp-report",
+    ].join("; ");
     return [
       {
         source: "/:path*",
@@ -1365,6 +1379,7 @@ const nextConfig: NextConfig = {
           // Named endpoint group for the CSP `report-to` directive (Reporting API).
           { key: "Reporting-Endpoints", value: 'csp-endpoint="/api/csp-report"' },
           { key: "Content-Security-Policy", value: csp },
+          { key: "Content-Security-Policy-Report-Only", value: cspEvalProbe },
           // Indexing was decoupled from PRELAUNCH (owner, 2026-07-18): the site is
           // indexable while the MoIT test-operation notice still shows. The old
           // sitewide `X-Robots-Tag: noindex, nofollow` prelaunch header is gone;
