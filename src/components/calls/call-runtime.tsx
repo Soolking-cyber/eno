@@ -31,6 +31,14 @@ export function CallRuntime({ userId }: { userId: string }) {
     return () => setRuntimeMounted(false)
   }, [])
 
+  // The capability report, built now rather than in front of the first start or answer (media.ts capabilityReport).
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void import('@/lib/calls/client/media').then((m) => m.capabilityReport()).catch(() => { /* built again at the call */ })
+    }, 1_500)
+    return () => window.clearTimeout(t)
+  }, [])
+
   // ring:<me> — ring / cancel / answered_elsewhere for every tab of this person.
   useEffect(() => {
     let channel: { close(): void } | null = null
@@ -65,7 +73,19 @@ export function CallRuntime({ userId }: { userId: string }) {
       retry = window.setTimeout(() => join(attempt + 1), Math.min(60_000, 5_000 * 2 ** attempt))
     })
     join(0)
-    return () => { closed = true; window.clearTimeout(retry); channel?.close() }
+    // Back on screen, or back online: a ring sent while this page's socket slept (a locked phone, a dead zone) was never
+    // heard, and one that ended meanwhile may still be drawn — ask for both (ring latency, 2026-10-22).
+    const recheck = () => { if (!closed) { askTheBox(); void callEngine.recheckIncoming() } }
+    const onVisible = () => { if (document.visibilityState === 'visible') recheck() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', recheck)
+    return () => {
+      closed = true
+      window.clearTimeout(retry)
+      channel?.close()
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', recheck)
+    }
   }, [userId])
 
   // Page duties of a live call.
@@ -130,7 +150,6 @@ function useTones(phase: CallView['phase']) {
     if (phase !== 'incoming' && phase !== 'outgoing') return
     // Awake for the tone only (the unlock above put it to sleep).
     toneDue.current = true
-    void ctxRef.current?.resume()
     let stopped = false
     const nodes: OscillatorNode[] = []
     const burst = () => {
@@ -149,10 +168,27 @@ function useTones(phase: CallView['phase']) {
         o.stop(ctx.currentTime + (phase === 'incoming' ? 1.2 : 1.0))
         nodes.push(o)
       }
-      if (phase === 'incoming' && 'vibrate' in navigator) navigator.vibrate?.([400, 200, 400])
     }
-    burst()
-    const timer = window.setInterval(burst, phase === 'incoming' ? 3_000 : 4_000)
+    // Vibration needs no audio: it starts with the ring, even before the page was ever tapped (no sound allowed yet).
+    const buzz = () => { if (!stopped && phase === 'incoming' && 'vibrate' in navigator) navigator.vibrate?.([400, 200, 400]) }
+    // ⚠️ EACH BURST WAITS FOR resume() WHEN THE CONTEXT IS NOT RUNNING (owner's two-device test, 2026-10-22): the first
+    // burst used to run while the context was still waking — 'suspended', so it returned silently and the first sound
+    // came with the NEXT burst, 3 s later (ringback 4 s). Asking again on every burst means an iOS 'interrupted' context
+    // that refused once still gets its ring when it comes back (commit-gate review, codex).
+    // ONE resume in flight (commit-gate review, codex + opus): before any tap, browsers leave resume() pending rather than
+    // refusing it, and a new one every burst would all resolve together at the first tap — N rings on top of each other.
+    let resuming = false
+    const ring = () => {
+      const ctx = ctxRef.current
+      if (stopped || !ctx) return
+      if (ctx.state === 'running') return burst()
+      if (resuming) return
+      resuming = true
+      ctx.resume().then(() => { resuming = false; if (!stopped) burst() }, () => { resuming = false })
+    }
+    ring()
+    buzz()
+    const timer = window.setInterval(() => { ring(); buzz() }, phase === 'incoming' ? 3_000 : 4_000)
     return () => {
       stopped = true
       window.clearInterval(timer)

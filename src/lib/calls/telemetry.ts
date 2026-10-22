@@ -5,8 +5,8 @@
  * and hour, time to full resolution) need numbers from RTCPeerConnection.getStats(). getStats is also the richest IP
  * store on the phone: every local-candidate / remote-candidate entry carries `address` (+ the legacy `ip`), `port`,
  * `relatedAddress` (raddr), `relatedPort`, `url` (the TURN/STUN server, sometimes BY IP), `foundation` and
- * `usernameFragment`; `transport` carries the ICE ufrag; `certificate` carries the DTLS fingerprints the safety code
- * is built from. So this module is an ALLOWLIST READER, not a filter:
+ * `usernameFragment`; `transport` carries the ICE ufrag; `certificate` carries the DTLS fingerprints (protocol v1's
+ * safety code was built from them). So this module is an ALLOWLIST READER, not a filter:
  *   · it reaches into a stats entry ONLY through read(entry, field), whose `field` is typed to TELEMETRY_READ_FIELDS
  *     — the compiler refuses `entry.address` — and nothing ever enumerates, spreads, clones or stringifies an entry
  *     (the tests wrap every entry in a Proxy and fail on any other read, on any key enumeration, on any write);

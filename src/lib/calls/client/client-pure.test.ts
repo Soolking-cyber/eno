@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { inboundPackets, ladderSample } from './stats'
 import { CallApiError, sendSignal } from './api'
 import { callEndText, callErrorText, callerRoleLine } from '@/components/calls/call-copy'
+import { CALL_PROTOCOL_VERSION } from '../types'
 
 /** The pure parts of the phone side: the stats readers, the signal retry, the copy table. */
 
@@ -47,7 +48,7 @@ describe('stats readers (stats.ts)', () => {
 
 describe('sendSignal (api.ts): the same event until acknowledged or refused for good', () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
-  const event = { v: 1, callId: '6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b', idempotencyKey: 'k-1', tabId: 't', kind: 'ready', payload: {} } as const
+  const event = { v: CALL_PROTOCOL_VERSION, callId: '6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b', idempotencyKey: 'k-1', tabId: 't', kind: 'ready', payload: {} } as const
   const respond = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body }) as Response
 
   it('retries a network failure with the same body, then succeeds', async () => {

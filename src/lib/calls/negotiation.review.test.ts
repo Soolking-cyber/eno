@@ -32,7 +32,6 @@ const CALL_ID = '6f1c2b8e-4d3a-4c5b-9e7f-0a1b2c3d4e5f'
 const MY_TAB = 'tab-me'
 const PEER_TAB = 'tab-peer'
 /** nB, as the box relays it in 'accepted' (protocol.ts: lowercase hex, required). */
-const NB = 'b'.repeat(64)
 
 const only = <T extends Fx['type']>(fx: readonly Fx[], type: T): FxOf<T>[] =>
   fx.filter((e): e is FxOf<T> => e.type === type)
@@ -331,7 +330,7 @@ describe('D12: the resync snapshot carries the peer\'s latest hold/resume, so a 
   })
 
   it('the wire contract: optional and nullable (an older box omits it), strict when present', () => {
-    const base = { v: 1, callId: CALL_ID, callState: 'connected', candidates: [] }
+    const base = { v: CALL_PROTOCOL_VERSION, callId: CALL_ID, callState: 'connected', candidates: [] }
     for (const peerHold of [undefined, null, { held: true, seq: 1 }]) expect(parseSnapshotOk({ ...base, peerHold })).toBe(true)
     expect(parseSnapshotOk({ ...base, peerHold: { held: true } })).toBe(false)
     expect(parseSnapshotOk({ ...base, peerHold: { held: true, seq: 1, at: 5 } })).toBe(false)
@@ -506,14 +505,14 @@ describe('D7: the SDP-failure cap stops a failure LOOP, not a long call with a f
 describe('D8: the caller does not wait for ready without a bound', () => {
   it("accepted, but no ready ever (callee's call channel never subscribes) → lost, 20 s after the accept", () => {
     const c = new Driver('caller')
-    c.at(1_000).remote(serverEv('accepted', { calleeTabId: PEER_TAB, calleeNonce: NB }))
+    c.at(1_000).remote(serverEv('accepted', { calleeTabId: PEER_TAB }))
     c.advance(1_000 + CONNECT_DEADLINE_MS, { snapshot: () => snap({ callState: 'accepted' }) })
     expect(c.state.ended).toEqual({ reason: 'lost', origin: 'local' })
   })
 
   it('a ready that comes in time restarts the 20 s from the ready, as the spec says', () => {
     const c = new Driver('caller')
-    c.at(1_000).remote(serverEv('accepted', { calleeTabId: PEER_TAB, calleeNonce: NB }))
+    c.at(1_000).remote(serverEv('accepted', { calleeTabId: PEER_TAB }))
     c.at(15_000).remote(readyEv())
     expect(c.state.timers.connectDeadline).toBe(15_000 + CONNECT_DEADLINE_MS)
     c.advance(15_000 + CONNECT_DEADLINE_MS - 1)
@@ -560,8 +559,12 @@ describe("D14: a peer's own 'end' cannot claim a reason only the box decides", (
 
   it("the peer's own reasons pass through, and the box's 'ended' is believed whatever it says", () => {
     const c = callerConnected()
-    expect(only(c.remote(mustParse({ ...env(), kind: 'end', payload: { reason: 'sas_mismatch' } })), 'endCall'))
-      .toMatchObject([{ reason: 'sas_mismatch' }])
+    expect(only(c.remote(mustParse({ ...env(), kind: 'end', payload: { reason: 'media_failed' } })), 'endCall'))
+      .toMatchObject([{ reason: 'media_failed' }])
+    // The safety code's 'sas_mismatch' is no longer a peer's word (protocol v2): an old peer saying it reads as a hang-up.
+    const old = callerConnected()
+    expect(only(old.remote(mustParse({ ...env(), kind: 'end', payload: { reason: 'sas_mismatch' } })), 'endCall'))
+      .toMatchObject([{ reason: 'hangup' }])
     const e = calleeConnected()
     expect(only(e.remote(serverEv('ended', { reason: 'blocked' })), 'endCall')).toMatchObject([{ reason: 'blocked' }])
   })
@@ -1000,7 +1003,7 @@ class FaultSim {
     const acceptAt = this.rand(300, 3_000)
     this.at(acceptAt, () => {
       this.srv.state = 'accepted'
-      this.broadcastServer(['caller'], 'accepted', { calleeTabId: STAB.callee, calleeNonce: NB })
+      this.broadcastServer(['caller'], 'accepted', { calleeTabId: STAB.callee })
       // DESIGN §3.2 step 3: "other devices get answered_elsewhere" — on ring:<callee>, which the accepting tab
       // is subscribed to as well, and before its own accept POST has returned.
       if (this.o.answeredElsewhere) this.broadcastServer(['callee'], 'answered_elsewhere', { calleeTabId: STAB.callee })

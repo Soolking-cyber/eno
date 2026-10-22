@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { IconButton } from '@/components/ui/icon-button'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
-import { BadgeCheck, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldAlert, ShieldCheck, SwitchCamera, Video } from '@/components/ui/icons'
+import { BadgeCheck, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldCheck, SwitchCamera, Video } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { callEngine, type CallView } from '@/lib/calls/client/engine'
@@ -23,10 +23,9 @@ const withYear = (template: string, year: number) => (template.includes('{year}'
  * What it shows, from the design (DESIGN.md v3 §3.2 step 5, §4):
  *   · who: name, avatar, verified mark, and which side of which listing — a stranger cannot pose as "eno support"
  *     here, and the fixed line says eno never calls anyone;
- *   · the safety code: 4 emoji with their names, to compare by voice or on video — "End-to-end encrypted" only once
- *     the code is up; a mismatch ends the call with a warning, never a quiet note;
- *   · video: the camera starts OFF; the other person's video arrives BLURRED until tapped, and blurs again after any
- *     gap in it;
+ *   · "End-to-end encrypted" while connected (owner, 2026-10-22, kept when the 4-emoji safety code was removed);
+ *   · one kind of call: it starts as voice, and where the pair may use video the camera button is right there — the
+ *     camera starts OFF; the other person's video arrives BLURRED until tapped, and blurs again after any gap in it;
  *   · 1:55 into a call, a warning that the 2 h cap is near.
  */
 export function CallScreen({ view }: { view: CallView }) {
@@ -73,7 +72,8 @@ function Incoming({ view }: { view: CallView }) {
   const cannotAnswerHere = !callsWorkHere()
   return (
     <div className="flex h-full flex-col justify-between pb-[max(2rem,env(safe-area-inset-bottom))]">
-      <PeerHeader view={view} status={view.media === 'video' ? tr('Incoming video call…', 'Cuộc gọi video đến…') : tr('Incoming call…', 'Cuộc gọi đến…')} />
+      {/* One kind of call (owner, 2026-10-22): every call rings as a call — the camera, where allowed, is inside it. */}
+      <PeerHeader view={view} status={tr('Incoming call…', 'Cuộc gọi đến…')} />
       <p className="mx-auto max-w-xs px-6 text-center text-xs text-white/60">
         {tr('eno never calls you. This call is from the person above, about this conversation.', 'eno không bao giờ gọi cho bạn. Cuộc gọi này đến từ người ở trên, về cuộc trò chuyện này.')}
       </p>
@@ -99,7 +99,7 @@ function Incoming({ view }: { view: CallView }) {
               onClick={() => { setBusy(true); void callEngine.accept().finally(() => setBusy(false)) }}
               className="h-16 w-16 bg-success text-success-foreground"
             >
-              {view.media === 'video' ? <Video className="h-7 w-7" /> : <PhoneIncoming className="h-7 w-7" />}
+              <PhoneIncoming className="h-7 w-7" />
             </IconButton>
             <span className="text-xs text-white/80">{tr('Answer', 'Trả lời')}</span>
           </div>
@@ -179,7 +179,11 @@ function InCall({ view }: { view: CallView }) {
       </div>
 
       <div className="relative z-10 flex flex-col items-center gap-4 px-6">
-        <SafetyCode view={view} />
+        {view.encrypted && (view.phase === 'connected' || view.phase === 'reconnecting') && (
+          <p className="flex items-center gap-1.5 text-xs text-white/70">
+            <ShieldCheck className="h-4 w-4" /> {tr('End-to-end encrypted', 'Mã hóa đầu cuối')}
+          </p>
+        )}
         {capSoon && <p className="text-xs text-white/80">{tr('Calls end after 2 hours — this one ends in a few minutes.', 'Cuộc gọi tự kết thúc sau 2 giờ — cuộc gọi này sắp kết thúc.')}</p>}
         {view.error && <p className="text-center text-xs text-white/80">{callErrorText(view.error, tr)}</p>}
         <div className="flex items-center justify-center gap-6">
@@ -215,60 +219,18 @@ function InCall({ view }: { view: CallView }) {
   )
 }
 
-/** The 4 emoji, or what stands in for them. "End-to-end encrypted" is claimed only once the code is up (owner decision 4). */
-function SafetyCode({ view }: { view: CallView }) {
-  const { tr } = useLanguage()
-  if (view.phase !== 'connected' && view.phase !== 'reconnecting') return null
-  if (view.sas.state === 'ready') {
-    return (
-      <div className="flex flex-col items-center gap-2 rounded-2xl bg-white/10 px-4 py-3">
-        <p className="flex items-center gap-1.5 text-xs font-semibold text-white/90">
-          <ShieldCheck className="h-4 w-4" /> {tr('End-to-end encrypted', 'Mã hóa đầu cuối')}
-        </p>
-        <div className="flex gap-3" aria-label={tr('Safety code', 'Mã an toàn')}>
-          {view.sas.emoji.map((e, i) => (
-            // BOTH names, whatever this phone's language: the two people often read the app in different languages
-            // and must say the same words to each other — the alphabet's EN + VI names are the shared vocabulary.
-            <div key={i} className="flex w-16 flex-col items-center gap-1">
-              <span className="text-3xl leading-none" aria-hidden>{e.char}</span>
-              <span className="text-center text-2xs leading-tight text-white/90">{e.en}</span>
-              <span className="text-center text-2xs leading-tight text-white/70">{e.vi}</span>
-            </div>
-          ))}
-        </div>
-        <p className="max-w-xs text-center text-2xs text-white/70">
-          {tr('Check that the other person sees the same 4 pictures. If they differ, hang up.', 'Hãy kiểm tra người kia thấy đúng 4 hình này. Nếu khác, hãy cúp máy.')}
-        </p>
-      </div>
-    )
-  }
-  if (view.sas.state === 'cannot_verify') {
-    return <p className="flex items-center gap-1.5 text-xs text-white/70"><ShieldAlert className="h-4 w-4" /> {tr('This device cannot show a safety code for this call.', 'Thiết bị này không hiển thị được mã an toàn cho cuộc gọi này.')}</p>
-  }
-  return <p className="text-xs text-white/60">{tr('Checking the safety code…', 'Đang kiểm tra mã an toàn…')}</p>
-}
-
 function Ended({ view }: { view: CallView }) {
   const { tr } = useLanguage()
-  const mismatch = view.sas.state === 'mismatch' || view.endReason === 'sas_mismatch'
   const text = view.error ? callErrorText(view.error, tr) : callEndText(view.endReason, view.role, tr)
   useEffect(() => {
-    if (mismatch || view.error) return
+    if (view.error) return
     const t = window.setTimeout(() => callEngine.reset(), 2_500)
     return () => window.clearTimeout(t)
-  }, [mismatch, view.error])
+  }, [view.error])
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 px-6 text-center">
       <Avatar name={view.peer?.name ?? undefined} url={view.peer?.avatarUrl ?? undefined} size="lg" />
-      {mismatch ? (
-        <div className="flex max-w-sm flex-col items-center gap-2">
-          <ShieldAlert className="h-8 w-8 text-white" />
-          <p className="text-lg font-bold">{tr('The safety check failed', 'Kiểm tra an toàn không đạt')}</p>
-          <p className="text-sm text-white/80">{tr('The two phones did not agree on the safety code, so the call was ended. Someone may have tried to listen in. Please report this conversation to eno.', 'Hai điện thoại không khớp mã an toàn nên cuộc gọi đã kết thúc. Có thể ai đó đã cố nghe lén. Hãy báo cáo cuộc trò chuyện này cho eno.')}</p>
-        </div>
-      ) : (
-        <p className="text-lg font-bold" role="status">{text}</p>
-      )}
+      <p className="text-lg font-bold" role="status">{text}</p>
       <Button variant="secondary" onClick={() => callEngine.reset()}>
         <Phone className="h-4 w-4" /> {tr('Close', 'Đóng')}
       </Button>

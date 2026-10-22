@@ -401,7 +401,6 @@ export type NicheApiErrorCode =
   | 'wrong_tab' // an in-call event from a tab the box did not bind to this call (409)
   | 'relay_unavailable' // the media relay could not issue credentials (503)
   | 'invalid_sdp' // a session description the guard refused (400)
-  | 'reveal_conflict' // a second, different safety-code reveal for one call (409)
   | 'call_request_cooldown' // a call request was sent in this thread in the last 24 h (429)
   | 'draft_stale' // PUT /api/teachers/me/draft: another tab or device saved the teacher draft since this revision (2026-10-11)
   | 'draft_gone' // PUT /api/teachers/me/draft: the draft was deleted (published, started over, expired) — never brought back
@@ -855,7 +854,6 @@ const ALL = [
   'wrong_tab',
   'relay_unavailable',
   'invalid_sdp',
-  'reveal_conflict',
   'call_request_cooldown',
   'draft_stale',
   'draft_gone',

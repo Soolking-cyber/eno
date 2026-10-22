@@ -1,6 +1,7 @@
 import { after } from 'next/server'
 import { z } from 'zod'
 import { ApiError, route } from '@/lib/api/handler'
+import { CALL_PROTOCOL_VERSION } from '@/lib/calls/types'
 import { liveCallRefusal } from '@/lib/calls/server/eligibility'
 import { callClock, endCall, heartbeat, sweepStale } from '@/lib/calls/server/session'
 import { afterCallEnded } from '@/lib/calls/server/finish'
@@ -28,6 +29,14 @@ export const POST = route(
   { auth: 'userId', rateLimit: { bucket: 'calls:heartbeat', limit: 30, window: '1 m' }, body: heartbeatBody },
   async ({ params, userId, body }) => {
     const { row: before, role } = await participantCall(params.id, userId)
+    // A call of another protocol version (one live across a deploy) can no longer signal — the signal route refuses its
+    // events — so a beat must not keep it, and both people's locks, alive until the 2 h cap: it ends here (protocol v2
+    // plan review, codex).
+    if (before.protocol_version !== CALL_PROTOCOL_VERSION) {
+      const ended = await endCall({ callId: before.id, reason: 'protocol_mismatch' })
+      if (ended) after(() => afterCallEnded(ended, 'protocol_mismatch'))
+      throw new ApiError('protocol_mismatch', 409)
+    }
     const row = await heartbeat({ callId: before.id, profileId: userId, tabId: body.tabId, connected: body.connected })
     if (!row) throw new ApiError('call_gone', 409)
     // Only from the bound tab of a live call (commit-gate review): the hang-up summary has its own route and window.

@@ -12,9 +12,7 @@ export const dynamic = 'force-dynamic'
 // so the ring overlay and the call screen read the rest here, participant-only (404 otherwise).
 //   · the other person: display name, avatar, verified identity yes/no, member since, and which side of the listing
 //     they are on ("Buyer of <listing>" — §4: role + listing first, so a stranger cannot pose as eno);
-//   · the listing: id + title;
-//   · for the CALLEE while ringing: the caller's commitment C. ⚠️ The callee must freeze it from THIS response before
-//     it sends its own nonce in the accept (sas.ts) — it is deliberately absent from the resync snapshot.
+//   · the listing: id + title.
 export const GET = route({ auth: 'userId', rateLimit: { bucket: 'calls:details', limit: 120, window: '1 m' } }, async ({ params, userId }) => {
   const { row, role } = await participantCall(params.id, userId)
   const peerId = role === 'caller' ? row.callee_id : row.caller_id
@@ -37,10 +35,6 @@ export const GET = route({ auth: 'userId', rateLimit: { bucket: 'calls:details',
     // off, and a ring timed from ringingAt on it could last one second (client review).
     ringRemainingMs: clock?.ringRemainingMs ?? 0,
     connectedAt: row.connected_at?.toISOString() ?? null,
-    commit: role === 'callee' && row.state === 'ringing' ? row.caller_commit : null,
-    // The ids the commitment binds — stored at start (session.ts commitTag), so the callee gets exactly what the caller
-    // committed with, whichever edition each of them is on.
-    commitIds: row.caller_tag && row.callee_tag ? { caller: row.caller_tag, callee: row.callee_tag } : null,
     peer,
     listing: convo?.listing ? { id: convo.listing.id, title: convo.listing.title } : null,
   }

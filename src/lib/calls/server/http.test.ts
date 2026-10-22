@@ -49,8 +49,9 @@ describe('endByParticipant', () => {
     const answered = row({ state: 'connected', callee_tab: 'tab-b' })
     await endByParticipant(answered, 'callee', 'p', 'tab-b', 'declined')
     await endByParticipant(answered, 'callee', 'p', 'tab-b', 'blocked')
-    await endByParticipant(answered, 'callee', 'p', 'tab-b', 'sas_mismatch')
-    expect(h.ends.map((e) => e.reason)).toEqual(['hangup', 'hangup', 'sas_mismatch'])
+    await endByParticipant(answered, 'callee', 'p', 'tab-b', 'sas_mismatch') // protocol v1's, no longer a peer's word
+    await endByParticipant(answered, 'callee', 'p', 'tab-b', 'media_failed')
+    expect(h.ends.map((e) => e.reason)).toEqual(['hangup', 'hangup', 'hangup', 'media_failed'])
   })
 
   it('the caller from a tab the box did not bind is refused; an ended call is a no-op', async () => {

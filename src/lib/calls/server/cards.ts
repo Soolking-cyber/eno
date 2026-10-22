@@ -5,7 +5,7 @@ import { sendPushToProfile } from '@/lib/push'
 import { maskEmailHandle } from '@/lib/utils'
 import { cutText } from '@/lib/feed-text'
 import { logError } from '@/lib/log'
-import type { CallEndReason, CallMedia } from '../types'
+import type { CallEndReason } from '../types'
 import { loadCall, type CallSessionRow, type EndedCallRow } from './session'
 
 /**
@@ -41,19 +41,19 @@ export function formatCallDuration(totalSec: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
 }
 
-/** The thread row's body. Pure. */
-export function callCardText(media: CallMedia, outcome: CallOutcome, durationSec: number): string {
-  const video = media === 'video'
-  const icon = video ? '🎥' : '📞'
-  if (outcome === 'completed') {
-    return `${icon} ${video ? 'Cuộc gọi video' : 'Cuộc gọi thoại'} · ${video ? 'Video call' : 'Voice call'} · ${formatCallDuration(durationSec)}`
-  }
-  if (outcome === 'missed') return video ? `${icon} Cuộc gọi video nhỡ · Missed video call` : `${icon} Cuộc gọi nhỡ · Missed call`
-  return `${icon} Cuộc gọi không kết nối được · Call didn't connect`
+/**
+ * The thread row's body. Pure. One kind of call since 2026-10-22 (owner: one call button, the camera inside): a call
+ * placed video-capable may never turn a camera on, so the record never says "video" — just the call and its length.
+ */
+export function callCardText(outcome: CallOutcome, durationSec: number): string {
+  if (outcome === 'completed') return `📞 Cuộc gọi · Call · ${formatCallDuration(durationSec)}`
+  if (outcome === 'missed') return '📞 Cuộc gọi nhỡ · Missed call'
+  return "📞 Cuộc gọi không kết nối được · Call didn't connect"
 }
 
 export const CALL_REQUEST_TEXT = '📞 Muốn gọi cho bạn · Would like to call you'
-export const ringText = (media: CallMedia) => (media === 'video' ? 'Cuộc gọi video đến · Incoming video call' : 'Cuộc gọi đến · Incoming call')
+/** The lock-screen ring — one kind of call (the camera, where allowed, is inside it), so never "video". */
+export const RING_TEXT = 'Cuộc gọi đến · Incoming call'
 const MISSED_TEXT = 'Cuộc gọi nhỡ · Missed call'
 export const ANSWERED_TEXT = 'Đã trả lời · Answered'
 export const RING_OVER_TEXT = 'Cuộc gọi đã kết thúc · Call ended'
@@ -87,7 +87,7 @@ export async function sendRingPush(row: Pick<CallSessionRow, 'id' | 'conversatio
     if ((await loadCall(row.id))?.state !== 'ringing') return
     await sendPushToProfile(row.callee_id, {
       title: await displayName(row.caller_id),
-      body: ringText(row.media),
+      body: RING_TEXT,
       url: `/messages/${row.conversation_id}?call=${row.id}`,
       tag: callNotificationTag(row.id),
     })
@@ -131,7 +131,7 @@ export async function writeCallRecord(before: EndedCallRow, reason: CallEndReaso
     if (!convo) return false
     const outcome = callOutcome(before, reason)
     const durationSec = before.connected_at ? (before.connected_secs ?? 0) : 0
-    await insertMessage(convo, before.caller_id, callCardText(before.media, outcome, durationSec), { kind: 'call' })
+    await insertMessage(convo, before.caller_id, callCardText(outcome, durationSec), { kind: 'call' })
     // No bell or push for a decline (the callee chose it) or the kill switch (the box ended everyone's ringing at once).
     if (outcome !== 'missed' || reason === 'declined' || reason === 'kill_switch') return false
     const callerName = await displayName(before.caller_id)

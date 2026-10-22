@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { CALL_PROTOCOL_VERSION } from '../types'
 
 /**
  * ⛔ THE CALL SESSION AGAINST A REAL POSTGRES — the casts, the advisory locks, the one-winner UPDATEs and the
@@ -22,9 +23,8 @@ const parsed = (() => { try { return new URL(url) } catch { return null } })()
 const loopback = ['127.0.0.1', 'localhost', '::1'].includes(parsed?.hostname ?? '')
 const live = process.env.CALLS_PG_TESTS === '1' && loopback && parsed?.port !== '5433' && /_it$/.test(parsed?.pathname ?? '')
 
-const NONCE_A = 'a'.repeat(64)
-const NONCE_B = 'b'.repeat(64)
-const COMMIT = 'c'.repeat(64)
+/** What caller_commit holds on every row since protocol v2 (no safety code; the column stays NOT NULL). */
+const ZERO = '0'.repeat(64)
 
 describe.skipIf(!live)('call session SQL against a real Postgres', () => {
   let db: typeof import('@/lib/db').db
@@ -34,14 +34,14 @@ describe.skipIf(!live)('call session SQL against a real Postgres', () => {
   const convo = { ab: `convo-ab-${randomUUID().slice(0, 8)}`, cb: `convo-cb-${randomUUID().slice(0, 8)}`, ad: `convo-ad-${randomUUID().slice(0, 8)}` }
 
   const start = (caller: string, callee: string, conversationId: string, tab = 'tab-caller', startId = randomUUID()) => s.startCall({
-    conversationId, callerId: caller, calleeId: callee, media: 'audio', protocolVersion: 1, edition: 'marketplace',
-    relay: 'cloudflare', callerTab: tab, commit: COMMIT, callerCaps: { v: 1 }, callerRelayUser: `relay-${randomUUID()}`, startId,
+    conversationId, callerId: caller, calleeId: callee, media: 'audio', protocolVersion: CALL_PROTOCOL_VERSION, edition: 'marketplace',
+    relay: 'cloudflare', callerTab: tab, callerCaps: { v: 1 }, callerRelayUser: `relay-${randomUUID()}`, startId,
   })
   const accept = (callId: string, callee: string, tabId = 'tab-callee') => s.acceptCall({
-    callId, calleeId: callee, tabId, nonce: NONCE_B, calleeCaps: { v: 1 }, calleeRelayUser: `relay-${randomUUID()}`,
+    callId, calleeId: callee, tabId, calleeCaps: { v: 1 }, calleeRelayUser: `relay-${randomUUID()}`,
   })
   const ev = (callId: string, tabId: string, key: string, body: Record<string, unknown>) =>
-    ({ v: 1, callId, idempotencyKey: key, tabId, ...body }) as never
+    ({ v: CALL_PROTOCOL_VERSION, callId, idempotencyKey: key, tabId, ...body }) as never
   const sent = async (callId: string) => (await db.$queryRaw<{ topic: string; kind: string }[]>`
     SELECT topic, payload->>'kind' AS kind FROM realtime.sent WHERE payload->>'callId' = ${callId} ORDER BY id`)
 
@@ -76,7 +76,7 @@ describe.skipIf(!live)('call session SQL against a real Postgres', () => {
     expect(r.kind).toBe('ringing')
     const callId = (r as { callId: string }).callId
     const row = await s.loadCall(callId)
-    expect(row).toMatchObject({ state: 'ringing', caller_id: people.alice, callee_id: people.bob, caller_commit: COMMIT, media: 'audio' })
+    expect(row).toMatchObject({ state: 'ringing', caller_id: people.alice, callee_id: people.bob, caller_commit: ZERO, caller_tag: null, callee_tag: null, media: 'audio' })
     expect(row!.caller_hash).toMatch(/^[0-9a-f]{64}$/)
     expect(row!.caller_hash).not.toContain(people.alice)
     expect(await sent(callId)).toEqual([{ topic: `ring:${people.bob}`, kind: 'ring' }])
@@ -95,8 +95,8 @@ describe.skipIf(!live)('call session SQL against a real Postgres', () => {
     expect(r.kind).toBe('unavailable')
     const row = await s.loadCall((r as { callId: string }).callId)
     expect(row).toMatchObject({ state: 'ended', end_reason: 'unavailable', caller_relay_user: null })
-    // ⛔ born ended, so written already clean — no safety-code material on a call that never rang (round-5 review)
-    expect(row).toMatchObject({ caller_commit: '0'.repeat(64), caller_tag: null, callee_tag: null, caller_caps: null })
+    // ⛔ born ended, so written already clean (round-5 review)
+    expect(row).toMatchObject({ caller_commit: ZERO, caller_tag: null, callee_tag: null, caller_caps: null })
     expect(await sent(row!.id)).toEqual([])
   })
 
@@ -105,21 +105,22 @@ describe.skipIf(!live)('call session SQL against a real Postgres', () => {
     expect([a.kind, b.kind].sort()).toEqual(['ringing', 'unavailable'])
   })
 
-  it('accept: binds the tab, stores nB, tells the caller (with nB) and the callee\'s other tabs in the same commit', async () => {
+  it('accept: binds the tab, tells the caller and the callee\'s other tabs in the same commit — no safety-code nonce (v2)', async () => {
     const { callId } = (await start(people.alice, people.bob, convo.ab)) as { callId: string }
     const r = await accept(callId, people.bob)
     expect(r.ok).toBe(true)
     const row = await s.loadCall(callId)
-    expect(row).toMatchObject({ state: 'accepted', callee_tab: 'tab-callee', callee_nonce: NONCE_B })
+    expect(row).toMatchObject({ state: 'accepted', callee_tab: 'tab-callee', callee_nonce: null })
     const kinds = await sent(callId)
     expect(kinds).toEqual([
       { topic: `ring:${people.bob}`, kind: 'ring' },
       { topic: `ring:${people.bob}`, kind: 'answered_elsewhere' },
       { topic: `call:${convo.ab}`, kind: 'accepted' },
     ])
-    const [acceptedPayload] = await db.$queryRaw<{ p: { payload: { calleeNonce: string; calleeTabId: string } } }[]>`
+    const [acceptedPayload] = await db.$queryRaw<{ p: { payload: Record<string, unknown> } }[]>`
       SELECT payload AS p FROM realtime.sent WHERE payload->>'kind' = 'accepted' AND payload->>'callId' = ${callId}`
-    expect(acceptedPayload.p.payload).toMatchObject({ calleeNonce: NONCE_B, calleeTabId: 'tab-callee' })
+    expect(acceptedPayload.p.payload).toMatchObject({ calleeTabId: 'tab-callee' })
+    expect(acceptedPayload.p.payload).not.toHaveProperty('calleeNonce')
   })
 
   it('⛔ two devices accept at once: exactly one wins, the other is call_gone', async () => {
@@ -178,21 +179,10 @@ describe.skipIf(!live)('call session SQL against a real Postgres', () => {
     expect(snap.candidates).toHaveLength(1)
     expect(snap.candidates[0].candidates).toHaveLength(60) // 3 batches of 20 fit under the 64 cap; the 4th is refused whole
     expect(snap.peerHold).toEqual({ held: true, seq: 5 })
-    expect(snap.calleeNonce).toBe(NONCE_B)
+    expect(snap).not.toHaveProperty('calleeNonce')
     const calleeView = await s.snapshotFor(row, 'callee')
     expect(calleeView.candidates).toEqual([]) // its own candidates are useless to it
     expect(calleeView.peerTabId).toBe('tab-caller')
-  })
-
-  it('reveal: first write wins; the same nonce again is a quiet retry, a different one a conflict', async () => {
-    const { callId } = (await start(people.alice, people.bob, convo.ab)) as { callId: string }
-    expect(await s.recordReveal(callId, people.alice, 'tab-caller', NONCE_A)).toBe('gone') // not answered yet
-    await accept(callId, people.bob)
-    expect(await s.recordReveal(callId, people.alice, 'tab-caller', NONCE_A)).toBe('stored')
-    expect(await s.recordReveal(callId, people.alice, 'tab-caller', NONCE_A)).toBe('same')
-    expect(await s.recordReveal(callId, people.alice, 'tab-caller', NONCE_B)).toBe('conflict')
-    expect(await s.recordReveal(callId, people.bob, 'tab-callee', NONCE_A)).toBe('gone') // not the caller
-    expect((await sent(callId)).filter((x) => x.kind === 'reveal')).toHaveLength(1)
   })
 
   it('heartbeat: only the bound tab counts; the first connection is stamped once', async () => {
@@ -217,16 +207,14 @@ describe.skipIf(!live)('call session SQL against a real Postgres', () => {
     expect((await s.sweepStale({ onlyCall: two.callId })).map((x) => x.reason)).toEqual(['cap_reached'])
   })
 
-  it('end: one winner; locks, negotiation rows, keys and safety-code material go; the metadata stays', async () => {
+  it('end: one winner; locks, negotiation rows and keys go; the metadata stays', async () => {
     const { callId } = (await start(people.alice, people.bob, convo.ab)) as { callId: string }
     await accept(callId, people.bob)
     await s.relayClientEvent(callId, people.alice, ev(callId, 'tab-caller', 'key-end-0001', { kind: 'offer', negId: 1, payload: { sdp: 'v=0\r\n' } }))
-    await s.recordReveal(callId, people.alice, 'tab-caller', NONCE_A)
     const [x, y] = await Promise.all([s.endCall({ callId, reason: 'hangup' }), s.endCall({ callId, reason: 'lost' })])
     expect([x, y].filter(Boolean)).toHaveLength(1)
     const winner = (x ?? y)!
     expect(winner.state).toBe('accepted') // the row AS IT WAS, for the card
-    expect(winner.caller_reveal).toBe(NONCE_A)
     const after = (await s.loadCall(callId))!
     expect(after).toMatchObject({ state: 'ended', callee_nonce: null, caller_reveal: null, caller_caps: null, caller_relay_user: null, callee_relay_user: null })
     expect(after.caller_id).toBe(people.alice)
@@ -306,13 +294,6 @@ describe.skipIf(!live)('call session SQL against a real Postgres', () => {
     await accept(callId, people.bob)
     await db.$executeRaw`UPDATE public.call_session SET caller_heartbeat_at = now() - interval '50 seconds' WHERE id = ${callId}::uuid`
     expect(await s.relayClientEvent(callId, people.bob, ev(callId, 'tab-callee', 'k-stale-001', { kind: 'ready', payload: {} }))).toBe('gone')
-  })
-
-  it('the commitment ids are stored at start, for the callee to read back exactly', async () => {
-    const { callId } = (await start(people.alice, people.bob, convo.ab)) as { callId: string }
-    const row = (await s.loadCall(callId))!
-    expect(row.caller_tag).toBe(s.commitTag(people.alice, convo.ab))
-    expect(row.callee_tag).toBe(s.commitTag(people.bob, convo.ab))
   })
 
   it('⛔ erasure: every live call of ONE person ends under their lock — the peer told and freed, nobody else touched', async () => {

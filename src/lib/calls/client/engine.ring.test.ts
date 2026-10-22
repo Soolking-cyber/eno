@@ -10,12 +10,12 @@ vi.mock('@/lib/log', () => ({ logError: vi.fn() }))
 vi.mock('./api', async (importOriginal) => ({ ...(await importOriginal<typeof import('./api')>()), getCallDetails: h.details }))
 
 import { callEngine } from './engine'
+import { CALL_PROTOCOL_VERSION } from '../types'
 
 let n = 0
 const details = (callId: string, state: string, endReason: string | null = null) => ({
   callId, conversationId: 'cmuh33qrd000301no3mhk7h75', media: 'audio', role: 'callee', state, endReason,
-  protocolVersion: 1, ringingAt: new Date().toISOString(), ringTimeoutSec: 45, ringRemainingMs: 40_000, connectedAt: null,
-  commit: 'commitment', commitIds: { caller: 'a', callee: 'b' },
+  protocolVersion: CALL_PROTOCOL_VERSION, ringingAt: new Date().toISOString(), ringTimeoutSec: 45, ringRemainingMs: 40_000, connectedAt: null,
   peer: { name: 'Peer', avatarUrl: null, verified: true, memberSince: null, side: 'seller' }, listing: null,
 })
 

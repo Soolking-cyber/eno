@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 /**
  * broadcast.ts + realtime.ts — a call event as the box's realtime.send() actually delivers it. The payloads below are
  * copied from realtime.messages on 2026-10-22 (the owner's first two-device test): realtime.send() had added `id` (the
- * row's own uuid) to each, every strict protocol schema refused the extra key, and no phone rang.
+ * row's own uuid) to each, every strict protocol schema refused the extra key, and no phone rang. (They carried v 1
+ * then; the safety code's removal made the protocol v 2 the same day, so `v` follows CALL_PROTOCOL_VERSION here.)
  */
 const h = vi.hoisted(() => ({
   onBroadcast: null as null | ((m: { payload: unknown }) => void),
@@ -27,18 +28,19 @@ vi.mock('@/lib/supabase/browser', () => ({
 }))
 
 import { parseEvent } from '../protocol'
+import { CALL_PROTOCOL_VERSION } from '../types'
 import { fromBroadcast } from './broadcast'
 import { joinChannel, UNREADABLE_GAP_MS } from './realtime'
 
 /** Verbatim from realtime.messages (the row's id is 449fe200-…, the same value realtime.send put in the payload). */
 const DELIVERED_ANSWERED_ELSEWHERE = {
-  v: 1, id: '449fe200-a68a-4b63-bfb8-4cbdbc556986', kind: 'answered_elsewhere', tabId: 'box',
+  v: CALL_PROTOCOL_VERSION, id: '449fe200-a68a-4b63-bfb8-4cbdbc556986', kind: 'answered_elsewhere', tabId: 'box',
   callId: 'c941774f-b162-4b6e-bafe-765025bdc550', payload: { calleeTabId: 't-f3715e58-ad7b-4a53-a8a2-7976e9482e31' },
   idempotencyKey: 'box-74e6f1c1-33f5-4823-a084-dacb95afb75a',
 }
 /** The ring that never rang, in the same shape. */
 const DELIVERED_RING = {
-  v: 1, id: 'e7f4689c-73f2-4c00-9d57-102805e5a85d', kind: 'ring', tabId: 'box',
+  v: CALL_PROTOCOL_VERSION, id: 'e7f4689c-73f2-4c00-9d57-102805e5a85d', kind: 'ring', tabId: 'box',
   callId: '6801332d-fcba-4a72-beaf-fb3e7423b7de', payload: { media: 'audio' },
   idempotencyKey: 'box-0b9e3a52-6a43-4d0f-9d0b-6f1f3f2d8c11',
 }
@@ -81,14 +83,14 @@ describe('joinChannel — the real Realtime handler', () => {
       const onEvent = vi.fn()
       const onUnreadable = vi.fn()
       await joinChannel('call:cmuh33qrd000301no3mhk7h75', { onEvent, onUnreadable })
-      for (let i = 0; i < 20; i++) h.onBroadcast!({ payload: { v: 1, kind: 'nonsense' } })
+      for (let i = 0; i < 20; i++) h.onBroadcast!({ payload: { v: CALL_PROTOCOL_VERSION, kind: 'nonsense' } })
       expect(onEvent).not.toHaveBeenCalled()
       expect(onUnreadable).toHaveBeenCalledTimes(1) // at once
       vi.advanceTimersByTime(UNREADABLE_GAP_MS)
       expect(onUnreadable).toHaveBeenCalledTimes(2) // the trailing one: the last of the burst is answered
       vi.advanceTimersByTime(UNREADABLE_GAP_MS * 5)
       expect(onUnreadable).toHaveBeenCalledTimes(2) // and nothing more
-      h.onBroadcast!({ payload: { v: 1, kind: 'nonsense' } })
+      h.onBroadcast!({ payload: { v: CALL_PROTOCOL_VERSION, kind: 'nonsense' } })
       expect(onUnreadable).toHaveBeenCalledTimes(3) // a later one, past the gap, at once again
       expect(h.logError).toHaveBeenCalledTimes(1) // one line per channel
     } finally {
@@ -117,7 +119,7 @@ describe('joinChannel — the real Realtime handler', () => {
     const onUnreadable = vi.fn(() => { throw new Error('handler down') })
     const onEvent = vi.fn(() => { throw new Error('engine down') })
     await joinChannel('ring:x', { onEvent, onUnreadable })
-    expect(() => h.onBroadcast!({ payload: { v: 1, kind: 'nonsense' } })).not.toThrow()
+    expect(() => h.onBroadcast!({ payload: { v: CALL_PROTOCOL_VERSION, kind: 'nonsense' } })).not.toThrow()
     expect(() => h.onBroadcast!({ payload: DELIVERED_RING })).not.toThrow()
     const logged = h.logError.mock.calls.map(([e, ctx]) => [String((e as Error).message), (ctx as { op: string }).op])
     expect(logged).toContainEqual([expect.stringMatching(/^calls: unreadable ring event/), 'calls.unreadableEvent'])
@@ -130,10 +132,10 @@ describe('joinChannel — the real Realtime handler', () => {
     try {
       const onUnreadable = vi.fn()
       await joinChannel('call:c', { onEvent: vi.fn(), onUnreadable })
-      h.onBroadcast!({ payload: { v: 1, kind: 'nonsense' } }) // at once
-      h.onBroadcast!({ payload: { v: 1, kind: 'nonsense' } }) // schedules the trailing one
+      h.onBroadcast!({ payload: { v: CALL_PROTOCOL_VERSION, kind: 'nonsense' } }) // at once
+      h.onBroadcast!({ payload: { v: CALL_PROTOCOL_VERSION, kind: 'nonsense' } }) // schedules the trailing one
       vi.setSystemTime(Date.now() + UNREADABLE_GAP_MS + 1) // the gap passed, but the timer has not run yet
-      h.onBroadcast!({ payload: { v: 1, kind: 'nonsense' } }) // answered at once — and the stale timer dropped
+      h.onBroadcast!({ payload: { v: CALL_PROTOCOL_VERSION, kind: 'nonsense' } }) // answered at once — and the stale timer dropped
       expect(onUnreadable).toHaveBeenCalledTimes(2)
       vi.advanceTimersByTime(UNREADABLE_GAP_MS * 3)
       expect(onUnreadable).toHaveBeenCalledTimes(2)
@@ -147,8 +149,8 @@ describe('joinChannel — the real Realtime handler', () => {
     try {
       const onUnreadable = vi.fn(() => { throw new Error('handler down') })
       await joinChannel('call:c', { onEvent: vi.fn(), onUnreadable })
-      h.onBroadcast!({ payload: { v: 1, kind: 'nonsense' } }) // at once — throws, contained
-      h.onBroadcast!({ payload: { v: 1, kind: 'nonsense' } }) // schedules the trailing one
+      h.onBroadcast!({ payload: { v: CALL_PROTOCOL_VERSION, kind: 'nonsense' } }) // at once — throws, contained
+      h.onBroadcast!({ payload: { v: CALL_PROTOCOL_VERSION, kind: 'nonsense' } }) // schedules the trailing one
       expect(() => vi.advanceTimersByTime(UNREADABLE_GAP_MS)).not.toThrow() // throws inside the timer, contained
       expect(onUnreadable).toHaveBeenCalledTimes(2)
       const ops = h.logError.mock.calls.filter(([, ctx]) => (ctx as { op: string }).op === 'calls.realtimeHandler')
@@ -164,8 +166,8 @@ describe('joinChannel — the real Realtime handler', () => {
       const onEvent = vi.fn()
       const onUnreadable = vi.fn()
       const channel = await joinChannel('call:c', { onEvent, onUnreadable })
-      h.onBroadcast!({ payload: { v: 1, kind: 'nonsense' } }) // at once
-      h.onBroadcast!({ payload: { v: 1, kind: 'nonsense' } }) // trailing one scheduled
+      h.onBroadcast!({ payload: { v: CALL_PROTOCOL_VERSION, kind: 'nonsense' } }) // at once
+      h.onBroadcast!({ payload: { v: CALL_PROTOCOL_VERSION, kind: 'nonsense' } }) // trailing one scheduled
       channel.close()
       h.onBroadcast!({ payload: DELIVERED_RING }) // in flight while removeChannel finishes
       vi.advanceTimersByTime(UNREADABLE_GAP_MS * 2)
@@ -181,9 +183,9 @@ describe('joinChannel — the real Realtime handler', () => {
     try {
       const onUnreadable = vi.fn()
       await joinChannel('call:c', { onEvent: vi.fn(), onUnreadable })
-      h.onBroadcast!({ payload: { v: 1, kind: 'nonsense' } }) // at once
+      h.onBroadcast!({ payload: { v: CALL_PROTOCOL_VERSION, kind: 'nonsense' } }) // at once
       vi.setSystemTime(Date.now() - 3_600_000) // the phone's clock goes back an hour
-      h.onBroadcast!({ payload: { v: 1, kind: 'nonsense' } })
+      h.onBroadcast!({ payload: { v: CALL_PROTOCOL_VERSION, kind: 'nonsense' } })
       vi.advanceTimersByTime(UNREADABLE_GAP_MS)
       expect(onUnreadable).toHaveBeenCalledTimes(2)
     } finally {
@@ -195,7 +197,7 @@ describe('joinChannel — the real Realtime handler', () => {
     h.logError.mockImplementationOnce(() => { throw new Error('log down') })
     const onUnreadable = vi.fn()
     await joinChannel('ring:x', { onEvent: vi.fn(), onUnreadable })
-    expect(() => h.onBroadcast!({ payload: { v: 1, kind: 'nonsense' } })).not.toThrow()
+    expect(() => h.onBroadcast!({ payload: { v: CALL_PROTOCOL_VERSION, kind: 'nonsense' } })).not.toThrow()
     expect(onUnreadable).toHaveBeenCalledTimes(1)
   })
 

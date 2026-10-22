@@ -6,6 +6,7 @@ import { CLOUDFLARE_IPV4_RANGES, relayAllowList, relayServersFrom } from './rela
 import { sanitizeClientEvent } from './signal'
 import { callCardText, callOutcome, formatCallDuration } from './cards'
 import { counterpartOf, knownMinorByYear, threadRefusal, type ConversationForCall } from './eligibility'
+import { CALL_PROTOCOL_VERSION } from '../types'
 import { buildSnapshot, staleReason, type CallSessionRow } from './session'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 
@@ -79,7 +80,7 @@ describe('the relay (relay.ts)', () => {
 
 describe('the signalling sanitiser (signal.ts)', () => {
   const sdp = readFileSync(join(__dirname, '..', '__fixtures__', 'chrome-offer.sdp'), 'utf8')
-  const env = { v: 1 as const, callId: CALL_ID, idempotencyKey: 'abcd1234:1', tabId: 'tab-a' }
+  const env = { v: CALL_PROTOCOL_VERSION as typeof CALL_PROTOCOL_VERSION, callId: CALL_ID, idempotencyKey: 'abcd1234:1', tabId: 'tab-a' }
   const offer = { ...env, kind: 'offer' as const, negId: 1, payload: { sdp } }
 
   it('a description from an allowed relay passes with its candidates rebuilt', () => {
@@ -131,9 +132,10 @@ describe('the thread record (cards.ts)', () => {
 
   it('durations and bilingual copy', () => {
     expect([0, 42.9, 192, 3723, -5, Number.NaN].map(formatCallDuration)).toEqual(['0:00', '0:42', '3:12', '1:02:03', '0:00', '0:00'])
-    expect(callCardText('audio', 'completed', 192)).toBe('📞 Cuộc gọi thoại · Voice call · 3:12')
-    expect(callCardText('video', 'missed', 0)).toBe('🎥 Cuộc gọi video nhỡ · Missed video call')
-    expect(callCardText('audio', 'failed', 0)).toBe("📞 Cuộc gọi không kết nối được · Call didn't connect")
+    // One kind of call (2026-10-22): the record never says "video" — a video-capable call may never turn a camera on.
+    expect(callCardText('completed', 192)).toBe('📞 Cuộc gọi · Call · 3:12')
+    expect(callCardText('missed', 0)).toBe('📞 Cuộc gọi nhỡ · Missed call')
+    expect(callCardText('failed', 0)).toBe("📞 Cuộc gọi không kết nối được · Call didn't connect")
   })
 })
 
@@ -193,7 +195,7 @@ describe('the resync snapshot (session.ts buildSnapshot)', () => {
   const row = (o: Partial<CallSessionRow> = {}): CallSessionRow => ({
     id: CALL_ID, conversation_id: 'c1', caller_id: 'a', callee_id: 'b', caller_hash: 'x'.repeat(64), callee_hash: 'y'.repeat(64),
     caller_tag: null, callee_tag: null,
-    media: 'audio', state: 'connected', end_reason: null, protocol_version: 1, edition: 'marketplace', relay_provider: 'cloudflare',
+    media: 'audio', state: 'connected', end_reason: null, protocol_version: CALL_PROTOCOL_VERSION, edition: 'marketplace', relay_provider: 'cloudflare',
     caller_tab: 'tab-a', callee_tab: 'tab-b', caller_commit: 'c'.repeat(64), callee_nonce: 'b'.repeat(64), caller_reveal: null,
     caller_hold: true, caller_hold_seq: 3, callee_hold: null, callee_hold_seq: null, caller_relay_user: 'r1', callee_relay_user: 'r2',
     caller_caps: null, callee_caps: null, ringing_at: new Date(), accepted_at: new Date(), ready_at: null, connected_at: new Date(),
@@ -210,7 +212,7 @@ describe('the resync snapshot (session.ts buildSnapshot)', () => {
     expect(forCallee).toMatchObject({
       callState: 'connected', peerTabId: 'tab-a', peerHold: { held: true, seq: 3 },
       latestOffer: { negId: 2, sdp: 'v=0\r\no=2\r\n', codecPlan: { p: 2 } }, latestAnswer: { negId: 1, sdp: 'v=0\r\na=1\r\n' },
-      candidates: [{ negId: 2, candidates: [cand(1)] }], calleeNonce: 'b'.repeat(64), callerReveal: null,
+      candidates: [{ negId: 2, candidates: [cand(1)] }],
     })
     expect(JSON.stringify(forCallee)).not.toContain('c'.repeat(64))
     const forCaller = buildSnapshot(row(), 'caller', negs)
@@ -230,18 +232,3 @@ describe('the resync snapshot (session.ts buildSnapshot)', () => {
   })
 })
 
-describe('the commitment ids (session.ts commitTag)', () => {
-  it('a canonical UUID sas.ts accepts, stable per person, distinct between people, never the profile id', async () => {
-    const { commitTag } = await import('./session')
-    const { uuidToBytes } = await import('../sas')
-    const a = commitTag('11111111-1111-4111-8111-111111111111', 'c1')
-    const b = commitTag('22222222-2222-4222-8222-222222222222', 'c1')
-    expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
-    expect(() => uuidToBytes(a)).not.toThrow()
-    expect(commitTag('11111111-1111-4111-8111-111111111111', 'c1')).toBe(a)
-    expect(a).not.toBe(b)
-    expect(a).not.toBe('11111111-1111-4111-8111-111111111111')
-    // ⚠️ Per conversation: the same person is a different tag in another thread — no cross-thread linking.
-    expect(commitTag('11111111-1111-4111-8111-111111111111', 'c2')).not.toBe(a)
-  })
-})

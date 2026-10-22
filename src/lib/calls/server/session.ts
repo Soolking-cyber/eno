@@ -30,8 +30,8 @@ import { boxEvent, broadcast, callTopic, ringTopic } from './events'
  * person. call_lock then records the holder (a fast busy lookup and a constraint that would refuse a second holder
  * outright); a stale holder is simply replaced.
  *
- * ⚠️ IDS ARE MINTED HERE (crypto.randomUUID) — call_session.id has no default on purpose: the safety code and the
- * telemetry schema both require a real RFC 9562 UUID (telemetry.ts), and the box never re-uses one.
+ * ⚠️ IDS ARE MINTED HERE (crypto.randomUUID) — call_session.id has no default on purpose: the telemetry schema
+ * requires a real RFC 9562 UUID (telemetry.ts), and the box never re-uses one.
  * ⚠️ NO SDP, NONCE OR CANDIDATE IN LOGS. Errors name the call id and a code.
  */
 
@@ -54,7 +54,10 @@ export const CALL_CAP_S = 2 * 3600
  * re-armed by a restart); this is the box's backstop.
  */
 export const CONNECT_DEADLINE_S = 90
-/** What caller_commit holds once a call is over (the column is NOT NULL): the commitment is gone, the row stays. */
+/**
+ * What caller_commit holds: since protocol v2 (2026-10-22) there is no safety code and so no commitment, but the column
+ * is NOT NULL with a hex CHECK (calls-ddl.mjs) — every new row carries zeros, and a call that ends zeroes an old one.
+ */
 const ZERO_COMMIT = '0'.repeat(64)
 
 /** The raw row, as $queryRaw returns it. */
@@ -65,7 +68,7 @@ export interface CallSessionRow {
   callee_id: string | null
   caller_hash: string
   callee_hash: string
-  /** The commitment's ids (commitTag), fixed at start by the caller's edition — the callee reads THESE (GET /api/calls/:id). */
+  /** The safety code's commitment ids — protocol v1 only; NULL on every row since v2 (kept for rows from before). */
   caller_tag: string | null
   callee_tag: string | null
   media: CallMedia
@@ -130,24 +133,6 @@ export function partyHash(profileId: string): string {
   const key = digestKey()
   const input = `eno-call-party:${profileId}`
   return (key ? createHmac('sha256', key).update(input) : createHash('sha256').update(input)).digest('hex')
-}
-
-/**
- * The two ids the safety-code commitment binds (sas.ts commit: C = SHA-256(tag | nA | fpA | callerId | calleeId)) —
- * a keyed PSEUDONYM per person, shaped as a UUID, never the profile id itself. sas.ts needs two distinct UUIDs both
- * phones agree on; the chat API never hands a counterpart's profile id to the other side (it is the key every
- * profile-scoped endpoint takes), so the box gives each participant these tags instead (GET /api/conversations/:id/call
- * for the caller, GET /api/calls/:id for both). Domain separation is all the ids add to the commitment — the box
- * that hands them out is the very party the code distrusts either way — so a deterministic tag loses nothing, as long
- * as it cannot link one person across threads (hence the conversation in the input).
- */
-export function commitTag(profileId: string, conversationId: string): string {
-  const key = digestKey()
-  // ⚠️ PER CONVERSATION (commit-gate review): a tag of the profile alone would be the same in every thread, and a
-  // buyer talking to two shops — or a seller to two buyers — could learn that both are one person.
-  const input = `eno-call-tag:${conversationId}:${profileId}`
-  const hex = (key ? createHmac('sha256', key).update(input) : createHash('sha256').update(input)).digest('hex').slice(0, 32)
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
 }
 
 async function lockPeople(tx: Tx, ids: readonly string[]): Promise<void> {
@@ -228,7 +213,6 @@ export interface StartInput {
   edition: 'marketplace' | 'services'
   relay: RelayProvider
   callerTab: string
-  commit: string
   callerCaps: unknown
   callerRelayUser: string
   /** The phone's id for this attempt (abandonStart). */
@@ -277,8 +261,8 @@ export async function startCall(input: StartInput): Promise<StartResult> {
     if (await freshCallOf(tx, input.callerId)) return { kind: 'busy_self' } as const
 
     const calleeBusy = (await freshCallOf(tx, input.calleeId)) !== null
-    // ⚠️ A BUSY CALL IS BORN ENDED, so endCallIn's clean-up never runs on it: it is written already clean — the zero
-    // commitment, no commitment ids, no capabilities, no relay user (round-5 review: it kept caller_commit and both tags).
+    // ⚠️ A BUSY CALL IS BORN ENDED, so endCallIn's clean-up never runs on it: it is written already clean — no
+    // capabilities, no relay user (round-5 review). caller_commit is zeros on every row since protocol v2.
     const rows = await tx.$queryRaw<CallSessionRow[]>`
       INSERT INTO public.call_session (
         id, conversation_id, caller_id, callee_id, caller_hash, callee_hash, caller_tag, callee_tag, media, state,
@@ -287,9 +271,9 @@ export async function startCall(input: StartInput): Promise<StartResult> {
       ) VALUES (
         ${callId}::uuid, ${input.conversationId}, ${input.callerId}::uuid, ${input.calleeId}::uuid,
         ${partyHash(input.callerId)}, ${partyHash(input.calleeId)},
-        ${calleeBusy ? null : commitTag(input.callerId, input.conversationId)}, ${calleeBusy ? null : commitTag(input.calleeId, input.conversationId)}, ${input.media},
+        NULL, NULL, ${input.media},
         ${calleeBusy ? 'ended' : 'ringing'}, ${calleeBusy ? 'unavailable' : null},
-        ${input.protocolVersion}, ${input.edition}, ${input.relay}, ${input.callerTab}, ${input.startId}, ${calleeBusy ? ZERO_COMMIT : input.commit},
+        ${input.protocolVersion}, ${input.edition}, ${input.relay}, ${input.callerTab}, ${input.startId}, ${ZERO_COMMIT},
         ${calleeBusy ? null : JSON.stringify(input.callerCaps ?? null)}::jsonb,
         ${calleeBusy ? null : input.callerRelayUser}, now(), CASE WHEN ${calleeBusy} THEN now() END
       ) RETURNING *`
@@ -309,7 +293,6 @@ export interface AcceptInput {
   callId: string
   calleeId: string
   tabId: string
-  nonce: string
   calleeCaps: unknown
   calleeRelayUser: string
 }
@@ -330,7 +313,7 @@ export async function acceptCall(input: AcceptInput): Promise<AcceptResult> {
     // meet here, and exactly one of them finds the row still ringing and fresh.
     const rows = await tx.$queryRaw<CallSessionRow[]>`
       UPDATE public.call_session
-         SET state = 'accepted', accepted_at = now(), callee_tab = ${input.tabId}, callee_nonce = ${input.nonce},
+         SET state = 'accepted', accepted_at = now(), callee_tab = ${input.tabId},
              callee_caps = ${JSON.stringify(input.calleeCaps ?? null)}::jsonb, callee_relay_user = ${input.calleeRelayUser},
              callee_heartbeat_at = now(), caller_heartbeat_at = GREATEST(caller_heartbeat_at, now() - make_interval(secs => 15))
        WHERE id = ${input.callId}::uuid AND callee_id = ${input.calleeId}::uuid AND state = 'ringing' AND ${FRESH}
@@ -342,7 +325,7 @@ export async function acceptCall(input: AcceptInput): Promise<AcceptResult> {
     await broadcast(tx, ringTopic(input.calleeId), boxEvent(row.id, { kind: 'answered_elsewhere', payload: { calleeTabId: input.tabId } }))
     await broadcast(tx, callTopic(row.conversation_id), boxEvent(row.id, {
       kind: 'accepted',
-      payload: { calleeTabId: input.tabId, capabilities: input.calleeCaps ?? undefined, calleeNonce: input.nonce },
+      payload: { calleeTabId: input.tabId, capabilities: input.calleeCaps ?? undefined },
     }))
     return { ok: true, row } as const
   }, { timeout: 10_000 })
@@ -364,7 +347,7 @@ export interface EndInput {
 /**
  * Ends the call if it is still live, and returns the row AS IT WAS BEFORE the clean-up (so the card, the missed-call
  * bell and the relay revocation know what happened) — or null when someone else ended it first. Releases both
- * locks, drops the negotiation and idempotency rows, and clears the safety-code material, capabilities and relay
+ * locks, drops the negotiation and idempotency rows, and clears protocol v1's safety-code columns, capabilities and relay
  * handles from the row: metadata is all that outlives a call.
  */
 /**
@@ -410,7 +393,7 @@ export async function endCallIn(tx: Tx, input: EndInput): Promise<EndedCallRow |
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Liveness, connection, the reveal
+// Liveness, connection
 // ---------------------------------------------------------------------------------------------------------------
 
 export interface HeartbeatInput {
@@ -436,29 +419,6 @@ export async function heartbeat(input: HeartbeatInput): Promise<CallSessionRow |
   // ⚠️ FRESH ONLY: a call that already went stale can only be ENDED, never revived by a late heartbeat — its people
   // may already be in another call that took over their locks (commit-gate review).
   return rows[0] ?? null
-}
-
-export type RevealResult = 'stored' | 'same' | 'conflict' | 'gone'
-
-/**
- * nA, once (sas.ts step 5). FIRST WRITE WINS: a retried POST with the same nonce is 'same' and re-broadcasts
- * nothing; a different nonce after the first is a 'conflict' the phone can only cause by a bug — or someone
- * trying to swap the reveal after the callee saw it.
- */
-export async function recordReveal(callId: string, callerId: string, tabId: string, nonce: string): Promise<RevealResult> {
-  return db.$transaction(async (tx) => {
-    const rows = await tx.$queryRaw<CallSessionRow[]>`
-      SELECT * FROM public.call_session
-       WHERE id = ${callId}::uuid AND caller_id = ${callerId}::uuid AND caller_tab = ${tabId}
-         AND state IN ('accepted', 'ready', 'connected')
-       FOR UPDATE`
-    const row = rows[0]
-    if (!row) return 'gone'
-    if (row.caller_reveal !== null) return row.caller_reveal === nonce ? 'same' : 'conflict'
-    await tx.$executeRaw`UPDATE public.call_session SET caller_reveal = ${nonce} WHERE id = ${callId}::uuid`
-    await broadcast(tx, callTopic(row.conversation_id), boxEvent(row.id, { kind: 'reveal', payload: { callerNonce: nonce } }))
-    return 'stored'
-  }, { timeout: 10_000 })
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -592,8 +552,7 @@ export function buildSnapshot(row: CallSessionRow, role: CallRole, negs: readonl
       : null,
     latestAnswer: answer?.answer_sdp ? { negId: answer.neg_id, sdp: answer.answer_sdp } : null,
     peerHold: peerSeq != null && peerHeld != null ? { held: peerHeld, seq: peerSeq } : null,
-    calleeNonce: row.callee_nonce,
-    callerReveal: row.caller_reveal,
+    peerCapabilities: (role === 'caller' ? row.callee_caps : row.caller_caps) ?? undefined,
     candidates,
   })
 }

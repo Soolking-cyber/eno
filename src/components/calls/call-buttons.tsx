@@ -8,7 +8,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Phone, Video } from '@/components/ui/icons'
+import { Phone } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { runtimeMounted, subscribeRuntime } from '@/lib/calls/client/presence'
@@ -16,7 +16,10 @@ import type { CallMedia } from '@/lib/calls/types'
 import { callErrorText, withName } from './call-copy'
 
 /**
- * In-app calls — the phone and video buttons in a thread's header (DESIGN.md v3 §3.2 step 1, §4). They render
+ * In-app calls — the ONE call button in a thread's header (owner, 2026-10-22: "it should be 1 icon button for call and
+ * they can enable video inside if they want audio will already be there"; DESIGN.md v3 §3.2 step 1, §4). Every call
+ * starts as voice; where this pair may use video (state.video 'ok') it is placed as a video-capable call with the
+ * camera OFF, so the camera button is right there on the call screen — no second button, no renegotiation. It renders
  * nothing at all unless calls are on for this person (GET /api/calls/config), this page can capture audio, and this
  * thread can carry a call (GET /api/conversations/:id/call). Then:
  *   · allowed, and the other person has allowed calls from me → call (the engine takes over the screen);
@@ -28,6 +31,9 @@ import { callErrorText, withName } from './call-copy'
 type ThreadState = Awaited<ReturnType<typeof import('@/lib/calls/client/api').getThreadCallState>>
 
 const SHOWN = new Set(['ok', 'calls_not_verified', 'calls_peer_not_verified'])
+
+/** Video-capable (camera off) where the pair may use video, voice-only otherwise — the box re-checks it at the start. */
+const callMediaFor = (s: ThreadState): CallMedia => (s.video === 'ok' ? 'video' : 'audio')
 
 export function CallButtons({ conversationId, peer, listing }: {
   conversationId: string
@@ -41,7 +47,7 @@ export function CallButtons({ conversationId, peer, listing }: {
   const [state, setState] = useState<ThreadState | null>(null)
   // No call screen, no call (client review): the runtime is what draws it, rings, and hangs up on pagehide.
   const screenReady = useSyncExternalStore(subscribeRuntime, runtimeMounted, () => false)
-  const [askOpen, setAskOpen] = useState<CallMedia | null>(null)
+  const [askOpen, setAskOpen] = useState(false)
   const [verifyOpen, setVerifyOpen] = useState(false)
   // Still this account's button? The thread view remounts per account; a tap whose reads finish after that must not
   // start a call — or send a request — for whoever is signed in now (client review).
@@ -67,10 +73,11 @@ export function CallButtons({ conversationId, peer, listing }: {
     return () => { cancelled = true }
   }, [conversationId, userId])
 
-  if (!state || !screenReady || (!SHOWN.has(state.audio) && !SHOWN.has(state.video))) return null
+  // Voice is what every call needs; video only adds the camera button inside the call.
+  if (!state || !screenReady || !SHOWN.has(state.audio)) return null
 
-  const place = async (media: CallMedia) => {
-    const code = media === 'video' ? state.video : state.audio
+  const place = async () => {
+    const code = state.audio
     if (code === 'calls_not_verified') return setVerifyOpen(true)
     if (code !== 'ok') return void toast(callErrorText(code, tr))
     let current = state
@@ -82,20 +89,19 @@ export function CallButtons({ conversationId, peer, listing }: {
         if (!alive.current) return
         setState(current)
       } catch { /* ask on what we had */ }
-      if (!current.consent.theyAllowMe) return setAskOpen(media)
+      if (!current.consent.theyAllowMe) return setAskOpen(true)
     }
     const { callEngine } = await import('@/lib/calls/client/engine')
     if (!alive.current) return
     // The server's card for the other person (verified mark, side, member since — the same one THEIR screen gets of
     // me); the thread's name and avatar only stand in if it is missing (client review: the caller saw no verified mark).
-    void callEngine.startCall(conversationId, media, current.peer ?? {
+    void callEngine.startCall(conversationId, callMediaFor(current), current.peer ?? {
       name: peer.name, avatarUrl: peer.avatarUrl, verified: false, memberSince: null, side: null,
     }, listing)
   }
 
   const ask = async () => {
-    const media = askOpen ?? 'audio'
-    setAskOpen(null)
+    setAskOpen(false)
     try {
       const { requestCall } = await import('@/lib/calls/client/api')
       if (!alive.current) return
@@ -106,7 +112,7 @@ export function CallButtons({ conversationId, peer, listing }: {
         setState({ ...state, consent: { ...state.consent, theyAllowMe: true } })
         const { callEngine } = await import('@/lib/calls/client/engine')
         if (!alive.current) return
-        void callEngine.startCall(conversationId, media, state.peer ?? {
+        void callEngine.startCall(conversationId, callMediaFor(state), state.peer ?? {
           name: peer.name, avatarUrl: peer.avatarUrl, verified: false, memberSince: null, side: null,
         }, listing)
         return
@@ -122,17 +128,10 @@ export function CallButtons({ conversationId, peer, listing }: {
 
   return (
     <>
-      {SHOWN.has(state.audio) && (
-        <IconButton aria-label={tr('Voice call', 'Gọi thoại')} onClick={() => void place('audio')} className="text-muted-foreground hover:bg-tint hover:text-foreground">
-          <Phone className="h-5 w-5" />
-        </IconButton>
-      )}
-      {SHOWN.has(state.video) && (
-        <IconButton aria-label={tr('Video call', 'Gọi video')} onClick={() => void place('video')} className="text-muted-foreground hover:bg-tint hover:text-foreground">
-          <Video className="h-5 w-5" />
-        </IconButton>
-      )}
-      <AlertDialog open={askOpen !== null} onOpenChange={(o) => { if (!o) setAskOpen(null) }}>
+      <IconButton aria-label={tr('Start a call', 'Gọi')} onClick={() => void place()} className="text-muted-foreground hover:bg-tint hover:text-foreground">
+        <Phone className="h-5 w-5" />
+      </IconButton>
+      <AlertDialog open={askOpen} onOpenChange={setAskOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{tr('Ask to call?', 'Đề nghị gọi?')}</AlertDialogTitle>

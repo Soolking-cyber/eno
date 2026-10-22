@@ -7,27 +7,32 @@ import { mintRelayCredential, revokeRelayCredential } from '@/lib/calls/server/r
 import { acceptCall, endCall } from '@/lib/calls/server/session'
 import { afterCallEnded } from '@/lib/calls/server/finish'
 import { ANSWERED_TEXT, replaceRingPush } from '@/lib/calls/server/cards'
-import { boundedCapabilities, participantCall, relayForClient, sasNonceSchema, tabIdSchema } from '@/lib/calls/server/http'
+import { boundedCapabilities, participantCall, relayForClient, tabIdSchema } from '@/lib/calls/server/http'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // ── IN-APP CALLS: ANSWER (DESIGN.md v3 §3.2 step 3) ───────────────────────────────────────────────────────────────
 //
-// The callee's tab has ALREADY obtained the mic (and camera for video) and made its fresh certificate before calling
-// this — a tab that cannot capture never takes the call away from the callee's other devices.
-// Body: { v, tabId, nonce: nB, capabilities }. ⚠️ nB goes out only AFTER this tab froze the caller's commitment from
-// GET /api/calls/:id (sas.ts).
+// The callee's tab has ALREADY obtained the mic before calling this — a tab that cannot capture never takes the call
+// away from the callee's other devices. Body: { v, tabId, capabilities }.
 //   · protocol_mismatch 409 — the two builds cannot call each other ("reload to call");
 //   · the call is re-judged from the CALLER'S side (eligibility.ts callPermit): a block, a suspension or the switch
 //     going off while it rang ends it here (blocked / unavailable) instead of connecting it;
 //   · call_gone 409 — answered on another device, cancelled, or past the 45 s ring; call_in_progress 409 — this
 //     person is already in another call;
-//   · 200 { relay, conversationId, media } — the bound tab; the caller is told 'accepted' (with nB) in the same
+//   · 200 { relay, conversationId, media } — the bound tab; the caller is told 'accepted' in the same
 //     transaction, and the callee's other tabs 'answered_elsewhere'; the "Incoming call" on their lock screens is
 //     replaced with a silent "Answered" (cards.ts replaceRingPush).
 
-const acceptBody = z.strictObject({ v: z.int(), tabId: tabIdSchema, nonce: sasNonceSchema, capabilities: boundedCapabilities })
+const acceptBody = z.strictObject({
+  v: z.int(),
+  tabId: tabIdSchema,
+  /** Protocol v1's safety-code nonce: an old tab still sends it — allowed ONLY so the version check answers it 'reload
+   *  to call' instead of a bare 400. Never read. */
+  nonce: z.string().max(64).optional(),
+  capabilities: boundedCapabilities,
+})
 
 export const POST = route(
   { auth: 'userId', rateLimit: { bucket: 'calls:accept', limit: 30, window: '1 m' }, body: acceptBody },
@@ -51,7 +56,7 @@ export const POST = route(
     let result: Awaited<ReturnType<typeof acceptCall>>
     try {
       result = await acceptCall({
-        callId: row.id, calleeId: userId, tabId: body.tabId, nonce: body.nonce,
+        callId: row.id, calleeId: userId, tabId: body.tabId,
         calleeCaps: body.capabilities ?? null, calleeRelayUser: grant.handle,
       })
     } catch (e) {

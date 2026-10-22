@@ -20,7 +20,7 @@ describe('opaque codec fields are bounded', () => {
     const big = { pad: 'x'.repeat(MAX_OPAQUE_JSON_LENGTH) }
     expect(parseEvent(offer({ codecPlan: big })).ok).toBe(false)
     expect(parseEvent(offer({ capabilities: big })).ok).toBe(false)
-    expect(parseEvent({ ...env, tabId: 'box', kind: 'accepted', payload: { calleeTabId: 't', calleeNonce: 'b'.repeat(64), capabilities: big } }).ok).toBe(false)
+    expect(parseEvent({ ...env, tabId: 'box', kind: 'accepted', payload: { calleeTabId: 't', capabilities: big } }).ok).toBe(false)
     expect(parseSnapshot({ v: CALL_PROTOCOL_VERSION, callId: CALL_ID, callState: 'connected', candidates: [], latestOffer: { negId: 1, sdp: 'v=0\r\n', codecPlan: big } }).ok).toBe(false)
   })
 

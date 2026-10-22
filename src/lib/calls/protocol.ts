@@ -70,12 +70,14 @@ const endReasonsCoverTheUnion: [MissingEndReason] extends [never] ? true : never
 void endReasonsCoverTheUnion
 
 /**
- * What a PEER may say about why it ended an answered call — its own hang-up, its own media dying, its own safety-code
- * check, a version it cannot speak. Anything else in a peer's 'end' (declined, cancelled — ringing-only words the box
- * applies — or a box-only reason) would put words in the box's mouth, and reads as a plain hang-up (review C1).
+ * What a PEER may say about why it ended an answered call — its own hang-up, its own media dying, a version it cannot
+ * speak. Anything else in a peer's 'end' (declined, cancelled — ringing-only words the box applies — or a box-only
+ * reason) would put words in the box's mouth, and reads as a plain hang-up (review C1). 'sas_mismatch' left this list
+ * with the safety code (protocol v2, owner 2026-10-22): it stays in CALL_END_REASONS only because stored rows and an
+ * old tab's end beacon may still carry it.
  */
 export const PEER_END_REASONS: ReadonlySet<CallEndReason> = new Set<CallEndReason>([
-  'hangup', 'lost', 'media_failed', 'sas_mismatch', 'protocol_mismatch',
+  'hangup', 'lost', 'media_failed', 'protocol_mismatch',
 ])
 
 /**
@@ -93,7 +95,7 @@ export const CLIENT_EVENT_KINDS = [
 ] as const
 /** Kinds only the box emits. RLS on realtime.messages is receive-only, so a phone cannot forge these. */
 export const SERVER_EVENT_KINDS = [
-  'ring', 'cancel', 'answered_elsewhere', 'unavailable', 'accepted', 'reveal', 'ended',
+  'ring', 'cancel', 'answered_elsewhere', 'unavailable', 'accepted', 'ended',
 ] as const
 export type ClientEventKind = (typeof CLIENT_EVENT_KINDS)[number]
 export type ServerEventKind = (typeof SERVER_EVENT_KINDS)[number]
@@ -115,12 +117,6 @@ export const callIdSchema = z.uuid()
 export const negIdSchema = z.int().min(1).max(MAX_NEG_ID)
 export const idempotencyKeySchema = z.string().min(1).max(MAX_IDEMPOTENCY_KEY_LENGTH).regex(TOKEN)
 export const tabIdSchema = z.string().min(1).max(MAX_TAB_ID_LENGTH).regex(TOKEN)
-
-/**
- * A safety-code nonce (sas.ts: 32 random bytes) as lowercase hex — the one spelling sas.ts's toHex writes, so the
- * box stores and relays it byte-for-byte. Not secret once sent; what matters is WHEN each one goes out (sas.ts).
- */
-export const sasNonceSchema = z.string().regex(/^[0-9a-f]{64}$/)
 
 /** Every browser's SDP starts with the version line; anything else would only fail later, inside the engine. */
 export const sdpSchema = z.string().max(MAX_SDP_LENGTH).regex(/^v=0\r?\n/)
@@ -235,27 +231,14 @@ const acceptedEvent = z.strictObject({
     calleeTabId: tabIdSchema,
     /** The callee's CapabilityReport, for the caller's one-time codec plan. Validated by the codec module. */
     capabilities: opaqueJson.optional(),
-    /**
-     * nB — the callee's safety-code nonce, sent in its accept only AFTER it froze the caller's commitment (sas.ts).
-     * ⚠️ Required: a caller that never learns nB can never show a code, and a missing one must not read as "no code
-     * this time" — the engine treats an absent or changed nB as a mismatch, never as "cannot verify".
-     */
-    calleeNonce: sasNonceSchema,
   }),
 })
-/**
- * nA — the caller's reveal, re-emitted by the box once the caller POSTs it after DTLS connected (sas.ts step 5).
- * A box event rather than a relayed client event: the box stores the FIRST reveal (call_session.caller_reveal) and
- * only ever repeats that one, so a retried POST cannot reveal twice. The callee checks it against the commitment it
- * froze before accepting; a reveal that does not open it is a mismatch.
- */
-const revealEvent = z.strictObject({ ...envelope, kind: z.literal('reveal'), payload: z.strictObject({ callerNonce: sasNonceSchema }) })
 const endedEvent = z.strictObject({ ...envelope, kind: z.literal('ended'), payload: z.strictObject({ reason: endReasonSchema }) })
 
 const CLIENT_VARIANTS = [
   readyEvent, offerEvent, answerEvent, candidatesEvent, restartRequestEvent, holdEvent, resumeEvent, endEvent,
 ] as const
-const SERVER_VARIANTS = [ringEvent, cancelEvent, answeredElsewhereEvent, unavailableEvent, acceptedEvent, revealEvent, endedEvent] as const
+const SERVER_VARIANTS = [ringEvent, cancelEvent, answeredElsewhereEvent, unavailableEvent, acceptedEvent, endedEvent] as const
 
 /** What the call API accepts from a phone (the box then re-serialises SDP/candidates before relaying). */
 export const clientEventSchema = z.discriminatedUnion('kind', [...CLIENT_VARIANTS])
@@ -305,12 +288,11 @@ export const resyncSnapshotSchema = z.strictObject({
   latestAnswer: z.strictObject({ negId: negIdSchema, sdp: sdpSchema }).nullish(),
   peerHold: z.strictObject({ held: z.boolean(), seq: z.int().min(1) }).nullish(),
   /**
-   * The safety-code nonces the box holds (sas.ts), so a lost 'accepted' or 'reveal' broadcast still arrives.
-   * ⚠️ The caller's commitment is deliberately NOT here: the callee must freeze it from the call details it read
-   * BEFORE accepting, and a commitment that turned up later in a snapshot is exactly the grind sas.ts forbids.
+   * The counterpart's CapabilityReport as the box stored it at its start / accept (protocol v2). The caller plans video
+   * from the callee's report, and the 'accepted' event was its only source — a missed one made it plan from its OWN
+   * report, on every video-capable call (v2 plan review). Validated by the codec module, like every report.
    */
-  calleeNonce: sasNonceSchema.nullish(),
-  callerReveal: sasNonceSchema.nullish(),
+  peerCapabilities: opaqueJson.optional(),
   candidates: z.array(z.strictObject({
     negId: negIdSchema,
     candidates: z.array(iceCandidateSchema).max(MAX_SNAPSHOT_CANDIDATES_PER_NEG),

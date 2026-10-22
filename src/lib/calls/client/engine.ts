@@ -1,21 +1,16 @@
 import { CALL_PROTOCOL_VERSION, type CallEndReason, type CallMedia, type CallRole, type CapabilityReport } from '../types'
 import type { CallEvent, ClientEvent, ResyncSnapshot } from '../protocol'
 import { createNegotiation, step as negotiate, type NegotiationEffect, type NegotiationInput, type NegotiationState, type TimerName } from '../negotiation'
-import {
-  commit as commitTo, computeSas, fingerprintPairEqual, fingerprintsByRole, fingerprintsFromStats, generateNonce, nonceFromHex,
-  parseFingerprint, SasError, sasFailureVerdict, toHex, verifyCommit, type FingerprintPair,
-} from '../sas'
-import type { SasEmoji } from '../sas-emoji'
 import { buildPlan, directionsFor, parseCodecPlan, videoCodecPreferences, audioCodecPreferences, type CodecPlan, type DirectionPlan } from '../codec-plan'
 import { createLadder, step as climb, type LadderState, type LadderAction } from '../ladder'
 import { normalizeLocalSdp, prepareRemoteSdp, sdpFingerprint, validateRemoteSdp } from '../sdp-guard'
 import { summarizeStats } from '../telemetry'
 import {
-  TAB_ID, CallApiError, abandonStart, acceptCallRequest, declineCallRequest, endBeacon, getRingingCall, outcomeUnknown, fetchSnapshot, getCallDetails, getThreadCallState,
-  heartbeatRequest, revealRequest, sendSignal, startCallRequest, telemetryBeacon, type CallDetails, type RelayGrant,
+  TAB_ID, CallApiError, abandonStart, acceptCallRequest, declineCallRequest, endBeacon, getRingingCall, outcomeUnknown, fetchSnapshot, getCallDetails,
+  heartbeatRequest, sendSignal, startCallRequest, telemetryBeacon, type CallDetails, type RelayGrant, type StartResponse,
 } from './api'
 import { callTopic, joinChannel, type CallChannel } from './realtime'
-import { buildCapabilityReport, getCamera, getMicrophone, hasSeveralCameras, mediaFailure } from './media'
+import { capabilityReport, getCamera, getMicrophone, hasSeveralCameras, mediaFailure } from './media'
 import { inboundPackets, inboundVideoFrames, ladderSample } from './stats'
 import { registerEngineShutdown } from './presence'
 import { logError } from '@/lib/log'
@@ -29,13 +24,8 @@ import { logError } from '@/lib/log'
  *   · negotiation.ts: its effects run STRICTLY in emission order, each awaited (opChain), `now` is a monotonic clock
  *     (performance.now), `createOffer`/`createAnswer` mean create AND setLocalDescription, and the caller hands every
  *     offer the one codec plan it built. The instanceId is fresh per call.
- *   · sas.ts: the caller's commitment fingerprint fpA comes from RTCCertificate.getFingerprints() (sha-256) of the fresh
- *     certificate it is about to use — DTLS has not run yet, so getStats has nothing — and is checked against
- *     getStats' own reading of that certificate at the first connect (a mismatch there ends the call); never from SDP.
- *     A fresh certificate per call, kept for the call's life (an ICE restart keeps it); C and callId frozen
- *     before nB leaves; nB frozen before nA leaves; the certificate pair read from getStats ≥ 60 ms after each DTLS
- *     'connected', frozen at the first, and the call ended when it moves. Every failure goes through
- *     sasFailureVerdict; no reveal 10 s after connecting is a mismatch.
+ *   · (the 4-emoji safety code — sas.ts, commit / nonce / reveal — was removed in protocol v2, owner 2026-10-22: "the 4
+ *     pin remove that thing". The browser mints each call's DTLS certificate; the keys stay on the two phones.)
  *   · codec-plan.ts: the caller builds the plan ONCE, after the accept brings the callee's report, and sends it with
  *     every offer; each side orders codecs for the direction it RECEIVES before every createOffer / createAnswer.
  *   · ladder.ts: one step's actions in ONE setParameters call, never two at once.
@@ -46,11 +36,6 @@ import { logError } from '@/lib/log'
  */
 
 export type CallPhase = 'idle' | 'preparing' | 'outgoing' | 'incoming' | 'connecting' | 'connected' | 'reconnecting' | 'ended'
-export type SasView =
-  | { state: 'waiting' }
-  | { state: 'ready'; emoji: readonly SasEmoji[] }
-  | { state: 'mismatch' }
-  | { state: 'cannot_verify' }
 
 export interface CallView {
   phase: CallPhase
@@ -69,7 +54,8 @@ export interface CallView {
   canSwitchCamera: boolean
   facing: 'user' | 'environment'
   peerOnHold: boolean
-  sas: SasView
+  /** DTLS has connected — the media keys exist, on the two phones only. "End-to-end encrypted" shows from here, not before. */
+  encrypted: boolean
   /** Date.now() of the first connection, for the timer on screen. */
   connectedAt: number | null
   /** Date.now() at which the box's 2 h cap ends the call (heartbeat), for the 1:55 warning. */
@@ -86,17 +72,17 @@ export interface CallView {
 
 const IDLE: CallView = {
   phase: 'idle', callId: null, conversationId: null, role: null, media: 'audio', peer: null, listing: null,
-  muted: false, cameraOn: false, remoteVideoRevealed: false, remoteVideoLive: false, canSwitchCamera: false, facing: 'user', peerOnHold: false,
-  sas: { state: 'waiting' }, connectedAt: null, capAt: null, endReason: null, error: null, quality: null,
+  muted: false, cameraOn: false, remoteVideoRevealed: false, remoteVideoLive: false, canSwitchCamera: false, facing: 'user', peerOnHold: false, encrypted: false,
+  connectedAt: null, capAt: null, endReason: null, error: null, quality: null,
   localStream: null, remoteStream: null, ringUntil: null,
 }
 
 const STATS_EVERY_MS = 1_000
 const HEARTBEAT_EVERY_MS = 15_000
 const TELEMETRY_EVERY_MS = 30_000
-/** The callee's wait for the caller's reveal after connecting; a last snapshot read decides before it fails. */
-const REVEAL_DEADLINE_MS = 20_000
 const HALF_TRICKLE_MS = 300
+/** Start refusals that may be about VIDEO alone (eligibility.ts): the one call button then places a voice call instead. */
+const VIDEO_ONLY_REFUSALS: ReadonlySet<string> = new Set(['calls_peer_not_verified', 'calls_unavailable'])
 const HALF_TRICKLE_MAX_MS = 1_500
 
 const now = () => performance.now()
@@ -108,7 +94,6 @@ interface Active {
   role: CallRole
   media: CallMedia
   pc: RTCPeerConnection
-  cert: RTCCertificate
   neg: NegotiationState
   timers: Map<TimerName, ReturnType<typeof setTimeout>>
   opChain: Promise<void>
@@ -125,14 +110,8 @@ interface Active {
   plan: CodecPlan | null
   localNegId: number
   firstRelayAt: number | null
-  // safety code
-  commitIds: { caller: string; callee: string }
-  commitment: string | null
-  nA: Uint8Array | null
-  nB: Uint8Array | null
-  frozenPair: FingerprintPair | null
+  /** The peer's DTLS certificate (sha-256, from its first description) — pinned for the call's life. */
   remoteSdpFp: string | null
-  revealTimer: ReturnType<typeof setTimeout> | null
   // quality, liveness, telemetry
   ladder: LadderState | null
   settingParams: boolean
@@ -208,8 +187,9 @@ class CallEngine {
   }
 
   // ── outgoing (§3.2 steps 1–2) ──────────────────────────────────────────────────────────────────────────────────
-  async startCall(conversationId: string, media: CallMedia, peer: CallView['peer'], listing: CallView['listing']): Promise<void> {
+  async startCall(conversationId: string, wanted: CallMedia, peer: CallView['peer'], listing: CallView['listing']): Promise<void> {
     if (this.busy) return
+    let media = wanted
     const my = ++this.attempt
     const stale = () => my !== this.attempt
     this.set({ ...IDLE, phase: 'preparing', conversationId, role: 'caller', media, peer, listing })
@@ -222,21 +202,26 @@ class CallEngine {
     // part of webrtcAvailable's check, so a page without it never shows a call button.)
     const startId = crypto.randomUUID()
     try {
-      const thread = await getThreadCallState(conversationId)
-      if (stale()) return
-      const allowed = media === 'video' ? thread.video : thread.audio
-      if (allowed !== 'ok' || !thread.commitIds) return this.fail(allowed !== 'ok' ? allowed : 'calls_unavailable')
+      // No pre-start read of the thread (protocol v2): the button already judged it, and the start re-checks every gate.
       try { mic = await getMicrophone() } catch (e) { return this.fail(`media_${mediaFailure(e)}`) }
       if (stale()) return void mic.stop()
-      const cert = await RTCPeerConnection.generateCertificate({ name: 'ECDSA', namedCurve: 'P-256' } as EcKeyGenParams)
-      const fpA = certificateDigest(cert)
-      const nA = generateNonce()
-      const commitment = await commitTo({ nA, fpA, callerId: thread.commitIds.caller, calleeId: thread.commitIds.callee })
-      const myCaps = await buildCapabilityReport()
+      const myCaps = await capabilityReport()
       if (stale()) return void mic.stop()
       startSent = true
       this.pendingStart = { conversationId, startId }
-      const res = await startCallRequest(conversationId, { v: CALL_PROTOCOL_VERSION, media, tabId: TAB_ID, commit: commitment, capabilities: myCaps, startId })
+      let res: StartResponse
+      try {
+        res = await startCallRequest(conversationId, { v: CALL_PROTOCOL_VERSION, media, tabId: TAB_ID, capabilities: myCaps, startId })
+      } catch (e) {
+        // A video-capable start refused at a gate only video has (the other person's verified ID, the video switch) goes
+        // again as a voice call — the one call button promises voice, and its state can be older than the refusal
+        // (commit-gate review, codex + opus). A refusal that holds for voice too (calls off, a teacher thread's ID rule)
+        // just fails again. Nothing was made by a refused start, so the same startId names the retry.
+        if (media !== 'video' || !(e instanceof CallApiError) || !VIDEO_ONLY_REFUSALS.has(e.code) || stale()) throw e
+        media = 'audio'
+        this.set({ media })
+        res = await startCallRequest(conversationId, { v: CALL_PROTOCOL_VERSION, media, tabId: TAB_ID, capabilities: myCaps, startId })
+      }
       if (this.pendingStart?.startId === startId) this.pendingStart = null
       if (res.kind === 'ringing') ringingId = res.callId
       if (stale()) return this.abandon(mic, ringingId, 'cancelled')
@@ -250,8 +235,7 @@ class CallEngine {
         return this.set({ phase: 'ended', endReason: 'unavailable', callId: res.callId })
       }
       const active = this.createActive({
-        callId: res.callId, conversationId, role: 'caller', media, relay: res.relay, cert, mic, myCaps,
-        commitIds: thread.commitIds, commitment, nA, nB: null,
+        callId: res.callId, conversationId, role: 'caller', media, relay: res.relay, mic, myCaps,
       })
       this.set({ phase: 'outgoing', callId: res.callId, ringUntil: Date.now() + res.ringTimeoutSec * 1000 })
       // The reducer exists BEFORE the channel can deliver anything (an early 'accepted' must land in it).
@@ -282,7 +266,7 @@ class CallEngine {
     let details: CallDetails
     try { details = await getCallDetails(callId) } catch { return }
     if (epoch !== this.epoch) return
-    if (details.role !== 'callee' || details.state !== 'ringing' || !details.commit || !details.commitIds) return
+    if (details.role !== 'callee' || details.state !== 'ringing') return
     if (this.busy || this.endedRings.has(callId) || this.dismissed.has(callId)) return
     // The SERVER's remaining ring (its clock, not this phone's — client review: a phone running fast rang for 1 s).
     const ringFor = Math.max(1_000, Math.min(details.ringTimeoutSec * 1000, details.ringRemainingMs))
@@ -405,10 +389,7 @@ class CallEngine {
     try {
       if (!details) details = await getCallDetails(id)
       if (stale()) return gaveUp()
-      // ⚠️ FROZEN HERE, BEFORE nB EXISTS (sas.ts): the commitment, its ids and the call id — never re-read later.
-      const commitment = details.commit
-      const commitIds = details.commitIds
-      if (details.role !== 'callee' || !commitment || !commitIds) return this.fail('call_gone')
+      if (details.role !== 'callee') return this.fail('call_gone')
       this.set({ conversationId: details.conversationId, role: 'callee', media: details.media, peer: details.peer, listing: details.listing })
       try { mic = await getMicrophone() } catch (e) {
         // ONE device that cannot capture: the call keeps ringing the person's other devices (the box ignores 'media').
@@ -416,19 +397,16 @@ class CallEngine {
         return this.fail(`media_${mediaFailure(e)}`)
       }
       if (stale()) return gaveUp()
-      const cert = await RTCPeerConnection.generateCertificate({ name: 'ECDSA', namedCurve: 'P-256' } as EcKeyGenParams)
-      const nB = generateNonce()
-      const myCaps = await buildCapabilityReport()
+      const myCaps = await capabilityReport()
       if (stale()) return gaveUp()
       acceptSent = true
       this.pendingAccept = id
-      const res = await acceptCallRequest(id, { v: CALL_PROTOCOL_VERSION, tabId: TAB_ID, nonce: toHex(nB), capabilities: myCaps })
+      const res = await acceptCallRequest(id, { v: CALL_PROTOCOL_VERSION, tabId: TAB_ID, capabilities: myCaps })
       if (this.pendingAccept === id) this.pendingAccept = null
       accepted = true
       if (stale()) return this.abandon(mic, id, 'hangup')
       const active = this.createActive({
-        callId: id, conversationId: details.conversationId, role: 'callee', media: details.media, relay: res.relay, cert, mic,
-        myCaps, commitIds, commitment, nA: null, nB,
+        callId: id, conversationId: details.conversationId, role: 'callee', media: details.media, relay: res.relay, mic, myCaps,
       })
       this.set({ phase: 'connecting', ringUntil: null })
       const created = createNegotiation({ role: 'callee', callId: id, tabId: TAB_ID, instanceId: instanceId(), now: now() })
@@ -452,7 +430,7 @@ class CallEngine {
   hangup() {
     const a = this.active
     if (!a) {
-      // Still preparing — the mic prompt, the certificate, the start or accept in flight: abandon the attempt. It sees
+      // Still preparing — the mic prompt, the start or accept in flight: abandon the attempt. It sees
       // the bump at its next step and undoes what it made, including a call the box already holds (client review: End
       // did nothing on "Starting…", and a hung request trapped the screen there).
       if (this.view.phase === 'preparing') {
@@ -580,25 +558,22 @@ class CallEngine {
   }
 
   private createActive(o: {
-    callId: string; conversationId: string; role: CallRole; media: CallMedia; relay: RelayGrant; cert: RTCCertificate
-    mic: MediaStreamTrack; myCaps: CapabilityReport; commitIds: { caller: string; callee: string }; commitment: string
-    nA: Uint8Array | null; nB: Uint8Array | null
+    callId: string; conversationId: string; role: CallRole; media: CallMedia; relay: RelayGrant
+    mic: MediaStreamTrack; myCaps: CapabilityReport
   }): Active {
     const pc = new RTCPeerConnection({
       iceServers: o.relay.iceServers,
       iceTransportPolicy: 'relay',
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
-      certificates: [o.cert],
       iceCandidatePoolSize: 1,
     })
     const remote = new MediaStream()
     const a: Active = {
-      callId: o.callId, conversationId: o.conversationId, role: o.role, media: o.media, pc, cert: o.cert,
+      callId: o.callId, conversationId: o.conversationId, role: o.role, media: o.media, pc,
       neg: undefined as unknown as NegotiationState, timers: new Map(), opChain: Promise.resolve(), sendChain: Promise.resolve(),
       channel: null, mic: o.mic, cam: null, facing: 'user', cameraBusy: false, remote, myCaps: o.myCaps, peerCaps: null, plan: null, localNegId: 0,
-      firstRelayAt: null, commitIds: o.commitIds, commitment: o.commitment, nA: o.nA, nB: o.nB, frozenPair: null,
-      remoteSdpFp: null, revealTimer: null, ladder: null, settingParams: false, canSwitchCodec: false, statsTimer: null,
+      firstRelayAt: null, remoteSdpFp: null, ladder: null, settingParams: false, canSwitchCodec: false, statsTimer: null,
       heartbeatTimer: null, lastReport: null, lastTelemetryReport: null, lastTelemetryAt: now(), telemetrySeq: 0,
       startedAt: now(), restarts: 0, packets: null, packetsChangedAt: now(), videoFrames: null, videoFramesChangedAt: 0,
       everConnected: false, wakeLock: null, ended: false,
@@ -624,11 +599,12 @@ class CallEngine {
       if (/ typ relay/.test(ev.candidate.candidate) && a.firstRelayAt === null) a.firstRelayAt = now()
       this.dispatch({ type: 'candidatesGathered', now: now(), negId: a.localNegId, candidates: [toInit(ev.candidate)] })
     }
+    // DTLS up: from here the media is encrypted with keys only these two phones hold (the label waits for it).
+    pc.onconnectionstatechange = () => { if (pc.connectionState === 'connected' && this.active === a && !this.view.encrypted) this.set({ encrypted: true }) }
     pc.oniceconnectionstatechange = () => {
       this.dispatch({ type: 'iceConnectionStateChange', now: now(), state: pc.iceConnectionState })
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') this.onConnected(a)
     }
-    pc.onconnectionstatechange = () => { if (pc.connectionState === 'connected') this.onDtlsConnected(a) }
     this.wireMic(a, o.mic)
     this.set({ localStream: new MediaStream([o.mic]), remoteStream: remote })
     return a
@@ -705,28 +681,18 @@ class CallEngine {
 
   private onRemoteEvent(a: Active, ev: CallEvent) {
     if (this.active !== a || ev.callId !== a.callId) return
-    if (ev.kind === 'accepted') {
-      // nB, frozen at its first sight; a different one later is an attempt to re-grind the code (sas.ts).
-      const nB = safeNonce(ev.payload.calleeNonce)
-      if (a.role === 'caller') {
-        if (a.nB && nB && toHex(a.nB) !== toHex(nB)) return this.sasFailed(a, 'mismatch')
-        if (!a.nB) a.nB = nB
-        if (!a.peerCaps && ev.payload.capabilities) a.peerCaps = ev.payload.capabilities as CapabilityReport
-        this.set({ phase: 'connecting', ringUntil: null })
-      }
+    if (ev.kind === 'accepted' && a.role === 'caller') {
+      if (!a.peerCaps && ev.payload.capabilities) a.peerCaps = ev.payload.capabilities as CapabilityReport
+      this.set({ phase: 'connecting', ringUntil: null })
     }
-    if (ev.kind === 'reveal' && a.role === 'callee') void this.onReveal(a, ev.payload.callerNonce)
     // Hold is taken from the reducer's state after dispatch — it applies hold/resume in SEND order (seq), not arrival.
     this.dispatch({ type: 'remote', now: now(), event: ev })
   }
 
   private onSnapshot(a: Active, snap: ResyncSnapshot) {
-    if (a.role === 'caller' && snap.calleeNonce) {
-      const nB = safeNonce(snap.calleeNonce)
-      if (a.nB && nB && toHex(a.nB) !== toHex(nB)) return this.sasFailed(a, 'mismatch')
-      if (!a.nB) a.nB = nB
-    }
-    if (a.role === 'callee' && snap.callerReveal) void this.onReveal(a, snap.callerReveal)
+    // The callee's report, when its 'accepted' broadcast never arrived (protocol v2): the plan is built from it at the
+    // first offer, never from this phone's own report if the box has the real one.
+    if (a.role === 'caller' && !a.peerCaps && snap.peerCapabilities) a.peerCaps = snap.peerCapabilities as CapabilityReport
     this.dispatch({ type: 'snapshot', now: now(), snapshot: snap })
   }
 
@@ -824,9 +790,15 @@ class CallEngine {
         case 'setRemoteDescription': {
           // ⚠️ The phone's own check is the one that counts (sdp-guard.ts): the box already filtered this.
           if (!validateRemoteSdp(fx.sdp).ok) throw new Error('remote description refused')
+          // ⛔ THE PEER'S CERTIFICATE IS PINNED FOR THE CALL'S LIFE (commit-gate review, codex): an honest browser keeps one
+          // certificate per connection, ICE restarts included, so a later description naming another is someone in the
+          // signalling path swapping it mid-call — the call ends. (Protocol v1's safety code also caught this.)
           const fp = sdpFingerprint(fx.sdp)
-          // A later description naming another certificate is a new DTLS association nobody compared (sas.ts).
-          if (a.remoteSdpFp !== null && fp !== a.remoteSdpFp) return this.sasFailed(a, 'mismatch')
+          if (fp === null || (a.remoteSdpFp !== null && fp !== a.remoteSdpFp)) {
+            logError(new Error('calls: the peer certificate changed mid-call'), { op: 'calls.certificatePin' })
+            this.dispatch({ type: 'localEnd', now: now(), reason: 'media_failed' })
+            return
+          }
           a.remoteSdpFp = fp
           await pc.setRemoteDescription({ type: fx.sdpType, sdp: prepareRemoteSdp(fx.sdp) })
           this.dispatch({ type: 'remoteDescriptionApplied', now: now(), negId: fx.negId })
@@ -889,153 +861,16 @@ class CallEngine {
     }
   }
 
-  // ── connection, safety code, quality ───────────────────────────────────────────────────────────────────────────
+  // ── connection, quality ───────────────────────────────────────────────────────────────────────────
   private onConnected(a: Active) {
     if (this.active !== a) return
     if (!a.everConnected) {
       a.everConnected = true
       this.set({ phase: 'connected', connectedAt: Date.now(), ringUntil: null })
       void this.acquireWakeLock(a)
-      if (a.role === 'callee') a.revealTimer = setTimeout(() => void this.revealDeadline(a), REVEAL_DEADLINE_MS)
     } else if (this.view.phase === 'reconnecting') {
       this.set({ phase: 'connected' })
     }
-  }
-
-  /**
-   * Read the certificate pair ≥ 60 ms after each DTLS 'connected' (sas.ts: null means "not yet", never a pass).
-   * ⚠️ A MISSING PEER CERTIFICATE IS RE-READ BEFORE IT COUNTS. libwebrtc serves a cached report for 50 ms, so one read
-   * can straddle the handshake; only a peer certificate that is STILL missing or unusable after the re-reads is the
-   * tamper evidence sas.ts calls a mismatch (commit-gate review C2, round 3). Any other SasError is final at once.
-   */
-  private async onDtlsConnected(a: Active) {
-    let pair: FingerprintPair | null = null
-    let rejections = 0
-    for (let i = 0; i < 40 && !pair && this.active === a; i++) {
-      await sleep(i === 0 ? 80 : 100)
-      let report: RTCStatsReport | null = null
-      try {
-        report = await a.pc.getStats()
-        pair = fingerprintsFromStats(report)
-      } catch (e) {
-        // ⛔ CHROMIUM'S DTLS CLIENT REPORTS NO PEER CERTIFICATE AT ALL: the connected transport carries no
-        // remoteCertificateId (measured 2026-10-21 on the first real-relay run — every honest callee read as
-        // "intercepted"). The peer's certificate is then the one the browser VERIFIED against the applied remote
-        // description's single fingerprint — DTLS-SRTP accepts no other, and sdp-guard refuses a second fingerprint —
-        // so that fingerprint is exactly what the stats would have said. A peer certificate that IS reported but
-        // unusable stays what it was: tamper evidence (sas.ts).
-        if (e instanceof SasError && e.code === 'remote_cert_rejected' && report && noPeerCertificateReported(report)) {
-          const verified = sdpVerifiedPair(a)
-          if (verified) { pair = verified; break }
-        }
-        if (e instanceof SasError && e.code === 'remote_cert_rejected' && ++rejections < 5) continue
-        const verdict = verdictHere(e)
-        this.sasFailed(a, verdict)
-        // A caller that cannot VERIFY still owes the callee its reveal — the callee's check does not depend on ours
-        // (client review: a Firefox caller fell silent here and the callee's deadline called it interception).
-        if (verdict === 'cannot_verify' && a.role === 'caller') await this.revealWhenReady(a)
-        return
-      }
-    }
-    if (this.active !== a) return
-    if (!pair) {
-      this.sasFailed(a, 'cannot_verify')
-      if (a.role === 'caller') await this.revealWhenReady(a)
-      return
-    }
-    if (a.frozenPair) {
-      if (!fingerprintPairEqual(a.frozenPair, pair)) this.sasFailed(a, 'mismatch')
-      return
-    }
-    a.frozenPair = pair
-    if (a.role === 'caller') {
-      // Our own certificate as DTLS used it must be the one we committed to.
-      if (toHex(pair.local) !== toHex(certificateDigest(a.cert))) return this.sasFailed(a, 'mismatch')
-      if (!(await this.revealWhenReady(a))) return
-      await this.showCode(a)
-    }
-    // The callee waits for the reveal (event or snapshot) — onReveal.
-  }
-
-  /**
-   * The caller's half of the code: once nB is in, reveal nA — RETRIED until the box has it (it answers a repeat of the
-   * same nonce quietly), because the callee's check times out without it (client review: one swallowed POST failure
-   * ended honest calls as "someone may have listened in"). A missed 'accepted' event is covered by reading the
-   * snapshot, which carries nB. False when the call ended or nB never came (that is a mismatch).
-   */
-  private async revealWhenReady(a: Active): Promise<boolean> {
-    if (!a.nB) void this.resync(a)
-    await this.waitFor(() => a.nB !== null || this.active !== a, 15_000)
-    if (this.active !== a) return false
-    if (!a.nB || !a.nA) { this.sasFailed(a, 'mismatch'); return false }
-    const nA = toHex(a.nA)
-    for (let i = 0; i < 6 && this.active === a; i++) {
-      try {
-        await revealRequest(a.callId, nA)
-        return true
-      } catch (e) {
-        if (e instanceof CallApiError && e.code === 'reveal_conflict') { this.sasFailed(a, 'mismatch'); return false }
-        if (e instanceof CallApiError && (e.code === 'call_gone' || e.code === 'not_found')) return false
-        await sleep(Math.min(2_000, 400 * 2 ** i))
-      }
-    }
-    // Never reached the box: the callee cannot check the code, so this screen must not claim it either (client review).
-    if (this.active === a) this.sasFailed(a, 'cannot_verify')
-    return false
-  }
-
-  /** The callee's deadline for the reveal: one last read of the snapshot (it carries the reveal) before it fails. */
-  private async revealDeadline(a: Active) {
-    if (this.active !== a || this.view.sas.state !== 'waiting') return
-    await this.resync(a)
-    await this.waitFor(() => this.view.sas.state !== 'waiting' || this.active !== a, 3_000)
-    if (this.active === a && this.view.sas.state === 'waiting') this.sasFailed(a, 'mismatch')
-  }
-
-  private async onReveal(a: Active, revealHex: string) {
-    if (a.role !== 'callee' || a.nA || this.active !== a) return
-    const nA = safeNonce(revealHex)
-    if (!nA) return this.sasFailed(a, 'mismatch')
-    a.nA = nA
-    await this.waitFor(() => a.frozenPair !== null || this.active !== a, 15_000)
-    if (this.active !== a || !a.frozenPair || !a.commitment) return
-    const { fpA } = fingerprintsByRole('callee', a.frozenPair)
-    let opens = false
-    try {
-      opens = await verifyCommit(a.commitment, { nA, fpA, callerId: a.commitIds.caller, calleeId: a.commitIds.callee })
-    } catch (e) {
-      return this.sasFailed(a, sasFailureVerdict(e))
-    }
-    if (!opens) return this.sasFailed(a, 'mismatch')
-    await this.showCode(a)
-  }
-
-  private async showCode(a: Active) {
-    if (!a.frozenPair || !a.nA || !a.nB) return
-    try {
-      const { fpA, fpB } = fingerprintsByRole(a.role, a.frozenPair)
-      const code = await computeSas({ callId: a.callId, fpA, fpB, nA: a.nA, nB: a.nB })
-      if (a.revealTimer) { clearTimeout(a.revealTimer); a.revealTimer = null }
-      if (this.active === a) this.set({ sas: { state: 'ready', emoji: code.emoji } })
-    } catch (e) {
-      this.sasFailed(a, sasFailureVerdict(e))
-    }
-  }
-
-  /** 'cannot_verify' is shown and the call goes on; a mismatch ends the call with a warning. */
-  private sasFailed(a: Active, verdict: 'mismatch' | 'cannot_verify') {
-    if (this.active !== a) return
-    if (verdict === 'cannot_verify') {
-      if (this.view.sas.state === 'waiting') this.set({ sas: { state: 'cannot_verify' } })
-      return
-    }
-    this.set({ sas: { state: 'mismatch' } })
-    this.dispatch({ type: 'localEnd', now: now(), reason: 'sas_mismatch' })
-  }
-
-  private async waitFor(cond: () => boolean, maxMs: number) {
-    const started = now()
-    while (!cond() && now() - started < maxMs) await sleep(100)
   }
 
   private startLoops(a: Active) {
@@ -1224,7 +1059,6 @@ class CallEngine {
     a.timers.clear()
     if (a.statsTimer) clearInterval(a.statsTimer)
     if (a.heartbeatTimer) clearInterval(a.heartbeatTimer)
-    if (a.revealTimer) clearTimeout(a.revealTimer)
     a.channel?.close()
     a.mic.stop()
     a.cam?.stop()
@@ -1236,57 +1070,8 @@ class CallEngine {
 
 // ── helpers ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
-/**
- * sasFailureVerdict, adjusted for the engines it was verified on. "The peer's certificate has no stats" is tamper
- * evidence only where libwebrtc writes the stats (Chrome, Android WebView, Safari, WKWebView — sas review, from
- * source); Firefox was not verified, and an honest Firefox call must never read as interception (commit-gate review
- * C2). There it is "cannot verify".
- */
-function verdictHere(e: unknown): 'mismatch' | 'cannot_verify' {
-  const v = sasFailureVerdict(e)
-  const firefox = typeof navigator !== 'undefined' && /\bFirefox\//.test(navigator.userAgent)
-  return v === 'mismatch' && firefox && e instanceof SasError && e.code === 'remote_cert_rejected' ? 'cannot_verify' : v
-}
-
-/** Connected DTLS transports that name no peer certificate at all (not one that is named but unusable). */
-function noPeerCertificateReported(report: RTCStatsReport): boolean {
-  let connected = 0
-  let named = 0
-  report.forEach((s: { type?: string; dtlsState?: string; remoteCertificateId?: string }) => {
-    if (s.type !== 'transport' || s.dtlsState !== 'connected') return
-    connected++
-    if (s.remoteCertificateId) named++
-  })
-  return connected > 0 && named === 0
-}
-
-/**
- * The pair from what DTLS verified: our own (only) certificate, and the applied remote description's single sha-256
- * fingerprint (sdp-guard sdpFingerprint, recorded at setRemoteDescription and held constant since). Null if either is
- * unusable — which the caller then treats as it would the stats.
- */
-function sdpVerifiedPair(a: Active): FingerprintPair | null {
-  if (!a.remoteSdpFp) return null
-  try {
-    return { local: certificateDigest(a.cert), remote: parseFingerprint('sha-256', a.remoteSdpFp) }
-  } catch {
-    return null
-  }
-}
-
 function instanceId(): string {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 24)
-}
-
-function certificateDigest(cert: RTCCertificate): Uint8Array {
-  const fp = cert.getFingerprints().find((f) => (f.algorithm ?? '').toLowerCase() === 'sha-256')
-  if (!fp?.value) throw new Error('no sha-256 fingerprint on the certificate')
-  return parseFingerprint('sha-256', fp.value)
-}
-
-function safeNonce(hex: string | null | undefined): Uint8Array | null {
-  if (!hex) return null
-  try { return nonceFromHex(hex) } catch { return null }
 }
 
 function toInit(c: RTCIceCandidate) {

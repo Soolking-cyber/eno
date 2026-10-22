@@ -24,7 +24,6 @@ vi.mock('@/lib/calls/server/http', () => ({ boundedCapabilities: z.unknown().opt
 vi.mock('@/lib/calls/server/finish', () => ({ afterCallEnded: async (row: { id: string }, reason: string) => { h.finished.push(`${row.id}:${reason}`) } }))
 vi.mock('@/lib/calls/server/session', () => ({
   RING_TIMEOUT_S: 45,
-  commitTag: vi.fn(),
   startCall: vi.fn(),
   sweepStale: vi.fn(),
   abandonStart: async (...args: unknown[]) => { h.abandoned.push(args); return h.ended },

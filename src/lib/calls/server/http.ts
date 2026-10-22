@@ -3,7 +3,7 @@ import { after } from 'next/server'
 import { z } from 'zod'
 import { ApiError } from '@/lib/api/handler'
 import type { CallEndReason, CallRole } from '../types'
-import { MAX_OPAQUE_JSON_LENGTH, PEER_END_REASONS, callIdSchema, sasNonceSchema, tabIdSchema } from '../protocol'
+import { MAX_OPAQUE_JSON_LENGTH, PEER_END_REASONS, callIdSchema, tabIdSchema } from '../protocol'
 import { endCall, loadCall, roleOf, type CallSessionRow, type EndedCallRow } from './session'
 import { afterCallEnded } from './finish'
 import { logError } from '@/lib/log'
@@ -95,7 +95,7 @@ export const boundedCapabilities = z.unknown().optional().refine((v) => {
   if (v === undefined) return true
   try { return JSON.stringify(v).length <= MAX_OPAQUE_JSON_LENGTH } catch { return false }
 }, { message: 'capabilities too large' })
-export { sasNonceSchema, tabIdSchema }
+export { tabIdSchema }
 
 /** What a phone needs to reach the relay. The handle (for revocation) never leaves the box. */
 export function relayForClient(grant: { provider: string; iceServers: unknown; expiresAt: number }) {
@@ -103,7 +103,7 @@ export function relayForClient(grant: { provider: string; iceServers: unknown; e
 }
 
 /**
- * A participant ends the call (hang-up, the engine's own 'lost' / 'media_failed' / 'sas_mismatch', a pagehide
+ * A participant ends the call (hang-up, the engine's own 'lost' / 'media_failed', a pagehide
  * beacon). Returns the row as it was, or null when it had already ended (idempotent).
  *   · only what a peer may say of its own end (protocol.ts PEER_END_REASONS) is kept — 'declined' after an answer,
  *     or a reason only the box decides, would be a stranger putting words in the box's mouth: it becomes 'hangup',

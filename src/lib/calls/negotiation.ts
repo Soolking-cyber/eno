@@ -52,8 +52,7 @@
  * `${instanceId}:${seq}`; a tab id survives a reload (sessionStorage) while the counter restarts at 1, so keys
  * derived from the tab id would collide with the pre-reload page's and the box would silently drop them.
  *
- * ⚠️ NOT THIS MODULE'S JOB: the safety code. Fingerprints are pinned from getStats by the SAS module, which ends
- * the call on any change — so a restart offer that swaps the DTLS fingerprint is caught there, never here.
+ * ⚠️ NOT THIS MODULE'S JOB: the DTLS certificate (protocol v1's safety code pinned it from getStats; removed in v2).
  * This reducer treats SDP as opaque text.
  */
 import { CALL_PROTOCOL_VERSION, type CallEndReason, type CallRole } from './types'
@@ -649,7 +648,6 @@ function onRemote(d: Draft, fx: Fx, event: CallEvent, now: number): void {
       onAccepted(d, fx, now)
       break
     case 'ring': break // the ring overlay's business, not the negotiation's
-    case 'reveal': break // the safety code's business (sas.ts), not the negotiation's
   }
 }
 

@@ -11,7 +11,7 @@ import { sanitizeCandidateLine, sanitizeSdp, validateRemoteSdp } from '../sdp-gu
  *   · candidates: each is rebuilt by sanitizeCandidateLine or dropped; the empty end-of-candidates marker is dropped
  *     too (half-trickle never needs it, and one that overtakes real candidates makes Firefox ignore them —
  *     negotiation review).
- * ⚠️ THE PHONE'S OWN CHECK IS THE ONE THAT COUNTS. The box is exactly the party the safety code distrusts; this pass is
+ * ⚠️ THE PHONE'S OWN CHECK IS THE ONE THAT COUNTS. The box is exactly the party an end-to-end call distrusts; this pass is
  * hygiene that keeps junk and stray IPs out of call_negotiation and realtime.messages, and gives an honest phone a
  * clear refusal. The receiving engine validates every description again before applying it.
  * ⚠️ ZERO SURVIVING CANDIDATES IS REPORTED, NOT SILENT (sdp-guard review): a wrong relay allow-list drops every

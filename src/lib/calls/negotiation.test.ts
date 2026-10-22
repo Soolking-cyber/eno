@@ -25,7 +25,6 @@ const CALL_ID = '6f1c2b8e-4d3a-4c5b-9e7f-0a1b2c3d4e5f'
 const MY_TAB = 'tab-me'
 const PEER_TAB = 'tab-peer'
 /** nB, as the box relays it in 'accepted' (protocol.ts: lowercase hex, required). */
-const NB = 'b'.repeat(64)
 
 const only = <T extends Fx['type']>(fx: readonly Fx[], type: T): FxOf<T>[] =>
   fx.filter((e): e is FxOf<T> => e.type === type)
@@ -135,15 +134,17 @@ describe('protocol — strict schemas, version first', () => {
       { ...env(), kind: 'cancel', payload: {} },
       { ...env(), kind: 'answered_elsewhere', payload: { calleeTabId: PEER_TAB } },
       { ...env(), kind: 'unavailable', payload: {} },
-      { ...env(), kind: 'accepted', payload: { calleeTabId: PEER_TAB, capabilities: { v: 1 }, calleeNonce: NB } },
-      { ...env(), kind: 'reveal', payload: { callerNonce: 'a'.repeat(64) } },
+      { ...env(), kind: 'accepted', payload: { calleeTabId: PEER_TAB, capabilities: { v: 1 } } },
       { ...env(), kind: 'ended', payload: { reason: 'kill_switch' } },
     ]
     for (const raw of all) expect(parseEvent(raw)).toEqual({ ok: true, value: raw })
   })
 
   it('an unknown version is its own error ("reload to call"), checked before the shape', () => {
-    expect(parseEvent({ ...env(), v: 2, kind: 'ready', payload: {} })).toEqual({ ok: false, error: 'unsupported_version', version: 2 })
+    const next = CALL_PROTOCOL_VERSION + 1
+    expect(parseEvent({ ...env(), v: next, kind: 'ready', payload: {} })).toEqual({ ok: false, error: 'unsupported_version', version: next })
+    // An OLDER build's event too (protocol v1's tabs after the v2 deploy): "reload to call", never "malformed".
+    expect(parseEvent({ ...env(), v: 1, kind: 'ready', payload: {} })).toEqual({ ok: false, error: 'unsupported_version', version: 1 })
     // Even when the rest is unreadable to this build — a version bump is the licence to change the shape.
     expect(parseEvent({ v: 7, whatever: true })).toEqual({ ok: false, error: 'unsupported_version', version: 7 })
     for (const v of [undefined, '1', 1.5, 0, -1]) {
@@ -199,6 +200,7 @@ describe('protocol — strict schemas, version first', () => {
   })
 
   it('end and ended carry a CallEndReason and nothing else', () => {
+    // 'sas_mismatch' is a legacy reason (protocol v1's safety code): still a CallEndReason, so an old beacon parses.
     expect(parseEvent({ ...env(), kind: 'end', payload: { reason: 'sas_mismatch' } }).ok).toBe(true)
     expect(parseEvent({ ...env(), kind: 'end', payload: { reason: 'bored' } }).ok).toBe(false)
     expect(parseEvent({ ...env(), kind: 'ended', payload: {} }).ok).toBe(false)
@@ -206,7 +208,7 @@ describe('protocol — strict schemas, version first', () => {
 
   it('parseSnapshot: strict, JSON-null tolerant, versioned the same way', () => {
     const good = {
-      v: 1, callId: CALL_ID, callState: 'ready', peerTabId: PEER_TAB,
+      v: CALL_PROTOCOL_VERSION, callId: CALL_ID, callState: 'ready', peerTabId: PEER_TAB,
       latestOffer: { negId: 2, sdp: sdpFor('caller', 2) }, latestAnswer: null, endReason: null,
       candidates: [{ negId: 2, candidates: [cand('caller', 2, 1)] }],
     }
@@ -224,7 +226,7 @@ describe('protocol — strict schemas, version first', () => {
 describe('who offers, and when', () => {
   it('the caller offers on ready — never on accept', () => {
     const c = new Driver('caller')
-    expect(only(c.remote(serverEv('accepted', { calleeTabId: PEER_TAB, calleeNonce: NB })), 'createOffer')).toEqual([])
+    expect(only(c.remote(serverEv('accepted', { calleeTabId: PEER_TAB })), 'createOffer')).toEqual([])
     expect(c.state.phase).toBe('waiting_ready')
     expect(only(c.do({ type: 'accepted' }), 'createOffer')).toEqual([])
     expect(only(c.remote(readyEv()), 'createOffer')).toEqual([{ type: 'createOffer', negId: 1, iceRestart: false }])
@@ -554,7 +556,7 @@ describe('resync — Postgres is the truth, Realtime the hint', () => {
 
   it('the caller learns ready, and the answer, from snapshots', () => {
     const c = new Driver('caller')
-    c.remote(serverEv('accepted', { calleeTabId: PEER_TAB, calleeNonce: NB }))
+    c.remote(serverEv('accepted', { calleeTabId: PEER_TAB }))
     expect(only(c.do({ type: 'snapshot', snapshot: snap({ callState: 'ready' }) }), 'createOffer')).toHaveLength(1)
     c.do({ type: 'localDescriptionReady', negId: 1, sdp: sdpFor('caller', 1) })
     const fx = c.do({
@@ -848,7 +850,7 @@ class Sim {
     const acceptAt = this.rand(300, 3_000)
     this.at(acceptAt, () => {
       this.server.state = 'accepted'
-      this.broadcastServer('accepted', { calleeTabId: TAB.callee, calleeNonce: NB })
+      this.broadcastServer('accepted', { calleeTabId: TAB.callee })
       this.at(this.t + this.rand(50, 600), () => this.dispatch('callee', { type: 'accepted' }))
     })
   }

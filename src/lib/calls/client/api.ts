@@ -78,7 +78,6 @@ export interface ThreadCallState {
   audio: ButtonState
   video: ButtonState
   consent: { theyAllowMe: boolean; iAllowThem: boolean }
-  commitIds: { caller: string; callee: string } | null
   /** The other person, for the caller's screen — the same card the callee's screen gets (server http.ts peerCard). */
   peer: CallDetails['peer'] | null
 }
@@ -100,8 +99,6 @@ export interface CallDetails {
   /** How long it still rings, by the server's clock — never computed from ringingAt on the phone's clock. */
   ringRemainingMs: number
   connectedAt: string | null
-  commit: string | null
-  commitIds: { caller: string; callee: string } | null
   peer: { name: string | null; avatarUrl: string | null; verified: boolean; memberSince: string | null; side: 'buyer' | 'seller' | null }
   listing: { id: string; title: string } | null
 }
@@ -124,7 +121,7 @@ export async function getCallsConfig(userId: string, force = false): Promise<Cal
 }
 
 export const getThreadCallState = (conversationId: string) => call<ThreadCallState>(`/api/conversations/${encodeURIComponent(conversationId)}/call`)
-export const startCallRequest = (conversationId: string, body: { v: number; media: CallMedia; tabId: string; commit: string; capabilities: unknown; startId: string }) =>
+export const startCallRequest = (conversationId: string, body: { v: number; media: CallMedia; tabId: string; capabilities: unknown; startId: string }) =>
   post<StartResponse>(`/api/conversations/${encodeURIComponent(conversationId)}/call`, body)
 export const setCallConsent = (conversationId: string, allow: boolean) =>
   post<{ allow: boolean }>(`/api/conversations/${encodeURIComponent(conversationId)}/call-consent`, { allow })
@@ -135,11 +132,10 @@ export const requestCall = (conversationId: string) =>
 
 const callUrl = (callId: string, tail = '') => `/api/calls/${encodeURIComponent(callId)}${tail}`
 export const getCallDetails = (callId: string) => call<CallDetails>(callUrl(callId))
-export const acceptCallRequest = (callId: string, body: { v: number; tabId: string; nonce: string; capabilities: unknown }) =>
+export const acceptCallRequest = (callId: string, body: { v: number; tabId: string; capabilities: unknown }) =>
   post<{ relay: RelayGrant; conversationId: string; media: CallMedia }>(callUrl(callId, '/accept'), body)
 export const declineCallRequest = (callId: string, reason: 'declined' | 'media' = 'declined') =>
   post<{ ended: boolean }>(callUrl(callId, '/decline'), { reason })
-export const revealRequest = (callId: string, nonce: string) => post<{ stored: boolean }>(callUrl(callId, '/reveal'), { tabId: TAB_ID, nonce })
 export const heartbeatRequest = (callId: string, body: { connected: boolean; telemetry?: unknown }) =>
   post<{ state: string; capInMs: number | null }>(callUrl(callId, '/heartbeat'), { tabId: TAB_ID, ...body })
 

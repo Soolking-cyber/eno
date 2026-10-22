@@ -89,14 +89,21 @@ async function powerEfficient(kind: 'encode' | 'decode', contentType: string): P
   if (!mc) return undefined
   const video = { contentType, width: 960, height: 540, bitrate: 1_200_000, framerate: 30 }
   try {
-    const info = kind === 'encode'
-      ? await mc.encodingInfo({ type: 'webrtc', video } as MediaEncodingConfiguration)
-      : await mc.decodingInfo({ type: 'webrtc', video } as MediaDecodingConfiguration)
+    const ask = kind === 'encode'
+      ? mc.encodingInfo({ type: 'webrtc', video } as MediaEncodingConfiguration)
+      : mc.decodingInfo({ type: 'webrtc', video } as MediaDecodingConfiguration)
+    // Bounded (commit-gate review, codex): the report is built once per page and every call awaits it, so one question
+    // a browser never answers must not hold every later start and answer — no answer in time is "unknown".
+    const info = await Promise.race([ask, new Promise<null>((resolve) => setTimeout(() => resolve(null), POWER_QUERY_MS))])
+    if (!info) return undefined
     return info.supported ? info.powerEfficient : false
   } catch {
     return undefined
   }
 }
+
+/** How long one mediaCapabilities question may take before its answer counts as unknown. */
+const POWER_QUERY_MS = 1_500
 
 function platform(): CapabilityReport['platform'] {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
@@ -123,18 +130,19 @@ export async function buildCapabilityReport(): Promise<CapabilityReport> {
     { codec: 'VP9', contentType: 'video/VP9' },
     { codec: 'AV1', contentType: 'video/AV1' },
   ]
-  const codecs: CodecSupport[] = []
-  for (const e of entries) {
+  // Every codec's mediaCapabilities questions at once, in the list's order (they were awaited one codec after another).
+  const found = await Promise.all(entries.map(async (e): Promise<CodecSupport | null> => {
     const encode = listed(send, e.codec, e.prefix)
     const decode = listed(recv, e.codec, e.prefix)
-    if (!encode && !decode) continue
+    if (!encode && !decode) return null
     const support: CodecSupport = { codec: e.codec, encode, decode }
     if (e.profile) support.profile = e.profile
     const [pe, pd] = await Promise.all([encode ? powerEfficient('encode', e.contentType) : undefined, decode ? powerEfficient('decode', e.contentType) : undefined])
     if (pe !== undefined) support.powerEfficientEncode = pe
     if (pd !== undefined) support.powerEfficientDecode = pd
-    codecs.push(support)
-  }
+    return support
+  }))
+  const codecs = found.filter((c): c is CodecSupport => c !== null)
   const mem = deviceMemory()
   const report: CapabilityReport = {
     v: CALL_PROTOCOL_VERSION,
@@ -147,6 +155,17 @@ export async function buildCapabilityReport(): Promise<CapabilityReport> {
   }
   if (mem !== null) report.deviceMemory = mem
   return report
+}
+
+let reportOnce: Promise<CapabilityReport> | null = null
+/**
+ * The report, built ONCE per page (ring latency, 2026-10-22): what a device can encode and decode does not change while
+ * a page lives, and building it put a chain of mediaCapabilities questions in front of every start and every answer.
+ * Warmed when the call runtime mounts; a failed build is not kept, so the next call asks again.
+ */
+export function capabilityReport(): Promise<CapabilityReport> {
+  if (!reportOnce) reportOnce = buildCapabilityReport().catch((e: unknown) => { reportOnce = null; throw e })
+  return reportOnce
 }
 
 /**

@@ -4,8 +4,10 @@
  * description or a candidate is stored or relayed) and the call engine (validate the PEER's description, then
  * prepare it, right before setRemoteDescription).
  *
- * WHY A DESCRIPTION IS CHECKED AT ALL. The safety code (§3.2 step 5) reads both DTLS fingerprints from getStats,
- * never from SDP text — but objection 1 showed that a description saying two things at once is how a signalling
+ * WHY A DESCRIPTION IS CHECKED AT ALL. (Written for protocol v1's safety code, which read both DTLS fingerprints from
+ * getStats and was removed in v2; the rules stand — they keep each description meaning ONE certificate to every
+ * parser.) The safety code read the fingerprints, never SDP text — but objection 1 showed that a description saying
+ * two things at once is how a signalling
  * server gets more than its one guess: commit to a DECOY fingerprint (session level, or the first line), put the
  * certificate it really uses on the LAST fingerprint line of the m-section, and let libwebrtc do the rest. The
  * session-level value seeds every transport, each media-level line overwrites it, the last one wins, and the
@@ -165,9 +167,8 @@ export function validateRemoteSdp(sdp: string, opts?: SdpValidationOptions): Sdp
 /**
  * The one certificate a description can mean, or null when it does not mean exactly one. Uppercase colon
  * hex — how libwebrtc writes it in SDP and in RTCCertificateStats.fingerprint. Used to notice a changed
- * certificate across re-offers (review-critic-completeness: a later description with a different fingerprint
- * ends the call — a legitimate ICE restart keeps the certificate); the safety code itself still reads getStats
- * (§3.2 step 5), never this.
+ * certificate across re-offers: the engine pins the peer's certificate for the call's life and ends the call if a
+ * later description names another (an honest browser keeps one certificate per connection, ICE restarts included).
  * ⚠️ null is not "unchanged": a caller comparing against a frozen value must treat null as a change.
  */
 export function sdpFingerprint(sdp: string): string | null {

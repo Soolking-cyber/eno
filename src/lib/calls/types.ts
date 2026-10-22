@@ -1,17 +1,21 @@
 /**
  * In-app calls — the shared vocabulary of the call modules (design: ~/eno-calls-research-2026-10/DESIGN.md v3).
  *
- * 1:1 calls run on the platform WebRTC engine, always relay-only, DTLS-SRTP keys only on the two phones, and a
- * commit-reveal safety code. Every module under src/lib/calls/ is PURE (no React, no DOM beyond WebRTC/WebCrypto
+ * 1:1 calls run on the platform WebRTC engine, always relay-only, DTLS-SRTP keys only on the two phones (the 4-emoji
+ * safety code was removed in protocol v2 — owner, 2026-10-22: "the 4 pin remove that thing"). Every module under src/lib/calls/ is PURE (no React, no DOM beyond WebRTC/WebCrypto
  * types, no DB) so it is pinned by tests rather than by rendering a call.
  *
  * ⚠️ PEERS RUN DIFFERENT BUILDS. Capacitor remote mode and long-open tabs keep old JS alive for days, so anything
- * two peers must agree on (event shapes, the codec plan, the safety-code inputs) is versioned by
+ * two peers must agree on (event shapes, the codec plan) is versioned by
  * CALL_PROTOCOL_VERSION and decided ONCE by one side — never computed independently on both and assumed equal.
  */
 
-/** Bump on any change two peers must agree on. The server refuses a pair whose versions differ ("reload to call"). */
-export const CALL_PROTOCOL_VERSION = 1
+/**
+ * Bump on any change two peers must agree on. The server refuses a pair whose versions differ ("reload to call").
+ * 2 (2026-10-22): the safety code's commit / nonce / reveal left the start, the accept, the 'accepted' event and the
+ * snapshot, and the 'reveal' event is gone.
+ */
+export const CALL_PROTOCOL_VERSION = 2
 
 export type CallMedia = 'audio' | 'video'
 export type CallRole = 'caller' | 'callee'
@@ -63,5 +67,5 @@ export type CallEndReason =
   | 'kill_switch'
   | 'cap_reached'
   | 'media_failed'
-  | 'sas_mismatch'
+  | 'sas_mismatch' // legacy: protocol v1's safety code (removed in v2) — stored rows and old beacons still carry it
   | 'protocol_mismatch'

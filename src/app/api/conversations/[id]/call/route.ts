@@ -3,10 +3,10 @@ import { z } from 'zod'
 import { ApiError, route } from '@/lib/api/handler'
 import { EDITION } from '@/lib/edition'
 import { CALL_PROTOCOL_VERSION } from '@/lib/calls/types'
-import { sasNonceSchema, tabIdSchema } from '@/lib/calls/protocol'
+import { tabIdSchema } from '@/lib/calls/protocol'
 import { callLimitRefusal, callPermit, hasCallConsent, loadConversationForCall } from '@/lib/calls/server/eligibility'
 import { mintRelayCredential, relayConfigured, revokeRelayCredential } from '@/lib/calls/server/relay'
-import { RING_TIMEOUT_S, abandonStart, commitTag, startCall, sweepStale } from '@/lib/calls/server/session'
+import { RING_TIMEOUT_S, abandonStart, startCall, sweepStale } from '@/lib/calls/server/session'
 import { afterCallEnded } from '@/lib/calls/server/finish'
 import { sendRingPush } from '@/lib/calls/server/cards'
 import { boundedCapabilities, peerCard, relayForClient } from '@/lib/calls/server/http'
@@ -17,9 +17,8 @@ export const dynamic = 'force-dynamic'
 // ── IN-APP CALLS: THE CALL BUTTON OF ONE THREAD (DESIGN.md v3 §3.2 step 1, §4) ─────────────────────────────────────
 //
 // GET  → what the button may offer here: audio / video each 'ok' or the refusal code that explains why not, and the
-//        consent state both ways ("Allow calls from <name>"), and — only when a call is possible — the two ids the
-//        safety-code commitment binds (session.ts commitTag: pseudonyms, never profile ids) and the other person's card
-//        for the caller's screen (http.ts peerCard — the same one the callee's screen gets). No side effects.
+//        consent state both ways ("Allow calls from <name>"), and — only when a call is possible — the other person's
+//        card for the caller's screen (http.ts peerCard — the same one the callee's screen gets). No side effects.
 // POST → start a call. Gates in order (eligibility.ts): the runtime switch for BOTH people, the thread kind, neither
 //        suspended, no block, the caller verified (video / teacher threads: both), the callee's consent, the limits.
 //        Then one relay credential for the caller, then ONE transaction (session.ts startCall): cross-call merge, busy
@@ -29,8 +28,6 @@ export const dynamic = 'force-dynamic'
 //          { kind: 'unavailable', callId }                     busy — reads like a decline (§3.2 step 1)
 //        and the refusals: protocol_mismatch 409 (reload to call) · not_found 404 · every eligibility code ·
 //        calls_consent_required 403 · rate_limited / calls_cooldown 429 · relay_unavailable 503 · call_in_progress 409.
-// ⚠️ The commitment C is all the caller sends of the safety code (sas.ts step 1); nA and the certificate stay on the
-// phone. callId is minted here, AFTER C — which is why C cannot include it.
 
 /** The phone's id for one start attempt (abandonStart). */
 const startIdSchema = z.string().regex(/^[A-Za-z0-9_-]{8,64}$/)
@@ -53,7 +50,11 @@ const startBody = z.strictObject({
   v: z.int(),
   media: z.enum(['audio', 'video']),
   tabId: tabIdSchema,
-  commit: sasNonceSchema,
+  /**
+   * Protocol v1's safety-code commitment (gone since v2, 2026-10-22). An old tab still sends it: allowed ONLY so the
+   * version check below answers it 'reload to call' instead of a bare 400. Never read.
+   */
+  commit: z.string().max(64).optional(),
   capabilities: boundedCapabilities,
   startId: startIdSchema,
 })
@@ -75,7 +76,6 @@ export const GET = route({ auth: 'userId', rateLimit: { bucket: 'calls:button', 
     audio: audio.ok ? (relay ? 'ok' : 'relay_unavailable') : audio.error,
     video: video.ok ? (relay ? 'ok' : 'relay_unavailable') : video.error,
     consent: { theyAllowMe, iAllowThem },
-    commitIds: calleeId ? { caller: commitTag(userId, convo.id), callee: commitTag(calleeId, convo.id) } : null,
     peer,
   }
 })
@@ -106,7 +106,7 @@ export const POST = route(
     try {
       result = await startCall({
         conversationId: convo.id, callerId: userId, calleeId: permit.calleeId, media: body.media,
-        protocolVersion: body.v, edition: EDITION, relay: grant.provider, callerTab: body.tabId, commit: body.commit,
+        protocolVersion: body.v, edition: EDITION, relay: grant.provider, callerTab: body.tabId,
         callerCaps: body.capabilities ?? null, callerRelayUser: grant.handle, startId: body.startId,
       })
     } catch (e) {

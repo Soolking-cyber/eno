@@ -58,7 +58,7 @@ describe('writeCallRecord', () => {
 
   it('a completed call carries its SQL-measured length; an erased account gets nothing', async () => {
     await writeCallRecord(row({ state: 'connected', connected_at: new Date(), connected_secs: 192.4 }), 'hangup')
-    expect(h.inserted).toEqual(['📞 Cuộc gọi thoại · Voice call · 3:12'])
+    expect(h.inserted).toEqual(['📞 Cuộc gọi · Call · 3:12'])
     expect(await writeCallRecord(row({ caller_id: null }), 'missed')).toBe(false)
     expect(h.inserted).toHaveLength(1)
   })

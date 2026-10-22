@@ -5,12 +5,13 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { CALL_PROTOCOL_VERSION } from '../types'
 
 /**
  * ⛔ THE CALL ENGINE IN TWO REAL BROWSERS — opt-in, never part of the normal suite.
  *
  * Two isolated Chromium contexts (fake camera + microphone) play the caller and the callee. Everything a phone runs is
- * REAL: the engine, api.ts's fetches, the negotiation reducer, the safety code, the codec plan, the ladder, the SDP
+ * REAL: the engine, api.ts's fetches, the negotiation reducer, the codec plan, the ladder, the SDP
  * guard, telemetry and RTCPeerConnection itself — through a REAL relay (Cloudflare Realtime TURN, relay-only as in
  * production). What is stood in for is the box: this file serves the same /api/calls* shapes from memory, using the
  * box's own pure modules (protocol.ts parsing, signal.ts sanitising against Cloudflare's ranges, session.ts's
@@ -122,9 +123,9 @@ describe.skipIf(!live)('the call engine between two real browsers, through the r
         }
         if (!meId) return json(res, 401, { error: 'auth_required' })
         const peerId = meId === PEOPLE.alice ? PEOPLE.bob : PEOPLE.alice
-        if (url.pathname === '/api/calls/config') return json(res, 200, { enabled: true, video: true, protocolVersion: 1 })
+        if (url.pathname === '/api/calls/config') return json(res, 200, { enabled: true, video: true, protocolVersion: CALL_PROTOCOL_VERSION })
         if (url.pathname === `/api/conversations/${CONVO}/call` && req.method === 'GET') {
-          return json(res, 200, { protocolVersion: 1, audio: 'ok', video: 'ok', consent: { theyAllowMe: true, iAllowThem: true }, commitIds: { caller: meId, callee: peerId } })
+          return json(res, 200, { protocolVersion: CALL_PROTOCOL_VERSION, audio: 'ok', video: 'ok', consent: { theyAllowMe: true, iAllowThem: true } })
         }
         if (url.pathname === `/api/conversations/${CONVO}/call` && req.method === 'DELETE') {
           // like session.ts abandonStart: a tombstone for the start, and its call ended if it was made
@@ -143,7 +144,7 @@ describe.skipIf(!live)('the call engine between two real browsers, through the r
           const id = randomUUID()
           const row: Row = {
             id, conversation_id: CONVO, caller_id: meId, callee_id: peerId, media: body.media, state: 'ringing', end_reason: null,
-            protocol_version: 1, caller_tab: body.tabId, callee_tab: null, caller_commit: body.commit, callee_nonce: null, caller_reveal: null,
+            protocol_version: CALL_PROTOCOL_VERSION, caller_tab: body.tabId, callee_tab: null, caller_commit: '0'.repeat(64), callee_nonce: null, caller_reveal: null,
             caller_hold: null, caller_hold_seq: null, callee_hold: null, callee_hold_seq: null, caller_caps: body.capabilities, callee_caps: null,
             connected_at: null, accepted_at: null, start_id: body.startId,
           }
@@ -160,10 +161,8 @@ describe.skipIf(!live)('the call engine between two real browsers, through the r
         const tail = m[2] ?? ''
         if (tail === '' && req.method === 'GET') {
           return json(res, 200, {
-            callId: r.id, conversationId: CONVO, media: r.media, role, state: r.state, endReason: r.end_reason, protocolVersion: 1,
+            callId: r.id, conversationId: CONVO, media: r.media, role, state: r.state, endReason: r.end_reason, protocolVersion: CALL_PROTOCOL_VERSION,
             ringingAt: new Date().toISOString(), ringTimeoutSec: 45, ringRemainingMs: 45_000, connectedAt: null,
-            commit: role === 'callee' && r.state === 'ringing' ? r.caller_commit : null,
-            commitIds: { caller: r.caller_id, callee: r.callee_id },
             peer: { name: role === 'caller' ? 'Bob' : 'Alice', avatarUrl: null, verified: true, memberSince: null, side: role === 'caller' ? 'seller' : 'buyer' },
             listing: { id: 'l1', title: 'Studio D3' },
           })
@@ -171,9 +170,9 @@ describe.skipIf(!live)('the call engine between two real browsers, through the r
         const body = req.method === 'POST' ? await readBody(req) : null
         if (tail === '/accept') {
           if (r.state !== 'ringing') return json(res, 409, { error: 'call_gone' })
-          Object.assign(r, { state: 'accepted', accepted_at: new Date(), callee_tab: body.tabId, callee_nonce: body.nonce, callee_caps: body.capabilities })
+          Object.assign(r, { state: 'accepted', accepted_at: new Date(), callee_tab: body.tabId, callee_caps: body.capabilities })
           publish(`ring:${r.callee_id}`, boxEvent(r.id, { kind: 'answered_elsewhere', payload: { calleeTabId: body.tabId } }))
-          publish(`call:${CONVO}`, boxEvent(r.id, { kind: 'accepted', payload: { calleeTabId: body.tabId, capabilities: body.capabilities, calleeNonce: body.nonce } }))
+          publish(`call:${CONVO}`, boxEvent(r.id, { kind: 'accepted', payload: { calleeTabId: body.tabId, capabilities: body.capabilities } }))
           return json(res, 200, { relay: await mint(), conversationId: CONVO, media: r.media })
         }
         if (tail === '/decline') {
@@ -182,10 +181,6 @@ describe.skipIf(!live)('the call engine between two real browsers, through the r
           return json(res, 200, { ended: true })
         }
         if (tail === '/end') { end(c, r.state === 'ringing' ? (role === 'caller' ? 'cancelled' : 'declined') : 'hangup'); return json(res, 200, { ended: true }) }
-        if (tail === '/reveal') {
-          if (!r.caller_reveal) { r.caller_reveal = body.nonce; publish(`call:${CONVO}`, boxEvent(r.id, { kind: 'reveal', payload: { callerNonce: body.nonce } })) }
-          return json(res, 200, { stored: true })
-        }
         if (tail === '/heartbeat') {
           if (r.state === 'ended') return json(res, 409, { error: 'call_gone' })
           if (body.connected && !r.connected_at) { r.connected_at = new Date(); r.state = 'connected' }
@@ -297,7 +292,7 @@ describe.skipIf(!live)('the call engine between two real browsers, through the r
 
   const view = (p: import('playwright').Page) => p.evaluate(() => {
     const v = (window as any).callEngine.getView()
-    return { phase: v.phase, endReason: v.endReason, error: v.error, sas: v.sas.state, emoji: v.sas.emoji?.map((e: any) => e.char).join('') ?? null, remoteVideoLive: v.remoteVideoLive, cameraOn: v.cameraOn, role: v.role, peerName: v.peer?.name ?? null }
+    return { phase: v.phase, endReason: v.endReason, error: v.error, encrypted: v.encrypted, remoteVideoLive: v.remoteVideoLive, cameraOn: v.cameraOn, role: v.role, peerName: v.peer?.name ?? null }
   })
   const waitPhase = (p: import('playwright').Page, phase: string, timeout = 30_000) =>
     p.waitForFunction((ph) => (window as any).callEngine.getView().phase === ph, phase, { timeout })
@@ -327,24 +322,37 @@ describe.skipIf(!live)('the call engine between two real browsers, through the r
     await reset()
   }, 120_000)
 
-  it.skipIf(!relay)('an audio call connects through the relay; both phones show the SAME safety code; a hang-up ends both', async () => {
+  it.skipIf(!relay)('an audio call connects through the relay and stays up; a hang-up ends both (no safety code since v2)', async () => {
     const alice = pages.alice!; const bob = pages.bob!
     await alice.evaluate((convo) => (window as any).callEngine.startCall(convo, 'audio', { name: 'Bob', avatarUrl: null, verified: true, memberSince: null, side: 'seller' }, { id: 'l1', title: 'Studio D3' }), CONVO)
     await waitPhase(bob, 'incoming')
     await bob.evaluate(() => (window as any).callEngine.accept())
     await waitPhase(alice, 'connected')
     await waitPhase(bob, 'connected')
-    await alice.waitForFunction(() => (window as any).callEngine.getView().sas.state !== 'waiting', null, { timeout: 20_000 })
-    await bob.waitForFunction(() => (window as any).callEngine.getView().sas.state !== 'waiting', null, { timeout: 20_000 })
-    const [a, b] = [await view(alice), await view(bob)]
-    expect(a.sas).toBe('ready')
-    expect(b.sas).toBe('ready')
-    expect(a.emoji).toBe(b.emoji)
-    expect(a.emoji).toMatch(/^\p{Extended_Pictographic}/u)
+    // "End-to-end encrypted" once DTLS is up — on both phones, through the real relay.
+    for (const p of [alice, bob]) await p.waitForFunction(() => (window as any).callEngine.getView().encrypted === true, null, { timeout: 15_000 })
+    // Nothing ends an honest call (the v1 safety code's checks are gone; the certificate pin never trips on one).
+    await bob.waitForTimeout(5_000)
+    for (const p of [alice, bob]) expect(await view(p)).toMatchObject({ phase: 'connected', error: null, encrypted: true })
     await alice.evaluate(() => (window as any).callEngine.hangup())
     await waitPhase(alice, 'ended')
     await waitPhase(bob, 'ended', 15_000)
     expect((await view(bob)).endReason).toBe('hangup')
+    await reset()
+  }, 120_000)
+
+  it.skipIf(!relay)('the CALLEE turns its camera on in a camera-off call and the caller sees it (one-button calls, 2026-10-22)', async () => {
+    const alice = pages.alice!; const bob = pages.bob!
+    await alice.evaluate((convo) => (window as any).callEngine.startCall(convo, 'video', null, null), CONVO)
+    await waitPhase(bob, 'incoming')
+    await bob.evaluate(() => (window as any).callEngine.accept())
+    await waitPhase(bob, 'connected')
+    expect((await view(bob)).cameraOn).toBe(false)
+    await bob.evaluate(() => (window as any).callEngine.toggleCamera())
+    await alice.waitForFunction(() => (window as any).callEngine.getView().remoteVideoLive === true, null, { timeout: 20_000 })
+    expect((await view(bob)).cameraOn).toBe(true)
+    await alice.evaluate(() => (window as any).callEngine.hangup())
+    await waitPhase(bob, 'ended', 15_000)
     await reset()
   }, 120_000)
 
