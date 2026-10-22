@@ -8,6 +8,9 @@ import { PublishBlockedError } from '@/lib/publish-guard'
 import { isIdentityBlockCode, publishBlockedBody } from '@/lib/compliance/publish-block-response'
 import type { ApiAuth } from '@/lib/api/auth'
 
+/** Tool calls per key per minute, counted per call — not per HTTP request (security review item 13). */
+const MCP_TOOL_CALLS_PER_MIN = 120
+
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
@@ -83,6 +86,12 @@ async function handleMessage(msg: Rpc, auth: ApiAuth | null): Promise<object | n
       if (!parsed.success) {
         return toolErr(msg.id, 'invalid_input', parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; '))
       }
+      // ⛔ EVERY TOOL CALL IS COUNTED, NOT EVERY HTTP REQUEST (security review 2026-10-22, item 13). The key's
+      // 'apiv1' bucket is charged once per request by resolveApiKey, and a batch carries up to MAX_BATCH (32)
+      // tools/call messages — so one rate-limited request did 32 calls' work (each create_listing re-hosting up to 8
+      // remote images). This bucket charges each call; strict, so a limiter outage refuses rather than uncaps.
+      const callBudget = await rateLimit('mcp-tool-call', auth.keyId, MCP_TOOL_CALLS_PER_MIN, '1 m', { strict: true })
+      if (!callBudget.success) return toolErr(msg.id, 'rate_limited', 'Too many tool calls for this key. Slow down or back off.')
       try {
         const result = await tool.handler(auth, parsed.data as Record<string, unknown>)
         return rpcResult(msg.id, { content: [{ type: 'text', text: JSON.stringify(result) }] })

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
+import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params
   const meId = await getCurrentProfileId()
   if (!meId) return new NextResponse(null, { status: 401 })
+  // ⛔ RATE-LIMITED (security review 2026-10-22, item 20). Every POST inserts a realtime.messages row and fans it out,
+  // so an unthrottled participant amplified writes and could flood the other person's socket. 30 a minute is far above
+  // what a keystroke-debounced client sends. NOT strict: typing is best-effort, so a limiter outage lets it through
+  // rather than failing a chat feature. Over the limit, answer the same bodyless 204 — the caller never reads it.
+  const rl = await rateLimit('typing', meId, 30, '1 m')
+  if (!rl.success) return new NextResponse(null, { status: 204 })
   try {
     await db.$executeRaw`select public.broadcast_typing(${id}::text, ${meId}::uuid)`
   } catch {

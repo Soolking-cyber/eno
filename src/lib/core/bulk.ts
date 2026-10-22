@@ -11,6 +11,8 @@ import { releasedChargeGate } from '@/lib/released-charge-gate'
 import { warmTranslations } from '@/lib/translate'
 import { isListingImageUrl, isListingVideoUrl } from '@/lib/listing-image'
 import { safeFetch } from '@/lib/ssrf'
+import { rateLimit } from '@/lib/ratelimit'
+import { logError } from '@/lib/log'
 import { reindexListing } from '@/lib/listing-index'
 import { moderateListingById } from '@/lib/ai-moderation'
 import { indexAndCheckProvenance } from '@/lib/image-provenance'
@@ -38,16 +40,53 @@ export type BulkRowResult = { row: number; id?: string; external_id?: string; er
 // Server-fetch a remote image and re-host it (first-party, validated) via the media core.
 // Already-hosted URLs pass through. SSRF-guarded fetch; null on any failure. Exported so the
 // sync core's update path re-hosts images the same way.
-export async function rehostListingImage(url: string): Promise<string | null> {
-  return rehost(url)
+export async function rehostListingImage(url: string, sellerId?: string): Promise<string | null> {
+  return rehost(url, sellerId)
 }
-async function rehost(url: string): Promise<string | null> {
+
+/**
+ * ⛔ A PER-SELLER HOURLY BUDGET ON REMOTE IMAGE RE-HOSTING (security review 2026-10-22, item 13). Every remote image
+ * costs a fetch, a sharp decode and a public-bucket upload on the one VN box, and the three paths that do it — MCP
+ * create/update_listing, bulk import, catalogue sync — could be driven far past any honest catalogue: 32 tool calls
+ * per MCP request at 600 requests/minute per key, and 200 rows × 8 images per bulk or sync call. MAX_IMG_FETCHES
+ * still bounds a single import; this bounds the SELLER across calls, keys and paths. Images already on our bucket
+ * pass through free (never fetched, never charged). Over budget, the image is skipped — the listing is still made.
+ */
+export const REHOST_IMAGES_PER_HOUR = 2000
+
+/**
+ * Read a response body with a hard byte ceiling, ABORTING the transfer once it is crossed — the old code buffered the
+ * whole body (`arrayBuffer()`) and only then compared the size, so a 1 GB "image" was held in memory first (item 13).
+ */
+async function readCapped(res: Response, max: number): Promise<Buffer | null> {
+  const declared = Number(res.headers.get('content-length') || 0)
+  if (declared > max) { await res.body?.cancel().catch((e) => logError(e, { op: 'bulk.rehost.cancel' })); return null }
+  const reader = res.body?.getReader()
+  if (!reader) return null
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > max) { await reader.cancel().catch((e) => logError(e, { op: 'bulk.rehost.cancel' })); return null }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks)
+}
+
+async function rehost(url: string, sellerId?: string): Promise<string | null> {
   if (isListingImageUrl(url)) return url
+  if (sellerId) {
+    // Strict: a limiter outage must not uncap server-side fetching (it fails closed — the image is skipped).
+    const budget = await rateLimit('rehost-images', sellerId, REHOST_IMAGES_PER_HOUR, '1 h', { strict: true })
+    if (!budget.success) return null
+  }
   try {
     const res = await safeFetch(url, { timeoutMs: 8000 })
     if (!res.ok) return null
-    const buf = Buffer.from(await res.arrayBuffer())
-    if (buf.byteLength === 0 || buf.byteLength > IMG_MAX_BYTES) return null
+    const buf = await readCapped(res, IMG_MAX_BYTES)
+    if (!buf || buf.byteLength === 0) return null
     return await storeListingImage(buf, { pathPrefix: 'bulk/' })
   } catch {
     return null
@@ -196,7 +235,7 @@ export async function bulkImportCore(
         if (isListingImageUrl(u)) { hosted.push(u); continue }
         if (imgFetched >= MAX_IMG_FETCHES) { imageBudgetReached = true; continue }
         imgFetched++
-        const h = await rehost(u)
+        const h = await rehost(u, seller.id)
         if (h) hosted.push(h)
       }
 

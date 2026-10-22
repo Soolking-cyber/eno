@@ -21,7 +21,35 @@ export const AI_HOURLY_LIMIT = 10
 // Concierge OPTS OUT ({ skipGlobal }): it has its own daily breakers with a GRACEFUL
 // degrade (heuristic answers instead of a 429), and charging it here would both hard-fail
 // chat at the cap and let a chatty day switch off the sellers' authoring AI.
-export const AI_GLOBAL_DAILY_LIMIT = 2000
+//
+// ⛔ ONE SHARED POOL LET A FEW ACCOUNTS SWITCH AI OFF FOR EVERYONE (security review 2026-10-22, item 19). One account
+// could take ~110 calls/hour across the authoring routes against a 2,000/day pool — ~19 accounts emptied it in an hour,
+// after which classify, rephrase, visual search, the teacher bio rewrite and CV import all answered 429 until 00:00 UTC.
+// Three changes, with the TOTAL daily spend ceiling unchanged at 2,000:
+//   · a per-account DAILY cap per feature (AI_ACCOUNT_DAILY_LIMIT), so one account cannot spend a day's budget;
+//   · a per-feature SHARE of the shared pool (AI_FEATURE_DAILY_SHARE), so one feature cannot drain the others;
+//   · teacher onboarding (bio rewrite, CV import) draws on its own RESERVE (AI_TEACHER_RESERVE_DAILY), carved out of the
+//     old 2,000 — so the shared pool is now 1,500 and a busy authoring day can no longer block teacher sign-up.
+export const AI_GLOBAL_DAILY_LIMIT = 1500
+export const AI_TEACHER_RESERVE_DAILY = 500
+export const AI_FEATURE_DAILY_SHARE = 750
+export const AI_ACCOUNT_DAILY_LIMIT = 150
+
+/**
+ * Charge one call against the shared daily pool, through the feature's share first. A feature that has used its share
+ * is refused without touching the pool, so it cannot starve the rest. Strict: a limiter outage refuses (paid calls).
+ */
+export async function chargeAiGlobal(feature: string): Promise<boolean> {
+  const share = await rateLimit(`ai-global-${feature}`, 'global', AI_FEATURE_DAILY_SHARE, '1 d', { strict: true })
+  if (!share.success) return false
+  const pool = await rateLimit('ai-global', 'global', AI_GLOBAL_DAILY_LIMIT, '1 d', { strict: true })
+  return pool.success
+}
+
+/** Teacher onboarding's reserved daily budget — not the shared pool (item 19). */
+export async function chargeAiTeacherReserve(): Promise<boolean> {
+  return (await rateLimit('ai-global-teachers', 'global', AI_TEACHER_RESERVE_DAILY, '1 d', { strict: true })).success
+}
 
 type Gate = { ok: true; profileId: string } | { ok: false; res: NextResponse }
 
@@ -30,9 +58,11 @@ export async function aiGuard(name: string, hourlyLimit: number = AI_HOURLY_LIMI
   if (!profileId) return { ok: false, res: NextResponse.json({ error: 'auth_required' }, { status: 401 }) }
   const limit = await rateLimit(`ai-${name}`, profileId, hourlyLimit, '1 h', { strict: true })
   if (!limit.success) return { ok: false, res: NextResponse.json({ error: 'rate_limited' }, { status: 429 }) }
+  // Per-account daily cap, BEFORE the global charge, so a capped account never consumes pool slots (item 19).
+  const daily = await rateLimit(`ai-${name}-day`, profileId, AI_ACCOUNT_DAILY_LIMIT, '1 d', { strict: true })
+  if (!daily.success) return { ok: false, res: NextResponse.json({ error: 'rate_limited' }, { status: 429 }) }
   if (!opts?.skipGlobal) {
-    const global = await rateLimit('ai-global', 'global', AI_GLOBAL_DAILY_LIMIT, '1 d', { strict: true })
-    if (!global.success) return { ok: false, res: NextResponse.json({ error: 'rate_limited' }, { status: 429 }) }
+    if (!(await chargeAiGlobal(name))) return { ok: false, res: NextResponse.json({ error: 'rate_limited' }, { status: 429 }) }
   }
   return { ok: true, profileId }
 }

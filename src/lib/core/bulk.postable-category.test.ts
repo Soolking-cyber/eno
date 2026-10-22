@@ -35,6 +35,8 @@ vi.mock('@/lib/taxonomy', async (orig) => {
   return { ...real, isPostableCategory: (slug: string | null | undefined) => !h.alsoNotPostable.has(String(slug)) && real.isPostableCategory(slug) }
 })
 vi.mock('next/server', () => ({ after: () => {} }))
+// rehost() charges a per-seller hourly budget (security review item 13); this harness is about category refusal.
+vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true }) }))
 vi.mock('@/lib/db', () => ({
   db: {
     category: { findMany: async (a: Row) => h.categories.filter((c) => (a.where.slug.in as string[]).includes(c.slug)) },

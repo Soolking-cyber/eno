@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
+import { rateKeyForIp } from '@/lib/ip-key'
 import { rateLimit } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
@@ -9,6 +10,37 @@ export const dynamic = 'force-dynamic'
 // actually enabled for the key — otherwise leave it unset and we use free Nominatim
 // (no wasted failing Google round-trip). Not reusing the translate key on purpose.
 const GOOGLE_KEY = process.env.GOOGLE_MAPS_API_KEY
+
+/**
+ * ⛔ COST CONTROLS ON A PUBLIC, UNAUTHENTICATED, PAID ENDPOINT (security review 2026-10-22, item 14). It was limited only
+ * per full IPv6 address — rotating addresses inside one /64 gave a fresh bucket each time, and each call can be a billed
+ * Google request with no ceiling anywhere. Now:
+ *  · the per-caller limit keys on the IPv6 /64 (rateKeyForIp);
+ *  · Google calls have a GLOBAL daily budget — over it, the free provider answers instead;
+ *  · the free fallback (Nominatim, whose usage policy allows ~1 request/second) has its own global brake, so a flood
+ *    cannot get the box banned there either;
+ *  · coordinates are rounded to 4 decimals (~11 m — finer than any district answer needs) and answers are cached
+ *    in-process, so repeated lookups of the same spot cost nothing.
+ * Set a matching quota on the GOOGLE_MAPS_API_KEY in GCP too (runbook) — this is the app-side half.
+ */
+const GEOCODE_GOOGLE_PER_DAY = 3000
+const GEOCODE_FALLBACK_PER_MIN = 50
+const GEOCODE_CACHE_MAX = 2000
+const GEOCODE_CACHE_TTL_MS = 24 * 3600 * 1000
+const geocodeCache = new Map<string, { at: number; value: unknown }>()
+function cacheGet(k: string): unknown | undefined {
+  const hit = geocodeCache.get(k)
+  if (!hit) return undefined
+  if (Date.now() - hit.at > GEOCODE_CACHE_TTL_MS) { geocodeCache.delete(k); return undefined }
+  return hit.value
+}
+function cacheSet(k: string, value: unknown) {
+  if (geocodeCache.size >= GEOCODE_CACHE_MAX) {
+    const oldest = geocodeCache.keys().next().value
+    if (oldest !== undefined) geocodeCache.delete(oldest)
+  }
+  geocodeCache.set(k, { at: Date.now(), value })
+}
 
 // Map an address blob to one of our HCMC district slugs.
 const DISTRICT_KEYS: Record<string, string[]> = {
@@ -108,17 +140,32 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'missing_coords' }, { status: 400 })
   }
 
-  // It's a paid call — rate-limit per IP so it can't be hammered.
-  const ip = clientIp(req)
-  const rl = await rateLimit('geocode', ip, 30, '1 m', { strict: true })
+  // It's a paid call — rate-limit per caller (IPv4, or the IPv6 /64) so it can't be hammered.
+  const rl = await rateLimit('geocode', rateKeyForIp(clientIp(req)), 30, '1 m', { strict: true })
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+
+  // Round, then answer repeats from the cache (item 14).
+  const rLat = Number(lat).toFixed(4)
+  const rLng = Number(lng).toFixed(4)
+  const cacheKey = `${rLat},${rLng},${lang}`
+  const cached = cacheGet(cacheKey)
+  if (cached) return NextResponse.json(cached)
 
   try {
     // Per-call catch so a Google timeout/error FALLS THROUGH to Nominatim instead of
     // bailing the whole request (the point of having a fallback provider).
-    const result = (await geocodeGoogle(lat, lng, lang).catch(() => null))
-      || (await geocodeNominatim(lat, lng, lang).catch(() => null))
+    let result = null as Awaited<ReturnType<typeof geocodeGoogle>>
+    if (GOOGLE_KEY) {
+      const paid = await rateLimit('geocode-google-global', 'global', GEOCODE_GOOGLE_PER_DAY, '1 d', { strict: true })
+      if (paid.success) result = await geocodeGoogle(rLat, rLng, lang).catch(() => null)
+    }
+    if (!result) {
+      const free = await rateLimit('geocode-fallback-global', 'global', GEOCODE_FALLBACK_PER_MIN, '1 m', { strict: true })
+      if (!free.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+      result = await geocodeNominatim(rLat, rLng, lang).catch(() => null)
+    }
     if (!result) return NextResponse.json({ error: 'geocode_failed' }, { status: 502 })
+    cacheSet(cacheKey, result)
     return NextResponse.json(result)
   } catch {
     return NextResponse.json({ error: 'geocode_failed' }, { status: 502 })

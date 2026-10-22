@@ -9,7 +9,7 @@ import { db } from '@/lib/db'
 import { logError, logWarn } from '@/lib/log'
 import { appendAudit } from '@/lib/compliance/audit'
 import { rateLimit, kv } from '@/lib/ratelimit'
-import { AI_GLOBAL_DAILY_LIMIT } from '@/lib/ai-guard'
+import { chargeAiTeacherReserve } from '@/lib/ai-guard'
 import { aiErrorStatus } from '@/lib/ai-retry'
 import { getGeminiVertex } from '@/lib/gemini'
 import { EDITION } from '@/lib/edition'
@@ -169,7 +169,9 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
     if (!(await rateLimit('teacher-import-global', 'all', FEATURE_PER_DAY, '1 d', { strict: true })).success) throw new ApiError('import_capacity', 503)
     // One unit per READING: the free token count and a fallback attempt after a failure ride on it (the feature's own
     // 400 a day is the bound that matters for this route).
-    if (!(await rateLimit('ai-global', 'global', AI_GLOBAL_DAILY_LIMIT, '1 d', { strict: true })).success) throw new ApiError('import_capacity', 503)
+    // Teacher onboarding's RESERVED budget, not the shared pool (security review item 19): a busy day for the other AI
+    // features can no longer block teachers from finishing their profile.
+    if (!(await chargeAiTeacherReserve())) throw new ApiError('import_capacity', 503)
 
     // ⛔ THE CONSENT RECORD BEFORE THE TRANSFER (Decree 356 Art 6.1–6.2: the controller proves the consent) — before ANY
     // call that carries the file: counting its tokens sends it to Google too (review, 2026-10-16: the count once ran

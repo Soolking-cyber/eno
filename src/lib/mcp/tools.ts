@@ -43,9 +43,10 @@ async function ownedListing(id: string, sellerId: string) {
   if (!(await listingOwnedBy(id, sellerId))) throw new ToolError('not_found', 'Listing not found.')
 }
 
-async function rehostAll(urls: string[] | undefined): Promise<string[]> {
+// Charged against the SELLER's hourly re-host budget (bulk.ts REHOST_IMAGES_PER_HOUR — security review item 13).
+async function rehostAll(urls: string[] | undefined, sellerId: string): Promise<string[]> {
   const out: string[] = []
-  for (const u of (urls ?? []).slice(0, 8)) { const h = await rehostListingImage(String(u)); if (h) out.push(h) }
+  for (const u of (urls ?? []).slice(0, 8)) { const h = await rehostListingImage(String(u), sellerId); if (h) out.push(h) }
   return out
 }
 
@@ -154,7 +155,7 @@ export const TOOLS: McpTool[] = [
         const gate = await postingGate(seller.ownerId, seller.id)
         if (gate) throw new ToolError(gate.error, 'Posting is blocked for this account right now.')
       }
-      const images = await rehostAll(args.images as string[] | undefined)
+      const images = await rehostAll(args.images as string[] | undefined, auth.sellerId)
       const body = { description: args.description, images, district: args.district, condition: args.condition, negotiable: args.negotiable, listingType: args.listingType, brand: args.brand, model: args.model, salaryM: args.salaryM, price: args.price }
       // Never a guest (an API key authenticated this call) — an ownerless shop is a platform import,
       // as on /api/v1 and in bulk_import / sync_listings.
@@ -194,7 +195,7 @@ export const TOOLS: McpTool[] = [
       await ownedListing(id, auth.sellerId)
       const body: Record<string, unknown> = {}
       for (const k of ['title', 'description', 'price', 'district', 'condition', 'salaryM'] as const) if (args[k] !== undefined) body[k] = args[k]
-      if (Array.isArray(args.images)) body.images = await rehostAll(args.images as string[])
+      if (Array.isArray(args.images)) body.images = await rehostAll(args.images as string[], auth.sellerId)
       const res = await updateListingCore(id, body)
       // `listing_changed` (2026-10-14): eno's licence check changed the listing mid-edit — a sentence, since retrying is right.
       // A hiring post's edit the job-text screen refused (2026-10-18): its rule's sentence, and `detail` '<field>:<snippet>'.

@@ -2,7 +2,7 @@ import { ThinkingLevel, Type } from '@google/genai'
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
 import { route } from '@/lib/api/handler'
-import { AI_GLOBAL_DAILY_LIMIT } from '@/lib/ai-guard'
+import { chargeAiGlobal } from '@/lib/ai-guard'
 import { aiErrorStatus, withAiRetry } from '@/lib/ai-retry'
 import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
 import { rateLimit } from '@/lib/ratelimit'
@@ -229,8 +229,10 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
     rateLimit('visa-image-analysis-v2-hour', userId, 10, '1 h', { strict: true }),
     rateLimit('visa-image-analysis-v2-day', userId, 30, '24 h', { strict: true }),
   ])
+  // Through the feature's share of the shared pool (security review item 19), so passport checks cannot drain it for
+  // every other AI feature — nor be starved by them.
   const globalLimit = hourlyLimit.success && dailyLimit.success
-    ? await rateLimit('ai-global', 'global', AI_GLOBAL_DAILY_LIMIT, '1 d', { strict: true })
+    ? { success: await chargeAiGlobal('visa-extract') }
     : { success: false }
   if (!hourlyLimit.success || !dailyLimit.success || !globalLimit.success) {
     const validationReport = {

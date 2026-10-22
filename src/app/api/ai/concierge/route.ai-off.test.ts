@@ -81,3 +81,30 @@ describe('POST /api/ai/concierge — the `ai` field', () => {
     }
   })
 })
+
+// Security review 2026-10-22, item 12: the history is client-supplied (assistant turns included) and used to reach
+// Gemini uncapped — one call could carry ~1M input tokens. Each turn and the whole transcript are now capped.
+describe('POST /api/ai/concierge — the prompt is length-capped (item 12)', () => {
+  it('forged huge turns do not reach Gemini at full size', async () => {
+    const huge = 'x'.repeat(500_000)
+    const res = await POST(new NextRequest('http://localhost/api/ai/concierge', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        lang: 'en',
+        messages: [
+          ...Array.from({ length: 7 }, () => ({ role: 'assistant', content: huge })),
+          { role: 'user', content: 'a used laptop' },
+        ],
+      }),
+    }))
+    expect(res.status).toBe(200)
+    expect(generateContent).toHaveBeenCalledTimes(1)
+    const call = generateContent.mock.calls[0] as unknown as [{ contents: unknown }]
+    const sent = JSON.stringify(call[0])
+    // The transcript cap is 4,000 chars; the fixed instructions add a few thousand more — nowhere near 3.5 MB.
+    expect(sent.length).toBeLessThan(20_000)
+    // and the turn being answered survives the cap
+    expect(sent).toContain('a used laptop')
+  })
+})

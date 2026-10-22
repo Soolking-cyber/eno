@@ -92,7 +92,7 @@ vi.mock('@/lib/log', () => ({ logWarn: (...a: unknown[]) => { h.logs.push(a) }, 
 const { POST } = await import('./route')
 const { TEACHER_BIO_NOTICE_VERSION, bioNoticeBody } = await import('@/lib/teachers/bio-notice')
 const { BIO_OWN_TEXT_MIN } = await import('@/lib/teachers/bio-context')
-const { AI_GLOBAL_DAILY_LIMIT } = await import('@/lib/ai-guard')
+const { AI_TEACHER_RESERVE_DAILY } = await import('@/lib/ai-guard')
 const { EDITION } = await import('@/lib/edition')
 const { wordCount } = await import('@/lib/teachers/search-floor')
 
@@ -111,7 +111,8 @@ const T = {
   nationality: 'GB', englishLevel: 'native', languages: [], headline: 'TEFL-certified teacher for kids', bio: OWN,
 }
 const OK = { ok: true, bio: BIO, model: 'gemini-3.8-flash', calls: 1 }
-const ALL_LIMITS = ['teacher-bio', 'teacher-bio-day', 'teacher-bio-ip', 'teacher-bio-global', 'ai-global']
+// The last is teacher onboarding's RESERVED AI budget, not the shared pool (security review 2026-10-22, item 19).
+const ALL_LIMITS = ['teacher-bio', 'teacher-bio-day', 'teacher-bio-ip', 'teacher-bio-global', 'ai-global-teachers']
 const NOTICE_SHA = createHash('sha256').update(bioNoticeBody()).digest('hex').slice(0, 16)
 
 function send(body: BodyInit | null, headers: Record<string, string> = {}, init: RequestInit = {}) {
@@ -223,7 +224,7 @@ describe('POST /api/teachers/me/bio-rewrite — one at a time, the limits in ord
     const res = await post()
     expect(res.status).toBe(200)
     expect(h.calls).toEqual([
-      'request', 'limit:teacher-bio', 'limit:teacher-bio-day', 'limit:teacher-bio-ip', 'limit:teacher-bio-global', 'limit:ai-global',
+      'request', 'limit:teacher-bio', 'limit:teacher-bio-day', 'limit:teacher-bio-ip', 'limit:teacher-bio-global', 'limit:ai-global-teachers',
       'teacher.bio.consent', 'model', 'teacher.bio.result', 'unlock',
     ])
   })
@@ -235,7 +236,7 @@ describe('POST /api/teachers/me/bio-rewrite — one at a time, the limits in ord
       ['teacher-bio-day', 'p1', 30, '1 d', { strict: true }],
       ['teacher-bio-ip', '203.0.113.7', 100, '1 d', { strict: true }],
       ['teacher-bio-global', 'all', 1000, '1 d', { strict: true }],
-      ['ai-global', 'global', AI_GLOBAL_DAILY_LIMIT, '1 d', { strict: true }],
+      ['ai-global-teachers', 'global', AI_TEACHER_RESERVE_DAILY, '1 d', { strict: true }],
     ])
   })
 
@@ -244,7 +245,7 @@ describe('POST /api/teachers/me/bio-rewrite — one at a time, the limits in ord
     ['the account’s day', 'teacher-bio-day', 429, 'rate_limited'],
     ['a connection’s day — said as unavailable, never as the account’s own limit', 'teacher-bio-ip', 503, 'ai_unavailable'],
     ['the feature’s day', 'teacher-bio-global', 503, 'ai_unavailable'],
-    ['the shared AI day', 'ai-global', 503, 'ai_unavailable'],
+    ['the teachers’ reserved AI day', 'ai-global-teachers', 503, 'ai_unavailable'],
   ])('⛔ %s used → %s gives %i %s, and the chain stops there: no later limit, no record, no model call — the lock released', async (_label, name, status, error) => {
     h.deny = name
     const res = await post()

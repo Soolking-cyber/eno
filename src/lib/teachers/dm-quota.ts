@@ -1,4 +1,5 @@
 import 'server-only'
+import { ipv6Prefix64 } from '@/lib/ip-key'
 import { createHash, createHmac } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
@@ -111,15 +112,8 @@ function poolDigest(input: string): string {
   return (key ? createHmac('sha256', key).update(input) : createHash('sha256').update(input)).digest('hex').slice(0, 32)
 }
 
-/** The first four hextets of an IPv6 address, '::' expanded — `2405:4803:c7fd:1::9` → `2405:4803:c7fd:1`. */
-export function ipv6Prefix64(a: string): string {
-  const addr = a.replace(/^\[|\]$/g, '').split('%')[0]
-  const [head, tail = ''] = addr.split('::')
-  const h = head ? head.split(':') : []
-  const t = addr.includes('::') ? (tail ? tail.split(':') : []) : []
-  const full = addr.includes('::') ? [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t] : h
-  return full.slice(0, 4).map((x) => x.replace(/^0+(?=.)/, '') || '0').join(':')
-}
+// ipv6Prefix64 moved to ip-key.ts (security review item 14) — re-exported so every existing importer keeps working.
+export { ipv6Prefix64 }
 
 const SELLER_FACTS = {
   name: true, legalName: true, legalAddress: true, idNumber: true, taxCode: true,

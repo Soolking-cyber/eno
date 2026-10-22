@@ -162,7 +162,8 @@ describe('POST /api/teachers/me/import', () => {
     ['a published profile', () => { h.profileExists = true }, 409, 'teacher_exists'],
     ['a reading already running', () => { h.busy = true }, 429, 'import_busy'],
     ['the feature’s daily budget', () => { h.deny = 'teacher-import-global' }, 503, 'import_capacity'],
-    ['the shared AI budget', () => { h.deny = 'ai-global' }, 503, 'import_capacity'],
+    // teacher onboarding's RESERVED AI budget, not the shared pool (security review 2026-10-22, item 19)
+    ['the teachers’ reserved AI budget', () => { h.deny = 'ai-global-teachers' }, 503, 'import_capacity'],
     ['too many tokens to be a CV', () => { h.tokens = 120_000 }, 413, 'import_too_long'],
     ['the model refusing the file', () => { h.modelError = Object.assign(new Error('bad'), { status: 400 }) }, 422, 'import_unreadable'],
     ['the model failing', () => { h.modelError = Object.assign(new Error('boom'), { status: 503 }) }, 502, 'import_failed'],
@@ -179,7 +180,7 @@ describe('POST /api/teachers/me/import', () => {
     expect(h.limits).toEqual(['teacher-import'])
     h.limits = []; h.deny = null
     await post()
-    expect(h.limits).toEqual(['teacher-import', 'teacher-import-day', 'teacher-import-ip', 'teacher-import-global', 'ai-global'])
+    expect(h.limits).toEqual(['teacher-import', 'teacher-import-day', 'teacher-import-ip', 'teacher-import-global', 'ai-global-teachers'])
   })
 
   it('⛔ junk never spends a shared cap — so nobody can switch the feature off for everyone with bad files', async () => {
@@ -191,7 +192,7 @@ describe('POST /api/teachers/me/import', () => {
     res = await post({ file: new Uint8Array(Buffer.from('%PDF-1.7 trailer << /Encrypt 5 0 R >>', 'latin1')) })
     expect(res.status).toBe(422)
     expect((await res.json()).error).toBe('import_locked')
-    expect(h.limits.filter((l) => l === 'teacher-import-global' || l === 'ai-global')).toEqual([])
+    expect(h.limits.filter((l) => l === 'teacher-import-global' || l === 'ai-global-teachers' || l === 'ai-global')).toEqual([])
   })
 
   it('⛔ the lock is OWNED: a request whose lock was taken over (it ran past it) never frees the other one', async () => {
@@ -288,6 +289,7 @@ describe('POST /api/teachers/me/import', () => {
   it('text too short to be a CV is refused before anything is spent', async () => {
     const res = await post({ text: 'hello' })
     expect(res.status).toBe(415)
+    expect(h.limits).not.toContain('ai-global-teachers')
     expect(h.limits).not.toContain('ai-global')
   })
 })

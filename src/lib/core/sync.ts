@@ -174,7 +174,7 @@ export async function syncListingsCore(
       if (row.condition !== undefined) body.condition = row.condition
       if (Array.isArray(row.images)) {
         const hosted: string[] = []
-        for (const u of row.images.slice(0, 8)) { const h = await rehostListingImage(String(u)); if (h) hosted.push(h) }
+        for (const u of row.images.slice(0, 8)) { const h = await rehostListingImage(String(u), seller.id); if (h) hosted.push(h) }
         body.images = hosted
       }
       if (Object.keys(body).length) {

@@ -25,6 +25,10 @@ import type { Prisma } from '@/generated/prisma/client'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+/** Per-turn and whole-transcript caps on the client-supplied history sent to Gemini (security review item 12). */
+const CONCIERGE_TURN_MAX_CHARS = 1000
+const CONCIERGE_TRANSCRIPT_MAX_CHARS = 4000
+
 // AI shopping concierge — the "AI mode" chat (a conversation in the messages tab). A
 // buyer describes what they want in natural language (EN/VI); we return a grounded
 // reply + matching listings as cards. Login-only + per-account rate limit via aiGuard;
@@ -137,7 +141,8 @@ async function understand(messages: Msg[], cats: { slug: string }[], lang: 'en' 
   // Over budget, or Redis down (strict), we degrade to the heuristic instead.
   const budget = await rateLimit('ai-concierge-gemini', 'global', 5000, '1 d', { strict: true })
   if (!budget.success) return fallback
-  const transcript = messages.slice(-8).map((m) => `${m.role === 'user' ? 'Buyer' : 'Assistant'}: ${m.content}`).join('\n')
+  // …and the whole transcript is capped too, keeping its END (the turn being answered matters most). Item 12.
+  const transcript = messages.slice(-8).map((m) => `${m.role === 'user' ? 'Buyer' : 'Assistant'}: ${m.content}`).join('\n').slice(-CONCIERGE_TRANSCRIPT_MAX_CHARS)
   const prompt = `You are "eno AI", the friendly shopping assistant of eno.vn — Vietnam's marketplace for the international community. A buyer is chatting with you. Decide what their LAST message needs and answer in ${replyIn}.
 
 intent:
@@ -566,7 +571,14 @@ export async function POST(req: NextRequest) {
    * gate off — is today's behaviour exactly.
    */
   const useAi = body.ai !== false
-  const messages = (body.messages || []).filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string').slice(-12)
+  // ⛔ EVERY TURN IS LENGTH-CAPPED (security review 2026-10-22, item 12). The history is CLIENT-SUPPLIED — including
+  // the 'assistant' turns — and was forwarded to Gemini uncapped: seven forged ~500 KB turns plus a short last one made
+  // a single call cost ~1M input tokens (×10/hour/account, ×5,000/day globally). Real turns are short: the assistant's
+  // own replies are cut to 500 chars when generated, and a shopping question fits in far less than the cap.
+  const messages = (body.messages || [])
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .slice(-12)
+    .map((m) => ({ ...m, content: m.content.slice(0, CONCIERGE_TURN_MAX_CHARS) }))
   if (![...messages].some((m) => m.role === 'user')) return NextResponse.json({ error: 'bad_request' }, { status: 400 })
 
   // Understand the turn: intent + natural reply + structured search params.
