@@ -49,6 +49,66 @@ BEGIN
 END $$;
 COMMIT;
 
+-- ── Step 1b: the API roles never WRITE `public` (security review, 2026-10-22) ─────────────────────
+-- RLS is the only thing between a write grant and the row, and a policy can be wrong: `profile_update_own`
+-- let any signed-in user UPDATE every column of their own Profile through PostgREST — enforcement state,
+-- trust tier, report strikes, email — because UPDATE was granted (the default privileges) and the policy
+-- had no column limit. Nothing in the browser writes a table (see the header), so the API roles lose
+-- INSERT/UPDATE/DELETE/TRUNCATE on every existing table here, and on every future one (step 2 and the
+-- default privileges below). SELECT is untouched: RLS + step 3 already govern reads.
+-- ⚠️ Role-checked like step 2, so CI or a bare restore without Supabase roles does not abort.
+-- ⚠️ A non-owner REVOKE on a table another role owns only WARNS ("no privileges could be revoked") —
+-- step 4 is what proves the end state, by name.
+BEGIN;
+DO $$
+BEGIN
+  IF to_regrole('anon') IS NOT NULL THEN
+    REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA public FROM anon;
+  END IF;
+  IF to_regrole('authenticated') IS NOT NULL THEN
+    REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA public FROM authenticated;
+  END IF;
+  REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA public FROM PUBLIC;
+  IF to_regclass('public."Profile"') IS NOT NULL THEN
+    DROP POLICY IF EXISTS profile_update_own ON public."Profile";
+  END IF;
+END $$;
+
+-- Future objects created by the roles that create our tables and functions. Each role is tried on its
+-- own, because ALTER DEFAULT PRIVILEGES FOR ROLE x needs membership in x: running as `postgres` (not a
+-- superuser here) cannot alter `supabase_admin`'s defaults, and that must not abort the rest.
+-- ⚠️ FUNCTIONS TOO: Postgres grants EXECUTE on every new function to PUBLIC, and PostgREST serves every
+-- executable function in `public` as /rest/v1/rpc/<name>. The 18 SECURITY DEFINER functions in scripts/
+-- each revoke it by hand today; this makes the safe state the default for the next one. A function the
+-- browser must call (is_convo_participant) keeps its explicit GRANT.
+DO $$
+DECLARE r text;
+BEGIN
+  FOREACH r IN ARRAY ARRAY['postgres', 'supabase_admin']
+  LOOP
+    IF to_regrole(r) IS NULL THEN CONTINUE; END IF;
+    BEGIN
+      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLES FROM PUBLIC', r);
+      -- ⚠️ GLOBAL, NOT `IN SCHEMA public`: EXECUTE-to-PUBLIC on functions is a built-in GLOBAL default, and
+      -- Postgres cannot revoke a global default per schema (measured on a scratch PG16: the per-schema
+      -- form left a new function executable by anon through PUBLIC). Functions this role creates in any
+      -- schema now start with no PUBLIC grant; their owner (the app's role) still executes them.
+      EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC', r);
+      IF to_regrole('anon') IS NOT NULL THEN
+        EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLES FROM anon', r);
+        EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon', r);
+      END IF;
+      IF to_regrole('authenticated') IS NOT NULL THEN
+        EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLES FROM authenticated', r);
+        EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM authenticated', r);
+      END IF;
+    EXCEPTION WHEN insufficient_privilege THEN
+      RAISE NOTICE 'rls-guard: cannot alter default privileges for role % from here (not a member) — step 2''s trigger still closes its new tables', r;
+    END;
+  END LOOP;
+END $$;
+COMMIT;
+
 -- ── Step 2: every future relation in `public` is born closed ──────────────────────────────────────
 -- Tables and partitioned tables get RLS ENABLED. Views, materialized views and foreign tables cannot
 -- carry RLS at all, and a view runs with its OWNER's rights — a view owned by a BYPASSRLS role would hand anon
@@ -90,6 +150,14 @@ BEGIN
   LOOP
     IF cmd.object_type IN ('table', 'partitioned table') THEN
       EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', cmd.object_identity);
+      -- Step 1b's rule for new tables: the API roles may never write one, whatever policy is added
+      -- later. SELECT stays governed by RLS, so a deliberate read policy still works.
+      IF to_regrole('anon') IS NOT NULL THEN
+        EXECUTE format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON %s FROM anon', cmd.object_identity);
+      END IF;
+      IF to_regrole('authenticated') IS NOT NULL THEN
+        EXECUTE format('REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON %s FROM authenticated', cmd.object_identity);
+      END IF;
     ELSE
       IF to_regrole('anon') IS NOT NULL THEN
         EXECUTE format('REVOKE ALL ON %s FROM anon', cmd.object_identity);
@@ -118,17 +186,23 @@ DO $$
 DECLARE
   t_rls boolean;
   v_open boolean := false;
+  t_writable boolean := false;
 BEGIN
   CREATE TABLE public.eno_rls_guard_probe (id int);
   CREATE VIEW public.eno_rls_guard_probe_v AS SELECT 1 AS x;
   SELECT relrowsecurity INTO t_rls FROM pg_class WHERE oid = 'public.eno_rls_guard_probe'::regclass;
   IF to_regrole('anon') IS NOT NULL THEN
     v_open := has_table_privilege('anon', 'public.eno_rls_guard_probe_v', 'SELECT');
+    t_writable := has_table_privilege('anon', 'public.eno_rls_guard_probe', 'INSERT,UPDATE,DELETE,TRUNCATE');
+  END IF;
+  IF to_regrole('authenticated') IS NOT NULL THEN
+    t_writable := t_writable OR has_table_privilege('authenticated', 'public.eno_rls_guard_probe', 'INSERT,UPDATE,DELETE,TRUNCATE');
   END IF;
   DROP VIEW public.eno_rls_guard_probe_v;
   DROP TABLE public.eno_rls_guard_probe;
   IF NOT t_rls THEN RAISE EXCEPTION 'rls-guard: trigger did not enable RLS on a new table'; END IF;
   IF v_open THEN RAISE EXCEPTION 'rls-guard: trigger did not revoke anon from a new view'; END IF;
+  IF t_writable THEN RAISE EXCEPTION 'rls-guard: trigger did not revoke API-role writes from a new table'; END IF;
 END $$;
 
 COMMIT;
@@ -165,7 +239,57 @@ BEGIN
     RAISE EXCEPTION 'rls-guard: still exposed to anon/authenticated: %', open_list;
   END IF;
   -- ⚠️ Scope, stated honestly: this proves no table is RLS-OFF and no view is anon-readable. It does
-  -- NOT evaluate policies — a policy granting anon `USING (true)` would pass. Today's policies: Profile
-  -- (own row only) and auth_handoff (service_role only).
+  -- NOT evaluate policies (step 4 checks the write side). Today's policies: Profile
+  -- (own row, SELECT only) and auth_handoff (service_role only).
   RAISE NOTICE 'rls-guard: no RLS-off table and no anon-readable view in public (policies not evaluated)';
+END $$;
+
+-- ── Step 4: REPORT anything the API roles can WRITE or EXECUTE with elevated rights ────────────────
+-- Added with step 1b (security review 2026-10-22). Step 3 proves reads are closed; it never looked at
+-- writes, and a write policy is exactly what let a user rewrite their own Profile. Three checks, each
+-- failing by NAME:
+--   · a write grant (INSERT/UPDATE/DELETE/TRUNCATE) to anon or authenticated on any table in public;
+--   · any non-SELECT policy that applies to PUBLIC, anon or authenticated (a policy with no TO clause
+--     applies to PUBLIC, which is how profile_update_own was written);
+--   · a SECURITY DEFINER function in public that anon or authenticated can EXECUTE — PostgREST serves it
+--     as /rest/v1/rpc/<name>, running with its owner's rights. ALLOWED lists the deliberate ones.
+-- ⚠️ ALLOWED is the whole exception list. is_convo_participant answers a yes/no for the CALLER only and
+-- is what the Realtime channel policies call (scripts/messaging-realtime.mjs grants it on purpose).
+DO $$
+DECLARE
+  writable text;
+  write_policies text;
+  definer_fns text;
+  allowed text[] := ARRAY['is_convo_participant'];
+BEGIN
+  IF to_regrole('anon') IS NULL OR to_regrole('authenticated') IS NULL THEN
+    RAISE NOTICE 'rls-guard: no Supabase API roles on this target — step 4 skipped';
+    RETURN;
+  END IF;
+
+  SELECT string_agg(c.relname, ', ' ORDER BY c.relname) INTO writable
+  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+    AND (has_table_privilege('anon', c.oid, 'INSERT,UPDATE,DELETE,TRUNCATE')
+      OR has_table_privilege('authenticated', c.oid, 'INSERT,UPDATE,DELETE,TRUNCATE'));
+
+  SELECT string_agg(format('%s.%s(%s)', p.tablename, p.policyname, p.cmd), ', ' ORDER BY p.tablename, p.policyname)
+    INTO write_policies
+  FROM pg_policies p
+  WHERE p.schemaname = 'public' AND p.cmd <> 'SELECT'
+    AND p.roles && ARRAY['public', 'anon', 'authenticated']::name[];
+
+  SELECT string_agg(format('%s(%s)', p.proname, pg_get_function_identity_arguments(p.oid)), ', ' ORDER BY p.proname)
+    INTO definer_fns
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND p.prosecdef
+    AND NOT (p.proname = ANY (allowed))
+    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
+    AND (has_function_privilege('anon', p.oid, 'EXECUTE') OR has_function_privilege('authenticated', p.oid, 'EXECUTE'));
+
+  IF writable IS NOT NULL OR write_policies IS NOT NULL OR definer_fns IS NOT NULL THEN
+    RAISE EXCEPTION 'rls-guard: API roles can still write or escalate — writable tables: [%]; write policies: [%]; SECURITY DEFINER functions they can execute: [%]',
+      coalesce(writable, ''), coalesce(write_policies, ''), coalesce(definer_fns, '');
+  END IF;
+  RAISE NOTICE 'rls-guard: anon/authenticated cannot write any table in public, hold no write policy, and can execute no SECURITY DEFINER function beyond %', allowed;
 END $$;

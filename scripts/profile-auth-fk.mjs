@@ -20,15 +20,29 @@ const stmts = [
          add constraint profile_auth_fk foreign key (id) references auth.users(id) on delete cascade;
      end if;
    end $$;`,
-  // RLS: a user can read/update only their OWN profile. No INSERT policy —
-  // provisioning goes through the server admin client (bypasses RLS).
+  // RLS: a user can READ only their own profile. No INSERT/UPDATE/DELETE path from the API roles —
+  // every write goes through the server (Prisma as a BYPASSRLS role, or the admin client).
+  // ⛔ NO UPDATE POLICY (security review 2026-10-22). `profile_update_own` used to let the row's owner
+  // UPDATE it through PostgREST at sb.eno.vn/rest/v1 with no column limit, and Profile carries columns
+  // the server trusts: enforcementState/enforcementUntil (the posting, messaging and relist gates read
+  // them), trustScore/trustTier, falseReportStrikes/reportCooldownUntil, email (isStaffProfile) and
+  // the tos* acceptance record. No browser code writes Profile, so nothing legitimate used the policy.
+  // Re-creating it — or granting UPDATE to anon/authenticated — reopens that hole; rls-guard.sql step 4
+  // now fails on either.
   `alter table public."Profile" enable row level security;`,
   `drop policy if exists profile_select_own on public."Profile";`,
   `create policy profile_select_own on public."Profile"
      for select using ((select auth.uid()) = id);`,
   `drop policy if exists profile_update_own on public."Profile";`,
-  `create policy profile_update_own on public."Profile"
-     for update using ((select auth.uid()) = id) with check ((select auth.uid()) = id);`,
+  // Role-checked: a bare REVOKE … FROM anon aborts on a non-Supabase target (CI, a bare restore).
+  `do $$ begin
+     if to_regrole('anon') is not null then
+       revoke insert, update, delete, truncate on public."Profile" from anon;
+     end if;
+     if to_regrole('authenticated') is not null then
+       revoke insert, update, delete, truncate on public."Profile" from authenticated;
+     end if;
+   end $$;`,
 ]
 
 for (const sql of stmts) {
