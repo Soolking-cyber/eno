@@ -64,6 +64,11 @@ const EMAIL_RESEND_STEPS = [30, 60, 300, 900]
  * change — and then this constant must move with it, or sign-in breaks the same way again.
  *
  * ⚠️ Leading zeros are real (00730251 was an actual code): string end to end, never Number().
+ *
+ * ⛔ SINCE 2026-10-22 THIS IS ONLY THE DEFAULT (security review item 2). api/auth/email-link answers every send with
+ * `codeLength` — the length GoTrue actually minted — and the code screen sizes itself from that (`emailOtpLen`). So
+ * the box can raise MAILER_OTP_LENGTH back to 8 on its own, with no release in lockstep; this value only covers an
+ * answer that carries no length (an older server).
  */
 const EMAIL_OTP_LEN = 6
 /** Zalo ZNS / SMS code length — independent of the email one, see above. */
@@ -313,6 +318,8 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
+  // The emailed code's length as the server reports it (api/auth/email-link `codeLength`); EMAIL_OTP_LEN until it answers.
+  const [emailOtpLen, setEmailOtpLen] = useState(EMAIL_OTP_LEN)
   // ⚠️ PASSWORD IS A STAGE, NOT A TAB. The owner's decision (2026-08-10) is that the code /
   // link path stays primary and password is the alternative reached from inside whichever
   // tab you are already on — so the identifier the visitor already typed carries straight
@@ -897,6 +904,9 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setError(emailSendErrorToCode(data?.error, data?.retryAfterSec)); return }
+      // The code's length rides on the answer (see EMAIL_OTP_LEN) — only a sane one is taken; anything else keeps the default.
+      const len = Number(data?.codeLength)
+      if (Number.isInteger(len) && len >= 6 && len <= 10) setEmailOtpLen(len)
       // Native gets the code-entry screen; web keeps the "check your inbox" screen.
       if (emailCode) { setCode(''); lastSubmitted.current = ''; setStage('code') } else setStage('sent')
       setCountdown(EMAIL_RESEND_STEPS[Math.min(emailSends.current, EMAIL_RESEND_STEPS.length - 1)])
@@ -1652,7 +1662,9 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
           {stage === 'code' && (
             <div className="space-y-3">
               <p className="text-center text-xs text-muted-foreground">
-                {t('Enter the 6-digit code sent to', 'Nhập mã 6 số gửi tới')} <strong className="text-foreground [overflow-wrap:anywhere]">{email}</strong>
+                {emailOtpLen === 6 ? t('Enter the 6-digit code sent to', 'Nhập mã 6 số gửi tới')
+                  : emailOtpLen === 8 ? t('Enter the 8-digit code sent to', 'Nhập mã 8 số gửi tới')
+                  : t('Enter the code sent to', 'Nhập mã gửi tới')} <strong className="text-foreground [overflow-wrap:anywhere]">{email}</strong>
               </p>
               <p className="-mt-1.5 text-center text-2xs text-ink-4">{t('Check spam if it is not there in a minute.', 'Nếu chưa thấy sau một phút, hãy kiểm tra thư rác.')}</p>
               {/* ⚠️ w-10 ON BOTH STRIPS, AND THE OLD ONE OVERFLOWED — MEASURED, NOT REASONED.
@@ -1663,15 +1675,17 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
                   overflow predates this change and simply survived the arithmetic that only ever
                   compared the two strips to EACH OTHER. Six slots at w-10 is 240px: it fits the
                   272px content box, and because both strips are six slots now they still match, so
-                  the no-reflow property is kept rather than traded away. */}
-              <InputOTP maxLength={EMAIL_OTP_LEN} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
+                  the no-reflow property is kept rather than traded away.
+                  ⚠️ A LONGER CODE NARROWS ITS SLOTS: when the server reports more than six digits (emailOtpLen), each slot is
+                  w-8, so eight are 256px — inside the same measured 272px box, where eight at w-9 (288px) overflowed. */}
+              <InputOTP maxLength={emailOtpLen} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
                 <InputOTPGroup>
-                  {Array.from({ length: EMAIL_OTP_LEN }, (_, i) => (
-                    <InputOTPSlot key={i} index={i} className="h-12 w-10 text-base font-semibold data-[active=true]:border-brand data-[active=true]:ring-brand/30" />
+                  {Array.from({ length: emailOtpLen }, (_, i) => (
+                    <InputOTPSlot key={i} index={i} className={`h-12 ${emailOtpLen > 6 ? 'w-8' : 'w-10'} text-base font-semibold data-[active=true]:border-brand data-[active=true]:ring-brand/30`} />
                   ))}
                 </InputOTPGroup>
               </InputOTP>
-              <Button variant="cta" size="none" onClick={() => verifyEmailCode()} disabled={loading || code.length < EMAIL_OTP_LEN} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
+              <Button variant="cta" size="none" onClick={() => verifyEmailCode()} disabled={loading || code.length < emailOtpLen} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Verify', 'Xác nhận')}
               </Button>
               <div className="flex items-center justify-between px-1 text-xs">

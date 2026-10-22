@@ -50,6 +50,18 @@ const RESEND_STEPS_SEC = [30, 60, 300, 900]
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
+/**
+ * ⛔ THE CODE'S LENGTH TRAVELS WITH THE ANSWER (security review 2026-10-22, item 2). The sign-in form used to hardcode it
+ * (EMAIL_OTP_LEN), so GoTrue's `MAILER_OTP_LENGTH` could not change without an app release in lockstep — it drifted
+ * 8 → 6 with the move to the self-hosted box and broke emailed-code sign-in for everyone (2026-08-26), and raising it
+ * back to 8 (the review's recommendation: 100x the brute-force space) was blocked on that same coupling. Every 200
+ * now carries `codeLength`: the length of the code GoTrue just minted, or — on an outcome that minted nothing — the
+ * last length seen (6, today's, until the first mint). So the field is on EVERY 200 and its presence says nothing
+ * about the address (ENUMERATION, below); the form sizes its input from it.
+ */
+let lastCodeLength = 6
+const okAnswer = () => NextResponse.json({ ok: true, codeLength: lastCodeLength })
+
 // ⚠️ WS6 — ON `route()` FOR ITS try/catch AND NOTHING ELSE. Every block below stayed exactly where
 // it was, and that is the finding for this route rather than an omission:
 //   · `auth: 'public'` — there is no session here by definition; this endpoint is how you get one.
@@ -167,7 +179,7 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
   const { data, error } = await admin.auth.admin.generateLink({ type: 'magiclink', email })
   if (error) {
     console.error('[auth/email-link] generateLink failed', error.message)
-    return NextResponse.json({ ok: true }) // generic 200: see ENUMERATION above
+    return okAnswer() // generic 200: see ENUMERATION above
   }
 
   const hashedToken = data.properties?.hashed_token
@@ -177,6 +189,7 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
   // but the client's OTP input hardcodes it and broke when it drifted. See OTP_LEN in
   // sign-in-form.tsx before assuming a width anywhere.
   const emailOtp = data.properties?.email_otp
+  if (typeof emailOtp === 'string' && /^\d{6,10}$/.test(emailOtp)) lastCodeLength = emailOtp.length
   // ⚠️ The type is whatever Supabase says it is, NEVER a hardcoded 'magiclink'. A token
   // minted for a new or unconfirmed account comes back as `signup`, and verifyOtp rejects
   // a token presented under the wrong type — which would break sign-in for exactly the
@@ -184,7 +197,7 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
   const verifyType = data.properties?.verification_type
   if (!verifyType || (wantCode ? !emailOtp : !hashedToken)) {
     console.error('[auth/email-link] generateLink returned no usable token for mode', wantCode ? 'code' : 'link')
-    return NextResponse.json({ ok: true })
+    return okAnswer()
   }
 
   // The link points at OUR /auth/confirm, not Supabase's /auth/v1/verify — see the header
@@ -211,7 +224,7 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
     return NextResponse.json({ error: 'send_failed' }, { status: 502 })
   }
 
-  return NextResponse.json({ ok: true })
+  return okAnswer()
 })
 
 /**

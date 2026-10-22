@@ -22,9 +22,12 @@
 #    endpoints the nginx /authorize guard does not cover (item 18).
 #  · GOTRUE_SECURITY_CAPTCHA_ENABLED / _PROVIDER — the password + signup endpoints lean on Turnstile in front
 #    (item 5); report whether GoTrue itself enforces it too.
-# Reported for awareness, not failed: GOTRUE_MAILER_OTP_LENGTH (raising 6→8 is defense-in-depth but MUST deploy in
-# lockstep with the app's EMAIL_OTP_LEN or sign-in breaks — see the runbook) and GOTRUE_DISABLE_SIGNUP (do NOT set
-# true: it would block new OAuth and magic-link accounts too; the nginx `^/+auth/+v1/+signup` 404 is the narrow fix).
+# Reported for awareness, not failed: GOTRUE_MAILER_OTP_LENGTH (8 is recommended — 100x the guess space of 6. Since the
+# release where api/auth/email-link reports `codeLength` and the sign-in form sizes itself from it, the box can change
+# it ON ITS OWN; on an older app release it must still move with EMAIL_OTP_LEN or sign-in breaks) and
+# GOTRUE_DISABLE_SIGNUP (do NOT set true: it would block new OAuth and magic-link accounts too; the nginx
+# `^/+auth/+v1/+signup` 404 is the narrow fix). GOTRUE_MAILER_OTP_EXP stays 3600 — the owner's 2026-10-05 decision,
+# which apply-apple-signin.sh enforces; the per-IP limit above is what makes a live code unguessable.
 set -euo pipefail
 KEY="${ENO_SSH_KEY:-$HOME/.ssh/CS-Linux-20260920135129228.pem}"
 HOST="${ENO_HOST:-root@162.4.176.233}"
@@ -71,7 +74,7 @@ if [ "$v" = "true" ]; then ok "GOTRUE_SECURITY_CAPTCHA_ENABLED=true (provider: $
 else note "GOTRUE_SECURITY_CAPTCHA_ENABLED='${v:-<unset>}' — eno enforces Turnstile in front of its own send routes, but GoTrue's /signup and /verify are stronger with GoTrue's own captcha on too (item 5)."; fi
 
 # Awareness only — do not fail on these.
-note "GOTRUE_MAILER_OTP_LENGTH=$(val GOTRUE_MAILER_OTP_LENGTH || true) (raising to 8 is defense-in-depth; deploy it in lockstep with the app's EMAIL_OTP_LEN — see the runbook, never one without the other)."
+note "GOTRUE_MAILER_OTP_LENGTH=$(val GOTRUE_MAILER_OTP_LENGTH || true) (8 recommended. Safe to set alone once the app release whose sign-in form reads email-link's codeLength is live; on an older release it must move with EMAIL_OTP_LEN — see the header)."
 dz=$(val GOTRUE_DISABLE_SIGNUP)
 [ "$dz" = "true" ] && fix "GOTRUE_DISABLE_SIGNUP=true blocks NEW OAuth and magic-link accounts too — eno needs those. Unset it; the nginx 404 on /auth/v1/signup is the narrow block for password sign-up (item 5)." \
   || note "GOTRUE_DISABLE_SIGNUP='${dz:-<unset>}' (correct — the nginx /auth/v1/signup 404 is the narrow block; do not set this true)."
