@@ -463,13 +463,144 @@ describe('the form’s own funnel (signup-prompt.ts TEACHER_FORM_EVENTS — owne
   })
 })
 
-describe('"Open in your browser" inside Meta\'s built-in browsers (owner, 2026-10-17)', () => {
-  it('⛔ shown before any answer, gone with the first — the real browser opens the bare address, the answers would not follow', async () => {
+const FB_IOS_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBAV/519.0.0.38.104;FBBV/737400000;FBDV/iPhone15,2;FBMD/iPhone;FBSN/iOS;FBSV/18.5;FBSS/3;FBCR/;FBID/phone;FBLC/en_US;FBOP/5]'
+
+describe('the way out of Meta\'s built-in browsers (owner, 2026-10-17 — and FIRST, in place of step 1, since 2026-10-22)', () => {
+  it('⛔ in place of step 1 before any answer: one tap to the real browser — and never a wall', async () => {
+    funnel.length = 0
     const { user } = mount({ escape: { host: 'facebook', os: 'android' } })
-    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    expect(await screen.findByTestId('escape-first')).toBeTruthy()
+    expect(screen.queryByText('Where are you now?')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Create your teacher profile in your browser' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Open in your browser' })).toBeTruthy()
+    await waitFor(() => expect(funnel).toContain('escape_shown'))
+    // step1_ready counts step 1 itself on screen — never behind the way out (review, 2026-10-22).
+    expect(funnel).not.toContain('step1_ready')
+    await user.click(screen.getByRole('button', { name: 'Continue in Facebook' }))
+    expect(funnel).toContain('escape_stay')
+    await waitFor(() => expect(funnel).toContain('step1_ready'))
+    // Step 1 in the app, the compact offer still above it — gone with the first answer (the bare address carries none).
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    // The tapped button unmounted: step 1's heading holds the focus, never <body>.
+    await waitFor(() => expect(document.activeElement?.textContent).toBe('Create your teacher profile'))
+    expect(screen.getByTestId('open-in-browser')).toBeTruthy()
     await user.click(screen.getByRole('radio', { name: 'Ho Chi Minh City' }))
-    expect(screen.queryByRole('button', { name: 'Open in your browser' })).toBeNull()
+    expect(screen.queryByTestId('open-in-browser')).toBeNull()
+    expect(screen.queryByTestId('escape-first')).toBeNull()
+  })
+
+  it('iOS Facebook: "Open in Safari", with the app\'s own question said up front', async () => {
+    mount({ escape: { host: 'facebook', os: 'ios' } })
+    expect(await screen.findByRole('button', { name: 'Open in Safari' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Create your teacher profile in Safari' })).toBeTruthy()
+    expect(screen.getByText('If your phone asks “Open in Safari?”, tap Open.')).toBeTruthy()
+    expect(screen.queryByTestId('escape-pointer')).toBeNull()
+  })
+
+  it('⛔ a tap that hid the page and opened nothing: back in front, the way by hand shows (review, 2026-10-22)', async () => {
+    const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(FB_IOS_UA)
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    let state: DocumentVisibilityState = 'visible'
+    const vis = vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => state)
+    try {
+      const { user } = mount({ escape: { host: 'facebook', os: 'ios' } })
+      await user.click(await screen.findByRole('button', { name: 'Open in Safari' }))
+      // The test page is http://localhost (production's https:// becomes x-safari-https://): the mark rides along either way.
+      expect(open).toHaveBeenCalledWith(expect.stringMatching(/[?&]iab=facebook(&|$)/), '_blank')
+      state = 'hidden'
+      document.dispatchEvent(new Event('visibilitychange'))
+      await new Promise((r) => setTimeout(r, 4200))
+      expect(screen.queryByTestId('escape-pointer')).toBeNull() // the timer saw a hidden page and stayed quiet
+      state = 'visible'
+      document.dispatchEvent(new Event('visibilitychange'))
+      expect(await screen.findByTestId('escape-pointer')).toBeTruthy()
+      expect(screen.getByText('Still here? Tap ⋯ at the top right, then “Open in browser”.')).toBeTruthy()
+    } finally {
+      vis.mockRestore(); open.mockRestore(); ua.mockRestore()
+    }
+  })
+
+  it('…but a return MINUTES later (they finished in the browser, then opened the app again) says nothing', async () => {
+    const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(FB_IOS_UA)
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    let state: DocumentVisibilityState = 'visible'
+    const vis = vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => state)
+    const t0 = Date.now()
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => t0)
+    try {
+      const { user } = mount({ escape: { host: 'facebook', os: 'ios' } })
+      await user.click(await screen.findByRole('button', { name: 'Open in Safari' }))
+      state = 'hidden'
+      document.dispatchEvent(new Event('visibilitychange'))
+      await new Promise((r) => setTimeout(r, 4200))
+      clock.mockImplementation(() => t0 + 5 * 60_000)
+      state = 'visible'
+      document.dispatchEvent(new Event('visibilitychange'))
+      await new Promise((r) => setTimeout(r, 100))
+      expect(screen.queryByTestId('escape-pointer')).toBeNull()
+      expect(screen.queryByText('Still here? Tap ⋯ at the top right, then “Open in browser”.')).toBeNull()
+    } finally {
+      clock.mockRestore(); vis.mockRestore(); open.mockRestore(); ua.mockRestore()
+    }
+  })
+
+  it('the app kept the link and came back here WITH the mark: the way by hand at once, the mark off the address', async () => {
+    funnel.length = 0
+    const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(FB_IOS_UA)
+    try {
+      history.replaceState(null, '', '/teachers/join?utm_source=meta&iab=facebook')
+      mount({ escape: { host: 'facebook', os: 'ios' } })
+      expect(await screen.findByText('Still here? Tap ⋯ at the top right, then “Open in browser”.')).toBeTruthy()
+      expect(screen.getByTestId('escape-pointer')).toBeTruthy()
+      // The app's own question is still said beside it (round 4 — never replaced by a claim it did not open).
+      expect(screen.getByText('If your phone asks “Open in Safari?”, tap Open.')).toBeTruthy()
+      expect(location.search).toBe('?utm_source=meta')
+      expect(funnel).not.toContain('escape_arrived')
+    } finally {
+      ua.mockRestore()
+    }
+  })
+
+  it('the real browser\'s end: an address with the mark counts the arrival once and loses the mark', async () => {
+    funnel.length = 0
+    history.replaceState(null, '', '/teachers/join?utm_source=meta&iab=instagram')
+    const { rerender } = mount()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    await waitFor(() => expect(funnel).toContain('escape_arrived'))
+    expect(location.search).toBe('?utm_source=meta')
+    expect(screen.queryByTestId('escape-first')).toBeNull()
+    rerender()
+    expect(funnel.filter((e) => e === 'escape_arrived')).toHaveLength(1)
+  })
+
+  it('…once per TAB: a reload that still carries the mark (replaceState refused) counts no second arrival', async () => {
+    funnel.length = 0
+    const replace = vi.spyOn(history, 'replaceState')
+    history.replaceState(null, '', '/teachers/join?iab=facebook')
+    replace.mockImplementation(() => { throw new Error('refused') })
+    try {
+      mount()
+      expect(await screen.findByText('Where are you now?')).toBeTruthy()
+      await waitFor(() => expect(funnel).toContain('escape_arrived'))
+      expect(location.search).toBe('?iab=facebook') // the mark stayed
+      cleanup()
+      funnel.length = 0
+      mount() // the reload, same tab (same sessionStorage)
+      expect(await screen.findByText('Where are you now?')).toBeTruthy()
+      await new Promise((r) => setTimeout(r, 100))
+      expect(funnel).not.toContain('escape_arrived')
+    } finally {
+      replace.mockRestore()
+    }
+  })
+
+  it('a mark that is not ours counts nothing and stays where it is', async () => {
+    funnel.length = 0
+    history.replaceState(null, '', '/teachers/join?iab=zalo')
+    mount()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    expect(funnel).not.toContain('escape_arrived')
+    expect(location.search).toBe('?iab=zalo')
   })
 
   it('never on a later step', async () => {
@@ -478,6 +609,7 @@ describe('"Open in your browser" inside Meta\'s built-in browsers (owner, 2026-1
     mount({ escape: { host: 'facebook', os: 'ios' } })
     expect(await screen.findByText('Where can you teach?')).toBeTruthy()
     expect(screen.queryByTestId('open-in-browser')).toBeNull()
+    expect(screen.queryByTestId('escape-first')).toBeNull()
   })
 })
 

@@ -175,6 +175,42 @@ export function openInSystemBrowser(url: string): boolean {
 /** Meta's own built-in browsers — where "Open in your browser" is offered on the teacher landing (2026-10-17). */
 export const META_IN_APP_HOSTS: ReadonlySet<InAppHost> = new Set<InAppHost>(['facebook', 'messenger', 'instagram'])
 
+/**
+ * THE ESCAPE'S MARK ON THE ADDRESS (owner, 2026-10-22: "creatively route them to normal browser"): `iab=<host>` on the
+ * link handed to the real browser, so the page that opens there can count the arrival (escape_arrived — the only way to
+ * learn whether the hand-over works on real phones) and take the mark off its address. The fragment is dropped: an Android
+ * intent carries none of its own (its `#Intent;…` is the intent), and the escape is offered only before any answer.
+ */
+export const ESCAPE_PARAM = 'iab'
+export function escapeUrl(href: string, host: InAppHost): string {
+  try {
+    const u = new URL(href)
+    u.searchParams.set(ESCAPE_PARAM, host)
+    u.hash = ''
+    return u.toString()
+  } catch {
+    return href
+  }
+}
+
+/** The app this page was handed out of — read from the escape's mark — or null; any other value is not ours. */
+export function escapeMark(search: string): InAppHost | null {
+  const v = new URLSearchParams(search).get(ESCAPE_PARAM)
+  return isInAppHost(v) && META_IN_APP_HOSTS.has(v) ? v : null
+}
+
+/** The address without the escape's mark, so a reload, a share or a bookmark never counts the arrival again. */
+export function withoutEscapeMark(href: string): string {
+  try {
+    const u = new URL(href)
+    if (!u.searchParams.has(ESCAPE_PARAM)) return href
+    u.searchParams.delete(ESCAPE_PARAM)
+    return u.toString()
+  } catch {
+    return href
+  }
+}
+
 /** The phone's OS from a user agent, coarsely — what the escape below can do differs by it. */
 export function uaOs(ua: string): 'android' | 'ios' | 'other' {
   if (/Android/.test(ua)) return 'android'

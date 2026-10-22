@@ -47,7 +47,8 @@ import {
   forDraft, fromDraft, handoffPart, isTeacherStep, mergeReview, nothingDropped, nothingToSave, refusalEvents, sameDraftAnswers, step1Answered, textRefusals, type DroppedField,
 } from '@/components/teachers/teacher-form-rules'
 import { continueSourceEvent, type TeacherFormEvent } from '@/lib/signup-prompt'
-import { OpenInBrowser, type EscapeOffer } from '@/components/teachers/open-in-browser'
+import { EscapeFirst, OpenInBrowser, type EscapeOffer } from '@/components/teachers/open-in-browser'
+import { browserContext, escapeMark, inAppHost, withoutEscapeMark } from '@/lib/in-app-browser'
 import { makeErrText, type StepProps } from '@/components/teachers/steps/shared'
 import { teacherRefusedWords } from '@/lib/teachers/text-screen'
 import { PlansStep } from '@/components/teachers/steps/plans-step'
@@ -153,6 +154,8 @@ const isDraftBase = (v: unknown): v is DraftBase =>
  * mark is dropped unused.
  */
 const SIGNIN_RETURN_PARAM = 'teacher_signin'
+/** This tab already counted its arrival from the way out of Meta's browsers (escape_arrived) — once per tab. */
+const ESCAPE_ARRIVED_KEY = 'eno.escapeArrived'
 const setSignInReturn = (on: boolean) => {
   try {
     const u = new URL(window.location.href)
@@ -307,6 +310,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const [stepKey, setStepKey] = useState<TeacherStep>('plans')
   // The form, or the reading panel (the CV) in its place — teacher-start.tsx.
   const [door, setDoorState] = useState<Door>(() => (mode === 'join' ? initialDoor(start, draftHost) : 'self'))
+  // Inside Meta's built-in browsers the way out comes first (open-in-browser.tsx EscapeFirst): the visitor chose to go on
+  // in the app (`escapeStay`), or the app came back here with the escape's mark (`escapeRetry` — the way by hand at once).
+  const [escapeStay, setEscapeStay] = useState(false)
+  const [escapeRetry, setEscapeRetry] = useState(false)
   // The last reading the form applied (teacher-import-panel.tsx): what it filled, what was there before (Undo), the file.
   const [lastImport, setLastImport] = useState<LastImport | null>(null)
   // Join, signed in: GET /api/teachers/me has answered — no door shows before it is known whether a profile exists.
@@ -2574,8 +2581,34 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   // 10-13 → 10-16). Once per page, and never for a visitor who arrived with the hand-off's answers (counted on
   // teacher.eno.vn already — gate review, 2026-10-16: one visitor, two "ready"s).
   const step1Working = mode === 'join' && !existing && !done && step === 'plans' && door === 'self' && loaded && !draftPending && !doorWaits
+  // Inside Facebook's, Messenger's or Instagram's browser on a phone, before any answer: the way out IN PLACE OF step 1
+  // (open-in-browser.tsx EscapeFirst, owner 2026-10-22) until the visitor chooses to go on here. escape_shown counts that
+  // screen; step1_ready counts step 1 itself ON SCREEN (review, 2026-10-22: never behind the way out) — so in those apps it
+  // follows a "Continue in Facebook", and the page-ready number that compares with the days before is escape_shown.
+  const escapeFirst = !!escape && step1Working && !step1Answered(t) && !escapeStay
+  useEffect(() => { if (escapeFirst) countTeacherFormEvent('escape_shown') }, [escapeFirst])
   // The ref is read INSIDE the effect: the hand-off's restore effect (declared above) has run by then, on the same mount.
-  useEffect(() => { if (step1Working && !viaHandoff.current) countTeacherFormEvent('step1_ready') }, [step1Working])
+  useEffect(() => { if (step1Working && !escapeFirst && !viaHandoff.current) countTeacherFormEvent('step1_ready') }, [step1Working, escapeFirst])
+  // THE REAL BROWSER'S END OF THE ESCAPE: an address with its mark (in-app-browser.ts escapeUrl) counts the arrival once,
+  // in a real browser only, and loses the mark — a reload, a share or a bookmark never counts it again. Still inside the
+  // app WITH the mark, the app loaded the link itself instead of handing it over: the way by hand shows at once.
+  // ⚠️ Once per TAB too (review round 3): should the address keep its mark (replaceState refused), a reload must not count
+  // the same arrival again — the hand-over opens a fresh tab, whose sessionStorage starts empty.
+  useEffect(() => {
+    if (mode !== 'join') return
+    if (!escapeMark(window.location.search)) return
+    if (browserContext() === 'browser') {
+      let first = true
+      try {
+        first = sessionStorage.getItem(ESCAPE_ARRIVED_KEY) === null
+        sessionStorage.setItem(ESCAPE_ARRIVED_KEY, '1')
+      } catch { /* no storage: the page load's own once-only count still holds */ }
+      if (first) countTeacherFormEvent('escape_arrived')
+    } else if (inAppHost() !== null) setEscapeRetry(true)
+    try {
+      window.history.replaceState(window.history.state, '', withoutEscapeMark(window.location.href))
+    } catch { /* the mark stays on the address; this tab has already counted its arrival */ }
+  }, [mode])
   // …and every later step of a NEW profile as it comes on screen (step_<step>), so a stop between sign-in and Publish shows
   // WHERE (2026-10-17: 81% of starters published before 10-16, 31% after, and nothing said at which step the rest stopped).
   // ⛔ On screen, as step 1 is (review, 2026-10-17): never behind the spinner a restored later-step draft waits under, and
@@ -2765,6 +2798,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         {formError && <p role="alert" data-form-error className="mx-auto mt-4 max-w-xl text-sm text-destructive">{formError}</p>}
       </>
     )
+  }
+
+  if (escapeFirst && escape) {
+    // Staying is an in-place switch: the button that was tapped unmounts, so step 1's heading takes the focus (review,
+    // 2026-10-22 — never left on <body> for a keyboard or a screen reader).
+    return <EscapeFirst offer={escape} retry={escapeRetry} onStay={() => { screenSwitched.current = true; setEscapeStay(true) }} />
   }
 
   const stepProps: StepProps = { t, set, patch, update, errors, errText, mode }

@@ -107,6 +107,12 @@
  * 00:00 ICT the day after the deploy) AND the CV sentence's "created before 23 October 2026" on /privacy (EN + VI) and
  * its pins in page.test.tsx AND the dossier's 22/10 / 23/10 dates (docs/compliance/pdpl-dossier-draft.md) in that
  * commit, then retake the fingerprint below; the amendment gate refuses the deploy until this matches the day.
+ * And 2026-10-22 as well (planned — the deploy day of the way out first, owner 2026-10-22: "creatively route them to
+ * normal browser"): the sign-up counters paragraph names the three new teacher-form totals — the screen offering the
+ * browser shown, the visitor going on in the app, a page then opening in the browser from it (escape_shown /
+ * escape_stay / escape_arrived — the same anonymous daily totals). Live with the deploy: no new data, no recipient.
+ * ⛔ Production already carries 2026-10-22 (the CV deploy), so the gate CANNOT notice this one slipping: deployed on a
+ * later Vietnamese day, re-date this to THAT day in the deploy's commit and retake the fingerprint below.
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -124,4 +130,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-22'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '225288760fc05aa4'
+export const PRIVACY_TEXT_FINGERPRINT = '923f6bcea2022bca'

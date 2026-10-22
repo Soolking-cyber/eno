@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { META_IN_APP_HOSTS, browserContext, deviceClass, escapeInAppBrowser, googleOauthBlocked, inAppHost, inAppHostName, isInAppHost, uaOs } from './in-app-browser'
+import { ESCAPE_PARAM, META_IN_APP_HOSTS, browserContext, deviceClass, escapeInAppBrowser, escapeMark, escapeUrl, googleOauthBlocked, inAppHost, inAppHostName, isInAppHost, uaOs, withoutEscapeMark } from './in-app-browser'
 import { parseHandoffVia } from './auth/handoff-client'
 
 // ── UX3 J1/J2: which app's built-in browser, and the counters' coarse context class ───────────────
@@ -115,5 +115,27 @@ describe('escaping Facebook, Messenger and Instagram for the real browser', () =
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     escapeInAppBrowser('https://teacher.eno.vn/', 'facebook')
     expect(open).not.toHaveBeenCalled()
+  })
+})
+
+// ── The escape's mark (owner, 2026-10-22: "creatively route them to normal browser") ───────────────────────────────
+
+describe('escapeUrl / escapeMark / withoutEscapeMark — the arrival a real browser can count', () => {
+  const AD = 'https://teacher.eno.vn/?utm_source=meta&utm_medium=paid_social&utm_content=reel_v3_benefits&fbclid=IwZXh0bgNhZW0BMAABHQ'
+  it('marks the handed link with the app it leaves, keeps every campaign tag and click id, and drops the fragment (an Android intent’s own `#Intent;…` must be its only one)', () => {
+    const out = new URL(escapeUrl(`${AD}#d=answers`, 'facebook'))
+    expect(out.searchParams.get(ESCAPE_PARAM)).toBe('facebook')
+    for (const [k, v] of new URL(AD).searchParams) expect(out.searchParams.get(k)).toBe(v)
+    expect(out.hash).toBe('')
+  })
+  it('reads back only a Meta app it could have come from — any other value is not ours', () => {
+    expect(escapeMark(new URL(escapeUrl(AD, 'instagram')).search)).toBe('instagram')
+    expect(escapeMark('?iab=messenger')).toBe('messenger')
+    for (const q of ['', '?iab=', '?iab=zalo', '?iab=other', '?iab=<script>', '?utm_source=meta']) expect(escapeMark(q)).toBeNull()
+  })
+  it('takes the mark off and leaves the rest of the address exactly as it was', () => {
+    expect(new URL(withoutEscapeMark(escapeUrl(AD, 'facebook'))).searchParams.has(ESCAPE_PARAM)).toBe(false)
+    expect(withoutEscapeMark(AD)).toBe(AD) // nothing to take off: the very same string
+    expect(withoutEscapeMark('https://teacher.eno.vn/?iab=facebook')).toBe('https://teacher.eno.vn/')
   })
 })

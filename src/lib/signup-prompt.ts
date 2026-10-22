@@ -313,6 +313,13 @@ export const isGateAction = (v: unknown): v is GateAction => typeof v === 'strin
  *   continue_<source>  — with step 1's Continue: where the link that brought this page came from (ad / groups / zalo /
  *                        other / none — continueSourceEvent), read from this page's own address, never stored
  *   escape_tap         — "Open in your browser" tapped inside Facebook's, Messenger's or Instagram's built-in browser
+ * And the way out first (2026-10-22, owner: "creatively route them to normal browser" — open-in-browser.tsx EscapeFirst):
+ *   escape_shown       — the whole-screen offer came on screen in place of step 1; inside those apps this is the page-ready
+ *                        number that compares with step1_ready before 2026-10-22 (step1_ready now counts step 1 itself on
+ *                        screen, so there it follows a stay)
+ *   escape_stay        — "Continue in Facebook" (or Messenger, Instagram) tapped on it: step 1 goes on in the app
+ *   escape_arrived     — a page opened in a REAL browser with the escape's mark on its address — the hand-over held.
+ *                        Anyone can open such an address, so read it as an upper bound beside escape_tap
  */
 export const TEACHER_FORM_EVENTS = [
   'step1_ready', 'step1_answered', 'step1_blocked', 'step1_continue', 'published',
@@ -321,7 +328,7 @@ export const TEACHER_FORM_EVENTS = [
   'publish_tap', 'publish_refused_video', 'publish_refused_photo', 'publish_refused_cv', 'publish_refused_goal', 'publish_refused_other',
   'publish_failed',
   'continue_ad', 'continue_groups', 'continue_zalo', 'continue_other', 'continue_none',
-  'escape_tap',
+  'escape_tap', 'escape_shown', 'escape_stay', 'escape_arrived',
 ] as const
 export type TeacherFormEvent = (typeof TEACHER_FORM_EVENTS)[number]
 export const isTeacherFormEvent = (v: unknown): v is TeacherFormEvent => typeof v === 'string' && (TEACHER_FORM_EVENTS as readonly string[]).includes(v)

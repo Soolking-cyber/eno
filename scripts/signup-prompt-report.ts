@@ -234,6 +234,10 @@ async function main() {
   console.log(`  Publish: tapped ${T.publish_tap} · refused for video ${T.publish_refused_video} · photo (missing or no face) ${T.publish_refused_photo} · CV ${T.publish_refused_cv} · goal ${T.publish_refused_goal} · other ${T.publish_refused_other} · did not go through (server or network) ${T.publish_failed} · published ${T.published}`)
   console.log(`  Step 1 continued, by source: ad ${T.continue_ad} · groups ${T.continue_groups} · zalo ${T.continue_zalo} · other ${T.continue_other} · none ${T.continue_none}`)
   console.log(`  "Open in your browser" tapped (Meta's built-in browsers): ${T.escape_tap}`)
+  // Since 2026-10-22 the way out comes first, in place of step 1 (open-in-browser.tsx EscapeFirst): inside Meta's apps the
+  // page-ready number is "shown" (step 1 ready follows a stay there). An arrival is a page that opened in a REAL browser
+  // with the escape's mark — anyone can open such an address, so it is an upper bound beside the taps.
+  console.log(`  The way out first: shown ${T.escape_shown} · stayed in the app ${T.escape_stay} · arrived in a real browser ${T.escape_arrived}`)
 
   console.log(`
   Notes: counts are anonymous and per tab-event, not per person; "signed in" (a sign-in within an hour of a
