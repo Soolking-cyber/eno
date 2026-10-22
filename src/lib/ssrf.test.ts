@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * THE SSRF DENYLIST — 12 hand-encoded CIDR rules that had no test at all.
+ * THE SSRF DENYLIST — hand-encoded CIDR rules that had no test at all until 2026-08-05.
  *
  * ⚠️ WHY THIS IS WORTH TESTING RATHER THAN TRUSTING. `src/lib/ssrf.ts` sits behind every
  * server-side fetch of a URL a user supplied: partner webhook delivery (`lib/webhooks.ts`) and
@@ -19,18 +19,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
   /** What `lookup()` answers. Default: an ordinary public address. */
-  addrs: [{ address: '93.184.216.34' }] as { address: string }[],
+  addrs: [{ address: '93.184.216.34' }] as { address: string; family?: number }[],
+  /** Answers handed out ONE PER CALL before falling back to `addrs` — a name whose answer changes between lookups. */
+  sequence: [] as { address: string; family?: number }[][],
+  calls: 0,
   shouldThrow: false,
 }))
 
 vi.mock('node:dns/promises', () => ({
   lookup: async () => {
+    h.calls++
     if (h.shouldThrow) throw new Error('ENOTFOUND')
-    return h.addrs
+    return h.sequence.shift() ?? h.addrs
   },
 }))
 
-const { assertSafeUrl, isAllowedPushEndpoint } = await import('@/lib/ssrf')
+const { assertSafeUrl, safeFetch, isAllowedPushEndpoint } = await import('@/lib/ssrf')
 
 /** Assert the URL is rejected, and with WHICH reason — the reason is the test's real subject. */
 async function rejects(url: string, reason: string) {
@@ -39,6 +43,8 @@ async function rejects(url: string, reason: string) {
 
 beforeEach(() => {
   h.addrs = [{ address: '93.184.216.34' }]
+  h.sequence = []
+  h.calls = 0
   h.shouldThrow = false
 })
 
@@ -93,6 +99,77 @@ describe('IP-literal hosts are blocked before DNS is ever consulted', () => {
 
   it('an ordinary public address is allowed — or every assertion above is vacuous', async () => {
     await expect(assertSafeUrl('https://93.184.216.34/')).resolves.toBeInstanceOf(URL)
+  })
+})
+
+describe('the ranges added by the 2026-10-22 review (item 29)', () => {
+  it.each([
+    ['https://198.18.0.1/', 'benchmarking 198.18/15 lower half'],
+    ['https://198.19.255.254/', 'benchmarking 198.18/15 upper half'],
+    ['https://192.0.0.8/', 'IETF protocol assignments 192.0.0/24'],
+    ['https://192.0.2.1/', 'TEST-NET-1'],
+    ['https://198.51.100.1/', 'TEST-NET-2'],
+    ['https://203.0.113.1/', 'TEST-NET-3'],
+    ['https://192.88.99.1/', '6to4 relay anycast'],
+    ['https://240.0.0.1/', 'reserved 240/4'],
+  ])('%s → %s', async (url) => {
+    await rejects(url, 'ssrf:private_host')
+  })
+
+  it('the 198.18/15 boundaries are exact', async () => {
+    await expect(assertSafeUrl('https://198.17.255.255/')).resolves.toBeInstanceOf(URL)
+    await expect(assertSafeUrl('https://198.20.0.1/')).resolves.toBeInstanceOf(URL)
+  })
+
+  it.each([
+    ['https://[fe90::1]/', 'link-local is fe80::/10 — fe80 through febf, not only addresses spelled fe80'],
+    ['https://[febf:ffff::1]/', 'link-local, the top of the /10'],
+    ['https://[fef0::1]/', 'site-local fec0::/10 beyond the fec0 spelling'],
+    ['https://[::127.0.0.1]/', 'IPv4-compatible loopback (the URL parser turns it into ::7f00:1)'],
+    ['https://[::ffff:7f00:1]/', 'IPv4-mapped loopback written in hex'],
+    ['https://[64:ff9b::169.254.169.254]/', 'NAT64 of the metadata service — a NAT64 gateway dials 169.254.169.254'],
+    ['https://[64:ff9b::7f00:1]/', 'NAT64 of loopback'],
+    ['https://[64:ff9b:1::1]/', 'local-use NAT64'],
+    ['https://[2002:a9fe:a9fe::1]/', '6to4 wrapping the metadata service'],
+    ['https://[2001:0:4136:e378:8000:63bf:3fff:fdd2]/', 'Teredo'],
+    ['https://[2001:db8::1]/', 'documentation'],
+    ['https://[100::1]/', 'discard-only'],
+  ])('%s → %s', async (url) => {
+    await rejects(url, 'ssrf:private_host')
+  })
+
+  it.each([
+    ['https://[64:ff9b::5db8:d822]/', 'NAT64 of a PUBLIC address — what a DNS64 resolver answers for any v4-only host'],
+    ['https://[2002:5db8:d822::1]/', '6to4 wrapping a public address'],
+    ['https://[::ffff:93.184.216.34]/', 'IPv4-mapped public address'],
+    ['https://[2606:4700:4700::1111]/', 'an ordinary global IPv6 address'],
+  ])('%s is allowed (%s)', async (url) => {
+    await expect(assertSafeUrl(url)).resolves.toBeInstanceOf(URL)
+  })
+
+  it('a hostname whose AAAA record is a NAT64 wrapping of the metadata service is rejected', async () => {
+    h.addrs = [{ address: '64:ff9b::a9fe:a9fe' }]
+    await rejects('https://attacker.example/', 'ssrf:private_ip')
+  })
+})
+
+describe('the address the socket dials is checked, not only the one the pre-check saw (DNS rebinding)', () => {
+  it('a name that answers public to the check and loopback to the dial is refused at connect time', async () => {
+    // The attack the pre-check alone cannot stop: a zero-TTL name answers 93.184.216.34 to assertSafeUrl, then
+    // 127.0.0.1 to the lookup the socket makes a moment later. The refusal must come from that second lookup.
+    h.sequence = [[{ address: '93.184.216.34', family: 4 }], [{ address: '127.0.0.1', family: 4 }]]
+    await expect(safeFetch('https://rebind.example/hook', { timeoutMs: 5000 })).rejects.toThrow('ssrf:private_ip')
+    expect(h.calls, 'the second answer must have come from the socket\'s own lookup').toBe(2)
+  })
+
+  it('a dial that resolves to ANY private address among several is refused', async () => {
+    h.sequence = [[{ address: '93.184.216.34', family: 4 }], [{ address: '93.184.216.34', family: 4 }, { address: '169.254.169.254', family: 4 }]]
+    await expect(safeFetch('https://multi-rebind.example/', { timeoutMs: 5000 })).rejects.toThrow('ssrf:private_ip')
+  })
+
+  it('a dial whose lookup comes back empty is refused, not attempted', async () => {
+    h.sequence = [[{ address: '93.184.216.34', family: 4 }], []]
+    await expect(safeFetch('https://vanishing.example/', { timeoutMs: 5000 })).rejects.toThrow('ssrf:private_ip')
   })
 })
 

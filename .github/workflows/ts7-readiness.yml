@@ -20,15 +20,19 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+# Read-only token and SHA-pinned actions, as in ci.yml (security review 2026-10-22, item 27).
+permissions:
+  contents: read
+
 jobs:
   check:
     name: Is TypeScript 7 viable yet?
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
 

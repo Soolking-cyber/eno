@@ -389,8 +389,12 @@ export function proxy(req: NextRequest) {
     if (req.nextUrl.pathname === '/' && (req.method === 'GET' || req.method === 'HEAD')) {
       return rewriteToLang(req, tLang, '/teachers/join')
     }
-    const to = new URL(req.nextUrl.pathname + req.nextUrl.search, apexOrigin(process.env.NEXT_PUBLIC_APP_URL) || req.nextUrl.origin)
-    return NextResponse.redirect(to, 301)
+    // ⚠️ CONCATENATED, NEVER `new URL(path, base)` — this file's own rule (the underscore-host branch below), which this
+    // branch broke until the 2026-10-22 security review (item 25): a path of `//evil.example/x` resolved against a base is
+    // a redirect OFF our domain; appended to the origin it is just a path. (Next usually normalises `//` first; the rule
+    // must not depend on that.)
+    const origin = (apexOrigin(process.env.NEXT_PUBLIC_APP_URL) || req.nextUrl.origin).replace(/\/+$/, '')
+    return NextResponse.redirect(`${origin}${req.nextUrl.pathname}${req.nextUrl.search}`, 301)
   }
 
   /**

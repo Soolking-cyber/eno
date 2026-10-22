@@ -593,3 +593,27 @@ describe('punctuation a chat app took into a link', () => {
     expect(readFileSync('next.config.ts', 'utf8')).not.toMatch(/skipMiddlewareUrlNormalize/)
   })
 })
+
+// Security review 2026-10-22, item 25: teacher.<base> 301s every non-root page to the apex. The target must be
+// CONCATENATED onto our origin — `new URL('//evil.example/x', base)` resolves to evil.example, an open redirect.
+describe('teacher.<base> page redirect stays on our domain', () => {
+  const go = async (path: string) => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    const res = proxy(new NextRequest(`https://teacher.eno.vn${path}`, { method: 'GET', headers: { host: 'teacher.eno.vn' } }))
+    return { status: res.status, location: res.headers.get('location') ?? '' }
+  }
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('an ordinary page 301s to the same path on the apex', async () => {
+    const r = await go('/listings/abc?x=1')
+    expect(r.status).toBe(301)
+    expect(r.location).toBe('https://eno.vn/listings/abc?x=1')
+  })
+
+  it.each(['//evil.example/x', '/\\evil.example/x', '//evil.example'])('a %s path never leaves eno.vn', async (p) => {
+    const r = await go(p)
+    if (r.location) expect(new URL(r.location).hostname).toBe('eno.vn')
+  })
+})

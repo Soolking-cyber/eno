@@ -500,7 +500,9 @@ const nextConfig: NextConfig = {
   // where __dirname is the real node_modules — so it can ship green and be broken in prod).
   // Externalizing keeps __dirname = node_modules/ffmpeg-static; outputFileTracingIncludes then
   // guarantees the ~80MB binary is actually placed in that one route's Lambda.
-  serverExternalPackages: ["ffmpeg-static"],
+  // undici (src/lib/ssrf.ts — the SSRF guard's connect-time DNS check) is a Node-only HTTP client: loaded from
+  // node_modules as published rather than run through the bundler; the standalone trace copies it in.
+  serverExternalPackages: ["ffmpeg-static", "undici"],
   outputFileTracingIncludes: {
     "/api/upload/video/transcode": ["./node_modules/ffmpeg-static/ffmpeg"],
     // The silent-video re-upload ask measures each clip's sound with the same binary (src/lib/core/video-audio-level.ts).
