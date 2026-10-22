@@ -39,6 +39,8 @@ export function CallRuntime({ userId }: { userId: string }) {
     const askTheBox = () => {
       void import('@/lib/calls/client/api').then(({ getRingingCall }) => getRingingCall())
         .then((callId) => { if (callId && !closed) void callEngine.onRing(callId) })
+        // A chunk that failed to load is not a ring nobody hears: the next (re)subscribe or event asks again.
+        .catch((e) => logError(e, { op: 'calls.askTheBox' }))
     }
     const join = (attempt: number) => void joinChannel(ringTopic(userId), {
       onEvent: (ev) => {
@@ -49,6 +51,11 @@ export function CallRuntime({ userId }: { userId: string }) {
       // On every (re)subscribe, ask the box: a ring broadcast while this page loaded or its socket was down was never
       // heard (client review). Postgres is the truth, the broadcast only the fast path.
       onStatus: (s) => { if (s === 'SUBSCRIBED' && !closed) askTheBox() },
+      // An event this build could not read still means something happened on ring:<me> — a ring to show, or one to
+      // stop: ask for both (broadcast.ts). So does one from a newer build: the ring still shows, and the engine says
+      // "reload" if the call cannot go on.
+      onUnreadable: () => { if (!closed) { askTheBox(); void callEngine.recheckIncoming() } },
+      onVersion: () => { if (!closed) { askTheBox(); void callEngine.recheckIncoming() } },
     }).then((c) => { if (closed) c.close(); else channel = c }).catch((e) => {
       // A join that failed (a chunk, a refused subscribe) is retried with a growing pause — never a silent tab
       // (client review) — and the box is asked meanwhile.

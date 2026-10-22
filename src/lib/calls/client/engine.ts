@@ -295,6 +295,26 @@ class CallEngine {
     this.ringTimer = setTimeout(() => this.stopRinging(callId, 'missed'), ringFor)
   }
 
+  /**
+   * Is the ring on screen still ringing at the box? Asked when ring:<me> carried something this build could not read:
+   * a cancel or answered_elsewhere lost that way would ring on to the deadline, and asking for "a ringing call" cannot
+   * stop one (commit-gate review, opus). By THIS call's id, so a ring that began meanwhile is never the one stopped.
+   */
+  async recheckIncoming(): Promise<void> {
+    const callId = this.ringing?.details.callId
+    if (!callId) return
+    let details: CallDetails
+    try { details = await getCallDetails(callId) } catch { return }
+    // accept() clears `ringing` before its first await (below), so an answer landing mid-accept stops nothing here.
+    if (this.ringing?.details.callId !== callId || details.state === 'ringing') return
+    // What the box says happened, from this side (session.ts endReasonFor): taken or turned down on another of my
+    // devices, the ring just goes; timed out there is missed; any other ending is the caller's (commit-gate review).
+    const why = details.state !== 'ended' || details.endReason === 'declined' || details.endReason === 'hangup'
+      ? 'answered_elsewhere'
+      : details.endReason === 'missed' ? 'missed' : 'cancelled'
+    this.stopRinging(callId, why)
+  }
+
   /** cancel / answered_elsewhere on ring:<me>, or the ring timing out here. */
   stopRinging(callId: string, why: 'missed' | 'cancelled' | 'answered_elsewhere') {
     // EVERY ring that stopped here is remembered (client review): a local decline still retrying, or a local time-out
@@ -665,6 +685,8 @@ class CallEngine {
     a.channel = await joinChannel(callTopic(a.conversationId), {
       onEvent: (ev) => this.onRemoteEvent(a, ev),
       onVersion: () => { if (this.active === a) this.set({ error: 'protocol_mismatch' }) },
+      // Unreadable is not nothing: the snapshot has whatever it was (realtime.ts, broadcast.ts).
+      onUnreadable: () => { if (this.active === a) void this.resync(a) },
       onStatus: (s) => {
         if (s !== 'SUBSCRIBED' || this.active !== a) return
         if (first) {

@@ -56,8 +56,10 @@ describe.skipIf(!live)('the call engine between two real browsers, through the r
     type Row = Record<string, any>
     const calls = new Map<string, { row: Row; negs: Map<number, Row>; keys: Set<string> }>()
     const subscribers = new Map<string, Set<ServerResponse>>()
+    // Like the box's realtime.send(): an `id` lands on every payload that has none (broadcast.ts — the harness sent
+    // events as published, which is how a production-only parse failure got past it).
     const publish = (topic: string, event: unknown) => {
-      for (const res of subscribers.get(topic) ?? []) res.write(`data: ${JSON.stringify(event)}\n\n`)
+      for (const res of subscribers.get(topic) ?? []) res.write(`data: ${JSON.stringify({ id: randomUUID(), ...(event as object) })}\n\n`)
     }
     const allow = new Set(CLOUDFLARE_IPV4_RANGES)
     const keyId = relay ? readFileSync(ID_FILE, 'utf8').trim() : ''
@@ -229,15 +231,17 @@ describe.skipIf(!live)('the call engine between two real browsers, through the r
     const src = join(process.cwd(), 'src')
     const fakeRealtime = `
       import { parseEvent } from '@/lib/calls/protocol'
+      import { fromBroadcast } from '@/lib/calls/client/broadcast'
       export const ringTopic = (id) => 'ring:' + id
       export const callTopic = (id) => 'call:' + id
       export async function joinChannel(topic, handlers) {
         const es = new EventSource('/rt?topic=' + encodeURIComponent(topic))
         es.onopen = () => handlers.onStatus && handlers.onStatus('SUBSCRIBED')
         es.onmessage = (m) => {
-          const parsed = parseEvent(JSON.parse(m.data))
+          const parsed = parseEvent(fromBroadcast(JSON.parse(m.data)))
           if (parsed.ok) handlers.onEvent(parsed.value)
-          else if (parsed.error === 'unsupported_version' && handlers.onVersion) handlers.onVersion(parsed.version)
+          else if (parsed.error === 'unsupported_version') { if (handlers.onVersion) handlers.onVersion(parsed.version) }
+          else if (handlers.onUnreadable) handlers.onUnreadable()
         }
         return { close() { es.close() } }
       }`
