@@ -427,20 +427,60 @@ describe('/privacy — Sign in with Apple', () => {
     expect(vi).toContain('cả hai bản ghi đều có trong dữ liệu bạn tải xuống.')
     expect(vi).toContain('Cải thiện phần “Giới thiệu” của giáo viên: khi bạn yêu cầu, một mô hình AI (Google Gemini)')
   })
-  // ⛔ THREE DATES THAT MOVE TOGETHER (gate review, opus 2026-10-22): the CV cutoff is 00:00 ICT the day after the policy's
-  // date, and the policy names that day — a deploy that slips and re-dates only PRIVACY_TEXT_PUBLISHED fails here, before a
-  // teacher who joined on the old optional rule is refused a removal.
-  it('the CV cutoff (TEACHER_CV_REQUIRED_FROM) is 00:00 ICT the day after PRIVACY_TEXT_PUBLISHED — and /privacy names that day, EN and VI', async () => {
-    const { PRIVACY_TEXT_PUBLISHED } = await import('@/lib/compliance/privacy-updated')
+  // ⛔ THE CV CUTOFF IS A FACT NOW, NOT A PLAN (2026-10-22): the CV rule went live on 2026-10-22, so its cutoff — 00:00 ICT
+  // on 23 October 2026 — and the day the policy names are FIXED values. Until that deploy this test derived both from
+  // PRIVACY_TEXT_PUBLISHED (gate review, opus 2026-10-22: a slipped deploy that re-dated only the policy failed here); a
+  // LATER re-date of the policy — the second change of the same day, or any after — must never move the cutoff, or a
+  // teacher who joined on the old optional rule would lose a removal the policy promised them.
+  it('the CV cutoff (TEACHER_CV_REQUIRED_FROM) is pinned to 00:00 ICT 23 October 2026 — and /privacy names that day, EN and VI', async () => {
     const { TEACHER_CV_REQUIRED_FROM } = await import('@/lib/teachers/constants')
-    const next = new Date(`${PRIVACY_TEXT_PUBLISHED}T00:00:00Z`)
-    next.setUTCDate(next.getUTCDate() + 1)
-    expect(TEACHER_CV_REQUIRED_FROM).toBe(`${next.toISOString().slice(0, 10)}T00:00:00+07:00`)
-    const [d, m, y] = [next.getUTCDate(), next.getUTCMonth(), next.getUTCFullYear()]
-    const month = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][m]
-    expect(await policy('marketplace')).toContain(`(a profile created before ${d} ${month} ${y} can also remove it)`)
+    expect(TEACHER_CV_REQUIRED_FROM).toBe('2026-10-23T00:00:00+07:00')
+    expect(await policy('marketplace')).toContain('(a profile created before 23 October 2026 can also remove it)')
     cleanup()
-    expect(await policy('marketplace', 'vi')).toContain(`(hồ sơ tạo trước ngày ${d} tháng ${m + 1} năm ${y} cũng có thể gỡ CV)`)
+    expect(await policy('marketplace', 'vi')).toContain('(hồ sơ tạo trước ngày 23 tháng 10 năm 2026 cũng có thể gỡ CV)')
+  })
+
+  // ⛔ THE DAY THE JOB-MATCH SWITCHES TURNED ON BY DEFAULT — DERIVED UNTIL ITS DEPLOY HAS RUN (gate review, opus 2026-10-22):
+  // the three sentences that name it must name the day the policy is dated, so a slipped deploy that re-dates only
+  // PRIVACY_TEXT_PUBLISHED fails here. ⛔ ONCE THAT DEPLOY HAS RUN, the day is a fact: the next change that re-dates the
+  // policy pins these as literals instead (as the CV dates above were) and never moves them.
+  it('the day the job-match switches turned on by default is the day the policy is dated (until that deploy has run), EN and VI', async () => {
+    const { PRIVACY_TEXT_PUBLISHED } = await import('@/lib/compliance/privacy-updated')
+    const [y, m, d] = PRIVACY_TEXT_PUBLISHED.split('-').map(Number)
+    const month = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][m - 1]
+    const why = `PRIVACY_TEXT_PUBLISHED is ${PRIVACY_TEXT_PUBLISHED}. If the deploy that turned the job-match switches on by default ` +
+      'has RUN, pin the day these sentences name as literals (as the CV dates above) — never move it. If it slipped, re-date them to its day.'
+    for (const site of ['marketplace', 'services'] as const) {
+      const en = await policy(site)
+      cleanup()
+      const vi = await policy(site, 'vi')
+      cleanup()
+      for (const s of [
+        `are on by default in the form of a new teacher profile since ${d} ${month} ${y}:`,
+        `both are on by default since ${d} ${month} ${y},`,
+        `which are on by default in its form since ${d} ${month} ${y} —`,
+      ]) expect(en, why).toContain(s)
+      for (const s of [
+        `Nếu bạn đang tìm việc, từ ngày ${d} tháng ${m} năm ${y}, “Gửi email`,
+        `từ ngày ${d} tháng ${m} năm ${y}, cả hai được bật sẵn`,
+        `được bật sẵn trong biểu mẫu từ ngày ${d} tháng ${m} năm ${y} —`,
+      ]) expect(vi, why).toContain(s)
+    }
+  })
+
+  it('the switches it names are the form\'s own — the labels finish-step.tsx shows, EN and VI', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const form = readFileSync(join(__dirname, '..', '..', '..', 'components', 'teachers', 'steps', 'finish-step.tsx'), 'utf8')
+    const labels = [['Email me jobs that match my profile', 'Gửi email cho tôi các việc làm phù hợp với hồ sơ'], ['Our staff may call me', 'Nhân viên của chúng tôi có thể gọi cho tôi']]
+    const en = await policy('marketplace')
+    cleanup()
+    const vi = await policy('marketplace', 'vi')
+    for (const [e, v] of labels) {
+      expect(form).toContain(`tr('${e}', '${v}')`)
+      expect(en).toContain(`“${e}”`)
+      expect(vi).toContain(`“${v}”`)
+    }
   })
 
   // The CV REQUIRED for a new teacher profile (owner, 2026-10-21; deploy planned 2026-10-22): private as before, uploaded at
@@ -500,10 +540,12 @@ describe('/privacy — teacher job matching (Anthropic)', () => {
     for (const site of ['marketplace', 'services'] as const) {
       const text = await policy(site)
       expect(text, site).toContain('Anthropic (Claude)')
-      expect(text, site).toContain('Only for teachers who ask for job matches (by email, or through a call from our staff)')
+      // ⚖️ ON BY DEFAULT in a new profile's form since 2026-10-22 (owner — accepted risk): "with job matches on", the default named
+      expect(text, site).toContain('Only for teachers with job matches on (by email, or through a call from our staff — in the form of a new teacher profile both are on by default, and a teacher can switch either off at any time):')
+      expect(text, site).not.toContain('Only for teachers who ask for job matches')
       expect(text, site).toContain('with the teacher’s own name taken out wherever we can detect it')
       expect(text, site).toContain('Never the name, photo, video, phone number, email address or CV fields of the profile.')
-      expect(text, site).toContain('Comparing teacher profiles with teaching jobs, to suggest jobs to the teacher and, where the teacher agreed, to our staff.')
+      expect(text, site).toContain('Comparing teacher profiles with teaching jobs, to suggest jobs to the teacher and, while the teacher’s “Our staff may call me” is on, to our staff.')
       cleanup()
     }
   })
@@ -522,18 +564,98 @@ describe('/privacy — teacher job matching (Anthropic)', () => {
     expect(MATCH_EMAIL_RULES.perEmail).toBe(5)
     expect(MATCH_EMAIL_RULES.cooldownMs).toBe(3 * 86_400_000)
     const en = await policy('marketplace')
-    expect(en).toContain('Teacher job matching: if a teacher asks for job matches, an AI model (Anthropic’s Claude) compares their profile with new teaching jobs')
+    expect(en).toContain('Teacher job matching: while a teacher has job matches on (in the form of a new teacher profile they are on by default), an AI model (Anthropic’s Claude) compares their profile with new teaching jobs')
+    expect(en).toContain('while the teacher’s “Email me jobs that match my profile” is on, it is emailed to them (at most five jobs per email, at most one email every three days), and, while their “Our staff may call me” is on, listed for our staff, who may call the teacher about it.')
+    expect(en).toContain('Switching both choices off in the teacher profile stops it; the unsubscribe link in an email stops the emails.')
     expect(en).toContain('A job that scores 70 or more becomes a suggestion')
     expect(en).toContain('at most five jobs per email, at most one email every three days')
     expect(en).toContain('schools never see the score')
     expect(en).toContain('the unsubscribe link in an email stops the emails')
-    expect(en).toContain('With a teacher’s consent only, given in the teacher profile')
+    // The purpose says what counts as the consent once the switches start ON — never "consent only", a word for an act a
+    // teacher who left the default on did not make.
+    expect(en).toContain('With a teacher’s consent, given in the teacher profile with two switches — in the form of a new profile both are on by default since 22 October 2026, so leaving one on and publishing counts as that consent; a teacher can switch either off before publishing or at any time after: to compare the profile with teaching jobs and suggest the ones that fit, by email or through a call from our staff to the teacher’s phone number (see “Teacher profiles” and “Automated decisions”).')
+    for (const s of ['With a teacher’s consent only, given in the teacher profile', 'if a teacher asks for job matches', 'if the teacher allowed our staff to call']) expect(en, s).not.toContain(s)
     expect(en).not.toMatch(/Gemini[^.]*job match/i)
     cleanup()
     const vi = await policy('marketplace', 'vi')
-    expect(vi).toContain('So khớp việc làm cho giáo viên')
-    expect(vi).toContain('Claude của Anthropic')
-    expect(vi).toContain('Chỉ khi giáo viên đồng ý trong hồ sơ giáo viên')
+    expect(vi).toContain('So khớp việc làm cho giáo viên: khi giáo viên đang bật gợi ý việc làm (trong biểu mẫu của hồ sơ giáo viên mới, mục này được bật sẵn), một mô hình AI (Claude của Anthropic)')
+    expect(vi).toContain('khi mục “Gửi email cho tôi các việc làm phù hợp với hồ sơ” của giáo viên đang bật, gợi ý được gửi qua email cho giáo viên (tối đa năm việc làm mỗi email, tối đa một email mỗi ba ngày), và khi mục “Nhân viên của chúng tôi có thể gọi cho tôi” đang bật, được đưa vào danh sách để nhân viên có thể gọi cho giáo viên về việc làm đó.')
+    expect(vi).toContain('Chỉ với giáo viên đang bật gợi ý việc làm (qua email, hoặc qua cuộc gọi từ nhân viên của chúng tôi — trong biểu mẫu của hồ sơ giáo viên mới, cả hai mục đều được bật sẵn, và giáo viên có thể tắt từng mục bất cứ lúc nào):')
+    expect(vi).toContain('để gợi ý việc làm cho giáo viên và, khi mục “Nhân viên của chúng tôi có thể gọi cho tôi” của giáo viên đang bật, cho nhân viên của chúng tôi.')
+    expect(vi).toContain('Với sự đồng ý của giáo viên, được đưa ra trong hồ sơ giáo viên bằng hai công tắc — từ ngày 22 tháng 10 năm 2026, cả hai được bật sẵn trong biểu mẫu của hồ sơ mới, nên việc để nguyên một công tắc ở trạng thái bật và đăng hồ sơ được coi là sự đồng ý đó; giáo viên có thể tắt từng công tắc trước khi đăng hoặc bất cứ lúc nào sau đó:')
+    for (const s of ['Chỉ khi giáo viên đồng ý trong hồ sơ giáo viên', 'nếu giáo viên yêu cầu gợi ý việc làm', 'Chỉ với giáo viên yêu cầu gợi ý việc làm', 'nếu giáo viên cho phép nhân viên của chúng tôi gọi điện']) expect(vi, s).not.toContain(s)
+  })
+})
+
+/**
+ * ⛔ THE TEACHER PHONE REQUIRED AND THE JOB-MATCH SWITCHES ON BY DEFAULT (owner, 2026-10-22: "also phone number is mandatory
+ * and all toggles should be on by default go" — phone "Everyone, on next save", toggles "On by default everywhere"; an
+ * accepted risk, docs/compliance/pdpl-dossier-draft.md [OWNER DECISION 2026-10-22]). What the policy says is what the code
+ * does: the phone on every save (profile.ts validateTeacherInput, isTeacherPhone), never refused for a save that only
+ * hides or switches off (phoneWaived), never published, used by staff only while "Our staff may call me" is on; the
+ * switches on in a NEW profile's FORM (teacher-form.tsx optInChoice — the answers of EMPTY_TEACHER, a draft or a link never
+ * hold a switch ON; the form shows the default beside them, and a draft keeps only the switches turned off), an
+ * existing profile's own choice kept, and the general "off until you turn it on" carving them out by name.
+ */
+describe('/privacy — the teacher phone and the job-match defaults (2026-10-22)', () => {
+  it('⛔ the rules it describes are the code’s own', async () => {
+    const { EMPTY_TEACHER, validateTeacherInput, phoneWaived, isTeacherPhone, normalizeForSave } = await import('@/lib/teachers/profile')
+    // "Every teacher profile needs a phone number" — the finish step refuses a save without one, and junk
+    expect(validateTeacherInput({ ...EMPTY_TEACHER }, ['finish']).phone).toBe('required')
+    expect(validateTeacherInput({ ...EMPTY_TEACHER, phone: '()()()()' }, ['finish']).phone).toBe('invalid')
+    expect(isTeacherPhone('+84 90 123 4567')).toBe(true)
+    // "the default … in the form of a new teacher profile" — never in the empty profile a draft or a link starts from
+    expect(EMPTY_TEACHER.matchEmailOptIn).toBe(false)
+    expect(EMPTY_TEACHER.staffContactOptIn).toBe(false)
+    // "a save that only hides your profile or switches something off is never refused for it" — and a new profile, or one
+    // that changes nothing, still needs it
+    const none = { phone: false, matchEmailOptIn: true, staffContactOptIn: true, coverOpen: false }
+    const next = { phone: '', matchEmailOptIn: true, staffContactOptIn: true, coverOpen: false }
+    expect(phoneWaived(null, next, true)).toBe(false)
+    expect(phoneWaived(none, next, false)).toBe(false)
+    // a save that hides has no job type, and with none both job-match switches are saved off (normalizeForSave) — so a
+    // hide always switches off whatever it had on, and is waived whatever the profile had
+    expect(normalizeForSave({ ...EMPTY_TEACHER, jobTypes: [], matchEmailOptIn: true, staffContactOptIn: true })).toMatchObject({ matchEmailOptIn: false, staffContactOptIn: false })
+    const hidden = { ...next, matchEmailOptIn: false, staffContactOptIn: false }
+    expect(phoneWaived(none, hidden, true)).toBe(true)
+    expect(phoneWaived({ ...none, matchEmailOptIn: false, staffContactOptIn: false }, hidden, true)).toBe(true)
+    expect(phoneWaived(none, { ...next, staffContactOptIn: false }, false)).toBe(true)
+    expect(phoneWaived({ ...none, phone: true }, { ...next, staffContactOptIn: false }, false)).toBe(false)
+  })
+
+  const EN = [
+    'Your phone number, email address and CV are never published: the account you are talking to receives them only if you tap “Share my phone, email & CV” in your conversation with it.',
+    'Every teacher profile needs a phone number: you give it when you publish a new profile, and a profile saved without one adds it the next time it is saved — a save that only hides your profile or switches something off is never refused for it.',
+    'Our staff call it only while “Our staff may call me” is on — about jobs that match your profile, and to offer to introduce you to the schools behind them; we never give your number to a school: only your Share tap does.',
+    'If you are looking for work, “Email me jobs that match my profile” and “Our staff may call me” are on by default in the form of a new teacher profile since 22 October 2026: switch either off before you publish, or at any time later in “Teacher profile” in your account, and the unsubscribe link in any job-match email switches the emails off; an existing profile keeps the choices it saved.',
+    'We record when each was switched on, with the version of the notice shown beside them, and when it was switched off; if a new profile is published with a switch still at its default, we also record which one was left on, and that record is included when you download your data.',
+    // ⛔ a suggestion is emailed only while the email switch is on (gate review, codex 2026-10-22: it read as always)
+    'A job that scores 70 or more becomes a suggestion: while the teacher’s “Email me jobs that match my profile” is on, it is emailed to them',
+    // ⛔ the general promise names the new carve-out — the sentence a reader holds us to
+    'and you can hide it at any time (see above); and except the two job-match switches of a new teacher profile, which are on by default in its form since 22 October 2026 — you can switch either off before you publish and at any time after (see “Teacher profiles”).',
+  ]
+  const VI = [
+    'Mọi hồ sơ giáo viên đều cần có số điện thoại: bạn nhập số khi đăng hồ sơ mới, và hồ sơ đã lưu mà chưa có số sẽ cần thêm số vào lần lưu tiếp theo — lần lưu chỉ để ẩn hồ sơ hoặc tắt một mục thì không bao giờ bị từ chối vì thiếu số.',
+    'Nhân viên của chúng tôi chỉ gọi số này khi mục “Nhân viên của chúng tôi có thể gọi cho tôi” đang bật — về các việc làm phù hợp với hồ sơ, và để đề nghị giới thiệu bạn với các trường đăng các việc làm đó; chúng tôi không bao giờ đưa số của bạn cho trường: chỉ khi bạn bấm Chia sẻ.',
+    'Nếu bạn đang tìm việc, từ ngày 22 tháng 10 năm 2026, “Gửi email cho tôi các việc làm phù hợp với hồ sơ” và “Nhân viên của chúng tôi có thể gọi cho tôi” được bật sẵn trong biểu mẫu của hồ sơ giáo viên mới:',
+    'hồ sơ đã có giữ nguyên lựa chọn đã lưu.',
+    'khi mục “Gửi email cho tôi các việc làm phù hợp với hồ sơ” của giáo viên đang bật, gợi ý được gửi qua email cho giáo viên',
+    'nếu hồ sơ mới được đăng khi một mục vẫn để nguyên mặc định, chúng tôi còn ghi lại mục nào được để bật, và bản ghi này có trong dữ liệu bạn tải xuống.',
+    'và bạn có thể ẩn nhãn bất cứ lúc nào (xem ở trên); và trừ hai công tắc gợi ý việc làm của hồ sơ giáo viên mới, được bật sẵn trong biểu mẫu từ ngày 22 tháng 10 năm 2026 — bạn có thể tắt từng công tắc trước khi đăng hồ sơ và bất cứ lúc nào sau đó (xem mục “Hồ sơ giáo viên”).',
+  ]
+
+  it('⛔ both editions, both languages: the phone on every save, what staff use it for, the default, switching off, the records', async () => {
+    for (const site of ['marketplace', 'services'] as const) {
+      const en = await policy(site)
+      for (const s of EN) expect(en, `${site}: ${s}`).toContain(s)
+      // the old phone rule ("optional unless staff may call") must not survive anywhere
+      expect(en).not.toMatch(/phone[^.]*optional/i)
+      cleanup()
+      const vi = await policy(site, 'vi')
+      for (const s of VI) expect(vi, `${site}: ${s}`).toContain(s)
+      expect(vi).not.toMatch(/số điện thoại[^.]*không bắt buộc/)
+      cleanup()
+    }
   })
 })
 
@@ -967,7 +1089,7 @@ describe('/privacy — a verified identity, the trust score and the teacher’s 
       'With a teacher’s consent, given in the declaration they confirm before uploading an identity document: to show “Identity verified” on their teacher profile, on its card in lists and to the people who message them about it, while their verification is current — they can hide it at any time in the teacher profile.',
       'Teachers whose identity was verified under the earlier declaration (used until 16 October 2026), which did not ask for this, show it on the same terms and can hide it the same way.',
       // ⛔ the general promise carves it out by name — nothing else would have caught that sentence going false
-      'each optional use has its own switch, and each is off until you turn it on — except “Identity verified” on a teacher profile: its consent is part of the identity declaration you confirm before uploading, together with the verification itself (an identity verified under the earlier declaration, which did not mention it, shows too — see “Teacher profiles”), so it shows once your identity is verified, and you can hide it at any time (see above).',
+      'each optional use has its own switch, and each is off until you turn it on — except “Identity verified” on a teacher profile: its consent is part of the identity declaration you confirm before uploading, together with the verification itself (an identity verified under the earlier declaration, which did not mention it, shows too — see “Teacher profiles”), so it shows once your identity is verified, and you can hide it at any time (see above);',
     ]) expect(en, s).toContain(s)
     // ⛔ The opt-in (2026-10-15) is gone from every passage: nothing may promise a switch-on the code no longer asks for.
     for (const s of [
@@ -995,7 +1117,7 @@ describe('/privacy — a verified identity, the trust score and the teacher’s 
       'Bạn có thể tắt dạy thay, ẩn nhãn “Đã xác minh danh tính”, ẩn hoặc xóa hồ sơ bất cứ lúc nào tại mục “Hồ sơ giáo viên” trong tài khoản.',
       'Với sự đồng ý của giáo viên, được đưa ra trong bản cam đoan mà giáo viên xác nhận trước khi tải giấy tờ tùy thân lên: để hiển thị “Đã xác minh danh tính”',
       'Với giáo viên có danh tính được xác minh theo bản cam đoan trước đó (dùng đến ngày 16 tháng 10 năm 2026), vốn không hỏi điều này, nhãn cũng hiển thị theo cùng điều kiện và có thể ẩn theo cùng cách.',
-      'mỗi mục tùy chọn có công tắc riêng và đều tắt cho đến khi bạn bật — trừ nhãn “Đã xác minh danh tính” trên hồ sơ giáo viên: sự đồng ý cho nhãn này nằm trong bản cam đoan danh tính mà bạn xác nhận trước khi tải giấy tờ lên, cùng với việc xác minh (danh tính đã được xác minh theo bản cam đoan trước đây, vốn không nhắc đến nhãn này, cũng hiển thị — xem mục “Hồ sơ giáo viên”), nên nhãn hiển thị khi danh tính của bạn đã được xác minh, và bạn có thể ẩn nhãn bất cứ lúc nào (xem ở trên).',
+      'mỗi mục tùy chọn có công tắc riêng và đều tắt cho đến khi bạn bật — trừ nhãn “Đã xác minh danh tính” trên hồ sơ giáo viên: sự đồng ý cho nhãn này nằm trong bản cam đoan danh tính mà bạn xác nhận trước khi tải giấy tờ lên, cùng với việc xác minh (danh tính đã được xác minh theo bản cam đoan trước đây, vốn không nhắc đến nhãn này, cũng hiển thị — xem mục “Hồ sơ giáo viên”), nên nhãn hiển thị khi danh tính của bạn đã được xác minh, và bạn có thể ẩn nhãn bất cứ lúc nào (xem ở trên);',
     ]) expect(vi, s).toContain(s)
     for (const s of [
       'chọn hiển thị “Đã xác minh danh tính”',
