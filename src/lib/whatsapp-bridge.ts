@@ -29,10 +29,29 @@ import type { InboundWhatsAppMessage } from './whatsapp'
 /** E.164 with '+', which is what `Profile.phone` stores; Meta sends it without. */
 const plus = (waId: string) => (waId.startsWith('+') ? waId : `+${waId}`)
 
+/**
+ * ⛔ MATCH ONLY A GoTrue-CONFIRMED PHONE, NEVER `Profile.phone` (security review 2026-10-22, item 6).
+ * `Profile.phone` is self-service: PATCH /api/profile and /api/seller write it with NO OTP (the schema
+ * even calls it a mirror of a verified auth phone, but nothing enforces that). Matching on it meant an
+ * attacker could PATCH their own profile to a victim's number and then RECEIVE that victim's first
+ * support conversation with the e-Visa desk — passport scans, payment instructions settled in chat.
+ * `auth.users.phone` is set with `phone_confirmed_at` only by this bridge (which the person reaches
+ * only by messaging FROM the number, through Meta's signed webhook) or by a real phone OTP — neither
+ * of which an attacker can point at a number they do not control. auth.users stores the phone WITHOUT
+ * '+', which is exactly the raw `wa_id` Meta sends.
+ */
+async function confirmedPhoneOwner(waId: string): Promise<string | null> {
+  const rows = await db.$queryRaw<Array<{ id: string }>>`
+    SELECT id::text FROM auth.users
+    WHERE phone = ${waId} AND phone_confirmed_at IS NOT NULL
+    LIMIT 1`
+  return rows[0]?.id ?? null
+}
+
 async function profileForWhatsApp(waId: string, name?: string): Promise<string | null> {
   const phone = plus(waId)
-  const existing = await db.profile.findUnique({ where: { phone }, select: { id: true } })
-  if (existing) return existing.id
+  const existingId = await confirmedPhoneOwner(waId)
+  if (existingId) return existingId
 
   /**
    * ⚠️ CREATE THE AUTH USER FIRST, THEN LET THE PROFILE FOLLOW IT. The FK runs that way round, and
@@ -59,8 +78,10 @@ async function profileForWhatsApp(waId: string, name?: string): Promise<string |
      * the answer is the row the winner made. Anything else is reported: a support message silently
      * not appearing is the one outcome this bridge must never produce.
      */
-    const again = await db.profile.findUnique({ where: { phone }, select: { id: true } })
-    if (again) return again.id
+    // The racing winner created the auth user with phone_confirm:true, so match it the same way —
+    // by the confirmed auth phone, never Profile.phone (see confirmedPhoneOwner).
+    const again = await confirmedPhoneOwner(waId)
+    if (again) return again
     logError(error ?? new Error('createUser returned no user'), { op: 'whatsapp.createUser' })
     return null
   }
