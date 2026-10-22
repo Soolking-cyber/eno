@@ -373,9 +373,11 @@ cf_purge(){   # $1 = JSON body, $2 = what it is, for the log
     # One retry: tag/host/everything purges share a 5-per-minute account bucket on Free, so a deploy right
     # after a rollback (or a data script's purge) can briefly hit it.
     for try in 1 2; do
-      out=$(curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/$z/purge_cache" \
-        -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
-        --data "$1" 2>&1)
+      # ⛔ The token via a config on stdin, never argv (security review 2026-10-22, item 26): `-H "…$CF_TOKEN"` was readable
+      # by any local process in /proc/<pid>/cmdline for the life of the call. A here-string — no writer process.
+      out=$(curl -sS --config - -X POST "https://api.cloudflare.com/client/v4/zones/$z/purge_cache" \
+        -H "Content-Type: application/json" \
+        --data "$1" 2>&1 <<<"header = \"Authorization: Bearer ${CF_TOKEN//\"/\\\"}\"")
       grep -q '"success":[[:space:]]*true' <<<"$out" && break
       [ "$try" = 1 ] && sleep 15
     done

@@ -110,7 +110,34 @@ if [ -n "${ENO_BACKUP_REMOTE:-}" ]; then
   # a backup that fails WITHOUT SAYING WHY is how three days pass before anyone notices.
   # ⚠️ Captured rather than streamed so the reason lands in the journal ON FAILURE, without
   # rclone's ordinary progress chatter on every successful night.
-  if ! rclone_err=$(rclone copy "$OUT/eno-$STAMP.dump" "$ENO_BACKUP_REMOTE" 2>&1); then
+  #
+  # ⛔ THE DUMP GOES THROUGH THE CRYPT REMOTE, NEVER THE PLAIN BUCKET (security review 2026-10-22,
+  # item 7). This dump is every schema — auth included: users, password hashes, live refresh tokens —
+  # plus every user's personal data. It used to be copied to ENO_BACKUP_REMOTE in plaintext while the
+  # storage job already refused to upload a passport anywhere but the crypt remote ("so a leaked
+  # Bizfly key exposes nothing", eno-storage-backup.sh). Same three refusals as that job: the remote
+  # must be set, must BE an rclone crypt remote, and must hold the escrowed key (the .key-canary).
+  # Under its own `db/` prefix; the storage job uses storage/, storage-xattrs/, globals/, storage-state/.
+  # ENO_BACKUP_REMOTE stays the "off-box is on" switch (unchanged), so a box without it is unaffected.
+  # ⚠️ The plaintext dumps already in the plain bucket are NOT removed by this — delete them by hand
+  # (runbook), and treat the refresh tokens in them as exposed if the bucket's keys ever leaked.
+  [ -n "${ENO_BACKUP_CRYPT_REMOTE:-}" ] \
+    || fail "ENO_BACKUP_CRYPT_REMOTE unset — refusing to upload the database dump unencrypted"
+  features=$(rclone backend features "$ENO_BACKUP_CRYPT_REMOTE" 2>&1) \
+    || fail "cannot query the crypt remote (outage? config?): $(printf '%s' "$features" | tail -n 3)"
+  printf '%s' "$features" | grep -q '"String": "Encrypted drive' \
+    || fail "ENO_BACKUP_CRYPT_REMOTE='$ENO_BACKUP_CRYPT_REMOTE' is not an rclone crypt remote — refusing"
+  join() { case "$1" in *:) printf '%s%s' "$1" "$2" ;; *) printf '%s/%s' "${1%/}" "$2" ;; esac; }
+  root_list=$(rclone lsf "$ENO_BACKUP_CRYPT_REMOTE" 2>&1) \
+    || fail "cannot reach the crypt remote (outage? config?): $(printf '%s' "$root_list" | tail -n 3)"
+  printf '%s\n' "$root_list" | grep -qx '.key-canary' \
+    || fail "the crypt remote does not show .key-canary — its key is NOT the escrowed one; refusing"
+  canary=$(rclone cat "$(join "$ENO_BACKUP_CRYPT_REMOTE" .key-canary)" 2>/dev/null) \
+    || fail "cannot read the key canary — re-run once; if it persists compare the key with the vault copy (do NOT rewrite it)"
+  [ "$canary" = 'eno key canary v1' ] \
+    || fail "the key canary decrypts to something else — compare the key with the vault copy; do NOT rewrite it"
+  DUMP_REMOTE=$(join "$ENO_BACKUP_CRYPT_REMOTE" db)
+  if ! rclone_err=$(rclone copy "$OUT/eno-$STAMP.dump" "$DUMP_REMOTE" 2>&1); then
     echo "off-box copy failed: ${rclone_err:-(rclone said nothing)}" >&2
     fail "off-box copy"
   fi
@@ -150,7 +177,8 @@ if [ -n "${ENO_BACKUP_REMOTE:-}" ]; then
   # ⚠️ NORMALISE THE REMOTE. A configured "eno-offsite:eno/" would build "eno-offsite:eno//file",
   # and object stores treat a doubled slash as a literal part of the key — the delete then targets
   # an object that does not exist, fails quietly, and nothing is ever pruned.
-  REMOTE_BASE="${ENO_BACKUP_REMOTE%/}"
+  # The dump now lives on the crypt remote (item 7), so retention lists and prunes THERE.
+  REMOTE_BASE="${DUMP_REMOTE%/}"
   # ⛔ MATCH THE STAMPED NAME EXACTLY, NOT `eno-*.dump`. A hand-made `eno-latest.dump` or
   # `eno-pre-migration.dump` also matches the glob, and because digits sort before letters it
   # collates as the NEWEST file — pushing a real dated dump out of the keep-window every night,

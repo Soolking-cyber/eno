@@ -14,3 +14,8 @@ ExecStart=/opt/eno/bin/eno-backup.sh
 # scrolling past in a log nobody reads.
 StandardOutput=journal
 StandardError=journal
+# ⛔ THE DUMPS ARE THE WHOLE DATABASE, AUTH INCLUDED (security review 2026-10-22, item 7): created
+# owner-only. pg_dump's redirect and the globals file otherwise inherit the default 0022 umask and
+# land world-readable (0644) — readable by any local account, cloudflared and nginx workers included.
+UMask=0077
+PrivateTmp=yes

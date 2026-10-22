@@ -260,8 +260,14 @@ rm -f /tmp/eno-cron-$JOB.out
 # ⚠️ `|| rc=$?`: under `set -e` a curl that gives up (exit 28 at MAXT) would end the script on this line, before the echo
 # and the keep below. Its exit code is kept: a 200 whose body was cut off (exit 18/56) fails the unit like a non-200.
 rc=0
-code=$(curl -s -o /tmp/eno-cron-$JOB.out -w '%{http_code}' --max-time "$MAXT" \
-        -H "Authorization: Bearer $S" -H "Host: $HOST" "http://127.0.0.1:$PORT/api/cron/$JOB") || rc=$?
+# ⛔ THE SECRET NEVER GOES ON THE COMMAND LINE (security review 2026-10-22, item 26). `-H "Authorization: Bearer $S"` put
+# CRON_SECRET in curl's argv for up to MAXT seconds — readable by ANY local process in /proc/<pid>/cmdline (cloudflared, an
+# nginx worker), and enough to call every /api/cron/* route. curl reads the header from a config on stdin instead, the way
+# eno-edge-nightly-purge.sh already does. A here-string, not a pipe: no writer process, so `pipefail` can never turn a
+# SIGPIPE into the run's exit code. `\` and `"` are escaped for curl's config quoting.
+S_ESC=${S//\\/\\\\}; S_ESC=${S_ESC//\"/\\\"}
+code=$(curl -s --config - -o /tmp/eno-cron-$JOB.out -w '%{http_code}' --max-time "$MAXT" \
+        -H "Host: $HOST" "http://127.0.0.1:$PORT/api/cron/$JOB" <<<"header = \"Authorization: Bearer ${S_ESC}\"") || rc=$?
 echo "$JOB -> ${code:-000} (curl $rc) $(head -c 200 /tmp/eno-cron-$JOB.out 2>/dev/null)"
 # A job whose answer is its journal (secondhand-showcase: every write with its prior state, what a rollback replays) sets
 # ENO_CRON_KEEP_DIR in its unit, and every run's answer is kept there for 180 days — /tmp is overwritten by the next run.
@@ -327,6 +333,10 @@ After=docker.service
 [Service]
 Type=oneshot
 ExecStart=/opt/eno/bin/eno-cron.sh $job $TARGET
+# Item 26: the answer file is no longer a predictable path in the SHARED /tmp, and what the run writes is owner-only.
+# (The first 200 characters of each answer still reach the journal; a job with a keep directory still keeps its copy.)
+PrivateTmp=yes
+UMask=0077
 $EXTRA
 UNIT
   if in_list "$job" "${MANUAL[@]}"; then
