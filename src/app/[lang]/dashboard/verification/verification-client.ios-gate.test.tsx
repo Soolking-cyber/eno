@@ -11,6 +11,9 @@ import { LanguageProvider } from '@/context/language-context'
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: () => {}, replace: () => {} }), usePathname: () => '/dashboard/verification' }))
 vi.mock('@/components/marketplace/section-header', () => ({ SectionHeader: () => null }))
 vi.mock('@/components/marketplace/business-verification-panel', () => ({ BusinessVerificationPanel: () => null }))
+// Signed in: the hub reads and draws the status only for a session (the sign-in gate has its own test file).
+const SIGNED_IN = { user: { id: 'u1' }, loading: false }
+vi.mock('@/context/auth-context', () => ({ useAuth: () => SIGNED_IN }))
 
 import { VerificationClient } from './verification-client'
 

@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { BusinessVerificationPanel } from '@/components/marketplace/business-verification-panel'
@@ -31,7 +33,28 @@ import { IosVerifyElsewhereNote } from '@/components/marketplace/ios-browser-onl
 
 type Status = 'unverified' | 'pending' | 'verified' | 'rejected' | 'expired' | 'revoked'
 
+/**
+ * ⛔ SIGNED OUT → SIGN IN FIRST, like every sibling dashboard section. The KYC outcome email links here, and an email
+ * is often opened in a browser with no session: the status read 401'd, which drew step 1 as never started ("Verify
+ * yourself") over an approval or a rejection reason, beside a step-2 "Try again" that could only 401 again.
+ * ⚠️ AND THE HUB IS KEYED ON THE ACCOUNT (commit-gate review, 2026-10-22). Everything the hub reads — the identity
+ * verdict, a reviewer's rejection note, the business panel's own case — belongs to one account, so a different
+ * account, or none, gets a FRESH hub in the same render: no frame ever shows the last account's verdict, and the
+ * business panel re-reads instead of keeping its state. Keyed on the ID, not the user object, so a token refresh (a
+ * new object, same account) changes nothing.
+ */
 export function VerificationClient() {
+  const { user, loading: authLoading } = useAuth()
+  const router = useRouter()
+  const userId = user?.id ?? null
+  useEffect(() => {
+    if (!authLoading && !userId) router.replace('/signin?next=' + encodeURIComponent(window.location.pathname + window.location.search))
+  }, [authLoading, userId, router])
+  return <VerificationHub key={userId ?? ''} userId={userId} />
+}
+
+/** The hub for ONE account (or for none, while signed out: nothing is read and step 1 stays the loading skeleton). */
+function VerificationHub({ userId }: { userId: string | null }) {
   const { tr } = useLanguage()
   const [person, setPerson] = useState<Status | null>(null)
   /** Why the current case was refused — the reviewer's note, or a machine reason. Refusals only. */
@@ -60,7 +83,9 @@ export function VerificationClient() {
     }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  // Read only for a session: signed out, step 1 stays the loading skeleton (`loaded` is set by this read alone).
+  // A read that answers after this hub was replaced lands on an unmounted instance, which keeps nothing.
+  useEffect(() => { if (userId) void load() }, [load, userId])
 
   const personDone = person === 'verified'
   const personPending = person === 'pending'
@@ -212,8 +237,9 @@ export function VerificationClient() {
               * `submitVerification`, not in whether this is on screen.
               */}
             {/* ⚠️ `showPersonSteps={false}` — THIS hub already renders the step 1/step 2 rail above;
-                letting the panel draw its own too would double the sequence. */}
-            <BusinessVerificationPanel showPersonSteps={false} />
+                letting the panel draw its own too would double the sequence.
+                Mounted only for a session (see the sign-in gate above): signed out, its own read can only 401. */}
+            {userId && <BusinessVerificationPanel showPersonSteps={false} />}
           </div>
         </section>
       </div>

@@ -181,9 +181,14 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // see `actions` below): Edit and the status flip; the price cut moved into the menu.
   const listingUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://eno.vn'}/listings/${listing.id}`
   const copyLink = async () => { if (await copyText(listingUrl)) toast.success(tr('Link copied', 'Đã sao chép liên kết')) }
+  // ⛔ A TEACHER'S ROW IS A PERSON, NOT A SALE: setStatusCore refuses 'sold' for a teacher listing and updateListingCore
+  // refuses any generic edit of one (the teacher form owns its price). So the row offers only what the server allows —
+  // Hide in Mark sold's place, and no Discount. Both were dead controls: the sold tap flicked back with no word, and
+  // the price cut always answered "try again".
+  const isTeacher = listing.listingType === TEACHER_LISTING_TYPE
   // No price cut on a JOB: its price is its salary, derived on the server from the salary facet
   // (taxonomy.ts paysSalary), which ignores a PATCHed price — a discount there would do nothing.
-  const canDiscount = status === 'active' && listing.price > 0 && !paysSalary(listing.listingType)
+  const canDiscount = status === 'active' && listing.price > 0 && !paysSalary(listing.listingType) && !isTeacher
   // Public page only for a LIVE, verified listing (held/sold/hidden has none) — gates Share and Copy link.
   const isPublic = status === 'active' && listing.verified
   // Native share where the platform has one (the menu only renders once opened, after mount, so reading
@@ -209,7 +214,12 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
         {/* The pencil steps out below sm — it is what buys the English row its fit at 360. */}
         <Pencil className="size-4 max-sm:hidden" /> {tr('Edit', 'Sửa')}
       </Button>
-      {status === 'active' ? (
+      {/* A teacher's live row: Hide takes this slot (see isTeacher) — narrower than "Mark sold", so the 360px row holds. */}
+      {status === 'active' && isTeacher ? (
+        <Button variant="bare" size="none" onClick={() => setStatus('hidden')} className={chip}>
+          <EyeOff className="size-4" /> {tr('Hide', 'Ẩn')}
+        </Button>
+      ) : status === 'active' ? (
         <Button variant="bare" size="none" onClick={() => (asksWhoBought ? setSoldOpen(true) : void setStatus('sold'))} className={chip}>
           <CheckCircle2 className="size-4" /> {tr('Mark sold', 'Đã bán')}
         </Button>
@@ -242,8 +252,9 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           )}
           {/* `navigates`: it routes (router.push), so a phone sheet releases its Back entry first. */}
           <DropdownMenuItem navigates onClick={open}><ExternalLink /> {tr('View listing', 'Xem tin')}</DropdownMenuItem>
-          {/* Hide = pulled from the public feed, kept here (api/listings/[id]/status). Relist brings it back. */}
-          {status === 'active' && (
+          {/* Hide = pulled from the public feed, kept here (api/listings/[id]/status). Relist brings it back.
+              Not on a teacher's row: its Hide is already inline. */}
+          {status === 'active' && !isTeacher && (
             <DropdownMenuItem onClick={() => setStatus('hidden')}><EyeOff /> {tr('Hide', 'Ẩn')}</DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
