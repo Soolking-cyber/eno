@@ -103,10 +103,31 @@
  * call: the rewrite is a new feature that runs only when the teacher asks (consent, recorded before anything is sent),
  * and the CV rule tightens what a new profile needs and changes no recipient (schools still get a CV only through the
  * Share tap).
- * ⛔ If that deploy slips past 2026-10-22, re-date this AND TEACHER_CV_REQUIRED_FROM (src/lib/teachers/constants.ts —
- * 00:00 ICT the day after the deploy) AND the CV sentence's "created before 23 October 2026" on /privacy (EN + VI) and
- * its pins in page.test.tsx AND the dossier's 22/10 / 23/10 dates (docs/compliance/pdpl-dossier-draft.md) in that
- * commit, then retake the fingerprint below; the amendment gate refuses the deploy until this matches the day.
+ * ✅ That CV rule WENT LIVE on 2026-10-22, so its dates are facts now, no longer re-dated with this value:
+ * TEACHER_CV_REQUIRED_FROM (src/lib/teachers/constants.ts) is 2026-10-23T00:00:00+07:00, and /privacy's "(a profile
+ * created before 23 October 2026 can also remove it)" / "(hồ sơ tạo trước ngày 23 tháng 10 năm 2026 cũng có thể gỡ CV)"
+ * are FIXED text — page.test.tsx pins all three as literals (until 2026-10-22 it derived them from this date). ⛔ A
+ * later re-date of this value — the change below, or any after — must NEVER move them: a teacher who joined on the old
+ * optional rule keeps the removal the policy promised.
+ * And 2026-10-22 again — THE SECOND CHANGE OF THE DAY, in a SECOND deploy that day, after the CV rule's (owner,
+ * 2026-10-22 11:37 ICT: "also phone number is mandatory and all toggles should be on by default go"; asked, the phone
+ * is "Everyone, on next save" and the toggles "On by default everywhere" — web and the native apps): the teacher PHONE
+ * is required on every teacher-profile save — a new profile at Publish, an existing one without a phone the next time
+ * it is saved, never for a save that only
+ * hides the profile or switches something off (profile.ts phoneWaived) — and is never published, reaches a chat account
+ * only through the Share tap, and is called by staff only while "Our staff may call me" is on; and the two JOB-MATCH
+ * SWITCHES ("Email me jobs that match my profile", "Our staff may call me") are ON BY DEFAULT in the form of a NEW
+ * teacher profile (an existing profile keeps its own choice), switched off at any time in the profile or from any
+ * match email, with one 'teacher.optins.default' compliance record per new profile published with a default left on.
+ * The Anthropic row and its purpose, the teacher paragraph, the consent purpose, the general basis's second carve-out and
+ * the automated-decisions paragraph. Live with the deploy, NOT treated as material — no 5-day notice (the owner's call,
+ * "live with the deploy"): the default is an accepted legal risk (PDP Law 91/2025 Art 9(4)(d), Decree 356/2025 Art 6(3),
+ * Decree 91/2020 anti-spam, App Store 5.1.2(i)), recorded in docs/compliance/pdpl-dossier-draft.md
+ * [OWNER DECISION 2026-10-22] with counsel's question (§8 question 15). AI_NOTICE_VERSION stays '2026-10-08': no
+ * existing opt-in is asked again. The policy names the day in its own words ("since 22 October 2026" / "từ ngày 22
+ * tháng 10 năm 2026" — the teacher paragraph, the consent purpose and the basis) — ⛔ if this deploy slips past 2026-10-22, re-date this value AND those words (and
+ * their pins in page.test.tsx and the dossier's 22/10 dates) in the deploy's commit, then retake the fingerprint below;
+ * the CV dates above stay as they are.
  * And 2026-10-22 as well (planned — the deploy day of the way out first, owner 2026-10-22: "creatively route them to
  * normal browser"): the sign-up counters paragraph names the three new teacher-form totals — the screen offering the
  * browser shown, the visitor going on in the app, a page then opening in the browser from it (escape_shown /
@@ -130,4 +151,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-22'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '923f6bcea2022bca'
+export const PRIVACY_TEXT_FINGERPRINT = 'dcb7fbf73a5bb805'
