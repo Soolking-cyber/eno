@@ -83,3 +83,28 @@ export function pendingOnboardingStep(p: OnboardingState | null | undefined): 'a
  * not import the whole sign-in form to read one boolean.
  */
 export const PHONE_OTP_ENABLED = false
+
+/**
+ * The day phone sign-in went OFF: the owner's 2026-08-17 switch above, measured on the auth server the
+ * next day (`"phone": false`). Every phone confirmation stamped before it came from eno's own OTP flow.
+ */
+const PHONE_SIGNIN_OFF_SINCE = Date.parse('2026-08-18T00:00:00Z')
+
+/**
+ * May the auth server's `phone_confirmed_at` be taken as PROOF that this account controls the number?
+ *
+ * ⛔ ONLY WHILE ENO'S OWN PHONE SIGN-IN IS ON — or for a confirmation that predates it going off
+ * (security review 2026-10-22, item 4). A confirmed phone re-parents a guest storefront for good
+ * (profile.ts, resolve-seller.ts, profile/account-type) and earns the phone trust credit. eno sends the
+ * code itself (api/auth/send-sms), so while phone sign-in is off no eno flow can confirm a phone, and a
+ * confirmation stamped since then came from somewhere eno does not control — for instance an auth
+ * server left on the self-hosting template's defaults, which confirm phones WITHOUT sending a code.
+ * Treat that as no phone at all. When phone sign-in comes back, the auth server must confirm phones
+ * only by code (GOTRUE_SMS_AUTOCONFIRM=false — infra/vn-node/apply-auth-hardening.sh checks it).
+ */
+export function phoneConfirmationTrusted(confirmedAt: string | null | undefined): boolean {
+  if (!confirmedAt) return false
+  if (PHONE_OTP_ENABLED) return true
+  const t = Date.parse(confirmedAt)
+  return Number.isFinite(t) && t < PHONE_SIGNIN_OFF_SINCE
+}

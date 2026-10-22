@@ -11,6 +11,7 @@ import { normalizePhone } from '@/lib/phone'
 import { logError } from '@/lib/log'
 import { isAppleLinked } from '@/lib/apple-signin'
 import { isFacebookLinked } from '@/lib/facebook-signin'
+import { phoneConfirmationTrusted } from '@/lib/auth-policy'
 
 /**
  * Comma-separated allowlist from ADMIN_EMAILS (server-only env).
@@ -69,8 +70,9 @@ export async function getVerifiedPhone(): Promise<string | null> {
     const { data } = await supabase.auth.getUser(await bearerToken())
     const u = data.user
     // Supabase stores a confirmed phone on user.phone (E164, no '+'); phone_confirmed_at is the
-    // proof. Normalized identically to Seller.phone so the comparison is apples-to-apples.
-    return u?.phone && u.phone_confirmed_at ? normalizePhone(u.phone) : null
+    // proof — but only one eno's own phone flow could have produced (phoneConfirmationTrusted).
+    // Normalized identically to Seller.phone so the comparison is apples-to-apples.
+    return u?.phone && phoneConfirmationTrusted(u.phone_confirmed_at) ? normalizePhone(u.phone) : null
   } catch {
     return null
   }
@@ -96,7 +98,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   // an auth-CONFIRMED phone (never a self-typed business number), only while the score is
   // still below the post-credit baseline (so credited accounts don't re-check), and after
   // the response flushes (zero added latency).
-  if (data.user.phone_confirmed_at && existing.trustScore < BASE_SCORE + PHONE_VERIFIED_BONUS) {
+  if (phoneConfirmationTrusted(data.user.phone_confirmed_at) && existing.trustScore < BASE_SCORE + PHONE_VERIFIED_BONUS) {
     try { after(() => recordPhoneVerified(existing.id).catch((e) => logError(e, { op: 'admin.recordPhoneVerified' }))) } catch { /* no request scope */ }
   }
 

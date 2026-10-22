@@ -35,6 +35,17 @@ export async function verifyTurnstile(token: string | undefined, ip?: string): P
   if (!secret) return true // unconfigured — see above
   if (!token) return false
 
+  // ⛔ SHAPE CHECK BEFORE WE CALL CLOUDFLARE (security review 2026-10-22, item 17). A genuine Turnstile
+  // token is a bounded string (Cloudflare documents a 2048-char ceiling). A non-string or an oversized
+  // one is a forgery — reject it here. Without this, an attacker could hand us a malformed token so that
+  // Cloudflare answers `bad-request`, which used to be in the allow-through set below and would have let
+  // the request past the bot gate. Validating the shape ourselves also means a `bad-request` from a
+  // well-formed request can no longer be blamed on the token, which is why it is no longer allowed through.
+  if (typeof token !== 'string' || token.length > 2048) {
+    console.warn('[turnstile] rejected — token is not a well-formed string')
+    return false
+  }
+
   const body = new URLSearchParams({ secret, response: token })
   // remoteip is optional and advisory; Cloudflare treats a mismatch as a signal, not a
   // hard fail, so a visitor behind a shifting mobile IP isn't punished for it.
@@ -67,7 +78,13 @@ export async function verifyTurnstile(token: string | undefined, ip?: string): P
       //
       // Codes that describe OUR request, never the visitor's answer. Anything else — an invalid or
       // replayed token, i.e. a real captcha failure — still fails closed.
-      const SERVER_SIDE = new Set(['missing-input-secret', 'invalid-input-secret', 'bad-request', 'internal-error'])
+      // ⚠️ `bad-request` IS NO LONGER HERE (security review 2026-10-22, item 17). It can be provoked by a
+      // malformed `response` the client controls, so allowing it through handed an attacker the bypass.
+      // The shape check above now rejects a malformed token before we ask Cloudflare, so with a secret set
+      // and a bounded string sent, a `bad-request` is Cloudflare judging the ANSWER — a real failure.
+      // These three stay: a wrong/absent secret and a Cloudflare internal error are genuinely not the
+      // visitor's fault, and failing open on them is the documented fix for the 2026-07 sign-in outages.
+      const SERVER_SIDE = new Set(['missing-input-secret', 'invalid-input-secret', 'internal-error'])
       if (codes.length > 0 && codes.every((c) => SERVER_SIDE.has(c))) {
         // error, not warn: this is a live misconfiguration that silently disables bot protection.
         console.error('[turnstile] MISCONFIGURED — allowing sign-in; captcha is not protecting anything', codes)

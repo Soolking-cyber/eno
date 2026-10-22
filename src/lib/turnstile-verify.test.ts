@@ -36,7 +36,6 @@ describe('a misconfiguration on OUR side allows the visitor through', () => {
   it.each([
     ['invalid-input-secret'],
     ['missing-input-secret'],
-    ['bad-request'],
     ['internal-error'],
   ])('allows on %s — the captcha never examined the visitor', async (code) => {
     vi.stubGlobal('fetch', async () => fail(code))
@@ -60,9 +59,24 @@ describe('a genuine captcha failure still fails closed', () => {
     ['invalid-input-response'],
     ['timeout-or-duplicate'],
     ['missing-input-response'],
+    // security review 2026-10-22, item 17: `bad-request` can be provoked by a malformed `response` the
+    // client controls, so it must NOT be in the allow-through set. The shape guard below rejects a
+    // malformed token before we even ask Cloudflare, so with a secret set this code means the ANSWER failed.
+    ['bad-request'],
   ])('rejects on %s — this one IS about the visitor', async (code) => {
     vi.stubGlobal('fetch', async () => fail(code))
     await expect(verifyTurnstile('tok')).resolves.toBe(false)
+  })
+
+  it('rejects a token that is not a well-formed string, before calling Cloudflare (item 17)', async () => {
+    const fetchSpy = vi.fn(async () => OK)
+    vi.stubGlobal('fetch', fetchSpy)
+    // oversized: a real Turnstile token is bounded (~2048 chars). An attacker could send a huge one to
+    // provoke `bad-request` and ride the old allow-through.
+    await expect(verifyTurnstile('x'.repeat(5000))).resolves.toBe(false)
+    // non-string reaching us through an untyped boundary.
+    await expect(verifyTurnstile(123 as unknown as string)).resolves.toBe(false)
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it('a mixed verdict is treated as a real failure, not a misconfiguration', async () => {

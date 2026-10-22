@@ -9,6 +9,7 @@ import { recordNewAccount, recordPhoneVerified, recomputeTrust } from './trust'
 import { autoClaimHandle, consolidateSellerHandle } from './handle'
 import { logError } from '@/lib/log'
 import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
+import { phoneConfirmationTrusted } from '@/lib/auth-policy'
 
 /**
  * A sign-in provider's picture, kept as the new account's photo only from a host whose links last: Google's
@@ -37,8 +38,10 @@ export function providerAvatarUrl(raw: unknown): string | null {
 export async function ensureProfile(user: User) {
   const email = user.email ?? null
   // Supabase stores a verified phone on user.phone (E164, no '+'); normalize to
-  // the app's canonical +84… form. Only mirror a CONFIRMED phone.
-  const verifiedPhone = user.phone && user.phone_confirmed_at ? normalizePhone(user.phone) : null
+  // the app's canonical +84… form. Only mirror a CONFIRMED phone — and only a confirmation eno's
+  // own phone flow could have produced (phoneConfirmationTrusted: it is also the storefront claim
+  // proof below and the phone trust credit).
+  const verifiedPhone = user.phone && phoneConfirmationTrusted(user.phone_confirmed_at) ? normalizePhone(user.phone) : null
   // Never seed the raw email local part as displayName — it's often a full name
   // and displayName short-circuits maskEmailHandle everywhere it's rendered
   // (chat counterparty, public review author). A masked handle is the fallback;

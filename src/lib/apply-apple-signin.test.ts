@@ -671,6 +671,8 @@ describe('nginx: the GoTrue authorize guard on sb.eno.vn (plan §10, A2/D21)', {
       'include /etc/nginx/snippets/eno-proxy.conf;',
     ])
     expect(block).toContain('location ~* ^/+auth/+v1/+user/+identities/+authorize { return 403; }')
+    // security review 2026-10-22, item 5: email+password sign-up is closed at the edge (the app never calls it).
+    expect(block).toContain('location ~* ^/+auth/+v1/+signup { return 404; }')
     // only the sb.eno.vn server uses the maps; the app servers never proxy GoTrue
     expect(CONF.split('if ($eno_authz_').length - 1).toBe(3)
     expect(block.split('if ($eno_authz_').length - 1).toBe(3)
