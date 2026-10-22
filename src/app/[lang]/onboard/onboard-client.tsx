@@ -132,6 +132,9 @@ export function OnboardClient() {
           setFieldErr({ biz: t('Please enter your business name.', 'Vui lòng nhập tên doanh nghiệp.') })
         } else if (data?.error === 'phone_taken') {
           setError(t('This phone number is already used by another account. Try a different one.', 'Số điện thoại này đã được tài khoản khác sử dụng. Hãy dùng số khác.'))
+        } else if (data?.error === 'no_phone_in_name' || data?.error === 'no_contact_in_name') {
+          // Either name can carry it (yours or the business's), so it is said once, above both.
+          setError(t('Contact details aren’t allowed in a name.', 'Không ghi thông tin liên hệ trong tên.'))
         } else {
           setError(t('Something went wrong. Please try again.', 'Đã xảy ra lỗi. Vui lòng thử lại.'))
         }

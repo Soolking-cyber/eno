@@ -2,6 +2,7 @@ import 'server-only'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { containsPhoneNumber, normalizePhone } from '@/lib/phone'
+import { containsContactInfo } from '@/lib/publish-guard'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { recordProfileComplete } from '@/lib/trust'
@@ -33,6 +34,7 @@ export type SellerUpdateErrorCode =
   | 'bad_id_number'
   | 'bad_tax_code'
   | 'no_phone_in_profile'
+  | 'no_contact_in_name'
 
 export async function updateSellerCore(
   sellerId: string,
@@ -178,6 +180,12 @@ export async function updateSellerCore(
   // Public-facing text can't carry a phone number (same rule as listings).
   if (containsPhoneNumber(String(data.name ?? '')) || containsPhoneNumber(String(data.bio ?? ''))) {
     return { ok: false, code: 400, error: 'no_phone_in_profile' }
+  }
+  // ⛔ …nor the storefront NAME any other contact detail — an email, a link, a Zalo handle (security review 2026-10-22,
+  // item 32): the same rule as a display name (PATCH /api/profile) and a listing's contact name (the publish gate). The
+  // account-type route that first sets this name now screens it too, so this is the other door to the same column.
+  if (containsContactInfo(String(data.name ?? ''))) {
+    return { ok: false, code: 400, error: 'no_contact_in_name' }
   }
 
   if (Object.keys(data).length === 0) return { ok: true }

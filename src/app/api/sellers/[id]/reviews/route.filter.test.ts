@@ -21,7 +21,7 @@ vi.mock('@/lib/trust', () => ({ recordReview: async () => {} }))
 vi.mock('next/server', async (orig) => ({ ...(await orig<Record<string, unknown>>()), after: () => {} }))
 vi.mock('@/lib/db', () => ({
   db: {
-    conversation: { findUnique: async () => ({ id: 'c1', buyerProfileId: 'buyer-1', listing: { id: 'L1', sellerId: 'shop-1', status: h.transacted ? 'sold' : 'active' } }) },
+    conversation: { findUnique: async () => ({ id: 'c1', buyerProfileId: 'buyer-1', listing: { id: 'L1', sellerId: 'shop-1', status: h.transacted ? 'sold' : 'active', soldChannel: 'eno', soldToProfileId: 'buyer-1' } }) },
     message: { count: async () => 0 },
     review: { create: async ({ data }: Row) => { h.created.push(data); return { id: 'r1' } } },
     // The removed-review guard (ugc-safety, R5 report half): no removal on record here.

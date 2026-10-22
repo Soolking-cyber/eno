@@ -1015,7 +1015,7 @@ export const SPEC = {
           ...authFailures(),
           '400': fail(
             'The body was not valid JSON, or a field failed validation. ⚠️ Field validation answers 400, not 422, on this endpoint — `updateSellerCore` returns its OWN status and src/app/api/v1/shop/route.ts passes it through unflattened, which is also why a phone clash below is a 409 rather than one more code in this list. `bad_request` is the route\'s own code for unparseable JSON; the rest come from the core. ⚠️ `bad_id_number` and `bad_tax_code` are reachable even though no property on `ShopInput` produces them: `updateSellerCore` also reads the legal-identity fields `legalName`, `legalAddress`, `idNumber` and `taxCode`, which this API does not document as an input surface.',
-            ['bad_request', 'name_too_short', 'bad_avatar', 'bad_phone', 'bad_id_number', 'bad_tax_code', 'no_phone_in_profile'],
+            ['bad_request', 'name_too_short', 'bad_avatar', 'bad_phone', 'bad_id_number', 'bad_tax_code', 'no_phone_in_profile', 'no_contact_in_name'],
           ),
           '409': fail(
             'The `phone` you sent already belongs to another account — one number, one account. ⚠️ This was previously (and wrongly) documented as a 400: `updateSellerCore` returns `{ code: 409 }` for it from BOTH of its checks — the explicit `phoneTakenByOther` lookup before the write, and the `P2002` unique-violation catch that closes the race between them — and the route passes that status straight through. Nothing about it is retryable with the same number.',

@@ -32,6 +32,8 @@ const h = vi.hoisted(() => ({
   appleLinked: false,
   /** refreshShopPicturePdps calls — a switch changes the shop picture a person's listing pages print. */
   photoRefreshes: [] as unknown[][],
+  /** The display name already on the stored profile — the fallback when a request sends none. */
+  storedName: 'Lan' as string | null,
 }))
 
 vi.mock('next/server', async (orig) => ({
@@ -40,7 +42,7 @@ vi.mock('next/server', async (orig) => ({
 }))
 vi.mock('@/lib/admin', () => ({
   getCurrentProfile: async () => ({
-    id: 'p1', accountType: h.accountType, displayName: 'Lan', phone: null, tosVersion: h.tosVersion, email: 'lan@example.com',
+    id: 'p1', accountType: h.accountType, displayName: h.storedName, phone: null, tosVersion: h.tosVersion, email: 'lan@example.com',
   }),
   getCurrentProfileId: async () => 'p1',
   getAdmin: async () => null,
@@ -49,7 +51,7 @@ vi.mock('@/lib/admin', () => ({
 }))
 vi.mock('@/lib/db', () => ({
   db: {
-    seller: { findUnique: async () => null },
+    seller: { findUnique: async () => null, create: async () => ({ id: 's1' }) },
     profile: { update: async ({ data }: { data: Record<string, unknown> }) => { h.profileUpdates.push(data); return {} } },
   },
 }))
@@ -79,6 +81,7 @@ beforeEach(() => {
   h.capiOn = false
   h.appleLinked = false
   h.photoRefreshes = []
+  h.storedName = 'Lan'
 })
 
 describe('account-type — first-touch attribution needs the Analytics purpose', () => {
@@ -257,5 +260,35 @@ describe('account-type — a switch refreshes the shop picture on the listing pa
     h.accountType = 'individual'
     expect((await send({ accountType: 'individual', displayName: 'Lan' })).status).toBe(200)
     expect(h.photoRefreshes).toEqual([])
+  })
+})
+
+describe('⛔ account-type — no contact details in a public name (security review 2026-10-22, item 32)', () => {
+  // The display name and the business name (which becomes the storefront's title) were stored unscreened here, while
+  // PATCH /api/profile refuses the same display name. Same rules and codes now — for what the request SUBMITS.
+  async function choose(body: Record<string, unknown>) {
+    const r = await POST(new Request('https://eno.vn/api/profile/account-type', {
+      method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' },
+    }))
+    return { status: r.status, body: await r.json() }
+  }
+
+  it.each([
+    [{ accountType: 'individual', displayName: 'Lan 0901 234 567' }, 'no_phone_in_name'],
+    [{ accountType: 'individual', displayName: 'lan@example.com' }, 'no_contact_in_name'],
+    [{ accountType: 'business', displayName: 'Lan', businessName: 'Lan Phone Shop zalo: lanshop', phone: '0901234567' }, 'no_contact_in_name'],
+    [{ accountType: 'business', displayName: 'Lan', businessName: 'Shop 0901 234 567', phone: '0901234567' }, 'no_phone_in_name'],
+  ])('%j → 400 %s, and nothing is written', async (body, code) => {
+    expect(await choose(body)).toEqual({ status: 400, body: { error: code } })
+    expect(h.profileUpdates).toEqual([])
+  })
+
+  it('a clean business name goes through', async () => {
+    expect((await choose({ accountType: 'business', displayName: 'Lan', businessName: 'Lan Phone Shop', phone: '0901234567' })).status).toBe(200)
+  })
+
+  it('the STORED fallback is not screened: an older profile whose name is an email can still choose a type', async () => {
+    h.storedName = 'lan@example.com'
+    expect((await choose({ accountType: 'individual' })).status).toBe(200)
   })
 })

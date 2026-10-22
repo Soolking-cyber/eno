@@ -143,6 +143,8 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
           // The API rejects the pair, not one of them: flag both places a number could hide.
           const msg = tr("Phone numbers aren't allowed in the name/about.", 'Không ghi số trong tên/giới thiệu.')
           setFieldErr({ name: msg, bio: msg })
+        } else if (d.error === 'no_contact_in_name') {
+          setFieldErr({ name: tr("Contact details aren't allowed in the business name.", 'Không ghi thông tin liên hệ trong tên doanh nghiệp.') })
         } else if (d.error === 'phone_taken') {
           setFieldErr({ phone: tr('That phone is already used by another storefront.', 'Số này đã được dùng cho gian hàng khác.') })
         } else if (d.error === 'bad_phone') {

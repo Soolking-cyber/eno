@@ -53,6 +53,7 @@ export function AccountTypeSwitcher({ isBusiness, businessName, onSaved }: { isB
         const j = await res.json().catch(() => ({}))
         // Field-coded errors can only arrive while their input is on screen.
         if (j.error === 'business_name_required' && target === 'business') setNameErr(tr('Enter a business name.', 'Nhập tên doanh nghiệp.'))
+        else if ((j.error === 'no_phone_in_name' || j.error === 'no_contact_in_name') && target === 'business') setNameErr(tr("Contact details aren't allowed in the business name.", 'Không ghi thông tin liên hệ trong tên doanh nghiệp.'))
         else if (j.error === 'legal_name_required') setLegalErr({ legalName: tr('Enter the legal name.', 'Nhập tên pháp lý.') })
         else if (j.error === 'legal_address_required') setLegalErr({ legalAddress: tr('Enter the registered address.', 'Nhập địa chỉ đăng ký.') })
         else if (j.error === 'id_number_required') setLegalErr({ idNumber: tr('Enter the CCCD or ERC number.', 'Nhập số CCCD hoặc số ĐKKD.') })

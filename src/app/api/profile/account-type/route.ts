@@ -11,6 +11,8 @@ import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
 import { initialSellerTrust } from '@/lib/trust'
 import { refreshSellerPdps, refreshShopPicturePdps } from '@/lib/seller-pdp-refresh'
 import { cutText } from '@/lib/feed-text'
+import { containsPhoneNumber } from '@/lib/phone'
+import { containsContactInfo } from '@/lib/publish-guard'
 
 export const runtime = 'nodejs'
 
@@ -71,6 +73,16 @@ export const POST = route(
 
   if (accountType === 'business' && !businessName) {
     throw new ApiError('business_name_required', 400)
+  }
+  // ⛔ NO CONTACT DETAILS IN A PUBLIC NAME (security review 2026-10-22, item 32). The display name and the business name
+  // (which becomes Seller.name, the storefront's title) were stored here unscreened, while PATCH /api/profile refuses the
+  // same display name and the publish gate refuses it on a listing. Same rules, same codes. Only what THIS request
+  // submits is screened: the stored fallback is an older row's own (publicSafeName masks it where it renders), and
+  // refusing it would stop that account choosing a type over a name it never typed here.
+  for (const submitted of [cutText(String(body.displayName || '').trim(), 80), businessName]) {
+    if (!submitted) continue
+    if (containsPhoneNumber(submitted)) throw new ApiError('no_phone_in_name', 400)
+    if (containsContactInfo(submitted)) throw new ApiError('no_contact_in_name', 400)
   }
 
   // ── Legal identity for the individual→business SWITCH (owner directive 2026-07-23;

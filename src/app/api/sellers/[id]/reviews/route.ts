@@ -6,6 +6,7 @@ import { maskEmailHandle } from '@/lib/utils'
 import { ApiError, route } from '@/lib/api/handler'
 import { removedReviewConversationNeedle } from '@/lib/reported-content'
 import { refuseObjectionable } from '@/lib/ugc-filter'
+import { saleState } from '@/lib/trade-loop'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,8 +19,8 @@ export const dynamic = 'force-dynamic'
 //   2. the conversation exists (404)
 //   3. the caller is that conversation's BUYER (403)
 //   4. the conversation's listing belongs to seller [id] (403)
-//   5. a transaction actually happened: listing sold OR an offer in this thread
-//      was accepted (403 'not_transacted')
+//   5. a transaction actually happened: the listing was sold TO THIS BUYER, or an
+//      offer in this thread was accepted (403 'not_transacted')
 //   6. one review per conversation — the DB unique index on conversationId is the
 //      dedup (P2002 → 409 'already_reviewed')
 //
@@ -63,7 +64,16 @@ export const POST = route({ auth: 'profile', rateLimit: { bucket: 'review-create
 
   const convo = await db.conversation.findUnique({
     where: { id: conversationId },
-    select: { id: true, buyerProfileId: true, listing: { select: { id: true, sellerId: true, status: true } } },
+    select: {
+      id: true,
+      buyerProfileId: true,
+      listing: {
+        select: {
+          id: true, sellerId: true, status: true, complianceStatus: true, soldChannel: true, soldToProfileId: true, soldAt: true,
+          salePrice: true, saleConfirmedAt: true, saleDeclinedAt: true, saleBuyerHistory: true, saleConfirmPromptedAt: true,
+        },
+      },
+    },
   })
   if (!convo) throw new ApiError('not_found', 404)
   // Only the conversation's BUYER may review (the seller is the subject).
@@ -75,9 +85,15 @@ export const POST = route({ auth: 'profile', rateLimit: { bucket: 'review-create
   // The reviewed storefront must own the listing this conversation is about.
   if (convo.listing.sellerId !== id) throw new ApiError('forbidden', 403)
 
-  // Transaction signal: the listing was sold, or an offer in THIS thread was accepted.
+  // Transaction signal: the listing was sold TO THIS BUYER, or an offer in THIS thread was accepted.
+  // ⚠️ "Sold" alone used to count (security review 2026-10-22, item 32): anyone who had messaged about an item that
+  // later sold to SOMEONE ELSE could post a "Verified buyer" review, which also feeds distinctBuyerReviews and the
+  // trust tier. The sale must name this caller as its eno buyer, read through saleState (the trade loop's one reading
+  // of the sale columns): awaiting their answer or confirmed by them — never one they declined.
+  const sale = saleState(convo.listing)
+  const soldToMe = convo.listing.soldToProfileId === me.id && (sale === 'awaiting_buyer' || sale === 'confirmed')
   const transacted =
-    convo.listing.status === 'sold' ||
+    soldToMe ||
     (await db.message.count({ where: { conversationId, kind: 'offer', offerStatus: 'accepted' } })) > 0
   if (!transacted) throw new ApiError('not_transacted', 403)
   // A review a moderator REMOVED (App Store gate `ugc-safety`, plan R5) does not come straight back. The

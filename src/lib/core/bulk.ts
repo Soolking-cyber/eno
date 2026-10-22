@@ -191,8 +191,12 @@ export async function bulkImportCore(
       if (!isPostableCategory(cat.slug)) { results.push({ row: rowNo, error: 'category_not_postable' satisfies PublishBlockCode }); continue }
       if (title.length < 3) { results.push({ row: rowNo, error: 'Title too short (min 3 chars)' }); continue }
       if (!Number.isFinite(price) || price < 0 || price > 1e12) { results.push({ row: rowNo, error: 'Invalid price' }); continue }
-      if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsContactInfo(title) || containsContactInfo(description)) { results.push({ row: rowNo, error: 'Remove phone / contact info / address from the title and description' }); continue }
-      { const bw = findBannedWord(`${title} ${description}`); if (bw) { results.push({ row: rowNo, error: `Contains a banned word ("${bw}")` }); continue } }
+      // ⚠️ THE DISTRICT AND THE CONDITION ARE PRINTED TOO — the district as the listing's location — and the single
+      // create and edit paths screen both as secondary fields (listings.ts); this path screened only the title and the
+      // description, so a CSV or API row could carry a phone or a Zalo handle in them (security review 2026-10-22, item 32).
+      const printed = [title, description, district, condition]
+      if (printed.some((t) => containsPhoneNumber(t) || containsContactInfo(t))) { results.push({ row: rowNo, error: 'Remove phone / contact info / address from the title, description, district and condition' }); continue }
+      { const bw = findBannedWord(printed.filter(Boolean).join(' ')); if (bw) { results.push({ row: rowNo, error: `Contains a banned word ("${bw}")` }); continue } }
       // ⛔ A HIRING ROW GETS THE JOB-TEXT SCREEN TOO (job-listing.ts jobTextProblem — teacher visibility plan §3a item 6,
       // 2026-10-18): this core creates with its own db.listing.create, so createListingCore's screen never runs for a CSV,
       // /api/v1 bulk, MCP bulk or partner-sync row, and a school could post round it. Every Jobs row is stored as a hiring
