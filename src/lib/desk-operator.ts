@@ -206,3 +206,18 @@ export async function tripRequestInScope(requestId: string, scope: TripDeskScope
   })
   return !!mine
 }
+
+/**
+ * ⛔ THE GATE FOR ONE TRIP REQUEST — the operator's email when the session runs a trip desk AND the request is that
+ * desk's (`getTripDeskScope()` then `tripRequestInScope()`), else null. Admins keep every request.
+ *
+ * Security review 2026-10-22, item 31: the per-request reads and actions (trips/assistance.ts, trips/request-view.ts,
+ * the quote card in trips/dm-flow.ts) checked only `getTripDeskOperator()` — that the caller runs A desk — so once a
+ * partner runs one, it could read, quote or advance another desk's traveller by naming the request id. Only the admin
+ * queue route paired the two checks; every single-request gate now goes through this.
+ */
+export async function tripDeskOperatorFor(requestId: string): Promise<string | null> {
+  const scope = await getTripDeskScope()
+  if (!scope || !(await tripRequestInScope(requestId, scope))) return null
+  return scope.operator
+}

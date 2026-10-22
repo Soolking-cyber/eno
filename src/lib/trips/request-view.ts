@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
-import { getTripDeskOperator } from '@/lib/desk-operator'
+import { tripDeskOperatorFor } from '@/lib/desk-operator'
 import { CITY_MAP } from '@/lib/itinerary-data'
 
 /**
@@ -18,8 +18,8 @@ import { CITY_MAP } from '@/lib/itinerary-data'
  * endpoint against a comment claiming it could not happen; it is not going to be reintroduced here
  * by a new endpoint that forgot.
  *
- * ⚠️ VISIBLE TO THE TRAVELLER AND THE DESK OPERATOR, AND NOBODY ELSE — `getTripDeskOperator()` is
- * the desk's own operator, not a site admin (see desk-operator.ts). An itinerary is a person's
+ * ⚠️ VISIBLE TO THE TRAVELLER AND THE DESK OPERATOR, AND NOBODY ELSE — `tripDeskOperatorFor()` is
+ * the desk's own operator, not a site admin, and only for its own desk's requests (see desk-operator.ts). An itinerary is a person's
  * movements, dated: where they will be and when. It is exactly the shape of data that must not
  * widen its audience by accident, so the check is the narrow one.
  */
@@ -70,7 +70,7 @@ export async function viewTripRequest(
   })
   const mine = request?.profileId === profile.id
   // Missing and forbidden are ONE answer — see the header. Do not split these.
-  if (!request || (!mine && !(await getTripDeskOperator()))) return { ok: false, error: 'forbidden' }
+  if (!request || (!mine && !(await tripDeskOperatorFor(request.id)))) return { ok: false, error: 'forbidden' }
 
   const itinerary = await db.itinerary.findUnique({
     where: { id: request.itineraryId },

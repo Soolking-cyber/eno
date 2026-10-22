@@ -19,6 +19,8 @@ const h = vi.hoisted(() => ({
 vi.mock('../desk-operator', () => ({
   getTripDeskOperator: async () => h.state.admin,
   getVisaDeskOperator: async () => h.state.admin,
+  // Per-request since the 2026-10-22 review (item 31); its scoping is pinned in desk-operator.trip-scope.test.ts.
+  tripDeskOperatorFor: async () => h.state.admin,
 }))
 vi.mock('../admin', () => ({ getAdmin: async () => h.state.admin }))
 vi.mock('./dm-thread', () => ({

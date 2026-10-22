@@ -23,6 +23,10 @@ const h = vi.hoisted(() => ({
     deleteGate: null as unknown, // the .in() filter carried by the DELETE itself
     events: [] as string[], // interleaved remove/delete order
     statusFilter: null as unknown,
+    // the abandoned-draft expiry (src/lib/visa/stale-drafts.ts, its own tests) — stubbed here
+    staleResult: { expired: 0, failed: 0 },
+    staleThrows: false,
+    staleCalls: [] as Array<{ now: Date; deletesSoFar: string[] }>,
   },
 }))
 
@@ -81,6 +85,13 @@ vi.mock('@/lib/visa/db', () => ({
     },
   }),
 }))
+vi.mock('@/lib/visa/stale-drafts', () => ({
+  expireStaleVisaDrafts: async (_db: unknown, now: Date) => {
+    h.state.staleCalls.push({ now, deletesSoFar: [...h.state.rowDeletes] })
+    if (h.state.staleThrows) throw new Error('stale_draft_query_failed:57014')
+    return h.state.staleResult
+  },
+}))
 vi.mock('@/lib/visa/storage', () => ({
   removeVisaFiles: async (paths: string[], opts?: { strict?: boolean }) => {
     if (h.state.removeFailsFor && paths.includes(h.state.removeFailsFor)) {
@@ -113,6 +124,9 @@ beforeEach(() => {
   s.deleteGate = null
   s.events = []
   s.statusFilter = null
+  s.staleResult = { expired: 0, failed: 0 }
+  s.staleThrows = false
+  s.staleCalls = []
 })
 
 describe('cron/visa-retention', () => {
@@ -129,6 +143,7 @@ describe('cron/visa-retention', () => {
     const res = await GET(req('Bearer cron-secret'))
     expect(res.status).toBe(401)
     expect(h.state.queries).toBe(0)
+    expect(h.state.staleCalls).toHaveLength(0)
   })
 
   it('deletes an expired terminal case: objects FIRST, then the row', async () => {
@@ -190,6 +205,27 @@ describe('cron/visa-retention', () => {
     // ONE batch consumed (19 canned batches left) — no churn to MAX_BATCHES.
     expect(h.state.expiredBatches).toHaveLength(19)
     expect(h.state.rowDeletes).toEqual([])
+  })
+
+  it('expires abandoned drafts AFTER the sweep, at the run\'s own clock, and reports both counts', async () => {
+    h.state.expiredBatches = [[{ id: 'case-1' }]]
+    h.state.staleResult = { expired: 2, failed: 1 }
+    const res = await GET(req('Bearer cron-secret'))
+    const body = await res.json()
+    expect(body).toMatchObject({ ok: true, deleted: 1, staleDraftsExpired: 2, staleDraftsFailed: 1 })
+    expect(h.state.staleCalls).toHaveLength(1)
+    // The sweep had finished when the expiry ran (a failure there can never hold up a deletion) …
+    expect(h.state.staleCalls[0].deletesSoFar).toEqual(['case-1'])
+    // … and it ran at the run's `now`, so what it cancels (retention_until = now) is not "remaining" this run.
+    expect(h.state.staleCalls[0].now.toISOString()).toBe(body.checkedAt)
+  })
+
+  it('a failing draft expiry is a loud 500 — and the sweep\'s deletions have already happened', async () => {
+    h.state.expiredBatches = [[{ id: 'case-1' }]]
+    h.state.staleThrows = true
+    const res = await GET(req('Bearer cron-secret'))
+    expect(res.status).toBe(500)
+    expect(h.state.rowDeletes).toEqual(['case-1'])
   })
 
   it('reports the drift alarm and the leftover backlog without acting on either', async () => {

@@ -22,6 +22,8 @@ const h = vi.hoisted(() => ({
     statusMovesTo: null as string | null,
     // Removes the row inside the compare-and-set, so the applier sees a vanished case.
     deleteBeforeCas: null as string | null,
+    // Requests the operator's desk does NOT answer — tripDeskOperatorFor refuses them (review 2026-10-22, item 31).
+    outOfScope: [] as string[],
   },
 }))
 
@@ -50,6 +52,9 @@ vi.mock('./dm-flow', () => ({
 vi.mock('../desk-operator', () => ({
   getTripDeskOperator: async () => h.state.admin,
   getVisaDeskOperator: async () => h.state.admin,
+  // The per-request gate: the operator, unless the request belongs to another desk. Its real scoping (admin keeps
+  // every request; a partner desk only its own conversations) is pinned in desk-operator.trip-scope.test.ts.
+  tripDeskOperatorFor: async (requestId: string) => (h.state.outOfScope.includes(requestId) ? null : h.state.admin),
 }))
 vi.mock('../admin', () => ({
   getCurrentProfile: async () => h.state.profile,
@@ -151,6 +156,7 @@ beforeEach(() => {
   h.state.cards = []
   h.state.statusMovesTo = null
   h.state.deleteBeforeCas = null
+  h.state.outOfScope = []
 })
 
 const seedCase = (over: Partial<{ id: string; status: string; profileId: string }> = {}) => {
@@ -568,5 +574,42 @@ describe('moveAssistanceAsAdmin — the ONE admin transition both surfaces use',
     seedCase({ status: 'requested' })
     await moveAssistanceAsAdmin({ requestId: 'case-1', next: 'reviewing' })
     expect(h.state.updates.every((u) => !('feeVnd' in u.data) && !('supplierTotalVnd' in u.data))).toBe(true)
+  })
+})
+
+describe('⛔ a desk operator acts only on ITS desk\'s requests (security review 2026-10-22, item 31)', () => {
+  // Before, every gate here asked only "does the caller run A trip desk?" — so once a partner ran one, it could read,
+  // review, quote or move another desk's traveller by naming the request id. Each gate now asks about THIS request.
+  beforeEach(() => {
+    h.state.admin = 'ops@partner-desk.example'
+    h.state.outOfScope = ['case-1']
+  })
+
+  it('cannot read another desk\'s case — the same answer as a missing one, so no oracle', async () => {
+    seedCase({ status: 'quoted', profileId: 'another-traveller' })
+    expect(await viewAssistance({ requestId: 'case-1' })).toEqual({ ok: false, error: 'forbidden' })
+    expect(await viewAssistance({ requestId: 'no-such-case' })).toEqual({ ok: false, error: 'forbidden' })
+  })
+
+  it('cannot review, quote or move another desk\'s case, and writes nothing', async () => {
+    seedCase({ status: 'requested', profileId: 'another-traveller' })
+    expect(await startReview({ requestId: 'case-1' })).toEqual({ ok: false, error: 'forbidden' })
+    expect(await moveAssistanceAsAdmin({ requestId: 'case-1', next: 'reviewing' })).toEqual({ ok: false, error: 'forbidden' })
+    h.state.requests['case-1'].status = 'reviewing'
+    expect(await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 1_000_000, feeVnd: 100_000 }))
+      .toEqual({ ok: false, error: 'forbidden' })
+    expect(h.state.updates).toEqual([])
+    expect(h.state.cards).toEqual([])
+  })
+
+  it('still acts on its own desk\'s case', async () => {
+    seedCase({ id: 'case-2', status: 'requested', profileId: 'another-traveller' })
+    expect(await startReview({ requestId: 'case-2' })).toEqual({ ok: true, requestId: 'case-2' })
+  })
+
+  it('the traveller still sees their own case whatever the desk scope says', async () => {
+    seedCase({ status: 'quoted', profileId: 'traveller' })
+    const result = await viewAssistance({ requestId: 'case-1' })
+    expect(result.ok).toBe(true)
   })
 })

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { route } from '@/lib/api/handler'
 import { getVisaDb } from '@/lib/visa/db'
 import { removeVisaFiles } from '@/lib/visa/storage'
+import { expireStaleVisaDrafts } from '@/lib/visa/stale-drafts'
 
 // PDPD RETENTION SWEEP — deletes visa cases (passport PII: encrypted payloads, passport
 // scans, portraits, the finished visa PDF) whose retention window has passed.
@@ -28,6 +29,12 @@ import { removeVisaFiles } from '@/lib/visa/storage'
 //   3. DRAIN, DON'T STARVE. The forum's single LIMIT 100 could fall behind forever past
 //      100 expiries/day. This loops oldest-first until the backlog is empty (bounded by
 //      MAX_BATCHES as a runaway stop) and reports what remains.
+//
+// ABANDONED DRAFTS (security review 2026-10-22, item 30): retention_until is written only on the terminal
+// transitions, so a draft nobody submitted or cancelled kept its passport scan for ever. After the sweep, an unpaid
+// draft idle for STALE_DRAFT_DAYS is cancelled with retention_until = now (src/lib/visa/stale-drafts.ts — what
+// "idle" means is there); the NEXT run's sweep deletes it through the fail-closed path above. It runs after the
+// sweep so a failure in it can never hold up a deletion, and a throw there is the loud 500 below.
 //
 // What deletion leaves BEHIND, deliberately: the marketplace chat thread and its visa
 // cards. Their meta holds ids only (never applicant data — the messages.ts card contract);
@@ -57,7 +64,8 @@ const MAX_BATCHES = 20 // runaway stop: 2000 deletions per run is a backlog, not
 //                                            → `{"error":"forbidden"}` 401
 //   · the expired-case query errors          → `{"error":"visa_database_unavailable"}` 503
 //   · success (including a run where individual cases failed and were counted in `failed`)
-//     → `{ok,deleted,failed,remaining,skippedNonTerminal,checkedAt}` 200 + `Cache-Control: no-store`
+//     → `{ok,deleted,failed,remaining,skippedNonTerminal,staleDraftsExpired,staleDraftsFailed,checkedAt}` 200 +
+//       `Cache-Control: no-store` (the two staleDrafts fields since 2026-10-22)
 //
 // ⚠️ BOTH RETURNS STAY `NextResponse`, VIA route()'s PASS-THROUGH, FOR TWO DIFFERENT REASONS.
 // The 200 carries a `Cache-Control: no-store` header, and neither `apiFail()` nor a returned plain
@@ -123,6 +131,8 @@ export const GET = route({ auth: 'cron' }, async () => {
     if (applications.length < BATCH || batchDeleted === 0) break
   }
 
+  const staleDrafts = await expireStaleVisaDrafts(db, new Date(now))
+
   // Drift alarm (dual review): an EXPIRED retention on a LIVE case means some writer set
   // the timestamp outside the terminal transitions — surface it, never act on it.
   const { count: skippedNonTerminal } = await db
@@ -139,7 +149,10 @@ export const GET = route({ auth: 'cron' }, async () => {
     .lt('retention_until', now)
 
   return NextResponse.json(
-    { ok: true, deleted, failed, remaining: remaining ?? 0, skippedNonTerminal: skippedNonTerminal ?? 0, checkedAt: now },
+    {
+      ok: true, deleted, failed, remaining: remaining ?? 0, skippedNonTerminal: skippedNonTerminal ?? 0,
+      staleDraftsExpired: staleDrafts.expired, staleDraftsFailed: staleDrafts.failed, checkedAt: now,
+    },
     { headers: { 'Cache-Control': 'no-store' } },
   )
 })
