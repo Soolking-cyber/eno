@@ -28,6 +28,7 @@ function mount(o: { t?: Partial<TeacherInput>; imported?: { phone: string | null
         t={{ ...EMPTY_TEACHER, ...o.t }} set={set} errors={{}} errText={() => ''} mode="join" signedIn publishGate={null}
         prefillAvatar={null} prefillPhone={o.prefillPhone ?? null} imported={o.imported ?? null} media={media} edit={null} optInsNoticeChanged={false}
         identityMark={JOIN_MARK}
+        optIns={{ matchEmail: false, staffCall: false, onChange: vi.fn() }}
       />
     </LanguageProvider>,
   )

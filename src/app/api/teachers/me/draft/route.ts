@@ -41,7 +41,7 @@ const LIMIT = { bucket: 'teacher-draft', limit: 600, window: '1 h' } as const
 export const GET = route({ auth: 'profile' }, async ({ profile }) => {
   const d = await readTeacherDraft(profile.id)
   return NextResponse.json(
-    { draft: d ? { t: d.t, step: d.step, rev: d.rev, gen: d.gen, updatedAt: d.updatedAt.toISOString() } : null },
+    { draft: d ? { t: d.t, ...(d.optInsOff?.length ? { optInsOff: d.optInsOff } : {}), step: d.step, rev: d.rev, gen: d.gen, updatedAt: d.updatedAt.toISOString() } : null },
     { headers: PRIVATE },
   )
 })

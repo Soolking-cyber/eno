@@ -27,6 +27,10 @@ describe('/api/teachers/me/draft', () => {
     h.draft = { t: { fullName: 'Jane' }, step: 'where', rev: 4, gen: '11111111-2222-4333-8444-555555555555', updatedAt: new Date('2026-10-11T09:00:00Z') }
     res = await GET(new Request('https://eno.vn/api/teachers/me/draft') as never, {} as never)
     expect(await res.json()).toEqual({ draft: { t: { fullName: 'Jane' }, step: 'where', rev: 4, gen: '11111111-2222-4333-8444-555555555555', updatedAt: '2026-10-11T09:00:00.000Z' } })
+    // The job-match switches the teacher switched off ride beside the answers (2026-10-22) — only when there are any.
+    h.draft = { t: { fullName: 'Jane' }, optInsOff: ['matchEmail'], step: 'where', rev: 4, gen: '11111111-2222-4333-8444-555555555555', updatedAt: new Date('2026-10-11T09:00:00Z') }
+    res = await GET(new Request('https://eno.vn/api/teachers/me/draft') as never, {} as never)
+    expect((await res.json()).draft.optInsOff).toEqual(['matchEmail'])
   })
   it('PUT: the new revision', async () => {
     const res = await put({ t: {}, step: 'where', rev: 1 })

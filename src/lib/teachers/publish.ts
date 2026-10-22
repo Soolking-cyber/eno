@@ -15,6 +15,7 @@ import { deleteListingCore, parseVideoField } from '@/lib/core/listings'
 import { clearTombstones, writeTombstones, type TombstoneRef } from '@/lib/core/storage-tombstones'
 import { purgeStorageObjects } from '@/lib/core/storage-purge'
 import { logError } from '@/lib/log'
+import { appendAudit } from '@/lib/compliance/audit'
 import { LISTING_VIDEOS_BUCKET, TEACHER_CVS_BUCKET, TEACHER_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { planVideoChange, type StoredVideo, type VideoBody, type VideoPlan } from '@/lib/teachers/video'
 import {
@@ -29,7 +30,7 @@ import { IDENTITY_MARK_TP_SELECT, identityMarkHidden, identityMarkShownFor, iden
 import { writeIdentityMarkCard } from '@/lib/teachers/identity-mark-card'
 import {
   AI_NOTICE_VERSION, COVER_FIELDS, PUBLISH_NOTICE_VERSION, TEACHER_SITUATION_VERSION, coverIsPublic, hasTeachingGoal,
-  isLegacyTeacherBody, normalizeCoverFields, normalizeForSave, normalizeTeacherInput, splitGoalErrors,
+  isLegacyTeacherBody, normalizeCoverFields, normalizeForSave, normalizeTeacherInput, phoneWaived, splitGoalErrors,
   teacherFacetTokens, teacherFreeTextFields, validateTeacherInput, whereSkipped, type TeacherErrors, type TeacherInput,
   teacherCardPrice, teacherCardPriceFromSaved } from '@/lib/teachers/profile'
 import { COVER_CONSENT_VERSION, coverStamp } from '@/lib/teachers/cover'
@@ -276,12 +277,19 @@ export function coverWrites(t: TeacherInput, stored: StoredCover | null, now: Da
 /** One opt-in's stored record — the switch and its evidence (plan review C2). */
 export type StoredOptIn = { on: boolean; at: Date | null; version: string | null; withdrawnAt: Date | null }
 /**
- * ⛔ EACH OPT-IN IS ITS OWN CONSENT, WITH ITS OWN EVIDENCE (plan review B9/C2, 2026-10-08 — PDP Law 91/2025 Art 9(4)(d),
- * Decree 356/2025 Art 6(3): no default consent). "Email me jobs that match my profile" and "Our staff may call me":
+ * ⛔ EACH OPT-IN IS ITS OWN SWITCH, WITH ITS OWN EVIDENCE (plan review B9/C2, 2026-10-08). "Email me jobs that match my
+ * profile" and "Our staff may call me":
  *   · switched ON — when, and under which AI notice (AI_NOTICE_VERSION, naming Anthropic and the transfer abroad);
  *     an opt-in kept on from an older notice is RE-STAMPED once saved under today's (the page showed today's words —
  *     `aiNotice`, checked by the save), which is how a Gemini-era opt-in becomes one the matcher may use (D5);
  *   · switched OFF — the withdrawal's time; the last grant stays on record (a re-grant shows as a later At).
+ * ⚖️ ON BY DEFAULT SINCE 2026-10-22 (owner: "all toggles should be on by default" — "On by default everywhere", web and
+ * the native apps). Until then this rule read PDP Law 91/2025 Art 9(4)(d) and Decree 356/2025 Art 6(3) as "no default
+ * consent"; the owner accepted that legal risk, and it is recorded in the dossier ([OWNER DECISION 2026-10-22]). What
+ * changed is the FORM, not this rule: the form applies the default to a NEW profile (teacher-form.tsx optInChoice), so
+ * the stamp records the switch's state AT THE SAVE — on because the teacher left it on, or switched it on — and never
+ * a choice the teacher made apart from it. Which switches a new profile saved with their default still on is recorded
+ * beside it, in the compliance log, as 'teacher.optins.default' (saveTeacherProfile, in the same transaction).
  * Pure: the same rule for the form's save and for any future one-click unsubscribe.
  * ⚠️ NOT the "Identity verified" switch's rule (it borrowed this one, with its own notice, under the opt-in of
  * 2026-10-16): the mark is AUTOMATIC since, and its switch only HIDES it or shows it again — saveTeacherIdentityMark.
@@ -332,6 +340,8 @@ const LOCKED_SELECT = {
   matchEmailOptIn: true, matchEmailOptInAt: true, matchEmailNoticeVersion: true, matchEmailWithdrawnAt: true,
   staffContactOptIn: true, staffContactOptInAt: true, staffContactNoticeVersion: true, staffContactWithdrawnAt: true,
   identityMarkOn: true, identityMarkWithdrawnAt: true,
+  // Whether the profile HAS a phone, read under the lock for the phone waiver (phoneWaived) — never sent anywhere.
+  private: { select: { phone: true } },
 } as const
 
 /**
@@ -360,6 +370,22 @@ const cvUploadOf = (raw: unknown): string | null => {
 const cvFileNameOf = (raw: unknown): unknown => (raw && typeof raw === 'object' ? (raw as Record<string, unknown>).cvFileName : undefined)
 /** A pending upload is attached only with at least this much of its grace hour left (the sweep never meets a claimed one). */
 const CV_PENDING_MIN_GRACE_MS = 10 * 60_000
+
+/**
+ * ⚖️ WHICH JOB-MATCH SWITCHES A NEW PROFILE LEFT AT THEIR DEFAULT (owner, 2026-10-22: they start ON in a new profile's form
+ * — accepted risk, the dossier's [OWNER DECISION 2026-10-22]). The join form sends a top-level `optInDefaults` —
+ * `{ matchEmail, staffCall }`, `false` for a switch the teacher touched. ⛔ CONSERVATIVE (commit gate, codex + opus
+ * 2026-10-22): the flag is the client's word, so it can only take a default AWAY — a body with no `optInDefaults` object
+ * (an older tab, another client) is recorded as "unreported", i.e. as if each switch it stored ON were left at the
+ * default: the record never claims more consent than was shown. ⛔ CREATE-ONLY, like hiddenAtPublish: an edit never
+ * reads it. Never in TeacherInput, never in a draft, never echoed.
+ */
+const optInDefaultsOf = (raw: unknown): { reported: boolean; matchEmail: boolean; staffCall: boolean } => {
+  const v = raw && typeof raw === 'object' ? (raw as Record<string, unknown>).optInDefaults : undefined
+  if (!v || typeof v !== 'object') return { reported: false, matchEmail: true, staffCall: true }
+  const d = v as Record<string, unknown>
+  return { reported: true, matchEmail: d.matchEmail !== false, staffCall: d.staffCall !== false }
+}
 
 /**
  * Create or update the caller's teacher profile and its listing. Returns the listing id.
@@ -413,6 +439,12 @@ export async function saveTeacherProfile(
   // refused with the other answers when it does not, so the form shows them together. Judged again under the lock, where
   // it is known whether this save creates.
   if (expected === null && !cvUploadOf(raw)) errors.cv = 'required'
+  // ⛔ THE PHONE "ON NEXT SAVE" (owner, 2026-10-22: "phone number is mandatory" — "Everyone, on next save"): refused with
+  // the other answers for a body that claims a CREATE (`null`). Any other — an edit, or a caller that names no profile
+  // (outside the PUT route) — is judged once the saved profile is read, below: a profile with no phone yet may still save
+  // a withdrawal without one (phoneWaived), only the saved row says what it had on, and no saved row is a create, refused
+  // there (commit gate, 2026-10-22: a withdrawal is waived whoever sends it). 'invalid' (junk) is refused always.
+  if (expected !== null && errors.phone === 'required') delete errors.phone
   if (Object.keys(errors).length) throw new TeacherValidationError({ ...goalErrors, ...errors })
   if (Object.keys(goalErrors).length && expected === null) throw new TeacherValidationError(goalErrors)
   screenTeacherTexts(t)
@@ -421,9 +453,33 @@ export async function saveTeacherProfile(
   const [seller, category, existing] = await Promise.all([
     sellerFor(profile.id, t.fullName),
     teachersCategory(),
-    db.teacherProfile.findUnique({ where: { profileId: profile.id }, select: { id: true, listingId: true, status: true, photoUrl: true, createdAt: true } }),
+    db.teacherProfile.findUnique({
+      where: { profileId: profile.id },
+      select: {
+        id: true, listingId: true, status: true, photoUrl: true, createdAt: true,
+        matchEmailOptIn: true, staffContactOptIn: true, coverOpen: true, private: { select: { phone: true } },
+      },
+    }),
   ])
   if (seller.trustTier === 'restricted') throw new PublishBlockedError('account_restricted')
+  // ⛔ THE PHONE ON AN EDIT (owner, 2026-10-22): a saved profile with a phone can never clear it, and one with none adds
+  // it the next time it is saved — unless this save only withdraws: it HIDES the profile (no goal left, D6) or switches
+  // OFF something the saved profile had on ("hiding a profile or switching things off is NEVER blocked" — phoneWaived,
+  // the form's own rule). Read before the lock like the photo's and the video's rules; a profile that vanished or changed
+  // since is refused under the lock (profile_changed), and a CREATE is judged there too (no row, no phone, no save).
+  // (`hides`: this edit saves and hides — the D6 rule the save itself applies below.)
+  const hides = Object.keys(goalErrors).length > 0 || !hasTeachingGoal(t)
+  if (existing && !t.phone) {
+    const stored = {
+      phone: !!existing.private?.phone?.trim(),
+      matchEmailOptIn: existing.matchEmailOptIn, staffContactOptIn: existing.staffContactOptIn, coverOpen: existing.coverOpen,
+    }
+    if (!phoneWaived(stored, t, hides)) throw new TeacherValidationError({ phone: 'required' })
+  }
+  // No saved profile: this save creates one, and a new profile always has a phone (also judged under the lock below) —
+  // unless the body claims an EDIT: its profile is gone, and the lock answers profile_changed ("reload"), never a phone
+  // error for a form that is stale (commit gate, opus 2026-10-22).
+  if (!existing && !t.phone && typeof expected !== 'string') throw new TeacherValidationError({ phone: 'required' })
 
   // ── THE PROFILE PHOTO (owner, 2026-10-16: "check uploaded profile pictures so it clearly shows face of the teacher") ──
   // A NEW photo — a first publish, or a URL other than the one saved — needs a passing verdict: the form asked already
@@ -506,6 +562,18 @@ export async function saveTeacherProfile(
     // before the transaction keeps its pending tombstone (the deleteMany that clears it never commits) and nothing
     // committed references it, so the sweep collects it.
     if (expected !== undefined && (locked?.id ?? null) !== expected) throw new TeacherProfileChangedError()
+    // ⛔ THE PHONE, AUTHORITATIVELY FOR A CREATE (owner, 2026-10-22): no row under the lock means this save makes the
+    // profile, and a new profile always has a phone — whatever the read before the lock saw (a profile deleted in between
+    // would otherwise turn a waived edit into a phone-less create). After the profile check, so a body that claimed an
+    // edit of a profile that is gone answers profile_changed ("reload"), never a phone error for a form that is stale.
+    if (!locked && !t.phone) throw new TeacherValidationError({ phone: 'required' })
+    // …and an EDIT's waiver judged again on the row under the lock (checker, 2026-10-22): another tab that added a phone
+    // between the read above and this lock must not have it wiped by a "withdrawal" save with none (the upsert below
+    // writes `phone: null`) — a profile that HAS a phone can never clear it.
+    if (locked && !t.phone && !phoneWaived({
+      phone: !!locked.private?.phone?.trim(),
+      matchEmailOptIn: locked.matchEmailOptIn, staffContactOptIn: locked.staffContactOptIn, coverOpen: locked.coverOpen,
+    }, t, hides)) throw new TeacherValidationError({ phone: 'required' })
     // Read under the lock, so a cover save racing this one cannot make consent/withdrawal lie.
     assertCoverBase(coverBaseOf(raw), locked)
     // The video plan was made from a read BEFORE the lock (its copy cannot run inside it). Every video change bumps the
@@ -665,7 +733,9 @@ export async function saveTeacherProfile(
       try { logError(e, { op: 'teachers.save.identityMark', profileId: profile.id }) } catch { /* the logger never throws */ }
     }
     await writeIdentityMarkCard(tx, id, markShown)
-    // The phone is optional unless staff may call (owner, 2026-10-08): none is stored as none, never as ''.
+    // The phone is REQUIRED since 2026-10-22 (owner: "phone number is mandatory" — checked above: always for a create, on
+    // an edit unless it only withdraws, phoneWaived), no longer only while staff may call (2026-10-08). A profile saved
+    // before then, or a waived withdrawal, still has none: stored as none, never as ''.
     // The CV only in the CREATE (cvAttach — this save made the profile, so its private row is new too): an edit's update
     // never touches cvPath or cvFileName.
     await tx.teacherPrivate.upsert({
@@ -696,6 +766,24 @@ export async function saveTeacherProfile(
     // already committed, and the retry met "you already have a profile").
     const liveRow = await tx.listing.findUnique({ where: { id }, select: { status: true, verified: true } })
     const { id: teacherProfileId, videoVersion, videoOnRequest, ...saved } = tp
+    // ⚖️ A DEFAULT LEFT ON, ON RECORD — IN THIS TRANSACTION (commit gate, codex + opus 2026-10-22: written after the commit,
+    // best effort, a busy log could leave a default-ON stamp that read as a deliberate opt-in). The save that CREATES the
+    // profile with a job-match switch stored ON at its default (optInDefaultsOf — conservatively, any it does not say the
+    // teacher touched) writes one 'teacher.optins.default' row: which, under which AI notice, and whether the form said
+    // so. Last in the transaction: no profile is saved without it, and nothing is recorded for a save that rolls back.
+    if (!locked) {
+      const d = optInDefaultsOf(raw)
+      const leftOn = { matchEmail: tc.matchEmailOptIn && d.matchEmail, staffCall: tc.staffContactOptIn && d.staffCall }
+      if (leftOn.matchEmail || leftOn.staffCall) {
+        // A bounded wait on the log's own lock (commit gate, 2026-10-22: the consent route's rule) — the last statement of
+        // this transaction, so nothing else waits under it; a log busy for 2 s fails the Publish, which the teacher repeats.
+        await tx.$executeRaw`SELECT set_config('lock_timeout', '2000ms', true)`
+        await appendAudit(tx, {
+          actorType: 'user', actorId: profile.id, action: 'teacher.optins.default', subjectType: 'profile', subjectId: profile.id,
+          detail: { ...leftOn, aiNotice: AI_NOTICE_VERSION, teacherProfileId, source: d.reported ? 'form' : 'unreported' },
+        })
+      }
+    }
     return {
       onboarded, live: liveRow?.status === 'active' && liveRow.verified === true,
       listingId: id, teacherProfileId, saved, noGoal, location: p.location,

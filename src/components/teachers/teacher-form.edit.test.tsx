@@ -28,7 +28,10 @@ afterAll(() => { configure({ asyncUtilTimeout }); vi.resetConfig() })
 beforeAll(() => { Element.prototype.scrollIntoView ??= function () {} })
 
 const PHOTO = 'https://sb.eno.vn/storage/v1/object/public/listings/me.webp'
-/** The saved profile as GET /api/teachers/me returns it (the TeacherProfile row + the owner-only extras). */
+/**
+ * The saved profile as GET /api/teachers/me returns it (the TeacherProfile row + the owner-only extras). With a phone: it
+ * is required on every save since 2026-10-22 (owner: "phone number is mandatory") — a profile without one is ROW_NO_PHONE.
+ */
 const ROW = {
   id: 'tp1', profileId: 'u1', listingId: 'L1', status: 'live', listingLive: true, situationVersion: 1,
   livesIn: 'city', currentCity: 'ho-chi-minh-city', currentDistrictKey: 'd7', currentProvince: null, currentDistrict: 'Quận 7 (Phú Mỹ Hưng)',
@@ -38,7 +41,7 @@ const ROW = {
   degreeLevel: null, degreeMajor: null, degreeInstitution: null, degreeYear: null, certificates: [],
   fullName: 'Jane Doe', nationality: 'GB', englishLevel: 'native', nativeSpeaker: true, languages: [], headline: 'CELTA English teacher, five years', bio: '',
   coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConsentVersion: null, coverConsentAt: null, coverConfirmedAt: null,
-  photoUrl: PHOTO, videoUrl: null, videoOnRequest: false, videoVersion: 0, hasPrivateVideo: false, cvFileName: null, phone: '',
+  photoUrl: PHOTO, videoUrl: null, videoOnRequest: false, videoVersion: 0, hasPrivateVideo: false, cvFileName: null, phone: '+84901234567',
   matchEmailOptIn: false, matchEmailNoticeVersion: null, staffContactOptIn: false, staffContactNoticeVersion: null,
   consentPublicVersion: PUBLISH_NOTICE_VERSION,
 }
@@ -887,5 +890,112 @@ describe('⛔ the "Identity verified" switch — automatic, hidden on toggle, ne
     expect(await screen.findByText('Verify your identity first — eno’s team checks an ID document and a selfie.')).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Verify my identity' })).toBeNull()
     expect(screen.getByText(/Identity verification is available on our website, in a web browser:/)).toBeTruthy()
+  })
+})
+
+// ── THE PHONE IS MANDATORY "ON NEXT SAVE" (owner, 2026-10-22: "Everyone, on next save") — a saved profile with no phone
+// (24 of 125 live ones that day) adds one the next time it is saved, but ⛔ "hiding a profile or switching things off is
+// NEVER blocked" (profile.ts phoneWaived): a save that hides it (D6) or switches off something it had on goes through.
+// And ⛔ the job-match switches of an existing profile are NEVER flipped by the new default: they load as stored. ─────────
+describe('⛔ the phone on an edit, and the switches as stored (owner, 2026-10-22)', () => {
+  const ROW_NO_PHONE = { ...ROW, phone: '' }
+  const OPTINS_ON = { matchEmailOptIn: true, matchEmailNoticeVersion: AI_NOTICE_VERSION, staffContactOptIn: true, staffContactNoticeVersion: AI_NOTICE_VERSION }
+  const phoneLine = 'Please add your phone number — it stays private: the person you are chatting with gets it only when you share it.'
+
+  it('a profile with no saved phone: Save is refused ON THE PHONE (Photo & publish opens), nothing sent — and saves once one is added', async () => {
+    row = ROW_NO_PHONE
+    const user = mount()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    await user.click(action('Save changes'))
+    expect(await screen.findByText(phoneLine)).toBeTruthy()
+    const phone = screen.getByRole('textbox', { name: 'Phone number' })
+    expect(phone.getAttribute('aria-invalid')).toBe('true')
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false)
+    await user.type(phone, '+84 901 234 567')
+    await user.click(action('Save changes'))
+    await waitFor(() => expect(lastPut()).toMatchObject({ phone: '+84 901 234 567' }))
+    expect(await screen.findByText('Profile saved')).toBeTruthy()
+  })
+
+  it('⛔ …except a save that switches job emails OFF — a withdrawal is never refused for the phone', async () => {
+    // Staff calls off: since 2026-10-08 they needed a phone, so a saved profile without one never had them on.
+    row = { ...ROW_NO_PHONE, ...OPTINS_ON, staffContactOptIn: false, staffContactNoticeVersion: null }
+    history.replaceState(null, '', '/teachers/edit?step=finish')
+    const user = mount()
+    const email = await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })
+    expect(email.getAttribute('aria-checked')).toBe('true')
+    await user.click(email)
+    await user.click(action('Save changes'))
+    await waitFor(() => expect(lastPut()).toBeTruthy())
+    expect(lastPut()).toMatchObject({ phone: '', matchEmailOptIn: false, staffContactOptIn: false })
+    expect(screen.queryByText(phoneLine)).toBeNull()
+  })
+
+  it('⛔ a WITHDRAWAL only (commit gate, 2026-10-22): staff calls kept on beside a switch-off still need the number', async () => {
+    row = { ...ROW_NO_PHONE, ...OPTINS_ON }
+    history.replaceState(null, '', '/teachers/edit?step=finish')
+    const user = mount()
+    await user.click(await screen.findByRole('switch', { name: 'Email me jobs that match my profile' }))
+    await user.click(action('Save changes'))
+    expect(await screen.findByText(phoneLine)).toBeTruthy()
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false)
+  })
+
+  it('…while the same profile saved with nothing switched off still needs the phone', async () => {
+    row = { ...ROW_NO_PHONE, ...OPTINS_ON }
+    history.replaceState(null, '', '/teachers/edit?step=finish')
+    const user = mount()
+    expect(await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })).toBeTruthy()
+    await user.click(action('Save changes'))
+    expect(await screen.findByText(phoneLine)).toBeTruthy()
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false)
+  })
+
+  it('⛔ …and a save that HIDES it (no work wanted, cover off — D6) goes through without a phone, still asked first', async () => {
+    row = { ...ROW_NO_PHONE, expectedSalaryM: null, availableFrom: null }
+    const user = mount()
+    await user.click(await screen.findByRole('button', { name: 'Full-time' })) // the last job type: nothing to be found for
+    await user.click(action('Save changes'))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText(/No work is chosen in step 1 and cover lessons are off/)).toBeTruthy()
+    await user.click(within(dialog).getByRole('button', { name: 'Save and hide' }))
+    await waitFor(() => expect(lastPut()).toMatchObject({ phone: '', jobTypes: [] }))
+    expect(screen.queryByText(phoneLine)).toBeNull()
+  })
+
+  it('a phone that IS saved can never be cleared — not even by a save that switches something off', async () => {
+    row = { ...ROW, ...OPTINS_ON }
+    history.replaceState(null, '', '/teachers/edit?step=finish')
+    const user = mount()
+    await user.clear(await screen.findByRole('textbox', { name: 'Phone number' }))
+    await user.click(screen.getByRole('switch', { name: 'Email me jobs that match my profile' }))
+    await user.click(action('Save changes'))
+    expect(await screen.findByText(phoneLine)).toBeTruthy()
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false)
+  })
+
+  it('⛔ stored OFF stays OFF — the new-profile default never flips an existing profile — and the save sends them off, no aiNotice, no optInDefaults', async () => {
+    history.replaceState(null, '', '/teachers/edit?step=finish')
+    const user = mount()
+    const email = await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })
+    expect(email.getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByRole('switch', { name: 'Our staff may call me' }).getAttribute('aria-checked')).toBe('false')
+    await user.click(action('Save changes'))
+    await waitFor(() => expect(lastPut()).toBeTruthy())
+    expect(lastPut()).toMatchObject({ matchEmailOptIn: false, staffContactOptIn: false })
+    expect('aiNotice' in lastPut()!).toBe(false)
+    expect('optInDefaults' in lastPut()!).toBe(false)
+  })
+
+  it('stored ON stays ON, and saves ON with the aiNotice — no optInDefaults on an edit', async () => {
+    row = { ...ROW, ...OPTINS_ON }
+    history.replaceState(null, '', '/teachers/edit?step=finish')
+    const user = mount()
+    expect((await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })).getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByRole('switch', { name: 'Our staff may call me' }).getAttribute('aria-checked')).toBe('true')
+    await user.click(action('Save changes'))
+    await waitFor(() => expect(lastPut()).toBeTruthy())
+    expect(lastPut()).toMatchObject({ matchEmailOptIn: true, staffContactOptIn: true, aiNotice: AI_NOTICE_VERSION })
+    expect('optInDefaults' in lastPut()!).toBe(false)
   })
 })

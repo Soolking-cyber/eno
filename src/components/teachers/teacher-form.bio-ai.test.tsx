@@ -242,8 +242,10 @@ describe('"Improve with AI" — a tap', () => {
     expect(screen.queryByRole('button', { name: 'Undo the AI rewrite' })).toBeNull()
     expect(box().value).toBe(`${AI} Ask me about mock tests.`)
     // …and the text made the AI's again by hand brings no stale Undo back (gate review, codex 2026-10-22).
+    // Pasted, not typed key by key: ~220 keystrokes re-render this whole form each time (30 s+ under load).
     await user.clear(box())
-    await user.type(box(), AI)
+    await user.click(box())
+    await user.paste(AI)
     expect(box().value).toBe(AI)
     expect(screen.queryByRole('button', { name: 'Undo the AI rewrite' })).toBeNull()
   })

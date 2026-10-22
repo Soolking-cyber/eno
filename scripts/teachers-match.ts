@@ -23,7 +23,7 @@
  * are exported, written back or put on the staff list; consent and liveness are re-checked at write time.
  * ⛔ THE EXPORT CARRIES NO NAME AND NO CONTACT DATA: phone, email, photo, video and CV are never selected for it, and the
  * name only to take its words out of the free text (match-io.ts toMatchTeacher) — none of it reaches the AI judge.
- * Phone/email appear ONLY in the local staff CSV, and only for teachers who allowed staff calls under the current notice.
+ * Phone/email appear ONLY in the local staff CSV, and only for teachers with staff calls on under the current notice.
  * ⛔ ONLY CLAUDE HAIKU 5.5 VERDICTS LAND: an output with any pair not judged by it under the v2 prompt is refused whole
  * (exit 3) — an old-wrapper output (Gemini via agy, the Opus fallback) never reaches the database.
  * ⛔ The CSV is personal data: it stays on this machine (never a shared sheet). Files older than 90 days are deleted by

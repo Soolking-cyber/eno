@@ -35,7 +35,7 @@ import { uploadListingVideo } from '@/lib/video-upload-client'
 import { prepareTeacherVideo, type TeacherVideoPrepError } from '@/lib/teachers/video-prep'
 import {
   AI_NOTICE_VERSION, DRAFT_STEPS, EMPTY_TEACHER, LIMITS, PRE_SIGNIN_STEPS, PUBLISH_NOTICE_VERSION, TEACHER_STEPS, TEACHER_STEP_FIELDS, teacherFreeTextFields, hasTeachingGoal, normalizeForSave,
-  normalizeTeacherInput, splitGoalErrors, teacherSteps, isTeacherPhone, type TeacherErrors, type TeacherInput, type TeacherStep,
+  normalizeTeacherInput, phoneWaived, splitGoalErrors, teacherSteps, isTeacherPhone, type PhoneWaiverBase, type TeacherErrors, type TeacherInput, type TeacherStep,
 } from '@/lib/teachers/profile'
 import { TEACHER_DRAFT_HASH_KEY, cvRequiredSince, isCvUploadToken, videoRequiredSince } from '@/lib/teachers/constants'
 import { COVER_CONSENT_VERSION, coverStamp, mergeStaleCover, type SavedCover } from '@/lib/teachers/cover'
@@ -92,6 +92,9 @@ type Mode = 'join' | 'edit'
  * (profile.ts normalizeTeacherInput → fromLegacyTeacher) and opens on its first step that fails.
  * `districtNotSaying` (only when true): the HCMC district was answered "Prefer not to say" — an answer that stores
  * nothing, so it rides beside `t`, never in it (gate review, 2026-10-08; the form's districtNotSaying below).
+ * `optInsOff` (only when not empty, 2026-10-22): the job-match switches the teacher switched OFF on this tab — beside `t`,
+ * exactly like districtNotSaying (the form's optInChoice below). ⛔ ONLY A REFUSAL IS KEPT: ON is the default, so an
+ * explicit ON is never written, and no copy, draft or link ever carries a consent.
  */
 const DRAFT_TTL_MS = 15 * 60_000
 /**
@@ -101,22 +104,39 @@ const DRAFT_TTL_MS = 15 * 60_000
  * so a later sign-in by someone else in this tab never takes the last person's answers as its own (plan review).
  */
 type DraftBase = { uid: string; rev: number; gen: string }
+/**
+ * ⛔ THE JOB-MATCH SWITCHES OF A NEW PROFILE, AS THE TEACHER SET THEM (owner, 2026-10-22: "all toggles should be on by
+ * default" — "On by default everywhere", accepted legal risk, recorded in the dossier). A key the teacher has not touched
+ * is absent, and the switch shows the default (the form's optInDefaultOn); a key present is their own act.
+ */
+type OptInKey = 'matchEmail' | 'staffCall'
+type OptInChoice = Partial<Record<OptInKey, boolean>>
+const OPT_IN_KEYS: readonly OptInKey[] = ['matchEmail', 'staffCall']
+/** What a tab copy keeps of the choice: the refusals alone (StoredDraft.optInsOff). */
+const refusalsOf = (c: OptInChoice): OptInKey[] => OPT_IN_KEYS.filter((k) => c[k] === false)
+const choiceFromRefusals = (off: readonly OptInKey[]): OptInChoice => Object.fromEntries(off.map((k) => [k, false]))
+const isOptInKey = (v: unknown): v is OptInKey => v === 'matchEmail' || v === 'staffCall'
 // `owner`: the account signed in when the copy was written — ⛔ a copy is put back only for it (commit gate, round 11).
-type StoredDraft = { v: 5; savedAt: number; step: TeacherStep; t: TeacherInput; districtNotSaying?: true; signIn?: number; base?: DraftBase; owner?: string }
-export type ReadDraft = { t: unknown; step: TeacherStep | null; districtNotSaying?: true; signIn?: number; base?: DraftBase; owner?: string }
+type StoredDraft = { v: 5; savedAt: number; step: TeacherStep; t: TeacherInput; districtNotSaying?: true; optInsOff?: OptInKey[]; signIn?: number; base?: DraftBase; owner?: string }
+export type ReadDraft = { t: unknown; step: TeacherStep | null; districtNotSaying?: true; optInsOff?: OptInKey[]; signIn?: number; base?: DraftBase; owner?: string }
 export const readStoredDraft = (now = Date.now()): ReadDraft | null => {
   try {
     localStorage.removeItem(DRAFT_KEY) // the old device-wide draft, kept for good: deleted unread
-    const d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null') as { v?: unknown; savedAt?: unknown; step?: unknown; t?: unknown; districtNotSaying?: unknown; signIn?: unknown; base?: unknown; owner?: unknown } | null
+    const d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null') as { v?: unknown; savedAt?: unknown; step?: unknown; t?: unknown; districtNotSaying?: unknown; optInsOff?: unknown; signIn?: unknown; base?: unknown; owner?: unknown } | null
     if (d && (d.v === 5 || d.v === 4 || d.v === 3) && d.t && typeof d.savedAt === 'number' && now - d.savedAt < DRAFT_TTL_MS) {
       // ⛔ NOTHING OWNERLESS CARRIES MORE THAN STEP 1 (commit gate, codex + opus rounds 13-14). A copy written signed out
       // — or before copies had an owner (v3/v4: the form before 2026-10-12, which a signed-out visitor could fill through
       // "About you") — is read as what a signed-out visitor gives: step 1. Never a previous person's name or bio on a
       // shared tab, nor an old or crafted link's; a copy with an owner is put back only for that account (the restore).
       const owner = d.v === 5 && typeof d.owner === 'string' && d.owner ? d.owner : null
+      // A refusal only from a copy with an owner, like the answers past step 1 (commit gate, codex 2026-10-22: never one
+      // account's refusal on the next account's form). Nothing is lost by it: a refusal is made signed in (the last step),
+      // in a form that stays that account's until it leaves (TeacherForm remounts and clears the copy then).
+      const optInsOff = owner && Array.isArray(d.optInsOff) ? [...new Set(d.optInsOff.filter(isOptInKey))] : []
       return {
         t: owner ? d.t : handoffPart(fromDraft(d.t)), step: d.v !== 3 && isTeacherStep(d.step) ? d.step : null,
         ...(d.v !== 3 && d.districtNotSaying === true ? { districtNotSaying: true as const } : {}),
+        ...(optInsOff.length ? { optInsOff } : {}),
         ...(d.v === 5 && typeof d.signIn === 'number' && now - d.signIn < DRAFT_TTL_MS ? { signIn: d.signIn } : {}),
         ...(owner && isDraftBase(d.base) ? { base: d.base } : {}),
         ...(owner ? { owner } : {}),
@@ -126,11 +146,12 @@ export const readStoredDraft = (now = Date.now()): ReadDraft | null => {
     return null
   } catch { return null }
 }
-export const writeStoredDraft = (t: TeacherInput, step: TeacherStep, ui: { districtNotSaying?: boolean; signIn?: number | null; base?: DraftBase | null; owner?: string | null } = {}) => {
+export const writeStoredDraft = (t: TeacherInput, step: TeacherStep, ui: { districtNotSaying?: boolean; optInsOff?: readonly OptInKey[] | null; signIn?: number | null; base?: DraftBase | null; owner?: string | null } = {}) => {
   try {
     const draft: StoredDraft = {
       v: 5, savedAt: Date.now(), step, t: forDraft(t),
       ...(ui.districtNotSaying ? { districtNotSaying: true as const } : {}),
+      ...(ui.optInsOff?.length ? { optInsOff: [...ui.optInsOff] } : {}),
       ...(ui.signIn ? { signIn: ui.signIn } : {}),
       ...(ui.base ? { base: ui.base } : {}),
       ...(ui.owner ? { owner: ui.owner } : {}),
@@ -213,9 +234,13 @@ function draftFetch(url: string, init: RequestInit = {}, ms = DRAFT_LOAD_TIMEOUT
   return fetch(url, { ...init, signal: ctl.signal }).finally(() => clearTimeout(slow))
 }
 const DRAFT_URL = '/api/teachers/me/draft'
-/** ⛔ What a save sends: the tab draft's shape (no upload, cover switch or consent — forDraft) and never the phone. */
-const draftBody = (t: TeacherInput, step: TeacherStep, rev: number, gen: string | null) =>
-  JSON.stringify({ t: { ...forDraft(t), phone: '' }, step, rev, ...(gen ? { gen } : {}) })
+/**
+ * ⛔ What a save sends: the tab draft's shape (no upload, cover switch or consent — forDraft) and never the phone — and,
+ * beside it, the job-match switches the teacher switched OFF (commit gate, 2026-10-22: kept with the account, so a refusal
+ * is never lost to another tab or device and then recorded as "left at its default"; a refusal is no consent — draft.ts).
+ */
+const draftBody = (t: TeacherInput, step: TeacherStep, rev: number, gen: string | null, optInsOff: readonly OptInKey[]) =>
+  JSON.stringify({ t: { ...forDraft(t), phone: '' }, ...(optInsOff.length ? { optInsOff } : {}), step, rev, ...(gen ? { gen } : {}) })
 /** A fresh generation for a first save (rev 0): proposed by the tab, so a cut-off one is recognised exactly. */
 function newDraftGen(): string {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -527,6 +552,56 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   // stores none — an edit opens such a district empty, which is what was stored.
   const [districtNotSaying, setDistrictNotSaying] = useState(false)
   if (districtNotSaying && !(t.livesIn === 'city' && t.currentCity === HCMC)) setDistrictNotSaying(false)
+  /**
+   * ⛔ THE JOB-MATCH SWITCHES ARE ON BY DEFAULT FOR A NEW PROFILE (owner, 2026-10-22: "all toggles should be on by default"
+   * → "On by default everywhere" — the web and the apps; accepted legal risk, recorded in the dossier with which teachers
+   * left a default on). The default is applied BESIDE `t`, NEVER INTO IT (two plan reviews): the form decides "empty" by
+   * identity (`t === EMPTY_TEACHER`) in several places, and every wholesale setT — a tab copy put back, a hand-off, the
+   * saved draft, Start over, a CV reading — would reset switches held in `t` (forDraft strips them); and no draft or `#d=`
+   * link may ever carry a consent.
+   *   · `optInChoice`: what the teacher set on THIS page — a key absent is untouched, and shows the default;
+   *   · `optInDefaultOn`: join, and no profile known for this account (!existing — not waiting for the read: a join form over
+   *     an existing profile cannot create, the lock refuses it);
+   *   · the EFFECTIVE value (optInView): join — the choice, else the default; edit — `t`'s own, as loaded. ⛔ An existing
+   *     profile is never flipped: an opt-in it has off (or that loaded off under an older notice — D5) stays off.
+   * Only a REFUSAL is remembered — in the tab copy (StoredDraft.optInsOff) and WITH THE ACCOUNT (the draft's optInsOff,
+   * draft.ts), so another tab or device keeps it; in this tab it outlives Start over (a privacy choice, not an answer —
+   * the account's copy goes with the answers, and comes back with the next one saved: the server keeps no draft without
+   * answers, so another device shows the default meanwhile — commit gate, 2026-10-22, accepted); Publish pins the
+   * choice to what was saved. ⚠️ An explicit ON is NOT remembered (the draft never holds a consent): after a reload it reads
+   * as untouched, and Publish records it as "left at its default" — the record understates consent, never overstates it
+   * (commit gate, codex 2026-10-22, accepted). The ref is the choice as of now, for a callback before the next render.
+   */
+  const [optInChoice, setOptInChoiceState] = useState<OptInChoice>({})
+  const optInChoiceRef = useRef<OptInChoice>({})
+  const setOptInChoice = useCallback((c: OptInChoice) => { optInChoiceRef.current = c; setOptInChoiceState(c) }, [])
+  // ⚠️ NOT waiting for /api/teachers/me (commit gate, codex + opus 2026-10-22: waiting showed the switches OFF, then flipped
+  // them ON with no tap). A join form whose account turns out to have a profile cannot create one with it — its save with
+  // `teacherProfileId: null` is refused under the lock (profile_changed) — so no default is ever stored for it.
+  const optInDefaultOn = mode === 'join' && !existing
+  /**
+   * Refusals another tab or device saved with the account draft: each one is applied here, over this tab's own ON too —
+   * the cautious side (commit gate, codex 2026-10-22: an earlier ON in this tab must never outlive a newer refusal made
+   * elsewhere, e.g. after "Open the latest version"). Switching it on again is one tap, in view beside Publish.
+   */
+  const adoptRefusals = (off: unknown) => {
+    const list = Array.isArray(off) ? off.filter(isOptInKey) : []
+    const cur = optInChoiceRef.current
+    if (list.every((k) => cur[k] === false)) return
+    setOptInChoice({ ...cur, ...Object.fromEntries(list.map((k) => [k, false])) })
+  }
+  /** `x` with the switches as they are in effect — what the last step shows and Publish validates and sends. */
+  const optInView = (x: TeacherInput, choice: OptInChoice = optInChoiceRef.current): TeacherInput => mode === 'join'
+    ? { ...x, matchEmailOptIn: choice.matchEmail ?? optInDefaultOn, staffContactOptIn: choice.staffCall ?? optInDefaultOn }
+    : x
+  /**
+   * ⛔ THE PHONE IS MANDATORY "ON NEXT SAVE" (owner, 2026-10-22) — edit: what the SAVED profile had, as phoneWaived
+   * (profile.ts) reads it: a save of a profile with no phone that hides it or switches something off is never refused for
+   * the phone. Captured at the load from what was stored (the opt-ins and cover counted only under today's notices, as
+   * they load), moved by each save that lands; null for a save that creates (join, or an edit whose profile has no id),
+   * which always needs one.
+   */
+  const savedPhoneBase = useRef<PhoneWaiverBase | null>(null)
   // Edit: a save that would HIDE the profile, held until the teacher says so (the dialog below).
   const [confirmHide, setConfirmHide] = useState(false)
   // The success screen replaces a long wizard: bring its heading into view (preview check, 2026-10-07 — after Publish
@@ -651,6 +726,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     const restored = fromDraft(stored.t)
     setT(restored)
     if (stored.districtNotSaying) setDistrictNotSaying(true)
+    // A switch the teacher turned OFF on this tab stays off across a reload (the only part of the choice a copy keeps;
+    // only an owned copy carries one — readStoredDraft — and it is put back for its own account alone).
+    if (stored.optInsOff) setOptInChoice(choiceFromRefusals(stored.optInsOff))
     setArrived(true)
     // A sign-in this form opened for these answers, still pending (Google's round trip): they may become its draft.
     if (stored.signIn && returnedFromSignIn) restoredSignIn.current = stored.signIn
@@ -779,6 +857,11 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const sentStep = useRef<TeacherStep | null>(null)
   const saveDraftRef = useRef<() => Promise<void>>(async () => {})
   /**
+   * A job-match switch the teacher turned off (or on again) on THIS page that the account's draft has not taken yet —
+   * set only by the teacher's own tap, so nothing restored or loaded is ever pushed into the account by it (heldBack).
+   */
+  const refusalsDirty = useRef(false)
+  /**
    * ⛔ ANSWERS ON THE PAGE THE ACCOUNT HAS NOT TAKEN YET — the load found answers this form did not sign in for (a tab copy
    * left signed out, a hand-off opened signed in) and holds them back until the teacher moves on from a step with them on
    * screen. Set there, cleared by the first save that lands. A CV reading must not carry them into the account unseen
@@ -854,7 +937,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         const slow = setTimeout(() => ctl.abort(), DRAFT_SAVE_TIMEOUT_MS)
         const sendGen = base === 0 ? newDraftGen() : draftGen.current
         sentGen = sendGen ?? ''
-        const r = await fetch(DRAFT_URL, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: draftBody(snapshot, step, base, sendGen), signal: ctl.signal })
+        const refusalsSent = refusalsOf(optInChoiceRef.current)
+        const r = await fetch(DRAFT_URL, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: draftBody(snapshot, step, base, sendGen, refusalsSent), signal: ctl.signal })
           .finally(() => clearTimeout(slow))
         const d = await r.json().catch(() => ({}))
         // Start over (or another choice of answers) since: this answer is not for the form on screen.
@@ -865,6 +949,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
           draftGen.current = d.gen
           savedT.current = snapshot
           savedStep.current = step
+          if (refusalsOf(optInChoiceRef.current).join(',') === refusalsSent.join(',')) refusalsDirty.current = false
           setDraftState('saved')
           setSaveLanded((n) => n + 1)
           heldBack.current = false
@@ -930,10 +1015,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     if (restoredSignIn.current) { adoptAt.current = restoredSignIn.current; restoredSignIn.current = null }
     fetch(DRAFT_URL, { cache: 'no-store', signal: ctl.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(Object.assign(new Error(String(r.status)), { status: r.status }))))
-      .then((d: { draft?: { t: unknown; step: unknown; rev: unknown; gen: unknown } | null }) => {
+      .then((d: { draft?: { t: unknown; optInsOff?: unknown; step: unknown; rev: unknown; gen: unknown } | null }) => {
         if (!alive) return
         const row = d?.draft
         draftGen.current = row && typeof row.gen === 'string' ? row.gen : null
+        // A refusal saved with the account (another tab, another device) stays a refusal here.
+        if (row) adoptRefusals(row.optInsOff)
         // Loaded after "You are signed out" (a 401 before): that line goes; the branches below say what is saved now.
         setDraftState((s) => (s === 'failed' ? '' : s))
         loadBackoff.current = 0
@@ -1077,11 +1164,22 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     if (!draftOn) return
     const onVisibility = () => {
       if (document.visibilityState !== 'hidden' || saveQ.current.inFlight || nothingToSave(tRef.current)) return
-      if (tRef.current !== savedT.current || draftStepRef.current !== savedStep.current) void saveDraftRef.current()
+      // …a switch the teacher tapped since the last save too, if its own save (saveRefusalsNow) could not run.
+      if (tRef.current !== savedT.current || draftStepRef.current !== savedStep.current || refusalsDirty.current) void saveDraftRef.current()
     }
     document.addEventListener('visibilitychange', onVisibility)
     return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [draftOn])
+  // ⛔ A JOB-MATCH SWITCH TAPPED ON THE LAST STEP REACHES THE ACCOUNT AT ONCE (commit gate, codex + opus 2026-10-22: a
+  // refusal left for the next step change, or for a background event a closing tab may never fire, could be lost and a
+  // later Publish elsewhere record the default) — through the same one-at-a-time queue: a save on its way sends it again
+  // when it lands (movedDuringSave). Not while answers the account has not taken are on the page (heldBack): those go
+  // when the teacher moves on, as for any answers.
+  const saveRefusalsNow = () => {
+    if (!draftOn || heldBack.current || nothingToSave(tRef.current)) return
+    if (saveQ.current.inFlight) { movedDuringSave.current = true; return }
+    void saveDraftRef.current()
+  }
   // ⛔ UNMOUNTED (a sign-out or another account remounts the form — TeacherForm): nothing of this form fires afterwards.
   // A save on its way is cut off and can schedule no retry, which would otherwise send the previous teacher's answers
   // under whoever is signed in next (commit gate, codex 2026-10-11).
@@ -1115,11 +1213,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   }
   /** Another tab or device saved since: take the saved answers, or keep these (saving them over it). */
   const resolveStale = async (keep: boolean) => {
-    let row: { t: unknown; step: unknown; rev: number; gen: string } | null
+    let row: { t: unknown; optInsOff?: unknown; step: unknown; rev: number; gen: string } | null
     try {
       const r = await draftFetch(DRAFT_URL, { cache: 'no-store' })
       if (!r.ok) throw new Error(String(r.status))
-      row = ((await r.json()) as { draft?: { t: unknown; step: unknown; rev: number; gen: string } | null })?.draft ?? null
+      row = ((await r.json()) as { draft?: { t: unknown; optInsOff?: unknown; step: unknown; rev: number; gen: string } | null })?.draft ?? null
+      if (row) adoptRefusals(row.optInsOff)
     } catch {
       // Nothing known: the choice stays on the screen — never a silent "keep" (commit gate, 2026-10-11).
       setFormError(tr('Could not reach your saved profile — please try again.', 'Không thể tải hồ sơ đã lưu — vui lòng thử lại.'))
@@ -1218,6 +1317,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     setErrors({})
     setFormError('')
     setDistrictNotSaying(false)
+    // ⛔ A REFUSAL OUTLIVES START OVER IN THIS TAB (commit gate, 2026-10-22): it is a privacy choice, not an answer — the
+    // answers go, a switch the teacher turned off stays off (and is saved with the next draft).
+    setOptInChoice(choiceFromRefusals(refusalsOf(optInChoiceRef.current)))
     setResumeTo(null)
     setStepKey(PRE_SIGNIN_STEPS[0])
     setDraftState('')
@@ -1472,6 +1574,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
           history.replaceState(null, '', window.location.pathname + (params.toString() ? `?${params}` : ''))
         }
         setT(next)
+        // What the phone waiver reads of the SAVED profile (phoneWaived): no id, and the next save is a create — never waived.
+        // ⚠️ The switches AS STORED, not as loaded (checker, 2026-10-22): one kept on under an older notice loads OFF, and
+        // saving it off IS a withdrawal — the server (publish.ts) judges the stored columns, and so must this.
+        savedPhoneBase.current = typeof tp.id === 'string'
+          ? { phone: typeof tp.phone === 'string' && !!tp.phone.trim(), matchEmailOptIn: tp.matchEmailOptIn === true, staffContactOptIn: tp.staffContactOptIn === true, coverOpen: tp.coverOpen === true }
+          : null
         setReconfirm({ cover: tp.coverOpen === true && !coverCurrent, optIns: (tp.matchEmailOptIn === true && !emailCurrent) || (tp.staffContactOptIn === true && !callsCurrent) })
         setCoverConfirmedAt(tp.coverConfirmedAt ?? null)
         setSavedCover({
@@ -1512,12 +1620,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       writeStoredDraft(t, resumeTo ?? stepKey, {
         // A mark restored from the round trip stays in the copy until it is decided (adopted, or dropped after the grace):
         // a second reload meanwhile still adopts (commit gate, opus round 16).
-        districtNotSaying, signIn: adoptAt.current ?? restoredSignIn.current, owner: uid,
+        districtNotSaying, optInsOff: refusalsOf(optInChoice), signIn: adoptAt.current ?? restoredSignIn.current, owner: uid,
         base: uid && draftRev.current && draftGen.current && !refused.current ? { uid, rev: draftRev.current, gen: draftGen.current } : null,
       })
     }
     // draftState / draftLoaded: a save or the load that moved the revision re-stamps this copy's base (commit gate).
-  }, [t, stepKey, resumeTo, mode, done, districtNotSaying, uid, draftState, draftLoaded])
+  }, [t, stepKey, resumeTo, mode, done, districtNotSaying, optInChoice, uid, draftState, draftLoaded])
 
   // /join with a profile already: saving here would overwrite it, so it is offered Edit instead. With no profile: what
   // the account can offer the form, and whether it may publish now.
@@ -1798,7 +1906,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     signInAsked.current = true
     restoredSignIn.current = null
     adoptAt.current = Date.now()
-    writeStoredDraft(t, next, { districtNotSaying, signIn: adoptAt.current })
+    writeStoredDraft(t, next, { districtNotSaying, optInsOff: refusalsOf(optInChoiceRef.current), signIn: adoptAt.current })
     setSignInReturn(true)
     openSignIn({ note: signInNote(), onDismiss: dropAdoption })
   }
@@ -1813,13 +1921,27 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     // go through — only once /api/teachers/me has said this account has no profile yet (meRead).
     const counting = mode === 'join' && !existing && meRead
     if (counting) countTeacherFormEvent('publish_tap')
+    // ⛔ WHAT THIS PUBLISH SAVES: `t` with the job-match switches as they are in effect (optInView — a new profile's
+    // default ON, or the teacher's own choice), so it is validated, judged and sent exactly as the last step shows it — the
+    // aiNotice included whenever either is on. Read from the ref: the choice as of now, not as of the last render.
+    const choice = optInChoiceRef.current
+    const view = optInView(t, choice)
+    const kept = normalizeForSave(view)
     // Validated as the server will validate it: what a save keeps, every step (profile.ts). ⛔ On an EDIT the goal rule
     // (no work wanted and cover off) never blocks: the save goes through and HIDES the profile — a withdrawal never
     // requires inventing a goal (plan review D6). A new profile with no goal is refused, as the server refuses it.
-    const checked = checkSteps(t, TEACHER_STEPS)
-    const all = mode === 'edit' ? splitGoalErrors(checked).other : checked
+    const checked = checkSteps(view, TEACHER_STEPS)
+    const goalSplit = splitGoalErrors(checked)
+    const all = mode === 'edit' ? goalSplit.other : checked
+    // ⛔ THE PHONE IS REQUIRED ON EVERY SAVE (owner, 2026-10-22 — validateTeacherInput), but A WITHDRAWAL IS NEVER REFUSED
+    // FOR IT ("hiding a profile or switching things off is never blocked"): an edit of a saved profile with no phone that
+    // hides it (the goal rule failed — the D6 save-and-hide, still asked first below) or switches off something it had on
+    // goes through without one, as the server lets it (publish.ts asks the same phoneWaived).
+    // (`hides`: the server's own test — the goal rule failed, or no teaching goal is left: publish.ts.)
+    const hides = Object.keys(goalSplit.goal).length > 0 || !hasTeachingGoal(kept)
+    if (mode === 'edit' && all.phone === 'required' && phoneWaived(savedPhoneBase.current, kept, hides)) delete all.phone
     // …and the texts the server would refuse, refused HERE so the field can show the teacher's own words (2026-10-21).
-    for (const [k, v] of Object.entries(textRefusals(t)) as [keyof TeacherErrors, string][]) if (!all[k]) all[k] = v
+    for (const [k, v] of Object.entries(textRefusals(view)) as [keyof TeacherErrors, string][]) if (!all[k]) all[k] = v
     // ⛔ THE INTRO VIDEO "FROM NOW ON" (owner, 2026-10-16): a new profile, or one created since the cutoff, has one — a
     // public or a private video — as the server requires (publish.ts). Older profiles keep the old rule.
     if (videoRequired && !t.videoUrl && !privateVideo) all.videoUrl = 'required'
@@ -1838,7 +1960,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     // warnings sat on two of them: a cover-only teacher whose cover loaded OFF under a newer notice, in on
     // `?step=about` to fix a typo, saved a withdrawal they never made and found the profile hidden. The goal rule
     // still never REFUSES an edit (D6): "Save and hide" goes through. Judged on what the save keeps, as the server is.
-    if (mode === 'edit' && status === 'live' && opts?.hideConfirmed !== true && !hasTeachingGoal(normalizeForSave(t))) {
+    if (mode === 'edit' && status === 'live' && opts?.hideConfirmed !== true && !hasTeachingGoal(kept)) {
       setConfirmHide(true)
       return
     }
@@ -1857,13 +1979,25 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     try {
       // `cv`: the new profile's CV, uploaded before this PUT (below) — named by its token, create-only like the hide.
       const bodyWith = (cv: { token: string; fileName: string } | null) => ({
-        ...t,
+        ...view,
+        // …the job-match switches AS SAVED (checker, 2026-10-22): a cover-only teacher's are hidden and kept off
+        // (normalizeForSave), so a default ON never leaves this page as a claim — nor its aiNotice.
+        matchEmailOptIn: kept.matchEmailOptIn, staffContactOptIn: kept.staffContactOptIn,
         // ⛔ THE PUBLISH TAP IS THE CONSENT — under the notice beside it (the action bar's line and "What's public?").
         publishNotice: PUBLISH_NOTICE_VERSION,
         // The cover switch is its own consent, under the notice beside it on the Cover step.
         ...(t.coverOpen ? { coverNotice: COVER_CONSENT_VERSION } : {}),
         // Each opt-in is its own consent, under the AI note beside them (it names Anthropic and the transfer abroad).
-        ...(t.matchEmailOptIn || t.staffContactOptIn ? { aiNotice: AI_NOTICE_VERSION } : {}),
+        ...(kept.matchEmailOptIn || kept.staffContactOptIn ? { aiNotice: AI_NOTICE_VERSION } : {}),
+        // ⛔ WHICH OF THEM WAS THE DEFAULT (owner decision 2026-10-22 — the dossier records which teachers left a default
+        // on): a NEW profile's Publish says, per switch, whether it is on only because the teacher never touched it. The
+        // server records it ('teacher.optins.default'); judged on what the save keeps (a cover-only teacher's are off).
+        ...(mode === 'join' ? {
+          optInDefaults: {
+            matchEmail: kept.matchEmailOptIn && choice.matchEmail === undefined,
+            staffCall: kept.staffContactOptIn && choice.staffCall === undefined,
+          },
+        } : {}),
         // The Terms line was on screen beside this Publish (`needsTerms`): the server records the one-time account step.
         ...(needsTerms ? { acceptTerms: true } : {}),
         // ⛔ "IDENTITY VERIFIED" HIDDEN BEFORE THE PROFILE EXISTED (owner, 2026-10-16): a NEW profile's Publish carries the
@@ -2007,6 +2141,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       if (typeof d.teacherProfileId === 'string') setTeacherProfileId(d.teacherProfileId)
       // No job goal and no cover left: the save went through and HID the profile (plan review D6) — the done screen says so.
       if (d.noGoal === true) setStatus('hidden')
+      // The switches as SAVED: an edit's next phone waiver judges against them; a new profile's stop being a default —
+      // its Publish has made them the teacher's (the tab copy, refusals included, went with clearStored above).
+      if (mode === 'edit') {
+        savedPhoneBase.current = { phone: !!kept.phone.trim(), matchEmailOptIn: kept.matchEmailOptIn, staffContactOptIn: kept.staffContactOptIn, coverOpen: d.cover ? d.cover.coverOpen === true : kept.coverOpen }
+      }
+      if (mode === 'join') setOptInChoice({ matchEmail: kept.matchEmailOptIn, staffCall: kept.staffContactOptIn })
       setDone({ listingId: d.listingId, live: d.live === true, noGoal: d.noGoal === true })
       // ⚖️ THE NAME IS WHAT "IDENTITY VERIFIED" VOUCHES FOR: a save that renamed the teacher had the mark re-judged on the
       // server (saveTeacherProfile), so the switch's line is re-read — never left saying what was true of the old name.
@@ -2508,8 +2648,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
             : draftState === 'saved' ? tr('Saved up to your last step — this step is saved when you move on.', 'Đã lưu đến bước trước — bước này được lưu khi bạn chuyển tiếp.')
             : tr('Your answers are saved to your account each time you move to another step.', 'Câu trả lời được lưu vào tài khoản mỗi khi bạn chuyển sang bước khác.')}
           {/* ⛔ What a saved draft never keeps is given again where it is given (forDraft) — said where that is. */}
-          {(step === 'cover' || step === 'finish') && draftLoaded && draftState !== 'error' ? (
-            <>{' '}{tr('The draft does not keep your photo, video, CV, phone or the switches on this step — you set them again when you come back.', 'Bản nháp không lưu ảnh, video, CV, số điện thoại và các công tắc ở bước này — bạn sẽ đặt lại khi quay lại.')}</>
+          {step === 'cover' && draftLoaded && draftState !== 'error' ? (
+            <>{' '}{tr('The draft does not keep the switch on this step — you set it again when you come back.', 'Bản nháp không lưu công tắc ở bước này — bạn sẽ đặt lại khi quay lại.')}</>
+          ) : null}
+          {/* The switches on this step are not named here: each shows its own state (commit gate, 2026-10-22). */}
+          {step === 'finish' && draftLoaded && draftState !== 'error' ? (
+            <>{' '}{tr('The draft does not keep your photo, video, CV or phone — you add them again when you come back.', 'Bản nháp không lưu ảnh, video, CV và số điện thoại — bạn thêm lại khi quay lại.')}</>
           ) : null}
           {draftRev.current ? (
             <>
@@ -2807,6 +2951,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   }
 
   const stepProps: StepProps = { t, set, patch, update, errors, errText, mode }
+  // The job-match switches the last step shows (optInView, with this render's choice).
+  const optInsShown = optInView(t, optInChoice)
+  const shownOptIns = { matchEmail: optInsShown.matchEmailOptIn, staffCall: optInsShown.staffContactOptIn }
   // Step 1's own answers count once as "answered" (signup-prompt.ts TEACHER_FORM_EVENTS) — only the visitor's choices
   // there, never a restored draft or an autofill (those go through setT, not these), and never after the hand-off.
   const countAnswer = () => { if (mode === 'join' && !viaHandoff.current) countTeacherFormEvent('step1_answered') }
@@ -2966,6 +3113,11 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
               prefillPhone={mode === 'join' ? prefill?.phone ?? null : null}
               imported={mode === 'join' && lastImport ? { phone: lastImport.phone, file: lastImport.file } : null}
               optInsNoticeChanged={reconfirm.optIns}
+              // The job-match switches as they are in effect: a new profile's are the choice held beside `t` (ON by default
+              // once the account is known to have none — optInChoice); an edit's are the profile's own, saved with it.
+              optIns={mode === 'join'
+                ? { ...shownOptIns, onChange: (k, on) => { setOptInChoice({ ...optInChoiceRef.current, [k]: on }); refusalsDirty.current = true; saveRefusalsNow() } }
+                : { ...shownOptIns, onChange: (k, on) => set(k === 'matchEmail' ? 'matchEmailOptIn' : 'staffContactOptIn', on) }}
               // A new profile: the switch is the choice held on this page (ON unless hidden here), still blocked while the
               // Publish that carries it is on its way (a tap then could never reach the profile). Once a profile EXISTS — an
               // edit, or a join form after its first Publish (still mounted, teacherProfileId now set) — the server's word,

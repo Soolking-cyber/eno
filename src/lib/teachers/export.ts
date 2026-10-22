@@ -5,8 +5,11 @@ import { identityMarkHidden } from '@/lib/teachers/identity-mark'
 /**
  * A teacher's part of the account export (PDPL access right; src/app/api/account/export).
  * Teacher profile (2026-09-30) + cover lessons (2026-10-07): what the teacher entered and what eno recorded about it
- * (cover consent and withdrawal timestamps; since 2026-10-08 also each opt-in's grant, AI notice version and withdrawal —
- * they come along with the row), and their own private contact row. The CV is named, not its storage path (a bucket key
+ * (cover consent and withdrawal timestamps; since 2026-10-08 also each opt-in's stamp, AI notice version and withdrawal —
+ * they come along with the row), and their own private contact row. ⚖️ Since 2026-10-22 a new profile's two opt-ins
+ * START ON (owner decision, accepted risk): the stamp is the switch's state at the save, not a separate act — and the
+ * compliance-log row 'teacher.optins.default' (exported with the account's consent records) says which were left on by
+ * default. The CV is named, not its storage path (a bucket key
  * is not their data).
  * ⚖️ "IDENTITY VERIFIED" (AUTOMATIC since 2026-10-16 — src/lib/teachers/identity-mark.ts): its four columns come along
  * with the row too, and are LABELLED in `identityMark` for what they record now — the teacher's own hide and show-again,

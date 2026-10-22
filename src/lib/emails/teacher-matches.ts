@@ -40,7 +40,7 @@ export function renderTeacherMatches(opts: {
     bodyHtml,
     origin,
     cta: { label: 'Update my teacher profile', url: `${origin}/teachers/edit` },
-    audienceNote: `You're receiving this because you asked for job matches on your ${siteName} teacher profile.`,
+    audienceNote: `You're receiving this because job matches are on in your ${siteName} teacher profile.`,
     unsubscribeUrl,
     sender: 'full',
   })
@@ -51,7 +51,7 @@ export function renderTeacherMatches(opts: {
     `Update your profile: ${origin}/teachers/edit`,
     `Stop these emails: ${unsubscribeUrl}`,
     '',
-    `You're receiving this because you asked for job matches on your ${siteName} teacher profile.`,
+    `You're receiving this because job matches are on in your ${siteName} teacher profile.`,
     `Sent by ${senderIdentityText()}`,
   ].join('\n')
   return { subject, html, text }

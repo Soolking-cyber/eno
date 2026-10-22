@@ -28,7 +28,7 @@ vi.setConfig({ testTimeout: 60_000 })
 afterAll(() => { configure({ asyncUtilTimeout }); vi.resetConfig() })
 beforeAll(() => { Element.prototype.scrollIntoView ??= function () {} })
 
-type Draft = { t: unknown; step: string; rev: number; gen?: string; updatedAt: string } | null
+type Draft = { t: unknown; optInsOff?: string[]; step: string; rev: number; gen?: string; updatedAt: string } | null
 let calls: Call[] = []
 let saved: Draft = null
 let putReply: (body: unknown) => { status?: number; json: unknown } = () => ({ json: {} })
@@ -63,7 +63,7 @@ function mount(mode: 'join' | 'edit' = 'join') {
   return userEvent.setup()
 }
 const action = (name: string | RegExp) => screen.getAllByRole('button', { name })[0]
-const draftPuts = () => calls.filter((c) => c.method === 'PUT' && c.url === '/api/teachers/me/draft').map((c) => c.body as { t: Record<string, unknown>; step: string; rev: number })
+const draftPuts = () => calls.filter((c) => c.method === 'PUT' && c.url === '/api/teachers/me/draft').map((c) => c.body as { t: Record<string, unknown>; optInsOff?: string[]; step: string; rev: number })
 
 describe('loading the account\'s saved draft', () => {
   it('⛔ the saved draft wins over a #d= hand-off — reopened where it left off, and the screen says so', async () => {
@@ -224,6 +224,138 @@ describe('Start over, and the edit page', () => {
     expect(await screen.findByText('Where are you now?')).toBeTruthy()
     expect(storedDraft()).toBeNull()
     expect(dash.revalidated).toContain('u1')
+  })
+
+  it('⛔ a job-match switch turned OFF is kept WITH THE ACCOUNT, and in this tab it OUTLIVES Start over — the account\'s copy goes with the answers until the next one is saved (commit gate, 2026-10-22)', async () => {
+    saved = { t: COMPLETE, step: 'finish', rev: 2, updatedAt: '2026-10-10T08:00:00.000Z', gen: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b' }
+    const user = mount()
+    const email = await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })
+    await waitFor(() => expect(email.getAttribute('aria-checked')).toBe('true'))
+    await user.click(email)
+    await waitFor(() => expect(storedDraft()?.optInsOff).toEqual(['matchEmail']))
+    // Saved with the account's draft at once (the tap): beside the answers — the answers never carry a switch, ON or OFF
+    // (forDraft), and a refusal is no consent.
+    await waitFor(() => expect(draftPuts().some((p) => Array.isArray(p.optInsOff) && p.optInsOff.includes('matchEmail'))).toBe(true))
+    expect(draftPuts().every((p) => p.t.matchEmailOptIn === false && p.t.staffContactOptIn === false)).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'Start over' }))
+    await user.click(await screen.findByRole('button', { name: 'Start over' }))
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    // The answers went; the refusal stayed: the next tab copy carries it again.
+    await user.click(screen.getByRole('radio', { name: 'Not in Vietnam yet' }))
+    await waitFor(() => expect(storedDraft()).not.toBeNull())
+    expect(storedDraft()?.optInsOff).toEqual(['matchEmail'])
+  })
+
+  it('⛔ a refusal saved on ANOTHER device (the account draft) loads OFF here — the other switch keeps its default', async () => {
+    saved = { t: COMPLETE, optInsOff: ['staffCall'], step: 'finish', rev: 2, updatedAt: '2026-10-10T08:00:00.000Z', gen: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b' }
+    mount()
+    const staff = await screen.findByRole('switch', { name: 'Our staff may call me' })
+    await waitFor(() => expect(staff.getAttribute('aria-checked')).toBe('false'))
+    expect(screen.getByRole('switch', { name: 'Email me jobs that match my profile' }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  // The tab sent to the background (teacher-form.tsx onVisibility): the last moment before a phone closes it.
+  const hide = async () => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+    document.dispatchEvent(new Event('visibilitychange'))
+    await new Promise((r) => setTimeout(r, 150))
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' })
+  }
+
+  it('⛔ a tap on a job-match switch reaches the account AT ONCE — never left for a step change, or for a background event a closing tab may not fire (commit gate, codex + opus 2026-10-22)', async () => {
+    saved = { t: COMPLETE, step: 'finish', rev: 2, updatedAt: '2026-10-10T08:00:00.000Z', gen: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b' }
+    const user = mount()
+    const email = await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })
+    await waitFor(() => expect(email.getAttribute('aria-checked')).toBe('true'))
+    await hide() // nothing tapped since the load: nothing sent
+    expect(draftPuts()).toHaveLength(0)
+    await user.click(email)
+    await waitFor(() => expect(draftPuts()).toHaveLength(1))
+    expect(draftPuts()[0]).toMatchObject({ step: 'finish', rev: 2, optInsOff: ['matchEmail'] })
+    await hide() // taken: nothing more
+    expect(draftPuts()).toHaveLength(1)
+    // ON again: the refusal leaves the account's draft at once too
+    await user.click(email)
+    await waitFor(() => expect(draftPuts()).toHaveLength(2))
+    expect(draftPuts()[1]).not.toHaveProperty('optInsOff')
+  })
+
+  it('…a tap while a save is on its way is sent when that one lands', async () => {
+    saved = { t: COMPLETE, step: 'finish', rev: 2, updatedAt: '2026-10-10T08:00:00.000Z', gen: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b' }
+    let release: () => void = () => {}
+    const held = new Promise<void>((r) => { release = r })
+    const inner = globalThis.fetch
+    let first = true
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (first && String(input) === '/api/teachers/me/draft' && init?.method === 'PUT') { first = false; const r = await inner(input, init); await held; return r }
+      return inner(input, init)
+    }))
+    const user = mount()
+    const email = await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })
+    await waitFor(() => expect(email.getAttribute('aria-checked')).toBe('true'))
+    await user.click(email) // OFF: its save goes, and is held
+    await waitFor(() => expect(draftPuts()).toHaveLength(1))
+    await user.click(email) // ON again while it is on its way
+    await new Promise((r) => setTimeout(r, 100))
+    expect(draftPuts()).toHaveLength(1) // one at a time
+    release()
+    await waitFor(() => expect(draftPuts()).toHaveLength(2))
+    expect(draftPuts()[0].optInsOff).toEqual(['matchEmail'])
+    expect(draftPuts()[1]).not.toHaveProperty('optInsOff')
+  })
+
+  it('…one whose save failed goes when the tab goes to the background — not only at the next retry', async () => {
+    saved = { t: COMPLETE, step: 'finish', rev: 2, updatedAt: '2026-10-10T08:00:00.000Z', gen: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b' }
+    let n = 0
+    putReply = () => (++n === 1 ? { status: 503, json: { error: 'unavailable' } } : { json: { rev: 3, gen: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b', updatedAt: '2026-10-11T10:00:00.000Z' } })
+    const user = mount()
+    const email = await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })
+    await waitFor(() => expect(email.getAttribute('aria-checked')).toBe('true'))
+    await user.click(email)
+    await waitFor(() => expect(draftPuts()).toHaveLength(1))
+    await new Promise((r) => setTimeout(r, 150)) // its 503 has landed: the next try is a retry 30 s away
+    expect(draftPuts()).toHaveLength(1)
+    await hide()
+    await waitFor(() => expect(draftPuts()).toHaveLength(2))
+    expect(draftPuts()[1].optInsOff).toEqual(['matchEmail'])
+  })
+
+  it('…but not for answers the account has not taken (held back): those go when the teacher moves on, the refusal with them', async () => {
+    putDraft(COMPLETE, 'finish') // this tab's copy; nothing saved with the account
+    const user = mount()
+    const email = await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })
+    await waitFor(() => expect(email.getAttribute('aria-checked')).toBe('true'))
+    await user.click(email)
+    await new Promise((r) => setTimeout(r, 150))
+    expect(draftPuts()).toHaveLength(0)
+    await user.click(action('Back'))
+    await waitFor(() => expect(draftPuts()).toHaveLength(1))
+    expect(draftPuts()[0].optInsOff).toEqual(['matchEmail'])
+  })
+
+  it('⛔ a newer refusal from another device wins over this tab\'s own ON — "Open the latest version" brings it (commit gate, codex 2026-10-22)', async () => {
+    saved = { t: COMPLETE, step: 'finish', rev: 2, updatedAt: '2026-10-10T08:00:00.000Z', gen: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b' }
+    const user = mount()
+    const email = () => screen.getByRole('switch', { name: 'Email me jobs that match my profile' })
+    await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })
+    await waitFor(() => expect(email().getAttribute('aria-checked')).toBe('true'))
+    putReply = () => ({ status: 409, json: { error: 'draft_stale' } }) // another device saved meanwhile
+    await user.click(email()) // OFF: its save is refused as stale, and saving stops
+    expect(await screen.findByText('Your profile was changed in another window or on another device.')).toBeTruthy()
+    await user.click(email()) // ON again: this tab's own choice
+    expect(email().getAttribute('aria-checked')).toBe('true')
+    saved = { t: COMPLETE, optInsOff: ['matchEmail'], step: 'finish', rev: 7, updatedAt: '2026-10-11T09:00:00.000Z', gen: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b' }
+    await user.click(screen.getByRole('button', { name: 'Open the latest version' }))
+    await waitFor(() => expect(email().getAttribute('aria-checked')).toBe('false'))
+  })
+
+  it('…and one the account draft already holds is not sent again', async () => {
+    saved = { t: COMPLETE, optInsOff: ['staffCall'], step: 'finish', rev: 2, updatedAt: '2026-10-10T08:00:00.000Z', gen: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b' }
+    mount()
+    const staff = await screen.findByRole('switch', { name: 'Our staff may call me' })
+    await waitFor(() => expect(staff.getAttribute('aria-checked')).toBe('false'))
+    await hide()
+    expect(draftPuts()).toHaveLength(0)
   })
 
   it('edit mode with no profile but a saved draft offers it back', async () => {

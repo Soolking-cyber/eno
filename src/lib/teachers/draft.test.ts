@@ -75,6 +75,33 @@ describe('what a draft may hold', () => {
   })
 })
 
+describe('⛔ the job-match switches the teacher switched OFF (commit gate, 2026-10-22: they start ON in a new profile\'s form)', () => {
+  it('a refusal rides beside the answers — never inside them, never a consent — and comes back on every read', async () => {
+    const r = await saveTeacherDraft('p1', { t: answers(), optInsOff: ['staffCall'], step: 'finish', rev: 0 })
+    expect(r.ok).toBe(true)
+    expect(h.rows.get('p1')?.data).toMatchObject({ optInsOff: ['staffCall'] })
+    const d = await readTeacherDraft('p1')
+    expect(d?.optInsOff).toEqual(['staffCall'])
+    expect(d?.t).not.toHaveProperty('optInsOff')
+    expect([d?.t.matchEmailOptIn, d?.t.staffContactOptIn]).toEqual([false, false])
+    // …and in the account export, beside the answers
+    expect((await teacherDraftExportOf('p1'))?.optInsOff).toEqual(['staffCall'])
+  })
+  it('only the two known switches, each once — anything else is nothing; none at all stores nothing', async () => {
+    await saveTeacherDraft('p1', { t: answers(), optInsOff: ['matchEmail', 'matchEmail', 'coverOpen', 7, 'staffCall'], step: 'finish', rev: 0 })
+    expect((await readTeacherDraft('p1'))?.optInsOff).toEqual(['matchEmail', 'staffCall'])
+    h.rows.clear()
+    await saveTeacherDraft('p1', { t: answers(), optInsOff: 'matchEmail', step: 'finish', rev: 0 })
+    expect(h.rows.get('p1')?.data).not.toHaveProperty('optInsOff')
+    expect((await readTeacherDraft('p1'))?.optInsOff).toEqual([])
+    expect(await teacherDraftExportOf('p1')).not.toHaveProperty('optInsOff')
+  })
+  it('a refusal alone is no draft — an empty answer set is still refused', async () => {
+    const empty = Object.fromEntries(Object.entries(answers()).map(([k, v]) => [k, Array.isArray(v) ? [] : typeof v === 'boolean' ? false : typeof v === 'number' ? null : '']))
+    expect(await saveTeacherDraft('p1', { t: { ...empty, teachAreas: [] }, optInsOff: ['matchEmail'], step: 'finish', rev: 0 })).toMatchObject({ ok: false })
+  })
+})
+
 describe('the revision — two tabs or devices never overwrite each other, a late save never resurrects', () => {
   const first = async (p = 'p1', step = 'where') => {
     const r = await saveTeacherDraft(p, { t: answers(), step, rev: 0 })

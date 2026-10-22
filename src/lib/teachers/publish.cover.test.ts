@@ -266,7 +266,7 @@ describe('isLegacyCoverBody', () => {
 
 describe('saveTeacherProfile — the cover part of the body', () => {
   const body = (o: Record<string, unknown> = {}) => ({
-    ...stored(), relocate: 'some', teachAreasConfirmed: true, phone: '', publishNotice: PUBLISH_NOTICE_VERSION, ...on, ...o,
+    ...stored(), relocate: 'some', teachAreasConfirmed: true, phone: '+84 901 234 567', publishNotice: PUBLISH_NOTICE_VERSION, ...on, ...o,
   })
   /** The validation errors a save throws (it never reaches the database in these cases). */
   const errorsOf = async (b: unknown): Promise<Record<string, string>> => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   AI_NOTICE_VERSION, BAND_FLOOR, CITY_PROVINCE, DRAFT_STEPS, EMPTY_TEACHER, EXPERIENCE_BANDS, TEACHER_FORM_OPTIONS, TEACHER_OPTIONS,
   TEACHER_STEP_FIELDS, aiMatchConsented, coverIsPublic, deriveRelocate, experienceBucket, fromLegacyTeacher, hasTeachingGoal,
-  isLegacyTeacherBody, legacyDistrictKey, normalizeForSave, normalizeTeacherInput, splitGoalErrors, teacherFacetTokens,
+  isLegacyTeacherBody, isTeacherPhone, legacyDistrictKey, normalizeForSave, phoneWaived, normalizeTeacherInput, splitGoalErrors, teacherFacetTokens,
   teacherCardPrice, teacherCardPriceFromSaved, teacherFreeTextFields, teacherFreeTexts, teacherSteps, teacherSubcategory,
   validateTeacherInput, visibleFields,
 } from './profile'
@@ -221,7 +221,7 @@ describe('validateTeacherInput', () => {
   it('checks only the steps it is asked about — the teacher.eno.vn half never needs a photo or a phone', () => {
     const x = t({ photoUrl: null, phone: '' })
     expect(validateTeacherInput(x, DRAFT_STEPS)).toEqual({})
-    expect(Object.keys(validateTeacherInput(x))).toEqual(['photoUrl'])
+    expect(Object.keys(validateTeacherInput(x))).toEqual(['photoUrl', 'phone'])
   })
   it('asks "Where are you now?" and the place it names', () => {
     expect(validateTeacherInput(t({ livesIn: null }), ['plans']).livesIn).toBe('required')
@@ -271,15 +271,67 @@ describe('validateTeacherInput', () => {
     expect(on({ teachAreas: ['online', 'ha-noi'] }).coverOpen).toBe('reach_required') // nowhere near home to cover
     expect(validateTeacherInput(t({ ...coverOn, livesIn: 'abroad' }), ['cover']).coverOpen).toBe('reach_required')
   })
-  it('⛔ requires the phone only while "Our staff may call me" is on (owner, 2026-10-08) — and never accepts junk', () => {
-    expect(validateTeacherInput(t({ phone: '' }), ['finish'])).toEqual({})
+  it('⛔ requires the phone on EVERY save (owner, 2026-10-22: "phone number is mandatory") — staff calls on or off — and never accepts junk', () => {
+    expect(validateTeacherInput(t({ phone: '' }), ['finish']).phone).toBe('required')
+    expect(validateTeacherInput(t({ phone: '', staffContactOptIn: false, matchEmailOptIn: false }), ['finish']).phone).toBe('required')
     expect(validateTeacherInput(t({ phone: '', staffContactOptIn: true }), ['finish']).phone).toBe('required')
-    expect(validateTeacherInput(t({ phone: 'call me' }), ['finish']).phone).toBe('invalid')
+    for (const junk of ['call me', '........', '()()()()', '1234567']) {
+      expect(validateTeacherInput(t({ phone: junk }), ['finish']).phone, junk).toBe('invalid')
+    }
+    for (const ok of ['0901 234 567', '+84 901 234 567']) expect(validateTeacherInput(t({ phone: ok }), ['finish']), ok).toEqual({})
   })
-  it('keeps both opt-ins optional and OFF by default (no bundled consent)', () => {
+  it('isTeacherPhone: the form’s characters AND at least 8 digits (plan review, 2026-10-22)', () => {
+    expect(isTeacherPhone('0901 234 567')).toBe(true)
+    expect(isTeacherPhone('+84 (901) 234-567')).toBe(true)
+    expect(isTeacherPhone('12345678')).toBe(true) // exactly 8 digits
+    expect(isTeacherPhone('1234567')).toBe(false) // 7 digits
+    expect(isTeacherPhone('123 456 7')).toBe(false) // 7 digits padded past the length rule
+    expect(isTeacherPhone('........')).toBe(false)
+    expect(isTeacherPhone('()()()()')).toBe(false)
+    expect(isTeacherPhone('0901 234 567 ext')).toBe(false)
+  })
+  it('keeps both opt-ins optional — and EMPTY_TEACHER OFF: the 2026-10-22 default ON is the form’s, for a new profile, never the empty state', () => {
     expect(validateTeacherInput(t({ matchEmailOptIn: false, staffContactOptIn: false }))).toEqual({})
     expect([EMPTY_TEACHER.matchEmailOptIn, EMPTY_TEACHER.staffContactOptIn, EMPTY_TEACHER.coverOpen]).toEqual([false, false, false])
     expect(EMPTY_TEACHER.livesIn).toBeNull()
+  })
+})
+
+describe('phoneWaived — a withdrawal is never refused for the phone (owner, 2026-10-22)', () => {
+  // A saved profile with job emails and cover on, staff calls off (staff calls need the number — never waived).
+  const stored = (o: Partial<{ phone: boolean; matchEmailOptIn: boolean; staffContactOptIn: boolean; coverOpen: boolean }> = {}) =>
+    ({ phone: false, matchEmailOptIn: true, staffContactOptIn: false, coverOpen: true, ...o })
+  const next = (o: Partial<{ phone: string; matchEmailOptIn: boolean; staffContactOptIn: boolean; coverOpen: boolean }> = {}) =>
+    ({ phone: '', matchEmailOptIn: true, staffContactOptIn: false, coverOpen: true, ...o })
+  it('a NEW profile (nothing stored) is never waived — even one that would "hide"', () => {
+    expect(phoneWaived(null, next(), false)).toBe(false)
+    expect(phoneWaived(null, next({ matchEmailOptIn: false }), true)).toBe(false)
+  })
+  it('a saved profile WITH a phone can never clear it — not even by withdrawing', () => {
+    expect(phoneWaived(stored({ phone: true }), next({ matchEmailOptIn: false }), true)).toBe(false)
+  })
+  it('a save that carries a phone needs no waiver', () => {
+    expect(phoneWaived(stored(), next({ phone: '0901 234 567', matchEmailOptIn: false }), true)).toBe(false)
+  })
+  it('a no-phone profile that HIDES (D6 — no goal left) is waived', () => {
+    expect(phoneWaived(stored(), next(), true)).toBe(true)
+  })
+  it('a no-phone profile switching OFF any one thing it had on is waived — job emails, staff calls, cover', () => {
+    expect(phoneWaived(stored(), next({ matchEmailOptIn: false }), false)).toBe(true)
+    expect(phoneWaived(stored({ staffContactOptIn: true }), next({ staffContactOptIn: false }), false)).toBe(true)
+    expect(phoneWaived(stored(), next({ coverOpen: false }), false)).toBe(true)
+  })
+  it('nothing switched off, no hide — the next save asks for the phone (a switch already off is no withdrawal)', () => {
+    expect(phoneWaived(stored(), next(), false)).toBe(false)
+    expect(phoneWaived(stored({ matchEmailOptIn: false, coverOpen: false }), next({ matchEmailOptIn: false, coverOpen: false }), false)).toBe(false)
+  })
+  it('⛔ a WITHDRAWAL only (commit gate, 2026-10-22): never with staff calls on — kept or granted — nor with anything switched ON in the same save', () => {
+    // staff calls need the number (the 2026-10-08 rule): kept on beside a switch-off, or switched on, never waived
+    expect(phoneWaived(stored({ staffContactOptIn: true }), next({ staffContactOptIn: true, matchEmailOptIn: false }), true)).toBe(false)
+    expect(phoneWaived(stored(), next({ staffContactOptIn: true, coverOpen: false }), false)).toBe(false)
+    // a grant riding on a withdrawal
+    expect(phoneWaived(stored({ matchEmailOptIn: false }), next({ matchEmailOptIn: true, coverOpen: false }), false)).toBe(false)
+    expect(phoneWaived(stored({ coverOpen: false }), next({ coverOpen: true, matchEmailOptIn: false }), false)).toBe(false)
   })
 })
 

@@ -38,11 +38,19 @@ const { GET } = await import('./route')
 beforeEach(() => { h.signedIn = true; h.consentQuery = null; h.consentRows = [] })
 
 describe('GET /api/account/export — the consent records', () => {
-  it('selects the CV reading’s and the About rewrite’s records — the consent and the outcome of each — of this account only', async () => {
+  it('selects the CV reading’s and the About rewrite’s records — the consent and the outcome of each — and the opt-ins a new profile left on by default, of this account only', async () => {
     const res = await GET()
     expect(res.status).toBe(200)
     expect(h.consentQuery?.where.actorId).toBe('p1')
-    expect(h.consentQuery?.where.action.in).toEqual(['teacher.import.consent', 'teacher.import.result', 'teacher.bio.consent', 'teacher.bio.result'])
+    expect(h.consentQuery?.where.action.in).toEqual(['teacher.import.consent', 'teacher.import.result', 'teacher.bio.consent', 'teacher.bio.result', 'teacher.optins.default'])
+  })
+
+  it('⚖️ a default left on (owner, 2026-10-22) is handed back like the others: which switch, under which AI notice', async () => {
+    const at = new Date('2026-10-22T05:00:00.000Z')
+    const detail = { matchEmail: true, staffCall: false, aiNotice: '2026-10-08', teacherProfileId: 'tp1' }
+    h.consentRows = [{ action: 'teacher.optins.default', occurredAt: at, detail }]
+    const body = await (await GET()).json()
+    expect(body.consentRecords).toEqual([{ action: 'teacher.optins.default', at: at.toISOString(), detail }])
   })
 
   it('hands them back as stored, oldest first: the action, when, and the detail', async () => {
