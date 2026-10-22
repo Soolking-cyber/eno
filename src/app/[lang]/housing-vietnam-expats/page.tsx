@@ -8,6 +8,7 @@ import { marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { LiveCounts } from '@/components/marketplace/live-count'
 import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
+import { rentalDistrictsBelowFloor } from '@/lib/rental-district-floor'
 
 // 1h, not 7d. The copy IS static, but the page also renders a LIVE 8-listing rail and an
 // "inventory is empty" branch — so at weekly regeneration a category that filled on Monday kept
@@ -72,6 +73,9 @@ const RELATED_GUIDES = ['/renting-an-apartment-vietnam-foreigner', '/rental-depo
  * are how they are found). ⚠️ CANONICAL SLUGS ONLY (src/lib/district-canonical.ts): a `quan-2` link
  * would be a 308. Names come from DISTRICTS, and a key that stops existing drops out rather than
  * linking a 404; seo-landing-related.test.ts checks every key is a curated place.
+ * ⛔ AND A PLACE IS LINKED ONLY WHILE ITS PAGE IS AT THE INDEXING FLOOR (rental-district-floor.ts, the teach guides'
+ * rule): a district with no place to rent is a real 404, and on 2026-10-22 "District 2 (Thu Duc)" here linked the
+ * /c/rentals/d2 404. Under the floor the name stays, as plain text. Read each hourly render (`revalidate` above).
  */
 const AREA_SLUGS = ['d2', 'd7', 'd1', 'd3', 'binh-thanh']
 const AREAS = AREA_SLUGS.flatMap((slug) => DISTRICTS.filter((d) => d.slug === slug))
@@ -138,7 +142,8 @@ const CONTENT: SeoContent = {
  */
 const TEACH_RELATED = ['where-to-live-in-ho-chi-minh-city-as-a-teacher', 'cost-of-living-in-ho-chi-minh-city-for-teachers']
 
-export default function Page() {
+export default async function Page() {
+  const areasAsText = await rentalDistrictsBelowFloor(AREA_SLUGS, 'housing-vietnam-expats')
   return (
     <SeoLanding
       content={IS_SERVICES ? CONTENT : { ...CONTENT, related: [...(CONTENT.related ?? []), ...teachGuideLinks(TEACH_RELATED)] }}
@@ -166,9 +171,13 @@ export default function Page() {
             {AREAS.map((d, i) => (
               <span key={d.slug}>
                 {i > 0 && ', '}
-                <Link href={`/c/rentals/${d.slug}`} className="font-semibold text-accent-foreground hover:underline">
-                  {d.nameEn}
-                </Link>
+                {areasAsText.has(d.slug) ? (
+                  d.nameEn
+                ) : (
+                  <Link href={`/c/rentals/${d.slug}`} className="font-semibold text-accent-foreground hover:underline">
+                    {d.nameEn}
+                  </Link>
+                )}
               </span>
             ))}
             .
