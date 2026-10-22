@@ -32,7 +32,7 @@ vi.mock('@/lib/core/listings', () => ({
 }))
 vi.mock('@/lib/serialize', () => ({ serializeListing: () => ({}) }))
 vi.mock('@/lib/ssrf', () => ({ assertSafeUrl: async () => {} }))
-vi.mock('@/lib/core/bulk', () => ({ bulkImportCore: async () => ({}), rehostListingImage: async () => null, BULK_MAX_ROWS: 200 }))
+vi.mock('@/lib/core/bulk', () => ({ bulkImportCore: async () => ({}), rehostListingImage: async () => null, claimRehostedImages: async () => {}, discardRehostedImages: async () => {}, BULK_MAX_ROWS: 200 }))
 vi.mock('@/lib/core/sync', () => ({ syncListingsCore: async () => ({}), SYNC_MAX_ROWS: 200 }))
 vi.mock('@/lib/core/seller', () => ({ updateSellerCore: async () => ({ ok: true }) }))
 vi.mock('@/lib/enforcement', () => ({ postingGate: async () => null }))

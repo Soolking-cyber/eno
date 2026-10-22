@@ -33,6 +33,11 @@ export type TombstoneReason = 'account_deleted' | 'visa_document_replaced' | 'vi
   // upload, and deleted again by the create that attaches it (publish.ts). One that no create claims is swept by its
   // bucket's own rule (referenced iff a TeacherPrivate.cvPath holds it), an hour after it was made.
   | 'teacher_cv_pending'
+  // A remote image re-hosted into `listings/bulk/` by bulk import, MCP or sync (security review 2026-10-22, item 13):
+  // tombstoned when stored, cleared once a listing holds it (bulk.ts claimRehostedImages), deleted at once when the
+  // write it was for is refused (discardRehostedImages). One neither reached is swept by the listings bucket's
+  // reference check — a listing that holds it keeps it.
+  | 'listing_image_rehost_pending'
 type Writer = Pick<Prisma.TransactionClient, 'storageTombstone' | '$executeRaw'>
 
 /** Record that these objects are to be deleted once nothing references them. Pass the transaction

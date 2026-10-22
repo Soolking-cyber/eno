@@ -1,7 +1,7 @@
 import 'server-only'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
-import { bulkImportCore, rehostListingImage, BULK_MAX_ROWS, type BulkRow } from '@/lib/core/bulk'
+import { bulkImportCore, claimRehostedImages, discardRehostedImages, rehostListingImage, BULK_MAX_ROWS, type BulkRow } from '@/lib/core/bulk'
 import { bulkPostingBudget } from '@/lib/enforcement'
 import { releasedChargeGateFor, releasedChargeStanding } from '@/lib/released-charge-gate'
 import { updateListingCore, setStatusCore } from '@/lib/core/listings'
@@ -172,16 +172,29 @@ export async function syncListingsCore(
       if (row.price !== undefined) body.price = row.price
       if (row.district !== undefined) body.district = row.district
       if (row.condition !== undefined) body.condition = row.condition
+      // `fresh` = the images this row stored (one that comes back unchanged was already ours): claimed once the listing
+      // holds them, discarded when the edit is refused (bulk.ts — security review 2026-10-22, item 13).
+      const fresh: string[] = []
       if (Array.isArray(row.images)) {
         const hosted: string[] = []
-        for (const u of row.images.slice(0, 8)) { const h = await rehostListingImage(String(u), seller.id); if (h) hosted.push(h) }
+        for (const u of row.images.slice(0, 8)) {
+          const src = String(u)
+          const h = await rehostListingImage(src, seller.id)
+          if (!h) continue
+          hosted.push(h)
+          if (h !== src) fresh.push(h)
+        }
         body.images = hosted
       }
       if (Object.keys(body).length) {
         const u = await updateListingCore(id, body)
         // The refusal's pointer rides along (a hiring post's job-text code: '<field>:<snippet>', the words to take out), so a
         // partner can fix the row rather than guess at the bare code.
-        if (!u.ok) { results.push({ external_id: ext, id, action: 'failed', error: u.error, ...(u.detail ? { detail: u.detail } : {}) }); continue }
+        if (!u.ok) {
+          await discardRehostedImages(fresh) // a refused edit wrote nothing
+          results.push({ external_id: ext, id, action: 'failed', error: u.error, ...(u.detail ? { detail: u.detail } : {}) }); continue
+        }
+        await claimRehostedImages(fresh)
       }
       if (row.status !== undefined && VALID_STATUS.has(String(row.status))) {
         const st = await setStatusCore(id, String(row.status), undefined, { publishDecision })

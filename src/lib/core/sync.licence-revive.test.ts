@@ -33,7 +33,7 @@ vi.mock('@/lib/core/listings', () => ({
   updateListingCore: async (id: string, body: Row) => { h.edits.push({ id, body }); return { ok: true } },
   setStatusCore: async (id: string, status: string) => { h.statuses.push({ id, status }); return { ok: true, status } },
 }))
-vi.mock('@/lib/core/bulk', () => ({ bulkImportCore: async () => ({ results: [] }), rehostListingImage: async () => null, BULK_MAX_ROWS: 200 }))
+vi.mock('@/lib/core/bulk', () => ({ bulkImportCore: async () => ({ results: [] }), rehostListingImage: async () => null, claimRehostedImages: async () => {}, discardRehostedImages: async () => {}, BULK_MAX_ROWS: 200 }))
 vi.mock('@/lib/enforcement', () => ({ bulkPostingBudget: async () => ({ blocked: null, maxNewActive: null }) }))
 vi.mock('@/lib/released-charge-gate', () => ({ releasedChargeStanding: async () => null, releasedChargeGateFor: async () => ({ remaining: 99 }) }))
 vi.mock('@/lib/compliance/seller-publish-gate', () => ({ sellerPublishDecision: async () => ({ ok: true }) }))

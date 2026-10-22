@@ -8,7 +8,7 @@ import type { ApiAuth } from '@/lib/api/auth'
 import { listingOwnedBy } from '@/lib/api/auth'
 import { parsePageParams, pageQuery, buildPage } from '@/lib/api/pagination'
 import { createListingCore, updateListingCore, setStatusCore, deleteListingCore, DELETE_HOLD_MESSAGE } from '@/lib/core/listings'
-import { bulkImportCore, rehostListingImage, BULK_MAX_ROWS, type BulkRow } from '@/lib/core/bulk'
+import { bulkImportCore, claimRehostedImages, discardRehostedImages, rehostListingImage, BULK_MAX_ROWS, type BulkRow } from '@/lib/core/bulk'
 import { syncListingsCore, SYNC_MAX_ROWS, type SyncRow } from '@/lib/core/sync'
 import { updateSellerCore } from '@/lib/core/seller'
 import { postingGate } from '@/lib/enforcement'
@@ -44,10 +44,19 @@ async function ownedListing(id: string, sellerId: string) {
 }
 
 // Charged against the SELLER's hourly re-host budget (bulk.ts REHOST_IMAGES_PER_HOUR — security review item 13).
-async function rehostAll(urls: string[] | undefined, sellerId: string): Promise<string[]> {
-  const out: string[] = []
-  for (const u of (urls ?? []).slice(0, 8)) { const h = await rehostListingImage(String(u), sellerId); if (h) out.push(h) }
-  return out
+// `fresh` = the images THIS call stored (a URL that comes back unchanged was already ours and is never one): the caller
+// claims them once the listing holds them, or discards them when the write is refused (bulk.ts — review item 13).
+async function rehostAll(urls: string[] | undefined, sellerId: string): Promise<{ images: string[]; fresh: string[] }> {
+  const images: string[] = []
+  const fresh: string[] = []
+  for (const u of (urls ?? []).slice(0, 8)) {
+    const src = String(u)
+    const h = await rehostListingImage(src, sellerId)
+    if (!h) continue
+    images.push(h)
+    if (h !== src) fresh.push(h)
+  }
+  return { images, fresh }
 }
 
 // One partner-supplied listing item → BulkRow (shared by bulk + sync mapping).
@@ -155,14 +164,18 @@ export const TOOLS: McpTool[] = [
         const gate = await postingGate(seller.ownerId, seller.id)
         if (gate) throw new ToolError(gate.error, 'Posting is blocked for this account right now.')
       }
-      const images = await rehostAll(args.images as string[] | undefined, auth.sellerId)
+      const { images, fresh } = await rehostAll(args.images as string[] | undefined, auth.sellerId)
       const body = { description: args.description, images, district: args.district, condition: args.condition, negotiable: args.negotiable, listingType: args.listingType, brand: args.brand, model: args.model, salaryM: args.salaryM, price: args.price }
       // Never a guest (an API key authenticated this call) — an ownerless shop is a platform import,
       // as on /api/v1 and in bulk_import / sync_listings.
       try {
         const created = await createListingCore({ seller, guestCreate: false, category, title, price, body, headers: new Headers() })
+        await claimRehostedImages(fresh)
         return { listing: created }
       } catch (e) {
+        // Every refusal createListingCore throws comes before its insert, so nothing will hold these images. Any other
+        // throw leaves them to the tombstone sweep, which keeps whatever a listing does hold.
+        if (e instanceof PublishBlockedError) await discardRehostedImages(fresh)
         // The released-scam-charge cap is an ACCOUNT limit with its own code — surfaced as a tool error
         // the agent can explain. (The other content refusals keep the MCP route's existing mapping.)
         if (e instanceof PublishBlockedError && e.code === 'released_charge_listing_cap') throw new ToolError(e.code, RELEASED_CHARGE_CAP_MESSAGE)
@@ -195,8 +208,11 @@ export const TOOLS: McpTool[] = [
       await ownedListing(id, auth.sellerId)
       const body: Record<string, unknown> = {}
       for (const k of ['title', 'description', 'price', 'district', 'condition', 'salaryM'] as const) if (args[k] !== undefined) body[k] = args[k]
-      if (Array.isArray(args.images)) body.images = await rehostAll(args.images as string[], auth.sellerId)
+      let fresh: string[] = []
+      if (Array.isArray(args.images)) { const r = await rehostAll(args.images as string[], auth.sellerId); body.images = r.images; fresh = r.fresh }
       const res = await updateListingCore(id, body)
+      // A refused edit wrote nothing (updateListingCore's every `ok: false`), so nothing holds the images it stored.
+      if (res.ok) await claimRehostedImages(fresh); else await discardRehostedImages(fresh)
       // `listing_changed` (2026-10-14): eno's licence check changed the listing mid-edit — a sentence, since retrying is right.
       // A hiring post's edit the job-text screen refused (2026-10-18): its rule's sentence, and `detail` '<field>:<snippet>'.
       if (!res.ok) {

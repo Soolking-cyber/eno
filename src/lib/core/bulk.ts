@@ -10,6 +10,8 @@ import { bulkPostingBudget } from '@/lib/enforcement'
 import { releasedChargeGate } from '@/lib/released-charge-gate'
 import { warmTranslations } from '@/lib/translate'
 import { isListingImageUrl, isListingVideoUrl } from '@/lib/listing-image'
+import { getSupabaseAdmin, LISTINGS_BUCKET } from '@/lib/supabase-admin'
+import { clearTombstones, writeTombstones, type TombstoneRef } from '@/lib/core/storage-tombstones'
 import { safeFetch } from '@/lib/ssrf'
 import { rateLimit } from '@/lib/ratelimit'
 import { logError } from '@/lib/log'
@@ -87,9 +89,63 @@ async function rehost(url: string, sellerId?: string): Promise<string | null> {
     if (!res.ok) return null
     const buf = await readCapped(res, IMG_MAX_BYTES)
     if (!buf || buf.byteLength === 0) return null
-    return await storeListingImage(buf, { pathPrefix: 'bulk/' })
+    const hosted = await storeListingImage(buf, { pathPrefix: 'bulk/' })
+    if (hosted) await markRehostPending(hosted)
+    return hosted
   } catch {
     return null
+  }
+}
+
+/**
+ * ⛔ A RE-HOSTED IMAGE IS TOMBSTONED THE MOMENT IT EXISTS (security review 2026-10-22, item 13) — the visa upload's
+ * pattern (storage-tombstones.ts). It is stored BEFORE the row that will use it, and a row refused after its photos
+ * (too few survived), an MCP create the publish gate refused, or a sync edit that errored used to leave its photos in
+ * the public bucket for good. Each caller now settles what it re-hosted: CLAIM once a listing holds the images (the
+ * tombstone goes), DISCARD on a refusal that wrote nothing (the objects go at once). Whatever neither reaches — a crash,
+ * an unexpected throw — the tombstone sweep deletes after its grace hour, re-checking references first (a listing that
+ * does hold the image keeps it). A failed tombstone write is logged and the image stays usable: never swept, which is
+ * where every re-hosted image was before.
+ */
+async function markRehostPending(url: string): Promise<void> {
+  const refs = rehostedRefs([url])
+  if (!refs.length) return
+  try { await writeTombstones(db, refs, 'listing_image_rehost_pending') }
+  catch (e) { logError(e, { op: 'bulk.rehost.tombstone' }) }
+}
+
+/** The bucket objects behind URLs this module re-hosted — only `bulk/` keys of the listings bucket, read from the public
+ *  URL storeListingImage returned. A caller passes only the URLs it re-hosted in THIS call: a first-party URL passed
+ *  through unchanged may be a live listing's photo. */
+function rehostedRefs(urls: string[]): TombstoneRef[] {
+  const marker = `/storage/v1/object/public/${LISTINGS_BUCKET}/`
+  return urls.flatMap((u) => {
+    const at = u.indexOf(marker)
+    const path = at >= 0 ? u.slice(at + marker.length) : ''
+    return path.startsWith('bulk/') ? [{ bucket: LISTINGS_BUCKET, path }] : []
+  })
+}
+
+/** A listing now holds these freshly re-hosted images: drop their pending tombstones. Best-effort — if this fails, the
+ *  sweep finds the listing still referencing them and drops the tombstones itself. */
+export async function claimRehostedImages(fresh: string[]): Promise<void> {
+  const refs = rehostedRefs(fresh)
+  if (!refs.length) return
+  try { await clearTombstones(refs) } catch (e) { logError(e, { op: 'bulk.rehost.claim' }) }
+}
+
+/** Nothing will hold these freshly re-hosted images — the write they were for was refused before it happened. Delete
+ *  them now (they are uniquely named and this request is the only one that knows them). On failure the tombstones stand
+ *  and the sweep finishes the job. */
+export async function discardRehostedImages(fresh: string[]): Promise<void> {
+  const refs = rehostedRefs(fresh)
+  if (!refs.length) return
+  try {
+    const { error } = await getSupabaseAdmin().storage.from(LISTINGS_BUCKET).remove(refs.map((r) => r.path))
+    if (error) throw error
+    await clearTombstones(refs)
+  } catch (e) {
+    logError(e, { op: 'bulk.rehost.discard' })
   }
 }
 
@@ -239,16 +295,30 @@ export async function bulkImportCore(
         if (dup) { results.push({ row: rowNo, error: `Duplicate of your live listing "${dup.title}" — edit or bump that one instead` }); continue }
       }
 
+      // Probation cap: creations beyond the remaining active-listing budget fail with
+      // the same stable code the single-create gate uses.
+      // ⚠️ BEFORE THE RE-HOST (security review 2026-10-22, item 13: re-host only after the gates). Neither cap depends on
+      // the photos, and checked after them a capped row fetched, decoded and stored up to eight images for nothing.
+      if (createdCount >= createBudget) {
+        results.push({ row: rowNo, error: 'probation_listing_cap' }); continue
+      }
+      // Released-scam-charge cap: same shape, its own stable code (released-charge-gate.ts).
+      if (createdCount >= releasedBudget) {
+        results.push({ row: rowNo, error: 'released_charge_listing_cap' }); continue
+      }
+
       // Re-host up to 8 images. First-party URLs pass through free; remote URLs each
-      // cost one unit of the per-import MAX_IMG_FETCHES budget.
+      // cost one unit of the per-import MAX_IMG_FETCHES budget. `fresh` = the ones THIS row stored (claimed or
+      // discarded below); a first-party URL passed through is never one of them.
       const rawUrls = String(r.image_urls || '').split(/[|,\n]/).map((u) => u.trim()).filter(Boolean).slice(0, 8)
       const hosted: string[] = []
+      const fresh: string[] = []
       for (const u of rawUrls) {
         if (isListingImageUrl(u)) { hosted.push(u); continue }
         if (imgFetched >= MAX_IMG_FETCHES) { imageBudgetReached = true; continue }
         imgFetched++
         const h = await rehost(u, seller.id)
-        if (h) hosted.push(h)
+        if (h) { hosted.push(h); fresh.push(h) }
       }
 
       // Same bar as the wizard/API, INCLUDING the per-category minimum — service rows need
@@ -257,21 +327,13 @@ export async function bulkImportCore(
       // would otherwise be held to a stricter rule than posting them in the wizard.
       const minPhotos = minPhotosFor(categorySlug)
       if (countDistinctAngles(hosted) < minPhotos) {
+        await discardRehostedImages(fresh) // refused before any write: nothing will ever hold them
         results.push({
           row: rowNo,
           error: minPhotos === 1
             ? 'Needs at least 1 photo'
             : `Needs at least ${minPhotos} photos from different angles`,
         }); continue
-      }
-      // Probation cap: creations beyond the remaining active-listing budget fail with
-      // the same stable code the single-create gate uses.
-      if (createdCount >= createBudget) {
-        results.push({ row: rowNo, error: 'probation_listing_cap' }); continue
-      }
-      // Released-scam-charge cap: same shape, its own stable code (released-charge-gate.ts).
-      if (createdCount >= releasedBudget) {
-        results.push({ row: rowNo, error: 'released_charge_listing_cap' }); continue
       }
       // ⛔ A JOB ROW IS PAID A SALARY (taxonomy.ts paysSalary), as on every other create path: stored as
       // the category's 'job' intent, its `price` column read as the MONTHLY salary and kept in whole
@@ -309,6 +371,7 @@ export async function bulkImportCore(
         },
         select: { id: true },
       })
+      await claimRehostedImages(fresh)
       results.push({ row: rowNo, id: listing.id, ...(r.external_id ? { external_id: String(r.external_id).trim() } : {}) })
       createdCount++
       warm.push(title, description)
