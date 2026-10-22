@@ -477,7 +477,8 @@ describe('/privacy — Sign in with Apple', () => {
     cleanup()
     const vi = await policy('marketplace', 'vi')
     for (const [e, v] of labels) {
-      expect(form).toContain(`tr('${e}', '${v}')`)
+      // (built in two pieces: a literal tr('…', '…') here would be harvested into ui-strings.ts by gen-ui-strings)
+      expect(form).toContain('tr' + `('${e}', '${v}')`)
       expect(en).toContain(`“${e}”`)
       expect(vi).toContain(`“${v}”`)
     }
