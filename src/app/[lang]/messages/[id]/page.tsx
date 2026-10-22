@@ -2614,12 +2614,13 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
               )}
             </div>
             {/* In-app calls (src/components/calls/call-buttons.tsx): renders nothing unless calls are on for this
-                person and this thread can carry one — never on a desk, visa or itinerary thread, never once closed. */}
-            {thread?.listing && thread.kind !== 'visa' && thread.kind !== 'itinerary' && !thread.closed && (
+                person and this thread can carry one (the server's rule, eligibility.ts — a listing chat, or one with
+                eno's rental / jobs desk), never on a visa or itinerary thread, never once closed. */}
+            {thread && thread.kind !== 'visa' && thread.kind !== 'itinerary' && !thread.closed && (
               <CallButtons
                 conversationId={thread.id}
                 peer={{ name: thread.counterpart.name ?? null, avatarUrl: thread.counterpart.avatarUrl ?? null }}
-                listing={{ id: thread.listing.id, title: thread.listing.title }}
+                listing={thread.listing ? { id: thread.listing.id, title: thread.listing.title } : null}
               />
             )}
             {/* Report this conversation (harassment / scam in chat) — the report links

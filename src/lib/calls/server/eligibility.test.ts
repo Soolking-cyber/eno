@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * callPermit (eligibility.ts) — who may call whom, where — with every dependency faked, so the ORDER and the
- * fail-closed answers are pinned: no blocking → off; the switch must admit BOTH people; desk / visa / itinerary
- * threads never; suspended or blocked never; the caller verified (video and teacher threads: both); staff exempt from
+ * fail-closed answers are pinned: no blocking → off; the switch must admit BOTH people; visa / trip storefront, visa /
+ * itinerary, support and lost-listing threads never (eno's rental and jobs desk chats may call); suspended or blocked never; the caller verified (video and teacher threads: both); staff exempt from
  * the identity half only.
  */
 const h = vi.hoisted(() => ({
@@ -97,7 +97,7 @@ describe('callPermit', () => {
     expect((await callPermit(convo(), 'buyer', 'audio')).ok).toBe(true)
   })
 
-  it('never a visa / itinerary / e-Visa / desk / listing-less thread', async () => {
+  it('never a visa / itinerary / e-Visa thread, eno\'s visa / trip storefront or a lost-listing chat — a rental / jobs desk chat may call', async () => {
     for (const kind of ['visa', 'itinerary']) {
       h.kind = kind
       expect(await callPermit(convo(), 'buyer', 'audio')).toMatchObject({ ok: false, error: 'calls_thread_unavailable' })
@@ -106,8 +106,10 @@ describe('callPermit', () => {
     expect(await callPermit(convo(), 'buyer', 'audio')).toMatchObject({ ok: false, error: 'calls_thread_unavailable' })
     h.evisa = false; h.desks = ['shop']
     expect(await callPermit(convo(), 'buyer', 'audio')).toMatchObject({ ok: false, error: 'calls_thread_unavailable' })
+    expect(await callPermit(convo({ listingId: null }), 'buyer', 'audio')).toMatchObject({ ok: false, error: 'calls_thread_unavailable' })
     h.desks = []
     expect(await callPermit(convo({ listingId: null }), 'buyer', 'audio')).toMatchObject({ ok: false, error: 'calls_thread_unavailable' })
+    expect((await callPermit(convo({ listingId: null, sellerId: 'eno-rental-desk' }), 'buyer', 'audio')).ok).toBe(true)
     expect(await callPermit(convo(), 'stranger', 'audio')).toMatchObject({ ok: false, error: 'not_participant' })
   })
 
@@ -145,7 +147,7 @@ describe('callPermit', () => {
 })
 
 describe('threadPermitRefusal — the consent route asks the SAME thread question a call does (round-5 review)', () => {
-  it('visa, itinerary, e-Visa, desk, listing-less and stranger threads are refused; a listing thread is not', async () => {
+  it('visa, itinerary, e-Visa, visa / trip storefront, lost-listing and stranger threads are refused; a listing or desk chat is not', async () => {
     expect(await threadPermitRefusal(convo(), 'seller')).toBeNull()
     for (const kind of ['visa', 'itinerary']) {
       h.kind = kind
@@ -155,8 +157,10 @@ describe('threadPermitRefusal — the consent route asks the SAME thread questio
     expect(await threadPermitRefusal(convo(), 'seller')).toEqual({ error: 'calls_thread_unavailable', status: 403 })
     h.evisa = false; h.desks = ['shop']
     expect(await threadPermitRefusal(convo(), 'seller')).toEqual({ error: 'calls_thread_unavailable', status: 403 })
+    expect(await threadPermitRefusal(convo({ listingId: null }), 'seller')).toEqual({ error: 'calls_thread_unavailable', status: 403 })
     h.desks = []
     expect(await threadPermitRefusal(convo({ listingId: null }), 'seller')).toEqual({ error: 'calls_thread_unavailable', status: 403 })
+    expect(await threadPermitRefusal(convo({ listingId: null, sellerId: 'eno-jobs-desk' }), 'seller')).toBeNull()
     expect(await threadPermitRefusal(convo(), 'stranger')).toEqual({ error: 'not_participant', status: 403 })
   })
 })

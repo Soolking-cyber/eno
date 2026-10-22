@@ -150,11 +150,28 @@ describe('the thread rules (eligibility.ts)', () => {
     expect(threadRefusal(convo({ sellerProfileId: 'buyer' }), 'buyer', [])).toEqual({ error: 'calls_thread_unavailable', status: 403 })
   })
 
-  it('never a support, desk, listing-less or visa-bound thread', () => {
-    expect(threadRefusal(convo({ listingId: null }), 'buyer', [])?.error).toBe('calls_thread_unavailable')
-    expect(threadRefusal(convo({ visaApplicationId: 'v1' }), 'buyer', [])?.error).toBe('calls_thread_unavailable')
+  it('a listing chat, or a listing-less one with eno\'s rental / jobs desk (owner, 2026-10-22)', () => {
+    for (const desk of ['eno-rental-desk', 'eno-rental-desk-forum', 'eno-jobs-desk']) {
+      expect(threadRefusal(convo({ listingId: null, sellerId: desk }), 'buyer', [])).toBeNull()
+      expect(threadRefusal(convo({ listingId: null, sellerId: desk }), 'seller', [])).toBeNull()
+      // a desk chat WITH a listing is not someone's item
+      expect(threadRefusal(convo({ sellerId: desk }), 'buyer', [])?.error).toBe('calls_thread_unavailable')
+    }
+  })
+
+  it('never eno\'s visa / trip storefront (listing or not), a visa-bound chat, or any other listing-less chat (commit-gate review)', () => {
     expect(threadRefusal(convo({ sellerId: 'desk' }), 'buyer', ['desk'])?.error).toBe('calls_thread_unavailable')
-    expect(threadRefusal(convo({ sellerId: SUPPORT_SELLER_ID }), 'buyer', [])?.error).toBe('calls_thread_unavailable') // this edition's desk
+    expect(threadRefusal(convo({ listingId: null, sellerId: 'desk' }), 'buyer', ['desk'])?.error).toBe('calls_thread_unavailable')
+    // a callable desk that somehow landed on the hide-list: the hide-list wins
+    expect(threadRefusal(convo({ listingId: null, sellerId: 'eno-rental-desk' }), 'buyer', ['eno-rental-desk'])?.error).toBe('calls_thread_unavailable')
+    expect(threadRefusal(convo({ visaApplicationId: 'v1' }), 'buyer', [])?.error).toBe('calls_thread_unavailable')
+    expect(threadRefusal(convo({ listingId: null, sellerId: 'eno-rental-desk', visaApplicationId: 'v1' }), 'buyer', [])?.error).toBe('calls_thread_unavailable')
+    // its listing is gone: what the chat was about (a visa product? a teacher?) can no longer be checked
+    expect(threadRefusal(convo({ listingId: null }), 'buyer', [])?.error).toBe('calls_thread_unavailable')
+    // a support thread — nobody on the line (its sellerProfileId is null in life; refused even if it were not)
+    expect(threadRefusal(convo({ listingId: null, sellerId: SUPPORT_SELLER_ID }), 'buyer', [])?.error).toBe('calls_thread_unavailable')
+    expect(threadRefusal(convo({ listingId: null, sellerId: 'eno-support-desk-forum' }), 'buyer', [])?.error).toBe('calls_thread_unavailable')
+    expect(threadRefusal(convo({ listingId: null, sellerId: SUPPORT_SELLER_ID, sellerProfileId: null }), 'buyer', [])?.error).toBe('calls_thread_unavailable')
   })
 
   it('counterparts', () => {

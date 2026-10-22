@@ -5,6 +5,8 @@ import { blockingOn, isBlockedBetween, isStaffProfile } from '@/lib/user-blocks'
 import { verifiedIdentityFor } from '@/lib/kyc/identity'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { deskSellerIds } from '@/lib/edition-scope'
+import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
+import { JOBS_DESK_SELLER_ID } from '@/lib/teachers/job-dms/constants'
 import { isEVisaThread } from '@/lib/ios-hide-visa-server'
 import { threadKind } from '@/lib/thread-kind'
 import { rateLimit } from '@/lib/ratelimit'
@@ -18,8 +20,12 @@ import { pairCallCounts } from './session'
  *
  *   · Both people pass the runtime switch (config.ts) — in a beta the callee must be in it too, or their phone would
  *     ring with no way to answer.
- *   · Only a listing thread between two real people: never a support, rental or visa/trip desk thread, never a
- *     visa- or itinerary-kind thread, never an e-Visa product's thread, never an unclaimed storefront.
+ *   · Any listing chat between two real people, and (owner, 2026-10-22: "in chat call video call feature no need for
+ *     post for that we can build guardrails later on") the listing-less chats with eno's rental and jobs desks, which
+ *     support@eno.forum answers. Never a chat with eno's visa / trip storefront, a visa application's, a visa- or
+ *     itinerary-kind thread or an e-Visa product's: the licensed eno.vn must not show those, and a call card prints the
+ *     listing's title. Never a support thread (nobody on the line: its replies come one-way from the admin surface), any
+ *     other listing-less chat (its listing is gone — what it was about cannot be checked) or an unclaimed storefront.
  *   · Neither side suspended from messaging; no block either way (blocking must be live — config.ts).
  *   · The CALLER holds a live verified identity (eKYC). Video, and every call in a teacher thread, need the CALLEE
  *     verified too (§4: "video and all teacher-thread calls require BOTH sides ID-verified"). ⚠️ The eno team
@@ -83,14 +89,30 @@ export function counterpartOf(convo: ConversationForCall, profileId: string): st
   return null
 }
 
+/**
+ * The desks whose chats may carry a call (owner, 2026-10-22): the rental and jobs desks — support@eno.forum is their
+ * chats' `sellerProfileId`, so somebody is on the line. Both editions' rental ids: the two sites share one database, and
+ * the accept runs these rules again on the callee's site, which may be the other one. Their chats carry no listing
+ * (measured 2026-10-22: 74 of 74). Not the support desks (nobody on the line — support-thread.ts) and not eno's visa /
+ * trip storefront (deskSellerIds(), refused listing or not).
+ */
+const CALLABLE_DESK_IDS: readonly string[] = [...RENTAL_DESK_SELLER_IDS, JOBS_DESK_SELLER_ID]
+
 /** The structural part of "may this thread carry a call" — pure. threadPermitRefusal adds the DB-backed kinds. */
 export function threadRefusal(convo: ConversationForCall, profileId: string, deskIds: readonly string[]): Refusal | null {
   if (convo.buyerProfileId !== profileId && convo.sellerProfileId !== profileId) return { error: 'not_participant', status: 403 }
   // An unclaimed storefront has nobody to ring; a thread with one person on both sides has nobody else.
   const other = counterpartOf(convo, profileId)
   if (!other || other === profileId) return { error: 'calls_thread_unavailable', status: 403 }
-  if (!convo.listingId || convo.visaApplicationId) return { error: 'calls_thread_unavailable', status: 403 }
+  if (convo.visaApplicationId) return { error: 'calls_thread_unavailable', status: 403 }
+  // eno's visa / trip storefront: never, with a listing or without — the licensed eno.vn must not show it. Nor a support
+  // thread: nobody is on the line there (support-thread.ts).
   if (convo.sellerId === SUPPORT_SELLER_ID || deskIds.includes(convo.sellerId)) return { error: 'calls_thread_unavailable', status: 403 }
+  // No listing: only a chat with the rental or jobs desk. Any other listing-less chat lost its listing, and what it was
+  // about (a visa product? a teacher?) can no longer be checked — fail closed (commit-gate review, codex + opus).
+  if (!convo.listingId) return CALLABLE_DESK_IDS.includes(convo.sellerId) ? null : { error: 'calls_thread_unavailable', status: 403 }
+  // A desk chat WITH a listing is about something the desk handles, not someone's item.
+  if (CALLABLE_DESK_IDS.includes(convo.sellerId)) return { error: 'calls_thread_unavailable', status: 403 }
   return null
 }
 
