@@ -19,7 +19,7 @@ import { indexAndCheckProvenance } from '@/lib/image-provenance'
 import { storeListingImage, IMG_MAX_BYTES } from '@/lib/core/media'
 import { browseRankScore } from '@/lib/ranking'
 import { parseVnd } from '@/lib/vnd'
-import { isPostableCategory, paysSalary, resolveListingType, salaryMFromPrice, salaryPriceFor, storesCondition } from '@/lib/taxonomy'
+import { isPostableCategory, LICENCE_CHECK_SUBCATEGORIES, paysSalary, resolveListingType, salaryMFromPrice, salaryPriceFor, storesCondition, subcategoriesFor, subcategoryMatchesText, VISA_CATEGORY_SLUG } from '@/lib/taxonomy'
 import { isHiringPost, JOB_TEXT_REFUSAL, jobTextProblem } from '@/lib/job-listing'
 import { sellerPublishDecision, type SellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
 import { cutText } from '@/lib/feed-text'
@@ -197,6 +197,14 @@ export async function bulkImportCore(
       const printed = [title, description, district, condition]
       if (printed.some((t) => containsPhoneNumber(t) || containsContactInfo(t))) { results.push({ row: rowNo, error: 'Remove phone / contact info / address from the title, description, district and condition' }); continue }
       { const bw = findBannedWord(printed.filter(Boolean).join(' ')); if (bw) { results.push({ row: rowNo, error: `Contains a banned word ("${bw}")` }); continue } }
+      // ⛔ A LICENCE-AISLE SERVICE IS NEVER BULK-IMPORTED (security review 2026-10-22, item 8). This core creates rows live
+      // with no subcategory and never runs the licence check, so a Services row titled "Vietnam e-Visa 90 days" or "Work
+      // permit renewal" published an unchecked visa or permit offer — the bypass createListingCore closes by re-filing such
+      // a post into its aisle and holding it (listings.ts). A row cannot carry the provider's registered name and licence
+      // number that check needs, so it is refused, naming the path that works. Title only, the single path's rule.
+      if (cat.slug === VISA_CATEGORY_SLUG && LICENCE_CHECK_SUBCATEGORIES.some((a) => subcategoriesFor(cat.slug).some((s) => s.slug === a) && subcategoryMatchesText(cat.slug, a, title))) {
+        results.push({ row: rowNo, error: 'e-Visa and legal or permit services are posted one at a time, so eno can check the provider’s licence before they go live' }); continue
+      }
       // ⛔ A HIRING ROW GETS THE JOB-TEXT SCREEN TOO (job-listing.ts jobTextProblem — teacher visibility plan §3a item 6,
       // 2026-10-18): this core creates with its own db.listing.create, so createListingCore's screen never runs for a CSV,
       // /api/v1 bulk, MCP bulk or partner-sync row, and a school could post round it. Every Jobs row is stored as a hiring

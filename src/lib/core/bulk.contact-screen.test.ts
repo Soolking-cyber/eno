@@ -18,6 +18,7 @@ vi.mock('@/lib/db', () => ({
     category: {
       findMany: async (a: Row) => [
         { id: 'c-electronics', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' },
+        { id: 'c-services', slug: 'services', name: 'Services', nameVi: 'Dịch vụ' },
       ].filter((c) => (a.where.slug.in as string[]).includes(c.slug)),
     },
     listing: {
@@ -91,5 +92,23 @@ describe('bulkImportCore — the district and the condition are screened like th
     const r = await bulkImportCore(SELLER, [row({ district: 'Thủ Đức', condition: 'Used — good' })])
     expect(r.results).toEqual([{ row: 1, id: 'new1' }])
     expect(h.creates[0]).toMatchObject({ district: 'Thủ Đức', location: 'Thủ Đức', condition: 'Used — good' })
+  })
+})
+
+describe('⛔ bulkImportCore — a licence-aisle service is refused (security review 2026-10-22, item 8)', () => {
+  // This core creates rows live and never runs the licence check, so a Services row TITLED as an e-Visa or permit service
+  // published unchecked. The single path re-files and holds such a post; a bulk row cannot carry the licence values.
+  const service = (title: string) => ({ category_slug: 'services', title, description: 'Fast and friendly.', price: 1_500_000, image_urls: 'https://cdn.eno.test/s.jpg' })
+  const REFUSAL = 'e-Visa and legal or permit services are posted one at a time, so eno can check the provider’s licence before they go live'
+
+  it('an e-Visa or work-permit title is refused on its row; an ordinary service imports', async () => {
+    const r = await bulkImportCore(SELLER, [service('Vietnam e-Visa 90 days, fast processing'), service('Work permit renewal for teachers'), service('Home cleaning, two cleaners')])
+    expect(r.results).toEqual([{ row: 1, error: REFUSAL }, { row: 2, error: REFUSAL }, { row: 3, id: 'new1' }])
+    expect(h.creates.map((c) => c.title)).toEqual(['Home cleaning, two cleaners'])
+  })
+
+  it('the aisle words in a DESCRIPTION do not refuse a cleaning service (title only, as on the single path)', async () => {
+    const r = await bulkImportCore(SELLER, [{ ...service('Office cleaning'), description: 'We clean offices; we do not handle work permit paperwork.' }])
+    expect(r.results).toEqual([{ row: 1, id: 'new1' }])
   })
 })
