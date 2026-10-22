@@ -595,3 +595,39 @@ describe('gate 7b — "turn off", plainly asked, pauses; "don\'t turn off" keeps
     ]) expect(mayBeOptOut(t), t).toBe(false)
   })
 })
+
+describe('the live audit (2026-10-22: 328 offers graded blind) — fit(), each measured before the fix', () => {
+  it('a general English job is not for a teacher who teaches ONLY IELTS, STEM or another language (5 such offers)', () => {
+    const j = jobOf('English teacher for kids wanted in District 7, part-time')
+    expect(fit(teacher({ subjects: ['ielts'] }), j, NOW).blocker).toBe('subject:general')
+    expect(fit(teacher({ subjects: ['stem'] }), j, NOW).blocker).toBe('subject:general')
+    expect(fit(teacher({ subjects: ['other-language'], teachLanguages: ['Spanish'] }), j, NOW).blocker).toBe('subject:general')
+    // Business English and TOEFL/TOEIC teachers often take general English; a teacher who named no subject may (opus, plan review)
+    for (const subjects of [['business-english'], ['toefl-toeic'], ['ielts', 'phonics'], []]) expect(fit(teacher({ subjects }), j, NOW).ok, subjects.join()).toBe(true)
+    // a job naming their subject still reaches them
+    expect(fit(teacher({ subjects: ['ielts'] }), jobOf('IELTS teacher for kids wanted in District 7, part-time'), NOW).ok).toBe(true)
+  })
+  it('an English certificate at C1/C2: not for working-level English; fluent, native and unanswered may (2 such offers)', () => {
+    const j = jobOf('Part-time English teacher for kids in District 7. Requirements: C1/C2 English certificate for non-native English speakers.')
+    expect(fit(teacher({ englishLevel: 'working' }), j, NOW).blocker).toBe('english-level')
+    for (const englishLevel of ['fluent', 'native', null]) expect(fit(teacher({ englishLevel }), j, NOW).ok, String(englishLevel)).toBe(true)
+  })
+  it('the post\'s minimum of years and its degree hold back the teachers below them (7 such offers)', () => {
+    const j = jobOf('Primary Teacher for kids in District 7, part-time. Minimum requirements: Relevant degree in Primary Education. Minimum 2 years of classroom teaching experience.')
+    expect(fit(teacher({ yearsExperience: 1 }), j, NOW).blocker).toBe('experience')
+    expect(fit(teacher({ degreeLevel: 'associate' }), j, NOW).blocker).toBe('degree')
+    expect(fit(teacher(), j, NOW).ok).toBe(true)
+  })
+  it('a short week is part-time: never for a teacher who wants only full-time work (5 such offers)', () => {
+    const j = jobOf('Searching for long term teacher. One day a week on Wednesday. 4.5 hours Rate: 520,000 VND/hour gross Students: kids. Location: District 7.')
+    expect(fit(teacher({ jobTypes: ['fulltime'] }), j, NOW).blocker).toBe('job-type:part_time')
+    expect(fit(teacher({ jobTypes: ['parttime'] }), j, NOW).ok).toBe(true)
+  })
+})
+
+describe('gate 15b reviewer findings (codex + opus, 2026-10-22)', () => {
+  it('an unclassified job and a cover lesson are general English: not for an IELTS- or STEM-only teacher (opus asked; intended)', () => {
+    expect(fit(teacher({ subjects: ['stem'] }), jobOf('Teacher wanted for our kids classes in District 7, part-time'), NOW).blocker).toBe('subject:general')
+    expect(fit(teacher({ subjects: ['ielts'] }), jobOf(COVER), NOW).blocker).toBe('subject:general')
+  })
+})

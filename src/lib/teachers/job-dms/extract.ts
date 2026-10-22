@@ -23,7 +23,7 @@ import { VN_PROVINCES } from '@/lib/vn-areas'
 import { HCMC, ONLINE, TOWN_ALIASES, provinceKeyOf } from '@/lib/teachers/places'
 
 /** Bump when a rule below changes what it extracts: stored facts carry it, and a run re-reads posts under an older one. */
-export const RULES_VERSION = 'job-rules-2026-10-21c'
+export const RULES_VERSION = 'job-rules-2026-10-22a'
 
 export type JobKind = 'job_offer' | 'cover_request' | 'job_seeker' | 'other'
 export type Employment = 'full_time' | 'part_time' | 'cover' | 'private' | 'online'
@@ -57,6 +57,8 @@ export type Requirements = {
   tefl: Need
   /** "at least N years" when stated */
   minYears: number | null
+  /** an English certificate at CEFR C1/C2 asked of the teacher (readProficiency) — absent in facts read before 2026-10-22 */
+  proficiency?: Need
   /** a post that says the teacher must already be in Vietnam */
   inVietnam: boolean
   /** a post that welcomes applicants from abroad (relocation, flights) */
@@ -370,21 +372,43 @@ const OTHER_SUBJECT_ONLY = (t: string) =>
  * ("Economics Teacher (English language required)") is still read as a job — the titles seen are "role — employer"
  * (imports) and a bare role (LinkedIn) (codex, opus, gate 12d).
  */
-const OTHER_ACADEMIC_TITLE = /\b(economics|psychology|history|geography|sociology|philosophy|politics|humanities|global perspectives|accounting|business studies|business administration|business management|human resources|digital media|animation|graphic design|drama|theatre|theater|physical education|social studies|religious studies|law|marketing|finance|engineering|nursing|hospitality|artificial intelligence|data science|machine learning|ai (lecturers?|trainers?)|social sciences?|political science)\b/
+const OTHER_ACADEMIC_TITLE = /\b(economics|psychology|history|geography|sociology|philosophy|politics|humanities|global perspectives|accounting|business studies|business administration|business management|human resources|digital media|animation|graphic design|drama|theatre|theater|physical education|pe|social studies|religious studies|law|marketing|finance|engineering|nursing|hospitality|artificial intelligence|data science|machine learning|ai (lecturers?|trainers?)|social sciences?|political science)\b/
 const OTHER_ACADEMIC_ALL = new RegExp(OTHER_ACADEMIC_TITLE.source, 'g')
 const TEACHABLE_TITLE = /\b(english|esl|efl|tefl|tesol|celta|ielts|toeic|toefl|phonics|tieng anh|anh van|anh ngu|conversation|speaking|language|stem|math|maths|mathematics|science|physics|chemistry|biology|steam|robotics|coding|computer science|computing|ict)\b/
 const ROLE_WORD_EN = /\b(teachers?|lecturers?|tutors?|instructors?|trainers?|educators?|professors?)\b/
 const ROLE_WORD = /\b(teachers?|lecturers?|tutors?|instructors?|trainers?|educators?|professors?|giao vien)\b/
 const EMPLOYER_PHRASE = /\b(english|language|foreign language|ielts|esl)( (language|english))? (schools?|centres?|centers?|academy|academies|institutes?|colleges?)\b/g
-export function titleNamesOtherSubject(title: string): boolean {
-  // The ROLE part only — the part naming the teacher, or the first — and before " at ": an imported listing's title runs
-  // on into its employer and place. "Economics Teacher — English Language School" is not an English job (codex, gate
-  // 12b), "Hanoi - Economics Teacher" is an Economics one, and "Teacher at Hanoi Law University" may well be English.
+/**
+ * A title's ROLE part only — the part naming the teacher, or the first — and before " at ": an imported listing's title
+ * runs on into its employer and place. "Economics Teacher — English Language School" is not an English job (codex, gate
+ * 12b), "Hanoi - Economics Teacher" is an Economics one, and "Teacher at Hanoi Law University" may well be English.
+ */
+function titleRole(title: string): string {
   const parts = title.split(/\s+[—–|·]\s+|\s+-\s+/).map(foldPost)
-  const role = (parts.find((x) => ROLE_WORD.test(x)) ?? parts[0]).split(/\s(?:at|@)\s/)[0]
+  return (parts.find((x) => ROLE_WORD.test(x)) ?? parts[0]).split(/\s(?:at|@)\s/)[0]
+}
+export function titleNamesOtherSubject(title: string): boolean {
+  const role = titleRole(title)
   // English or STEM is looked for OUTSIDE the other subject's own words ("Data Science Instructor" is not a Science job —
   // codex + opus, gate 12f) and outside an employer left in the role ("History Teacher, English Language School", 12c).
-  return OTHER_ACADEMIC_TITLE.test(role) && !TEACHABLE_TITLE.test(role.replace(OTHER_ACADEMIC_ALL, ' ').replace(EMPLOYER_PHRASE, ' '))
+  // A language role beside the other subjects makes it that language's job (titleLanguages), not nobody's.
+  return OTHER_ACADEMIC_TITLE.test(role) && !TEACHABLE_TITLE.test(role.replace(OTHER_ACADEMIC_ALL, ' ').replace(EMPLOYER_PHRASE, ' ')) && !titleLanguages(title).length
+}
+
+/**
+ * A TITLE whose role is ANOTHER LANGUAGE's teacher, beside no English role — "Early Years Elementary School Homeroom Teacher,
+ * Elementary School PE Teacher, Elementary School Part-Time Mandarin Teacher" (the live audit, 2026-10-22: three English
+ * teachers got it): that language, as readLanguages names one. ⛔ The title only, and only a word no teacher's
+ * nationality shares — Mandarin, Cantonese — or "<language> language teacher": "Korean Teacher" and "Filipino Teacher"
+ * may name the teacher's origin, and "English & Mandarin Teacher" is an English job too (opus, plan review). In a
+ * listing's text readLanguages finds nothing: every import says "Job for English speakers".
+ */
+const TITLE_LANGUAGE_ROLE = new RegExp(`\\b(mandarin|cantonese) (?:teachers?|tutors?|lecturers?|instructors?)\\b|\\b(${OTHER_LANGUAGES}) language (?:teachers?|tutors?|lecturers?|instructors?)\\b`, 'g')
+export function titleLanguages(title: string): string[] {
+  // in the ROLE: "Mandarin Teacher — English Language School" names an English school, not an English role (codex, 15b)
+  const role = titleRole(title).replace(EMPLOYER_PHRASE, ' ')
+  if (ENGLISH_NAMED.test(role)) return []
+  return [...new Set([...role.matchAll(TITLE_LANGUAGE_ROLE)].map((m) => canonical(m[1] ?? m[2])))]
 }
 
 /**
@@ -447,11 +471,110 @@ export function readKind(t: string, listing = false): JobKind {
  */
 const ONLINE_WORK = /\bonline (and |or |\/ ?)?(offline )?(english )?(class|classes|lessons?|teaching|teachers?|tutors?|tutoring|jobs?|positions?|sessions?|courses?|students)\b|\b(teach|teaching|tutoring|classes|lessons) (english )?online\b|\b(via|on|through) (zoom|google meet|teams|skype)\b|\bremote (teaching|job|position|work)\b|\bwork from home\b|\b(day|hoc|lop) truc tuyen\b/
 
+/**
+ * A SHORT WEEK is part-time — "One day a week on Wednesday. 4.5 hours", "2hours/ day in the morning (Monday to Friday)"
+ * (the live audit, 2026-10-22: the first read as no type, the second as FULL-TIME by its weekdays, and both reached
+ * teachers who want only full-time work): three days a week or fewer, or three hours a day or fewer — and its weekdays
+ * are then no full-time cue. Never beside "full-time", office hours or a contract term: "4 hours of classes a day plus
+ * office hours, Monday to Friday" is a full-time job (codex + opus, plan review).
+ */
+/** "full-time", never "not full-time" (codex, gate 15c) — and "not part-time" (codex, gate 15i) */
+const FULL_TIME_WORD = /(?<!\bnot (a )?)\b(full.?time|fulltime)\b|\btoan thoi gian\b|\bnot (a )?part.?time\b/
+/** a contract's term: months, or a year — "1-year contract", "annual contract" (opus, gate 15c) */
+const CONTRACT_TERM = /\b(12|twelve|6|six|9|nine|10|ten)[ -]month contract\b|\b(1|one|2|two)[ -]years? contract\b|\b(annual|yearly) contract\b/
+const SHORT_DAYS = /\b(one|two|three|1|2|3) days? ?(a |per |each |\/ ?)week\b(?! off)|\b(once|twice) (a|per) week\b/g
+const SHORT_DAY = /\b(\d(?:[.,]\d)?) ?(?:hours?|hrs?|h|tieng|gio) ?(?:a|per|each|\/|mot) ?(?:day|ngay)\b/g
+/** …of the TEACHING: "Teacher training twice a week", "Days off: two days per week", "1h/day lunch break" are not it
+ *  (opus, gate 15a) — a short week's clause names no training, break, day off, meeting, office, pay or preparation (15d). */
+/** A stated week of four days or more — "Monday to Friday", "Tuesday to Sunday" (opus, gates 15k–15l); "Sat–Sun" is not one. */
+const DAY_NAMES = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+const DAY_RANGE = /\b(mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:rs(?:day)?)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?) ?(?:to|-) ?(mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:rs(?:day)?)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b/g
+function statedWeek(t: string, days = 4): boolean {
+  return [...t.matchAll(DAY_RANGE)].some((m) => ((DAY_NAMES.indexOf(m[2].slice(0, 3)) - DAY_NAMES.indexOf(m[1].slice(0, 3)) + 7) % 7) + 1 >= days)
+}
+const NOT_THE_TEACHING = /\b(training|orientation|induction|break|lunch|off|holidays?|leave|meetings?|office|paid|pay|payment|salary|prep|preparation|planning|marking|grading|clubs?|activities|duty|duties|commute|commuting|supervision)\b/
+/**
+ * A stated working DAY of six hours or more — "7:30–16:30", "8am-5pm", "8:00 - 17:00" — is no short day: no short phrase
+ * beside it ("Club activities twice a week", "lesson planning 1 hour a day") makes it part-time (opus, gate 15g). It adds
+ * no full-time tag by itself — that is the weekdays', a contract's or the words' (codex, gate 15j).
+ * Only clock times — "3-5", "4-12" are not; "2:00-4:00 pm" is two hours.
+ */
+// groups: 1 hour · 2 minutes · 3 a bare "h" ("8h", Vietnamese) · 4 am/pm — then the same, 5–8, for the end
+// ":" or "h" only — "01.11 - 15.12" is a date range (opus, gate 15i)
+const TIME_SPAN = /\b(\d{1,2})(?:[:h](\d{2})|(h))? ?(am|pm|sang|chieu|toi)?\s*(?:-|to|den|~)\s*(\d{1,2})(?:[:h](\d{2})|(h))? ?(am|pm|sang|chieu|toi)?\b/g
+function fullDay(t: string): boolean {
+  const pm = (x: string | undefined) => !!x && /^(pm|chieu|toi)$/.test(x)
+  for (const m of t.matchAll(TIME_SPAN)) {
+    if (![2, 3, 4, 6, 7, 8].some((i) => m[i])) continue
+    // a DURATION is no clock time: "2.5h -3h / day", "2-3h per week" (measured on the labelled posts)
+    if (/^\s*(\/|per|a|each|mot)\s*(day|ngay|week|tuan|buoi|session|class|lesson)\b/.test(t.slice((m.index ?? 0) + m[0].length, (m.index ?? 0) + m[0].length + 16))) continue
+    const a0 = Number(m[1]) + Number(m[2] ?? 0) / 60, b0 = Number(m[5]) + Number(m[6] ?? 0) / 60
+    let a = a0, b = b0
+    if (pm(m[4]) && a < 12) a += 12
+    if (pm(m[8]) && b < 12) { b += 12; if (!m[4] && a0 < 12 && a0 <= b0) a += 12 }
+    // "8:00 - 5:00" is the afternoon's 5 — but an "h" time is a 24-hour one, never wrapped ("8h-17h")
+    else if (!m[8] && !m[3] && !m[7] && b < a && b + 12 > a) b += 12
+    if (a > 24 || b > 24 || b <= a) continue
+    if (b - a >= 6) return true
+  }
+  return false
+}
+/** …nor beside a monthly salary of 15M or more: "Public school teacher, 3 hours a day, Monday to Friday, 18M/month" is a
+ *  full-time job by its weekdays (opus, gate 15h) — an explicit "part-time" still says so. */
+const monthlyWage = (t: string) => { const p = readPay(t); return !!p && p.unit === 'month' && p.max >= 15_000_000 }
+const shortWeek = (t: string) => {
+  if (FULL_TIME_WORD.test(t)) return false
+  const teaching = (m: RegExpMatchArray) => {
+    const [from, to] = clauseAround(t, m.index ?? 0, (m.index ?? 0) + m[0].length)
+    return !NOT_THE_TEACHING.test(t.slice(from, to))
+  }
+  // A few DAYS a week is part-time whatever the day's length, pay or contract ("two days a week, 6-month contract",
+  // "Sat–Sun 7:30–16:30" — opus, gate 15i) — unless the post states Monday to Friday: its week is stated, and "Swimming
+  // lessons twice a week" is an activity (opus, gate 15k). A few HOURS a day only beside none of them.
+  if (!statedWeek(t) && [...t.matchAll(SHORT_DAYS)].some(teaching)) return true
+  if (CONTRACT_TERM.test(t) || /\boffice hours\b/.test(t) || fullDay(t) || monthlyWage(t)) return false
+  return [...t.matchAll(SHORT_DAY)].some((m) => Number(m[1].replace(',', '.')) <= 3 && teaching(m))
+}
+
+/**
+ * Hours or lessons a WEEK: 20 hours or fewer (or under 15 lessons) is a part-time job — "10 hours per week", "7.5 hours per week";
+ * 35 hours or more a full-time one ("40 hours per week", which read part-time — opus, gate 15i); between, as before,
+ * either — both tags ("15 - 22 hours per week", "25 hours/week" — a public school's full load).
+ */
+const WEEKLY = /\b(\d{1,2}(?:[.,]\d)?)(?: ?(?:-|to) ?(\d{1,2}(?:[.,]\d)?))? ?(hours|hrs|h|classes|lessons|sessions|periods)( per | a | ?\/ ?| each )(week|wk)\b/g
+function weekly(t: string): 'part' | 'either' | 'full' | null {
+  let out: 'part' | 'either' | null = null
+  for (const m of t.matchAll(WEEKLY)) {
+    // a range: full-time only from its low end, part-time only to its high end ("10-40 hours" is either — codex, 15l)
+    const lo = Number(m[1].replace(',', '.')), hi = Number((m[2] ?? m[1]).replace(',', '.')), hours = /^(hours|hrs|h)$/.test(m[3])
+    if (hours && lo >= 35) return 'full'
+    if (hours ? hi <= 20 : hi < 15) out = out ?? 'part'
+    else out = 'either' // 15 lessons or more: the part-time tag beside any full-time one, as before (opus, 15m)
+  }
+  return out
+}
+
 export function readEmployment(t: string, kind: JobKind): Employment[] {
   const out = new Set<Employment>()
   if (kind === 'cover_request') out.add('cover')
-  if (has(t, /\bfull.?time\b|\bfulltime\b|\btoan thoi gian\b|\b(12|twelve|6|six|9|nine|10|ten)[ -]month contract\b|\b(monday|mon) (to|-) (friday|fri)\b|\b40 (hours|hrs)\b/)) out.add('full_time')
-  if (has(t, /\bpart.?time\b|\bparttime\b|\bban thoi gian\b|\bweekend (classes|only|shifts?)\b|\bevening (classes|shifts?)\b|\b\d{1,2} (hours|hrs|classes|lessons|sessions)( per | a | ?\/ ?)(week|wk)\b/)) out.add('part_time')
+  const week = weekly(t)
+  // EXPLICIT part-time: the words, a weekend or evening ROLE ("Weekend teacher", "evening teacher" — codex, 15k), a short
+  // week, under 20 hours — never the weekend days, which full-time posts name as days off ("Saturday and Sunday are days
+  // off" — opus, gate 15j), never "not part(-)time" (codex). Evening and weekend CLASSES are a full-time centre's
+  // schedule too: they add the part-time tag beside the full-time cues, as before (opus, gate 15l).
+  const partTime = shortWeek(t) || week === 'part'
+    || has(t, /(?<!\bnot (a )?)\b(part.?time|parttime)\b|\bnot (a )?full.?time\b|\bban thoi gian\b|\b(weekend|evening) (only|teachers?|tutors?|jobs?|work|positions?)\b/)
+  // …and they ARE the whole job without a stated week: "Weekend classes for kids, 1-year contract" (opus, gate 15m)
+  const softPart = has(t, /\b(weekend|evening) (classes|shifts?)\b/) && statedWeek(t)
+  const classesOnly = !softPart && has(t, /\b(weekend|evening) (classes|shifts?)\b/)
+  // An explicit part-time outweighs the inferred full-time cues — a contract term, the weekdays, 40 hours: "Part-time,
+  // weekends only, 1-year contract" is no full-time job (opus, gate 15e); "Full-time/Part-time" says both.
+  // a stated week of five days or more with a full working day is full-time ("Tuesday to Saturday, 8am-5pm" — codex, 15m)
+  const fullWeek = statedWeek(t, 5) && fullDay(t)
+  // "either" (20–34 hours, 15 lessons or more a week) suits both kinds of teacher: both tags ("21 periods per week" at a
+  // secondary school — measured on the labelled posts)
+  if (has(t, FULL_TIME_WORD) || week === 'full' || (!partTime && !classesOnly && (week === 'either' || has(t, CONTRACT_TERM) || fullWeek || has(t, /\b(monday|mon) (to|-) (friday|fri)\b|\b40 (hours|hrs)\b/)))) out.add('full_time')
+  if (partTime || softPart || classesOnly || week === 'either') out.add('part_time')
   if (has(t, /\bprivate (tutor|tutoring|lessons?|class(es)?|students?)\b|\b1.on.1\b|\bone.on.one\b|\b1 ?- ?1\b|\bgia su\b|\bday kem\b|\btutor for (my|our|a)\b/)) out.add('private')
   if (has(t, ONLINE_WORK)) out.add('online')
   return [...out]
@@ -515,18 +638,23 @@ const HUB_NEEDLES: Needle[] = ([
   ...districts.map((s) => ({ re: needle(s), key, district: false, viaDistrict: true })),
 ])
 
+/** "Vinh", but not as the first word of Vĩnh Phúc, Vĩnh Yên, Vĩnh Long, Vĩnh Lộc … nor Trà Vinh (opus, 15b) — the folded text
+ *  runs names together. */
+const VINH_ALONE = /(?<!\btra )\bvinh\b(?! (phuc|yen|long|loc|hao|linh|bao|thanh|tuong|hung|chau|thuan|hai|hoa|hiep|ninh|tho|tan|kim|quang|son|xuan|trach|lac|binh|phu|cuu|hau|phong|trung|khanh|nguyen|loi|cuong|hien|truong)\b)/
+
 /** Province names (vn-units, 2025 units) and the towns places.ts aliases — 'p-<code>' keys only for pickable provinces. */
 const PROVINCE_NEEDLES: Needle[] = [
   ...VN_PROVINCES.flatMap((p) => {
     const key = provinceKeyOf(p.code)
     return key ? [p.name, p.nameEn].map((s) => ({ re: needle(s), key, district: false })) : []
   }),
-  // "Vinh" is also a common given name: a place only beside a place word ("in Vinh", "Vinh city").
+  // "Vinh" is also a common given name: a place only beside a place word ("in Vinh", "Vinh city") — and never the first
+  // word of a longer name: "in Vinh Phuc Province" is Phú Thọ, not Nghệ An (the live audit, 2026-10-22).
   ...TOWN_ALIASES.filter((a) => a.to.startsWith('p-')).flatMap((a) =>
-    [a.name, a.nameEn].map((s) => (words(s) === 'vinh' ? { re: needle(s), key: a.to, district: false, cue: cueFor(s) } : { re: needle(s), key: a.to, district: false }))),
+    [a.name, a.nameEn].map((s) => (words(s) === 'vinh' ? { re: VINH_ALONE, key: a.to, district: false, cue: cueFor(s) } : { re: needle(s), key: a.to, district: false }))),
   // Pre-2025 provinces people still name, folded into their 2025 unit (places.ts: "Quảng Nam is Đà Nẵng, Bình Định is Gia
   // Lai, Bình Thuận is Lâm Đồng"). Only the pickable ones — a hub province is the hub's chip above.
-  ...([['binh dinh', 'p-52'], ['quy nhon', 'p-52'], ['binh thuan', 'p-68'], ['phan thiet', 'p-68'], ['bac giang', 'p-24'], ['vinh phuc', 'p-25'], ['thai binh', 'p-33'], ['nam dinh', 'p-37'], ['ha nam', 'p-37'], ['quang binh', 'p-44'], ['kon tum', 'p-51'], ['phu yen', 'p-66'], ['buon ma thuot', 'p-66'], ['dak nong', 'p-68'], ['long an', 'p-80'], ['tien giang', 'p-82'], ['ben tre', 'p-86'], ['tra vinh', 'p-86'], ['bac lieu', 'p-96'], ['kien giang', 'p-91'], ['rach gia', 'p-91'], ['ha long', 'p-22']] as const)
+  ...([['binh dinh', 'p-52'], ['quy nhon', 'p-52'], ['binh thuan', 'p-68'], ['phan thiet', 'p-68'], ['bac giang', 'p-24'], ['vinh phuc', 'p-25'], ['thai binh', 'p-33'], ['nam dinh', 'p-37'], ['ha nam', 'p-37'], ['quang binh', 'p-44'], ['kon tum', 'p-51'], ['phu yen', 'p-66'], ['buon ma thuot', 'p-66'], ['dak nong', 'p-68'], ['long an', 'p-80'], ['tien giang', 'p-82'], ['ben tre', 'p-86'], ['tra vinh', 'p-86'], ['bac lieu', 'p-96'], ['kien giang', 'p-91'], ['rach gia', 'p-91'], ['ha long', 'p-22'], ['vinh yen', 'p-25']] as const)
     .map(([s, key]) => ({ re: needle(s), key, district: false })),
 ]
 
@@ -570,12 +698,42 @@ export function readPlaces(t: string): { places: string[]; cityOnly: boolean } {
 // Pay
 // ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+// "/ month" with a space is a month too (the live audit, 2026-10-22: "550,000 VND / month" read as unit-less, so as an hour).
 const UNIT_WORD: [RegExp, PayUnit][] = [
-  [/^ ?(\/|per |a |an |each |mot |1 )?(h|hr|hrs|hour|hours|gio|tieng|60 ?(min|mins|minutes|phut))\b/, 'hour'],
-  [/^ ?(\/|per |a |an |each |mot |1 )?(session|sessions|class|classes|lesson|lessons|buoi|tiet|ca|slot|shift|90 ?(min|mins|minutes|phut)|45 ?(min|mins|minutes|phut))\b/, 'session'],
-  [/^ ?(\/|per |a |an |each |mot )?(day|ngay)\b/, 'day'],
-  [/^ ?(\/|per |a |an |each |mot )?(month|months|mo|thang|net\/month|gross\/month)\b/, 'month'],
+  [/^ ?(\/ ?|per |a |an |each |mot |1 )?(h|hr|hrs|hour|hours|gio|tieng|60 ?(min|mins|minutes|phut))\b/, 'hour'],
+  [/^ ?(\/ ?|per |a |an |each |mot |1 )?(session|sessions|class|classes|lesson|lessons|buoi|tiet|ca|slot|shift|90 ?(min|mins|minutes|phut)|45 ?(min|mins|minutes|phut))\b/, 'session'],
+  [/^ ?(\/ ?|per |a |an |each |mot )?(day|ngay)\b/, 'day'],
+  [/^ ?(\/ ?|per |a |an |each |mot )?(month|months|mo|thang|net\/month|gross\/month)\b/, 'month'],
 ]
+
+/**
+ * A BENEFIT's figure is not the pay — "Accommodation support (50% coverage or ~3,000,000 VND/month)", "Accommodation
+ * Allowance: 2,000,000 VND/month" (the live audit, 2026-10-22: the first was read as a 40–45M job's pay): a benefit word in
+ * the figure's own clause, nearer before it than any pay word. "Free lunch, 400,000 VND/hour" is pay — the benefit is
+ * another clause (opus, plan review).
+ */
+// never a bare "support" ("We support our teachers with 25M/month") nor "thuong" (also "thường", usual) — opus, gate 15b
+const BENEFIT_WORD = /\b(accommodation|housing|rent|allowances?|bonus(es)?|transport(ation)?|fuel|petrol|meals?|lunch|insurance|airfare|flights?|reimburse(ment|d)?|relocation|phu cap|nha o)\b/
+const PAY_WORD = /\b(salary|salaries|pay|paid|rate|wages?|luong|thu nhap|income|gross|net|compensation|package|earn(ings)?)\b/g
+const BENEFIT_ALL = new RegExp(BENEFIT_WORD.source, 'g')
+function benefitFigure(t: string, at: number): boolean {
+  const [from] = clauseAround(t, at, at)
+  const before = t.slice(from, at)
+  const last = (re: RegExp) => Math.max(-1, ...[...before.matchAll(re)].map((m) => m.index ?? -1))
+  // the nearer word decides: "Compensation includes a housing allowance of 3,000,000" is the allowance's (codex, gate
+  // 15c), "Salary: 20,000,000 + housing allowance 3,000,000" the salary's; "Thu nhập (lương + thưởng): 20tr" is the pay —
+  // "thưởng" is no benefit word here (opus, gates 15a–15b)
+  const benefit = last(BENEFIT_ALL)
+  // …and a pay word joined to it is a package: "Salary + bonus: 20-25M", "Total income (salary + bonus): 20,000,000"
+  // (codex + opus, gate 15d) — "Compensation includes a housing allowance of 3M" is still the allowance's. Looked for
+  // across an abbreviation's full stop: "Rate (incl. transport allowance): 400k/hour" (opus, gate 15i).
+  const winFrom = Math.max(0, at - 60)
+  const packaged = benefit >= 0 && [...t.slice(winFrom, at).matchAll(PACKAGE)].some((m) => winFrom + (m.index ?? 0) + m[0].length >= from + benefit)
+  // …and a TOTAL after the benefit is the package's: "Salary includes housing allowance and totals 25M" (codex, gate 15k)
+  const total = benefit >= 0 && /\b(totals?|totaling|totalling|in total|all.in)\b/.test(before.slice(benefit))
+  return benefit >= 0 && benefit > last(PAY_WORD) && !packaged && !total
+}
+const PACKAGE = new RegExp(`${PAY_WORD.source}\\s*(\\+|&|and|plus|incl\\.?(?![a-z])|including|after|before|net of|\\()\\s*(?:[a-z.&]+\\s+){0,2}${BENEFIT_WORD.source}`, 'g')
 
 /**
  * The first pay figure a post states, as whole VND per unit. Understood: "400k/h", "350-450k per hour", "400.000đ/giờ",
@@ -596,11 +754,20 @@ export function readPay(t: string): Pay | null {
     const usd = !!(m[1] || m[8] || /usd|\$/.test(`${m[5] ?? ''}${m[12] ?? ''}`)) // m[1]/m[8]: "$" or "USD" before the figure
     const mag1 = m[3] ?? m[10] ?? ''
     const mag2 = m[10] ?? m[3] ?? ''
-    const a = num(m[2], mag1, usd)
+    let a = num(m[2], mag1, usd)
     const b = m[7] ? num(m[9], mag2, usd) : a
     if (a === null || b === null) continue
     // A figure that starts with 0 ("090.123.4567") is a phone, never money (opus, gate 1d).
     if (/^0\d/.test(m[2] ?? '') || (m[9] && /^0\d/.test(m[9]))) continue
+    // "40-45,000,000 VND/month", "20-25.000.000đ", "300-450,000/hour", "1,200-1,500,000" (codex, 15e): the low end shares
+    // the high end's zeros (the live audit, 2026-10-22: the 40 was skipped as too small, and the housing support after it
+    // read as the pay).
+    // …the zeros that keep it at or below the high end, and within 20× of it: "500-1,000,000/session" is 500,000 (opus, 15a)
+    if (m[7] && !usd && a < 10_000 && /^\d{1,3}([.,]\d{3})+$/.test(m[9] ?? '')) {
+      const zeros = [1_000_000, 1_000].find((z) => a! * z <= b && a! * z * 20 >= b)
+      if (zeros) a *= zeros
+    }
+    if (benefitFigure(t, at)) continue
     // A bare small number with no currency, magnitude or pay cue nearby is a time, an age, a count — never pay.
     if (!usd && !mag1 && !mag2 && !/vnd|vnđ|dong|\bd\b/.test(whole) && !cue.test(around)) continue
     if (a < 10_000 && !usd) continue
@@ -805,26 +972,117 @@ function clauseAround(t: string, at: number, end: number): [number, number] {
  * preference word sits in the SAME clause and nearer to it than any requirement word — measured (codex, gate 1a):
  * a ±60-character window read "Native English speaker required. TEFL preferred." as native preferred.
  */
-function need(t: string, re: RegExp): Need {
+function need(t: string, re: RegExp, { skip }: { skip?: (at: number, end: number, clauseFrom: number) => boolean } = {}): Need {
   let out: Need = 'none'
   for (const m of t.matchAll(new RegExp(re.source, 'g'))) {
     const at = m.index ?? 0, end = at + m[0].length
-    const [from, to] = clauseAround(t, at, end)
-    const dist = (w: RegExp) => {
-      let best = Infinity
-      for (const x of t.slice(from, to).matchAll(w)) {
-        const i = from + (x.index ?? 0), j = i + x[0].length
-        best = Math.min(best, j <= at ? at - j : i >= end ? i - end : 0)
-      }
-      return best
+    if (skip?.(at, end, clauseAround(t, at, end)[0])) continue
+    const n = mentionNeed(t, at, end)
+    if (n === 'required') return 'required'
+    if (n === 'preferred') out = 'preferred'
+  }
+  return out
+}
+/** What ONE mention's clause says of it (need()). `prefWithin`: how near a preference word must sit to count; `cues`: the
+ *  text the preference and requirement words are looked for in (positions as in `t`) — the negations always read `t`. */
+function mentionNeed(t: string, at: number, end: number, { prefWithin = Infinity, cues = t }: { prefWithin?: number; cues?: string } = {}): Need {
+  const [from, to] = clauseAround(t, at, end)
+  const dist = (w: RegExp) => {
+    let best = Infinity
+    for (const x of cues.slice(from, to).matchAll(w)) {
+      const i = from + (x.index ?? 0), j = i + x[0].length
+      best = Math.min(best, j <= at ? at - j : i >= end ? i - end : 0)
     }
-    // "TEFL not required", "no degree needed", "without a degree" (codex, gate 1b) and "we provide free TEFL training"
-    // (opus) say the post does NOT ask for it: that mention counts for nothing.
-    const before = t.slice(Math.max(0, at - 40), at), after = t.slice(end, end + 40)
-    if (NEGATED_BEFORE.test(before) || NEGATED_AFTER.test(after) || PROVIDED_BEFORE.test(before) || PROVIDED_AFTER.test(after)) continue
-    const pref = dist(PREFERRED), req = dist(REQUIRED)
-    if (pref < Infinity && pref < req) out = out === 'required' ? 'required' : 'preferred'
-    else return 'required'
+    return best
+  }
+  // "TEFL not required", "no degree needed", "without a degree" (codex, gate 1b) and "we provide free TEFL training"
+  // (opus) say the post does NOT ask for it: that mention counts for nothing.
+  const before = t.slice(Math.max(0, at - 40), at), after = t.slice(end, end + 40)
+  if (NEGATED_BEFORE.test(before) || NEGATED_AFTER.test(after) || PROVIDED_BEFORE.test(before) || PROVIDED_AFTER.test(after)) return 'none'
+  const pref = dist(PREFERRED), req = dist(REQUIRED)
+  return pref <= prefWithin && pref < req ? 'preferred' : 'required'
+}
+
+/**
+ * The experience a post asks, by its HARD mentions — "At least 2 years", "Minimum 2 years of classroom teaching experience", "3+
+ * years of full-time ESL teaching experience" (the live audit, 2026-10-22: the second was not read, and six teachers below
+ * it got the job). Up to three qualifier words after "years (of)", never an age ("kids aged 6-12 years old with teaching
+ * experience" — opus, plan review). A mention the post only PREFERS is no minimum unless it says "minimum"/"at least"
+ * itself ("Minimum 2 years of experience (kids experience a plus)" — opus); every mention is read, and the least a hard
+ * one asks counts (gate 15g).
+ */
+const EXP_WORD = '(?:classroom|teaching|working|work|relevant|related|professional|esl|efl|english|ela|tefl|tesol|ielts|kindergarten|primary|secondary|school|international|full.?time|prior|previous|proven|practical|similar|overseas|language|tutoring|education)'
+const MIN_YEARS = new RegExp(`\\b(at least |min(?:imum)?\\.?:? )?(?:over |more than )?(\\d{1,2})(?: ?(?:-|to|~) ?\\d{1,2})?\\+? ?(?:years?|yrs?|nam)(?:'?s?)? (?!old\\b)(?:of |in )?(?:${EXP_WORD}[ -]){0,3}(?:experience|exp|kinh nghiem)\\b`, 'g')
+/** "I also have 20 years of professional experience", "we have over 15 years of experience", "ABC Academy, with over 15
+ *  years of experience in English education" (opus, gate 15a): the writer's own, not an ask — "teachers with over 2 years
+ *  of experience" is one. */
+// …the years right after "have": "We have a vacancy for a teacher with at least 3 years" asks 3 (opus, gate 15g)
+const OWN_YEARS = /\b(i|i'?ve|we|we'?ve|my|our (?!(teachers?|tutors?|candidates?|applicants?|staff)\b)[a-z]+)( also| now| already)? (have|has|bring|brings|boast|boasts)( (over|more than|almost|nearly|about|around))? $/
+/** …a school's history: its noun before "with over/more than", or one too long to ask of a teacher (8 years or more) —
+ *  "Bachelor's degree, with over 2 years of experience" asks (codex, gate 15c). */
+const SCHOOL_WITH = /\b(academy|school|centre|center|company|institute|organi[sz]ation|group|brand|business|system|we|us)\b,? with (over|more than|almost|nearly) $/
+// …and never after a teacher's noun: "candidates with over 10 years of experience" asks 10 (codex, gate 15h)
+const WITH_OVER = /(?<!\b(teachers?|tutors?|candidates?|applicants?|you|someone|educators?|instructors?|speakers?|graduates?|holders?|people|persons?|individuals?|professionals?|those|anyone) )\bwith (over|more than|almost|nearly) $/
+/** a mention's own quantifier ("over 15 years") joins the words before it for OWN_YEARS */
+const QUANTIFIER = /^(over|more than) /
+/** A parenthetical that is more than a bare preference word — "(secondary preferred)", "(kids experience a plus)" — prefers
+ *  something of its own, not the years before it; "(preferred)" is about them. Blanked, the positions stay. */
+const ASIDE = /\([^()]{0,80}\)/g
+const BARE_PREFERENCE = /^\(\s*(preferred|prefered|preferabl[ey]|a plus|is a plus|an advantage|desirable|ideally|nice to have)\s*\)$/
+function readMinYears(t: string): number | null {
+  const plain = t.replace(ASIDE, (g) => (BARE_PREFERENCE.test(g) ? g : ' '.repeat(g.length)))
+  let most: number | null = null
+  for (const m of t.matchAll(MIN_YEARS)) {
+    const at = m.index ?? 0
+    const before = t.slice(Math.max(0, at - 40), at) + (QUANTIFIER.exec(m[0])?.[0] ?? '')
+    // …never inside a requirements clause: "Requirements: with over 10 years of teaching experience" asks 10 (codex, 15m)
+    const asks = /\b(requirements?|required|must|qualifications?|criteria)\b/.test(t.slice(clauseAround(t, at, at)[0], at))
+    if (/\bage[ds]? $/.test(before) || (!asks && (OWN_YEARS.test(before) || SCHOOL_WITH.test(before) || (WITH_OVER.test(before) && Number(m[2]) >= 8)))) continue
+    // a negated one asks nothing, "minimum"/"at least" or not ("no minimum 2 years … required" — opus, gate 15d)
+    const n = mentionNeed(t, at, at + m[0].length, { cues: plain })
+    if (n === 'none' || (!m[1] && n !== 'required')) continue
+    // "Minimum 1–2 years": the minimum is the range's low end; several roles ("Primary teacher: 1+ years; Head of
+    // Department: 5+ years"): the most accessible one's — the post fits a teacher who meets any (codex + opus, gate 15g)
+    const years = Math.min(20, Number(m[2]))
+    most = most === null ? years : Math.min(most, years)
+  }
+  return most
+}
+
+/**
+ * An English CERTIFICATE AT C1/C2 asked of the TEACHER — "English proficiency certificate (CEFR C1/C2 or equivalent)",
+ * "C1/C2 English certificate for non-native English speakers" (the live audit, 2026-10-22: both reached teachers whose
+ * English is 'working'). Only in a clause with a certificate or proficiency word and none about students' levels ("our
+ * courses take students from A1 to C2", "prepare students for C1 Advanced" — opus, plan review); 'preferred' only with
+ * the preference word close by, as these lists run on unpunctuated ("… for non-native English speakers Prior teaching
+ * experience is preferred").
+ */
+const C1_LEVEL = /\b(cefr )?c1( ?(\/|or|-) ?c2)?\b|\bc2\b/g
+function readProficiency(t: string): Need {
+  let out: Need = 'none'
+  for (const m of t.matchAll(C1_LEVEL)) {
+    const at = m.index ?? 0, end = at + m[0].length
+    const [from, to] = clauseAround(t, at, end)
+    const clause = t.slice(from, to)
+    // the levels a course teaches: a CEFR ladder in the clause, students just before, an exam or class just after — never
+    // the classes the teacher will teach ("Applicants need a C1 certificate to teach our classes" — codex, gate 15a)
+    // a certificate or proficiency word — or English with an applicant or a requirement word: "Applicants must have
+    // C1-level English" (codex, gate 15c), never "our C1 level English course"
+    const asked = /\b(certificates?|certification|certified|proficiency)\b/.test(clause)
+      || (/\benglish\b/.test(clause) && /\b(applicants?|candidates?|teachers?|you|must|required|requirements?|need(ed)? to|should)\b/.test(clause))
+    // …within a few words of English or a certificate, never a building's name: "Block C1", "Tower C2" (opus, gate 15d)
+    const near = t.slice(Math.max(0, at - 30), end + 30)
+    if (!/\b(english|certificates?|certification|cefr|proficiency|level)\b/.test(near) || /\b(block|tower|building|toa|lo|apartment|floor|room|zone|khu|lot|park)\s*$/.test(t.slice(Math.max(0, at - 12), at))) continue
+    if (!asked || /\b(a1|a2|b1|b2)\b/.test(clause)
+      || /\b(students?|learners?|pupils?|prepare|preparing|classes|courses)\b[^.!?;\n]{0,25}$/.test(t.slice(Math.max(0, at - 40), at))
+      // …and a teach word only right before the level: "Teachers teach C1-level English" is the course, "Teachers teaching
+      // English must have C1-level English" the teacher (codex, gate 15m)
+      || /\b(teach|teaching|tutor|tutoring)\s+(a |an |the |our )?$/.test(t.slice(Math.max(0, at - 20), at))
+      || /^\s*(\/ ?c2 )?(advanced|proficiency|exams?|tests?|class(es)?|courses?|levels? (class(es)?|students|courses?))\b/.test(t.slice(end, end + 30))) continue
+    // "Teachers with C1 English are welcome" offers, it does not ask (codex, gate 15f)
+    const n = /^[^.!?;\n]{0,30}\b(are |is )?(welcome|welcomed)\b/.test(t.slice(end, end + 45)) ? 'preferred' : mentionNeed(t, at, end, { prefWithin: 30 })
+    if (n === 'required') return 'required'
+    if (n === 'preferred') out = 'preferred'
   }
   return out
 }
@@ -832,6 +1090,27 @@ const NEGATED_BEFORE = /\b(no|not|without|never|don'?t need|do not need|doesn'?t
 const NEGATED_AFTER = /^\s*(is |are )?(:\s*)?(not|isn'?t|aren'?t|no longer)\s+(required|necessary|needed|a must|mandatory|compulsory|essential|a requirement)\b|^\s*(:\s*)?(not required|not necessary|not needed|optional)\b/
 const PROVIDED_BEFORE = /\b(provide|provides|provided|offer|offers|offering|free|sponsor|sponsors|sponsored|pay for|pays for|cover|covers|help (you )?(get|obtain)|support (you )?(to get|getting|with))\s+(you |your |our |a |an |the |free )?(own )?$/
 const PROVIDED_AFTER = /^\s*(training|course|courses|certification course|program|programme)?\s*(is |are |will be )?(provided|offered|available|included|sponsored|supported|paid for|for free)\b/
+
+/**
+ * A degree STUDENTS hold or pursue is not the teacher's: the noun nearest before the mention, in its clause, is a student
+ * word ("university students pursuing a degree in finance", "a course for students who must have a relevant degree") —
+ * never across a list's bullet ("young learners • Bachelor's degree (preferred)"), and an applicant nearer before it keeps
+ * it the teacher's ("… and applicants need a bachelor's degree") (codex + opus, plan review and gates 15a–15b).
+ */
+const STUDENT_NOUN = /\b(students?|pupils?|learners?|undergraduates?)\b/g
+const APPLICANT_NOUN = /\b(teachers?|tutors?|candidates?|applicants?|you|educators?|instructors?|lecturers?|speakers?)\b/g
+function studentsDegree(t: string, at: number, end: number, from: number): boolean {
+  // a degree the post says is REQUIRED right after it is the teacher's: "…teaching university students Bachelor's degree
+  // required" (codex, gate 15f)
+  if (/^\W{0,3}(is |are )?(required|needed|a must|mandatory|essential)\b/.test(t.slice(end, end + 24))) return false
+  // …within a few words: an unpunctuated list's "Students: Young learners … Requirements: … Hold a Bachelor's degree" is the
+  // teacher's (measured on the labelled posts)
+  const before = t.slice(Math.max(from, at - 40), at)
+  const last = (re: RegExp) => Math.max(-1, ...[...before.matchAll(re)].map((m) => m.index ?? -1))
+  const student = last(STUDENT_NOUN)
+  // …and a heading between them gives it back to the teacher: "Students: kids Requirements: Bachelor's degree" (codex, 15d)
+  return student >= 0 && student > last(APPLICANT_NOUN) && !/\b(requirements?|qualifications?|criteria|looking for)\b/.test(before.slice(student))
+}
 
 export function readRequirements(t: string): Requirements {
   // ⚠️ 80 % of eno's teachers are not native speakers, so a "native required" read wrongly withholds the post from most of
@@ -844,20 +1123,53 @@ export function readRequirements(t: string): Requirements {
     || /\b(no need|don't need|do not need|not necessarily|needn'?t) (to be )?(a )?native\b|\bnative (english )?(speakers?|teachers?|level|english teachers?)? ?(is |are )?not (required|necessary|needed|a must|compulsory|mandatory)\b/.test(t)
     || /\b(esl|efl|filipinos?|vietnamese|local|asian|any)( english)?( teachers?)?\s*(or|\/|&)\s*native\b|\bnative( english)?( speakers?| teachers?)?\s*(or|\/)\s*(an? )?(vietnamese|local|filipinos?|esl|efl|near.?native|fluent)\b/.test(t))
   const native: Need = nonNativeOk ? 'none' : need(t, /(?<!\bnon[-\s]{0,2})\bnative (english )?(speakers?|teachers?|only|level|required|english teachers?)\b|\bmust be (a )?native\b|\b(giao vien|gv) ban (ngu|xu)\b|\bban ngu\b/)
-  const degree = need(t, /\b(bachelor'?s?|ba|bs|bsc|university|college|uni) (degree|graduate)\b|\bdegree (holders?|is required|required|in any|needed)\b|\b(a|any) degree\b|\bbang (cu nhan|dai hoc)\b|\btot nghiep dai hoc\b/)
+  // …and the degree a field names: "Relevant degree in Primary Education" (the live audit, 2026-10-22) — the teacher's,
+  // never a degree students pursue ("university students pursuing a degree in finance" — opus, plan review)
+  const degree = need(t, /\b(bachelor'?s?|ba|bs|bsc|university|college|uni) (degree|graduate)\b|\bdegree (holders?|is required|required|in any|needed)\b|\b(a|any) degree\b|\b(relevant|related|appropriate|recogni[sz]ed|accredited|teaching|education) degree\b|\bdegree in (education|english|teaching|primary|early childhood|tesol|tefl|linguistics|(a )?(related|relevant) (field|subject|area)|any (field|subject|discipline))\b|\bbang (cu nhan|dai hoc)\b|\btot nghiep dai hoc\b/, { skip: (at, end, from) => studentsDegree(t, at, end, from) })
   const tefl = need(t, /\b(tefl|tesol|celta|delta|tkt|pgce|teaching (certificate|certification|license|licence|qualification))\b|\bchung chi (tefl|tesol|celta|su pham|giang day)\b/)
-  const y = /\b(?:at least |min(?:imum)?\.? |over |more than )?(\d{1,2})\+? ?(?:years?|yrs?|nam)(?:'?s?)? (?:of )?(?:teaching |working |relevant |esl |english teaching )?(?:experience|exp|kinh nghiem)\b/.exec(t)
-  const minYears = y ? Math.min(20, Number(y[1])) : null
+  const minYears = readMinYears(t)
+  const proficiency = readProficiency(t)
   const inVietnam = /\b(must|need to|should|have to) (be|currently be|already be) (currently |already )?(based |living |located |residing )?in (vietnam|viet nam|vn|hcmc|saigon|hanoi|ha noi|da nang)\b|\bcurrently (living|based|residing|located) in (vietnam|viet nam|vn)\b|\b(in.?country|local) (applicants|candidates) only\b|\bonly (applicants|candidates) (currently )?in (vietnam|vn)\b|\b(dang )?(o|song tai) viet nam\b/.test(t)
   const abroadOk = /\b(overseas|abroad|international|offshore) (applicants|candidates|teachers) (are )?(welcome|considered|accepted|can apply)\b|\b(relocation|flight) (support|package|allowance|reimbursement|assistance)\b|\bapply from (abroad|overseas|home)\b/.test(t)
-  return { native, degree, tefl, minYears, inVietnam, abroadOk }
+  return { native, degree, tefl, minYears, proficiency, inVietnam, abroadOk }
 }
 
-export function readAgeGroups(t: string): ('kids' | 'teens' | 'adults')[] {
+/** Staff's own children are a benefit, not the class (the live audit, 2026-10-22: "Tuition fee exemption for employees'
+ *  children" made a High School ELA job read as kids) — an apostrophe, "own" or "of" says whose: "English teacher kids
+ *  class" is a kids' class (opus, gate 15a). */
+// …never "our own kids": a parent's class (opus, gate 15d)
+const STAFF_CHILDREN = /\b((employees?|teachers?)'s?|staff('s)?) (own )?(children|kids)\b|\b(children|kids) of (the )?(staff|employees|teachers)\b/g
+/** "Children (4-18 years old)", "students aged 6-12", "trẻ từ 4-6 tuổi": kids if it starts at 11 or under, teens if it
+ *  reaches 13–17, adults if it ends at 20 or over or starts at 18 (the live audit: "4–18 years old" lost its teens) — "14–19 years old"
+ *  is a school's, "4–12" a primary's (measured on the labelled posts). Only the STUDENTS' ages: a student or class word
+ *  just before it, never "Male, 30–40 years old" or a teacher's limit; never a span of years of experience. */
+const AGE_RANGE = /\b(?:aged?|ages|age group|from age|tu) (\d{1,2}) ?(?:-|~|to|den) ?(\d{1,2})\b(?! ?(?:gio|h\b|tieng|phut|pm|am|sang|chieu|toi|trua|:))|\b(\d{1,2}) ?(?:-|~|to|den) ?(\d{1,2}) ?(?:years? old|yrs? old|yo|y\/o|tuoi)\b/g
+// …never across a comma or a teacher's noun: "Teaching children, teachers must be 25–40 years old" (opus, gate 15c)
+const STUDENT_WORD = /\b(students?|children|child|kids?|learners?|pupils?|class(es)?|preschool|kindergarten|tre|hoc sinh|hoc vien)\b(?:(?!\b(teachers?|tutors?|candidates?|applicants?|you)\b)[^.!?;\n,]){0,30}$/
+function ageRange(t: string): { kids: boolean; teens: boolean; adults: boolean } {
+  const r = { kids: false, teens: false, adults: false }
+  for (const m of t.matchAll(AGE_RANGE)) {
+    const at = m.index ?? 0
+    if (!STUDENT_WORD.test(t.slice(Math.max(0, at - 40), at + (m[0].match(/^\D*/)?.[0].length ?? 0)))) continue
+    const lo = Number(m[1] ?? m[3]), hi = Number(m[2] ?? m[4])
+    if (lo > hi || hi > 80) continue
+    if (lo <= 11) r.kids = true
+    if (lo <= 17 && hi >= 13) r.teens = true
+    if (hi >= 20 || lo >= 18) r.adults = true
+  }
+  return r
+}
+
+export function readAgeGroups(text: string): ('kids' | 'teens' | 'adults')[] {
+  const t = text.replace(STAFF_CHILDREN, ' ')
+  const range = ageRange(t)
   const out: ('kids' | 'teens' | 'adults')[] = []
-  if (/\b(kids?|kindy|kindergarten|preschool|pre-school|young learners?|primary|children|toddlers?|mam non|mau giao|tieu hoc|thieu nhi|tre em)\b|\b(cac|day|cho|lop|nhom|em|con|be) be\b|\bbe (tu|lop|mam non|mau giao|\d)/.test(t)) out.push('kids')
-  if (/\b(teens?|teenagers?|secondary|high school|middle school|junior high|thcs|thpt|trung hoc)\b/.test(t)) out.push('teens')
-  if (/\b(adults?|university students|working professionals|corporate|in.?company|business english|nguoi lon|nguoi di lam|sinh vien)\b/.test(t)) out.push('adults')
+  // a school STAGE, never a bare "Elementary" — that is also an adult course's CEFR level (opus, plan review); the IB's
+  // programmes are stages too: "PYP Stem Specialist Teacher" is a primary job (graded 2026-10-22: offered to a teens-only
+  // teacher); Vietnamese "bé" with its age word ("bé 5 tuổi"), never English "must be 25" (opus, gate 15b)
+  if (range.kids || /\b(kids?|kindy|kindergarten|preschool|pre-school|young learners?|primary|children|toddlers?|early years|eyfs|nursery|elementary (schools?|students|pupils|grades?)|elementary ?\/ ?(middle|secondary|high)|mam non|mau giao|pyp|primary years programm?e|tieu hoc|thieu nhi|tre em)\b|\b(cac|day|cho|lop|nhom|em|con|be) be\b|\bbe (tu|lop|mam non|mau giao|\d{1,2}([ ,-]+\d{1,2})? ?(tuoi|t)\b)/.test(t)) out.push('kids')
+  if (range.teens || /\b(teens?|teenagers?|secondary|high school|middle school|junior high|myp|middle years programm?e|ib ?dp|ib diploma( programm?e)?|thcs|thpt|trung hoc)\b/.test(t)) out.push('teens')
+  if (range.adults || /\b(adults?|university students|working professionals|corporate|in.?company|business english|nguoi lon|nguoi di lam|sinh vien)\b/.test(t)) out.push('adults')
   return out
 }
 
@@ -967,6 +1279,11 @@ export function readPost(text: string, postedAt: Date, opts: { listing?: boolean
   if (!deny && isVisaWorded(text) && kind === 'other') deny = 'visa-only'
   if (!deny && vietnameseWithoutForeignerCue(text)) deny = 'vietnamese-oriented'
   if (!deny && opts.fieldsOnly && opts.title && titleIsVietnameseOnly(opts.title)) deny = 'vietnamese-oriented'
+  // The title's language role counts with the text's (titleLanguages) — and makes it another language's job.
+  const languages = [...new Set([...readLanguages(t), ...(opts.title ? titleLanguages(opts.title) : [])])]
+  const subjects = readSubjects(t)
+  // readSubjects already adds 'other-language' for the TEXT's own languages, as before; this adds the title's
+  if (languages.length && !subjects.includes('other-language')) subjects.push('other-language')
   return {
     version: RULES_VERSION,
     kind,
@@ -977,8 +1294,8 @@ export function readPost(text: string, postedAt: Date, opts: { listing?: boolean
     pay: readPay(t),
     schedule: kind === 'cover_request' ? readSchedule(t, postedAt) : null,
     ageGroups: readAgeGroups(t),
-    subjects: readSubjects(t),
-    languages: readLanguages(t),
+    subjects,
+    languages,
     requirements: readRequirements(t),
     deny,
     mention: deny ? null : demographicMention(t),

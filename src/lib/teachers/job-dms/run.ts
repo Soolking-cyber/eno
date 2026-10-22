@@ -293,6 +293,70 @@ function vacancyTitles(title: string | null | undefined): string[] {
   return t.split(' ').length >= 8 ? [t] : []
 }
 
+type PostRow = { id: string; source: string; sourceName: string; title: string | null; url: string | null; applyText: string | null; postedAt: Date | null; receivedAt: Date }
+
+/** A ready post's job, from the facts stored when it was read — null for facts of older rules: each run reads those again
+ *  (readNewPosts, step 2) before it loads the jobs (step 4), so a RULES_VERSION bump leaves no run without them. */
+export function jobFromPost(p: PostRow, f: RuleFacts | undefined): Job | null {
+  if (!f || f.version !== RULES_VERSION) return null
+  const kind = f.kind === 'cover_request' ? 'cover_request' : 'job_offer'
+  return {
+    key: `post:${p.id}`, kind, employment: f.employment, places: f.places, pay: f.pay, schedule: f.schedule,
+    ageGroups: f.ageGroups, subjects: f.subjects, languages: f.languages ?? [], requirements: f.requirements, postedAt: p.postedAt ?? p.receivedAt,
+    item: {
+      title: titleOf({ ...f, kind }), when: f.schedule?.label || undefined, pay: payText(f.pay), asks: asksOf(f),
+      source: sourceLine(p.source as 'fb' | 'linkedin' | 'intake', p.sourceName), link: p.url ?? undefined, apply: p.applyText ?? undefined,
+    },
+    vacancy: p.source === 'linkedin' ? vacancyTitles(p.title) : undefined,
+  }
+}
+
+type ListingRow = { id: string; title: string; description: string | null; city: string; salaryM: number | null; attributes: string | null; createdAt: Date; sellerId: string; externalId: string | null }
+
+/**
+ * Listing.attributes is a JSON STRING (Prisma `String?`): cast to an object, it gave no salary and no job type, ever
+ * (found in the live audit, 2026-10-22). Parsed, both join the text the rules read; the line still shows the rules'
+ * own figure, as it always did (the salaryText branch it had never ran), never the board's words — "550,000 VND / month" is
+ * a board's hourly figure, no month's pay (opus, plan review).
+ */
+function listingAttributes(raw: string | null): Record<string, unknown> {
+  try {
+    const a: unknown = JSON.parse(raw ?? 'null')
+    return a && typeof a === 'object' && !Array.isArray(a) ? (a as Record<string, unknown>) : {}
+  } catch {
+    return {}
+  }
+}
+
+/** A live teaching listing's job — null when the rules pass it over (another subject, a refusal, no place). */
+export function jobFromListing(l: ListingRow): Job | null {
+  const attrs = listingAttributes(l.attributes)
+  const text = [l.title, typeof attrs.salaryText === 'string' ? attrs.salaryText : '', typeof attrs.jobtype === 'string' ? attrs.jobtype : '', l.description ?? ''].join('\n')
+  // Its TITLE says what the role is (graded 2026-10-21: "Secondary Economics Teacher" went to 25 English teachers,
+  // "[Expat Only] English Teacher" to 2) — that screen only: readKind's own screens, measured on the 38 live teaching
+  // listings, dropped "Teach English in Vietnam …" and "Cover teaching position" (opus, gate 12b).
+  const f = readPost(text, l.createdAt, { title: l.title })
+  if (titleNamesOtherSubject(l.title)) return null
+  // The importer already kept only foreigner-oriented, visa-free jobs (job-listing.ts) — an IMPORTED listing (a job
+  // board's own seller, with the board's id) with a Vietnamese title is not "for Vietnamese teachers". One a school
+  // posted here itself had no such check (graded 2026-10-21: "Giáo viên dạy tiếng anh giao tiếp", 5M a month, went to
+  // 10 teachers).
+  if ((f.deny && (f.deny !== 'vietnamese-oriented' || !importedListing(l))) || f.mention) return null
+  const hub = provinceToCitySlug(l.city)
+  const places = hub ? [hub, ...f.places.filter((k) => k !== hub)] : f.places
+  if (!places.length) return null
+  const pay = l.salaryM ? { min: l.salaryM * 1_000_000, max: l.salaryM * 1_000_000, unit: 'month' as const, text: '' } : f.pay
+  return {
+    key: `listing:${l.id}`, kind: 'job_offer', employment: f.employment.filter((e) => e !== 'cover'), places, pay, schedule: null,
+    ageGroups: f.ageGroups, subjects: f.subjects, languages: f.languages, requirements: f.requirements, postedAt: l.createdAt,
+    item: {
+      title: l.title.slice(0, 120), pay: payText(pay),
+      asks: asksOf(f), source: sourceLine('eno'), link: `https://eno.vn/listings/${l.id}`,
+    },
+    vacancy: vacancyTitles(l.title),
+  }
+}
+
 async function loadJobs(now: Date): Promise<Job[]> {
   const posts = await db.externalJobPost.findMany({
     where: { status: 'ready', expiresAt: { gt: now }, NOT: { text: PURGED_TEXT } },
@@ -301,18 +365,8 @@ async function loadJobs(now: Date): Promise<Job[]> {
   })
   const jobs: Job[] = []
   for (const p of posts) {
-    const f = (p.facts as { rules?: RuleFacts } | null)?.rules
-    if (!f || f.version !== RULES_VERSION) continue
-    const kind = f.kind === 'cover_request' ? 'cover_request' : 'job_offer'
-    jobs.push({
-      key: `post:${p.id}`, kind, employment: f.employment, places: f.places, pay: f.pay, schedule: f.schedule,
-      ageGroups: f.ageGroups, subjects: f.subjects, languages: f.languages ?? [], requirements: f.requirements, postedAt: p.postedAt ?? p.receivedAt,
-      item: {
-        title: titleOf({ ...f, kind }), when: f.schedule?.label || undefined, pay: payText(f.pay), asks: asksOf(f),
-        source: sourceLine(p.source as 'fb' | 'linkedin' | 'intake', p.sourceName), link: p.url ?? undefined, apply: p.applyText ?? undefined,
-      },
-      vacancy: p.source === 'linkedin' ? vacancyTitles(p.title) : undefined,
-    })
+    const job = jobFromPost(p, (p.facts as { rules?: RuleFacts } | null)?.rules)
+    if (job) jobs.push(job)
   }
   // eno.vn's own live teaching jobs (board imports, apply at source through the eno page) — through the edition scope
   // like every listing read (edition-lint Rule A): a desk or hidden seller's row is never offered, and its page would not
@@ -324,31 +378,8 @@ async function loadJobs(now: Date): Promise<Job[]> {
     take: 500,
   })
   for (const l of listings) {
-    const attrs = (l.attributes ?? {}) as Record<string, unknown>
-    const text = [l.title, typeof attrs.salaryText === 'string' ? attrs.salaryText : '', typeof attrs.jobtype === 'string' ? attrs.jobtype : '', l.description ?? ''].join('\n')
-    // Its TITLE says what the role is (graded 2026-10-21: "Secondary Economics Teacher" went to 25 English teachers,
-    // "[Expat Only] English Teacher" to 2) — that screen only: readKind's own screens, measured on the 38 live teaching
-    // listings, dropped "Teach English in Vietnam …" and "Cover teaching position" (opus, gate 12b).
-    const f = readPost(text, l.createdAt, { title: l.title })
-    if (titleNamesOtherSubject(l.title)) continue
-    // The importer already kept only foreigner-oriented, visa-free jobs (job-listing.ts) — an IMPORTED listing (a job
-    // board's own seller, with the board's id) with a Vietnamese title is not "for Vietnamese teachers". One a school
-    // posted here itself had no such check (graded 2026-10-21: "Giáo viên dạy tiếng anh giao tiếp", 5M a month, went to
-    // 10 teachers).
-    if ((f.deny && (f.deny !== 'vietnamese-oriented' || !importedListing(l))) || f.mention) continue
-    const hub = provinceToCitySlug(l.city)
-    const places = hub ? [hub, ...f.places.filter((k) => k !== hub)] : f.places
-    if (!places.length) continue
-    const pay = l.salaryM ? { min: l.salaryM * 1_000_000, max: l.salaryM * 1_000_000, unit: 'month' as const, text: '' } : f.pay
-    jobs.push({
-      key: `listing:${l.id}`, kind: 'job_offer', employment: f.employment.filter((e) => e !== 'cover'), places, pay, schedule: null,
-      ageGroups: f.ageGroups, subjects: f.subjects, languages: f.languages, requirements: f.requirements, postedAt: l.createdAt,
-      item: {
-        title: l.title.slice(0, 120), pay: typeof attrs.salaryText === 'string' && attrs.salaryText ? String(attrs.salaryText).slice(0, 60) : payText(pay),
-        asks: asksOf(f), source: sourceLine('eno'), link: `https://eno.vn/listings/${l.id}`,
-      },
-      vacancy: vacancyTitles(l.title),
-    })
+    const job = jobFromListing(l)
+    if (job) jobs.push(job)
   }
   return jobs
 }

@@ -72,6 +72,13 @@ const CERTS_THAT_COUNT: ReadonlySet<string> = new Set(['tefl', 'tesol', 'celta',
 const DEGREES_THAT_COUNT: ReadonlySet<string> = new Set(['bachelor', 'master', 'phd'])
 /** Subjects that need the teacher to have said so — an IELTS class is not a general-English class. */
 const HARD_SUBJECTS: ReadonlySet<string> = new Set(['ielts', 'toefl-toeic', 'business-english', 'stem', 'other-language'])
+/**
+ * …and the other way round: a GENERAL English job (it names no hard subject) is not for a teacher who teaches ONLY IELTS,
+ * STEM or another language (the live audit, 2026-10-22: "ENGLISH TEACHER - Elementary/Middle/High School" reached an
+ * IELTS-only and a STEM-only teacher). Business English and TOEFL/TOEIC teachers often take general English, so they
+ * still may (opus, plan review), as may a teacher who named no subject.
+ */
+const SPECIALIST_ONLY: ReadonlySet<string> = new Set(['ielts', 'stem', 'other-language'])
 
 /** The most specific physical places of a job: its HCMC districts if it names any, else its cities/provinces. */
 export function specificPlaces(places: readonly string[]): string[] {
@@ -169,6 +176,11 @@ export function fit(t: MatchTeacher, job: MatchJob, now: Date): Fit {
   if (r.tefl === 'required' && !cert) return no('certificate')
   if (r.tefl === 'preferred' && !cert) notes.push('certificate-preferred')
   if (r.minYears !== null && t.yearsExperience < r.minYears) return no('experience')
+  // English at C1/C2 (extract.ts readProficiency): not for working-level English — the profile's LOWEST level
+  // (TeacherProfile.englishLevel: native | fluent | working; null = not asked — run.ts loadTeachers loads it, as for the
+  // native gate). 'fluent' is about C1 — refusing it would
+  // hold the job back from most non-native teachers (opus, plan review); a native speaker is exempt.
+  if (r.proficiency === 'required' && t.englishLevel === 'working') return no('english-level')
 
   if (job.ageGroups.length && t.ageGroups.length) {
     if (!job.ageGroups.some((a) => t.ageGroups.includes(a))) return no('age-group')
@@ -187,7 +199,8 @@ export function fit(t: MatchTeacher, job: MatchJob, now: Date): Fit {
       if (job.languages?.length && theirs.length && !job.languages.some((l) => theirs.includes(l))) return no('language')
     }
     reasons.push('subject')
-  } else if (job.subjects.some((s) => s !== 'general-english' && t.subjects.includes(s))) reasons.push('subject')
+  } else if (t.subjects.length && t.subjects.every((s) => SPECIALIST_ONLY.has(s))) return no('subject:general')
+  else if (job.subjects.some((s) => s !== 'general-english' && t.subjects.includes(s))) reasons.push('subject')
 
   // ── 5. Pay — only when both sides state it ─────────────────────────────────────────────────────────────────────────
   let payKnown = false

@@ -73,6 +73,8 @@ export function asksOf(f: Pick<RuleFacts, 'requirements'>): string[] {
   if (r.tefl === 'required') out.push('a teaching certificate (TEFL/TESOL/CELTA or similar)')
   if (r.minYears) out.push(`${r.minYears}+ years' experience`)
   if (r.native === 'required') out.push('native English speakers')
+  // the post's own C1/C2 ask, a level or a certificate (extract.ts readProficiency) — beside "native" too (codex, gate 15b)
+  if (r.proficiency === 'required') out.push('C1/C2-level English')
   return out
 }
 

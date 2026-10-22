@@ -665,3 +665,362 @@ describe('the first shadow grading (2026-10-21) — a TITLE for another subject,
     expect(listing('Expat Primary Teacher – Pathway School, District 2, HCMC (Full-time)').deny).toBeNull()
   })
 })
+
+describe('the live audit (2026-10-22: 328 offers graded blind, 23 irrelevant) — each misread measured before the fix', () => {
+  it('a minimum of years with words between "years of" and "experience"; the degree a field names (7 teachers below them)', () => {
+    const r = readRequirements(foldPost('SINGAPORE INTERNATIONAL SCHOOL IS LOOKING FOR: Primary Teacher (Hanoi - immediate start) Minimum requirements: Relevant degree in Primary Education for Primary Teacher position or Early Childhood Education / Foundation Phase Teaching for Kindergarten A professional teaching license / certification in a relevant field may also be considered Minimum 2 years of classroom teaching experience Benefits: Housing Allowance - Airfare Allowance'))
+    expect(r).toMatchObject({ minYears: 2, degree: 'required' })
+    expect(readRequirements(foldPost('Requirements: 3+ years of full-time ESL teaching experience')).minYears).toBe(3)
+    // an age is never experience, and a minimum the post only prefers is none — unless it says "minimum"/"at least" (opus, plan review)
+    expect(readRequirements(foldPost('Classes for kids aged 6-12 years old with teaching experience a plus.')).minYears).toBeNull()
+    expect(readRequirements(foldPost('Requirements: a degree. 2 years of teaching experience is a plus.')).minYears).toBeNull()
+    expect(readRequirements(foldPost('Minimum 2 years of experience (kids experience a plus)')).minYears).toBe(2)
+    expect(readRequirements(foldPost('Requirements: at least 1 year of teaching experience, 3 years of classroom experience preferred')).minYears).toBe(1)
+    // a degree STUDENTS hold is not the teacher's (opus, plan review)
+    expect(readRequirements(foldPost('Teach business English to university students pursuing a degree in finance.')).degree).toBe('none')
+    // measured on the 630 labelled posts while fixing it: a range's minimum is its low end; an aside's preference is its
+    // own; the writer's own years are no ask; a list's heading or bullet is not "students pursuing a degree"
+    expect(readRequirements(foldPost('- Experience: Minimum 1–2 years of full-time teaching experience in primary or middle school')).minYears).toBe(1)
+    expect(readRequirements(foldPost('Bachelor’s degree + CELTA/TEFL/TESOL (or equivalent) 2+ years’ teaching experience (secondary preferred) Available for a paid in-person demo lesson in Hanoi')).minYears).toBe(2)
+    expect(readRequirements(foldPost('2 years of teaching experience (preferred)')).minYears).toBeNull()
+    expect(readRequirements(foldPost('I also have 20 years of professional experience, including 10 years in Vietnam.')).minYears).toBeNull()
+    expect(readRequirements(foldPost("Passion for teaching young learners • Bachelor's degree (preferred) • TEFL")).degree).toBe('preferred')
+    expect(readRequirements(foldPost("Students: Ages 2–6 Requirements • Bachelor's degree required")).degree).toBe('required')
+  })
+
+  it('part-time from a short week; a short day is not full-time for its weekdays (5 offers to full-time-only teachers)', () => {
+    const e = (s: string) => readPost(s, POSTED).employment
+    expect(e('New job starts soon this October. Searching for long term teacher. One day a week on Wednesday. 4.5 hours Rate: 520,000 VND/hour gross Students: middle and high school. Location: Tan Phu.')).toEqual(['part_time'])
+    expect(e('I am looking for 1 teacher who can teach Spanish for 1 kid class 2hours/ day in the morning (Monday to Friday) Address: Vĩnh Lộc, Hồ Chí Minh')).toEqual(['part_time'])
+    expect(e('English teacher for kids, twice a week, District 7, 400k/h')).toEqual(['part_time'])
+    // …never a full-time job's (codex + opus, plan review)
+    expect(e('Full-time English teacher, Monday to Friday, 8 hours a day, District 1')).toEqual(['full_time'])
+    expect(e('Teach 4 hours of classes a day plus office hours, Monday to Friday, public schools in Thu Duc')).toEqual(['full_time'])
+    expect(e('Public school teacher, 3 hours a day, Monday to Friday, 12-month contract, Binh Duong')).toEqual(['full_time'])
+    expect(e('English teacher in District 3, 5 days a week, 2 days off a week')).toEqual([])
+  })
+
+  it('the pay, not a benefit beside it; a range whose low end shares the high end\'s zeros; "/ month" (40–45M read as 3M)', () => {
+    expect(readPay(foldPost('Salary: 40-45,000,000 VND/month (base), with potential total income up to 50-55,000,000 VND/month including optional kindergarten classes. What we offer: Accommodation support (50% coverage or ~3,000,000 VND/month)'))).toMatchObject({ min: 40_000_000, max: 45_000_000, unit: 'month' })
+    expect(readPay(foldPost('Lương 20-25.000.000đ/tháng'))).toMatchObject({ min: 20_000_000, max: 25_000_000, unit: 'month' })
+    expect(readPay(foldPost('300-450,000 VND/hour'))).toMatchObject({ min: 300_000, max: 450_000, unit: 'hour' })
+    // a benefit's own figure is not the pay — only in its own clause (opus, plan review)
+    expect(readPay(foldPost('Accommodation support (50% coverage or ~3,000,000 VND/month)'))).toBeNull()
+    expect(readPay(foldPost('Benefits: housing support 4,000,000 VND/month; salary 35M/month'))).toMatchObject({ min: 35_000_000, unit: 'month' })
+    expect(readPay(foldPost('Free lunch, 400,000 VND/hour, District 7'))).toMatchObject({ min: 400_000, unit: 'hour' })
+    // "/ month" is a month: an hourly figure labelled so is no month's pay, and no figure beats a wrong unit
+    expect(readPay(foldPost('Salary: 550,000 VND / month'))).toBeNull()
+    expect(readPay(foldPost('Salary: 30,000,000 VND / month'))).toMatchObject({ min: 30_000_000, unit: 'month' })
+  })
+
+  it('Vinh, Nghe An, is never the first word of another place ("in Vinh Phuc Province" read as Nghe An)', () => {
+    expect(readPlaces(foldPost('We are still looking for an English Teacher to join our team in Vinh Phuc Province, Vietnam.')).places).toEqual(['p-25'])
+    expect(readPlaces(foldPost('English teacher needed in Vinh Yen city')).places).toEqual(['p-25'])
+    expect(readPlaces(foldPost('Teaching job in Vinh city from November')).places).toEqual(['p-40'])
+    expect(readPlaces(foldPost('Teacher wanted in Vinh Long province')).places).not.toContain('p-40')
+  })
+
+  it('the classes\' ages: a stage named, an age range — never staff\'s children, an adult level or a span of experience', () => {
+    expect(readAgeGroups(foldPost("INTERNATIONAL SCHOOL IN HANOI – HIGH SCHOOL ELA TEACHER. What We Offer - Tuition fee exemption for employees' children"))).toEqual(['teens'])
+    expect(readAgeGroups(foldPost('Students: Children (4–18 years old) and working adults'))).toEqual(['kids', 'teens', 'adults'])
+    expect(readAgeGroups(foldPost('Early Years Elementary School Homeroom Teacher'))).toEqual(['kids'])
+    expect(readAgeGroups(foldPost('ENGLISH TEACHER - Elementary/Middle/High School'))).toEqual(['kids', 'teens'])
+    // opus, plan review
+    expect(readAgeGroups(foldPost('Elementary and Pre-intermediate classes for working adults'))).toEqual(['adults'])
+    expect(readAgeGroups(foldPost('2-3 years of experience, IELTS classes'))).toEqual([])
+    // measured on the labelled posts: a school's 14–19, a primary's 4–12; only the students' ages, never a person ask's
+    expect(readAgeGroups(foldPost('Position: Full-time English Teacher Students: 14–19 years old Salary: Negotiable'))).toEqual(['teens'])
+    expect(readAgeGroups(foldPost('experience working with students aged 4-12'))).toEqual(['kids'])
+    expect(readAgeGroups(foldPost('Requirements: 1. Fluent in Indonesian 2. Male, 30–40 years old 3. Based in Ho Chi Minh City'))).toEqual([])
+    // the IB's programmes name the stage (the new offers graded 2026-10-22: a PYP job reached a teens-only teacher)
+    expect(readAgeGroups(foldPost('PYP Stem Specialist Teacher · Tesla Education · Ho Chi Minh City, Vietnam'))).toEqual(['kids'])
+    expect(readAgeGroups(foldPost('MYP Science Teacher — International School, District 2'))).toEqual(['teens'])
+  })
+
+  it('an English certificate at C1/C2 asked of the teacher — never the levels a course teaches (2 teachers with working English)', () => {
+    const p = (s: string) => readRequirements(foldPost(s)).proficiency ?? 'none'
+    expect(p("Requirements Bachelor's degree (preferably majoring in English or a related field) At least 2 years of English teaching experience Valid teaching certificate (CELTA or TESOL) English proficiency certificate (CEFR C1/C2 or equivalent) A certificate confirming English teaching experience is required")).toBe('required')
+    expect(p('Requirements Native English speakers or non-native English speakers with strong English proficiency Bachelor’s degree; Education or a related field is preferred TEFL, TESOL, or CELTA certification C1/C2 English certificate for non-native English speakers Prior teaching experience is preferred')).toBe('required')
+    expect(p('A C1 English certificate is preferred for non-native teachers')).toBe('preferred')
+    for (const s of ['Our courses take students from A1 to C2 levels', 'Prepare students for C1 Advanced and C2 Proficiency exams', 'Teach IELTS and C1 classes in District 3'])
+      expect(p(s), s).toBe('none')
+  })
+
+  it('a TITLE naming only another language\'s teacher is that language\'s job; a PE title is another subject', () => {
+    const t = 'Early Years Elementary School Homeroom Teacher, Elementary School PE Teacher, Elementary School Part-Time Mandarin Teacher'
+    const f = readPost(`${t}\nparttime\nJob for English speakers in Hà Nội (part-time), posted on WISHlistjobs on 2026-10-20.`, POSTED, { title: t })
+    expect(f.languages).toEqual(['chinese'])
+    expect(f.subjects).toContain('other-language')
+    expect(titleNamesOtherSubject(t)).toBe(false)
+    expect(titleNamesOtherSubject('Elementary School PE Teacher')).toBe(true)
+    // …never beside an English role, nor a word that may be the teacher's nationality (opus, plan review)
+    expect(readPost('English & Mandarin Teacher\nDistrict 7', POSTED, { title: 'English & Mandarin Teacher' }).languages).toEqual([])
+    expect(readPost('Filipino Teacher\nDistrict 7', POSTED, { title: 'Filipino Teacher' }).languages).toEqual([])
+  })
+})
+
+describe('gate 15a reviewer findings (codex + opus, 2026-10-22) — each measured before the fix', () => {
+  it('a short week is the TEACHING schedule — never training, a break or the days off (opus)', () => {
+    const e = (s: string) => readPost(s, POSTED).employment
+    expect(e('English teacher, Monday to Friday, 8:00–17:00. Teacher training twice a week. District 7.')).toEqual(['full_time'])
+    expect(e('English teacher in District 7, Monday to Friday. Days off: two days per week.')).toEqual(['full_time'])
+    expect(e('English teacher in District 7, Monday to Friday, 1h/day lunch break.')).toEqual(['full_time'])
+    expect(e('English teacher in District 7. Orientation is 2 hours a day, Monday to Friday.')).toEqual(['full_time'])
+  })
+  it('a school\'s own years are no minimum; "over" is no hard marker by itself (opus)', () => {
+    expect(readRequirements(foldPost('ABC Academy, with over 15 years of experience in English education, is hiring teachers in District 7.')).minYears).toBeNull()
+    expect(readRequirements(foldPost('We are looking for teachers with over 2 years of experience.')).minYears).toBe(2)
+    // …and a question asked of the teacher is an ask: "Have at least 2 years of ELA teaching experience?" (measured, 15a)
+    expect(readRequirements(foldPost("Got a bachelor's degree in Education? You might be our next star! Have at least 2 years of ELA teaching experience? You're getting warmer!")).minYears).toBe(2)
+  })
+  it('a degree students pursue never swallows the applicant\'s (codex)', () => {
+    expect(readRequirements(foldPost("Our students pursuing a degree in finance and applicants need a bachelor's degree")).degree).toBe('required')
+  })
+  it('C1/C2 asked of the teacher is read beside the classes they will teach (codex)', () => {
+    expect(readRequirements(foldPost('Applicants need a C1 certificate to teach our classes.')).proficiency).toBe('required')
+  })
+  it('a range\'s low end takes the zeros that keep it below the high end (opus)', () => {
+    expect(readPay(foldPost('500-1,000,000 VND/session'))).toMatchObject({ min: 500_000, max: 1_000_000, unit: 'session' })
+  })
+  it('"English teacher kids class" keeps its kids; a salary line naming its bonus is the pay (opus)', () => {
+    expect(readAgeGroups(foldPost('English teacher kids class in District 7, weekend mornings'))).toEqual(['kids'])
+    expect(readPay(foldPost('Thu nhập (lương + thưởng): 20tr/tháng'))).toMatchObject({ min: 20_000_000, unit: 'month' })
+  })
+})
+
+describe('gate 15b reviewer findings (codex + opus, 2026-10-22) — each measured before the fix', () => {
+  it('a degree students must have is theirs, by the nearest noun before it; the applicant\'s after it stays (codex)', () => {
+    expect(readRequirements(foldPost('This course is for students who must have a relevant degree.')).degree).toBe('none')
+    expect(readRequirements(foldPost("Our students pursuing a degree in finance and applicants need a bachelor's degree")).degree).toBe('required')
+    // measured on the labelled posts: an unpunctuated list's students are fields away, not the degree's owner
+    expect(readRequirements(foldPost('Students: Young learners (Cambridge English) Requirements: Native English speaker Passionate about teaching children Hold a Bachelor’s degree or higher')).degree).toBe('required')
+  })
+  it('"with 2+ years" in a list is an ask; only "with over N years" is a school\'s own (opus)', () => {
+    expect(readRequirements(foldPost("Requirements: Bachelor's degree, with 2+ years of experience.")).minYears).toBe(2)
+  })
+  it('"support" alone is no benefit: "We support our teachers with 25M/month" is the pay (opus)', () => {
+    expect(readPay(foldPost('We support our teachers with 25M/month and paid holidays'))).toMatchObject({ min: 25_000_000, unit: 'month' })
+  })
+  it('"candidates must be 25–40 years old" is no class of adults — "be" is no student word in English (opus)', () => {
+    expect(readAgeGroups(foldPost('English teacher, District 7, part-time, candidates must be 25–40 years old'))).toEqual([])
+  })
+  it('"Tra Vinh" is not Vinh, Nghe An (opus)', () => {
+    expect(readPlaces(foldPost('English teacher needed in Tra Vinh city')).places).not.toContain('p-40')
+  })
+  it('a title\'s language role is read in the ROLE, not the employer (codex)', () => {
+    expect(readPost('Mandarin Teacher — English Language School\nDistrict 7', POSTED, { title: 'Mandarin Teacher — English Language School' }).languages).toEqual(['chinese'])
+  })
+})
+
+describe('gate 15c reviewer findings (codex + opus, 2026-10-22) — each measured before the fix', () => {
+  it('"with over 2 years" in a list asks; a school\'s history is a school\'s — its name before "with", or a long one (codex)', () => {
+    expect(readRequirements(foldPost("Requirements: Bachelor’s degree, with over 2 years of experience")).minYears).toBe(2)
+    expect(readRequirements(foldPost('With over 15 years of experience in education, we hire teachers in District 7.')).minYears).toBeNull()
+  })
+  it('C1-level English asked of applicants counts without the word "certificate" (codex)', () => {
+    expect(readRequirements(foldPost('Applicants must have C1-level English.')).proficiency).toBe('required')
+    expect(readRequirements(foldPost('Our C1 level English course is popular with adults.')).proficiency ?? 'none').toBe('none')
+  })
+  it('a benefit nearer before a figure than any pay word makes it the benefit\'s (codex)', () => {
+    expect(readPay(foldPost('Compensation includes a housing allowance of 3,000,000 VND/month; base salary negotiable'))).toBeNull()
+    expect(readPay(foldPost('Salary: 20,000,000 VND/month + housing allowance 3,000,000 VND/month'))).toMatchObject({ min: 20_000_000 })
+  })
+  it('a one-year contract is a contract term; "not full-time" is not full-time (codex + opus)', () => {
+    const e = (s: string) => readPost(s, POSTED).employment
+    expect(e('Public school teacher, 3 hours a day, Monday to Friday, 1-year contract, Binh Duong')).toEqual(['full_time'])
+    expect(e('This is not full-time: 2 hours/day, Monday to Friday, District 7')).toEqual(['part_time'])
+  })
+  it('a teacher\'s age limit beside the children is no class of adults (opus)', () => {
+    expect(readAgeGroups(foldPost('Teaching children, teachers must be 25–40 years old'))).toEqual(['kids'])
+  })
+})
+
+describe('gate 15d reviewer findings (codex + opus, 2026-10-22) — each measured before the fix', () => {
+  it('a salary joined to its bonus is the package\'s pay; a bonus alone is not pay (codex + opus)', () => {
+    expect(readPay(foldPost('Salary + bonus: 20-25M/month, District 7'))).toMatchObject({ min: 20_000_000, max: 25_000_000, unit: 'month' })
+    expect(readPay(foldPost('Total income (salary + bonus): 20,000,000 VND/month'))).toMatchObject({ min: 20_000_000, unit: 'month' })
+    expect(readPay(foldPost('Bonus up to 5,000,000 VND/month for good reviews'))).toBeNull()
+  })
+  it('a block or tower named C1 is no English level (opus)', () => {
+    expect(readRequirements(foldPost('English teachers needed at our campus, Block C1, Sunrise City.')).proficiency ?? 'none').toBe('none')
+    expect(readRequirements(foldPost('English teachers needed at Block C1 Sunrise City District 7')).proficiency ?? 'none').toBe('none')
+  })
+  it('a parent\'s "our own kids" are the class (opus)', () => {
+    expect(readAgeGroups(foldPost('Looking for a tutor for our own kids (7 and 9) in District 2'))).toEqual(['kids'])
+  })
+  it('a requirements heading between the students and the degree keeps it the teacher\'s (codex)', () => {
+    expect(readRequirements(foldPost('Students: kids Requirements: Bachelor’s degree')).degree).toBe('required')
+  })
+  it('"our teachers have at least 2 years" is no school\'s own history; "no minimum … required" asks nothing (codex + opus)', () => {
+    expect(readRequirements(foldPost('Requirements: our teachers have at least 2 years of experience')).minYears).toBe(2)
+    expect(readRequirements(foldPost('There is no minimum 2 years of experience required, we train you.')).minYears).toBeNull()
+  })
+  it('"Salary paid twice a week" is no short week (opus)', () => {
+    expect(readPost('English teacher, Monday to Friday, District 7. Salary paid twice a week.', POSTED).employment).toEqual(['full_time'])
+  })
+})
+
+describe('gate 15e reviewer findings (codex + opus, 2026-10-22) — each measured before the fix', () => {
+  it('an explicit part-time outweighs the inferred full-time cues; "Full-time/Part-time" says both (opus)', () => {
+    const e = (s: string) => readPost(s, POSTED).employment
+    expect(e('Part-time, weekends only, 1-year contract, District 7')).toEqual(['part_time'])
+    expect(e('Part-time teacher, Monday to Friday afternoons, District 3')).toEqual(['part_time'])
+    expect(e('Full-time/Part-time Teacher, Monday to Friday, District 3')).toEqual(['full_time', 'part_time'])
+    expect(e('English teacher 3 days/week, District 7')).toEqual(['part_time'])
+  })
+  it('a four-digit low end shares the high end\'s zeros too (codex)', () => {
+    expect(readPay(foldPost('1,200-1,500,000 VND/session'))).toMatchObject({ min: 1_200_000, max: 1_500_000, unit: 'session' })
+  })
+  it('"bé 3-5 tuổi" is a kids\' class (opus)', () => {
+    expect(readAgeGroups(foldPost('Lớp tiếng Anh bé 3-5 tuổi'))).toEqual(['kids'])
+  })
+})
+
+describe('gate 15f reviewer findings (codex + opus, 2026-10-22)', () => {
+  it('a degree followed by "required" is the teacher\'s, whoever came before it (codex)', () => {
+    expect(readRequirements(foldPost("Experience teaching university students Bachelor's degree required")).degree).toBe('required')
+  })
+  it('C1 English that teachers "are welcome" with is preferred, not asked (codex)', () => {
+    expect(readRequirements(foldPost('Teachers with C1 English are welcome to apply.')).proficiency).toBe('preferred')
+  })
+  it('a title\'s "<language> language teacher" reads beside an import\'s "Job for English speakers" (opus)', () => {
+    const t = 'Korean Language Teacher — ABC Academy'
+    expect(readPost(`${t}\nJob for English speakers in Hà Nội (part-time), posted on WISHlistjobs.`, POSTED, { title: t }).languages).toEqual(['korean'])
+  })
+})
+
+describe('gate 15g reviewer findings (codex + opus, 2026-10-22) — each measured before the fix', () => {
+  it('"We have a vacancy for a teacher with at least 3 years" asks 3 — the school\'s own years follow "have" itself (opus: a regression)', () => {
+    expect(readRequirements(foldPost('We have a vacancy for a teacher with at least 3 years of experience.')).minYears).toBe(3)
+    expect(readRequirements(foldPost('We have openings for teachers with 2+ years of experience in District 7.')).minYears).toBe(2)
+    expect(readRequirements(foldPost('I also have 20 years of professional experience.')).minYears).toBeNull()
+    expect(readRequirements(foldPost('We have over 15 years of experience in English education.')).minYears).toBeNull()
+  })
+  it('a full working day is full-time, whatever else happens twice a week (opus: a regression)', () => {
+    const e = (s: string) => readPost(s, POSTED).employment
+    expect(e('Kindergarten teacher, Monday to Friday 7:30–16:30. Club activities twice a week.')).toEqual(['full_time'])
+    expect(e('English teacher, Monday to Friday 8am-5pm, lesson planning 1 hour a day, District 7')).toEqual(['full_time'])
+    // a short day stays part-time: "9:00 AM – 11:30 AM (2.5 hours/day)" (labelled, measured)
+    expect(e('Mon–Fri, 5 days. Time: 9:00 AM – 11:30 AM (2.5 hours/day, total 12.5 hours). Format: 1-on-2')).toEqual(['part_time'])
+  })
+  it('several roles: the most accessible minimum counts (codex + opus)', () => {
+    expect(readRequirements(foldPost('Primary teacher: 1+ years experience; Head of Department: 5+ years experience')).minYears).toBe(1)
+  })
+  it('"Teachers teach C1-level English" is the course, not the applicant (codex)', () => {
+    expect(readRequirements(foldPost('Teachers teach C1-level English to adults in District 3.')).proficiency ?? 'none').toBe('none')
+  })
+})
+
+describe('gate 15h reviewer findings (codex + opus, 2026-10-22) — each measured before the fix', () => {
+  it('"Candidates with over 10 years" asks 10 — a teacher noun before "with" makes it an ask (codex: a regression)', () => {
+    expect(readRequirements(foldPost('Head teacher: candidates with over 10 years of experience in international schools.')).minYears).toBe(10)
+  })
+  it('a monthly salary is a full-time schedule the inferred short week cannot override (opus: a regression)', () => {
+    expect(readPost('Public school teacher, 3 hours a day, Monday to Friday, Binh Duong, 18M/month', POSTED).employment).toEqual(['full_time'])
+  })
+  it('Vietnamese clock times count as a working day ("8h-17h") (opus)', () => {
+    expect(readPost('English teacher, Monday to Friday 8h-17h with 2 hours a day of speaking classes, District 7', POSTED).employment).toEqual(['full_time'])
+    // …never a duration: "2.5h -3h / day" is a short day, and an "h" time is a 24-hour one, never wrapped past noon
+    expect(readPost('Kindergarten Teaching time: Monday - Friday 2.5h -3h / day Age of students: 2-6 years old Rate: 400k/h - 460k/h', POSTED).employment).toEqual(['part_time'])
+  })
+  it('a "diploma programme" is the IB\'s only when it says so (codex)', () => {
+    expect(readAgeGroups(foldPost('Adult English diploma programme for working professionals in District 1'))).toEqual(['adults'])
+    expect(readAgeGroups(foldPost('IB Diploma Programme English teacher, Hanoi'))).toEqual(['teens'])
+  })
+})
+
+describe('gate 15i reviewer findings (codex + opus, 2026-10-22) — each measured before the fix', () => {
+  const e = (s: string) => readPost(s, POSTED).employment
+  it('a 40-hour week is full-time; only a short week of hours is part-time (opus: a regression)', () => {
+    expect(e('English teacher, Monday to Friday, 40 hours per week, 12-month contract, District 1')).toEqual(['full_time'])
+    expect(e('Teacher for our centre, 10 hours per week, District 7')).toEqual(['part_time'])
+  })
+  it('"not part-time" is not part-time (codex: a regression)', () => {
+    expect(e('This is not part-time; Monday to Friday at our school in District 2')).toEqual(['full_time'])
+  })
+  it('Saturday and Sunday are a weekend job, whatever its contract; two days a week too (opus)', () => {
+    expect(e('Weekend teacher, Saturday & Sunday 8am–12pm, 1-year contract, Thu Duc')).toEqual(['part_time'])
+    expect(e('English teacher two days a week, 6-month contract, District 3')).toEqual(['part_time'])
+    // …but never the days OFF: "From Monday - Friday, off Saturday and Sunday" (measured on the labelled posts)
+    expect(e('Public school teaching daytime. - From Monday - Friday, off Saturday and Sunday. Benefits: - Competitive salary')).toEqual(['full_time'])
+  })
+  it('a date range is no working day (opus)', () => {
+    expect(e('Course 01.11 - 15.12, twice a week, kids, District 7')).toEqual(['part_time'])
+  })
+  it('a rate "including" an allowance is the pay (opus)', () => {
+    expect(readPay(foldPost('Rate (incl. transport allowance): 400k/hour'))).toMatchObject({ min: 400_000, unit: 'hour' })
+  })
+})
+
+describe('gate 15j reviewer findings (codex + opus, 2026-10-22) — each measured before the fix', () => {
+  const e = (s: string) => readPost(s, POSTED).employment
+  it('the weekend days OFF are no weekend job; a weekend role is (opus: a regression)', () => {
+    for (const s of ['Monday to Friday, 12-month contract. Saturday and Sunday are days off.', 'English teacher Monday to Friday, 2 days off (Saturday & Sunday)', 'English teacher Monday to Friday (Saturday & Sunday free), District 7'])
+      expect(e(s), s).toEqual(['full_time'])
+    expect(e('Weekend teacher, Saturday & Sunday 8am–12pm, 1-year contract, Thu Duc')).toEqual(['part_time'])
+  })
+  it('"not parttime" is not part-time either (codex)', () => {
+    expect(e('This is not parttime; Monday to Friday at our school in District 2')).toEqual(['full_time'])
+  })
+  it('students of 18–19 are adults (codex)', () => {
+    expect(readAgeGroups(foldPost('Students aged 18-19 years old, university prep, District 1'))).toEqual(['adults'])
+  })
+  it('a net salary "after tax & insurance" is the pay (opus)', () => {
+    expect(readPay(foldPost('Net salary after tax & insurance: 25,000,000 VND/month'))).toMatchObject({ min: 25_000_000, unit: 'month' })
+  })
+})
+
+describe('gate 15k reviewer findings (codex + opus, 2026-10-22) — each measured before the fix', () => {
+  const e = (s: string) => readPost(s, POSTED).employment
+  it('a post that states Monday to Friday has stated its week: "twice a week" is an activity (opus: a regression)', () => {
+    expect(e('Kindergarten teacher, Monday to Friday 7:30–16:30, 20M/month. Swimming lessons twice a week.')).toEqual(['full_time'])
+    expect(e('English teacher, Monday to Friday, 2 days a week at our second campus, District 7')).toEqual(['full_time'])
+    // …a few days a week with no weekday schedule is still the job's week
+    expect(e('English teacher two days a week, 6-month contract, District 3')).toEqual(['part_time'])
+  })
+  it('an evening role is part-time, whatever its contract (codex)', () => {
+    expect(e('One-year contract, evening teacher, District 7')).toEqual(['part_time'])
+  })
+  it('a total after the benefit is the package\'s pay (codex)', () => {
+    expect(readPay(foldPost('Salary includes housing allowance and totals 25M/month'))).toMatchObject({ min: 25_000_000, unit: 'month' })
+    expect(readPay(foldPost('Compensation includes a housing allowance of 3,000,000 VND/month; base salary negotiable'))).toBeNull()
+  })
+})
+
+describe('gate 15l reviewer findings (codex + opus, 2026-10-22) — each measured before the fix', () => {
+  const e = (s: string) => readPost(s, POSTED).employment
+  it('evening and weekend CLASSES are a full-time centre\'s schedule too: both tags, as before (opus: a regression)', () => {
+    expect(e('English teacher, Monday to Friday evening classes and weekend classes, 12-month contract, 22M/month')).toEqual(['full_time', 'part_time'])
+  })
+  it('any stated week of four days or more makes "once a week" an activity (opus)', () => {
+    expect(e('Tuesday to Sunday 8am–5pm, 12-month contract, 25M/month, lesson observations once a week')).toEqual(['full_time'])
+  })
+  it('a range of weekly hours is full-time only from its low end — "10-40 hours" is either (codex)', () => {
+    expect(e('Flexible schedule, 10-40 hours per week, District 3')).toEqual(['full_time', 'part_time'])
+  })
+  it('Vietnamese hours are no ages; "bé 4,5 tuổi" is a kids\' class (opus)', () => {
+    expect(readAgeGroups(foldPost('Lớp học viên người lớn, làm việc từ 8 đến 17 giờ'))).toEqual(['adults']) // adult learners — and no kids or teens from the hours
+    expect(readAgeGroups(foldPost('Dạy tiếng Anh cho bé 4,5 tuổi'))).toEqual(['kids'])
+  })
+})
+
+describe('gate 15m reviewer findings (codex + opus, 2026-10-22) — each measured before the fix', () => {
+  const e = (s: string) => readPost(s, POSTED).employment
+  it('weekend classes with no weekday schedule are the whole job, whatever the contract (opus: a regression)', () => {
+    expect(e('Weekend classes for kids, 1-year contract, District 7')).toEqual(['part_time'])
+  })
+  it('"with over 10 years" in a requirements clause asks it (codex)', () => {
+    expect(readRequirements(foldPost('Requirements: with over 10 years of teaching experience')).minYears).toBe(10)
+  })
+  it('"teaching English must have C1-level English" asks the teacher (codex)', () => {
+    expect(readRequirements(foldPost('Teachers teaching English must have C1-level English.')).proficiency).toBe('required')
+  })
+  it('a stated week of five days or more with a full working day is full-time (codex)', () => {
+    expect(e('English teacher, Tuesday to Saturday, 8am-5pm, District 7')).toEqual(['full_time'])
+  })
+  it('Vietnamese evening hours are no ages; 20 lessons a week keep their part-time tag (opus)', () => {
+    expect(readAgeGroups(foldPost('Học viên người lớn học từ 7 đến 9 tối'))).toEqual(['adults'])
+    expect(e('English teacher, 20 lessons per week, District 3')).toEqual(['full_time', 'part_time'])
+    expect(e('Math teacher at a secondary school in Hanoi. Schedule: 21 periods per week')).toEqual(['full_time', 'part_time'])
+  })
+})

@@ -116,7 +116,7 @@ vi.mock('./desk', () => ({
   resumeJobDms: (...a: unknown[]) => (resumeJobDms as (...x: unknown[]) => unknown)(...a),
 }))
 
-const { runJobDms, textSig, purgeJobPosts, PURGED_TEXT } = await import('./run')
+const { runJobDms, textSig, purgeJobPosts, PURGED_TEXT, jobFromListing } = await import('./run')
 const { RULES_VERSION } = await import('./extract')
 const { JOB_DM_DEFAULT_ON, JOB_DM_NOTICE_VERSION } = await import('./constants')
 const { JOB_BOARDS, jobExternalId } = await import('@/lib/job-listing')
@@ -437,7 +437,7 @@ describe('a LinkedIn job is read once per field (the first alert, 2026-10-21)', 
 })
 
 describe("eno.vn's own listings — the first shadow grading (2026-10-21)", () => {
-  const listing = (id: string, o: Row): Row => ({ id, title: '', description: '', city: 'Hồ Chí Minh', salaryM: null, attributes: {}, createdAt: new Date('2026-10-20T01:00:00Z'), sellerId: 'a-school', ...o })
+  const listing = (id: string, o: Row): Row => ({ id, title: '', description: '', city: 'Hồ Chí Minh', salaryM: null, attributes: '{}', createdAt: new Date('2026-10-20T01:00:00Z'), sellerId: 'a-school', ...o })
   it('another subject, a Vietnamese job posted here and a foreigners-only one are never offered; an IMPORTED Vietnamese title still is', async () => {
     T.listings = [
       // fits the teacher in every other way (kids, part-time, District 7): only its TITLE keeps it out
@@ -497,11 +497,10 @@ describe("eno.vn's own listings — the first shadow grading (2026-10-21)", () =
       source: 'linkedin', title, company: 'Sunrise Academy', locationText: 'District 7, Ho Chi Minh City', text: `${title} · Sunrise Academy · District 7, Ho Chi Minh City`,
       groupPublic: null, url: 'https://www.linkedin.com/jobs/view/4490000001/', sourceName: 'LinkedIn',
     })]
-    // the control: with nothing offered yesterday, the listing goes out (opus, gate 12o)
-    await runJobDms({ dryRun: true, now: DAY })
     T.dms = [{ profileId: 't-1', jobKey: 'post:4490000001', kind: 'jobs', day: '2026-10-20', mode: 'shadow' }]
     await runJobDms({ dryRun: false, now: DAY })
     expect(calls.createMany.flat().map((r) => r.jobKey)).not.toContain('listing:sunrise')
+    // the control: with nothing offered yesterday, the listing goes out (opus, gate 12o)
     T.dms = []
     calls.createMany = []
     await runJobDms({ dryRun: false, now: DAY })
@@ -538,5 +537,19 @@ describe("eno.vn's own listings — the first shadow grading (2026-10-21)", () =
     const offered = new Set(calls.createMany.flat().map((r) => r.jobKey))
     expect(offered.has('listing:sunrise')).toBe(true)
     expect(offered.has('post:4490000003')).toBe(true)
+  })
+})
+
+describe("the live audit (2026-10-22) — a listing's attributes", () => {
+  const l = { id: 'x', title: 'English Teacher — ABC Academy', description: 'Teach English to kids in District 7.', city: 'Hồ Chí Minh', salaryM: null, createdAt: new Date('2026-10-20T01:00:00Z'), sellerId: 'a-school', externalId: null }
+  it('Listing.attributes is a JSON string: its job type and salary are read, and the line shows the rules\' own figure', () => {
+    const job = jobFromListing({ ...l, attributes: JSON.stringify({ salaryText: '450,000 VND / hour', jobtype: 'parttime' }) })!
+    expect(job.employment).toEqual(['part_time'])
+    expect(job.pay).toMatchObject({ min: 450_000, unit: 'hour' })
+    expect(job.item.pay).toBe('450,000 đ / hour')
+    // a board's hourly figure labelled "/ month" is no month's pay — and the line never prints the board's words
+    expect(jobFromListing({ ...l, attributes: JSON.stringify({ salaryText: '550,000 VND / month', jobtype: 'fulltime' }) })!.item.pay).toBeUndefined()
+    // unreadable attributes read as none
+    expect(jobFromListing({ ...l, attributes: '{oops' })!.employment).toEqual([])
   })
 })
