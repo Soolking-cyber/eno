@@ -3,6 +3,9 @@ import { IMG_ALLOWED, IMG_MAX_BYTES, storeEvidenceImage } from '@/lib/core/media
 import { DISPUTE_IMAGES_MAX, loadDisputeForParty, partyCanPost, partyHasSubmitted, signEvidenceUrls } from '@/lib/dispute'
 import { ApiError, route } from '@/lib/api/handler'
 import { logError } from '@/lib/log'
+import { db } from '@/lib/db'
+import { EVIDENCE_BUCKET } from '@/lib/supabase-admin'
+import { writeTombstones } from '@/lib/core/storage-tombstones'
 
 /**
  * ⛔ A DURABLE PER-PARTY, PER-CASE CAP ON STORED EVIDENCE (security review 2026-10-22, item 11). Nothing ever deletes
@@ -94,6 +97,20 @@ export const POST = route({ auth: 'userId' }, async ({ req, userId: meId, params
   }
   // Files beyond the cap are reported as failed, so the client can tell the party why they did not attach.
   failed += Math.min(files.length, DISPUTE_IMAGES_MAX) - allowed
+
+  // ⛔ AN UPLOAD NOBODY ATTACHES IS SWEPT (security review 2026-10-22, item 11). The images are stored here and attached by
+  // a SEPARATE request (the party's statement), so an upload never posted — or replaced before posting — stayed in the
+  // private bucket for good: receipts and screenshots carrying PII, on the disk Postgres uses. Each is tombstoned now
+  // with its grace starting when the evidence window CLOSES, so the party keeps every minute of the window to post;
+  // attaching clears the tombstone (dispute.ts addPartyStatementOnce), and the sweep deletes what was never attached
+  // (storage-tombstones-sweep.svc.ts). A failed write is logged and the upload stands — unswept, as before.
+  if (paths.length) {
+    try {
+      await writeTombstones(db, paths.map((path) => ({ bucket: EVIDENCE_BUCKET, path })), 'evidence_upload_pending', loaded.report.evidenceUntil ?? new Date())
+    } catch (e) {
+      logError(e, { op: 'dispute.evidence.tombstone' })
+    }
+  }
 
   return { paths, previews: await signEvidenceUrls(paths), failed }
 })

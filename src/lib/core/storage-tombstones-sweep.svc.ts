@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { BUSINESS_VERIFICATION_BUCKET, LISTINGS_BUCKET, LISTING_VIDEOS_BUCKET, TEACHER_CVS_BUCKET, TEACHER_VIDEOS_BUCKET, getSupabaseAdmin } from '@/lib/supabase-admin'
+import { BUSINESS_VERIFICATION_BUCKET, EVIDENCE_BUCKET, LISTINGS_BUCKET, LISTING_VIDEOS_BUCKET, TEACHER_CVS_BUCKET, TEACHER_VIDEOS_BUCKET, getSupabaseAdmin } from '@/lib/supabase-admin'
 import { STORAGE_HOST } from '@/lib/listing-image'
 import { isStillReferenced } from '@/lib/core/storage-purge'
 import { VISA_BUCKET } from '@/lib/visa/storage'
@@ -98,6 +98,26 @@ async function referenceVerdict(bucket: string, path: string): Promise<Verdict> 
       try {
         const where = bucket === TEACHER_CVS_BUCKET ? { cvPath: path } : { videoPath: path }
         return (await db.teacherPrivate.findFirst({ where, select: { teacherProfileId: true } })) ? 'referenced' : 'unreferenced'
+      } catch {
+        return 'unknown'
+      }
+    }
+    /**
+     * ⛔ DISPUTE EVIDENCE (security review 2026-10-22, item 11). Each object is `disputes/<reportId>/<file>` and is
+     * referenced iff a statement in that case's thread attached it (DisputeMessage.images — the route only accepts this
+     * case's own paths). Unattached while the case can still take a statement — open, its evidence window live (an admin
+     * may have extended it past the tombstone's clock) — is NOT a verdict yet: `unknown` backs the row off and it is
+     * judged again later. The window rule is dispute.ts partyCanPost's, inlined so this file does not pull in push.
+     */
+    case EVIDENCE_BUCKET: {
+      try {
+        const reportId = /^disputes\/([^/]+)\//.exec(path)?.[1]
+        if (!reportId) return 'unknown'
+        const attached = await db.disputeMessage.findFirst({ where: { reportId, images: { contains: JSON.stringify(path) } }, select: { id: true } })
+        if (attached) return 'referenced'
+        const report = await db.report.findUnique({ where: { id: reportId }, select: { status: true, evidenceUntil: true } })
+        if (report && report.status === 'open' && report.evidenceUntil && report.evidenceUntil.getTime() > Date.now()) return 'unknown'
+        return 'unreferenced'
       } catch {
         return 'unknown'
       }

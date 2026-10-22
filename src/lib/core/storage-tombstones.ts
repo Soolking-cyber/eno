@@ -38,6 +38,10 @@ export type TombstoneReason = 'account_deleted' | 'visa_document_replaced' | 'vi
   // write it was for is refused (discardRehostedImages). One neither reached is swept by the listings bucket's
   // reference check — a listing that holds it keeps it.
   | 'listing_image_rehost_pending'
+  // A dispute-evidence upload (security review 2026-10-22, item 11): tombstoned when stored, its grace starting when the
+  // case's evidence window closes; cleared when a statement attaches it (dispute.ts addPartyStatementOnce). One never
+  // attached is swept by the evidence bucket's rule once the case can take no more statements.
+  | 'evidence_upload_pending'
 type Writer = Pick<Prisma.TransactionClient, 'storageTombstone' | '$executeRaw'>
 
 /** Record that these objects are to be deleted once nothing references them. Pass the transaction

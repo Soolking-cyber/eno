@@ -26,6 +26,9 @@ const h = vi.hoisted(() => ({
   verificationQueryError: false,
   /** Paths a TeacherPrivate row still holds as its cvPath / videoPath (2026-10-07). */
   teacherPaths: [] as string[],
+  /** Dispute evidence (review item 11): paths a DisputeMessage attached, and each case's status + window. */
+  attachedEvidence: [] as string[],
+  reports: {} as Record<string, { status: string; evidenceUntil: Date | null }>,
   seq: 0,
   /** A hook run on every storage remove — lets a test refresh a row mid-batch like a concurrent writer would. */
   onRemove: null as null | ((bucket: string, paths: string[]) => void),
@@ -91,6 +94,11 @@ vi.mock('@/lib/db', () => ({
     },
     seller: { count: async () => 0 },
     profile: { count: async () => 0 },
+    disputeMessage: {
+      findFirst: async ({ where }: { where: { reportId: string; images: { contains: string } } }) =>
+        h.attachedEvidence.some((p) => JSON.stringify(p) === where.images.contains && p.startsWith(`disputes/${where.reportId}/`)) ? { id: 'm1' } : null,
+    },
+    report: { findUnique: async ({ where }: { where: { id: string } }) => h.reports[where.id] ?? null },
     teacherPrivate: {
       findFirst: async ({ where }: { where: { cvPath?: string; videoPath?: string } }) =>
         h.teacherPaths.includes((where.cvPath ?? where.videoPath)!) ? { teacherProfileId: 'tp1' } : null,
@@ -121,7 +129,7 @@ const t0 = new Date('2026-09-05T08:00:00.000Z')
 const later = new Date(t0.getTime() + TOMBSTONE_GRACE_MS + 1)
 const P = 'https://proj.supabase.co/storage/v1/object/public/listings/'
 
-beforeEach(() => { h.rows = []; h.removed = []; h.removeError = null; h.listingImages = []; h.visaPaths = []; h.visaQueryError = false; h.onRemove = null; h.verificationPaths = []; h.identityPaths = []; h.verificationQueryError = false; h.teacherPaths = [] })
+beforeEach(() => { h.rows = []; h.removed = []; h.removeError = null; h.listingImages = []; h.visaPaths = []; h.visaQueryError = false; h.onRemove = null; h.verificationPaths = []; h.identityPaths = []; h.verificationQueryError = false; h.teacherPaths = []; h.attachedEvidence = []; h.reports = {} })
 
 describe('the tombstone sweep', () => {
   it('touches nothing younger than its grace', async () => {
@@ -217,6 +225,30 @@ describe('the tombstone sweep', () => {
     const r = await sweepTombstones(later)
     expect(h.removed).toEqual([])
     expect(r).toMatchObject({ removed: 0, dropped: 0, failed: 1 })
+  })
+
+  /**
+   * DISPUTE EVIDENCE (security review 2026-10-22, item 11). An upload is tombstoned when stored and attached by a later
+   * statement; one never attached is deleted once the case can take no more statements — never while it still can.
+   */
+  it('evidence: attached is kept; unattached in a closed or vanished case is removed; unattached while the window is live waits', async () => {
+    const DAY_AHEAD = new Date(Date.now() + DAY)
+    h.attachedEvidence = ['disputes/c-open/attached.webp']
+    h.reports = {
+      'c-open': { status: 'open', evidenceUntil: DAY_AHEAD },
+      'c-closed': { status: 'resolved', evidenceUntil: new Date(Date.now() - DAY) },
+    }
+    await writeTombstones(db, [
+      { bucket: 'evidence', path: 'disputes/c-open/attached.webp' },
+      { bucket: 'evidence', path: 'disputes/c-open/still-postable.webp' },
+      { bucket: 'evidence', path: 'disputes/c-closed/never-posted.webp' },
+      { bucket: 'evidence', path: 'disputes/c-gone/orphan.webp' },
+    ], 'evidence_upload_pending', t0)
+    const r = await sweepTombstones(later)
+    expect(h.removed).toEqual([{ bucket: 'evidence', paths: ['disputes/c-closed/never-posted.webp'] }, { bucket: 'evidence', paths: ['disputes/c-gone/orphan.webp'] }])
+    expect(r).toMatchObject({ removed: 2, dropped: 1, failed: 1 })
+    // the live-window upload is NOT deleted: kept and backed off, to be judged again once the window has closed
+    expect(h.rows.map((x) => x.path)).toEqual(['disputes/c-open/still-postable.webp'])
   })
 
   it('a storage failure, a failed reference check and an unknown bucket all KEEP the row — counted, attempts/lastError set, backed off a DAY', async () => {

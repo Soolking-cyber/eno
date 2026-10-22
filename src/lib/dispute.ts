@@ -6,6 +6,7 @@ import { pickLocale } from './admin-macros'
 import { sendPushToProfile } from './push'
 import { maskEmailHandle } from './utils'
 import { logError } from '@/lib/log'
+import { clearTombstones } from '@/lib/core/storage-tombstones'
 import { parseContentPointer, stripContentPointer, type ContentKind } from '@/lib/reported-content-pointer'
 
 // ── Dispute center core (Binance-P2P-style case rooms on Report) ─────────────────
@@ -370,6 +371,12 @@ export async function addPartyStatementOnce(
     return created
   })
   if (!row) return null
+  // The statement now holds its evidence: the uploads' pending tombstones go (security review 2026-10-22, item 11).
+  // Best-effort — if this fails, the sweep finds the images attached and drops the tombstones itself.
+  if (msg.images?.length) {
+    await clearTombstones(msg.images.slice(0, DISPUTE_IMAGES_MAX).map((path) => ({ bucket: EVIDENCE_BUCKET, path })))
+      .catch((e) => logError(e, { op: 'dispute.evidence.claim' }))
+  }
   await notifyDisputeCounterparties(report, msg.senderRole, msg.senderProfileId)
   return row
 }

@@ -10,6 +10,8 @@ const h = vi.hoisted(() => ({
   counters: new Map<string, number>(),
   stored: [] as string[],
   storeOk: true,
+  tombstones: [] as Array<{ refs: Array<{ bucket: string; path: string }>; reason: string; clock: Date }>,
+  windowCloses: new Date(Date.now() + 3600_000),
 }))
 
 vi.mock('server-only', () => ({}))
@@ -30,7 +32,7 @@ vi.mock('@/lib/ratelimit', () => ({
 }))
 vi.mock('@/lib/dispute', () => ({
   DISPUTE_IMAGES_MAX: 6,
-  loadDisputeForParty: async () => ({ report: { id: 'case-1', status: 'open', evidenceUntil: new Date(Date.now() + 3600_000) } }),
+  loadDisputeForParty: async () => ({ report: { id: 'case-1', status: 'open', evidenceUntil: h.windowCloses } }),
   partyCanPost: () => true,
   partyHasSubmitted: async () => false,
   signEvidenceUrls: async (paths: string[]) => paths.map((p) => `https://signed/${p}`),
@@ -44,6 +46,11 @@ vi.mock('@/lib/core/media', () => ({
     h.stored.push(p)
     return p
   },
+}))
+
+vi.mock('@/lib/db', () => ({ db: {} }))
+vi.mock('@/lib/core/storage-tombstones', () => ({
+  writeTombstones: async (_tx: unknown, refs: Array<{ bucket: string; path: string }>, reason: string, clock: Date) => { h.tombstones.push({ refs, reason, clock }); return refs.length },
 }))
 
 const { POST } = await import('./route')
@@ -113,5 +120,25 @@ describe('dispute evidence — the durable per-party cap (item 11)', () => {
     )
     expect(r.status).toBe(413)
     expect(h.counters.size).toBe(0)
+  })
+})
+
+describe('an upload nobody attaches is swept (security review 2026-10-22, item 11)', () => {
+  it('every stored image is tombstoned, its grace starting when the evidence window closes', async () => {
+    h.tombstones = []
+    const res = await upload(jpeg(2))
+    expect(res.status).toBe(200)
+    expect(h.tombstones).toHaveLength(1)
+    expect(h.tombstones[0].reason).toBe('evidence_upload_pending')
+    expect(h.tombstones[0].refs.map((r) => r.bucket)).toEqual(['evidence', 'evidence'])
+    expect(h.tombstones[0].refs.map((r) => r.path)).toEqual((await res.json()).paths)
+    expect(h.tombstones[0].clock).toBe(h.windowCloses)
+  })
+
+  it('nothing stored, nothing tombstoned', async () => {
+    h.tombstones = []
+    h.storeOk = false
+    await upload(jpeg(1))
+    expect(h.tombstones).toEqual([])
   })
 })
