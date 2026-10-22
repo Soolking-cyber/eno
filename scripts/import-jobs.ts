@@ -61,7 +61,7 @@ import { journalDirProblem, sellerRefusal } from '../src/lib/honeycomb-listing'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
 import {
-  JOB_BOARDS, JOB_SELLER_IDS, isExpiredJob, jobExternalId, jobStageProblem, mapStagedJob, pdpTombstoneTags,
+  JOB_BOARDS, JOB_SELLER_IDS, implausibleJobPay, isExpiredJob, jobExternalId, jobStageProblem, mapStagedJob, pdpTombstoneTags,
   type JobDrop, type JobStage, type MappedJob,
 } from '../src/lib/job-listing'
 import {
@@ -244,6 +244,8 @@ async function main() {
   /** D3: the history row of every ad kept below — the same ads, as their parsed facts (src/lib/job-ad-sightings.ts). */
   const sighted: JobAdSighting[] = []
   let unlogged = 0 // kept ads the history log's own screens refused (jobAdSightingOf → null), said in the plan line
+  /** Kept ads whose pay line mapStagedJob left off — a figure no month's or hour's pay can be — named in the report. */
+  const payLeftOff: string[] = []
   // The screen's hide journal and review file go to the durable --journal-dir on --apply, with the rest.
   const screen = new ImportScreen('jobs', { db, sellerIds: [...JOB_SELLER_IDS], ...(journal ? { dir: journal } : {}) })
   const seen = new Set<string>()
@@ -262,6 +264,7 @@ async function main() {
     // advertising classifier passes it — the banned-word half is what applies).
     if (!(await screen.check({ title: r.job.title, description: r.job.description, descriptionVi: r.job.descriptionVi, category: 'jobs', subcategory: r.job.subcategorySlug, merchant: r.job.sellerName, extraTexts: [r.job.location], externalId: r.job.externalId, url: r.job.affiliateUrl }))) continue
     keep.push({ ...r.job, coverPath: coverFile })
+    if (implausibleJobPay(j.salary)) payLeftOff.push(`${r.job.externalId} "${j.salary!.replace(/\s+/g, ' ').trim().slice(0, 60)}"`)
     // ⛔ The history log never fails an import, and this runs before any write: a row it cannot make is skipped, said so.
     try {
       const sighting = jobAdSightingOf(j, r.job)
@@ -320,6 +323,7 @@ async function main() {
   console.log(`stage             ${SRC ?? '(none)'}${stage ? ` · staged ${stage.stagedAt} · ${stage.jobs.length} jobs` : ''}`)
   console.log(`dropped           ${Object.entries(drops).map(([k, v]) => `${k} ${v!.length}`).join(' · ') || 'none'}`)
   for (const [k, v] of Object.entries(drops)) for (const l of v!) console.log(`  - ${pad(k, 14)} ${l}`)
+  console.log(`pay left off      ${payLeftOff.length ? `${payLeftOff.length} kept without their pay line (a figure no month's or hour's pay can be): ${payLeftOff.join(' · ')}` : 'none'}`)
   console.log(`category          ${category.name} (${category.id})`)
   console.log(`sellers           ${sellerIds.map((id) => `${id}${sellerById.has(id) ? '' : ' (NEW)'}`).join(', ') || '-'}`)
   console.log(`seller refusals   ${refusals.length ? refusals.join(' | ') : 'none'}`)

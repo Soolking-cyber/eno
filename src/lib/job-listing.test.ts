@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   JOB_BOARDS, JOB_SELLER_IDS, JOB_TEXT_REFUSAL, hasEmployerVisaWord, hasVisaWord, isExpiredJob, isHiringPost, isLinkedJobReference, jobDenyReason, jobExternalId,
@@ -225,12 +227,12 @@ describe('places, pay, type, text', () => {
     expect(parseJobPayRange('From 12,000,000 VND/month')).toEqual({ min: 12_000_000, max: null, currency: 'VND', period: 'month' })
     expect(parseJobPayRange('Từ 12.000.000 VNĐ/tháng')).toEqual({ min: 12_000_000, max: null, currency: 'VND', period: 'month' })
     expect(parseJobPayRange('From 10,000,000 - 15,000,000 VND / month')).toEqual({ min: 10_000_000, max: 15_000_000, currency: 'VND', period: 'month' })
-    // An upper amount past the period's bound is not a top.
-    expect(parseJobPayRange('500,000–5,600,000 VND/hour')).toEqual({ min: 500_000, max: null, currency: 'VND', period: 'hour' })
     // Real refused lines from the staged corpus: a ceiling, USD, no amount, a junk figure, an hourly rate labelled monthly,
-    // an amount past the hourly bound, "tr" shorthand — and nothing at all.
+    // an amount past the hourly bound, "tr" shorthand — and nothing at all. And a range whose UPPER amount is past the bound:
+    // the listing leaves such a line off, so the log, which reads only the line the listing keeps, never takes its low end
+    // either (2026-10-22, codex + opus, gate b — this read { min: 500,000, max: null } until then; no staged line has one).
     const refusedLines = ['Up to 550.000 VNĐ/Hour - Gross', '$1,500–2,000 / month', 'Competitive', '15 VND / month', '450,000 VND / month',
-      '5,040,000 VND / hour', '15tr-50tr ₫/tháng', 'USD 1,900 – 2,350 per month (gross)', null]
+      '5,040,000 VND / hour', '15tr-50tr ₫/tháng', 'USD 1,900 – 2,350 per month (gross)', '500,000–5,600,000 VND/hour', null]
     for (const line of refusedLines) {
       expect(parseJobPayRange(line), String(line)).toBeNull()
       expect(parseJobPay(line), String(line)).toBeNull()
@@ -240,7 +242,7 @@ describe('places, pay, type, text', () => {
     // read as an exact amount (parseJobPay did, until 2026-10-20, and the old check, `price === 0 || price === min`, let it
     // through — measured: with the old parseJobPay and only that check, this test passes).
     for (const line of ['15,000,000–20,000,000 VND / month', '50,000,000 VND / month', '500,000–570,000 VND/hour', 'From 12,000,000 VND/month', '470,000 VND / hour',
-      'Từ 12.000.000 VNĐ/tháng', 'TỪ 12.000.000 VNĐ/THÁNG', 'từ 500.000 đ/giờ', 'Từ 10.000.000 - 15.000.000 VNĐ/tháng', '500,000–5,600,000 VND/hour']) {
+      'Từ 12.000.000 VNĐ/tháng', 'TỪ 12.000.000 VNĐ/THÁNG', 'từ 500.000 đ/giờ', 'Từ 10.000.000 - 15.000.000 VNĐ/tháng']) {
       const pay = parseJobPay(line)!
       const range = parseJobPayRange(line)!
       expect(pay.priceUnit, line).toBe(`VND/${range.period}`)
@@ -760,5 +762,46 @@ describe('jobTextProblem — the importer’s screens on job text an employer wr
     expect(JOB_TEXT_REFUSAL.job_residence_wording.en).toBe('Job ads on eno can’t mention visas or residence cards — remove that line. A work permit is fine to mention.')
     expect(JOB_TEXT_REFUSAL.job_residence_wording.vi).toMatch(/giấy phép lao động/)
     expect(JOB_TEXT_REFUSAL.job_candidate_fee.en).not.toMatch(/none/)
+  })
+})
+
+describe('a salary no such pay can be (2026-10-22)', () => {
+  it('a figure read as a month\'s or an hour\'s pay that no such pay can be is left off the listing, not printed wrong', () => {
+    // TEAST's Point Avenue job (2026-10-22): an hourly rate under "/ month", printed on its page and in teachers' job messages
+    const m = map({ salary: '550,000 VND / month' })
+    expect(m.ok && m.job.attributes.salaryText).toBeUndefined()
+    expect(m.ok && m.job.description).not.toMatch(/550,000|Salary:/)
+    expect(m.ok && [m.job.price, m.job.salaryM]).toEqual([0, null])
+    const h = map({ salary: '9,000,000 VND/hour' })
+    expect(h.ok && h.job.attributes.salaryText).toBeUndefined()
+    // a range's upper figure is a figure too (codex, gate a): printed whole, the line would state it
+    const r = map({ salary: '15,000,000–900,000,000 VND / month' })
+    expect(r.ok && [r.job.attributes.salaryText, r.job.price, r.job.salaryM]).toEqual([undefined, 0, null])
+    // the first figure stated with a month or an hour is judged wherever it sits: a ceiling is never a price, but a
+    // ceiling no such pay can be is a wrong figure all the same, before or after it (codex, gates a–d)
+    for (const salary of ['Up to 9,000,000 VND/hour', 'Maximum: 900,000 VND / month', 'Tối đa 600.000 VNĐ/tháng', '9,000,000 VND/hour maximum',
+      'Salary: 550,000 VND / month', 'Max. 900,000 VND/month', 'Lương lên đến 600.000 VNĐ/tháng']) {
+      const c = map({ salary })
+      expect(c.ok && c.job.attributes.salaryText, salary).toBeUndefined()
+    }
+  })
+  it('kept: a figure inside its bounds, and words with no figure', () => {
+    // "Up to …" and "tr" are not read, so not judged: printed as stated (both forms are real staged lines)
+    for (const salary of ['15,000,000–20,000,000 VND / month', '500.000 VNĐ/giờ', 'Negotiable', 'Competitive salary + housing', 'Up to 550.000 VNĐ/Hour - Gross',
+      'Up to 60.000.000 VND/ month, based on experience and qualifications', '15tr-50tr ₫/tháng',
+      // only the FIRST figure is the pay: a lunch allowance after it is not judged, so a true salary is not hidden
+      '20,000,000 VND/month + lunch allowance 730,000 VND/month',
+      // a figure never starts inside another number: space-grouped thousands are not "000 VND/month"
+      '12 000 000 VND/month']) {
+      const m = map({ salary })
+      expect(m.ok && m.job.attributes.salaryText, salary).toBe(salary)
+    }
+  })
+  it('the import report names each kept job whose pay line was left off, so a true figure the bounds refuse is seen (opus, gate a)', () => {
+    const src = readFileSync(join(process.cwd(), 'scripts/import-jobs.ts'), 'utf8')
+    const kept = src.indexOf('keep.push({ ...r.job, coverPath: coverFile })')
+    expect(kept).toBeGreaterThan(0) // both found, so the order below is not passed vacuously (opus, gate c)
+    expect(src.indexOf('if (implausibleJobPay(j.salary)) payLeftOff.push(')).toBeGreaterThan(kept)
+    expect(src).toMatch(/console\.log\(`pay left off\s+\$\{payLeftOff\.length \?/)
   })
 })

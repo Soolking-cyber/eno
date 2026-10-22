@@ -35,6 +35,9 @@
  *    pay at all is price 0, which <Price> labels "Salary: see details" on a job; the posting's own
  *    wording is kept verbatim in `attributes.salaryText` (PDP Details and <title>). A monthly VND
  *    figure still sets `salaryM` (a range's lower bound) so the Salary filter finds the job.
+ *    ⛔ A line whose figure no month's or hour's pay can be ("550,000 VND / month" — an hourly rate under the wrong
+ *    unit, 2026-10-22) is left off the listing whole, like a visa line: printed, it is a wrong salary on the page,
+ *    in its <title> and in the jobs a teacher is sent (implausibleJobPay).
  */
 import { assertCleanTexts, PublishBlockedError, type JobTextBlockCode } from './publish-guard'
 import { buildSearchText, fold } from './fold'
@@ -265,31 +268,71 @@ const PAY_BOUNDS = { month: [1_000_000, 500_000_000], hour: [20_000, 5_000_000] 
  * one line two ways.
  */
 function readJobPay(text: string | null | undefined): { lo: number; hi: number; period: 'month' | 'hour'; from: boolean } | null {
-  if (!text) return null
-  const t = text.replace(/\s+/g, ' ').trim()
-  if (/(^|[^\p{L}])(up to|tối đa|max(imum)?)(?!\p{L})/iu.test(t)) return null
-  // ⚠️ `(?!\p{L})`, not `\b`: JavaScript's \b is ASCII-only, so it never matches after "đ" or "giờ".
-  const m = /^(?:from |từ )?(\d[\d.,]*)(?: ?[–-] ?(\d[\d.,]*))? ?(?:vnd|vnđ|đ|₫|dong)(?!\p{L}) ?(?:\/|per|mỗi|một)? ?(month|tháng|hour|giờ|hr)(?!\p{L})/iu.exec(t)
+  const p = scanJobPay(text)
+  return p && !outOfBounds(p) ? p : null
+}
+
+/**
+ * A VND amount, or a range, stated with a month or an hour: "15,000,000–20,000,000 VND / month", "500.000 VNĐ/giờ".
+ * ⚠️ `(?!\p{L})`, not `\b`: JavaScript's \b is ASCII-only, so it never matches after "đ" or "giờ". The lookbehind keeps a
+ * figure from starting inside another number — "12 000 000 VND/month" is not "000 VND/month".
+ */
+const PAY_FIGURE = String.raw`(?<![\d.,]|\d )(\d[\d.,]*)(?: ?[–-] ?(\d[\d.,]*))? ?(?:vnd|vnđ|đ|₫|dong)(?!\p{L}) ?(?:\/|per|mỗi|một)? ?(month|tháng|hour|giờ|hr)(?!\p{L})`
+/** The line's pay, when the line opens with it ("From …" / "Từ …" allowed): the one reading of a price. */
+const LINE_PAY = new RegExp(`^(?:from |từ )?${PAY_FIGURE}`, 'iu')
+/** The line's first figure stated with a month or an hour, wherever it sits — only to judge it (implausibleJobPay). */
+const FIRST_PAY = new RegExp(PAY_FIGURE, 'iu')
+
+/** A figure's amounts and period; null when an amount is not a number or the range runs backwards. */
+function figureOf(m: RegExpExecArray | null): { lo: number; hi: number; period: 'month' | 'hour' } | null {
   if (!m) return null
   const lo = num(m[1]!)
   const hi = m[2] ? num(m[2]) : lo
   if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) return null
-  const period = /^(month|tháng)$/i.test(m[3]!) ? 'month' : 'hour'
-  if (lo < PAY_BOUNDS[period][0] || lo > PAY_BOUNDS[period][1]) return null
+  return { lo, hi, period: /^(month|tháng)$/i.test(m[3]!) ? 'month' : 'hour' }
+}
+
+/** readJobPay's reading before the bounds: the line's amounts and the period they are stated for. */
+function scanJobPay(text: string | null | undefined): { lo: number; hi: number; period: 'month' | 'hour'; from: boolean } | null {
+  if (!text) return null
+  const t = text.replace(/\s+/g, ' ').trim()
+  if (/(^|[^\p{L}])(up to|tối đa|max(imum)?)(?!\p{L})/iu.test(t)) return null
+  const f = figureOf(LINE_PAY.exec(t))
+  if (!f) return null
   // The pattern admits "from " / "từ " only as the line's first word, so a prefix test, with the pattern's own flags, reads
   // it. ⛔ NOT `\b` (2026-10-20): parseJobPay tested /^(from|từ)\b/i on its own, and JavaScript's \b is ASCII-only — it never
   // matches after "ừ" — so it read "Từ 12.000.000 VNĐ/tháng" as an exact 12,000,000 đ while the log read "from". Latent, not
   // stored: measured that day, no pay line ever staged (48 stage files since 2026-09-25, 1,997 rows) opens with "Từ" and
   // a đồng figure — the one "Từ" line, "Từ $ 2,000 /tháng", is USD, which neither reading takes — and every mapped row came
   // out byte-identical under this fix; none of the 12 live jobs with a price states it so either.
-  return { lo, hi, period, from: /^(?:from|từ) /iu.test(t) }
+  return { ...f, from: /^(?:from|từ) /iu.test(t) }
+}
+
+/** Either figure past the period's bounds — a range's upper one too ("15,000,000–900,000,000 VND/month"). */
+const outOfBounds = (p: { lo: number; hi: number; period: 'month' | 'hour' }) =>
+  p.lo < PAY_BOUNDS[p.period][0] || p.lo > PAY_BOUNDS[p.period][1] || p.hi > PAY_BOUNDS[p.period][1]
+
+/**
+ * A pay line whose figure, read with its own period, no such pay can be: "550,000 VND / month" (an hourly rate under the
+ * wrong unit), "9,000,000 VND/hour", or a range's upper figure ("15,000,000–900,000,000 VND/month" — codex, gate a).
+ * mapStagedJob leaves such a line off the listing, and the import report names it. The figure judged is the line's
+ * FIRST one stated with a month or an hour, wherever it sits and whatever words surround it — "Salary: …", "Up to …",
+ * "… maximum" (codex, gates a–d: an anchored reading missed each in turn), though a ceiling is never a price. A later
+ * figure is not judged: "20,000,000 VND/month + lunch 730,000 VND/month" keeps its true pay. A line with no such figure
+ * ("Negotiable", USD, "15tr-50tr ₫/tháng", "/ year") is only unread, and is printed as the posting states it. Measured
+ * 2026-10-22 on the 69 distinct pay lines staged since 2026-09-25: 5 hold an impossible figure, and no unread one does.
+ */
+export function implausibleJobPay(text: string | null | undefined): boolean {
+  const f = figureOf(FIRST_PAY.exec(text?.replace(/\s+/g, ' ').trim() ?? ''))
+  return !!f && outOfBounds(f)
 }
 
 /**
  * A stated VND amount per month or per hour → what to store. Only the forms we can read without
  * guessing: "15,000,000–20,000,000 VND / month", "500.000 VNĐ/giờ", "From 12,000,000 VND/month".
  * A single amount is the price; a RANGE (or "from" / "từ") is price 0 with `salaryM` = its lower bound.
- * "Up to …" (a ceiling, not a price), USD, per day/year, or anything unparsed → null (price 0).
+ * "Up to …" (a ceiling, not a price), USD, per day/year, a figure past the period's bounds, or anything unparsed → null
+ * (price 0).
  */
 export function parseJobPay(text: string | null | undefined): JobPay {
   const p = readJobPay(text)
@@ -302,13 +345,14 @@ export function parseJobPay(text: string | null | undefined): JobPay {
 /**
  * The same reading as parseJobPay, as the amounts themselves — the D3 job-ad history log's pay (src/lib/job-ad-sightings.ts),
  * never a listing's: min = the lower amount; max = the upper one, the amount itself for a single figure, and null for
- * "from <one amount>" (or an upper amount past the period's bound). Every line parseJobPay refuses is refused here too.
+ * "from <one amount>". Every line parseJobPay refuses is refused here too — an upper amount past the period's bound
+ * included (2026-10-22: the listing leaves such a line off, so the log never reads it — codex + opus, gate b).
  */
 export function parseJobPayRange(text: string | null | undefined): { min: number; max: number | null; currency: 'VND'; period: 'month' | 'hour' } | null {
   const p = readJobPay(text)
   if (!p) return null
   const openEnded = p.hi === p.lo && p.from
-  return { min: p.lo, max: openEnded || p.hi > PAY_BOUNDS[p.period][1] ? null : p.hi, currency: 'VND', period: p.period }
+  return { min: p.lo, max: openEnded ? null : p.hi, currency: 'VND', period: p.period }
 }
 
 /** The jobs `jobtype` facet value, from the posting's employment type (or its title). */
@@ -914,8 +958,9 @@ export function mapStagedJob(j: StagedJob, now: number): { ok: true; job: Mapped
   // eno.vn carries no visa wording, but the vacancy itself is fine (2026-09-27, VTJ/VUS postings). A title or
   // employer that says visa still drops the job below — that text cannot be left out.
   const salaryFull = j.salary ? j.salary.replace(/\s+/g, ' ').trim() : null
-  // Tested on the FULL line, before it is cut to 120 characters — a visa clause past the cut still counts.
-  const salaryText = salaryFull && !hasVisaWord(salaryFull) ? salaryFull.slice(0, 120) : null
+  // Tested on the FULL line, before it is cut to 120 characters — a visa clause past the cut still counts. A figure no
+  // month's or hour's pay can be leaves the line off too (implausibleJobPay): a wrong salary printed is worse than none.
+  const salaryText = salaryFull && !hasVisaWord(salaryFull) && !implausibleJobPay(salaryFull) ? salaryFull.slice(0, 120) : null
   const type = jobType(j.employment, rawTitle)
 
   // ⛔ SCREEN THE SOURCE'S WORDS, not eno's own intro (which names the board's domain and would trip
