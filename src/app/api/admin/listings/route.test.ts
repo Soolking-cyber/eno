@@ -194,6 +194,13 @@ describe('activate', () => {
     expect(h.calls.some((c) => c.m === 'notification.deleteMany')).toBe(false)
   })
 
+  it('⛔ hide is a moderation takedown: it unpublishes (verified:false, identityHold:false), so a seller relist cannot re-publish it (security review item 9)', async () => {
+    h.counts = [2]
+    await post({ action: 'hide', ids: ['a', 'b'] })
+    const hide = h.calls.find((c) => c.m === 'updateMany' && c.args?.data?.status === 'hidden')
+    expect(hide?.args.data).toMatchObject({ status: 'hidden', verified: false, identityHold: false })
+  })
+
   it('a refused owner: rows about to go public are PARKED; unverified or already-live rows are left un-held', async () => {
     h.held = ['b']
     h.returns = [[{ id: 'a' }], [], [{ id: 'b' }]] // allowed, rest, parked

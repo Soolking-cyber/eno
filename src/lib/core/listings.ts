@@ -29,7 +29,7 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
   }
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, isLicenceCheckSlot, licenceCheckHold, SUBCATEGORY_FALLBACK, servicePriceBasisOf, servicePriceBasisOfUnit, withoutInapplicablePriceBasis, withPriceBasis, servicePriceBasisApplies, detailRowLabel, storesCondition } from '@/lib/taxonomy'
+import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, isLicenceCheckSlot, licenceCheckHold, LICENCE_CHECK_SUBCATEGORIES, subcategoryMatchesText, VISA_CATEGORY_SLUG, SUBCATEGORY_FALLBACK, servicePriceBasisOf, servicePriceBasisOfUnit, withoutInapplicablePriceBasis, withPriceBasis, servicePriceBasisApplies, detailRowLabel, storesCondition } from '@/lib/taxonomy'
 import { PROVIDER_LICENCE_KEYS, checkProviderLicence, providerLicenceFromInput, providerLicenceOf, sameProviderLicence, withProviderLicence, withoutProviderLicence, type ProviderLicence } from '@/lib/provider-licence'
 import { LICENCE_HELD_NOTE, LICENCE_STAMP_CLEARED, isLicenceWhitelisted, licenceCleared, licenceClearedWhere, licenceHeldMark } from '@/lib/licence-stamp'
 import { priceUnitSuffix } from '@/lib/price-unit'
@@ -958,6 +958,19 @@ export async function updateListingCore(
     // A move into, out of or between the licence aisles is decided in the licence block below, once every attribute
     // this edit writes is known.
   }
+  // ⛔ AN EDIT THAT MAKES THE WORDS NAME A LICENCE AISLE IS RE-FILED INTO IT (security review 2026-10-22, item 8) —
+  // create's rule, held on an edit too. Editing the TITLE of a services listing to "e-Visa service" while it sits in a
+  // non-aisle subcategory would otherwise keep it live, unchecked. Computed on the title/description/subcategory the row
+  // WILL have; the licence block below then holds it. The wanted block right after still keeps a wanted ad out.
+  {
+    const subNow = data.subcategorySlug !== undefined ? (data.subcategorySlug as string | null) : current.subcategorySlug
+    if (current.category.slug === VISA_CATEGORY_SLUG && !isLicenceCheckSlot(current.category.slug, subNow)) {
+      // Title only, as on create — an incidental aisle word in the description must not re-file a non-aisle service.
+      const effectiveTitle = data.title !== undefined ? (data.title as string) : current.title
+      const aisle = LICENCE_CHECK_SUBCATEGORIES.find((a) => subcategoriesFor(current.category.slug).some((s) => s.slug === a) && subcategoryMatchesText(current.category.slug, a, effectiveTitle))
+      if (aisle) data.subcategorySlug = aisle
+    }
+  }
   // ⛔ A WANTED AD IS NEVER IN A LICENCE AISLE — create's rule, held on an edit too (commit gate, 2026-10-14): a service
   // switched to Wanted, or a Wanted moved into e-Visa / Legal & permits, goes to the category's catch-all (Services ›
   // Other), and the licence block below reads that as a move out (both values and any stamp dropped; never a publish).
@@ -1592,6 +1605,22 @@ export async function createListingCore(input: {
     // The category's catch-all when it has one (SUBCATEGORY_FALLBACK: Services › Other), else its first subcategory.
     const fallback = subs.find((s) => s.slug === SUBCATEGORY_FALLBACK[categorySlug])?.slug ?? subs[0]?.slug ?? null
     subcategorySlug = (suggested && subs.some((s) => s.slug === suggested) ? suggested : null) || fallback
+  }
+  // ⛔ A LICENCE-AISLE SERVICE IS HELD EVEN WHEN A DIFFERENT SUBCATEGORY WAS PICKED (security review 2026-10-22, item 8).
+  // The keyword guess above runs ONLY when nothing was picked, so picking e.g. services › airport-transfer and titling
+  // the post "Vietnam e-Visa 90 days" skipped the licence hold entirely — publishing an unchecked visa or work-permit
+  // offer, the thing /prohibited rule 1 forbids. So if this is the services category and the resolved subcategory is not
+  // already an aisle, and the poster's OWN WORDS (title, then description) name an aisle, re-file into that aisle — the
+  // same "a keyword guess counts as a pick" rule (R3), now applied even over an explicit pick. `subcategoryMatchesText`
+  // tests that aisle's keywords directly, so a higher-scoring unrelated keyword cannot mask it. Fail-safe: the worst
+  // case is a false match held for an admin to clear, never an unchecked legal service going live. The wanted block
+  // below still has the last word and keeps a wanted ad out of the aisle.
+  // TITLE ONLY, matching the title-first rule above (gate 2026-10-05): a cleaning listing whose DESCRIPTION mentions
+  // "work permit" in passing is not a permit service and must stay where it was filed; a post whose TITLE leads with
+  // "e-Visa" / "work permit" is selling that, whatever subcategory was picked.
+  if (categorySlug === VISA_CATEGORY_SLUG && !isLicenceCheckSlot(categorySlug, subcategorySlug)) {
+    const aisle = LICENCE_CHECK_SUBCATEGORIES.find((a) => subs.some((s) => s.slug === a) && subcategoryMatchesText(categorySlug, a, title))
+    if (aisle) subcategorySlug = aisle
   }
   // ⛔ A WANTED AD IS NEVER FILED IN A LICENCE AISLE (owner note, 2026-10-14). "Looking for a visa agent" offers no
   // service, so it has no licence to show — filed in e-Visa or Legal & permits, a buyer would be asked for a provider's

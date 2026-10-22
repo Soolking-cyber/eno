@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
 import { diversityAppliesTo, goodsSeatsFor, sharedSeatsFor } from '@/lib/feed-diversity'
 import { diverseFeedHead, feedPagePlan } from '@/lib/feed-window'
@@ -560,16 +559,20 @@ export async function POST(req: NextRequest) {
 }
 
 async function createListing(req: NextRequest) {
-  // Guest posting is allowed (resolve-by-phone), and each create can fan out paid
-  // translation + social syndication → throttle to cap floods. Same posture as the upload
-  // routes: signed-in sellers fail OPEN (accountable account — don't block posting on a
-  // Redis blip); anonymous fails CLOSED (a blip must not silently uncap guest creation of
-  // public, cost-fanning content).
-  const ip = clientIp(req)
+  // ⛔ A SESSION IS REQUIRED TO CREATE A LISTING (security review 2026-10-22, item 10). This used to
+  // accept anonymous posts (resolve-by-phone): a scripted POST with no cookie could publish instantly
+  // — and, by sending a guest storefront's advertised phone as contactPhone, post under that
+  // storefront's name, rating and reviews (resolve-seller.ts's guest branch), with the 15/hour IP cap
+  // sidesteppable by rotating IPv6 addresses. The web wizard already requires sign-in; platform imports
+  // post through /api/v1 and MCP (their own key-authed routes), never here. So the human listing route
+  // now refuses without a session. createListingCore keeps its guestCreate path for those API-key
+  // callers; it is simply never reached from here anymore.
   const posterId = await getCurrentProfileId()
-  const rl = posterId
-    ? await rateLimit('listing-create-user', posterId, 15, '1 h')
-    : await rateLimit('listing-create', ip, 15, '1 h', { strict: true })
+  if (!posterId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+  // Each create can fan out paid translation + social syndication → throttle to cap floods. A
+  // signed-in poster is accountable, so fail OPEN on a Redis blip (don't block posting), matching the
+  // upload routes.
+  const rl = await rateLimit('listing-create-user', posterId, 15, '1 h')
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   try {
     const body = await req.json()

@@ -291,7 +291,13 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       }
       break
     }
-    case 'hide': affected = (await db.listing.updateMany({ where: { id: { in: ids }, ...NOT_REMOVED }, data: { status: 'hidden' } })).count; break
+    // ⛔ HIDE IS A MODERATION TAKEDOWN, NOT A SELLER'S OWN HIDE (security review 2026-10-22, item 9). It used to set
+    // status:'hidden' only, leaving verified:true — so the seller's one-tap Relist (setStatusCore: hidden → active)
+    // put a listing a moderator had just pulled straight back on sale, verified intact. Public = verified AND
+    // status='active', so this now also writes the documented takedown idiom (verified:false + identityHold:false,
+    // schema.prisma): a relisted row flips to active but stays non-public until an admin re-verifies (the 'verify' or
+    // 'activate' action). Same columns as 'unverify', plus the hidden status.
+    case 'hide': affected = (await db.listing.updateMany({ where: { id: { in: ids }, ...NOT_REMOVED }, data: { status: 'hidden', verified: false, identityHold: false } })).count; break
     case 'activate': {
       // ⚖️ Activating a VERIFIED row that is not live yet publishes it, so for an owner the identity
       // gate refuses that row is parked instead: the status the admin asked for is applied, with

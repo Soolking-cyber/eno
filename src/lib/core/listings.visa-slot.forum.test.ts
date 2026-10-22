@@ -172,6 +172,21 @@ describe('the licence check on eno.forum — create', () => {
     expect(h.creates[0]).toMatchObject({ subcategorySlug: 'service-other', verified: true })
     expect(attrsOf(h.creates[0].attributes) ?? {}).not.toHaveProperty('providerLegalName')
   })
+
+  // ⛔ security review 2026-10-22, item 8: picking a NON-aisle subcategory does not dodge the check when the words name an
+  // aisle. "Vietnam e-visa 90 days" filed under services › airport-transfer is re-filed into visa-legal and held.
+  it('⛔ a visa title under a non-aisle subcategory is re-filed into the aisle and held (item 8)', async () => {
+    expect(await createService('airport-transfer', { ...VISA }, 'Vietnam e-visa 90 days, fast')).toEqual({ id: 'new-1', verified: false, held: true })
+    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'visa-legal', verified: false })
+  })
+  it('⛔ a work-permit title under a non-aisle subcategory is re-filed into legal-permits and held (item 8)', async () => {
+    expect(await createService('airport-transfer', { ...LEGAL }, 'Work permit renewal, done for you')).toEqual({ id: 'new-1', verified: false, held: true })
+    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'legal-permits', verified: false })
+  })
+  it('a plain non-aisle service with no aisle words stays where it was put, live', async () => {
+    expect(await createService('airport-transfer', {}, 'Airport pickup, District 1')).toEqual({ id: 'new-1', verified: true })
+    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'airport-transfer', verified: true })
+  })
 })
 
 describe('the licence check on eno.forum — edit', () => {
