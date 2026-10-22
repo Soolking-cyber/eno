@@ -200,7 +200,7 @@ export async function storeEvidenceImage(buf: Buffer, reportId: string): Promise
   }
   const path = `disputes/${reportId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`
   const admin = getSupabaseAdmin()
-  const { error } = await admin.storage.from(EVIDENCE_BUCKET).upload(path, out, { contentType: 'image/webp', upsert: false })
+  const { error } = await admin.storage.from(EVIDENCE_BUCKET).upload(path, out, { contentType: 'image/webp', upsert: false, cacheControl: '0' /* security review item 21: never edge-cacheable past the signed URL — storage-js sends max-age=<this> */ })
   if (error) {
     console.error('[media] store evidence', error.message)
     return null

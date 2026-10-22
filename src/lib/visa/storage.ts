@@ -14,7 +14,7 @@ export { VISA_IMAGE_RULES_VERSION }
 export async function storeVisaImage(input: Buffer, userId: string, applicationId: string, kind: VisaImageKind) {
   const normalized = await normalizeVisaImage(input, kind)
   const path = `${userId}/${applicationId}/${kind}-${randomUUID()}.jpg`
-  const { error } = await getVisaDb().storage.from(VISA_BUCKET).upload(path, normalized.output, { contentType: 'image/jpeg', upsert: false, cacheControl: 'private, max-age=0' })
+  const { error } = await getVisaDb().storage.from(VISA_BUCKET).upload(path, normalized.output, { contentType: 'image/jpeg', upsert: false, cacheControl: '0' /* was 'private, max-age=0', which storage-js sent as the malformed `max-age=private, max-age=0` (it prefixes max-age=) — security review item 21 */ })
   if (error) throw new Error(`visa_storage_failed:${error.message}`)
   return {
     storage_path: path,

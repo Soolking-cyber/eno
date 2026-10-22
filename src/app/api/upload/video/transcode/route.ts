@@ -177,6 +177,12 @@ export const POST = route(
       if (referenced > 0) return NextResponse.json({ error: 'already_in_use' }, { status: 409 })
       // Whose output this will be: the caller's only if the raw upload is (never claimable by knowing a path).
       const owner = (await videoOwner(path)) === userId ? userId : null
+      // ⛔ ONLY THE UPLOADER MAY TRANSCODE — AND SO DELETE — A RAW UPLOAD (security review 2026-10-22, item 32d). The job
+      // deletes the raw source when it succeeds, and the referenced-by-a-listing check above only protects LIVE videos: a
+      // fresh, unreferenced upload of someone else's could be transcoded away by anyone who learned its path. Every raw
+      // upload's uploader is recorded by the sign route (the only way to get an upload URL), so a real caller always passes;
+      // an expired record reads as "not yours" by design (video-owner.ts) — the upload is re-done, never adopted.
+      if (!owner) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
       // Claim the job. NX means a double-submit (retry, double-tap) attaches to the running
       // job instead of racing a second encode against the same source. The token FENCES the

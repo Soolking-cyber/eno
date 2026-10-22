@@ -55,7 +55,7 @@ export async function storeKycImage(input: {
   const path = `${kycPathPrefix(input.profileId)}${input.kind}-${randomUUID()}.jpg`
   const { error } = await getSupabaseAdmin()
     .storage.from(BUSINESS_VERIFICATION_BUCKET)
-    .upload(path, normalized.output, { contentType: 'image/jpeg', upsert: false })
+    .upload(path, normalized.output, { contentType: 'image/jpeg', upsert: false, cacheControl: '0' /* security review item 21: never edge-cacheable past the signed URL — storage-js sends max-age=<this> */ })
   if (error) {
     console.error('[kyc] store failed', error.message)
     return null

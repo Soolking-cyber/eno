@@ -36,6 +36,7 @@ describe('transcodeArgs', () => {
   it('⛔ a listing\'s clip: the arguments it always had — plus the set frame rate', () => {
     expect(transcodeArgs('/in', '/out.mp4', 'listing')).toEqual([
       '-nostdin', '-y',
+      '-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm', // security review item 22
       '-i', '/in',
       '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '27',
       '-r', '30',
@@ -53,6 +54,7 @@ describe('transcodeArgs', () => {
     expect(transcodeArgs('/in', '/out.mp4', 'teacher_intro')).toEqual([
       '-nostdin', '-y',
       '-filter_threads', '4', '-threads', '4',
+      '-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm', // security review item 22
       '-i', '/in',
       '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '27',
       '-maxrate', '1000k', '-bufsize', '2000k', '-threads', '4',
@@ -85,7 +87,8 @@ describe('transcodeToMp4', () => {
     expect(h.calls[0].cmd).toBe('nice')
     expect(h.calls[0].args.slice(0, 2)).toEqual(['-n', '10'])
     expect(h.calls[0].args[2]).toMatch(/ffmpeg$/)
-    expect(h.calls[1].args.slice(0, 3)).toEqual(['-hide_banner', '-nostdin', '-i'])
+    // the length probe reads the same untrusted input, so it carries the same input guard (item 22)
+    expect(h.calls[1].args.slice(0, 7)).toEqual(['-hide_banner', '-nostdin', '-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm', '-i'])
   })
 
   it('⛔ an intro video the cut reached is refused — too_long — and one short of it is kept (a stretched 4:59 recording too)', async () => {

@@ -29,7 +29,7 @@ export function cvPathFor(profileId: string, token: string): string {
 export async function uploadTeacherCv(path: string, bytes: Buffer): Promise<boolean> {
   const { error } = await getSupabaseAdmin()
     .storage.from(TEACHER_CVS_BUCKET)
-    .upload(path, bytes, { contentType: 'application/pdf', upsert: false })
+    .upload(path, bytes, { contentType: 'application/pdf', upsert: false, cacheControl: '0' /* security review item 21: never edge-cacheable past the signed URL — storage-js sends max-age=<this> */ })
   return !error
 }
 

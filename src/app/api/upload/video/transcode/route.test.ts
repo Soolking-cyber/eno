@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
   result: Buffer.from('ok') as Buffer | 'too_long' | null,
   uploads: 0,
   removes: 0,
+  owner: 'p1' as string | null,
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/admin', () => ({ getCurrentProfileId: async () => 'p1', getAdmin: async () => null, getCurrentProfile: async () => null }))
@@ -37,7 +38,7 @@ vi.mock('@/lib/ratelimit', () => ({
 }))
 vi.mock('@/lib/db', () => ({ db: { listing: { count: async () => 0 } } }))
 vi.mock('@/lib/log', () => ({ logError: () => {} }))
-vi.mock('@/lib/core/video-owner', () => ({ videoOwner: async () => 'p1', recordVideoOwner: async () => {} }))
+vi.mock('@/lib/core/video-owner', () => ({ videoOwner: async () => h.owner, recordVideoOwner: async () => {} }))
 vi.mock('@/lib/supabase-admin', () => ({
   LISTING_VIDEOS_BUCKET: 'listing-videos',
   getSupabaseAdmin: () => ({
@@ -71,7 +72,7 @@ const job = () => JSON.parse(h.store.get(`xc:${PATH}`) ?? 'null') as Job | null
 
 beforeEach(() => {
   h.store.clear(); h.sets = []; h.kvDown = false; h.after = []; h.transcodes = []
-  h.result = Buffer.from('ok'); h.uploads = 0; h.removes = 0
+  h.result = Buffer.from('ok'); h.uploads = 0; h.removes = 0; h.owner = 'p1'
   vi.stubGlobal('fetch', vi.fn(async () => new Response(new Uint8Array(64))))
 })
 
@@ -140,5 +141,22 @@ describe('POST /api/upload/video/transcode — kinds', () => {
     await post({ path: PATH, hevc: true })
     await runAfter()
     expect(await poll()).toEqual({ status: 200, body: { status: 'failed' } })
+  })
+})
+
+// Security review 2026-10-22, item 32d: the job deletes the raw upload when it succeeds, so only its uploader may start it.
+describe('ownership of the raw upload', () => {
+  it('⛔ someone else’s raw upload is refused with 403 — nothing is transcoded, uploaded or deleted', async () => {
+    h.owner = 'someone-else'
+    expect(await post({ path: PATH, hevc: false, kind: 'listing' })).toEqual({ status: 403, body: { error: 'forbidden' } })
+    await runAfter()
+    expect(h.transcodes).toEqual([])
+    expect(h.uploads).toBe(0)
+    expect(h.removes).toBe(0)
+  })
+  it('⛔ an upload with no recorded uploader (expired) is not adopted — 403', async () => {
+    h.owner = null
+    expect((await post({ path: PATH, hevc: false, kind: 'listing' })).status).toBe(403)
+    expect(h.transcodes).toEqual([])
   })
 })

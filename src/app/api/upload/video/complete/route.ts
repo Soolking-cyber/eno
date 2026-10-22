@@ -3,6 +3,7 @@ import { getSupabaseAdmin, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { looksLikeVideo, VIDEO_PATH_RE } from '@/lib/core/media'
 import { logError } from '@/lib/log'
 import { route } from '@/lib/api/handler'
+import { videoOwner } from '@/lib/core/video-owner'
 
 export const runtime = 'nodejs'
 
@@ -28,12 +29,15 @@ export const runtime = 'nodejs'
 // the responses explicitly; do not "tidy" them into throws.
 export const POST = route(
   { auth: 'userId', rateLimit: { bucket: 'upload-video-complete', limit: 60, window: '1 h' } },
-  async ({ req }) => {
+  async ({ req, userId }) => {
     try {
       const body = (await req.json().catch(() => ({}))) as { path?: unknown }
       const path = String(body.path || '')
       // Only the exact object-name shape the sign route mints — never an arbitrary path.
       if (!VIDEO_PATH_RE.test(path)) return NextResponse.json({ error: 'bad_path' }, { status: 400 })
+      // ⛔ Only the uploader may complete (and so trigger the eviction of) an upload — the sign route records who that is
+      // (security review 2026-10-22, item 32d; same gate as the transcode route).
+      if ((await videoOwner(path)) !== userId) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
       const admin = getSupabaseAdmin()
       const publicUrl = admin.storage.from(LISTING_VIDEOS_BUCKET).getPublicUrl(path).data.publicUrl

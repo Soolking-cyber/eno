@@ -56,12 +56,22 @@ async function ensureExecutable(p: string): Promise<void> {
   await chmod(p, 0o755).catch((e) => logError(e, { op: 'video-transcode.chmod' }))
 }
 
+/**
+ * ⛔ UNTRUSTED INPUT IS READ AS A LOCAL VIDEO CONTAINER ONLY (security review 2026-10-22, item 22). The bytes are an upload;
+ * a file that is secretly a playlist (HLS .m3u8, concat) could otherwise point ffmpeg at other files or the network. Same
+ * allow-lists as video-audio-level.ts: the `file` protocol only, and only the containers we store. Input options, so they
+ * go BEFORE `-i`. (Modern ffmpeg does not detect HLS on an extensionless input and concat defaults to safe=1 — this makes
+ * that a guarantee rather than a default.)
+ */
+export const FFMPEG_INPUT_GUARD = ['-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm'] as const
+
 /** The ffmpeg arguments for one kind — exported for the tests that pin a listing's to what it always was. */
 export function transcodeArgs(inputPath: string, outPath: string, kind: VideoUploadKind): string[] {
   const long = kind === 'teacher_intro'
   return [
     '-nostdin', '-y',
     ...(long ? ['-filter_threads', '4', '-threads', '4'] : []), // the scale filter's and the decoder's
+    ...FFMPEG_INPUT_GUARD, // item 22 — before -i: they are input options
     '-i', inputPath,
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '27',
     ...(long ? ['-maxrate', '1000k', '-bufsize', '2000k', '-threads', '4'] : []), // the encoder's
@@ -89,7 +99,7 @@ export function transcodeArgs(inputPath: string, outPath: string, kind: VideoUpl
 async function mediaSeconds(path: string): Promise<number | null> {
   return new Promise<number | null>((resolve) => {
     let err = ''
-    const p = spawn(ffmpegPath!, ['-hide_banner', '-nostdin', '-i', path], { stdio: ['ignore', 'ignore', 'pipe'] })
+    const p = spawn(ffmpegPath!, ['-hide_banner', '-nostdin', ...FFMPEG_INPUT_GUARD, '-i', path], { stdio: ['ignore', 'ignore', 'pipe'] })
     const kill = setTimeout(() => { try { p.kill('SIGKILL') } catch { /* ignore */ } }, 15_000)
     p.stderr?.on('data', (d: Buffer) => { if (err.length < 65_536) err += d.toString('latin1') })
     p.on('error', () => { clearTimeout(kill); resolve(null) })
