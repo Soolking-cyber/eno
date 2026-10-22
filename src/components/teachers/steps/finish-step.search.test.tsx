@@ -43,6 +43,7 @@ function mount(over: Partial<FinishEdit> = {}, opts: { lang?: 'en' | 'vi'; mode?
         t={{ ...EMPTY_TEACHER }} set={vi.fn()} errors={{}} errText={() => ''} mode={opts.mode ?? 'edit'} signedIn publishGate={null}
         prefillAvatar={null} prefillPhone={null} media={MEDIA} edit={opts.mode === 'join' ? null : edit} optInsNoticeChanged={false}
         identityMark={MARK}
+        optIns={{ matchEmail: false, staffCall: false, onChange: vi.fn() }}
       />
     </LanguageProvider>,
   )

@@ -215,9 +215,16 @@ export type TeacherInput = {
    * that ask. The video's homes and moves: src/lib/teachers/video.ts. A body from before this field leaves it as stored.
    */
   videoOnRequest: boolean
-  /** private; required only while staffContactOptIn is on (owner, 2026-10-08) */
+  /**
+   * Private; REQUIRED on every profile save (owner, 2026-10-22: "phone number is mandatory" — an existing profile adds one
+   * the next time it is saved), except a save that only withdraws (phoneWaived).
+   */
   phone: string
-  /** job seekers only, OFF by default, each its own consent with its own stamps (plan review C2) */
+  /**
+   * Job seekers only; each its own stamps (plan review C2). ON BY DEFAULT in the form of a NEW profile since 2026-10-22
+   * (owner decision, accepted risk — the dossier's [OWNER DECISION 2026-10-22]): the form applies the default beside `t`
+   * (teacher-form.tsx optInChoice), never in EMPTY_TEACHER, a draft or a link, and an existing profile is never flipped.
+   */
   matchEmailOptIn: boolean
   staffContactOptIn: boolean
 }
@@ -304,8 +311,39 @@ const month = (v: unknown): string | null => {
 }
 const ISO_COUNTRY = /^[A-Z]{2}$/
 const PHONE = /^\+?[0-9 ().-]{8,20}$/
-/** A phone number the form would accept as typed (validateTeacherInput's own rule) — for a value the form fills itself. */
-export const isTeacherPhone = (v: string): boolean => PHONE.test(v.trim())
+/**
+ * A phone number the form would accept as typed (validateTeacherInput's own rule) — for a value the form fills itself too.
+ * ⛔ AT LEAST 8 DIGITS (plan review, 2026-10-22): once the phone is mandatory, PHONE alone let "........" or "()()()()"
+ * through. Measured on prod the same day: all 101 stored teacher phones have 8 or more, so no saved profile is refused.
+ */
+export const isTeacherPhone = (v: string): boolean => PHONE.test(v.trim()) && (v.match(/\d/g)?.length ?? 0) >= 8
+/** What a phone waiver reads of the SAVED profile: whether it has a phone, and the switches it had on. */
+export type PhoneWaiverBase = { phone: boolean; matchEmailOptIn: boolean; staffContactOptIn: boolean; coverOpen: boolean }
+/**
+ * ⛔ A WITHDRAWAL IS NEVER REFUSED FOR THE PHONE (owner, 2026-10-22: the phone is mandatory "on next save" for a profile
+ * that has none — "hiding a profile or switching things off is never blocked"). A save of a SAVED profile that has no
+ * phone yet, with none given now, that hides the profile (no work wanted and cover off — D6) or switches OFF something
+ * the saved profile had on (job emails, staff calls, cover lessons), is not refused for the phone. A profile that has a
+ * phone can never clear it, and a NEW profile always needs one. The client (teacher-form.tsx) and the server
+ * (publish.ts) both ask this one function.
+ * ⛔ …and it waives a WITHDRAWAL only (commit gate, opus + codex 2026-10-22): a save that switches anything ON, or keeps
+ * "Our staff may call me" on, is never waived — staff calls need the number (the 2026-10-08 rule), and an opt-in granted
+ * in the same save as a switch-off must not ride on the waiver. Other edits in a waived save do ride along: refusing
+ * them would refuse the switch-off with them.
+ */
+export function phoneWaived(
+  stored: PhoneWaiverBase | null,
+  next: Pick<TeacherInput, 'phone' | 'matchEmailOptIn' | 'staffContactOptIn' | 'coverOpen'>,
+  hides: boolean,
+): boolean {
+  if (!stored || stored.phone || next.phone.trim()) return false
+  if (next.staffContactOptIn) return false
+  if ((!stored.matchEmailOptIn && next.matchEmailOptIn) || (!stored.coverOpen && next.coverOpen)) return false
+  return hides
+    || (stored.matchEmailOptIn && !next.matchEmailOptIn)
+    || (stored.staffContactOptIn && !next.staffContactOptIn)
+    || (stored.coverOpen && !next.coverOpen)
+}
 const CERT_TYPES = values('cert')
 const DEGREES = values('degree')
 const SUBJECTS = values('subject')
@@ -649,9 +687,10 @@ export function validateTeacherInput(t: TeacherInput, steps: readonly TeacherSte
   }
   if (has('finish')) {
     if (!t.photoUrl) e.photoUrl = 'required'
-    // Private, and needed only for "Our staff may call me" (owner, 2026-10-08) — otherwise optional, but never junk.
-    if (t.staffContactOptIn && !t.phone) e.phone = 'required'
-    else if (t.phone && !PHONE.test(t.phone)) e.phone = 'invalid'
+    // Private, and REQUIRED on every save (owner, 2026-10-22: "phone number is mandatory") — never junk. A save that only
+    // withdraws is waived by its caller (phoneWaived), which knows the saved profile; this rule cannot.
+    if (!t.phone) e.phone = 'required'
+    else if (!isTeacherPhone(t.phone)) e.phone = 'invalid'
   }
   return e
 }

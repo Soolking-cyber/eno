@@ -2,10 +2,13 @@
 /**
  * STEPS 5–6 AND PUBLISH (teacher onboarding redesign, 2026-10-08) — each consent is ONE act with its notice beside it:
  *   · the cover switch IS the consent (no tick box); the reach is a read-only line;
- *   · the two opt-ins are LABELLED switches, OFF by default, job seekers only, with one AI note naming Anthropic;
- *   · the phone is required only while staff may call;
+ *   · the two opt-ins are LABELLED switches, job seekers only, with one AI note naming Anthropic — ON BY DEFAULT for a new
+ *     profile since 2026-10-22 (owner: "all toggles should be on by default"), held beside the answers, never in them; a
+ *     refusal survives a reload, another tab or device (the account draft) and Start over (teacher-form.draft.test.tsx);
+ *   · the phone is REQUIRED (owner, 2026-10-22: "phone number is mandatory");
  *   · Publish is the consent: the action bar says what goes public, "What's public?" lists it, and the save carries the
- *     notice versions the contract checks (publishNotice always; coverNotice with cover on; aiNotice with an opt-in on).
+ *     notice versions the contract checks (publishNotice always; coverNotice with cover on; aiNotice with an opt-in on),
+ *     and — a new profile — which switch was left at its default (`optInDefaults`).
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, configure, fireEvent, getConfig, render, screen, waitFor, within } from '@testing-library/react'
@@ -143,17 +146,23 @@ describe('step 5 · Cover lessons', () => {
 })
 
 describe('step 6 · Photo & publish', () => {
-  it('job seekers get the two opt-ins as LABELLED switches, OFF by default, with ONE AI note naming Anthropic and the transfer abroad', async () => {
+  it('job seekers get the two opt-ins as LABELLED switches, ON by default for a new profile (owner, 2026-10-22), with ONE AI note naming Anthropic and the transfer abroad', async () => {
     putDraft(COMPLETE, 'finish')
     mount()
     const email = await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })
     const calls_ = screen.getByRole('switch', { name: 'Our staff may call me' })
-    expect(email.getAttribute('aria-checked')).toBe('false')
-    expect(calls_.getAttribute('aria-checked')).toBe('false')
+    // ON once /api/teachers/me has said this account has no profile (it has, by the time the form shows).
+    await waitFor(() => expect(email.getAttribute('aria-checked')).toBe('true'))
+    expect(calls_.getAttribute('aria-checked')).toBe('true')
+    expect(calls.some((c) => c.method === 'GET' && c.url === '/api/teachers/me')).toBe(true)
+    // ⛔ …and never INTO the answers: the tab copy holds no consent.
+    expect(storedDraft().t).toMatchObject({ matchEmailOptIn: false, staffContactOptIn: false })
+    expect('optInsOff' in storedDraft()).toBe(false)
     const notes = screen.getAllByTestId('ai-note')
     expect(notes).toHaveLength(1)
-    // WP5's wording, word for word (it matches what the matcher's export sends).
-    expect(notes[0].textContent).toBe("If you switch on either option above, an AI model — Anthropic's Claude, which processes data outside Vietnam — compares your profile with teaching jobs. It receives your headline and about text (with your name taken out), your nationality and whether you are a native speaker, the city you live in and the cities you can teach in, subjects, age groups, job types, years of experience, degree, certificate types, expected salary and start date. It never receives your name, photo, video, phone, email or CV. See our Privacy Policy.")
+    // WP5's wording, word for word (it matches what the matcher's export sends) — "While either option above is on" since
+    // the switches start ON (2026-10-22); the rest unchanged, and so is AI_NOTICE_VERSION.
+    expect(notes[0].textContent).toBe("While either option above is on, an AI model — Anthropic's Claude, which processes data outside Vietnam — compares your profile with teaching jobs. It receives your headline and about text (with your name taken out), your nationality and whether you are a native speaker, the city you live in and the cities you can teach in, subjects, age groups, job types, years of experience, degree, certificate types, expected salary and start date. It never receives your name, photo, video, phone, email or CV. See our Privacy Policy.")
     expect(screen.getByRole('link', { name: 'Privacy Policy' }).getAttribute('href')).toBe('/privacy')
   })
 
@@ -170,16 +179,29 @@ describe('step 6 · Photo & publish', () => {
     expect(screen.queryByTestId('ai-note')).toBeNull()
   })
 
-  it('the phone is optional — until "Our staff may call me" is on', async () => {
+  it('⛔ the phone is REQUIRED (owner, 2026-10-22) — Publish without one is refused ON THE PHONE, whatever the switches say', async () => {
     prefill = { ...prefill, phone: null }
     putDraft({ ...COMPLETE, photoUrl: PHOTO }, 'finish')
     const user = mount()
-    expect(await screen.findByRole('textbox', { name: 'Phone number (optional)' })).toBeTruthy()
+    const phone = await screen.findByRole('textbox', { name: 'Phone number' })
+    expect(screen.queryByRole('textbox', { name: 'Phone number (optional)' })).toBeNull()
+    expect(phone.getAttribute('aria-required')).toBe('true')
+    // Both switches off — the phone is still required (it was required only for staff calls before).
+    const email = screen.getByRole('switch', { name: 'Email me jobs that match my profile' })
+    await waitFor(() => expect(email.getAttribute('aria-checked')).toBe('true'))
+    await user.click(email)
     await user.click(screen.getByRole('switch', { name: 'Our staff may call me' }))
-    expect(screen.getByRole('textbox', { name: 'Phone number' })).toBeTruthy()
     await addVideo(user)
     await user.click(action('Publish profile'))
-    expect(await screen.findByText(/Please add your phone number/)).toBeTruthy()
+    expect(await screen.findByText('Please add your phone number — it stays private: the person you are chatting with gets it only when you share it.')).toBeTruthy()
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Phone number' }).getAttribute('aria-invalid')).toBe('true'))
+    expect(screen.getByText('Profile photo')).toBeTruthy() // still on Photo & publish, where the phone is
+    expect(lastPut()).toBeUndefined()
+    expect(cvPosts()).toEqual([])
+    // …and a phone that is only punctuation is refused as such (isTeacherPhone: 8 digits at least).
+    await user.type(screen.getByRole('textbox', { name: 'Phone number' }), '(...) ...-....')
+    await user.click(action('Publish profile'))
+    expect(await screen.findByText('Please check this value.')).toBeTruthy()
     expect(lastPut()).toBeUndefined()
   })
 
@@ -202,11 +224,11 @@ describe('step 6 · Photo & publish', () => {
   it('⛔ the account photo and phone FILL empty answers (owner, 2026-10-16: "autofill as much as possible") — never over one given', async () => {
     putDraft(COMPLETE, 'finish')
     const user = mount()
-    await waitFor(() => expect((screen.getByRole('textbox', { name: 'Phone number (optional)' }) as HTMLInputElement).value).toBe('+84901234567'))
+    await waitFor(() => expect((screen.getByRole('textbox', { name: 'Phone number' }) as HTMLInputElement).value).toBe('+84901234567'))
     expect(document.querySelector(`img[src="${PHOTO}"]`)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Use my account photo' })).toBeNull()
     // Cleared by the teacher: offered again, never refilled unasked.
-    await user.clear(screen.getByRole('textbox', { name: 'Phone number (optional)' }))
+    await user.clear(screen.getByRole('textbox', { name: 'Phone number' }))
     expect(screen.getByRole('button', { name: /Use my number/ })).toBeTruthy()
   })
 
@@ -272,7 +294,9 @@ describe('Publish', () => {
     await user.click(screen.getByRole('button', { name: /300,000/ }))
     await user.click(action('Next'))
     await addVideo(user)
-    await user.click(screen.getByRole('switch', { name: 'Email me jobs that match my profile' }))
+    // Job emails left at their default (ON); staff calls switched OFF by the teacher.
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Our staff may call me' }).getAttribute('aria-checked')).toBe('true'))
+    await user.click(screen.getByRole('switch', { name: 'Our staff may call me' }))
     await user.click(action('Publish profile'))
     await waitFor(() => expect(lastPut()).toBeTruthy())
     const body = lastPut()!
@@ -281,29 +305,31 @@ describe('Publish', () => {
       coverOpen: true, coverConsent: true, coverSlots: ['mon-eve'], coverRateVnd: 300_000,
       matchEmailOptIn: true, staffContactOptIn: false, photoUrl: PHOTO, teachAreas: ['d7'], teachAreasConfirmed: true,
       teacherProfileId: null, coverBase: null, videoBase: null,
+      optInDefaults: { matchEmail: true, staffCall: false },
     })
     expect('coverAreas' in body).toBe(false)
     expect(await screen.findByText('Your profile is live')).toBeTruthy()
     expect(screen.getByTestId('push-card')).toBeTruthy() // cover is on: the push prompt is worth asking
   })
 
-  it('without cover and without an opt-in, neither notice is sent — publishNotice always is', async () => {
-    prefill = { ...prefill, phone: null }
+  it('without cover and with both opt-ins switched off, neither notice is sent — publishNotice always is', async () => {
     putDraft({ ...COMPLETE, photoUrl: null }, 'finish')
     const user = mount()
     await addVideo(user)
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Email me jobs that match my profile' }).getAttribute('aria-checked')).toBe('true'))
+    await user.click(screen.getByRole('switch', { name: 'Email me jobs that match my profile' }))
+    await user.click(screen.getByRole('switch', { name: 'Our staff may call me' }))
     await user.click(action('Publish profile'))
     await waitFor(() => expect(lastPut()).toBeTruthy())
     const body = lastPut()!
     expect(body.publishNotice).toBe(PUBLISH_NOTICE_VERSION)
     expect('coverNotice' in body).toBe(false)
     expect('aiNotice' in body).toBe(false)
+    expect(body).toMatchObject({ matchEmailOptIn: false, staffContactOptIn: false, optInDefaults: { matchEmail: false, staffCall: false } })
     expect(await screen.findByText('Your profile is live')).toBeTruthy()
     expect(screen.queryByTestId('push-card')).toBeNull() // no cover: no push prompt
     // Published with its intro video (required since 2026-10-16): the done screen no longer suggests adding one.
     expect(screen.queryByRole('link', { name: 'Add an intro video' })).toBeNull()
-    // The chat's Share button by the name the teacher will see: no phone on file → "Share my email & CV" (WP3, A3).
-    expect(screen.getByText(/“Share my email & CV”/)).toBeTruthy()
   })
 
   it('with a phone on file, the done screen names the button "Share my phone, email & CV"', async () => {
@@ -855,5 +881,93 @@ describe('the photo check waits for "Photo & publish" (gate review, 2026-10-16)'
     expect(checks()[0].body).toEqual({ url: UPLOADED })
     await new Promise((r) => setTimeout(r, 50))
     expect(checks()).toHaveLength(1)
+  })
+})
+
+// ── THE JOB-MATCH SWITCHES ARE ON BY DEFAULT FOR A NEW PROFILE (owner, 2026-10-22: "all toggles should be on by default" →
+// "On by default everywhere"; accepted legal risk, recorded in the dossier with which teachers left a default on). The
+// default rides BESIDE the answers (teacher-form.tsx optInChoice): never in `t`, a draft or a link; only a refusal is kept,
+// per tab; Publish says which switch was left at its default (`optInDefaults`). ─────────────────────────────────────────
+describe('the job-match switches — ON by default for a new profile', () => {
+  const email = () => screen.getByRole('switch', { name: 'Email me jobs that match my profile' })
+  const staff = () => screen.getByRole('switch', { name: 'Our staff may call me' })
+
+  it('⛔ a switch turned OFF survives a reload in the same tab — kept as a refusal BESIDE the answers, never in them', async () => {
+    putDraft(COMPLETE, 'finish')
+    const user = mount()
+    await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })
+    await waitFor(() => expect(email().getAttribute('aria-checked')).toBe('true'))
+    await user.click(email())
+    expect(email().getAttribute('aria-checked')).toBe('false')
+    await waitFor(() => expect(storedDraft().optInsOff).toEqual(['matchEmail']))
+    // Only the refusal: no consent in the answers, and an explicit ON is never written (ON is the default).
+    expect(storedDraft().t).toMatchObject({ matchEmailOptIn: false, staffContactOptIn: false })
+    // The reload: a fresh page in the same tab (sessionStorage stays).
+    cleanup()
+    mount()
+    await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })
+    await waitFor(() => expect(staff().getAttribute('aria-checked')).toBe('true'))
+    expect(email().getAttribute('aria-checked')).toBe('false')
+  })
+
+  it('…and switching it back ON drops the refusal from the tab copy', async () => {
+    putDraft(COMPLETE, 'finish')
+    const user = mount()
+    await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })
+    await waitFor(() => expect(email().getAttribute('aria-checked')).toBe('true'))
+    await user.click(email())
+    await waitFor(() => expect(storedDraft().optInsOff).toEqual(['matchEmail']))
+    await user.click(email())
+    await waitFor(() => expect('optInsOff' in storedDraft()).toBe(false))
+  })
+
+  it('the PUT carries the values in effect, the aiNotice, and optInDefaults — true for an untouched ON, false once the teacher touched it', async () => {
+    putDraft(COMPLETE, 'finish')
+    const user = mount()
+    await addVideo(user)
+    await waitFor(() => expect(email().getAttribute('aria-checked')).toBe('true'))
+    // Job emails: off, then on again — the teacher's own ON now, not the default. Staff calls: untouched.
+    await user.click(email())
+    await user.click(email())
+    await user.click(action('Publish profile'))
+    await waitFor(() => expect(lastPut()).toBeTruthy())
+    expect(lastPut()).toMatchObject({
+      matchEmailOptIn: true, staffContactOptIn: true, aiNotice: AI_NOTICE_VERSION,
+      optInDefaults: { matchEmail: false, staffCall: true },
+    })
+    expect(await screen.findByText('Your profile is live')).toBeTruthy()
+    // A done Publish clears the tab copy — refusals included.
+    expect(storedDraft()).toBeNull()
+  })
+
+  it('a cover-only teacher is asked neither, and the save keeps both OFF — so neither is reported as a default', async () => {
+    putDraft({ ...COMPLETE, jobTypes: [], relocate: '', coverSlots: ['mon-am'], coverRateVnd: 300_000 }, 'finish')
+    const user = mount()
+    await user.click(await screen.findByRole('switch', { name: 'Available for cover lessons' }))
+    await user.click(action('Next'))
+    await addVideo(user)
+    expect(screen.queryByRole('switch', { name: 'Email me jobs that match my profile' })).toBeNull()
+    await user.click(action('Publish profile'))
+    await waitFor(() => expect(lastPut()).toBeTruthy())
+    // The switches go AS SAVED (normalizeForSave: no job, no opt-in) — never a default ON as a claim, nor its aiNotice
+    // (checker, 2026-10-22) — and so neither is reported as a default.
+    expect(lastPut()).toMatchObject({ matchEmailOptIn: false, staffContactOptIn: false })
+    expect(lastPut()).not.toHaveProperty('aiNotice')
+    expect(lastPut()!.optInDefaults).toEqual({ matchEmail: false, staffCall: false })
+  })
+
+  it('the default does not wait for /api/teachers/me — never an OFF that flips ON with no tap (commit gate, 2026-10-22); an answer that failed leaves it ON', async () => {
+    const f = fakeFetch({
+      'GET /api/teachers/me': () => ({ status: 503, json: { error: 'unavailable' } }),
+      'PUT /api/teachers/me': (b) => putReply(b),
+      'POST /api/teachers/me/cv?pending=1': () => cvReply(),
+    })
+    calls = f.calls
+    vi.stubGlobal('fetch', f.fn)
+    putDraft({ ...COMPLETE, phone: '+84901234567' }, 'finish')
+    mount()
+    await screen.findByRole('switch', { name: 'Email me jobs that match my profile' })
+    expect(email().getAttribute('aria-checked')).toBe('true')
+    expect(staff().getAttribute('aria-checked')).toBe('true')
   })
 })

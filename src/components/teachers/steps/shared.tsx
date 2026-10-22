@@ -102,7 +102,8 @@ export function makeErrText(tr: (en: string, vi: string) => string) {
         case 'photoUrl': return tr('Please add a profile photo.', 'Vui lòng thêm ảnh hồ sơ.')
         // Required for a new profile since 2026-10-16 (owner: "make short intor video mandatory from now on").
         case 'videoUrl': return tr('Please add a short intro video (up to 5 minutes) — say hello and show how you teach.', 'Vui lòng thêm một video giới thiệu ngắn (tối đa 5 phút) — chào hỏi và cho thấy cách bạn dạy.')
-        case 'phone': return tr('Please add your phone number — our staff need it to call you.', 'Vui lòng thêm số điện thoại — nhân viên cần số này để gọi cho bạn.')
+        // Required on every save since 2026-10-22 (owner: "phone number is mandatory") — and said to stay private.
+        case 'phone': return tr('Please add your phone number — it stays private: the person you are chatting with gets it only when you share it.', 'Vui lòng thêm số điện thoại — số này được giữ riêng tư: người đang trò chuyện với bạn chỉ nhận được khi bạn chia sẻ.')
         case 'coverSlots': return tr('Please tap at least one period you are usually free.', 'Vui lòng bấm chọn ít nhất một buổi bạn thường rảnh.')
         case 'coverRateVnd': return tr('Please set your hourly rate.', 'Vui lòng đặt mức phí theo giờ.')
         // Required for a new profile since 2026-10-21 (owner: "they should include cv") — and said to stay private.

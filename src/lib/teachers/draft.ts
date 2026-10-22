@@ -22,6 +22,10 @@ import type { Prisma } from '@/generated/prisma/client'
  *     publish, the 90-day retention — is refused `gone`: a late save never resurrects a draft.
  *   · UNDER THE PUBLISH'S LOCK (the per-account advisory lock saveTeacherProfile takes): a save that lands beside or after
  *     a publish sees the profile and is refused `teacher_exists` — the publish deletes the draft in its transaction.
+ *   · …and WHICH JOB-MATCH SWITCHES THE TEACHER SWITCHED OFF (`optInsOff`, commit gate 2026-10-22): the switches start ON in
+ *     a new profile's form (owner decision, 2026-10-22), so a refusal kept only in one tab came back ON in another tab or
+ *     on another device — and a Publish then recorded it as "left at its default". A refusal is no consent: the draft
+ *     still never holds one.
  *   · RETENTION: deleted 90 days after its last change (purgeStaleTeacherDrafts, a daily job), on publish, on Start over,
  *     and with the account (the foreign key). /privacy says so; the account export includes it.
  */
@@ -38,12 +42,20 @@ export function draftDataOf(raw: unknown): TeacherInput {
   return { ...fromDraft(raw), phone: '' }
 }
 
-export type TeacherDraftRow = { t: TeacherInput; step: TeacherStep; rev: number; gen: string; updatedAt: Date }
+/** A job-match switch the teacher switched off in the form (teacher-form.tsx optInChoice) — only refusals are kept. */
+export type OptInRefusal = 'matchEmail' | 'staffCall'
+/** The refusals a body or a stored row names — the two known switches, each once; anything else is nothing. */
+export function draftRefusalsOf(raw: unknown): OptInRefusal[] {
+  const v = raw && typeof raw === 'object' ? (raw as Record<string, unknown>).optInsOff : undefined
+  return Array.isArray(v) ? [...new Set(v.filter((k): k is OptInRefusal => k === 'matchEmail' || k === 'staffCall'))] : []
+}
+
+export type TeacherDraftRow = { t: TeacherInput; optInsOff: OptInRefusal[]; step: TeacherStep; rev: number; gen: string; updatedAt: Date }
 
 export async function readTeacherDraft(profileId: string): Promise<TeacherDraftRow | null> {
   const row = await db.teacherDraft.findUnique({ where: { profileId }, select: { data: true, step: true, rev: true, gen: true, updatedAt: true } })
   if (!row) return null
-  return { t: draftDataOf(row.data), step: isTeacherStep(row.step) ? row.step : 'plans', rev: row.rev, gen: row.gen, updatedAt: row.updatedAt }
+  return { t: draftDataOf(row.data), optInsOff: draftRefusalsOf(row.data), step: isTeacherStep(row.step) ? row.step : 'plans', rev: row.rev, gen: row.gen, updatedAt: row.updatedAt }
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -66,10 +78,13 @@ export async function saveTeacherDraft(profileId: string, body: unknown): Promis
   const data = draftDataOf(b.t)
   // Nothing answered is nothing to keep — and never a "Continue" row for an empty form.
   if (isEmptyTeacher(data)) return { ok: false, reason: 'bad_request' }
-  const json = JSON.stringify(data)
+  // The refusals ride beside the answers in the same row (draftRefusalsOf reads them back; draftDataOf never sees them).
+  const optInsOff = draftRefusalsOf(body)
+  const stored = optInsOff.length ? { ...data, optInsOff } : data
+  const json = JSON.stringify(stored)
   if (Buffer.byteLength(json, 'utf8') > TEACHER_DRAFT_MAX_BYTES) return { ok: false, reason: 'too_large' }
   const step: TeacherStep = isTeacherStep(b.step) ? b.step : 'plans'
-  const value = data as unknown as Prisma.InputJsonValue
+  const value = stored as unknown as Prisma.InputJsonValue
   return db.$transaction(async (tx) => {
     await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${'teacher:' + profileId}))`
     if (await tx.teacherProfile.findUnique({ where: { profileId }, select: { id: true } })) return { ok: false, reason: 'teacher_exists' } as const
@@ -133,8 +148,10 @@ export async function teacherDraftProgress(profileId: string): Promise<{ index: 
   }
 }
 
-/** The account export (the access right): the draft as stored. */
-export async function teacherDraftExportOf(profileId: string): Promise<{ answers: TeacherInput; step: string; createdAt: string; updatedAt: string } | null> {
+/** The account export (the access right): the draft as stored — the switches the teacher turned off included. */
+export async function teacherDraftExportOf(profileId: string): Promise<{ answers: TeacherInput; optInsOff?: OptInRefusal[]; step: string; createdAt: string; updatedAt: string } | null> {
   const row = await db.teacherDraft.findUnique({ where: { profileId }, select: { data: true, step: true, createdAt: true, updatedAt: true } })
-  return row ? { answers: draftDataOf(row.data), step: row.step, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() } : null
+  if (!row) return null
+  const optInsOff = draftRefusalsOf(row.data)
+  return { answers: draftDataOf(row.data), ...(optInsOff.length ? { optInsOff } : {}), step: row.step, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() }
 }

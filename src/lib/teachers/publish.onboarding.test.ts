@@ -91,7 +91,7 @@ const body = (o: Row = {}) => ({
   coverOpen: false, coverSlots: [], coverRateVnd: null, coverConsent: false, coverNotice: COVER_CONSENT_VERSION,
   // A new profile publishes with its intro video (owner, 2026-10-16), so the complete body carries one, shown publicly.
   photoUrl: 'https://sb.eno.vn/storage/v1/object/public/listings/a.webp', videoUrl: 'https://sb.eno.vn/storage/v1/object/public/listing-videos/1700000000001-abcd12.mp4', videoOnRequest: false, videoBase: 0,
-  phone: '', matchEmailOptIn: false, staffContactOptIn: false, publishNotice: PUBLISH_NOTICE_VERSION, aiNotice: AI_NOTICE_VERSION,
+  phone: '+84 901 234 567', matchEmailOptIn: false, staffContactOptIn: false, publishNotice: PUBLISH_NOTICE_VERSION, aiNotice: AI_NOTICE_VERSION,
   // …and its CV (owner, 2026-10-21): the token of the upload made before this save — create-only, an edit ignores it.
   cvUpload: 'dddddddd-0000-4000-8000-000000000004', cvFileName: 'cv.pdf',
   ...o,
@@ -238,10 +238,15 @@ describe('the row it writes — v2 answers, the old columns as mirrors, and the 
   it('⛔ refuses unconfirmed pre-selected places (B6)', async () => {
     await expect(edit(body({ teachAreasConfirmed: false }))).rejects.toMatchObject({ errors: { teachAreas: 'confirm' } })
   })
-  it('stores no phone as none — it is optional unless staff may call', async () => {
-    await edit(body({ phone: '' }))
-    expect(h.privateWrites[0].update.phone).toBeNull()
+  it('⛔ the phone is required on the next save (owner, 2026-10-22) — and a waived withdrawal stores none as none, never as ""', async () => {
+    // A saved profile with no phone, saved with none and nothing withdrawn: refused (publish.phone.test.ts has the rest).
+    await expect(edit(body({ phone: '' }))).rejects.toMatchObject({ errors: { phone: 'required' } })
     await expect(edit(body({ phone: '', staffContactOptIn: true }))).rejects.toMatchObject({ errors: { phone: 'required' } })
+    expect(h.privateWrites).toEqual([])
+    // …switching job emails OFF is never blocked: it saves, and the missing phone is stored as none.
+    h.existing = existing({ matchEmailOptIn: true, matchEmailOptInAt: new Date('2026-10-09T00:00:00Z'), matchEmailNoticeVersion: AI_NOTICE_VERSION })
+    await edit(body({ phone: '', matchEmailOptIn: false }))
+    expect(h.privateWrites[0].update.phone).toBeNull()
   })
 })
 

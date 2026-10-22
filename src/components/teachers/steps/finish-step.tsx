@@ -12,10 +12,14 @@
 //   · CV (private) — REQUIRED for a new profile and one created since TEACHER_CV_REQUIRED_FROM (owner, 2026-10-21: "they
 //     should include cv"), optional for older ones; such a profile can replace its CV, never remove it. A pick is
 //     checked as it is made (a PDF, 10 MB at most); a new profile's goes up just before its Publish (teacher-form.tsx).
-//   · Phone (private; required only while "Our staff may call me" is on — owner, 2026-10-08).
-//   · Job seekers only: "Email me jobs that match my profile" and "Our staff may call me" — LABELLED SWITCHES, OFF by
-//     default, each its own consent (plan review C2), with ONE AI note beside them naming Anthropic (Claude) and the
-//     transfer abroad. ⛔ Its meaning is AI_NOTICE_VERSION (profile.ts): the form sends it as `aiNotice` whenever an
+//   · Phone (private) — REQUIRED on every save since 2026-10-22 (owner: "phone number is mandatory"; it was required only
+//     while "Our staff may call me" was on — 2026-10-08). A profile saved without one adds it the next time it is saved;
+//     a save that hides the profile or switches something off is never refused for it (profile.ts phoneWaived).
+//   · Job seekers only: "Email me jobs that match my profile" and "Our staff may call me" — LABELLED SWITCHES, each its
+//     own consent (plan review C2), ON BY DEFAULT for a new profile since 2026-10-22 (owner: "all toggles should be on by
+//     default" → "On by default everywhere", accepted legal risk, recorded in the dossier; teacher-form.tsx optInChoice
+//     holds them — an existing profile's are never flipped), with ONE AI note beside them naming Anthropic (Claude) and
+//     the transfer abroad. ⛔ Its meaning is AI_NOTICE_VERSION (profile.ts): the form sends it as `aiNotice` whenever an
 //     opt-in is on, and the server stamps it on the opt-in — change what the note says the AI receives, who runs it or
 //     where, and that version must be bumped in the same change.
 //     Edit only: one link to /teachers/job-messages — the job-messages switch is its own consent, on its own page, under
@@ -101,6 +105,17 @@ export type FinishEdit = {
   onToggleSearchHidden: (hide: boolean) => void
 }
 
+/**
+ * The two job-match switches AS THEY ARE IN EFFECT (teacher-form.tsx): a new profile's — the teacher's choice, else the
+ * default (ON once the account is known to have no profile) — held beside the answers, never in them; an edit's — the
+ * profile's own. `onChange` is the teacher's tap.
+ */
+export type FinishOptIns = {
+  matchEmail: boolean
+  staffCall: boolean
+  onChange: (key: 'matchEmail' | 'staffCall', on: boolean) => void
+}
+
 /** The "Identity verified" switch as the form holds it (teacher-form.tsx), with its save. */
 export type FinishIdentityMark = MarkSwitch & {
   /**
@@ -126,12 +141,16 @@ export type FinishIdentityMark = MarkSwitch & {
  * wording is WP5's (2026-10-08), matched to what the matcher's export actually sends (scripts/teachers-match.ts — the
  * matching fields, the name taken out of the free text, never the contact ones); owner to approve before deploy (plan
  * amendment A5), with the dated /privacy paragraph that names the same recipient.
+ * 2026-10-22 — "If you switch on either option above" became "While either option above is on" (the switches are ON by
+ * default for a new profile now), the rest byte for byte. ⛔ AI_NOTICE_VERSION STAYS '2026-10-08' on purpose: the
+ * processing the note describes — what the AI receives, who runs it, where — is unchanged, so no existing opt-in is asked
+ * again; which teachers left a default on is recorded by the server ('teacher.optins.default'), not by a new version.
  */
 export function AiNote() {
   const { tr } = useLanguage()
   return (
     <p className="text-xs text-muted-foreground" data-testid="ai-note">
-      {tr('If you switch on either option above, an AI model — Anthropic\'s Claude, which processes data outside Vietnam — compares your profile with teaching jobs. It receives your headline and about text (with your name taken out), your nationality and whether you are a native speaker, the city you live in and the cities you can teach in, subjects, age groups, job types, years of experience, degree, certificate types, expected salary and start date. It never receives your name, photo, video, phone, email or CV. See our', 'Nếu bạn bật một trong hai tùy chọn trên, một mô hình AI — Claude của Anthropic, xử lý dữ liệu ngoài Việt Nam — sẽ so sánh hồ sơ của bạn với các việc làm giảng dạy. Mô hình nhận tiêu đề và phần giới thiệu của bạn (đã lược bỏ tên của bạn), quốc tịch và việc bạn có phải người bản ngữ hay không, thành phố bạn đang sống và các thành phố bạn có thể dạy, môn dạy, độ tuổi học viên, loại công việc, số năm kinh nghiệm, bằng cấp, loại chứng chỉ, mức lương mong muốn và ngày có thể bắt đầu. Mô hình không bao giờ nhận tên, ảnh, video, số điện thoại, email hay CV của bạn. Xem')}{' '}
+      {tr('While either option above is on, an AI model — Anthropic\'s Claude, which processes data outside Vietnam — compares your profile with teaching jobs. It receives your headline and about text (with your name taken out), your nationality and whether you are a native speaker, the city you live in and the cities you can teach in, subjects, age groups, job types, years of experience, degree, certificate types, expected salary and start date. It never receives your name, photo, video, phone, email or CV. See our', 'Khi một trong hai tùy chọn trên đang bật, một mô hình AI — Claude của Anthropic, xử lý dữ liệu ngoài Việt Nam — sẽ so sánh hồ sơ của bạn với các việc làm giảng dạy. Mô hình nhận tiêu đề và phần giới thiệu của bạn (đã lược bỏ tên của bạn), quốc tịch và việc bạn có phải người bản ngữ hay không, thành phố bạn đang sống và các thành phố bạn có thể dạy, môn dạy, độ tuổi học viên, loại công việc, số năm kinh nghiệm, bằng cấp, loại chứng chỉ, mức lương mong muốn và ngày có thể bắt đầu. Mô hình không bao giờ nhận tên, ảnh, video, số điện thoại, email hay CV của bạn. Xem')}{' '}
       <Link href="/privacy" className="underline">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</Link>.
     </p>
   )
@@ -225,7 +244,7 @@ export function IdentityMarkSection({ mark }: { mark: FinishIdentityMark }) {
   )
 }
 
-export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGate, prefillAvatar, prefillPhone, imported = null, media, edit, optInsNoticeChanged, identityMark, photoCheck = null, photoAsk = null, videoRequired = false, cvRequired = false, videoProgress = null }: Pick<StepProps, 't' | 'set' | 'errors' | 'errText' | 'mode'> & {
+export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGate, prefillAvatar, prefillPhone, imported = null, media, edit, optInsNoticeChanged, optIns, identityMark, photoCheck = null, photoAsk = null, videoRequired = false, cvRequired = false, videoProgress = null }: Pick<StepProps, 't' | 'set' | 'errors' | 'errText' | 'mode'> & {
   signedIn: boolean
   /** The photo check's answer for the photo on the page (teacher-form.tsx) — null: not asked, or no check on this server. */
   photoCheck?: { state: 'checking' | 'ok' | 'fail' | 'unavailable'; reason?: 'not_photo' | 'no_face' } | null
@@ -254,6 +273,8 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
   edit: FinishEdit | null
   /** The stored opt-ins were given under an older AI notice, so they load OFF: say so beside the switches. */
   optInsNoticeChanged: boolean
+  /** The job-match switches as they are in effect, and the tap that changes one (teacher-form.tsx). */
+  optIns: FinishOptIns
   /** The "Identity verified" switch — its own state and save (teacher-form.tsx). */
   identityMark: FinishIdentityMark
 }) {
@@ -434,8 +455,9 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
       </section>
 
       <Field invalid={!!errors.phone}>
-        <Label htmlFor="tf-phone">{t.staffContactOptIn ? tr('Phone number', 'Số điện thoại') : tr('Phone number (optional)', 'Số điện thoại (không bắt buộc)')}</Label>
-        <FieldControl id="tf-phone" render={<Input id="tf-phone" type="tel" inputMode="tel" autoComplete="tel" value={t.phone} maxLength={20} onChange={(e) => set('phone', e.target.value)} />} />
+        {/* Required on every save since 2026-10-22 (owner: "phone number is mandatory") — never "(optional)". */}
+        <Label htmlFor="tf-phone">{tr('Phone number', 'Số điện thoại')}</Label>
+        <FieldControl id="tf-phone" render={<Input id="tf-phone" type="tel" inputMode="tel" autoComplete="tel" aria-required="true" value={t.phone} maxLength={20} onChange={(e) => set('phone', e.target.value)} />} />
         {prefillPhone && !t.phone && (
           <Chip size="sm" tone="neutral" className="relative tap-44 self-start" onClick={() => set('phone', prefillPhone)}>
             {tr('Use my number:', 'Dùng số của tôi:')} {prefillPhone}
@@ -446,7 +468,7 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
             {tr('Use the number from my CV:', 'Dùng số trong CV:')} {imported.phone}
           </Chip>
         )}
-        <FieldDescription className="text-muted-foreground">{tr('Never shown publicly. The person you are chatting with gets it only when you tap the Share button in that chat — and our staff use it only if you let them call you.', 'Không bao giờ công khai. Người bạn đang trò chuyện chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ — và nhân viên của chúng tôi chỉ dùng khi bạn cho phép gọi.')}</FieldDescription>
+        <FieldDescription className="text-muted-foreground">{tr('Never shown publicly. The person you are chatting with gets it only when you tap the Share button in that chat — and our staff call it only while “Our staff may call me” is on.', 'Không bao giờ công khai. Người bạn đang trò chuyện chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ — và nhân viên của chúng tôi chỉ gọi khi mục “Nhân viên của chúng tôi có thể gọi cho tôi” đang bật.')}</FieldDescription>
         {errors.phone && <FieldError>{errText('phone', errors.phone)}</FieldError>}
       </Field>
 
@@ -455,23 +477,24 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
 
       {jobSeeker && (
         <Fieldset legend={tr('Job matches (optional)', 'Gợi ý việc làm (không bắt buộc)')} className="space-y-3">
-          {optInsNoticeChanged && !t.matchEmailOptIn && !t.staffContactOptIn && (
+          {optInsNoticeChanged && !optIns.matchEmail && !optIns.staffCall && (
             <p role="status" className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">
               {tr('The job-matching notice below has changed since you switched these on. Switch one on again to keep getting matches — saving with both off stops them.', 'Thông báo về so khớp việc làm bên dưới đã thay đổi kể từ khi bạn bật các mục này. Hãy bật lại để tiếp tục nhận gợi ý — nếu lưu khi cả hai đều tắt, gợi ý sẽ dừng.')}
             </p>
           )}
           <SwitchRow
             id="tf-match-email"
-            checked={t.matchEmailOptIn}
-            onChange={(v) => set('matchEmailOptIn', v)}
+            checked={optIns.matchEmail}
+            onChange={(v) => optIns.onChange('matchEmail', v)}
             label={tr('Email me jobs that match my profile', 'Gửi email cho tôi các việc làm phù hợp với hồ sơ')}
           />
           <SwitchRow
             id="tf-staff-call"
-            checked={t.staffContactOptIn}
-            onChange={(v) => set('staffContactOptIn', v)}
+            checked={optIns.staffCall}
+            onChange={(v) => optIns.onChange('staffCall', v)}
             label={tr('Our staff may call me', 'Nhân viên của chúng tôi có thể gọi cho tôi')}
-            description={tr('About jobs that match your profile, and to introduce you to those schools. Needs your phone number above.', 'Về các việc làm phù hợp với hồ sơ của bạn, và để giới thiệu bạn với các trường đó. Cần số điện thoại ở trên.')}
+            // The phone is required whatever this switch says (2026-10-22), so it no longer says it needs one.
+            description={tr('About jobs that match your profile, and to introduce you to those schools.', 'Về các việc làm phù hợp với hồ sơ của bạn, và để giới thiệu bạn với các trường đó.')}
           />
           <AiNote />
           {/* eno.vn only: the jobs desk runs there (the page is eno.vn-only too). */}

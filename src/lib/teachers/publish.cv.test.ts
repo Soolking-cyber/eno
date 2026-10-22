@@ -115,7 +115,7 @@ const body = (o: Row = {}) => ({
   fullName: 'Jane Doe', nationality: 'GB', englishLevel: 'native', languages: [], headline: 'CELTA-certified English teacher', bio: '',
   coverOpen: false, coverSlots: [], coverRateVnd: null, coverConsent: false, coverNotice: COVER_CONSENT_VERSION,
   photoUrl: 'https://sb.eno.vn/storage/v1/object/public/listings/a.webp', videoUrl: 'https://sb.eno.vn/storage/v1/object/public/listing-videos/1700000000001-abcd12.mp4', videoOnRequest: false, videoBase: 0,
-  phone: '', matchEmailOptIn: false, staffContactOptIn: false, publishNotice: PUBLISH_NOTICE_VERSION,
+  phone: '+84 901 234 567', matchEmailOptIn: false, staffContactOptIn: false, publishNotice: PUBLISH_NOTICE_VERSION,
   cvUpload: TOKEN, cvFileName: 'Jane Doe CV.pdf',
   ...o,
 })

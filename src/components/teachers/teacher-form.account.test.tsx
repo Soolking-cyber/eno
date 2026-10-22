@@ -130,4 +130,10 @@ describe('the stored draft', () => {
     writeStoredDraft(answers, 'about', { owner: 'u1' })
     expect(readStoredDraft()).toMatchObject({ owner: 'u1', t: { fullName: 'Previous Visitor', bio: 'Their bio' } })
   })
+  it('⛔ a job-match refusal is read only from a copy with an owner — never one account\'s on the next account\'s form (commit gate, codex 2026-10-22)', () => {
+    writeStoredDraft(answers, 'finish', { optInsOff: ['matchEmail'], owner: 'u1' })
+    expect(readStoredDraft()).toMatchObject({ owner: 'u1', optInsOff: ['matchEmail'] })
+    writeStoredDraft(answers, 'finish', { optInsOff: ['matchEmail'] })
+    expect(readStoredDraft()).not.toHaveProperty('optInsOff')
+  })
 })

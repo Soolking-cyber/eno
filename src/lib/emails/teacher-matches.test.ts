@@ -39,6 +39,15 @@ describe('renderTeacherMatches — the sender in full', () => {
     expect(html).not.toContain(COMPANY.address)
   })
 
+  it('⚖️ says why it came as a STATE, never as a request (owner, 2026-10-22: the switch starts ON for a new profile)', async () => {
+    const { renderTeacherMatches } = await load('marketplace')
+    const out = renderTeacherMatches(opts)
+    const why = "You're receiving this because job matches are on in your eno.vn teacher profile."
+    expect(out.text).toContain(why)
+    expect(out.html).toContain('job matches are on in your eno.vn teacher profile')
+    expect(out.html + out.text).not.toMatch(/you asked for job matches/i)
+  })
+
   it('eno.forum: no operator invented — site name and contact only, never a "đang cập nhật" placeholder', async () => {
     const { renderTeacherMatches, COMPANY } = await load('services')
     const out = renderTeacherMatches({ ...opts, siteName: 'eno.forum' })
