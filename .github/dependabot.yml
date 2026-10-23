@@ -1,0 +1,28 @@
+# Dependabot VERSION updates for the actions our workflows pin (security review 2026-10-22, item 27 follow-up).
+#
+# Why this file exists: every `uses:` in .github/workflows/ is pinned to a full commit SHA with its tag in a trailing
+# comment. GitHub's docs say Dependabot ALERTS are not raised for SHA-pinned actions ("will not create alerts for actions
+# pinned to SHA values") — so without version updates a pinned action would never be bumped, security fixes included.
+# Version updates do bump SHA pins, and rewrite the `# vX.Y.Z` comment on the same line.
+#
+# ⛔ cooldown: a release is not proposed until it is 7 days old — the window in which a hijacked tag or a compromised
+# release is usually caught and pulled. Security updates are not subject to cooldown (GitHub docs).
+# npm is deliberately NOT listed: dependency bumps are made by a person, at versions at least 14 days old (the policy of
+# the 2026-10-22 advisory fixes). ⚠️ Not as a project .npmrc `min-release-age`. Measured 2026-10-23 with npm 11.21.0:
+# `npm ci` keeps a LOCKED version younger than the window (vite@8.3.3, 17 days old, passed a 21-day window), but it
+# re-resolves the peer ranges the lockfile leaves open UNDER the window and fails ("not in sync") when no satisfying
+# version is old enough — today at a 120-day window (@napi-rs/wasm-runtime's peer @emnapi/core). That failure would stop
+# CI and the deploy box until the release ages. Set it in your own ~/.npmrc, where it only shapes `npm install`.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: ci
