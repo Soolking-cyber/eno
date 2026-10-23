@@ -30,22 +30,21 @@ const BLOCKED_V4: readonly (readonly [string, number])[] = [
 const BLOCKED = new net.BlockList()
 for (const [addr, bits] of BLOCKED_V4) {
   BLOCKED.addSubnet(addr, bits, 'ipv4') // BlockList also matches IPv4-mapped ::ffff:a.b.c.d against these
-  // The v6 transition prefixes EMBED an IPv4 that a gateway dials on our behalf (security review 2026-10-22, item 29):
-  // block the same ranges inside them, so 64:ff9b::a9fe:a9fe (NAT64 of 169.254.169.254) is refused while a DNS64
-  // answer for a public host still connects.
+  // NAT64 EMBEDS an IPv4 that a gateway dials on our behalf (security review 2026-10-22, item 29): block the same
+  // ranges inside it, so 64:ff9b::a9fe:a9fe (NAT64 of 169.254.169.254) is refused while a DNS64 answer for a public
+  // host still connects.
   const [a, b, c, d] = addr.split('.').map(Number)
   const hex = `${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`
   BLOCKED.addSubnet(`64:ff9b::${hex}`, 96 + bits, 'ipv6') // NAT64 well-known prefix (RFC 6052)
-  BLOCKED.addSubnet(`2002:${hex}::`, 16 + bits, 'ipv6')   // 6to4 (RFC 3056)
 }
 for (const [addr, bits] of [
   ['::', 96],            // :: unspecified, ::1 loopback, deprecated IPv4-compatible ::a.b.c.d
   ['::ffff:0:0:0', 96],  // IPv4-translated (SIIT)
   ['64:ff9b:1::', 48],   // local-use NAT64 (RFC 8215)
   ['100::', 64],         // discard-only
-  ['2001::', 32],        // Teredo (embeds an obfuscated IPv4)
-  ['2001:2::', 48],      // benchmarking
+  ['2001::', 23],        // IETF protocol assignments — Teredo, benchmarking, ORCHID… (refute review 2026-10-23: was /32)
   ['2001:db8::', 32],    // documentation
+  ['2002::', 16],        // 6to4 — deprecated (RFC 7526); CPython's ipaddress also counts it not globally reachable
   ['3fff::', 20],        // documentation (RFC 9637)
   ['fc00::', 7],         // unique-local
   ['fe80::', 10],        // link-local, all of fe80–febf
@@ -53,14 +52,33 @@ for (const [addr, bits] of [
   ['ff00::', 8],         // multicast
 ] as const) BLOCKED.addSubnet(addr, bits, 'ipv6')
 
+/**
+ * ⛔ IPv6 IS ALLOW-FIRST (refute review, 2026-10-23). The list above can only name what IANA had assigned when it was
+ * written, and it had already missed 5f00::/16 (SRv6 SIDs, RFC 9602) and 100:0:0:1::/64 (the dummy prefix, RFC 9780).
+ * So an IPv6 address is dialled only from global unicast — 2000::/3 (RFC 4291 §2.4; IETF holds the rest of the space
+ * reserved, which is how CPython's ipaddress classifies it) — or the two forms that carry an IPv4 the v4 rules then
+ * judge: NAT64's well-known prefix and IPv4-mapped. Everything else is refused with no list to keep current; the deny
+ * list still runs after this.
+ */
+const DIALABLE_V6 = new net.BlockList()
+DIALABLE_V6.addSubnet('2000::', 3, 'ipv6')
+DIALABLE_V6.addSubnet('64:ff9b::', 96, 'ipv6')
+DIALABLE_V6.addSubnet('::ffff:0:0', 96, 'ipv6')
+
 function isBlockedIp(ip: string): boolean {
   const addr = ip.replace(/^\[|\]$/g, '')
   const t = net.isIP(addr)
   if (t === 0) return true // unparseable → block
+  if (t === 6 && !DIALABLE_V6.check(addr, 'ipv6')) return true
   return BLOCKED.check(addr, t === 4 ? 'ipv4' : 'ipv6')
 }
 
-/** Throws if the URL is not safe to server-fetch. Returns the parsed URL otherwise. */
+/** Throws if the URL is not safe to server-fetch. Returns the parsed URL otherwise.
+ *  ⚠️ NO PORT ALLOW-LIST, deliberately (weighed in the refute review of 2026-10-23): partner webhooks may sit on any
+ *  port, and https-only already bounds what a port can reach — the dial must complete a TLS handshake against a
+ *  publicly-trusted certificate for the requested name, which no internal service on our box presents (its nginx
+ *  serves a Cloudflare Origin CA certificate, which public trust stores do not hold, and demands Cloudflare's client
+ *  certificate). Revisit if plain http is ever allowed. */
 export async function assertSafeUrl(raw: string): Promise<URL> {
   let u: URL
   try { u = new URL(raw) } catch { throw new Error('ssrf:bad_url') }
@@ -97,25 +115,45 @@ const guardedLookup: net.LookupFunction = (hostname, options, callback) => {
 
 const guardedAgent = new Agent({ connect: { lookup: guardedLookup } })
 
+/** Fetch standard "request-body-header name"s — dropped with the body when a redirect turns the request into a GET. */
+const REQUEST_BODY_HEADERS = new Set(['content-encoding', 'content-language', 'content-location', 'content-type'])
+/** Never forwarded to another origin (Fetch drops Authorization; cookies and proxy credentials go with it). */
+const CREDENTIAL_HEADERS = new Set(['authorization', 'cookie', 'proxy-authorization'])
+
 /** Fetch a user-supplied URL safely: re-validates the host at EVERY redirect hop
  *  (redirect:'manual') so a public URL can't bounce to an internal address, and checks
  *  the address the socket actually dials (guardedLookup) so a host that passed the check
  *  can't be rebound to an internal one before delivery (DNS-rebinding/TOCTOU).
- *  Accepts method/headers/body for signed POSTs. */
+ *  Accepts method/headers/body for signed POSTs.
+ *
+ *  ⛔ A REDIRECT IS FOLLOWED THE WAY THE FETCH STANDARD FOLLOWS IT (refute review, 2026-10-23 — this loop used to replay
+ *  the original request verbatim at every hop): 303, and 301/302 after a POST, continue as a body-less GET; a hop to
+ *  another origin drops the credential headers. `followRedirects: false` hands the 3xx back instead — webhook delivery
+ *  uses it, since Standard Webhooks counts a 3xx as a failed delivery and a redirect would re-send the signed body. */
 export async function safeFetch(
   raw: string,
-  opts: { timeoutMs: number; maxHops?: number; method?: string; headers?: Record<string, string>; body?: string } = { timeoutMs: 8000 },
+  opts: {
+    timeoutMs: number
+    maxHops?: number
+    followRedirects?: boolean
+    method?: string
+    headers?: Record<string, string>
+    body?: string
+  } = { timeoutMs: 8000 },
 ): Promise<Response> {
   const maxHops = opts.maxHops ?? 3
   let url = raw
+  let method = (opts.method ?? 'GET').toUpperCase()
+  let body = opts.body
+  let headers: Record<string, string> = Object.fromEntries(Object.entries(opts.headers ?? {}).map(([k, v]) => [k.toLowerCase(), v]))
   for (let hop = 0; hop <= maxHops; hop++) {
     await assertSafeUrl(url)
     let res: Awaited<ReturnType<typeof undiciFetch>>
     try {
       res = await undiciFetch(url, {
-        method: opts.method ?? 'GET',
-        headers: opts.headers,
-        body: opts.body,
+        method,
+        headers,
+        body,
         redirect: 'manual',
         signal: AbortSignal.timeout(opts.timeoutMs),
         dispatcher: guardedAgent,
@@ -125,12 +163,24 @@ export async function safeFetch(
       const cause = e instanceof Error ? e.cause : undefined
       throw cause instanceof Error && cause.message.startsWith('ssrf:') ? cause : e
     }
-    if (res.status >= 300 && res.status < 400) {
+    if (res.status >= 300 && res.status < 400 && opts.followRedirects !== false) {
       const loc = res.headers.get('location')
       // An unread undici body holds its socket; release this hop's before the next.
       await res.body?.cancel().catch((e) => logError(e, { op: 'ssrf.redirect.cancel' }))
       if (!loc) throw new Error('ssrf:redirect_no_location')
-      url = new URL(loc, url).toString()
+      const next = new URL(loc, url)
+      // Fetch standard, HTTP-redirect fetch: 301/302 after a POST and 303 after anything but GET/HEAD continue as GET
+      // with no body and none of the headers that described it.
+      if (((res.status === 301 || res.status === 302) && method === 'POST') || (res.status === 303 && method !== 'GET' && method !== 'HEAD')) {
+        method = 'GET'
+        body = undefined
+        headers = Object.fromEntries(Object.entries(headers).filter(([k]) => !REQUEST_BODY_HEADERS.has(k)))
+      }
+      // …and a hop to another origin never carries credentials.
+      if (next.origin !== new URL(url).origin) {
+        headers = Object.fromEntries(Object.entries(headers).filter(([k]) => !CREDENTIAL_HEADERS.has(k)))
+      }
+      url = next.toString()
       continue
     }
     // Node's global fetch IS undici (its bundled copy): the same WHATWG Response, only the TS declarations differ.

@@ -140,16 +140,42 @@ describe('the ranges added by the 2026-10-22 review (item 29)', () => {
 
   it.each([
     ['https://[64:ff9b::5db8:d822]/', 'NAT64 of a PUBLIC address — what a DNS64 resolver answers for any v4-only host'],
-    ['https://[2002:5db8:d822::1]/', '6to4 wrapping a public address'],
     ['https://[::ffff:93.184.216.34]/', 'IPv4-mapped public address'],
     ['https://[2606:4700:4700::1111]/', 'an ordinary global IPv6 address'],
   ])('%s is allowed (%s)', async (url) => {
     await expect(assertSafeUrl(url)).resolves.toBeInstanceOf(URL)
   })
 
+  it('a hostname whose AAAA record is outside global unicast (SRv6 SID space) is rejected', async () => {
+    h.addrs = [{ address: '5f00::1' }]
+    await rejects('https://srv6.example/', 'ssrf:private_ip')
+  })
+
   it('a hostname whose AAAA record is a NAT64 wrapping of the metadata service is rejected', async () => {
     h.addrs = [{ address: '64:ff9b::a9fe:a9fe' }]
     await rejects('https://attacker.example/', 'ssrf:private_ip')
+  })
+})
+
+// Refute review 2026-10-23: the v6 deny list had missed blocks IANA assigned after it was written. IPv6 is now
+// allow-first — global unicast 2000::/3, NAT64's well-known prefix and IPv4-mapped only — so these need no list entry.
+describe('IPv6 is allow-first: only global unicast (2000::/3) is dialled', () => {
+  it.each([
+    ['https://[5f00::1]/', 'SRv6 SIDs (RFC 9602) — outside 2000::/3, on no list'],
+    ['https://[100:0:0:1::1]/', 'the dummy prefix (RFC 9780) — not inside 100::/64'],
+    ['https://[4000::1]/', 'IETF-reserved space'],
+    ['https://[2001:10::1]/', 'ORCHID — the rest of 2001::/23, past Teredo\'s /32'],
+    ['https://[2001:20::1]/', 'ORCHIDv2 — 2001::/23 is blocked whole'],
+    ['https://[2002:5db8:d822::1]/', '6to4, even wrapping a public address — deprecated (RFC 7526)'],
+    ['https://[2002:a9fe:a9fe::1]/', '6to4 wrapping the metadata service'],
+  ])('%s → %s', async (url) => {
+    await rejects(url, 'ssrf:private_host')
+  })
+
+  it('global unicast just inside the boundaries still passes', async () => {
+    for (const url of ['https://[2000::1]/', 'https://[3ffe:ffff::1]/', 'https://[2001:200::1]/']) {
+      await expect(assertSafeUrl(url), url).resolves.toBeInstanceOf(URL)
+    }
   })
 })
 

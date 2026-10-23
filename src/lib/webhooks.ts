@@ -59,11 +59,15 @@ async function deliver(h: Hook, event: ListingEvent, listingId: string, extra?: 
   const ts = Math.floor(now.getTime() / 1000)
   const payload = JSON.stringify({ id: msgId, type: event, created_at: now.toISOString(), data: { listing_id: listingId, ...extra } })
   try {
-    // safeFetch re-resolves + re-validates the host on EVERY call and at every redirect hop
-    // (redirect:'manual'), so a registered public URL can't be DNS-rebound or 302'd to an
-    // internal address between registration and delivery (SSRF). It throws on an unsafe host.
+    // safeFetch re-resolves + re-validates the host on EVERY call and checks the address the
+    // socket dials, so a registered public URL can't be DNS-rebound to an internal address
+    // between registration and delivery (SSRF). It throws on an unsafe host.
+    // ⛔ No redirects (refute review, 2026-10-23): Standard Webhooks counts a 3xx as a failed delivery ("update the
+    // webhook URL instead"), and following one re-sent the signed body to wherever the Location pointed. The 3xx is
+    // recorded as `HTTP 30x` below, like any other non-2xx.
     const res = await safeFetch(h.url, {
       timeoutMs: DELIVERY_TIMEOUT_MS,
+      followRedirects: false,
       method: 'POST',
       headers: {
         'content-type': 'application/json',
