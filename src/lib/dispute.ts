@@ -94,9 +94,14 @@ export async function partyHasSubmitted(reportId: string, meId: string): Promise
 }
 
 /** Evidence paths are pinned to the case's private-bucket folder — a message can
- *  never reference another dispute's files (or anything else in the bucket). */
+ *  never reference another dispute's files (or anything else in the bucket).
+ *  ⛔ AND TO ONE SPELLING (refute review, 2026-10-23): this case's folder and a single plain file name, the shape
+ *  media.ts storeEvidence mints. `disputes/R/./X.webp` names X to storage but not to the tombstone clear or the
+ *  sweep's reference check — both compare the string — so X would be swept from under the statement holding it. */
 export function isEvidencePath(path: string, reportId: string): boolean {
-  return path.startsWith(`disputes/${reportId}/`) && !path.includes('..') && path.length < 300
+  const prefix = `disputes/${reportId}/`
+  if (!reportId || !path.startsWith(prefix) || path.length >= 300) return false
+  return /^[A-Za-z0-9_-]+\.[A-Za-z0-9]{2,5}$/.test(path.slice(prefix.length))
 }
 
 const parseImages = (raw: string | null | undefined): string[] => {

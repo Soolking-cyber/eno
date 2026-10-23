@@ -28,7 +28,7 @@ const h = vi.hoisted(() => ({
   teacherPaths: [] as string[],
   /** Dispute evidence (review item 11): paths a DisputeMessage attached, and each case's status + window. */
   attachedEvidence: [] as string[],
-  reports: {} as Record<string, { status: string; evidenceUntil: Date | null }>,
+  reports: {} as Record<string, { status: string; evidenceUntil: Date | null; resolvedAt?: Date | null }>,
   seq: 0,
   /** A hook run on every storage remove — lets a test refresh a row mid-batch like a concurrent writer would. */
   onRemove: null as null | ((bucket: string, paths: string[]) => void),
@@ -249,6 +249,25 @@ describe('the tombstone sweep', () => {
     expect(r).toMatchObject({ removed: 2, dropped: 1, failed: 1 })
     // the live-window upload is NOT deleted: kept and backed off, to be judged again once the window has closed
     expect(h.rows.map((x) => x.path)).toEqual(['disputes/c-open/still-postable.webp'])
+  })
+
+  /**
+   * Refute review 2026-10-23: a statement that passed partyCanPost just before the case stopped taking statements may
+   * still be committing — invisible to the reference lookup until it does. So an unattached upload is not judged until a
+   * grace hour after the window closed, or after the case was resolved if that came first.
+   */
+  it('⛔ evidence: a grace hour after the case stops taking statements — its window closing, or its resolution', async () => {
+    const MIN = 60_000
+    h.reports = {
+      'c-just-closed': { status: 'open', evidenceUntil: new Date(Date.now() - 10 * MIN) },
+      'c-closed-2h': { status: 'open', evidenceUntil: new Date(Date.now() - 120 * MIN) },
+      'c-just-resolved': { status: 'confirmed', evidenceUntil: new Date(Date.now() + DAY), resolvedAt: new Date(Date.now() - 10 * MIN) },
+      'c-resolved-2h': { status: 'confirmed', evidenceUntil: new Date(Date.now() + DAY), resolvedAt: new Date(Date.now() - 120 * MIN) },
+    }
+    await writeTombstones(db, ['c-just-closed', 'c-closed-2h', 'c-just-resolved', 'c-resolved-2h'].map((c) => ({ bucket: 'evidence', path: `disputes/${c}/x.webp` })), 'evidence_upload_pending', t0)
+    await sweepTombstones(later)
+    expect(h.removed).toEqual([{ bucket: 'evidence', paths: ['disputes/c-closed-2h/x.webp'] }, { bucket: 'evidence', paths: ['disputes/c-resolved-2h/x.webp'] }])
+    expect(h.rows.map((x) => x.path).sort()).toEqual(['disputes/c-just-closed/x.webp', 'disputes/c-just-resolved/x.webp'])
   })
 
   it('a storage failure, a failed reference check and an unknown bucket all KEEP the row — counted, attempts/lastError set, backed off a DAY', async () => {

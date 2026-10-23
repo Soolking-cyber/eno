@@ -115,8 +115,14 @@ async function referenceVerdict(bucket: string, path: string): Promise<Verdict> 
         if (!reportId) return 'unknown'
         const attached = await db.disputeMessage.findFirst({ where: { reportId, images: { contains: JSON.stringify(path) } }, select: { id: true } })
         if (attached) return 'referenced'
-        const report = await db.report.findUnique({ where: { id: reportId }, select: { status: true, evidenceUntil: true } })
-        if (report && report.status === 'open' && report.evidenceUntil && report.evidenceUntil.getTime() > Date.now()) return 'unknown'
+        const report = await db.report.findUnique({ where: { id: reportId }, select: { status: true, evidenceUntil: true, resolvedAt: true } })
+        // ⛔ A GRACE HOUR AFTER THE CASE STOPS TAKING STATEMENTS (refute review, 2026-10-23) — its window closed, or it was
+        // resolved first. A statement that passed partyCanPost a moment before may still be committing, and its row is
+        // invisible to the lookup above until it does; judged at the bare edge, its file could go first. The tombstone's
+        // own notBefore cannot cover this: an extended or reopened window moves the edge past it.
+        const until = report?.evidenceUntil?.getTime() ?? 0
+        const stoppedAt = report?.status === 'open' ? until : Math.min(until, report?.resolvedAt?.getTime() ?? until)
+        if (report && stoppedAt + TOMBSTONE_GRACE_MS > Date.now()) return 'unknown'
         return 'unreferenced'
       } catch {
         return 'unknown'
