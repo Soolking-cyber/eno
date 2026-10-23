@@ -260,6 +260,7 @@ DECLARE
   writable text;
   write_policies text;
   definer_fns text;
+  unpinned text;
   allowed text[] := ARRAY['is_convo_participant'];
 BEGIN
   IF to_regrole('anon') IS NULL OR to_regrole('authenticated') IS NULL THEN
@@ -290,6 +291,19 @@ BEGIN
   IF writable IS NOT NULL OR write_policies IS NOT NULL OR definer_fns IS NOT NULL THEN
     RAISE EXCEPTION 'rls-guard: API roles can still write or escalate — writable tables: [%]; write policies: [%]; SECURITY DEFINER functions they can execute: [%]',
       coalesce(writable, ''), coalesce(write_policies, ''), coalesce(definer_fns, '');
+  END IF;
+  -- Supabase lint 0011 (function_search_path_mutable) for the functions where it matters most: a SECURITY DEFINER
+  -- function in public with no pinned search_path resolves unqualified names through its CALLER's path while running with
+  -- its owner's rights. WARNING, the level the lint gives it: every definer function in scripts/ pins one today, so this
+  -- names the next one that forgets (SET search_path = '' and schema-qualified names, per the lint's remediation).
+  SELECT string_agg(format('%s(%s)', p.proname, pg_get_function_identity_arguments(p.oid)), ', ' ORDER BY p.proname)
+    INTO unpinned
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public' AND p.prosecdef
+    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
+    AND NOT EXISTS (SELECT 1 FROM unnest(coalesce(p.proconfig, ARRAY[]::text[])) AS c(setting) WHERE c.setting LIKE 'search_path=%');
+  IF unpinned IS NOT NULL THEN
+    RAISE WARNING 'rls-guard: SECURITY DEFINER functions in public with no pinned search_path (Supabase lint 0011): [%]', unpinned;
   END IF;
   RAISE NOTICE 'rls-guard: anon/authenticated cannot write any table in public, hold no write policy, and can execute no SECURITY DEFINER function beyond %', allowed;
 END $$;
