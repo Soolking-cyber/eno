@@ -46,8 +46,14 @@ async function pickInk(png: Buffer, region: { left: number; top: number; width: 
  * rejected here. limitInputPixels guards decompression bombs. Returns the public
  * URL, or null on any failure (bad input / storage error). Never throws.
  * `watermark: false` is for NON-listing assets (avatars / shop logos) only.
+ * `beforeUpload` runs with the object's path after the image is encoded and BEFORE a byte is stored; if it throws,
+ * nothing is uploaded and the answer is null. Bulk re-hosting writes the object's tombstone there, so no object of its
+ * ever exists untombstoned (core/bulk.ts rehost).
  */
-export async function storeListingImage(buf: Buffer, opts: { pathPrefix?: string; watermark?: boolean } = {}): Promise<string | null> {
+export async function storeListingImage(
+  buf: Buffer,
+  opts: { pathPrefix?: string; watermark?: boolean; beforeUpload?: (path: string) => Promise<void> } = {},
+): Promise<string | null> {
   let out: Buffer
   // Perceptual hash for duplicate detection — computed from the normalized (pre-watermark,
   // pre-WebP) intermediate so a re-upload of the same source hashes identically, and embedded
@@ -82,6 +88,12 @@ export async function storeListingImage(buf: Buffer, opts: { pathPrefix?: string
     return null
   }
   const path = `${opts.pathPrefix ?? ''}${Date.now()}-${Math.random().toString(36).slice(2, 8)}${hash ? `-h${hash}` : ''}.webp`
+  if (opts.beforeUpload) {
+    try { await opts.beforeUpload(path) } catch (e) {
+      console.error('[media] beforeUpload', e)
+      return null
+    }
+  }
   const admin = getSupabaseAdmin()
   // Objects are uniquely named and never rewritten (upsert:false) → immutable: cache for a
   // year. Without this Supabase defaults to max-age=3600 and raw-URL consumers (OG scrapes,

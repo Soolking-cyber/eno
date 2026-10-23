@@ -43,6 +43,7 @@ vi.mock('@/lib/db', () => ({
     listing: {
       // The sync's externalId lookup: every row in this file is new, so the sync sends them all to create.
       findMany: async () => [],
+      findFirst: async () => null, // bulk core's external_id pre-check: none of these ids is taken
       create: async (a: Row) => { h.creates.push(a.data); return { id: `new${h.creates.length}` } },
     },
   },

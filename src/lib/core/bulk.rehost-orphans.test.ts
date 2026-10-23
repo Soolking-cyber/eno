@@ -21,6 +21,11 @@ const h = vi.hoisted(() => ({
   removed: [] as string[][],
   stored: 0,
   maxNewActive: null as number | null,
+  events: [] as string[],
+  tombstoneFails: false,
+  uploadFails: false,
+  createError: null as (Error & { code?: string }) | null,
+  takenExternalIds: new Set<string>(),
 }))
 
 const HOST = 'https://sb.test'
@@ -30,11 +35,20 @@ vi.mock('next/server', () => ({ after: () => {} }))
 vi.mock('@/lib/db', () => ({
   db: {
     category: { findMany: async () => [{ id: 'c-electronics', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }] },
-    listing: { findMany: async () => [], create: async (a: Row) => { h.creates.push(a.data); return { id: `new${h.creates.length}` } } },
+    listing: {
+      findMany: async () => [],
+      findFirst: async (a: Row) => (h.takenExternalIds.has(a.where.externalId) ? { id: 'taken' } : null),
+      create: async (a: Row) => { if (h.createError) throw h.createError; h.creates.push(a.data); return { id: `new${h.creates.length}` } },
+    },
   },
 }))
 vi.mock('@/lib/core/storage-tombstones', () => ({
-  writeTombstones: async (_tx: unknown, refs: Row[], reason: string) => { h.written.push({ refs, reason }); return refs.length },
+  writeTombstones: async (_tx: unknown, refs: Row[], reason: string) => {
+    if (h.tombstoneFails) throw new Error('db down')
+    h.events.push(`tombstone ${refs.map((x) => x.path).join()}`)
+    h.written.push({ refs, reason })
+    return refs.length
+  },
   clearTombstones: async (refs: Row[]) => { h.cleared.push(refs); return refs.length },
 }))
 vi.mock('@/lib/supabase-admin', () => ({
@@ -43,7 +57,17 @@ vi.mock('@/lib/supabase-admin', () => ({
 }))
 vi.mock('@/lib/listing-image', () => ({ isListingImageUrl: (u: string) => u.startsWith(OURS('')), isListingVideoUrl: () => false }))
 vi.mock('@/lib/ssrf', () => ({ safeFetch: async (u: string) => { h.fetched.push(u); return new Response(new Uint8Array([1, 2, 3])) } }))
-vi.mock('@/lib/core/media', () => ({ storeListingImage: async () => OURS(`bulk/${++h.stored}.webp`), IMG_MAX_BYTES: 1_000_000 }))
+// The real storeListingImage's contract: beforeUpload(path) runs before a byte is stored, and its throw means no upload.
+vi.mock('@/lib/core/media', () => ({
+  storeListingImage: async (_buf: unknown, opts: { beforeUpload?: (path: string) => Promise<void> } = {}) => {
+    const path = `bulk/${++h.stored}.webp`
+    try { await opts.beforeUpload?.(path) } catch { return null }
+    if (h.uploadFails) return null
+    h.events.push(`upload ${path}`)
+    return OURS(path)
+  },
+  IMG_MAX_BYTES: 1_000_000,
+}))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true }) }))
 vi.mock('@/lib/enforcement', () => ({ bulkPostingBudget: async () => ({ blocked: null, maxNewActive: h.maxNewActive }) }))
 vi.mock('@/lib/compliance/seller-publish-gate', () => ({ sellerPublishDecision: async () => ({ ok: true }) }))
@@ -62,7 +86,10 @@ const phone = (images: string[]) => ({ category_slug: 'electronics', title: 'iPh
 const remote = (n: number) => Array.from({ length: n }, (_, i) => `https://shop.example/p${i}.jpg`)
 
 beforeEach(() => {
-  Object.assign(h, { creates: [], fetched: [], written: [], cleared: [], removed: [], stored: 0, maxNewActive: null })
+  Object.assign(h, {
+    creates: [], fetched: [], written: [], cleared: [], removed: [], stored: 0, maxNewActive: null,
+    events: [], tombstoneFails: false, uploadFails: false, createError: null, takenExternalIds: new Set<string>(),
+  })
 })
 
 describe('bulkImportCore — re-hosted images are settled', () => {
@@ -98,5 +125,60 @@ describe('bulkImportCore — re-hosted images are settled', () => {
     expect(r.results).toEqual([{ row: 1, error: 'probation_listing_cap' }])
     expect(h.fetched).toEqual([])
     expect(h.written).toEqual([])
+  })
+})
+
+// Refute review 2026-10-23: the tombstone must exist BEFORE the object, and a row the database refuses must not leave
+// its photos to the sweep's ~1000-a-day queue.
+describe('bulkImportCore — ordering and refused inserts', () => {
+  it('⛔ each tombstone is written BEFORE its upload — a process killed in between leaves nothing untracked', async () => {
+    await bulkImportCore(SELLER, [phone(remote(3))])
+    expect(h.events).toEqual([1, 2, 3].flatMap((n) => [`tombstone bulk/${n}.webp`, `upload bulk/${n}.webp`]))
+  })
+
+  it('⛔ no tombstone, no upload: a failed tombstone write skips the image (fail closed)', async () => {
+    h.tombstoneFails = true
+    const r = await bulkImportCore(SELLER, [phone(remote(3))])
+    expect(r.results[0].error).toMatch(/Needs at least 3 photos/)
+    expect(h.events.filter((e) => e.startsWith('upload'))).toEqual([])
+    expect(h.creates).toEqual([])
+  })
+
+  it('an upload that fails after its tombstone clears that tombstone', async () => {
+    h.uploadFails = true
+    await bulkImportCore(SELLER, [phone(remote(1))])
+    expect(h.cleared).toEqual([[{ bucket: 'listings', path: 'bulk/1.webp' }]])
+    expect(h.removed).toEqual([])
+  })
+
+  it('⛔ an external_id repeated in the file is refused BEFORE its images are fetched', async () => {
+    const row = { ...phone(remote(3)), external_id: 'sku-1' }
+    const r = await bulkImportCore(SELLER, [row, row])
+    expect(r.results[1]).toEqual({ row: 2, external_id: 'sku-1', error: 'Duplicate external_id of row 1 in this file' })
+    expect(h.fetched).toHaveLength(3) // row 1's three, none for row 2
+  })
+
+  it('⛔ an external_id one of the seller\'s listings already holds is refused BEFORE any fetch', async () => {
+    h.takenExternalIds.add('sku-9')
+    const r = await bulkImportCore(SELLER, [{ ...phone(remote(3)), external_id: 'sku-9' }])
+    expect(r.results[0]).toMatchObject({ row: 1, external_id: 'sku-9' })
+    expect(r.results[0].error).toMatch(/already used/)
+    expect(h.fetched).toEqual([])
+    expect(h.written).toEqual([])
+  })
+
+  it('⛔ an insert the database REFUSED (P2002) deletes the row\'s fresh images at once', async () => {
+    h.createError = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' })
+    const r = await bulkImportCore(SELLER, [phone(remote(3))])
+    expect(r.results[0].error).toBe('Failed to create')
+    expect(h.removed).toEqual([['bulk/1.webp', 'bulk/2.webp', 'bulk/3.webp']])
+  })
+
+  it('an ambiguous failure (it may have committed) deletes nothing — the sweep re-checks references first', async () => {
+    h.createError = Object.assign(new Error('Server has closed the connection'), { code: 'P1017' })
+    const r = await bulkImportCore(SELLER, [phone(remote(3))])
+    expect(r.results[0].error).toBe('Failed to create')
+    expect(h.removed).toEqual([])
+    expect(h.written.flatMap((w) => w.refs)).toHaveLength(3) // still tombstoned
   })
 })

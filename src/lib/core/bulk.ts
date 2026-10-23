@@ -89,8 +89,18 @@ async function rehost(url: string, sellerId?: string): Promise<string | null> {
     if (!res.ok) return null
     const buf = await readCapped(res, IMG_MAX_BYTES)
     if (!buf || buf.byteLength === 0) return null
-    const hosted = await storeListingImage(buf, { pathPrefix: 'bulk/' })
-    if (hosted) await markRehostPending(hosted)
+    let pending = null as TombstoneRef | null // `as`: set inside the callback, which narrowing cannot see
+    const hosted = await storeListingImage(buf, {
+      pathPrefix: 'bulk/',
+      beforeUpload: async (path) => {
+        const ref = { bucket: LISTINGS_BUCKET, path }
+        await writeTombstones(db, [ref], 'listing_image_rehost_pending')
+        pending = ref
+      },
+    })
+    // Tombstoned but never stored (the upload failed): the tombstone has nothing to guard. Best-effort — the sweep
+    // clears a tombstone whose object is already gone.
+    if (!hosted && pending) await clearTombstones([pending]).catch((e) => logError(e, { op: 'bulk.rehost.untombstone' }))
     return hosted
   } catch {
     return null
@@ -98,21 +108,16 @@ async function rehost(url: string, sellerId?: string): Promise<string | null> {
 }
 
 /**
- * ⛔ A RE-HOSTED IMAGE IS TOMBSTONED THE MOMENT IT EXISTS (security review 2026-10-22, item 13) — the visa upload's
- * pattern (storage-tombstones.ts). It is stored BEFORE the row that will use it, and a row refused after its photos
- * (too few survived), an MCP create the publish gate refused, or a sync edit that errored used to leave its photos in
- * the public bucket for good. Each caller now settles what it re-hosted: CLAIM once a listing holds the images (the
- * tombstone goes), DISCARD on a refusal that wrote nothing (the objects go at once). Whatever neither reaches — a crash,
- * an unexpected throw — the tombstone sweep deletes after its grace hour, re-checking references first (a listing that
- * does hold the image keeps it). A failed tombstone write is logged and the image stays usable: never swept, which is
- * where every re-hosted image was before.
+ * ⛔ A RE-HOSTED IMAGE IS TOMBSTONED BEFORE IT EXISTS (security review 2026-10-22, item 13; ordering per the refute review
+ * of 2026-10-23) — the visa upload's pattern (storage-tombstones.ts). It is stored BEFORE the row that will use it, and
+ * a row refused after its photos (too few survived), an MCP create the publish gate refused, or a sync edit that
+ * errored used to leave its photos in the public bucket for good. The tombstone is written in storeListingImage's
+ * `beforeUpload`, so even a process killed between the two steps (a deploy swap mid-import) leaves nothing untracked;
+ * if the tombstone cannot be written the image is not stored at all (fail closed — the row then counts it as missing).
+ * Each caller settles what it re-hosted: CLAIM once a listing holds the images (the tombstone goes), DISCARD on a
+ * refusal that wrote nothing (the objects go at once). Whatever neither reaches — a crash, an unexpected throw — the
+ * tombstone sweep deletes after its grace hour, re-checking references first (a listing that does hold the image keeps it).
  */
-async function markRehostPending(url: string): Promise<void> {
-  const refs = rehostedRefs([url])
-  if (!refs.length) return
-  try { await writeTombstones(db, refs, 'listing_image_rehost_pending') }
-  catch (e) { logError(e, { op: 'bulk.rehost.tombstone' }) }
-}
 
 /** The bucket objects behind URLs this module re-hosted — only `bulk/` keys of the listings bucket, read from the public
  *  URL storeListingImage returned. A caller passes only the URLs it re-hosted in THIS call: a first-party URL passed
@@ -215,12 +220,16 @@ export async function bulkImportCore(
   // Within-file duplicate tracker: two rows with the same (folded title, category) in ONE
   // import are the CSV cousin of repost spam — reject the later row, naming the earlier one.
   const seenInBatch = new Map<string, number>() // "<categoryId>|<foldedTitle>" → row number
+  const seenExternalIds = new Map<string, number>() // external_id → row number
 
   // Process sequentially (image re-hosting is network-bound; pacing avoids a burst).
   // Each row is independent — one bad row never aborts the batch.
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i]
     const rowNo = i + 1
+    // `fresh` = the images THIS row stored (claimed or discarded below); a first-party URL passed through is never one.
+    const fresh: string[] = []
+    let created = false
     try {
       const categorySlug = String(r.category_slug || '').trim()
       const title = cutText(String(r.title || '').trim(), 140)
@@ -307,12 +316,26 @@ export async function bulkImportCore(
         results.push({ row: rowNo, error: 'released_charge_listing_cap' }); continue
       }
 
+      // ⛔ external_id IS UNIQUE PER STOREFRONT (@@unique([sellerId, externalId])) — checked BEFORE any image work (refute
+      // review, 2026-10-23). Found only by the insert, a repeated id cost a full re-host for a row the database then
+      // refused: up to 120 images a call, all left for the tombstone sweep's ~1000-a-day queue. The catch below still
+      // discards on a refused insert (two imports racing for one id).
+      const externalId = r.external_id ? String(r.external_id).trim().slice(0, 128) : ''
+      if (externalId) {
+        const earlier = seenExternalIds.get(externalId)
+        if (earlier) { results.push({ row: rowNo, external_id: String(r.external_id).trim(), error: `Duplicate external_id of row ${earlier} in this file` }); continue }
+        seenExternalIds.set(externalId, rowNo)
+        // edition-lint-allow: a uniqueness probe on the IMPORTING seller's own rows (`sellerId: seller.id`, the storefront
+        // the caller was authorized for); a yes/no that never reaches a response. An edition scope would hide a desk or
+        // teacher row's id here and only move the refusal to the insert.
+        const taken = await db.listing.findFirst({ where: { sellerId: seller.id, externalId }, select: { id: true } })
+        if (taken) { results.push({ row: rowNo, external_id: String(r.external_id).trim(), error: 'external_id is already used by one of your listings — update it with sync instead' }); continue }
+      }
+
       // Re-host up to 8 images. First-party URLs pass through free; remote URLs each
-      // cost one unit of the per-import MAX_IMG_FETCHES budget. `fresh` = the ones THIS row stored (claimed or
-      // discarded below); a first-party URL passed through is never one of them.
+      // cost one unit of the per-import MAX_IMG_FETCHES budget.
       const rawUrls = String(r.image_urls || '').split(/[|,\n]/).map((u) => u.trim()).filter(Boolean).slice(0, 8)
       const hosted: string[] = []
-      const fresh: string[] = []
       for (const u of rawUrls) {
         if (isListingImageUrl(u)) { hosted.push(u); continue }
         if (imgFetched >= MAX_IMG_FETCHES) { imageBudgetReached = true; continue }
@@ -367,15 +390,21 @@ export async function bulkImportCore(
           searchText: buildSearchText([title, description, district, cat.name, cat.nameVi]),
           categoryId: cat.id, sellerId: seller.id, sellerTrustScore: seller.trustScore, verified: true,
           rankScore: browseRankScore({ sellerTrustScore: seller.trustScore, postedAt: new Date(), featured: false }),
-          ...(r.external_id ? { externalId: String(r.external_id).trim().slice(0, 128) } : {}),
+          ...(externalId ? { externalId } : {}),
         },
         select: { id: true },
       })
+      created = true
       await claimRehostedImages(fresh)
       results.push({ row: rowNo, id: listing.id, ...(r.external_id ? { external_id: String(r.external_id).trim() } : {}) })
       createdCount++
       warm.push(title, description)
-    } catch {
+    } catch (e) {
+      // ⛔ DISCARD ONLY WHAT THE DATABASE REFUSED (refute review, 2026-10-23). A Prisma P2xxx is the database answering
+      // "no" to the insert — the external_id race, a constraint — so no listing holds this row's images and they go now.
+      // Anything else (a dropped connection may have committed the row) leaves them tombstoned: the sweep re-checks
+      // references before it deletes.
+      if (!created && /^P2\d{3}$/.test((e as { code?: string })?.code ?? '')) await discardRehostedImages(fresh)
       results.push({ row: rowNo, error: 'Failed to create' })
     }
   }
