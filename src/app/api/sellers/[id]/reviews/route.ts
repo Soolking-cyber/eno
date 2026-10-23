@@ -90,11 +90,17 @@ export const POST = route({ auth: 'profile', rateLimit: { bucket: 'review-create
   // later sold to SOMEONE ELSE could post a "Verified buyer" review, which also feeds distinctBuyerReviews and the
   // trust tier. The sale must name this caller as its eno buyer, read through saleState (the trade loop's one reading
   // of the sale columns): awaiting their answer or confirmed by them — never one they declined.
+  // ⛔ An offer accepted in this thread stands in for the sale ONLY while the sale record does not contradict it (refute
+  // review, 2026-10-23): unsold (a deal done in person and never marked) or sold with nobody named. An accepted offer is
+  // never revoked (offers.ts: no expiry, no sweeper), so without this the buyer whose offer was accepted could still
+  // post "Verified buyer" after the item sold to SOMEONE ELSE, after the seller marked it sold to "someone not on eno",
+  // or after they themselves answered "No, I didn't buy it".
   const sale = saleState(convo.listing)
   const soldToMe = convo.listing.soldToProfileId === me.id && (sale === 'awaiting_buyer' || sale === 'confirmed')
+  const offerCanStandIn = sale === 'unsold' || sale === 'unattributed'
   const transacted =
     soldToMe ||
-    (await db.message.count({ where: { conversationId, kind: 'offer', offerStatus: 'accepted' } })) > 0
+    (offerCanStandIn && (await db.message.count({ where: { conversationId, kind: 'offer', offerStatus: 'accepted' } })) > 0)
   if (!transacted) throw new ApiError('not_transacted', 403)
   // A review a moderator REMOVED (App Store gate `ugc-safety`, plan R5) does not come straight back. The
   // removal deleted the row (Review has no status column), which freed this conversation's one-review slot;

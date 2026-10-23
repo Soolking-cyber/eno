@@ -1974,6 +1974,7 @@ export const UI_STRINGS: string[] = [
   "Only reports confirmed by our moderators count, weighted by severity and by the reporter's credibility. Minor issues fade in about 3 months of clean trading; misrepresentation takes about a year.",
   "Only sellers with a measured reply time can appear here. New sellers are not slow, just unmeasured.",
   "Only some districts",
+  "Only the buyer of this item can review the seller.",
   "Only the eno team sees your contact.",
   "Only this account sees them, and you can stop any time.",
   "Only valid rows are imported. Images are fetched and re-hosted on import; listings with no usable image are held for review.",

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * "The listing is sold" used to be enough, so anyone who had messaged about an item that sold to SOMEONE ELSE could
  * post a "Verified buyer" review — which also counts toward distinctBuyerReviews and the trust tier. The sale must
  * name THIS caller as its eno buyer (awaiting their answer, or confirmed by them), or an offer in this thread must
- * have been accepted.
+ * have been accepted AND the sale record must not say otherwise (unsold, or sold with nobody named).
  */
 
 type Row = Record<string, any>
@@ -81,11 +81,24 @@ describe('a "Verified buyer" review needs a sale to THIS caller', () => {
     expect((await review()).status).toBe(403)
   })
 
-  it('an offer accepted in THIS thread is its own proof, sold or not', async () => {
+  it('an offer accepted in THIS thread stands in for an unmarked sale, or one with nobody named', async () => {
     h.acceptedOffers = 1
     h.listing = { status: 'active' }
     expect((await review()).status).toBe(201)
-    h.listing = sold({ soldToProfileId: 'buyer-2' })
+    h.listing = sold({ soldChannel: null, soldToProfileId: null })
     expect((await review()).status).toBe(201)
+  })
+
+  // Refute review 2026-10-23: an accepted offer is never revoked, so it must not outvote a sale record that says otherwise.
+  it.each([
+    ['sold to someone else (awaiting their answer)', { soldToProfileId: 'buyer-2' }],
+    ['sold to someone else, who confirmed', { soldToProfileId: 'buyer-2', saleConfirmedAt: new Date() }],
+    ['sold to this caller, who answered "No, I didn\'t buy it"', { saleDeclinedAt: new Date() }],
+    ['sold to "someone not on eno"', { soldChannel: 'external', soldToProfileId: null }],
+  ])('⛔ an accepted offer does not count once the item is %s', async (_what, over) => {
+    h.acceptedOffers = 1
+    h.listing = sold(over)
+    expect(await review()).toEqual({ status: 403, body: { error: 'not_transacted' } })
+    expect(h.created).toEqual([])
   })
 })

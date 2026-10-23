@@ -63,6 +63,13 @@ export function ReviewPrompt({
       if (res.ok) { setState('done'); return }
       const err = (await res.json().catch(() => null))?.error
       if (err === 'already_reviewed') { setState('done'); return } // someone double-tapped — it's in
+      // The server's sale record says this caller is not the buyer (sold to someone else, "No, I didn't buy it", or
+      // "someone not on eno"). Retrying cannot help, so say why and put the card away rather than "try again".
+      if (err === 'not_transacted') {
+        setState('dismissed')
+        toast.error(tr('Only the buyer of this item can review the seller.', 'Chỉ người mua món hàng này mới có thể đánh giá người bán.'))
+        return
+      }
       setState('ask')
       toast.error(
         // App Store gate `ugc-safety` (R5): the word filter refused it; the text stays in the field to edit.
