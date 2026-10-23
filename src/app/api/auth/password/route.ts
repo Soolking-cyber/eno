@@ -309,7 +309,7 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
   // ⚠️ OUR OWN SECRET, AND IT CONSUMES THE TOKEN — which is correct now rather than a problem,
   // because the token is no longer forwarded anywhere. A missing token and an invalid one get
   // the same 403: both mean "the check did not pass", and neither says anything about an account.
-  if (!(await verifyTurnstile(body.captchaToken, ip))) {
+  if (!(await verifyTurnstile(body.captchaToken, ip, req.headers.get('host')))) {
     console.warn('[auth/password] captcha rejected —', body.captchaToken ? 'token present but INVALID (secret/sitekey mismatch?)' : 'NO token from the widget')
     return NextResponse.json({ error: 'captcha_failed' }, { status: 403 })
   }

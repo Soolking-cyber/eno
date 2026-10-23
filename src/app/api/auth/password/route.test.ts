@@ -373,7 +373,8 @@ describe('POST /api/auth/password — keys and inputs', () => {
     // reintroduce the failure the moment anyone stopped using service-role auth.
     signInWithPassword.mockResolvedValue({ data: {}, error: { code: 'x', message: 'x' } })
     await post({ identifier: 'a@b.com', password: 'x', captchaToken: 'tok_abc' })
-    expect(verifyTurnstile).toHaveBeenCalledWith('tok_abc', expect.anything())
+    // …and with the request's Host, so a token minted off-site is refused on a live one (this Request carries none).
+    expect(verifyTurnstile).toHaveBeenCalledWith('tok_abc', expect.anything(), null)
     const sent = JSON.parse((globalThis.fetch as unknown as { mock: { calls: [string, { body: string }][] } }).mock.calls[0][1].body)
     expect(sent).not.toHaveProperty('captchaToken')
     expect(sent).not.toHaveProperty('gotrue_meta_security')

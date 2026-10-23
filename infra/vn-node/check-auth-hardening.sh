@@ -27,7 +27,12 @@
 # it ON ITS OWN; on an older app release it must still move with EMAIL_OTP_LEN or sign-in breaks) and
 # GOTRUE_DISABLE_SIGNUP (do NOT set true: it would block new OAuth and magic-link accounts too; the nginx
 # `^/+auth/+v1/+signup` 404 is the narrow fix). GOTRUE_MAILER_OTP_EXP stays 3600 — the owner's 2026-10-05 decision,
-# which apply-apple-signin.sh enforces; the per-IP limit above is what makes a live code unguessable.
+# which apply-apple-signin.sh enforces. ⚠️ The per-IP limit above bounds ONE address, not the account: GoTrue's verify
+# limiter is GOTRUE_RATE_LIMIT_VERIFY (default 30) per 5 minutes per IP, i.e. 360 guesses per IP over a 60-minute code
+# — 0.036% against 6 digits, but ~36% for an attacker rotating 1,000 IPs (0.36% at 8 digits). GoTrue keeps no
+# per-account failure count. NIST SP 800-63B-4 §3.2.2 requires one (≤100 consecutive failures per account), §4.2.1.2
+# applies it to codes sent to an email address, and §3.1.3.2 adds that a new code must not reset it. Closing that needs
+# app-side verification (owner runbook, "per-account code throttle").
 set -euo pipefail
 KEY="${ENO_SSH_KEY:-$HOME/.ssh/CS-Linux-20260920135129228.pem}"
 HOST="${ENO_HOST:-root@162.4.176.233}"
@@ -71,7 +76,7 @@ esac
 
 v=$(val GOTRUE_SECURITY_CAPTCHA_ENABLED)
 if [ "$v" = "true" ]; then ok "GOTRUE_SECURITY_CAPTCHA_ENABLED=true (provider: $(val GOTRUE_SECURITY_CAPTCHA_PROVIDER))"
-else note "GOTRUE_SECURITY_CAPTCHA_ENABLED='${v:-<unset>}' — eno enforces Turnstile in front of its own send routes, but GoTrue's /signup and /verify are stronger with GoTrue's own captcha on too (item 5)."; fi
+else note "GOTRUE_SECURITY_CAPTCHA_ENABLED='${v:-<unset>}' — eno enforces Turnstile in front of its own send routes, but GoTrue's /signup, /otp, /magiclink, /recover, /resend and /token are stronger with GoTrue's own captcha on too (item 5). It never covers /verify: GoTrue mounts that route with the rate limiter only."; fi
 
 # Awareness only — do not fail on these.
 note "GOTRUE_MAILER_OTP_LENGTH=$(val GOTRUE_MAILER_OTP_LENGTH || true) (8 recommended. Safe to set alone once the app release whose sign-in form reads email-link's codeLength is live; on an older release it must move with EMAIL_OTP_LEN — see the header)."

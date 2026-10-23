@@ -115,3 +115,49 @@ describe('the two pre-existing fail-open paths are unchanged', () => {
     await expect(verifyTurnstile('tok')).resolves.toBe(true)
   })
 })
+
+/**
+ * WHERE THE TOKEN WAS MINTED (Cloudflare: "Validate the action and hostname"). Both editions share one site key whose
+ * hostname allow-list also holds `localhost`, so anyone can render the widget on their own machine and farm tokens
+ * siteverify calls valid. A request that reached a live eno site now needs a token minted on one.
+ */
+describe('a token spent on a live site was minted on a live site', () => {
+  const minted = (hostname?: string) => async () => ({ ok: true, json: async () => ({ success: true, ...(hostname ? { hostname } : {}) }) })
+
+  it.each([
+    ['eno.vn', 'eno.vn'],
+    ['www.eno.forum', 'www.eno.forum'],
+    ['eno.vn', 'eno.forum'], // one company, one site key: either edition's token is ours
+    ['apple.eno.vn', 'apple.eno.vn'], // a storefront subdomain
+    ['eno.vn:443', 'eno.vn'], // a Host header may carry its port
+  ])('request on %s, token from %s → accepted', async (host, hostname) => {
+    vi.stubGlobal('fetch', minted(hostname))
+    await expect(verifyTurnstile('tok', '1.2.3.4', host)).resolves.toBe(true)
+  })
+
+  it.each([
+    ['localhost', 'the site key also allows localhost — the farming vector this closes'],
+    ['evil.example', 'any other site'],
+    ['eno.vn.evil.example', 'a suffix trick'],
+  ])('⛔ request on eno.vn, token minted on %s → refused (%s)', async (hostname) => {
+    vi.stubGlobal('fetch', minted(hostname))
+    await expect(verifyTurnstile('tok', '1.2.3.4', 'eno.vn')).resolves.toBe(false)
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('another site'), hostname)
+  })
+
+  it('a local run keeps accepting its own localhost tokens', async () => {
+    vi.stubGlobal('fetch', minted('localhost'))
+    await expect(verifyTurnstile('tok', '127.0.0.1', 'localhost:3000')).resolves.toBe(true)
+  })
+
+  it('a success with no hostname is Cloudflare\'s side, not the visitor\'s: allowed, at ERROR level', async () => {
+    vi.stubGlobal('fetch', minted())
+    await expect(verifyTurnstile('tok', '1.2.3.4', 'eno.vn')).resolves.toBe(true)
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('without a hostname'))
+  })
+
+  it('a caller that passes no Host is unchanged (no check)', async () => {
+    vi.stubGlobal('fetch', minted('localhost'))
+    await expect(verifyTurnstile('tok', '1.2.3.4')).resolves.toBe(true)
+  })
+})

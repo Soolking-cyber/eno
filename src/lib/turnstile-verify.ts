@@ -1,4 +1,5 @@
 import 'server-only'
+import { isProductionEnoHost } from '@/lib/consent-value'
 
 // Server-side Cloudflare Turnstile verification.
 //
@@ -29,8 +30,11 @@ export function turnstileConfigured(): boolean {
  * exception is a failure that describes our own request rather than the visitor's answer (a wrong
  * or missing SECRET, a malformed request, a Cloudflare internal error): those allow, loudly, for
  * the reason spelled out at that branch.
+ *
+ * Pass `requestHost` (the request's Host header): a request that reached a live eno site is accepted only with a token
+ * minted on a live eno site — see the check after `success`.
  */
-export async function verifyTurnstile(token: string | undefined, ip?: string): Promise<boolean> {
+export async function verifyTurnstile(token: string | undefined, ip?: string, requestHost?: string | null): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY?.trim()
   if (!secret) return true // unconfigured — see above
   if (!token) return false
@@ -60,7 +64,7 @@ export async function verifyTurnstile(token: string | undefined, ip?: string): P
       signal: AbortSignal.timeout(5000),
       cache: 'no-store',
     })
-    const data = (await res.json()) as { success?: boolean; 'error-codes'?: string[] }
+    const data = (await res.json()) as { success?: boolean; 'error-codes'?: string[]; hostname?: string }
     if (!data.success) {
       const codes = data['error-codes'] ?? []
       // ⚠️ A BROKEN SECRET IS OUR FAULT, NOT THE VISITOR'S — AND IT MUST NOT LOCK THEM OUT.
@@ -93,6 +97,20 @@ export async function verifyTurnstile(token: string | undefined, ip?: string): P
       // Never log the token itself — it is a single-use credential.
       console.warn('[turnstile] rejected', codes)
       return false
+    }
+    // ⛔ A TOKEN SPENT ON A LIVE SITE WAS MINTED ON A LIVE SITE (Cloudflare's server-side validation guide: "Validate the
+    // action and hostname"). Both editions share one site key, and its hostname allow-list also holds `localhost` for
+    // local runs (CLAUDE.md, 2026-08-02) — so anyone can render our widget on their own machine and farm tokens there,
+    // and siteverify alone calls them valid. So a request that reached eno.vn, eno.forum or one of their subdomains
+    // needs `hostname` to be one of those too (either edition: they are one company). A local run keeps accepting its
+    // own localhost tokens. No `hostname` in a success answer is Cloudflare's side, not the visitor's — allowed, loudly,
+    // for the outage reasoning above.
+    if (isProductionEnoHost(requestHost)) {
+      if (!data.hostname) console.error('[turnstile] success without a hostname — not checked')
+      else if (!isProductionEnoHost(data.hostname)) {
+        console.warn('[turnstile] rejected — token minted on another site', data.hostname)
+        return false
+      }
     }
     return true
   } catch (e) {

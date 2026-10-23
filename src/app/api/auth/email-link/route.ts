@@ -102,7 +102,7 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
 
   // 1) Captcha. Fails CLOSED once configured (see turnstile-verify for why an
   //    unconfigured secret deliberately allows).
-  if (!(await verifyTurnstile(body.captchaToken, ip))) {
+  if (!(await verifyTurnstile(body.captchaToken, ip, req.headers.get('host')))) {
     // ⚠️ SAY WHETHER A TOKEN EVEN ARRIVED. The two causes look identical from the outside and need
     // opposite fixes: NO token means the WIDGET failed (its own error code is logged client-side —
     // 110200 = hostname not on the widget's Cloudflare allow-list, which is a dashboard fix, not a
