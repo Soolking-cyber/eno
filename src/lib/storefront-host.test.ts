@@ -254,3 +254,14 @@ describe('underscoreHost', () => {
     expect(underscoreHost('sdc_store.eno.vn', '')).toEqual({ label: null }) // unconfigured build
   })
 })
+
+describe('apexSignInUrlFor — a sign-in on a shop host happens on the apex (sweep, 2026-10-22)', () => {
+  it('a shop host → the apex /signin; the apex, www, teacher host and junk → null', async () => {
+    const { apexSignInUrlFor } = await import('./storefront-host')
+    expect(apexSignInUrlFor('sdcstore.eno.vn', 'https://eno.vn')).toBe('https://eno.vn/signin')
+    expect(apexSignInUrlFor('luathoangphi.eno.vn:443', 'https://eno.vn')).toBe('https://eno.vn/signin')
+    for (const host of ['eno.vn', 'www.eno.vn', 'teacher.eno.vn', 'localhost:3000', null]) expect(apexSignInUrlFor(host, 'https://eno.vn'), String(host)).toBeNull()
+    expect(apexSignInUrlFor('sdcstore.eno.vn', undefined)).toBeNull()
+    expect(apexSignInUrlFor('sdcstore.eno.vn', 'not a url')).toBeNull()
+  })
+})

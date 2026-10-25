@@ -274,3 +274,15 @@ export function storefrontLabelUrl(label: string, appOrigin: string): string {
   // published `shop.www.eno.forum` as a shop's own address, which no certificate covers.
   return `${new URL(appOrigin).protocol}//${label}.${storefrontBaseHost(appOrigin)}`
 }
+
+/**
+ * Where a sign-in asked for on THIS host must happen instead of in place: the apex's /signin when the host is a shop's
+ * own (`<label>.<apex>`), else null (sign in where you are). A shop's host carries no session — the cookie is host-only
+ * and the proxy refuses its writes — so the in-place popup's methods could not finish there (sweep, 2026-10-22).
+ */
+export function apexSignInUrlFor(host: string | null | undefined, appUrl: string | null | undefined): string | null {
+  if (!appUrl) return null
+  let app: URL
+  try { app = new URL(appUrl) } catch { return null }
+  return storefrontHandleFromHost(host, app.host) ? `${app.origin}/signin` : null
+}

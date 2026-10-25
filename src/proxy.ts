@@ -72,6 +72,9 @@ function withCors(res: NextResponse, origin: string | null): NextResponse {
  * ⚠️ STALE SINCE (AT LATEST) 2026-10-15: storefronts ARE reachable — `luathoangphi.eno.vn` and others serve
  * real visitors. The cookie is still host-scoped, so a shop page carries no session and its save/chat/
  * sign-in calls 403 here as described; the cookie-widening rule above is unchanged.
+ * ✅ THE NAVIGATION IS BUILT (sweep, 2026-10-22): on a shop's host every page path but `/` 302s to the same path on the
+ * apex (in proxy() below), and a sign-in asked for on a shop's host navigates to the apex's /signin (auth-context
+ * openSignIn). The shop's own `/` still renders on its host, signed out; every action from it lands on the apex.
  *
  * ⚠️ ABSENT `Origin` IS ALLOWED, DELIBERATELY. Browsers send it on every mutating fetch, so its
  * absence means a non-browser caller — a cron, a shop's backend on `/api/v1`, Stripe, the Supabase
@@ -517,6 +520,23 @@ export function proxy(req: NextRequest) {
       if (twin && apex) {
         const res = NextResponse.redirect(`${apex}${req.nextUrl.pathname}${req.nextUrl.search}`, 308)
         res.headers.set('Cache-Control', 'public, max-age=86400')
+        return withCors(res, origin)
+      }
+    }
+    /**
+     * ⛔ ON A SHOP'S HOST, ONLY `/` IS THE SHOP — every other page path goes to the apex (sweep, 2026-10-22). The ordinary
+     * app used to answer here too, always signed out (the session cookie is host-only), so a visitor who tapped a product
+     * on <shop>.eno.vn — the URL Share hands out — landed on <shop>.eno.vn/listings/<id>, where Chat, Save and sign-in
+     * cannot work (the write guard above refuses them cross-origin). This is the move the top-of-file note promised and
+     * the teacher host already makes: the same path and query on the canonical apex, where the session lives.
+     * 302, not 301 — reversible; `private` — never stored by the edge. GET/HEAD only (a Server Action posts to its own
+     * URL); `/api/*` never reaches this block; the live `/vi` twins above keep their bounded 308.
+     */
+    if (handle && (req.method === 'GET' || req.method === 'HEAD') && req.nextUrl.pathname !== '/') {
+      const apex = apexOrigin(process.env.NEXT_PUBLIC_APP_URL)
+      if (apex) {
+        const res = NextResponse.redirect(`${apex}${req.nextUrl.pathname}${req.nextUrl.search}`, 302)
+        res.headers.set('Cache-Control', 'private, no-store')
         return withCors(res, origin)
       }
     }

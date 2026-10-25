@@ -233,9 +233,29 @@ describe('fixed-language guides', () => {
     expect(new URL(res.headers.get('x-middleware-rewrite')!).pathname).toBe(`/vi${VI}`)
   })
 
-  it('storefront hosts are not pinned', async () => {
-    expect((await run(VI, { host: 'apple.eno.vn', headers: { 'accept-language': 'en-US' } })).rewrite).toBe(`/en${VI}`)
-    expect((await run(EN, { host: 'apple.eno.vn', headers: { cookie: 'lang=vi' } })).rewrite).toBe(`/vi${EN}`)
+  it('a storefront host pins nothing: a guide asked of it goes to the apex, where the guide is pinned', async () => {
+    // Since the sweep of 2026-10-22 every page path but `/` on a shop's host 302s to the apex (see below).
+    expect(await run(VI, { host: 'apple.eno.vn', headers: { 'accept-language': 'en-US' } })).toMatchObject({ status: 302, location: `https://eno.vn${VI}`, rewrite: null })
+    expect(await run(EN, { host: 'apple.eno.vn', headers: { cookie: 'lang=vi' } })).toMatchObject({ status: 302, location: `https://eno.vn${EN}`, rewrite: null })
+  })
+
+  /**
+   * ⛔ ON A SHOP'S HOST, ONLY `/` IS THE SHOP (sweep, 2026-10-22). The ordinary app answered every other path there, always
+   * signed out (host-only cookie), so a tap on a product kept the visitor where Chat, Save and sign-in cannot work.
+   */
+  it('⛔ a shop host sends every other GET/HEAD page path to the same path on the apex — 302, never stored', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    for (const [path, method] of [['/listings/abc?ref=share', 'GET'], ['/signin', 'GET'], ['/c/rentals', 'HEAD']] as const) {
+      const res = proxy(new NextRequest(`https://sdcstore.eno.vn${path}`, { method, headers: { host: 'sdcstore.eno.vn', cookie: 'lang=vi' } }))
+      expect(res.status, path).toBe(302)
+      expect(res.headers.get('location'), path).toBe(`https://eno.vn${path}`)
+      expect(res.headers.get('cache-control'), path).toBe('private, no-store')
+    }
+    // The shop itself still renders on its host, and a Server Action's POST keeps its route.
+    expect((await run('/', { host: 'sdcstore.eno.vn', headers: { cookie: 'lang=vi' } })).rewrite).toBe('/vi/s/sdcstore')
+    expect((await run('/', { host: 'sdcstore.eno.vn', method: 'POST', headers: { origin: 'https://sdcstore.eno.vn', cookie: 'lang=vi' } })).location).toBeNull()
   })
 
   it('every other page keeps negotiating, including a guide with no declared language', async () => {
@@ -464,7 +484,8 @@ describe('underscore hosts', () => {
     expect(await run('sdcstore.eno.vn')).toMatchObject({ location: null, rewrite: '/vi/s/sdcstore', robots: null })
     expect(await run('random-test-xyz.eno.vn')).toMatchObject({ location: null, rewrite: '/vi/s/random-test-xyz' })
     expect(await run('xn--bcher-kva.eno.vn')).toMatchObject({ location: null, rewrite: '/vi/s/xn--bcher-kva' })
-    expect(await run('sdcstore.eno.vn', '/c/rentals')).toMatchObject({ location: null, rewrite: '/vi/c/rentals' })
+    // Any page path but `/` on a shop host goes to the apex (sweep, 2026-10-22).
+    expect(await run('sdcstore.eno.vn', '/c/rentals')).toMatchObject({ status: 302, location: 'https://eno.vn/c/rentals', rewrite: null })
   })
 
   it('the matcher sends EVERY path of an underscore host here, dotted ones included', async () => {

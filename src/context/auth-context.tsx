@@ -20,6 +20,7 @@ import { announceSignedInAccount } from '@/lib/signed-in-account'
  * once, and testing them must not drag next/navigation and the Supabase browser client along).
  */
 import { acceptedIdentity, identityIsCurrent, ownAccountType, ownStorefrontId, stampAccountType, type FetchedIdentity, type MeResponse } from './auth-identity'
+import { apexSignInUrlFor } from '@/lib/storefront-host'
 
 // Fire the sign_up / CompleteRegistration conversion exactly once for a genuinely
 // NEW account. Supabase's auth events don't flag new-vs-returning, so we treat a
@@ -868,6 +869,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * an earlier gate's intent can never be finished by an unrelated sign-in.
    */
   const openSignIn = useCallback((ctx?: SignInContext | null) => {
+    /**
+     * ⛔ NOT ON A SHOP'S OWN HOST (sweep, 2026-10-22). The session cookie is host-only and the proxy refuses a shop host's
+     * writes, so the in-place popup offered methods that could not finish there: email and password answered "Something
+     * went wrong" / "Wrong email or password", Apple and Facebook lost their PKCE verifier, Google landed on eno.vn after
+     * a second trip. Sign-in happens on the apex instead — the move proxy.ts's storefront note promised. Every other page
+     * path on a shop host already 302s to the apex (proxy.ts), so this is the shop's own `/`.
+     */
+    const apexSignIn = typeof window === 'undefined' ? null : apexSignInUrlFor(window.location.host, process.env.NEXT_PUBLIC_APP_URL)
+    if (apexSignIn) {
+      window.location.assign(apexSignIn)
+      return
+    }
     bootAuth.current?.()
     const c = ctx ?? null
     const gate = classifyGate({
