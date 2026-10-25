@@ -77,6 +77,8 @@ describe('indexAndCheckProvenance — the hold', () => {
     await indexAndCheckProvenance('COPY')
     expect(h.row).toMatchObject({ status: 'hidden', verified: false, identityHold: false })
     expect(h.reports).toHaveLength(1)
+    // ⚠️ Filed against the seller, as /api/report files it — or confirming docked nobody (sweep, 2026-10-22).
+    expect(h.reports[0]).toMatchObject({ listingId: 'COPY', targetSellerId: 's2', reason: 'stolen_photos' })
     expect(h.notifications).toHaveLength(1)
     expect(h.refreshed).toEqual([['COPY']])
   })

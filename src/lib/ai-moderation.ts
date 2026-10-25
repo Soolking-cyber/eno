@@ -145,6 +145,7 @@ export async function moderateListingById(listingId: string): Promise<void> {
       select: {
         // `listingType`: a held teacher profile leaves /c/teachers too (refreshListingSurfaces' `teachers`, below).
         id: true, title: true, description: true, images: true, status: true, listingType: true,
+        sellerId: true,
         seller: { select: { trustTier: true, ownerId: true } },
       },
     })
@@ -174,6 +175,10 @@ export async function moderateListingById(listingId: string): Promise<void> {
       db.report.create({
         data: {
           listingId: l.id,
+          // ⚠️ THE SELLER IS THE TARGET, as /api/report files a listing report (sweep, 2026-10-22). With only listingId set,
+          // "Confirm & penalize" docked nobody: no trust event, no enforcement ladder, no "actioned + appeal" notice.
+          targetSellerId: l.sellerId,
+          targetProfileId: l.seller.ownerId ?? null,
           reason: 'prohibited',
           detail: `AI moderation: ${result.category || 'prohibited'} — ${result.reason}`,
           status: 'open',

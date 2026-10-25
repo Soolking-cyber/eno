@@ -84,7 +84,7 @@ vi.mock('@/lib/listing-surfaces', () => ({ refreshListingSurfaces: (ids: string[
 const { moderateListingById } = await import('./ai-moderation')
 
 beforeEach(() => {
-  h.row = { id: 'L1', title: 'Pistol', description: 'real one', images: '[]', status: 'active', verified: true, identityHold: false }
+  h.row = { id: 'L1', sellerId: 's1', title: 'Pistol', description: 'real one', images: '[]', status: 'active', verified: true, identityHold: false }
   h.duringClassify = null
   h.reports = []; h.notifications = []; h.updates = []; h.refreshed = []; h.refreshOpts = []; h.reads = []; h.reportFails = false
   vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -96,6 +96,8 @@ describe('moderateListingById — the hold', () => {
     await moderateListingById('L1')
     expect(h.row).toMatchObject({ status: 'hidden', verified: false, identityHold: false })
     expect(h.reports).toHaveLength(1)
+    // ⚠️ Filed AGAINST THE SELLER, as /api/report files a listing report — or "Confirm & penalize" docked nobody (sweep).
+    expect(h.reports[0]).toMatchObject({ listingId: 'L1', targetSellerId: 's1', targetProfileId: 'owner-1', reason: 'prohibited' })
     expect(h.notifications).toHaveLength(1)
     expect(h.refreshed).toEqual([['L1']])
   })
