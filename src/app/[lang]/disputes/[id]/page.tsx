@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { handleExternalClick } from '@/lib/native-browser'
 import { cn } from '@/lib/utils'
 import { scrollBehavior } from '@/lib/reduced-motion'
+import { SITE_NAME } from '@/lib/edition'
 
 // The dispute case room (Binance-P2P style): one shared timeline where the reporter,
 // the respondent and the eno.vn team exchange statements + evidence during the
@@ -295,7 +296,7 @@ export default function DisputeRoomPage() {
                 {/* §0b: the eno team reviewing IS first-party trust — the seal replaces
                     lucide Shield. Line variant: the warning ink already carries meaning. */}
                 <ShieldCheck className={ICON_SIZE.md} />
-                {t('Under review — the eno.vn team is deciding. Reviews typically finish within 48 hours.', 'Đang xem xét — đội ngũ eno.vn sẽ quyết định, thường trong vòng 48 giờ.')}
+                {t('Under review — the {site} team is deciding. Reviews typically finish within 48 hours.', 'Đang xem xét — đội ngũ {site} sẽ quyết định, thường trong vòng 48 giờ.').replace(/\{site\}/g, SITE_NAME)}
               </p>
             )}
             {data.stage === 'decided' && (() => {
@@ -447,8 +448,8 @@ export default function DisputeRoomPage() {
                 {error && <p role="alert" className="mt-2 text-xs font-semibold text-destructive">{error}</p>}
                 <p className="mt-3 text-xs leading-relaxed text-ink-4">
                   {data.contentCase
-                    ? t('Screenshots help most. Only the eno.vn team can see what you post. Photos are stored privately and only visible inside this case.', 'Ảnh chụp màn hình là hữu ích nhất. Chỉ đội ngũ eno.vn thấy nội dung bạn gửi. Ảnh được lưu riêng tư và chỉ hiển thị trong hồ sơ này.')
-                    : t('Screenshots of payments, chats or the item help most. The other party and the eno.vn team can see what you post. Photos are stored privately and only visible inside this case.', 'Ảnh chụp thanh toán, trò chuyện hoặc sản phẩm là hữu ích nhất. Bên còn lại và đội ngũ eno.vn sẽ thấy nội dung bạn gửi. Ảnh được lưu riêng tư và chỉ hiển thị trong hồ sơ này.')}
+                    ? t('Screenshots help most. Only the {site} team can see what you post. Photos are stored privately and only visible inside this case.', 'Ảnh chụp màn hình là hữu ích nhất. Chỉ đội ngũ {site} thấy nội dung bạn gửi. Ảnh được lưu riêng tư và chỉ hiển thị trong hồ sơ này.').replace(/\{site\}/g, SITE_NAME)
+                    : t('Screenshots of payments, chats or the item help most. The other party and the {site} team can see what you post. Photos are stored privately and only visible inside this case.', 'Ảnh chụp thanh toán, trò chuyện hoặc sản phẩm là hữu ích nhất. Bên còn lại và đội ngũ {site} sẽ thấy nội dung bạn gửi. Ảnh được lưu riêng tư và chỉ hiển thị trong hồ sơ này.').replace(/\{site\}/g, SITE_NAME)}
                 </p>
               </div>
             ) : data.submitted && data.status === 'open' ? (
@@ -458,8 +459,8 @@ export default function DisputeRoomPage() {
                 <p className="mt-1.5 text-sm font-semibold text-foreground">{t('Your statement is in', 'Đã nhận phần trình bày của bạn')}</p>
                 <p className="mt-0.5 text-xs text-ink-4">
                   {data.contentCase
-                    ? t('The eno.vn team reviews the report and decides.', 'Đội ngũ eno.vn sẽ xem xét báo cáo và quyết định.')
-                    : t('The other side has until the window closes to add theirs, then the eno.vn team reviews and decides. If they add nothing, your account stands.', 'Bên còn lại có thời gian đến khi hết hạn để bổ sung, sau đó đội ngũ eno.vn xem xét và quyết định. Nếu họ không bổ sung, phần trình bày của bạn được giữ nguyên.')}
+                    ? t('The {site} team reviews the report and decides.', 'Đội ngũ {site} sẽ xem xét báo cáo và quyết định.').replace(/\{site\}/g, SITE_NAME)
+                    : t('The other side has until the window closes to add theirs, then the {site} team reviews and decides. If they add nothing, your account stands.', 'Bên còn lại có thời gian đến khi hết hạn để bổ sung, sau đó đội ngũ {site} xem xét và quyết định. Nếu họ không bổ sung, phần trình bày của bạn được giữ nguyên.').replace(/\{site\}/g, SITE_NAME)}
                 </p>
               </div>
             ) : data.status === 'open' ? (
