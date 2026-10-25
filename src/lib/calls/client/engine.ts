@@ -1,4 +1,4 @@
-import { CALL_PROTOCOL_VERSION, type CallEndReason, type CallMedia, type CallRole, type CapabilityReport } from '../types'
+import { CALL_PROTOCOL_VERSION, RING_TIMEOUT_S, type CallEndReason, type CallMedia, type CallRole, type CapabilityReport } from '../types'
 import type { CallEvent, ClientEvent, ResyncSnapshot } from '../protocol'
 import { createNegotiation, step as negotiate, type NegotiationEffect, type NegotiationInput, type NegotiationState, type TimerName } from '../negotiation'
 import { buildPlan, directionsFor, parseCodecPlan, videoCodecPreferences, audioCodecPreferences, type CodecPlan, type DirectionPlan } from '../codec-plan'
@@ -47,6 +47,11 @@ export interface CallView {
   listing: CallDetails['listing'] | null
   muted: boolean
   cameraOn: boolean
+  /**
+   * An incoming ring's details are in — who is calling, about what. The ring shows the moment the event arrives; Answer
+   * waits for this (DESIGN §4: see who is calling before answering).
+   */
+  ringReady: boolean
   /** Incoming video stays blurred until the person taps it, and again after any gap in it (§4). */
   remoteVideoRevealed: boolean
   remoteVideoLive: boolean
@@ -72,7 +77,7 @@ export interface CallView {
 
 const IDLE: CallView = {
   phase: 'idle', callId: null, conversationId: null, role: null, media: 'audio', peer: null, listing: null,
-  muted: false, cameraOn: false, remoteVideoRevealed: false, remoteVideoLive: false, canSwitchCamera: false, facing: 'user', peerOnHold: false, encrypted: false,
+  muted: false, cameraOn: false, ringReady: false, remoteVideoRevealed: false, remoteVideoLive: false, canSwitchCamera: false, facing: 'user', peerOnHold: false, encrypted: false,
   connectedAt: null, capAt: null, endReason: null, error: null, quality: null,
   localStream: null, remoteStream: null, ringUntil: null,
 }
@@ -81,6 +86,10 @@ const STATS_EVERY_MS = 1_000
 const HEARTBEAT_EVERY_MS = 15_000
 const TELEMETRY_EVERY_MS = 30_000
 const HALF_TRICKLE_MS = 300
+/** How long a ring rings before its details (and the server's own remaining time) arrive — the box's ring timeout. */
+const PROVISIONAL_RING_MS = RING_TIMEOUT_S * 1000
+/** The details answers that mean this ring is not, or no longer, this person's to answer. */
+const DEFINITE_REFUSALS: ReadonlySet<number> = new Set([400, 403, 404, 409, 410, 422])
 /** Start refusals that may be about VIDEO alone (eligibility.ts): the one call button then places a voice call instead. */
 const VIDEO_ONLY_REFUSALS: ReadonlySet<string> = new Set(['calls_peer_not_verified', 'calls_unavailable'])
 const HALF_TRICKLE_MAX_MS = 1_500
@@ -141,7 +150,15 @@ class CallEngine {
   private view: CallView = IDLE
   private listeners = new Set<Listener>()
   private active: Active | null = null
-  private ringing: { details: CallDetails; until: number } | null = null
+  /**
+   * The ring on screen. `details` is null while they load — it still counts as busy, a cancel still clears it, an account
+   * change drops it; `ready` settles with the details (or null if the ring ended first), so accept() never fetches twice.
+   */
+  private ringing: {
+    callId: string; details: CallDetails | null; ready: Promise<CallDetails | null>; settle: (d: CallDetails | null) => void
+    /** A details request is out right now (not waiting out a retry pause). */
+    loading: boolean
+  } | null = null
   private ringTimer: ReturnType<typeof setTimeout> | null = null
   /**
    * Bumped by every start / answer, and by anything that abandons one in flight (End on "Starting…", a sign-out):
@@ -167,6 +184,12 @@ class CallEngine {
    * late details then drew a ring that was already over). Bounded; a ring id is never reused.
    */
   private endedRings = new Set<string>()
+  /**
+   * Rings that came while ANOTHER ring was on screen (busy), newest last — offered, newest first, the moment that one
+   * leaves without an end card (offerWaiting). Kept HERE, not asked of the box again: GET /api/calls/ringing answers one
+   * call, and that can be the ring just dismissed or still being declined (commit-gate review, opus).
+   */
+  private waitingRings: string[] = []
 
   // ── store ─────────────────────────────────────────────────────────────────────────────────────────────────────
   subscribe = (l: Listener): (() => void) => { this.listeners.add(l); return () => { this.listeners.delete(l) } }
@@ -183,7 +206,7 @@ class CallEngine {
     if (this.active || this.view.phase === 'incoming' || this.view.phase === 'preparing') return
     const wasEnded = this.view.phase === 'ended'
     this.set({ ...IDLE })
-    if (wasEnded) this.recheckRinging()
+    if (wasEnded) this.offerWaiting()
   }
 
   // ── outgoing (§3.2 steps 1–2) ──────────────────────────────────────────────────────────────────────────────────
@@ -257,26 +280,94 @@ class CallEngine {
   }
 
   // ── incoming (§3.2 steps 2–3) ──────────────────────────────────────────────────────────────────────────────────
-  /** A ring on ring:<me>. Shows the incoming screen unless this tab is already in a call. */
-  async onRing(callId: string): Promise<void> {
-    if (this.busy || this.ringing?.details.callId === callId || this.dismissed.has(callId) || this.endedRings.has(callId)) return
-    // Two loads of the same ring at once (the broadcast and a resubscribe) both draw the SAME ring — harmless, and never
-    // a ring lost because a first load failed (review).
+  /**
+   * A ring on ring:<me> (or found by asking the box). The incoming screen and the ringtone start AT ONCE (ring latency,
+   * 2026-10-25) — the name and listing follow from GET /api/calls/:id, retried for the whole ring, and Answer waits for
+   * them (ringReady). Names never ride the broadcast (realtime.messages keeps them for 3 days): the event carries only
+   * the call id and its media. Resolves after the first load attempt, so a caller can await the filled-in screen.
+   */
+  async onRing(callId: string, media?: CallMedia): Promise<void> {
+    if (this.ringing?.callId === callId || this.dismissed.has(callId) || this.endedRings.has(callId)) return
+    if (this.busy) {
+      if (this.ringing) this.waitingRings = [...this.waitingRings.filter((id) => id !== callId), callId].slice(-5)
+      return
+    }
     const epoch = this.epoch
+    let settle: (d: CallDetails | null) => void = () => {}
+    const ready = new Promise<CallDetails | null>((resolve) => { settle = resolve })
+    const ring = { callId, details: null as CallDetails | null, ready, settle, loading: false }
+    this.ringing = ring
+    this.set({ ...IDLE, phase: 'incoming', callId, role: 'callee', media: media ?? 'audio', ringUntil: Date.now() + PROVISIONAL_RING_MS })
+    if (this.ringTimer) clearTimeout(this.ringTimer)
+    // Replaced once the details land; firing means they never did — gone quietly, never "Missed call" from nobody
+    // (commit-gate review, opus). The chat's own missed-call card still tells the person.
+    this.ringTimer = setTimeout(() => this.dropRing(callId), PROVISIONAL_RING_MS)
+    await this.loadRingDetails(ring, epoch)
+  }
+
+  /**
+   * The ring's details, until they arrive or the ring is over: retried with a growing pause for the whole ring (one slow
+   * or refused GET must not leave Answer disabled to the end). Details that say this is not a ring for this person any
+   * more drop it QUIETLY — no "missed call" card for a ring that was never really this tab's.
+   */
+  private async loadRingDetails(ring: NonNullable<CallEngine['ringing']>, epoch: number, attempt = 0): Promise<void> {
+    const current = () => this.ringing === ring && this.epoch === epoch
     let details: CallDetails
-    try { details = await getCallDetails(callId) } catch { return }
-    if (epoch !== this.epoch) return
-    if (details.role !== 'callee' || details.state !== 'ringing') return
-    if (this.busy || this.endedRings.has(callId) || this.dismissed.has(callId)) return
+    ring.loading = true
+    try {
+      details = await getCallDetails(ring.callId)
+    } catch (e) {
+      ring.loading = false
+      // Not awaited: the first attempt's result is what onRing's caller waits for; the retries run on. A ring that is
+      // no longer on screen (answered meanwhile, over, another account) settles null: accept() then fetches for itself.
+      if (!current()) return ring.settle(null)
+      // A DEFINITE refusal from the box — not this person's call, or gone — ends it QUIETLY at once, never a 45 s ring for
+      // an event the box disowns (commit-gate review, opus). Anything else retries: an unknown outcome, a rate limit, a
+      // 401 while a woken tab refreshes its session. (The ring is broadcast in the call row's own transaction, so a 404
+      // can never mean "not committed yet".)
+      if (e instanceof CallApiError && DEFINITE_REFUSALS.has(e.status)) return this.dropRing(ring.callId)
+      setTimeout(() => { if (current()) void this.loadRingDetails(ring, epoch, attempt + 1); else ring.settle(null) }, Math.min(5_000, 500 * 2 ** attempt))
+      return
+    }
+    ring.loading = false
+    const valid = details.role === 'callee' && details.state === 'ringing'
+    // Settled FIRST, whatever happened to the ring meanwhile: an Answer tapped while this loaded is waiting on it.
+    ring.settle(valid ? details : null)
+    if (!current()) return
+    if (!valid) return this.dropRing(ring.callId)
     // The SERVER's remaining ring (its clock, not this phone's — client review: a phone running fast rang for 1 s).
     const ringFor = Math.max(1_000, Math.min(details.ringTimeoutSec * 1000, details.ringRemainingMs))
-    this.ringing = { details, until: Date.now() + ringFor }
+    ring.details = details
     this.set({
-      ...IDLE, phase: 'incoming', callId, conversationId: details.conversationId, role: 'callee', media: details.media,
-      peer: details.peer, listing: details.listing, ringUntil: Date.now() + ringFor,
+      conversationId: details.conversationId, media: details.media, peer: details.peer, listing: details.listing,
+      ringUntil: Date.now() + ringFor, ringReady: true,
     })
     if (this.ringTimer) clearTimeout(this.ringTimer)
-    this.ringTimer = setTimeout(() => this.stopRinging(callId, 'missed'), ringFor)
+    this.ringTimer = setTimeout(() => this.stopRinging(ring.callId, 'missed'), ringFor)
+  }
+
+  /** Every ring that stopped here, the newest 50 (a dropped one too — commit-gate review, opus: no unbounded set). */
+  private rememberEnded(callId: string) {
+    this.waitingRings = this.waitingRings.filter((id) => id !== callId)
+    this.endedRings.add(callId)
+    if (this.endedRings.size > 50) this.endedRings.delete(this.endedRings.values().next().value as string)
+  }
+
+  /**
+   * ⛔ A ring on screen shuts out every other ring as busy (onRing), so EVERY way a ring leaves without an end card —
+   * dropped, stopped, declined, dismissed — asks the box for one that came meanwhile (recheckRinging; commit-gate review,
+   * codex + opus); an end card asks when it closes (reset). The ring that just left is in endedRings or dismissed, so it
+   * never comes back this way, even while its decline is still on the wire.
+   * This one: a ring that turned out not to be this tab's to answer, gone without a trace (no end card).
+   */
+  private dropRing(callId: string) {
+    this.rememberEnded(callId)
+    if (this.ringing?.callId !== callId) return
+    this.ringing.settle(null)
+    this.ringing = null
+    if (this.ringTimer) { clearTimeout(this.ringTimer); this.ringTimer = null }
+    if (this.view.phase === 'incoming') this.set({ ...IDLE })
+    this.offerWaiting()
   }
 
   /**
@@ -285,12 +376,12 @@ class CallEngine {
    * stop one (commit-gate review, opus). By THIS call's id, so a ring that began meanwhile is never the one stopped.
    */
   async recheckIncoming(): Promise<void> {
-    const callId = this.ringing?.details.callId
+    const callId = this.ringing?.callId
     if (!callId) return
     let details: CallDetails
     try { details = await getCallDetails(callId) } catch { return }
     // accept() clears `ringing` before its first await (below), so an answer landing mid-accept stops nothing here.
-    if (this.ringing?.details.callId !== callId || details.state === 'ringing') return
+    if (this.ringing?.callId !== callId || details.state === 'ringing') return
     // What the box says happened, from this side (session.ts endReasonFor): taken or turned down on another of my
     // devices, the ring just goes; timed out there is missed; any other ending is the caller's (commit-gate review).
     const why = details.state !== 'ended' || details.endReason === 'declined' || details.endReason === 'hangup'
@@ -303,30 +394,37 @@ class CallEngine {
   stopRinging(callId: string, why: 'missed' | 'cancelled' | 'answered_elsewhere') {
     // EVERY ring that stopped here is remembered (client review): a local decline still retrying, or a local time-out
     // the box has not caught up with, must not come back from GET /api/calls/ringing on the next resubscribe.
-    this.endedRings.add(callId)
-    if (this.endedRings.size > 50) this.endedRings.delete(this.endedRings.values().next().value as string)
-    if (this.ringing?.details.callId !== callId) return
+    this.rememberEnded(callId)
+    if (this.ringing?.callId !== callId) return
+    const known = this.ringing.details !== null
+    this.ringing.settle(null)
     this.ringing = null
     if (this.ringTimer) { clearTimeout(this.ringTimer); this.ringTimer = null }
     // The end card keeps who rang and this side's role (client review): "Missed call" with their name and face — not the
-    // caller's "No answer" over a blank avatar.
+    // caller's "No answer" over a blank avatar. A ring that ended before its details came leaves no card at all (commit-
+    // gate review, opus: never "Cancelled" from nobody); the chat's own call card still records it.
     if (this.view.phase === 'incoming') {
-      this.set(why === 'answered_elsewhere' ? { ...IDLE } : {
+      this.set(why === 'answered_elsewhere' || !known ? { ...IDLE } : {
         ...IDLE, phase: 'ended', endReason: why, callId, role: 'callee', media: this.view.media, peer: this.view.peer, listing: this.view.listing,
       })
     }
+    if (this.view.phase !== 'ended') this.offerWaiting()
   }
 
   async decline(): Promise<void> {
     const r = this.ringing
     if (!r) return
-    this.stopRinging(r.details.callId, 'cancelled')
-    this.set({ ...IDLE })
+    this.stopRinging(r.callId, 'cancelled')
+    // Only this ring's own end card goes: a ring stopRinging already offered in its place stays (commit-gate review, opus).
+    if (this.view.phase === 'ended' && this.view.callId === r.callId) {
+      this.set({ ...IDLE })
+      this.offerWaiting()
+    }
     // RETRIED until the box answers (client review): one lost request left the caller ringing while this screen showed
     // the call gone. Any answer from the box — declined, already over — ends the retrying.
     for (let i = 0; i < 4; i++) {
       try {
-        await declineCallRequest(r.details.callId)
+        await declineCallRequest(r.callId)
         return
       } catch (e) {
         // A clear answer from the box (gone, not found …) ends the retrying; a rate limit or an unknown outcome does not.
@@ -344,10 +442,13 @@ class CallEngine {
   dismissRing() {
     const r = this.ringing
     if (!r) return
-    this.dismissed.add(r.details.callId)
+    this.dismissed.add(r.callId)
+    this.waitingRings = this.waitingRings.filter((id) => id !== r.callId)
+    r.settle(null)
     this.ringing = null
     if (this.ringTimer) { clearTimeout(this.ringTimer); this.ringTimer = null }
     this.set({ ...IDLE })
+    this.offerWaiting()
   }
 
   /**
@@ -364,22 +465,36 @@ class CallEngine {
       if (!a.ended) endBeacon(a.callId, a.role === 'caller' && !a.everConnected ? 'cancelled' : 'hangup')
       this.teardown(a, 'hangup', 'local')
     }
+    this.ringing?.settle(null)
     this.ringing = null
     if (this.ringTimer) { clearTimeout(this.ringTimer); this.ringTimer = null }
     this.dismissed.clear()
+    this.waitingRings = []
     this.set({ ...IDLE })
   }
 
   /** Answer: mic FIRST (a tab that cannot capture never takes the call from the person's other devices), then accept. */
   async accept(callId?: string): Promise<void> {
-    const id = callId ?? this.ringing?.details.callId
+    const id = callId ?? this.ringing?.callId
     if (!id || this.active) return
     const my = ++this.attempt
     const stale = () => my !== this.attempt
-    let details = this.ringing?.details.callId === id ? this.ringing.details : null
+    // The ring's own details — or the load still in flight for it (never a second fetch).
+    const pending = this.ringing?.callId === id ? this.ringing : null
+    // A lock-screen answer for ANOTHER call while one rings here: that one waits, never silently lost (commit-gate review,
+    // codex) — offered again when this call's screen closes, if it still rings.
+    if (this.ringing && !pending) {
+      this.ringing.settle(null)
+      this.waitingRings = [...this.waitingRings.filter((w) => w !== this.ringing?.callId), this.ringing.callId].slice(-5)
+    }
+    let details = pending?.details ?? null
     this.ringing = null
     if (this.ringTimer) { clearTimeout(this.ringTimer); this.ringTimer = null }
-    this.set({ phase: 'preparing', callId: id })
+    // An answer from the lock screen (?call=<id>) can come while the details still load: it waits for a request that is
+    // OUT (settled within one request timeout, api.ts REQUEST_TIMEOUT_MS), never for a retry pause — then fetches for
+    // itself if that settled empty (commit-gate review, opus: up to 5 s on "Answering…" otherwise).
+    // Answering ANOTHER call than the one on screen: never that one's name over this call's "Answering…".
+    this.set({ phase: 'preparing', callId: id, ringReady: false, ...(pending ? {} : { peer: null, listing: null, conversationId: null }) })
     let mic: MediaStreamTrack | null = null
     // Once the accept is in, the call is this page's on the box: every way out below must end it (abandon).
     let accepted = false
@@ -387,6 +502,7 @@ class CallEngine {
     // Ended on "Answering…" before the accept went in: that is a decline, for every device of this person.
     const gaveUp = () => { mic?.stop(); void declineCallRequest(id).catch((e) => logError(e, { op: 'calls.declineAbandoned' })) }
     try {
+      if (!details && pending?.loading) details = await pending.ready
       if (!details) details = await getCallDetails(id)
       if (stale()) return gaveUp()
       if (details.role !== 'callee') return this.fail('call_gone')
@@ -522,6 +638,17 @@ class CallEngine {
    * (onRing). Asked again at the one moment the tab is truly free: its end screen just closed (reset). Nothing on
    * screen is replaced, and a call whose answer failed may ring again for a second try. getRingingCall never throws.
    */
+  /** A ring that waited behind the one that just left (newest first), else whatever the box says rings for me. */
+  private offerWaiting() {
+    if (this.busy || this.view.phase !== 'idle') return
+    let next = this.waitingRings.pop()
+    // One this tab already knows is over is skipped (commit-gate review, codex + opus: it stalled the queue); one the
+    // box says is over drops itself (loadRingDetails → dropRing) and offers the next.
+    while (next && (this.endedRings.has(next) || this.dismissed.has(next))) next = this.waitingRings.pop()
+    if (next) void this.onRing(next)
+    else this.recheckRinging()
+  }
+
   private recheckRinging() {
     void getRingingCall().then((callId) => { if (callId && !this.busy && this.view.phase === 'idle') void this.onRing(callId) })
   }

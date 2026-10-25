@@ -52,7 +52,7 @@ export function CallRuntime({ userId }: { userId: string }) {
     }
     const join = (attempt: number) => void joinChannel(ringTopic(userId), {
       onEvent: (ev) => {
-        if (ev.kind === 'ring') void callEngine.onRing(ev.callId)
+        if (ev.kind === 'ring') void callEngine.onRing(ev.callId, ev.payload.media)
         else if (ev.kind === 'cancel') callEngine.stopRinging(ev.callId, 'cancelled')
         else if (ev.kind === 'answered_elsewhere') callEngine.stopRinging(ev.callId, 'answered_elsewhere')
       },

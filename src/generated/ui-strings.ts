@@ -1438,6 +1438,7 @@ export const UI_STRINGS: string[] = [
   "In warranty",
   "Include your country code, e.g. +44 for the UK or +84 for Vietnam.",
   "Incoming call",
+  "Incoming call — finding out who…",
   "Incoming call…",
   "Individual",
   "Individual account",

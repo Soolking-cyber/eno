@@ -17,6 +17,9 @@
  */
 export const CALL_PROTOCOL_VERSION = 2
 
+/** How long the box rings (session.ts): also how long a phone rings before the ring's details tell it the rest. */
+export const RING_TIMEOUT_S = 45
+
 export type CallMedia = 'audio' | 'video'
 export type CallRole = 'caller' | 'callee'
 

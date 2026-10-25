@@ -292,7 +292,7 @@ describe.skipIf(!live)('the call engine between two real browsers, through the r
 
   const view = (p: import('playwright').Page) => p.evaluate(() => {
     const v = (window as any).callEngine.getView()
-    return { phase: v.phase, endReason: v.endReason, error: v.error, encrypted: v.encrypted, remoteVideoLive: v.remoteVideoLive, cameraOn: v.cameraOn, role: v.role, peerName: v.peer?.name ?? null }
+    return { phase: v.phase, endReason: v.endReason, error: v.error, encrypted: v.encrypted, ringReady: v.ringReady, remoteVideoLive: v.remoteVideoLive, cameraOn: v.cameraOn, role: v.role, peerName: v.peer?.name ?? null }
   })
   const waitPhase = (p: import('playwright').Page, phase: string, timeout = 30_000) =>
     p.waitForFunction((ph) => (window as any).callEngine.getView().phase === ph, phase, { timeout })
