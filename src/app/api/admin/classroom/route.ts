@@ -6,7 +6,7 @@ import { sendMail } from '@/lib/mail'
 import { renderBrandEmail } from '@/lib/emails/layout'
 import { classroomSweepIsFresh, resetClassroomConfigCache } from '@/lib/classroom/config'
 import { buildFeedback } from '@/lib/classroom/feedback'
-import { classroomAddress } from '@/lib/classroom/host'
+import { TEACHER_SURFACE_ORIGIN } from '@/lib/teachers/surface'
 import { budgetUse } from '@/lib/classroom/budget'
 import { markLikenessDeleted, pendingLikenessDeletions } from '@/lib/classroom/likeness'
 import { libraryAvatarById } from '@/lib/classroom/library-avatars'
@@ -30,7 +30,9 @@ const putBody = z.strictObject({
   // ⛔ OPTIONAL, and sent ONLY by the mode control (2c round 2, codex): a cap or cohort save from a stale tab must never
   // re-send that tab's old mode — it could reopen a classroom another admin just switched off.
   mode: z.enum(['off', 'staff', 'allowlist', 'all']).optional(),
-  cohortEmails: z.array(z.string().trim().toLowerCase().max(254).regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)).max(200).optional(),
+  // An email — or an account id: the box shows the id of a teacher whose account has no email (2c round 3, opus), and
+  // saving it back must keep that teacher, not refuse the whole list.
+  cohortEmails: z.array(z.string().trim().toLowerCase().max(254).regex(/^(?:[^\s@]+@[^\s@]+\.[^\s@]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/)).max(200).optional(),
   dayMinutes: z.number().int().min(0).max(100_000).optional(),
   monthMinutes: z.number().int().min(0).max(1_000_000).optional(),
   teacherMonthMinutes: z.number().int().min(0).max(100_000).optional(),
@@ -58,7 +60,7 @@ async function describe() {
   const ids = r?.cohort ?? []
   const people = ids.length ? await db.profile.findMany({ where: { id: { in: ids } }, select: { id: true, email: true } }) : []
   const monthStart = new Date(Date.now() - 31 * 86_400_000)
-  const [use, sessions, likeness, failed, flagged] = await Promise.all([
+  const [use, sessions, likeness, failed, flagged, consentRows] = await Promise.all([
     db.$transaction((tx) => budgetUse(tx, '')),
     db.classroomSession.aggregate({ where: { startedAt: { gte: monthStart } }, _count: { _all: true }, _sum: { costMicroUsd: true, usedSeconds: true } }),
     db.classroomAvatar.findMany({
@@ -79,7 +81,12 @@ async function describe() {
         session: { select: { learner: { select: { kind: true, birthYear: true } }, avatar: { select: { name: true, teacherProfile: { select: { fullName: true, profile: { select: { email: true } } } } } } } },
       },
     }),
+    db.$queryRaw<{ avatar_id: string; photo_url: string | null }[]>`
+      SELECT DISTINCT ON (detail->>'avatarId') detail->>'avatarId' AS avatar_id, detail->>'photoUrl' AS photo_url
+        FROM compliance_audit WHERE action = 'classroom.photo.consent'
+       ORDER BY detail->>'avatarId', "occurredAt" DESC`,
   ])
+  const consented = new Map(consentRows.flatMap((r) => (r.photo_url ? [[r.avatar_id, r.photo_url] as const] : [])))
   return {
     tables: true as const,
     mode: r?.mode ?? 'off',
@@ -94,7 +101,10 @@ async function describe() {
     use: { todayMinutes: use.dayMinutes, monthMinutes: use.monthMinutes },
     last31Days: { sessions: sessions._count._all, costUsd: Math.round((sessions._sum.costMicroUsd ?? 0) / 10_000) / 100, minutes: Math.round((sessions._sum.usedSeconds ?? 0) / 60) },
     likeness: likeness.map((a) => ({
-      avatarId: a.id, avatarName: a.name, teacher: a.teacherProfile.fullName, email: a.teacherProfile.profile.email, photoUrl: a.teacherProfile.photoUrl,
+      // ⛔ The photo the teacher CONSENTED to (its address, recorded with the consent — 2c rounds 2–3), not whatever the
+      // profile shows now; only a consent recorded before that field existed falls back to the current one.
+      avatarId: a.id, avatarName: a.name, teacher: a.teacherProfile.fullName, email: a.teacherProfile.profile.email,
+      photoUrl: consented.get(a.id) ?? a.teacherProfile.photoUrl,
       status: a.customStatus, spatiusAvatarId: a.spatiusAvatarId, consentAt: a.photoConsentAt?.toISOString() ?? null,
     })),
     deletions: (await pendingLikenessDeletions()).map((d) => ({ spatiusAvatarId: d.spatius_avatar_id, reason: d.reason, queuedAt: d.queued_at.toISOString() })),
@@ -116,7 +126,10 @@ export const PUT = route({ auth: 'admin', body: putBody }, async ({ admin, body 
     ON CONFLICT (id) DO UPDATE SET mode = EXCLUDED.mode, updated_at = now(), updated_by = EXCLUDED.updated_by`
   try {
     // ⛔ THE KILL SWITCH NEEDS NO READ (the calls admin's rule): 'off' is one statement, FIRST, whatever follows or fails.
-    if (body.mode === 'off') await setMode(db)
+    if (body.mode === 'off') {
+      await setMode(db)
+      resetClassroomConfigCache() // at once — a later failure in this request must not leave "off" unseen here (2c round 3)
+    }
     // ⛔ Not ON unless the sweep is running — enable eno-cron-classroom-sweep.timer first (503 not_configured). Only a
     // CHANGE to an open mode needs it (2c round 1, opus): re-sending the mode the switch already has leaves the caps
     // editable while the sweep is down — which is exactly when they may need lowering.
@@ -124,7 +137,12 @@ export const PUT = route({ auth: 'admin', body: putBody }, async ({ admin, body 
     if (body.mode && body.mode !== 'off' && body.mode !== current && !(await classroomSweepIsFresh())) throw new ApiError('not_configured', 503)
     let ids: string[] | undefined
     if (body.cohortEmails) {
-      const found = body.cohortEmails.length ? await db.profile.findMany({ where: { email: { in: body.cohortEmails } }, select: { id: true } }) : []
+      // The WHOLE uuid (C3a review, Opus): a prefix test filed an email like 12345678-abcd-x@… under ids — a 500 from Postgres.
+      const isId = (x: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x)
+      const found = body.cohortEmails.length ? await db.profile.findMany({
+        where: { OR: [{ email: { in: body.cohortEmails.filter((x) => !isId(x)) } }, { id: { in: body.cohortEmails.filter(isId) } }] },
+        select: { id: true },
+      }) : []
       ids = found.map((p) => p.id)
     }
     // ⛔ THE RESTRICTIONS AND THE MODE IN ONE TRANSACTION, mode last (2c round 1, codex): a classroom turned on never runs
@@ -151,8 +169,8 @@ export const POST = route({ auth: 'admin', body: postBody }, async ({ admin, bod
     return describe()
   }
   if (body.action === 'retry-report') {
-    await db.classroomSession.updateMany({ where: { id: body.sessionId, feedbackStatus: 'failed' }, data: { feedbackStatus: 'pending', feedbackAttempts: 0 } })
-    await buildFeedback(body.sessionId)
+    const reset = await db.classroomSession.updateMany({ where: { id: body.sessionId, feedbackStatus: 'failed' }, data: { feedbackStatus: 'pending', feedbackAttempts: 0 } })
+    if (reset.count) await buildFeedback(body.sessionId) // only a report this reset (2c round 3, opus)
     return describe()
   }
   const avatar = await db.classroomAvatar.findUnique({ where: { id: body.avatarId }, include: { teacherProfile: { select: { fullName: true, profile: { select: { email: true } } } } } })
@@ -175,15 +193,19 @@ export const POST = route({ auth: 'admin', body: postBody }, async ({ admin, bod
     if (!marked.count) throw new ApiError('invalid_input', 409)
     const email = avatar.teacherProfile.profile.email
     if (email) {
-      const origin = process.env.NEXT_PUBLIC_APP_URL ?? 'https://eno.vn'
+      // The classroom is eno.vn's, whichever edition's admin sent this (2c round 3, opus) — and a teacher-facing mail
+      // speaks both languages, like every teacher notice.
+      const origin = TEACHER_SURFACE_ORIGIN
+      const name = escapeHtml(avatar.teacherProfile.fullName)
       await sendMail({
         to: email,
-        subject: 'Your 3D avatar is ready',
+        subject: 'Your 3D avatar is ready · Avatar 3D của bạn đã sẵn sàng',
         html: renderBrandEmail({
-          preheader: 'Your own face is ready in eno Classroom',
-          bodyHtml: `<p>Hi ${escapeHtml(avatar.teacherProfile.fullName)},</p><p>Your 3D avatar is ready. Open eno Classroom to switch your class to it.</p>`,
+          preheader: 'Your own face is ready in eno Classroom · Khuôn mặt của bạn đã sẵn sàng trong eno Classroom',
+          bodyHtml: `<p>Hi ${name},</p><p>Your 3D avatar is ready. Open eno Classroom to switch your class to it.</p>`
+            + `<p>Chào ${name},</p><p>Avatar 3D của bạn đã sẵn sàng. Mở eno Classroom để chuyển lớp của bạn sang avatar này.</p>`,
           origin,
-          cta: { label: 'Open eno Classroom', url: `${classroomAddress()}/avatar` },
+          cta: { label: 'Open eno Classroom · Mở eno Classroom', url: `${origin}/classroom/avatar` },
         }),
       }).catch((e) => logError(e, { op: 'classroom.likeness.email' }))
     }

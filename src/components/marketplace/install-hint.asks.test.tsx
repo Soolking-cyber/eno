@@ -88,3 +88,36 @@ describe('InstallHint × the cookie bar (owner, 2026-10-18: one per visit)', () 
     expect(card()).toBeNull()
   })
 })
+
+describe('InstallHint × eno Classroom (2026-10-26: it docked over a practice session\'s controls)', () => {
+  it('⛔ never asks on a classroom page — it stays due and shows on the next marketplace page', async () => {
+    nav.pathname = '/classroom/join/abc'
+    const r = render(<InstallHint />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(75_000) })
+    expect(card()).toBeNull()
+    expect(sessionAsk()).toBeNull() // the visit's one interruption is still free
+    nav.pathname = '/c/phones'
+    r.rerender(<InstallHint />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(card()).not.toBeNull()
+  })
+
+  it('a card already up leaves when the visitor opens the classroom, and is back outside it', async () => {
+    const r = render(<InstallHint />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(75_000) })
+    expect(card()).not.toBeNull()
+    nav.pathname = '/classroom'
+    r.rerender(<InstallHint />)
+    expect(card()).toBeNull()
+    nav.pathname = '/'
+    r.rerender(<InstallHint />)
+    expect(card()).not.toBeNull()
+  })
+
+  it('/classrooms is not the classroom', async () => {
+    nav.pathname = '/classrooms'
+    render(<InstallHint />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(75_000) })
+    expect(card()).not.toBeNull()
+  })
+})

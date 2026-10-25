@@ -9,6 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { isIOS } from '@/lib/in-app-browser'
 import { consentAnswered } from '@/lib/consent'
 import { askHidden, askShown, mayAsk, notePageView } from '@/lib/page-asks'
+import { isClassroomPath } from '@/lib/classroom/host'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 
@@ -47,9 +48,15 @@ export function InstallHint() {
    */
   const [due, setDue] = useState<'ios' | 'android' | null>(null)
   const pathname = usePathname()
+  /**
+   * ⛔ NEVER IN eno CLASSROOM (2026-10-26, found by the 390px check): the classroom is its own app, and this card docked
+   * over a practice session's Mic and End buttons. There it neither asks nor shows; a card already due simply waits for
+   * the next marketplace page, and one already up comes back there.
+   */
+  const inClassroom = isClassroomPath(pathname)
   useEffect(() => {
     notePageView(pathname)
-    if (!due || mode) return
+    if (!due || mode || inClassroom) return
     /**
      * ⛔ ONE INTERRUPTION PER VISIT (owner, 2026-10-18: "one per visit, no floaters" — src/lib/page-asks.ts). `mayAsk`
      * now also says no once the cookie bar or the "Join eno" prompt has had this session. And the card never asks
@@ -64,7 +71,7 @@ export function InstallHint() {
     askShown('install', pathname)
     setMode(due)
     setDue(null)
-  }, [due, mode, pathname])
+  }, [due, mode, pathname, inClassroom])
   // Off the screen when it goes, however it goes (dismissed, Get, or the provider unmounting).
   useEffect(() => { if (!mode) askHidden('install') }, [mode])
   useEffect(() => () => askHidden('install'), [])
@@ -97,7 +104,7 @@ export function InstallHint() {
     return () => { if (timer) clearTimeout(timer) }
   }, [])
 
-  if (!mode) return null
+  if (!mode || inClassroom) return null
   const url = mode === 'ios' ? IOS_URL : ANDROID_URL
   if (!url) return null
 

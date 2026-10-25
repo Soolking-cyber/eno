@@ -4436,3 +4436,14 @@ body:has([data-teacher-host]) {
 body:has([data-teacher-form]) .support-mark {
   display: none;
 }
+
+/* ⛔ eno CLASSROOM IS ITS OWN APP (owner, 2026-10-25: "super clean", Praktika-like). Every /classroom page carries
+   <div data-classroom> from its layout (server-rendered, so this is right from the first paint — the data-teacher-host
+   pattern above): no marketplace tab bar or its spacer, no floating support mark or back-to-top chevron — nothing of the
+   marketplace sits over a practice session. Unlayered, like the rules above; without `:has()` the chrome simply stays. */
+body:has([data-classroom]) .mobile-nav,
+body:has([data-classroom]) .bottom-nav-spacer,
+body:has([data-classroom]) .support-mark,
+body:has([data-classroom]) .back-to-top-chevron {
+  display: none;
+}

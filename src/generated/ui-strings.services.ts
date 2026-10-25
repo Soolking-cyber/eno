@@ -223,7 +223,6 @@ export const UI_STRINGS_SERVICES: string[] = [
   "My e-Visa applications",
   "My own budget",
   "Name a daily amount per traveler",
-  "Nature",
   "Network problem — try again.",
   "Nightlife",
   "Ninh Binh & Tam Coc",
