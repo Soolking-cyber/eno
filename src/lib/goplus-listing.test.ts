@@ -662,3 +662,20 @@ describe('building amenities', () => {
     expect(goplusBuildingAmenityKeys(null)).toEqual([])
   })
 })
+
+/**
+ * ⚠️ A BUILDING POINT FAR FROM HO CHI MINH CITY IS DROPPED (sweep, 2026-10-22). One HCMC rental came pinned in Hà Nội, and
+ * the Rentals map fitted the whole country with every other pin stacked at its edge. A point more than 100 km from
+ * District 1 is stored as no point (the page shows the district's area instead); all of the city merged in 2025 stays.
+ */
+describe('mapGoplusRoom — the building point must be near HCMC', () => {
+  it('a Hà Nội or Đà Lạt point → no point; points across merged HCMC are kept', () => {
+    expect(mapped(room(), project({ geo: { lat: 21.17, lng: 105.931, approx: false } })).mutable).toMatchObject({ lat: null, lng: null })
+    expect(mapped(room(), project({ geo: { lat: 11.94, lng: 108.44, approx: false } })).mutable).toMatchObject({ lat: null, lng: null }) // Đà Lạt
+    expect(mapped(room(), project({ geo: { lat: 10.86, lng: 106.621, approx: true } })).mutable).toMatchObject({ lat: 10.86, lng: 106.621 })
+    for (const [lat, lng] of [[10.973, 106.493], [10.411, 106.954], [10.346, 107.084], [10.98, 106.65], [11.27, 106.36]]) {
+      // Củ Chi, Cần Giờ, Vũng Tàu, Thủ Dầu Một, Dầu Tiếng
+      expect(mapped(room(), project({ geo: { lat, lng, approx: false } })).mutable, `${lat},${lng}`).toMatchObject({ lat, lng })
+    }
+  })
+})
