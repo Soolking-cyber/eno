@@ -3158,7 +3158,6 @@ export const UI_STRINGS: string[] = [
   "This conversation is closed, so the offer was not accepted.",
   "This conversation is closed. You can’t send messages or offers here. If something is wrong, use Report.",
   "This conversation is taking longer than usual to load.",
-  "This deal can no longer be reviewed.",
   "This e-Visa service is sold and handled by {seller}. {site} is the marketplace — not a government agency — and does not decide visa applications. Sellers charge a service fee on top of the government fee. You can always apply yourself on the official portal:",
   "This has a word that isn’t allowed.",
   "This has already been removed.",
