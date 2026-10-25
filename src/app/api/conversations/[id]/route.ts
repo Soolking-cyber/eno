@@ -616,13 +616,20 @@ export const DELETE = route({ auth: 'userId' }, async ({ req, params, userId: me
 
   const convo = await db.conversation.findUnique({
     where: { id },
-    select: { buyerProfileId: true, sellerProfileId: true },
+    select: { buyerProfileId: true, sellerProfileId: true, sellerId: true },
   })
   if (!convo) throw new ApiError('not_found', 404)
 
   const iAmBuyer = convo.buyerProfileId === meId
   const iAmSeller = convo.sellerProfileId === meId
-  if (!iAmBuyer && !iAmSeller) throw new ApiError('forbidden', 403)
+  /**
+   * ⚠️ THE SUPPORT OPERATOR MAY CLEAR A DESK THREAD FROM THEIR INBOX (sweep, 2026-10-22) — the same grant the GET above
+   * and the send route carry: this edition's support desk, plus admin. A desk seller is unowned, so sellerProfileId is
+   * always null there and the operator got 403 on every delete ("Couldn't delete — try again", the row came back). The
+   * desk side's stamp below is shared by every operator, as unread.ts already notes.
+   */
+  const iAmSupport = !iAmBuyer && !iAmSeller && convo.sellerId === SUPPORT_SELLER_ID && !!(await getAdmin())
+  if (!iAmBuyer && !iAmSeller && !iAmSupport) throw new ApiError('forbidden', 403)
 
   await db.conversation.update({
     where: { id },

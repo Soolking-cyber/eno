@@ -23,6 +23,12 @@ import { IS_SERVICES } from './edition'
  * seller surfaces.
  */
 export const SUPPORT_SELLER_ID = IS_SERVICES ? 'eno-support-desk-forum' : 'eno-support-desk'
+/**
+ * The OTHER edition's support desk. eno.vn hides it from every seller-level gate (edition-scope.ts
+ * editionHiddenSellerIds): one person has a support thread per edition, and the forum's — where visa, itinerary and
+ * payment are the legitimate subjects — listed, counted and opened in eno.vn's inbox (sweep, 2026-10-22).
+ */
+export const FOREIGN_SUPPORT_SELLER_ID = IS_SERVICES ? 'eno-support-desk' : 'eno-support-desk-forum'
 
 /** What the thread page needs to open the conversation. */
 export type SupportThread = { id: string; created: boolean }

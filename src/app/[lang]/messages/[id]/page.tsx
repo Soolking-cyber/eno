@@ -87,6 +87,10 @@ import { useUndoWindow } from '@/hooks/use-undo-window'
 import { OfferAnswerButtons } from '@/components/marketplace/offer-answer-buttons'
 import { answeredOnServer, choiceFor, offerActFailedCopy, offerChoicesFor, overlayOfferChoices, type OfferAction } from '@/lib/offer-choices'
 
+/** The send route's own cap (api/conversations/[id]/messages MAX_LEN; a first message is cut at 2,000 in api/conversations
+ * too): checked here first, so a longer text is never silently cut. */
+const MESSAGE_MAX_CHARS = 2000
+
 // `meta` is the structured payload of a CARD message (visa_step / visa_checkout) — the
 // thread GET parses and re-validates it server-side (parseMessageMeta), so an unreadable
 // blob arrives as null and renders as an inert bubble. Typed `unknown` here on purpose: the
@@ -1353,6 +1357,15 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
     if (!body) return
     if (!canSend) return // the text stays in the composer — see canSend
     /**
+     * ⚠️ OVER THE SERVER'S 2,000 CHARACTERS, SAY SO AND KEEP THE TEXT (sweep, 2026-10-22). The send route cuts at
+     * MAX_LEN without a word, and the sender's bubble then quietly became the shortened copy — a pasted address list or a
+     * teacher's background lost its end. Returning here, before the composer is emptied, keeps every character.
+     */
+    if (body.length > MESSAGE_MAX_CHARS) {
+      toast.error(tr('Messages can be up to 2,000 characters — this one has {n}. Split it into two.', 'Tin nhắn tối đa 2.000 ký tự — tin này có {n}. Hãy chia thành hai tin.').replace('{n}', String(body.length)))
+      return
+    }
+    /**
      * ⚠️ THE QUOTE IS CAPTURED AND CLEARED IN THE SAME BREATH. Read at the top so an await later in
      * this function cannot see a `replyTo` the user has since changed, and cleared immediately so a
      * second message typed while the first is in flight is not silently sent as another reply to
@@ -1372,8 +1385,15 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
       // instant it is sent rather than after the POST returns.
       replyTo: quoted ? { ...quoted, deleted: false } : null,
     }
-    setText('')
-    composerRef.current?.clear() // empty the contenteditable DOM immediately (no 1-frame lag)
+    /**
+     * ⚠️ ONLY A SEND FROM THE COMPOSER EMPTIES IT (sweep, 2026-10-22). A retry ("Not sent — tap to retry") and a send-on-tap
+     * chip carry their own body; emptying the composer for them wiped whatever the user had typed since, unsent and
+     * unrecoverable.
+     */
+    if (override === undefined) {
+      setText('')
+      composerRef.current?.clear() // empty the contenteditable DOM immediately (no 1-frame lag)
+    }
     haptic()
     setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
     try {
