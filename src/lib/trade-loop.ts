@@ -919,3 +919,22 @@ export function canPromptReview(facts: SaleFacts, viewerProfileId: string | null
   if (!countsTowardTrust(facts)) return deny('not_confirmed')
   return ALLOW
 }
+
+/**
+ * May this buyer review the seller from this thread (sweep, 2026-10-22)? The ONE rule behind the review POST and the
+ * thread's review card. Yes when the sale names them as its eno buyer and they have not said "No" (confirmed, or not
+ * answered yet — requiring the answer would let a seller who names the buyer and then blocks them veto the review,
+ * runbook §6 R3); or when an offer in this thread was accepted while the sale record does not contradict it — unsold (a
+ * deal done in person and never marked) or sold with nobody named (refute review, 2026-10-23: an accepted offer never
+ * expires, so it must not outvote a sale to someone else or to "someone not on eno"). Never for a listing taken down by
+ * authority order, and never for a buyer who said "No" — on this sale or, per the buyer history, an earlier one.
+ * ⚠️ Not canPromptReview: that one gates the trade loop's prompt (both sides confirmed); this gates a review.
+ */
+export function mayReviewDeal(facts: SaleFacts, viewerProfileId: string | null, acceptedOfferInThread: boolean): boolean {
+  if (!viewerProfileId || facts.complianceStatus === 'taken_down') return false
+  // A "No" on record stays theirs after the seller names someone else: the buyer history keeps every answer.
+  if (buyerHistoryEntry(facts.saleBuyerHistory, viewerProfileId)?.declinedAt != null) return false
+  const state = saleState(facts)
+  if (facts.soldToProfileId === viewerProfileId && (state === 'confirmed' || state === 'awaiting_buyer')) return true
+  return acceptedOfferInThread && (state === 'unsold' || state === 'unattributed')
+}

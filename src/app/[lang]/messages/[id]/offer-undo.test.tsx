@@ -1039,10 +1039,12 @@ describe('the strip placeholder while a thread loads (no jump on a listing-less 
  */
 describe('the buyer\'s "did you buy this?" in the thread', () => {
   const QUESTION = { saleId: 'l1:1000', listingId: 'l1', title: 'Road bike', price: 12_000_000, currency: '₫' }
-  const asBuyer = () => ({
+  // `mayReviewSale`: the server's "the seller named ME as the buyer" (mayReviewDeal) — the card's sale half.
+  const asBuyer = (mayReviewSale = true) => ({
     iAmSeller: false,
     counterpart: { name: 'Minh Shop', avatarColor: '#888', avatarUrl: null, sellerId: 's1', locale: 'en', trust: null },
     listing: { ...thread('pending').listing, status: 'sold' },
+    mayReviewSale,
   })
   const questionGets = () => calls.filter((c) => c.url === '/api/conversations/c1/sale-question')
 
@@ -1089,6 +1091,37 @@ describe('the buyer\'s "did you buy this?" in the thread', () => {
     expect(questionGets()).toHaveLength(1)
     expect(screen.queryByRole('button', { name: 'Yes, I bought it' })).toBeNull()
     expect(screen.getByText('How was your experience with Minh Shop?')).toBeTruthy()
+  })
+
+  it('⛔ "the listing is sold" is not enough: sold to someone else, nothing asked → no review card (sweep)', async () => {
+    extraThread = asBuyer(false)
+    render(<ThreadPage />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    expect(questionGets()).toHaveLength(1)
+    expect(screen.queryByText('How was your experience with Minh Shop?')).toBeNull()
+  })
+
+  it('⛔ "No, I did not" never opens the review card — not even with an offer accepted here', async () => {
+    saleQuestions = [QUESTION]
+    serverStatus = 'accepted'
+    extraThread = { ...asBuyer(), mayReviewOffer: true }
+    render(<ThreadPage />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'No, I did not' })); await vi.advanceTimersByTimeAsync(50) })
+    expect(screen.queryByText('How was your experience with Minh Shop?')).toBeNull()
+  })
+
+  it('an accepted offer here opens the card when the server lets it count (mayReviewOffer) — and not when it does not', async () => {
+    serverStatus = 'accepted'
+    extraThread = { ...asBuyer(false), mayReviewOffer: true }
+    render(<ThreadPage />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    expect(screen.getByText('How was your experience with Minh Shop?')).toBeTruthy()
+    cleanup()
+    extraThread = { ...asBuyer(false), mayReviewOffer: false } // e.g. the listing was taken down by authority order
+    render(<ThreadPage />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    expect(screen.queryByText('How was your experience with Minh Shop?')).toBeNull()
   })
 
   it('⛔ never on the SELLER\'s side, and never in a thread with no seller identity (the rental desk)', async () => {

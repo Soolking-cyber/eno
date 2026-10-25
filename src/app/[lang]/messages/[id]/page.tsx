@@ -369,6 +369,8 @@ type Thread = {
   // on a cold open.
   sellerIsPartner?: boolean
   hasReviewed?: boolean // buyer side: this conversation already produced a review → no prompt
+  mayReviewSale?: boolean // buyer side: the seller named ME as the buyer and I never said "No" (the server's mayReviewDeal)
+  mayReviewOffer?: boolean // buyer side: an accepted offer here would count (not taken down; I never said "No")
   // The e-Visa case this thread is bound to + the desk state its cards render against
   // (mode · picked product · server-issued USD quote · live payment providers). Absent on
   // every ordinary conversation.
@@ -772,7 +774,10 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
   // question at a time, the review only once both sides have spoken, and never while the lookup is out or
   // after it failed ('unknown': a question may be open).
   const [saleQuestionState, setSaleQuestionState] = useState<SaleQuestionsState>('unknown')
-  useEffect(() => { setSaleQuestionState('unknown') }, [id])
+  // The buyer's answer to "did you buy this?" given HERE, in this visit — the thread's review flags predate it.
+  const [saleAnswer, setSaleAnswer] = useState<{ conversationId: string; listingId: string; status: 'confirmed' | 'declined' } | null>(null)
+  const onSaleAnswered = useCallback((a: { conversationId: string; listingId: string; status: 'confirmed' | 'declined' }) => setSaleAnswer(a), [])
+  useEffect(() => { setSaleQuestionState('unknown'); setSaleAnswer(null) }, [id])
   // Defensive (see `autoPlan` below): a sheet left open must never follow the seller into another conversation,
   // where "this thread's buyer" would be someone else.
   useEffect(() => { setSoldSheetOpen(false) }, [id])
@@ -2412,14 +2417,19 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
    */
   const askBuyerAboutSales = !!thread && thread.iAmSeller === false && !!thread.listing && !!thread.counterpart.sellerId &&
     thread.kind !== 'visa' && thread.kind !== 'itinerary' && !thread.closed
-  // Buyer-side review prompt: the deal closed (listing sold OR an offer here was
-  // accepted) and this conversation hasn't produced a review yet — and, where this thread can carry the
+  // Buyer-side review prompt: the deal closed (the seller named this buyer as the one they sold to — the server's
+  // `mayReviewSale`, never "the listing is sold", which offered the card to everyone who had asked about it — OR an offer
+  // here was accepted and the server's `mayReviewOffer` lets it count; a missing flag is a no, and a "No, I did not"
+  // given in this visit closes the card) and this conversation hasn't produced a review yet — and, where this thread can carry the
   // seller's "did you buy this?", it is KNOWN that none is waiting (`saleQuestionState === 'none'`): one card
   // at a time, the question first, and nothing assumed while the lookup is out or has failed. Never in a thread
   // a block has closed (`ugc-safety`) — where `askBuyerAboutSales` is false and would otherwise let it through.
   const hasAcceptedOffer = !!acceptedOfferId
+  const declinedHere = !!saleAnswer && saleAnswer.status === 'declined' && saleAnswer.conversationId === thread?.id &&
+    saleAnswer.listingId === thread?.listing?.id
+  const reviewableDeal = !declinedHere && (thread?.mayReviewSale === true || (hasAcceptedOffer && thread?.mayReviewOffer === true))
   const showReviewPrompt = !!thread && !thread.iAmSeller && !thread.hasReviewed && !!thread.counterpart.sellerId &&
-    (thread.listing?.status === 'sold' || hasAcceptedOffer) && (!askBuyerAboutSales || saleQuestionState === 'none')
+    reviewableDeal && (!askBuyerAboutSales || saleQuestionState === 'none')
   // ⚠️ NOT gated by a block, on purpose (runbook §6, R3): a seller who could close the thread could otherwise veto the
   // buyer's post-sale review. The block hides the sale QUESTION (askBuyerAboutSales), never the review card.
 
@@ -3491,6 +3501,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
               sellerName={thread.counterpart.name}
               refreshKey={`${thread.listing?.id ?? ''}:${thread.listing?.status ?? ''}`}
               onStateChange={setSaleQuestionState}
+              onAnswered={onSaleAnswered}
               className="px-4 pt-1.5"
             />
           )}

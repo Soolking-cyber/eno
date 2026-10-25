@@ -25,6 +25,8 @@ import { appReviewGate } from '@/lib/app-review-gates'
 import { iosHideVisaFor } from '@/lib/ios-hide-visa'
 import { isEVisaProductListing } from '@/lib/evisa-listing'
 import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
+import { SALE_FACTS_SELECT, saleFacts } from '@/lib/core/sale-loop'
+import { mayReviewDeal } from '@/lib/trade-loop'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -187,7 +189,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       // (`identityMarkNotice` — a scalar of the row already read, so no round-trip of its own) are read for the school's
       // ONE boolean below (`teacherIdentityVerified`) and never sent — not the account id, the name, the hide or the
       // cached version (the `listing` below is built field by field).
-      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true, listingType: true, verified: true, subcategorySlug: true, identityMarkNotice: true, category: { select: { slug: true } }, teacherProfile: { select: { status: true, videoOnRequest: true, ...IDENTITY_MARK_TP_SELECT, private: { select: { videoPath: true, phone: true } } } } } },
+      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, ...SALE_FACTS_SELECT, status: true, listingType: true, verified: true, subcategorySlug: true, identityMarkNotice: true, category: { select: { slug: true } }, teacherProfile: { select: { status: true, videoOnRequest: true, ...IDENTITY_MARK_TP_SELECT, private: { select: { videoPath: true, phone: true } } } } } },
       // Teachers (2026-09-30): the teacher's revocable share — decides the thread's contact strip.
       teacherContactShare: { select: { revokedAt: true, phoneShared: true } },
       // …and the intro video sent on request (2026-10-07): its own grant, and the school's ask.
@@ -357,6 +359,14 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       hasReviewed = !!(await db.review.findUnique({ where: { conversationId: id }, select: { id: true } }))
     } catch { hasReviewed = false }
   }
+  // Buyer side, the review card's two halves — the review POST's own rule (mayReviewDeal), so the card never offers what
+  // the route refuses: `mayReviewSale` — the seller named ME as the buyer and I never said "No"; `mayReviewOffer` — an
+  // accepted offer here would
+  // count (false for a taken-down listing, or once I said "No, I didn't buy this"). "The listing is sold" offered the
+  // card to everyone who had asked about the item (sweep, 2026-10-22).
+  const reviewFacts = iAmBuyer && convo.listing ? saleFacts(convo.listing) : null
+  const mayReviewSale = !!reviewFacts && mayReviewDeal(reviewFacts, meId, false)
+  const mayReviewOffer = !!reviewFacts && mayReviewDeal(reviewFacts, meId, true)
 
   const img = (() => { try { return (JSON.parse(convo.listing?.images || '[]')[0] as string) ?? null } catch { return null } })()
 
@@ -512,6 +522,8 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     seenAsOf,
     // Buyer already reviewed this conversation → the thread UIs hide the review prompt.
     hasReviewed,
+    mayReviewSale,
+    mayReviewOffer,
     // `locale` drives the live-translation toggle: the client offers it ONLY when the
     // counterpart's app language is KNOWN and differs from the viewer's. Null (they have
     // never synced a language) means no toggle at all — we never guess a language from a
