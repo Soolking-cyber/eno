@@ -75,8 +75,8 @@ they go to no one else (the TOKEN, not the answers, can reach a page-view beacon
 request logs, and it is put on the app-browser tab's own address too (its "Open in browser" menu then carries it) — so a
 link copied from there within 30 minutes reads anonymous step-1 answers; /privacy says the link is in the page's address.
 Stored values are re-encoded on the server from step-1 fields alone (`canonicalCarry`), and a drop leaves a tombstone. /privacy ("Account
-information") says so — "delete them then, or otherwise within an hour". MATERIALITY (proposed — owner to confirm): live with
-the deploy, like the 25/10 changes — it runs only when the visitor taps Google in an app's browser, holds anonymous step-1
+information") says so — "delete them then, or otherwise within an hour". MATERIALITY — [OWNER DECISION 2026-10-25] "Live with the
+deploy" (asked with the 5-day notice as the alternative), like the 25/10 changes — it runs only when the visitor taps Google in an app's browser, holds anonymous step-1
 answers for under an hour for that visitor's own continuation, and adds no recipient. Rows touched: A28 (new), §2.9 not
 changed (the data is anonymous until sign-in and gone within the hour).
 -->
