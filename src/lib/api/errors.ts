@@ -92,12 +92,18 @@ export type SharedApiErrorCode =
 export type NicheApiErrorCode =
   // eno Classroom (2026-10-25, src/lib/classroom + /api/classroom): the teacher's avatar, seats and invites, a learner's
   // join and consents, the practice session and its limits (week/day/test refusals also carry `nextAt`)
+  | 'already_enrolled'
   | 'assent_required'
   | 'audio_invalid'
   | 'avatar_required'
+  | 'birth_year_invalid'
   | 'budget_classroom'
   | 'budget_teacher'
   | 'classroom_closed'
+  | 'invite_invalid'
+  | 'invite_own'
+  | 'learner_limit'
+  | 'learner_not_found'
   | 'seat_inactive'
   | 'seat_not_found'
   | 'session_live'
@@ -633,12 +639,18 @@ export function apiErrorCode(body: unknown): ApiErrorCode | null {
  * to the type but not here fails to compile.
  */
 const ALL = [
+  'already_enrolled',
   'assent_required',
   'audio_invalid',
   'avatar_required',
+  'birth_year_invalid',
   'budget_classroom',
   'budget_teacher',
   'classroom_closed',
+  'invite_invalid',
+  'invite_own',
+  'learner_limit',
+  'learner_not_found',
   'seat_inactive',
   'seat_not_found',
   'session_live',

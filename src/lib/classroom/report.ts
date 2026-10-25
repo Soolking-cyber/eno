@@ -1,8 +1,16 @@
 import 'server-only'
 import { db } from '@/lib/db'
 import { ApiError } from '@/lib/api/handler'
+import { containsContactInfo } from '@/lib/publish-guard'
+import { containsPhoneNumber } from '@/lib/phone'
 
 export type Viewer = 'learner' | 'teacher' | 'tester'
+
+/** A learner's line as the TEACHER sees it: whole, unless it carries a number or a handle — then masked. */
+export function maskContact(text: string | null): string | null {
+  if (!text || !(containsPhoneNumber(text) || containsContactInfo(text))) return text
+  return '[contact details hidden]'
+}
 
 /**
  * Who is reading this session, by account — the learner's account holder, the seat's teacher, or the teacher who ran a
@@ -64,10 +72,15 @@ export function reportFor(s: Awaited<ReturnType<typeof sessionForViewer>>['s'], 
     // ⛔ A FLAGGED EXCHANGE IS NEVER SHOWN ON THE ACCOUNT HOLDER'S SIDE (core review, opus): if a child spoke of harm at
     // home, the account holder may be who they spoke of. The teacher (and eno admin) see it; the parent's transcript
     // leaves that exchange out.
-    transcript: shown.map((t, i) => ({ seq: teacherSide ? t.seq : i + 1, learner: t.learnerText, avatar: t.replyText, ...(teacherSide && t.flag ? { flag: t.flag } : {}) })),
+    // ⛔ A CHILD'S NUMBER OR HANDLE NEVER REACHES THE TEACHER (2a round 11, opus): a line the learner said that carries one
+    // is shown to the teacher masked — the classroom is no way round the marketplace's contact rules. The family sees
+    // their own words as said.
+    transcript: shown.map((t, i) => ({ seq: teacherSide ? t.seq : i + 1, learner: teacherSide ? maskContact(t.learnerText) : t.learnerText, avatar: t.replyText, ...(teacherSide && t.flag ? { flag: t.flag } : {}) })),
     // "We heard … — did you mean …?" — the tutor's guesses at sound-alike mishearings, shown as QUESTIONS, never scores.
     heardAs: [...new Map(shown.flatMap((t) => (Array.isArray(t.heardAs) ? (t.heardAs as { heard: string; meant: string }[]) : []))
       .filter((h) => typeof h?.heard === 'string' && typeof h?.meant === 'string')
+      // the teacher's side screens these too (2b round 1): they are the learner's words as heard
+      .filter((h) => !teacherSide || (maskContact(h.heard) === h.heard && maskContact(h.meant) === h.meant))
       .map((h) => [`${h.heard.toLowerCase()}>${h.meant.toLowerCase()}`, { heard: h.heard, meant: h.meant }] as const)).values()].slice(0, 6),
   }
 }
