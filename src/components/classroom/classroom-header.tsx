@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Bilingual } from '@/components/marketplace/bilingual'
+import { LocalizedLink } from '@/components/marketplace/localized-link'
 import { SITE_NAME } from '@/lib/edition'
 
 /**
@@ -20,9 +21,10 @@ export function ClassroomHeader() {
             <Bilingual en="Classroom" vi="Lớp học" />
           </span>
         </Link>
-        <Link href="/" prefetch={false} className="press rounded-xl px-2 py-1 text-sm text-body hover:text-ink">
+        {/* The marketplace home in the reader's language: a bare "/" is English-pinned since the /vi pilot (582e17169). */}
+        <LocalizedLink href="/" prefetch={false} className="press rounded-xl px-2 py-1 text-sm text-body hover:text-ink">
           {SITE_NAME}
-        </Link>
+        </LocalizedLink>
       </div>
     </header>
   )
