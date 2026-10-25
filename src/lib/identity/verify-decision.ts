@@ -169,7 +169,7 @@ export const MIN_DOCUMENT_VALIDITY_MONTHS = 6
  * Strict `YYYY-MM-DD` → UTC-midnight Date. `null` for anything else, INCLUDING a well-formed string
  * naming a day that does not exist (`2027-02-31`), which `new Date` would silently roll to 3 March.
  */
-function parseIsoDate(v: string | undefined): Date | null {
+export function parseIsoDate(v: string | undefined): Date | null {
   if (!v) return null
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v)
   if (!m) return null

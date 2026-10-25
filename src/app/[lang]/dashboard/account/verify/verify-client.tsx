@@ -131,7 +131,7 @@ function mrzAgainst(line1: string, line2: string, typedNumber: string, typedExpi
  *  `resetAttempt()` must NOT run — it would clear a valid challenge and both uploaded photographs
  *  over something the seller can fix in the field in front of them. ⚠️ Only codes checked ahead of
  *  `consumeChallenge` belong here; everything else really has spent the code. */
-const KEEPS_THE_ATTEMPT = new Set(['document_number_invalid'])
+const KEEPS_THE_ATTEMPT = new Set(['document_number_invalid', 'document_details_missing'])
 
 const SUBMIT_OUTCOMES: Record<string, { en: string; vi: string; enA?: string; viA?: string; terminal?: boolean; resumable?: boolean }> = {
   already_pending: {
@@ -173,6 +173,12 @@ const SUBMIT_OUTCOMES: Record<string, { en: string; vi: string; enA?: string; vi
   'document_number_invalid:A': {
     en: 'That CCCD number does not look right — it should be the 12 digits printed on your card. Please check it and send again.',
     vi: 'Số CCCD chưa đúng — cần đủ 12 chữ số như in trên thẻ. Vui lòng kiểm tra và gửi lại.',
+    resumable: true,
+  },
+  // A passport only (the server checks it for tier B): no name, or no real expiry date. Blocked above, so another client.
+  document_details_missing: {
+    en: 'Your name or the expiry date of your passport is missing or not a real date. Fill both in as printed on your passport and send again.',
+    vi: 'Họ tên hoặc ngày hết hạn hộ chiếu còn trống hoặc không phải ngày hợp lệ. Hãy điền đúng như in trên hộ chiếu rồi gửi lại.',
     resumable: true,
   },
   document_unreadable: {

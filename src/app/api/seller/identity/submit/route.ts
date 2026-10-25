@@ -24,6 +24,8 @@ const STATUS: Record<KycSubmitError, number> = {
   // 422 and its OWN code: the number is the wrong shape. Never `document_unreadable`, whose copy
   // tells the seller to photograph the card again — advice about a field they typed.
   document_number_invalid: 422,
+  // 422, checked before the challenge too: a typed passport with no name or no real expiry date.
+  document_details_missing: 422,
   // 400: the REQUEST contradicts itself — a CCCD claim carrying passport MRZ lines. It is a client
   // bug or a probe, never something a seller can act on, so it is not a 422 "fix your document".
   tier_mismatch: 400,
