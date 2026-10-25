@@ -442,9 +442,10 @@ export function CookieConsent() {
   /**
    * ⛔ THE BAR TAKES THE VISIT'S ONE INTERRUPTION (owner, 2026-10-18: "one per visit, no floaters" — src/lib/page-asks.ts).
    * It is RECORDED, never held back: consent is the law's, so nothing about when or whether the bar shows changes here.
-   * What changes is downstream — in a session the bar appeared in, the install card and the "Join eno" prompt stand
-   * down until a later session. Only the bar that appeared ON ITS OWN counts; the footer's "Cookie settings" is the
-   * reader's own request, not an interruption.
+   * What changes is downstream — in a session the bar appeared in, the install card stands down until a later session.
+   * ("Join eno" no longer does — owner, 2026-10-22: first visits are asked to join once the bar is answered; page-asks.ts.)
+   * Only the bar that appeared ON ITS OWN counts; the footer's "Cookie settings" is the reader's own request, not an
+   * interruption.
    */
   useEffect(() => { if (autoShown) noteSessionAsk('consent') }, [autoShown])
   useEffect(() => {

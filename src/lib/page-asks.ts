@@ -26,7 +26,7 @@
 // the screen, 60s in). Measured on 2026-10-18 against marketplaces that show the feed with one prompt at most.
 // THE SESSION RULE: of the cookie bar, the install card and the join prompt, a browsing session — this tab's
 // sessionStorage — shows ONE. The first to appear takes the session; the other two stand down until a later
-// session. ⚠️ THE COOKIE BAR IS NEVER THE ONE HELD BACK: it is the law's, not ours (cookie-consent.tsx only
+// session (one exception since 2026-10-22, below: the cookie bar never holds "Join eno" back). ⚠️ THE COOKIE BAR IS NEVER THE ONE HELD BACK: it is the law's, not ours (cookie-consent.tsx only
 // RECORDS that it appeared), and it is due on every session until it is answered — so the install card also
 // waits for an answer before it may ask at all (install-hint.tsx), and the join prompt's clock already did
 // (signup-prompt.tsx, UX3 J7a). The push card is not an interruption (it answers the visitor's own post or
@@ -47,6 +47,12 @@
 // in. While the page stays in front, the visit goes on however long it lasts.
 // ⚠️ "Join eno" also counts its own asks per TAB (signup-prompt.ts MAX_PER_TAB = 1) — stricter than this rule,
 // never looser: after a new visit starts in an old tab, the install card may ask again, the join prompt may not.
+// ⛔ EXCEPT THAT THE COOKIE BAR NO LONGER HOLDS THE JOIN PROMPT BACK (owner, 2026-10-22, choosing the sign-up fixes: "Join
+// prompt on first visits — let “Join eno” show after the cookie bar is answered"). Measured: every first visit shows the
+// cookie bar, so from 10-18 no first visit was ever asked to join — the prompt fell from 12.8 shows a day to 2.2. The bar
+// still takes the visit (the install card still waits for a later one), and the join prompt's clock only starts once the
+// bar is answered (signup-prompt.tsx, UX3 J7a), so the two are never on screen together; the join prompt is still one
+// per tab (MAX_PER_TAB).
 
 export type PageAsk = 'join' | 'install' | 'push'
 const ASKS: readonly PageAsk[] = ['join', 'install', 'push']
@@ -162,10 +168,10 @@ if (typeof document !== 'undefined') {
   window.addEventListener('pagehide', visitorLeft)
 }
 
-/** May `ask` appear in this session? Only while no OTHER ask has had it. */
+/** May `ask` appear in this session? Only while no OTHER ask has had it — the cookie bar never holds "Join eno" back. */
 export function maySessionAsk(ask: SessionAsk): boolean {
   const taken = sessionAsk()
-  return taken === null || taken === ask
+  return taken === null || taken === ask || (ask === 'join' && taken === 'consent')
 }
 
 const sessionCounted = (ask: PageAsk): ask is SessionAsk & PageAsk => ask === 'join' || ask === 'install'

@@ -17,9 +17,10 @@ import { IS_SERVICES } from '@/lib/edition'
 //     reads consentAnswered(); nothing here changed);
 //   · ONE ask per tab session (MAX_PER_TAB) — owner, 2026-10-18: "one per visit, no floaters". It used to ask again
 //     after AGAIN_AFTER_MS more visible browsing (twice per tab session); "returns" now means the NEXT session, which
-//     starts again from FIRST_AFTER_MS. And the visit's one interruption is shared with the cookie bar and the
-//     install card (src/lib/page-asks.ts): a session either of them appeared in gets no ask at all — the controller's
-//     `mayAsk('join')` says so;
+//     starts again from FIRST_AFTER_MS. And the visit's one interruption is shared with the install card
+//     (src/lib/page-asks.ts): a session it appeared in gets no ask — the controller's `mayAsk('join')` says so. The
+//     cookie bar no longer holds it back (owner, 2026-10-22: "let “Join eno” show after the cookie bar is answered" — every
+//     first visit has the bar, so none was ever asked); its clock still waits for the bar's answer;
 //   · the DISMISSALS_BEFORE_PAUSE-th dismissal on this device pauses it for PAUSE_MS (then the count
 //     starts over);
 //   · two tabs never ask within AGAIN_AFTER_MS of each other (wall clock, `lastShownAt`) — five open
