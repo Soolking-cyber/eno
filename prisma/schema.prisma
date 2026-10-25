@@ -94,6 +94,8 @@ model Profile {
   /// Teacher job DMs (owner, 2026-10-20) — src/lib/teachers/job-dms. Relation fields only: no Profile column.
   teacherJobDmConsent     TeacherJobDmConsent?
   teacherJobDms           TeacherJobDm[]
+  /// eno Classroom (2026-10-25): the learners this account practises as or for (itself, or its children).
+  classroomLearners       ClassroomLearner[]
   teacherJobDmDays        TeacherJobDmDay[]
   messageReactions        MessageReaction[]
   notifications           Notification[]          @relation("RecipientNotifications")
@@ -1175,6 +1177,8 @@ model TeacherProfile {
   updatedAt          DateTime @updatedAt
   private            TeacherPrivate?
   matches            TeacherJobMatch[]
+  /// eno Classroom (2026-10-25): this teacher's AI avatar (one per teacher).
+  classroomAvatar    ClassroomAvatar?
 
   @@index([status, currentCity])
 }
@@ -2813,4 +2817,241 @@ model SchoolReport {
   @@index([status, createdAt])
   @@index([reviewId])
   @@index([schoolId])
+}
+
+// ── eno CLASSROOM (owner, 2026-10-25) ──────────────────────────────────────────────────────────────────────────────
+// A teacher's AI talking avatar that their students practise speaking English with at home; the teacher sees what went
+// wrong after every session and edits what the next one works on. Plan: ~/.claude/plans/we-need-to-create-scalable-cocoa.md.
+// ⛔ THE TABLES ARE MADE BY scripts/classroom-ddl.mjs (CHECKs, the partial unique indexes Prisma cannot declare, RLS on):
+// src/lib/classroom/ddl.test.ts reads both files and fails if a column drifts. Never `db push` (prisma/CLAUDE.md).
+// ⛔ NO LEARNER AUDIO IS STORED ANYWHERE: pronunciation is scored on the clip in memory and the clip is dropped.
+
+/// One avatar per teacher (MVP). Built on the teacher's TeacherProfile; deleting the profile deletes the classroom.
+model ClassroomAvatar {
+  id                     String                @id @default(cuid())
+  teacherProfileId       String                @unique
+  teacherProfile         TeacherProfile        @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
+  /// The name students see ("Ms Anna"), always shown with "AI avatar of …" (Spatius Terms §4.4).
+  name                   String
+  /// The character the tutor plays — the teacher's words (or Write with AI's, kept only if the teacher saves them).
+  persona                String                @default("")
+  /// Tone / pace / topics chips: { tone, pace, topics } (src/lib/classroom/persona.ts).
+  traits                 Json                  @default("{}")
+  /// The avatar's first line to a new student (the first plan's opening line).
+  greeting               String                @default("")
+  /// An Azure neural voice name from src/lib/classroom/voices.ts (the allowlist the API checks).
+  voice                  String
+  look                   String                @default("photo") // photo | library | custom
+  /// A ready-made Spatius avatar id from src/lib/classroom/library-avatars.ts.
+  libraryAvatarId        String?
+  /// The teacher's own face: requested → (made by hand in Spatius Studio from the profile photo) → ready; removed on withdrawal.
+  customStatus           String                @default("none") // none | requested | ready | removed
+  /// The likeness at Spatius, pasted by an admin (/admin/classroom). Unique: deleting or replacing one avatar's id queues
+  /// THAT likeness for deletion (the DDL's trigger), so no two avatars may share one. 4–120 characters (the queue's bounds).
+  spatiusAvatarId        String?               @unique
+  /// The "Use my photo" consent (a biometric likeness held by SpatialWalk Pte Ltd): version + time, and its withdrawal.
+  photoConsentVersion    String?
+  photoConsentAt         DateTime?
+  photoWithdrawnAt       DateTime?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @default(now()) @updatedAt
+  seats                  ClassroomEnrollment[]
+  sessions               ClassroomSession[]
+}
+
+/// Who practises: the account holder (kind self, 18+) or a child they are parent or legal guardian of (kind child — no login
+/// of its own). Deleting it erases every seat, session and report of that learner (the cascade below).
+model ClassroomLearner {
+  id                        String                @id @default(cuid())
+  ownerId                   String                @db.Uuid
+  owner                     Profile               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  kind                      String // self | child
+  /// A first name or nickname — what the teacher's roster shows. Nothing else identifies a child.
+  displayName               String
+  /// Children only: the YEAR alone (age band for the tutor; assent from 7; voice-only under 13).
+  birthYear                 Int?
+  /// Purpose 1 — voice practice (audio to Microsoft for the transcript and scores, text to Google): version + time.
+  practiceConsentVersion    String?
+  practiceConsentAt         DateTime?
+  /// Purpose 2 — the teacher sees transcripts and reports.
+  teacherViewConsentVersion String?
+  teacherViewConsentAt      DateTime?
+  /// Children only: the account holder said they are the child's parent or legal guardian.
+  guardianAttestedAt        DateTime?
+  /// "Me": the account holder's own statement that they are 18+ and the one who practises (notices.ts ADULT_ATTESTATION);
+  /// required for kind self (a CHECK). A child has guardianAttestedAt instead.
+  adultAttestedAt           DateTime?
+  /// Children aged 7+: the child's own "yes" on the assent screen.
+  assentAt                  DateTime?
+  /// Consent withdrawn: practice stops; the learner's data stays only as long as the seat's retention allows.
+  withdrawnAt               DateTime?
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @default(now()) @updatedAt
+  seats                     ClassroomEnrollment[]
+  sessions                  ClassroomSession[]
+
+  @@index([ownerId])
+}
+
+/// A SEAT in a teacher's class: made by the teacher with its settings, claimed through a one-use invite.
+model ClassroomEnrollment {
+  id              String             @id @default(cuid())
+  avatarId        String
+  avatar          ClassroomAvatar    @relation(fields: [avatarId], references: [id], onDelete: Cascade)
+  /// Null until the invite is claimed.
+  learnerId       String?
+  learner         ClassroomLearner?  @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  /// The teacher's own label for the seat ("Minh — Grade 3"), shown on the invite.
+  seatName        String
+  /// One-use: cleared when claimed (or the seat removed). Unguessable (src/lib/classroom/invite-code.ts).
+  inviteCode      String?            @unique
+  inviteExpiresAt DateTime?
+  status          String             @default("invited") // invited | active | paused | removed
+  level           String             @default("A2")
+  sessionMinutes  Int                @default(10)
+  sessionsPerWeek Int                @default(3)
+  strictness      String             @default("balanced")
+  /// The teacher's standing note for every session ("she is shy — praise first").
+  focusNote       String             @default("")
+  /// "Working on": recurring mistakes the next sessions bring back until fixed (src/lib/classroom/focus.ts).
+  focusItems      Json               @default("[]")
+  claimedAt       DateTime?
+  removedAt       DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @default(now()) @updatedAt
+  plans           ClassroomPlan[]
+  sessions        ClassroomSession[]
+
+  @@index([avatarId, status])
+  @@index([learnerId])
+}
+
+/// What one session works on. The AI drafts the next one after every report; a teacher's edit always wins.
+model ClassroomPlan {
+  id            String              @id @default(cuid())
+  enrollmentId  String
+  enrollment    ClassroomEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  source        String // ai | teacher
+  status        String              @default("draft") // draft | approved | used
+  /// The scenario and goals in plain words — what the teacher reads and edits.
+  brief         String
+  /// { goals[], focusWords[], recycle[], drill[] } (src/lib/classroom/plans.ts).
+  focus         Json                @default("{}")
+  /// The avatar's first line — spoken without a model call, so a session starts at once.
+  openingLine   String              @default("")
+  /// The session whose report drafted it (null for the first plan). A HISTORICAL id, deliberately not a relation (round 6,
+  /// codex): that session may be erased later, and the plan stands on its own.
+  fromSessionId String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @default(now()) @updatedAt
+
+  @@index([enrollmentId, status])
+}
+
+/// One practice session. ⛔ ONE LIVE SESSION PER LEARNER (and per teacher test) — a partial unique index in the DDL.
+model ClassroomSession {
+  id               String               @id @default(cuid())
+  /// Null = the teacher's own test of their avatar.
+  enrollmentId     String?
+  enrollment       ClassroomEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  avatarId         String
+  avatar           ClassroomAvatar      @relation(fields: [avatarId], references: [id], onDelete: Cascade)
+  /// Copied from the seat (session-start.ts) so the one-live-session index can see it; null for a teacher test. The
+  /// session's OWN learner — report access follows it, never the seat's (report.ts).
+  learnerId        String?
+  learner          ClassroomLearner?    @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  /// A teacher test: the teacher's profile id; null for a learner session.
+  testerId         String?              @db.Uuid
+  /// The plan this session was started from — a HISTORICAL id, deliberately not a relation (round 6, codex): an AI draft is
+  /// replaced by the next report's, so the row may be gone. planSnapshot below is what the session actually ran.
+  planId           String?
+  /// The plan as it was when the session started (a later edit never rewrites what this session was asked to do).
+  planSnapshot     Json                 @default("{}")
+  status           String               @default("live") // live | ended
+  endReason        String? // learner | time | abandoned | kill_switch
+  mode             String               @default("avatar") // avatar | voice
+  startedAt        DateTime             @default(now())
+  /// The hard end: no turn lands after endsAt + LIMITS.deadlineGraceSeconds.
+  endsAt           DateTime
+  endedAt          DateTime?
+  /// What the budget counts while the session is live (released to usedSeconds at the end).
+  reservedMinutes  Int
+  usedSeconds      Int                  @default(0)
+  tokenMints       Int                  @default(0)
+  turnCount        Int                  @default(0)
+  learnerSpeechMs  Int                  @default(0)
+  avatarChars      Int                  @default(0)
+  /// Estimated vendor cost (Spatius + Azure + Gemini) in millionths of a US dollar — logged, never billed.
+  costMicroUsd     Int                  @default(0)
+  feedbackStatus   String               @default("pending") // pending | ready | failed
+  feedbackAttempts Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @default(now()) @updatedAt
+  turns            ClassroomTurn[]
+  feedback         ClassroomFeedback?
+
+  @@index([status, endsAt])
+  @@index([enrollmentId, startedAt])
+  @@index([avatarId, startedAt])
+  @@index([learnerId, startedAt])
+}
+
+/// One exchange: what the learner said (seq ≥ 1) and the avatar's reply. seq 0 is the avatar's opening line.
+model ClassroomTurn {
+  id           String           @id @default(cuid())
+  sessionId    String
+  session      ClassroomSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  seq          Int
+  /// The client's idempotency key: a retried upload is the same turn, never a second one.
+  clientTurnId String?
+  status       String           @default("processing") // processing | ok | failed
+  learnerText  String?
+  replyText    String           @default("")
+  hint         String           @default("")
+  hintVi       String           @default("")
+  /// The sentence this REPLY asks the learner to repeat — the known reference that scores their next turn.
+  expectText   String?
+  /// The reference the pronunciation score of THIS turn used: the previous reply's expectText, else the transcript.
+  reference    String?
+  /// Sound-alike mishearings the model suspects: [{ heard, meant }] — shown as questions, never as scores.
+  heardAs      Json             @default("[]")
+  /// Azure Pronunciation Assessment, trimmed: { accuracy, fluency, prosody, words: [{ word, score, error, phonemes? }] }.
+  pron         Json?
+  assessStatus String           @default("skipped") // pending | done | failed | skipped
+  /// 'harm': the learner mentioned harm; the tutor answered with "tell a trusted adult" (teacher-only, and eno admin).
+  flag         String?
+  /// How many Gemini calls this reply took (the hedge's second seat and the fallback counted) — for the cost estimate.
+  aiCalls      Int              @default(0)
+  learnerMs    Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @default(now()) @updatedAt
+
+  @@unique([sessionId, seq])
+  @@unique([sessionId, clientTurnId])
+}
+
+/// The report after a session — what the learner (or their parent) and the teacher read.
+model ClassroomFeedback {
+  sessionId     String           @id
+  session       ClassroomSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  summary       String
+  /// The same summary in Vietnamese — for the learner's family.
+  summaryVi     String           @default("")
+  wins          Json             @default("[]")
+  /// [{ said, better, type, why, turn }] — ⛔ `said` must appear in a learner turn, or the item is dropped.
+  mistakes      Json             @default("[]")
+  /// [{ word, score, tip, reliable }] from Azure's scores (reliable = scored against a known drill sentence).
+  pronunciation Json             @default("[]")
+  /// { used[], missed[], new[] }
+  vocabulary    Json             @default("{}")
+  /// { pronunciation, fluency, grammarFixes, talkSeconds }
+  scores        Json             @default("{}")
+  /// Teacher-only: the child mentioned harm; the tutor answered with "talk to a trusted adult". Also logged for eno admin.
+  safetyFlag    String?
+  /// The teacher's private note — never shown to the learner.
+  teacherNote   String           @default("")
+  teacherSeenAt DateTime?
+  learnerSeenAt DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @default(now()) @updatedAt
 }
