@@ -40,6 +40,13 @@ const RECEIPTS = join(ROOT, '.second-opinion')
 // its verdicts — receipts validated on codex + opus alone. MOOT since 2026-09-23: the seat is removed entirely
 // (see the block below), so nothing named astra is dispatched or counted anywhere.
 /**
+ * ⛔ THE codex SEAT RUNS gpt-6.1-sol AT MEDIUM SINCE 2026-10-25 — owner: "2nd opinion use 6.1 astr on medium on all
+ * sessions". Codex lists no 6.1 Astra (`gpt-6.1-astra` and `gpt-astra-6.1` both answer 400 model_not_found on this account);
+ * asked which of the two real models was meant, the owner chose GPT-6.1-Sol over GPT-6-Astra. Probed before pinning: the
+ * banner echoed `model: gpt-6.1-sol` / `reasoning effort: medium` with no fallback-metadata warning, and it answered.
+ * The 2026-09-24 note below (why medium, why not astra) still holds; only the model id moved.
+ */
+/**
  * ⛔ PANEL SINCE 2026-09-24 = agy + codex + opus — owner: "add gpt astra 6 sol medium reasoning as 2nd
  * opinion from codex", then, asked which: "which has normal token consumption and good reasoning needs
  * a balance there". MEASURED, not guessed: the same real refute-prompt (the 10107374 diff, 13KB) on
@@ -461,7 +468,7 @@ const REVIEWERS = [
    * independent family ever becomes reachable — an OpenRouter key, an opencode login — take it.
    */
   // /**
-  //  * THE OpenAI SEAT, BACK 2026-09-24 on the owner's word, on `gpt-5.6-sol` at MEDIUM — chosen by
+  //  * THE OpenAI SEAT, BACK 2026-09-24 on the owner's word, on `gpt-5.6-sol` (gpt-6.1-sol since 2026-10-25) at MEDIUM — chosen by
   //  * measurement for token cost (see REVIEWER_NAMES). Takes the prompt on STDIN, so unlike agy it is
   //  * never truncated and it keeps the quorum reachable past 180KB. `web_search=disabled` +
   //  * `--skip-git-repo-check` + `--sandbox read-only` are what stop codex burning its whole run
@@ -488,7 +495,7 @@ const REVIEWERS = [
     name: 'codex',
     lab: 'openai',
     cmd: 'codex',
-    args: ['exec', '-m', 'gpt-5.6-sol', '-c', 'model_reasoning_effort=medium', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'],
+    args: ['exec', '-m', 'gpt-6.1-sol', '-c', 'model_reasoning_effort=medium', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'],
     stdin: true,
   },
   {

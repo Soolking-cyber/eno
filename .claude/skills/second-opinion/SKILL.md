@@ -5,7 +5,7 @@ description: How to actually invoke the external reviewers (the seats in REVIEWE
 
 # Invoking the external reviewers
 
-⏸ **Panel = the seats in `REVIEWER_NAMES` (scripts/second-opinion.mjs) — since 2026-09-29 codex (gpt-5.6-sol, medium) + Opus 5.5 (high); agy SKIPPED (owner: skip agy).** Never sleep waiting for a quota reset.
+⏸ **Panel = the seats in `REVIEWER_NAMES` (scripts/second-opinion.mjs) — since 2026-09-29 codex (**gpt-6.1-sol since 2026-10-25**, medium) + Opus 5.5 (high); agy SKIPPED (owner: skip agy).** Never sleep waiting for a quota reset.
 
 The POLICY — second opinion mandatory at BOTH plan and finished diff, ask them to REFUTE rather
 than review, and a reviewer that did not answer is NOT a passed review — lives in the root
@@ -29,9 +29,11 @@ landed every time; an exit code of 0 is not one.
 ⛔ **THE OpenAI SEAT IS BACK — owner, 2026-09-24: _"add gpt astra 6 sol medium reasoning as 2nd
 opinion from codex"_, then _"which has normal token consumption and good reasoning needs a balance"_.**
 Measured on the same real refute-prompt at medium: `gpt-6-astra` 19,302 tokens / 22 s, `gpt-5.6-sol`
-9,881 tokens / 21 s, same verdict and same core findings. **The seat is `gpt-5.6-sol` at
+9,881 tokens / 21 s, same verdict and same core findings. **The seat was `gpt-5.6-sol` (⛔ now `gpt-6.1-sol` — owner,
+2026-10-25: "2nd opinion use 6.1 astr on medium on all sessions"; codex has no 6.1 Astra, and the owner picked 6.1-Sol
+over 6-Astra) at
 `model_reasoning_effort=medium`.** Exact line (prompt on stdin):
-`codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -c web_search=disabled --skip-git-repo-check --sandbox read-only < prompt.txt`
+`codex exec -m gpt-6.1-sol -c model_reasoning_effort=medium -c web_search=disabled --skip-git-repo-check --sandbox read-only < prompt.txt`
 (The 2026-09-23 removal, and any "do not dispatch codex" below, is history. Where a line below says
 `model_reasoning_effort=high`, use medium.)
 
@@ -56,7 +58,7 @@ confirm a real VERDICT came back before pinning it.
     `--sandbox read-only`, so it cannot burn the budget searching the web or walking the tree.
     Full line — ⚠️ `medium` since 2026-09-24 (owner's instruction), re-verified that day to return a
     VERDICT in seconds; the `high` in the older lines below is the pre-restore effort:
-    `codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -c web_search=disabled --skip-git-repo-check --sandbox read-only < prompt.txt`
+    `codex exec -m gpt-6.1-sol -c model_reasoning_effort=medium -c web_search=disabled --skip-git-repo-check --sandbox read-only < prompt.txt`
   · **Constrain the PROMPT** — open with this preamble verbatim:
     *"Answer ONLY from the code pasted below. Do NOT read files, do NOT search the web, do NOT
     explore the repo — everything you need is inline. Your FIRST line MUST be `VERDICT: CONFIRMED`
@@ -80,7 +82,7 @@ confirm a real VERDICT came back before pinning it.
   framed as "arrows work on the server-seeded rail, not the async-fetched one — why?" instead of
   another blind edit.
   **Owner-set invocation — `medium` since 2026-09-24** (it was `high` from 2026-07-21; medium is current):
-  `echo "<review prompt>" | codex exec -m gpt-5.6-sol -c model_reasoning_effort=medium -c web_search=disabled --skip-git-repo-check --sandbox read-only`
+  `echo "<review prompt>" | codex exec -m gpt-6.1-sol -c model_reasoning_effort=medium -c web_search=disabled --skip-git-repo-check --sandbox read-only`
   (or heredoc into stdin). ⚠️ **Verify the banner echoes `reasoning effort: medium`** — it said `high`
   here until 2026-09-24, and an operator checking against that stale line would "fix" the effort
   upward, which is exactly what CLAUDE.md now forbids.
