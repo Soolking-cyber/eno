@@ -1616,6 +1616,10 @@ export function ListingsExplorer({
 
   const handleCategorySelect = (slug: string) => {
     commitView() // a category tile is a step Back undoes (NAV-1)
+    applyCategory(slug)
+  }
+  /** The category pick's filter resets, without the Back step — for a caller that already took one. */
+  const applyCategory = (slug: string) => {
     setLooseMatch(false)
     setActiveCategory(slug)
     setActiveSubcategory('all')
@@ -1623,6 +1627,29 @@ export function ListingsExplorer({
     setActiveModel('all')
     setCustomFilters({})
     setPriceRange('all') // price brackets are category-specific
+  }
+  /**
+   * A category picked from a SHELF below the grid also brings the results into view (sweep, 2026-10-22). The shelves
+   * unmount with the pick, so the page shrank under a scroll position that did not move: desktop showed only the
+   * footer (the tap looked dead), a phone landed mid-results with two pages auto-loading. The toolbar tiles sit above
+   * the grid and keep handleCategorySelect as is. rAF: the scroll runs after the commit that removes the shelves.
+   */
+  const handleRailCategorySelect = (slug: string) => {
+    handleCategorySelect(slug)
+    requestAnimationFrame(() => document.getElementById('listings')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' }))
+  }
+  /**
+   * ⚠️ AN INTENT TILE THE ACTIVE CATEGORY CANNOT HOLD BROWSES IT EVERYWHERE (sweep, 2026-10-22). Free & Giveaways, Wanted
+   * and Wholesale stay on the rail in every category — dropping them on a press re-flows the desktop grid ("category
+   * doesnt shift"), and with no counts they always show — but in Teachers each one answered "Teachers · 0 listings".
+   * Teachers' types are ['teacher'] alone (taxonomy typesFor), so such a tap now leaves the category and lists every
+   * free / wanted / wholesale listing instead. A tap on the active intent still clears it.
+   */
+  const handleIntent = (type: string) => {
+    commitView()
+    if (listingType === type) { setListingType('all'); return }
+    if (activeCategory !== 'all' && !(typesFor(activeCategory) as string[]).includes(type)) applyCategory('all')
+    setListingType(type)
   }
 
   // Parse a query-string into the explorer's filter state. Shared by the mount/popstate
@@ -4549,7 +4576,7 @@ export function ListingsExplorer({
                 onSubcategory={setActiveSubcategory}
                 intents={sellerId ? undefined : INTENT_SHORTCUTS}
                 activeType={listingType}
-                onIntent={(type) => { commitView(); setListingType(listingType === type ? 'all' : type) }}
+                onIntent={handleIntent}
                 expanded={ladderOpen}
                 // The same counts the full rail reads, so the phone row offers the same chips (E-TILES).
                 facets={facetCounts}
@@ -4590,7 +4617,7 @@ export function ListingsExplorer({
             // Free / Wanted shortcuts — the intent tiles, at the tail.
             intents={sellerId ? undefined : INTENT_SHORTCUTS}
             activeType={listingType}
-            onIntent={(type) => { commitView(); setListingType(listingType === type ? 'all' : type) }}
+            onIntent={handleIntent}
             // Tiles are links (E-TILES): new-tab and crawlable, filtering in place on a plain click.
             hrefFor={tileHref}
           />
@@ -5675,7 +5702,11 @@ export function ListingsExplorer({
           </div>
         )}
 
-        {showDiscovery && (
+        {/* ⛔ NEVER ON A STOREFRONT, like the recovery rail above (owner, 2026-08-30): Trending, Outstanding businesses
+            and the category shelves are marketplace-wide merchandising — on a shop's page they showed other sellers'
+            listings and competing businesses as if they were the shop's (sweep, 2026-10-22). Other sellers appear on a
+            storefront only under its own "More from other sellers" heading. */}
+        {showDiscovery && !sellerId && (
           <div className="mt-8 space-y-8 sm:mt-12 sm:space-y-12 lg:mt-8 lg:space-y-8">
             {/* Recently viewed — the returning buyer's own trail. Self-hides for new visitors. */}
             <RecentlyViewedRail />
@@ -5690,7 +5721,7 @@ export function ListingsExplorer({
 
             {/* Browse by category — one horizontal rail per category, most-used first.
                 Tapping a heading / "See all" opens that category (same as a tile). */}
-            <DeferredCategoryRails categories={categories} onCategory={handleCategorySelect} excludeIds={railExcludeIds} />
+            <DeferredCategoryRails categories={categories} onCategory={handleRailCategorySelect} excludeIds={railExcludeIds} />
           </div>
         )}
       </div>
