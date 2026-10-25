@@ -26,6 +26,7 @@ const funnel = vi.hoisted(() => [] as string[])
 vi.mock('@/lib/signup-counters', async (orig) => ({ ...(await orig<typeof import('@/lib/signup-counters')>()), countTeacherFormEvent: (e: string) => { funnel.push(e) } }))
 
 import { TeacherForm } from './teacher-form'
+import { teacherCarry } from '@/lib/auth/in-app-carry'
 
 const asyncUtilTimeout = getConfig().asyncUtilTimeout
 configure({ asyncUtilTimeout: 5_000 })
@@ -334,6 +335,134 @@ describe('teacher.eno.vn → eno.vn', () => {
     // mapped at the boundary, then step 1 only (the teaching areas it implies) — never the name or answers behind it
     expect(kept).toMatchObject({ livesIn: null, teachAreas: ['online', 'ha-noi'], fullName: '', subjects: [], coverOpen: false, coverConsent: false })
     expect(auth.openSignIn).not.toHaveBeenCalled()
+  })
+})
+
+// ── "Continue with Google" inside an app's built-in browser (2026-10-25): the page moves to the phone's own browser, and
+// this form's step-1 answers wait on the server under a one-time token the address carries (src/lib/auth/carry.ts;
+// sign-in-form.tsx continueGoogleInBrowser). The form says what to carry, and takes it back on the other side.
+describe('the answers carried out of an app\'s browser (?carry=)', () => {
+  const TOKEN = 'T'.repeat(43)
+  const STEP1 = { livesIn: 'city', currentCity: 'ho-chi-minh-city', currentDistrictKey: 'd7', jobTypes: ['fulltime'], relocate: 'no', teachAreas: [], teachAreasConfirmed: false }
+
+  it('⛔ taken back once in the phone\'s browser — asked again until they land, step 1 restored, the sign-in opens once, the token off the address, step 1 not counted twice', async () => {
+    funnel.length = 0
+    history.replaceState(null, '', `/teachers/join?goal=cover&carry=${TOKEN}`)
+    let asks = 0
+    const f = fakeFetch({ 'POST /api/auth/carry/take': () => ({ json: { carry: ++asks < 2 ? null : b64url({ v: 2, t: STEP1 }) } }) })
+    vi.stubGlobal('fetch', f.fn)
+    mount()
+    // Off the address at once — held in this tab while it is asked for (a reload picks it up)…
+    expect(window.location.search).not.toContain('carry=')
+    expect(window.location.search).toContain('goal=cover')
+    await waitFor(() => expect(auth.openSignIn).toHaveBeenCalledTimes(1))
+    // …and gone from the tab once settled.
+    expect(sessionStorage.getItem('eno.carry')).toBeNull()
+    const takes = f.calls.filter((c) => c.url === '/api/auth/carry/take')
+    expect(takes.length).toBeGreaterThanOrEqual(2)
+    expect(takes.every((c) => (c.body as { t: string }).t === TOKEN)).toBe(true)
+    // In the form, then dropped on the server — the last word is `done`.
+    await waitFor(() => expect(f.calls.filter((c) => c.url === '/api/auth/carry/take').at(-1)!.body).toEqual({ t: TOKEN, done: true }))
+    expect(storedDraft().t).toMatchObject({ currentCity: 'ho-chi-minh-city', currentDistrictKey: 'd7', jobTypes: ['fulltime'], relocate: 'no' })
+    expect(typeof storedDraft().signIn).toBe('number')
+    expect(screen.queryByTestId('carry-status')).toBeNull()
+    expect(funnel.filter((e) => e.startsWith('step1_'))).toEqual([])
+  })
+
+  it('never came (not a token at all): the line says so, step 1 stays empty to answer here, nothing opened for them', async () => {
+    history.replaceState(null, '', `/teachers/join?carry=${TOKEN}`)
+    const f = fakeFetch({ 'POST /api/auth/carry/take': () => ({ status: 400, json: { error: 'bad_request' } }) })
+    vi.stubGlobal('fetch', f.fn)
+    mount()
+    expect(await screen.findByText('Your answers did not come across — please answer these again.')).toBeTruthy()
+    expect(screen.getByText('Where are you now?')).toBeTruthy()
+    expect(auth.openSignIn).not.toHaveBeenCalled()
+    expect(window.location.search).not.toContain('carry=')
+  })
+
+  it('a reload while it is being asked for picks the token up from this tab and asks on', async () => {
+    sessionStorage.setItem('eno.carry', JSON.stringify({ t: TOKEN, at: Date.now() }))
+    const f = fakeFetch({ 'POST /api/auth/carry/take': () => ({ json: { carry: b64url({ v: 2, t: STEP1 }) } }) })
+    vi.stubGlobal('fetch', f.fn)
+    mount()
+    await waitFor(() => expect(auth.openSignIn).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(f.calls.filter((c) => c.url === '/api/auth/carry/take').map((c) => c.body)).toEqual([{ t: TOKEN }, { t: TOKEN, done: true }]))
+    expect(storedDraft().t).toMatchObject({ currentDistrictKey: 'd7' })
+    expect(sessionStorage.getItem('eno.carry')).toBeNull()
+  })
+
+  it('…but never one held longer than the server keeps them (30 minutes): nothing asked', async () => {
+    sessionStorage.setItem('eno.carry', JSON.stringify({ t: TOKEN, at: Date.now() - 31 * 60_000 })) // the server's 30 minutes are over
+    const f = fakeFetch({})
+    vi.stubGlobal('fetch', f.fn)
+    mount()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(f.calls.some((c) => c.url === '/api/auth/carry/take')).toBe(false)
+  })
+
+  it('⛔ a miss keeps them (here and on the server) — "Try again" asks again and puts them back', async () => {
+    history.replaceState(null, '', `/teachers/join?carry=${TOKEN}`)
+    let ready = false
+    const f = fakeFetch({ 'POST /api/auth/carry/take': (b) => ({ status: ready || (b as { done?: boolean }).done ? 200 : 400, json: ready ? { carry: (b as { done?: boolean }).done ? null : b64url({ v: 2, t: STEP1 }) } : { error: 'bad_request' } }) })
+    vi.stubGlobal('fetch', f.fn)
+    const { user } = mount()
+    expect(await screen.findByText('Your answers did not come across — please answer these again.')).toBeTruthy()
+    // Nothing dropped on a miss.
+    expect(f.calls.some((c) => (c.body as { done?: boolean } | null)?.done)).toBe(false)
+    expect(sessionStorage.getItem('eno.carry')).not.toBeNull()
+    ready = true
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(auth.openSignIn).toHaveBeenCalledTimes(1))
+    expect(storedDraft().t).toMatchObject({ currentDistrictKey: 'd7' })
+    await waitFor(() => expect(f.calls.filter((c) => c.url === '/api/auth/carry/take').at(-1)!.body).toEqual({ t: TOKEN, done: true }))
+  })
+
+  it('a fresh #d= hand-over beats a token held from an earlier visit', async () => {
+    sessionStorage.setItem('eno.carry', JSON.stringify({ t: TOKEN, at: Date.now() }))
+    history.replaceState(null, '', `/teachers/join#d=${b64url({ v: 2, t: STEP1 })}`)
+    const f = fakeFetch({ 'POST /api/auth/carry/take': () => ({ json: { carry: null } }) })
+    vi.stubGlobal('fetch', f.fn)
+    mount()
+    await waitFor(() => expect(auth.openSignIn).toHaveBeenCalledTimes(1))
+    // Never asked for — and over for good: off this tab (a reload cannot bring it back) and dropped on the server.
+    expect(f.calls.filter((c) => c.url === '/api/auth/carry/take').map((c) => c.body)).toEqual([{ t: TOKEN, done: true }])
+    expect(sessionStorage.getItem('eno.carry')).toBeNull()
+  })
+
+  it('inside an app\'s browser the token is left on the address (its ⋯ "Open in browser" carries it) and nothing is taken', async () => {
+    const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(FB_IOS_UA)
+    try {
+      history.replaceState(null, '', `/teachers/join?carry=${TOKEN}`)
+      const f = fakeFetch({})
+      vi.stubGlobal('fetch', f.fn)
+      mount()
+      expect(await screen.findByText('Where are you now?')).toBeTruthy()
+      await new Promise((r) => setTimeout(r, 50))
+      expect(f.calls.some((c) => c.url === '/api/auth/carry/take')).toBe(false)
+      expect(window.location.search).toBe(`?carry=${TOKEN}`)
+    } finally { ua.mockRestore() }
+  })
+
+  it('what the form gives to carry: nothing before step 1 is answered; then its step-1 answers and the address\'s own query — never the return mark, an old token or the escape mark; nothing once signed in', async () => {
+    const ua = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(FB_IOS_UA) // in-app: the old token is left alone
+    history.replaceState(null, '', '/teachers/join?goal=cover&utm_source=fb&teacher_signin=1&carry=old&iab=facebook')
+    const first = mount()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    expect(teacherCarry()).toBeNull()
+    first.unmount()
+    // A tab copy with step 1 answered (written signed out: step 1 is what it carries).
+    putDraft(STEP1, 'plans', 5, null)
+    const { rerender } = mount()
+    await waitFor(() => expect(teacherCarry()).not.toBeNull())
+    ua.mockRestore()
+    const c = teacherCarry()!
+    expect(c.search).toBe('goal=cover&utm_source=fb')
+    expect(unb64url(c.answers)).toMatchObject({ v: 2 })
+    auth.user = { id: 'u1' }
+    vi.stubGlobal('fetch', fakeFetch({ 'GET /api/teachers/me': () => ({ json: { teacher: null, publishGate: { ok: true, code: null }, prefill: null } }), 'GET /api/teachers/me/draft': () => ({ json: { draft: null } }) }).fn)
+    rerender()
+    await waitFor(() => expect(teacherCarry()).toBeNull())
   })
 })
 

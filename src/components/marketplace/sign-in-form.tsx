@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { googleOauthBlocked, inAppHost, isIOS, isNativeTabs, openInSystemBrowser } from '@/lib/in-app-browser'
+import { escapeInAppBrowser, googleOauthBlocked, inAppHost, isIOS, isNativeTabs, openInSystemBrowser, uaOs } from '@/lib/in-app-browser'
+import { CARRY_PARAM, teacherCarry } from '@/lib/auth/in-app-carry'
 import { PHONE_OTP_ENABLED } from '@/lib/auth-policy'
 import { noteGateMethod } from '@/lib/signin-gates'
 import { armIntent, withResume, type PendingIntent } from '@/lib/pending-intent'
@@ -379,6 +380,13 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   // So treat native as NOT blocked: show the normal
   // "Continue with Google" button, not the "open in your browser" fallback + hint.
   const [oauthBlocked, setOauthBlocked] = useState(false)
+  // …and of those, an APP'S BUILT-IN BROWSER (Facebook's, Zalo's, a raw Android WebView — inAppHost): Google continues in
+  // the phone's own browser there (continueGoogleInBrowser), never the pairing hand-off, which stays for the one context
+  // with no app around it to leave — eno.vn on an iPhone's home screen.
+  const [inAppGoogle, setInAppGoogle] = useState(false)
+  // "Continue with Google" opened the phone's own browser — the notice under the button (and whether answers went too).
+  // `n`: each hand-over is its own notice (keyed) — its own timer and its own "Still here?", for its own token (codex).
+  const [googleInBrowser, setGoogleInBrowser] = useState<{ carried: boolean; token: string | null; n: number } | null>(null)
   const [iosHint, setIosHint] = useState(false)
   // Native iOS app's embedded tabs: Google can't work there at all (no escape
   // hatch, no session handoff) — hide it and lead with Phone/Email.
@@ -457,6 +465,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   const openEmail = () => { setEmailOpened(true); reportEmail() }
   useEffect(() => {
     setOauthBlocked(googleOauthBlocked() && !isNativeApp())
+    setInAppGoogle(googleOauthBlocked() && !isNativeApp() && inAppHost() !== null)
     // ⛔ ONE ANSWER FOR BOTH PROVIDERS IN THE iOS APP: `iosGoogleHidden()` and `appleAvailableHere()` both come
     // from `iosNativeAppleReady()`, so Google can never show there without Apple (Guideline 4.8). The app's
     // in-app sheet is a plain browser (IN_APP_SHEET_PARAM) — no provider there (plan B8): a sign-in inside it would
@@ -600,8 +609,9 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   // Re-open the sign-in page in the device's real browser (escaping the in-app
   // webview), preserving where the user wanted to go.
   /**
-   * Google, from a context Google refuses: an in-app browser, an Android System WebView, or an iOS
-   * home-screen PWA.
+   * Google, from a context Google refuses and that has no app around it to leave: since 2026-10-25 that is eno.vn on an
+   * iPhone's home screen alone — an app's built-in browser and a raw Android WebView take continueGoogleInBrowser below
+   * (this pairing signed in 2 of the 62 visitors who started it there).
    *
    * ⚠️ THIS USED TO SEND THEM TO THE BROWSER AND STOP, WHICH SIGNED IN THE WRONG BROWSER. It opened
    * `${authOrigin}/signin` in the system browser; the visitor signed in fine — in the BROWSER'S
@@ -653,6 +663,56 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
       // The app moves to the waiting room, which doubles as the manual-escape URL on iOS.
       window.location.assign(escapePath)
     })()
+  }
+
+  /**
+   * ⛔ INSIDE AN APP'S BUILT-IN BROWSER, GOOGLE CONTINUES IN THE PHONE'S OWN BROWSER (owner, 2026-10-25: "Full fix").
+   * The pairing hand-off above signed in 2 of the 62 visitors who started it there (measured on Cloudflare, 10-11 → 10-25:
+   * 41 finished Google in their real browser and never typed the code back), so in Facebook's, Zalo's and the other apps'
+   * browsers the PAGE moves instead: the visitor signs in with Google in the phone's own browser — where 82–92% of those who
+   * choose a way to sign in finish — and carries on there. Every page but one carries nothing: its sign-in opens there
+   * with `next` (an action waiting for sign-in, a typed message, is asked again there). The teacher join form's step-1
+   * answers go too: an Android intent cannot carry its `#d=` fragment, so they wait on the server under a token
+   * the address carries (src/lib/auth/carry.ts), and the form there takes them back (teacher-form.tsx). The pairing
+   * hand-off stays for eno.vn on an iPhone's home screen, which has no app around it to leave.
+   * ⚠️ ALL INSIDE THE TAP, IN THIS ORDER: the answers' POST is dispatched first (keepalive — it outlives the app switch),
+   * then the browser is opened (escapeInAppBrowser — the live "Open in your browser" screen's helper; Facebook drops an
+   * escape that is not inside a tap). ⛔ The token goes on THIS tab's own address only once the notice says how to leave by
+   * hand (the app's ⋯ "Open in browser" then carries it), not at the tap: a link copied or shared from this tab could hand
+   * a friend the answers (commit gate, opus) — and once the phone's browser has them they are dropped, so it reads nothing.
+   * Accepted: on a page that is not the teacher form, the ⋯ way opens this page, not its sign-in (no `resume=`).
+   */
+  // ⛔ Only from the canonical origin: the answers' POST goes to THIS origin, and proxy.ts holds writes to the canonical
+  // one — from anywhere else it would be refused and the answers lost without a word (commit gate, opus). One answer for
+  // the tap and for the line under the button, so the line never promises answers the tap will not carry.
+  const carryHere = () => {
+    if (typeof window === 'undefined') return null
+    try { return new URL(authOrigin).origin === window.location.origin ? teacherCarry() : null } catch { return null }
+  }
+  const continueGoogleInBrowser = () => {
+    if (typeof window === 'undefined') return
+    // A token an earlier try put on THIS tab's address is over ("Try again" mints a new one, shown only if needed again).
+    try {
+      const here = new URL(window.location.href)
+      if (here.searchParams.has(CARRY_PARAM)) {
+        here.searchParams.delete(CARRY_PARAM)
+        history.replaceState(history.state, '', `${here.pathname}${here.search}${here.hash}`)
+      }
+    } catch { /* no history API */ }
+    const carry = carryHere()
+    let url = `${authOrigin}/signin?next=${encodeURIComponent(nextPath)}`
+    if (carry) {
+      const token = handoffNonce()
+      void fetch('/api/auth/carry', {
+        method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ t: token, carry: carry.answers }),
+      }).catch(() => { /* the form there asks again for a while, then says the answers did not arrive */ })
+      const q = new URLSearchParams(carry.search)
+      q.set(CARRY_PARAM, token)
+      url = `${authOrigin}/teachers/join?${q.toString()}`
+    }
+    escapeInAppBrowser(url, inAppHost())
+    setGoogleInBrowser((prev) => ({ carried: !!carry, token: carry ? new URL(url).searchParams.get(CARRY_PARAM) : null, n: (prev?.n ?? 0) + 1 }))
   }
 
   // ⛔ PROVIDER-SPECIFIC, BECAUSE `loading` IS FORM-WIDE. Reusing `loading` for this button's label
@@ -760,7 +820,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
     // In an in-app browser / iOS PWA, OAuth is rejected (disallowed_useragent) — break
     // out to the real browser instead of letting Google show its block page. Stays BEFORE any
     // await on purpose: openInSystemBrowser needs the live user gesture.
-    if (oauthBlocked) { openGoogleInBrowser(); return }
+    if (oauthBlocked) { if (inAppGoogle) continueGoogleInBrowser(); else openGoogleInBrowser(); return }
     setError(null)
     setLoading(true)
     // ⚠️ THE SAME BUTTON, SO THE SAME PROGRESS. This path (GIS unmounted, or a keyboard
@@ -1846,11 +1906,30 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
                 <GoogleIcon />
                 {t('Continue with Google', 'Tiếp tục với Google')}
               </Button>
-              <p id={googleNoteId} className="text-2xs leading-relaxed text-muted-foreground">
-                {iosHint
-                  ? t('Tap ••• at the top and choose “Open in Safari/Browser” to continue with Google. Or use the code above — it works right here.', 'Chạm ••• ở trên rồi chọn “Mở trong Safari” để tiếp tục với Google. Hoặc dùng mã ở trên — vẫn hoạt động ngay tại đây.')
-                  : t('Google opens your browser — then you bring a short code back here.', 'Google sẽ mở trình duyệt — sau đó bạn mang một mã ngắn về đây.')}
-              </p>
+              {googleInBrowser ? (
+                // "Try again" runs the whole hand-over again — a NEW token and the answers sent again (commit gate, opus: the same
+                // token could already be spent by a first browser tab, or its POST lost).
+                <GoogleInBrowserNotice key={googleInBrowser.n} id={googleNoteId} carried={googleInBrowser.carried} onRetry={continueGoogleInBrowser} onStillHere={() => {
+                  // The way by hand is being shown: the app's ⋯ "Open in browser" opens THIS address, so it carries the token now.
+                  const token = googleInBrowser.token
+                  if (!token) return
+                  try {
+                    const here = new URL(window.location.href)
+                    here.searchParams.set(CARRY_PARAM, token)
+                    history.replaceState(history.state, '', `${here.pathname}${here.search}${here.hash}`)
+                  } catch { /* "Try again" still carries it */ }
+                }} />
+              ) : (
+                <p id={googleNoteId} className="text-2xs leading-relaxed text-muted-foreground">
+                  {inAppGoogle
+                    ? (carryHere()
+                        ? t('Google opens your browser — your answers go with you, and you carry on there.', 'Google sẽ mở trình duyệt — câu trả lời của bạn đi cùng, và bạn tiếp tục ở đó.')
+                        : t('Google opens your browser — you carry on there.', 'Google sẽ mở trình duyệt — bạn tiếp tục ở đó.'))
+                    : iosHint
+                      ? t('Tap ••• at the top and choose “Open in Safari/Browser” to continue with Google. Or use the code above — it works right here.', 'Chạm ••• ở trên rồi chọn “Mở trong Safari” để tiếp tục với Google. Hoặc dùng mã ở trên — vẫn hoạt động ngay tại đây.')
+                      : t('Google opens your browser — then you bring a short code back here.', 'Google sẽ mở trình duyệt — sau đó bạn mang một mã ngắn về đây.')}
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -1869,6 +1948,48 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
         {' '}{t('and', 'và')}{' '}
         <a href="/privacy" target={legalInApp ? undefined : '_blank'} onClick={openLegal} rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</a>.
       </p>
+    </div>
+  )
+}
+
+/** How long the page may still be in front after the tap before the notice says how to leave by hand (open-in-browser.tsx). */
+const GOOGLE_STILL_HERE_MS = { android: 1500, ios: 4000 } as const
+
+/**
+ * Under "Continue with Google" once it has opened the phone's own browser (continueGoogleInBrowser): where to carry on,
+ * a retry for the same address, and — while this page is still in front a moment later, so the app did not let go — the
+ * way by hand through the app's ⋯, as the live "Open in your browser" screen says it. The emailed code above still works
+ * right here. ⛔ Never "it did not open": the app's own "Open in Safari?" leaves this page visible too (open-in-browser.tsx).
+ */
+function GoogleInBrowserNotice({ id, carried, onRetry, onStillHere }: { id: string; carried: boolean; onRetry: () => void; onStillHere: () => void }) {
+  const { tr } = useLanguage()
+  const [stillHere, setStillHere] = useState(false)
+  useEffect(() => {
+    const os = uaOs(navigator.userAgent || '')
+    const timer = setTimeout(() => { if (document.visibilityState === 'visible') setStillHere(true) }, GOOGLE_STILL_HERE_MS[os === 'ios' ? 'ios' : 'android'])
+    // ⛔ …and BACK IN FRONT SOON AFTER the tap (commit gate, codex): the timer can fire while the app's own sheet or the
+    // browser hides this page, and a visitor who comes back must still be told the way by hand (open-in-browser.tsx does
+    // the same). Only soon after: one who finished there and opens the app minutes later is told nothing.
+    const at = Date.now()
+    const back = () => { if (document.visibilityState === 'visible' && Date.now() - at <= 60_000) setStillHere(true) }
+    document.addEventListener('visibilitychange', back)
+    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', back) }
+  }, [])
+  // Once per showing (each hand-over is its own keyed notice); the handler reads its own token.
+  useEffect(() => { if (stillHere) onStillHere() }, [stillHere])
+  return (
+    <div id={id} role="status" className="space-y-1.5 text-2xs leading-relaxed text-muted-foreground">
+      <p className="font-semibold text-foreground">
+        {carried
+          ? tr('Your browser is opening — sign in with Google there. Your answers go with you.', 'Trình duyệt đang mở — hãy đăng nhập bằng Google ở đó. Câu trả lời của bạn đi cùng.')
+          : tr('Your browser is opening — sign in with Google there.', 'Trình duyệt đang mở — hãy đăng nhập bằng Google ở đó.')}
+      </p>
+      {/* Not every app has the ⋯ (a raw WebView has no menu): the emailed code is said as the way that always works — never
+          "above", which a folded form may not show (commit gate, opus). */}
+      {stillHere && <p>{tr('Still here? Tap ⋯ at the top right, then “Open in browser” — or sign in right here with a code sent to your email.', 'Vẫn ở đây? Bấm ⋯ ở góc trên bên phải, rồi chọn “Mở bằng trình duyệt” — hoặc đăng nhập ngay tại đây bằng mã gửi qua email.')}</p>}
+      <Button variant="link" size="none" type="button" className="text-2xs font-semibold" onClick={onRetry}>
+        {tr('Try again', 'Thử lại')}
+      </Button>
     </div>
   )
 }
