@@ -442,7 +442,7 @@ describe('/privacy — Sign in with Apple', () => {
 
   // ⛔ THE DAY THE JOB-MATCH SWITCHES TURNED ON BY DEFAULT IS A FACT NOW: 25 October 2026 (deploy 2f31c854b, ~14:35 ICT).
   // Until it ran, this test derived the day from PRIVACY_TEXT_PUBLISHED (gate review, opus 2026-10-22); the next re-date of
-  // the policy (the in-app Google carry, 2026-10-26) pinned it here as a literal, as the CV dates were — never moved again.
+  // the policy (the in-app Google carry, deployed the same 25 October) pinned it here as a literal, as the CV dates were — never moved again.
   it('the day the job-match switches turned on by default is pinned: 25 October 2026, EN and VI', async () => {
     const [y, m, d] = [2026, 10, 25]
     const month = 'October'

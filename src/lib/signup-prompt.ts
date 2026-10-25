@@ -323,7 +323,7 @@ export const isGateAction = (v: unknown): v is GateAction => typeof v === 'strin
  *   escape_stay        — "Continue in Facebook" (or Messenger, Instagram) tapped on it: step 1 goes on in the app
  *   escape_arrived     — a page opened in a REAL browser with the escape's mark on its address — the hand-over held.
  *                        Anyone can open such an address, so read it as an upper bound beside escape_tap
- * And the people hiring, on a page written for teachers (2026-10-26, owner 2026-10-22: "VI visitors → See teachers"):
+ * And the people hiring, on a page written for teachers (2026-10-25, owner 2026-10-22: "VI visitors → See teachers"):
  *   see_teachers       — "See teachers" tapped (see-teachers.tsx), shown only when the join page is in Vietnamese; read
  *                        beside step1_ready / escape_shown of the same Vietnamese class for how many saw it
  */

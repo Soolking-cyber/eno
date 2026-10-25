@@ -143,7 +143,8 @@
  * before 23 October 2026 could remove it — owner, 2026-10-25: "Allow removal"; the cutoff text is gone with the rule),
  * and the CV-reading row's "which you can replace or remove at any time". Live with the deploy — it asks LESS of a
  * teacher and changes no recipient. It went live that day (deploy 495f3f20e, ~17:01 ICT).
- * And 2026-10-26 (owner, 2026-10-25: "Full fix" of Google inside an app's built-in browser — the pairing hand-off signed
+ * And 2026-10-25 again — a THIRD deploy that day (planned for the 26th; owner at 23:03 ICT: "deploy now", so re-dated to the
+ * day it runs) (owner, 2026-10-25: "Full fix" of Google inside an app's built-in browser — the pairing hand-off signed
  * in 2 of 62 visitors who started it): "Account information" says that choosing Google inside an app's browser opens the
  * page in the phone's own browser, and that the teacher form's step-1 answers wait on our server for that browser under a
  * link that works for 30 minutes — "delete them then, or otherwise within an hour" (src/lib/auth/carry.ts: dropped once
@@ -160,7 +161,7 @@
  * line, `export const PRIVACY_TEXT_PUBLISHED: string = 'YYYY-MM-DD'`: that is the shape the gate reads.
  * ⚠️ Typed, never read from the clock: the page prerenders, and a build-time date would move with every rebuild.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-26'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-25'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -169,4 +170,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-26'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '499412c12e56d9cd'
+export const PRIVACY_TEXT_FINGERPRINT = '7266a244fc9daefe'

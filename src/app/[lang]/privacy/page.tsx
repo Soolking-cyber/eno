@@ -930,7 +930,7 @@ const SECTIONS: Section[] = [
         // × LANGS, validated server-side); the route reads the IP for its rate limit (rl_window) and stores
         // none of it there. The teacher form's events: signup-prompt.ts TEACHER_FORM_EVENTS — a Publish refused on the CV
         // counts as publish_refused_cv ("refused for … the CV"): since 2026-10-25 only a CV upload that failed or expired.
-        // And (2026-10-26, see-teachers.tsx) see_teachers — "See teachers" tapped by a Vietnamese-language visitor of the join
+        // And (2026-10-25, see-teachers.tsx) see_teachers — "See teachers" tapped by a Vietnamese-language visitor of the join
         // page (the same anonymous daily totals, no page or identifier).
         // And (2026-10-22, the way out first — open-in-browser.tsx EscapeFirst) escape_shown / escape_stay / escape_arrived:
         // "the screen … was shown", "you chose to go on in the app", "a page then opened in your browser from it".
