@@ -4,6 +4,9 @@ import { db } from '@/lib/db'
 import { ApiError } from '@/lib/api/handler'
 import { teacherTextRefusal } from '@/lib/teachers/text-screen'
 import { individualOnboardingWrite } from '@/lib/core/first-onboarding'
+import { tosVersionInForce } from '@/lib/site-legal'
+import { containsContactInfo } from '@/lib/publish-guard'
+import { containsPhoneNumber } from '@/lib/phone'
 import { classroomAudit, noticeSha } from './audit'
 import { isInviteCodeShape, normalizeInviteCode } from './invite-code'
 import { cleanText } from './persona'
@@ -100,7 +103,8 @@ export async function claimSeat(raw: string, account: Account, req: JoinBody, no
     const rows = await tx.$queryRaw<{ id: string; status: string; inviteExpiresAt: Date | null; avatarId: string }[]>`
       SELECT "id", "status", "inviteExpiresAt", "avatarId" FROM "ClassroomEnrollment" WHERE "inviteCode" = ${code} FOR UPDATE`
     const seat = rows[0]
-    if (!seat || seat.status !== 'invited' || !seat.inviteExpiresAt || seat.inviteExpiresAt <= now) throw new ApiError('invite_invalid', 404)
+    // Expiry against the time NOW, after the locks (2b round 2, codex): a claim that waited must not outlive its invite.
+    if (!seat || seat.status !== 'invited' || !seat.inviteExpiresAt || seat.inviteExpiresAt <= new Date()) throw new ApiError('invite_invalid', 404)
     const owner = await tx.classroomAvatar.findUnique({ where: { id: seat.avatarId }, select: { teacherProfile: { select: { profileId: true } } } })
     if (owner?.teacherProfile.profileId === account.id) throw new ApiError('invite_own', 409)
     // A class that cannot run takes no family's consents (2b round 1, opus): the teacher's switch, read here too.
@@ -117,6 +121,8 @@ export async function claimSeat(raw: string, account: Account, req: JoinBody, no
       ...(learner.kind === 'child' ? { guardian: GUARDIAN_NOTICE_VERSION, guardianSha: SHAS.guardian } : {}),
       ...(learner.kind === 'self' ? { adult: ADULT_NOTICE_VERSION, adultSha: SHAS.adult } : {}),
       ...(learner.assented ? { assent: ASSENT_VERSION, assentSha: SHAS.assent } : {}),
+      // A new account's Terms, accepted beside "Join": the version in force, named in the same record (2b round 2, opus).
+      ...(account.accountType == null ? { terms: tosVersionInForce(now) } : {}),
     })
     await tx.classroomLearner.update({
       where: { id: learner.id },
@@ -159,7 +165,9 @@ async function learnerFor(tx: Tx, accountId: string, req: JoinBody, now: Date): 
     const mine = await tx.classroomLearner.findFirst({ where: { ownerId: accountId, kind: 'self' }, select: { id: true } })
     if (mine) return { id: mine.id, kind: 'self', assented: false }
     const profile = await tx.profile.findUnique({ where: { id: accountId }, select: { displayName: true } })
-    const displayName = cleanText(profile?.displayName ?? '', 40).replace(/\n/g, ' ') || 'Me'
+    const name = cleanText(profile?.displayName ?? '', 40).replace(/\n/g, ' ')
+    // The teacher's roster shows it (2b round 2, opus): an account name carrying a number or a handle is not copied.
+    const displayName = name && !containsPhoneNumber(name) && !containsContactInfo(name) ? name : 'Me'
     const made = await tx.classroomLearner.create({ data: { ownerId: accountId, kind: 'self', displayName, adultAttestedAt: now }, select: { id: true } })
     return { id: made.id, kind: 'self', assented: false }
   }

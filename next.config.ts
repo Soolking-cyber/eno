@@ -1272,7 +1272,7 @@ const nextConfig: NextConfig = {
      */
     const xmFrame = EDITION_ENV === "services" ? " https://www.crossmint.com https://staging.crossmint.com" : "";
     const xmPayment = EDITION_ENV === "services" ? ' payment=(self "https://www.crossmint.com" "https://staging.crossmint.com")' : " payment=()";
-    const csp = [
+    const cspFor = (extraConnect = "") => [
       "default-src 'self'",
       "base-uri 'self'",
       "object-src 'none'",
@@ -1333,7 +1333,7 @@ const nextConfig: NextConfig = {
       // 2026-10-17). ⛔ NOT www.google.com or www.google.<country>: those are Google Signals / ga-audiences
       // beacons, switched off at the source instead (analytics-tags.tsx) — eno runs no Google Ads, and
       // admitting them would open connect-src to all of www.google.com plus one host per visitor country.
-      `connect-src 'self' data: capacitor: ${SUPABASE_ORIGIN} ${SUPABASE_WS} https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com https://region1.analytics.google.com https://www.googletagmanager.com` + gsiConnect,
+      `connect-src 'self' data: capacitor: ${SUPABASE_ORIGIN} ${SUPABASE_WS} https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com https://region1.analytics.google.com https://www.googletagmanager.com` + gsiConnect + extraConnect,
       "frame-src 'self' https://td.doubleclick.net https://challenges.cloudflare.com" + gsiFrame + xmFrame,
       "worker-src 'self' blob:",
       "manifest-src 'self'",
@@ -1342,6 +1342,17 @@ const nextConfig: NextConfig = {
       "report-to csp-endpoint",
       "report-uri /api/csp-report",
     ].join("; ");
+    const csp = cspFor();
+    /**
+     * ⛔ eno CLASSROOM'S 3D AVATAR (2026-10-25) — the ONE extra host family, and only on /classroom pages: AvatarKit's
+     * Direct Mode opens a WebSocket to Spatius's motion server (docs.spatius.ai/api-reference/regions.md — Tokyo, our
+     * region, and US-West, its fallback when the client's region auto-selection has none). The browser never talks to the
+     * console API (the server mints the token — src/lib/classroom/spatius.ts). Every other directive is the site's own,
+     * because a later rule REPLACES the header for the paths it matches — it never adds to it.
+     * ⚠️ Spatius's model/asset CDN host is undocumented: the first real session's CSP reports name it (plan Phase 0);
+     * add it here then, in a reviewed commit — never a wildcard.
+     */
+    const cspClassroom = cspFor(" wss://api.ap-northeast.spatius.ai wss://api.us-west.spatius.ai");
     /**
      * ⚠️ MEASURING, NOT ENFORCING (security review 2026-10-22, item 24). The enforced script-src above keeps
      * 'unsafe-eval', and nothing records what still needs it. This report-only twin is that script-src minus
@@ -1388,6 +1399,13 @@ const nextConfig: NextConfig = {
           // same day).
         ],
       },
+      // eno Classroom: the same policy plus the avatar's motion server (cspClassroom above). The last matching rule wins
+      // for this header. ⚠️ BOTH SPELLINGS: the public path, and the proxy's /en|/vi rewrite of it (the beforeFiles note
+      // above measured rewrites matching only the rewritten form) — the preview's curl decides which one fires.
+      ...["/classroom", "/classroom/:path*", "/:lang(en|vi)/classroom", "/:lang(en|vi)/classroom/:path*"].map((source) => ({
+        source,
+        headers: [{ key: "Content-Security-Policy", value: cspClassroom }],
+      })),
       /**
        * ── `Vary: Accept` IS DELIBERATELY *NOT* SET ON `/`, `/privacy` AND `/terms` ──────────────
        *

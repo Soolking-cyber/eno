@@ -153,14 +153,15 @@ async function buildFeedbackLocked(sessionId: string, now: Date): Promise<'ready
         await tx.classroomSession.update({ where: { id: sessionId }, data: { feedbackStatus: 'ready', costMicroUsd: cost(0), updatedAt: now } })
         if (!s.enrollment || !s.planId) return
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`eno-classroom-plan:${s.enrollment.id}`}, 0))`
-        const used = await tx.classroomPlan.findUnique({ where: { id: s.planId }, select: { source: true, status: true } })
+        const used = await tx.classroomPlan.findUnique({ where: { id: s.planId }, select: { source: true, status: true, createdAt: true } })
         if (used?.status !== 'used') return
         // ⛔ WHICH PLAN COMES BACK (2b round 1, codex + opus — "any later session" alone could strand a teacher's plan):
         // a TEACHER's plan comes back unless a newer teacher plan already waits — the teacher's intention outlives a silent
         // session, whatever started since; an AI draft comes back only while nothing newer exists (no plan waiting, no
         // later session) — otherwise it is stale and the next report drafts a fresh one.
+        // (…and never a teacher plan the teacher has since REPLACED with a newer one, used or not — 2b round 2, opus.)
         const back = used.source === 'teacher'
-          ? !(await tx.classroomPlan.count({ where: { enrollmentId: s.enrollment.id, source: 'teacher', status: 'approved' } }))
+          ? !(await tx.classroomPlan.count({ where: { enrollmentId: s.enrollment.id, source: 'teacher', OR: [{ status: 'approved' }, { createdAt: { gt: used.createdAt } }] } }))
           : !(await tx.classroomPlan.count({ where: { enrollmentId: s.enrollment.id, status: { not: 'used' } } }))
             && !(await tx.classroomSession.count({ where: { enrollmentId: s.enrollment.id, startedAt: { gt: s.startedAt } } }))
         if (back) await tx.classroomPlan.update({ where: { id: s.planId }, data: { status: used.source === 'teacher' ? 'approved' : 'draft', updatedAt: now } })

@@ -48,6 +48,8 @@ export const TEACHER_SURFACE_PREFIXES: readonly { prefix: string; root: boolean 
   { prefix: '/c/teachers', root: true },
   { prefix: '/teachers', root: false },
   { prefix: '/schools', root: true },
+  // eno Classroom (2026-10-25) is a teacher surface too: the forum's /classroom and every page below it go to eno.vn's.
+  { prefix: '/classroom', root: true },
 ]
 
 /** The absolute eno.vn URL of a teacher-surface path (`/listings/<id>`, `/c/teachers`, …). */

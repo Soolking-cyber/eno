@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { LIMITS } from './constants'
 import { BUDGET_LOCK } from './budget'
 import { buildPendingFeedback } from './feedback'
+import { logError } from '@/lib/log'
+import { quietError } from './quiet-error'
 
 /** A live session this long past its end is abandoned (nobody tapped End; the page was closed or the phone slept). */
 export const ABANDON_AFTER_S = 120
@@ -42,35 +44,47 @@ export async function sweepClassroom({ killAll }: { killAll: boolean }): Promise
     return n
   }, { maxWait: 5_000, timeout: 30_000 })
 
-  const assessFailed = await db.$executeRaw`
+  // ⛔ EACH TIDY-UP STEP ON ITS OWN (2c round 1, opus): one bad row in a later step must not stop the others, nor keep the
+  // cron from stamping swept_at (which would close the classroom). Ending sessions, above, is the one step whose failure
+  // DOES stop the run — then nothing is stamped, and the classroom closes itself within SWEEP_FRESH_S (fail closed).
+  const step = (op: string, run: () => Promise<number>): Promise<number> =>
+    run().catch((e) => { logError(quietError(e), { op: `classroom.sweep.${op}` }); return 0 })
+
+  const assessFailed = await step('assess', () => db.$executeRaw`
     UPDATE "ClassroomTurn" SET "assessStatus" = 'failed', "updatedAt" = (now() AT TIME ZONE 'UTC')
-     WHERE "assessStatus" = 'pending' AND "updatedAt" < (now() AT TIME ZONE 'UTC') - make_interval(secs => ${ASSESS_STALE_S})`
+     WHERE "assessStatus" = 'pending' AND "updatedAt" < (now() AT TIME ZONE 'UTC') - make_interval(secs => ${ASSESS_STALE_S})`)
 
   // A turn still 'processing' this long after its reservation lost its process mid-reply: it is no answer (the learner
   // retried or moved on — a failed turn is skipped by the history and the report).
-  const turnsFailed = await db.$executeRaw`
+  const turnsFailed = await step('turns', () => db.$executeRaw`
     UPDATE "ClassroomTurn" SET "status" = 'failed', "updatedAt" = (now() AT TIME ZONE 'UTC')
-     WHERE "status" = 'processing' AND "updatedAt" < (now() AT TIME ZONE 'UTC') - make_interval(secs => ${ASSESS_STALE_S})`
+     WHERE "status" = 'processing' AND "updatedAt" < (now() AT TIME ZONE 'UTC') - make_interval(secs => ${ASSESS_STALE_S})`)
 
   // A one-use invite past its date stops working: the code is cleared, the seat stays for the teacher to re-invite.
-  const invitesExpired = await db.$executeRaw`
+  const invitesExpired = await step('invites', () => db.$executeRaw`
     UPDATE "ClassroomEnrollment" SET "inviteCode" = NULL, "updatedAt" = (now() AT TIME ZONE 'UTC')
-     WHERE "status" = 'invited' AND "inviteCode" IS NOT NULL AND "inviteExpiresAt" < (now() AT TIME ZONE 'UTC')`
+     WHERE "status" = 'invited' AND "inviteCode" IS NOT NULL AND "inviteExpiresAt" < (now() AT TIME ZONE 'UTC')`)
 
   // A seat the teacher removed (or the learner left) keeps its sessions for LIMITS.removedRetentionDays, then they go —
   // reports, transcripts and plans with them (cascades). The seat row itself goes too: nothing of the learner is left.
-  const seatsErased = await db.$executeRaw`
+  const seatsErased = await step('erase-seats', () => db.$executeRaw`
     DELETE FROM "ClassroomEnrollment"
-     WHERE "status" = 'removed' AND "removedAt" < (now() AT TIME ZONE 'UTC') - make_interval(days => ${LIMITS.removedRetentionDays})`
+     WHERE "status" = 'removed' AND "removedAt" < (now() AT TIME ZONE 'UTC') - make_interval(days => ${LIMITS.removedRetentionDays})`)
   // A teacher's own test sessions (their voice, written down) go after the same days (2a review, opus) — they belong to
   // no seat, so nothing above reaches them.
-  const testsErased = await db.$executeRaw`
+  const testsErased = await step('erase-tests', () => db.$executeRaw`
     DELETE FROM "ClassroomSession"
-     WHERE "testerId" IS NOT NULL AND "status" = 'ended' AND "endedAt" < (now() AT TIME ZONE 'UTC') - make_interval(days => ${LIMITS.removedRetentionDays})`
-  const erased = seatsErased + testsErased
+     WHERE "testerId" IS NOT NULL AND "status" = 'ended' AND "endedAt" < (now() AT TIME ZONE 'UTC') - make_interval(days => ${LIMITS.removedRetentionDays})`)
+  // A learner who WITHDREW and has no seat left (every seat was removed, then erased above) goes too, after the same days
+  // (2c round 2, opus) — their name, birth year and consent dates; the compliance log keeps the consent's record.
+  const learnersErased = await step('erase-learners', () => db.$executeRaw`
+    DELETE FROM "ClassroomLearner" l
+     WHERE l."withdrawnAt" < (now() AT TIME ZONE 'UTC') - make_interval(days => ${LIMITS.removedRetentionDays})
+       AND NOT EXISTS (SELECT 1 FROM "ClassroomEnrollment" e WHERE e."learnerId" = l."id")`)
+  const erased = seatsErased + testsErased + learnersErased
 
   // Reports nobody built yet (the end route's after() died, or the session was abandoned) — a few per run.
-  const reports = await buildPendingFeedback(5)
+  const reports = await step('reports', () => buildPendingFeedback(5))
 
   return { ended, assessFailed, turnsFailed, invitesExpired, erased, reports }
 }

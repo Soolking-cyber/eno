@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { isTeacherHost, apexOrigin } from '@/lib/teachers/host'
 import { isSchoolsHost, schoolsRedirectUrl } from '@/lib/schools/host'
+import { classroomRedirectUrl, isClassroomHost } from '@/lib/classroom/host'
 import { IS_SERVICES } from '@/lib/edition'
 import { storefrontBaseHost, storefrontHandleFromHost, storefrontLabelUrl, underscoreHost } from '@/lib/storefront-host'
 import { LANG_COOKIE, langVariantFor, type LangVariant } from '@/lib/lang-variant'
@@ -409,6 +410,20 @@ export function proxy(req: NextRequest) {
   if (!IS_SERVICES && isSchoolsHost(req.headers.get('host'), process.env.NEXT_PUBLIC_APP_URL) && !isApi(req.nextUrl.pathname)) {
     if (req.method !== 'GET' && req.method !== 'HEAD') return new NextResponse('Method Not Allowed', { status: 405, headers: { allow: 'GET, HEAD' } })
     const to = schoolsRedirectUrl(process.env.NEXT_PUBLIC_APP_URL, req.nextUrl.pathname, req.nextUrl.search)
+    if (to) return NextResponse.redirect(to, 302)
+  }
+
+  /**
+   * ⛔ classroom.<base> — THE ADDRESS OF eno CLASSROOM, NOT A SITE (owner, 2026-10-25: "new app at classroom.eno.vn"). The
+   * schools.<base> pattern: every GET/HEAD page request 302s to the app origin's /classroom with the path and query kept
+   * (src/lib/classroom/host.ts says why it is not a rewrite — the session cookie is host-scoped); anything else is a 405.
+   * `/api/*` passes through; the write guard above already refused a cross-origin write. MARKETPLACE ONLY: the classroom is
+   * eno.vn's — the forum hands its /classroom paths to eno.vn (src/lib/teachers/surface.ts). ⚠️ BEFORE the storefront
+   * branch: `classroom` is reserved in handle-format.ts so no shop can claim it.
+   */
+  if (!IS_SERVICES && isClassroomHost(req.headers.get('host'), process.env.NEXT_PUBLIC_APP_URL) && !isApi(req.nextUrl.pathname)) {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return new NextResponse('Method Not Allowed', { status: 405, headers: { allow: 'GET, HEAD' } })
+    const to = classroomRedirectUrl(process.env.NEXT_PUBLIC_APP_URL, req.nextUrl.pathname, req.nextUrl.search)
     if (to) return NextResponse.redirect(to, 302)
   }
 

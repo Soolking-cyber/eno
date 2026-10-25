@@ -549,6 +549,8 @@ const EXCLUDED_PREFIX = [
   ...(IS_SERVICES ? ['/visa', '/itinerary'] : []),
   // Signed-in surfaces: a guest there is already being sent to sign in.
   '/messages', '/dashboard', '/admin', '/account', '/checkout',
+  // eno Classroom (2026-10-25): its own app — the landing and the invite page ask for sign-in themselves, in place.
+  '/classroom',
   // Arrived from an email link; not browsing.
   '/unsubscribe',
 ]

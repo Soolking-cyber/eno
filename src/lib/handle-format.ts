@@ -57,6 +57,8 @@ const RESERVED = new Set([
   // /schools is the teacher-ranked school directory and schools.eno.vn its name (2026-10-04): a seller
   // holding `schools` would own both. `school` too, so the singular cannot pose as the directory.
   'schools', 'school',
+  // eno Classroom (2026-10-25): classroom.<base> is its address (src/lib/classroom/host.ts) and /classroom its pages.
+  'classroom', 'classrooms',
   // /teach-in-vietnam is the teacher guide library (2026-10-10). Separator-free, so one entry also
   // covers teach-in-vietnam, teach_in_vietnam and teachinvietnam (isReservedHandle folds `-`/`_`).
   'teachinvietnam',

@@ -396,6 +396,14 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     expect(await db.classroomPlan.count({ where: { enrollmentId: seat.id, source: 'ai', status: 'draft' } })).toBe(1)
   })
 
+  it('⛔ a learner who withdrew and has no seat left is erased by the sweep after the retention days', async () => {
+    const old = await db.classroomLearner.create({ data: { ownerId: parentId, kind: 'child', displayName: 'Old', birthYear: new Date().getFullYear() - 9, guardianAttestedAt: new Date(), withdrawnAt: new Date(Date.now() - 100 * 86_400_000) } })
+    const recent = await db.classroomLearner.create({ data: { ownerId: parentId, kind: 'child', displayName: 'Recent', birthYear: new Date().getFullYear() - 9, guardianAttestedAt: new Date(), withdrawnAt: new Date(Date.now() - 5 * 86_400_000) } })
+    await sweep.sweepClassroom({ killAll: false })
+    expect(await db.classroomLearner.count({ where: { id: old.id } })).toBe(0)
+    expect(await db.classroomLearner.count({ where: { id: recent.id } })).toBe(1)
+  })
+
   it('⛔ the kill switch: a sweep with mode off ends every live session at once', async () => {
     const seat = await activeSeat()
     const s = await start.startLearnerSession(seat.id, parentId)

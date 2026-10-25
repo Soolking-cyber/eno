@@ -62,8 +62,16 @@ export function mayGateOnboarding(pathname: string | null | undefined): boolean 
  */
 const RESUME_IN_PLACE = new Set(['/teachers/join'])
 
+/**
+ * ⛔ AND eno CLASSROOM'S INVITE PAGES (2026-10-25): /classroom/join/<code> asks for sign-in in place, then records the account
+ * step itself in the join's own transaction — an individual account and the Terms shown beside "Join"
+ * (src/lib/classroom/join.ts claimSeat → first-onboarding.ts individualOnboardingWrite). A PREFIX, because the code is in
+ * the path; one segment exactly — nothing deeper resumes in place.
+ */
+const RESUME_IN_PLACE_PREFIX = /^\/classroom\/join\/[^/]+$/
+
 export function resumesInPlace(pathname: string | null | undefined): boolean {
   if (!pathname) return false
   const p = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
-  return RESUME_IN_PLACE.has(p)
+  return RESUME_IN_PLACE.has(p) || RESUME_IN_PLACE_PREFIX.test(p)
 }

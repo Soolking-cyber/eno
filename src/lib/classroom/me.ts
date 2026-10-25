@@ -68,7 +68,8 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
           plans: { where: { status: { not: 'used' } }, orderBy: { updatedAt: 'desc' }, take: 10 },
           sessions: {
             orderBy: { startedAt: 'desc' },
-            take: 20,
+            // A week holds up to 3 starts a day (silent ones included) — the window must cover all of them (2b round 2).
+            take: 40,
             select: { id: true, learnerId: true, startedAt: true, status: true, turnCount: true, feedbackStatus: true, feedback: { select: { summary: true, scores: true, learnerSeenAt: true } } },
           },
         },

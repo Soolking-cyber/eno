@@ -96,24 +96,36 @@ export type NicheApiErrorCode =
   | 'assent_required'
   | 'audio_invalid'
   | 'avatar_required'
+  | 'avatar_unavailable'
   | 'birth_year_invalid'
   | 'budget_classroom'
   | 'budget_teacher'
   | 'classroom_closed'
+  | 'day_limit'
   | 'invite_invalid'
   | 'invite_own'
   | 'learner_limit'
   | 'learner_not_found'
+  | 'likeness_deleting'
+  | 'look_invalid'
+  | 'name_required'
+  | 'plan_changed'
   | 'seat_inactive'
+  | 'seat_limit'
+  | 'seat_name_required'
   | 'seat_not_found'
   | 'session_live'
   | 'session_not_found'
   | 'session_over'
   | 'speech_unavailable'
   | 'teacher_profile_required'
+  | 'test_limit'
+  | 'token_limit'
   | 'turn_cap'
   | 'turn_in_progress'
   | 'tutor_unavailable'
+  | 'voice_invalid'
+  | 'week_limit'
   // A delayed write (an undo window) whose session now belongs to a different account than the one that
   // tapped it — src/lib/api/acting-account.ts. Conversation delete, listing delete, offer answer.
   | 'account_changed'
@@ -643,24 +655,36 @@ const ALL = [
   'assent_required',
   'audio_invalid',
   'avatar_required',
+  'avatar_unavailable',
   'birth_year_invalid',
   'budget_classroom',
   'budget_teacher',
   'classroom_closed',
+  'day_limit',
   'invite_invalid',
   'invite_own',
   'learner_limit',
   'learner_not_found',
+  'likeness_deleting',
+  'look_invalid',
+  'name_required',
+  'plan_changed',
   'seat_inactive',
+  'seat_limit',
+  'seat_name_required',
   'seat_not_found',
   'session_live',
   'session_not_found',
   'session_over',
   'speech_unavailable',
   'teacher_profile_required',
+  'test_limit',
+  'token_limit',
   'turn_cap',
   'turn_in_progress',
   'tutor_unavailable',
+  'voice_invalid',
+  'week_limit',
   'account_changed',
   'ids_required',
   'business_account',

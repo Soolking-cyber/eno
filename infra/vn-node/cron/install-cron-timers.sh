@@ -139,6 +139,13 @@ declare -A SCHED=(
   # `systemctl enable --now eno-cron-calls-sweep.timer`. ⛔ Calls cannot be switched ON without it: each run stamps
   # call_config.swept_at, and both writers of the switch refuse any mode but 'off' unless that is under 5 minutes old.
   [calls-sweep]="*-*-* *:*:00 UTC"
+  # eno Classroom (src/app/api/cron/classroom-sweep/route.ts, 2026-10-25): every 5 minutes — ends abandoned sessions (and,
+  # with the switch read as OFF, every live one), fails stale scores, builds the reports nobody built, expires invites and
+  # erases removed seats past their 90 days. Answers {tables:false} until scripts/classroom-ddl.mjs has run. POLICY, not
+  # SAFE: enabled by hand AFTER the deploy that ships the route (`systemctl enable --now eno-cron-classroom-sweep.timer`).
+  # ⛔ The classroom cannot be switched ON without it: each run stamps classroom_config.swept_at, and the switch's writers
+  # refuse any mode but 'off' unless that is fresh (src/lib/classroom/config.ts SWEEP_FRESH_S).
+  [classroom-sweep]="*-*-* *:00/5:20 UTC"
 )
 # ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It writes only price/affiliateUrl
 # on imported rows and emails nobody — never on a hidden row (prices land on active|sold, restores take sold only).
@@ -235,7 +242,7 @@ in_list(){ local x=$1 j; shift; for j in "$@"; do [ "$j" = "$x" ] && return 0; d
 # would push shops past five, and the route answers {skipped} without ?force=1 anyway. Enable only after the cap is lifted.
 # teacher-job-dms + job-dms-invite (2026-10-20): POLICY — they message teachers; enable each by hand after its dry run:
 #   systemctl enable --now eno-cron-teacher-job-dms.timer eno-cron-job-dms-invite.timer
-POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices partner-stock teacher-job-dms job-dms-invite calls-sweep)
+POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices partner-stock teacher-job-dms job-dms-invite calls-sweep classroom-sweep)
 
 # ⚠️ ONE JOB ONLY: `ENO_CRON_ONLY=<job> bash install-cron-timers.sh` writes, reloads and enables just
 # that job's units (if it is in SAFE) and leaves every other unit as it is. A full re-run DISABLES the
@@ -322,6 +329,8 @@ for job in "${!SCHED[@]}"; do
   [ "$job" = identity-marks ] && TARGET="eno.vn 3001"
   # ⚠️ calls-sweep runs ONCE, on eno.vn: the call rows are in the shared database, so one minute-timer covers both sites.
   [ "$job" = calls-sweep ] && TARGET="eno.vn 3001"
+  # ⚠️ classroom-sweep too: the classroom is eno.vn's and its rows are in the shared database — once, on eno.vn.
+  [ "$job" = classroom-sweep ] && TARGET="eno.vn 3001"
   # ⚠️ secondhand-showcase runs ONCE, on eno.vn (the listings and the ISR invalidations are shared), with a 30-minute curl
   # (eno-cron.sh's 4th argument) — it reads ~17 shops politely — and its answer, the run's journal, kept for a rollback.
   # TimeoutStartSec spelled out (a oneshot unit has none by default) so nothing cuts the curl before its own 1800 s.
