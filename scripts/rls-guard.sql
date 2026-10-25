@@ -78,9 +78,9 @@ END $$;
 -- own, because ALTER DEFAULT PRIVILEGES FOR ROLE x needs membership in x: running as `postgres` (not a
 -- superuser here) cannot alter `supabase_admin`'s defaults, and that must not abort the rest.
 -- ⚠️ FUNCTIONS TOO: Postgres grants EXECUTE on every new function to PUBLIC, and PostgREST serves every
--- executable function in `public` as /rest/v1/rpc/<name>. The 18 SECURITY DEFINER functions in scripts/
--- each revoke it by hand today; this makes the safe state the default for the next one. A function the
--- browser must call (is_convo_participant) keeps its explicit GRANT.
+-- executable function in `public` as /rest/v1/rpc/<name>. The SECURITY DEFINER functions in scripts/ each
+-- revoke it by hand, and on production that did not hold (step 1c); this makes the safe state the default
+-- for the next one. A function the browser must call (is_convo_participant) keeps its explicit GRANT.
 DO $$
 DECLARE r text;
 BEGIN
@@ -105,6 +105,83 @@ BEGIN
     EXCEPTION WHEN insufficient_privilege THEN
       RAISE NOTICE 'rls-guard: cannot alter default privileges for role % from here (not a member) — step 2''s trigger still closes its new tables', r;
     END;
+  END LOOP;
+END $$;
+COMMIT;
+
+-- ── Step 1c: the API roles EXECUTE no SECURITY DEFINER function in public (2026-10-25) ────────────
+-- ⛔ MEASURED ON PRODUCTION 2026-10-25: 17 of them were executable by anon AND authenticated — kv_get/kv_set/
+-- kv_del/kv_incrby, rl_*, trend_*, site_touch, publish_log, broadcast_typing, visa_commit_document — so
+-- PostgREST served each at /rest/v1/rpc/<name> to the public key, running as their owner. The DDL scripts
+-- that create them have revoked public/anon/authenticated since 2026-08, yet the grants were back: the
+-- default privileges of `postgres` in public grant anon/authenticated EXECUTE by name, so a restore or a
+-- re-create outside those scripts brings them back. A REVOKE in the creating script happens once; this
+-- re-asserts it on every run, and step 4 proves the end state by name.
+-- ⚠️ SAFE: every real caller is the owner (`postgres` — Prisma raw SQL, and both pg_cron jobs run as
+-- postgres) or service_role (the visa client), and neither loses access — see the explicit grant below. A trigger or event-trigger function's EXECUTE is
+-- checked at CREATE TRIGGER only, never when it fires.
+-- ⚠️ ROUTINE, not FUNCTION, so a procedure cannot abort it.
+--
+-- ⛔ THE ONE ALLOW-LIST is pg_temp.eno_rls_guard_allowed(), called by this step AND step 4, so the two cannot
+-- drift (a copy updated in one place only would revoke a deliberate grant here, or fail step 4 after this
+-- has committed). EXACT SIGNATURES, never bare names: an overload of an allowed name is revoked and reported
+-- like any other. is_convo_participant answers a yes/no for the CALLER only and is what the Realtime channel
+-- policies call (scripts/messaging-realtime.mjs grants it on purpose).
+-- ⚠️ A SIGNATURE THAT NO LONGER RESOLVES WOULD SILENTLY REVOKE THE GRANT IT PROTECTS (to_regprocedure → NULL),
+-- so the function RAISES when a routine of that NAME exists but not that signature — inside step 1c's
+-- transaction, before any revoke. A target without the routine at all (CI, a bare restore) gets an empty list,
+-- and step 4 prints the RESOLVED list, so that shows as {}.
+-- ⚠️ A temp FUNCTION, not a session setting: a custom setting survives a rolled-back transaction as '' and
+-- would read as an empty list, while a missing function is an error. Run the file on a direct session (the
+-- header's DIRECT_URL); through a transaction pooler the function can be gone by step 1c, and that too raises.
+-- ⚠️ Only service_role's access is preserved below. Any other role that reached one of these routines only
+-- through PUBLIC loses it; on 2026-10-25 none did (supabase-auth/storage/realtime/rest logged no permission
+-- error after the live revoke), and `postgres` owns every one, so it never depends on PUBLIC.
+CREATE OR REPLACE FUNCTION pg_temp.eno_rls_guard_allowed() RETURNS regprocedure[]
+LANGUAGE plpgsql AS $$
+DECLARE
+  sig text;
+  resolved regprocedure[] := '{}';
+BEGIN
+  FOREACH sig IN ARRAY ARRAY['public.is_convo_participant(text)']
+  LOOP
+    IF to_regprocedure(sig) IS NOT NULL THEN
+      resolved := resolved || to_regprocedure(sig);
+    ELSIF EXISTS (
+      SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname = split_part(split_part(sig, '(', 1), '.', 2)
+    ) THEN
+      RAISE EXCEPTION 'rls-guard: allow-list signature % does not match the routine of that name — fix the list before step 1c revokes it', sig;
+    END IF;
+  END LOOP;
+  RETURN resolved;
+END $$;
+
+BEGIN;
+DO $$
+DECLARE
+  fn regprocedure;
+  allowed oid[] := pg_temp.eno_rls_guard_allowed()::oid[];
+BEGIN
+  FOR fn IN
+    SELECT p.oid::regprocedure
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.prosecdef
+      AND NOT (p.oid = ANY (allowed))
+      AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
+  LOOP
+    -- service_role keeps exactly what it could execute: made explicit BEFORE PUBLIC goes, so a routine it
+    -- reached only through PUBLIC (the visa client calls visa_commit_document) does not lose it.
+    IF to_regrole('service_role') IS NOT NULL AND has_function_privilege('service_role', fn, 'EXECUTE') THEN
+      EXECUTE format('GRANT EXECUTE ON ROUTINE %s TO service_role', fn);
+    END IF;
+    EXECUTE format('REVOKE EXECUTE ON ROUTINE %s FROM PUBLIC', fn);
+    IF to_regrole('anon') IS NOT NULL THEN
+      EXECUTE format('REVOKE EXECUTE ON ROUTINE %s FROM anon', fn);
+    END IF;
+    IF to_regrole('authenticated') IS NOT NULL THEN
+      EXECUTE format('REVOKE EXECUTE ON ROUTINE %s FROM authenticated', fn);
+    END IF;
   END LOOP;
 END $$;
 COMMIT;
@@ -252,16 +329,15 @@ END $$;
 --   · any non-SELECT policy that applies to PUBLIC, anon or authenticated (a policy with no TO clause
 --     applies to PUBLIC, which is how profile_update_own was written);
 --   · a SECURITY DEFINER function in public that anon or authenticated can EXECUTE — PostgREST serves it
---     as /rest/v1/rpc/<name>, running with its owner's rights. ALLOWED lists the deliberate ones.
--- ⚠️ ALLOWED is the whole exception list. is_convo_participant answers a yes/no for the CALLER only and
--- is what the Realtime channel policies call (scripts/messaging-realtime.mjs grants it on purpose).
+--     as /rest/v1/rpc/<name>, running with its owner's rights. The deliberate ones are the exact signatures
+--     pg_temp.eno_rls_guard_allowed() returns (defined before step 1c) — the whole exception list.
 DO $$
 DECLARE
   writable text;
   write_policies text;
   definer_fns text;
   unpinned text;
-  allowed text[] := ARRAY['is_convo_participant'];
+  allowed regprocedure[] := pg_temp.eno_rls_guard_allowed();
 BEGIN
   IF to_regrole('anon') IS NULL OR to_regrole('authenticated') IS NULL THEN
     RAISE NOTICE 'rls-guard: no Supabase API roles on this target — step 4 skipped';
@@ -284,7 +360,7 @@ BEGIN
     INTO definer_fns
   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
   WHERE n.nspname = 'public' AND p.prosecdef
-    AND NOT (p.proname = ANY (allowed))
+    AND NOT (p.oid = ANY (allowed::oid[]))
     AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
     AND (has_function_privilege('anon', p.oid, 'EXECUTE') OR has_function_privilege('authenticated', p.oid, 'EXECUTE'));
 
