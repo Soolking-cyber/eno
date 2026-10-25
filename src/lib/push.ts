@@ -18,8 +18,29 @@ if (PUBLIC && PRIVATE) {
   console.warn('[push] VAPID keys not set — web push disabled.')
 }
 
-/** `silent`: show without sound or vibration (public/sw.js) — for a line that replaces one already on screen. */
-export type PushPayload = { title: string; body?: string; url?: string; tag?: string; badge?: number; silent?: boolean }
+/**
+ * `silent`: show without sound or vibration (public/sw.js) — for a line that replaces one already on screen.
+ * `ring`: an in-app call ringing — the worker keeps it on screen until acted on and vibrates (call-* tags only).
+ */
+export type PushPayload = { title: string; body?: string; url?: string; tag?: string; badge?: number; silent?: boolean; ring?: boolean }
+
+/**
+ * Web Push delivery options (RFC 8030), passed to the push service — never seen by the worker.
+ *   · urgency  'high' wakes a phone in battery-saving mode now instead of at its next maintenance window;
+ *   · ttlSec   how long the push service keeps trying an unreachable device (web-push's default is four weeks);
+ *   · topic    ≤ 32 base64url chars: a newer push with the same topic REPLACES one still queued for the device;
+ *   · skipBadge  send without the unread-count aggregates — for a push whose latency matters more than the badge.
+ */
+export type PushOptions = { urgency?: 'very-low' | 'low' | 'normal' | 'high'; ttlSec?: number; topic?: string; skipBadge?: boolean }
+
+/** The web-push request options for `opts` — only what was asked for, so every other push goes out exactly as before. */
+export function webPushOptions(opts: PushOptions): { urgency?: PushOptions['urgency']; TTL?: number; topic?: string } {
+  const out: { urgency?: PushOptions['urgency']; TTL?: number; topic?: string } = {}
+  if (opts.urgency) out.urgency = opts.urgency
+  if (typeof opts.ttlSec === 'number') out.TTL = Math.max(0, Math.floor(opts.ttlSec))
+  if (opts.topic) out.topic = opts.topic
+  return out
+}
 
 /**
  * Send a Web Push to every device a profile registered. Dead endpoints (410
@@ -27,7 +48,7 @@ export type PushPayload = { title: string; body?: string; url?: string; tag?: st
  * swallowed per-subscription so one bad endpoint never aborts the rest.
  * Returns the number of successful deliveries.
  */
-export async function sendPushToProfile(profileId: string, payload: PushPayload): Promise<number> {
+export async function sendPushToProfile(profileId: string, payload: PushPayload, opts: PushOptions = {}): Promise<number> {
   // Fan out to NATIVE (Capacitor) devices too — a no-op until FCM/APNs is configured (see
   // native-push.ts). Fire-and-forget so it never changes web-push latency or the return value,
   // and so it still fires even when web push (VAPID) isn't configured.
@@ -46,18 +67,19 @@ export async function sendPushToProfile(profileId: string, payload: PushPayload)
   // never throws; on a null count we omit the field and the SW leaves the badge untouched. Placed
   // after the empty-subs return so we never pay for the two aggregates when there's nothing to send.
   let badge = payload.badge
-  if (badge == null) {
+  if (badge == null && !opts.skipBadge) {
     const c = await badgeCountFor(profileId)
     if (c != null) badge = c
   }
   const body = JSON.stringify(badge == null ? payload : { ...payload, badge })
+  const options = webPushOptions(opts)
   const dead: string[] = []
   let sent = 0
 
   await Promise.all(
     subs.map(async (s) => {
       try {
-        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, body)
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, body, options)
         sent++
       } catch (e: unknown) {
         const code = (e as { statusCode?: number })?.statusCode

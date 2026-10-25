@@ -16,8 +16,9 @@ export const dynamic = 'force-dynamic'
 // PUT { mode, cohortEmails?, video?, relay? } → the same, after the write. Cohort members are named by EMAIL here
 // (the admin knows people by email) and stored as profile ids; an email with no profile comes back in `unknown`
 // and is not stored. Turning calls OFF also ends every live call at once ('kill_switch'). Any change that narrows the
-// switch (staff/beta, video off) reaches a live call at its next heartbeat, which re-judges it with a fresh read
-// (eligibility.ts liveCallRefusal). This process forgets its cached switch immediately; the other edition's within 30 s.
+// switch (staff/beta) reaches a live call at its next heartbeat, which re-judges it with a fresh read (eligibility.ts
+// liveCallRefusal). Video off PAUSES the cameras of live calls instead of ending them — at a heartbeat once the
+// switch's cache (≤ 30 s) has caught up (liveVideoAllowed). This process forgets its cached switch immediately; the other edition's within 30 s.
 // Admin chrome is English-only by convention.
 
 const putBody = z.strictObject({

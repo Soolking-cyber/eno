@@ -207,8 +207,8 @@ export async function callPermit(convo: ConversationForCall, callerId: string, m
 
 /**
  * Is a LIVE call still one the box would allow? Asked on every heartbeat (either side, every 15 s): the STANDING rules
- * the start and the accept also ran (standingRefusal) — so the kill switch, a NARROWED switch (staff or beta, video
- * off), a suspension or a block ends a call within one beat plus CONFIG_CACHE_MS, whether or not the sweep timer runs
+ * the start and the accept also ran (standingRefusal) — so the kill switch, a NARROWED switch (staff or beta), a
+ * suspension or a block ends a call within one beat plus CONFIG_CACHE_MS, whether or not the sweep timer runs
  * (round-5 review: the switch's own docs promised that, and only the sweep delivered it). Not the thread or identity
  * rules (round-6 review: a listing sold mid-call is no reason to hang up), and not consent: a withdrawal stops the next
  * call, and the person on the line can hang up this one.
@@ -217,18 +217,40 @@ export async function callPermit(convo: ConversationForCall, callerId: string, m
  *   'kill_switch'  any other refusal: the screen says "Calls are paused for now", and no bell or push follows.
  * ⚠️ A refusal is judged AGAIN against a fresh read of the switch before it ends anything: another process's cached
  * row may still say 'off' for up to 30 s after the owner switched calls on, and must not hang up what the row allows.
+ * ⛔ JUDGED AS A VOICE CALL, WHATEVER THE ROW'S MEDIA. Since protocol v2 nearly every verified call is placed
+ * video-capable, so judging the row's media made the video switch end nearly every call. Video off pauses the cameras
+ * instead (liveVideoAllowed — the heartbeat's `videoAllowed`); only the voice rules hang anybody up.
  */
-export async function liveCallRefusal(row: { caller_id: string | null; callee_id: string | null; media: CallMedia }): Promise<'blocked' | 'kill_switch' | null> {
+export async function liveCallRefusal(row: { caller_id: string | null; callee_id: string | null }): Promise<'blocked' | 'kill_switch' | null> {
   const { caller_id: callerId, callee_id: calleeId } = row
   // An erased participant: account erasure ended the call in its own transaction (session.ts endCallsOfIn).
   if (!callerId || !calleeId) return null
-  const judge = async () => (await standingRefusal(await readCallsConfig(), callerId, calleeId, row.media)).error
+  const judge = async () => (await standingRefusal(await readCallsConfig(), callerId, calleeId, 'audio')).error
   if (!(await judge())) return null
   resetCallsConfigCache()
   const again = await judge()
   if (!again) return null
   if (!(await readCallsConfig()).readOk) return null
   return again === 'blocked' ? 'blocked' : 'kill_switch'
+}
+
+/**
+ * May the cameras be on in this call? A video-capable call while the video switch is on. The switch going off PAUSES
+ * the cameras (the phones turn theirs off and say so) and the call goes on as voice; back on, the camera button returns.
+ */
+export function videoAllowedBy(config: Pick<CallsConfig, 'video'>, media: CallMedia): boolean {
+  return media === 'video' && config.video
+}
+
+/**
+ * videoAllowedBy for a live call, from the switch as this process reads it — or `undefined` when it could not be read:
+ * a database blip is not the owner's switch, and the phone keeps video as it was (second-opinion review: answering
+ * `true` there lifted a pause the owner had set, for as long as the failed read stayed cached).
+ */
+export async function liveVideoAllowed(row: { media: CallMedia }): Promise<boolean | undefined> {
+  if (row.media !== 'video') return false
+  const config = await readCallsConfig()
+  return config.readOk ? videoAllowedBy(config, row.media) : undefined
 }
 
 /** Has `granter` allowed calls from `grantee` in this thread (and not withdrawn it)? */

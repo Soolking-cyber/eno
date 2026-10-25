@@ -133,11 +133,11 @@ export const requestCall = (conversationId: string) =>
 const callUrl = (callId: string, tail = '') => `/api/calls/${encodeURIComponent(callId)}${tail}`
 export const getCallDetails = (callId: string) => call<CallDetails>(callUrl(callId))
 export const acceptCallRequest = (callId: string, body: { v: number; tabId: string; capabilities: unknown }) =>
-  post<{ relay: RelayGrant; conversationId: string; media: CallMedia }>(callUrl(callId, '/accept'), body)
+  post<{ relay: RelayGrant; conversationId: string; media: CallMedia; videoAllowed?: boolean }>(callUrl(callId, '/accept'), body)
 export const declineCallRequest = (callId: string, reason: 'declined' | 'media' = 'declined') =>
   post<{ ended: boolean }>(callUrl(callId, '/decline'), { reason })
 export const heartbeatRequest = (callId: string, body: { connected: boolean; telemetry?: unknown }) =>
-  post<{ state: string; capInMs: number | null }>(callUrl(callId, '/heartbeat'), { tabId: TAB_ID, ...body })
+  post<{ state: string; capInMs: number | null; videoAllowed?: boolean }>(callUrl(callId, '/heartbeat'), { tabId: TAB_ID, ...body })
 
 /** The resync snapshot, parsed by the protocol's own schema — null when unreadable (the reducer then waits). */
 export async function fetchSnapshot(callId: string): Promise<ResyncSnapshot | null> {

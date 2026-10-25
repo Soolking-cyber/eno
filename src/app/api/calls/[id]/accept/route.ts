@@ -2,7 +2,7 @@ import { NextResponse, after } from 'next/server'
 import { z } from 'zod'
 import { ApiError, route } from '@/lib/api/handler'
 import { CALL_PROTOCOL_VERSION } from '@/lib/calls/types'
-import { callPermit, loadConversationForCall } from '@/lib/calls/server/eligibility'
+import { callPermit, loadConversationForCall, videoAllowedBy } from '@/lib/calls/server/eligibility'
 import { mintRelayCredential, revokeRelayCredential } from '@/lib/calls/server/relay'
 import { acceptCall, endCall } from '@/lib/calls/server/session'
 import { afterCallEnded } from '@/lib/calls/server/finish'
@@ -21,7 +21,9 @@ export const dynamic = 'force-dynamic'
 //     going off while it rang ends it here (blocked / unavailable) instead of connecting it;
 //   · call_gone 409 — answered on another device, cancelled, or past the 45 s ring; call_in_progress 409 — this
 //     person is already in another call;
-//   · 200 { relay, conversationId, media } — the bound tab; the caller is told 'accepted' in the same
+//   · judged by the VOICE rules whatever the call's media: the video switch going off while it rang pauses the cameras
+//     (`videoAllowed` false) instead of ending the call — the same rule as the heartbeat (eligibility.ts liveCallRefusal);
+//   · 200 { relay, conversationId, media, videoAllowed } — the bound tab; the caller is told 'accepted' in the same
 //     transaction, and the callee's other tabs 'answered_elsewhere'; the "Incoming call" on their lock screens is
 //     replaced with a silent "Answered" (cards.ts replaceRingPush).
 
@@ -44,7 +46,7 @@ export const POST = route(
 
     const convo = await loadConversationForCall(row.conversation_id)
     if (!convo) throw new ApiError('call_gone', 409)
-    const permit = await callPermit(convo, row.caller_id, row.media)
+    const permit = await callPermit(convo, row.caller_id, 'audio')
     if (!permit.ok) {
       const ended = await endCall({ callId: row.id, reason: permit.error === 'blocked' ? 'blocked' : 'unavailable', fromStates: ['ringing'] })
       if (ended) after(() => afterCallEnded(ended, permit.error === 'blocked' ? 'blocked' : 'unavailable'))
@@ -69,6 +71,6 @@ export const POST = route(
       throw new ApiError('call_gone', 409)
     }
     after(() => replaceRingPush(row, ANSWERED_TEXT, true))
-    return { relay: relayForClient(grant), conversationId: row.conversation_id, media: row.media }
+    return { relay: relayForClient(grant), conversationId: row.conversation_id, media: row.media, videoAllowed: videoAllowedBy(permit.config, row.media) }
   },
 )

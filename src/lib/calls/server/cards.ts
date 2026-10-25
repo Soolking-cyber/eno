@@ -1,12 +1,13 @@
 import 'server-only'
+import { createHash } from 'node:crypto'
 import { db } from '@/lib/db'
 import { insertMessage } from '@/lib/messages'
-import { sendPushToProfile } from '@/lib/push'
+import { sendPushToProfile, type PushOptions } from '@/lib/push'
 import { maskEmailHandle } from '@/lib/utils'
 import { cutText } from '@/lib/feed-text'
 import { logError } from '@/lib/log'
 import type { CallEndReason } from '../types'
-import { loadCall, type CallSessionRow, type EndedCallRow } from './session'
+import { RING_TIMEOUT_S, loadCall, type CallSessionRow, type EndedCallRow } from './session'
 
 /**
  * In-app calls — what a call leaves behind in the thread, the bell and the lock screen (DESIGN.md v3 §3.2 steps 2
@@ -61,6 +62,29 @@ export const RING_OVER_TEXT = 'Cuộc gọi đã kết thúc · Call ended'
 /** The tag every notification about one call shares, so the missed-call push replaces the ringing one. */
 export const callNotificationTag = (callId: string) => `call-${callId}`
 
+/**
+ * The Web Push TOPIC every push about one call shares (≤ 32 base64url chars — RFC 8030), so the push service replaces
+ * a push still queued for an unreachable phone with the newer one. ⛔ THE SAME ON ALL THREE — the ring, its replacement
+ * (replaceRingPush) and the missed-call push: a high-priority ring delayed in the queue must never land AFTER the line
+ * that says it is over. The tag does the same on the phone; the topic does it before the phone.
+ */
+export const callPushTopic = (callId: string) => createHash('sha256').update(callId).digest('base64url').slice(0, 32)
+
+/**
+ * How a call's pushes travel: high urgency (a phone in battery-saving mode rings now, not at its next window) under the
+ * call's topic, without the badge aggregates in front of them (the ring and its replacement). The ring lives no longer
+ * than the ring does (RING_TIMEOUT_S): a phone that comes back online later must not ring for a call already over.
+ */
+export function callPushOptions(callId: string, kind: 'ring' | 'replace' | 'missed'): PushOptions {
+  const topic = callPushTopic(callId)
+  if (kind === 'ring') return { urgency: 'high', ttlSec: RING_TIMEOUT_S, topic, skipBadge: true }
+  // The replacement keeps the default lifetime: a ring delivered before the phone went offline stays on its screen
+  // (requireInteraction — public/sw.js) until this line reaches it, however late.
+  if (kind === 'replace') return { urgency: 'high', topic, skipBadge: true }
+  // The missed call keeps the default lifetime and the badge: it is worth showing whenever the phone comes back.
+  return { urgency: 'high', topic }
+}
+
 async function displayName(profileId: string): Promise<string> {
   const p = await db.profile.findUnique({ where: { id: profileId }, select: { displayName: true, email: true } })
   return p?.displayName || maskEmailHandle(p?.email) || 'eno'
@@ -90,7 +114,16 @@ export async function sendRingPush(row: Pick<CallSessionRow, 'id' | 'conversatio
       body: RING_TEXT,
       url: `/messages/${row.conversation_id}?call=${row.id}`,
       tag: callNotificationTag(row.id),
-    })
+      ring: true,
+    }, callPushOptions(row.id, 'ring'))
+    // ANSWERED WHILE THE RING WAS ON ITS WAY (second-opinion review): the accept's "Answered" replacement (no badge in
+    // front of it) can reach a phone BEFORE this ring — and the ring, kept on screen until acted on (public/sw.js),
+    // then sits over a live call. The topic only collapses pushes still queued, never one already delivered. So once
+    // the ring is out, a call answered meanwhile gets its "Answered" again — same tag, so harmless where it already
+    // landed. Only the answer: a ring that ENDED was replaced by its own missed-call / "call ended" push, which must
+    // not be overwritten (a block's replacement names nobody).
+    const after = (await loadCall(row.id))?.state
+    if (after && after !== 'ringing' && after !== 'ended') await replaceRingPush(row, ANSWERED_TEXT, true)
   } catch (e) {
     logError(e, { op: 'calls.ringPush', callId: row.id })
   }
@@ -110,7 +143,7 @@ export async function replaceRingPush(row: Pick<CallSessionRow, 'id' | 'conversa
       url: `/messages/${row.conversation_id}`,
       tag: callNotificationTag(row.id),
       silent: true,
-    })
+    }, callPushOptions(row.id, 'replace'))
   } catch (e) {
     logError(e, { op: 'calls.replaceRingPush', callId: row.id })
   }
@@ -150,7 +183,7 @@ export async function writeCallRecord(before: EndedCallRow, reason: CallEndReaso
       body: MISSED_TEXT,
       url: `/messages/${before.conversation_id}`,
       tag: callNotificationTag(before.id),
-    })
+    }, callPushOptions(before.id, 'missed'))
     return true
   } catch (e) {
     logError(e, { op: 'calls.writeCallRecord', callId: before.id })

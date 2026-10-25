@@ -58,7 +58,7 @@ vi.mock('@/lib/ios-hide-visa-server', () => ({ isEVisaThread: async () => h.evis
 vi.mock('@/lib/thread-kind', () => ({ threadKind: async () => h.kind }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true }) }))
 
-const { callPermit, liveCallRefusal, threadPermitRefusal } = await import('./eligibility')
+const { callPermit, liveCallRefusal, liveVideoAllowed, threadPermitRefusal, videoAllowedBy } = await import('./eligibility')
 
 const convo = (o: Record<string, unknown> = {}) => ({
   id: 'c1', buyerProfileId: 'buyer', sellerProfileId: 'seller', sellerId: 'shop', listingId: 'l1', visaApplicationId: null, listingType: null, ...o,
@@ -173,14 +173,30 @@ describe('liveCallRefusal — what a heartbeat asks of a live call (round-5 revi
     expect(h.resets).toBe(0)
   })
 
-  it('⛔ the kill switch, a narrowed switch and video switched off end it as kill_switch', async () => {
+  it('⛔ the kill switch and a narrowed switch end it as kill_switch', async () => {
     h.mode = 'off'
     expect(await liveCallRefusal(live())).toBe('kill_switch')
+    expect(await liveCallRefusal(live({ media: 'video' }))).toBe('kill_switch')
     h.mode = 'beta'; h.cohort = ['buyer']
     expect(await liveCallRefusal(live())).toBe('kill_switch')
-    h.mode = 'all'; h.video = false
-    expect(await liveCallRefusal(live({ media: 'video' }))).toBe('kill_switch')
+  })
+
+  it('⛔ video switched off ends NO call — a video-capable call is judged as voice, and its cameras pause instead', async () => {
+    h.video = false
+    expect(await liveCallRefusal(live({ media: 'video' }))).toBeNull()
     expect(await liveCallRefusal(live())).toBeNull()
+    expect(await liveVideoAllowed({ media: 'video' })).toBe(false)
+    expect(h.resets).toBe(0)
+  })
+
+  it('video may be on only in a video-capable call while the switch is on; an unreadable switch says nothing', async () => {
+    expect(await liveVideoAllowed({ media: 'video' })).toBe(true)
+    expect(await liveVideoAllowed({ media: 'audio' })).toBe(false)
+    // Neither pauses nor LIFTS a pause (second-opinion review): the phone keeps video as it was.
+    h.readFails = true
+    expect(await liveVideoAllowed({ media: 'video' })).toBeUndefined()
+    expect(videoAllowedBy({ video: false }, 'video')).toBe(false)
+    expect(videoAllowedBy({ video: true }, 'audio')).toBe(false)
   })
 
   it('⛔ a suspension ends it as kill_switch, a block as blocked', async () => {

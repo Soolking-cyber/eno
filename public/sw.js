@@ -45,6 +45,13 @@ self.addEventListener('push', (event) => {
     data: { url: data.url || '/dashboard' },
     requireInteraction: false,
   }
+  // An in-app call RINGING (src/lib/calls/server/cards.ts sendRingPush): it stays on screen until acted on, and buzzes
+  // like a phone call. The ring only — never its silent "answered" / "call ended" replacement, never the missed call
+  // (same call-* tag, no `ring`). Nothing stays stuck: every ring is replaced under its tag once it is over.
+  if (data.ring === true && typeof options.tag === 'string' && options.tag.indexOf('call-') === 0 && !options.silent) {
+    options.requireInteraction = true
+    options.vibrate = [400, 200, 400, 200, 400]
+  }
   event.waitUntil((async () => {
     // The notification is MANDATORY and comes FIRST: iOS revokes the push subscription if a
     // push doesn't produce a user-visible event, and a badge-only update does NOT satisfy that.

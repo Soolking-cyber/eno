@@ -24,8 +24,10 @@ const withYear = (template: string, year: number) => (template.includes('{year}'
  *   · who: name, avatar, verified mark, and which side of which listing — a stranger cannot pose as "eno support"
  *     here, and the fixed line says eno never calls anyone;
  *   · "End-to-end encrypted" while connected (owner, 2026-10-22, kept when the 4-emoji safety code was removed);
+ *   · the ring shows at once and fills in who is calling when its details arrive; Answer waits for them;
  *   · one kind of call: it starts as voice, and where the pair may use video the camera button is right there — the
  *     camera starts OFF; the other person's video arrives BLURRED until tapped, and blurs again after any gap in it;
+ *     the video switch going off pauses the cameras and says so — the call goes on;
  *   · 1:55 into a call, a warning that the 2 h cap is near.
  */
 export function CallScreen({ view }: { view: CallView }) {
@@ -48,6 +50,16 @@ export function CallScreen({ view }: { view: CallView }) {
 
 function PeerHeader({ view, status }: { view: CallView; status: string }) {
   const { tr } = useLanguage()
+  // A ring whose details are still loading: a placeholder, never a guess at who it is ("eno member" would be one).
+  if (view.detailsPending) {
+    return (
+      <div className="flex flex-col items-center gap-2 px-6 pt-[max(2rem,env(safe-area-inset-top))] text-center">
+        <Avatar size="lg" />
+        <p className="text-xl font-bold text-white/70">{tr('Checking who is calling…', 'Đang xem ai đang gọi…')}</p>
+        <p className="text-sm text-white/80" role="status" aria-live="polite">{status}</p>
+      </div>
+    )
+  }
   const role = callerRoleLine(view.peer?.side ?? null, view.listing?.title ?? null, tr)
   // How long they have been on eno — part of telling a real member from someone posing as one (§4).
   const since = view.peer?.memberSince ? new Date(view.peer.memberSince).getUTCFullYear() : null
@@ -74,7 +86,8 @@ function Incoming({ view }: { view: CallView }) {
     <div className="flex h-full flex-col justify-between pb-[max(2rem,env(safe-area-inset-bottom))]">
       {/* One kind of call (owner, 2026-10-22): every call rings as a call — the camera, where allowed, is inside it. */}
       <PeerHeader view={view} status={tr('Incoming call…', 'Cuộc gọi đến…')} />
-      <p className="mx-auto max-w-xs px-6 text-center text-xs text-white/60">
+      {/* ⛔ Never under a blank header (§4): it names "the person above", so it waits for the details. */}
+      <p className={cn('mx-auto max-w-xs px-6 text-center text-xs text-white/60', view.detailsPending && 'invisible')}>
         {tr('eno never calls you. This call is from the person above, about this conversation.', 'eno không bao giờ gọi cho bạn. Cuộc gọi này đến từ người ở trên, về cuộc trò chuyện này.')}
       </p>
       {cannotAnswerHere ? (
@@ -93,9 +106,10 @@ function Incoming({ view }: { view: CallView }) {
             <span className="text-xs text-white/80">{tr('Decline', 'Từ chối')}</span>
           </div>
           <div className="flex flex-col items-center gap-2">
+            {/* ⛔ Disabled until the details are in: see who is calling, about what, before answering (§4). */}
             <IconButton
               aria-label={tr('Answer', 'Trả lời')}
-              disabled={busy}
+              disabled={busy || view.detailsPending}
               onClick={() => { setBusy(true); void callEngine.accept().finally(() => setBusy(false)) }}
               className="h-16 w-16 bg-success text-success-foreground"
             >
@@ -147,7 +161,9 @@ function InCall({ view }: { view: CallView }) {
     : view.peerOnHold ? tr('On another call — please wait', 'Đang bận cuộc gọi khác — vui lòng chờ')
     : clock
   const capSoon = view.capAt !== null && view.capAt - Date.now() < 5 * 60_000
-  const showVideo = view.media === 'video' && view.remoteVideoLive
+  const showVideo = view.media === 'video' && view.remoteVideoLive && !view.videoPaused
+  // The camera button, while the pair may use video — not while the video switch has paused it.
+  const cameraAllowed = view.media === 'video' && !view.videoPaused
 
   return (
     <div className="relative flex h-full flex-col justify-between overflow-hidden pb-[max(1.5rem,env(safe-area-inset-bottom))]">
@@ -184,6 +200,7 @@ function InCall({ view }: { view: CallView }) {
             <ShieldCheck className="h-4 w-4" /> {tr('End-to-end encrypted', 'Mã hóa đầu cuối')}
           </p>
         )}
+        {view.videoPaused && <p className="text-center text-xs text-white/80" role="status">{tr('Video is paused for now — the call continues', 'Video tạm dừng — cuộc gọi vẫn tiếp tục')}</p>}
         {capSoon && <p className="text-xs text-white/80">{tr('Calls end after 2 hours — this one ends in a few minutes.', 'Cuộc gọi tự kết thúc sau 2 giờ — cuộc gọi này sắp kết thúc.')}</p>}
         {view.error && <p className="text-center text-xs text-white/80">{callErrorText(view.error, tr)}</p>}
         <div className="flex items-center justify-center gap-6">
@@ -195,7 +212,7 @@ function InCall({ view }: { view: CallView }) {
           >
             {view.muted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
           </IconButton>
-          {view.media === 'video' && (
+          {cameraAllowed && (
             <IconButton
               aria-label={view.cameraOn ? tr('Turn camera off', 'Tắt camera') : tr('Turn camera on', 'Bật camera')}
               aria-pressed={view.cameraOn}
@@ -205,7 +222,7 @@ function InCall({ view }: { view: CallView }) {
               <Video className="h-6 w-6" />
             </IconButton>
           )}
-          {view.media === 'video' && view.cameraOn && view.canSwitchCamera && (
+          {cameraAllowed && view.cameraOn && view.canSwitchCamera && (
             <IconButton aria-label={tr('Switch camera', 'Đổi camera')} onClick={() => void callEngine.switchCamera()} className="h-14 w-14 bg-white/15 text-white">
               <SwitchCamera className="h-6 w-6" />
             </IconButton>
