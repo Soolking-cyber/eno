@@ -199,7 +199,7 @@ export default async function ItineraryLandingPage() {
           <Tr text="Planning is the easy half. If you would rather not spend an evening emailing guesthouses in a language you do not read, our team can arrange the whole itinerary for you and stay reachable in chat while you travel." />
         </p>
 
-        <div className="mt-4 grid max-w-3xl gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 max-w-3xl gap-3 sm:grid-cols-3">
           <AssistanceTile
             icon={MessageSquare}
             title={<Tr text="It all happens in chat" />}

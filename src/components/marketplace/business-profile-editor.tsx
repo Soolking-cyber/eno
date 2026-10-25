@@ -188,7 +188,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
         <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f) }} />
       </label>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field invalid={!!fieldErr.name}>
           <Label htmlFor="biz-name">{tr('Business name', 'Tên doanh nghiệp')}</Label>
           <FieldControl id="biz-name" render={<Input id="biz-name" autoComplete="organization" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />} />
@@ -256,7 +256,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
             ? tr('Required of sellers by Vietnamese e-commerce law. Your legal name is shown to buyers under “Seller information” on your listings and storefront — and, when the number below is a business registration number rather than a CCCD, the registered address and tax code too. The number itself is never shown: it is provided only to authorities, or to a buyer on lawful request.', 'Pháp luật TMĐT Việt Nam yêu cầu người bán cung cấp. Tên pháp lý của bạn được hiển thị cho người mua ở mục “Thông tin người bán” trên tin đăng và gian hàng — kèm địa chỉ đăng ký và mã số thuế nếu số bên dưới là số đăng ký kinh doanh (không phải CCCD). Bản thân số này không bao giờ được hiển thị: chỉ cung cấp cho cơ quan chức năng hoặc người mua theo yêu cầu hợp pháp.')
             : tr('Required of sellers by Vietnamese e-commerce law. Kept private — provided only to authorities, or to a buyer on lawful request. Never shown on your storefront.', 'Pháp luật TMĐT Việt Nam yêu cầu người bán cung cấp. Được bảo mật — chỉ cung cấp cho cơ quan chức năng hoặc người mua theo yêu cầu hợp pháp. Không hiển thị trên gian hàng.')}
         </p>
-        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="biz-legal-name">{tr('Registered legal name', 'Tên pháp lý / tên đăng ký')}</Label>
             <Input id="biz-legal-name" value={legalName} onChange={(e) => setLegalName(e.target.value)} maxLength={160} placeholder={tr('Company name on the ERC, or your full legal name', 'Tên trên GCN ĐKDN, hoặc họ tên đầy đủ')} />

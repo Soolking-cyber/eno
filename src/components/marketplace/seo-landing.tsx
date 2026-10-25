@@ -456,7 +456,7 @@ export async function SeoLanding({ content, lede, after, inventory }: {
         {content.faqs.length > 0 && (
           <section className="web-only mt-12">
             <h2 className="h-section text-foreground mb-4">Frequently asked questions</h2>
-            <div className="grid gap-x-14 gap-y-5 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-x-14 gap-y-5 lg:grid-cols-2">
               {content.faqs.map((f, i) => (
                 <div key={i}>
                   <h3 className="text-sm font-bold text-foreground">{f.q}</h3>

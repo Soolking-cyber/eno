@@ -131,7 +131,7 @@ function mrzAgainst(line1: string, line2: string, typedNumber: string, typedExpi
  *  `resetAttempt()` must NOT run — it would clear a valid challenge and both uploaded photographs
  *  over something the seller can fix in the field in front of them. ⚠️ Only codes checked ahead of
  *  `consumeChallenge` belong here; everything else really has spent the code. */
-const KEEPS_THE_ATTEMPT = new Set(['document_number_invalid'])
+const KEEPS_THE_ATTEMPT = new Set(['document_number_invalid', 'document_details_missing'])
 
 const SUBMIT_OUTCOMES: Record<string, { en: string; vi: string; enA?: string; viA?: string; terminal?: boolean; resumable?: boolean }> = {
   already_pending: {
@@ -173,6 +173,12 @@ const SUBMIT_OUTCOMES: Record<string, { en: string; vi: string; enA?: string; vi
   'document_number_invalid:A': {
     en: 'That CCCD number does not look right — it should be the 12 digits printed on your card. Please check it and send again.',
     vi: 'Số CCCD chưa đúng — cần đủ 12 chữ số như in trên thẻ. Vui lòng kiểm tra và gửi lại.',
+    resumable: true,
+  },
+  // A passport only (the server checks it for tier B): no name, or no real expiry date. Blocked above, so another client.
+  document_details_missing: {
+    en: 'Your name or the expiry date of your passport is missing or not a real date. Fill both in as printed on your passport and send again.',
+    vi: 'Họ tên hoặc ngày hết hạn hộ chiếu còn trống hoặc không phải ngày hợp lệ. Hãy điền đúng như in trên hộ chiếu rồi gửi lại.',
     resumable: true,
   },
   document_unreadable: {
@@ -812,7 +818,7 @@ export function VerifyClient() {
         {/* "Choose how to verify" + the two tier buttons */}
         <div className="space-y-3">
           <Skeleton className="h-[calc(var(--text-section)*1.3)] w-48" />
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Skeleton className="h-[86px] rounded-2xl" />
             <Skeleton className="h-[86px] rounded-2xl" />
           </div>
@@ -1028,7 +1034,7 @@ export function VerifyClient() {
         {/* ⚠️ DISABLED, NOT HIDDEN. Hiding the options until the box is ticked leaves the page
             looking broken — a declaration with no visible consequence. Showing them greyed makes
             the causal link obvious: read, agree, then these become available. */}
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Button
             type="button"
             variant={tier === 'A' ? 'cta' : 'outline'}
@@ -1280,7 +1286,7 @@ export function VerifyClient() {
             {wizardStep === 'details' && (
             <div className="space-y-3">
               <h3 className="font-bold text-foreground">{tr('Check your details', 'Kiểm tra thông tin')}</h3>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field>
                   <FieldLabel>{tr('Surname', 'Họ')}</FieldLabel>
                   <Input value={surname} onChange={(e) => { setSurname(e.target.value); markEdited() }} autoComplete="family-name" />

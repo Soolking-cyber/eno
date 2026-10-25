@@ -316,7 +316,7 @@ const OPERATOR_NAMES = `${COMPANY.nameEn} (${COMPANY.name})`
 
 function GlanceRow({ term, children }: { term: ReactNode; children: ReactNode }) {
   return (
-    <div className="grid gap-1 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6">
+    <div className="grid grid-cols-1 gap-1 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-6">
       <dt className="text-sm font-bold text-foreground">{term}</dt>
       <dd className="text-base leading-relaxed text-body">{children}</dd>
     </div>
@@ -512,7 +512,7 @@ export default async function AboutPage() {
         )}
 
         <ContentSection id="trust" title="How trust works" wide>
-          <div className="grid gap-x-8 gap-y-6 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-3">
             {STEPS.map((s, i) => (
               <div key={i} className="flex gap-4">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold text-accent-foreground tabular-nums">{i + 1}</span>

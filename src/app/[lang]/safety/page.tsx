@@ -349,7 +349,7 @@ function CopyText({ copy }: { copy: Copy }) {
 // 6 evenly; 5 and 7 leave one tile on the last row, which a two-up list carries fine.
 function TipGrid({ tips, danger = false }: { tips: Tip[]; danger?: boolean }) {
   return (
-    <div className="grid gap-x-12 gap-y-8 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-x-12 gap-y-8 sm:grid-cols-2">
       {tips.map(([Icon, title, body], i) => (
         <div key={i}>
           <Icon className={danger ? 'h-5 w-5 text-destructive' : 'h-5 w-5 text-accent-foreground'} strokeWidth={2} aria-hidden />
@@ -440,7 +440,7 @@ export default function SafetyPage() {
           <div className="mt-8">
             <TipGrid tips={servicesTips} />
           </div>
-          <div className="mt-10 grid gap-x-8 gap-y-8 sm:grid-cols-2">
+          <div className="mt-10 grid grid-cols-1 gap-x-8 gap-y-8 sm:grid-cols-2">
             <AskList title={SERVICES_SAFETY.willTitle} items={SERVICES_SAFETY.will} ok />
             <AskList title={SERVICES_SAFETY.wontTitle} items={SERVICES_SAFETY.wont} ok={false} />
           </div>

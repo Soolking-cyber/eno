@@ -79,7 +79,7 @@ export default async function AdminUserPage({ params }: { params: Promise<{ id: 
 
       <UserActionsClient profileId={p.id} email={p.email} phone={p.phone} verificationStatus={p.verificationStatus} enforcementState={p.enforcementState} isAdmin={isAdminEmail(p.email)} />
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card className="px-4 py-3">
           <h2 className="text-sm font-bold text-foreground">Account</h2>
           <dl className="mt-1 divide-y divide-border">

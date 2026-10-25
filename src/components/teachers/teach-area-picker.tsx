@@ -147,7 +147,7 @@ export function TeachAreaPicker({ t, onAreas, onConfirm, onChangeAnswer, coverIn
               <div className="space-y-3 border-l-2 border-border pl-3">
                 <p id={ids.hcmc} className="text-sm text-body">{place(HCMC)}</p>
                 {/* Named by its own line: inside the fieldset, a radio group would otherwise take the legend as its name. */}
-                <RadioGroup value={hcmcMode} onValueChange={onHcmcMode} aria-labelledby={ids.hcmc} className="grid gap-2 sm:grid-cols-2">
+                <RadioGroup value={hcmcMode} onValueChange={onHcmcMode} aria-labelledby={ids.hcmc} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Radio value="all" className="flex w-full items-center justify-start gap-2.5 whitespace-normal rounded-xl border border-border p-3 text-left data-checked:border-brand">
                     <RadioDot />
                     <span className="text-sm font-semibold text-foreground">{tr('Anywhere in the city', 'Bất kỳ đâu trong thành phố')}</span>

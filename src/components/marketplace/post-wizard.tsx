@@ -1876,7 +1876,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         </Alert>
       )}
 
-      <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_19rem]">
+      <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_19rem]">
         {/* ── FORM ── */}
         <div className="min-w-0 space-y-10">
           {/* Photos (+ optional video) — moved verbatim to post-wizard-sections.tsx */}

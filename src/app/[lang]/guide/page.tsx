@@ -78,7 +78,7 @@ export default function GuidePage() {
       ]}
     >
       <ContentSection id="buyers" title="For buyers" wide>
-          <div className="mt-1 grid gap-x-8 gap-y-6 sm:grid-cols-3">
+          <div className="mt-1 grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-3">
             {BUYER_STEPS.map(({ title, body }, i) => (
               <div key={title} className="flex gap-4">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold text-accent-foreground tabular-nums">{i + 1}</span>
@@ -92,7 +92,7 @@ export default function GuidePage() {
       </ContentSection>
 
       <ContentSection id="sellers" title="For sellers" wide>
-          <div className="mt-1 grid gap-x-8 gap-y-6 sm:grid-cols-3">
+          <div className="mt-1 grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-3">
             {SELLER_STEPS.map(({ title, body }, i) => (
               <div key={title} className="flex gap-4">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold text-accent-foreground tabular-nums">{i + 1}</span>
@@ -106,7 +106,7 @@ export default function GuidePage() {
       </ContentSection>
 
       <ContentSection id="features" title="Features & how they work" wide>
-          <div className="mt-1 grid gap-x-8 gap-y-6 lg:grid-cols-2">
+          <div className="mt-1 grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-2">
             {FEATURES.map(({ Icon, id, title, body }) => (
               <div key={title} id={id} className="scroll-mt-24 flex gap-3.5">
                 <span className="mt-0.5 shrink-0 text-accent-foreground"><Icon className="h-5 w-5" /></span>

@@ -5,7 +5,7 @@ import { hmacSubject, identityHashingAvailable, subjectHashEquals } from '@/lib/
 import { recomputeVerification } from '@/lib/compliance/recompute-verification'
 import { consumeChallenge } from '@/lib/identity/challenge'
 import { ownsKycPath } from './store'
-import { decideTierB } from '@/lib/identity/verify-decision'
+import { decideTierB, parseIsoDate } from '@/lib/identity/verify-decision'
 import { parsePassportMrz } from '@/lib/visa/mrz'
 import { passportNumberShape } from './passport-number'
 
@@ -63,6 +63,10 @@ export type KycSubmitError =
   /** The typed ID number is not the right shape. ⚠️ DISTINCT FROM `document_unreadable`, which tells
    *  the seller to photograph the card again — useless advice about a field they TYPED. */
   | 'document_number_invalid'
+  /** A passport filed with no name, or with no real expiry date to judge — refused before the challenge, like the
+   *  number. ⚠️ Not `document_unreadable` ("so we cleared the form") nor `rejected` (the six-month copy): both
+   *  describe a spent attempt over two fields the seller can fill in. */
+  | 'document_details_missing'
   | 'path_not_owned'
   | 'identity_hashing_unavailable'
   | 'document_unreadable'
@@ -261,6 +265,24 @@ export async function submitKycForReview(
   if (input.tier === 'B' && (input.passportNumber?.trim() ? !passportNumberShape(input.passportNumber) : !mrzVerifies(input))) {
     return { ok: false, code: 'document_number_invalid' }
   }
+  // …and the other two fields a typed passport stands on (2026-10-25). With no name the case died after the
+  // challenge on `document_unreadable`; with no expiry, or an impossible one (2027-02-30 passes the schema), on
+  // `rejected` — the six-month copy, about a date nobody gave. The web form blocks both; this is the backstop for
+  // a client that does not. `readDocument` is pure and reads only the caller's own input, so running it here
+  // leaks nothing.
+  // ⚠️ A NULL READ IS A MISSING NUMBER TOO: a verifying MRZ whose expiry the seller changed is filed as typed, and
+  // with no typed number there is nothing to file (codex, on the diff).
+  // ⚠️ THE TYPED DATE ITSELF IS CHECKED, not only the later-of-two decideTierB judges: an impossible typed date
+  // earlier than the read one passed that, and `new Date('2025-02-30…')` stores 2 March (codex). The read date is
+  // always a real day (mrzDate refuses any other), so this covers the judged one as well.
+  const doc = readDocument(input)
+  if (input.tier === 'B' && !doc) return { ok: false, code: 'document_number_invalid' }
+  if (input.tier === 'B' && doc && (!(doc.surname || doc.givenNames) || !parseIsoDate(doc.documentExpiry))) {
+    return { ok: false, code: 'document_details_missing' }
+  }
+  const judgedExpiry = doc?.readDisagreement?.expiry && doc.documentExpiry
+    ? [doc.readDisagreement.expiry, doc.documentExpiry].sort().at(-1)
+    : doc?.documentExpiry
 
   // 1. The challenge, FIRST and always consumed. Doing this before any other check means a probe
   //    of the other branches still costs the attacker their code.
@@ -299,7 +321,6 @@ export async function submitKycForReview(
   if (!identityHashingAvailable()) return { ok: false, code: 'identity_hashing_unavailable' }
 
   // `document_unreadable` is the seller-facing "retake the data page" — see readDocument.
-  const doc = readDocument(input)
   if (!doc || !doc.documentNumber || !(doc.surname || doc.givenNames)) {
     return { ok: false, code: 'document_unreadable' }
   }
@@ -365,9 +386,7 @@ export async function submitKycForReview(
     // later one is judged, and the reviewer's own reading decides at approval (review.ts). Judging the typed
     // date refused a seller whose slip made a valid passport look expired; judging the read one refused an
     // honest correction of a misread. Either way the form had promised "our team will check it".
-    documentExpiry: doc.readDisagreement?.expiry && doc.documentExpiry
-      ? [doc.readDisagreement.expiry, doc.documentExpiry].sort().at(-1)
-      : doc.documentExpiry,
+    documentExpiry: judgedExpiry,
     mrzValid: doc.mrzValid,
     accountName, now,
   })

@@ -281,7 +281,7 @@ Answer from what the app actually does. Collected, linked to the user unless the
 | Category | Collected | Purpose |
 |---|---|---|
 | Name, email address | yes | account, seller identity |
-| Phone number | yes | account, seller contact; the teacher profile's private phone — required since 2026-10-22, shared only by the teacher's Share tap, staff recruitment calls while "Our staff may call me" is on (§6) |
+| Phone number | yes | account, seller contact; the teacher profile's private phone — required since 2026-10-25, shared only by the teacher's Share tap, staff recruitment calls while "Our staff may call me" is on (§6) |
 | User IDs | yes | account |
 | Photos | yes | listing images, identity verification captures, the e-Visa photos (§6) |
 | ~~Government ID~~ | — | no such Play type: the KYC images are Photos, the document number Personal info → Other info (§6) |

@@ -96,7 +96,7 @@ function Lede({ e }: { e: Edition }) {
 }
 
 /** Four figures on one ruled band — the Rent Index's band row and its measured four-up sizes (rent-index-sections.tsx). */
-const BAND_ROW_FOUR = 'grid border-t border-border md:grid-cols-4 md:divide-x md:divide-border max-md:divide-y max-md:divide-border'
+const BAND_ROW_FOUR = 'grid grid-cols-1 border-t border-border md:grid-cols-4 md:divide-x md:divide-border max-md:divide-y max-md:divide-border'
 
 function ShareFigure({ label, n, f }: { label: string; n: number; f: CellFigures | null }) {
   return (

@@ -132,7 +132,7 @@ export default async function AdminVisaCasePage({ params }: { params: Promise<{ 
         <div className="mt-5 space-y-5">
           <Card>
             <CardHeader><CardTitle>Safety gate</CardTitle></CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Info label="Applicant declaration" value={application.applicant_confirmed_at ? new Date(application.applicant_confirmed_at).toLocaleString('en-GB') : 'Not confirmed'} />
               <Info label="Prefill authorization" value={application.authorized_at ? new Date(application.authorized_at).toLocaleString('en-GB') : 'Not authorized'} />
               <Info label="Service fee" value={application.paid_at ? `Paid ${new Date(application.paid_at).toLocaleString('en-GB')} · ${application.payment_provider}` : 'Not paid'} />
@@ -180,7 +180,7 @@ export default async function AdminVisaCasePage({ params }: { params: Promise<{ 
             <CardContent className="space-y-4">
               {documents.length === 0 && <p className="text-sm text-muted-foreground">No documents uploaded yet.</p>}
               {imageDocuments.length > 0 && (
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   {imageDocuments.map((d) => {
                     const url = signedUrls.get(d.id)
                     const issues = issuesOf(d)

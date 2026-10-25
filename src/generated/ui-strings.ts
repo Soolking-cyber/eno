@@ -3886,6 +3886,7 @@ export const UI_STRINGS: string[] = [
   "Your name comes from your account when you sign in at publish. If the account has no phone number, you add one here — candidates only see it after you reply.",
   "Your name is never shown, and a moderator reads every review before it appears.",
   "Your name is never shown. Reviews appear with a broad description only, such as \"Former teacher · 1–2 years\".",
+  "Your name or the expiry date of your passport is missing or not a real date. Fill both in as printed on your passport and send again.",
   "Your name, photo, headline and about text",
   "Your nationality, your English level and the languages you speak",
   "Your new answers are filled in below and are not saved yet. Check each step, then tap “Save changes” to keep them.",

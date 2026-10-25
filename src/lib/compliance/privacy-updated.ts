@@ -109,8 +109,8 @@
  * are FIXED text — page.test.tsx pins all three as literals (until 2026-10-22 it derived them from this date). ⛔ A
  * later re-date of this value — the change below, or any after — must NEVER move them: a teacher who joined on the old
  * optional rule keeps the removal the policy promised.
- * And 2026-10-22 again — THE SECOND CHANGE OF THE DAY, in a SECOND deploy that day, after the CV rule's (owner,
- * 2026-10-22 11:37 ICT: "also phone number is mandatory and all toggles should be on by default go"; asked, the phone
+ * And 2026-10-25 — decided on 2026-10-22, live with its own deploy three days later, the reason this value and the
+ * day /privacy names were re-dated from the 22nd (owner, 2026-10-22 11:37 ICT: "also phone number is mandatory and all toggles should be on by default go"; asked, the phone
  * is "Everyone, on next save" and the toggles "On by default everywhere" — web and the native apps): the teacher PHONE
  * is required on every teacher-profile save — a new profile at Publish, an existing one without a phone the next time
  * it is saved, never for a save that only
@@ -124,16 +124,15 @@
  * "live with the deploy"): the default is an accepted legal risk (PDP Law 91/2025 Art 9(4)(d), Decree 356/2025 Art 6(3),
  * Decree 91/2020 anti-spam, App Store 5.1.2(i)), recorded in docs/compliance/pdpl-dossier-draft.md
  * [OWNER DECISION 2026-10-22] with counsel's question (§8 question 15). AI_NOTICE_VERSION stays '2026-10-08': no
- * existing opt-in is asked again. The policy names the day in its own words ("since 22 October 2026" / "từ ngày 22
- * tháng 10 năm 2026" — the teacher paragraph, the consent purpose and the basis) — ⛔ if this deploy slips past 2026-10-22, re-date this value AND those words (and
- * their pins in page.test.tsx and the dossier's 22/10 dates) in the deploy's commit, then retake the fingerprint below;
- * the CV dates above stay as they are.
- * And 2026-10-22 as well (planned — the deploy day of the way out first, owner 2026-10-22: "creatively route them to
+ * existing opt-in is asked again. The policy names the day in its own words ("since 25 October 2026" / "từ ngày 25
+ * tháng 10 năm 2026" — the teacher paragraph, the consent purpose and the basis; a test derives them from this value) —
+ * ⛔ if this deploy slips past 2026-10-25, re-date this value AND those words (and their pins in page.test.tsx and the
+ * dossier's 25/10 dates) in the deploy's commit, then retake the fingerprint below; the CV dates above stay as they are.
+ * And, LIVE on 2026-10-22 (deploy 7cb9dcba8), the way out first (owner 2026-10-22: "creatively route them to
  * normal browser"): the sign-up counters paragraph names the three new teacher-form totals — the screen offering the
  * browser shown, the visitor going on in the app, a page then opening in the browser from it (escape_shown /
  * escape_stay / escape_arrived — the same anonymous daily totals). Live with the deploy: no new data, no recipient.
- * ⛔ Production already carries 2026-10-22 (the CV deploy), so the gate CANNOT notice this one slipping: deployed on a
- * later Vietnamese day, re-date this to THAT day in the deploy's commit and retake the fingerprint below.
+ * It went live that day, under that day's date.
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -142,7 +141,7 @@
  * line, `export const PRIVACY_TEXT_PUBLISHED: string = 'YYYY-MM-DD'`: that is the shape the gate reads.
  * ⚠️ Typed, never read from the clock: the page prerenders, and a build-time date would move with every rebuild.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-22'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-25'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -151,4 +150,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-22'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = 'dcb7fbf73a5bb805'
+export const PRIVACY_TEXT_FINGERPRINT = '8f3364a0d1715b30'

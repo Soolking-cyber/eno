@@ -440,7 +440,7 @@ export default async function TeachHubPage() {
       id: 'start-here',
       title: 'Start here',
       body: (
-        <div className="grid max-w-3xl gap-x-8 gap-y-6 sm:grid-cols-2">
+        <div className="grid grid-cols-1 max-w-3xl gap-x-8 gap-y-6 sm:grid-cols-2">
           {start.map((p) => (
             <div key={p.title} className="min-w-0">
               <h3 className="text-base font-bold text-foreground">{p.title}</h3>

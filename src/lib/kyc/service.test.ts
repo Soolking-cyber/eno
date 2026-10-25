@@ -225,12 +225,31 @@ describe('submitKycForReview', () => {
     expect(h.s.created).toHaveLength(0)
   })
 
-  it('a typed passport still needs a name, and a readable expiry date', async () => {
-    expect(await submitKycForReview('p1', 'Anna Maria Eriksson', typed({ surname: undefined, givenNames: undefined }), NOW))
-      .toEqual({ ok: false, code: 'document_unreadable' })
-    expect(await submitKycForReview('p1', 'Anna Maria Eriksson', typed({ documentExpiry: undefined }), NOW))
-      .toEqual({ ok: false, code: 'rejected' })
-    expect(h.s.created).toHaveLength(0)
+  it('a typed passport still needs a name and a real expiry date — refused BEFORE the challenge is spent', async () => {
+    // These died after the challenge, on `document_unreadable` and on `rejected` (the six-month copy), until 2026-10-25.
+    const cases = [
+      typed({ surname: undefined, givenNames: undefined }),
+      typed({ documentExpiry: undefined }),
+      typed({ documentExpiry: '2027-02-30' }), // passes the schema's pattern; not a day
+      // A verifying MRZ whose number the seller corrected is filed as typed, so the typed expiry is the one judged.
+      input({ passportNumber: 'X1234568' }),
+      // An impossible typed date EARLIER than the read 2030-12-31: the later-of-two is real, the filed one is not.
+      input({ passportNumber: 'X1234567', documentExpiry: '2027-02-30' }),
+    ]
+    for (const c of cases) {
+      h.s.consumed = 0
+      expect(await submitKycForReview('p1', 'Anna Maria Eriksson', c, NOW)).toEqual({ ok: false, code: 'document_details_missing' })
+      expect(h.s.consumed).toBe(0)
+    }
+    // A verifying MRZ whose expiry was changed, with no typed number, has no number to file: a number refusal, still free.
+    h.s.consumed = 0
+    expect(await submitKycForReview('p1', 'Anna Maria Eriksson', input({ documentExpiry: '2031-01-31' }), NOW))
+      .toEqual({ ok: false, code: 'document_number_invalid' })
+    expect(h.s.consumed).toBe(0)
+    // One name is enough, as before; and a verifying MRZ needs neither typed field.
+    expect(await submitKycForReview('p1', 'Anna Maria Eriksson', typed({ surname: undefined }), NOW)).toMatchObject({ ok: true })
+    h.s.created = []
+    expect(await submitKycForReview('p1', 'Anna Maria Eriksson', input({ surname: undefined, givenNames: undefined }), NOW)).toMatchObject({ ok: true })
   })
 
   it('a typed passport meets other issuer-less digests here; its match against camera reads is the reviewer\'s, at approval', async () => {

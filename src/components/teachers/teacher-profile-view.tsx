@@ -264,7 +264,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        <div className="grid gap-8 lg:grid-cols-[1fr_20rem]">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_20rem]">
           <div className="space-y-8">
             <header className="flex items-start gap-4">
               {/* ⚠️ THROUGH THE OPTIMIZER, PRELOADED AT HIGH PRIORITY (speed plan item 7, 2026-10-16). The raw <img> sent

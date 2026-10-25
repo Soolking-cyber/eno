@@ -197,7 +197,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
       </p>
 
       {/* ── Party panels ── */}
-      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <p className="text-3xs font-bold uppercase tracking-wide text-ink-4">Reporter</p>
           {data.reporter ? (

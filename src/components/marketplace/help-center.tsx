@@ -529,7 +529,7 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
              grid. What CAN reach it is a thin taxonomy — the edition filter or a sparse
              DB leaving fewer than two topics that have posts. Rarer than claimed, still
              real, and one className either way. */
-          <div className={cn('mt-2 grid items-start gap-x-12', columns.every((c) => c.length > 0) && 'lg:grid-cols-2')}>
+          <div className={cn('mt-2 grid grid-cols-1 items-start gap-x-12', columns.every((c) => c.length > 0) && 'lg:grid-cols-2')}>
             {columns.filter((column) => column.length > 0).map((column, index) => (
               <div key={index}>
                 {column.map((group) => (

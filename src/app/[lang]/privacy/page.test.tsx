@@ -574,7 +574,7 @@ describe('/privacy — teacher job matching (Anthropic)', () => {
     expect(en).toContain('the unsubscribe link in an email stops the emails')
     // The purpose says what counts as the consent once the switches start ON — never "consent only", a word for an act a
     // teacher who left the default on did not make.
-    expect(en).toContain('With a teacher’s consent, given in the teacher profile with two switches — in the form of a new profile both are on by default since 22 October 2026, so leaving one on and publishing counts as that consent; a teacher can switch either off before publishing or at any time after: to compare the profile with teaching jobs and suggest the ones that fit, by email or through a call from our staff to the teacher’s phone number (see “Teacher profiles” and “Automated decisions”).')
+    expect(en).toContain('With a teacher’s consent, given in the teacher profile with two switches — in the form of a new profile both are on by default since 25 October 2026, so leaving one on and publishing counts as that consent; a teacher can switch either off before publishing or at any time after: to compare the profile with teaching jobs and suggest the ones that fit, by email or through a call from our staff to the teacher’s phone number (see “Teacher profiles” and “Automated decisions”).')
     for (const s of ['With a teacher’s consent only, given in the teacher profile', 'if a teacher asks for job matches', 'if the teacher allowed our staff to call']) expect(en, s).not.toContain(s)
     expect(en).not.toMatch(/Gemini[^.]*job match/i)
     cleanup()
@@ -583,7 +583,7 @@ describe('/privacy — teacher job matching (Anthropic)', () => {
     expect(vi).toContain('khi mục “Gửi email cho tôi các việc làm phù hợp với hồ sơ” của giáo viên đang bật, gợi ý được gửi qua email cho giáo viên (tối đa năm việc làm mỗi email, tối đa một email mỗi ba ngày), và khi mục “Nhân viên của chúng tôi có thể gọi cho tôi” đang bật, được đưa vào danh sách để nhân viên có thể gọi cho giáo viên về việc làm đó.')
     expect(vi).toContain('Chỉ với giáo viên đang bật gợi ý việc làm (qua email, hoặc qua cuộc gọi từ nhân viên của chúng tôi — trong biểu mẫu của hồ sơ giáo viên mới, cả hai mục đều được bật sẵn, và giáo viên có thể tắt từng mục bất cứ lúc nào):')
     expect(vi).toContain('để gợi ý việc làm cho giáo viên và, khi mục “Nhân viên của chúng tôi có thể gọi cho tôi” của giáo viên đang bật, cho nhân viên của chúng tôi.')
-    expect(vi).toContain('Với sự đồng ý của giáo viên, được đưa ra trong hồ sơ giáo viên bằng hai công tắc — từ ngày 22 tháng 10 năm 2026, cả hai được bật sẵn trong biểu mẫu của hồ sơ mới, nên việc để nguyên một công tắc ở trạng thái bật và đăng hồ sơ được coi là sự đồng ý đó; giáo viên có thể tắt từng công tắc trước khi đăng hoặc bất cứ lúc nào sau đó:')
+    expect(vi).toContain('Với sự đồng ý của giáo viên, được đưa ra trong hồ sơ giáo viên bằng hai công tắc — từ ngày 25 tháng 10 năm 2026, cả hai được bật sẵn trong biểu mẫu của hồ sơ mới, nên việc để nguyên một công tắc ở trạng thái bật và đăng hồ sơ được coi là sự đồng ý đó; giáo viên có thể tắt từng công tắc trước khi đăng hoặc bất cứ lúc nào sau đó:')
     for (const s of ['Chỉ khi giáo viên đồng ý trong hồ sơ giáo viên', 'nếu giáo viên yêu cầu gợi ý việc làm', 'Chỉ với giáo viên yêu cầu gợi ý việc làm', 'nếu giáo viên cho phép nhân viên của chúng tôi gọi điện']) expect(vi, s).not.toContain(s)
   })
 })
@@ -628,21 +628,21 @@ describe('/privacy — the teacher phone and the job-match defaults (2026-10-22)
     'Your phone number, email address and CV are never published: the account you are talking to receives them only if you tap “Share my phone, email & CV” in your conversation with it.',
     'Every teacher profile needs a phone number: you give it when you publish a new profile, and a profile saved without one adds it the next time it is saved — a save that only hides your profile or switches something off is never refused for it.',
     'Our staff call it only while “Our staff may call me” is on — about jobs that match your profile, and to offer to introduce you to the schools behind them; we never give your number to a school: only your Share tap does.',
-    'If you are looking for work, “Email me jobs that match my profile” and “Our staff may call me” are on by default in the form of a new teacher profile since 22 October 2026: switch either off before you publish, or at any time later in “Teacher profile” in your account, and the unsubscribe link in any job-match email switches the emails off; an existing profile keeps the choices it saved.',
+    'If you are looking for work, “Email me jobs that match my profile” and “Our staff may call me” are on by default in the form of a new teacher profile since 25 October 2026: switch either off before you publish, or at any time later in “Teacher profile” in your account, and the unsubscribe link in any job-match email switches the emails off; an existing profile keeps the choices it saved.',
     'We record when each was switched on, with the version of the notice shown beside them, and when it was switched off; if a new profile is published with a switch still at its default, we also record which one was left on, and that record is included when you download your data.',
     // ⛔ a suggestion is emailed only while the email switch is on (gate review, codex 2026-10-22: it read as always)
     'A job that scores 70 or more becomes a suggestion: while the teacher’s “Email me jobs that match my profile” is on, it is emailed to them',
     // ⛔ the general promise names the new carve-out — the sentence a reader holds us to
-    'and you can hide it at any time (see above); and except the two job-match switches of a new teacher profile, which are on by default in its form since 22 October 2026 — you can switch either off before you publish and at any time after (see “Teacher profiles”).',
+    'and you can hide it at any time (see above); and except the two job-match switches of a new teacher profile, which are on by default in its form since 25 October 2026 — you can switch either off before you publish and at any time after (see “Teacher profiles”).',
   ]
   const VI = [
     'Mọi hồ sơ giáo viên đều cần có số điện thoại: bạn nhập số khi đăng hồ sơ mới, và hồ sơ đã lưu mà chưa có số sẽ cần thêm số vào lần lưu tiếp theo — lần lưu chỉ để ẩn hồ sơ hoặc tắt một mục thì không bao giờ bị từ chối vì thiếu số.',
     'Nhân viên của chúng tôi chỉ gọi số này khi mục “Nhân viên của chúng tôi có thể gọi cho tôi” đang bật — về các việc làm phù hợp với hồ sơ, và để đề nghị giới thiệu bạn với các trường đăng các việc làm đó; chúng tôi không bao giờ đưa số của bạn cho trường: chỉ khi bạn bấm Chia sẻ.',
-    'Nếu bạn đang tìm việc, từ ngày 22 tháng 10 năm 2026, “Gửi email cho tôi các việc làm phù hợp với hồ sơ” và “Nhân viên của chúng tôi có thể gọi cho tôi” được bật sẵn trong biểu mẫu của hồ sơ giáo viên mới:',
+    'Nếu bạn đang tìm việc, từ ngày 25 tháng 10 năm 2026, “Gửi email cho tôi các việc làm phù hợp với hồ sơ” và “Nhân viên của chúng tôi có thể gọi cho tôi” được bật sẵn trong biểu mẫu của hồ sơ giáo viên mới:',
     'hồ sơ đã có giữ nguyên lựa chọn đã lưu.',
     'khi mục “Gửi email cho tôi các việc làm phù hợp với hồ sơ” của giáo viên đang bật, gợi ý được gửi qua email cho giáo viên',
     'nếu hồ sơ mới được đăng khi một mục vẫn để nguyên mặc định, chúng tôi còn ghi lại mục nào được để bật, và bản ghi này có trong dữ liệu bạn tải xuống.',
-    'và bạn có thể ẩn nhãn bất cứ lúc nào (xem ở trên); và trừ hai công tắc gợi ý việc làm của hồ sơ giáo viên mới, được bật sẵn trong biểu mẫu từ ngày 22 tháng 10 năm 2026 — bạn có thể tắt từng công tắc trước khi đăng hồ sơ và bất cứ lúc nào sau đó (xem mục “Hồ sơ giáo viên”).',
+    'và bạn có thể ẩn nhãn bất cứ lúc nào (xem ở trên); và trừ hai công tắc gợi ý việc làm của hồ sơ giáo viên mới, được bật sẵn trong biểu mẫu từ ngày 25 tháng 10 năm 2026 — bạn có thể tắt từng công tắc trước khi đăng hồ sơ và bất cứ lúc nào sau đó (xem mục “Hồ sơ giáo viên”).',
   ]
 
   it('⛔ both editions, both languages: the phone on every save, what staff use it for, the default, switching off, the records', async () => {

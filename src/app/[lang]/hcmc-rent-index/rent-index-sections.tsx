@@ -123,9 +123,9 @@ function Figure({ label, s, locale, four = false }: { label: ReactNode; s: Stats
 }
 
 /** Three figures on one ruled band, not three bordered tiles (flat-surface canon §3b; C-BOXES). */
-const BAND_ROW = 'grid border-t border-border md:grid-cols-3 md:divide-x md:divide-border max-md:divide-y max-md:divide-border'
+const BAND_ROW = 'grid grid-cols-1 border-t border-border md:grid-cols-3 md:divide-x md:divide-border max-md:divide-y max-md:divide-border'
 /** The apartment bands' row: the same ruled band with four figures (rules v5's Studio beside 1, 2 and 3+ bedrooms). */
-const BAND_ROW_FOUR = 'grid border-t border-border md:grid-cols-4 md:divide-x md:divide-border max-md:divide-y max-md:divide-border'
+const BAND_ROW_FOUR = 'grid grid-cols-1 border-t border-border md:grid-cols-4 md:divide-x md:divide-border max-md:divide-y max-md:divide-border'
 
 export function Headline({ index, locale }: { index: RentIndex; locale: MoneyLocale }) {
   return (

@@ -57,7 +57,7 @@ export default function PostLoading() {
           <Skeleton className="mt-1 h-6 w-96 max-w-full" />
           <Skeleton className="h-6 w-2/3 sm:hidden" />
 
-          <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_19rem]">
+          <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_19rem]">
             {/* ── FORM ── */}
             <div className="min-w-0 space-y-10">
               {/* Photos — the empty grid holds TWO square tiles (Add photo + Add video),
