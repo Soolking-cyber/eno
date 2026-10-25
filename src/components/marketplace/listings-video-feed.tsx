@@ -150,9 +150,13 @@ export function VideoFeed({
     els?.[activeIdx + dir]?.scrollIntoView({ behavior: scrollBehavior() })
   }
 
+  // ⚠️ z-overlay (50), NOT ABOVE IT (sweep, 2026-10-22). At z-[60] the takeover covered the sign-in dialog its own "Chat
+  // with seller" and first Save open (dialogs are z-overlay): for a guest the tap looked dead while focus sat trapped in
+  // the hidden dialog. At 50 it still covers the header and tab bar (40) and the FAB cluster, and a dialog portaled
+  // after it wins the tie on DOM order.
   const shell = (children: React.ReactNode) =>
     createPortal(
-      <div className="fixed inset-0 z-[60] bg-black">
+      <div className="fixed inset-0 z-overlay bg-black">
         <IconButton
           size="lg"
           onClick={onClose}
