@@ -136,10 +136,11 @@ export function ShareButton({ url, title, price, currency, priceUnit, className,
   const label = subject === 'my-teacher-profile' ? tr('Share my profile', 'Chia sẻ hồ sơ của tôi') : null
 
   // Lead with the price — it's the part people share for. Falls back to the bare
-  // title when no price is supplied.
+  // title when no price is supplied — and for a price of 0: the page says "Free", and "— 0 đ" read as broken in every
+  // chat it was sent to (sweep, 2026-10-22).
   const unit = priceUnitSuffix(priceUnit)
   const unitWord = unit === 'hour' ? tr('hour', 'giờ') : unit === 'day' ? tr('day', 'ngày') : unit === 'week' ? tr('week', 'tuần') : unit === 'month' ? tr('month', 'tháng') : unit
-  const shareText = price != null && currency ? `${title} — ${formatMoneyFull(price, currency, moneyLocale(lang))}${unitWord ? ` / ${unitWord}` : ''}` : title
+  const shareText = price != null && price > 0 && currency ? `${title} — ${formatMoneyFull(price, currency, moneyLocale(lang))}${unitWord ? ` / ${unitWord}` : ''}` : title
   const { channels, copy, copied, native, osShareSheet } = useShare(url, shareText)
 
   const nativeShare = async () => { setOpen(false); await osShareSheet() }

@@ -70,4 +70,13 @@ describe('sharing a teacher profile (owner, 2026-10-11: "easy to share on facebo
     await user.click(await screen.findByRole('button', { name: 'WhatsApp' }))
     expect(decodeURIComponent(opened[0])).not.toContain(' / ')
   })
+  it('a FREE listing is shared by its title alone — never "— 0 đ" beside a page that says "Free" (sweep, 2026-10-22)', async () => {
+    const user = userEvent.setup()
+    wrap(<ShareButton url={URL_} title="Free eSIM" price={0} currency="₫" />)
+    await user.click(screen.getByRole('button', { name: 'Share' }))
+    await user.click(await screen.findByRole('button', { name: 'WhatsApp' }))
+    const text = decodeURIComponent(opened[0])
+    expect(text).toContain('Free eSIM')
+    expect(text).not.toMatch(/—\s*0\b/)
+  })
 })

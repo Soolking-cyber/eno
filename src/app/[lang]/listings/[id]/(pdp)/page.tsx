@@ -61,6 +61,7 @@ import { LocalizedTitle, LocalizedTitleHeading, LocalizedText, ListingDescriptio
 import { hideRepeatedFacts } from '@/components/marketplace/rich-text'
 import { CalendarDay } from '@/components/marketplace/calendar-day'
 import { cachedTranslations } from '@/lib/translate'
+import { detectContentLang, mayBeVietnamese } from '@/lib/detect-lang'
 import { cn } from '@/lib/utils'
 import { ReviewsPreview } from '@/components/marketplace/reviews-preview'
 import { SameSellerShelf } from '@/components/marketplace/same-seller-shelf'
@@ -130,6 +131,17 @@ export async function generateStaticParams() {
 // each running its own findUnique for the same listing.
 // The loader moved to ./get-listing so `layout.tsx` can share the same cache() memo — see there.
 
+/**
+ * THE TITLE THE VIETNAMESE H1 SHOWS IN THE SERVER HTML — localizedPlan's 'title' column for a Vietnamese reader
+ * (listing-content.tsx, a client module, so not callable here): the authored `titleVi`, else the source when it is
+ * already Vietnamese (detectContentLang), else its pre-warmed machine translation, else the source. The <title> and
+ * the gallery's names use it, so neither says the English source under a Vietnamese H1 (i18n#1, pdp#3, 2026-10-22).
+ * ⚠️ `||`, not `??`: an empty `titleVi` or cached row is no title, as localizedPlan reads it.
+ */
+function viTitle(title: string, titleVi: string | null | undefined, cached: Record<string, string> | null | undefined): string {
+  return titleVi || (detectContentLang(title) === 'vi' ? title : cached?.vi || title)
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id, lang } = await params
   const listing = await getListing(id)
@@ -160,13 +172,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
    * ⛔ THE <title> AND THE SHARE TITLES FOLLOW THE `[lang]` VARIANT (SEO wave B, V2b; copy sheet CS-3,
    * approved 2026-10-01). This page renders once per variant since `[lang]` (src/proxy.ts) — the old note
    * here said "static HTML shared across users, so it can't vary by language", which stopped being true
-   * then. The Vietnamese variant names the listing by `titleVi` when it has one, the same text its H1
-   * already shows that reader (<LocalizedTitle> prefers it), and formats the price the Vietnamese way
-   * ("12.000.000 đ"). The meta description, the JSON-LD and the share text keep the source title.
-   * ⚠️ `||`, not `??`: an empty `titleVi` is no title, as localizedPlan reads it.
+   * then. The Vietnamese variant names the listing by the text its H1 already shows that reader (viTitle
+   * above): `titleVi` when it has one, else — since i18n#1, 2026-10-22 — the pre-warmed machine translation the
+   * H1 renders (a vi job PDP's tab read "Part-time English Teacher …" over "Giáo viên tiếng Anh …"); and it
+   * formats the price the Vietnamese way ("12.000.000 đ"). The meta description, the JSON-LD and the share text
+   * keep the source title.
+   * The translation is read only when the H1 could show one — no titleVi, a source not already Vietnamese — and
+   * never for a teacher: that title is a person's name, which the profile shows as written. One indexed read.
    */
   const vi = lang === 'vi'
-  const titleFor = vi ? listing.titleVi || listing.title : listing.title
+  const titleI18n = vi && !listing.titleVi && listing.listingType !== TEACHER_LISTING_TYPE && detectContentLang(listing.title) !== 'vi'
+    // A failed read is no reason to fail the page's metadata: the <title> then falls back to the source, as before.
+    ? (await cachedTranslations([listing.title]).catch(() => ({} as Record<string, Record<string, string>>)))[listing.title]
+    : undefined
+  const titleFor = vi ? viTitle(listing.title, listing.titleVi, titleI18n) : listing.title
   if (listing.status === 'sold') {
     return { title: `${titleFor} — ${vi ? 'Đã bán' : 'Sold'} | ${SITE_NAME}`, robots: { index: false, follow: true } }
   }
@@ -507,6 +526,12 @@ export default async function ListingPage({ params }: Props) {
       ? scopedListingWhere({ sellerId: listing.sellerId, verified: true, status: 'active' }).then((where) => db.listing.count({ where }))
       : Promise.resolve(null),
   ])
+  /**
+   * The gallery's photo names and its lightbox's name follow the variant too (viTitle above): on the Vietnamese page a
+   * screen reader heard every photo as the English source title under a Vietnamese H1 (sweep, 2026-10-22). A teacher's
+   * title is a person's name, shown as written.
+   */
+  const galleryTitle = lang === 'vi' && listing.listingType !== TEACHER_LISTING_TYPE ? viTitle(listing.title, listing.titleVi, i18n[listing.title]) : displayTitle
   // Honest, decomposed seller display bundle (raw responseRate never leaves here —
   // only the suppressed/bucketed label rides into the client SellerCard). The two
   // fields the SERIALIZED seller deliberately doesn't carry — the compute receipt
@@ -942,7 +967,7 @@ export default async function ListingPage({ params }: Props) {
               wrapper covers both gallery branches — the single photo and the carousel render inside it. */}
           {!noGallery && (
           <div className="relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden">
-            <ListingGallery variant="mobile" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
+            <ListingGallery variant="mobile" images={listing.images} title={galleryTitle} video={listing.video} showAllLabel="View all photos" />
             <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
               <ShareButton url={canonicalUrl} title={displayTitle} price={listing.listingType === 'job' ? undefined : listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact />
               <SaveListingButton id={listing.id} compact />
@@ -1131,7 +1156,7 @@ export default async function ListingPage({ params }: Props) {
                   ))}
                   <span data-fab-avoid className="inline-flex min-w-0 items-center gap-1">
                     <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
-                    <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
+                    <span className="truncate"><LocalizedText text={listing.location} vi={mayBeVietnamese(listing.location) ? listing.location : null} i18n={i18n[listing.location]} /></span>
                   </span>
                   {showPosted && (
                     <span data-fab-avoid className="inline-flex shrink-0 items-center gap-1">
@@ -1346,7 +1371,7 @@ export default async function ListingPage({ params }: Props) {
                 linked job — see the mobile mount. */}
             {!noGallery && (
             <div className="relative order-2 hidden md:block">
-              <ListingGallery variant="desktop" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
+              <ListingGallery variant="desktop" images={listing.images} title={galleryTitle} video={listing.video} showAllLabel="View all photos" />
               <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
                 <ShareButton url={canonicalUrl} title={displayTitle} price={listing.listingType === 'job' ? undefined : listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact />
                 <SaveListingButton id={listing.id} compact />

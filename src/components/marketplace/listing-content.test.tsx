@@ -5,7 +5,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
 
 import { LanguageProvider } from '@/context/language-context'
-import { detectContentLang } from '@/lib/detect-lang'
+import { detectContentLang, mayBeVietnamese } from '@/lib/detect-lang'
 import { DESCRIPTION_CLAMP_CHARS, DESCRIPTION_CLAMP_LINES, ListingDescription, LocalizedTitle, LocalizedTitleHeading, RichText, localizedPlan, ownDescriptionVi, useLocalized, type LocalizedColumn } from './listing-content'
 
 /**
@@ -615,5 +615,24 @@ describe('ListingDescription — "See more" on a long description', () => {
     const { container } = render(<LanguageProvider initialLang="en"><ListingDescription text="A short note." /></LanguageProvider>)
     expect(container.querySelector('.allow-select')!.className).not.toContain('line-clamp')
     expect(screen.queryByRole('button')).toBeNull()
+  })
+})
+
+/**
+ * ⚠️ A VIETNAMESE PLACE NAME IS NEVER "TRANSLATED" INTO VIETNAMESE (sweep, 2026-10-22). The PDP's location chip passes
+ * `vi = location` when the text may be Vietnamese (mayBeVietnamese): 'Tân Mỹ' has no Vietnamese-EXCLUSIVE letter, so
+ * the title plan took the cached machine "translation" — 'Mỹ mới' ("New America") — for a Vietnamese reader.
+ */
+describe('PDP location chip — an authored Vietnamese place name', () => {
+  it('a Vietnamese reader sees "Tân Mỹ" as written, whatever the cache holds; English still gets its slot', () => {
+    expect(mayBeVietnamese('Tân Mỹ')).toBe(true) // what the chip asks: the name is authored Vietnamese
+    expect(mayBeVietnamese('District 7')).toBe(false) // an English place keeps the translation path
+    expect(localizedPlan('Tân Mỹ', 'Tân Mỹ', { vi: 'Mỹ mới' }, 'vi').embedded).toBe('Tân Mỹ')
+    expect(localizedPlan('Tân Mỹ', null, { vi: 'Mỹ mới' }, 'vi').embedded).toBe('Mỹ mới') // the defect, without vi
+  })
+  it('the chip passes vi only for text that may be Vietnamese', async () => {
+    const { readFileSync } = await import('node:fs')
+    const page = readFileSync('src/app/[lang]/listings/[id]/(pdp)/page.tsx', 'utf8')
+    expect(page).toContain('<LocalizedText text={listing.location} vi={mayBeVietnamese(listing.location) ? listing.location : null} i18n={i18n[listing.location]} />')
   })
 })
