@@ -120,7 +120,7 @@ export function ReviewPrompt({
             <Radio
               key={n}
               value={String(n)}
-              aria-label={tr('{n} stars', '{n} sao').replace('{n}', String(n))}
+              aria-label={n === 1 ? tr('1 star', '1 sao') : tr('{n} stars', '{n} sao').replace('{n}', String(n))}
               className="relative tap-44 h-9 w-9"
             >
               <Star className={`h-5 w-5 transition-colors ${n <= rating ? 'fill-warning text-warning' : 'text-ink-4'}`} />

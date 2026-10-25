@@ -42,6 +42,33 @@ describe('ranking', () => {
     expect([...rows].sort(compareSchools('hiring')).map((r) => r.name)).toEqual(['B', 'A', 'C'])
     expect([...rows].sort(compareSchools('name')).map((r) => r.name)).toEqual(['A', 'B', 'C'])
   })
+  /**
+   * ⛔ A SCHOOL WITH NO UP-VOTE NEVER RANKS ABOVE AN UNVOTED ONE (sweep, 2026-10-22). Every school with no up-vote scores 0,
+   * like an unvoted school, and the tie fell to "more votes first": the first down-vote anywhere made that school #1
+   * of ~170, and more down-votes ranked it higher still. A tie now falls to the net score first.
+   */
+  it('⛔ "top": only down-votes rank BELOW unvoted schools, more down-votes lower still', () => {
+    const rows: RankRow[] = [
+      { name: 'Down11', up: 0, down: 11, reviews: 0, jobs: 0 },
+      { name: 'Down3', up: 0, down: 3, reviews: 0, jobs: 0 },
+      { name: 'Apollo', up: 0, down: 0, reviews: 0, jobs: 0 },
+      { name: 'Down1', up: 0, down: 1, reviews: 0, jobs: 0 },
+      { name: 'Zeta', up: 0, down: 0, reviews: 0, jobs: 0 },
+      { name: 'Liked', up: 3, down: 0, reviews: 0, jobs: 0 },
+    ]
+    expect([...rows].sort(compareSchools('top')).map((r) => r.name)).toEqual(['Liked', 'Apollo', 'Zeta', 'Down1', 'Down3', 'Down11'])
+  })
+  it('"reviews" and "hiring" break their ties the same way: an unvoted school before a down-voted one', () => {
+    const rows: RankRow[] = [
+      { name: 'Apollo', up: 0, down: 4, reviews: 0, jobs: 0 },
+      { name: 'Zeta', up: 0, down: 0, reviews: 0, jobs: 0 },
+    ]
+    expect([...rows].sort(compareSchools('reviews')).map((r) => r.name)).toEqual(['Zeta', 'Apollo'])
+    expect([...rows].sort(compareSchools('hiring')).map((r) => r.name)).toEqual(['Zeta', 'Apollo'])
+  })
+  it('no up-vote is exactly 0 whatever the down-votes (no floating-point crumbs either side of an unvoted school)', () => {
+    for (const down of [1, 3, 11, 15, 40]) expect(wilsonLower(0, down)).toBe(0)
+  })
 })
 
 describe('summarisePay', () => {

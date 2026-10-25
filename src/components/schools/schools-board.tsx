@@ -148,8 +148,10 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
         value={sort === 'net' ? 'top' : sort}
         onValueChange={(v) => setSort(v)}
         // Short labels below `sm`: four segments at 390px leave ~85px each, and "Most reviewed" truncated.
+        // From `sm` up each segment leaves ~110px of text: "Được đánh giá cao" needed 127 and was cut to "Được đánh gi…"
+        // (sweep, 2026-10-22), so the Vietnamese long label is the shorter "Đánh giá cao".
         options={[
-          { value: 'top', label: <><span className="sm:hidden">{tr('Top', 'Hàng đầu')}</span><span className="hidden sm:inline">{tr('Top rated', 'Được đánh giá cao')}</span></> },
+          { value: 'top', label: <><span className="sm:hidden">{tr('Top', 'Hàng đầu')}</span><span className="hidden sm:inline">{tr('Top rated', 'Đánh giá cao')}</span></> },
           { value: 'reviews', label: <><span className="sm:hidden">{tr('Reviews', 'Đánh giá')}</span><span className="hidden sm:inline">{tr('Most reviewed', 'Nhiều đánh giá')}</span></> },
           { value: 'hiring', label: <><span className="sm:hidden">{tr('Hiring', 'Tuyển')}</span><span className="hidden sm:inline">{tr('Hiring now', 'Đang tuyển')}</span></> },
           { value: 'name', label: 'A–Z' },
@@ -157,7 +159,9 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
       />
 
       <p className="mt-4 text-sm text-muted-foreground" aria-live="polite">
-        {tr('{n} schools and centres', '{n} trường và trung tâm').replace('{n}', formatInteger(shown.length, moneyLocale(lang)))}
+        {shown.length === 1
+          ? tr('1 school or centre', '1 trường hoặc trung tâm')
+          : tr('{n} schools and centres', '{n} trường và trung tâm').replace('{n}', formatInteger(shown.length, moneyLocale(lang)))}
       </p>
 
       {shown.length ? (
