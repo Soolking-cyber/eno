@@ -9,6 +9,7 @@ class ClassroomRecorder extends AudioWorkletProcessor {
     this.port.onmessage = (e) => { this.on = e.data === 'start' }
   }
 
+  // ⚠️ `outputs` stay untouched (silence): the node is wired to the speakers only so WebKit runs it (use-recorder.ts).
   process(inputs) {
     const channel = inputs[0] && inputs[0][0]
     if (this.on && channel && channel.length) this.port.postMessage(channel.slice(0))

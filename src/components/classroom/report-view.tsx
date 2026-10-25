@@ -61,12 +61,14 @@ export function ReportView({ sessionId }: { sessionId: string }) {
       if (r.ok) {
         setData(r.data)
         setError(null)
-        if (r.data.report.feedbackStatus === 'pending' && ++tries < 30) t = setTimeout(tick, 4_000)
+        // Every 4 s for two minutes, then every 15 s for about fifteen more: the sweep retries a stuck report every 5 min
+        // (C3a round 2, Opus — polling used to stop at two minutes on "Building your report…").
+        if (r.data.report.feedbackStatus === 'pending' && ++tries < 90) t = setTimeout(tick, tries < 30 ? 4_000 : 15_000)
         return
       }
       setError(r.error)
       const lasting = r.status === 401 || r.status === 403 || r.status === 404
-      if (!lasting && ++tries < 30) t = setTimeout(tick, 8_000)
+      if (!lasting && ++tries < 90) t = setTimeout(tick, tries < 30 ? 8_000 : 15_000)
     }
     void tick()
     return () => { gone = true; if (t) clearTimeout(t) }
@@ -128,7 +130,7 @@ export function ReportView({ sessionId }: { sessionId: string }) {
               {f.summaryVi && <p lang="vi" className="text-sm text-body">{f.summaryVi}</p>}
               {f.wins.length > 0 && (
                 <ul className="mt-2 flex flex-col gap-1">
-                  {f.wins.map((w) => <li key={w} className="flex items-start gap-2 text-sm text-ink-2"><Check aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />{w}</li>)}
+                  {f.wins.map((w, i) => <li key={`${i}-${w}`} className="flex items-start gap-2 text-sm text-ink-2"><Check aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />{w}</li>)}
                 </ul>
               )}
             </section>
@@ -152,8 +154,8 @@ export function ReportView({ sessionId }: { sessionId: string }) {
             <Section title={tr('Words to practise', 'Từ cần luyện phát âm')}
               hint={tr('Scored by speech recognition. Words from a repeat-after-me sentence are the most reliable.', 'Do hệ thống nhận dạng giọng nói chấm. Từ trong câu nhắc lại là chính xác nhất.')}>
               <ul className="flex flex-col gap-3">
-                {f.pronunciation.map((w) => (
-                  <li key={w.word} className="flex items-start gap-3">
+                {f.pronunciation.map((w, i) => (
+                  <li key={`${i}-${w.word}`} className="flex items-start gap-3">
                     <Badge variant={w.score < 60 ? 'destructive' : 'warning'} size="md" className="min-w-14 justify-center tabular-nums">{w.score}</Badge>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-ink">{w.word}{w.reliable && <span className="ml-2 text-xs font-normal text-ink-4">{tr('repeat sentence', 'câu nhắc lại')}</span>}</p>
@@ -168,8 +170,8 @@ export function ReportView({ sessionId }: { sessionId: string }) {
           {r.heardAs.length > 0 && (
             <Section title={tr('Did you mean…?', 'Có phải bạn muốn nói…?')}>
               <ul className="flex flex-col gap-2">
-                {r.heardAs.map((h) => (
-                  <li key={`${h.heard}-${h.meant}`} className="text-sm text-body">
+                {r.heardAs.map((h, i) => (
+                  <li key={`${i}-${h.heard}-${h.meant}`} className="text-sm text-body">
                     {tr('We heard', 'Chúng tôi nghe thành')} <span className="font-semibold text-ink">“{h.heard}”</span> — {tr('did you mean', 'có phải bạn muốn nói')} <span className="font-semibold text-ink">“{h.meant}”</span>?
                   </li>
                 ))}
@@ -180,12 +182,12 @@ export function ReportView({ sessionId }: { sessionId: string }) {
           {(f.vocabulary.new?.length ?? 0) > 0 && (
             <Section title={tr('New words', 'Từ mới')}>
               <ul className="flex flex-col gap-2">
-                {f.vocabulary.new!.map((w) => <li key={w.word} className="text-sm"><span className="font-semibold text-ink">{w.word}</span> <span className="text-body">— {w.meaning}</span></li>)}
+                {f.vocabulary.new!.map((w, i) => <li key={`${i}-${w.word}`} className="text-sm"><span className="font-semibold text-ink">{w.word}</span> <span className="text-body">— {w.meaning}</span></li>)}
               </ul>
             </Section>
           )}
 
-          {teacherSide && viewer === 'teacher' && <TeacherNote sessionId={r.id} initial={f.teacherNote ?? ''} />}
+          {teacherSide && viewer === 'teacher' && <TeacherNote key={r.id} sessionId={r.id} initial={f.teacherNote ?? ''} />}
         </>
       )}
 

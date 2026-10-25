@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { ExternalLink, Link2 } from '@/components/ui/icons'
+import { ExternalLink, Link2, WifiOff } from '@/components/ui/icons'
 import { escapeInAppBrowser, inAppHost, inAppHostName, type InAppHost } from '@/lib/in-app-browser'
 import { isInviteCodeShape, normalizeInviteCode } from '@/lib/classroom/invite-code'
 import { ADULT_AGE, CHILD_ASSENT_AGE } from '@/lib/classroom/constants'
@@ -38,7 +38,8 @@ export function JoinFlow({ code: raw }: { code: string }) {
   const { tr } = useLanguage()
   const { user, loading, openSignIn } = useAuth()
   const router = useRouter()
-  const [preview, setPreview] = useState<Preview | null | 'invalid'>(null)
+  const [preview, setPreview] = useState<Preview | null | 'invalid' | 'unreachable'>(null)
+  const [attempt, setAttempt] = useState(0)
   const [children, setChildren] = useState<ClassroomMe['learners']>([])
   const [step, setStep] = useState<Step>('who')
   const [who, setWho] = useState<Who>('self')
@@ -55,12 +56,25 @@ export function JoinFlow({ code: raw }: { code: string }) {
   useEffect(() => { setIab(inAppHost()) }, [])
   useEffect(() => {
     if (!isInviteCodeShape(code)) { setPreview('invalid'); return }
-    api<{ invite: Preview }>(`/api/classroom/join/${code}`).then((r) => setPreview(r.ok ? r.data.invite : 'invalid'))
-  }, [code])
+    let gone = false
+    // ⛔ A network blip or a server error is NOT an invalid invite (C3a round 2, Opus): on flaky 4G a learner was told a
+    // good one-use link had expired. Only an answer about the invite itself says "invalid".
+    api<{ invite: Preview }>(`/api/classroom/join/${code}`).then((r) => {
+      if (gone) return
+      setPreview(r.ok ? r.data.invite : r.status === 0 || r.status >= 500 || r.status === 429 ? 'unreachable' : 'invalid')
+    })
+    return () => { gone = true }
+  }, [code, attempt])
   useEffect(() => {
+    // ⛔ This account's children only (C3a round 2, codex): a sign-in as someone else on this page starts from none, and an
+    // answer for the previous account arriving late is dropped.
+    setChildren([])
+    setWho('self')
     if (!user) return
-    api<ClassroomMe>('/api/classroom/me').then((r) => { if (r.ok) setChildren(r.data.learners.filter((l) => l.kind === 'child')) })
-  }, [user])
+    let gone = false
+    api<ClassroomMe>('/api/classroom/me').then((r) => { if (!gone && r.ok) setChildren(r.data.learners.filter((l) => l.kind === 'child')) })
+    return () => { gone = true }
+  }, [user?.id])
 
   const thisYear = new Date().getFullYear()
   // The years limits.ts childBirthYearOk accepts: a child certainly 3 (born ≤ this year − 4) who may still be 17 (≥ − 18).
@@ -73,6 +87,11 @@ export function JoinFlow({ code: raw }: { code: string }) {
   const needsAssent = (who === 'child' || !!existing) && childYear != null && thisYear - childYear >= CHILD_ASSENT_AGE
 
   if (preview === null || loading) return <Skeleton className="mt-6 h-72 w-full rounded-2xl" />
+  if (preview === 'unreachable') {
+    return <EmptyState variant="fault" icon={WifiOff} title={tr('The invite did not load', 'Chưa tải được link mời')}
+      subtitle={tr('Check your connection and try again.', 'Hãy kiểm tra kết nối và thử lại.')} className="mt-12"
+      action={<Button onClick={() => { setPreview(null); setAttempt((n) => n + 1) }}>{tr('Try again', 'Thử lại')}</Button>} />
+  }
   if (preview === 'invalid') {
     return <EmptyState icon={Link2} title={tr(refusalCopy('invite_invalid').en, refusalCopy('invite_invalid').vi)} className="mt-12"
       action={<Button variant="outline" asChild><Link href="/classroom" prefetch={false}>{tr('Go to eno Classroom', 'Đến eno Classroom')}</Link></Button>} />

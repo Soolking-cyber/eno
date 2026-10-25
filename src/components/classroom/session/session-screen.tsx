@@ -20,6 +20,13 @@ import { useRecorder } from './use-recorder'
 type Phase = 'intro' | 'speaking' | 'ready' | 'listening' | 'thinking' | 'ending' | 'mic_denied'
 type TurnAnswer = { kind: 'silence' } | { kind: 'reply'; learnerText: string; reply: string; hint: string; hintVi: string; audio: string | null; secondsLeft: number }
 
+/**
+ * How long the page waits for one turn's answer: the turn route may run 40 s (its maxDuration) plus the trip. Past this
+ * the request is dropped like a network failure, so a turn that never answers cannot hold the screen past the deadline
+ * (C3a round 2, codex: the clock waits while 'thinking').
+ */
+const TURN_WAIT_MS = 50_000
+
 const turnId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '')
 
 /**
@@ -51,7 +58,11 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const [showHint, setShowHint] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [left, setLeft] = useState(0)
+  // The audio context's rate, fixed at the start: End nulls the context, and a changed rate would re-run the avatar's load
+  // — a token POST for a session already over (C3a round 2, Opus).
+  const [sampleRate, setSampleRate] = useState(48_000)
   const total = useRef(1)
+  const startRef = useRef<StartedSession | null>(null)
   const ctxRef = useRef<AudioContext | null>(null)
   const stage = useRef<StageHandle>(null)
   const stopVoice = useRef<(() => void) | null>(null)
@@ -111,6 +122,31 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   }, [releaseRec, stopSpeaking])
   useEffect(() => releaseAll, [releaseAll])
 
+  /**
+   * ⛔ LEAVING WITHOUT END STILL ENDS THE SESSION (C3a round 2, Opus): back, closing the tab or any other way out used to
+   * leave it live on the server until the sweep — holding its minutes, and refusing practice in another class
+   * ("session_live"). On the way out (pagehide, or this screen unmounting) one keepalive POST ends it, unless End already
+   * did.
+   */
+  const leftPage = useRef(false)
+  const endOnLeave = useCallback(() => {
+    const s = startRef.current
+    if (!s || ended.current) return
+    ended.current = true
+    leftPage.current = true
+    void fetch(`/api/classroom/sessions/${s.id}/end`, { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'learner' }) }).catch(() => {})
+  }, [])
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  useEffect(() => {
+    // Back to a page the browser kept (back-forward cache) after leaving ended the session: close the dead screen
+    // instead of leaving controls that can no longer do anything (C3b review, codex + Opus).
+    const onShow = (e: PageTransitionEvent) => { if (e.persisted && leftPage.current) { releaseAll(); closeRef.current() } }
+    window.addEventListener('pagehide', endOnLeave)
+    window.addEventListener('pageshow', onShow)
+    return () => { window.removeEventListener('pagehide', endOnLeave); window.removeEventListener('pageshow', onShow); endOnLeave() }
+  }, [endOnLeave, releaseAll])
+
   const end = useCallback(async (reason: 'learner' | 'time') => {
     if (ended.current) return
     // No session yet (the mic was refused, or Start was never tapped): End simply closes the screen.
@@ -131,17 +167,27 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     setShowHint(false)
     const abort = new AbortController()
     turnAbort.current = abort
+    const timer = setTimeout(() => abort.abort(), TURN_WAIT_MS)
     let res: Response
+    let body: TurnAnswer & { error?: string }
     try {
       res = await fetch(`/api/classroom/sessions/${start.id}/turns`, { method: 'POST', headers: { 'content-type': 'audio/wav', 'x-turn-id': turnId() }, body: new Blob([new Uint8Array(wav)]), signal: abort.signal })
+      body = (await res.json().catch(() => ({}))) as TurnAnswer & { error?: string }
     } catch {
+      clearTimeout(timer)
       if (ended.current) return
       setNotice('network')
       setPhase('ready')
       return
     }
-    const body = (await res.json().catch(() => ({}))) as TurnAnswer & { error?: string }
+    clearTimeout(timer)
     if (ended.current) return
+    // A 200 that is neither answer (a body cut off mid-way) is a failed turn, not an empty one.
+    if (res.ok && body.kind !== 'silence' && body.kind !== 'reply') {
+      setNotice('network')
+      setPhase('ready')
+      return
+    }
     if (!res.ok) {
       if (body.error === 'session_over' || body.error === 'turn_cap') return void end('time')
       setNotice(body.error ?? 'unknown')
@@ -187,14 +233,23 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       await ctx.resume()
       await rec.prepare(ctx)
     } catch {
+      if (ended.current) return // closed while the permission prompt was up: nothing more to do
       releaseAll()
       setPhase('mic_denied')
       return
     }
+    // ⛔ Closed during the prompt or the worklet's load: no session is started for a screen that is gone (C3a round 2).
+    if (ended.current) return
+    setSampleRate(ctx.sampleRate)
     setPhase('thinking')
     const r = await fetch('/api/classroom/sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(test ? { test: true } : { seatId }) }).catch(() => null)
     const body = (await r?.json().catch(() => ({}))) as { session?: StartedSession; error?: string; nextAt?: string }
-    if (ended.current) return
+    if (ended.current) {
+      // ⛔ Closed while the start was in flight (C3b review, Opus): the session it made has no screen — end it now, or it
+      // holds its minutes and refuses practice in another class until the sweep.
+      if (body?.session) void fetch(`/api/classroom/sessions/${body.session.id}/end`, { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'learner' }) }).catch(() => {})
+      return
+    }
     if (!r?.ok || !body.session) {
       // Refused (a limit, the budget, the switch): the mic and the audio context go back now — the next Start asks again.
       releaseAll()
@@ -203,6 +258,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       return
     }
     const s = body.session
+    startRef.current = s
     total.current = Math.max(1, Math.round((Date.parse(s.endsAt) - Date.now()) / 1000))
     setLeft(total.current)
     setMode(s.mode)
@@ -259,7 +315,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
               photoUrl={start?.avatar.photoUrl ?? preview.photoUrl}
               name={start?.avatar.name ?? preview.name}
               speaking={phase === 'speaking'}
-              sampleRate={ctxRef.current?.sampleRate ?? 48_000}
+              sampleRate={sampleRate}
               onFallback={() => setMode('voice')}
               onPlaying={(on) => { if (!on && phaseRef.current === 'speaking') setPhase('ready') }}
             />
