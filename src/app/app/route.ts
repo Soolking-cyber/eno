@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { ANDROID_APP_URL, IOS_APP_URL } from '@/lib/app-store-links'
+import { localizedHref } from '@/lib/lang-pinned'
 
 /**
  * `/app` — ONE SHORT URL THAT SENDS EACH DEVICE TO ITS OWN STORE. The header's Download panel paints a
@@ -137,7 +138,7 @@ export function GET(req: NextRequest) {
       c.iosTitle,
       `<h1>${c.iosHeading}</h1>
 <p>${c.iosBody}</p>
-<div class="row"><a class="btn" href="/">${c.open}</a></div>`,
+<div class="row"><a class="btn" href="${localizedHref('/', lang)}">${c.open}</a></div>`,
     )
   }
 

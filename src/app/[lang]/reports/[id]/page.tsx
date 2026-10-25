@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { EnoLoader } from '@/components/ui/eno-loader'
-import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -17,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { CloseButton } from '@/components/ui/close-button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { LocalizedLink } from '@/components/marketplace/localized-link'
 
 // Add details to a report YOU filed — reached from the moderation team's "could you
 // share more detail" notification. Mirror of the target-side /appeal/[id] page; the
@@ -86,7 +86,7 @@ export default function ReportSupplementPage() {
             <CheckCircle2 className="mx-auto h-12 w-12 text-success" strokeWidth={STROKE_DISPLAY} />
             <h1 className="mt-3 text-lg font-bold text-foreground">{t('Details added — thank you', 'Đã bổ sung — cảm ơn bạn')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{t('Your update went straight to the review team. You’ll hear back via your notifications.', 'Thông tin bổ sung đã được gửi thẳng đến đội xem xét. Bạn sẽ nhận phản hồi qua thông báo.')}</p>
-            <Button asChild variant="cta" size="none"><Link href="/" className="mt-5 px-6 py-2">{t('Back to eno.vn', 'Về eno.vn')}</Link></Button>
+            <Button asChild variant="cta" size="none"><LocalizedLink href="/" className="mt-5 px-6 py-2">{t('Back to eno.vn', 'Về eno.vn')}</LocalizedLink></Button>
           </div>
         ) : (
           <div className="rounded-2xl bg-popover p-6 shadow-pop">

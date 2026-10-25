@@ -70,6 +70,8 @@ import { mergeImport } from '@/lib/teachers/import-map'
 import { aiConsentNeeded, askAiConsent } from '@/lib/ai-consent'
 import { BIO_OWN_TEXT_MIN } from '@/lib/teachers/bio-context'
 import { BIO_ACTION_LABEL, BIO_NOTICE, TEACHER_BIO_NOTICE_VERSION } from '@/lib/teachers/bio-notice'
+import { localizedHref } from '@/lib/lang-pinned'
+import { variantOfLanguage } from '@/lib/lang-variant'
 
 const DRAFT_KEY = 'eno.teacherDraft.v1'
 
@@ -2298,7 +2300,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   }
   const deleteProfile = async () => {
     const res = await fetch('/api/teachers/me', { method: 'DELETE' })
-    if (res.ok) window.location.assign('/')
+    if (res.ok) window.location.assign(localizedHref('/', variantOfLanguage(lang)))
     else setFormError(tr('Could not delete your profile.', 'Không xoá được hồ sơ.'))
   }
   /** The saved CV's own Remove (edit). ⛔ Every outcome is said (2026-10-21 — it used to fail silently). */

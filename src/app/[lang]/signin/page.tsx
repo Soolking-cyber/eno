@@ -1,7 +1,6 @@
 'use client'
 
 import { Suspense, useEffect, useRef } from 'react'
-import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft } from "@/components/ui/icons"
 import { useAuth } from '@/context/auth-context'
@@ -11,6 +10,7 @@ import { safeNextPath } from '@/lib/url'
 import { COMPANY } from '@/lib/site-legal'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { noteGateOpen } from '@/lib/signin-gates'
+import { LocalizedLink } from '@/components/marketplace/localized-link'
 
 // The sign-in ROUTE. Renders the app's one sign-in card (the same one the popup shows) because a
 // server `redirect('/signin?next=…')` cannot open a dialog. Honors ?next= for the post-login
@@ -62,25 +62,25 @@ function SignInPageInner() {
        had no main landmark at all — the skip link went nowhere and a screen reader found no main region. */
     <main id="main" tabIndex={-1} className="flex min-h-page w-full flex-col items-center justify-start px-6 pb-12 pt-[max(3rem,10dvh)]">
       <div className="w-full max-w-sm">
-        <Link href="/" className="mb-8 flex justify-center">
+        <LocalizedLink href="/" className="mb-8 flex justify-center">
           {/* `?v=` is a content stamp that earns this file `max-age=31536000, immutable`
               (next.config.ts gates the year on the query being present). It is repeated at four
               call sites and MUST be bumped at all four when the mark is redrawn — the full
               reasoning and the recompute command live in marketplace/footer.tsx. */}
           <img src="/logo-mark.svg?v=2b609517" alt={SITE_NAME} width={48} height={48} className="h-12 w-12" />
-        </Link>
+        </LocalizedLink>
         {/* ⚠️ `h1`, NOT `h2`. The brand panel this replaced held the page's only `<h1>`, and
             shipping the card at h2 left a public route with no level-one heading — a
             heading-order failure a reviewer caught. The popup passes `DialogTitle` here instead;
             see the note on `titleAs`. */}
         <SignInCard titleAs="h1" />
-        <Link href="/" className="mt-8 flex items-center justify-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-accent-foreground">
+        <LocalizedLink href="/" className="mt-8 flex items-center justify-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-accent-foreground">
           <ArrowLeft className="h-4 w-4" aria-hidden />{' '}
           {/* ⚠️ Two literal tr() calls behind the ternary, never an interpolation — see the same
               note in sign-in-card.tsx. This said "Back to eno.vn" on BOTH editions; measured on a
               real forum build, that was the last eno.vn string left on the page. */}
           {IS_SERVICES ? tr('Back to eno.forum', 'Về trang chủ') : tr('Back to eno.vn', 'Về trang chủ')}
-        </Link>
+        </LocalizedLink>
         {/* Operator identity — this layout has no Footer, and Đ.36 wants the operator identifiable
             on every public page. Compact single block behind a hairline. */}
         <p className="mt-8 border-t border-border/60 pt-4 text-center text-3xs leading-relaxed text-ink-4">

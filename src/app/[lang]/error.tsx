@@ -1,13 +1,13 @@
 'use client'
 
 import { Component, useEffect, useTransition, type ReactNode } from 'react'
-import Link from 'next/link'
 import { AlertTriangle, RotateCw, Home } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
+import { LocalizedLink } from '@/components/marketplace/localized-link'
 
 /**
  * ⚠️ THE CHROME CANNOT BE WHAT TAKES THE ERROR PAGE DOWN. Header and Footer are big client trees
@@ -89,9 +89,9 @@ export default function Error({ error, reset, retry }: { error: Error & { digest
                 <RotateCw className="h-4 w-4" /> {tr('Try again', 'Thử lại')}
               </Button>
               <Button asChild variant="outline">
-                <Link href="/">
+                <LocalizedLink href="/">
                   <Home className="h-4 w-4" /> {tr('Go home', 'Về trang chủ')}
-                </Link>
+                </LocalizedLink>
               </Button>
             </div>
           }

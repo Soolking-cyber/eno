@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { Mail, Check, ArrowLeft } from '@/components/ui/icons'
+import { LocalizedLink } from '@/components/marketplace/localized-link'
 
 // Public, token-scoped email-preference page (no login). The visible footer link in the
 // digest lands here; a click POSTs to /api/unsubscribe so a link scanner's GET never
@@ -180,9 +181,9 @@ function UnsubscribeInner() {
 
         {/* Same quiet exit as /signin: hairline seam + arrow icon + the shared string. */}
         <div className="mt-8 border-t border-border/60 pt-4">
-          <Link href="/" className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-accent-foreground">
+          <LocalizedLink href="/" className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-accent-foreground">
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> {tr('Back to eno.vn', 'Về trang chủ')}
-          </Link>
+          </LocalizedLink>
         </div>
       </div>
     </div>

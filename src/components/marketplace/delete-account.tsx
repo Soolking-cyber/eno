@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Field, FieldControl, FieldError, FieldLabel } from '@/components/ui/field'
+import { localizedHref } from '@/lib/lang-pinned'
+import { variantOfLanguage } from '@/lib/lang-variant'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -83,7 +85,7 @@ export function DeleteAccount() {
   const goHome = async () => {
     setLeaving(true)
     if (!signedOut.current) { signedOut.current = true; await signOutLocally() }
-    window.location.href = '/'
+    window.location.href = localizedHref('/', variantOfLanguage(lang))
   }
   // Left the notice some other way than Done (Back, the tab bar): the account is gone, so is the session.
   useEffect(() => () => {

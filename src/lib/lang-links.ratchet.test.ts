@@ -28,6 +28,9 @@ const ROOTS = ['src/app', 'src/components', 'src/lib', 'src/hooks', 'src/context
 const SKIP = [
   /\.test\.tsx?$/,
   /^src\/app\/api\//,
+  // Admin chrome is English-only by convention (root CLAUDE.md): its links never switch a Vietnamese reader.
+  /^src\/components\/admin\//,
+  /^src\/app\/\[lang\]\/admin\//,
   /^src\/generated\//,
   /^src\/lib\/lang-pinned\.ts$/,
   /sitemap/,
@@ -49,7 +52,7 @@ const ALLOWED: Record<string, number> = {
  * Only the bare path — `/c/${slug}` then the end, a `?` or a `#`: a deeper path (`/c/${cat}/${district}`)
  * is never a pilot path, so it is not one.
  */
-const SINK = /(?:href=\{?|action=\{?|\bpush\(|\breplace\(|\bassign\(|\bopenUrl\(|\bapplyUrl\()\s*[`'"]\/(?:\?|c\/furniture-appliances(?=[`'"?#/])|c\/\$\{[^}`]*\}(?=[`?#]))|action="\/"/g
+const SINK = /(?:href=\{?|action=\{?|\bpush\(|\breplace\(|\bassign\(|\bopenUrl\(|\bapplyUrl\(|\blocation\.href\s*=)\s*[`'"]\/(?:\?|[`'"]|c\/furniture-appliances(?=[`'"?#/])|c\/\$\{[^}`]*\}(?=[`?#]))|action="\/"/g
 const LOCALIZED_TAG = /<(?:LocalizedLink|HereLink)\b[^<>]*$/
 
 function* files(dir: string): Generator<string> {
@@ -87,6 +90,13 @@ for (const file of scanned) {
 describe('lang links ratchet — no literal link into an English-pinned plain URL', () => {
   it('the matcher sees each sink shape and skips localized ones', () => {
     expect(findPinnedLinks('<form action="/" method="get">')).toHaveLength(1)
+    // A bare home link is the commonest case (sweep, 2026-10-22: 13 of them sent Vietnamese readers to the English home).
+    expect(findPinnedLinks('<Link href="/" className="x">')).toHaveLength(1)
+    expect(findPinnedLinks("router.replace('/')")).toHaveLength(1)
+    expect(findPinnedLinks("window.location.href = '/'")).toHaveLength(1)
+    expect(findPinnedLinks("window.location.assign('/')")).toHaveLength(1)
+    expect(findPinnedLinks('<LocalizedLink href="/" className="x">')).toHaveLength(0)
+    expect(findPinnedLinks("router.replace('/dashboard')")).toHaveLength(0)
     expect(findPinnedLinks('<Link href={`/?q=${q}`}>')).toHaveLength(1)
     expect(findPinnedLinks(`router.push('/?view=map')`)).toHaveLength(1)
     expect(findPinnedLinks('openUrl(`/?brand=${b}`)')).toHaveLength(1)

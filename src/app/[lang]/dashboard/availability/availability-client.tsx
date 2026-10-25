@@ -20,6 +20,8 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { STROKE_MARK } from '@/lib/icon-tokens'
 import { formatInteger, moneyLocale } from '@/lib/vnd'
+import { localizedHref } from '@/lib/lang-pinned'
+import { variantOfLanguage } from '@/lib/lang-variant'
 
 // localStorage marker so the daily review only auto-shows once per day per user.
 export const reviewKey = (uid: string) => `eno-avail:${uid}`
@@ -54,7 +56,7 @@ export function AvailabilityClient() {
   )
 
   useEffect(() => {
-    if (!loading && !user) router.replace('/')
+    if (!loading && !user) router.replace(localizedHref('/', variantOfLanguage(lang)))
   }, [user, loading, router])
 
   const markDone = useCallback(() => {
