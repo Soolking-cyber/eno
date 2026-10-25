@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Rows, Row } from '@/components/ui/rows'
 import { PageHeader } from '@/components/ui/page-header'
 import { cn } from '@/lib/utils'
+import { SITE_NAME } from '@/lib/edition'
 
 // My dispute cases — both roles: cases I filed and cases about me/my storefront.
 // A case room lives at /disputes/[id]. Shared by the standalone /disputes page and
@@ -82,7 +83,7 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
     return <Badge variant="neutral" className="text-ink-4">{t('Closed — no violation', 'Đã đóng — không vi phạm')}</Badge>
   }
 
-  const disputesLede = t('Reports you filed and cases about you. Both sides can add evidence; the eno.vn team decides.', 'Báo cáo bạn đã gửi và hồ sơ liên quan đến bạn. Hai bên đều có thể nộp bằng chứng; đội ngũ eno.vn sẽ quyết định.')
+  const disputesLede = t('Reports you filed and cases about you. Both sides can add evidence; the {site} team decides.', 'Báo cáo bạn đã gửi và hồ sơ liên quan đến bạn. Hai bên đều có thể nộp bằng chứng; đội ngũ {site} sẽ quyết định.').replace(/\{site\}/g, SITE_NAME)
 
   return (
     <div>

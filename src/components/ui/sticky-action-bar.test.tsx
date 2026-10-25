@@ -543,3 +543,19 @@ describe('StickyActionBar can carry a status line above its actions', () => {
     expect(document.activeElement).toBe(before)
   })
 })
+
+/**
+ * <html data-sticky-action-bar> while a bar is mounted — what the install card steps aside on (sweep, 2026-10-22: it
+ * sat on /post's Publish button). Subject-position selectors only: design-lint bans a document-level :has().
+ */
+describe('StickyActionBar marks <html> while mounted', () => {
+  it('sets the attribute on mount and removes it when the last bar unmounts', () => {
+    const view = render(<StickyActionBar primary={{ label: 'Chat' }} offsetBottom="4.5rem" />)
+    expect(document.documentElement.hasAttribute('data-sticky-action-bar')).toBe(true)
+    // What a floating layer must clear: the bar's offset plus its height (jsdom measures 0px).
+    expect(document.documentElement.style.getPropertyValue('--sticky-action-bar-clear')).toBe('calc(4.5rem + 0px)')
+    view.unmount()
+    expect(document.documentElement.hasAttribute('data-sticky-action-bar')).toBe(false)
+    expect(document.documentElement.style.getPropertyValue('--sticky-action-bar-clear')).toBe('')
+  })
+})

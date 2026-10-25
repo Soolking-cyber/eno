@@ -542,19 +542,23 @@ describe('the rental desks', () => {
   afterEach(() => { clear(); vi.resetModules() })
   const partnersAndDesk = (emails: string[]) => emails.includes('info@vietkite.com.vn') ? [{ id: 'vietkite' }] : [{ id: 'desk-1' }]
 
-  it('eno.vn hides the FORUM rental desk from every seller-level gate, and only that one', async () => {
+  it('eno.vn hides the FORUM rental and support desks from every seller-level gate, and only those', async () => {
     const m = await load({ services: false })
-    expect(await m.editionHiddenSellerIds()).toEqual(['desk-1', 'eno-rental-desk-forum'])
+    expect(await m.editionHiddenSellerIds()).toEqual(['desk-1', 'eno-rental-desk-forum', 'eno-support-desk-forum'])
     expect(await m.isSellerHiddenHere('eno-rental-desk-forum')).toBe(true)
     expect(await m.isSellerHiddenHere('eno-rental-desk')).toBe(false)
+    // ⛔ The forum's support thread (visa, itinerary, payment questions) never lists, counts or opens on eno.vn.
+    expect(await m.isSellerHiddenHere('eno-support-desk-forum')).toBe(true)
+    expect(await m.isSellerHiddenHere('eno-support-desk')).toBe(false)
+    expect((await m.editionSellerScope()).sellerId?.notIn).toContain('eno-support-desk-forum')
     expect((await m.editionSellerScope()).sellerId?.notIn).toContain('eno-rental-desk-forum')
   })
 
   it('eno.vn hides the forum desk even when its desk hide-list is explicitly empty', async () => {
     process.env.HIDDEN_DESK_OWNER_EMAILS = ''
     const m = await load({ services: false })
-    expect(await m.editionHiddenSellerIds()).toEqual(['eno-rental-desk-forum'])
-    expect(await m.editionSellerScope()).toEqual({ sellerId: { notIn: ['eno-rental-desk-forum'] } })
+    expect(await m.editionHiddenSellerIds()).toEqual(['eno-rental-desk-forum', 'eno-support-desk-forum'])
+    expect(await m.editionSellerScope()).toEqual({ sellerId: { notIn: ['eno-rental-desk-forum', 'eno-support-desk-forum'] } })
   })
 
   it('eno.forum hides neither desk — the operator reads every request there', async () => {

@@ -57,6 +57,7 @@ export function renderTeacherPhotoAsk(opts: { origin: string; siteName: string; 
     cta: { label: l === 'vi' ? 'Đổi ảnh của tôi' : 'Change my photo', url },
     audienceNote: l === 'vi' ? `Bạn nhận được email này vì bạn có hồ sơ giáo viên trên ${siteName}.` : `You’re receiving this because you have a teacher profile on ${siteName}.`,
     sender: 'full',
+    lang: l,
   })
   const text = [hello, '', ...lines, '', url].join('\n')
   return { subject, html, text }

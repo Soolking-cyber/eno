@@ -751,7 +751,16 @@ export function ContactSection({
   t: T
 }) {
   const candidates = audience === 'candidates'
+  /**
+   * ⛔ AN INPUT THAT HAS BEEN FOCUSED STAYS AN INPUT (sweep 2026-10-22). Text-or-input used to follow the value BEING
+   * TYPED: `phoneOk` (≥ 9 digits) turned true on the 9th key, the input unmounted under the seller's finger (keyboard
+   * closed, the 10th digit lost) and "0901234567" was published — and stored as the storefront's phone — as
+   * "090123456"; the name row cut "Nam" at "Na". Focus latches edit mode (the resume flow's jump to the phone focuses it
+   * too), so only a value the ACCOUNT brought, never touched here, shows as text. The phone gate stays "≥ 9 digits" on
+   * purpose: expats post with foreign numbers.
+   */
   const [editingPhone, setEditingPhone] = useState(false) // quick-edit the contact number inline
+  const [editingName, setEditingName] = useState(false)
   return (
     <Section
       id="pw-contact"
@@ -782,8 +791,8 @@ export function ContactSection({
             </p>
           )}
 
-          {/* Name — inline-editable if it's not set on the account yet. */}
-          {contactName.trim().length >= 2 ? (
+          {/* Name — inline-editable if it's not set on the account yet (and kept an input once focused — see editingName). */}
+          {!editingName && contactName.trim().length >= 2 ? (
             <p className="text-sm font-semibold text-foreground">{contactName}</p>
           ) : (
             <Field label={t('Tên của bạn', 'Your name')} error={errContactName ? t('Thêm tên của bạn', 'Add your name') : undefined}>
@@ -795,6 +804,7 @@ export function ContactSection({
                     // Same field as the profile editor's name — it deserves the same autofill
                     // token, so the seller taps their own name instead of retyping it.
                     autoComplete="name"
+                    onFocus={() => setEditingName(true)}
                     onChange={(e) => setContactName(e.target.value)}
                     placeholder={candidates ? t('Tên hiển thị cho ứng viên', 'Name candidates will see') : t('Tên hiển thị cho người mua', 'Name buyers will see')}
                     className={cn('max-w-md', errContactName && 'ring-2 ring-destructive/60')}
@@ -805,7 +815,8 @@ export function ContactSection({
           )}
 
           {/* Phone — quick-edit inline (no trip to Settings). Shows the saved number
-              with a "Change" toggle; an input when it's missing or being edited. */}
+              with a "Change" toggle; an input when it's missing or being edited — and once
+              focused it stays one (editingPhone), never swapped out mid-number. */}
           {!editingPhone && phoneOk ? (
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="tabular-nums text-muted-foreground">{contactPhone}</span>
@@ -837,6 +848,7 @@ export function ContactSection({
                     // the number is asked for mid-flow was also the one place autofill didn't offer it.
                     autoComplete="tel"
                     value={contactPhone}
+                    onFocus={() => setEditingPhone(true)}
                     onChange={(e) => setContactPhone(e.target.value)}
                     placeholder="+84…"
                     className={cn('max-w-md', errContactPhone && 'ring-2 ring-destructive/60')}

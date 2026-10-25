@@ -48,7 +48,9 @@ import {
 } from '@/components/teachers/teacher-form-rules'
 import { continueSourceEvent, type TeacherFormEvent } from '@/lib/signup-prompt'
 import { EscapeFirst, OpenInBrowser, type EscapeOffer } from '@/components/teachers/open-in-browser'
-import { browserContext, escapeMark, inAppHost, withoutEscapeMark } from '@/lib/in-app-browser'
+import { ESCAPE_PARAM, browserContext, escapeMark, inAppHost, withoutEscapeMark } from '@/lib/in-app-browser'
+import { CARRY_PARAM, setTeacherCarry } from '@/lib/auth/in-app-carry'
+import { SeeTeachers } from '@/components/teachers/see-teachers'
 import { makeErrText, type StepProps } from '@/components/teachers/steps/shared'
 import { teacherRefusedWords } from '@/lib/teachers/text-screen'
 import { PlansStep } from '@/components/teachers/steps/plans-step'
@@ -70,6 +72,8 @@ import { mergeImport } from '@/lib/teachers/import-map'
 import { aiConsentNeeded, askAiConsent } from '@/lib/ai-consent'
 import { BIO_OWN_TEXT_MIN } from '@/lib/teachers/bio-context'
 import { BIO_ACTION_LABEL, BIO_NOTICE, TEACHER_BIO_NOTICE_VERSION } from '@/lib/teachers/bio-notice'
+import { localizedHref } from '@/lib/lang-pinned'
+import { variantOfLanguage } from '@/lib/lang-variant'
 
 const DRAFT_KEY = 'eno.teacherDraft.v1'
 
@@ -177,6 +181,70 @@ const isDraftBase = (v: unknown): v is DraftBase =>
 const SIGNIN_RETURN_PARAM = 'teacher_signin'
 /** This tab already counted its arrival from the way out of Meta's browsers (escape_arrived) — once per tab. */
 const ESCAPE_ARRIVED_KEY = 'eno.escapeArrived'
+/**
+ * When the step-1 answers left in an app's browser are asked for (ms after this page opened): their POST there is sent in
+ * the same tap that opened this browser, and can land after it (src/lib/auth/carry.ts). 20 s, then the form says so —
+ * a hard deadline: each ask is cut off after CARRY_ASK_TIMEOUT_MS (commit gate, codex: one stalled request held the rest).
+ */
+const CARRY_ASK_AT_MS = [0, 500, 1_000, 1_500, 2_000, 3_000, 4_000, 6_000, 8_000, 10_000, 13_000, 16_000, 20_000]
+const CARRY_ASK_TIMEOUT_MS = 4_000
+const CARRY_DEADLINE_MS = 24_000
+/**
+ * The token, held in THIS TAB (sessionStorage) while it is asked for, and off the address as soon as this form runs —
+ * so later page views, Referers and copied links do not carry it (one sent before that, on the first load, can; it reads
+ * anonymous step-1 answers for at most 30 minutes — the dossier says so). A reload picks it up here and asks on; cleared
+ * once settled. A change to step 1 meanwhile — the teacher's, or the account's own saved draft put back — wins (typed).
+ */
+const CARRY_TAB_KEY = 'eno.carry'
+/** As long as the server keeps them (src/lib/auth/carry.ts CARRY_TTL_S): a form left mid-ask can come back for them. */
+const CARRY_RESUME_MS = 30 * 60_000
+const holdCarryToken = (token: string | null) => {
+  try {
+    if (token) sessionStorage.setItem(CARRY_TAB_KEY, JSON.stringify({ t: token, at: Date.now() }))
+    else sessionStorage.removeItem(CARRY_TAB_KEY)
+  } catch { /* private mode: a reload just cannot pick it up */ }
+}
+const heldCarryToken = (): string | null => {
+  try {
+    const d = JSON.parse(sessionStorage.getItem(CARRY_TAB_KEY) || 'null') as { t?: unknown; at?: unknown } | null
+    return d && typeof d.t === 'string' && typeof d.at === 'number' && Date.now() - d.at < CARRY_RESUME_MS ? d.t : null
+  } catch { return null }
+}
+/** The token off the address — the moment it is read. */
+const dropCarryParam = () => {
+  try {
+    const u = new URL(window.location.href)
+    if (!u.searchParams.has(CARRY_PARAM)) return
+    u.searchParams.delete(CARRY_PARAM)
+    history.replaceState(history.state, '', `${u.pathname}${u.search}${u.hash}`)
+  } catch { /* no history API: it stays there until it expires (30 minutes) */ }
+}
+/** In the form: the server drops them now (best effort — its 30-minute TTL ends them otherwise). */
+const dropCarried = (token: string) => {
+  void fetch('/api/auth/carry/take', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: token, done: true }) }).catch(() => {})
+}
+/** The carried `#d=` value for this token (a repeatable read) — null when it never came, or `stop()` said stop. */
+async function takeCarriedAnswers(token: string, stop: () => boolean): Promise<string | null> {
+  const t0 = Date.now()
+  for (const at of CARRY_ASK_AT_MS) {
+    const wait = at - (Date.now() - t0)
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait))
+    const left = CARRY_DEADLINE_MS - (Date.now() - t0)
+    if (stop() || left <= 0) return null
+    const abort = new AbortController()
+    // Never past the deadline: the last ask gets only what is left of it (commit gate, codex).
+    const cut = setTimeout(() => abort.abort(), Math.min(CARRY_ASK_TIMEOUT_MS, left))
+    try {
+      const res = await fetch('/api/auth/carry/take', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: token }), signal: abort.signal })
+      if (res.status === 400) return null // not a token at all: asking again changes nothing
+      if (res.ok) {
+        const d = (await res.json().catch(() => null)) as { carry?: unknown } | null
+        if (typeof d?.carry === 'string') return d.carry
+      }
+    } catch { /* offline for a moment, or cut off: the next ask */ } finally { clearTimeout(cut) }
+  }
+  return null
+}
 const setSignInReturn = (on: boolean) => {
   try {
     const u = new URL(window.location.href)
@@ -367,6 +435,31 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   /** This page opened with teacher.eno.vn's hand-off (`#d=`): its step 1 was done — and counted — over there. */
   const viaHandoff = useRef(false)
   const [handoffArrived, setHandoffArrived] = useState(false)
+  /**
+   * Opened in the phone's own browser by "Continue with Google" inside an app's browser, with the token of the
+   * step-1 answers left there (src/lib/auth/carry.ts): 'taking' while they are fetched, 'missed' when they never came.
+   */
+  const [carryState, setCarryState] = useState<'taking' | 'missed' | null>(null)
+  // False once this form has gone: a carry still being asked for is dropped, never written over another form's draft.
+  const carryAlive = useRef(true)
+  useEffect(() => { carryAlive.current = true; return () => { carryAlive.current = false } }, [])
+  // Step 1 answered here after a miss (or the account's own copy put back late): the line goes, and so does "Try again".
+  // ⛔ The server copy is NOT dropped from here — a late restore can look like typing (commit gate, opus); its 30 minutes
+  // and the sweep end it, as /privacy says.
+  useEffect(() => {
+    if (carryState !== 'missed' || !step1Answered(t) || encodeHandoff(t) === carryMissedAt.current) return
+    setCarryState(null)
+    carryRetry.current = null
+    carryTokenRef.current = null
+    holdCarryToken(null)
+  }, [carryState, t])
+  // After a miss: the same ask again ("Try again" — the answers are kept, here and on the server, until they expire), and
+  // the token, so answering step 1 here ends it (commit gate, codex: a miss must never throw recoverable answers away).
+  const carryRetry = useRef<(() => void) | null>(null)
+  const carryTokenRef = useRef<string | null>(null)
+  // Step 1 as it stood when the miss was said (after this tab's own copy was put back): only a change from THAT is the
+  // teacher answering again — a restored older draft is not (commit gate, codex).
+  const carryMissedAt = useRef<string | null>(null)
   const [listingLive, setListingLive] = useState(true)
   // Edit: the profile's public page (its Listing) — what "Share my profile" shares while schools can see it.
   const [profileListingId, setProfileListingId] = useState<string | null>(null)
@@ -539,6 +632,21 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     tRef.current = next
     setTState(next)
   }, [])
+  // ⛔ WHAT "CONTINUE WITH GOOGLE" CARRIES OUT OF AN APP'S BROWSER (sign-in-form.tsx continueGoogleInBrowser): this form's
+  // step-1 answers — the `#d=` value, step 1 only — and the address's own query (the cover intent, the campaign tags),
+  // while it is a new profile's form on eno.vn, signed out, with step 1 answered (a sign-in from the header before any
+  // answer carries nothing, and the other side counts step 1 as its own). Read at the tap, so the answers are the latest.
+  // Never on teacher.eno.vn: it hands over to eno.vn in its own `#d=` before any sign-in.
+  useEffect(() => {
+    if (mode !== 'join' || uid || draftHost) return
+    setTeacherCarry(() => {
+      if (!step1Answered(tRef.current)) return null
+      const q = new URLSearchParams(window.location.search)
+      for (const k of [SIGNIN_RETURN_PARAM, CARRY_PARAM, ESCAPE_PARAM]) q.delete(k)
+      return { answers: encodeHandoff(tRef.current), search: q.toString() }
+    })
+    return () => setTeacherCarry(null)
+  }, [mode, uid, draftHost])
   // ⛔ "PREFER NOT TO SAY" IS THE FORM'S TO KEEP (gate review, 2026-10-08). It stores nothing — currentDistrictKey '',
   // exactly like the optional question left empty — so the district field cannot hold it: the field remounts with its
   // step, and the answer it kept for itself showed as unanswered after every step change, reload and Google round trip.
@@ -734,47 +842,125 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
 
   // ── Restore: a `#d=` hand-off from teacher.eno.vn wins, then this tab's draft ────────────────────────────────────
   useEffect(() => {
+    // An edit form (the account already has a profile) wants no carried step 1: off the address and the server.
+    if (mode === 'edit' && inAppHost() === null) {
+      const token = new URLSearchParams(window.location.search).get(CARRY_PARAM) ?? heldCarryToken()
+      if (token) { dropCarryParam(); holdCarryToken(null); dropCarried(token) }
+    }
     if (mode !== 'join' || hydrated.current) return
     hydrated.current = true
     // The form that replaced a signed-in account's (TeacherForm): a fresh start, and that account's draft goes.
-    if (!restoreDraft) { clearStored(); setSignInReturn(false); return }
-    const returnedFromSignIn = new URLSearchParams(window.location.search).has(SIGNIN_RETURN_PARAM)
-    const m = window.location.hash.match(new RegExp(`[#&]${TEACHER_DRAFT_HASH_KEY}=([^&]+)`))
-    if (m) {
-      // Strip the fragment first, whatever it holds, so a reload or a shared link never re-carries the draft.
-      history.replaceState(null, '', window.location.pathname + window.location.search)
+    if (!restoreDraft) {
+      clearStored()
       setSignInReturn(false)
-      // ⛔ ONLY THE DRAFT STEPS' FIELDS CROSS (decodeHandoff): never a consent, the cover switch, a phone or an upload —
-      // a crafted `#d=` link could otherwise arrive with them set (gate review, 2026-10-07). A v1 fragment from before
-      // the redesign is mapped at this boundary (plan review D2).
-      const handed = decodeHandoff(m[1])
-      if (handed) {
-        viaHandoff.current = true
-        setT(handed)
-        setArrived(true)
-        // The pre-sign-in step answered (a fragment from a teacher.eno.vn tab from before 2026-10-11 carries all four draft
-        // steps — still accepted): sign in (opened once, below), then on to the first step after it that fails. Otherwise
-        // the pre-sign-in step that fails. The sign-in is this form's: it may adopt these answers (StoredDraft.signIn).
-        const bad = firstStepWithError(checkSteps(handed, PRE_SIGNIN_STEPS), PRE_SIGNIN_STEPS)
-        const next = afterSignIn(handed)
-        if (bad) setStepKey(bad)
-        else { setStepKey(LAST_PRE_SIGNIN); setResumeTo(next); setHandoffArrived(true) }
-        // ⛔ Not adopted here: only a sign-in this form actually opens (signed out, below) may make these answers an
-        // account's draft — a link opened while signed in saves nothing until the teacher changes something.
-        writeStoredDraft(handed, bad ?? next)
+      // A fresh start: answers carried here are not wanted — off the address, this tab and the server.
+      if (inAppHost() === null) {
+        const token = new URLSearchParams(window.location.search).get(CARRY_PARAM) ?? heldCarryToken()
+        dropCarryParam()
+        holdCarryToken(null)
+        if (token) dropCarried(token)
       }
       return
     }
-    const stored = readStoredDraft()
-    // The return marker only means something with a stored mark beside it (below): otherwise it goes now.
-    if (!stored?.signIn) setSignInReturn(false)
-    if (!stored) return
-    // ⛔ A COPY WRITTEN UNDER AN ACCOUNT IS THAT ACCOUNT'S ALONE (commit gate, codex + opus round 11: a teacher who signed
-    // out on a page without this form leaves it in the tab, and the next person's form would show it, save it, publish
-    // it). It waits for the session (below) and is put back only if that is its account — never shown before. A copy
-    // written signed out holds what a signed-out visitor gives: step 1 (PRE_SIGNIN_STEPS).
-    if (stored.owner) { ownedCopy.current = { stored, returnedFromSignIn }; setOwnedPending(true); return }
-    applyStoredRef.current(stored, returnedFromSignIn)
+    const returnedFromSignIn = new URLSearchParams(window.location.search).has(SIGNIN_RETURN_PARAM)
+    // ⛔ ONLY THE DRAFT STEPS' FIELDS CROSS (decodeHandoff): never a consent, the cover switch, a phone or an upload — a
+    // crafted `#d=` link (or carry) could otherwise arrive with them set (gate review, 2026-10-07). A v1 fragment from
+    // before the redesign is mapped at this boundary (plan review D2).
+    const applyHanded = (handed: TeacherInput) => {
+      viaHandoff.current = true
+      setT(handed)
+      setArrived(true)
+      // The pre-sign-in step answered (a fragment from a teacher.eno.vn tab from before 2026-10-11 carries all four draft
+      // steps — still accepted): sign in (opened once, below), then on to the first step after it that fails. Otherwise
+      // the pre-sign-in step that fails. The sign-in is this form's: it may adopt these answers (StoredDraft.signIn).
+      const bad = firstStepWithError(checkSteps(handed, PRE_SIGNIN_STEPS), PRE_SIGNIN_STEPS)
+      const next = afterSignIn(handed)
+      if (bad) setStepKey(bad)
+      else { setStepKey(LAST_PRE_SIGNIN); setResumeTo(next); setHandoffArrived(true) }
+      // ⛔ Not adopted here: only a sign-in this form actually opens (signed out, below) may make these answers an
+      // account's draft — a link opened while signed in saves nothing until the teacher changes something.
+      writeStoredDraft(handed, bad ?? next)
+    }
+    // This tab's own copy, put back (the end of the restore, below — and where carried answers never came).
+    const restoreTabCopy = () => {
+      const stored = readStoredDraft()
+      // The return marker only means something with a stored mark beside it (below): otherwise it goes now.
+      if (!stored?.signIn) setSignInReturn(false)
+      if (!stored) return
+      // ⛔ A COPY WRITTEN UNDER AN ACCOUNT IS THAT ACCOUNT'S ALONE (commit gate, codex + opus round 11: a teacher who signed
+      // out on a page without this form leaves it in the tab, and the next person's form would show it, save it, publish
+      // it). It waits for the session (below) and is put back only if that is its account — never shown before. A copy
+      // written signed out holds what a signed-out visitor gives: step 1 (PRE_SIGNIN_STEPS).
+      if (stored.owner) { ownedCopy.current = { stored, returnedFromSignIn }; setOwnedPending(true); return }
+      applyStoredRef.current(stored, returnedFromSignIn)
+    }
+    // ⛔ THE ANSWERS LEFT BEHIND IN AN APP'S BROWSER (2026-10-25): "Continue with Google" there opened this page with a
+    // token (sign-in-form.tsx continueGoogleInBrowser; src/lib/auth/carry.ts). Taken back here — in the phone's
+    // own browser only: inside an app's browser the token stays on the address (its ⋯ "Open in browser" carries it) and
+    // this tab's own copy stands. Here the token leaves the address at once and is held in this tab while it is asked for
+    // (a reload, or a return to this form, picks it up — heldCarryToken); the answers count as step 1 done over there.
+    // ⛔ THE READ IS REPEATABLE AND THE FORM SAYS WHEN IT HAS THEM (dropCarried) — never a read that deletes: a lost
+    // response, a reload or a navigation in between would have lost them for good (commit gate, codex, three rounds).
+    // Typed here meanwhile (step 1's values moved — never an object's identity, commit gate, opus): the teacher's own
+    // answers win. ⛔ A form that has gone (carryAlive) writes nothing (a late answer over a newer form's draft) — and
+    // drops nothing either, so coming back finds them.
+    const inApp = inAppHost() !== null
+    // A fresh `#d=` hand-over is the explicit arrival: it beats any token — held from an earlier visit, or even on the
+    // address beside it (commit gate, codex) — and that token is over (the fragment branch below drops it).
+    const freshFragment = new RegExp(`[#&]${TEACHER_DRAFT_HASH_KEY}=`).test(window.location.hash)
+    const tokenOnAddress = inApp || freshFragment ? null : new URLSearchParams(window.location.search).get(CARRY_PARAM)
+    const carryToken = inApp || freshFragment ? null : (tokenOnAddress ?? heldCarryToken())
+    if (carryToken) {
+      dropCarryParam()
+      // Held from when it ARRIVED — a reload resumes it without restarting its clock (it ends with the server's 30
+      // minutes, however often the page reloads — commit gate, codex).
+      if (tokenOnAddress) holdCarryToken(tokenOnAddress)
+      carryTokenRef.current = carryToken
+      setSignInReturn(false)
+      const runCarry = () => {
+        carryRetry.current = null
+        viaHandoff.current = true
+        setCarryState('taking')
+        // ANY change to the form meanwhile — not only step 1: applying replaces the whole input, so a retry still asking
+        // while the teacher went on to later steps must never put step 1 over their work (commit gate, codex).
+        const before = JSON.stringify(tRef.current)
+        const typed = () => JSON.stringify(tRef.current) !== before
+        void takeCarriedAnswers(carryToken, () => !carryAlive.current || typed()).then((value) => {
+          if (!carryAlive.current) return
+          const handed = value ? decodeHandoff(value) : null
+          const use = !!handed && !typed()
+          if (use && handed) { setCarryState(null); applyHanded(handed) }
+          // Settled — in the form, or no longer wanted: off this tab, then off the server.
+          if (value || typed()) { holdCarryToken(null); carryTokenRef.current = null; dropCarried(carryToken) }
+          if (use) return
+          viaHandoff.current = false // answered here: step 1 counts here
+          if (typed()) { setCarryState(null); return }
+          // Never came, or could not be fetched: kept (this tab, the server's 30 minutes) for "Try again".
+          carryRetry.current = runCarry
+          restoreTabCopy()
+          carryMissedAt.current = encodeHandoff(tRef.current)
+          setCarryState('missed')
+        })
+      }
+      runCarry()
+      return
+    }
+    const m = window.location.hash.match(new RegExp(`[#&]${TEACHER_DRAFT_HASH_KEY}=([^&]+)`))
+    if (m) {
+      // Any token is over — held from an earlier visit, or on the address beside the fragment: this fresh hand-over wins
+      // now AND on a reload (commit gate, codex).
+      if (!inApp) {
+        const stale = new URLSearchParams(window.location.search).get(CARRY_PARAM) ?? heldCarryToken()
+        if (stale) { dropCarryParam(); holdCarryToken(null); dropCarried(stale) }
+      }
+      // Strip the fragment first, whatever it holds, so a reload or a shared link never re-carries the draft.
+      history.replaceState(null, '', window.location.pathname + window.location.search)
+      setSignInReturn(false)
+      const handed = decodeHandoff(m[1])
+      if (handed) applyHanded(handed)
+      return
+    }
+    restoreTabCopy()
   }, [mode, restoreDraft, setT])
   // The copy that waited for its account: put back for it (unless the teacher has typed meanwhile); for anyone else, or
   // no one, deleted unread — unless a newer copy has replaced it since.
@@ -2298,7 +2484,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   }
   const deleteProfile = async () => {
     const res = await fetch('/api/teachers/me', { method: 'DELETE' })
-    if (res.ok) window.location.assign('/')
+    if (res.ok) window.location.assign(localizedHref('/', variantOfLanguage(lang)))
     else setFormError(tr('Could not delete your profile.', 'Không xoá được hồ sơ.'))
   }
   /** The saved CV's own Remove (edit). ⛔ Every outcome is said (2026-10-21 — it used to fail silently). */
@@ -2927,7 +3113,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   if (escapeFirst && escape) {
     // Staying is an in-place switch: the button that was tapped unmounts, so step 1's heading takes the focus (review,
     // 2026-10-22 — never left on <body> for a keyboard or a screen reader).
-    return <EscapeFirst offer={escape} retry={escapeRetry} onStay={() => { screenSwitched.current = true; setEscapeStay(true) }} />
+    return <EscapeFirst offer={escape} retry={escapeRetry} seeTeachersAt={lang === 'vi' ? apexOrigin : null} onStay={() => { screenSwitched.current = true; setEscapeStay(true) }} />
   }
 
   const stepProps: StepProps = { t, set, patch, update, errors, errText, mode }
@@ -3022,6 +3208,22 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
                 ⛔ Gone with the first answer (review, 2026-10-17): the real browser opens the bare address, so step 1's
                 answers would not follow — a restored draft hides it too. */}
             {escape && mode === 'join' && step === 'plans' && !step1Answered(t) && <OpenInBrowser offer={escape} />}
+            {/* The page in Vietnamese: most of those visitors are hiring, not teaching (see-teachers.tsx). ⛔ It STAYS through
+                step 1 — gone with the first answer, the questions would jump up under a (55+, on a phone) visitor's next tap
+                (commit gate, opus). */}
+            {lang === 'vi' && mode === 'join' && step === 'plans' && <SeeTeachers apexOrigin={apexOrigin} />}
+            {carryState && mode === 'join' && step === 'plans' && (
+              <p role="status" className="rounded-2xl bg-tint p-3.5 text-sm text-body" data-testid="carry-status">
+                {carryState === 'taking'
+                  ? tr('Bringing your answers over…', 'Đang chuyển câu trả lời của bạn sang…')
+                  : tr('Your answers did not come across — please answer these again.', 'Câu trả lời của bạn chưa được chuyển sang — vui lòng trả lời lại.')}
+                {carryState === 'missed' && (
+                  <Button variant="link" size="none" type="button" className="ml-1 text-sm font-semibold" onClick={() => carryRetry.current?.()}>
+                    {tr('Try again', 'Thử lại')}
+                  </Button>
+                )}
+              </p>
+            )}
             <div>
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                 <h1 data-screen-heading tabIndex={-1} className="h-title text-foreground outline-none">{mode === 'edit' ? tr('Your teacher profile', 'Hồ sơ giáo viên của bạn') : tr('Create your teacher profile', 'Tạo hồ sơ giáo viên')}</h1>

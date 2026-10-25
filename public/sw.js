@@ -44,6 +44,11 @@ self.addEventListener('push', (event) => {
     silent: data.silent === true,
     data: { url: data.url || '/dashboard' },
     requireInteraction: false,
+    // An incoming in-app call buzzes like a phone (cards.ts sendRingPush). Still not requireInteraction: a ring whose
+    // "Answered" / "Call ended" replacement failed to send would then stay on screen for good (commit-gate review).
+    // Never with `silent`: a silent notification that vibrates is rejected outright (Notifications API), and a push that
+    // shows nothing costs an iOS subscription.
+    ...(data.ring === true && data.silent !== true ? { vibrate: [400, 200, 400, 200, 400] } : {}),
   }
   event.waitUntil((async () => {
     // The notification is MANDATORY and comes FIRST: iOS revokes the push subscription if a

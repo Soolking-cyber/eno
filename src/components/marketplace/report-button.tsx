@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Flag, CheckCircle2 } from '@/components/ui/icons'
@@ -58,7 +58,7 @@ const CHAT_REASON_VALUES = new Set(['scam', 'offensive', 'other'])
 export function ReportButton({ listingId, sellerId, conversationId, reviewId, commentId, postId, className, open: openProp, onOpenChange }: Props) {
   const { tr } = useLanguage()
   const t = (en: string, vi: string) => tr(en, vi)
-  const { openSignIn } = useAuth()
+  const { user, loading: authLoading, openSignIn } = useAuth()
 
   const controlled = openProp !== undefined && onOpenChange !== undefined
   const [openState, setOpenState] = useState(false)
@@ -74,6 +74,23 @@ export function ReportButton({ listingId, sellerId, conversationId, reviewId, co
   const [blocked, setBlocked] = useState(false)
   const isContent = !!(reviewId || commentId || postId)
 
+  /**
+   * ⚠️ A GUEST SIGNS IN BEFORE THE REPORT FORM (sweep, 2026-10-22). A report needs an account: a guest used to fill in the
+   * reason and up to 1,000 characters, press Submit and watch it vanish into a generic sign-in — a Google, Apple or
+   * Facebook sign-in is a full-page redirect, so the typed report was gone. Checked on the OPEN STATE, not on one button,
+   * so it holds for the built-in trigger, for every caller that opens this dialog itself (`open`/`onOpenChange`), and
+   * for a tap made while the session was still resolving (the form closes the moment it resolves to a guest).
+   */
+  const askGuestToSignIn = () =>
+    openSignIn({ note: t('Sign in to report — a report is tied to an account so it can be reviewed.', 'Đăng nhập để báo cáo — báo cáo gắn với tài khoản để được xem xét.') })
+  // …and a known guest's dialog never renders open, not even for the frame before this effect closes it.
+  useEffect(() => {
+    if (open && !authLoading && !user) {
+      setOpen(false)
+      askGuestToSignIn()
+    }
+  }, [open, authLoading, user])
+
   const submit = async () => {
     if (!reason) return
     setLoading(true); setError('')
@@ -83,8 +100,13 @@ export function ReportButton({ listingId, sellerId, conversationId, reviewId, co
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ listingId, sellerId, conversationId, reviewId, commentId, postId, reason, detail: detail.trim() || undefined }),
       })
-      // Reporting requires an account — bounce anonymous users to sign-in.
-      if (res.status === 401) { setOpen(false); openSignIn(); return }
+      // Reporting requires an account. The trigger already asks a guest to sign in first; a session that expired
+      // meanwhile lands here — and is TOLD the report was not sent, instead of a bare sign-in sheet.
+      if (res.status === 401) {
+        setOpen(false)
+        openSignIn({ note: t('Your report was not sent. Sign in, then send it again.', 'Báo cáo chưa được gửi. Hãy đăng nhập rồi gửi lại.') })
+        return
+      }
       if (res.status === 429) {
         // Two different 429s deserve different words: the hourly rate limit vs the
         // false-report cooldown (a prior report of yours was reviewed as inaccurate).
@@ -170,7 +192,8 @@ export function ReportButton({ listingId, sellerId, conversationId, reviewId, co
           type="button"
           variant="bare"
           size="none"
-          onClick={() => setOpen(true)}
+          // A known guest goes straight to sign-in (no frame of a form); the effect above covers every other way in.
+          onClick={() => (!authLoading && !user ? askGuestToSignIn() : setOpen(true))}
           className={cn(
             'gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 tap-44 relative',
             className,
@@ -180,7 +203,7 @@ export function ReportButton({ listingId, sellerId, conversationId, reviewId, co
         </Button>
       )}
 
-      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>
+      <Dialog open={open && (authLoading || !!user)} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>
         <DialogContent className="bg-popover rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
           <DialogHeader>
             <DialogTitle className="text-center text-lg font-bold text-foreground">

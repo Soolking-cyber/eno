@@ -90,13 +90,17 @@ export function renderVerificationOutcomeEmail(opts: {
       ? `<p style="margin:0 0 16px;padding:12px 14px;border:1px solid ${BORDER};border-radius:10px;color:${INK};font-size:15px;line-height:1.55">${esc(opts.note)}</p>`
       : ''
 
-  const bodyHtml = `
+  // ⚠️ ONE CARD ROW (layout.ts: bodyHtml is the card's content ROWS). Bare <h1>/<p> inside the card's <table> are
+  // foster-parented out of it by every HTML parser: the whole message rendered on the grey canvas ABOVE the card, which
+  // held only the wordmark and the footer (sweep, 2026-10-22). teacher-photo-ask.ts wraps its body the same way.
+  const bodyHtml = `<tr><td style="padding:4px 24px 8px;">
     <h1 style="margin:0 0 12px;color:${INK};font-size:22px;line-height:1.3">${esc(approved ? c.approvedHeading : c.rejectedHeading)}</h1>
     <p style="margin:0 0 16px;color:${INK};font-size:15px;line-height:1.6">${esc(approved ? c.approvedBody : c.rejectedBody)}</p>
     ${noteHtml}
     ${approved ? '' : `<p style="margin:0 0 20px;color:${INK};font-size:15px;line-height:1.6">${esc(c.rejectedNext)}</p>`}
     <p style="margin:0 0 24px"><a href="${esc(url)}" style="display:inline-block;background:${BLUE};color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:11px 18px;border-radius:10px">${esc(c.cta)}</a></p>
     <p style="margin:0;color:${MUTED};font-size:13px;line-height:1.6">${esc(c.signoff(opts.siteName))}</p>
+  </td></tr>
   `
 
   const text = [
@@ -113,7 +117,7 @@ export function renderVerificationOutcomeEmail(opts: {
 
   return {
     subject: approved ? c.approvedSubject(opts.siteName) : c.rejectedSubject,
-    html: renderBrandEmail({ preheader: approved ? c.approvedPre : c.rejectedPre, bodyHtml, origin: opts.origin }),
+    html: renderBrandEmail({ preheader: approved ? c.approvedPre : c.rejectedPre, bodyHtml, origin: opts.origin, lang: opts.lang }),
     text,
   }
 }

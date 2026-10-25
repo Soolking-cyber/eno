@@ -148,3 +148,93 @@ describe('Area panel · desktop', () => {
     expect(panel.closest('[data-slot="drawer-popup"]')).toBeNull()
   })
 })
+
+/**
+ * ⚠️ WHAT THE SELLER'S PICKER SHOWS IS WHAT APPLY SAVES (sweep, 2026-10-22). A place the picker cannot place by code (a
+ * pre-2025 province, "Quận 12") opened as Ho Chi Minh City with no ward, and Apply moved the listing there.
+ */
+function Seeded({ mode, province, ward }: { mode: 'pick' | 'search'; province: Geo | null; ward: Geo | null }) {
+  const [open, setOpen] = React.useState(false)
+  const anchor = React.useRef<HTMLButtonElement>(null)
+  const [picked, setPicked] = React.useState('')
+  return (
+    <LanguageProvider>
+      <CurrencyProvider>
+        <button ref={anchor} type="button" onClick={() => setOpen(true)}>{SET_AREA}</button>
+        <output>{picked}</output>
+        <AreaFilter
+          mode={mode} hideLocate={mode === 'pick'} open={open} anchorRef={anchor} onClose={() => setOpen(false)}
+          province={province} ward={ward} nearby={null}
+          onApply={({ province: p, ward: w }) => setPicked(`${p?.name ?? '-'}|${w?.name ?? '-'}`)}
+          onReset={() => setPicked('')}
+        />
+      </CurrencyProvider>
+    </LanguageProvider>
+  )
+}
+
+describe('Area picker · a seeded place it cannot place by code', () => {
+  const QN: Geo = { code: '', name: 'Quảng Nam', nameEn: 'Quảng Nam' }
+  const Q12: Geo = { code: '', name: 'Quận 12', nameEn: 'Quận 12' }
+  const open = async (ui: React.ReactElement) => {
+    render(ui)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: SET_AREA }))
+    return { user, panel: await screen.findByRole('dialog', { name: 'Choose area' }) }
+  }
+
+  it("'pick': it is SHOWN as itself, and an untouched Apply hands it back — never Ho Chi Minh City", async () => {
+    const { user, panel } = await open(<Seeded mode="pick" province={QN} ward={Q12} />)
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)) })
+    expect(within(panel).getByRole('combobox', { name: /Province \/ City/ }).textContent).toContain('Quảng Nam')
+    expect(within(panel).getByRole('combobox', { name: /Province \/ City/ }).textContent).not.toContain('Ho Chi Minh')
+    expect(panel.textContent).toContain('Quận 12')
+    await user.click(within(panel).getByRole('button', { name: /Apply/ }))
+    await waitFor(() => expect(document.querySelector('output')!.textContent).toBe('Quảng Nam|Quận 12'))
+  })
+  it("'pick': a known province with an unknown ward keeps both, the ward shown by name", async () => {
+    const { user, panel } = await open(<Seeded mode="pick" province={HCM} ward={Q12} />)
+    await waitFor(() => expect(within(panel).getByRole('combobox', { name: /Province \/ City/ }).textContent).toContain('Ho Chi Minh'))
+    expect(panel.textContent).toContain('Quận 12')
+    await user.click(within(panel).getByRole('button', { name: /Apply/ }))
+    await waitFor(() => expect(document.querySelector('output')!.textContent).toBe('Hồ Chí Minh|Quận 12'))
+  })
+  it("'pick': picking Ho Chi Minh City replaces it, and the unknown ward goes with the old province", async () => {
+    setViewport('phone')
+    render(<Seeded mode="pick" province={QN} ward={Q12} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: SET_AREA }))
+    const sheet = await screen.findByRole('dialog', { name: 'Location' })
+    await user.click(await within(sheet).findByRole('combobox', { name: /Province \/ City/ }))
+    const nested = await screen.findByRole('dialog', { name: 'Province / City' })
+    await user.click(within(nested).getByRole('option', { name: 'Ho Chi Minh' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Province / City' })).toBeNull())
+    await user.click(within(screen.getByRole('dialog', { name: 'Location' })).getByRole('button', { name: /Apply/ }))
+    await waitFor(() => expect(document.querySelector('output')!.textContent).toBe('Hồ Chí Minh|-'))
+  })
+  it("'pick': a ward stored with no city is kept too, never re-filed under Ho Chi Minh City", async () => {
+    const { user, panel } = await open(<Seeded mode="pick" province={null} ward={Q12} />)
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)) })
+    expect(within(panel).getByRole('combobox', { name: /Province \/ City/ }).textContent).not.toContain('Ho Chi Minh')
+    expect(panel.textContent).toContain('Quận 12')
+    await user.click(within(panel).getByRole('button', { name: /Apply/ }))
+    await waitFor(() => expect(document.querySelector('output')!.textContent).toBe('-|Quận 12'))
+  })
+  it("'pick' with nothing seeded (a new post): the shown default Ho Chi Minh City is applied, as before", async () => {
+    const { user, panel } = await open(<Seeded mode="pick" province={null} ward={null} />)
+    await waitFor(() => expect(within(panel).getByRole('combobox', { name: /Province \/ City/ }).textContent).toContain('Ho Chi Minh'))
+    await user.click(within(panel).getByRole('button', { name: /Apply/ }))
+    await waitFor(() => expect(document.querySelector('output')!.textContent).toBe('Hồ Chí Minh|-'))
+  })
+  it("'pick': a known place applies as itself", async () => {
+    const { user, panel } = await open(<Seeded mode="pick" province={HN} ward={null} />)
+    await user.click(within(panel).getByRole('button', { name: /Apply/ }))
+    await waitFor(() => expect(document.querySelector('output')!.textContent).toBe('Hà Nội|-'))
+  })
+  it("'search' keeps its old behaviour: the explorer's default Ho Chi Minh City IS a choice", async () => {
+    const { user, panel } = await open(<Seeded mode="search" province={null} ward={null} />)
+    await waitFor(() => expect(within(panel).getByRole('combobox', { name: /Province \/ City/ }).textContent).toContain('Ho Chi Minh'))
+    await user.click(within(panel).getByRole('button', { name: /Apply/ }))
+    await waitFor(() => expect(document.querySelector('output')!.textContent).toBe('Hồ Chí Minh|-'))
+  })
+})

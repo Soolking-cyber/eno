@@ -55,7 +55,7 @@ function PeerHeader({ view, status }: { view: CallView; status: string }) {
     <div className="flex flex-col items-center gap-2 px-6 pt-[max(2rem,env(safe-area-inset-top))] text-center">
       <Avatar name={view.peer?.name ?? undefined} url={view.peer?.avatarUrl ?? undefined} size="lg" />
       <div className="flex items-center gap-1.5 text-xl font-bold">
-        <span className="max-w-[16rem] truncate">{view.peer?.name ?? tr('eno member', 'Thành viên eno')}</span>
+        <span className="max-w-[16rem] truncate">{view.peer?.name ?? (view.phase === 'incoming' && !view.ringReady ? '…' : tr('eno member', 'Thành viên eno'))}</span>
         {view.peer?.verified && <BadgeCheck aria-label={tr('Identity verified', 'Đã xác minh danh tính')} className="h-5 w-5 shrink-0 text-white/80" />}
       </div>
       {role && <p className="max-w-[20rem] truncate text-sm text-white/70">{role}</p>}
@@ -72,11 +72,15 @@ function Incoming({ view }: { view: CallView }) {
   const cannotAnswerHere = !callsWorkHere()
   return (
     <div className="flex h-full flex-col justify-between pb-[max(2rem,env(safe-area-inset-bottom))]">
-      {/* One kind of call (owner, 2026-10-22): every call rings as a call — the camera, where allowed, is inside it. */}
-      <PeerHeader view={view} status={tr('Incoming call…', 'Cuộc gọi đến…')} />
-      <p className="mx-auto max-w-xs px-6 text-center text-xs text-white/60">
-        {tr('eno never calls you. This call is from the person above, about this conversation.', 'eno không bao giờ gọi cho bạn. Cuộc gọi này đến từ người ở trên, về cuộc trò chuyện này.')}
-      </p>
+      {/* One kind of call (owner, 2026-10-22): every call rings as a call — the camera, where allowed, is inside it.
+          The ring shows the moment it arrives; who is calling follows (engine.ts loadRingDetails), and until then the
+          header says so — never "the person above" under a blank one (DESIGN §4). */}
+      <PeerHeader view={view} status={view.ringReady ? tr('Incoming call…', 'Cuộc gọi đến…') : tr('Incoming call — finding out who…', 'Cuộc gọi đến — đang xác định người gọi…')} />
+      {view.ringReady && (
+        <p className="mx-auto max-w-xs px-6 text-center text-xs text-white/60">
+          {tr('eno never calls you. This call is from the person above, about this conversation.', 'eno không bao giờ gọi cho bạn. Cuộc gọi này đến từ người ở trên, về cuộc trò chuyện này.')}
+        </p>
+      )}
       {cannotAnswerHere ? (
         <div className="flex flex-col items-center gap-4 px-6">
           <p className="text-center text-sm text-white/80">{tr('Answer on another device — calls cannot be taken here yet.', 'Hãy nghe trên thiết bị khác — chưa nhận cuộc gọi ở đây được.')}</p>
@@ -95,7 +99,8 @@ function Incoming({ view }: { view: CallView }) {
           <div className="flex flex-col items-center gap-2">
             <IconButton
               aria-label={tr('Answer', 'Trả lời')}
-              disabled={busy}
+              // Answer waits for who is calling (DESIGN §4): the ring shows before its details, the choice never does.
+              disabled={busy || !view.ringReady}
               onClick={() => { setBusy(true); void callEngine.accept().finally(() => setBusy(false)) }}
               className="h-16 w-16 bg-success text-success-foreground"
             >

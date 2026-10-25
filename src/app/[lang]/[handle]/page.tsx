@@ -1,6 +1,5 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { cache } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { CalendarDays } from '@/components/ui/icons'
@@ -17,6 +16,7 @@ import { storefrontTeacherRobots } from '@/lib/teachers/search-index'
 import SubdomainStorefront from '@/app/[lang]/s/[handle]/page'
 import { isSellerHiddenHere } from '@/lib/edition-scope'
 import { Tr } from '@/context/language-context'
+import { LocalizedLink } from '@/components/marketplace/localized-link'
 
 // eno.vn/<handle> — the shareable, Telegram-style clean URL for users and storefronts
 // (NO "@" in the address bar: eno.vn/apple_store, not eno.vn/@apple_store). This is a
@@ -206,9 +206,9 @@ export default async function HandlePage({ params }: Props) {
             <Tr text="This member hasn't opened a shop yet. Browse the marketplace to see what's for sale." />
           </p>
           <Button asChild variant="cta" size="none" className="active:scale-[0.96]">
-            <Link href="/" className="mt-4 cursor-pointer px-5 py-2.5 text-sm">
+            <LocalizedLink href="/" className="mt-4 cursor-pointer px-5 py-2.5 text-sm">
               <Tr text="Explore listings" />
-            </Link>
+            </LocalizedLink>
           </Button>
         </div>
       </main>

@@ -1,8 +1,4 @@
-import { db } from '@/lib/db'
-import { districtPageRows } from '@/lib/district-page-base'
-import { districtScopeForSlug } from '@/lib/district-slug'
-import { scopedListingWhere } from '@/lib/edition-scope'
-import { isIndexableCount } from '@/lib/index-floor'
+import { rentalDistrictsBelowFloor } from '@/lib/rental-district-floor'
 import { inlineHrefs } from './inline'
 import { forEachInline, type TeachGuide } from './schema'
 
@@ -15,7 +11,7 @@ const RENTALS_DISTRICT = /^\/c\/rentals\/([a-z0-9-]+)$/
  * can-gio, cu-chi and hoc-mon were empty on 2026-10-20, and a district a guide was approved with can empty later.
  * TEACH_SITE_PATHS (registry.ts) can only prove the route exists, so the guide page asks the data: each district path the
  * guide links (only key points and sections carry links; intro and FAQs are plain text) is counted with that page's own
- * predicate (district-page-base.ts — one definition — AND `districtScopeForSlug`), and one under the floor renders as
+ * predicate (rental-district-floor.ts, shared with /housing-vietnam-expats), and one under the floor renders as
  * plain text, exactly like a link to a guide that is not released yet (`isLiveHref`).
  * WHY THE FLOOR AND NOT "NOT EMPTY": it is the rule pages.xml submits a district page by (build.ts rule 4, the live count
  * at `isIndexableCount`), and its margin keeps the two pages' caches from disagreeing in practice. The guide and the
@@ -39,22 +35,7 @@ export async function districtLinksAsText(g: Pick<TeachGuide, 'keyPoints' | 'sec
     }
   })
   if (!paths.size) return paths
-  try {
-    const cat = await db.category.findUnique({ where: { slug: 'rentals' }, select: { id: true, slug: true } })
-    if (!cat) return paths
-    // `{ teachers: true }` as the district page reads it ([district]/page.tsx `load()`).
-    const base = await scopedListingWhere(districtPageRows(cat), { teachers: true })
-    const counts = await Promise.all(
-      [...paths].map(async (path) => {
-        const scope = await districtScopeForSlug(RENTALS_DISTRICT.exec(path)![1])
-        // edition-lint-allow: `base` IS `await scopedListingWhere(...)` just above; AND-ing the district scope onto it
-        // cannot lose the edition clause.
-        return scope ? db.listing.count({ where: { AND: [base, scope] } }) : 0
-      }),
-    )
-    return new Set([...paths].filter((_, i) => !isIndexableCount(counts[i])))
-  } catch (err) {
-    console.warn('[teach-guides] district link check failed; district links render as text this time', err)
-    return paths
-  }
+  const slugOf = (path: string) => RENTALS_DISTRICT.exec(path)![1]
+  const below = await rentalDistrictsBelowFloor([...paths].map(slugOf), 'teach-guides')
+  return new Set([...paths].filter((path) => below.has(slugOf(path))))
 }

@@ -62,7 +62,9 @@ export function isGenericEmployer(normalised: string): boolean {
  */
 export function wilsonLower(up: number, down: number, z = 1.96): number {
   const n = up + down
-  if (n <= 0) return 0
+  // ⚠️ NO UP-VOTE IS EXACTLY 0, written out rather than computed: the formula's floating point left 0↑/11↓ a hair
+  // ABOVE an unvoted school (+2e-17) and 0↑/15↓ a hair below it, so the comparators' tie-breaks never saw the tie.
+  if (n <= 0 || up <= 0) return 0
   const p = up / n
   const z2 = z * z
   return (p + z2 / (2 * n) - z * Math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)) / (1 + z2 / n)
@@ -84,12 +86,19 @@ export type RankRow = { name: string; up: number; down: number; reviews: number;
 export function compareSchools(sort: SchoolSort) {
   const byName = (a: RankRow, b: RankRow) => a.name.localeCompare(b.name)
   const byVotes = (a: RankRow, b: RankRow) => (b.up + b.down) - (a.up + a.down)
+  const byNet = (a: RankRow, b: RankRow) => (b.up - b.down) - (a.up - a.down)
   return (a: RankRow, b: RankRow): number => {
     switch (sort) {
-      case 'top': return wilsonLower(b.up, b.down) - wilsonLower(a.up, a.down) || byVotes(a, b) || byName(a, b)
-      case 'net': return (b.up - b.down) - (a.up - a.down) || byVotes(a, b) || byName(a, b)
-      case 'reviews': return b.reviews - a.reviews || wilsonLower(b.up, b.down) - wilsonLower(a.up, a.down) || byName(a, b)
-      case 'hiring': return b.jobs - a.jobs || wilsonLower(b.up, b.down) - wilsonLower(a.up, a.down) || byName(a, b)
+      // ⛔ A TIED SCORE FALLS TO THE NET SCORE BEFORE THE VOLUME. Every school without an up-vote scores 0, the same as an
+      // unvoted one, and "more votes first" alone put a school with only down-votes above every unvoted school: the first
+      // down-vote anywhere made that school #1, and more down-votes ranked it higher still (sweep, 2026-10-22).
+      case 'top': return wilsonLower(b.up, b.down) - wilsonLower(a.up, a.down) || byNet(a, b) || byVotes(a, b) || byName(a, b)
+      case 'net': return byNet(a, b) || byVotes(a, b) || byName(a, b)
+      // The secondary score ties the same way, so it falls to the net score too: a school with no up-vote never sorts
+      // above an unvoted one. (One up-vote still lifts a heavily down-voted school above the unvoted — that is the Wilson
+      // method the methodology page states; changing it is the owner's call.)
+      case 'reviews': return b.reviews - a.reviews || wilsonLower(b.up, b.down) - wilsonLower(a.up, a.down) || byNet(a, b) || byName(a, b)
+      case 'hiring': return b.jobs - a.jobs || wilsonLower(b.up, b.down) - wilsonLower(a.up, a.down) || byNet(a, b) || byName(a, b)
       case 'name': return byName(a, b)
     }
   }

@@ -28,6 +28,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { inboxTime } from '@/lib/types'
 import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
+import { LocalizedLink } from '@/components/marketplace/localized-link'
 
 // Borderless conversation list — the left pane of the desktop two-pane messenger
 // (and the whole screen on mobile). Highlights the open thread on desktop.
@@ -234,7 +235,7 @@ export function ConversationList() {
             subtitle={tr('Tap "Message" on any listing to start a chat.', 'Nhấn "Nhắn tin" trên một tin đăng để bắt đầu trò chuyện.')}
             action={
               <Button asChild variant="cta" size="none">
-                <Link href="/" className="px-5 py-2.5">{tr('Browse listings', 'Khám phá tin đăng')}</Link>
+                <LocalizedLink href="/" className="px-5 py-2.5">{tr('Browse listings', 'Khám phá tin đăng')}</LocalizedLink>
               </Button>
             }
           />

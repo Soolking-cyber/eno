@@ -100,9 +100,9 @@ describe('in an in-app browser (Zalo), the emailed code leads', () => {
     // Document order: field → Send code → Google.
     expect(field.compareDocumentPosition(google) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(send.compareDocumentPosition(google) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // The button is described: Google opens the browser, and they bring a code back.
+    // The button is described: Google opens the browser, and they carry on there (2026-10-25 — no code to bring back).
     const note = document.getElementById(google.getAttribute('aria-describedby')!)
-    expect(note?.textContent).toBe('Google opens your browser — then you bring a short code back here.')
+    expect(note?.textContent).toBe('Google opens your browser — you carry on there.')
     // Neither the old quiet link nor an "Open Google in your browser" lead.
     expect(screen.queryByRole('button', { name: /Use Google instead|Open Google in your browser/ })).toBeNull()
     // No Apple in an in-app browser (D7), and no Facebook while GoTrue has it off (this fetch answers {}).
@@ -123,16 +123,17 @@ describe('in an in-app browser (Zalo), the emailed code leads', () => {
     await act(async () => {})
     expect(screen.getByRole('button', { name: 'Gửi mã' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Tiếp tục với Google' })).toBeTruthy()
-    expect(screen.getByText('Google sẽ mở trình duyệt — sau đó bạn mang một mã ngắn về đây.')).toBeTruthy()
+    expect(screen.getByText('Google sẽ mở trình duyệt — bạn tiếp tục ở đó.')).toBeTruthy()
   })
 
-  it('⛔ the Google button hands off with `next` carrying resume= and the host app named for the real browser', async () => {
+  it('⛔ the Google button opens THIS page\'s sign-in in the phone\'s own browser, `next` carrying resume= (2026-10-25: no pairing code)', async () => {
     popup()
     await act(async () => {})
     fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }))
-    expect(localStorage.getItem('eno:handoff:next')).toBe('/listings/l1?resume=chat')
-    // Android: the escape page opens in the system browser through an intent: URL, with `via=zalo`.
-    expect(loc.href).toMatch(/^intent:\/\/localhost:3000\/auth\/escape\?h=[^&]+&via=zalo#Intent;/)
+    // Android: the sign-in opens in the system browser through an intent: URL — the visitor signs in there, and the gate's
+    // action is asked for again there (`resume=chat`); nothing waits for a code here.
+    expect(loc.href).toMatch(/^intent:\/\/localhost:3000\/signin\?next=%2Flistings%2Fl1%3Fresume%3Dchat#Intent;/)
+    expect(localStorage.getItem('eno:handoff:next')).toBeNull()
     await act(async () => {})
     expect(beacons).toContainEqual({ g: 'chat', a: 'google', c: 'inapp-zalo.desktop.en' })
     expect(JSON.parse(localStorage.getItem('eno:signin-gate')!)).toMatchObject({ g: 'chat' })

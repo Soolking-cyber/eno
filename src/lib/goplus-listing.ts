@@ -45,9 +45,14 @@ import { dropNearDuplicates, type ImageSizeFloor, type PhotoOutcome } from './im
 import { buildFacetTokens, facetValues } from './facet-tokens'
 import { districtOf } from './honeycomb-listing'
 import { NHATOT_CITIES, nhatotCoords, nhatotStreetName } from './nhatot-listing'
+import { haversineKm } from './geo'
 import { deriveVerification, type VerificationRow } from './compliance/derive-verification'
 import { decideBeforeStatus, decideOwned, type SellerPublishDecision } from './compliance/seller-publish-decision'
 import { ELECTRICITY_ESTIMATED, plausibleFee } from './rental-facts'
+
+/** Ho Chi Minh City's centre (District 1) and the radius a GoPlus building's point must fall within — see toListing. */
+const HCMC_CENTRE = { lat: 10.7769, lng: 106.7009 }
+const HCMC_RADIUS_KM = 100
 
 // ─── the source ─────────────────────────────────────────────────────────────────────────────────
 
@@ -634,7 +639,13 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
   // (rental-facts.ts). Only a date still ahead is stored; one that passes before next week's run the page stops printing.
   const vnToday = new Date(opts.now + 7 * 3_600_000).toISOString().slice(0, 10)
   const availableFrom = room.availableDate && /^\d{4}-\d{2}-\d{2}$/.test(room.availableDate) && room.availableDate > vnToday ? room.availableDate : null
-  const coords = project.geo ? nhatotCoords(project.geo.lat, project.geo.lng) : null
+  // ⚠️ A BUILDING'S POINT MUST BE NEAR HO CHI MINH CITY, where every GoPlus home is (city: HCM below). nhatotCoords checks
+  // only Vietnam's bounding box, and one HCMC rental came pinned in Hà Nội (21.17, 105.93): the Rentals map fitted the
+  // whole country with every HCMC pin stacked at its edge (sweep, 2026-10-22). A point more than 100 km from District 1
+  // → no point: the page falls back to the district's area, as for any unknown point. 100 km, not less: the city merged
+  // in July 2025 reaches former Bình Dương and Bà Rịa–Vũng Tàu (Vũng Tàu ~64 km, Hồ Tràm ~85 km; Côn Đảo aside).
+  const rawCoords = project.geo ? nhatotCoords(project.geo.lat, project.geo.lng) : null
+  const coords = rawCoords && haversineKm(rawCoords, HCMC_CENTRE) <= HCMC_RADIUS_KM ? rawCoords : null
   const sourceTime = room.updatedAt ? Date.parse(room.updatedAt) : NaN
   const sourceAt = new Date(Number.isFinite(sourceTime) ? Math.min(sourceTime, opts.now) : opts.now)
 

@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { Mail, Check, ArrowLeft } from '@/components/ui/icons'
+import { LocalizedLink } from '@/components/marketplace/localized-link'
+import { SITE_NAME } from '@/lib/edition'
 
 // Public, token-scoped email-preference page (no login). The visible footer link in the
 // digest lands here; a click POSTs to /api/unsubscribe so a link scanner's GET never
@@ -90,7 +92,7 @@ function UnsubscribeInner() {
     state === 'unsubscribed' && teacherMessages
       ? {
           title: tr("You're unsubscribed", 'Bạn đã hủy đăng ký'),
-          body: tr("You won't get emails when someone messages you about your teacher profile. New messages still arrive in your eno.vn inbox.", 'Bạn sẽ không nhận email khi có người nhắn tin cho bạn về hồ sơ giáo viên. Tin nhắn mới vẫn hiện trong hộp thư eno.vn của bạn.'),
+          body: tr("You won't get emails when someone messages you about your teacher profile. New messages still arrive in your {site} inbox.", 'Bạn sẽ không nhận email khi có người nhắn tin cho bạn về hồ sơ giáo viên. Tin nhắn mới vẫn hiện trong hộp thư {site} của bạn.').replace(/\{site\}/g, SITE_NAME),
           action: resubscribeButton,
         }
     : state === 'resubscribed' && teacherMessages
@@ -103,7 +105,7 @@ function UnsubscribeInner() {
     : (state === 'idle' || state === 'saving') && teacherMessages
       ? {
           title: tr('Stop emails about new messages?', 'Ngừng nhận email về tin nhắn mới?'),
-          body: tr("You'll stop getting an email when someone messages you about your teacher profile on eno.vn. Messages still arrive in your inbox.", 'Bạn sẽ không còn nhận email khi có người nhắn tin cho bạn về hồ sơ giáo viên trên eno.vn. Tin nhắn vẫn đến hộp thư của bạn.'),
+          body: tr("You'll stop getting an email when someone messages you about your teacher profile on {site}. Messages still arrive in your inbox.", 'Bạn sẽ không còn nhận email khi có người nhắn tin cho bạn về hồ sơ giáo viên trên {site}. Tin nhắn vẫn đến hộp thư của bạn.').replace(/\{site\}/g, SITE_NAME),
           action: unsubscribeButton,
         }
     : state === 'unsubscribed' && teacherMatches
@@ -115,13 +117,13 @@ function UnsubscribeInner() {
       : state === 'unsubscribed'
         ? {
             title: tr("You're unsubscribed", 'Bạn đã hủy đăng ký'),
-            body: tr("You won't get the weekly eno.vn digest anymore. Changed your mind?", 'Bạn sẽ không nhận bản tin hằng tuần của eno.vn nữa. Đổi ý?'),
+            body: tr("You won't get the weekly {site} digest anymore. Changed your mind?", 'Bạn sẽ không nhận bản tin hằng tuần của {site} nữa. Đổi ý?').replace(/\{site\}/g, SITE_NAME),
             action: resubscribeButton,
           }
         : state === 'resubscribed'
           ? {
               title: tr("You're back in", 'Bạn đã đăng ký lại'),
-              body: tr("You'll receive the weekly eno.vn digest again.", 'Bạn sẽ tiếp tục nhận bản tin hằng tuần của eno.vn.'),
+              body: tr("You'll receive the weekly {site} digest again.", 'Bạn sẽ tiếp tục nhận bản tin hằng tuần của {site}.').replace(/\{site\}/g, SITE_NAME),
               action: null,
             }
           : state === 'retry'
@@ -137,7 +139,7 @@ function UnsubscribeInner() {
           : state === 'error' && teacherMessages
             ? {
                 title: tr("That link didn't work", 'Liên kết không hợp lệ'),
-                body: tr('The unsubscribe link is invalid or expired. Use the link in the latest message email from eno.vn.', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn. Hãy dùng liên kết trong email thông báo tin nhắn mới nhất từ eno.vn.'),
+                body: tr('The unsubscribe link is invalid or expired. Use the link in the latest message email from {site}.', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn. Hãy dùng liên kết trong email thông báo tin nhắn mới nhất từ {site}.').replace(/\{site\}/g, SITE_NAME),
                 action: null,
               }
           : state === 'error' && teacherMatches
@@ -160,7 +162,7 @@ function UnsubscribeInner() {
                   }
                 : {
                     title: tr('Unsubscribe from the weekly digest?', 'Hủy đăng ký bản tin hằng tuần?'),
-                    body: tr('Stop receiving the weekly "top products & moving sales" email from eno.vn.', 'Ngừng nhận email hằng tuần "sản phẩm nổi bật & moving sale" từ eno.vn.'),
+                    body: tr('Stop receiving the weekly "top products & moving sales" email from {site}.', 'Ngừng nhận email hằng tuần "sản phẩm nổi bật & moving sale" từ {site}.').replace(/\{site\}/g, SITE_NAME),
                     action: unsubscribeButton,
                   }
 
@@ -180,9 +182,9 @@ function UnsubscribeInner() {
 
         {/* Same quiet exit as /signin: hairline seam + arrow icon + the shared string. */}
         <div className="mt-8 border-t border-border/60 pt-4">
-          <Link href="/" className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-accent-foreground">
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> {tr('Back to eno.vn', 'Về trang chủ')}
-          </Link>
+          <LocalizedLink href="/" className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-accent-foreground">
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> {tr('Back to {site}', 'Về trang chủ').replace(/\{site\}/g, SITE_NAME)}
+          </LocalizedLink>
         </div>
       </div>
     </div>

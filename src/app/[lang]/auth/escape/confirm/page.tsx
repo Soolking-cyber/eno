@@ -9,6 +9,9 @@ import { HandoffConfirm } from '@/components/marketplace/handoff-confirm'
 // obvious helpful thing and it is wrong twice: it leaves a live session in a browser they only
 // opened to get past Google's webview block, and it hides the failure — they would see a working,
 // signed-in eno.vn and never think to switch back to the app that is still waiting.
+// ⚠️ Since 2026-10-25 an app's built-in browser never reaches this page: there the measured result of exactly that
+// premise was 2 sign-ins from 41 visitors who got here, so the page itself moves to the phone's browser instead
+// (sign-in-form.tsx continueGoogleInBrowser). This pairing stays for eno.vn on an iPhone's home screen.
 export const dynamic = 'force-dynamic'
 
 export default async function ConfirmPage({ searchParams }: { searchParams: Promise<{ h?: string; ok?: string; via?: string }> }) {

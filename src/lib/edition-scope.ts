@@ -6,7 +6,7 @@ import { workUnitAsyncStorage } from 'next/dist/server/app-render/work-unit-asyn
 import { IS_SERVICES } from '@/lib/edition'
 import { VISA_SHOP_OWNER_EMAILS } from '@/lib/visa-shop'
 import { TRIP_DESK_OWNER_EMAILS } from '@/lib/trips/dm-thread'
-import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
+import { FOREIGN_SUPPORT_SELLER_ID, SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { FOREIGN_RENTAL_DESK_SELLER_ID, RENTAL_DESK_SELLER_ID, RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
 import { JOBS_DESK_SELLER_ID } from '@/lib/teachers/job-dms/constants'
@@ -449,9 +449,12 @@ export const editionHiddenSellerIds = cache(async (): Promise<string[]> => {
    * the forum's is begun on the services site, where visa and itinerary are legitimate subjects in
    * the same chat, so it must not open, list or count on the licensed marketplace. Same reasoning as
    * the two support desks.
+   * ⛔ …AND eno.forum's SUPPORT DESK, for that same reason (sweep, 2026-10-22). It was hidden only while the allow-list
+   * was armed, which it is not in production: a forum support thread (visa, itinerary, payment questions) listed as a
+   * second "eno Support" row in eno.vn's inbox, counted in its badge and opened in full.
    * ⚠️ eno.forum hides nothing here: the operator reads both editions' requests there.
    */
-  return IS_SERVICES ? ids : [...ids, FOREIGN_RENTAL_DESK_SELLER_ID]
+  return IS_SERVICES ? ids : [...ids, FOREIGN_RENTAL_DESK_SELLER_ID, FOREIGN_SUPPORT_SELLER_ID]
 })
 
 

@@ -39,6 +39,8 @@ const h = vi.hoisted(() => ({
     // Conversation ids holding a PENDING offer. A thread with a live offer must not be
     // retargeted to another listing — an offer is bound to the conversation, not the listing.
     offerThreads: [] as string[],
+    // The status of the offer those threads hold.
+    offerKind: 'pending' as 'pending' | 'accepted' | 'declined',
     // Buyers docked by the fixed-price offer guard (recordFixedPriceOfferAttempt).
     docked: [] as string[],
     // Every `where` conversation.findFirst was handed — the P2002 fallback is held to its filter, not just its result.
@@ -116,7 +118,8 @@ vi.mock('@/lib/db', () => ({
     message: {
       findFirst: ({ where }: Row) =>
         Promise.resolve(
-          where?.kind === 'offer' && where?.offerStatus === 'pending' && h.state.offerThreads.includes(where.conversationId)
+          where?.kind === 'offer' && h.state.offerThreads.includes(where.conversationId) &&
+          (where?.offerStatus === h.state.offerKind || (Array.isArray(where?.offerStatus?.in) && where.offerStatus.in.includes(h.state.offerKind)))
             ? { id: `offer-on-${where.conversationId}` }
             : null,
         ),
@@ -286,6 +289,7 @@ beforeEach(() => {
   h.state.docked = []
   // Reset with the rest: the pending-offer test used to leave its thread id behind for every later test.
   h.state.offerThreads = []
+  h.state.offerKind = 'pending'
   h.state.findFirstWheres = []
   h.state.dm = {
     standing: unverifiedDay(0), lockedStanding: null, concurrentThread: null, mayWrite: true, guardRefuses: false,
@@ -396,6 +400,28 @@ describe('ordinary storefronts keep the one-thread-per-seller rule exactly as be
     expect(json.id).not.toBe('shop-thread')
     expect(h.state.convos).toHaveLength(2)
     expect(h.state.convos.find((c) => c.id === json.id)!.listingId).toBe(SHOP_B)
+  })
+
+  // ⚠️ THE ACCEPTED CASE (sweep, 2026-10-22). actOnOffer allows one accepted offer per conversation, so retargeting a
+  // closed deal's thread to the seller's next item made every later offer there unacceptable.
+  it('refuses to retarget a thread that holds an ACCEPTED offer too — the next item gets its own thread', async () => {
+    h.state.convos = [convo('shop-thread', SHOP_A, OTHER_SELLER, 1000)]
+    h.state.offerThreads = ['shop-thread']
+    h.state.offerKind = 'accepted'
+    const { status, json } = await post({ listingId: SHOP_B, message: 'any discount on this one?' })
+    expect(status).toBe(200)
+    expect(h.state.convos.find((c) => c.id === 'shop-thread')!.listingId).toBe(SHOP_A)
+    expect(json.id).not.toBe('shop-thread')
+    expect(h.state.convos.find((c) => c.id === json.id)!.listingId).toBe(SHOP_B)
+  })
+
+  it('…but a thread whose offer was DECLINED still moves to the next item (one thread per seller stays the rule)', async () => {
+    h.state.convos = [convo('shop-thread', SHOP_A, OTHER_SELLER, 1000)]
+    h.state.offerThreads = ['shop-thread']
+    h.state.offerKind = 'declined'
+    const { json } = await post({ listingId: SHOP_B, message: 'what about this one?' })
+    expect(json.id).toBe('shop-thread')
+    expect(h.state.convos.find((c) => c.id === 'shop-thread')!.listingId).toBe(SHOP_B)
   })
 
   it('creates the first thread with a seller and reports created:true', async () => {

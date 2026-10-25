@@ -33,6 +33,7 @@ import { useSignInAgain } from './dashboard-fetch-error'
 import { DASHBOARD_NAV } from './dashboard-nav'
 import { resolveNavGroups, type ResolvedNavItem } from './dashboard-nav-resolve'
 import { useAccountPanel } from './account-panel'
+import { LocalizedLink } from '@/components/marketplace/localized-link'
 
 export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { user, signOut } = useAuth()
@@ -353,7 +354,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
           ⚠️ THE WORDMARK IS PER-EDITION: /logo-dotvn.svg spells out "eno.vn" and must never render
           on eno.forum, which is a separate operator. Same rule the deleted SITE_WORDMARK encoded —
           see the note in src/lib/edition.ts. */}
-      <Link
+      <LocalizedLink
         href="/"
         prefetch={false}
         aria-label={SITE_NAME}
@@ -423,7 +424,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
             className="h-7 w-auto max-w-none"
           />
         </span>
-      </Link>
+      </LocalizedLink>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 pt-3 pb-3 lg:pt-2">
         {/* MIDDLE — the core routing */}

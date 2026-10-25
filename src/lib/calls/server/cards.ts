@@ -1,4 +1,5 @@
 import 'server-only'
+import { createHash } from 'node:crypto'
 import { db } from '@/lib/db'
 import { insertMessage } from '@/lib/messages'
 import { sendPushToProfile } from '@/lib/push'
@@ -6,7 +7,7 @@ import { maskEmailHandle } from '@/lib/utils'
 import { cutText } from '@/lib/feed-text'
 import { logError } from '@/lib/log'
 import type { CallEndReason } from '../types'
-import { loadCall, type CallSessionRow, type EndedCallRow } from './session'
+import { RING_TIMEOUT_S, loadCall, type CallSessionRow, type EndedCallRow } from './session'
 
 /**
  * In-app calls — what a call leaves behind in the thread, the bell and the lock screen (DESIGN.md v3 §3.2 steps 2
@@ -61,6 +62,15 @@ export const RING_OVER_TEXT = 'Cuộc gọi đã kết thúc · Call ended'
 /** The tag every notification about one call shares, so the missed-call push replaces the ringing one. */
 export const callNotificationTag = (callId: string) => `call-${callId}`
 
+/**
+ * The push-service TOPIC every push about one call shares (RFC 8030 §5.4: ≤32 base64url characters, so a hash — the
+ * call id itself is 36). The ring, its replacement and the missed-call push all carry it: a replacement sent while the
+ * ring is still QUEUED for an offline phone replaces it there (ring latency, 2026-10-25). Only what is still queued: a
+ * ring already dispatched is not recalled (its TTL is the ring timeout). The tag does the same on the phone once
+ * delivered.
+ */
+export const callPushTopic = (callId: string) => createHash('sha256').update(`eno-call:${callId}`).digest('base64url').slice(0, 32)
+
 async function displayName(profileId: string): Promise<string> {
   const p = await db.profile.findUnique({ where: { id: profileId }, select: { displayName: true, email: true } })
   return p?.displayName || maskEmailHandle(p?.email) || 'eno'
@@ -90,7 +100,8 @@ export async function sendRingPush(row: Pick<CallSessionRow, 'id' | 'conversatio
       body: RING_TEXT,
       url: `/messages/${row.conversation_id}?call=${row.id}`,
       tag: callNotificationTag(row.id),
-    })
+      ring: true,
+    }, { urgency: 'high', ttlSec: RING_TIMEOUT_S, topic: callPushTopic(row.id), skipBadge: true })
   } catch (e) {
     logError(e, { op: 'calls.ringPush', callId: row.id })
   }
@@ -110,7 +121,7 @@ export async function replaceRingPush(row: Pick<CallSessionRow, 'id' | 'conversa
       url: `/messages/${row.conversation_id}`,
       tag: callNotificationTag(row.id),
       silent: true,
-    })
+    }, { urgency: 'high', ttlSec: 3_600, topic: callPushTopic(row.id), skipBadge: true })
   } catch (e) {
     logError(e, { op: 'calls.replaceRingPush', callId: row.id })
   }
@@ -150,7 +161,7 @@ export async function writeCallRecord(before: EndedCallRow, reason: CallEndReaso
       body: MISSED_TEXT,
       url: `/messages/${before.conversation_id}`,
       tag: callNotificationTag(before.id),
-    })
+    }, { topic: callPushTopic(before.id), urgency: 'high' }) // it replaces a ring on the lock screen: through doze too
     return true
   } catch (e) {
     logError(e, { op: 'calls.writeCallRecord', callId: before.id })

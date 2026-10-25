@@ -236,7 +236,9 @@ export const DISPUTE_COPY: Record<string, Copy> = {
   },
   window_extended: {
     title: { en: 'Evidence window extended', vi: 'Đã gia hạn thời gian nộp bằng chứng' },
-    body: { en: 'The eno.vn team extended the time to submit evidence in your dispute case.', vi: 'Đội ngũ eno.vn đã gia hạn thời gian nộp bằng chứng cho hồ sơ khiếu nại của bạn.' },
+    // "eno", not an edition's name: this text is STORED in the database both editions share, so baking in the name of
+    // the edition that wrote it could show eno.vn's users "eno.forum" (sweep decision, 2026-10-25).
+    body: { en: 'The eno team extended the time to submit evidence in your dispute case.', vi: 'Đội ngũ eno đã gia hạn thời gian nộp bằng chứng cho hồ sơ khiếu nại của bạn.' },
   },
   window_closing: {
     title: { en: 'Evidence window closes soon', vi: 'Sắp hết hạn nộp bằng chứng' },

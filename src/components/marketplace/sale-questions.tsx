@@ -85,6 +85,7 @@ export function SaleQuestions({
   sellerName,
   refreshKey,
   onStateChange,
+  onAnswered,
   className,
 }: {
   conversationId: string
@@ -97,6 +98,9 @@ export function SaleQuestions({
    *  render before this lookup answered — and forever when it failed. The page shows that card only on
    *  'none'; 'unknown' (still asking the server, or it could not be reached) keeps it back. */
   onStateChange?: (state: SaleQuestionsState) => void
+  /** Told the thread, the listing and the answer on record once the buyer has answered — the page's review card hides on
+   *  a "No" (the thread's own `mayReviewSale` / `mayReviewOffer` were computed before the answer). */
+  onAnswered?: (answer: { conversationId: string; listingId: string; status: 'confirmed' | 'declined' }) => void
   className?: string
 }) {
   const { tr } = useLanguage()
@@ -131,9 +135,11 @@ export function SaleQuestions({
 
   // A ref, so a parent passing an inline callback does not re-run this on every render.
   const onStateRef = useRef(onStateChange)
+  const onAnsweredRef = useRef(onAnswered)
   useEffect(() => {
     onStateRef.current = onStateChange
-  }, [onStateChange])
+    onAnsweredRef.current = onAnswered
+  }, [onStateChange, onAnswered])
   const asking = items.some((i) => i.status === 'asking')
   // An open card is open whatever the last lookup did; otherwise only a lookup that ANSWERED says "none".
   const state: SaleQuestionsState = asking ? 'open' : known ? 'none' : 'unknown'
@@ -164,11 +170,14 @@ export function SaleQuestions({
     }
     const recorded = data.status === 'confirmed' || data.status === 'declined' ? data.status : null
     if (res.ok) {
-      update(q.saleId, { pending: null, status: recorded ?? (kind === 'confirm' ? 'confirmed' : 'declined') })
+      const status = recorded ?? (kind === 'confirm' ? 'confirmed' : 'declined')
+      update(q.saleId, { pending: null, status })
+      onAnsweredRef.current?.({ conversationId, listingId: q.listingId, status })
       return
     }
     // Already answered (another device, a lost response): show what IS on record — never re-ask it.
     if (res.status === 409 && data.error === 'already_resolved' && recorded) {
+      onAnsweredRef.current?.({ conversationId, listingId: q.listingId, status: recorded })
       update(q.saleId, { pending: null, status: recorded })
       return
     }

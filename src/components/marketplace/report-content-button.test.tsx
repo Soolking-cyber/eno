@@ -6,7 +6,8 @@ import { LanguageProvider } from '@/context/language-context'
 
 // ── <ReportContentButton> — Report on a review / help reply / help post (gate `ugc-safety`, R5) ────────
 
-vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ openSignIn: vi.fn() }) }))
+// Signed in: a guest's report dialog never opens — it asks them to sign in first (report-button.test.tsx pins that).
+vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: { id: 'u1' }, loading: false, openSignIn: vi.fn() }) }))
 
 import { ReportContentButton } from './report-content-button'
 

@@ -6,6 +6,7 @@ import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { Button } from '@/components/ui/button'
 import { Search, Tag, Plus, BadgeCheck, Bell, Heart, Globe, ChevronRight, ShieldCheck } from "@/components/ui/icons"
+import { LocalizedLink } from '@/components/marketplace/localized-link'
 
 export const metadata: Metadata = withShare({
   title: `How ${SITE_NAME} works — Guide | ${SITE_NAME}`,
@@ -129,9 +130,9 @@ export default function GuidePage() {
           {/* font-semibold on the BUTTON (see CLAUDE.md): on the asChild child it would be
               settled by stylesheet order rather than intent. gap-2 is the base already. */}
           <Button asChild variant="ghost" size="none" className="font-semibold">
-            <Link href="/" className="flex cursor-pointer items-center rounded-xl px-5 py-2.5 text-sm text-foreground transition-colors hover:bg-muted hover:text-accent-foreground">
+            <LocalizedLink href="/" className="flex cursor-pointer items-center rounded-xl px-5 py-2.5 text-sm text-foreground transition-colors hover:bg-muted hover:text-accent-foreground">
               <Search className="h-4 w-4" /> <Tr text="Browse listings" />
-            </Link>
+            </LocalizedLink>
           </Button>
         </div>
         <p className="mt-6 text-sm text-body">

@@ -128,8 +128,11 @@ export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, s
           `max-w-[calc(100%-2rem)]` as its small-screen guard; tailwind-merge drops it the moment a
           caller passes any other max-w, so this card rendered 384px wide on a 390px phone — 3px from
           each edge (measured on prod). min(24rem, 100% − 1.5rem) keeps the 384px card everywhere it
-          fits and the canonical 12px phone gutter (px-3) below 408px. */}
-      <DialogContent ref={popupRef} initialFocus={initialFocus} className="rounded-2xl shadow-overlay w-full max-w-[min(24rem,calc(100%-1.5rem))] sm:max-w-sm p-6 gap-0">
+          fits and the canonical 12px phone gutter (px-3) below 408px.
+          ⚠️ AND NEVER TALLER THAN THE SCREEN (sweep, 2026-10-22): the base clamps height only while the keyboard is up, so
+          on a landscape phone (390px tall) the ✕ and the title sat above the screen and the legal line below it, with the
+          page scroll-locked. A card that fits renders identically; one that does not scrolls inside itself. */}
+      <DialogContent ref={popupRef} initialFocus={initialFocus} className="rounded-2xl shadow-overlay w-full max-w-[min(24rem,calc(100%-1.5rem))] sm:max-w-sm p-6 gap-0 max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain">
         {/*
           ⚠️ NO `DialogHeader` WRAPPER. It is a `flex flex-col gap-2` box meant for a title and a
           description, and `SignInCard` is title AND the whole form — so wrapping it put the email

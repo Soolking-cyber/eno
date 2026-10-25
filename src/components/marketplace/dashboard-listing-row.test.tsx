@@ -154,6 +154,32 @@ describe('DashboardListingRow actions', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Discount' }))
     await waitFor(() => expect((container.querySelector('[data-quick-discount]') as HTMLElement).dataset.open).toBe('true'))
   })
+
+  /**
+   * ⛔ A TEACHER'S ROW IS A PERSON, NOT A SALE. setStatusCore refuses 'sold' for a teacher listing (the tap flicked the
+   * row to Sold and silently back) and updateListingCore refuses a PATCHed price (Discount always said "try again"),
+   * so the row offers what the server does allow: Hide where Mark sold sits, no Discount, no second Hide in the menu.
+   */
+  it('⛔ a teacher profile: Hide in Mark sold’s place, no Discount, and no second Hide in the overflow', async () => {
+    setStatus.mockClear()
+    const teacher = { ...live, listingType: 'teacher', price: 25_000_000 } as SerializedListing
+    const { container } = render(<DashboardListingRow listing={teacher} onChanged={() => {}} />)
+    const edit = screen.getByRole('button', { name: 'Edit' })
+    const hide = screen.getByRole('button', { name: 'Hide' })
+    const more = screen.getByRole('button', { name: 'More actions' })
+    expect(Array.from(edit.parentElement!.querySelectorAll(':scope > button'))).toEqual([edit, hide, more])
+    expect(hide.className).toContain('px-2.5')
+    expect(screen.queryByRole('button', { name: 'Mark sold' })).toBeNull()
+    expect(container.querySelector('[data-mark-sold-flow]')).toBeNull()
+    expect(container.querySelector('[data-quick-discount]')).toBeNull()
+    fireEvent.click(hide)
+    expect(setStatus).toHaveBeenCalledWith('hidden')
+    fireEvent.click(more)
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: 'View listing' })).toBeTruthy())
+    expect(screen.queryByRole('menuitem', { name: 'Discount' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Hide' })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'Delete listing' })).toBeTruthy()
+  })
 })
 
 describe('DashboardListingRow demand nudge', () => {

@@ -68,10 +68,15 @@ export function emailCta(label: string, url: string): string {
  * the city — beside its unsubscribe (Decree 91/2020; plan review B9/E3). Marketplace only, like the block itself: on
  * eno.forum the operator is not incorporated and `full` changes nothing.
  */
-function legalFooterHtml(full = false): string {
+function legalFooterHtml(full = false, lang: 'en' | 'vi' = 'en'): string {
   if (IS_MARKETPLACE) {
+    // The tagline speaks the email's language: a Vietnamese email closed on an English line (sweep, 2026-10-22). The
+    // Vietnamese is the site footer's own (footer.tsx).
+    const tagline = lang === 'vi'
+      ? `${esc(SITE_NAME)} — rao vặt ${POSTING_IS_FREE ? 'miễn phí ' : ''}cho người nước ngoài và người Việt.`
+      : `${esc(SITE_NAME)} — ${POSTING_IS_FREE ? 'free ' : ''}classifieds for expats and locals in Vietnam.`
     return `${esc(full ? `${COMPANY.name} (${COMPANY.nameEn})` : COMPANY.name)} · ${esc(full ? COMPANY.address : 'TP. Hồ Chí Minh, Việt Nam')} · ${esc(COMPANY.email)}<br/>
-          ${esc(SITE_NAME)} — ${POSTING_IS_FREE ? 'free ' : ''}classifieds for expats and locals in Vietnam.`
+          ${tagline}`
   }
   return `${esc(SITE_NAME)} · ${esc(COMPANY.email)}`
 }
@@ -109,8 +114,10 @@ export function renderBrandEmail(opts: {
   provider?: { name: string; footer: string }
   /** 'full': the footer names the sender in full — legal name and registered head office (legalFooterHtml). */
   sender?: 'full'
+  /** The email's language, for the footer's tagline. English when omitted. */
+  lang?: 'en' | 'vi'
 }): string {
-  const { preheader, bodyHtml, origin, cta, audienceNote, unsubscribeUrl, provider, sender } = opts
+  const { preheader, bodyHtml, origin, cta, audienceNote, unsubscribeUrl, provider, sender, lang } = opts
   const E = EMAIL
   const audience = audienceNote
     ? `<p style="margin:0;font-size:12px;color:${E.MUTED};line-height:1.6;">${esc(audienceNote)}${
@@ -136,7 +143,7 @@ export function renderBrandEmail(opts: {
       <tr><td style="padding:20px 24px 24px;border-top:1px solid ${E.BORDER};">
         ${audience}
         <p style="margin:${audience ? '10px' : '0'} 0 0;font-size:11px;color:${E.MUTED};line-height:1.6;">
-          ${provider ? esc(provider.footer) : legalFooterHtml(sender === 'full')}
+          ${provider ? esc(provider.footer) : legalFooterHtml(sender === 'full', lang)}
         </p>
       </td></tr>
     </table>

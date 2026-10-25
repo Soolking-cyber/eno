@@ -63,9 +63,10 @@ export function ReviewPrompt({
       if (res.ok) { setState('done'); return }
       const err = (await res.json().catch(() => null))?.error
       if (err === 'already_reviewed') { setState('done'); return } // someone double-tapped — it's in
-      // The server's sale record says this caller is not the buyer (sold to someone else, "No, I didn't buy it", or
-      // "someone not on eno"). Retrying cannot help, so say why and put the card away rather than "try again".
-      if (err === 'not_transacted') {
+      // The server's sale record says this caller may not review this deal (sold to someone else, "No, I didn't buy it",
+      // "someone not on eno", or it stopped counting since the card was shown — a "No" from another device, a takedown).
+      // Retrying cannot help, so say why and put the card away rather than "try again".
+      if (res.status === 403 && err === 'not_transacted') {
         setState('dismissed')
         toast.error(tr('Only the buyer of this item can review the seller.', 'Chỉ người mua món hàng này mới có thể đánh giá người bán.'))
         return
@@ -120,7 +121,7 @@ export function ReviewPrompt({
             <Radio
               key={n}
               value={String(n)}
-              aria-label={tr('{n} stars', '{n} sao').replace('{n}', String(n))}
+              aria-label={n === 1 ? tr('1 star', '1 sao') : tr('{n} stars', '{n} sao').replace('{n}', String(n))}
               className="relative tap-44 h-9 w-9"
             >
               <Star className={`h-5 w-5 transition-colors ${n <= rating ? 'fill-warning text-warning' : 'text-ink-4'}`} />

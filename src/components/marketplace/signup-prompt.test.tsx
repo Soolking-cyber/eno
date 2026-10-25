@@ -345,8 +345,15 @@ describe('SignupPrompt — never two asks in one page view (UX3 J7f), and one pe
     expect(opens()).toBe(1)
   })
 
-  it('⛔ a session the cookie bar appeared in gets no ask, even once the consent is answered', async () => {
+  it('⛔ a session the cookie bar appeared in IS asked, once the consent is answered (owner, 2026-10-22: first visits are asked to join after the bar) — the install card\'s session is not', async () => {
     noteSessionAsk('consent') // the bar showed in this session (cookie-consent.tsx records it); the visitor answered it
+    mount()
+    await advance(10 * 60_000)
+    expect(opens()).toBe(1)
+  })
+
+  it('…while a session the install card appeared in still gets no ask', async () => {
+    noteSessionAsk('install')
     mount()
     await advance(10 * 60_000)
     expect(opens()).toBe(0)
@@ -402,6 +409,25 @@ describe('SignupPrompt — where, and never over anything else', () => {
     await advance(5 * 60_000)
     expect(opens()).toBe(0)
     // The visitor answers (either way): the bar goes, and the clock starts from here — not from page load.
+    localStorage.setItem(CONSENT_KEY, 'essential')
+    bar.remove()
+    await advance(58_000)
+    expect(opens()).toBe(0)
+    await advance(3_000)
+    expect(opens()).toBe(1)
+  })
+
+  it('⛔ the bar\'s OWN visit (it took the session — 2026-10-22): never over the unanswered bar, then the full minute from the answer, never back to back', async () => {
+    localStorage.removeItem(CONSENT_KEY)
+    noteSessionAsk('consent') // the bar appeared on its own in this visit (cookie-consent.tsx records it)
+    const bar = document.createElement('div')
+    bar.setAttribute('role', 'dialog')
+    bar.setAttribute('data-open', '')
+    bar.setAttribute('data-consent-auto', '')
+    document.body.appendChild(bar)
+    mount()
+    await advance(10 * 60_000)
+    expect(opens()).toBe(0)
     localStorage.setItem(CONSENT_KEY, 'essential')
     bar.remove()
     await advance(58_000)

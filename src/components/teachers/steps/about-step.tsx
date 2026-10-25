@@ -31,6 +31,7 @@ import { BIO_OWN_TEXT_MIN } from '@/lib/teachers/bio-context'
 import { BIO_ACTION_LABEL, BIO_NOTICE } from '@/lib/teachers/bio-notice'
 import { RADIO_CHIP, type StepProps } from '@/components/teachers/steps/shared'
 import { cn } from '@/lib/utils'
+import { isMaskedName } from '@/lib/teachers/search-floor'
 
 /** Why the last "Improve with AI" left the text as it was — each one a line under it, never a field error (below). */
 export type BioAiError = '' | 'rate' | 'unavailable' | 'failed' | 'notice' | 'session' | 'short' | 'network' | 'changed'
@@ -89,7 +90,9 @@ export function AboutStep({ t, set, errors, errText, prefillName, bioAi }: StepP
         <Field invalid={!!errors.fullName}>
           <Label htmlFor="tf-name">{tr('Full name', 'Họ và tên')}</Label>
           <FieldControl id="tf-name" render={<Input id="tf-name" autoComplete="name" value={t.fullName} maxLength={LIMITS.name} onChange={(e) => set('fullName', e.target.value)} />} />
-          {prefillName && !t.fullName && (
+          {/* ⚠️ Never offered when the account name is a MASKED email handle ("gi***") — an email-code sign-up's display name.
+              The chip published profiles as "gi***", nameless to schools and dropped from search (sweep, 2026-10-22). */}
+          {prefillName && !t.fullName && !isMaskedName(prefillName) && (
             <Chip size="sm" tone="neutral" className="relative tap-44 max-w-full self-start whitespace-normal text-left" onClick={() => set('fullName', prefillName.slice(0, LIMITS.name))}>
               {tr('Use my account name:', 'Dùng tên tài khoản:')} {prefillName}
             </Chip>

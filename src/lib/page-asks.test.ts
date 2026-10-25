@@ -52,13 +52,19 @@ describe('page-asks — one ask per page view', () => {
 })
 
 describe('page-asks — one interruption per visit (owner, 2026-10-18)', () => {
-  it('⛔ the cookie bar took the session: neither the install card nor the join prompt asks again in it, on any page', () => {
+  it('⛔ the cookie bar took the session: the install card does not ask in it — but "Join eno" may, once (owner, 2026-10-22: first visits are asked to join after the bar is answered)', () => {
     noteSessionAsk('consent')
     expect(sessionAsk()).toBe('consent')
     for (const path of ['/', '/c/phones', '/listings/x']) {
       expect(mayAsk('install', path)).toBe(false)
-      expect(mayAsk('join', path)).toBe(false)
+      expect(mayAsk('join', path)).toBe(true)
     }
+    // The join prompt shown: the bar keeps the visit — still no install card — and the next join is the tab's own rule.
+    askShown('join', '/listings/x')
+    askHidden('join')
+    expect(sessionAsk()).toBe('consent')
+    notePageView('/rentals')
+    expect(mayAsk('install', '/rentals')).toBe(false)
   })
 
   it('⛔ the install card took it: the join prompt waits for a later session — not just for the next page', () => {
@@ -84,6 +90,7 @@ describe('page-asks — one interruption per visit (owner, 2026-10-18)', () => {
     expect(sessionAsk()).toBe('consent')
     expect(maySessionAsk('consent')).toBe(true)
     expect(maySessionAsk('install')).toBe(false)
+    expect(maySessionAsk('join')).toBe(true) // the one exception: the bar never holds "Join eno" back
   })
 
   it('the push card is no interruption: it neither takes the session nor is held back by it', () => {
@@ -120,10 +127,16 @@ describe('page-asks — one interruption per visit (owner, 2026-10-18)', () => {
     }
     vi.stubGlobal('sessionStorage', quotaFull)
     try {
+      // (The install card as the visit's taker — the cookie bar no longer holds "Join eno" back, 2026-10-22.)
+      noteSessionAsk('install')
+      expect(sessionAsk()).toBe('install')
+      expect(mayAsk('join', '/c/phones')).toBe(false)
+      // …and the cookie bar's visit, quota full: still recorded, still no install card.
+      __resetPageAsksForTests()
+      vi.stubGlobal('sessionStorage', quotaFull)
       noteSessionAsk('consent')
       expect(sessionAsk()).toBe('consent')
       expect(mayAsk('install', '/')).toBe(false)
-      expect(mayAsk('join', '/c/phones')).toBe(false)
     } finally {
       vi.unstubAllGlobals()
       __resetPageAsksForTests()
@@ -161,10 +174,16 @@ describe('page-asks — one interruption per visit (owner, 2026-10-18)', () => {
 
     it('⛔ an hour of scrolling ONE page, never leaving it, is still one visit (codex + opus, round 3)', () => {
       notePageView('/')
-      noteSessionAsk('consent')
+      noteSessionAsk('install')
       vi.setSystemTime(T0 + 61 * MIN)
-      expect(sessionAsk()).toBe('consent')
+      expect(sessionAsk()).toBe('install')
       expect(mayAsk('join', '/')).toBe(false)
+      // The cookie bar's visit, an hour on the same page: still its visit — no install card.
+      __resetPageAsksForTests()
+      notePageView('/')
+      noteSessionAsk('consent')
+      vi.setSystemTime(T0 + 2 * 61 * MIN)
+      expect(sessionAsk()).toBe('consent')
       expect(mayAsk('install', '/')).toBe(false)
     })
 

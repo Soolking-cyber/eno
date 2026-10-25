@@ -96,6 +96,9 @@ export async function indexAndCheckProvenance(listingId: string): Promise<void> 
         db.report.create({
           data: {
             listingId: l.id,
+            // The seller is the target, as /api/report files it — or confirming docked nobody (sweep, 2026-10-22).
+            targetSellerId: l.sellerId,
+            targetProfileId: l.seller?.ownerId ?? null,
             reason: 'stolen_photos',
             detail: `Cross-app image match: reuses ${best}/${hexes.length} photos from another seller's listing ${originalId} (possible stolen listing).`,
             status: 'open',

@@ -65,4 +65,13 @@ describe('housing landing district links', () => {
       expect(canonicalDistrictSlug(s), s).toBe(s)
     }
   })
+
+  // A district with no place to rent is a real 404 (on 2026-10-22 /c/rentals/d2, linked from here). The page asks
+  // rental-district-floor.ts which areas are under the floor and renders those names as text, never as a link.
+  it('links a district only while its page is at the indexing floor', () => {
+    const src = readFileSync('src/app/[lang]/housing-vietnam-expats/page.tsx', 'utf8')
+    expect(src).toMatch(/const areasAsText = await rentalDistrictsBelowFloor\(AREA_SLUGS, /)
+    expect(src).toMatch(/areasAsText\.has\(d\.slug\) \? \(\s*d\.nameEn\s*\) : \(\s*<Link href=\{`\/c\/rentals\/\$\{d\.slug\}`\}/)
+    expect(src.match(/<Link href=\{`\/c\/rentals\//g)).toHaveLength(1)
+  })
 })

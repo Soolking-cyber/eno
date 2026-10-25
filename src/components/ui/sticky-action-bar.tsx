@@ -128,6 +128,14 @@ const OFFSET_VAR = '--sticky-action-bar-offset'
  * shared React context, mirroring how `--kb-h` is published (use-virtual-keyboard.ts).
  */
 const HEIGHT_VAR = '--sticky-action-bar-h'
+/**
+ * Present on <html> while at least one bar is mounted, so a floating layer can step aside from it with a subject-position
+ * selector (`[html[data-sticky-action-bar]_&]:bottom-…`) instead of a document-level :has() — the install card rises above it
+ * (sweep, 2026-10-22: it sat on /post's Publish button).
+ */
+const MOUNTED_ATTR = 'data-sticky-action-bar'
+/** The distance from the screen's bottom edge to the mounted bar's top (offset + height), on <html>. See write(). */
+const CLEAR_VAR = '--sticky-action-bar-clear'
 
 /** One action. Exactly two of these ever appear: one secondary, one primary. */
 export interface StickyActionBarAction {
@@ -338,6 +346,12 @@ export function StickyActionBar({
       // re-measures after EVERY render (see below; speed plan item 7). Compared with what <html> CARRIES, not with what
       // this bar last wrote, so a value someone else removed is put back on the next render.
       const root = document.documentElement.style
+      // …and how far the bar's TOP sits above the screen's bottom edge — its offset (a bar lifted over the tab bar, e.g.
+      // /post at 4.5rem) plus its height — for a floating layer that must clear it (the install card; sweep 2026-10-22).
+      // The offset is the bar's own custom property, inherited or inline, read as computed.
+      const offset = getComputedStyle(panelRef.current).getPropertyValue(OFFSET_VAR).trim() || '0px'
+      const clear = `calc(${offset} + ${next})`
+      if (root.getPropertyValue(CLEAR_VAR) !== clear) root.setProperty(CLEAR_VAR, clear)
       if (root.getPropertyValue(HEIGHT_VAR) === next) return
       root.setProperty(HEIGHT_VAR, next)
     }
@@ -393,6 +407,7 @@ export function StickyActionBar({
 
     const panel = panelRef.current
     const root = document.documentElement
+    root.setAttribute(MOUNTED_ATTR, '')
 
     // ResizeObserver is guarded, not assumed: this app still runs inside old Android WebViews
     // and the Zalo / Facebook in-app browsers (the same reason mobile-nav.tsx reasons about
@@ -468,7 +483,11 @@ export function StickyActionBar({
       // false on the FIRST render the bar never mounts, nothing writes, and the spacer holds its
       // fallback forever — which is why the spacer must carry the same condition as the bar (the
       // second ⚠️⚠️ at the top of this file). No unmount hook can fix a mount that never happened.
-      if (mountedBars === 0) root.style.setProperty(HEIGHT_VAR, '0px')
+      if (mountedBars === 0) {
+        root.style.setProperty(HEIGHT_VAR, '0px')
+        root.style.removeProperty(CLEAR_VAR)
+        root.removeAttribute(MOUNTED_ATTR)
+      }
     }
   }, [])
 

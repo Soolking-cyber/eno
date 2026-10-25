@@ -134,7 +134,7 @@ export function renderSignInEmail(opts: {
         <p style="margin:14px 0 0;font-size:12px;color:${MUTED};line-height:1.6;">${esc(s.expiry)} ${esc(c.ignore)}</p>
       </td></tr>`
 
-  const html = renderBrandEmail({ preheader: c.preheader, bodyHtml, origin })
+  const html = renderBrandEmail({ preheader: c.preheader, bodyHtml, origin, lang })
   const text = [c.heading, '', c.body, '', `${s.forAddress} ${email}`, '', url, '', s.expiry, c.ignore].join('\n')
 
   return { subject: c.subject, html, text }

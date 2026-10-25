@@ -15,12 +15,13 @@ const h = vi.hoisted(() => ({
   convo: { buyerProfileId: 'buyer-1', sellerProfileId: 'seller-1' } as Row | null,
   reads: 0,
   updates: [] as Row[],
+  admin: false,
 }))
 
 vi.mock('@/lib/admin', () => ({
   getCurrentProfileId: async () => h.me,
   getCurrentProfile: async () => (h.me ? { id: h.me } : null),
-  getAdmin: async () => null,
+  getAdmin: async () => (h.admin && h.me ? { id: h.me } : null),
   isAdminEmail: () => false,
 }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true }), kv: { set: async () => 'OK' } }))
@@ -35,6 +36,7 @@ vi.mock('@/lib/db', () => ({
 }))
 
 const { DELETE } = await import('./route')
+const { SUPPORT_SELLER_ID, FOREIGN_SUPPORT_SELLER_ID } = await import('@/lib/support-thread')
 
 async function del(headers: Record<string, string> = {}) {
   const res = await DELETE(new Request('https://eno.vn/api/conversations/thread-1', { method: 'DELETE', headers }), { params: Promise.resolve({ id: 'thread-1' }) })
@@ -47,6 +49,7 @@ beforeEach(() => {
   h.convo = { buyerProfileId: 'buyer-1', sellerProfileId: 'seller-1' }
   h.reads = 0
   h.updates = []
+  h.admin = false
 })
 
 describe('DELETE /api/conversations/[id] — the account that tapped', () => {
@@ -78,5 +81,35 @@ describe('DELETE /api/conversations/[id] — the account that tapped', () => {
     h.me = null
     expect(await del({ 'x-eno-acting-account': 'buyer-1' })).toEqual({ status: 401, body: { error: 'auth_required' } })
     expect(h.reads).toBe(0)
+  })
+})
+
+/**
+ * ⚠️ THE SUPPORT OPERATOR CLEARS A DESK THREAD FROM THEIR INBOX (sweep, 2026-10-22). Desk sellers are unowned, so
+ * sellerProfileId is null on every desk thread and the operator's delete always 403'd. The grant is the GET's:
+ * this edition's support desk, plus admin — nothing wider.
+ */
+describe('DELETE /api/conversations/[id] — the support desk', () => {
+  const desk = (sellerId: string) => ({ buyerProfileId: 'buyer-1', sellerProfileId: null, sellerId })
+
+  it('an admin on THIS edition\'s support-desk thread: 204, the desk side stamped', async () => {
+    h.me = 'operator-1'; h.admin = true; h.convo = desk(SUPPORT_SELLER_ID)
+    expect((await del()).status).toBe(204)
+    expect(h.updates).toEqual([{ where: { id: 'thread-1' }, data: { sellerDeletedAt: expect.any(Date), sellerUnread: 0 } }])
+  })
+
+  it('a non-admin on a desk thread they are not in: 403', async () => {
+    h.me = 'someone-else'; h.convo = desk(SUPPORT_SELLER_ID)
+    expect(await del()).toEqual({ status: 403, body: { error: 'forbidden' } })
+    expect(h.updates).toEqual([])
+  })
+
+  it('an admin on an ordinary thread between two other people, or on the OTHER edition\'s desk: 403', async () => {
+    h.me = 'operator-1'; h.admin = true
+    h.convo = { buyerProfileId: 'buyer-1', sellerProfileId: 'seller-1', sellerId: 'shop-1' }
+    expect((await del()).status).toBe(403)
+    h.convo = desk(FOREIGN_SUPPORT_SELLER_ID)
+    expect((await del()).status).toBe(403)
+    expect(h.updates).toEqual([])
   })
 })

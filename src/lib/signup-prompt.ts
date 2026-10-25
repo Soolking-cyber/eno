@@ -17,9 +17,10 @@ import { IS_SERVICES } from '@/lib/edition'
 //     reads consentAnswered(); nothing here changed);
 //   · ONE ask per tab session (MAX_PER_TAB) — owner, 2026-10-18: "one per visit, no floaters". It used to ask again
 //     after AGAIN_AFTER_MS more visible browsing (twice per tab session); "returns" now means the NEXT session, which
-//     starts again from FIRST_AFTER_MS. And the visit's one interruption is shared with the cookie bar and the
-//     install card (src/lib/page-asks.ts): a session either of them appeared in gets no ask at all — the controller's
-//     `mayAsk('join')` says so;
+//     starts again from FIRST_AFTER_MS. And the visit's one interruption is shared with the install card
+//     (src/lib/page-asks.ts): a session it appeared in gets no ask — the controller's `mayAsk('join')` says so. The
+//     cookie bar no longer holds it back (owner, 2026-10-22: "let “Join eno” show after the cookie bar is answered" — every
+//     first visit has the bar, so none was ever asked); its clock still waits for the bar's answer;
 //   · the DISMISSALS_BEFORE_PAUSE-th dismissal on this device pauses it for PAUSE_MS (then the count
 //     starts over);
 //   · two tabs never ask within AGAIN_AFTER_MS of each other (wall clock, `lastShownAt`) — five open
@@ -322,6 +323,9 @@ export const isGateAction = (v: unknown): v is GateAction => typeof v === 'strin
  *   escape_stay        — "Continue in Facebook" (or Messenger, Instagram) tapped on it: step 1 goes on in the app
  *   escape_arrived     — a page opened in a REAL browser with the escape's mark on its address — the hand-over held.
  *                        Anyone can open such an address, so read it as an upper bound beside escape_tap
+ * And the people hiring, on a page written for teachers (2026-10-25, owner 2026-10-22: "VI visitors → See teachers"):
+ *   see_teachers       — "See teachers" tapped (see-teachers.tsx), shown only when the join page is in Vietnamese; read
+ *                        beside step1_ready / escape_shown of the same Vietnamese class for how many saw it
  */
 export const TEACHER_FORM_EVENTS = [
   'step1_ready', 'step1_answered', 'step1_blocked', 'step1_continue', 'published',
@@ -331,6 +335,7 @@ export const TEACHER_FORM_EVENTS = [
   'publish_failed',
   'continue_ad', 'continue_groups', 'continue_zalo', 'continue_other', 'continue_none',
   'escape_tap', 'escape_shown', 'escape_stay', 'escape_arrived',
+  'see_teachers',
 ] as const
 export type TeacherFormEvent = (typeof TEACHER_FORM_EVENTS)[number]
 export const isTeacherFormEvent = (v: unknown): v is TeacherFormEvent => typeof v === 'string' && (TEACHER_FORM_EVENTS as readonly string[]).includes(v)

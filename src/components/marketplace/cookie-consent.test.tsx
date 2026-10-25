@@ -658,7 +658,7 @@ describe('CookieConsent — the bar', () => {
 describe('CookieConsent — the visit\'s one interruption', () => {
   beforeEach(() => { __resetPageAsksForTests() })
 
-  it('the bar that appears on its own takes the session — the other two asks then may not', async () => {
+  it('the bar that appears on its own takes the session — the install card then may not; "Join eno" still may (owner, 2026-10-22)', async () => {
     mount()
     await advance(3_000)
     expect(sessionAsk()).toBeNull()
@@ -667,7 +667,9 @@ describe('CookieConsent — the visit\'s one interruption', () => {
     expect(bar()).not.toBeNull()
     expect(sessionAsk()).toBe('consent')
     expect(mayAsk('install', '/')).toBe(false)
-    expect(mayAsk('join', '/c/phones')).toBe(false) // not on the next page either: the whole session
+    expect(mayAsk('install', '/c/phones')).toBe(false) // not on the next page either: the whole session
+    // The join prompt is not held back by the bar (its own clock waits for the bar's answer — signup-prompt.tsx).
+    expect(mayAsk('join', '/c/phones')).toBe(true)
   })
 
   it('the footer\'s "Cookie settings" is a request, not an interruption: the session stays free', async () => {

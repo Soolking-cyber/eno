@@ -399,11 +399,16 @@ export const POST = route(
     // it is the stronger invariant anyway: the offer stays on the listing it was made on. The
     // buyer is delivered to the canonical thread for the new listing instead — exactly what the
     // P2002 branch below already does, so this reuses a path that is known to work.
-    const pendingOffer = await db.message.findFirst({
-      where: { conversationId: candidate.id, kind: 'offer', offerStatus: 'pending' },
+    // ⚠️ AND A THREAD HOLDING AN ACCEPTED OFFER, for the same reason (sweep, 2026-10-22): the accepted deal is bound to
+    // this thread's listing, and actOnOffer allows ONE accepted offer per conversation — so a repeat buyer whose thread
+    // was retargeted to the seller's next item could never have a new offer accepted ("That offer changed…", for ever).
+    // The buyer goes to the canonical or a fresh thread for the new listing, the branch below; a closed deal's thread
+    // keeps its listing, its accepted card and its mark-sold prompt.
+    const boundOffer = await db.message.findFirst({
+      where: { conversationId: candidate.id, kind: 'offer', offerStatus: { in: ['pending', 'accepted'] } },
       select: { id: true },
     })
-    if (pendingOffer) {
+    if (boundOffer) {
       const existing = await db.conversation.findUnique({
         where: { listingId_buyerProfileId: { listingId, buyerProfileId: profile.id } },
         select: { id: true },

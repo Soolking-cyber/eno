@@ -1,5 +1,6 @@
 'use client'
 
+import { cn } from '@/lib/utils'
 import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
@@ -132,18 +133,32 @@ export function InstallHint() {
       // `border-foreground/10`: the same 1px edge as the pill, so the two floating surfaces stacked here
       // read as one family — and the edge, not the shadow, is what separates either one on the canvas.
       /**
-       * ⛔ `z-[70]` — ABOVE EVERY FLOATING CONTROL ON A PHONE (owner, 2026-09-18: "make the get eno
+       * ⛔ (HISTORY) `z-[70]` — ABOVE EVERY FLOATING CONTROL ON A PHONE (owner, 2026-09-18: "make the get eno
        * app popup above all other icons in mobile"). The mobile ladder documented in
        * mobile-ladder.tsx is: header and tab bar at z-40, this hint and the toast at z-50, and the
        * back-to-top / support cluster at z-[60] — which is why a 44px round button was landing ON
        * this card. z-70 puts the card over that cluster while staying under modals, which own the
        * top of the ladder. If a new floating control appears, it goes BELOW this, not beside it.
-       * ⛔ AND THE WRAPPER TAKES NO POINTER EVENTS. It is `inset-x-0` — full width — so at z-70 it
+       * ⛔ AND THE WRAPPER TAKES NO POINTER EVENTS. It is `inset-x-0` — full width — so above the cluster it
        * would swallow taps across the whole row at that height, including the back-to-top button
        * that lives in the same band at `right-4`. Two reviewers caught it: raising a layer is a
        * paint change, but a full-bleed wrapper also moves the hit test. The CARD re-enables them.
+       * ⛔ z-[48]: UNDER MODALS, OVER EVERY FLOATING ICON (sweep, 2026-10-22). At z-[70] the card painted over open sheets
+       * and dialogs (z-overlay, 50) and took their taps. 48 still clears what the owner asked it to clear on 2026-09-18 —
+       * the back-to-top / support cluster now sits on z-fab (45) and the tab bar on z-40 — while every modal and its
+       * scrim covers it, so it needs no stand-down for them. (The ladder note above predates z-fab; the numbers here win.)
+       * ⛔ AND IT RISES ABOVE A STICKY ACTION BAR: on /post and /teachers/join it sat exactly on the Publish button, so a tap
+       * on Publish landed on the card. ui/sticky-action-bar marks <html> while a bar is mounted and publishes its height
+       * (design-lint: no document-level :has()); the card then floats over the bar — never hidden, so a listing page (its
+       * Chat bar) still makes the app ask. The keyboard hides it, as it always did.
        */
-      className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[70] px-3 pc:bottom-4 lg:px-4"
+      className={cn(
+        'pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[48] px-3 pc:bottom-4 lg:px-4',
+        // Clears the bar's TOP (its offset + height, published by the bar) — on a phone only: `pc` keeps its 1rem.
+        '[html[data-sticky-action-bar]_&]:bottom-[calc(max(5rem,var(--sticky-action-bar-clear,9rem)+0.75rem)+env(safe-area-inset-bottom))]',
+        'pc:[html[data-sticky-action-bar]_&]:bottom-4',
+        '[html.kb-open_&]:hidden',
+      )}
     >
       <div className="pointer-events-auto mx-auto flex w-full max-w-sm items-center gap-3 rounded-2xl border border-foreground/10 bg-popover p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 ease-out-strong lg:max-w-md">
         {/* ⚠️ A FILE SIZED FOR THIS 40px BOX (3x), NOT /icon-192.png THROUGH next/image. The optimizer

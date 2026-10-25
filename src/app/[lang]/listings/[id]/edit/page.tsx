@@ -5,6 +5,8 @@ import { getCurrentProfile } from '@/lib/admin'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { PostWizard, type ListingEditData } from '@/components/marketplace/post-wizard'
+import vnUnits from '@/data/vn-units.json'
+import { resolveStoredArea } from '@/lib/vn-unit-match'
 import { safeParse, serializeCategoryBasic } from '@/lib/serialize'
 import { categoryHasBrand, isPostableCategory, LICENCE_CHECK_SUBCATEGORIES, NON_POSTING_CATEGORIES, paysSalary, salaryMFromPrice } from '@/lib/taxonomy'
 import { LISTING_REMOVED } from '@/lib/listing-removed'
@@ -119,6 +121,9 @@ export default async function EditListingPage({ params }: Props) {
     salaryM: listing.salaryM ?? legacyJobSalaryM(listing),
     district: listing.district,
     city: listing.city,
+    // The same place as picker units with real codes — or the picker opens on Ho Chi Minh City and an untouched Apply
+    // moves the listing there (sweep, 2026-10-22).
+    area: resolveStoredArea(vnUnits, listing.city, listing.district),
     lat: listing.lat,
     lng: listing.lng,
     images: safeParse<string[]>(listing.images, []),

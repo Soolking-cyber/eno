@@ -3,7 +3,7 @@ import { createHash, createHmac, randomUUID } from 'node:crypto'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { logError } from '@/lib/log'
-import type { CallEndReason, CallMedia, CallRole } from '../types'
+import { RING_TIMEOUT_S, type CallEndReason, type CallMedia, type CallRole } from '../types'
 import {
   MAX_SNAPSHOT_CANDIDATES_PER_NEG, MAX_SNAPSHOT_NEGOTIATIONS, resyncSnapshotSchema,
   type CallStateName, type ClientEvent, type IceCandidate, type ResyncSnapshot,
@@ -37,7 +37,7 @@ import { boxEvent, broadcast, callTopic, ringTopic } from './events'
 
 type Tx = Prisma.TransactionClient
 
-export const RING_TIMEOUT_S = 45
+export { RING_TIMEOUT_S }
 export const HEARTBEAT_STALE_S = 45
 /**
  * A side ON HOLD gets the hold limit (negotiation.ts HOLD_LIMIT_MS, 2 min) plus slack before its silence counts: an

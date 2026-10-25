@@ -440,16 +440,13 @@ describe('/privacy — Sign in with Apple', () => {
     expect(vi).not.toContain('(hồ sơ tạo trước ngày 23 tháng 10 năm 2026 cũng có thể gỡ CV)')
   })
 
-  // ⛔ THE DAY THE JOB-MATCH SWITCHES TURNED ON BY DEFAULT — DERIVED UNTIL ITS DEPLOY HAS RUN (gate review, opus 2026-10-22):
-  // the three sentences that name it must name the day the policy is dated, so a slipped deploy that re-dates only
-  // PRIVACY_TEXT_PUBLISHED fails here. ⛔ ONCE THAT DEPLOY HAS RUN, the day is a fact: the next change that re-dates the
-  // policy pins these as literals instead (as the CV dates above were) and never moves them.
-  it('the day the job-match switches turned on by default is the day the policy is dated (until that deploy has run), EN and VI', async () => {
-    const { PRIVACY_TEXT_PUBLISHED } = await import('@/lib/compliance/privacy-updated')
-    const [y, m, d] = PRIVACY_TEXT_PUBLISHED.split('-').map(Number)
-    const month = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][m - 1]
-    const why = `PRIVACY_TEXT_PUBLISHED is ${PRIVACY_TEXT_PUBLISHED}. If the deploy that turned the job-match switches on by default ` +
-      'has RUN, pin the day these sentences name as literals (as the CV dates above) — never move it. If it slipped, re-date them to its day.'
+  // ⛔ THE DAY THE JOB-MATCH SWITCHES TURNED ON BY DEFAULT IS A FACT NOW: 25 October 2026 (deploy 2f31c854b, ~14:35 ICT).
+  // Until it ran, this test derived the day from PRIVACY_TEXT_PUBLISHED (gate review, opus 2026-10-22); the next re-date of
+  // the policy (the in-app Google carry, deployed the same 25 October) pinned it here as a literal, as the CV dates were — never moved again.
+  it('the day the job-match switches turned on by default is pinned: 25 October 2026, EN and VI', async () => {
+    const [y, m, d] = [2026, 10, 25]
+    const month = 'October'
+    const why = 'The job-match switches went on by default with the 25 October 2026 deploy: that day is a fact, never re-dated.'
     for (const site of ['marketplace', 'services'] as const) {
       const en = await policy(site)
       cleanup()
@@ -466,6 +463,16 @@ describe('/privacy — Sign in with Apple', () => {
         `được bật sẵn trong biểu mẫu từ ngày ${d} tháng ${m} năm ${y} —`,
       ]) expect(vi, why).toContain(s)
     }
+  })
+
+  // Google inside an app's built-in browser (2026-10-25): the page moves to the phone's own browser, and the teacher form's
+  // step-1 answers wait on the server under a 30-minute link (src/lib/auth/carry.ts) — said where account data is listed.
+  it.each(['marketplace', 'services'] as const)('%s: Google inside an app\'s browser — the page moves, the teacher\'s answers wait under a 30-minute link, within an hour', async (site) => {
+    const en = await policy(site)
+    expect(en).toContain('If you choose Google inside an app’s built-in browser (such as Facebook’s or Zalo’s), where Google does not let you sign in, the page opens in your phone’s own browser instead; on the teacher profile form, the answers you have given so far (where you live, the kinds of work you want, and whether — and where — you would move) go with it — we keep them on our server only until that browser picks them up through a link in the page’s address that works for 30 minutes, and delete them then, or otherwise within an hour.')
+    cleanup()
+    const vi = await policy(site, 'vi')
+    expect(vi).toContain('Nếu bạn chọn Google trong trình duyệt tích hợp của một ứng dụng (như của Facebook hay Zalo), nơi Google không cho đăng nhập, trang sẽ được mở bằng trình duyệt của điện thoại; trên biểu mẫu hồ sơ giáo viên, các câu trả lời bạn đã đưa ra (nơi bạn sống, loại công việc bạn muốn, bạn có sẵn sàng chuyển đi không và đi đâu) đi cùng — chúng tôi chỉ giữ chúng trên máy chủ cho đến khi trình duyệt đó nhận qua một liên kết trong địa chỉ trang, có hiệu lực 30 phút, rồi xóa ngay, hoặc nếu không thì trong vòng một giờ.')
   })
 
   it('the switches it names are the form\'s own — the labels finish-step.tsx shows, EN and VI', async () => {
@@ -1159,7 +1166,7 @@ describe('the teacher form\'s own counts (2026-10-16)', () => {
       // 2026-10-17: the rest of a new profile's way to Publish, and "Open in your browser" (signup-prompt.ts TEACHER_FORM_EVENTS).
       // 2026-10-22: the required CV — a Publish refused on it is its own count (publish_refused_cv).
       // 2026-10-22 too: the way out first — the screen shown, going on in the app, the arrival (escape_shown/stay/arrived).
-      expect(text, site).toContain('how many times each later step was reached, an intro video was chosen, turned down by the check in your browser, could not be prepared or uploaded, or was uploaded, and Publish was tapped, refused for the video, the photo, the CV, the kind of work or another answer, or did not go through; how many times the screen offering your browser instead was shown, “Open in Safari” or “Open in your browser” was tapped, a page then opened in your browser from it, or you chose to go on in the app; and how many new teacher profiles were published')
+      expect(text, site).toContain('how many times each later step was reached, an intro video was chosen, turned down by the check in your browser, could not be prepared or uploaded, or was uploaded, and Publish was tapped, refused for the video, the photo, the CV, the kind of work or another answer, or did not go through; how many times the screen offering your browser instead was shown, “Open in Safari” or “Open in your browser” was tapped, a page then opened in your browser from it, or you chose to go on in the app; how many times “See teachers” was tapped in the teacher form or on that screen; and how many new teacher profiles were published')
     }
     expect(await policy('marketplace', 'vi')).toContain('và với biểu mẫu hồ sơ giáo viên: số lần bước đầu tiên sẵn sàng để dùng')
     cleanup()

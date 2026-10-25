@@ -99,12 +99,12 @@ describe('lists on (V5, locally only)', () => {
 
   it('…but only a pilot twin, only GET/HEAD, and never off a shop host', async () => {
     pilot.lists = ON
-    // Not a twin: still the 404 every unpinned `/vi…` is.
+    // Not a twin: like every page path but `/` on a shop host, it goes to the apex (sweep, 2026-10-22) — which answers it
+    // with the 404 every unpinned `/vi…` is there.
     for (const p of ['/vi/c/rentals', '/vi/vi', '/vi/listings/abc']) {
       const r = await run(p, { host: 'apple.eno.vn', headers: { cookie: 'lang=en' } })
-      expect(r.status, p).toBe(200)
-      expect(r.rewrite, p).toBe('/en/~/not-found')
-      expect(r.location, p).toBeNull()
+      expect(r.status, p).toBe(302)
+      expect(r.location, p).toBe(`https://eno.vn${p}`)
     }
     // A write keeps its old route — no redirect for a Server Action's POST.
     const post = await run('/vi', { host: 'apple.eno.vn', method: 'POST', headers: { origin: 'https://eno.vn', cookie: 'lang=en' } })
@@ -112,9 +112,9 @@ describe('lists on (V5, locally only)', () => {
     expect(post.rewrite).toBe('/en/~/not-found')
     // The site's own host serves the twin, as before.
     expect((await run('/vi', { host: 'eno.vn', headers: { cookie: 'lang=en' } })).rewrite).toBe('/vi')
-    // Lists off (eno.forum, or the pilot withdrawn): nothing to send anywhere — the shop's `/vi` is a 404.
+    // Lists off (eno.forum, or the pilot withdrawn): the shop's `/vi` is a page path like any other — to the apex.
     pilot.lists = { live: [], retired: [] }
-    expect((await run('/vi', { host: 'apple.eno.vn', headers: { cookie: 'lang=en' } })).rewrite).toBe('/en/~/not-found')
+    expect((await run('/vi', { host: 'apple.eno.vn', headers: { cookie: 'lang=en' } })).location).toBe('https://eno.vn/vi')
   })
 
   it('other pages keep negotiating', async () => {
