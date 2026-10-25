@@ -32,11 +32,9 @@
  * ⚠️ CONSERVATIVE ON PURPOSE: an ordinary "see you at 5" from the buyer also ends it. The cost is a chip
  * that steps aside (the strip's 'Đã bán' is still there, with the thread's buyer picked); the cost of the
  * other direction is a listing sold that nobody sold.
- * ⚠️ KNOWN RESIDUAL, SERVER-SIDE: retargetForListing commits the thread's new listing BEFORE the buyer's
- * message is inserted, so a refetch landing in that gap (or a failed insert) sees a retargeted thread with
- * no new message. The cure is the server guard named above — refuse to retarget a thread holding an
- * ACCEPTED offer, as it already refuses one holding a pending offer — which would also let the "buyer
- * wrote since" rule go. It changes conversation routing, so it is the owner's call, not this file's.
+ * ✅ THE SERVER GUARD NAMED ABOVE IS IN (sweep, 2026-10-22): retargetForListing now refuses to retarget a thread holding
+ * an ACCEPTED offer, as it refuses one holding a pending offer, so a closed deal's thread never moves to another listing.
+ * The "buyer wrote since" rule stays as a belt for threads retargeted before that guard.
  */
 
 /** The opening of the line actOnOffer persists for an accept (bilingual composite, messages.ts). */
