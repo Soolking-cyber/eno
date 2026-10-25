@@ -6,7 +6,7 @@
 import { NextResponse } from 'next/server'
 import { route, ApiError } from '@/lib/api/handler'
 import { db } from '@/lib/db'
-import { deleteTeacherVideo, TeacherVideoConflictError, TeacherVideoRequiredError } from '@/lib/teachers/publish'
+import { deleteTeacherVideo, TeacherVideoConflictError } from '@/lib/teachers/publish'
 import { signTeacherVideo } from '@/lib/teachers/video-store'
 
 export const runtime = 'nodejs'
@@ -48,8 +48,6 @@ export const DELETE = route(
       return { ok: true, video }
     } catch (e) {
       if (e instanceof TeacherVideoConflictError) return NextResponse.json({ error: 'video_changed' }, { status: 409 })
-      // A profile created since TEACHER_VIDEO_REQUIRED_FROM keeps its intro video (owner, 2026-10-16) — replace it instead.
-      if (e instanceof TeacherVideoRequiredError) return NextResponse.json({ error: 'video_required' }, { status: 409 })
       throw e
     }
   },

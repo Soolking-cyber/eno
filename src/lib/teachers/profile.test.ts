@@ -299,10 +299,10 @@ describe('validateTeacherInput', () => {
 
 describe('phoneWaived — a withdrawal is never refused for the phone (owner, 2026-10-22)', () => {
   // A saved profile with job emails and cover on, staff calls off (staff calls need the number — never waived).
-  const stored = (o: Partial<{ phone: boolean; matchEmailOptIn: boolean; staffContactOptIn: boolean; coverOpen: boolean }> = {}) =>
-    ({ phone: false, matchEmailOptIn: true, staffContactOptIn: false, coverOpen: true, ...o })
-  const next = (o: Partial<{ phone: string; matchEmailOptIn: boolean; staffContactOptIn: boolean; coverOpen: boolean }> = {}) =>
-    ({ phone: '', matchEmailOptIn: true, staffContactOptIn: false, coverOpen: true, ...o })
+  const stored = (o: Partial<{ phone: boolean; matchEmailOptIn: boolean; staffContactOptIn: boolean; coverOpen: boolean; publicVideo: boolean }> = {}) =>
+    ({ phone: false, matchEmailOptIn: true, staffContactOptIn: false, coverOpen: true, publicVideo: false, ...o })
+  const next = (o: Partial<{ phone: string; matchEmailOptIn: boolean; staffContactOptIn: boolean; coverOpen: boolean; videoUrl: string | null }> = {}) =>
+    ({ phone: '', matchEmailOptIn: true, staffContactOptIn: false, coverOpen: true, videoUrl: null, ...o })
   it('a NEW profile (nothing stored) is never waived — even one that would "hide"', () => {
     expect(phoneWaived(null, next(), false)).toBe(false)
     expect(phoneWaived(null, next({ matchEmailOptIn: false }), true)).toBe(false)
@@ -320,6 +320,13 @@ describe('phoneWaived — a withdrawal is never refused for the phone (owner, 20
     expect(phoneWaived(stored(), next({ matchEmailOptIn: false }), false)).toBe(true)
     expect(phoneWaived(stored({ staffContactOptIn: true }), next({ staffContactOptIn: false }), false)).toBe(true)
     expect(phoneWaived(stored(), next({ coverOpen: false }), false)).toBe(true)
+  })
+  it('⛔ removing the PUBLIC intro video is a withdrawal too (owner, 2026-10-25: "Allow removal") — keeping or replacing it is not', () => {
+    expect(phoneWaived(stored({ publicVideo: true }), next({ videoUrl: null }), false)).toBe(true)
+    expect(phoneWaived(stored({ publicVideo: true }), next({ videoUrl: 'https://x/v.mp4' }), false)).toBe(false)
+    expect(phoneWaived(stored({ publicVideo: false }), next({ videoUrl: null }), false)).toBe(false)
+    // …and never with staff calls on, like every withdrawal
+    expect(phoneWaived(stored({ publicVideo: true }), next({ videoUrl: null, staffContactOptIn: true }), false)).toBe(false)
   })
   it('nothing switched off, no hide — the next save asks for the phone (a switch already off is no withdrawal)', () => {
     expect(phoneWaived(stored(), next(), false)).toBe(false)

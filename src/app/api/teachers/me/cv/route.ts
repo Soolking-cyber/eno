@@ -9,7 +9,6 @@ import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
 import { writeTombstones } from '@/lib/core/storage-tombstones'
 import { TEACHER_CVS_BUCKET } from '@/lib/supabase-admin'
-import { cvRequiredSince } from '@/lib/teachers/constants'
 import { MAX_CV_BYTES, cvPathFor, looksLikePdf, safeCvFileName, uploadTeacherCv } from '@/lib/teachers/cv-store'
 
 export const runtime = 'nodejs'
@@ -42,8 +41,8 @@ async function ownProfile(profileId: string) {
 /**
  * POST — two modes, one set of checks (the size caps, the %PDF- sniff, the rate limit):
  *   · with a profile (the edit form, after its Save) — stored and attached at once, replacing the saved CV;
- *   · `?pending=1` — ⛔ THE JOIN FORM'S UPLOAD, BEFORE ITS FIRST PUBLISH (owner, 2026-10-21: the CV is required — constants.ts
- *     TEACHER_CV_REQUIRED_FROM). There is no profile to attach it to yet, so none is read and TeacherPrivate is never
+ *   · `?pending=1` — ⛔ THE JOIN FORM'S UPLOAD, BEFORE ITS FIRST PUBLISH (owner, 2026-10-21 — required then, optional since 2026-10-25; constants.ts
+ *     has the history). There is no profile to attach it to yet, so none is read and TeacherPrivate is never
  *     written: the object is TOMBSTONED FIRST ('teacher_cv_pending' — the video's pending copy, publish.ts), then
  *     uploaded, and the answer is its token. The save that CREATES the profile names the token, finds the pending row
  *     under its lock, writes cvPath and deletes the tombstone in its own transaction (publish.ts saveTeacherProfile). A
@@ -60,7 +59,7 @@ export const POST = route(
     // its own, BEFORE the body is read (commit gate, opus 2026-10-22: 20 × 10 MB an hour from every throwaway account into
     // the private bucket). A teacher uploads once per Publish (the form reuses a token for half an hour): six an hour is
     // room for retries. The connection's day cap is GENEROUS and said as "busy on this network", never "your limit"
-    // (commit gate, codex + opus 2026-10-22): a CV is required to publish, and a school's Wi-Fi or a carrier's shared
+    // (commit gate, codex + opus 2026-10-22): a teacher uploading a CV at Publish, on a school's Wi-Fi or a carrier's shared
     // address (CGNAT — common in Vietnam) must never lock teachers out — site-wide, a few dozen teachers publish a day.
     // One after another, never Promise.all (a denied attempt still counts — ratelimit.ts).
     if (pending) {
@@ -122,9 +121,8 @@ export const DELETE = route(
   async ({ profile }) => {
     const tp = await ownProfile(profile.id)
     if (!tp.private?.cvPath) throw new ApiError('cv_missing', 404)
-    // ⛔ A profile created since TEACHER_CV_REQUIRED_FROM keeps its CV (owner, 2026-10-21): a new upload REPLACES it (POST,
-    // above — never blocked), it is never removed here. Deleting the whole profile still erases it (publish.ts).
-    if (cvRequiredSince(tp.createdAt)) throw new ApiError('cv_required', 409)
+    // ⛔ ANY TEACHER MAY REMOVE THEIR CV (owner, 2026-10-25: "Allow removal" — optional at publish, so never kept against the
+    // teacher's will; profiles created from 2026-10-23 could only replace it until the 2026-10-25 deploy).
     await db.$transaction(async (tx) => {
       // Under the same lock as every CV write, and on the CV there NOW (an upload from another tab may have replaced the
       // one read above): that one is tombstoned and cleared — never a newer CV cleared with only the older one recorded.

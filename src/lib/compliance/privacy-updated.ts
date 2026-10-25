@@ -109,6 +109,8 @@
  * are FIXED text — page.test.tsx pins all three as literals (until 2026-10-22 it derived them from this date). ⛔ A
  * later re-date of this value — the change below, or any after — must NEVER move them: a teacher who joined on the old
  * optional rule keeps the removal the policy promised.
+ * ⇒ ENDED with the 2026-10-25 deploy (owner, 2026-10-25: "Allow removal"): every teacher may remove a CV, so the cutoff,
+ *   its constant and both sentences are gone — the promise to older profiles is kept and extended to all.
  * And 2026-10-25 — decided on 2026-10-22, live with its own deploy three days later, the reason this value and the
  * day /privacy names were re-dated from the 22nd (owner, 2026-10-22 11:37 ICT: "also phone number is mandatory and all toggles should be on by default go"; asked, the phone
  * is "Everyone, on next save" and the toggles "On by default everywhere" — web and the native apps): the teacher PHONE
@@ -133,6 +135,14 @@
  * browser shown, the visitor going on in the app, a page then opening in the browser from it (escape_shown /
  * escape_stay / escape_arrived — the same anonymous daily totals). Live with the deploy: no new data, no recipient.
  * It went live that day, under that day's date.
+ * And 2026-10-25 as well, in a SECOND deploy that day — the phone's went live at ~14:35 ICT (2f31c854b) — so this text
+ * must deploy on 2026-10-25 too, or re-date with its phone sentences pinned first (owner, 2026-10-22: "Publish before video/CV" — after the video and then the
+ * CV became required, teachers publishing within a day fell 80% → 47% and real-browser publishes to a third): the teacher
+ * paragraph's CV sentence — "A teacher profile can include a CV … you can upload it when you publish your profile or add it
+ * later … you can replace or remove it at any time" (it said a new profile NEEDS one, and that only a profile created
+ * before 23 October 2026 could remove it — owner, 2026-10-25: "Allow removal"; the cutoff text is gone with the rule),
+ * and the CV-reading row's "which you can replace or remove at any time". Live with the deploy — it asks LESS of a
+ * teacher and changes no recipient.
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -150,4 +160,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-25'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '8f3364a0d1715b30'
+export const PRIVACY_TEXT_FINGERPRINT = '600d8a65d56c2c67'

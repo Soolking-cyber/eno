@@ -241,7 +241,7 @@ export const EMPTY_TEACHER: TeacherInput = {
 
 /**
  * Field → error code. Codes, not prose: the form words them bilingually.
- * `cv` (2026-10-21 — the CV is required for a new profile): the CV is no TeacherInput field — never in a draft or a
+ * `cv` (2026-10-21 — the CV, required for a new profile until the 2026-10-25 deploy, optional at publish since): the CV is no TeacherInput field — never in a draft or a
  * hand-off, nor in TEACHER_STEP_FIELDS or validateTeacherInput, which drafts and draftResumeStep read (the video's required
  * rule stays outside them too) — so its refusals (the save's 'required' / 'expired', the form's 'type' / 'size' /
  * 'upload_failed') get a key of their own; the form's stepOfField places it on Photo & publish.
@@ -317,8 +317,8 @@ const PHONE = /^\+?[0-9 ().-]{8,20}$/
  * through. Measured on prod the same day: all 101 stored teacher phones have 8 or more, so no saved profile is refused.
  */
 export const isTeacherPhone = (v: string): boolean => PHONE.test(v.trim()) && (v.match(/\d/g)?.length ?? 0) >= 8
-/** What a phone waiver reads of the SAVED profile: whether it has a phone, and the switches it had on. */
-export type PhoneWaiverBase = { phone: boolean; matchEmailOptIn: boolean; staffContactOptIn: boolean; coverOpen: boolean }
+/** What a phone waiver reads of the SAVED profile: whether it has a phone, the switches it had on, and a public video. */
+export type PhoneWaiverBase = { phone: boolean; matchEmailOptIn: boolean; staffContactOptIn: boolean; coverOpen: boolean; publicVideo: boolean }
 /**
  * ⛔ A WITHDRAWAL IS NEVER REFUSED FOR THE PHONE (owner, 2026-10-22: the phone is mandatory "on next save" for a profile
  * that has none — "hiding a profile or switching things off is never blocked"). A save of a SAVED profile that has no
@@ -330,10 +330,13 @@ export type PhoneWaiverBase = { phone: boolean; matchEmailOptIn: boolean; staffC
  * "Our staff may call me" on, is never waived — staff calls need the number (the 2026-10-08 rule), and an opt-in granted
  * in the same save as a switch-off must not ride on the waiver. Other edits in a waived save do ride along: refusing
  * them would refuse the switch-off with them.
+ * ⛔ …and REMOVING THE PUBLIC INTRO VIDEO is a withdrawal too (owner, 2026-10-25: "Allow removal" — commit gate, codex):
+ * it goes by this save (a private one and the CV by their own DELETE routes, which ask for no phone), so without this a
+ * teacher with no phone could not take their face off the page without handing over a number.
  */
 export function phoneWaived(
   stored: PhoneWaiverBase | null,
-  next: Pick<TeacherInput, 'phone' | 'matchEmailOptIn' | 'staffContactOptIn' | 'coverOpen'>,
+  next: Pick<TeacherInput, 'phone' | 'matchEmailOptIn' | 'staffContactOptIn' | 'coverOpen' | 'videoUrl'>,
   hides: boolean,
 ): boolean {
   if (!stored || stored.phone || next.phone.trim()) return false
@@ -343,6 +346,7 @@ export function phoneWaived(
     || (stored.matchEmailOptIn && !next.matchEmailOptIn)
     || (stored.staffContactOptIn && !next.staffContactOptIn)
     || (stored.coverOpen && !next.coverOpen)
+    || (stored.publicVideo && !next.videoUrl)
 }
 const CERT_TYPES = values('cert')
 const DEGREES = values('degree')

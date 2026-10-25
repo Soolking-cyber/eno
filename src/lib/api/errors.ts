@@ -416,7 +416,6 @@ export type NicheApiErrorCode =
   | 'cv_size'
   | 'cv_store_failed'
   | 'cv_missing'
-  | 'cv_required' // a profile created since TEACHER_CV_REQUIRED_FROM keeps its CV — replace it, never remove it
   | 'cv_capacity' // the pending CV upload's per-connection day cap — "busy on this network", never "your limit"
   // Teacher CV import (POST /api/teachers/me/import, 2026-10-15):
   | 'import_unavailable' // CV reading is off on this server (no Vertex credentials) — the form hides the door; a stale tab gets this
@@ -434,7 +433,6 @@ export type NicheApiErrorCode =
   | 'photo_check_unavailable' // the check could not run (both models, storage or the day's budget) — "try again", never the photo's fault
   | 'photo_check_rate' // this account's photo checks for the hour or the day are used
   | 'photo_check_invalid' // not a photo stored on eno
-  | 'video_required' // a profile created since TEACHER_VIDEO_REQUIRED_FROM keeps an intro video — replace it, never remove it
   | 'share_required'
   | 'teacher_thread_cap'
   | 'profile_hidden'
@@ -868,7 +866,6 @@ const ALL = [
   'cv_size',
   'cv_store_failed',
   'cv_missing',
-  'cv_required',
   'cv_capacity',
   'import_unavailable',
   'import_capacity',
@@ -884,7 +881,6 @@ const ALL = [
   'photo_check_unavailable',
   'photo_check_rate',
   'photo_check_invalid',
-  'video_required',
   'share_required',
   'teacher_thread_cap',
   'profile_hidden',

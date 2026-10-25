@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// The signed-in teacher's CV (2026-09-30; REQUIRED for a new profile since 2026-10-21 — constants.ts TEACHER_CV_REQUIRED_FROM):
+// The signed-in teacher's CV (2026-09-30; required for a new profile 2026-10-22..25, optional since — constants.ts history):
 //   · POST `?pending=1` — the join form's upload BEFORE its first Publish: no profile read, TeacherPrivate never written,
 //     the object TOMBSTONED FIRST ('teacher_cv_pending') and then uploaded, the answer its token (publish.ts attaches it);
 //   · POST — the edit form's upload after its save: attached at once, the replaced CV tombstoned — as before;
-//   · DELETE — removes the saved CV, except a profile created since the cutoff keeps one (409 cv_required).
+//   · DELETE — removes the saved CV, whenever the profile was created (owner, 2026-10-25: "Allow removal").
 type Row = Record<string, any>
 const h = vi.hoisted(() => ({
   tp: null as Row | null,
@@ -184,16 +184,8 @@ describe('POST — the edit form\'s CV, after its save (unchanged)', () => {
 })
 
 describe('DELETE — the saved CV', () => {
-  it('⛔ a profile created since TEACHER_CV_REQUIRED_FROM keeps its CV: 409 cv_required, nothing removed', async () => {
-    h.tp = profile({ createdAt: new Date('2026-10-23T00:00:00+07:00') }) // the cutoff itself counts
-    const res = await del()
-    expect(res.status).toBe(409)
-    expect(await res.json()).toEqual({ error: 'cv_required' })
-    expect(h.tombstones).toEqual([])
-    expect(h.privateWrites).toEqual([])
-  })
-  it('an older profile (or one with no creation time) removes it: tombstoned, both columns cleared', async () => {
-    for (const createdAt of [new Date('2026-10-22T23:59:59+07:00'), null]) {
+  it('⛔ any profile removes it — created after the old 23 October cutoff, before it, or with no creation time: tombstoned, both columns cleared', async () => {
+    for (const createdAt of [new Date('2026-10-23T00:00:00+07:00'), new Date('2026-10-25T09:00:00+07:00'), new Date('2026-10-22T23:59:59+07:00'), null]) {
       h.tp = profile({ createdAt }); h.tombstones = []; h.privateWrites = []
       const res = await del()
       expect(res.status, String(createdAt)).toBe(200)

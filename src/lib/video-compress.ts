@@ -67,7 +67,7 @@ type AudioPlan =
  *  2. The element's own captureStream() track (Chromium, Android WebViews, Firefox) — −21.2 dB, unaffected by muted, but
  *     the sound LEADS the picture by 0.18–0.55 s, run to run (it is taken ahead of what is shown). Only where decoding
  *     cannot: a clip over the decode cap, a context that will not run. Early sound beats none.
- *  3. Neither — no sound, as before this, and never a failed upload: the teacher intro video is required.
+ *  3. Neither — no sound, as before this, and never a failed upload: the teacher intro video matters too much to lose (required 2026-10-16..25, recommended since).
  * ⚠️ The element itself stays MUTED: that is what lets play() run with no user gesture (autoplay policy, and Android
  * WebViews' mediaPlaybackRequiresUserGesture). Unmuting it would carry the sound through the old graph — and refuse to play.
  */
@@ -92,7 +92,7 @@ async function planAudio(video: HTMLVideoElement, file: File): Promise<AudioPlan
 /**
  * How long the decode may take before the clip goes on without sound. ⛔ It runs before the compression's watchdog exists, so
  * without this a decodeAudioData that never settles (a known class of WebKit bug) held "Making it smaller…" forever — and
- * the teacher intro video is required (review, 2026-10-17). A minute of sound decodes in a second or two.
+ * the teacher intro video matters too much to lose (review, 2026-10-17; required then, recommended since 2026-10-25). A minute of sound decodes in a second or two.
  */
 const DECODE_AUDIO_TIMEOUT_MS = 20_000
 

@@ -400,11 +400,11 @@ describe('the edit page’s other doors', () => {
     expect(calls.some((c) => c.url.startsWith('/api/teachers/me/cv'))).toBe(false)
   })
 
-  // ── THE CV "FROM NOW ON" (owner, 2026-10-21): a profile created since TEACHER_CV_REQUIRED_FROM that has a CV keeps one —
-  // replaced, never removed (DELETE → 409 cv_required); an older one (or a row with no creation time) keeps "optional".
+  // ── THE CV ON AN EDIT IS OPTIONAL, TO KEEP TOO (owner, 2026-10-25: "Allow removal"): a profile created after the old
+  // 23 October cutoff — replace-only until the 2026-10-25 deploy — may remove its CV like any other.
   // An edit never carries `cvUpload`: its picked CV goes up AFTER the save, attached at once by the CV route.
   describe('the CV on an edit', () => {
-    const AFTER = '2026-10-24T03:00:00.000Z' // created after the cutoff (constants.ts TEACHER_CV_REQUIRED_FROM)
+    const AFTER = '2026-10-24T03:00:00.000Z' // created after the old cutoff (constants.ts history)
     const cvSection = async (name: string) => within((await screen.findByRole('heading', { name })).closest('section')!)
     const cvCalls = () => calls.filter((c) => c.url.startsWith('/api/teachers/me/cv'))
     const routes = (extra: Record<string, (body: unknown) => { status?: number; json: unknown }>) => {
@@ -431,14 +431,14 @@ describe('the edit page’s other doors', () => {
       expect(screen.getAllByRole('button', { name: /^Add / })[0].textContent).toBe('Add your CV')
     })
 
-    it('⛔ a profile created since the cutoff with a CV: "CV", no Remove for the saved one — a new pick replaces it after the save', async () => {
+    it('⛔ a profile created since the old cutoff with a CV: "CV (optional)", Remove offered — a new pick replaces it after the save', async () => {
       row = { ...ROW, createdAt: AFTER, cvFileName: 'old-cv.pdf' }
       routes({ 'POST /api/teachers/me/cv': () => ({ json: { ok: true, cvFileName: 'new-cv.pdf' } }) })
       history.replaceState(null, '', '/teachers/edit?step=finish')
       const user = mount()
-      const cv = await cvSection('CV')
+      const cv = await cvSection('CV (optional)')
       expect(cv.getByText('old-cv.pdf')).toBeTruthy()
-      expect(cv.queryByRole('button', { name: 'Remove' })).toBeNull()
+      expect(cv.getByRole('button', { name: 'Remove' })).toBeTruthy()
       expect(cv.getByText('Replace CV')).toBeTruthy()
       await user.upload(document.querySelector<HTMLInputElement>('input[accept="application/pdf,.pdf"]')!, new File(['%PDF-1.4'], 'new-cv.pdf', { type: 'application/pdf' }))
       // A pending pick can still be let go — back to the saved one.
@@ -453,20 +453,8 @@ describe('the edit page’s other doors', () => {
       expect(screen.queryByRole('button', { name: 'Add your CV' })).toBeNull()
     })
 
-    it('a 409 cv_required from the server (it knows the profile is new) is said, and the CV stays', async () => {
-      // No creation time on the row: the form does not know — the server does.
-      row = { ...ROW, cvFileName: 'old-cv.pdf' }
-      routes({ 'DELETE /api/teachers/me/cv': () => ({ status: 409, json: { error: 'cv_required' } }) })
-      history.replaceState(null, '', '/teachers/edit?step=finish')
-      const user = mount()
-      const cv = await cvSection('CV (optional)')
-      await user.click(cv.getByRole('button', { name: 'Remove' }))
-      expect(await screen.findByText('Your profile needs a CV — upload a new one to replace it.')).toBeTruthy()
-      expect(cv.getByText('old-cv.pdf')).toBeTruthy()
-    })
-
-    it('an older profile may still remove its CV; a removal that fails is said — never silent', async () => {
-      row = { ...ROW, createdAt: '2026-10-01T03:00:00.000Z', cvFileName: 'old-cv.pdf' }
+    it('any profile — one created since the old cutoff too — removes its CV; a removal that fails is said, never silent', async () => {
+      row = { ...ROW, createdAt: AFTER, cvFileName: 'old-cv.pdf' }
       let ok = false
       routes({ 'DELETE /api/teachers/me/cv': () => (ok ? { json: { ok: true } } : { status: 500, json: { error: 'internal_error' } }) })
       history.replaceState(null, '', '/teachers/edit?step=finish')
@@ -931,6 +919,18 @@ describe('⛔ the phone on an edit, and the switches as stored (owner, 2026-10-2
     expect(screen.queryByText(phoneLine)).toBeNull()
   })
 
+  it('⛔ …and a save that REMOVES the public intro video (owner, 2026-10-25: "Allow removal") — never refused for the phone', async () => {
+    row = { ...ROW_NO_PHONE, videoUrl: 'https://sb.eno.vn/storage/v1/object/public/listing-videos/1700000000000-stored.mp4' }
+    history.replaceState(null, '', '/teachers/edit?step=finish')
+    const user = mount()
+    const video = within((await screen.findByRole('heading', { name: 'Intro video (optional)' })).closest('section')!)
+    await user.click(video.getByRole('button', { name: 'Remove' }))
+    await user.click(action('Save changes'))
+    await waitFor(() => expect(lastPut()).toBeTruthy())
+    expect(lastPut()).toMatchObject({ phone: '', videoUrl: null })
+    expect(screen.queryByText(phoneLine)).toBeNull()
+  })
+
   it('⛔ a WITHDRAWAL only (commit gate, 2026-10-22): staff calls kept on beside a switch-off still need the number', async () => {
     row = { ...ROW_NO_PHONE, ...OPTINS_ON }
     history.replaceState(null, '', '/teachers/edit?step=finish')
@@ -997,5 +997,32 @@ describe('⛔ the phone on an edit, and the switches as stored (owner, 2026-10-2
     await waitFor(() => expect(lastPut()).toBeTruthy())
     expect(lastPut()).toMatchObject({ matchEmailOptIn: true, staffContactOptIn: true, aiNotice: AI_NOTICE_VERSION })
     expect('optInDefaults' in lastPut()!).toBe(false)
+  })
+})
+
+describe('a profile published without its intro video or CV (owner, 2026-10-22: "publish before video/CV")', () => {
+  it('the edit page asks for both, on every step but Photo & publish — "Add now" opens that step — and why', async () => {
+    const user = mount()
+    const card = await screen.findByTestId('add-media-card')
+    expect(within(card).getByText('Add your intro video and CV — schools ask for a CV first, and a video helps them get to know you.')).toBeTruthy()
+    await user.click(within(card).getByRole('button', { name: 'Add now' }))
+    expect(await screen.findByRole('heading', { name: 'Intro video (optional)' })).toBeTruthy()
+    expect(screen.queryByTestId('add-media-card')).toBeNull()
+  })
+  it('only the CV missing (a private video counts as a video): the CV line', async () => {
+    row = { ...ROW, hasPrivateVideo: true }
+    mount()
+    expect(within(await screen.findByTestId('add-media-card')).getByText('Add your CV — schools ask for it first.')).toBeTruthy()
+  })
+  it('only the video missing: the video line', async () => {
+    row = { ...ROW, cvFileName: 'my-cv.pdf' }
+    mount()
+    expect(within(await screen.findByTestId('add-media-card')).getByText('Add an intro video — it helps schools get to know you.')).toBeTruthy()
+  })
+  it('both there: no card', async () => {
+    row = { ...ROW, videoUrl: 'https://sb.eno.vn/storage/v1/object/public/listing-videos/u1/hello.mp4', cvFileName: 'my-cv.pdf' }
+    mount()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    expect(screen.queryByTestId('add-media-card')).toBeNull()
   })
 })

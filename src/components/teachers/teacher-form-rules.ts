@@ -85,7 +85,8 @@ export function refusalEvents(errs: TeacherErrors): RefusalEvent[] {
  * Can this picked file be the CV? Judged as the upload judges it (cv-store.ts — the bucket takes a PDF of at most
  * TEACHER_CV_MAX_BYTES, and the server reads its first bytes): 'size' when it is over the limit, 'type' only when it is
  * plainly something else — a known other type, or a known other extension with no type to go by — null when it may go up
- * (owner, 2026-10-21: the CV is required, so a file that can never go up is said when it is picked, not at Publish).
+ * (owner, 2026-10-21 — the CV was required then, recommended since 2026-10-25: a file that can never go up is said when it
+ * is picked, not at Publish).
  * ⛔ NO TYPE IS NOT "NOT A PDF" (commit gate, opus 2026-10-22): Android's in-app browsers — Zalo's, Facebook's and
  * Messenger's, the teacher funnel's own traffic — can hand over a Drive or storage-app PDF with an empty or
  * octet-stream type and a name with no extension ("document", "1000123456"); refused here, a real PDF would block the

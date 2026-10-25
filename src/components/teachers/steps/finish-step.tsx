@@ -5,12 +5,11 @@
 //     at the last tap.
 //   · Profile photo (required) — "Use my account photo" when the account's photo is stored on eno.vn. CHECKED (owner,
 //     2026-10-16): Gemini says whether it is a real photo showing a face — the answer, or the re-check's ask, is said here.
-//   · Intro video — REQUIRED for a new profile and one created since TEACHER_VIDEO_REQUIRED_FROM (owner, 2026-10-16:
-//     "make short intor video mandatory from now on"), optional for older ones; such a profile can replace its video,
-//     never remove it. "Who can watch it?" appears only once there IS a video. The video's homes and moves are
+//   · Intro video — RECOMMENDED for a new profile, optional to publish and to keep (owner, 2026-10-22: "publish before
+//     video/CV", then, 2026-10-25, "Allow removal"; it was required 2026-10-16..25, "make short intor video mandatory from now on"). "Who can watch it?" appears only once there IS a video. The video's homes and moves are
 //     src/lib/teachers/video.ts; the form never holds a private video's address (teacher-form.tsx owns those calls).
-//   · CV (private) — REQUIRED for a new profile and one created since TEACHER_CV_REQUIRED_FROM (owner, 2026-10-21: "they
-//     should include cv"), optional for older ones; such a profile can replace its CV, never remove it. A pick is
+//   · CV (private) — RECOMMENDED for a new profile, optional to publish and to keep (owner, 2026-10-22; it was required
+//     2026-10-22..25, "they should include cv"). A pick is
 //     checked as it is made (a PDF, 10 MB at most); a new profile's goes up just before its Publish (teacher-form.tsx).
 //   · Phone (private) — REQUIRED on every save since 2026-10-22 (owner: "phone number is mandatory"; it was required only
 //     while "Our staff may call me" was on — 2026-10-08). A profile saved without one adds it the next time it is saved;
@@ -244,16 +243,12 @@ export function IdentityMarkSection({ mark }: { mark: FinishIdentityMark }) {
   )
 }
 
-export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGate, prefillAvatar, prefillPhone, imported = null, media, edit, optInsNoticeChanged, optIns, identityMark, photoCheck = null, photoAsk = null, videoRequired = false, cvRequired = false, videoProgress = null }: Pick<StepProps, 't' | 'set' | 'errors' | 'errText' | 'mode'> & {
+export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGate, prefillAvatar, prefillPhone, imported = null, media, edit, optInsNoticeChanged, optIns, identityMark, photoCheck = null, photoAsk = null, videoProgress = null }: Pick<StepProps, 't' | 'set' | 'errors' | 'errText' | 'mode'> & {
   signedIn: boolean
   /** The photo check's answer for the photo on the page (teacher-form.tsx) — null: not asked, or no check on this server. */
   photoCheck?: { state: 'checking' | 'ok' | 'fail' | 'unavailable'; reason?: 'not_photo' | 'no_face' } | null
   /** Edit: the saved photo was asked about by the re-check (and not approved since) — the reason. */
   photoAsk?: { reason: string } | null
-  /** A new profile, or one created since the cutoff: the video is required, and can be replaced but never removed. */
-  videoRequired?: boolean
-  /** The same for the CV (constants.ts TEACHER_CV_REQUIRED_FROM): a pick can still be let go, the SAVED CV only replaced. */
-  cvRequired?: boolean
   /** A clip over the storage ceiling being made smaller: its progress, 0–1. */
   videoProgress?: number | null
   publishGate: { ok: boolean; code: string | null } | null
@@ -333,16 +328,21 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
 
       <section className="space-y-3" {...(errors.videoUrl ? { 'data-invalid': '' } : {})}>
         <div>
-          <h2 className="text-base font-semibold text-foreground">{videoRequired ? tr('Intro video', 'Video giới thiệu') : tr('Intro video (optional)', 'Video giới thiệu (không bắt buộc)')}</h2>
+          <h2 className="text-base font-semibold text-foreground">{mode === 'join' ? tr('Intro video (recommended)', 'Video giới thiệu (nên có)') : tr('Intro video (optional)', 'Video giới thiệu (không bắt buộc)')}</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">{tr('Up to 5 minutes: say hello and show how you teach.', 'Tối đa 5 phút: chào hỏi và cho thấy cách bạn dạy.')}</p>
+          {/* A new profile publishes without it (owner, 2026-10-22) — so it says why to add it (measured 2026-10-20: profiles
+              with a video got 1.6–2.5× the views, but that is said nowhere: a correlation, never a promise — review, 2026-10-25),
+              and that later is fine. */}
+          {mode === 'join' && (
+            <p className="mt-0.5 text-sm text-muted-foreground">{tr('An intro video helps schools get to know you. You can also add it after you publish.', 'Video giới thiệu giúp các trường hiểu bạn hơn. Bạn cũng có thể thêm sau khi đăng hồ sơ.')}</p>
+          )}
         </div>
         {t.videoUrl ? (
           // Wraps on a phone: at h-40 a 16:9 player is ~284px wide, and "Remove" beside it overflowed 375px (preview check).
           <div className="flex flex-wrap items-center gap-3">
             <video src={t.videoUrl} controls className="h-40 max-w-full rounded-xl bg-black" />
-            {/* Required (a new profile, or one created since the cutoff): replaced, never removed — the server refuses it. A
-                new upload over a saved PRIVATE video still has its Remove: it only drops this upload, never the video. */}
-            {(!videoRequired || media.privateVideo) && <Button variant="ghost" size="sm" type="button" onClick={() => set('videoUrl', null)}><X className="size-4" />{tr('Remove', 'Xoá')}</Button>}
+            {/* Over a saved PRIVATE video, Remove drops only this upload, never the saved video. */}
+            <Button variant="ghost" size="sm" type="button" onClick={() => set('videoUrl', null)}><X className="size-4" />{tr('Remove', 'Xoá')}</Button>
             {/* A new upload over a private video: say what Save will do — Remove brings the private one's card back. */}
             {media.privateVideo && <p className="w-full text-xs text-muted-foreground">{tr('Saving replaces your private intro video with this one. Anyone you sent the old one to will need you to send it again.', 'Khi lưu, video này sẽ thay video giới thiệu riêng tư của bạn. Những người đã nhận video cũ sẽ cần bạn gửi lại.')}</p>}
           </div>
@@ -354,7 +354,7 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
               ? tr('Your intro video is saved privately. The person you are chatting with sees it only when you send it in that chat.', 'Video giới thiệu của bạn được lưu riêng tư. Người bạn đang trò chuyện chỉ xem được khi bạn gửi trong tin nhắn với họ.')
               : tr('Your private intro video will be shown on your profile when you save.', 'Video giới thiệu riêng tư sẽ được hiển thị trên hồ sơ khi bạn lưu.')}</p>
             {!media.ownVideoUrl && <Button variant="ghost" size="sm" type="button" onClick={media.onWatchOwnVideo} loading={media.ownVideoBusy}><Play className="size-4" />{tr('Watch', 'Xem')}</Button>}
-            {videoRequired ? null : media.confirmVideoRemove ? (
+            {media.confirmVideoRemove ? (
               <span className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">{tr('Anyone you sent it to will lose access.', 'Những người bạn đã gửi sẽ không xem được nữa.')}</span>
                 <Button variant="destructive" size="sm" type="button" onClick={media.onRemovePrivateVideo} loading={media.videoRemoving}>{tr('Remove for good', 'Xoá vĩnh viễn')}</Button>
@@ -413,13 +413,16 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
 
       <section className="space-y-3" {...(errors.cv ? { 'data-invalid': '' } : {})}>
         <div>
-          <h2 className="text-base font-semibold text-foreground">{cvRequired ? tr('CV', 'CV') : tr('CV (optional)', 'CV (không bắt buộc)')}</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">{cvRequired
+          <h2 className="text-base font-semibold text-foreground">{mode === 'join' ? tr('CV (recommended)', 'CV (nên có)') : tr('CV (optional)', 'CV (không bắt buộc)')}</h2>
+          <p className="mt-0.5 text-sm text-muted-foreground">{mode === 'join'
             ? tr('PDF, up to 10 MB. Schools ask for it first. Private: the person you are chatting with gets it only when you tap the Share button in that chat.', 'PDF, tối đa 10 MB. Các trường thường hỏi CV trước tiên. Riêng tư: người đang trò chuyện với bạn chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ.')
             : tr('PDF, up to 10 MB. Private: the person you are chatting with gets it only when you tap the Share button in that chat.', 'PDF, tối đa 10 MB. Riêng tư: người đang trò chuyện với bạn chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ.')}</p>
           {/* Said where the file is chosen (gate review, codex + opus 2026-10-22; PDPL minimisation — dossier §8 q14c): a
               required CV is the one upload that can carry what eno never asks for. */}
           <p className="mt-0.5 text-sm text-muted-foreground">{tr('Leave out what schools don’t need — health details, ID numbers, your referees’ phone numbers.', 'Hãy bỏ những gì trường không cần — thông tin sức khỏe, số giấy tờ, số điện thoại của người giới thiệu.')}</p>
+          {mode === 'join' && (
+            <p className="mt-0.5 text-sm text-muted-foreground">{tr('No CV ready? Publish now and add it later from your profile.', 'Chưa có CV? Hãy đăng hồ sơ ngay và thêm CV sau trong hồ sơ của bạn.')}</p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {(media.cvFile || media.cvName) && <span className="inline-flex min-w-0 items-center gap-2 text-sm text-body [overflow-wrap:anywhere]"><FileText className="size-4 shrink-0" />{media.cvFile?.name ?? media.cvName}</span>}
@@ -429,12 +432,10 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
             {/* Not while a Publish is on its way: a new profile's pick is being uploaded for it right then. */}
             <input type="file" accept="application/pdf,.pdf" className="sr-only" disabled={!signedIn || media.busy === 'saving'} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) media.onCvPick(f) }} />
           </label>
-          {/* Required (a new profile, or one created since the cutoff): the saved CV is replaced, never removed — the server
-              refuses it (409 cv_required). */}
           {/* ⛔ …and nothing about the CV changes while a Publish / Save is on its way (commit gate, codex 2026-10-22): that
               save already carries the file it read when it started, so a Remove or "Keep my saved CV" tapped meanwhile
               would be undone by it — every CV control waits, as the file input does. */}
-          {media.onCvRemove && media.cvName && !media.cvFile && !cvRequired && <Button variant="ghost" size="sm" type="button" disabled={media.busy === 'saving'} onClick={media.onCvRemove}><Trash2 className="size-4" />{tr('Remove', 'Xoá')}</Button>}
+          {media.onCvRemove && media.cvName && !media.cvFile && <Button variant="ghost" size="sm" type="button" disabled={media.busy === 'saving'} onClick={media.onCvRemove}><Trash2 className="size-4" />{tr('Remove', 'Xoá')}</Button>}
           {/* ⛔ A PICK IS NOT A COMMITMENT (gate review, 2026-10-08): a picked file is uploaded only by Publish / Save
               changes, and until then it can be let go — "Replace CV" alone left no way back to no CV, or to the saved
               one, short of abandoning the form. Over a saved CV it says which one stays. */}

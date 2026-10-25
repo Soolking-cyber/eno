@@ -22,7 +22,7 @@ import {
   copyPrivateVideoToPublic, copyPublicVideoToPrivate, ownsPublicVideo, privateVideoPathFor, publicVideoKeyFor,
   removeUnreferencedPrivateVideos,
 } from '@/lib/teachers/video-store'
-import { IDENTITY_MARK_NOTICE_VERSION, TEACHERS_CATEGORY_SLUG, TEACHER_LISTING_TYPE, isCvUploadToken, videoRequiredSince } from '@/lib/teachers/constants'
+import { IDENTITY_MARK_NOTICE_VERSION, TEACHERS_CATEGORY_SLUG, TEACHER_LISTING_TYPE, isCvUploadToken } from '@/lib/teachers/constants'
 import { cvPathFor, safeCvFileName } from '@/lib/teachers/cv-store'
 import { PhotoCheckUnavailable, recordPhotoRefusal, teacherPhotoKey, teacherPhotoVerdict } from '@/lib/teachers/photo-verdict'
 import { districtPagesOf, revalidateTeacherPages } from '@/lib/teachers/revalidate'
@@ -176,13 +176,6 @@ export class TeacherPhotoCheckUnavailableError extends Error {
     this.name = 'TeacherPhotoCheckUnavailableError'
   }
 }
-/** A profile created since TEACHER_VIDEO_REQUIRED_FROM keeps its intro video → 409 video_required (replace, never remove). */
-export class TeacherVideoRequiredError extends Error {
-  constructor() {
-    super('video_required')
-    this.name = 'TeacherVideoRequiredError'
-  }
-}
 
 /** The stored intro-video state, as the planner reads it. */
 const VIDEO_STATE_SELECT = { videoOnRequest: true, videoUrl: true, videoVersion: true, private: { select: { videoPath: true } } } as const
@@ -334,7 +327,7 @@ export function screenTeacherTexts(t: TeacherInput) {
  *  (identity-mark.ts identityMarkHidden — its two columns) — READ, never written, by an edit: the card's tick follows the
  *  name this save writes (below). */
 const LOCKED_SELECT = {
-  id: true, listingId: true, createdAt: true, ...STORED_COVER_SELECT, videoVersion: true, yearsExperience: true, teachAreas: true, teachAreasConfirmedAt: true,
+  id: true, listingId: true, createdAt: true, ...STORED_COVER_SELECT, videoVersion: true, videoUrl: true, yearsExperience: true, teachAreas: true, teachAreasConfirmedAt: true,
   currentDistrictKey: true, currentDistrict: true,
   consentPublicVersion: true, consentPublicAt: true,
   matchEmailOptIn: true, matchEmailOptInAt: true, matchEmailNoticeVersion: true, matchEmailWithdrawnAt: true,
@@ -367,6 +360,11 @@ const cvUploadOf = (raw: unknown): string | null => {
   const v = raw && typeof raw === 'object' ? (raw as Record<string, unknown>).cvUpload : undefined
   return isCvUploadToken(v) ? v : null
 }
+/** A `cvUpload` that is THERE — not absent, not null — but no token: a CV the form meant to attach and cannot name. */
+const cvUploadUnnamed = (raw: unknown): boolean => {
+  const v = raw && typeof raw === 'object' ? (raw as Record<string, unknown>).cvUpload : undefined
+  return v !== undefined && v !== null && !isCvUploadToken(v)
+}
 const cvFileNameOf = (raw: unknown): unknown => (raw && typeof raw === 'object' ? (raw as Record<string, unknown>).cvFileName : undefined)
 /** A pending upload is attached only with at least this much of its grace hour left (the sweep never meets a claimed one). */
 const CV_PENDING_MIN_GRACE_MS = 10 * 60_000
@@ -398,9 +396,10 @@ const optInDefaultsOf = (raw: unknown): { reported: boolean; matchEmail: boolean
  * (plan review D6) — the form says so.
  * `identityMarkHidden: true` in the body (hiddenAtPublish): the join form's "Identity verified" switch, turned off before
  * the first Publish — recorded as a hide by the save that CREATES the profile, ignored by every other.
- * `cvUpload` + `cvFileName` in the body (cvUploadOf): the CV the join form uploaded before this save — REQUIRED by the save
- * that creates the profile (TeacherValidationError `cv`: 'required' with no token, 'expired' when its pending upload is
- * gone), which attaches it in its own transaction; ignored by every other.
+ * `cvUpload` + `cvFileName` in the body (cvUploadOf): the CV the join form uploaded before this save — attached by the save
+ * that creates the profile, in its own transaction, when one is named (TeacherValidationError `cv`: 'expired' when its
+ * pending upload is gone); a create that names none publishes without a CV (owner, 2026-10-22: publish before video/CV);
+ * ignored by every other save.
  */
 export async function saveTeacherProfile(
   profile: { id: string; email: string | null },
@@ -415,10 +414,6 @@ export async function saveTeacherProfile(
   if (isLegacyTeacherBody(raw)) throw new TeacherProfileChangedError()
   // ⛔ THE PUBLISH TAP IS THE CONSENT — under the notice beside it, and only that one (stamped below).
   if (!noticeIs(raw, 'publishNotice', PUBLISH_NOTICE_VERSION)) throw new TeacherNoticeChangedError('publish')
-  // ⛔ …and a CREATE from a tab opened before the CV was required (the 2026-10-22 deploy) carries no `cvUpload` KEY at all:
-  // its form has no CV refusal to show (no 'cv' field, no error line), so a {cv:'required'} would leave it silent. Its
-  // wording is out of date — "reload the page" (409 notice_changed), and the reloaded form asks for the CV.
-  if (expected === null && !(raw && typeof raw === 'object' && Object.hasOwn(raw, 'cvUpload'))) throw new TeacherNoticeChangedError('publish')
   // The whole cover, every time — none of it is refused like part of it (coverPartOf): absence is never read as "off".
   if (coverPartOf(raw) !== 'all') throw new TeacherValidationError({ coverOpen: 'incomplete' })
   const parsed = normalizeTeacherInput(raw)
@@ -435,16 +430,19 @@ export async function saveTeacherProfile(
   if (!isListingImageUrl(t.photoUrl)) errors.photoUrl = 'required'
   const video = parseVideoField(t.videoUrl)
   if (t.videoUrl && video.action !== 'set') errors.videoUrl = 'invalid'
-  // ⛔ THE CV "FROM NOW ON" (owner, 2026-10-21): a body that claims a CREATE names the CV it uploaded first (cvUploadOf) —
-  // refused with the other answers when it does not, so the form shows them together. Judged again under the lock, where
-  // it is known whether this save creates.
-  if (expected === null && !cvUploadOf(raw)) errors.cv = 'required'
+  // ⛔ PUBLISH BEFORE VIDEO/CV (owner, 2026-10-22): a CREATE no longer needs the CV (or the intro video) — after the video
+  // and then the CV became required, teachers publishing within a day fell from 80% to 47% and real-browser publishes to a
+  // third. A create that names an uploaded CV still attaches it (under the lock, below); one that names none publishes
+  // without, and the CV route attaches one later — or removes it (owner, 2026-10-25: "Allow removal").
   // ⛔ THE PHONE "ON NEXT SAVE" (owner, 2026-10-22: "phone number is mandatory" — "Everyone, on next save"): refused with
   // the other answers for a body that claims a CREATE (`null`). Any other — an edit, or a caller that names no profile
   // (outside the PUT route) — is judged once the saved profile is read, below: a profile with no phone yet may still save
   // a withdrawal without one (phoneWaived), only the saved row says what it had on, and no saved row is a create, refused
   // there (commit gate, 2026-10-22: a withdrawal is waived whoever sends it). 'invalid' (junk) is refused always.
   if (expected !== null && errors.phone === 'required') delete errors.phone
+  // A body that claims a CREATE and names a CV it cannot (cvUploadUnnamed): refused here, before the photo check and any
+  // bucket copy (review, 2026-10-25) — and again under the lock, for a create no body claimed.
+  if (expected === null && cvUploadUnnamed(raw)) errors.cv = 'expired'
   if (Object.keys(errors).length) throw new TeacherValidationError({ ...goalErrors, ...errors })
   if (Object.keys(goalErrors).length && expected === null) throw new TeacherValidationError(goalErrors)
   screenTeacherTexts(t)
@@ -457,7 +455,7 @@ export async function saveTeacherProfile(
       where: { profileId: profile.id },
       select: {
         id: true, listingId: true, status: true, photoUrl: true, createdAt: true,
-        matchEmailOptIn: true, staffContactOptIn: true, coverOpen: true, private: { select: { phone: true } },
+        matchEmailOptIn: true, staffContactOptIn: true, coverOpen: true, videoUrl: true, private: { select: { phone: true } },
       },
     }),
   ])
@@ -473,6 +471,7 @@ export async function saveTeacherProfile(
     const stored = {
       phone: !!existing.private?.phone?.trim(),
       matchEmailOptIn: existing.matchEmailOptIn, staffContactOptIn: existing.staffContactOptIn, coverOpen: existing.coverOpen,
+      publicVideo: !!existing.videoUrl,
     }
     if (!phoneWaived(stored, t, hides)) throw new TeacherValidationError({ phone: 'required' })
   }
@@ -524,13 +523,9 @@ export async function saveTeacherProfile(
     if (plan.code === 'video_not_owned') throw new TeacherValidationError({ videoUrl: 'not_owned' })
     throw new TeacherVideoConflictError()
   }
-  // ⛔ THE INTRO VIDEO "FROM NOW ON" (owner, 2026-10-16): a new profile publishes with one, and a profile created since
-  // TEACHER_VIDEO_REQUIRED_FROM keeps one (replaced, never removed) — public or private, either counts. Judged here on the
-  // read before the lock, before any bucket copy; again under the lock, where it is known whether a profile exists.
-  // ⚠️ An existing profile is held to it only while it HAS a video (gate review, 2026-10-16): one made after the cutoff
-  // under the old code — a deploy that slipped past the date — never had one, and an edit must never demand one now.
-  const preHadVideo = !!(preStored?.videoUrl || preStored?.videoPath)
-  if (plan.home.kind === 'none' && (!existing || (videoRequiredSince(existing.createdAt) && preHadVideo))) throw new TeacherValidationError({ videoUrl: 'required' })
+  // THE INTRO VIDEO IS OPTIONAL — to publish and to keep (owner: "publish before video/CV" 2026-10-22, "Allow removal" 2026-10-25
+  // of a video or CV once added). It was required of new profiles 2026-10-16..25, and a profile created from 2026-10-18 could
+  // only replace one; both rules are gone — a save may set, replace or remove it.
   let finalVideoUrl: string | null = plan.home.kind === 'public' ? plan.home.url : null
   let finalVideoPath: string | null = plan.home.kind === 'private' ? plan.home.path : null
   // The copy's destination is tombstoned FIRST: a crash after the upload then cannot orphan it (the sweep deletes it
@@ -573,6 +568,7 @@ export async function saveTeacherProfile(
     if (locked && !t.phone && !phoneWaived({
       phone: !!locked.private?.phone?.trim(),
       matchEmailOptIn: locked.matchEmailOptIn, staffContactOptIn: locked.staffContactOptIn, coverOpen: locked.coverOpen,
+      publicVideo: !!locked.videoUrl,
     }, t, hides)) throw new TeacherValidationError({ phone: 'required' })
     // Read under the lock, so a cover save racing this one cannot make consent/withdrawal lie.
     assertCoverBase(coverBaseOf(raw), locked)
@@ -580,8 +576,8 @@ export async function saveTeacherProfile(
     // version, so an unchanged version proves nothing moved in between; otherwise refuse (the copy's tombstone collects it).
     if ((locked?.videoVersion ?? null) !== (pre?.videoVersion ?? null)) throw new TeacherVideoConflictError()
     // (The video state read before the lock still holds: the version check just above proves nothing moved.)
-    if (plan.home.kind === 'none' && (!locked || (videoRequiredSince(locked.createdAt) && preHadVideo))) throw new TeacherValidationError({ videoUrl: 'required' })
-    // ⛔ THE CV, ATTACHED BY THE SAVE THAT CREATES THE PROFILE (owner, 2026-10-21) — no row under the lock: its token, and the
+    // ⛔ THE CV, ATTACHED BY THE SAVE THAT CREATES THE PROFILE WHEN IT NAMES ONE (owner, 2026-10-21; optional at publish since
+    // 2026-10-22 — a create naming none publishes without, and the CV route attaches one later) — no row under the lock: its token, and the
     // upload's PENDING tombstone still there, at the path rebuilt from THIS account's id. Gone means the sweep took it (an
     // hour after the upload) or it was never this account's: 'expired' — the form uploads it again and saves once more. An
     // edit never reads either field; its CV is the CV route's (attach after save, replace, the cutoff's 409).
@@ -589,9 +585,12 @@ export async function saveTeacherProfile(
     // sweep mid-run — claimed here, its file removed there. The form never names one older than half that hour
     // (teacher-form.tsx CV_PENDING_REUSE_MS), so this refuses only a replayed token, as 'expired' (gate review, 2026-10-21).
     let cvAttach: { path: string; fileName: string } | null = null
-    if (!locked) {
-      const token = cvUploadOf(raw)
-      if (!token) throw new TeacherValidationError({ cv: 'required' })
+    const token = !locked ? cvUploadOf(raw) : null
+    // ⛔ A `cvUpload` that is THERE but no token (review, 2026-10-25): the form sends a token or null — anything else is a
+    // CV it meant to attach and cannot name, never "no CV": refused as 'expired', so the form uploads it again (it did
+    // with 'required' while the CV was required). Absent or null alone means "publish without a CV".
+    if (!locked && cvUploadUnnamed(raw)) throw new TeacherValidationError({ cv: 'expired' })
+    if (token) {
       const path = cvPathFor(profile.id, token)
       const pendingCv = await tx.storageTombstone.findUnique({ where: { bucket_path: { bucket: TEACHER_CVS_BUCKET, path } }, select: { reason: true, notBefore: true } })
       if (pendingCv?.reason !== 'teacher_cv_pending' || pendingCv.notBefore.getTime() - Date.now() < CV_PENDING_MIN_GRACE_MS) throw new TeacherValidationError({ cv: 'expired' })
@@ -1031,8 +1030,6 @@ export async function deleteTeacherVideo(profileId: string, base: number | null,
     const path = tp?.private?.videoPath
     if (!tp || !path) return null
     if (base === null || base !== tp.videoVersion) throw new TeacherVideoConflictError()
-    // A profile created since TEACHER_VIDEO_REQUIRED_FROM keeps its intro video: replaced by a save, never removed here.
-    if (videoRequiredSince(tp.createdAt)) throw new TeacherVideoRequiredError()
     await writeTombstones(tx, [{ bucket: TEACHER_VIDEOS_BUCKET, path }], 'teacher_video_replaced')
     await tx.teacherPrivate.update({ where: { teacherProfileId: tp.id }, data: { videoPath: null } })
     const saved = await tx.teacherProfile.update({ where: { id: tp.id }, data: { videoVersion: { increment: 1 } }, select: { videoVersion: true, videoOnRequest: true } })

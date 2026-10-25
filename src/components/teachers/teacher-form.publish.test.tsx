@@ -97,11 +97,11 @@ const lastPut = () => calls.filter((c) => c.method === 'PUT').at(-1)?.body as Re
 const puts = () => calls.filter((c) => c.method === 'PUT' && c.url === '/api/teachers/me')
 /** Every CV upload the form sent — the join form's go up as PENDING ones (`?pending=1`), before its Publish. */
 const cvPosts = () => calls.filter((c) => c.method === 'POST' && c.url.startsWith('/api/teachers/me/cv'))
-/** The CV section (its heading is "CV" where it is required — every new profile — else "CV (optional)"). */
-const cvSection = async () => within((await screen.findByRole('heading', { name: /^CV( \(optional\))?$/ })).closest('section')!)
+/** The CV section (its heading: "CV (recommended)" on a new profile, "CV (optional)" on an edit — since 2026-10-25). */
+const cvSection = async () => within((await screen.findByRole('heading', { name: /^CV \((optional|recommended)\)$/ })).closest('section')!)
 /**
  * The account photo is on the page by itself (prefill); the intro video is added and a PDF picked as the CV — what every
- * Publish below needs (both required for a new profile: the video since 2026-10-16, the CV since 2026-10-21).
+ * Publish below may carry (both optional since 2026-10-25; required of a new profile from 2026-10-16 / 2026-10-21).
  * `cv: false` leaves the CV out, for the tests of the CV itself.
  */
 async function addVideo(user: ReturnType<typeof userEvent.setup>, { cv = true }: { cv?: boolean } = {}) {
@@ -205,7 +205,7 @@ describe('step 6 · Photo & publish', () => {
     expect(lastPut()).toBeUndefined()
   })
 
-  it('⛔ a picked CV can be let go before Publish — back to none — and the Publish is then refused on the CV, nothing uploaded (gate review, 2026-10-08; required since 2026-10-21)', async () => {
+  it('⛔ a picked CV can be let go before Publish — back to none — and the Publish then goes WITHOUT one: nothing uploaded, the PUT names none (owner, 2026-10-22: publish before video/CV)', async () => {
     putDraft(COMPLETE, 'finish')
     const user = mount()
     const cv = await cvSection()
@@ -216,9 +216,9 @@ describe('step 6 · Photo & publish', () => {
     expect(cv.getByText('Choose PDF')).toBeTruthy()
     await addVideo(user, { cv: false })
     await user.click(action('Publish profile'))
-    expect(await cv.findByText(/^Please add your CV — a PDF up to 10 MB/)).toBeTruthy()
-    expect(lastPut()).toBeUndefined()
+    expect(await screen.findByText('Your profile is live')).toBeTruthy()
     expect(cvPosts()).toEqual([])
+    expect(lastPut()).toMatchObject({ cvUpload: null })
   })
 
   it('⛔ the account photo and phone FILL empty answers (owner, 2026-10-16: "autofill as much as possible") — never over one given', async () => {
@@ -232,14 +232,22 @@ describe('step 6 · Photo & publish', () => {
     expect(screen.getByRole('button', { name: /Use my number/ })).toBeTruthy()
   })
 
-  it('⛔ a new profile needs its intro video — Publish without one is refused on the video (owner, 2026-10-16)', async () => {
+  it('⛔ a new profile is ASKED for its intro video, never refused for it — "recommended", why, and that later is fine (owner, 2026-10-22: publish before video/CV)', async () => {
+    resetTeacherFormCountsForTests()
     putDraft(COMPLETE, 'finish')
     const user = mount()
-    expect(await screen.findByRole('heading', { name: 'Intro video' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Intro video (recommended)' })).toBeTruthy()
+    expect(screen.getByText('An intro video helps schools get to know you. You can also add it after you publish.')).toBeTruthy()
     await waitFor(() => expect(document.querySelector(`img[src="${PHOTO}"]`)).toBeTruthy())
     await user.click(action('Publish profile'))
-    expect(await screen.findByText(/Please add a short intro video/)).toBeTruthy()
-    expect(lastPut()).toBeUndefined()
+    // No video and no CV: it publishes, and the done screen asks for both first, with why.
+    expect(await screen.findByText('Your profile is live')).toBeTruthy()
+    expect(screen.queryByText(/Please add a short intro video/)).toBeNull()
+    expect(lastPut()).toMatchObject({ cvUpload: null })
+    expect(screen.getByText('Schools ask for a CV first, and an intro video helps them get to know you.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Add your CV' }).getAttribute('href')).toBe('/teachers/edit?step=finish')
+    expect(screen.getByRole('link', { name: 'Add an intro video' }).getAttribute('href')).toBe('/teachers/edit?step=finish')
+    expect(calls.some((c) => c.url === '/api/signup-prompt' && ['publish_refused_video', 'publish_refused_cv'].includes((c.body as { t?: string } | null)?.t ?? ''))).toBe(false)
   })
 
   it('an identity check the account still needs shows at the TOP of the step, not as a refusal at the last tap', async () => {
@@ -420,7 +428,7 @@ describe('Publish', () => {
 // (POST /api/teachers/me/cv?pending=1) and the PUT names its token (publish.ts cvUploadOf). A pick is checked as it is
 // made; an upload that fails refuses the Publish on the CV with nothing sent; one the server no longer holds ('expired')
 // is uploaded again and the PUT sent once more. ────────────────────────────────────────────────────────────────────────
-describe('the CV — required for a new profile, uploaded before its Publish', () => {
+describe('the CV — recommended for a new profile (required 2026-10-22..25), uploaded before its Publish when picked', () => {
   const LIVE = { json: { listingId: 'L1', teacherProfileId: 'tp1', live: true, noGoal: false, cover: null, video: null } }
   const counted = (e: string) => calls.some((c) => c.url === '/api/signup-prompt' && (c.body as { t?: string } | null)?.t === e)
   /** The Publish button once the last tap has settled (it reads "Saving…", disabled, while one is on its way). */
@@ -429,29 +437,24 @@ describe('the CV — required for a new profile, uploaded before its Publish', (
     return action('Publish profile')
   }
 
-  it('⛔ Publish without a CV is refused ON THE CV SECTION — marked invalid, the line, the counter — nothing uploaded, no PUT', async () => {
+  it('⛔ Publish without a CV goes through — "recommended", why, that later is fine — nothing uploaded, no refusal counted (owner, 2026-10-22)', async () => {
     resetTeacherFormCountsForTests()
     putDraft(COMPLETE, 'finish')
     const user = mount()
-    // Required, so said so: no "(optional)", and why schools want it — still private.
     const cv = await cvSection()
-    expect(screen.getByRole('heading', { name: 'CV' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'CV (recommended)' })).toBeTruthy()
     expect(screen.queryByText('CV (optional)')).toBeNull()
     expect(cv.getByText(/^PDF, up to 10 MB\. Schools ask for it first\. Private:/)).toBeTruthy()
     // …and what to leave out of it, said where it is chosen (PDPL minimisation — gate review, 2026-10-22).
     expect(cv.getByText('Leave out what schools don’t need — health details, ID numbers, your referees’ phone numbers.')).toBeTruthy()
+    expect(cv.getByText('No CV ready? Publish now and add it later from your profile.')).toBeTruthy()
     await addVideo(user, { cv: false })
     await user.click(action('Publish profile'))
-    expect(await cv.findByText('Please add your CV — a PDF up to 10 MB. It stays private: schools get it only when you share it in a chat.')).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'CV' }).closest('section')!.hasAttribute('data-invalid')).toBe(true)
-    expect(lastPut()).toBeUndefined()
+    expect(await screen.findByText('Your profile is live')).toBeTruthy()
     expect(cvPosts()).toEqual([])
-    await waitFor(() => expect(counted('publish_refused_cv')).toBe(true))
-    // …and a pick clears the line.
-    await user.upload(cvInput(), pdf())
-    expect(await cv.findByText('my-cv.pdf')).toBeTruthy()
-    expect(cv.queryByText(/^Please add your CV/)).toBeNull()
-    expect(screen.getByRole('heading', { name: 'CV' }).closest('section')!.hasAttribute('data-invalid')).toBe(false)
+    expect(lastPut()).toMatchObject({ cvUpload: null })
+    expect(counted('publish_refused_cv')).toBe(false)
+    expect(screen.getByRole('link', { name: 'Add your CV' })).toBeTruthy()
   })
 
   it('⛔ the CV goes up as a PENDING upload BEFORE the PUT, and the PUT names it — its token and name, never a path', async () => {
@@ -483,15 +486,15 @@ describe('the CV — required for a new profile, uploaded before its Publish', (
     await addVideo(user)
     await user.click(action('Publish profile'))
     const cv = await cvSection()
-    expect(await cv.findByText('Your CV didn’t upload. Please try again.')).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'CV' }).closest('section')!.hasAttribute('data-invalid')).toBe(true)
+    expect(await cv.findByText('Your CV didn’t upload. Please try again — or remove it and add it later.')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'CV (recommended)' }).closest('section')!.hasAttribute('data-invalid')).toBe(true)
     expect(puts()).toEqual([])
     expect(cv.getByText('my-cv.pdf')).toBeTruthy()
     // A network failure is the same line — never "Something went wrong" over a Publish that was never sent.
     fail = 'network'
     await user.click(await publishReady())
     await waitFor(() => expect(cvPosts()).toHaveLength(2))
-    expect(await cv.findByText('Your CV didn’t upload. Please try again.')).toBeTruthy()
+    expect(await cv.findByText('Your CV didn’t upload. Please try again — or remove it and add it later.')).toBeTruthy()
     expect(screen.queryByText('Something went wrong. Please try again.')).toBeNull()
     expect(puts()).toEqual([])
     fail = null
@@ -522,7 +525,7 @@ describe('the CV — required for a new profile, uploaded before its Publish', (
     await addVideo(user)
     await user.click(action('Publish profile'))
     const cv = await cvSection()
-    expect(await cv.findByText('CV uploads are busy on this network right now — please try again later, or from another connection.')).toBeTruthy()
+    expect(await cv.findByText('CV uploads are busy on this network right now — please try again later or from another connection, or remove it and add it later.')).toBeTruthy()
     expect(cv.getByText('my-cv.pdf')).toBeTruthy()
     expect(puts()).toEqual([])
   })
@@ -534,7 +537,7 @@ describe('the CV — required for a new profile, uploaded before its Publish', (
     await addVideo(user)
     await user.click(action('Publish profile'))
     const cv = await cvSection()
-    expect(await cv.findByText('Too many CV uploads from this account — please try again in an hour.')).toBeTruthy()
+    expect(await cv.findByText('Too many CV uploads from this account — please try again in an hour, or remove it and add it later.')).toBeTruthy()
     expect(cv.getByText('my-cv.pdf')).toBeTruthy()
     expect(puts()).toEqual([])
   })
@@ -583,7 +586,7 @@ describe('the CV — required for a new profile, uploaded before its Publish', (
     putDraft(COMPLETE, 'finish')
     mount()
     const cv = await cvSection()
-    const section = () => screen.getByRole('heading', { name: 'CV' }).closest('section')!
+    const section = () => screen.getByRole('heading', { name: 'CV (recommended)' }).closest('section')!
     // fireEvent, not user.upload: user-event drops a file the input's `accept` does not list — a picker need not.
     fireEvent.change(cvInput(), { target: { files: [new File(['x'], 'cv.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })] } })
     expect(await cv.findByText('Your CV must be a PDF.')).toBeTruthy()
@@ -602,10 +605,10 @@ describe('the CV — required for a new profile, uploaded before its Publish', (
     expect(cvPosts()).toEqual([]) // a pick uploads nothing: Publish does
   })
 
-  it('the first step says up front that the CV is asked for, as a PDF', async () => {
+  it('the first step says up front what Publish asks — the photo — and that the video and CV help, now or after publishing', async () => {
     putDraft({ ...COMPLETE, photoUrl: null }, 'plans')
     mount()
-    expect(await screen.findByText(/You will add a clear photo of yourself, a short intro video \(20–30 seconds is enough\) and your CV as a PDF\./)).toBeTruthy()
+    expect(await screen.findByText(/^You will add a clear photo of yourself\. A short intro video \(20–30 seconds is enough\) and your CV as a PDF help schools choose you — add them now or after you publish\./)).toBeTruthy()
   })
 })
 

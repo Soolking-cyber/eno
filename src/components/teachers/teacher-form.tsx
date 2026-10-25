@@ -37,7 +37,7 @@ import {
   AI_NOTICE_VERSION, DRAFT_STEPS, EMPTY_TEACHER, LIMITS, PRE_SIGNIN_STEPS, PUBLISH_NOTICE_VERSION, TEACHER_STEPS, TEACHER_STEP_FIELDS, teacherFreeTextFields, hasTeachingGoal, normalizeForSave,
   normalizeTeacherInput, phoneWaived, splitGoalErrors, teacherSteps, isTeacherPhone, type PhoneWaiverBase, type TeacherErrors, type TeacherInput, type TeacherStep,
 } from '@/lib/teachers/profile'
-import { TEACHER_DRAFT_HASH_KEY, cvRequiredSince, isCvUploadToken, videoRequiredSince } from '@/lib/teachers/constants'
+import { TEACHER_DRAFT_HASH_KEY, isCvUploadToken } from '@/lib/teachers/constants'
 import { COVER_CONSENT_VERSION, coverStamp, mergeStaleCover, type SavedCover } from '@/lib/teachers/cover'
 import { HCMC, coverReachOf, placeLabel } from '@/lib/teachers/places'
 import { type CoverPatch } from '@/components/teachers/cover-fields'
@@ -514,12 +514,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   // THE PROFILE PHOTO CHECK (owner, 2026-10-16): asked as soon as a photo is on the last step (POST /api/teachers/me/
   // photo-check), so a refusal is said beside the photo, not at Publish. The save judges it again itself.
   const [photoCheck, setPhotoCheck] = useState<{ url: string; state: 'checking' | 'ok' | 'fail' | 'unavailable'; reason?: 'not_photo' | 'no_face' } | null>(null)
-  // Edit: the saved photo, when it was created (the video and CV rules) and whether the re-check asked the teacher to change it.
+  // Edit: the saved photo and whether the re-check asked the teacher to change it.
   const [savedPhotoUrl, setSavedPhotoUrl] = useState<string | null>(null)
-  const [profileCreatedAt, setProfileCreatedAt] = useState<string | null>(null)
-  const [savedHadVideo, setSavedHadVideo] = useState(false)
-  // …and whether a CV is saved (the CV rule's other half): from the load, true once an upload lands, false once one is removed.
-  const [savedHadCv, setSavedHadCv] = useState(false)
   const [photoAsk, setPhotoAsk] = useState<{ reason: string } | null>(null)
   // The TeacherProfile this form loaded — Save and Remove name it, and the server refuses another account's (409).
   const [teacherProfileId, setTeacherProfileId] = useState<string | null>(null)
@@ -625,14 +621,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
 
   // ── The steps this teacher sees — re-derived from their answers (profile.ts teacherSteps) ─────────────────────────
   const steps = useMemo(() => teacherSteps(t, { draftHost }), [t, draftHost])
-  // THE INTRO VIDEO "FROM NOW ON" (owner, 2026-10-16): every new profile, and a profile created since the cutoff
-  // (constants.ts TEACHER_VIDEO_REQUIRED_FROM) that has one — the server's own rule (publish.ts): a profile made after the
-  // cutoff under the old code (a slipped deploy) never had one, and its edits never demand one.
-  const videoRequired = mode === 'join' || (videoRequiredSince(profileCreatedAt) && savedHadVideo)
-  // THE CV "FROM NOW ON" (owner, 2026-10-21: "they should include cv") — the video's rule, with the video's guard
-  // (constants.ts TEACHER_CV_REQUIRED_FROM): every new profile, and a profile created since the cutoff that has one, which
-  // may replace it, never remove it. The server enforces both (publish.ts at create, the CV route's 409).
-  const cvRequired = mode === 'join' || (cvRequiredSince(profileCreatedAt) && savedHadCv)
+  // The intro video and the CV are optional — to publish and to keep (owner, 2026-10-22: "publish before video/CV",
+  // then, 2026-10-25, "Allow removal"): no required flag, no keep-rule (constants.ts has the history).
 
   const step: TeacherStep = steps.includes(stepKey)
     ? stepKey
@@ -1578,7 +1568,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         // ⚠️ The switches AS STORED, not as loaded (checker, 2026-10-22): one kept on under an older notice loads OFF, and
         // saving it off IS a withdrawal — the server (publish.ts) judges the stored columns, and so must this.
         savedPhoneBase.current = typeof tp.id === 'string'
-          ? { phone: typeof tp.phone === 'string' && !!tp.phone.trim(), matchEmailOptIn: tp.matchEmailOptIn === true, staffContactOptIn: tp.staffContactOptIn === true, coverOpen: tp.coverOpen === true }
+          ? { phone: typeof tp.phone === 'string' && !!tp.phone.trim(), matchEmailOptIn: tp.matchEmailOptIn === true, staffContactOptIn: tp.staffContactOptIn === true, coverOpen: tp.coverOpen === true, publicVideo: typeof tp.videoUrl === 'string' && !!tp.videoUrl }
           : null
         setReconfirm({ cover: tp.coverOpen === true && !coverCurrent, optIns: (tp.matchEmailOptIn === true && !emailCurrent) || (tp.staffContactOptIn === true && !callsCurrent) })
         setCoverConfirmedAt(tp.coverConfirmedAt ?? null)
@@ -1587,13 +1577,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
           coverRateVnd: tp.coverRateVnd ?? null, consentCurrent: tp.coverConsentVersion === COVER_CONSENT_VERSION,
         })
         setCvName(tp.cvFileName ?? null)
-        setSavedHadCv(!!tp.cvFileName)
         setPrivateVideo(tp.hasPrivateVideo === true)
         setVideoBase(typeof tp.videoVersion === 'number' ? tp.videoVersion : null)
         setSavedPublicUrl(tp.videoUrl ?? null)
         setSavedPhotoUrl(typeof tp.photoUrl === 'string' ? tp.photoUrl : null)
-        setProfileCreatedAt(typeof tp.createdAt === 'string' ? tp.createdAt : null)
-        setSavedHadVideo(!!tp.videoUrl || tp.hasPrivateVideo === true)
         setPhotoAsk(d?.photoAsk && typeof d.photoAsk.reason === 'string' ? d.photoAsk : null)
         setTeacherProfileId(typeof tp.id === 'string' ? tp.id : null)
         setStatus(tp.status === 'hidden' ? 'hidden' : 'live')
@@ -1823,7 +1810,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         setFormError(d.error === 'cv_type' ? tr('Your CV must be a PDF.', 'CV phải là tệp PDF.') : d.error === 'cv_size' ? tr('Your CV must be 10 MB or smaller.', 'CV phải có dung lượng tối đa 10 MB.') : tr('CV upload failed.', 'Tải CV thất bại.'))
         return false
       }
-      setCvName(d.cvFileName ?? file.name); setCvFile(null); setSavedHadCv(true)
+      setCvName(d.cvFileName ?? file.name); setCvFile(null)
       return true
     } catch {
       setFormError(tr('CV upload failed.', 'Tải CV thất bại.'))
@@ -1942,12 +1929,6 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     if (mode === 'edit' && all.phone === 'required' && phoneWaived(savedPhoneBase.current, kept, hides)) delete all.phone
     // …and the texts the server would refuse, refused HERE so the field can show the teacher's own words (2026-10-21).
     for (const [k, v] of Object.entries(textRefusals(view)) as [keyof TeacherErrors, string][]) if (!all[k]) all[k] = v
-    // ⛔ THE INTRO VIDEO "FROM NOW ON" (owner, 2026-10-16): a new profile, or one created since the cutoff, has one — a
-    // public or a private video — as the server requires (publish.ts). Older profiles keep the old rule.
-    if (videoRequired && !t.videoUrl && !privateVideo) all.videoUrl = 'required'
-    // ⛔ THE CV "FROM NOW ON" (owner, 2026-10-21): a new profile, or one created since the cutoff that has one, has a CV —
-    // picked, or saved — as the server requires (publish.ts). Older profiles keep the old rule.
-    if (cvRequired && !cvFile && !cvName) all.cv = 'required'
     // A photo the check already refused is said there, never sent (the server would refuse it the same way).
     if (photoCheck && photoCheck.url === t.photoUrl && photoCheck.state === 'fail' && photoCheck.reason) all.photoUrl = photoCheck.reason
     if (Object.keys(all).length) {
@@ -2123,7 +2104,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       if (d.onboarded === true) markOnboarded('individual')
       // A new profile's CV went in WITH it (the create attached its pending upload): saved now, its token spent. An edit's
       // picked CV still goes up AFTER its save — its own call, which replaces the saved one and never throws (uploadCv).
-      if (cvSent) { setCvName(cvSent.fileName); setCvFile(null); setSavedHadCv(true); pendingCv.current = null }
+      if (cvSent) { setCvName(cvSent.fileName); setCvFile(null); pendingCv.current = null }
       else if (mode === 'edit' && cvFile) await uploadCv(cvFile)
       clearStored()
       // The cover AS STORED (the server returns it): the next save's base and the real "confirmed on" date —
@@ -2144,7 +2125,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       // The switches as SAVED: an edit's next phone waiver judges against them; a new profile's stop being a default —
       // its Publish has made them the teacher's (the tab copy, refusals included, went with clearStored above).
       if (mode === 'edit') {
-        savedPhoneBase.current = { phone: !!kept.phone.trim(), matchEmailOptIn: kept.matchEmailOptIn, staffContactOptIn: kept.staffContactOptIn, coverOpen: d.cover ? d.cover.coverOpen === true : kept.coverOpen }
+        savedPhoneBase.current = { phone: !!kept.phone.trim(), matchEmailOptIn: kept.matchEmailOptIn, staffContactOptIn: kept.staffContactOptIn, coverOpen: d.cover ? d.cover.coverOpen === true : kept.coverOpen, publicVideo: d.video ? typeof d.video.url === 'string' && !!d.video.url : !!kept.videoUrl }
       }
       if (mode === 'join') setOptInChoice({ matchEmail: kept.matchEmailOptIn, staffCall: kept.staffContactOptIn })
       setDone({ listingId: d.listingId, live: d.live === true, noGoal: d.noGoal === true })
@@ -2332,10 +2313,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       const res = await fetch('/api/teachers/me/cv', { method: 'DELETE' })
       const d = await res.json().catch(() => ({}))
       // Removed — or already gone (another window): the section shows none either way.
-      if (res.ok || d.error === 'cv_missing') { setCvName(null); setSavedHadCv(false); return }
-      // A profile created since the cutoff keeps its CV (2026-10-21): replace it instead.
-      if (d.error === 'cv_required') setFormError(tr('Your profile needs a CV — upload a new one to replace it.', 'Hồ sơ của bạn cần có CV — hãy tải CV mới lên để thay.'))
-      else setFormError(tr('Could not remove your CV. Please try again.', 'Không xoá được CV. Vui lòng thử lại.'))
+      if (res.ok || d.error === 'cv_missing') { setCvName(null); return }
+      setFormError(tr('Could not remove your CV. Please try again.', 'Không xoá được CV. Vui lòng thử lại.'))
     } catch {
       setFormError(tr('Could not remove your CV. Please try again.', 'Không xoá được CV. Vui lòng thử lại.'))
     } finally {
@@ -2352,7 +2331,6 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     setPrivateVideo(v.hasPrivate === true)
     // A video saved now counts as the profile's at once (the required-video rule for a profile made since the cutoff),
     // not only after a reload (gate review, 2026-10-16).
-    if (v.url || v.hasPrivate === true) setSavedHadVideo(true)
     setVideoBase(typeof v.version === 'number' ? v.version : null)
     setSavedPublicUrl(v.url ?? null)
     setConfirmVideoRemove(false) // never a "Remove for good" left armed over the NEXT video
@@ -2410,8 +2388,6 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       }
       else if (d.error === 'video_changed') { setConfirmVideoRemove(false); setFormError(staleVideoLine(await reloadSavedVideo())); revealFirstError({ formLineFirst: true }) }
       else if (d.error === 'video_missing') { setConfirmVideoRemove(false); const r = await reloadSavedVideo(); if (r !== 'ok') setFormError(staleVideoLine(r)) }
-      // A profile created since the cutoff keeps its intro video (2026-10-16): replace it instead.
-      else if (d.error === 'video_required') { setConfirmVideoRemove(false); setFormError(tr('Your profile needs an intro video — upload a new one to replace it.', 'Hồ sơ của bạn cần có video giới thiệu — hãy tải video mới lên để thay.')) }
       else setFormError(tr('Could not remove your video. Please try again.', 'Không xoá được video. Vui lòng thử lại.'))
     } catch {
       setFormError(tr('Could not remove your video. Please try again.', 'Không xoá được video. Vui lòng thử lại.'))
@@ -2883,6 +2859,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         {more.length > 0 && (
           <div className="mt-6 space-y-2 text-left">
             <h2 className="text-sm font-semibold text-foreground">{tr('Add more to stand out', 'Thêm thông tin để nổi bật')}</h2>
+            {/* Published without them (owner, 2026-10-22: "publish before video/CV") — why they are first on the list. */}
+            {(!cvName || (!t.videoUrl && !privateVideo)) && (
+              <p className="text-sm text-muted-foreground">{tr('Schools ask for a CV first, and an intro video helps them get to know you.', 'Các trường thường hỏi CV trước tiên, và video giới thiệu giúp các trường hiểu bạn hơn.')}</p>
+            )}
             <ul className="space-y-1">
               {more.map((m) => (
                 <li key={m.label}>
@@ -3053,11 +3033,27 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
               <p className="mt-1 text-sm text-muted-foreground">{tr('Free. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
               {/* What Publish will ask for, said before the first answer (2026-10-17 — the bounce study's "say the video up
                   front": since the video became required on 10-16, half of those who reached the last step stopped there).
-                  The CV too since it is required (owner, 2026-10-21) — a PDF, which a teacher may first have to make. */}
+                  The CV too (owner, 2026-10-21) — a PDF, which a teacher may first have to make. Since 2026-10-22 both are
+                  asked for, never required to publish (owner: "publish before video/CV"), so the line says "now or after". */}
               {mode === 'join' && !existing && step === 'plans' && (
-                <p className="mt-1 text-sm text-muted-foreground">{tr('You will add a clear photo of yourself, a short intro video (20–30 seconds is enough) and your CV as a PDF. Once you sign in, your answers are saved, so you can finish on a laptop.', 'Bạn sẽ thêm một ảnh rõ mặt, một video giới thiệu ngắn (20–30 giây là đủ) và CV dạng PDF. Sau khi đăng nhập, câu trả lời được lưu, nên bạn có thể hoàn tất trên máy tính.')}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{tr('You will add a clear photo of yourself. A short intro video (20–30 seconds is enough) and your CV as a PDF help schools choose you — add them now or after you publish. Once you sign in, your answers are saved, so you can finish on a laptop.', 'Bạn sẽ thêm một ảnh rõ mặt. Một video giới thiệu ngắn (20–30 giây là đủ) và CV dạng PDF giúp các trường chọn bạn — thêm ngay hoặc sau khi đăng hồ sơ. Sau khi đăng nhập, câu trả lời được lưu, nên bạn có thể hoàn tất trên máy tính.')}</p>
               )}
             </div>
+            {/* AN EDIT OF A PROFILE PUBLISHED WITHOUT ITS VIDEO OR CV (owner, 2026-10-22: "publish before video/CV"): the way to
+                add them, on every step but the one that holds them, until each is there. A saved video counts public or
+                private; a CV counts saved (cvName) or picked. */}
+            {mode === 'edit' && step !== 'finish' && profileListingId && ((!t.videoUrl && !privateVideo) || (!cvName && !cvFile)) && (
+              <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-tint p-3.5" data-testid="add-media-card">
+                <p className="min-w-0 flex-1 text-sm text-body">
+                  {!t.videoUrl && !privateVideo && !cvName && !cvFile
+                    ? tr('Add your intro video and CV — schools ask for a CV first, and a video helps them get to know you.', 'Thêm video giới thiệu và CV — các trường thường hỏi CV trước tiên, và video giúp các trường hiểu bạn hơn.')
+                    : !t.videoUrl && !privateVideo
+                      ? tr('Add an intro video — it helps schools get to know you.', 'Thêm video giới thiệu — video giúp các trường hiểu bạn hơn.')
+                      : tr('Add your CV — schools ask for it first.', 'Thêm CV của bạn — các trường thường hỏi CV trước tiên.')}
+                </p>
+                <Button variant="secondary" size="sm" type="button" onClick={() => setStepKey('finish')}>{tr('Add now', 'Thêm ngay')}</Button>
+              </div>
+            )}
             {importLine}
             {cvHandy && (
               // Where a CV helps (owner, 2026-10-16: "move cv read for later pages before its needed"): a card, not a door
@@ -3128,8 +3124,6 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
                 : { ...mark, canSave: !!teacherProfileId, local: false, busy: markBusy, message: markMessage, onToggle: (on) => { void toggleMark(on) } }}
               photoCheck={photoCheck && photoCheck.url === t.photoUrl ? photoCheck : null}
               photoAsk={mode === 'edit' && photoAsk && t.photoUrl === savedPhotoUrl ? photoAsk : null}
-              videoRequired={videoRequired}
-              cvRequired={cvRequired}
               videoProgress={videoProgress}
               media={{
                 busy, onPhoto: uploadPhoto, onVideo: uploadVideo, privateVideo, savedPublicUrl, ownVideoUrl, ownVideoBusy, videoRemoving,

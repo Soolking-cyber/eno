@@ -38,48 +38,12 @@ export const HOME_HIDDEN_TEACHER_LISTING_IDS = ['cmuzccru60000wvq4mojalida'] as 
  */
 export const TEACHER_DRAFT_HASH_KEY = 'd'
 
-/**
- * THE INTRO VIDEO IS REQUIRED "FROM NOW ON" (owner, 2026-10-16: "make short intor video mandatory from now on"). Every NEW
- * profile needs one to publish, and a profile created from this moment on keeps one — it can be replaced, never removed.
- * Profiles created before it keep the old rule (optional): 67 of the 84 live on 2026-10-16 had none.
- * ⛔ THE DAY AFTER THE DEPLOY, 00:00 ICT — and re-dated if the deploy slips, like PRIVACY_TEXT_PUBLISHED: a profile made
- * on the deploy day under the OLD code (no video) must never be held to "keep it" (plan review, 2026-10-16). Creating
- * always needs the video, whatever this date; it decides only who may later remove one.
- */
-export const TEACHER_VIDEO_REQUIRED_FROM = '2026-10-18T00:00:00+07:00'
-/**
- * Must this SAVED profile keep its intro video — was it created since the cutoff? (A new profile always needs one: the
- * caller says "no profile yet" itself.) An unknown creation time is an old profile: an edit is never blocked on a guess.
- */
-export function videoRequiredSince(createdAt: Date | string | null | undefined): boolean {
-  if (createdAt === null || createdAt === undefined) return false
-  const t = new Date(createdAt).getTime()
-  return Number.isFinite(t) && t >= Date.parse(TEACHER_VIDEO_REQUIRED_FROM)
-}
+// THE INTRO VIDEO AND THE CV ARE OPTIONAL — to publish and to keep (owner, 2026-10-22: "publish before video/CV", then
+// "Allow removal" (2026-10-25)). History, for the counters and old notes: the video was required of new profiles from 2026-10-16 and a
+// profile created from 2026-10-18 00:00 ICT could only replace it; the CV was required from the 2026-10-22 deploy and a
+// profile created from 2026-10-23 00:00 ICT could only replace it. Both rules ended with the 2026-10-25 deploy — after
+// them, teachers publishing within a day fell 80% → 47%, and real-browser publishes to a third (measured 2026-10-25).
 
-/**
- * THE CV IS REQUIRED "FROM NOW ON" (owner, 2026-10-21: "when teacher creates profile it says cv is optional, its not they
- * should include cv"). Every NEW profile publishes with one, and a profile created from this moment on keeps one — it can
- * be replaced, never removed (DELETE /api/teachers/me/cv → 409 cv_required). Profiles created before it keep the old rule
- * (optional): 32 of the 124 live on 2026-10-21 had none.
- * ⛔ ENFORCED BY THE SERVER AT CREATE, NOT BY THE FORM (two refuting plan reviews, 2026-10-21): the join form uploads the
- * PDF BEFORE the PUT (POST /api/teachers/me/cv?pending=1) and the save that creates the profile attaches it in its own
- * transaction (publish.ts) — the intro video's precedent. A form-only rule left a live profile with no CV whenever the
- * upload after the PUT failed, was refused, or came from a tab opened before the rule.
- * ⛔ THE DAY AFTER THE DEPLOY, 00:00 ICT — and re-dated in the deploy commit if the deploy slips, like the video's: a
- * profile made on the deploy day under the OLD code (no CV) must never be held to "keep it". Creating always needs the CV,
- * whatever this date; it decides only who may later remove one.
- */
-export const TEACHER_CV_REQUIRED_FROM = '2026-10-23T00:00:00+07:00'
-/**
- * Must this SAVED profile keep its CV — was it created since the cutoff? (A new profile always needs one: the caller says
- * "no profile yet" itself.) An unknown creation time is an old profile: an edit is never blocked on a guess.
- */
-export function cvRequiredSince(createdAt: Date | string | null | undefined): boolean {
-  if (createdAt === null || createdAt === undefined) return false
-  const t = new Date(createdAt).getTime()
-  return Number.isFinite(t) && t >= Date.parse(TEACHER_CV_REQUIRED_FROM)
-}
 /**
  * The CV's ceiling, 10 MB — ONE number: the upload route's (cv-store.ts MAX_CV_BYTES is this), the private bucket's own
  * file_size_limit (scripts/teachers-ddl.mjs) and the form's check at pick time (a file that can never go up is said when

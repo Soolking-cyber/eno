@@ -243,7 +243,7 @@ const JOBS_NOUN = { en: 'a job site', vi: 'trang tuyển dụng' } as const
  *   · qualifications — 92 of 93 list a degree or a certificate; the 93rd states them in its headline and About text.
  *     They are data the teacher typed, never documents anyone checked (profile.ts, "QUALIFICATIONS ARE DATA") — so
  *     never "verified".
- *   · "some" intro videos — 26 of 93 show one. Required of every NEW profile (constants.ts TEACHER_VIDEO_REQUIRED_FROM),
+ *   · "some" intro videos — 26 of 93 show one. Required of every NEW profile 2026-10-16..25, recommended since (constants.ts history),
  *     optional for the profiles made before it, so "some" stays true as the share grows; "every" is false today.
  *   · English, IELTS and subject teachers — the live subcategories (taxonomy.ts): IELTS & exams 60, English 24,
  *     Subjects in English 9.

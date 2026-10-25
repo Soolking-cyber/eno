@@ -381,7 +381,7 @@ describe('/privacy — Sign in with Apple', () => {
   // Teacher CV import (owner, 2026-10-15; autofill 2026-10-16) — both editions (one codebase, one database).
   it.each(['marketplace', 'services'] as const)('%s: the CV reading — Google reads the whole file, its text is never kept, the phone and a PDF fill in, and it decides nothing', async (site) => {
     const en = await policy(site)
-    expect(en).toContain('only when you choose “Fill it in from my CV” in the teacher profile form, the CV you choose — for a Word file, the text your browser reads from it — which the AI reads in full; we never keep its text (a PDF is kept only as the private CV attached to your profile, which you can replace at any time and which is deleted with your profile)')
+    expect(en).toContain('only when you choose “Fill it in from my CV” in the teacher profile form, the CV you choose — for a Word file, the text your browser reads from it — which the AI reads in full; we never keep its text (a PDF is kept only as the private CV attached to your profile, which you can replace or remove at any time and which is deleted with your profile)')
     expect(en).toContain('filling in a teacher profile from a CV you choose')
     expect(en).toContain('The phone number in your CV fills an empty phone field, and a CV that is a PDF is attached to your profile as your private CV unless you already have one')
     expect(en).toContain('Filling in a teacher profile from a CV: when you ask, an AI model (Google Gemini) reads the CV you choose')
@@ -427,17 +427,17 @@ describe('/privacy — Sign in with Apple', () => {
     expect(vi).toContain('cả hai bản ghi đều có trong dữ liệu bạn tải xuống.')
     expect(vi).toContain('Cải thiện phần “Giới thiệu” của giáo viên: khi bạn yêu cầu, một mô hình AI (Google Gemini)')
   })
-  // ⛔ THE CV CUTOFF IS A FACT NOW, NOT A PLAN (2026-10-22): the CV rule went live on 2026-10-22, so its cutoff — 00:00 ICT
-  // on 23 October 2026 — and the day the policy names are FIXED values. Until that deploy this test derived both from
-  // PRIVACY_TEXT_PUBLISHED (gate review, opus 2026-10-22: a slipped deploy that re-dated only the policy failed here); a
-  // LATER re-date of the policy — the second change of the same day, or any after — must never move the cutoff, or a
-  // teacher who joined on the old optional rule would lose a removal the policy promised them.
-  it('the CV cutoff (TEACHER_CV_REQUIRED_FROM) is pinned to 00:00 ICT 23 October 2026 — and /privacy names that day, EN and VI', async () => {
-    const { TEACHER_CV_REQUIRED_FROM } = await import('@/lib/teachers/constants')
-    expect(TEACHER_CV_REQUIRED_FROM).toBe('2026-10-23T00:00:00+07:00')
-    expect(await policy('marketplace')).toContain('(a profile created before 23 October 2026 can also remove it)')
+  // ⛔ THE CV IS OPTIONAL — TO PUBLISH AND TO KEEP (owner: "publish before video/CV" 2026-10-22, "Allow removal" 2026-10-25; live
+  // with the 2026-10-25 deploy). The 23 October 2026 cutoff (profiles created from it could only replace their CV) ended
+  // with it: every teacher may remove a CV, so nothing in the policy may still draw that line.
+  it('the CV can be replaced or removed at any time — no cutoff any more, EN and VI', async () => {
+    const en = await policy('marketplace')
+    expect(en).toContain('you can replace or remove it at any time, and it is deleted when you delete your profile.')
+    expect(en).not.toContain('(a profile created before 23 October 2026 can also remove it)')
     cleanup()
-    expect(await policy('marketplace', 'vi')).toContain('(hồ sơ tạo trước ngày 23 tháng 10 năm 2026 cũng có thể gỡ CV)')
+    const vi = await policy('marketplace', 'vi')
+    expect(vi).toContain('bạn có thể thay hoặc gỡ CV bất cứ lúc nào, và CV bị xóa khi bạn xóa hồ sơ.')
+    expect(vi).not.toContain('(hồ sơ tạo trước ngày 23 tháng 10 năm 2026 cũng có thể gỡ CV)')
   })
 
   // ⛔ THE DAY THE JOB-MATCH SWITCHES TURNED ON BY DEFAULT — DERIVED UNTIL ITS DEPLOY HAS RUN (gate review, opus 2026-10-22):
@@ -487,21 +487,24 @@ describe('/privacy — Sign in with Apple', () => {
   // The CV REQUIRED for a new teacher profile (owner, 2026-10-21; deploy planned 2026-10-22): private as before, uploaded at
   // Publish (a failed Publish's upload deleted), replaced at any time, deleted with the profile — and nothing promises a
   // removal the form no longer offers. The 10 MB the policy prints is the private bucket's own limit.
-  it.each(['marketplace', 'services'] as const)('%s: a new teacher profile needs a CV — private, uploaded at Publish, replaced at any time, deleted with the profile', async (site) => {
+  it.each(['marketplace', 'services'] as const)('%s: a teacher profile can include a CV — optional at Publish since 2026-10-25, private, replaced or removed at any time, deleted with the profile', async (site) => {
     const { readFileSync } = await import('node:fs')
     const { join } = await import('node:path')
     const ddl = readFileSync(join(__dirname, '..', '..', '..', '..', 'scripts', 'teachers-ddl.mjs'), 'utf8')
     expect(ddl).toContain(`values ('teacher-cvs', 'teacher-cvs', false, ${10 * 1024 * 1024}, array['application/pdf'])`)
     const en = await policy(site)
-    expect(en).toContain('A new teacher profile needs a CV — a PDF of up to 10 MB, kept private as described above; leave out what schools don’t need, such as health details, ID numbers or your referees’ phone numbers: it is uploaded when you publish your profile (an upload your profile does not end up using is deleted automatically), you can replace it at any time (a profile created before 23 October 2026 can also remove it), and it is deleted when you delete your profile.')
+    expect(en).toContain('A teacher profile can include a CV — a PDF of up to 10 MB, kept private as described above; leave out what schools don’t need, such as health details, ID numbers or your referees’ phone numbers: you can upload it when you publish your profile or add it later (an upload your profile does not end up using is deleted automatically), you can replace or remove it at any time, and it is deleted when you delete your profile.')
+    // Publish before video/CV (owner, 2026-10-22; live with the 2026-10-25 deploy): nothing says a new profile NEEDS one.
+    expect(en).not.toContain('A new teacher profile needs a CV')
     expect(en).toContain('Your phone number, email address and CV are never published: the account you are talking to receives them only if you tap “Share my phone, email & CV” in your conversation with it.')
     expect(en).toContain('both stay private as described above, and you can change the number or replace the CV on the last step.')
     for (const s of ['which you can remove)', 'remove the CV on the last step']) expect(en, s).not.toContain(s)
     cleanup()
     const vi = await policy(site, 'vi')
-    expect(vi).toContain('Hồ sơ giáo viên mới cần có CV — tệp PDF tối đa 10 MB, được giữ riêng tư như mô tả ở trên; hãy bỏ những gì trường không cần, như thông tin sức khỏe, số giấy tờ hay số điện thoại của người giới thiệu:')
-    expect(vi).toContain('bạn có thể thay CV bất cứ lúc nào (hồ sơ tạo trước ngày 23 tháng 10 năm 2026 cũng có thể gỡ CV), và CV bị xóa khi bạn xóa hồ sơ.')
-    expect(vi).toContain('bạn có thể thay tệp bất cứ lúc nào, và tệp bị xóa cùng hồ sơ)')
+    expect(vi).toContain('Hồ sơ giáo viên có thể kèm CV — tệp PDF tối đa 10 MB, được giữ riêng tư như mô tả ở trên; hãy bỏ những gì trường không cần, như thông tin sức khỏe, số giấy tờ hay số điện thoại của người giới thiệu: bạn có thể tải CV lên khi đăng hồ sơ hoặc thêm sau')
+    expect(vi).toContain('bạn có thể thay hoặc gỡ CV bất cứ lúc nào, và CV bị xóa khi bạn xóa hồ sơ.')
+    expect(vi).not.toContain('Hồ sơ giáo viên mới cần có CV')
+    expect(vi).toContain('bạn có thể thay hoặc gỡ tệp bất cứ lúc nào, và tệp bị xóa cùng hồ sơ)')
     expect(vi).toContain('và bạn có thể đổi số hoặc thay CV khác ở bước cuối.')
     for (const s of ['và bạn có thể xóa)', 'xóa CV ở bước cuối']) expect(vi, s).not.toContain(s)
   })
@@ -610,8 +613,8 @@ describe('/privacy — the teacher phone and the job-match defaults (2026-10-22)
     expect(EMPTY_TEACHER.staffContactOptIn).toBe(false)
     // "a save that only hides your profile or switches something off is never refused for it" — and a new profile, or one
     // that changes nothing, still needs it
-    const none = { phone: false, matchEmailOptIn: true, staffContactOptIn: true, coverOpen: false }
-    const next = { phone: '', matchEmailOptIn: true, staffContactOptIn: true, coverOpen: false }
+    const none = { phone: false, matchEmailOptIn: true, staffContactOptIn: true, coverOpen: false, publicVideo: false }
+    const next = { phone: '', matchEmailOptIn: true, staffContactOptIn: true, coverOpen: false, videoUrl: null }
     expect(phoneWaived(null, next, true)).toBe(false)
     expect(phoneWaived(none, next, false)).toBe(false)
     // a save that hides has no job type, and with none both job-match switches are saved off (normalizeForSave) — so a

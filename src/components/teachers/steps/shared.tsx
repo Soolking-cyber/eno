@@ -106,19 +106,20 @@ export function makeErrText(tr: (en: string, vi: string) => string) {
         case 'phone': return tr('Please add your phone number — it stays private: the person you are chatting with gets it only when you share it.', 'Vui lòng thêm số điện thoại — số này được giữ riêng tư: người đang trò chuyện với bạn chỉ nhận được khi bạn chia sẻ.')
         case 'coverSlots': return tr('Please tap at least one period you are usually free.', 'Vui lòng bấm chọn ít nhất một buổi bạn thường rảnh.')
         case 'coverRateVnd': return tr('Please set your hourly rate.', 'Vui lòng đặt mức phí theo giờ.')
-        // Required for a new profile since 2026-10-21 (owner: "they should include cv") — and said to stay private.
+        // Required for a new profile 2026-10-22..25 (owner: "they should include cv"); no server sends it since — kept for one.
         case 'cv': return tr('Please add your CV — a PDF up to 10 MB. It stays private: schools get it only when you share it in a chat.', 'Vui lòng thêm CV — tệp PDF tối đa 10 MB. CV được giữ riêng tư: các trường chỉ nhận được khi bạn chia sẻ trong tin nhắn.')
       }
     }
     // The CV's own refusals (2026-10-21): a pick the upload would never take, an upload that did not arrive, and one the
-    // server no longer held when Publish named it (the form has already tried it again once).
+    // server no longer held when Publish named it (the form has already tried it again once). The CV is optional since
+    // 2026-10-25, so an upload that cannot go through now says the way out too: remove it, add it later (review).
     if (field === 'cv') {
       switch (code) {
         case 'type': return tr('Your CV must be a PDF.', 'CV phải là tệp PDF.')
         case 'size': return tr('Your CV must be 10 MB or smaller.', 'CV phải có dung lượng tối đa 10 MB.')
-        case 'upload_failed': return tr('Your CV didn’t upload. Please try again.', 'Chưa tải được CV lên. Vui lòng thử lại.')
-        case 'rate': return tr('Too many CV uploads from this account — please try again in an hour.', 'Tài khoản này đã tải CV lên quá nhiều lần — vui lòng thử lại sau một giờ.')
-        case 'busy': return tr('CV uploads are busy on this network right now — please try again later, or from another connection.', 'Hiện có quá nhiều lượt tải CV từ mạng này — vui lòng thử lại sau, hoặc dùng kết nối khác.')
+        case 'upload_failed': return tr('Your CV didn’t upload. Please try again — or remove it and add it later.', 'Chưa tải được CV lên. Vui lòng thử lại — hoặc gỡ tệp và thêm CV sau.')
+        case 'rate': return tr('Too many CV uploads from this account — please try again in an hour, or remove it and add it later.', 'Tài khoản này đã tải CV lên quá nhiều lần — vui lòng thử lại sau một giờ, hoặc gỡ tệp và thêm CV sau.')
+        case 'busy': return tr('CV uploads are busy on this network right now — please try again later or from another connection, or remove it and add it later.', 'Hiện có quá nhiều lượt tải CV từ mạng này — vui lòng thử lại sau hoặc dùng kết nối khác, hoặc gỡ tệp và thêm CV sau.')
         case 'expired': return tr('Your CV upload expired. Please tap Publish again.', 'CV tải lên đã hết hạn. Vui lòng bấm Đăng lần nữa.')
       }
     }

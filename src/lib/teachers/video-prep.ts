@@ -5,8 +5,9 @@ import { hasHevcTrack, VIDEO_UPLOAD_MAX_BYTES } from '@/lib/video-upload-client'
 import { VIDEO_CUT_SECONDS, VIDEO_MAX_SECONDS } from '@/lib/video-length'
 
 /**
- * A TEACHER'S INTRO VIDEO, READY TO UPLOAD (owner, 2026-10-16: "make short intor video mandatory from now on"). Now that
- * no new profile publishes without one, the teacher form gets the post wizard's protections (src/hooks/use-post-media.ts
+ * A TEACHER'S INTRO VIDEO, READY TO UPLOAD (owner, 2026-10-16: "make short intor video mandatory from now on"). Required
+ * of a new profile until the 2026-10-25 deploy, recommended since (owner, 2026-10-22: "publish before video/CV"), so the
+ * teacher form gets the post wizard's protections (src/hooks/use-post-media.ts
  * addVideo — the same rules, kept beside it rather than refactored out of the post wizard): a phone's minute of 1080p is
  * 100–400 MB, far over the 50 MB storage ceiling, so a clip over it is COMPRESSED in the browser instead of refused; the
  * length is read from the file (≤ 5 minutes since 2026-10-18 — src/lib/video-length.ts — one second over for rounding); and
@@ -47,7 +48,7 @@ export async function prepareTeacherVideo(file: File, opts: { onCompress?: (frac
     })
     if (!Number.isFinite(seconds)) {
       // The length could not be read HERE (a WebM a browser recorded reports Infinity; an iPhone HEVC .mov fails in a browser
-      // without HEVC) — and the video is required now (gate review, 2026-10-16): a clip that needs no shrinking goes up as
+      // without HEVC) — and the video matters (required 2026-10-16..25, strongly recommended since — gate review, 2026-10-16): a clip that needs no shrinking goes up as
       // it is (flagged HEVC or not, the server's transcode decides — one over five minutes comes back 'video_too_long'); only
       // one that must be made smaller cannot be, unread.
       if (file.size > VIDEO_UPLOAD_MAX_BYTES) return { error: 'unreadable' }

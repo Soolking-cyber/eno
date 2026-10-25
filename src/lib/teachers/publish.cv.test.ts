@@ -149,35 +149,44 @@ beforeEach(() => {
   h.tombstoneReads = []; h.tombstoneDeletes = []; h.privateWrites = []; h.profileWrites = []; h.listingWrites = []; h.order = []
 })
 
-describe('⛔ a CREATE needs the CV it uploaded first', () => {
-  it('⛔ a create with NO `cvUpload` key at all — a tab opened before the deploy, whose form cannot show a CV refusal — is stale wording: 409 notice_changed, nothing read or written', async () => {
+describe('⛔ a CREATE may name no CV (owner, 2026-10-22: "publish before video/CV" — required 2026-10-22..25)', () => {
+  /** The create went through with NO CV: a TeacherPrivate without cvPath/cvFileName, and no pending tombstone read or cleared. */
+  const createdWithoutCv = () => {
+    expect(h.privateWrites).toHaveLength(1)
+    expect(h.privateWrites[0].create).not.toHaveProperty('cvPath')
+    expect(h.privateWrites[0].create).not.toHaveProperty('cvFileName')
+    expect(h.tombstoneReads).toEqual([])
+    expect(h.tombstoneDeletes).toEqual([])
+  }
+  it('a create with NO `cvUpload` key at all (a tab opened before the CV was required, or after it stopped being) publishes without a CV — no stale-wording refusal any more', async () => {
     const { cvUpload: _t, ...oldTab } = body()
-    await expect(create(oldTab)).rejects.toMatchObject({ name: 'TeacherNoticeChangedError', notice: 'publish' })
-    expect(h.order).toEqual([])
-    nothingWritten()
+    const r = await create(oldTab)
+    expect(r.created).toBe(true)
+    createdWithoutCv()
   })
-  it('no token: { cv: "required" } — before anything is read under the lock or written', async () => {
-    const noCv = body({ cvUpload: null })
-    expect(await errorsOf(create(noCv))).toEqual({ cv: 'required' })
-    expect(h.order).toEqual([]) // refused before the transaction — no lock taken, nothing read under it, nothing written
-    nothingWritten()
+  it('`cvUpload: null` publishes without a CV — nothing read for it under the lock', async () => {
+    const r = await create(body({ cvUpload: null }))
+    expect(r.created).toBe(true)
+    createdWithoutCv()
   })
-  it('…joined with the other refusals, so the form shows them together', async () => {
+  it('…and the other refusals are unchanged — a missing photo or subject still refuses the create, with no CV error beside them', async () => {
     const errs = await errorsOf(create(body({ cvUpload: undefined, photoUrl: null, subjects: [] })))
-    expect(errs).toMatchObject({ cv: 'required', photoUrl: 'required', subjects: 'required' })
+    expect(errs).toMatchObject({ photoUrl: 'required', subjects: 'required' })
+    expect(errs).not.toHaveProperty('cv')
     nothingWritten()
   })
-  it('anything that is not exactly a pending upload\'s token is no token — never a path, never another shape', async () => {
-    for (const v of [TOKEN.toUpperCase(), `${TOKEN}.pdf`, PENDING, `../${TOKEN}`, 'aaaaaaaa-0000-1000-8000-000000000000', '', 42, null, { token: TOKEN }, [TOKEN]]) {
+  it('⛔ a `cvUpload` that is there but is no pending upload\'s token — never a path, never another shape — is a CV it cannot name: "expired" (the form uploads again), never a silent publish without it', async () => {
+    for (const v of [TOKEN.toUpperCase(), `${TOKEN}.pdf`, PENDING, `../${TOKEN}`, 'aaaaaaaa-0000-1000-8000-000000000000', '', 42, { token: TOKEN }, [TOKEN]]) {
       expect(isCvUploadToken(v), JSON.stringify(v)).toBe(false)
-      expect(await errorsOf(create(body({ cvUpload: v }))), JSON.stringify(v)).toEqual({ cv: 'required' })
+      expect(await errorsOf(create(body({ cvUpload: v }))), JSON.stringify(v)).toEqual({ cv: 'expired' })
     }
     nothingWritten()
   })
-  it('a caller outside the PUT route (no expected profile) is held to it UNDER THE LOCK — no row, no create', async () => {
+  it('a caller outside the PUT route (no expected profile) creates without a CV too', async () => {
     const { cvUpload: _t, ...noCv } = body()
-    expect(await errorsOf(saveTeacherProfile({ id: 'p1', email: 'jane@example.com' }, noCv))).toEqual({ cv: 'required' })
-    nothingWritten()
+    const r = await saveTeacherProfile({ id: 'p1', email: 'jane@example.com' }, noCv)
+    expect(r.created).toBe(true)
+    createdWithoutCv()
   })
 })
 

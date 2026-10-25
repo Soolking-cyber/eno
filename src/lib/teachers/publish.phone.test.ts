@@ -94,7 +94,7 @@ const auditTx = {
 }
 vi.mock('@/lib/db', () => ({
   db: {
-    teacherProfile: { findUnique: async ({ select }: Row) => (select?.videoVersion ? (h.existing ? { videoOnRequest: false, videoUrl: null, videoVersion: 0, private: { videoPath: null } } : null) : h.existing) },
+    teacherProfile: { findUnique: async ({ select }: Row) => (select?.videoVersion ? (h.existing ? { videoOnRequest: false, videoUrl: h.existing.videoUrl ?? null, videoVersion: 0, private: { videoPath: null } } : null) : h.existing) },
     seller: { findUnique: async () => ({ id: 's1', trustTier: 'standard', trustScore: 50 }) },
     category: { findUnique: async () => ({ id: 'cat-teachers', name: 'Teachers', nameVi: 'Giáo viên' }) },
     listing: { findUnique: async () => ({ status: 'active', verified: true }) },
@@ -233,6 +233,19 @@ describe('⛔ an EDIT: the phone on its next save — a withdrawal never blocked
     expect(r.created).toBe(false)
     expect(h.profileWrites[0].update).toMatchObject({ matchEmailOptIn: false, staffContactOptIn: false })
     expect(h.profileWrites[0].update.matchEmailWithdrawnAt).toBeInstanceOf(Date)
+    expect(h.privateWrites[0].update.phone).toBeNull()
+  })
+
+  it('⛔ a no-phone profile REMOVING its public intro video saves — a withdrawal (owner, 2026-10-25: "Allow removal"); replacing it still asks for the phone', async () => {
+    const STORED = 'https://sb.eno.vn/storage/v1/object/public/listing-videos/1700000000000-stored.mp4'
+    h.existing = existing({ videoUrl: STORED })
+    // (staff calls off, as stored — staff calls on is never waived)
+    expect(await errorsOf(edit(body({ phone: '', staffContactOptIn: false })))).toEqual({ phone: 'required' }) // the body's new video replaces it
+    nothingWritten()
+    expect(await errorsOf(edit(body({ phone: '', staffContactOptIn: false, videoUrl: STORED })))).toEqual({ phone: 'required' }) // kept: nothing withdrawn
+    const r = await edit(body({ phone: '', staffContactOptIn: false, videoUrl: null }))
+    expect(r.created).toBe(false)
+    expect(h.profileWrites[0].update.videoUrl).toBeNull()
     expect(h.privateWrites[0].update.phone).toBeNull()
   })
 

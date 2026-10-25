@@ -307,6 +307,8 @@ export const isGateAction = (v: unknown): v is GateAction => typeof v === 'strin
  *   video_uploaded     — the video was uploaded (it is on the profile only once Publish goes through)
  *   publish_tap        — Publish tapped (signed in)
  *   publish_refused_*  — the form refused it, for: the video / the photo (missing, or the photo check's refusal) / the CV
+ *                        (video and CV: a NEW profile is never refused for them since the 2026-10-25 deploy — owner,
+ *                        2026-10-22 "publish before video/CV", 2026-10-25 "Allow removal"; the events stay for history only)
  *                        (none picked or saved — required since 2026-10-21) / the goal (no work wanted and cover off) /
  *                        anything else — each that applies, once per page
  *   publish_failed     — did not go through: the server refused it or did not answer (the CV's upload just before it too)

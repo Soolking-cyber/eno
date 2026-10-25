@@ -121,7 +121,7 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
-const { saveTeacherProfile, deleteTeacherVideo, TeacherProfileChangedError, TeacherVideoConflictError, TeacherVideoStoreError, TeacherValidationError, TeacherPhotoCheckUnavailableError, TeacherVideoRequiredError } = await import('./publish')
+const { saveTeacherProfile, deleteTeacherVideo, TeacherProfileChangedError, TeacherVideoConflictError, TeacherVideoStoreError, TeacherValidationError, TeacherPhotoCheckUnavailableError } = await import('./publish')
 const { PUBLISH_NOTICE_VERSION } = await import('./profile')
 const { COVER_CONSENT_VERSION } = await import('./cover')
 
@@ -268,10 +268,13 @@ describe('saveTeacherProfile — the profile the form was loaded for', () => {
     expect(h.profileWrites[0].create.profileId).toBe('p1')
     expect(h.privateWrites).toHaveLength(1)
   })
-  it('⛔ a NEW profile with no intro video is refused before anything is copied or written (owner, 2026-10-16)', async () => {
+  it('⛔ a NEW profile with no intro video PUBLISHES — no video on the listing, nothing copied (owner, 2026-10-22: publish before video/CV; it was refused 2026-10-16..25)', async () => {
     h.pre = null; h.upsertId = 'tp-fresh'
-    await expect(expectTp(null)).rejects.toMatchObject({ errors: { videoUrl: 'required' } })
-    nothingWritten()
+    const r = await expectTp(null)
+    expect(r.created).toBe(true)
+    expect(h.listingWrites).toHaveLength(1)
+    expect((h.listingWrites[0] as { data: { video: unknown } }).data.video).toBeNull()
+    expect(h.tombstones).toEqual([])
   })
   it('absent (callers outside the PUT route): no check, the ordinary rules apply', async () => {
     h.lockedId = 'tp-new'; h.upsertId = 'tp-new'
@@ -347,31 +350,27 @@ describe('saveTeacherProfile — the profile photo', () => {
 })
 
 /**
- * THE INTRO VIDEO "FROM NOW ON" (owner, 2026-10-16): a new profile publishes with one; a profile created since
- * TEACHER_VIDEO_REQUIRED_FROM keeps one (replaced, never removed); an older profile keeps the old rule (optional).
+ * THE INTRO VIDEO IS OPTIONAL TO KEEP (owner, 2026-10-25: "Allow removal"): a profile created after the old 2026-10-18
+ * cutoff — which could only replace its video until the 2026-10-25 deploy — may remove it, public or private, like any.
  */
-describe('saveTeacherProfile + deleteTeacherVideo — the intro video is required from the cutoff', () => {
+describe('saveTeacherProfile + deleteTeacherVideo — any profile may remove its intro video', () => {
   const AFTER = new Date('2026-10-20T00:00:00Z')
-  it('an older profile may still save without a video (or remove its public one)', async () => {
+  it('a profile created since the old cutoff removes its public video by a save', async () => {
+    h.pre = stored({ videoUrl: U }); h.createdAt = AFTER
+    await expect(save(body({ videoUrl: null }))).resolves.toBeTruthy()
+  })
+  it('…an older one too', async () => {
     h.pre = stored({ videoUrl: U }); h.createdAt = new Date('2026-10-01T00:00:00Z')
     await expect(save(body({ videoUrl: null }))).resolves.toBeTruthy()
   })
-  it('⛔ a profile created since the cutoff cannot remove its public video by a save', async () => {
-    h.pre = stored({ videoUrl: U }); h.createdAt = AFTER
-    await expect(save(body({ videoUrl: null }))).rejects.toMatchObject({ errors: { videoUrl: 'required' } })
-    expect(h.profileWrites).toEqual([])
-  })
-  it('⚠️ a profile made after the cutoff under the OLD code (a slipped deploy) has no video — an edit never demands one', async () => {
-    h.pre = stored(); h.createdAt = AFTER
-    await expect(save(body({ videoUrl: null }))).resolves.toBeTruthy()
-  })
-  it('…but may replace it', async () => {
+  it('…and replaces it', async () => {
     h.pre = stored({ videoUrl: U }); h.createdAt = AFTER
     await expect(save(body({ videoUrl: V }))).resolves.toBeTruthy()
   })
-  it('⛔ nor remove its private one (DELETE /api/teachers/me/video → 409 video_required)', async () => {
+  it('⛔ and removes its private one (DELETE /api/teachers/me/video): tombstoned, path cleared', async () => {
     h.pre = stored({ private: { videoPath: P } }); h.createdAt = AFTER
-    await expect(deleteTeacherVideo('p1', 3, 'tp1')).rejects.toBeInstanceOf(TeacherVideoRequiredError)
-    expect(h.privateWrites).toEqual([])
+    expect(await deleteTeacherVideo('p1', 3, 'tp1')).toMatchObject({ hasPrivate: false })
+    expect(h.tombstones).toEqual([{ bucket: 'teacher-videos', path: P, reason: 'teacher_video_replaced' }])
+    expect(h.privateWrites[0]).toMatchObject({ data: { videoPath: null } })
   })
 })
