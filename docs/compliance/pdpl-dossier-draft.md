@@ -62,7 +62,8 @@ the deploy — the 5-day material-change promise was NOT applied (owner: live wi
 is 2026-10-25, the day the deploy actually ran (re-dated from 2026-10-22). Rows touched: §2.1, §2.2 (16, 17), §2.2b (new), §2.9, §2.10, §3.2 (22), §3.3, A23, A26, A27, the
 `compliance_audit` note (Appendix A and §7 item 9), B22, §8 question 15.
 
-⛔ 2026-10-25 (3) — GOOGLE INSIDE AN APP'S BUILT-IN BROWSER, deployed 25/10/2026 (planned for 26/10; owner: "deploy now"), [OWNER DECISION 2026-10-25] ("Full
+⛔ 2026-10-25 (3) — GOOGLE INSIDE AN APP'S BUILT-IN BROWSER, deploy d0323b79 started 25/10/2026 ~23:35 ICT and went live 26/10/2026
+~00:05 ICT (planned for 26/10; owner: "deploy now"; /privacy dated 25/10, the deploy's start day), [OWNER DECISION 2026-10-25] ("Full
 fix"). MEASURED (Cloudflare, 11/10–25/10/2026): the pairing hand-off for Google inside Facebook's/Zalo's browsers was started
 62 times; 41 visitors finished Google in their phone's own browser and only 2 typed the pairing code back. Now, inside an
 app's browser, "Continue with Google" opens the page in the phone's own browser and the visitor signs in there. On the
