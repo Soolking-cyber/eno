@@ -48,6 +48,7 @@ export function makeErrText(tr: (en: string, vi: string) => string) {
   const generic = (code: string | undefined): string => {
     switch (code) {
       case 'required': return tr('This is required.', 'Mục này là bắt buộc.')
+      case 'real_name': return tr('Please enter your real name — schools see it on your profile.', 'Vui lòng nhập tên thật của bạn — các trường sẽ thấy tên này trên hồ sơ.')
       case 'too_short': return tr('Please write a little more (at least 10 characters).', 'Vui lòng viết thêm (ít nhất 10 ký tự).')
       case 'invalid': return tr('Please check this value.', 'Vui lòng kiểm tra lại.')
       case 'incomplete': return tr('Fill in the role and the school or company, or remove this job.', 'Điền vị trí và trường hoặc công ty, hoặc xoá công việc này.')

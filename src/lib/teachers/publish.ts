@@ -218,6 +218,38 @@ async function sellerFor(profileId: string, name: string) {
   }
 }
 
+/**
+ * ⚠️ A TEACHER-ONLY STOREFRONT CARRIES THE TEACHER'S NAME (sweep, 2026-10-22). sellerFor names the storefront only when it
+ * creates it, so a rename after publishing left the old name in every school's inbox row and thread header and on the
+ * public, indexed storefront (live: a teacher renamed "Sebnem" still showed "Shabnam" everywhere a school wrote to her),
+ * and an individual has no other way to rename it. Synced ONLY for an individual account whose storefront holds nothing
+ * but the teacher profile — a shop, or a seller with any other listing, keeps the name it chose. Run after the save
+ * committed and never failing it: a miss is healed by the next save, which compares with the live name again.
+ */
+export async function syncTeacherStorefrontName(sellerId: string, profileId: string): Promise<boolean> {
+  try {
+    const [owner, tp] = await Promise.all([
+      db.profile.findUnique({ where: { id: profileId }, select: { accountType: true } }),
+      db.teacherProfile.findUnique({ where: { profileId }, select: { fullName: true } }),
+    ])
+    // Positively an individual account (or one not yet typed — it cannot be a shop) with a profile on file: no row, a
+    // business, or any other type renames nothing.
+    if (!owner || (owner.accountType !== 'individual' && owner.accountType !== null) || !tp?.fullName) return false
+    // ONE statement: it applies only while this account still owns the storefront and the storefront holds nothing but
+    // the teacher profile, and it writes the name the profile has NOW — so two quick renames converge on the last one,
+    // whichever of their after() calls runs last (commit-gate review).
+    const { count } = await db.seller.updateMany({
+      where: { id: sellerId, ownerId: profileId, NOT: { name: tp.fullName }, listings: { none: { listingType: { not: TEACHER_LISTING_TYPE } } } },
+      data: { name: tp.fullName },
+    })
+    if (count > 0) revalidatePublicPath(`/sellers/${sellerId}`)
+    return count > 0
+  } catch (e) {
+    logError(e, { op: 'teachers.storefront-name' })
+    return false
+  }
+}
+
 // The visa-word screen lives in a pure module so the CV import drops exactly what Publish refuses.
 export { teacherVisaMention } from '@/lib/teachers/visa-mention'
 
@@ -799,6 +831,8 @@ export async function saveTeacherProfile(
   // The district pages the teacher left and joined: without this a teacher who moved stayed on the old district's cached
   // page until its ISR window ran out (integration, 2026-10-08).
   guard('teachers.revalidate', () => revalidateTeacherPages(listingId, districtPages))
+  // The storefront's name follows a rename — after the response, best-effort (see syncTeacherStorefrontName).
+  if (seller.name !== t.fullName) guard('teachers.storefront-name', () => after(() => syncTeacherStorefrontName(seller.id, profile.id)))
   // The displaced video objects go now — reference-checked, so another listing that copied a public URL keeps it; what
   // this does not finish, the tombstone sweep does.
   const purgeUrls = plan.displaced.flatMap((d) => (d.bucket === 'listing-videos' ? [d.url] : []))

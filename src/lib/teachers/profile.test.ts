@@ -495,3 +495,15 @@ describe('teacherCardPrice — the price a teacher\'s card states', () => {
     }
   })
 })
+
+/**
+ * ⚠️ A MASKED EMAIL HANDLE IS NOT A NAME (sweep, 2026-10-22). An email-code sign-up's display name is "gi***"; the
+ * "Use my account name" chip published profiles under it — nameless to schools and dropped from search.
+ */
+describe('validateTeacherInput — the full name is a real name', () => {
+  it('refuses a masked handle or a name with no letter; accepts a real one', () => {
+    expect(validateTeacherInput(t({ fullName: 'gi***' }), ['about']).fullName).toBe('real_name')
+    expect(validateTeacherInput(t({ fullName: '12' }), ['about']).fullName).toBe('real_name')
+    expect(validateTeacherInput(t({ fullName: 'Gift West' }), ['about']).fullName).toBeUndefined()
+  })
+})

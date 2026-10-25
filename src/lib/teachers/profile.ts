@@ -30,6 +30,7 @@ import {
   ANYWHERE, HCMC, LIVES_IN, ONLINE, coverReachOf, homeHasCover, isHcmcDistrict, isHub, isPickableProvince,
   normalizeTeachAreas, otherCityKeys, relocationAllowed, type LivesIn,
 } from '@/lib/teachers/places'
+import { isMaskedName } from '@/lib/teachers/search-floor'
 
 export { CITY_PROVINCE, LIVES_IN, type LivesIn } from '@/lib/teachers/places'
 
@@ -670,6 +671,9 @@ export function validateTeacherInput(t: TeacherInput, steps: readonly TeacherSte
   }
   if (has('about')) {
     if (t.fullName.length < 2) e.fullName = 'required'
+    // A masked email handle ("gi***") or a name with no letter is not a person's name: schools saw a nameless teacher and
+    // the profile silently left search (search-floor.ts). Asked for at the next save (sweep, 2026-10-22).
+    else if (isMaskedName(t.fullName)) e.fullName = 'real_name'
     if (t.headline.length < 10) e.headline = 'too_short'
     if (!t.nationality) e.nationality = 'required'
     if (v.has('englishLevel') && !t.englishLevel) e.englishLevel = 'required'
