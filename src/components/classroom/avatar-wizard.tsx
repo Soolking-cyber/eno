@@ -115,7 +115,9 @@ export function AvatarWizard() {
     <StepWizard
       steps={steps}
       current={step}
-      onStepSelect={(key) => setStep(key)}
+      // StepWizard only offers steps already done (no `allowForward`), and "Try it" is reached through Save alone — this
+      // guard just says so where a reader can see it.
+      onStepSelect={(key) => { if (key !== 'try') setStep(key) }}
       header={<h1 className="h-title">{data.avatar ? tr('Your avatar', 'Avatar của bạn') : tr('Create your avatar', 'Tạo avatar của bạn')}</h1>}
       primaryAction={{
         label: step === 'voice' ? tr('Save', 'Lưu') : step === 'try' ? tr('Done', 'Xong') : tr('Next', 'Tiếp'),
@@ -215,12 +217,20 @@ function CharacterStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
   const { tr } = useLanguage()
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // The draft as it is NOW: the name, chips or first words changed while the AI was writing stay (C3b round 2, codex).
+  const latest = useRef(d)
+  latest.current = d
   const write = async () => {
     setBusy(true); setErr(null)
+    const sent = { name: d.name, persona: d.persona }
     const r = await api<{ persona: string; greeting: string }>('/api/classroom/avatar/persona-ai', { body: { notice: PERSONA_AI_NOTICE_VERSION, name: d.name, traits: d.traits, persona: d.persona } })
     setBusy(false)
     if (!r.ok) return setErr(r.error)
-    setD({ ...d, persona: r.data.persona, greeting: d.greeting || r.data.greeting })
+    const now = latest.current
+    // Written for a name or a character the teacher has since changed (C3c review): it would introduce the old name, or
+    // replace what they typed meanwhile — so it is not used, and they are told why.
+    if (now.name !== sent.name || now.persona !== sent.persona) return setErr('persona_stale')
+    setD({ ...now, persona: r.data.persona, greeting: now.greeting || r.data.greeting })
   }
   const setTraits = (t: Partial<Traits>) => setD({ ...d, traits: { ...d.traits, ...t } })
   return (

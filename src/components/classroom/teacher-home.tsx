@@ -19,7 +19,12 @@ import { SessionLauncher } from './session-launcher'
 type Teacher = NonNullable<ClassroomMe['teacher']>
 
 /** The teacher's side of /classroom: their avatar, and their class — one row per seat, newest report first. */
-export function TeacherHome({ teacher, onChanged }: { teacher: Teacher; onChanged: () => void }) {
+export function TeacherHome({ teacher, onChanged, secondary }: {
+  teacher: Teacher
+  onChanged: () => void
+  /** The page already has its <h1> (the learner's side, above): this title is an <h2>. */
+  secondary?: boolean
+}) {
   const { tr } = useLanguage()
   const [seats, setSeats] = useState<RosterSeat[] | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
@@ -35,7 +40,9 @@ export function TeacherHome({ teacher, onChanged }: { teacher: Teacher; onChange
   return (
     <section aria-labelledby="teacher-class" className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-3">
-        <h1 id="teacher-class" className="h-title">{tr('Your class', 'Lớp của bạn')}</h1>
+        {secondary
+          ? <h2 id="teacher-class" className="h-title">{tr('Your class', 'Lớp của bạn')}</h2>
+          : <h1 id="teacher-class" className="h-title">{tr('Your class', 'Lớp của bạn')}</h1>}
         {!teacher.open && <Badge variant="warning" size="md">{tr('Pilot', 'Thử nghiệm')}</Badge>}
       </div>
       {!teacher.open && (

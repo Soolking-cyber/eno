@@ -36,7 +36,7 @@ export function InviteShare({ seatId, code, seatName }: { seatId: string; code: 
           {copied ? tr('Copied', 'Đã chép') : tr('Copy link', 'Chép link')}
         </Button>
         {canShare && (
-          <Button variant="cta" className="flex-1" onClick={() => navigator.share({ text: `${message} ${link}`, url: link }).catch(() => {})}>
+          <Button variant="cta" className="flex-1" onClick={() => navigator.share({ text: message, url: link }).catch(() => {})}>
             <Share2 aria-hidden />
             {tr('Share', 'Chia sẻ')}
           </Button>

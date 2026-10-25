@@ -46,6 +46,7 @@ const COPY: Record<string, Pair> = {
   ai_unavailable: { en: 'Writing with AI is not available right now. Try again later.', vi: 'Tính năng viết bằng AI tạm thời chưa dùng được. Hãy thử lại sau.' },
   ai_failed: { en: 'The AI could not write it this time. Try again, or write it yourself.', vi: 'AI chưa viết được lần này. Hãy thử lại hoặc tự viết.' },
   rate_limited: { en: 'Too many tries. Please wait a little.', vi: 'Bạn đã thử quá nhiều lần. Vui lòng đợi một chút.' },
+  persona_stale: { en: 'You changed the name or the character while the AI was writing, so its draft was not used. Tap Write with AI again.', vi: 'Bạn đã đổi tên hoặc tính cách khi AI đang viết, nên bản nháp không được dùng. Hãy chạm Viết bằng AI lần nữa.' },
   plan_changed: { en: 'A newer plan arrived. Here it is — check it again.', vi: 'Có kế hoạch mới hơn. Hãy xem lại.' },
 }
 

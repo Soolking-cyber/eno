@@ -65,7 +65,7 @@ function SignedInHome() {
   return (
     <div className="flex flex-col gap-10">
       {learning && <LearnerHome me={me} onChanged={refresh} />}
-      {me.teacher && <TeacherHome teacher={me.teacher} onChanged={refresh} />}
+      {me.teacher && <TeacherHome teacher={me.teacher} onChanged={refresh} secondary={learning} />}
     </div>
   )
 }
@@ -95,7 +95,7 @@ function Landing() {
         <span aria-hidden className="flex size-24 items-center justify-center rounded-full bg-primary text-primary-foreground">
           <Mic className="size-10" strokeWidth={STROKE_DISPLAY} />
         </span>
-        <h1 className="h-display mt-6 text-balance">{tr('Practise speaking, at home', 'Luyện nói tiếng Anh tại nhà')}</h1>
+        <h1 className="h-display mt-6 text-balance">{tr('Practise speaking English, at home', 'Luyện nói tiếng Anh tại nhà')}</h1>
         <p className="mt-3 max-w-md text-base text-body text-pretty">
           {tr(
             "Talk with your teacher's AI avatar between lessons. It listens, answers, and helps your teacher plan what you practise next.",

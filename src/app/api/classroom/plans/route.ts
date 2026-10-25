@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 
 /**
  * PUT /api/classroom/plans — the TEACHER's next-session plan for a seat (owner: "teacher can have a look and adjust the next
- * sessions prompt"): `{ seatId, brief, focus, openingLine, baseId?, baseUpdatedAt? }`. Saved as source teacher / approved,
+ * sessions prompt"): `{ seatId, brief, focus, openingLine, baseId?, baseUpdatedAt? }` (`baseId: null` = written from no plan). Saved as source teacher / approved,
  * so the AI never overwrites it (feedback.ts) and the next session runs on it.
  * ⛔ OPTIMISTIC: when the teacher edited a plan they saw (`baseId` + `baseUpdatedAt`), and that plan has changed or gone
  * meanwhile (a new report drafted another), the save is refused with plan_changed — the page reloads the newer draft
@@ -40,6 +40,10 @@ export const PUT = route({ auth: 'profile', rateLimit: { bucket: 'classroom-plan
     if (typeof body.baseId === 'string') {
       const base = open.find((p) => p.id === body.baseId)
       if (!base || base.updatedAt.toISOString() !== body.baseUpdatedAt || current?.id !== base.id) throw new ApiError('plan_changed', 409)
+    } else if (body.baseId === null && current) {
+      // ⛔ `baseId: null` = "I started from NO plan" (C3c review, Opus): a plan that arrived since — an AI draft from a
+      // report that landed while the teacher typed — is not silently replaced either.
+      throw new ApiError('plan_changed', 409)
     }
     // One plan waits per seat: the teacher's replaces whatever was waiting (the AI's draft, or their own earlier edit).
     await tx.classroomPlan.deleteMany({ where: { enrollmentId: seat.id, status: { not: 'used' } } })

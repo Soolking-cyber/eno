@@ -129,23 +129,35 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
    * did.
    */
   const leftPage = useRef(false)
+  /**
+   * ⛔ LEAVING MARKS THE SCREEN GONE WHETHER OR NOT A SESSION EXISTS YET (C3b round 2, codex + Opus): left during Start —
+   * the session POST still in flight — the old early return kept `ended` false, so the answer arriving later was adopted
+   * by a screen that no longer existed. Now begin() sees `ended` and ends the session it was given.
+   */
   const endOnLeave = useCallback(() => {
-    const s = startRef.current
-    if (!s || ended.current) return
+    if (ended.current) return
     ended.current = true
     leftPage.current = true
-    void fetch(`/api/classroom/sessions/${s.id}/end`, { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'learner' }) }).catch(() => {})
+    const s = startRef.current
+    if (s) void fetch(`/api/classroom/sessions/${s.id}/end`, { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'learner' }) }).catch(() => {})
   }, [])
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const releaseAllRef = useRef(releaseAll)
+  releaseAllRef.current = releaseAll
+  // ⚠️ MOUNT-ONCE (empty deps, the callbacks through refs): this cleanup ENDS the session, so it must run on a real unmount
+  // only — never because a dependency changed identity mid-session (C3b round 2, Opus). The body resets the flags so a
+  // development double-mount does not start out "gone".
   useEffect(() => {
-    // Back to a page the browser kept (back-forward cache) after leaving ended the session: close the dead screen
-    // instead of leaving controls that can no longer do anything (C3b review, codex + Opus).
-    const onShow = (e: PageTransitionEvent) => { if (e.persisted && leftPage.current) { releaseAll(); closeRef.current() } }
+    ended.current = false
+    leftPage.current = false
+    // Back to a page the browser kept (back-forward cache) after leaving: close the dead screen instead of leaving
+    // controls that can no longer do anything (C3b review, codex + Opus).
+    const onShow = (e: PageTransitionEvent) => { if (e.persisted && leftPage.current) { releaseAllRef.current(); closeRef.current() } }
     window.addEventListener('pagehide', endOnLeave)
     window.addEventListener('pageshow', onShow)
     return () => { window.removeEventListener('pagehide', endOnLeave); window.removeEventListener('pageshow', onShow); endOnLeave() }
-  }, [endOnLeave, releaseAll])
+  }, [endOnLeave])
 
   const end = useCallback(async (reason: 'learner' | 'time') => {
     if (ended.current) return
@@ -227,6 +239,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     hapticTap()
     setRefused(null)
     ended.current = false
+    leftPage.current = false
     const ctx = ctxRef.current ?? new AudioContext()
     ctxRef.current = ctx
     try {

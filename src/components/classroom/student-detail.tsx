@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/context/language-context'
+import { useAuth } from '@/context/auth-context'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,7 @@ type Detail = {
  */
 export function StudentDetail({ seatId }: { seatId: string }) {
   const { tr, lang } = useLanguage()
+  const { user, loading, openSignIn } = useAuth()
   const router = useRouter()
   const [d, setD] = useState<Detail | null>(null)
   /** The first load failed: the page has nothing to show. */
@@ -43,10 +45,28 @@ export function StudentDetail({ seatId }: { seatId: string }) {
   const [editing, setEditing] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [invite, setInvite] = useState<string | null>(null)
-  const load = useCallback(() => api<Detail>(`/api/classroom/seats/${seatId}/detail`).then((r) => {
-    if (r.ok) { setD(r.data); setError(null) } else if (hasData.current) { setActionError(r.error) } else { setError(r.error) }
-  }), [seatId])
-  useEffect(() => { void load() }, [load])
+  /** Bumped per account: an answer that left before the switch is dropped (C3c review, codex + Opus). */
+  const gen = useRef(0)
+  const load = useCallback(() => {
+    const mine = gen.current
+    return api<Detail>(`/api/classroom/seats/${seatId}/detail`).then((r) => {
+      if (mine !== gen.current) return
+      if (r.ok) { setD(r.data); setError(null) } else if (hasData.current) { setActionError(r.error) } else { setError(r.error) }
+    })
+  }, [seatId])
+  // Again for every account (C3b round 2, codex): another account never keeps the previous one's student on screen.
+  useEffect(() => {
+    gen.current += 1
+    hasData.current = false
+    setD(null); setError(null); setActionError(null)
+    if (user) void load()
+  }, [load, user?.id])
+
+  // Signed out (C3c review, Opus: it waited forever on a skeleton): say so, with the way in.
+  if (!loading && !user) {
+    return <EmptyState icon={UserRound} title={tr('Sign in to see your class', 'Đăng nhập để xem lớp của bạn')} className="mt-12"
+      action={<Button variant="cta" onClick={() => openSignIn()}>{tr('Sign in', 'Đăng nhập')}</Button>} />
+  }
 
   if (error && !d) {
     return <EmptyState icon={UserRound} title={tr(refusalCopy(error).en, refusalCopy(error).vi)} className="mt-12"

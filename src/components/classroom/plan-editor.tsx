@@ -35,6 +35,22 @@ export function PlanEditor({ seatId, plan, onSaved }: { seatId: string; plan: Pl
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   /**
+   * ⛔ THE PLAN THE TEACHER STARTED FROM (C3b round 2, codex): a reload while editing (a pause, a new report) used to move
+   * the save's baseline to a plan they never saw, so the version check passed and their old text overwrote it. The base
+   * is taken when editing starts, and moves to a newer plan only once "plan_changed" has shown it beside their text.
+   */
+  const [base, setBase] = useState<{ id: string; updatedAt: string } | null>(null)
+  const startEdit = () => { setError(null); setBase(plan ? { id: plan.id, updatedAt: plan.updatedAt } : null); setEdit(true) }
+  /**
+   * The version this save may replace — what the teacher SAW (C3c review, codex): the plan they started from, or, after
+   * "plan_changed", the newer plan on screen beside their text at the moment they tap Save (so each later revision has to
+   * be seen too). `baseId: null` says they started from no plan; the server then refuses if one has arrived.
+   */
+  const baseline = () => {
+    const b = error === 'plan_changed' ? (plan ? { id: plan.id, updatedAt: plan.updatedAt } : null) : base
+    return b ? { baseId: b.id, baseUpdatedAt: b.updatedAt } : { baseId: null }
+  }
+  /**
    * ⛔ THE FIELDS FOLLOW THE PLAN ONLY WHILE NOBODY IS TYPING (C3b review): they re-sync when a NEW plan arrives (another id or
    * a newer save) and whenever editing ends — so Cancel restores the saved plan — but never mid-edit: a reload (after a
    * pause, a re-invite, or "plan_changed") used to wipe what the teacher was writing.
@@ -56,7 +72,7 @@ export function PlanEditor({ seatId, plan, onSaved }: { seatId: string; plan: Pl
       : {
         seatId, brief, openingLine: opening,
         focus: { goals: lines(goals, PLAN_LIMITS.goals), focusWords: words(focusWords, PLAN_LIMITS.focusWords), recycle: plan?.focus.recycle ?? [], drill: lines(drill, PLAN_LIMITS.drill) },
-        ...(plan ? { baseId: plan.id, baseUpdatedAt: plan.updatedAt } : {}),
+        ...baseline(),
       }
     const r = await api('/api/classroom/plans', { method: 'PUT', body })
     setBusy(false)
@@ -93,7 +109,7 @@ export function PlanEditor({ seatId, plan, onSaved }: { seatId: string; plan: Pl
             <p className="text-sm text-body">{tr('First session: a get-to-know-you conversation at the student’s level. After it, the AI drafts the next one from the report.', 'Buổi đầu: trò chuyện làm quen theo trình độ học viên. Sau đó AI sẽ soạn buổi tiếp theo dựa trên nhận xét.')}</p>
           )}
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => setEdit(true)}><PencilLine aria-hidden />{plan ? tr('Edit', 'Chỉnh sửa') : tr('Write the next session', 'Soạn buổi tiếp theo')}</Button>
+            <Button size="sm" variant="outline" onClick={startEdit}><PencilLine aria-hidden />{plan ? tr('Edit', 'Chỉnh sửa') : tr('Write the next session', 'Soạn buổi tiếp theo')}</Button>
             {plan && !mine && <Button size="sm" variant="cta" loading={busy} onClick={() => save(true)}><Check aria-hidden />{tr('Approve', 'Duyệt')}</Button>}
           </div>
         </div>
