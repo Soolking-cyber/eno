@@ -341,6 +341,63 @@ describe('teacher.eno.vn → eno.vn', () => {
 // ── "Continue with Google" inside an app's built-in browser (2026-10-25): the page moves to the phone's own browser, and
 // this form's step-1 answers wait on the server under a one-time token the address carries (src/lib/auth/carry.ts;
 // sign-in-form.tsx continueGoogleInBrowser). The form says what to carry, and takes it back on the other side.
+// ── "See teachers" for the people hiring (owner, 2026-10-22: "VI visitors → See teachers"): the join page in Vietnamese
+// offers the teacher listings before any answer — on step 1, and on the way-out-first screen inside Meta's browsers.
+describe('"See teachers" when the join page is in Vietnamese (see-teachers.tsx)', () => {
+  const mountIn = (lang: 'en' | 'vi', props: Partial<React.ComponentProps<typeof TeacherForm>> = {}) => render(
+    <LanguageProvider initialLang={lang} initialViDict={{}}>
+      <main><TeacherForm mode="join" draftHost apexOrigin="https://eno.vn" {...props} /></main>
+    </LanguageProvider>,
+  )
+
+  it('Vietnamese, step 1 before any answer: the card links to eno.vn/c/teachers — the ad\'s campaign tags kept, never a click id — and the tap is counted', async () => {
+    funnel.length = 0
+    history.replaceState(null, '', '/?utm_source=fb&utm_medium=paid&utm_campaign=teachers-vi&fbclid=abc')
+    vi.stubGlobal('fetch', fakeFetch({}).fn)
+    mountIn('vi')
+    const card = await screen.findByTestId('see-teachers')
+    const link = within(card).getByRole('link', { name: /Xem giáo viên/ }) as HTMLAnchorElement
+    // On the link's own address once the page runs — a long-press "Open in new tab" carries the tags too.
+    await waitFor(() => expect(link.getAttribute('href')).toBe('https://eno.vn/c/teachers?utm_source=fb&utm_medium=paid&utm_campaign=teachers-vi'))
+    // A click that is not followed (jsdom) still runs the handler: the count.
+    link.addEventListener('click', (e) => e.preventDefault())
+    link.click()
+    expect(funnel).toContain('see_teachers')
+  })
+
+  it('…and it stays with step 1 answered (it used to go with the first answer, moving the questions under the next tap)', async () => {
+    vi.stubGlobal('fetch', fakeFetch({}).fn)
+    putDraft({ livesIn: 'city', currentCity: 'ho-chi-minh-city', currentDistrictKey: 'd7', jobTypes: ['fulltime'], relocate: 'no' }, 'plans', 5, null)
+    mountIn('vi')
+    expect(await screen.findByTestId('see-teachers')).toBeTruthy()
+  })
+
+  it('English: none (an English visitor here is a teacher)', async () => {
+    vi.stubGlobal('fetch', fakeFetch({}).fn)
+    mountIn('en')
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    expect(screen.queryByTestId('see-teachers')).toBeNull()
+  })
+
+  it('Vietnamese, inside Facebook\'s browser: the way-out-first screen offers it too, under its button, with the ad\'s tags — English does not', async () => {
+    history.replaceState(null, '', '/?utm_source=fb&utm_campaign=teachers-vi')
+    vi.stubGlobal('fetch', fakeFetch({}).fn)
+    const { unmount } = mountIn('vi', { escape: { host: 'facebook', os: 'android' } })
+    const screenEl = await screen.findByTestId('escape-first')
+    const link = within(screenEl).getByRole('link', { name: /Xem giáo viên/ })
+    await waitFor(() => expect(link.getAttribute('href')).toBe('https://eno.vn/c/teachers?utm_source=fb&utm_campaign=teachers-vi'))
+    // A right click only opens a menu: not counted. A middle click opens the link: counted.
+    funnel.length = 0
+    link.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, button: 2 }))
+    expect(funnel).not.toContain('see_teachers')
+    link.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, button: 1 }))
+    expect(funnel).toContain('see_teachers')
+    unmount()
+    mountIn('en', { escape: { host: 'facebook', os: 'android' } })
+    expect(within(await screen.findByTestId('escape-first')).queryByTestId('see-teachers')).toBeNull()
+  })
+})
+
 describe('the answers carried out of an app\'s browser (?carry=)', () => {
   const TOKEN = 'T'.repeat(43)
   const STEP1 = { livesIn: 'city', currentCity: 'ho-chi-minh-city', currentDistrictKey: 'd7', jobTypes: ['fulltime'], relocate: 'no', teachAreas: [], teachAreasConfirmed: false }

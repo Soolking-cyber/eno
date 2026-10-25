@@ -79,6 +79,9 @@ information") says so — "delete them then, or otherwise within an hour". MATER
 deploy" (asked with the 5-day notice as the alternative), like the 25/10 changes — it runs only when the visitor taps Google in an app's browser, holds anonymous step-1
 answers for under an hour for that visitor's own continuation, and adds no recipient. Rows touched: A28 (new), §2.9 not
 changed (the data is anonymous until sign-in and gone within the hour).
+Same deploy (owner, 22/10/2026: "VI visitors → See teachers"): the join page in Vietnamese offers the teacher listings,
+and the teacher form's anonymous daily counters gain one event, `see_teachers` ("See teachers" tapped) — purpose of the
+existing counters row, no new data kind; /privacy's counters paragraph names it.
 -->
 
 # HỒ SƠ BẢO VỆ DỮ LIỆU CÁ NHÂN — eno.vn

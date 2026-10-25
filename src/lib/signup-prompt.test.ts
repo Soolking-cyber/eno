@@ -463,6 +463,10 @@ describe('teacher form events after step 1, and the coarse source of step 1’s 
       expect(parseTeacherCounterKey(teacherCounterKey('2026-10-22', 'marketplace', e, 'browser.phone.en'))?.event).toBe(e)
     }
   })
+  it('"See teachers" (2026-10-26) is a counted event — the route takes it', () => {
+    expect(isTeacherFormEvent('see_teachers')).toBe(true)
+    expect(parseTeacherCounterKey(teacherCounterKey('2026-10-26', 'marketplace', 'see_teachers', 'inapp-fb.phone.vi'))?.event).toBe('see_teachers')
+  })
   it('the CV refusal (required for a new profile since 2026-10-21) is its own counted event — the route takes it', () => {
     expect(isTeacherFormEvent('publish_refused_cv')).toBe(true)
     expect(parseTeacherCounterKey(teacherCounterKey('2026-10-23', 'marketplace', 'publish_refused_cv', 'browser.phone.vi'))?.event).toBe('publish_refused_cv')

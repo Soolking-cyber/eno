@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { ArrowUpRight, ExternalLink } from '@/components/ui/icons'
 import { escapeInAppBrowser, escapeUrl, inAppHostName, type InAppHost } from '@/lib/in-app-browser'
 import { countTeacherFormEvent } from '@/lib/signup-counters'
+import { SeeTeachers } from '@/components/teachers/see-teachers'
 
 /** Who is offered the way out: Meta's own built-in browsers on a phone (teachers/join/page.tsx decides, on the server). */
 export type EscapeOffer = { host: InAppHost; os: 'android' | 'ios' }
@@ -100,7 +101,7 @@ export function OpenInBrowser({ offer }: { offer: EscapeOffer }) {
  * `retry`: this page came back inside the app WITH the escape's mark — the app loaded the link itself instead of handing
  * it over — so the way by hand shows at once, pointing at the app's ⋯ (top right in Facebook, Messenger and Instagram).
  */
-export function EscapeFirst({ offer, retry = false, onStay }: { offer: EscapeOffer; retry?: boolean; onStay: () => void }) {
+export function EscapeFirst({ offer, retry = false, onStay, seeTeachersAt = null }: { offer: EscapeOffer; retry?: boolean; onStay: () => void; seeTeachersAt?: string | null }) {
   const { tr } = useLanguage()
   const { open, stillHere } = useEscapeTap(offer, retry)
   const app = inAppHostName(offer.host) ?? 'Facebook'
@@ -124,6 +125,9 @@ export function EscapeFirst({ offer, retry = false, onStay }: { offer: EscapeOff
         {safari ? tr('Open in Safari', 'Mở bằng Safari') : tr('Open in your browser', 'Mở bằng trình duyệt')}
       </Button>
       {safari && <p className="text-sm text-muted-foreground">{tr('If your phone asks “Open in Safari?”, tap Open.', 'Nếu điện thoại hỏi “Mở bằng Safari?”, hãy chọn Mở.')}</p>}
+      {/* `seeTeachersAt` (the page in Vietnamese — teacher-form.tsx): most of those visitors are hiring, not teaching; the
+          teacher listings work right here in the app, no browser needed (see-teachers.tsx). */}
+      {seeTeachersAt && <SeeTeachers apexOrigin={seeTeachersAt} variant="line" />}
       {/* ⛔ TRUE WHENEVER IT SHOWS (review round 4): this page cannot know whether the hand-over held — the app's own "Open
           in Safari?" leaves it visible, a quick look back after a good hand-over looks the same — so it says only what is
           so ("still here?") and keeps the line above, never "it did not open". */}

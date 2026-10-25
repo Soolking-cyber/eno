@@ -322,6 +322,9 @@ export const isGateAction = (v: unknown): v is GateAction => typeof v === 'strin
  *   escape_stay        — "Continue in Facebook" (or Messenger, Instagram) tapped on it: step 1 goes on in the app
  *   escape_arrived     — a page opened in a REAL browser with the escape's mark on its address — the hand-over held.
  *                        Anyone can open such an address, so read it as an upper bound beside escape_tap
+ * And the people hiring, on a page written for teachers (2026-10-26, owner 2026-10-22: "VI visitors → See teachers"):
+ *   see_teachers       — "See teachers" tapped (see-teachers.tsx), shown only when the join page is in Vietnamese; read
+ *                        beside step1_ready / escape_shown of the same Vietnamese class for how many saw it
  */
 export const TEACHER_FORM_EVENTS = [
   'step1_ready', 'step1_answered', 'step1_blocked', 'step1_continue', 'published',
@@ -331,6 +334,7 @@ export const TEACHER_FORM_EVENTS = [
   'publish_failed',
   'continue_ad', 'continue_groups', 'continue_zalo', 'continue_other', 'continue_none',
   'escape_tap', 'escape_shown', 'escape_stay', 'escape_arrived',
+  'see_teachers',
 ] as const
 export type TeacherFormEvent = (typeof TEACHER_FORM_EVENTS)[number]
 export const isTeacherFormEvent = (v: unknown): v is TeacherFormEvent => typeof v === 'string' && (TEACHER_FORM_EVENTS as readonly string[]).includes(v)

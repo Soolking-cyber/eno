@@ -50,6 +50,7 @@ import { continueSourceEvent, type TeacherFormEvent } from '@/lib/signup-prompt'
 import { EscapeFirst, OpenInBrowser, type EscapeOffer } from '@/components/teachers/open-in-browser'
 import { ESCAPE_PARAM, browserContext, escapeMark, inAppHost, withoutEscapeMark } from '@/lib/in-app-browser'
 import { CARRY_PARAM, setTeacherCarry } from '@/lib/auth/in-app-carry'
+import { SeeTeachers } from '@/components/teachers/see-teachers'
 import { makeErrText, type StepProps } from '@/components/teachers/steps/shared'
 import { teacherRefusedWords } from '@/lib/teachers/text-screen'
 import { PlansStep } from '@/components/teachers/steps/plans-step'
@@ -3112,7 +3113,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   if (escapeFirst && escape) {
     // Staying is an in-place switch: the button that was tapped unmounts, so step 1's heading takes the focus (review,
     // 2026-10-22 — never left on <body> for a keyboard or a screen reader).
-    return <EscapeFirst offer={escape} retry={escapeRetry} onStay={() => { screenSwitched.current = true; setEscapeStay(true) }} />
+    return <EscapeFirst offer={escape} retry={escapeRetry} seeTeachersAt={lang === 'vi' ? apexOrigin : null} onStay={() => { screenSwitched.current = true; setEscapeStay(true) }} />
   }
 
   const stepProps: StepProps = { t, set, patch, update, errors, errText, mode }
@@ -3207,6 +3208,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
                 ⛔ Gone with the first answer (review, 2026-10-17): the real browser opens the bare address, so step 1's
                 answers would not follow — a restored draft hides it too. */}
             {escape && mode === 'join' && step === 'plans' && !step1Answered(t) && <OpenInBrowser offer={escape} />}
+            {/* The page in Vietnamese: most of those visitors are hiring, not teaching (see-teachers.tsx). ⛔ It STAYS through
+                step 1 — gone with the first answer, the questions would jump up under a (55+, on a phone) visitor's next tap
+                (commit gate, opus). */}
+            {lang === 'vi' && mode === 'join' && step === 'plans' && <SeeTeachers apexOrigin={apexOrigin} />}
             {carryState && mode === 'join' && step === 'plans' && (
               <p role="status" className="rounded-2xl bg-tint p-3.5 text-sm text-body" data-testid="carry-status">
                 {carryState === 'taking'

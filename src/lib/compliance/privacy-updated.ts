@@ -149,7 +149,9 @@
  * link that works for 30 minutes — "delete them then, or otherwise within an hour" (src/lib/auth/carry.ts: dropped once
  * the form there has them; otherwise 30 minutes, then the 15-minute
  * kv_store sweep). New data held, for at most an hour, for the visitor's own continuation; no new recipient. The
- * job-match switches' "25 October 2026" became literal in page.test.tsx first (that deploy has run).
+ * job-match switches' "25 October 2026" became literal in page.test.tsx first (that deploy has run). In the same deploy
+ * (owner, 2026-10-22: "VI visitors → See teachers"), the sign-up counters paragraph counts "how many times “See teachers”
+ * was tapped in the teacher form or on that screen" (see_teachers — the same anonymous daily totals).
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -167,4 +169,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-26'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = 'df396497d895762f'
+export const PRIVACY_TEXT_FINGERPRINT = '499412c12e56d9cd'

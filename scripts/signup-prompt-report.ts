@@ -238,6 +238,8 @@ async function main() {
   // page-ready number is "shown" (step 1 ready follows a stay there). An arrival is a page that opened in a REAL browser
   // with the escape's mark — anyone can open such an address, so it is an upper bound beside the taps.
   console.log(`  The way out first: shown ${T.escape_shown} · stayed in the app ${T.escape_stay} · arrived in a real browser ${T.escape_arrived}`)
+  // Since 2026-10-26: the join page in Vietnamese offers the teacher listings (see-teachers.tsx) — the people hiring.
+  console.log(`  "See teachers" tapped (the join page in Vietnamese): ${T.see_teachers}`)
 
   console.log(`
   Notes: counts are anonymous and per tab-event, not per person; "signed in" (a sign-in within an hour of a
