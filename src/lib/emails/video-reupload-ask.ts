@@ -52,6 +52,7 @@ export function renderVideoReuploadAsk(opts: { origin: string; siteName: string;
     cta: { label: VIDEO_REUPLOAD_ASK.cta[l], url },
     audienceNote: l === 'vi' ? `Bạn nhận được email này vì bạn đã tải video lên ${siteName}.` : `You’re receiving this because you uploaded a video to ${siteName}.`,
     sender: 'full',
+    lang: l,
   })
   const text = [hello, '', ...lines, '', url].join('\n')
   return { subject, html, text }
