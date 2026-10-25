@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { findUnit } from '@/lib/vn-unit-match'
 import { Label } from '@/components/ui/label'
 import { PickerSheet } from '@/components/ui/picker-sheet'
 import { useIsPhone } from '@/hooks/use-is-phone'
@@ -26,22 +27,8 @@ type Unit = { code: string; name: string; nameEn: string }
 const FIELD = 'w-full justify-between rounded-xl bg-tint px-3.5 py-2.5 text-body hover:bg-muted'
 const HCMC = '79' // Ho Chi Minh City — the live market; default selection
 
-// Normalize a VN admin name for matching: lowercase, strip diacritics, drop the
-// administrative prefix (Tỉnh/Thành phố/Quận/Huyện/Phường/Xã/Thị trấn/Thị xã).
-function norm(s: string): string {
-  return (s || '')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd')
-    .toLowerCase()
-    .replace(/\b(tinh|thanh pho|tp|quan|huyen|phuong|xa|thi tran|thi xa)\b\.?/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-}
-export function findUnit(list: { code: string; name: string; nameEn: string }[], raw: string) {
-  const n = norm(raw)
-  if (!n) return undefined
-  return list.find((u) => norm(u.name) === n || norm(u.nameEn) === n) ||
-    list.find((u) => { const un = norm(u.name); return un.includes(n) || n.includes(un) })
-}
+// Name → unit matching (diacritic-, case- and admin-prefix-insensitive) lives in a non-client module so the server (the listing edit page) can use it too.
+export { findUnit } from '@/lib/vn-unit-match'
 
 // Provinces list, fetched ONCE per page load and shared: AreaFilter is mounted
 // unconditionally by the header AND the facet bar (and WardPicker repeats the call),
@@ -170,21 +157,24 @@ export function AreaFilter({
     return () => { off = true }
   }, [open])
 
-  // Re-sync the draft to the applied values each time the modal opens.
+  // Re-sync the draft to the applied values each time the modal opens. ⚠️ In 'pick' mode a seeded province the picker
+  // cannot place by code (a pre-2025 province), or a ward seeded with no province, opens as ITSELF — draft code '', its
+  // name shown in the field — never as the Ho Chi Minh City default (see `apply`).
   useEffect(() => {
     if (!open) return
-    setProvCode(province?.code || HCMC)
+    setProvCode(province?.code || (mode === 'pick' && (province || ward) ? '' : HCMC))
     setWardCode(ward?.code || '')
     setLoc(nearby ? { lat: nearby.lat, lng: nearby.lng } : null)
     setRadiusKm(nearby?.radiusKm ?? 5)
     setAddress(null)
-  }, [open, province, ward, nearby])
+  }, [open, province, ward, nearby, mode])
 
   // Wards for the selected province — ONLY while the popover is open (perf Phase 1:
   // a persisted/geolocated province made every cold load fetch that province's wards
   // for a control nobody had opened).
   useEffect(() => {
-    if (!provCode) { setWards([]); return }
+    // No province → no wards, and no spinner: a load this replaced never clears it (its result is dropped below).
+    if (!provCode) { setWards([]); setLoadingWards(false); return }
     if (!open) return
     let off = false
     setLoadingWards(true)
@@ -254,10 +244,16 @@ export function AreaFilter({
     )
   }
 
+  // ⚠️ WHAT THE PANEL SHOWS IS WHAT APPLY SAVES (sweep, 2026-10-22). A seeded place the picker cannot place by code (a
+  // pre-2025 province, a ward such as "Quận 12") used to open as Ho Chi Minh City with no ward, and Apply moved the listing
+  // there. Now the draft keeps it — code '' — and its field shows its name; it goes back as given until the seller picks
+  // another province or ward (or a located position does). Likewise a seeded place whose list has not loaded yet.
+  const keptProvince = province && province.code === provCode ? province : null
+  const keptWard = ward && ward.code === wardCode && (province?.code ?? '') === provCode ? ward : null
   const apply = () => {
     onApply({
-      province: toGeo(provinces.find((p) => p.code === provCode)),
-      ward: toGeo(wards.find((w) => w.code === wardCode)),
+      province: toGeo(provinces.find((p) => p.code === provCode)) ?? keptProvince,
+      ward: toGeo(wards.find((w) => w.code === wardCode)) ?? keptWard,
       nearby: loc ? { ...loc, radiusKm } : null,
     })
     onClose()
@@ -314,7 +310,8 @@ export function AreaFilter({
             label={tr('Province / City', 'Tỉnh / Thành phố')}
             // "Choose…", not "Select Province/City": the label above already names the field,
             // and the 19-character placeholder truncated in its half-width cell (W-LOCATION).
-            placeholder={tr('Choose…', 'Chọn…')}
+            // A kept seeded place with no code shows its own name (`apply`).
+            placeholder={keptProvince && !provCode ? label(keptProvince) : tr('Choose…', 'Chọn…')}
             className={FIELD}
             activeClassName={FIELD}
           />
@@ -329,10 +326,12 @@ export function AreaFilter({
               onChange={setWardCode}
               options={wards.map((w) => ({ value: w.code, label: label(w) }))}
               label={tr('Ward / Commune', 'Phường / Xã')}
-              placeholder={tr('Choose…', 'Chọn…')}
+              placeholder={keptWard && !wardCode ? label(keptWard) : tr('Choose…', 'Chọn…')}
               className={FIELD}
               activeClassName={FIELD}
             />
+          ) : keptWard && !wardCode ? (
+            <DisabledField label={label(keptWard)} />
           ) : (
             <DisabledField label={tr('Select a province first', 'Hãy chọn tỉnh/thành trước')} />
           )}

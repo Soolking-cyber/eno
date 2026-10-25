@@ -135,6 +135,8 @@ export type ListingEditData = {
   salaryM: number | null
   district: string | null
   city: string | null
+  /** city/district resolved to vn-units entries on the server (null where the name matches none). */
+  area?: { province: Geo | null; ward: Geo | null }
   lat: number | null
   lng: number | null
   images: string[]
@@ -483,8 +485,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const changeCatRef = useRef<HTMLButtonElement>(null)
   const [areaOpen, setAreaOpen] = useState(false)
   const areaBtnRef = useRef<HTMLButtonElement>(null)
-  const [province, setProvince] = useState<Geo | null>(edit?.city ? { code: '', name: edit.city, nameEn: edit.city } : null)
-  const [ward, setWard] = useState<Geo | null>(edit?.district ? { code: '', name: edit.district, nameEn: edit.district } : null)
+  // Seeded from the edit page's resolved units (real codes) — a code-less seed opened the picker on Ho Chi Minh City and an
+  // untouched Apply moved the listing there (sweep, 2026-10-22). A name that matched no unit keeps its code-less seed.
+  const [province, setProvince] = useState<Geo | null>(edit?.area?.province ?? (edit?.city ? { code: '', name: edit.city, nameEn: edit.city } : null))
+  const [ward, setWard] = useState<Geo | null>(edit?.area?.ward ?? (edit?.district ? { code: '', name: edit.district, nameEn: edit.district } : null))
   // hasRealCoords, not `!= null`: a listing stored at (0,0) would otherwise reopen the
   // editor with its pin dropped in the Atlantic, and re-saving would persist that.
   const [nearby, setNearby] = useState<Nearby | null>(hasRealCoords(edit?.lat, edit?.lng) ? { lat: edit!.lat as number, lng: edit!.lng as number, radiusKm: 5 } : null)
