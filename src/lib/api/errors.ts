@@ -90,6 +90,24 @@ export type SharedApiErrorCode =
  * `window_closed`), mixed with the `invalid_*` sprawl described above.
  */
 export type NicheApiErrorCode =
+  // eno Classroom (2026-10-25, src/lib/classroom + /api/classroom): the teacher's avatar, seats and invites, a learner's
+  // join and consents, the practice session and its limits (week/day/test refusals also carry `nextAt`)
+  | 'assent_required'
+  | 'audio_invalid'
+  | 'avatar_required'
+  | 'budget_classroom'
+  | 'budget_teacher'
+  | 'classroom_closed'
+  | 'seat_inactive'
+  | 'seat_not_found'
+  | 'session_live'
+  | 'session_not_found'
+  | 'session_over'
+  | 'speech_unavailable'
+  | 'teacher_profile_required'
+  | 'turn_cap'
+  | 'turn_in_progress'
+  | 'tutor_unavailable'
   // A delayed write (an undo window) whose session now belongs to a different account than the one that
   // tapped it — src/lib/api/acting-account.ts. Conversation delete, listing delete, offer answer.
   | 'account_changed'
@@ -615,6 +633,22 @@ export function apiErrorCode(body: unknown): ApiErrorCode | null {
  * to the type but not here fails to compile.
  */
 const ALL = [
+  'assent_required',
+  'audio_invalid',
+  'avatar_required',
+  'budget_classroom',
+  'budget_teacher',
+  'classroom_closed',
+  'seat_inactive',
+  'seat_not_found',
+  'session_live',
+  'session_not_found',
+  'session_over',
+  'speech_unavailable',
+  'teacher_profile_required',
+  'turn_cap',
+  'turn_in_progress',
+  'tutor_unavailable',
   'account_changed',
   'ids_required',
   'business_account',

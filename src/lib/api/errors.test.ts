@@ -210,6 +210,30 @@ function codesReachingTheWireThroughAVariable(routeFiles: string[]): string[] {
     }
   }
 
+  // 4. eno CLASSROOM'S LIBRARY (2026-10-25). Its routes are thin: the checks live in src/lib/classroom, which runs only
+  //    inside route() handlers, and route() answers a thrown ApiError as `{ error: code }`. Three shapes, each bound to
+  //    how the code really reaches the wire (the families above, applied to that library):
+  //      a. `throw new ApiError('<literal>'` in the library's own files;
+  //      b. a NAMED validation union re-thrown by a route as `throw new ApiError(<v>.code` off the SAME binding
+  //         `<v> = validate…(` (the backreference discipline of family 2);
+  //      c. NextAtRefusal — caught by the session route and answered `{ error: <e>.code, nextAt }` (family 1's shape).
+  const classroomLib = execFileSync('git', ['ls-files', 'src/lib/classroom/*.ts'], { encoding: 'utf8' })
+    .trim().split('\n').filter((f) => f && !/\.test\.ts$/.test(f))
+  for (const f of classroomLib) {
+    for (const m of stripComments(readFileSync(f, 'utf8')).matchAll(/\bApiError\(\s*'([A-Za-z0-9_.-]+)'/g)) out.push(m[1])
+  }
+  for (const { fn, type, file, floor } of [
+    { fn: 'validateAvatar', type: 'AvatarRefusal', file: 'src/lib/classroom/avatar.ts', floor: 3 },
+    { fn: 'validateSeatSettings', type: 'SeatRefusal', file: 'src/lib/classroom/seats.ts', floor: 2 },
+  ] as const) {
+    const rethrown = routeFiles.some((f) =>
+      new RegExp(String.raw`(\w+)\s*=\s*(?:await\s+)?${fn}\([\s\S]{0,300}?\bApiError\(\s*\1\.code\b`).test(stripComments(readFileSync(f, 'utf8'))))
+    if (rethrown) out.push(...unionMembers(file, type, floor))
+  }
+  if (routeFiles.some((f) => /(\w+)\s+instanceof\s+NextAtRefusal\b[\s\S]{0,300}?\berror:\s*\1\.code\b/.test(stripComments(readFileSync(f, 'utf8'))))) {
+    out.push(...unionMembers('src/lib/classroom/refusal.ts', 'NextAtCode', 3))
+  }
+
   return out
 }
 
