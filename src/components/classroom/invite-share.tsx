@@ -35,8 +35,10 @@ export function InviteShare({ seatId, code, seatName }: { seatId: string; code: 
           {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
           {copied ? tr('Copied', 'Đã chép') : tr('Copy link', 'Chép link')}
         </Button>
+        {/* The link in the text AND as the url: some share targets keep only one of the two, and a link shown twice is
+            cosmetic where a lost one breaks the only way to join (C3c reviews argued both ways). */}
         {canShare && (
-          <Button variant="cta" className="flex-1" onClick={() => navigator.share({ text: message, url: link }).catch(() => {})}>
+          <Button variant="cta" className="flex-1" onClick={() => navigator.share({ text: `${message} ${link}`, url: link }).catch(() => {})}>
             <Share2 aria-hidden />
             {tr('Share', 'Chia sẻ')}
           </Button>

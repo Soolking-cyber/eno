@@ -32,8 +32,23 @@ type Detail = {
  * the NEXT session — the AI's draft from the last report, which the teacher can rewrite or approve — and every report.
  */
 export function StudentDetail({ seatId }: { seatId: string }) {
-  const { tr, lang } = useLanguage()
+  const { tr } = useLanguage()
   const { user, loading, openSignIn } = useAuth()
+  // Signed out (C3c review, Opus: it waited forever on a skeleton): say so, with the way in.
+  if (!loading && !user) {
+    return <EmptyState icon={UserRound} title={tr('Sign in to see your class', 'Đăng nhập để xem lớp của bạn')} className="mt-12"
+      action={<Button variant="cta" onClick={() => openSignIn()}>{tr('Sign in', 'Đăng nhập')}</Button>} />
+  }
+  if (!user) return <Skeleton className="mt-6 h-96 w-full rounded-2xl" />
+  /**
+   * ⛔ ONE MOUNT PER ACCOUNT (C3c round 2, codex + Opus): keyed by the account, another account starts from nothing — not
+   * one frame of the previous account's student, and none of its open sheets, confirmations or invite code.
+   */
+  return <StudentDetailFor key={user.id} seatId={seatId} />
+}
+
+function StudentDetailFor({ seatId }: { seatId: string }) {
+  const { tr, lang } = useLanguage()
   const router = useRouter()
   const [d, setD] = useState<Detail | null>(null)
   /** The first load failed: the page has nothing to show. */
@@ -45,28 +60,14 @@ export function StudentDetail({ seatId }: { seatId: string }) {
   const [editing, setEditing] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [invite, setInvite] = useState<string | null>(null)
-  /** Bumped per account: an answer that left before the switch is dropped (C3c review, codex + Opus). */
-  const gen = useRef(0)
-  const load = useCallback(() => {
-    const mine = gen.current
-    return api<Detail>(`/api/classroom/seats/${seatId}/detail`).then((r) => {
-      if (mine !== gen.current) return
-      if (r.ok) { setD(r.data); setError(null) } else if (hasData.current) { setActionError(r.error) } else { setError(r.error) }
-    })
-  }, [seatId])
-  // Again for every account (C3b round 2, codex): another account never keeps the previous one's student on screen.
-  useEffect(() => {
-    gen.current += 1
-    hasData.current = false
-    setD(null); setError(null); setActionError(null)
-    if (user) void load()
-  }, [load, user?.id])
-
-  // Signed out (C3c review, Opus: it waited forever on a skeleton): say so, with the way in.
-  if (!loading && !user) {
-    return <EmptyState icon={UserRound} title={tr('Sign in to see your class', 'Đăng nhập để xem lớp của bạn')} className="mt-12"
-      action={<Button variant="cta" onClick={() => openSignIn()}>{tr('Sign in', 'Đăng nhập')}</Button>} />
-  }
+  /** Dropped on unmount: an answer arriving after this account's page is gone sets nothing (C3c review, codex + Opus). */
+  const live = useRef(true)
+  useEffect(() => { live.current = true; return () => { live.current = false } }, [])
+  const load = useCallback(() => api<Detail>(`/api/classroom/seats/${seatId}/detail`).then((r) => {
+    if (!live.current) return
+    if (r.ok) { setD(r.data); setError(null) } else if (hasData.current) { setActionError(r.error) } else { setError(r.error) }
+  }), [seatId])
+  useEffect(() => { void load() }, [load])
 
   if (error && !d) {
     return <EmptyState icon={UserRound} title={tr(refusalCopy(error).en, refusalCopy(error).vi)} className="mt-12"
