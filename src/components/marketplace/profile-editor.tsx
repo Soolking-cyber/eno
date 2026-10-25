@@ -106,7 +106,7 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
         <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f) }} />
       </label>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field invalid={!!fieldErr.name}>
           <Label htmlFor="profile-name">{tr('Your name', 'Tên của bạn')}</Label>
           <FieldControl id="profile-name" render={<Input id="profile-name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder={tr('e.g. Minh', 'vd. Minh')} />} />

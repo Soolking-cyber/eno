@@ -85,7 +85,7 @@ export function SupportInbox({ rows, open, messages }: { rows: SupportThreadRow[
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[22rem_1fr]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[22rem_1fr]">
       <Card className="max-h-[70vh] overflow-y-auto p-0">
         <ul className="divide-y divide-border">
           {rows.map((r) => (

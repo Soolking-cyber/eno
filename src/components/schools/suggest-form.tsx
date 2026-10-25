@@ -95,7 +95,7 @@ export function SuggestForm() {
           <label htmlFor="suggest-name" className={label}>{tr('Name of the school or centre', 'Tên trường hoặc trung tâm')}</label>
           <Input id="suggest-name" required minLength={2} maxLength={120} value={name} onChange={(e) => { setName(e.target.value); setFound(null) }} className="min-h-11 rounded-xl" />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <span className={label}>{tr('What kind of place', 'Loại hình')}</span>
             <CustomSelect

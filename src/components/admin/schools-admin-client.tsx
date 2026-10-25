@@ -161,7 +161,7 @@ function ReviewBody({ r }: { r: AdminReview }) {
           {r.badTags.map((t) => <Badge key={t} variant="warning">{t}</Badge>)}
         </p>
       )}
-      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div><p className="text-xs font-semibold text-success">Good</p><p className="whitespace-pre-line text-sm text-foreground">{r.pros}</p></div>
         <div><p className="text-xs font-semibold text-destructive">Not so good</p><p className="whitespace-pre-line text-sm text-foreground">{r.cons}</p></div>
       </div>
@@ -331,7 +331,7 @@ function SuggestionCard({ suggestion: x }: { suggestion: AdminSuggestion }) {
           ))}
         </div>
       )}
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Input aria-label="Name" value={name} onChange={(e) => setName(e.target.value.slice(0, 120))} />
         <Select items={Object.fromEntries(KINDS.map((k) => [k, k]))} value={kind} onValueChange={(v) => typeof v === 'string' && setKind(v)}>
           <SelectTrigger aria-label="Kind" className="w-full rounded-xl bg-card"><SelectValue /></SelectTrigger>

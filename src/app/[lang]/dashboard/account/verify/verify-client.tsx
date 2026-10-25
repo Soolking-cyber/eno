@@ -812,7 +812,7 @@ export function VerifyClient() {
         {/* "Choose how to verify" + the two tier buttons */}
         <div className="space-y-3">
           <Skeleton className="h-[calc(var(--text-section)*1.3)] w-48" />
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Skeleton className="h-[86px] rounded-2xl" />
             <Skeleton className="h-[86px] rounded-2xl" />
           </div>
@@ -1028,7 +1028,7 @@ export function VerifyClient() {
         {/* ⚠️ DISABLED, NOT HIDDEN. Hiding the options until the box is ticked leaves the page
             looking broken — a declaration with no visible consequence. Showing them greyed makes
             the causal link obvious: read, agree, then these become available. */}
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Button
             type="button"
             variant={tier === 'A' ? 'cta' : 'outline'}
@@ -1280,7 +1280,7 @@ export function VerifyClient() {
             {wizardStep === 'details' && (
             <div className="space-y-3">
               <h3 className="font-bold text-foreground">{tr('Check your details', 'Kiểm tra thông tin')}</h3>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field>
                   <FieldLabel>{tr('Surname', 'Họ')}</FieldLabel>
                   <Input value={surname} onChange={(e) => { setSurname(e.target.value); markEdited() }} autoComplete="family-name" />

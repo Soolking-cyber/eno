@@ -85,7 +85,7 @@ export function AboutStep({ t, set, errors, errText, prefillName, bioAi }: StepP
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field invalid={!!errors.fullName}>
           <Label htmlFor="tf-name">{tr('Full name', 'Họ và tên')}</Label>
           <FieldControl id="tf-name" render={<Input id="tf-name" autoComplete="name" value={t.fullName} maxLength={LIMITS.name} onChange={(e) => set('fullName', e.target.value)} />} />

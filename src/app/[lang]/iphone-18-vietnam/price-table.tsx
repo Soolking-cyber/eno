@@ -68,7 +68,7 @@ export function PriceTable({ rows, known, updated, heading, id, seeAll = true }:
       {/* Each model is a ruled group on the canvas — its own heading over its own table, under one
           hairline — not a bordered box (flat-surface canon §3b; C-BOXES). The heading and the table
           are the grouping now, so they stay inside the model's own block. */}
-      <div className="grid gap-6 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         {models.map((model) => (
           <div key={model} className="border-t border-border pt-4">
             <h3 className="text-sm font-bold text-foreground">{model}</h3>

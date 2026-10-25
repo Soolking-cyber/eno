@@ -93,7 +93,7 @@ export default async function AdminOverviewPage() {
   return (
     <AdminSectionShell title="Overview" description={<>Signed in as {admin}. What needs a person, then the sections.</>}>
       <h2 className="text-sm font-bold uppercase tracking-wide text-ink-4">Needs attention</h2>
-      <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {queues.map((q) => (
           <li key={q.href}>
             <Link href={q.href} className="block">
@@ -108,7 +108,7 @@ export default async function AdminOverviewPage() {
       </ul>
 
       <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-ink-4">Last 7 days</h2>
-      <ul className="mt-2 grid gap-2 sm:grid-cols-3">
+      <ul className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
         {[
           { label: 'New accounts', value: users7d, href: '/admin/users' },
           { label: 'New listings', value: listings7d, href: '/admin/catalogue?tab=listings' },
@@ -126,7 +126,7 @@ export default async function AdminOverviewPage() {
       </ul>
 
       <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-ink-4">Sections</h2>
-      <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {[
           { href: '/admin/users', label: 'Users', hint: 'Find any account: identity, storefront, reports, enforcement, erasure.' },
           { href: '/admin/verification', label: 'Verification', hint: 'Identity (the person) and business (the storefront) queues.' },

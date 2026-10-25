@@ -66,7 +66,7 @@ export function SchoolsMethodology() {
       <h2 id="how-it-works-h" className="text-lg font-bold text-foreground sm:text-xl">
         <Bilingual en="How the ranking works" vi="Cách xếp hạng hoạt động" />
       </h2>
-      <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+      <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {ITEMS.map((it) => (
           <div key={it.h.en}>
             <dt className="text-sm font-semibold text-foreground"><Bilingual en={it.h.en} vi={it.h.vi} /></dt>

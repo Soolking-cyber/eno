@@ -256,7 +256,7 @@ function PaySection({ pay }: { pay: SchoolPage['pay'] }) {
           />
         </p>
       ) : (
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
           {pay.map((p) => (
             <div key={p.period} className="rounded-2xl bg-card p-4 ring-1 ring-border">
               <p className="text-sm font-semibold text-muted-foreground">
@@ -292,7 +292,7 @@ function TagSection({ good, bad, reviews }: { good: SchoolPage['goodTags']; bad:
   return (
     <section aria-labelledby="tags-h">
       <h2 id="tags-h" className="text-lg font-bold text-foreground sm:text-xl"><Bilingual en="What teachers say" vi="Giáo viên nói gì" /></h2>
-      <div className="mt-3 grid gap-6 sm:grid-cols-2">
+      <div className="mt-3 grid grid-cols-1 gap-6 sm:grid-cols-2">
         {good.length > 0 && (
           <div>
             <h3 className="text-sm font-semibold text-success"><Bilingual en="Good" vi="Điểm tốt" /></h3>

@@ -61,7 +61,7 @@ export default function TeacherCoverPage() {
           />
         </p>
 
-        <div className="mt-8 grid gap-6 md:grid-cols-2">
+        <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
           <section aria-labelledby="cover-schools" className="space-y-4 rounded-2xl bg-tint p-5">
             <h2 id="cover-schools" className="text-lg font-semibold text-foreground">
               <Bilingual en="For schools: a teacher for this week's lesson" vi="Cho các trường: giáo viên cho buổi học tuần này" />

@@ -43,7 +43,7 @@ export function HelpClient({ data }: { data: HelpCenterData }) {
               <Skeleton key={i} className={`h-10 shrink-0 rounded-full ${w}`} />
             ))}
           </div>
-          <div className="mt-8 grid gap-8 lg:grid-cols-2">
+          <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="space-y-3">
                 <Skeleton className="h-[calc(var(--text-section)*1.3)] w-40" />

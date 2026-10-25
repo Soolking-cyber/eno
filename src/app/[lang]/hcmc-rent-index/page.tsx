@@ -200,7 +200,7 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
 
         <section className="mt-12" aria-labelledby="faq">
           <h2 id="faq" className="h-section text-foreground mb-4"><Tr text="Frequently asked questions" /></h2>
-          <div className="grid gap-x-14 gap-y-5 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-x-14 gap-y-5 lg:grid-cols-2">
             {/* ⚠️ LITERAL <Tr>s, SO scripts/gen-ui-strings.mjs HARVESTS THEM for the nine MT languages (every
                 diff reviewer) — and a literal <Bilingual> where FAQS carries `aVi` (the harvest reads its `en`).
                 FAQS (./faq.ts) feeds the JSON-LD; hcmc-rent-index.test.ts fails if the two drift. */}

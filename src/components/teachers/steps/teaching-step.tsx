@@ -121,7 +121,7 @@ export function TeachingStep({ t, set, update, errors, errText }: StepProps) {
               const rowInvalid = !!err && !textBad.some(Boolean)
               return (
                 <li key={i} className="space-y-3 border-b border-border pb-4" {...(rowInvalid ? { 'data-invalid': '' } : {})}>
-                  <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <Field invalid={textBad[0]}>
                       <Label htmlFor={`${id}-role`}>{tr('Role', 'Vị trí')}</Label>
                       <FieldControl id={`${id}-role`} render={<Input id={`${id}-role`} value={x.role} maxLength={LIMITS.shortText} onChange={(e) => setJob(i, { role: e.target.value })} />} />
@@ -184,7 +184,7 @@ export function TeachingStep({ t, set, update, errors, errText }: StepProps) {
             {TEACHER_OPTIONS.degree.map((o) => <ToggleGroupItem key={o.value} value={o.value}>{tr(o.label, o.labelVi)}</ToggleGroupItem>)}
           </ToggleGroup>
           {degreeDetails && (
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Field invalid={!!errors.degreeMajor}>
                 <Label htmlFor="tf-degree-major">{tr('Major (optional)', 'Chuyên ngành (không bắt buộc)')}</Label>
                 <FieldControl id="tf-degree-major" render={<Input id="tf-degree-major" value={t.degreeMajor} maxLength={LIMITS.shortText} onChange={(e) => set('degreeMajor', e.target.value)} />} />

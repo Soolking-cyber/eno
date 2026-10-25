@@ -68,7 +68,7 @@ async function render() {
       {list.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nothing refused or asked about in the last {DAYS} days.</p>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {list.map((i) => {
             const t = byProfile.get(i.subjectId)
             const name = t?.fullName || 'A teacher (no profile yet)'

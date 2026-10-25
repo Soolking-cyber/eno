@@ -385,7 +385,7 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
             of the profile and sent per school, in chat. */}
         {hasVideo && (
           <Fieldset legend={tr('Who can watch it?', 'Ai được xem video?')}>
-            <RadioGroup value={t.videoOnRequest ? 'request' : 'public'} onValueChange={(v) => set('videoOnRequest', v === 'request')} className="grid gap-2 sm:grid-cols-2">
+            <RadioGroup value={t.videoOnRequest ? 'request' : 'public'} onValueChange={(v) => set('videoOnRequest', v === 'request')} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Radio value="public" className={RADIO_CARD}>
                 <RadioDot className="mt-0.5" />
                 <span className="min-w-0">

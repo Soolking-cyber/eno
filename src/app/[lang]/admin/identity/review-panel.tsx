@@ -399,7 +399,7 @@ function IdentityReviewPanelCase({ item }: { item: ReviewCase }) {
         <Badge variant={item.tier === 'A' ? 'brand' : 'outline'}>{item.method}</Badge>
       </div>
 
-      <dl className="grid gap-2 rounded-xl bg-tint p-3 text-sm sm:grid-cols-2">
+      <dl className="grid grid-cols-1 gap-2 rounded-xl bg-tint p-3 text-sm sm:grid-cols-2">
         <div>
           <dt className="text-xs text-muted-foreground">Document expires</dt>
           <dd className="font-medium">{ictDay(item.documentExpiresAt) ?? 'not read'}</dd>
@@ -469,7 +469,7 @@ function IdentityReviewPanelCase({ item }: { item: ReviewCase }) {
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {([
           ['Document', docUrl],
           ['Selfie', selfUrl],

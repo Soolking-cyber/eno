@@ -98,7 +98,7 @@ function ReviewCard({ review: r, schoolName }: { review: PublicReview; schoolNam
         </p>
       )}
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <h4 className="text-sm font-semibold text-success">{tr("What's good", 'Điểm tốt')}</h4>
           <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-foreground">{r.pros}</p>

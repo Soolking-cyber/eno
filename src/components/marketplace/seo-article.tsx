@@ -498,7 +498,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
           {content.sections.length >= 4 && (
             <nav aria-label={chrome.onThisPage} className="mt-8 max-w-3xl border-t border-border pt-5">
               <p className="eyebrow mb-3 text-ink-4">{chrome.onThisPage}</p>
-              <ul className="grid gap-2 sm:grid-cols-2">
+              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {content.sections.map((s) => (
                   <li key={s.id}>
                     <a href={`#${s.id}`} className="text-sm font-semibold text-body hover:text-accent-foreground hover:underline">

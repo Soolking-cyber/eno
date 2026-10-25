@@ -251,7 +251,7 @@ export function TeachNextStep() {
   return (
     <aside aria-label={NEXT_STEP} className="mt-14 max-w-3xl border-t border-border pt-8">
       <h2 className="h-title mb-4 text-foreground">{NEXT_STEP}</h2>
-      <ul className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
         {items.map((it) => (
           <li key={it.href} className="min-w-0">
             {it.own ? (

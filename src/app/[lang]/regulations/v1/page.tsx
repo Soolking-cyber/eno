@@ -469,12 +469,12 @@ export default function RegulationsV1Page() {
     >
       {ARTICLES.map((a) => (
         <ContentSection key={a.id} id={a.id} wide>
-          <div className="grid gap-1 xl:grid-cols-[4fr_3fr] xl:items-baseline xl:gap-x-10">
+          <div className="grid grid-cols-1 gap-1 xl:grid-cols-[4fr_3fr] xl:items-baseline xl:gap-x-10">
             <h2 className="h-title text-foreground" lang="vi">{a.titleVi}</h2>
             <p className="text-sm font-medium text-ink-4" lang="en">{a.titleEn}</p>
           </div>
           {a.body.map((p, i) => (
-            <div key={i} className="grid gap-1.5 xl:grid-cols-[4fr_3fr] xl:items-baseline xl:gap-x-10">
+            <div key={i} className="grid grid-cols-1 gap-1.5 xl:grid-cols-[4fr_3fr] xl:items-baseline xl:gap-x-10">
               <p className="max-w-[60ch] text-base leading-relaxed text-body" lang="vi">{linkifyLegal(p.vi)}</p>
               <p className="max-w-[60ch] text-sm leading-relaxed text-ink-4" lang="en">{linkifyLegal(p.en)}</p>
             </div>

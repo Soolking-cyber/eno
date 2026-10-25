@@ -48,7 +48,7 @@ export default async function AdminVerificationDetail({ params }: { params: Prom
 
       <Card className="space-y-2 px-5 py-4 text-sm">
         <p className="font-semibold text-foreground">Registered identity (what the documents must match)</p>
-        <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
           <div><dt className="text-xs text-ink-4">Legal name</dt><dd className="font-medium text-foreground">{seller?.legalName ?? '—'}</dd></div>
           <div><dt className="text-xs text-ink-4">Tax code (MST)</dt><dd className="font-mono text-foreground">{seller?.taxCode ?? '—'}</dd></div>
           <div><dt className="text-xs text-ink-4">Registry name</dt><dd className="text-foreground">{seller?.taxRegisteredName ?? '—'}</dd></div>
