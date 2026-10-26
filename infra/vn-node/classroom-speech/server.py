@@ -28,7 +28,7 @@ the box's Broadwell vCPUs; the box measured ~1.5x slower per core on the same CP
 
   VOICE Gradium Phonon 31M (en), ptts 0.4.2 — weights, tokenizer and voices Apache-2.0; runtime
         MIT OR Apache-2.0. ⛔ ONLY phonon-31m-en: the phonon-40m models are CC BY-NC 4.0.
-        ~4x real time on 2 threads; both instances (natural + slow) ~0.63 GB together.
+        ~4x real time on 2 threads; ~0.2 GB an instance (three in one pool: POOL below).
         Kokoro-82M (Apache-2.0) is the usual pick and LOST here: 0.4-1.35x real time on this
         CPU class (3-9 s before a sentence could start) — fine on a GPU, too slow for the box.
         The voices are Gradium's catalogue voices (Apache-2.0); none is cloned from anyone.
@@ -65,7 +65,21 @@ if len(SPEECH_KEY) < 24:
 MAX_WAV_BYTES = 1_600_000   # the app caps a turn at 45 s of 16 kHz PCM16 (1.44 MB) — this is above it
 MAX_JSON_BYTES = 16_000
 MAX_TEXT_CHARS = 600        # the app's longest line is ~350 (a 200-character opening + a drill); ~40 s of speech
-SLOW_DELTA = 0.3            # Phonon's duration_delta: +0.3 = ~14% slower (measured) — young or A1-A2 learners
+# ⛔ THE PACES THE APP MAY ASK FOR — src/lib/classroom/pace.ts holds the same names (a test reads both). Phonon's
+# duration_delta, MEASURED 2026-10-26 (three seeds; every take checked by this server's own /stt): 0.6 ≈ 18% slower — its
+# floor, past 0.45 it gets no slower — 0.15 ≈ 9% slower, 0 natural, -0.2 ≈ 12% faster; all of them intelligible (owner:
+# "kids … slowly, adults may adjust pace"). ⛔ A NAME from this table, never a number from the request: ptts takes NaN and
+# inf without a word (6 s of NaN samples, measured).
+PACES = {'slowest': 0.6, 'gentle': 0.15, 'natural': 0.0, 'quick': -0.2}
+# An app from before the paces sends `rate`: its 'slow' was 0.3 (~14% slower).
+LEGACY_RATES = {'slow': 0.3, 'natural': 0.0}
+GAP_MS_DEFAULT = 120        # the breath between the sentences of one line
+GAP_MS_MAX = 800
+# LOUD (a child's voice — owner: "kids very loud clear"): +6 dB through a look-ahead limiter that keeps every sample under
+# -1 dBFS. The voices' own peaks leave only 1.6-8 dB of headroom (measured across 26 sentences a voice), so a plain gain
+# would clip; the limiter turns the loudest syllables down for a few ms instead.
+LOUD_GAIN_DB = 6.0
+LOUD_CEILING_DB = -1.0
 # Work admitted at once; the rest get 503 at once. 10 learners' turns rarely overlap, and a
 # queue would only turn a busy minute into timeouts the app then retries.
 MAX_IN_FLIGHT = int(os.environ.get('MAX_IN_FLIGHT', '4'))
@@ -98,20 +112,20 @@ _stt = sherpa_onnx.OfflineRecognizer.from_transducer(
 _stt_lock = threading.Lock()
 
 ptts.set_num_threads(TTS_THREADS)
-# A small POOL of voice instances per speaking rate (the rate belongs to the INSTANCE — set_conditions is global to it —
-# so never a set_conditions race between two requests). Each instance serves ONE request at a time: two parallel synths
-# on one instance ran without error, which shows speed, not that ptts promises it is safe. Two at the natural rate, so a
-# reply's next sentence, or a second learner, never waits behind the first (one lock per rate did: the local test,
-# 2026-10-26, refused a reply after 6 s behind another). ~0.2 GB an instance.
-POOL = {'natural': int(os.environ.get('TTS_NATURAL', '2')), 'slow': int(os.environ.get('TTS_SLOW', '1'))}
-_tts = {rate: queue.Queue() for rate in POOL}
-for _rate, _n in POOL.items():
-    for _ in range(max(1, _n)):
-        _tts[_rate].put(ptts.TTS(TTS_DIR, lang='en', **({'conditions': {'duration_delta': SLOW_DELTA}} if _rate == 'slow' else {})))
-_probe = _tts['natural'].get()
+# ONE POOL of voice instances; each request sets ITS OWN pace on the instance it holds (set_conditions: 0.03 ms, measured
+# 2026-10-26 — and the instance keeps the last value, so it is set on EVERY request, natural included). An instance serves
+# ONE request at a time, from taking it to putting it back, so no request ever speaks at another's pace: two parallel
+# synths on one instance ran without error, which shows speed, not that ptts promises it is safe. Three, so a reply's next
+# sentence, or a second learner, never waits behind the first (one lock per voice did: the local test, 2026-10-26, refused a
+# reply after 6 s behind another). ~0.2 GB an instance. (It was two pools — 'natural' x2, 'slow' x1: the same three.)
+POOL = int(os.environ.get('TTS_POOL', str(int(os.environ.get('TTS_NATURAL', '2')) + int(os.environ.get('TTS_SLOW', '1')))))
+_tts = queue.Queue()
+for _ in range(max(1, POOL)):
+    _tts.put(ptts.TTS(TTS_DIR, lang='en'))
+_probe = _tts.get()
 _missing = [v for v in VOICES if v not in _probe.voices]
 SAMPLE_RATE = _probe.sample_rate
-_tts['natural'].put(_probe)
+_tts.put(_probe)
 if _missing:  # a voice the image lacks would be fetched from the catalogue at request time — refuse to start
     raise SystemExit(f'voices missing from {TTS_DIR}: {_missing}')
 
@@ -168,6 +182,91 @@ def recognize(raw):
 _SENTENCE_END = re.compile(r'(?<=[.!?])\s+')
 
 
+def take_voice(delta):
+    """A voice instance for one request, set to its pace — or Busy. The caller puts it back (put_voice) when done."""
+    try:
+        tts = _tts.get(timeout=LOCK_WAIT_S)
+    except queue.Empty:
+        raise Busy()
+    try:
+        tts.set_conditions({'duration_delta': delta})
+    except Exception:
+        _tts.put(tts)  # the next request sets its own pace again: nothing of this one's is left on it
+        raise
+    return tts
+
+
+def put_voice(tts):
+    _tts.put(tts)
+
+
+class Loud:
+    """+LOUD_GAIN_DB, with a look-ahead peak limiter that keeps every sample under LOUD_CEILING_DB — stream-safe (state
+    carries from one frame to the next). 5 ms blocks: each block's gain covers its own peak AND the next block's (the
+    look-ahead, so a peak is never reached at full gain), falls at once, recovers over ~80 ms; within a block the gain moves
+    in a straight line. One block of audio is held back (5 ms) until flush()."""
+    def __init__(self, rate):
+        self.g = 10 ** (LOUD_GAIN_DB / 20)
+        self.c = 10 ** (LOUD_CEILING_DB / 20)
+        self.n = max(1, rate // 200)
+        self.rel = float(np.exp(-self.n / (0.08 * rate)))
+        self.held = np.zeros(0, dtype=np.float32)
+        self.gain = None  # before the first block: no gain to come down from (it starts at its own target)
+
+    def _run(self, x, final):
+        buf = np.concatenate([self.held, x.astype(np.float32) * self.g])
+        if final:
+            pad = (-len(buf)) % self.n
+            buf = np.concatenate([buf, np.zeros(pad + self.n, dtype=np.float32)])
+            keep = len(buf) - self.n - pad  # the real samples
+        blocks = len(buf) // self.n - 1     # every block but the last, which is only looked ahead to
+        if blocks <= 0:
+            self.held = buf
+            return np.zeros(0, dtype=np.float32)
+        peaks = np.abs(buf[: (blocks + 1) * self.n].reshape(-1, self.n)).max(axis=1)
+        need = np.minimum(1.0, self.c / np.maximum(peaks, 1e-9))
+        target = np.minimum(need[:-1], need[1:])
+        gains = np.empty(blocks, dtype=np.float32)
+        g = float(target[0]) if self.gain is None else self.gain
+        for i, t in enumerate(target):  # 200 blocks a second: cheap
+            g = float(t) if t < g else float(t + (g - t) * self.rel)
+            gains[i] = g
+        start = np.concatenate([[gains[0] if self.gain is None else self.gain], gains[:-1]]).astype(np.float32)
+        ramp = np.arange(self.n, dtype=np.float32) / self.n
+        env = (start[:, None] + (gains - start)[:, None] * ramp[None, :]).reshape(-1)
+        out = buf[: blocks * self.n] * env
+        self.gain = float(gains[-1])
+        self.held = buf[blocks * self.n:]
+        if final:
+            out = out[:keep]
+            self.held = np.zeros(0, dtype=np.float32)
+        return np.clip(out, -1.0, 1.0)
+
+    def push(self, x):
+        return self._run(x, False)
+
+    def flush(self):
+        return self._run(np.zeros(0, dtype=np.float32), True)
+
+
+def voice_style(req):
+    """(duration_delta, loud, gap seconds) from a request — or BadRequest. Names and whole numbers only."""
+    pace, rate, loud, gap = req.get('pace'), req.get('rate'), req.get('loud', False), req.get('gap_ms', GAP_MS_DEFAULT)
+    if pace is not None:
+        if not isinstance(pace, str) or pace not in PACES:
+            raise BadRequest('pace')
+        delta = PACES[pace]
+    elif rate is None or (isinstance(rate, str) and rate in LEGACY_RATES):
+        delta = LEGACY_RATES[rate or 'natural']
+    else:
+        raise BadRequest('rate')
+    if not isinstance(loud, bool):
+        raise BadRequest('loud')
+    if isinstance(gap, bool) or not isinstance(gap, int) or not 0 <= gap <= GAP_MS_MAX:
+        raise BadRequest('gap')
+    return delta, loud, gap / 1000
+
+
 def clean_text(text):
     """What the voice reads: no emoji, symbols or markup (a model's reply may carry them), one line.
     ⚠️ Control characters become a SPACE, not nothing: deleting a newline glued "Hello.\\nHow" into
@@ -183,16 +282,13 @@ def clean_text(text):
     return re.sub(r'\s+', ' ', text).strip()
 
 
-def speak(text, voice, rate):
+def speak(text, voice, delta, loud=False, gap_s=GAP_MS_DEFAULT / 1000):
     """MP3 (24 kHz mono, ~7 KB a second) of the whole reply, read a sentence at a time with a short
     breath between — the same format Azure's TTS gave, so the page decodes it the same way."""
     deadline = time.perf_counter() + TTS_DEADLINE_S
+    tts = take_voice(delta)
     try:
-        tts = _tts[rate].get(timeout=LOCK_WAIT_S)
-    except queue.Empty:
-        raise Busy()
-    try:
-        gap = np.zeros(int(SAMPLE_RATE * 0.12), dtype=np.float32)
+        gap = np.zeros(int(SAMPLE_RATE * gap_s), dtype=np.float32)
         parts = []
         for sentence in _SENTENCE_END.split(text):
             if not sentence:
@@ -206,36 +302,53 @@ def speak(text, voice, rate):
                         raise Busy()  # the client has given up by now; free the voice for the next learner
             parts.append(gap)
     finally:
-        _tts[rate].put(tts)
+        put_voice(tts)
     pcm = np.concatenate(parts[:-1]) if parts else np.zeros(0, dtype=np.float32)
+    if loud:
+        lim = Loud(SAMPLE_RATE)
+        pcm = np.concatenate([lim.push(pcm), lim.flush()])
     buf = io.BytesIO()
     sf.write(buf, pcm, SAMPLE_RATE, format='MP3')
     return buf.getvalue(), len(pcm) / SAMPLE_RATE
 
 
-def speak_stream(tts, text, voice, write):
+def speak_stream(tts, text, voice, write, loud=False, gap_s=GAP_MS_DEFAULT / 1000):
     """The same line as raw PCM16 (24 kHz mono, little-endian), handed to `write` FRAME BY FRAME as Phonon makes it —
     the first sound leaves within ~0.1 s instead of after the whole line (/tts/stream; owner, 2026-10-26: "delayless").
-    `tts` is a voice instance the CALLER holds for the whole line. Returns the seconds of audio written. A client that
-    hangs up stops the synthesis at its next frame."""
+    `tts` is a voice instance the CALLER holds for the whole line, set to its pace. Returns the seconds of audio written. A
+    client that hangs up stops the synthesis at its next frame. Loud: through the limiter (5 ms held back until the end)."""
     deadline = time.perf_counter() + TTS_DEADLINE_S
     samples = 0
-    gap = np.zeros(int(SAMPLE_RATE * 0.12), dtype='<i2').tobytes()
+    lim = Loud(SAMPLE_RATE) if loud else None
+
+    def out(x):
+        nonlocal samples
+        if lim:
+            x = lim.push(x)
+        if len(x):
+            pcm = (np.clip(x, -1.0, 1.0) * 32767).astype('<i2')
+            write(pcm.tobytes())
+            samples += len(pcm)
+
+    gap = np.zeros(int(SAMPLE_RATE * gap_s), dtype=np.float32)
     first = True
     for sentence in _SENTENCE_END.split(text):
         if not sentence:
             continue
         if not first:
-            write(gap)
-            samples += len(gap) // 2
+            out(gap)
         first = False
         with tts.stream(sentence, voice=voice) as audio:
             for chunk in audio:
-                pcm = (np.clip(chunk, -1.0, 1.0) * 32767).astype('<i2')
-                write(pcm.tobytes())
-                samples += len(pcm)
+                out(chunk)
                 if time.perf_counter() > deadline:
                     raise Busy()
+    if lim:
+        rest = lim.flush()
+        if len(rest):
+            pcm = (np.clip(rest, -1.0, 1.0) * 32767).astype('<i2')
+            write(pcm.tobytes())
+            samples += len(pcm)
     return samples / SAMPLE_RATE
 
 
@@ -284,14 +397,12 @@ class Handler(BaseHTTPRequestHandler):
             raise BadRequest('short_body')
         return data
 
-    def _stream(self, text, voice, rate, t0):
+    def _stream(self, text, voice, style, t0):
         """/tts/stream: 200 and the PCM as it is made, the body ending when the connection closes (no length — it is
         not known yet). The voice instance is taken BEFORE the 200 and held to the end, so the only refusal (busy) is a
         503 — never a 200 with no voice; a failure after the 200 simply ends the body short."""
-        try:
-            tts = _tts[rate].get(timeout=LOCK_WAIT_S)
-        except queue.Empty:
-            raise Busy()
+        delta, loud, gap_s = style
+        tts = take_voice(delta)
         try:
             self.close_connection = True
             self.send_response(200)
@@ -309,8 +420,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.flush()
 
             try:
-                seconds = speak_stream(tts, text, voice, write)
-                print(f'tts-stream first={first[0]}ms total={round((time.perf_counter() - t0) * 1000)}ms audio={seconds:.1f}s chars={len(text)} rate={rate}', flush=True)
+                seconds = speak_stream(tts, text, voice, write, loud, gap_s)
+                print(f'tts-stream first={first[0]}ms total={round((time.perf_counter() - t0) * 1000)}ms audio={seconds:.1f}s chars={len(text)} pace={delta} loud={loud}', flush=True)
             except (BrokenPipeError, ConnectionResetError):
                 print('tts-stream client gone', flush=True)
             except Busy:
@@ -319,7 +430,7 @@ class Handler(BaseHTTPRequestHandler):
                 # do_POST's 500 would land INSIDE the PCM body and play as noise): the body just ends short.
                 print(f'tts-stream failed {type(e).__name__}', flush=True)
         finally:
-            _tts[rate].put(tts)
+            put_voice(tts)
 
     def do_GET(self):
         if self.path == '/health':
@@ -347,17 +458,21 @@ class Handler(BaseHTTPRequestHandler):
             req = json.loads(self._body(MAX_JSON_BYTES))
             if not isinstance(req, dict):
                 raise BadRequest('json')
-            voice, rate, text = req.get('voice'), req.get('rate', 'natural'), req.get('text')
-            if not isinstance(voice, str) or voice not in VOICES or not isinstance(rate, str) or rate not in _tts:
+            voice, text = req.get('voice'), req.get('text')
+            if not isinstance(voice, str) or voice not in VOICES:
+                return self._send(400, {'error': 'voice'})
+            try:
+                style = voice_style(req)
+            except BadRequest:
                 return self._send(400, {'error': 'voice'})
             text = clean_text(text) if isinstance(text, str) else ''
             if not text or len(text) > MAX_TEXT_CHARS:
                 return self._send(400, {'error': 'text'})
             if route == 'tts-stream':
-                return self._stream(text, voice, rate, t0)
-            mp3, seconds = speak(text, voice, rate)
+                return self._stream(text, voice, style, t0)
+            mp3, seconds = speak(text, voice, *style)
             ms = round((time.perf_counter() - t0) * 1000)
-            print(f'tts {ms}ms audio={seconds:.1f}s chars={len(text)} rate={rate}', flush=True)
+            print(f'tts {ms}ms audio={seconds:.1f}s chars={len(text)} pace={style[0]} loud={style[1]}', flush=True)
             return self._send(200, mp3, 'audio/mpeg', {'X-Audio-Seconds': f'{seconds:.2f}', 'X-Synth-Ms': str(ms)})
         except Busy:
             print(f'{route} 503 model_busy', flush=True)
@@ -413,12 +528,12 @@ def _shutdown_quietly(sock):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', '8090'))
-    # Warm both voices and the recogniser: the first request otherwise pays the graph set-up (~1 s).
-    for rate in _tts:
-        warm = [_tts[rate].get() for _ in range(_tts[rate].qsize())]
-        for t in warm:
-            t.synth('Hello.', voice=VOICES[0])
-            _tts[rate].put(t)
+    # Warm every voice instance and the recogniser: the first request otherwise pays the graph set-up (~1 s).
+    warm = [_tts.get() for _ in range(_tts.qsize())]
+    for t in warm:
+        t.set_conditions({'duration_delta': 0.0})
+        t.synth('Hello.', voice=VOICES[0])
+        _tts.put(t)
     warm = _stt.create_stream()
     warm.accept_waveform(16000, np.zeros(16000, dtype=np.float32))  # an EMPTY stream throws (0 feature frames)
     _stt.decode_stream(warm)

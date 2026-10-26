@@ -19,6 +19,8 @@ import { alertSafetyTeam, safetyReply } from './safety'
 import { quietError } from './quiet-error'
 import { PRACTICE_NOTICE_VERSION, TEACHER_VIEW_NOTICE_VERSION } from './notices'
 import type { AgeBand } from './limits'
+import { clampPace, defaultPace, paceOptions, stepPace, voiceStyle, type VoicePace } from './pace'
+import { parseTraits } from './persona'
 
 /** Below this peak (of 32767) a clip is silence or room noise — no speech service is asked about it. */
 export const SILENCE_PEAK = 400
@@ -52,7 +54,7 @@ async function sessionOfCaller(sessionId: string, accountId: string, now: Date) 
       // The session's OWN learner decides whose it is (report.ts's rule), never the seat's current one.
       learner: { select: { ownerId: true, withdrawnAt: true } },
       enrollment: { select: { status: true, learnerId: true, focusNote: true, focusItems: true } },
-      avatar: { select: { name: true, persona: true, voice: true, teacherProfile: { select: { profileId: true } } } },
+      avatar: { select: { name: true, persona: true, voice: true, traits: true, teacherProfile: { select: { profileId: true } } } },
     },
   })
   const mine = s && (s.testerId === accountId || s.learner?.ownerId === accountId)
@@ -134,7 +136,7 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
       // line, without a voice. The family's report hides that exchange; a replayed upload must not hand it over either.
       if (d.flag) return { kind: 'answer', ...replayTurn({ seq: d.seq, learnerText: '', reply: safetyReply(bandOf(session)), hint: '', hintVi: '', expect: null, heardAs: [], secondsLeft: Math.max(0, Math.round((session.endsAt.getTime() - Date.now()) / 1000)) }, null) }
       const latest = await db.classroomTurn.findFirst({ where: { sessionId, status: 'ok' }, orderBy: { seq: 'desc' }, select: { id: true } })
-      return { kind: 'answer', ...replayTurn(replyOf(d, session, now), latest?.id === d.id ? speakerFor(session.avatar.voice, levelOf(session), bandOf(session)) : null) }
+      return { kind: 'answer', ...replayTurn(replyOf(d, session, now), latest?.id === d.id ? speakerFor(session.avatar.voice, () => voiceStyle(bandOf(session), paceOf(session, bandOf(session)))) : null) }
     }
     if (d.status === 'processing') throw new ApiError('turn_in_progress', 409)
     throw new ApiError('tutor_unavailable', 503)
@@ -183,6 +185,14 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
   const ai = getGeminiVertex()
   if (!ai && !openAiConfig()) return fail(new ApiError('tutor_unavailable', 503))
   const band = bandOf(session)
+  /**
+   * THE VOICE'S PACE FOR THIS TURN (pace.ts; owner, 2026-10-26: "adults may adjust pace by saying talk more slowly"): the
+   * session's — moved ONE step when the learner asks (the tutor's `pace`, written before its first sentence, so the
+   * reply's own "Sure, I'll slow down" is already slower). Saved with the turn — on the session, and as the learner's own
+   * choice for their next sessions — only when it actually moved.
+   */
+  let pace: VoicePace = paceOf(session, band)
+  let paceMoved = false
   // The page leaving (talked over, closed) ends the brain too: what was said by then is saved (turn-stream.ts).
   const brain = new AbortController()
   const events = tutorTurnStream(ai, {
@@ -198,6 +208,7 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     learnerText: heard.text,
     secondsLeft: Math.max(0, (session.endsAt.getTime() - now.getTime()) / 1000),
     drillLeft: focus.drill.filter((d) => !practised.has(d)),
+    pace: paceOptions(pace, band),
   }, AbortSignal.any([brain.signal, AbortSignal.timeout(TUTOR_BUDGET_MS)]))
 
   // The reference that scores THIS turn: the sentence the previous reply asked for — a repeat-after-me drill, the one
@@ -237,8 +248,10 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
         if (!written.count) throw new ApiError('tutor_unavailable', 503)
         await tx.classroomSession.update({
           where: { id: sessionId },
-          data: { turnCount: { increment: 1 }, learnerSpeechMs: { increment: info.ms }, avatarChars: { increment: reply.reply.length }, updatedAt: new Date() },
+          data: { turnCount: { increment: 1 }, learnerSpeechMs: { increment: info.ms }, avatarChars: { increment: reply.reply.length }, ...(paceMoved ? { voicePace: pace } : {}), updatedAt: new Date() },
         })
+        // The learner's own choice, for their next sessions (a teacher's test has no learner: the session alone).
+        if (paceMoved && session.learnerId) await tx.classroomLearner.update({ where: { id: session.learnerId }, data: { voicePace: pace, updatedAt: new Date() } })
       })
     } catch (e) {
       if (reply.safety) {
@@ -281,7 +294,11 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     ...streamTurn({
       learnerText,
       events,
-      speak: speakerFor(session.avatar.voice, levelOf(session), band),
+      speak: speakerFor(session.avatar.voice, () => voiceStyle(band, pace)),
+      onPace: (change) => {
+        const next = stepPace(pace, change, band)
+        if (next !== pace) { pace = next; paceMoved = true }
+      },
       save,
       giveUp: (e) => giveBack('tutor_unavailable', e),
       safetyLine: safetyReply(band),
@@ -297,6 +314,8 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
 type SessionRow = Awaited<ReturnType<typeof sessionOfCaller>>
 const snap = (s: SessionRow) => (s.planSnapshot ?? {}) as Record<string, unknown>
 function levelOf(s: SessionRow): string { return typeof snap(s).level === 'string' ? (snap(s).level as string) : 'B1' }
+/** The session's pace now — inside the learner's bounds; a session from before the paces starts at its default. */
+function paceOf(s: SessionRow, band: AgeBand): VoicePace { return clampPace(s.voicePace, band, defaultPace(band, levelOf(s), parseTraits(s.avatar.traits).pace)) }
 function bandOf(s: SessionRow): AgeBand {
   const b = snap(s).band
   return b === 'child-young' || b === 'child' || b === 'teen' || b === 'adult' ? b : 'adult'

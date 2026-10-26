@@ -85,7 +85,7 @@ describe('tutorTurnStream (OpenAI)', () => {
   const ctx = {
     avatarName: 'Anna', persona: '', level: 'A2', band: 'adult' as const, strictness: 'balanced' as const, focusNote: '',
     plan: { brief: '', focus: { goals: [], focusWords: [], recycle: [], drill: [] } as never }, workingOn: [], history: [],
-    learnerText: 'I go market yesterday.', secondsLeft: 300, drillLeft: [],
+    learnerText: 'I go market yesterday.', secondsLeft: 300, drillLeft: [], pace: { now: 'natural' as const, slower: true, faster: true },
   }
   const run = async (json: string, chunk = 7): Promise<TutorEvent[]> => {
     vi.stubEnv('OPENAI_API_KEY', KEY)

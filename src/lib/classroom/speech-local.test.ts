@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MAX_SPOKEN_CHARS, TTS_STALL_MS, localSpeechConfig, spokenPart, synthesize, synthesizeStream, transcribe } from './speech-local'
+import { NATURAL_VOICE, voiceStyle } from './pace'
 import { SpeechError } from './azure-speech'
 
 vi.mock('server-only', () => ({}))
@@ -97,12 +98,15 @@ describe('transcribe', () => {
 })
 
 describe('synthesize', () => {
-  it('posts text, voice and rate as JSON; MP3 bytes come back', async () => {
+  it('posts text, voice and the voice style as JSON — the pace by NAME, and `rate` for a server from before the paces; MP3 bytes come back', async () => {
     const f = fake(new Response(MP3, { headers: { 'content-type': 'audio/mpeg' } }))
-    const out = await synthesize(CFG, 'Hello there.', 'Harper', 'slow', f.impl)
+    const out = await synthesize(CFG, 'Hello there.', 'Harper', voiceStyle('child-young', 'slowest'), f.impl)
     expect(out.length).toBe(MP3.length)
     expect(f.calls[0].url).toBe('http://eno-classroom-speech:8090/tts')
-    expect(JSON.parse(String(f.calls[0].init.body))).toEqual({ text: 'Hello there.', voice: 'Harper', rate: 'slow' })
+    expect(JSON.parse(String(f.calls[0].init.body))).toEqual({ text: 'Hello there.', voice: 'Harper', pace: 'slowest', rate: 'slow', loud: true, gap_ms: 450 })
+    const g = fake(new Response(MP3, { headers: { 'content-type': 'audio/mpeg' } }))
+    await synthesize(CFG, 'Hi.', 'Harper', voiceStyle('adult', 'quick'), g.impl)
+    expect(JSON.parse(String(g.calls[0].init.body))).toEqual({ text: 'Hi.', voice: 'Harper', pace: 'quick', rate: 'natural', loud: false, gap_ms: 120 })
     expect(header(f.calls[0], 'x-speech-key')).toBe(CFG.key)
   })
   it('a line over the server’s cap is cut at its last full sentence, never refused whole', async () => {
@@ -127,13 +131,13 @@ describe('synthesize', () => {
     const emoji = `${'a'.repeat(MAX_SPOKEN_CHARS - 1)}😀 tail`
     expect(spokenPart(emoji)).not.toMatch(/[\uD800-\uDBFF]$/)
     const f = fake(new Response(MP3, { headers: { 'content-type': 'audio/mpeg' } }))
-    await synthesize(CFG, long, 'Harper', 'natural', f.impl)
+    await synthesize(CFG, long, 'Harper', NATURAL_VOICE, f.impl)
     expect(JSON.parse(String(f.calls[0].init.body)).text).toBe(part)
   })
   it('anything but audio, or a stub, is a 502', async () => {
-    await expect(synthesize(CFG, 'x', 'Harper', 'natural', fake(json({ ok: true })).impl)).rejects.toMatchObject({ status: 502, stage: 'tts' })
-    await expect(synthesize(CFG, 'x', 'Harper', 'natural', fake(new Response(new Uint8Array(10), { headers: { 'content-type': 'audio/mpeg' } })).impl)).rejects.toMatchObject({ status: 502 })
-    await expect(synthesize(CFG, 'x', 'Bob', 'natural', fake(json({ error: 'voice' }, 400)).impl)).rejects.toMatchObject({ status: 400, stage: 'tts' })
+    await expect(synthesize(CFG, 'x', 'Harper', NATURAL_VOICE, fake(json({ ok: true })).impl)).rejects.toMatchObject({ status: 502, stage: 'tts' })
+    await expect(synthesize(CFG, 'x', 'Harper', NATURAL_VOICE, fake(new Response(new Uint8Array(10), { headers: { 'content-type': 'audio/mpeg' } })).impl)).rejects.toMatchObject({ status: 502 })
+    await expect(synthesize(CFG, 'x', 'Bob', NATURAL_VOICE, fake(json({ error: 'voice' }, 400)).impl)).rejects.toMatchObject({ status: 400, stage: 'tts' })
   })
 })
 
@@ -146,21 +150,35 @@ describe('synthesizeStream', () => {
 
   it('posts the line to /tts/stream and yields the voice as it comes — whole samples only, an odd byte carried over', async () => {
     const f = fake(pcm([[1, 2, 3], [4, 5, 6], [7]]))
-    const v = await synthesizeStream(CFG, 'Hello there.', 'Harper', 'slow', undefined, f.impl)
+    const v = await synthesizeStream(CFG, 'Hello there.', 'Harper', voiceStyle('adult', 'gentle'), undefined, f.impl)
     expect(v.rate).toBe(24_000)
     expect(await all(v.chunks)).toEqual([[1, 2], [3, 4, 5, 6]])
     expect(f.calls[0].url).toBe('http://eno-classroom-speech:8090/tts/stream')
-    expect(JSON.parse(String(f.calls[0].init.body))).toEqual({ text: 'Hello there.', voice: 'Harper', rate: 'slow' })
+    expect(JSON.parse(String(f.calls[0].init.body))).toEqual({ text: 'Hello there.', voice: 'Harper', pace: 'gentle', rate: 'slow', loud: false, gap_ms: 120 })
     expect(header(f.calls[0], 'x-speech-key')).toBe(CFG.key)
     expect(f.calls[0].init.redirect).toBe('error')
   })
+  it('a child\'s line that ends whole is followed by its pause (silence, whole samples); a stopped one is not', async () => {
+    const f = fake(pcm([[1, 2]], '1000'))
+    const v = await synthesizeStream(CFG, 'Hello.', 'Zoey', voiceStyle('child', 'slowest'), undefined, f.impl)
+    const got = await all(v.chunks)
+    expect(got[0]).toEqual([1, 2])
+    expect(got[1]).toHaveLength(600) // 300 ms at 1 kHz = 300 samples = 600 bytes
+    expect(got[1].every((b) => b === 0)).toBe(true)
+    const stop = new AbortController()
+    const g = fake(pcm([[1, 2], [3, 4]], '1000'))
+    const w = await synthesizeStream(CFG, 'Hello.', 'Zoey', voiceStyle('child', 'slowest'), stop.signal, g.impl)
+    const cut: number[][] = []
+    for await (const c of w.chunks) { cut.push([...c]); stop.abort() }
+    expect(cut).toEqual([[1, 2]])
+  })
   it('a busy server is asked once more; any other refusal, an unreachable server or a non-PCM answer is a SpeechError', async () => {
     const busy = fake(json({ error: 'busy' }, 503), pcm([[0, 0]]))
-    expect(await all((await synthesizeStream(CFG, 'x', 'Harper', 'natural', undefined, busy.impl)).chunks)).toEqual([[0, 0]])
+    expect(await all((await synthesizeStream(CFG, 'x', 'Harper', NATURAL_VOICE, undefined, busy.impl)).chunks)).toEqual([[0, 0]])
     expect(busy.calls).toHaveLength(2)
-    await expect(synthesizeStream(CFG, 'x', 'Bob', 'natural', undefined, fake(json({ error: 'voice' }, 400)).impl)).rejects.toMatchObject({ status: 400, stage: 'tts' })
-    await expect(synthesizeStream(CFG, 'x', 'Harper', 'natural', undefined, fake(new TypeError('fetch failed')).impl)).rejects.toBeInstanceOf(SpeechError)
-    await expect(synthesizeStream(CFG, 'x', 'Harper', 'natural', undefined, fake(new Response('<html>', { headers: { 'content-type': 'text/html' } })).impl)).rejects.toMatchObject({ status: 502, stage: 'tts' })
+    await expect(synthesizeStream(CFG, 'x', 'Bob', NATURAL_VOICE, undefined, fake(json({ error: 'voice' }, 400)).impl)).rejects.toMatchObject({ status: 400, stage: 'tts' })
+    await expect(synthesizeStream(CFG, 'x', 'Harper', NATURAL_VOICE, undefined, fake(new TypeError('fetch failed')).impl)).rejects.toBeInstanceOf(SpeechError)
+    await expect(synthesizeStream(CFG, 'x', 'Harper', NATURAL_VOICE, undefined, fake(new Response('<html>', { headers: { 'content-type': 'text/html' } })).impl)).rejects.toMatchObject({ status: 502, stage: 'tts' })
   })
   it('⛔ a stall AFTER the first sound is a failed voice, not a finished one (review round 2, codex)', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
@@ -174,7 +192,7 @@ describe('synthesizeStream', () => {
         },
       })
       const f = fake(new Response(body, { headers: { 'content-type': 'audio/L16', 'x-sample-rate': '24000' } }))
-      const v = await synthesizeStream(CFG, 'x', 'Harper', 'natural', undefined, f.impl)
+      const v = await synthesizeStream(CFG, 'x', 'Harper', NATURAL_VOICE, undefined, f.impl)
       const got: number[][] = []
       const run = (async () => { for await (const c of v.chunks) got.push([...c]) })()
       // the expectation is attached BEFORE the timers run, so the rejection is never "unhandled" for a moment
@@ -197,7 +215,7 @@ describe('synthesizeStream', () => {
       },
     })
     const f = fake(new Response(body, { headers: { 'content-type': 'audio/L16', 'x-sample-rate': '24000' } }))
-    const v = await synthesizeStream(CFG, 'x', 'Harper', 'natural', stop.signal, f.impl)
+    const v = await synthesizeStream(CFG, 'x', 'Harper', NATURAL_VOICE, stop.signal, f.impl)
     const got: number[][] = []
     for await (const c of v.chunks) { got.push([...c]); stop.abort() }
     expect(got).toEqual([[1, 2]])

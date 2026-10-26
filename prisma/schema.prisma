@@ -2885,6 +2885,9 @@ model ClassroomLearner {
   assentAt                  DateTime?
   /// Consent withdrawn: practice stops; the learner's data stays only as long as the seat's retention allows.
   withdrawnAt               DateTime?
+  /// The avatar's voice pace this learner asked for ("talk more slowly") — slowest | gentle | natural | quick; null = the
+  /// default for their age and level (src/lib/classroom/pace.ts). Read back inside their age's bounds.
+  voicePace                 String?
   createdAt                 DateTime              @default(now())
   updatedAt                 DateTime              @default(now()) @updatedAt
   seats                     ClassroomEnrollment[]
@@ -2985,6 +2988,8 @@ model ClassroomSession {
   costMicroUsd     Int                  @default(0)
   feedbackStatus   String               @default("pending") // pending | ready | failed
   feedbackAttempts Int                  @default(0)
+  /// The avatar's voice pace NOW (src/lib/classroom/pace.ts) — set at the start, moved a step by the learner's request.
+  voicePace        String?
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @default(now()) @updatedAt
   turns            ClassroomTurn[]

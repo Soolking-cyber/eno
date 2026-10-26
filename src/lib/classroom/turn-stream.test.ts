@@ -11,7 +11,7 @@ const logs = vi.hoisted(() => [] as unknown[][])
 vi.mock('@/lib/log', () => ({ logWarn: (...a: unknown[]) => { logs.push(a) }, logError: (...a: unknown[]) => { logs.push(a) }, logInfo: () => {} }))
 afterEach(() => { logs.length = 0 })
 
-const REPLY = (o: Partial<TutorReply> = {}): TutorReply => ({ reply: 'Nice! We say: I went to the market.', hint: 'I went to the market.', hintVi: 'Tôi đã đi chợ.', expect: null, heardAs: [], safety: false, ...o })
+const REPLY = (o: Partial<TutorReply> = {}): TutorReply => ({ reply: 'Nice! We say: I went to the market.', hint: 'I went to the market.', hintVi: 'Tôi đã đi chợ.', expect: null, heardAs: [], safety: false, pace: null, ...o })
 const SAVED = (a: Answer): SavedReply => ({ seq: 4, learnerText: 'I go market', reply: a.reply.reply, hint: a.reply.hint, hintVi: a.reply.hintVi, expect: a.reply.expect, heardAs: a.reply.heardAs, secondsLeft: 300 })
 async function* brain(...ev: TutorEvent[]): AsyncGenerator<TutorEvent> { yield* ev }
 async function collect(lines: AsyncGenerator<TurnLine, void, undefined>) { const out: TurnLine[] = []; for await (const l of lines) out.push(l); return out }
@@ -26,7 +26,7 @@ const voice = (sizes: number[] = [100]): Speaker & { asked: string[]; signals: A
   }
   return Object.assign(f, { asked, signals })
 }
-const turn = (events: AsyncIterable<TutorEvent>, o: { speak?: Speaker | null; save?: (a: Answer, c: { clientGone: () => boolean }) => Promise<SavedReply> } = {}) => {
+const turn = (events: AsyncIterable<TutorEvent>, o: { speak?: Speaker | null; save?: (a: Answer, c: { clientGone: () => boolean }) => Promise<SavedReply>; onPace?: (c: 'slower' | 'faster') => void } = {}) => {
   const saved: { a: Answer; clientGone: boolean }[] = []
   const gaveUp: unknown[] = []
   const t = streamTurn({
@@ -36,12 +36,32 @@ const turn = (events: AsyncIterable<TutorEvent>, o: { speak?: Speaker | null; sa
     save: o.save ?? (async (a, c) => { saved.push({ a, clientGone: c.clientGone() }); return SAVED(a) }),
     giveUp: async (e) => { gaveUp.push(e) },
     safetyLine: 'Thank you for telling me. Please talk to a grown-up you trust.',
+    onPace: o.onPace,
   })
   return { ...t, saved, gaveUp }
 }
 const kinds = (l: TurnLine[]) => l.map((x) => (x.kind === 'say' ? `say:${x.text}` : x.kind === 'part-end' ? `part-end:${x.part}${x.last ? ':last' : ''}` : x.kind === 'pcm' ? `pcm:${x.part}` : x.kind))
 /** The `reply` line lands whenever the save finishes — the voice never waits for it: the lines without it, and how many. */
 const voiceOrder = (l: TurnLine[]) => ({ lines: kinds(l).filter((k) => k !== 'reply'), replies: kinds(l).filter((k) => k === 'reply').length, tail: kinds(l).slice(-2) })
+
+describe('streamTurn — the voice pace (owner, 2026-10-26: "adults may adjust pace by saying talk more slowly")', () => {
+  it('the learner asked for a slower voice: the pace moves BEFORE the first sentence is voiced — the reply itself is slower', async () => {
+    const order: string[] = []
+    const v = voice()
+    const speak: Speaker = async (text, signal) => { order.push(`voice:${text}`); return v(text, signal) }
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'pace', change: 'slower' }, { kind: 'say', text: 'Sure, I will slow down.' }, { kind: 'final', reply: REPLY({ reply: 'Sure, I will slow down.', pace: 'slower' }), model: 'm', calls: 1 }), {
+      speak, onPace: (c) => order.push(`pace:${c}`),
+    })
+    await collect(t.lines)
+    expect(order).toEqual(['pace:slower', 'voice:Sure, I will slow down.'])
+  })
+  it('⛔ a harm-flagged turn never moves the pace', async () => {
+    const order: string[] = []
+    const t = turn(brain({ kind: 'safety', harm: true }, { kind: 'pace', change: 'faster' }, { kind: 'final', reply: REPLY({ reply: 'Please tell a trusted adult.', safety: true }), model: 'm', calls: 1 }), { onPace: (c) => order.push(c) })
+    await collect(t.lines)
+    expect(order).toEqual([])
+  })
+})
 
 describe('streamTurn', () => {
   it('heard first; each sentence said then voiced; the saved turn; the last part-end; end', async () => {

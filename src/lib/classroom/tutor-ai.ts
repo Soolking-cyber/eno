@@ -8,6 +8,7 @@ import { containsContactInfo } from '@/lib/publish-guard'
 import { containsPhoneNumber } from '@/lib/phone'
 import { openAiConfig, partialString, streamJson } from './llm-openai'
 import { mayBeSpoken } from './contact-gate'
+import type { PaceChange, VoicePace } from './pace'
 
 /**
  * THE TUTOR'S TURN — Gemini 3.8 Flash plays the teacher's avatar for one reply (plan "How one turn works"). LOW
@@ -34,6 +35,13 @@ export type TutorContext = {
   secondsLeft: number
   /** The drill sentences not yet practised this session. */
   drillLeft: string[]
+  /** The voice's pace now, and which way the learner may still move it (pace.ts paceOptions). */
+  pace: { now: VoicePace; slower: boolean; faster: boolean }
+}
+
+/** How the pace is put to the tutor (its own words for each step). */
+const PACE_WORDS: Record<VoicePace, string> = {
+  slowest: 'the slowest', gentle: 'a little slower than natural', natural: 'natural', quick: 'a little faster than natural',
 }
 
 const REPLY_WORDS: Record<AgeBand, number> = { 'child-young': 20, child: 30, teen: 40, adult: 45 }
@@ -57,6 +65,7 @@ Each turn:
 - "reply": what you say next — natural spoken English, at the learner's level, ONE question at a time so the learner keeps talking. Stay in character. Never longer than the word limit you are given.
 - "hint": a short example of what the learner could answer to your reply, in simple English at their level (max 15 words).
 - "hintVi": the same hint in natural Vietnamese.
+- "pace": the SPEED of your voice is set by eno, not by your words. If the learner asks you to speak more slowly, says you are too fast or that they cannot follow you (in English or Vietnamese: "slow down", "too fast", "nói chậm thôi", "chậm lại"), "slower"; if they ask you to speak faster, "faster"; otherwise "same". Only a way the VOICE PACE line says is possible. When you change it, say so in a few words ("Sure, I'll speak more slowly.") and go on; if it cannot go that way, say kindly that this is already your slowest (or fastest) voice. Never change it because of the conversation's topic.
 - "expect": if your reply asks the learner to repeat or say one specific sentence (a drill, or a corrected sentence in strict mode), that exact sentence; otherwise "".
 - "heardAs": the learner's words come from speech recognition. If a word they "said" looks like a mishearing of a similar-sounding word (e.g. "I sink so" for "I think so"), list it as {"heard": "...", "meant": "..."} and answer what they meant. Only clear cases; usually [].
 - "safety": "harm" if the learner mentions harm, abuse, bullying, self-harm or danger to themselves or someone else; otherwise "none".
@@ -74,9 +83,11 @@ Rules:
 
 const SCHEMA: Schema = {
   type: Type.OBJECT,
-  // ⛔ safety FIRST, then reply (tutorTurnStream reads the stream in this order — a harm flag before any word is spoken).
-  propertyOrdering: ['safety', 'reply', 'hint', 'hintVi', 'expect', 'heardAs'],
+  // ⛔ safety FIRST, then pace, then reply (tutorTurnStream reads the stream in this order — a harm flag before any word is
+  // spoken; the pace before the first sentence is voiced, so "Sure, I'll slow down" is already slower).
+  propertyOrdering: ['safety', 'pace', 'reply', 'hint', 'hintVi', 'expect', 'heardAs'],
   properties: {
+    pace: { type: Type.STRING, enum: ['same', 'slower', 'faster'] },
     reply: { type: Type.STRING },
     hint: { type: Type.STRING },
     hintVi: { type: Type.STRING },
@@ -84,7 +95,7 @@ const SCHEMA: Schema = {
     heardAs: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { heard: { type: Type.STRING }, meant: { type: Type.STRING } }, required: ['heard', 'meant'] } },
     safety: { type: Type.STRING, enum: ['none', 'harm'] },
   },
-  required: ['reply', 'hint', 'hintVi', 'expect', 'heardAs', 'safety'],
+  required: ['reply', 'hint', 'hintVi', 'expect', 'heardAs', 'safety', 'pace'],
 }
 
 export function tutorAsk(c: TutorContext): JsonAsk {
@@ -95,6 +106,7 @@ export function tutorAsk(c: TutorContext): JsonAsk {
     BAND_RULE[c.band],
     STRICTNESS_RULE[c.strictness],
     `Word limit for "reply": ${words} words.`,
+    `VOICE PACE: your voice is ${PACE_WORDS[c.pace.now]}. Possible: ${[c.pace.slower ? '"slower"' : '', c.pace.faster ? '"faster"' : ''].filter(Boolean).join(' or ') || 'neither — keep "same"'}.`,
     wrapUp ? `About ${Math.max(0, Math.round(c.secondsLeft))} seconds are left: start wrapping up now — praise one thing the learner did well, and say goodbye warmly within one or two replies.` : `About ${Math.round(c.secondsLeft / 60)} minutes are left.`,
   ].join('\n')
   const plan = [
@@ -127,7 +139,10 @@ export function tutorAsk(c: TutorContext): JsonAsk {
   }
 }
 
-export type TutorReply = { reply: string; hint: string; hintVi: string; expect: string | null; heardAs: { heard: string; meant: string }[]; safety: boolean }
+export type TutorReply = { reply: string; hint: string; hintVi: string; expect: string | null; heardAs: { heard: string; meant: string }[]; safety: boolean; pace: PaceChange | null }
+
+/** The tutor's `pace` as a change — anything but "slower" or "faster" is none. */
+const paceOf = (v: unknown): PaceChange | null => (v === 'slower' || v === 'faster' ? v : null)
 
 /** The answer → a reply we can speak, or null (empty or unspeakable). Pure. Over-long replies are cut at a sentence end. */
 const wordsOf = (s: string) => s.split(/\s+/).filter(Boolean).length
@@ -190,19 +205,21 @@ export function acceptTutorReply(v: Record<string, unknown>, band: AgeBand): Tut
     expect,
     heardAs,
     safety: v.safety === 'harm',
+    pace: paceOf(v.pace),
   }
 }
 
 /**
- * The same turn for OpenAI's strict structured output (llm-openai.ts). ⛔ `safety` FIRST, then `reply`: OpenAI writes the
- * properties in this order, so a harm flag is known before a single word of the reply is spoken, and the reply's sentences
- * can be spoken while the hint and the rest are still being written.
+ * The same turn for OpenAI's strict structured output (llm-openai.ts). ⛔ `safety` FIRST, then `pace`, then `reply`: OpenAI
+ * writes the properties in this order, so a harm flag is known before a single word of the reply is spoken, the pace before
+ * its first sentence is voiced, and the reply's sentences can be spoken while the hint and the rest are still being written.
  */
 export const TUTOR_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
     safety: { type: 'string', enum: ['none', 'harm'] },
+    pace: { type: 'string', enum: ['same', 'slower', 'faster'] },
     reply: { type: 'string' },
     hint: { type: 'string' },
     hintVi: { type: 'string' },
@@ -212,12 +229,14 @@ export const TUTOR_JSON_SCHEMA = {
       items: { type: 'object', additionalProperties: false, properties: { heard: { type: 'string' }, meant: { type: 'string' } }, required: ['heard', 'meant'] },
     },
   },
-  required: ['safety', 'reply', 'hint', 'hintVi', 'expect', 'heardAs'],
+  required: ['safety', 'pace', 'reply', 'hint', 'hintVi', 'expect', 'heardAs'],
 } as const
 
-/** What the streamed turn tells its caller, in order: the harm flag, each sentence to speak, then the whole reply. */
+/** What the streamed turn tells its caller, in order: the harm flag, a pace change (if the learner asked), each sentence to
+ *  speak, then the whole reply. */
 export type TutorEvent =
   | { kind: 'safety'; harm: boolean }
+  | { kind: 'pace'; change: PaceChange }
   | { kind: 'say'; text: string }
   | { kind: 'final'; reply: TutorReply; model: string; calls: number }
 
@@ -246,12 +265,16 @@ export async function* tutorTurnStream(ai: GoogleGenAI | null, c: TutorContext, 
   if (!brains.length) throw new Error('classroom_tutor_unconfigured')
   let calls = 0
   let harmSeen = false
+  // ⛔ ONE PACE CHANGE A TURN: a brain that wrote its `pace` and then failed before a sentence hands over to the next, which
+  // writes its own — the learner asked once, the voice moves one step.
+  let paceSeen = false
   for (const brain of brains) {
     calls += 1
     const run = sentencesOf(brain.deltas(), c)
     let spokeOne = false
     try {
       for await (const ev of run) {
+        if (ev.kind === 'pace') { if (paceSeen) continue; paceSeen = true }
         if (ev.kind === 'say') spokeOne = true
         if (ev.kind === 'safety' && ev.harm) harmSeen = true
         if (ev.kind === 'final') { yield { ...ev, model: brain.model, calls }; return }
@@ -271,9 +294,10 @@ export async function* tutorTurnStream(ai: GoogleGenAI | null, c: TutorContext, 
   const r = await tutorTurn(ai, c, signal)
   // ⛔ The whole answer goes through the SAME gates as a streamed one — the contact gate with everything said, the digit
   // hold (2026-10-26 review round 2, opus: this path spoke "0901. 234. 567" sentence by sentence) — as one delta.
-  const whole = JSON.stringify({ safety: r.safety ? 'harm' : 'none', reply: r.reply, hint: r.hint, hintVi: r.hintVi, expect: r.expect ?? '', heardAs: r.heardAs })
+  const whole = JSON.stringify({ safety: r.safety ? 'harm' : 'none', pace: r.pace ?? 'same', reply: r.reply, hint: r.hint, hintVi: r.hintVi, expect: r.expect ?? '', heardAs: r.heardAs })
   for await (const ev of sentencesOf((async function* () { yield whole })(), c)) {
     if (ev.kind === 'final') { yield { ...ev, model: r.model, calls: calls + r.calls }; return }
+    if (ev.kind === 'pace' && paceSeen) continue
     yield ev
   }
 }
@@ -289,7 +313,7 @@ export function warmTutorBrain(): void {
   if (!cfg) return
   void (async () => {
     try {
-      for await (const _ of streamJson(cfg, { instructions: TUTOR_INSTRUCTION, input: 'Session starting. Reply with safety "none" and an empty reply.', schema: TUTOR_JSON_SCHEMA, schemaName: 'tutor_turn', maxOutputTokens: 40 })) break
+      for await (const _ of streamJson(cfg, { instructions: TUTOR_INSTRUCTION, input: 'Session starting. Reply with safety "none", pace "same" and an empty reply.', schema: TUTOR_JSON_SCHEMA, schemaName: 'tutor_turn', maxOutputTokens: 40 })) break
     } catch {
       // a warm-up: nothing to do
     }
@@ -384,6 +408,8 @@ async function* sentencesOf(deltas: AsyncGenerator<string>, c: TutorContext): As
   const limit = REPLY_WORDS[c.band] + 15
   let json = ''
   let harm: boolean | null = null
+  /** The pace was read (and, if the learner asked, handed over) — once. */
+  let paceRead = false
   let consumed = 0
   let stopped = false
   /**
@@ -423,6 +449,15 @@ async function* sentencesOf(deltas: AsyncGenerator<string>, c: TutorContext): As
       yield { kind: 'safety', harm }
     }
     if (harm) continue
+    // The pace BEFORE the reply's first sentence (the schema writes it first): this reply already sounds at the new pace.
+    if (!paceRead) {
+      const pc = partialString(json, 'pace')
+      if (pc?.complete) {
+        paceRead = true
+        const change = paceOf(pc.text)
+        if (change) yield { kind: 'pace', change }
+      }
+    }
     const r = partialString(json, 'reply')
     if (r) yield* take(r.text, r.complete)
   }
@@ -433,6 +468,13 @@ async function* sentencesOf(deltas: AsyncGenerator<string>, c: TutorContext): As
     throw new SyntaxError('classroom_unreadable_answer')
   }
   if (harm === null) { harm = v.safety === 'harm'; yield { kind: 'safety', harm } }
+  // A brain that wrote the pace AFTER the reply (Gemini's ordering is best-effort): the change still counts — from the next
+  // sentence on.
+  if (!harm && !paceRead) {
+    paceRead = true
+    const change = paceOf(v.pace)
+    if (change) yield { kind: 'pace', change }
+  }
   if (!harm && typeof v.reply === 'string') {
     // The whole reply is known: its held sentences may be said once ALL of it passes the contact gates — the patterns
     // (acceptTutorReply) AND the digit cap (contact-gate.ts): the patterns do not join "0901. 234. 567".

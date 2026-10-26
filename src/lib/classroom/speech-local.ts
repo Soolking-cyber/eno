@@ -1,4 +1,5 @@
 import 'server-only'
+import type { VoiceStyle } from './pace'
 import { logError, logWarn } from '@/lib/log'
 import { SpeechError } from './azure-speech'
 import { quietError } from './quiet-error'
@@ -131,12 +132,22 @@ export function spokenPart(text: string): string {
 }
 
 /**
+ * How a line is asked for (pace.ts VoiceStyle): the pace by NAME (the server maps it — never a number), a child's louder
+ * voice, the breath between its sentences. ⚠️ `rate` too, for a speech server from before the paces (it reads only that):
+ * the two slower paces are its 'slow'.
+ */
+function styleBody(style: VoiceStyle) {
+  return { pace: style.pace, rate: style.pace === 'slowest' || style.pace === 'gentle' ? 'slow' : 'natural', loud: style.loud, gap_ms: style.gapMs }
+}
+
+/**
  * One line in `voice`, STREAMED: raw PCM16 (mono, little-endian, `rate` Hz) chunks as the server makes them — the first
  * arrives ~0.1 s after the request instead of after the whole line (/tts/stream; owner, 2026-10-26: "delayless").
  * `TTS_BUDGET_MS` bounds the wait for the FIRST chunk (and one busy retry); the body then runs as long as the line does —
- * the server cuts it at its own deadline. The caller's `signal` stops it (the learner talked over the avatar).
+ * the server cuts it at its own deadline. The caller's `signal` stops it (the learner talked over the avatar). A line that
+ * ends whole is followed by `style.tailMs` of silence: the sentences of a child's reply do not run together.
  */
-export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voice: string, rate: 'slow' | 'natural', signal?: AbortSignal, fetchImpl: typeof fetch = fetch): Promise<{ rate: number; chunks: AsyncGenerator<Uint8Array> }> {
+export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voice: string, style: VoiceStyle, signal?: AbortSignal, fetchImpl: typeof fetch = fetch): Promise<{ rate: number; chunks: AsyncGenerator<Uint8Array> }> {
   const stop = new AbortController()
   const onAbort = () => stop.abort()
   signal?.addEventListener('abort', onAbort, { once: true })
@@ -147,7 +158,7 @@ export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voi
       res = await fetchImpl(`${cfg.url}/tts/stream`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-speech-key': cfg.key },
-        body: JSON.stringify({ text: spokenPart(text), voice, rate }),
+        body: JSON.stringify({ text: spokenPart(text), voice, ...styleBody(style) }),
         signal: stop.signal,
         redirect: 'error',
       })
@@ -191,6 +202,8 @@ export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voi
         if (bytes.length % 2) { carry = bytes.slice(-1); bytes = bytes.slice(0, -1) }
         if (bytes.length) yield bytes
       }
+      // Ended whole (not stopped, not stalled): the pause after it.
+      if (style.tailMs > 0 && !stop.signal.aborted) yield new Uint8Array(Math.round((sampleRate * style.tailMs) / 1000) * 2)
     } catch {
       // stopped (talked over) or cut short: the line simply ends here
     } finally {
@@ -212,8 +225,8 @@ function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
 }
 
 /** One line in `voice` (an id from voices.ts — the server refuses any other) → MP3 bytes. */
-export async function synthesize(cfg: LocalSpeechConfig, text: string, voice: string, rate: 'slow' | 'natural', fetchImpl: typeof fetch = fetch): Promise<Buffer> {
-  const { res } = await call(cfg, '/tts', { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: spokenPart(text), voice, rate }) }, TTS_BUDGET_MS, 'tts', fetchImpl)
+export async function synthesize(cfg: LocalSpeechConfig, text: string, voice: string, style: VoiceStyle, fetchImpl: typeof fetch = fetch): Promise<Buffer> {
+  const { res } = await call(cfg, '/tts', { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: spokenPart(text), voice, ...styleBody(style) }) }, TTS_BUDGET_MS, 'tts', fetchImpl)
   if (!(res.headers.get('content-type') ?? '').startsWith('audio/mpeg')) throw new SpeechError(502, 'tts')
   const bytes = Buffer.from(await res.arrayBuffer().catch(() => { throw new SpeechError(502, 'tts') }))
   if (bytes.length < 200) throw new SpeechError(502, 'tts')

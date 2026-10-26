@@ -3,6 +3,7 @@ import { quietError } from './quiet-error'
 import { replyParts } from './reply-parts'
 import { mayBeSpoken } from './contact-gate'
 import type { TutorEvent, TutorReply } from './tutor-ai'
+import type { PaceChange } from './pace'
 
 /**
  * ONE TURN'S ANSWER, STREAMED (owner, 2026-10-26: "mvp should work flawless delayless"). The turn route answers with JSON
@@ -79,6 +80,9 @@ export function streamTurn(t: {
   stopBrain?: () => void
   /** The saved turn sets no drill after all (a sentence's voice failed). Never throws (it retries once, then logs). */
   dropDrill?: () => Promise<void>
+  /** The learner asked for a slower or faster voice (the tutor's `pace`, before its first sentence): the speaker's next
+   *  sentences use the new pace. Never for a flagged turn. */
+  onPace?: (change: PaceChange) => void
 }): TurnStream {
   const q = lineQueue<TurnLine>()
   const gone = new AbortController()
@@ -96,6 +100,7 @@ export function streamTurn(t: {
         // after the page left are never said, never saved — the history holds only what the learner heard.
         if (ev.kind === 'say') { if (!gone.signal.aborted) { said.push(ev.text); voice.say(ev.text) } }
         else if (ev.kind === 'safety') harm ||= ev.harm
+        else if (ev.kind === 'pace') { if (!harm) t.onPace?.(ev.change) }
         else answer = { reply: ev.reply, model: ev.model, calls: ev.calls }
       }
       if (!answer) throw new Error('classroom_no_answer')
@@ -107,13 +112,13 @@ export function streamTurn(t: {
       if ((e as { safety?: boolean } | null)?.safety || harm) {
         // ⛔ A HARM FLAG IS NEVER LOST WITH ITS REPLY (2a round 5, opus): the model flagged the turn but its words could not
         // be used — eno's own kind words, saved flagged, and a person is alerted (save).
-        answer = { reply: { reply: t.safetyLine, hint: '', hintVi: '', expect: null, heardAs: [], safety: true }, model: 'eno-safety', calls }
+        answer = { reply: { reply: t.safetyLine, hint: '', hintVi: '', expect: null, heardAs: [], safety: true, pace: null }, model: 'eno-safety', calls }
       } else if (said.length) {
         // The brain broke off — or the page left — after some of the reply was said: what the learner heard IS the reply.
         // Every sentence passed the gate with all before it (contact-gate.ts); checked once more as the saved text.
         if (!gone.signal.aborted) logWarn('[classroom] reply cut off mid-stream', { status: (e as { status?: number } | null)?.status ?? null })
         const text = said.join(' ')
-        answer = { reply: { reply: mayBeSpoken([], text) ? text : '', hint: '', hintVi: '', expect: null, heardAs: [], safety: false }, model: 'cut-off', calls }
+        answer = { reply: { reply: mayBeSpoken([], text) ? text : '', hint: '', hintVi: '', expect: null, heardAs: [], safety: false, pace: null }, model: 'cut-off', calls }
       } else {
         await t.giveUp(e)
         q.push({ kind: 'error', error: 'tutor_unavailable' })
@@ -133,7 +138,7 @@ export function streamTurn(t: {
         q.close()
         return
       }
-      answer = { reply: { reply: mayBeSpoken([], text) ? text : '', hint: '', hintVi: '', expect: null, heardAs: [], safety: false }, model: 'cut-off', calls: answer.calls }
+      answer = { reply: { reply: mayBeSpoken([], text) ? text : '', hint: '', hintVi: '', expect: null, heardAs: [], safety: false, pace: null }, model: 'cut-off', calls: answer.calls }
     } else if (gone.signal.aborted) {
       // Every sentence had begun to sound — but a sentence counts from its FIRST sound, so the last one (the drill's
       // "say after me…") may have been cut mid-way (review round 2, codex): never a drill from a reply the page left.

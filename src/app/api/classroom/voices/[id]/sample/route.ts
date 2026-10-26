@@ -2,6 +2,7 @@ import { ApiError, route } from '@/lib/api/handler'
 import { localSpeechConfig, synthesize } from '@/lib/classroom/speech-local'
 import { voiceById } from '@/lib/classroom/voices'
 import { requireTeacher } from '@/lib/classroom/guards'
+import { NATURAL_VOICE } from '@/lib/classroom/pace'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,6 @@ export const GET = route({ auth: 'profile', rateLimit: { bucket: 'classroom-voic
   if (!voice) throw new ApiError('voice_invalid', 404)
   const cfg = localSpeechConfig()
   if (!cfg) throw new ApiError('speech_unavailable', 503)
-  const mp3 = await synthesize(cfg, SAMPLE, voice.id, 'natural').catch(() => { throw new ApiError('speech_unavailable', 503) })
+  const mp3 = await synthesize(cfg, SAMPLE, voice.id, NATURAL_VOICE).catch(() => { throw new ApiError('speech_unavailable', 503) })
   return new Response(new Uint8Array(mp3), { headers: { 'content-type': 'audio/mpeg', 'cache-control': 'private, max-age=86400' } })
 })

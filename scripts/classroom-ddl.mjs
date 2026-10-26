@@ -230,6 +230,21 @@ async function ensureIndex(sql) {
   if ((await client.query('select to_regclass($1) as r', [`public."${name}"`])).rows[0].r) return
   await client.query(sql)
 }
+/**
+ * A column added after the table was first made (the voice pace, 2026-10-26): CREATE TABLE IF NOT EXISTS never adds one
+ * to a table that exists. Added — with its CHECK — only when it is missing, so a clean re-run takes no lock (the rule
+ * above); a nullable column with no default is a catalogue change, not a rewrite. The shape check then compares it with
+ * the declared table like every other column.
+ */
+async function ensureColumn(table, column, type, check) {
+  const has = await client.query(`select 1 from pg_attribute where attrelid = to_regclass($1) and attname = $2 and not attisdropped`, [`public."${table}"`, column])
+  if (!has.rowCount) await client.query(`alter table "${table}" add column "${column}" ${type}`)
+  // The CHECK on its own (2026-10-26 review, opus): one transaction makes the pair atomic, but a column made by hand
+  // without it still gets it.
+  const named = `${table}_${column}_check`
+  const hasCheck = await client.query(`select 1 from pg_constraint where conrelid = to_regclass($1) and conname = $2`, [`public."${table}"`, named])
+  if (!hasCheck.rowCount) await client.query(`alter table "${table}" add constraint "${named}" check (${check})`)
+}
 process.on('unhandledRejection', async (e) => { console.error(e); try { await client.query('rollback') } catch {} process.exit(1) })
 
 const exists = await client.query(`select to_regclass('public."TeacherProfile"') as t`)
@@ -289,8 +304,10 @@ await client.query(`
     "withdrawnAt" timestamp(3),
     "createdAt" timestamp(3) not null default current_timestamp,
     "updatedAt" timestamp(3) not null default current_timestamp,
+    "voicePace" text,
     constraint "ClassroomLearner_pkey" primary key ("id"),
     constraint "ClassroomLearner_kind_check" check ("kind" in ('self', 'child')),
+    constraint "ClassroomLearner_voicePace_check" check ("voicePace" is null or "voicePace" in ('slowest', 'gentle', 'natural', 'quick')),
     constraint "ClassroomLearner_child_rules" check (
       ("kind" = 'child') = ("birthYear" is not null)
       and ("kind" <> 'child' or "guardianAttestedAt" is not null)
@@ -298,6 +315,7 @@ await client.query(`
       and ("birthYear" is null or "birthYear" between 2000 and 2100)),
     constraint "ClassroomLearner_text_bounds" check (char_length("displayName") between 1 and 40)
   )`)
+await ensureColumn('ClassroomLearner', 'voicePace', 'text', `"voicePace" is null or "voicePace" in ('slowest', 'gentle', 'natural', 'quick')`)
 await ensureIndex(`create index if not exists "ClassroomLearner_ownerId_idx" on "ClassroomLearner"("ownerId")`)
 // ⛔ ONE "self" LEARNER PER ACCOUNT (core review, opus): two quick joins must not make two "me"s.
 await ensureIndex(`create unique index if not exists "ClassroomLearner_one_self" on "ClassroomLearner"("ownerId") where "kind" = 'self'`)
@@ -390,7 +408,9 @@ await client.query(`
     "feedbackAttempts" integer not null default 0,
     "createdAt" timestamp(3) not null default current_timestamp,
     "updatedAt" timestamp(3) not null default current_timestamp,
+    "voicePace" text,
     constraint "ClassroomSession_pkey" primary key ("id"),
+    constraint "ClassroomSession_voicePace_check" check ("voicePace" is null or "voicePace" in ('slowest', 'gentle', 'natural', 'quick')),
     constraint "ClassroomSession_status_check" check ("status" in ('live', 'ended')),
     constraint "ClassroomSession_endReason_check" check ("endReason" is null or "endReason" in ('learner', 'time', 'abandoned', 'kill_switch')),
     constraint "ClassroomSession_mode_check" check ("mode" in ('avatar', 'voice')),
@@ -401,6 +421,7 @@ await client.query(`
       and ("status" <> 'ended' or "endedAt" is not null)
       and "reservedMinutes" between 1 and 20 and "usedSeconds" >= 0 and "turnCount" between 0 and 200)
   )`)
+await ensureColumn('ClassroomSession', 'voicePace', 'text', `"voicePace" is null or "voicePace" in ('slowest', 'gentle', 'natural', 'quick')`)
 await ensureIndex(`create index if not exists "ClassroomSession_status_endsAt_idx" on "ClassroomSession"("status", "endsAt")`)
 await ensureIndex(`create index if not exists "ClassroomSession_enrollmentId_startedAt_idx" on "ClassroomSession"("enrollmentId", "startedAt")`)
 await ensureIndex(`create index if not exists "ClassroomSession_avatarId_startedAt_idx" on "ClassroomSession"("avatarId", "startedAt")`)

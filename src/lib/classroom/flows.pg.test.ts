@@ -26,6 +26,8 @@ const seen = vi.hoisted(() => ({
   feedbackTurns: [] as { learner: string | null }[][], recognizeMs: 0, alerts: [] as { to: string; key: string; text: string }[], tutorUnusableHarm: false, silence: false, assessed: [] as string[],
   // the tutor's reply (null: the usual one-part line), each part spoken, and a part whose voice fails
   replyText: null as string | null, spoken: [] as string[], failVoice: null as string | null,
+  // the learner asked for a slower/faster voice (the tutor's pace), and the pace each line was voiced at
+  pace: null as 'slower' | 'faster' | null, paces: [] as string[], openingPace: '',
 }))
 // Nothing here may ever send real mail: the safety alert is captured instead.
 vi.mock('@/lib/mail', () => ({
@@ -53,10 +55,11 @@ vi.mock('./azure-speech', async (orig) => ({
   assess: async (_cfg: unknown, _wav: unknown, reference: string) => (seen.assessed.push(reference), { accuracy: 70, fluency: 80, completeness: null, prosody: null, words: [{ word: 'school', score: 50, error: 'Mispronunciation' }] }),
 }))
 vi.mock('./session-voice', () => ({
-  speakLine: async () => 'AAAA',
+  speakLine: async (_text: string, _voice: string, style: { pace: string }) => { seen.openingPace = style.pace; return 'AAAA' },
   // each sentence's voice, streamed (turn-stream.ts): four bytes of it, or a failure for `failVoice`
-  speakerFor: () => async (text: string) => {
+  speakerFor: (_voice: string, style: () => { pace: string }) => async (text: string) => {
     seen.spoken.push(text)
+    seen.paces.push(style().pace)
     if (text === seen.failVoice) throw Object.assign(new Error('tts'), { status: 502 })
     return { rate: 24_000, chunks: (async function* () { yield new Uint8Array(4) })() }
   },
@@ -71,8 +74,9 @@ vi.mock('./tutor-ai', async (orig) => ({
     }
     const reply = seen.replyText ?? 'Nice! Where did you go?'
     yield { kind: 'safety', harm: false }
+    if (seen.pace) yield { kind: 'pace', change: seen.pace }
     for (const text of reply.match(/[^.!?]+[.!?]+/g) ?? [reply]) yield { kind: 'say', text: text.trim() }
-    yield { kind: 'final', reply: { reply, hint: 'I went to school.', hintVi: 'Em đã đi học.', expect: null, heardAs: [], safety: false }, model: 'm', calls: 1 }
+    yield { kind: 'final', reply: { reply, hint: 'I went to school.', hintVi: 'Em đã đi học.', expect: null, heardAs: [], safety: false, pace: seen.pace }, model: 'm', calls: 1 }
   },
 }))
 vi.mock('./feedback-ai', async (orig) => ({
@@ -396,6 +400,46 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     'That sounds like a really fun day out together.',
     'What animals did you see at the park? Tell me about the one you liked best.',
   ]
+
+  it('⛔ "talk more slowly": one step, the reply itself already slower; the session and the LEARNER keep it; the next start reads it', async () => {
+    const seat = await activeSeat() // an adult at A2: starts gentle (pace.ts)
+    const learnerId = (await db.classroomEnrollment.findUnique({ where: { id: seat.id } }))!.learnerId!
+    await db.classroomLearner.update({ where: { id: learnerId }, data: { voicePace: null } })
+    const s = await start.startLearnerSession(seat.id, parentId)
+    expect(seen.openingPace).toBe('gentle')
+    expect((await db.classroomSession.findUnique({ where: { id: s.id } }))!.voicePace).toBe('gentle')
+    try {
+      seen.pace = 'slower'
+      seen.paces.length = 0
+      await answered(s.id, parentId, 'turn-pace-0001', voice())
+      expect(seen.paces).toEqual(['slowest', 'slowest']) // "Nice!" and "Where did you go?" — both at the NEW pace
+      expect((await db.classroomSession.findUnique({ where: { id: s.id } }))!.voicePace).toBe('slowest')
+      expect((await db.classroomLearner.findUnique({ where: { id: learnerId } }))!.voicePace).toBe('slowest')
+      // already the slowest: no room, nothing moves
+      seen.paces.length = 0
+      await answered(s.id, parentId, 'turn-pace-0002', voice())
+      expect(seen.paces.every((p) => p === 'slowest')).toBe(true)
+      // a turn that asks nothing keeps the pace
+      seen.pace = null
+      seen.paces.length = 0
+      await answered(s.id, parentId, 'turn-pace-0003', voice())
+      expect(seen.paces.every((p) => p === 'slowest')).toBe(true)
+      seen.pace = 'faster'
+      await answered(s.id, parentId, 'turn-pace-0004', voice())
+      expect((await db.classroomLearner.findUnique({ where: { id: learnerId } }))!.voicePace).toBe('gentle')
+      await end.endSession(s.id, parentId, 'learner')
+      // the learner's choice, read back at the next start — inside their bounds
+      await db.classroomLearner.update({ where: { id: learnerId }, data: { voicePace: 'quick' } })
+      await db.classroomSession.updateMany({ where: { enrollmentId: seat.id }, data: { startedAt: new Date(Date.now() - 3 * 86_400_000) } }) // yesterday's practice
+      const next = await start.startLearnerSession(seat.id, parentId)
+      expect(seen.openingPace).toBe('quick')
+      expect((await db.classroomSession.findUnique({ where: { id: next.id } }))!.voicePace).toBe('quick')
+      await end.endSession(next.id, parentId, 'learner')
+    } finally {
+      seen.pace = null
+      await Promise.all(afterQueue.splice(0))
+    }
+  })
 
   it('⛔ the reply is voiced sentence by sentence as it is written, then saved whole; a failed voice never stops the next', async () => {
     const seat = await activeSeat()

@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import type { StartedSession } from '@/lib/classroom/session-start'
 import type { AgeBand } from '@/lib/classroom/limits'
 import { dayName, refusalCopy } from '../classroom-copy'
-import { AvatarStage, FACE_RATE, warmAvatarKit, type StageHandle } from './avatar-stage'
+import { AvatarStage, FACE_RATE, audioNeedsGesture, type FaceConfig, type StageHandle } from './avatar-stage'
 import { bufferFromPcm16, decodeLine, partPlayer, pcmFromBase64, resamplePcm16 } from './voice'
 import { useRecorder } from './use-recorder'
 import { isFiller, openLiveStt, type LiveStt } from './live-stt'
@@ -22,7 +22,8 @@ import { streamTo16k } from '@/lib/classroom/wav'
 import { beginTrace, formatMark, mark, traceVisible, useTrace } from './trace'
 
 /**
- * intro → (Start) connecting → [tap — iOS only] → listening ⇄ hearing → thinking → speaking → listening …
+ * intro (the face draws; Start waits for it) → (Start) connecting (the face connects; the opening waits for it) → speaking
+ * → listening ⇄ hearing → thinking → speaking → listening …
  * `hearing` = the learner is talking (the detector heard speech start); `listening` = waiting for them to.
  */
 type Phase = 'intro' | 'connecting' | 'listening' | 'hearing' | 'thinking' | 'speaking' | 'ending' | 'mic_denied'
@@ -65,9 +66,24 @@ const BARGE_IN = true
  *  learner's turn comes back anyway. */
 const REPLY_GRACE_MS = 5_000
 
+/**
+ * ⚡ ALL AT ONCE (owner, 2026-10-26: "make sure all ai avatar voice etc loads at once when its ready now voice loads first
+ * avatar is not there bad experience"). The face is DRAWN while the intro is up and Start waits for it — at most this long,
+ * then the session is voice-only — so its 11–20 s first draw (measured on the owner's loaded Mac) never runs on the
+ * session's clock.
+ */
+const FACE_PREP_MS = 20_000
+/** How long the question "is there a face for this learner?" may take (api/classroom/face; ~50 ms measured). */
+const FACE_ASK_MS = 6_000
+/** After the session exists, how long the drawn face may take to connect (its token, its websocket: ~1 s measured). */
+const FACE_CONNECT_MS = 8_000
+/** Handed the opening, how long the face may take to START it (its motion comes ~1.3–1.6 s after its audio, measured)
+ *  before it is cut and the speakers say it. */
+const OPENING_PLAY_MS = 5_000
+
 /** The reply being played: which one, its parts, how many reached the face or the speakers, whether the last did, whether
  *  the face has started playing it, and how much audio it holds since when (the watchdog's clock). */
-const freshReply = (id: number) => ({ id, parts: 0, given: 0, lastGiven: false, played: false, audioMs: 0, startedAt: 0, toFace: false })
+const freshReply = (id: number) => ({ id, parts: 0, given: 0, lastGiven: false, played: false, audioMs: 0, startedAt: 0, toFace: false, armed: false })
 
 /** Live listening sends the learner's speech ~100 ms at a time (16 kHz samples). */
 const LIVE_CHUNK = 1_600
@@ -93,11 +109,6 @@ const BUSY_RETRIES = 8
 const BUSY_WAIT_MS = 1_250
 
 const turnId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '')
-
-/** iOS (iPadOS reports a Mac): AvatarKit's audio may only start inside a tap there, so the screen asks for one tap. */
-const needsTapForAudio = () => typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
-  // Desktop Safari too (2026-10-26 review, opus): it keeps an audio context started outside a tap silent, with no error.
-  || /^((?!chrome|chromium|crios|fxios|edg|android).)*safari/i.test(navigator.userAgent))
 
 /**
  * THE PRACTICE SESSION — LIKE A VIDEO CALL WITH THE TEACHER (owner, 2026-10-26: "there shouldnt be a tap to speak button
@@ -130,12 +141,14 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const [hint, setHint] = useState<{ en: string; vi: string } | null>(null)
   const [showHint, setShowHint] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
-  /** The face is drawn and waits for a tap to start its audio (iOS, Safari) — the conversation goes on meanwhile. */
-  const [faceTap, setFaceTap] = useState(false)
+  /** The 3D face a start would give (api/classroom/face), drawn while the intro is up — null: voice-only. */
+  const [face, setFace] = useState<FaceConfig | null>(null)
+  const faceRef = useRef<FaceConfig | null>(null)
+  /** Start waits for the face: 'asking' (is there one?) → 'drawing' → 'ready' (drawn — or voice-only). */
+  const [prep, setPrep] = useState<'asking' | 'drawing' | 'ready'>('asking')
+  /** From Start until the avatar's first words SOUND: "Connecting…", no captions — the face and its voice begin together. */
+  const [waiting, setWaiting] = useState(false)
   const [left, setLeft] = useState(0)
-  // The audio context's rate, fixed at the start: End nulls the context, and a changed rate would re-run the avatar's load
-  // — a token POST for a session already over (C3a round 2, Opus).
-  const [sampleRate, setSampleRate] = useState(48_000)
   const [showTrace] = useState(traceVisible)
   const trace = useTrace()
   const total = useRef(1)
@@ -192,6 +205,12 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const turnGen = useRef(0)
   /** The face can take replies (its audio started). A reply goes to the face only if it was live when the reply BEGAN. */
   const faceLive = useRef(false)
+  /** The face was given up for this screen (failed, too slow, not this session's): voice-only from here on. */
+  const faceGone = useRef(false)
+  /** The opening was said (by the face or the speakers): sayOpening runs once. */
+  const openingSaid = useRef(false)
+  /** The opening handed to the face and not yet sounding — its one owner until it starts (sayOpening). */
+  const openingAtFace = useRef<{ id: number; buffer: AudioBuffer; timer: ReturnType<typeof setTimeout> } | null>(null)
   /** The sentence the last reply asked to be repeated: the next turn sends its clip too, for Azure to score. */
   const lastExpect = useRef<string | null>(null)
 
@@ -207,8 +226,42 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   })
   const releaseRec = rec.release
 
-  // The SDK is fetched while the intro is up, so the face is not waiting on a ~9 MB download after Start.
-  useEffect(() => { void warmAvatarKit().catch(() => {}) }, [])
+  /** The face is given up for the rest of this screen: voice-only (the photo), nothing more from Spatius. */
+  const dropFace = useCallback(() => {
+    faceGone.current = true
+    faceLive.current = false
+    modeRef.current = 'voice'
+    setMode('voice')
+    setPrep('ready')
+  }, [])
+
+  // ⚡ The face a start would give is asked for at once and DRAWN while the intro is up (avatar-stage.tsx says why). Start
+  // waits for it — FACE_PREP_MS at most, then voice-only — so the session's clock never runs while it loads. ⛔ No face
+  // (an under-13 without Spatius's written OK, a 2D look, no consent): nothing is loaded from Spatius at all.
+  useEffect(() => {
+    let live = true
+    const q = test ? 'test=1' : seatId ? `seatId=${encodeURIComponent(seatId)}` : ''
+    // The question itself is bounded too (2026-10-26 review, codex + opus): a lookup that never answers is voice-only, never a
+    // Start that stays "Getting ready…".
+    const ask = q
+      ? fetch(`/api/classroom/face?${q}`, { signal: AbortSignal.timeout(FACE_ASK_MS) }).then(async (r) => (r.ok ? (((await r.json()) as { face?: FaceConfig | null }).face ?? null) : null)).catch(() => null)
+      : Promise.resolve(null)
+    void ask.then((f) => {
+      if (!live) return
+      if (!f || faceGone.current) { setPrep('ready'); return }
+      faceRef.current = f
+      setFace(f)
+      modeRef.current = 'avatar'
+      setMode('avatar')
+      setPrep('drawing')
+    })
+    return () => { live = false }
+  }, [seatId, test])
+  useEffect(() => {
+    if (prep !== 'drawing') return
+    const t = setTimeout(() => { mark('face: not drawn in time — voice-only'); dropFace() }, FACE_PREP_MS)
+    return () => clearTimeout(t)
+  }, [dropFace, prep])
 
   /**
    * How long a silence ends the turn: the band's patience — or, listening live, only a BACKSTOP behind Soniox, which ends
@@ -234,6 +287,14 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     stage.current?.interrupt()
   }, [])
 
+  /** The learner's talk-over is heard from here on (the detector is stricter while the avatar talks) — once per reply. */
+  const armBargeIn = useCallback(() => {
+    const r = reply.current
+    if (r.armed || !BARGE_IN || mutedRef.current || ended.current || phaseRef.current !== 'speaking') return
+    r.armed = true
+    rec.listen({ endMs: patience(), barge: true })
+  }, [patience, rec])
+
   /**
    * Some of the avatar's line — a decoded part, or raw PCM frames streamed from the voice server — to the face when it is
    * live, else to the speakers. `last` closes the line.
@@ -242,13 +303,16 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     if (ended.current) return
     const ctx = ctxRef.current
     if (!ctx) return
+    const r = reply.current
+    if (r.given === 0) { r.startedAt = performance.now(); r.toFace = modeRef.current === 'avatar' && faceLive.current }
     if (phaseRef.current !== 'speaking') {
       go('speaking')
       mark('first sound out')
-      if (BARGE_IN && !mutedRef.current) rec.listen({ endMs: patience(), barge: true })
     }
-    const r = reply.current
-    if (r.given === 0) { r.startedAt = performance.now(); r.toFace = modeRef.current === 'avatar' && faceLive.current }
+    // ⛔ Talking over the avatar counts once its voice SOUNDS: on the speakers, now — also for a reply moved there while
+    // the phase was already 'speaking' (the opening the face never started; review, codex); on the face, when it starts
+    // playing (onPlaying) — ~1.3 s later, when its motion has come. A word in that gap never cuts a reply that has not begun.
+    if (!r.toFace) armBargeIn()
     r.given += 1
     r.audioMs += audio instanceof AudioBuffer ? audio.duration * 1000 : (audio.pcm.length / audio.rate) * 1000
     if (last) {
@@ -269,14 +333,18 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
         ? stage.current?.speakPart(audio, last)
         : stage.current?.speakPcm(resamplePcm16(audio.pcm, audio.rate, FACE_RATE), last)
       if (ok) return // the face reports its end (onPlaying)
+      // The face is gone: this reply goes on — and is talked over — on the speakers.
+      r.toFace = false
+      armBargeIn()
     }
+    setWaiting(false)
     const buffer = audio instanceof AudioBuffer ? audio : bufferFromPcm16(ctx, audio.pcm, audio.rate)
     player.current ??= partPlayer(ctx)
     void player.current.play(buffer).then(() => {
       // The last part has played on the speakers: the learner's turn.
       if (last && !ended.current && phaseRef.current === 'speaking') { mark('voice: done'); listen() }
     })
-  }, [go, listen, patience, rec, stopSpeaking])
+  }, [armBargeIn, go, listen, stopSpeaking])
 
   /**
    * ⛔ HOWEVER THIS SCREEN CLOSES — End, "Not now", a refused start, navigating away — the microphone and the audio
@@ -424,6 +492,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
           ended.current = true
           void fetch(`/api/classroom/sessions/${s.id}/end`, { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'learner' }) }).catch(() => {})
           releaseAll()
+          setWaiting(false)
           setRefused({ code: 'consent_required' })
           go('intro')
           return
@@ -659,39 +728,63 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
 
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(null), 4000); return () => clearTimeout(t) }, [notice])
 
-  /** The opening line: on the face once it is live; on the speakers in voice mode. Then the learner's turn. */
+  /** The opening the face was given but has not started: cut, the face given up, and the speakers say it (sayOpening). */
+  const openingToSpeakers = useCallback((id: number, why: string): boolean => {
+    const o = openingAtFace.current
+    if (!o || o.id !== id) return false
+    openingAtFace.current = null
+    clearTimeout(o.timer)
+    if (ended.current || reply.current.id !== id || reply.current.played || !reply.current.toFace) return false
+    mark(why)
+    stage.current?.interrupt()
+    dropFace()
+    reply.current = { ...freshReply(id + 1), parts: 1 }
+    give(o.buffer, true)
+    return true
+  }, [dropFace, give])
+
+  /**
+   * The opening line — ONE OWNER (plan review, codex + opus): the face when it is live, else the speakers; then the
+   * learner's turn. Handed to the face, it must START sounding within OPENING_PLAY_MS (its motion comes ~1.3 s after its
+   * audio) — or the face is cut and the speakers say it. Never both, never twice, never not at all.
+   */
   const sayOpening = useCallback(() => {
-    if (ended.current) return
+    if (ended.current || openingSaid.current) return
+    openingSaid.current = true
     const b = opening.current
     opening.current = null
-    if (!b) { listen(); return }
+    if (!b) { setWaiting(false); listen(); return }
     reply.current = { ...freshReply(reply.current.id + 1), parts: 1 }
     give(b, true)
-  }, [give, listen])
+    if (!reply.current.toFace) return
+    const id = reply.current.id
+    openingAtFace.current = { id, buffer: b, timer: setTimeout(() => { openingToSpeakers(id, 'face: the opening never started — the speakers say it') }, OPENING_PLAY_MS) }
+  }, [give, listen, openingToSpeakers])
 
   /**
-   * The face has drawn: start its audio (no tap where the browser allows it — iOS and Safari ask for one, without stopping
-   * the conversation) — and it takes the replies from the next one that begins.
+   * The face's playback: its first sound REVEALS the session (the face and its voice begin together), lets the learner
+   * talk over it, and settles the opening's owner; an idle AFTER playing ends the reply.
    */
-  const onFaceReady = useCallback(async () => {
-    if (ended.current || modeRef.current !== 'avatar') return
-    if (needsTapForAudio()) { setFaceTap(true); return }
-    const ok = await stage.current?.unlock()
-    if (ended.current) return
-    if (ok) { faceLive.current = true; mark('face: takes the next reply') } else setFaceTap(true)
-  }, [])
-
-  const onTapFace = async () => {
-    hapticTap()
-    setFaceTap(false)
-    const ok = await stage.current?.unlock()
-    if (ended.current) return
-    if (ok) { faceLive.current = true; mark('face: takes the next reply') } else setMode('voice')
-  }
+  const onPlaying = useCallback((on: boolean) => {
+    if (on) {
+      if (phaseRef.current !== 'speaking' || !reply.current.toFace) return
+      reply.current.played = true
+      const o = openingAtFace.current
+      if (o && o.id === reply.current.id) { clearTimeout(o.timer); openingAtFace.current = null }
+      setWaiting(false)
+      armBargeIn()
+      return
+    }
+    // The face finished the reply's last part (an idle AFTER playing): the learner's turn.
+    if (phaseRef.current === 'speaking' && reply.current.lastGiven && reply.current.played) { mark('face: done'); listen() }
+  }, [armBargeIn, listen])
 
   /**
-   * The Start tap: audio and the microphone both need a user gesture (iOS) — then the session is started (or resumed: the
-   * server returns a live one), then the face loads and says the opening line.
+   * The Start tap: the face's audio (inside this tap — iOS), the microphone (a gesture too) — then the session is started
+   * (or resumed: the server returns a live one). ⚡ ALL AT ONCE: the face was drawn before Start was offered; now it
+   * CONNECTS while the opening's audio decodes, and the opening waits for it — "Connecting to {name}…" until the face's
+   * voice and lips start together. Not connected within FACE_CONNECT_MS (or failed): voice-only for the whole session, the
+   * opening on the speakers. The face no longer joins a conversation already under way.
    */
   const begin = async () => {
     hapticTap()
@@ -699,6 +792,11 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     ended.current = false
     leftPage.current = false
     beginTrace('start')
+    // ⛔ BEFORE ANY AWAIT: the face's audio may start only inside this tap on iOS and Safari — where it could not, the
+    // session is voice-only (lips without a voice would be worse; review, opus).
+    const primed = modeRef.current === 'avatar' && !!stage.current?.prime()
+    if (primed) mark('face: audio started in the tap')
+    else if (modeRef.current === 'avatar' && audioNeedsGesture()) { mark('face: audio not started in the tap — voice-only'); dropFace() }
     const ctx = ctxRef.current ?? new AudioContext()
     ctxRef.current = ctx
     try {
@@ -713,8 +811,8 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     // ⛔ Closed during the prompt or the worklet's load: no session is started for a screen that is gone (C3a round 2).
     if (ended.current) return
     mark('mic ready')
-    setSampleRate(ctx.sampleRate)
     go('connecting')
+    setWaiting(true)
     const r = await fetch('/api/classroom/sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(test ? { test: true } : { seatId }) }).catch(() => null)
     const body = (await r?.json().catch(() => ({}))) as { session?: StartedSession; error?: string; nextAt?: string }
     if (ended.current) {
@@ -726,6 +824,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     if (!r?.ok || !body.session) {
       // Refused (a limit, the budget, the switch): the mic and the audio context go back now — the next Start asks again.
       releaseAll()
+      setWaiting(false)
       setRefused({ code: body?.error ?? 'network', nextAt: body?.nextAt })
       go('intro')
       return
@@ -736,31 +835,39 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     total.current = Math.max(1, Math.round((Date.parse(s.endsAt) - Date.now()) / 1000))
     setLeft(total.current)
     setAvatarLine(s.opening.text)
-    if (s.opening.audio) opening.current = await decodeLine(ctx, s.opening.audio).catch(() => null)
-    if (ended.current) return
-    setMode(s.mode)
     setStart(s)
     lastExpect.current = s.opening.expect ?? null
-    // ⚡ INSTANT START (owner, 2026-10-26: "its too slow"): the opening line plays at once on the speakers — the face loads
-    // meanwhile (10–20 s measured on the owner's Mac) and takes the replies from the first one that begins after it is live.
-    sayOpening()
     // Live listening opens alongside (a key from the server, then Soniox's socket); until it is open, turns go as clips.
     void openLiveStt(s.id, { utterance: (t, ms) => handlers.current.utterance(t, ms), failed: () => handlers.current.liveFailed() }).then((l) => {
       if (ended.current) { l?.close(); return }
       liveStt.current = l
     })
+    const audio = s.opening.audio ? decodeLine(ctx, s.opening.audio).catch(() => null) : Promise.resolve(null)
+    // The face drawn for this screen speaks only for its own session: the server's mode, the same avatar.
+    const withFace = s.mode === 'avatar' && modeRef.current === 'avatar' && !faceGone.current && faceRef.current?.avatarId === s.avatar.spatiusAvatarId
+    if (modeRef.current === 'avatar' && !withFace) { mark('face: not this session’s — voice-only'); dropFace() }
+    const connected = withFace
+      ? await Promise.race([stage.current?.connect(s.id) ?? Promise.resolve(false), new Promise<boolean>((res) => setTimeout(() => res(false), FACE_CONNECT_MS))])
+      : false
+    opening.current = await audio
+    if (ended.current) return
+    if (connected && modeRef.current === 'avatar' && !faceGone.current) { faceLive.current = true; mark('face: live — it says the opening') }
+    else if (withFace && !faceGone.current) { mark('face: not connected in time — voice-only'); dropFace() }
+    sayOpening()
   }
 
   const onFallback = useCallback(() => {
+    if (faceGone.current) return
     mark('face: fell back to voice')
+    // The opening it held but had not started: the speakers say it now (sayOpening's one owner).
+    const o = openingAtFace.current
+    if (o && openingToSpeakers(o.id, 'face: failed before the opening sounded — the speakers say it')) return
     const wasFace = reply.current.toFace
-    faceLive.current = false
-    setFaceTap(false)
-    setMode('voice')
+    dropFace()
     // ⛔ The face failed WHILE it spoke (2026-10-26 review, codex): what it held is gone with it, and nothing would ever
     // report the reply's end — the learner's turn now. The rest of a reply still arriving plays on the speakers.
     if (phaseRef.current === 'speaking' && wasFace) { stopSpeaking(); listen() }
-  }, [listen, stopSpeaking])
+  }, [dropFace, listen, openingToSpeakers, stopSpeaking])
 
   const toggleMute = () => {
     hapticTap()
@@ -814,20 +921,14 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
           <div className="relative min-h-0 flex-1">
             <AvatarStage
               ref={stage}
-              mode={start ? mode : 'voice'}
-              sessionId={start?.id ?? ''}
-              spatiusAvatarId={start?.avatar.spatiusAvatarId ?? null}
+              mode={mode}
+              face={face}
               photoUrl={start?.avatar.photoUrl ?? preview.photoUrl}
               name={name}
               speaking={phase === 'speaking'}
-              sampleRate={sampleRate}
-              onReady={() => void onFaceReady()}
+              onDrawn={() => setPrep('ready')}
               onFallback={onFallback}
-              onPlaying={(on) => {
-                if (on) { reply.current.played = true; return }
-                // The face finished the reply's last part (an idle AFTER playing): the learner's turn.
-                if (phaseRef.current === 'speaking' && reply.current.lastGiven && reply.current.played) { mark('face: done'); listen() }
-              }}
+              onPlaying={onPlaying}
             />
 
             {showTrace && trace.length > 0 && (
@@ -848,18 +949,18 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
                     )}
                   </p>
                 )}
-                {!refused?.nextAt && <Button variant="cta" size="lg" className="w-full max-w-xs" onClick={begin}>{tr('Start', 'Bắt đầu')}</Button>}
+                {/* Start waits for the face (FACE_PREP_MS at most): the face and its voice begin together. */}
+                {!refused?.nextAt && (
+                  <Button variant="cta" size="lg" className="w-full max-w-xs" onClick={begin} disabled={prep !== 'ready'}>
+                    {prep === 'ready' ? tr('Start', 'Bắt đầu') : tr('Getting ready…', 'Đang chuẩn bị…')}
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" className="text-primary-foreground/80" onClick={close}>{tr('Not now', 'Để sau')}</Button>
               </div>
             )}
-            {phase === 'connecting' && (
+            {(phase === 'connecting' || (waiting && phase === 'speaking')) && (
               <div className="absolute inset-x-0 bottom-6 flex justify-center" role="status">
                 <span className="rounded-full bg-primary-foreground/15 px-4 py-2 text-sm">{tr('Connecting to {name}…', 'Đang kết nối với {name}…').replace('{name}', name)}</span>
-              </div>
-            )}
-            {faceTap && live && (
-              <div className="absolute inset-x-0 top-3 flex justify-center px-4">
-                <Button variant="cta" size="sm" onClick={() => void onTapFace()}>{tr('Tap to see {name}', 'Chạm để xem {name}').replace('{name}', name)}</Button>
               </div>
             )}
             {phase === 'mic_denied' && (
@@ -871,7 +972,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
               </div>
             )}
 
-            {live && (
+            {live && !waiting && (
               <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-brand-deeper via-brand-deeper/80 to-transparent px-4 pb-3 pt-10" aria-live="polite">
                 {captions && learnerLine && <p className="self-end rounded-2xl bg-primary-foreground/10 px-4 py-2 text-sm text-primary-foreground/80">{learnerLine}</p>}
                 {captions && avatarLine && <p className="text-base leading-relaxed">{avatarLine}</p>}

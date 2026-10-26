@@ -96,11 +96,49 @@ s, h, d = req('POST', '/tts', json.dumps({'text': 'Hello.\nHow was your weekend?
 check('tts → mp3', s == 200 and h.get('Content-Type') == 'audio/mpeg' and (d[:3] == b'ID3' or (d[0] == 0xFF and d[1] & 0xE0 == 0xE0)), f'{s} {d[:8]}')
 check('tts reports its length', float(h.get('X-Audio-Seconds', 0)) > 1.0, h)
 s, _, _ = req('POST', '/tts', json.dumps({'text': 'Slow please.', 'voice': 'Toby', 'rate': 'slow'}), j)
-check('tts slow', s == 200)
+check('tts slow (an app from before the paces)', s == 200)
+
+
+def tts_seconds(body):
+    st, hh, _ = req('POST', '/tts', json.dumps(body), j)
+    return float(hh.get('X-Audio-Seconds', 0)) if st == 200 else -1
+
+
+# THE PACES (src/lib/classroom/pace.ts): slower is longer, quicker shorter — and a pace never leaks into the next request
+# (one pool; each request sets its own on the instance it holds).
+line = 'Can you tell me about your favourite food? I like rice and fish.'
+secs = {p: tts_seconds({'text': line, 'voice': 'Harper', 'pace': p}) for p in ('slowest', 'gentle', 'natural', 'quick')}
+check('tts paces: slowest > gentle > natural > quick', secs['slowest'] > secs['gentle'] > secs['natural'] > secs['quick'] > 0, secs)
+check('tts natural after slowest is natural again', abs(tts_seconds({'text': line, 'voice': 'Harper', 'pace': 'natural'}) - secs['natural']) < 0.15, secs)
+check('tts gap_ms lengthens the breath between sentences', tts_seconds({'text': line, 'voice': 'Harper', 'pace': 'natural', 'gap_ms': 600}) > secs['natural'] + 0.3, secs)
+# Paces at the same time on different instances: each keeps its own.
+got = {}
+def one(pace):
+    got[pace] = tts_seconds({'text': line, 'voice': 'Harper', 'pace': pace})
+ts = [threading.Thread(target=one, args=(pc,)) for pc in ('slowest', 'quick', 'natural')]
+for t in ts: t.start()
+for t in ts: t.join()
+check('tts paces at the same time keep their own', all(abs(got[pc] - secs[pc]) < 0.15 for pc in got), (got, secs))
+# LOUD: louder, never clipped (the limiter keeps every sample under -1 dBFS) — measured on the streamed PCM.
+def stream_pcm(body):
+    st, _, dd = req('POST', '/tts/stream', json.dumps(body), j)
+    return [x[0] for x in struct.iter_unpack('<h', dd)] if st == 200 else []
+plain, loud = stream_pcm({'text': line, 'voice': 'Imogen'}), stream_pcm({'text': line, 'voice': 'Imogen', 'loud': True})
+rms = lambda xs: math.sqrt(sum(x * x for x in xs) / max(1, len(xs)))
+check('tts/stream loud is louder (+4 dB or more)', plain and loud and 20 * math.log10(rms(loud) / rms(plain)) > 4, (rms(plain), rms(loud)))
+check('tts/stream loud never reaches full scale (limiter, -1 dBFS)', loud and max(abs(x) for x in loud) <= 29205, max(abs(x) for x in loud) if loud else None)
+check('tts/stream loud keeps every sample (the limiter holds 5 ms, then gives it back)', abs(len(loud) - len(plain)) <= 1, (len(plain), len(loud)))
 for body, name in ((json.dumps({'text': 'hi', 'voice': 'Bob'}), 'unknown voice'),
                    (json.dumps({'text': '', 'voice': 'Harper'}), 'empty text'),
                    (json.dumps({'text': 'x' * 1300, 'voice': 'Harper'}), 'long text'),
                    (json.dumps({'text': 'hi', 'voice': 'Harper', 'rate': 'fast'}), 'unknown rate'),
+                   (json.dumps({'text': 'hi', 'voice': 'Harper', 'pace': 'warp'}), 'unknown pace'),
+                   ('{"text": "hi", "voice": "Harper", "pace": NaN}', 'a NaN pace (ptts would take it)'),
+                   (json.dumps({'text': 'hi', 'voice': 'Harper', 'pace': 0.6}), 'a number for a pace'),
+                   (json.dumps({'text': 'hi', 'voice': 'Harper', 'loud': 'yes'}), 'a non-boolean loud'),
+                   (json.dumps({'text': 'hi', 'voice': 'Harper', 'gap_ms': 5000}), 'a gap past its cap'),
+                   (json.dumps({'text': 'hi', 'voice': 'Harper', 'gap_ms': 1.5}), 'a fractional gap'),
+                   (json.dumps({'text': 'hi', 'voice': 'Harper', 'gap_ms': True}), 'a boolean gap'),
                    (json.dumps(['a', 'list']), 'non-object JSON'),
                    (json.dumps({'text': 5, 'voice': 'Harper'}), 'non-string text'),
                    ('{"text": ', 'broken JSON')):

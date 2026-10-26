@@ -12,9 +12,15 @@ non-commercial; only `phonon-31m-en` may ship).
 
 - `POST /stt`: one learner turn, a 16 kHz mono WAV of 45 s or less. The answer is `{text, status: ok|silence}`. Decoded in
   memory and dropped; never written, never logged.
-- `POST /tts`: `{text, voice, rate: natural|slow}`. The answer is MP3, 24 kHz mono, ~7 KB a second. `voice` must be one of
+- `POST /tts`: `{text, voice, pace, loud, gap_ms}`. The answer is MP3, 24 kHz mono, ~7 KB a second. `voice` must be one of
   the nine in `server.py` `VOICES`, which is the same list as `src/lib/classroom/voices.ts` and `fetch_models.py`
-  (`voices.test.ts` fails when they differ).
+  (`voices.test.ts` fails when they differ). `pace` is a NAME from `server.py` `PACES` (slowest | gentle | natural | quick
+  — `src/lib/classroom/pace.ts` has the same list; `pace.test.ts` fails when they differ), never a number; an app from
+  before the paces sends `rate: natural|slow` instead, still read. `loud` (a child's voice): +6 dB through a look-ahead
+  limiter that keeps every sample under -1 dBFS. `gap_ms` (0-800, default 120): the breath between the sentences of a line.
+- `POST /tts/stream`: the same request; the answer is raw PCM16 (`audio/L16`, 24 kHz mono) as it is made.
+- One pool of voice instances (`TTS_POOL`, default 3 — the old `TTS_NATURAL` + `TTS_SLOW` add up to it): each request sets
+  its own pace on the instance it holds, so the pace costs no memory.
 - `GET /health`: the models, the voices, and the peak RSS.
 
 The app calls this server with `x-speech-key` on every request (`src/lib/classroom/speech-local.ts`). There is no

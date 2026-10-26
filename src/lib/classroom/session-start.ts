@@ -11,6 +11,8 @@ import { PRACTICE_NOTICE_VERSION, TEACHER_VIEW_NOTICE_VERSION } from './notices'
 import { spatiusConfig } from './spatius'
 import { libraryAvatarById } from './library-avatars'
 import { speakLine } from './session-voice'
+import { clampPace, defaultPace, voiceStyle } from './pace'
+import { parseTraits } from './persona'
 import { warmTutorBrain } from './tutor-ai'
 import { NextAtRefusal } from './refusal'
 import { containsContactInfo } from '@/lib/publish-guard'
@@ -95,11 +97,46 @@ async function loadSeat(seatId: string, accountId: string) {
 }
 
 /** Which face this session gets: Spatius only when configured, the avatar has a 3D look, and the learner may have one. */
-function modeFor(avatar: SeatRow['avatar'], child13: boolean, spatiusChildrenOk: boolean): { mode: 'avatar' | 'voice'; spatiusAvatarId: string | null } {
+function modeFor(avatar: FaceLook, child13: boolean, spatiusChildrenOk: boolean): { mode: 'avatar' | 'voice'; spatiusAvatarId: string | null } {
   if (!spatiusConfig() || (child13 && !spatiusChildrenOk)) return { mode: 'voice', spatiusAvatarId: null }
   if (avatar.look === 'library' && libraryAvatarById(avatar.libraryAvatarId)) return { mode: 'avatar', spatiusAvatarId: avatar.libraryAvatarId }
   if (avatar.look === 'custom' && avatar.customStatus === 'ready' && avatar.spatiusAvatarId) return { mode: 'avatar', spatiusAvatarId: avatar.spatiusAvatarId }
   return { mode: 'voice', spatiusAvatarId: null }
+}
+type FaceLook = Pick<SeatRow['avatar'], 'look' | 'libraryAvatarId' | 'customStatus' | 'spatiusAvatarId'>
+
+/** The ids the page needs to DRAW a face before Start (avatar-stage.tsx) — never a token: no Spatius session. */
+export type FacePreview = { avatarId: string; appId: string; region: string }
+
+/**
+ * THE FACE A START WOULD GIVE, ASKED BEFORE IT (owner, 2026-10-26: "make sure all ai avatar voice etc loads at once when
+ * its ready"): the page draws the 3D face while the intro is up, so Start only connects it. The SAME rules as the start —
+ * modeFor for a seat (⛔ an under-13 gets no face until Spatius's written OK, `spatiusChildrenOk`), a teacher's own avatar
+ * for a test — plus what would refuse the start outright: a seat that is not the caller's or not active, a consent not on
+ * record (or withdrawn), a missing assent, the classroom switched off. Null = voice-only, or no start at all: the page loads
+ * nothing from Spatius. No session, no token, no minutes — nothing is reserved or billed.
+ */
+export async function facePreview(accountId: string, target: { seatId: string } | { test: true }, now = new Date()): Promise<FacePreview | null> {
+  const cfg = spatiusConfig()
+  if (!cfg) return null
+  let face: { mode: 'avatar' | 'voice'; spatiusAvatarId: string | null }
+  if ('test' in target) {
+    const tp = await db.teacherProfile.findUnique({ where: { profileId: accountId }, select: { classroomAvatar: true } })
+    if (!tp?.classroomAvatar) return null
+    if (!(await classroomOpenFor(accountId)).open) return null
+    face = modeFor(tp.classroomAvatar, false, true)
+  } else {
+    const seat = await loadSeat(target.seatId, accountId)
+    if (!seat?.learner || seat.status !== 'active') return null
+    const learner = seat.learner
+    const kind = learner.kind === 'child' ? 'child' : 'self'
+    if (learner.withdrawnAt || learner.practiceConsentVersion !== PRACTICE_NOTICE_VERSION || learner.teacherViewConsentVersion !== TEACHER_VIEW_NOTICE_VERSION) return null
+    if (needsAssent(kind, learner.birthYear, now) && !learner.assentAt) return null
+    const { open, config } = await classroomOpenFor(seat.avatar.teacherProfile.profileId)
+    if (!open) return null
+    face = modeFor(seat.avatar, under13(kind, learner.birthYear, now), config.spatiusChildrenOk)
+  }
+  return face.mode === 'avatar' && face.spatiusAvatarId ? { avatarId: face.spatiusAvatarId, appId: cfg.appId, region: cfg.region } : null
 }
 
 export async function startLearnerSession(seatId: string, accountId: string, now = new Date()): Promise<StartedSession> {
@@ -121,6 +158,9 @@ export async function startLearnerSession(seatId: string, accountId: string, now
   const face = modeFor(seat.avatar, child13, config.spatiusChildrenOk)
   const minutes = effectiveMinutes(seat.sessionMinutes, kind, learner.birthYear, now)
   const band = ageBand(kind, learner.birthYear, now)
+  // The voice's pace: the learner's own choice from an earlier session, else their age's and level's (pace.ts) — inside
+  // the bounds of their age NOW.
+  const startPace = clampPace(learner.voicePace, band, defaultPace(band, seat.level, parseTraits(seat.avatar.traits).pace))
 
   await endExpired({ learnerId: learner.id }, `eno-classroom-learner:${learner.id}`, now)
   const result = await db.$transaction(async (tx) => {
@@ -150,7 +190,7 @@ export async function startLearnerSession(seatId: string, accountId: string, now
       // under-13 switch, the Spatius set-up or the look changed since — never "avatar" with no avatar to load.
       if (live.mode === 'avatar' && face.mode !== 'avatar') await tx.classroomSession.update({ where: { id: live.id }, data: { mode: 'voice', updatedAt: now } })
       const session = live.mode === 'avatar' && face.mode !== 'avatar' ? { ...live, mode: 'voice' } : live
-      return { session, opening: { text: last?.replyText ?? '', expect: last?.expectText ?? null }, resumed: true }
+      return { session, opening: { text: last?.replyText ?? '', expect: last?.expectText ?? null }, resumed: true, pace: clampPace(live.voicePace, band, startPace) }
     }
     // ⛔ A SESSION THE LEARNER NEVER SPOKE IN DOES NOT SPEND THE DAY (core review, opus): a start that died at once — the
     // mic refused, the page closed — is not practice. Only sessions with an answered turn count towards the day and the
@@ -182,15 +222,15 @@ export async function startLearnerSession(seatId: string, accountId: string, now
       data: {
         enrollmentId: seat.id, avatarId: seat.avatarId, learnerId: learner.id, planId: plan.planId,
         planSnapshot: { brief: plan.brief, focus: plan.focus, openingLine: plan.openingLine, level: seat.level, strictness: seat.strictness, band },
-        mode: face.mode, startedAt: now, endsAt: new Date(now.getTime() + minutes * 60_000), reservedMinutes: minutes,
+        mode: face.mode, startedAt: now, endsAt: new Date(now.getTime() + minutes * 60_000), reservedMinutes: minutes, voicePace: startPace,
       },
     })
     await tx.classroomTurn.create({ data: { sessionId: session.id, seq: 0, status: 'ok', replyText: opening.text, expectText: opening.expect } })
-    return { session, opening, resumed: false }
+    return { session, opening, resumed: false, pace: startPace }
   }, { maxWait: 5_000, timeout: 15_000 })
 
   warmTutorBrain() // while the opening line is voiced (tutor-ai.ts says why)
-  const audio = await speakLine(result.opening.text, seat.avatar.voice, seat.level, band).catch((e) => {
+  const audio = await speakLine(result.opening.text, seat.avatar.voice, voiceStyle(band, result.pace)).catch((e) => {
     logWarn('[classroom] opening line TTS failed', { status: (e as { status?: number }).status ?? null })
     return null
   })
@@ -224,16 +264,15 @@ export async function startTeacherTest(accountId: string, now = new Date()): Pro
   const { open, config } = await classroomOpenFor(accountId, { fresh: true })
   if (!open) throw new ApiError('classroom_closed', 403)
   const minutes = devUnlimited() ? DEV_TEST_MINUTES : LIMITS.teacherTestMinutes
-  const face = spatiusConfig() && avatar.look === 'library' && libraryAvatarById(avatar.libraryAvatarId)
-    ? { mode: 'avatar' as const, spatiusAvatarId: avatar.libraryAvatarId }
-    : spatiusConfig() && avatar.look === 'custom' && avatar.customStatus === 'ready' && avatar.spatiusAvatarId
-      ? { mode: 'avatar' as const, spatiusAvatarId: avatar.spatiusAvatarId }
-      : { mode: 'voice' as const, spatiusAvatarId: null }
+  // The teacher is an adult: modeFor's own rule with no child in it (the same rule facePreview applies before Start).
+  const face = modeFor(avatar, false, true)
   const plan: SessionPlan = { ...firstPlan('B1', avatar.greeting, avatar.name), planId: null }
   const fresh = openingOf(plan, avatar.name)
+  // A teacher's test: an adult at B1, with the avatar's own "Slow & simple" if the teacher chose it (pace.ts).
+  const startPace = defaultPace('adult', 'B1', parseTraits(avatar.traits).pace)
 
   await endExpired({ testerId: accountId }, `eno-classroom-tester:${accountId}`, now)
-  const { session, opening, resumed } = await db.$transaction(async (tx) => {
+  const { session, opening, resumed, pace } = await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`eno-classroom-tester:${accountId}`}, 0))`
     const live = await tx.classroomSession.findFirst({ where: { testerId: accountId, status: 'live' } })
     if (live) {
@@ -243,7 +282,7 @@ export async function startTeacherTest(accountId: string, now = new Date()): Pro
       const last = latest?.flag ? { replyText: NEUTRAL_RESUME, expectText: null } : latest
       if (live.mode === 'avatar' && face.mode !== 'avatar') await tx.classroomSession.update({ where: { id: live.id }, data: { mode: 'voice', updatedAt: now } })
       const session = live.mode === 'avatar' && face.mode !== 'avatar' ? { ...live, mode: 'voice' } : live
-      return { session, opening: { text: last?.replyText ?? fresh.text, expect: last?.expectText ?? null }, resumed: true }
+      return { session, opening: { text: last?.replyText ?? fresh.text, expect: last?.expectText ?? null }, resumed: true, pace: clampPace(live.voicePace, 'adult', startPace) }
     }
     const tests = await tx.classroomSession.count({ where: { testerId: accountId, startedAt: { gte: ictDayStart(now) } } })
     if (tests >= LIMITS.teacherTestsPerDay && !devUnlimited()) throw new NextAtRefusal('test_limit', nextPracticeAt('day_limit', now).toISOString())
@@ -255,14 +294,15 @@ export async function startTeacherTest(accountId: string, now = new Date()): Pro
       data: {
         avatarId: avatar.id, testerId: accountId, mode: face.mode, startedAt: now, endsAt: new Date(now.getTime() + minutes * 60_000), reservedMinutes: minutes,
         planSnapshot: { brief: plan.brief, focus: plan.focus, openingLine: plan.openingLine, level: 'B1', strictness: 'balanced', band: 'adult' },
+        voicePace: startPace,
       },
     })
     await tx.classroomTurn.create({ data: { sessionId: s.id, seq: 0, status: 'ok', replyText: fresh.text, expectText: fresh.expect } })
-    return { session: s, opening: fresh, resumed: false }
+    return { session: s, opening: fresh, resumed: false, pace: startPace }
   }, { maxWait: 5_000, timeout: 15_000 })
 
   warmTutorBrain() // while the opening line is voiced (tutor-ai.ts says why)
-  const audio = await speakLine(opening.text, avatar.voice, 'B1', 'adult').catch(() => null)
+  const audio = await speakLine(opening.text, avatar.voice, voiceStyle('adult', pace)).catch(() => null)
   return {
     id: session.id,
     endsAt: session.endsAt.toISOString(),
