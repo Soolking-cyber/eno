@@ -9,6 +9,7 @@ import { IS_MARKETPLACE } from '@/lib/edition'
 import { NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
+import { pickLocale } from '@/lib/admin-macros'
 import { ApiError, route } from '@/lib/api/handler'
 import { blockedConversationIds, isBlockedBetween } from '@/lib/user-blocks'
 import { refuseObjectionable } from '@/lib/ugc-filter'
@@ -306,6 +307,13 @@ export const POST = route(
       ...(initialMessage || isOffer ? { discardedInput: true } : {}),
     }
   }
+
+  // ⚠️ NO NEW OFFERS ON A LISTING THAT IS NOT ACTIVE — the in-thread send's rule (messages/route.ts, ef579378b), which
+  // this opening path lacked: a quick offer from a stale feed card or a PDP tab opened before the sale wrote a pending
+  // offer, a bell row and a push the seller could only decline (Accept answers listing_unavailable). Offers only — a
+  // plain first message on a sold listing stays allowed — and never docked: the listing being gone is not the buyer
+  // trying a fixed price on. After the visa branch, which discards an offer silently.
+  if (isOffer && listing.status !== 'active') throw new ApiError('listing_unavailable', 409)
 
   // Fixed-price listing → no opening offer (UI hides it; this is the bypass/stale-tab
   // path). Reject and dock trust past a grace. Plain first messages are unaffected.
@@ -619,7 +627,15 @@ export const POST = route(
           await db.notification.create({
             data: { recipientId: sellerProfileId, type: 'milestone', title, body, conversationId: newConvoId, listingId },
           })
-          await sendPushToProfile(sellerProfileId, { title, body, url: `/messages/${newConvoId}`, tag: `convo-${newConvoId}` })
+          // The push in the seller's language (the bell row is worded by the bell itself).
+          const seller = await db.profile.findUnique({ where: { id: sellerProfileId }, select: { locale: true } })
+          const vi = pickLocale(seller?.locale) === 'vi'
+          await sendPushToProfile(sellerProfileId, {
+            title: vi ? 'Người mua đầu tiên quan tâm!' : title,
+            body: vi ? `"${cutText(listingTitle, 80)}" vừa nhận tin nhắn đầu tiên — trả lời sớm để giữ khách.` : body,
+            url: `/messages/${newConvoId}`,
+            tag: `convo-${newConvoId}`,
+          })
         } catch (e) {
           console.error('[conversations] first-lead milestone', e)
         }

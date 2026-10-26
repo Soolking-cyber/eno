@@ -102,6 +102,7 @@ export default function PendingComposePage() {
             : error === 'probation_conversation_cap' ? tr('New accounts can start up to 15 chats a day — please try again tomorrow.', 'Tài khoản mới có thể bắt đầu tối đa 15 cuộc trò chuyện mỗi ngày — hãy thử lại vào ngày mai.')
             // App Store gate `ugc-safety` (R3) — only ever answered while the gate is on.
             : error === 'blocked' ? tr('You can’t message this seller.', 'Bạn không thể nhắn tin cho người bán này.')
+            : error === 'listing_unavailable' ? tr('This listing is no longer available, so it takes no offers. You can still send the seller a message.', 'Tin đăng này không còn khả dụng nên không nhận trả giá. Bạn vẫn có thể nhắn tin cho người bán.')
             // App Store gate `ugc-safety` (R5): the word filter refused the first message. The draft is
             // re-stashed below, so the listing page gives it back to be rephrased.
             : error === OBJECTIONABLE_CONTENT ? objectionableCopy('message', tr)

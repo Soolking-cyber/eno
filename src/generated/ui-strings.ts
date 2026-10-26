@@ -3189,6 +3189,7 @@ export const UI_STRINGS: string[] = [
   "This list was out of date and has been refreshed — please try again.",
   "This listing cannot be published yet.",
   "This listing changed while you were editing it — reload it and try again.",
+  "This listing is no longer available, so it takes no offers. You can still send the seller a message.",
   "This listing is no longer on eno",
   "This listing is waiting for eno’s licence check, so it can’t be put back on sale yet. It goes live once eno’s team has checked the provider’s licence.",
   "This listing just finished an urgent run — you can turn it on again after 7 days.",

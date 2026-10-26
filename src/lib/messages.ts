@@ -4,7 +4,8 @@ import { z } from 'zod'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from './db'
 import { sendPushToProfile } from './push'
-import { formatMoneyFull } from './vnd'
+import { formatMoneyFull, moneyLocale } from './vnd'
+import { OFFER_ACCEPTED_LINE, OFFER_DECLINED_LINE, OFFER_MADE_LINE, localizeOfferLine } from './offer-lines'
 import { maskEmailHandle } from '@/lib/utils'
 // Field-NAME allowlist for visa card metadata (see buildCardMeta). Read-only import
 // of the shared payload schema — this file never touches a decrypted payload.
@@ -1108,7 +1109,10 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
   const recipientId = iAmBuyer ? convo.sellerProfileId : convo.buyerProfileId
   if (recipientId && isOffer) {
     try {
-      const sender = await db.profile.findUnique({ where: { id: senderId }, select: { displayName: true, email: true } })
+      const [sender, recipient] = await Promise.all([
+        db.profile.findUnique({ where: { id: senderId }, select: { displayName: true, email: true } }),
+        db.profile.findUnique({ where: { id: recipientId }, select: { locale: true } }),
+      ])
       const senderName = sender?.displayName || maskEmailHandle(sender?.email) || 'Someone'
       // Offer bodies are empty (the offer line is derived from offerAmount at render
       // time) — build the notification text from the structured amount + any note.
@@ -1116,7 +1120,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
       // and push bodies are stored server-side, where tr() can't run at render time —
       // an EN-only string violated the i18n invariant on a money surface (audit P1 #6).
       const notifText = opts?.offerAmount != null
-        ? `Trả giá · Offered ${formatMoneyFull(opts.offerAmount, '₫')}${text ? ` — ${text}` : ''}`
+        ? `${OFFER_MADE_LINE} ${formatMoneyFull(opts.offerAmount, '₫')}${text ? ` — ${text}` : ''}`
         : text
       await db.notification.create({
         data: {
@@ -1131,9 +1135,11 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
       })
       // Web push so the recipient sees the offer even with eno.vn closed. Best-effort,
       // after the response flushes — never delays the send.
+      // The stored row keeps the writer's grouping (the bell regroups it for its reader); a push is read once, by one
+      // person, so its amount is grouped for them now.
       after(() => sendPushToProfile(recipientId, {
         title: senderName,
-        body: cutText(notifText, 140),
+        body: cutText(localizeOfferLine(notifText, moneyLocale(recipient?.locale ?? 'en')), 140),
         url: `/messages/${convo.id}`,
         tag: `convo-${convo.id}`,
       }))
@@ -1379,18 +1385,22 @@ export async function actOnOffer(
   // Bilingual composite — this line PERSISTS into Message.body (and the bell/push
   // below), so it can't be tr()'d at display time (audit P1 #6).
   const text = action === 'accept'
-    ? `✅ Đã chấp nhận · Offer accepted${amt ? ` — ${amt}` : ''}`
-    : `❌ Đã từ chối · Offer declined${amt ? ` — ${amt}` : ''}`
+    ? `${OFFER_ACCEPTED_LINE}${amt ? ` — ${amt}` : ''}`
+    : `${OFFER_DECLINED_LINE}${amt ? ` — ${amt}` : ''}`
   await insertMessage(convo, actorId, text)
 
   // Notify the offerer of the outcome (offers are high-signal → bell + push).
   try {
-    const actor = await db.profile.findUnique({ where: { id: actorId }, select: { displayName: true, email: true } })
+    const [actor, offerer] = await Promise.all([
+      db.profile.findUnique({ where: { id: actorId }, select: { displayName: true, email: true } }),
+      db.profile.findUnique({ where: { id: offer.senderProfileId }, select: { locale: true } }),
+    ])
     const actorName = actor?.displayName || maskEmailHandle(actor?.email) || 'Someone'
     await db.notification.create({
       data: { recipientId: offer.senderProfileId, type: 'offer', title: actorName, body: text, actorName, conversationId: convo.id, listingId: convo.listingId },
     })
-    after(() => sendPushToProfile(offer.senderProfileId, { title: actorName, body: text, url: `/messages/${convo.id}`, tag: `convo-${convo.id}` }))
+    const pushText = localizeOfferLine(text, moneyLocale(offerer?.locale ?? 'en'))
+    after(() => sendPushToProfile(offer.senderProfileId, { title: actorName, body: pushText, url: `/messages/${convo.id}`, tag: `convo-${convo.id}` }))
   } catch (e) {
     console.error('[messages] offer-action notify', e)
   }

@@ -1,6 +1,7 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
+import { pickLocale } from '@/lib/admin-macros'
 import { sendPushToProfile } from '@/lib/push'
 import { toUrlParams, type SavedSearchParams } from '@/lib/saved-search'
 import { buildListingWhere } from '@/lib/saved-search-where'
@@ -73,7 +74,12 @@ export const GET = route({ auth: 'cron' }, async () => {
           ])
           // Web Push is best-effort — a push failure must not re-trigger the alert.
           let sent = 0
-          try { sent = await sendPushToProfile(s.profileId, { title, body, url, tag: `eno-saved-${s.id}` }) }
+          // The bell row stays English (the bell words these types itself); the push is read on a lock screen, as is,
+          // so it goes in the recipient's language (sweep 2026-10-22: Vietnamese recipients got English).
+          const vi = pickLocale(s.profile?.locale) === 'vi'
+          const pushTitle = vi ? (matches === 1 ? '🔔 Có tin mới khớp với tìm kiếm đã lưu' : `🔔 ${matches} tin mới khớp với tìm kiếm đã lưu`) : title
+          const pushBody = vi ? `${s.label} — chạm để xem.` : body
+          try { sent = await sendPushToProfile(s.profileId, { title: pushTitle, body: pushBody, url, tag: `eno-saved-${s.id}` }) }
           catch (e) { console.error('[cron] saved-search push failed for', s.id, e) }
           return { notified: 1, pushed: sent }
         } catch (e) {
