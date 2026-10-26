@@ -105,6 +105,17 @@ describe('AvatarStage', () => {
     expect(m.ref.current!.speakPcm(new Int16Array(240), true)).toBe(true)
     expect(view().controller.sent).toEqual([[480, true]])
   })
+  it('⛔ taken down before the first frame: the load\'s own wait ends too (nothing of it is left waiting — review, codex + opus)', async () => {
+    vi.stubGlobal('fetch', vi.fn())
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const m = mount()
+    await flush()
+    expect(kit.AvatarView.views).toHaveLength(1)
+    m.unmount()
+    await flush()
+    expect(info.mock.calls.some((c) => String(c[0]).includes('face: load failed · taken_down'))).toBe(true)
+    expect(m.calls.fallback).toBe(0) // taken down on purpose: no fallback
+  })
   it('⛔ taken down mid-draw: connect() ends at once, its token request is aborted, and the view is disposed only once its init is over', async () => {
     let signal: AbortSignal | undefined
     vi.stubGlobal('fetch', vi.fn((_u: string, init?: RequestInit) => { signal = init?.signal ?? undefined; return new Promise<Response>(() => {}) }))

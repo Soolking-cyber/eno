@@ -142,4 +142,10 @@ describe('isFiller', () => {
     for (const f of ['Um', 'uh…', 'Hmm.', 'Ermm', 'Eh', 'So', 'Well,', 'and um', 'like', 'mmm', 'ờ', 'Ừm', 'à', 'thì', 'ờ thì']) expect(isFiller(f), f).toBe(true)
     for (const a of ['Yes.', 'No', 'OK', "I'm fine", 'Dogs', 'So good', 'So-so', 'Hello there', 'ừ', '']) expect(isFiller(a), a).toBe(false)
   })
+  it('a number is an answer ("like 2"); a decomposed Vietnamese filler is still a filler (review, codex + opus)', () => {
+    expect(isFiller('like 2')).toBe(false)
+    expect(isFiller('ờ 5')).toBe(false)
+    expect(isFiller('o\u031B\u0300')).toBe(true) // "ờ" as o + horn + grave
+    expect(isFiller('u\u031B\u0300m')).toBe(true) // "ừm"
+  })
 })

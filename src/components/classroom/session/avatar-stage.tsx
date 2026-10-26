@@ -132,6 +132,7 @@ type Load = {
   connecting: boolean
   /** Ends the draw's wait (teardown) and the token's request — nothing of a load outlives it. */
   stop: AbortController
+  firstFrameTimer: ReturnType<typeof setTimeout> | undefined
   fail: (e: unknown) => void
   /** Taken down (the effect's cleanup ran): every continuation stops at its next step. */
   gone: boolean
@@ -277,6 +278,7 @@ export const AvatarStage = forwardRef<StageHandle, {
       host, view: null, controller: null, firstFrame: false, audio: null, token: false, connecting: false, gone: false, failed: false, released: false,
       drawn: new Promise<void>((resolve, reject) => { drawnOk = resolve; drawnFail = reject }),
       stop: new AbortController(),
+      firstFrameTimer: undefined,
       fail: (e) => drawnFail(e),
     }
     l.drawn.catch(() => {}) // observed by connect(); never an unhandled rejection
@@ -309,8 +311,10 @@ export const AvatarStage = forwardRef<StageHandle, {
         c.onConnectionState = (s) => { mark(`face: ${s}`); if (s === kit.ConnectionState.failed && !l.gone) fallback.current() }
         c.onConversationState = (s) => { mark(`face: ${s}`); if (!l.gone) playing.current(s === kit.ConversationState.playing) }
         await new Promise<void>((resolve, reject) => {
-          const t = setTimeout(() => reject(new Error('first_frame_timeout')), FIRST_FRAME_MS)
-          v.onFirstRendering = () => { clearTimeout(t); l.firstFrame = true; resolve() }
+          l.firstFrameTimer = setTimeout(() => reject(new Error('first_frame_timeout')), FIRST_FRAME_MS)
+          v.onFirstRendering = () => { clearTimeout(l.firstFrameTimer); l.firstFrame = true; resolve() }
+          // Taken down while it draws: this wait ends too (its view is released by settle once its init is over).
+          l.stop.signal.addEventListener('abort', () => reject(new Error('taken_down')), { once: true })
         })
         if (l.gone) return
         mark('face: drawn')
@@ -329,6 +333,7 @@ export const AvatarStage = forwardRef<StageHandle, {
       // A connect() waiting on this load ends now, and its token request with it (2026-10-26 review, codex + opus).
       l.fail(new Error('taken_down'))
       l.stop.abort()
+      clearTimeout(l.firstFrameTimer)
       if (load.current === l) load.current = null
       if (ctl.current === l.controller) ctl.current = null
       // The websocket and the session's token go AT ONCE — a billed connection never outlives the face's place on screen…

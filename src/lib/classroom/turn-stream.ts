@@ -248,6 +248,11 @@ function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSigna
       if (!gone.aborted) onVoiced?.(text)
     }
   }
+  /** The last part-end and end — after every sentence's voice is done. */
+  const end = () => {
+    if (parts) q.push({ kind: 'part-end', part: parts - 1, last: true })
+    q.push({ kind: 'end' })
+  }
   return {
     say(text: string) {
       const part = parts++
@@ -257,14 +262,10 @@ function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSigna
     async done() {
       await chain
     },
-    /** The last part-end and end — after done(). */
-    end() {
-      if (parts) q.push({ kind: 'part-end', part: parts - 1, last: true })
-      q.push({ kind: 'end' })
-    },
+    end,
     async finish() {
       await chain
-      this.end()
+      end()
     },
     /** How many sentences' voices failed or were cut. */
     failed: () => failed,

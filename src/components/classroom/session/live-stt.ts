@@ -195,6 +195,7 @@ export async function openLiveStt(sessionId: string, on: {
 const FILLER_WORD = /^(?:u+[hm]+|e+r+m*|e+h+|h+m+|a+h+|o+h+|m{2,}|so|well|and|but|like|because|ừ+m+|ờ+|ơ+|à+|thì|mà|kiểu)$/i
 export function isFiller(text: string): boolean {
   // Vietnamese hesitations too ("ờ", "ừm", "à", "thì" — review, opus: the learners are Vietnamese); "so-so" stays one word.
-  const words = text.toLowerCase().replace(/[^\p{L}\s'-]/gu, ' ').trim().split(/\s+/).filter(Boolean)
+  // NFC first (a decomposed "ờ" is "o" + marks); digits stay words ("like 2" is an answer — review, codex + opus).
+  const words = text.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}\s'-]/gu, ' ').trim().split(/\s+/).filter(Boolean)
   return words.length > 0 && words.length <= 2 && words.every((w) => FILLER_WORD.test(w))
 }

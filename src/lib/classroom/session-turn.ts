@@ -235,6 +235,9 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     // the drill does not have that disclosure sent to Azure. Nor is one that came without its clip (live words alone):
     // marked skipped, never 'pending' with nothing to score.
     const ref = reply.safety || !wav ? null : reference
+    // ⛔ A FLAGGED TURN SAVES NO PACE (2026-10-26 review round 2, codex + opus): a first brain's "slower" followed by a second
+    // brain's harm flag is not the learner's choice for their next sessions.
+    const keepPace = paceMoved && !reply.safety
     try {
       await db.$transaction(async (tx) => {
         // Written only while the turn is still 'processing' (2a round 4, opus): one the sweep already gave up stays given up.
@@ -248,10 +251,10 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
         if (!written.count) throw new ApiError('tutor_unavailable', 503)
         await tx.classroomSession.update({
           where: { id: sessionId },
-          data: { turnCount: { increment: 1 }, learnerSpeechMs: { increment: info.ms }, avatarChars: { increment: reply.reply.length }, ...(paceMoved ? { voicePace: pace } : {}), updatedAt: new Date() },
+          data: { turnCount: { increment: 1 }, learnerSpeechMs: { increment: info.ms }, avatarChars: { increment: reply.reply.length }, ...(keepPace ? { voicePace: pace } : {}), updatedAt: new Date() },
         })
         // The learner's own choice, for their next sessions (a teacher's test has no learner: the session alone).
-        if (paceMoved && session.learnerId) await tx.classroomLearner.update({ where: { id: session.learnerId }, data: { voicePace: pace, updatedAt: new Date() } })
+        if (keepPace && session.learnerId) await tx.classroomLearner.update({ where: { id: session.learnerId }, data: { voicePace: pace, updatedAt: new Date() } })
       })
     } catch (e) {
       if (reply.safety) {
@@ -305,11 +308,19 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
       stopBrain: () => brain.abort(),
       dropDrill: async () => {
         const drop = () => db.classroomTurn.update({ where: { id: turn.id }, data: { expectText: null, updatedAt: new Date() } })
-        await drop().catch(drop).then(() => undefined, (e) => logError(quietError(e), { op: 'classroom.turn.drop-drill' }))
+        // A time limit (review, opus): a slow write never holds the answer's end — the page has stopped sending a clip for
+        // it anyway, so the next turn is never scored against it either way.
+        const done = drop().catch(drop).then(() => undefined, (e) => logError(quietError(e), { op: 'classroom.turn.drop-drill' }))
+        let timer: ReturnType<typeof setTimeout> | undefined
+        await Promise.race([done, new Promise<void>((res) => { timer = setTimeout(res, DROP_DRILL_MS) })])
+        clearTimeout(timer)
       },
     }),
   }
 }
+
+/** How long the drill's withdrawal may hold the answer's end. */
+const DROP_DRILL_MS = 3_000
 
 type SessionRow = Awaited<ReturnType<typeof sessionOfCaller>>
 const snap = (s: SessionRow) => (s.planSnapshot ?? {}) as Record<string, unknown>

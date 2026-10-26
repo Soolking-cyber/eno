@@ -80,6 +80,9 @@ const FACE_CONNECT_MS = 8_000
 /** Handed the opening, how long the face may take to START it (its motion comes ~1.3–1.6 s after its audio, measured)
  *  before it is cut and the speakers say it. */
 const OPENING_PLAY_MS = 5_000
+/** A reply handed to the face can be talked over once it sounds (onPlaying) — or after this long whatever the face says
+ *  (2026-10-26 review round 2, opus: a reply the face never starts must not be beyond the learner's reach). */
+const FACE_TALKOVER_GRACE_MS = 3_000
 
 /** The reply being played: which one, its parts, how many reached the face or the speakers, whether the last did, whether
  *  the face has started playing it, and how much audio it holds since when (the watchdog's clock). */
@@ -304,7 +307,11 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     const ctx = ctxRef.current
     if (!ctx) return
     const r = reply.current
-    if (r.given === 0) { r.startedAt = performance.now(); r.toFace = modeRef.current === 'avatar' && faceLive.current }
+    if (r.given === 0) {
+      r.startedAt = performance.now()
+      r.toFace = modeRef.current === 'avatar' && faceLive.current
+      if (r.toFace) { const id = r.id; setTimeout(() => { if (reply.current.id === id) armBargeIn() }, FACE_TALKOVER_GRACE_MS) }
+    }
     if (phaseRef.current !== 'speaking') {
       go('speaking')
       mark('first sound out')
@@ -491,6 +498,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
         if (body.error === 'consent_required') {
           ended.current = true
           void fetch(`/api/classroom/sessions/${s.id}/end`, { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'learner' }) }).catch(() => {})
+          // The face's connection goes with the session (a billed websocket never waits on the intro): a new Start on this
+          // screen is voice-only.
+          dropFace()
           releaseAll()
           setWaiting(false)
           setRefused({ code: 'consent_required' })
@@ -610,6 +620,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       turnGen.current += 1
       turnAbort.current?.abort()
       stopSpeaking()
+      // ⛔ No drill from a reply the learner talked over (2026-10-26 review, codex + opus): the server withdraws it when the
+      // page leaves, but its `no-drill` line goes to a reader that is gone — the page drops it here (no clip is sent).
+      lastExpect.current = null
     } else if (p !== 'listening') return
     beginTrace('learner speaking')
     go('hearing')
@@ -792,6 +805,10 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     ended.current = false
     leftPage.current = false
     beginTrace('start')
+    // A new attempt on this screen (after a session the notice ended) says its own opening (2026-10-26 review round 2,
+    // codex + opus: the first attempt's "said" kept the second on "Connecting…").
+    openingSaid.current = false
+    if (openingAtFace.current) { clearTimeout(openingAtFace.current.timer); openingAtFace.current = null }
     // ⛔ BEFORE ANY AWAIT: the face's audio may start only inside this tap on iOS and Safari — where it could not, the
     // session is voice-only (lips without a voice would be worse; review, opus).
     const primed = modeRef.current === 'avatar' && !!stage.current?.prime()

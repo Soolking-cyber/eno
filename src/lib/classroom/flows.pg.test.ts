@@ -28,6 +28,8 @@ const seen = vi.hoisted(() => ({
   replyText: null as string | null, spoken: [] as string[], failVoice: null as string | null,
   // the learner asked for a slower/faster voice (the tutor's pace), and the pace each line was voiced at
   pace: null as 'slower' | 'faster' | null, paces: [] as string[], openingPace: '',
+  // the brain's final reply is flagged (a second brain's harm flag after the first one's pace)
+  finalHarm: false,
 }))
 // Nothing here may ever send real mail: the safety alert is captured instead.
 vi.mock('@/lib/mail', () => ({
@@ -76,7 +78,7 @@ vi.mock('./tutor-ai', async (orig) => ({
     yield { kind: 'safety', harm: false }
     if (seen.pace) yield { kind: 'pace', change: seen.pace }
     for (const text of reply.match(/[^.!?]+[.!?]+/g) ?? [reply]) yield { kind: 'say', text: text.trim() }
-    yield { kind: 'final', reply: { reply, hint: 'I went to school.', hintVi: 'Em đã đi học.', expect: null, heardAs: [], safety: false, pace: seen.pace }, model: 'm', calls: 1 }
+    yield { kind: 'final', reply: { reply, hint: 'I went to school.', hintVi: 'Em đã đi học.', expect: null, heardAs: [], safety: seen.finalHarm, pace: seen.pace }, model: 'm', calls: 1 }
   },
 }))
 vi.mock('./feedback-ai', async (orig) => ({
@@ -438,6 +440,27 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     } finally {
       seen.pace = null
       await Promise.all(afterQueue.splice(0))
+    }
+  })
+
+  it('⛔ a FLAGGED turn saves no pace: a first brain\'s "slower", then a harm flag, is not the learner\'s choice (review round 2)', async () => {
+    const seat = await activeSeat()
+    const learnerId = (await db.classroomEnrollment.findUnique({ where: { id: seat.id } }))!.learnerId!
+    await db.classroomLearner.update({ where: { id: learnerId }, data: { voicePace: null } })
+    const s = await start.startLearnerSession(seat.id, parentId)
+    try {
+      seen.pace = 'slower'
+      seen.finalHarm = true
+      await answered(s.id, parentId, 'turn-pace-harm-1', voice())
+      expect((await db.classroomTurn.findFirst({ where: { sessionId: s.id, clientTurnId: 'turn-pace-harm-1' } }))!.flag).toBe('harm')
+      expect((await db.classroomSession.findUnique({ where: { id: s.id } }))!.voicePace).toBe('gentle') // where it started
+      expect((await db.classroomLearner.findUnique({ where: { id: learnerId } }))!.voicePace).toBeNull()
+      await end.endSession(s.id, parentId, 'learner')
+    } finally {
+      seen.pace = null
+      seen.finalHarm = false
+      await Promise.all(afterQueue.splice(0))
+      seen.alerts.length = 0
     }
   })
 
