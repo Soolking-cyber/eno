@@ -38,7 +38,7 @@ A build on another amd64 machine works the same: `docker save eno-classroom-spee
 install -m 644 /dev/null /opt/eno/secrets/classroom-speech-key
 openssl rand -base64 36 | tr -d '\n' > /opt/eno/secrets/classroom-speech-key
 
-docker run -d --name eno-classroom-speech --restart unless-stopped \
+docker run -d --name eno-classroom-speech --restart always \
   --network supabase_default \
   --cpus 4 -m 2500m --memory-swap 2500m --oom-score-adj 1000 \
   --read-only --tmpfs /tmp:size=64m --cap-drop ALL --security-opt no-new-privileges --pids-limit 256 \
@@ -50,6 +50,9 @@ docker run -d --name eno-classroom-speech --restart unless-stopped \
 `/opt/eno/secrets` is root-only (0700), so the file can be 0644: only root on the host and this container read it.
 
 What each flag protects:
+
+- **`--restart always`**, not `unless-stopped`: `eno-deploy.sh` stops this container during builds. If the box loses
+  power at that moment, `unless-stopped` would keep it stopped for good, while `always` starts it with Docker.
 
 - **`--cpus 4`**: the box has 12 vCPUs, and the sites, Postgres and two translation servers live on the rest.
 - **`-m 2500m --memory-swap 2500m`**: a hard memory cap. The container measured 1.2 GB at start and 1.7 GB at peak:
@@ -69,14 +72,20 @@ and TERM (measured 2026-10-26 in ubuntu:24.04). If it is ever found stopped anyw
 ⚠️ For those ~10 minutes, learners in a live session get "try again" while the session's minutes, and Spatius's
 connected minutes, keep running. Deploy outside practice hours, or close the classroom first with `classroom-off.sh`.
 
-## Wire the app (eno.vn's env file, then a deploy)
+## Wire the app (BOTH editions' env files, then a deploy)
 
 ```
 CLASSROOM_SPEECH_URL=http://eno-classroom-speech:8090
 CLASSROOM_SPEECH_KEY=<the contents of /opt/eno/secrets/classroom-speech-key>
 ```
 
-Leave either unset and the classroom answers `speech_unavailable`. Nothing else in the app changes.
+⛔ **On both env files, eno.vn's and eno.forum's.** The classroom ships in both editions, and its switch lives in the
+shared database. Set the variables on one only and the other edition's classroom answers `speech_unavailable` for every
+turn (CLAUDE.md: "THE TRAP IS CONFIG, NOT CODE"). Both app containers sit on `supabase_default` (checked 2026-10-26), so
+both resolve `eno-classroom-speech`.
+
+Leave either variable unset and the classroom answers `speech_unavailable`. `speech-local.ts` accepts only this
+container's name, loopback or a private address: any other address is ignored, as if unset.
 
 ## Verify (from inside the network)
 

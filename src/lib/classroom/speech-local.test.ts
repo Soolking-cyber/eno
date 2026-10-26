@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { localSpeechConfig, synthesize, transcribe } from './speech-local'
+import { MAX_SPOKEN_CHARS, localSpeechConfig, spokenPart, synthesize, transcribe } from './speech-local'
 import { SpeechError } from './azure-speech'
 
 vi.mock('server-only', () => ({}))
@@ -42,10 +42,17 @@ describe('localSpeechConfig', () => {
       vi.stubEnv('CLASSROOM_SPEECH_URL', ok)
       expect(localSpeechConfig(), ok).not.toBeNull()
     }
-    for (const bad of ['http://example.com:8090', 'http://speech.eno.vn', 'http://8.8.8.8:8090', 'http://172.32.0.1:8090', 'http://100.128.0.1:8090', 'http://eno-classroom-speech.:8090', 'ftp://eno-classroom-speech:8090', 'http://user@eno-classroom-speech:8090']) {
+    for (const bad of ['http://example.com:8090', 'http://speech.eno.vn', 'http://8.8.8.8:8090', 'http://172.32.0.1:8090', 'http://100.128.0.1:8090', 'http://eno-classroom-speech.:8090', 'ftp://eno-classroom-speech:8090', 'http://user@eno-classroom-speech:8090',
+      // the same public address written as one number, or in hex — fetch() reads both as 8.8.8.8
+      'http://134744072:8090', 'http://0x8.0x8.0x8.0x8:8090', 'http://0x08080808:8090',
+      // any other single name could resolve through the host's search domain
+      'http://eno-classrom-speech:8090', 'http://speech:8090', 'http://ENO-CLASSROOM-SPEECH.evil:8090']) {
       vi.stubEnv('CLASSROOM_SPEECH_URL', bad)
       expect(localSpeechConfig(), bad).toBeNull()
     }
+    // canonical forms of a loopback address are loopback
+    vi.stubEnv('CLASSROOM_SPEECH_URL', 'http://0x7f.0.0.1:8090')
+    expect(localSpeechConfig()).toMatchObject({ url: 'http://127.0.0.1:8090' })
   })
 })
 
@@ -97,6 +104,31 @@ describe('synthesize', () => {
     expect(f.calls[0].url).toBe('http://eno-classroom-speech:8090/tts')
     expect(JSON.parse(String(f.calls[0].init.body))).toEqual({ text: 'Hello there.', voice: 'Harper', rate: 'slow' })
     expect(header(f.calls[0], 'x-speech-key')).toBe(CFG.key)
+  })
+  it('a line over the server’s cap is cut at its last full sentence, never refused whole', async () => {
+    const long = 'This is one sentence of the reply. '.repeat(30)
+    expect(long.length).toBeGreaterThan(MAX_SPOKEN_CHARS)
+    const part = spokenPart(long)
+    expect(part.length).toBeLessThanOrEqual(MAX_SPOKEN_CHARS)
+    expect(part.endsWith('reply.')).toBe(true)
+    expect(spokenPart('Short.')).toBe('Short.')
+    // a sentence ending EXACTLY at the cap is kept whole
+    const exact = `${'x'.repeat(MAX_SPOKEN_CHARS - 1)}. And more after it.`
+    expect(spokenPart(exact)).toBe(`${'x'.repeat(MAX_SPOKEN_CHARS - 1)}.`)
+    // closing quotes and a line break end a sentence too
+    const quoted = `${'He said "Lovely." '.repeat(40)}`
+    expect(spokenPart(quoted).endsWith('Lovely."')).toBe(true)
+    const lines = `${'One line.\n'.repeat(70)}`
+    expect(spokenPart(lines).endsWith('line.')).toBe(true)
+    // no sentence end at all: it ends on a whole word
+    const words = 'practise '.repeat(80)
+    expect(spokenPart(words).split(' ').every((w) => w === 'practise')).toBe(true)
+    // never half an emoji
+    const emoji = `${'a'.repeat(MAX_SPOKEN_CHARS - 1)}😀 tail`
+    expect(spokenPart(emoji)).not.toMatch(/[\uD800-\uDBFF]$/)
+    const f = fake(new Response(MP3, { headers: { 'content-type': 'audio/mpeg' } }))
+    await synthesize(CFG, long, 'Harper', 'natural', f.impl)
+    expect(JSON.parse(String(f.calls[0].init.body)).text).toBe(part)
   })
   it('anything but audio, or a stub, is a 502', async () => {
     await expect(synthesize(CFG, 'x', 'Harper', 'natural', fake(json({ ok: true })).impl)).rejects.toMatchObject({ status: 502, stage: 'tts' })

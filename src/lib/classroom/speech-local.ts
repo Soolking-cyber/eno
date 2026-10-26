@@ -1,5 +1,5 @@
 import 'server-only'
-import { logError } from '@/lib/log'
+import { logError, logWarn } from '@/lib/log'
 import { SpeechError } from './azure-speech'
 import { quietError } from './quiet-error'
 
@@ -20,20 +20,40 @@ import { quietError } from './quiet-error'
 export type LocalSpeechConfig = { url: string; key: string }
 
 /**
- * Where the server may be: ON eno's own network — a Docker container name (one label, no dots), loopback, or a private
- * address (10/8, 172.16/12, 192.168/16, and 100.64/10 for a tunnel to a second box). ⛔ Never a public host: learner
- * audio and the key travel in plain HTTP (codex, commit review: the first pattern let `http://example.com` through).
+ * Where the server may be: ON eno's own network — the container itself (`eno-classroom-speech`, exactly: any other single
+ * name could fall through to the host's resolver and its search domain), loopback, or a private address (10/8,
+ * 172.16/12, 192.168/16, and 100.64/10 for a tunnel to a second box). ⛔ Never a public host: learner audio and the key
+ * travel in plain HTTP. Checked on the host the URL parser CANONICALISES — "134744072" and "0x8.8.8.8" are both
+ * 8.8.8.8 to fetch(), so they must be to this check too (codex + opus, commit reviews).
  */
-const INTERNAL_HOST = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?|localhost|127(?:\.\d{1,3}){3}|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])(?:\.\d{1,3}){2})$/i
+const INTERNAL_HOST = /^(?:eno-classroom-speech|localhost|127(?:\.\d{1,3}){3}|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])(?:\.\d{1,3}){2})$/
 
 /** CLASSROOM_SPEECH_URL (http://eno-classroom-speech:8090 on the box) and CLASSROOM_SPEECH_KEY (the server's SPEECH_KEY).
- *  Either missing or not internal → null, and the classroom answers speech_unavailable. */
+ *  Either missing, or not an internal origin with nothing after it → null, and the classroom answers speech_unavailable. */
 export function localSpeechConfig(): LocalSpeechConfig | null {
-  const url = process.env.CLASSROOM_SPEECH_URL?.trim().replace(/\/+$/, '')
+  const raw = process.env.CLASSROOM_SPEECH_URL?.trim()
   const key = process.env.CLASSROOM_SPEECH_KEY?.trim()
-  const m = url ? /^https?:\/\/([^/:?#]+)(?::\d{2,5})?$/i.exec(url) : null
-  if (!url || !m || !INTERNAL_HOST.test(m[1]) || !key || key.length < 24) return null
-  return { url, key }
+  if (!raw || !key || key.length < 24) return null
+  let u: URL
+  try {
+    u = new URL(raw)
+  } catch {
+    return refused(raw, 'unparsable', '')
+  }
+  if ((u.protocol !== 'http:' && u.protocol !== 'https:') || u.username || u.password || u.pathname !== '/' || u.search || u.hash) return refused(raw, 'not an origin', u.hostname)
+  if (!INTERNAL_HOST.test(u.hostname)) return refused(raw, 'not internal', u.hostname)
+  return { url: `${u.protocol}//${u.host}`, key }
+}
+
+/** A set but refused address answers like an unset one — so it says why, once per value, in the log (opus, commit
+ *  review: both editions answering speech_unavailable with nothing in the log). The host only; the key is never near it. */
+let refusedUrl = ''
+function refused(raw: string, why: string, host: string): null {
+  if (refusedUrl !== raw) {
+    refusedUrl = raw
+    logWarn('[classroom] CLASSROOM_SPEECH_URL ignored — speech is off', { why, host: host.slice(0, 80) })
+  }
+  return null
 }
 
 export type Heard = { text: string; status: 'ok' | 'silence' }
@@ -82,9 +102,35 @@ export async function transcribe(cfg: LocalSpeechConfig, wav: Buffer, fetchImpl:
   return body.status === 'ok' && text ? { text, status: 'ok' } : { text: '', status: 'silence' }
 }
 
+/** The server refuses a line over this (server.py MAX_TEXT_CHARS). The app's lines stay well under it; a longer one is
+ *  cut at its last full sentence — spoken short beats not spoken at all (opus, commit review). */
+export const MAX_SPOKEN_CHARS = 600
+
+/** A sentence's end: . ! ? or …, any closing quotes or brackets, then a space, a line break or the end. */
+const SENTENCE_END = /[.!?…]["'”’)\]]*(?=\s|$)/g
+
+export function spokenPart(text: string): string {
+  if (text.length <= MAX_SPOKEN_CHARS) return text
+  // One character past the cap, so a sentence ending exactly AT the cap is seen to end (codex, commit review).
+  const head = text.slice(0, MAX_SPOKEN_CHARS + 1)
+  let cut = 0
+  for (const m of head.matchAll(SENTENCE_END)) {
+    const end = m.index + m[0].length
+    if (end <= MAX_SPOKEN_CHARS) cut = end
+  }
+  if (!cut) {
+    // No whole sentence fits: end on a word, never inside one.
+    const lastSpace = head.slice(0, MAX_SPOKEN_CHARS).search(/\s\S*$/)
+    cut = lastSpace > 0 ? lastSpace : MAX_SPOKEN_CHARS
+  }
+  // Never half an emoji: a lone surrogate would reach the server as invalid JSON text.
+  const out = /[\uD800-\uDBFF]$/.test(text.slice(0, cut)) ? text.slice(0, cut - 1) : text.slice(0, cut)
+  return out.trimEnd()
+}
+
 /** One line in `voice` (an id from voices.ts — the server refuses any other) → MP3 bytes. */
 export async function synthesize(cfg: LocalSpeechConfig, text: string, voice: string, rate: 'slow' | 'natural', fetchImpl: typeof fetch = fetch): Promise<Buffer> {
-  const { res } = await call(cfg, '/tts', { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, voice, rate }) }, TTS_BUDGET_MS, 'tts', fetchImpl)
+  const { res } = await call(cfg, '/tts', { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: spokenPart(text), voice, rate }) }, TTS_BUDGET_MS, 'tts', fetchImpl)
   if (!(res.headers.get('content-type') ?? '').startsWith('audio/mpeg')) throw new SpeechError(502, 'tts')
   const bytes = Buffer.from(await res.arrayBuffer().catch(() => { throw new SpeechError(502, 'tts') }))
   if (bytes.length < 200) throw new SpeechError(502, 'tts')
