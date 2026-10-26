@@ -3763,12 +3763,20 @@ export function ListingsExplorer({
    * longer shows ours, and it is only restored while the tab still shows ours. Otherwise leaving for a
    * listing would put the home title on the listing's tab.
    * ⚠️ Storefronts (`sellerId`) own their title and are left alone.
+   * ⚠️ REACT'S LATE <title> MOUNT (sweep 2026-10-22). The home route's metadata streams, and on a cold deep link
+   * (/?q=honda) React mounts the hoisted <title> AFTER this effect and rewrites it to the page's own title. A narrow
+   * watch puts ours back only when the text came back as exactly that base — never over another page's title — once,
+   * then stops; handing back, a storefront and unmounting stop it too.
    */
   const titleRef = useRef<{ base: string; mine: string } | null>(null)
+  const titleWatch = useRef<MutationObserver | null>(null)
+  const titleWatchSpent = useRef(false) // React mounts the metadata <title> once per load: one put-back per mount
+  const stopTitleWatch = () => { titleWatch.current?.disconnect(); titleWatch.current = null }
   useEffect(() => {
-    if (sellerId) return
+    if (sellerId) { stopTitleWatch(); return }
     const held = titleRef.current
     const handBack = () => {
+      stopTitleWatch()
       if (held && document.title === held.mine) document.title = held.base
       titleRef.current = null
     }
@@ -3781,9 +3789,21 @@ export function ListingsExplorer({
     const base = held && document.title === held.mine ? held.base : document.title
     if (document.title !== next) document.title = next
     titleRef.current = { base, mine: next }
+    if (!titleWatch.current && !titleWatchSpent.current && base !== next && typeof MutationObserver !== 'undefined') {
+      const watch = new MutationObserver(() => {
+        const h = titleRef.current
+        if (!h) return
+        if (document.title === h.base && h.mine !== h.base) { document.title = h.mine; titleWatchSpent.current = true; stopTitleWatch() }
+        // Any other title is someone else's (a destination, a call): the tab is theirs, so the watch ends.
+        else if (document.title !== h.mine) stopTitleWatch()
+      })
+      watch.observe(document.head, { subtree: true, childList: true, characterData: true })
+      titleWatch.current = watch
+    }
   }, [sellerId, showDiscovery, failedWithoutAnswer, listingsData, queryShowingStaleSet, nearby, shownListings, totalCount, resultsTerm, ladderCrumbs, lang, tr])
   // Leaving the page hands the tab back — unless the next page has already titled it (see above).
   useEffect(() => () => {
+    stopTitleWatch()
     const held = titleRef.current
     if (held && document.title === held.mine) document.title = held.base
   }, [])

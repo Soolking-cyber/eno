@@ -133,3 +133,27 @@ describe('RelatedListings — the gone variant', () => {
     }
   })
 })
+
+// Sweep 2026-10-22: a GoPlus flat's "More like this" was filled with Toyota and Yamaha hire (6 of 7 cards) — rentals hold
+// homes and vehicle hire in one category, and the last pass was the plain category.
+describe('RelatedListings — a rental stays within its own kind', () => {
+  const asked = () => urls.map((u) => Object.fromEntries([...params(u)].filter(([k]) => k !== 'limit' && k !== 'sort')))
+  it('a place widens to places only (kind=places), never the whole rentals category', async () => {
+    renderIn('en', <RelatedListings listingId="L1" categorySlug="rentals" subcategorySlug="apartment-rental" variant="pdp" />)
+    await act(async () => {})
+    expect(asked()).toEqual([
+      { category: 'rentals', subcategory: 'apartment-rental' },
+      { category: 'rentals', kind: 'places' },
+    ])
+  })
+  it('vehicle hire does not widen at all — its own subcategory fills the rail', async () => {
+    renderIn('en', <RelatedListings listingId="L1" categorySlug="rentals" subcategorySlug="motorbike-rental" variant="pdp" />)
+    await act(async () => {})
+    expect(asked()).toEqual([{ category: 'rentals', subcategory: 'motorbike-rental' }])
+  })
+  it('CONTROL: any other category still widens to itself', async () => {
+    renderIn('en', <RelatedListings listingId="L1" categorySlug="furniture-appliances" subcategorySlug="sofas" variant="pdp" />)
+    await act(async () => {})
+    expect(asked().at(-1)).toEqual({ category: 'furniture-appliances' })
+  })
+})

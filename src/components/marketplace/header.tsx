@@ -42,6 +42,7 @@ import {
 } from '@/hooks/use-search-box'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 import { SITE_NAME } from '@/lib/edition'
+import { HEADER_SEARCH_INPUT_ID } from '@/lib/header-search'
 import { STROKE_NAV } from '@/lib/icon-tokens'
 // ⚠️ The rail's REAL open state, not a guess at it — see the logo's className below.
 import { useAccountPanel } from './account-panel'
@@ -869,6 +870,8 @@ export function Header() {
                   is; `text-base` so its `em` thresholds are the field's own 16px. */}
               <div className="@container/q relative flex min-w-0 flex-1 text-base">
               <Input
+                // The '/' and Ctrl/⌘+K shortcuts focus this field (use-explorer.ts useSearchShortcuts).
+                id={HEADER_SEARCH_INPUT_ID}
                 variant="unstyled"
                 value={searchVal}
                 onChange={(e) => setSearchVal(e.target.value)}
@@ -879,9 +882,8 @@ export function Header() {
                 inputMode="search"
                 enterKeyHint="search"
                 autoComplete="off"
-                // Keyboard contract, identical to the hero bar's twin (listings-explorer's
-                // #listings-search-input) — these were only on the hero, so the same query typed
-                // into the header got autocapitalised + autocorrected on mobile: "iphone" became
+                // Keyboard contract, once the hero bar's (retired) — it was only on the hero, so the same
+                // query typed into the header got autocapitalised + autocorrected on mobile: "iphone" became
                 // "Iphone", and iOS "corrected" Vietnamese model names mid-word.
                 autoCorrect="off"
                 autoCapitalize="off"

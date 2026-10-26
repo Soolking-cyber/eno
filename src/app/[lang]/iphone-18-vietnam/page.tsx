@@ -8,7 +8,7 @@ import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landin
 import { IPHONE_17_MODELS, IPHONE_18_MODELS, IPHONE_DUO_MODEL, lowestPrices, type PriceRow } from './lowest-prices'
 import { AffiliateNote, PriceTable, showAffiliateNote } from './price-table'
 import { DuoCard } from './duo-card'
-import { APPLE_VN_FROM_PRICE } from './price-guard'
+import { APPLE_VN_FROM_PRICE, APPLE_VN_DUO_2TB_PRICE } from './price-guard'
 
 /**
  * ⚠️ ONE HOUR, AND HERE IT IS THE PRICES RATHER THAN THE EMPTY-INVENTORY COPY. The sibling landing
@@ -190,7 +190,7 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
       ...secondHand17Faq(rows17),
       {
         q: 'When does the iPhone Duo go on sale in Vietnam?',
-        a: `Pre-orders open at 7pm on 16 October 2026 and deliveries begin on 23 October 2026. Apple Vietnam prices run from ${money(64_999_000)} for 256GB to ${money(103_999_000)} for 2TB — the first iPhone sold officially in Vietnam above 100 million đồng.`,
+        a: `Pre-orders open at 7pm on 16 October 2026 and deliveries begin on 23 October 2026. Apple Vietnam prices run from ${money(APPLE_VN_FROM_PRICE['iPhone Duo'])} for 256GB to ${money(APPLE_VN_DUO_2TB_PRICE)} for 2TB — the first iPhone sold officially in Vietnam above 100 million đồng.`,
       },
       {
         q: 'Is there a normal iPhone 18, without the Pro?',

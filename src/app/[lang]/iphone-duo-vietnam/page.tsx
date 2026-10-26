@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
+import { formatMoneyFull } from '@/lib/vnd'
 import { ModelLanding, modelMeta, type ModelPageConfig } from '../iphone-18-vietnam/model-landing'
 import { IPHONE_DUO_MODEL } from '../iphone-18-vietnam/lowest-prices'
-import { APPLE_VN_FROM_PRICE } from '../iphone-18-vietnam/price-guard'
+import { APPLE_VN_DUO_2TB_PRICE, APPLE_VN_FROM_PRICE, VAT_REFUND_MIN_VND } from '../iphone-18-vietnam/price-guard'
 
 /** ⚠️ ONE HOUR — see the note on the sibling pages; a stale price is worse than no page. */
 export const revalidate = 3600
@@ -40,7 +41,7 @@ const CFG: ModelPageConfig = {
     {
       title: 'Chính hãng VN/A, and buying as a foreigner',
       body:
-        'A “chính hãng VN/A” unit is an Apple Vietnam phone with the 12-month Apple Vietnam warranty honoured by every authorised service centre; imported LL/A or ZA/A handsets are warranted by the shop instead. On a foldable that distinction is worth more than the price gap, for the repair reasons above. A passport is enough to buy outright; instalment plans generally need a Vietnamese ID or residence card, and visitors flying out within 60 days can reclaim most of the 10% VAT at the airport on invoices over 2,000,000 ₫.',
+        `A “chính hãng VN/A” unit is an Apple Vietnam phone with the 12-month Apple Vietnam warranty honoured by every authorised service centre; imported LL/A or ZA/A handsets are warranted by the shop instead. On a foldable that distinction is worth more than the price gap, for the repair reasons above. A passport is enough to buy outright; instalment plans generally need a Vietnamese ID or residence card, and visitors flying out within 60 days can reclaim most of the 10% VAT at the airport on invoices over ${formatMoneyFull(VAT_REFUND_MIN_VND, '₫')}.`,
     },
   ],
   faqs: [
@@ -50,7 +51,7 @@ const CFG: ModelPageConfig = {
     },
     {
       q: 'How much is the iPhone Duo in Vietnam?',
-      a: 'Apple Vietnam prices run from 64.999.000 ₫ for 256GB to 103.999.000 ₫ for 2TB — the first iPhone sold officially here above 100 million đồng. Once second-hand units are listed here, the table above shows the cheapest per storage tier, with the date it was checked.',
+      a: `Apple Vietnam prices run from ${formatMoneyFull(APPLE_VN_FROM_PRICE[IPHONE_DUO_MODEL], '₫')} for 256GB to ${formatMoneyFull(APPLE_VN_DUO_2TB_PRICE, '₫')} for 2TB — the first iPhone sold officially here above 100 million đồng. Once second-hand units are listed here, the table above shows the cheapest per storage tier, with the date it was checked.`,
     },
     {
       q: 'Is it called the iPhone 18 Fold?',

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
+import { formatMoneyFull } from '@/lib/vnd'
 import { ModelLanding, modelMeta, type ModelPageConfig } from '../iphone-18-vietnam/model-landing'
-import { APPLE_VN_FROM_PRICE } from '../iphone-18-vietnam/price-guard'
+import { APPLE_VN_FROM_PRICE, VAT_REFUND_MIN_VND } from '../iphone-18-vietnam/price-guard'
 
 /**
  * ⚠️ ONE HOUR, because this page PRINTS PRICES. A stale figure on a page that ranks for "iPhone 18
@@ -37,13 +38,13 @@ const CFG: ModelPageConfig = {
     {
       title: 'Buying one as a foreigner',
       body:
-        'A passport is enough to buy outright at any Vietnamese shop; no residence card or local ID is needed, though 0% instalment plans generally are. All four networks issue eSIM profiles, so an eSIM-only imported handset works here. If you are visiting and fly out within 60 days, keep the VAT invoice — the airport refund scheme returns most of the 10% VAT on invoices over 2,000,000 ₫ from a registered shop, claimed at the departure terminal before check-in.',
+        `A passport is enough to buy outright at any Vietnamese shop; no residence card or local ID is needed, though 0% instalment plans generally are. All four networks issue eSIM profiles, so an eSIM-only imported handset works here. If you are visiting and fly out within 60 days, keep the VAT invoice — the airport refund scheme returns most of the 10% VAT on invoices over ${formatMoneyFull(VAT_REFUND_MIN_VND, '₫')} from a registered shop, claimed at the departure terminal before check-in.`,
     },
   ],
   faqs: [
     {
       q: 'How much is an iPhone 18 Pro in Vietnam?',
-      a: 'Apple Vietnam’s own recommended price starts at 38.999.000 ₫ for 256GB. When second-hand units are listed here, the table above shows the cheapest per storage tier with the date it was checked; owners usually resell below Apple’s price once launch demand clears.',
+      a: `Apple Vietnam’s own recommended price starts at ${formatMoneyFull(APPLE_VN_FROM_PRICE['iPhone 18 Pro'], '₫')} for 256GB. When second-hand units are listed here, the table above shows the cheapest per storage tier with the date it was checked; owners usually resell below Apple’s price once launch demand clears.`,
     },
     {
       q: 'Is the iPhone 18 Pro worth it over the iPhone 17 Pro?',
