@@ -57,6 +57,7 @@ vi.mock('@/lib/db', () => ({
     seller: { findUnique: async () => h.seller, create: async () => ({ id: 's1' }) },
     apiKey: { updateMany: async (a: { where: unknown; data: unknown }) => { h.credentialWrites.push({ m: 'apiKey', ...a }); return { count: 1 } } },
     webhookEndpoint: { updateMany: async (a: { where: unknown; data: unknown }) => { h.credentialWrites.push({ m: 'webhookEndpoint', ...a }); return { count: 1 } } },
+    $transaction: async (ops: Promise<unknown>[]) => { h.credentialWrites.push({ m: 'transaction', where: null, data: ops.length }); return Promise.all(ops) },
     profile: { update: async ({ data }: { data: Record<string, unknown> }) => { h.profileUpdates.push(data); return {} } },
   },
 }))
@@ -101,14 +102,22 @@ describe('account-type — a business switched to individual leaves no live cred
     h.accountType = 'business'
     h.seller = { id: 's9' }
     expect((await send({ accountType: 'individual', displayName: 'Lan' })).status).toBe(200)
+    // Both writes, in ONE transaction: never keys revoked with webhooks still firing because the second write failed.
     expect(h.credentialWrites).toEqual([
       { m: 'apiKey', where: { sellerId: 's9', revokedAt: null }, data: { revokedAt: expect.any(Date) } },
       { m: 'webhookEndpoint', where: { sellerId: 's9', enabled: true }, data: { enabled: false } },
+      { m: 'transaction', where: null, data: 2 },
     ])
   })
-  it('an individual staying individual touches no credentials', async () => {
+  it('an individual save re-runs the cleanup — a retry heals a switch whose cleanup failed after the type changed', async () => {
     h.accountType = 'individual'
     h.seller = { id: 's9' }
+    await send({ accountType: 'individual', displayName: 'Lan' })
+    expect(h.credentialWrites.map((w) => w.m)).toEqual(['apiKey', 'webhookEndpoint', 'transaction'])
+  })
+  it('no storefront, no cleanup', async () => {
+    h.accountType = 'business'
+    h.seller = null
     await send({ accountType: 'individual', displayName: 'Lan' })
     expect(h.credentialWrites).toEqual([])
   })

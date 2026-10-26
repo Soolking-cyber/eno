@@ -34,11 +34,13 @@ function open() {
   const view = render(<QueryClientProvider client={client}><VideoFeed baseParams="q=bike" onOpen={() => {}} onClose={() => {}} /></QueryClientProvider>)
   return { opener, after, view }
 }
-const tab = (shiftKey = false) => {
-  const e = new KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true })
-  window.dispatchEvent(e)
+// From the focused element, as a browser does: the takeover's window listener reads the event's target.
+const press = (key: string, shiftKey = false) => {
+  const e = new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true })
+  ;(document.activeElement ?? document.body).dispatchEvent(e)
   return e
 }
+const tab = (shiftKey = false) => press('Tab', shiftKey)
 
 describe('Video view — a modal takeover', () => {
   it('is a dialog; focus moves in, Tab wraps inside it, and close gives focus back to the opener', () => {
@@ -66,10 +68,14 @@ describe('Video view — a modal takeover', () => {
     field.focus()
     expect(tab().defaultPrevented).toBe(false)
     expect(document.activeElement).toBe(field)
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    press('Escape')
     expect(onClose).not.toHaveBeenCalled()
-    field.blur()
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    // Even if the sign-in dialog's own Escape already moved focus back before this listener ran: the key was pressed there.
+    const fromDialog = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+    field.addEventListener('keydown', () => field.blur(), { once: true })
+    field.dispatchEvent(fromDialog)
+    expect(onClose).not.toHaveBeenCalled()
+    press('Escape') // now from the page: the feed's own Escape
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

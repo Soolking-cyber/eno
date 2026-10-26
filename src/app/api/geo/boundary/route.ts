@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { clientIp } from '@/lib/client-ip'
+import { rateKeyForIp } from '@/lib/ip-key'
 import { rateLimit } from '@/lib/ratelimit'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import vnUnits from '@/data/vn-units.json'
@@ -78,9 +79,15 @@ export async function GET(req: NextRequest) {
 
   // ⛔ ONLY THE OUTBOUND PATH IS THROTTLED, per IP (sweep 2026-10-22): a cache hit above never touches the limiter, and a
   // refused call is a transient 503 (no-store) the explorer reads as "no outline". Fail closed: an unthrottled third-party
-  // search on eno's identified User-Agent is what gets the production IP banned by OSM.
-  const rl = await rateLimit('geo-boundary', clientIp(req), 20, '1 m', { strict: true })
+  // search on eno's identified User-Agent is what gets the production IP banned by OSM. Keyed by rateKeyForIp (an IPv6
+  // /64 is one subscriber) and sized for carrier NAT — Viettel/Mobifone/Vinaphone put many phones behind one IPv4, and
+  // one person picks a handful of areas a minute; the cap exists to stop a script minting keys, not a busy carrier.
+  const rl = await rateLimit('geo-boundary', rateKeyForIp(clientIp(req)), 60, '1 m', { strict: true })
   if (!rl.success) return failed('rate-limited')
+  // …and a GLOBAL brake under Nominatim's absolute ~1 request/second, which is per server IP, not per caller: many
+  // carrier-NAT visitors picking areas at once must not add up to a ban for eno's one production IP.
+  const global = await rateLimit('geo-boundary-global', 'global', 50, '1 m', { strict: true })
+  if (!global.success) return failed('rate-limited')
 
   let geometry: { type: string; coordinates: unknown } | null = null
   /**

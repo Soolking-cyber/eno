@@ -89,9 +89,11 @@ export function VideoFeed({
     // pushing again would accumulate one dead Back-press per open-listing round trip.
     if (window.history.state?.takeover !== 'video') window.history.pushState({ takeover: 'video' }, '')
     // A dialog opened FROM the takeover (sign-in, portaled after it) owns its own keys: its Escape closes it, not the feed.
-    const inOtherDialog = (a: Element | null) => !!a && !shellRef.current?.contains(a) && !!a.closest('[role="dialog"], [role="alertdialog"]')
+    // Read from the EVENT's target — where the key was pressed — not document.activeElement: that dialog's own Escape
+    // handler may already have closed it and handed focus back to the feed before this window listener runs.
+    const inOtherDialog = (a: EventTarget | null) => a instanceof Element && !shellRef.current?.contains(a) && !!a.closest('[role="dialog"], [role="alertdialog"]')
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { if (!inOtherDialog(document.activeElement)) onCloseRef.current() }
+      if (e.key === 'Escape') { if (!inOtherDialog(e.target)) onCloseRef.current() }
       else if (e.key === 'Tab') {
         // ⚠️ TAB STAYS INSIDE (sweep 2026-10-22), as in the gallery's lightbox: focus stayed on the "Video view" button under
         // the black layer and Tab walked the hidden page, the takeover's own controls last. Queried on every Tab — windowing
@@ -99,7 +101,7 @@ export function VideoFeed({
         const root = shellRef.current
         if (!root) return
         const a = document.activeElement
-        if (inOtherDialog(a)) return
+        if (inOtherDialog(e.target)) return
         // `a[href]`, never a bare `[href]`: every icon's SVG <use href> matched it, so the "last control" was a glyph inside
         // Close and Tab walked out of the dialog (found 2026-10-26, testing the Video view's trap).
         // Shown controls only: a display:none one is never focused, so a trap ending on it let Tab walk out past it.
