@@ -21,6 +21,8 @@ import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
+import { clientIp } from '@/lib/client-ip'
+import { rateLimit } from '@/lib/ratelimit'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import vnUnits from '@/data/vn-units.json'
 import {
@@ -73,6 +75,12 @@ export async function GET(req: NextRequest) {
   } catch {
     // A cache that cannot be read must not take the feature down — fall through to the network.
   }
+
+  // ⛔ ONLY THE OUTBOUND PATH IS THROTTLED, per IP (sweep 2026-10-22): a cache hit above never touches the limiter, and a
+  // refused call is a transient 503 (no-store) the explorer reads as "no outline". Fail closed: an unthrottled third-party
+  // search on eno's identified User-Agent is what gets the production IP banned by OSM.
+  const rl = await rateLimit('geo-boundary', clientIp(req), 20, '1 m', { strict: true })
+  if (!rl.success) return failed('rate-limited')
 
   let geometry: { type: string; coordinates: unknown } | null = null
   /**
@@ -193,9 +201,11 @@ function respond(boundary: unknown, source: string) {
  * from `vn-units.json`, so anything else is either a stale link or someone probing — and both should
  * cost one comparison rather than a row and an outbound request.
  */
-/** Built from the 3,321 wards on first use, then kept for the life of the process. */
-let wardNames: Set<string> | undefined
+/** Built from the 3,321 wards on first use, then kept for the life of the process: `province|ward`, both spellings. */
+let wardPairs: Set<string> | undefined
 let provinceNames: Set<string> | undefined
+/** HCMC in both spellings vn-units.json gives it — every curated DISTRICT is in Ho Chi Minh City. */
+const HCMC_NAMES = new Set(['hồ chí minh', 'ho chi minh'])
 function isKnownArea(kind: BoundaryKind, name: string, province: string): boolean {
   const fold = (v: string) => v.normalize('NFC').trim().toLowerCase()
   /**
@@ -212,14 +222,22 @@ function isKnownArea(kind: BoundaryKind, name: string, province: string): boolea
     }
   }
   if (!provinceNames.has(fold(province))) return false
+  /**
+   * ⚠️ AND THE PAIR (sweep 2026-10-22). The ward and the province were each checked on their own, so any of ~3,321 wards
+   * with any of 34 provinces — in both spellings — passed: hundreds of thousands of "real" keys, each a cache miss, a
+   * GeoBoundary row and a Nominatim search. A ward must be IN that province; a curated district is in HCMC.
+   */
   if (kind === 'district') {
-    return DISTRICTS.some((d) => d.slug !== 'all' && (fold(d.name) === fold(name) || fold(d.nameEn) === fold(name)))
+    return HCMC_NAMES.has(fold(province)) &&
+      DISTRICTS.some((d) => d.slug !== 'all' && (fold(d.name) === fold(name) || fold(d.nameEn) === fold(name)))
   }
-  if (!wardNames) {
-    wardNames = new Set<string>()
-    for (const p of vnUnits as { name: string; wards: { name: string; nameEn: string }[] }[]) {
-      for (const w of p.wards ?? []) { wardNames.add(fold(w.name)); wardNames.add(fold(w.nameEn)) }
+  if (!wardPairs) {
+    wardPairs = new Set<string>()
+    for (const p of vnUnits as { name: string; nameEn?: string; wards: { name: string; nameEn: string }[] }[]) {
+      for (const pn of [p.name, p.nameEn].filter((v): v is string => !!v)) {
+        for (const w of p.wards ?? []) { wardPairs.add(`${fold(pn)}|${fold(w.name)}`); wardPairs.add(`${fold(pn)}|${fold(w.nameEn)}`) }
+      }
     }
   }
-  return wardNames.has(fold(name))
+  return wardPairs.has(`${fold(province)}|${fold(name)}`)
 }

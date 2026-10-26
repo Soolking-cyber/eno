@@ -49,7 +49,8 @@ import AdminOverviewPage from './page'
 const parse = (el: React.ReactElement) => new DOMParser().parseFromString(renderToStaticMarkup(el), 'text/html')
 const catalogue = async (tab?: string) => parse(await AdminCataloguePage({ searchParams: Promise.resolve(tab ? { tab } : {}) }))
 /** The overview tile that links to `href`: its count, label and hint, in order. */
-const tile = (doc: Document, href: string) => [...(doc.querySelector(`a[href="${href}"]`)?.querySelectorAll('p') ?? [])].map((p) => p.textContent)
+// By the attribute's value, not an `a[href="…"]` selector: jsdom's selector engine misses an href carrying `&`.
+const tile = (doc: Document, href: string) => [...([...doc.querySelectorAll('a')].find((a) => a.getAttribute('href') === href)?.querySelectorAll('p') ?? [])].map((p) => p.textContent)
 
 beforeEach(() => counts.mockClear())
 
@@ -86,7 +87,8 @@ describe('Admin › Overview — the Licence checks tile', () => {
     // A queue with something in it sorts among the first tiles.
     const hrefs = [...doc.querySelectorAll('ul')[0].querySelectorAll('a')].map((a) => a.getAttribute('href'))
     expect(hrefs[0]).toBe('/admin/catalogue?tab=licences')
-    expect(tile(doc, '/admin/catalogue?tab=listings')[2]).toBe('Not yet published — Publish makes them live (licence aisles: see Licence checks)')
+    // The tile opens the console on its own count's filter (Active + Held — sweep 2026-10-22).
+    expect(tile(doc, '/admin/catalogue?tab=listings&status=active&verified=false')[2]).toBe('Not yet published — Publish makes them live (licence aisles: see Licence checks)')
   })
 
   it('a row live without a checked licence outranks the deadline in the hint', async () => {

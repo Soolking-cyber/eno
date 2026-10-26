@@ -34,6 +34,9 @@ const h = vi.hoisted(() => ({
   photoRefreshes: [] as unknown[][],
   /** The display name already on the stored profile — the fallback when a request sends none. */
   storedName: 'Lan' as string | null,
+  /** The account's own storefront (seller.findUnique), and the credential writes a downgrade makes. */
+  seller: null as { id: string; name?: string } | null,
+  credentialWrites: [] as Array<{ m: string; where: unknown; data: unknown }>,
 }))
 
 vi.mock('next/server', async (orig) => ({
@@ -51,7 +54,9 @@ vi.mock('@/lib/admin', () => ({
 }))
 vi.mock('@/lib/db', () => ({
   db: {
-    seller: { findUnique: async () => null, create: async () => ({ id: 's1' }) },
+    seller: { findUnique: async () => h.seller, create: async () => ({ id: 's1' }) },
+    apiKey: { updateMany: async (a: { where: unknown; data: unknown }) => { h.credentialWrites.push({ m: 'apiKey', ...a }); return { count: 1 } } },
+    webhookEndpoint: { updateMany: async (a: { where: unknown; data: unknown }) => { h.credentialWrites.push({ m: 'webhookEndpoint', ...a }); return { count: 1 } } },
     profile: { update: async ({ data }: { data: Record<string, unknown> }) => { h.profileUpdates.push(data); return {} } },
   },
 }))
@@ -82,6 +87,31 @@ beforeEach(() => {
   h.appleLinked = false
   h.photoRefreshes = []
   h.storedName = 'Lan'
+  h.seller = null
+  h.credentialWrites = []
+})
+
+// Sweep 2026-10-22: the developer surface and every key/webhook route are business-only, so a business switched to
+// individual kept its partner API keys and webhooks live with no way to list or revoke them.
+describe('account-type — a business switched to individual leaves no live credentials behind', () => {
+  const send = (body: Record<string, unknown>) => POST(new Request('https://eno.vn/api/profile/account-type', {
+    method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' },
+  }))
+  it('revokes its API keys and disables its webhooks', async () => {
+    h.accountType = 'business'
+    h.seller = { id: 's9' }
+    expect((await send({ accountType: 'individual', displayName: 'Lan' })).status).toBe(200)
+    expect(h.credentialWrites).toEqual([
+      { m: 'apiKey', where: { sellerId: 's9', revokedAt: null }, data: { revokedAt: expect.any(Date) } },
+      { m: 'webhookEndpoint', where: { sellerId: 's9', enabled: true }, data: { enabled: false } },
+    ])
+  })
+  it('an individual staying individual touches no credentials', async () => {
+    h.accountType = 'individual'
+    h.seller = { id: 's9' }
+    await send({ accountType: 'individual', displayName: 'Lan' })
+    expect(h.credentialWrites).toEqual([])
+  })
 })
 
 describe('account-type — first-touch attribution needs the Analytics purpose', () => {

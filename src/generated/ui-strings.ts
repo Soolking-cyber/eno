@@ -3467,6 +3467,7 @@ export const UI_STRINGS: string[] = [
   "Video upload failed. Please try again — keep it under 5 minutes.",
   "Video uploads are busy right now — please try again later.",
   "Video view",
+  "Videos",
   "Vietnam",
   "Vietnamese",
   "Vietnamese ID needed",

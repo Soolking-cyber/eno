@@ -437,7 +437,11 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
         // rail are conditional), so a plain query is the whole list.
         const root = scrimRef.current
         if (!root) return
-        const items = Array.from(root.querySelectorAll<HTMLElement>('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'))
+        // `a[href]`, never a bare `[href]`: every icon's SVG <use href> matched it, so the "last control" was a glyph inside
+        // Close and Tab walked out of the dialog (found 2026-10-26, testing the Video view's trap).
+        // Shown controls only: a display:none one is never focused, so a trap ending on it let Tab walk out past it.
+        const items = Array.from(root.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'))
+          .filter((el) => typeof el.checkVisibility !== 'function' || el.checkVisibility({ visibilityProperty: true }))
         if (!items.length) return
         const a = document.activeElement
         const outside = !(a instanceof Node) || !root.contains(a)

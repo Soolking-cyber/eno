@@ -71,6 +71,7 @@ export function VideoFeed({
   })
   const items = data?.listings ?? []
 
+  const shellRef = useRef<HTMLDivElement>(null) // the takeover's own root: focus goes in, Tab stays in
   // Lock the page behind the takeover; Escape closes it. Push a synthetic history entry so the
   // Android system back button (and browser Back) CLOSES the feed instead of leaving the results
   // page — mirrored symmetrically on close (history.back() consumes the entry we pushed). Runs
@@ -87,7 +88,31 @@ export function VideoFeed({
     // listing opened inside the feed, the restored history entry ALREADY carries the flag —
     // pushing again would accumulate one dead Back-press per open-listing round trip.
     if (window.history.state?.takeover !== 'video') window.history.pushState({ takeover: 'video' }, '')
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current() }
+    // A dialog opened FROM the takeover (sign-in, portaled after it) owns its own keys: its Escape closes it, not the feed.
+    const inOtherDialog = (a: Element | null) => !!a && !shellRef.current?.contains(a) && !!a.closest('[role="dialog"], [role="alertdialog"]')
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { if (!inOtherDialog(document.activeElement)) onCloseRef.current() }
+      else if (e.key === 'Tab') {
+        // ⚠️ TAB STAYS INSIDE (sweep 2026-10-22), as in the gallery's lightbox: focus stayed on the "Video view" button under
+        // the black layer and Tab walked the hidden page, the takeover's own controls last. Queried on every Tab — windowing
+        // swaps the DOM. A dialog opened FROM the takeover (sign-in, portaled after it) keeps its own Tab.
+        const root = shellRef.current
+        if (!root) return
+        const a = document.activeElement
+        if (inOtherDialog(a)) return
+        // `a[href]`, never a bare `[href]`: every icon's SVG <use href> matched it, so the "last control" was a glyph inside
+        // Close and Tab walked out of the dialog (found 2026-10-26, testing the Video view's trap).
+        // Shown controls only: a display:none one is never focused, so a trap ending on it let Tab walk out past it.
+        const items = Array.from(root.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'))
+          .filter((el) => typeof el.checkVisibility !== 'function' || el.checkVisibility({ visibilityProperty: true }))
+        if (!items.length) return
+        const outside = !(a instanceof Node) || !root.contains(a)
+        if (e.shiftKey ? outside || a === root || a === items[0] : outside || a === items[items.length - 1]) {
+          e.preventDefault()
+          ;(e.shiftKey ? items[items.length - 1] : items[0]).focus()
+        }
+      }
+    }
     const onPop = () => { onCloseRef.current() }
     window.addEventListener('keydown', onKey)
     window.addEventListener('popstate', onPop)
@@ -150,14 +175,29 @@ export function VideoFeed({
     els?.[activeIdx + dir]?.scrollIntoView({ behavior: scrollBehavior() })
   }
 
+  /**
+   * A modal view moves focus in and gives it back (the lightbox's rule, listing-gallery.tsx): from the keyboard focus lands
+   * on Close with its ring; from a tap on the view itself (tabIndex -1 — globals.css keeps the programmatic-focus ring off
+   * that shape on iOS). On close it returns to what opened the view.
+   */
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
+    let fromKeyboard = false
+    try { fromKeyboard = !!opener && opener.matches(':focus-visible') } catch { /* a browser without :focus-visible: a tap */ }
+    const closeBtn = shellRef.current?.querySelector<HTMLElement>('[data-takeover-close]')
+    ;(fromKeyboard && closeBtn ? closeBtn : shellRef.current)?.focus({ preventScroll: true })
+    return () => { if (opener?.isConnected) opener.focus({ preventScroll: true }) }
+  }, [])
+
   // ⚠️ z-overlay (50), NOT ABOVE IT (sweep, 2026-10-22). At z-[60] the takeover covered the sign-in dialog its own "Chat
   // with seller" and first Save open (dialogs are z-overlay): for a guest the tap looked dead while focus sat trapped in
   // the hidden dialog. At 50 it still covers the header and tab bar (40) and the FAB cluster, and a dialog portaled
   // after it wins the tie on DOM order.
   const shell = (children: React.ReactNode) =>
     createPortal(
-      <div className="fixed inset-0 z-overlay bg-black">
+      <div ref={shellRef} role="dialog" aria-modal="true" aria-label={tr('Videos', 'Video')} tabIndex={-1} className="fixed inset-0 z-overlay bg-black">
         <IconButton
+          data-takeover-close
           size="lg"
           onClick={onClose}
           aria-label={tr('Close', 'Đóng')}
