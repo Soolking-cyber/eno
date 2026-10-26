@@ -26,14 +26,14 @@ const voice = (sizes: number[] = [100]): Speaker & { asked: string[]; signals: A
   }
   return Object.assign(f, { asked, signals })
 }
-const turn = (events: AsyncIterable<TutorEvent>, o: { speak?: Speaker | null; save?: (a: Answer, c: { clientGone: boolean }) => Promise<SavedReply> } = {}) => {
+const turn = (events: AsyncIterable<TutorEvent>, o: { speak?: Speaker | null; save?: (a: Answer, c: { clientGone: () => boolean }) => Promise<SavedReply> } = {}) => {
   const saved: { a: Answer; clientGone: boolean }[] = []
   const gaveUp: unknown[] = []
   const t = streamTurn({
     learnerText: 'I go market',
     events,
     speak: o.speak === undefined ? voice() : o.speak,
-    save: o.save ?? (async (a, c) => { saved.push({ a, clientGone: c.clientGone }); return SAVED(a) }),
+    save: o.save ?? (async (a, c) => { saved.push({ a, clientGone: c.clientGone() }); return SAVED(a) }),
     giveUp: async (e) => { gaveUp.push(e) },
     safetyLine: 'Thank you for telling me. Please talk to a grown-up you trust.',
   })
@@ -133,13 +133,24 @@ describe('streamTurn', () => {
     const saved: { a: Answer; clientGone: boolean }[] = []
     const t = streamTurn({
       learnerText: 'hi', events: slow(), speak: voice(),
-      save: async (a, c) => { saved.push({ a, clientGone: c.clientGone }); return SAVED(a) },
+      save: async (a, c) => { saved.push({ a, clientGone: c.clientGone() }); return SAVED(a) },
       giveUp: async () => {}, safetyLine: 'x', stopBrain: () => { brainStopped = true; gate.resolve() },
     })
     for await (const l of t.lines) if (l.kind === 'part-end') t.stop()
     await t.done
     expect(brainStopped).toBe(true)
     expect(saved).toEqual([{ a: expect.objectContaining({ model: 'cut-off', reply: expect.objectContaining({ reply: 'One.' }) }), clientGone: true }])
+  })
+
+  it('⛔ gone while the first sentence still waits for its voice: nothing was heard — the turn is given back (review, codex)', async () => {
+    const gate = Promise.withResolvers<void>()
+    const speak: Speaker = async () => { await gate.promise; return { rate: 24_000, chunks: (async function* () { yield new Uint8Array(10) })() } }
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'One.' }, { kind: 'say', text: 'Two.' }, { kind: 'final', reply: REPLY({ reply: 'One. Two.' }), model: 'm', calls: 1 }), { speak })
+    for await (const l of t.lines) if (l.kind === 'say') t.stop() // its words are shown; its voice has not started
+    gate.resolve()
+    await t.done
+    expect(t.saved).toEqual([])
+    expect(t.gaveUp).toHaveLength(1)
   })
 
   it('no answer and nothing said: the turn is given back; the page is told (error), then end', async () => {
@@ -204,7 +215,8 @@ describe('streamTurn', () => {
     expect(kinds(seen)).toEqual(['heard', 'say:One.', 'pcm:0', 'part-end:0'])
     expect(speak.signals[0].aborted).toBe(true)
     expect(speak.asked).toEqual(['One.']) // "Two." never voiced
-    expect(t.saved).toEqual([{ a: expect.objectContaining({ reply: expect.objectContaining({ reply: 'One. Two.' }) }), clientGone: true }])
+    // saved as what was HEARD — "Two." was written after the page left (review round 2, codex + opus)
+    expect(t.saved).toEqual([{ a: expect.objectContaining({ model: 'cut-off', reply: expect.objectContaining({ reply: 'One.', expect: null }) }), clientGone: true }])
   })
 })
 

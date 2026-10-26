@@ -16,7 +16,7 @@ import { quietError } from './quiet-error'
  *
  * Plain REST (the Responses API, server-sent events), no SDK. ⛔ The words are never logged; an error carries its status.
  */
-export type OpenAiConfig = { key: string; model: string; url: string; firstTokenMs: number }
+export type OpenAiConfig = { key: string; model: string; url: string; firstTokenMs: number; tier: string }
 
 /**
  * OPENAI_API_KEY, and CLASSROOM_TUTOR_MODEL (default gpt-6-luna). No first word within `firstTokenMs` → the turn hands
@@ -30,14 +30,18 @@ export function openAiConfig(): OpenAiConfig | null {
   const key = process.env.OPENAI_API_KEY?.trim()
   if (!key || !/^sk-[A-Za-z0-9_-]{20,}$/.test(key)) return null
   const model = process.env.CLASSROOM_TUTOR_MODEL?.trim() || 'gpt-6-luna'
+  // ⚠️ PRIORITY PROCESSING (measured 2026-10-26 from Vietnam, the real tutor prompt, 5 calls each): the first sentence in
+  // 0.75–1.42 s (median 0.9) against 1.06–3.1 s (median 1.4) on the default tier — about twice the token price, ~$0.04
+  // a practice-hour. CLASSROOM_OPENAI_TIER=default turns it off.
+  const tier = process.env.CLASSROOM_OPENAI_TIER?.trim() || 'priority'
   const standIn = process.env.CLASSROOM_TUTOR_STANDIN_URL?.trim()
-  if (!standIn) return { key, model, url: 'https://api.openai.com', firstTokenMs: 4_000 }
+  if (!standIn) return { key, model, url: 'https://api.openai.com', firstTokenMs: 4_000, tier }
   const port = /^http:\/\/(?:127\.0\.0\.1|localhost):(\d{2,5})\/?$/.exec(standIn)?.[1]
   if (!port) {
     if (refusedStandIn !== standIn) { refusedStandIn = standIn; logWarn('[classroom] CLASSROOM_TUTOR_STANDIN_URL is not this machine — the OpenAI brain is off') }
     return null
   }
-  return { key, model, url: `http://127.0.0.1:${port}`, firstTokenMs: 30_000 }
+  return { key, model, url: `http://127.0.0.1:${port}`, firstTokenMs: 30_000, tier }
 }
 let refusedStandIn = ''
 
@@ -80,6 +84,7 @@ export async function* streamJson(cfg: OpenAiConfig, req: {
         input: [{ role: 'user', content: req.input }],
         text: { format: { type: 'json_schema', name: req.schemaName, strict: true, schema: req.schema } },
         reasoning: { effort: 'none' },
+        ...(cfg.tier && cfg.tier !== 'default' ? { service_tier: cfg.tier } : {}),
         max_output_tokens: req.maxOutputTokens,
         // ⛔ Not stored at OpenAI beyond what the API requires (the practice notice: transcripts are not kept by vendors).
         store: false,

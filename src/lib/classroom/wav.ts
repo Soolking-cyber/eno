@@ -46,8 +46,8 @@ export function parseWav(bytes: Uint8Array): WavInfo | null {
   return { ms: Math.round((dataLen / 2 / SAMPLE_RATE) * 1000), peak }
 }
 
-/** The low-pass in front of the decimation: a Hann-windowed sinc, unity gain at DC, `half` taps either side. */
-function lowPass(input: Float32Array, cutoff: number, half: number): Float32Array {
+/** The low-pass's taps: a Hann-windowed sinc, unity gain at DC, `half` taps either side of the centre. */
+export function lowPassTaps(cutoff: number, half: number): Float32Array {
   const taps = new Float32Array(2 * half + 1)
   let sum = 0
   for (let k = -half; k <= half; k++) {
@@ -58,6 +58,12 @@ function lowPass(input: Float32Array, cutoff: number, half: number): Float32Arra
     sum += sinc * w
   }
   for (let k = 0; k < taps.length; k++) taps[k] /= sum
+  return taps
+}
+
+/** The low-pass in front of the decimation (lowPassTaps). */
+function lowPass(input: Float32Array, cutoff: number, half: number): Float32Array {
+  const taps = lowPassTaps(cutoff, half)
   const out = new Float32Array(input.length)
   for (let i = 0; i < input.length; i++) {
     let acc = 0
@@ -90,4 +96,43 @@ export function toPcm16k(input: Float32Array, inputRate: number): Int16Array {
     out[i] = Math.max(-32768, Math.min(32767, Math.round(s * 32767)))
   }
   return out
+}
+
+/**
+ * toPcm16k FOR A STREAM (live listening, live-stt.ts): the same low-pass and interpolation, fed frame by frame — the filter
+ * keeps its history across frames, so a frame boundary leaves no seam (cutting the stream into separately filtered pieces
+ * would put a click every 100 ms into what Soniox hears). Returns a function: Float32 frames in, 16 kHz Int16 out.
+ */
+export function streamTo16k(inputRate: number): (frame: Float32Array) => Int16Array {
+  const ratio = inputRate / SAMPLE_RATE
+  const half = ratio > 1 ? Math.round(11 * ratio) : 0
+  const taps = ratio > 1 ? lowPassTaps((0.42 * SAMPLE_RATE) / inputRate, half) : null
+  let buf = new Float32Array(0)
+  // The next output sample's position in `buf`: it needs `half` samples of history before it.
+  let pos = half
+  const at = (i: number) => {
+    if (!taps) return buf[i]
+    let acc = 0
+    for (let k = -half; k <= half; k++) acc += buf[i + k] * taps[k + half]
+    return acc
+  }
+  return (frame) => {
+    if (!(inputRate > 0) || !frame.length) return new Int16Array(0)
+    const joined = new Float32Array(buf.length + frame.length)
+    joined.set(buf)
+    joined.set(frame, buf.length)
+    buf = joined
+    const out: number[] = []
+    while (Math.floor(pos) + 1 + half < buf.length) {
+      const i0 = Math.floor(pos)
+      const a = at(i0)
+      const s = a + (at(i0 + 1) - a) * (pos - i0)
+      out.push(Math.max(-32768, Math.min(32767, Math.round(s * 32767))))
+      pos += ratio
+    }
+    const keep = Math.max(0, Math.floor(pos) - half)
+    buf = buf.slice(keep)
+    pos -= keep
+    return Int16Array.from(out)
+  }
 }

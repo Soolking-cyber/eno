@@ -1371,9 +1371,16 @@ const nextConfig: NextConfig = {
      * off switch and runs in a CHILD's browser too. Blocked, the avatar still loads, connects and speaks (measured);
      * admitting it is the owner's call (the Spatius email and the legal draft carry the question). Never a wildcard.
      */
+    /**
+     * ⚡ …and LIVE LISTENING (2026-10-26, owner: "make it instant conversation"): the learner's speech streams from the page
+     * to Soniox's real-time socket (src/lib/classroom/soniox.ts, live-stt.ts) — `wss://stt-rt.soniox.com` only (the US
+     * project's host; a Japan project gets its own host here once granted). The key it opens with is minted per socket by
+     * our server; the page never sees the account key.
+     */
     const cspClassroom = cspFor(
       " https://global.spatialwalk.top https://cdn.spatialwalk.cloud https://cdn.spatius.ai" +
-      " https://api.ap-northeast.spatius.ai wss://api.ap-northeast.spatius.ai https://api.us-west.spatius.ai wss://api.us-west.spatius.ai",
+      " https://api.ap-northeast.spatius.ai wss://api.ap-northeast.spatius.ai https://api.us-west.spatius.ai wss://api.us-west.spatius.ai" +
+      " wss://stt-rt.soniox.com",
     );
     /**
      * ⚠️ MEASURING, NOT ENFORCING (security review 2026-10-22, item 24). The enforced script-src above keeps

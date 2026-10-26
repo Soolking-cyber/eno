@@ -42,6 +42,11 @@ vi.mock('./speech-local', async (orig) => ({
     return seen.silence ? { text: '', status: 'silence' } : { text: 'I go to school yesterday', status: 'ok' }
   },
 }))
+vi.mock('./soniox', async (orig) => ({
+  ...(await orig<typeof import('./soniox')>()),
+  sonioxConfig: () => ({ key: 'k'.repeat(40), rest: 'https://api.soniox.com', ws: 'wss://stt-rt.soniox.com/transcribe-websocket', model: 'stt-rt-v5' }),
+  mintSttKey: async () => 'temp_live_key',
+}))
 vi.mock('./azure-speech', async (orig) => ({
   ...(await orig<typeof import('./azure-speech')>()),
   speechConfig: () => ({ key: 'k', region: 'southeastasia' }),
@@ -416,17 +421,31 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     }
   })
 
-  it('⛔ the page goes away mid-answer (talked over, closed): its voice stops, and the turn is STILL saved', async () => {
+  it('⛔ the page goes away mid-answer (talked over, closed): its voice stops; the turn is saved as what was HEARD', async () => {
     const seat = await activeSeat()
     const s = await start.startLearnerSession(seat.id, parentId)
     seen.replyText = LONG_REPLY
     try {
+      // gone after the first sentence was voiced: saved, with that sentence as the reply — no drill, no hint
       const r = await turn.processTurn(s.id, parentId, 'turn-gone-00001', voice())
       if (r.kind !== 'answer') throw new Error('expected an answer')
-      expect((await r.lines.next()).value).toEqual({ kind: 'heard', learnerText: 'I go to school yesterday' })
+      for await (const l of r.lines) if (l.kind === 'part-end') break
       r.stop()
       await r.done
-      expect(await db.classroomTurn.findFirst({ where: { sessionId: s.id, clientTurnId: 'turn-gone-00001' } })).toMatchObject({ status: 'ok', replyText: LONG_REPLY })
+      // (the server voices ahead of the page's playback, so "voiced" may run a sentence past what was heard — never the
+      // unvoiced rest of the reply)
+      const gone1 = await db.classroomTurn.findFirstOrThrow({ where: { sessionId: s.id, clientTurnId: 'turn-gone-00001' } })
+      expect(gone1).toMatchObject({ status: 'ok', expectText: null, hint: '' })
+      expect(LONG_REPLY.startsWith(gone1.replyText)).toBe(true)
+      expect(gone1.replyText.length).toBeGreaterThan(0)
+      expect(gone1.replyText.length).toBeLessThan(LONG_REPLY.length)
+      // gone before a word was voiced: the turn is given back — no reply nobody heard enters the history
+      const r2 = await turn.processTurn(s.id, parentId, 'turn-gone-00002', voice())
+      if (r2.kind !== 'answer') throw new Error('expected an answer')
+      expect((await r2.lines.next()).value).toEqual({ kind: 'heard', learnerText: 'I go to school yesterday' })
+      r2.stop()
+      await r2.done
+      expect(await db.classroomTurn.findFirst({ where: { sessionId: s.id, clientTurnId: 'turn-gone-00002' } })).toMatchObject({ status: 'failed' })
     } finally {
       seen.replyText = null
     }
@@ -520,6 +539,48 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
       vi.unstubAllEnvs()
       await Promise.all(afterQueue.splice(0))
     }
+  })
+
+  it('⛔ live listening’s key: the same checks as a turn BEFORE any audio leaves — owner, live, seat, notices, switch', async () => {
+    const grant = await import('./stt-grant')
+    const seat = await activeSeat()
+    const s = await start.startLearnerSession(seat.id, parentId)
+    expect(await grant.sttGrant(s.id, parentId)).toMatchObject({ apiKey: 'temp_live_key', model: 'stt-rt-v5', languageHints: ['en'] })
+    await expect(grant.sttGrant(s.id, otherParentId)).rejects.toMatchObject({ code: 'session_not_found' })
+    // a notice agreed to under an older version: no audio to Soniox until the family agrees again
+    const learner = await db.classroomSession.findUniqueOrThrow({ where: { id: s.id }, select: { learnerId: true } })
+    await db.classroomLearner.update({ where: { id: learner.learnerId! }, data: { practiceConsentVersion: '2026-10-25' } })
+    await expect(grant.sttGrant(s.id, parentId)).rejects.toMatchObject({ code: 'consent_required' })
+    await db.classroomLearner.update({ where: { id: learner.learnerId! }, data: { practiceConsentVersion: notices.PRACTICE_NOTICE_VERSION } })
+    // a few keys per session, no more (a reload, a dropped socket)
+    for (let n = 1; n < grant.STT_KEYS_PER_SESSION; n++) await grant.sttGrant(s.id, parentId)
+    await expect(grant.sttGrant(s.id, parentId)).rejects.toMatchObject({ code: 'speech_unavailable' })
+    // the minute re-check: a paused seat is no longer heard
+    await expect(grant.sttAllowed(s.id, parentId)).resolves.toBeTruthy()
+    await db.classroomEnrollment.update({ where: { id: seat.id }, data: { status: 'paused' } })
+    await expect(grant.sttAllowed(s.id, parentId)).rejects.toMatchObject({ code: 'seat_inactive' })
+    await db.classroomEnrollment.update({ where: { id: seat.id }, data: { status: 'active' } })
+    await end.endSession(s.id, parentId, 'learner')
+    await expect(grant.sttGrant(s.id, parentId)).rejects.toMatchObject({ code: 'session_over' })
+    await Promise.all(afterQueue.splice(0))
+  })
+
+  it('⛔ heard LIVE: the words are the turn (no transcription); a drill without its clip is skipped, never left pending', async () => {
+    const seat = await activeSeat()
+    const s = await start.startLearnerSession(seat.id, parentId)
+    await db.classroomTurn.updateMany({ where: { sessionId: s.id, seq: 0 }, data: { expectText: 'I went to school.' } })
+    seen.assessed.length = 0
+    const r = await turn.processTurn(s.id, parentId, 'turn-live-00001', null, new Date(), { text: 'I went to school', ms: 1_400 })
+    if (r.kind !== 'answer') throw new Error('expected an answer')
+    const lines: TurnLine[] = []
+    for await (const l of r.lines) lines.push(l)
+    await r.done
+    await Promise.all(afterQueue.splice(0))
+    expect(lines[0]).toEqual({ kind: 'heard', learnerText: 'I went to school' })
+    expect(await db.classroomTurn.findFirst({ where: { sessionId: s.id, clientTurnId: 'turn-live-00001' } })).toMatchObject({ status: 'ok', learnerText: 'I went to school', learnerMs: 1_400, reference: null, assessStatus: 'skipped' })
+    expect(seen.assessed).toEqual([])
+    // nothing said live is silence, not a turn
+    expect(await turn.processTurn(s.id, parentId, 'turn-live-00002', null, new Date(), { text: '   ', ms: 300 })).toEqual({ kind: 'silence' })
   })
 
   it('⛔ the switch bites on the next turn, not when the sweep comes round', async () => {

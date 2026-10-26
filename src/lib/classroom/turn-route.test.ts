@@ -15,6 +15,7 @@ vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true, res
 vi.mock('@/lib/client-ip', () => ({ clientIp: () => '203.0.113.7' }))
 vi.mock('@/lib/log', () => ({ logWarn: (...a: unknown[]) => { h.logs.push(a) }, logError: (...a: unknown[]) => { h.logs.push(a) }, logInfo: () => {} }))
 vi.mock('@/lib/classroom/session-turn', () => ({
+  LIVE_TEXT_MAX: 1_000,
   processTurn: async (...args: unknown[]) => {
     h.calls.push(args)
     if (h.error) throw h.error
@@ -60,7 +61,31 @@ describe('the turn route’s answer, line by line', () => {
     expect(res.headers.get('content-type')).toBe('application/x-ndjson; charset=utf-8')
     expect(res.headers.get('cache-control')).toBe('private, no-store')
     expect(await res.text()).toBe('{"kind":"silence"}\n')
-    expect(h.calls).toEqual([['s1', 'p1', 'turn-abcdefgh', Buffer.alloc(64)]])
+    expect(h.calls.map((c) => c.slice(0, 4))).toEqual([['s1', 'p1', 'turn-abcdefgh', Buffer.alloc(64)]])
+    expect(h.calls[0][5]).toBeUndefined() // no transcript: heard the old way
+  })
+
+  it('heard LIVE: the words from x-transcript (base64url UTF-8) and x-speech-ms, no clip unless one is sent', async () => {
+    h.result = { kind: 'silence' }
+    const words = 'Tôi đi chợ hôm qua — I go to market'
+    const res = await POST(new Request('http://localhost/api/classroom/sessions/s1/turns', {
+      method: 'POST', headers: { 'x-turn-id': 'turn-abcdefgh', 'x-transcript': Buffer.from(words).toString('base64url'), 'x-speech-ms': '2300' },
+    }), { params: Promise.resolve({ id: 's1' }) })
+    expect(res.status).toBe(200)
+    expect(h.calls[0][3]).toBeNull()
+    expect(h.calls[0][5]).toEqual({ text: words, ms: 2300 })
+    // a drill: the clip comes too
+    await POST(new Request('http://localhost/api/classroom/sessions/s1/turns', {
+      method: 'POST', headers: { 'content-type': 'audio/wav', 'x-turn-id': 'turn-abcdefgh', 'x-transcript': Buffer.from('I think so').toString('base64url'), 'x-speech-ms': '900' }, body: new Uint8Array(64),
+    }), { params: Promise.resolve({ id: 's1' }) })
+    expect(h.calls[1][3]).toEqual(Buffer.alloc(64))
+    expect(h.calls[1][5]).toEqual({ text: 'I think so', ms: 900 })
+    // anything but base64url is refused before the turn
+    const bad = await POST(new Request('http://localhost/api/classroom/sessions/s1/turns', {
+      method: 'POST', headers: { 'x-turn-id': 'turn-abcdefgh', 'x-transcript': 'not base64!', 'x-speech-ms': '1' },
+    }), { params: Promise.resolve({ id: 's1' }) })
+    expect(bad.status).toBe(400)
+    expect(h.calls).toHaveLength(2)
   })
 
   it('an answer: every line as turn-stream.ts wrote it, in order, each ended by a line break; nginx told not to buffer', async () => {

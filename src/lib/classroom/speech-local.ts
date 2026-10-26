@@ -65,6 +65,8 @@ export type Heard = { text: string; status: 'ok' | 'silence' }
  */
 export const STT_BUDGET_MS = 12_000
 export const TTS_BUDGET_MS = 10_000
+/** Within a streamed line, the longest wait for its next frame (the speech server makes them ~10x faster than real time). */
+export const TTS_STALL_MS = 4_000
 /** The server answers 503 at once when it is full rather than queueing: one short wait, one retry, then "try again" —
  *  and the retry only when this much of the budget is still left. */
 const BUSY_RETRY_MS = 400
@@ -166,13 +168,18 @@ export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voi
   const reader = res.body!.getReader()
   // Stopped (talked over, or no first sound in time): a read waiting for more ends at once, whatever the body does.
   stop.signal.addEventListener('abort', () => { reader.cancel().catch((e) => logError(quietError(e), { op: 'classroom.speech.cancel' })) }, { once: true })
+  let stall: ReturnType<typeof setTimeout> | undefined
   async function* chunks(): AsyncGenerator<Uint8Array> {
     let carry: Uint8Array | null = null
     try {
       for (;;) {
         const { value, done } = await reader.read()
         clearTimeout(firstByte)
+        // …and every later frame within TTS_STALL_MS, or the line ends there (2026-10-26 review round 2, codex: after the
+        // first sound nothing timed the rest).
+        clearTimeout(stall)
         if (done) break
+        stall = setTimeout(onAbort, TTS_STALL_MS)
         // PCM16 is whole 2-byte samples: a chunk cut mid-sample keeps its odd byte for the next one.
         let bytes: Uint8Array = carry ? concatBytes(carry, value) : value
         carry = null
@@ -183,6 +190,7 @@ export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voi
       // stopped (talked over) or cut short: the line simply ends here
     } finally {
       clearTimeout(firstByte)
+      clearTimeout(stall)
       signal?.removeEventListener('abort', onAbort)
       reader.cancel().catch((e) => logError(quietError(e), { op: 'classroom.speech.cancel' }))
     }

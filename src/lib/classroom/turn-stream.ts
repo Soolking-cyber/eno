@@ -65,8 +65,9 @@ export function streamTurn(t: {
   /** The avatar's voice; null = none (the words still reach the screen). */
   speak: Speaker | null
   /** Saves the answered turn and returns the `reply` line; throws when it could not (having given the row back, or kept
-   *  a harm flag, itself). `clientGone`: the page has left — whatever runs "after the response" must run now. */
-  save: (a: Answer, ctx: { clientGone: boolean }) => Promise<SavedReply>
+   *  a harm flag, itself). `clientGone()`: has the page left NOW — read at the moment work is scheduled "after the
+   *  response" (2026-10-26 review round 2, opus: a value read before the save's awaits could be stale). */
+  save: (a: Answer, ctx: { clientGone: () => boolean }) => Promise<SavedReply>
   /** No answer at all: gives the reserved turn back. Never throws. */
   giveUp: (e: unknown) => Promise<void>
   /** eno's own kind words for a turn the brain flagged for harm but whose reply could not be used (safety.ts). */
@@ -76,7 +77,9 @@ export function streamTurn(t: {
 }): TurnStream {
   const q = lineQueue<TurnLine>()
   const gone = new AbortController()
-  const voice = voiceOf(q, t.speak, gone.signal)
+  /** The sentences whose voice had started (or, with no voice, whose words were shown) — what the learner heard. */
+  const voiced: string[] = []
+  const voice = voiceOf(q, t.speak, gone.signal, (text) => voiced.push(text))
   const done = (async () => {
     q.push({ kind: 'heard', learnerText: t.learnerText })
     const said: string[] = []
@@ -114,11 +117,24 @@ export function streamTurn(t: {
         return
       }
     }
+    // ⛔ THE PAGE LEFT (talked over, closed) BEFORE THE REPLY WAS ALL VOICED: the reply is what WAS voiced — sentences
+    // written but still queued for their voice were never heard, and a drill among them would score the next turn against
+    // a sentence nobody asked for (2026-10-26 review round 2, codex + opus). A flag is kept whatever the page did.
+    const flat = (x: string) => x.replace(/\s+/g, ' ').trim()
+    if (gone.signal.aborted && !answer.reply.safety && flat(voiced.join(' ')) !== flat(answer.reply.reply)) {
+      const text = voiced.join(' ')
+      if (!text) {
+        await t.giveUp(new Error('classroom_unheard'))
+        q.close()
+        return
+      }
+      answer = { reply: { reply: mayBeSpoken([], text) ? text : '', hint: '', hintVi: '', expect: null, heardAs: [], safety: false }, model: 'cut-off', calls: answer.calls }
+    }
     // A flagged turn never sets a drill (2a round 10, opus): nothing after a disclosure is scored as a repeat of anything.
     if (answer.reply.safety) answer = { ...answer, reply: { ...answer.reply, expect: null } }
     let saved: SavedReply | null = null
     try {
-      saved = await t.save(answer, { clientGone: gone.signal.aborted })
+      saved = await t.save(answer, { clientGone: () => gone.signal.aborted })
     } catch {
       // save() gave the row back (or kept the flag) and logged it. A learner who has heard nothing hears "try again".
       if (!said.length && !answer.reply.safety) {
@@ -167,18 +183,22 @@ export function replayTurn(saved: SavedReply, speak: Speaker | null): TurnStream
  * anyway, ~10x faster than it is spoken) — each `say` first, then its frames. A sentence whose voice fails is
  * 'audio-failed' and the next one is still made. finish(): when every sentence's voice is done, the last part-end and end.
  */
-function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSignal) {
+function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSignal, onVoiced?: (text: string) => void) {
   let parts = 0
   let chain: Promise<void> = Promise.resolve()
   const one = async (part: number, text: string) => {
+    if (gone.aborted) return
     q.push({ kind: 'say', part, text })
-    if (!speak || gone.aborted) return
+    // A sentence counts as VOICED once its first sound went out — or, with no voice at all, once its words were shown
+    // (2026-10-26 review, codex: counted at `say`, a sentence still waiting for its voice was saved as heard).
+    if (!speak) { onVoiced?.(text); return }
     try {
       const v = await speak(text, gone)
       let held: Uint8Array[] = []
       let size = 0
       let first = true
       const send = () => {
+        if (first && !gone.aborted) onVoiced?.(text)
         q.push({ kind: 'pcm', part, rate: v.rate, data: Buffer.concat(held).toString('base64') })
         held = []
         size = 0
@@ -192,10 +212,15 @@ function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSigna
       }
       if (gone.aborted) return
       if (size) send()
+      // A voice that never sent a sound (stalled before its first frame, cut at once) is a failed voice, not a spoken one
+      // (2026-10-26 review round 2, codex).
+      if (first) throw Object.assign(new Error('tts_empty'), { status: 502 })
       q.push({ kind: 'part-end', part, last: false })
     } catch (e) {
       logWarn('[classroom] reply TTS failed', { part, status: (e as { status?: number } | null)?.status ?? null })
       q.push({ kind: 'audio-failed', part })
+      // Its words were on the screen: seen, if not heard.
+      if (!gone.aborted) onVoiced?.(text)
     }
   }
   return {

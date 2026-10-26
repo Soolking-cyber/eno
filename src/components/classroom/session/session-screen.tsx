@@ -14,16 +14,18 @@ import { cn } from '@/lib/utils'
 import type { StartedSession } from '@/lib/classroom/session-start'
 import type { AgeBand } from '@/lib/classroom/limits'
 import { dayName, refusalCopy } from '../classroom-copy'
-import { AvatarStage, warmAvatarKit, type StageHandle } from './avatar-stage'
+import { AvatarStage, FACE_RATE, warmAvatarKit, type StageHandle } from './avatar-stage'
 import { bufferFromPcm16, decodeLine, partPlayer, pcmFromBase64, resamplePcm16 } from './voice'
 import { useRecorder } from './use-recorder'
+import { openLiveStt, type LiveStt } from './live-stt'
+import { streamTo16k } from '@/lib/classroom/wav'
 import { beginTrace, formatMark, mark, traceVisible, useTrace } from './trace'
 
 /**
  * intro → (Start) connecting → [tap — iOS only] → listening ⇄ hearing → thinking → speaking → listening …
  * `hearing` = the learner is talking (the detector heard speech start); `listening` = waiting for them to.
  */
-type Phase = 'intro' | 'connecting' | 'tap' | 'listening' | 'hearing' | 'thinking' | 'speaking' | 'ending' | 'mic_denied'
+type Phase = 'intro' | 'connecting' | 'listening' | 'hearing' | 'thinking' | 'speaking' | 'ending' | 'mic_denied'
 
 /**
  * One line of the turn route's answer (application/x-ndjson; a plain JSON answer is read as the same shape). Streamed
@@ -36,7 +38,7 @@ type TurnLine =
   | { kind: 'say'; part: number; text: string }
   | { kind: 'pcm'; part: number; rate: number; data: string }
   | { kind: 'part-end'; part: number; last: boolean }
-  | { kind: 'reply'; learnerText: string; reply: string; hint: string; hintVi: string; secondsLeft: number; parts?: number; audio?: string | null }
+  | { kind: 'reply'; learnerText: string; reply: string; hint: string; hintVi: string; secondsLeft: number; expect?: string | null; parts?: number; audio?: string | null }
   | { kind: 'audio'; part: number; audio: string }
   | { kind: 'audio-failed'; part: number }
   | { kind: 'error'; error: string }
@@ -64,14 +66,32 @@ const REPLY_GRACE_MS = 5_000
 
 /** The reply being played: which one, its parts, how many reached the face or the speakers, whether the last did, whether
  *  the face has started playing it, and how much audio it holds since when (the watchdog's clock). */
-const freshReply = (id: number) => ({ id, parts: 0, given: 0, lastGiven: false, played: false, audioMs: 0, startedAt: 0 })
+const freshReply = (id: number) => ({ id, parts: 0, given: 0, lastGiven: false, played: false, audioMs: 0, startedAt: 0, toFace: false })
+
+/** Live listening sends the learner's speech ~100 ms at a time (16 kHz samples). */
+const LIVE_CHUNK = 1_600
+/** After the detector heard the learner stop, how long Soniox's words may take before the clip goes the old way. */
+const LIVE_WORDS_MS = 3_000
+/** The longest transcript sent (the server takes the same: session-turn.ts LIVE_TEXT_MAX). */
+const LIVE_TEXT_MAX_CHARS = 1_000
+/** Soniox ending an utterance on this few words while the detector still hears the learner is a filler, not a turn. */
+const FILLER_WORDS = 2
+/** Listening live, the page's own silence timer waits this long past Soniox's cap before it ends the turn itself. */
+const LIVE_BACKSTOP_MS = 600
+
+/** The learner's words for the `x-transcript` header: UTF-8 in base64url (a header carries no raw UTF-8). */
+function base64url(text: string): string {
+  let bin = ''
+  for (const b of new TextEncoder().encode(text)) bin += String.fromCharCode(b)
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
 
 /**
  * The previous turn is still being saved (talked over before its reply was written — the server answers one turn at a
  * time): the same upload is sent again after a moment, up to this many times, rather than losing what the learner said.
  */
-const BUSY_RETRIES = 4
-const BUSY_WAIT_MS = 1_200
+const BUSY_RETRIES = 8
+const BUSY_WAIT_MS = 1_250
 
 const turnId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '')
 
@@ -111,6 +131,8 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const [hint, setHint] = useState<{ en: string; vi: string } | null>(null)
   const [showHint, setShowHint] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  /** The face is drawn and waits for a tap to start its audio (iOS, Safari) — the conversation goes on meanwhile. */
+  const [faceTap, setFaceTap] = useState(false)
   const [left, setLeft] = useState(0)
   // The audio context's rate, fixed at the start: End nulls the context, and a changed rate would re-run the avatar's load
   // — a token POST for a session already over (C3a round 2, Opus).
@@ -149,26 +171,64 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
    */
   const ended = useRef(false)
   const turnAbort = useRef<AbortController | null>(null)
+  /** Live listening for this session once its socket is open (live-stt.ts) — null: each turn's clip goes whole. */
+  const liveStt = useRef<LiveStt | null>(null)
+  /** The current utterance's stream to 16 kHz, and its samples not yet sent (~100 ms at a time). */
+  const to16k = useRef<((f: Float32Array) => Int16Array) | null>(null)
+  const pending16k = useRef<Int16Array[]>([])
+  /** The clip the 45 s cap took while live listening still owed the words. */
+  const pendingClip = useRef<Uint8Array | null>(null)
+  /** The learner stopped and Soniox owes the words: after LIVE_WORDS_MS without them, the clip goes the old way. */
+  const awaitingWords = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** The current utterance is streaming live (it began after live listening opened). */
+  const liveUtterance = useRef(false)
+  /** The detector has heard the learner stop (a silence of its patience) during the current utterance. */
+  const vadEnded = useRef(false)
+  /** Words Soniox ended early on (a lone filler while the learner still spoke): they lead the utterance's next words. */
+  const held = useRef({ text: '', ms: 0 })
+  /**
+   * WHICH TURN THE PAGE IS ON (2026-10-26 review round 2, codex): everything a turn schedules — its lines, its decoded
+   * parts, its close — checks this first, so a talked-over turn's late callbacks can never touch the next one.
+   */
+  const turnGen = useRef(0)
+  /** The face can take replies (its audio started). A reply goes to the face only if it was live when the reply BEGAN. */
+  const faceLive = useRef(false)
+  /** The sentence the last reply asked to be repeated: the next turn sends its clip too, for Azure to score. */
+  const lastExpect = useRef<string | null>(null)
 
-  const handlers = useRef({ speechStart: () => {}, speechEnd: () => {}, autoStop: (_wav: Uint8Array) => {} })
+  const handlers = useRef({
+    speechStart: () => {}, speechEnd: () => {}, autoStop: (_wav: Uint8Array) => {}, frames: (_f: Float32Array) => {},
+    utterance: (_text: string, _ms: number) => {}, liveFailed: () => {},
+  })
   const rec = useRecorder({
     speechStart: () => handlers.current.speechStart(),
     speechEnd: () => handlers.current.speechEnd(),
     autoStop: (wav) => handlers.current.autoStop(wav),
+    frames: (f) => handlers.current.frames(f),
   })
   const releaseRec = rec.release
 
   // The SDK is fetched while the intro is up, so the face is not waiting on a ~9 MB download after Start.
   useEffect(() => { void warmAvatarKit().catch(() => {}) }, [])
 
+  /**
+   * How long a silence ends the turn: the band's patience — or, listening live, only a BACKSTOP behind Soniox, which ends
+   * the utterance itself on meaning and pauses within its own cap (soniox.ts sttSettingsFor).
+   */
+  const patience = useCallback(() => {
+    const own = PATIENCE_MS[startRef.current?.band ?? 'adult']
+    const l = liveStt.current
+    return l ? Math.max(own, l.maxDelayMs + LIVE_BACKSTOP_MS) : own
+  }, [])
+
   /** Hands-free: wait for the learner to speak (unless muted). */
   const listen = useCallback(() => {
     if (ended.current) return
     go('listening')
     if (mutedRef.current) { rec.unlisten(); return }
-    rec.listen({ endMs: PATIENCE_MS[startRef.current?.band ?? 'adult'], barge: false })
+    rec.listen({ endMs: patience(), barge: false })
     mark('listening')
-  }, [go, rec])
+  }, [go, patience, rec])
 
   const stopSpeaking = useCallback(() => {
     player.current?.stop()
@@ -186,10 +246,10 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     if (phaseRef.current !== 'speaking') {
       go('speaking')
       mark('first sound out')
-      if (BARGE_IN && !mutedRef.current) rec.listen({ endMs: PATIENCE_MS[startRef.current?.band ?? 'adult'], barge: true })
+      if (BARGE_IN && !mutedRef.current) rec.listen({ endMs: patience(), barge: true })
     }
     const r = reply.current
-    if (r.given === 0) r.startedAt = performance.now()
+    if (r.given === 0) { r.startedAt = performance.now(); r.toFace = modeRef.current === 'avatar' && faceLive.current }
     r.given += 1
     r.audioMs += audio instanceof AudioBuffer ? audio.duration * 1000 : (audio.pcm.length / audio.rate) * 1000
     if (last) {
@@ -205,10 +265,10 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
         listen()
       }, Math.max(0, left) + REPLY_GRACE_MS)
     }
-    if (modeRef.current === 'avatar') {
+    if (r.toFace) {
       const ok = audio instanceof AudioBuffer
         ? stage.current?.speakPart(audio, last)
-        : stage.current?.speakPcm(resamplePcm16(audio.pcm, audio.rate, ctx.sampleRate), last)
+        : stage.current?.speakPcm(resamplePcm16(audio.pcm, audio.rate, FACE_RATE), last)
       if (ok) return // the face reports its end (onPlaying)
     }
     const buffer = audio instanceof AudioBuffer ? audio : bufferFromPcm16(ctx, audio.pcm, audio.rate)
@@ -217,7 +277,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       // The last part has played on the speakers: the learner's turn.
       if (last && !ended.current && phaseRef.current === 'speaking') { mark('voice: done'); listen() }
     })
-  }, [go, listen, rec, stopSpeaking])
+  }, [go, listen, patience, rec, stopSpeaking])
 
   /**
    * ⛔ HOWEVER THIS SCREEN CLOSES — End, "Not now", a refused start, navigating away — the microphone and the audio
@@ -227,6 +287,10 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const releaseAll = useCallback(() => {
     turnAbort.current?.abort()
     turnAbort.current = null
+    liveStt.current?.close()
+    liveStt.current = null
+    if (awaitingWords.current) clearTimeout(awaitingWords.current)
+    awaitingWords.current = null
     stopSpeaking()
     releaseRec()
     const ctx = ctxRef.current
@@ -306,13 +370,18 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     }
   }
 
-  const sendTurn = async (wav: Uint8Array) => {
+  /**
+   * One turn: the learner's words heard live (`transcript`, with the clip only when the last reply set a drill — Azure scores
+   * it), or the clip alone, the old way.
+   */
+  const sendTurn = async (turn: { wav?: Uint8Array; transcript?: string; speechMs?: number }) => {
     const s = startRef.current
     if (!s || ended.current) return
+    const gen = ++turnGen.current
     rec.unlisten()
     go('thinking')
     setShowHint(false)
-    mark('sent', `${Math.round(wav.length / 32)}ms of speech`)
+    mark('sent', turn.transcript !== undefined ? `${turn.transcript.length} chars${turn.wav ? ' + clip' : ''}` : `${Math.round((turn.wav?.length ?? 0) / 32)}ms of speech`)
     const abort = new AbortController()
     turnAbort.current = abort
     const timer = setTimeout(() => abort.abort(), TURN_WAIT_MS)
@@ -322,20 +391,33 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     let answered = false
     try {
       const id = turnId()
-      const body = new Blob([new Uint8Array(wav)])
-      let res = await fetch(`/api/classroom/sessions/${s.id}/turns`, { method: 'POST', headers: { 'content-type': 'audio/wav', 'x-turn-id': id }, body, signal: abort.signal })
+      const headers: Record<string, string> = { 'x-turn-id': id }
+      if (turn.wav) headers['content-type'] = 'audio/wav'
+      if (turn.transcript !== undefined) {
+        headers['x-transcript'] = base64url(turn.transcript)
+        headers['x-speech-ms'] = String(Math.max(0, Math.round(turn.speechMs ?? 0)))
+      }
+      const body = turn.wav ? new Blob([new Uint8Array(turn.wav)]) : undefined
+      const post = () => fetch(`/api/classroom/sessions/${s.id}/turns`, { method: 'POST', headers, body, signal: abort.signal })
+      let res = await post()
       for (let tries = 0; res.status === 409 && tries < BUSY_RETRIES; tries++) {
         const why = (await res.clone().json().catch(() => ({}))) as { error?: string }
         if (why.error !== 'turn_in_progress') break
         mark('previous turn still saving — retrying')
         await new Promise((r) => setTimeout(r, BUSY_WAIT_MS))
-        if (ended.current || abort.signal.aborted) return
-        res = await fetch(`/api/classroom/sessions/${s.id}/turns`, { method: 'POST', headers: { 'content-type': 'audio/wav', 'x-turn-id': id }, body, signal: abort.signal })
+        if (ended.current || abort.signal.aborted || gen !== turnGen.current) return
+        res = await post()
       }
       if (!res.ok) {
         clearTimeout(timer)
         const body = (await res.json().catch(() => ({}))) as { error?: string }
         if (ended.current) return
+        // A session that may no longer be heard (a withdrawal, a removed seat, the switch) is not heard live either: the
+        // socket closes on the first refusal (review, codex + opus).
+        if (body.error === 'consent_required' || body.error === 'seat_inactive' || body.error === 'classroom_closed' || body.error === 'session_over') {
+          liveStt.current?.close()
+          liveStt.current = null
+        }
         if (body.error === 'session_over' || body.error === 'turn_cap') return void end('time')
         setNotice(body.error ?? 'unknown')
         listen()
@@ -344,7 +426,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       let streamed = false
       let spokenText = ''
       await readAnswer(res, (l) => {
-        if (ended.current) return
+        if (ended.current || gen !== turnGen.current) return
         if (l.kind === 'silence') { answered = true; mark('heard nothing'); return }
         if (l.kind === 'heard') { mark('heard', `${l.learnerText.length} chars`); setLearnerLine(l.learnerText); setAvatarLine(''); return }
         if (l.kind === 'error') { mark('no answer', l.error); setNotice(l.error); return }
@@ -358,11 +440,11 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
         }
         if (l.kind === 'pcm') {
           if (phaseRef.current === 'hearing') return
-          chain = chain.then(() => { if (!ended.current && phaseRef.current !== 'hearing') give({ pcm: pcmFromBase64(l.data), rate: l.rate }, false) })
+          chain = chain.then(() => { if (!ended.current && gen === turnGen.current && phaseRef.current !== 'hearing') give({ pcm: pcmFromBase64(l.data), rate: l.rate }, false) })
           return
         }
         if (l.kind === 'part-end') {
-          if (l.last) chain = chain.then(() => closeReply())
+          if (l.last) chain = chain.then(() => { if (gen === turnGen.current) closeReply() })
           return
         }
         if (l.kind === 'reply') {
@@ -371,28 +453,30 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
           setLearnerLine(l.learnerText)
           setHint(l.hint ? { en: l.hint, vi: l.hintVi } : null)
           setLeft(l.secondsLeft)
+          lastExpect.current = l.expect ?? null
           // Streamed: the captions grow sentence by sentence with the voice (`say`) — the whole reply is not shown ahead of it.
           if (streamed) return
           setAvatarLine(l.reply)
           reply.current.parts = l.parts ?? (l.audio ? 1 : 0)
-          if (l.audio) { const a = l.audio; chain = chain.then(() => decodeAndGive(a, true)) }
+          if (l.audio) { const a = l.audio; chain = chain.then(() => decodeAndGive(a, true, gen)) }
           return
         }
         if (l.kind === 'audio') {
           const last = l.part === reply.current.parts - 1
           mark(`voice part ${l.part + 1}/${reply.current.parts}`)
           const a = l.audio
-          chain = chain.then(() => decodeAndGive(a, last))
+          chain = chain.then(() => decodeAndGive(a, last, gen))
           return
         }
         if (l.kind === 'audio-failed') {
           mark(`voice part ${l.part + 1} FAILED`)
           // The face waits for a reply's last part: a failed last part still closes the reply.
-          if (l.part === reply.current.parts - 1) chain = chain.then(() => closeReply())
+          if (l.part === reply.current.parts - 1) chain = chain.then(() => { if (gen === turnGen.current) closeReply() })
         }
       })
       clearTimeout(timer)
       await chain
+      if (gen !== turnGen.current) return // talked over meanwhile: the next turn owns the screen
       // A reply cut off before its last part (the stream ended without "end" — a server bug, a dropped proxy): closed here,
       // so the face or the speakers hand the turn back after what did arrive (2026-10-26 review, codex + opus).
       if (!ended.current && reply.current.given > 0 && !reply.current.lastGiven && (phaseRef.current as Phase) !== 'hearing') {
@@ -401,7 +485,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       }
     } catch {
       clearTimeout(timer)
-      if (ended.current || abort.signal.aborted && phaseRef.current === 'hearing') return // talked over: already listening
+      if (ended.current || gen !== turnGen.current || abort.signal.aborted && phaseRef.current === 'hearing') return // talked over
       // ⛔ The voice stops BEFORE the microphone listens at full sensitivity again (2026-10-26 review, opus): what was still
       // queued would otherwise play into the open mic and start a turn of its own.
       stopSpeaking()
@@ -409,21 +493,21 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       listen()
       return
     }
-    if (ended.current) return
+    if (ended.current || gen !== turnGen.current) return
     // Nothing to say (silence, an error, or a reply with no voice): straight back to listening — once.
     if ((!answered || reply.current.given === 0) && phaseRef.current !== 'listening') listen()
   }
 
-  const decodeAndGive = async (b64: string, last: boolean) => {
+  const decodeAndGive = async (b64: string, last: boolean, gen: number) => {
     const ctx = ctxRef.current
-    if (!ctx || ended.current || phaseRef.current === 'hearing') return
+    if (!ctx || ended.current || gen !== turnGen.current || phaseRef.current === 'hearing') return
     try {
       const buffer = await decodeLine(ctx, b64)
       // Read again after the await (TypeScript keeps the first read's narrowing): the learner may have talked meanwhile.
-      if (ended.current || (phaseRef.current as Phase) === 'hearing') return
+      if (ended.current || gen !== turnGen.current || (phaseRef.current as Phase) === 'hearing') return
       give(buffer, last)
     } catch {
-      if (last) closeReply()
+      if (last && gen === turnGen.current) closeReply()
     }
   }
 
@@ -441,20 +525,116 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     const p = phaseRef.current
     if (ended.current || mutedRef.current) return
     if (p === 'speaking') {
-      // Talked over: the avatar stops at once, the rest of its reply is dropped, the learner's turn is recording.
+      // Talked over: the avatar stops at once, the rest of its reply is dropped, the learner's turn is recording — and the
+      // talked-over turn's late callbacks are disarmed.
       mark('talked over the avatar')
+      turnGen.current += 1
       turnAbort.current?.abort()
       stopSpeaking()
     } else if (p !== 'listening') return
     beginTrace('learner speaking')
     go('hearing')
+    // ⚡ LIVE LISTENING: this utterance streams to Soniox from its pre-roll on (the recorder sends that right after this).
+    const l = liveStt.current
+    liveUtterance.current = !!(l && ctxRef.current)
+    vadEnded.current = false
+    held.current = { text: '', ms: 0 }
+    if (l && ctxRef.current) {
+      to16k.current = streamTo16k(ctxRef.current.sampleRate)
+      pending16k.current = []
+      pendingClip.current = null
+      l.begin()
+    }
+  }
+  /** The learner's speech so far, to Soniox (live listening) — ~100 ms at a time. */
+  const flushLive = () => {
+    const l = liveStt.current
+    const parts = pending16k.current
+    pending16k.current = []
+    if (!l || !parts.length) return
+    const all = new Int16Array(parts.reduce((n, a) => n + a.length, 0))
+    let at = 0
+    for (const a of parts) { all.set(a, at); at += a.length }
+    l.push(all)
+  }
+  handlers.current.frames = (f) => {
+    const conv = to16k.current
+    if (!liveStt.current || !conv || phaseRef.current !== 'hearing') return
+    const pcm = conv(f)
+    if (!pcm.length) return
+    pending16k.current.push(pcm)
+    if (pending16k.current.reduce((n, a) => n + a.length, 0) >= LIVE_CHUNK) flushLive()
   }
   handlers.current.speechEnd = () => {
     if (ended.current || phaseRef.current !== 'hearing') return
     mark('learner stopped')
-    void sendTurn(rec.take())
+    vadEnded.current = true
+    // Live: Soniox usually ended the utterance already; if not, it ends it now — its words arrive as `utterance`. An
+    // utterance that began before live listening opened was never streamed: it goes as a clip, at once.
+    if (liveStt.current && liveUtterance.current) { flushLive(); liveStt.current.finalize(); owe(); return }
+    void sendTurn({ wav: rec.take() })
   }
-  handlers.current.autoStop = (wav) => { if (!ended.current && phaseRef.current === 'hearing') void sendTurn(wav) }
+  handlers.current.autoStop = (wav) => {
+    if (ended.current || phaseRef.current !== 'hearing') return
+    if (liveStt.current && liveUtterance.current) { flushLive(); pendingClip.current = wav; liveStt.current.finalize(); owe(); return }
+    void sendTurn({ wav })
+  }
+  /** The words are owed: if they do not come in time, the turn goes as a clip — never a learner left on "Listening…". */
+  const owe = () => {
+    if (awaitingWords.current) clearTimeout(awaitingWords.current)
+    awaitingWords.current = setTimeout(() => {
+      awaitingWords.current = null
+      if (ended.current || phaseRef.current !== 'hearing') return
+      mark('live listening: no words in time — sending the clip')
+      // The utterance is the clip's now: whatever Soniox still says about it is dropped (review, codex: late words
+      // became the NEXT turn).
+      liveStt.current?.cancel()
+      to16k.current = null
+      const clip = pendingClip.current ?? rec.take()
+      pendingClip.current = null
+      void sendTurn({ wav: clip })
+    }, LIVE_WORDS_MS)
+  }
+  /** Soniox finished an utterance: its words are the turn (with the clip only for a drill — Azure scores it). */
+  handlers.current.utterance = (text, ms) => {
+    if (ended.current || phaseRef.current !== 'hearing' || !liveUtterance.current) return
+    const words = [held.current.text, text].filter(Boolean).join(' ').trim()
+    const speechMs = held.current.ms + ms
+    // ⛔ A LONE FILLER IS NOT A TURN (2026-10-26 review, opus): Soniox may end on "Um" while the learner is still talking —
+    // the detector has not heard them stop. Kept, and the stream goes on: those words lead what comes next.
+    if (text && !vadEnded.current && text.trim().split(/\s+/).length <= FILLER_WORDS) {
+      held.current = { text: words, ms: speechMs }
+      mark('live: a filler — still listening', `${text.length} chars`)
+      liveStt.current?.begin()
+      return
+    }
+    if (awaitingWords.current) { clearTimeout(awaitingWords.current); awaitingWords.current = null }
+    held.current = { text: '', ms: 0 }
+    liveStt.current?.pause()
+    flushLive()
+    to16k.current = null
+    const clip = pendingClip.current ?? rec.take()
+    pendingClip.current = null
+    // Nothing at all was heard (the page's finalize found no words — a cough): back to listening.
+    if (!words) { mark('heard nothing (live)'); listen(); return }
+    mark('heard live', `${words.length} chars`)
+    void sendTurn({ transcript: words.slice(0, LIVE_TEXT_MAX_CHARS), speechMs, wav: lastExpect.current ? clip : undefined })
+  }
+  /**
+   * The live socket broke: from now on the clip goes whole. An utterance under way is recorded anyway, so the detector
+   * ends it the old way — unless the learner had already stopped and its words were owed: then its clip goes now.
+   */
+  handlers.current.liveFailed = () => {
+    liveStt.current = null
+    to16k.current = null
+    mark('live listening: off — back to clips')
+    if (awaitingWords.current && !ended.current && phaseRef.current === 'hearing') {
+      clearTimeout(awaitingWords.current)
+      awaitingWords.current = null
+      void sendTurn({ wav: pendingClip.current ?? rec.take() })
+      pendingClip.current = null
+    }
+  }
 
   // ── the clock: the server's deadline is the truth; the page ends the session when it runs out ──
   useEffect(() => {
@@ -479,22 +659,24 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     give(b, true)
   }, [give, listen])
 
-  /** The face has drawn: start it (no tap where the browser allows it — iOS asks for one), then the opening line. */
+  /**
+   * The face has drawn: start its audio (no tap where the browser allows it — iOS and Safari ask for one, without stopping
+   * the conversation) — and it takes the replies from the next one that begins.
+   */
   const onFaceReady = useCallback(async () => {
     if (ended.current || modeRef.current !== 'avatar') return
-    if (needsTapForAudio()) { go('tap'); return }
+    if (needsTapForAudio()) { setFaceTap(true); return }
     const ok = await stage.current?.unlock()
     if (ended.current) return
-    if (!ok) { go('tap'); return }
-    sayOpening()
-  }, [sayOpening])
+    if (ok) { faceLive.current = true; mark('face: takes the next reply') } else setFaceTap(true)
+  }, [])
 
-  const onTapToStart = async () => {
+  const onTapFace = async () => {
     hapticTap()
+    setFaceTap(false)
     const ok = await stage.current?.unlock()
     if (ended.current) return
-    if (!ok) setMode('voice')
-    sayOpening()
+    if (ok) { faceLive.current = true; mark('face: takes the next reply') } else setMode('voice')
   }
 
   /**
@@ -548,19 +730,27 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     if (ended.current) return
     setMode(s.mode)
     setStart(s)
-    // Voice mode speaks at once; avatar mode waits for the face (onFaceReady) — or for its fallback to voice.
-    if (s.mode === 'voice') sayOpening()
+    lastExpect.current = s.opening.expect ?? null
+    // ⚡ INSTANT START (owner, 2026-10-26: "its too slow"): the opening line plays at once on the speakers — the face loads
+    // meanwhile (10–20 s measured on the owner's Mac) and takes the replies from the first one that begins after it is live.
+    sayOpening()
+    // Live listening opens alongside (a key from the server, then Soniox's socket); until it is open, turns go as clips.
+    void openLiveStt(s.id, { utterance: (t, ms) => handlers.current.utterance(t, ms), failed: () => handlers.current.liveFailed() }).then((l) => {
+      if (ended.current) { l?.close(); return }
+      liveStt.current = l
+    })
   }
 
   const onFallback = useCallback(() => {
     mark('face: fell back to voice')
+    const wasFace = reply.current.toFace
+    faceLive.current = false
+    setFaceTap(false)
     setMode('voice')
-    // Still waiting for the face to say the opening line: say it now, in voice.
-    if (phaseRef.current === 'connecting' || phaseRef.current === 'tap') sayOpening()
     // ⛔ The face failed WHILE it spoke (2026-10-26 review, codex): what it held is gone with it, and nothing would ever
     // report the reply's end — the learner's turn now. The rest of a reply still arriving plays on the speakers.
-    else if (phaseRef.current === 'speaking') { stopSpeaking(); listen() }
-  }, [listen, sayOpening, stopSpeaking])
+    if (phaseRef.current === 'speaking' && wasFace) { stopSpeaking(); listen() }
+  }, [listen, stopSpeaking])
 
   const toggleMute = () => {
     hapticTap()
@@ -568,12 +758,15 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     setMuted(next)
     mutedRef.current = next
     if (next) {
+      // Muted mid-sentence: what was said so far is dropped — live, its words too.
+      if (phaseRef.current === 'hearing') { liveStt.current?.cancel(); to16k.current = null }
+      if (awaitingWords.current) { clearTimeout(awaitingWords.current); awaitingWords.current = null }
       rec.unlisten()
       if (phaseRef.current === 'hearing') go('listening')
     } else if (phaseRef.current === 'listening') {
       listen()
     } else if (phaseRef.current === 'speaking' && BARGE_IN) {
-      rec.listen({ endMs: PATIENCE_MS[startRef.current?.band ?? 'adult'], barge: true })
+      rec.listen({ endMs: patience(), barge: true })
     }
   }
 
@@ -654,9 +847,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
                 <span className="rounded-full bg-primary-foreground/15 px-4 py-2 text-sm">{tr('Connecting to {name}…', 'Đang kết nối với {name}…').replace('{name}', name)}</span>
               </div>
             )}
-            {phase === 'tap' && (
-              <div className="absolute inset-0 flex items-end justify-center p-6 pb-10">
-                <Button variant="cta" size="lg" className="w-full max-w-xs" onClick={() => void onTapToStart()}>{tr('Tap to start talking', 'Chạm để bắt đầu nói chuyện')}</Button>
+            {faceTap && live && (
+              <div className="absolute inset-x-0 top-3 flex justify-center px-4">
+                <Button variant="cta" size="sm" onClick={() => void onTapFace()}>{tr('Tap to see {name}', 'Chạm để xem {name}').replace('{name}', name)}</Button>
               </div>
             )}
             {phase === 'mic_denied' && (

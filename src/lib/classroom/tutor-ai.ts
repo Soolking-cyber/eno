@@ -269,9 +269,31 @@ export async function* tutorTurnStream(ai: GoogleGenAI | null, c: TutorContext, 
   }
   if (!ai) throw Object.assign(new Error('classroom_tutor_unavailable'), { calls })
   const r = await tutorTurn(ai, c, signal)
-  yield { kind: 'safety', harm: r.safety }
-  if (!r.safety) for (const s of r.reply.match(/[^.!?…]+[.!?…]*["'”’)\]]*\s*/g) ?? [r.reply]) if (s.trim()) yield { kind: 'say', text: s.trim() }
-  yield { kind: 'final', reply: r, model: r.model, calls: calls + r.calls }
+  // ⛔ The whole answer goes through the SAME gates as a streamed one — the contact gate with everything said, the digit
+  // hold (2026-10-26 review round 2, opus: this path spoke "0901. 234. 567" sentence by sentence) — as one delta.
+  const whole = JSON.stringify({ safety: r.safety ? 'harm' : 'none', reply: r.reply, hint: r.hint, hintVi: r.hintVi, expect: r.expect ?? '', heardAs: r.heardAs })
+  for await (const ev of sentencesOf((async function* () { yield whole })(), c)) {
+    if (ev.kind === 'final') { yield { ...ev, model: r.model, calls: calls + r.calls }; return }
+    yield ev
+  }
+}
+
+/**
+ * WARM THE BRAIN AT THE SESSION'S START (measured 2026-10-26, real Luna from Vietnam): a session's FIRST reply took 2.5 s
+ * to its first word, the next ones 1.1–1.4 s — a cold connection and a cold copy of the tutor's instructions at OpenAI.
+ * One tiny request on the same instructions while the opening line plays opens the connection and leaves the long,
+ * unchanging prefix in OpenAI's prompt cache. Fire and forget: a failure is a slower first reply, nothing more.
+ */
+export function warmTutorBrain(): void {
+  const cfg = openAiConfig()
+  if (!cfg) return
+  void (async () => {
+    try {
+      for await (const _ of streamJson(cfg, { instructions: TUTOR_INSTRUCTION, input: 'Session starting. Reply with safety "none" and an empty reply.', schema: TUTOR_JSON_SCHEMA, schemaName: 'tutor_turn', maxOutputTokens: 40 })) break
+    } catch {
+      // a warm-up: nothing to do
+    }
+  })()
 }
 
 /** Gemini starts a second request when the first has written nothing after this long (its spikes: p90 ~10 s, measured). */

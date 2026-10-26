@@ -7,7 +7,7 @@ import { getGeminiVertex } from '@/lib/gemini'
 import { LIMITS, STRICTNESS, type Strictness } from './constants'
 import { parseWav } from './wav'
 import { assess, speechConfig, type PronResult } from './azure-speech'
-import { localSpeechConfig, transcribe } from './speech-local'
+import { localSpeechConfig, transcribe, type Heard } from './speech-local'
 import { tutorTurnStream } from './tutor-ai'
 import { openAiConfig } from './llm-openai'
 import { parseFocus } from './plans'
@@ -29,6 +29,11 @@ export const MIN_TURN_MS = 350
  * LINE (sweep.ts ASSESS_STALE_S, 2a round 4, opus): no window in which a stuck turn neither blocks nor is given up.
  */
 export const BUSY_MS = 120_000
+
+/** A turn heard LIVE (the page streamed it to Soniox): the words, and how long the learner spoke. */
+export type LiveHeard = { text: string; ms: number }
+/** The longest live transcript taken: 45 s of speech is ~120 words, ~700 characters. */
+export const LIVE_TEXT_MAX = 1_000
 
 /** The brain's whole budget for one reply, its hand-overs included (tutor-ai.ts tutorTurnStream). */
 export const TUTOR_BUDGET_MS = 30_000
@@ -72,12 +77,14 @@ async function sessionOfCaller(sessionId: string, accountId: string, now: Date) 
  * dropped when it is done. ⛔ The clip is never written anywhere.
  * Refusals decided before the transcript are thrown (the route answers them as JSON errors); after it, they are lines.
  */
-export async function processTurn(sessionId: string, accountId: string, clientTurnId: string, wav: Buffer, now = new Date()): Promise<TurnResult> {
+export async function processTurn(sessionId: string, accountId: string, clientTurnId: string, wav: Buffer | null, now = new Date(), live?: LiveHeard): Promise<TurnResult> {
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(clientTurnId)) throw new ApiError('bad_request', 400)
-  const info = parseWav(wav)
+  // The clip, when one came (the old way, or a repeat-after-me sentence Azure will score); else the words alone.
+  const info = wav ? parseWav(wav) : live ? { ms: Math.max(0, Math.min(LIMITS.turnSeconds * 1000, Math.round(live.ms))), peak: 32_767 } : null
   if (!info || info.ms > (LIMITS.turnSeconds + 1) * 1000) throw new ApiError('audio_invalid', 400)
   const session = await sessionOfCaller(sessionId, accountId, now)
-  if (info.ms < MIN_TURN_MS || info.peak < SILENCE_PEAK) return { kind: 'silence' }
+  // Heard live, the words decide (a drill's clip may be quiet while Soniox heard words — review, opus); else the clip.
+  if (live ? !live.text.trim() : wav && (info.ms < MIN_TURN_MS || info.peak < SILENCE_PEAK)) return { kind: 'silence' }
 
   // ── Reserve the turn: the count, the duplicate and the seq, under the SESSION's lock, in a short transaction —
   // the slow calls run after it commits (codex, plan round 2: parallel distinct turns must never pass the cap).
@@ -147,13 +154,19 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     throw refusal
   }
 
-  const speech = localSpeechConfig()
-  if (!speech) return fail(new ApiError('speech_unavailable', 503))
-  let heard
-  try {
-    heard = await transcribe(speech, wav)
-  } catch (e) {
-    return fail(new ApiError('speech_unavailable', 503), e)
+  // ⛔ LIVE: THE WORDS SONIOX WROTE DOWN WHILE THE LEARNER SPOKE (soniox.ts; the page streamed it) — no transcription here.
+  // They are the learner's own words from the learner's own page, trusted like anything the learner says.
+  let heard: Heard
+  if (live) {
+    heard = { text: live.text.trim().slice(0, LIVE_TEXT_MAX), status: 'ok' }
+  } else {
+    const speech = localSpeechConfig()
+    if (!speech || !wav) return fail(new ApiError('speech_unavailable', 503))
+    try {
+      heard = await transcribe(speech, wav)
+    } catch (e) {
+      return fail(new ApiError('speech_unavailable', 503), e)
+    }
   }
   if (heard.status === 'silence') {
     await db.classroomTurn.update({ where: { id: turn.id }, data: { status: 'failed', updatedAt: new Date() } }).catch((e) => logError(quietError(e), { op: 'classroom.turn.unreserve' }))
@@ -196,8 +209,8 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
   const reference = pa ? asked : null
   const learnerText = heard.text
   /** After the answer (Next's after()) — or at once when the page has already gone: after() needs a response still open. */
-  const later = (clientGone: boolean, fn: () => Promise<unknown>) => {
-    if (clientGone) void fn().catch((e) => logError(quietError(e), { op: 'classroom.turn.later' }))
+  const later = (clientGone: () => boolean, fn: () => Promise<unknown>) => {
+    if (clientGone()) void fn().catch((e) => logError(quietError(e), { op: 'classroom.turn.later' }))
     else after(fn)
   }
 
@@ -206,7 +219,11 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
    * gives the reserved row back like any other failure (2a round 3, opus) — never a turn left 'processing' that blocks the
    * next upload for BUSY_MS and holds up the report.
    */
-  const save = async ({ reply, calls }: Answer, { clientGone }: { clientGone: boolean }): Promise<SavedReply> => {
+  const save = async ({ reply, calls }: Answer, { clientGone }: { clientGone: () => boolean }): Promise<SavedReply> => {
+    // ⛔ A FLAGGED TURN IS NEVER SCORED (2026-10-26 review round 2, codex): a learner who disclosed harm instead of repeating
+    // the drill does not have that disclosure sent to Azure. Nor is one that came without its clip (live words alone):
+    // marked skipped, never 'pending' with nothing to score.
+    const ref = reply.safety || !wav ? null : reference
     try {
       await db.$transaction(async (tx) => {
         // Written only while the turn is still 'processing' (2a round 4, opus): one the sweep already gave up stays given up.
@@ -214,7 +231,7 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
           where: { id: turn.id, status: 'processing' },
           data: {
             status: 'ok', learnerText, replyText: reply.reply, hint: reply.hint, hintVi: reply.hintVi, expectText: reply.expect,
-            reference, heardAs: reply.heardAs, assessStatus: reference ? 'pending' : 'skipped', flag: reply.safety ? 'harm' : null, aiCalls: calls, updatedAt: new Date(),
+            reference: ref, heardAs: reply.heardAs, assessStatus: ref ? 'pending' : 'skipped', flag: reply.safety ? 'harm' : null, aiCalls: calls, updatedAt: new Date(),
           },
         })
         if (!written.count) throw new ApiError('tutor_unavailable', 503)
@@ -240,10 +257,10 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     if (reply.safety) later(clientGone, () => alertSafetyTeam(sessionId))
     // ⛔ After the answer: score the clip in memory, then let it go. A failure is recorded as such — never retried later,
     // because nothing of the audio is left to retry with.
-    if (pa && reference) later(clientGone, async () => {
+    if (pa && ref && wav) later(clientGone, async () => {
       let pron: PronResult | null = null
       try {
-        pron = await assess(pa, wav, reference, true)
+        pron = await assess(pa, wav, ref, true)
       } catch (e) {
         logWarn('[classroom] pronunciation assessment failed', { status: (e as { status?: number }).status ?? null })
       }

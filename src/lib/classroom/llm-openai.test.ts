@@ -24,7 +24,9 @@ describe('openAiConfig', () => {
     vi.stubEnv('OPENAI_API_KEY', 'nope')
     expect(openAiConfig()).toBeNull()
     vi.stubEnv('OPENAI_API_KEY', KEY)
-    expect(openAiConfig()).toEqual({ key: KEY, model: 'gpt-6-luna', url: 'https://api.openai.com', firstTokenMs: 4_000 })
+    expect(openAiConfig()).toEqual({ key: KEY, model: 'gpt-6-luna', url: 'https://api.openai.com', firstTokenMs: 4_000, tier: 'priority' })
+    vi.stubEnv('CLASSROOM_OPENAI_TIER', 'default')
+    expect(openAiConfig()).toMatchObject({ tier: 'default' })
   })
   it('⛔ a local stand-in is THIS machine or nothing — the key never goes anywhere else', () => {
     vi.stubEnv('OPENAI_API_KEY', KEY)
@@ -54,24 +56,24 @@ describe('streamJson', () => {
     const urls: string[] = []
     const f = vi.fn(async (u: string | URL | Request, init?: RequestInit) => { urls.push(String(u)); calls.push(init!); return sse(['{"a":', '"b"}']) }) as unknown as typeof fetch
     const out: string[] = []
-    for await (const d of streamJson({ key: KEY, model: 'gpt-6-luna', url: 'https://api.openai.com', firstTokenMs: 4_000 }, { instructions: 'i', input: 'x', schema: { type: 'object' }, schemaName: 's', maxOutputTokens: 10 }, f)) out.push(d)
+    for await (const d of streamJson({ key: KEY, model: 'gpt-6-luna', url: 'https://api.openai.com', firstTokenMs: 4_000, tier: 'priority' }, { instructions: 'i', input: 'x', schema: { type: 'object' }, schemaName: 's', maxOutputTokens: 10 }, f)) out.push(d)
     expect(out.join('')).toBe('{"a":"b"}')
     const body = JSON.parse(String(calls[0].body))
-    expect(body).toMatchObject({ model: 'gpt-6-luna', reasoning: { effort: 'none' }, store: false, stream: true, text: { format: { type: 'json_schema', strict: true, name: 's' } } })
+    expect(body).toMatchObject({ model: 'gpt-6-luna', reasoning: { effort: 'none' }, service_tier: 'priority', store: false, stream: true, text: { format: { type: 'json_schema', strict: true, name: 's' } } })
     expect(new Headers(calls[0].headers).get('authorization')).toBe(`Bearer ${KEY}`)
     expect(urls).toEqual(['https://api.openai.com/v1/responses'])
   })
   it('⛔ a budget already spent sends nothing (review, codex): no request leaves', async () => {
     const f = vi.fn(async () => sse(['{}'])) as unknown as typeof fetch
     const spent = AbortSignal.abort()
-    const run = async () => { for await (const _ of streamJson({ key: KEY, model: 'm', url: 'https://api.openai.com', firstTokenMs: 4_000 }, { instructions: 'i', input: 'x', schema: {}, schemaName: 's', maxOutputTokens: 10, signal: spent }, f)) void _ }
+    const run = async () => { for await (const _ of streamJson({ key: KEY, model: 'm', url: 'https://api.openai.com', firstTokenMs: 4_000, tier: 'priority' }, { instructions: 'i', input: 'x', schema: {}, schemaName: 's', maxOutputTokens: 10, signal: spent }, f)) void _ }
     await expect(run()).rejects.toMatchObject({ status: 504 })
     expect(f).not.toHaveBeenCalled()
   })
   it('a refusal, a cut-off answer or a dropped connection is an LlmError', async () => {
     const run = async (r: Response | Error) => {
       const f = vi.fn(async () => { if (r instanceof Error) throw r; return r }) as unknown as typeof fetch
-      for await (const _ of streamJson({ key: KEY, model: 'm', url: 'https://api.openai.com', firstTokenMs: 4_000 }, { instructions: 'i', input: 'x', schema: {}, schemaName: 's', maxOutputTokens: 10 }, f)) void _
+      for await (const _ of streamJson({ key: KEY, model: 'm', url: 'https://api.openai.com', firstTokenMs: 4_000, tier: 'priority' }, { instructions: 'i', input: 'x', schema: {}, schemaName: 's', maxOutputTokens: 10 }, f)) void _
     }
     await expect(run(new Response('{}', { status: 429 }))).rejects.toMatchObject({ status: 429 })
     await expect(run(sse(['{"a"'], 'incomplete'))).rejects.toMatchObject({ status: 413 })

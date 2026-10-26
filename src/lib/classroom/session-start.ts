@@ -11,6 +11,7 @@ import { PRACTICE_NOTICE_VERSION, TEACHER_VIEW_NOTICE_VERSION } from './notices'
 import { spatiusConfig } from './spatius'
 import { libraryAvatarById } from './library-avatars'
 import { speakLine } from './session-voice'
+import { warmTutorBrain } from './tutor-ai'
 import { NextAtRefusal } from './refusal'
 import { containsContactInfo } from '@/lib/publish-guard'
 import { containsPhoneNumber } from '@/lib/phone'
@@ -188,6 +189,7 @@ export async function startLearnerSession(seatId: string, accountId: string, now
     return { session, opening, resumed: false }
   }, { maxWait: 5_000, timeout: 15_000 })
 
+  warmTutorBrain() // while the opening line is voiced (tutor-ai.ts says why)
   const audio = await speakLine(result.opening.text, seat.avatar.voice, seat.level, band).catch((e) => {
     logWarn('[classroom] opening line TTS failed', { status: (e as { status?: number }).status ?? null })
     return null
@@ -259,6 +261,7 @@ export async function startTeacherTest(accountId: string, now = new Date()): Pro
     return { session: s, opening: fresh, resumed: false }
   }, { maxWait: 5_000, timeout: 15_000 })
 
+  warmTutorBrain() // while the opening line is voiced (tutor-ai.ts says why)
   const audio = await speakLine(opening.text, avatar.voice, 'B1', 'adult').catch(() => null)
   return {
     id: session.id,

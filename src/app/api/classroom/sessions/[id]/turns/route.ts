@@ -1,6 +1,6 @@
-import { route } from '@/lib/api/handler'
+import { ApiError, route } from '@/lib/api/handler'
 import { readBytesCapped } from '@/lib/classroom/http'
-import { processTurn, type TurnResult } from '@/lib/classroom/session-turn'
+import { LIVE_TEXT_MAX, processTurn, type LiveHeard, type TurnResult } from '@/lib/classroom/session-turn'
 import type { TurnLine } from '@/lib/classroom/turn-stream'
 import { quietError } from '@/lib/classroom/quiet-error'
 import { LIMITS } from '@/lib/classroom/constants'
@@ -11,8 +11,10 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 40
 
 /**
- * POST /api/classroom/sessions/<id>/turns — one learner turn: the body is the WAV itself (16 kHz mono PCM16, ≤ 45 s —
- * wav.ts), the client's idempotency key in `x-turn-id`. A refusal decided before the transcript is the usual `{ error }`
+ * POST /api/classroom/sessions/<id>/turns — one learner turn, the client's idempotency key in `x-turn-id`. Heard LIVE
+ * (the page streamed the speech to Soniox — live-stt.ts): the words in `x-transcript` (base64url UTF-8) and `x-speech-ms`,
+ * with the WAV as the body only for a repeat-after-me sentence (Azure scores it). Otherwise the body is the WAV itself
+ * (16 kHz mono PCM16, ≤ 45 s — wav.ts), transcribed by eno's own speech server. A refusal decided before the transcript is the usual `{ error }`
  * with its status. Otherwise a 200 of JSON LINES (application/x-ndjson), each written as soon as it exists, so the avatar
  * starts talking about a second after the learner stops (owner, 2026-10-26: "delayless"):
  *   {"kind":"silence"}                                            and nothing more; or
@@ -28,8 +30,10 @@ export const maxDuration = 40
  * client cannot hammer the speech services.
  */
 export const POST = route({ auth: 'profile', rateLimit: { bucket: 'classroom-turn', limit: 240, window: '1 h' } }, async ({ req, profile, params }) => {
-  const wav = await readBytesCapped(req, LIMITS.turnBytes)
-  const result = await processTurn(params.id, profile.id, req.headers.get('x-turn-id') ?? '', wav)
+  const live = liveHeard(req.headers)
+  // The clip comes only with the old way, or with a repeat-after-me sentence (Azure scores it); live words come alone.
+  const wav = (req.headers.get('content-type') ?? '').startsWith('audio/') ? await readBytesCapped(req, LIMITS.turnBytes) : null
+  const result = await processTurn(params.id, profile.id, req.headers.get('x-turn-id') ?? '', wav, new Date(), live ?? undefined)
   return new Response(answerLines(result), {
     headers: {
       'content-type': 'application/x-ndjson; charset=utf-8',
@@ -39,6 +43,22 @@ export const POST = route({ auth: 'profile', rateLimit: { bucket: 'classroom-tur
     },
   })
 })
+
+/**
+ * A turn heard LIVE (live-stt.ts): `x-transcript` — the words, UTF-8 in base64url (a header carries no raw UTF-8) — and
+ * `x-speech-ms`. Null when absent; a malformed one is a 400.
+ */
+function liveHeard(h: Headers): LiveHeard | null {
+  const raw = h.get('x-transcript')
+  if (raw === null) return null
+  // Room for LIVE_TEXT_MAX characters of the widest UTF-8 (4 bytes each), in base64 (4 per 3); the text itself is cut to
+  // LIVE_TEXT_MAX by the turn (review, opus: a long Vietnamese transcript was refused whole).
+  if (raw.length > Math.ceil((LIVE_TEXT_MAX * 4 * 4) / 3) || !/^[A-Za-z0-9_-]*$/.test(raw)) throw new ApiError('bad_request', 400)
+  const text = Buffer.from(raw, 'base64url').toString('utf8')
+  const ms = Number(h.get('x-speech-ms') ?? '0')
+  if (!Number.isFinite(ms) || ms < 0) throw new ApiError('bad_request', 400)
+  return { text, ms }
+}
 
 /**
  * The answer as JSON lines, each ended by "\n", one per pull — a slow reader holds the lines back (in memory: one reply's

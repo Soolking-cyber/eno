@@ -53,13 +53,18 @@ export const PHOTO_NOTICE: readonly NoticeText[] = [
 export const photoNoticeBody = (): string => noticeBody([PHOTO_ACTION, ...PHOTO_NOTICE])
 
 // ── Learner, purpose 1: voice practice ─────────────────────────────────────────────────────────────────────────────
-// 2026-10-26: the meaning changed — the recording is written down and the replies are voiced on eno's own server in
-// Vietnam (Azure only scores repeat-after-me sentences), and OpenAI writes the live replies.
-export const PRACTICE_NOTICE_VERSION = '2026-10-26'
+// 2026-10-26: the meaning changed — the replies are voiced on eno's own server in Vietnam (Azure only scores
+// repeat-after-me sentences), and OpenAI writes the live replies. 2026-10-26b: the learner's voice is written down LIVE by
+// Soniox (US) — eno's own server only when Soniox is unavailable.
+export const PRACTICE_NOTICE_VERSION = '2026-10-26b'
 export const PRACTICE_NOTICE: readonly NoticeText[] = [
   {
-    en: 'Each time the learner speaks, the recording is written down on eno’s own server in Vietnam. We never store the recording.',
-    vi: 'Mỗi lần học viên nói, bản ghi âm được chuyển thành chữ trên máy chủ của chính eno tại Việt Nam. Chúng tôi không bao giờ lưu bản ghi âm.',
+    en: 'While the learner speaks, their voice streams to Soniox (United States), which writes it down as they talk. Soniox keeps none of it and trains nothing on it.',
+    vi: 'Khi học viên nói, giọng nói được truyền trực tiếp đến Soniox (Hoa Kỳ) để chuyển thành chữ ngay lúc nói. Soniox không lưu lại và không dùng để huấn luyện AI.',
+  },
+  {
+    en: 'If Soniox is unavailable, eno’s own server in Vietnam writes it down instead. We never store the recording.',
+    vi: 'Nếu Soniox không hoạt động, máy chủ của chính eno tại Việt Nam sẽ chuyển thành chữ thay thế. Chúng tôi không bao giờ lưu bản ghi âm.',
   },
   {
     // Every recipient (round 10, opus): Azure now hears only the repeat-after-me sentences, and keeps nothing.

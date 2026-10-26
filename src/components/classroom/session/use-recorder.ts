@@ -25,7 +25,13 @@ const VAD = {
  * takes the turn with `take()` — a 16 kHz mono WAV in memory. ⛔ Nothing is written anywhere: the WAV goes to the turn
  * route and is dropped there (plan: "Student audio is never stored"). A turn auto-stops at LIMITS.turnSeconds.
  */
-export function useRecorder(on: { speechStart: () => void; speechEnd: () => void; autoStop: (wav: Uint8Array) => void }) {
+export function useRecorder(on: {
+  speechStart: () => void
+  speechEnd: () => void
+  autoStop: (wav: Uint8Array) => void
+  /** Every frame of the turn as it is recorded — its pre-roll first — at the context's rate (live listening streams them). */
+  frames?: (frame: Float32Array) => void
+}) {
   const ctxRef = useRef<AudioContext | null>(null)
   const nodeRef = useRef<AudioWorkletNode | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -73,12 +79,14 @@ export function useRecorder(on: { speechStart: () => void; speechEnd: () => void
     const node = new AudioWorkletNode(ctx, 'classroom-recorder', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] })
     node.port.onmessage = (e: MessageEvent<Float32Array | { type: string; preRoll?: Float32Array[] }>) => {
       const d = e.data
-      if (d instanceof Float32Array) { chunks.current.push(d); return }
+      if (d instanceof Float32Array) { chunks.current.push(d); handlers.current.frames?.(d); return }
       if (d.type === 'speech-start') {
         chunks.current = [...(d.preRoll ?? [])]
         if (timer.current) clearTimeout(timer.current)
         timer.current = setTimeout(() => handlers.current.autoStop(take()), LIMITS.turnSeconds * 1000)
         handlers.current.speechStart()
+        // The pre-roll AFTER speechStart: a live stream opens its utterance there, then gets the turn's first sound.
+        for (const f of d.preRoll ?? []) handlers.current.frames?.(f)
       } else if (d.type === 'speech-end') {
         handlers.current.speechEnd()
       }

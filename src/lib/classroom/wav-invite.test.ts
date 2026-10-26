@@ -73,3 +73,30 @@ describe('invite codes', () => {
     expect(normalizeInviteCode(42)).toBe('')
   })
 })
+
+describe('streamTo16k — toPcm16k for a stream', () => {
+  it('fed in 100 ms frames, it gives what one whole pass gives — no seam at the frame boundaries', async () => {
+    const { streamTo16k, toPcm16k } = await import('./wav')
+    const rate = 48_000
+    const tone = new Float32Array(rate).map((_, i) => 0.5 * Math.sin((2 * Math.PI * 440 * i) / rate) + 0.2 * Math.sin((2 * Math.PI * 2_100 * i) / rate))
+    const whole = toPcm16k(tone, rate)
+    const push = streamTo16k(rate)
+    const parts: number[] = []
+    for (let i = 0; i < tone.length; i += 4_800) parts.push(...push(tone.subarray(i, i + 4_800)))
+    // The stream holds back its last few samples (the filter's look-ahead); everything it has given matches the whole
+    // pass, offset by the filter's half-length at the start.
+    expect(parts.length).toBeGreaterThan(whole.length - 40)
+    let worst = 0
+    const lag = whole.length - parts.length
+    for (let i = 200; i < parts.length - 200; i++) worst = Math.max(worst, Math.abs(parts[i] - whole[i + Math.round(lag / 2)] ) )
+    expect(worst).toBeLessThan(400)
+  })
+  it('a 16 kHz device passes straight through; nothing in, nothing out', async () => {
+    const { streamTo16k } = await import('./wav')
+    const push = streamTo16k(16_000)
+    expect(push(new Float32Array(0))).toHaveLength(0)
+    const out = [...push(new Float32Array(1_600).fill(0.25)), ...push(new Float32Array(1_600).fill(0.25))]
+    expect(out.length).toBeGreaterThan(3_000)
+    expect(new Set(out.slice(10, -10))).toEqual(new Set([Math.round(0.25 * 32767)]))
+  })
+})

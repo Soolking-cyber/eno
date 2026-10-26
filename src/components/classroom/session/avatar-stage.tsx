@@ -3,7 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Avatar } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
-import { pcm16Of } from './voice'
+import { pcm16Of, resamplePcm16 } from './voice'
 import { mark } from './trace'
 
 /**
@@ -20,7 +20,7 @@ export type StageHandle = {
    * makes them, so the face starts on the first sentence. False = not started; the page plays it itself.
    */
   speakPart: (buffer: AudioBuffer, last: boolean) => boolean
-  /** The same for raw PCM16 already at the face's rate (`sampleRate`) — the voice server's frames, streamed. */
+  /** The same for raw PCM16 already at FACE_RATE — the voice server's frames, streamed. */
   speakPcm: (pcm: Int16Array, last: boolean) => boolean
   interrupt: () => void
   /**
@@ -31,8 +31,27 @@ export type StageHandle = {
   unlock: () => Promise<boolean>
 }
 
+/**
+ * THE FACE'S AUDIO RATE: the voice server's own 24 kHz (measured 2026-10-26: the face only starts moving when Spatius's
+ * server sends back its first motion frames, so every byte up to it counts). It was the page's 48 kHz — the 24 kHz voice
+ * upsampled, twice the bytes for nothing — sent as raw PCM; now 24 kHz, compressed to Opus on the way up (~1/8 the bytes;
+ * the SDK's `opusUplinkEnabled`). Spatius supports 8–48 kHz.
+ */
+export const FACE_RATE = 24_000
+
+/** `?face=fast` on the page: the face's audio does not wait for its motion (owner testing — see frameStarvationMode). */
+function faceFast(): boolean {
+  try { return new URLSearchParams(window.location.search).get('face') === 'fast' } catch { return false }
+}
+
 /** How long the face may take to draw its first frame before the page gives up on it and stays voice-only. */
 const FIRST_FRAME_MS = 20_000
+/**
+ * …and its WHOLE load — the token, the ~9 MB SDK, the avatar's assets, then that first frame (2026-10-26 review round 2,
+ * opus: only the last step had a timer, so a stalled download on 3G never gave up). The conversation no longer waits for
+ * the face (it starts in voice), so this only stops it trying.
+ */
+const LOAD_MS = 45_000
 
 type Kit = typeof import('@spatius/avatarkit')
 
@@ -87,7 +106,8 @@ export const AvatarStage = forwardRef<StageHandle, {
     speakPart: (buffer, last) => {
       if (mode !== 'avatar' || !ctl.current) return false
       try {
-        ctl.current.send(pcm16Of(buffer), last)
+        const pcm = new Int16Array(pcm16Of(buffer))
+        ctl.current.send(resamplePcm16(pcm, buffer.sampleRate, FACE_RATE).slice().buffer, last)
         mark(last ? 'face: last part sent' : 'face: part sent', `${buffer.duration.toFixed(1)}s`)
         return true
       } catch {
@@ -141,6 +161,11 @@ export const AvatarStage = forwardRef<StageHandle, {
      * disposed right here — the cleanup below has already passed and would never see it (an open socket holds one of
      * the plan's concurrent sessions).
      */
+    const deadline = setTimeout(() => {
+      if (disposed || pending.current || ctl.current) return
+      mark('face: load failed', 'load_timeout')
+      fallback.current()
+    }, LOAD_MS)
     ;(async () => {
       try {
         mark('face: load')
@@ -159,13 +184,16 @@ export const AvatarStage = forwardRef<StageHandle, {
         const avatar = await kit.AvatarManager.shared.load(spatiusAvatarId, undefined, true)
         if (disposed || !box.current) return
         mark('face: assets')
-        const v = new kit.AvatarView(avatar, box.current, { audioFormat: { channelCount: 1, sampleRate } })
+        const v = new kit.AvatarView(avatar, box.current, { audioFormat: { channelCount: 1, sampleRate: FACE_RATE, opusUplinkEnabled: true } })
         view = v
         const c = v.controller
         // ⛔ STRICT SYNC (owner, 2026-10-26: "i cannot see live avatar" — the lips stood still). The SDK's default
         // (`audioIndependent`) keeps the AUDIO playing when the face's motion frames run late, so a slow frame stream is a
         // talking photo. strictSync holds the audio until the frames catch up: a short pause, never a still mouth.
-        c.frameStarvationMode = kit.FrameStarvationMode.strictSync
+        // ⚠️ `?face=fast` (owner testing, 2026-10-26): the voice starts at once and the lips catch up when Spatius's first
+        // motion frames arrive (~1.3 s measured) — against strictSync's pause before the voice. The owner judges which feels
+        // better; the default stays strictSync until then.
+        c.frameStarvationMode = faceFast() ? kit.FrameStarvationMode.audioIndependent : kit.FrameStarvationMode.strictSync
         c.onPlaybackStall = (stalled) => mark(stalled ? 'face: STALLED (motion late)' : 'face: resumed')
         c.onError = (e?: unknown) => { mark('face: error', String((e as { code?: string })?.code ?? e)); if (!disposed) fallback.current() }
         c.onConnectionState = (s) => { mark(`face: ${s}`); if (s === kit.ConnectionState.failed && !disposed) fallback.current() }
@@ -187,6 +215,7 @@ export const AvatarStage = forwardRef<StageHandle, {
     })()
     return () => {
       disposed = true
+      clearTimeout(deadline)
       if (run.current === mine) run.current = null
       pending.current = null
       try { ctl.current?.close() } catch { /* closed */ }
