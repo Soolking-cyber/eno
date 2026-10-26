@@ -24,6 +24,7 @@ import { shortDate } from '@/lib/dates'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { useLatestRequest } from '@/hooks/use-latest-request'
+import { LISTING_STATUS, LISTING_VERIFIED } from './listing-filters'
 
 type Row = {
   id: string; title: string; price: number; currency: string; image: string | null
@@ -56,14 +57,12 @@ function licenceBadge(r: Row, grandfatherUntil: string | undefined): { text: str
   return null
 }
 
-const STATUS = [
-  { v: 'all', label: 'All' }, { v: 'active', label: 'Active' }, { v: 'hidden', label: 'Hidden' }, { v: 'sold', label: 'Sold' },
-  // Tombstones (src/lib/listing-removed.ts): kept as evidence, invisible everywhere else.
-  { v: 'removed', label: 'Removed' },
-]
-const VERIFIED = [
-  { v: 'all', label: 'Any' }, { v: 'true', label: 'Live' }, { v: 'false', label: 'Held' },
-]
+const STATUS = LISTING_STATUS
+const VERIFIED = LISTING_VERIFIED
+// One page of the console. The route caps `limit` at 100; "Load more" asks for the rows after the last one shown (a
+// keyset cursor, `before`) — the console used to show only the newest 80 under "2,400 total", with no way to older held
+// listings (sweep 2026-10-22).
+const PAGE = 80
 
 // Admin listings tool: browse + batch act (delete / hide / activate / feature /
 // hold-release) over selected listings. Every action re-checks getAdmin server-side.
@@ -103,15 +102,16 @@ const ACTION_HINT = {
  * `licenceGrandfatherUntil`: when VietKite's grandfather ends ("21 Oct 2026, 00:00 ICT"), for the badge of its rows —
  * handed down by the catalogue page, because this client module cannot import licence-stamp.ts (node:crypto).
  */
-export function AdminListingsClient({ licenceGrandfatherUntil }: { licenceGrandfatherUntil?: string } = {}) {
+/** `pageSize`: rows per page — PAGE in the app; a test passes a small one so its jsdom table stays cheap. */
+export function AdminListingsClient({ licenceGrandfatherUntil, initialStatus = 'all', initialVerified = 'all', pageSize = PAGE }: { licenceGrandfatherUntil?: string; initialStatus?: string; initialVerified?: string; pageSize?: number } = {}) {
   const { lang } = useLanguage() // admin chrome stays English; amounts follow the viewer's language
   const [rows, setRows] = useState<Row[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [q, setQ] = useState('')
-  const [status, setStatus] = useState('all')
-  const [verified, setVerified] = useState('all')
+  const [status, setStatus] = useState(initialStatus)
+  const [verified, setVerified] = useState(initialVerified)
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [sorting, setSorting] = useState<SortingState>([])
   // ids awaiting the destructive confirm (alert-dialog replaces window.confirm)
@@ -128,18 +128,37 @@ export function AdminListingsClient({ licenceGrandfatherUntil }: { licenceGrandf
   // during a slow query) put two requests in flight; the EARLIER response landing
   // last overwrote rows/total for the current filters — and cleared the selection.
   const latest = useLatestRequest()
-  const load = useCallback(() => {
+  // Whether the route has more rows after the last one shown: a page shorter than PAGE is the end.
+  const [hasMore, setHasMore] = useState(false)
+  // The cursor for the next page — the last row served, in the route's order (createdAt desc, id desc). A keyset is
+  // immune to rows added or leaving the filter between pages, which made an offset repeat or skip rows. A ref, so
+  // `load` does not re-create per page.
+  const cursor = useRef('')
+  // `more`: append the next page and keep the selection. Otherwise the first page for the current filters. Each call
+  // begins a new request, so a filter change cancels a "Load more" in flight.
+  const load = useCallback((more = false) => {
     setLoading(true)
     const req = latest.begin()
-    const p = new URLSearchParams({ status, verified, limit: '80' })
+    const p = new URLSearchParams({ status, verified, limit: String(pageSize) })
+    if (more && cursor.current) p.set('before', cursor.current)
     if (q.trim()) p.set('q', q.trim())
     fetch(`/api/admin/listings?${p}`, { signal: req.signal })
-      .then((r) => r.json())
-      .then((d) => { if (!req.isCurrent()) return; setRows(d.listings || []); setTotal(d.total || 0); setSel((prev) => (prev.size ? new Set() : prev)) })
+      // A refused page is an error, never an empty one: read as `[]` it ended the list under "0 total".
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
+      .then((d) => {
+        if (!req.isCurrent()) return
+        const got: Row[] = d.listings || []
+        const last = got[got.length - 1]
+        if (last) cursor.current = `${last.createdAt}~${last.id}`
+        setHasMore(got.length === pageSize)
+        setRows((prev) => (more ? [...prev, ...got.filter((r) => !prev.some((x) => x.id === r.id))] : got))
+        setTotal(d.total || 0)
+        if (!more) setSel((prev) => (prev.size ? new Set() : prev))
+      })
       .catch(() => { if (req.isCurrent()) toast.error('Could not load listings') })
       .finally(() => { if (req.isCurrent()) setLoading(false) })
-  }, [q, status, verified, latest])
-  useEffect(() => { const t = setTimeout(load, 200); return () => clearTimeout(t) }, [load])
+  }, [q, status, verified, latest, pageSize])
+  useEffect(() => { const t = setTimeout(() => load(), 200); return () => clearTimeout(t) }, [load])
 
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const allSelected = rows.length > 0 && sel.size === rows.length
@@ -314,7 +333,7 @@ export function AdminListingsClient({ licenceGrandfatherUntil }: { licenceGrandf
   return (
     <div>
       <h1 className="text-2xl font-bold text-foreground">Listings</h1>
-      <p className="mt-1 text-sm text-muted-foreground">{total} total · select to batch-act.</p>
+      <p className="mt-1 text-sm text-muted-foreground">{hasMore ? `Showing ${rows.length} of ${total}` : `${total} total`} · select to batch-act.</p>
 
       {/* Filters */}
       <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -402,6 +421,11 @@ export function AdminListingsClient({ licenceGrandfatherUntil }: { licenceGrandf
               )}
             </TableBody>
           </Table>
+        </div>
+      )}
+      {rows.length > 0 && hasMore && (
+        <div className="mt-3 flex justify-center">
+          <Button variant="outline" onClick={() => load(true)} disabled={loading}>Load more ({rows.length} of {total})</Button>
         </div>
       )}
 

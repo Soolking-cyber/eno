@@ -171,6 +171,16 @@ async function pointersFor(reportIds: string[]): Promise<Map<string, { kind: Con
   return out
 }
 
+/**
+ * Every report on the same review / help reply / help post as `reportId` — the pile-on a content case's "Dismiss all N on
+ * this target" names (the inbox groups them by `content:<kind>:<id>`). Content reports carry no target columns, so the
+ * route's target chain fell to `{ id }` and dismissed only the one clicked. Null when `reportId` is not a content case.
+ */
+export async function contentCaseWhere(reportId: string): Promise<{ messages: { some: { senderRole: string; body: { startsWith: string } } } } | null> {
+  const p = (await pointersFor([reportId])).get(reportId)
+  return p ? { messages: { some: { senderRole: 'system', body: { startsWith: contentToken(p.kind, p.id) } } } } : null
+}
+
 /** For the moderation inbox: each content case's content, resolved live. Batched — four queries at most. */
 export async function reportedContentFor(reportIds: string[]): Promise<Map<string, ReportedContent>> {
   const pointers = await pointersFor(reportIds)

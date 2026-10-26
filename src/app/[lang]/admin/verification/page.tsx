@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { getAdmin } from '@/lib/admin'
 import { db } from '@/lib/db'
+import { KYC_QUEUE_WHERE } from '@/lib/kyc/queue-where'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { AdminSectionShell, pickTab } from '@/components/admin/section-shell'
 import { IdentityQueue } from '@/components/admin/sections/identity-queue'
@@ -27,7 +28,7 @@ export default async function AdminVerificationPage({ searchParams }: { searchPa
   if (!admin) return <AdminDenied />
   const sp = await searchParams
   const [pendingIdentity, pendingBusiness] = await Promise.all([
-    db.identityVerification.count({ where: { status: 'pending' } }),
+    db.identityVerification.count({ where: KYC_QUEUE_WHERE }),
     db.sellerVerification.count({ where: { status: 'pending' } }),
   ])
   const tab = pickTab(sp?.tab, TABS, pendingIdentity === 0 && pendingBusiness > 0 ? 'business' : 'identity')

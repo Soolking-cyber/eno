@@ -811,9 +811,16 @@ export async function upholdAppeal(actionId: string): Promise<boolean> {
   try {
     const action = await db.enforcementAction.findUnique({
       where: { id: actionId },
-      select: { id: true, profileId: true, appealedAt: true, appealOutcome: true, decidedBy: true, reason: true },
+      select: { id: true, profileId: true, appealedAt: true, appealOutcome: true, decidedBy: true, reason: true, status: true },
     })
     if (!action || !action.appealedAt || action.appealOutcome) return false
+    // An action that already ENDED (lifted, expired) is closed as 'moot', with no notice: telling a seller whose warning
+    // lapsed, or who was told "back in good standing", that "the decision stands" was untrue (sweep 2026-10-22). A
+    // SUPERSEDED human action can come back, so its appeal keeps the upheld flow and its copy.
+    if (action.status !== 'active' && action.status !== SUPERSEDED) {
+      const { count } = await db.enforcementAction.updateMany({ where: { id: actionId, appealOutcome: null }, data: { appealOutcome: 'moot', appealResolvedAt: new Date() } })
+      return count > 0
+    }
     await db.enforcementAction.update({ where: { id: actionId }, data: { appealOutcome: 'upheld', appealResolvedAt: new Date() } })
     // Only a SYSTEM-endable action "lifts automatically as your record improves"; an admin's or a
     // ban-evasion review never does (planSystemMove), so it gets the honest copy — and neither does

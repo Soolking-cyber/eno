@@ -21,6 +21,7 @@ import { handleExternalClick } from '@/lib/native-browser'
 import { cn } from '@/lib/utils'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { SITE_NAME } from '@/lib/edition'
+import { windowExtendedUntil } from '@/lib/dispute-window-row'
 
 // The dispute case room (Binance-P2P style): one shared timeline where the reporter,
 // the respondent and the eno.vn team exchange statements + evidence during the
@@ -205,6 +206,12 @@ export default function DisputeRoomPage() {
       : k === 'help-comment' ? t('This case is about a reply in the Help center.', 'Hồ sơ này liên quan đến một câu trả lời trong Trung tâm trợ giúp.')
       : t('This case is about a post in the Help center.', 'Hồ sơ này liên quan đến một bài viết trong Trung tâm trợ giúp.')
 
+  // The "evidence window extended" row is stored in English with a UTC instant; it reads here in the viewer's language and time.
+  const systemCopy = (body: string) => {
+    const until = windowExtendedUntil(body)
+    return until ? `${t('Evidence window extended until', 'Đã gia hạn thời gian nộp bằng chứng đến')} ${until.toLocaleString(deviceOrIntlLocale(lang))}` : body
+  }
+
   const decisionCopy = (d: CaseData) => {
     if (d.withdrawn) return { icon: XCircle, cls: 'text-ink-4', text: t('Case withdrawn by the reporter.', 'Người báo cáo đã rút lại hồ sơ.') }
     if (d.status === 'confirmed') return { icon: CheckCircle2, cls: 'text-success', text: t('Resolved — the report was upheld and action was taken.', 'Đã xử lý — báo cáo được xác nhận và đã có biện pháp.') }
@@ -346,7 +353,7 @@ export default function DisputeRoomPage() {
                   return (
                     <div key={item.id} className="text-center">
                       <Badge size="md" className="px-3 py-1 font-semibold text-body whitespace-normal">
-                        {item.kind === 'decision' ? (decisionCopy(data).text + (item.body ? ` — ${item.body}` : '')) : item.about ? aboutCopy(item.about) : item.body}
+                        {item.kind === 'decision' ? (decisionCopy(data).text + (item.body ? ` — ${item.body}` : '')) : item.about ? aboutCopy(item.about) : systemCopy(item.body)}
                       </Badge>
                       <p className="mt-0.5 text-3xs text-ink-4">{new Date(item.at).toLocaleString(deviceOrIntlLocale(lang))}</p>
                     </div>

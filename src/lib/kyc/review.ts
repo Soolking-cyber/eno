@@ -8,6 +8,7 @@ import { provisionWithinBudget } from './on-verified'
 import { logError } from '@/lib/log'
 import { ownsKycPath } from './store'
 import { notifyIdentityOutcome } from './notify-outcome'
+import { KYC_QUEUE_WHERE } from './queue-where'
 import { hmacSubject, subjectHashEquals } from '@/lib/compliance/subject-hash'
 import { passportNumberShape } from './passport-number'
 
@@ -133,7 +134,7 @@ export async function listKycQueue(limit = 50): Promise<KycQueueItem[]> {
      * A case whose person has exercised deletion is not a case awaiting a decision: the row is kept
      * as proof a submission happened, and there is nobody left to tell the outcome to.
      */
-    where: { status: 'pending', profileId: { not: null } },
+    where: KYC_QUEUE_WHERE,
     orderBy: { submittedAt: 'asc' },
     take: Math.min(limit, 200),
     select: {

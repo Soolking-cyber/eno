@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { AdminSectionShell } from '@/components/admin/section-shell'
 import { db } from '@/lib/db'
+import { KYC_QUEUE_WHERE } from '@/lib/kyc/queue-where'
 import { getAdmin } from '@/lib/admin'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { Card } from '@/components/ui/card'
@@ -28,7 +29,7 @@ export default async function AdminOverviewPage() {
   if (!admin) return <AdminDenied />
   const since7d = new Date(Date.now() - 7 * DAY_MS)
   const [pendingIdentity, pendingBusiness, openReports, appeals, underEnforcement, awaitingListings, usersTotal, users7d, listings7d, openTrips, supportUnread, licence] = await Promise.all([
-    db.identityVerification.count({ where: { status: 'pending' } }),
+    db.identityVerification.count({ where: KYC_QUEUE_WHERE }),
     db.sellerVerification.count({ where: { status: 'pending' } }),
     db.report.count({ where: { status: 'open' } }),
     db.report.count({ where: { status: 'open', appealedAt: { not: null } } }),
@@ -66,7 +67,7 @@ export default async function AdminOverviewPage() {
     { label: 'Accounts under enforcement', count: underEnforcement, href: '/admin/moderation?tab=enforcement', hint: 'Warned, throttled, held or suspended' },
     // verified:false = NOT publicly live yet (its page 404s, absent from feed and search) — the
     // catalogue console's Publish is what makes it live, so this IS the review queue.
-    { label: 'Listings awaiting review', count: awaitingListings, href: '/admin/catalogue?tab=listings', hint: 'Not yet published — Publish makes them live (licence aisles: see Licence checks)' },
+    { label: 'Listings awaiting review', count: awaitingListings, href: '/admin/catalogue?tab=listings&status=active&verified=false', hint: 'Not yet published — Publish makes them live (licence aisles: see Licence checks)' },
     // Publish skips the two licence aisles (it reports how many); they are approved under their own tab. The hint says
     // what is most urgent: a row live against the rule, then the grandfather's deadline, then the job itself.
     {

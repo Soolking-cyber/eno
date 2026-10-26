@@ -341,7 +341,7 @@ export function EnforcementClient() {
       {queue.appeals.length > 0 && (
         <section>
           <h2 className="h-section text-foreground">Pending appeals ({queue.appeals.length})</h2>
-          <p className="mt-0.5 mb-3 text-xs text-muted-foreground">Overturn lifts the action, restores pulled listings and resolves the appeal in the seller&apos;s favour. Uphold keeps the action and closes the appeal.</p>
+          <p className="mt-0.5 mb-3 text-xs text-muted-foreground">Overturn lifts the action, restores pulled listings and resolves the appeal in the seller&apos;s favour. Uphold keeps the action and closes the appeal. An appeal on an action that has already ended (lifted or expired) is closed without a notice to the seller.</p>
           <div className="space-y-3">
             {queue.appeals.map((a) => (
               <Card key={a.id} size="sm" className="block border-l-[3px] border-l-warning p-4 shadow-pop">
@@ -354,12 +354,20 @@ export function EnforcementClient() {
                 {a.appealText && <p className="mt-2 rounded-lg bg-tint/40 p-2 text-xs text-foreground">“{a.appealText}”</p>}
                 {a.adminNote && <p className="mt-1 text-2xs italic text-muted-foreground">Note to seller: {a.adminNote}</p>}
                 <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                  {a.reason === 'scam_hold' || scamRows.has(a.id) ? (
-                    scamControls(a)
+                  {/* An ended action can be neither overturned (409 not_active) nor truthfully upheld: the server
+                      closes its appeal as 'moot' with no notice (upholdAppeal). A superseded one can come back. */}
+                  {a.status !== 'active' && a.status !== 'superseded' ? (
+                    <Button variant="outline" size="none" onClick={() => act({ action: 'uphold_appeal', id: a.id }, a.id)} disabled={busyId === a.id} className={`${DECIDE} border-line-strong bg-transparent font-semibold text-foreground hover:bg-muted hover:text-foreground`}>Close — action already {a.status}</Button>
                   ) : (
-                    <Button variant="cta" size="none" onClick={() => act({ action: 'overturn', id: a.id }, a.id)} disabled={busyId === a.id} className="rounded-lg px-3 py-1 text-2xs disabled:opacity-40 cursor-pointer">Overturn (restore seller)</Button>
+                    <>
+                      {a.reason === 'scam_hold' || scamRows.has(a.id) ? (
+                        scamControls(a)
+                      ) : (
+                        <Button variant="cta" size="none" onClick={() => act({ action: 'overturn', id: a.id }, a.id)} disabled={busyId === a.id} className="rounded-lg px-3 py-1 text-2xs disabled:opacity-40 cursor-pointer">Overturn (restore seller)</Button>
+                      )}
+                      <Button variant="outline" size="none" onClick={() => act({ action: 'uphold_appeal', id: a.id }, a.id)} disabled={busyId === a.id} className={`${DECIDE} border-line-strong bg-transparent font-semibold text-foreground hover:bg-muted hover:text-foreground`}>Uphold (decision stands)</Button>
+                    </>
                   )}
-                  <Button variant="outline" size="none" onClick={() => act({ action: 'uphold_appeal', id: a.id }, a.id)} disabled={busyId === a.id} className={`${DECIDE} border-line-strong bg-transparent font-semibold text-foreground hover:bg-muted hover:text-foreground`}>Uphold (decision stands)</Button>
                   {busyId === a.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
                 </div>
               </Card>
@@ -372,7 +380,7 @@ export function EnforcementClient() {
       {queue.buyerWaiting.length > 0 && (
         <section>
           <h2 className="h-section text-foreground">Buyer waiting ({queue.buyerWaiting.length})</h2>
-          <p className="mt-0.5 mb-3 text-xs text-muted-foreground">Open reports unanswered by the seller for over 72 hours — resolve them in <a href="/admin" className="font-semibold text-accent-foreground hover:underline">Moderation</a>, or suspend a clear bad actor here.</p>
+          <p className="mt-0.5 mb-3 text-xs text-muted-foreground">Open reports unanswered by the seller for over 72 hours — resolve them in <a href="/admin/moderation?tab=reports" className="font-semibold text-accent-foreground hover:underline">Moderation</a>, or suspend a clear bad actor here.</p>
           <div className="space-y-2">
             {queue.buyerWaiting.map((r) => (
               <Card key={r.id} size="sm" className="block border-l-[3px] border-l-destructive p-3.5 shadow-pop">

@@ -51,7 +51,7 @@ const h = vi.hoisted(() => ({
 }))
 
 // ── the in-memory Listing table: the where-operators the route and licence-check use, with SQL's NULL semantics ──
-const OPS = ['in', 'notIn', 'not', 'equals', 'startsWith', 'none']
+const OPS = ['in', 'notIn', 'not', 'equals', 'startsWith', 'none', 'lt']
 function cond(v: unknown, c: any): boolean {
   if (c === null) return v === null || v === undefined
   if (c instanceof Date) return v instanceof Date && v.getTime() === c.getTime()
@@ -62,6 +62,7 @@ function cond(v: unknown, c: any): boolean {
     if (op === 'not') return x === null ? v != null : v != null && v !== x
     if (op === 'equals') return v === x
     if (op === 'startsWith') return typeof v === 'string' && v.startsWith(x)
+    if (op === 'lt') return v != null && (v instanceof Date ? v.getTime() < x.getTime() : (v as string) < x)
     throw new Error(`unexpected operator ${op}`)
   })
 }
@@ -590,6 +591,18 @@ describe('GET — where each listing stands with the licence check', () => {
     // The stamp itself never reaches the console.
     expect(JSON.stringify(listings)).not.toContain(LICENCE_STAMP_PREFIX)
     expect(h.deskCalls).toBe(1)
+  })
+
+  // Sweep 2026-10-22: the console showed only the newest 80. "Load more" pages by a keyset — immune to rows added or
+  // leaving the filter between pages — and `total` stays the filter's whole count.
+  it('`before=<createdAt>~<id>` returns only the rows after that one in (createdAt desc, id desc), with the whole count', async () => {
+    const t = (m: number) => new Date(Date.UTC(2026, 9, 1, 0, m))
+    h.rows = [plain('a3', { createdAt: t(3) }), plain('b2', { createdAt: t(2) }), plain('a2', { createdAt: t(2) }), plain('z1', { createdAt: t(1) })]
+    const res = await GET(new Request(`https://eno.vn/api/admin/listings?before=${encodeURIComponent(`${t(2).toISOString()}~b2`)}`) as never)
+    const { listings, total } = (await res.json()) as { listings: Row[]; total: number }
+    expect(listings.map((l) => l.id).sort()).toEqual(['a2', 'z1'])
+    expect(total).toBe(4)
+    expect(h.calls.find((c) => c.m === 'findMany')!.args.orderBy).toEqual([{ createdAt: 'desc' }, { id: 'desc' }])
   })
 
   it('a page without an aisle row does not resolve the desk at all', async () => {

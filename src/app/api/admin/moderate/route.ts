@@ -15,7 +15,8 @@ import { deskSellerIds } from '@/lib/edition-scope'
 import { licenceClearedWhere } from '@/lib/licence-stamp'
 import { NOT_REMOVED } from '@/lib/listing-removed'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
-import { takeDownReportedContent } from '@/lib/reported-content'
+import { contentCaseWhere, takeDownReportedContent } from '@/lib/reported-content'
+import { windowExtendedBody } from '@/lib/dispute-window-row'
 import { TEACHER_LISTING_TYPE, TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 
 export const dynamic = 'force-dynamic'
@@ -46,14 +47,27 @@ async function notifyActioned(targetProfileId: string, reportId: string) {
 // Tell each reporter their case closed with no violation — but ONLY for rows the
 // caller actually transitioned this instant (matched by the unique resolve stamp),
 // so a bulk/target dismiss can't double-notify on a concurrent resolve or replay.
+// The respondent, told at filing they had 72 hours to answer, learns it closed with no
+// action — as a single dismiss tells them — once per person, so a 20-report pile-on
+// sends one notice, not 20 (sweep 2026-10-22: bulk paths told only reporters).
 // Returns the transitioned ids — the caller settles any appeal charge they carried.
 async function notifyDismissedReporters(match: { resolvedBy: string; resolvedAt: Date } & Record<string, unknown>): Promise<string[]> {
   const rows = await db.report.findMany({
     where: { ...match, status: 'dismissed' },
-    select: { id: true, reporterProfileId: true },
+    select: { id: true, reporterProfileId: true, targetProfileId: true, targetSellerId: true },
   })
+  const seenTargets = new Set<string>()
+  const told = new Set<string>()
   for (const r of rows) {
     if (r.reporterProfileId) await notifyDispute(r.reporterProfileId, r.id, 'decided_dismissed_reporter')
+    const key = r.targetProfileId ?? (r.targetSellerId && `seller:${r.targetSellerId}`)
+    if (!key || seenTargets.has(key)) continue
+    seenTargets.add(key)
+    const respondent = await respondentProfileId(r)
+    if (respondent && !told.has(respondent)) {
+      told.add(respondent)
+      await notifyDispute(respondent, r.id, 'decided_closed_respondent')
+    }
   }
   return rows.map((r) => r.id)
 }
@@ -195,7 +209,8 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
       const where = report.targetProfileId ? { targetProfileId: report.targetProfileId }
         : report.targetSellerId ? { targetSellerId: report.targetSellerId }
-        : report.listingId ? { listingId: report.listingId } : { id }
+        : report.listingId ? { listingId: report.listingId }
+        : (await contentCaseWhere(id)) ?? { id }
       const stamp = new Date()
       const upd = await db.report.updateMany({ where: { ...where, status: 'open' }, data: { status: 'dismissed', resolvedBy: admin, resolvedAt: stamp } })
       // Notify from the rows THIS call actually transitioned (matched by our exact
@@ -723,7 +738,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // A visible thread event (notify:false — the richer copy below covers both sides).
       await addDisputeMessage(report, {
         senderProfileId: null, senderRole: 'system',
-        body: `Evidence window extended until ${until.toISOString()}`,
+        body: windowExtendedBody(until),
       }, { notify: false }).catch((e) => logError(e, { op: 'moderate.extendWindowMessage' }))
       if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, id, 'window_extended')
       const extendedRespondent = await respondentProfileId(report)

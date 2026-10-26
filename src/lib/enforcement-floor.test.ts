@@ -195,6 +195,23 @@ describe('upholdAppeal tells the truth about who lifts it', () => {
     expect(body).toContain(`${TRUST.SCAM_RELEASE_MIN_DAYS} days`)
     expect(h.notices[0].url).toBe('/dashboard/verification')
   })
+
+  // ⛔ Sweep 2026-10-22: an appeal outlives its action (a lapsed warning, a sync lift). Overturn 409s on it, and "the
+  // decision stands" was sent to a seller already back in good standing. It closes as 'moot', silently.
+  it('an appeal on an action that already ended closes as moot, with no notice; a superseded one is still upheld', async () => {
+    for (const status of ['lifted', 'expired']) {
+      const a = seed('warned', { reason: 'conduct_restricted', decidedBy: 'system', appealedAt: new Date(), status })
+      expect(await upholdAppeal(a.id)).toBe(true)
+      expect(a.appealOutcome).toBe('moot')
+    }
+    await Promise.all(h.pending)
+    expect(h.notices).toEqual([])
+    const s = seed('throttled', { reason: 'admin_manual', decidedBy: 'mod@eno.vn', appealedAt: new Date(), status: 'superseded' })
+    expect(await upholdAppeal(s.id)).toBe(true)
+    await Promise.all(h.pending)
+    expect(s.appealOutcome).toBe('upheld')
+    expect(h.notices).toHaveLength(1)
+  })
 })
 
 describe('the scam-hold notices (seller copy, EN + VI)', () => {
