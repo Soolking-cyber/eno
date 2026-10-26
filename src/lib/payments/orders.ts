@@ -56,13 +56,12 @@ const MINT_ATTEMPTS = 3
 
 /**
  * ⚠️ WHAT EACH RAIL ACTUALLY MOVES. A NAPAS 247 transfer is dong and nothing else; the stablecoin
- * and PayPal rails settle in USD. This is not configuration — it is what the rail IS — so an order
+ * rail settles in USD (as PayPal did, removed 2026-10-26). This is not configuration — it is what the rail IS — so an order
  * whose currency no available rail speaks has no rail, rather than a rail that will misprice it.
  */
 const RAIL_CURRENCY: Record<PaymentRailId, 'VND' | 'USD'> = {
   vietqr: 'VND',
   crossmint: 'USD',
-  paypal: 'USD',
 }
 
 export async function createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
@@ -78,7 +77,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
    * paymentless), on both parties' KYC, and on the country rules that keep a Vietnamese resident off
    * the stablecoin rail. Accepting a rail from the caller would let a client choose one the law
    * refuses, and the server would have agreed.
-   * ⚠️ THE FIRST ONE IS THE PREFERENCE ORDER: wallet, then the QR, then PayPal.
+   * ⚠️ THE FIRST ONE IS THE PREFERENCE ORDER: wallet, then the QR (PayPal removed 2026-10-26).
    */
   const rails = availableRails(input.buyer, input.seller)
   /**

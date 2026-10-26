@@ -126,7 +126,7 @@ export type VisaThreadInfo = {
     expectedReadyIso?: string | null
   } | null
   quote: VisaQuoteWire | null
-  providers: Array<'stripe' | 'paypal'>
+  providers: Array<'stripe'> // PayPal removed 2026-10-26 (owner)
 }
 
 /** One uploaded document, as the applicant's own case serializes it. */
@@ -273,7 +273,7 @@ export function parseVisaThreadInfo(value: unknown): VisaThreadInfo | null {
      * minify away.
      */
     providers: IS_SERVICES && Array.isArray(value.providers)
-      ? value.providers.filter((p): p is 'stripe' | 'paypal' => p === 'stripe' || p === 'paypal')
+      ? value.providers.filter((p): p is 'stripe' => p === 'stripe')
       : [],
   }
 }
@@ -2211,7 +2211,7 @@ export type VisaCheckoutCardProps = {
   /** This is the current, unpaid pay card AND the viewer is the applicant. */
   live: boolean
   busy: boolean
-  onPay: (provider: 'stripe' | 'paypal', quote: VisaQuoteWire) => void | Promise<void>
+  onPay: (provider: 'stripe', quote: VisaQuoteWire) => void | Promise<void>
   /** Re-post the last form step so the applicant can correct something before paying. Optional so
    *  the desk's read-only render of this card carries no escape hatch it should not offer. */
   onReview?: () => void | Promise<void>
@@ -2234,7 +2234,7 @@ export type VisaCheckoutCardProps = {
  * stylized" — the pay card.
  *
  * TWO NUMBERS, NEITHER OF THEM COMPUTED HERE: the đồng price the desk set on its own
- * listing, and the SERVER-ISSUED dollar quote that PayPal will actually capture. If the
+ * listing, and the SERVER-ISSUED dollar quote the provider will actually charge. If the
  * server could not issue a quote (FX down), the card SAYS SO and pays nothing — there is no
  * fallback rate on this surface and there must never be one.
  */

@@ -2254,7 +2254,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
     }
   }
 
-  const payVisa = async (provider: 'stripe' | 'paypal', quote: VisaQuoteWire) => {
+  const payVisa = async (provider: 'stripe', quote: VisaQuoteWire) => {
     const applicationId = visaInfo?.applicationId
     const listingId = visaInfo?.product?.listingId
     if (!applicationId || !listingId || visaBusy) return

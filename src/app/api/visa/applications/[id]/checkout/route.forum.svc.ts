@@ -8,7 +8,7 @@ import { decryptVisaPayload, visaApplicantSnapshotHash, visaCryptoReady } from '
 import { getVisaDb } from '@/lib/visa/db'
 import { selectedVisaDmListingId } from '@/lib/visa/dm-flow'
 import { isQuoteChargeable, parseVisaQuote, quoteVisaUsd, visaQuoteDrifted } from '@/lib/visa/fx'
-import { paypalCreateOrder, stripeCreateCheckout, visaPaymentsConfig } from '@/lib/visa/payments'
+import { stripeCreateCheckout, visaPaymentsConfig } from '@/lib/visa/payments'
 import { recordVisaEvent, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
 import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForReview } from '@/lib/visa/schema'
 
@@ -63,7 +63,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const bodySchema = z.object({
-  provider: z.enum(['stripe', 'paypal']),
+  provider: z.enum(['stripe']), // PayPal removed 2026-10-26 (owner) — a 'paypal' body is a 400 like any unknown provider
   // A CONFIRMATION of which product, never a choice of one and never how much. The charged
   // listing is the case's CANONICAL selection (see the header); this field is only ever
   // checked to EQUAL it, so a body naming a different listing refuses rather than redirects
@@ -319,21 +319,12 @@ export const POST = route({ auth: 'userId' }, async ({ req: request, params, use
   const amountCents = quote.amountUsdCents
 
   try {
-    const session = parsed.data.provider === 'stripe'
-      ? await stripeCreateCheckout({
-        applicationId: id, userId, listingId: product.listingId,
-        // currency is the CHARGE currency (USD), not the listing's (₫) — see
-        // assertChargeableUsdCents. `quote` rides along as dispute evidence only.
-        productTitle: product.title, amountCents, currency: 'USD', quote,
-      })
-      : await paypalCreateOrder({
-        applicationId: id, listingId: product.listingId,
-        productTitle: product.title, amountCents, currency: 'USD', quote,
-        // Forwarded so PayPal can hand back an APP-SWITCH link on mobile — the PayPal app
-        // cannot open without it (see appSwitchUserAgent). Passed raw and validated there;
-        // an absent or unusable header just means today's web checkout.
-        buyerUserAgent: request.headers.get('user-agent'),
-      })
+    const session = await stripeCreateCheckout({
+      applicationId: id, userId, listingId: product.listingId,
+      // currency is the CHARGE currency (USD), not the listing's (₫) — see
+      // assertChargeableUsdCents. `quote` rides along as dispute evidence only.
+      productTitle: product.title, amountCents, currency: 'USD', quote,
+    })
 
     const { error } = await db.from('visa_payments').insert({
       application_id: id,

@@ -652,7 +652,7 @@ export async function identityCapabilities(profileId: string): Promise<Set<Ident
    * ⛔ SETTLEMENT IS SERVICES-ONLY, BEFORE ANY COUNTRY RULE IS EVEN CONSULTED. Owner, 2026-08-30:
    * *"eno.vn stay paymentless but eno.forum will have payment settlement layer alongside paypal"*.
    * PayPal is also one of the three surfaces the licensed sàn TMĐT may not carry at all.
-   * ⚠️ THIS WAS THE ROUND-TWO DEFECT AND IT IS SUBTLE: `railAllowed('paypal', …)` returns null for
+   * ⚠️ THIS WAS THE ROUND-TWO DEFECT AND IT IS SUBTLE (PayPal is removed since 2026-10-26): `railAllowed('paypal', …)` returned null for
    * ANY kyc-verified pair — fiat availability is a licensing question, not a country-gate one — and
    * `partyFor` always sets `kycVerified: true`, so `availableRails` was never empty and `payments`
    * was unconditionally true for every verified identity, on the marketplace included. A reviewer

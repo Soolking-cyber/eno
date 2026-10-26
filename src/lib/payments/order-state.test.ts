@@ -148,7 +148,7 @@ describe('the table is total', () => {
     const reached = new Set<OrderStatus>(['pending'])
     for (const from of ALL_STATUSES) {
       for (const e of allowedEvents(from)) {
-        const r = applyEvent(order({ status: from, rail: 'paypal', amount: 100 }), e)
+        const r = applyEvent(order({ status: from, rail: 'vietqr', amount: 100 }), e)
         if ('status' in r) reached.add(r.status)
       }
     }

@@ -92,15 +92,12 @@ describe('createOrder — the only place a reference is minted', () => {
     expect(vndAbroad, 'a foreign pair has no dong rail').toEqual({ ok: false, reason: 'no_rail' })
 
     /**
-     * ⚠️ A VIETNAMESE PAIR PAYING IN USD GETS PAYPAL, AND THAT IS CORRECT — this test asserted
-     * `no_rail` until running it said otherwise. PayPal is lawful for a Vietnamese party and settles
-     * USD; what the DTI Law forbids them is the stablecoin rail, which the country gate already
-     * refuses. The currency rule picks the rail that speaks the price, it does not narrow the law.
+     * A VIETNAMESE PAIR PAYING IN USD HAS NO RAIL since PayPal was removed (owner, 2026-10-26) — PayPal was the
+     * one lawful USD rail for them; the stablecoin rail stays refused by the country gate, and the QR speaks dong.
+     * ⛔ AND NEVER THE WALLET, whatever the currency.
      */
     const usdInVietnam = await createOrder(input({ currency: 'USD', amount: 12_50 }))
-    expect(usdInVietnam.ok && usdInVietnam.rail).toBe('paypal')
-    // ⛔ AND NEVER THE WALLET, whatever the currency.
-    expect(usdInVietnam.ok && usdInVietnam.rail).not.toBe('crossmint')
+    expect(usdInVietnam).toEqual({ ok: false, reason: 'no_rail' })
   })
 
   it('⛔ refuses when no rail is open to the pair', async () => {

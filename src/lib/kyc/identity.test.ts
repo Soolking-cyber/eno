@@ -284,7 +284,7 @@ describe('partiesFor / railsFor — the intersection that replaced a summary', (
     vi.stubEnv('PAYMENTS_SETTLEMENT_COUNTRIES', 'GBR,DEU')
     // ⚠️ NO `vietqr` HERE, and that is correct: `railsFor` asks about a PERSON, and this identity
     // carries no seller payout details. The QR rail appears once a seller can be paid on it.
-    expect(railsFor(ident()).sort()).toEqual(['crossmint', 'paypal'])
+    expect(railsFor(ident()).sort()).toEqual(['crossmint']) // PayPal removed 2026-10-26
   })
 })
 
@@ -426,7 +426,9 @@ describe('capabilities — one verification unlocks all of them', () => {
       h.rows = [foreignResident({ nationality })]
       const caps = await identityCapabilities(PROFILE)
       expect(caps.has('wallet'), nationality).toBe(false)
-      expect(caps.has('payments'), nationality).toBe(true)
+      // `payments` came from PayPal, the fiat rail open to them; removed 2026-10-26, so none is (the QR needs a
+      // seller's payout details, which a person's own identity does not carry). No caller reads `payments` today.
+      expect(caps.has('payments'), nationality).toBe(false)
       expect(caps.has('esim'), nationality).toBe(true)
     }
   })
@@ -558,14 +560,13 @@ describe('capabilities — one verification unlocks all of them', () => {
     expect((await verifiedIdentityFor(PROFILE))?.residenceCountry).toBe('GBR')
   })
 
-  it('a Vietnamese resident DOES keep `payments` — the DTI restriction is stablecoins, not fiat', async () => {
-    // ⚠️ DELIBERATE, AND ASSERTED SO IT IS NOT MISTAKEN FOR THE ROUND-TWO BUG. PayPal is lawful for
-    // a Vietnamese party; what the DTI Law forbids is PAYING with digital assets. So on the
-    // services edition a VN resident gets `payments` and never `wallet`.
+  it('a Vietnamese resident never gets `wallet` — and, with PayPal removed, no `payments` from their identity alone', async () => {
+    // The DTI Law forbids PAYING with digital assets, so never `wallet`. `payments` came from PayPal, removed
+    // 2026-10-26; the QR rail needs a seller's payout details, which a person's own identity does not carry.
     vi.stubEnv('PAYMENTS_SETTLEMENT_COUNTRIES', 'GBR,DEU')
     h.rows = [row({ documentType: 'cccd' })]
     const caps = await identityCapabilities(PROFILE)
-    expect(caps.has('payments')).toBe(true)
+    expect(caps.has('payments')).toBe(false)
     expect(caps.has('wallet')).toBe(false)
   })
 

@@ -29,7 +29,7 @@ describe('settlement is a SERVICES-edition feature', () => {
     vi.resetModules()
     const fresh = await import('./eligibility')
     expect(fresh.availableRails(abroad, abroad)).toEqual([])
-    for (const rail of ['crossmint', 'vietqr', 'paypal'] as const) {
+    for (const rail of ['crossmint', 'vietqr'] as const) {
       expect(fresh.railAllowed(rail, abroad, abroad), rail).not.toBeNull()
     }
   })
