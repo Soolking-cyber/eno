@@ -103,6 +103,22 @@ describe('dispute evidence — the durable per-party cap (item 11)', () => {
     expect(h.counters.get(KEY)).toBe(0)
   })
 
+  // 2026-10-26: one result per file sent, in order, so the dispute room can mark the photo that did not attach and keep the
+  // stored ones for the next attempt (a whole-batch retry spent the cap on photos already stored).
+  it('reports each file\'s result in the order sent: its path, or null', async () => {
+    const gif = new File([new Uint8Array([1, 2, 3])], 'x.gif', { type: 'image/gif' })
+    const [a, b] = jpeg(2)
+    const body = await (await upload([a, gif, b])).json()
+    expect(body.results).toHaveLength(3)
+    expect(body.results[0]).toBe(body.paths[0])
+    expect(body.results[1]).toBeNull()
+    expect(body.results[2]).toBe(body.paths[1])
+    h.counters.set(KEY, 17)
+    const capped = await (await upload(jpeg(2))).json()
+    expect(capped.results[0]).toEqual(expect.any(String))
+    expect(capped.results[1]).toBeNull()
+  })
+
   it('a storage failure gives its slot back', async () => {
     h.storeOk = false
     await upload(jpeg(2))

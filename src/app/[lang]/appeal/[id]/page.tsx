@@ -104,10 +104,12 @@ export default function AppealPage() {
                 </div>
               ))}
               {files.length < 6 && (
-                <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 hover:bg-muted">
+                <label className="relative flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 hover:bg-muted focus-within:ring-2 focus-within:ring-ring">
                   <ImagePlus className="h-5 w-5" />
                   <span className="text-3xs font-semibold">{t('Add', 'Thêm')}</span>
-                  <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
+                  {/* sr-only, not hidden: a display:none input cannot take focus. The value is cleared after each pick so the
+                      same file chosen again (after removing it) still fires change. */}
+                  <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} />
                 </label>
               )}
             </div>

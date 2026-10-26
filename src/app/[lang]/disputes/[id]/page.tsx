@@ -96,10 +96,10 @@ export default function DisputeRoomPage() {
   const [data, setData] = useState<CaseData | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [text, setText] = useState('')
-  const [files, setFiles] = useState<{ url: string; file: File }[]>([])
-  // Evidence paths already uploaded in a previous (failed) send attempt — reused on
-  // retry so a messages-POST failure doesn't re-upload the same photos.
-  const [uploadedPaths, setUploadedPaths] = useState<string[] | null>(null)
+  // Each photo carries its own upload: `path` once stored (a retry after a failed statement POST reuses it), `failed` when
+  // the route could not store it (a HEIC, an oversized file). Per photo, not per batch: a batch cache was thrown away on
+  // any change, so every retry re-uploaded what was already stored and spent the per-party cap (sweep 2026-10-22).
+  const [files, setFiles] = useState<{ url: string; file: File; path?: string; failed?: boolean }[]>([])
   const [sending, setSending] = useState(false)
   const [withdrawing, setWithdrawing] = useState(false)
   const [confirmWithdraw, setConfirmWithdraw] = useState(false)
@@ -132,29 +132,43 @@ export default function DisputeRoomPage() {
     const arr = Array.from(list).slice(0, 6 - files.length)
     const next = await Promise.all(arr.map(async (f) => ({ url: URL.createObjectURL(f), file: await compressImageFile(f) })))
     setFiles((p) => [...p, ...next].slice(0, 6))
-    setUploadedPaths(null) // batch changed — a previous partial upload no longer matches
   }
 
   const send = async () => {
     if (!data || (text.trim().length === 0 && files.length === 0)) return
     setSending(true); setError('')
     try {
-      let paths: string[] = uploadedPaths ?? []
-      if (files.length && !uploadedPaths) {
+      let current = files
+      const pending = current.filter((f) => !f.path)
+      if (pending.length) {
         const form = new FormData()
-        for (const f of files) form.append('files', f.file)
+        for (const f of pending) form.append('files', f.file)
         const up = await fetch(`/api/disputes/${data.id}/evidence`, { method: 'POST', body: form })
-        const uj = (await up.json().catch(() => null)) as { paths?: string[]; error?: string } | null
-        if (!up.ok || !uj?.paths) {
+        const uj = (await up.json().catch(() => null)) as { results?: (string | null)[]; error?: string } | null
+        if (!up.ok || !Array.isArray(uj?.results)) {
           if (uj?.error === 'already_submitted') { await load(); return } // already spoke — show the locked state
           setError(uj?.error === 'window_closed'
             ? t('The evidence window has closed.', 'Đã hết thời gian nộp bằng chứng.')
+            : uj?.error === 'limit_reached'
+            ? t('This case holds no more photos — remove the new ones to send your statement.', 'Hồ sơ này không nhận thêm ảnh — hãy xóa ảnh mới để gửi trình bày của bạn.')
             : t('Could not upload the photos — try again.', 'Không tải được ảnh — thử lại.'))
           return
         }
-        paths = uj.paths
-        setUploadedPaths(paths) // survive a failed messages POST — retry reuses these
+        const results = uj.results
+        // By identity, into the LATEST list — the picker and the remove buttons are locked while sending, and a merge
+        // never brings back or drops a tile even if that ever changes.
+        const outcome = new Map(pending.map((f, k) => [f, results[k] ? { ...f, path: results[k]!, failed: false } : { ...f, failed: true }]))
+        current = current.map((f) => outcome.get(f) ?? f)
+        setFiles((prev) => prev.map((f) => outcome.get(f) ?? f))
+        // ⛔ A PARTIAL UPLOAD IS NOT SENT. The statement is one-shot, so a photo the route could not store would be
+        // missing from it for good, with no word (sweep 2026-10-22). The failed tiles are marked; the stored ones keep
+        // their paths for the next attempt.
+        if (current.some((f) => f.failed)) {
+          setError(t('Some photos could not be attached (a format we cannot read, too large, or over this case’s photo limit) — remove the marked ones, then send again.', 'Một số ảnh không đính kèm được (định dạng không đọc được, quá lớn hoặc vượt giới hạn ảnh của hồ sơ) — hãy xóa ảnh được đánh dấu rồi gửi lại.'))
+          return
+        }
       }
+      const paths = current.map((f) => f.path).filter((p): p is string => !!p)
       const res = await fetch(`/api/disputes/${data.id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -162,7 +176,7 @@ export default function DisputeRoomPage() {
       })
       if (!res.ok) {
         const code = (await res.json().catch(() => null))?.error as string | undefined
-        if (code === 'already_submitted') { setText(''); setFiles([]); setUploadedPaths(null); await load(); return } // one-shot done — show locked state
+        if (code === 'already_submitted') { setText(''); setFiles([]); await load(); return } // one-shot done — show locked state
         setError(code === 'window_closed'
           ? t('The evidence window has closed.', 'Đã hết thời gian nộp bằng chứng.')
           : code === 'rate_limited'
@@ -170,7 +184,7 @@ export default function DisputeRoomPage() {
             : t('Could not send — try again.', 'Không gửi được — thử lại.'))
         return
       }
-      setText(''); setFiles([]); setUploadedPaths(null)
+      setText(''); setFiles([])
       await load()
       endRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: 'end' })
     } catch {
@@ -417,13 +431,14 @@ export default function DisputeRoomPage() {
                 />
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {files.map((f, i) => (
-                    <div key={i} className="relative h-16 w-16 overflow-hidden rounded-xl bg-tint">
-                      <img src={f.url} alt="" className="h-full w-full object-cover" />
+                    <div key={i} className={cn('relative h-16 w-16 overflow-hidden rounded-xl bg-tint', f.failed && 'ring-2 ring-destructive')}>
+                      <img src={f.url} alt={f.failed ? t('Could not be attached', 'Không đính kèm được') : ''} className="h-full w-full object-cover" />
                       {/* NOT IconButton: its xs box is h-7 and it bakes a 44px tap target,
                           which would spill onto the neighbouring gap-2 thumbnail. */}
                       <Button
                         variant="bare" size="none"
                         onClick={() => setFiles((p) => p.filter((_, idx) => idx !== i))}
+                        disabled={sending}
                         aria-label={t('Remove', 'Xóa')}
                         className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white cursor-pointer"
                       >
@@ -431,11 +446,12 @@ export default function DisputeRoomPage() {
                       </Button>
                     </div>
                   ))}
-                  {files.length < 6 && (
-                    <label className="flex h-16 w-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl text-ink-4 transition-colors hover:bg-muted">
+                  {files.length < 6 && !sending && (
+                    <label className="relative flex h-16 w-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl text-ink-4 transition-colors hover:bg-muted focus-within:ring-2 focus-within:ring-ring">
                       <ImagePlus className="h-5 w-5" />
                       <span className="text-3xs font-semibold">{t('Evidence', 'Bằng chứng')}</span>
-                      <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} />
+                      {/* sr-only, not hidden: a display:none input cannot take focus, so the picker was unreachable by keyboard. */}
+                      <input type="file" accept="image/*" multiple className="sr-only" onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} />
                     </label>
                   )}
                   <div className="ml-auto flex items-center gap-2">

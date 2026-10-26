@@ -35,7 +35,9 @@ function PreferencesTab() {
   // display controls + Sign out to a guest deep-linking `?tab=preferences` — the one Settings tab
   // with no auth handling of its own. Send a signed-out viewer to sign-in, same as the others.
   useEffect(() => {
-    if (!loading && !user) router.replace('/signin?next=/dashboard/settings')
+    // The page's own path AND query: /account-deletion's "Settings → Account" link names its tab (?tab=account), and a
+    // bare /dashboard/settings returned the visitor to Profile after sign-in (sweep 2026-10-22).
+    if (!loading && !user) router.replace(`/signin?next=${encodeURIComponent(window.location.pathname + window.location.search)}`)
   }, [loading, user, router])
   if (!loading && !user) return null
   return (
