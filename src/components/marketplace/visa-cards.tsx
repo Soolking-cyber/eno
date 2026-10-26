@@ -2855,6 +2855,18 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, otherCases
             {tr('Send the form again', 'Gửi lại biểu mẫu')}
           </Button>
         )}
+        {/* ⛔ THE DESK'S WAY TO THE CASE (owner, 2026-10-26: "make sure vietkite account can receive and download the visa
+            information"). The partner desk sees value-free cards here by design — the applicant's photos and answers live on
+            the case page, /admin/visas/<id>, scoped by getVisaDeskScope to cases whose conversation this desk answers, with
+            the handover zip (two images + the applicant sheet). Until now the only way there was a phone push. */}
+        {isDesk && !!info.applicationId && (
+          <Button asChild variant="soft" size="none" className="relative tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground">
+            <Link href={`/admin/visas/${info.applicationId}`} prefetch={false}>
+              <Download className="size-3.5 shrink-0" aria-hidden />
+              {tr('Open the application — photos & download', 'Mở hồ sơ — ảnh & tải về')}
+            </Link>
+          </Button>
+        )}
         {!paused && !compact && (
           <span className="min-w-0 text-2xs leading-relaxed text-ink-4">
             {isDesk

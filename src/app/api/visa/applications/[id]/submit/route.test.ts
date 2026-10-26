@@ -58,6 +58,8 @@ const AUTHORIZATION_VERSION = 'eno-hosted-prefill-authorization-2026-07-24'
 const h = vi.hoisted(() => ({
   insertMessage: vi.fn(async () => ({ id: 'msg-sent' })),
   sendPush: vi.fn(async () => 1),
+  /** The desk's bell row (2026-10-26) — where a partner desk finds the case page without a push. */
+  bell: vi.fn(async (_a: unknown) => ({ id: 'n1' })),
   afters: [] as Array<() => unknown>,
   /**
    * ⚠️ A SPY, NOT A CONVENIENCE. `auth: 'userId'` and `auth: 'profile'` resolve the SAME id here,
@@ -194,7 +196,7 @@ vi.mock('@/lib/supabase-admin', () => ({
   getSupabaseAdmin: () => { throw new Error('supabase is not available in unit tests') },
   LISTING_VIDEOS_BUCKET: 'listing-videos',
 }))
-vi.mock('@/lib/db', () => ({ db: { conversation: { findUnique: async () => h.state.convo } } }))
+vi.mock('@/lib/db', () => ({ db: { conversation: { findUnique: async () => h.state.convo }, notification: { create: h.bell } } }))
 // The desk notification (2026-10-06): the applicant-authored "photos sent" line, and its push after the response.
 vi.mock('@/lib/messages', () => ({ insertMessage: h.insertMessage }))
 vi.mock('@/lib/user-blocks', () => ({ isBlockedBetween: async () => h.state.blocked }))
@@ -349,7 +351,7 @@ beforeEach(() => {
   s.openCases = 0 // the cap applies on BOTH editions since 2026-10-06 — never leak one test's count into the next
   s.convo = { id: 'convo-1', buyerProfileId: 'user-1', sellerProfileId: 'desk-1', listingId: 'listing-1' }
   s.blocked = false
-  h.insertMessage.mockClear(); h.sendPush.mockClear(); h.afters.length = 0
+  h.insertMessage.mockClear(); h.sendPush.mockClear(); h.bell.mockClear(); h.afters.length = 0
   s.caseOnLocalDesk = true
   s.userId = 'user-1'
   s.cryptoReady = true
@@ -1047,6 +1049,8 @@ describe('submit — eno.vn photos-only: the desk hears about it (2026-10-06)', 
     expect(h.afters).toHaveLength(1)
     await h.afters[0]()
     expect(h.sendPush).toHaveBeenCalledWith('desk-1', expect.objectContaining({ url: `/admin/visas/${APP_ID}` }))
+    // …and a bell row with the same link: the desk finds the case (photos + download) without a push.
+    expect(h.bell).toHaveBeenCalledWith({ data: expect.objectContaining({ recipientId: 'desk-1', type: 'visa_sent', url: `/admin/visas/${APP_ID}` }) })
     expect(h.state.recordedEvents.at(-1)).toMatchObject({ event: 'sent_for_review', metadata: expect.objectContaining({ photosOnly: true, officialPrefillAuthorized: false }) })
   })
 
