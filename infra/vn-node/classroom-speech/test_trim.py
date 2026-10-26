@@ -59,6 +59,10 @@ fric = tone(150, 10 ** (-58 / 20) * 1.414)
 x4 = np.concatenate([tone(300), fric, quiet(600)])
 y = run(x4, ms(160))
 check('a soft ending (-58 dBFS) kept whole, then TRIM_TAIL_MS', np.array_equal(y[:ms(450)], x4[:ms(450)]) and abs(len(y) - ms(450 + TAIL)) <= ms(10), len(y) / R)
+# A sound in the last partial frame (< 10 ms) after a long quiet: nothing is cut (review, codex).
+x5 = np.concatenate([tone(300), quiet(300), tone(5)])
+y = run(x5, ms(160))
+check('a sound in the last partial frame keeps all before it', np.array_equal(y, x5), (len(y), len(x5)))
 # Over a quiet floor the cut tail fades: the last sample out is ~0.
 x2 = (np.concatenate([quiet(150), tone(300), quiet(700)]) + (10 ** (-65 / 20) * np.random.default_rng(2).standard_normal(ms(1150))).astype(np.float32)).astype(np.float32)
 y = run(x2, ms(160))

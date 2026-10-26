@@ -123,6 +123,23 @@ describe('streamJson — one kept-open connection (owner, 2026-10-27: "need supe
     await new Promise((r) => setTimeout(r, 10))
     expect(t.state.cancelled).toBe(false)
   })
+  it('an answer the SERVER ended (incomplete: a cap) is an LlmError — and still read to its end, its connection kept', async () => {
+    const enc = new TextEncoder()
+    const chunks = [
+      `data: ${JSON.stringify({ type: 'response.output_text.delta', delta: '{"a":' })}\n\n`,
+      `data: ${JSON.stringify({ type: 'response.incomplete', response: { incomplete_details: { reason: 'max_output_tokens' } } })}\n\n`,
+      ': end\n\n',
+    ]
+    const state = { pulled: 0, cancelled: false }
+    const res = new Response(new ReadableStream({
+      pull(c) { if (state.pulled < chunks.length) c.enqueue(enc.encode(chunks[state.pulled++])); else c.close() },
+      cancel() { state.cancelled = true },
+    }), { headers: { 'content-type': 'text/event-stream' } })
+    await expect(drainAll(streamJson(CFG, REQ, vi.fn(async () => res) as unknown as typeof fetch))).rejects.toMatchObject({ status: 413 })
+    await vi.waitFor(() => expect(state.pulled).toBe(3))
+    await new Promise((r) => setTimeout(r, 10))
+    expect(state.cancelled).toBe(false)
+  })
   it('an answer left early (a caller that stops reading) is cancelled — never left half-read on the pool', async () => {
     const t = tracked()
     const f = vi.fn(async () => t.res) as unknown as typeof fetch

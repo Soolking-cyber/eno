@@ -200,8 +200,12 @@ export async function* streamJson(cfg: OpenAiConfig, req: {
           done = true
           break
         } else if (ev.type === 'response.incomplete') {
+          // The server ENDED the answer (a cap, a filter): the stream is over and its connection still good — drained too
+          // (2026-10-27 review, opus: the warm-up's 40-token cap could end it here).
+          done = true
           throw new LlmError(ev.response?.incomplete_details?.reason === 'max_output_tokens' ? 413 : 502)
         } else if (ev.type === 'error' || ev.type === 'response.failed') {
+          done = true
           throw new LlmError(502)
         }
       }
@@ -212,8 +216,9 @@ export async function* streamJson(cfg: OpenAiConfig, req: {
   } finally {
     clearTimeout(firstToken)
     req.signal?.removeEventListener('abort', onAbort)
-    // ⚡ FINISHED: read to its end, and the connection goes back to the pool (openAiAgent above). Anything else — an
-    // error, an abort, a caller that stopped reading early — is cancelled, and that connection is let go.
+    // ⚡ FINISHED — completed, or ended by the server — read to its end, and the connection goes back to the pool
+    // (openAiAgent above). Anything else — a broken stream, an abort, a caller that stopped reading early — is cancelled,
+    // and that connection is let go.
     if (done) drain(reader)
     else reader.cancel().catch((e) => logError(quietError(e), { op: 'classroom.llm.cancel' }))
   }

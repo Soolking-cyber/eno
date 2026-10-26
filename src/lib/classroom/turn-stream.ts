@@ -179,6 +179,10 @@ export function streamTurn(t: {
         q.close()
         return
       }
+      // The page was told the reply's drill with its end (`drill`, before the save): the row was not written, so the
+      // history holds no such drill — the page drops it, and no clip is scored against a drill nobody saved (2026-10-27
+      // review, codex).
+      if (voice.drilled()) q.push({ kind: 'no-drill' })
     }
     // ⛔ A FLAGGED REPLY IS SPOKEN ONLY NOW — whole, checked by acceptTutorReply and saved first (tutor-ai.ts never hands
     // over a sentence of it): the model's kind words, or eno's own.
@@ -238,6 +242,7 @@ function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSigna
   let parts = 0
   let failed = 0
   let closed = false
+  let drilled = false
   let chain: Promise<void> = Promise.resolve()
   const one = async (part: number, text: string) => {
     if (gone.aborted) return
@@ -299,7 +304,7 @@ function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSigna
       closed = true
       chain = chain.then(() => {
         if (gone.aborted || !parts) return
-        if (expect && !failed) q.push({ kind: 'drill', expect })
+        if (expect && !failed) { drilled = true; q.push({ kind: 'drill', expect }) }
         q.push({ kind: 'part-end', part: parts - 1, last: true })
       })
     },
@@ -314,6 +319,8 @@ function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSigna
     },
     /** How many sentences' voices failed or were cut. */
     failed: () => failed,
+    /** The page was told the reply's drill (a `drill` line). */
+    drilled: () => drilled,
   }
 }
 

@@ -323,6 +323,17 @@ describe('streamTurn — the reply\'s voice closes at its last sentence (owner, 
     expect(lines.find((l) => l.kind === 'drill')).toEqual({ kind: 'drill', expect: 'I think so.' })
     expect(t.saved[0].a.reply.expect).toBe('I think so.')
   })
+  it('⛔ the page was told the drill, then the save failed: `no-drill` — no clip is scored against a drill nobody saved', async () => {
+    const r = REPLY({ reply: 'Good. Please say after me: I think so.', expect: 'I think so.' })
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Good.' }, { kind: 'say', text: 'Please say after me: I think so.' }, { kind: 'spoken', expect: 'I think so.' }, { kind: 'final', reply: r, model: 'm', calls: 1 }), {
+      save: async () => { throw new Error('db down') },
+    })
+    const k = kinds(await collect(t.lines))
+    expect(k.indexOf('no-drill')).toBeGreaterThan(k.indexOf('drill'))
+    expect(k.indexOf('drill')).toBeGreaterThanOrEqual(0)
+    expect(k).not.toContain('reply')
+    expect(k.at(-1)).toBe('end')
+  })
   it('⛔ nothing is voiced after the close — a sentence the brain sends later is neither said nor saved; one last part-end', async () => {
     const speak = voice()
     const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Nice!' }, { kind: 'spoken', expect: null }, { kind: 'say', text: 'Sneaky.' }, { kind: 'final', reply: REPLY({ reply: 'Nice! Sneaky.' }), model: 'm', calls: 1 }), { speak })

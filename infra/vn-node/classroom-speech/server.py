@@ -88,7 +88,8 @@ LOUD_CEILING_DB = -1.0
 # sentences (pace.ts pauseMs) and `gap_ms` between the sentences of one line. ⛔ -60 dBFS, NOT -55 (2026-10-27 review,
 # codex: "a quiet word ending can be cut"): measured on 3 voices × 8 sentences ending on soft sounds (/s/, /f/, /θ/,
 # "stuff", "with", a whisper), sound at -60..-65 dBFS lasts up to ~210 ms past the last frame above -55 — but never more
-# than ~110 ms past the last frame above -60. So nothing above -65 dBFS is ever cut; the rest is Phonon's own silence.
+# than ~110 ms past the last frame above -60. So on those, nothing above -65 dBFS was cut (a MEASUREMENT of Phonon's voices,
+# not a promise of the algorithm — codex): the rest is Phonon's own silence, ~50 dB under its speech.
 # ⛔ THE LEAD IS LEFT AS PHONON MAKES IT (measured on 3 voices × 6 lines): one -53 dBFS blip, ~100 ms near -75 dBFS, then
 # the onset — and a soft one ("Five", "Thanks": /f/, /θ/) sits at -60 to -70 dBFS for 50-100 ms before its vowel. Cutting
 # it would save ~40 ms and risk the first sound of the sentence (plan review, opus).
@@ -300,10 +301,12 @@ class Trim:
         return out
 
     def flush(self):
-        """The sentence has ended: what is held is its tail — TRIM_TAIL_MS of it, faded out if cut. Never sounded: all of it."""
+        """The sentence has ended: what is held is its tail — TRIM_TAIL_MS of it, faded out if cut. Never sounded: all of it.
+        The last partial frame is judged too (2026-10-27 review, codex): a sound in it keeps everything held before it."""
         rest = np.concatenate([self.quiet, self.part])
+        part_sounds = len(self.part) and float(np.sqrt(np.mean(self.part * self.part))) > self.thr
         self.quiet = self.part = _EMPTY
-        if not self.sounded or len(rest) <= self.tail:
+        if not self.sounded or part_sounds or len(rest) <= self.tail:
             return rest
         rest = rest[:self.tail].copy()
         n = min(self.fade, len(rest))

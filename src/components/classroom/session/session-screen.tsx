@@ -477,6 +477,11 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     const timer = setTimeout(() => abort.abort(), TURN_WAIT_MS)
     reply.current = freshReply(reply.current.id + 1)
     // The last reply's drill was answered by this turn (its clip, if one was owed, is in it): this reply says its own.
+    // A turn the server never took (refused, the network, no answer) answered nothing: the drill is owed again — the next
+    // utterance sends its clip (2026-10-27 review, codex). The server's own history decides what a clip is scored against.
+    const owed = lastExpect.current
+    let settled = false
+    const stillOwed = () => { if (!settled && gen === turnGen.current && lastExpect.current === null) lastExpect.current = owed }
     lastExpect.current = null
     // Parts are decoded as they arrive but handed over strictly in order.
     let chain: Promise<void> = Promise.resolve()
@@ -526,6 +531,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
           return
         }
         setNotice(body.error ?? 'unknown')
+        stillOwed()
         listen()
         return
       }
@@ -536,9 +542,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
         if (l.kind === 'silence') { answered = true; mark('heard nothing'); return }
         if (l.kind === 'heard') { mark('heard', `${l.learnerText.length} chars`); setLearnerLine(l.learnerText); setAvatarLine(''); return }
         if (l.kind === 'error') { mark('no answer', l.error); setNotice(l.error); return }
-        if (l.kind === 'no-drill') { lastExpect.current = null; return }
+        if (l.kind === 'no-drill') { settled = true; lastExpect.current = null; return }
         // The reply's drill, sent with its end — before the saved turn: the learner may answer before `reply` arrives.
-        if (l.kind === 'drill') { lastExpect.current = l.expect; return }
+        if (l.kind === 'drill') { settled = true; lastExpect.current = l.expect; return }
         if (l.kind === 'say') {
           answered = true
           streamed = true
@@ -558,6 +564,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
         }
         if (l.kind === 'reply') {
           answered = true
+          settled = true
           mark('reply saved', `${l.reply.length} chars`)
           setLearnerLine(l.learnerText)
           setHint(l.hint ? { en: l.hint, vi: l.hintVi } : null)
@@ -599,10 +606,13 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       // queued would otherwise play into the open mic and start a turn of its own.
       stopSpeaking()
       setNotice('network')
+      stillOwed()
       listen()
       return
     }
     if (ended.current || gen !== turnGen.current) return
+    // No saved turn came (silence, an error): the drill it answered is still owed.
+    stillOwed()
     // Nothing to say (silence, an error, or a reply with no voice): straight back to listening — once.
     if ((!answered || reply.current.given === 0) && phaseRef.current !== 'listening') listen()
   }
