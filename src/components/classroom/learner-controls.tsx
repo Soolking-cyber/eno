@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/button'
 import type { ClassroomMe } from '@/lib/classroom/me'
 import { api } from './api'
 import { refusalCopy } from './classroom-copy'
-import { Panel } from './panel'
+import { PANEL_BUTTON, Panel } from './panel'
+
+/** A control row: a full-width 48px target whose label wraps (a teacher's long name, Vietnamese) instead of running out. */
+const ROW = 'min-h-12 w-full justify-start whitespace-normal text-left'
 
 type Learner = ClassroomMe['learners'][number]
 type Action = { kind: 'leave'; seatId: string; label: string } | { kind: 'withdraw' } | { kind: 'delete' }
@@ -54,27 +57,27 @@ export function LearnerControls({ open, onOpenChange, learner, onChanged }: {
           <p className="text-sm text-ink-2">{what(confirm)}</p>
           {error && <p role="alert" className="text-sm text-destructive">{tr(refusalCopy(error).en, refusalCopy(error).vi)}</p>}
           <div className="flex gap-3">
-            <Button variant="outline" className="flex-1" onClick={() => setConfirm(null)}>{tr('Cancel', 'Huỷ')}</Button>
-            <Button variant="destructive" className="flex-1" loading={busy} onClick={() => run(confirm)}>{tr('Confirm', 'Xác nhận')}</Button>
+            <Button variant="outline" size="lg" className={PANEL_BUTTON} onClick={() => setConfirm(null)}>{tr('Cancel', 'Huỷ')}</Button>
+            <Button variant="destructive" size="lg" className={PANEL_BUTTON} loading={busy} onClick={() => run(confirm)}>{tr('Confirm', 'Xác nhận')}</Button>
           </div>
         </div>
       ) : (
         <ul className="divide-y divide-border border-y border-border">
           {learner.seats.map((s) => (
             <li key={s.id} className="py-1">
-              <Button variant="ghost" className="w-full justify-start" onClick={() => setConfirm({ kind: 'leave', seatId: s.id, label: s.teacherName })}>
+              <Button variant="ghost" className={ROW} onClick={() => setConfirm({ kind: 'leave', seatId: s.id, label: s.teacherName })}>
                 {tr('Leave the class of', 'Rời lớp của')} {s.teacherName}
               </Button>
             </li>
           ))}
           <li className="py-1">
-            <Button variant="ghost" className="w-full justify-start" onClick={() => setConfirm({ kind: 'withdraw' })}>
+            <Button variant="ghost" className={ROW} onClick={() => setConfirm({ kind: 'withdraw' })}>
               {tr('Stop practising and withdraw my agreement', 'Dừng luyện tập và rút lại sự đồng ý')}
             </Button>
           </li>
           {learner.kind === 'child' && (
             <li className="py-1">
-              <Button variant="ghost" className="w-full justify-start text-destructive" onClick={() => setConfirm({ kind: 'delete' })}>
+              <Button variant="ghost" className={`${ROW} text-destructive`} onClick={() => setConfirm({ kind: 'delete' })}>
                 {tr('Delete this child’s profile', 'Xoá hồ sơ của trẻ')}
               </Button>
             </li>

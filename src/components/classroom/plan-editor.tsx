@@ -13,6 +13,9 @@ import { refusalCopy } from './classroom-copy'
 
 type Plan = { id: string; source: string; status: string; brief: string; focus: PlanFocus; openingLine: string; updatedAt: string } | null
 
+/** A plan action: a 44px target sharing the row equally, its label wrapping (Vietnamese runs long) rather than spilling. */
+const ACTION = 'min-h-11 min-w-0 flex-1 whitespace-normal'
+
 const lines = (s: string, n: number) => s.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, n)
 const words = (s: string, n: number) => s.split(',').map((x) => x.trim()).filter(Boolean).slice(0, n)
 
@@ -99,7 +102,7 @@ export function PlanEditor({ seatId, plan, onSaved }: { seatId: string; plan: Pl
         <div className="flex flex-col gap-3 border-y border-border py-4">
           {plan ? (
             <>
-              <p className="text-sm text-ink">{plan.brief}</p>
+              <p className="text-base text-ink">{plan.brief}</p>
               {plan.focus.goals.length > 0 && <Row label={tr('Goals', 'Mục tiêu')} value={plan.focus.goals.join(' · ')} />}
               {plan.focus.focusWords.length > 0 && <Row label={tr('Focus words', 'Từ trọng tâm')} value={plan.focus.focusWords.join(', ')} />}
               {plan.focus.recycle.length > 0 && <Row label={tr('Brings back', 'Ôn lại')} value={plan.focus.recycle.join(' · ')} />}
@@ -108,9 +111,10 @@ export function PlanEditor({ seatId, plan, onSaved }: { seatId: string; plan: Pl
           ) : (
             <p className="text-sm text-body">{tr('First session: a get-to-know-you conversation at the student’s level. After it, the AI drafts the next one from the report.', 'Buổi đầu: trò chuyện làm quen theo trình độ học viên. Sau đó AI sẽ soạn buổi tiếp theo dựa trên nhận xét.')}</p>
           )}
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={startEdit}><PencilLine aria-hidden />{plan ? tr('Edit', 'Chỉnh sửa') : tr('Write the next session', 'Soạn buổi tiếp theo')}</Button>
-            {plan && !mine && <Button size="sm" variant="cta" loading={busy} onClick={() => save(true)}><Check aria-hidden />{tr('Approve', 'Duyệt')}</Button>}
+          {/* Side by side and equal on a phone, each a 44px target; alone, the one action takes the row. */}
+          <div className="flex gap-3">
+            <Button variant="outline" className={ACTION} onClick={startEdit}><PencilLine aria-hidden />{plan ? tr('Edit', 'Chỉnh sửa') : tr('Write the next session', 'Soạn buổi tiếp theo')}</Button>
+            {plan && !mine && <Button variant="cta" className={ACTION} loading={busy} onClick={() => save(true)}><Check aria-hidden />{tr('Approve', 'Duyệt')}</Button>}
           </div>
         </div>
       ) : (
@@ -136,8 +140,8 @@ export function PlanEditor({ seatId, plan, onSaved }: { seatId: string; plan: Pl
             <p className="rounded-xl bg-tint px-3 py-2 text-sm text-body"><span className="font-semibold text-ink">{tr('The newer plan:', 'Kế hoạch mới hơn:')}</span> {plan.brief}</p>
           )}
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => { setError(null); setEdit(false) }}>{tr('Cancel', 'Huỷ')}</Button>
-            <Button variant="cta" className="flex-1" loading={busy} disabled={!brief.trim()} onClick={() => save(false)}>{tr('Save plan', 'Lưu kế hoạch')}</Button>
+            <Button variant="outline" size="lg" className="min-h-12" onClick={() => { setError(null); setEdit(false) }}>{tr('Cancel', 'Huỷ')}</Button>
+            <Button variant="cta" size="lg" className="min-h-12 min-w-0 flex-1 whitespace-normal" loading={busy} disabled={!brief.trim()} onClick={() => save(false)}>{tr('Save plan', 'Lưu kế hoạch')}</Button>
           </div>
         </div>
       )}
@@ -146,9 +150,10 @@ export function PlanEditor({ seatId, plan, onSaved }: { seatId: string; plan: Pl
   )
 }
 
+/** One line of the plan — content the teacher reads before approving, so body-size type on a phone, not a 12px caption. */
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <p className="text-xs text-body"><span className="font-semibold text-ink-2">{label}:</span> {value}</p>
+    <p className="text-sm text-body"><span className="font-semibold text-ink-2">{label}:</span> {value}</p>
   )
 }
 

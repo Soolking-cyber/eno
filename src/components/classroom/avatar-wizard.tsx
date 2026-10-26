@@ -79,7 +79,7 @@ export function AvatarWizard() {
   }, [user?.id])
 
   if (loading) return <Skeleton className="mt-4 h-64 w-full rounded-2xl" />
-  if (!user) return <EmptyState icon={UserRound} title={tr('Sign in to create your avatar', 'Đăng nhập để tạo avatar')} action={<Button variant="cta" onClick={() => openSignIn()}>{tr('Sign in', 'Đăng nhập')}</Button>} className="mt-12" />
+  if (!user) return <EmptyState icon={UserRound} title={tr('Sign in to create your avatar', 'Đăng nhập để tạo avatar')} action={<Button variant="cta" className="min-h-11" onClick={() => openSignIn()}>{tr('Sign in', 'Đăng nhập')}</Button>} className="mt-12" />
   if (failed) return <EmptyState icon={UserRound} title={tr(refusalCopy(failed).en, refusalCopy(failed).vi)} className="mt-12" />
   if (!data || !d) return <Skeleton className="mt-4 h-64 w-full rounded-2xl" />
 
@@ -118,7 +118,7 @@ export function AvatarWizard() {
       // StepWizard only offers steps already done (no `allowForward`), and "Try it" is reached through Save alone — this
       // guard just says so where a reader can see it.
       onStepSelect={(key) => { if (key !== 'try') setStep(key) }}
-      header={<h1 className="h-title">{data.avatar ? tr('Your avatar', 'Avatar của bạn') : tr('Create your avatar', 'Tạo avatar của bạn')}</h1>}
+      header={<h1 className="h-title mb-5">{data.avatar ? tr('Your avatar', 'Avatar của bạn') : tr('Create your avatar', 'Tạo avatar của bạn')}</h1>}
       primaryAction={{
         label: step === 'voice' ? tr('Save', 'Lưu') : step === 'try' ? tr('Done', 'Xong') : tr('Next', 'Tiếp'),
         onClick: () => { void next() },
@@ -171,7 +171,8 @@ function LookStep({ d, setD, photoUrl, customStatus, setCustomStatus }: {
               <Button variant="bare" size="none" key={a.id} aria-pressed={d.look === 'library' && d.libraryAvatarId === a.id}
                 className={cn('press flex min-w-0 flex-col items-center gap-2 whitespace-normal rounded-2xl p-2 text-center hover:bg-tint', d.look === 'library' && d.libraryAvatarId === a.id && 'bg-accent')}
                 onClick={() => setD({ ...d, look: 'library', libraryAvatarId: a.id })}>
-                <img src={a.preview} alt="" width={96} height={96} className="size-24 rounded-2xl object-cover" />
+                {/* Square at any width: a fixed 96px box was squeezed to 72×96 by the 3 columns of a 320px phone. */}
+                <img src={a.preview} alt="" width={96} height={96} className="aspect-square h-auto w-full max-w-24 rounded-2xl object-cover" />
                 <span className="text-xs text-ink-2">{tr(a.label.en, a.label.vi)}</span>
               </Button>
             ))}
@@ -193,7 +194,7 @@ function LookStep({ d, setD, photoUrl, customStatus, setCustomStatus }: {
           {customStatus === 'ready' && <Badge variant="success" size="sm">{tr('Ready', 'Sẵn sàng')}</Badge>}
         </div>
         {customStatus === 'ready' && (
-          <Button variant={d.look === 'custom' ? 'cta' : 'outline'} onClick={() => setD({ ...d, look: 'custom', libraryAvatarId: null })}>
+          <Button variant={d.look === 'custom' ? 'cta' : 'outline'} className="min-h-11" onClick={() => setD({ ...d, look: 'custom', libraryAvatarId: null })}>
             {d.look === 'custom' ? <><Check aria-hidden />{tr('Using your 3D face', 'Đang dùng khuôn mặt 3D')}</> : tr('Use my 3D face', 'Dùng khuôn mặt 3D')}
           </Button>
         )}
@@ -202,13 +203,13 @@ function LookStep({ d, setD, photoUrl, customStatus, setCustomStatus }: {
             <ul className="flex list-disc flex-col gap-1 pl-5 text-xs text-body">
               {PHOTO_NOTICE.map((n) => <li key={n.en}>{tr(n.en, n.vi)}</li>)}
             </ul>
-            <Button variant="outline" loading={busy} onClick={ask} disabled={!photoUrl}>{tr(PHOTO_ACTION.en, PHOTO_ACTION.vi)}</Button>
+            <Button variant="outline" className="min-h-11 whitespace-normal" loading={busy} onClick={ask} disabled={!photoUrl}>{tr(PHOTO_ACTION.en, PHOTO_ACTION.vi)}</Button>
             {!photoUrl && <p className="text-xs text-ink-4">{tr('Add a photo to your teacher profile first.', 'Hãy thêm ảnh vào hồ sơ giáo viên trước.')}</p>}
           </>
         )}
         {customStatus === 'requested' && <p className="text-xs text-body">{tr('We make it by hand from your profile photo and tell you when it is ready. Your class uses your current look until then.', 'Chúng tôi tạo thủ công từ ảnh hồ sơ và báo bạn khi xong. Trong lúc chờ, lớp vẫn dùng diện mạo hiện tại.')}</p>}
         {(customStatus === 'requested' || customStatus === 'ready') && (
-          <Button variant="ghost" size="sm" className="self-start text-destructive" loading={busy} onClick={withdraw}>{tr('Remove my 3D face', 'Gỡ khuôn mặt 3D')}</Button>
+          <Button variant="ghost" className="-ml-3 min-h-11 self-start text-destructive" loading={busy} onClick={withdraw}>{tr('Remove my 3D face', 'Gỡ khuôn mặt 3D')}</Button>
         )}
         {err && <p role="alert" className="text-sm text-destructive">{tr(refusalCopy(err).en, refusalCopy(err).vi)}</p>}
       </div>}
@@ -245,18 +246,18 @@ function CharacterStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
       </label>
       <Chips label={tr('Tone', 'Giọng điệu')}>
         <ToggleGroup<Tone> aria-label={tr('Tone', 'Giọng điệu')} value={[d.traits.tone]} onValueChange={(v) => v[0] && setTraits({ tone: v[0] })}>
-          {TONES.map((t) => <ToggleGroupItem key={t} value={t} size="sm">{tr(TONE_LABEL[t].en, TONE_LABEL[t].vi)}</ToggleGroupItem>)}
+          {TONES.map((t) => <ToggleGroupItem key={t} value={t}>{tr(TONE_LABEL[t].en, TONE_LABEL[t].vi)}</ToggleGroupItem>)}
         </ToggleGroup>
       </Chips>
       <Chips label={tr('Pace', 'Tốc độ')}>
         <ToggleGroup<Pace> aria-label={tr('Pace', 'Tốc độ')} value={[d.traits.pace]} onValueChange={(v) => v[0] && setTraits({ pace: v[0] })}>
-          {PACES.map((p) => <ToggleGroupItem key={p} value={p} size="sm">{tr(PACE_LABEL[p].en, PACE_LABEL[p].vi)}</ToggleGroupItem>)}
+          {PACES.map((p) => <ToggleGroupItem key={p} value={p}>{tr(PACE_LABEL[p].en, PACE_LABEL[p].vi)}</ToggleGroupItem>)}
         </ToggleGroup>
       </Chips>
       <Chips label={tr('Likes to talk about', 'Thích nói về')} hint={tr('Up to 5', 'Tối đa 5')}>
         <ToggleGroup<Topic> multiple aria-label={tr('Likes to talk about', 'Thích nói về')} value={d.traits.topics}
           onValueChange={(v) => setTraits({ topics: v.slice(0, MAX_TOPICS) })}>
-          {TOPICS.map((t) => <ToggleGroupItem key={t} value={t} size="sm">{tr(TOPIC_LABEL[t].en, TOPIC_LABEL[t].vi)}</ToggleGroupItem>)}
+          {TOPICS.map((t) => <ToggleGroupItem key={t} value={t}>{tr(TOPIC_LABEL[t].en, TOPIC_LABEL[t].vi)}</ToggleGroupItem>)}
         </ToggleGroup>
       </Chips>
       <div className="flex flex-col gap-2">
@@ -264,7 +265,7 @@ function CharacterStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
         <Textarea value={d.persona} maxLength={PERSONA_MAX} rows={6}
           placeholder={tr('How does your avatar teach? e.g. “You are Anna, a patient teacher from Manchester who loves football…”', 'Avatar dạy thế nào? VD: “Bạn là Anna, giáo viên kiên nhẫn đến từ Manchester, yêu bóng đá…”')}
           onChange={(e) => setD({ ...d, persona: e.target.value })} />
-        <Button variant="outline" loading={busy} onClick={write} className="self-start">
+        <Button variant="outline" loading={busy} onClick={write} className="min-h-11 self-start">
           <Sparkles aria-hidden />{tr(PERSONA_AI_ACTION.en, PERSONA_AI_ACTION.vi)}
         </Button>
         <ul className="flex list-disc flex-col gap-1 pl-5 text-xs text-ink-4">
@@ -300,15 +301,16 @@ function VoiceStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
       <p className="mb-2 text-sm text-body">{tr('Pick the voice your avatar speaks with. Tap ▶ to listen.', 'Chọn giọng nói cho avatar. Chạm ▶ để nghe thử.')}</p>
       <ul className="divide-y divide-border border-y border-border">
         {VOICES.map((v) => (
-          <li key={v.id} className={cn('flex items-center gap-3 py-2', d.voice === v.id && 'bg-accent')}>
-            <Button variant="bare" size="none" aria-pressed={d.voice === v.id} onClick={() => setD({ ...d, voice: v.id })} className="press flex min-w-0 flex-1 items-center justify-start gap-3 whitespace-normal rounded-xl px-2 py-1 text-left">
+          <li key={v.id} className={cn('flex items-center gap-2 py-1', d.voice === v.id && 'bg-accent')}>
+            {/* The whole row picks the voice (a 48px target), ▶ beside it only plays — two thumb-size targets per row. */}
+            <Button variant="bare" size="none" aria-pressed={d.voice === v.id} onClick={() => setD({ ...d, voice: v.id })} className="press flex min-h-12 min-w-0 flex-1 flex-wrap items-center justify-start gap-x-3 gap-y-0.5 whitespace-normal rounded-xl px-2 py-1 text-left">
               <span className="text-sm font-semibold text-ink">{v.name}</span>
               <span className="text-xs text-ink-4">{tr(ACCENT_LABEL[v.accent].en, ACCENT_LABEL[v.accent].vi)}</span>
               {v.note === 'young-learners' && <span className="text-xs text-ink-4">{tr('playful, for young learners', 'vui tươi, hợp với các em nhỏ')}</span>}
               {d.voice === v.id && <Check aria-hidden className="ml-auto size-5 text-brand" />}
             </Button>
-            <Button variant="ghost" size="icon" aria-label={tr('Listen', 'Nghe thử')} onClick={() => play(v.id)} disabled={playing === v.id}>
-              <Play aria-hidden />
+            <Button variant="ghost" size="icon" className="size-11" aria-label={tr('Listen', 'Nghe thử')} onClick={() => play(v.id)} disabled={playing === v.id}>
+              <Play aria-hidden className="size-5" />
             </Button>
           </li>
         ))}
@@ -324,7 +326,7 @@ function TryStep({ name, photoUrl }: { name: string; photoUrl: string | null }) 
       <Avatar name={name} url={photoUrl} size="2xl" />
       <p className="text-lg font-bold text-ink">{tr('Saved! Try your avatar', 'Đã lưu! Thử avatar của bạn')}</p>
       <p className="max-w-sm text-sm text-body">{tr('A 3-minute session, exactly as a student hears it. You get a report too.', 'Một buổi 3 phút, đúng như học viên trải nghiệm. Bạn cũng nhận được nhận xét.')}</p>
-      <SessionLauncher test preview={{ name, photoUrl }} variant="cta" size="lg" label={<><Mic aria-hidden />{tr('Try it now', 'Thử ngay')}</>} />
+      <SessionLauncher test preview={{ name, photoUrl }} variant="cta" size="lg" className="min-h-12 w-full max-w-xs" label={<><Mic aria-hidden />{tr('Try it now', 'Thử ngay')}</>} />
     </div>
   )
 }

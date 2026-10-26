@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Panel } from './panel'
+import { PANEL_BUTTON, Panel } from './panel'
 
 /**
  * THE PARENT GATE (plan: "Parent controls … sit behind a simple parent gate"): children practise on the parent's phone, so
@@ -26,9 +26,9 @@ export function ParentGate({ open, onOpenChange, onPass }: { open: boolean; onOp
     <Panel open={open} onOpenChange={(o) => { setAnswer(''); setWrong(false); onOpenChange(o) }}
       title={tr('For parents', 'Dành cho phụ huynh')}
       description={tr('Answer to continue.', 'Trả lời để tiếp tục.')}
-      footer={<Button variant="cta" className="flex-1" onClick={check} disabled={!answer.trim()}>{tr('Continue', 'Tiếp tục')}</Button>}>
+      footer={<Button variant="cta" size="lg" className={PANEL_BUTTON} onClick={check} disabled={!answer.trim()}>{tr('Continue', 'Tiếp tục')}</Button>}>
       <label className="flex flex-col gap-2">
-        <span className="text-base font-semibold text-ink">{question}</span>
+        <span className="text-lg font-bold text-ink">{question}</span>
         <Input inputMode="numeric" autoComplete="off" value={answer} onChange={(e) => setAnswer(e.target.value.replace(/\D/g, '').slice(0, 4))}
           onKeyDown={(e) => { if (e.key === 'Enter') check() }} aria-invalid={wrong} />
         {wrong && <span role="alert" className="text-sm text-destructive">{tr('Not quite — try again.', 'Chưa đúng — thử lại nhé.')}</span>}

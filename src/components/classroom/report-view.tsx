@@ -77,7 +77,7 @@ export function ReportView({ sessionId }: { sessionId: string }) {
   if (error && !data) {
     return (
       <EmptyState icon={FileText} title={tr(refusalCopy(error).en, refusalCopy(error).vi)} className="mt-12"
-        action={<Button variant="outline" onClick={() => { setError(null); setAttempt((n) => n + 1) }}>{tr('Try again', 'Thử lại')}</Button>} />
+        action={<Button variant="outline" className="min-h-11" onClick={() => { setError(null); setAttempt((n) => n + 1) }}>{tr('Try again', 'Thử lại')}</Button>} />
     )
   }
   if (!data) return <Skeleton className="mt-6 h-96 w-full rounded-2xl" />
@@ -89,7 +89,8 @@ export function ReportView({ sessionId }: { sessionId: string }) {
   return (
     <article className="flex flex-col gap-8 pt-2">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" aria-label={tr('Back', 'Quay lại')} asChild><Link href={back} prefetch={false}><ArrowLeft aria-hidden /></Link></Button>
+        {/* 44px, its arrow on the column's edge (-ml-3): the way back is the top-left thumb stretch, so it is a full target. */}
+        <Button variant="ghost" size="icon" className="-ml-3 size-11" aria-label={tr('Back', 'Quay lại')} asChild><Link href={back} prefetch={false}><ArrowLeft aria-hidden className="size-5" /></Link></Button>
         <Avatar name={r.teacher.avatarName} url={r.teacher.photoUrl} size="md" />
         <div className="min-w-0">
           <h1 className="h-title truncate">{tr('Session report', 'Nhận xét buổi luyện')}</h1>
@@ -117,7 +118,8 @@ export function ReportView({ sessionId }: { sessionId: string }) {
 
       {f && (
         <>
-          <dl className="grid grid-cols-2 gap-4 border-y border-border py-4 sm:grid-cols-4">
+          {/* Two by two at every size: the page is a phone-width column even on a wide window (column.ts). */}
+          <dl className="grid grid-cols-2 gap-4 border-y border-border py-4">
             <Stat label={tr('Pronunciation', 'Phát âm')} value={f.scores.pronunciation != null ? String(f.scores.pronunciation) : '—'} />
             <Stat label={tr('Fluency', 'Độ trôi chảy')} value={f.scores.fluency != null ? String(f.scores.fluency) : '—'} />
             <Stat label={tr('Grammar fixes', 'Lỗi ngữ pháp')} value={String(f.scores.grammarFixes)} />
@@ -143,7 +145,7 @@ export function ReportView({ sessionId }: { sessionId: string }) {
                   <li key={i} className="flex flex-col gap-1 py-3">
                     <p className="text-sm text-ink-4 line-through decoration-destructive/60">{m.said}</p>
                     <p className="text-base font-semibold text-ink">{m.better}</p>
-                    {m.why && <p className="text-xs text-body">{m.why}</p>}
+                    {m.why && <p className="text-sm text-body">{m.why}</p>}
                   </li>
                 ))}
               </ul>
@@ -159,7 +161,7 @@ export function ReportView({ sessionId }: { sessionId: string }) {
                     <Badge variant={w.score < 60 ? 'destructive' : 'warning'} size="md" className="min-w-14 justify-center tabular-nums">{w.score}</Badge>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-ink">{w.word}{w.reliable && <span className="ml-2 text-xs font-normal text-ink-4">{tr('repeat sentence', 'câu nhắc lại')}</span>}</p>
-                      {w.tip && <p className="text-xs text-body">{w.tip}</p>}
+                      {w.tip && <p className="text-sm text-body">{w.tip}</p>}
                     </div>
                   </li>
                 ))}
@@ -192,7 +194,7 @@ export function ReportView({ sessionId }: { sessionId: string }) {
       )}
 
       <Collapsible className="border-t border-border pt-4">
-        <CollapsibleTrigger render={<Button variant="ghost" className="w-full justify-between" />}>
+        <CollapsibleTrigger render={<Button variant="ghost" className="min-h-12 w-full justify-between" />}>
           {tr('Transcript', 'Bản ghi chữ')}
           <ChevronDown aria-hidden />
         </CollapsibleTrigger>
@@ -247,7 +249,7 @@ function TeacherNote({ sessionId, initial }: { sessionId: string; initial: strin
       <p className="text-xs text-ink-4">{tr('Only you see this.', 'Chỉ bạn thấy ghi chú này.')}</p>
       <Textarea value={note} rows={3} maxLength={2000} onChange={(e) => { setNote(e.target.value); setState('idle') }} />
       <div className="flex items-center gap-3">
-        <Button size="sm" variant="outline" loading={state === 'saving'} onClick={save}>{tr('Save note', 'Lưu ghi chú')}</Button>
+        <Button variant="outline" className="min-h-11" loading={state === 'saving'} onClick={save}>{tr('Save note', 'Lưu ghi chú')}</Button>
         {state === 'saved' && <span className="text-xs text-success">{tr('Saved', 'Đã lưu')}</span>}
         {state === 'error' && <span className="text-xs text-destructive">{tr('Not saved — try again.', 'Chưa lưu — thử lại.')}</span>}
       </div>

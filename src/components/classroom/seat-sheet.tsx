@@ -10,7 +10,7 @@ import { LEVELS, LIMITS, SESSION_MINUTES, STRICTNESS, type Level, type SessionMi
 import type { SeatSettings } from '@/lib/classroom/seats'
 import { api } from './api'
 import { refusalCopy } from './classroom-copy'
-import { Panel } from './panel'
+import { PANEL_BUTTON, Panel } from './panel'
 import { InviteShare } from './invite-share'
 
 const STRICT_LABEL: Record<Strictness, { en: string; vi: string }> = {
@@ -23,6 +23,8 @@ const DEFAULTS: SeatSettings = { seatName: '', level: 'A2', sessionMinutes: 10, 
 /**
  * Add a student (or change a seat's settings): who it is for, the level, how long and how often they practise, and how
  * hard the avatar corrects them. A new seat ends on its invite — the link, a QR code, the share sheet (Zalo, Messenger).
+ * On a phone it is a bottom sheet: the chips are the full 36px size (each with its 44px hit area) and the one action sits
+ * in the pinned footer, under the thumb.
  */
 export function SeatSheet({ open, onOpenChange, onSaved, seatId, initial }: {
   open: boolean
@@ -60,7 +62,7 @@ export function SeatSheet({ open, onOpenChange, onSaved, seatId, initial }: {
     return (
       <Panel open={open} onOpenChange={onOpenChange} title={tr('Send the invite', 'Gửi link mời')}
         description={tr('One use only, for 14 days. Send it to the student — or to their parent for a child.', 'Chỉ dùng một lần, trong 14 ngày. Gửi cho học viên — hoặc phụ huynh nếu là trẻ em.')}
-        footer={<Button variant="cta" className="flex-1" onClick={() => onOpenChange(false)}>{tr('Done', 'Xong')}</Button>}>
+        footer={<Button variant="cta" size="lg" className={PANEL_BUTTON} onClick={() => onOpenChange(false)}>{tr('Done', 'Xong')}</Button>}>
         <InviteShare seatId={invite.seatId} code={invite.code} seatName={v.seatName} />
       </Panel>
     )
@@ -72,7 +74,7 @@ export function SeatSheet({ open, onOpenChange, onSaved, seatId, initial }: {
       onOpenChange={onOpenChange}
       title={seatId ? tr('Practice settings', 'Cài đặt luyện tập') : tr('Add a student', 'Thêm học viên')}
       footer={
-        <Button variant="cta" className="flex-1" loading={busy} onClick={save} disabled={!v.seatName.trim()}>
+        <Button variant="cta" size="lg" className={PANEL_BUTTON} loading={busy} onClick={save} disabled={!v.seatName.trim()}>
           {seatId ? tr('Save', 'Lưu') : tr('Create invite', 'Tạo link mời')}
         </Button>
       }
@@ -85,24 +87,24 @@ export function SeatSheet({ open, onOpenChange, onSaved, seatId, initial }: {
         </label>
         <Field label={tr('Level', 'Trình độ')}>
           <ToggleGroup<Level> aria-label={tr('Level', 'Trình độ')} value={[v.level]} onValueChange={(x) => x[0] && setV({ ...v, level: x[0] })}>
-            {LEVELS.map((l) => <ToggleGroupItem key={l} value={l} size="sm">{l}</ToggleGroupItem>)}
+            {LEVELS.map((l) => <ToggleGroupItem key={l} value={l}>{l}</ToggleGroupItem>)}
           </ToggleGroup>
         </Field>
         <Field label={tr('Minutes per session', 'Số phút mỗi buổi')}>
           <ToggleGroup<string> aria-label={tr('Minutes per session', 'Số phút mỗi buổi')} value={[String(v.sessionMinutes)]}
             onValueChange={(x) => x[0] && setV({ ...v, sessionMinutes: Number(x[0]) as SessionMinutes })}>
-            {SESSION_MINUTES.map((m) => <ToggleGroupItem key={m} value={String(m)} size="sm">{m}</ToggleGroupItem>)}
+            {SESSION_MINUTES.map((m) => <ToggleGroupItem key={m} value={String(m)}>{m}</ToggleGroupItem>)}
           </ToggleGroup>
         </Field>
         <Field label={tr('Sessions per week', 'Số buổi mỗi tuần')} hint={tr('At most one a day.', 'Tối đa một buổi mỗi ngày.')}>
           <ToggleGroup<string> aria-label={tr('Sessions per week', 'Số buổi mỗi tuần')} value={[String(v.sessionsPerWeek)]}
             onValueChange={(x) => x[0] && setV({ ...v, sessionsPerWeek: Number(x[0]) })}>
-            {Array.from({ length: LIMITS.sessionsPerWeekMax }, (_, i) => i + 1).map((n) => <ToggleGroupItem key={n} value={String(n)} size="sm">{n}</ToggleGroupItem>)}
+            {Array.from({ length: LIMITS.sessionsPerWeekMax }, (_, i) => i + 1).map((n) => <ToggleGroupItem key={n} value={String(n)}>{n}</ToggleGroupItem>)}
           </ToggleGroup>
         </Field>
         <Field label={tr('Corrections', 'Cách sửa lỗi')}>
           <ToggleGroup<Strictness> aria-label={tr('Corrections', 'Cách sửa lỗi')} value={[v.strictness]} onValueChange={(x) => x[0] && setV({ ...v, strictness: x[0] })}>
-            {STRICTNESS.map((s) => <ToggleGroupItem key={s} value={s} size="sm">{tr(STRICT_LABEL[s].en, STRICT_LABEL[s].vi)}</ToggleGroupItem>)}
+            {STRICTNESS.map((s) => <ToggleGroupItem key={s} value={s}>{tr(STRICT_LABEL[s].en, STRICT_LABEL[s].vi)}</ToggleGroupItem>)}
           </ToggleGroup>
         </Field>
         <label className="flex flex-col gap-2">

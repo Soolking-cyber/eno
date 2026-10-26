@@ -13,6 +13,7 @@ import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import type { ClassroomMe } from '@/lib/classroom/me'
 import { TeacherHome } from './teacher-home'
 import { LearnerHome } from './learner-home'
+import { PageActionBar, PageActionsInline } from './page-actions'
 
 type Load = { state: 'loading' } | { state: 'error' } | { state: 'ready'; me: ClassroomMe }
 
@@ -53,7 +54,7 @@ function SignedInHome() {
         icon={WifiOff}
         title={tr('Your classroom did not load', 'Chưa tải được lớp học của bạn')}
         subtitle={tr('Check your connection and try again.', 'Hãy kiểm tra kết nối và thử lại.')}
-        action={<Button onClick={refresh}>{tr('Try again', 'Thử lại')}</Button>}
+        action={<Button className="min-h-11" onClick={refresh}>{tr('Try again', 'Thử lại')}</Button>}
         className="mt-16"
       />
     )
@@ -80,10 +81,15 @@ function HomeSkeleton() {
   )
 }
 
-/** A guest: what the classroom is, in three lines, and one way in. */
+/**
+ * A guest: what the classroom is, in three lines, and one way in. The way in is the page's one action, so on a phone it is
+ * pinned where the thumb is (page-actions.tsx) and stays there while the three lines are read; on a wide window it sits
+ * under the promise, as before.
+ */
 function Landing() {
   const { tr } = useLanguage()
   const { openSignIn } = useAuth()
+  const signIn = { label: tr('Sign in to start', 'Đăng nhập để bắt đầu'), onClick: () => openSignIn() }
   const steps = [
     { icon: Sparkles, en: 'Your teacher makes an AI avatar of their teaching style', vi: 'Giáo viên tạo avatar AI theo phong cách dạy của mình' },
     { icon: Mic, en: 'You talk with it at home — tap the mic and speak', vi: 'Bạn trò chuyện với avatar tại nhà — chạm micro và nói' },
@@ -102,9 +108,7 @@ function Landing() {
             'Trò chuyện với avatar AI của giáo viên giữa các buổi học. Avatar lắng nghe, trả lời và giúp giáo viên lên kế hoạch cho buổi luyện tiếp theo.',
           )}
         </p>
-        <Button variant="cta" size="lg" className="mt-6 w-full max-w-xs" onClick={() => openSignIn()}>
-          {tr('Sign in to start', 'Đăng nhập để bắt đầu')}
-        </Button>
+        <PageActionsInline primary={signIn} className="mt-6 w-full max-w-xs" />
       </section>
       <ol className="mt-12 divide-y divide-border border-y border-border">
         {steps.map(({ icon: Icon, en, vi }) => (
@@ -112,10 +116,11 @@ function Landing() {
             <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
               <Icon className="size-5" />
             </span>
-            <span className="text-sm text-ink-2">{tr(en, vi)}</span>
+            <span className="text-base text-ink-2">{tr(en, vi)}</span>
           </li>
         ))}
       </ol>
+      <PageActionBar primary={signIn} />
     </div>
   )
 }
@@ -135,7 +140,8 @@ function NoClassYet() {
       />
       <div className="border-t border-border pt-6 text-center">
         <p className="text-sm text-body">{tr('Are you a teacher?', 'Bạn là giáo viên?')}</p>
-        <Link href={teacherJoinUrl()} prefetch={false} className="mt-1 inline-block text-sm font-semibold text-brand hover:underline">
+        {/* A 44px tap target, not a 20px line of text: the link is the only thing on the page to tap. */}
+        <Link href={teacherJoinUrl()} prefetch={false} className="press mt-1 inline-flex min-h-11 items-center rounded-xl px-2 text-sm font-semibold text-brand hover:underline">
           {tr('Create your teacher profile, then make your avatar', 'Tạo hồ sơ giáo viên, rồi tạo avatar của bạn')}
         </Link>
       </div>

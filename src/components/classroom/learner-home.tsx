@@ -43,7 +43,8 @@ export function LearnerHome({ me, onChanged }: { me: ClassroomMe; onChanged: () 
         <h1 id="practice-title" className="h-title">
           {learner.kind === 'child' ? learner.displayName : tr('Your practice', 'Luyện tập của bạn')}
         </h1>
-        <Button variant="ghost" size="sm" onClick={() => setGate(true)}>
+        {/* -mr-3: the 44px button's padding hangs into the gutter, so its label still ends on the column's edge. */}
+        <Button variant="ghost" className="-mr-3 min-h-11" onClick={() => setGate(true)}>
           <Cog aria-hidden />
           {tr('Manage', 'Quản lý')}
         </Button>
@@ -97,7 +98,7 @@ function TodayCard({ seat }: { seat: Seat }) {
             preview={{ name: seat.avatarName, photoUrl: seat.teacherPhotoUrl }}
             variant="cta"
             size="lg"
-            className="w-full max-w-xs"
+            className="min-h-12 w-full max-w-xs"
             label={<><Mic aria-hidden />{seat.liveSessionId ? tr('Continue', 'Tiếp tục') : tr('Start practice', 'Bắt đầu luyện')}</>}
           />
         )}

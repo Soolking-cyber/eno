@@ -31,14 +31,14 @@ export function InviteShare({ seatId, code, seatName }: { seatId: string; code: 
       <p className="text-center text-sm font-semibold text-ink">{seatName}</p>
       <p className="w-full break-all rounded-xl bg-tint px-4 py-3 text-center text-sm text-ink-2" translate="no">{link}</p>
       <div className="flex w-full gap-3">
-        <Button variant="outline" className="flex-1" onClick={async () => setCopied(await copyText(link))}>
+        <Button variant="outline" size="lg" className="min-h-12 min-w-0 flex-1 whitespace-normal" onClick={async () => setCopied(await copyText(link))}>
           {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
           {copied ? tr('Copied', 'Đã chép') : tr('Copy link', 'Chép link')}
         </Button>
         {/* The link in the text AND as the url: some share targets keep only one of the two, and a link shown twice is
             cosmetic where a lost one breaks the only way to join (C3c reviews argued both ways). */}
         {canShare && (
-          <Button variant="cta" className="flex-1" onClick={() => navigator.share({ text: `${message} ${link}`, url: link }).catch(() => {})}>
+          <Button variant="cta" size="lg" className="min-h-12 min-w-0 flex-1 whitespace-normal" onClick={() => navigator.share({ text: `${message} ${link}`, url: link }).catch(() => {})}>
             <Share2 aria-hidden />
             {tr('Share', 'Chia sẻ')}
           </Button>

@@ -23,6 +23,7 @@ import {
 import type { ClassroomMe } from '@/lib/classroom/me'
 import { api } from './api'
 import { refusalCopy } from './classroom-copy'
+import { PageActions, type PageAction } from './page-actions'
 
 type Preview = { seatName: string; avatarName: string; teacher: { fullName: string; photoUrl: string | null }; expiresAt: string }
 type Who = 'self' | 'child' | string // a learner id = an existing child
@@ -90,11 +91,11 @@ export function JoinFlow({ code: raw }: { code: string }) {
   if (preview === 'unreachable') {
     return <EmptyState variant="fault" icon={WifiOff} title={tr('The invite did not load', 'Chưa tải được link mời')}
       subtitle={tr('Check your connection and try again.', 'Hãy kiểm tra kết nối và thử lại.')} className="mt-12"
-      action={<Button onClick={() => { setPreview(null); setAttempt((n) => n + 1) }}>{tr('Try again', 'Thử lại')}</Button>} />
+      action={<Button className="min-h-11" onClick={() => { setPreview(null); setAttempt((n) => n + 1) }}>{tr('Try again', 'Thử lại')}</Button>} />
   }
   if (preview === 'invalid') {
     return <EmptyState icon={Link2} title={tr(refusalCopy('invite_invalid').en, refusalCopy('invite_invalid').vi)} className="mt-12"
-      action={<Button variant="outline" asChild><Link href="/classroom" prefetch={false}>{tr('Go to eno Classroom', 'Đến eno Classroom')}</Link></Button>} />
+      action={<Button variant="outline" className="min-h-11" asChild><Link href="/classroom" prefetch={false}>{tr('Go to eno Classroom', 'Đến eno Classroom')}</Link></Button>} />
   }
 
   const submit = async (assent: boolean) => {
@@ -122,63 +123,65 @@ export function JoinFlow({ code: raw }: { code: string }) {
       <p className="text-xs text-ink-4">{tr('This invite is for', 'Lời mời dành cho')} <span className="font-semibold">{preview.seatName}</span> · {tr('AI avatar of your teacher', 'Avatar AI của giáo viên')}</p>
     </div>
   )
+  // An error after a tap rides the action bar, beside the button that was tapped (on a phone the content above may be
+  // scrolled away). ⚠️ `null`, never `undefined`, while there is none — StickyActionBar keeps one shape (page-actions.tsx).
+  const errorNote = error ? <p role="alert" className="text-sm text-destructive">{tr(refusalCopy(error).en, refusalCopy(error).vi)}</p> : null
+
+  /**
+   * ⛔ ONE STEP'S CONTENT, AND ITS ACTIONS IN ONE PLACE (mobile first, 2026-10-26): every step's primary action is pinned
+   * to the bottom edge on a phone, where the thumb is, and stays THE SAME bar from step to step — rendered once below, so
+   * Next → Join → Yes → Start practising change its label in place instead of jumping around the screen.
+   */
+  let content: React.ReactNode
+  let primary: PageAction
+  let secondary: PageAction | undefined
+  let note: React.ReactNode = null
 
   if (iab) {
-    return (
+    content = (
       <div className="flex flex-col">
         {header}
         <div className="flex flex-col items-center gap-3 border-t border-border pt-6 text-center">
           <p className="text-sm text-body">
             {tr('The microphone does not work inside {app}. Open this invite in your phone’s browser.', 'Micro không hoạt động trong {app}. Hãy mở link mời bằng trình duyệt của điện thoại.').replace('{app}', inAppHostName(iab) ?? tr('this app', 'ứng dụng này'))}
           </p>
-          <Button variant="cta" size="lg" className="w-full max-w-xs" onClick={() => escapeInAppBrowser(window.location.href, iab)}>
-            <ExternalLink aria-hidden />{tr('Open in browser', 'Mở bằng trình duyệt')}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setIab(null)}>{tr('Continue here anyway', 'Vẫn tiếp tục ở đây')}</Button>
+          <Button variant="ghost" className="min-h-11" onClick={() => setIab(null)}>{tr('Continue here anyway', 'Vẫn tiếp tục ở đây')}</Button>
         </div>
       </div>
     )
-  }
-
-  if (!user) {
-    return (
+    primary = { label: tr('Open in browser', 'Mở bằng trình duyệt'), icon: <ExternalLink aria-hidden />, onClick: () => escapeInAppBrowser(window.location.href, iab) }
+  } else if (!user) {
+    content = (
       <div className="flex flex-col">
         {header}
-        <Button variant="cta" size="lg" className="mx-auto w-full max-w-xs" onClick={() => openSignIn()}>{tr('Sign in to join', 'Đăng nhập để tham gia')}</Button>
-        <p className="mt-3 text-center text-xs text-ink-4">{tr('Parents: sign in with your own account — you can add your child next.', 'Phụ huynh: đăng nhập bằng tài khoản của bạn — sau đó có thể thêm con.')}</p>
+        <p className="text-center text-sm text-body">{tr('Parents: sign in with your own account — you can add your child next.', 'Phụ huynh: đăng nhập bằng tài khoản của bạn — sau đó có thể thêm con.')}</p>
       </div>
     )
-  }
-
-  if (step === 'done') {
-    return (
+    primary = { label: tr('Sign in to join', 'Đăng nhập để tham gia'), onClick: () => openSignIn() }
+  } else if (step === 'done') {
+    content = (
       <div className="flex flex-col">
         {header}
-        <div className="flex flex-col items-center gap-4 text-center">
-          <p className="text-lg font-bold text-ink">{tr('You’re in!', 'Đã vào lớp!')}</p>
-          <Button variant="cta" size="lg" className="w-full max-w-xs" onClick={() => router.push('/classroom')}>{tr('Start practising', 'Bắt đầu luyện tập')}</Button>
-        </div>
+        <p className="text-center text-lg font-bold text-ink">{tr('You’re in!', 'Đã vào lớp!')}</p>
       </div>
     )
-  }
-
-  if (step === 'assent') {
-    return (
+    primary = { label: tr('Start practising', 'Bắt đầu luyện tập'), onClick: () => router.push('/classroom') }
+  } else if (step === 'assent') {
+    content = (
       <div className="flex flex-col items-center gap-6 py-6 text-center">
         <Avatar name={preview.avatarName} url={preview.teacher.photoUrl} size="2xl" />
         <div className="flex max-w-sm flex-col gap-3">
           {ASSENT_TEXT.map((t) => <p key={t.en} className="text-lg text-ink">{tr(t.en, t.vi)}</p>)}
         </div>
-        <Button variant="cta" size="lg" className="w-full max-w-xs" loading={busy} onClick={() => submit(true)}>{tr(ASSENT_YES.en, ASSENT_YES.vi)}</Button>
-        <Button variant="ghost" onClick={() => setStep('consent')}>{tr('Not now', 'Để sau')}</Button>
-        {error && <p role="alert" className="text-sm text-destructive">{tr(refusalCopy(error).en, refusalCopy(error).vi)}</p>}
       </div>
     )
-  }
-
-  if (step === 'consent') {
+    // "Not now" as easy to reach as "Yes": the child's own answer, side by side at the bottom edge.
+    primary = { label: tr(ASSENT_YES.en, ASSENT_YES.vi), loading: busy, onClick: () => { void submit(true) } }
+    secondary = { label: tr('Not now', 'Để sau'), onClick: () => setStep('consent') }
+    note = errorNote
+  } else if (step === 'consent') {
     const ready = practice && teacherView && (!asGuardian || guardian) && (!asAdult || adult)
-    return (
+    content = (
       <div className="flex flex-col gap-5">
         {header}
         <Agreement checked={practice} onChange={setPractice} title={tr('Voice practice', 'Luyện nói bằng giọng')} lines={PRACTICE_NOTICE} />
@@ -189,43 +192,51 @@ export function JoinFlow({ code: raw }: { code: string }) {
           {tr('By joining you agree to eno’s', 'Khi tham gia, bạn đồng ý với')} <Link href="/terms" className="underline" target="_blank">{tr('Terms', 'Điều khoản')}</Link>{' '}
           {tr('and our', 'và')} <Link href="/privacy" className="underline" target="_blank">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</Link>.
         </p>
-        {error && <p role="alert" className="text-sm text-destructive">{tr(refusalCopy(error).en, refusalCopy(error).vi)}</p>}
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={() => setStep('who')}>{tr('Back', 'Quay lại')}</Button>
-          <Button variant="cta" className="flex-1" disabled={!ready} loading={busy} onClick={() => (needsAssent ? setStep('assent') : submit(false))}>
-            {needsAssent ? tr('Next', 'Tiếp') : tr('Join the class', 'Vào lớp')}
-          </Button>
-        </div>
       </div>
     )
+    primary = {
+      label: needsAssent ? tr('Next', 'Tiếp') : tr('Join the class', 'Vào lớp'),
+      disabled: !ready,
+      loading: busy,
+      onClick: () => { if (needsAssent) setStep('assent'); else void submit(false) },
+    }
+    secondary = { label: tr('Back', 'Quay lại'), onClick: () => setStep('who') }
+    note = errorNote
+  } else {
+    const childOk = who !== 'child' || (childName.trim().length > 0 && years.includes(birthYear))
+    content = (
+      <div className="flex flex-col gap-5">
+        {header}
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-semibold text-ink">{tr('Who will practise?', 'Ai sẽ luyện tập?')}</span>
+          <ToggleGroup<string> aria-label={tr('Who will practise?', 'Ai sẽ luyện tập?')} value={[who]} onValueChange={(v) => v[0] && setWho(v[0])}>
+            <ToggleGroupItem value="self">{tr('Me (18+)', 'Tôi (18+)')}</ToggleGroupItem>
+            {children.map((c) => <ToggleGroupItem key={c.id} value={c.id}>{c.displayName}</ToggleGroupItem>)}
+            <ToggleGroupItem value="child">{tr('My child', 'Con tôi')}</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+        {who === 'child' && (
+          <div className="flex flex-col gap-4">
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-ink">{tr('Child’s first name or nickname', 'Tên hoặc biệt danh của con')}</span>
+              <Input value={childName} maxLength={40} onChange={(e) => setChildName(e.target.value)} />
+              <span className="text-xs text-ink-4">{tr('Only this and the year of birth are kept — no surname, no date.', 'Chỉ lưu tên này và năm sinh — không lưu họ, không lưu ngày sinh.')}</span>
+            </label>
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-semibold text-ink">{tr('Year of birth', 'Năm sinh')}</span>
+              <Input inputMode="numeric" value={birthYear} maxLength={4} placeholder={String(thisYear - 8)} onChange={(e) => setBirthYear(e.target.value.replace(/\D/g, '').slice(0, 4))} />
+            </label>
+          </div>
+        )}
+      </div>
+    )
+    primary = { label: tr('Next', 'Tiếp'), disabled: !childOk, onClick: () => setStep('consent') }
   }
 
-  const childOk = who !== 'child' || (childName.trim().length > 0 && years.includes(birthYear))
   return (
-    <div className="flex flex-col gap-5">
-      {header}
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-semibold text-ink">{tr('Who will practise?', 'Ai sẽ luyện tập?')}</span>
-        <ToggleGroup<string> aria-label={tr('Who will practise?', 'Ai sẽ luyện tập?')} value={[who]} onValueChange={(v) => v[0] && setWho(v[0])}>
-          <ToggleGroupItem value="self">{tr('Me (18+)', 'Tôi (18+)')}</ToggleGroupItem>
-          {children.map((c) => <ToggleGroupItem key={c.id} value={c.id}>{c.displayName}</ToggleGroupItem>)}
-          <ToggleGroupItem value="child">{tr('My child', 'Con tôi')}</ToggleGroupItem>
-        </ToggleGroup>
-      </div>
-      {who === 'child' && (
-        <div className="flex flex-col gap-4">
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-ink">{tr('Child’s first name or nickname', 'Tên hoặc biệt danh của con')}</span>
-            <Input value={childName} maxLength={40} onChange={(e) => setChildName(e.target.value)} />
-            <span className="text-xs text-ink-4">{tr('Only this and the year of birth are kept — no surname, no date.', 'Chỉ lưu tên này và năm sinh — không lưu họ, không lưu ngày sinh.')}</span>
-          </label>
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-ink">{tr('Year of birth', 'Năm sinh')}</span>
-            <Input inputMode="numeric" value={birthYear} maxLength={4} placeholder={String(thisYear - 8)} onChange={(e) => setBirthYear(e.target.value.replace(/\D/g, '').slice(0, 4))} />
-          </label>
-        </div>
-      )}
-      <Button variant="cta" size="lg" disabled={!childOk} onClick={() => setStep('consent')}>{tr('Next', 'Tiếp')}</Button>
+    <div className="flex flex-col">
+      {content}
+      <PageActions primary={primary} secondary={secondary} note={note} />
     </div>
   )
 }
@@ -233,11 +244,13 @@ export function JoinFlow({ code: raw }: { code: string }) {
 function Agreement({ checked, onChange, title, lines }: { checked: boolean; onChange: (v: boolean) => void; title: string; lines: readonly { en: string; vi: string }[] }) {
   const { tr } = useLanguage()
   return (
-    <label className="flex items-start gap-3 border-t border-border pt-4">
-      <Checkbox checked={checked} onChange={onChange} className="mt-0.5" />
-      <span className="flex flex-col gap-1">
-        <span className="text-sm font-semibold text-ink">{title}</span>
-        {lines.map((l) => <span key={l.en} className="text-xs text-body">{tr(l.en, l.vi)}</span>)}
+    // The whole row is the tap target (a <label>), the box a 20px mark, and the lines body-size type: a parent reads them
+    // on a phone before agreeing, so they are not 12px captions.
+    <label className="flex cursor-pointer items-start gap-3 border-t border-border pt-4">
+      <Checkbox checked={checked} onChange={onChange} className="mt-0.5 h-5 w-5" />
+      <span className="flex flex-col gap-1.5">
+        <span className="text-base font-semibold text-ink">{title}</span>
+        {lines.map((l) => <span key={l.en} className="text-sm text-body">{tr(l.en, l.vi)}</span>)}
       </span>
     </label>
   )

@@ -60,7 +60,7 @@ export function TeacherHome({ teacher, onChanged, secondary }: {
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-ink">{tr('Students', 'Học viên')}</h2>
-            <Button variant="cta" size="sm" onClick={() => setAdding(true)} disabled={!teacher.open}>
+            <Button variant="cta" className="min-h-11" onClick={() => setAdding(true)} disabled={!teacher.open}>
               <UserPlus aria-hidden />
               {tr('Add student', 'Thêm học viên')}
             </Button>
@@ -68,7 +68,7 @@ export function TeacherHome({ teacher, onChanged, secondary }: {
           {failed && seats === null ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <p role="alert" className="text-sm text-body">{tr(refusalCopy(failed).en, refusalCopy(failed).vi)}</p>
-              <Button size="sm" variant="outline" onClick={() => { setFailed(null); load() }}>{tr('Try again', 'Thử lại')}</Button>
+              <Button variant="outline" className="min-h-11" onClick={() => { setFailed(null); load() }}>{tr('Try again', 'Thử lại')}</Button>
             </div>
           ) : seats === null ? (
             <Skeleton className="h-32 w-full rounded-2xl" />
@@ -104,7 +104,7 @@ function CreateAvatar() {
           )}
         </p>
       </div>
-      <Button variant="cta" size="lg" asChild><Link href="/classroom/avatar" prefetch={false}>
+      <Button variant="cta" size="lg" className="min-h-12 w-full max-w-xs" asChild><Link href="/classroom/avatar" prefetch={false}>
         {tr('Get started', 'Bắt đầu')}
       </Link></Button>
     </div>
@@ -125,12 +125,12 @@ function AvatarCard({ teacher }: { teacher: Teacher }) {
           {avatar.customStatus === 'requested' ? ` · ${tr('your 3D face is being made', 'đang tạo khuôn mặt 3D của bạn')}` : ''}
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" asChild><Link href="/classroom/avatar" prefetch={false}>
+          <Button variant="outline" className="min-h-11" asChild><Link href="/classroom/avatar" prefetch={false}>
             <Pencil aria-hidden />
             {tr('Edit', 'Chỉnh sửa')}
           </Link></Button>
           {teacher.open && (
-            <SessionLauncher test preview={{ name: avatar.name, photoUrl: teacher.photoUrl }} label={<><Mic aria-hidden />{tr('Try it', 'Thử ngay')}</>} />
+            <SessionLauncher test preview={{ name: avatar.name, photoUrl: teacher.photoUrl }} className="min-h-11" label={<><Mic aria-hidden />{tr('Try it', 'Thử ngay')}</>} />
           )}
         </div>
       </div>
@@ -151,9 +151,10 @@ function SeatRow({ seat }: { seat: RosterSeat }) {
       <Link href={`/classroom/students/${seat.id}`} prefetch={false} className="press flex items-center gap-3 py-3 hover:bg-tint">
         <Avatar name={name} size="md" />
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 truncate text-sm font-semibold text-ink">
-            {name}
-            {seat.learner && seat.learner.band !== 'adult' && <Badge variant="neutral" size="sm">{tr('Under 18', 'Dưới 18')}</Badge>}
+          {/* The name truncates on its own, the badge never: `truncate` on the flex row itself could not cut a long name. */}
+          <p className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink">
+            <span className="truncate">{name}</span>
+            {seat.learner && seat.learner.band !== 'adult' && <Badge variant="neutral" size="sm" className="shrink-0">{tr('Under 18', 'Dưới 18')}</Badge>}
           </p>
           {/* The status FIRST: after a long seat name it was the part the ellipsis cut ("… evening group · Pa…"). */}
           <p className="truncate text-xs text-ink-4">{sub}{seat.seatName !== name ? ` · ${seat.seatName}` : ''}</p>

@@ -19,13 +19,16 @@ import { refusalCopy, sessionDate } from './classroom-copy'
 import { SeatSheet } from './seat-sheet'
 import { InviteShare } from './invite-share'
 import { PlanEditor } from './plan-editor'
-import { Panel } from './panel'
+import { PANEL_BUTTON, Panel } from './panel'
 
 type Detail = {
   seat: { id: string; status: string; settings: SeatSettings; learner: { displayName: string; kind: string; band: string } | null; workingOn: FocusItem[] }
   nextPlan: { id: string; source: string; status: string; brief: string; focus: PlanFocus; openingLine: string; updatedAt: string } | null
   sessions: { id: string; startedAt: string; status: string; feedbackStatus: string; talkSeconds: number; turns: number; scores: { pronunciation?: number | null } | null; mistakes: number; unseen: boolean; flagged: boolean }[]
 }
+
+/** A page action: a 44px target that shares its row, its label wrapping (Vietnamese runs long) rather than spilling. */
+const ACTION = 'min-h-11 min-w-0 whitespace-normal'
 
 /**
  * ONE STUDENT, FOR THE TEACHER (Preply's lesson notes, plan "Steal these" #5): the practice settings, the "Working on" list,
@@ -37,7 +40,7 @@ export function StudentDetail({ seatId }: { seatId: string }) {
   // Signed out (C3c review, Opus: it waited forever on a skeleton): say so, with the way in.
   if (!loading && !user) {
     return <EmptyState icon={UserRound} title={tr('Sign in to see your class', 'Đăng nhập để xem lớp của bạn')} className="mt-12"
-      action={<Button variant="cta" onClick={() => openSignIn()}>{tr('Sign in', 'Đăng nhập')}</Button>} />
+      action={<Button variant="cta" className="min-h-11" onClick={() => openSignIn()}>{tr('Sign in', 'Đăng nhập')}</Button>} />
   }
   if (!user) return <Skeleton className="mt-6 h-96 w-full rounded-2xl" />
   /**
@@ -71,7 +74,7 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
 
   if (error && !d) {
     return <EmptyState icon={UserRound} title={tr(refusalCopy(error).en, refusalCopy(error).vi)} className="mt-12"
-      action={<Button variant="outline" onClick={() => { setError(null); void load() }}>{tr('Try again', 'Thử lại')}</Button>} />
+      action={<Button variant="outline" className="min-h-11" onClick={() => { setError(null); void load() }}>{tr('Try again', 'Thử lại')}</Button>} />
   }
   if (!d) return <Skeleton className="mt-6 h-96 w-full rounded-2xl" />
   const { seat } = d
@@ -96,11 +99,13 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
   return (
     <article className="flex flex-col gap-8 pt-2">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" aria-label={tr('Back', 'Quay lại')} asChild><Link href="/classroom" prefetch={false}><ArrowLeft aria-hidden /></Link></Button>
+        {/* 44px, its arrow on the column's edge (-ml-3): the way back is the top-left thumb stretch, so it is a full target. */}
+        <Button variant="ghost" size="icon" className="-ml-3 size-11" aria-label={tr('Back', 'Quay lại')} asChild><Link href="/classroom" prefetch={false}><ArrowLeft aria-hidden className="size-5" /></Link></Button>
         <Avatar name={name} size="lg" />
         <div className="min-w-0 flex-1">
           <h1 className="h-title truncate">{name}</h1>
-          <p className="truncate text-xs text-ink-4">
+          {/* Wraps rather than truncates: on a 320px phone the ellipsis cut "Under 18", the one fact that changes how to teach. */}
+          <p className="text-xs text-ink-4">
             {seat.settings.level} · {seat.settings.sessionMinutes} {tr('min', 'phút')} · {seat.settings.sessionsPerWeek}× {tr('a week', 'mỗi tuần')}
             {seat.learner && seat.learner.band !== 'adult' ? ` · ${tr('Under 18', 'Dưới 18')}` : ''}
           </p>
@@ -108,12 +113,16 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
         {seat.status === 'paused' && <Badge variant="warning" size="sm">{tr('Paused', 'Tạm dừng')}</Badge>}
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => setEditing(true)}>{tr('Practice settings', 'Cài đặt luyện tập')}</Button>
-        {seat.status === 'active' && <Button size="sm" variant="outline" onClick={() => patch({ status: 'paused' })}><Pause aria-hidden />{tr('Pause', 'Tạm dừng')}</Button>}
-        {seat.status === 'paused' && <Button size="sm" variant="outline" onClick={() => patch({ status: 'active' })}><Play aria-hidden />{tr('Resume', 'Tiếp tục')}</Button>}
-        {seat.status === 'invited' && <Button size="sm" variant="outline" onClick={() => patch({ reinvite: true })}>{tr('New invite link', 'Tạo link mời mới')}</Button>}
-        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setConfirmRemove(true)}><Trash2 aria-hidden />{tr('Remove', 'Xoá')}</Button>
+      {/* Two thumb-size actions side by side, and "Remove" on its own quiet row under them — apart from the controls a
+          teacher taps every week, but still above the line where any action's error appears (mobile first, 2026-10-26). */}
+      <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-2 gap-3">
+          <Button variant="outline" className={ACTION} onClick={() => setEditing(true)}>{tr('Practice settings', 'Cài đặt luyện tập')}</Button>
+          {seat.status === 'active' && <Button variant="outline" className={ACTION} onClick={() => patch({ status: 'paused' })}><Pause aria-hidden />{tr('Pause', 'Tạm dừng')}</Button>}
+          {seat.status === 'paused' && <Button variant="outline" className={ACTION} onClick={() => patch({ status: 'active' })}><Play aria-hidden />{tr('Resume', 'Tiếp tục')}</Button>}
+          {seat.status === 'invited' && <Button variant="outline" className={ACTION} onClick={() => patch({ reinvite: true })}>{tr('New invite link', 'Tạo link mời mới')}</Button>}
+        </div>
+        <Button variant="ghost" className="-ml-3 min-h-11 self-start text-destructive" onClick={() => setConfirmRemove(true)}><Trash2 aria-hidden />{tr('Remove', 'Xoá')}</Button>
       </div>
       {actionError && <p role="alert" className="-mt-4 text-sm text-destructive">{tr(refusalCopy(actionError).en, refusalCopy(actionError).vi)}</p>}
 
@@ -171,8 +180,8 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
       <Panel open={confirmRemove} onOpenChange={setConfirmRemove} title={tr('Remove this student?', 'Xoá học viên này?')}
         description={tr('They leave the class at once and you will no longer see their reports.', 'Học viên rời lớp ngay và bạn sẽ không xem được nhận xét nữa.')}
         footer={<>
-          <Button variant="outline" className="flex-1" onClick={() => setConfirmRemove(false)}>{tr('Cancel', 'Huỷ')}</Button>
-          <Button variant="destructive" className="flex-1" onClick={remove}>{tr('Remove', 'Xoá')}</Button>
+          <Button variant="outline" size="lg" className={PANEL_BUTTON} onClick={() => setConfirmRemove(false)}>{tr('Cancel', 'Huỷ')}</Button>
+          <Button variant="destructive" size="lg" className={PANEL_BUTTON} onClick={remove}>{tr('Remove', 'Xoá')}</Button>
         </>}>
         <span className="sr-only">{name}</span>
       </Panel>
