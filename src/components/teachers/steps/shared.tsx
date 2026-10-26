@@ -53,6 +53,7 @@ export function makeErrText(tr: (en: string, vi: string) => string) {
       case 'invalid': return tr('Please check this value.', 'Vui lòng kiểm tra lại.')
       case 'incomplete': return tr('Fill in the role and the school or company, or remove this job.', 'Điền vị trí và trường hoặc công ty, hoặc xoá công việc này.')
       case 'dates': return tr('The end date is before the start date.', 'Ngày kết thúc trước ngày bắt đầu.')
+      case 'month_format': return tr('Write each month as year and month, for example 2022-09.', 'Hãy ghi tháng theo dạng năm-tháng, ví dụ 2022-09.')
       case 'not_owned': return tr('That upload has expired — please upload your video again.', 'Video tải lên đã hết hạn — vui lòng tải lại video.')
       case 'rate_range': return tr('Please enter a rate between 50,000 đ and 2,000,000 đ an hour.', 'Vui lòng nhập mức phí từ 50.000 đ đến 2.000.000 đ một giờ.')
       case 'salary_range': return tr('Please enter a monthly salary between 1 and 150 million đ.', 'Vui lòng nhập mức lương tháng từ 1 đến 150 triệu đ.')

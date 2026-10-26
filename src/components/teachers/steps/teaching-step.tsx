@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label'
 import { Radio, RadioGroup } from '@/components/ui/radio-group'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { LanguagePicker } from '@/components/teachers/language-combobox'
-import { EXPERIENCE_BANDS, LIMITS, TEACHER_FORM_OPTIONS, TEACHER_OPTIONS, type CertificateEntry, type ExperienceEntry } from '@/lib/teachers/profile'
+import { EXPERIENCE_BANDS, LIMITS, TEACHER_FORM_OPTIONS, TEACHER_OPTIONS, type CertificateEntry, type ExperienceEntry, typedMonth } from '@/lib/teachers/profile'
 import { thisMonth } from '@/components/teachers/teacher-form-rules'
 import { RADIO_CHIP, certName, type StepProps } from '@/components/teachers/steps/shared'
 import { teacherTextRefusal } from '@/lib/teachers/text-screen'
@@ -138,12 +138,12 @@ export function TeachingStep({ t, set, update, errors, errText }: StepProps) {
                   <div className="flex flex-wrap items-end gap-3">
                     <Field className="w-auto">
                       <Label htmlFor={`${id}-from`}>{tr('From (month)', 'Từ (tháng)')}</Label>
-                      <FieldControl id={`${id}-from`} render={<Input id={`${id}-from`} type="month" className="w-44" value={x.from} onChange={(e) => setJob(i, { from: e.target.value })} />} />
+                      <FieldControl id={`${id}-from`} render={<Input id={`${id}-from`} type="month" placeholder="YYYY-MM" className="w-44" value={x.from} onChange={(e) => setJob(i, { from: e.target.value })} onBlur={(e) => { const v = typedMonth(e.target.value); if (v !== e.target.value) setJob(i, { from: v }) }} />} />
                     </Field>
                     {!still && (
                       <Field className="w-auto">
                         <Label htmlFor={`${id}-to`}>{tr('To (month)', 'Đến (tháng)')}</Label>
-                        <FieldControl id={`${id}-to`} render={<Input id={`${id}-to`} type="month" className="w-44" value={x.to} onChange={(e) => setJob(i, { to: e.target.value })} />} />
+                        <FieldControl id={`${id}-to`} render={<Input id={`${id}-to`} type="month" placeholder="YYYY-MM" className="w-44" value={x.to} onChange={(e) => setJob(i, { to: e.target.value })} onBlur={(e) => { const v = typedMonth(e.target.value); if (v !== e.target.value) setJob(i, { to: v }) }} />} />
                       </Field>
                     )}
                     <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-body">

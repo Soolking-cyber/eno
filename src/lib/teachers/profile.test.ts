@@ -4,7 +4,7 @@ import {
   TEACHER_STEP_FIELDS, aiMatchConsented, coverIsPublic, deriveRelocate, experienceBucket, fromLegacyTeacher, hasTeachingGoal,
   isLegacyTeacherBody, isTeacherPhone, legacyDistrictKey, normalizeForSave, phoneWaived, normalizeTeacherInput, splitGoalErrors, teacherFacetTokens,
   teacherCardPrice, teacherCardPriceFromSaved, teacherFreeTextFields, teacherFreeTexts, teacherSteps, teacherSubcategory,
-  validateTeacherInput, visibleFields,
+  typedMonth, validateTeacherInput, visibleFields,
 } from './profile'
 import { HUBS } from './places'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
@@ -262,6 +262,22 @@ describe('validateTeacherInput', () => {
   })
   it('flags an experience entry that ends before it starts', () => {
     expect(validateTeacherInput(t({ experience: [{ role: 'T', employer: 'X', city: '', from: '2024-01', to: '2023-01' }] }))['experience.0']).toBe('dates')
+  })
+  it('⛔ names a month it cannot read instead of blanking it at save — and reads the typed forms it can (Safari/Firefox month boxes are plain text)', () => {
+    // The form's own state, as typed — not through normalizeTeacherInput, which is the save's blanking step.
+    const job = (from: string, to: string) => validateTeacherInput({ ...t(), experience: [{ role: 'T', employer: 'X', city: '', from, to }] })['experience.0']
+    expect(job('Sep 2022', '2024-06')).toBe('month_format')
+    expect(job('2022-09', 'June 2024')).toBe('month_format')
+    expect(job('2022-09', '2024-06')).toBeUndefined()
+    expect(job('2022-09', '')).toBeUndefined()
+    expect(['09/2022', '9/2022', '9-2022', '2022/09', '2022.9', ' 09 / 2022 '].map(typedMonth)).toEqual(Array(6).fill('2022-09'))
+    expect(['13/2022', 'Sep 2022', '2022', ''].map(typedMonth)).toEqual(['13/2022', 'Sep 2022', '2022', ''])
+  })
+  it('reads a typed month at the save boundary too — Enter can submit before the field blurs', () => {
+    const typed = { ...t(), experience: [{ role: 'T', employer: 'X', city: '', from: '09/2022', to: '2024/6' }] }
+    expect(normalizeForSave(typed).experience[0]).toMatchObject({ from: '2022-09', to: '2024-06' })
+    expect(validateTeacherInput(normalizeForSave(typed))['experience.0']).toBeUndefined()
+    expect(t({ experience: [{ role: 'T', employer: 'X', city: '', from: '9-2022', to: 'June 2024' }] }).experience[0]).toMatchObject({ from: '2022-09', to: '' })
   })
   it('makes cover complete once switched on: periods, a rate in range, a reach near home and its own consent', () => {
     const on = (o: Record<string, unknown>) => validateTeacherInput(t({ ...coverOn, ...o }), ['cover'])
