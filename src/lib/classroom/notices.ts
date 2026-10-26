@@ -53,20 +53,30 @@ export const PHOTO_NOTICE: readonly NoticeText[] = [
 export const photoNoticeBody = (): string => noticeBody([PHOTO_ACTION, ...PHOTO_NOTICE])
 
 // ── Learner, purpose 1: voice practice ─────────────────────────────────────────────────────────────────────────────
-export const PRACTICE_NOTICE_VERSION = '2026-10-25'
+// 2026-10-26: the meaning changed — the recording is written down and the replies are voiced on eno's own server in
+// Vietnam (Azure only scores repeat-after-me sentences), and OpenAI writes the live replies.
+export const PRACTICE_NOTICE_VERSION = '2026-10-26'
 export const PRACTICE_NOTICE: readonly NoticeText[] = [
   {
-    en: 'Each time the learner speaks, the recording goes to Microsoft Azure (Singapore) to be written down and scored for pronunciation. We never store the recording.',
-    vi: 'Mỗi lần học viên nói, bản ghi âm được gửi đến Microsoft Azure (Singapore) để chuyển thành chữ và chấm phát âm. Chúng tôi không bao giờ lưu bản ghi âm.',
+    en: 'Each time the learner speaks, the recording is written down on eno’s own server in Vietnam. We never store the recording.',
+    vi: 'Mỗi lần học viên nói, bản ghi âm được chuyển thành chữ trên máy chủ của chính eno tại Việt Nam. Chúng tôi không bao giờ lưu bản ghi âm.',
   },
   {
-    // Every recipient (round 10, opus): the avatar's replies are voiced by Azure too, and a reply may repeat the learner.
-    en: 'The avatar’s replies are turned into speech by Azure as well.',
-    vi: 'Câu trả lời của avatar cũng được Azure chuyển thành giọng nói.',
+    // Every recipient (round 10, opus): Azure now hears only the repeat-after-me sentences, and keeps nothing.
+    en: 'When the learner repeats a practice sentence, that recording also goes to Microsoft Azure (Singapore) to score the pronunciation. It is not stored there either.',
+    vi: 'Khi học viên nói lại một câu luyện tập, bản ghi âm đó cũng được gửi đến Microsoft Azure (Singapore) để chấm phát âm. Azure cũng không lưu lại.',
   },
   {
-    en: 'What was said goes to Google’s Gemini AI on Google Cloud, outside Vietnam, to write the avatar’s replies and the report after each session.',
-    vi: 'Nội dung đã nói được gửi đến AI Gemini của Google trên Google Cloud, ngoài Việt Nam, để viết câu trả lời của avatar và bản nhận xét sau mỗi buổi.',
+    en: 'The avatar’s replies are turned into speech on eno’s server too.',
+    vi: 'Câu trả lời của avatar cũng được chuyển thành giọng nói trên máy chủ của eno.',
+  },
+  {
+    en: 'What was said — the words, never the recording — goes to OpenAI in the United States to write the avatar’s replies.',
+    vi: 'Nội dung đã nói — chỉ phần chữ, không bao giờ là bản ghi âm — được gửi đến OpenAI tại Hoa Kỳ để viết câu trả lời của avatar.',
+  },
+  {
+    en: 'It also goes to Google’s Gemini AI on Google Cloud, outside Vietnam, to write the report after each session, and the replies when OpenAI cannot answer.',
+    vi: 'Nội dung này cũng được gửi đến AI Gemini của Google trên Google Cloud, ngoài Việt Nam, để viết bản nhận xét sau mỗi buổi, và viết câu trả lời khi OpenAI không trả lời được.',
   },
   {
     // Every field the tutor and the report send, named (core review, opus: "what was said" alone under-disclosed) — and
@@ -79,9 +89,9 @@ export const PRACTICE_NOTICE: readonly NoticeText[] = [
     vi: 'Chúng tôi không gửi kèm tên học viên, nhưng những gì học viên nói và những gì giáo viên ghi chú được gửi nguyên văn.',
   },
   {
-    // The persona notice's words for the same Vertex path (core review, opus: the learner's notice left out the hold).
-    en: 'Google doesn’t use it to train its AI. It may hold it briefly to answer, and for up to 90 days if its automated checks flag a request as misuse.',
-    vi: 'Google không dùng dữ liệu này để huấn luyện AI. Google có thể giữ dữ liệu trong thời gian ngắn để trả kết quả, và tối đa 90 ngày nếu hệ thống tự động của Google đánh dấu yêu cầu là lạm dụng.',
+    // Each recipient's hold, in its own words (core review, opus: the learner's notice left out the hold).
+    en: 'Neither uses it to train its AI. OpenAI keeps it up to 30 days only to check for misuse. Google holds it briefly to answer, and up to 90 days if its checks flag misuse.',
+    vi: 'Cả hai đều không dùng dữ liệu này để huấn luyện AI. OpenAI chỉ giữ tối đa 30 ngày để kiểm tra lạm dụng. Google giữ trong thời gian ngắn để trả kết quả, và tối đa 90 ngày nếu hệ thống của Google đánh dấu lạm dụng.',
   },
   {
     // Every recipient, in the purpose that produces it (round 3, opus): the tutor flags it DURING practice.

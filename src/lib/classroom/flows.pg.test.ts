@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { TurnLine } from './turn-stream'
 
 /**
  * ⛔ THE CLASSROOM'S LOCKS, RACES AND CASCADES AGAINST A REAL POSTGRES — the advisory locks, the partial unique index, the
@@ -21,7 +22,11 @@ const loopback = ['127.0.0.1', 'localhost', '::1'].includes(parsed?.hostname ?? 
 const live = process.env.CLASSROOM_PG_TESTS === '1' && loopback && parsed?.port !== '5433' && /_it$/.test(parsed?.pathname ?? '')
 
 const afterQueue: Promise<unknown>[] = []
-const seen = vi.hoisted(() => ({ feedbackTurns: [] as { learner: string | null }[][], recognizeMs: 0, alerts: [] as { to: string; key: string; text: string }[], tutorUnusableHarm: false, silence: false, assessed: [] as string[] }))
+const seen = vi.hoisted(() => ({
+  feedbackTurns: [] as { learner: string | null }[][], recognizeMs: 0, alerts: [] as { to: string; key: string; text: string }[], tutorUnusableHarm: false, silence: false, assessed: [] as string[],
+  // the tutor's reply (null: the usual one-part line), each part spoken, and a part whose voice fails
+  replyText: null as string | null, spoken: [] as string[], failVoice: null as string | null,
+}))
 // Nothing here may ever send real mail: the safety alert is captured instead.
 vi.mock('@/lib/mail', () => ({
   sendMailOnce: async (m: { to: string; text: string }, o: { idempotencyKey: string }) => { seen.alerts.push({ to: m.to, key: o.idempotencyKey, text: m.text }); return { outcome: 'sent', stopRun: false, name: null, retryAfterMs: null } },
@@ -42,12 +47,27 @@ vi.mock('./azure-speech', async (orig) => ({
   speechConfig: () => ({ key: 'k', region: 'southeastasia' }),
   assess: async (_cfg: unknown, _wav: unknown, reference: string) => (seen.assessed.push(reference), { accuracy: 70, fluency: 80, completeness: null, prosody: null, words: [{ word: 'school', score: 50, error: 'Mispronunciation' }] }),
 }))
-vi.mock('./session-voice', () => ({ speakLine: async () => 'AAAA' }))
+vi.mock('./session-voice', () => ({
+  speakLine: async () => 'AAAA',
+  // each sentence's voice, streamed (turn-stream.ts): four bytes of it, or a failure for `failVoice`
+  speakerFor: () => async (text: string) => {
+    seen.spoken.push(text)
+    if (text === seen.failVoice) throw Object.assign(new Error('tts'), { status: 502 })
+    return { rate: 24_000, chunks: (async function* () { yield new Uint8Array(4) })() }
+  },
+}))
 vi.mock('./tutor-ai', async (orig) => ({
   ...(await orig<typeof import('./tutor-ai')>()),
-  tutorTurn: async () => {
-    if (seen.tutorUnusableHarm) throw Object.assign(new SyntaxError('classroom_unusable_reply'), { safety: true, calls: 2 })
-    return { reply: 'Nice! Where did you go?', hint: 'I went to school.', hintVi: 'Em đã đi học.', expect: null, heardAs: [], safety: false, model: 'm', calls: 1 }
+  // the brain, streamed: its harm flag, each sentence as written, then the whole reply
+  tutorTurnStream: async function* () {
+    if (seen.tutorUnusableHarm) {
+      yield { kind: 'safety', harm: true }
+      throw Object.assign(new SyntaxError('classroom_unusable_reply'), { safety: true, calls: 2 })
+    }
+    const reply = seen.replyText ?? 'Nice! Where did you go?'
+    yield { kind: 'safety', harm: false }
+    for (const text of reply.match(/[^.!?]+[.!?]+/g) ?? [reply]) yield { kind: 'say', text: text.trim() }
+    yield { kind: 'final', reply: { reply, hint: 'I went to school.', hintVi: 'Em đã đi học.', expect: null, heardAs: [], safety: false }, model: 'm', calls: 1 }
   },
 }))
 vi.mock('./feedback-ai', async (orig) => ({
@@ -82,6 +102,17 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     const pcm = new Int16Array(16_000)
     for (let i = 0; i < pcm.length; i++) pcm[i] = Math.round(Math.sin(i / 10) * 8000)
     return Buffer.from(wav.encodeWav(pcm))
+  }
+  /** One turn answered to its end, as the route streams it: every line, the saved turn's line, and the sentences said. */
+  const answered = async (...a: Parameters<typeof turn.processTurn>) => {
+    const r = await turn.processTurn(...a)
+    const lines: TurnLine[] = []
+    if (r.kind === 'answer') {
+      for await (const l of r.lines) lines.push(l)
+      await r.done
+    }
+    const said = lines.flatMap((l) => (l.kind === 'say' ? [l.text] : []))
+    return { kind: r.kind, lines, said, reply: lines.find((l) => l.kind === 'reply') }
   }
   const consents = () => ({ practice: notices.PRACTICE_NOTICE_VERSION, teacherView: notices.TEACHER_VIEW_NOTICE_VERSION })
   const account = (id: string) => ({ id, accountType: 'individual', displayName: 'Parent', tosVersion: null })
@@ -157,7 +188,7 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     expect(a.id).toBe(b.id)
     expect([a.resumed, b.resumed].sort()).toEqual([false, true])
     expect(await db.classroomSession.count({ where: { enrollmentId: seat.id } })).toBe(1)
-    await turn.processTurn(a.id, parentId, 'turn-spoke-01', voice())
+    await answered(a.id, parentId, 'turn-spoke-01', voice())
     await end.endSession(a.id, parentId, 'learner')
     await expect(start.startLearnerSession(seat.id, parentId)).rejects.toMatchObject({ code: 'day_limit' })
   })
@@ -179,17 +210,25 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
   it('⛔ a harm flag survives an unusable reply: saved flagged with our own words, a person alerted; a resume never replays it', async () => {
     const seat = await activeSeat()
     const s = await start.startLearnerSession(seat.id, parentId)
-    await turn.processTurn(s.id, parentId, 'turn-normal-001', voice())
+    await answered(s.id, parentId, 'turn-normal-001', voice())
     seen.alerts.length = 0
     process.env.ADMIN_EMAILS = 'safety-a@example.test'
     seen.tutorUnusableHarm = true
     try {
-      const r = await turn.processTurn(s.id, parentId, 'turn-harm-0001', voice())
-      expect(r).toMatchObject({ kind: 'reply', reply: expect.stringMatching(/trust/) })
+      seen.spoken.length = 0
+      const r = await answered(s.id, parentId, 'turn-harm-0001', voice())
+      // the kind words are spoken — only once the turn is saved flagged (turn-stream.ts)
+      expect(r.reply).toMatchObject({ reply: expect.stringMatching(/trust/) })
+      expect(r.lines.findIndex((l) => l.kind === 'say')).toBeGreaterThan(r.lines.findIndex((l) => l.kind === 'reply'))
+      expect(seen.spoken.join(' ')).toBe(r.reply?.kind === 'reply' ? r.reply.reply : '')
     } finally { seen.tutorUnusableHarm = false }
     await Promise.all(afterQueue.splice(0))
     expect(await db.classroomTurn.findFirst({ where: { sessionId: s.id, clientTurnId: 'turn-harm-0001' } })).toMatchObject({ flag: 'harm', status: 'ok' })
     expect(seen.alerts.map((a) => a.to)).toEqual(['safety-a@example.test'])
+    // a retried upload of it (the latest turn) gives back only eno's own safe line — no words, no hints, no voice
+    const replay = await answered(s.id, parentId, 'turn-harm-0001', voice())
+    expect(replay.reply).toMatchObject({ learnerText: '', reply: expect.stringMatching(/trust/), hint: '', hintVi: '', heardAs: [] })
+    expect(replay.lines.map((l) => l.kind)).toEqual(['reply', 'end']) // no words of theirs, no voice
     // the parent reopens the tab: never the safety words again — a neutral line, and no drill
     const again = await start.startLearnerSession(seat.id, parentId)
     expect(again.resumed).toBe(true)
@@ -217,7 +256,7 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
   it('⛔ an expired session is ended even when the start that found it is refused (its own transaction)', async () => {
     const seat = await activeSeat()
     const s = await start.startLearnerSession(seat.id, parentId)
-    await turn.processTurn(s.id, parentId, 'turn-spent-001', voice()) // the day is spent
+    await answered(s.id, parentId, 'turn-spent-001', voice()) // the day is spent
     await db.classroomSession.update({ where: { id: s.id }, data: { endsAt: new Date(Date.now() - 5 * 60_000) } })
     await expect(start.startLearnerSession(seat.id, parentId)).rejects.toMatchObject({ code: 'day_limit' })
     expect(await db.classroomSession.findUnique({ where: { id: s.id } })).toMatchObject({ status: 'ended', endReason: 'time' })
@@ -323,17 +362,95 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     for (let q = 1; q <= 78; q++) await db.classroomTurn.create({ data: { sessionId: s.id, seq: q, status: 'ok', learnerText: 'x', replyText: 'y' } })
     seen.recognizeMs = 300 // a reply takes a moment: the parallel uploads arrive while the first is being answered
     const ids = ['turn-aaaaaaaa', 'turn-bbbbbbbb', 'turn-cccccccc', 'turn-dddddddd']
-    const results = await Promise.allSettled(ids.map((id) => turn.processTurn(s.id, parentId, id, voice())))
+    const results = await Promise.allSettled(ids.map((id) => answered(s.id, parentId, id, voice())))
     seen.recognizeMs = 0
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
     expect(results.filter((r) => r.status === 'rejected').every((r) => (r as PromiseRejectedResult).reason.code === 'turn_in_progress')).toBe(true)
-    await turn.processTurn(s.id, parentId, 'turn-eeeeeeee', voice()) // the 80th
+    await answered(s.id, parentId, 'turn-eeeeeeee', voice()) // the 80th
     await expect(turn.processTurn(s.id, parentId, 'turn-ffffffff', voice())).rejects.toMatchObject({ code: 'turn_cap' })
     expect(await db.classroomTurn.count({ where: { sessionId: s.id } })).toBe(81)
     const ok = ids[results.findIndex((r) => r.status === 'fulfilled')]
-    const again = await turn.processTurn(s.id, parentId, ok, voice())
-    expect(again).toMatchObject({ kind: 'reply', reply: 'Nice! Where did you go?' })
+    const again = await answered(s.id, parentId, ok, voice())
+    // the same answer — its words only: it is no longer the session's latest turn
+    expect(again.reply).toMatchObject({ reply: 'Nice! Where did you go?' })
+    expect(again.said).toEqual([])
     expect(await db.classroomTurn.count({ where: { sessionId: s.id } })).toBe(81)
+  })
+
+  // a reply of five sentences (said one by one as written) — and of three parts when a retry voices it whole (reply-parts.ts)
+  const LONG_REPLY = 'Great job! You went to the park with your family yesterday. That sounds like a really fun day out together. What animals did you see at the park? Tell me about the one you liked best.'
+  const LONG_SENTENCES = [
+    'Great job!',
+    'You went to the park with your family yesterday.',
+    'That sounds like a really fun day out together.',
+    'What animals did you see at the park?',
+    'Tell me about the one you liked best.',
+  ]
+  const LONG_PARTS = [
+    'Great job! You went to the park with your family yesterday.',
+    'That sounds like a really fun day out together.',
+    'What animals did you see at the park? Tell me about the one you liked best.',
+  ]
+
+  it('⛔ the reply is voiced sentence by sentence as it is written, then saved whole; a failed voice never stops the next', async () => {
+    const seat = await activeSeat()
+    const s = await start.startLearnerSession(seat.id, parentId)
+    seen.replyText = LONG_REPLY
+    seen.spoken.length = 0
+    seen.failVoice = LONG_SENTENCES[1]
+    try {
+      const r = await answered(s.id, parentId, 'turn-parts-0001', voice())
+      expect(r.lines[0]).toEqual({ kind: 'heard', learnerText: 'I go to school yesterday' })
+      expect(r.said).toEqual(LONG_SENTENCES)
+      expect(seen.spoken).toEqual(LONG_SENTENCES)
+      expect(r.lines.filter((l) => l.kind === 'audio-failed')).toEqual([{ kind: 'audio-failed', part: 1 }])
+      expect(r.lines.filter((l) => l.kind === 'pcm')).toHaveLength(4)
+      expect(r.reply).toMatchObject({ reply: LONG_REPLY, learnerText: 'I go to school yesterday', hint: 'I went to school.' })
+      expect(r.lines.slice(-2)).toEqual([{ kind: 'part-end', part: 4, last: true }, { kind: 'end' }])
+      expect(await db.classroomTurn.findFirst({ where: { sessionId: s.id, clientTurnId: 'turn-parts-0001' } })).toMatchObject({ status: 'ok', replyText: LONG_REPLY })
+      // the cost counts the whole reply, as before
+      expect(await db.classroomSession.findUnique({ where: { id: s.id } })).toMatchObject({ turnCount: 1, avatarChars: LONG_REPLY.length })
+    } finally {
+      seen.replyText = null
+      seen.failVoice = null
+    }
+  })
+
+  it('⛔ the page goes away mid-answer (talked over, closed): its voice stops, and the turn is STILL saved', async () => {
+    const seat = await activeSeat()
+    const s = await start.startLearnerSession(seat.id, parentId)
+    seen.replyText = LONG_REPLY
+    try {
+      const r = await turn.processTurn(s.id, parentId, 'turn-gone-00001', voice())
+      if (r.kind !== 'answer') throw new Error('expected an answer')
+      expect((await r.lines.next()).value).toEqual({ kind: 'heard', learnerText: 'I go to school yesterday' })
+      r.stop()
+      await r.done
+      expect(await db.classroomTurn.findFirst({ where: { sessionId: s.id, clientTurnId: 'turn-gone-00001' } })).toMatchObject({ status: 'ok', replyText: LONG_REPLY })
+    } finally {
+      seen.replyText = null
+    }
+  })
+
+  it('⛔ a retried upload: the LATEST turn is voiced again, part by part; an older one answers with its words alone', async () => {
+    const seat = await activeSeat()
+    const s = await start.startLearnerSession(seat.id, parentId)
+    seen.replyText = LONG_REPLY
+    try {
+      await answered(s.id, parentId, 'turn-retry-0001', voice())
+      await answered(s.id, parentId, 'turn-retry-0002', voice())
+      seen.spoken.length = 0
+      const latest = await answered(s.id, parentId, 'turn-retry-0002', voice())
+      expect(latest.reply).toMatchObject({ seq: 2, reply: LONG_REPLY })
+      expect(latest.said).toEqual(LONG_PARTS)
+      const older = await answered(s.id, parentId, 'turn-retry-0001', voice())
+      expect(older.reply).toMatchObject({ seq: 1, reply: LONG_REPLY })
+      expect(older.said).toEqual([])
+      expect(seen.spoken).toEqual(LONG_PARTS) // the latest turn's parts, once — nothing for the older one
+      expect(await db.classroomTurn.count({ where: { sessionId: s.id } })).toBe(3) // the opening line and two turns: no retry made a row
+    } finally {
+      seen.replyText = null
+    }
   })
 
   it('⛔ attempts count toward the cap — a silent or failed attempt keeps its seq (never deleted)', async () => {
@@ -352,7 +469,7 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     const seat = await activeSeat()
     const s = await start.startLearnerSession(seat.id, parentId)
     seen.recognizeMs = 400
-    const inFlight = turn.processTurn(s.id, parentId, 'turn-inflight-1', voice())
+    const inFlight = answered(s.id, parentId, 'turn-inflight-1', voice())
     await new Promise((r) => setTimeout(r, 150)) // reserved, still being answered
     await db.classroomSession.update({ where: { id: s.id }, data: { status: 'ended', endedAt: new Date(), endReason: 'learner' } })
     expect(await feedback.buildFeedback(s.id)).toBe('waiting')
@@ -368,17 +485,41 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     const s = await start.startLearnerSession(seat.id, parentId)
     await db.classroomTurn.updateMany({ where: { sessionId: s.id, seq: 0 }, data: { expectText: null } })
     seen.assessed.length = 0
-    const r = await turn.processTurn(s.id, parentId, 'turn-free-0001', voice())
+    const r = await answered(s.id, parentId, 'turn-free-0001', voice())
     await Promise.all(afterQueue.splice(0))
-    expect(r).toMatchObject({ kind: 'reply' })
+    expect(r).toMatchObject({ kind: 'answer' })
     expect(seen.assessed).toEqual([])
     expect(await db.classroomTurn.findFirst({ where: { sessionId: s.id, clientTurnId: 'turn-free-0001' } })).toMatchObject({ assessStatus: 'skipped', reference: null })
     // the tutor's reply asks for a sentence: the NEXT turn is a drill, scored against exactly that sentence
     await db.classroomTurn.updateMany({ where: { sessionId: s.id, clientTurnId: 'turn-free-0001' }, data: { expectText: 'I went to school yesterday.' } })
-    await turn.processTurn(s.id, parentId, 'turn-drill-001', voice())
+    await answered(s.id, parentId, 'turn-drill-001', voice())
     await Promise.all(afterQueue.splice(0))
     expect(seen.assessed).toEqual(['I went to school yesterday.'])
     expect(await db.classroomTurn.findFirst({ where: { sessionId: s.id, clientTurnId: 'turn-drill-001' } })).toMatchObject({ assessStatus: 'done', reference: 'I went to school yesterday.' })
+  })
+
+  it('⚠️ CLASSROOM_DEV_UNLIMITED lifts the daily try limit on `next dev` only — never in the tests or a production build', async () => {
+    vi.stubEnv('CLASSROOM_DEV_UNLIMITED', '1')
+    try {
+      // NODE_ENV is 'test' here: the switch is ignored — tries run out as always.
+      let refused: unknown = null
+      for (let n = 0; n < 10 && !refused; n++) {
+        try {
+          const t = await start.startTeacherTest(teacherId)
+          await end.endSession(t.id, teacherId, 'learner')
+        } catch (e) { refused = e }
+      }
+      expect(refused).toMatchObject({ code: 'test_limit' })
+      vi.stubEnv('NODE_ENV', 'production')
+      await expect(start.startTeacherTest(teacherId)).rejects.toMatchObject({ code: 'test_limit' })
+      vi.stubEnv('NODE_ENV', 'development')
+      const t = await start.startTeacherTest(teacherId)
+      expect(Date.parse(t.endsAt) - Date.now()).toBeGreaterThan(10 * 60_000) // a longer try, too
+      await end.endSession(t.id, teacherId, 'learner')
+    } finally {
+      vi.unstubAllEnvs()
+      await Promise.all(afterQueue.splice(0))
+    }
   })
 
   it('⛔ the switch bites on the next turn, not when the sweep comes round', async () => {
@@ -394,7 +535,7 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     const s = await start.startLearnerSession(seat.id, parentId)
     // the opening line asked for a drill: this turn is scored against it (free talk is not scored at all — next test)
     await db.classroomTurn.updateMany({ where: { sessionId: s.id, seq: 0 }, data: { expectText: 'I go to school.' } })
-    await turn.processTurn(s.id, parentId, 'turn-one-111', voice())
+    await answered(s.id, parentId, 'turn-one-111', voice())
     await Promise.all(afterQueue.splice(0)) // the pronunciation score lands
     await db.classroomSession.update({ where: { id: s.id }, data: { endsAt: new Date(Date.now() - 10 * 60_000) } })
     const [e] = await Promise.all([end.endSession(s.id, parentId, 'learner'), sweep.sweepClassroom({ killAll: false })])

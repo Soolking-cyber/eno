@@ -1,0 +1,240 @@
+import { logError, logWarn } from '@/lib/log'
+import { quietError } from './quiet-error'
+import { replyParts } from './reply-parts'
+import { mayBeSpoken } from './contact-gate'
+import type { TutorEvent, TutorReply } from './tutor-ai'
+
+/**
+ * ONE TURN'S ANSWER, STREAMED (owner, 2026-10-26: "mvp should work flawless delayless"). The turn route answers with JSON
+ * lines (application/x-ndjson), each written the moment it exists:
+ *
+ *   heard         the learner's words (the transcript) — on screen while the avatar thinks
+ *   say           one sentence of the reply, as soon as the brain has written it (tutor-ai.ts tutorTurnStream) …
+ *   pcm           … then its voice as it is made: raw PCM16 mono at `rate` Hz, base64 (eno's speech server, /tts/stream)
+ *   part-end      that sentence's voice is complete; `last`: the whole reply's is
+ *   audio-failed  a sentence whose voice could not be made (its words were on screen; the next one is still tried)
+ *   reply         the turn as SAVED — hints, the drill, the time left — once the brain has finished (the voice may still
+ *                 be playing)
+ *   error         the turn could not be answered and nothing was said: the page says "try again" (then end)
+ *   end           the answer is complete — a stream that stops before it was cut off
+ *
+ * So the avatar starts talking about a second after the learner stops, not after the whole reply and then its whole voice
+ * (measured 2026-10-26 before this: 7-13 s).
+ * ⛔ THE TURN DOES NOT DEPEND ON ITS READER: the brain runs to its end and the turn is saved even when the page goes away
+ * mid-answer (talked over, closed) — only the voice stops. ⛔ Nothing is stored but the saved turn; no words are logged.
+ */
+export type TurnLine =
+  | { kind: 'heard'; learnerText: string }
+  | { kind: 'say'; part: number; text: string }
+  | { kind: 'pcm'; part: number; rate: number; data: string }
+  | { kind: 'part-end'; part: number; last: boolean }
+  | { kind: 'audio-failed'; part: number }
+  | ({ kind: 'reply' } & SavedReply)
+  | { kind: 'error'; error: 'tutor_unavailable' }
+  | { kind: 'end' }
+
+/** The turn as saved — what the `reply` line carries. */
+export type SavedReply = {
+  seq: number
+  learnerText: string
+  reply: string
+  hint: string
+  hintVi: string
+  expect: string | null
+  heardAs: { heard: string; meant: string }[]
+  secondsLeft: number
+}
+
+/** One line in the avatar's voice, as it is made (speech-local.ts synthesizeStream). */
+export type VoiceStream = { rate: number; chunks: AsyncIterable<Uint8Array> }
+export type Speaker = (text: string, signal: AbortSignal) => Promise<VoiceStream>
+
+/** The brain's whole answer, as tutor-ai.ts's `final` event gives it. */
+export type Answer = { reply: TutorReply; model: string; calls: number }
+
+/** A turn being answered: its lines for the route, `stop` when the route's client has gone, `done` when all is over. */
+export type TurnStream = { lines: AsyncGenerator<TurnLine, void, undefined>; stop: () => void; done: Promise<void> }
+
+/** Voice per `pcm` line after the first: ~100 ms at 24 kHz. The FIRST frames go alone, at once — the sound starts. */
+export const PCM_LINE_BYTES = 4_800
+
+export function streamTurn(t: {
+  learnerText: string
+  /** The brain's events (tutor-ai.ts tutorTurnStream). */
+  events: AsyncIterable<TutorEvent>
+  /** The avatar's voice; null = none (the words still reach the screen). */
+  speak: Speaker | null
+  /** Saves the answered turn and returns the `reply` line; throws when it could not (having given the row back, or kept
+   *  a harm flag, itself). `clientGone`: the page has left — whatever runs "after the response" must run now. */
+  save: (a: Answer, ctx: { clientGone: boolean }) => Promise<SavedReply>
+  /** No answer at all: gives the reserved turn back. Never throws. */
+  giveUp: (e: unknown) => Promise<void>
+  /** eno's own kind words for a turn the brain flagged for harm but whose reply could not be used (safety.ts). */
+  safetyLine: string
+  /** Ends the brain: the page has gone (talked over, closed) — what was said by then is the reply. */
+  stopBrain?: () => void
+}): TurnStream {
+  const q = lineQueue<TurnLine>()
+  const gone = new AbortController()
+  const voice = voiceOf(q, t.speak, gone.signal)
+  const done = (async () => {
+    q.push({ kind: 'heard', learnerText: t.learnerText })
+    const said: string[] = []
+    let answer: Answer | null = null
+    let harm = false
+    try {
+      for await (const ev of t.events) {
+        // ⛔ A TALKED-OVER REPLY ENDS WHERE THE LEARNER STOPPED HEARING IT (2026-10-26 review, opus): sentences written
+        // after the page left are never said, never saved — the history holds only what the learner heard.
+        if (ev.kind === 'say') { if (!gone.signal.aborted) { said.push(ev.text); voice.say(ev.text) } }
+        else if (ev.kind === 'safety') harm ||= ev.harm
+        else answer = { reply: ev.reply, model: ev.model, calls: ev.calls }
+      }
+      if (!answer) throw new Error('classroom_no_answer')
+      // A flag the brain raised is the turn's, whatever its final answer says (defence in depth: they come from one JSON).
+      if (harm && !answer.reply.safety) throw Object.assign(new Error('classroom_flag_mismatch'), { safety: true, calls: answer.calls })
+    } catch (e) {
+      const calls = (e as { calls?: number } | null)?.calls ?? 1
+      // ⛔ A HARM FLAG RAISED BEFORE THE BRAIN FAILED IS KEPT (2026-10-26 review, codex P1).
+      if ((e as { safety?: boolean } | null)?.safety || harm) {
+        // ⛔ A HARM FLAG IS NEVER LOST WITH ITS REPLY (2a round 5, opus): the model flagged the turn but its words could not
+        // be used — eno's own kind words, saved flagged, and a person is alerted (save).
+        answer = { reply: { reply: t.safetyLine, hint: '', hintVi: '', expect: null, heardAs: [], safety: true }, model: 'eno-safety', calls }
+      } else if (said.length) {
+        // The brain broke off — or the page left — after some of the reply was said: what the learner heard IS the reply.
+        // Every sentence passed the gate with all before it (contact-gate.ts); checked once more as the saved text.
+        if (!gone.signal.aborted) logWarn('[classroom] reply cut off mid-stream', { status: (e as { status?: number } | null)?.status ?? null })
+        const text = said.join(' ')
+        answer = { reply: { reply: mayBeSpoken([], text) ? text : '', hint: '', hintVi: '', expect: null, heardAs: [], safety: false }, model: 'cut-off', calls }
+      } else {
+        await t.giveUp(e)
+        q.push({ kind: 'error', error: 'tutor_unavailable' })
+        q.push({ kind: 'end' })
+        q.close()
+        return
+      }
+    }
+    // A flagged turn never sets a drill (2a round 10, opus): nothing after a disclosure is scored as a repeat of anything.
+    if (answer.reply.safety) answer = { ...answer, reply: { ...answer.reply, expect: null } }
+    let saved: SavedReply | null = null
+    try {
+      saved = await t.save(answer, { clientGone: gone.signal.aborted })
+    } catch {
+      // save() gave the row back (or kept the flag) and logged it. A learner who has heard nothing hears "try again".
+      if (!said.length && !answer.reply.safety) {
+        q.push({ kind: 'error', error: 'tutor_unavailable' })
+        q.push({ kind: 'end' })
+        q.close()
+        return
+      }
+    }
+    // ⛔ A FLAGGED REPLY IS SPOKEN ONLY NOW — whole, checked by acceptTutorReply and saved first (tutor-ai.ts never hands
+    // over a sentence of it): the model's kind words, or eno's own.
+    if (answer.reply.safety) for (const p of replyParts(answer.reply.reply)) voice.say(p)
+    if (saved) q.push({ kind: 'reply', ...saved })
+    await voice.finish()
+    q.close()
+  })().catch((e) => {
+    logError(quietError(e), { op: 'classroom.turn.stream' })
+    q.close()
+  })
+  return { lines: q.lines(), stop: () => { gone.abort(); t.stopBrain?.(); q.close() }, done }
+}
+
+/**
+ * A retried upload of a turn already answered: the same answer again (session-turn.ts decides whose voice is made again —
+ * `speak` null answers with the words alone).
+ */
+export function replayTurn(saved: SavedReply, speak: Speaker | null): TurnStream {
+  const q = lineQueue<TurnLine>()
+  const gone = new AbortController()
+  const voice = voiceOf(q, speak, gone.signal)
+  const done = (async () => {
+    if (saved.learnerText) q.push({ kind: 'heard', learnerText: saved.learnerText })
+    if (speak) for (const p of replyParts(saved.reply)) voice.say(p)
+    q.push({ kind: 'reply', ...saved })
+    await voice.finish()
+    q.close()
+  })().catch((e) => {
+    logError(quietError(e), { op: 'classroom.turn.replay' })
+    q.close()
+  })
+  return { lines: q.lines(), stop: () => { gone.abort(); q.close() }, done }
+}
+
+/**
+ * The reply's voice: its sentences said in order, one at a time (eno's speech server makes one line per voice at a time
+ * anyway, ~10x faster than it is spoken) — each `say` first, then its frames. A sentence whose voice fails is
+ * 'audio-failed' and the next one is still made. finish(): when every sentence's voice is done, the last part-end and end.
+ */
+function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSignal) {
+  let parts = 0
+  let chain: Promise<void> = Promise.resolve()
+  const one = async (part: number, text: string) => {
+    q.push({ kind: 'say', part, text })
+    if (!speak || gone.aborted) return
+    try {
+      const v = await speak(text, gone)
+      let held: Uint8Array[] = []
+      let size = 0
+      let first = true
+      const send = () => {
+        q.push({ kind: 'pcm', part, rate: v.rate, data: Buffer.concat(held).toString('base64') })
+        held = []
+        size = 0
+        first = false
+      }
+      for await (const chunk of v.chunks) {
+        if (gone.aborted) return
+        held.push(chunk)
+        size += chunk.length
+        if (first || size >= PCM_LINE_BYTES) send()
+      }
+      if (gone.aborted) return
+      if (size) send()
+      q.push({ kind: 'part-end', part, last: false })
+    } catch (e) {
+      logWarn('[classroom] reply TTS failed', { part, status: (e as { status?: number } | null)?.status ?? null })
+      q.push({ kind: 'audio-failed', part })
+    }
+  }
+  return {
+    say(text: string) {
+      const part = parts++
+      chain = chain.then(() => one(part, text))
+    },
+    async finish() {
+      await chain
+      if (parts) q.push({ kind: 'part-end', part: parts - 1, last: true })
+      q.push({ kind: 'end' })
+    },
+  }
+}
+
+type LineQueue<T> = { push: (item: T) => void; close: () => void; lines: () => AsyncGenerator<T, void, undefined> }
+
+/** One writer, one reader. After close() nothing more is taken; what was queued is still read. */
+function lineQueue<T>(): LineQueue<T> {
+  const items: T[] = []
+  let closed = false
+  let wake: (() => void) | null = null
+  const nudge = () => { const w = wake; wake = null; w?.() }
+  return {
+    push(item) {
+      if (closed) return
+      items.push(item)
+      nudge()
+    },
+    close() {
+      closed = true
+      nudge()
+    },
+    async *lines() {
+      for (;;) {
+        if (items.length) { yield items.shift() as T; continue }
+        if (closed) return
+        await new Promise<void>((resolve) => { wake = resolve })
+      }
+    },
+  }
+}

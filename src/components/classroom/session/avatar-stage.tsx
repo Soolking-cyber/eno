@@ -4,6 +4,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { Avatar } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import { pcm16Of } from './voice'
+import { mark } from './trace'
 
 /**
  * The face on the session screen. Two looks behind one handle:
@@ -14,21 +15,46 @@ import { pcm16Of } from './voice'
  * ⛔ AvatarKit receives the AVATAR's voice only, never the learner's (plan; the practice notice says so).
  */
 export type StageHandle = {
-  /** Avatar mode: hand a decoded line to AvatarKit (it plays it). False = not ready; the page plays it itself. */
-  speak: (buffer: AudioBuffer) => boolean
+  /**
+   * Avatar mode: hand one decoded PART of a reply to AvatarKit — `last` closes the reply. Parts stream in as the server
+   * makes them, so the face starts on the first sentence. False = not started; the page plays it itself.
+   */
+  speakPart: (buffer: AudioBuffer, last: boolean) => boolean
+  /** The same for raw PCM16 already at the face's rate (`sampleRate`) — the voice server's frames, streamed. */
+  speakPcm: (pcm: Int16Array, last: boolean) => boolean
   interrupt: () => void
   /**
-   * Call from INSIDE a user gesture (the mic tap): starts AvatarKit's audio and its connection once the face has loaded.
-   * Its own docs: `initializeAudioContext` "must be called in user gesture context" — iOS keeps audio started any later
-   * silent (C3a review, Opus). A no-op before the face has loaded, after it started, or in voice mode.
+   * Start AvatarKit's audio and its connection once the face has drawn. Resolves true when replies go to the face.
+   * Its docs want `initializeAudioContext` inside a user gesture — Chrome and Android carry the Start tap's activation
+   * to here; iOS may not, and then the page shows one "Tap to start" and calls this again from that tap.
    */
-  unlock: () => void
+  unlock: () => Promise<boolean>
 }
 
 /** How long the face may take to draw its first frame before the page gives up on it and stays voice-only. */
 const FIRST_FRAME_MS = 20_000
 
 type Kit = typeof import('@spatius/avatarkit')
+
+/**
+ * The SDK, imported once per page and early: the screen calls this while it shows its intro, so by the Start tap the
+ * ~9 MB is in memory. ⛔ NOT `AvatarSDK.isDeviceSupported()`: its own docs say it runs a ~2 s benchmark (16 s measured
+ * on a loaded machine, 2026-10-26) and then returns true whenever WebGL2 or WebGPU exists — "the score thresholds are
+ * not yet enforced". The same answer, from the same two checks, costs a millisecond here.
+ */
+let kitPromise: Promise<Kit> | null = null
+export function warmAvatarKit(): Promise<Kit> {
+  kitPromise ??= import('@spatius/avatarkit')
+  return kitPromise
+}
+function canDrawAvatar(): boolean {
+  try {
+    if (typeof navigator !== 'undefined' && 'gpu' in navigator) return true
+    return !!document.createElement('canvas').getContext('webgl2')
+  } catch {
+    return false
+  }
+}
 
 export const AvatarStage = forwardRef<StageHandle, {
   mode: 'avatar' | 'voice'
@@ -38,49 +64,70 @@ export const AvatarStage = forwardRef<StageHandle, {
   name: string
   speaking: boolean
   sampleRate: number
+  /** The face has drawn its first frame (avatar mode) — the page may start it (`unlock`). */
+  onReady: () => void
   onFallback: () => void
   onPlaying: (playing: boolean) => void
-}>(function AvatarStage({ mode, sessionId, spatiusAvatarId, photoUrl, name, speaking, sampleRate, onFallback, onPlaying }, ref) {
+}>(function AvatarStage({ mode, sessionId, spatiusAvatarId, photoUrl, name, speaking, sampleRate, onReady, onFallback, onPlaying }, ref) {
   const box = useRef<HTMLDivElement>(null)
   const ctl = useRef<InstanceType<Kit['AvatarView']>['controller'] | null>(null)
-  /** The loaded face's controller, not yet started (it starts on the first gesture — `unlock`). */
+  /** The loaded face's controller, not yet started (`unlock` starts it). */
   const pending = useRef<InstanceType<Kit['AvatarView']>['controller'] | null>(null)
   /** The current load's token: a chain from an earlier load (cleaned up) never adopts its controller. */
   const run = useRef<object | null>(null)
-  const [ready, setReady] = useState(false)
+  const [drawn, setDrawn] = useState(false)
   const fallback = useRef(onFallback)
   fallback.current = onFallback
+  const ready = useRef(onReady)
+  ready.current = onReady
   const playing = useRef(onPlaying)
   playing.current = onPlaying
 
   useImperativeHandle(ref, () => ({
-    speak: (buffer) => {
-      if (mode !== 'avatar' || !ready || !ctl.current) return false
+    speakPart: (buffer, last) => {
+      if (mode !== 'avatar' || !ctl.current) return false
       try {
-        ctl.current.send(pcm16Of(buffer), true)
+        ctl.current.send(pcm16Of(buffer), last)
+        mark(last ? 'face: last part sent' : 'face: part sent', `${buffer.duration.toFixed(1)}s`)
+        return true
+      } catch {
+        return false
+      }
+    },
+    speakPcm: (pcm, last) => {
+      if (mode !== 'avatar' || !ctl.current) return false
+      try {
+        // An exact ArrayBuffer of these samples (a view may sit in a larger buffer).
+        ctl.current.send(pcm.slice().buffer, last)
+        if (last) mark('face: last frames sent')
         return true
       } catch {
         return false
       }
     },
     interrupt: () => { try { ctl.current?.interrupt() } catch { /* nothing playing */ } },
-    unlock: () => {
+    unlock: async () => {
+      if (ctl.current) return true
       const c = pending.current
       const mine = run.current
-      if (mode !== 'avatar' || !c || !mine) return
-      pending.current = null
+      if (mode !== 'avatar' || !c || !mine) return false
       const live = () => run.current === mine
-      // initializeAudioContext is CALLED here, synchronously inside the gesture; what follows may finish later.
-      c.initializeAudioContext()
-        .then(() => (live() ? c.start() : undefined))
-        .then(() => {
-          if (!live()) { try { c.close() } catch { /* closed */ } return }
-          ctl.current = c
-          setReady(true)
-        })
-        .catch(() => { if (live()) fallback.current() })
+      try {
+        // initializeAudioContext is CALLED synchronously here — inside the gesture when there is one.
+        await c.initializeAudioContext()
+        if (!live()) return false
+        await c.start()
+        if (!live()) { try { c.close() } catch { /* closed */ } return false }
+        pending.current = null
+        ctl.current = c
+        mark('face: started')
+        return true
+      } catch {
+        mark('face: start failed')
+        return false
+      }
     },
-  }), [mode, ready])
+  }), [mode])
 
   useEffect(() => {
     if (mode !== 'avatar' || !spatiusAvatarId || !box.current) return
@@ -96,33 +143,45 @@ export const AvatarStage = forwardRef<StageHandle, {
      */
     ;(async () => {
       try {
-        const kit = await import('@spatius/avatarkit')
+        mark('face: load')
+        if (!canDrawAvatar()) throw new Error('unsupported_device')
+        const [kit, tok] = await Promise.all([
+          warmAvatarKit(),
+          fetch(`/api/classroom/sessions/${sessionId}/token`, { method: 'POST' }),
+        ])
         if (disposed) return
-        if (!(await kit.AvatarSDK.isDeviceSupported())) throw new Error('unsupported_device')
-        if (disposed) return
-        const tok = await fetch(`/api/classroom/sessions/${sessionId}/token`, { method: 'POST' })
         if (!tok.ok) throw new Error(`token_${tok.status}`)
         const { token, appId, region } = (await tok.json()) as { token: string; appId: string; region: string }
         if (disposed) return
+        mark('face: token')
         if (!kit.AvatarSDK.appId) await kit.AvatarSDK.initialize(appId, { region, drivingServiceMode: kit.DrivingServiceMode.direct, logLevel: kit.LogLevel.error })
         kit.AvatarSDK.setSessionToken(token)
         const avatar = await kit.AvatarManager.shared.load(spatiusAvatarId, undefined, true)
         if (disposed || !box.current) return
+        mark('face: assets')
         const v = new kit.AvatarView(avatar, box.current, { audioFormat: { channelCount: 1, sampleRate } })
         view = v
         const c = v.controller
-        c.onError = () => { if (!disposed) fallback.current() }
-        c.onConnectionState = (s) => { if (s === kit.ConnectionState.failed && !disposed) fallback.current() }
-        c.onConversationState = (s) => playing.current(s === kit.ConversationState.playing)
+        // ⛔ STRICT SYNC (owner, 2026-10-26: "i cannot see live avatar" — the lips stood still). The SDK's default
+        // (`audioIndependent`) keeps the AUDIO playing when the face's motion frames run late, so a slow frame stream is a
+        // talking photo. strictSync holds the audio until the frames catch up: a short pause, never a still mouth.
+        c.frameStarvationMode = kit.FrameStarvationMode.strictSync
+        c.onPlaybackStall = (stalled) => mark(stalled ? 'face: STALLED (motion late)' : 'face: resumed')
+        c.onError = (e?: unknown) => { mark('face: error', String((e as { code?: string })?.code ?? e)); if (!disposed) fallback.current() }
+        c.onConnectionState = (s) => { mark(`face: ${s}`); if (s === kit.ConnectionState.failed && !disposed) fallback.current() }
+        c.onConversationState = (s) => { mark(`face: ${s}`); playing.current(s === kit.ConversationState.playing) }
         // A face that never draws its first frame must not hold the page: voice-only after FIRST_FRAME_MS.
         await new Promise<void>((resolve, reject) => {
           const t = setTimeout(() => reject(new Error('first_frame_timeout')), FIRST_FRAME_MS)
           v.onFirstRendering = () => { clearTimeout(t); resolve() }
         })
         if (disposed) { try { v.dispose() } catch { /* disposed */ } return }
-        // Loaded; the audio and the connection start on the learner's next tap (`unlock`).
+        mark('face: drawn')
         pending.current = c
-      } catch {
+        setDrawn(true)
+        ready.current()
+      } catch (e) {
+        mark('face: load failed', String((e as Error)?.message ?? e))
         if (!disposed) fallback.current()
       }
     })()
@@ -133,7 +192,7 @@ export const AvatarStage = forwardRef<StageHandle, {
       try { ctl.current?.close() } catch { /* closed */ }
       try { view?.dispose() } catch { /* disposed */ }
       ctl.current = null
-      setReady(false)
+      setDrawn(false)
     }
   }, [mode, sessionId, spatiusAvatarId, sampleRate])
 
@@ -141,7 +200,7 @@ export const AvatarStage = forwardRef<StageHandle, {
     return (
       <div className="relative h-full w-full">
         <div ref={box} className="absolute inset-0" />
-        {!ready && (
+        {!drawn && (
           <div className="absolute inset-0 flex items-center justify-center">
             <Avatar name={name} url={photoUrl} size="2xl" className="animate-pulse" />
           </div>

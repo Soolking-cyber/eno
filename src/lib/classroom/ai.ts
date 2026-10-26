@@ -40,9 +40,14 @@ export type JsonAsk = {
   thinking: ThinkingLevel
 }
 
-/** One JSON answer from one model, parsed — or a throw (ai-retry decides whether it is worth another seat). Never logs. */
+/**
+ * One JSON answer from one model, parsed — or a throw (ai-retry decides whether it is worth another seat). Never logs.
+ * ⛔ STREAMED, then put back together. Measured 2026-10-26 from Vietnam against the `global` endpoint, the same tutor
+ * request: generateContent took 3–9 s (median 8.9 s over 4 calls), generateContentStream finished in ~2.2 s (first
+ * token ~1.6 s). The answer is identical; only the wait differs — the classroom's tutor turn is a conversation.
+ */
 export async function askJsonOnce(ai: GoogleGenAI, req: JsonAsk, model: string, timeout: number, signal?: AbortSignal): Promise<Record<string, unknown>> {
-  const response = await ai.models.generateContent({
+  const stream = await ai.models.generateContentStream({
     model,
     contents: req.contents,
     config: {
@@ -56,10 +61,16 @@ export async function askJsonOnce(ai: GoogleGenAI, req: JsonAsk, model: string, 
       ...(signal ? { abortSignal: signal } : {}),
     },
   })
-  if (response.candidates?.[0]?.finishReason === 'MAX_TOKENS') throw new AnswerTooLong()
+  let text = ''
+  let finish: string | undefined
+  for await (const chunk of stream) {
+    text += chunk.text ?? ''
+    finish = chunk.candidates?.[0]?.finishReason ?? finish
+  }
+  if (finish === 'MAX_TOKENS') throw new AnswerTooLong()
   let parsed: unknown
   try {
-    parsed = JSON.parse(response.text || '')
+    parsed = JSON.parse(text)
   } catch {
     throw new SyntaxError('classroom_unreadable_answer')
   }

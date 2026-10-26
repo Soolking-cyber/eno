@@ -8,10 +8,12 @@ import { LIMITS, STRICTNESS, type Strictness } from './constants'
 import { parseWav } from './wav'
 import { assess, speechConfig, type PronResult } from './azure-speech'
 import { localSpeechConfig, transcribe } from './speech-local'
-import { tutorTurn } from './tutor-ai'
+import { tutorTurnStream } from './tutor-ai'
+import { openAiConfig } from './llm-openai'
 import { parseFocus } from './plans'
 import { workingOnLines } from './focus'
-import { speakLine } from './session-voice'
+import { speakerFor } from './session-voice'
+import { replayTurn, streamTurn, type Answer, type SavedReply, type TurnStream } from './turn-stream'
 import { classroomOpenFor } from './config'
 import { alertSafetyTeam, safetyReply } from './safety'
 import { quietError } from './quiet-error'
@@ -28,20 +30,14 @@ export const MIN_TURN_MS = 350
  */
 export const BUSY_MS = 120_000
 
-export type TurnResult =
-  | { kind: 'silence' }
-  | {
-    kind: 'reply'
-    seq: number
-    learnerText: string
-    reply: string
-    hint: string
-    hintVi: string
-    expect: string | null
-    heardAs: { heard: string; meant: string }[]
-    audio: string | null
-    secondsLeft: number
-  }
+/** The brain's whole budget for one reply, its hand-overs included (tutor-ai.ts tutorTurnStream). */
+export const TUTOR_BUDGET_MS = 30_000
+
+/**
+ * What one turn answers: nothing was said, or the answer's lines as they are made (turn-stream.ts — the learner's words,
+ * then the reply sentence by sentence with its voice, then the saved turn). ⛔ The voice is never stored.
+ */
+export type TurnResult = { kind: 'silence' } | ({ kind: 'answer' } & TurnStream)
 
 /** The session the CALLER may speak in: theirs (their learner's, or their own test), live, and not past its deadline. */
 async function sessionOfCaller(sessionId: string, accountId: string, now: Date) {
@@ -69,9 +65,12 @@ async function sessionOfCaller(sessionId: string, accountId: string, now: Date) 
 
 /**
  * ONE TURN (plan "How one turn works"): check → reserve the turn row under the session's lock → transcript (eno's own
- * speech server, speech-local.ts) → reply (Gemini) → voice (the same server) → answer; a repeat-after-me drill is scored by
- * Azure in after(), on the clip still in memory, and the clip is dropped when it is done. ⛔ The clip is never written
- * anywhere.
+ * speech server, speech-local.ts) → then STREAMED (owner, 2026-10-26: "delayless"; turn-stream.ts): the reply sentence by
+ * sentence as the brain writes it (tutor-ai.ts tutorTurnStream — OpenAI, else Gemini), each sentence voiced by the same
+ * speech server as soon as it exists → SAVE → the saved turn. The brain's answer is saved even when the page goes away
+ * mid-answer. A repeat-after-me drill is scored by Azure after the answer, on the clip still in memory, and the clip is
+ * dropped when it is done. ⛔ The clip is never written anywhere.
+ * Refusals decided before the transcript are thrown (the route answers them as JSON errors); after it, they are lines.
  */
 export async function processTurn(sessionId: string, accountId: string, clientTurnId: string, wav: Buffer, now = new Date()): Promise<TurnResult> {
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(clientTurnId)) throw new ApiError('bad_request', 400)
@@ -125,11 +124,10 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     // cannot run up the speech bill (2a round 2, opus). The route's rate limit bounds the rest.
     if (d.status === 'ok' && d.learnerText) {
       // ⛔ A FLAGGED turn's retry gives nothing back (2a round 6, codex): not the words, not the hints — only eno's own safe
-      // line. The family's report hides that exchange; a replayed upload must not hand it over either.
-      if (d.flag) return { kind: 'reply', seq: d.seq, learnerText: '', reply: safetyReply(bandOf(session)), hint: '', hintVi: '', expect: null, heardAs: [], audio: null, secondsLeft: Math.max(0, Math.round((session.endsAt.getTime() - Date.now()) / 1000)) }
+      // line, without a voice. The family's report hides that exchange; a replayed upload must not hand it over either.
+      if (d.flag) return { kind: 'answer', ...replayTurn({ seq: d.seq, learnerText: '', reply: safetyReply(bandOf(session)), hint: '', hintVi: '', expect: null, heardAs: [], secondsLeft: Math.max(0, Math.round((session.endsAt.getTime() - Date.now()) / 1000)) }, null) }
       const latest = await db.classroomTurn.findFirst({ where: { sessionId, status: 'ok' }, orderBy: { seq: 'desc' }, select: { id: true } })
-      const audio = latest?.id === d.id ? await speakLine(d.replyText, session.avatar.voice, levelOf(session), bandOf(session)).catch(() => null) : null
-      return replyOf(d, session, now, audio)
+      return { kind: 'answer', ...replayTurn(replyOf(d, session, now), latest?.id === d.id ? speakerFor(session.avatar.voice, levelOf(session), bandOf(session)) : null) }
     }
     if (d.status === 'processing') throw new ApiError('turn_in_progress', 409)
     throw new ApiError('tutor_unavailable', 503)
@@ -140,9 +138,12 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
   // the wire is a literal ApiError (errors.test.ts harvests them).
   // ⛔ KEPT AS 'failed', NEVER DELETED (2a round 9, opus): a deleted row would free its seq, and attempts — each paid to
   // the speech service — would never reach LIMITS.turnsPerSession. A failed row is skipped by the history and the report.
+  const giveBack = async (code: string, e?: unknown) => {
+    if (e) logWarn(`[classroom] turn failed: ${code}`, { status: (e as { status?: number } | null)?.status ?? null })
+    await db.classroomTurn.update({ where: { id: turn.id }, data: { status: 'failed', updatedAt: new Date() } }).catch((e2) => logError(quietError(e2), { op: 'classroom.turn.unreserve' }))
+  }
   const fail = async (refusal: ApiError, e?: unknown): Promise<never> => {
-    if (e) logWarn(`[classroom] turn failed: ${refusal.code}`, { status: (e as { status?: number }).status ?? null })
-    await db.classroomTurn.update({ where: { id: turn.id }, data: { status: 'failed', updatedAt: new Date() } }).catch((e) => logError(quietError(e), { op: 'classroom.turn.unreserve' }))
+    await giveBack(refusal.code, e)
     throw refusal
   }
 
@@ -167,32 +168,24 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
   const focus = parseFocus(snapshot.focus)
   const practised = new Set(before.map((h) => h.expectText).filter(Boolean))
   const ai = getGeminiVertex()
-  if (!ai) return fail(new ApiError('tutor_unavailable', 503))
-  let reply: Awaited<ReturnType<typeof tutorTurn>>
-  try {
-    reply = await tutorTurn(ai, {
-      avatarName: session.avatar.name,
-      persona: session.avatar.persona,
-      level: levelOf(session),
-      band: bandOf(session),
-      strictness: strictnessOf(session),
-      focusNote: session.enrollment?.focusNote ?? '',
-      plan: { brief: typeof snapshot.brief === 'string' ? snapshot.brief : '', focus },
-      workingOn: workingOnLines(session.enrollment?.focusItems),
-      history: history.flatMap((h) => [...(h.learnerText ? [{ who: 'learner' as const, text: h.learnerText }] : []), { who: 'avatar' as const, text: h.replyText }]),
-      learnerText: heard.text,
-      secondsLeft: Math.max(0, (session.endsAt.getTime() - now.getTime()) / 1000),
-      drillLeft: focus.drill.filter((d) => !practised.has(d)),
-    })
-  } catch (e) {
-    // ⛔ A HARM FLAG IS NEVER LOST WITH ITS REPLY (2a round 5, opus): the model flagged the turn but its words could not
-    // be used (a helpline number trips the contact gate, for one) — the turn is saved FLAGGED, with our own kind words,
-    // and a person is alerted below.
-    if (!(e as { safety?: boolean }).safety) return fail(new ApiError('tutor_unavailable', 503), e)
-    reply = { reply: safetyReply(bandOf(session)), hint: '', hintVi: '', expect: null, heardAs: [], safety: true, model: 'eno-safety', calls: (e as { calls?: number }).calls ?? 1 }
-  }
-  // A flagged turn never sets a drill (2a round 10, opus): nothing after a disclosure is scored as a repeat of anything.
-  if (reply.safety) reply = { ...reply, expect: null }
+  if (!ai && !openAiConfig()) return fail(new ApiError('tutor_unavailable', 503))
+  const band = bandOf(session)
+  // The page leaving (talked over, closed) ends the brain too: what was said by then is saved (turn-stream.ts).
+  const brain = new AbortController()
+  const events = tutorTurnStream(ai, {
+    avatarName: session.avatar.name,
+    persona: session.avatar.persona,
+    level: levelOf(session),
+    band,
+    strictness: strictnessOf(session),
+    focusNote: session.enrollment?.focusNote ?? '',
+    plan: { brief: typeof snapshot.brief === 'string' ? snapshot.brief : '', focus },
+    workingOn: workingOnLines(session.enrollment?.focusItems),
+    history: history.flatMap((h) => [...(h.learnerText ? [{ who: 'learner' as const, text: h.learnerText }] : []), { who: 'avatar' as const, text: h.replyText }]),
+    learnerText: heard.text,
+    secondsLeft: Math.max(0, (session.endsAt.getTime() - now.getTime()) / 1000),
+    drillLeft: focus.drill.filter((d) => !practised.has(d)),
+  }, AbortSignal.any([brain.signal, AbortSignal.timeout(TUTOR_BUDGET_MS)]))
 
   // The reference that scores THIS turn: the sentence the previous reply asked for — a repeat-after-me drill, the one
   // score worth having. ⛔ FREE TALK IS NOT SCORED (2026-10-26, plan review codex + opus): it would send every turn's
@@ -201,63 +194,82 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
   const asked = before.at(-1)?.expectText ?? null
   const pa = asked ? speechConfig() : null
   const reference = pa ? asked : null
-  const audio = await speakLine(reply.reply, session.avatar.voice, levelOf(session), bandOf(session)).catch((e) => {
-    logWarn('[classroom] reply TTS failed', { status: (e as { status?: number }).status ?? null })
-    return null
-  })
-  // A final write that fails gives the reserved row back like any other failure (2a round 3, opus) — never a turn left
-  // 'processing' that blocks the next upload for BUSY_MS and holds up the report.
-  try {
-    await db.$transaction(async (tx) => {
-      // Written only while the turn is still 'processing' (2a round 4, opus): one the sweep already gave up stays given up.
-      const written = await tx.classroomTurn.updateMany({
-        where: { id: turn.id, status: 'processing' },
-        data: {
-          status: 'ok', learnerText: heard.text, replyText: reply.reply, hint: reply.hint, hintVi: reply.hintVi, expectText: reply.expect,
-          reference, heardAs: reply.heardAs, assessStatus: reference ? 'pending' : 'skipped', flag: reply.safety ? 'harm' : null, aiCalls: reply.calls, updatedAt: new Date(),
-        },
+  const learnerText = heard.text
+  /** After the answer (Next's after()) — or at once when the page has already gone: after() needs a response still open. */
+  const later = (clientGone: boolean, fn: () => Promise<unknown>) => {
+    if (clientGone) void fn().catch((e) => logError(quietError(e), { op: 'classroom.turn.later' }))
+    else after(fn)
+  }
+
+  /**
+   * The answered turn, written once the brain has finished (its sentences may already be playing). A write that fails
+   * gives the reserved row back like any other failure (2a round 3, opus) — never a turn left 'processing' that blocks the
+   * next upload for BUSY_MS and holds up the report.
+   */
+  const save = async ({ reply, calls }: Answer, { clientGone }: { clientGone: boolean }): Promise<SavedReply> => {
+    try {
+      await db.$transaction(async (tx) => {
+        // Written only while the turn is still 'processing' (2a round 4, opus): one the sweep already gave up stays given up.
+        const written = await tx.classroomTurn.updateMany({
+          where: { id: turn.id, status: 'processing' },
+          data: {
+            status: 'ok', learnerText, replyText: reply.reply, hint: reply.hint, hintVi: reply.hintVi, expectText: reply.expect,
+            reference, heardAs: reply.heardAs, assessStatus: reference ? 'pending' : 'skipped', flag: reply.safety ? 'harm' : null, aiCalls: calls, updatedAt: new Date(),
+          },
+        })
+        if (!written.count) throw new ApiError('tutor_unavailable', 503)
+        await tx.classroomSession.update({
+          where: { id: sessionId },
+          data: { turnCount: { increment: 1 }, learnerSpeechMs: { increment: info.ms }, avatarChars: { increment: reply.reply.length }, updatedAt: new Date() },
+        })
       })
-      if (!written.count) throw new ApiError('tutor_unavailable', 503)
-      await tx.classroomSession.update({
-        where: { id: sessionId },
-        data: { turnCount: { increment: 1 }, learnerSpeechMs: { increment: info.ms }, avatarChars: { increment: reply.reply.length }, updatedAt: new Date() },
-      })
-    })
-  } catch (e) {
-    if (reply.safety) {
-      // ⛔ THE FLAG OUTLIVES A FAILED WRITE (2a round 7, codex): the reserved row is kept — 'failed', but FLAGGED, with
-      // what was said and answered — so the session's report is flagged and an admin can read the exchange; then a person
-      // is told. Never deleted like an ordinary failure.
-      logWarn('[classroom] flagged turn could not be written in full', { status: (e as { status?: number }).status ?? null })
-      await db.classroomTurn.update({ where: { id: turn.id }, data: { status: 'failed', flag: 'harm', learnerText: heard.text, replyText: reply.reply, updatedAt: new Date() } })
-        .catch((e2) => logError(quietError(e2), { op: 'classroom.turn.flag-keep' }))
-      await alertSafetyTeam(sessionId)
+    } catch (e) {
+      if (reply.safety) {
+        // ⛔ THE FLAG OUTLIVES A FAILED WRITE (2a round 7, codex): the reserved row is kept — 'failed', but FLAGGED, with
+        // what was said and answered — so the session's report is flagged and an admin can read the exchange; then a
+        // person is told. Never given back like an ordinary failure.
+        logWarn('[classroom] flagged turn could not be written in full', { status: (e as { status?: number } | null)?.status ?? null })
+        await db.classroomTurn.update({ where: { id: turn.id }, data: { status: 'failed', flag: 'harm', learnerText, replyText: reply.reply, updatedAt: new Date() } })
+          .catch((e2) => logError(quietError(e2), { op: 'classroom.turn.flag-keep' }))
+        await alertSafetyTeam(sessionId)
+        throw new ApiError('tutor_unavailable', 503)
+      }
+      await giveBack('tutor_unavailable', e)
       throw new ApiError('tutor_unavailable', 503)
     }
-    return fail(new ApiError('tutor_unavailable', 503), e)
-  }
-  if (reply.safety) after(() => alertSafetyTeam(sessionId))
-
-  // ⛔ After the answer: score the clip in memory, then let it go. A failure is recorded as such — never retried later,
-  // because nothing of the audio is left to retry with.
-  if (pa && reference) after(async () => {
-    let pron: PronResult | null = null
-    try {
-      pron = await assess(pa, wav, reference, true)
-    } catch (e) {
-      logWarn('[classroom] pronunciation assessment failed', { status: (e as { status?: number }).status ?? null })
+    if (reply.safety) later(clientGone, () => alertSafetyTeam(sessionId))
+    // ⛔ After the answer: score the clip in memory, then let it go. A failure is recorded as such — never retried later,
+    // because nothing of the audio is left to retry with.
+    if (pa && reference) later(clientGone, async () => {
+      let pron: PronResult | null = null
+      try {
+        pron = await assess(pa, wav, reference, true)
+      } catch (e) {
+        logWarn('[classroom] pronunciation assessment failed', { status: (e as { status?: number }).status ?? null })
+      }
+      await db.classroomTurn.update({
+        where: { id: turn.id },
+        data: pron ? { pron, assessStatus: 'done', updatedAt: new Date() } : { assessStatus: 'failed', updatedAt: new Date() },
+      }).catch((e) => logError(quietError(e), { op: 'classroom.turn.assess' }))
+    })
+    return {
+      seq: turn.seq, learnerText, reply: reply.reply, hint: reply.hint, hintVi: reply.hintVi, expect: reply.expect, heardAs: reply.heardAs,
+      // From the moment of the answer, not of the upload (2a round 4, codex): the reply itself took time.
+      secondsLeft: Math.max(0, Math.round((session.endsAt.getTime() - Date.now()) / 1000)),
     }
-    await db.classroomTurn.update({
-      where: { id: turn.id },
-      data: pron ? { pron, assessStatus: 'done', updatedAt: new Date() } : { assessStatus: 'failed', updatedAt: new Date() },
-    }).catch((e) => logError(quietError(e), { op: 'classroom.turn.assess' }))
-  })
+  }
 
   return {
-    kind: 'reply', seq: turn.seq, learnerText: heard.text, reply: reply.reply, hint: reply.hint, hintVi: reply.hintVi,
-    expect: reply.expect, heardAs: reply.heardAs, audio,
-    // From the moment of the answer, not of the upload (2a round 4, codex): the reply itself took time.
-    secondsLeft: Math.max(0, Math.round((session.endsAt.getTime() - Date.now()) / 1000)),
+    kind: 'answer',
+    ...streamTurn({
+      learnerText,
+      events,
+      speak: speakerFor(session.avatar.voice, levelOf(session), band),
+      save,
+      giveUp: (e) => giveBack('tutor_unavailable', e),
+      safetyLine: safetyReply(band),
+      stopBrain: () => brain.abort(),
+    }),
   }
 }
 
@@ -273,10 +285,10 @@ function strictnessOf(s: SessionRow): Strictness {
   return (STRICTNESS as readonly unknown[]).includes(v) ? (v as Strictness) : 'balanced'
 }
 
-function replyOf(d: { seq: number; learnerText: string | null; replyText: string; hint: string; hintVi: string; expectText: string | null; heardAs: unknown; flag: string | null }, s: SessionRow, now: Date, audio: string | null): TurnResult {
+function replyOf(d: { seq: number; learnerText: string | null; replyText: string; hint: string; hintVi: string; expectText: string | null; heardAs: unknown; flag: string | null }, s: SessionRow, now: Date): SavedReply {
   return {
-    kind: 'reply', seq: d.seq, learnerText: d.learnerText ?? '', reply: d.replyText, hint: d.hint, hintVi: d.hintVi, expect: d.expectText,
+    seq: d.seq, learnerText: d.learnerText ?? '', reply: d.replyText, hint: d.hint, hintVi: d.hintVi, expect: d.expectText,
     heardAs: Array.isArray(d.heardAs) ? (d.heardAs as { heard: string; meant: string }[]) : [],
-    audio, secondsLeft: Math.max(0, Math.round((s.endsAt.getTime() - now.getTime()) / 1000)),
+    secondsLeft: Math.max(0, Math.round((s.endsAt.getTime() - now.getTime()) / 1000)),
   }
 }

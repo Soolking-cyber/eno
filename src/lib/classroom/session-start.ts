@@ -160,7 +160,7 @@ export async function startLearnerSession(seatId: string, accountId: string, now
       tx.classroomSession.count({ where: { ...spoke, startedAt: { gte: ictDayStart(now) } } }),
       tx.classroomSession.count({ where: { enrollmentId: seat.id, startedAt: { gte: ictDayStart(now) } } }),
     ])
-    const freq = frequencyRefusal(week, today, seat.sessionsPerWeek, starts)
+    const freq = devUnlimited() ? null : frequencyRefusal(week, today, seat.sessionsPerWeek, starts)
     if (freq) throw new NextAtRefusal(freq, nextPracticeAt(freq, now).toISOString())
 
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${BUDGET_LOCK}, 0))`
@@ -204,6 +204,15 @@ export async function startLearnerSession(seatId: string, accountId: string, now
   }
 }
 
+/**
+ * ⚠️ LOCAL TESTING ONLY (owner, 2026-10-26: "remove local test limit let me test locally"): CLASSROOM_DEV_UNLIMITED=1 on
+ * `next dev` stops counting a teacher's tries and a learner's sessions per day and week, and a try lasts DEV_TEST_MINUTES.
+ * ⛔ Honoured only while NODE_ENV is 'development' — a production build inlines NODE_ENV, so there this is dead code, and
+ * the tests run as 'test'. The switch, the budget, the turn cap and every other check still apply.
+ */
+export const devUnlimited = (): boolean => process.env.NODE_ENV === 'development' && process.env.CLASSROOM_DEV_UNLIMITED === '1'
+const DEV_TEST_MINUTES = 15
+
 /** A teacher tries their own avatar: no seat, no learner — LIMITS.teacherTestsPerDay a day, LIMITS.teacherTestMinutes each. */
 export async function startTeacherTest(accountId: string, now = new Date()): Promise<StartedSession> {
   const tp = await db.teacherProfile.findUnique({ where: { profileId: accountId }, select: { id: true, photoUrl: true, classroomAvatar: true } })
@@ -212,7 +221,7 @@ export async function startTeacherTest(accountId: string, now = new Date()): Pro
   if (!avatar) throw new ApiError('avatar_required', 409)
   const { open, config } = await classroomOpenFor(accountId, { fresh: true })
   if (!open) throw new ApiError('classroom_closed', 403)
-  const minutes = LIMITS.teacherTestMinutes
+  const minutes = devUnlimited() ? DEV_TEST_MINUTES : LIMITS.teacherTestMinutes
   const face = spatiusConfig() && avatar.look === 'library' && libraryAvatarById(avatar.libraryAvatarId)
     ? { mode: 'avatar' as const, spatiusAvatarId: avatar.libraryAvatarId }
     : spatiusConfig() && avatar.look === 'custom' && avatar.customStatus === 'ready' && avatar.spatiusAvatarId
@@ -235,7 +244,7 @@ export async function startTeacherTest(accountId: string, now = new Date()): Pro
       return { session, opening: { text: last?.replyText ?? fresh.text, expect: last?.expectText ?? null }, resumed: true }
     }
     const tests = await tx.classroomSession.count({ where: { testerId: accountId, startedAt: { gte: ictDayStart(now) } } })
-    if (tests >= LIMITS.teacherTestsPerDay) throw new NextAtRefusal('test_limit', nextPracticeAt('day_limit', now).toISOString())
+    if (tests >= LIMITS.teacherTestsPerDay && !devUnlimited()) throw new NextAtRefusal('test_limit', nextPracticeAt('day_limit', now).toISOString())
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${BUDGET_LOCK}, 0))`
     const over = budgetRefusal(await budgetUse(tx, avatar.id), config, minutes)
     if (over === 'teacher') throw new ApiError('budget_teacher', 409)

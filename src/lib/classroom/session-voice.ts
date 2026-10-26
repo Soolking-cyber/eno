@@ -1,5 +1,6 @@
 import 'server-only'
-import { localSpeechConfig, synthesize } from './speech-local'
+import { localSpeechConfig, synthesize, synthesizeStream } from './speech-local'
+import type { Speaker } from './turn-stream'
 import { VOICES, voiceFor } from './voices'
 import type { AgeBand } from './limits'
 
@@ -16,4 +17,17 @@ export async function speakLine(text: string, voice: string, level: string, band
   const slow = level === 'A1' || level === 'A2' || band === 'child-young'
   const mp3 = await synthesize(cfg, text, (voiceFor(voice) ?? VOICES[0]).id, slow ? 'slow' : 'natural')
   return mp3.toString('base64')
+}
+
+/**
+ * The avatar's voice for one turn's sentences, STREAMED as it is made (turn-stream.ts; owner, 2026-10-26: "delayless") —
+ * speakLine's voice and rate, so every sentence sounds like the one before it. Null when eno's speech server is not
+ * configured: the words still reach the screen.
+ */
+export function speakerFor(voice: string, level: string, band: AgeBand): Speaker | null {
+  const cfg = localSpeechConfig()
+  if (!cfg) return null
+  const slow = level === 'A1' || level === 'A2' || band === 'child-young'
+  const id = (voiceFor(voice) ?? VOICES[0]).id
+  return (text, signal) => synthesizeStream(cfg, text, id, slow ? 'slow' : 'natural', signal)
 }

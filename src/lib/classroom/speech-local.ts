@@ -128,6 +128,75 @@ export function spokenPart(text: string): string {
   return out.trimEnd()
 }
 
+/**
+ * One line in `voice`, STREAMED: raw PCM16 (mono, little-endian, `rate` Hz) chunks as the server makes them — the first
+ * arrives ~0.1 s after the request instead of after the whole line (/tts/stream; owner, 2026-10-26: "delayless").
+ * `TTS_BUDGET_MS` bounds the wait for the FIRST chunk (and one busy retry); the body then runs as long as the line does —
+ * the server cuts it at its own deadline. The caller's `signal` stops it (the learner talked over the avatar).
+ */
+export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voice: string, rate: 'slow' | 'natural', signal?: AbortSignal, fetchImpl: typeof fetch = fetch): Promise<{ rate: number; chunks: AsyncGenerator<Uint8Array> }> {
+  const stop = new AbortController()
+  const onAbort = () => stop.abort()
+  signal?.addEventListener('abort', onAbort, { once: true })
+  const firstByte = setTimeout(onAbort, TTS_BUDGET_MS)
+  let res: Response | null = null
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetchImpl(`${cfg.url}/tts/stream`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-speech-key': cfg.key },
+        body: JSON.stringify({ text: spokenPart(text), voice, rate }),
+        signal: stop.signal,
+        redirect: 'error',
+      })
+    } catch {
+      clearTimeout(firstByte)
+      signal?.removeEventListener('abort', onAbort)
+      throw new SpeechError(502, 'tts')
+    }
+    // Raw PCM only (audio/L16): anything else — a proxy's error page — is no voice at all, like synthesize()'s rule.
+    if (res.ok && /^audio\/l16\b/i.test(res.headers.get('content-type') ?? '') && res.body) break
+    await res.body?.cancel().catch((e) => logError(quietError(e), { op: 'classroom.speech.cancel' }))
+    if (res.status === 503 && attempt === 0) { await new Promise((r) => setTimeout(r, BUSY_RETRY_MS)); continue }
+    clearTimeout(firstByte)
+    signal?.removeEventListener('abort', onAbort)
+    throw new SpeechError(res.ok ? 502 : res.status, 'tts')
+  }
+  const sampleRate = Number(res.headers.get('x-sample-rate')) || 24_000
+  const reader = res.body!.getReader()
+  // Stopped (talked over, or no first sound in time): a read waiting for more ends at once, whatever the body does.
+  stop.signal.addEventListener('abort', () => { reader.cancel().catch((e) => logError(quietError(e), { op: 'classroom.speech.cancel' })) }, { once: true })
+  async function* chunks(): AsyncGenerator<Uint8Array> {
+    let carry: Uint8Array | null = null
+    try {
+      for (;;) {
+        const { value, done } = await reader.read()
+        clearTimeout(firstByte)
+        if (done) break
+        // PCM16 is whole 2-byte samples: a chunk cut mid-sample keeps its odd byte for the next one.
+        let bytes: Uint8Array = carry ? concatBytes(carry, value) : value
+        carry = null
+        if (bytes.length % 2) { carry = bytes.slice(-1); bytes = bytes.slice(0, -1) }
+        if (bytes.length) yield bytes
+      }
+    } catch {
+      // stopped (talked over) or cut short: the line simply ends here
+    } finally {
+      clearTimeout(firstByte)
+      signal?.removeEventListener('abort', onAbort)
+      reader.cancel().catch((e) => logError(quietError(e), { op: 'classroom.speech.cancel' }))
+    }
+  }
+  return { rate: sampleRate, chunks: chunks() }
+}
+
+function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
+  const out = new Uint8Array(a.length + b.length)
+  out.set(a, 0)
+  out.set(b, a.length)
+  return out
+}
+
 /** One line in `voice` (an id from voices.ts — the server refuses any other) → MP3 bytes. */
 export async function synthesize(cfg: LocalSpeechConfig, text: string, voice: string, rate: 'slow' | 'natural', fetchImpl: typeof fetch = fetch): Promise<Buffer> {
   const { res } = await call(cfg, '/tts', { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: spokenPart(text), voice, rate }) }, TTS_BUDGET_MS, 'tts', fetchImpl)

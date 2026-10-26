@@ -6,19 +6,41 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Progress } from '@/components/ui/progress'
-import { CircleHelp, Mic, MessageSquareText, PhoneOff } from '@/components/ui/icons'
+import { CircleHelp, Mic, MicOff, MessageSquareText, PhoneOff } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { hapticTap } from '@/lib/haptics'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 import type { StartedSession } from '@/lib/classroom/session-start'
+import type { AgeBand } from '@/lib/classroom/limits'
 import { dayName, refusalCopy } from '../classroom-copy'
-import { AvatarStage, type StageHandle } from './avatar-stage'
-import { decodeLine, playLine } from './voice'
+import { AvatarStage, warmAvatarKit, type StageHandle } from './avatar-stage'
+import { bufferFromPcm16, decodeLine, partPlayer, pcmFromBase64, resamplePcm16 } from './voice'
 import { useRecorder } from './use-recorder'
+import { beginTrace, formatMark, mark, traceVisible, useTrace } from './trace'
 
-type Phase = 'intro' | 'speaking' | 'ready' | 'listening' | 'thinking' | 'ending' | 'mic_denied'
-type TurnAnswer = { kind: 'silence' } | { kind: 'reply'; learnerText: string; reply: string; hint: string; hintVi: string; audio: string | null; secondsLeft: number }
+/**
+ * intro → (Start) connecting → [tap — iOS only] → listening ⇄ hearing → thinking → speaking → listening …
+ * `hearing` = the learner is talking (the detector heard speech start); `listening` = waiting for them to.
+ */
+type Phase = 'intro' | 'connecting' | 'tap' | 'listening' | 'hearing' | 'thinking' | 'speaking' | 'ending' | 'mic_denied'
+
+/**
+ * One line of the turn route's answer (application/x-ndjson; a plain JSON answer is read as the same shape). Streamed
+ * turns: `heard` (the learner's words), then per sentence `say` + its voice as raw `pcm` frames + `part-end`, then
+ * `reply` (the saved turn: hint, time left) and `end`. Part-by-part MP3 (`audio`) is the older shape, still read.
+ */
+type TurnLine =
+  | { kind: 'silence' }
+  | { kind: 'heard'; learnerText: string }
+  | { kind: 'say'; part: number; text: string }
+  | { kind: 'pcm'; part: number; rate: number; data: string }
+  | { kind: 'part-end'; part: number; last: boolean }
+  | { kind: 'reply'; learnerText: string; reply: string; hint: string; hintVi: string; secondsLeft: number; parts?: number; audio?: string | null }
+  | { kind: 'audio'; part: number; audio: string }
+  | { kind: 'audio-failed'; part: number }
+  | { kind: 'error'; error: string }
+  | { kind: 'end' }
 
 /**
  * How long the page waits for one turn's answer: the turn route may run 40 s (its maxDuration) plus the trip. Past this
@@ -27,12 +49,43 @@ type TurnAnswer = { kind: 'silence' } | { kind: 'reply'; learnerText: string; re
  */
 const TURN_WAIT_MS = 50_000
 
-const turnId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '')
+/**
+ * The silence that ends the learner's turn. Long on purpose — learners stop mid-sentence to find a word — and longer for
+ * the young (src/components/classroom/session/use-recorder.ts says why).
+ */
+const PATIENCE_MS: Record<AgeBand, number> = { 'child-young': 1800, child: 1600, teen: 1300, adult: 1200 }
+
+/** The learner may talk over the avatar (it stops, like a person). The detector is stricter while the avatar talks. */
+const BARGE_IN = true
+
+/** Past a reply's own length, how long its end may take to be reported (the face starts ~1–2 s late) before the
+ *  learner's turn comes back anyway. */
+const REPLY_GRACE_MS = 5_000
+
+/** The reply being played: which one, its parts, how many reached the face or the speakers, whether the last did, whether
+ *  the face has started playing it, and how much audio it holds since when (the watchdog's clock). */
+const freshReply = (id: number) => ({ id, parts: 0, given: 0, lastGiven: false, played: false, audioMs: 0, startedAt: 0 })
 
 /**
- * THE PRACTICE SESSION (plan "MVP scope › Learner › 3"): the avatar fills a dark screen; a thin countdown at the top;
- * captions you can hide; Hint · Mic · End at the bottom. TAP TO TALK — tap, speak, tap again (learners pause mid-sentence;
- * a silence detector cuts them off). Tapping the mic while the avatar talks interrupts it.
+ * The previous turn is still being saved (talked over before its reply was written — the server answers one turn at a
+ * time): the same upload is sent again after a moment, up to this many times, rather than losing what the learner said.
+ */
+const BUSY_RETRIES = 4
+const BUSY_WAIT_MS = 1_200
+
+const turnId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '')
+
+/** iOS (iPadOS reports a Mac): AvatarKit's audio may only start inside a tap there, so the screen asks for one tap. */
+const needsTapForAudio = () => typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
+  // Desktop Safari too (2026-10-26 review, opus): it keeps an audio context started outside a tap silent, with no error.
+  || /^((?!chrome|chromium|crios|fxios|edg|android).)*safari/i.test(navigator.userAgent))
+
+/**
+ * THE PRACTICE SESSION — LIKE A VIDEO CALL WITH THE TEACHER (owner, 2026-10-26: "there shouldnt be a tap to speak button
+ * once all loaded show avatar and student can talk directly like in a video call"). One Start tap; then the learner just
+ * talks: the microphone listens hands-free, a turn ends when they stop (patiently — PATIENCE_MS), the avatar answers
+ * sentence by sentence as the server makes it, and talking over the avatar stops it. Mute and End, like a call.
+ * MOBILE-FIRST: a phone-width column (the dark screen fills the window around it on a desktop).
  * A Base UI Dialog, full-screen, dark in both themes (`brand-deeper`) like the call screen (src/components/calls).
  */
 export function SessionScreen({ seatId, test, preview, onClose }: {
@@ -51,6 +104,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const [refused, setRefused] = useState<{ code: string; nextAt?: string } | null>(null)
   const [phase, setPhase] = useState<Phase>('intro')
   const [mode, setMode] = useState<'avatar' | 'voice'>('voice')
+  const [muted, setMuted] = useState(false)
   const [captions, setCaptions] = useState(true)
   const [avatarLine, setAvatarLine] = useState('')
   const [learnerLine, setLearnerLine] = useState('')
@@ -61,50 +115,109 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   // The audio context's rate, fixed at the start: End nulls the context, and a changed rate would re-run the avatar's load
   // — a token POST for a session already over (C3a round 2, Opus).
   const [sampleRate, setSampleRate] = useState(48_000)
+  const [showTrace] = useState(traceVisible)
+  const trace = useTrace()
   const total = useRef(1)
   const startRef = useRef<StartedSession | null>(null)
   const ctxRef = useRef<AudioContext | null>(null)
+  const player = useRef<ReturnType<typeof partPlayer> | null>(null)
   const stage = useRef<StageHandle>(null)
-  const stopVoice = useRef<(() => void) | null>(null)
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   /**
+   * Every phase change goes through here: the ref moves AT ONCE, not at the next render. The detector, the turn's stream and
+   * the face all read it from callbacks — talked over, the aborted stream's error must already see 'hearing', or it would
+   * pull the screen back to 'listening' over the learner's own turn.
+   */
+  const go = useCallback((p: Phase) => { phaseRef.current = p; setPhase(p) }, [])
+  const modeRef = useRef(mode)
+  modeRef.current = mode
+  const mutedRef = useRef(muted)
+  mutedRef.current = muted
+  /** The opening line's audio, held until the face can say it (decoded once). */
+  const opening = useRef<AudioBuffer | null>(null)
+  /**
+   * The current reply: how many parts it has, how many reached the face or the speakers, whether the last one did, and
+   * whether the face has started playing it. ⛔ The face reports 'idle' the moment a reply is handed over, BEFORE it
+   * plays (measured 2026-10-26) — only an idle AFTER 'playing' means the reply is over.
+   */
+  const reply = useRef(freshReply(0))
+  /**
    * ⛔ ONCE ENDED, NOTHING EARLIER MAY SPEAK OR RE-ARM THE MIC (C3a review, codex): a turn still in flight when End was
-   * tapped used to land afterwards — play its reply and set the phase back to 'ready' (End live again, the recorder gone).
-   * End aborts that request, and every await below checks this before touching the screen.
+   * tapped used to land afterwards — play its reply and set the phase back. End aborts that request, and every await
+   * below checks this before touching the screen.
    */
   const ended = useRef(false)
   const turnAbort = useRef<AbortController | null>(null)
 
-  const sendTurn = useRef<(wav: Uint8Array) => void>(() => {})
-  const rec = useRecorder((wav) => sendTurn.current(wav))
+  const handlers = useRef({ speechStart: () => {}, speechEnd: () => {}, autoStop: (_wav: Uint8Array) => {} })
+  const rec = useRecorder({
+    speechStart: () => handlers.current.speechStart(),
+    speechEnd: () => handlers.current.speechEnd(),
+    autoStop: (wav) => handlers.current.autoStop(wav),
+  })
   const releaseRec = rec.release
 
-  // ── the avatar speaks one line (decoded once; AvatarKit plays it in avatar mode, the page plays it otherwise) ──
-  const speak = useCallback(async (audio: string | null) => {
-    const ctx = ctxRef.current
+  // The SDK is fetched while the intro is up, so the face is not waiting on a ~9 MB download after Start.
+  useEffect(() => { void warmAvatarKit().catch(() => {}) }, [])
+
+  /** Hands-free: wait for the learner to speak (unless muted). */
+  const listen = useCallback(() => {
     if (ended.current) return
-    if (!audio || !ctx) { setPhase('ready'); return }
-    try {
-      const buffer = await decodeLine(ctx, audio)
-      if (ended.current) return
-      setPhase('speaking')
-      if (stage.current?.speak(buffer)) return // AvatarKit reports the end through onPlaying(false)
-      const p = playLine(ctx, buffer)
-      stopVoice.current = p.stop
-      await p.done
-      stopVoice.current = null
-      if (!ended.current && phaseRef.current === 'speaking') setPhase('ready')
-    } catch {
-      if (!ended.current) setPhase('ready')
-    }
-  }, [])
+    go('listening')
+    if (mutedRef.current) { rec.unlisten(); return }
+    rec.listen({ endMs: PATIENCE_MS[startRef.current?.band ?? 'adult'], barge: false })
+    mark('listening')
+  }, [go, rec])
 
   const stopSpeaking = useCallback(() => {
-    stopVoice.current?.()
-    stopVoice.current = null
+    player.current?.stop()
     stage.current?.interrupt()
   }, [])
+
+  /**
+   * Some of the avatar's line — a decoded part, or raw PCM frames streamed from the voice server — to the face when it is
+   * live, else to the speakers. `last` closes the line.
+   */
+  const give = useCallback((audio: AudioBuffer | { pcm: Int16Array; rate: number }, last: boolean) => {
+    if (ended.current) return
+    const ctx = ctxRef.current
+    if (!ctx) return
+    if (phaseRef.current !== 'speaking') {
+      go('speaking')
+      mark('first sound out')
+      if (BARGE_IN && !mutedRef.current) rec.listen({ endMs: PATIENCE_MS[startRef.current?.band ?? 'adult'], barge: true })
+    }
+    const r = reply.current
+    if (r.given === 0) r.startedAt = performance.now()
+    r.given += 1
+    r.audioMs += audio instanceof AudioBuffer ? audio.duration * 1000 : (audio.pcm.length / audio.rate) * 1000
+    if (last) {
+      r.lastGiven = true
+      // ⛔ NEVER STUCK ON "TALKING" (2026-10-26 review, codex + opus): whatever the face or the speakers fail to report, the
+      // learner's turn comes back once this reply's audio has had its time, and a margin for the face's start.
+      const id = r.id
+      const left = r.audioMs - (performance.now() - r.startedAt)
+      setTimeout(() => {
+        if (reply.current.id !== id || ended.current || phaseRef.current !== 'speaking') return
+        mark('watchdog: the reply never reported its end')
+        stopSpeaking()
+        listen()
+      }, Math.max(0, left) + REPLY_GRACE_MS)
+    }
+    if (modeRef.current === 'avatar') {
+      const ok = audio instanceof AudioBuffer
+        ? stage.current?.speakPart(audio, last)
+        : stage.current?.speakPcm(resamplePcm16(audio.pcm, audio.rate, ctx.sampleRate), last)
+      if (ok) return // the face reports its end (onPlaying)
+    }
+    const buffer = audio instanceof AudioBuffer ? audio : bufferFromPcm16(ctx, audio.pcm, audio.rate)
+    player.current ??= partPlayer(ctx)
+    void player.current.play(buffer).then(() => {
+      // The last part has played on the speakers: the learner's turn.
+      if (last && !ended.current && phaseRef.current === 'speaking') { mark('voice: done'); listen() }
+    })
+  }, [go, listen, rec, stopSpeaking])
 
   /**
    * ⛔ HOWEVER THIS SCREEN CLOSES — End, "Not now", a refused start, navigating away — the microphone and the audio
@@ -118,6 +231,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     releaseRec()
     const ctx = ctxRef.current
     ctxRef.current = null
+    player.current = null
     void ctx?.close().catch(() => {})
   }, [releaseRec, stopSpeaking])
   useEffect(() => releaseAll, [releaseAll])
@@ -164,59 +278,183 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     // No session yet (the mic was refused, or Start was never tapped): End simply closes the screen.
     if (!start) { ended.current = true; releaseAll(); onClose(); return }
     ended.current = true
-    setPhase('ending')
+    go('ending')
     releaseAll()
     await fetch(`/api/classroom/sessions/${start.id}/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason }) }).catch(() => {})
     router.push(`/classroom/reports/${start.id}`)
     onClose()
-  }, [onClose, releaseAll, router, start])
+  }, [go, onClose, releaseAll, router, start])
 
   const close = () => { ended.current = true; releaseAll(); onClose() }
 
-  sendTurn.current = async (wav: Uint8Array) => {
-    if (!start || ended.current) return
-    setPhase('thinking')
+  /** A turn's answer: the reply's words at once, then its voice part by part (or a plain JSON answer, whole). */
+  const readAnswer = async (res: Response, onLine: (l: TurnLine) => void) => {
+    if (!(res.headers.get('content-type') ?? '').includes('ndjson')) { onLine((await res.json()) as TurnLine); return }
+    const reader = res.body!.getReader()
+    const dec = new TextDecoder()
+    let buf = ''
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buf += dec.decode(value, { stream: true })
+      let nl: number
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim()
+        buf = buf.slice(nl + 1)
+        if (line) onLine(JSON.parse(line) as TurnLine)
+      }
+    }
+  }
+
+  const sendTurn = async (wav: Uint8Array) => {
+    const s = startRef.current
+    if (!s || ended.current) return
+    rec.unlisten()
+    go('thinking')
     setShowHint(false)
+    mark('sent', `${Math.round(wav.length / 32)}ms of speech`)
     const abort = new AbortController()
     turnAbort.current = abort
     const timer = setTimeout(() => abort.abort(), TURN_WAIT_MS)
-    let res: Response
-    let body: TurnAnswer & { error?: string }
+    reply.current = freshReply(reply.current.id + 1)
+    // Parts are decoded as they arrive but handed over strictly in order.
+    let chain: Promise<void> = Promise.resolve()
+    let answered = false
     try {
-      res = await fetch(`/api/classroom/sessions/${start.id}/turns`, { method: 'POST', headers: { 'content-type': 'audio/wav', 'x-turn-id': turnId() }, body: new Blob([new Uint8Array(wav)]), signal: abort.signal })
-      body = (await res.json().catch(() => ({}))) as TurnAnswer & { error?: string }
+      const id = turnId()
+      const body = new Blob([new Uint8Array(wav)])
+      let res = await fetch(`/api/classroom/sessions/${s.id}/turns`, { method: 'POST', headers: { 'content-type': 'audio/wav', 'x-turn-id': id }, body, signal: abort.signal })
+      for (let tries = 0; res.status === 409 && tries < BUSY_RETRIES; tries++) {
+        const why = (await res.clone().json().catch(() => ({}))) as { error?: string }
+        if (why.error !== 'turn_in_progress') break
+        mark('previous turn still saving — retrying')
+        await new Promise((r) => setTimeout(r, BUSY_WAIT_MS))
+        if (ended.current || abort.signal.aborted) return
+        res = await fetch(`/api/classroom/sessions/${s.id}/turns`, { method: 'POST', headers: { 'content-type': 'audio/wav', 'x-turn-id': id }, body, signal: abort.signal })
+      }
+      if (!res.ok) {
+        clearTimeout(timer)
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        if (ended.current) return
+        if (body.error === 'session_over' || body.error === 'turn_cap') return void end('time')
+        setNotice(body.error ?? 'unknown')
+        listen()
+        return
+      }
+      let streamed = false
+      let spokenText = ''
+      await readAnswer(res, (l) => {
+        if (ended.current) return
+        if (l.kind === 'silence') { answered = true; mark('heard nothing'); return }
+        if (l.kind === 'heard') { mark('heard', `${l.learnerText.length} chars`); setLearnerLine(l.learnerText); setAvatarLine(''); return }
+        if (l.kind === 'error') { mark('no answer', l.error); setNotice(l.error); return }
+        if (l.kind === 'say') {
+          answered = true
+          streamed = true
+          if (!spokenText) mark('first sentence')
+          spokenText = spokenText ? `${spokenText} ${l.text}` : l.text
+          setAvatarLine(spokenText)
+          return
+        }
+        if (l.kind === 'pcm') {
+          if (phaseRef.current === 'hearing') return
+          chain = chain.then(() => { if (!ended.current && phaseRef.current !== 'hearing') give({ pcm: pcmFromBase64(l.data), rate: l.rate }, false) })
+          return
+        }
+        if (l.kind === 'part-end') {
+          if (l.last) chain = chain.then(() => closeReply())
+          return
+        }
+        if (l.kind === 'reply') {
+          answered = true
+          mark('reply saved', `${l.reply.length} chars`)
+          setLearnerLine(l.learnerText)
+          setHint(l.hint ? { en: l.hint, vi: l.hintVi } : null)
+          setLeft(l.secondsLeft)
+          // Streamed: the captions grow sentence by sentence with the voice (`say`) — the whole reply is not shown ahead of it.
+          if (streamed) return
+          setAvatarLine(l.reply)
+          reply.current.parts = l.parts ?? (l.audio ? 1 : 0)
+          if (l.audio) { const a = l.audio; chain = chain.then(() => decodeAndGive(a, true)) }
+          return
+        }
+        if (l.kind === 'audio') {
+          const last = l.part === reply.current.parts - 1
+          mark(`voice part ${l.part + 1}/${reply.current.parts}`)
+          const a = l.audio
+          chain = chain.then(() => decodeAndGive(a, last))
+          return
+        }
+        if (l.kind === 'audio-failed') {
+          mark(`voice part ${l.part + 1} FAILED`)
+          // The face waits for a reply's last part: a failed last part still closes the reply.
+          if (l.part === reply.current.parts - 1) chain = chain.then(() => closeReply())
+        }
+      })
+      clearTimeout(timer)
+      await chain
+      // A reply cut off before its last part (the stream ended without "end" — a server bug, a dropped proxy): closed here,
+      // so the face or the speakers hand the turn back after what did arrive (2026-10-26 review, codex + opus).
+      if (!ended.current && reply.current.given > 0 && !reply.current.lastGiven && (phaseRef.current as Phase) !== 'hearing') {
+        mark('reply cut off — closing it')
+        closeReply()
+      }
     } catch {
       clearTimeout(timer)
-      if (ended.current) return
+      if (ended.current || abort.signal.aborted && phaseRef.current === 'hearing') return // talked over: already listening
+      // ⛔ The voice stops BEFORE the microphone listens at full sensitivity again (2026-10-26 review, opus): what was still
+      // queued would otherwise play into the open mic and start a turn of its own.
+      stopSpeaking()
       setNotice('network')
-      setPhase('ready')
+      listen()
       return
     }
-    clearTimeout(timer)
     if (ended.current) return
-    // A 200 that is neither answer (a body cut off mid-way) is a failed turn, not an empty one.
-    if (res.ok && body.kind !== 'silence' && body.kind !== 'reply') {
-      setNotice('network')
-      setPhase('ready')
-      return
-    }
-    if (!res.ok) {
-      if (body.error === 'session_over' || body.error === 'turn_cap') return void end('time')
-      setNotice(body.error ?? 'unknown')
-      setPhase('ready')
-      return
-    }
-    if (body.kind === 'silence') {
-      setNotice('silence')
-      setPhase('ready')
-      return
-    }
-    setLearnerLine(body.learnerText)
-    setAvatarLine(body.reply)
-    setHint(body.hint ? { en: body.hint, vi: body.hintVi } : null)
-    setLeft(body.secondsLeft)
-    await speak(body.audio)
+    // Nothing to say (silence, an error, or a reply with no voice): straight back to listening — once.
+    if ((!answered || reply.current.given === 0) && phaseRef.current !== 'listening') listen()
   }
+
+  const decodeAndGive = async (b64: string, last: boolean) => {
+    const ctx = ctxRef.current
+    if (!ctx || ended.current || phaseRef.current === 'hearing') return
+    try {
+      const buffer = await decodeLine(ctx, b64)
+      // Read again after the await (TypeScript keeps the first read's narrowing): the learner may have talked meanwhile.
+      if (ended.current || (phaseRef.current as Phase) === 'hearing') return
+      give(buffer, last)
+    } catch {
+      if (last) closeReply()
+    }
+  }
+
+  /** The reply is over (its last frames came, or its last part never did): close it so the face — or the speakers — hand
+   *  the turn back after what is still playing. */
+  const closeReply = () => {
+    const ctx = ctxRef.current
+    if (!ctx || ended.current || phaseRef.current === 'hearing') return
+    if (reply.current.given === 0) { listen(); return }
+    give({ pcm: new Int16Array(Math.round(ctx.sampleRate * 0.02)), rate: ctx.sampleRate }, true)
+  }
+
+  // ── the detector's events (refs: the recorder calls these from its worklet messages) ──
+  handlers.current.speechStart = () => {
+    const p = phaseRef.current
+    if (ended.current || mutedRef.current) return
+    if (p === 'speaking') {
+      // Talked over: the avatar stops at once, the rest of its reply is dropped, the learner's turn is recording.
+      mark('talked over the avatar')
+      turnAbort.current?.abort()
+      stopSpeaking()
+    } else if (p !== 'listening') return
+    beginTrace('learner speaking')
+    go('hearing')
+  }
+  handlers.current.speechEnd = () => {
+    if (ended.current || phaseRef.current !== 'hearing') return
+    mark('learner stopped')
+    void sendTurn(rec.take())
+  }
+  handlers.current.autoStop = (wav) => { if (!ended.current && phaseRef.current === 'hearing') void sendTurn(wav) }
 
   // ── the clock: the server's deadline is the truth; the page ends the session when it runs out ──
   useEffect(() => {
@@ -231,15 +469,44 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
 
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(null), 4000); return () => clearTimeout(t) }, [notice])
 
+  /** The opening line: on the face once it is live; on the speakers in voice mode. Then the learner's turn. */
+  const sayOpening = useCallback(() => {
+    if (ended.current) return
+    const b = opening.current
+    opening.current = null
+    if (!b) { listen(); return }
+    reply.current = { ...freshReply(reply.current.id + 1), parts: 1 }
+    give(b, true)
+  }, [give, listen])
+
+  /** The face has drawn: start it (no tap where the browser allows it — iOS asks for one), then the opening line. */
+  const onFaceReady = useCallback(async () => {
+    if (ended.current || modeRef.current !== 'avatar') return
+    if (needsTapForAudio()) { go('tap'); return }
+    const ok = await stage.current?.unlock()
+    if (ended.current) return
+    if (!ok) { go('tap'); return }
+    sayOpening()
+  }, [sayOpening])
+
+  const onTapToStart = async () => {
+    hapticTap()
+    const ok = await stage.current?.unlock()
+    if (ended.current) return
+    if (!ok) setMode('voice')
+    sayOpening()
+  }
+
   /**
-   * The first tap: audio and the microphone both need a user gesture (iOS) — then the session is started (or resumed: the
-   * server returns a live one), then the opening line.
+   * The Start tap: audio and the microphone both need a user gesture (iOS) — then the session is started (or resumed: the
+   * server returns a live one), then the face loads and says the opening line.
    */
   const begin = async () => {
     hapticTap()
     setRefused(null)
     ended.current = false
     leftPage.current = false
+    beginTrace('start')
     const ctx = ctxRef.current ?? new AudioContext()
     ctxRef.current = ctx
     try {
@@ -248,13 +515,14 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     } catch {
       if (ended.current) return // closed while the permission prompt was up: nothing more to do
       releaseAll()
-      setPhase('mic_denied')
+      go('mic_denied')
       return
     }
     // ⛔ Closed during the prompt or the worklet's load: no session is started for a screen that is gone (C3a round 2).
     if (ended.current) return
+    mark('mic ready')
     setSampleRate(ctx.sampleRate)
-    setPhase('thinking')
+    go('connecting')
     const r = await fetch('/api/classroom/sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(test ? { test: true } : { seatId }) }).catch(() => null)
     const body = (await r?.json().catch(() => ({}))) as { session?: StartedSession; error?: string; nextAt?: string }
     if (ended.current) {
@@ -267,39 +535,59 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       // Refused (a limit, the budget, the switch): the mic and the audio context go back now — the next Start asks again.
       releaseAll()
       setRefused({ code: body?.error ?? 'network', nextAt: body?.nextAt })
-      setPhase('intro')
+      go('intro')
       return
     }
     const s = body.session
+    mark('session started', s.mode)
     startRef.current = s
     total.current = Math.max(1, Math.round((Date.parse(s.endsAt) - Date.now()) / 1000))
     setLeft(total.current)
-    setMode(s.mode)
     setAvatarLine(s.opening.text)
+    if (s.opening.audio) opening.current = await decodeLine(ctx, s.opening.audio).catch(() => null)
+    if (ended.current) return
+    setMode(s.mode)
     setStart(s)
-    await speak(s.opening.audio)
+    // Voice mode speaks at once; avatar mode waits for the face (onFaceReady) — or for its fallback to voice.
+    if (s.mode === 'voice') sayOpening()
   }
 
-  const onMic = () => {
+  const onFallback = useCallback(() => {
+    mark('face: fell back to voice')
+    setMode('voice')
+    // Still waiting for the face to say the opening line: say it now, in voice.
+    if (phaseRef.current === 'connecting' || phaseRef.current === 'tap') sayOpening()
+    // ⛔ The face failed WHILE it spoke (2026-10-26 review, codex): what it held is gone with it, and nothing would ever
+    // report the reply's end — the learner's turn now. The rest of a reply still arriving plays on the speakers.
+    else if (phaseRef.current === 'speaking') { stopSpeaking(); listen() }
+  }, [listen, sayOpening, stopSpeaking])
+
+  const toggleMute = () => {
     hapticTap()
-    // AvatarKit's audio may only start inside a user gesture (its own docs; iOS keeps it silent otherwise): the first mic
-    // tap after the face has loaded is that gesture. Until then the page itself plays the avatar's voice.
-    stage.current?.unlock()
-    if (phase === 'speaking') { stopSpeaking(); rec.start(); setPhase('listening'); return }
-    if (phase === 'ready') { rec.start(); setPhase('listening'); return }
-    if (phase === 'listening') void sendTurn.current(rec.stop())
+    const next = !muted
+    setMuted(next)
+    mutedRef.current = next
+    if (next) {
+      rec.unlisten()
+      if (phaseRef.current === 'hearing') go('listening')
+    } else if (phaseRef.current === 'listening') {
+      listen()
+    } else if (phaseRef.current === 'speaking' && BARGE_IN) {
+      rec.listen({ endMs: PATIENCE_MS[startRef.current?.band ?? 'adult'], barge: true })
+    }
   }
 
   const minutes = Math.floor(left / 60)
   const secs = String(left % 60).padStart(2, '0')
-  const micLabel = phase === 'listening' ? tr('Tap to send', 'Chạm để gửi')
-    : phase === 'thinking' ? tr('Thinking…', 'Đang nghĩ…')
-      : phase === 'speaking' ? tr('Tap to interrupt', 'Chạm để ngắt lời')
-        : tr('Tap to talk', 'Chạm để nói')
-  const notes: Record<string, { en: string; vi: string }> = {
-    silence: { en: 'I didn’t hear anything. Tap the mic and speak a bit louder.', vi: 'Chưa nghe thấy gì. Chạm micro và nói to hơn một chút nhé.' },
-  }
-  const note = notice ? (notes[notice] ?? refusalCopy(notice)) : null
+  const name = start?.avatar.name ?? preview.name
+  const status = muted ? tr('Muted', 'Đã tắt micro')
+    : phase === 'listening' ? tr('Listening — just talk', 'Đang nghe — cứ nói nhé')
+      : phase === 'hearing' ? tr('Listening…', 'Đang nghe…')
+        : phase === 'thinking' ? tr('{name} is thinking…', '{name} đang nghĩ…').replace('{name}', name)
+          : phase === 'speaking' ? tr('{name} is talking', '{name} đang nói').replace('{name}', name)
+            : ''
+  const note = notice ? refusalCopy(notice) : null
+  const live = phase === 'listening' || phase === 'hearing' || phase === 'thinking' || phase === 'speaking'
 
   return (
     <Dialog open onOpenChange={() => { /* only End closes a session */ }}>
@@ -309,12 +597,13 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       >
         <DialogTitle className="sr-only">{tr('Speaking practice', 'Luyện nói')}</DialogTitle>
         <DialogDescription className="sr-only">{preview.name}</DialogDescription>
-        <div className="flex h-full flex-col">
+        {/* MOBILE-FIRST: one phone-width column; on a wide window the dark screen fills the rest. */}
+        <div className="mx-auto flex h-full w-full max-w-md flex-col">
           <header className="flex flex-col gap-2 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
             <Progress tone="onDark" value={total.current - left} max={total.current}
               aria-label={tr('Time', 'Thời gian')} valueText={`${minutes}:${secs}`} />
             <div className="flex items-center justify-between text-xs text-primary-foreground/70">
-              <span className="truncate">{preview.name} · {tr('AI avatar', 'Avatar AI')}</span>
+              <span className="truncate">{name} · {tr('AI avatar', 'Avatar AI')}</span>
               <span className="tabular-nums" aria-hidden>{minutes}:{secs}</span>
             </div>
           </header>
@@ -326,15 +615,27 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
               sessionId={start?.id ?? ''}
               spatiusAvatarId={start?.avatar.spatiusAvatarId ?? null}
               photoUrl={start?.avatar.photoUrl ?? preview.photoUrl}
-              name={start?.avatar.name ?? preview.name}
+              name={name}
               speaking={phase === 'speaking'}
               sampleRate={sampleRate}
-              onFallback={() => setMode('voice')}
-              onPlaying={(on) => { if (!on && phaseRef.current === 'speaking') setPhase('ready') }}
+              onReady={() => void onFaceReady()}
+              onFallback={onFallback}
+              onPlaying={(on) => {
+                if (on) { reply.current.played = true; return }
+                // The face finished the reply's last part (an idle AFTER playing): the learner's turn.
+                if (phaseRef.current === 'speaking' && reply.current.lastGiven && reply.current.played) { mark('face: done'); listen() }
+              }}
             />
+
+            {showTrace && trace.length > 0 && (
+              <ol className="pointer-events-none absolute left-2 top-2 max-h-[60%] overflow-hidden rounded-lg bg-brand-deeper/80 p-2 font-mono text-xs leading-tight text-primary-foreground/90">
+                {trace.map((m, i) => <li key={i}>{formatMark(m)}</li>)}
+              </ol>
+            )}
+
             {phase === 'intro' && (
               <div className="absolute inset-0 flex flex-col items-center justify-end gap-4 bg-brand-deeper/60 p-6 pb-10 text-center">
-                <p className="max-w-xs text-base">{tr('Find a quiet place, then tap Start. Tap the mic each time you speak.', 'Hãy tìm chỗ yên tĩnh rồi chạm Bắt đầu. Mỗi lần nói, hãy chạm micro.')}</p>
+                <p className="max-w-xs text-base">{tr('Find a quiet place, then tap Start. Then just talk, like a video call.', 'Hãy tìm chỗ yên tĩnh rồi chạm Bắt đầu. Sau đó cứ nói chuyện, như gọi video.')}</p>
                 {refused && (
                   <p role="alert" className="max-w-xs text-sm text-primary-foreground/80">
                     {tr(refusalCopy(refused.code).en, refusalCopy(refused.code).vi)}
@@ -348,67 +649,72 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
                 <Button variant="ghost" size="sm" className="text-primary-foreground/80" onClick={close}>{tr('Not now', 'Để sau')}</Button>
               </div>
             )}
+            {phase === 'connecting' && (
+              <div className="absolute inset-x-0 bottom-6 flex justify-center" role="status">
+                <span className="rounded-full bg-primary-foreground/15 px-4 py-2 text-sm">{tr('Connecting to {name}…', 'Đang kết nối với {name}…').replace('{name}', name)}</span>
+              </div>
+            )}
+            {phase === 'tap' && (
+              <div className="absolute inset-0 flex items-end justify-center p-6 pb-10">
+                <Button variant="cta" size="lg" className="w-full max-w-xs" onClick={() => void onTapToStart()}>{tr('Tap to start talking', 'Chạm để bắt đầu nói chuyện')}</Button>
+              </div>
+            )}
             {phase === 'mic_denied' && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-brand-deeper/80 p-6 text-center">
                 <p className="max-w-xs text-base font-semibold">{tr('The microphone is blocked', 'Micro đang bị chặn')}</p>
                 <p className="max-w-xs text-sm text-primary-foreground/80">{tr('Allow the microphone for this site in your browser settings, then try again. In Zalo or Facebook, open the link in Safari or Chrome.', 'Hãy cho phép micro cho trang này trong cài đặt trình duyệt rồi thử lại. Nếu đang ở Zalo hoặc Facebook, hãy mở link bằng Safari hoặc Chrome.')}</p>
-                <Button variant="cta" onClick={() => { setPhase('intro') }}>{tr('Try again', 'Thử lại')}</Button>
+                <Button variant="cta" onClick={() => { go('intro') }}>{tr('Try again', 'Thử lại')}</Button>
                 <Button variant="ghost" size="sm" className="text-primary-foreground/80" onClick={close}>{tr('Not now', 'Để sau')}</Button>
+              </div>
+            )}
+
+            {live && (
+              <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-brand-deeper via-brand-deeper/80 to-transparent px-4 pb-3 pt-10" aria-live="polite">
+                {captions && learnerLine && <p className="self-end rounded-2xl bg-primary-foreground/10 px-4 py-2 text-sm text-primary-foreground/80">{learnerLine}</p>}
+                {captions && avatarLine && <p className="text-base leading-relaxed">{avatarLine}</p>}
+                {showHint && hint && (
+                  <div className="rounded-2xl bg-primary-foreground/10 px-4 py-3 text-sm">
+                    <p>{hint.en}</p>
+                    {hint.vi && <p lang="vi" className="mt-1 text-primary-foreground/70">{hint.vi}</p>}
+                  </div>
+                )}
+                {note && <p role="status" className="text-center text-sm text-primary-foreground/80">{tr(note.en, note.vi)}</p>}
+                <p className={cn('flex items-center justify-center gap-2 text-sm text-primary-foreground/80', phase === 'hearing' && !muted && 'text-primary-foreground')}>
+                  {!muted && (phase === 'listening' || phase === 'hearing') && (
+                    <span aria-hidden className={cn('size-2 rounded-full bg-success', phase === 'hearing' && 'animate-pulse')} />
+                  )}
+                  {status}
+                </p>
               </div>
             )}
           </div>
 
-          {captions && phase !== 'intro' && (
-            <div className="flex flex-col gap-2 px-5 pb-3" aria-live="polite">
-              {learnerLine && <p className="self-end rounded-2xl bg-primary-foreground/10 px-4 py-2 text-sm text-primary-foreground/80">{learnerLine}</p>}
-              {avatarLine && <p className="text-base leading-relaxed">{avatarLine}</p>}
-            </div>
-          )}
-          {showHint && hint && (
-            <div className="mx-5 mb-3 rounded-2xl bg-primary-foreground/10 px-4 py-3 text-sm">
-              <p>{hint.en}</p>
-              {hint.vi && <p lang="vi" className="mt-1 text-primary-foreground/70">{hint.vi}</p>}
-            </div>
-          )}
-          {note && <p role="status" className="mx-5 mb-3 text-center text-sm text-primary-foreground/80">{tr(note.en, note.vi)}</p>}
-
-          <footer className="flex items-center justify-around gap-4 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2">
-            <div className="flex w-16 flex-col items-center gap-1">
-              {/* Pressed = a light fill + the bold glyph in the button's own white (`icon-own-ink`): the house accent-blue
-                  pressed glyph all but vanished on this dark screen (the 390px check). */}
-              <IconButton size="lg" aria-pressed={showHint} aria-label={tr('Hint', 'Gợi ý')} disabled={!hint || phase === 'intro'} onClick={() => setShowHint((v) => !v)}
-                className="icon-own-ink text-primary-foreground hover:bg-primary-foreground/10 aria-pressed:bg-primary-foreground/20">
-                <CircleHelp className="size-6" />
-              </IconButton>
-              <IconButton size="lg" aria-pressed={captions} aria-label={tr('Captions', 'Phụ đề')} onClick={() => setCaptions((v) => !v)}
-                className="icon-own-ink text-primary-foreground hover:bg-primary-foreground/10 aria-pressed:bg-primary-foreground/20">
-                <MessageSquareText className="size-6" />
-              </IconButton>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <Button
-                size="none"
-                variant="bare"
-                onClick={onMic}
-                disabled={phase === 'intro' || phase === 'thinking' || phase === 'ending' || phase === 'mic_denied'}
-                aria-label={micLabel}
-                aria-pressed={phase === 'listening'}
-                className={cn(
-                  'size-20 rounded-full bg-primary-foreground text-brand-deeper disabled:opacity-50',
-                  phase === 'listening' && 'animate-pulse',
-                )}
-              >
-                <Mic className="size-9" strokeWidth={STROKE_UI} />
-              </Button>
-              <span className="text-xs text-primary-foreground/80" aria-hidden>{micLabel}</span>
-            </div>
-            <div className="flex w-16 flex-col items-center gap-1">
-              <IconButton size="lg" aria-label={tr('End', 'Kết thúc')} onClick={() => void end('learner')} disabled={phase === 'ending'}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                <PhoneOff className="size-6" />
-              </IconButton>
-              <span className="text-xs text-primary-foreground/80" aria-hidden>{tr('End', 'Kết thúc')}</span>
-            </div>
+          <footer className="flex items-center justify-around gap-4 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3">
+            {/* Pressed = a light fill + the bold glyph in the button's own white (`icon-own-ink`): the house accent-blue
+                pressed glyph all but vanished on this dark screen (the 390px check). */}
+            <IconButton size="lg" aria-pressed={showHint} aria-label={tr('Hint', 'Gợi ý')} disabled={!hint || !live} onClick={() => setShowHint((v) => !v)}
+              className="icon-own-ink text-primary-foreground hover:bg-primary-foreground/10 aria-pressed:bg-primary-foreground/20">
+              <CircleHelp className="size-6" />
+            </IconButton>
+            <IconButton size="lg" aria-pressed={captions} aria-label={tr('Captions', 'Phụ đề')} onClick={() => setCaptions((v) => !v)}
+              className="icon-own-ink text-primary-foreground hover:bg-primary-foreground/10 aria-pressed:bg-primary-foreground/20">
+              <MessageSquareText className="size-6" />
+            </IconButton>
+            <Button
+              size="none"
+              variant="bare"
+              onClick={toggleMute}
+              disabled={!live}
+              aria-label={muted ? tr('Unmute', 'Bật micro') : tr('Mute', 'Tắt micro')}
+              aria-pressed={muted}
+              className={cn('size-16 rounded-full disabled:opacity-40', muted ? 'bg-primary-foreground text-brand-deeper' : 'bg-primary-foreground/15 text-primary-foreground')}
+            >
+              {muted ? <MicOff className="size-7" strokeWidth={STROKE_UI} /> : <Mic className="size-7" strokeWidth={STROKE_UI} />}
+            </Button>
+            <IconButton size="lg" aria-label={tr('End', 'Kết thúc')} onClick={() => void end('learner')} disabled={phase === 'ending'}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              <PhoneOff className="size-6" />
+            </IconButton>
           </footer>
         </div>
       </DialogContent>

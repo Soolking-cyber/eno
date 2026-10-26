@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { MAX_SPOKEN_CHARS, localSpeechConfig, spokenPart, synthesize, transcribe } from './speech-local'
+import { MAX_SPOKEN_CHARS, localSpeechConfig, spokenPart, synthesize, synthesizeStream, transcribe } from './speech-local'
 import { SpeechError } from './azure-speech'
 
 vi.mock('server-only', () => ({}))
@@ -134,5 +134,48 @@ describe('synthesize', () => {
     await expect(synthesize(CFG, 'x', 'Harper', 'natural', fake(json({ ok: true })).impl)).rejects.toMatchObject({ status: 502, stage: 'tts' })
     await expect(synthesize(CFG, 'x', 'Harper', 'natural', fake(new Response(new Uint8Array(10), { headers: { 'content-type': 'audio/mpeg' } })).impl)).rejects.toMatchObject({ status: 502 })
     await expect(synthesize(CFG, 'x', 'Bob', 'natural', fake(json({ error: 'voice' }, 400)).impl)).rejects.toMatchObject({ status: 400, stage: 'tts' })
+  })
+})
+
+describe('synthesizeStream', () => {
+  /** A /tts/stream answer: raw PCM in the given chunks, at `rate`. */
+  const pcm = (chunks: number[][], rate = '24000', type = 'audio/L16;rate=24000;channels=1') => new Response(new ReadableStream({
+    start(c) { for (const ch of chunks) c.enqueue(new Uint8Array(ch)); c.close() },
+  }), { headers: { 'content-type': type, 'x-sample-rate': rate } })
+  const all = async (g: AsyncGenerator<Uint8Array>) => { const out: number[][] = []; for await (const c of g) out.push([...c]); return out }
+
+  it('posts the line to /tts/stream and yields the voice as it comes — whole samples only, an odd byte carried over', async () => {
+    const f = fake(pcm([[1, 2, 3], [4, 5, 6], [7]]))
+    const v = await synthesizeStream(CFG, 'Hello there.', 'Harper', 'slow', undefined, f.impl)
+    expect(v.rate).toBe(24_000)
+    expect(await all(v.chunks)).toEqual([[1, 2], [3, 4, 5, 6]])
+    expect(f.calls[0].url).toBe('http://eno-classroom-speech:8090/tts/stream')
+    expect(JSON.parse(String(f.calls[0].init.body))).toEqual({ text: 'Hello there.', voice: 'Harper', rate: 'slow' })
+    expect(header(f.calls[0], 'x-speech-key')).toBe(CFG.key)
+    expect(f.calls[0].init.redirect).toBe('error')
+  })
+  it('a busy server is asked once more; any other refusal, an unreachable server or a non-PCM answer is a SpeechError', async () => {
+    const busy = fake(json({ error: 'busy' }, 503), pcm([[0, 0]]))
+    expect(await all((await synthesizeStream(CFG, 'x', 'Harper', 'natural', undefined, busy.impl)).chunks)).toEqual([[0, 0]])
+    expect(busy.calls).toHaveLength(2)
+    await expect(synthesizeStream(CFG, 'x', 'Bob', 'natural', undefined, fake(json({ error: 'voice' }, 400)).impl)).rejects.toMatchObject({ status: 400, stage: 'tts' })
+    await expect(synthesizeStream(CFG, 'x', 'Harper', 'natural', undefined, fake(new TypeError('fetch failed')).impl)).rejects.toBeInstanceOf(SpeechError)
+    await expect(synthesizeStream(CFG, 'x', 'Harper', 'natural', undefined, fake(new Response('<html>', { headers: { 'content-type': 'text/html' } })).impl)).rejects.toMatchObject({ status: 502, stage: 'tts' })
+  })
+  it('the caller’s signal stops the voice: the stream simply ends', async () => {
+    const stop = new AbortController()
+    let pulls = 0
+    const body = new ReadableStream({
+      pull(c) {
+        pulls += 1
+        if (pulls === 1) { c.enqueue(new Uint8Array([1, 2])); return }
+        return new Promise<void>(() => {}) // the server is still making the rest
+      },
+    })
+    const f = fake(new Response(body, { headers: { 'content-type': 'audio/L16', 'x-sample-rate': '24000' } }))
+    const v = await synthesizeStream(CFG, 'x', 'Harper', 'natural', stop.signal, f.impl)
+    const got: number[][] = []
+    for await (const c of v.chunks) { got.push([...c]); stop.abort() }
+    expect(got).toEqual([[1, 2]])
   })
 })

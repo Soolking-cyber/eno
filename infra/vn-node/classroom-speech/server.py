@@ -41,7 +41,7 @@ apps (a build's memory peak is the box's biggest), and it refuses work rather th
 ⚠️ NEVER LOGS AUDIO OR WORDS. A log line carries the route, its timing and its size — never the
 request path as sent, never text. Audio is decoded from memory and dropped; nothing touches disk.
 """
-import hmac, io, json, os, re, resource, socket, threading, time, unicodedata, wave
+import hmac, io, json, os, queue, re, resource, socket, threading, time, unicodedata, wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import numpy as np
@@ -98,18 +98,22 @@ _stt = sherpa_onnx.OfflineRecognizer.from_transducer(
 _stt_lock = threading.Lock()
 
 ptts.set_num_threads(TTS_THREADS)
-# The speaking rate belongs to the INSTANCE (set_conditions is global to it), so one instance per
-# rate — never a set_conditions race between two requests. Each has its own lock: two parallel
-# synths on one instance ran without error, which shows speed, not that ptts promises it is safe.
-_tts = {
-    'natural': ptts.TTS(TTS_DIR, lang='en'),
-    'slow': ptts.TTS(TTS_DIR, lang='en', conditions={'duration_delta': SLOW_DELTA}),
-}
-_tts_lock = {rate: threading.Lock() for rate in _tts}
-_missing = [v for v in VOICES if v not in _tts['natural'].voices]
+# A small POOL of voice instances per speaking rate (the rate belongs to the INSTANCE — set_conditions is global to it —
+# so never a set_conditions race between two requests). Each instance serves ONE request at a time: two parallel synths
+# on one instance ran without error, which shows speed, not that ptts promises it is safe. Two at the natural rate, so a
+# reply's next sentence, or a second learner, never waits behind the first (one lock per rate did: the local test,
+# 2026-10-26, refused a reply after 6 s behind another). ~0.2 GB an instance.
+POOL = {'natural': int(os.environ.get('TTS_NATURAL', '2')), 'slow': int(os.environ.get('TTS_SLOW', '1'))}
+_tts = {rate: queue.Queue() for rate in POOL}
+for _rate, _n in POOL.items():
+    for _ in range(max(1, _n)):
+        _tts[_rate].put(ptts.TTS(TTS_DIR, lang='en', **({'conditions': {'duration_delta': SLOW_DELTA}} if _rate == 'slow' else {})))
+_probe = _tts['natural'].get()
+_missing = [v for v in VOICES if v not in _probe.voices]
+SAMPLE_RATE = _probe.sample_rate
+_tts['natural'].put(_probe)
 if _missing:  # a voice the image lacks would be fetched from the catalogue at request time — refuse to start
     raise SystemExit(f'voices missing from {TTS_DIR}: {_missing}')
-SAMPLE_RATE = _tts['natural'].sample_rate
 
 _in_flight = threading.BoundedSemaphore(MAX_IN_FLIGHT)
 
@@ -183,10 +187,11 @@ def speak(text, voice, rate):
     """MP3 (24 kHz mono, ~7 KB a second) of the whole reply, read a sentence at a time with a short
     breath between — the same format Azure's TTS gave, so the page decodes it the same way."""
     deadline = time.perf_counter() + TTS_DEADLINE_S
-    if not _tts_lock[rate].acquire(timeout=LOCK_WAIT_S):
+    try:
+        tts = _tts[rate].get(timeout=LOCK_WAIT_S)
+    except queue.Empty:
         raise Busy()
     try:
-        tts = _tts[rate]
         gap = np.zeros(int(SAMPLE_RATE * 0.12), dtype=np.float32)
         parts = []
         for sentence in _SENTENCE_END.split(text):
@@ -201,11 +206,37 @@ def speak(text, voice, rate):
                         raise Busy()  # the client has given up by now; free the voice for the next learner
             parts.append(gap)
     finally:
-        _tts_lock[rate].release()
+        _tts[rate].put(tts)
     pcm = np.concatenate(parts[:-1]) if parts else np.zeros(0, dtype=np.float32)
     buf = io.BytesIO()
     sf.write(buf, pcm, SAMPLE_RATE, format='MP3')
     return buf.getvalue(), len(pcm) / SAMPLE_RATE
+
+
+def speak_stream(tts, text, voice, write):
+    """The same line as raw PCM16 (24 kHz mono, little-endian), handed to `write` FRAME BY FRAME as Phonon makes it —
+    the first sound leaves within ~0.1 s instead of after the whole line (/tts/stream; owner, 2026-10-26: "delayless").
+    `tts` is a voice instance the CALLER holds for the whole line. Returns the seconds of audio written. A client that
+    hangs up stops the synthesis at its next frame."""
+    deadline = time.perf_counter() + TTS_DEADLINE_S
+    samples = 0
+    gap = np.zeros(int(SAMPLE_RATE * 0.12), dtype='<i2').tobytes()
+    first = True
+    for sentence in _SENTENCE_END.split(text):
+        if not sentence:
+            continue
+        if not first:
+            write(gap)
+            samples += len(gap) // 2
+        first = False
+        with tts.stream(sentence, voice=voice) as audio:
+            for chunk in audio:
+                pcm = (np.clip(chunk, -1.0, 1.0) * 32767).astype('<i2')
+                write(pcm.tobytes())
+                samples += len(pcm)
+                if time.perf_counter() > deadline:
+                    raise Busy()
+    return samples / SAMPLE_RATE
 
 
 def peak_rss_mb():
@@ -253,6 +284,43 @@ class Handler(BaseHTTPRequestHandler):
             raise BadRequest('short_body')
         return data
 
+    def _stream(self, text, voice, rate, t0):
+        """/tts/stream: 200 and the PCM as it is made, the body ending when the connection closes (no length — it is
+        not known yet). The voice instance is taken BEFORE the 200 and held to the end, so the only refusal (busy) is a
+        503 — never a 200 with no voice; a failure after the 200 simply ends the body short."""
+        try:
+            tts = _tts[rate].get(timeout=LOCK_WAIT_S)
+        except queue.Empty:
+            raise Busy()
+        try:
+            self.close_connection = True
+            self.send_response(200)
+            self.send_header('Content-Type', f'audio/L16;rate={SAMPLE_RATE};channels=1')
+            self.send_header('X-Sample-Rate', str(SAMPLE_RATE))
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Connection', 'close')
+            self.end_headers()
+            first = [None]
+
+            def write(b):
+                if first[0] is None:
+                    first[0] = round((time.perf_counter() - t0) * 1000)
+                self.wfile.write(b)
+                self.wfile.flush()
+
+            try:
+                seconds = speak_stream(tts, text, voice, write)
+                print(f'tts-stream first={first[0]}ms total={round((time.perf_counter() - t0) * 1000)}ms audio={seconds:.1f}s chars={len(text)} rate={rate}', flush=True)
+            except (BrokenPipeError, ConnectionResetError):
+                print('tts-stream client gone', flush=True)
+            except Busy:
+                print('tts-stream cut at deadline', flush=True)
+            except Exception as e:  # noqa: BLE001 — after the 200 nothing but voice may be written (2026-10-26 review, opus:
+                # do_POST's 500 would land INSIDE the PCM body and play as noise): the body just ends short.
+                print(f'tts-stream failed {type(e).__name__}', flush=True)
+        finally:
+            _tts[rate].put(tts)
+
     def do_GET(self):
         if self.path == '/health':
             return self._send(200, {'ok': True, 'stt': 'parakeet-tdt-0.6b-v2-int8', 'tts': 'phonon-31m-en',
@@ -260,7 +328,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {'error': 'not_found'})
 
     def do_POST(self):
-        route = {'/stt': 'stt', '/tts': 'tts'}.get(self.path)
+        route = {'/stt': 'stt', '/tts': 'tts', '/tts/stream': 'tts-stream'}.get(self.path)
         if route is None:
             return self._send(404, {'error': 'not_found'})
         t0 = time.perf_counter()
@@ -285,6 +353,8 @@ class Handler(BaseHTTPRequestHandler):
             text = clean_text(text) if isinstance(text, str) else ''
             if not text or len(text) > MAX_TEXT_CHARS:
                 return self._send(400, {'error': 'text'})
+            if route == 'tts-stream':
+                return self._stream(text, voice, rate, t0)
             mp3, seconds = speak(text, voice, rate)
             ms = round((time.perf_counter() - t0) * 1000)
             print(f'tts {ms}ms audio={seconds:.1f}s chars={len(text)} rate={rate}', flush=True)
@@ -345,7 +415,10 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', '8090'))
     # Warm both voices and the recogniser: the first request otherwise pays the graph set-up (~1 s).
     for rate in _tts:
-        _tts[rate].synth('Hello.', voice=VOICES[0])
+        warm = [_tts[rate].get() for _ in range(_tts[rate].qsize())]
+        for t in warm:
+            t.synth('Hello.', voice=VOICES[0])
+            _tts[rate].put(t)
     warm = _stt.create_stream()
     warm.accept_waveform(16000, np.zeros(16000, dtype=np.float32))  # an EMPTY stream throws (0 feature frames)
     _stt.decode_stream(warm)
