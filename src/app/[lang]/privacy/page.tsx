@@ -1,5 +1,6 @@
 import { SITE_NAME, IS_SERVICES } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import { withShare } from '@/lib/site-identity'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { Bilingual } from '@/components/marketplace/bilingual'
@@ -21,11 +22,14 @@ import {
 // eno.vn's own section for the PARTNER e-Visa flow (2026-10-06) — aliased like the module above; rendered only on eno.vn.
 import { PRIVACY_PARTNER_VISA_RECIPIENTS, PRIVACY_PARTNER_VISA_SECTIONS } from '@/lib/privacy-partner-visa-copy'
 
-export const metadata: Metadata = withShare({
+const METADATA: Metadata = withShare({
   title: `Privacy Policy | ${SITE_NAME}`,
   description: `How ${SITE_NAME} collects, uses, shares and protects personal data under Vietnam’s Personal Data Protection Law 91/2025 — where it is stored, who receives it, sensitive data, processing outside Vietnam, and the rights you can exercise.`,
   alternates: { canonical: '/privacy' },
 })
+export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
+  return langMetadata(params, METADATA, { title: `Chính sách bảo vệ dữ liệu cá nhân | ${SITE_NAME}` })
+}
 
 // ── Privacy policy — Personal Data Protection Law 91/2025/QH15 + Decree 356/2025/ND-CP ──────────
 //

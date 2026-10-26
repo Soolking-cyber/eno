@@ -2573,7 +2573,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
   }
 
   // The guest and not-found states' own bar, phones only: below lg a conversation thread has no site header
-  // (messages/layout.tsx), so without it those screens had no way out but the OS back gesture. Same box as
+  // (messages/messages-shell.tsx), so without it those screens had no way out but the OS back gesture. Same box as
   // the thread header (THREAD_HEADER_CLASS: the status-bar inset), same safe Back.
   const bareHeader = (
     <div className={cn(THREAD_HEADER_CLASS, 'lg:hidden')}>
@@ -2607,7 +2607,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
       ) : (
         <div className="flex h-full w-full flex-col overflow-hidden">
           {/* Thread header (back arrow only on mobile — the list is always shown on desktop)
-              ⚠️ BELOW lg THIS IS THE TOP OF THE SCREEN NOW (inbox-01): messages/layout.tsx drops the site
+              ⚠️ BELOW lg THIS IS THE TOP OF THE SCREEN NOW (inbox-01): messages/messages-shell.tsx drops the site
               header on a conversation thread, so this header owns the status-bar inset — THREAD_HEADER_CLASS
               (src/lib/thread-chrome.ts says how, and why there is no `:has()`), the same box loading.tsx and
               the guest / not-found bar above wear, so swapping between them never moves on native. */}

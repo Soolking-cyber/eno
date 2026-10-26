@@ -71,7 +71,9 @@ describe('page previews are built whole', () => {
   // the layout's "eno.vn — free classifieds for expats and locals in Vietnam" until 2026-10-18 (measured live that day).
   it('the teacher sign-up form previews as itself', () => {
     const join = FILES.find((f) => f.path === 'teachers/join/page.tsx')
-    expect(join?.text).toMatch(/export const metadata: Metadata = withShare\(/)
+    expect(join?.text).toMatch(/const METADATA: Metadata = withShare\(/)
+    // …and it is what the page exports, in both languages (langMetadata: the card follows the Vietnamese title).
+    expect(join?.text).toMatch(/export async function generateMetadata\([^)]*\)[^{]*\{\s*return langMetadata\(params, METADATA,/)
     // …and withShare keeps that page's ABSOLUTE canonical — the teacher host — as og:url, beside its own title and card.
     const m = withShare({ title: 'Teach in Vietnam — create your teacher profile | eno.vn', description: 'Free teacher profile.', alternates: { canonical: 'https://teacher.eno.vn/' } })
     expect(m.openGraph).toMatchObject({ url: 'https://teacher.eno.vn/', title: 'Teach in Vietnam — create your teacher profile | eno.vn', images: [expect.objectContaining({ url: SHARE_CARD.url })] })

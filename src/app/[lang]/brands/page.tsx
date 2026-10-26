@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
@@ -15,10 +16,17 @@ import { brandLogoUrl } from '@/lib/brand-logo-url'
 import { listedBrands, liveBrandCounts } from '@/lib/live-brands'
 import { localizedHref } from '@/lib/lang-pinned'
 
-export const metadata: Metadata = {
+// The wall lists only brands with LIVE listings (live-brands.ts), so the description names no category it may not hold.
+const METADATA: Metadata = {
   title: `Brands | ${SITE_NAME}`,
-  description: 'Browse listings by brand on eno.vn — phones, laptops, motorbikes, fashion and more from the brands buyers in Vietnam search for.',
+  description: `Browse live listings by brand on ${SITE_NAME} — straight to the listings from the brands buyers in Vietnam search for.`,
   alternates: { canonical: '/brands' },
+}
+export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
+  return langMetadata(params, METADATA, {
+    title: `Thương hiệu | ${SITE_NAME}`,
+    description: `Xem tin đăng theo thương hiệu trên ${SITE_NAME} — đến thẳng tin của những thương hiệu người mua tìm nhiều nhất.`,
+  })
 }
 
 // Brand directory refreshes hourly — the catalogue grows slowly and rankings are

@@ -2,13 +2,17 @@ import { SITE_NAME } from '@/lib/edition'
 import { db } from '@/lib/db'
 import { isPostableCategory } from '@/lib/taxonomy'
 import type { Metadata } from 'next'
+import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import type { SerializedCategory } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { PostWizard } from '@/components/marketplace/post-wizard'
 import { serializeCategoryBasic } from '@/lib/serialize'
 
-export const metadata: Metadata = { title: `Post a listing | ${SITE_NAME}`, robots: { index: false, follow: false } }
+const METADATA: Metadata = { title: `Post a listing | ${SITE_NAME}`, robots: { index: false, follow: false } }
+export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
+  return langMetadata(params, METADATA, { title: `Đăng tin | ${SITE_NAME}` })
+}
 
 // Draft-first posting: ANYONE can fill the wizard (photos, AI-ready fields, price);
 // sign-in is asked at Publish, after the sunk cost — the proven marketplace pattern.

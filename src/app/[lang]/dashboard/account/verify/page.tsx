@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { iosHideKycFor, iosHideKycOn } from '@/lib/ios-hide-kyc'
@@ -13,10 +14,13 @@ import { VerifyClient } from './verify-client'
 // client session restore and produces the signin↔dashboard bounce /dashboard/page.tsx warns about.
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
+const METADATA: Metadata = {
   title: `Verify your identity | ${SITE_NAME}`,
   // Signed-in, and it renders a legal declaration — never indexable, nothing follows out.
   robots: { index: false, follow: false },
+}
+export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
+  return langMetadata(params, METADATA, { title: `Xác minh danh tính | ${SITE_NAME}` })
 }
 
 export default async function VerifyPage() {

@@ -3,7 +3,7 @@ import { ThreadStripSkeleton } from '@/components/marketplace/thread-strip-skele
 import { THREAD_HEADER_CLASS } from '@/lib/thread-chrome'
 
 // Thread right-pane skeleton. On desktop the layout provides the site header and the list beside it; below
-// lg a conversation thread has NO site header (messages/layout.tsx → isConversationPath), so this header is
+// lg a conversation thread has NO site header (messages/messages-shell.tsx → isConversationPath), so this header is
 // the top of the screen and carries the real header's status-bar inset — the same THREAD_HEADER_CLASS, so
 // the swap to the page never moves on native. Mirrors the thread page: back chevron (phone) · avatar · the
 // counterpart's name + the one trust / presence line, the item strip, the same four staggered bubbles the

@@ -1,5 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import { AccountClient } from './account-client'
 
 // The mobile account DESTINATION (dashboard native-feel lane, owner 2026-07-24). See
@@ -8,10 +9,13 @@ import { AccountClient } from './account-client'
 // lands there and would have been dropped onto a link list instead of its listings.
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
+const METADATA: Metadata = {
   title: `Account | ${SITE_NAME}`,
   // A signed-in hub: never indexable, and nothing here should follow out.
   robots: { index: false, follow: false },
+}
+export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
+  return langMetadata(params, METADATA, { title: `Tài khoản | ${SITE_NAME}` })
 }
 
 // No server auth gate on purpose. Every sibling section renders its own client shell and lets
