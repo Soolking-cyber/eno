@@ -20,7 +20,7 @@ import { SchoolClaim } from '@/components/schools/school-claim'
 import { KindLabel, PayRange, SchoolLogo } from '@/components/schools/school-bits'
 import { AwardBadge } from '@/components/schools/award-badge'
 import { getSchoolPage, type SchoolPage } from '@/lib/schools/queries'
-import { KIND_LABEL, PAY_MAX_AGE_YEARS, PAY_MIN_REPORTS, TAG_LABEL } from '@/lib/schools/constants'
+import { KIND_LABEL, PAY_MAX_AGE_YEARS, PAY_MIN_REPORTS, TAG_LABEL, areaLabel } from '@/lib/schools/constants'
 import { schoolOrgLd, schoolPageIndexable, schoolPageJobsOnly, schoolPageTitle, shownWebsite, type SchoolPageContent } from '@/lib/schools/page-seo'
 
 /**
@@ -120,7 +120,7 @@ export default async function SchoolPageRoute({ params }: Props) {
                 )}
                 <p className="mt-1 text-sm text-muted-foreground">
                   <KindLabel kind={school.kind} />
-                  {school.districts.length > 0 && <> · {school.districts.slice(0, 3).join(', ')}</>}
+                  {school.districts.length > 0 && <> · {school.districts.slice(0, 3).map((d) => areaLabel(d, lang)).join(', ')}</>}
                   {school.districts.length > 3 && (
                     <> <Bilingual en="+{n} more areas" vi="+{n} khu vực khác" values={{ n: String(school.districts.length - 3) }} /></>
                   )}
@@ -157,7 +157,7 @@ export default async function SchoolPageRoute({ params }: Props) {
           <div className="mt-10 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-10">
             <aside className="flex flex-col gap-6 lg:col-start-2 lg:row-start-1">
               <PaySection pay={page.pay} />
-              <AboutCard school={school} website={website} />
+              <AboutCard school={school} website={website} lang={lang} />
             </aside>
             <div className="mt-10 flex min-w-0 flex-col gap-10 lg:col-start-1 lg:row-start-1 lg:mt-0">
               <TagSection good={page.goodTags} bad={page.badTags} reviews={page.reviews.length} />
@@ -205,7 +205,7 @@ export default async function SchoolPageRoute({ params }: Props) {
  * The directory facts in full: every area (the header names three), the curricula and the school's own site — the
  * one page-seo.ts shownWebsite accepts, which is also the only one the structured data may name.
  */
-function AboutCard({ school, website }: { school: SchoolPage['school']; website: { href: string; host: string } | null }) {
+function AboutCard({ school, website, lang }: { school: SchoolPage['school']; website: { href: string; host: string } | null; lang: string }) {
   return (
     <section aria-labelledby="about-h" className="rounded-2xl bg-card p-4 ring-1 ring-border">
       <h2 id="about-h" className="text-sm font-semibold text-muted-foreground"><Bilingual en="About" vi="Thông tin" /></h2>
@@ -217,7 +217,7 @@ function AboutCard({ school, website }: { school: SchoolPage['school']; website:
         {school.districts.length > 0 && (
           <div>
             <dt className="text-xs text-muted-foreground"><Bilingual en="Areas" vi="Khu vực" /></dt>
-            <dd className="mt-0.5 text-foreground">{school.districts.join(', ')}</dd>
+            <dd className="mt-0.5 text-foreground">{school.districts.map((d) => areaLabel(d, lang)).join(', ')}</dd>
           </div>
         )}
         {school.curricula.length > 0 && (

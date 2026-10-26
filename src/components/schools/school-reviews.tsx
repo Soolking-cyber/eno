@@ -15,7 +15,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { formatInteger, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
-import { ELIGIBLE_ACCOUNT_AGE_DAYS, EMPLOYMENT_LABEL, REVIEWS_NEED_PROOF, REPORT_REASONS, REPORT_REASON_LABEL, TAG_LABEL, VERIFY_IDENTITY_PATH, type ReportReason } from '@/lib/schools/constants'
+import { ELIGIBLE_ACCOUNT_AGE_DAYS, EMPLOYMENT_LABEL, REVIEWS_NEED_PROOF, REPORT_REASONS, REPORT_REASON_LABEL, TAG_LABEL, VERIFY_IDENTITY_PATH, type ReportReason, areaLabel } from '@/lib/schools/constants'
 import { stintParts, wilsonLower } from '@/lib/schools/logic'
 import type { PublicReview } from '@/lib/schools/queries'
 import { useSchoolLive } from './school-live'
@@ -86,7 +86,7 @@ function ReviewCard({ review: r, schoolName }: { review: PublicReview; schoolNam
         <span className="font-semibold text-foreground">{parts.map((p) => tr(p.en, p.vi)).join(' · ')}</span>
         <span aria-hidden>·</span>
         <span>{tr(EMPLOYMENT_LABEL[r.employment].en, EMPLOYMENT_LABEL[r.employment].vi)}</span>
-        {r.district && <><span aria-hidden>·</span><span>{r.district}</span></>}
+        {r.district && <><span aria-hidden>·</span><span>{areaLabel(r.district, lang)}</span></>}
         <span aria-hidden>·</span>
         <time dateTime={r.createdAt}>{monthYear(r.createdAt, lang)}</time>
       </p>

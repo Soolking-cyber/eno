@@ -66,6 +66,28 @@ export function formatCalendarDay(v: string, lang: string, o: { year?: boolean }
 }
 
 /**
+ * A teaching job's month ('2022-09', the stored shape — teachers/profile.ts) for the reader: 'Sep 2022' (en), '9/2022'
+ * (vi), the reader's own short month in the nine machine-translated languages. The public profile printed the raw
+ * '2022-09 – present' (sweep 2026-10-22). Clock-free and zone-free; any other value comes back unchanged.
+ */
+export function formatYearMonth(v: string, lang: string): string {
+  const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(v)
+  if (!m) return v
+  const y = Number(m[1]), mo = Number(m[2])
+  if (isMtLanguage(lang)) {
+    try {
+      return new Intl.DateTimeFormat(intlLocale(lang), { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(Date.UTC(y, mo - 1, 1))
+    } catch { /* fall through to the English form */ }
+  }
+  return lang === 'vi' ? `${mo}/${y}` : `${EN_MONTHS[mo - 1]} ${y}`
+}
+
+/** The Vietnam calendar day of an instant, as 'YYYY-MM-DD' — what a `datesIso` value is (a plain date, not a UTC slice). */
+export function vnIsoDay(at: Date): string {
+  return new Date(at.getTime() + 7 * 3_600_000).toISOString().slice(0, 10)
+}
+
+/**
  * A plain calendar date ('2026-10-01') with the month spelled out in a machine-translated language
  * ('1 октября 2026 г.', '2026年10月1日'). Zone-free like formatCalendarDay. en / vi callers keep their own
  * hand-written forms; this is for the nine others, and falls back to the ISO string if Intl refuses.

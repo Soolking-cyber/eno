@@ -45,7 +45,9 @@ import { BadgeCheck, Check, Lock } from '@/components/ui/icons'
 import { identityMarkShownOnCard } from '@/lib/teachers/identity-mark'
 import { COVER_CONSENT_VERSION, COVER_DAYS, COVER_PARTS, COVER_PART_LABELS, coverAreaLabel, coverSlotLabel } from '@/lib/teachers/cover'
 import { CoverDayShort } from '@/components/teachers/cover-day'
-import { formatCalendarDay } from '@/lib/calendar-day'
+import { ExperienceMonth } from '@/components/teachers/experience-month'
+import { storedLanguageLabel } from '@/components/teachers/language-list'
+import { formatCalendarDay, vnIsoDay } from '@/lib/calendar-day'
 import { ShareButton } from '@/components/marketplace/share-button'
 
 type Opt = { value: string; label: string; labelVi?: string }
@@ -182,9 +184,10 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
       : k === ANYWHERE ? <Bilingual en="Anywhere in Vietnam" vi="Bất kỳ đâu tại Việt Nam" />
       : placeLabel(k, lang),
   })
-  // "Other language" reads as the languages taught (the teacher's own words, as typed) once they are named.
+  // "Other language" reads as the languages taught once they are named: a listed language in the reader's language
+  // (storedLanguageLabel — "Tiếng Pháp", not "French"), and an old free-text value as it was typed.
   const subjectChips: Chip[] = (tp?.subjects ?? []).flatMap((s): Chip[] => (s === 'other-language' && teachLanguages.length
-    ? teachLanguages.map((l) => ({ key: `language:${l}`, node: l }))
+    ? teachLanguages.map((l) => ({ key: `language:${l}`, node: storedLanguageLabel(l, lang) }))
     : [{ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.subject} value={s} /> }]))
   // Online is a PLACE since 2026-10-08 ("Can teach in"): an old row's 'online' job type is not printed as a job.
   const jobTypes = (tp?.jobTypes ?? []).filter((j) => TEACHER_OPTIONS.jobType.some((o) => o.value === j))
@@ -371,7 +374,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   <Bilingual en="This is the teacher's usual week. Message them to agree a date, time and place." vi="Đây là lịch thường lệ của giáo viên. Hãy nhắn tin để thống nhất ngày, giờ và địa điểm." />
-                  {cover.confirmedAt && <>{' '}<Bilingual en="Confirmed on {date}." vi="Đã xác nhận ngày {date}." values={{ date: formatCalendarDay(cover.confirmedAt.toISOString(), lang) }} datesIso={{ date: cover.confirmedAt.toISOString().slice(0, 10) }} /></>}
+                  {cover.confirmedAt && <>{' '}<Bilingual en="Confirmed on {date}." vi="Đã xác nhận ngày {date}." values={{ date: formatCalendarDay(cover.confirmedAt.toISOString(), lang) }} datesIso={{ date: vnIsoDay(cover.confirmedAt) }} /></>}
                 </p>
               </section>
             )}
@@ -417,7 +420,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                       reader's clock (TeacherAvailableFrom): no clock in this ISR-cached HTML. */}
                   {startDay && <Row label={<Bilingual en="Available" vi="Có thể bắt đầu" />}><TeacherAvailableFrom from={startDay} /></Row>}
                   {tp.expectedSalaryM != null && tp.expectedSalaryM > 0 && <Row label={<Bilingual en="Expected salary" vi="Mức lương mong muốn" />}>{formatMoneyFull(tp.expectedSalaryM * 1_000_000, '₫', moneyLocale(lang))} / <Bilingual en="month" vi="tháng" /></Row>}
-                  {tp.languages.length > 0 && <Row label={<Bilingual en="Languages" vi="Ngôn ngữ" />}>{tp.languages.join(', ')}</Row>}
+                  {tp.languages.length > 0 && <Row label={<Bilingual en="Languages" vi="Ngôn ngữ" />}>{tp.languages.map((l) => storedLanguageLabel(l, lang)).join(', ')}</Row>}
                 </dl>
               </section>
             )}
@@ -430,7 +433,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                   {experience.map((x, i) => (
                     <li key={i}>
                       <p className="font-medium text-foreground">{x.role} · {x.employer}</p>
-                      <p className="text-sm text-muted-foreground">{[x.city, [x.from, x.to || null].filter(Boolean).join(' – ')].filter(Boolean).join(' · ')}{x.from && !x.to ? <> – <Bilingual en="present" vi="nay" /></> : null}</p>
+                      <p className="text-sm text-muted-foreground">{x.city}{x.city && (x.from || x.to) ? ' · ' : null}{x.from ? <ExperienceMonth v={x.from} /> : null}{x.from && x.to ? ' – ' : null}{x.to ? <ExperienceMonth v={x.to} /> : null}{x.from && !x.to ? <> – <Bilingual en="present" vi="nay" /></> : null}</p>
                     </li>
                   ))}
                 </ol>

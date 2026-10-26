@@ -147,6 +147,13 @@ describe('teaching details', () => {
     expect(p.row('Subjects')).toEqual(['General English', 'Korean', 'Japanese'])
     expect(p.row('Looking for')).toEqual(['Part-time'])
   })
+  it('a taught language reads in the reader\'s language; an ended job reads its months', async () => {
+    const vi = await page('vi', { subjects: ['other-language'], teachLanguages: ['French'], experience: [{ role: 'Teacher', employer: 'ILA', city: '', from: '2019-01', to: '2021-06' }] })
+    expect(vi.row('Môn dạy')).toEqual(['Tiếng Pháp'])
+    expect(vi.text).toContain('1/2019 – 6/2021')
+    const en = await page('en', { experience: [{ role: 'Teacher', employer: 'ILA', city: 'HCMC', from: '2019-01', to: '2021-06' }] })
+    expect(en.text).toContain('HCMC · Jan 2019 – Jun 2021')
+  })
   it('a cover-only teacher (no job type) gets no empty "Looking for" row', async () => {
     expect((await page('en', { jobTypes: [] })).row('Looking for')).toBeNull()
   })
@@ -154,7 +161,7 @@ describe('teaching details', () => {
     const p = await page('vi', {
       subjects: ['general-english', 'phonics'], ageGroups: ['kids', 'adults'], jobTypes: ['parttime', 'private'], expectedSalaryM: 20,
       degreeLevel: 'phd', certificates: [{ type: 'celta', hours: 120, provider: 'Cambridge', year: 2020 }],
-      experience: [{ role: 'Teacher', employer: 'ILA', city: 'HCMC', from: '2020', to: '' }],
+      experience: [{ role: 'Teacher', employer: 'ILA', city: 'HCMC', from: '2020-09', to: '' }],
     })
     expect(p.row('Môn dạy')).toEqual(['Tiếng Anh tổng quát', 'Ngữ âm'])
     expect(p.row('Dạy lứa tuổi')).toEqual(['Trẻ em', 'Người lớn'])
@@ -162,7 +169,9 @@ describe('teaching details', () => {
     expect(p.row('Mức lương mong muốn')).toEqual([])
     expect(p.text).toContain('Kinh nghiệm')
     expect(p.text).not.toContain('Trải nghiệm') // the UI-string "Experience" — an experience you go on, not work history
-    expect(p.text).toContain('HCMC · 2020 – nay')
+    // The stored month as a month (sweep 2026-10-22: it printed the raw '2020-09'), and the spoken language in Vietnamese.
+    expect(p.text).toContain('HCMC · 9/2020 – nay')
+    expect(p.text).toContain('Ngôn ngữTiếng Pháp') // the JSON-LD's knowsLanguage keeps the stored English name
     expect(p.text).toContain('Bằng cấp và chứng chỉTiến sĩ')
     expect(p.text).toContain('Bằng cấp và chứng chỉ do giáo viên tự khai.')
     expect(p.text).toContain('Giảng dạy')
