@@ -187,3 +187,14 @@ export async function openLiveStt(sessionId: string, on: {
     maxDelayMs: typeof grant.settings.max_endpoint_delay_ms === 'number' ? grant.settings.max_endpoint_delay_ms : 2_000,
   }
 }
+
+/**
+ * A FILLER, NOT A TURN (review round 2, opus): Soniox may end an utterance on "Um" while the learner is still finding the
+ * next word — only words like these are held for what follows; "Yes." or "I'm fine" are answers, sent at once.
+ */
+const FILLER_WORD = /^(?:u+[hm]+|e+r+m*|e+h+|h+m+|a+h+|o+h+|m{2,}|so|well|and|but|like|because|ừ+m+|ờ+|ơ+|à+|thì|mà|kiểu)$/i
+export function isFiller(text: string): boolean {
+  // Vietnamese hesitations too ("ờ", "ừm", "à", "thì" — review, opus: the learners are Vietnamese); "so-so" stays one word.
+  const words = text.toLowerCase().replace(/[^\p{L}\s'-]/gu, ' ').trim().split(/\s+/).filter(Boolean)
+  return words.length > 0 && words.length <= 2 && words.every((w) => FILLER_WORD.test(w))
+}

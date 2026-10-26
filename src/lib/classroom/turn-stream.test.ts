@@ -153,6 +153,38 @@ describe('streamTurn', () => {
     expect(t.gaveUp).toHaveLength(1)
   })
 
+  it('⛔ the page left after every sentence had begun to sound: the reply is kept, its drill is not (review round 2, codex)', async () => {
+    const r = REPLY({ reply: 'Good. Please say after me: I think so.', expect: 'I think so.' })
+    let dropped = 0
+    const t = streamTurn({
+      learnerText: 'hi', events: brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Good.' }, { kind: 'say', text: 'Please say after me: I think so.' }, { kind: 'final', reply: r, model: 'm', calls: 1 }),
+      speak: voice(), save: async (a) => SAVED(a), giveUp: async () => {}, safetyLine: 'x', dropDrill: async () => { dropped += 1 },
+    })
+    // the save came first (the brain was done); the page leaves while the last sentence is still being voiced
+    for await (const l of t.lines) if (l.kind === 'say' && l.part === 1) t.stop()
+    await t.done
+    expect(dropped).toBe(1)
+  })
+
+  it('⛔ a sentence whose voice failed: the saved turn sets no drill after all (review round 2, codex)', async () => {
+    const speak: Speaker = async (text) => {
+      if (text.startsWith('Please')) throw Object.assign(new Error('tts'), { status: 504 })
+      return { rate: 24_000, chunks: (async function* () { yield new Uint8Array(10) })() }
+    }
+    const r = REPLY({ reply: 'Good. Please say after me: I think so.', expect: 'I think so.' })
+    let dropped = 0
+    const saved: Answer[] = []
+    const t = streamTurn({
+      learnerText: 'hi', events: brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Good.' }, { kind: 'say', text: 'Please say after me: I think so.' }, { kind: 'final', reply: r, model: 'm', calls: 1 }),
+      speak, save: async (a) => { saved.push(a); return SAVED(a) }, giveUp: async () => {}, safetyLine: 'x', dropDrill: async () => { dropped += 1 },
+    })
+    const lines = await collect(t.lines)
+    expect(saved[0].reply.expect).toBe('I think so.')
+    expect(dropped).toBe(1)
+    // withdrawn BEFORE the answer ends, and the page is told (it may not send its next turn against the old drill)
+    expect(kinds(lines).slice(-3)).toEqual(['no-drill', 'part-end:1:last', 'end'])
+  })
+
   it('no answer and nothing said: the turn is given back; the page is told (error), then end', async () => {
     async function* broken(): AsyncGenerator<TutorEvent> { yield { kind: 'safety', harm: false }; throw Object.assign(new Error('llm_502'), { status: 502 }) }
     const t = turn(broken())

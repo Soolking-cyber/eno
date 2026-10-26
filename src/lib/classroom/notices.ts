@@ -56,11 +56,13 @@ export const photoNoticeBody = (): string => noticeBody([PHOTO_ACTION, ...PHOTO_
 // 2026-10-26: the meaning changed — the replies are voiced on eno's own server in Vietnam (Azure only scores
 // repeat-after-me sentences), and OpenAI writes the live replies. 2026-10-26b: the learner's voice is written down LIVE by
 // Soniox (US) — eno's own server only when Soniox is unavailable.
-export const PRACTICE_NOTICE_VERSION = '2026-10-26b'
+// 2026-10-26c: Soniox's claims attributed to Soniox ("Soniox says…") — a different promise, so a different version.
+export const PRACTICE_NOTICE_VERSION = '2026-10-26c'
 export const PRACTICE_NOTICE: readonly NoticeText[] = [
   {
-    en: 'While the learner speaks, their voice streams to Soniox (United States), which writes it down as they talk. Soniox keeps none of it and trains nothing on it.',
-    vi: 'Khi học viên nói, giọng nói được truyền trực tiếp đến Soniox (Hoa Kỳ) để chuyển thành chữ ngay lúc nói. Soniox không lưu lại và không dùng để huấn luyện AI.',
+    // Soniox's own words, attributed (review round 2, opus): soniox.com/docs/stt/security-and-privacy.
+    en: 'While the learner speaks, their voice streams to Soniox (United States), which writes it down as they talk. Soniox says it keeps none of it and does not train on it.',
+    vi: 'Khi học viên nói, giọng nói được truyền trực tiếp đến Soniox (Hoa Kỳ) để chuyển thành chữ ngay lúc nói. Soniox cho biết họ không lưu lại và không dùng để huấn luyện AI.',
   },
   {
     en: 'If Soniox is unavailable, eno’s own server in Vietnam writes it down instead. We never store the recording.',

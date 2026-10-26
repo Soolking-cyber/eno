@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { openLiveStt } from './live-stt'
+import { isFiller, openLiveStt } from './live-stt'
 
 /**
  * LIVE LISTENING, PAGE SIDE (owner, 2026-10-26: "make it instant conversation"): the socket opens with the server's single-use
@@ -134,5 +134,12 @@ describe('openLiveStt', () => {
     l!.close()
     expect(ws.sent.at(-1)).toBe('')
     expect(got.failed).toBe(0)
+  })
+})
+
+describe('isFiller', () => {
+  it('only filler words are held for what follows; a short ANSWER is a turn', () => {
+    for (const f of ['Um', 'uh…', 'Hmm.', 'Ermm', 'Eh', 'So', 'Well,', 'and um', 'like', 'mmm', 'ờ', 'Ừm', 'à', 'thì', 'ờ thì']) expect(isFiller(f), f).toBe(true)
+    for (const a of ['Yes.', 'No', 'OK', "I'm fine", 'Dogs', 'So good', 'So-so', 'Hello there', 'ừ', '']) expect(isFiller(a), a).toBe(false)
   })
 })

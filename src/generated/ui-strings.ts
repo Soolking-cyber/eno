@@ -3886,7 +3886,7 @@ export const UI_STRINGS: string[] = [
   "Which district do you live in? (optional)",
   "Which language do you teach?",
   "Which province?",
-  "While the learner speaks, their voice streams to Soniox (United States), which writes it down as they talk. Soniox keeps none of it and trains nothing on it.",
+  "While the learner speaks, their voice streams to Soniox (United States), which writes it down as they talk. Soniox says it keeps none of it and does not train on it.",
   "White",
   "Who bought it?",
   "Who can watch it?",

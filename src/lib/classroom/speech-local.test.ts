@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { MAX_SPOKEN_CHARS, localSpeechConfig, spokenPart, synthesize, synthesizeStream, transcribe } from './speech-local'
+import { MAX_SPOKEN_CHARS, TTS_STALL_MS, localSpeechConfig, spokenPart, synthesize, synthesizeStream, transcribe } from './speech-local'
 import { SpeechError } from './azure-speech'
 
 vi.mock('server-only', () => ({}))
@@ -161,6 +161,30 @@ describe('synthesizeStream', () => {
     await expect(synthesizeStream(CFG, 'x', 'Bob', 'natural', undefined, fake(json({ error: 'voice' }, 400)).impl)).rejects.toMatchObject({ status: 400, stage: 'tts' })
     await expect(synthesizeStream(CFG, 'x', 'Harper', 'natural', undefined, fake(new TypeError('fetch failed')).impl)).rejects.toBeInstanceOf(SpeechError)
     await expect(synthesizeStream(CFG, 'x', 'Harper', 'natural', undefined, fake(new Response('<html>', { headers: { 'content-type': 'text/html' } })).impl)).rejects.toMatchObject({ status: 502, stage: 'tts' })
+  })
+  it('⛔ a stall AFTER the first sound is a failed voice, not a finished one (review round 2, codex)', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      let pulls = 0
+      const body = new ReadableStream({
+        pull(c) {
+          pulls += 1
+          if (pulls === 1) { c.enqueue(new Uint8Array([1, 2])); return }
+          return new Promise<void>(() => {}) // the server stopped sending
+        },
+      })
+      const f = fake(new Response(body, { headers: { 'content-type': 'audio/L16', 'x-sample-rate': '24000' } }))
+      const v = await synthesizeStream(CFG, 'x', 'Harper', 'natural', undefined, f.impl)
+      const got: number[][] = []
+      const run = (async () => { for await (const c of v.chunks) got.push([...c]) })()
+      // the expectation is attached BEFORE the timers run, so the rejection is never "unhandled" for a moment
+      const failed = expect(run).rejects.toMatchObject({ status: 504, stage: 'tts' })
+      await vi.advanceTimersByTimeAsync(TTS_STALL_MS + 10)
+      await failed
+      expect(got).toEqual([[1, 2]])
+    } finally {
+      vi.useRealTimers()
+    }
   })
   it('the caller’s signal stops the voice: the stream simply ends', async () => {
     const stop = new AbortController()

@@ -169,17 +169,22 @@ export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voi
   // Stopped (talked over, or no first sound in time): a read waiting for more ends at once, whatever the body does.
   stop.signal.addEventListener('abort', () => { reader.cancel().catch((e) => logError(quietError(e), { op: 'classroom.speech.cancel' })) }, { once: true })
   let stall: ReturnType<typeof setTimeout> | undefined
+  /** The line was cut by the stall timer — a failed voice, not a finished one (review round 2, codex). */
+  let stalled = false
   async function* chunks(): AsyncGenerator<Uint8Array> {
     let carry: Uint8Array | null = null
     try {
+      let started = false
       for (;;) {
+        // …and every later frame within TTS_STALL_MS, or the line ends there (2026-10-26 review round 2, codex: after the
+        // first sound nothing timed the rest). Timed only while WAITING on the server — never while the reader of this
+        // generator is busy with the last frame (review of that fix, opus).
+        if (started) stall = setTimeout(() => { stalled = true; onAbort() }, TTS_STALL_MS)
         const { value, done } = await reader.read()
         clearTimeout(firstByte)
-        // …and every later frame within TTS_STALL_MS, or the line ends there (2026-10-26 review round 2, codex: after the
-        // first sound nothing timed the rest).
         clearTimeout(stall)
         if (done) break
-        stall = setTimeout(onAbort, TTS_STALL_MS)
+        started = true
         // PCM16 is whole 2-byte samples: a chunk cut mid-sample keeps its odd byte for the next one.
         let bytes: Uint8Array = carry ? concatBytes(carry, value) : value
         carry = null
@@ -194,6 +199,7 @@ export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voi
       signal?.removeEventListener('abort', onAbort)
       reader.cancel().catch((e) => logError(quietError(e), { op: 'classroom.speech.cancel' }))
     }
+    if (stalled && !signal?.aborted) throw new SpeechError(504, 'tts')
   }
   return { rate: sampleRate, chunks: chunks() }
 }

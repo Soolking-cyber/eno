@@ -286,6 +286,10 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
       giveUp: (e) => giveBack('tutor_unavailable', e),
       safetyLine: safetyReply(band),
       stopBrain: () => brain.abort(),
+      dropDrill: async () => {
+        const drop = () => db.classroomTurn.update({ where: { id: turn.id }, data: { expectText: null, updatedAt: new Date() } })
+        await drop().catch(drop).then(() => undefined, (e) => logError(quietError(e), { op: 'classroom.turn.drop-drill' }))
+      },
     }),
   }
 }

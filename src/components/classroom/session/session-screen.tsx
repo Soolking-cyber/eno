@@ -17,7 +17,7 @@ import { dayName, refusalCopy } from '../classroom-copy'
 import { AvatarStage, FACE_RATE, warmAvatarKit, type StageHandle } from './avatar-stage'
 import { bufferFromPcm16, decodeLine, partPlayer, pcmFromBase64, resamplePcm16 } from './voice'
 import { useRecorder } from './use-recorder'
-import { openLiveStt, type LiveStt } from './live-stt'
+import { isFiller, openLiveStt, type LiveStt } from './live-stt'
 import { streamTo16k } from '@/lib/classroom/wav'
 import { beginTrace, formatMark, mark, traceVisible, useTrace } from './trace'
 
@@ -42,6 +42,7 @@ type TurnLine =
   | { kind: 'audio'; part: number; audio: string }
   | { kind: 'audio-failed'; part: number }
   | { kind: 'error'; error: string }
+  | { kind: 'no-drill' }
   | { kind: 'end' }
 
 /**
@@ -74,8 +75,6 @@ const LIVE_CHUNK = 1_600
 const LIVE_WORDS_MS = 3_000
 /** The longest transcript sent (the server takes the same: session-turn.ts LIVE_TEXT_MAX). */
 const LIVE_TEXT_MAX_CHARS = 1_000
-/** Soniox ending an utterance on this few words while the detector still hears the learner is a filler, not a turn. */
-const FILLER_WORDS = 2
 /** Listening live, the page's own silence timer waits this long past Soniox's cap before it ends the turn itself. */
 const LIVE_BACKSTOP_MS = 600
 
@@ -419,6 +418,16 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
           liveStt.current = null
         }
         if (body.error === 'session_over' || body.error === 'turn_cap') return void end('time')
+        // The practice notice changed while this session was open: no turn can be taken until the family agrees again —
+        // the session ends (rather than refusing every turn to the end of its time) and the screen says why (review, opus).
+        if (body.error === 'consent_required') {
+          ended.current = true
+          void fetch(`/api/classroom/sessions/${s.id}/end`, { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'learner' }) }).catch(() => {})
+          releaseAll()
+          setRefused({ code: 'consent_required' })
+          go('intro')
+          return
+        }
         setNotice(body.error ?? 'unknown')
         listen()
         return
@@ -430,6 +439,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
         if (l.kind === 'silence') { answered = true; mark('heard nothing'); return }
         if (l.kind === 'heard') { mark('heard', `${l.learnerText.length} chars`); setLearnerLine(l.learnerText); setAvatarLine(''); return }
         if (l.kind === 'error') { mark('no answer', l.error); setNotice(l.error); return }
+        if (l.kind === 'no-drill') { lastExpect.current = null; return }
         if (l.kind === 'say') {
           answered = true
           streamed = true
@@ -602,7 +612,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     const speechMs = held.current.ms + ms
     // ⛔ A LONE FILLER IS NOT A TURN (2026-10-26 review, opus): Soniox may end on "Um" while the learner is still talking —
     // the detector has not heard them stop. Kept, and the stream goes on: those words lead what comes next.
-    if (text && !vadEnded.current && text.trim().split(/\s+/).length <= FILLER_WORDS) {
+    if (text && !vadEnded.current && isFiller(text)) {
       held.current = { text: words, ms: speechMs }
       mark('live: a filler — still listening', `${text.length} chars`)
       liveStt.current?.begin()

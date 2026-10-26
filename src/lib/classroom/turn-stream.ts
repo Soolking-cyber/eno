@@ -16,6 +16,8 @@ import type { TutorEvent, TutorReply } from './tutor-ai'
  *   reply         the turn as SAVED — hints, the drill, the time left — once the brain has finished (the voice may still
  *                 be playing)
  *   error         the turn could not be answered and nothing was said: the page says "try again" (then end)
+ *   no-drill      the saved reply's drill is withdrawn (a sentence's voice failed or the page left mid-voice): the next
+ *                 turn is not a repeat-after-me
  *   end           the answer is complete — a stream that stops before it was cut off
  *
  * So the avatar starts talking about a second after the learner stops, not after the whole reply and then its whole voice
@@ -31,6 +33,7 @@ export type TurnLine =
   | { kind: 'audio-failed'; part: number }
   | ({ kind: 'reply' } & SavedReply)
   | { kind: 'error'; error: 'tutor_unavailable' }
+  | { kind: 'no-drill' }
   | { kind: 'end' }
 
 /** The turn as saved — what the `reply` line carries. */
@@ -74,6 +77,8 @@ export function streamTurn(t: {
   safetyLine: string
   /** Ends the brain: the page has gone (talked over, closed) — what was said by then is the reply. */
   stopBrain?: () => void
+  /** The saved turn sets no drill after all (a sentence's voice failed). Never throws (it retries once, then logs). */
+  dropDrill?: () => Promise<void>
 }): TurnStream {
   const q = lineQueue<TurnLine>()
   const gone = new AbortController()
@@ -129,6 +134,10 @@ export function streamTurn(t: {
         return
       }
       answer = { reply: { reply: mayBeSpoken([], text) ? text : '', hint: '', hintVi: '', expect: null, heardAs: [], safety: false }, model: 'cut-off', calls: answer.calls }
+    } else if (gone.signal.aborted) {
+      // Every sentence had begun to sound — but a sentence counts from its FIRST sound, so the last one (the drill's
+      // "say after me…") may have been cut mid-way (review round 2, codex): never a drill from a reply the page left.
+      answer = { ...answer, reply: { ...answer.reply, expect: null } }
     }
     // A flagged turn never sets a drill (2a round 10, opus): nothing after a disclosure is scored as a repeat of anything.
     if (answer.reply.safety) answer = { ...answer, reply: { ...answer.reply, expect: null } }
@@ -148,7 +157,16 @@ export function streamTurn(t: {
     // over a sentence of it): the model's kind words, or eno's own.
     if (answer.reply.safety) for (const p of replyParts(answer.reply.reply)) voice.say(p)
     if (saved) q.push({ kind: 'reply', ...saved })
-    await voice.finish()
+    await voice.done()
+    // A sentence whose voice failed or was cut — or a page that left while the voice was still being sent, after the save —
+    // may have taken the drill's instruction with it: the next turn is not scored against a sentence the learner may not
+    // have heard (review round 2, codex: a cancel after the save could not revise it). Withdrawn BEFORE the answer ends —
+    // the page cannot send its next turn against the old drill — and the page is told (review of that fix, codex + opus).
+    if (saved?.expect && (voice.failed() > 0 || gone.signal.aborted)) {
+      await t.dropDrill?.()
+      q.push({ kind: 'no-drill' })
+    }
+    voice.end()
     q.close()
   })().catch((e) => {
     logError(quietError(e), { op: 'classroom.turn.stream' })
@@ -185,6 +203,7 @@ export function replayTurn(saved: SavedReply, speak: Speaker | null): TurnStream
  */
 function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSignal, onVoiced?: (text: string) => void) {
   let parts = 0
+  let failed = 0
   let chain: Promise<void> = Promise.resolve()
   const one = async (part: number, text: string) => {
     if (gone.aborted) return
@@ -217,6 +236,7 @@ function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSigna
       if (first) throw Object.assign(new Error('tts_empty'), { status: 502 })
       q.push({ kind: 'part-end', part, last: false })
     } catch (e) {
+      failed += 1
       logWarn('[classroom] reply TTS failed', { part, status: (e as { status?: number } | null)?.status ?? null })
       q.push({ kind: 'audio-failed', part })
       // Its words were on the screen: seen, if not heard.
@@ -228,11 +248,21 @@ function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSigna
       const part = parts++
       chain = chain.then(() => one(part, text))
     },
-    async finish() {
+    /** Every sentence's voice is done (made, failed or stopped). */
+    async done() {
       await chain
+    },
+    /** The last part-end and end — after done(). */
+    end() {
       if (parts) q.push({ kind: 'part-end', part: parts - 1, last: true })
       q.push({ kind: 'end' })
     },
+    async finish() {
+      await chain
+      this.end()
+    },
+    /** How many sentences' voices failed or were cut. */
+    failed: () => failed,
   }
 }
 
