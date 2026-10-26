@@ -68,6 +68,13 @@ export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number]
  */
 export const AVATAR_LOOKS = ['photo', 'library', 'custom'] as const
 export type AvatarLook = (typeof AVATAR_LOOKS)[number]
+/**
+ * "Use my photo" (the `custom` look) takes NEW requests only while this is true. ⛔ CLOSED FOR THE MVP (owner, 2026-10-26:
+ * "lets use ready avatars for mvp"): the wizard does not offer it and POST /api/classroom/avatar/photo refuses — the
+ * ready-made avatars (./library-avatars.ts) are the 3D looks. Withdrawing a request or a likeness stays open always, and
+ * the queue, consent and deletion paths stay built for when it opens.
+ */
+export const LIKENESS_REQUESTS_OPEN: boolean = false
 export const CUSTOM_STATUSES = ['none', 'requested', 'ready', 'removed'] as const
 export type CustomStatus = (typeof CUSTOM_STATUSES)[number]
 

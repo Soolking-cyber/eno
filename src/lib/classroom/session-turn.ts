@@ -6,7 +6,8 @@ import { logError, logWarn } from '@/lib/log'
 import { getGeminiVertex } from '@/lib/gemini'
 import { LIMITS, STRICTNESS, type Strictness } from './constants'
 import { parseWav } from './wav'
-import { assess, recognize, speechConfig, type PronResult } from './azure-speech'
+import { assess, speechConfig, type PronResult } from './azure-speech'
+import { localSpeechConfig, transcribe } from './speech-local'
 import { tutorTurn } from './tutor-ai'
 import { parseFocus } from './plans'
 import { workingOnLines } from './focus'
@@ -67,9 +68,10 @@ async function sessionOfCaller(sessionId: string, accountId: string, now: Date) 
 }
 
 /**
- * ONE TURN (plan "How one turn works"): check → reserve the turn row under the session's lock → transcript (Azure) →
- * reply (Gemini) → voice (Azure TTS) → answer; the pronunciation score runs in after(), on the clip still in memory, and
- * the clip is dropped when it is done. ⛔ The clip is never written anywhere.
+ * ONE TURN (plan "How one turn works"): check → reserve the turn row under the session's lock → transcript (eno's own
+ * speech server, speech-local.ts) → reply (Gemini) → voice (the same server) → answer; a repeat-after-me drill is scored by
+ * Azure in after(), on the clip still in memory, and the clip is dropped when it is done. ⛔ The clip is never written
+ * anywhere.
  */
 export async function processTurn(sessionId: string, accountId: string, clientTurnId: string, wav: Buffer, now = new Date()): Promise<TurnResult> {
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(clientTurnId)) throw new ApiError('bad_request', 400)
@@ -144,11 +146,11 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     throw refusal
   }
 
-  const cfg = speechConfig()
-  if (!cfg) return fail(new ApiError('speech_unavailable', 503))
+  const speech = localSpeechConfig()
+  if (!speech) return fail(new ApiError('speech_unavailable', 503))
   let heard
   try {
-    heard = await recognize(cfg, wav)
+    heard = await transcribe(speech, wav)
   } catch (e) {
     return fail(new ApiError('speech_unavailable', 503), e)
   }
@@ -192,12 +194,13 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
   // A flagged turn never sets a drill (2a round 10, opus): nothing after a disclosure is scored as a repeat of anything.
   if (reply.safety) reply = { ...reply, expect: null }
 
-  // The reference that scores THIS turn: the sentence the previous reply asked for (a drill — reliable), else what the
-  // learner said (Microsoft's transcribe-then-score; words to practise, never a verdict).
+  // The reference that scores THIS turn: the sentence the previous reply asked for — a repeat-after-me drill, the one
+  // score worth having. ⛔ FREE TALK IS NOT SCORED (2026-10-26, plan review codex + opus): it would send every turn's
+  // audio to Azure in Singapore to score words against the recogniser's own guess of them. Drills only, and only while
+  // Azure is configured — without it a drill is 'skipped' and the report simply has no pronunciation scores.
   const asked = before.at(-1)?.expectText ?? null
-  // A masked word ("****" — Azure masks profanity in the spoken form too) is no reference: free talk with one is not
-  // scored at all rather than scored against stars (2a round 8, opus).
-  const reference = asked ?? (heard.lexical.includes('*') ? null : heard.lexical)
+  const pa = asked ? speechConfig() : null
+  const reference = pa ? asked : null
   const audio = await speakLine(reply.reply, session.avatar.voice, levelOf(session), bandOf(session)).catch((e) => {
     logWarn('[classroom] reply TTS failed', { status: (e as { status?: number }).status ?? null })
     return null
@@ -237,10 +240,10 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
 
   // ⛔ After the answer: score the clip in memory, then let it go. A failure is recorded as such — never retried later,
   // because nothing of the audio is left to retry with.
-  if (reference) after(async () => {
+  if (pa && reference) after(async () => {
     let pron: PronResult | null = null
     try {
-      pron = await assess(cfg, wav, reference, asked !== null)
+      pron = await assess(pa, wav, reference, true)
     } catch (e) {
       logWarn('[classroom] pronunciation assessment failed', { status: (e as { status?: number }).status ?? null })
     }

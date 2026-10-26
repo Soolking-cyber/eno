@@ -11,7 +11,7 @@ import { ChevronRight, Mic, Pencil, Sparkles, UserPlus } from '@/components/ui/i
 import { refusalCopy } from './classroom-copy'
 import type { ClassroomMe } from '@/lib/classroom/me'
 import type { RosterSeat } from '@/lib/classroom/seats'
-import { voiceById } from '@/lib/classroom/voices'
+import { voiceFor } from '@/lib/classroom/voices'
 import { api } from './api'
 import { SeatSheet } from './seat-sheet'
 import { SessionLauncher } from './session-launcher'
@@ -114,7 +114,7 @@ function CreateAvatar() {
 function AvatarCard({ teacher }: { teacher: Teacher }) {
   const { tr } = useLanguage()
   const avatar = teacher.avatar!
-  const voice = voiceById(avatar.voice)
+  const voice = voiceFor(avatar.voice)
   return (
     <div className="flex items-center gap-4 border-y border-border py-4">
       <Avatar name={avatar.name} url={teacher.photoUrl} size="xl" />

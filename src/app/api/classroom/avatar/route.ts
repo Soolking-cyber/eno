@@ -3,7 +3,7 @@ import { ApiError, route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { AVATAR_SELECT, saveAvatar, validateAvatar } from '@/lib/classroom/avatar'
 import { requireTeacher } from '@/lib/classroom/guards'
-import { defaultVoice } from '@/lib/classroom/voices'
+import { defaultVoice, voiceById, voiceFor } from '@/lib/classroom/voices'
 import { DEFAULT_TRAITS } from '@/lib/classroom/persona'
 import { readCapped } from '@/lib/classroom/http'
 
@@ -19,7 +19,11 @@ const MAX_BODY_BYTES = 16_000
  */
 export const GET = route({ auth: 'profile' }, async ({ profile }) => {
   const teacher = await requireTeacher(profile.id, { open: false })
-  const avatar = await db.classroomAvatar.findUnique({ where: { teacherProfileId: teacher.id }, select: AVATAR_SELECT })
+  const saved = await db.classroomAvatar.findUnique({ where: { teacherProfileId: teacher.id }, select: AVATAR_SELECT })
+  // A voice saved before the switch to eno's own voices (2026-10-26, an Azure id) is on no list now: the wizard shows the
+  // voice the lessons speak with (voiceFor — same gender and accent group), so the next save is valid and nothing changes
+  // under the teacher (codex + opus, commit review).
+  const avatar = saved && !voiceById(saved.voice) ? { ...saved, voice: (voiceFor(saved.voice) ?? defaultVoice(teacher.nationality)).id } : saved
   return NextResponse.json({
     teacher: { fullName: teacher.fullName, photoUrl: teacher.photoUrl, nationality: teacher.nationality },
     avatar,

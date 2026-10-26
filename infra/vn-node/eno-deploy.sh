@@ -654,11 +654,32 @@ say "5. build (sequential — 4 cores shared with the containers still serving)"
 # that download has failed transiently twice in one evening. eno-build.sh now fails
 # loudly and asserts the image ID changed, so a failure here is real — but retry once
 # before investigating.
+# ⚠️ THE CLASSROOM'S SPEECH SERVER STEPS ASIDE WHILE THE APPS BUILD (infra/vn-node/classroom-speech/README.md).
+# A Next.js build is the biggest memory peak this box sees, the box has no swap, and that container holds 1.2-1.7 GB
+# of models — stopped here (a pause would keep the memory), started again after both builds, whatever they did.
+# Learners get "try again" for those minutes; the sites never notice. No container, nothing happens.
+SPEECH_PAUSED=0
+resume_speech(){
+  [ "$SPEECH_PAUSED" = 1 ] || return 0
+  SPEECH_PAUSED=0
+  if docker start eno-classroom-speech >/dev/null; then ok "classroom speech started again"
+  else warn "eno-classroom-speech did not start — run: docker start eno-classroom-speech"; fi
+}
+if docker ps -q --filter name='^eno-classroom-speech$' | grep -q .; then
+  if docker stop -t 10 eno-classroom-speech >/dev/null; then
+    SPEECH_PAUSED=1; ok "classroom speech stopped for the build"
+    # A deploy killed mid-build (a dropped ssh, Ctrl-C, a TERM) still starts it again: bash runs the EXIT trap on HUP,
+    # INT and TERM too (measured 2026-10-26, bash 5.x; the box runs 5.2.21). ⚠️ The trap REPLACES the one set at the top
+    # of this file, so it repeats that clean-up — change the two together.
+    trap 'resume_speech; rm -f "${ENO_DEPLOY_SELF:-}" "${MAN_ERR:-}"' EXIT
+  else warn "could not stop eno-classroom-speech — building beside it"; fi
+fi
 for ed in marketplace services; do
   if ! /opt/eno/bin/eno-build.sh "$ed"; then
-    bad "$ed build FAILED — nothing swapped, users unaffected"; untag_bad; exit 1
+    bad "$ed build FAILED — nothing swapped, users unaffected"; resume_speech; untag_bad; exit 1
   fi
 done
+resume_speech
 ok "both images built"
 
 say "6. edition boundary, read from the ARTIFACT"

@@ -361,6 +361,10 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // Self-hosted OpenCV.js + jscanify (public/opencv/**) — third-party minified CV bundle for the
     // on-device document-edge auto-capture. Not our source. See public/opencv/PROVENANCE.md.
     "public/opencv/**",
+    // Spatius AvatarKit's WASM loader and Opus workers — COPIED IN by its Next plugin (`withAvatarkit`, next.config.ts)
+    // on every dev and build, gitignored, third-party minified code. Linting them reports fall-through and hook errors
+    // from a bundle we do not author (20 errors the first time a dev server ran, 2026-10-26).
+    "public/_avatarkit/**", "public/assets/**",
     // ⚠️ `.next-*` TOO, not just `.next`. next.config.ts now honours NEXT_DIST_DIR so two
     // sessions can run dev and preview side by side, and a developer following that advice
     // gets `.next-dev/` — which this list did not cover, so `npm run lint` linted 155 build

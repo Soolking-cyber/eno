@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { escapeXml, replySsml, trimPron } from './azure-speech'
+import { trimPron } from './azure-speech'
 import { mintSessionToken, spatiusConfig, tokenExpireAt, SpatiusError } from './spatius'
 import { budgetRefusal } from './budget'
 import { estimateCostMicroUsd } from './costs'
 import { parseJoin } from './join'
 import { ADULT_ATTESTATION, ADULT_NOTICE_VERSION, ASSENT_TEXT, ASSENT_YES, GUARDIAN_ATTESTATION, PERSONA_AI_NOTICE, PHOTO_NOTICE, PRACTICE_NOTICE, TEACHER_VIEW_NOTICE, PRACTICE_NOTICE_VERSION, TEACHER_VIEW_NOTICE_VERSION, GUARDIAN_NOTICE_VERSION, ASSENT_VERSION } from './notices'
-import { VOICES, defaultVoice, voiceById } from './voices'
+import { VOICES, defaultVoice, voiceById, voiceFor } from './voices'
 
 vi.mock('server-only', () => ({}))
 afterEach(() => vi.unstubAllEnvs())
@@ -25,22 +25,25 @@ describe('Azure speech, parsed', () => {
       words: [{ word: 'think', score: 42, error: 'Mispronunciation', phonemes: [{ p: 'θ', score: 10 }] }, { word: 'so', score: 98, error: null }],
     })
   })
-  it('⛔ SSML: an allowlisted voice and escaped text — nothing else enters', () => {
-    const ssml = replySsml(`Tom's <tag> & "quote"`, 'en-GB-SoniaNeural', 'slow')
-    expect(ssml).toContain('<voice name="en-GB-SoniaNeural">')
-    expect(ssml).toContain('xml:lang="en-GB"')
-    expect(ssml).toContain('Tom&apos;s &lt;tag&gt; &amp; &quot;quote&quot;')
-    expect(ssml).toContain('rate="-12%"')
-    expect(replySsml('x', 'evil"><voice name="x', 'natural')).toContain('<voice name="en-US-AvaMultilingualNeural">')
-    expect(escapeXml('<&>')).toBe('&lt;&amp;&gt;')
-  })
-  it('voices: unique Azure-shaped ids; the teacher’s own accent first', () => {
+  it('voices: unique ids, two women and two men per accent, Commonwealth teachers start British', () => {
     expect(new Set(VOICES.map((v) => v.id)).size).toBe(VOICES.length)
-    for (const v of VOICES) expect(v.id).toMatch(/^en-[A-Z]{2}-[A-Za-z]+Neural$/)
+    for (const accent of ['US', 'UK'] as const) {
+      for (const gender of ['f', 'm'] as const) expect(VOICES.filter((v) => v.accent === accent && v.gender === gender && !v.note)).toHaveLength(2)
+    }
     expect(defaultVoice('GB').accent).toBe('UK')
-    expect(defaultVoice('ph').accent).toBe('PH')
+    expect(defaultVoice('au').accent).toBe('UK')
+    expect(defaultVoice('ph').accent).toBe('US')
     expect(defaultVoice('VN').accent).toBe('US')
     expect(voiceById('nope')).toBeNull()
+    // An Azure id from before the switch is no voice to SAVE…
+    expect(voiceById('en-US-AvaMultilingualNeural')).toBeNull()
+  })
+  it('a saved pre-switch Azure voice speaks as the same gender and accent group, never as someone else', () => {
+    const azure = { 'en-US-AndrewMultilingualNeural': ['US', 'm'], 'en-GB-RyanNeural': ['UK', 'm'], 'en-IE-EmilyNeural': ['UK', 'f'], 'en-PH-RosaNeural': ['US', 'f'], 'en-ZA-LukeNeural': ['UK', 'm'], 'en-CA-ClaraNeural': ['US', 'f'] } as const
+    for (const [id, [accent, gender]] of Object.entries(azure)) expect(voiceFor(id), id).toMatchObject({ accent, gender })
+    expect(voiceFor('Toby')).toMatchObject({ id: 'Toby' })
+    expect(voiceFor('toString')).toBeNull()
+    expect(voiceFor('nope')).toBeNull()
   })
 })
 
@@ -80,9 +83,11 @@ describe('budget and cost', () => {
     expect(budgetRefusal({ dayMinutes: 0, monthMinutes: 2995, teacherMonthMinutes: 0 }, caps, 10)).toBe('month')
     expect(budgetRefusal({ dayMinutes: 0, monthMinutes: 0, teacherMonthMinutes: 595 }, caps, 10)).toBe('teacher')
   })
-  it('estimates Spatius only in avatar mode', () => {
-    const base = { usedSeconds: 600, learnerSpeechMs: 240_000, avatarChars: 2_000, aiCalls: 20 }
+  it('estimates Spatius only in avatar mode; Azure only for the drill audio it scored; our own speech costs nothing', () => {
+    const base = { usedSeconds: 600, assessedMs: 36_000, aiCalls: 20 }
     expect(estimateCostMicroUsd({ ...base, mode: 'avatar' }) - estimateCostMicroUsd({ ...base, mode: 'voice' })).toBe(100_000)
+    // 36 s of drills at $1/h = $0.01; 20 calls at $0.0006 = $0.012
+    expect(estimateCostMicroUsd({ ...base, mode: 'voice' })).toBe(10_000 + 12_000)
   })
 })
 

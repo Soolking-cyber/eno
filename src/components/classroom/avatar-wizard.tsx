@@ -22,7 +22,7 @@ import {
   type Pace, type Tone, type Topic, type Traits,
 } from '@/lib/classroom/persona'
 import { PERSONA_AI_ACTION, PERSONA_AI_NOTICE, PERSONA_AI_NOTICE_VERSION, PHOTO_ACTION, PHOTO_NOTICE, PHOTO_NOTICE_VERSION } from '@/lib/classroom/notices'
-import type { AvatarLook } from '@/lib/classroom/constants'
+import { LIKENESS_REQUESTS_OPEN, type AvatarLook } from '@/lib/classroom/constants'
 import { api } from './api'
 import { refusalCopy } from './classroom-copy'
 import { SessionLauncher } from './session-launcher'
@@ -157,17 +157,12 @@ function LookStep({ d, setD, photoUrl, customStatus, setCustomStatus }: {
   }
   // whitespace-normal: ui/button's base is nowrap, and a two-line label ran past the card at 390px.
   const option = (selected: boolean) => cn('press flex w-full items-center gap-4 whitespace-normal rounded-2xl p-3 text-left hover:bg-tint', selected && 'bg-accent')
+  // The own-face section: offered while requests are open, and always shown to a teacher who already has a request or a
+  // likeness, so they can still use or withdraw it (LIKENESS_REQUESTS_OPEN — closed for the MVP).
+  const ownFace = LIKENESS_REQUESTS_OPEN || customStatus === 'requested' || customStatus === 'ready'
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-body">{tr('How your students see the avatar.', 'Học viên sẽ thấy avatar như thế nào.')}</p>
-      <Button variant="bare" size="none" aria-pressed={d.look === 'photo'} className={option(d.look === 'photo')} onClick={() => setD({ ...d, look: 'photo', libraryAvatarId: null })}>
-        <Avatar name={d.name} url={photoUrl} size="xl" />
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold text-ink">{tr('Your profile photo', 'Ảnh hồ sơ của bạn')}</span>
-          <span className="block text-xs text-ink-4">{tr('Your photo with a voice. Works on every phone.', 'Ảnh của bạn kèm giọng nói. Chạy trên mọi điện thoại.')}</span>
-        </span>
-        {d.look === 'photo' && <Check aria-hidden className="size-5 text-brand" />}
-      </Button>
       {LIBRARY_AVATARS.length > 0 && (
         <div className="flex flex-col gap-2">
           <p className="text-sm font-semibold text-ink">{tr('Ready-made 3D avatars', 'Avatar 3D có sẵn')}</p>
@@ -183,7 +178,15 @@ function LookStep({ d, setD, photoUrl, customStatus, setCustomStatus }: {
           </div>
         </div>
       )}
-      <div className="flex flex-col gap-3 border-t border-border pt-5">
+      <Button variant="bare" size="none" aria-pressed={d.look === 'photo'} className={option(d.look === 'photo')} onClick={() => setD({ ...d, look: 'photo', libraryAvatarId: null })}>
+        <Avatar name={d.name} url={photoUrl} size="xl" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-ink">{tr('Your profile photo', 'Ảnh hồ sơ của bạn')}</span>
+          <span className="block text-xs text-ink-4">{tr('Your photo with a voice. Works on every phone.', 'Ảnh của bạn kèm giọng nói. Chạy trên mọi điện thoại.')}</span>
+        </span>
+        {d.look === 'photo' && <Check aria-hidden className="size-5 text-brand" />}
+      </Button>
+      {ownFace && <div className="flex flex-col gap-3 border-t border-border pt-5">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-ink">{tr('Your own face in 3D', 'Khuôn mặt 3D của chính bạn')}</p>
           {customStatus === 'requested' && <Badge variant="warning" size="sm">{tr('Being made', 'Đang tạo')}</Badge>}
@@ -208,7 +211,7 @@ function LookStep({ d, setD, photoUrl, customStatus, setCustomStatus }: {
           <Button variant="ghost" size="sm" className="self-start text-destructive" loading={busy} onClick={withdraw}>{tr('Remove my 3D face', 'Gỡ khuôn mặt 3D')}</Button>
         )}
         {err && <p role="alert" className="text-sm text-destructive">{tr(refusalCopy(err).en, refusalCopy(err).vi)}</p>}
-      </div>
+      </div>}
     </div>
   )
 }
@@ -301,6 +304,7 @@ function VoiceStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
             <Button variant="bare" size="none" aria-pressed={d.voice === v.id} onClick={() => setD({ ...d, voice: v.id })} className="press flex min-w-0 flex-1 items-center justify-start gap-3 whitespace-normal rounded-xl px-2 py-1 text-left">
               <span className="text-sm font-semibold text-ink">{v.name}</span>
               <span className="text-xs text-ink-4">{tr(ACCENT_LABEL[v.accent].en, ACCENT_LABEL[v.accent].vi)}</span>
+              {v.note === 'young-learners' && <span className="text-xs text-ink-4">{tr('playful, for young learners', 'vui tươi, hợp với các em nhỏ')}</span>}
               {d.voice === v.id && <Check aria-hidden className="ml-auto size-5 text-brand" />}
             </Button>
             <Button variant="ghost" size="icon" aria-label={tr('Listen', 'Nghe thử')} onClick={() => play(v.id)} disabled={playing === v.id}>

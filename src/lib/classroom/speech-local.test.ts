@@ -1,0 +1,106 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { localSpeechConfig, synthesize, transcribe } from './speech-local'
+import { SpeechError } from './azure-speech'
+
+vi.mock('server-only', () => ({}))
+afterEach(() => vi.unstubAllEnvs())
+
+const CFG = { url: 'http://eno-classroom-speech:8090', key: 'k'.repeat(32) }
+const WAV = Buffer.from('RIFF....WAVEfmt ')
+const MP3 = new Uint8Array(4_000).fill(0xff)
+
+type Call = { url: string; init: RequestInit }
+function fake(...answers: (Response | Error)[]) {
+  const calls: Call[] = []
+  const impl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init: init ?? {} })
+    const a = answers.shift()
+    if (!a) throw new Error('no more answers')
+    if (a instanceof Error) throw a
+    return a
+  }) as unknown as typeof fetch
+  return { impl, calls }
+}
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+const header = (c: Call, name: string) => new Headers(c.init.headers).get(name)
+
+describe('localSpeechConfig', () => {
+  it('needs both the address and a real key; a public-looking or odd URL is refused', () => {
+    expect(localSpeechConfig()).toBeNull()
+    vi.stubEnv('CLASSROOM_SPEECH_URL', 'http://eno-classroom-speech:8090/')
+    expect(localSpeechConfig()).toBeNull()
+    vi.stubEnv('CLASSROOM_SPEECH_KEY', 'short')
+    expect(localSpeechConfig()).toBeNull()
+    vi.stubEnv('CLASSROOM_SPEECH_KEY', 'k'.repeat(24))
+    expect(localSpeechConfig()).toEqual({ url: 'http://eno-classroom-speech:8090', key: 'k'.repeat(24) })
+    vi.stubEnv('CLASSROOM_SPEECH_URL', 'http://eno-classroom-speech:8090/stt?x=1')
+    expect(localSpeechConfig()).toBeNull()
+  })
+  it('⛔ only eno’s own network: a container name, loopback or a private address — never a public host', () => {
+    vi.stubEnv('CLASSROOM_SPEECH_KEY', 'k'.repeat(24))
+    for (const ok of ['http://eno-classroom-speech:8090', 'http://127.0.0.1:8090', 'http://localhost:8090', 'http://10.0.4.2:8090', 'http://172.20.0.5:8090', 'http://192.168.1.9:8090', 'http://100.101.2.3:8090']) {
+      vi.stubEnv('CLASSROOM_SPEECH_URL', ok)
+      expect(localSpeechConfig(), ok).not.toBeNull()
+    }
+    for (const bad of ['http://example.com:8090', 'http://speech.eno.vn', 'http://8.8.8.8:8090', 'http://172.32.0.1:8090', 'http://100.128.0.1:8090', 'http://eno-classroom-speech.:8090', 'ftp://eno-classroom-speech:8090', 'http://user@eno-classroom-speech:8090']) {
+      vi.stubEnv('CLASSROOM_SPEECH_URL', bad)
+      expect(localSpeechConfig(), bad).toBeNull()
+    }
+  })
+})
+
+describe('transcribe', () => {
+  it('posts the WAV with the key; the words come back as heard', async () => {
+    const f = fake(json({ text: ' I go to school yesterday. ', status: 'ok', seconds: 2.1, ms: 400 }))
+    expect(await transcribe(CFG, WAV, f.impl)).toEqual({ text: 'I go to school yesterday.', status: 'ok' })
+    expect(f.calls[0].url).toBe('http://eno-classroom-speech:8090/stt')
+    expect(header(f.calls[0], 'x-speech-key')).toBe(CFG.key)
+    expect(header(f.calls[0], 'content-type')).toBe('audio/wav')
+    expect(f.calls[0].init.signal).toBeInstanceOf(AbortSignal)
+    expect(f.calls[0].init.redirect).toBe('error') // the checked address only — a redirect may not carry the audio away
+  })
+  it('silence, or an empty "ok", is silence', async () => {
+    expect(await transcribe(CFG, WAV, fake(json({ text: '', status: 'silence' })).impl)).toEqual({ text: '', status: 'silence' })
+    expect(await transcribe(CFG, WAV, fake(json({ text: '  ', status: 'ok' })).impl)).toEqual({ text: '', status: 'silence' })
+  })
+  it('a retry never outlives the stage’s budget: a 503 that came late is final', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const f = fake(json({ error: 'busy' }, 503), json({ text: 'late', status: 'ok' }))
+      const slow = vi.fn(async (u: string | URL | Request, i?: RequestInit) => { vi.setSystemTime(Date.now() + 10_000); return f.impl(u, i) }) as unknown as typeof fetch
+      await expect(transcribe(CFG, WAV, slow)).rejects.toMatchObject({ status: 503, stage: 'stt' })
+      expect(f.calls).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+  it('busy once → one short wait and one retry; busy twice → a 503 SpeechError', async () => {
+    const f = fake(json({ error: 'busy' }, 503), json({ text: 'Hello', status: 'ok' }))
+    expect(await transcribe(CFG, WAV, f.impl)).toEqual({ text: 'Hello', status: 'ok' })
+    expect(f.calls).toHaveLength(2)
+    await expect(transcribe(CFG, WAV, fake(json({}, 503), json({}, 503)).impl)).rejects.toMatchObject({ status: 503, stage: 'stt' })
+  })
+  it('unreachable, refused or malformed → a SpeechError, never the raw error', async () => {
+    await expect(transcribe(CFG, WAV, fake(new TypeError('fetch failed')).impl)).rejects.toBeInstanceOf(SpeechError)
+    await expect(transcribe(CFG, WAV, fake(json({ error: 'unauthorised' }, 401)).impl)).rejects.toMatchObject({ status: 401, stage: 'stt' })
+    await expect(transcribe(CFG, WAV, fake(new Response('not json')).impl)).rejects.toMatchObject({ status: 502, stage: 'stt' })
+    await expect(transcribe(CFG, WAV, fake(json({ text: 5, status: 'ok' })).impl)).rejects.toMatchObject({ status: 502 })
+    await expect(transcribe(CFG, WAV, fake(json({ text: 'x', status: 'maybe' })).impl)).rejects.toMatchObject({ status: 502 })
+  })
+})
+
+describe('synthesize', () => {
+  it('posts text, voice and rate as JSON; MP3 bytes come back', async () => {
+    const f = fake(new Response(MP3, { headers: { 'content-type': 'audio/mpeg' } }))
+    const out = await synthesize(CFG, 'Hello there.', 'Harper', 'slow', f.impl)
+    expect(out.length).toBe(MP3.length)
+    expect(f.calls[0].url).toBe('http://eno-classroom-speech:8090/tts')
+    expect(JSON.parse(String(f.calls[0].init.body))).toEqual({ text: 'Hello there.', voice: 'Harper', rate: 'slow' })
+    expect(header(f.calls[0], 'x-speech-key')).toBe(CFG.key)
+  })
+  it('anything but audio, or a stub, is a 502', async () => {
+    await expect(synthesize(CFG, 'x', 'Harper', 'natural', fake(json({ ok: true })).impl)).rejects.toMatchObject({ status: 502, stage: 'tts' })
+    await expect(synthesize(CFG, 'x', 'Harper', 'natural', fake(new Response(new Uint8Array(10), { headers: { 'content-type': 'audio/mpeg' } })).impl)).rejects.toMatchObject({ status: 502 })
+    await expect(synthesize(CFG, 'x', 'Bob', 'natural', fake(json({ error: 'voice' }, 400)).impl)).rejects.toMatchObject({ status: 400, stage: 'tts' })
+  })
+})

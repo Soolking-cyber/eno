@@ -13,7 +13,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
  *   npx prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script | psql classroom_it   (then drop the 7 Classroom* tables)
  *   DIRECT_URL=…/classroom_it node scripts/rate-limit-pg.mjs; DIRECT_URL=…/classroom_it node scripts/classroom-ddl.mjs
  *   CLASSROOM_PG_TESTS=1 DATABASE_URL=postgresql://…/classroom_it npx vitest run src/lib/classroom/flows.pg.test.ts
- * The vendors (Azure, Gemini) are stubbed: these tests are about OUR rows, not their answers.
+ * The vendors (our speech server, Azure, Gemini) are stubbed: these tests are about OUR rows, not their answers.
  */
 const url = process.env.DATABASE_URL || ''
 const parsed = (() => { try { return new URL(url) } catch { return null } })()
@@ -21,7 +21,7 @@ const loopback = ['127.0.0.1', 'localhost', '::1'].includes(parsed?.hostname ?? 
 const live = process.env.CLASSROOM_PG_TESTS === '1' && loopback && parsed?.port !== '5433' && /_it$/.test(parsed?.pathname ?? '')
 
 const afterQueue: Promise<unknown>[] = []
-const seen = vi.hoisted(() => ({ feedbackTurns: [] as { learner: string | null }[][], recognizeMs: 0, alerts: [] as { to: string; key: string; text: string }[], tutorUnusableHarm: false, silence: false }))
+const seen = vi.hoisted(() => ({ feedbackTurns: [] as { learner: string | null }[][], recognizeMs: 0, alerts: [] as { to: string; key: string; text: string }[], tutorUnusableHarm: false, silence: false, assessed: [] as string[] }))
 // Nothing here may ever send real mail: the safety alert is captured instead.
 vi.mock('@/lib/mail', () => ({
   sendMailOnce: async (m: { to: string; text: string }, o: { idempotencyKey: string }) => { seen.alerts.push({ to: m.to, key: o.idempotencyKey, text: m.text }); return { outcome: 'sent', stopRun: false, name: null, retryAfterMs: null } },
@@ -29,14 +29,18 @@ vi.mock('@/lib/mail', () => ({
 }))
 vi.mock('next/server', async (orig) => ({ ...(await orig<typeof import('next/server')>()), after: (fn: () => unknown) => { afterQueue.push(Promise.resolve().then(fn)) } }))
 vi.mock('@/lib/gemini', async (orig) => ({ ...(await orig<typeof import('@/lib/gemini')>()), getGeminiVertex: () => ({}) }))
+vi.mock('./speech-local', async (orig) => ({
+  ...(await orig<typeof import('./speech-local')>()),
+  localSpeechConfig: () => ({ url: 'http://eno-classroom-speech:8090', key: 'k'.repeat(32) }),
+  transcribe: async () => {
+    if (seen.recognizeMs) await new Promise((r) => setTimeout(r, seen.recognizeMs))
+    return seen.silence ? { text: '', status: 'silence' } : { text: 'I go to school yesterday', status: 'ok' }
+  },
+}))
 vi.mock('./azure-speech', async (orig) => ({
   ...(await orig<typeof import('./azure-speech')>()),
   speechConfig: () => ({ key: 'k', region: 'southeastasia' }),
-  recognize: async () => {
-    if (seen.recognizeMs) await new Promise((r) => setTimeout(r, seen.recognizeMs))
-    return seen.silence ? { text: '', lexical: '', status: 'silence' } : { text: 'I go to school yesterday', lexical: 'i go to school yesterday', status: 'ok' }
-  },
-  assess: async () => ({ accuracy: 70, fluency: 80, completeness: null, prosody: null, words: [{ word: 'school', score: 50, error: 'Mispronunciation' }] }),
+  assess: async (_cfg: unknown, _wav: unknown, reference: string) => (seen.assessed.push(reference), { accuracy: 70, fluency: 80, completeness: null, prosody: null, words: [{ word: 'school', score: 50, error: 'Mispronunciation' }] }),
 }))
 vi.mock('./session-voice', () => ({ speakLine: async () => 'AAAA' }))
 vi.mock('./tutor-ai', async (orig) => ({
@@ -359,6 +363,24 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     expect(await db.classroomFeedback.findUnique({ where: { sessionId: s.id } })).toMatchObject({ summary: 'Good talk.' })
   })
 
+  it('⛔ free talk is never sent to Azure: only a drill turn is scored, against the drill sentence', async () => {
+    const seat = await activeSeat()
+    const s = await start.startLearnerSession(seat.id, parentId)
+    await db.classroomTurn.updateMany({ where: { sessionId: s.id, seq: 0 }, data: { expectText: null } })
+    seen.assessed.length = 0
+    const r = await turn.processTurn(s.id, parentId, 'turn-free-0001', voice())
+    await Promise.all(afterQueue.splice(0))
+    expect(r).toMatchObject({ kind: 'reply' })
+    expect(seen.assessed).toEqual([])
+    expect(await db.classroomTurn.findFirst({ where: { sessionId: s.id, clientTurnId: 'turn-free-0001' } })).toMatchObject({ assessStatus: 'skipped', reference: null })
+    // the tutor's reply asks for a sentence: the NEXT turn is a drill, scored against exactly that sentence
+    await db.classroomTurn.updateMany({ where: { sessionId: s.id, clientTurnId: 'turn-free-0001' }, data: { expectText: 'I went to school yesterday.' } })
+    await turn.processTurn(s.id, parentId, 'turn-drill-001', voice())
+    await Promise.all(afterQueue.splice(0))
+    expect(seen.assessed).toEqual(['I went to school yesterday.'])
+    expect(await db.classroomTurn.findFirst({ where: { sessionId: s.id, clientTurnId: 'turn-drill-001' } })).toMatchObject({ assessStatus: 'done', reference: 'I went to school yesterday.' })
+  })
+
   it('⛔ the switch bites on the next turn, not when the sweep comes round', async () => {
     const seat = await activeSeat()
     const s = await start.startLearnerSession(seat.id, parentId)
@@ -370,6 +392,8 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
   it('⛔ end and sweep race: the session ends once; the report and the AI draft follow; a teacher plan is never overwritten', async () => {
     const seat = await activeSeat()
     const s = await start.startLearnerSession(seat.id, parentId)
+    // the opening line asked for a drill: this turn is scored against it (free talk is not scored at all — next test)
+    await db.classroomTurn.updateMany({ where: { sessionId: s.id, seq: 0 }, data: { expectText: 'I go to school.' } })
     await turn.processTurn(s.id, parentId, 'turn-one-111', voice())
     await Promise.all(afterQueue.splice(0)) // the pronunciation score lands
     await db.classroomSession.update({ where: { id: s.id }, data: { endsAt: new Date(Date.now() - 10 * 60_000) } })
@@ -381,7 +405,7 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     expect(await feedback.buildFeedback(s.id)).toBe('ready')
     const fb = await db.classroomFeedback.findUnique({ where: { sessionId: s.id } })
     expect(fb).toMatchObject({ summary: 'Good talk.' })
-    expect(fb!.pronunciation).toEqual([{ word: 'school', score: 50, reliable: false, tip: 'Long oo.' }])
+    expect(fb!.pronunciation).toEqual([{ word: 'school', score: 50, reliable: true, tip: 'Long oo.' }])
     const plans = await db.classroomPlan.findMany({ where: { enrollmentId: seat.id, status: 'draft' } })
     expect(plans).toHaveLength(1)
     const seatNow = await db.classroomEnrollment.findUnique({ where: { id: seat.id } })

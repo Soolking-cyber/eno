@@ -1,63 +1,71 @@
 /**
- * The avatar's voice — Azure neural voices (src/lib/classroom/azure-speech.ts speaks with them). Client-safe: the picker
- * shows this list, and the API refuses any id that is not on it.
+ * The avatar's voice — Gradium Phonon catalogue voices, spoken by eno's own speech server on the VN box
+ * (infra/vn-node/classroom-speech, src/lib/classroom/speech-local.ts). Client-safe: the picker shows this list, and the
+ * API refuses any id that is not on it.
  *
- * ⛔ AN ALLOWLIST, NOT A FREE TEXT FIELD: the id goes into SSML on the server, so only these exact strings ever reach it.
- * The accents follow the teachers eno has (owner's teacher list, 2026-10: US, UK, Ireland, Canada, Australia, New Zealand,
- * South Africa, the Philippines) — a teacher's avatar can sound like them. Two per accent, a woman's and a man's.
- * ⚠️ Azure retires voices now and then: Phase 0 checked every id against the region's /voices/list, and
- * azure-speech.test.ts keeps the shape of the ids honest; a retired voice fails TTS loudly (never silently).
+ * ⛔ AN ALLOWLIST, NOT A FREE TEXT FIELD, AND IT IS THE SERVER'S LIST TOO: the speech server refuses any voice outside its
+ * own `VOICES` (server.py) and its image carries only those (fetch_models.py) — voices.test.ts reads all three and fails
+ * when they disagree. Adding a voice is all three files plus a rebuilt image.
+ * ⚠️ US and UK only (owner, 2026-10-26: "dirt cheap", self-hosted). Azure had eight accents; the open voices that run on
+ * the box's CPU have two. A teacher from elsewhere starts on the nearer of the two (below) and picks their own in the
+ * wizard — no voice is labelled as anyone's own accent but its own.
+ * The voices are Gradium's designed catalogue voices (Apache-2.0) — none is cloned from a real person.
  */
-export type Accent = 'US' | 'UK' | 'IE' | 'CA' | 'AU' | 'NZ' | 'ZA' | 'PH'
+export type Accent = 'US' | 'UK'
 
-export type Voice = { id: string; name: string; accent: Accent; gender: 'f' | 'm' }
+export type Voice = { id: string; name: string; accent: Accent; gender: 'f' | 'm'; note?: 'young-learners' }
 
 export const VOICES: readonly Voice[] = [
-  { id: 'en-US-AvaMultilingualNeural', name: 'Ava', accent: 'US', gender: 'f' },
-  { id: 'en-US-AndrewMultilingualNeural', name: 'Andrew', accent: 'US', gender: 'm' },
-  { id: 'en-GB-SoniaNeural', name: 'Sonia', accent: 'UK', gender: 'f' },
-  { id: 'en-GB-RyanNeural', name: 'Ryan', accent: 'UK', gender: 'm' },
-  { id: 'en-IE-EmilyNeural', name: 'Emily', accent: 'IE', gender: 'f' },
-  { id: 'en-IE-ConnorNeural', name: 'Connor', accent: 'IE', gender: 'm' },
-  { id: 'en-CA-ClaraNeural', name: 'Clara', accent: 'CA', gender: 'f' },
-  { id: 'en-CA-LiamNeural', name: 'Liam', accent: 'CA', gender: 'm' },
-  { id: 'en-AU-NatashaNeural', name: 'Natasha', accent: 'AU', gender: 'f' },
-  { id: 'en-AU-WilliamNeural', name: 'William', accent: 'AU', gender: 'm' },
-  { id: 'en-NZ-MollyNeural', name: 'Molly', accent: 'NZ', gender: 'f' },
-  { id: 'en-NZ-MitchellNeural', name: 'Mitchell', accent: 'NZ', gender: 'm' },
-  { id: 'en-ZA-LeahNeural', name: 'Leah', accent: 'ZA', gender: 'f' },
-  { id: 'en-ZA-LukeNeural', name: 'Luke', accent: 'ZA', gender: 'm' },
-  { id: 'en-PH-RosaNeural', name: 'Rosa', accent: 'PH', gender: 'f' },
-  { id: 'en-PH-JamesNeural', name: 'James', accent: 'PH', gender: 'm' },
+  { id: 'Harper', name: 'Harper', accent: 'US', gender: 'f' },
+  { id: 'Hadley', name: 'Hadley', accent: 'US', gender: 'f' },
+  { id: 'Trevor', name: 'Trevor', accent: 'US', gender: 'm' },
+  { id: 'Preston', name: 'Preston', accent: 'US', gender: 'm' },
+  { id: 'Zoey', name: 'Zoey', accent: 'US', gender: 'f', note: 'young-learners' },
+  { id: 'Imogen', name: 'Imogen', accent: 'UK', gender: 'f' },
+  { id: 'Maeve', name: 'Maeve', accent: 'UK', gender: 'f' },
+  { id: 'Spencer', name: 'Spencer', accent: 'UK', gender: 'm' },
+  { id: 'Toby', name: 'Toby', accent: 'UK', gender: 'm' },
 ]
 
 export const ACCENT_LABEL: Record<Accent, { en: string; vi: string }> = {
   US: { en: 'American', vi: 'Mỹ' },
   UK: { en: 'British', vi: 'Anh' },
-  IE: { en: 'Irish', vi: 'Ireland' },
-  CA: { en: 'Canadian', vi: 'Canada' },
-  AU: { en: 'Australian', vi: 'Úc' },
-  NZ: { en: 'New Zealand', vi: 'New Zealand' },
-  ZA: { en: 'South African', vi: 'Nam Phi' },
-  PH: { en: 'Filipino', vi: 'Philippines' },
 }
 
-/** ISO-3166 alpha-2 (TeacherProfile.nationality) → the accent the avatar starts with. */
+/** ISO-3166 alpha-2 (TeacherProfile.nationality) → the accent the picker starts on: British for the Commonwealth
+ *  accents nearer to it, American for the rest. Only a starting point — the teacher picks. */
 const ACCENT_BY_COUNTRY: Readonly<Record<string, Accent>> = {
-  US: 'US', GB: 'UK', IE: 'IE', CA: 'CA', AU: 'AU', NZ: 'NZ', ZA: 'ZA', PH: 'PH',
+  US: 'US', CA: 'US', PH: 'US',
+  GB: 'UK', IE: 'UK', AU: 'UK', NZ: 'UK', ZA: 'UK',
 }
 
 export function voiceById(id: unknown): Voice | null {
   return typeof id === 'string' ? VOICES.find((v) => v.id === id) ?? null : null
 }
 
-/** The voice the picker starts on: the teacher's own accent where we have one, else American. The teacher can change it. */
+/**
+ * The Azure voices an avatar could be saved with before 2026-10-26 → the voice of the same gender and accent group
+ * (ACCENT_BY_COUNTRY's grouping). Read-side only: what a SAVED avatar speaks with until the teacher next saves — a saved
+ * "Ryan" never starts speaking as Harper (codex + opus, commit review). The API still accepts nothing but VOICES ids.
+ */
+const LEGACY_AZURE: Readonly<Record<string, string>> = {
+  'en-US-AvaMultilingualNeural': 'Harper', 'en-US-AndrewMultilingualNeural': 'Trevor',
+  'en-CA-ClaraNeural': 'Hadley', 'en-CA-LiamNeural': 'Preston',
+  'en-PH-RosaNeural': 'Harper', 'en-PH-JamesNeural': 'Trevor',
+  'en-GB-SoniaNeural': 'Imogen', 'en-GB-RyanNeural': 'Spencer',
+  'en-IE-EmilyNeural': 'Maeve', 'en-IE-ConnorNeural': 'Toby',
+  'en-AU-NatashaNeural': 'Imogen', 'en-AU-WilliamNeural': 'Spencer',
+  'en-NZ-MollyNeural': 'Maeve', 'en-NZ-MitchellNeural': 'Toby',
+  'en-ZA-LeahNeural': 'Imogen', 'en-ZA-LukeNeural': 'Spencer',
+}
+
+/** The voice a SAVED id speaks with: itself, else its pre-2026-10-26 Azure voice's counterpart, else null. */
+export function voiceFor(id: unknown): Voice | null {
+  return voiceById(id) ?? (typeof id === 'string' && Object.hasOwn(LEGACY_AZURE, id) ? voiceById(LEGACY_AZURE[id]) : null)
+}
+
+/** The voice the picker starts on: the accent above, else American. The teacher can change it. */
 export function defaultVoice(nationality: string | null | undefined): Voice {
   const accent = ACCENT_BY_COUNTRY[(nationality ?? '').toUpperCase()] ?? 'US'
   return VOICES.find((v) => v.accent === accent) ?? VOICES[0]
-}
-
-/** The voice's BCP-47 locale ('en-GB') — SSML's xml:lang. */
-export function voiceLocale(voice: Voice): string {
-  return voice.id.split('-').slice(0, 2).join('-')
 }

@@ -5,6 +5,7 @@ import { requireAvatar, requireTeacher } from '@/lib/classroom/guards'
 import { readCapped } from '@/lib/classroom/http'
 import { classroomAudit, noticeSha } from '@/lib/classroom/audit'
 import { PHOTO_NOTICE_VERSION, photoNoticeBody } from '@/lib/classroom/notices'
+import { LIKENESS_REQUESTS_OPEN } from '@/lib/classroom/constants'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,6 +21,8 @@ const NO_STORE = { 'cache-control': 'private, no-store' }
  * its current look meanwhile. The consent and the request are written together.
  */
 export const POST = route({ auth: 'profile', rateLimit: { bucket: 'classroom-photo', limit: 10, window: '1 d' } }, async ({ req, profile }) => {
+  // Ready-made avatars only for the MVP (LIKENESS_REQUESTS_OPEN): nothing new joins the queue. DELETE below stays open.
+  if (!LIKENESS_REQUESTS_OPEN) throw new ApiError('look_invalid', 409)
   const teacher = await requireTeacher(profile.id)
   const avatar = await requireAvatar(teacher.id)
   const body = await readCapped(req, 2_000)

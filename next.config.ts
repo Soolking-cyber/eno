@@ -6,6 +6,7 @@ import { forumTeacherRedirects } from "./src/lib/teachers/surface-redirects";
 import { unknownAppReviewGates } from "./src/lib/app-review-gates";
 import { unknownAppleSignInTokens } from "./src/lib/apple-signin";
 import type { NextConfig } from "next";
+import { createRequire } from "node:module";
 
 /**
  * ⚠️ EDITION GUARD — fails the build rather than shipping the wrong app.
@@ -1358,15 +1359,22 @@ const nextConfig: NextConfig = {
     ].join("; ");
     const csp = cspFor();
     /**
-     * ⛔ eno CLASSROOM'S 3D AVATAR (2026-10-25) — the ONE extra host family, and only on /classroom pages: AvatarKit's
-     * Direct Mode opens a WebSocket to Spatius's motion server (docs.spatius.ai/api-reference/regions.md — Tokyo, our
-     * region, and US-West, its fallback when the client's region auto-selection has none). The browser never talks to the
-     * console API (the server mints the token — src/lib/classroom/spatius.ts). Every other directive is the site's own,
-     * because a later rule REPLACES the header for the paths it matches — it never adds to it.
-     * ⚠️ Spatius's model/asset CDN host is undocumented: the first real session's CSP reports name it (plan Phase 0);
-     * add it here then, in a reviewed commit — never a wildcard.
+     * ⛔ eno CLASSROOM'S 3D AVATAR (2026-10-25) — the ONE extra host family, and only on /classroom pages. MEASURED
+     * (Phase 0, 2026-10-26: AvatarKit 1.3.10 loading a public avatar and speaking on the local dev server, every request
+     * recorded): `global.spatialwalk.top` (POST /bootstrap), `cdn.spatialwalk.cloud` (the shared body model),
+     * `api.<region>.spatius.ai` (the avatar's manifest over https, then the motion WebSocket over wss) and
+     * `cdn.spatius.ai` (the avatar's own assets). Tokyo is our region; US-West is the same pair for SPATIUS_REGION=us-west.
+     * Under the old policy the bootstrap was refused and every session fell back to voice-only after ~9 s (measured).
+     * The browser never talks to the console API (the server mints the token — src/lib/classroom/spatius.ts). Every
+     * other directive is the site's own, because a later rule REPLACES the header for the paths it matches.
+     * ⛔ NOT `t.spatialwalk.top` — the SDK's OpenTelemetry export (POST /v1/logs, /v1/metrics, /v1/traces), which has no
+     * off switch and runs in a CHILD's browser too. Blocked, the avatar still loads, connects and speaks (measured);
+     * admitting it is the owner's call (the Spatius email and the legal draft carry the question). Never a wildcard.
      */
-    const cspClassroom = cspFor(" wss://api.ap-northeast.spatius.ai wss://api.us-west.spatius.ai");
+    const cspClassroom = cspFor(
+      " https://global.spatialwalk.top https://cdn.spatialwalk.cloud https://cdn.spatius.ai" +
+      " https://api.ap-northeast.spatius.ai wss://api.ap-northeast.spatius.ai https://api.us-west.spatius.ai wss://api.us-west.spatius.ai",
+    );
     /**
      * ⚠️ MEASURING, NOT ENFORCING (security review 2026-10-22, item 24). The enforced script-src above keeps
      * 'unsafe-eval', and nothing records what still needs it. This report-only twin is that script-src minus
@@ -1615,4 +1623,8 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+const { withAvatarkit } = createRequire(join(__dirname, "next.config.ts"))(
+  join(__dirname, "node_modules/@spatius/avatarkit/next.js"),
+) as { withAvatarkit: (config: NextConfig) => NextConfig };
+
+export default withAvatarkit(nextConfig);
