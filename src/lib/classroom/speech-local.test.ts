@@ -158,13 +158,11 @@ describe('synthesizeStream', () => {
     expect(header(f.calls[0], 'x-speech-key')).toBe(CFG.key)
     expect(f.calls[0].init.redirect).toBe('error')
   })
-  it('a child\'s line that ends whole is followed by its pause (silence, whole samples); a stopped one is not', async () => {
+  it('a line is its voice alone — no silence after it; its pause (for the caller to put BEFORE a next sentence) comes with it', async () => {
     const f = fake(pcm([[1, 2]], '1000'))
     const v = await synthesizeStream(CFG, 'Hello.', 'Zoey', voiceStyle('child', 'slowest'), undefined, f.impl)
-    const got = await all(v.chunks)
-    expect(got[0]).toEqual([1, 2])
-    expect(got[1]).toHaveLength(600) // 300 ms at 1 kHz = 300 samples = 600 bytes
-    expect(got[1].every((b) => b === 0)).toBe(true)
+    expect(await all(v.chunks)).toEqual([[1, 2]])
+    expect(v.pauseMs).toBe(voiceStyle('child', 'slowest').pauseMs)
     const stop = new AbortController()
     const g = fake(pcm([[1, 2], [3, 4]], '1000'))
     const w = await synthesizeStream(CFG, 'Hello.', 'Zoey', voiceStyle('child', 'slowest'), stop.signal, g.impl)

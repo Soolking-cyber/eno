@@ -51,19 +51,25 @@ export function stepPace(pace: VoicePace, change: PaceChange, band: AgeBand): Vo
 /**
  * How the avatar's voice is made for this learner (the speech server's request): the pace; `loud` — a child's voice
  * louder, through the server's limiter (its headroom is only 1.6–8 dB, measured); the pause between the sentences of one
- * line (`gapMs` — 120 ms is the server's own), and after each streamed sentence (`tailMs`, so the sentences of a reply do
- * not run together). Phonon cannot go slower than ~18%: for the young the pauses do the rest ("clear and slowly").
+ * line (`gapMs` — 120 ms is the server's own), and BEFORE each streamed sentence after a reply's first (`pauseMs`,
+ * turn-stream.ts — never after its last: that would only hold up the learner's turn). Phonon cannot go slower than ~18%:
+ * for the young the pauses do the rest ("clear and slowly").
+ * ⚡ Since 2026-10-27 the speech server trims Phonon's own ~0.7 s of silence at each sentence's edges to ~0.2 s
+ * (server.py TRIM_*; owner: "need super fast response"): these pauses are now most of the breath between sentences —
+ * ~0.25–0.4 s for a teen or an adult by pace, ~0.6–0.7 s for a child (it was ~0.85 s and ~1.0–1.1 s).
  */
-export type VoiceStyle = { pace: VoicePace; loud: boolean; gapMs: number; tailMs: number }
+export type VoiceStyle = { pace: VoicePace; loud: boolean; gapMs: number; pauseMs: number }
+
+const PAUSE_MS: Record<VoicePace, number> = { slowest: 200, gentle: 150, natural: 80, quick: 40 }
 
 export function voiceStyle(band: AgeBand, pace: VoicePace): VoiceStyle {
-  if (band === 'child-young') return { pace, loud: true, gapMs: 450, tailMs: 400 }
-  if (band === 'child') return { pace, loud: true, gapMs: 350, tailMs: 300 }
-  return { pace, loud: false, gapMs: 120, tailMs: 0 }
+  if (band === 'child-young') return { pace, loud: true, gapMs: 450, pauseMs: 500 }
+  if (band === 'child') return { pace, loud: true, gapMs: 350, pauseMs: 400 }
+  return { pace, loud: false, gapMs: 120, pauseMs: PAUSE_MS[pace] }
 }
 
-/** The natural voice (a voice sample on the wizard, a teacher's own test before any choice). */
-export const NATURAL_VOICE: VoiceStyle = { pace: 'natural', loud: false, gapMs: 120, tailMs: 0 }
+/** The natural voice for ONE line (a voice sample on the wizard): no streamed sentences, so no pause between them. */
+export const NATURAL_VOICE: VoiceStyle = { pace: 'natural', loud: false, gapMs: 120, pauseMs: 0 }
 
 /** For the tutor: the pace now, and which way it may still go (tutor-ai.ts). */
 export function paceOptions(pace: VoicePace, band: AgeBand): { now: VoicePace; slower: boolean; faster: boolean } {

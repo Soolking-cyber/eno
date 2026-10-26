@@ -39,6 +39,7 @@ type TurnLine =
   | { kind: 'say'; part: number; text: string }
   | { kind: 'pcm'; part: number; rate: number; data: string }
   | { kind: 'part-end'; part: number; last: boolean }
+  | { kind: 'drill'; expect: string }
   | { kind: 'reply'; learnerText: string; reply: string; hint: string; hintVi: string; secondsLeft: number; expect?: string | null; parts?: number; audio?: string | null }
   | { kind: 'audio'; part: number; audio: string }
   | { kind: 'audio-failed'; part: number }
@@ -94,8 +95,15 @@ const LIVE_CHUNK = 1_600
 const LIVE_WORDS_MS = 3_000
 /** The longest transcript sent (the server takes the same: session-turn.ts LIVE_TEXT_MAX). */
 const LIVE_TEXT_MAX_CHARS = 1_000
-/** Listening live, the page's own silence timer waits this long past Soniox's cap before it ends the turn itself. */
-const LIVE_BACKSTOP_MS = 600
+/**
+ * Listening live, the page's own silence timer waits this long past Soniox's cap before it ends the turn itself. For a teen
+ * or an adult 200 ms (was 600 — owner, 2026-10-27: "need super fast response"): measured, Soniox's own end came 1.4–2.2 s
+ * after the speech in a noisy room when it had made up a last word ("…yesterday and") — the page's finalize ends those
+ * sooner, without it. A child keeps 600 (2026-10-27 review, opus): the young pause longest to find a word.
+ */
+const LIVE_BACKSTOP_MS: Record<AgeBand, number> = { 'child-young': 600, child: 600, teen: 200, adult: 200 }
+/** A 16 kHz mic chunk louder than this (RMS) is the learner's voice — for the trace's "words came N ms after the voice". */
+const VOICE_RMS = 0.012
 
 /** The learner's words for the `x-transcript` header: UTF-8 in base64url (a header carries no raw UTF-8). */
 function base64url(text: string): string {
@@ -105,11 +113,13 @@ function base64url(text: string): string {
 }
 
 /**
- * The previous turn is still being saved (talked over before its reply was written — the server answers one turn at a
- * time): the same upload is sent again after a moment, up to this many times, rather than losing what the learner said.
+ * The previous turn is still being saved (talked over before its reply was written — or, since the reply's voice closes
+ * before its save (2026-10-27), answered quickly): the same upload is sent again after a moment, up to this many times
+ * (~15 s in all), rather than losing what the learner said. The first waits are short — the save is usually a few hundred
+ * ms away — then they grow to 1.25 s: every try counts against the turn route's hourly limit (2026-10-27 review, opus).
  */
-const BUSY_RETRIES = 8
-const BUSY_WAIT_MS = 1_250
+const BUSY_RETRIES = 15
+const busyWaitMs = (tries: number) => Math.min(1_250, Math.round(150 * 1.6 ** tries))
 
 const turnId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '')
 
@@ -216,6 +226,8 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const openingAtFace = useRef<{ id: number; buffer: AudioBuffer; timer: ReturnType<typeof setTimeout> } | null>(null)
   /** The sentence the last reply asked to be repeated: the next turn sends its clip too, for Azure to score. */
   const lastExpect = useRef<string | null>(null)
+  /** When the learner's voice was last heard in the mic (live listening) — the trace's endpoint delay. */
+  const lastVoiceAt = useRef(0)
 
   const handlers = useRef({
     speechStart: () => {}, speechEnd: () => {}, autoStop: (_wav: Uint8Array) => {}, frames: (_f: Float32Array) => {},
@@ -271,9 +283,10 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
    * the utterance itself on meaning and pauses within its own cap (soniox.ts sttSettingsFor).
    */
   const patience = useCallback(() => {
-    const own = PATIENCE_MS[startRef.current?.band ?? 'adult']
+    const band = startRef.current?.band ?? 'adult'
+    const own = PATIENCE_MS[band]
     const l = liveStt.current
-    return l ? Math.max(own, l.maxDelayMs + LIVE_BACKSTOP_MS) : own
+    return l ? Math.max(own, l.maxDelayMs + LIVE_BACKSTOP_MS[band]) : own
   }, [])
 
   /** Hands-free: wait for the learner to speak (unless muted). */
@@ -307,6 +320,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     const ctx = ctxRef.current
     if (!ctx) return
     const r = reply.current
+    // ⛔ NOTHING AFTER THE REPLY'S END (2026-10-27 plan review, codex + opus): to the face, a send after its end flag would
+    // start a new reply over the one still playing.
+    if (r.lastGiven) { mark('audio after the reply ended — dropped'); return }
     if (r.given === 0) {
       r.startedAt = performance.now()
       r.toFace = modeRef.current === 'avatar' && faceLive.current
@@ -460,6 +476,8 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     turnAbort.current = abort
     const timer = setTimeout(() => abort.abort(), TURN_WAIT_MS)
     reply.current = freshReply(reply.current.id + 1)
+    // The last reply's drill was answered by this turn (its clip, if one was owed, is in it): this reply says its own.
+    lastExpect.current = null
     // Parts are decoded as they arrive but handed over strictly in order.
     let chain: Promise<void> = Promise.resolve()
     let answered = false
@@ -478,7 +496,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
         const why = (await res.clone().json().catch(() => ({}))) as { error?: string }
         if (why.error !== 'turn_in_progress') break
         mark('previous turn still saving — retrying')
-        await new Promise((r) => setTimeout(r, BUSY_WAIT_MS))
+        await new Promise((r) => setTimeout(r, busyWaitMs(tries)))
         if (ended.current || abort.signal.aborted || gen !== turnGen.current) return
         res = await post()
       }
@@ -519,6 +537,8 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
         if (l.kind === 'heard') { mark('heard', `${l.learnerText.length} chars`); setLearnerLine(l.learnerText); setAvatarLine(''); return }
         if (l.kind === 'error') { mark('no answer', l.error); setNotice(l.error); return }
         if (l.kind === 'no-drill') { lastExpect.current = null; return }
+        // The reply's drill, sent with its end — before the saved turn: the learner may answer before `reply` arrives.
+        if (l.kind === 'drill') { lastExpect.current = l.expect; return }
         if (l.kind === 'say') {
           answered = true
           streamed = true
@@ -604,7 +624,8 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
    *  the turn back after what is still playing. */
   const closeReply = () => {
     const ctx = ctxRef.current
-    if (!ctx || ended.current || phaseRef.current === 'hearing') return
+    // Once (2026-10-27 plan review, opus): a second end would reach the face as a new reply.
+    if (!ctx || ended.current || phaseRef.current === 'hearing' || reply.current.lastGiven) return
     if (reply.current.given === 0) { listen(); return }
     give({ pcm: new Int16Array(Math.round(ctx.sampleRate * 0.02)), rate: ctx.sampleRate }, true)
   }
@@ -625,6 +646,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       lastExpect.current = null
     } else if (p !== 'listening') return
     beginTrace('learner speaking')
+    lastVoiceAt.current = 0
     go('hearing')
     // ⚡ LIVE LISTENING: this utterance streams to Soniox from its pre-roll on (the recorder sends that right after this).
     const l = liveStt.current
@@ -654,6 +676,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     if (!liveStt.current || !conv || phaseRef.current !== 'hearing') return
     const pcm = conv(f)
     if (!pcm.length) return
+    let sum = 0
+    for (let i = 0; i < pcm.length; i++) sum += (pcm[i] / 32768) ** 2
+    if (Math.sqrt(sum / pcm.length) > VOICE_RMS) lastVoiceAt.current = performance.now()
     pending16k.current.push(pcm)
     if (pending16k.current.reduce((n, a) => n + a.length, 0) >= LIVE_CHUNK) flushLive()
   }
@@ -709,7 +734,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     pendingClip.current = null
     // Nothing at all was heard (the page's finalize found no words — a cough): back to listening.
     if (!words) { mark('heard nothing (live)'); listen(); return }
-    mark('heard live', `${words.length} chars`)
+    mark('heard live', `${words.length} chars · ${lastVoiceAt.current ? Math.round(performance.now() - lastVoiceAt.current) : '?'} ms after the voice`)
     void sendTurn({ transcript: words.slice(0, LIVE_TEXT_MAX_CHARS), speechMs, wav: lastExpect.current ? clip : undefined })
   }
   /**

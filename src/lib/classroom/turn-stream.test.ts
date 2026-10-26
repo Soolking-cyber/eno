@@ -173,20 +173,42 @@ describe('streamTurn', () => {
     expect(t.gaveUp).toHaveLength(1)
   })
 
-  it('⛔ the page left after every sentence had begun to sound: the reply is kept, its drill is not (review round 2, codex)', async () => {
+  it('⛔ the page left before the drill\'s request sounded: saved as what was heard — no drill (review round 2, codex)', async () => {
     const r = REPLY({ reply: 'Good. Please say after me: I think so.', expect: 'I think so.' })
     let dropped = 0
+    const saved: Answer[] = []
+    // the drill's voice is still being made when the page leaves
+    const speak: Speaker = async (text, signal) => {
+      if (text.startsWith('Please')) await new Promise((res) => signal.addEventListener('abort', res, { once: true }))
+      return { rate: 24_000, chunks: (async function* () { yield new Uint8Array(10) })() }
+    }
     const t = streamTurn({
       learnerText: 'hi', events: brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Good.' }, { kind: 'say', text: 'Please say after me: I think so.' }, { kind: 'final', reply: r, model: 'm', calls: 1 }),
-      speak: voice(), save: async (a) => SAVED(a), giveUp: async () => {}, safetyLine: 'x', dropDrill: async () => { dropped += 1 },
+      speak, save: async (a) => { saved.push(a); return SAVED(a) }, giveUp: async () => {}, safetyLine: 'x', dropDrill: async () => { dropped += 1 },
     })
-    // the save came first (the brain was done); the page leaves while the last sentence is still being voiced
+    // the brain was done; the page leaves when the last sentence's words show, before its voice
     for await (const l of t.lines) if (l.kind === 'say' && l.part === 1) t.stop()
+    await t.done
+    // every voice is settled BEFORE the save (2026-10-27): the row says what was heard, and sets no drill
+    expect(saved[0]).toMatchObject({ model: 'cut-off', reply: { reply: 'Good.', expect: null } })
+    expect(dropped).toBe(0)
+  })
+
+  it('⛔ the page left after the save: the drill is withdrawn before the answer ends (review round 2, codex)', async () => {
+    const r = REPLY({ reply: 'Good. Please say after me: I think so.', expect: 'I think so.' })
+    let dropped = 0
+    let stop = () => {}
+    const t = streamTurn({
+      learnerText: 'hi', events: brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Good.' }, { kind: 'say', text: 'Please say after me: I think so.' }, { kind: 'final', reply: r, model: 'm', calls: 1 }),
+      speak: voice(), save: async (a) => { stop(); return SAVED(a) }, giveUp: async () => {}, safetyLine: 'x', dropDrill: async () => { dropped += 1 },
+    })
+    stop = t.stop
+    await collect(t.lines)
     await t.done
     expect(dropped).toBe(1)
   })
 
-  it('⛔ a sentence whose voice failed: the saved turn sets no drill after all (review round 2, codex)', async () => {
+  it('⛔ a sentence whose voice failed: the drill is withdrawn BEFORE the save — the turn is saved with none (2026-10-27)', async () => {
     const speak: Speaker = async (text) => {
       if (text.startsWith('Please')) throw Object.assign(new Error('tts'), { status: 504 })
       return { rate: 24_000, chunks: (async function* () { yield new Uint8Array(10) })() }
@@ -195,14 +217,15 @@ describe('streamTurn', () => {
     let dropped = 0
     const saved: Answer[] = []
     const t = streamTurn({
-      learnerText: 'hi', events: brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Good.' }, { kind: 'say', text: 'Please say after me: I think so.' }, { kind: 'final', reply: r, model: 'm', calls: 1 }),
+      learnerText: 'hi', events: brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Good.' }, { kind: 'say', text: 'Please say after me: I think so.' }, { kind: 'spoken', expect: 'I think so.' }, { kind: 'final', reply: r, model: 'm', calls: 1 }),
       speak, save: async (a) => { saved.push(a); return SAVED(a) }, giveUp: async () => {}, safetyLine: 'x', dropDrill: async () => { dropped += 1 },
     })
     const lines = await collect(t.lines)
-    expect(saved[0].reply.expect).toBe('I think so.')
-    expect(dropped).toBe(1)
-    // withdrawn BEFORE the answer ends, and the page is told (it may not send its next turn against the old drill)
-    expect(kinds(lines).slice(-3)).toEqual(['no-drill', 'part-end:1:last', 'end'])
+    expect(saved[0].reply.expect).toBeNull()
+    expect(dropped).toBe(0)
+    // no `drill` line for the page either: its next turn sends no clip for a request nobody heard
+    expect(kinds(lines)).not.toContain('drill')
+    expect(kinds(lines)).not.toContain('no-drill')
   })
 
   it('no answer and nothing said: the turn is given back; the page is told (error), then end', async () => {
@@ -269,6 +292,66 @@ describe('streamTurn', () => {
     expect(speak.asked).toEqual(['One.']) // "Two." never voiced
     // saved as what was HEARD — "Two." was written after the page left (review round 2, codex + opus)
     expect(t.saved).toEqual([{ a: expect.objectContaining({ model: 'cut-off', reply: expect.objectContaining({ reply: 'One.', expect: null }) }), clientGone: true }])
+  })
+})
+
+describe('streamTurn — the reply\'s voice closes at its last sentence (owner, 2026-10-27: "need super fast response")', () => {
+  it('⚡ `spoken`: the last part-end goes out once the queued voices are, BEFORE the brain is done and the turn saved', async () => {
+    const gate = Promise.withResolvers<void>()
+    async function* brainy(): AsyncGenerator<TutorEvent> {
+      yield { kind: 'safety', harm: false }
+      yield { kind: 'say', text: 'Nice!' }
+      yield { kind: 'say', text: 'What did you buy?' }
+      yield { kind: 'spoken', expect: null }
+      await gate.promise // the hint and its Vietnamese still being written
+      yield { kind: 'final', reply: REPLY({ reply: 'Nice! What did you buy?' }), model: 'm', calls: 1 }
+    }
+    const t = turn(brainy())
+    const seen: TurnLine[] = []
+    for await (const l of t.lines) {
+      seen.push(l)
+      if (l.kind === 'part-end' && l.last) { expect(t.saved).toEqual([]); gate.resolve() }
+    }
+    expect(kinds(seen)).toEqual(['heard', 'say:Nice!', 'pcm:0', 'part-end:0', 'say:What did you buy?', 'pcm:1', 'part-end:1', 'part-end:1:last', 'reply', 'end'])
+    expect(t.saved[0].a.reply.reply).toBe('Nice! What did you buy?')
+  })
+  it('a reply that asked for a drill: `drill` right before the last part-end (the page may get an answer before `reply`)', async () => {
+    const r = REPLY({ reply: 'Good. Please say after me: I think so.', expect: 'I think so.' })
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Good.' }, { kind: 'say', text: 'Please say after me: I think so.' }, { kind: 'spoken', expect: 'I think so.' }, { kind: 'final', reply: r, model: 'm', calls: 1 }))
+    const lines = await collect(t.lines)
+    expect(voiceOrder(lines).lines.slice(-3)).toEqual(['drill', 'part-end:1:last', 'end'])
+    expect(lines.find((l) => l.kind === 'drill')).toEqual({ kind: 'drill', expect: 'I think so.' })
+    expect(t.saved[0].a.reply.expect).toBe('I think so.')
+  })
+  it('⛔ nothing is voiced after the close — a sentence the brain sends later is neither said nor saved; one last part-end', async () => {
+    const speak = voice()
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Nice!' }, { kind: 'spoken', expect: null }, { kind: 'say', text: 'Sneaky.' }, { kind: 'final', reply: REPLY({ reply: 'Nice! Sneaky.' }), model: 'm', calls: 1 }), { speak })
+    const lines = await collect(t.lines)
+    expect(speak.asked).toEqual(['Nice!'])
+    expect(kinds(lines).filter((k) => k.endsWith(':last'))).toEqual(['part-end:0:last'])
+    expect(kinds(lines)).not.toContain('say:Sneaky.')
+    expect(t.saved[0].a).toMatchObject({ model: 'cut-off', reply: { reply: 'Nice!', expect: null } })
+  })
+  it('⛔ a harm-flagged turn ignores a `spoken`: its kind words are voiced after the save, then the last part-end', async () => {
+    const speak = voice()
+    const r = REPLY({ reply: 'Thank you for telling me. Please tell a trusted adult.', safety: true })
+    const t = turn(brain({ kind: 'safety', harm: true }, { kind: 'spoken', expect: null }, { kind: 'final', reply: r, model: 'm', calls: 1 }), { speak })
+    const lines = await collect(t.lines)
+    expect(speak.asked.join(' ')).toBe(r.reply)
+    expect(kinds(lines).filter((k) => k.endsWith(':last'))).toHaveLength(1)
+    expect(kinds(lines).slice(-2)[0]).toMatch(/^part-end:\d+:last$/)
+    expect(lines.findIndex((l) => l.kind === 'say')).toBeGreaterThan(lines.findIndex((l) => l.kind === 'reply'))
+  })
+  it('the breath goes BETWEEN sentences: a silent pcm line before the second (never counted as heard), none after the last', async () => {
+    const speak: Speaker = async (text) => ({ rate: 1_000, pauseMs: 300, chunks: (async function* () { yield new Uint8Array(10).fill(text.charCodeAt(0)) })() })
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'One.' }, { kind: 'say', text: 'Two.' }, { kind: 'spoken', expect: null }, { kind: 'final', reply: REPLY({ reply: 'One. Two.' }), model: 'm', calls: 1 }), { speak })
+    const lines = await collect(t.lines)
+    const pcm = lines.filter((l) => l.kind === 'pcm') as Extract<TurnLine, { kind: 'pcm' }>[]
+    const bytes = pcm.map((l) => [...Buffer.from(l.data, 'base64')])
+    expect(pcm.map((l) => l.part)).toEqual([0, 1, 1])
+    expect(bytes[1]).toHaveLength(600) // 300 ms at 1 kHz, PCM16
+    expect(bytes[1].every((b) => b === 0)).toBe(true)
+    expect(bytes.at(-1)!.every((b) => b === 'T'.charCodeAt(0))).toBe(true) // the reply ends on its voice, not on a pause
   })
 })
 

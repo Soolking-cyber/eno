@@ -22,8 +22,11 @@ export const maxDuration = 40
  *   {"kind":"say",part,text} {"kind":"pcm",part,rate,data}… {"kind":"part-end",part,"last":false}
  *                                                                 its words, its voice as made (raw PCM16, base64), its end
  *                                                                 — or {"kind":"audio-failed",part} for a voice that failed;
+ *   {"kind":"drill",expect}                                       the reply asked for a repeat-after-me sentence;
+ *   {"kind":"part-end",part,"last":true}                          the reply's voice is all out — sent the moment its last
+ *                                                                 sentence is voiced, BEFORE the save (2026-10-27);
  *   {"kind":"reply",seq,learnerText,reply,hint,hintVi,expect,heardAs,secondsLeft}   once the turn is SAVED;
- *   {"kind":"part-end",part,"last":true} {"kind":"end"}           the reply's voice is all out; the answer is complete.
+ *   {"kind":"end"}                                                the answer is complete.
  * Or, when no answer could be made and nothing was said: {"kind":"error","error":"tutor_unavailable"}, then end.
  * An answer that stops before "end" was cut off (turn-stream.ts has the whole contract).
  * ⛔ The audio is never stored (session-turn.ts). The per-account limit sits above a session's own cap (80 turns): a stuck

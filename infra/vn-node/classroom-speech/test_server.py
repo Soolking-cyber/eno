@@ -128,6 +128,38 @@ rms = lambda xs: math.sqrt(sum(x * x for x in xs) / max(1, len(xs)))
 check('tts/stream loud is louder (+4 dB or more)', plain and loud and 20 * math.log10(rms(loud) / rms(plain)) > 4, (rms(plain), rms(loud)))
 check('tts/stream loud never reaches full scale (limiter, -1 dBFS)', loud and max(abs(x) for x in loud) <= 29205, max(abs(x) for x in loud) if loud else None)
 check('tts/stream loud keeps every sample (the limiter holds 5 ms, then gives it back)', abs(len(loud) - len(plain)) <= 1, (len(plain), len(loud)))
+
+
+# THE TAIL (server.py Trim): a sentence keeps ≤ TRIM_TAIL_MS (120) of quiet after its last sound — Phonon's own was
+# 550-730 ms (measured 2026-10-26); the lead is Phonon's own. Between the sentences of one line: the kept tail + gap_ms,
+# not ~0.9 s. Quiet = a 10 ms frame under -60 dBFS RMS (server.py TRIM_QUIET_DBFS).
+def edges(xs, f=240):
+    loud_frames = [rms(xs[i:i + f]) > 32767 * 10 ** (-60 / 20) for i in range(0, len(xs) - f + 1, f)]
+    if True not in loud_frames:
+        return None
+    first = loud_frames.index(True)
+    last = len(loud_frames) - 1 - loud_frames[::-1].index(True)
+    holes, run = [], 0
+    for x in loud_frames[first:last + 1]:
+        if x:
+            if run:
+                holes.append(run * 10)
+            run = 0
+        else:
+            run += 1
+    return {'seconds': len(xs) / 24000, 'tail': (len(loud_frames) - 1 - last) * 10, 'hole': max(holes or [0])}
+
+
+for body, name in (({'text': 'Great job!', 'voice': 'Harper'}, 'natural'),
+                   ({'text': 'Great job!', 'voice': 'Imogen', 'loud': True, 'pace': 'slowest'}, 'loud, slowest')):
+    e = edges(stream_pcm(body))
+    check(f'tts/stream {name}: ≤ 130 ms of quiet after the voice, the line ≤ 1.35 s (was 1.6)', e and e['tail'] <= 130 and e['seconds'] <= 1.35, e)
+e = edges(stream_pcm({'text': 'That sounds special! What did you buy at the market?', 'voice': 'Harper', 'gap_ms': 120}))
+check('tts/stream two sentences: the hole between them ≤ 120 + 120 ms (+2 frames)', e and e['hole'] <= 260, e)
+# A sentence ending on a soft sound keeps it: the voice's last 200 ms before the cut are not silence.
+s_end = stream_pcm({'text': 'That is true for both.', 'voice': 'Zoey'})
+e = edges(s_end)
+check('tts/stream a soft ending ("…both.") is kept: ≤ 130 ms of quiet after it', e and e['tail'] <= 130, e)
 for body, name in ((json.dumps({'text': 'hi', 'voice': 'Bob'}), 'unknown voice'),
                    (json.dumps({'text': '', 'voice': 'Harper'}), 'empty text'),
                    (json.dumps({'text': 'x' * 1300, 'voice': 'Harper'}), 'long text'),

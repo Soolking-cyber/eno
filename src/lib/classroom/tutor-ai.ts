@@ -84,8 +84,9 @@ Rules:
 const SCHEMA: Schema = {
   type: Type.OBJECT,
   // ⛔ safety FIRST, then pace, then reply (tutorTurnStream reads the stream in this order — a harm flag before any word is
-  // spoken; the pace before the first sentence is voiced, so "Sure, I'll slow down" is already slower).
-  propertyOrdering: ['safety', 'pace', 'reply', 'hint', 'hintVi', 'expect', 'heardAs'],
+  // spoken; the pace before the first sentence is voiced, so "Sure, I'll slow down" is already slower), then expect (no
+  // drill: the reply's voice closes at once — TUTOR_JSON_SCHEMA says why).
+  propertyOrdering: ['safety', 'pace', 'reply', 'expect', 'hint', 'hintVi', 'heardAs'],
   properties: {
     pace: { type: Type.STRING, enum: ['same', 'slower', 'faster'] },
     reply: { type: Type.STRING },
@@ -213,6 +214,9 @@ export function acceptTutorReply(v: Record<string, unknown>, band: AgeBand): Tut
  * The same turn for OpenAI's strict structured output (llm-openai.ts). ⛔ `safety` FIRST, then `pace`, then `reply`: OpenAI
  * writes the properties in this order, so a harm flag is known before a single word of the reply is spoken, the pace before
  * its first sentence is voiced, and the reply's sentences can be spoken while the hint and the rest are still being written.
+ * ⚡ `expect` RIGHT AFTER `reply` (owner, 2026-10-27: "need super fast response"): a reply that asks for no drill is known
+ * to be whole there, and its voice closes at once — Spatius animates a reply's last part only once it is closed, and the
+ * learner's turn comes back when the voice ends — instead of after the hint, its Vietnamese and the save.
  */
 export const TUTOR_JSON_SCHEMA = {
   type: 'object',
@@ -221,23 +225,25 @@ export const TUTOR_JSON_SCHEMA = {
     safety: { type: 'string', enum: ['none', 'harm'] },
     pace: { type: 'string', enum: ['same', 'slower', 'faster'] },
     reply: { type: 'string' },
+    expect: { type: 'string' },
     hint: { type: 'string' },
     hintVi: { type: 'string' },
-    expect: { type: 'string' },
     heardAs: {
       type: 'array',
       items: { type: 'object', additionalProperties: false, properties: { heard: { type: 'string' }, meant: { type: 'string' } }, required: ['heard', 'meant'] },
     },
   },
-  required: ['safety', 'pace', 'reply', 'hint', 'hintVi', 'expect', 'heardAs'],
+  required: ['safety', 'pace', 'reply', 'expect', 'hint', 'hintVi', 'heardAs'],
 } as const
 
 /** What the streamed turn tells its caller, in order: the harm flag, a pace change (if the learner asked), each sentence to
- *  speak, then the whole reply. */
+ *  speak, `spoken` (nothing more will be said — with the drill the reply asked for, if any; never for a flagged reply),
+ *  then the whole reply. */
 export type TutorEvent =
   | { kind: 'safety'; harm: boolean }
   | { kind: 'pace'; change: PaceChange }
   | { kind: 'say'; text: string }
+  | { kind: 'spoken'; expect: string | null }
   | { kind: 'final'; reply: TutorReply; model: string; calls: number }
 
 /** A sentence ends at . ! ? or … (with any closing quote or bracket) followed by whitespace. */
@@ -275,7 +281,8 @@ export async function* tutorTurnStream(ai: GoogleGenAI | null, c: TutorContext, 
     try {
       for await (const ev of run) {
         if (ev.kind === 'pace') { if (paceSeen) continue; paceSeen = true }
-        if (ev.kind === 'say') spokeOne = true
+        // After `spoken` the voice is closed: a brain that breaks now has failed the turn — never a second brain's words.
+        if (ev.kind === 'say' || ev.kind === 'spoken') spokeOne = true
         if (ev.kind === 'safety' && ev.harm) harmSeen = true
         if (ev.kind === 'final') { yield { ...ev, model: brain.model, calls }; return }
         yield ev
@@ -304,21 +311,28 @@ export async function* tutorTurnStream(ai: GoogleGenAI | null, c: TutorContext, 
 
 /**
  * WARM THE BRAIN AT THE SESSION'S START (measured 2026-10-26, real Luna from Vietnam): a session's FIRST reply took 2.5 s
- * to its first word, the next ones 1.1–1.4 s — a cold connection and a cold copy of the tutor's instructions at OpenAI.
- * One tiny request on the same instructions while the opening line plays opens the connection and leaves the long,
- * unchanging prefix in OpenAI's prompt cache. Fire and forget: a failure is a slower first reply, nothing more.
+ * to its first word, the next ones 1.1–1.4 s — a cold connection to OpenAI. One tiny request while the opening line plays
+ * opens it. ⛔ READ TO ITS END (measured 2026-10-27): a stream left early is cancelled, and a cancelled stream takes its
+ * connection with it — the first turn then opened a new one anyway (llm-openai.ts streamJson says why). Fire and forget: a
+ * failure is a slower first reply, nothing more.
  */
 export function warmTutorBrain(): void {
   const cfg = openAiConfig()
   if (!cfg) return
   void (async () => {
     try {
-      for await (const _ of streamJson(cfg, { instructions: TUTOR_INSTRUCTION, input: 'Session starting. Reply with safety "none", pace "same" and an empty reply.', schema: TUTOR_JSON_SCHEMA, schemaName: 'tutor_turn', maxOutputTokens: 40 })) break
+      // Bounded (2026-10-27 review, codex): read to its end, a warm-up that stalls after its first word is let go.
+      for await (const _ of streamJson(cfg, { instructions: TUTOR_INSTRUCTION, input: 'Session starting. Reply with safety "none", pace "same" and an empty reply.', schema: TUTOR_JSON_SCHEMA, schemaName: 'tutor_turn', maxOutputTokens: 40, signal: AbortSignal.timeout(WARM_MS) })) {
+        // its words are not used: the request opens the connection
+      }
     } catch {
       // a warm-up: nothing to do
     }
   })()
 }
+
+/** The warm-up's whole budget. */
+const WARM_MS = 15_000
 
 /** Gemini starts a second request when the first has written nothing after this long (its spikes: p90 ~10 s, measured). */
 export const HEDGE_FIRST_MS = 2_500
@@ -420,11 +434,13 @@ async function* sentencesOf(deltas: AsyncGenerator<string>, c: TutorContext): As
    */
   let holding = false
   let released = false
+  /** `spoken` was said before the end of the answer: nothing more is said, whatever the rest of the answer holds. */
+  let closedEarly = false
   const spoken: string[] = []
   let spokenWords = 0
   /** Hands over every complete sentence in `text` from `consumed` on (all of the rest when `final`). */
   const take = function* (text: string, final: boolean): Generator<TutorEvent> {
-    while (!stopped && !holding) {
+    while (!stopped && !holding && !closedEarly) {
       SENTENCE_END.lastIndex = consumed
       const m = SENTENCE_END.exec(text)
       const end = m ? m.index + m[0].length : final && consumed < text.length ? text.length : -1
@@ -460,6 +476,17 @@ async function* sentencesOf(deltas: AsyncGenerator<string>, c: TutorContext): As
     }
     const r = partialString(json, 'reply')
     if (r) yield* take(r.text, r.complete)
+    // ⚡ THE REPLY IS WHOLE AND ASKS FOR NO DRILL — nothing more will be said: its voice may close now, not after the hint,
+    // its Vietnamese and the save (owner, 2026-10-27: "need super fast response"). Only once something was said, nothing
+    // is held for the digit check, and the drill field was written EMPTY (a reply with a drill closes at the end, below,
+    // after its request — as before).
+    if (r?.complete && !closedEarly && !holding && spoken.length) {
+      const ex = partialString(json, 'expect')
+      if (ex?.complete && !ex.text.trim()) {
+        closedEarly = true
+        yield { kind: 'spoken', expect: null }
+      }
+    }
   }
   let v: Record<string, unknown>
   try {
@@ -487,10 +514,14 @@ async function* sentencesOf(deltas: AsyncGenerator<string>, c: TutorContext): As
   const reply = acceptTutorReply(v, c.band) ?? (harm || !said ? null : acceptTutorReply({ ...v, reply: said, hint: '', hintVi: '', heardAs: [], expect: '' }, c.band))
   if (!reply) throw Object.assign(new SyntaxError('classroom_unusable_reply'), { safety: v.safety === 'harm' })
   if (harm || reply.safety) { yield { kind: 'final', reply, model: '', calls: 0 }; return }
+  // Closed early (no drill was asked): the reply is EXACTLY what was said, and it sets no drill — whatever the rest of the
+  // answer holds (2026-10-27 plan review, codex + opus: nothing said after the close, nothing saved that was not said).
+  if (closedEarly) { yield { kind: 'final', reply: { ...reply, reply: said, expect: null }, model: '', calls: 0 }; return }
   // What the learner heard is the reply; a drill not asked for explicitly and last in it is asked for now, last — the
   // same rule as acceptTutorReply (the next turn is scored against `expect` as a reliable drill).
   const request = reply.expect && !drillAskedLast(said, reply.expect) ? `Please say after me: ${reply.expect}` : ''
   if (request) yield { kind: 'say', text: request }
+  yield { kind: 'spoken', expect: reply.expect }
   yield { kind: 'final', reply: { ...reply, reply: [said, request].filter(Boolean).join(' ') || reply.reply }, model: '', calls: 0 }
 }
 

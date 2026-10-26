@@ -12,7 +12,12 @@ import type { PaceChange } from './pace'
  *   heard         the learner's words (the transcript) — on screen while the avatar thinks
  *   say           one sentence of the reply, as soon as the brain has written it (tutor-ai.ts tutorTurnStream) …
  *   pcm           … then its voice as it is made: raw PCM16 mono at `rate` Hz, base64 (eno's speech server, /tts/stream)
- *   part-end      that sentence's voice is complete; `last`: the whole reply's is
+ *   part-end      that sentence's voice is complete; `last`: the whole reply's is — ⚡ sent the moment the reply's last
+ *                 sentence is voiced, BEFORE the save (owner, 2026-10-27: "need super fast response"): the face closes the
+ *                 reply at once (Spatius animates a reply's last part only once it is closed) and the learner's turn
+ *                 comes back as soon as the voice ends. Nothing is voiced after it.
+ *   drill         right before `part-end last`, when the reply asked for a repeat-after-me sentence: the page sends the
+ *                 next turn's clip for it (an answer may come before `reply` does)
  *   audio-failed  a sentence whose voice could not be made (its words were on screen; the next one is still tried)
  *   reply         the turn as SAVED — hints, the drill, the time left — once the brain has finished (the voice may still
  *                 be playing)
@@ -31,6 +36,7 @@ export type TurnLine =
   | { kind: 'say'; part: number; text: string }
   | { kind: 'pcm'; part: number; rate: number; data: string }
   | { kind: 'part-end'; part: number; last: boolean }
+  | { kind: 'drill'; expect: string }
   | { kind: 'audio-failed'; part: number }
   | ({ kind: 'reply' } & SavedReply)
   | { kind: 'error'; error: 'tutor_unavailable' }
@@ -49,8 +55,9 @@ export type SavedReply = {
   secondsLeft: number
 }
 
-/** One line in the avatar's voice, as it is made (speech-local.ts synthesizeStream). */
-export type VoiceStream = { rate: number; chunks: AsyncIterable<Uint8Array> }
+/** One line in the avatar's voice, as it is made (speech-local.ts synthesizeStream); `pauseMs` of silence goes BEFORE it
+ *  when it follows another sentence of the same reply (pace.ts pauseMs) — never after a reply's last sentence. */
+export type VoiceStream = { rate: number; chunks: AsyncIterable<Uint8Array>; pauseMs?: number }
 export type Speaker = (text: string, signal: AbortSignal) => Promise<VoiceStream>
 
 /** The brain's whole answer, as tutor-ai.ts's `final` event gives it. */
@@ -94,13 +101,18 @@ export function streamTurn(t: {
     const said: string[] = []
     let answer: Answer | null = null
     let harm = false
+    /** The brain said `spoken`: the reply's voice is closed — nothing after it is said or saved. */
+    let closed = false
     try {
       for await (const ev of t.events) {
         // ⛔ A TALKED-OVER REPLY ENDS WHERE THE LEARNER STOPPED HEARING IT (2026-10-26 review, opus): sentences written
         // after the page left are never said, never saved — the history holds only what the learner heard.
-        if (ev.kind === 'say') { if (!gone.signal.aborted) { said.push(ev.text); voice.say(ev.text) } }
+        if (ev.kind === 'say') { if (!gone.signal.aborted && !closed) { said.push(ev.text); voice.say(ev.text) } }
         else if (ev.kind === 'safety') harm ||= ev.harm
         else if (ev.kind === 'pace') { if (!harm) t.onPace?.(ev.change) }
+        // Nothing more will be said: the reply's voice closes once its queued sentences are out (a flagged reply never
+        // gets here — tutor-ai.ts never says `spoken` for one).
+        else if (ev.kind === 'spoken') { if (!gone.signal.aborted && !harm) { closed = true; voice.close(ev.expect) } }
         else answer = { reply: ev.reply, model: ev.model, calls: ev.calls }
       }
       if (!answer) throw new Error('classroom_no_answer')
@@ -127,10 +139,13 @@ export function streamTurn(t: {
         return
       }
     }
+    // ⚡ EVERY VOICE IS OUT BEFORE THE SAVE (2026-10-27 plan review, codex + opus): the learner's turn may now come back
+    // before the save (the reply's voice closes first) — so what was HEARD is settled first, and the row says exactly that.
+    await voice.done()
+    const flat = (x: string) => x.replace(/\s+/g, ' ').trim()
     // ⛔ THE PAGE LEFT (talked over, closed) BEFORE THE REPLY WAS ALL VOICED: the reply is what WAS voiced — sentences
     // written but still queued for their voice were never heard, and a drill among them would score the next turn against
     // a sentence nobody asked for (2026-10-26 review round 2, codex + opus). A flag is kept whatever the page did.
-    const flat = (x: string) => x.replace(/\s+/g, ' ').trim()
     if (gone.signal.aborted && !answer.reply.safety && flat(voiced.join(' ')) !== flat(answer.reply.reply)) {
       const text = voiced.join(' ')
       if (!text) {
@@ -143,9 +158,16 @@ export function streamTurn(t: {
       // Every sentence had begun to sound — but a sentence counts from its FIRST sound, so the last one (the drill's
       // "say after me…") may have been cut mid-way (review round 2, codex): never a drill from a reply the page left.
       answer = { ...answer, reply: { ...answer.reply, expect: null } }
+    } else if (closed && !answer.reply.safety && flat(said.join(' ')) !== flat(answer.reply.reply)) {
+      // Closed, the reply is what was said (tutor-ai.ts says exactly that) — defence in depth: never a word saved that was not.
+      logWarn('[classroom] a closed reply differs from what was said — saved as said')
+      answer = { reply: { reply: said.join(' '), hint: '', hintVi: '', expect: null, heardAs: [], safety: false, pace: null }, model: 'cut-off', calls: answer.calls }
     }
     // A flagged turn never sets a drill (2a round 10, opus): nothing after a disclosure is scored as a repeat of anything.
     if (answer.reply.safety) answer = { ...answer, reply: { ...answer.reply, expect: null } }
+    // A sentence whose voice failed may have carried the drill's "say after me…": withdrawn BEFORE the row is written — a
+    // next turn reserved right after the save is never scored against a request nobody heard.
+    if (answer.reply.expect && voice.failed() > 0) answer = { ...answer, reply: { ...answer.reply, expect: null } }
     let saved: SavedReply | null = null
     try {
       saved = await t.save(answer, { clientGone: () => gone.signal.aborted })
@@ -163,10 +185,10 @@ export function streamTurn(t: {
     if (answer.reply.safety) for (const p of replyParts(answer.reply.reply)) voice.say(p)
     if (saved) q.push({ kind: 'reply', ...saved })
     await voice.done()
-    // A sentence whose voice failed or was cut — or a page that left while the voice was still being sent, after the save —
-    // may have taken the drill's instruction with it: the next turn is not scored against a sentence the learner may not
-    // have heard (review round 2, codex: a cancel after the save could not revise it). Withdrawn BEFORE the answer ends —
+    // A page that left after the save may not have heard the drill's instruction play out: the next turn is not scored
+    // against it (review round 2, codex: a cancel after the save could not revise it). Withdrawn BEFORE the answer ends —
     // the page cannot send its next turn against the old drill — and the page is told (review of that fix, codex + opus).
+    // (A failed voice withdrew it before the save, above.)
     if (saved?.expect && (voice.failed() > 0 || gone.signal.aborted)) {
       await t.dropDrill?.()
       q.push({ kind: 'no-drill' })
@@ -203,12 +225,19 @@ export function replayTurn(saved: SavedReply, speak: Speaker | null): TurnStream
 
 /**
  * The reply's voice: its sentences said in order, one at a time (eno's speech server makes one line per voice at a time
- * anyway, ~10x faster than it is spoken) — each `say` first, then its frames. A sentence whose voice fails is
- * 'audio-failed' and the next one is still made. finish(): when every sentence's voice is done, the last part-end and end.
+ * anyway) — each `say` first, then its frames; a sentence after the first is preceded by its pause (pace.ts pauseMs —
+ * between sentences only, never after the last). ⛔ NOT ONE AHEAD (measured 2026-10-27 on the owner's Mac): asking for the
+ * next sentence's voice while one streams made BOTH slower — two lines at once share the speech server's 4 CPUs — and the
+ * face's first 2 s of audio came later (1.07–1.28 s → 1.48–1.81 s). A sentence whose voice fails is 'audio-failed' and the
+ * next one is still made. close(): nothing more will be said — the last part-end goes out (after a `drill` line, when the
+ * reply asked for one and every voice was made) the moment the queued sentences' voices are out; a sentence after that is
+ * never voiced: the page has closed the face's reply (another send would start a new one over it). finish(): when every
+ * sentence's voice is done, the last part-end (unless close() sent it) and end.
  */
 function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSignal, onVoiced?: (text: string) => void) {
   let parts = 0
   let failed = 0
+  let closed = false
   let chain: Promise<void> = Promise.resolve()
   const one = async (part: number, text: string) => {
     if (gone.aborted) return
@@ -218,6 +247,9 @@ function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSigna
     if (!speak) { onVoiced?.(text); return }
     try {
       const v = await speak(text, gone)
+      // The breath before a sentence that follows another — its own pcm line, so the pause is never counted as the
+      // sentence being heard.
+      if (part > 0 && v.pauseMs && !gone.aborted) q.push({ kind: 'pcm', part, rate: v.rate, data: Buffer.alloc(Math.round((v.rate * v.pauseMs) / 1000) * 2).toString('base64') })
       let held: Uint8Array[] = []
       let size = 0
       let first = true
@@ -248,15 +280,28 @@ function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSigna
       if (!gone.aborted) onVoiced?.(text)
     }
   }
-  /** The last part-end and end — after every sentence's voice is done. */
+  /** The last part-end (unless close() sent it) and end — after every sentence's voice is done. */
   const end = () => {
-    if (parts) q.push({ kind: 'part-end', part: parts - 1, last: true })
+    if (parts && !closed) q.push({ kind: 'part-end', part: parts - 1, last: true })
     q.push({ kind: 'end' })
   }
   return {
     say(text: string) {
+      // ⛔ NOTHING IS VOICED AFTER THE REPLY CLOSED (2026-10-27 plan review, codex + opus).
+      if (closed) { logWarn('[classroom] a sentence after the reply closed — not voiced'); return }
       const part = parts++
       chain = chain.then(() => one(part, text))
+    },
+    /** Nothing more will be said: once the queued sentences' voices are out, the reply's drill (when every voice was
+     *  made) and its last part-end. Once only. */
+    close(expect: string | null) {
+      if (closed) return
+      closed = true
+      chain = chain.then(() => {
+        if (gone.aborted || !parts) return
+        if (expect && !failed) q.push({ kind: 'drill', expect })
+        q.push({ kind: 'part-end', part: parts - 1, last: true })
+      })
     },
     /** Every sentence's voice is done (made, failed or stopped). */
     async done() {

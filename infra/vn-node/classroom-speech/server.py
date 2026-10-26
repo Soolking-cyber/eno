@@ -80,6 +80,22 @@ GAP_MS_MAX = 800
 # would clip; the limiter turns the loudest syllables down for a few ms instead.
 LOUD_GAIN_DB = 6.0
 LOUD_CEILING_DB = -1.0
+# ⚡ THE VOICE'S OWN SILENCE AFTER A SENTENCE (owner, 2026-10-27: "need super fast response and real live discussion
+# experience"). MEASURED 2026-10-26/27: Phonon ends every sentence with 550-730 ms of silence (570-620 ms of it below -60
+# dBFS) — two streamed sentences of a reply had a 0.8-1 s hole between them, and "Great job!" was 1.6 s of audio for 0.77 s
+# of speech, which kept the face waiting too (Spatius animates a reply in 2 s windows). Kept: TRIM_TAIL_MS after the last
+# frame louder than TRIM_QUIET_DBFS, its cut faded over TRIM_FADE_MS; the app puts the pause it wants between streamed
+# sentences (pace.ts pauseMs) and `gap_ms` between the sentences of one line. ⛔ -60 dBFS, NOT -55 (2026-10-27 review,
+# codex: "a quiet word ending can be cut"): measured on 3 voices × 8 sentences ending on soft sounds (/s/, /f/, /θ/,
+# "stuff", "with", a whisper), sound at -60..-65 dBFS lasts up to ~210 ms past the last frame above -55 — but never more
+# than ~110 ms past the last frame above -60. So nothing above -65 dBFS is ever cut; the rest is Phonon's own silence.
+# ⛔ THE LEAD IS LEFT AS PHONON MAKES IT (measured on 3 voices × 6 lines): one -53 dBFS blip, ~100 ms near -75 dBFS, then
+# the onset — and a soft one ("Five", "Thanks": /f/, /θ/) sits at -60 to -70 dBFS for 50-100 ms before its vowel. Cutting
+# it would save ~40 ms and risk the first sound of the sentence (plan review, opus).
+TRIM_TAIL_MS = 120
+TRIM_FADE_MS = 5
+TRIM_QUIET_DBFS = -60.0
+TRIM_FRAME_MS = 10
 # Work admitted at once; the rest get 503 at once. 10 learners' turns rarely overlap, and a
 # queue would only turn a busy minute into timeouts the app then retries.
 MAX_IN_FLIGHT = int(os.environ.get('MAX_IN_FLIGHT', '4'))
@@ -249,6 +265,52 @@ class Loud:
         return self._run(np.zeros(0, dtype=np.float32), True)
 
 
+_EMPTY = np.zeros(0, dtype=np.float32)
+
+
+class Trim:
+    """ONE sentence's tail trimmed, frame by frame as Phonon makes it (TRIM_* above says why). A 10 ms frame SOUNDS when its
+    RMS is above TRIM_QUIET_DBFS. Quiet audio is HELD — given back whole the moment sound follows (the lead before the
+    first sound, a pause inside the sentence) — and cut to TRIM_TAIL_MS, faded, when the sentence ends (flush). Audio that
+    sounds is never dropped and never waits; a sentence that never sounds comes out exactly as it went in."""
+    def __init__(self, rate):
+        self.n = max(1, rate * TRIM_FRAME_MS // 1000)
+        self.tail = int(rate * TRIM_TAIL_MS / 1000)
+        self.fade = max(1, int(rate * TRIM_FADE_MS / 1000))
+        self.thr = 10 ** (TRIM_QUIET_DBFS / 20)
+        self.sounded = False
+        self.part = _EMPTY    # under one frame: not judged yet
+        self.quiet = _EMPTY   # quiet since the last sound (or since the start)
+
+    def push(self, x):
+        buf = np.concatenate([self.part, np.asarray(x, dtype=np.float32)])
+        whole = len(buf) // self.n * self.n
+        self.part = buf[whole:]
+        if not whole:
+            return _EMPTY
+        frames = buf[:whole].reshape(-1, self.n)
+        loud = np.flatnonzero(np.sqrt(np.mean(frames * frames, axis=1)) > self.thr)
+        if not len(loud):
+            self.quiet = np.concatenate([self.quiet, buf[:whole]])
+            return _EMPTY
+        last = (int(loud[-1]) + 1) * self.n
+        out = np.concatenate([self.quiet, buf[:last]])  # what was held goes out with the sound that follows it
+        self.sounded = True
+        self.quiet = buf[last:whole]
+        return out
+
+    def flush(self):
+        """The sentence has ended: what is held is its tail — TRIM_TAIL_MS of it, faded out if cut. Never sounded: all of it."""
+        rest = np.concatenate([self.quiet, self.part])
+        self.quiet = self.part = _EMPTY
+        if not self.sounded or len(rest) <= self.tail:
+            return rest
+        rest = rest[:self.tail].copy()
+        n = min(self.fade, len(rest))
+        rest[-n:] *= np.linspace(1.0, 0.0, n, dtype=np.float32)
+        return rest
+
+
 def voice_style(req):
     """(duration_delta, loud, gap seconds) from a request — or BadRequest. Names and whole numbers only."""
     pace, rate, loud, gap = req.get('pace'), req.get('rate'), req.get('loud', False), req.get('gap_ms', GAP_MS_DEFAULT)
@@ -295,11 +357,13 @@ def speak(text, voice, delta, loud=False, gap_s=GAP_MS_DEFAULT / 1000):
                 continue
             # Frame by frame, so the deadline stops a sentence in its MIDDLE: leaving the `with` block stops Phonon's
             # generation (ptts docs). One long sentence can no longer outlive the client (codex, round 2).
+            trim = Trim(SAMPLE_RATE)
             with tts.stream(sentence, voice=voice) as audio:
                 for chunk in audio:
-                    parts.append(chunk)
+                    parts.append(trim.push(chunk))
                     if time.perf_counter() > deadline:
                         raise Busy()  # the client has given up by now; free the voice for the next learner
+            parts.append(trim.flush())
             parts.append(gap)
     finally:
         put_voice(tts)
@@ -338,11 +402,14 @@ def speak_stream(tts, text, voice, write, loud=False, gap_s=GAP_MS_DEFAULT / 100
         if not first:
             out(gap)
         first = False
+        # The sentence's own tail trimmed BEFORE the limiter: the quiet is judged on the voice as Phonon made it.
+        trim = Trim(SAMPLE_RATE)
         with tts.stream(sentence, voice=voice) as audio:
             for chunk in audio:
-                out(chunk)
+                out(trim.push(chunk))
                 if time.perf_counter() > deadline:
                     raise Busy()
+        out(trim.flush())
     if lim:
         rest = lim.flush()
         if len(rest):

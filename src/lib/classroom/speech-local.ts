@@ -144,10 +144,11 @@ function styleBody(style: VoiceStyle) {
  * One line in `voice`, STREAMED: raw PCM16 (mono, little-endian, `rate` Hz) chunks as the server makes them — the first
  * arrives ~0.1 s after the request instead of after the whole line (/tts/stream; owner, 2026-10-26: "delayless").
  * `TTS_BUDGET_MS` bounds the wait for the FIRST chunk (and one busy retry); the body then runs as long as the line does —
- * the server cuts it at its own deadline. The caller's `signal` stops it (the learner talked over the avatar). A line that
- * ends whole is followed by `style.tailMs` of silence: the sentences of a child's reply do not run together.
+ * the server cuts it at its own deadline. The caller's `signal` stops it (the learner talked over the avatar). `pauseMs`:
+ * the breath the caller puts BEFORE this line when it follows another sentence of the same reply (turn-stream.ts) — never
+ * after a reply's last one, which would only hold up the learner's turn.
  */
-export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voice: string, style: VoiceStyle, signal?: AbortSignal, fetchImpl: typeof fetch = fetch): Promise<{ rate: number; chunks: AsyncGenerator<Uint8Array> }> {
+export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voice: string, style: VoiceStyle, signal?: AbortSignal, fetchImpl: typeof fetch = fetch): Promise<{ rate: number; chunks: AsyncGenerator<Uint8Array>; pauseMs: number }> {
   const stop = new AbortController()
   const onAbort = () => stop.abort()
   signal?.addEventListener('abort', onAbort, { once: true })
@@ -202,8 +203,6 @@ export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voi
         if (bytes.length % 2) { carry = bytes.slice(-1); bytes = bytes.slice(0, -1) }
         if (bytes.length) yield bytes
       }
-      // Ended whole (not stopped, not stalled): the pause after it.
-      if (style.tailMs > 0 && !stop.signal.aborted) yield new Uint8Array(Math.round((sampleRate * style.tailMs) / 1000) * 2)
     } catch {
       // stopped (talked over) or cut short: the line simply ends here
     } finally {
@@ -214,7 +213,7 @@ export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voi
     }
     if (stalled && !signal?.aborted) throw new SpeechError(504, 'tts')
   }
-  return { rate: sampleRate, chunks: chunks() }
+  return { rate: sampleRate, chunks: chunks(), pauseMs: style.pauseMs }
 }
 
 function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {

@@ -14,7 +14,7 @@ FROM python:3.12-slim
 RUN pip install --no-cache-dir "sherpa-onnx==2.0.0" "ptts==0.4.2" "numpy==2.5.4" "soundfile==0.14.0" \
  && python -I -c "import io, numpy, soundfile; b = io.BytesIO(); soundfile.write(b, numpy.zeros(2400, dtype='float32'), 24000, format='MP3'); assert len(b.getvalue()) > 100, 'no mp3'"
 COPY --from=models /models /models
-COPY server.py test_server.py /app/
+COPY server.py test_server.py test_trim.py /app/
 # MALLOC_ARENA_MAX: glibc otherwise grows an arena per thread, and this server's memory cap is tight.
 # HF_HUB_OFFLINE + a /tmp HF_HOME: the models are local paths; nothing may be fetched, nothing written.
 ENV STT_MODEL_DIR=/models/parakeet-tdt-0.6b-v2-int8 \

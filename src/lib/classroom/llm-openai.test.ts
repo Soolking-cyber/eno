@@ -3,6 +3,12 @@ import { LlmError, openAiConfig, partialString, streamJson } from './llm-openai'
 import { tutorTurnStream, type TutorEvent } from './tutor-ai'
 
 vi.mock('server-only', () => ({}))
+/** streamJson's default: undici's own fetch on ONE kept-open pool — here recorded, then answered by the stubbed global fetch. */
+const undici = vi.hoisted(() => ({ agents: [] as unknown[], dispatchers: [] as unknown[] }))
+vi.mock('undici', () => ({
+  Agent: class { constructor(opts: unknown) { undici.agents.push(opts) } },
+  fetch: (u: string, init: RequestInit & { dispatcher?: unknown }) => { undici.dispatchers.push(init.dispatcher); return globalThis.fetch(u, init) },
+}))
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals() })
 
 const KEY = `sk-${'a'.repeat(40)}`
@@ -78,6 +84,69 @@ describe('streamJson', () => {
     await expect(run(new Response('{}', { status: 429 }))).rejects.toMatchObject({ status: 429 })
     await expect(run(sse(['{"a"'], 'incomplete'))).rejects.toMatchObject({ status: 413 })
     await expect(run(new TypeError('fetch failed'))).rejects.toBeInstanceOf(LlmError)
+  })
+})
+
+describe('streamJson — one kept-open connection (owner, 2026-10-27: "need super fast response")', () => {
+  const CFG = { key: KEY, model: 'm', url: 'https://api.openai.com', firstTokenMs: 4_000, tier: 'priority' }
+  const REQ = { instructions: 'i', input: 'x', schema: {}, schemaName: 's', maxOutputTokens: 10 }
+  const drainAll = async (g: AsyncGenerator<string>) => { const out: string[] = []; for await (const d of g) out.push(d); return out }
+  /** An SSE body with `after` more bytes once the answer is complete — and whether it was read to its end or cancelled. */
+  function tracked(after = ': keep-alive\n\n') {
+    const enc = new TextEncoder()
+    const chunks = [
+      `data: ${JSON.stringify({ type: 'response.output_text.delta', delta: '{"a":1}' })}\n\n`,
+      `data: ${JSON.stringify({ type: 'response.completed' })}\n\n`,
+      after,
+    ]
+    const state = { pulled: 0, cancelled: false }
+    const res = new Response(new ReadableStream({
+      pull(c) { if (state.pulled < chunks.length) c.enqueue(enc.encode(chunks[state.pulled++])); else c.close() },
+      cancel() { state.cancelled = true },
+    }), { headers: { 'content-type': 'text/event-stream' } })
+    return { res, state }
+  }
+
+  it('by default it asks through ONE pool kept open for 2 minutes — the same for every answer', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => tracked().res))
+    await drainAll(streamJson(CFG, REQ))
+    await drainAll(streamJson(CFG, REQ))
+    expect(undici.agents).toEqual([{ keepAliveTimeout: 120_000, keepAliveMaxTimeout: 120_000 }])
+    expect(undici.dispatchers).toHaveLength(2)
+    expect(undici.dispatchers[0]).toBe(undici.dispatchers[1])
+  })
+  it('⚡ a finished answer is READ TO ITS END, never cancelled — its connection goes back to the pool', async () => {
+    const t = tracked()
+    const f = vi.fn(async () => t.res) as unknown as typeof fetch
+    expect(await drainAll(streamJson(CFG, REQ, f))).toEqual(['{"a":1}'])
+    await vi.waitFor(() => expect(t.state.pulled).toBe(3))
+    await new Promise((r) => setTimeout(r, 10))
+    expect(t.state.cancelled).toBe(false)
+  })
+  it('an answer left early (a caller that stops reading) is cancelled — never left half-read on the pool', async () => {
+    const t = tracked()
+    const f = vi.fn(async () => t.res) as unknown as typeof fetch
+    for await (const _ of streamJson(CFG, REQ, f)) break
+    await vi.waitFor(() => expect(t.state.cancelled).toBe(true))
+  })
+  it('a connection the server had closed ("other side closed") is tried ONCE more; any other failure or an abort never is', async () => {
+    const stale = () => Object.assign(new TypeError('fetch failed'), { cause: { code: 'UND_ERR_SOCKET' } })
+    let n = 0
+    const flaky = vi.fn(async () => { n += 1; if (n === 1) throw stale(); return tracked().res }) as unknown as typeof fetch
+    expect(await drainAll(streamJson(CFG, REQ, flaky))).toEqual(['{"a":1}'])
+    expect(flaky).toHaveBeenCalledTimes(2)
+    const dead = vi.fn(async () => { throw stale() }) as unknown as typeof fetch
+    await expect(drainAll(streamJson(CFG, REQ, dead))).rejects.toBeInstanceOf(LlmError)
+    expect(dead).toHaveBeenCalledTimes(2) // once more, never a third time
+    const refused = vi.fn(async () => { throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } }) }) as unknown as typeof fetch
+    await expect(drainAll(streamJson(CFG, REQ, refused))).rejects.toBeInstanceOf(LlmError)
+    expect(refused).toHaveBeenCalledTimes(1)
+    const stop = new AbortController()
+    const hanging = vi.fn((_u: string, init?: RequestInit) => new Promise<Response>((_, rej) => init?.signal?.addEventListener('abort', () => rej(new DOMException('aborted', 'AbortError'))))) as unknown as typeof fetch
+    const run = drainAll(streamJson(CFG, { ...REQ, signal: stop.signal }, hanging))
+    stop.abort()
+    await expect(run).rejects.toBeInstanceOf(LlmError)
+    expect(hanging).toHaveBeenCalledTimes(1)
   })
 })
 

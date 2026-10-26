@@ -3,6 +3,8 @@ import type { GoogleGenAI } from '@google/genai'
 import { HEDGE_FIRST_MS, hedgedDeltas, TUTOR_JSON_SCHEMA, tutorAsk, tutorTurnStream, type TutorEvent } from './tutor-ai'
 
 vi.mock('server-only', () => ({}))
+// streamJson asks OpenAI through undici's own fetch (its kept-open pool — llm-openai.ts): here, the stubbed global one.
+vi.mock('undici', () => ({ Agent: class {}, fetch: (u: string, init: RequestInit) => globalThis.fetch(u, init) }))
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.useRealTimers() })
 
 /**
@@ -64,7 +66,7 @@ const ctx = {
   plan: { brief: '', focus: { goals: [], focusWords: [], recycle: [], drill: [] } as never }, workingOn: [], history: [],
   learnerText: 'I go market yesterday.', secondsLeft: 300, drillLeft: [], pace: { now: 'natural' as const, slower: true, faster: true },
 }
-const answer = (o: Record<string, unknown>) => JSON.stringify({ safety: 'none', pace: 'same', reply: '', hint: 'I went to the market.', hintVi: 'Tôi đã đi chợ.', expect: '', heardAs: [], ...o })
+const answer = (o: Record<string, unknown>) => JSON.stringify({ safety: 'none', pace: 'same', reply: '', expect: '', hint: 'I went to the market.', hintVi: 'Tôi đã đi chợ.', heardAs: [], ...o })
 /** A Gemini client whose streamed answer is `json`, cut in 6-character chunks. */
 const gemini = (json: string, calls: { n: number } = { n: 0 }) => ({
   models: {
@@ -85,7 +87,7 @@ describe('tutorTurnStream — the voice pace (owner, 2026-10-26: "adults may adj
   })
   it('"slower" comes BEFORE the first sentence (the acknowledgement already sounds slower); "same" is no event', async () => {
     const ev = await events(gemini(answer({ pace: 'slower', reply: 'Sure, I will speak more slowly. How was your day?' })))
-    expect(ev.map((e) => e.kind)).toEqual(['safety', 'pace', 'say', 'say', 'final'])
+    expect(ev.map((e) => e.kind)).toEqual(['safety', 'pace', 'say', 'say', 'spoken', 'final'])
     expect(ev[1]).toEqual({ kind: 'pace', change: 'slower' })
     expect(ev.at(-1)).toMatchObject({ kind: 'final', reply: { pace: 'slower' } })
     const same = await events(gemini(answer({ reply: 'Nice! Tell me more.' })))
@@ -94,7 +96,7 @@ describe('tutorTurnStream — the voice pace (owner, 2026-10-26: "adults may adj
   it('a pace written AFTER the reply (Gemini orders properties as best it can) still counts — before the final', async () => {
     const late = JSON.stringify({ safety: 'none', reply: 'Okay. Faster now.', hint: '', hintVi: '', expect: '', heardAs: [], pace: 'faster' })
     const ev = await events(gemini(late))
-    expect(ev.map((e) => e.kind)).toEqual(['safety', 'say', 'say', 'pace', 'final'])
+    expect(ev.map((e) => e.kind)).toEqual(['safety', 'say', 'say', 'spoken', 'pace', 'final'])
   })
   it('the tutor is told the pace now and which way it may still go', () => {
     const text = (c: typeof ctx) => tutorAsk(c).contents[0].parts.map((p) => p.text).join('\n')
@@ -169,5 +171,80 @@ describe('tutorTurnStream — Gemini streamed, sentence by sentence', () => {
     const calls = { n: 0 }
     await expect(events(gemini(answer({ reply: 'Fine.' }), calls))).rejects.toMatchObject({ safety: true })
     expect(calls.n).toBe(0) // Gemini was never asked
+  })
+})
+
+/** An OpenAI answer streamed as server-sent events — `json` in `chunk`-character deltas, each delta after `gate()` when given. */
+function openAiStream(json: string, chunk = 5, gate?: (sent: string) => Promise<void>) {
+  vi.stubEnv('OPENAI_API_KEY', `sk-${'a'.repeat(40)}`)
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(new ReadableStream({
+    async start(c) {
+      const enc = new TextEncoder()
+      for (let i = 0; i < json.length; i += chunk) {
+        if (gate) await gate(json.slice(0, i))
+        c.enqueue(enc.encode(`data: ${JSON.stringify({ type: 'response.output_text.delta', delta: json.slice(i, i + chunk) })}\n\n`))
+      }
+      c.enqueue(enc.encode(`data: ${JSON.stringify({ type: 'response.completed' })}\n\n`))
+      c.close()
+    },
+  }))))
+}
+
+describe('tutorTurnStream — the reply\'s voice closes at its last sentence (owner, 2026-10-27: "need super fast response")', () => {
+  it('the schema writes `expect` right after `reply` — OpenAI and Gemini alike', () => {
+    expect(Object.keys(TUTOR_JSON_SCHEMA.properties).slice(0, 4)).toEqual(['safety', 'pace', 'reply', 'expect'])
+    expect(TUTOR_JSON_SCHEMA.required.slice(0, 4)).toEqual(['safety', 'pace', 'reply', 'expect'])
+    expect(tutorAsk(ctx).schema.propertyOrdering?.slice(0, 4)).toEqual(['safety', 'pace', 'reply', 'expect'])
+  })
+  it('⚡ no drill: `spoken` the moment `expect` is written empty — BEFORE the hint and its Vietnamese exist', async () => {
+    const hintWritten = Promise.withResolvers<void>()
+    let waited = false
+    const json = answer({ reply: 'Nice! What did you buy?' })
+    const cut = json.indexOf('"hint"')
+    openAiStream(json, 5, async (sent) => { if (sent.length >= cut && !waited) { waited = true; await hintWritten.promise } })
+    const ev: TutorEvent[] = []
+    for await (const e of tutorTurnStream(null, ctx)) {
+      ev.push(e)
+      if (e.kind === 'spoken') hintWritten.resolve() // the rest of the answer is let through only now
+    }
+    expect(ev.map((e) => e.kind)).toEqual(['safety', 'say', 'say', 'spoken', 'final'])
+    expect(ev[3]).toEqual({ kind: 'spoken', expect: null })
+    expect(ev.at(-1)).toMatchObject({ kind: 'final', reply: { reply: 'Nice! What did you buy?', expect: null, hint: 'I went to the market.' } })
+  })
+  it('a drill: no early close — its request is said at the end, then `spoken` WITH the drill, then the final', async () => {
+    openAiStream(answer({ reply: 'Good try. Let us practise the th sound.', expect: 'I think so.' }))
+    const ev: TutorEvent[] = []
+    for await (const e of tutorTurnStream(null, ctx)) ev.push(e)
+    expect(ev.map((e) => e.kind)).toEqual(['safety', 'say', 'say', 'say', 'spoken', 'final'])
+    expect(said(ev).at(-1)).toBe('Please say after me: I think so.')
+    expect(ev[4]).toEqual({ kind: 'spoken', expect: 'I think so.' })
+    expect(ev.at(-1)).toMatchObject({ kind: 'final', reply: { reply: 'Good try. Let us practise the th sound. Please say after me: I think so.', expect: 'I think so.' } })
+  })
+  it('⛔ a sentence held for the digit check: no early close — it is said once the whole reply passed, THEN `spoken`', async () => {
+    openAiStream(answer({ reply: 'Nice! In 2024 you started English.' }))
+    const ev: TutorEvent[] = []
+    for await (const e of tutorTurnStream(null, ctx)) ev.push(e)
+    expect(ev.map((e) => e.kind)).toEqual(['safety', 'say', 'say', 'spoken', 'final'])
+    expect(said(ev)).toEqual(['Nice!', 'In 2024 you started English.'])
+  })
+  it('⛔ nothing said (an empty reply): no `spoken` — the brain hands over as before', async () => {
+    openAiStream(answer({ reply: '' }))
+    const calls = { n: 0 }
+    const ev = await events(gemini(answer({ reply: 'Nice! Tell me more.' }), calls))
+    expect(calls.n).toBe(1)
+    expect(ev.filter((e) => e.kind === 'spoken')).toHaveLength(1) // Gemini's own, after its sentences
+    expect(said(ev)).toEqual(['Nice!', 'Tell me more.'])
+  })
+  it('⛔ a harm flag: never `spoken` (its kind words are spoken by the caller after the save)', async () => {
+    openAiStream(answer({ safety: 'harm', reply: 'Please tell a trusted adult.' }))
+    const ev: TutorEvent[] = []
+    for await (const e of tutorTurnStream(null, ctx)) ev.push(e)
+    expect(ev.some((e) => e.kind === 'spoken' || e.kind === 'say')).toBe(false)
+  })
+  it('a brain that writes `expect` late (Gemini, best effort): `spoken` when it is written; nothing said after it', async () => {
+    const late = JSON.stringify({ safety: 'none', pace: 'same', reply: 'Okay. Tell me more.', hint: 'h', hintVi: 'hv', expect: '', heardAs: [] })
+    const ev = await events(gemini(late))
+    expect(ev.map((e) => e.kind)).toEqual(['safety', 'say', 'say', 'spoken', 'final'])
+    expect(ev.at(-1)).toMatchObject({ kind: 'final', reply: { reply: 'Okay. Tell me more.', expect: null } })
   })
 })

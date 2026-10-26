@@ -41,10 +41,13 @@ describe('pace', () => {
     expect(paceOptions('gentle', 'child')).toEqual({ now: 'gentle', slower: true, faster: false })
     expect(paceOptions('natural', 'teen')).toEqual({ now: 'natural', slower: true, faster: true })
   })
-  it('a child\'s voice is louder with longer pauses; a teen\'s or an adult\'s is the server\'s own', () => {
-    expect(voiceStyle('child-young', 'slowest')).toEqual({ pace: 'slowest', loud: true, gapMs: 450, tailMs: 400 })
-    expect(voiceStyle('child', 'gentle')).toMatchObject({ loud: true, tailMs: 300 })
-    expect(voiceStyle('adult', 'quick')).toEqual({ pace: 'quick', loud: false, gapMs: 120, tailMs: 0 })
+  it('a child\'s voice is louder with longer pauses; a teen\'s or an adult\'s pause follows its pace', () => {
+    expect(voiceStyle('child-young', 'slowest')).toEqual({ pace: 'slowest', loud: true, gapMs: 450, pauseMs: 500 })
+    expect(voiceStyle('child', 'gentle')).toMatchObject({ loud: true, pauseMs: 400 })
+    expect(voiceStyle('adult', 'quick')).toEqual({ pace: 'quick', loud: false, gapMs: 120, pauseMs: 40 })
+    expect(voiceStyle('teen', 'natural').pauseMs).toBe(80)
+    expect(voiceStyle('adult', 'gentle').pauseMs).toBeLessThan(voiceStyle('adult', 'slowest').pauseMs)
+    expect(voiceStyle('adult', 'slowest').pauseMs).toBeLessThan(voiceStyle('child', 'slowest').pauseMs)
   })
   it('⛔ the speech server knows exactly these pace names (it maps NAMES to Phonon numbers — never a number from the app)', () => {
     const server = readFileSync('infra/vn-node/classroom-speech/server.py', 'utf8')

@@ -52,8 +52,8 @@ export type StageHandle = {
  */
 export const FACE_RATE = 24_000
 
-/** `?face=fast` on the page: the face's audio does not wait for its motion (owner testing — see frameStarvationMode);
- *  `?face=webgpu`: the SDK may draw with WebGPU again (see drawWithWebGl). */
+/** `?face=fast` on the page: audioIndependent (owner testing — see frameStarvationMode); `?face=webgpu`: the SDK may draw
+ *  with WebGPU again (see drawWithWebGl). */
 function faceParam(): string | null {
   try { return new URLSearchParams(window.location.search).get('face') } catch { return null }
 }
@@ -77,6 +77,27 @@ function drawWithWebGl(): void {
     webGpuHidden = true
   } catch {
     // a browser that will not let it go: the SDK picks as it would
+  }
+}
+
+/**
+ * THE FACE'S OWN SPLIT OF ITS DELAY, for the trace (2026-10-27 latency workflow: "measure Spatius's own time first"): the
+ * SDK marks when each second of a reply's audio was sent (tap_N) and when each group of motion arrived (anim_N). Spatius
+ * computes a reply's first motion once it holds 2 s of audio (or the reply is closed): `2 s sent` − first audio is OUR
+ * part (the voice being made), `motion` − `2 s sent` is Spatius's. An internal SDK call — read defensively, trace only.
+ */
+function latencyNote(c: unknown): string | undefined {
+  try {
+    const m = (c as { getPlaybackLatency?: () => Record<string, unknown> | null }).getPlaybackLatency?.()
+    if (!m) return undefined
+    const at = (k: string) => { const v = m[k]; const n = typeof v === 'number' ? v : (v as { value?: unknown } | undefined)?.value; return typeof n === 'number' ? n : null }
+    const t0 = at('tap_0')
+    const t2 = at('tap_2')
+    const a0 = at('anim_0')
+    if (t0 === null || a0 === null) return undefined
+    return `2 s sent ${t2 === null ? '—' : `+${Math.round(t2 - t0)}ms`} · motion +${Math.round(a0 - t0)}ms${t2 === null ? '' : ` (Spatius ${Math.round(a0 - t2)}ms)`}`
+  } catch {
+    return undefined
   }
 }
 
@@ -303,13 +324,17 @@ export const AvatarStage = forwardRef<StageHandle, {
         // ⛔ STRICT SYNC (owner, 2026-10-26: "i cannot see live avatar" — the lips stood still). The SDK's default
         // (`audioIndependent`) keeps the AUDIO playing when the face's motion frames run late, so a slow frame stream is a
         // talking photo. strictSync holds the audio until the frames catch up: a short pause, never a still mouth.
-        // ⚠️ `?face=fast` (owner testing, 2026-10-26): the voice starts at once and the lips catch up when Spatius's first
-        // motion frames arrive (~1.3 s measured) — against strictSync's pause before the voice.
+        // ⚠️ NEITHER MODE STARTS THE VOICE BEFORE THE FIRST MOTION (AvatarKit 1.3.10 source, read 2026-10-27): no audio plays
+        // until Spatius's first motion frames arrive, and the mode only matters once playback has started — `?face=fast`
+        // (audioIndependent) changes what happens when motion runs late mid-reply, not how soon a reply starts.
         c.frameStarvationMode = faceFast() ? kit.FrameStarvationMode.audioIndependent : kit.FrameStarvationMode.strictSync
         c.onPlaybackStall = (stalled) => mark(stalled ? 'face: STALLED (motion late)' : 'face: resumed')
         c.onError = (e?: unknown) => { mark('face: error', String((e as { code?: string })?.code ?? e)); if (!l.gone) fallback.current() }
         c.onConnectionState = (s) => { mark(`face: ${s}`); if (s === kit.ConnectionState.failed && !l.gone) fallback.current() }
-        c.onConversationState = (s) => { mark(`face: ${s}`); if (!l.gone) playing.current(s === kit.ConversationState.playing) }
+        c.onConversationState = (s) => {
+          mark(`face: ${s}`, s === kit.ConversationState.playing ? latencyNote(c) : undefined)
+          if (!l.gone) playing.current(s === kit.ConversationState.playing)
+        }
         await new Promise<void>((resolve, reject) => {
           l.firstFrameTimer = setTimeout(() => reject(new Error('first_frame_timeout')), FIRST_FRAME_MS)
           v.onFirstRendering = () => { clearTimeout(l.firstFrameTimer); l.firstFrame = true; resolve() }
