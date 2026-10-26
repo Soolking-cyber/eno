@@ -29,7 +29,7 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
   }
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, isLicenceCheckSlot, licenceCheckHold, LICENCE_CHECK_SUBCATEGORIES, subcategoryMatchesText, VISA_CATEGORY_SLUG, SUBCATEGORY_FALLBACK, servicePriceBasisOf, servicePriceBasisOfUnit, withoutInapplicablePriceBasis, withPriceBasis, servicePriceBasisApplies, detailRowLabel, storesCondition } from '@/lib/taxonomy'
+import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, paysSalary, offerlessType, salaryPriceFor, salaryMFromPrice, resolveListingType, isLicenceCheckSlot, licenceCheckHold, LICENCE_CHECK_SUBCATEGORIES, subcategoryMatchesText, VISA_CATEGORY_SLUG, SUBCATEGORY_FALLBACK, servicePriceBasisOf, servicePriceBasisOfUnit, withoutInapplicablePriceBasis, withPriceBasis, servicePriceBasisApplies, detailRowLabel, storesCondition } from '@/lib/taxonomy'
 import { PROVIDER_LICENCE_KEYS, checkProviderLicence, providerLicenceFromInput, providerLicenceOf, sameProviderLicence, withProviderLicence, withoutProviderLicence, type ProviderLicence } from '@/lib/provider-licence'
 import { LICENCE_HELD_NOTE, LICENCE_STAMP_CLEARED, isLicenceWhitelisted, licenceCleared, licenceClearedWhere, licenceHeldMark } from '@/lib/licence-stamp'
 import { priceUnitSuffix } from '@/lib/price-unit'
@@ -753,6 +753,8 @@ export async function updateListingCore(
   const reqType = body.listingType !== undefined ? String(body.listingType).trim() : undefined
   const nextType = reqType !== undefined && (typesFor(current.category.slug) as string[]).includes(reqType) ? reqType : current.listingType
   const salaryPaid = paysSalary(nextType)
+  // A job or a Wanted ad takes no offers (taxonomy offerlessType): stored non-negotiable, and Urgent does not open them.
+  const noOffers = offerlessType(nextType)
   // ⛔ A TEACHER LOOKING FOR WORK IS A TEACHER PROFILE (owner, 2026-10-12 — taxonomy.ts TEACHER_SEEKING_POST): an edit
   // that MOVES a listing into Jobs › Teaching + "looking for work" — by its subcategory or by its intent — is refused
   // before anything is written; the route adds the bilingual refusal. A row already there edits as usual (not a move).
@@ -883,7 +885,7 @@ export async function updateListingCore(
   if (!storesCondition(current.category.slug) && current.condition != null) data.condition = null
   // Price-negotiable toggle (edit): honored on the same edit path the wizard resubmits.
   // Same rule on EDIT, or "post as goods, switch category, enable offers" is a bypass.
-  if (body.negotiable !== undefined) data.negotiable = current.category?.slug === 'services' || salaryPaid ? false : Boolean(body.negotiable)
+  if (body.negotiable !== undefined) data.negotiable = current.category?.slug === 'services' || noOffers ? false : Boolean(body.negotiable)
   // Urgent-sale toggle (edit). Activation runs the full server gate (no-op while
   // already active — never a silent renewal; 7-day re-arm cooldown; 2-per-seller
   // quota) and force-enables offers — urgency IS a promise of flexibility. An early
@@ -898,7 +900,7 @@ export async function updateListingCore(
       // chip resend would be maddening. So a cooldown just skips re-arming the chip.
       if (gate.ok === false) { if (gate.error === 'urgent_quota') return { ok: false, code: 409, error: gate.error } }
       // A job's urgency is "Tuyển gấp", a hiring deadline — it opens no offers (salaryPaid).
-      else if (gate.ok === true) { data.urgentUntil = gate.urgentUntil; if (!salaryPaid) data.negotiable = true }
+      else if (gate.ok === true) { data.urgentUntil = gate.urgentUntil; if (!noOffers) data.negotiable = true }
     } else if (current.urgentUntil && current.urgentUntil.getTime() > Date.now()) {
       data.urgentUntil = new Date()
     }
@@ -909,12 +911,12 @@ export async function updateListingCore(
   // wizard, where picking "Fixed price" clears the urgent chip.
   // ⚠️ NOT ON A JOB: it is never negotiable, so this rule would end every urgent-hiring run on the
   // first edit. Its urgency was never a promise of flexibility.
-  if (!salaryPaid && data.negotiable === false && data.urgentUntil === undefined && current.urgentUntil && current.urgentUntil.getTime() > Date.now()) {
+  if (!noOffers && data.negotiable === false && data.urgentUntil === undefined && current.urgentUntil && current.urgentUntil.getTime() > Date.now()) {
     data.urgentUntil = new Date()
   }
-  // ⛔ A job is never negotiable, whatever the body said or the row held (a job written before the
-  // salary rule defaulted to negotiable=true, and an edit is where it is put right).
-  if (salaryPaid && current.negotiable !== false) data.negotiable = false
+  // ⛔ A job or a Wanted ad is never negotiable, whatever the body said or the row held (a job written before the
+  // salary rule, and every Wanted ad before 2026-10-26, defaulted to negotiable=true; an edit is where it is put right).
+  if (noOffers && current.negotiable !== false) data.negotiable = false
   if (Array.isArray(body.images)) {
     const images = (body.images as unknown[]).filter(isListingImageUrl).slice(0, 8)
     // An edit must still meet the ≥3-distinct-angles bar (a seller can't quietly strip a live
@@ -1792,7 +1794,7 @@ export async function createListingCore(input: {
       // this ordering a service posted as urgent would come back negotiable anyway.
       // ⛔ A JOB TAKES NO OFFERS, and its urgency ("Tuyển gấp") is a hiring deadline, not a promise
       // to haggle — so for a job Urgent does NOT flip negotiable, and the salary flag wins first.
-      negotiable: fixedPriceOnly || salaryPaid ? false : urgentOk ? true : body.negotiable === undefined ? true : Boolean(body.negotiable),
+      negotiable: fixedPriceOnly || offerlessType(listingType) ? false : urgentOk ? true : body.negotiable === undefined ? true : Boolean(body.negotiable),
       ...(urgentOk && !fixedPriceOnly ? { urgentUntil: new Date(Date.now() + URGENT.DURATION_MS) } : {}),
       location,
       district,

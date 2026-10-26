@@ -21,7 +21,7 @@ import { maskEmailHandle } from '@/lib/utils'
 import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
 import { threadKind, threadKindResolver } from '@/lib/thread-kind'
 import { getVisaShopSeller, isVisaShopListing } from '@/lib/visa-shop'
-import { VISA_SUBCATEGORY_SLUG, takesOffers, paysSalary } from '@/lib/taxonomy'
+import { VISA_SUBCATEGORY_SLUG, takesOffers, offerlessType } from '@/lib/taxonomy'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { startVisaDmFlow } from '@/lib/visa/dm-flow'
 import { cutText } from '@/lib/feed-text'
@@ -323,7 +323,9 @@ export const POST = route(
     // ⚠️ DOCK ONLY A REAL FIXED-PRICE ATTEMPT. A job stored before the salary rule still says
     // negotiable=true, and its PDP is ISR-cached for up to 30 days — so the offer slider the SITE showed
     // the buyer can still be on screen. Refusing that offer is right; taking trust for it is not.
-    if (!listing.negotiable && !paysSalary(listing.listingType)) await recordFixedPriceOfferAttempt(profile.id)
+    // Nor on a Wanted ad (offerlessType): its poster is the one looking, so an offer there is no fixed-price attempt —
+    // and every Wanted page showed the slider until 2026-10-26.
+    if (!listing.negotiable && !offerlessType(listing.listingType)) await recordFixedPriceOfferAttempt(profile.id)
     throw new ApiError('not_negotiable', 409)
   }
 

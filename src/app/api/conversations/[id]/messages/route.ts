@@ -15,7 +15,7 @@ import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { whatsappRecipientFor } from '@/lib/whatsapp-bridge'
 import { sendWhatsAppText } from '@/lib/whatsapp'
 import { isRemovedStatus } from '@/lib/listing-removed'
-import { paysSalary, takesOffers } from '@/lib/taxonomy'
+import { offerlessType, takesOffers } from '@/lib/taxonomy'
 import { cutText } from '@/lib/feed-text'
 import { IOS_APP_UNAVAILABLE, iosHideVisaFor } from '@/lib/ios-hide-visa'
 import { isEVisaThread } from '@/lib/ios-hide-visa-server'
@@ -174,7 +174,9 @@ export const POST = route(
       // by the job rule, behind a cached page that may still offer the slider (see api/conversations).
       // …and never on a JOB at all: an employer's edit (which stores negotiable=false) can race a candidate's
       // offer from a page that still showed the slider (codex, 2026-10-01).
-      if (iAmBuyer && !offerListing.negotiable && !paysSalary(offerListing.listingType)) await recordFixedPriceOfferAttempt(meId)
+      // Nor on a Wanted ad (offerlessType): an offer there is no fixed-price attempt, and every Wanted page showed the
+      // slider until 2026-10-26.
+      if (iAmBuyer && !offerListing.negotiable && !offerlessType(offerListing.listingType)) await recordFixedPriceOfferAttempt(meId)
       await release()
       throw new ApiError('not_negotiable', 409)
     }

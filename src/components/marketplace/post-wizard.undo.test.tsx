@@ -145,6 +145,17 @@ describe('Autofill from photo — no Undo when nothing the seller had changes', 
   }, 30_000)
 })
 
+// Sweep 2026-10-22: an edit's photos are hosted (URL-only), and autofill sends the cover FILE — the button showed and did
+// nothing. It shows once a photo picked on this device is the cover. The page is headed for what it does, too.
+describe('Editing a listing whose photos are already hosted', () => {
+  it('offers no "Autofill from photo" until a new photo is the cover, and is headed "Edit listing"', async () => {
+    const hosted = { ...edit, images: ['https://sb.eno.vn/storage/v1/object/public/listings/a.webp', 'https://sb.eno.vn/storage/v1/object/public/listings/b.webp', 'https://sb.eno.vn/storage/v1/object/public/listings/c.webp'] }
+    render(<PostWizard categories={CATS} edit={hosted} />)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Edit listing' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Autofill from photo/ })).toBeNull()
+  }, 30_000)
+})
+
 describe('Autofill from photo — editing, the category is fixed', () => {
   it('⛔ a photo read as ANOTHER category fills nothing, and says so: the pill keeps the listing\'s own category', async () => {
     classifyAnswer = { categorySlug: 'electronics', subcategorySlug: 'phones', attributes: { storage: '128GB' }, condition: 'like_new' }

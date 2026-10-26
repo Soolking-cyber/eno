@@ -2052,9 +2052,19 @@ export function parseSalaryInput(raw: string, max = 100): number | null {
   return Math.floor(n)
 }
 
-/** Whether a buyer may send an OFFER on this listing: its own `negotiable`, and never on a job. */
+/** Whether a buyer may send an OFFER on this listing: its own `negotiable`, and never on a job or a Wanted ad. */
 export function takesOffers(l: { negotiable: boolean; listingType?: string | null }): boolean {
-  return l.negotiable && !paysSalary(l.listingType)
+  return l.negotiable && !offerlessType(l.listingType)
+}
+
+/**
+ * An intent no offer is ever made on, whatever the stored `negotiable`: a job (its salary is not haggled) and a WANTED ad —
+ * the poster is the one buying or looking, so there is no asking price to offer against, and the post form hides the
+ * offers choice for it. Every Wanted ad was still stored negotiable=true (sweep 2026-10-22), so its page opened the offer
+ * slider; createListingCore / updateListingCore store false for both, and takesOffers refuses both for rows stored before.
+ */
+export function offerlessType(listingType: string | null | undefined): boolean {
+  return paysSalary(listingType) || listingType === 'wanted'
 }
 
 /**
