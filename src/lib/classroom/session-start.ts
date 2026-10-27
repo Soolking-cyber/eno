@@ -7,8 +7,9 @@ import { BUDGET_LOCK, budgetRefusal, budgetUse } from './budget'
 import { LIMITS, SESSION_MINUTES, type Level } from './constants'
 import { ageBand, effectiveMinutes, frequencyRefusal, ictDayStart, ictWeekStart, needsAssent, nextPracticeAt, under13, type AgeBand } from './limits'
 import { firstPlan, parseFocus, pickPlan, type PlanFocus } from './plans'
-import { PRACTICE_NOTICE_VERSION, TEACHER_VIEW_NOTICE_VERSION } from './notices'
+import { TEACHER_VIEW_NOTICE_VERSION, practiceConsentCurrent } from './notices'
 import { spatiusConfig } from './spatius'
+import { sonioxConfig } from './soniox'
 import { libraryAvatarById } from './library-avatars'
 import { speakLine } from './session-voice'
 import { clampPace, defaultPace, voiceStyle } from './pace'
@@ -133,7 +134,7 @@ export async function facePreview(accountId: string, target: { seatId: string } 
     if (!seat?.learner || seat.status !== 'active') return null
     const learner = seat.learner
     const kind = learner.kind === 'child' ? 'child' : 'self'
-    if (learner.withdrawnAt || learner.practiceConsentVersion !== PRACTICE_NOTICE_VERSION || learner.teacherViewConsentVersion !== TEACHER_VIEW_NOTICE_VERSION) return null
+    if (learner.withdrawnAt || !practiceConsentCurrent(learner.practiceConsentVersion) || learner.teacherViewConsentVersion !== TEACHER_VIEW_NOTICE_VERSION) return null
     if (needsAssent(kind, learner.birthYear, now) && !learner.assentAt) return null
     const { open, config } = await classroomOpenFor(seat.avatar.teacherProfile.profileId)
     if (!open) return null
@@ -149,13 +150,16 @@ export async function startLearnerSession(seatId: string, accountId: string, now
   const learner = seat.learner
   const kind = learner.kind === 'child' ? 'child' : 'self'
   // ⛔ No consent on record (or withdrawn) → no practice; the join page asks again.
-  if (learner.withdrawnAt || learner.practiceConsentVersion !== PRACTICE_NOTICE_VERSION || learner.teacherViewConsentVersion !== TEACHER_VIEW_NOTICE_VERSION) {
+  if (learner.withdrawnAt || !practiceConsentCurrent(learner.practiceConsentVersion) || learner.teacherViewConsentVersion !== TEACHER_VIEW_NOTICE_VERSION) {
     throw new ApiError('consent_required', 409)
   }
   if (needsAssent(kind, learner.birthYear, now) && !learner.assentAt) throw new ApiError('assent_required', 409)
   // Learners follow their teacher (config.ts) — a FRESH read: a start is where the switch must bite.
   const { open, config } = await classroomOpenFor(seat.avatar.teacherProfile.profileId, { fresh: true })
   if (!open) throw new ApiError('classroom_closed', 403)
+  // ⛔ SONIOX ONLY (owner, 2026-10-27): nothing else can hear the learner. Soniox set up but down is the page's to find
+  // (it ends the session after a few tries) — and a session with no answered turn never spends the day or the week (below).
+  if (!sonioxConfig()) throw new ApiError('speech_unavailable', 503)
 
   const child13 = under13(kind, learner.birthYear, now)
   const face = modeFor(seat.avatar, child13, config.spatiusChildrenOk)
@@ -175,7 +179,7 @@ export async function startLearnerSession(seatId: string, accountId: string, now
       select: { status: true, learnerId: true, learner: { select: { withdrawnAt: true, practiceConsentVersion: true, teacherViewConsentVersion: true } } },
     })
     if (!now2 || now2.status !== 'active' || now2.learnerId !== learner.id) throw new ApiError('seat_inactive', 409)
-    if (now2.learner?.withdrawnAt || now2.learner?.practiceConsentVersion !== PRACTICE_NOTICE_VERSION || now2.learner?.teacherViewConsentVersion !== TEACHER_VIEW_NOTICE_VERSION) {
+    if (now2.learner?.withdrawnAt || !practiceConsentCurrent(now2.learner?.practiceConsentVersion) || now2.learner?.teacherViewConsentVersion !== TEACHER_VIEW_NOTICE_VERSION) {
       throw new ApiError('consent_required', 409)
     }
     const live = await tx.classroomSession.findFirst({ where: { learnerId: learner.id, status: 'live' } })
@@ -280,6 +284,7 @@ export async function startTeacherTest(accountId: string, now = new Date()): Pro
   if (!avatar) throw new ApiError('avatar_required', 409)
   const { open, config } = await classroomOpenFor(accountId, { fresh: true })
   if (!open) throw new ApiError('classroom_closed', 403)
+  if (!sonioxConfig()) throw new ApiError('speech_unavailable', 503)
   // A staff check that fails reads as not staff: the ordinary try (fail closed).
   const staff = await isStaffProfile(accountId).catch(() => false)
   const minutes = devUnlimited() ? DEV_TEST_MINUTES : staff ? STAFF_TEST_MINUTES : LIMITS.teacherTestMinutes

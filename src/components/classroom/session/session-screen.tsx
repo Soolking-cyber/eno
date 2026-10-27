@@ -105,10 +105,13 @@ const LIVE_TEXT_MAX_CHARS = 1_000
 const LIVE_TAIL_MS = 300
 /** The turn's recording keeps this much from before Soniox first heard words (its answers trail the voice by ~1 s). */
 const LIVE_CLIP_LEAD_MS = 1_500
-/** Live listening broke (a stalled network, a closed socket): opened again after this long, up to LIVE_REOPENS times a
- *  session (the server mints a few keys an hour — stt-grant.ts STT_KEYS_PER_SESSION). */
+/** Live listening broke (a stalled network, a closed socket — a phone moving from Wi-Fi to 4G): opened again after
+ *  LIVE_REOPEN_MS, then twice as long each time, LIVE_REOPENS times (2 + 4 + 8 + 16 s ≈ half a minute of patience); each
+ *  try spends one of the server's few keys an hour (stt-grant.ts STT_KEYS_PER_SESSION). */
 const LIVE_REOPEN_MS = 2_000
-const LIVE_REOPENS = 3
+const LIVE_REOPENS = 4
+/** Nothing can hear the learner any more: the session ends this long after the screen says so. */
+const GONE_END_MS = 12_000
 /** A 16 kHz mic chunk louder than this (RMS) is the learner's voice — for the trace's "words came N ms after the voice". */
 const VOICE_RMS = 0.012
 
@@ -161,6 +164,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const [hint, setHint] = useState<{ en: string; vi: string } | null>(null)
   const [showHint, setShowHint] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  /** Soniox hears the learner (its socket is open) — 'off': not yet, or opening again; 'gone': refused, or the tries ran
+   *  out — nothing can hear the learner for the rest of this session (Soniox only). */
+  const [hearing, setHearing] = useState<'on' | 'off' | 'gone'>('off')
   /** The 3D face a start would give (api/classroom/face), drawn while the intro is up — null: voice-only. */
   const [face, setFace] = useState<FaceConfig | null>(null)
   const faceRef = useRef<FaceConfig | null>(null)
@@ -218,8 +224,11 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const tailUntil = useRef(0)
   /** Live: the cap on one turn (LIMITS.turnSeconds) — then Soniox is asked to end it. */
   const capTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  /** How often live listening was opened again after it broke (LIVE_REOPENS at most). */
+  /** How often live listening was opened again after it broke (LIVE_REOPENS at most), when it last opened, and the try
+   *  waiting to run (one at a time). */
   const liveReopens = useRef(0)
+  const liveOpenedAt = useRef(0)
+  const reopenTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   /**
    * WHICH TURN THE PAGE IS ON (2026-10-26 review round 2, codex): everything a turn schedules — its lines, its decoded
    * parts, its close — checks this first, so a talked-over turn's late callbacks can never touch the next one.
@@ -324,23 +333,52 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       mark(from === 'talk-over' ? 'listening (live, talked over)' : 'listening (live)')
       return
     }
+    // ⛔ SONIOX ONLY (owner, 2026-10-27: "make sure parakeet is not used anywhere else only soniox"): no live socket yet
+    // (opening, or opening again after a break) — nothing is recorded; the screen says it is connecting, and listening
+    // goes live the moment the socket opens (openLive).
     liveUtterance.current = false
-    rec.listen({ endMs: patience(), barge: false })
-    mark('listening')
-  }, [clearCap, go, patience, rec])
+    rec.unlisten()
+    mark('listening: waiting for live listening')
+  }, [clearCap, go, rec])
 
-  /** Open live listening (live-stt.ts) for this session; open while the detector listens, this listening goes live. */
+  /** Open live listening (live-stt.ts) for this session; once open, listening goes live. */
   const openLive = (sessionId: string) => {
     void openLiveStt(sessionId, {
       utterance: (t, ms) => handlers.current.utterance(t, ms),
       failed: () => handlers.current.liveFailed(),
       activity: (speaking) => handlers.current.activity(speaking),
     }).then((l) => {
-      if (ended.current || startRef.current?.id !== sessionId) { l?.close(); return }
+      // Another session's, a session over, or a socket already open: this one is not needed.
+      if (ended.current || startRef.current?.id !== sessionId || liveStt.current) { if (l && l !== 'refused') l.close(); return }
+      // Refused (the session is over, the switch is off, consent withdrawn, no keys left): final — the screen says so.
+      if (l === 'refused') { setHearing('gone'); mark('live listening: refused'); return }
+      // No socket (Soniox down, the network): a few more tries (retryLive).
+      if (!l) { retryLive(sessionId); return }
       liveStt.current = l
-      if (l && liveReopens.current > 0) mark('live listening: open again')
-      if (l && phaseRef.current === 'listening' && !liveUtterance.current && !mutedRef.current) listen()
+      setHearing('on')
+      if (liveReopens.current > 0) mark('live listening: open again')
+      liveOpenedAt.current = Date.now()
+      if (phaseRef.current === 'listening' && !liveUtterance.current && !mutedRef.current) listen()
+    }, () => {
+      // An open that threw (an API this browser lacks, a bug): one more failed try — never a screen stuck connecting.
+      if (!ended.current && startRef.current?.id === sessionId && !liveStt.current) retryLive(sessionId)
     })
+  }
+  /**
+   * Open live listening again after a failure: LIVE_REOPENS tries, one at a time — then the screen says it cannot hear
+   * (Soniox is the only ear, owner 2026-10-27; the learner ends the session). Never a loop: each try spends one of the
+   * server's few keys an hour (review, codex + opus).
+   */
+  const retryLive = (sessionId: string) => {
+    if (ended.current || reopenTimer.current) return
+    if (liveReopens.current >= LIVE_REOPENS) { setHearing('gone'); mark('live listening: given up'); return }
+    const wait = LIVE_REOPEN_MS * 2 ** liveReopens.current
+    liveReopens.current += 1
+    setHearing('off')
+    reopenTimer.current = setTimeout(() => {
+      reopenTimer.current = null
+      if (!ended.current && !liveStt.current && startRef.current?.id === sessionId) openLive(sessionId)
+    }, wait)
   }
 
   const stopSpeaking = useCallback(() => {
@@ -422,6 +460,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const releaseAll = useCallback(() => {
     turnAbort.current?.abort()
     turnAbort.current = null
+    if (reopenTimer.current) { clearTimeout(reopenTimer.current); reopenTimer.current = null }
     liveStt.current?.close()
     liveStt.current = null
     liveUtterance.current = false
@@ -488,6 +527,19 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   }, [go, onClose, releaseAll, router, start])
 
   const close = () => { ended.current = true; releaseAll(); onClose() }
+
+  // ⛔ Nothing can hear the learner for the rest of this session (refused, or the tries ran out — Soniox is the only ear):
+  // the face is let go at once (Spatius bills its connected time) and the session ends after GONE_END_MS, time to read why
+  // (review, opus: it ran to its deadline with the face connected).
+  const endRef = useRef(end)
+  endRef.current = end
+  useEffect(() => {
+    if (hearing !== 'gone' || ended.current) return
+    dropFace()
+    // ('learner': the page ends it for them — the column's CHECK has no 'unheard', and nothing shows the reason.)
+    const t = setTimeout(() => void endRef.current('learner'), GONE_END_MS)
+    return () => clearTimeout(t)
+  }, [dropFace, hearing])
 
   /** A turn's answer: the reply's words at once, then its voice part by part (or a plain JSON answer, whole). */
   const readAnswer = async (res: Response, onLine: (l: TurnLine) => void) => {
@@ -697,6 +749,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     const p = phaseRef.current
     if (ended.current || mutedRef.current) return
     if (p === 'speaking') {
+      // Nothing could hear the learner now (no live socket): the avatar talks on — a talk-over would cut it off for
+      // nothing (review, opus).
+      if (!liveStt.current || !ctxRef.current) return
       // Talked over: the avatar stops at once, the rest of its reply is dropped, the learner's turn is recording — and the
       // talked-over turn's late callbacks are disarmed.
       mark('talked over the avatar')
@@ -709,12 +764,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       // LIVE: the learner's turn streams from here — the detector's held pre-roll first (the recorder hands it over right
       // after this) — and Soniox ends it. (The face's "done" for the interrupted reply may have opened a plain listening
       // inside stopSpeaking: this one replaces it.)
-      if (liveStt.current && ctxRef.current) { listen('talk-over'); return }
-    } else if (p !== 'listening' || liveUtterance.current) return
-    // The detector's own utterance (no live socket): a clip, the old way.
-    beginTrace('learner speaking')
-    lastVoiceAt.current = 0
-    go('hearing')
+      listen('talk-over')
+    }
+    // (The detector listens only while the avatar talks — for a talk-over. The learner's words are Soniox's alone.)
   }
   /** The learner's speech so far, to Soniox (live listening) — ~100 ms at a time. */
   const flushLive = () => {
@@ -740,16 +792,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     pending16k.current.push(pcm)
     if (pending16k.current.reduce((n, a) => n + a.length, 0) >= LIVE_CHUNK) flushLive()
   }
-  // The detector's end of an utterance — only without a live socket (live, Soniox ends it).
-  handlers.current.speechEnd = () => {
-    if (ended.current || phaseRef.current !== 'hearing' || liveUtterance.current) return
-    mark('learner stopped')
-    void sendTurn({ wav: rec.take() })
-  }
-  handlers.current.autoStop = (wav) => {
-    if (ended.current || phaseRef.current !== 'hearing' || liveUtterance.current) return
-    void sendTurn({ wav })
-  }
+  // The detector's end of an utterance ends nothing: Soniox ends the turn (and there is no clip path — Soniox only).
+  handlers.current.speechEnd = () => {}
+  handlers.current.autoStop = () => {}
   /** Soniox hears the learner (words in progress) — or took back what it thought it heard: the screen says which. */
   handlers.current.activity = (speaking) => {
     if (ended.current || mutedRef.current || !liveUtterance.current) return
@@ -783,14 +828,13 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     awaitingWords.current = setTimeout(() => {
       awaitingWords.current = null
       if (ended.current || phaseRef.current !== 'hearing') return
-      mark('live listening: no words in time — sending the clip')
-      // The utterance is the clip's now: whatever Soniox still says about it is dropped (review, codex: late words
-      // became the NEXT turn).
+      mark('live listening: no words in time — listening again')
+      // Whatever Soniox still says about this utterance is dropped (review, codex: late words became the NEXT turn); there
+      // is no clip to send instead (Soniox only).
       liveStt.current?.cancel()
-      to16k.current = null
-      const clip = pendingClip.current ?? rec.take()
       pendingClip.current = null
-      void sendTurn({ wav: clip })
+      setNotice('speech_unavailable')
+      listen()
     }, LIVE_WORDS_MS)
   }
   /** Soniox finished an utterance: its words are the turn (with the clip only for a drill — Azure scores it). */
@@ -825,20 +869,21 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     liveStt.current = null
     to16k.current = null
     clearCap()
-    mark('live listening: off — back to clips')
+    mark('live listening: off')
     const wasLive = liveUtterance.current
     liveUtterance.current = false
     if (awaitingWords.current) { clearTimeout(awaitingWords.current); awaitingWords.current = null }
-    // ⛔ One broken socket is not the rest of the session (review, opus): it is opened again, a few times at most.
+    // ⛔ One broken socket is not the rest of the session (review, opus): it is opened again. A socket that stayed up a
+    // minute earns its quick tries back; one that keeps dropping does not (each reopen spends one of the server's few keys
+    // an hour — stt-grant.ts STT_KEYS_PER_SESSION).
+    if (liveOpenedAt.current && Date.now() - liveOpenedAt.current >= 60_000) { liveReopens.current = 0; liveOpenedAt.current = 0 }
     const s = startRef.current
-    if (s && !ended.current && liveReopens.current < LIVE_REOPENS) {
-      liveReopens.current += 1
-      setTimeout(() => { if (!ended.current && !liveStt.current && startRef.current?.id === s.id) openLive(s.id) }, LIVE_REOPEN_MS)
-    }
+    if (s) retryLive(s.id)
     if (ended.current || !wasLive) return
-    // The learner was speaking: what was recorded is the turn, the old way; listening: the detector listens from here.
-    if (phaseRef.current === 'hearing') { void sendTurn({ wav: pendingClip.current ?? rec.take() }); pendingClip.current = null }
-    else if (phaseRef.current === 'listening') listen()
+    // The learner was speaking: those words are lost — say so; either way the screen waits for the socket (openLive).
+    pendingClip.current = null
+    if (phaseRef.current === 'hearing') setNotice('speech_unavailable')
+    if (phaseRef.current === 'hearing' || phaseRef.current === 'listening') listen()
   }
 
   // ── the clock: the server's deadline is the truth; the page ends the session when it runs out ──
@@ -1010,8 +1055,10 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     setAvatarLine(s.opening.text)
     setStart(s)
     lastExpect.current = s.opening.expect ?? null
-    // Live listening opens alongside (a key from the server, then Soniox's socket); until it is open, turns go as clips.
+    // Live listening opens alongside (a key from the server, then Soniox's socket); until then the screen says connecting.
     liveReopens.current = 0
+    liveOpenedAt.current = 0
+    setHearing('off')
     openLive(s.id)
     const audio = s.opening.audio ? decodeLine(ctx, s.opening.audio).catch(() => null) : Promise.resolve(null)
     // The face drawn for this screen speaks only for its own session: the server's mode, the same avatar.
@@ -1064,7 +1111,10 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const name = start?.avatar.name ?? preview.name
   // The room the teacher set behind the avatar (backgrounds.ts): the intro shows the preview's, the session its own.
   const room = backgroundImage(start?.avatar.background ?? preview.background ?? DEFAULT_BACKGROUND)
-  const status = muted ? tr('Muted', 'Đã tắt micro')
+  // ⛔ 'gone' first, whatever the phase or the mute (review, codex + opus): the session is about to end — say why.
+  const status = hearing === 'gone' && phase !== 'ending' ? tr("Can't hear you right now — the practice will end", 'Hiện không nghe được — buổi luyện tập sẽ kết thúc')
+    : muted ? tr('Muted', 'Đã tắt micro')
+    : phase === 'listening' && hearing === 'off' ? tr('Connecting…', 'Đang kết nối…')
     : phase === 'listening' ? tr('Listening — just talk', 'Đang nghe — cứ nói nhé')
       : phase === 'hearing' ? tr('Listening…', 'Đang nghe…')
         : phase === 'thinking' ? tr('{name} is thinking…', '{name} đang nghĩ…').replace('{name}', name)

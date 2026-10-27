@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { MAX_SPOKEN_CHARS, TTS_STALL_MS, localSpeechConfig, spokenPart, synthesize, synthesizeStream, transcribe } from './speech-local'
+import { MAX_SPOKEN_CHARS, TTS_STALL_MS, localSpeechConfig, spokenPart, synthesize, synthesizeStream } from './speech-local'
 import { NATURAL_VOICE, voiceStyle } from './pace'
 import { SpeechError } from './azure-speech'
 
@@ -54,46 +54,6 @@ describe('localSpeechConfig', () => {
     // canonical forms of a loopback address are loopback
     vi.stubEnv('CLASSROOM_SPEECH_URL', 'http://0x7f.0.0.1:8090')
     expect(localSpeechConfig()).toMatchObject({ url: 'http://127.0.0.1:8090' })
-  })
-})
-
-describe('transcribe', () => {
-  it('posts the WAV with the key; the words come back as heard', async () => {
-    const f = fake(json({ text: ' I go to school yesterday. ', status: 'ok', seconds: 2.1, ms: 400 }))
-    expect(await transcribe(CFG, WAV, f.impl)).toEqual({ text: 'I go to school yesterday.', status: 'ok' })
-    expect(f.calls[0].url).toBe('http://eno-classroom-speech:8090/stt')
-    expect(header(f.calls[0], 'x-speech-key')).toBe(CFG.key)
-    expect(header(f.calls[0], 'content-type')).toBe('audio/wav')
-    expect(f.calls[0].init.signal).toBeInstanceOf(AbortSignal)
-    expect(f.calls[0].init.redirect).toBe('error') // the checked address only — a redirect may not carry the audio away
-  })
-  it('silence, or an empty "ok", is silence', async () => {
-    expect(await transcribe(CFG, WAV, fake(json({ text: '', status: 'silence' })).impl)).toEqual({ text: '', status: 'silence' })
-    expect(await transcribe(CFG, WAV, fake(json({ text: '  ', status: 'ok' })).impl)).toEqual({ text: '', status: 'silence' })
-  })
-  it('a retry never outlives the stage’s budget: a 503 that came late is final', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    try {
-      const f = fake(json({ error: 'busy' }, 503), json({ text: 'late', status: 'ok' }))
-      const slow = vi.fn(async (u: string | URL | Request, i?: RequestInit) => { vi.setSystemTime(Date.now() + 10_000); return f.impl(u, i) }) as unknown as typeof fetch
-      await expect(transcribe(CFG, WAV, slow)).rejects.toMatchObject({ status: 503, stage: 'stt' })
-      expect(f.calls).toHaveLength(1)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-  it('busy once → one short wait and one retry; busy twice → a 503 SpeechError', async () => {
-    const f = fake(json({ error: 'busy' }, 503), json({ text: 'Hello', status: 'ok' }))
-    expect(await transcribe(CFG, WAV, f.impl)).toEqual({ text: 'Hello', status: 'ok' })
-    expect(f.calls).toHaveLength(2)
-    await expect(transcribe(CFG, WAV, fake(json({}, 503), json({}, 503)).impl)).rejects.toMatchObject({ status: 503, stage: 'stt' })
-  })
-  it('unreachable, refused or malformed → a SpeechError, never the raw error', async () => {
-    await expect(transcribe(CFG, WAV, fake(new TypeError('fetch failed')).impl)).rejects.toBeInstanceOf(SpeechError)
-    await expect(transcribe(CFG, WAV, fake(json({ error: 'unauthorised' }, 401)).impl)).rejects.toMatchObject({ status: 401, stage: 'stt' })
-    await expect(transcribe(CFG, WAV, fake(new Response('not json')).impl)).rejects.toMatchObject({ status: 502, stage: 'stt' })
-    await expect(transcribe(CFG, WAV, fake(json({ text: 5, status: 'ok' })).impl)).rejects.toMatchObject({ status: 502 })
-    await expect(transcribe(CFG, WAV, fake(json({ text: 'x', status: 'maybe' })).impl)).rejects.toMatchObject({ status: 502 })
   })
 })
 

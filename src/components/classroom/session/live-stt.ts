@@ -19,11 +19,11 @@ import { mark } from './trace'
  *
  * One socket for the session, opened with a single-use key the server mints after the same checks as a turn
  * (api/classroom/sessions/<id>/stt-token), re-checked every minute while it is open (a withdrawal, the switch). Any
- * failure → `failed()`, and the page listens the old way for the rest of the session (the clip, sent whole to eno's own
- * speech server). ⛔ Nothing is stored; the words are never logged.
+ * failure → `failed()`, and the page opens it again (session-screen.tsx retryLive) — there is no other way to hear the
+ * learner (Soniox only, owner 2026-10-27). ⛔ Nothing is stored; the words are never logged.
  *
  * ⛔ EVERY WORD BELONGS TO ITS OWN UTTERANCE (2026-10-26 review, codex): an utterance the page gave up on (muted, or sent as
- * a clip when its words were late) still gets its words and its end marker from Soniox, later. Words are matched to the
+ * dropped when its words were late) still gets its words and its end marker from Soniox, later. Words are matched to the
  * current utterance by their place on the stream's audio clock (only audio from inside utterances is sent, so the clock
  * is the sum of what was sent), and an abandoned utterance's own end marker is consumed without ending the current one.
  */
@@ -52,25 +52,47 @@ const END = '<end>'
 const FIN = '<fin>'
 /** Soniox ends a socket that hears nothing for 20 s: a keepalive goes whenever no audio has gone for this long. */
 const KEEPALIVE_MS = 8_000
-/** Audio is going out but Soniox has said nothing for this long: the socket is stuck — the page goes back to clips. */
+/** Audio is going out but Soniox has said nothing for this long: the socket is stuck — the page opens another. */
 const STALL_MS = 6_000
+/** The longest the key request may take before this try counts as failed. */
+const KEY_WAIT_MS = 10_000
+/** The key route's refusals that no retry can change (stt-grant.ts) — every other failure may pass. */
+const FINAL_REFUSALS: ReadonlySet<string> = new Set(['session_over', 'session_not_found', 'classroom_closed', 'consent_required', 'seat_inactive', 'stt_keys_spent'])
 /** While the socket is open, the server re-checks the session this often (a withdrawal or the switch closes it). */
 const RECHECK_MS = 60_000
 
 export async function openLiveStt(sessionId: string, on: {
   /** One utterance's words, as Soniox finalized them, and its length in ms (from its first word to its last). */
   utterance: (text: string, speechMs: number) => void
-  /** The socket could not open, broke, or the session may no longer be heard: the page goes back to sending clips. */
+  /** The socket broke, or the session may no longer be heard: the page waits, and opens it again (Soniox only). */
   failed: () => void
   /**
    * Soniox's latest answer in this utterance holds words (final or still in progress) — the learner is speaking — or none
    * (a noise it took back). Called on every answer; the page shows "Hearing you" from it.
    */
   activity?: (speaking: boolean) => void
-}): Promise<LiveStt | null> {
-  const r = await fetch(`/api/classroom/sessions/${sessionId}/stt-token`, { method: 'POST' }).catch(() => null)
-  if (!r?.ok) { mark('live listening: no key', String(r?.status ?? 'network')); return null }
-  const grant = (await r.json().catch(() => null)) as Grant | null
+}): Promise<LiveStt | 'refused' | null> {
+  // Only the server's own FINAL refusals end the tries (FINAL_REFUSALS: the session is over, the switch is off, consent
+  // withdrawn, no keys left); anything else — Soniox down, the network, a passing 401 or rate limit, a proxy's 403/404
+  // during a deploy (review, codex + opus) — may pass: the page tries again a few times.
+  // ⛔ Bounded (review, codex): a request stuck on a dead network would hold off every retry and the screen's end. An
+  // AbortController and a timer — AbortSignal.timeout() is missing before iOS 16 (review, codex + opus).
+  // The timer covers the body too (review, codex): headers that arrive and a body that never does is the same dead network.
+  const abort = new AbortController()
+  const giveUp = setTimeout(() => abort.abort(), KEY_WAIT_MS)
+  let grant: Grant | null
+  try {
+    const r = await fetch(`/api/classroom/sessions/${sessionId}/stt-token`, { method: 'POST', signal: abort.signal }).catch(() => null)
+    if (!r?.ok) {
+      mark('live listening: no key', String(r?.status ?? 'network'))
+      if (!r || r.status < 400 || r.status >= 500) return null
+      const code = ((await r.json().catch(() => null)) as { error?: unknown } | null)?.error
+      return typeof code === 'string' && FINAL_REFUSALS.has(code) ? 'refused' : null
+    }
+    grant = (await r.json().catch(() => null)) as Grant | null
+  } finally {
+    clearTimeout(giveUp)
+  }
   if (!grant?.apiKey || !grant.url) return null
   let ws: WebSocket
   try {

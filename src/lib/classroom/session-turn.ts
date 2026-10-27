@@ -7,7 +7,6 @@ import { getGeminiVertex } from '@/lib/gemini'
 import { LIMITS, STRICTNESS, type Strictness } from './constants'
 import { parseWav } from './wav'
 import { assess, speechConfig, type PronResult } from './azure-speech'
-import { localSpeechConfig, transcribe, type Heard } from './speech-local'
 import { tutorTurnStream } from './tutor-ai'
 import { openAiConfig } from './llm-openai'
 import { parseFocus } from './plans'
@@ -17,7 +16,7 @@ import { replayTurn, streamTurn, type Answer, type SavedReply, type TurnStream }
 import { classroomOpenFor } from './config'
 import { alertSafetyTeam, safetyReply } from './safety'
 import { quietError } from './quiet-error'
-import { PRACTICE_NOTICE_VERSION, TEACHER_VIEW_NOTICE_VERSION } from './notices'
+import { TEACHER_VIEW_NOTICE_VERSION, practiceConsentCurrent } from './notices'
 import type { AgeBand } from './limits'
 import { clampPace, defaultPace, paceOptions, stepPace, voiceStyle, type VoicePace } from './pace'
 import { parseTraits } from './persona'
@@ -81,12 +80,15 @@ async function sessionOfCaller(sessionId: string, accountId: string, now: Date) 
  */
 export async function processTurn(sessionId: string, accountId: string, clientTurnId: string, wav: Buffer | null, now = new Date(), live?: LiveHeard): Promise<TurnResult> {
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(clientTurnId)) throw new ApiError('bad_request', 400)
-  // The clip, when one came (the old way, or a repeat-after-me sentence Azure will score); else the words alone.
-  const info = wav ? parseWav(wav) : live ? { ms: Math.max(0, Math.min(LIMITS.turnSeconds * 1000, Math.round(live.ms))), peak: 32_767 } : null
+  // ⛔ SONIOX ONLY (owner, 2026-10-27: "make sure parakeet is not used anywhere else only soniox"): a turn is the words
+  // Soniox wrote down live; a clip comes only BESIDE them — a repeat-after-me sentence Azure scores. A clip alone (the old
+  // way, to eno's own speech server) is refused.
+  if (!live) throw new ApiError('speech_unavailable', 503)
+  const info = wav ? parseWav(wav) : { ms: Math.max(0, Math.min(LIMITS.turnSeconds * 1000, Math.round(live.ms))), peak: 32_767 }
   if (!info || info.ms > (LIMITS.turnSeconds + 1) * 1000) throw new ApiError('audio_invalid', 400)
   const session = await sessionOfCaller(sessionId, accountId, now)
-  // Heard live, the words decide (a drill's clip may be quiet while Soniox heard words — review, opus); else the clip.
-  if (live ? !live.text.trim() : wav && (info.ms < MIN_TURN_MS || info.peak < SILENCE_PEAK)) return { kind: 'silence' }
+  // The words decide (a drill's clip may be quiet while Soniox heard words — review, opus).
+  if (!live.text.trim()) return { kind: 'silence' }
 
   // ── Reserve the turn: the count, the duplicate and the seq, under the SESSION's lock, in a short transaction —
   // the slow calls run after it commits (codex, plan round 2: parallel distinct turns must never pass the cap).
@@ -107,7 +109,7 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     // the first check stops this turn before any audio leaves.
     if (now2.enrollment && (now2.enrollment.status !== 'active' || now2.enrollment.learnerId !== now2.learnerId || now2.learner?.withdrawnAt)) throw new ApiError('seat_inactive', 409)
     // The notices as they are NOW (2a round 4, codex): a session started under a version since replaced asks again first.
-    if (now2.learner && (now2.learner.practiceConsentVersion !== PRACTICE_NOTICE_VERSION || now2.learner.teacherViewConsentVersion !== TEACHER_VIEW_NOTICE_VERSION)) {
+    if (now2.learner && (!practiceConsentCurrent(now2.learner.practiceConsentVersion) || now2.learner.teacherViewConsentVersion !== TEACHER_VIEW_NOTICE_VERSION)) {
       throw new ApiError('consent_required', 409)
     }
     // A duplicate (a retried upload) only after the re-checks above — a retry is refused like a new turn would be (2a
@@ -156,24 +158,9 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     throw refusal
   }
 
-  // ⛔ LIVE: THE WORDS SONIOX WROTE DOWN WHILE THE LEARNER SPOKE (soniox.ts; the page streamed it) — no transcription here.
+  // ⛔ THE WORDS SONIOX WROTE DOWN WHILE THE LEARNER SPOKE (soniox.ts; the page streamed it) — no transcription here.
   // They are the learner's own words from the learner's own page, trusted like anything the learner says.
-  let heard: Heard
-  if (live) {
-    heard = { text: live.text.trim().slice(0, LIVE_TEXT_MAX), status: 'ok' }
-  } else {
-    const speech = localSpeechConfig()
-    if (!speech || !wav) return fail(new ApiError('speech_unavailable', 503))
-    try {
-      heard = await transcribe(speech, wav)
-    } catch (e) {
-      return fail(new ApiError('speech_unavailable', 503), e)
-    }
-  }
-  if (heard.status === 'silence') {
-    await db.classroomTurn.update({ where: { id: turn.id }, data: { status: 'failed', updatedAt: new Date() } }).catch((e) => logError(quietError(e), { op: 'classroom.turn.unreserve' }))
-    return { kind: 'silence' }
-  }
+  const heard = { text: live.text.trim().slice(0, LIVE_TEXT_MAX) }
 
   const before = await db.classroomTurn.findMany({ where: { sessionId, seq: { lt: turn.seq }, status: 'ok' }, orderBy: { seq: 'asc' }, select: { learnerText: true, replyText: true, expectText: true, flag: true } })
   // ⛔ A FLAGGED EXCHANGE LEAVES THE TUTOR'S MEMORY (2a review, codex): the safety reply was given once; a later reply

@@ -50,10 +50,19 @@ describe('sttSettingsFor', () => {
     const bands = ['adult', 'teen', 'child', 'child-young'] as const
     const s = bands.map(sttSettingsFor)
     for (let i = 1; i < s.length; i++) expect(s[i].max_endpoint_delay_ms).toBeGreaterThanOrEqual(s[i - 1].max_endpoint_delay_ms)
+    for (let i = 1; i < s.length; i++) expect(s[i].endpoint_sensitivity).toBeLessThanOrEqual(s[i - 1].endpoint_sensitivity)
     for (const x of s) {
       if (x.endpoint_latency_adjustment_level > 0) expect(x.endpoint_sensitivity).toBeGreaterThanOrEqual(0)
       expect(x.max_endpoint_delay_ms).toBeGreaterThanOrEqual(500)
       expect(x.max_endpoint_delay_ms).toBeLessThanOrEqual(3000)
+      expect(x.endpoint_sensitivity).toBeGreaterThanOrEqual(-1)
+    }
+  })
+  it('⛔ a learner\'s pause is respected (owner, 2026-10-27): no band takes the voice-agent preset (0.3 / level 2 / 1500 ms)', () => {
+    for (const band of ['adult', 'teen', 'child', 'child-young'] as const) {
+      expect(sttSettingsFor(band).endpoint_latency_adjustment_level).toBe(0)
+      expect(sttSettingsFor(band).max_endpoint_delay_ms).toBeGreaterThanOrEqual(2500)
+      expect(sttSettingsFor(band).endpoint_sensitivity).toBeLessThanOrEqual(-0.6)
     }
   })
 })

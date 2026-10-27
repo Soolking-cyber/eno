@@ -80,16 +80,25 @@ export async function mintSttKey(cfg: SonioxConfig, opts: { expiresInSeconds: nu
  * When a turn ends, by age (the page sends these in the stream's first message). ⛔ SONIOX ALONE DECIDES (owner,
  * 2026-10-27: "let the stt decide itself"): it ends an utterance on its MEANING as well as its pauses, never later than
  * max_endpoint_delay_ms after the speech stops, and the page sends the turn on its `<end>` — no silence timer of ours
- * competes. Adults take Soniox's own starting point for voice agents (level 2, sensitivity 0.3, 1500 ms —
- * soniox.com/docs/stt/rt/endpoint-detection); the young pause longest to find a word, so they get the most patience.
+ * competes.
+ * ⛔ A LEARNER PAUSES TO THINK (owner, 2026-10-27: "it answers too fast without listening to what i say my pauses are not
+ * respected"). Soniox's voice-agent preset (sensitivity 0.3, level 2, 1500 ms) ended a turn 0.3 s into a pause after a
+ * complete-sounding clause. Its own advice for "users who pause often mid-sentence" is a negative sensitivity at level 0,
+ * measured 2026-10-27 (two spoken parts with a pause between, room noise at -55…-47 dBFS — digital silence ends a turn
+ * at once and misleads). At -0.6 / level 0 a pause after a complete clause held ~1.5–1.9 s (the preset: 0.3 s), one after
+ * an unfinished clause ("…my city is") held 2.5 s, and a clearly finished turn still ended 0.7–1.3 s after the voice
+ * stopped. The cap decides only an UNSURE ending (a learner's trailing "…we buy some fish"): it ends ~1.1 s after the
+ * cap — 2.6 s at 1500, 3.4 s at 2500, 4.0 s at 3000 — so adults take 2500. Lower than -0.6 bought no more patience after
+ * a complete clause and a slower, more scattered end (up to 2.3 s); the young still get it, as they pause longest to find
+ * a word.
  * ⛔ A negative sensitivity only with level 0 (Soniox: the two fight).
  */
 export type SttSettings = { endpoint_sensitivity: number; endpoint_latency_adjustment_level: number; max_endpoint_delay_ms: number }
 export function sttSettingsFor(band: AgeBand): SttSettings {
   switch (band) {
-    case 'adult': return { endpoint_sensitivity: 0.3, endpoint_latency_adjustment_level: 2, max_endpoint_delay_ms: 1500 }
-    case 'teen': return { endpoint_sensitivity: 0.2, endpoint_latency_adjustment_level: 2, max_endpoint_delay_ms: 1500 }
-    case 'child': return { endpoint_sensitivity: 0, endpoint_latency_adjustment_level: 1, max_endpoint_delay_ms: 2000 }
-    case 'child-young': return { endpoint_sensitivity: -0.2, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 2500 }
+    case 'adult': return { endpoint_sensitivity: -0.6, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 2500 }
+    case 'teen': return { endpoint_sensitivity: -0.6, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 2500 }
+    case 'child': return { endpoint_sensitivity: -0.8, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 3000 }
+    case 'child-young': return { endpoint_sensitivity: -1, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 3000 }
   }
 }

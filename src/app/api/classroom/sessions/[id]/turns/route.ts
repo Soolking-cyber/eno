@@ -13,8 +13,8 @@ export const maxDuration = 40
 /**
  * POST /api/classroom/sessions/<id>/turns — one learner turn, the client's idempotency key in `x-turn-id`. Heard LIVE
  * (the page streamed the speech to Soniox — live-stt.ts): the words in `x-transcript` (base64url UTF-8) and `x-speech-ms`,
- * with the WAV as the body only for a repeat-after-me sentence (Azure scores it). Otherwise the body is the WAV itself
- * (16 kHz mono PCM16, ≤ 45 s — wav.ts), transcribed by eno's own speech server. A refusal decided before the transcript is the usual `{ error }`
+ * with the WAV as the body only for a repeat-after-me sentence (Azure scores it). ⛔ A WAV alone is refused (503
+ * speech_unavailable): the words are Soniox's only (owner, 2026-10-27). A refusal decided before the words is the usual `{ error }`
  * with its status. Otherwise a 200 of JSON LINES (application/x-ndjson), each written as soon as it exists, so the avatar
  * starts talking about a second after the learner stops (owner, 2026-10-26: "delayless"):
  *   {"kind":"silence"}                                            and nothing more; or
@@ -34,7 +34,7 @@ export const maxDuration = 40
  */
 export const POST = route({ auth: 'profile', rateLimit: { bucket: 'classroom-turn', limit: 240, window: '1 h' } }, async ({ req, profile, params }) => {
   const live = liveHeard(req.headers)
-  // The clip comes only with the old way, or with a repeat-after-me sentence (Azure scores it); live words come alone.
+  // The clip comes only beside the words, for a repeat-after-me sentence (Azure scores it); a clip alone is refused.
   const wav = (req.headers.get('content-type') ?? '').startsWith('audio/') ? await readBytesCapped(req, LIMITS.turnBytes) : null
   const result = await processTurn(params.id, profile.id, req.headers.get('x-turn-id') ?? '', wav, new Date(), live ?? undefined)
   return new Response(answerLines(result), {

@@ -26,13 +26,19 @@ class FakeSocket {
 }
 
 const grant = { apiKey: 'temp_key_123', url: 'wss://stt-rt.soniox.com/transcribe-websocket', model: 'stt-rt-v5', settings: { endpoint_sensitivity: 0.3, endpoint_latency_adjustment_level: 2, max_endpoint_delay_ms: 1200 }, languageHints: ['en'] }
-const open = async (ok = true) => {
+const raw = async (status = 200, body: object = {}) => {
   vi.stubGlobal('WebSocket', FakeSocket)
-  vi.stubGlobal('fetch', vi.fn(async () => (ok ? new Response(JSON.stringify(grant), { status: 200 }) : new Response('{}', { status: 503 }))))
+  const fetched = vi.fn(async () => (status === 200 ? new Response(JSON.stringify(grant), { status }) : new Response(JSON.stringify(body), { status })))
+  vi.stubGlobal('fetch', fetched)
   const got = { utterances: [] as [string, number][], failed: 0, activity: [] as boolean[] }
   const l = await openLiveStt('s1', {
     utterance: (t, ms) => got.utterances.push([t, ms]), failed: () => { got.failed += 1 }, activity: (sp) => { got.activity.push(sp) },
   })
+  return { l, got, fetched }
+}
+const open = async (ok = true) => {
+  const { l, got } = await raw(ok ? 200 : 503)
+  if (l === 'refused') throw new Error('unexpected: refused')
   return { l, got, ws: FakeSocket.last! }
 }
 afterEach(() => { vi.unstubAllGlobals(); FakeSocket.last = null })
@@ -49,9 +55,17 @@ describe('openLiveStt', () => {
     })
     expect(l!.maxDelayMs).toBe(1200)
   })
-  it('no key (refused, or no Soniox): null — the page keeps sending clips', async () => {
+  it('no key (Soniox down, 5xx): null — the page may try again; any refusal (4xx: keys spent, session over…): \'refused\'', async () => {
     const { l } = await open(false)
     expect(l).toBeNull()
+    expect((await raw(429)).l).toBeNull() // a passing rate limit: try again
+    expect((await raw(408)).l).toBeNull()
+    expect((await raw(401)).l).toBeNull() // a session cookie being refreshed
+    expect((await raw(403)).l).toBeNull() // a proxy's page during a deploy: no code of ours
+    expect((await raw(429, { error: 'stt_keys_spent' })).l).toBe('refused') // the session's keys: final
+    expect((await raw(409, { error: 'session_over' })).l).toBe('refused')
+    expect((await raw(403, { error: 'classroom_closed' })).l).toBe('refused')
+    expect((await raw(409, { error: 'consent_required' })).l).toBe('refused')
   })
   it('audio only from begin() to pause(); the final words up to <end> are one utterance, with its length', async () => {
     const { l, got, ws } = await open()

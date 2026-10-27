@@ -5,11 +5,11 @@ import { SpeechError } from './azure-speech'
 import { quietError } from './quiet-error'
 
 /**
- * ENO'S OWN SPEECH SERVER — the classroom's ears and voice since 2026-10-26 (owner: "we need to make it dirt cheap to
- * scale and use"): NVIDIA Parakeet speech-to-text and Gradium Phonon voices, open models on the VN box's CPU, $0 a minute
- * (infra/vn-node/classroom-speech — server.py says why those models and what they measured).
+ * ENO'S OWN SPEECH SERVER — the classroom's VOICE since 2026-10-26 (owner: "we need to make it dirt cheap to scale and
+ * use"): Gradium Phonon voices, an open model on the VN box's CPU, $0 a minute (infra/vn-node/classroom-speech — server.py
+ * says why and what it measured). ⛔ Its Parakeet speech-to-text is no longer asked (owner, 2026-10-27: "make sure parakeet
+ * is not used anywhere else only soniox"): the learner's words come from Soniox alone (soniox.ts, live-stt.ts).
  *
- *   transcribe()   one learner turn (16 kHz mono WAV) → their words, as heard (grammar kept: no Whisper-style tidying)
  *   synthesize()   one reply in an allowlisted voice (voices.ts) → MP3, 24 kHz mono (~7 KB a second) — the format
  *                  Azure's TTS gave, so the page decodes it exactly as before
  *
@@ -57,14 +57,10 @@ function refused(raw: string, why: string, host: string): null {
   return null
 }
 
-export type Heard = { text: string; status: 'ok' | 'silence' }
-
 /**
- * Each stage's WHOLE budget, its retry included (codex + opus, commit review: a fresh timeout per attempt let one stage
- * run ~30 s). A 45 s turn takes ~5-8 s on the box's CPU, a 5 s one ~1 s; a reply's voice ~1-3 s. Both stages together,
- * with Gemini's own deadline, stay under the turn route's 40 s. The server stops reading a reply at 12 s by itself.
+ * The voice's WHOLE budget, its retry included (codex + opus, commit review: a fresh timeout per attempt let one stage run
+ * ~30 s). A reply's voice takes ~1-3 s; with Gemini's own deadline it stays under the turn route's 40 s.
  */
-export const STT_BUDGET_MS = 12_000
 export const TTS_BUDGET_MS = 10_000
 /** Within a streamed line, the longest wait for its next frame (the speech server makes them ~10x faster than real time). */
 export const TTS_STALL_MS = 4_000
@@ -94,15 +90,6 @@ async function call(cfg: LocalSpeechConfig, path: '/stt' | '/tts', init: { heade
     }
     throw new SpeechError(res.status, stage)
   }
-}
-
-/** Speech-to-text of one learner turn. 'silence' when nothing was said (the page asks them to try again). */
-export async function transcribe(cfg: LocalSpeechConfig, wav: Buffer, fetchImpl: typeof fetch = fetch): Promise<Heard> {
-  const { res } = await call(cfg, '/stt', { headers: { 'content-type': 'audio/wav' }, body: new Uint8Array(wav) }, STT_BUDGET_MS, 'stt', fetchImpl)
-  const body = (await res.json().catch(() => null)) as { text?: unknown; status?: unknown } | null
-  if (!body || typeof body.text !== 'string' || (body.status !== 'ok' && body.status !== 'silence')) throw new SpeechError(502, 'stt')
-  const text = body.text.trim()
-  return body.status === 'ok' && text ? { text, status: 'ok' } : { text: '', status: 'silence' }
 }
 
 /** The server refuses a line over this (server.py MAX_TEXT_CHARS). The app's lines stay well under it; a longer one is
