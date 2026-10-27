@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   AI_NOTICE_VERSION, BAND_FLOOR, CITY_PROVINCE, DRAFT_STEPS, EMPTY_TEACHER, EXPERIENCE_BANDS, TEACHER_FORM_OPTIONS, TEACHER_OPTIONS,
   TEACHER_STEP_FIELDS, aiMatchConsented, coverIsPublic, deriveRelocate, experienceBucket, fromLegacyTeacher, hasTeachingGoal,
-  isLegacyTeacherBody, isTeacherPhone, legacyDistrictKey, normalizeForSave, phoneWaived, normalizeTeacherInput, splitGoalErrors, teacherFacetTokens,
+  isLegacyTeacherBody, isTeacherPhone, legacyDistrictKey, NATIVE_ENGLISH_NATIONALITIES, nativeFacet, normalizeForSave, phoneWaived,
+  normalizeTeacherInput, splitGoalErrors, teacherFacetTokens,
   teacherCardPrice, teacherCardPriceFromSaved, teacherFreeTextFields, teacherFreeTexts, teacherSteps, teacherSubcategory,
   typedMonth, validateTeacherInput, visibleFields,
 } from './profile'
@@ -404,11 +405,25 @@ describe('derived listing facets', () => {
     expect(facetValues(tokens(PERSONAS['teacher abroad who only teaches online']), 'inVietnam')).toEqual([])
     expect(facetValues(teacherFacetTokens(normalizeTeacherInput({ ...body(), livesIn: null })), 'inVietnam')).toEqual([])
   })
-  it('sets native / non-native only once the English level is answered (Fluent and Working are non-native)', () => {
-    expect(facetValues(tokens(), 'native')).toEqual(['native'])
-    expect(facetValues(tokens({ englishLevel: 'fluent' }), 'native')).toEqual(['non-native'])
-    expect(facetValues(teacherFacetTokens(t({ englishLevel: null })), 'native')).toEqual([])
+  it('sets native / non-native by NATIONALITY (owner, 2026-10-27) — never by the English-level answer', () => {
+    expect(facetValues(tokens(), 'native')).toEqual(['native']) // GB
+    expect(facetValues(tokens({ englishLevel: 'fluent' }), 'native')).toEqual(['native'])
+    expect(facetValues(teacherFacetTokens(t({ englishLevel: null })), 'native')).toEqual(['native'])
+    expect(facetValues(tokens({ nationality: 'PH' }), 'native')).toEqual(['non-native'])
+    expect(facetValues(tokens({ nationality: 'PH', englishLevel: 'native' }), 'native')).toEqual(['non-native'])
     expect(facetValues(tokens({ subjects: ['other-language'], teachLanguages: ['Korean'] }), 'native')).toEqual([])
+  })
+  it('counts exactly the standard seven as native English countries', () => {
+    expect([...NATIVE_ENGLISH_NATIONALITIES].sort()).toEqual(['AU', 'CA', 'GB', 'IE', 'NZ', 'US', 'ZA'])
+    for (const n of ['US', 'GB', 'CA', 'AU', 'NZ', 'IE', 'ZA', 'za', 'UK']) expect(nativeFacet({ subjects: ['general-english'], nationality: n })).toBe('native')
+    for (const n of ['PH', 'IN', 'SG', 'JM', 'VN', 'NG', 'DE']) expect(nativeFacet({ subjects: ['general-english'], nationality: n })).toBe('non-native')
+    expect(nativeFacet({ subjects: ['general-english'], nationality: ' us ' })).toBe('native')
+    expect(nativeFacet({ subjects: ['general-english'], nationality: '' })).toBeNull()
+    expect(nativeFacet({ subjects: ['general-english'], nationality: '  ' })).toBeNull()
+    for (const n of ['USA', 'British', 'United States', 'U1']) expect(nativeFacet({ subjects: ['general-english'], nationality: n })).toBeNull()
+    expect(nativeFacet({ subjects: [], nationality: 'US' })).toBeNull()
+    expect(nativeFacet({ subjects: ['other-language'], nationality: 'US' })).toBeNull()
+    expect(nativeFacet({ subjects: ['other-language', 'stem'], nationality: 'US' })).toBe('native')
   })
   it('sets the experience bucket only once answered', () => {
     expect(facetValues(tokens(), 'experience')).toEqual(['5-10-years'])

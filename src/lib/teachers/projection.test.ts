@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   NOT_IN_VIETNAM, planTeacherBackfill, proposeBackfillDecision, stableStringify, teacherHome, teacherInputOfRow,
-  teacherListingProjection, teacherMirrors, teacherSearchText, withoutCoverFacets,
+  teacherListingProjection, teacherMirrors, teacherSearchText, withNativeFacet, withoutCoverFacets,
 } from './projection'
 import { COVER_CONSENT_VERSION } from './cover'
 import { HCMC_DISTRICT_KEYS, PROVINCE_PLACES } from './places'
@@ -104,6 +104,24 @@ describe('teacherSearchText — what a school types and finds', () => {
 
 // A cover save over a row the backfill has not migrated (publish.ts saveTeacherCover) changes only the cover part of what
 // the OLD code wrote — re-projected from its empty v2 answers, the listing lost its place, native and experience facets.
+describe('withNativeFacet — the nationality re-sort moves only the native token (2026-10-27)', () => {
+  const stored = '|cover:open|workIn:ho-chi-minh-city|native:non-native|experience:5-10-years|jobType:online|'
+  it('replaces, adds or drops the native token and keeps every other token in order', () => {
+    expect(withNativeFacet(stored, 'native')).toBe('|cover:open|workIn:ho-chi-minh-city|experience:5-10-years|jobType:online|native:native|')
+    expect(withNativeFacet('|workIn:d7|', 'non-native')).toBe('|workIn:d7|native:non-native|')
+    expect(withNativeFacet(stored, null)).toBe('|cover:open|workIn:ho-chi-minh-city|experience:5-10-years|jobType:online|')
+    expect(withNativeFacet(null, 'native')).toBe('|native:native|')
+    expect(withNativeFacet('|native:native|', null)).toBeNull()
+    expect(withNativeFacet(null, null)).toBeNull()
+  })
+  it('keeps a segment the parser would drop, byte for byte', () => {
+    expect(withNativeFacet('|odd-segment|workIn:d1|native:native|', 'non-native')).toBe('|odd-segment|workIn:d1|native:non-native|')
+  })
+  it('leaves exactly one native token, whatever the row held', () => {
+    expect(facetValues(withNativeFacet('|native:native|native:non-native|workIn:d1|', 'non-native'), 'native')).toEqual(['non-native'])
+  })
+})
+
 describe('withoutCoverFacets — the cover part off, everything else as written (gate review, 2026-10-09)', () => {
   const coverOn = { coverOpen: true, coverSlots: ['mon-am'], coverRateVnd: 300_000, coverConsent: true }
   it('takes exactly the cover tokens and the trailing cover words off what the old builder wrote', () => {
@@ -218,7 +236,8 @@ describe('planTeacherBackfill', () => {
     expect(facetValues(tok, 'inVietnam')).toEqual(['yes'])
     expect(facetValues(tok, 'jobType')).toEqual(['parttime', 'private', 'online'])
     expect(facetValues(tok, 'experience')).toEqual(['over-10-years'])
-    expect(facetValues(tok, 'native')).toEqual([]) // nativeSpeaker false was maybe the default: unanswered now
+    // By nationality since 2026-10-27 (CA), whatever the English level — englishLevel stays unanswered (null) above.
+    expect(facetValues(tok, 'native')).toEqual(['native'])
     expect(facetValues(tok, 'video')).toEqual(['has-video'])
     // ⛔ The '2026-10-07' grant is no consent under the bumped notice: the re-projection a version bump requires.
     expect(tok).not.toContain('|cover')

@@ -60,6 +60,16 @@ describe('the support desk in the inbox', () => {
     expect(deskBranch()).toBe(true)
   })
 
+  it('a desk thread nobody has written in yet (a tap on "Message support") stays out of the operator inbox', async () => {
+    h.claimsAdmin = true
+    h.admin = 'ops@example.test'
+    await load()
+    const desk = (h.where?.OR ?? []).filter((b) => (b as { sellerId?: unknown }).sellerId === SUPPORT_SELLER_ID)
+    expect(desk).toEqual([{ sellerId: SUPPORT_SELLER_ID, messages: { some: {} } }])
+    // The operator's own threads (buyer or seller side) are not filtered by it.
+    expect((h.where?.OR ?? []).filter((b) => 'messages' in (b as object))).toHaveLength(1)
+  })
+
   it('the auth server alone does not add the desk — a stale claim can only withhold it', async () => {
     h.admin = 'ops@example.test'
     await load()

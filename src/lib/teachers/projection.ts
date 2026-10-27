@@ -118,6 +118,18 @@ export function withoutCoverFacets(listing: { facetTokens: string | null; search
   }
 }
 
+/**
+ * A teacher listing's facet tokens with ONLY the `native:` token set to `value` (null drops it) — what the 2026-10-27
+ * nationality re-sort writes (scripts/teacher-native-backfill.ts). Every other token stays exactly as stored, in order:
+ * not a re-projection (withoutCoverFacets says why one is never safe on a row the code did not just write).
+ */
+export function withNativeFacet(facetTokens: string | null, value: 'native' | 'non-native' | null): string | null {
+  // Raw segments, not parseFacetTokens pairs: a segment the parser would drop is kept byte for byte too.
+  const kept = (facetTokens ?? '').split('|').filter((s) => s && !s.startsWith('native:'))
+  const all = value ? [...kept, `native:${value}`] : kept
+  return all.length ? `|${all.join('|')}|` : null
+}
+
 export type TeacherListingProjection = TeacherHome & {
   title: string
   description: string

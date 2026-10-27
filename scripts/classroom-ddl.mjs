@@ -118,8 +118,11 @@ function declaredIndexes(t) {
   return [...SOURCE.matchAll(new RegExp(`create (unique )?index if not exists "(\\w+)" on ${reEsc(qualified(t))}(\\([^\`]*)\``, 'g'))]
     .map(([, unique, name, rest]) => `create ${unique ?? ''}index "${name}" on pg_temp.${qualified(t).replace(/^public\./, '')}${rest}`)
 }
-// "… ON public."T" USING …" and "… ON pg_temp_3."T" USING …" are the same index.
-const sameTable = (def) => def.replace(/ ON (?:public|pg_temp_\d+)\./, ' ON ')
+// "… ON public."T" USING …" and "… ON pg_temp_3."T" USING …" are the same index — and so is "… ON pg_temp."T" …":
+// ⛔ Postgres 16+ prints the session's own temp schema as plain `pg_temp` (ruleutils' get_namespace_name_or_temp), 14 as
+// `pg_temp_<n>` — production refused the first run on that difference alone (2026-10-27, every index and the trigger
+// reported WRONG, rolled back, nothing written). Both spellings, so the check reads the same on either.
+const sameTable = (def) => def.replace(/ ON (?:public|pg_temp(?:_\d+)?)\./, ' ON ')
 const FK_SPEC = () => FKS.map(([table, col, ref]) => ({ table, col, ref, name: `${table}_${col}_fkey` }))
 
 async function rowsOf(client, sql, params) { return (await client.query(sql, params)).rows }

@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TurnLine } from './turn-stream'
+import { LIMITS } from './constants'
 
 /**
  * ⛔ THE CLASSROOM'S LOCKS, RACES AND CASCADES AGAINST A REAL POSTGRES — the advisory locks, the partial unique index, the
@@ -604,6 +605,26 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
       await end.endSession(t.id, teacherId, 'learner')
     } finally {
       vi.unstubAllEnvs()
+      await Promise.all(afterQueue.splice(0))
+    }
+  })
+
+  it('⛔ the eno team tries without the try\'s limits (owner, 2026-10-27): STAFF_TEST_MINUTES each, no daily limit', async () => {
+    const before = process.env.ADMIN_EMAILS
+    process.env.ADMIN_EMAILS = `${teacherId}@example.test`
+    try {
+      for (let n = 0; n < LIMITS.teacherTestsPerDay + 2; n++) {
+        const t = await start.startTeacherTest(teacherId)
+        expect(Date.parse(t.endsAt) - Date.now()).toBeGreaterThan((start.STAFF_TEST_MINUTES - 1) * 60_000)
+        await end.endSession(t.id, teacherId, 'learner')
+      }
+      // Back to an ordinary teacher: the day's tries were counted all along, so the next one is refused.
+      process.env.ADMIN_EMAILS = 'someone-else@example.test'
+      await expect(start.startTeacherTest(teacherId)).rejects.toMatchObject({ code: 'test_limit' })
+    } finally {
+      // An unset variable stays unset (review: assigning `undefined` stores the string "undefined").
+      if (before === undefined) delete process.env.ADMIN_EMAILS
+      else process.env.ADMIN_EMAILS = before
       await Promise.all(afterQueue.splice(0))
     }
   })
