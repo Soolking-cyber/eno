@@ -1,7 +1,7 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { VOICES } from './voices'
+import { VOICES, VOICE_SAMPLE_LINE } from './voices'
 
 /**
  * ⛔ ONE LIST IN THREE FILES (voices.ts's header): the picker's allowlist, the speech server's own allowlist, and the voices
@@ -43,6 +43,21 @@ describe('each voice names the Soniox voice that speaks it (owner, 2026-10-27: "
     const named = VOICES.map((v) => v.soniox)
     expect(named.every((n) => typeof n === 'string' && /^[A-Z][a-z]+$/.test(n))).toBe(true)
     expect(new Set(named).size).toBe(named.length)
+  })
+})
+
+describe('the wizard\'s samples are made once, as static files (owner, 2026-10-28: "loads very slow")', () => {
+  it('⛔ the samples say VOICE_SAMPLE_LINE in today\'s Soniox voices (manifest.json) — else run scripts/classroom-voice-samples.mjs', () => {
+    const m = JSON.parse(readFileSync(join(process.cwd(), 'public/classroom/voices/manifest.json'), 'utf8')) as { line: string; voices: Record<string, string> }
+    expect(m.line).toBe(VOICE_SAMPLE_LINE)
+    expect(m.voices).toEqual(Object.fromEntries(VOICES.map((v) => [v.id, v.soniox])))
+  })
+  it('every voice has its sample in public/classroom/voices — run scripts/classroom-voice-samples.mjs when one is missing', () => {
+    for (const v of VOICES) {
+      const file = join(process.cwd(), 'public/classroom/voices', `${v.id}.mp3`)
+      expect(existsSync(file), file).toBe(true)
+      expect(statSync(file).size).toBeGreaterThan(10_000)
+    }
   })
 })
 

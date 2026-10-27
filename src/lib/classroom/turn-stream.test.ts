@@ -87,6 +87,95 @@ describe('streamTurn', () => {
     expect(6000).toBeGreaterThanOrEqual(PCM_LINE_BYTES)
   })
 
+  it('⚡ a voice made elsewhere (Soniox: ahead() > 0) is asked for the NEXT sentences while one is heard — still sent in order', async () => {
+    // Each sentence's voice takes 30 ms to start; one at a time that is a hole before every sentence after the first.
+    const asked: { text: string; at: number }[] = []
+    const t0 = Date.now()
+    const slow = Object.assign(async (text: string) => {
+      asked.push({ text, at: Date.now() - t0 })
+      await new Promise((r) => setTimeout(r, 30))
+      return { rate: 24_000, chunks: (async function* () { yield new Uint8Array(10).fill(text.charCodeAt(0)) })() }
+    }, { ahead: () => 2 }) as Speaker
+    const r = REPLY({ reply: 'A one. B two. C three.' })
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'A one.' }, { kind: 'say', text: 'B two.' }, { kind: 'say', text: 'C three.' }, { kind: 'final', reply: r, model: 'm', calls: 1 }), { speak: slow })
+    const lines = await collect(t.lines)
+    expect(voiceOrder(lines).lines).toEqual(['heard', 'say:A one.', 'pcm:0', 'part-end:0', 'say:B two.', 'pcm:1', 'part-end:1', 'say:C three.', 'pcm:2', 'part-end:2', 'part-end:2:last', 'end'])
+    // all three asked for before the first was even ready: B and C were made while A was heard
+    expect(asked.map((a) => a.text)).toEqual(['A one.', 'B two.', 'C three.'])
+    expect(asked[2].at).toBeLessThan(30)
+    // the bytes of each part are its own, in order
+    const pcm = lines.filter((l) => l.kind === 'pcm') as Extract<TurnLine, { kind: 'pcm' }>[]
+    expect(pcm.map((l) => String.fromCharCode(Buffer.from(l.data, 'base64')[0]))).toEqual(['A', 'B', 'C'])
+    await t.done
+  })
+
+  it('⛔ a voice made ahead that FAILED is asked for again in its own turn (where the box may say it) — never lost', async () => {
+    const asked: { text: string; ahead: boolean }[] = []
+    const flaky = Object.assign(async (text: string, _s: AbortSignal, o?: { ahead?: boolean; box?: boolean }) => {
+      asked.push({ text, ahead: !!o?.ahead })
+      if (o?.box) expect(text).toBe('B two.') // only the failed ahead line is handed to the box
+      if (o?.ahead && text.startsWith('B')) throw Object.assign(new Error('soniox'), { status: 502 })
+      // A is still being heard when B is said: B is asked for AHEAD
+      return { rate: 24_000, chunks: (async function* () { if (text.startsWith('A')) await new Promise((r) => setTimeout(r, 20)); yield new Uint8Array(10).fill(text.charCodeAt(0)) })() }
+    }, { ahead: () => 2 }) as Speaker
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'A one.' }, { kind: 'say', text: 'B two.' }, { kind: 'final', reply: REPLY({ reply: 'A one. B two.' }), model: 'm', calls: 1 }), { speak: flaky })
+    const lines = await collect(t.lines)
+    expect(voiceOrder(lines).lines).toEqual(['heard', 'say:A one.', 'pcm:0', 'part-end:0', 'say:B two.', 'pcm:1', 'part-end:1', 'part-end:1:last', 'end'])
+    // A (the next to be sent) is asked for as itself; B ahead — and, its ahead voice failed, again in its turn for the box
+    expect(asked).toEqual([{ text: 'A one.', ahead: false }, { text: 'B two.', ahead: true }, { text: 'B two.', ahead: false }])
+    await t.done
+  })
+
+  it('the CURRENT line\'s failed voice is not asked again (its own ask already had the box behind it)', async () => {
+    const asked: string[] = []
+    const fails = Object.assign(async (text: string, _s: AbortSignal, o?: { ahead?: boolean; box?: boolean }) => {
+      asked.push(`${text}${o?.box ? '+box' : ''}`)
+      throw Object.assign(new Error('both down'), { status: 503 })
+    }, { ahead: () => 2 }) as Speaker
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Only.' }, { kind: 'final', reply: REPLY({ reply: 'Only.' }), model: 'm', calls: 1 }), { speak: fails })
+    const lines = await collect(t.lines)
+    expect(asked).toEqual(['Only.']) // once: no second ask on the box
+    expect(kinds(lines)).toContain('audio-failed')
+    await t.done
+  })
+
+  it('⛔ a line made ahead that is still SILENT when its turn comes: after turnMs the box says it, and the ahead ask is stopped', async () => {
+    const asked: string[] = []
+    const stopped: string[] = []
+    const slowAhead = Object.assign(async (text: string, signal: AbortSignal, o?: { ahead?: boolean; box?: boolean }) => {
+      asked.push(`${text}${o?.box ? '+box' : o?.ahead ? '+ahead' : ''}`)
+      if (o?.ahead) {
+        signal.addEventListener('abort', () => stopped.push(text), { once: true })
+        return new Promise<never>(() => {}) // never a first sound
+      }
+      return { rate: 24_000, chunks: (async function* () { if (text.startsWith('A')) await new Promise((r) => setTimeout(r, 10)); yield new Uint8Array(10).fill(text.charCodeAt(0)) })() }
+    }, { ahead: () => 2, turnMs: 20 }) as Speaker
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'A one.' }, { kind: 'say', text: 'B two.' }, { kind: 'final', reply: REPLY({ reply: 'A one. B two.' }), model: 'm', calls: 1 }), { speak: slowAhead })
+    const lines = await collect(t.lines)
+    expect(asked).toEqual(['A one.', 'B two.+ahead', 'B two.+box'])
+    expect(stopped).toEqual(['B two.'])
+    expect(voiceOrder(lines).lines).toEqual(['heard', 'say:A one.', 'pcm:0', 'part-end:0', 'say:B two.', 'pcm:1', 'part-end:1', 'part-end:1:last', 'end'])
+    await t.done
+  })
+
+  it('the box (no ahead): one sentence at a time, as before', async () => {
+    const asked: string[] = []
+    let inFlight = 0
+    let most = 0
+    const one = (async (text: string) => {
+      asked.push(text)
+      inFlight += 1
+      most = Math.max(most, inFlight)
+      await new Promise((r) => setTimeout(r, 10))
+      return { rate: 24_000, chunks: (async function* () { yield new Uint8Array(10); inFlight -= 1 })() }
+    }) as Speaker
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'One.' }, { kind: 'say', text: 'Two.' }, { kind: 'final', reply: REPLY({ reply: 'One. Two.' }), model: 'm', calls: 1 }), { speak: one })
+    await collect(t.lines)
+    expect(asked).toEqual(['One.', 'Two.'])
+    expect(most).toBe(1)
+    await t.done
+  })
+
   it('⛔ the first sentence is voiced BEFORE the brain has finished the reply', async () => {
     const gate = Promise.withResolvers<void>()
     async function* slow(): AsyncGenerator<TutorEvent> {

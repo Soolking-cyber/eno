@@ -3072,6 +3072,7 @@ export const UI_STRINGS: string[] = [
   "Still taking private students?",
   "Still to answer:",
   "Still working there? Your school can see your LinkedIn profile. Add the code only when you are ready, and remove it as soon as you are verified — or write your review after you have left.",
+  "Stop",
   "Stop contact and keep everything",
   "Stop emails about new messages?",
   "Stop job messages",

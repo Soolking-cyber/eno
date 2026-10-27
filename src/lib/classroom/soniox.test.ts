@@ -61,7 +61,7 @@ describe('sttSettingsFor', () => {
   it('⛔ a learner\'s pause is respected (owner, 2026-10-27): no band takes the voice-agent preset (0.3 / level 2 / 1500 ms)', () => {
     for (const band of ['adult', 'teen', 'child', 'child-young'] as const) {
       expect(sttSettingsFor(band).endpoint_latency_adjustment_level).toBe(0)
-      expect(sttSettingsFor(band).max_endpoint_delay_ms).toBeGreaterThanOrEqual(2500)
+      expect(sttSettingsFor(band).max_endpoint_delay_ms).toBeGreaterThanOrEqual(2000)
       expect(sttSettingsFor(band).endpoint_sensitivity).toBeLessThanOrEqual(-0.6)
     }
   })

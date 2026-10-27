@@ -17,6 +17,14 @@
  */
 export type Accent = 'US' | 'UK'
 
+/**
+ * The one line every voice sample says (the wizard's ▶). The samples are MADE ONCE, as static files —
+ * public/classroom/voices/<id>.mp3, by scripts/classroom-voice-samples.mjs — because Soniox speaks at about real time
+ * (a sample made on the spot took ~5–6 s to start: owner, 2026-10-28 "loads very slow"). Change this line or a voice's
+ * `soniox` → run the script again (voices.test.ts fails while a file is missing).
+ */
+export const VOICE_SAMPLE_LINE = "Hi! I'm your teacher's AI avatar. Shall we practise some English together today?"
+
 /** `id`: the saved id and the box's Phonon voice (the fallback); `soniox`: the Soniox voice that speaks it. */
 export type Voice = { id: string; name: string; accent: Accent; gender: 'f' | 'm'; note?: 'young-learners'; soniox: string }
 

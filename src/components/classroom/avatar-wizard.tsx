@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Camera, Check, Mic, Play, Sparkles, UserRound, Volume2 } from '@/components/ui/icons'
+import { Camera, Check, Mic, Pause, Play, Sparkles, UserRound, Volume2 } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { LIBRARY_AVATARS } from '@/lib/classroom/library-avatars'
 import { ACCENT_LABEL, VOICES } from '@/lib/classroom/voices'
@@ -309,17 +309,33 @@ function CharacterStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
 function VoiceStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
   const { tr } = useLanguage()
   const audio = useRef<HTMLAudioElement | null>(null)
-  const [playing, setPlaying] = useState<string | null>(null)
-  const play = (id: string) => {
+  /** The sample being heard and how far along it is: fetching its sound, or playing (owner, 2026-10-28: "play button
+   *  doesnt show play state"). Tapping it again stops it; another voice's ▶ switches. */
+  const [sample, setSample] = useState<{ id: string; state: 'loading' | 'playing' } | null>(null)
+  const stop = () => { audio.current?.pause(); audio.current = null; setSample(null) }
+  const play = (v: (typeof VOICES)[number]) => {
+    if (sample?.id === v.id) { stop(); return }
     audio.current?.pause()
-    const a = new Audio(`/api/classroom/voices/${encodeURIComponent(id)}/sample`)
+    // The sample made ONCE as a static file (voices.ts VOICE_SAMPLE_LINE — it starts at once; `v` keys it to the Soniox
+    // voice, so a changed voice is never a stale cached file); the live route only when the file cannot be had.
+    const a = new Audio(`/classroom/voices/${encodeURIComponent(v.id)}.mp3?v=${encodeURIComponent(v.soniox)}`)
     audio.current = a
-    setPlaying(id)
-    a.onended = () => setPlaying(null)
-    a.onerror = () => setPlaying(null)
-    void a.play().catch(() => setPlaying(null))
+    setSample({ id: v.id, state: 'loading' })
+    const mine = () => audio.current === a
+    a.onplaying = () => { if (mine()) setSample({ id: v.id, state: 'playing' }) }
+    a.onended = () => { if (mine()) { audio.current = null; setSample(null) } }
+    let fellBack = false
+    a.onerror = () => {
+      if (!mine()) return
+      if (fellBack) { audio.current = null; setSample(null); return }
+      fellBack = true
+      a.src = `/api/classroom/voices/${encodeURIComponent(v.id)}/sample`
+      void a.play().catch(() => { if (mine()) { audio.current = null; setSample(null) } })
+    }
+    void a.play().catch(() => { /* a load error is onerror's; a refused autoplay leaves the button ready again */ if (mine() && !fellBack && a.error === null) { audio.current = null; setSample(null) } })
   }
-  useEffect(() => () => audio.current?.pause(), [])
+  // Leaving the step stops the sample FOR GOOD: no handler still owns it, so a late fallback never plays on a later step.
+  useEffect(() => () => { audio.current?.pause(); audio.current = null }, [])
   return (
     <div className="flex flex-col gap-2">
       <p className="mb-2 text-sm text-body">{tr('Pick the voice your avatar speaks with. Tap ▶ to listen.', 'Chọn giọng nói cho avatar. Chạm ▶ để nghe thử.')}</p>
@@ -333,8 +349,11 @@ function VoiceStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
               {v.note === 'young-learners' && <span className="text-xs text-ink-4">{tr('playful, for young learners', 'vui tươi, hợp với các em nhỏ')}</span>}
               {d.voice === v.id && <Check aria-hidden className="ml-auto size-5 text-brand" />}
             </Button>
-            <Button variant="ghost" size="icon" className="size-11" aria-label={tr('Listen', 'Nghe thử')} onClick={() => play(v.id)} disabled={playing === v.id}>
-              <Play aria-hidden className="size-5" />
+            {/* ▶ → the house busy state while the sound loads (Button `loading`) → ❚❚ while it plays: tap to stop. */}
+            <Button variant="ghost" size="icon" className="size-11" onClick={() => play(v)} aria-pressed={sample?.id === v.id && sample.state === 'playing'}
+              loading={sample?.id === v.id && sample.state === 'loading'}
+              aria-label={sample?.id === v.id && sample.state === 'playing' ? tr('Stop', 'Dừng') : tr('Listen', 'Nghe thử')}>
+              {sample?.id === v.id && sample.state === 'playing' ? <Pause aria-hidden className="size-5 text-brand" /> : <Play aria-hidden className="size-5" />}
             </Button>
           </li>
         ))}

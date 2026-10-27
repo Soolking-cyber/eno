@@ -39,6 +39,8 @@ function sonioxLine(text: string, v: Voice, style: VoiceStyle): Promise<Buffer> 
   if (kept && now - kept.at < LINE_KEEP_MS) return kept.made
   const made = sonioxSpeakLine(text, v.soniox, style, LINE_MAKE_MS)
   madeLines.set(key, { at: now, made })
+  // Let go at LINE_KEEP_MS whether or not anything asks again (review, codex): unref'd — it never holds the process open.
+  setTimeout(() => { if (madeLines.get(key)?.made === made) madeLines.delete(key) }, LINE_KEEP_MS).unref?.()
   // A line that failed is not kept — the next ask tries again.
   made.catch(() => { if (madeLines.get(key)?.made === made) madeLines.delete(key) })
   if (madeLines.size > LINE_KEEP_MAX) madeLines.delete(madeLines.keys().next().value!)
@@ -119,19 +121,35 @@ export function speakerFor(voice: string, style: () => VoiceStyle): Speaker | nu
   const v = voiceOf(voice)
   const box = localSpeechConfig()
   if (!sonioxConfig() && !box) return null
-  return async (text, signal) => {
+  const speak: Speaker = async (text, signal, o) => {
+    // Its turn came after a voice made ahead failed: the box says it at once when there is one (review, opus).
+    if (o?.box && box) return synthesizeStream(box, text, v.id, style(), signal)
     if (sonioxUp()) {
       try {
-        const voiced = await sonioxSpeakStream(text, v.soniox, style(), signal, box ? SONIOX_FIRST_SOUND_MS : undefined)
+        // A line asked AHEAD is not waited for yet — a longer first-sound budget, so queueing behind the line being heard
+        // is never read as Soniox being slow (review, opus).
+        const voiced = await sonioxSpeakStream(text, v.soniox, style(), signal, box && !o?.ahead ? SONIOX_FIRST_SOUND_MS : undefined)
         slowLines = 0
         return voiced
       } catch (e) {
         if (signal.aborted) throw e // talked over: no one is waiting for this line
-        sonioxFailed(e, 'stream')
-        if (!box) throw e
+        // An ahead line's slowness counts toward nothing; its other failures do.
+        if (!(o?.ahead && (e as { status?: number }).status === 504)) sonioxFailed(e, 'stream')
+        // A line asked for AHEAD never goes to the box: it is asked for again in its turn (turn-stream.ts), so the box
+        // only ever makes the line being heard — one at a time.
+        if (!box || o?.ahead) throw e
       }
     }
+    if (o?.ahead) throw new SpeechError(503, 'tts') // Soniox resting: the box says it in its turn
     if (!box) throw new SpeechError(503, 'tts')
     return synthesizeStream(box, text, v.id, style(), signal)
   }
+  // Soniox makes speech at about real time: the reply's next sentences are voiced AHEAD (turn-stream.ts) — never on the box.
+  speak.ahead = () => (sonioxUp() ? SONIOX_AHEAD : 0)
+  // A line made ahead keeps its turn waiting no longer than one asked for now, when the box can take it.
+  if (box) speak.turnMs = SONIOX_FIRST_SOUND_MS
+  return speak
 }
+
+/** Sentences voiced ahead of the one being heard, on Soniox (≤ its 5 streams a socket with room to spare). */
+export const SONIOX_AHEAD = 2

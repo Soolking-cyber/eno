@@ -36,6 +36,9 @@ export function pcm16Of(buffer: AudioBuffer): ArrayBuffer {
  * play as one line with no gap, and the first starts as soon as it has arrived. `stop()` silences all of them (the
  * learner talked over the avatar, or the screen closed).
  */
+/** How far ahead the speakers start a voice that was not already playing. */
+const RESTART_CUSHION_S = 0.12
+
 export function partPlayer(ctx: AudioContext) {
   let at = 0
   let live: AudioBufferSourceNode[] = []
@@ -45,7 +48,9 @@ export function partPlayer(ctx: AudioContext) {
       const src = ctx.createBufferSource()
       src.buffer = buffer
       src.connect(ctx.destination)
-      const startAt = Math.max(ctx.currentTime + 0.02, at)
+      // Nothing scheduled (the first part, or the voice ran dry): start a little later — a cushion against the next
+      // part arriving a hair late (owner, 2026-10-28: "the ai voice is gittery"); back to back otherwise.
+      const startAt = at > ctx.currentTime ? at : ctx.currentTime + RESTART_CUSHION_S
       at = startAt + buffer.duration
       live.push(src)
       const done = new Promise<void>((resolve) => { src.onended = () => { live = live.filter((s) => s !== src); resolve() } })

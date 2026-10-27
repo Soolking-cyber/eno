@@ -1,0 +1,14 @@
+{
+ "line": "Hi! I'm your teacher's AI avatar. Shall we practise some English together today?",
+ "voices": {
+  "Harper": "Grace",
+  "Hadley": "Brooke",
+  "Trevor": "Shane",
+  "Preston": "Logan",
+  "Zoey": "Sloane",
+  "Imogen": "Imogen",
+  "Maeve": "Freya",
+  "Spencer": "Oliver",
+  "Toby": "Freddie"
+ }
+}

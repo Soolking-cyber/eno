@@ -89,7 +89,9 @@ export async function mintSttKey(cfg: SonioxConfig, opts: { expiresInSeconds: nu
  * at once and misleads). At -0.6 / level 0 a pause after a complete clause held ~1.5–1.9 s (the preset: 0.3 s), one after
  * an unfinished clause ("…my city is") held 2.5 s, and a clearly finished turn still ended 0.7–1.3 s after the voice
  * stopped. The cap decides only an UNSURE ending (a learner's trailing "…we buy some fish"): it ends ~1.1 s after the
- * cap — 2.6 s at 1500, 3.4 s at 2500, 4.0 s at 3000 — so adults take 2500. Lower than -0.6 bought no more patience after
+ * cap — 2.6 s at 1500, 3.0 s at 2000, 3.4 s at 2500, 4.0 s at 3000. Adults took 2500, then 2000 (owner, 2026-10-28: "the
+ * pasues … a tiny bit long"): at 2000 the measured pauses held the same (~1.6 s after a complete clause, 2 s after an
+ * unfinished one) and an unsure ending comes ~0.4 s sooner. Lower than -0.6 bought no more patience after
  * a complete clause and a slower, more scattered end (up to 2.3 s); the young still get it, as they pause longest to find
  * a word.
  * ⛔ A negative sensitivity only with level 0 (Soniox: the two fight).
@@ -97,8 +99,8 @@ export async function mintSttKey(cfg: SonioxConfig, opts: { expiresInSeconds: nu
 export type SttSettings = { endpoint_sensitivity: number; endpoint_latency_adjustment_level: number; max_endpoint_delay_ms: number }
 export function sttSettingsFor(band: AgeBand): SttSettings {
   switch (band) {
-    case 'adult': return { endpoint_sensitivity: -0.6, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 2500 }
-    case 'teen': return { endpoint_sensitivity: -0.6, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 2500 }
+    case 'adult': return { endpoint_sensitivity: -0.6, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 2000 }
+    case 'teen': return { endpoint_sensitivity: -0.6, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 2000 }
     case 'child': return { endpoint_sensitivity: -0.8, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 3000 }
     case 'child-young': return { endpoint_sensitivity: -1, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 3000 }
   }

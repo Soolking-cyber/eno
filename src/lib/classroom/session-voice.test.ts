@@ -88,6 +88,33 @@ describe('speakerFor', () => {
     expect(h.calls.at(-1)).toBe('box-stream:Harper') // two slow in a row: rested
   })
 
+  it('⛔ a line asked for AHEAD never goes to the box — it is asked again in its turn (the box: one line at a time)', async () => {
+    h.sonioxFails = { status: 502 }
+    const speak = sv.speakerFor('Harper', () => style)!
+    await expect(speak('Ahead.', new AbortController().signal, { ahead: true })).rejects.toMatchObject({ status: 502 })
+    expect(h.calls).toEqual(['soniox-stream:Grace']) // no box call
+    // Soniox now resting: an ahead ask is refused at once; the line in its turn goes to the box
+    await expect(speak('Ahead again.', new AbortController().signal, { ahead: true })).rejects.toMatchObject({ status: 503 })
+    await speak('Its turn.', new AbortController().signal)
+    expect(h.calls.at(-1)).toBe('box-stream:Harper')
+    expect(sv.speakerFor('Harper', () => style)!.ahead!()).toBe(0) // nothing more made ahead while it rests
+  })
+
+  it('a line whose ahead voice failed: in its turn the box says it at once — no second wait on Soniox', async () => {
+    await sv.speakerFor('Toby', () => style)!('Its turn.', new AbortController().signal, { box: true })
+    expect(h.calls).toEqual(['box-stream:Toby'])
+  })
+
+  it('an AHEAD line\'s slowness (504) counts toward nothing — two in a row do not rest Soniox', async () => {
+    h.sonioxFails = { status: 504 }
+    const speak = sv.speakerFor('Harper', () => style)!
+    await expect(speak('A.', new AbortController().signal, { ahead: true })).rejects.toMatchObject({ status: 504 })
+    await expect(speak('B.', new AbortController().signal, { ahead: true })).rejects.toMatchObject({ status: 504 })
+    h.sonioxFails = null
+    await speak('C.', new AbortController().signal)
+    expect(h.calls.at(-1)).toBe('soniox-stream:Grace') // not rested
+  })
+
   it('a talk-over is not a failure: no fallback, no rest', async () => {
     const stop = new AbortController()
     stop.abort()
