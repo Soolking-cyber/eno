@@ -110,6 +110,17 @@ describe('scripts/classroom-ddl.mjs ↔ prisma/schema.prisma', () => {
     expect(DDL).toMatch(/enable row level security/)
     expect(DDL).toMatch(/carries \$\{r\.policies\} RLS policies/)
   })
+
+  it('the shape check reads a table the same on Postgres 14 (pg_temp_3.) and 16+ (pg_temp.)', () => {
+    // Production prints its own temp schema as plain `pg_temp`: the first production run (2026-10-27) reported every index
+    // and the trigger WRONG on that alone and rolled back.
+    const literal = /const sameTable = \(def\) => def\.replace\(\/(.+)\/, ' ON '\)/.exec(DDL)?.[1]
+    expect(literal).toBeTruthy()
+    const re = new RegExp(literal!)
+    for (const schema of ['pg_temp', 'pg_temp_3', 'public']) {
+      expect(`CREATE UNIQUE INDEX "T_pkey" ON ${schema}."T" USING btree (id)`.replace(re, ' ON ')).toBe('CREATE UNIQUE INDEX "T_pkey" ON "T" USING btree (id)')
+    }
+  })
 })
 
 describe('every CHECK list is the constants list the API validates with', () => {
