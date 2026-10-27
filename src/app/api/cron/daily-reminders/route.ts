@@ -1,5 +1,6 @@
 import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
+import { pickLocale } from '@/lib/admin-macros'
 import { sendPushToProfile } from '@/lib/push'
 import { STALE_DAYS } from '@/lib/stale'
 import { runTrustMaintenance } from '@/lib/trust'
@@ -74,7 +75,7 @@ export const GET = route({ auth: 'cron' }, async () => {
     const since = new Date(Date.now() - REMIND_EVERY_MS)
     const ownerIds = [...countByOwner.keys()].slice(0, MAX_SELLERS)
     const [optedIn, recent] = await Promise.all([
-      db.profile.findMany({ where: { id: { in: ownerIds }, dailyReminderOptIn: true }, select: { id: true } }),
+      db.profile.findMany({ where: { id: { in: ownerIds }, dailyReminderOptIn: true }, select: { id: true, locale: true } }),
       db.notification.findMany({ where: { recipientId: { in: ownerIds }, type: 'reminder', createdAt: { gt: since } }, select: { recipientId: true } }),
     ])
     const remindedRecently = new Set(recent.map((r) => r.recipientId))
@@ -93,7 +94,14 @@ export const GET = route({ auth: 'cron' }, async () => {
           const body = 'Tap to refresh availability — fresh listings rise back to the top.'
           try {
             await db.notification.create({ data: { recipientId: p.id, type: 'reminder', title, body, actorName: null } })
-            const sent = await sendPushToProfile(p.id, { title, body, url: '/dashboard/availability', tag: 'eno-availability' })
+            // The push goes in the seller's language; the bell row stays English (the bell words it itself).
+            const vi = pickLocale(p.locale) === 'vi'
+            const sent = await sendPushToProfile(p.id, {
+              title: vi ? '⏰ ' + (n === 1 ? 'Xác nhận tin của bạn vẫn còn' : `Xác nhận ${n} tin vẫn còn`) : title,
+              body: vi ? 'Chạm để cập nhật tình trạng — tin vừa cập nhật sẽ lên đầu.' : body,
+              url: '/dashboard/availability',
+              tag: 'eno-availability',
+            })
             return { notified: 1, pushed: sent }
           } catch (e) {
             console.error('[cron] reminder failed for', p.id, e)

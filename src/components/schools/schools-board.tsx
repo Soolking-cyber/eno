@@ -12,7 +12,7 @@ import { useLanguage } from '@/context/language-context'
 import { fold } from '@/lib/fold'
 import { formatInteger, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
-import { KIND_LABEL, SCHOOL_KINDS, isSchoolKind, type SchoolKind } from '@/lib/schools/constants'
+import { KIND_LABEL, SCHOOL_KINDS, isSchoolKind, type SchoolKind, areaLabel } from '@/lib/schools/constants'
 import { compareSchools, isSchoolSort, normEmployer, positivePct, type SchoolSort } from '@/lib/schools/logic'
 import type { SchoolListRow } from '@/lib/schools/queries'
 import { SchoolLiveProvider, useSchoolLive } from './school-live'
@@ -123,7 +123,7 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
         <CustomSelect
           value={area}
           onChange={setArea}
-          options={[{ value: ALL, label: tr('All areas', 'Mọi khu vực') }, ...areas.map((a) => ({ value: a, label: a }))]}
+          options={[{ value: ALL, label: tr('All areas', 'Mọi khu vực') }, ...areas.map((a) => ({ value: a, label: areaLabel(a, lang) }))]}
           label={tr('Area', 'Khu vực')}
           className="min-h-11 rounded-xl bg-tint px-4 font-normal text-foreground hover:bg-muted"
           activeClassName="min-h-11 rounded-xl bg-tint px-4 font-normal text-foreground hover:bg-muted"
@@ -207,7 +207,7 @@ function BoardRowItem({ row, rank }: { row: BoardRow; rank: number | null }) {
           {row.award && <p className="mt-1"><AwardBadge year={row.award.year} rank={row.award.rank} /></p>}
           <p className="mt-0.5 truncate text-sm text-muted-foreground">
             <KindLabel kind={row.kind} />
-            {row.districts.length > 0 && <> · {row.districts.slice(0, 2).join(', ')}{row.districts.length > 2 ? ` +${row.districts.length - 2}` : ''}</>}
+            {row.districts.length > 0 && <> · {row.districts.slice(0, 2).map((d) => areaLabel(d, lang)).join(', ')}{row.districts.length > 2 ? ` +${row.districts.length - 2}` : ''}</>}
           </p>
           <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             <span className={cn('font-semibold', pct === null ? 'text-muted-foreground' : pct >= 60 ? 'text-success' : pct >= 40 ? 'text-foreground' : 'text-destructive')}>

@@ -1,13 +1,17 @@
 import { SITE_NAME } from '@/lib/edition'
 import { EnoLoader } from '@/components/ui/eno-loader'
 import type { Metadata } from 'next'
+import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import { Suspense } from 'react'
 import { loadHelpCenter } from '@/lib/help-center-data'
 import { HelpClient } from './help-client'
 
-export const metadata: Metadata = {
+const METADATA: Metadata = {
   title: `Help | ${SITE_NAME}`,
   robots: { index: false, follow: false },
+}
+export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
+  return langMetadata(params, METADATA, { title: `Trợ giúp | ${SITE_NAME}` })
 }
 
 // Viewer-scoped vote/save flags come off the request cookie — never prerender.

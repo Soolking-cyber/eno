@@ -126,7 +126,7 @@ export type VisaThreadInfo = {
     expectedReadyIso?: string | null
   } | null
   quote: VisaQuoteWire | null
-  providers: Array<'stripe' | 'paypal'>
+  providers: Array<'stripe'> // PayPal removed 2026-10-26 (owner)
 }
 
 /** One uploaded document, as the applicant's own case serializes it. */
@@ -273,7 +273,7 @@ export function parseVisaThreadInfo(value: unknown): VisaThreadInfo | null {
      * minify away.
      */
     providers: IS_SERVICES && Array.isArray(value.providers)
-      ? value.providers.filter((p): p is 'stripe' | 'paypal' => p === 'stripe' || p === 'paypal')
+      ? value.providers.filter((p): p is 'stripe' => p === 'stripe')
       : [],
   }
 }
@@ -2211,7 +2211,7 @@ export type VisaCheckoutCardProps = {
   /** This is the current, unpaid pay card AND the viewer is the applicant. */
   live: boolean
   busy: boolean
-  onPay: (provider: 'stripe' | 'paypal', quote: VisaQuoteWire) => void | Promise<void>
+  onPay: (provider: 'stripe', quote: VisaQuoteWire) => void | Promise<void>
   /** Re-post the last form step so the applicant can correct something before paying. Optional so
    *  the desk's read-only render of this card carries no escape hatch it should not offer. */
   onReview?: () => void | Promise<void>
@@ -2234,7 +2234,7 @@ export type VisaCheckoutCardProps = {
  * stylized" — the pay card.
  *
  * TWO NUMBERS, NEITHER OF THEM COMPUTED HERE: the đồng price the desk set on its own
- * listing, and the SERVER-ISSUED dollar quote that PayPal will actually capture. If the
+ * listing, and the SERVER-ISSUED dollar quote the provider will actually charge. If the
  * server could not issue a quote (FX down), the card SAYS SO and pays nothing — there is no
  * fallback rate on this surface and there must never be one.
  */
@@ -2853,6 +2853,18 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, otherCases
             {/* Names what it does, not where it goes: "resend" reads as a retry after a failure,
                 and nothing failed here — the card just scrolled away. */}
             {tr('Send the form again', 'Gửi lại biểu mẫu')}
+          </Button>
+        )}
+        {/* ⛔ THE DESK'S WAY TO THE CASE (owner, 2026-10-26: "make sure vietkite account can receive and download the visa
+            information"). The partner desk sees value-free cards here by design — the applicant's photos and answers live on
+            the case page, /admin/visas/<id>, scoped by getVisaDeskScope to cases whose conversation this desk answers, with
+            the handover zip (two images + the applicant sheet). Until now the only way there was a phone push. */}
+        {isDesk && !!info.applicationId && (
+          <Button asChild variant="soft" size="none" className="relative tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground">
+            <Link href={`/admin/visas/${info.applicationId}`} prefetch={false}>
+              <Download className="size-3.5 shrink-0" aria-hidden />
+              {tr('Open the application — photos & download', 'Mở hồ sơ — ảnh & tải về')}
+            </Link>
           </Button>
         )}
         {!paused && !compact && (

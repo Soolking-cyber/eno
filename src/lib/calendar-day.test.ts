@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatCalendarDay, vnCalendarDay, longCalendarDate } from './calendar-day'
+import { formatCalendarDay, vnCalendarDay, longCalendarDate, formatYearMonth, vnIsoDay } from './calendar-day'
 
 describe('formatCalendarDay — a readable day with no clock (and no Intl for en / vi, the two the server renders)', () => {
   it('writes a bare YYYY-MM-DD the way each language does, never shifting it', () => {
@@ -34,5 +34,22 @@ describe('formatCalendarDay — a readable day with no clock (and no Intl for en
     expect(formatCalendarDay('Online', 'en')).toBe('Online')
     expect(formatCalendarDay('2026-13-40', 'en')).toBe('2026-13-40')
     expect(formatCalendarDay('', 'vi')).toBe('')
+  })
+})
+
+describe('formatYearMonth — a teaching job\'s stored month, for the reader (sweep 2026-10-22: printed as "2022-09")', () => {
+  it('en "Sep 2022", vi "9/2022", a machine-translated language in its own month names; anything else unchanged', () => {
+    expect(formatYearMonth('2022-09', 'en')).toBe('Sep 2022')
+    expect(formatYearMonth('2022-09', 'vi')).toBe('9/2022')
+    expect(formatYearMonth('2022-09', 'ko')).toMatch(/2022/)
+    expect(formatYearMonth('2022-09', 'ko')).not.toBe('Sep 2022')
+    for (const v of ['2022', '2022-13', '09/2022', '']) expect(formatYearMonth(v, 'en')).toBe(v)
+  })
+})
+
+describe('vnIsoDay — the Vietnam calendar day of an instant', () => {
+  it('a confirmation at 05:30 ICT (22:30 UTC the day before) is the Vietnam day, not the UTC one', () => {
+    expect(vnIsoDay(new Date('2026-10-12T22:30:00Z'))).toBe('2026-10-13')
+    expect(vnIsoDay(new Date('2026-10-12T16:59:59Z'))).toBe('2026-10-12')
   })
 })

@@ -4,20 +4,20 @@ import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import { visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
-import { markVisaPaidAndHandoff, paypalCaptureOrder, stripeRetrieveSession, visaPaymentsConfig } from '@/lib/visa/payments'
+import { markVisaPaidAndHandoff, stripeRetrieveSession, visaPaymentsConfig } from '@/lib/visa/payments'
 import { serializeVisa, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
 
 // Verify-on-return: the applicant lands back on /dashboard/visa with the provider's
 // reference and the client posts it here. The PROVIDER is the source of truth —
-// Stripe sessions are re-read, PayPal orders are captured (both server-side) — and
+// Stripe sessions are re-read server-side (PayPal capture was removed 2026-10-26) — and
 // only a provider-confirmed payment reaches markVisaPaidAndHandoff. Idempotent with
 // the Stripe webhook: whichever lands first wins, the other records nothing new.
-// This path also makes local/dev and PayPal work with no webhook configured.
+// This path also makes local/dev work with no webhook configured.
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const bodySchema = z.object({
-  provider: z.enum(['stripe', 'paypal']),
+  provider: z.enum(['stripe']), // PayPal removed 2026-10-26 (owner)
   ref: z.string().trim().min(4).max(200),
 })
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -59,7 +59,7 @@ export const POST = route({ auth: 'userId' }, async ({ req: request, params, use
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
   // Ownership + local checkout row FIRST — before any provider call (review #5: a
-  // leaked foreign PayPal order id must never even reach capture). The row proves OUR
+  // leaked foreign provider reference must never even reach the provider). The row proves OUR
   // checkout minted this exact (provider, ref) for THIS application and THIS user.
   const db = getVisaDb()
   const [{ data: owned }, { data: paymentRow }] = await Promise.all([
@@ -73,9 +73,7 @@ export const POST = route({ auth: 'userId' }, async ({ req: request, params, use
   }
 
   try {
-    const state = parsed.data.provider === 'stripe'
-      ? await stripeRetrieveSession(parsed.data.ref)
-      : await paypalCaptureOrder(parsed.data.ref, id)
+    const state = await stripeRetrieveSession(parsed.data.ref)
     // The provider reference must belong to THIS application (metadata/custom_id was
     // set at checkout) — a mismatched ref is an attack or a stale link, never a pay.
     if (state.applicationId !== id) return NextResponse.json({ error: 'reference_mismatch' }, { status: 400 })

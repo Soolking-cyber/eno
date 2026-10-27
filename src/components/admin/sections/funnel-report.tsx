@@ -9,16 +9,21 @@ const WINDOW_DAYS = 30
 
 export async function FunnelReport() {
   // Raw SQL: publish_funnel is a Postgres primitive (scripts/rate-limit-pg.mjs), not a Prisma model.
-  // Resilient if the table has not been applied on this host yet.
+  // ⛔ `::int` IS LOAD-BEARING: node-postgres sends parameters untyped, and `date - unknown` resolves as date − date (an
+  // integer), so without the cast `day >= …` failed (42883) on every load and the swallowed error read as "Nothing
+  // recorded yet" (sweep 2026-10-22). A failed read now says so instead of passing for an empty counter.
   const rows = await db
     .$queryRaw<PublishFunnelRow[]>`
       select outcome, sum(count)::int as total
         from publish_funnel
-       where day >= (now() at time zone 'utc')::date - ${WINDOW_DAYS - 1}
+       where day >= (now() at time zone 'utc')::date - ${WINDOW_DAYS - 1}::int
        group by outcome
        order by total desc`
-    .catch(() => [] as PublishFunnelRow[])
-  const report = summarisePublishFunnel(rows)
+    .catch((e: unknown) => {
+      console.error('[admin/funnel] publish_funnel read failed:', e instanceof Error ? e.message : e)
+      return null
+    })
+  const report = summarisePublishFunnel(rows ?? [])
 
   return (
     <section aria-labelledby="funnel-report" className="max-w-3xl">
@@ -29,7 +34,11 @@ export async function FunnelReport() {
         Counted per tap, not per seller — read these as where effort is being lost, not as a per-person conversion rate.
         Server-side refusals have been counted since 28 Jul; client-side ones only since 29 Jul, so the success rate steps down on that boundary.
       </p>
-      {report.attempts === 0 ? (
+      {rows === null ? (
+        <div className="mt-6">
+          <EmptyState tone="admin" title="Could not read the publish funnel" subtitle="The query failed — the server log has the error ([admin/funnel]). The counts themselves are unaffected." />
+        </div>
+      ) : report.attempts === 0 ? (
         <div className="mt-6">
           <EmptyState tone="admin" title="Nothing recorded yet" subtitle="The counter starts at the next publish attempt. If this stays empty while listings are going live, publish_log() is not reaching the database — check scripts/rate-limit-pg.mjs." />
         </div>

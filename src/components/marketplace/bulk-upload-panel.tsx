@@ -59,7 +59,9 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
   const [zipName, setZipName] = useState('')
   /** Which media file is going up, so a 200-row import is not a frozen button. */
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
-  const [result, setResult] = useState<{ created: number; failed: number; results: { row: number; id?: string; error?: string }[] } | null>(null)
+  // `warnings` apart from failures: a row listed without its clip is not a failed row, and the list used to render only
+  // when something FAILED — so with no failure, "listed without the video" was never shown (sweep 2026-10-22).
+  const [result, setResult] = useState<{ created: number; failed: number; results: { row: number; id?: string; error?: string }[]; warnings: { row: number; warning: string }[] } | null>(null)
   const [error, setError] = useState('')
 
   const validate = (r: Raw, i: number): ParsedRow => {
@@ -336,7 +338,9 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
       setResult({
         created,
         failed: results.filter((r) => r.error).length + mediaFailures.length,
-        results: [...results, ...mediaFailures, ...warnings],
+        results: [...results, ...mediaFailures],
+        // A row the server then refused was not listed at all, so "listed without it" would be false there.
+        warnings: warnings.filter((w) => !results.some((r) => r.row === w.row && r.error)).map((w) => ({ row: w.row, warning: w.error })),
       })
     } catch {
       stopped = true
@@ -380,7 +384,12 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
             {/* role=status: the outcome is the answer to the action just taken — spoken, not only shown. */}<p role="status" aria-live="polite" className="mt-1 text-sm text-muted-foreground">{result.created} {tr('listings created', 'tin đã tạo')}{result.failed > 0 ? `, ${result.failed} ${tr('failed', 'lỗi')}` : ''}.</p>
             {result.failed > 0 && (
               <ul className="mt-3 space-y-1 text-xs text-destructive">
-                {result.results.filter((r) => r.error).map((r) => <li key={r.row}>{tr('Row', 'Dòng')} {r.row}: {r.error}</li>)}
+                {result.results.filter((r) => r.error).map((r) => <li key={`${r.row}-err`}>{tr('Row', 'Dòng')} {r.row}: {r.error}</li>)}
+              </ul>
+            )}
+            {result.warnings.length > 0 && (
+              <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+                {result.warnings.map((w) => <li key={`${w.row}-warn`}>{tr('Row', 'Dòng')} {w.row}: {w.warning}</li>)}
               </ul>
             )}
             <div className="mt-4 flex gap-2">

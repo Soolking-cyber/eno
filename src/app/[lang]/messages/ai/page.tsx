@@ -26,7 +26,11 @@ import { useAiConsent } from '@/hooks/use-ai-consent'
 // localStorage (no DB conversation), and replies come from POST /api/ai/concierge,
 // which returns a reply + matching listings the buyer can browse right in the chat.
 
-type Msg = { role: 'user' | 'assistant'; content: string; listings?: SerializedListingCard[]; createdAt: string }
+// `greeting`: eno's own opening line, stored as a MARK and worded at render in the page's language — stored as text, it
+// stayed in the language of the first visit (an English bubble on a Vietnamese page, and the reverse).
+type Msg = { role: 'user' | 'assistant'; content: string; listings?: SerializedListingCard[]; createdAt: string; greeting?: true }
+// An authored { en, vi } pair, so gen-ui-strings still harvests it for the machine-translated languages.
+const GREETING = { en: "Hi! I'm eno AI. Tell me what you're looking for — e.g. “a road bike under 8M near Thảo Điền” — and I'll find it.", vi: 'Chào bạn! Mình là eno AI. Bạn đang tìm gì? Ví dụ "xe đạp dưới 8 triệu gần Thảo Điền" — mình sẽ tìm giúp.' }
 
 const STORE_KEY = 'eno:ai_chat_v1'
 
@@ -48,14 +52,10 @@ export default function AiThreadPage() {
   const googleAiOff = aiConsent.askFirst && aiConsent.consent === 'off'
   const askingAi = useRef(false) // a Google AI question is open (see send)
 
-  const greeting: Msg = {
-    role: 'assistant',
-    createdAt: new Date().toISOString(),
-    content: tr(
-      "Hi! I'm eno AI. Tell me what you're looking for — e.g. “a road bike under 8M near Thảo Điền” — and I'll find it.",
-      'Chào bạn! Mình là eno AI. Bạn đang tìm gì? Ví dụ "xe đạp dưới 8 triệu gần Thảo Điền" — mình sẽ tìm giúp.',
-    ),
-  }
+  const greetingText = tr(GREETING.en, GREETING.vi)
+  const greeting: Msg = { role: 'assistant', createdAt: new Date().toISOString(), content: '', greeting: true }
+  // What a message says on screen and to the concierge: the greeting in today's language, anything else as stored.
+  const said = (m: Msg) => (m.greeting ? greetingText : m.content)
 
   // Restore prior chat (this device); seed the greeting if empty.
   // `restoredCount`: everything restored was already read, so only messages added AFTER it play the
@@ -64,6 +64,10 @@ export default function AiThreadPage() {
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null')
+      // A chat stored before the mark keeps its greeting as text: recognised by its exact wording, in either language.
+      if (Array.isArray(saved) && saved[0]?.role === 'assistant' && (saved[0].content === GREETING.en || saved[0].content === GREETING.vi)) {
+        saved[0] = { ...saved[0], content: '', greeting: true }
+      }
       const restored = Array.isArray(saved) && saved.length ? saved : [greeting]
       restoredCount.current = restored.length
       setMessages(restored)
@@ -148,7 +152,7 @@ export default function AiThreadPage() {
       const res = await fetch('/api/ai/concierge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lang, messages: next.map((m) => ({ role: m.role, content: m.content })), ...(noAi ? { ai: false } : {}) }),
+        body: JSON.stringify({ lang, messages: next.map((m) => ({ role: m.role, content: said(m) })), ...(noAi ? { ai: false } : {}) }),
       })
       if (res.status === 401) { openSignIn(); setLoading(false); return }
       const d = await res.json().catch(() => null)
@@ -200,7 +204,7 @@ export default function AiThreadPage() {
         <div className="mt-auto space-y-3">
         {messages.map((m, i) => (
           <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} ${i === messages.length - 1 && i >= restoredCount.current ? 'bubble-in' : ''}`}>
-            <MessageBubble mine={m.role === 'user'} className="max-w-[85%]">{m.content}</MessageBubble>
+            <MessageBubble mine={m.role === 'user'} className="max-w-[85%]">{said(m)}</MessageBubble>
             {m.listings && m.listings.length > 0 && (
               <div className="mt-2 grid w-full grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">
                 {m.listings.map((l) => (

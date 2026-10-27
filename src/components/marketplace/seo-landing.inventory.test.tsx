@@ -75,3 +75,14 @@ describe('SeoLanding × inventory', () => {
     expect(d.body.textContent).toContain('Browse teaching jobs')
   })
 })
+
+// Sweep 2026-10-22: these landings are English on every render, but a Vietnamese visitor gets them under <html lang="vi">.
+describe('SeoLanding marks its own English lang="en"', () => {
+  it('the eyebrow, H1, intro, empty state, sections, FAQ and brand line — the board a page passes stays unmarked', async () => {
+    const el = await SeoLanding({ content: { ...content, sections: [{ title: 'How it works', body: 'Body.' }], faqs: [{ q: 'Q?', a: 'A.' }] } as SeoContent, inventory: { known: true, count: 0, node: BOARD } })
+    const d = new DOMParser().parseFromString(renderToString(<LanguageProvider initialLang="vi" initialViDict={{}}>{el}</LanguageProvider>), 'text/html')
+    const en = (text: string) => [...d.querySelectorAll('[lang="en"]')].some((n) => n.textContent?.includes(text))
+    for (const t of ['Teaching jobs · Vietnam', 'English teaching jobs in Vietnam', 'Intro.', EMPTY_STATE, 'How it works', 'Frequently asked questions', 'for Vietnam’s']) expect(en(t), t).toBe(true)
+    expect(d.querySelector('[data-board]')?.closest('[lang="en"]')).toBeNull()
+  })
+})

@@ -782,8 +782,27 @@ describe('the tab and the outline name a directed feed (E-TITLE)', () => {
     const view = mount(newClient())
     await waitFor(() => expect(document.title).toBe(`“phone” · 30 listings | ${SITE_NAME}`))
     document.title = `Some listing | ${SITE_NAME}` // Next titled the destination before our cleanup ran
+    await new Promise((r) => setTimeout(r, 0)) // the late-title watch sees it: not the base, so left alone
+    expect(document.title).toBe(`Some listing | ${SITE_NAME}`)
     view.unmount()
     expect(document.title).toBe(`Some listing | ${SITE_NAME}`)
+  })
+
+  // Sweep 2026-10-22: on a cold deep link React mounts the streamed metadata <title> AFTER the explorer titled the tab,
+  // rewriting it to the page's own title. The watch puts ours back — only over exactly that base, once.
+  it('puts its title back when React\'s late metadata mount rewrites the tab to the base title', async () => {
+    const BASE = `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`
+    document.title = BASE
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(newClient())
+    await waitFor(() => expect(document.title).toBe(`“phone” · 30 listings | ${SITE_NAME}`))
+    const el = document.head.querySelector('title')!
+    el.textContent = BASE // what React's hoisted <title> mount does to the text node
+    await waitFor(() => expect(document.title).toBe(`“phone” · 30 listings | ${SITE_NAME}`))
+    // Once per mount: a later base title is not fought, even after the effect runs again.
+    el.textContent = BASE
+    await new Promise((r) => setTimeout(r, 0))
+    expect(document.title).toBe(BASE)
   })
 })
 

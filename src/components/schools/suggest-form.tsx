@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
-import { HCMC_AREAS, KIND_LABEL, SCHOOL_KINDS, SUGGESTIONS_PENDING_MAX, SUGGESTION_NOTE_MAX, type SchoolKind } from '@/lib/schools/constants'
+import { HCMC_AREAS, KIND_LABEL, SCHOOL_KINDS, SUGGESTIONS_PENDING_MAX, SUGGESTION_NOTE_MAX, type SchoolKind, areaLabel } from '@/lib/schools/constants'
 
 type Mine = { id: string; name: string; kind: string; status: 'pending' | 'added' | 'duplicate' | 'rejected'; rejectReason: string | null; createdAt: string; school: { slug: string; name: string } | null }
 type Found = { kind: 'listed' | 'possible'; slug: string; name: string }
@@ -30,7 +30,7 @@ const label = 'text-sm font-semibold text-foreground'
  * so most duplicates never reach a moderator.
  */
 export function SuggestForm() {
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const { user, loading, openSignIn } = useAuth()
   const [name, setName] = React.useState('')
   const [kind, setKind] = React.useState<SchoolKind>('language_centre')
@@ -113,7 +113,7 @@ export function SuggestForm() {
             <CustomSelect
               value={district}
               onChange={setDistrict}
-              options={[{ value: NONE, label: tr('Not specified', 'Không nêu') }, ...HCMC_AREAS.map((a) => ({ value: a, label: a }))]}
+              options={[{ value: NONE, label: tr('Not specified', 'Không nêu') }, ...HCMC_AREAS.map((a) => ({ value: a, label: areaLabel(a, lang) }))]}
               label={tr('Area', 'Khu vực')}
               className={FIELD_SELECT}
               activeClassName={FIELD_SELECT}

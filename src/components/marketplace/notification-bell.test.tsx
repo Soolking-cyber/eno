@@ -45,6 +45,9 @@ const ITEMS = [
   row('n6', 'system', SYSTEM_TITLE, SYSTEM_BODY, 6),
   row('n7', 'verification', VERIFICATION_TITLE, VERIFICATION_NOTE, 7),
   row('n8', 'system', 'Verification needs a change', LEGACY_NOTE, 8, '/dashboard/settings'),
+  // The answers to an offer (actOnOffer): the same 'offer' type, the stored line as the body, the actor as the title.
+  row('n9', 'offer', 'Chi Nguyen', '✅ Đã chấp nhận · Offer accepted — 3,000,000 đ', 9),
+  row('n10', 'offer', 'Chi Nguyen', '❌ Đã từ chối · Offer declined — 950,000 đ', 10),
 ]
 
 vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: { id: ME }, loading: false, openSignIn: vi.fn() }) }))
@@ -107,6 +110,20 @@ function expectPrivateTextAsWritten() {
   // A verification row's TITLE is eno's own copy, so it still goes to translation — only its body (the note) does not.
   expect(sent).toContain(VERIFICATION_TITLE)
 }
+
+describe('notification bell — the answer to an offer', () => {
+  // Sweep 2026-10-22: an accepted offer read "Đề nghị mới" (New offer) over "✅ Đã chấp nhận · Offer accepted — 3,000,000 đ",
+  // its amount in English grouping on a Vietnamese bell.
+  it('is headlined by what it is, with the amount grouped for the reader', async () => {
+    await openBellInVietnamese()
+    expect(screen.getByText('Đã chấp nhận trả giá')).toBeTruthy()
+    expect(screen.getByText('Đã từ chối trả giá')).toBeTruthy()
+    expect(screen.getByText('✅ Đã chấp nhận · Offer accepted — 3.000.000 đ')).toBeTruthy()
+    expect(screen.getByText('❌ Đã từ chối · Offer declined — 950.000 đ')).toBeTruthy()
+    // A new offer keeps its headline.
+    expect(screen.getAllByText('Đề nghị mới')).toHaveLength(2)
+  }, 20_000) // openBellInVietnamese waits up to 10 s for the translation batch; the first case also pays the cold render
+})
 
 describe('notification bell — private text is shown as written', () => {
   it('web, no gate: offers, availability requests and unknown types never reach /api/translate; eno copy still does', async () => {

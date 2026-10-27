@@ -37,8 +37,10 @@
  * The "buyer wrote since" rule stays as a belt for threads retargeted before that guard.
  */
 
-/** The opening of the line actOnOffer persists for an accept (bilingual composite, messages.ts). */
-const ACCEPTED_LINE = '✅ Đã chấp nhận · Offer accepted'
+import { OFFER_ACCEPTED_LINE } from '@/lib/offer-lines'
+
+/** The opening of the line actOnOffer persists for an accept (bilingual composite, messages.ts) — single-sourced. */
+const ACCEPTED_LINE = OFFER_ACCEPTED_LINE
 
 export type DealMessage = {
   id: string

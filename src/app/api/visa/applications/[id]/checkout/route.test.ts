@@ -37,7 +37,7 @@ const h = vi.hoisted(() => ({
     issues: [] as unknown[],
     dmSelected: null as string | null,
     cryptoReady: true,
-    payments: { providers: ['paypal', 'stripe'], feeCents: 100, currency: 'USD' } as Row | null,
+    payments: { providers: ['stripe'], feeCents: 100, currency: 'USD' } as Row | null,
     rateOk: true,
     // resolveVisaProduct returns this template with listingId set to whatever was asked, so a
     // route that trusts the client id (no guard) still resolves a sellable product for it.
@@ -112,7 +112,6 @@ vi.mock('@/lib/visa/fx', () => ({
 vi.mock('@/lib/visa/payments', () => ({
   visaPaymentsConfig: () => h.state.payments,
   stripeCreateCheckout: (input: Row) => { h.state.providerCalls.push({ provider: 'stripe', ...input }); return Promise.resolve({ ref: 'cs_1', url: 'https://stripe.test/pay' }) },
-  paypalCreateOrder: (input: Row) => { h.state.providerCalls.push({ provider: 'paypal', ...input }); return Promise.resolve({ ref: 'ord_1', url: 'https://paypal.test/approve' }) },
 }))
 vi.mock('@/lib/visa/records', () => ({ recordVisaEvent: () => Promise.resolve() }))
 
@@ -141,7 +140,7 @@ async function postCheckout(body: Row): Promise<{ status: number; json: Row }> {
 }
 
 const validBody = (listingId: string): Row => ({
-  provider: 'paypal', listingId, declarationAccepted: true, prefillAuthorized: true,
+  provider: 'stripe', listingId, declarationAccepted: true, prefillAuthorized: true,
 })
 
 beforeEach(() => {
@@ -151,7 +150,7 @@ beforeEach(() => {
   h.state.issues = []
   h.state.dmSelected = null
   h.state.cryptoReady = true
-  h.state.payments = { providers: ['paypal', 'stripe'], feeCents: 100, currency: 'USD' }
+  h.state.payments = { providers: ['stripe'], feeCents: 100, currency: 'USD' }
   h.state.rateOk = true
   h.state.product = {
     title: 'Vietnam e-visa — 1 hour, single entry', entryType: 'single', speed: '1H',
@@ -206,6 +205,15 @@ describe('visa checkout — canonical selection guard', () => {
     expect(h.state.providerCalls).toHaveLength(0)
   })
 
+  // PayPal is removed (owner, 2026-10-26): a body naming it is refused before any provider is called.
+  it('⛔ refuses a PayPal checkout outright — no provider call, no payment row', async () => {
+    seedApplication({ selected_listing_id: CANON })
+    const { status, json } = await postCheckout({ ...validBody(CANON), provider: 'paypal' })
+    expect(status).toBe(400)
+    expect(json.error).toBe('invalid_request')
+    expect(h.state.providerCalls).toHaveLength(0)
+  })
+
   // ── REQUIREMENT 1 (happy): the column is canonical; a matching body proceeds ──────
   it('charges the selected_listing_id when the body confirms it', async () => {
     seedApplication({ selected_listing_id: CANON })
@@ -213,7 +221,7 @@ describe('visa checkout — canonical selection guard', () => {
     const { status, json } = await postCheckout(validBody(CANON))
 
     expect(status).toBe(200)
-    expect(json.url).toBe('https://paypal.test/approve')
+    expect(json.url).toBe('https://stripe.test/pay')
     expect(json.listingId).toBe(CANON)
     expect(h.state.providerCalls).toHaveLength(1)
     expect(h.state.providerCalls[0].listingId).toBe(CANON) // the CANONICAL listing was charged

@@ -678,7 +678,7 @@ Opening a thread is "read": `GET /api/conversations/[id]` zeroes the caller's si
 
 ### Inbox / thread UI
 
-`/messages` is a persistent two-pane messenger (`messages/layout.tsx`): the `ConversationList` lives in the layout so it never remounts when switching threads (left pane / full-screen on mobile), and the thread renders in the right pane (`children`). `messages/page.tsx` is just the desktop empty-state placeholder.
+`/messages` is a persistent two-pane messenger (`messages/messages-shell.tsx`): the `ConversationList` lives in the layout so it never remounts when switching threads (left pane / full-screen on mobile), and the thread renders in the right pane (`children`). `messages/page.tsx` is just the desktop empty-state placeholder.
 
 - **`ConversationList`** (`components/marketplace/conversation-list.tsx`) reads `convos` from `ChatContext`, pins an "eno AI" entry on top, supports client-side search, floats unread (and the open) threads to the top via a stable sort, renders offer-aware previews ("💰 New offer", "✅ Offer accepted", etc.), and does optimistic per-user delete with a 5s Undo (the server DELETE is held for the toast's lifetime — `chat-context.tsx:110-132`).
 - **`ChatProvider`** (`context/chat-context.tsx`) owns inbox + per-thread caches (in-memory `Map` backed by per-user `localStorage`, keyed by `userId` so nothing leaks across accounts and a cleared on sign-out), prefetches the top 3 threads, and exposes `refreshUnread`/`refreshConvos` plus the floating-widget state.

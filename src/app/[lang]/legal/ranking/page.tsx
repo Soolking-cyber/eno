@@ -11,6 +11,7 @@
 export const revalidate = 3600
 
 import type { Metadata } from 'next'
+import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
@@ -25,11 +26,14 @@ import { RankingContent } from './ranking-content'
 // to own `metadata` and `revalidate`, which client components cannot export — and to read
 // FEED_DIVERSITY_WINDOW here, so the client bundle does not pull in feed-diversity's imports.
 
-export const metadata: Metadata = withShare({
+const METADATA: Metadata = withShare({
   title: `How ${SITE_NAME} ranks results`,
   description: `The parameters that determine listing order on ${SITE_NAME}, and their relative importance.`,
   alternates: { canonical: '/legal/ranking' },
 })
+export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
+  return langMetadata(params, METADATA, { title: `Cách ${SITE_NAME} sắp xếp kết quả` })
+}
 
 export default function RankingPage() {
   return <RankingContent diversityWindow={FEED_DIVERSITY_WINDOW} />

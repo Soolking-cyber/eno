@@ -21,7 +21,7 @@ import { SITE_NAME } from '@/lib/edition'
 // links to /teachers/edit instead (the API refuses `optIn: true` for this list too).
 export default function UnsubscribePage() {
   return (
-    <Suspense fallback={<div className="min-h-page" />}>
+    <Suspense fallback={<main id="main" tabIndex={-1} className="min-h-page" />}>
       <UnsubscribeInner />
     </Suspense>
   )
@@ -162,14 +162,16 @@ function UnsubscribeInner() {
                   }
                 : {
                     title: tr('Unsubscribe from the weekly digest?', 'Hủy đăng ký bản tin hằng tuần?'),
-                    body: tr('Stop receiving the weekly "top products & moving sales" email from {site}.', 'Ngừng nhận email hằng tuần "sản phẩm nổi bật & moving sale" từ {site}.').replace(/\{site\}/g, SITE_NAME),
+                    // What the digest holds since 2026-10-15 (src/lib/digest.ts): the newest apartments and teachers.
+                    body: tr('Stop the weekly email with the newest apartments and teachers on {site}.', 'Ngừng nhận email hằng tuần về căn hộ và giáo viên mới trên {site}.').replace(/\{site\}/g, SITE_NAME),
                     action: unsubscribeButton,
                   }
 
   return (
     // Flat canon: one canvas, no floating card — the composition centers itself and the
     // tint circle anchors the state; separation below comes from a hairline, not a box.
-    <div className="flex min-h-page items-center justify-center px-4 py-12">
+    // <main id="main">: the skip link ("Skip to main content") targets #main on every page — here it went nowhere.
+    <main id="main" tabIndex={-1} className="flex min-h-page items-center justify-center px-4 py-12">
       <div className="w-full max-w-md text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-tint">
           {state === 'unsubscribed' ? <Check className="h-6 w-6 text-accent-foreground" /> : <Mail className="h-6 w-6 text-accent-foreground" />}
@@ -187,6 +189,6 @@ function UnsubscribeInner() {
           </LocalizedLink>
         </div>
       </div>
-    </div>
+    </main>
   )
 }

@@ -16,6 +16,8 @@ import { timeAgo } from '@/lib/types'
 import { hrefHere } from '@/lib/lang-pinned'
 import { cn } from '@/lib/utils'
 import { notificationTextAsWritten } from '@/lib/notification-text'
+import { localizeOfferLine, offerLineKind } from '@/lib/offer-lines'
+import { moneyLocale } from '@/lib/vnd'
 
 /** Notification bell for the header (desktop + mobile). Badge shows unread count.
  *  Unread float to the top and stay highlighted; each row is marked read when
@@ -35,6 +37,13 @@ export function NotificationBell() {
   const { user, openSignIn } = useAuth()
   const { items, unread, markRead, markAllRead, remove, clearAll } = useNotifications()
   const { tr, lang } = useLanguage()
+  // An 'offer' row is a new offer OR the answer to one (actOnOffer writes the same type, with its stored line as the
+  // body — the seller's 'offer' rows feed sale-loop's thread list, so no new type). Headline it by what it is: an
+  // accepted offer read "New offer" over "✅ Đã chấp nhận · Offer accepted".
+  const offerHeadline = (body: string | null | undefined) => {
+    const k = offerLineKind(body)
+    return k === 'accepted' ? tr('Offer accepted', 'Đã chấp nhận trả giá') : k === 'declined' ? tr('Offer declined', 'Đã từ chối trả giá') : tr('New offer', 'Đề nghị mới')
+  }
   const [open, setOpen] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false) // 2-tap guard on "Clear all"
 
@@ -202,7 +211,7 @@ export function NotificationBell() {
                       <div className="flex items-center justify-between gap-2">
                         <span className={cn('flex min-w-0 items-center gap-1.5 truncate text-sm', n.read ? 'font-medium text-body' : 'font-bold text-foreground')}>
                           {!n.read && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent-foreground" />}
-                          <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.type === 'price_drop' ? tr('Price drop', 'Giảm giá') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : n.type === 'sale_confirm' ? tr('Did you buy this?', 'Bạn đã mua món này chưa?') : n.type === 'teacher_message' ? tr('New message about your teacher profile', 'Tin nhắn mới về hồ sơ giáo viên') : n.type === 'teacher_jobs' ? tr('Jobs that match your profile', 'Việc làm phù hợp với bạn') : n.type === 'teacher_jobs_invite' ? tr('Get matching jobs in eno chat', 'Nhận việc làm phù hợp qua tin nhắn eno') : notificationTextAsWritten(n.type, n.url, 'title') ? n.title : <Tr text={n.title} />}</span>
+                          <span className="truncate">{n.type === 'offer' ? offerHeadline(n.body) : n.type === 'price_drop' ? tr('Price drop', 'Giảm giá') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : n.type === 'sale_confirm' ? tr('Did you buy this?', 'Bạn đã mua món này chưa?') : n.type === 'teacher_message' ? tr('New message about your teacher profile', 'Tin nhắn mới về hồ sơ giáo viên') : n.type === 'teacher_jobs' ? tr('Jobs that match your profile', 'Việc làm phù hợp với bạn') : n.type === 'teacher_jobs_invite' ? tr('Get matching jobs in eno chat', 'Nhận việc làm phù hợp qua tin nhắn eno') : notificationTextAsWritten(n.type, n.url, 'title') ? n.title : <Tr text={n.title} />}</span>
                         </span>
                         <span className="shrink-0 text-3xs text-ink-4">{timeAgo(n.createdAt, lang)}</span>
                       </div>
@@ -210,7 +219,7 @@ export function NotificationBell() {
                           body is the offerer's own note and an availability request's names the person asking, so they —
                           and any type not on the list — are shown AS WRITTEN, title and body, on both sites. <Tr> would
                           send them to /api/translate (Microsoft) and the shared Translation cache. src/lib/notification-text.ts. */}
-                      {n.body && <p className={cn('text-xs', n.type === 'system' || n.type === 'verification' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}>{notificationTextAsWritten(n.type, n.url, 'body') ? n.body : <Tr text={n.body} />}</p>}
+                      {n.body && <p className={cn('text-xs', n.type === 'system' || n.type === 'verification' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}>{notificationTextAsWritten(n.type, n.url, 'body') ? (n.type === 'offer' ? localizeOfferLine(n.body, moneyLocale(lang)) : n.body) : <Tr text={n.body} />}</p>}
                     </div>
                   </Link>
                   {/* Delete — reveals on hover (desktop); always visible on touch.

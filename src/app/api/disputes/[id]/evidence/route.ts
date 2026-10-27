@@ -41,7 +41,9 @@ export const dynamic = 'force-dynamic'
 //
 // `auth: 'userId'` = the getCurrentProfileId() this replaces; the party check needs an id, not a row.
 // Branches unchanged: 401 `auth_required` · 404 `not_found` · 409 `window_closed` · 409
-// `already_submitted` · 429 `rate_limited` · 400 `invalid_body` · 400 `empty` · 200 {paths,previews,failed}.
+// `already_submitted` · 429 `rate_limited` · 400 `invalid_body` · 400 `empty` · 200 {paths,previews,failed,results}.
+// `results` (2026-10-26): one entry per file SENT, in order — its stored path, or null (refused, failed, over the cap) —
+// so the dispute room marks the photo that did not attach and keeps the stored ones for the next attempt.
 //
 // ⚠️ FAILURE-PATH WIRE CHANGE, DELIBERATE: storeEvidenceImage()/signEvidenceUrls() were unguarded, so
 // a throw was Next's default 500 and is now `{"error":"internal_error"}` 500.
@@ -81,12 +83,13 @@ export const POST = route({ auth: 'userId' }, async ({ req, userId: meId, params
   }
 
   const paths: string[] = []
+  const results: (string | null)[] = files.map(() => null)
   let failed = 0
   try {
-    for (const file of files.slice(0, allowed)) {
+    for (const [i, file] of files.slice(0, allowed).entries()) {
       if (!IMG_ALLOWED.has(file.type) || file.size === 0 || file.size > IMG_MAX_BYTES) { failed++; continue }
       const path = await storeEvidenceImage(Buffer.from(await file.arrayBuffer()), loaded.report.id)
-      if (path) paths.push(path)
+      if (path) { paths.push(path); results[i] = path }
       else failed++
     }
   } finally {
@@ -112,5 +115,5 @@ export const POST = route({ auth: 'userId' }, async ({ req, userId: meId, params
     }
   }
 
-  return { paths, previews: await signEvidenceUrls(paths), failed }
+  return { paths, previews: await signEvidenceUrls(paths), failed, results }
 })

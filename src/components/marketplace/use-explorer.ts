@@ -23,32 +23,34 @@ import type { Geo } from './area-filter'
 import { readRecentSearches, readRecentLocations, RECENT_LOCATIONS_KEY, type RecentLocation } from '@/hooks/use-search-box'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 import { savedSearchOffered } from '@/lib/saved-search'
+import { HEADER_SEARCH_INPUT_ID } from '@/lib/header-search'
 
-/** '/' and ⌘/Ctrl+K focus the listings search input (the '/' path also opens the suggestions
- *  dropdown). One window keydown listener; ignores '/' while typing in an input/textarea. */
-export function useSearchShortcuts(setShowSuggestions: (v: boolean) => void) {
+/**
+ * '/' and a plain ⌘/Ctrl+K focus the header's search field (its own onFocus opens the suggestions). They looked up the
+ * retired hero's #listings-search-input and called preventDefault BEFORE finding it, so each did nothing and swallowed
+ * the browser's own shortcut — Firefox's quick find, the address-bar search (sweep 2026-10-22). Now a key is taken only
+ * when the field is shown, nothing else already handled it, and no field of any kind has the focus.
+ * `setShowSuggestions` stays in the signature for the explorer's call; the header opens its own panel.
+ */
+export function useSearchShortcuts(_setShowSuggestions: (v: boolean) => void) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === '/' &&
-        document.activeElement?.tagName !== 'INPUT' &&
-        document.activeElement?.tagName !== 'TEXTAREA'
-      ) {
-        e.preventDefault()
-        const input = document.getElementById('listings-search-input') as HTMLInputElement | null
-        if (input) {
-          input.focus()
-          setShowSuggestions(true)
-        }
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        document.getElementById('listings-search-input')?.focus()
-      }
+      if (e.defaultPrevented) return
+      const slash = e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey
+      const k = (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k'
+      if (!slash && !k) return
+      // Typing in a field keeps both keys: '/' is a character, and Ctrl+K edits the line on macOS.
+      const a = document.activeElement as HTMLElement | null
+      if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return
+      const input = document.getElementById(HEADER_SEARCH_INPUT_ID) as HTMLInputElement | null
+      // Rendered but not shown (a breakpoint hides it) is no field to focus: the key stays the browser's.
+      if (!input || input.getClientRects().length === 0) return
+      e.preventDefault()
+      input.focus()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [setShowSuggestions])
+  }, [])
 }
 
 /** Recent searches + recently-used areas (province/ward), persisted to localStorage. Reads the

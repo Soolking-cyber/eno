@@ -145,6 +145,17 @@ describe('createListingCore — a job is stored at its salary, never at the pric
     expect(h.creates[0].negotiable).toBe(false)
   })
 
+  // Sweep 2026-10-22: every Wanted ad was stored negotiable=true (the form hides the choice for it), so its page offered
+  // the offer slider to the people the poster is looking for.
+  it('a Wanted ad is never negotiable either — not when asked, not when urgent (which still runs)', async () => {
+    await create(ELECTRONICS, 5_000_000, { listingType: 'wanted', negotiable: true, urgent: true })
+    expect(h.creates[0].negotiable).toBe(false)
+    expect(h.creates[0].urgentUntil).toBeInstanceOf(Date)
+    h.creates = []
+    await create(JOBS, 4_000_000, { listingType: 'wanted', subcategorySlug: 'hospitality' })
+    expect(h.creates[0].negotiable).toBe(false)
+  })
+
   it('CONTROL: a product keeps its own price, and urgent still forces offers on', async () => {
     await create(ELECTRONICS, 20_000_000, { listingType: 'sell', negotiable: false, urgent: true })
     const row = h.creates[0]
@@ -204,6 +215,16 @@ describe('updateListingCore — a job edit re-derives the price from the salary'
     h.current = jobRow()
     await updateListingCore('listing-1', { listingType: 'job', title: 'English teacher, evenings' })
     expect('priceUnit' in h.updates[0]).toBe(false) // no crossing, no re-stamp
+  })
+
+  it('a Wanted ad stored before the rule (negotiable=true) is put right on its next edit; an edit to Wanted closes offers', async () => {
+    h.current = jobRow({ subcategorySlug: 'hospitality', listingType: 'wanted', salaryM: null, price: 4_000_000, negotiable: true })
+    await updateListingCore('listing-1', { title: 'Barista looking for weekend shifts' })
+    expect(h.updates[0].negotiable).toBe(false)
+    h.updates = []
+    h.current = jobRow({ subcategorySlug: 'hospitality' })
+    await updateListingCore('listing-1', { listingType: 'wanted', price: 4_000_000, negotiable: true })
+    expect(h.updates[0].negotiable).toBe(false)
   })
 
   it('clearing the salary makes the job negotiable-pay: price 0', async () => {

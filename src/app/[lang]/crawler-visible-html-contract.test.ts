@@ -225,3 +225,20 @@ describe('the home page renders its header, <main>, one H1 and its feed inline',
     expect(src(file)).not.toMatch(/\bSuspense\b/)
   })
 })
+
+/**
+ * ⛔ /BRANDS TOO (sweep 2026-10-22). `brands/loading.tsx` (a skeleton for layout shift, 2026-08-02) wrapped the page in a
+ * Suspense boundary, so its H1 and every brand link streamed into `<div hidden id="S:0">` behind a reveal script — the
+ * defect this file exists for, on an indexable hub it never looked at. Deleted: the page is ISR (one cached piece), and
+ * a cold render waits for its two cached reads, as the home and category pages do since UX3 FAST-8.
+ */
+describe('/brands renders its H1 and brand links inline', () => {
+  it.each(['..', '', 'brands'])('no loading boundary at src/app/[lang]/%s', (dir) => {
+    const found = readdirSync(join(APP, dir)).filter((f) => /^loading\./.test(f))
+    expect(found, `${dir}/${found[0]} would move /brands into <div hidden> for every crawler`).toEqual([])
+  })
+  it('brands/page.tsx exists (a wrong path would pass vacuously) and uses no Suspense', () => {
+    expect(existsSync(join(APP, 'brands/page.tsx'))).toBe(true)
+    expect(src('brands/page.tsx')).not.toMatch(/\bSuspense\b/)
+  })
+})

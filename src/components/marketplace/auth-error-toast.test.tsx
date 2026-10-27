@@ -65,6 +65,20 @@ describe('AuthErrorToast', () => {
     expect(opts.action).toBeUndefined()
   })
 
+  // Sweep 2026-10-22: the step was chosen on the FIRST render, while a session still reads as signed out (the idle
+  // boot), so a signed-in visitor was offered "Sign in". It waits for auth now — and strips nothing until then.
+  it('⛔ waits for auth before choosing the step: a session resolved as signed in gets no Sign in', () => {
+    h.loading = true
+    const view = render(<AuthErrorToast />)
+    expect(h.error).not.toHaveBeenCalled()
+    expect(h.replace).not.toHaveBeenCalled()
+    h.loading = false
+    h.user = { id: 'u1' }
+    view.rerender(<AuthErrorToast />)
+    expect(h.error).toHaveBeenCalledTimes(1)
+    expect((h.error.mock.calls[0][1] as { action?: unknown }).action).toBeUndefined()
+  })
+
   it('strips the flag from the address (a reload must not announce it again) and keeps the rest', () => {
     render(<AuthErrorToast />)
     expect(h.replace).toHaveBeenCalledWith('/?q=bike', { scroll: false })

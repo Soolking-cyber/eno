@@ -24,6 +24,7 @@ import {
   BAD_TAGS, ELIGIBLE_ACCOUNT_AGE_DAYS, ORPHAN_REVIEW_DAYS, EMPLOYMENTS, PAY_MIN_REPORTS, EMPLOYMENT_LABEL, GOOD_TAGS, HCMC_AREAS, REVIEW_ADVICE_MAX, REVIEW_TEXT_MAX, REVIEW_TEXT_MIN,
   REVIEWS_NEED_PROOF, ROLES, ROLE_LABEL, TAG_LABEL, TENURES, TENURE_LABEL,
   type BadTag, type Employment, type GoodTag, type SchoolRole, type Tenure,
+  areaLabel,
 } from '@/lib/schools/constants'
 
 type Mine = {
@@ -329,7 +330,7 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
           <CustomSelect
             value={district}
             onChange={setDistrict}
-            options={[{ value: NONE, label: tr('Not specified', 'Không nêu') }, ...HCMC_AREAS.map((a) => ({ value: a, label: a }))]}
+            options={[{ value: NONE, label: tr('Not specified', 'Không nêu') }, ...HCMC_AREAS.map((a) => ({ value: a, label: areaLabel(a, lang) }))]}
             label={tr('Campus area', 'Khu vực cơ sở')}
             className={FIELD_SELECT}
             activeClassName={FIELD_SELECT}

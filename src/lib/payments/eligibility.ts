@@ -137,7 +137,9 @@ export const ISO_ALPHA3 = new Set(
  * population `crossmint` must refuse — Vietnamese residents, whom the DTI Law permits to hold and
  * trade digital assets but not to pay with them.
  */
-export type PaymentRailId = 'paypal' | 'crossmint' | 'vietqr'
+// ⛔ PAYPAL IS REMOVED (owner, 2026-10-26: "remove paypal overall we dont need it"). It was the fiat fallback for a
+// foreign party; comments below that reason about it record why a rule was shaped the way it was.
+export type PaymentRailId = 'crossmint' | 'vietqr'
 
 /**
  * ⛔ THE ONLY PLACE `vietqrPayout` IS ALLOWED TO COME FROM. It is a boolean on `PartyIdentity`, so
@@ -349,9 +351,6 @@ export function railAllowed(rail: PaymentRailId, buyer: PartyIdentity, seller: P
    * without deciding its rule is now a compile error rather than a permission.
    */
   switch (rail) {
-    case 'paypal':
-      // Fiat. Its availability is a licensing and provider question, not this country gate's.
-      return null
     case 'vietqr':
       /**
        * ⚠️ FIAT, SO NOT COUNTRY-GATED — a domestic bank transfer is lawful for a Vietnamese party
@@ -416,10 +415,10 @@ export function availableRails(buyer: PartyIdentity, seller: PartyIdentity): Pay
   /**
    * ⚠️ THE ORDER IS THE PREFERENCE ORDER, and `vietqr` sits second on purpose. The owner asked for
    * the wallet first; for a Vietnamese buyer the wallet is refused a line later anyway, so what
-   * they actually see first is the QR their banking app already knows how to read. PayPal remains
-   * last — it is the fallback for a foreign party the wallet cannot serve.
+   * they actually see first is the QR their banking app already knows how to read. (PayPal, the fallback
+   * for a foreign party the wallet could not serve, was removed 2026-10-26.)
    */
-  const order: PaymentRailId[] = ['crossmint', 'vietqr', 'paypal']
+  const order: PaymentRailId[] = ['crossmint', 'vietqr']
   return order.filter((r) => railAllowed(r, buyer, seller) === null)
 }
 

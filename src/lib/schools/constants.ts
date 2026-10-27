@@ -132,6 +132,20 @@ export const HCMC_AREAS = [
 ] as const
 export type HcmcArea = (typeof HCMC_AREAS)[number]
 export const isHcmcArea = (v: unknown): v is HcmcArea => typeof v === 'string' && (HCMC_AREAS as readonly string[]).includes(v)
+/**
+ * Each area's Vietnamese name, for SHOWING it — the English above stays the stored and API value (the database, the
+ * importer, the suggest validator). Vietnamese pages printed "District 1", "Binh Thanh" (sweep 2026-10-22). Keyed by the
+ * English, never an `{ en, vi }` pair: these are place names, not copy for gen-ui-strings to send to machine translation.
+ */
+const HCMC_AREA_VI: Record<HcmcArea, string> = {
+  'District 1': 'Quận 1', 'Thu Duc City (D2 & D9)': 'TP. Thủ Đức (Q2 & Q9)', 'District 3': 'Quận 3', 'District 4': 'Quận 4',
+  'District 5': 'Quận 5', 'District 6': 'Quận 6', 'District 7': 'Quận 7', 'District 8': 'Quận 8', 'District 10': 'Quận 10',
+  'District 11': 'Quận 11', 'District 12': 'Quận 12', 'Binh Thanh': 'Bình Thạnh', 'Phu Nhuan': 'Phú Nhuận', 'Tan Binh': 'Tân Bình',
+  'Tan Phu': 'Tân Phú', 'Go Vap': 'Gò Vấp', 'Binh Tan': 'Bình Tân', 'Binh Chanh': 'Bình Chánh', 'Nha Be': 'Nhà Bè',
+  'Hoc Mon': 'Hóc Môn', 'Cu Chi': 'Củ Chi', 'Thu Dau Mot': 'Thủ Dầu Một',
+}
+/** An area as the reader reads it: Vietnamese on a Vietnamese page, as stored otherwise (and for any value not listed). */
+export const areaLabel = (area: string, lang: string): string => (lang === 'vi' && isHcmcArea(area) ? HCMC_AREA_VI[area] : area)
 
 export const REVIEW_TEXT_MAX = 2000
 export const REVIEW_ADVICE_MAX = 1000

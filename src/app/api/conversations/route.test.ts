@@ -237,7 +237,7 @@ import { teacherDmRefusal, type TeacherDmStanding } from '@/lib/teachers/dm-quot
 import { TEACHER_DM_LIMITS } from '@/lib/teachers/constants'
 
 function listing(id: string, sellerId: string, extra: Row = {}) {
-  return { id, title: `Listing ${id}`, verified: true, negotiable: true, sellerId, seller: { ownerId: 'desk-owner' }, ...extra }
+  return { id, title: `Listing ${id}`, verified: true, status: 'active', negotiable: true, sellerId, seller: { ownerId: 'desk-owner' }, ...extra }
 }
 
 function convo(id: string, listingId: string, sellerId: string, lastMessageAt: number) {
@@ -504,6 +504,28 @@ describe('an opening OFFER on a listing that takes none', () => {
     expect(json.error).toBe('not_negotiable')
     expect(h.state.docked).toEqual([])
     expect(h.state.convos).toHaveLength(0)
+  })
+})
+
+// Sweep 2026-10-22: the in-thread send refuses an offer on a listing that is not active (ef579378b); this opening path
+// did not, so a stale card's quick offer on a SOLD item wrote a pending offer the seller could only decline.
+describe('an opening OFFER on a listing that is no longer active', () => {
+  for (const status of ['sold', 'hidden']) {
+    it(`a ${status} listing refuses it — no thread, no trust charge`, async () => {
+      h.state.listings[SHOP_A] = listing(SHOP_A, OTHER_SELLER, { status, seller: { ownerId: 'shop-owner' } })
+      const { status: code, json } = await post({ listingId: SHOP_A, offerAmount: 1_000_000 })
+      expect(code).toBe(409)
+      expect(json.error).toBe('listing_unavailable')
+      expect(h.state.convos).toHaveLength(0)
+      expect(h.state.docked).toEqual([])
+    })
+  }
+
+  it('a plain first message on a sold listing still opens the thread', async () => {
+    h.state.listings[SHOP_A] = listing(SHOP_A, OTHER_SELLER, { status: 'sold', seller: { ownerId: 'shop-owner' } })
+    const { status } = await post({ listingId: SHOP_A, message: 'Is it really gone?' })
+    expect(status).toBe(200)
+    expect(h.state.delivered).toHaveLength(1)
   })
 })
 

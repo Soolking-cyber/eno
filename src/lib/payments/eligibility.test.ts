@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
   vietqrPayoutReady,
   railAllowed,
   type PartyIdentity,
+  type PaymentRailId,
 } from './eligibility'
 
 // This module is the legal line of the payments feature, so the tests that matter are the ones
@@ -221,12 +222,10 @@ describe('railAllowed — the stablecoin rail needs BOTH sides outside Vietnam',
     expect(railAllowed('crossmint', abroad, verified({ kycVerified: false }))).toBe('seller_kyc_required')
   })
 
-  it('paypal is not country-gated here — it settles in fiat', () => {
-    expect(railAllowed('paypal', inVietnam, inVietnam)).toBeNull()
-  })
-
-  it('⛔ but paypal still requires both sides verified', () => {
-    expect(railAllowed('paypal', verified({ kycVerified: false }), abroad)).toBe('buyer_kyc_required')
+  // PayPal is removed (owner, 2026-10-26). A stale client or route still naming it is refused like any unknown rail.
+  it('⛔ paypal is no rail at all now — refused for any pair', () => {
+    expect(railAllowed('paypal' as PaymentRailId, abroad, abroad)).toBe('rail_not_available_in_country')
+    expect(railAllowed('paypal' as PaymentRailId, inVietnam, inVietnam)).toBe('rail_not_available_in_country')
   })
 })
 
@@ -234,15 +233,15 @@ describe('availableRails — the wallet leads where it is lawful', () => {
   const abroad = verified({ nationality: 'GBR', residenceCountry: 'GBR' })
   const inVietnam = verified({ nationality: 'GBR', residenceCountry: 'VNM' })
 
-  it('offers the wallet first, then paypal, for a foreign pair', () => {
+  it('offers the wallet to a foreign pair (PayPal, once its fallback, is removed)', () => {
     /**
      * ⛔ NO `vietqr` HERE, AND THIS TEST ASSERTED THE OPPOSITE FOR ONE ROUND. A GBR buyer paying a
      * GBR seller who holds a Vietnamese account was offered a NAPAS 247 QR above PayPal — a code
      * no foreign banking app can execute. A reviewer found it by reading the test rather than the
      * comment above the code, which is the right way round.
      */
-    expect(availableRails(abroad, { ...abroad, vietqrPayout: true })).toEqual(['crossmint', 'paypal'])
-    expect(availableRails(abroad, abroad)).toEqual(['crossmint', 'paypal'])
+    expect(availableRails(abroad, { ...abroad, vietqrPayout: true })).toEqual(['crossmint'])
+    expect(availableRails(abroad, abroad)).toEqual(['crossmint'])
   })
 
   it('⛔ VietQR needs a buyer who can plausibly send one', () => {
@@ -319,12 +318,9 @@ describe('⚠️ sanctions veto the WALLET only — and that is deliberate', () 
      * tested, so the blast radius was invisible for a whole review round.
      */
     for (const p of [russian, iranian]) {
-      expect(railAllowed('paypal', p, ok)).toBeNull()
       expect(partiesEligible(p, ok)).toBeNull()
     }
   })
 
-  it('an unsanctioned pair still gets PayPal with the allow-list empty', () => {
-    expect(railAllowed('paypal', ok, ok)).toBeNull()
-  })
+
 })

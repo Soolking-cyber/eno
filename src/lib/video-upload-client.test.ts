@@ -6,15 +6,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // and a clip the server found over its kind's length throws 'video_too_long' — on the synchronous 422 and on a failed poll —
 // while every other failure keeps its old code.
 vi.mock('@/lib/supabase/browser', () => ({
-  createSupabaseBrowser: () => ({ storage: { from: () => ({ uploadToSignedUrl: async () => ({ error: null }) }) } }),
+  createSupabaseBrowser: () => ({ storage: { from: () => ({ uploadToSignedUrl: async (_p: string, _t: string, _f: File, o: { contentType: string }) => { h.stored.push(o.contentType); return { error: null } } }) } }),
 }))
 
 type Reply = { status: number; body: unknown }
-const h = vi.hoisted(() => ({ posts: [] as unknown[], polls: 0, transcode: { status: 202, body: { status: 'running' } } as Reply, poll: (): Reply => ({ status: 200, body: { status: 'running' } }) }))
+const h = vi.hoisted(() => ({ posts: [] as unknown[], stored: [] as string[], polls: 0, transcode: { status: 202, body: { status: 'running' } } as Reply, poll: (): Reply => ({ status: 200, body: { status: 'running' } }) }))
 const json = (r: Reply) => new Response(JSON.stringify(r.body), { status: r.status, headers: { 'content-type': 'application/json' } })
 
 beforeEach(() => {
-  h.posts = []; h.polls = 0
+  h.posts = []; h.stored = []; h.polls = 0
   h.transcode = { status: 202, body: { status: 'running' } }
   h.poll = () => ({ status: 200, body: { status: 'running' } })
   vi.useFakeTimers()
@@ -28,7 +28,7 @@ beforeEach(() => {
 })
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
-const { uploadListingVideo, TRANSCODE_WAIT_MS } = await import('./video-upload-client')
+const { uploadListingVideo, TRANSCODE_WAIT_MS, videoUploadType } = await import('./video-upload-client')
 const clip = () => new File([new Uint8Array(8)], 'intro.mp4', { type: 'video/mp4' })
 /** Runs the upload to its end with the clock advanced in steps, returning what it resolved or threw. */
 async function settle(p: Promise<string | null>, ms: number): Promise<{ value?: string | null; error?: string }> {
@@ -134,5 +134,26 @@ describe('uploadListingVideo — kinds', () => {
     h.poll = () => ({ status: 200, body: { status: 'failed' } })
     expect(await settle(uploadListingVideo(clip()), 10_000)).toEqual({ error: 'video' })
     expect(await settle(uploadListingVideo(clip(), { hevc: true, kind: 'teacher_intro' }), 10_000)).toEqual({ error: 'video_hevc' })
+  })
+})
+
+describe('uploadListingVideo — the type it signs', () => {
+  const signed = () => vi.mocked(fetch).mock.calls.filter(([u]) => u === '/api/upload/video/sign').map(([, init]) => JSON.parse(init?.body as string))
+  it('⛔ an .m4v typed video/x-m4v, and a clip with no type, are signed as a type the route allows — they were refused (415) on every retry', async () => {
+    h.transcode = { status: 200, body: { url: 'https://sb.eno.vn/x.mp4' } }
+    expect(await settle(uploadListingVideo(new File([new Uint8Array(8)], 'trip.m4v', { type: 'video/x-m4v' })), 0)).toEqual({ value: 'https://sb.eno.vn/x.mp4' })
+    expect(signed()).toEqual([{ type: 'video/mp4', size: 8 }])
+    expect(h.stored).toEqual(['video/mp4'])
+    expect(await settle(uploadListingVideo(new File([new Uint8Array(8)], 'IMG_0001.MOV', { type: '' })), 0)).toEqual({ value: 'https://sb.eno.vn/x.mp4' })
+    expect(h.stored).toEqual(['video/mp4', 'video/quicktime'])
+    expect(signed()[1]).toEqual({ type: 'video/quicktime', size: 8 })
+    expect(videoUploadType({ name: 'IMG_0001.MOV', type: '' })).toBe('video/quicktime')
+    expect(videoUploadType({ name: 'clip.m4v', type: '' })).toBe('video/mp4')
+    expect(videoUploadType({ name: 'clip.webm', type: '' })).toBe('video/webm')
+    expect(videoUploadType({ name: 'clip.mp4', type: 'video/mp4' })).toBe('video/mp4')
+    expect(videoUploadType({ name: 'notes', type: '' })).toBe('')
+    expect(videoUploadType({ name: 'mp4', type: '' })).toBe('')
+    expect(videoUploadType({ name: 'clip.constructor', type: '' })).toBe('')
+    expect(videoUploadType({ name: 'clip.__proto__', type: '' })).toBe('')
   })
 })

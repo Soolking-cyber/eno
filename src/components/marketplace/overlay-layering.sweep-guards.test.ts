@@ -26,7 +26,8 @@ describe('overlay layering — sweep guards', () => {
 
   it('the video takeover is at z-overlay, so a dialog it opens paints above it', () => {
     const src = read('listings-video-feed.tsx')
-    expect(src).toContain('<div className="fixed inset-0 z-overlay bg-black">')
+    // The shell is a modal dialog since 2026-10-26 (role, aria-modal, focus handling): the layer is its className.
+    expect(src).toMatch(/<div ref=\{shellRef\} role="dialog" aria-modal="true"[^>]*className="fixed inset-0 z-overlay bg-black">/)
     expect(src).not.toContain('fixed inset-0 z-[60] bg-black')
   })
 

@@ -46,6 +46,8 @@ const h = vi.hoisted(() => ({
   approveCount: 1,
   /** db.report.findMany, dispatched on `where.status` — the route uses it three different ways. */
   dismissedRows: [] as Row[],
+  /** db.disputeMessage.findMany — a content case's `[[reported …]]` pointer rows. */
+  pointers: [] as Row[],
   batchReports: [] as Row[],
   purgedReports: [] as Row[],
   listingUpdateThrows: false,
@@ -126,7 +128,11 @@ vi.mock('@/lib/db', () => {
         },
       },
       notification: { create: async (a: Row) => { rec('notification.create', a); return {} } },
-      disputeMessage: { create: async (a: Row) => { rec('disputeMessage.create', a); return { id: 'dm-1', createdAt: new Date(0) } } },
+      disputeMessage: {
+        create: async (a: Row) => { rec('disputeMessage.create', a); return { id: 'dm-1', createdAt: new Date(0) } },
+        // A content case's pointer rows (reported-content pointersFor): what dismiss-target groups a pile-on by.
+        findMany: async (a: Row) => { rec('disputeMessage.findMany', a); return h.pointers },
+      },
       $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
         rec('$executeRaw', { sql: strings.join('${}'), values }); return 1
       },
@@ -282,6 +288,7 @@ beforeEach(() => {
   h.updateManyCount = 1
   h.updateManyQueue = []
   h.dismissedRows = []
+  h.pointers = []
   h.batchReports = []
   h.purgedReports = []
   h.listingUpdateThrows = false
@@ -475,6 +482,30 @@ describe('dismiss-target — the pile-on clear', () => {
     })
     // Only the row with a reporter is notified; the anonymous one is skipped.
     expect(effects('notifyDispute').map((e) => e.args)).toEqual([['rep1', 'r1', 'decided_dismissed_reporter']])
+  })
+
+  // ⛔ Sweep 2026-10-22: a content case (a review, help reply or help post) carries no target columns, so the chain fell
+  // to `{ id }` and "Dismiss all 3 on this target" dismissed only the one clicked.
+  it('a content case dismisses every open report on the same content, matched by its pointer', async () => {
+    h.report = { targetProfileId: null, targetSellerId: null, listingId: null }
+    h.pointers = [{ reportId: 'r1', body: '[[reported review rv1abcdef]] A review' }]
+    await post({ action: 'dismiss-target', id: 'r1' })
+    const where = args('report.updateMany')!.where
+    expect(where).toEqual({ status: 'open', messages: { some: { senderRole: 'system', body: { startsWith: '[[reported review rv1abcdef]]' } } } })
+  })
+
+  it('the respondent of a pile-on is told the case closed — once, however many reports it held', async () => {
+    h.report = { targetProfileId: 'p9', targetSellerId: null, listingId: null, __respondent: 'p9' }
+    h.dismissedRows = [
+      { id: 'r1', reporterProfileId: 'rep1', targetProfileId: 'p9', targetSellerId: null },
+      { id: 'r2', reporterProfileId: 'rep2', targetProfileId: 'p9', targetSellerId: null },
+    ]
+    await post({ action: 'dismiss-target', id: 'r1' })
+    expect(effects('notifyDispute').map((e) => e.args)).toEqual([
+      ['rep1', 'r1', 'decided_dismissed_reporter'],
+      ['p9', 'r1', 'decided_closed_respondent'],
+      ['rep2', 'r2', 'decided_dismissed_reporter'],
+    ])
   })
 })
 

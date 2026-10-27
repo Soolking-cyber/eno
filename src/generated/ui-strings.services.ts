@@ -250,6 +250,7 @@ export const UI_STRINGS_SERVICES: string[] = [
   "Open map & edit",
   "Open my wallet",
   "Open one of your saved trips",
+  "Open the application — photos & download",
   "Open the e-Visa chat",
   "Open your banking app and scan this code.",
   "Open {label} options",

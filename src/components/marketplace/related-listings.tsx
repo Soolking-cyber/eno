@@ -10,6 +10,7 @@ import { useLanguage } from '@/context/language-context'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
 import { useNearViewport } from '@/hooks/use-near-viewport'
+import { PLACES_KIND_PARAM, VEHICLE_RENTAL_SUBCATS } from '@/lib/rental-places'
 import type { SerializedListingCard } from '@/lib/types'
 
 /** "More like this" rail on the listing page — current listing excluded. Fetched CLIENT-side so
@@ -59,6 +60,13 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
     // exists under more than one category — so a subcategory-only query can pull in another
     // category's listings, which is the same class of bug this rail is being fixed for.
     const cat = `category=${encodeURIComponent(categorySlug)}`
+    // ⛔ RENTALS HOLD HOMES AND VEHICLE HIRE IN ONE CATEGORY (rental-places.ts). The plain-category pass filled a GoPlus
+    // flat's rail with Toyota and Yamaha hire, 6 of 7 cards (sweep 2026-10-22): a place widens to places only
+    // (`kind=places`, which keeps a place with no subcategory too), and vehicle hire does not widen at all — its own
+    // subcategory fills the rail.
+    const isRentals = categorySlug === 'rentals'
+    const vehicleHire = isRentals && !!subcategorySlug && VEHICLE_RENTAL_SUBCATS.includes(subcategorySlug)
+    const wide = vehicleHire ? null : isRentals ? `${cat}&${PLACES_KIND_PARAM.key}=${PLACES_KIND_PARAM.value}` : cat
     const scopes = (variant === 'gone'
       /**
        * ⛔ THE GONE PAGE OFFERS SECOND-HAND ONLY: `condition=used` on EVERY pass (the feed's one definition
@@ -82,7 +90,7 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
       : [
           subcategorySlug && brandSlug ? `${cat}&subcategory=${encodeURIComponent(subcategorySlug)}&brand=${encodeURIComponent(brandSlug)}` : null,
           subcategorySlug ? `${cat}&subcategory=${encodeURIComponent(subcategorySlug)}` : null,
-          cat,
+          wide,
         ].filter(Boolean)) as string[]
 
     ;(async () => {

@@ -59,7 +59,7 @@ const MAX_TIMER_MS = 24 * 60 * 60 * 1_000
  * edition boundary.
  *
  * ⚠️ NOT ON /messages. The chat layout sizes itself to the viewport minus a measured
- * `--banner-h` (messages/layout.tsx), which only knows #prelaunch-banner; an unmeasured strip above
+ * `--banner-h` (messages/messages-shell.tsx), which only knows #prelaunch-banner; an unmeasured strip above
  * it would push the composer below the fold. The notice is on every other page.
  *
  * ⚠️ AND IT MOVES THE HEADER, WHICH ONE `fixed` SURFACE USED TO ASSUME IT COULD NOT (2026-10-01 review).

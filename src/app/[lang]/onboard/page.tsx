@@ -3,15 +3,19 @@ import { EnoLoader } from '@/components/ui/eno-loader'
 import { SITE_NAME } from '@/lib/edition'
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
+import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import { getCurrentProfile } from '@/lib/admin'
 import { safeNextPath } from '@/lib/url'
 import { pendingOnboardingStep } from '@/lib/auth-policy'
 import { OnboardClient } from './onboard-client'
 
 // Noindex — this is a private, post-sign-in interstitial, not a content page.
-export const metadata: Metadata = {
+const METADATA: Metadata = {
   title: `Welcome to ${SITE_NAME}`,
   robots: { index: false, follow: false },
+}
+export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
+  return langMetadata(params, METADATA, { title: `Chào mừng đến ${SITE_NAME}` })
 }
 
 // ⚠️ DYNAMIC BECAUSE OF THE SERVER GATE BELOW — it reads the session, so this page must never be

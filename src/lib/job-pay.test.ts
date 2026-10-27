@@ -52,6 +52,9 @@ describe('takesOffers — a job never takes an offer, whatever its stored flag',
     expect(takesOffers({ negotiable: false, listingType: 'sell' })).toBe(false)
     expect(takesOffers({ negotiable: true })).toBe(true) // callers that never selected the type keep the old rule
   })
+  it('a Wanted ad takes none either — its poster is the one looking, so there is no asking price to offer on', () => {
+    expect(takesOffers({ negotiable: true, listingType: 'wanted' })).toBe(false)
+  })
 
   it('is false on a job even when the row says negotiable (a job stored before the salary rule)', () => {
     expect(takesOffers({ negotiable: true, listingType: 'job' })).toBe(false)

@@ -6,12 +6,12 @@ import { getVisaDb } from '@/lib/visa/db'
 import { recordVisaEvent, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
 import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForReview } from '@/lib/visa/schema'
 
-// ── eno e-Visa assistance charges — Stripe + PayPal, env-gated dormant ────────────
+// ── eno e-Visa assistance charges — Stripe, env-gated dormant (PayPal removed 2026-10-26) ──
 //
 // The pay-before-admin gate (owner 2026-07-18): a visa application stays the
 // applicant's private draft until the service is PAID; only then does the case
 // hand off to ready_for_review, where the admin queue first sees it. Both providers
-// are called over plain REST (no SDK dependencies — the Stripe/PayPal HTTP APIs are
+// are called over plain REST (no SDK dependencies — the Stripe HTTP API is
 // stable and this is the app's only payment surface), and every confirmation path is
 // SERVER-verified: the client never gets to assert "paid".
 //
@@ -30,17 +30,19 @@ import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForRe
 // still never derives an amount — but it now insists on being handed the quote's evidence
 // alongside it (priceVnd, vndPerUsd, quotedAt) and writes that evidence into the
 // PROVIDER'S OWN immutable record of the payment, so "why was this card charged $114.89?"
-// is answerable months later from Stripe's or PayPal's copy alone. A charge whose evidence
+// is answerable months later from Stripe's copy alone. A charge whose evidence
 // is missing or malformed is refused rather than sent: an unevidenced currency conversion
 // is exactly the charge nobody can defend in a dispute.
 //
 // Dormant until env (the Turnstile pattern): with no provider keys or no fee env set,
 // visaPaymentsConfig() is null and submit behaves exactly as before this feature.
-// Owner activation = set VISA_SERVICE_FEE_USD + STRIPE_SECRET_KEY (and/or
-// PAYPAL_CLIENT_ID/PAYPAL_CLIENT_SECRET) in env; STRIPE_WEBHOOK_SECRET makes
+// Owner activation = set VISA_SERVICE_FEE_USD + STRIPE_SECRET_KEY in env; STRIPE_WEBHOOK_SECRET makes
 // the webhook path live (confirm-on-return works without it).
 
-export type VisaPaymentProvider = 'stripe' | 'paypal'
+// ⛔ PAYPAL IS REMOVED (owner, 2026-10-26: "remove paypal overall we dont need it"). Its client — order create,
+// capture, the mobile app-switch — is gone; the one case paid through it before 2026-09-13 is reconciled in PayPal's
+// own dashboard. A stored `provider = 'paypal'` row stays readable history; nothing new can be minted against it.
+export type VisaPaymentProvider = 'stripe'
 
 export type VisaPaymentsConfig = {
   providers: VisaPaymentProvider[]
@@ -72,7 +74,7 @@ export function visaPaymentsConfig(): VisaPaymentsConfig | null {
    * resolve payment through chat"). Returning null here is what makes the checkout and confirm routes
    * refuse (`payments_not_configured`) — hiding the buttons alone would have left a direct POST able to
    * charge a card if a Stripe key were ever set (a reviewer's catch). The code below is kept, dormant,
-   * for the record and for reconciling the cases already paid through PayPal.
+   * for the record.
    */
   if (process.env.VISA_ONLINE_PAYMENTS_ENABLED !== 'true') return null
   const fee = process.env.VISA_SERVICE_FEE_USD
@@ -81,11 +83,8 @@ export function visaPaymentsConfig(): VisaPaymentsConfig | null {
   if (!Number.isFinite(feeCents) || feeCents <= 0) return null
   const providers: VisaPaymentProvider[] = []
   if (process.env.STRIPE_SECRET_KEY) providers.push('stripe')
-  // ⛔ PAYPAL IS NO LONGER OFFERED, WHATEVER THE ENV HOLDS (owner, 2026-09-13: "no paypal … admin will
-  // resolve payment through chat"). The PayPal functions below stay for the cases already paid through
-  // it (one live case in ready_to_submit when this landed) — refund and reconcile need them — but no new
-  // checkout can pick it. With no Stripe key either, this returns null and the applicant gets the
-  // send-to-desk card.
+  // PayPal was refused here from 2026-09-13 and is removed entirely since 2026-10-26. With no Stripe key, this returns
+  // null and the applicant gets the send-to-desk card.
   if (!providers.length) return null
   return { providers, feeCents, currency: 'USD' }
 }
@@ -190,45 +189,9 @@ function assertQuoteEvidence(provider: VisaPaymentProvider, evidence: VisaQuoteE
 }
 
 /**
- * Integer cents → the "12.34" decimal string PayPal's Orders API wants.
- *
- * NO FLOAT ARITHMETIC ON THE MONEY (the usdToCentsExact rule, mirrored): the dollars come
- * from an integer floor and the remainder from an integer multiply/subtract, so the string
- * is a transcription of the integer rather than a rounding of a double. `(cents / 100)
- * .toFixed(2)` happens to be right for every value in range, but "happens to be right" is
- * not a property a payment call should rest on.
- */
-function usdCentsToDecimalString(cents: number): string {
-  const dollars = Math.floor(cents / 100)
-  const remainder = cents - dollars * 100
-  return `${dollars}.${String(remainder).padStart(2, '0')}`
-}
-
-/**
- * PayPal's "12.34" money string → integer cents, by DIGITS rather than by arithmetic.
- * The inverse of usdCentsToDecimalString and the same rule: `parseFloat(v) * 100` is a
- * float multiply on an amount we are about to compare against the price we charged, and
- * the comparison is what stops a short capture from being recorded as payment.
- *
- * 0 for anything that is not a plain non-negative decimal with at most two places. That is
- * FAIL-CLOSED by construction: markVisaPaidAndHandoff requires the reported amount to
- * cover the checkout row, so an unreadable amount is rejected as a mismatch, never waved
- * through. (Same value the old parseFloat path produced for garbage, deliberately.)
- */
-function usdDecimalStringToCents(value: unknown): number {
-  const match = /^\s*(\d{1,12})(?:\.(\d{1,2}))?\s*$/.exec(typeof value === 'string' ? value : '')
-  if (!match) return 0
-  const dollars = Number.parseInt(match[1], 10)
-  // padEnd, not padStart: ".5" is fifty cents, not five. (PayPal sends two places for USD;
-  // this only matters if it ever trims a trailing zero.)
-  const fraction = Number.parseInt((match[2] || '').padEnd(2, '0'), 10)
-  return dollars * 100 + fraction
-}
-
-/**
  * The product name shown on the provider's own hosted page and stored in its record —
  * the buyer must see WHICH product they are paying for, and a dispute needs the provider's
- * copy of it. Collapsed, trimmed, length-capped (Stripe's product name and PayPal's
+ * copy of it. Collapsed, trimmed, length-capped (Stripe's product name and the
  * purchase-unit description are both bounded), and falling back to the generic label so an
  * untitled listing can never produce an empty required field.
  *
@@ -252,7 +215,7 @@ function providerProductLabel(title: string | null | undefined, max: number): st
  * schema, no metadata lookup and no access to anything of ours.
  *
  * ⚠️ THE ĐỒNG NOTE IS BUDGETED FIRST and the TITLE is what gets truncated. Both providers
- * hard-cap these fields (Stripe 120-ish for a product name, PayPal 127 for a purchase-unit
+ * hard-cap these fields (Stripe 120-ish for a product name; PayPal, removed, capped its purchase-unit
  * description), and a long product title must not be allowed to push the price out of the
  * string — a truncated title is cosmetic, a missing price is the evidence gone.
  *
@@ -394,215 +357,6 @@ export function verifyStripeSignature(rawBody: string, signatureHeader: string |
     const buf = Buffer.from(candidate, 'utf8')
     return buf.length === expectedBuf.length && timingSafeEqual(buf, expectedBuf)
   })
-}
-
-// ── PayPal (REST; Orders v2) ───────────────────────────────────────────────────────
-
-function paypalBase(): string {
-  // visaPaymentsConfig() already refuses to enable PayPal without an explicit valid
-  // mode; this second check makes a direct caller with a typo'd env fail closed too.
-  const env = process.env.PAYPAL_ENV
-  if (env !== 'live' && env !== 'sandbox') throw new PaymentProviderError('paypal', 'env_not_configured')
-  return env === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com'
-}
-
-async function paypalToken(): Promise<string> {
-  const id = process.env.PAYPAL_CLIENT_ID
-  const secret = process.env.PAYPAL_CLIENT_SECRET
-  if (!id || !secret) throw new PaymentProviderError('paypal', 'not_configured')
-  const res = await fetch(`${paypalBase()}/v1/oauth2/token`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${id}:${secret}`).toString('base64')}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: 'grant_type=client_credentials',
-    cache: 'no-store',
-    signal: AbortSignal.timeout(15_000),
-  })
-  const json = (await res.json().catch(() => ({}))) as { access_token?: string }
-  if (!res.ok || !json.access_token) throw new PaymentProviderError('paypal', `oauth_${res.status}`)
-  return json.access_token
-}
-
-async function paypalApi(path: string, method: 'GET' | 'POST', body?: unknown): Promise<{ status: number; json: Record<string, unknown> }> {
-  const token = await paypalToken()
-  const res = await fetch(`${paypalBase()}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    cache: 'no-store',
-    signal: AbortSignal.timeout(15_000),
-  })
-  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
-  return { status: res.status, json }
-}
-
-/**
- * Open a PayPal order for ONE resolved visa product. Same money rule as the Stripe path:
- * the amount is the caller's server-issued quote, gated by assertChargeableUsdCents, and
- * its evidence by assertQuoteEvidence.
- *
- * ⚠️ custom_id STAYS THE APPLICATION ID. paypalOrderState() reads the paid case back out
- * of it and the confirm route refuses any order whose custom_id is not this application —
- * that is the cross-application guard, so the field is not free real estate for a listing
- * id. PayPal's per-unit evidence is therefore the DESCRIPTION, which now carries the
- * product's title AND the đồng price the dollars convert from; the listing id, the rate
- * and the quote instant live in our visa_events audit row, which the checkout route
- * writes. (invoice_id would be the other slot and is deliberately unused: it is unique per
- * merchant account, so a retried checkout would be rejected by PayPal outright.)
- *
- * PayPal therefore records LESS of the conversion than Stripe's metadata map does — the
- * asymmetry is the API's, not a choice: Orders v2 has no free-form key/value bag on a
- * purchase unit, and the two fields that could hold one are both load-bearing here.
- */
-/**
- * PAYPAL APP SWITCH — the one field that lets the PayPal APP open on a mobile browser.
- *
- * ⚠️ WITHOUT THIS, THE APP CAN NEVER OPEN, AND THAT IS NOT A GUESS. PayPal's live
- * apple-app-site-association (fetched 2026-08-20) declares 24 apps and 264 explicit paths with NO
- * wildcard; `/checkoutnow` — the URL Orders v2 returns by default — is NOT among them, so iOS has
- * no basis to intercept it. `/app-switch-checkout` IS among them, and supplying the buyer's user
- * agent is what makes PayPal hand back that link instead. `paypalCreateOrder` already prefers
- * `rel: 'payer-action'` over `rel: 'approve'`; that preference was written for this link and until
- * now had none to find.
- *
- * ⛔ VALIDATE, NEVER REPAIR. The Orders v2 spec says verbatim: "Merchants must not alter or modify
- * the buyer's device user agent." Stripping a bad character IS modifying it, so a UA that would not
- * satisfy the schema is DROPPED WHOLE rather than cleaned up — external review (codex, plan stage)
- * caught the first draft doing exactly that.
- *
- * ⛔ AND IT FAILS OPEN, because this is a PAYMENT. The schema caps the field at 512 chars and its
- * pattern `^.*$` has no `m` flag, so any line terminator fails it — and a rejected field means
- * PayPal 400s the whole order and the buyer cannot pay AT ALL. Returning null here costs only the
- * app switch: checkout falls back to the web page it already uses today.
- */
-const APP_SWITCH_UA_MAX = 512
-// Deliberately broad, not clever. A phone this misses simply gets today's web checkout, so a false
-// NEGATIVE is free; the reason it is gated at all is that a desktop UA must leave the request
-// byte-identical to what ships today (external review split on this — agy argued the desktop path
-// is the one thing worth protecting, since its failure mode is a regression rather than a no-op).
-const MOBILE_UA_RE = /Mobi|Android|iPhone|iPad|iPod|Windows Phone/i
-
-function appSwitchUserAgent(raw: string | null | undefined): string | null {
-  if (!raw) return null
-  if (raw.length < 1 || raw.length > APP_SWITCH_UA_MAX) return null
-  // Control characters and the Unicode line separators: none belong in a real UA, and each is a
-  // 400 waiting to happen. Reject the value; do not sanitize it.
-  // C0 *and* C1 (\u0080-\u009F): raw header bytes 0x80-0x9F decode to exactly those, and the
-  // first draft's range stopped at \u007F. None belong in a real UA.
-  if (/[\u0000-\u001F\u007F-\u009F\u2028\u2029]/.test(raw)) return null
-  if (!MOBILE_UA_RE.test(raw)) return null
-  return raw
-}
-
-export async function paypalCreateOrder(input: {
-  applicationId: string
-  listingId: string
-  productTitle: string
-  amountCents: number
-  currency: string
-  quote: VisaQuoteEvidence
-  /** The buyer's raw `user-agent` header — forwarded UNMODIFIED or not at all. */
-  buyerUserAgent?: string | null
-}): Promise<{ ref: string; url: string }> {
-  const origin = appOrigin()
-  const appSwitchUa = appSwitchUserAgent(input.buyerUserAgent)
-  const amountCents = assertChargeableUsdCents('paypal', input.amountCents, input.currency)
-  const quote = assertQuoteEvidence('paypal', input.quote)
-  const orderBody = (switchUa: string | null) => ({
-    intent: 'CAPTURE',
-    purchase_units: [{
-      reference_id: input.applicationId,
-      custom_id: input.applicationId,
-      // 127 is PayPal's documented maximum for a purchase-unit description. The đồng price
-      // rides in here because custom_id is spoken for (see the note above) — and it is the
-      // one line the buyer reads on the PayPal approval page next to the dollar total, so
-      // "you are paying US$114.89 for a 3,000,000 VND service" is stated before they click.
-      description: providerLineLabel(input.productTitle, quote.priceVnd, 127),
-      amount: { currency_code: 'USD', value: usdCentsToDecimalString(amountCents) },
-    }],
-    payment_source: {
-      paypal: {
-        experience_context: {
-          user_action: 'PAY_NOW',
-          shipping_preference: 'NO_SHIPPING',
-          // PayPal appends ?token=<orderId> to the return URL; aid as above.
-          return_url: `${origin}/dashboard/visa?paid=paypal&aid=${input.applicationId}`,
-          cancel_url: `${origin}/dashboard/visa?pay=cancelled`,
-          // Omitted entirely unless the UA passes — see appSwitchUserAgent. `return_flow`,
-          // `os_type` and `os_version` are readOnly in the spec, so `buyer_user_agent` is the
-          // ONLY writable field here and PayPal derives the rest from it.
-          ...(switchUa ? { app_switch_context: { mobile_web: { buyer_user_agent: switchUa } } } : {}),
-        },
-      },
-    },
-  })
-
-  let { status, json } = await paypalApi('/v2/checkout/orders', 'POST', orderBody(appSwitchUa))
-  // ⛔ APP SWITCH MUST NEVER BE THE REASON A BUYER CANNOT PAY. Validating the UA before the wire
-  // is not enough: if PayPal rejects the BLOCK itself — the merchant account not enabled for App
-  // Switch, a field-shape change, a stricter pattern than the spec documents — then every MOBILE
-  // buyer is dead in the water while desktop keeps working, so a spot-check passes and the outage
-  // is invisible. External review (fable) caught that the fail-open stopped at the wire. One
-  // retry without the block degrades to exactly the checkout that shipped before this feature.
-  if (status >= 400 && appSwitchUa) {
-    console.error('[paypal] order rejected with app_switch_context — retrying without it', status, (json as { name?: string }).name)
-    ;({ status, json } = await paypalApi('/v2/checkout/orders', 'POST', orderBody(null)))
-  }
-  if (status >= 400 || typeof json.id !== 'string') throw new PaymentProviderError('paypal', String((json as { name?: string }).name || status))
-  const links = (json.links || []) as Array<{ rel?: string; href?: string }>
-  const approval = links.find((l) => l.rel === 'payer-action') || links.find((l) => l.rel === 'approve')
-  if (!approval?.href) throw new PaymentProviderError('paypal', 'no_approval_link')
-  return { ref: json.id, url: approval.href }
-}
-
-export type PaypalCaptureState = {
-  id: string
-  paid: boolean
-  amountCents: number
-  currency: string
-  applicationId: string | null
-}
-
-function paypalOrderState(order: Record<string, unknown>): PaypalCaptureState {
-  const unit = ((order.purchase_units || []) as Array<Record<string, unknown>>)[0] || {}
-  const amount = (unit.amount || {}) as { currency_code?: string; value?: string }
-  const capture = (((unit.payments || {}) as { captures?: Array<Record<string, unknown>> }).captures || [])[0]
-  const captureAmount = (capture?.amount || amount) as { currency_code?: string; value?: string }
-  return {
-    id: String(order.id || ''),
-    paid: order.status === 'COMPLETED',
-    amountCents: usdDecimalStringToCents(captureAmount.value),
-    currency: (captureAmount.currency_code || 'USD').toUpperCase(),
-    applicationId: typeof unit.custom_id === 'string' ? unit.custom_id : typeof unit.reference_id === 'string' ? unit.reference_id : null,
-  }
-}
-
-/** Capture an approved order — but VERIFY FIRST: the order is read and its custom_id
- *  checked against the expected application BEFORE any capture (review #5: capturing
- *  a leaked foreign order id and only then noticing the mismatch would still take the
- *  money). An already-captured order (double confirm, return-URL refresh) is NOT an
- *  error — re-read it and report its real state. */
-export async function paypalCaptureOrder(orderId: string, expectedApplicationId: string): Promise<PaypalCaptureState> {
-  const pre = await paypalApi(`/v2/checkout/orders/${encodeURIComponent(orderId)}`, 'GET')
-  if (pre.status >= 400) throw new PaymentProviderError('paypal', `order_read_${pre.status}`)
-  const preState = paypalOrderState(pre.json)
-  if (preState.applicationId !== expectedApplicationId) {
-    // Never capture an order that was not minted for this application.
-    return { ...preState, paid: false }
-  }
-  if (preState.paid) return preState // already captured — idempotent
-  const capture = await paypalApi(`/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, 'POST', {})
-  if (capture.status < 400) return paypalOrderState(capture.json)
-  const already = ((capture.json.details || []) as Array<{ issue?: string }>).some((d) => d.issue === 'ORDER_ALREADY_CAPTURED')
-  if (!already) throw new PaymentProviderError('paypal', String((capture.json as { name?: string }).name || capture.status))
-  const order = await paypalApi(`/v2/checkout/orders/${encodeURIComponent(orderId)}`, 'GET')
-  if (order.status >= 400) throw new PaymentProviderError('paypal', `order_read_${order.status}`)
-  return paypalOrderState(order.json)
 }
 
 // ── Paid → handoff (the one transition the whole feature exists for) ───────────────

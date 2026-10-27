@@ -42,11 +42,10 @@ import { parseVisaSpeedCode, VISA_ENTRY_TYPE_LABELS, VISA_SPEED_SPECS, type Visa
 //
 // ⚠️ THREE THINGS ON THIS PAGE HAVE NO CHAT EQUIVALENT, and that is why they live here
 // rather than being deleted with the old wizard/picker:
-//   1. THE PAYMENT RETURN. Stripe and PayPal are told to come back to /dashboard/visa
-//      (src/lib/visa/payments.ts success_url/return_url), including for a checkout started
-//      from a chat card. Stripe also has a webhook, but PAYPAL HAS NONE: the capture only
-//      happens when this page posts /payment/confirm. Deleting this handler would take
-//      money and never capture it.
+//   1. THE PAYMENT RETURN. Stripe is told to come back to /dashboard/visa
+//      (src/lib/visa/payments.ts success_url), including for a checkout started from a chat
+//      card, and this page posts /payment/confirm (Stripe's webhook records it too). PayPal,
+//      which had no webhook and captured only here, was removed 2026-10-26.
 //   2. THE FINAL AUTHORIZATION. An admin can move a case to `applicant_approval`
 //      (src/app/[lang]/admin/visas/visa-status.ts); the applicant must then re-consent before
 //      prefill. No card asks for that, so this is the only surface that can.
@@ -537,14 +536,11 @@ export function VisaCasesClient({ threads, embedded = false }: {
   }, [pollStatus, loadApplications])
 
   /**
-   * BACK FROM STRIPE / PAYPAL — the one piece of money handling left on the dashboard.
+   * BACK FROM STRIPE — the one piece of money handling left on the dashboard (PayPal removed 2026-10-26).
    *
-   * ⚠️ THIS RUNS FOR CHECKOUTS STARTED IN THE CHAT TOO. src/lib/visa/payments.ts sends both
-   * providers back to /dashboard/visa?paid=<provider>&aid=<application>&sid|token=<ref>,
-   * whichever surface opened the checkout. Stripe has a webhook that records the payment
-   * even if the applicant never comes back; PAYPAL HAS NO WEBHOOK, so the capture happens
-   * only when the confirm route below is posted. Removing this effect would let a buyer
-   * approve a PayPal payment that is never captured.
+   * ⚠️ THIS RUNS FOR CHECKOUTS STARTED IN THE CHAT TOO. src/lib/visa/payments.ts sends Stripe
+   * back to /dashboard/visa?paid=stripe&aid=<application>&sid=<ref>, whichever surface opened the
+   * checkout. Stripe's webhook records the payment even if the applicant never comes back.
    *
    * The provider is re-verified SERVER-side (the confirm route re-reads the session /
    * captures the order); these params only say which confirmation to ask for. Runs once,
@@ -559,7 +555,7 @@ export function VisaCasesClient({ threads, embedded = false }: {
     if (!paid && !cancelled) return
     returnHandled.current = true
     const aid = search.get('aid') || ''
-    const ref = paid === 'stripe' ? search.get('sid') : search.get('token')
+    const ref = search.get('sid')
     // Strip the provider's params first: a refresh must never re-post a confirmation. Target the
     // e-Visa tab DIRECTLY (this client lives embedded at /dashboard/services?tab=evisa now) rather
     // than the bare /dashboard/visa, whose redirect would round-trip the server and drop the reader
@@ -572,7 +568,7 @@ export function VisaCasesClient({ threads, embedded = false }: {
       subtleToast(tr('Payment cancelled — your application is unchanged.', 'Đã hủy thanh toán — hồ sơ của bạn không thay đổi.'), { id: 'visa-pay-cancelled' })
       return
     }
-    if ((paid !== 'stripe' && paid !== 'paypal') || !aid || !ref) return
+    if (paid !== 'stripe' || !aid || !ref) return // PayPal removed 2026-10-26: its returns are no longer confirmed here
     // ⚠️ REMOUNT-SAFE DEDUP (see handledPaymentReturns): if a tab-switch remount re-enters here with
     // the same provider return still in the URL, skip — the confirmation already posted this session.
     const returnKey = `${paid}:${aid}:${ref}`

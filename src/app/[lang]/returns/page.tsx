@@ -6,6 +6,7 @@
 export const revalidate = 3600
 
 import type { Metadata } from 'next'
+import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import { withShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { Tr } from '@/context/language-context'
@@ -68,12 +69,15 @@ import { V1_SUPERSEDED, V1_SUPERSEDED_BY } from '@/lib/compliance/legal-archive'
  *  all have to say the same number, and a literal typed three times drifts on the first edit. */
 const WINDOW_DAYS = 7
 
-export const metadata: Metadata = withShare({
+const METADATA: Metadata = withShare({
   // ⚠️ SENTENCE CASE, MATCHING THE H1. /terms keeps its title and its H1 identical for the same reason.
   title: `Returns and exchanges | ${SITE_NAME}`,
   description: `How returns and exchanges work on ${SITE_NAME}: a ${WINDOW_DAYS}-day window on items bought from business sellers that sell through chat here and have accepted this policy, who pays return shipping, how to start a return, why linked listings follow the source shop's own policy, and what private person-to-person sales mean for buyers.`,
   alternates: { canonical: '/returns' },
 })
+export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
+  return langMetadata(params, METADATA, { title: `Đổi trả và hoàn tiền | ${SITE_NAME}` })
+}
 
 type Para = { en: string; vi: string }
 type Section = { id: string; title: string; titleVi: string; paras: Para[] }

@@ -28,6 +28,13 @@ export const APPLE_VN_FROM_PRICE: Readonly<Record<string, number>> = {
   'iPhone 18 Pro Max': 41_999_000,
   'iPhone Duo': 64_999_000,
 }
+/** Apple Vietnam's RRP for the iPhone Duo at 2TB — the top of the range the Duo page and its card quote. */
+export const APPLE_VN_DUO_2TB_PRICE = 103_999_000
+/**
+ * The smallest invoice the tourist VAT refund covers (2,000,000 ₫). The guides QUOTE it; built from the number through
+ * vnd.ts, never typed — the iPhone pages printed "38.999.000 ₫" in English copy beside "38,999,000 đ" (sweep 2026-10-22).
+ */
+export const VAT_REFUND_MIN_VND = 2_000_000
 
 /**
  * Apple Vietnam's on-sale date (first deliveries, ICT) for a model not yet in buyers' hands when this was

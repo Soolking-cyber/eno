@@ -118,7 +118,23 @@ async function requestScreenLock(): Promise<{ release: () => Promise<void> } | n
   }
 }
 
+/**
+ * The type a clip is signed and stored under. The pickers accept what the sign route's VIDEO_ALLOWED does not: an
+ * .m4v that macOS browsers type `video/x-m4v` (an MPEG-4 container, stored as .mp4), and a clip some iOS picker
+ * paths hand over with NO type, named only by its extension. Sent as given, both were refused (415) at Publish,
+ * on every retry, as "could not upload your video — please try again".
+ */
+export function videoUploadType(file: Pick<File, 'type' | 'name'>): string {
+  if (file.type === 'video/x-m4v') return 'video/mp4'
+  if (file.type) return file.type
+  const dot = file.name.lastIndexOf('.')
+  return dot < 0 ? '' : TYPE_BY_EXT.get(file.name.slice(dot + 1).toLowerCase()) ?? ''
+}
+// A Map, not an object literal: an object would answer "constructor" or "__proto__" with an inherited value.
+const TYPE_BY_EXT = new Map([['mp4', 'video/mp4'], ['m4v', 'video/mp4'], ['mov', 'video/quicktime'], ['webm', 'video/webm']])
+
 async function upload(file: File, opts: VideoUploadOptions, kind: VideoUploadKind): Promise<string | null> {
+  const type = videoUploadType(file)
   const long = kind === 'teacher_intro'
   const deadlineMs = opts.deadlineMs ?? TRANSCODE_WAIT_MS[kind]
   // A long encode is polled less often: 144 polls at worst instead of 240, inside the poll limit (600/h).
@@ -131,13 +147,13 @@ async function upload(file: File, opts: VideoUploadOptions, kind: VideoUploadKin
   const sig = await fetch('/api/upload/video/sign', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: file.type, size: file.size }),
+    body: JSON.stringify({ type, size: file.size }),
   })
   if (!sig.ok) throw new Error('video')
   const { path, token } = (await sig.json()) as { path: string; token: string }
   const { error: upErr } = await createSupabaseBrowser()
     .storage.from('listing-videos')
-    .uploadToSignedUrl(path, token, file, { contentType: file.type, cacheControl: '31536000' })
+    .uploadToSignedUrl(path, token, file, { contentType: type, cacheControl: '31536000' })
   if (upErr) throw new Error('video')
   const done = await fetch('/api/upload/video/complete', {
     method: 'POST',

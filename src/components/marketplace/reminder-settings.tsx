@@ -117,7 +117,7 @@ export function ReminderSettings() {
         <div className="mt-6 flex items-start justify-between gap-4 border-t border-border pt-5">
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-sm font-bold text-foreground"><Mail className="h-4 w-4 shrink-0" />{tr('Weekly digest email', 'Email tổng hợp hằng tuần')}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{tr('Once a week: top products and the latest price drops. No spam.', 'Mỗi tuần một lần: sản phẩm nổi bật và các đợt giảm giá mới nhất. Không spam.')}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{tr('Once a week: the newest apartments and teachers. No spam.', 'Mỗi tuần một lần: căn hộ và giáo viên mới nhất. Không spam.')}</p>
           </div>
           <Switch
             checked={!!digest}

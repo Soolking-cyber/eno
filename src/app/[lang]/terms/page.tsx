@@ -15,6 +15,7 @@ export const revalidate = 3600
 
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import { withShare } from '@/lib/site-identity'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
@@ -77,11 +78,14 @@ import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, archivedPath } from '@/lib/c
 // filter, Report on reviews and help-centre comments, and blocking — all promised in `conduct` — exist only
 // with that gate on (src/lib/app-review-gates.ts); without it the paragraph is false the day it is published.
 
-export const metadata: Metadata = withShare({
+const METADATA: Metadata = withShare({
   title: `Terms of Service | ${SITE_NAME}`,
   description: `The terms that apply when you use ${SITE_NAME}: accounts, listings posted here and listings linked from other sites, our role as an intermediary platform, fees and commissions, liability, complaints and governing law.`,
   alternates: { canonical: '/terms' },
 })
+export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
+  return langMetadata(params, METADATA, { title: `Điều khoản dịch vụ | ${SITE_NAME}` })
+}
 
 /** One paragraph. `vi` absent = English source only (the services-edition copy). */
 type Para = { en: string; vi?: string }

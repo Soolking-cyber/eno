@@ -1100,8 +1100,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
    * first screen of the flow. `wholesale` keeps "Price" but says what it is priced BY, since a
    * bulk listing is quoted per unit far more often than per lot.
    */
-  const priceHeading = listingType === 'wanted' ? t('Ngân sách', 'Budget') : t('Giá', 'Price')
-  const priceHint = listingType === 'wanted'
+  // A Wanted post in Jobs is "Looking for work" (a barista after shifts): its figure is the pay they hope for, not a
+  // budget they would spend (sweep 2026-10-22).
+  const seekingWork = listingType === 'wanted' && categorySlug === 'jobs'
+  const priceHeading = seekingWork ? t('Mức lương mong muốn', 'Expected pay') : listingType === 'wanted' ? t('Ngân sách', 'Budget') : t('Giá', 'Price')
+  const priceHint = seekingWork
+    ? t('Bạn mong nhận bao nhiêu mỗi tháng', 'What you hope to earn per month')
+    : listingType === 'wanted'
     ? t('Bạn sẵn sàng trả bao nhiêu', 'What you are willing to pay')
     : listingType === 'wholesale'
       ? t('Giá mỗi sản phẩm', 'Price per unit')
@@ -1542,7 +1547,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         description: description.trim(),
         // ⛔ NO PRICE ON A JOB: the server derives it from salaryM and would ignore one anyway (paysSalary).
         ...(salaryPaid ? {} : { price: Number(price) }),
-        negotiable: salaryPaid ? false : negotiable,
+        negotiable: salaryPaid || listingType === 'wanted' ? false : negotiable, // a Wanted ad takes no offers (taxonomy offerlessType)
         // A NEW rental never goes out urgent — the row is hidden for it, and a restored draft or an AI
         // fill must not carry an invisible "Bán gấp" through. An edit keeps what the listing has.
         urgent: !edit && listingType === 'rent' ? false : urgent,
@@ -1843,7 +1848,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           <ChevronLeft className="h-4 w-4" /> {t('Thoát', 'Exit')}
         </Link>
       )}
-      {!embedded && <h1 className="mt-3 h-display text-foreground">{t('Tạo tin đăng', 'Create a listing')}</h1>}
+      {!embedded && <h1 className="mt-3 h-display text-foreground">{edit ? t('Chỉnh sửa tin đăng', 'Edit listing') : t('Tạo tin đăng', 'Create a listing')}</h1>}
       {/* ⚠️ THE PREVIEW HALF OF THIS SENTENCE IS DESKTOP-ONLY, BECAUSE THE PREVIEW IS.
           The `<Preview>` aside is `hidden lg:block` (line ~1090), so on a phone this line
           promised a thing the viewport cannot show — the seller reads "your preview updates

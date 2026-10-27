@@ -81,6 +81,10 @@ describe('/unsubscribe — the weekly digest is unchanged', () => {
   it('keeps its own copy and its re-subscribe', async () => {
     open('token=t1')
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Unsubscribe from the weekly digest?')
+    // What the digest holds since 2026-10-15 (src/lib/digest.ts) — not the retired "top products & moving sales".
+    expect(screen.getByText(/newest apartments and teachers/)).toBeTruthy()
+    // The skip link's target (sweep 2026-10-22: no <main id="main"> here, so "Skip to main content" went nowhere).
+    expect(screen.getByRole('main').id).toBe('main')
     fireEvent.click(screen.getByRole('button', { name: 'Unsubscribe' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Re-subscribe' })).toBeTruthy())
     expect(calls[0].url).toBe('/api/unsubscribe?token=t1')

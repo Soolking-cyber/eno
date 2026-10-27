@@ -5,6 +5,7 @@ import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import { visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
+import { commitVisaDocument } from '@/lib/visa/db-functions'
 import { MAX_INTAKE_BYTES } from '@/lib/visa/image-normalization'
 import { recordVisaEvent } from '@/lib/visa/records'
 import { removeVisaFiles, storeVisaImage, VISA_BUCKET } from '@/lib/visa/storage'
@@ -156,9 +157,9 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
     // rows of this kind, tombstones their objects, inserts the new row and drops the intent
     // tombstone. scripts/visa-commit-document-fn.mjs. Two concurrent uploads of the same kind
     // serialise on the row lock and leave exactly one document.
-    const commit = await db.rpc('visa_commit_document', { p_application_id: id, p_user_id: userId, p_document: document, p_replace: kind.data !== 'supporting' })
-    if (commit.error) throw commit.error
-    const result = (commit.data ?? {}) as { ok?: boolean; code?: string; old_paths?: string[] }
+    // As the database owner over Prisma, not PostgREST's rpc (db-functions.ts: twice a cache/name mismatch there failed
+    // every upload). A raise inside the function throws, as `commit.error` used to.
+    const result = await commitVisaDocument({ applicationId: id, userId, document, replace: kind.data !== 'supporting' })
     if (!result.ok) {
       // The row-level re-check lost: submitted or gone while the image was in flight. Nothing
       // references the new object; its tombstone stands and the sweep removes it.

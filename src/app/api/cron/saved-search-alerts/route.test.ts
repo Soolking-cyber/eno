@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const h = vi.hoisted(() => ({
   searches: [] as unknown[],
   notifications: [] as { recipientId: string; url: string }[],
-  pushes: [] as { profileId: string; url: string }[],
+  pushes: [] as { profileId: string; url: string; title?: string; body?: string }[],
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true }) }))
@@ -27,7 +27,7 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 vi.mock('@/lib/push', () => ({
-  sendPushToProfile: async (profileId: string, p: { url: string }) => { h.pushes.push({ profileId, url: p.url }); return 1 },
+  sendPushToProfile: async (profileId: string, p: { url: string; title: string; body: string }) => { h.pushes.push({ profileId, url: p.url, title: p.title, body: p.body }); return 1 },
 }))
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: unknown) => w }))
 vi.mock('@/lib/saved-search-where', () => ({ buildListingWhere: async () => ({}) }))
@@ -73,6 +73,15 @@ describe('GET /api/cron/saved-search-alerts — the alert link speaks the recipi
     })
     // The push carries exactly the bell's URL.
     expect(Object.fromEntries(h.pushes.map((p) => [p.profileId, p.url]))).toEqual(byRecipient)
+  })
+
+  // Sweep 2026-10-22: the push (read on a lock screen, as is) was English for Vietnamese recipients too.
+  it('the push is worded in the recipient\'s language; the bell row stays English (the bell words it)', async () => {
+    h.searches = [search('vi', 'vi'), search('en', 'en')]
+    await GET(req())
+    const push = Object.fromEntries(h.pushes.map((p) => [p.profileId, `${p.title} | ${p.body}`]))
+    expect(push['p-vi']).toBe('🔔 3 tin mới khớp với tìm kiếm đã lưu | Rentals in District 2 — chạm để xem.')
+    expect(push['p-en']).toBe('🔔 3 new matches for your saved search | Rentals in District 2 — tap to view.')
   })
 })
 

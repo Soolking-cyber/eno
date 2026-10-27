@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { APPLE_VN_DUO_2TB_PRICE, APPLE_VN_FROM_PRICE } from './price-guard'
 import { LocalizedLink } from '@/components/marketplace/localized-link'
 import { Tr } from '@/context/language-context'
 import { ArrowRight } from '@/components/ui/icons'
@@ -26,10 +27,10 @@ import type { PriceRow } from './lowest-prices'
  * Apple Vietnam's published RRP — the fallback shown only while nobody is listing one.
  */
 const DUO_RRP: [string, number][] = [
-  ['256GB', 64_999_000],
+  ['256GB', APPLE_VN_FROM_PRICE['iPhone Duo']],
   ['512GB', 71_490_000],
   ['1TB', 84_499_000],
-  ['2TB', 103_999_000],
+  ['2TB', APPLE_VN_DUO_2TB_PRICE],
 ]
 
 export function DuoCard({ rows, known, checked }: { rows: PriceRow[]; known: boolean; checked: string }) {
@@ -94,7 +95,7 @@ export function DuoCard({ rows, known, checked }: { rows: PriceRow[]; known: boo
             reported as "nobody is listing one": that sentence would then be a build outage
             masquerading as a fact, cached for an hour (opus). */}
         {listed
-          ? <><Tr text="The cheapest second-hand iPhone Duo from a shop here, per storage tier, checked" /> {checked}. <Tr text="Apple Vietnam's own recommended price starts at" /> <Price native price={64_999_000} currency="₫" priceUnit="" dual={false} className="inline text-xs" />.</>
+          ? <><Tr text="The cheapest second-hand iPhone Duo from a shop here, per storage tier, checked" /> {checked}. <Tr text="Apple Vietnam's own recommended price starts at" /> <Price native price={APPLE_VN_FROM_PRICE['iPhone Duo']} currency="₫" priceUnit="" dual={false} className="inline text-xs" />.</>
           : known
             ? <><Tr text="Apple Vietnam recommended retail prices, announced 9 September 2026. No second-hand shop lists an iPhone Duo here yet, as of" /> {checked}.</>
             : <Tr text="Apple Vietnam recommended retail prices, announced 9 September 2026." />}

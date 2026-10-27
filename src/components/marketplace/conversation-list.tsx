@@ -26,6 +26,7 @@ import { CloseButton } from '@/components/ui/close-button'
 import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { localizeOfferLine } from '@/lib/offer-lines'
 import { inboxTime } from '@/lib/types'
 import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
 import { LocalizedLink } from '@/components/marketplace/localized-link'
@@ -374,7 +375,7 @@ export function ConversationList() {
                           : o.status === 'countered' ? tr('Counter-offer', 'Đã trả giá khác')
                           : o.mine ? `${tr('You offered', 'Bạn đề nghị')} ${amt}`
                           : `${tr('New offer', 'Đề nghị mới')}: ${amt}`
-                        : (c.lastMessageText || tr('New conversation', 'Cuộc trò chuyện mới'))
+                        : (c.lastMessageText ? localizeOfferLine(c.lastMessageText, moneyLocale(lang)) : tr('New conversation', 'Cuộc trò chuyện mới'))
                       const incoming = !!o && o.status === 'pending' && !o.mine
                       return (
                         <p className={cn('flex min-w-0 items-center gap-1 text-xs', incoming ? 'font-bold text-accent-foreground' : c.unread > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground')}>

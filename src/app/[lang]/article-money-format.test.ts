@@ -29,12 +29,13 @@ function* pages(dir: string): Generator<string> {
 // Comments may quote the old spelling to explain it; only code and copy count.
 const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\/|(^|[^:])\/\/[^\n]*/g, '$1')
 
-/** A dot-grouped figure followed by "đ", or opening a range ("3.980.000–7.800.000 đ"). */
-const DOT_GROUPED_MONEY = /\b\d{1,3}(?:\.\d{3})+(?:\s?đ|–)/g
+/** A dot-grouped figure followed by "đ" or "₫", or opening a range ("3.980.000–7.800.000 đ"). The ₫ form and the model
+ *  landing pages (ModelLanding) joined the scan 2026-10-26: the iPhone pages typed "38.999.000 ₫" in English FAQ copy. */
+const DOT_GROUPED_MONEY = /\b\d{1,3}(?:\.\d{3})+(?:\s?[đ₫]|–)/g
 
 const englishArticles = [...pages(ROOT)].filter((p) => {
   const src = readFileSync(p, 'utf8')
-  return /\b(SeoArticle|SeoLanding)\b/.test(src) && !/^\s{2}lang:\s*'vi',?\s*$/m.test(src)
+  return /\b(SeoArticle|SeoLanding|ModelLanding)\b/.test(src) && !/^\s{2}lang:\s*'vi',?\s*$/m.test(src)
 })
 
 describe('English guides format đồng through vnd.ts', () => {
@@ -45,6 +46,8 @@ describe('English guides format đồng through vnd.ts', () => {
         join(ROOT, 'renting-an-apartment-vietnam-foreigner/page.tsx'),
         join(ROOT, 'secondhand-furniture-ho-chi-minh-city/page.tsx'),
         join(ROOT, 'moving-sales-vietnam/page.tsx'),
+        join(ROOT, 'iphone-18-pro-vietnam/page.tsx'),
+        join(ROOT, 'iphone-duo-vietnam/page.tsx'),
       ]),
     )
     expect(englishArticles).not.toContain(join(ROOT, 'thanh-ly-do-gia-dung-cu-tphcm/page.tsx'))

@@ -3,6 +3,7 @@ import { getAdmin } from '@/lib/admin'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { AdminSectionShell, pickTab } from '@/components/admin/section-shell'
 import { AdminListingsClient } from '@/components/admin/admin-listings-client'
+import { LISTING_STATUS_FILTERS, LISTING_VERIFIED_FILTERS } from '@/components/admin/listing-filters'
 import { AdminBrandsClient } from '@/components/admin/admin-brands-client'
 import { LicenceChecks, licenceGrandfatherUntilLabel } from '@/components/admin/licence-checks'
 import { TeacherPhotoChecks } from '@/components/admin/teacher-photo-checks'
@@ -19,10 +20,14 @@ export const metadata: Metadata = { title: 'Catalogue — eno.vn admin', robots:
 // the "Photo is fine" override against a wrong refusal.
 const TABS = ['listings', 'licences', 'teacher-photos', 'brands'] as const
 
-export default async function AdminCataloguePage({ searchParams }: { searchParams?: Promise<{ tab?: string | string[] }> }) {
+export default async function AdminCataloguePage({ searchParams }: { searchParams?: Promise<{ tab?: string | string[]; status?: string | string[]; verified?: string | string[] }> }) {
   const admin = await getAdmin()
   if (!admin) return <AdminDenied />
-  const tab = pickTab((await searchParams)?.tab, TABS, 'listings')
+  const sp = await searchParams
+  const tab = pickTab(sp?.tab, TABS, 'listings')
+  // The listings console may open on a filter (the Overview's "awaiting review" tile: Active + Held) — whitelisted.
+  const status = pickTab(sp?.status, LISTING_STATUS_FILTERS, 'all')
+  const verified = pickTab(sp?.verified, LISTING_VERIFIED_FILTERS, 'all')
   return (
     <AdminSectionShell
       title="Catalogue"
@@ -33,7 +38,7 @@ export default async function AdminCataloguePage({ searchParams }: { searchParam
     >
       {/* The listings console is a client component and cannot import licence-stamp.ts (node:crypto), so the
           grandfather's end date for its "No licence · until …" badge is handed down from here. */}
-      {tab === 'listings' ? <AdminListingsClient licenceGrandfatherUntil={licenceGrandfatherUntilLabel()} /> : tab === 'licences' ? <LicenceChecks /> : tab === 'teacher-photos' ? <TeacherPhotoChecks /> : <AdminBrandsClient />}
+      {tab === 'listings' ? <AdminListingsClient key={`${status}:${verified}`} licenceGrandfatherUntil={licenceGrandfatherUntilLabel()} initialStatus={status} initialVerified={verified} /> : tab === 'licences' ? <LicenceChecks /> : tab === 'teacher-photos' ? <TeacherPhotoChecks /> : <AdminBrandsClient />}
     </AdminSectionShell>
   )
 }

@@ -134,13 +134,20 @@ export const GET = route({ auth: 'admin' }, async ({ req }) => {
   const verified = searchParams.get('verified') // true | false | all
   const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 50, 1), 100)
   const offset = Math.max(Number(searchParams.get('offset')) || 0, 0)
+  // Keyset paging for the console's "Load more": `before=<createdAt ISO>~<id>` — rows after that one in this order. An
+  // offset shifts when a row is added to or leaves the filter between pages (a duplicate, or a held row never shown).
+  const before = /^([^~]+)~(.+)$/.exec(searchParams.get('before') ?? '')
+  const beforeAt = before ? new Date(before[1]) : null
 
   const AND: Record<string, unknown>[] = []
   if (q) AND.push({ searchText: { contains: fold(q) } })
   if (status && status !== 'all') AND.push({ status })
   if (verified === 'true') AND.push({ verified: true })
   else if (verified === 'false') AND.push({ verified: false })
-  const where = AND.length ? { AND } : {}
+  const filterWhere = AND.length ? { AND } : {}
+  const where = beforeAt && !Number.isNaN(beforeAt.getTime())
+    ? { AND: [...AND, { OR: [{ createdAt: { lt: beforeAt } }, { createdAt: beforeAt, id: { lt: before![2] } }] }] }
+    : filterWhere
 
   // ⚠️ CARD serializer + CARD select, matched ON PURPOSE. This handler used to feed
   // serializeListing (the FULL-listing serializer) a seller narrowed to {name,
@@ -161,11 +168,12 @@ export const GET = route({ auth: 'admin' }, async ({ req }) => {
         verificationMethod: true,
         seller: { select: { name: true, trustScore: true, officialPartner: true, ownerId: true, owner: { select: { accountType: true } } } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit,
       skip: offset,
     }),
-    db.listing.count({ where }),
+    // The filter's whole count, whatever page this is.
+    db.listing.count({ where: filterWhere }),
   ])
 
   // ⛔ A LICENCE HOLD IS NOT A TAKEDOWN (Opus #9, plan review 2026-10-14): a held e-Visa / Legal & permits row reads

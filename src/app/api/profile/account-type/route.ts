@@ -214,6 +214,21 @@ export const POST = route(
     const s = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
     await revertToPersonalHandle(profile.id, s?.id ?? null, displayName)
     ownSellerId = s?.id ?? null
+    // ⛔ NO LIVE CREDENTIALS THE OWNER CAN NO LONGER SEE. The developer surface and every session key / webhook route are
+    // business-only (403 business_only), so a business switched to individual kept its partner API keys working and its
+    // webhooks firing with no way to list or revoke them (sweep 2026-10-22). The downgrade revokes the keys and disables
+    // the endpoints; a business that comes back issues new keys and re-enables its endpoints.
+    // On EVERY individual save, not only the switch: if the switch committed and this cleanup then failed, a retry finds
+    // the account already individual — keyed on the old type, it would never revoke. Idempotent: an individual
+    // account cannot hold keys or endpoints (business-only routes), so this matches no row on an ordinary save.
+    if (s) {
+      // One transaction: never keys revoked with webhooks still firing (or the reverse) because the second write failed.
+      const now = new Date()
+      await db.$transaction([
+        db.apiKey.updateMany({ where: { sellerId: s.id, revokedAt: null }, data: { revokedAt: now } }),
+        db.webhookEndpoint.updateMany({ where: { sellerId: s.id, enabled: true }, data: { enabled: false } }),
+      ])
+    }
   }
 
   // ⚠️ THE PDP IS ISR FOR 30 DAYS and its "Seller information" block (and business glyph) follow the

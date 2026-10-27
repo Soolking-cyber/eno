@@ -305,6 +305,24 @@ const canonical = (allowed: readonly string[], picked: readonly string[]): strin
 const names = (v: unknown, max: number): string[] =>
   Array.isArray(v) ? [...new Set(v.map((l) => str(l, 30)).filter(Boolean))].slice(0, max) : []
 const YM = /^\d{4}-(0[1-9]|1[0-2])$/ // experience dates are month precision: YYYY-MM, or '' for "present"
+/**
+ * A job's month as a teacher TYPED it, read as YYYY-MM where it is unambiguous. `<input type="month">` is a plain text
+ * box on desktop Safari and Firefox, so "09/2022", "9-2022" or "2022/09" arrive as written; saved as is, normalize
+ * blanked them (an ended job then read "– present"). Anything else is returned untouched for validation to name.
+ */
+export function typedMonth(v: string): string {
+  const s = v.trim()
+  const my = /^(\d{1,2})\s*[/.-]\s*(\d{4})$/.exec(s)
+  const ym = /^(\d{4})\s*[/.-]\s*(\d{1,2})$/.exec(s)
+  const [y, m] = my ? [my[2], my[1]] : ym ? [ym[1], ym[2]] : [null, null]
+  if (y == null || m == null || Number(m) < 1 || Number(m) > 12) return v
+  return `${y}-${m.padStart(2, '0')}`
+}
+/** What a save keeps of a job's month: YYYY-MM (read from a typed form where it can be), else '' ("present"). */
+const storedMonth = (v: unknown): string => {
+  const m = typeof v === 'string' ? typedMonth(v) : ''
+  return YM.test(m) ? m : ''
+}
 /** A start month — YYYY-MM or YYYY-MM-DD in — stored as the month's first day (plan, 2026-10-08). */
 const month = (v: unknown): string | null => {
   const m = typeof v === 'string' ? /^(\d{4}-(?:0[1-9]|1[0-2]))(?:-\d{2})?$/.exec(v) : null
@@ -456,8 +474,8 @@ export function normalizeTeacherInput(input: unknown): TeacherInput {
         role: str(x.role, LIMITS.shortText),
         employer: str(x.employer, LIMITS.shortText),
         city: str(x.city, LIMITS.shortText),
-        from: typeof x.from === 'string' && YM.test(x.from) ? x.from : '',
-        to: typeof x.to === 'string' && YM.test(x.to) ? x.to : '',
+        from: storedMonth(x.from),
+        to: storedMonth(x.to),
       }
     }),
     degreeLevel: typeof r.degreeLevel === 'string' && DEGREES.includes(r.degreeLevel) ? r.degreeLevel : null,
@@ -600,6 +618,8 @@ export function normalizeForSave(input: TeacherInput): TeacherInput {
   if (!v.has('degreeMajor')) { t.degreeMajor = ''; t.degreeInstitution = ''; t.degreeYear = null }
   if (!v.has('matchEmailOptIn')) { t.matchEmailOptIn = false; t.staffContactOptIn = false }
   if (!v.has('coverOpen')) { t.coverOpen = false; t.coverConsent = false }
+  // A typed "09/2022" is read here too, not only on the field's blur — Enter can submit before it.
+  t.experience = t.experience.map((x) => ({ ...x, from: typedMonth(x.from), to: typedMonth(x.to) }))
   return t
 }
 
@@ -656,6 +676,9 @@ export function validateTeacherInput(t: TeacherInput, steps: readonly TeacherSte
     if (!t.experienceBand) e.experienceBand = 'required'
     t.experience.forEach((x, i) => {
       if (!x.role || !x.employer) e[`experience.${i}`] = 'incomplete'
+      // A month the form cannot read is named here, in the browser, before the save: normalizeTeacherInput (the server's
+      // coercion of any body) still blanks it, which turned a typed "June 2024" end into "present" with no word.
+      else if ((x.from && !YM.test(x.from)) || (x.to && !YM.test(x.to))) e[`experience.${i}`] = 'month_format'
       else if (x.from && x.to && x.to < x.from) e[`experience.${i}`] = 'dates'
     })
     if (v.has('degreeYear') && t.degreeYear != null && !yearOk(t.degreeYear)) e.degreeYear = 'year_range'

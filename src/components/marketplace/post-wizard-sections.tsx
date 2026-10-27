@@ -380,7 +380,10 @@ export function MediaSection({
           </div>
         ) : null
       })()}
-      {aiEnabled && photos.length > 0 && (
+      {/* Only for a cover photo picked on this device: autofill sends the FILE (/api/ai/classify takes multipart only), and an
+          edit's photos are already hosted (URL-only) — the button showed there and did nothing (sweep 2026-10-22). It
+          appears once a new photo is the cover. */}
+      {aiEnabled && !!photos[0]?.file && (
         <Button
           type="button"
           variant="bare"

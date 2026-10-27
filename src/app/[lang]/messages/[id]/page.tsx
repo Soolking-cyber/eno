@@ -26,6 +26,7 @@ import { toast } from 'sonner'
 import { refusalToast } from '@/lib/refusal-toast'
 import { ACCOUNT_CHANGED, actingAccountHeaders } from '@/lib/api/acting-account'
 import { haptic } from '@/lib/haptics'
+import { localizeOfferLine } from '@/lib/offer-lines'
 import { formatMoneyFull, groupVnd, moneyLocale } from '@/lib/vnd'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -2253,7 +2254,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
     }
   }
 
-  const payVisa = async (provider: 'stripe' | 'paypal', quote: VisaQuoteWire) => {
+  const payVisa = async (provider: 'stripe', quote: VisaQuoteWire) => {
     const applicationId = visaInfo?.applicationId
     const listingId = visaInfo?.product?.listingId
     if (!applicationId || !listingId || visaBusy) return
@@ -2572,7 +2573,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
   }
 
   // The guest and not-found states' own bar, phones only: below lg a conversation thread has no site header
-  // (messages/layout.tsx), so without it those screens had no way out but the OS back gesture. Same box as
+  // (messages/messages-shell.tsx), so without it those screens had no way out but the OS back gesture. Same box as
   // the thread header (THREAD_HEADER_CLASS: the status-bar inset), same safe Back.
   const bareHeader = (
     <div className={cn(THREAD_HEADER_CLASS, 'lg:hidden')}>
@@ -2606,7 +2607,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
       ) : (
         <div className="flex h-full w-full flex-col overflow-hidden">
           {/* Thread header (back arrow only on mobile — the list is always shown on desktop)
-              ⚠️ BELOW lg THIS IS THE TOP OF THE SCREEN NOW (inbox-01): messages/layout.tsx drops the site
+              ⚠️ BELOW lg THIS IS THE TOP OF THE SCREEN NOW (inbox-01): messages/messages-shell.tsx drops the site
               header on a conversation thread, so this header owns the status-bar inset — THREAD_HEADER_CLASS
               (src/lib/thread-chrome.ts says how, and why there is no `:has()`), the same box loading.tsx and
               the guest / not-found bar above wear, so swapping between them never moves on native. */}
@@ -2903,7 +2904,10 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                 // The YEAR once it is not this one (break-ui, 2026-10-05): a three-year-old thread read
                 // "12 thg 9" with nothing saying which September.
                 : new Date(m.createdAt).toLocaleDateString(intlLocale(lang), new Date(m.createdAt).getFullYear() === new Date().getFullYear() ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
-              const askPct = m.kind === 'offer' && thread?.listing?.price && m.offerAmount ? Math.round((m.offerAmount / thread.listing.price) * 100) : null
+              // Only a PENDING offer is surely about the listing shown: a thread moves to the buyer's next item (the
+              // conversations route's retarget) only while it holds no pending offer, so an answered one may be about
+              // an earlier item — "15% of asking (20,000,000 đ)" under a laptop for a phone's accepted offer.
+              const askPct = m.kind === 'offer' && m.offerStatus === 'pending' && thread?.listing?.price && m.offerAmount ? Math.round((m.offerAmount / thread.listing.price) * 100) : null
               // KIND DISPATCH. Each structured kind parses its own metaJson and refuses to
               // render as a live prompt off a blob it cannot read (the server already
               // strict-parses every write, so an unreadable one is a legacy/hand-written row).
@@ -3356,7 +3360,9 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   // original. The child stays a STRING so MessageBubble's ContactChips safety
                   // scanner still runs (it only fires for string children).
                   const translated = translate.translationFor(m.id)
-                  const shown = translated && !revealOriginal.has(m.id) ? translated : m.body
+                  // An accepted / declined offer line is stored with English grouping; it reads "3.000.000 đ" for a
+                  // Vietnamese reader, like the offer card above it (localizeOfferLine; any other text is unchanged).
+                  const shown = translated && !revealOriginal.has(m.id) ? translated : localizeOfferLine(m.body, locale)
                   // `quote` and `meta` are siblings of the text INSIDE the bubble. The child stays a
                   // bare string so ContactChips' scanner still runs — it only fires for a string
                   // child, and wrapping the text to add the timestamp would have silently disabled

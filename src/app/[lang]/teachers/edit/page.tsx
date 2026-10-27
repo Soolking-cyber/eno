@@ -1,11 +1,15 @@
 import type { Metadata } from 'next'
+import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import { SITE_NAME } from '@/lib/edition'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { TeacherForm } from '@/components/teachers/teacher-form'
 import { apexOrigin } from '@/lib/teachers/host'
 
-export const metadata: Metadata = { title: `Your teacher profile | ${SITE_NAME}`, robots: { index: false, follow: false } }
+const METADATA: Metadata = { title: `Your teacher profile | ${SITE_NAME}`, robots: { index: false, follow: false } }
+export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
+  return langMetadata(params, METADATA, { title: `Hồ sơ giáo viên của bạn | ${SITE_NAME}` })
+}
 
 // The signed-in teacher's own profile: edit, hide/show, CV, delete. Loads client-side from
 // /api/teachers/me (the page itself carries no personal data, so it can be static).

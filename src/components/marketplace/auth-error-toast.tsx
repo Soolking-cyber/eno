@@ -45,9 +45,11 @@ export function AuthErrorToast() {
     // in this page's lifetime announces again. Without this the ref kept the code and swallowed it: the comment
     // above promised the opposite (review, 2026-10-07). StrictMode's double run still sees the flag, so it stays one.
     if (!code) { shown.current = null; return }
-    // `no_email` is a popup for someone signed out and a sentence for someone signed in — so it waits until that is
-    // known: a session reads as signed out until the idle boot (an anonymous visitor resolves at once). Review, 2026-10-17.
-    if (code === 'no_email' && loading) return
+    // Every toast's step depends on who is signed in (a popup for someone signed out, a sentence or nothing for someone
+    // signed in), so it waits until that is known: a session reads as signed out until the idle boot (an anonymous
+    // visitor resolves at once). Review, 2026-10-17 — no_email only then, so a signed-in visitor was offered "Sign in"
+    // for every other code (sweep 2026-10-22). Nothing is marked shown or stripped until then.
+    if (loading) return
     if (shown.current === code) return
     shown.current = code
     const rest = new URLSearchParams(params.toString())

@@ -1,14 +1,18 @@
 import type { Metadata } from 'next'
+import { langMetadata, type LangParams } from '@/lib/lang-metadata'
 import { Suspense } from 'react'
 import { SITE_NAME } from '@/lib/edition'
 import { VerificationClient } from './verification-client'
 
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
+const METADATA: Metadata = {
   title: `Verification | ${SITE_NAME}`,
   // ⛔ NEVER INDEXED. The page discusses one person's identity and their company's registration.
   robots: { index: false, follow: false },
+}
+export async function generateMetadata({ params }: LangParams): Promise<Metadata> {
+  return langMetadata(params, METADATA, { title: `Xác minh | ${SITE_NAME}` })
 }
 
 /**

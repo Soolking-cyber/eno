@@ -45,9 +45,20 @@ async function notifyDeskOfSentCase(applicationId: string, userId: string, refer
     // ⛔ Never across a block (gate `ugc-safety`), either way: no line into the closed thread and no push. The case
     // still waits in the desk's queue (/admin/visas), where its operator decides.
     if (await isBlockedBetween(convo.buyerProfileId, convo.sellerProfileId).catch(() => true)) return
-    await insertMessage(convo, userId, VISA_SENT_LINE)
+    // The chat line on its own catch: a failed write must not cost the desk its push and bell row below.
+    try { await insertMessage(convo, userId, VISA_SENT_LINE) } catch (e) { console.error('[visa] sent line not posted', e) }
     const desk = convo.sellerProfileId
-    if (desk) after(() => sendPushToProfile(desk, { title: VISA_SENT_LINE, body: reference ?? '', url: `/admin/visas/${applicationId}`, tag: `visa-sent-${applicationId}` }))
+    if (desk) {
+      after(() => sendPushToProfile(desk, { title: VISA_SENT_LINE, body: reference ?? '', url: `/admin/visas/${applicationId}`, tag: `visa-sent-${applicationId}` }))
+      // A bell row too (2026-10-26, owner: the partner desk must receive the case): a push reaches only a device that
+      // opted in, and the chat line has no link — the bell is where the desk finds /admin/visas/<id> (photos + download).
+      // After the push is scheduled and on its own catch: a bell failure never costs the push.
+      try {
+        await prisma.notification.create({
+          data: { recipientId: desk, type: 'visa_sent', title: VISA_SENT_LINE, body: reference ?? '', url: `/admin/visas/${applicationId}`, conversationId: convo.id, listingId: convo.listingId },
+        })
+      } catch (e) { console.error('[visa] sent case not in the desk bell', e) }
+    }
   } catch (e) {
     console.error('[visa] sent case not announced to the desk', e)
   }

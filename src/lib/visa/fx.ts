@@ -256,8 +256,10 @@ function usdCentsForVnd(priceVnd: number, vndPerUsd: number): number | null {
 // ⚠️ THE RATE IS A GUESS UNTIL MEASURED. PayPal's cross-border commercial rate varies by the
 // RECEIVING account's country and the buyer's funding source; the defaults below are the common
 // international figures, not a quoted rate for this account. Once a real capture settles, read the
-// actual fee off the PayPal transaction and correct PAYPAL_FEE_PERCENT — do not leave a guess
+// actual fee off the processor's transaction and correct VISA_PROCESSOR_FEE_PERCENT — do not leave a guess
 // priced into every order.
+// ⚠️ These defaults are PayPal's international rate, and PayPal is removed (2026-10-26): set VISA_PROCESSOR_FEE_PERCENT /
+// VISA_PROCESSOR_FEE_FIXED_CENTS to the processor's own terms before online payment is ever switched back on.
 const DEFAULT_FEE_PERCENT = 4.4
 /** No real processor charges over 15%; a higher value is a typo, not a price. */
 const MAX_FEE_PERCENT = 15
@@ -271,8 +273,9 @@ const DEFAULT_FEE_FIXED_CENTS = 30
 const MAX_FEE_FIXED_CENTS = 999
 
 function feeConfig(): { percent: number; fixedCents: number } {
-  const p = Number.parseFloat(process.env.PAYPAL_FEE_PERCENT || '')
-  const f = Number.parseInt(process.env.PAYPAL_FEE_FIXED_CENTS || '', 10)
+  // Processor-neutral names since PayPal's removal (2026-10-26) — the old PAYPAL_FEE_* were never set in production.
+  const p = Number.parseFloat(process.env.VISA_PROCESSOR_FEE_PERCENT || '')
+  const f = Number.parseInt(process.env.VISA_PROCESSOR_FEE_FIXED_CENTS || '', 10)
   return {
     // ⚠️ Clamped, and a nonsense value falls back rather than pricing off it. A percent ≥ 100 would
     // divide by zero or negative below and mint an absurd charge; env is a string and typos happen.

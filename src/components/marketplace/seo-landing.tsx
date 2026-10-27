@@ -255,8 +255,13 @@ export async function SeoLanding({ content, lede, after, inventory }: {
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         {/* Hero */}
-        <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
-        <h1 className="h-display text-foreground">{content.h1}</h1>
+        {/* ⛔ lang="en" ON THE PAGE'S OWN ENGLISH (sweep 2026-10-22). These landings are English on every render, but a
+            Vietnamese visitor gets them under <html lang="vi">: a screen reader read the article with Vietnamese rules and
+            the document declared it Vietnamese. Each English block says so, as ArticleText does; what is NOT literal
+            English stays outside (the visa disclosure carries its own lang="vi" half, `lede`, `inventory.node`, `after`,
+            and the listing prices in the grid, which follow the reader). */}
+        <p lang="en" className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
+        <h1 lang="en" className="h-display text-foreground">{content.h1}</h1>
         {/* ⚠️ RichBlock, NOT A BARE <p>. An intro is authored prose and some of these now carry the
             same light markdown a listing description does — **bold**, blank-line paragraphs, ✓
             lines. Through a <p> that renders as literal asterisks AND, worse, silently joins the
@@ -265,7 +270,7 @@ export async function SeoLanding({ content, lede, after, inventory }: {
             no client JavaScript, so these ISR pages are byte-identical except for the markup that
             was always intended. Plain prose is unaffected — a paragraph with no markers formats to
             exactly one <p>. */}
-        <RichBlock text={content.intro} className="mt-4 max-w-prose space-y-4 text-base leading-relaxed text-body" />
+        <div lang="en"><RichBlock text={content.intro} className="mt-4 max-w-prose space-y-4 text-base leading-relaxed text-body" /></div>
 
         {/*
           ⛔ ABOVE THE CTA AND THE PRICE GRID, AND OUTSIDE `.web-only`. Google Play rejected this app
@@ -324,11 +329,11 @@ export async function SeoLanding({ content, lede, after, inventory }: {
                 people forget to update, and these pages have near-zero traffic today. If they ever
                 start ranking, build it — and extend that scan to assert the registry is complete,
                 so the forgetting is caught by CI. */}
-            <p className="mt-6 max-w-3xl text-sm font-semibold text-body">
+            <p lang="en" className="mt-6 max-w-3xl text-sm font-semibold text-body">
               This part of the marketplace is just getting started, so there is not much to browse
               here yet.
             </p>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div lang="en" className="mt-4 flex flex-wrap items-center gap-3">
               <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold">
                 <Link href="/post" className="px-5 py-2.5 text-sm">
                   Be the first to list one <ArrowRight className="h-4 w-4" />
@@ -383,7 +388,7 @@ export async function SeoLanding({ content, lede, after, inventory }: {
             claim CS-3 (claim 2) took off every category title: nothing on the site verifies a listing. */}
         {listings.length > 0 && (
           <IosAppHidden when={iosInfoOnly}>
-          <SeoListingGrid listings={listings} title={content.railTitle ?? 'Listed now'} cta={content.cta} links={content.browseLinks} href={browseHref} />
+          <SeoListingGrid listings={listings} title={content.railTitle ?? 'Listed now'} cta={content.cta} links={content.browseLinks} href={browseHref} lang="en" />
           </IosAppHidden>
         )}
         {inventory && <IosAppHidden when={iosInfoOnly}>{inventory.node}</IosAppHidden>}
@@ -391,7 +396,7 @@ export async function SeoLanding({ content, lede, after, inventory }: {
         {/* Editorial / keyword sections — wide container, readable measure.
             web-only: long-form SEO prose for Google, hidden in the native apps
             (html.native .web-only in globals.css); the listings grid stays. */}
-        <div className="web-only mt-12 max-w-3xl space-y-8">
+        <div lang="en" className="web-only mt-12 max-w-3xl space-y-8">
           {content.sections.map((s, i) => (
             <section key={i}>
               <h2 className="h-section text-foreground mb-2">{s.title}</h2>
@@ -404,7 +409,7 @@ export async function SeoLanding({ content, lede, after, inventory }: {
             above these are navigation, useful in the native shell too, and they are the only thing
             connecting a hub to its long-tail children. */}
         {content.related && content.related.length > 0 && (
-          <section className="mt-12 max-w-3xl">
+          <section lang="en" className="mt-12 max-w-3xl">
             <h2 className="h-section text-foreground mb-4">Keep reading</h2>
             {/* Ruled rows, not a grid of bordered cards (flat-surface canon §3b; C-BOXES) — the same
                 shape as SeoArticle's "Keep reading", with every chevron on one right edge. */}
@@ -426,7 +431,7 @@ export async function SeoLanding({ content, lede, after, inventory }: {
 
         {/* Trust strip */}
         {content.trustStrip !== false && (
-        <div className="mt-12 flex max-w-3xl items-start gap-3">
+        <div lang="en" className="mt-12 flex max-w-3xl items-start gap-3">
           {/* ⚠️ THIS COMMENT USED TO FORBID EXACTLY WHAT THE LINE BELOW NOW DOES — it read "the eno
               seal, not a lucide badge (icon-language §0b): this strip claims the first-party trust
               score, and that moment is reserved for the signature mark." The seal was replaced
@@ -454,7 +459,7 @@ export async function SeoLanding({ content, lede, after, inventory }: {
         {/* FAQ — web-only, same reasoning as the editorial sections (the FAQPage
             JSON-LD above is what Google reads either way). */}
         {content.faqs.length > 0 && (
-          <section className="web-only mt-12">
+          <section lang="en" className="web-only mt-12">
             <h2 className="h-section text-foreground mb-4">Frequently asked questions</h2>
             <div className="grid grid-cols-1 gap-x-14 gap-y-5 lg:grid-cols-2">
               {content.faqs.map((f, i) => (
@@ -468,7 +473,7 @@ export async function SeoLanding({ content, lede, after, inventory }: {
         )}
 
         {/* Brand line — the site signing its own page, so it names THIS deployment. */}
-        <p className="mt-12 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+        <p lang="en" className="mt-12 max-w-3xl text-sm leading-relaxed text-muted-foreground">
           <strong className="font-semibold text-foreground">{SITE_NAME}</strong> — for Vietnam’s
           international community.
         </p>
