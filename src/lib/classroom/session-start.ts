@@ -4,7 +4,7 @@ import { ApiError } from '@/lib/api/handler'
 import { logWarn } from '@/lib/log'
 import { classroomOpenFor } from './config'
 import { BUDGET_LOCK, budgetRefusal, budgetUse } from './budget'
-import { LIMITS, type Level } from './constants'
+import { LIMITS, SESSION_MINUTES, type Level } from './constants'
 import { ageBand, effectiveMinutes, frequencyRefusal, ictDayStart, ictWeekStart, needsAssent, nextPracticeAt, under13, type AgeBand } from './limits'
 import { firstPlan, parseFocus, pickPlan, type PlanFocus } from './plans'
 import { PRACTICE_NOTICE_VERSION, TEACHER_VIEW_NOTICE_VERSION } from './notices'
@@ -17,6 +17,7 @@ import { warmTutorBrain } from './tutor-ai'
 import { NextAtRefusal } from './refusal'
 import { containsContactInfo } from '@/lib/publish-guard'
 import { containsPhoneNumber } from '@/lib/phone'
+import { isStaffProfile } from '@/lib/user-blocks'
 
 /**
  * START A SESSION (plan "Concurrency, limits and budget"). ONE transaction under two locks:
@@ -254,8 +255,19 @@ export async function startLearnerSession(seatId: string, accountId: string, now
  */
 export const devUnlimited = (): boolean => process.env.NODE_ENV === 'development' && process.env.CLASSROOM_DEV_UNLIMITED === '1'
 const DEV_TEST_MINUTES = 15
+/**
+ * ⛔ THE eno TEAM TRIES WITHOUT THE TRY'S LIMITS (owner, 2026-10-27, testing on a phone: "remove time barrier for admin
+ * test"): a staff account (ADMIN_EMAILS — on production, support@eno.forum alone) tries for the longest session a teacher
+ * can give a student, and the day's count of tries never refuses it (the tries are still rows, so they still count for an
+ * ordinary account's limit if staff ends). Everything else still applies: the switch, the day, month and
+ * per-teacher budgets (each try reserves these minutes), the turn cap and the token rules.
+ */
+export const STAFF_TEST_MINUTES = Math.max(...SESSION_MINUTES)
 
-/** A teacher tries their own avatar: no seat, no learner — LIMITS.teacherTestsPerDay a day, LIMITS.teacherTestMinutes each. */
+/**
+ * A teacher tries their own avatar: no seat, no learner — LIMITS.teacherTestsPerDay a day, LIMITS.teacherTestMinutes each
+ * (the eno team: STAFF_TEST_MINUTES, no daily limit).
+ */
 export async function startTeacherTest(accountId: string, now = new Date()): Promise<StartedSession> {
   const tp = await db.teacherProfile.findUnique({ where: { profileId: accountId }, select: { id: true, photoUrl: true, classroomAvatar: true } })
   if (!tp) throw new ApiError('teacher_profile_required', 403)
@@ -263,7 +275,9 @@ export async function startTeacherTest(accountId: string, now = new Date()): Pro
   if (!avatar) throw new ApiError('avatar_required', 409)
   const { open, config } = await classroomOpenFor(accountId, { fresh: true })
   if (!open) throw new ApiError('classroom_closed', 403)
-  const minutes = devUnlimited() ? DEV_TEST_MINUTES : LIMITS.teacherTestMinutes
+  // A staff check that fails reads as not staff: the ordinary try (fail closed).
+  const staff = await isStaffProfile(accountId).catch(() => false)
+  const minutes = devUnlimited() ? DEV_TEST_MINUTES : staff ? STAFF_TEST_MINUTES : LIMITS.teacherTestMinutes
   // The teacher is an adult: modeFor's own rule with no child in it (the same rule facePreview applies before Start).
   const face = modeFor(avatar, false, true)
   const plan: SessionPlan = { ...firstPlan('B1', avatar.greeting, avatar.name), planId: null }
@@ -285,7 +299,7 @@ export async function startTeacherTest(accountId: string, now = new Date()): Pro
       return { session, opening: { text: last?.replyText ?? fresh.text, expect: last?.expectText ?? null }, resumed: true, pace: clampPace(live.voicePace, 'adult', startPace) }
     }
     const tests = await tx.classroomSession.count({ where: { testerId: accountId, startedAt: { gte: ictDayStart(now) } } })
-    if (tests >= LIMITS.teacherTestsPerDay && !devUnlimited()) throw new NextAtRefusal('test_limit', nextPracticeAt('day_limit', now).toISOString())
+    if (tests >= LIMITS.teacherTestsPerDay && !devUnlimited() && !staff) throw new NextAtRefusal('test_limit', nextPracticeAt('day_limit', now).toISOString())
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${BUDGET_LOCK}, 0))`
     const over = budgetRefusal(await budgetUse(tx, avatar.id), config, minutes)
     if (over === 'teacher') throw new ApiError('budget_teacher', 409)

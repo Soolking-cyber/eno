@@ -831,13 +831,6 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   }, [armBargeIn, listen])
 
   /**
-   * The Start tap: the face's audio (inside this tap — iOS), the microphone (a gesture too) — then the session is started
-   * (or resumed: the server returns a live one). ⚡ ALL AT ONCE: the face was drawn before Start was offered; now it
-   * CONNECTS while the opening's audio decodes, and the opening waits for it — "Connecting to {name}…" until the face's
-   * voice and lips start together. Not connected within FACE_CONNECT_MS (or failed): voice-only for the whole session, the
-   * opening on the speakers. The face no longer joins a conversation already under way.
-   */
-  /**
    * ⛔ ONE START AT A TIME (owner's iPhone, 2026-10-27, `?trace=1`: every step of the start ran TWICE — two "mic ready",
    * two "session started", two face connects — and the second connect failed "Connection already in progress", so the
    * face fell back to voice). A second tap while a start is under way does nothing; the button shows it is busy.
@@ -853,6 +846,13 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       setStarting(false)
     }
   }
+  /**
+   * The Start tap: the face's audio (inside this tap — iOS), the microphone (a gesture too) — then the session is started
+   * (or resumed: the server returns a live one). ⚡ ALL AT ONCE: the face was drawn before Start was offered; now it
+   * CONNECTS while the opening's audio decodes, and the opening waits for it — "Connecting to {name}…" until the face's
+   * voice and lips start together. Not connected within FACE_CONNECT_MS (or failed): voice-only for the whole session, the
+   * opening on the speakers. The face no longer joins a conversation already under way.
+   */
   const beginOnce = async () => {
     hapticTap()
     setRefused(null)
@@ -1023,7 +1023,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
                 {/* Start waits for the face (FACE_PREP_MS at most): the face and its voice begin together. */}
                 {!refused?.nextAt && (
                   <Button variant="cta" size="lg" className="w-full max-w-xs" onClick={begin} disabled={prep !== 'ready' || starting}>
-                    {prep === 'ready' ? tr('Start', 'Bắt đầu') : tr('Getting ready…', 'Đang chuẩn bị…')}
+                    {prep !== 'ready' ? tr('Getting ready…', 'Đang chuẩn bị…') : starting ? tr('Starting…', 'Đang bắt đầu…') : tr('Start', 'Bắt đầu')}
                   </Button>
                 )}
                 <Button variant="ghost" size="sm" className="text-primary-foreground/80" onClick={close}>{tr('Not now', 'Để sau')}</Button>
