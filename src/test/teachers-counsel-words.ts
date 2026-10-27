@@ -10,4 +10,4 @@
  * (category-copy.test.ts) and the rendered lede (category-lede.test.tsx). Callers NFC-normalize what they test, so a
  * decomposed "nước ngoài" cannot slip past.
  */
-export const TEACHERS_COUNSEL_WORDS = /nước ngoài|foreign|cung cấp|cung ứng|cho thuê|giới thiệu giáo viên|môi giới|tuyển dụng|kết nối|looking for work|đang tìm việc/i
+export { TEACHERS_COUNSEL_WORDS } from '@/lib/copy-rules'

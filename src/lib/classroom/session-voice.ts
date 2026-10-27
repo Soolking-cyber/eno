@@ -11,10 +11,10 @@ import type { VoiceStyle } from './pace'
  * the voice (the captions still show them), never a broken session. A voice saved before the switch speaks as its
  * counterpart (voices.ts voiceFor); an unknown one in the first voice, rather than failing.
  */
-export async function speakLine(text: string, voice: string, style: VoiceStyle): Promise<string> {
+export async function speakLine(text: string, voice: string, style: VoiceStyle, opts: { busyRetry?: boolean } = {}): Promise<string> {
   const cfg = localSpeechConfig()
   if (!cfg) throw Object.assign(new Error('speech_not_configured'), { status: 503 })
-  const mp3 = await synthesize(cfg, text, (voiceFor(voice) ?? VOICES[0]).id, style)
+  const mp3 = await synthesize(cfg, text, (voiceFor(voice) ?? VOICES[0]).id, style, fetch, opts)
   return mp3.toString('base64')
 }
 

@@ -3,6 +3,7 @@ import { join, relative, sep } from 'node:path'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 import { REPORT_SENTENCE } from '@/app/[lang]/c/[category]/category-copy'
+import { RETIRED_TRUST_CLAIMS as RETIRED } from '@/lib/copy-rules'
 
 /**
  * ⛔ THE RETIRED TRUST CLAIMS STAY RETIRED (owner decision 2026-10-04).
@@ -33,43 +34,10 @@ import { REPORT_SENTENCE } from '@/app/[lang]/c/[category]/category-copy'
  * doing so. Template-literal parts count (`On ${SITE_NAME} every seller carries…` was one).
  * ⚠️ NOT EVERY "trust score" IS RETIRED. A seller's score is real and documented (/trust, the Terms,
  * the ranking disclosure); what is pinned here is the specific unbacked wording that was removed.
+ *
+ * The list itself is src/lib/copy-rules.ts (moved there unchanged, 2026-10-27), so the voice
+ * concierge's spoken-sentence guard reads the same one.
  */
-
-const RETIRED: RegExp[] = [
-  /public trust score and bad listings get reported/i,
-  /tin xấu sẽ bị báo cáo/i,
-  /fewer fakes|fewer fake photos|fewer bait/i,
-  /fakes and bait prices/i,
-  /bait prices (?:and recycled photos )?get caught/i,
-  /ít hàng giả|ít giá mồi|bớt hàng giả|bớt giá ảo/i,
-  /\bevery (?:eno\.vn |eno\.forum )?seller (?:on this site )?(?:has|carries) a public/i,
-  /\bevery seller carries a public trust score/i,
-  /public trust score behind every provider|every provider on the site carries/i,
-  /Your Trusted Vietnam Network|Trusted classifieds|Guaranteed real prices|Trusted listings/i,
-  /so listings stay honest|giúp tin đăng luôn trung thực/i,
-  /Mỗi người bán đều có điểm uy tín công khai/i,
-  // The scoped variants this change also retired (about, guide, layout, site-title, motorbikes).
-  /Sellers build a public trust score/i,
-  /Every seller who posts here has a public trust score/i,
-  /sellers who post here build (?:public )?trust scores/i,
-  /problem sellers get caught fast|so the price and condition are real/i,
-  // The second pass (taglines, /about, /guide, /trust, the do-cu guide), 2026-10-04.
-  /trusted marketplace for (?:the international community|Vietnam)/i,
-  // The forum e-Visa intro's "Your trusted starting point for Vietnam." (owner, 2026-10-05: "Your starting point for Vietnam.").
-  /trusted starting point/i,
-  /chợ uy tín cho cộng đồng quốc tế|Sàn giao dịch uy tín|Chợ mua bán uy tín|sàn giao dịch uy tín dành cho/i,
-  /instead of stars and badges|thay vì số sao và huy hiệu/i,
-  /Mỗi người bán trên\s*$/,
-  // "Posted here ⇒ a trust score" with no partner badge in it (housing), and the forms this pass replaced
-  // with the card's own rule, "a seller who posts from an account" (src/lib/linked-seller.ts
-  // isUnratedStorefront: an ownerless storefront shows no score, and the API still takes a signed-out
-  // post while IDENTITY_GATE_ENFORCED is unset — the web wizard asks for sign-in first).
-  /^\s*show the seller(?:’|')s public trust score and can be messaged/i,
-  /On listings posted here, the seller(?:’|')s public trust score sits beside their name, and/i,
-  /Listings posted directly here show the seller(?:’|')s public trust score, built from/i,
-  /posts here(?: directly)? carries a public trust score/i,
-  /Listings posted here carry the seller(?:’|')s public trust score/i,
-]
 
 /** Shipped = what a build compiles or serves: tests and test support are not. */
 const isShipped = (rel: string) =>

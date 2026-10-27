@@ -238,7 +238,7 @@ export function replayTurn(saved: SavedReply, speak: Speaker | null): TurnStream
  * never voiced: the page has closed the face's reply (another send would start a new one over it). finish(): when every
  * sentence's voice is done, the last part-end (unless close() sent it) and end.
  */
-function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSignal, onVoiced?: (text: string) => void) {
+export function voiceOf(q: Pick<LineQueue<TurnLine>, 'push'>, speak: Speaker | null, gone: AbortSignal, onVoiced?: (text: string) => void) {
   let parts = 0
   let failed = 0
   let closed = false
@@ -324,10 +324,11 @@ function voiceOf(q: LineQueue<TurnLine>, speak: Speaker | null, gone: AbortSigna
   }
 }
 
-type LineQueue<T> = { push: (item: T) => void; close: () => void; lines: () => AsyncGenerator<T, void, undefined> }
+export type LineQueue<T> = { push: (item: T) => void; close: () => void; lines: () => AsyncGenerator<T, void, undefined> }
 
-/** One writer, one reader. After close() nothing more is taken; what was queued is still read. */
-function lineQueue<T>(): LineQueue<T> {
+/** One writer, one reader. After close() nothing more is taken; what was queued is still read. (The voice concierge —
+ *  src/lib/concierge/turn.ts — speaks through the same voiceOf over its own queue of lines.) */
+export function lineQueue<T>(): LineQueue<T> {
   const items: T[] = []
   let closed = false
   let wake: (() => void) | null = null

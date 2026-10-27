@@ -109,6 +109,14 @@ describe('synthesize', () => {
     expect(JSON.parse(String(g.calls[0].init.body))).toEqual({ text: 'Hi.', voice: 'Harper', pace: 'quick', rate: 'natural', loud: false, gap_ms: 120 })
     expect(header(f.calls[0], 'x-speech-key')).toBe(CFG.key)
   })
+  it('busyRetry false (the concierge\'s opening line): a busy server is asked ONCE — the 503 is final', async () => {
+    const f = fake(json({ error: 'busy' }, 503), new Response(MP3, { headers: { 'content-type': 'audio/mpeg' } }))
+    await expect(synthesize(CFG, 'Hi.', 'Zoey', NATURAL_VOICE, f.impl, { busyRetry: false })).rejects.toMatchObject({ status: 503, stage: 'tts' })
+    expect(f.calls).toHaveLength(1)
+    const g = fake(json({ error: 'busy' }, 503), new Response(MP3, { headers: { 'content-type': 'audio/mpeg' } }))
+    expect((await synthesize(CFG, 'Hi.', 'Zoey', NATURAL_VOICE, g.impl)).length).toBe(MP3.length)
+    expect(g.calls).toHaveLength(2)
+  })
   it('a line over the server’s cap is cut at its last full sentence, never refused whole', async () => {
     const long = 'This is one sentence of the reply. '.repeat(30)
     expect(long.length).toBeGreaterThan(MAX_SPOKEN_CHARS)

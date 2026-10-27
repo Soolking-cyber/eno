@@ -73,7 +73,7 @@ export const TTS_STALL_MS = 4_000
 const BUSY_RETRY_MS = 400
 const RETRY_MIN_LEFT_MS = 3_000
 
-async function call(cfg: LocalSpeechConfig, path: '/stt' | '/tts', init: { headers: Record<string, string>; body: BodyInit }, budgetMs: number, stage: 'stt' | 'tts', fetchImpl: typeof fetch): Promise<{ res: Response; signal: AbortSignal }> {
+async function call(cfg: LocalSpeechConfig, path: '/stt' | '/tts', init: { headers: Record<string, string>; body: BodyInit }, budgetMs: number, stage: 'stt' | 'tts', fetchImpl: typeof fetch, busyRetry = true): Promise<{ res: Response; signal: AbortSignal }> {
   const deadline = Date.now() + budgetMs
   for (let attempt = 0; ; attempt++) {
     // One signal per attempt, ending at the stage's deadline — it also bounds reading the answer's body.
@@ -88,7 +88,7 @@ async function call(cfg: LocalSpeechConfig, path: '/stt' | '/tts', init: { heade
     }
     if (res.ok) return { res, signal }
     await res.body?.cancel().catch((e) => logError(quietError(e), { op: 'classroom.speech.cancel' }))
-    if (res.status === 503 && attempt === 0 && deadline - Date.now() - BUSY_RETRY_MS >= RETRY_MIN_LEFT_MS) {
+    if (res.status === 503 && attempt === 0 && busyRetry && deadline - Date.now() - BUSY_RETRY_MS >= RETRY_MIN_LEFT_MS) {
       await new Promise((r) => setTimeout(r, BUSY_RETRY_MS))
       continue
     }
@@ -148,7 +148,7 @@ function styleBody(style: VoiceStyle) {
  * the breath the caller puts BEFORE this line when it follows another sentence of the same reply (turn-stream.ts) — never
  * after a reply's last one, which would only hold up the learner's turn.
  */
-export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voice: string, style: VoiceStyle, signal?: AbortSignal, fetchImpl: typeof fetch = fetch): Promise<{ rate: number; chunks: AsyncGenerator<Uint8Array>; pauseMs: number }> {
+export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voice: string, style: VoiceStyle, signal?: AbortSignal, fetchImpl: typeof fetch = fetch, opts: { busyRetry?: boolean } = {}): Promise<{ rate: number; chunks: AsyncGenerator<Uint8Array>; pauseMs: number }> {
   const stop = new AbortController()
   const onAbort = () => stop.abort()
   signal?.addEventListener('abort', onAbort, { once: true })
@@ -171,7 +171,8 @@ export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voi
     // Raw PCM only (audio/L16): anything else — a proxy's error page — is no voice at all, like synthesize()'s rule.
     if (res.ok && /^audio\/l16\b/i.test(res.headers.get('content-type') ?? '') && res.body) break
     await res.body?.cancel().catch((e) => logError(quietError(e), { op: 'classroom.speech.cancel' }))
-    if (res.status === 503 && attempt === 0) { await new Promise((r) => setTimeout(r, BUSY_RETRY_MS)); continue }
+    // `busyRetry: false` (the voice concierge — PLAN §10): a full server is the classroom's; the guide answers in words.
+    if (res.status === 503 && attempt === 0 && opts.busyRetry !== false) { await new Promise((r) => setTimeout(r, BUSY_RETRY_MS)); continue }
     clearTimeout(firstByte)
     signal?.removeEventListener('abort', onAbort)
     throw new SpeechError(res.ok ? 502 : res.status, 'tts')
@@ -224,8 +225,8 @@ function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
 }
 
 /** One line in `voice` (an id from voices.ts — the server refuses any other) → MP3 bytes. */
-export async function synthesize(cfg: LocalSpeechConfig, text: string, voice: string, style: VoiceStyle, fetchImpl: typeof fetch = fetch): Promise<Buffer> {
-  const { res } = await call(cfg, '/tts', { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: spokenPart(text), voice, ...styleBody(style) }) }, TTS_BUDGET_MS, 'tts', fetchImpl)
+export async function synthesize(cfg: LocalSpeechConfig, text: string, voice: string, style: VoiceStyle, fetchImpl: typeof fetch = fetch, opts: { busyRetry?: boolean } = {}): Promise<Buffer> {
+  const { res } = await call(cfg, '/tts', { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: spokenPart(text), voice, ...styleBody(style) }) }, TTS_BUDGET_MS, 'tts', fetchImpl, opts.busyRetry !== false)
   if (!(res.headers.get('content-type') ?? '').startsWith('audio/mpeg')) throw new SpeechError(502, 'tts')
   const bytes = Buffer.from(await res.arrayBuffer().catch(() => { throw new SpeechError(502, 'tts') }))
   if (bytes.length < 200) throw new SpeechError(502, 'tts')
