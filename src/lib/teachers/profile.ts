@@ -538,6 +538,27 @@ export function deriveRelocate(t: Pick<TeacherInput, 'livesIn' | 'currentCity' |
 export const englishMedium = (subjects: readonly string[]): boolean => subjects.some((s) => s !== 'other-language')
 
 /**
+ * ⛔ THE "NATIVE SPEAKER" FILTER IS NATIONALITY, NOT THE ENGLISH-LEVEL ANSWER (owner, 2026-10-27: "this filter should
+ * derive from their nationality, not their fluency. if teacher is from english speaking country like us uk nz australia
+ * south africa etc then filter out native rest non native"). Asked with the trade-off in front of them — eno's job screen
+ * refuses nationality asks (Labour Code 2019 art. 8, job-listing.ts) — the owner chose nationality, the standard seven.
+ * ⚠️ ONLY THIS FACET: the profile still shows the teacher's own English level, the `nativeSpeaker` mirror and the job
+ * matcher (job-dms/gates.ts) still read englishLevel. A teacher of other languages only carries neither token, as before.
+ */
+export const NATIVE_ENGLISH_NATIONALITIES: ReadonlySet<string> = new Set(['US', 'GB', 'CA', 'AU', 'NZ', 'IE', 'ZA'])
+
+/** The `native:` facet value — 'native' for a passport of a native English-speaking country, else 'non-native'. */
+export function nativeFacet(t: Pick<TeacherInput, 'subjects' | 'nationality'>): 'native' | 'non-native' | null {
+  // ISO_COUNTRY only checks two letters, so a CV import's "UK" (ISO says GB) can be stored — still British. Trimmed for
+  // a row older than that check (the re-sort script reads every row).
+  const n = (t.nationality ?? '').trim().toUpperCase()
+  // ⛔ Not two letters ("USA", "British" — older than that check) is UNRESOLVED, never non-native by default (commit gate,
+  // codex + opus 2026-10-27) — every path that projects a row (save, the v2 migration, the re-sort) gets the same answer.
+  if (!englishMedium(t.subjects) || !/^[A-Z]{2}$/.test(n)) return null
+  return NATIVE_ENGLISH_NATIONALITIES.has(n === 'UK' ? 'GB' : n) ? 'native' : 'non-native'
+}
+
+/**
  * "Online only" from abroad with no full-time / part-time goal: nothing is left to ask on the Where step, which is
  * skipped (the 4-step rail) — Online, asked once on the first step, is the whole list (plan review B7).
  */
@@ -771,8 +792,8 @@ export function teacherSubcategory(t: Pick<TeacherInput, 'subjects'>): string {
  *     ⛔ never a city-level copy of a district pick: "anywhere in HCMC" is its own token, and a District 7 teacher
  *     carrying `workIn:ho-chi-minh-city` would answer a District 1 search (attr-match expands d1 to the whole city);
  *   · inVietnam:yes once "Where are you now?" is answered with a place in Vietnam (never from a default — D3);
- *   · native:native / native:non-native once the English level is answered (Fluent and Working are non-native; a
- *     teacher of other languages only is asked nothing and carries neither);
+ *   · native:native / native:non-native by NATIONALITY since 2026-10-27 (nativeFacet: the standard seven native English
+ *     countries; a teacher of other languages only carries neither) — it was the English-level answer before;
  *   · experience:<band> once answered;
  *   · ageGroup:business from the Business English subject, jobType:online from 'online' in the teach areas — the old
  *     links (attr_ageGroup=business, attr_jobType=online) keep matching; the stored lists keep whatever they hold;
@@ -791,7 +812,7 @@ export function teacherFacetTokens(t: TeacherInput): string | null {
     coverArea: cover ? coverReachOf(t) : null,
     workIn: t.teachAreas,
     inVietnam: t.livesIn === 'city' || t.livesIn === 'elsewhere' ? 'yes' : null,
-    native: t.englishLevel === 'native' ? 'native' : t.englishLevel ? 'non-native' : null,
+    native: nativeFacet(t),
     experience: t.experienceBand,
     cert: t.certificates.map((c) => c.type).filter(Boolean),
     degree: t.degreeLevel,
