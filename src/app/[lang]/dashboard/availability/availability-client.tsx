@@ -22,6 +22,7 @@ import { STROKE_MARK } from '@/lib/icon-tokens'
 import { formatInteger, moneyLocale } from '@/lib/vnd'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
+import { inAvailabilityReview } from '@/lib/stale'
 
 // localStorage marker so the daily review only auto-shows once per day per user.
 export const reviewKey = (uid: string) => `eno-avail:${uid}`
@@ -51,7 +52,8 @@ export function AvailabilityClient() {
   // during a Retry (whose refetch cleared the error before loading again): it marked today's review DONE and
   // left — a network blip or an expired session skipped the daily availability check.
   const listings = useMemo<SerializedListing[] | null>(
-    () => (dash ? dash.listings.filter((l) => l.status === 'active') : null),
+    // Never a teacher's profile (stale.ts inAvailabilityReview): "Tick anything that sold" took four teachers' profiles down.
+    () => (dash ? dash.listings.filter((l) => l.status === 'active' && inAvailabilityReview(l)) : null),
     [dash],
   )
 

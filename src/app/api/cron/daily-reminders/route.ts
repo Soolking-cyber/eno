@@ -8,6 +8,8 @@ import { recomputeResponseRates } from '@/lib/response-rate'
 import { recomputeRankScoreAllActive } from '@/lib/ranking'
 import { rollupListingDailyStats } from '@/lib/listing-analytics'
 import { sweepDisputeWindows } from '@/lib/dispute'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { sendTeacherCheckIns } from '@/lib/teachers/check-in'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -33,8 +35,8 @@ const CONCURRENCY = 20   // bounded fan-out so we don't serialize hundreds of pu
 //   · unset CRON_SECRET, or a missing/malformed/wrong Bearer token → `{"error":"forbidden"}` 401
 //     (lowercase `forbidden`, status 401 — the mode reproduces that pairing deliberately)
 //   · success → `{"ok":true,"sellersWithStale":…,"skipped":…,"notified":…,"pushed":…,"trust":…,
-//     "responseRates":…,"reranked":…,"statRows":…,"disputeNudges":…}` 200, same keys in the same
-//     insertion order, because the handler returns the same object literal it always did.
+//     "responseRates":…,"reranked":…,"statRows":…,"disputeNudges":…,"teacherCheckIns":…}` 200 — the last key added
+//     2026-10-27 (the teachers' weekly check-in); the others keep their order.
 //
 // ⚠️ ONE ACCEPTED WIRE CHANGE, STATED AS A SHAPE: any unhandled throw in this handler now returns
 // `{"error":"internal_error"}` 500 instead of reaching Next's default 500 HTML page. This route
@@ -46,10 +48,14 @@ export const GET = route({ auth: 'cron' }, async () => {
   const cutoff = new Date(Date.now() - STALE_DAYS * 86_400_000)
 
   // Stale = verified + active, owned by a real account, not confirmed since cutoff.
+  // ⛔ NEVER A TEACHER'S PROFILE (owner, 2026-10-27). The goods review asks "Tick anything that sold", and four teachers
+  // ticked their own profile — meaning "yes, available" — and vanished from search. Teachers get their own weekly
+  // check-in instead (src/lib/teachers/check-in.ts, the second pass below), which has no "sold" anywhere.
   const staleListings = await db.listing.findMany({
     where: {
       verified: true,
       status: 'active',
+      listingType: { not: TEACHER_LISTING_TYPE },
       seller: { ownerId: { not: null } },
       OR: [{ availabilityConfirmedAt: { lt: cutoff } }, { availabilityConfirmedAt: null, postedAt: { lt: cutoff } }],
     },
@@ -113,6 +119,11 @@ export const GET = route({ auth: 'cron' }, async () => {
     }
   }
 
+  // The teachers' WEEKLY check-in (owner, 2026-10-27) — "still looking for a job / still free for cover?", never "sold".
+  // Its own pass and its own notification type, so the goods reminder's 20-hour dedupe never mixes with it.
+  let teacherCheckIns = { notified: 0, pushed: 0 }
+  try { teacherCheckIns = await sendTeacherCheckIns() } catch (e) { console.error('[cron] teacher check-ins', e) }
+
   // Trust maintenance v2: recompute-all-active. NO calendar drift (the old +1/day
   // recovery and inactivity dock are gone) — the daily pass re-evaluates the
   // windowed/decayed composite so penalties fade on their half-lives, the 365d/90d
@@ -141,5 +152,5 @@ export const GET = route({ auth: 'cron' }, async () => {
   let disputeNudges = 0
   try { disputeNudges = await sweepDisputeWindows() } catch (e) { console.error('[cron] dispute window sweep', e) }
 
-  return { ok: true, sellersWithStale: countByOwner.size, skipped: skippedRecent, notified, pushed, trust, responseRates, reranked, statRows, disputeNudges }
+  return { ok: true, sellersWithStale: countByOwner.size, skipped: skippedRecent, notified, pushed, trust, responseRates, reranked, statRows, disputeNudges, teacherCheckIns }
 })

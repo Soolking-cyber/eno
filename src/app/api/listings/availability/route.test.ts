@@ -98,24 +98,39 @@ describe('POST /api/listings/availability — a held or suspended seller cannot 
 })
 
 /**
- * ⛔ A TEACHER'S PROFILE MARKED "SOLD" HERE IS TAKEN DOWN, AND THE PAGES THAT NAME IT ARE PURGED (2026-10-20).
- * /c/teachers' 6h-ISR HTML names every live profile — its grid and the "More teachers" list
- * (c/[category]/teacher-links.tsx) — and the home page's "Find a teacher" shelf shows up to eight, so both are purged,
- * once for the batch, through the teacher pages' own helper (teachers/revalidate.ts). Read off the ownership read the
- * door already makes: another listing marked sold purges only its own page, as before.
+ * ⛔ A TEACHER'S PROFILE IS NEVER MARKED SOLD HERE (owner, 2026-10-27). The review asked "Tick anything that sold", and
+ * four teachers ticked their own profile — meaning "yes, available" — and left search. The review no longer lists teachers
+ * (stale.ts inAvailabilityReview); this door drops a teacher id an older tab or a script still sends, in `sold` AND in
+ * `confirm` (theirs is the weekly check-in, src/lib/teachers/check-in.ts).
  */
-describe('POST /api/listings/availability — a teacher profile marked sold leaves /c/teachers and the home shelf', () => {
-  it('a teacher profile in the sold set → its page, /c/teachers and the home page, once for the batch', async () => {
+describe('POST /api/listings/availability — a teacher profile is never marked sold, nor confirmed, here', () => {
+  it('teacher ids in the sold set are dropped: only the goods listing is marked sold and purged', async () => {
     h.types = { T1: 'teacher', T2: 'teacher' }
     const r = await post({ confirm: [], sold: ['L1', 'T1', 'T2'] })
-    expect(r.body).toEqual({ ok: true, confirmed: 0, markedSold: 3 })
-    expect(h.purged).toEqual(['/listings/L1', '/listings/T1', '/listings/T2', '/c/teachers', '/'])
+    expect(r.body).toEqual({ ok: true, confirmed: 0, markedSold: 1 })
+    expect(soldWrites()).toHaveLength(1)
+    expect(soldWrites()[0].where.id.in).toEqual(['L1'])
+    expect(h.purged).toEqual(['/listings/L1'])
     // No extra read for it: the ownership read carries the type.
     expect(h.reads).toHaveLength(1)
     expect(h.reads[0].select).toEqual({ id: true, listingType: true })
   })
 
-  it('only other listings sold → their own pages, and no /c/teachers or home purge', async () => {
+  it('only teacher ids sold → no sold write and no purge at all', async () => {
+    h.types = { T1: 'teacher' }
+    const r = await post({ confirm: [], sold: ['T1'] })
+    expect(r.body).toEqual({ ok: true, confirmed: 0, markedSold: 0 })
+    expect(soldWrites()).toEqual([])
+    expect(h.purged).toEqual([])
+  })
+
+  it('both confirm writes exclude teacher listings, whatever ids are sent', async () => {
+    await post({ confirm: ['L1', 'T1'], sold: [] })
+    expect(confirmWrites()).toHaveLength(2)
+    for (const w of confirmWrites()) expect(w.where.listingType).toEqual({ not: 'teacher' })
+  })
+
+  it('only other listings sold → their own pages, as before', async () => {
     await post({ confirm: [], sold: ['L1', 'L2'] })
     expect(h.purged).toEqual(['/listings/L1', '/listings/L2'])
   })
