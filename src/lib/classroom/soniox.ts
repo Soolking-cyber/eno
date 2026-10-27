@@ -77,18 +77,17 @@ export async function mintSttKey(cfg: SonioxConfig, opts: { expiresInSeconds: nu
 }
 
 /**
- * When a turn ends, by age (the page sends these in the stream's first message). Soniox ends an utterance on its MEANING
- * as well as its pauses, and never later than max_endpoint_delay_ms after the speech stops — so it, not a silence timer,
- * decides (the page's own detector is only the backstop). Adults start from Soniox's advice for voice-AI turn-taking
- * (level 2, sensitivity 0.3) with a shorter cap; the young pause longest to find a word, so they get the most patience.
- * MEASURED 2026-10-26 (owner's Mac, muted fake mic): with level 1 / 0 / 1500 for adults the page's 1.2 s silence came
- * first every turn — Soniox was never the one to end it. ⛔ Sensitivity stays ≥ 0 while the level is above 0 (Soniox: the
- * two fight).
+ * When a turn ends, by age (the page sends these in the stream's first message). ⛔ SONIOX ALONE DECIDES (owner,
+ * 2026-10-27: "let the stt decide itself"): it ends an utterance on its MEANING as well as its pauses, never later than
+ * max_endpoint_delay_ms after the speech stops, and the page sends the turn on its `<end>` — no silence timer of ours
+ * competes. Adults take Soniox's own starting point for voice agents (level 2, sensitivity 0.3, 1500 ms —
+ * soniox.com/docs/stt/rt/endpoint-detection); the young pause longest to find a word, so they get the most patience.
+ * ⛔ A negative sensitivity only with level 0 (Soniox: the two fight).
  */
 export type SttSettings = { endpoint_sensitivity: number; endpoint_latency_adjustment_level: number; max_endpoint_delay_ms: number }
 export function sttSettingsFor(band: AgeBand): SttSettings {
   switch (band) {
-    case 'adult': return { endpoint_sensitivity: 0.3, endpoint_latency_adjustment_level: 2, max_endpoint_delay_ms: 1200 }
+    case 'adult': return { endpoint_sensitivity: 0.3, endpoint_latency_adjustment_level: 2, max_endpoint_delay_ms: 1500 }
     case 'teen': return { endpoint_sensitivity: 0.2, endpoint_latency_adjustment_level: 2, max_endpoint_delay_ms: 1500 }
     case 'child': return { endpoint_sensitivity: 0, endpoint_latency_adjustment_level: 1, max_endpoint_delay_ms: 2000 }
     case 'child-young': return { endpoint_sensitivity: -0.2, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 2500 }
