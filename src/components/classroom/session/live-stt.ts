@@ -51,13 +51,21 @@ const KEEPALIVE_MS = 8_000
 /** While the socket is open, the server re-checks the session this often (a withdrawal or the switch closes it). */
 const RECHECK_MS = 60_000
 
-export async function openLiveStt(sessionId: string, on: {
+/**
+ * Where the socket's key comes from: a classroom session's id (its own stt-token route) — or the voice concierge's routes
+ * (src/components/concierge), as two requests: the key, and the minute-by-minute "may this still be heard?".
+ */
+export type SttSource = string | { grant: () => Promise<Response>; check: () => Promise<Response> }
+
+export async function openLiveStt(source: SttSource, on: {
   /** One utterance's words, as Soniox finalized them, and its length in ms (from its first word to its last). */
   utterance: (text: string, speechMs: number) => void
   /** The socket could not open, broke, or the session may no longer be heard: the page goes back to sending clips. */
   failed: () => void
 }): Promise<LiveStt | null> {
-  const r = await fetch(`/api/classroom/sessions/${sessionId}/stt-token`, { method: 'POST' }).catch(() => null)
+  const grantReq = typeof source === 'string' ? () => fetch(`/api/classroom/sessions/${source}/stt-token`, { method: 'POST' }) : source.grant
+  const checkReq = typeof source === 'string' ? () => fetch(`/api/classroom/sessions/${source}/stt-token`, { method: 'GET' }) : source.check
+  const r = await grantReq().catch(() => null)
   if (!r?.ok) { mark('live listening: no key', String(r?.status ?? 'network')); return null }
   const grant = (await r.json().catch(() => null)) as Grant | null
   if (!grant?.apiKey || !grant.url) return null
@@ -105,7 +113,7 @@ export async function openLiveStt(sessionId: string, on: {
     if (!streaming && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'keepalive' }))
   }, KEEPALIVE_MS))
   timers.push(setInterval(() => {
-    void fetch(`/api/classroom/sessions/${sessionId}/stt-token`, { method: 'GET' }).then((res) => {
+    void checkReq().then((res) => {
       if (!res.ok && res.status !== 429) { mark('live listening: no longer allowed', String(res.status)); shutDown(true) }
     }).catch(() => { /* a network blip is not a refusal */ })
   }, RECHECK_MS))

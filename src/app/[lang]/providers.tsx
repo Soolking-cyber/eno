@@ -34,6 +34,8 @@ import { NativePush } from "@/components/native/native-push";
 import { NativeBadge } from "@/components/native/native-badge";
 import { PwaBadge } from "@/components/native/pwa-badge";
 import { CallHost } from "@/components/calls/call-host";
+import { ConciergeHost } from "@/components/concierge/concierge-host";
+import { OutsideConciergeFrame } from "@/components/concierge/outside-frame";
 
 // The app's provider pyramid + persistent chrome, extracted VERBATIM from
 // src/app/[lang]/layout.tsx (audit §E) so the layout keeps only document concerns
@@ -66,7 +68,7 @@ export function Providers({
           <CurrencyProvider>
           <AuthProvider>
             {/* Native push registration — no-op on web + until the plugin is wired (dormant). */}
-            <NativePush />
+            <OutsideConciergeFrame><NativePush /></OutsideConciergeFrame>
             <NotificationsProvider>
               <ChatProvider>
                 {/* App-icon badge. Must sit INSIDE both providers — it reads the notification
@@ -74,11 +76,13 @@ export function Providers({
                     Two mutually-exclusive halves: NativeBadge (Capacitor build, no-op on web) and
                     PwaBadge (installed Safari/desktop PWA via the Web Badging API, no-op in the
                     native shell and in a plain browser tab). */}
-                <NativeBadge />
-                <PwaBadge />
+                <OutsideConciergeFrame>
+                  <NativeBadge />
+                  <PwaBadge />
+                </OutsideConciergeFrame>
                 {/* In-app calls: a tiny host that loads the call runtime (ring listener, engine, call screen) only for
                     people calls are on for — inside AuthProvider (it needs the user) and ChatProvider (order only). */}
-                <CallHost />
+                <OutsideConciergeFrame><CallHost /></OutsideConciergeFrame>
                 <FavoritesProvider>
                   <QueryProvider>
                     {/* One delay group for every ui/tooltip in the app: moving between adjacent
@@ -115,6 +119,8 @@ export function Providers({
                     <BottomNavSpacer />
                     <KeyboardViewportSync />
                     <MobileNav />
+                    {/* The voice concierge's floating window (2026-10-27): tiny until the ✨ opens it; the window itself is a frame. */}
+                    <OutsideConciergeFrame><ConciergeHost /></OutsideConciergeFrame>
                     {/* The app-wide navigation progress bar (FAST-2): a thin top line for a client navigation
                         still pending after 400ms — fast ones show nothing. Here because this layout never
                         unmounts, so one instance sees every navigation. Needs no provider; renders null when
@@ -151,20 +157,20 @@ export function Providers({
                         (`html:not(.native) #app-splash` in globals.css) and it unmounts there at
                         hydration without arming its clock. */}
                     <AppSplash />
-                    <SaveSignupSheet />
+                    <OutsideConciergeFrame><SaveSignupSheet /></OutsideConciergeFrame>
                     <ImageShield />
-                    <CookieConsent />
+                    <OutsideConciergeFrame><CookieConsent /></OutsideConciergeFrame>
                     {/* The "Join eno" prompt (owner, 2026-10-01: ask after a minute of browsing; dismissible,
                         and it returns). Renders nothing — it counts visible time across client navigations,
                         which is why it lives here under the layout that never unmounts, and opens THE
                         sign-in popup (AuthProvider above) in its join presentation. Both editions. */}
-                    <SignupPrompt />
+                    <OutsideConciergeFrame><SignupPrompt /></OutsideConciergeFrame>
                     {/* App Store gate `app-ai-notice`: the one-time "Use Google AI for …?" question, asked in the apps before
                         a feature first sends what someone typed or a photo to Google (src/lib/ai-consent.ts). Inside Auth +
                         Language for the account and the words. Gate off ⇒ renders null and registers nothing. */}
-                    <AiConsentHost />
+                    <OutsideConciergeFrame><AiConsentHost /></OutsideConciergeFrame>
                     {/* Sign in with Apple: the notice a deletion hands to the page it lands on (apple-deletion-notice.tsx). */}
-                    <AppleDeletionNoticeHost />
+                    <OutsideConciergeFrame><AppleDeletionNoticeHost /></OutsideConciergeFrame>
                     {/* ⛔ THE FIRST-RUN TOUR IS GONE (owner, 2026-09-16: "remove onboarding autoplay
                         where it shows top seach bar and taps the category brand too jittery"). It typed
                         into the header search itself and then pointed at the category/brand chips for the

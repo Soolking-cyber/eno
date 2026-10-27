@@ -11,6 +11,8 @@ import { isIOS } from '@/lib/in-app-browser'
 import { consentAnswered } from '@/lib/consent'
 import { askHidden, askShown, mayAsk, notePageView } from '@/lib/page-asks'
 import { isClassroomPath } from '@/lib/classroom/host'
+import { isConciergeFramePath } from '@/lib/concierge/client'
+import { publicPathname } from '@/lib/lang-variant'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 
@@ -54,7 +56,8 @@ export function InstallHint() {
    * over a practice session's Mic and End buttons. There it neither asks nor shows; a card already due simply waits for
    * the next marketplace page, and one already up comes back there.
    */
-  const inClassroom = isClassroomPath(pathname)
+  // …nor inside the voice concierge's floating window (its own page in a frame, src/components/concierge).
+  const inClassroom = isClassroomPath(pathname) || isConciergeFramePath(publicPathname(pathname))
   useEffect(() => {
     notePageView(pathname)
     if (!due || mode || inClassroom) return

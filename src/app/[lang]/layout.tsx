@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "../globals.css";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
+import { OutsideConciergeFrame } from "@/components/concierge/outside-frame";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
 import { Providers } from "./providers";
 import { notFound } from "next/navigation";
@@ -658,8 +659,11 @@ export default async function RootLayout({
             into every Vietnamese document's RSC payload, 66% of a static page (audit #1). The provider
             now loads it as a cacheable chunk and suspends on it (context/language-context.tsx). */}
         <Providers lang={lang}>{children}</Providers>
-        <AnalyticsTags />
-        <AttributionCapture />
+        {/* The concierge's window is a page of this app in a frame: no second page view, no attribution from it. */}
+        <OutsideConciergeFrame>
+          <AnalyticsTags />
+          <AttributionCapture />
+        </OutsideConciergeFrame>
       </body>
     </html>
   );

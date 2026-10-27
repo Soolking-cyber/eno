@@ -39,9 +39,11 @@ export type StageHandle = {
   prime: () => boolean
   /**
    * The drawn face joins this session: its token, then its websocket. True = replies go to the face. False = voice-only
-   * (`onFallback` has been called, or the face was taken down meanwhile — a websocket opened late is closed).
+   * (`onFallback` has been called, or the face was taken down meanwhile — a websocket opened late is closed). A classroom
+   * session's id (its own token route), or — the voice concierge (src/components/concierge) — a function that fetches the
+   * token itself, stopped by `signal` when the face is taken down.
    */
-  connect: (sessionId: string) => Promise<boolean>
+  connect: (session: string | ((signal: AbortSignal) => Promise<string>)) => Promise<boolean>
 }
 
 /**
@@ -186,6 +188,13 @@ function settle(l: Load): void {
   }, 500)
 }
 
+/** A classroom session's face token (api/classroom/sessions/<id>/token). */
+async function classroomToken(sessionId: string, signal: AbortSignal): Promise<string> {
+  const res = await fetch(`/api/classroom/sessions/${sessionId}/token`, { method: 'POST', signal }).catch(() => null)
+  if (!res?.ok) throw new Error(`token_${res?.status ?? 'network'}`)
+  return ((await res.json()) as { token: string }).token
+}
+
 export const AvatarStage = forwardRef<StageHandle, {
   /** 'avatar' while the face is shown or being drawn; 'voice' = the photo. */
   mode: 'avatar' | 'voice'
@@ -198,7 +207,9 @@ export const AvatarStage = forwardRef<StageHandle, {
   onDrawn: () => void
   onFallback: () => void
   onPlaying: (playing: boolean) => void
-}>(function AvatarStage({ mode, face, photoUrl, name, speaking, onDrawn, onFallback, onPlaying }, ref) {
+  /** A small stage (the concierge's floating window): the photo shown while the face draws, or instead of it, is small. */
+  compact?: boolean
+}>(function AvatarStage({ mode, face, photoUrl, name, speaking, onDrawn, onFallback, onPlaying, compact }, ref) {
   const box = useRef<HTMLDivElement>(null)
   /** The current load (null: none, or taken down). */
   const load = useRef<Load | null>(null)
@@ -248,17 +259,18 @@ export const AvatarStage = forwardRef<StageHandle, {
       }
       return true
     },
-    connect: async (sessionId) => {
+    connect: async (session) => {
       const l = load.current
       if (!l || l.gone) return false
       // The token is asked for at once, while the face finishes drawing if it still is — and given up with the load.
-      const tok = fetch(`/api/classroom/sessions/${sessionId}/token`, { method: 'POST', signal: l.stop.signal }).catch(() => null)
+      const tok = (typeof session === 'string' ? classroomToken(session, l.stop.signal) : session(l.stop.signal))
+        .then((token) => ({ token }), (e: unknown) => ({ failed: e }))
       try {
         await l.drawn
-        const res = await tok
+        const got = await tok
         if (l.gone) return false
-        if (!res?.ok) throw new Error(`token_${res?.status ?? 'network'}`)
-        const { token } = (await res.json()) as { token: string }
+        if ('failed' in got) throw got.failed
+        const { token } = got
         if (l.gone) return false
         const kit = await warmAvatarKit()
         if (l.gone) return false
@@ -377,7 +389,7 @@ export const AvatarStage = forwardRef<StageHandle, {
         <div ref={box} className="absolute inset-0" />
         {!drawn && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <Avatar name={name} url={photoUrl} size="2xl" className="animate-pulse" />
+            <Avatar name={name} url={photoUrl} size={compact ? 'lg' : '2xl'} className="animate-pulse" />
           </div>
         )}
       </div>
@@ -386,7 +398,7 @@ export const AvatarStage = forwardRef<StageHandle, {
   return (
     <div className="flex h-full w-full items-center justify-center">
       <span className={cn('rounded-full p-2 ring-primary-foreground/20 transition-[box-shadow] duration-300 motion-reduce:transition-none', speaking ? 'ring-8' : 'ring-0')}>
-        <Avatar name={name} url={photoUrl} size="2xl" className="size-40 text-3xl" />
+        <Avatar name={name} url={photoUrl} size={compact ? 'lg' : '2xl'} className={compact ? undefined : 'size-40 text-3xl'} />
       </span>
     </div>
   )

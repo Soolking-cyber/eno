@@ -59,6 +59,8 @@ const RESERVED = new Set([
   'schools', 'school',
   // eno Classroom (2026-10-25): classroom.<base> is its address (src/lib/classroom/host.ts) and /classroom its pages.
   'classroom', 'classrooms',
+  // The voice concierge's window page (2026-10-27).
+  'concierge',
   // /teach-in-vietnam is the teacher guide library (2026-10-10). Separator-free, so one entry also
   // covers teach-in-vietnam, teach_in_vietnam and teachinvietnam (isReservedHandle folds `-`/`_`).
   'teachinvietnam',

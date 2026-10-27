@@ -1435,6 +1435,13 @@ const nextConfig: NextConfig = {
         source,
         headers: [{ key: "Content-Security-Policy", value: cspClassroom }],
       })),
+      // The voice concierge's window (2026-10-27): the same two host families (its face and its live listening), on its
+      // own frame page ONLY — the floating window is a same-origin frame of /concierge, so the marketplace pages under it
+      // keep the site policy unchanged (src/components/concierge/concierge-host.tsx says why).
+      ...["/concierge", "/:lang(en|vi)/concierge"].map((source) => ({
+        source,
+        headers: [{ key: "Content-Security-Policy", value: cspClassroom }],
+      })),
       /**
        * ── `Vary: Accept` IS DELIBERATELY *NOT* SET ON `/`, `/privacy` AND `/terms` ──────────────
        *

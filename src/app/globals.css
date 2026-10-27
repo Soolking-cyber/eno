@@ -4447,3 +4447,12 @@ body:has([data-classroom]) .support-mark,
 body:has([data-classroom]) .back-to-top-chevron {
   display: none;
 }
+
+/* The voice concierge's window is its own page inside a frame (/concierge, src/components/concierge): the same stand-down,
+   from the first paint, so nothing of the marketplace sits inside the floating square. */
+body:has([data-concierge-frame]) .mobile-nav,
+body:has([data-concierge-frame]) .bottom-nav-spacer,
+body:has([data-concierge-frame]) .support-mark,
+body:has([data-concierge-frame]) .back-to-top-chevron {
+  display: none;
+}
