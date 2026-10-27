@@ -13,6 +13,7 @@ import { libraryAvatarById } from './library-avatars'
 import { speakLine } from './session-voice'
 import { clampPace, defaultPace, voiceStyle } from './pace'
 import { parseTraits } from './persona'
+import type { Background } from './backgrounds'
 import { warmTutorBrain } from './tutor-ai'
 import { NextAtRefusal } from './refusal'
 import { containsContactInfo } from '@/lib/publish-guard'
@@ -35,7 +36,8 @@ export type StartedSession = {
   endsAt: string
   mode: 'avatar' | 'voice'
   resumed: boolean
-  avatar: { name: string; photoUrl: string | null; voice: string; spatiusAvatarId: string | null }
+  /** `background`: the room the teacher set behind the avatar (backgrounds.ts). */
+  avatar: { name: string; photoUrl: string | null; voice: string; spatiusAvatarId: string | null; background: Background }
   learnerName: string
   band: AgeBand
   opening: { text: string; audio: string | null; expect: string | null }
@@ -240,7 +242,10 @@ export async function startLearnerSession(seatId: string, accountId: string, now
     endsAt: result.session.endsAt.toISOString(),
     mode: result.session.mode === 'avatar' ? 'avatar' : 'voice',
     resumed: result.resumed,
-    avatar: { name: seat.avatar.name, photoUrl: seat.avatar.teacherProfile.photoUrl, voice: seat.avatar.voice, spatiusAvatarId: result.session.mode === 'avatar' ? face.spatiusAvatarId : null },
+    avatar: {
+      name: seat.avatar.name, photoUrl: seat.avatar.teacherProfile.photoUrl, voice: seat.avatar.voice,
+      spatiusAvatarId: result.session.mode === 'avatar' ? face.spatiusAvatarId : null, background: parseTraits(seat.avatar.traits).background,
+    },
     learnerName: learner.displayName,
     band,
     opening: { text: result.opening.text, audio, expect: result.opening.expect },
@@ -322,7 +327,10 @@ export async function startTeacherTest(accountId: string, now = new Date()): Pro
     endsAt: session.endsAt.toISOString(),
     mode: session.mode === 'avatar' ? 'avatar' : 'voice',
     resumed,
-    avatar: { name: avatar.name, photoUrl: tp.photoUrl, voice: avatar.voice, spatiusAvatarId: session.mode === 'avatar' ? face.spatiusAvatarId : null },
+    avatar: {
+      name: avatar.name, photoUrl: tp.photoUrl, voice: avatar.voice, spatiusAvatarId: session.mode === 'avatar' ? face.spatiusAvatarId : null,
+      background: parseTraits(avatar.traits).background,
+    },
     learnerName: '',
     band: 'adult',
     opening: { text: opening.text, audio, expect: opening.expect },

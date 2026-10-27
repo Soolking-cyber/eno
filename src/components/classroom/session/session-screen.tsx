@@ -20,6 +20,7 @@ import { useRecorder } from './use-recorder'
 import { isHesitation, openLiveStt, type LiveStt } from './live-stt'
 import { streamTo16k } from '@/lib/classroom/wav'
 import { LIMITS } from '@/lib/classroom/constants'
+import { DEFAULT_BACKGROUND, backgroundImage, type Background } from '@/lib/classroom/backgrounds'
 import { beginTrace, formatMark, mark, traceVisible, useTrace } from './trace'
 
 /**
@@ -142,7 +143,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   seatId?: string
   test?: boolean
   /** Shown before the session exists: the avatar's name and the teacher's photo. */
-  preview: { name: string; photoUrl: string | null }
+  preview: { name: string; photoUrl: string | null; background?: Background }
   onClose: () => void
 }) {
   const { tr, lang } = useLanguage()
@@ -1061,6 +1062,8 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const minutes = Math.floor(left / 60)
   const secs = String(left % 60).padStart(2, '0')
   const name = start?.avatar.name ?? preview.name
+  // The room the teacher set behind the avatar (backgrounds.ts): the intro shows the preview's, the session its own.
+  const room = backgroundImage(start?.avatar.background ?? preview.background ?? DEFAULT_BACKGROUND)
   const status = muted ? tr('Muted', 'Đã tắt micro')
     : phase === 'listening' ? tr('Listening — just talk', 'Đang nghe — cứ nói nhé')
       : phase === 'hearing' ? tr('Listening…', 'Đang nghe…')
@@ -1078,8 +1081,16 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       >
         <DialogTitle className="sr-only">{tr('Speaking practice', 'Luyện nói')}</DialogTitle>
         <DialogDescription className="sr-only">{preview.name}</DialogDescription>
+        {room && (
+          // Under everything, dimmed toward the captions and the controls so they stay legible; the screen's own colour
+          // shows while it loads. The face's canvas is transparent: the avatar stands in the room. Behind the phone-width
+          // column only — a wide window keeps its dark sides instead of a portrait stretched blurry (review, opus).
+          <div aria-hidden className="pointer-events-none absolute inset-y-0 left-1/2 w-full max-w-md -translate-x-1/2 bg-cover bg-center" style={{ backgroundImage: `url(${room})` }}>
+            <div className="absolute inset-0 bg-gradient-to-b from-brand-deeper/50 via-brand-deeper/0 via-40% to-brand-deeper to-75%" />
+          </div>
+        )}
         {/* MOBILE-FIRST: one phone-width column; on a wide window the dark screen fills the rest. */}
-        <div className="mx-auto flex h-full w-full max-w-md flex-col">
+        <div className="relative mx-auto flex h-full w-full max-w-md flex-col">
           <header className="flex flex-col gap-2 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
             <Progress tone="onDark" value={total.current - left} max={total.current}
               aria-label={tr('Time', 'Thời gian')} valueText={`${minutes}:${secs}`} />

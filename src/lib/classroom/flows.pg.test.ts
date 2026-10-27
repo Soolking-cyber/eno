@@ -616,6 +616,7 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
       for (let n = 0; n < LIMITS.teacherTestsPerDay + 2; n++) {
         const t = await start.startTeacherTest(teacherId)
         expect(Date.parse(t.endsAt) - Date.now()).toBeGreaterThan((start.STAFF_TEST_MINUTES - 1) * 60_000)
+        expect(t.avatar.background).toBe('classroom') // the room behind the avatar: the default for one saved without it
         await end.endSession(t.id, teacherId, 'learner')
       }
       // Back to an ordinary teacher: the day's tries were counted all along, so the next one is refused.

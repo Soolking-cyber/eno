@@ -4,6 +4,8 @@ import { classroomOpenFor } from './config'
 import { LIMITS } from './constants'
 import { effectiveMinutes, ictDayStart, ictWeekStart } from './limits'
 import { parseFocus, pickPlan } from './plans'
+import { parseTraits } from './persona'
+import type { Background } from './backgrounds'
 
 /**
  * What /classroom shows a signed-in account (GET /api/classroom/me): their teacher side (when they have a TeacherProfile)
@@ -20,7 +22,7 @@ export type ClassroomMe = {
     photoUrl: string | null
     nationality: string
     open: boolean
-    avatar: null | { id: string; name: string; look: string; customStatus: string; libraryAvatarId: string | null; voice: string }
+    avatar: null | { id: string; name: string; look: string; customStatus: string; libraryAvatarId: string | null; voice: string; background: Background }
   }
   learners: {
     id: string
@@ -33,6 +35,8 @@ export type ClassroomMe = {
       teacherName: string
       teacherPhotoUrl: string | null
       avatarName: string
+      /** The room the teacher set behind the avatar (backgrounds.ts) — the session's intro shows it before Start. */
+      avatarBackground: Background
       open: boolean
       minutes: number
       sessionsPerWeek: number
@@ -51,7 +55,7 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
     where: { profileId },
     select: {
       id: true, fullName: true, photoUrl: true, nationality: true,
-      classroomAvatar: { select: { id: true, name: true, look: true, customStatus: true, libraryAvatarId: true, voice: true } },
+      classroomAvatar: { select: { id: true, name: true, look: true, customStatus: true, libraryAvatarId: true, voice: true, traits: true } },
     },
   })
   const learners = await db.classroomLearner.findMany({
@@ -64,7 +68,7 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
         orderBy: { claimedAt: 'asc' },
         select: {
           id: true, status: true, sessionMinutes: true, sessionsPerWeek: true,
-          avatar: { select: { name: true, teacherProfile: { select: { fullName: true, photoUrl: true, profileId: true } } } },
+          avatar: { select: { name: true, traits: true, teacherProfile: { select: { fullName: true, photoUrl: true, profileId: true } } } },
           plans: { where: { status: { not: 'used' } }, orderBy: { updatedAt: 'desc' }, take: 10 },
           sessions: {
             orderBy: { startedAt: 'desc' },
@@ -91,7 +95,7 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
       photoUrl: tp.photoUrl,
       nationality: tp.nationality,
       open: await openFor(profileId),
-      avatar: tp.classroomAvatar,
+      avatar: tp.classroomAvatar && (({ traits, ...a }) => ({ ...a, background: parseTraits(traits).background }))(tp.classroomAvatar),
     },
     learners: await Promise.all(learners.map(async (l) => ({
       id: l.id,
@@ -113,6 +117,7 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
           teacherName: s.avatar.teacherProfile.fullName,
           teacherPhotoUrl: s.avatar.teacherProfile.photoUrl,
           avatarName: s.avatar.name,
+          avatarBackground: parseTraits(s.avatar.traits).background,
           open: await openFor(s.avatar.teacherProfile.profileId),
           minutes: effectiveMinutes(s.sessionMinutes, kind, l.birthYear, now),
           sessionsPerWeek: s.sessionsPerWeek,

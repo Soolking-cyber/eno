@@ -130,7 +130,7 @@ function AvatarCard({ teacher }: { teacher: Teacher }) {
             {tr('Edit', 'Chỉnh sửa')}
           </Link></Button>
           {teacher.open && (
-            <SessionLauncher test preview={{ name: avatar.name, photoUrl: teacher.photoUrl }} className="min-h-11" label={<><Mic aria-hidden />{tr('Try it', 'Thử ngay')}</>} />
+            <SessionLauncher test preview={{ name: avatar.name, photoUrl: teacher.photoUrl, background: avatar.background }} className="min-h-11" label={<><Mic aria-hidden />{tr('Try it', 'Thử ngay')}</>} />
           )}
         </div>
       </div>

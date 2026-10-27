@@ -19,8 +19,10 @@ import { LIBRARY_AVATARS } from '@/lib/classroom/library-avatars'
 import { ACCENT_LABEL, VOICES } from '@/lib/classroom/voices'
 import {
   AVATAR_NAME_MAX, DEFAULT_TRAITS, MAX_TOPICS, PACES, PACE_LABEL, PERSONA_MAX, TONES, TONE_LABEL, TOPICS, TOPIC_LABEL,
-  type Pace, type Tone, type Topic, type Traits,
+  parseTraits, type Pace, type Tone, type Topic, type Traits,
 } from '@/lib/classroom/persona'
+import { BACKGROUNDS, BACKGROUND_LABEL, backgroundThumb, isBackground, type Background } from '@/lib/classroom/backgrounds'
+import { Radio, RadioGroup } from '@/components/ui/radio-group'
 import { PERSONA_AI_ACTION, PERSONA_AI_NOTICE, PERSONA_AI_NOTICE_VERSION, PHOTO_ACTION, PHOTO_NOTICE, PHOTO_NOTICE_VERSION } from '@/lib/classroom/notices'
 import { LIKENESS_REQUESTS_OPEN, type AvatarLook } from '@/lib/classroom/constants'
 import { api } from './api'
@@ -69,7 +71,8 @@ export function AvatarWizard() {
         name: a?.name ?? r.data.defaults.name,
         persona: a?.persona ?? '',
         greeting: a?.greeting ?? '',
-        traits: (a?.traits as Traits | undefined) ?? r.data.defaults.traits ?? DEFAULT_TRAITS,
+        // Parsed here too: an avatar saved before a trait existed (the background) gets its default, shown as picked.
+        traits: parseTraits(a?.traits ?? r.data.defaults.traits ?? DEFAULT_TRAITS),
         voice: a?.voice ?? r.data.defaults.voice,
         look: (a?.look as AvatarLook | undefined) ?? 'photo',
         libraryAvatarId: a?.libraryAvatarId ?? null,
@@ -129,7 +132,7 @@ export function AvatarWizard() {
       {step === 'look' && <LookStep d={d} setD={setD} photoUrl={data.teacher.photoUrl} customStatus={customStatus} setCustomStatus={setCustomStatus} />}
       {step === 'character' && <CharacterStep d={d} setD={setD} />}
       {step === 'voice' && <VoiceStep d={d} setD={setD} />}
-      {step === 'try' && <TryStep name={d.name} photoUrl={data.teacher.photoUrl} />}
+      {step === 'try' && <TryStep name={d.name} photoUrl={data.teacher.photoUrl} background={d.traits.background} />}
     </StepWizard>
   )
 }
@@ -187,6 +190,27 @@ function LookStep({ d, setD, photoUrl, customStatus, setCustomStatus }: {
         </span>
         {d.look === 'photo' && <Check aria-hidden className="size-5 text-brand" />}
       </Button>
+      {/* The room behind the avatar (owner, 2026-10-27: "so students feel like they are in classroom with teacher"). */}
+      <div className="flex flex-col gap-2 border-t border-border pt-5">
+        <p className="text-sm font-semibold text-ink">{tr('Background', 'Phông nền')}</p>
+        <p className="text-xs text-ink-4">{tr('The room your students see behind the avatar.', 'Căn phòng học viên nhìn thấy phía sau avatar.')}</p>
+        {/* ONE choice of seven — the ui/radio-group primitive (Base UI), not pressed buttons (review, opus). */}
+        <RadioGroup value={d.traits.background} aria-label={tr('Background', 'Phông nền')} className="grid grid-cols-4 gap-2"
+          onValueChange={(v) => { if (isBackground(v)) setD({ ...d, traits: { ...d.traits, background: v } }) }}>
+          {BACKGROUNDS.map((b) => {
+            const thumb = backgroundThumb(b)
+            return (
+              <Radio key={b} value={b}
+                className={cn('flex min-w-0 flex-col items-center justify-start gap-1 whitespace-normal rounded-2xl p-1.5 text-center hover:bg-tint', d.traits.background === b && 'bg-accent')}>
+                {thumb
+                  ? <img src={thumb} alt="" width={72} height={126} loading="lazy" className="aspect-[4/7] h-auto w-full rounded-xl object-cover" />
+                  : <span aria-hidden className="aspect-[4/7] w-full rounded-xl bg-brand-deeper" />}
+                <span className="text-xs text-ink-2">{tr(BACKGROUND_LABEL[b].en, BACKGROUND_LABEL[b].vi)}</span>
+              </Radio>
+            )
+          })}
+        </RadioGroup>
+      </div>
       {ownFace && <div className="flex flex-col gap-3 border-t border-border pt-5">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-ink">{tr('Your own face in 3D', 'Khuôn mặt 3D của chính bạn')}</p>
@@ -319,14 +343,14 @@ function VoiceStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
   )
 }
 
-function TryStep({ name, photoUrl }: { name: string; photoUrl: string | null }) {
+function TryStep({ name, photoUrl, background }: { name: string; photoUrl: string | null; background: Background }) {
   const { tr } = useLanguage()
   return (
     <div className="flex flex-col items-center gap-4 py-6 text-center">
       <Avatar name={name} url={photoUrl} size="2xl" />
       <p className="text-lg font-bold text-ink">{tr('Saved! Try your avatar', 'Đã lưu! Thử avatar của bạn')}</p>
       <p className="max-w-sm text-sm text-body">{tr('A 3-minute session, exactly as a student hears it. You get a report too.', 'Một buổi 3 phút, đúng như học viên trải nghiệm. Bạn cũng nhận được nhận xét.')}</p>
-      <SessionLauncher test preview={{ name, photoUrl }} variant="cta" size="lg" className="min-h-12 w-full max-w-xs" label={<><Mic aria-hidden />{tr('Try it now', 'Thử ngay')}</>} />
+      <SessionLauncher test preview={{ name, photoUrl, background }} variant="cta" size="lg" className="min-h-12 w-full max-w-xs" label={<><Mic aria-hidden />{tr('Try it now', 'Thử ngay')}</>} />
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
+import type { Background } from '@/lib/classroom/backgrounds'
 
 // The session screen (recorder, voice, and the avatar's lazy SDK behind it) loads only when someone taps to practise.
 const SessionScreen = dynamic(() => import('./session/session-screen').then((m) => m.SessionScreen), { ssr: false })
@@ -14,7 +15,8 @@ const SessionScreen = dynamic(() => import('./session/session-screen').then((m) 
 export function SessionLauncher({ seatId, test, preview, label, variant = 'outline', size = 'sm', className, disabled }: {
   seatId?: string
   test?: boolean
-  preview?: { name: string; photoUrl: string | null }
+  /** What the screen shows before Start: the avatar's name, the teacher's photo, the room behind the avatar. */
+  preview?: { name: string; photoUrl: string | null; background?: Background }
   label: React.ReactNode
   variant?: 'cta' | 'outline'
   size?: 'sm' | 'lg'
