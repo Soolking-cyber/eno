@@ -60,6 +60,7 @@ export const LUCIDE_TO_SOLAR = {
   CalendarCheck: 'calendar-mark',
   CalendarDays: 'calendar',
   Camera: 'camera',
+  Captions: 'subtitles', // classroom call screen (2026-10-27): the captions toggle, Praktika's layout
   Car: 'wheel-angle',
   CarFront: 'wheel-angle',
   CardSim: 'sim-card',
@@ -154,6 +155,7 @@ export const LUCIDE_TO_SOLAR = {
   Laptop: 'laptop',
   Layers: 'layers-minimalistic',
   LayoutGrid: 'widget',
+  Lightbulb: 'lightbulb', // classroom call screen (2026-10-27): the hint
   Link2: 'link',
   ListChecks: 'checklist',
   Loader2: 'refresh',

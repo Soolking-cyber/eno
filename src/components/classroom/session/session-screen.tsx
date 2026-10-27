@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { Progress } from '@/components/ui/progress'
-import { CircleHelp, Mic, MicOff, MessageSquareText, PhoneOff } from '@/components/ui/icons'
+import { Captions, Lightbulb, Mic, MicOff, PhoneOff, Video } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
+import { useAuth } from '@/context/auth-context'
 import { hapticTap } from '@/lib/haptics'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
@@ -22,6 +22,7 @@ import { streamTo16k } from '@/lib/classroom/wav'
 import { LIMITS } from '@/lib/classroom/constants'
 import { DEFAULT_BACKGROUND, backgroundImage, type Background } from '@/lib/classroom/backgrounds'
 import { beginTrace, formatMark, mark, traceVisible, useTrace } from './trace'
+import { useSelfView } from './use-self-view'
 
 /**
  * intro (the face draws; Start waits for it) → (Start) connecting (the face connects; the opening waits for it) → speaking
@@ -167,6 +168,12 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   /** Soniox hears the learner (its socket is open) — 'off': not yet, or opening again; 'gone': refused, or the tries ran
    *  out — nothing can hear the learner for the rest of this session (Soniox only). */
   const [hearing, setHearing] = useState<'on' | 'off' | 'gone'>('off')
+  /** The learner's own camera in a corner, like a video call (use-self-view.ts) — adults only, never sent. */
+  // Remembered per learner: the seat — or, for a teacher's own test, the teacher's account (review, codex).
+  const { user } = useAuth()
+  const selfView = useSelfView(start?.band === 'adult', seatId ?? `test:${user?.id ?? ''}`)
+  const { resume: resumeSelfView, stop: stopSelfView } = selfView
+  const wordsBox = useRef<HTMLDivElement>(null)
   /** The 3D face a start would give (api/classroom/face), drawn while the intro is up — null: voice-only. */
   const [face, setFace] = useState<FaceConfig | null>(null)
   const faceRef = useRef<FaceConfig | null>(null)
@@ -470,11 +477,16 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     capTimer.current = null
     stopSpeaking()
     releaseRec()
+    stopSelfView()
     const ctx = ctxRef.current
     ctxRef.current = null
     player.current = null
     void ctx?.close().catch(() => {})
-  }, [releaseRec, stopSpeaking])
+  }, [releaseRec, stopSelfView, stopSpeaking])
+  // A session started: the camera comes back on if the learner left it on — only where the browser already allows it.
+  useEffect(() => { if (start) void resumeSelfView() }, [start, resumeSelfView])
+  // Never on behind the intro or the blocked-microphone screen, where its button is not shown (review, opus).
+  useEffect(() => { if (phase === 'intro' || phase === 'mic_denied') stopSelfView() }, [phase, stopSelfView])
   useEffect(() => releaseAll, [releaseAll])
 
   /**
@@ -1123,6 +1135,22 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const note = notice ? refusalCopy(notice) : null
   const live = phase === 'listening' || phase === 'hearing' || phase === 'thinking' || phase === 'speaking'
 
+  // The words' box follows the newest line (review, opus: a short screen kept the oldest in view).
+  useEffect(() => {
+    const box = wordsBox.current
+    if (box) box.scrollTop = box.scrollHeight
+  }, [avatarLine, captions, hint, learnerLine, live, showHint, waiting])
+  const onCamera = async () => {
+    hapticTap()
+    const r = await selfView.toggle()
+    if (r === 'blocked' || r === 'unsupported' || r === 'unavailable') setNotice(`camera_${r}`)
+    else setNotice((n) => (n?.startsWith('camera_') ? null : n)) // a retry that worked clears the camera's own message
+  }
+  const cameraOffered = start?.band === 'adult'
+  /** The round see-through buttons over the face (Praktika's): a white glyph on a dark disc; pressed = a lighter disc and
+   *  the bold glyph (`icon-own-ink`). No blur at this size — and a blurred material takes no tint variants (design-lint). */
+  const glass = 'icon-own-ink size-11 rounded-full bg-brand-deeper/50 text-primary-foreground hover:bg-brand-deeper/70 aria-pressed:bg-primary-foreground/25'
+
   return (
     <Dialog open onOpenChange={() => { /* only End closes a session */ }}>
       <DialogContent
@@ -1131,26 +1159,15 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       >
         <DialogTitle className="sr-only">{tr('Speaking practice', 'Luyện nói')}</DialogTitle>
         <DialogDescription className="sr-only">{preview.name}</DialogDescription>
-        {room && (
-          // Under everything, dimmed toward the captions and the controls so they stay legible; the screen's own colour
-          // shows while it loads. The face's canvas is transparent: the avatar stands in the room. Behind the phone-width
-          // column only — a wide window keeps its dark sides instead of a portrait stretched blurry (review, opus).
-          <div aria-hidden className="pointer-events-none absolute inset-y-0 left-1/2 w-full max-w-md -translate-x-1/2 bg-cover bg-center" style={{ backgroundImage: `url(${room})` }}>
-            <div className="absolute inset-0 bg-gradient-to-b from-brand-deeper/50 via-brand-deeper/0 via-40% to-brand-deeper to-75%" />
-          </div>
-        )}
-        {/* MOBILE-FIRST: one phone-width column; on a wide window the dark screen fills the rest. */}
-        <div className="relative mx-auto flex h-full w-full max-w-md flex-col">
-          <header className="flex flex-col gap-2 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-            <Progress tone="onDark" value={total.current - left} max={total.current}
-              aria-label={tr('Time', 'Thời gian')} valueText={`${minutes}:${secs}`} />
-            <div className="flex items-center justify-between text-xs text-primary-foreground/70">
-              <span className="truncate">{name} · {tr('AI avatar', 'Avatar AI')}</span>
-              <span className="tabular-nums" aria-hidden>{minutes}:{secs}</span>
-            </div>
-          </header>
-
-          <div className="relative min-h-0 flex-1">
+        {/* A VIDEO CALL (owner, 2026-10-27: "as close as possible to … praktika"): the avatar fills the screen edge to edge,
+            the controls float over it. MOBILE-FIRST: one phone-width column; a wide window keeps dark sides instead of a
+            portrait room stretched blurry (review, opus). */}
+        <div className="relative mx-auto h-full w-full max-w-md overflow-hidden">
+          {room && (
+            // The room the teacher set (backgrounds.ts); the face's canvas is transparent — the avatar stands in it.
+            <div aria-hidden className="pointer-events-none absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${room})` }} />
+          )}
+          <div className="absolute inset-0">
             <AvatarStage
               ref={stage}
               mode={mode}
@@ -1162,98 +1179,152 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
               onFallback={onFallback}
               onPlaying={onPlaying}
             />
+          </div>
+          {/* Shade only where words sit — the top bar and the captions — so the face stays bright. */}
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-brand-deeper/70 to-transparent" />
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-brand-deeper via-brand-deeper/60 to-transparent" />
 
-            {showTrace && trace.length > 0 && (
-              <ol className="pointer-events-none absolute left-2 top-2 max-h-[60%] overflow-hidden rounded-lg bg-brand-deeper/80 p-2 font-mono text-xs leading-tight text-primary-foreground/90">
-                {trace.map((m, i) => <li key={i}>{formatMark(m)}</li>)}
-              </ol>
-            )}
+          {showTrace && trace.length > 0 && (
+            <ol className="pointer-events-none absolute left-2 top-20 z-10 max-h-[50%] overflow-hidden rounded-lg bg-brand-deeper/80 p-2 font-mono text-xs leading-tight text-primary-foreground/90">
+              {trace.map((m, i) => <li key={i}>{formatMark(m)}</li>)}
+            </ol>
+          )}
 
-            {phase === 'intro' && (
-              <div className="absolute inset-0 flex flex-col items-center justify-end gap-4 bg-brand-deeper/60 p-6 pb-10 text-center">
-                <p className="max-w-xs text-base">{tr('Find a quiet place, then tap Start. Then just talk, like a video call.', 'Hãy tìm chỗ yên tĩnh rồi chạm Bắt đầu. Sau đó cứ nói chuyện, như gọi video.')}</p>
-                {refused && (
-                  <p role="alert" className="max-w-xs text-sm text-primary-foreground/80">
-                    {tr(refusalCopy(refused.code).en, refusalCopy(refused.code).vi)}
-                    {/* The day practice opens again (C3a review: dayName was written for this and never used). */}
-                    {refused.nextAt && dayName(refused.nextAt, lang) && (
-                      <> {tr('You can practise again on {day}.', 'Bạn có thể luyện tập lại vào {day}.').replace('{day}', dayName(refused.nextAt, lang))}</>
-                    )}
-                  </p>
-                )}
-                {/* Start waits for the face (FACE_PREP_MS at most): the face and its voice begin together. */}
-                {!refused?.nextAt && (
-                  <Button variant="cta" size="lg" className="w-full max-w-xs" onClick={begin} disabled={prep !== 'ready' || starting}>
-                    {prep !== 'ready' ? tr('Getting ready…', 'Đang chuẩn bị…') : starting ? tr('Starting…', 'Đang bắt đầu…') : tr('Start', 'Bắt đầu')}
-                  </Button>
-                )}
-                <Button variant="ghost" size="sm" className="text-primary-foreground/80" onClick={close}>{tr('Not now', 'Để sau')}</Button>
+          {/* The call's top bar: the hint · the avatar and the time left · captions. */}
+          {/* z-10: above the intro too — captions can be set before Start (review, codex). */}
+          <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
+            <IconButton size="lg" aria-pressed={showHint} aria-label={tr('Hint', 'Gợi ý')} disabled={!hint || !live} onClick={() => setShowHint((v) => !v)}
+              className={cn(glass, 'disabled:opacity-40')}>
+              <Lightbulb className="size-6" />
+            </IconButton>
+            <div className="min-w-0 text-center">
+              <p className="truncate text-base font-semibold">{name}</p>
+              <p className="text-xs text-primary-foreground/75">
+                {tr('AI avatar', 'Avatar AI')}
+                {live && <> · <span className="sr-only">{tr('Time left', 'Thời gian còn lại')} </span><span role="timer" className="tabular-nums">{minutes}:{secs}</span></>}
+              </p>
+            </div>
+            <IconButton size="lg" aria-pressed={captions} aria-label={tr('Captions', 'Phụ đề')} onClick={() => setCaptions((v) => !v)} className={glass}>
+              <Captions className="size-6" />
+            </IconButton>
+          </header>
+
+          {/* Bottom: the learner's own camera (corner), the words, then the call's three buttons — never above the top bar
+              (top-20): on a short screen the words give way first, scrolling in their own box (review, codex + opus). */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 top-20 flex flex-col justify-end gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&>*]:pointer-events-auto">
+            {/* Whenever the camera is on — connecting and ending too: a camera light with no picture is a camera nobody
+                can see to turn off (review, opus). */}
+            {selfView.stream && (
+              // self-start: a flex column stretches its children across — the tile keeps its 3:4 corner (review, codex + opus).
+              <div className="aspect-[3/4] h-36 max-h-[22dvh] shrink-0 self-start overflow-hidden rounded-2xl border border-primary-foreground/25 bg-brand-deeper shadow-overlay">
+                <SelfView stream={selfView.stream} label={tr('You (only on this phone)', 'Bạn (chỉ hiện trên điện thoại này)')} />
               </div>
             )}
-            {(phase === 'connecting' || (waiting && phase === 'speaking')) && (
-              <div className="absolute inset-x-0 bottom-6 flex justify-center" role="status">
-                <span className="rounded-full bg-primary-foreground/15 px-4 py-2 text-sm">{tr('Connecting to {name}…', 'Đang kết nối với {name}…').replace('{name}', name)}</span>
-              </div>
-            )}
-            {phase === 'mic_denied' && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-brand-deeper/80 p-6 text-center">
-                <p className="max-w-xs text-base font-semibold">{tr('The microphone is blocked', 'Micro đang bị chặn')}</p>
-                <p className="max-w-xs text-sm text-primary-foreground/80">{tr('Allow the microphone for this site in your browser settings, then try again. In Zalo or Facebook, open the link in Safari or Chrome.', 'Hãy cho phép micro cho trang này trong cài đặt trình duyệt rồi thử lại. Nếu đang ở Zalo hoặc Facebook, hãy mở link bằng Safari hoặc Chrome.')}</p>
-                <Button variant="cta" onClick={() => { go('intro') }}>{tr('Try again', 'Thử lại')}</Button>
-                <Button variant="ghost" size="sm" className="text-primary-foreground/80" onClick={close}>{tr('Not now', 'Để sau')}</Button>
-              </div>
-            )}
-
             {live && !waiting && (
-              <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-brand-deeper via-brand-deeper/80 to-transparent px-4 pb-3 pt-10" aria-live="polite">
-                {captions && learnerLine && <p className="self-end rounded-2xl bg-primary-foreground/10 px-4 py-2 text-sm text-primary-foreground/80">{learnerLine}</p>}
-                {captions && avatarLine && <p className="text-base leading-relaxed">{avatarLine}</p>}
-                {showHint && hint && (
-                  <div className="rounded-2xl bg-primary-foreground/10 px-4 py-3 text-sm">
-                    <p>{hint.en}</p>
-                    {hint.vi && <p lang="vi" className="mt-1 text-primary-foreground/70">{hint.vi}</p>}
+              <>
+                {/* The words: their own scrolling box that follows the newest line (wordsBox) — the notice and the status
+                    below it never scroll away. */}
+                {(captions || (showHint && hint)) && (
+                  <div ref={wordsBox} className="flex min-h-0 shrink flex-col gap-2 overflow-y-auto" aria-live="polite">
+                    {captions && learnerLine && <p className="self-end rounded-2xl bg-primary-foreground/15 px-4 py-2 text-sm text-primary-foreground/90">{learnerLine}</p>}
+                    {captions && avatarLine && <p className="text-base leading-relaxed">{avatarLine}</p>}
+                    {showHint && hint && (
+                      <div className="rounded-2xl bg-primary-foreground/15 px-4 py-3 text-sm">
+                        <p>{hint.en}</p>
+                        {hint.vi && <p lang="vi" className="mt-1 text-primary-foreground/75">{hint.vi}</p>}
+                      </div>
+                    )}
                   </div>
                 )}
-                {note && <p role="status" className="text-center text-sm text-primary-foreground/80">{tr(note.en, note.vi)}</p>}
-                <p className={cn('flex items-center justify-center gap-2 text-sm text-primary-foreground/80', phase === 'hearing' && !muted && 'text-primary-foreground')}>
-                  {!muted && (phase === 'listening' || phase === 'hearing') && (
+                {note && <p role="status" className="shrink-0 text-center text-sm text-primary-foreground/85">{tr(note.en, note.vi)}</p>}
+                <p aria-live="polite" className={cn('flex shrink-0 items-center justify-center gap-2 text-sm text-primary-foreground/80', phase === 'hearing' && !muted && 'text-primary-foreground')}>
+                  {!muted && (phase === 'listening' || phase === 'hearing') && hearing === 'on' && (
                     <span aria-hidden className={cn('size-2 rounded-full bg-success', phase === 'hearing' && 'animate-pulse')} />
                   )}
                   {status}
                 </p>
-              </div>
+              </>
+            )}
+            {/* Pressed = a light fill + the bold glyph in the button's own white (`icon-own-ink`): the house accent-blue
+                pressed glyph all but vanished on this dark screen (the 390px check). Not before Start: the intro's own
+                buttons sit there. */}
+            {phase !== 'intro' && phase !== 'mic_denied' && (
+            <div className="flex shrink-0 items-center justify-between rounded-full bg-black/50 px-5 py-2.5 material backdrop-blur-md">
+              {cameraOffered ? (
+                <IconButton size="lg" aria-pressed={!!selfView.stream} disabled={(!live || waiting) && !selfView.stream} onClick={() => void onCamera()}
+                  aria-label={selfView.stream ? tr('Hide my camera', 'Ẩn camera của tôi') : tr('Show my camera — only on this phone', 'Hiện camera của tôi — chỉ trên điện thoại này')}
+                  className="icon-own-ink h-14 w-14 text-primary-foreground hover:bg-primary-foreground/10 disabled:opacity-40 aria-pressed:bg-primary-foreground/20">
+                  <Video className="size-6" />
+                </IconButton>
+              ) : <span aria-hidden className="h-14 w-14" />}
+              <Button
+                size="none"
+                variant="bare"
+                onClick={toggleMute}
+                disabled={!live}
+                aria-label={muted ? tr('Unmute', 'Bật micro') : tr('Mute', 'Tắt micro')}
+                aria-pressed={muted}
+                className={cn('size-14 rounded-full disabled:opacity-40', muted ? 'bg-primary-foreground text-brand-deeper' : 'bg-primary-foreground/15 text-primary-foreground')}
+              >
+                {muted ? <MicOff className="size-7" strokeWidth={STROKE_UI} /> : <Mic className="size-7" strokeWidth={STROKE_UI} />}
+              </Button>
+              <IconButton size="lg" aria-label={tr('End', 'Kết thúc')} onClick={() => void end('learner')} disabled={phase === 'ending'}
+                className="h-14 w-14 bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                <PhoneOff className="size-6" />
+              </IconButton>
+            </div>
             )}
           </div>
 
-          <footer className="flex items-center justify-around gap-4 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3">
-            {/* Pressed = a light fill + the bold glyph in the button's own white (`icon-own-ink`): the house accent-blue
-                pressed glyph all but vanished on this dark screen (the 390px check). */}
-            <IconButton size="lg" aria-pressed={showHint} aria-label={tr('Hint', 'Gợi ý')} disabled={!hint || !live} onClick={() => setShowHint((v) => !v)}
-              className="icon-own-ink text-primary-foreground hover:bg-primary-foreground/10 aria-pressed:bg-primary-foreground/20">
-              <CircleHelp className="size-6" />
-            </IconButton>
-            <IconButton size="lg" aria-pressed={captions} aria-label={tr('Captions', 'Phụ đề')} onClick={() => setCaptions((v) => !v)}
-              className="icon-own-ink text-primary-foreground hover:bg-primary-foreground/10 aria-pressed:bg-primary-foreground/20">
-              <MessageSquareText className="size-6" />
-            </IconButton>
-            <Button
-              size="none"
-              variant="bare"
-              onClick={toggleMute}
-              disabled={!live}
-              aria-label={muted ? tr('Unmute', 'Bật micro') : tr('Mute', 'Tắt micro')}
-              aria-pressed={muted}
-              className={cn('size-16 rounded-full disabled:opacity-40', muted ? 'bg-primary-foreground text-brand-deeper' : 'bg-primary-foreground/15 text-primary-foreground')}
-            >
-              {muted ? <MicOff className="size-7" strokeWidth={STROKE_UI} /> : <Mic className="size-7" strokeWidth={STROKE_UI} />}
-            </Button>
-            <IconButton size="lg" aria-label={tr('End', 'Kết thúc')} onClick={() => void end('learner')} disabled={phase === 'ending'}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              <PhoneOff className="size-6" />
-            </IconButton>
-          </footer>
+          {phase === 'intro' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-end gap-4 bg-brand-deeper/60 p-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] text-center">
+              <p className="max-w-xs text-base">{tr('Find a quiet place, then tap Start. Then just talk, like a video call.', 'Hãy tìm chỗ yên tĩnh rồi chạm Bắt đầu. Sau đó cứ nói chuyện, như gọi video.')}</p>
+              {refused && (
+                <p role="alert" className="max-w-xs text-sm text-primary-foreground/80">
+                  {tr(refusalCopy(refused.code).en, refusalCopy(refused.code).vi)}
+                  {/* The day practice opens again (C3a review: dayName was written for this and never used). */}
+                  {refused.nextAt && dayName(refused.nextAt, lang) && (
+                    <> {tr('You can practise again on {day}.', 'Bạn có thể luyện tập lại vào {day}.').replace('{day}', dayName(refused.nextAt, lang))}</>
+                  )}
+                </p>
+              )}
+              {/* Start waits for the face (FACE_PREP_MS at most): the face and its voice begin together. */}
+              {!refused?.nextAt && (
+                <Button variant="cta" size="lg" className="w-full max-w-xs" onClick={begin} disabled={prep !== 'ready' || starting}>
+                  {prep !== 'ready' ? tr('Getting ready…', 'Đang chuẩn bị…') : starting ? tr('Starting…', 'Đang bắt đầu…') : tr('Start', 'Bắt đầu')}
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" className="text-primary-foreground/80" onClick={close}>{tr('Not now', 'Để sau')}</Button>
+            </div>
+          )}
+          {(phase === 'connecting' || (waiting && phase === 'speaking')) && (
+            <div className="absolute inset-x-0 top-24 flex justify-center" role="status">
+              <span className="rounded-full bg-black/50 px-4 py-2 text-sm material backdrop-blur-md">{tr('Connecting to {name}…', 'Đang kết nối với {name}…').replace('{name}', name)}</span>
+            </div>
+          )}
+          {phase === 'mic_denied' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-brand-deeper/80 p-6 text-center">
+              <p className="max-w-xs text-base font-semibold">{tr('The microphone is blocked', 'Micro đang bị chặn')}</p>
+              <p className="max-w-xs text-sm text-primary-foreground/80">{tr('Allow the microphone for this site in your browser settings, then try again. In Zalo or Facebook, open the link in Safari or Chrome.', 'Hãy cho phép micro cho trang này trong cài đặt trình duyệt rồi thử lại. Nếu đang ở Zalo hoặc Facebook, hãy mở link bằng Safari hoặc Chrome.')}</p>
+              <Button variant="cta" onClick={() => { go('intro') }}>{tr('Try again', 'Thử lại')}</Button>
+              <Button variant="ghost" size="sm" className="text-primary-foreground/80" onClick={close}>{tr('Not now', 'Để sau')}</Button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
   )
+}
+
+/** The learner's own camera, mirrored like a mirror (a call's self-view). Muted — it is a picture, never a microphone. */
+function SelfView({ stream, label }: { stream: MediaStream; label: string }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    v.srcObject = stream
+    void v.play().catch(() => { /* autoplay of a muted inline video is allowed; a refusal leaves the first frame */ })
+    return () => { v.srcObject = null }
+  }, [stream])
+  return <video ref={ref} aria-label={label} autoPlay muted playsInline className="h-full w-full -scale-x-100 object-cover" />
 }
