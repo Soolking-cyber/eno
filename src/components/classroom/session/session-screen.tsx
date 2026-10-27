@@ -111,6 +111,10 @@ const LIVE_CLIP_LEAD_MS = 1_500
  *  try spends one of the server's few keys an hour (stt-grant.ts STT_KEYS_PER_SESSION). */
 const LIVE_REOPEN_MS = 2_000
 const LIVE_REOPENS = 4
+/** One control in the call's pill — a mobile-nav.tsx tab: the full height, the press spring, rounded inside the pill. */
+const BAR_TAB = 'flex flex-1 items-center justify-center rounded-full transition-[scale,background-color] duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.96] active:duration-[60ms] disabled:opacity-40 [touch-action:manipulation]'
+/** Pressed (camera on, muted): the tab bar's "on" capsule — accent fill, brand ink. */
+const BAR_ON = 'bg-accent text-accent-foreground'
 /** Nothing can hear the learner any more: the session ends this long after the screen says so. */
 const GONE_END_MS = 12_000
 /** A 16 kHz mic chunk louder than this (RMS) is the learner's voice — for the trace's "words came N ms after the voice". */
@@ -1245,18 +1249,20 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
                 </p>
               </>
             )}
-            {/* Pressed = a light fill + the bold glyph in the button's own white (`icon-own-ink`): the house accent-blue
-                pressed glyph all but vanished on this dark screen (the 390px check). Not before Start: the intro's own
-                buttons sit there. */}
+            {/* THE ENO.VN TAB BAR'S PILL (owner, 2026-10-27: "use our color on bottom navbar of avatar call now its black reuse
+                the eno.vn bottom navbar style"): mobile-nav.tsx's floating surface — bg-popover/95, `material`, a 1px
+                border-foreground/10 edge, shadow-pop, h-14, max-w-sm — and its "on" capsule: bg-accent with the brand ink,
+                inset by the pill's p-1 so its radius stays concentric. End keeps a call's red. Not before Start: the
+                intro's own buttons sit there. */}
             {phase !== 'intro' && phase !== 'mic_denied' && (
-            <div className="flex shrink-0 items-center justify-between rounded-full bg-black/50 px-5 py-2.5 material backdrop-blur-md">
+            <div className="mx-auto flex h-14 w-full max-w-sm shrink-0 items-stretch gap-1 rounded-full border border-foreground/10 bg-popover/95 p-1 text-body shadow-pop material backdrop-blur-md">
               {cameraOffered ? (
-                <IconButton size="lg" aria-pressed={!!selfView.stream} disabled={(!live || waiting) && !selfView.stream} onClick={() => void onCamera()}
+                <Button size="none" variant="bare" aria-pressed={!!selfView.stream} disabled={(!live || waiting) && !selfView.stream} onClick={() => void onCamera()}
                   aria-label={selfView.stream ? tr('Hide my camera', 'Ẩn camera của tôi') : tr('Show my camera — only on this phone', 'Hiện camera của tôi — chỉ trên điện thoại này')}
-                  className="icon-own-ink h-14 w-14 text-primary-foreground hover:bg-primary-foreground/10 disabled:opacity-40 aria-pressed:bg-primary-foreground/20">
+                  className={cn(BAR_TAB, selfView.stream && BAR_ON)}>
                   <Video className="size-6" />
-                </IconButton>
-              ) : <span aria-hidden className="h-14 w-14" />}
+                </Button>
+              ) : <span aria-hidden className="flex-1" />}
               <Button
                 size="none"
                 variant="bare"
@@ -1264,14 +1270,16 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
                 disabled={!live}
                 aria-label={muted ? tr('Unmute', 'Bật micro') : tr('Mute', 'Tắt micro')}
                 aria-pressed={muted}
-                className={cn('size-14 rounded-full disabled:opacity-40', muted ? 'bg-primary-foreground text-brand-deeper' : 'bg-primary-foreground/15 text-primary-foreground')}
+                className={cn(BAR_TAB, muted && BAR_ON)}
               >
-                {muted ? <MicOff className="size-7" strokeWidth={STROKE_UI} /> : <Mic className="size-7" strokeWidth={STROKE_UI} />}
+                {muted ? <MicOff className="size-6" strokeWidth={STROKE_UI} /> : <Mic className="size-6" strokeWidth={STROKE_UI} />}
               </Button>
-              <IconButton size="lg" aria-label={tr('End', 'Kết thúc')} onClick={() => void end('learner')} disabled={phase === 'ending'}
-                className="h-14 w-14 bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                <PhoneOff className="size-6" />
-              </IconButton>
+              {/* End: a call's red, as a COIN in its tab — the tab bar's Post coin geometry (mobile-nav.tsx), not a red slab. */}
+              <Button size="none" variant="bare" aria-label={tr('End', 'Kết thúc')} onClick={() => void end('learner')} disabled={phase === 'ending'} className={BAR_TAB}>
+                <span className="flex size-11 items-center justify-center rounded-full bg-destructive text-destructive-foreground">
+                  <PhoneOff className="size-6" />
+                </span>
+              </Button>
             </div>
             )}
           </div>
