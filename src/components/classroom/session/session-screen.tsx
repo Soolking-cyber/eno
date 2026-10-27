@@ -228,6 +228,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const lastExpect = useRef<string | null>(null)
   /** When the learner's voice was last heard in the mic (live listening) — the trace's endpoint delay. */
   const lastVoiceAt = useRef(0)
+  /** A Start under way (begin): the ref guards synchronously, the state disables the button. */
+  const startingRef = useRef(false)
+  const [starting, setStarting] = useState(false)
 
   const handlers = useRef({
     speechStart: () => {}, speechEnd: () => {}, autoStop: (_wav: Uint8Array) => {}, frames: (_f: Float32Array) => {},
@@ -834,7 +837,23 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
    * voice and lips start together. Not connected within FACE_CONNECT_MS (or failed): voice-only for the whole session, the
    * opening on the speakers. The face no longer joins a conversation already under way.
    */
+  /**
+   * ⛔ ONE START AT A TIME (owner's iPhone, 2026-10-27, `?trace=1`: every step of the start ran TWICE — two "mic ready",
+   * two "session started", two face connects — and the second connect failed "Connection already in progress", so the
+   * face fell back to voice). A second tap while a start is under way does nothing; the button shows it is busy.
+   */
   const begin = async () => {
+    if (startingRef.current) return
+    startingRef.current = true
+    setStarting(true)
+    try {
+      await beginOnce()
+    } finally {
+      startingRef.current = false
+      setStarting(false)
+    }
+  }
+  const beginOnce = async () => {
     hapticTap()
     setRefused(null)
     ended.current = false
@@ -1003,7 +1022,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
                 )}
                 {/* Start waits for the face (FACE_PREP_MS at most): the face and its voice begin together. */}
                 {!refused?.nextAt && (
-                  <Button variant="cta" size="lg" className="w-full max-w-xs" onClick={begin} disabled={prep !== 'ready'}>
+                  <Button variant="cta" size="lg" className="w-full max-w-xs" onClick={begin} disabled={prep !== 'ready' || starting}>
                     {prep === 'ready' ? tr('Start', 'Bắt đầu') : tr('Getting ready…', 'Đang chuẩn bị…')}
                   </Button>
                 )}
