@@ -752,6 +752,12 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
    * rather than live, which is exactly the kind of thing that breaks silently the day someone
    * turns the list on. The desk needs no scope of its own: `SUPPORT_SELLER_ID` is build-scoped, so
    * it IS this edition's desk by construction and cannot name the other one's.
+   *
+   * ⚠️ AN EMPTY DESK THREAD IS NOT A CONTACT (owner, 2026-10-27: "why do new conversations popup without any messages
+   * received or sent?"). "Message support" opens the thread on the TAP, empty by design (src/lib/support-thread.ts), so
+   * every customer who tapped and walked away sat in the operator's inbox as "New conversation". The desk branch now
+   * asks for at least one message — the customer's first line, or a WhatsApp inbound, which arrives with its message.
+   * The customer's own view is the buyer branch, untouched: they still see the thread they opened.
    */
   // App Store gate `ugc-safety` (R3): threads with someone this user blocked leave the inbox — excluded
   // by id IN THE WHERE, so the 100-row page is not shrunk after the fact. Off ⇒ [] with no query.
@@ -761,7 +767,7 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
       OR: [
         { buyerProfileId: meId, ...sellerScope },
         { sellerProfileId: meId, ...sellerScope },
-        ...(isSupportOperator ? [{ sellerId: SUPPORT_SELLER_ID }] : []),
+        ...(isSupportOperator ? [{ sellerId: SUPPORT_SELLER_ID, messages: { some: {} } }] : []),
       ],
       ...(hiddenByBlock.length ? { id: { notIn: hiddenByBlock } } : {}),
     },
