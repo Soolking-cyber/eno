@@ -11,7 +11,7 @@ import { TEACHER_VIEW_NOTICE_VERSION, practiceConsentCurrent } from './notices'
 import { spatiusConfig } from './spatius'
 import { sonioxConfig } from './soniox'
 import { libraryAvatarById } from './library-avatars'
-import { speakLine } from './session-voice'
+import { speakLine, warmLine } from './session-voice'
 import { clampPace, defaultPace, voiceStyle } from './pace'
 import { parseTraits } from './persona'
 import type { Background } from './backgrounds'
@@ -31,6 +31,10 @@ import { isStaffProfile } from '@/lib/user-blocks'
  */
 
 export type SessionPlan = { brief: string; focus: PlanFocus; openingLine: string; planId: string | null }
+
+/** How long a start waits for its opening line from Soniox (made ahead while the intro was up — warmOpening) before the
+ *  box says it instead (session-voice.ts). */
+export const OPENING_WAIT_MS = 2_500
 
 export type StartedSession = {
   id: string
@@ -219,9 +223,7 @@ export async function startLearnerSession(seatId: string, accountId: string, now
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`eno-classroom-plan:${seat.id}`}, 0))`
     const plans = await tx.classroomPlan.findMany({ where: { enrollmentId: seat.id, status: { not: 'used' } }, orderBy: { updatedAt: 'desc' }, take: 10 })
     const picked = pickPlan(plans)
-    const plan: SessionPlan = picked
-      ? { brief: picked.brief, focus: parseFocus(picked.focus), openingLine: picked.openingLine || seat.avatar.greeting || `Hi! It's ${seat.avatar.name} again. How are you today?`, planId: picked.id }
-      : { ...firstPlan(seat.level as Level, seat.avatar.greeting, seat.avatar.name), planId: null }
+    const plan = planFrom(picked, seat)
     if (picked) await tx.classroomPlan.update({ where: { id: picked.id }, data: { status: 'used', updatedAt: now } })
 
     const opening = openingOf(plan, seat.avatar.name)
@@ -237,7 +239,7 @@ export async function startLearnerSession(seatId: string, accountId: string, now
   }, { maxWait: 5_000, timeout: 15_000 })
 
   warmTutorBrain() // while the opening line is voiced (tutor-ai.ts says why)
-  const audio = await speakLine(result.opening.text, seat.avatar.voice, voiceStyle(band, result.pace)).catch((e) => {
+  const audio = await speakLine(result.opening.text, seat.avatar.voice, voiceStyle(band, result.pace), OPENING_WAIT_MS).catch((e) => {
     logWarn('[classroom] opening line TTS failed', { status: (e as { status?: number }).status ?? null })
     return null
   })
@@ -253,6 +255,50 @@ export async function startLearnerSession(seatId: string, accountId: string, now
     learnerName: learner.displayName,
     band,
     opening: { text: result.opening.text, audio, expect: result.opening.expect },
+  }
+}
+
+/** The session's plan: the picked one, else the first plan for the seat's level (shared by the start and warmOpening). */
+function planFrom(picked: ReturnType<typeof pickPlan>, seat: { level: string; avatar: { greeting: string; name: string } }): SessionPlan {
+  return picked
+    ? { brief: picked.brief, focus: parseFocus(picked.focus), openingLine: picked.openingLine || seat.avatar.greeting || `Hi! It's ${seat.avatar.name} again. How are you today?`, planId: picked.id }
+    : { ...firstPlan(seat.level as Level, seat.avatar.greeting, seat.avatar.name), planId: null }
+}
+
+/**
+ * ⚡ THE OPENING, MADE WHILE THE INTRO IS UP (owner, 2026-10-27: "soniox voice turn on"): Soniox makes speech at about real
+ * time, so a whole opening line takes seconds — the intro's face check (api/classroom/face) has this work out the line a
+ * Start would say, exactly as the start does, and start making it (session-voice.ts warmLine). Start then finds it made.
+ * Read-only (no plan is marked used); a resumed session — its opening is its last reply — is not warmed. Never throws.
+ */
+export async function warmOpening(accountId: string, target: { seatId: string } | { test: true }, now = new Date()): Promise<void> {
+  try {
+    if ('test' in target) {
+      const tp = await db.teacherProfile.findUnique({ where: { profileId: accountId }, select: { classroomAvatar: true } })
+      const avatar = tp?.classroomAvatar
+      if (!avatar) return
+      if (!(await classroomOpenFor(accountId)).open) return
+      if (await db.classroomSession.findFirst({ where: { testerId: accountId, status: 'live', endsAt: { gte: now } }, select: { id: true } })) return
+      const plan: SessionPlan = { ...firstPlan('B1', avatar.greeting, avatar.name), planId: null }
+      warmLine(openingOf(plan, avatar.name).text, avatar.voice, voiceStyle('adult', defaultPace('adult', 'B1', parseTraits(avatar.traits).pace)))
+      return
+    }
+    const seat = await loadSeat(target.seatId, accountId)
+    if (!seat?.learner || seat.status !== 'active') return
+    const learner = seat.learner
+    const kind = learner.kind === 'child' ? 'child' : 'self'
+    // ⛔ The family's agreement FIRST (review, opus): an opening line can carry what the learner said in an earlier session —
+    // nothing goes to Soniox before the notice in force is agreed (the same checks as facePreview and the start).
+    if (learner.withdrawnAt || !practiceConsentCurrent(learner.practiceConsentVersion) || learner.teacherViewConsentVersion !== TEACHER_VIEW_NOTICE_VERSION) return
+    if (needsAssent(kind, learner.birthYear, now) && !learner.assentAt) return
+    if (!(await classroomOpenFor(seat.avatar.teacherProfile.profileId)).open) return
+    if (await db.classroomSession.findFirst({ where: { learnerId: learner.id, status: 'live', endsAt: { gte: now } }, select: { id: true } })) return
+    const band = ageBand(kind, learner.birthYear, now)
+    const pace = clampPace(learner.voicePace, band, defaultPace(band, seat.level, parseTraits(seat.avatar.traits).pace))
+    const plans = await db.classroomPlan.findMany({ where: { enrollmentId: seat.id, status: { not: 'used' } }, orderBy: { updatedAt: 'desc' }, take: 10 })
+    warmLine(openingOf(planFrom(pickPlan(plans), seat), seat.avatar.name).text, seat.avatar.voice, voiceStyle(band, pace))
+  } catch (e) {
+    logWarn('[classroom] the opening could not be made ahead', { error: (e as Error).name })
   }
 }
 
@@ -326,7 +372,7 @@ export async function startTeacherTest(accountId: string, now = new Date()): Pro
   }, { maxWait: 5_000, timeout: 15_000 })
 
   warmTutorBrain() // while the opening line is voiced (tutor-ai.ts says why)
-  const audio = await speakLine(opening.text, avatar.voice, voiceStyle('adult', pace)).catch(() => null)
+  const audio = await speakLine(opening.text, avatar.voice, voiceStyle('adult', pace), OPENING_WAIT_MS).catch(() => null)
   return {
     id: session.id,
     endsAt: session.endsAt.toISOString(),

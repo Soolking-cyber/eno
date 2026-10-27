@@ -137,7 +137,9 @@ async function buildFeedbackLocked(sessionId: string, now: Date): Promise<'ready
   const aiCallsSoFar = turns.reduce((n, t) => n + (t.aiCalls ?? 0), 0)
   // 'failed' counts too: a scoring call that timed out may still have been billed — an estimate errs high (codex, round 2).
   const assessedMs = turns.reduce((n, t) => n + (t.assessStatus === 'done' || t.assessStatus === 'failed' ? t.learnerMs ?? 0 : 0), 0)
-  const cost = (extraCalls: number) => estimateCostMicroUsd({ mode: s.mode, usedSeconds: s.usedSeconds, assessedMs, aiCalls: aiCallsSoFar + extraCalls })
+  const cost = (reportCalls: number) => estimateCostMicroUsd({
+    mode: s.mode, usedSeconds: s.usedSeconds, assessedMs, aiCalls: aiCallsSoFar, reportCalls, learnerSpeechMs: s.learnerSpeechMs, avatarChars: s.avatarChars,
+  })
   const safetyFlag = anyFlag ? 'harm' : null
   if (safetyFlag) logWarn('[classroom] safety flag on a session — see /admin/classroom', { sessionId })
 

@@ -5,7 +5,7 @@ vi.mock('server-only', () => ({}))
 afterEach(() => vi.unstubAllEnvs())
 
 const KEY = 'k'.repeat(40)
-const CFG = { key: KEY, rest: 'https://api.soniox.com', ws: 'wss://stt-rt.soniox.com/transcribe-websocket', model: 'stt-rt-v5' }
+const CFG = { key: KEY, rest: 'https://api.soniox.com', ws: 'wss://stt-rt.soniox.com/transcribe-websocket', model: 'stt-rt-v5', tts: 'wss://tts-rt.soniox.com/tts-websocket', ttsModel: 'tts-rt-v2' }
 
 describe('sonioxConfig', () => {
   it('needs a key; the US project by default; any unknown region turns live listening off (never a guess)', () => {

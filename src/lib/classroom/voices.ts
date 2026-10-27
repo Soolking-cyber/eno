@@ -1,6 +1,10 @@
 /**
- * The avatar's voice — Gradium Phonon catalogue voices, spoken by eno's own speech server on the VN box
- * (infra/vn-node/classroom-speech, src/lib/classroom/speech-local.ts). Client-safe: the picker shows this list, and the
+ * The avatar's voice. ⛔ SONIOX SPEAKS IT, THE BOX STANDS BY (owner, 2026-10-27: "soniox voice turn on", "box tts as
+ * fallback"): each voice names the Soniox voice that speaks it (`soniox` — soniox-tts.ts, tts-rt-v2) and is itself a Gradium
+ * Phonon catalogue voice, which eno's own speech server on the VN box speaks when Soniox cannot (infra/vn-node/
+ * classroom-speech, src/lib/classroom/speech-local.ts). The Soniox voices were picked 2026-10-27 from Soniox's catalogue
+ * by its own descriptions: the same accent and gender, a calm lesson voice (Grace "fits lessons", Shane "classroom-style",
+ * Logan "lessons"…). Client-safe: the picker shows this list, and the
  * API refuses any id that is not on it.
  *
  * ⛔ AN ALLOWLIST, NOT A FREE TEXT FIELD, AND IT IS THE SERVER'S LIST TOO: the speech server refuses any voice outside its
@@ -13,18 +17,19 @@
  */
 export type Accent = 'US' | 'UK'
 
-export type Voice = { id: string; name: string; accent: Accent; gender: 'f' | 'm'; note?: 'young-learners' }
+/** `id`: the saved id and the box's Phonon voice (the fallback); `soniox`: the Soniox voice that speaks it. */
+export type Voice = { id: string; name: string; accent: Accent; gender: 'f' | 'm'; note?: 'young-learners'; soniox: string }
 
 export const VOICES: readonly Voice[] = [
-  { id: 'Harper', name: 'Harper', accent: 'US', gender: 'f' },
-  { id: 'Hadley', name: 'Hadley', accent: 'US', gender: 'f' },
-  { id: 'Trevor', name: 'Trevor', accent: 'US', gender: 'm' },
-  { id: 'Preston', name: 'Preston', accent: 'US', gender: 'm' },
-  { id: 'Zoey', name: 'Zoey', accent: 'US', gender: 'f', note: 'young-learners' },
-  { id: 'Imogen', name: 'Imogen', accent: 'UK', gender: 'f' },
-  { id: 'Maeve', name: 'Maeve', accent: 'UK', gender: 'f' },
-  { id: 'Spencer', name: 'Spencer', accent: 'UK', gender: 'm' },
-  { id: 'Toby', name: 'Toby', accent: 'UK', gender: 'm' },
+  { id: 'Harper', name: 'Harper', accent: 'US', gender: 'f', soniox: 'Grace' },
+  { id: 'Hadley', name: 'Hadley', accent: 'US', gender: 'f', soniox: 'Brooke' },
+  { id: 'Trevor', name: 'Trevor', accent: 'US', gender: 'm', soniox: 'Shane' },
+  { id: 'Preston', name: 'Preston', accent: 'US', gender: 'm', soniox: 'Logan' },
+  { id: 'Zoey', name: 'Zoey', accent: 'US', gender: 'f', note: 'young-learners', soniox: 'Sloane' },
+  { id: 'Imogen', name: 'Imogen', accent: 'UK', gender: 'f', soniox: 'Imogen' },
+  { id: 'Maeve', name: 'Maeve', accent: 'UK', gender: 'f', soniox: 'Freya' },
+  { id: 'Spencer', name: 'Spencer', accent: 'UK', gender: 'm', soniox: 'Oliver' },
+  { id: 'Toby', name: 'Toby', accent: 'UK', gender: 'm', soniox: 'Freddie' },
 ]
 
 export const ACCENT_LABEL: Record<Accent, { en: string; vi: string }> = {

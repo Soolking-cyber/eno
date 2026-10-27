@@ -83,11 +83,18 @@ describe('budget and cost', () => {
     expect(budgetRefusal({ dayMinutes: 0, monthMinutes: 2995, teacherMonthMinutes: 0 }, caps, 10)).toBe('month')
     expect(budgetRefusal({ dayMinutes: 0, monthMinutes: 0, teacherMonthMinutes: 595 }, caps, 10)).toBe('teacher')
   })
-  it('estimates Spatius only in avatar mode; Azure only for the drill audio it scored; our own speech costs nothing', () => {
-    const base = { usedSeconds: 600, assessedMs: 36_000, aiCalls: 20 }
-    expect(estimateCostMicroUsd({ ...base, mode: 'avatar' }) - estimateCostMicroUsd({ ...base, mode: 'voice' })).toBe(100_000)
-    // 36 s of drills at $1/h = $0.01; 20 calls at $0.0006 = $0.012
-    expect(estimateCostMicroUsd({ ...base, mode: 'voice' })).toBe(10_000 + 12_000)
+  it('prices every vendor a session uses: the face (avatar mode only), listening, the voice, drills, the brain', () => {
+    const base = { usedSeconds: 600, assessedMs: 36_000, aiCalls: 20, reportCalls: 1, learnerSpeechMs: 120_000, avatarChars: 6_000 }
+    // the face: 100 six-second credits at $0.0009
+    expect(estimateCostMicroUsd({ ...base, mode: 'avatar' }) - estimateCostMicroUsd({ ...base, mode: 'voice' })).toBe(90_000)
+    // listening 10 min open ($0.01) + 2 min of speech ($0.002); voice 400 s ($0.0777…) + 6,000 chars of text ($0.0072);
+    // drills 36 s at $1.30/h ($0.013); 20 tutor calls ($0.0112) + the warm-up ($0.00025) + one report ($0.009)
+    expect(estimateCostMicroUsd({ ...base, mode: 'voice' })).toBe(Math.round(10_000 + 2_000 + 77_777.78 + 7_200 + 13_000 + 11_200 + 250 + 9_000))
+  })
+  it('the real session of 2026-10-27 (175 s, 11 turns, 1,130 characters spoken): about six cents', () => {
+    const c = estimateCostMicroUsd({ mode: 'avatar', usedSeconds: 175, assessedMs: 0, aiCalls: 11, reportCalls: 1, learnerSpeechMs: 22_860, avatarChars: 1_130 })
+    expect(c).toBeGreaterThan(55_000)
+    expect(c).toBeLessThan(65_000)
   })
 })
 

@@ -21,14 +21,15 @@ import type { AgeBand } from './limits'
  * on request and gets its own hosts here once it is.
  * ⛔ The audio and the words are never logged; an error carries its status only.
  */
-const HOSTS: Readonly<Record<string, { rest: string; ws: string }>> = {
-  us: { rest: 'https://api.soniox.com', ws: 'wss://stt-rt.soniox.com/transcribe-websocket' },
+const HOSTS: Readonly<Record<string, { rest: string; ws: string; tts: string }>> = {
+  us: { rest: 'https://api.soniox.com', ws: 'wss://stt-rt.soniox.com/transcribe-websocket', tts: 'wss://tts-rt.soniox.com/tts-websocket' },
 }
 
-export type SonioxConfig = { key: string; rest: string; ws: string; model: string }
+/** `ws`/`model`: the ears (live speech-to-text); `tts`/`ttsModel`: the avatar's voice (soniox-tts.ts) — one key, one region. */
+export type SonioxConfig = { key: string; rest: string; ws: string; model: string; tts: string; ttsModel: string }
 
-/** SONIOX_API_KEY (+ SONIOX_REGION, default us; CLASSROOM_STT_MODEL, default stt-rt-v5), or null — then the classroom
- *  listens the old way: the learner's clip, sent whole to eno's own speech server when they stop. */
+/** SONIOX_API_KEY (+ SONIOX_REGION, default us; CLASSROOM_STT_MODEL, default stt-rt-v5; CLASSROOM_TTS_MODEL, default
+ *  tts-rt-v2), or null — then no session starts: Soniox is the classroom's only ear (session-start.ts). */
 export function sonioxConfig(): SonioxConfig | null {
   const key = process.env.SONIOX_API_KEY?.trim()
   if (!key || key.length < 20 || /\s/.test(key)) return null
@@ -38,7 +39,7 @@ export function sonioxConfig(): SonioxConfig | null {
     if (refusedRegion !== region) { refusedRegion = region; logWarn('[classroom] SONIOX_REGION is not a known region — live listening is off', { region: region.slice(0, 20) }) }
     return null
   }
-  return { key, ...hosts, model: process.env.CLASSROOM_STT_MODEL?.trim() || 'stt-rt-v5' }
+  return { key, ...hosts, model: process.env.CLASSROOM_STT_MODEL?.trim() || 'stt-rt-v5', ttsModel: process.env.CLASSROOM_TTS_MODEL?.trim() || 'tts-rt-v2' }
 }
 let refusedRegion = ''
 

@@ -61,11 +61,13 @@ export const photoNoticeBody = (): string => noticeBody([PHOTO_ACTION, ...PHOTO_
 // decides when a turn ends (owner: "let the stt decide itself"). What reaches Soniox changed, so the version changes.
 // 2026-10-27b: Soniox ONLY — eno's own server no longer writes the voice down when Soniox is unavailable (owner: "make sure
 // parakeet is not used anywhere else only soniox"); a promise removed, so the version changes again.
-export const PRACTICE_NOTICE_VERSION = '2026-10-27b'
+// 2026-10-27c: the avatar's replies are VOICED by Soniox (owner: "soniox voice turn on") — the reply's words now go to
+// Soniox too, eno's own server only when Soniox cannot: a new use, so a new version and NO carry-over below.
+export const PRACTICE_NOTICE_VERSION = '2026-10-27c'
 /** Earlier practice notices an agreement still covers: ones the current notice only NARROWS (they promised more
  *  processing than happens now — 2026-10-27 also named eno's own server). No family is asked again for a change that only
  *  takes something away; one that adds or changes a recipient gets a new version and is NOT listed here. */
-const PRACTICE_NOTICE_STILL_COVERED: readonly string[] = ['2026-10-27']
+const PRACTICE_NOTICE_STILL_COVERED: readonly string[] = []
 /** Does this learner's practice agreement (its recorded version) cover the notice in force? */
 export function practiceConsentCurrent(version: string | null | undefined): boolean {
   return version === PRACTICE_NOTICE_VERSION || (typeof version === 'string' && PRACTICE_NOTICE_STILL_COVERED.includes(version))
@@ -86,8 +88,8 @@ export const PRACTICE_NOTICE: readonly NoticeText[] = [
     vi: 'Khi học viên nói lại một câu luyện tập, bản ghi âm đó cũng được gửi đến Microsoft Azure (Singapore) để chấm phát âm. Azure cũng không lưu lại.',
   },
   {
-    en: 'The avatar’s replies are turned into speech on eno’s server too.',
-    vi: 'Câu trả lời của avatar cũng được chuyển thành giọng nói trên máy chủ của eno.',
+    en: 'Soniox also turns the avatar’s replies into speech — for that it gets the avatar’s words only — and eno’s own server does it when Soniox is unavailable.',
+    vi: 'Soniox cũng chuyển câu trả lời của avatar thành giọng nói — để làm việc này, Soniox chỉ nhận lời của avatar — và máy chủ của eno làm việc này khi Soniox không hoạt động.',
   },
   {
     en: 'What was said — the words, never the recording — goes to OpenAI in the United States to write the avatar’s replies.',

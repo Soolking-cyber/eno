@@ -45,7 +45,7 @@ vi.mock('./speech-local', async (orig) => ({
 }))
 vi.mock('./soniox', async (orig) => ({
   ...(await orig<typeof import('./soniox')>()),
-  sonioxConfig: () => (seen.noSoniox ? null : { key: 'k'.repeat(40), rest: 'https://api.soniox.com', ws: 'wss://stt-rt.soniox.com/transcribe-websocket', model: 'stt-rt-v5' }),
+  sonioxConfig: () => (seen.noSoniox ? null : { key: 'k'.repeat(40), rest: 'https://api.soniox.com', ws: 'wss://stt-rt.soniox.com/transcribe-websocket', model: 'stt-rt-v5', tts: 'wss://tts-rt.soniox.com/tts-websocket', ttsModel: 'tts-rt-v2' }),
   mintSttKey: async () => 'temp_live_key',
 }))
 vi.mock('./azure-speech', async (orig) => ({
@@ -667,9 +667,10 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     const learner = await db.classroomSession.findUniqueOrThrow({ where: { id: s.id }, select: { learnerId: true } })
     await db.classroomLearner.update({ where: { id: learner.learnerId! }, data: { practiceConsentVersion: '2026-10-25' } })
     await expect(grant.sttGrant(s.id, parentId)).rejects.toMatchObject({ code: 'consent_required' })
-    // ⚠️ but one the current notice only NARROWS still counts (2026-10-27 also named eno's own server): no one asked again
-    await db.classroomLearner.update({ where: { id: learner.learnerId! }, data: { practiceConsentVersion: '2026-10-27' } })
-    await expect(grant.sttAllowed(s.id, parentId)).resolves.toBeTruthy()
+    // ⚠️ 2026-10-27b only NARROWED its predecessor, but 2026-10-27c sends the avatar's words to Soniox too — a new use, so an
+    // agreement to an earlier notice no longer counts: the family is asked again
+    await db.classroomLearner.update({ where: { id: learner.learnerId! }, data: { practiceConsentVersion: '2026-10-27b' } })
+    await expect(grant.sttGrant(s.id, parentId)).rejects.toMatchObject({ code: 'consent_required' })
     await db.classroomLearner.update({ where: { id: learner.learnerId! }, data: { practiceConsentVersion: notices.PRACTICE_NOTICE_VERSION } })
     // a few keys per session, no more (a reload, a dropped socket)
     for (let n = 1; n < grant.STT_KEYS_PER_SESSION; n++) await grant.sttGrant(s.id, parentId)
