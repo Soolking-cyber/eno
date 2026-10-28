@@ -194,15 +194,8 @@ export function isSeededFeed(s: ExplorerUrlState): boolean {
  * of these keys (with a value) is answered by something else, so its seed is masked from the first paint.
  * ⚠️ `sort` IS HERE AND NOT IN `isDirected`: a reordered feed is the same set, but the seed is in the
  * default order, so its cards would still sit in the wrong places. `view` counts unless it is the
- * default grid; every `attr_*` / `range_*` counts. Over-inclusion is cheap for the FEED — a key the reader
- * ignores (`deal=junk`) is answered by the seed itself and unmasks on the first effect.
- * ⛔ BUT NOT FOR THE HOME TEACHER SHELF, WHICH SITS ABOVE THE FEED SINCE 2026-10-28: the mask takes it out of
- * the layout (`display: none`, globals.css), so a masked URL the explorer then reads as the undirected home in
- * the default order makes it appear above an already painted grid. So `sort` masks only a value the explorer
- * APPLIES (`SORTS` — never `newest`, the seed's own order, and never junk, which readExplorerUrl reads as
- * `newest`): an explicit `?sort=newest` link is the seed exactly, shelf included (codex, commit gate 2026-10-28).
- * The other ignored values (`deal=junk`, `category=all`, `match` with no words) remain the accepted gap
- * globals.css names: nothing eno publishes carries one.
+ * default grid; every `attr_*` / `range_*` counts. Over-inclusion is cheap — a key the reader ignores
+ * (`deal=junk`) is answered by the seed itself and unmasks on the first effect.
  * ⚠️ ONE LIST FOR THE SCRIPT AND THE TESTS: `PREPAINT_SCRIPT` is built from it by JSON.stringify, so the
  * browser's copy cannot drift from `explorerUrlMasks`.
  */
@@ -215,8 +208,6 @@ export function explorerUrlMasks(search: string | URLSearchParams): boolean {
   p.forEach((v, k) => {
     if (mask || !v) return
     if (k === 'view') { if (v !== 'grid') mask = true; return }
-    // Only an order the explorer applies — see MASK_KEYS (`newest` and junk are the seed's own order).
-    if (k === 'sort') { if ((SORTS as readonly string[]).includes(v)) mask = true; return }
     if ((MASK_KEYS as readonly string[]).includes(k) || k.startsWith('attr_') || k.startsWith('range_')) mask = true
   })
   return mask
@@ -247,19 +238,6 @@ export function explorerUrlMasks(search: string | URLSearchParams): boolean {
  */
 export const RECENTS_ATTR = 'data-has-recents'
 
-/**
- * ⛔ THE HOME TEACHER SHELF'S PRE-PAINT HOLD (2026-10-28 — the shelf sits ABOVE the feed since then). Set by
- * `PREPAINT_SCRIPT` on every URL the mask covers, beside `data-explorer-directed` — but WITHOUT its 15s timer: globals.css
- * keeps the shelf `display: none` while it is set, so a box that may be about to unmount is never laid out above the
- * painted feed. Two shifts it prevents (codex + opus, commit gate 2026-10-28): a phone that has not hydrated within 15s
- * (the mask lifts, the shelf would appear, hydration would take it away again), and a masked URL the explorer then reads
- * as the plain home (`deal=junk`, `category=all`), where the shelf would pop in above the grid.
- * Released only by the reader: the explorer removes it the first time the feed's own state changes after mount
- * (listings-explorer.tsx, `feedSig`), so a later visit to the plain home shows the shelf as part of a change they made.
- * Until then the shelf stays out of that landing — the cost, and the right one for a deep link.
- */
-export const SHELF_OFF_ATTR = 'data-shelf-off'
-
 /** The recent searches the returning-visitor row shows: the non-blank strings, trimmed, newest first. */
 export function recentSearchTerms(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
@@ -276,4 +254,4 @@ export function recentSearchTerms(raw: unknown): string[] {
   return out
 }
 
-export const PREPAINT_SCRIPT = `(function(){try{var K=${JSON.stringify(MASK_KEYS)};var S=${JSON.stringify(SORTS)};var m=false;new URLSearchParams(location.search).forEach(function(v,k){if(m||!v)return;if(k==='view'){if(v!=='grid')m=true;return}if(k==='sort'){if(S.indexOf(v)>-1)m=true;return}if(K.indexOf(k)>-1||k.indexOf('attr_')===0||k.indexOf('range_')===0)m=true});if(!m){try{var r=JSON.parse(localStorage.getItem(${JSON.stringify(RECENT_SEARCHES_KEY)})||'[]');if(Array.isArray(r))for(var i=0;i<r.length;i++){if(typeof r[i]==='string'&&r[i].trim()){document.documentElement.setAttribute(${JSON.stringify(RECENTS_ATTR)},'');break}}}catch(e){}return}var d=document.documentElement;d.setAttribute('data-explorer-directed','');d.setAttribute(${JSON.stringify(SHELF_OFF_ATTR)},'');setTimeout(function(){d.removeAttribute('data-explorer-directed')},15000)}catch(e){}})();`
+export const PREPAINT_SCRIPT = `(function(){try{var K=${JSON.stringify(MASK_KEYS)};var m=false;new URLSearchParams(location.search).forEach(function(v,k){if(m||!v)return;if(k==='view'){if(v!=='grid')m=true;return}if(K.indexOf(k)>-1||k.indexOf('attr_')===0||k.indexOf('range_')===0)m=true});if(!m){try{var r=JSON.parse(localStorage.getItem(${JSON.stringify(RECENT_SEARCHES_KEY)})||'[]');if(Array.isArray(r))for(var i=0;i<r.length;i++){if(typeof r[i]==='string'&&r[i].trim()){document.documentElement.setAttribute(${JSON.stringify(RECENTS_ATTR)},'');break}}}catch(e){}return}var d=document.documentElement;d.setAttribute('data-explorer-directed','');setTimeout(function(){d.removeAttribute('data-explorer-directed')},15000)}catch(e){}})();`

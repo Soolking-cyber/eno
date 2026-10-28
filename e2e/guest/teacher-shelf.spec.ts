@@ -3,14 +3,13 @@ import { test, expect, dismissOverlays, expectedEdition, viPilotOn } from '../he
 import { HOME_HIDDEN_TEACHER_LISTING_IDS } from '../../src/lib/teachers/constants'
 
 /**
- * THE HOME "FIND A TEACHER" SHELF (owner, 2026-10-13 — "make teacher profiles more visible on the home page").
- * src/components/marketplace/teacher-shelf.tsx, seeded by src/lib/core/teacher-shelf.ts, placed by listings-explorer.tsx
- * FIRST UNDER THE CATEGORIES, above the feed and outside its grid, since 2026-10-28 (owner: the home page leads with what
- * keeps the reader in the app). It was a row after the twelfth feed card.
+ * THE HOME "FIND A TEACHER" SHELF (owner, 2026-10-13 — "make teacher profiles more visible on the home page"; picked:
+ * a shelf after the feed's first twelve listings). src/components/marketplace/teacher-shelf.tsx, seeded by
+ * src/lib/core/teacher-shelf.ts, placed by listings-explorer.tsx after the twelfth feed card.
  *
- * ⛔ THE SHELF'S CARDS ARE CARD LINKS AND NOW COME FIRST IN DOM ORDER, so every spec that opens "the first card" (or the
- * first 8/10/12) of the HOME page reads them from `.feed-grid a[data-card-link]` — icons-and-fold.spec.ts, a11y.spec.ts,
- * listing.spec.ts, pdp-fold.spec.ts and lang-vi-links.spec.ts. The shelf is asserted to be outside that grid here.
+ * ⛔ IT PINS THE ORDER OTHER SPECS ASSUME. icons-and-fold.spec.ts, a11y.spec.ts, listing.spec.ts, pdp-fold.spec.ts and
+ * lang-vi-links.spec.ts all open "the first card" (or the first 8/10/12) off the home page by `a[data-card-link]` in
+ * DOM order. The shelf's cards are card links too, so they must never come before the twelfth feed card — asserted here.
  *
  * ⛔ READ-ONLY: every non-GET request is aborted (a local preview reads the PRODUCTION database, and analytics beacons
  * and the translate endpoint are POSTs). Set E2E_BASE; one edition at a time (preview:vn, then preview:forum).
@@ -36,10 +35,15 @@ async function liveTeachers(page: Page): Promise<number> {
 
 const shelf = (page: Page) => page.locator('[data-teacher-shelf]')
 
-/** The home page, overlays dismissed. */
+/**
+ * The home page with its first feed page in place. The shelf sits after the TWELFTH feed card, so a feed shorter than
+ * a page has none — a catalogue state, not a regression (the guest capture row has the same rule): skipped, visibly.
+ */
 async function openHome(page: Page, path = '/') {
   const res = await page.goto(path)
   await dismissOverlays(page)
+  const feedCards = await page.locator('.feed-grid > [data-feed-card]').count()
+  test.skip(feedCards < 12, `the home feed holds ${feedCards} cards — fewer than a page, so there is no slot after the twelfth`)
   return res
 }
 
@@ -49,31 +53,25 @@ test.describe('Guest · home "Find a teacher" shelf', () => {
     test.skip((await liveTeachers(page)) < 3, 'fewer than three live teacher profiles — below the shelf\'s floor, so no shelf to test')
   })
 
-  test('leads the feed — above its heading row, outside the grid — holds ≥3 profile cards, and the first one is the LCP preload', async ({ page }) => {
+  test('sits right after the twelfth feed card, holds ≥3 profile cards, and none of the first twelve card links is in it', async ({ page }) => {
     await openHome(page)
     await expect(shelf(page)).toHaveCount(1)
     const order = await page.evaluate(() => {
       const s = document.querySelector('[data-teacher-shelf]')!
-      const results = document.querySelector('#results')!
-      const grid = document.querySelector('.feed-grid')!
-      const firstImg = s.querySelector('img')
-      const firstCard = firstImg?.closest('[data-card-root]') ?? null
+      const feed = [...document.querySelectorAll('.feed-grid > [data-feed-card]')]
+      const links = [...document.querySelectorAll('a[data-card-link]')]
       return {
-        beforeResults: !!(s.compareDocumentPosition(results) & Node.DOCUMENT_POSITION_FOLLOWING),
-        inGrid: grid.contains(s),
+        afterTwelfth: feed.length >= 12 && s.previousElementSibling === feed[11],
+        inGrid: s.parentElement?.classList.contains('feed-grid') ?? false,
+        firstTwelveInShelf: links.slice(0, 12).filter((a) => s.contains(a)).length,
         shelfLinks: [...s.querySelectorAll('a[data-card-link]')].map((a) => a.getAttribute('href') ?? ''),
         feedCardsInShelf: s.querySelectorAll('[data-feed-card]').length,
-        firstImgPriority: firstImg?.getAttribute('fetchpriority') ?? null,
-        // High-priority images anywhere but the shelf's first card (the card may draw more than one image).
-        highPriorityElsewhere: [...document.querySelectorAll('img[fetchpriority="high"]')].filter((i) => !firstCard?.contains(i)).length,
       }
     })
-    expect(order.beforeResults, 'the shelf comes before the feed\'s heading row').toBe(true)
-    expect(order.inGrid, 'the shelf is not a row of the feed grid').toBe(false)
+    expect(order.inGrid, 'the shelf is a row of the feed grid').toBe(true)
+    expect(order.afterTwelfth, 'the shelf follows the twelfth [data-feed-card]').toBe(true)
+    expect(order.firstTwelveInShelf, 'the first twelve card links stay feed cards (other specs open "the first card")').toBe(0)
     expect(order.feedCardsInShelf).toBe(0)
-    // The page's one LCP hint moved to the shelf's first photo (feed card 0 keeps eager loading only).
-    expect(order.firstImgPriority).toBe('high')
-    expect(order.highPriorityElsewhere, 'no other image claims high priority (feed card 0 gave the hint up)').toBe(0)
     expect(order.shelfLinks.length).toBeGreaterThanOrEqual(3)
     for (const href of order.shelfLinks) expect(href).toMatch(/^\/listings\/[^/?#]+$/)
     for (const id of HOME_HIDDEN_TEACHER_LISTING_IDS) expect(order.shelfLinks).not.toContain(`/listings/${id}`)
@@ -145,45 +143,17 @@ test.describe('Guest · home "Find a teacher" shelf', () => {
     expect(shown, 'the Korean page shows the names the server printed, card for card').toEqual(served)
   })
 
-  /**
-   * ⛔ ABOVE THE FEED, A SHELF HYDRATION REMOVES WOULD MOVE THE WHOLE GRID. The ISR HTML is the same document for every
-   * query string, so the shelf is in each one's server HTML; on a masked URL (explorer-url.ts MASK_KEYS) globals.css
-   * gives it `display: none` before the first paint, and hydration then unmounts it — a box that was never laid out.
-   * ⚠️ THE FIRST PAINT IS OBSERVED WITH THE APP'S JS BLOCKED (codex, commit gate 2026-10-28): the inline pre-paint script
-   * still runs, hydration never does, so what is measured is the server HTML under the mask — not a page hydration may
-   * already have changed. Then, with JS, what hydration leaves.
-   */
-  for (const url of ['/?q=laptop', '/?category=rentals', '/?sort=recent']) {
-    test(`${url}: the shelf takes no space before hydration, and is gone after it`, async ({ page }) => {
-      test.slow() // two cold loads of the home document, one with its JS blocked
-      // JS only: the stylesheets are chunks too, and the mask is a CSS rule.
-      await page.route('**/_next/static/chunks/**/*.js', (r) => r.abort())
+  test('after hydration: gone on a search and on a category, still there under a sort', async ({ page }) => {
+    // The ISR HTML is the same document for every query string, so the shelf is IN the first paint of each (masked on
+    // a directed link — globals.css); what counts is what hydration leaves.
+    for (const url of ['/?q=laptop', '/?category=rentals']) {
       await page.goto(url)
-      const before = await page.evaluate(() => {
-        const s = document.querySelector('[data-teacher-shelf]')
-        return { inDom: !!s, height: s ? s.getBoundingClientRect().height : -1, masked: document.documentElement.hasAttribute('data-explorer-directed') }
-      })
-      expect(before, 'the server HTML carries the shelf, masked and out of the layout').toEqual({ inDom: true, height: 0, masked: true })
-      await page.unroute('**/_next/static/chunks/**/*.js')
-      await page.goto(url)
-      await expect(shelf(page), 'the shelf after hydration').toHaveCount(0, { timeout: 30_000 })
-      // The sort really was applied once the explorer hydrated: the feed's heading names it.
-      if (url.includes('sort=')) await expect(page.getByRole('heading', { name: 'Latest listings', exact: true }).first()).toBeVisible({ timeout: 30_000 })
-    })
-  }
-
-  test('the default order spelled out (?sort=newest) is the seed itself: unmasked, the shelf laid out before and after hydration', async ({ page }) => {
-    test.slow()
-    await page.route('**/_next/static/chunks/**/*.js', (r) => r.abort())
-    await page.goto('/?sort=newest')
-    const before = await page.evaluate(() => ({
-      masked: document.documentElement.hasAttribute('data-explorer-directed'),
-      height: document.querySelector('[data-teacher-shelf]')?.getBoundingClientRect().height ?? 0,
-    }))
-    expect(before.masked).toBe(false)
-    expect(before.height).toBeGreaterThan(0)
-    await page.unroute('**/_next/static/chunks/**/*.js')
-    await openHome(page, '/?sort=newest')
-    await expect(shelf(page)).toBeVisible({ timeout: 20_000 })
+      await expect(shelf(page), `${url} keeps the shelf after hydration`).toHaveCount(0, { timeout: 20_000 })
+    }
+    await page.goto('/?sort=recent')
+    // The sort is applied only once the explorer has hydrated and read its URL: the feed's heading names it.
+    await expect(page.getByRole('heading', { name: 'Latest listings', exact: true }).first()).toBeVisible({ timeout: 20_000 })
+    await expect(shelf(page)).toHaveCount(1)
+    await expect(shelf(page)).toBeVisible()
   })
 })

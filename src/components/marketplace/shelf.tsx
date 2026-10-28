@@ -88,8 +88,8 @@ export const RAIL_CARD_W =
 /** Horizontal snap scroller, gaps AND bleed matched to the feed grid: `-mx-2 … gap-1` on a phone (the
  *  grid's 8px bleed out of the `px-3` frame and its 4px column gap — owner, 2026-10-18), `sm:mx-0
  *  sm:gap-2` from sm. Every rail sits directly in the page frame (the explorer's #listings section, the
- *  PDP's <main>, the sold/gone pages' px-3 wrapper; the home teacher shelf too, in #listings above the feed since
- *  2026-10-28), so the bleed lands 4px from the screen edge, never
+ *  PDP's <main>, the sold/gone pages' px-3 wrapper; the teacher shelf is a full-width row of the bled
+ *  feed grid, which pads it back onto the gutter), so the bleed lands 4px from the screen edge, never
  *  past it.
  *  `overscroll-x-contain` keeps a sideways overscroll INSIDE the rail: without it, flicking
  *  a rail that is already at either end CHAINS the scroll out to the nearest scrollable

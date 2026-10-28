@@ -4247,22 +4247,23 @@ html[data-explorer-directed] #listings [data-feed-heading] {
   visibility: hidden;
 }
 
-/* ⛔ …AND THE HOME "FIND A TEACHER" SHELF TAKES NO SPACE AT ALL (teacher-shelf.tsx) — KEYED ON ITS OWN HOLD, `data-shelf-off`
-   (explorer-url.ts SHELF_OFF_ATTR), WHICH THE PRE-PAINT SCRIPT SETS WITH THE MASK BUT NEVER TIMES OUT, so a phone that has
-   not hydrated after the mask's 15s still has no shelf to insert and then remove; the explorer releases it on the reader's
-   first change of the feed. Every query string gets the same ISR document, so a cold masked deep link (/?q=laptop,
-   /?sort=recent) would paint the live shelf above its masked seed.
-   ⚠️ `display: none` HERE, NOT `visibility` LIKE THE RULES ABOVE — THE EXCEPTION IS THE POINT. Since 2026-10-28 the shelf
-   sits ABOVE the feed (owner), and hydration unmounts it on every URL this mask covers (the explorer's `showTeacherShelf`:
-   undirected home in the default order only — explorer-url.ts MASK_KEYS lists `sort`), so a reserved-but-hidden box
-   would collapse under the visitor and pull the whole grid up by its height. Taking it out before the first paint means
-   hydration removes a box that was never laid out: nothing moves. (It was `visibility` while the shelf sat a page below
-   the fold, where its removal moved nothing visible.)
-   ⚠️ `?sort=newest` (the seed's own order) is not masked (explorer-url.ts MASK_KEYS), so it keeps its shelf. A masked key
-   the explorer then ignores (`deal=junk`, `category=all`, `match` with no words) lands on the plain home WITHOUT the shelf
-   — the hold stays until the reader changes the feed — rather than with one popping in above the grid. */
-html[data-shelf-off] #listings [data-teacher-shelf] {
-  display: none;
+/* ⛔ …AND THE HOME "FIND A TEACHER" SHELF WITH IT (owner, 2026-10-13 — teacher-shelf.tsx). Every query string gets the
+   same ISR document, so a cold directed deep link (/?q=laptop) would paint the live shelf under its masked seed, as if
+   teachers were the answer. Paint only, never layout — like the rules above, lifting the mask moves nothing; hydration
+   then unmounts the shelf (the explorer's `showTeacherShelf` is undirected-only) a page below the fold. A `?sort=` link
+   is masked but not directed (explorer-url.ts), so there the shelf simply appears in place when the mask lifts. */
+html[data-explorer-directed] #listings .feed-grid > [data-teacher-shelf] {
+  visibility: hidden;
+}
+
+/* ⚠️ ONE HAIRLINE BETWEEN THE SHELF AND THE GUEST CAPTURE ROW. The shelf draws its own bottom line whenever rows follow
+   it (`not-last:border-b` — page two's cards after "Browse everything"), so the capture row right after it drops its top
+   one: two parallel hairlines a grid gap apart read as noise (capture-card.tsx says the same of its own bottom line).
+   Only the capture row can follow the shelf without being a card or a reserved cell — the selector names those two out
+   rather than the capture row's classes. Chained :not()s, not a selector list: an old WebView drops the whole rule
+   over a list, and then both lines show. */
+.feed-grid > [data-teacher-shelf] + :not([data-feed-card]):not([data-feed-skeleton]) {
+  border-top-width: 0;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

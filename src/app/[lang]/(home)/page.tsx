@@ -112,7 +112,7 @@ async function getData(onlyTitleLang: string | undefined): Promise<{ categories:
       // visit) the client keeps this seed (for-you-rail.tsx skips the fetch), so this exclusion is
       // what they see, not a first paint that hydration replaces.
       trendingRailListings({ excludeIds: firstPagePromise.then((rows) => rows.map((r) => r.id)) }).catch(() => []),
-      // The "Find a teacher" shelf, first under the categories since 2026-10-28 (owner, 2026-10-13 — teacher-shelf.ts): /c/teachers' own
+      // The "Find a teacher" shelf after the feed's first page (owner, 2026-10-13 — teacher-shelf.ts): /c/teachers' own
       // first cards, minus the owner's demo. Same fail-soft as the rails: a failed read is a page without the shelf. (A
       // desk-resolution failure cannot hide here — `publicScope` above already rethrew it.) ⚠️ LOGGED, unlike the rails'
       // silent catches (reviewer): the shelf has no client fetch behind it, so a failed read is a home page without
