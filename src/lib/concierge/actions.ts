@@ -458,10 +458,12 @@ export function resolveAction(
 ): ResolvedAction | null {
   const variant = variantOfLanguage(isLanguage(opts.lang) ? opts.lang : 'en')
   switch (a.kind) {
+    // find: the same view, READ by the turn rather than opened (turn.ts) — so it is checked the same way.
     case 'browse':
+    case 'find':
       return resolveBrowse(a, page, variant)
     case 'listing': {
-      // ⛔ Only an id the server itself put in this turn's PAGE: never one the model made up or remembered.
+      // ⛔ Only an id the server itself put in this turn's PAGE or SEARCH RESULTS: never one the model made up or remembered.
       const id = a.target.trim()
       if (!opts.listingIds.has(id) || !LISTING_ID.test(id)) return null
       return { kind: 'listing', href: localizedHref(`/listings/${id}`, variant), label: 'Listing details' }

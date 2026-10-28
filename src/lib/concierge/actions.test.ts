@@ -49,6 +49,15 @@ const brandAsWords = (url: string, q: string) => {
   return `${u.pathname}?${u.searchParams}`
 }
 
+describe('find — the same view as a browse, read instead of opened (turn.ts)', () => {
+  it('resolves exactly as the browse with the same fields would — and is refused where that browse is', () => {
+    const fields: Partial<ConciergeAction> = { category: 'rentals', subcategory: 'apartment-rental', filters: kv({ district: 'd2', bedrooms: '2', sort: 'price-low' }) }
+    expect(go({ ...fields, kind: 'find' })).toEqual(go({ ...fields, kind: 'browse' }))
+    expect(parsed(go({ ...fields, kind: 'find' })!.href)).toEqual(parsed('/?category=rentals&subcategory=apartment-rental&district=d2&attr_bedrooms=2&sort=price-low'))
+    expect(go({ kind: 'find', category: 'property-for-sale' })).toBeNull()
+  })
+})
+
 describe('browse — the worked examples of the nav research (nav.md §6)', () => {
   const EXAMPLES: { said: string; action: Partial<ConciergeAction>; url: string }[] = [
     {
@@ -93,6 +102,13 @@ describe('browse — the worked examples of the nav research (nav.md §6)', () =
       said: '8. A cover teacher free Monday evening in District 7',
       action: { category: 'teachers', filters: kv({ cover: 'open', coverSlot: 'mon-eve', coverArea: 'd7' }) },
       url: '/?category=teachers&attr_cover=open&attr_coverSlot=mon-eve&attr_coverArea=d7',
+    },
+    {
+      // The owner, 2026-10-28: "if someone asks furnished apartment under 8 millions in district 1 it should filter and show
+      // available" — "furnished" is the facet's own label (its value is `fully`).
+      said: '9. A furnished apartment under 8 million in District 1',
+      action: { category: 'rentals', subcategory: 'apartment-rental', filters: kv({ furnishing: 'Furnished', priceMax: '8000000', district: 'd1' }) },
+      url: '/?category=rentals&subcategory=apartment-rental&district=d1&attr_furnishing=fully&priceMax=8000000',
     },
   ]
 

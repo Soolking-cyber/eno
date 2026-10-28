@@ -198,7 +198,7 @@ export function parseAction(raw: string): ConciergeAction {
   try { v = JSON.parse(raw) } catch { return NO_ACTION }
   if (!v || typeof v !== 'object') return NO_ACTION
   const o = v as Record<string, unknown>
-  const kind = o.kind === 'browse' || o.kind === 'listing' || o.kind === 'page' ? o.kind : 'none'
+  const kind = o.kind === 'browse' || o.kind === 'find' || o.kind === 'listing' || o.kind === 'page' ? o.kind : 'none'
   if (kind === 'none') return NO_ACTION
   const s = (x: unknown, max: number) => (typeof x === 'string' ? x.trim().slice(0, max) : '')
   const filters = Array.isArray(o.filters)

@@ -9,19 +9,25 @@
 
 /** What the model asks for this turn — flat, every field present (`''` = none), so both brains' decoders accept it. */
 export type ConciergeAction = {
-  kind: 'none' | 'browse' | 'listing' | 'page'
-  /** browse: `refine` merges into the page's current filters (same category); `replace` starts from the category. */
+  /**
+   * browse: open a category with filters. find: the SAME fields, but the app does not move — the server reads that view's
+   * first cards and the brain answers again with them as SEARCH RESULTS (turn.ts), so it can open the one that fits
+   * (owner, 2026-10-28: "make sure it has tool calls to open right product on website"). listing: open one card.
+   * page: open a page.
+   */
+  kind: 'none' | 'browse' | 'find' | 'listing' | 'page'
+  /** browse / find: `refine` merges into the page's current filters (same category); `replace` starts from the category. */
   mode: 'refine' | 'replace'
-  /** browse: a TAXONOMY slug; `''` with `refine` = the page's category. */
+  /** browse / find: a TAXONOMY slug; `''` with `refine` = the page's category. */
   category: string
-  /** browse: a subcategory slug of `category`; `''` = keep (refine) or all (replace); `any` = all. */
+  /** browse / find: a subcategory slug of `category`; `''` = keep (refine) or all (replace); `any` = all. */
   subcategory: string
-  /** browse: catalog keys and values (facet keys, `district`, `province`, `priceMin`, `priceMax`, `sort`, `condition`,
-   *  `type`); a range facet takes `min-max` with either side open; the value `any` removes the key (refine). */
+  /** browse / find: catalog keys and values (facet keys, `district`, `province`, `priceMin`, `priceMax`, `sort`,
+   *  `condition`, `type`); a range facet takes `min-max` with either side open; the value `any` removes the key (refine). */
   filters: { key: string; value: string }[]
-  /** browse: free words for the search box (no places, no prices) — `''` = none. */
+  /** browse / find: free words for the search box (no places, no prices) — `''` = none. */
   search: string
-  /** listing: an id from the PAGE data of this turn · page: a key of CONCIERGE_PAGES. */
+  /** listing: an id from this turn's PAGE or SEARCH RESULTS · page: a key of CONCIERGE_PAGES. */
   target: string
 }
 

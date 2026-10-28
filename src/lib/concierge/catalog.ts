@@ -59,6 +59,10 @@ const NOTES: Readonly<Record<string, string>> = {
   'teachers/cover': 'free to cover a class, for schools',
   'jobs/salary': 'monthly pay',
   'rentals/amenities': 'several allowed, comma-separated; a listing must have every one',
+  // The real brain read "furnished" as `premium` (listed first, unlabelled) in 2 of 4 runs (2026-10-28).
+  'rentals/furnishing': 'furnished = fully; premium only when they ask for high-end or luxury furnishing',
+  // The real brain set it on phones for "an iPhone 15 Pro" in 2 of 3 runs (2026-10-28) — dropped, so the find read as partial.
+  'electronics/compatibleWith': 'what an accessory fits; a phone itself is found by its name in search',
 }
 
 /**
@@ -204,7 +208,7 @@ const KEYS_EVERYWHERE = [
   'KEYS EVERY CATEGORY TAKES',
   'district: an HCMC district key (PLACES); not for teachers (workIn) or jobs (province)',
   'province: a province code (PLACES); not for teachers',
-  'priceMin, priceMax: whole dong; rentals per month, vehicle hire per day; never teachers; jobs use salary',
+  'priceMin, priceMax: whole dong, as said (under eight million = priceMax 8000000); rentals per month, vehicle hire per day; never teachers; jobs use salary',
   'sort: recent|price-low|price-high|popular (teachers: recent|popular)',
   'condition, type: only in the categories that list them',
 ]

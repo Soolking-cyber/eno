@@ -288,8 +288,12 @@ describe('parseAction — the action shape-checked (its meaning is actions.ts\'s
     for (const raw of ['', 'not json', '{"kind":"browse"', 'null', '42', 'true', '"browse"', '[]', '[{"kind":"browse"}]']) expect(parseAction(raw), raw).toEqual(NO_ACTION)
   })
 
-  it('kind none, a missing kind or one outside the four is no action — whatever else it carries', () => {
-    for (const kind of ['none', undefined, 'navigate', 'BROWSE', ' browse', 1, null]) {
+  it('a find keeps its fields (turn.ts reads its view, then asks again)', () => {
+    expect(parseAction(JSON.stringify({ ...ACTION, kind: 'find' }))).toEqual({ ...ACTION, kind: 'find' })
+  })
+
+  it('kind none, a missing kind or one outside the five is no action — whatever else it carries', () => {
+    for (const kind of ['none', undefined, 'navigate', 'BROWSE', ' browse', 'FIND', 'search', 1, null]) {
       expect(parseAction(JSON.stringify({ kind, mode: 'replace', category: 'teachers', filters: [{ key: 'district', value: 'd1' }] })), String(kind)).toEqual(NO_ACTION)
     }
   })
