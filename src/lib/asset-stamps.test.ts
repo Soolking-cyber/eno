@@ -92,6 +92,20 @@ describe('content stamps on immutable static assets', () => {
     expect(readFileSync('next.config.ts', 'utf8')).toMatch(/const STAMPABLE_STATIC =\s*"[^"]*\|brand\/app-icon-120\\\\\.avif\|brand\/app-icon-120\\\\\.webp[|)]/)
   })
 
+  it.each([
+    '/avatar/eno-guide-v1.bin',
+    '/avatar/eno-guide-face-v1.webp',
+    '/headaudio/headworklet-1.0.0.js',
+    '/headaudio/model-en-mixed-1.0.0.bin',
+  ])('%s — the concierge guide\'s file carries the CURRENT hash of its bytes (src/lib/concierge/guide-assets.ts)', (asset) => {
+    const expected = stamp(readFileSync(`public${asset}`))
+    const hits = stampsFor(asset)
+    expect(hits.length, `${asset} lost its stamp — it falls back to the 4h lane`).toBeGreaterThanOrEqual(1)
+    const wrong = hits.filter(h => h.stamp !== expected)
+    expect(wrong, `public${asset} now hashes to ${expected}. Bump the stamp in: ${wrong.map(w => w.file).join(', ')}`).toEqual([])
+    expect(readFileSync('next.config.ts', 'utf8')).toMatch(/const STAMPABLE_STATIC =\s*"[^"]*\|avatar\/\.\*\|headaudio\/\.\*\|/)
+  })
+
   it('the service worker stamps its notification icon like the in-app call sites do', () => {
     // sw.js is plain JS in public/ — it is served to browsers but no bundler touches it, so it is
     // the reference most likely to be forgotten. It was, once: the four TSX call sites were

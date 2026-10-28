@@ -102,6 +102,9 @@ export type NicheApiErrorCode =
   | 'budget_teacher'
   | 'classroom_closed'
   | 'day_limit'
+  // the voice concierge's site-wide day is used up (src/lib/concierge/config.ts SITE_SESSIONS_PER_DAY) — the text
+  // assistant is offered instead
+  | 'guide_busy'
   | 'invite_invalid'
   | 'invite_own'
   | 'learner_limit'
@@ -662,6 +665,7 @@ const ALL = [
   'budget_teacher',
   'classroom_closed',
   'day_limit',
+  'guide_busy',
   'invite_invalid',
   'invite_own',
   'learner_limit',

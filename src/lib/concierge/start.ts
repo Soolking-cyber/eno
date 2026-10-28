@@ -1,19 +1,16 @@
 import 'server-only'
-import { spatiusConfig } from '@/lib/classroom/spatius'
 import { speakLine, speakerFor, warmLine } from '@/lib/classroom/session-voice'
 import type { Speaker } from '@/lib/classroom/turn-stream'
 import { NATURAL_VOICE } from '@/lib/classroom/pace'
-import { LIBRARY_AVATARS } from '@/lib/classroom/library-avatars'
 import { logWarn } from '@/lib/log'
-import type { FaceConfig } from '@/components/classroom/session/avatar-stage'
+import { GUIDE_FACE, type GuideFaceConfig } from '@/lib/concierge/guide-assets'
 
 /**
- * The concierge's one face and one voice (plan §3): a library avatar and a picker voice (voices.ts Zoey: Soniox's Sloane,
- * the box's own Zoey when Soniox cannot) — eno's guide, not a teacher.
- * The face is Spatius's (animation only; it receives the avatar's voice, never the person's).
+ * The concierge's one face and one voice (plan §3): eno's own guide, drawn in the visitor's browser (guide-assets.ts —
+ * TalkingHead, in an eno shirt; owner, 2026-10-28), and a picker voice (voices.ts Zoey: Soniox's Sloane, the box's own
+ * Zoey when Soniox cannot) — eno's guide, not a teacher. No vendor sees the face: it was Spatius's until 2026-10-28.
  */
 export const CONCIERGE_VOICE = 'Zoey'
-const CONCIERGE_AVATAR = LIBRARY_AVATARS.find((a) => a.label.en === 'Sophie') ?? LIBRARY_AVATARS[0]
 
 export const OPENING_LINE = "Hi! I'm eno's guide. Tell me what you're looking for, and I'll show you."
 
@@ -27,10 +24,9 @@ export function conciergeSpeaker(): Speaker | null {
   return speakerFor(CONCIERGE_VOICE, () => NATURAL_VOICE, { busyRetry: false })
 }
 
-/** The face the window draws — ids only (no token, nothing billed); null = voice-only. */
-export function conciergeFace(): FaceConfig | null {
-  const cfg = spatiusConfig()
-  return cfg ? { avatarId: CONCIERGE_AVATAR.id, appId: cfg.appId, region: cfg.region } : null
+/** The face the window draws — static files of eno's own (nothing billed, no token). */
+export function conciergeFace(): GuideFaceConfig {
+  return GUIDE_FACE
 }
 
 /** How long a Start waits for the opening's voice before the box says it (the classroom's OPENING_WAIT_MS). */

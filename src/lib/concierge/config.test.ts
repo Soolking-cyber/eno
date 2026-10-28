@@ -42,7 +42,7 @@ vi.mock('@/lib/log', () => ({ logError: h.logError }))
 vi.mock('@/lib/edition', () => ({ get IS_SERVICES() { return h.services } }))
 
 import {
-  MODE_KEY, SESSIONS_PER_DAY, SESSION_MINUTES, SITE_SESSIONS_PER_DAY, conciergeOpenFor, endSession, liveSession, readConciergeMode,
+  MODE_KEY, SESSIONS_PER_DAY, SESSION_MINUTES, SITE_SESSIONS_PER_DAY, VOICE_GUIDE_IN_PRIVACY, conciergeOpenFor, endSession, liveSession, readConciergeMode,
   rememberOffer, resetConciergeModeCache, startSession, takeOffer,
 } from './config'
 
@@ -58,12 +58,14 @@ afterEach(() => {
 const T = Date.UTC(2026, 9, 27, 3, 0)
 
 describe('readConciergeMode — the switch (fails closed)', () => {
-  it('reads the kv key concierge:mode; `staff` ONLY when it holds exactly "staff"', async () => {
+  it('reads the kv key concierge:mode; `staff` / `all` ONLY when it holds exactly "staff" / "all"', async () => {
     expect(MODE_KEY).toBe('concierge:mode')
     h.store.set(MODE_KEY, 'staff')
     expect(await readConciergeMode({ fresh: true })).toBe('staff')
     expect(h.kv.get).toHaveBeenLastCalledWith('concierge:mode')
-    for (const v of ['off', 'STAFF', ' staff', 'staff ', 'all', 'on', true, 1, { mode: 'staff' }, ['staff'], null]) {
+    h.store.set(MODE_KEY, 'all')
+    expect(await readConciergeMode({ fresh: true })).toBe('all')
+    for (const v of ['off', 'STAFF', ' staff', 'staff ', 'ALL', ' all', 'everyone', 'on', true, 1, { mode: 'staff' }, ['all'], null]) {
       h.store.set(MODE_KEY, v)
       expect(await readConciergeMode({ fresh: true }), JSON.stringify(v)).toBe('off')
     }
@@ -116,6 +118,31 @@ describe('conciergeOpenFor — who may use it now', () => {
   it('anyone else → closed', async () => {
     h.store.set(MODE_KEY, 'staff')
     expect(await conciergeOpenFor('p-member')).toBe(false)
+  })
+
+  it('the switch at `all` (owner, 2026-10-28: "open up new concierge for everyone"): every account once /privacy names the guide\'s recipients — the staff before it', async () => {
+    h.store.set(MODE_KEY, 'all')
+    if (VOICE_GUIDE_IN_PRIVACY) {
+      expect(await conciergeOpenFor('p-member', { fresh: true })).toBe(true)
+      expect(h.isStaff).not.toHaveBeenCalled()
+    } else {
+      expect(await conciergeOpenFor('p-member', { fresh: true })).toBe(false)
+      expect(await conciergeOpenFor('staff-1', { fresh: true })).toBe(true)
+    }
+  })
+
+  it('⛔ VOICE_GUIDE_IN_PRIVACY is true only while /privacy names Soniox, OpenAI and Google', async () => {
+    const { readFileSync } = await import('node:fs')
+    const page = readFileSync('src/app/[lang]/privacy/page.tsx', 'utf8')
+    // Soniox and OpenAI as recipients, and the voice guide named (Google is on the page for sign-in already — commit review, opus)
+    if (VOICE_GUIDE_IN_PRIVACY) for (const name of ['Soniox', 'OpenAI', 'voice guide']) expect(page, name).toContain(name)
+    else expect(page.includes('Soniox') && page.includes('OpenAI')).toBe(false)
+  })
+
+  it('⛔ `all` on eno.forum: still never', async () => {
+    h.services = true
+    h.store.set(MODE_KEY, 'all')
+    expect(await conciergeOpenFor('p-member', { fresh: true })).toBe(false)
   })
 
   it('the switch off (or missing): closed, and the account is never looked up', async () => {
@@ -186,11 +213,17 @@ describe('startSession — the day\'s caps, then the session row', () => {
     expect(await startSession('staff-1', T + 24 * 3600_000)).not.toBeNull()
   })
 
-  it('80 a day across the site: the next is refused, whoever asks', async () => {
-    expect(SITE_SESSIONS_PER_DAY).toBe(80)
-    for (let a = 0; a < 10; a++) for (let i = 0; i < 8; i++) expect(await startSession(`staff-${a}`, T)).not.toBeNull()
-    expect(await startSession('staff-new', T)).toBeNull()
-    expect([...h.store.keys()].filter((k) => k.startsWith('concierge:session:'))).toHaveLength(80)
+  it('600 a day across the site: the next is refused, whoever asks — and says it was the SITE\'s cap', async () => {
+    expect(SITE_SESSIONS_PER_DAY).toBe(600)
+    for (let a = 0; a < 75; a++) for (let i = 0; i < 8; i++) expect(await startSession(`staff-${a}`, T)).not.toBeNull()
+    const out: { cap?: 'account' | 'site' } = {}
+    expect(await startSession('staff-new', T, out)).toBeNull()
+    expect(out.cap).toBe('site')
+    expect([...h.store.keys()].filter((k) => k.startsWith('concierge:session:'))).toHaveLength(600)
+    // an account at its own cap says so — its cap is checked first
+    const mine: { cap?: 'account' | 'site' } = {}
+    expect(await startSession('staff-0', T, mine)).toBeNull()
+    expect(mine.cap).toBe('account')
   })
 
   it('a kv failure throws (the start route refuses — fail closed), and no session is written', async () => {

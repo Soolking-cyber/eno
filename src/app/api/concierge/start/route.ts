@@ -16,13 +16,15 @@ export const dynamic = 'force-dynamic'
 export const POST = route({ auth: 'profile', rateLimit: { bucket: 'concierge-start', limit: 20, window: '1 h', strict: true } }, async ({ profile }) => {
   if (!(await conciergeOpenFor(profile.id, { fresh: true }))) throw new ApiError('forbidden', 403)
   let session
+  const out: { cap?: 'account' | 'site' } = {}
   try {
-    session = await startSession(profile.id)
+    session = await startSession(profile.id, Date.now(), out)
   } catch (e) {
     logError(e, { op: 'concierge.start' })
     throw new ApiError('not_configured', 503)
   }
-  if (!session) throw new ApiError('limit_reached', 429)
+  // The account's own day is used up, or the whole site's: the window says which, and offers the text assistant.
+  if (!session) throw out.cap === 'site' ? new ApiError('guide_busy', 429) : new ApiError('limit_reached', 429)
   warmConciergeBrain()
   return NextResponse.json(
     { session: session.id, deadline: session.deadline, face: conciergeFace(), opening: { text: OPENING_LINE, audio: await openingAudio() } },

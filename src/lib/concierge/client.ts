@@ -53,6 +53,12 @@ export function openConcierge(): void {
 export type ConciergeMessage =
   | { type: 'eno-concierge:go'; href: string; closes: boolean }
   | { type: 'eno-concierge:close' }
+  /**
+   * The voice guide cannot help here — closed for this account, its day used up, no microphone, no ears — and the person
+   * chose the text assistant: the window closes and eno AI's chat opens (owner, 2026-10-28: "fallback old verion eno ai in
+   * chat").
+   */
+  | { type: 'eno-concierge:chat' }
 
 /**
  * The paths a `go` may open — the explorer (`/`, `/vi`) with any query, a listing, or one of the fixed pages

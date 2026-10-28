@@ -11,16 +11,27 @@ import { IS_SERVICES } from '@/lib/edition'
  *
  *   off    nobody (the default — and what a missing, unreadable or unknown value means)
  *   staff  the eno team only (ADMIN_EMAILS)
+ *   all    every signed-in account on eno.vn's website (owner, 2026-10-28: "open up new concierge for everyone") — never
+ *          signed-out visitors (every route needs an account), the native apps (host: no microphone in their webview, no
+ *          AI question asked there) or eno.forum. ⛔ Written only after /privacy names the guide's recipients (Soniox,
+ *          OpenAI, Google): the owner runs scripts/concierge-mode.mjs all.
  *
  * ⚠️ A kv KEY, NOT A TABLE (no DDL for a staff test). kv_store is UNLOGGED — an unclean Postgres shutdown empties it — and
  * that is safe HERE ONLY because every reading of it fails closed: an emptied key reads `off`, an emptied session ends.
- * A crash can switch the concierge off; nothing can switch it on but a write of `staff` (scripts/concierge-mode.mjs).
- * ⛔ No `all` yet: /privacy does not name OpenAI or Soniox, and the native apps cannot open the microphone (PLAN.md §4).
+ * A crash can switch the concierge off; nothing can switch it on but a write of `staff` or `all` (scripts/concierge-mode.mjs).
  * ⛔ eno.vn only for the MVP: eno.forum's concierge would need its own knowledge (its desk), which is the owner's call.
  */
-export type ConciergeMode = 'off' | 'staff'
+export type ConciergeMode = 'off' | 'staff' | 'all'
 
 export const MODE_KEY = 'concierge:mode'
+
+/**
+ * ⛔ THE LEGAL PREREQUISITE OF `all`, IN CODE (commit review, codex + opus: a comment alone does not hold it): /privacy must
+ * name the voice guide's recipients — Soniox, OpenAI, Google — before every account may use it. False until that /privacy
+ * change ships (its commit flips this; config.test.ts checks the page names them whenever it is true). Until then `all`
+ * admits the staff, like `staff`.
+ */
+export const VOICE_GUIDE_IN_PRIVACY = false
 /** How long one process trusts its read of the switch; a session start reads it fresh. */
 const MODE_CACHE_MS = 30_000
 let cached: { at: number; mode: ConciergeMode } | null = null
@@ -29,7 +40,8 @@ export async function readConciergeMode(opts: { fresh?: boolean } = {}, now = Da
   if (!opts.fresh && cached && now - cached.at < MODE_CACHE_MS) return cached.mode
   let mode: ConciergeMode = 'off'
   try {
-    mode = (await kv.get<string>(MODE_KEY)) === 'staff' ? 'staff' : 'off'
+    const v = await kv.get<string>(MODE_KEY)
+    mode = v === 'staff' || v === 'all' ? v : 'off'
   } catch (e) {
     logError(e, { op: 'concierge.mode' })
   }
@@ -45,7 +57,9 @@ export function resetConciergeModeCache(): void {
 /** May this account use the concierge now? Fails closed. */
 export async function conciergeOpenFor(profileId: string, opts: { fresh?: boolean } = {}): Promise<boolean> {
   if (IS_SERVICES) return false
-  if ((await readConciergeMode(opts)) !== 'staff') return false
+  const mode = await readConciergeMode(opts)
+  if (mode === 'all' && VOICE_GUIDE_IN_PRIVACY) return true
+  if (mode !== 'staff' && mode !== 'all') return false
   return isStaffProfile(profileId).catch(() => false)
 }
 
@@ -55,9 +69,13 @@ export async function conciergeOpenFor(profileId: string, opts: { fresh?: boolea
  * idle included) cannot outlive it. A new session, or the face reconnecting after the idle pause, needs a tap.
  */
 export const SESSION_MINUTES = 15
-/** Sessions a day (ICT), per account and across the site — Spatius minutes and the speech server are shared with the classroom. */
+/**
+ * Sessions a day (ICT), per account and across the site — the spend's ceiling (Soniox listens and speaks, OpenAI answers;
+ * the face costs nothing since it is drawn in the browser). The site's day was 80 for the staff test; `all` needs room,
+ * and past it the window hands the person to the text assistant (the frame's "busy").
+ */
 export const SESSIONS_PER_DAY = 8
-export const SITE_SESSIONS_PER_DAY = 80
+export const SITE_SESSIONS_PER_DAY = 600
 
 export type ConciergeSession = { id: string; profileId: string; deadline: number }
 
@@ -65,9 +83,9 @@ const sessionKey = (id: string) => `concierge:session:${id}`
 /** Vietnam's day (ICT = UTC+7), as the classroom counts its days. */
 const ictDay = (now: number) => new Date(now + 7 * 3600_000).toISOString().slice(0, 10)
 
-/** Start a session: the day's caps, then the session row. Null = a cap is reached. Throws on a kv failure (the caller
- *  refuses — fail closed). */
-export async function startSession(profileId: string, now = Date.now()): Promise<ConciergeSession | null> {
+/** Start a session: the day's caps, then the session row. Null = a cap is reached (`out.cap` says which). Throws on a kv
+ *  failure (the caller refuses — fail closed). */
+export async function startSession(profileId: string, now = Date.now(), out: { cap?: 'account' | 'site' } = {}): Promise<ConciergeSession | null> {
   const day = ictDay(now)
   const mineKey = `concierge:starts:${day}:${profileId}`
   const siteKey = `concierge:starts:${day}`
@@ -79,6 +97,7 @@ export async function startSession(profileId: string, now = Date.now()): Promise
   // row failed — left the count one above the sessions made).
   if ((await kv.incrby(mineKey, 1, ttl)) > SESSIONS_PER_DAY) {
     await giveBack(mineKey)
+    out.cap = 'account'
     return null
   }
   // ⛔ From here a start that fails gives back what it took (commit review, codex: eight kv errors used up the account's
@@ -91,6 +110,7 @@ export async function startSession(profileId: string, now = Date.now()): Promise
     // Both increments go back (review round 4, codex: a refused start racing a failed one left the site count above the
     // sessions made, and the site stayed shut for the day).
     await giveBack(mineKey, siteKey)
+    out.cap = 'site'
     return null
   }
   const s: ConciergeSession = { id: randomBytes(16).toString('base64url'), profileId, deadline: now + SESSION_MINUTES * 60_000 }

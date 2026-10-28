@@ -2,17 +2,19 @@
 // ── The voice concierge: flip its runtime switch (kv `concierge:mode`, src/lib/concierge/config.ts) ─────────────────
 //
 //   set -a; . ./.env; set +a; node scripts/concierge-mode.mjs staff     # the eno team only (ADMIN_EMAILS)
+//   node scripts/concierge-mode.mjs all                                   # every signed-in account on eno.vn's website
 //   node scripts/concierge-mode.mjs off                                   # the kill switch
 //   node scripts/concierge-mode.mjs                                       # print the current switch
 //
 // Writes the ONE kv key and nothing else (no DDL: kv_store already exists). Each server trusts its read for 30 s
 // (config.ts MODE_CACHE_MS) and every session start reads it fresh, so 'off' refuses new sessions at once and stops the
-// open ones' next turn within 30 s. ⛔ No other mode: config.ts reads anything but 'staff' as off (fail closed), and a
-// wider mode waits for /privacy to name OpenAI and Soniox (PLAN.md §4). eno.forum never opens it (config.ts IS_SERVICES).
+// open ones' next turn within 30 s. config.ts reads anything but 'staff' or 'all' as off (fail closed). ⛔ 'all' admits
+// every account only once /privacy names the guide's recipients (Soniox, OpenAI, Google) — config.ts VOICE_GUIDE_IN_PRIVACY,
+// flipped by that /privacy change; before it, 'all' admits the staff. eno.forum never opens it (config.ts IS_SERVICES).
 import pg from 'pg'
 
 const [mode] = process.argv.slice(2)
-const MODES = ['off', 'staff']
+const MODES = ['off', 'staff', 'all']
 const KEY = 'concierge:mode' // config.ts MODE_KEY — change both together
 if (mode && !MODES.includes(mode)) {
   console.error(`mode must be one of ${MODES.join(' | ')}`)
@@ -29,7 +31,7 @@ try {
   if (mode) await client.query('SELECT kv_set($1, $2::jsonb, NULL, false)', [KEY, JSON.stringify(mode)])
   const { rows } = await client.query('SELECT kv_get($1) AS v', [KEY])
   const v = rows[0]?.v ?? null
-  console.log(`${KEY} = ${v === 'staff' ? 'staff' : v === 'off' ? 'off' : `off (${v === null ? 'unset' : `unknown ${JSON.stringify(v)}`} reads as off)`}`)
+  console.log(`${KEY} = ${v === 'staff' || v === 'all' ? v : v === 'off' ? 'off' : `off (${v === null ? 'unset' : `unknown ${JSON.stringify(v)}`} reads as off)`}`)
 } finally {
   await client.end()
 }

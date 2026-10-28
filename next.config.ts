@@ -362,8 +362,11 @@ const acceptsMarkdown = () => [
 // ⚠️ `schools/logos/.*` JOINED ON 2026-10-05 with the /schools logo tiles: every reference is built from
 // src/generated/school-logos.ts, whose per-school stamp hashes both files (scripts/build-school-logos.mjs), and
 // src/lib/schools/logos.test.ts pins each stamp to the bytes on disk.
+// ⚠️ `avatar/.*` AND `headaudio/.*` JOINED ON 2026-10-28 with the concierge's own face (src/lib/concierge/guide-assets.ts —
+// a 1.8 MB model every window downloads, its portrait, HeadAudio's worklet and model): each URL carries its sha256 stamp
+// there, and src/lib/asset-stamps.test.ts pins each stamp to the bytes.
 const STAMPABLE_STATIC =
-  "/:path(banners/.*|mascots/.*|icons/categories/.*|icons/services/.*|icons/nav/.*|icons/ui/.*|schools/logos/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png|brand/app-icon-120\\.avif|brand/app-icon-120\\.webp)";
+  "/:path(banners/.*|mascots/.*|icons/categories/.*|icons/services/.*|icons/nav/.*|icons/ui/.*|schools/logos/.*|avatar/.*|headaudio/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png|brand/app-icon-120\\.avif|brand/app-icon-120\\.webp)";
 
 const nextConfig: NextConfig = {
   pageExtensions: PAGE_EXTENSIONS,
@@ -534,6 +537,14 @@ const nextConfig: NextConfig = {
   // up the tree (e.g. ~/package-lock.json) as the project root.
   turbopack: {
     root: __dirname,
+    /**
+     * ⚠️ THE CONCIERGE'S FACE (TalkingHead 1.8.2 — src/components/concierge/talking-guide.ts) imports its text lip-sync
+     * modules with `import(path + 'lipsync-' + lang + '.mjs')`, a computed path Turbopack cannot resolve — "Module not
+     * found: Can't resolve <dynamic>", an error that fails the page. That import only runs for the languages in
+     * `lipsyncModules`, which talking-guide.ts sets to [] (HeadAudio moves the mouth from the audio), so it never runs:
+     * the one issue is ignored, for that file only (2026-10-28).
+     */
+    ignoreIssue: [{ path: /@met4citizen\/talkinghead\/modules\/talkinghead\.mjs/, title: /Module not found/ }],
     /**
      * ⚠️ THE VISA AND TRIP CARD MODULES ARE ALIASED AWAY ON A MARKETPLACE BUILD, so their vocabulary
      * — "Pay with PayPal", "hộ chiếu", the passport wizard — is never emitted into a client chunk
@@ -1380,7 +1391,10 @@ const nextConfig: NextConfig = {
     const cspClassroom = cspFor(
       " https://global.spatialwalk.top https://cdn.spatialwalk.cloud https://cdn.spatius.ai" +
       " https://api.ap-northeast.spatius.ai wss://api.ap-northeast.spatius.ai https://api.us-west.spatius.ai wss://api.us-west.spatius.ai" +
-      " wss://stt-rt.soniox.com",
+      " wss://stt-rt.soniox.com" +
+      // The concierge's own face (src/components/concierge/talking-guide.ts): three's GLTFLoader fetch()es the model's
+      // embedded textures from blob: URLs it makes itself — without this the guide draws untextured (2026-10-28).
+      " blob:",
     );
     /**
      * ⚠️ MEASURING, NOT ENFORCING (security review 2026-10-22, item 24). The enforced script-src above keeps

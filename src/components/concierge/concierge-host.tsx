@@ -115,6 +115,7 @@ export function ConciergeHost() {
       const m = e.data as ConciergeMessage | null
       if (!m || typeof m !== 'object') return
       if (m.type === 'eno-concierge:close') { setOpen(false); return }
+      if (m.type === 'eno-concierge:chat') { setOpen(false); router.push('/messages/ai'); return }
       if (m.type !== 'eno-concierge:go') return
       const href = safeConciergeHref(m.href)
       if (!href) return
@@ -124,7 +125,7 @@ export function ConciergeHost() {
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [go, open])
+  }, [go, open, router])
 
   if (!open || !userId) return null
   const name = tr('eno guide', 'Trợ lý eno')

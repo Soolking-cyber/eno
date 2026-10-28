@@ -8,12 +8,14 @@ import { useLanguage } from '@/context/language-context'
 import { hapticTap } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
 import { streamTo16k } from '@/lib/classroom/wav'
-import { AvatarStage, FACE_RATE, audioNeedsGesture, type FaceConfig, type StageHandle } from '@/components/classroom/session/avatar-stage'
+import { audioNeedsGesture } from '@/components/classroom/session/avatar-stage'
 import { bufferFromPcm16, decodeLine, partPlayer, pcmFromBase64, resamplePcm16 } from '@/components/classroom/session/voice'
 import { useRecorder, type MicState } from '@/components/classroom/session/use-recorder'
 import { isFiller, openLiveStt, type LiveStt } from '@/components/classroom/session/live-stt'
 import { beginTrace, mark } from '@/components/classroom/session/trace'
 import type { ConciergeMessage } from '@/lib/concierge/client'
+import type { GuideFaceConfig } from '@/lib/concierge/guide-assets'
+import { FACE_PCM_RATE, GuideFace, type GuideHandle } from './guide-face'
 
 /**
  * THE VOICE CONCIERGE'S WINDOW — the page inside the floating frame (src/components/concierge/concierge-host.tsx). The
@@ -25,7 +27,9 @@ import type { ConciergeMessage } from '@/lib/concierge/client'
  * classroom was deployed the same day for the owner's phone test, and its 1,000-line screen is not refactored under it.
  * Differences, each deliberate: no clip path (the turn route takes words only — without live listening the chips still
  * work), no drills, no clock on screen (the session ends itself — config.ts), and the window CLOSES after IDLE_MS of
- * silence or at the session's end: Spatius bills every connected minute, idle included.
+ * silence or at the session's end: the listening stream is billed while it is open, idle included.
+ * The face is the guide drawn in this browser (guide-face.tsx — TalkingHead, since 2026-10-28; Spatius before): it plays
+ * the guide's voice itself and needs no token.
  */
 type Phase = 'intro' | 'connecting' | 'listening' | 'hearing' | 'thinking' | 'speaking' | 'mic_denied' | 'refused'
 
@@ -40,7 +44,7 @@ type Line =
   | { kind: 'error'; error: string }
   | { kind: 'end' }
 
-type Started = { session: string; deadline: number; face: FaceConfig | null; opening: { text: string; audio: string | null } }
+type Started = { session: string; deadline: number; face: GuideFaceConfig | null; opening: { text: string; audio: string | null } }
 type HistoryItem = { role: 'user' | 'assistant'; text: string }
 
 /** How long one answer may take (the route runs 40 s at most). */
@@ -57,7 +61,7 @@ const FACE_TALKOVER_GRACE_MS = 3_000
 const LIVE_CHUNK = 1_600
 const LIVE_WORDS_MS = 3_000
 const LIVE_TEXT_MAX_CHARS = 1_000
-/** Nobody spoke and nothing was said for this long: the window closes (Spatius bills idle minutes). */
+/** Nobody spoke and nothing was said for this long: the window closes (an open listening stream is billed). */
 const IDLE_MS = 90_000
 const HISTORY_ITEMS = 12
 /** How long the start (the session, the opening's voice) may take. */
@@ -75,7 +79,7 @@ function toHost(m: ConciergeMessage): void {
   window.parent.postMessage(m, window.location.origin)
 }
 
-export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig | null; open: boolean }) {
+export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceConfig | null; open: boolean }) {
   const { tr, lang } = useLanguage()
   const [phase, setPhase] = useState<Phase>('intro')
   const [mode, setMode] = useState<'avatar' | 'voice'>(initialFace ? 'avatar' : 'voice')
@@ -97,6 +101,8 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
   const [notice, setNotice] = useState<string | null>(null)
   /** The microphone is down (use-recorder.ts MicState not 'on'): its line shows under no other notice. */
   const [micDown, setMicDown] = useState(false)
+  /** Live listening is off for this window (refused, or failed): the chips still work, and so does the text assistant. */
+  const [deaf, setDeaf] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
   const [waiting, setWaiting] = useState(false)
   const phaseRef = useRef(phase)
@@ -109,7 +115,7 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
   const session = useRef<Started | null>(null)
   const ctxRef = useRef<AudioContext | null>(null)
   const player = useRef<ReturnType<typeof partPlayer> | null>(null)
-  const stage = useRef<StageHandle>(null)
+  const stage = useRef<GuideHandle>(null)
   const opening = useRef<AudioBuffer | null>(null)
   const reply = useRef(freshReply(0))
   const ended = useRef(false)
@@ -225,7 +231,7 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
       }, Math.max(0, left) + REPLY_GRACE_MS)
     }
     if (r.toFace) {
-      const ok = audio instanceof AudioBuffer ? stage.current?.speakPart(audio, last) : stage.current?.speakPcm(resamplePcm16(audio.pcm, audio.rate, FACE_RATE), last)
+      const ok = audio instanceof AudioBuffer ? stage.current?.speakPart(audio, last) : stage.current?.speakPcm(resamplePcm16(audio.pcm, audio.rate, FACE_PCM_RATE), last)
       if (ok) return
       r.toFace = false
       armBargeIn()
@@ -284,6 +290,19 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
       leave()
     }
   }, [endSession])
+
+  /**
+   * THE TEXT ASSISTANT INSTEAD (owner, 2026-10-28: "fallback old verion eno ai in chat") — wherever the voice guide cannot
+   * help: closed for this account, its day (or the site's) used up, no microphone, no ears. The window closes and the app
+   * opens eno AI's chat (/messages/ai — the host navigates).
+   */
+  const toChat = useCallback(() => {
+    hapticTap()
+    mark('to the text assistant')
+    endSession()
+    releaseAll()
+    toHost({ type: 'eno-concierge:chat' })
+  }, [endSession, releaseAll])
 
   /** Done here (idle, the session's end, refused): the host closes the window, which ends everything above. */
   const closeWindow = useCallback((why: string) => {
@@ -496,6 +515,7 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
     to16k.current = null
     mark('live listening: off')
     setNotice('speech_unavailable')
+    setDeaf(true)
     offerStarters()
     if (awaitingWords.current && !ended.current && phaseRef.current === 'hearing') {
       clearTimeout(awaitingWords.current)
@@ -505,7 +525,7 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
     }
   }
 
-  // ── idle and the session's end: the window closes itself (Spatius bills every connected minute) ──
+  // ── idle and the session's end: the window closes itself (an open listening stream is billed) ──
   useEffect(() => {
     const t = setInterval(() => {
       const s = session.current
@@ -622,18 +642,13 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
       // The server's own final no (the session is over): nothing more can be heard — the window closes.
       if (l === 'refused') { closeWindow('listening refused'); return }
       liveStt.current = l
-      if (!l) { setNotice('speech_unavailable'); offerStarters() }
+      if (!l) { setNotice('speech_unavailable'); setDeaf(true); offerStarters() }
     })
     const audio = s.opening.audio ? decodeLine(ctx, s.opening.audio).catch(() => null) : Promise.resolve(null)
     const withFace = modeRef.current === 'avatar' && !faceGone.current && !!s.face
-    const faceToken = (signal: AbortSignal) => fetch('/api/concierge/face-token', {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: s.session }), signal,
-    }).then(async (res) => {
-      if (!res.ok) throw new Error(`token_${res.status}`)
-      return ((await res.json()) as { token: string }).token
-    })
+    // The drawn face opens its stream (no token: it is drawn in this browser) — bounded, like any start step.
     const connected = withFace
-      ? await Promise.race([stage.current?.connect(faceToken) ?? Promise.resolve(false), new Promise<boolean>((res) => setTimeout(() => res(false), FACE_CONNECT_MS))])
+      ? await Promise.race([stage.current?.connect() ?? Promise.resolve(false), new Promise<boolean>((res) => setTimeout(() => res(false), FACE_CONNECT_MS))])
       : false
     opening.current = await audio
     if (ended.current) return
@@ -689,23 +704,28 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
     : notice === 'rate_limited' ? tr('Too many questions — try again in a minute.', 'Quá nhiều câu hỏi — thử lại sau một phút.')
       : notice ? tr('Something went wrong — try again.', 'Đã có lỗi — hãy thử lại.') : null
 
+  const chatButton = (
+    <Button size="sm" variant="secondary" onClick={toChat}>{tr('Chat with eno AI', 'Chat với eno AI')}</Button>
+  )
+
   if (!open) {
     return (
-      <div className="flex h-full items-center justify-center p-3 text-center text-xs text-primary-foreground/80">
-        {tr('The guide is not available for this account.', 'Trợ lý chưa mở cho tài khoản này.')}
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-3 text-center text-xs text-primary-foreground/80">
+        {tr('The voice guide is not available for this account.', 'Trợ lý giọng nói chưa mở cho tài khoản này.')}
+        {chatButton}
       </div>
     )
   }
+  /** Nothing to retry: the account's day, or the site's, is used up — only the text assistant is offered. */
+  const capped = phase === 'refused' && (refusal === 'limit_reached' || refusal === 'guide_busy')
 
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div className="absolute inset-0">
-        <AvatarStage
+        <GuideFace
           ref={stage}
-          compact
           mode={mode}
-          face={mode === 'avatar' ? initialFace : null}
-          photoUrl={null}
+          face={initialFace}
           name={tr('eno guide', 'Trợ lý eno')}
           speaking={phase === 'speaking'}
           onDrawn={() => setPrep('ready')}
@@ -739,7 +759,9 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
           )}
           {phase === 'refused' && (
             <p className="text-3xs leading-snug text-primary-foreground/85">
-              {refusal === 'limit_reached' ? tr("You've used today's guide sessions.", 'Bạn đã dùng hết lượt hôm nay.') : tr("The guide couldn't start — try again.", 'Không bắt đầu được — hãy thử lại.')}
+              {refusal === 'limit_reached' ? tr("You've used today's guide sessions.", 'Bạn đã dùng hết lượt hôm nay.')
+                : refusal === 'guide_busy' ? tr('The voice guide is busy today.', 'Trợ lý giọng nói hôm nay đang bận.')
+                  : tr("The guide couldn't start — try again.", 'Không bắt đầu được — hãy thử lại.')}
             </p>
           )}
           {phase === 'mic_denied' && (
@@ -747,9 +769,12 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
               {tr('Allow the microphone to talk to the guide.', 'Hãy cho phép micro để nói với trợ lý.')}
             </p>
           )}
-          <Button size="sm" variant="cta" disabled={prep !== 'ready'} onClick={() => void begin()}>
-            {prep !== 'ready' ? tr('Getting ready…', 'Đang chuẩn bị…') : tr('Start talking', 'Bắt đầu nói')}
-          </Button>
+          {!capped && (
+            <Button size="sm" variant="cta" disabled={prep !== 'ready'} onClick={() => void begin()}>
+              {prep !== 'ready' ? tr('Getting ready…', 'Đang chuẩn bị…') : tr('Start talking', 'Bắt đầu nói')}
+            </Button>
+          )}
+          {phase !== 'intro' && chatButton}
         </div>
       )}
 
@@ -760,6 +785,11 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
       {live && (
         <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-brand-deeper/90 to-transparent p-1.5 pt-6">
           {noticeText && <p className="text-3xs leading-snug text-primary-foreground">{noticeText}</p>}
+          {(deaf || micDown) && phase !== 'hearing' && (
+            <Button size="sm" variant="secondary" className="h-6 min-h-6 self-start rounded-full px-2 text-3xs" onClick={toChat}>
+              {tr('Chat with eno AI', 'Chat với eno AI')}
+            </Button>
+          )}
           {(phase === 'thinking' || phase === 'hearing') && heardLine
             ? <p className="line-clamp-2 text-3xs italic leading-snug text-primary-foreground/80">{heardLine}</p>
             : caption && <p className="line-clamp-3 text-2xs leading-snug text-primary-foreground">{caption}</p>}
