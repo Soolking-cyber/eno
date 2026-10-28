@@ -84,6 +84,13 @@ export const LIMITS = {
   turnsPerSession: 80,
   /** Longest learner turn the recorder sends, and the server accepts. */
   turnSeconds: 45,
+  /**
+   * Longest drill clip scored. ⛔ A longer one (live listening keeps a little more than a turn — the cap starts at the first
+   * word, and Soniox finalizes after it) is NOT sent, and the server ignores one if it comes: the turn's WORDS count, only
+   * that drill is not scored. Trimming it would cut the answer's opening — usually the drilled part — and refusing it
+   * lost the whole turn (review, 2026-10-28). Inside turnBytes: 46 s of 16 kHz PCM16 is 1.47 MB.
+   */
+  clipSeconds: 46,
   /** 45 s of 16 kHz mono PCM16 is 1.44 MB; the WAV header and a margin round it up. */
   turnBytes: 1_500_000,
   /** A turn may still land this long after the session's end (a reply in flight when the clock ran out). */

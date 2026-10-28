@@ -84,8 +84,14 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
   // Soniox wrote down live; a clip comes only BESIDE them — a repeat-after-me sentence Azure scores. A clip alone (the old
   // way, to eno's own speech server) is refused.
   if (!live) throw new ApiError('speech_unavailable', 503)
-  const info = wav ? parseWav(wav) : { ms: Math.max(0, Math.min(LIMITS.turnSeconds * 1000, Math.round(live.ms))), peak: 32_767 }
-  if (!info || info.ms > (LIMITS.turnSeconds + 1) * 1000) throw new ApiError('audio_invalid', 400)
+  const heardMs = Math.max(0, Math.min(LIMITS.turnSeconds * 1000, Math.round(live.ms)))
+  const parsed = wav ? parseWav(wav) : null
+  if (wav && !parsed) throw new ApiError('audio_invalid', 400)
+  // A drill clip past LIMITS.clipSeconds is not scored — the turn's words still count (constants.ts says why).
+  const tooLong = !!parsed && parsed.ms > LIMITS.clipSeconds * 1000
+  if (tooLong) logWarn('[classroom] drill clip too long — the words count, the clip is not scored', { ms: parsed.ms })
+  const clip = tooLong ? null : wav
+  const info = clip && parsed ? parsed : { ms: heardMs, peak: 32_767 }
   const session = await sessionOfCaller(sessionId, accountId, now)
   // The words decide (a drill's clip may be quiet while Soniox heard words — review, opus).
   if (!live.text.trim()) return { kind: 'silence' }
@@ -221,7 +227,7 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     // ⛔ A FLAGGED TURN IS NEVER SCORED (2026-10-26 review round 2, codex): a learner who disclosed harm instead of repeating
     // the drill does not have that disclosure sent to Azure. Nor is one that came without its clip (live words alone):
     // marked skipped, never 'pending' with nothing to score.
-    const ref = reply.safety || !wav ? null : reference
+    const ref = reply.safety || !clip ? null : reference
     // ⛔ A FLAGGED TURN SAVES NO PACE (2026-10-26 review round 2, codex + opus): a first brain's "slower" followed by a second
     // brain's harm flag is not the learner's choice for their next sessions.
     const keepPace = paceMoved && !reply.safety
@@ -260,10 +266,10 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     if (reply.safety) later(clientGone, () => alertSafetyTeam(sessionId))
     // ⛔ After the answer: score the clip in memory, then let it go. A failure is recorded as such — never retried later,
     // because nothing of the audio is left to retry with.
-    if (pa && ref && wav) later(clientGone, async () => {
+    if (pa && ref && clip) later(clientGone, async () => {
       let pron: PronResult | null = null
       try {
-        pron = await assess(pa, wav, ref, true)
+        pron = await assess(pa, clip, ref, true)
       } catch (e) {
         logWarn('[classroom] pronunciation assessment failed', { status: (e as { status?: number }).status ?? null })
       }

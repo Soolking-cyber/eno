@@ -15,6 +15,21 @@ import { mark } from './trace'
  */
 export type Listening = { endMs: number; barge: boolean }
 
+/**
+ * The microphone as the browser REPORTS it — no guessing from the sound (commit review, rounds 1–3: every silence heuristic
+ * had a quiet room it misread). 'paused': the phone muted it (a call, Siri), its track ended, or the audio is interrupted or
+ * suspended; 'lost': a fresh microphone was REFUSED (permission off, no device). Neither ends anything: the page says so and
+ * offers "turn it back on" — a tap, the gesture iOS may need, and the ONE way it is taken again (no automatic retake: a hidden
+ * page or a permission prompt made those fail in ways the learner could not see). (Owner, 2026-10-28, "fix both": a
+ * microphone that ended or was muted mid-session left "Listening" up to the deadline.)
+ */
+export type MicState = 'on' | 'paused' | 'lost'
+
+/** How long taking the microphone again may take, all of it (a permission prompt counts), before it is given up for now. */
+const REACQUIRE_MS = 10_000
+/** A getUserMedia failure that a retry cannot fix: the browser said no, or there is no microphone. */
+const REFUSALS = new Set(['NotAllowedError', 'NotFoundError', 'SecurityError', 'OverconstrainedError'])
+
 const VAD = {
   normal: { minLevel: 0.012, startRatio: 3, endRatio: 2, startMs: 120, preRollMs: 350 },
   barge: { minLevel: 0.035, startRatio: 5, endRatio: 2, startMs: 320, preRollMs: 350 },
@@ -32,6 +47,8 @@ export function useRecorder(on: {
   autoStop: (wav: Uint8Array) => void
   /** Every frame of the turn as it is recorded — its pre-roll first — at the context's rate (live listening streams them). */
   frames?: (frame: Float32Array) => void
+  /** The microphone's state changed (MicState) — reported on a change only. */
+  mic?: (state: MicState) => void
 }) {
   const ctxRef = useRef<AudioContext | null>(null)
   const nodeRef = useRef<AudioWorkletNode | null>(null)
@@ -45,6 +62,25 @@ export function useRecorder(on: {
   handlers.current = on
   /** Bumped by release(): a prepare() still waiting on the permission prompt then stops what it was granted. */
   const gen = useRef(0)
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
+  /** Why the microphone is paused now ('muted', 'ended', 'context', 'taking') — none: on. */
+  const pausedFor = useRef(new Set<string>())
+  const lost = useRef(false)
+  const reported = useRef<MicState>('on')
+  /** The one taking-again under way (single-flight: a second tap meanwhile waits for it — plan review, opus). */
+  const taking = useRef<Promise<boolean> | null>(null)
+  /** What prepare() set up beside the graph, undone by release(): the context's state listener. */
+  const undo = useRef<(() => void)[]>([])
+
+  const report = useCallback(() => {
+    const next: MicState = lost.current ? 'lost' : pausedFor.current.size ? 'paused' : 'on'
+    if (next === reported.current) return
+    reported.current = next
+    mark(`mic: ${next}`, [...pausedFor.current].join(' '))
+    handlers.current.mic?.(next)
+  }, [])
+  const pause = useCallback((why: string) => { if (!pausedFor.current.has(why)) { pausedFor.current.add(why); report() } }, [report])
+  const unpause = useCallback((why: string) => { if (pausedFor.current.delete(why)) report() }, [report])
 
   const take = useCallback((): Uint8Array => {
     if (timer.current) clearTimeout(timer.current)
@@ -76,15 +112,10 @@ export function useRecorder(on: {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: AUDIO_CONSTRAINTS, video: false })
     if (stale(stream)) throw new Error('released')
     streamRef.current = stream
-    // The microphone taken away under us (iOS: a call, Siri, another app) — in the trace, where a "can't hear me" starts.
-    for (const t of stream.getAudioTracks()) {
-      t.onmute = () => mark('mic: muted by the system')
-      t.onunmute = () => mark('mic: back')
-      t.onended = () => mark('mic: ended')
-    }
     await ctx.audioWorklet.addModule('/classroom/recorder-worklet.js?v=2')
     if (stale(stream)) { streamRef.current = null; throw new Error('released') }
     const source = ctx.createMediaStreamSource(stream)
+    sourceRef.current = source
     // One output, wired to the speakers: WebKit only runs a node whose output reaches the destination (C3a round 2, Opus —
     // a node with no outputs may never be processed there, every turn an empty WAV). The worklet never writes its
     // outputs, so the learner hears nothing of themselves.
@@ -118,7 +149,20 @@ export function useRecorder(on: {
     node.connect(ctx.destination)
     ctxRef.current = ctx
     nodeRef.current = node
-  }, [take])
+    // The audio interrupted under us (iOS: a call; a suspended context): paused, and resumed as soon as it can be.
+    const onState = () => {
+      if (mine !== gen.current) return
+      const state = ctx.state as string
+      if (state === 'running') unpause('context')
+      else if (state === 'suspended' || state === 'interrupted') { pause('context'); void ctx.resume().catch(() => {}) }
+    }
+    ctx.addEventListener('statechange', onState)
+    undo.current.push(() => ctx.removeEventListener('statechange', onState))
+    // …and the state the microphone is in NOW (commit review, codex): a context already suspended, a track that came muted or
+    // ended while the graph was being built — none of them fires an event to say so.
+    onState()
+    noteTracks(stream)
+  }, [take, pause, unpause])
 
   /** Arm the detector (or re-arm it with other tuning). */
   const listen = useCallback((l: Listening) => {
@@ -162,10 +206,21 @@ export function useRecorder(on: {
   const release = useCallback(() => {
     gen.current += 1
     if (timer.current) clearTimeout(timer.current)
+    for (const u of undo.current.splice(0)) u()
+    sourceRef.current?.disconnect()
+    sourceRef.current = null
     nodeRef.current?.disconnect()
     nodeRef.current = null
-    streamRef.current?.getTracks().forEach((t) => t.stop())
+    // The ref first: a track's handlers check it, so nothing that stops here is taken for the microphone going away.
+    const old = streamRef.current
     streamRef.current = null
+    old?.getTracks().forEach((t) => { t.onmute = null; t.onunmute = null; t.onended = null; t.stop() })
+    taking.current = null
+    pausedFor.current.clear()
+    lost.current = false
+    // The page is told too: a next prepare() on this same hook starts from 'on', and a stale "stopped" must not outlive it
+    // (commit review, codex + opus).
+    if (reported.current !== 'on') { reported.current = 'on'; handlers.current.mic?.('on') }
     chunks.current = []
     kept.current = 0
     streaming.current = false
@@ -183,5 +238,110 @@ export function useRecorder(on: {
     while (kept.current > keep && chunks.current.length > 1) kept.current -= chunks.current.shift()!.length
   }, [])
 
-  return { prepare, listen, stream, keepLast, unlisten, take, release }
+  /**
+   * Take the microphone AGAIN — a fresh getUserMedia, a new source into the SAME worklet (the old one disconnected and its
+   * tracks stopped). Only from the page's tap (resume). One at a time; ⛔ BOUNDED WHOLE (commit review, codex): it waits on
+   * getUserMedia for REACQUIRE_MS at most and never on the context's resume — a grant that comes later is stopped, and the
+   * microphone stays paused (another tap tries again). A REFUSAL (REFUSALS) is 'lost'. Never after release().
+   */
+  function takeAgain(): Promise<boolean> {
+    if (taking.current) return taking.current
+    const ctx = ctxRef.current
+    const node = nodeRef.current
+    if (!ctx || !node) return Promise.resolve(false)
+    const mine = gen.current
+    pause('taking')
+    let refused = false
+    const asked = navigator.mediaDevices.getUserMedia({ audio: AUDIO_CONSTRAINTS, video: false }).catch((e: unknown) => {
+      refused = REFUSALS.has((e as { name?: string } | null)?.name ?? '')
+      return null
+    })
+    const attempt = (async () => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const late = new Promise<'late'>((resolve) => { timer = setTimeout(() => resolve('late'), REACQUIRE_MS) })
+      const got = await Promise.race([asked, late])
+      clearTimeout(timer)
+      if (got === 'late') { void asked.then((st) => st?.getTracks().forEach((t) => t.stop())); return false }
+      if (!got) return false
+      if (mine !== gen.current || nodeRef.current !== node) { got.getTracks().forEach((t) => t.stop()); return false }
+      // The new source is built BEFORE the old one is let go (commit review, codex): a graph that throws here leaves the old
+      // microphone as it was, and the new one stopped.
+      let source: MediaStreamAudioSourceNode
+      try {
+        source = ctx.createMediaStreamSource(got)
+        source.connect(node)
+      } catch {
+        got.getTracks().forEach((t) => t.stop())
+        return false
+      }
+      const old = streamRef.current
+      streamRef.current = got
+      old?.getTracks().forEach((t) => { t.onmute = null; t.onunmute = null; t.onended = null; t.stop() })
+      sourceRef.current?.disconnect()
+      sourceRef.current = source
+      // Resumed, never awaited: an interruption still under way must not hold the attempt (the context's own listener
+      // says when the sound is back).
+      if (ctx.state !== 'running') void ctx.resume().catch(() => {})
+      return true
+    })()
+    taking.current = attempt
+    // Never a rejection left behind, and never a jammed retry (commit review, codex): whatever happened, the next tap asks again.
+    void attempt.catch(() => false).then((ok) => {
+      if (mine !== gen.current) return
+      taking.current = null
+      if (ok) {
+        pausedFor.current.delete('ended')
+        pausedFor.current.delete('muted')
+        lost.current = false
+        // The fresh track as it IS (a track that came muted or ended fires no event to say so — commit review, codex).
+        noteTracks(streamRef.current)
+        mark('mic: taken again')
+      } else if (refused && !works(streamRef.current)) {
+        // Refused — unless the microphone we kept came back meanwhile (it unmuted while the ask waited: commit review, codex).
+        lost.current = true
+        mark('mic: refused')
+      } else {
+        mark('mic: not back yet')
+      }
+      unpause('taking')
+      report()
+    })
+    return attempt
+  }
+
+  /** A stream that can be heard: a live, unmuted track, and no 'ended' waiting on it. */
+  function works(stream: MediaStream | null): boolean {
+    return !!stream && !pausedFor.current.has('ended') && stream.getAudioTracks().some((t) => t.readyState === 'live' && !t.muted)
+  }
+
+  /** The CURRENT stream's tracks: watched from now on (muted, back, ended), and their state read now. */
+  function noteTracks(stream: MediaStream | null) {
+    if (!stream) return
+    for (const t of stream.getAudioTracks()) {
+      t.onmute = () => { if (streamRef.current === stream) pause('muted') }
+      // Unmuted: this microphone works again — whatever a refused fresh one said (commit review, codex).
+      t.onunmute = () => { if (streamRef.current === stream) { lost.current = false; pausedFor.current.delete('muted'); report() } }
+      t.onended = () => { if (streamRef.current === stream) { mark('mic: ended'); pause('ended') } }
+      if (t.muted) pause('muted')
+      if (t.readyState === 'ended') pause('ended')
+    }
+  }
+
+  /**
+   * The page's "turn it back on" (a tap — the gesture iOS may need): a microphone that ended, was muted or was refused is
+   * taken again (fresh), and a suspended or interrupted context resumed — so the tap always does something (commit review,
+   * codex). A working track under a mere interruption is kept.
+   */
+  const resume = useCallback(async (): Promise<void> => {
+    const ctx = ctxRef.current
+    if (!ctx) return
+    // ⛔ The context first, IN the tap — before any await (commit review, codex): a browser that needs the gesture to resume
+    // audio no longer has it once getUserMedia has been awaited.
+    const resumed = ctx.state !== 'running' ? ctx.resume().catch(() => {}) : null
+    const why = pausedFor.current
+    if (lost.current || why.has('ended') || why.has('muted')) await takeAgain().catch(() => false)
+    await resumed
+  }, []) // takeAgain reads refs only
+
+  return { prepare, listen, stream, keepLast, unlisten, take, release, resume }
 }

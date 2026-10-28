@@ -16,9 +16,9 @@ import type { AgeBand } from '@/lib/classroom/limits'
 import { dayName, refusalCopy } from '../classroom-copy'
 import { AvatarStage, FACE_RATE, audioNeedsGesture, type FaceConfig, type StageHandle } from './avatar-stage'
 import { bufferFromPcm16, decodeLine, partPlayer, pcmFromBase64, resamplePcm16 } from './voice'
-import { useRecorder } from './use-recorder'
+import { useRecorder, type MicState } from './use-recorder'
 import { isHesitation, openLiveStt, type LiveStt } from './live-stt'
-import { streamTo16k } from '@/lib/classroom/wav'
+import { parseWav, streamTo16k } from '@/lib/classroom/wav'
 import { LIMITS } from '@/lib/classroom/constants'
 import { DEFAULT_BACKGROUND, backgroundImage, type Background } from '@/lib/classroom/backgrounds'
 import { beginTrace, formatMark, mark, traceVisible, useTrace } from './trace'
@@ -265,11 +265,15 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     speechStart: () => {}, speechEnd: () => {}, autoStop: (_wav: Uint8Array) => {}, frames: (_f: Float32Array) => {},
     utterance: (_text: string, _ms: number) => {}, liveFailed: () => {}, activity: (_speaking: boolean) => {},
   })
+  /** The microphone (use-recorder.ts MicState): 'paused' and 'lost' say so and offer to turn it back on — never an end. */
+  const [mic, setMic] = useState<MicState>('on')
   const rec = useRecorder({
     speechStart: () => handlers.current.speechStart(),
     speechEnd: () => handlers.current.speechEnd(),
     autoStop: (wav) => handlers.current.autoStop(wav),
     frames: (f) => handlers.current.frames(f),
+    // Said, never an end: a hidden page, a call or a slow prompt must not end the practice (commit review, codex + opus).
+    mic: (m) => setMic(m),
   })
   const releaseRec = rec.release
 
@@ -583,6 +587,11 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const sendTurn = async (turn: { wav?: Uint8Array; transcript?: string; speechMs?: number }) => {
     const s = startRef.current
     if (!s || ended.current) return
+    // A drill clip past LIMITS.clipSeconds is not sent: the words go, that drill is not scored (constants.ts says why).
+    if (turn.wav && turn.transcript !== undefined && (parseWav(turn.wav)?.ms ?? Infinity) > LIMITS.clipSeconds * 1000) {
+      mark('drill clip too long — the words go alone')
+      turn = { ...turn, wav: undefined }
+    }
     const gen = ++turnGen.current
     rec.unlisten()
     clearCap()
@@ -1103,6 +1112,13 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     if (phaseRef.current === 'speaking' && wasFace) { stopSpeaking(); listen() }
   }, [dropFace, listen, openingToSpeakers, stopSpeaking])
 
+  /** "Turn it back on" — a tap, which iOS may need to give the microphone back (use-recorder.ts resume). */
+  const onMicBack = () => {
+    hapticTap()
+    mark('mic: turn it back on (tapped)')
+    void rec.resume()
+  }
+
   const toggleMute = () => {
     hapticTap()
     const next = !muted
@@ -1130,6 +1146,8 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   // ⛔ 'gone' first, whatever the phase or the mute (review, codex + opus): the session is about to end — say why.
   const status = hearing === 'gone' && phase !== 'ending' ? tr("Can't hear you right now — the practice will end", 'Hiện không nghe được — buổi luyện tập sẽ kết thúc')
     : muted ? tr('Muted', 'Đã tắt micro')
+    : mic === 'lost' && phase !== 'ending' ? tr("Can't use the microphone — check the browser's setting", 'Không dùng được micro — hãy kiểm tra cài đặt trình duyệt')
+    : mic === 'paused' && phase !== 'ending' ? tr('The microphone stopped', 'Micro đã dừng')
     : phase === 'listening' && hearing === 'off' ? tr('Connecting…', 'Đang kết nối…')
     : phase === 'listening' ? tr('Listening — just talk', 'Đang nghe — cứ nói nhé')
       : phase === 'hearing' ? tr('Listening…', 'Đang nghe…')
@@ -1246,6 +1264,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
                     <span aria-hidden className={cn('size-2 rounded-full bg-success', phase === 'hearing' && 'animate-pulse')} />
                   )}
                   {status}
+                  {mic !== 'on' && !muted && hearing !== 'gone' && (
+                    <Button variant="ghost" size="sm" className="text-primary-foreground underline" onClick={onMicBack}>{tr('Turn it back on', 'Bật lại')}</Button>
+                  )}
                 </p>
               </>
             )}

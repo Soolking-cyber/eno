@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { streamTo16k } from '@/lib/classroom/wav'
 import { AvatarStage, FACE_RATE, audioNeedsGesture, type FaceConfig, type StageHandle } from '@/components/classroom/session/avatar-stage'
 import { bufferFromPcm16, decodeLine, partPlayer, pcmFromBase64, resamplePcm16 } from '@/components/classroom/session/voice'
-import { useRecorder } from '@/components/classroom/session/use-recorder'
+import { useRecorder, type MicState } from '@/components/classroom/session/use-recorder'
 import { isFiller, openLiveStt, type LiveStt } from '@/components/classroom/session/live-stt'
 import { beginTrace, mark } from '@/components/classroom/session/trace'
 import type { ConciergeMessage } from '@/lib/concierge/client'
@@ -95,6 +95,8 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
   const startersRef = useRef(offerStarters)
   startersRef.current = offerStarters
   const [notice, setNotice] = useState<string | null>(null)
+  /** The microphone is down (use-recorder.ts MicState not 'on'): its line shows under no other notice. */
+  const [micDown, setMicDown] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
   const [waiting, setWaiting] = useState(false)
   const phaseRef = useRef(phase)
@@ -139,13 +141,15 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
 
   const handlers = useRef({
     speechStart: () => {}, speechEnd: () => {}, autoStop: (_wav: Uint8Array) => {}, frames: (_f: Float32Array) => {},
-    utterance: (_text: string, _ms: number) => {}, liveFailed: () => {},
+    utterance: (_text: string, _ms: number) => {}, liveFailed: () => {}, mic: (_m: MicState) => {},
   })
   const rec = useRecorder({
     speechStart: () => handlers.current.speechStart(),
     speechEnd: () => handlers.current.speechEnd(),
     autoStop: (wav) => handlers.current.autoStop(wav),
     frames: (f) => handlers.current.frames(f),
+    // The microphone (use-recorder.ts MicState): stopped or blocked — said; never closes the window by itself.
+    mic: (m) => handlers.current.mic(m),
   })
   const releaseRec = rec.release
 
@@ -484,6 +488,9 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
     mark('heard live', `${words.length} chars`)
     void sendTurn(words.slice(0, LIVE_TEXT_MAX_CHARS))
   }
+  // The microphone's own line, KEPT while it is down — shown whenever no other notice is (commit review, codex + opus: a
+  // notice slot it shared could hide it for good, or wipe another).
+  handlers.current.mic = (m) => setMicDown(m !== 'on')
   handlers.current.liveFailed = () => {
     liveStt.current = null
     to16k.current = null
@@ -676,7 +683,8 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
         : phase === 'thinking' ? tr('Thinking…', 'Đang nghĩ…')
           : phase === 'speaking' ? tr('Talking', 'Đang nói')
             : ''
-  const noticeText = notice === 'speech_unavailable' ? tr("I can't hear right now — tap a reply below.", 'Hiện không nghe được — hãy chạm một câu trả lời.')
+  const noticeText = !notice && micDown ? tr("Your microphone stopped. If I can't hear you, close me and open me again.", 'Micro đã dừng. Nếu tôi không nghe được, hãy đóng và mở lại.')
+    : notice === 'speech_unavailable' ? tr("I can't hear right now — tap a reply below.", 'Hiện không nghe được — hãy chạm một câu trả lời.')
     : notice === 'not_ready' ? tr('One moment — I was still connecting. Say that again?', 'Đợi chút — tôi vẫn đang kết nối. Bạn nói lại nhé?')
     : notice === 'rate_limited' ? tr('Too many questions — try again in a minute.', 'Quá nhiều câu hỏi — thử lại sau một phút.')
       : notice ? tr('Something went wrong — try again.', 'Đã có lỗi — hãy thử lại.') : null
