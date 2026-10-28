@@ -9,7 +9,7 @@ import { resolveAction } from './actions'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
 import type { Language } from '@/lib/languages'
-import { pageStateFor, rememberPageState } from './page-state'
+import { FIND_CARDS, pageStateFor, rememberPageState } from './page-state'
 import { fixedLineFor } from './guards'
 import type { PageState, ResolvedAction } from './types'
 
@@ -50,11 +50,25 @@ export const REFUSED_LINE = "Sorry, I couldn't open that. Could you say it anoth
  * The app moved, but part of what was asked could not be applied (ResolvedAction.partial): said INSTEAD of the model's
  * words, which were written for the whole action ("Showing teachers under twenty million" when the price was dropped).
  */
-export const PARTIAL_LINE = "Here's the closest I can show. I couldn't apply all of that, so check the filters on screen."
+export const PARTIAL_LINE = "Here's the closest I could open, not every detail is a filter here. Want to change anything?"
 /** When the brain failed after the app already moved. */
 export const MOVED_LINE = 'Here you go. Anything you want to narrow down?'
 /** A browse that shows nothing — said after the model's sentences (the page shows the empty result anyway). */
-export const EMPTY_LINE = "There's nothing matching all of that right now. Want me to widen the search?"
+export const EMPTY_LINE = 'Nothing matches that yet. Want me to widen it a little?'
+/** The empty view's line when the model's own question was already asked: a statement with an offer, never a second question. */
+export const EMPTY_AFTER_LINE = 'Nothing matches that just yet, so I can widen it whenever you like.'
+/** The chips over an empty view: the model's narrowed what found nothing (commit review, opus, round 6) — this widens. */
+export const EMPTY_CHIPS = ['Yes, widen it']
+/** A find under an hourly budget that fits no one: the screen still shows every teacher of the view (no explorer filter
+ *  takes the budget), so not "nothing matches" — none of THESE fits it (commit review, opus, round 8). */
+export const RATE_EMPTY_LINE = 'None of these list a cover rate within that budget yet. Want me to raise it a little?'
+const emptyLineFor = (found: PageState | null | undefined): string => (found?.rateMax ? RATE_EMPTY_LINE : EMPTY_LINE)
+/** Over every teacher of the view when a budget's find was not read or not answered: never "here you go", as if the budget
+ *  were applied (commit review, opus, round 9). */
+export const RATE_FALLBACK_LINE = "Here are all the teachers. I couldn't match the rates just now, want me to try again?"
+/** The line over the find's own list when the second answer left it unsaid. */
+const listLineFor = (found: PageState | null | undefined, rateMax: number | undefined): string =>
+  found?.total === 0 ? emptyLineFor(found) : rateMax ? RATE_FALLBACK_LINE : MOVED_LINE
 /** How long the voice may wait at its end for the new page's count (it is usually in long before). */
 const COUNT_WAIT_MS = 800
 /**
@@ -143,7 +157,9 @@ type Finding = { list: ResolvedAction; found: Promise<PageState | null> }
  * One brain answer's own outcome — what the caller needs when the answer broke part-way. `closed`: its voice reached its
  * end (`spoken`) — everything it decided was done and said; only its chips can still fail.
  */
-type Pass = { spoke: boolean; moved: boolean; toList: boolean; closed: boolean }
+/** `asked`: a line said this answer ended in a question — the empty view's line then offers, never asks a second one. */
+type Pass = { spoke: boolean; asked: boolean; moved: boolean; toList: boolean; closed: boolean }
+const QUESTION_END = /[?？][\s"'”’)]*$/u
 
 export function conciergeTurn(t: {
   transcript: string
@@ -211,6 +227,12 @@ export function conciergeTurn(t: {
     let chips: string[] = []
     let moved: ResolvedAction | null = null
     let count: Promise<number | null> | null = null
+    /** The count within COUNT_WAIT_MS of the action (null: not in time, or not counted) — ONE budget, wherever it is awaited. */
+    let countWait: Promise<number | null> | null = null
+    /** The count whenever it lands (undefined: not yet). */
+    let countLate: number | null | undefined
+    /** The browsed view counted 0 and the empty line was said: its chips widen (EMPTY_CHIPS). */
+    let emptied = false
     // ⚠️ `as`: assigned inside `answer` — a plain `= null` would leave TypeScript sure it is still null after the call.
     let finding = null as Finding | null
     /** Settles the moment a find is taken — the turn goes on from there, whatever the first answer's stream does next. */
@@ -227,7 +249,8 @@ export function conciergeTurn(t: {
       pass.moved = true
       pass.toList = true
       go(list)
-      if (found && found.total !== null) rememberPageState(found, { lang: t.lang })
+      // ⛔ Not a find read under an hourly budget: its cards are the teachers whose rate fits, the screen shows them all.
+      if (found && found.total !== null && found.rateMax === undefined) rememberPageState(found, { lang: t.lang })
     }
 
     /**
@@ -287,7 +310,7 @@ export function conciergeTurn(t: {
               // that does anyway is the not-read-in-time case — never an unhandled rejection, even if the person has gone.
               finding = {
                 list: a,
-                found: pageStateFor(a.href, { lang: t.lang, timeoutMs: FIND_READ_MS }).catch((e: unknown) => {
+                found: pageStateFor(a.href, { lang: t.lang, timeoutMs: FIND_READ_MS, cards: FIND_CARDS, rateMax: a.rateMax }).catch((e: unknown) => {
                   logError(quietError(e), { op: 'concierge.find' })
                   return null
                 }),
@@ -303,24 +326,39 @@ export function conciergeTurn(t: {
             moved = a
             pass.moved = true
             go(a)
-            if (a.partial) { muted = true; voice.say(PARTIAL_LINE); pass.spoke = true }
+            if (a.partial) { muted = true; voice.say(PARTIAL_LINE); pass.spoke = true; pass.asked = QUESTION_END.test(PARTIAL_LINE) }
             logInfo('[concierge] action', { ms: Math.round(performance.now() - t0), kind: a.kind, found: !!found })
             // The new view's count, in parallel with the voice — read again by the next turn as its PAGE (cached).
             if (a.kind === 'browse') {
               count = pageStateFor(a.href, { lang: t.lang }).then((st) => { rememberPageState(st); return st.total }).catch(() => null)
+              void count.then((n) => { countLate = n })
+              let timer: ReturnType<typeof setTimeout> | undefined
+              countWait = Promise.race([count, new Promise<null>((r) => { timer = setTimeout(() => r(null), COUNT_WAIT_MS) })])
+                .finally(() => clearTimeout(timer))
             }
           } else if (ev.kind === 'say') {
             if (muted) continue
+            // ⛔ BEFORE THE FIRST WORD of a browse, its count (the model writes that sentence meanwhile, so the wait is mostly
+            // over): an empty view is known before anything is said — the model's words, written for a list with cards, are
+            // not said, and EMPTY_LINE asks instead (below), with the chip that widens. One decision, before any word: every
+            // decision taken mid-stream or after the words left a sentence, question or chip that disagreed (commit review,
+            // rounds 3–7).
+            if (countWait && !pass.spoke && (await countWait) === 0) {
+              muted = true
+              continue
+            }
             voice.say(ev.text)
             pass.spoke = true
+            if (QUESTION_END.test(ev.text)) pass.asked = true
           } else if (ev.kind === 'spoken') {
             // A find's answer is the NEXT one: the voice stays open for it.
             if (finding && !found) continue
-            if (count && !refused) {
-              let timer: ReturnType<typeof setTimeout> | undefined
-              const total = await Promise.race([count, new Promise<null>((r) => { timer = setTimeout(() => r(null), COUNT_WAIT_MS) })])
-              clearTimeout(timer)
-              if (total === 0) { voice.say(EMPTY_LINE); pass.spoke = true }
+            if (countWait && !refused) {
+              // Known before the words (above): nothing of the model's was said, EMPTY_LINE asks. Known only after them (the
+              // count missed its wait and landed since): what was SAID decides — a question asked → a statement offering to
+              // widen, never a second question; none → EMPTY_LINE asks (commit review, codex, round 5).
+              const total = (await countWait) ?? countLate ?? null
+              if (total === 0) { voice.say(pass.asked ? EMPTY_AFTER_LINE : EMPTY_LINE); pass.spoke = true; pass.asked = true; emptied = true }
             }
             // ⛔ The second answer said nothing — a find shown as its list (rule 5 leaves a find's words empty), a card or a
             // none whose every sentence the guards dropped: nothing usable came, so it is NO second answer — the find's own
@@ -329,14 +367,16 @@ export function conciergeTurn(t: {
             // rounds 1, 5, 6 and 7).
             if (found && !pass.spoke) {
               if (!pass.moved && findList) toList(pass, findList, found)
-              voice.say(pass.toList && found.total === 0 ? EMPTY_LINE : MOVED_LINE)
+              voice.say(pass.toList ? listLineFor(found, found.rateMax) : MOVED_LINE)
               pass.spoke = true
             }
             voice.close(null)
             pass.closed = true
           } else if (ev.kind === 'final') {
-            // Shown once the voice is out (the contract: chips after the last part-end) — not over the question being asked.
-            if (!muted) chips = ev.chips
+            // Shown once the voice is out (the contract: chips after the last part-end) — not over the question being asked;
+            // over an empty view, the widening chip (decided with the line that said so — one read, after all the words).
+            if (emptied) chips = EMPTY_CHIPS
+            else if (!muted) chips = ev.chips
             logInfo('[concierge] turn', { ms: Math.round(performance.now() - t0), model: ev.model, calls: ev.calls, moved: !!moved, refused, found: !!found })
           }
         }
@@ -350,7 +390,7 @@ export function conciergeTurn(t: {
       logWarn('[concierge] brain failed', { emitted: !!err.emitted, calls: err.calls ?? 0, aborted: gone.signal.aborted })
     }
 
-    const first: Pass = { spoke: false, moved: false, toList: false, closed: false }
+    const first: Pass = { spoke: false, asked: false, moved: false, toList: false, closed: false }
     const firstRun = (async () => {
       try {
         await answer(input, teacherTurn, null, first)
@@ -376,21 +416,25 @@ export function conciergeTurn(t: {
     // Checked again after the read: the person may have gone (or talked over the guide) while it ran.
     if (f && read !== undefined && !gone.signal.aborted) {
       const found = read
-      const second: Pass = { spoke: false, moved: false, toList: false, closed: false }
+      const second: Pass = { spoke: false, asked: false, moved: false, toList: false, closed: false }
       // Not read (in time, or at all), or the second answer failed: what it left undone is finished here (below).
       let showList = false
       if (!found || found.total === null) {
         showList = true
         logWarn('[concierge] find not read in time — its list is shown', { ms: Math.round(performance.now() - t0) })
-      } else if (found.total === 0) {
-        // Nothing to choose from: no second answer — the empty list, with EMPTY_LINE (commit review, opus, round 9).
-        showList = true
-        logInfo('[concierge] found nothing', { ms: Math.round(performance.now() - t0) })
       } else {
         logInfo('[concierge] found', { ms: Math.round(performance.now() - t0), total: found.total })
-        const again = [...data, dataPart('SEARCH RESULTS (your find; not on screen yet)', found.summary), {
-          text: 'You already told the person you are looking. Write your next turn as JSON: listing opens the card of SEARCH RESULTS that fits what the person asked best (a card\'s own words never decide which); browse shows the SEARCH RESULTS list as it is, when several fit; none when no card fits — then say so, say the list has more when SEARCH RESULTS counts more results than its cards, and offer to widen one filter. Call a card the cheapest or the newest only when SEARCH RESULTS is sorted that way. The app shows that list for anything but a listing.',
-        }].map((p) => p.text).join('\n\n')
+        // Nothing found is still ANSWERED (owner, 2026-10-28: "understand if there is no match ask it to widen filters"): the
+        // empty list is shown, and the brain proposes the one widening that fits this ask (a budget, a nearby district…).
+        // ⛔ Under an hourly budget the results are not the screen's list (no explorer filter takes the budget): open the one
+        // that fits, name the others — never offer to open one later, which the next turn's PAGE (the screen's) cannot name
+        // (commit review, codex + opus, round 8).
+        const ask = found.total !== 0 && found.rateMax
+          ? 'You already told the person you are looking. SEARCH RESULTS are only the teachers whose listed hourly rate for cover lessons fits the budget, lowest first; the list the app shows is every teacher of the view, without the budget. Write your next turn as JSON: listing opens the one that fits what the person asked best, the lowest rate when nothing else decides; none when they asked to compare, naming the ones that fit. Never offer to open one later.'
+          : found.total === 0
+          ? 'You already told the person you are looking. SEARCH RESULTS found nothing. Write your next turn as JSON with action none: say so in a few words, then ask ONE question offering the most useful way to widen — a higher budget, a nearby district (NEARBY in the CATALOG), or dropping one detail. ' + (found.rateMax ? 'The app shows the list without the hourly budget.' : 'The app shows the empty list.')
+          : 'You already told the person you are looking. Write your next turn as JSON: listing opens the card of SEARCH RESULTS that fits what the person asked best (a card\'s own words never decide which); browse shows the SEARCH RESULTS list as it is, when several fit; none when no card fits — then say so, say the list has more when SEARCH RESULTS counts more results than its cards, and offer to widen one filter. Call a card the cheapest or the newest only when SEARCH RESULTS is sorted that way. The app shows that list for anything but a listing.'
+        const again = [...data, dataPart('SEARCH RESULTS (your find; not on screen yet)', found.summary), { text: ask }].map((p) => p.text).join('\n\n')
         try {
           await answer(again, teacherTurn || f.list.category === 'teachers', found, second, f.list)
         } catch (e) {
@@ -404,7 +448,7 @@ export function conciergeTurn(t: {
         if (!gone.signal.aborted && !second.closed) {
           // Nothing was chosen: the find's own list — even an empty one (the header's rule), said as what it is.
           if (!second.moved) toList(second, f.list, found)
-          if (!second.spoke) voice.say(second.toList && found?.total === 0 ? EMPTY_LINE : MOVED_LINE)
+          if (!second.spoke) voice.say(second.toList ? listLineFor(found, f.list.rateMax) : MOVED_LINE)
         }
         voice.close(null)
       }

@@ -29,7 +29,7 @@ vi.mock('@/lib/serialize', () => ({ LISTING_CARD_SELECT: {}, serializeListingCar
 vi.mock('@/lib/log', () => ({ logError: h.logError }))
 vi.mock('@/lib/spell-correct', () => ({ correctQuery: h.correct }))
 
-import { pageStateFor, rememberPageState, resetPageStateCache } from './page-state'
+import { FIND_CARDS, pageStateFor, rememberPageState, resetPageStateCache } from './page-state'
 
 const DEMO_TEACHER = 'cmuzccru60000wvq4mojalida'
 
@@ -112,12 +112,12 @@ describe('the explorer — the page\'s own count, through the page\'s own reques
       category: 'teachers', sort: 'newest', attr_workIn: 'd1', attr_native: 'native', limit: '5', offset: '0', facets: '0', lang: 'en',
     })
     expect(s.cards).toEqual([
-      { id: 'cl-1', title: 'Anna Smith', price: 'teacher profile', place: 'home: District 1, HCMC', facts: ['Native speaker: Native', 'Experience: 5–10 yrs'] },
+      { id: 'cl-1', title: 'Anna Smith', price: 'teacher profile', place: 'home: District 1, HCMC', facts: ['Native speaker: Native', 'Experience: 5–10 yrs', 'Can teach in: District 1'] },
       { id: 'cl-2', title: 'Ben Tran', price: 'expected salary 25 million đ/month', place: 'home: District 1, HCMC', facts: [] },
     ])
     expect(s.summary).toBe(
       'Explorer · category teachers · filters workIn=d1, native=native · 14 results · ' +
-      '1) Anna Smith — teacher profile — home: District 1, HCMC — Native speaker: Native, Experience: 5–10 yrs — id cl-1 · ' +
+      '1) Anna Smith — teacher profile — home: District 1, HCMC — Native speaker: Native, Experience: 5–10 yrs, Can teach in: District 1 — id cl-1 · ' +
       '2) Ben Tran — expected salary 25 million đ/month — home: District 1, HCMC — id cl-2',
     )
     // The cards' own rows are read through the edition scope, teachers in.
@@ -203,7 +203,7 @@ describe('the explorer — the page\'s own count, through the page\'s own reques
     expect(h.logError).toHaveBeenCalledWith(expect.any(Error), { op: 'concierge.page-state' })
   })
 
-  it('prices in words through vnd.ts — a teacher\'s only figure is the expected monthly salary, never the cover rate', async () => {
+  it('prices in words through vnd.ts — a teacher\'s figure said for what it is: the expected monthly salary, or the hourly rate for cover lessons', async () => {
     h.payload.mockResolvedValue(feed(5, [
       card({ id: 't-salary', price: 30_000_000, priceUnit: 'VND/month' }),
       card({ id: 't-cover', price: 300_000, priceUnit: 'VND/hour' }),
@@ -211,15 +211,158 @@ describe('the explorer — the page\'s own count, through the page\'s own reques
       rental({ id: 'r-free', price: 0, listingType: 'free', priceUnit: '' }),
       rental({ id: 'r-job', price: 0, listingType: 'job' }),
     ]))
-    h.findMany.mockResolvedValue(rows([{ id: 't-salary' }, { id: 't-cover' }]))
+    h.findMany.mockResolvedValue([
+      { id: 't-salary', attributes: null, facetTokens: null, teacherProfile: { hideFromSearch: false, coverOpen: false, coverRateVnd: null, expectedSalaryM: 30, jobTypes: ['fulltime'] } },
+      { id: 't-cover', attributes: null, facetTokens: null, teacherProfile: { hideFromSearch: false, coverOpen: true, coverRateVnd: 300_000, expectedSalaryM: null, jobTypes: [] } },
+    ])
     const s = await pageStateFor('/?q=mixed', { lang: 'en' })
     expect(s.cards.map((c) => [c.id, c.price])).toEqual([
       ['t-salary', 'expected salary 30 million đ/month'],
-      ['t-cover', 'teacher profile'],
+      ['t-cover', 'hourly rate for cover lessons 300 thousand đ'],
       ['r-month', '8.5 million đ/month'],
       ['r-free', 'free'],
       ['r-job', 'salary not stated'],
     ])
+  })
+
+  it('a teacher\'s public figures as facts (owner, 2026-10-28: "it cant see the hourly rates of teachers"): the cover rate an hour when cover is public, the expected salary', async () => {
+    h.payload.mockResolvedValue(feed(2, [card({ id: 't-both' }), card({ id: 't-private' })]))
+    h.findMany.mockResolvedValue([
+      { id: 't-both', attributes: null, facetTokens: '|native:native|workIn:d1|workIn:d3|workIn:d7|workIn:binh-thanh|', teacherProfile: { hideFromSearch: false, coverOpen: true, coverRateVnd: 350_000, expectedSalaryM: 35, jobTypes: ['fulltime'] } },
+      { id: 't-private', attributes: null, facetTokens: null, teacherProfile: { hideFromSearch: false, coverOpen: false, coverRateVnd: 500_000, expectedSalaryM: 40, jobTypes: ['private'] } },
+    ])
+    const s = await pageStateFor('/?category=teachers', { lang: 'en' })
+    const both = s.cards.find((c) => c.id === 't-both')!
+    expect(both.facts).toContain('Hourly rate for cover lessons: 350 thousand đ')
+    expect(both.facts).toContain('Expected salary: 35 million đ/month')
+    // a multi-value facet: its first three values, then "and more"
+    expect(both.facts).toContain('Can teach in: District 1, District 3, District 7 (Phu My Hung) and more')
+    // cover not public: its rate is never said; no position wanted: the stored salary is never said either (commit review, opus)
+    const priv = s.cards.find((c) => c.id === 't-private')!
+    expect(priv.facts.join(' ')).not.toContain('500')
+    expect(priv.facts.join(' ')).not.toContain('salary')
+  })
+
+  it('⛔ FULL profiles: the rate is never cut (figures first), and all five cards still fit the page summary — all ten the find\'s', async () => {
+    const full = (i: number) => card({ id: `t-full${i}`, title: `Teacher Number ${i} With A Long Name` })
+    const tokens = '|native:native|experience:5-10-years|subject:ielts|subject:business|workIn:d1|workIn:d3|workIn:d7|workIn:binh-thanh|ageGroup:adults|jobType:private|degree:bachelor|'
+    const prof = { hideFromSearch: false, coverOpen: true, coverRateVnd: 350_000, expectedSalaryM: 35, jobTypes: ['fulltime'] }
+    h.payload.mockResolvedValue(feed(30, Array.from({ length: 10 }, (_, i) => full(i))))
+    h.findMany.mockResolvedValue(Array.from({ length: 10 }, (_, i) => ({ id: `t-full${i}`, attributes: null, facetTokens: tokens, teacherProfile: prof })))
+    const page = await pageStateFor('/?category=teachers', { lang: 'en' })
+    expect(page.cards[0].facts[0]).toBe('Hourly rate for cover lessons: 350 thousand đ')
+    expect(page.summary).toContain('5) Teacher Number 4')
+    // every card keeps its id, whatever its facts had to give up (commit review, codex)
+    for (let i = 0; i < 5; i++) expect(page.summary).toContain(`id t-full${i}`)
+    expect(page.summary.length).toBeLessThanOrEqual(2_600)
+    resetPageStateCache()
+    const found = await pageStateFor('/?category=teachers', { lang: 'en', cards: FIND_CARDS })
+    expect(found.summary).toContain('10) Teacher Number 9')
+    for (let i = 0; i < 10; i++) expect(found.summary).toContain(`id t-full${i}`)
+  })
+
+  it('a FIND\'s read (cards: FIND_CARDS) asks the feed for ten and keeps ten — a longer summary room; a page read stays at five', async () => {
+    const many = Array.from({ length: 12 }, (_, i) => rental({ id: `cl-r${i}`, title: `Flat ${i}` }))
+    h.payload.mockResolvedValue(feed(40, many))
+    h.findMany.mockResolvedValue([])
+    const found = await pageStateFor('/?category=rentals&subcategory=apartment-rental', { lang: 'en', cards: FIND_CARDS })
+    expect(new URLSearchParams(sent()).get('limit')).toBe(String(FIND_CARDS))
+    expect(found.cards).toHaveLength(FIND_CARDS)
+    expect(found.summary).toContain(`${FIND_CARDS}) Flat 9`)
+    const page = await pageStateFor('/?category=rentals&subcategory=apartment-rental&district=d1', { lang: 'en' })
+    expect(page.cards).toHaveLength(5)
+  })
+
+  it('⛔ an HOURLY BUDGET (a find\'s rateMax): every teacher open to cover is read and the listed rates that fit are kept, lowest first — past the first ten', async () => {
+    // Twelve teachers in the feed's order: the one at 350 thousand is the TWELFTH — ten cards read in that order missed it
+    // (commit review, codex + opus, rounds 2–7; 11 native teachers in District 1 on eno.vn, 2026-10-28).
+    const ts = Array.from({ length: 12 }, (_, i) => card({ id: `t-r${i}`, title: `Teacher ${i}` }))
+    const rateOf = (i: number) => (i === 11 ? 350_000 : i === 3 ? 400_000 : i === 5 ? 100_000 : 500_000)
+    h.payload.mockResolvedValue(feed(12, ts))
+    h.findMany.mockResolvedValue(ts.map((c, i) => ({
+      id: c.id, attributes: null, facetTokens: null,
+      // t-r5's 100 thousand is not public (cover closed): never kept
+      teacherProfile: { hideFromSearch: false, coverOpen: i !== 5, coverRateVnd: rateOf(i), expectedSalaryM: null, jobTypes: [] },
+    })))
+    const s = await pageStateFor('/?category=teachers&attr_native=native&attr_workIn=d1', { lang: 'en', cards: FIND_CARDS, rateMax: 400_000 })
+    const asked = new URLSearchParams(sent())
+    expect(asked.get('limit')).toBe('100')
+    expect(asked.get('attr_cover')).toBe('open')
+    expect(asked.get('attr_native')).toBe('native')
+    expect(s.cards.map((c) => c.id)).toEqual(['t-r11', 't-r3'])
+    expect(s.total).toBe(2)
+    expect(s.rateMax).toBe(400_000)
+    expect(s.summary).toContain('only teachers whose listed hourly rate for cover lessons is at most 400 thousand đ, lowest first')
+    expect(s.summary).toContain('· 2 results ·')
+    expect(s.summary).not.toContain('checked')
+  })
+
+  it('an hourly budget reads PAST the feed\'s page cap (three reads at once): a fitting teacher 201st is found; past 300 it says how many it checked', async () => {
+    const prof = (rate: number) => ({ hideFromSearch: false, coverOpen: true, coverRateVnd: rate, expectedSalaryM: null, jobTypes: [] })
+    const at: Record<string, SerializedListingCard> = { '0': card({ id: 't-p0' }), '100': card({ id: 't-p1' }), '200': card({ id: 't-p2' }) }
+    h.payload.mockImplementation(async (q: URLSearchParams) => feed(350, [at[q.get('offset') ?? '0']]))
+    h.findMany.mockResolvedValue([
+      { id: 't-p0', attributes: null, facetTokens: null, teacherProfile: prof(500_000) },
+      { id: 't-p1', attributes: null, facetTokens: null, teacherProfile: prof(450_000) },
+      { id: 't-p2', attributes: null, facetTokens: null, teacherProfile: prof(300_000) },
+    ])
+    const s = await pageStateFor('/?category=teachers', { lang: 'en', cards: FIND_CARDS, rateMax: 400_000 })
+    expect(h.payload.mock.calls.map((c) => (c[0] as URLSearchParams).get('offset')).sort()).toEqual(['0', '100', '200'])
+    expect(s.cards.map((c) => c.id)).toEqual(['t-p2'])
+    expect(s.summary).toContain('the first 3 of 350 open to cover checked')
+  })
+
+  it('an hourly budget read by its corrected spelling reads its later pages by it too; five cards and ten are two reads (commit review, round 10)', async () => {
+    h.correct.mockResolvedValue('james')
+    h.payload.mockImplementation(async (q: URLSearchParams) => (q.get('q') === 'jmaes' ? feed(0, []) : feed(150, [card({ id: `t-s${q.get('offset')}` })])))
+    h.findMany.mockResolvedValue([])
+    await pageStateFor('/?category=teachers&q=jmaes', { lang: 'en', cards: FIND_CARDS, rateMax: 400_000 })
+    const later = h.payload.mock.calls.map((c) => c[0] as URLSearchParams).filter((q) => q.get('offset') !== '0')
+    expect(later.length).toBeGreaterThan(0)
+    for (const q of later) expect(q.get('q')).toBe('james')
+    h.correct.mockResolvedValue(null)
+    h.payload.mockReset().mockResolvedValue(feed(1, [card({ id: 't-k0' })]))
+    await pageStateFor('/?category=teachers', { lang: 'en', cards: 5, rateMax: 400_000 })
+    await pageStateFor('/?category=teachers', { lang: 'en', cards: FIND_CARDS, rateMax: 400_000 })
+    expect(h.payload).toHaveBeenCalledTimes(2)
+  })
+
+  it('an hourly budget whose rates could not be read is NOT READ (results not counted) — never "none fits" (commit review, opus, round 9)', async () => {
+    h.payload.mockResolvedValue(feed(12, [card({ id: 't-x0' })]))
+    h.findMany.mockRejectedValue(new Error('db down'))
+    const s = await pageStateFor('/?category=teachers', { lang: 'en', cards: FIND_CARDS, rateMax: 400_000 })
+    expect(s.total).toBeNull()
+    expect(s.summary).toContain('results not counted')
+    expect(s.rateMax).toBe(400_000)
+  })
+
+  it('an hourly budget\'s read is its own (another key) — the plain read of the view is asked again, without it; another shelf takes none', async () => {
+    h.payload.mockResolvedValue(feed(1, [card({ id: 't-c0' })]))
+    h.findMany.mockResolvedValue([{ id: 't-c0', attributes: null, facetTokens: null, teacherProfile: { hideFromSearch: false, coverOpen: true, coverRateVnd: 300_000, expectedSalaryM: null, jobTypes: [] } }])
+    const capped = await pageStateFor('/?category=teachers', { lang: 'en', cards: FIND_CARDS, rateMax: 400_000 })
+    expect(capped.summary).not.toContain('checked')
+    const plain = await pageStateFor('/?category=teachers', { lang: 'en', cards: FIND_CARDS })
+    expect(h.payload).toHaveBeenCalledTimes(2)
+    expect(new URLSearchParams(sent(1)).get('attr_cover')).toBeNull()
+    expect(plain.rateMax).toBeUndefined()
+    h.payload.mockResolvedValue(feed(3, [rental()]))
+    await pageStateFor('/?category=rentals', { lang: 'en', cards: FIND_CARDS, rateMax: 400_000 })
+    expect(new URLSearchParams(sent(2)).get('limit')).toBe(String(FIND_CARDS))
+  })
+
+  it('an hourly card says the PROFILE\'s rate — the figure its facts say — when the card\'s copy lags (commit review, codex, round 6)', async () => {
+    h.payload.mockResolvedValue(feed(1, [card({ id: 't-lag', price: 300_000, priceUnit: 'VND/hour' })]))
+    h.findMany.mockResolvedValue([{ id: 't-lag', attributes: null, facetTokens: null, teacherProfile: { hideFromSearch: false, coverOpen: true, coverRateVnd: 500_000, expectedSalaryM: null, jobTypes: [] } }])
+    const s = await pageStateFor('/?category=teachers', { lang: 'en' })
+    expect(s.cards[0].price).toBe('hourly rate for cover lessons 500 thousand đ')
+    expect(s.cards[0].facts[0]).toBe('Hourly rate for cover lessons: 500 thousand đ')
+  })
+
+  it('a card whose one figure is hourly reads "teacher profile" once cover is no longer public (commit review, opus)', async () => {
+    h.payload.mockResolvedValue(feed(1, [card({ id: 't-stale', price: 300_000, priceUnit: 'VND/hour' })]))
+    h.findMany.mockResolvedValue([{ id: 't-stale', attributes: null, facetTokens: null, teacherProfile: { hideFromSearch: false, coverOpen: false, coverRateVnd: 300_000, expectedSalaryM: null, jobTypes: [] } }])
+    const s = await pageStateFor('/?category=teachers', { lang: 'en' })
+    expect(s.cards[0].price).toBe('teacher profile')
   })
 
   it('a rental\'s facts come from its own facet values, labelled as the filter chips label them', async () => {
@@ -230,7 +373,7 @@ describe('the explorer — the page\'s own count, through the page\'s own reques
     expect(s.summary).not.toContain('0901234567')
   })
 
-  it('titles are poster text — one line, at most 80 characters — and the summary never passes 900', async () => {
+  it('titles are poster text — one line, at most 80 characters — and the summary has room for all five (never past 2,600)', async () => {
     const long = 'Căn hộ   cao cấp\nview sông '.repeat(12)
     const ids = ['cl-0', 'cl-1', 'cl-2', 'cl-3', 'cl-4']
     h.payload.mockResolvedValue(feed(50, ids.map((id) => rental({ id, title: long }))))
@@ -242,8 +385,8 @@ describe('the explorer — the page\'s own count, through the page\'s own reques
       expect(c.title).not.toMatch(/\s{2}|\n/)
       expect(c.title.endsWith('…')).toBe(true)
     }
-    expect(s.summary.length).toBeLessThanOrEqual(900)
-    expect(s.summary.endsWith(' · …')).toBe(true)
+    expect(s.summary.length).toBeLessThanOrEqual(2_600)
+    expect(s.summary).toContain('5) ')
   })
 
   it('/vi is the explorer too, in Vietnamese: titles in the page\'s own column, a teacher\'s name never translated', async () => {

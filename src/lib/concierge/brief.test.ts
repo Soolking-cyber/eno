@@ -65,9 +65,15 @@ describe('conciergeInstructions', () => {
 
   it('carries the turn rules, the teacher ladder in its pinned order, the speech rules and the knowledge', () => {
     for (const rule of [
-      'One action that puts the app where it should be now, then at most two short spoken sentences.',
+      // The owner, 2026-10-28: "make it more friendly and short speeched … has to be short with follow up question".
+      'One action that puts the app where it should be now, then ONE short friendly sentence and ONE short question.',
+      'Always end with ONE short question',
+      'never read back the filters, the screen shows them',
+      // "… understand if there is no match ask it to widen filters" — and "think creatively … nearby districts".
+      'ask whether to widen ONE thing: a higher budget, a nearby district (NEARBY in the CATALOG), or dropping one detail',
+      'never say a filter is missing: use the closest real filters',
       'never wait for a full brief',
-      'end with ONE question about the most useful detail still missing',
+
       'mode refine carries over the filters already on PAGE',
       'mode replace starts fresh',
       'The value any removes a filter.',
@@ -80,8 +86,10 @@ describe('conciergeInstructions', () => {
       'English only: your voice cannot speak Vietnamese. When the person speaks Vietnamese, understand it and answer in simple English.',
       'Never read out a phone number, email, chat handle, street address or web address.',
       'Never promise that a listing, person or price is genuine, safe, verified or still available.',
-      '"Showing …" or "I\'ve opened …"',
-      "never call it a lesson price. There is no filter for lesson prices: say the budget for lessons is agreed with the teacher in the chat.",
+      '"I\'ve opened apartments in District 7, have a look."',
+      "never call it a lesson price. There is no filter for lesson prices.",
+      // The owner, 2026-10-28: "it cant see the hourly rates of teachers" — the cards now carry them, said as what they are.
+      'use find with rateMax: SEARCH RESULTS are then the teachers whose listed hourly rate for cover lessons fits, lowest first',
       'Hard rules',
       'Never give a web address other than an eno.vn page.',
     ]) expect(brief, rule).toContain(rule)

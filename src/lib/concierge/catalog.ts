@@ -74,9 +74,45 @@ const TYPE_SPLITS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
   jobs: { job: 'employers hiring', wanted: 'people seeking a job' },
 }
 
+/**
+ * HCMC districts that border each other — or face each other across the river with a bridge between — by the catalog's
+ * own district keys: what the guide offers when a search in one place finds too little (owner, 2026-10-28: "offer nearby
+ * districts if apartment hunting"). Hand-written (the repo has no adjacency data), as PAIRS, so every neighbour is one both
+ * ways; `thu-duc` is the city d2 and d9 are IN, never their neighbour (commit review, opus, round 10: one-way pairs, D7
+ * beside D1). Every key here is a CURATED key (catalog.test.ts).
+ */
+const NEARBY_PAIRS: readonly (readonly [string, string])[] = [
+  ['d1', 'd3'], ['d1', 'd4'], ['d1', 'd5'], ['d1', 'binh-thanh'], ['d1', 'd2'],
+  ['d2', 'binh-thanh'], ['d2', 'd9'], ['d2', 'd7'],
+  ['d3', 'd10'], ['d3', 'phu-nhuan'], ['d3', 'tan-binh'],
+  ['d4', 'd7'], ['d4', 'd8'],
+  ['d5', 'd6'], ['d5', 'd8'], ['d5', 'd10'], ['d5', 'd11'],
+  ['d6', 'd8'], ['d6', 'd11'], ['d6', 'binh-tan'],
+  ['d7', 'd8'], ['d7', 'nha-be'], ['d7', 'binh-chanh'],
+  ['d8', 'binh-chanh'],
+  ['d10', 'd11'], ['d10', 'tan-binh'],
+  ['d11', 'tan-binh'], ['d11', 'tan-phu'],
+  ['d12', 'go-vap'], ['d12', 'tan-binh'], ['d12', 'hoc-mon'],
+  ['binh-thanh', 'phu-nhuan'], ['binh-thanh', 'go-vap'], ['binh-thanh', 'thu-duc'],
+  ['phu-nhuan', 'tan-binh'], ['phu-nhuan', 'go-vap'],
+  ['tan-binh', 'tan-phu'], ['tan-binh', 'go-vap'],
+  ['tan-phu', 'binh-tan'],
+  ['binh-tan', 'binh-chanh'],
+  ['thu-duc', 'd1'], ['thu-duc', 'd7'],
+]
+export const NEARBY_DISTRICTS: Readonly<Record<string, readonly string[]>> = (() => {
+  const near: Record<string, string[]> = {}
+  for (const [a, b] of NEARBY_PAIRS) {
+    ;(near[a] ??= []).push(b)
+    ;(near[b] ??= []).push(a)
+  }
+  return near
+})()
+const NEARBY = `${Object.entries(NEARBY_DISTRICTS).map(([d, n]) => `${d}: ${n.join(', ')}`).join('; ')}; d2 and d9 also widen to thu-duc, the city they are in`
+
 /** One line of reminders where a shelf works unlike the rest. */
 const SHELF_RULES: Readonly<Record<string, string>> = {
-  teachers: 'no priceMin, priceMax, district, province or price sort here: a place is workIn, a budget is salary',
+  teachers: 'no priceMin, priceMax, district, province or price sort here: a place is workIn, a monthly budget is salary; an hourly budget is rateMax, on find only, whole dong an hour (under 400 thousand = rateMax 400000)',
   jobs: 'a place is province (a job names its city, not a district); pay is salary, not priceMin/priceMax',
 }
 
@@ -220,6 +256,6 @@ export function conciergeCatalog(): string {
     HOW_TO_READ,
     KEYS_EVERYWHERE.join('\n'),
     ['CATEGORIES', ...CONCIERGE_CATEGORIES.flatMap(categoryBlock)].join('\n'),
-    ['PLACES', `district keys: ${CURATED.map(districtEntry).join('; ')}`, `province codes: ${provinces.map(provinceEntry).join(', ')}`].join('\n'),
+    ['PLACES', `district keys: ${CURATED.map(districtEntry).join('; ')}`, `NEARBY (to widen a place): ${NEARBY}`, `province codes: ${provinces.map(provinceEntry).join(', ')}`].join('\n'),
   ].join('\n\n')
 }

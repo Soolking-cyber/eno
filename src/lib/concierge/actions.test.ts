@@ -58,6 +58,39 @@ describe('find — the same view as a browse, read instead of opened (turn.ts)',
   })
 })
 
+describe('rateMax — a teacher\'s hourly budget, a find\'s key only (no explorer filter takes it)', () => {
+  const NATIVE_D1 = { native: 'native', workIn: 'd1' }
+  it('a find carries it, whole — never in the href, which is the browse\'s without it', () => {
+    const r = go({ kind: 'find', category: 'teachers', filters: kv({ ...NATIVE_D1, rateMax: '400000' }) })!
+    expect(r.rateMax).toBe(400_000)
+    expect(r.partial).toBeUndefined()
+    expect(r.href).not.toContain('rateMax')
+    expect(parsed(r.href)).toEqual(parsed(go({ kind: 'browse', category: 'teachers', filters: kv(NATIVE_D1) })!.href))
+  })
+
+  it('a browse cannot apply it: partial — the find\'s own list shown again too (its words would claim the budget over every teacher)', () => {
+    expect(go({ kind: 'browse', category: 'teachers', filters: kv({ ...NATIVE_D1, rateMax: '400000' }) })!.partial).toBe(true)
+    const found = explorer('teachers', NATIVE_D1, { rateMax: 400_000 })
+    const again = go({ kind: 'browse', category: 'teachers', filters: kv({ ...NATIVE_D1, rateMax: '400000' }) }, found)!
+    expect(again.partial).toBe(true)
+    expect(again.rateMax).toBeUndefined()
+    // …and "any" removes nothing the screen had: whole
+    expect(go({ kind: 'browse', category: 'teachers', filters: kv({ ...NATIVE_D1, rateMax: 'any' }) }, found)!.partial).toBeUndefined()
+  })
+
+  it('teachers only, whole dong in reach only — as the brain may write it', () => {
+    expect(go({ kind: 'find', category: 'rentals', filters: kv({ rateMax: '400000' }) })!.partial).toBe(true)
+    for (const v of ['400000', '400.000', '400,000', '400 000', '400k', '400K']) {
+      expect(go({ kind: 'find', category: 'teachers', filters: kv({ ...NATIVE_D1, rateMax: v }) })!.rateMax, v).toBe(400_000)
+    }
+    for (const v of ['400', '0', '99000000', 'cheap', '4e5', '400.00']) {
+      const r = go({ kind: 'find', category: 'teachers', filters: kv({ ...NATIVE_D1, rateMax: v }) })!
+      expect(r.rateMax, v).toBeUndefined()
+      expect(r.partial, v).toBe(true)
+    }
+  })
+})
+
 describe('browse — the worked examples of the nav research (nav.md §6)', () => {
   const EXAMPLES: { said: string; action: Partial<ConciergeAction>; url: string }[] = [
     {

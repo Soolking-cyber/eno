@@ -70,6 +70,11 @@ export type PageState = {
   cards: PageCard[]
   /** One compact block for the prompt — data, never instructions. */
   summary: string
+  /**
+   * A FIND read under an hourly budget (whole đ, actions.ts `rateMax`): its cards and total are the teachers whose listed
+   * rate for cover lessons fits, lowest first — not the list the screen shows, so it is never kept as a PAGE.
+   */
+  rateMax?: number
 }
 
 /** A validated action: where the page goes, and how the avatar may describe it. */
@@ -88,4 +93,9 @@ export type ResolvedAction = {
    * shows the rest. ⛔ The model's own words are not said then: they were written for the whole action (review round 3).
    */
   partial?: boolean
+  /**
+   * find on teachers: the person's hourly budget, whole đ. No explorer filter takes it — it is never in `href`: the find's
+   * read keeps the teachers whose listed rate for cover lessons fits (page-state.ts).
+   */
+  rateMax?: number
 }

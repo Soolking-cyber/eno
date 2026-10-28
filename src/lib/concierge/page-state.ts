@@ -47,8 +47,23 @@ import { formatMoneyFull, vndWords } from '@/lib/vnd'
 const PAGE_BUDGET_MS = 800
 /** The cards the page shows first that the model may hear about (types.ts PageState.cards). */
 const CARD_COUNT = 5
+/**
+ * A FIND's read (turn.ts) gives the brain this many cards to choose from, with room for their facts in the summary — five
+ * left a match by rate or by size out of sight (owner, 2026-10-28: "make sure ai has access to all relevant info to help
+ * users find best matches").
+ */
+export const FIND_CARDS = 10
+/**
+ * A find under an hourly budget reads this many teachers open to cover — the feed's own page cap (limit=200 answered 100,
+ * measured 2026-10-28) — and keeps those whose listed rate fits: every one of them on eno.vn today (100 open to cover).
+ */
+const RATE_READ = 100
+/** …in up to three reads at once: a view with more teachers open to cover than that says how many it checked. */
+const RATE_READ_MAX = 300
+const FIND_SUMMARY_MAX = 5_200
 const HREF_MAX = 2_000
-const SUMMARY_MAX = 900
+/** Room for five cards WITH their facts (commit review, codex + opus: at 900 the richer facts left room for two). */
+const SUMMARY_MAX = 2_600
 const TITLE_MAX = 80
 const CACHE_MS = 60_000
 const CACHE_MAX = 200
@@ -60,7 +75,13 @@ const BASE = 'https://page.invalid'
 type Lang = 'en' | 'vi'
 
 /** A listing's own row beyond its card: the facet values its facts are read from, and the teacher's search choice. */
-type RowExtra = { attributes: string | null; facetTokens: string | null; teacherProfile: { hideFromSearch: boolean } | null }
+type RowExtra = { attributes: string | null; facetTokens: string | null; teacherProfile: TeacherExtra | null }
+/** A teacher's public figures beside the card's one price: the cover rate an hour (shown while cover is public) and the
+ *  expected monthly salary (shown on the card of a teacher who wants a position). */
+type TeacherExtra = { hideFromSearch: boolean; coverOpen: boolean; coverRateVnd: number | null; expectedSalaryM: number | null; jobTypes: string[] }
+const TEACHER_EXTRA_SELECT = { hideFromSearch: true, coverOpen: true, coverRateVnd: true, expectedSalaryM: true, jobTypes: true } as const
+/** The salary is shown only for teachers who want a position (profile.ts teacherCardPriceFromSaved's FT_PT). */
+const POSITION_JOB_TYPES: ReadonlySet<string> = new Set(['fulltime', 'parttime'])
 
 /**
  * The explorer's state as it SETTLES after mount — what its request is built from: the URL as `readExplorerUrl` reads it,
@@ -80,8 +101,8 @@ type Plan = { answer: PageState } | { key: string; read: () => Promise<PageState
  * "Page: unknown", a page off the explorer and the listings as its path, and a read that fails or misses `timeoutMs` as
  * what the URL alone says.
  */
-export async function pageStateFor(href: string, opts: { lang: string; timeoutMs?: number }): Promise<PageState> {
-  const plan = planFor(href, opts.lang)
+export async function pageStateFor(href: string, opts: { lang: string; timeoutMs?: number; cards?: number; rateMax?: number }): Promise<PageState> {
+  const plan = planFor(href, opts.lang, Math.min(Math.max(opts.cards ?? CARD_COUNT, 1), FIND_CARDS), opts.rateMax)
   if ('answer' in plan) return plan.answer
   const now = Date.now()
   let pending = fresh(plan.key, now)
@@ -116,7 +137,7 @@ export function resetPageStateCache(): void {
   cache.clear()
 }
 
-function planFor(href: string, lang: string): Plan {
+function planFor(href: string, lang: string, cards = CARD_COUNT, rateMax?: number): Plan {
   const url = pageUrl(href)
   if (!url) return { answer: other('', 'Page: unknown') }
   // The language the page is RENDERED in: `/` and `/vi` pin it (lang-pinned.ts), every other path follows the reader.
@@ -124,12 +145,22 @@ function planFor(href: string, lang: string): Plan {
   const pathOnly = `Page: ${clip(url.pathname, 200)}`
   if (stripViPrefix(url.pathname) === '/') {
     const e = settle(url.search)
-    const params = feedParams(e, pageLang)
+    // An hourly budget (a find's, on teachers): every teacher open to cover the view holds — only they list a rate.
+    if (rateMax && rateMax > 0 && e.url.category === 'teachers') {
+      const params = feedParams(e, pageLang, RATE_READ)
+      params.set('attr_cover', 'open')
+      return {
+        key: `explorer ${params} rateMax ${rateMax} cards ${cards}`,
+        read: () => readExplorer(href, e, params, pageLang, cards, rateMax),
+        meanwhile: explorerState(href, e, null, [], null, null, FIND_SUMMARY_MAX, { max: rateMax }),
+      }
+    }
+    const params = feedParams(e, pageLang, cards)
     return {
       // The request itself is the key: every URL the explorer reads the same way (another param order, a utm tag, a view)
       // is one entry. Its `lang` keeps the two languages' titles apart.
       key: `explorer ${params}`,
-      read: () => readExplorer(href, e, params, pageLang),
+      read: () => readExplorer(href, e, params, pageLang, cards),
       meanwhile: explorerState(href, e, null, [], null),
     }
   }
@@ -186,7 +217,7 @@ function wardOf(provinceCode: string, wardCode: string): AreaGeo | null {
  * `?brand=` triggers. (The explorer's zero-result spelling retry, `spell=1`, lives in route.ts GET, not in
  * buildFeedPayload — readExplorer repeats it.)
  */
-function feedParams(e: Explorer, lang: Lang): URLSearchParams {
+function feedParams(e: Explorer, lang: Lang, cards: number): URLSearchParams {
   const s = e.url
   const p = new URLSearchParams()
   if (s.subcategory !== 'all') p.set('subcategory', s.subcategory)
@@ -218,7 +249,7 @@ function feedParams(e: Explorer, lang: Lang): URLSearchParams {
     if (max) p.set('priceMax', max)
   }
   applyFilterParams(p, s.customFilters, s.category, s.subcategory)
-  p.set('limit', String(CARD_COUNT))
+  p.set('limit', String(cards))
   p.set('offset', '0')
   p.set('facets', '0')
   p.set('lang', lang)
@@ -246,7 +277,7 @@ function catalogFilters(e: Explorer): Record<string, string> {
   return f
 }
 
-async function readExplorer(href: string, e: Explorer, params: URLSearchParams, lang: Lang): Promise<PageState | null> {
+async function readExplorer(href: string, e: Explorer, params: URLSearchParams, lang: Lang, cards: number, rateMax?: number): Promise<PageState | null> {
   try {
     let { body } = await buildFeedPayload(new URLSearchParams(params))
     /**
@@ -255,6 +286,8 @@ async function readExplorer(href: string, e: Explorer, params: URLSearchParams, 
      * the count is the screen's (commit review, codex: "iphnoe" read 0 here and the guide offered to widen a full page).
      */
     let corrected: string | null = null
+    /** The params the rows came from: the corrected spelling's when it answered (a budget's later pages read the same). */
+    let read = params
     const q = params.get('q')?.trim()
     if (body.total === 0 && q && !inferDistrictFromQuery(q)) {
       const fixed = await correctQuery(q)
@@ -265,12 +298,32 @@ async function readExplorer(href: string, e: Explorer, params: URLSearchParams, 
         if (answer.total > 0) {
           body = answer
           corrected = fixed
+          read = retry
         }
       }
     }
-    const rows = Array.isArray(body.listings) ? (body.listings as SerializedListingCard[]).slice(0, CARD_COUNT) : []
     const inferred = typeof body.inferredDistrict === 'string' ? body.inferredDistrict : null
-    return explorerState(href, e, body.total, await describe(rows, lang), inferred, corrected)
+    if (rateMax) {
+      const first = Array.isArray(body.listings) ? (body.listings as SerializedListingCard[]).slice(0, RATE_READ) : []
+      // The rest of the view, past the feed's page cap (commit review, codex + opus, round 8: a fitting teacher 101st was
+      // "not found").
+      const offsets: number[] = []
+      for (let o = RATE_READ; o < Math.min(body.total, RATE_READ_MAX); o += RATE_READ) offsets.push(o)
+      const more = await Promise.all(offsets.map(async (o) => {
+        const page = new URLSearchParams(read)
+        page.set('offset', String(o))
+        const b = (await buildFeedPayload(page)).body
+        return Array.isArray(b.listings) ? (b.listings as SerializedListingCard[]).slice(0, RATE_READ) : []
+      }))
+      const seen = new Set<string>()
+      const all = [first, ...more].flat().filter((r) => !seen.has(r.id) && seen.add(r.id))
+      const rated = await describeByRate(all, lang, rateMax, cards)
+      if (!rated) return null
+      const { told, fitting } = rated
+      return explorerState(href, e, fitting, told, inferred, corrected, FIND_SUMMARY_MAX, { max: rateMax, checked: all.length, of: body.total })
+    }
+    const rows = Array.isArray(body.listings) ? (body.listings as SerializedListingCard[]).slice(0, cards) : []
+    return explorerState(href, e, body.total, await describe(rows, lang), inferred, corrected, cards > CARD_COUNT ? FIND_SUMMARY_MAX : SUMMARY_MAX)
   } catch (err) {
     logError(err, { op: 'concierge.page-state' })
     return null
@@ -281,7 +334,10 @@ async function readExplorer(href: string, e: Explorer, params: URLSearchParams, 
  * `told` is the page's first rows in order — a card, or null for one that is counted but not described — so the summary
  * keeps the screen's numbering ("the second one" is the second card on the screen).
  */
-function explorerState(href: string, e: Explorer, total: number | null, told: (PageCard | null)[], inferredDistrict: string | null, corrected: string | null = null): PageState {
+function explorerState(
+  href: string, e: Explorer, total: number | null, told: (PageCard | null)[], inferredDistrict: string | null, corrected: string | null = null,
+  summaryMax = SUMMARY_MAX, rate?: { max: number; checked?: number; of?: number },
+): PageState {
   const s = e.url
   const filters = catalogFilters(e)
   const parts = ['Explorer', s.category === 'all' ? 'all categories' : `category ${clip(s.category, 40)}`]
@@ -296,6 +352,10 @@ function explorerState(href: string, e: Explorer, total: number | null, told: (P
   const search = s.query.trim()
   if (search) parts.push(`search "${clip(search, 60)}"`)
   if (corrected) parts.push(`nothing found as typed — the screen shows the results for "${clip(corrected, 60)}"`)
+  if (rate) {
+    parts.push(`only teachers whose listed hourly rate for cover lessons is at most ${vndWords(rate.max, 'en')}, lowest first`)
+    if (rate.checked !== undefined && rate.of !== undefined && rate.of > rate.checked) parts.push(`the first ${rate.checked} of ${rate.of} open to cover checked`)
+  }
   parts.push(total === null ? 'results not counted' : `${total} ${total === 1 ? 'result' : 'results'}`)
   const keep: Record<string, string> = {}
   if (s.brand !== 'all') {
@@ -318,7 +378,8 @@ function explorerState(href: string, e: Explorer, total: number | null, told: (P
     keep,
     total,
     cards: told.filter((c): c is PageCard => c !== null),
-    summary: fit([...parts, ...told.map((c, i) => `${i + 1}) ${c ? cardLine(c) : '(not described)'}`)]),
+    ...(rate ? { rateMax: rate.max } : {}),
+    summary: fit([...parts, ...told.map((c, i) => `${i + 1}) ${c ? cardLine(c, Math.floor((summaryMax - parts.join(' · ').length) / Math.max(told.length, 1)) - 8) : '(not described)'}`)], summaryMax),
   }
 }
 
@@ -329,7 +390,7 @@ async function readListing(href: string, id: string, pathOnly: string, lang: Lan
       // ⛔ ONLY A LISTING THE PUBLIC CAN OPEN ON THIS EDITION — live, published, outside eno's own desk on eno.vn — with
       // teachers in (`teachers: true`): a teacher's profile IS a listing page.
       where: await scopedListingWhere({ id, verified: true, status: 'active' }, { teachers: true }),
-      select: { ...LISTING_CARD_SELECT, facetTokens: true, teacherProfile: { select: { hideFromSearch: true } } },
+      select: { ...LISTING_CARD_SELECT, attributes: true, facetTokens: true, teacherProfile: { select: TEACHER_EXTRA_SELECT } },
     })
     if (!row) return other(href, pathOnly)
     const card = serializeListingCard(row)
@@ -345,6 +406,23 @@ async function readListing(href: string, id: string, pathOnly: string, lang: Lan
 }
 
 /** The rows' cards, in order, with null for a row that is counted but never described (`withheld`). */
+/**
+ * Under an hourly budget: the teachers whose cover is public and whose listed rate fits, lowest first — `cards` of them
+ * described — and how many fit. A teacher withheld (`withheld`) is neither described nor counted: it cannot be named.
+ */
+async function describeByRate(rows: SerializedListingCard[], lang: Lang, rateMax: number, cards: number): Promise<{ told: PageCard[]; fitting: number } | null> {
+  const extras = await rowExtras(rows.map((r) => r.id))
+  // Rates not read: NOT READ, never "none fits" — a failed read must not tell a parent to raise the budget (commit review,
+  // opus, round 9).
+  if (extras === null) return null
+  const fit = rows.flatMap((r) => {
+    const extra = extras.get(r.id)
+    const rate = extra?.teacherProfile?.coverOpen === true ? extra.teacherProfile.coverRateVnd : null
+    return withheld(r, extra) || !rate || rate <= 0 || rate > rateMax ? [] : [{ rate, card: pageCard(r, extra, lang) }]
+  }).sort((a, b) => a.rate - b.rate)
+  return { told: fit.slice(0, cards).map((f) => f.card), fitting: fit.length }
+}
+
 async function describe(rows: SerializedListingCard[], lang: Lang): Promise<(PageCard | null)[]> {
   const extras = await rowExtras(rows.map((r) => r.id))
   return rows.map((r) => {
@@ -363,7 +441,7 @@ async function rowExtras(ids: string[]): Promise<Map<string, RowExtra> | null> {
     const rows = await db.listing.findMany({
       // The rows came from the scoped feed; the read is scoped all the same, so it can never describe more than the page.
       where: await scopedListingWhere({ id: { in: ids } }, { teachers: true }),
-      select: { id: true, attributes: true, facetTokens: true, teacherProfile: { select: { hideFromSearch: true } } },
+      select: { id: true, attributes: true, facetTokens: true, teacherProfile: { select: TEACHER_EXTRA_SELECT } },
     })
     return new Map(rows.map((r) => [r.id, r] as const))
   } catch (err) {
@@ -382,11 +460,20 @@ function withheld(card: SerializedListingCard, extra: RowExtra | undefined): boo
 }
 
 function pageCard(card: SerializedListingCard, extra: RowExtra | undefined, lang: Lang): PageCard {
-  return { id: card.id, title: cardTitle(card, lang), price: spokenPrice(card), place: cardPlace(card), facts: cardFacts(card, extra) }
+  return { id: card.id, title: cardTitle(card, lang), price: spokenPrice(card, extra), place: cardPlace(card), facts: cardFacts(card, extra) }
 }
 
 /** One card in the summary; the id is there so a `listing` action can name it (actions take ids from this turn's PAGE). */
-const cardLine = (c: PageCard): string => [c.title, c.price, c.place, c.facts.join(', '), `id ${c.id}`].filter(Boolean).join(' — ')
+const cardLine = (c: PageCard, max = Infinity): string => {
+  const head = [c.title, c.price, c.place].filter(Boolean).join(' — ')
+  const id = `id ${c.id}`
+  // Each card has its share of the summary: its FACTS are trimmed to fit, never its title or its id (commit review, codex:
+  // rich cards past the summary's room were dropped whole — a matching card the brain could not see).
+  const room = max - head.length - id.length - 6
+  const facts = c.facts.join(', ')
+  const said = !facts ? '' : room >= facts.length ? facts : room > 12 ? `${cutText(facts, room - 1).trimEnd()}…` : ''
+  return [head, said, id].filter(Boolean).join(' — ')
+}
 
 /**
  * The title the page prints: a teacher's name as stored (a name is never translated — listing-card.tsx), anything else in
@@ -399,14 +486,24 @@ function cardTitle(card: SerializedListingCard, lang: Lang): string {
 
 /**
  * The card's price as words the voice can say — through vnd.ts, never hand-formatted (root CLAUDE.md "Money").
- * ⛔ A TEACHER'S ONLY FIGURE IS THE EXPECTED MONTHLY SALARY, AND IT SAYS SO: a parent must not hear it as a lesson price
- * (plan §1). The other figure a teacher card can carry is the cover rate an hour (profile.ts teacherCardPriceFromSaved) —
- * cover is a school's arrangement (first-message.ts) — so that card reads "teacher profile", like a card with no figure.
+ * ⛔ A TEACHER'S FIGURES SAY WHAT THEY ARE: the expected MONTHLY salary (a parent must not hear it as a lesson price — plan
+ * §1), or the hourly rate FOR COVER LESSONS (profile.ts teacherCardPriceFromSaved — cover is a school's arrangement,
+ * first-message.ts). Said since 2026-10-28 (owner: "it cant see the hourly rates of teachers"), always named as the cover
+ * rate, with lessons agreed in the chat (brief.ts) — before, that card read "teacher profile". The card's own figure is what
+ * the public card already shows; the facts' copy of it is gated on cover being public.
  */
-function spokenPrice(card: SerializedListingCard): string {
+function spokenPrice(card: SerializedListingCard, extra?: RowExtra): string {
   const unit = priceUnitSuffix(card.priceUnit)
   if (card.listingType === TEACHER_LISTING_TYPE) {
-    return card.price > 0 && unit === 'month' ? `expected salary ${money(card)}/month` : 'teacher profile'
+    if (card.price > 0 && unit === 'month') return `expected salary ${money(card)}/month`
+    // The hourly figure is the cover rate: said only while cover is affirmatively public (commit review, opus + codex) — a
+    // described teacher always has its row here (withheld otherwise) — and as the PROFILE states it, the figure the facts
+    // say too: the card's copy can lag a profile saved since (commit review, codex, round 6).
+    const t = extra?.teacherProfile
+    if (t?.coverOpen === true && t.coverRateVnd && t.coverRateVnd > 0 && card.price > 0 && unit === 'hour') {
+      return `hourly rate for cover lessons ${vndWords(t.coverRateVnd, 'en')}`
+    }
+    return 'teacher profile'
   }
   if (card.price <= 0) return card.listingType === 'job' ? 'salary not stated' : 'free'
   // A partner booking's figure is the lowest ticket; the card says "from" (types.ts isPartnerBooking).
@@ -429,32 +526,57 @@ function cardPlace(card: SerializedListingCard): string {
 }
 
 /**
- * The shelves whose cards show little: their facts come from the row's own facet values — public, they are what the
- * explorer filters on — in the order they are said.
+ * The facts a match depends on, per shelf, from the row's own facet values — public: they are what the explorer filters on
+ * and what the listing shows — in the order they are said (owner, 2026-10-28: "it cant see the hourly rates of teachers and
+ * other info that its blind"). A multi-value facet (where a teacher works, subjects, amenities) gives its first few values.
  */
 const FACT_FACETS: Readonly<Record<string, readonly string[]>> = {
-  teachers: ['native', 'experience'],
-  rentals: ['bedrooms', 'furnishing', 'rentalPeriod'],
-  jobs: ['jobtype', 'workMode'],
+  teachers: ['native', 'experience', 'subject', 'workIn', 'ageGroup', 'jobType', 'degree', 'cert'],
+  rentals: ['bedrooms', 'areaM2', 'furnishing', 'rentalPeriod', 'aptType', 'amenities'],
+  jobs: ['jobtype', 'workMode', 'experience', 'english'],
+  electronics: ['storage', 'ram', 'screenSize', 'warranty'],
+  vehicles: ['bikeType', 'year', 'mileage', 'engineCc', 'transmission'],
+  'furniture-appliances': ['material'],
 }
+/** Facts a card may carry (each clipped), and values a multi-value facet may give. */
+const MAX_FACTS = 7
+const MAX_MULTI = 3
 
-/** Up to three public facts, each labelled the way the filter chips label it (taxonomy.ts), then what the card shows. */
+/**
+ * The card's public facts, each labelled the way the filter chips label it (taxonomy.ts), then what the card shows. A
+ * teacher's figures are said for what they are: the cover rate an hour (for covering a school's class — there is no field
+ * for private-lesson prices), the expected salary a month (for a position).
+ */
 function cardFacts(card: SerializedListingCard, extra: RowExtra | undefined): string[] {
   const facets = facetsFor(card.category.slug, card.subcategorySlug ?? null)
   const bag = attributeBag(extra?.attributes)
   const out: string[] = []
-  for (const key of FACT_FACETS[card.category.slug] ?? []) {
-    const facet = facets.find((f) => f.key === key)
-    const stored = bag?.[key]
-    const value = typeof stored === 'string' || typeof stored === 'number' ? String(stored) : facetValues(extra?.facetTokens, key)[0]
-    if (facet && value) out.push(`${facet.label}: ${facet.options.find((o) => o.value === value)?.label ?? value}`)
+  // ⛔ A teacher's figures and the identity mark FIRST (commit review, codex + opus): after the facets, a full profile's
+  // facts filled MAX_FACTS and its rate was cut — the one fact this was for.
+  const t = extra?.teacherProfile
+  if (card.listingType === TEACHER_LISTING_TYPE && t) {
+    if (t.coverOpen && t.coverRateVnd && t.coverRateVnd > 0) out.push(`Hourly rate for cover lessons: ${vndWords(t.coverRateVnd, 'en')}`)
+    // Only as the profile shows it: for a teacher who wants a position (commit review, opus — read without that check, a
+    // private teacher's stored figure would have been said).
+    if ((t.jobTypes ?? []).some((j) => POSITION_JOB_TYPES.has(j)) && t.expectedSalaryM && t.expectedSalaryM > 0 && t.expectedSalaryM <= 1000) {
+      out.push(`Expected salary: ${vndWords(t.expectedSalaryM * 1_000_000, 'en')}/month`)
+    }
   }
   if (card.identityMark) out.push('Identity verified')
+  for (const key of FACT_FACETS[card.category.slug] ?? []) {
+    const facet = facets.find((f) => f.key === key)
+    if (!facet) continue
+    const stored = bag?.[key]
+    const values = typeof stored === 'string' || typeof stored === 'number' ? [String(stored)] : facetValues(extra?.facetTokens, key)
+    if (!values.length) continue
+    const named = values.slice(0, MAX_MULTI).map((v) => facet.options.find((o) => o.value === v)?.label ?? (facet.range?.unit ? `${v} ${facet.range.unit}` : v))
+    out.push(`${facet.label}: ${named.join(', ')}${values.length > MAX_MULTI ? ' and more' : ''}`)
+  }
   if (card.condition) out.push(`Condition: ${card.condition}`)
   const brand = [card.brandSlug, card.model].filter(Boolean).join(' ')
   if (brand) out.push(`Brand: ${brand}`)
   if (card.goodPrice) out.push('Good price')
-  return out.slice(0, 3).map((f) => clip(f, 60))
+  return out.slice(0, MAX_FACTS).map((f) => clip(f, 90))
 }
 
 function other(href: string, summary: string): PageState {
@@ -470,12 +592,12 @@ function clip(text: string, max: number): string {
   return flat.length > max ? `${cutText(flat, max - 1).trimEnd()}…` : flat
 }
 
-/** The parts joined with " · ", as many whole parts as fit in SUMMARY_MAX characters; "…" says the rest was left out. */
-function fit(parts: string[]): string {
+/** The parts joined with " · ", as many whole parts as fit in `max` characters; "…" says the rest was left out. */
+function fit(parts: string[], max = SUMMARY_MAX): string {
   let out = ''
   for (const part of parts) {
     const next = out ? `${out} · ${part}` : part
-    if (next.length > SUMMARY_MAX - 4) return out ? `${out} · …` : `${cutText(part, SUMMARY_MAX - 1)}…`
+    if (next.length > max - 4) return out ? `${out} · …` : `${cutText(part, max - 1)}…`
     out = next
   }
   return out

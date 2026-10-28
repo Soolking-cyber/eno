@@ -85,6 +85,16 @@ type Sort = (typeof SORTS)[number]
 
 /** `any` drops a filter (types.ts), and so does the explorer's own `all` (applyFilterParams skips it). */
 const isAny = (v: string): boolean => /^(any|all)$/i.test(v.trim())
+
+/** A teacher's hourly budget (catalog SHELF_RULES): a FIND's key only — no explorer filter takes it. */
+const RATE_KEY = 'rateMax'
+/** Its value: whole dong an hour, 10 thousand to 5 million — "400000", "400.000", "400,000", "400 000" or "400k" — or null. */
+function rateMaxOf(raw: string): number | null {
+  const m = /^(\d{1,3}(?:[.,\s]\d{3})+|\d+)\s*(k)?$/i.exec(raw.trim())
+  if (!m) return null
+  const n = Number(m[1].replace(/[.,\s]/g, '')) * (m[2] ? 1000 : 1)
+  return Number.isSafeInteger(n) && n >= 10_000 && n <= 5_000_000 ? n : null
+}
 const isLanguage = (s: string): s is Language => (LANGS as readonly string[]).includes(s)
 
 /** Where an action lands: a concierge category and one of its subcategories ('' = all of it). */
@@ -390,7 +400,21 @@ function resolveBrowse(a: ConciergeAction, page: PageState, variant: string): Re
       if (key !== null && v !== null) put(filters, key, v)
     }
   }
+  let rateMax: number | undefined
   for (const f of a.filters.slice(0, MAX_FILTERS)) {
+    // ⛔ An hourly budget is a FIND's: it reads every teacher of the view and keeps the listed rates that fit (page-state.ts —
+    // commit review, codex + opus: ten cards read in the feed's order missed a match; 11 native teachers in District 1 on
+    // 2026-10-28). On a browse it is a part the screen cannot apply (partial) — the find's own list shown again too: words
+    // written for "within budget" are never said over every teacher (commit review, codex + opus, rounds 8–11).
+    if (f.key.trim() === RATE_KEY && category === 'teachers') {
+      const cap = rateMaxOf(f.value)
+      if (cap !== null && a.kind === 'find') {
+        accepted++
+        rateMax = cap
+      } else if (isAny(f.value)) accepted++
+      else refused++
+      continue
+    }
     const key = actionKey(f.key, view)
     const remove = isAny(f.value)
     const value = key === null || remove ? null : catalogValue(key, f.value, view, 'action')
@@ -443,6 +467,7 @@ function resolveBrowse(a: ConciergeAction, page: PageState, variant: string): Re
     label: browseLabel(survived),
     category,
     ...(refused > 0 ? { partial: true } : {}),
+    ...(rateMax !== undefined ? { rateMax } : {}),
   }
 }
 

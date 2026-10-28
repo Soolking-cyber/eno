@@ -120,7 +120,7 @@ describe('conciergeCatalog', () => {
     expect(workIn[0]).toContain('; any district key; ')
     for (const p of PROVINCE_PLACES) expect(workIn[0]).toContain(`${p.key} ${p.nameEn}`)
     expect(workIn[0]).toMatch(/; online; anywhere$/)
-    expect(block('teachers')).toContain('no priceMin, priceMax, district, province or price sort here: a place is workIn, a budget is salary')
+    expect(block('teachers')).toContain('no priceMin, priceMax, district, province or price sort here: a place is workIn, a monthly budget is salary; an hourly budget is rateMax, on find only, whole dong an hour (under 400 thousand = rateMax 400000)')
     expect(keyLines('teachers', 'native')[0]).toMatch(/: native\|non-native$/)
     expect(keyLines('teachers', 'jobType')[0]).toMatch(/private = regular private lessons.*: fulltime\|parttime\|private$/)
     expect(keyLines('teachers', 'coverSlot')[0]).toContain('<mon|tue|wed|thu|fri|sat|sun>-<am|pm|eve>')
@@ -157,5 +157,27 @@ describe('conciergeCatalog', () => {
     for (const p of VN_PROVINCES) expect(line.split(new RegExp(`(?:: |, )${p.code} `)).length - 1, p.code).toBe(1)
     expect(line).toContain('56 Khanh Hoa (also Nha Trang)')
     expect(line).toContain('91 An Giang (also Phu Quoc)')
+  })
+})
+
+describe('NEARBY_DISTRICTS (owner, 2026-10-28: "offer nearby districts if apartment hunting")', () => {
+  it('names only the catalog\'s own district keys, both sides — and is in the catalog the brain reads', async () => {
+    const { NEARBY_DISTRICTS, conciergeCatalog } = await import('./catalog')
+    const keys = new Set(conciergeCatalog().split('\n').find((l) => l.startsWith('district keys:'))!.replace('district keys: ', '').split('; ').map((x) => x.split(' = ')[0]))
+    for (const [d, near] of Object.entries(NEARBY_DISTRICTS)) {
+      expect(keys.has(d), d).toBe(true)
+      for (const n of near) {
+        expect(keys.has(n), `${d} → ${n}`).toBe(true)
+        // both sides: a neighbour is one both ways (commit review, opus, round 10 — D5 → D1 but not D1 → D5)
+        expect(NEARBY_DISTRICTS[n], `${n} → ${d}`).toContain(d)
+      }
+      expect(new Set(near).size, d).toBe(near.length)
+    }
+    // the city d2 and d9 are IN is never their neighbour; D7 does not border D1
+    expect(NEARBY_DISTRICTS.d2).not.toContain('thu-duc')
+    expect(NEARBY_DISTRICTS.d9).not.toContain('thu-duc')
+    expect(NEARBY_DISTRICTS.d7).not.toContain('d1')
+    expect(conciergeCatalog()).toContain('NEARBY (to widen a place): d1: d3, d4, d5, binh-thanh, d2, thu-duc; ')
+    expect(conciergeCatalog()).toContain('; d2 and d9 also widen to thu-duc, the city they are in')
   })
 })

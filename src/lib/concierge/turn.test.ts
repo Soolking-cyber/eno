@@ -22,7 +22,7 @@ const h = vi.hoisted(() => ({
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('./brain', () => ({ conciergeTurnStream: h.brain }))
-vi.mock('./page-state', () => ({ pageStateFor: h.pageStateFor, rememberPageState: h.remember }))
+vi.mock('./page-state', () => ({ pageStateFor: h.pageStateFor, rememberPageState: h.remember, FIND_CARDS: 10 }))
 vi.mock('@/lib/log', () => ({
   logInfo: (...a: unknown[]) => { h.logs.push(a) },
   logWarn: (...a: unknown[]) => { h.logs.push(a) },
@@ -30,7 +30,7 @@ vi.mock('@/lib/log', () => ({
 }))
 
 vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
-const { conciergeTurn, REFUSED_LINE, MOVED_LINE, EMPTY_LINE, PARTIAL_LINE, LOOKING_LINES, LOOKING_PAD_S, sameView } = await import('./turn')
+const { conciergeTurn, REFUSED_LINE, MOVED_LINE, EMPTY_LINE, EMPTY_AFTER_LINE, EMPTY_CHIPS, RATE_EMPTY_LINE, RATE_FALLBACK_LINE, PARTIAL_LINE, LOOKING_LINES, LOOKING_PAD_S, sameView } = await import('./turn')
 const { NOT_OFFERED_LINE, NO_PAYMENTS_LINE, NO_TRIPS_LINE } = await import('./guards')
 
 // ── fixtures ────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -269,14 +269,45 @@ describe('conciergeTurn — ⛔ a refused action is never announced (PLAN §10 "
 
 // ── zero results ────────────────────────────────────────────────────────────────────────────────────────────────────────
 describe('conciergeTurn — zero results (PLAN §3 "Zero results hybrid")', () => {
-  it('a browse whose new page counts 0: EMPTY_LINE after the model\'s sentences, BEFORE the last part-end', async () => {
+  it('⛔ a browse whose view counts 0 before its first word: the model\'s words (written for cards) are not said — EMPTY_LINE asks, and the chip widens', async () => {
     h.pageStateFor.mockResolvedValue({ ...D1_STATE, total: 0 })
-    brain(action(), say(S1), SPOKEN, final([]))
-    const t = turn()
-    const k = kinds(await collect(t.lines))
-    expect(k).toEqual(['heard', `go:${D1}`, `say:${S1}`, 'pcm:0', 'part-end:0', `say:${EMPTY_LINE}`, 'pcm:1', 'part-end:1', 'part-end:1:last', 'end'])
-    expect(t.voice.asked).toEqual([S1, EMPTY_LINE])
+    brain(action(), say(S1), say(S2), SPOKEN, final(['Native']))
+    const k = kinds(await collect(turn().lines))
+    expect(k).toEqual(['heard', `go:${D1}`, `say:${EMPTY_LINE}`, 'pcm:0', 'part-end:0', 'part-end:0:last', `chips:${EMPTY_CHIPS.join('|')}`, 'end'])
   })
+
+  it('a count of 0 that lands only AFTER the words (it missed its wait): a question said → EMPTY_AFTER_LINE, a statement only → EMPTY_LINE; the chip widens', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    for (const [words, closing] of [[[S1, S2], EMPTY_AFTER_LINE], [[S1], EMPTY_LINE]] as const) {
+      let land!: (s: PageState) => void
+      h.pageStateFor.mockReturnValue(new Promise<PageState>((r) => { land = r }))
+      let next!: () => void
+      const nextP = new Promise<void>((r) => { next = r })
+      brain(action(), ...words.map(say), { waits: nextP }, SPOKEN, final(['Native']))
+      const t = turn()
+      const seen: string[] = []
+      const all = (async () => { for await (const l of t.lines) seen.push(kinds([l])[0]) })()
+      await vi.advanceTimersByTimeAsync(800) // the wait is over: the words go
+      land({ ...D1_STATE, total: 0 })
+      await vi.advanceTimersByTimeAsync(1)
+      next()
+      await vi.advanceTimersByTimeAsync(1)
+      await all
+      for (const w of words) expect(seen).toContain(`say:${w}`)
+      expect(seen).toContain(`say:${closing}`)
+      expect(seen).toContain(`chips:${EMPTY_CHIPS.join('|')}`)
+    }
+  })
+
+
+  it('a browse counted 0 whose model said nothing (the guards dropped it all): EMPTY_LINE asks', async () => {
+    h.pageStateFor.mockResolvedValue({ ...D1_STATE, total: 0 })
+    brain(action(), SPOKEN, final([]))
+    const k = kinds(await collect(turn().lines))
+    expect(k).toContain(`say:${EMPTY_LINE}`)
+  })
+
+
 
   it('a count above 0, an uncounted view (null) or a failed read: nothing added', async () => {
     for (const read of [() => Promise.resolve(D1_STATE), () => Promise.resolve({ ...D1_STATE, total: null }), () => Promise.reject(new Error('db down'))]) {
@@ -345,7 +376,7 @@ describe('conciergeTurn — find (the brain looks, then opens the card that fits
     expect(h.pageStateFor).toHaveBeenCalledTimes(1)
     const [href, opts] = h.pageStateFor.mock.calls[0] as [string, { lang: string; timeoutMs: number }]
     expect(new URL(href, 'https://eno.vn').searchParams.get('attr_furnishing')).toBe('fully')
-    expect(opts).toEqual({ lang: 'en', timeoutMs: 2_000 })
+    expect(opts).toEqual({ lang: 'en', timeoutMs: 2_000, cards: 10 }) // a find reads ten cards to choose from
     expect(h.brain).toHaveBeenCalledTimes(2)
     await t.done
   })
@@ -409,6 +440,49 @@ describe('conciergeTurn — find (the brain looks, then opens the card that fits
     brainAnswers([FIND, SPOKEN, final([])], [action({ kind: 'none', category: '', filters: [] }), say('None of those fit. Want me to raise the budget?'), SPOKEN, final([])])
     await collect(turn({ transcript: SAID }).lines)
     expect(h.remember).toHaveBeenCalledWith(FOUND, { lang: 'en' })
+  })
+
+  it('an hourly budget: the find reads under it (rateMax), and its list is never kept as the next PAGE — the screen shows every teacher', async () => {
+    const HOURLY = action({ kind: 'find', category: 'teachers', filters: [{ key: 'native', value: 'native' }, { key: 'workIn', value: 'd1' }, { key: 'rateMax', value: '400000' }] })
+    const CAPPED: PageState = {
+      ...TEACHERS_PAGE, href: '/?category=teachers&attr_native=native&attr_workIn=d1', total: 1, rateMax: 400_000,
+      summary: `Explorer · category teachers · only teachers whose listed hourly rate for cover lessons is at most 400 thousand đ, lowest first · 1 result · 1) James — hourly rate for cover lessons 350 thousand đ — id ${LISTING_ID}`,
+      cards: [{ id: LISTING_ID, title: 'James', price: 'hourly rate for cover lessons 350 thousand đ', place: 'District 1, HCMC', facts: [] }],
+    }
+    h.pageStateFor.mockResolvedValue(CAPPED)
+    const SHOWN = 'James lists 350 thousand an hour for cover lessons, and lessons are agreed in the chat. Want me to open his profile?'
+    brainAnswers([HOURLY, SPOKEN, final([])], [action({ kind: 'none', category: '', filters: [] }), say(SHOWN), SPOKEN, final([])])
+    const k = kinds(await collect(turn({ transcript: 'a native teacher under 400k an hour in District 1' }).lines))
+    expect(h.pageStateFor).toHaveBeenCalledWith(expect.stringContaining('attr_native=native'), expect.objectContaining({ rateMax: 400_000, cards: 10 }))
+    expect(gos(k)).toHaveLength(1)
+    expect(gos(k)[0]).not.toContain('rateMax')
+    expect(k).toContain(`say:${SHOWN}`)
+    expect(h.remember).not.toHaveBeenCalled()
+  })
+
+  it('under an hourly budget the second answer is told the screen\'s list is not its results — open the one that fits, never offer one later; none fitting and no words: RATE_EMPTY_LINE', async () => {
+    const HOURLY = action({ kind: 'find', category: 'teachers', filters: [{ key: 'native', value: 'native' }, { key: 'rateMax', value: '400000' }] })
+    const CAPPED: PageState = { ...TEACHERS_PAGE, href: '/?category=teachers&attr_native=native', total: 2, rateMax: 400_000, summary: 'x', cards: [] }
+    h.pageStateFor.mockResolvedValue(CAPPED)
+    brainAnswers([HOURLY, SPOKEN, final([])], [action({ kind: 'none', category: '', filters: [] }), SPOKEN, final([])])
+    await collect(turn({ transcript: 'a native teacher under 400k an hour' }).lines)
+    const second = (h.brain.mock.calls[1][1] as { input: string }).input
+    expect(second).toContain('the list the app shows is every teacher of the view, without the budget')
+    expect(second).toContain('Never offer to open one later.')
+    h.brain.mockReset()
+    h.pageStateFor.mockResolvedValue({ ...CAPPED, total: 0 })
+    brainAnswers([HOURLY, SPOKEN, final([])], [action({ kind: 'none', category: '', filters: [] }), SPOKEN, final([])])
+    const k = kinds(await collect(turn({ transcript: 'a native teacher under 400k an hour' }).lines))
+    expect((h.brain.mock.calls[1][1] as { input: string }).input).toContain('The app shows the list without the hourly budget.')
+    expect(k).toContain(`say:${RATE_EMPTY_LINE}`)
+    expect(k).not.toContain(`say:${EMPTY_LINE}`)
+    // not read (in time, or at all): every teacher is on screen — RATE_FALLBACK_LINE, never "Here you go" as if it applied
+    h.brain.mockReset()
+    h.pageStateFor.mockResolvedValue({ ...CAPPED, total: null })
+    brainAnswers([HOURLY, SPOKEN, final([])])
+    const unread = kinds(await collect(turn({ transcript: 'a native teacher under 400k an hour' }).lines))
+    expect(unread).toContain(`say:${RATE_FALLBACK_LINE}`)
+    expect(unread).not.toContain(`say:${MOVED_LINE}`)
   })
 
   it('several fit: the second answer shows the list (browse) — the find\'s own, with its words; kept for the next turn, no second read', async () => {
@@ -579,7 +653,8 @@ describe('conciergeTurn — find (the brain looks, then opens the card that fits
     h.pageStateFor.mockResolvedValue({ ...FOUND, total: 0, cards: [] })
     brainAnswers([FIND, SPOKEN, final([])], [none, SPOKEN, final([])])
     k = kinds(await collect(turn({ transcript: SAID }).lines))
-    expect(h.brain).toHaveBeenCalledTimes(1) // counted 0: no second answer
+    expect(h.brain).toHaveBeenCalledTimes(2) // counted 0: still answered — the brain proposes how to widen
+    expect((h.brain.mock.calls[1][1] as { input: string }).input).toContain('SEARCH RESULTS found nothing')
     expect(gos(k)).toHaveLength(1)
     expect(k).toContain(`say:${EMPTY_LINE}`)
     expect(k).not.toContain(`say:${MOVED_LINE}`)
@@ -704,6 +779,17 @@ describe('conciergeTurn — find (the brain looks, then opens the card that fits
     await t.done
     const firstSignal = h.brain.mock.calls[0][2] as AbortSignal
     await vi.waitFor(() => expect(firstSignal.aborted).toBe(true))
+  })
+
+  it('a find that found nothing, its second answer SPEAKING (its widening question): no EMPTY_LINE beside it — one question, never two', async () => {
+    h.pageStateFor.mockResolvedValue({ ...FOUND, total: 0, cards: [] })
+    const WIDEN = "I couldn't find one in District 1. Want me to try District 3 nearby?"
+    brainAnswers([FIND, SPOKEN, final([])], [action({ kind: 'none', category: '', filters: [] }), say(WIDEN), SPOKEN, final(['District 3'])])
+    const k = kinds(await collect(turn({ transcript: SAID }).lines))
+    expect(k).toContain(`say:${WIDEN}`)
+    expect(k).not.toContain(`say:${EMPTY_LINE}`)
+    expect(gos(k)).toHaveLength(1) // the (empty) list — the next turn widens IT
+    expect(k).toContain('chips:District 3')
   })
 
   it('a WHOLE find that opens a card: no PARTIAL_LINE', async () => {
