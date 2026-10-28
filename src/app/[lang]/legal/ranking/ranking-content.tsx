@@ -172,7 +172,7 @@ export function RankingContent({ diversityWindow }: { diversityWindow: number })
 
       <ContentSection id="diversity" title="Seller diversity" titleVi="Đa dạng người bán">
         {/* src/lib/feed-diversity.ts: FEED_DIVERSITY_WINDOW, SHARED_SEAT_SUBCATEGORIES, SHARED_SEAT_SELLERS.
-            ⚠️ "the rotation itself hides nothing" (2026-10-28), no longer "nothing is hidden": the home page leaves
+            ⚠️ "the rotation itself hides nothing" (2026-10-29), no longer "nothing is hidden": the home page leaves
             partner-link listings out before the rotation (#home above), and the old words would deny that. */}
         <p>
           {tr(

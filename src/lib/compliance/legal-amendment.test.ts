@@ -126,7 +126,7 @@ describe('legal-amendment', () => {
     // Two amendments, two records, and neither carries the other's dates: the Terms' version 3 (07/10/2026) did not
     // move this record, and version 4 does not move the Terms'.
     it('is not the Terms’ record, and neither moved the other', () => {
-      expect(REGULATIONS_AMENDMENT).toEqual({ published: '2026-10-28', inForce: '2026-10-28', immediate: true })
+      expect(REGULATIONS_AMENDMENT).toEqual({ published: '2026-10-29', inForce: '2026-10-29', immediate: true })
       expect(LEGAL_AMENDMENT).toEqual({ published: '2026-10-07', inForce: '2026-10-07', immediate: true })
       expect(REGULATIONS_AMENDMENT.published > LEGAL_AMENDMENT.published).toBe(true)
     })
@@ -157,7 +157,7 @@ describe('legal-amendment', () => {
 
     it('moves neither the Terms’ runtime switch nor the Quy chế’s record', () => {
       expect(LEGAL_AMENDMENT).toEqual({ published: '2026-10-07', inForce: '2026-10-07', immediate: true })
-      expect(REGULATIONS_AMENDMENT).toEqual({ published: '2026-10-28', inForce: '2026-10-28', immediate: true })
+      expect(REGULATIONS_AMENDMENT).toEqual({ published: '2026-10-29', inForce: '2026-10-29', immediate: true })
     })
 
     // A closed list, like LEGAL_AMENDMENT's: a new reader is a decision about which amendment dates it.

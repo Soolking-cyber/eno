@@ -814,7 +814,7 @@ describe('/legal/ranking', () => {
     expect(text(await ranking('vi'))).toContain(`Cập nhật lần cuối: ${dateVi(RANKING_DISCLOSURE_UPDATED)}`)
   })
 
-  // ⛔ ONE DATE FOR ONE DEPLOY (2026-10-28, as on 2026-10-05 for version 3): the home page's in-app rule reaches this
+  // ⛔ ONE DATE FOR ONE DEPLOY (2026-10-29, as on 2026-10-05 for version 3): the home page's in-app rule reaches this
   // page (#home) and Quy chế Article 14 together, so the page's date IS the Quy chế amendment's — the placeholder the
   // deployer sets once, held by the deploy gate. Only while version 4 is current: a later Quy chế amendment must not
   // re-date this page.
@@ -864,7 +864,7 @@ describe('/legal/ranking', () => {
       ['kết quả là các món hàng đang được đăng bán', 'kết quả là các món hàng đang được đăng bán'],
       ['tin cho thuê xe dẫn từ các nền tảng, cửa hàng cho thuê xe', 'tin cho thuê xe dẫn từ các nền tảng và cửa hàng cho thuê xe'],
       ['ít nhất hai trong bốn tin đầu tiên và bốn trong mười hai tin đầu tiên là đồ đã qua sử dụng đang được đăng bán', 'ít nhất hai trong bốn vị trí đầu tiên và ít nhất bốn trong mười hai vị trí đầu tiên là đồ đã qua sử dụng đang được đăng bán'],
-      // Version 4 (2026-10-28): the home page's in-app rule, its four surfaces, and the trail it leaves alone.
+      // Version 4 (2026-10-29): the home page's in-app rule, its four surfaces, and the trail it leaves alone.
       ['mục “Doanh nghiệp nổi bật”, các mục theo danh mục và mục “Dành cho bạn” ở mọi nơi mục này xuất hiện', 'mục “Doanh nghiệp nổi bật” và các mục tin theo từng danh mục ở trang chủ, cùng mục “Dành cho bạn” ở mọi nơi mục này xuất hiện'],
       ['không gồm các tin có nút dẫn bạn sang một trang web khác', 'tin đăng có nút dẫn người sử dụng sang một trang web khác'],
       ['được đặt chỗ hoặc mua trên trang web riêng của đối tác', 'được đặt chỗ hoặc mua trên trang web riêng của đối tác'],
@@ -958,7 +958,7 @@ describe('version 2 of the Quy chế, archived (/regulations/v2)', () => {
   })
 })
 
-// ⛔ THE QUY CHẾ'S VERSION 3 — in force from 05/10/2026 until version 4 (2026-10-28, Article 14's home-page rule).
+// ⛔ THE QUY CHẾ'S VERSION 3 — in force from 05/10/2026 until version 4 (2026-10-29, Article 14's home-page rule).
 // Archived verbatim (regulations/v3/page.tsx header), permanently, on both editions: the Terms accepted in that
 // period incorporate it, and Article 15 promises every version in force stays published.
 describe('version 3 of the Quy chế, archived (/regulations/v3)', () => {

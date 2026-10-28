@@ -36,7 +36,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  *
  * ⚠️ AMENDED THREE TIMES IN 2026-10 — Article 17 is the change log, and every amendment adds a dated entry there.
  * Version 2 (01/10/2026, with the Terms), version 3 (05/10/2026, a Quy chế-only amendment of Article 14) and
- * version 4 (2026-10-28, Article 14 again: the home page shows only listings contacted through the platform) were all
+ * version 4 (2026-10-29, Article 14 again: the home page shows only listings contacted through the platform) were all
  * owner-decided exceptions (`immediate`): published and in force the same day, no notice window, no
  * announcement. The dates come from src/lib/compliance/legal-amendment.ts — version 4's from
  * REGULATIONS_AMENDMENT (META directly, its Article 17 entry through legal-archive.ts V3_SUPERSEDED),
@@ -758,7 +758,7 @@ const ARTICLES: Article[] = [
         en: `Users can choose a different ordering themselves — newest, price ascending, price descending — and can filter by category, area, price range and other attributes; where the user has chosen, that choice is applied instead of the default ordering.`,
       },
       {
-        // ⚠️ VERSION 4 (2026-10-28): "the interleaving hides no listing", not "no listing is hidden" — the home page now
+        // ⚠️ VERSION 4 (2026-10-29): "the interleaving hides no listing", not "no listing is hidden" — the home page now
         // leaves partner-link listings out (the paragraph after For You), and the old words would deny that.
         // ⚠️ VERSION 3 (2026-10-05) ADDED THE VEHICLE-RENTAL SEAT AND THE MEMBERS' OWN SEAT. "Members' own job
         // posts and vehicle rentals", NOT "members' own listings" at large: the eSIM seat is keyed by AISLE

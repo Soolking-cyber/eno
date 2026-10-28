@@ -125,14 +125,14 @@ export const LEGAL_AMENDMENT: LegalAmendment = {
  * currently say no home-page listing is hidden … When should it take effect?" → "Immediately (Recommended)" — in force
  * the day it is deployed, no notice banner, the 5 Oct and 15 Oct precedents). In force the day it is published, no
  * notice window, no strip, no bell notice. Scoped to THIS amendment — do not copy the flag forward.
- * ⛔ 2026-10-28 IS THE DAY IT IS MEANT TO SHIP, NOT YET A FACT: `published` must be the day it actually deploys
+ * ⛔ 2026-10-29 IS THE DAY IT IS MEANT TO SHIP (re-dated from 2026-10-28, which passed undeployed), NOT YET A FACT: `published` must be the day it actually deploys
  * (Vietnam time). If that is another day, the deployer re-dates BOTH — to the same day, because it is immediate — in
  * the commit that ships it, and runs the deploy with LEGAL_AMENDMENT_IMMEDIATE=<that day>; the deploy gate
  * (legal-amendment-gate.sh) refuses any other day and any deploy without that ack.
  */
 export const REGULATIONS_AMENDMENT: LegalAmendment = {
-  published: '2026-10-28',
-  inForce: '2026-10-28',
+  published: '2026-10-29',
+  inForce: '2026-10-29',
   immediate: true,
 }
 

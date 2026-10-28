@@ -159,7 +159,7 @@ describe('legal-amendment-gate.sh', () => {
     }
   })
 
-  // ⛔ THE STATE THE NEXT DEPLOY MEETS (2026-10-28): the box's deployed commit carries the Quy chế's version 3
+  // ⛔ THE STATE THE NEXT DEPLOY MEETS (2026-10-29): the box's deployed commit carries the Quy chế's version 3
   // (immediate, 05/10 — prod since 2cd70d7e2) and every other record as the working tree has it; the working tree is
   // the real module — the Quy chế's version 4, IMMEDIATE (owner, 2026-10-28: "Immediately (Recommended)"). So the
   // Terms' and /prohibited's records are routine, and version 4 publishes on its own day ONLY with the owner's

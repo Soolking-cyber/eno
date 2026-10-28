@@ -39,7 +39,7 @@ describe('legal archive', () => {
     expect(existsSync(pageFile('regulations', V2))).toBe(true)
   })
 
-  // The Quy chế's version 4 (2026-10-28 — Article 14's home-page rule) replaced version 3: the text in force from
+  // The Quy chế's version 4 (2026-10-29 — Article 14's home-page rule) replaced version 3: the text in force from
   // 05/10/2026 until that day, which the Terms accepted in the period incorporate.
   it('keeps the Quy chế’s version 3 published, permanently — the Terms accepted from 05/10/2026 incorporate it', () => {
     expect(V3).toBe('3')
@@ -101,7 +101,7 @@ describe('legal archive', () => {
     }
   })
 
-  // ⛔ Since version 4 re-used the record (2026-10-28): version 3's real dates, typed once.
+  // ⛔ Since version 4 re-used the record (2026-10-29): version 3's real dates, typed once.
   it('types the Quy chế’s version 3’s real dates — published and in force 05/10/2026 — now that REGULATIONS_AMENDMENT moved on', () => {
     expect(V2_SUPERSEDED_BY).toEqual({ version: '3', published: '2026-10-05', inForce: '2026-10-05' })
     expect(REGULATIONS_AMENDMENT.published).not.toBe(V2_SUPERSEDED_BY.published)

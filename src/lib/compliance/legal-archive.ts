@@ -15,7 +15,7 @@
 // src/app/[lang]/regulations/v2 existed then. It stays published permanently too: the Terms accepted from
 // 01/10/2026 incorporate the Quy chế as it then stood, and Article 15 says every text in force is published.
 //
-// ⚠️ THE QUY CHẾ'S VERSION 3 IS ARCHIVED SINCE ITS VERSION 4 (2026-10-28 — Article 14's home-page rule: the home page
+// ⚠️ THE QUY CHẾ'S VERSION 3 IS ARCHIVED SINCE ITS VERSION 4 (2026-10-29 — Article 14's home-page rule: the home page
 // shows only listings contacted through the platform; a Quy chế-only amendment, IMMEDIATE by the owner's decision —
 // REGULATIONS_AMENDMENT): src/app/[lang]/regulations/v3 — the text in force from 05/10/2026 until that day, which the
 // Terms accepted in the period incorporate. Permanently, like the others.
@@ -38,7 +38,7 @@
 //     entry, the version-2 note in /terms' change log — so those read V1_SUPERSEDED now (/prohibited did too,
 //     until its own amendment of 2026-10-14 — PROHIBITED_AMENDMENT dates it since);
 //   · TERMS_V2_SUPERSEDED_BY borrows LEGAL_AMENDMENT while TOS_VERSION is '3';
-//   · V2_SUPERSEDED_BY — LITERALS since the Quy chế's version 4 re-used REGULATIONS_AMENDMENT (2026-10-28): version
+//   · V2_SUPERSEDED_BY — LITERALS since the Quy chế's version 4 re-used REGULATIONS_AMENDMENT (2026-10-29): version
 //     3's real dates, published and in force 05/10/2026 (immediate). They also date version 3's Article 17 entry on
 //     the live page and in the v3 archive;
 //   · V3_SUPERSEDED_BY borrows REGULATIONS_AMENDMENT while REGULATIONS_VERSION is '4'.
