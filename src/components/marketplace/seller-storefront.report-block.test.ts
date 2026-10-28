@@ -25,6 +25,7 @@ vi.mock('@/lib/translate', async (orig) => ({ ...(await orig<typeof import('@/li
 vi.mock('@/lib/serialize', async (orig) => ({ ...(await orig<typeof import('@/lib/serialize')>()), serializeListing: (r: unknown) => r }))
 vi.mock('@/lib/visa-shop', async (orig) => ({ ...(await orig<typeof import('@/lib/visa-shop')>()), getVisaShopSeller: async () => null }))
 vi.mock('@/lib/enforcement', async (orig) => ({ ...(await orig<typeof import('@/lib/enforcement')>()), getEnforcement: async () => null }))
+vi.mock('@/lib/user-blocks', () => ({ isShopOnlyBlock: async (ownerId: string | null) => !ownerId }))
 vi.mock('@/lib/storefront', async (orig) => ({ ...(await orig<typeof import('@/lib/storefront')>()), shopShareUrl: async (handle: string) => `https://${handle}.eno.vn` }))
 
 import { SellerStorefront } from './seller-storefront'
@@ -60,11 +61,13 @@ beforeEach(() => {
   h.seller = shop()
 })
 
-describe('SellerStorefront — Report on every storefront, Block on a shop a person runs', () => {
-  it('a handle-less, ownerless linked shop with nothing to chat about still shows "Report this seller", and no Block', async () => {
+describe('SellerStorefront — Report and Block on every storefront', () => {
+  it('⛔ a handle-less, ownerless linked shop still shows "Report this seller" — AND Block, as a shop (App Store 1.2, 2026-10-28)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
     const all = await render('cm-tiki')
+    vi.unstubAllEnvs()
     expect(find(all, ReportButton).map(({ el }) => el.props)).toEqual([{ sellerId: 'cm-tiki' }])
-    expect(find(all, BlockUserButton)).toEqual([])
+    expect(find(all, BlockUserButton).map(({ el }) => el.props)).toEqual([{ sellerId: 'cm-tiki', shopOnly: true, name: 'Tiki' }])
   })
 
   it('a shop a person runs: Report, then Block, together at the end of the row', async () => {
@@ -76,7 +79,7 @@ describe('SellerStorefront — Report on every storefront, Block on a shop a per
     const [report] = find(all, ReportButton)
     const [block] = find(all, BlockUserButton)
     expect(report.el.props).toEqual({ sellerId: 'cm-lan' })
-    expect(block.el.props).toEqual({ sellerId: 'cm-lan', name: "Lan's shop" })
+    expect(block.el.props).toEqual({ sellerId: 'cm-lan', shopOnly: false, name: "Lan's shop" })
     expect(block.parent).toBe(report.parent)
     expect((report.parent!.props.children as unknown[]).filter(isEl).map((e) => e.type)).toEqual([ReportButton, BlockUserButton])
   })

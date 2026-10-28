@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * REPORT AND BLOCK ON THE STOREFRONT A HANDLE REACHES (App Store Guideline 1.2; audit 1.5, 2026-10-06).
  * eno.vn/<handle> renders this page in place, so it is where a /sellers/<id> link lands — and it drew the
  * seller card and Share with no Report and no Block. Pinned: both sit in Share's column on the canonical
- * host (its `www` alias too); Block only on a shop a person runs; neither on the shop's own host, where
+ * host (its `www` alias too); Block on every shop (an imported one is blocked as a shop); neither on the shop's own host, where
  * proxy.ts refuses the write (the reason chat is a cross-host link there).
  * The page is CALLED and the element tree it returns is walked, never rendered: the data are stubs, and
  * every UI stub carries its export's name, so an element says which component it is.
@@ -33,6 +33,8 @@ vi.mock('@/components/marketplace/seller-storefront', () => ({
   OTHER_LISTINGS: 24,
 }))
 vi.mock('@/lib/visa-shop', () => ({ getVisaShopSeller: async () => null }))
+// Who a Block reaches (the dialog's words only): the shop itself when nobody blockable runs it.
+vi.mock('@/lib/user-blocks', () => ({ isShopOnlyBlock: async (ownerId: string | null) => !ownerId }))
 vi.mock('next/headers', () => ({ headers: async () => new Headers({ host: h.host }) }))
 vi.mock('@/lib/serialize', () => ({ serializeListingCard: (r: unknown) => r, safeParse: () => [], LISTING_CARD_SELECT: {} }))
 vi.mock('@/lib/translate', () => ({ localizeListingTitles: async (rows: unknown[]) => rows }))
@@ -88,18 +90,20 @@ describe('/s/<handle> (eno.vn/<handle> in place) — Report and Block beside Sha
     const reports = find(all, 'ReportButton')
     const blocks = find(all, 'BlockUserButton')
     expect(reports.map(({ el }) => el.props)).toEqual([{ sellerId: 'seller-1' }])
-    expect(blocks.map(({ el }) => el.props)).toEqual([{ sellerId: 'seller-1', name: 'VinWonders' }])
+    expect(blocks.map(({ el }) => el.props)).toEqual([{ sellerId: 'seller-1', shopOnly: false, name: 'VinWonders' }])
     const column = share.parent!
     expect(reports[0].parent).toBe(column)
     expect(blocks[0].parent).toBe(column)
     expect((column.props.children as unknown[]).filter(isEl).map(nameOf)).toEqual(['ShareButton', 'ReportButton', 'BlockUserButton'])
   })
 
-  it('an ownerless (imported) shop: Report, and no Block — there is nobody to block', async () => {
+  it('⛔ an ownerless (imported) shop: Report AND Block — blocked as a shop (App Store 1.2 rejection, 2026-10-28)', async () => {
     h.ownerId = null
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
     const all = await render()
     expect(find(all, 'ReportButton').map(({ el }) => el.props)).toEqual([{ sellerId: 'seller-1' }])
-    expect(find(all, 'BlockUserButton')).toEqual([])
+    expect(find(all, 'BlockUserButton').map(({ el }) => el.props)).toEqual([{ sellerId: 'seller-1', shopOnly: true, name: 'VinWonders' }])
+    vi.unstubAllEnvs()
   })
 
   it("on the shop's own host: Share only — a write from there is refused (proxy.ts)", async () => {

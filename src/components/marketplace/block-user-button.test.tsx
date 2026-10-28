@@ -92,6 +92,23 @@ describe('BlockUserButton', () => {
     expect(hidden.synced).toEqual([])
   })
 
+  it('on a page whose content the block swaps for the notice, the reader is brought up to it', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ blocked: true }) })
+    const scrollTo = vi.fn()
+    vi.stubGlobal('scrollTo', scrollTo)
+    const notice = document.createElement('div')
+    notice.setAttribute('data-sid-notice', 's1')
+    document.body.appendChild(notice)
+    mount({ sellerId: 's1', listingId: 'l1', name: 'Lan' })
+    fireEvent.click(screen.getByRole('button', { name: /Block/ }))
+    await screen.findByRole('alertdialog')
+    await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'Block' }).at(-1)!) })
+    await vi.waitFor(() => expect(toastSuccess).toHaveBeenCalled())
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0 })
+    notice.remove()
+  })
+
   it('a shop nobody blockable runs: the dialog promises only what a shop block does', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
     fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ blocked: true }) })

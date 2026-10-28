@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { Ban } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
+import { localizedHref } from '@/lib/lang-pinned'
+import { variantOfLanguage } from '@/lib/lang-variant'
 import { cn } from '@/lib/utils'
 
 /**
@@ -14,7 +16,7 @@ import { cn } from '@/lib/utils'
  * The way back is Settings › Privacy, where the block can be undone.
  */
 export function BlockedSellerNotice({ sellerId, kind, className }: { sellerId: string; kind: 'listing' | 'shop'; className?: string }) {
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   return (
     // role="main": the page's own <main> is display:none while this shows, so this stands in as the one main landmark
     // (opus, review); at rest it is display:none itself, so exactly one is ever exposed.
@@ -31,7 +33,7 @@ export function BlockedSellerNotice({ sellerId, kind, className }: { sellerId: s
           )}
         </p>
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 pt-1 text-sm font-semibold">
-          <Link href="/" className="text-accent-foreground hover:underline">{tr('Back to browsing', 'Quay lại trang chủ')}</Link>
+          <Link href={localizedHref('/', variantOfLanguage(lang))} className="text-accent-foreground hover:underline">{tr('Back to browsing', 'Quay lại trang chủ')}</Link>
           <Link href="/dashboard/settings?tab=privacy" className="text-accent-foreground hover:underline">{tr('Manage blocked users', 'Quản lý người đã chặn')}</Link>
         </div>
       </div>

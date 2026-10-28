@@ -88,6 +88,12 @@ export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly 
       if (uid && hiddenSellersOwner() === uid) {
         if (sellerId) hideSellerNow(sellerId, uid)
         void syncHiddenSellers(uid)
+        // On the listing page or storefront the content is now swapped for "You blocked this seller" at the TOP of a page
+        // that just lost its body — bring the reader to it, or they are left looking at the footer (preview, 2026-10-29).
+        // No selector built from the id (nothing to escape, nothing that can throw after the block has succeeded).
+        if (sellerId && [...document.querySelectorAll('[data-sid-notice]')].some((el) => el.getAttribute('data-sid-notice') === sellerId)) {
+          window.scrollTo({ top: 0 })
+        }
       }
       // ⚠️ Only a block made on a SHOP's page promises its listings go (opus, review): one made in a chat hides the
       // thread's shop only when the viewer was the buyer there, so its words promise the chat, not the listings.
