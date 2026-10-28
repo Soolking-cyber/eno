@@ -81,7 +81,7 @@ export function isQuiet(now: Date): boolean {
  * teacher has since overruled by switching back on must not switch them off again (opus, gate 3a). Only teachers whose
  * switch is ON are read; 60 days back at most (a run is every 30 minutes — a backlog that old is an outage, not a reply).
  */
-async function processStops(operatorId: string, now: Date): Promise<{ n: number; pending: Set<string>; failed: number; paused: number; lapsed: number }> {
+export async function processStops(operatorId: string, now: Date): Promise<{ n: number; pending: Set<string>; failed: number; paused: number; lapsed: number }> {
   const rows = await db.$queryRaw<{ conversationId: string; teacher: string; body: string; at: Date; paused: boolean }[]>`
     select m."conversationId", c."buyerProfileId"::text as teacher, m.body, m."createdAt" as at, (k."pausedAt" is not null) as paused
       from "Message" m
@@ -461,15 +461,26 @@ export async function runJobDms(opts: { dryRun: boolean; now?: Date }): Promise<
   // Held 20 minutes at most: a run that died leaves no lock behind for longer. The value is
   // this run's own token, and only its owner releases it (codex + opus, gate 3d: a run past the TTL must not delete the
   // NEXT run's lock). A store that cannot be reached is a failure the route reports — never a quiet "busy".
-  const token = `${now.toISOString()}#${Math.random().toString(36).slice(2)}`
-  let won: 'OK' | null
-  // TTL 20 minutes, past the route's 15-minute maxDuration: no live run outlasts its lock (codex, gate 3e).
-  try { won = await kv.set(RUN_LOCK_KEY, token, { nx: true, ex: 1200 }) } catch { return { ...res, stopped: 'lock-error', failed: 1 } }
-  if (won !== 'OK') return { ...res, stopped: 'busy' }
+  let release: (() => Promise<void>) | null
+  try { release = await takeJobDmsRunLock(now) } catch { return { ...res, stopped: 'lock-error', failed: 1 } }
+  if (!release) return { ...res, stopped: 'busy' }
   try {
     return await runOnce(opts, now, mode, write, res)
   } finally {
-    // Compare-and-delete in one statement (opus, gate 3e: a get then a del could delete a successor's lock).
+    await release()
+  }
+}
+
+/**
+ * The run lock — for this run and for any other desk job that must never overlap it (the one-time cover-Zalo invite,
+ * src/lib/teachers/zalo-invite.ts, reads replies and sends in the same threads). Null = another holds it; throws when the
+ * store cannot be reached. The release is a compare-and-delete in one statement (opus, gate 3e: a get then a del could
+ * delete a successor's lock); TTL 20 minutes, past the routes' 15-minute maxDuration (codex, gate 3e).
+ */
+export async function takeJobDmsRunLock(now: Date): Promise<(() => Promise<void>) | null> {
+  const token = `${now.toISOString()}#${Math.random().toString(36).slice(2)}`
+  if ((await kv.set(RUN_LOCK_KEY, token, { nx: true, ex: 1200 })) !== 'OK') return null
+  return async () => {
     try { await db.$executeRaw`delete from kv_store where key = ${RUN_LOCK_KEY} and value = to_jsonb(${token}::text)` } catch { /* the TTL frees it */ }
   }
 }

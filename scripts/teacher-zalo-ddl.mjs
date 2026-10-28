@@ -72,9 +72,12 @@ export const SHAPE = [
   'TeacherZaloReveal:viewerName:text::NO:NULL',
   'TeacherZaloReveal:viewerProfileId:uuid::YES:NULL',
 ]
+// Its own four columns BY NAME (2026-10-29): `coverZalo%` also matched teacher-cover-zalo-invite-ddl.mjs's coverZaloInvitedAt,
+// and a re-run after that one would have refused a database it had made.
 const SHAPE_SQL = `SELECT table_name || ':' || column_name || ':' || data_type || ':' || coalesce(datetime_precision::text, '') || ':' || is_nullable || ':' || coalesce(column_default, 'NULL') AS s
   FROM information_schema.columns
-  WHERE table_schema = 'public' AND ((table_name = 'TeacherPrivate' AND column_name LIKE 'coverZalo%') OR table_name = 'TeacherZaloReveal')
+  WHERE table_schema = 'public' AND ((table_name = 'TeacherPrivate' AND column_name IN ('coverZalo', 'coverZaloAt', 'coverZaloVersion', 'coverZaloWithdrawnAt'))
+    OR table_name = 'TeacherZaloReveal')
   ORDER BY 1`
 /**
  * The indexes and keys the ledger's rules stand on (the unique key IS "never counted or rung twice") — name, unique, and

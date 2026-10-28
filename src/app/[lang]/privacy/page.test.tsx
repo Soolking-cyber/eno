@@ -704,6 +704,21 @@ describe('/privacy — Zalo for urgent cover', () => {
 })
 
 /**
+ * THE ONE-TIME ZALO INVITE (owner, 2026-10-29 — src/lib/teachers/zalo-invite.ts): told once, where, that it counts toward
+ * "two until you reply", never while paused, and the time kept and downloadable — at the end of "Job messages for teachers".
+ */
+describe('/privacy — the one-time Zalo invite', () => {
+  it('both editions, both languages', async () => {
+    for (const site of ['marketplace', 'services'] as const) {
+      expect(await policy(site), site).toContain('And once, if your cover lessons are on and you have never given a Zalo number for urgent cover, we tell you about it: in that chat when job messages are on and no message from us there is waiting for your reply — it then counts toward the two messages until you reply — otherwise in the app only, and never while job messages are paused; we keep when we told you, and it is included when you download your data.')
+      cleanup()
+      expect(await policy(site, 'vi'), site).toContain('Và một lần, nếu bạn đang bật dạy thay và chưa từng đưa số Zalo cho dạy thay khẩn, chúng tôi sẽ thông báo cho bạn về mục này: trong cuộc trò chuyện đó khi tin nhắn việc làm đang bật và không có tin nhắn nào của chúng tôi ở đó đang chờ bạn trả lời — khi đó tin nhắn này được tính vào hai tin nhắn cho đến khi bạn trả lời — nếu không thì chỉ trong ứng dụng, và không bao giờ khi tin nhắn việc làm đang tạm dừng; chúng tôi lưu thời điểm đã thông báo cho bạn, và thông tin này được đưa vào khi bạn tải xuống dữ liệu của mình.')
+      cleanup()
+    }
+  })
+})
+
+/**
  * ⛔ TEACHER JOB MESSAGES (owner, 2026-10-20 — src/lib/teachers/job-dms). The jobs desk's chat messages are their OWN
  * consent (the "Job messages" page — consent.ts), matched on eno's own server (gates.ts reads the profile; the on-box AI
  * model reads only the posts), so NO recipient row and no transfer abroad: the Anthropic row above stays the email/staff

@@ -24,6 +24,8 @@
  *                  ("Alex · eno.vn"), never a poster, a school or a job's text (src/lib/teachers/job-dms/desk.ts, 2026-10-20)
  *   teacher_checkin eno's fixed bilingual copy only — the weekly "still looking for a job / free for cover?" question,
  *                  no name, no school (src/lib/teachers/check-in.ts + check-in-copy.ts, 2026-10-27)
+ *   teacher_zalo_invite eno's fixed bilingual copy only — the one-time "Zalo for urgent cover" invite, naming only eno's own
+ *                  jobs desk, no school, no number (src/lib/teachers/zalo-invite-copy.ts, 2026-10-29)
  *   visa_result    eno's bilingual template + the e-Visa case reference (src/lib/visa/result.ts). KEPT on the list on
  *                  purpose (opus, review): its readers are visa applicants, many reading in one of the nine machine-
  *                  translated languages, and this is the row that tells them the result. The reference is a case code,
@@ -52,7 +54,7 @@
  */
 const MACHINE_TRANSLATABLE: ReadonlySet<string> = new Set([
   'system', 'dispute', 'reminder', 'price_drop', 'milestone', 'saved_search', 'forum_reply', 'visa_result', 'teacher_message',
-  'teacher_jobs_invite', 'teacher_jobs', 'teacher_checkin',
+  'teacher_jobs_invite', 'teacher_jobs', 'teacher_checkin', 'teacher_zalo_invite',
 ])
 
 /**

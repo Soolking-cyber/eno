@@ -1207,6 +1207,9 @@ model TeacherPrivate {
   coverZaloVersion     String?
   /// When it was last switched off (by the teacher, or by cover going off).
   coverZaloWithdrawnAt DateTime?
+  /// When eno told this teacher, once, about Zalo for urgent cover (owner, 2026-10-29) — in the jobs-desk chat or by an
+  /// in-app bell. The invite's once-only claim (src/lib/teachers/zalo-invite.ts). Column: scripts/teacher-cover-zalo-invite-ddl.mjs.
+  coverZaloInvitedAt   DateTime?
   /// Object path in the PRIVATE bucket `teacher-cvs` — never a URL; served by 10-minute signed URL.
   cvPath           String?
   cvFileName       String?

@@ -48,7 +48,12 @@ describe('wiring', () => {
     // The teacher page's data never carries it: nothing that builds the public profile reads the column.
     const readers = execFileSync('git', ['grep', '-l', 'coverZalo\\b', '--', 'src'], { encoding: 'utf8' }).trim().split('\n').filter((f) => !/\.test\.tsx?$/.test(f)).sort()
     // Only the teacher's own export and the module itself read it (the school's export lists its reveals, never a number).
-    expect(readers).toEqual(['src/lib/teachers/export.ts', 'src/lib/teachers/zalo.ts'])
+    // The one-time invite (2026-10-29) only asks whether there IS one — `coverZalo: null` / `"coverZalo" is null` — and
+    // never selects it.
+    expect(readers).toEqual(['src/lib/teachers/export.ts', 'src/lib/teachers/zalo-invite.ts', 'src/lib/teachers/zalo.ts'])
+    const invite = code('src/lib/teachers/zalo-invite.ts')
+    expect(invite).not.toMatch(/coverZalo:\s*true|"coverZalo"\s*(,|from|as)|select[^;]*"coverZalo"(?!\s*is null)/i)
+    expect((invite.match(/coverZalo\b/g) ?? []).length).toBe((invite.match(/coverZalo: null|"coverZalo" is null/g) ?? []).length)
   })
 
   it('⛔ every read of TeacherPrivate names its columns — a full row would now carry the Zalo to whoever got it (review round 5)', () => {

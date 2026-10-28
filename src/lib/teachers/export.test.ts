@@ -94,10 +94,10 @@ describe('teacherExportOf', () => {
 describe('Zalo for urgent cover in the export (2026-10-28)', () => {
   it('carries the number, its grant and withdrawal, and every school that saw it — by name, never its account', async () => {
     const at = new Date('2026-10-28T03:00:00Z')
-    h.row = { ...h.row, private: { phone: '0901234567', email: null, cvFileName: null, videoPath: null, updatedAt: at, coverZalo: '0901234567', coverZaloAt: at, coverZaloVersion: '2026-10-28', coverZaloWithdrawnAt: null } }
+    h.row = { ...h.row, private: { phone: '0901234567', email: null, cvFileName: null, videoPath: null, updatedAt: at, coverZalo: '0901234567', coverZaloAt: at, coverZaloVersion: '2026-10-28', coverZaloWithdrawnAt: null, coverZaloInvitedAt: at } }
     zaloSeen.rows = [{ viewerName: 'School One', grantAt: at, revealedAt: at }]
     const out = await teacherExportOf('p1')
-    expect(out?.coverZalo).toEqual({ number: '0901234567', grantedAt: at, noticeVersion: '2026-10-28', withdrawnAt: null, seenBy: zaloSeen.rows })
+    expect(out?.coverZalo).toEqual({ number: '0901234567', grantedAt: at, noticeVersion: '2026-10-28', withdrawnAt: null, invitedAt: at, seenBy: zaloSeen.rows })
     expect(zaloSeen.where).toEqual({ teacherProfileId: 'tp1' })
   })
 })
