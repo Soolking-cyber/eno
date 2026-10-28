@@ -5,7 +5,7 @@ import { logWarn } from '@/lib/log'
 import { rateLimit } from '@/lib/ratelimit'
 import { LIMITS } from './constants'
 import { classroomOpenFor } from './config'
-import { PRACTICE_NOTICE_VERSION, TEACHER_VIEW_NOTICE_VERSION } from './notices'
+import { TEACHER_VIEW_NOTICE_VERSION, practiceConsentCurrent } from './notices'
 import { mintSttKey, sonioxConfig, sttSettingsFor, type SttSettings } from './soniox'
 import type { AgeBand } from './limits'
 
@@ -24,7 +24,8 @@ export async function sttGrant(sessionId: string, accountId: string, now = Date.
   // ⛔ A FEW KEYS PER SESSION (2026-10-26 review, opus): each opens a socket billed to eno until the session ends — a
   // reload or a dropped connection needs another, a script must not get dozens.
   const rl = await rateLimit('classroom-stt-session', sessionId, STT_KEYS_PER_SESSION, '1 h', { strict: true })
-  if (!rl.success) throw new ApiError('speech_unavailable', 503)
+  // 429, not 503: the page stops asking (a 503 is Soniox down — the page tries again a while).
+  if (!rl.success) throw new ApiError('stt_keys_spent', 429)
   const band = (s.planSnapshot as { band?: unknown } | null)?.band
   const settings = sttSettingsFor(band === 'child-young' || band === 'child' || band === 'teen' ? (band as AgeBand) : 'adult')
   try {
@@ -32,13 +33,14 @@ export async function sttGrant(sessionId: string, accountId: string, now = Date.
     const apiKey = await mintSttKey(cfg, { expiresInSeconds: 60, maxSessionSeconds: (s.endsAt.getTime() - now) / 1000 + LIMITS.deadlineGraceSeconds })
     return { apiKey, url: cfg.ws, model: cfg.model, settings, languageHints: ['en'] }
   } catch (e) {
-    logWarn('[classroom] soniox key failed — the page listens the old way', { status: (e as { status?: number }).status ?? null })
+    logWarn('[classroom] soniox key failed — nothing can hear the learner until it is back', { status: (e as { status?: number }).status ?? null })
     throw new ApiError('speech_unavailable', 503)
   }
 }
 
-/** A socket is opened once per session (a reload or a dropped connection may ask again, up to this many in an hour). */
-export const STT_KEYS_PER_SESSION = 6
+/** A socket is opened once per session (a reload or a dropped connection may ask again, up to this many in an hour —
+ *  enough for a flaky phone network; a failed mint counts too). */
+export const STT_KEYS_PER_SESSION = 12
 
 /**
  * May this session still be heard live? The checks without a key — the page asks every minute while its socket is open
@@ -58,7 +60,7 @@ export async function sttAllowed(sessionId: string, accountId: string, now = Dat
   if (!s || !(s.testerId === accountId || s.learner?.ownerId === accountId)) throw new ApiError('session_not_found', 404)
   if (s.status !== 'live' || now > s.endsAt.getTime() + LIMITS.deadlineGraceSeconds * 1000) throw new ApiError('session_over', 409)
   if (s.enrollment && (s.enrollment.status !== 'active' || s.enrollment.learnerId !== s.learnerId || s.learner?.withdrawnAt)) throw new ApiError('seat_inactive', 409)
-  if (s.learner && (s.learner.practiceConsentVersion !== PRACTICE_NOTICE_VERSION || s.learner.teacherViewConsentVersion !== TEACHER_VIEW_NOTICE_VERSION)) {
+  if (s.learner && (!practiceConsentCurrent(s.learner.practiceConsentVersion) || s.learner.teacherViewConsentVersion !== TEACHER_VIEW_NOTICE_VERSION)) {
     throw new ApiError('consent_required', 409)
   }
   if (!(await classroomOpenFor(s.avatar.teacherProfile.profileId, { fresh: true })).open) throw new ApiError('classroom_closed', 403)

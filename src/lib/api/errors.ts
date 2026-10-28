@@ -118,6 +118,7 @@ export type NicheApiErrorCode =
   | 'session_not_found'
   | 'session_over'
   | 'speech_unavailable'
+  | 'stt_keys_spent'
   | 'teacher_profile_required'
   | 'test_limit'
   | 'token_limit'
@@ -677,6 +678,7 @@ const ALL = [
   'session_not_found',
   'session_over',
   'speech_unavailable',
+  'stt_keys_spent',
   'teacher_profile_required',
   'test_limit',
   'token_limit',

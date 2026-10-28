@@ -34,12 +34,18 @@ const kit = vi.hoisted(() => {
     constructor() { AvatarView.views.push(this) }
     dispose() { this.disposed += 1 }
   }
-  const AvatarSDK = { appId: '', initialize: async (id: string) => { AvatarSDK.appId = id }, setSessionToken: (t: string) => { tokens.push(t) } }
+  const AvatarSDK = {
+    appId: '', config: null as unknown, cap: null as [boolean, number | undefined] | null, quality: '' as string,
+    initialize: async (id: string, config?: unknown) => { AvatarSDK.appId = id; AvatarSDK.config = config },
+    setSessionToken: (t: string) => { tokens.push(t) },
+    setRenderResolutionCap: (enabled: boolean, maxHeight?: number) => { AvatarSDK.cap = [enabled, maxHeight] },
+    setRenderQuality: (q: string) => { AvatarSDK.quality = q },
+  }
   const tokens: string[] = []
   return {
     AvatarSDK, AvatarView, tokens,
     AvatarManager: { shared: { load: async () => ({}) } },
-    DrivingServiceMode: { direct: 'direct' }, LogLevel: { error: 'error' },
+    DrivingServiceMode: { direct: 'direct' }, LogLevel: { error: 'error' }, RenderQuality: { standard: 'standard', high: 'high', ultra: 'ultra' },
     FrameStarvationMode: { strictSync: 'strictSync', audioIndependent: 'audioIndependent' },
     ConnectionState: { failed: 'failed' }, ConversationState: { playing: 'playing' },
   }
@@ -86,6 +92,13 @@ describe('AvatarStage', () => {
     expect(fetches).not.toHaveBeenCalled()
     expect(view().controller.started).toBe(0)
     expect((navigator as unknown as { gpu?: unknown }).gpu).toBeUndefined()
+  })
+  it('⚡ light on purpose (owner, 2026-10-27): standard quality, the drawing height capped — not the SDK\'s ultra at full density', async () => {
+    mount()
+    await flush()
+    expect(kit.AvatarSDK.config).toMatchObject({ renderQuality: 'standard' })
+    expect(kit.AvatarSDK.quality).toBe('standard') // on every mount too
+    expect(kit.AvatarSDK.cap).toEqual([true, 960])
   })
   it('prime() starts its audio in the tap; connect() takes the token, then the websocket; replies go to the face', async () => {
     const fetches = vi.fn(async () => new Response(JSON.stringify({ token: 'tok-1' }), { status: 200 }))

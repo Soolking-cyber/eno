@@ -3,6 +3,8 @@
  * bounds of the persona text. Client-safe: the wizard renders these, the API validates with the same lists.
  */
 
+import { DEFAULT_BACKGROUND, isBackground, type Background } from './backgrounds'
+
 export const TONES = ['warm', 'cheerful', 'calm', 'direct'] as const
 export type Tone = (typeof TONES)[number]
 export const PACES = ['slow', 'natural'] as const
@@ -11,7 +13,8 @@ export type Pace = (typeof PACES)[number]
 export const TOPICS = ['daily-life', 'school', 'work', 'travel', 'food', 'music', 'movies', 'sport', 'games', 'animals', 'nature', 'technology'] as const
 export type Topic = (typeof TOPICS)[number]
 
-export type Traits = { tone: Tone; pace: Pace; topics: Topic[] }
+/** `background`: the room behind the avatar (backgrounds.ts). */
+export type Traits = { tone: Tone; pace: Pace; topics: Topic[]; background: Background }
 
 export const TONE_LABEL: Record<Tone, { en: string; vi: string }> = {
   warm: { en: 'Warm & patient', vi: 'Ấm áp & kiên nhẫn' },
@@ -38,7 +41,7 @@ export const TOPIC_LABEL: Record<Topic, { en: string; vi: string }> = {
   technology: { en: 'Technology', vi: 'Công nghệ' },
 }
 
-export const DEFAULT_TRAITS: Traits = { tone: 'warm', pace: 'natural', topics: ['daily-life', 'food', 'travel'] }
+export const DEFAULT_TRAITS: Traits = { tone: 'warm', pace: 'natural', topics: ['daily-life', 'food', 'travel'], background: DEFAULT_BACKGROUND }
 export const MAX_TOPICS = 5
 /** The avatar's display name ("Ms Anna"). The DDL's CHECK allows 60; the form asks for 40. */
 export const AVATAR_NAME_MAX = 40
@@ -55,6 +58,8 @@ export function parseTraits(v: unknown): Traits {
     tone: isOneOf(TONES, o.tone) ? o.tone : DEFAULT_TRAITS.tone,
     pace: isOneOf(PACES, o.pace) ? o.pace : DEFAULT_TRAITS.pace,
     topics,
+    // An avatar saved before the background existed is in the classroom too (owner: "feel like they are in classroom").
+    background: isBackground(o.background) ? o.background : DEFAULT_TRAITS.background,
   }
 }
 

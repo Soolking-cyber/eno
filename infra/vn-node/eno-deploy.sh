@@ -1203,3 +1203,20 @@ if [ -f /opt/eno/bin/eno-job-mailbox.py ]; then
     || warn "job mailbox reader: could not refresh it (job-mailbox/README.md, Install)"
   rm -f /opt/eno/bin/.eno-job-mailbox.py.new
 fi
+
+say "14. Docker disk (advisory): dangling images dropped, build cache pruned to its newest 12GB"
+# Every deploy writes ~10 GB of build cache that nothing reads (eno-build.sh builds --no-cache) and leaves the
+# previous :prev image dangling. The nightly eno-docker-prune.timer alone let four deploys in one day write 44 GB
+# (2026-10-27, the disk 82% full), so the same script runs here, after every deploy (its header has the rules).
+# Warn-only, like steps 11–13: the deploy is complete. Runs the checkout's copy (this commit's, or a newer deploy's
+# if one has moved the checkout since step 11 — codex + opus, gate), and refreshes the installed copy the timer runs (bash -n first, then an atomic rename — step 13's rule; a nightly run reads the old file or
+# the new one, never half of one). The script tests the deploy lock (released at step 11) and skips while a newer
+# deploy holds it; it does not hold the lock while it prunes, so it never makes a deploy refuse to start.
+# The temp name carries this run's pid: two deploys can both be past step 11 (codex, gate).
+install -m 0755 "$APP/infra/vn-node/eno-docker-prune.sh" "/opt/eno/bin/.eno-docker-prune.sh.new.$$" \
+  && bash -n "/opt/eno/bin/.eno-docker-prune.sh.new.$$" \
+  && mv -f "/opt/eno/bin/.eno-docker-prune.sh.new.$$" /opt/eno/bin/eno-docker-prune.sh \
+  || warn "docker prune: could not refresh /opt/eno/bin/eno-docker-prune.sh — the nightly timer runs the old copy"
+rm -f "/opt/eno/bin/.eno-docker-prune.sh.new.$$"
+timeout --foreground 900 bash "$APP/infra/vn-node/eno-docker-prune.sh" 2>&1 | sed 's/^/  /' \
+  || warn "docker prune: exit $? (advisory; the deploy itself is complete — 1 = a prune failed or under 15G free; the lines above say which)"

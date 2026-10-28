@@ -21,14 +21,15 @@ import type { AgeBand } from './limits'
  * on request and gets its own hosts here once it is.
  * ⛔ The audio and the words are never logged; an error carries its status only.
  */
-const HOSTS: Readonly<Record<string, { rest: string; ws: string }>> = {
-  us: { rest: 'https://api.soniox.com', ws: 'wss://stt-rt.soniox.com/transcribe-websocket' },
+const HOSTS: Readonly<Record<string, { rest: string; ws: string; tts: string }>> = {
+  us: { rest: 'https://api.soniox.com', ws: 'wss://stt-rt.soniox.com/transcribe-websocket', tts: 'wss://tts-rt.soniox.com/tts-websocket' },
 }
 
-export type SonioxConfig = { key: string; rest: string; ws: string; model: string }
+/** `ws`/`model`: the ears (live speech-to-text); `tts`/`ttsModel`: the avatar's voice (soniox-tts.ts) — one key, one region. */
+export type SonioxConfig = { key: string; rest: string; ws: string; model: string; tts: string; ttsModel: string }
 
-/** SONIOX_API_KEY (+ SONIOX_REGION, default us; CLASSROOM_STT_MODEL, default stt-rt-v5), or null — then the classroom
- *  listens the old way: the learner's clip, sent whole to eno's own speech server when they stop. */
+/** SONIOX_API_KEY (+ SONIOX_REGION, default us; CLASSROOM_STT_MODEL, default stt-rt-v5; CLASSROOM_TTS_MODEL, default
+ *  tts-rt-v2), or null — then no session starts: Soniox is the classroom's only ear (session-start.ts). */
 export function sonioxConfig(): SonioxConfig | null {
   const key = process.env.SONIOX_API_KEY?.trim()
   if (!key || key.length < 20 || /\s/.test(key)) return null
@@ -38,7 +39,7 @@ export function sonioxConfig(): SonioxConfig | null {
     if (refusedRegion !== region) { refusedRegion = region; logWarn('[classroom] SONIOX_REGION is not a known region — live listening is off', { region: region.slice(0, 20) }) }
     return null
   }
-  return { key, ...hosts, model: process.env.CLASSROOM_STT_MODEL?.trim() || 'stt-rt-v5' }
+  return { key, ...hosts, model: process.env.CLASSROOM_STT_MODEL?.trim() || 'stt-rt-v5', ttsModel: process.env.CLASSROOM_TTS_MODEL?.trim() || 'tts-rt-v2' }
 }
 let refusedRegion = ''
 
@@ -77,20 +78,30 @@ export async function mintSttKey(cfg: SonioxConfig, opts: { expiresInSeconds: nu
 }
 
 /**
- * When a turn ends, by age (the page sends these in the stream's first message). Soniox ends an utterance on its MEANING
- * as well as its pauses, and never later than max_endpoint_delay_ms after the speech stops — so it, not a silence timer,
- * decides (the page's own detector is only the backstop). Adults start from Soniox's advice for voice-AI turn-taking
- * (level 2, sensitivity 0.3) with a shorter cap; the young pause longest to find a word, so they get the most patience.
- * MEASURED 2026-10-26 (owner's Mac, muted fake mic): with level 1 / 0 / 1500 for adults the page's 1.2 s silence came
- * first every turn — Soniox was never the one to end it. ⛔ Sensitivity stays ≥ 0 while the level is above 0 (Soniox: the
- * two fight).
+ * When a turn ends, by age (the page sends these in the stream's first message). ⛔ SONIOX ALONE DECIDES (owner,
+ * 2026-10-27: "let the stt decide itself"): it ends an utterance on its MEANING as well as its pauses, never later than
+ * max_endpoint_delay_ms after the speech stops, and the page sends the turn on its `<end>` — no silence timer of ours
+ * competes.
+ * ⛔ A LEARNER PAUSES TO THINK (owner, 2026-10-27: "it answers too fast without listening to what i say my pauses are not
+ * respected"). Soniox's voice-agent preset (sensitivity 0.3, level 2, 1500 ms) ended a turn 0.3 s into a pause after a
+ * complete-sounding clause. Its own advice for "users who pause often mid-sentence" is a negative sensitivity at level 0,
+ * measured 2026-10-27 (two spoken parts with a pause between, room noise at -55…-47 dBFS — digital silence ends a turn
+ * at once and misleads). At -0.6 / level 0 a pause after a complete clause held ~1.5–1.9 s (the preset: 0.3 s), one after
+ * an unfinished clause ("…my city is") held 2.5 s, and a clearly finished turn still ended 0.7–1.3 s after the voice
+ * stopped. The cap decides only an UNSURE ending (a learner's trailing "…we buy some fish"): it ends ~1.1 s after the
+ * cap — 2.6 s at 1500, 3.0 s at 2000, 3.4 s at 2500, 4.0 s at 3000. Adults took 2500, then 2000 (owner, 2026-10-28: "the
+ * pasues … a tiny bit long"): at 2000 the measured pauses held the same (~1.6 s after a complete clause, 2 s after an
+ * unfinished one) and an unsure ending comes ~0.4 s sooner. Lower than -0.6 bought no more patience after
+ * a complete clause and a slower, more scattered end (up to 2.3 s); the young still get it, as they pause longest to find
+ * a word.
+ * ⛔ A negative sensitivity only with level 0 (Soniox: the two fight).
  */
 export type SttSettings = { endpoint_sensitivity: number; endpoint_latency_adjustment_level: number; max_endpoint_delay_ms: number }
 export function sttSettingsFor(band: AgeBand): SttSettings {
   switch (band) {
-    case 'adult': return { endpoint_sensitivity: 0.3, endpoint_latency_adjustment_level: 2, max_endpoint_delay_ms: 1200 }
-    case 'teen': return { endpoint_sensitivity: 0.2, endpoint_latency_adjustment_level: 2, max_endpoint_delay_ms: 1500 }
-    case 'child': return { endpoint_sensitivity: 0, endpoint_latency_adjustment_level: 1, max_endpoint_delay_ms: 2000 }
-    case 'child-young': return { endpoint_sensitivity: -0.2, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 2500 }
+    case 'adult': return { endpoint_sensitivity: -0.6, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 2000 }
+    case 'teen': return { endpoint_sensitivity: -0.6, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 2000 }
+    case 'child': return { endpoint_sensitivity: -0.8, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 3000 }
+    case 'child-young': return { endpoint_sensitivity: -1, endpoint_latency_adjustment_level: 0, max_endpoint_delay_ms: 3000 }
   }
 }

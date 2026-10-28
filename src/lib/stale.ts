@@ -1,7 +1,19 @@
 // Single source of truth for "a live listing needs an availability refresh".
 // Used by the dashboard API/UI and the daily-reminder cron so the threshold and
 // the rule never drift apart.
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+
 export const STALE_DAYS = 3
+
+/**
+ * ⛔ IS THIS LISTING IN THE GOODS AVAILABILITY REVIEW ("Still available? Tick anything that sold")? Never a teacher's
+ * profile (owner, 2026-10-27): four teachers ticked their own profile — meaning "yes, available" — and it was marked
+ * sold and left search. Teachers get the weekly check-in instead (src/lib/teachers/check-in.ts), with no "sold" in it.
+ * The ONE rule for the dashboard count, the review pill, the review list and the batch route.
+ */
+export function inAvailabilityReview(l: { listingType?: string | null }): boolean {
+  return l.listingType !== TEACHER_LISTING_TYPE
+}
 const STALE_MS = STALE_DAYS * 86_400_000
 
 // Anti-gaming: a "bump" (confirm-availability refreshing feed recency) counts at

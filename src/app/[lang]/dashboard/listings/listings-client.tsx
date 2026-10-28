@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Segmented } from '@/components/ui/segmented'
 import { Alert } from '@/components/ui/alert'
+import { inAvailabilityReview } from '@/lib/stale'
 
 
 const ROWS_STEP = 60
@@ -285,14 +286,16 @@ function AvailabilityButton({ dash, tr, lang }: {
     return () => clearInterval(t)
   }, [])
   const lastReviewed = useMemo(() => {
+    // Goods only: a teacher's profile is never in this review (stale.ts inAvailabilityReview) — theirs is the weekly check-in.
     const times = (dash?.listings ?? [])
+      .filter(inAvailabilityReview)
       .map((l) => l.availabilityConfirmedAt)
       .filter((v): v is string => !!v)
       .map((v) => Date.parse(v))
       .filter((n) => !Number.isNaN(n))
     return times.length ? Math.max(...times) : null
   }, [dash])
-  const hasActive = (dash?.listings ?? []).some((l) => l.status === 'active')
+  const hasActive = (dash?.listings ?? []).some((l) => l.status === 'active' && inAvailabilityReview(l))
   if (!dash || !hasActive) return null
   const overdue = !lastReviewed || nowTick - lastReviewed > 3 * 864e5
   return (

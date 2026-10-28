@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { isFiller, openLiveStt } from './live-stt'
+import { isFiller, isHesitation, openLiveStt } from './live-stt'
 
 /**
  * LIVE LISTENING, PAGE SIDE (owner, 2026-10-26: "make it instant conversation"): the socket opens with the server's single-use
@@ -26,11 +26,19 @@ class FakeSocket {
 }
 
 const grant = { apiKey: 'temp_key_123', url: 'wss://stt-rt.soniox.com/transcribe-websocket', model: 'stt-rt-v5', settings: { endpoint_sensitivity: 0.3, endpoint_latency_adjustment_level: 2, max_endpoint_delay_ms: 1200 }, languageHints: ['en'] }
-const open = async (ok = true) => {
+const raw = async (status = 200, body: object = {}) => {
   vi.stubGlobal('WebSocket', FakeSocket)
-  vi.stubGlobal('fetch', vi.fn(async () => (ok ? new Response(JSON.stringify(grant), { status: 200 }) : new Response('{}', { status: 503 }))))
-  const got = { utterances: [] as [string, number][], failed: 0 }
-  const l = await openLiveStt('s1', { utterance: (t, ms) => got.utterances.push([t, ms]), failed: () => { got.failed += 1 } })
+  const fetched = vi.fn(async () => (status === 200 ? new Response(JSON.stringify(grant), { status }) : new Response(JSON.stringify(body), { status })))
+  vi.stubGlobal('fetch', fetched)
+  const got = { utterances: [] as [string, number][], failed: 0, activity: [] as boolean[] }
+  const l = await openLiveStt('s1', {
+    utterance: (t, ms) => got.utterances.push([t, ms]), failed: () => { got.failed += 1 }, activity: (sp) => { got.activity.push(sp) },
+  })
+  return { l, got, fetched }
+}
+const open = async (ok = true) => {
+  const { l, got } = await raw(ok ? 200 : 503)
+  if (l === 'refused') throw new Error('unexpected: refused')
   return { l, got, ws: FakeSocket.last! }
 }
 afterEach(() => { vi.unstubAllGlobals(); FakeSocket.last = null })
@@ -47,9 +55,17 @@ describe('openLiveStt', () => {
     })
     expect(l!.maxDelayMs).toBe(1200)
   })
-  it('no key (refused, or no Soniox): null — the page keeps sending clips', async () => {
+  it('no key (Soniox down, 5xx): null — the page may try again; any refusal (4xx: keys spent, session over…): \'refused\'', async () => {
     const { l } = await open(false)
     expect(l).toBeNull()
+    expect((await raw(429)).l).toBeNull() // a passing rate limit: try again
+    expect((await raw(408)).l).toBeNull()
+    expect((await raw(401)).l).toBeNull() // a session cookie being refreshed
+    expect((await raw(403)).l).toBeNull() // a proxy's page during a deploy: no code of ours
+    expect((await raw(429, { error: 'stt_keys_spent' })).l).toBe('refused') // the session's keys: final
+    expect((await raw(409, { error: 'session_over' })).l).toBe('refused')
+    expect((await raw(403, { error: 'classroom_closed' })).l).toBe('refused')
+    expect((await raw(409, { error: 'consent_required' })).l).toBe('refused')
   })
   it('audio only from begin() to pause(); the final words up to <end> are one utterance, with its length', async () => {
     const { l, got, ws } = await open()
@@ -134,6 +150,75 @@ describe('openLiveStt', () => {
     l!.close()
     expect(ws.sent.at(-1)).toBe('')
     expect(got.failed).toBe(0)
+  })
+})
+
+describe('openLiveStt — Soniox decides (owner, 2026-10-27: "let the stt decide itself")', () => {
+  it('every answer says whether this utterance holds words — in progress or final — so the page can say "Hearing you"', async () => {
+    const { l, got, ws } = await open()
+    l!.begin()
+    ws.say({ tokens: [] }) // silence: Soniox answers about once a second anyway (measured)
+    ws.say({ tokens: [{ text: 'I wa', is_final: false, start_ms: 120 }] })
+    ws.say({ tokens: [{ text: 'I', is_final: true, start_ms: 120, end_ms: 300 }, { text: ' want', is_final: false, start_ms: 320 }] })
+    ws.say({ tokens: [{ text: ' want', is_final: true, end_ms: 600 }, { text: '<end>', is_final: true }] })
+    ws.say({ tokens: [{ text: 'hm', is_final: false, start_ms: 900 }] })
+    ws.say({ tokens: [] }) // the noise it took back
+    expect(got.activity).toEqual([false, true, true, false, true, false])
+    expect(got.utterances).toEqual([['I want', 480]])
+    l!.pause()
+    ws.say({ tokens: [{ text: 'late', is_final: false, start_ms: 2_000 }] })
+    expect(got.activity).toHaveLength(6) // nothing after the page paused for its turn
+  })
+  it('⛔ a keepalive whenever no audio went for 8 s — even while listening (an iOS interruption stops the frames)', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    try {
+      const { l, ws } = await open()
+      l!.begin()
+      const keepalives = () => ws.sent.filter((d) => typeof d === 'string' && d.includes('keepalive')).length
+      for (let i = 0; i < 20; i++) { l!.push(new Int16Array(1_600)); vi.advanceTimersByTime(1_000); ws.say({ tokens: [] }) }
+      expect(keepalives()).toBe(0) // audio flowing
+      vi.advanceTimersByTime(12_000) // the frames stopped, the page still "listening"
+      expect(keepalives()).toBeGreaterThan(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+  it('⛔ audio going out and no answer for 6 s: the socket is stuck — failed(), the page goes back to clips', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    try {
+      const { l, got, ws } = await open()
+      l!.begin()
+      for (let i = 0; i < 10; i++) { l!.push(new Int16Array(1_600)); vi.advanceTimersByTime(1_000); ws.say({ tokens: [] }) }
+      expect(got.failed).toBe(0) // it answers: alive
+      for (let i = 0; i < 5; i++) { l!.push(new Int16Array(1_600)); vi.advanceTimersByTime(1_000) }
+      expect(got.failed).toBe(0) // 5 s without an answer — still within STALL_MS
+      for (let i = 0; i < 3; i++) { l!.push(new Int16Array(1_600)); vi.advanceTimersByTime(1_000) }
+      expect(got.failed).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+  it('a pause in the audio (thinking, the avatar speaking) is not a stall: the clock restarts when it flows again', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
+    try {
+      const { l, got, ws } = await open()
+      l!.begin()
+      l!.push(new Int16Array(1_600)); ws.say({ tokens: [] })
+      l!.pause()
+      vi.advanceTimersByTime(30_000) // the avatar talks; keepalives hold the socket, Soniox says nothing
+      l!.begin()
+      for (let i = 0; i < 4; i++) { l!.push(new Int16Array(1_600)); vi.advanceTimersByTime(1_000) }
+      expect(got.failed).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('isHesitation — the only sound that is never a turn', () => {
+  it('a pure hesitation in English or Vietnamese; a word that can be an answer is not one', () => {
+    for (const h of ['Um', 'uh…', 'Hmm.', 'Ermm', 'Eh', 'ờ', 'Ừm', 'à', 'ờ ờ', 'u\u031B\u0300m']) expect(isHesitation(h), h).toBe(true)
+    for (const a of ['So', 'Well,', 'like', 'and um', 'thì', 'Yes.', 'No', 'ừ', 'ờ 5', 'Mm.', 'Mhm', 'uh-huh', '']) expect(isHesitation(a), a).toBe(false)
   })
 })
 

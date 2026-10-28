@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { Progress } from '@/components/ui/progress'
-import { CircleHelp, Mic, MicOff, MessageSquareText, PhoneOff } from '@/components/ui/icons'
+import { Captions, Lightbulb, Mic, MicOff, PhoneOff, Video } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
+import { useAuth } from '@/context/auth-context'
 import { hapticTap } from '@/lib/haptics'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
@@ -17,9 +17,12 @@ import { dayName, refusalCopy } from '../classroom-copy'
 import { AvatarStage, FACE_RATE, audioNeedsGesture, type FaceConfig, type StageHandle } from './avatar-stage'
 import { bufferFromPcm16, decodeLine, partPlayer, pcmFromBase64, resamplePcm16 } from './voice'
 import { useRecorder } from './use-recorder'
-import { isFiller, openLiveStt, type LiveStt } from './live-stt'
+import { isHesitation, openLiveStt, type LiveStt } from './live-stt'
 import { streamTo16k } from '@/lib/classroom/wav'
+import { LIMITS } from '@/lib/classroom/constants'
+import { DEFAULT_BACKGROUND, backgroundImage, type Background } from '@/lib/classroom/backgrounds'
 import { beginTrace, formatMark, mark, traceVisible, useTrace } from './trace'
+import { useSelfView } from './use-self-view'
 
 /**
  * intro (the face draws; Start waits for it) → (Start) connecting (the face connects; the opening waits for it) → speaking
@@ -91,17 +94,29 @@ const freshReply = (id: number) => ({ id, parts: 0, given: 0, lastGiven: false, 
 
 /** Live listening sends the learner's speech ~100 ms at a time (16 kHz samples). */
 const LIVE_CHUNK = 1_600
-/** After the detector heard the learner stop, how long Soniox's words may take before the clip goes the old way. */
+/** After the 45 s cap asked Soniox to end a turn, how long its words may take before the recording goes as the turn. */
 const LIVE_WORDS_MS = 3_000
 /** The longest transcript sent (the server takes the same: session-turn.ts LIVE_TEXT_MAX). */
 const LIVE_TEXT_MAX_CHARS = 1_000
 /**
- * Listening live, the page's own silence timer waits this long past Soniox's cap before it ends the turn itself. For a teen
- * or an adult 200 ms (was 600 — owner, 2026-10-27: "need super fast response"): measured, Soniox's own end came 1.4–2.2 s
- * after the speech in a noisy room when it had made up a last word ("…yesterday and") — the page's finalize ends those
- * sooner, without it. A child keeps 600 (2026-10-27 review, opus): the young pause longest to find a word.
+ * Listening live, the first moments after the avatar's last sound are not streamed: its tail in the room (a Bluetooth
+ * speaker's delay) would reach Soniox as the learner's words — no detector of ours stands in front of it any more
+ * (2026-10-27 plan review, opus).
  */
-const LIVE_BACKSTOP_MS: Record<AgeBand, number> = { 'child-young': 600, child: 600, teen: 200, adult: 200 }
+const LIVE_TAIL_MS = 300
+/** The turn's recording keeps this much from before Soniox first heard words (its answers trail the voice by ~1 s). */
+const LIVE_CLIP_LEAD_MS = 1_500
+/** Live listening broke (a stalled network, a closed socket — a phone moving from Wi-Fi to 4G): opened again after
+ *  LIVE_REOPEN_MS, then twice as long each time, LIVE_REOPENS times (2 + 4 + 8 + 16 s ≈ half a minute of patience); each
+ *  try spends one of the server's few keys an hour (stt-grant.ts STT_KEYS_PER_SESSION). */
+const LIVE_REOPEN_MS = 2_000
+const LIVE_REOPENS = 4
+/** One control in the call's pill — a mobile-nav.tsx tab: the full height, the press spring, rounded inside the pill. */
+const BAR_TAB = 'flex flex-1 items-center justify-center rounded-full transition-[scale,background-color] duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.96] active:duration-[60ms] disabled:opacity-40 [touch-action:manipulation]'
+/** Pressed (camera on, muted): the tab bar's "on" capsule — accent fill, brand ink. */
+const BAR_ON = 'bg-accent text-accent-foreground'
+/** Nothing can hear the learner any more: the session ends this long after the screen says so. */
+const GONE_END_MS = 12_000
 /** A 16 kHz mic chunk louder than this (RMS) is the learner's voice — for the trace's "words came N ms after the voice". */
 const VOICE_RMS = 0.012
 
@@ -136,7 +151,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   seatId?: string
   test?: boolean
   /** Shown before the session exists: the avatar's name and the teacher's photo. */
-  preview: { name: string; photoUrl: string | null }
+  preview: { name: string; photoUrl: string | null; background?: Background }
   onClose: () => void
 }) {
   const { tr, lang } = useLanguage()
@@ -154,6 +169,15 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const [hint, setHint] = useState<{ en: string; vi: string } | null>(null)
   const [showHint, setShowHint] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  /** Soniox hears the learner (its socket is open) — 'off': not yet, or opening again; 'gone': refused, or the tries ran
+   *  out — nothing can hear the learner for the rest of this session (Soniox only). */
+  const [hearing, setHearing] = useState<'on' | 'off' | 'gone'>('off')
+  /** The learner's own camera in a corner, like a video call (use-self-view.ts) — adults only, never sent. */
+  // Remembered per learner: the seat — or, for a teacher's own test, the teacher's account (review, codex).
+  const { user } = useAuth()
+  const selfView = useSelfView(start?.band === 'adult', seatId ?? `test:${user?.id ?? ''}`)
+  const { resume: resumeSelfView, stop: stopSelfView } = selfView
+  const wordsBox = useRef<HTMLDivElement>(null)
   /** The 3D face a start would give (api/classroom/face), drawn while the intro is up — null: voice-only. */
   const [face, setFace] = useState<FaceConfig | null>(null)
   const faceRef = useRef<FaceConfig | null>(null)
@@ -203,14 +227,19 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const pending16k = useRef<Int16Array[]>([])
   /** The clip the 45 s cap took while live listening still owed the words. */
   const pendingClip = useRef<Uint8Array | null>(null)
-  /** The learner stopped and Soniox owes the words: after LIVE_WORDS_MS without them, the clip goes the old way. */
+  /** The cap asked Soniox to end the turn: after LIVE_WORDS_MS without its words, the recording goes as the turn. */
   const awaitingWords = useRef<ReturnType<typeof setTimeout> | null>(null)
-  /** The current utterance is streaming live (it began after live listening opened). */
+  /** This listening streams live (to Soniox) — false: the detector listens and the turn goes as a clip. */
   const liveUtterance = useRef(false)
-  /** The detector has heard the learner stop (a silence of its patience) during the current utterance. */
-  const vadEnded = useRef(false)
-  /** Words Soniox ended early on (a lone filler while the learner still spoke): they lead the utterance's next words. */
-  const held = useRef({ text: '', ms: 0 })
+  /** Live: frames reach Soniox from this moment (performance.now) — LIVE_TAIL_MS after the avatar's last sound. */
+  const tailUntil = useRef(0)
+  /** Live: the cap on one turn (LIMITS.turnSeconds) — then Soniox is asked to end it. */
+  const capTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** How often live listening was opened again after it broke (LIVE_REOPENS at most), when it last opened, and the try
+   *  waiting to run (one at a time). */
+  const liveReopens = useRef(0)
+  const liveOpenedAt = useRef(0)
+  const reopenTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   /**
    * WHICH TURN THE PAGE IS ON (2026-10-26 review round 2, codex): everything a turn schedules — its lines, its decoded
    * parts, its close — checks this first, so a talked-over turn's late callbacks can never touch the next one.
@@ -234,7 +263,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
 
   const handlers = useRef({
     speechStart: () => {}, speechEnd: () => {}, autoStop: (_wav: Uint8Array) => {}, frames: (_f: Float32Array) => {},
-    utterance: (_text: string, _ms: number) => {}, liveFailed: () => {},
+    utterance: (_text: string, _ms: number) => {}, liveFailed: () => {}, activity: (_speaking: boolean) => {},
   })
   const rec = useRecorder({
     speechStart: () => handlers.current.speechStart(),
@@ -281,25 +310,87 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     return () => clearTimeout(t)
   }, [dropFace, prep])
 
-  /**
-   * How long a silence ends the turn: the band's patience — or, listening live, only a BACKSTOP behind Soniox, which ends
-   * the utterance itself on meaning and pauses within its own cap (soniox.ts sttSettingsFor).
-   */
-  const patience = useCallback(() => {
-    const band = startRef.current?.band ?? 'adult'
-    const own = PATIENCE_MS[band]
-    const l = liveStt.current
-    return l ? Math.max(own, l.maxDelayMs + LIVE_BACKSTOP_MS[band]) : own
+  /** How long a silence ends the turn when the page's own detector listens (no live socket): the band's patience. */
+  const patience = useCallback(() => PATIENCE_MS[startRef.current?.band ?? 'adult'], [])
+
+  const clearCap = useCallback(() => {
+    if (capTimer.current) clearTimeout(capTimer.current)
+    capTimer.current = null
   }, [])
 
-  /** Hands-free: wait for the learner to speak (unless muted). */
-  const listen = useCallback(() => {
+  /**
+   * Wait for the learner to speak (unless muted). ⛔ LIVE, SONIOX DECIDES (owner, 2026-10-27, after "it cant hear me nor
+   * transcribe what i say": "dont alter with code let the stt decide itself"): every frame streams to Soniox from
+   * LIVE_TAIL_MS on and ITS end of utterance is the turn — no detector of ours in front of it (its noise floor kept soft
+   * voices out; its silence cut turns). Without a live socket the detector listens and the turn goes as a clip, as before.
+   */
+  const listen = useCallback((from?: 'talk-over') => {
     if (ended.current) return
     go('listening')
-    if (mutedRef.current) { rec.unlisten(); return }
-    rec.listen({ endMs: patience(), barge: false })
-    mark('listening')
-  }, [go, patience, rec])
+    clearCap()
+    lastVoiceAt.current = 0
+    const l = liveStt.current
+    if (mutedRef.current) { rec.unlisten(); l?.pause(); to16k.current = null; liveUtterance.current = false; return }
+    if (l && ctxRef.current) {
+      to16k.current = streamTo16k(ctxRef.current.sampleRate)
+      pending16k.current = []
+      pendingClip.current = null
+      liveUtterance.current = true
+      // A talk-over keeps its opening (review, codex + opus): the learner is already speaking — the detector's held
+      // pre-roll streams next, and no tail is skipped (the avatar stopped at once; echo cancellation had its voice).
+      tailUntil.current = from === 'talk-over' ? 0 : performance.now() + LIVE_TAIL_MS
+      l.begin()
+      rec.stream()
+      mark(from === 'talk-over' ? 'listening (live, talked over)' : 'listening (live)')
+      return
+    }
+    // ⛔ SONIOX ONLY (owner, 2026-10-27: "make sure parakeet is not used anywhere else only soniox"): no live socket yet
+    // (opening, or opening again after a break) — nothing is recorded; the screen says it is connecting, and listening
+    // goes live the moment the socket opens (openLive).
+    liveUtterance.current = false
+    rec.unlisten()
+    mark('listening: waiting for live listening')
+  }, [clearCap, go, rec])
+
+  /** Open live listening (live-stt.ts) for this session; once open, listening goes live. */
+  const openLive = (sessionId: string) => {
+    void openLiveStt(sessionId, {
+      utterance: (t, ms) => handlers.current.utterance(t, ms),
+      failed: () => handlers.current.liveFailed(),
+      activity: (speaking) => handlers.current.activity(speaking),
+    }).then((l) => {
+      // Another session's, a session over, or a socket already open: this one is not needed.
+      if (ended.current || startRef.current?.id !== sessionId || liveStt.current) { if (l && l !== 'refused') l.close(); return }
+      // Refused (the session is over, the switch is off, consent withdrawn, no keys left): final — the screen says so.
+      if (l === 'refused') { setHearing('gone'); mark('live listening: refused'); return }
+      // No socket (Soniox down, the network): a few more tries (retryLive).
+      if (!l) { retryLive(sessionId); return }
+      liveStt.current = l
+      setHearing('on')
+      if (liveReopens.current > 0) mark('live listening: open again')
+      liveOpenedAt.current = Date.now()
+      if (phaseRef.current === 'listening' && !liveUtterance.current && !mutedRef.current) listen()
+    }, () => {
+      // An open that threw (an API this browser lacks, a bug): one more failed try — never a screen stuck connecting.
+      if (!ended.current && startRef.current?.id === sessionId && !liveStt.current) retryLive(sessionId)
+    })
+  }
+  /**
+   * Open live listening again after a failure: LIVE_REOPENS tries, one at a time — then the screen says it cannot hear
+   * (Soniox is the only ear, owner 2026-10-27; the learner ends the session). Never a loop: each try spends one of the
+   * server's few keys an hour (review, codex + opus).
+   */
+  const retryLive = (sessionId: string) => {
+    if (ended.current || reopenTimer.current) return
+    if (liveReopens.current >= LIVE_REOPENS) { setHearing('gone'); mark('live listening: given up'); return }
+    const wait = LIVE_REOPEN_MS * 2 ** liveReopens.current
+    liveReopens.current += 1
+    setHearing('off')
+    reopenTimer.current = setTimeout(() => {
+      reopenTimer.current = null
+      if (!ended.current && !liveStt.current && startRef.current?.id === sessionId) openLive(sessionId)
+    }, wait)
+  }
 
   const stopSpeaking = useCallback(() => {
     player.current?.stop()
@@ -380,17 +471,26 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const releaseAll = useCallback(() => {
     turnAbort.current?.abort()
     turnAbort.current = null
+    if (reopenTimer.current) { clearTimeout(reopenTimer.current); reopenTimer.current = null }
     liveStt.current?.close()
     liveStt.current = null
+    liveUtterance.current = false
     if (awaitingWords.current) clearTimeout(awaitingWords.current)
     awaitingWords.current = null
+    if (capTimer.current) clearTimeout(capTimer.current)
+    capTimer.current = null
     stopSpeaking()
     releaseRec()
+    stopSelfView()
     const ctx = ctxRef.current
     ctxRef.current = null
     player.current = null
     void ctx?.close().catch(() => {})
-  }, [releaseRec, stopSpeaking])
+  }, [releaseRec, stopSelfView, stopSpeaking])
+  // A session started: the camera comes back on if the learner left it on — only where the browser already allows it.
+  useEffect(() => { if (start) void resumeSelfView() }, [start, resumeSelfView])
+  // Never on behind the intro or the blocked-microphone screen, where its button is not shown (review, opus).
+  useEffect(() => { if (phase === 'intro' || phase === 'mic_denied') stopSelfView() }, [phase, stopSelfView])
   useEffect(() => releaseAll, [releaseAll])
 
   /**
@@ -444,6 +544,19 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
 
   const close = () => { ended.current = true; releaseAll(); onClose() }
 
+  // ⛔ Nothing can hear the learner for the rest of this session (refused, or the tries ran out — Soniox is the only ear):
+  // the face is let go at once (Spatius bills its connected time) and the session ends after GONE_END_MS, time to read why
+  // (review, opus: it ran to its deadline with the face connected).
+  const endRef = useRef(end)
+  endRef.current = end
+  useEffect(() => {
+    if (hearing !== 'gone' || ended.current) return
+    dropFace()
+    // ('learner': the page ends it for them — the column's CHECK has no 'unheard', and nothing shows the reason.)
+    const t = setTimeout(() => void endRef.current('learner'), GONE_END_MS)
+    return () => clearTimeout(t)
+  }, [dropFace, hearing])
+
   /** A turn's answer: the reply's words at once, then its voice part by part (or a plain JSON answer, whole). */
   const readAnswer = async (res: Response, onLine: (l: TurnLine) => void) => {
     if (!(res.headers.get('content-type') ?? '').includes('ndjson')) { onLine((await res.json()) as TurnLine); return }
@@ -472,6 +585,10 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     if (!s || ended.current) return
     const gen = ++turnGen.current
     rec.unlisten()
+    clearCap()
+    liveStt.current?.pause()
+    to16k.current = null
+    liveUtterance.current = false
     go('thinking')
     setShowHint(false)
     mark('sent', turn.transcript !== undefined ? `${turn.transcript.length} chars${turn.wav ? ' + clip' : ''}` : `${Math.round((turn.wav?.length ?? 0) / 32)}ms of speech`)
@@ -648,6 +765,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     const p = phaseRef.current
     if (ended.current || mutedRef.current) return
     if (p === 'speaking') {
+      // Nothing could hear the learner now (no live socket): the avatar talks on — a talk-over would cut it off for
+      // nothing (review, opus).
+      if (!liveStt.current || !ctxRef.current) return
       // Talked over: the avatar stops at once, the rest of its reply is dropped, the learner's turn is recording — and the
       // talked-over turn's late callbacks are disarmed.
       mark('talked over the avatar')
@@ -657,21 +777,12 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       // ⛔ No drill from a reply the learner talked over (2026-10-26 review, codex + opus): the server withdraws it when the
       // page leaves, but its `no-drill` line goes to a reader that is gone — the page drops it here (no clip is sent).
       lastExpect.current = null
-    } else if (p !== 'listening') return
-    beginTrace('learner speaking')
-    lastVoiceAt.current = 0
-    go('hearing')
-    // ⚡ LIVE LISTENING: this utterance streams to Soniox from its pre-roll on (the recorder sends that right after this).
-    const l = liveStt.current
-    liveUtterance.current = !!(l && ctxRef.current)
-    vadEnded.current = false
-    held.current = { text: '', ms: 0 }
-    if (l && ctxRef.current) {
-      to16k.current = streamTo16k(ctxRef.current.sampleRate)
-      pending16k.current = []
-      pendingClip.current = null
-      l.begin()
+      // LIVE: the learner's turn streams from here — the detector's held pre-roll first (the recorder hands it over right
+      // after this) — and Soniox ends it. (The face's "done" for the interrupted reply may have opened a plain listening
+      // inside stopSpeaking: this one replaces it.)
+      listen('talk-over')
     }
+    // (The detector listens only while the avatar talks — for a talk-over. The learner's words are Soniox's alone.)
   }
   /** The learner's speech so far, to Soniox (live listening) — ~100 ms at a time. */
   const flushLive = () => {
@@ -686,7 +797,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   }
   handlers.current.frames = (f) => {
     const conv = to16k.current
-    if (!liveStt.current || !conv || phaseRef.current !== 'hearing') return
+    const p = phaseRef.current
+    if (!liveStt.current || !conv || !liveUtterance.current || (p !== 'listening' && p !== 'hearing')) return
+    if (performance.now() < tailUntil.current) return // the avatar's tail in the room
     const pcm = conv(f)
     if (!pcm.length) return
     let sum = 0
@@ -695,19 +808,35 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     pending16k.current.push(pcm)
     if (pending16k.current.reduce((n, a) => n + a.length, 0) >= LIVE_CHUNK) flushLive()
   }
-  handlers.current.speechEnd = () => {
-    if (ended.current || phaseRef.current !== 'hearing') return
-    mark('learner stopped')
-    vadEnded.current = true
-    // Live: Soniox usually ended the utterance already; if not, it ends it now — its words arrive as `utterance`. An
-    // utterance that began before live listening opened was never streamed: it goes as a clip, at once.
-    if (liveStt.current && liveUtterance.current) { flushLive(); liveStt.current.finalize(); owe(); return }
-    void sendTurn({ wav: rec.take() })
+  // The detector's end of an utterance ends nothing: Soniox ends the turn (and there is no clip path — Soniox only).
+  handlers.current.speechEnd = () => {}
+  handlers.current.autoStop = () => {}
+  /** Soniox hears the learner (words in progress) — or took back what it thought it heard: the screen says which. */
+  handlers.current.activity = (speaking) => {
+    if (ended.current || mutedRef.current || !liveUtterance.current) return
+    const p = phaseRef.current
+    if (speaking && p === 'listening') {
+      beginTrace('learner speaking')
+      go('hearing')
+      // The turn's recording starts just before Soniox heard words (its answers come ~1 s behind the voice).
+      rec.keepLast(LIVE_CLIP_LEAD_MS)
+      armCap()
+    } else if (!speaking && p === 'hearing' && !awaitingWords.current) {
+      go('listening')
+      clearCap()
+    }
   }
-  handlers.current.autoStop = (wav) => {
-    if (ended.current || phaseRef.current !== 'hearing') return
-    if (liveStt.current && liveUtterance.current) { flushLive(); pendingClip.current = wav; liveStt.current.finalize(); owe(); return }
-    void sendTurn({ wav })
+  /** Live, one turn longer than LIMITS.turnSeconds: Soniox is asked to end it now (its words, else the recording, go). */
+  const armCap = () => {
+    if (capTimer.current) return
+    capTimer.current = setTimeout(() => {
+      capTimer.current = null
+      if (ended.current || phaseRef.current !== 'hearing' || !liveUtterance.current) return
+      mark('live: the turn reached its cap — Soniox ends it')
+      flushLive()
+      liveStt.current?.finalize()
+      owe()
+    }, LIMITS.turnSeconds * 1000)
   }
   /** The words are owed: if they do not come in time, the turn goes as a clip — never a learner left on "Listening…". */
   const owe = () => {
@@ -715,40 +844,38 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     awaitingWords.current = setTimeout(() => {
       awaitingWords.current = null
       if (ended.current || phaseRef.current !== 'hearing') return
-      mark('live listening: no words in time — sending the clip')
-      // The utterance is the clip's now: whatever Soniox still says about it is dropped (review, codex: late words
-      // became the NEXT turn).
+      mark('live listening: no words in time — listening again')
+      // Whatever Soniox still says about this utterance is dropped (review, codex: late words became the NEXT turn); there
+      // is no clip to send instead (Soniox only).
       liveStt.current?.cancel()
-      to16k.current = null
-      const clip = pendingClip.current ?? rec.take()
       pendingClip.current = null
-      void sendTurn({ wav: clip })
+      setNotice('speech_unavailable')
+      listen()
     }, LIVE_WORDS_MS)
   }
   /** Soniox finished an utterance: its words are the turn (with the clip only for a drill — Azure scores it). */
   handlers.current.utterance = (text, ms) => {
-    if (ended.current || phaseRef.current !== 'hearing' || !liveUtterance.current) return
-    const words = [held.current.text, text].filter(Boolean).join(' ').trim()
-    const speechMs = held.current.ms + ms
-    // ⛔ A LONE FILLER IS NOT A TURN (2026-10-26 review, opus): Soniox may end on "Um" while the learner is still talking —
-    // the detector has not heard them stop. Kept, and the stream goes on: those words lead what comes next.
-    if (text && !vadEnded.current && isFiller(text)) {
-      held.current = { text: words, ms: speechMs }
-      mark('live: a filler — still listening', `${text.length} chars`)
-      liveStt.current?.begin()
+    const p = phaseRef.current
+    if (ended.current || !liveUtterance.current || (p !== 'listening' && p !== 'hearing')) return
+    // A pure hesitation ("Um.", "Ờ") is not an answer — the stream simply goes on. (No begin(): moving the utterance's
+    // start on the audio clock dropped the words already said after the "um" — the bug the owner heard, 2026-10-27.)
+    if (text && isHesitation(text)) {
+      mark('live: a hesitation — still listening', `${text.length} chars`)
+      // (After the cap's finalize too: the hesitation is what it found — no recording goes as a turn 3 s later.)
+      if (awaitingWords.current) { clearTimeout(awaitingWords.current); awaitingWords.current = null }
+      if (p === 'hearing') { go('listening'); clearCap() }
       return
     }
     if (awaitingWords.current) { clearTimeout(awaitingWords.current); awaitingWords.current = null }
-    held.current = { text: '', ms: 0 }
+    clearCap()
+    // Nothing at all (the cap's finalize found no words): listening goes on.
+    if (!text) { mark('heard nothing (live)'); if (p === 'hearing') go('listening'); return }
     liveStt.current?.pause()
-    flushLive()
     to16k.current = null
-    const clip = pendingClip.current ?? rec.take()
+    const clip = lastExpect.current ? pendingClip.current ?? rec.take() : undefined
     pendingClip.current = null
-    // Nothing at all was heard (the page's finalize found no words — a cough): back to listening.
-    if (!words) { mark('heard nothing (live)'); listen(); return }
-    mark('heard live', `${words.length} chars · ${lastVoiceAt.current ? Math.round(performance.now() - lastVoiceAt.current) : '?'} ms after the voice`)
-    void sendTurn({ transcript: words.slice(0, LIVE_TEXT_MAX_CHARS), speechMs, wav: lastExpect.current ? clip : undefined })
+    mark('heard live', `${text.length} chars · ${lastVoiceAt.current ? Math.round(performance.now() - lastVoiceAt.current) : '?'} ms after the voice`)
+    void sendTurn({ transcript: text.slice(0, LIVE_TEXT_MAX_CHARS), speechMs: ms, wav: clip })
   }
   /**
    * The live socket broke: from now on the clip goes whole. An utterance under way is recorded anyway, so the detector
@@ -757,13 +884,22 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   handlers.current.liveFailed = () => {
     liveStt.current = null
     to16k.current = null
-    mark('live listening: off — back to clips')
-    if (awaitingWords.current && !ended.current && phaseRef.current === 'hearing') {
-      clearTimeout(awaitingWords.current)
-      awaitingWords.current = null
-      void sendTurn({ wav: pendingClip.current ?? rec.take() })
-      pendingClip.current = null
-    }
+    clearCap()
+    mark('live listening: off')
+    const wasLive = liveUtterance.current
+    liveUtterance.current = false
+    if (awaitingWords.current) { clearTimeout(awaitingWords.current); awaitingWords.current = null }
+    // ⛔ One broken socket is not the rest of the session (review, opus): it is opened again. A socket that stayed up a
+    // minute earns its quick tries back; one that keeps dropping does not (each reopen spends one of the server's few keys
+    // an hour — stt-grant.ts STT_KEYS_PER_SESSION).
+    if (liveOpenedAt.current && Date.now() - liveOpenedAt.current >= 60_000) { liveReopens.current = 0; liveOpenedAt.current = 0 }
+    const s = startRef.current
+    if (s) retryLive(s.id)
+    if (ended.current || !wasLive) return
+    // The learner was speaking: those words are lost — say so; either way the screen waits for the socket (openLive).
+    pendingClip.current = null
+    if (phaseRef.current === 'hearing') setNotice('speech_unavailable')
+    if (phaseRef.current === 'hearing' || phaseRef.current === 'listening') listen()
   }
 
   // ── the clock: the server's deadline is the truth; the page ends the session when it runs out ──
@@ -778,6 +914,31 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   }, [end, start])
 
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(null), 4000); return () => clearTimeout(t) }, [notice])
+
+  /**
+   * ⛔ THE PHONE STAYS AWAKE FOR THE SESSION (2026-10-27): an auto-lock mid-lesson takes the microphone away. And back from
+   * another app or the lock screen, the audio iOS interrupted resumes. (No Wake Lock in the browser: the session goes on.)
+   */
+  useEffect(() => {
+    if (!start) return
+    type Lock = { release: () => Promise<void> }
+    const wakeLock = (navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<Lock> } }).wakeLock
+    let lock: Lock | null = null
+    let gone = false
+    const keepAwake = () => {
+      if (!wakeLock || document.visibilityState !== 'visible') return
+      void wakeLock.request('screen').then((l) => { if (gone) void l.release().catch(() => {}); else lock = l }).catch(() => {})
+    }
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || ended.current) return
+      keepAwake()
+      const ctx = ctxRef.current
+      if (ctx && ctx.state !== 'running') void ctx.resume().then(() => mark('audio: resumed')).catch(() => mark('audio: could not resume'))
+    }
+    keepAwake()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { gone = true; document.removeEventListener('visibilitychange', onVisible); void lock?.release().catch(() => {}) }
+  }, [start])
 
   /** The opening the face was given but has not started: cut, the face given up, and the speakers say it (sayOpening). */
   const openingToSpeakers = useCallback((id: number, why: string): boolean => {
@@ -869,6 +1030,8 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     if (primed) mark('face: audio started in the tap')
     else if (modeRef.current === 'avatar' && audioNeedsGesture()) { mark('face: audio not started in the tap — voice-only'); dropFace() }
     const ctx = ctxRef.current ?? new AudioContext()
+    // iOS suspends or interrupts it (a call, Siri, the lock screen): in the trace — and resumed on the way back (below).
+    ctx.onstatechange = () => mark(`audio: ${ctx.state}`)
     ctxRef.current = ctx
     try {
       await ctx.resume()
@@ -908,11 +1071,11 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     setAvatarLine(s.opening.text)
     setStart(s)
     lastExpect.current = s.opening.expect ?? null
-    // Live listening opens alongside (a key from the server, then Soniox's socket); until it is open, turns go as clips.
-    void openLiveStt(s.id, { utterance: (t, ms) => handlers.current.utterance(t, ms), failed: () => handlers.current.liveFailed() }).then((l) => {
-      if (ended.current) { l?.close(); return }
-      liveStt.current = l
-    })
+    // Live listening opens alongside (a key from the server, then Soniox's socket); until then the screen says connecting.
+    liveReopens.current = 0
+    liveOpenedAt.current = 0
+    setHearing('off')
+    openLive(s.id)
     const audio = s.opening.audio ? decodeLine(ctx, s.opening.audio).catch(() => null) : Promise.resolve(null)
     // The face drawn for this screen speaks only for its own session: the server's mode, the same avatar.
     const withFace = s.mode === 'avatar' && modeRef.current === 'avatar' && !faceGone.current && faceRef.current?.avatarId === s.avatar.spatiusAvatarId
@@ -946,8 +1109,9 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     setMuted(next)
     mutedRef.current = next
     if (next) {
-      // Muted mid-sentence: what was said so far is dropped — live, its words too.
-      if (phaseRef.current === 'hearing') { liveStt.current?.cancel(); to16k.current = null }
+      // Muted: what was said so far is dropped — live, its words too, and nothing more streams.
+      if (liveUtterance.current) { liveStt.current?.cancel(); to16k.current = null; liveUtterance.current = false }
+      clearCap()
       if (awaitingWords.current) { clearTimeout(awaitingWords.current); awaitingWords.current = null }
       rec.unlisten()
       if (phaseRef.current === 'hearing') go('listening')
@@ -961,7 +1125,12 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   const minutes = Math.floor(left / 60)
   const secs = String(left % 60).padStart(2, '0')
   const name = start?.avatar.name ?? preview.name
-  const status = muted ? tr('Muted', 'Đã tắt micro')
+  // The room the teacher set behind the avatar (backgrounds.ts): the intro shows the preview's, the session its own.
+  const room = backgroundImage(start?.avatar.background ?? preview.background ?? DEFAULT_BACKGROUND)
+  // ⛔ 'gone' first, whatever the phase or the mute (review, codex + opus): the session is about to end — say why.
+  const status = hearing === 'gone' && phase !== 'ending' ? tr("Can't hear you right now — the practice will end", 'Hiện không nghe được — buổi luyện tập sẽ kết thúc')
+    : muted ? tr('Muted', 'Đã tắt micro')
+    : phase === 'listening' && hearing === 'off' ? tr('Connecting…', 'Đang kết nối…')
     : phase === 'listening' ? tr('Listening — just talk', 'Đang nghe — cứ nói nhé')
       : phase === 'hearing' ? tr('Listening…', 'Đang nghe…')
         : phase === 'thinking' ? tr('{name} is thinking…', '{name} đang nghĩ…').replace('{name}', name)
@@ -969,6 +1138,22 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
             : ''
   const note = notice ? refusalCopy(notice) : null
   const live = phase === 'listening' || phase === 'hearing' || phase === 'thinking' || phase === 'speaking'
+
+  // The words' box follows the newest line (review, opus: a short screen kept the oldest in view).
+  useEffect(() => {
+    const box = wordsBox.current
+    if (box) box.scrollTop = box.scrollHeight
+  }, [avatarLine, captions, hint, learnerLine, live, showHint, waiting])
+  const onCamera = async () => {
+    hapticTap()
+    const r = await selfView.toggle()
+    if (r === 'blocked' || r === 'unsupported' || r === 'unavailable') setNotice(`camera_${r}`)
+    else setNotice((n) => (n?.startsWith('camera_') ? null : n)) // a retry that worked clears the camera's own message
+  }
+  const cameraOffered = start?.band === 'adult'
+  /** The round see-through buttons over the face (Praktika's): a white glyph on a dark disc; pressed = a lighter disc and
+   *  the bold glyph (`icon-own-ink`). No blur at this size — and a blurred material takes no tint variants (design-lint). */
+  const glass = 'icon-own-ink size-11 rounded-full bg-brand-deeper/50 text-primary-foreground hover:bg-brand-deeper/70 aria-pressed:bg-primary-foreground/25'
 
   return (
     <Dialog open onOpenChange={() => { /* only End closes a session */ }}>
@@ -978,18 +1163,15 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       >
         <DialogTitle className="sr-only">{tr('Speaking practice', 'Luyện nói')}</DialogTitle>
         <DialogDescription className="sr-only">{preview.name}</DialogDescription>
-        {/* MOBILE-FIRST: one phone-width column; on a wide window the dark screen fills the rest. */}
-        <div className="mx-auto flex h-full w-full max-w-md flex-col">
-          <header className="flex flex-col gap-2 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-            <Progress tone="onDark" value={total.current - left} max={total.current}
-              aria-label={tr('Time', 'Thời gian')} valueText={`${minutes}:${secs}`} />
-            <div className="flex items-center justify-between text-xs text-primary-foreground/70">
-              <span className="truncate">{name} · {tr('AI avatar', 'Avatar AI')}</span>
-              <span className="tabular-nums" aria-hidden>{minutes}:{secs}</span>
-            </div>
-          </header>
-
-          <div className="relative min-h-0 flex-1">
+        {/* A VIDEO CALL (owner, 2026-10-27: "as close as possible to … praktika"): the avatar fills the screen edge to edge,
+            the controls float over it. MOBILE-FIRST: one phone-width column; a wide window keeps dark sides instead of a
+            portrait room stretched blurry (review, opus). */}
+        <div className="relative mx-auto h-full w-full max-w-md overflow-hidden">
+          {room && (
+            // The room the teacher set (backgrounds.ts); the face's canvas is transparent — the avatar stands in it.
+            <div aria-hidden className="pointer-events-none absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${room})` }} />
+          )}
+          <div className="absolute inset-0">
             <AvatarStage
               ref={stage}
               mode={mode}
@@ -1001,98 +1183,156 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
               onFallback={onFallback}
               onPlaying={onPlaying}
             />
+          </div>
+          {/* Shade only where words sit — the top bar and the captions — so the face stays bright. */}
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-brand-deeper/70 to-transparent" />
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-brand-deeper via-brand-deeper/60 to-transparent" />
 
-            {showTrace && trace.length > 0 && (
-              <ol className="pointer-events-none absolute left-2 top-2 max-h-[60%] overflow-hidden rounded-lg bg-brand-deeper/80 p-2 font-mono text-xs leading-tight text-primary-foreground/90">
-                {trace.map((m, i) => <li key={i}>{formatMark(m)}</li>)}
-              </ol>
-            )}
+          {showTrace && trace.length > 0 && (
+            <ol className="pointer-events-none absolute left-2 top-20 z-10 max-h-[50%] overflow-hidden rounded-lg bg-brand-deeper/80 p-2 font-mono text-xs leading-tight text-primary-foreground/90">
+              {trace.map((m, i) => <li key={i}>{formatMark(m)}</li>)}
+            </ol>
+          )}
 
-            {phase === 'intro' && (
-              <div className="absolute inset-0 flex flex-col items-center justify-end gap-4 bg-brand-deeper/60 p-6 pb-10 text-center">
-                <p className="max-w-xs text-base">{tr('Find a quiet place, then tap Start. Then just talk, like a video call.', 'Hãy tìm chỗ yên tĩnh rồi chạm Bắt đầu. Sau đó cứ nói chuyện, như gọi video.')}</p>
-                {refused && (
-                  <p role="alert" className="max-w-xs text-sm text-primary-foreground/80">
-                    {tr(refusalCopy(refused.code).en, refusalCopy(refused.code).vi)}
-                    {/* The day practice opens again (C3a review: dayName was written for this and never used). */}
-                    {refused.nextAt && dayName(refused.nextAt, lang) && (
-                      <> {tr('You can practise again on {day}.', 'Bạn có thể luyện tập lại vào {day}.').replace('{day}', dayName(refused.nextAt, lang))}</>
-                    )}
-                  </p>
-                )}
-                {/* Start waits for the face (FACE_PREP_MS at most): the face and its voice begin together. */}
-                {!refused?.nextAt && (
-                  <Button variant="cta" size="lg" className="w-full max-w-xs" onClick={begin} disabled={prep !== 'ready' || starting}>
-                    {prep !== 'ready' ? tr('Getting ready…', 'Đang chuẩn bị…') : starting ? tr('Starting…', 'Đang bắt đầu…') : tr('Start', 'Bắt đầu')}
-                  </Button>
-                )}
-                <Button variant="ghost" size="sm" className="text-primary-foreground/80" onClick={close}>{tr('Not now', 'Để sau')}</Button>
+          {/* The call's top bar: the hint · the avatar and the time left · captions. */}
+          {/* z-10: above the intro too — captions can be set before Start (review, codex). */}
+          <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
+            <IconButton size="lg" aria-pressed={showHint} aria-label={tr('Hint', 'Gợi ý')} disabled={!hint || !live} onClick={() => setShowHint((v) => !v)}
+              className={cn(glass, 'disabled:opacity-40')}>
+              <Lightbulb className="size-6" />
+            </IconButton>
+            <div className="min-w-0 text-center">
+              <p className="truncate text-base font-semibold">{name}</p>
+              <p className="text-xs text-primary-foreground/75">
+                {tr('AI avatar', 'Avatar AI')}
+                {live && <> · <span className="sr-only">{tr('Time left', 'Thời gian còn lại')} </span><span role="timer" className="tabular-nums">{minutes}:{secs}</span></>}
+              </p>
+            </div>
+            <IconButton size="lg" aria-pressed={captions} aria-label={tr('Captions', 'Phụ đề')} onClick={() => setCaptions((v) => !v)} className={glass}>
+              <Captions className="size-6" />
+            </IconButton>
+          </header>
+
+          {/* Bottom: the learner's own camera (corner), the words, then the call's three buttons — never above the top bar
+              (top-20): on a short screen the words give way first, scrolling in their own box (review, codex + opus). */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 top-20 flex flex-col justify-end gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] [&>*]:pointer-events-auto">
+            {/* Whenever the camera is on — connecting and ending too: a camera light with no picture is a camera nobody
+                can see to turn off (review, opus). */}
+            {selfView.stream && (
+              // self-start: a flex column stretches its children across — the tile keeps its 3:4 corner (review, codex + opus).
+              <div className="aspect-[3/4] h-36 max-h-[22dvh] shrink-0 self-start overflow-hidden rounded-2xl border border-primary-foreground/25 bg-brand-deeper shadow-overlay">
+                <SelfView stream={selfView.stream} label={tr('You (only on this phone)', 'Bạn (chỉ hiện trên điện thoại này)')} />
               </div>
             )}
-            {(phase === 'connecting' || (waiting && phase === 'speaking')) && (
-              <div className="absolute inset-x-0 bottom-6 flex justify-center" role="status">
-                <span className="rounded-full bg-primary-foreground/15 px-4 py-2 text-sm">{tr('Connecting to {name}…', 'Đang kết nối với {name}…').replace('{name}', name)}</span>
-              </div>
-            )}
-            {phase === 'mic_denied' && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-brand-deeper/80 p-6 text-center">
-                <p className="max-w-xs text-base font-semibold">{tr('The microphone is blocked', 'Micro đang bị chặn')}</p>
-                <p className="max-w-xs text-sm text-primary-foreground/80">{tr('Allow the microphone for this site in your browser settings, then try again. In Zalo or Facebook, open the link in Safari or Chrome.', 'Hãy cho phép micro cho trang này trong cài đặt trình duyệt rồi thử lại. Nếu đang ở Zalo hoặc Facebook, hãy mở link bằng Safari hoặc Chrome.')}</p>
-                <Button variant="cta" onClick={() => { go('intro') }}>{tr('Try again', 'Thử lại')}</Button>
-                <Button variant="ghost" size="sm" className="text-primary-foreground/80" onClick={close}>{tr('Not now', 'Để sau')}</Button>
-              </div>
-            )}
-
             {live && !waiting && (
-              <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-brand-deeper via-brand-deeper/80 to-transparent px-4 pb-3 pt-10" aria-live="polite">
-                {captions && learnerLine && <p className="self-end rounded-2xl bg-primary-foreground/10 px-4 py-2 text-sm text-primary-foreground/80">{learnerLine}</p>}
-                {captions && avatarLine && <p className="text-base leading-relaxed">{avatarLine}</p>}
-                {showHint && hint && (
-                  <div className="rounded-2xl bg-primary-foreground/10 px-4 py-3 text-sm">
-                    <p>{hint.en}</p>
-                    {hint.vi && <p lang="vi" className="mt-1 text-primary-foreground/70">{hint.vi}</p>}
+              <>
+                {/* The words: their own scrolling box that follows the newest line (wordsBox) — the notice and the status
+                    below it never scroll away. */}
+                {(captions || (showHint && hint)) && (
+                  <div ref={wordsBox} className="flex min-h-0 shrink flex-col gap-2 overflow-y-auto" aria-live="polite">
+                    {captions && learnerLine && <p className="self-end rounded-2xl bg-primary-foreground/15 px-4 py-2 text-sm text-primary-foreground/90">{learnerLine}</p>}
+                    {captions && avatarLine && <p className="text-base leading-relaxed">{avatarLine}</p>}
+                    {showHint && hint && (
+                      <div className="rounded-2xl bg-primary-foreground/15 px-4 py-3 text-sm">
+                        <p>{hint.en}</p>
+                        {hint.vi && <p lang="vi" className="mt-1 text-primary-foreground/75">{hint.vi}</p>}
+                      </div>
+                    )}
                   </div>
                 )}
-                {note && <p role="status" className="text-center text-sm text-primary-foreground/80">{tr(note.en, note.vi)}</p>}
-                <p className={cn('flex items-center justify-center gap-2 text-sm text-primary-foreground/80', phase === 'hearing' && !muted && 'text-primary-foreground')}>
-                  {!muted && (phase === 'listening' || phase === 'hearing') && (
+                {note && <p role="status" className="shrink-0 text-center text-sm text-primary-foreground/85">{tr(note.en, note.vi)}</p>}
+                <p aria-live="polite" className={cn('flex shrink-0 items-center justify-center gap-2 text-sm text-primary-foreground/80', phase === 'hearing' && !muted && 'text-primary-foreground')}>
+                  {!muted && (phase === 'listening' || phase === 'hearing') && hearing === 'on' && (
                     <span aria-hidden className={cn('size-2 rounded-full bg-success', phase === 'hearing' && 'animate-pulse')} />
                   )}
                   {status}
                 </p>
-              </div>
+              </>
+            )}
+            {/* THE ENO.VN TAB BAR'S PILL (owner, 2026-10-27: "use our color on bottom navbar of avatar call now its black reuse
+                the eno.vn bottom navbar style"): mobile-nav.tsx's floating surface — bg-popover/95, `material`, a 1px
+                border-foreground/10 edge, shadow-pop, h-14, max-w-sm — and its "on" capsule: bg-accent with the brand ink,
+                inset by the pill's p-1 so its radius stays concentric. End keeps a call's red. Not before Start: the
+                intro's own buttons sit there. */}
+            {phase !== 'intro' && phase !== 'mic_denied' && (
+            <div className="mx-auto flex h-14 w-full max-w-sm shrink-0 items-stretch gap-1 rounded-full border border-foreground/10 bg-popover/95 p-1 text-body shadow-pop material backdrop-blur-md">
+              {cameraOffered ? (
+                <Button size="none" variant="bare" aria-pressed={!!selfView.stream} disabled={(!live || waiting) && !selfView.stream} onClick={() => void onCamera()}
+                  aria-label={selfView.stream ? tr('Hide my camera', 'Ẩn camera của tôi') : tr('Show my camera — only on this phone', 'Hiện camera của tôi — chỉ trên điện thoại này')}
+                  className={cn(BAR_TAB, selfView.stream && BAR_ON)}>
+                  <Video className="size-6" />
+                </Button>
+              ) : <span aria-hidden className="flex-1" />}
+              <Button
+                size="none"
+                variant="bare"
+                onClick={toggleMute}
+                disabled={!live}
+                aria-label={muted ? tr('Unmute', 'Bật micro') : tr('Mute', 'Tắt micro')}
+                aria-pressed={muted}
+                className={cn(BAR_TAB, muted && BAR_ON)}
+              >
+                {muted ? <MicOff className="size-6" strokeWidth={STROKE_UI} /> : <Mic className="size-6" strokeWidth={STROKE_UI} />}
+              </Button>
+              {/* End: a call's red, as a COIN in its tab — the tab bar's Post coin geometry (mobile-nav.tsx), not a red slab. */}
+              <Button size="none" variant="bare" aria-label={tr('End', 'Kết thúc')} onClick={() => void end('learner')} disabled={phase === 'ending'} className={BAR_TAB}>
+                <span className="flex size-11 items-center justify-center rounded-full bg-destructive text-destructive-foreground">
+                  <PhoneOff className="size-6" />
+                </span>
+              </Button>
+            </div>
             )}
           </div>
 
-          <footer className="flex items-center justify-around gap-4 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3">
-            {/* Pressed = a light fill + the bold glyph in the button's own white (`icon-own-ink`): the house accent-blue
-                pressed glyph all but vanished on this dark screen (the 390px check). */}
-            <IconButton size="lg" aria-pressed={showHint} aria-label={tr('Hint', 'Gợi ý')} disabled={!hint || !live} onClick={() => setShowHint((v) => !v)}
-              className="icon-own-ink text-primary-foreground hover:bg-primary-foreground/10 aria-pressed:bg-primary-foreground/20">
-              <CircleHelp className="size-6" />
-            </IconButton>
-            <IconButton size="lg" aria-pressed={captions} aria-label={tr('Captions', 'Phụ đề')} onClick={() => setCaptions((v) => !v)}
-              className="icon-own-ink text-primary-foreground hover:bg-primary-foreground/10 aria-pressed:bg-primary-foreground/20">
-              <MessageSquareText className="size-6" />
-            </IconButton>
-            <Button
-              size="none"
-              variant="bare"
-              onClick={toggleMute}
-              disabled={!live}
-              aria-label={muted ? tr('Unmute', 'Bật micro') : tr('Mute', 'Tắt micro')}
-              aria-pressed={muted}
-              className={cn('size-16 rounded-full disabled:opacity-40', muted ? 'bg-primary-foreground text-brand-deeper' : 'bg-primary-foreground/15 text-primary-foreground')}
-            >
-              {muted ? <MicOff className="size-7" strokeWidth={STROKE_UI} /> : <Mic className="size-7" strokeWidth={STROKE_UI} />}
-            </Button>
-            <IconButton size="lg" aria-label={tr('End', 'Kết thúc')} onClick={() => void end('learner')} disabled={phase === 'ending'}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              <PhoneOff className="size-6" />
-            </IconButton>
-          </footer>
+          {phase === 'intro' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-end gap-4 bg-brand-deeper/60 p-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] text-center">
+              <p className="max-w-xs text-base">{tr('Find a quiet place, then tap Start. Then just talk, like a video call.', 'Hãy tìm chỗ yên tĩnh rồi chạm Bắt đầu. Sau đó cứ nói chuyện, như gọi video.')}</p>
+              {refused && (
+                <p role="alert" className="max-w-xs text-sm text-primary-foreground/80">
+                  {tr(refusalCopy(refused.code).en, refusalCopy(refused.code).vi)}
+                  {/* The day practice opens again (C3a review: dayName was written for this and never used). */}
+                  {refused.nextAt && dayName(refused.nextAt, lang) && (
+                    <> {tr('You can practise again on {day}.', 'Bạn có thể luyện tập lại vào {day}.').replace('{day}', dayName(refused.nextAt, lang))}</>
+                  )}
+                </p>
+              )}
+              {/* Start waits for the face (FACE_PREP_MS at most): the face and its voice begin together. */}
+              {!refused?.nextAt && (
+                <Button variant="cta" size="lg" className="w-full max-w-xs" onClick={begin} disabled={prep !== 'ready' || starting}>
+                  {prep !== 'ready' ? tr('Getting ready…', 'Đang chuẩn bị…') : starting ? tr('Starting…', 'Đang bắt đầu…') : tr('Start', 'Bắt đầu')}
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" className="text-primary-foreground/80" onClick={close}>{tr('Not now', 'Để sau')}</Button>
+            </div>
+          )}
+          {(phase === 'connecting' || (waiting && phase === 'speaking')) && (
+            <div className="absolute inset-x-0 top-24 flex justify-center" role="status">
+              <span className="rounded-full bg-black/50 px-4 py-2 text-sm material backdrop-blur-md">{tr('Connecting to {name}…', 'Đang kết nối với {name}…').replace('{name}', name)}</span>
+            </div>
+          )}
+          {phase === 'mic_denied' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-brand-deeper/80 p-6 text-center">
+              <p className="max-w-xs text-base font-semibold">{tr('The microphone is blocked', 'Micro đang bị chặn')}</p>
+              <p className="max-w-xs text-sm text-primary-foreground/80">{tr('Allow the microphone for this site in your browser settings, then try again. In Zalo or Facebook, open the link in Safari or Chrome.', 'Hãy cho phép micro cho trang này trong cài đặt trình duyệt rồi thử lại. Nếu đang ở Zalo hoặc Facebook, hãy mở link bằng Safari hoặc Chrome.')}</p>
+              <Button variant="cta" onClick={() => { go('intro') }}>{tr('Try again', 'Thử lại')}</Button>
+              <Button variant="ghost" size="sm" className="text-primary-foreground/80" onClick={close}>{tr('Not now', 'Để sau')}</Button>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
   )
+}
+
+/** The learner's own camera, mirrored like a mirror (a call's self-view). Muted — it is a picture, never a microphone. */
+function SelfView({ stream, label }: { stream: MediaStream; label: string }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    const v = ref.current
+    if (!v) return
+    v.srcObject = stream
+    void v.play().catch(() => { /* autoplay of a muted inline video is allowed; a refusal leaves the first frame */ })
+    return () => { v.srcObject = null }
+  }, [stream])
+  return <video ref={ref} aria-label={label} autoPlay muted playsInline className="h-full w-full -scale-x-100 object-cover" />
 }

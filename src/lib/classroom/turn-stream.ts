@@ -58,7 +58,17 @@ export type SavedReply = {
 /** One line in the avatar's voice, as it is made (speech-local.ts synthesizeStream); `pauseMs` of silence goes BEFORE it
  *  when it follows another sentence of the same reply (pace.ts pauseMs) — never after a reply's last sentence. */
 export type VoiceStream = { rate: number; chunks: AsyncIterable<Uint8Array>; pauseMs?: number }
-export type Speaker = (text: string, signal: AbortSignal) => Promise<VoiceStream>
+/**
+ * A sentence → its voice. `ahead()`: how many sentences may be VOICED AHEAD of the one being heard, read per sentence — 0
+ * for eno's box (its 4 CPUs make one line at a time faster: one ahead slowed both), more for a voice made elsewhere at
+ * about real time (Soniox: one at a time left a ~0.6 s hole between sentences and a voice that only just kept up — owner,
+ * 2026-10-28: "the ai voice is gittery … the pauses … a tiny bit long").
+ */
+/** `o.ahead`: asked for before its turn (never said by the box); `o.box`: its turn came after a voice made ahead failed —
+ *  the box says it straight away when there is one (no second wait on Soniox). */
+/** `turnMs`: how long a line made ahead may keep its turn waiting for its first sound before the box says it instead (the
+ *  same wait a line asked for in its turn gets — session-voice.ts SONIOX_FIRST_SOUND_MS, when there is a box). */
+export type Speaker = ((text: string, signal: AbortSignal, o?: { ahead?: boolean; box?: boolean }) => Promise<VoiceStream>) & { ahead?: () => number; turnMs?: number }
 
 /** The brain's whole answer, as tutor-ai.ts's `final` event gives it. */
 export type Answer = { reply: TutorReply; model: string; calls: number }
@@ -228,11 +238,13 @@ export function replayTurn(saved: SavedReply, speak: Speaker | null): TurnStream
 }
 
 /**
- * The reply's voice: its sentences said in order, one at a time (eno's speech server makes one line per voice at a time
- * anyway) — each `say` first, then its frames; a sentence after the first is preceded by its pause (pace.ts pauseMs —
- * between sentences only, never after the last). ⛔ NOT ONE AHEAD (measured 2026-10-27 on the owner's Mac): asking for the
- * next sentence's voice while one streams made BOTH slower — two lines at once share the speech server's 4 CPUs — and the
- * face's first 2 s of audio came later (1.07–1.28 s → 1.48–1.81 s). A sentence whose voice fails is 'audio-failed' and the
+ * The reply's voice: its sentences said in order — each `say` first, then its frames; a sentence after the first is
+ * preceded by its pause (pace.ts pauseMs — between sentences only, never after the last). Made ONE AT A TIME on eno's box
+ * (⛔ measured 2026-10-27 on the owner's Mac: asking for the next sentence's voice while one streams made BOTH slower — two
+ * lines at once share the speech server's 4 CPUs — and the face's first 2 s of audio came later, 1.07–1.28 s → 1.48–1.81 s);
+ * made AHEAD — `speak.ahead()` sentences beyond the one being heard, still SENT in order — when the voice is made elsewhere
+ * at about real time (Soniox, session-voice.ts): the next sentence is ready the moment the last one ends, so there is no
+ * hole between them and the page never runs dry inside one. A sentence whose voice fails is 'audio-failed' and the
  * next one is still made. close(): nothing more will be said — the last part-end goes out (after a `drill` line, when the
  * reply asked for one and every voice was made) the moment the queued sentences' voices are out; a sentence after that is
  * never voiced: the page has closed the face's reply (another send would start a new one over it). finish(): when every
@@ -244,14 +256,75 @@ export function voiceOf(q: Pick<LineQueue<TurnLine>, 'push'>, speak: Speaker | n
   let closed = false
   let drilled = false
   let chain: Promise<void> = Promise.resolve()
+  /** Sentences said but not yet sent, in order, with their voice when it was started ahead. */
+  const waiting: { part: number; text: string; voicing?: Promise<VoiceStream>; wasAhead?: boolean; stop?: () => void }[] = []
+  /** The part being sent (-1: none) and the last one sent. The CURRENT line — the one being sent, or with none the next —
+   *  is asked for as itself, never "ahead" (review, opus: a slow Soniox then cost the first sentence two waits). */
+  let sendingPart = -1
+  let lastSent = -1
+  const isCurrent = (part: number) => (sendingPart === -1 ? part === lastSent + 1 : part === sendingPart)
+  /** Start the next sentences' voices while the speaker allows them ahead (Speaker `ahead`); never on the box. */
+  const kick = () => {
+    if (!speak || gone.aborted) return
+    const room = speak.ahead?.() ?? 0
+    let started = waiting.filter((w) => w.voicing).length
+    for (const w of waiting) {
+      if (started >= room) break
+      if (w.voicing) continue
+      w.wasAhead = !isCurrent(w.part)
+      // Its own stop too: a line made ahead that is still silent when its turn comes is cancelled at Soniox for the box.
+      const own = new AbortController()
+      w.stop = () => own.abort()
+      w.voicing = speak(w.text, AbortSignal.any([gone, own.signal]), w.wasAhead ? { ahead: true } : undefined)
+      // Its failure is one()'s to handle when its turn comes — never an unhandled rejection meanwhile.
+      w.voicing.catch(() => undefined)
+      started += 1
+    }
+  }
   const one = async (part: number, text: string) => {
+    sendingPart = part
+    try {
+      await sendOne(part, text)
+    } finally {
+      sendingPart = -1
+      lastSent = part
+    }
+  }
+  const sendOne = async (part: number, text: string) => {
+    const mine = waiting.find((w) => w.part === part)
+    const ahead = mine?.voicing
+    // Only a voice asked for AHEAD is asked again in its turn — the current line's own ask already had the box behind it
+    // (review, codex + opus: a failed box was asked twice).
+    const retry = !!mine?.wasAhead
+    const stopAhead = mine?.stop
+    if (mine) waiting.splice(waiting.indexOf(mine), 1)
+    kick() // this one is being sent now: the room it held goes to the next
     if (gone.aborted) return
     q.push({ kind: 'say', part, text })
     // A sentence counts as VOICED once its first sound went out — or, with no voice at all, once its words were shown
     // (2026-10-26 review, codex: counted at `say`, a sentence still waiting for its voice was saved as heard).
     if (!speak) { onVoiced?.(text); return }
     try {
-      const v = await speak(text, gone)
+      // A voice made ahead that failed is asked for again in its turn — then, and only then, may the box say it, one line
+      // at a time (review, codex + opus: ahead lines falling back together would load the box's CPUs at once).
+      let v: VoiceStream
+      if (ahead) {
+        // Its turn: a line made ahead gets the same wait as one asked for now (speak.turnMs) — still silent, or failed, the
+        // box says it (review, opus: a slow Soniox otherwise left a long hole before the 2nd and 3rd sentences).
+        let late: ReturnType<typeof setTimeout> | undefined
+        let got: VoiceStream | null = null
+        try {
+          got = await (retry && speak.turnMs ? Promise.race([ahead, new Promise<null>((r) => { late = setTimeout(() => r(null), speak.turnMs) })]) : ahead)
+        } catch (e) {
+          if (gone.aborted || !retry) throw e
+        } finally {
+          clearTimeout(late)
+        }
+        if (!got) { stopAhead?.(); got = await speak(text, gone, { box: true }) }
+        v = got
+      } else {
+        v = await speak(text, gone)
+      }
       // The breath before a sentence that follows another — its own pcm line, so the pause is never counted as the
       // sentence being heard.
       if (part > 0 && v.pauseMs && !gone.aborted) q.push({ kind: 'pcm', part, rate: v.rate, data: Buffer.alloc(Math.round((v.rate * v.pauseMs) / 1000) * 2).toString('base64') })
@@ -295,6 +368,8 @@ export function voiceOf(q: Pick<LineQueue<TurnLine>, 'push'>, speak: Speaker | n
       // ⛔ NOTHING IS VOICED AFTER THE REPLY CLOSED (2026-10-27 plan review, codex + opus).
       if (closed) { logWarn('[classroom] a sentence after the reply closed — not voiced'); return }
       const part = parts++
+      waiting.push({ part, text })
+      kick()
       chain = chain.then(() => one(part, text))
     },
     /** Nothing more will be said: once the queued sentences' voices are out, the reply's drill (when every voice was

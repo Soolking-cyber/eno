@@ -13,14 +13,16 @@ import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Camera, Check, Mic, Play, Sparkles, UserRound, Volume2 } from '@/components/ui/icons'
+import { Camera, Check, Mic, Pause, Play, Sparkles, UserRound, Volume2 } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { LIBRARY_AVATARS } from '@/lib/classroom/library-avatars'
 import { ACCENT_LABEL, VOICES } from '@/lib/classroom/voices'
 import {
   AVATAR_NAME_MAX, DEFAULT_TRAITS, MAX_TOPICS, PACES, PACE_LABEL, PERSONA_MAX, TONES, TONE_LABEL, TOPICS, TOPIC_LABEL,
-  type Pace, type Tone, type Topic, type Traits,
+  parseTraits, type Pace, type Tone, type Topic, type Traits,
 } from '@/lib/classroom/persona'
+import { BACKGROUNDS, BACKGROUND_LABEL, backgroundThumb, isBackground, type Background } from '@/lib/classroom/backgrounds'
+import { Radio, RadioGroup } from '@/components/ui/radio-group'
 import { PERSONA_AI_ACTION, PERSONA_AI_NOTICE, PERSONA_AI_NOTICE_VERSION, PHOTO_ACTION, PHOTO_NOTICE, PHOTO_NOTICE_VERSION } from '@/lib/classroom/notices'
 import { LIKENESS_REQUESTS_OPEN, type AvatarLook } from '@/lib/classroom/constants'
 import { api } from './api'
@@ -69,7 +71,8 @@ export function AvatarWizard() {
         name: a?.name ?? r.data.defaults.name,
         persona: a?.persona ?? '',
         greeting: a?.greeting ?? '',
-        traits: (a?.traits as Traits | undefined) ?? r.data.defaults.traits ?? DEFAULT_TRAITS,
+        // Parsed here too: an avatar saved before a trait existed (the background) gets its default, shown as picked.
+        traits: parseTraits(a?.traits ?? r.data.defaults.traits ?? DEFAULT_TRAITS),
         voice: a?.voice ?? r.data.defaults.voice,
         look: (a?.look as AvatarLook | undefined) ?? 'photo',
         libraryAvatarId: a?.libraryAvatarId ?? null,
@@ -129,7 +132,7 @@ export function AvatarWizard() {
       {step === 'look' && <LookStep d={d} setD={setD} photoUrl={data.teacher.photoUrl} customStatus={customStatus} setCustomStatus={setCustomStatus} />}
       {step === 'character' && <CharacterStep d={d} setD={setD} />}
       {step === 'voice' && <VoiceStep d={d} setD={setD} />}
-      {step === 'try' && <TryStep name={d.name} photoUrl={data.teacher.photoUrl} />}
+      {step === 'try' && <TryStep name={d.name} photoUrl={data.teacher.photoUrl} background={d.traits.background} />}
     </StepWizard>
   )
 }
@@ -187,6 +190,27 @@ function LookStep({ d, setD, photoUrl, customStatus, setCustomStatus }: {
         </span>
         {d.look === 'photo' && <Check aria-hidden className="size-5 text-brand" />}
       </Button>
+      {/* The room behind the avatar (owner, 2026-10-27: "so students feel like they are in classroom with teacher"). */}
+      <div className="flex flex-col gap-2 border-t border-border pt-5">
+        <p className="text-sm font-semibold text-ink">{tr('Background', 'Phông nền')}</p>
+        <p className="text-xs text-ink-4">{tr('The room your students see behind the avatar.', 'Căn phòng học viên nhìn thấy phía sau avatar.')}</p>
+        {/* ONE choice of seven — the ui/radio-group primitive (Base UI), not pressed buttons (review, opus). */}
+        <RadioGroup value={d.traits.background} aria-label={tr('Background', 'Phông nền')} className="grid grid-cols-4 gap-2"
+          onValueChange={(v) => { if (isBackground(v)) setD({ ...d, traits: { ...d.traits, background: v } }) }}>
+          {BACKGROUNDS.map((b) => {
+            const thumb = backgroundThumb(b)
+            return (
+              <Radio key={b} value={b}
+                className={cn('flex min-w-0 flex-col items-center justify-start gap-1 whitespace-normal rounded-2xl p-1.5 text-center hover:bg-tint', d.traits.background === b && 'bg-accent')}>
+                {thumb
+                  ? <img src={thumb} alt="" width={72} height={126} loading="lazy" className="aspect-[4/7] h-auto w-full rounded-xl object-cover" />
+                  : <span aria-hidden className="aspect-[4/7] w-full rounded-xl bg-brand-deeper" />}
+                <span className="text-xs text-ink-2">{tr(BACKGROUND_LABEL[b].en, BACKGROUND_LABEL[b].vi)}</span>
+              </Radio>
+            )
+          })}
+        </RadioGroup>
+      </div>
       {ownFace && <div className="flex flex-col gap-3 border-t border-border pt-5">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-ink">{tr('Your own face in 3D', 'Khuôn mặt 3D của chính bạn')}</p>
@@ -285,17 +309,33 @@ function CharacterStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
 function VoiceStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
   const { tr } = useLanguage()
   const audio = useRef<HTMLAudioElement | null>(null)
-  const [playing, setPlaying] = useState<string | null>(null)
-  const play = (id: string) => {
+  /** The sample being heard and how far along it is: fetching its sound, or playing (owner, 2026-10-28: "play button
+   *  doesnt show play state"). Tapping it again stops it; another voice's ▶ switches. */
+  const [sample, setSample] = useState<{ id: string; state: 'loading' | 'playing' } | null>(null)
+  const stop = () => { audio.current?.pause(); audio.current = null; setSample(null) }
+  const play = (v: (typeof VOICES)[number]) => {
+    if (sample?.id === v.id) { stop(); return }
     audio.current?.pause()
-    const a = new Audio(`/api/classroom/voices/${encodeURIComponent(id)}/sample`)
+    // The sample made ONCE as a static file (voices.ts VOICE_SAMPLE_LINE — it starts at once; `v` keys it to the Soniox
+    // voice, so a changed voice is never a stale cached file); the live route only when the file cannot be had.
+    const a = new Audio(`/classroom/voices/${encodeURIComponent(v.id)}.mp3?v=${encodeURIComponent(v.soniox)}`)
     audio.current = a
-    setPlaying(id)
-    a.onended = () => setPlaying(null)
-    a.onerror = () => setPlaying(null)
-    void a.play().catch(() => setPlaying(null))
+    setSample({ id: v.id, state: 'loading' })
+    const mine = () => audio.current === a
+    a.onplaying = () => { if (mine()) setSample({ id: v.id, state: 'playing' }) }
+    a.onended = () => { if (mine()) { audio.current = null; setSample(null) } }
+    let fellBack = false
+    a.onerror = () => {
+      if (!mine()) return
+      if (fellBack) { audio.current = null; setSample(null); return }
+      fellBack = true
+      a.src = `/api/classroom/voices/${encodeURIComponent(v.id)}/sample`
+      void a.play().catch(() => { if (mine()) { audio.current = null; setSample(null) } })
+    }
+    void a.play().catch(() => { /* a load error is onerror's; a refused autoplay leaves the button ready again */ if (mine() && !fellBack && a.error === null) { audio.current = null; setSample(null) } })
   }
-  useEffect(() => () => audio.current?.pause(), [])
+  // Leaving the step stops the sample FOR GOOD: no handler still owns it, so a late fallback never plays on a later step.
+  useEffect(() => () => { audio.current?.pause(); audio.current = null }, [])
   return (
     <div className="flex flex-col gap-2">
       <p className="mb-2 text-sm text-body">{tr('Pick the voice your avatar speaks with. Tap ▶ to listen.', 'Chọn giọng nói cho avatar. Chạm ▶ để nghe thử.')}</p>
@@ -309,8 +349,11 @@ function VoiceStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
               {v.note === 'young-learners' && <span className="text-xs text-ink-4">{tr('playful, for young learners', 'vui tươi, hợp với các em nhỏ')}</span>}
               {d.voice === v.id && <Check aria-hidden className="ml-auto size-5 text-brand" />}
             </Button>
-            <Button variant="ghost" size="icon" className="size-11" aria-label={tr('Listen', 'Nghe thử')} onClick={() => play(v.id)} disabled={playing === v.id}>
-              <Play aria-hidden className="size-5" />
+            {/* ▶ → the house busy state while the sound loads (Button `loading`) → ❚❚ while it plays: tap to stop. */}
+            <Button variant="ghost" size="icon" className="size-11" onClick={() => play(v)} aria-pressed={sample?.id === v.id && sample.state === 'playing'}
+              loading={sample?.id === v.id && sample.state === 'loading'}
+              aria-label={sample?.id === v.id && sample.state === 'playing' ? tr('Stop', 'Dừng') : tr('Listen', 'Nghe thử')}>
+              {sample?.id === v.id && sample.state === 'playing' ? <Pause aria-hidden className="size-5 text-brand" /> : <Play aria-hidden className="size-5" />}
             </Button>
           </li>
         ))}
@@ -319,14 +362,14 @@ function VoiceStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
   )
 }
 
-function TryStep({ name, photoUrl }: { name: string; photoUrl: string | null }) {
+function TryStep({ name, photoUrl, background }: { name: string; photoUrl: string | null; background: Background }) {
   const { tr } = useLanguage()
   return (
     <div className="flex flex-col items-center gap-4 py-6 text-center">
       <Avatar name={name} url={photoUrl} size="2xl" />
       <p className="text-lg font-bold text-ink">{tr('Saved! Try your avatar', 'Đã lưu! Thử avatar của bạn')}</p>
       <p className="max-w-sm text-sm text-body">{tr('A 3-minute session, exactly as a student hears it. You get a report too.', 'Một buổi 3 phút, đúng như học viên trải nghiệm. Bạn cũng nhận được nhận xét.')}</p>
-      <SessionLauncher test preview={{ name, photoUrl }} variant="cta" size="lg" className="min-h-12 w-full max-w-xs" label={<><Mic aria-hidden />{tr('Try it now', 'Thử ngay')}</>} />
+      <SessionLauncher test preview={{ name, photoUrl, background }} variant="cta" size="lg" className="min-h-12 w-full max-w-xs" label={<><Mic aria-hidden />{tr('Try it now', 'Thử ngay')}</>} />
     </div>
   )
 }

@@ -53,6 +53,8 @@ export type StageHandle = {
  * the SDK's `opusUplinkEnabled`). Spatius supports 8–48 kHz.
  */
 export const FACE_RATE = 24_000
+/** The face is drawn at most this many pixels tall (the SDK's resolution cap); the browser scales it to the screen. */
+const FACE_MAX_PX = 960
 
 /** `?face=fast` on the page: audioIndependent (owner testing — see frameStarvationMode); `?face=webgpu`: the SDK may draw
  *  with WebGPU again (see drawWithWebGl). */
@@ -324,7 +326,14 @@ export const AvatarStage = forwardRef<StageHandle, {
         const kit = await warmAvatarKit()
         if (l.gone) return
         // The app id and region only (no token): the SDK resolves its region with them.
-        if (!kit.AvatarSDK.appId) await kit.AvatarSDK.initialize(face.appId, { region: face.region, drivingServiceMode: kit.DrivingServiceMode.direct, logLevel: kit.LogLevel.error })
+        // ⚡ LIGHT ON PURPOSE (owner, 2026-10-27: "lower the quality … compressed version for faster load"): the SDK draws
+        // at `ultra` by default and at the screen's full density (×3 on an iPhone) — here `standard`, its height capped at
+        // FACE_MAX_PX and scaled up by the browser. Spatius bills connected minutes, not pixels: this saves the phone's GPU,
+        // battery and first frame, not the bill. (The model is already the compressed one — the `true` below.)
+        if (!kit.AvatarSDK.appId) await kit.AvatarSDK.initialize(face.appId, { region: face.region, drivingServiceMode: kit.DrivingServiceMode.direct, logLevel: kit.LogLevel.error, renderQuality: kit.RenderQuality.standard })
+        // On every mount, not only the first setup (review, codex + opus): whatever set the SDK up first, this face is light.
+        kit.AvatarSDK.setRenderQuality(kit.RenderQuality.standard)
+        kit.AvatarSDK.setRenderResolutionCap(true, FACE_MAX_PX)
         if (l.gone) return
         const avatar = await kit.AvatarManager.shared.load(face.avatarId, undefined, true)
         if (l.gone) return

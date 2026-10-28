@@ -607,11 +607,13 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
     setCaption(s.opening.text)
     liveConnecting.current = true
     void openLiveStt({
-      grant: () => fetch('/api/concierge/stt-token', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: s.session }) }),
+      grant: (signal) => fetch('/api/concierge/stt-token', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: s.session }), signal }),
       check: () => fetch(`/api/concierge/stt-token?session=${encodeURIComponent(s.session)}`, { method: 'GET' }),
     }, { utterance: (t, ms) => handlers.current.utterance(t, ms), failed: () => handlers.current.liveFailed() }).then((l) => {
       liveConnecting.current = false
-      if (ended.current) { l?.close(); return }
+      if (ended.current) { if (l && l !== 'refused') l.close(); return }
+      // The server's own final no (the session is over): nothing more can be heard — the window closes.
+      if (l === 'refused') { closeWindow('listening refused'); return }
       liveStt.current = l
       if (!l) { setNotice('speech_unavailable'); offerStarters() }
     })
@@ -724,7 +726,7 @@ export function ConciergeFrame({ face: initialFace, open }: { face: FaceConfig |
         <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-1.5 bg-gradient-to-t from-brand-deeper/90 to-transparent p-2 pt-6 text-center">
           {phase === 'intro' && (
             <p className="text-3xs leading-snug text-primary-foreground/85">
-              {tr('Talk to find things on eno. Soniox turns your voice into text and OpenAI answers; eno keeps no recording or transcript.', 'Nói để tìm trên eno. Soniox chuyển giọng nói thành chữ và OpenAI trả lời; eno không lưu bản ghi âm hay nội dung trò chuyện.')}
+              {tr('Talk to find things on eno. Soniox turns your voice into text and speaks the answers OpenAI writes; eno keeps no recording or transcript.', 'Nói để tìm trên eno. Soniox chuyển giọng nói thành chữ và đọc câu trả lời do OpenAI viết; eno không lưu bản ghi âm hay nội dung trò chuyện.')}
             </p>
           )}
           {phase === 'refused' && (

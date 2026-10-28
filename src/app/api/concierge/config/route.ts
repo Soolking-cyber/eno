@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { route } from '@/lib/api/handler'
 import { conciergeOpenFor } from '@/lib/concierge/config'
-import { conciergeFace } from '@/lib/concierge/start'
+import { conciergeFace, warmOpening } from '@/lib/concierge/start'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,5 +13,7 @@ export const dynamic = 'force-dynamic'
  */
 export const GET = route({ auth: 'userId' }, async ({ userId }) => {
   const open = await conciergeOpenFor(userId)
+  // The opening's voice is made while the ✨ waits for its tap (Soniox speaks at about real time — start.ts).
+  if (open) warmOpening()
   return NextResponse.json({ open, face: open ? conciergeFace() : null }, { headers: { 'cache-control': 'private, no-store' } })
 })

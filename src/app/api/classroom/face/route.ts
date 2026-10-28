@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { ApiError, route } from '@/lib/api/handler'
-import { facePreview } from '@/lib/classroom/session-start'
+import { facePreview, warmOpening } from '@/lib/classroom/session-start'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,6 +16,9 @@ export const GET = route({ auth: 'profile', rateLimit: { bucket: 'classroom-face
   const seatId = q.get('seatId')
   const test = q.get('test') === '1'
   if (!test && !seatId) throw new ApiError('bad_request', 400)
-  const face = await facePreview(profile.id, test ? { test: true } : { seatId: seatId! })
+  const target = test ? { test: true as const } : { seatId: seatId! }
+  // While the intro is up, the opening line is made ahead on Soniox (it speaks at about real time) — not awaited.
+  void warmOpening(profile.id, target)
+  const face = await facePreview(profile.id, target)
   return NextResponse.json({ face }, { headers: { 'cache-control': 'private, no-store' } })
 })

@@ -2,7 +2,7 @@ import 'server-only'
 import { db } from '@/lib/db'
 import { taxVerdict } from '@/lib/tax-lookup'
 import { serializeListing } from '@/lib/serialize'
-import { isStale } from '@/lib/stale'
+import { inAvailabilityReview, isStale } from '@/lib/stale'
 import type { Profile } from '@/generated/prisma/client'
 import { NOT_REMOVED } from '@/lib/listing-removed'
 import { conversationUnread } from '@/lib/unread'
@@ -38,7 +38,8 @@ export async function dashboardStatsCore(profile: Profile, { includeSupportDesk 
 
   // Stats over the seller's own listings.
   const active = listings.filter((l) => l.status === 'active')
-  const stale = active.filter((l) => isStale(l.availabilityConfirmedAt, l.postedAt))
+  // A teacher's profile is never in the goods review (stale.ts inAvailabilityReview) — so it never counts as stale here.
+  const stale = active.filter((l) => inAvailabilityReview(l) && isStale(l.availabilityConfirmedAt, l.postedAt))
   const stats = {
     totalViews: listings.reduce((n, l) => n + l.views, 0),
     totalLeads: listings.reduce((n, l) => n + l.contactCount, 0),

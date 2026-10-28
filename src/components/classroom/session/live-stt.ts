@@ -9,28 +9,32 @@ import { mark } from './trace'
  * Soniox ends the utterance on meaning, pauses and intonation (its `<end>` token), so the words exist ~0.5 s after the
  * learner stops — and the page sends the TEXT as the turn (src/lib/classroom/soniox.ts says why Soniox).
  *
- * Our own voice detector (recorder-worklet.js) still decides when the learner STARTS: audio flows only from a speech-start
- * (with its pre-roll) until the page has the utterance's words — the room is not streamed between turns, and Soniox bills
- * only what it hears. Between utterances a keepalive holds the socket (Soniox closes it after 20 s of nothing).
+ * ⛔ SONIOX DECIDES (owner, 2026-10-27, after "it cant hear me nor transcribe what i say": "dont alter with code let the stt
+ * decide itself"). While the page listens, EVERY frame streams here — no detector of ours in between (ours kept soft
+ * voices out: its noise floor rose with a fan or the avatar's echo) — and Soniox's own `<end>` is the end of the turn.
+ * Gating saved nothing anyway: Soniox bills "the full stream duration, not just the audio processed". Its in-progress
+ * words (`activity`) say when the learner is speaking. A keepalive holds the socket whenever no audio has gone for a while
+ * (Soniox closes it after 20 s of nothing), and a socket that takes audio but answers nothing is a broken one: Soniox
+ * answers about once a second even in silence (measured 2026-10-27), so STALL_MS without a message ends it.
  *
  * One socket for the session, opened with a single-use key the server mints after the same checks as a turn
  * (api/classroom/sessions/<id>/stt-token), re-checked every minute while it is open (a withdrawal, the switch). Any
- * failure → `failed()`, and the page listens the old way for the rest of the session (the clip, sent whole to eno's own
- * speech server). ⛔ Nothing is stored; the words are never logged.
+ * failure → `failed()`, and the page opens it again (session-screen.tsx retryLive) — there is no other way to hear the
+ * learner (Soniox only, owner 2026-10-27). ⛔ Nothing is stored; the words are never logged.
  *
  * ⛔ EVERY WORD BELONGS TO ITS OWN UTTERANCE (2026-10-26 review, codex): an utterance the page gave up on (muted, or sent as
- * a clip when its words were late) still gets its words and its end marker from Soniox, later. Words are matched to the
+ * dropped when its words were late) still gets its words and its end marker from Soniox, later. Words are matched to the
  * current utterance by their place on the stream's audio clock (only audio from inside utterances is sent, so the clock
  * is the sum of what was sent), and an abandoned utterance's own end marker is consumed without ending the current one.
  */
 export type LiveStt = {
-  /** The learner started speaking: a new utterance — the audio that follows belongs to it. */
+  /** The page listens from here: a new utterance — the audio that follows belongs to it. */
   begin(): void
   /** 16 kHz mono PCM16 of the current utterance. Ignored outside one. */
   push(pcm: Int16Array): void
   /** The page has the utterance's words (or gave up on it): no more audio until the next begin(). */
   pause(): void
-  /** The detector heard the learner stop and Soniox has not ended the utterance yet: make it end now. */
+  /** Make Soniox end the utterance now (the page's 45 s cap on one turn). */
   finalize(): void
   /** Abandon the current utterance (muted mid-sentence, or sent as a clip): whatever Soniox returns for it is dropped. */
   cancel(): void
@@ -46,8 +50,14 @@ type Grant = { apiKey: string; url: string; model: string; settings: Record<stri
 /** Soniox's markers: the end of an utterance (endpoint detection) and the end of a requested finalization. */
 const END = '<end>'
 const FIN = '<fin>'
-/** Soniox ends a socket that hears nothing for 20 s; a keepalive this often holds it between utterances. */
+/** Soniox ends a socket that hears nothing for 20 s: a keepalive goes whenever no audio has gone for this long. */
 const KEEPALIVE_MS = 8_000
+/** Audio is going out but Soniox has said nothing for this long: the socket is stuck — the page opens another. */
+const STALL_MS = 6_000
+/** The longest the key request may take before this try counts as failed. */
+const KEY_WAIT_MS = 10_000
+/** The key route's refusals that no retry can change (stt-grant.ts) — every other failure may pass. */
+const FINAL_REFUSALS: ReadonlySet<string> = new Set(['session_over', 'session_not_found', 'classroom_closed', 'consent_required', 'seat_inactive', 'stt_keys_spent'])
 /** While the socket is open, the server re-checks the session this often (a withdrawal or the switch closes it). */
 const RECHECK_MS = 60_000
 
@@ -55,19 +65,43 @@ const RECHECK_MS = 60_000
  * Where the socket's key comes from: a classroom session's id (its own stt-token route) — or the voice concierge's routes
  * (src/components/concierge), as two requests: the key, and the minute-by-minute "may this still be heard?".
  */
-export type SttSource = string | { grant: () => Promise<Response>; check: () => Promise<Response> }
+export type SttSource = string | { grant: (signal: AbortSignal) => Promise<Response>; check: () => Promise<Response> }
 
 export async function openLiveStt(source: SttSource, on: {
   /** One utterance's words, as Soniox finalized them, and its length in ms (from its first word to its last). */
   utterance: (text: string, speechMs: number) => void
-  /** The socket could not open, broke, or the session may no longer be heard: the page goes back to sending clips. */
+  /** The socket broke, or the session may no longer be heard: the page waits, and opens it again (Soniox only). */
   failed: () => void
-}): Promise<LiveStt | null> {
-  const grantReq = typeof source === 'string' ? () => fetch(`/api/classroom/sessions/${source}/stt-token`, { method: 'POST' }) : source.grant
+  /**
+   * Soniox's latest answer in this utterance holds words (final or still in progress) — the learner is speaking — or none
+   * (a noise it took back). Called on every answer; the page shows "Hearing you" from it.
+   */
+  activity?: (speaking: boolean) => void
+}): Promise<LiveStt | 'refused' | null> {
   const checkReq = typeof source === 'string' ? () => fetch(`/api/classroom/sessions/${source}/stt-token`, { method: 'GET' }) : source.check
-  const r = await grantReq().catch(() => null)
-  if (!r?.ok) { mark('live listening: no key', String(r?.status ?? 'network')); return null }
-  const grant = (await r.json().catch(() => null)) as Grant | null
+  // Only the server's own FINAL refusals end the tries (FINAL_REFUSALS: the session is over, the switch is off, consent
+  // withdrawn, no keys left); anything else — Soniox down, the network, a passing 401 or rate limit, a proxy's 403/404
+  // during a deploy (review, codex + opus) — may pass: the page tries again a few times.
+  // ⛔ Bounded (review, codex): a request stuck on a dead network would hold off every retry and the screen's end. An
+  // AbortController and a timer — AbortSignal.timeout() is missing before iOS 16 (review, codex + opus).
+  // The timer covers the body too (review, codex): headers that arrive and a body that never does is the same dead network.
+  const abort = new AbortController()
+  const giveUp = setTimeout(() => abort.abort(), KEY_WAIT_MS)
+  let grant: Grant | null
+  try {
+    const r = await (typeof source === 'string'
+      ? fetch(`/api/classroom/sessions/${source}/stt-token`, { method: 'POST', signal: abort.signal })
+      : source.grant(abort.signal)).catch(() => null)
+    if (!r?.ok) {
+      mark('live listening: no key', String(r?.status ?? 'network'))
+      if (!r || r.status < 400 || r.status >= 500) return null
+      const code = ((await r.json().catch(() => null)) as { error?: unknown } | null)?.error
+      return typeof code === 'string' && FINAL_REFUSALS.has(code) ? 'refused' : null
+    }
+    grant = (await r.json().catch(() => null)) as Grant | null
+  } finally {
+    clearTimeout(giveUp)
+  }
   if (!grant?.apiKey || !grant.url) return null
   let ws: WebSocket
   try {
@@ -108,10 +142,22 @@ export async function openLiveStt(source: SttSource, on: {
   let firstMs: number | null = null
   let lastMs = 0
   let closed = false
+  /** When audio last went out, when it started flowing after a gap, and when Soniox last answered (Date.now ms). */
+  let lastSentAt = 0
+  let flowingSince = 0
+  let lastHeardAt = Date.now()
   const timers: ReturnType<typeof setInterval>[] = []
   timers.push(setInterval(() => {
-    if (!streaming && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'keepalive' }))
-  }, KEEPALIVE_MS))
+    // ⚠️ By the audio, not by `streaming` (plan review, opus): listening streams for minutes, and an iOS interruption (a
+    // call, the lock screen) stops the frames without ending it — the socket would close after 20 s of nothing.
+    if (ws.readyState === WebSocket.OPEN && Date.now() - lastSentAt >= KEEPALIVE_MS) ws.send(JSON.stringify({ type: 'keepalive' }))
+  }, KEEPALIVE_MS / 2))
+  timers.push(setInterval(() => {
+    // A socket that swallows audio and answers nothing (a stalled network) would leave the learner on "Listening" for good.
+    const now = Date.now()
+    if (closed || !streaming || now - lastSentAt > 1_000) return
+    if (now - Math.max(lastHeardAt, flowingSince) > STALL_MS) { mark('live listening: stalled'); shutDown(true) }
+  }, 1_000))
   timers.push(setInterval(() => {
     void checkReq().then((res) => {
       if (!res.ok && res.status !== 429) { mark('live listening: no longer allowed', String(res.status)); shutDown(true) }
@@ -123,7 +169,14 @@ export async function openLiveStt(source: SttSource, on: {
     if (typeof e.data !== 'string') return
     let m: Message
     try { m = JSON.parse(e.data) as Message } catch { return }
+    lastHeardAt = Date.now()
     if (m.error_code) { mark('live listening: error', `${m.error_code} ${m.error_type ?? ''}`); shutDown(true); return }
+    // In-progress words of THIS utterance (by the audio clock) — with its final words so far, "the learner is speaking".
+    let pending = false
+    for (const t of m.tokens ?? []) {
+      if (!t.is_final && typeof t.text === 'string' && t.text.trim() && t.text !== END && t.text !== FIN
+        && !(typeof t.start_ms === 'number' && t.start_ms < utterStartMs - 20)) { pending = true; break }
+    }
     for (const t of m.tokens ?? []) {
       if (!t.is_final || typeof t.text !== 'string') continue
       if (t.text === END || t.text === FIN) {
@@ -144,6 +197,8 @@ export async function openLiveStt(source: SttSource, on: {
       if (typeof t.start_ms === 'number' && firstMs === null) firstMs = t.start_ms
       if (typeof t.end_ms === 'number') lastMs = t.end_ms
     }
+    // (Not after the page paused for a turn this answer ended.)
+    if (streaming && !closed) on.activity?.(pending || finals.trim().length > 0)
   }
   const shutDown = (broke: boolean) => {
     if (closed) return
@@ -164,6 +219,9 @@ export async function openLiveStt(source: SttSource, on: {
     },
     push(pcm) {
       if (closed || !streaming || ws.readyState !== WebSocket.OPEN || !pcm.length) return
+      const now = Date.now()
+      if (now - lastSentAt > 1_000) flowingSince = now
+      lastSentAt = now
       ws.send(pcm.buffer.byteLength === pcm.byteLength ? pcm.buffer : pcm.slice().buffer)
       sentMs += pcm.length / 16
     },
@@ -201,6 +259,16 @@ export async function openLiveStt(source: SttSource, on: {
  * next word — only words like these are held for what follows; "Yes." or "I'm fine" are answers, sent at once.
  */
 const FILLER_WORD = /^(?:u+[hm]+|e+r+m*|e+h+|h+m+|a+h+|o+h+|m{2,}|so|well|and|but|like|because|ừ+m+|ờ+|ơ+|à+|thì|mà|kiểu)$/i
+/** A pure hesitation sound — never a word that can be an answer ("So.", "Well." can; so can "Mm." — a yes, review). */
+const HESITATION_WORD = /^(?:u+[hm]+|e+r+m*|e+h+|h+m+|a+h+|ừ+m+|ờ+|ơ+|à+)$/i
+/**
+ * Soniox ended an utterance on nothing but a hesitation ("Um.", "Ờ…"): not a turn — the learner is finding the word, and the
+ * stream simply goes on (owner, 2026-10-27: Soniox decides; this only keeps a sound from being sent as an answer).
+ */
+export function isHesitation(text: string): boolean {
+  const words = text.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}\s'-]/gu, ' ').trim().split(/\s+/).filter(Boolean)
+  return words.length > 0 && words.length <= 2 && words.every((w) => HESITATION_WORD.test(w))
+}
 export function isFiller(text: string): boolean {
   // Vietnamese hesitations too ("ờ", "ừm", "à", "thì" — review, opus: the learners are Vietnamese); "so-so" stays one word.
   // NFC first (a decomposed "ờ" is "o" + marks); digits stay words ("like 2" is an answer — review, codex + opus).
