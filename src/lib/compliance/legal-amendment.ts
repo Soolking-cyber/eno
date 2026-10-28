@@ -14,11 +14,15 @@
 //     version-2 note in /terms' change log. A text that read LEGAL_AMENDMENT for a date version 3 did not
 //     give it would now print 7 October for an October-1 change. (/prohibited read them too until its own
 //     amendment, 2026-10-14 — PROHIBITED_AMENDMENT below.)
-//   · REGULATIONS_AMENDMENT — the Quy chế's OWN newest amendment: version 3 (Article 14 — UX program 2's
-//     ranking), which changed no other text. /regulations (META + Article 17's newest entry), the
-//     /regulations/v2 archive ("replaced from …") and /legal/ranking's date (ranking-disclosure.ts
-//     RANKING_DISCLOSURE_UPDATED, tied to it for this deploy) read it. It switches nothing at runtime:
-//     Profile.tosVersion stamps the TERMS version, which this amendment did not change.
+//   · REGULATIONS_AMENDMENT — the Quy chế's OWN newest amendment: since 2026-10-28 version 4 (Article 14 — the
+//     home page shows only listings contacted through the platform), which changed no other text. /regulations (META +
+//     Article 17's newest entry), the /regulations/v3 archive ("replaced from …", through legal-archive.ts
+//     V3_SUPERSEDED_BY) and /legal/ranking's date (ranking-disclosure.ts RANKING_DISCLOSURE_UPDATED, tied to it
+//     for this deploy) read it. It switches nothing at runtime: Profile.tosVersion stamps the TERMS version,
+//     which this amendment did not change.
+//     ⚠️ IT USED TO BE VERSION 3 (Article 14 — UX program 2's ranking; published and in force 05/10/2026,
+//     immediate). Re-using the record for version 4 moved those dates out of it: they are LITERALS now, in
+//     legal-archive.ts (V2_SUPERSEDED_BY), which the /regulations/v2 archive and version 3's Article 17 entry read.
 //   · PROHIBITED_AMENDMENT — /prohibited's OWN amendment (owner, 2026-10-14: the e-Visa rules join eno.vn's
 //     list): /prohibited ("Last updated", eno.vn's dated line in its e-Visa section), eno.vn's Article 17
 //     entry for it, the strip and the bell read it. It switches nothing at runtime either.
@@ -54,9 +58,10 @@
 // ⛔ THE ONE EXCEPTION IS `immediate: true` — AN OWNER'S DECISION, NEVER A CONVENIENCE. It means "in force
 // on the day it is published, no notice window, no announcement": inForce MUST equal published, nothing
 // is announced (no strip, no bell notice), and the deploy gate wants LEGAL_AMENDMENT_IMMEDIATE=<published>
-// on top of the publication-day rule. The October 2026 amendment was one, and so are the Quy chế's version 3
-// and — owner, 2026-10-07 — the Terms' version 3 (both below), and — owner, 2026-10-15 — /prohibited's own amendment
-// (PROHIBITED_AMENDMENT, made immediate the day it went live with a window). The next amendment drops the flag and gets its
+// on top of the publication-day rule. The October 2026 amendment was one, and so were the Quy chế's version 3
+// and — owner, 2026-10-07 — the Terms' version 3 (below), and — owner, 2026-10-15 — /prohibited's own amendment
+// (PROHIBITED_AMENDMENT, made immediate the day it went live with a window), and — owner, 2026-10-28 — the Quy chế's
+// version 4 (below). The next amendment drops the flag and gets its
 // 6 days again unless the owner decides otherwise for THAT amendment. Quy chế Article 15's 5-day promise stays
 // in the text for every amendment after these.
 //
@@ -105,23 +110,29 @@ export const LEGAL_AMENDMENT: LegalAmendment = {
 }
 
 /**
- * THE QUY CHẾ'S VERSION 3 — a Quy chế-only amendment of Article 14 (search and feed ranking as UX program 2
- * left it; the change list is Article 17's newest entry). The Terms stay at version 2 and LEGAL_AMENDMENT
- * keeps October's dates: nothing else was amended.
+ * THE QUY CHẾ'S VERSION 4 — a Quy chế-only amendment of Article 14: the home page shows only listings dealt on the
+ * platform. Its default feed, its Outstanding businesses and per-category rails, and the For You rail wherever it
+ * appears leave out listings whose button takes the user to another website (Article 3's linked listings and partner bookings) (src/lib/in-app-listing.ts —
+ * owner, 2026-10-28: "rearrange the home page of eno.vn so no product with link shows there"); the change list is
+ * Article 17's newest entry. The Terms stay at their version 3 and LEGAL_AMENDMENT keeps its dates: nothing else was
+ * amended. Version 3 (05/10/2026) is archived at /regulations/v3; its dates are literals in legal-archive.ts
+ * (V2_SUPERSEDED_BY) since this record was re-used.
  *
- * Published and in force 05/10/2026 (deployed in commit 2cd70d7e2, that day in Vietnam). /legal/ranking's
- * "Last updated" (RANKING_DISCLOSURE_UPDATED) is tied to `published` here, so it moved with it — there is no
- * second date to set.
+ * /legal/ranking's "Last updated" (RANKING_DISCLOSURE_UPDATED) is tied to `published` here — the page changed in the
+ * same deploy (its #home section) — so it moves with it; there is no second date to set.
  *
- * ⛔ OWNER, 2026-10-05: "apply best recommended" — the recommendation being the 2026-10-01 precedent (Terms
- * v2: "just change now we dont have users so its safe to implement just new terms no need for
- * announcement") — and, confirmed explicitly at the deploy the same day: "deploy all no need for notice
- * now". In force the day it is published, no notice window, no strip, no bell notice. Scoped to THIS
- * amendment — do not copy the flag forward.
+ * ⛔ IMMEDIATE — THE OWNER'S DECISION (2026-10-28, AskUserQuestion: "The marketplace rules (Quy chế, Article 14)
+ * currently say no home-page listing is hidden … When should it take effect?" → "Immediately (Recommended)" — in force
+ * the day it is deployed, no notice banner, the 5 Oct and 15 Oct precedents). In force the day it is published, no
+ * notice window, no strip, no bell notice. Scoped to THIS amendment — do not copy the flag forward.
+ * ⛔ 2026-10-28 IS THE DAY IT IS MEANT TO SHIP, NOT YET A FACT: `published` must be the day it actually deploys
+ * (Vietnam time). If that is another day, the deployer re-dates BOTH — to the same day, because it is immediate — in
+ * the commit that ships it, and runs the deploy with LEGAL_AMENDMENT_IMMEDIATE=<that day>; the deploy gate
+ * (legal-amendment-gate.sh) refuses any other day and any deploy without that ack.
  */
 export const REGULATIONS_AMENDMENT: LegalAmendment = {
-  published: '2026-10-05',
-  inForce: '2026-10-05',
+  published: '2026-10-28',
+  inForce: '2026-10-28',
   immediate: true,
 }
 

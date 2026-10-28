@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { LEGAL_AMENDMENT, REGULATIONS_AMENDMENT } from './legal-amendment'
-import { TERMS_V2_SUPERSEDED_BY, V1, V1_PATHS, V1_SUPERSEDED_BY, V2, V2_PATHS, V2_SUPERSEDED_BY, archivedPath } from './legal-archive'
+import { TERMS_V2_SUPERSEDED_BY, V1, V1_PATHS, V1_SUPERSEDED_BY, V2, V2_PATHS, V2_SUPERSEDED_BY, V3, V3_PATHS, V3_SUPERSEDED_BY, archivedPath } from './legal-archive'
 import { REGULATIONS_PREVIOUS_VERSION, REGULATIONS_VERSION, TOS_PREVIOUS_VERSION, TOS_VERSION } from '@/lib/site-legal'
 
 /**
@@ -37,6 +37,16 @@ describe('legal archive', () => {
     expect(V2).toBe('2')
     expect(V2_PATHS.regulations).toBe('/regulations/v2')
     expect(existsSync(pageFile('regulations', V2))).toBe(true)
+  })
+
+  // The Quy chế's version 4 (2026-10-28 — Article 14's home-page rule) replaced version 3: the text in force from
+  // 05/10/2026 until that day, which the Terms accepted in the period incorporate.
+  it('keeps the Quy chế’s version 3 published, permanently — the Terms accepted from 05/10/2026 incorporate it', () => {
+    expect(V3).toBe('3')
+    expect(REGULATIONS_VERSION).toBe('4')
+    expect(REGULATIONS_PREVIOUS_VERSION).toBe(V3)
+    expect(V3_PATHS).toEqual({ regulations: '/regulations/v3' })
+    expect(existsSync(pageFile('regulations', V3))).toBe(true)
   })
 
   // The Terms' version 3 (2026-10-07) replaced the Terms' version 2 — the text everyone accepted from 01/10/2026
@@ -80,7 +90,8 @@ describe('legal archive', () => {
 
   it('borrows REGULATIONS_AMENDMENT for the Quy chế’s version 3 ONLY while that record still describes it', () => {
     expect(block('V2_SUPERSEDED_BY'), 'the anchor below must find the block').toContain("version: '3'")
-    if (REGULATIONS_VERSION === V2_SUPERSEDED_BY.version) {
+    // Widened: the two are literal types, and TypeScript refuses a comparison it can already decide.
+    if ((REGULATIONS_VERSION as string) === V2_SUPERSEDED_BY.version) {
       expect(V2_SUPERSEDED_BY.published).toBe(REGULATIONS_AMENDMENT.published)
       expect(V2_SUPERSEDED_BY.inForce).toBe(REGULATIONS_AMENDMENT.inForce)
     } else {
@@ -88,6 +99,41 @@ describe('legal archive', () => {
       // version-2 archive (and version 3's Article 17 entry) print the newer amendment's dates.
       expect(block('V2_SUPERSEDED_BY'), 'type version 3’s real publication and in-force dates into V2_SUPERSEDED_BY').not.toMatch(/REGULATIONS_AMENDMENT\.(published|inForce)/)
     }
+  })
+
+  // ⛔ Since version 4 re-used the record (2026-10-28): version 3's real dates, typed once.
+  it('types the Quy chế’s version 3’s real dates — published and in force 05/10/2026 — now that REGULATIONS_AMENDMENT moved on', () => {
+    expect(V2_SUPERSEDED_BY).toEqual({ version: '3', published: '2026-10-05', inForce: '2026-10-05' })
+    expect(REGULATIONS_AMENDMENT.published).not.toBe(V2_SUPERSEDED_BY.published)
+  })
+
+  it('borrows REGULATIONS_AMENDMENT for the Quy chế’s version 4 ONLY while that record still describes it', () => {
+    expect(block('V3_SUPERSEDED_BY'), 'the anchor below must find the block').toContain("version: '4'")
+    if (REGULATIONS_VERSION === V3_SUPERSEDED_BY.version) {
+      expect(V3_SUPERSEDED_BY.published).toBe(REGULATIONS_AMENDMENT.published)
+      expect(V3_SUPERSEDED_BY.inForce).toBe(REGULATIONS_AMENDMENT.inForce)
+    } else {
+      // A version 5 re-used REGULATIONS_AMENDMENT: version 4's real dates must be literals by now, or the
+      // version-3 archive (and version 4's Article 17 entry) print the newer amendment's dates.
+      expect(block('V3_SUPERSEDED_BY'), 'type version 4’s real publication and in-force dates into V3_SUPERSEDED_BY').not.toMatch(/REGULATIONS_AMENDMENT\.(published|inForce)/)
+    }
+  })
+
+  it('the Quy chế v3 archive keeps the legal representative it printed when replaced — on eno.vn only', () => {
+    const src = readFileSync(pageFile('regulations', V3), 'utf8')
+    expect(src).toContain("const COMPANY = IS_MARKETPLACE ? { ...LIVE_COMPANY, legalRep: 'Nguyễn Quốc Lập', contentManager: 'Nguyễn Quốc Lập' } : LIVE_COMPANY")
+    expect(src).toMatch(/COMPANY as LIVE_COMPANY/)
+  })
+
+  // Its Article 17 /prohibited entry is frozen too: the live PROHIBITED_AMENDMENT is re-used by the next /prohibited
+  // amendment, and an archive that read it would print that one's dates.
+  it('the Quy chế v3 archive freezes its /prohibited entry’s dates and reads no live amendment record', () => {
+    const src = readFileSync(pageFile('regulations', V3), 'utf8')
+    expect(src).toContain("const PROHIBITED_AMENDMENT: LegalAmendment = { published: '2026-10-15', inForce: '2026-10-15', immediate: true }")
+    expect(src).not.toMatch(/import\s*\{[^}]*\b(PROHIBITED_AMENDMENT|PROHIBITED_AMENDED|REGULATIONS_AMENDMENT|REGULATIONS_AMENDED|LEGAL_AMENDMENT)\b[^}]*\}\s*from/)
+    expect(src, 'the version numbers it prints are V3 / V2, never the live REGULATIONS_* constants').not.toMatch(/\$\{REGULATIONS_|archivedPath\('/)
+    expect(src).toContain('const FEED_DIVERSITY_WINDOW = 60')
+    expect(src).toContain('const RENTAL_CHECK_MAX_ITEMS = 5')
   })
 
   it('the Quy chế v2 archive keeps the legal representative it printed — on eno.vn only', () => {
@@ -112,12 +158,13 @@ describe('legal archive', () => {
       'src/app/[lang]/contact/page.tsx', // live
       'src/app/[lang]/regulations/page.tsx', // live
       'src/app/[lang]/regulations/v2/page.tsx', // archive — pinned above
+      'src/app/[lang]/regulations/v3/page.tsx', // archive — pinned above
       'src/app/md/privacy/route.ts', // live
       'src/components/marketplace/footer.tsx', // live
     ])
   })
   it('archives are noindex and canonical to themselves', () => {
-    for (const [doc, v] of [['terms', V1], ['terms', V2], ['regulations', V1], ['regulations', V2]] as const) {
+    for (const [doc, v] of [['terms', V1], ['terms', V2], ['regulations', V1], ['regulations', V2], ['regulations', V3]] as const) {
       const src = readFileSync(pageFile(doc, v), 'utf8')
       expect(src, `${doc}/v${v}`).toContain('robots: { index: false, follow: true }')
       expect(src, `${doc}/v${v}`).toContain(`canonical: '/${doc}/v${v}'`)

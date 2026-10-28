@@ -1,6 +1,8 @@
 import { marketplaceListingScope, teacherExclusion } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
+import { IN_APP_ONLY } from '@/lib/in-app-listing'
+import type { Prisma } from '@/generated/prisma/client'
 
 /** "Outstanding businesses" rail data — ONE flagship (most-viewed active) listing per
  *  highest-trust business storefront. Single source for GET /api/businesses/top AND the
@@ -27,7 +29,13 @@ export async function topBusinessListings() {
    * its goods.
    */
   const [editionScope, noTeachers] = await Promise.all([marketplaceListingScope(), teacherExclusion()])
-  const live = { verified: true, status: 'active' as const }
+  /**
+   * ⛔ ONLY LISTINGS DEALT ON eno — the rail is drawn on the home page alone (owner, 2026-10-28 — in-app-listing.ts). On
+   * BOTH reads, like the teacher exclusion and for the same reason: on the seller pick, a business whose every live
+   * listing is booked on its own site takes no slot; on each flagship read, a business with both shows an in-app one.
+   * Its own AND element: IN_APP_ONLY is an OR.
+   */
+  const live: Prisma.ListingWhereInput = { AND: [{ verified: true, status: 'active' }, IN_APP_ONLY] }
   const sellers = await db.seller.findMany({
     where: {
       OR: [{ owner: { accountType: 'business' } }, { trustScore: { gte: 110 } }],
@@ -43,7 +51,7 @@ export async function topBusinessListings() {
   const rows = await Promise.all(
     sellers.map((s) =>
       db.listing.findFirst({
-        where: noTeachers ? { AND: [{ sellerId: s.id, ...live }, noTeachers] } : { sellerId: s.id, ...live },
+        where: { AND: [{ sellerId: s.id }, live, ...(noTeachers ? [noTeachers] : [])] },
         orderBy: [{ views: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }],
         include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
       }),

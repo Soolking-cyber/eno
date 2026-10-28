@@ -39,7 +39,7 @@ import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE } from './shelf'
 import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { queryChips } from '@/lib/district-query'
 import { clearPlaceForTypedDistrict, queryAfterAreaPick } from './explorer-place'
-import { applyFilterParams, isSeededFeed, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView } from '@/lib/explorer-url'
+import { applyFilterParams, isSeededFeed, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, SHELF_OFF_ATTR, type ExplorerSort, type ExplorerView } from '@/lib/explorer-url'
 import { publicPathname, variantOfLanguage } from '@/lib/lang-variant'
 import { localizedHref } from '@/lib/lang-pinned'
 import { handBackAfterLeaving, holdScrollRestoration, pinnedChromeBottom, releaseScrollRestoration, runRestore } from './feed-restore'
@@ -473,7 +473,7 @@ type Props = {
   initialTrending?: SerializedListingCard[]
   /**
    * Home only — the "Find a teacher" shelf's cards, `homeTeacherShelf()` from (home)/page.tsx (owner, 2026-10-13). A
-   * storefront never passes it. Rendered after the twelfth feed card while `showTeacherShelf` holds.
+   * storefront never passes it. Rendered at the top of the home feed, above the filter strip, while `showTeacherShelf` holds.
    */
   initialTeachers?: SerializedListingCard[]
   listingsRef?: React.RefObject<HTMLDivElement | null>
@@ -3735,10 +3735,37 @@ export function ListingsExplorer({
   /**
    * ⛔ THE HOME "FIND A TEACHER" SHELF (owner, 2026-10-13 — teacher-shelf.tsx): the undirected home only, exactly as the
    * recents row above — never a search, a filter, an area, the map or video view (`showDiscovery`), and never a storefront.
-   * A sort is not a filter, so it survives one, and "Browse everything" too. Its seed comes from (home)/page.tsx alone,
-   * and below the rails' floor it does not render. Placed after the twelfth card in the grid below (`FIRST_PAGE_SIZE`).
+   * "Browse everything" keeps it. Its seed comes from (home)/page.tsx alone, and below the rails' floor it does not render.
+   * ⛔ AT THE TOP OF THE FEED SINCE 2026-10-28 (owner: "no product with link shows there mostly the partner teachers etc
+   * the ones that dont take us out of the app") — between the recents row and the filter strip, so it is the first
+   * thing under the categories. It was a row after the twelfth card.
+   * ⛔ AND ONLY IN THE DEFAULT ORDER, WHICH IT WAS NOT BELOW THE FOLD. Above the grid, a shelf that hydration removes
+   * moves the whole feed, so it must never be painted where it will not stay: every cold URL the pre-paint mask covers
+   * (explorer-url.ts MASK_KEYS — `sort` included) gets it `display: none` before the first paint (globals.css), and this
+   * rule keeps those URLs shelf-less after hydration too. A searched or filtered URL already was (`showDiscovery`); a
+   * `?sort=` link now is as well. Tapping a sort on the home page removes it — a shift the tap itself caused.
    */
-  const showTeacherShelf = showDiscovery && !sellerId && (initialTeachers?.length ?? 0) >= MIN_RAIL_ITEMS
+  const showTeacherShelf = showDiscovery && !sellerId && sort === 'newest' && (initialTeachers?.length ?? 0) >= MIN_RAIL_ITEMS
+  /**
+   * ⛔ THE SHELF'S PRE-PAINT HOLD IS RELEASED BY THE READER, NEVER BY A TIMER (explorer-url.ts SHELF_OFF_ATTR). A cold masked
+   * URL lands with `html[data-shelf-off]`, under which globals.css keeps the shelf out of the layout. The first feed this
+   * effect sees — `feedSig` and the view — is the landing's own; the first different one is a change — the reader's, or the
+   * URL's own words landing after hydration, where the shelf is not shown anyway — and from then on the shelf follows
+   * `showTeacherShelf`, so on its way back it appears as part of a change, never under a reader who did nothing.
+   * ⚠️ THE VIEW COUNTS (`feedSig` has none): a cold `/?view=map` switched to the grid is a change (opus, commit gate).
+   * ⚠️ AND SO DOES LEAVING: the hold describes this DOCUMENT's first paint, and only the home layout's pre-paint script sets
+   * it. Once this explorer unmounts, the next one is a navigation the reader made — a soft return to the plain home
+   * draws its shelf as part of it, never hidden for the rest of the visit (opus, commit gate 2026-10-28).
+   */
+  const shelfHoldKey = `${feedSig}|${viewMode}`
+  const shelfHoldSig = useRef<string | null>(null)
+  useEffect(() => {
+    const root = document.documentElement
+    if (!root.hasAttribute(SHELF_OFF_ATTR)) return
+    if (shelfHoldSig.current === null) { shelfHoldSig.current = shelfHoldKey; return }
+    if (shelfHoldKey !== shelfHoldSig.current) root.removeAttribute(SHELF_OFF_ATTR)
+  }, [shelfHoldKey])
+  useEffect(() => () => document.documentElement.removeAttribute(SHELF_OFF_ATTR), [])
   useEffect(() => {
     if (!showRecentsRow) return
     let stored: string[] = []
@@ -4708,6 +4735,16 @@ export function ListingsExplorer({
             </div>
           )}
 
+          {/* ⛔ THE HOME "FIND A TEACHER" SHELF, FIRST UNDER THE CATEGORIES (owner, 2026-10-28 — `showTeacherShelf` above has
+              the rule, teacher-shelf.tsx the shelf). Outside the feed grid, so the grid's first twelve children stay its
+              listing cards (globals.css) and its full-width-row padding does not apply: the shelf sits in this section's
+              frame like every other rail. It carries the page's one LCP hint while it is shown (feed card 0 gives it up,
+              below). Never `data-feed-card` (no restore anchor, and the e2e suites count those); its taps snapshot the
+              feed like a card's, without an anchor (`openFromShelf`). */}
+          {showTeacherShelf && (
+            <TeacherShelf listings={initialTeachers ?? []} onOpen={openFromShelf} teacherProfile={hasTeacherProfile} teacherDraft={hasTeacherDraft} />
+          )}
+
           {/* Category-aware facet bar (replaces the old sidebar). Now on the HOME view too —
               area, price, condition and intent are what "home is also a search page" means in
               practice, and they were previously unreachable without first leaving the landing.
@@ -5214,13 +5251,12 @@ export function ListingsExplorer({
                    `data-feed-restoring`: every restored card renders at its REAL size while the
                    back-nav restore aligns — see the rule beside `[data-feed-card]` in globals.css.
                    `max-sm:[&>.col-span-full]:px-2`: on a phone LISTING_GRID bleeds 8px past the page gutter
-                   (owner 2026-10-18), so a FULL-WIDTH row inside it — the teacher shelf, the guest capture
-                   row — would start its text 4px from the screen edge. 8px of padding puts its content back
+                   (owner 2026-10-18), so a FULL-WIDTH row inside it — the guest capture row (and the teacher
+                   shelf until it moved above the feed, 2026-10-28) — would start its text 4px from the screen edge. 8px of padding puts its content back
                    on the 12px gutter while its hairlines keep the grid's width, the cards' own edges (the
                    shelf's rail bleeds back out with RAIL_SCROLLER, so its cards stay on the grid columns).
                    On the grid, not on each row: the capture row renders null for a signed-in reader, and a
-                   wrapper would leave an empty full-width cell; the rows' own selectors in globals.css
-                   (`.feed-grid > [data-teacher-shelf] + …`) need them to stay direct children too. */
+                   wrapper would leave an empty full-width cell. */
                 <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', LISTING_GRID, 'max-sm:[&>.col-span-full]:px-2')}>
                   {gridListings.map((l, index) => (
                     <Fragment key={l.id}>
@@ -5285,7 +5321,10 @@ export function ListingsExplorer({
                             ⚠️ `priority` STAYS UNCONDITIONAL. It is a different lever: without
                             `lcp` it resolves to `loading="eager"` (listing-card.tsx ~435), so the
                             first card still skips lazy-loading — it just stops claiming the preload. */}
-                        <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0} onLocate={locateListing} />
+                        {/* ⚠️ `lcp` GOES TO THE TEACHER SHELF WHILE IT LEADS THE PAGE (2026-10-28): its first photo is
+                            then the largest image on the first screen at every width, and a page has one preload.
+                            `priority` stays, so this photo still loads eagerly. */}
+                        <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0 && !showTeacherShelf} onLocate={locateListing} />
                       </div>
                       {/* Guest capture (5a #7): one full-width signup ROW after the first page.
                           Renders null once signed in (and while auth is still loading).
@@ -5297,28 +5336,10 @@ export function ListingsExplorer({
                           on the undirected home it sits directly above "Browse everything", on a
                           search between page one and page two, and a feed shorter than a page has
                           none. */}
-                      {/* ⛔ THE HOME "FIND A TEACHER" SHELF (owner, 2026-10-13 — teacher-shelf.tsx): one full-width row
-                          right AFTER the twelfth card, before the guest capture row and "Browse everything" — so the
-                          first twelve grid children stay listing cards (globals.css) and nothing on the first screen
-                          moves. Never `data-feed-card` (it is no restore anchor, and the e2e suites count those). Its
-                          taps snapshot the feed like a card's, without an anchor (`openFromShelf`). */}
-                      {index === FIRST_PAGE_SIZE - 1 && showTeacherShelf && (
-                        <TeacherShelf listings={initialTeachers ?? []} onOpen={openFromShelf} teacherProfile={hasTeacherProfile} teacherDraft={hasTeacherDraft} />
-                      )}
+                      {/* The teacher shelf was a row here, after the twelfth card, until 2026-10-28; it now leads the
+                          feed (above the filter strip), so the cards after this row sit under the feed's own <h2> again
+                          and need no sr-only copy of it. */}
                       {index === FIRST_PAGE_SIZE - 1 && <CaptureCard />}
-                      {/* ⚠️ THE FEED'S OWN HEADING AGAIN, FOR A SCREEN READER, ONCE CARDS FOLLOW THE SHELF (canon §3b, WCAG
-                          1.3.1 — review, 2026-10-13). The shelf's <h2> "Find a teacher" sits INSIDE the grid, so after
-                          "Browse everything" every later card's <h3> was outlined under it. This hands them back to the
-                          feed (h1 → h2 → h3 cards, as the heading above says) with the copy that heading already shows.
-                          `sr-only` is absolutely positioned, so it takes no grid cell: no gap and no hairline. It IS an
-                          element child for the selectors, and none of them moves: globals.css's nth-child rule counts
-                          the first twelve, which sit before it, and it is never `:last-child` (cards follow it). After
-                          the capture row, not before it, so `[data-teacher-shelf] + …` still lands on that row — signed
-                          in, on this heading, where `border-top-width: 0` changes nothing. Never in the server HTML: the
-                          seed is exactly one page. */}
-                      {index === FIRST_PAGE_SIZE - 1 && showTeacherShelf && index < gridListings.length - 1 && (
-                        <h2 className="sr-only">{homeFeedHeading}</h2>
-                      )}
                     </Fragment>
                   ))}
                   {/* The next page's reserved cells — see `pendingRows`. Decorative: the rows

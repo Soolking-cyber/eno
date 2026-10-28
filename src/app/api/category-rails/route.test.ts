@@ -17,15 +17,19 @@ const h = vi.hoisted(() => ({
   groups: [] as Row[],
   categories: [] as Array<{ id: string; slug: string }>,
   filledCategoryIds: [] as string[],
+  wheres: [] as Row[],
 }))
 
 vi.mock('@/lib/db', () => ({
   db: {
     listing: {
-      groupBy: async () => h.groups,
+      groupBy: async ({ where }: { where: Row }) => { h.wheres.push(where); return h.groups },
       findMany: async ({ where }: { where: Row }) => {
-        h.filledCategoryIds.push(where.categoryId)
-        return Array.from({ length: 8 }, (_, i) => ({ id: `${where.categoryId}-${i}` }))
+        h.wheres.push(where)
+        // The scoped predicate is the first AND element; the in-app narrowing (in-app-listing.ts) the second.
+        const categoryId = (where.AND?.[0] ?? where).categoryId
+        h.filledCategoryIds.push(categoryId)
+        return Array.from({ length: 8 }, (_, i) => ({ id: `${categoryId}-${i}` }))
       },
     },
     category: {
@@ -65,6 +69,7 @@ beforeEach(() => {
     _sum: { views: 1000 - i * 10, contactCount: 0 },
   }))
   h.filledCategoryIds = []
+  h.wheres = []
 })
 
 describe('GET /api/category-rails', () => {
@@ -124,5 +129,17 @@ describe('GET /api/category-rails', () => {
   it('still drops a category below the floor, retired or not', async () => {
     h.groups = h.groups.map((g) => (g.categoryId === 'id-jobs' ? { ...g, _count: { _all: 3 } } : g))
     expect(await rails()).not.toContain('jobs')
+  })
+})
+
+// ⛔ ONLY LISTINGS DEALT ON eno (owner, 2026-10-28 — in-app-listing.ts): these shelves are drawn on the home page alone. The
+// ranking groupBy and every fill carry the narrowing together — a category must not rank in on partner-link rows and then
+// print them, nor rank in on them and render empty.
+describe('GET /api/category-rails — in-app listings only', () => {
+  it('the ranking read and every fill carry IN_APP_ONLY', async () => {
+    const { IN_APP_ONLY } = await import('@/lib/in-app-listing')
+    await rails()
+    expect(h.wheres.length).toBeGreaterThan(1)
+    for (const w of h.wheres) expect(w.AND).toContainEqual(IN_APP_ONLY)
   })
 })

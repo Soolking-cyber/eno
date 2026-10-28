@@ -26,6 +26,7 @@ const { localizedPlan } = await import('@/components/marketplace/listing-content
 const { LANGS } = await import('@/lib/i18n/langs')
 const { LISTING_CARD_SELECT } = await import('@/lib/serialize')
 const { HOME_HIDDEN_TEACHER_LISTING_IDS, HOME_TEACHER_SHELF_TAKE } = await import('@/lib/teachers/constants')
+const { IN_APP_ONLY } = await import('@/lib/in-app-listing')
 
 /** A teacher listing exactly as `select: LISTING_CARD_SELECT` returns it. */
 const row = (id: string, over: Record<string, unknown> = {}) => ({
@@ -57,8 +58,9 @@ describe('homeTeacherShelf', () => {
     expect(opts).toEqual({ teachers: true })
     expect(where).toEqual({ categoryId: 'cat-teachers', verified: true, status: 'active', id: { notIn: ['cmuzccru60000wvq4mojalida'] } })
     expect(HOME_HIDDEN_TEACHER_LISTING_IDS).toContain('cmuzccru60000wvq4mojalida')
-    // The scoped where (desk exclusion and all) is what the read gets — not the bare predicate.
-    expect(h.findMany.mock.calls[0][0].where).toEqual({ AND: [where, { sellerId: { notIn: ['desk'] } }] })
+    // The scoped where (desk exclusion and all) is what the read gets — not the bare predicate — narrowed to listings dealt
+    // on eno like every home surface (in-app-listing.ts, 2026-10-28).
+    expect(h.findMany.mock.calls[0][0].where).toEqual({ AND: [{ AND: [where, { sellerId: { notIn: ['desk'] } }] }, IN_APP_ONLY] })
   })
 
   it('reads in /c/teachers\' default order with the card projection — never a second ranking rule', async () => {

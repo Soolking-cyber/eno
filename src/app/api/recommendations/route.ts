@@ -6,6 +6,7 @@ import { fold } from '@/lib/fold'
 import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
 import { diverseRailListings, trendingRailListings } from '@/lib/core/trending-rail'
+import { inAppOnly } from '@/lib/in-app-listing'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +47,10 @@ export async function GET(req: NextRequest) {
   // OPERAND (`{ AND: [base, …] }`) rather than spreading it, so the wrapper survives. The concierge
   // builds `{ ...base, ...cat, AND: and(n) }` and would overwrite it — do not copy this pattern
   // there without checking how the predicate is consumed.
-  const base: Prisma.ListingWhereInput = await scopedListingWhere({ verified: true, status: 'active' })
+  // ⛔ ONLY LISTINGS DEALT ON eno: the For You rail is drawn on the home route alone (its home slot and the sparse-search
+  // recovery under it), and the home page carries no listing whose button leads to another website (owner, 2026-10-28 —
+  // in-app-listing.ts). The no-signal answer below (trendingRailListings) narrows the same way.
+  const base: Prisma.ListingWhereInput = inAppOnly(await scopedListingWhere({ verified: true, status: 'active' }))
 
   // Relevance = listings in a category/brand the user has engaged with, OR matching a
   // recent search term (against the folded searchText blob). Broad OR — this is

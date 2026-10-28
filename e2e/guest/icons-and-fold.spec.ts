@@ -66,7 +66,7 @@ test.describe('Guest · mobile PDP fold', () => {
   const openAListing = async (page: import('@playwright/test').Page) => {
     await page.goto('/')
     await dismissOverlays(page)
-    const cards = page.locator('a[data-card-link="true"]')
+    const cards = page.locator('.feed-grid a[data-card-link="true"]')
     await cards.first().waitFor({ state: 'attached' })
     const hrefs = (await cards.evaluateAll((els) => els.map((el) => el.getAttribute('href')))).filter(Boolean).slice(0, 8) as string[]
     for (const href of hrefs) {

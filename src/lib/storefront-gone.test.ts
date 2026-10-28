@@ -204,7 +204,9 @@ describe('liveStorefrontWhere — for surfaces that list or link shops', () => {
 describe('surfaces that are gone-safe by construction', () => {
   it('the "Outstanding businesses" rail picks only sellers with an active verified listing', async () => {
     await topBusinessListings()
-    expect(h.sellerWheres[0]).toMatchObject({ listings: { some: { verified: true, status: 'active' } } })
+    // `some` is `{ AND: [live, IN_APP_ONLY] }` since the rail went in-app only (2026-10-28 — in-app-listing.ts); the
+    // active-verified clause is still one of its elements.
+    expect((h.sellerWheres[0] as { listings: { some: { AND: unknown[] } } }).listings.some.AND).toContainEqual({ verified: true, status: 'active' })
   })
 
   it('pages.xml submits a storefront only for a seller with an own active verified listing', async () => {

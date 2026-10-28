@@ -86,6 +86,7 @@ export function RankingContent({ diversityWindow }: { diversityWindow: number })
       sections={[
         { id: 'browse', label: 'Browsing', labelVi: 'Khi duyệt' },
         { id: 'search', label: 'Searching', labelVi: 'Khi tìm kiếm' },
+        { id: 'home', label: 'The home page', labelVi: 'Trang chủ' },
         { id: 'diversity', label: 'Seller diversity', labelVi: 'Đa dạng người bán' },
         { id: 'guides', label: 'Guide pages', labelVi: 'Trang hướng dẫn' },
         { id: 'for-you', label: 'Personalised rails', labelVi: 'Các mục cá nhân hoá' },
@@ -146,12 +147,37 @@ export function RankingContent({ diversityWindow }: { diversityWindow: number })
         </p>
       </ContentSection>
 
-      <ContentSection id="diversity" title="Seller diversity" titleVi="Đa dạng người bán">
-        {/* src/lib/feed-diversity.ts: FEED_DIVERSITY_WINDOW, SHARED_SEAT_SUBCATEGORIES, SHARED_SEAT_SELLERS. */}
+      <ContentSection id="home" title="On the home page" titleVi="Ở trang chủ">
+        {/* ⚖️ src/lib/in-app-listing.ts IN_APP_ONLY (owner, 2026-10-28: "no product with link shows there") — the home
+            feed ((home)/page.tsx + /api/listings on goodsSeatsFor), Outstanding businesses (core/business-rail.ts), the
+            per-category shelves (/api/category-rails) and For You, home slot and sparse-search recovery alike
+            (/api/recommendations, core/trending-rail.ts). Recently viewed is untouched. Quy chế v4 Article 14 states
+            the same rule (legal-copy.test.tsx holds the two together). ⚠️ Each English string stays ≤ 400 characters
+            and PLAIN (no template placeholder): gen-ui-strings harvests only literal strings, and the nine
+            machine-translated languages read their warmed translations from that harvest — so "the platform", not
+            SITE_NAME. */}
         <p>
           {tr(
-            `On the home page and when you browse a category in the default order, the first ${diversityWindow} positions are dealt out by seller: every seller’s best listing first, then every seller’s second, and so on. Within each round the score order is kept, and nothing is hidden — a seller with many listings simply cannot fill the first screen.`,
-            `Ở trang chủ và khi bạn duyệt một danh mục theo thứ tự mặc định, ${diversityWindow} vị trí đầu tiên được chia lần lượt theo người bán: tin tốt nhất của mỗi người bán trước, rồi đến tin thứ hai của mỗi người bán, và cứ thế tiếp tục. Trong mỗi lượt, thứ tự theo điểm được giữ nguyên và không tin nào bị ẩn — chỉ là một người bán có nhiều tin không thể chiếm hết màn hình đầu.`,
+            'On the home page, the feed, the Outstanding businesses and category rails, and the For You rail wherever it appears show only listings whose seller you contact through the platform’s own messaging. They leave out every listing whose button takes you to another website — linked listings from a source site, and listings booked or bought on a partner’s own website.',
+            'Ở trang chủ, phần tin đăng, mục “Doanh nghiệp nổi bật”, các mục theo danh mục và mục “Dành cho bạn” ở mọi nơi mục này xuất hiện chỉ gồm các tin mà bạn liên hệ người bán qua kênh nhắn tin của sàn. Các mục này không gồm các tin có nút dẫn bạn sang một trang web khác — tin đăng liên kết từ trang nguồn và tin được đặt chỗ hoặc mua trên trang web riêng của đối tác.',
+          )}
+        </p>
+        <p>
+          {tr(
+            'Those listings still appear in their category, in search results and on their seller’s storefront, in the order described here. This rule does not change the Recently viewed rail.',
+            'Các tin đó vẫn xuất hiện trong danh mục của tin, trong kết quả tìm kiếm và tại gian hàng của người bán, theo thứ tự nêu tại trang này. Quy định này không thay đổi mục “Đã xem gần đây”.',
+          )}
+        </p>
+      </ContentSection>
+
+      <ContentSection id="diversity" title="Seller diversity" titleVi="Đa dạng người bán">
+        {/* src/lib/feed-diversity.ts: FEED_DIVERSITY_WINDOW, SHARED_SEAT_SUBCATEGORIES, SHARED_SEAT_SELLERS.
+            ⚠️ "the rotation itself hides nothing" (2026-10-28), no longer "nothing is hidden": the home page leaves
+            partner-link listings out before the rotation (#home above), and the old words would deny that. */}
+        <p>
+          {tr(
+            `On the home page and when you browse a category in the default order, the first ${diversityWindow} positions are dealt out by seller: every seller’s best listing first, then every seller’s second, and so on. Within each round the score order is kept, and the rotation itself hides nothing — a seller with many listings simply cannot fill the first screen.`,
+            `Ở trang chủ và khi bạn duyệt một danh mục theo thứ tự mặc định, ${diversityWindow} vị trí đầu tiên được chia lần lượt theo người bán: tin tốt nhất của mỗi người bán trước, rồi đến tin thứ hai của mỗi người bán, và cứ thế tiếp tục. Trong mỗi lượt, thứ tự theo điểm được giữ nguyên và bản thân việc chia lượt không ẩn tin nào — chỉ là một người bán có nhiều tin không thể chiếm hết màn hình đầu.`,
           )}
         </p>
         {/* ⚠️ THE ENGLISH STAYS ≤ 400 CHARACTERS: scripts/gen-ui-strings.mjs drops longer strings, and with them
@@ -198,8 +224,8 @@ export function RankingContent({ diversityWindow }: { diversityWindow: number })
         </p>
         <p>
           {tr(
-            'With personalisation off, the rail shows what is drawing the most interest right now — the same for everyone. If you arrive through a link or an ad that carries search words, those words may shape the rail for that visit only; they are not stored. Personalisation changes only which listings appear in this rail: their order still follows the scores above.',
-            'Khi tắt cá nhân hoá, mục này hiển thị những tin đang được quan tâm nhiều — giống nhau với mọi người. Nếu bạn đến từ một đường dẫn hoặc quảng cáo có kèm từ khoá, từ khoá đó có thể được dùng cho riêng lượt truy cập ấy và không được lưu lại. Cá nhân hoá chỉ quyết định tin nào xuất hiện trong mục này; thứ tự của chúng vẫn theo các điểm nêu trên.',
+            'With personalisation off, the rail shows the listings contacted through the platform that draw the most interest right now — the same for everyone. If you arrive through a link or an ad that carries search words, those words may shape the rail for that visit only; they are not stored. Personalisation changes only which listings appear in this rail: their order still follows the scores above.',
+            'Khi tắt cá nhân hoá, mục này hiển thị những tin liên hệ qua kênh nhắn tin của sàn đang được quan tâm nhiều — giống nhau với mọi người. Nếu bạn đến từ một đường dẫn hoặc quảng cáo có kèm từ khoá, từ khoá đó có thể được dùng cho riêng lượt truy cập ấy và không được lưu lại. Cá nhân hoá chỉ quyết định tin nào xuất hiện trong mục này; thứ tự của chúng vẫn theo các điểm nêu trên.',
           )}
         </p>
         <p>

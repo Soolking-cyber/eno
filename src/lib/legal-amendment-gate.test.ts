@@ -159,6 +159,37 @@ describe('legal-amendment-gate.sh', () => {
     }
   })
 
+  // ⛔ THE STATE THE NEXT DEPLOY MEETS (2026-10-28): the box's deployed commit carries the Quy chế's version 3
+  // (immediate, 05/10 — prod since 2cd70d7e2) and every other record as the working tree has it; the working tree is
+  // the real module — the Quy chế's version 4, IMMEDIATE (owner, 2026-10-28: "Immediately (Recommended)"). So the
+  // Terms' and /prohibited's records are routine, and version 4 publishes on its own day ONLY with the owner's
+  // waiver acked: LEGAL_AMENDMENT_IMMEDIATE=<its day>.
+  it('publishes the Quy chế’s version 4 on its own day ONLY with LEGAL_AMENDMENT_IMMEDIATE, the other records routine', () => {
+    const day = REGULATIONS_AMENDMENT.published
+    expect(REGULATIONS_AMENDMENT).toEqual({ published: day, inForce: day, immediate: true })
+    const at = boxSrc(SOURCE, setRecord(SOURCE, 'REGULATIONS_AMENDMENT', ['2026-10-05', '2026-10-05', true]))
+    const bare = gate(at, day)
+    expect(bare.status).toBe(1)
+    expect(bare.out).toContain(`IMMEDIATE Quy chế amendment (REGULATIONS_AMENDMENT): published AND in force ${day}, with NO notice window`)
+    expect(bare.out).toContain(`LEGAL_AMENDMENT_IMMEDIATE=${day} bash eno-deploy.sh`)
+    const r = gate(at, day, { LEGAL_AMENDMENT_IMMEDIATE: day })
+    expect(r.status, r.out).toBe(0)
+    expect(r.out).toContain(`publishes an IMMEDIATE Quy chế amendment (REGULATIONS_AMENDMENT): published and in force ${day} (today)`)
+    expect(r.out).toContain(`legal amendment published ${LEGAL_AMENDMENT.published} (in force ${LEGAL_AMENDMENT.inForce}, immediate) is already live`)
+    // Version 3's date, or the late-publication ack, unlocks nothing.
+    expect(gate(at, day, { LEGAL_AMENDMENT_IMMEDIATE: '2026-10-05' }).status).toBe(1)
+    expect(gate(at, day, { LEGAL_AMENDMENT_ACK: day }).status).toBe(1)
+    // Any other day refuses, acked or not, and says to re-date both dates to that day.
+    const dayAfter = new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
+    const off = gate(at, dayAfter, { LEGAL_AMENDMENT_IMMEDIATE: day })
+    expect(off.status).toBe(1)
+    expect(off.out).toContain(`set published: '${dayAfter}' and inForce: '${dayAfter}' in ${F} (REGULATIONS_AMENDMENT)`)
+    // …and once it is deployed, every later deploy is routine, with no ack.
+    const routine = gate(boxSrc(SOURCE, SOURCE), dayAfter)
+    expect(routine.status, routine.out).toBe(0)
+    expect(routine.out).toContain(`Quy chế amendment (REGULATIONS_AMENDMENT) published ${day} (in force ${day}, immediate) is already live`)
+  })
+
   // The Terms' version 3 AS IT WAS WRITTEN — the default window, published 07/10, in force 13/10/2026 — before
   // the owner made it immediate, on a fixture of the real module: it would publish on its own day with no ack (a
   // windowed amendment waives nothing), on no other day, and an immediate ack would not unlock it.

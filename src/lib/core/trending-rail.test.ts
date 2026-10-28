@@ -63,3 +63,15 @@ describe('trendingRailListings', () => {
     await expect(trendingRailListings({ excludeIds: Promise.reject(new Error('window failed')) })).rejects.toThrow('window failed')
   })
 })
+
+// ⛔ ONLY LISTINGS DEALT ON eno (owner, 2026-10-28 — in-app-listing.ts): Trending is a home-page rail, and its pool count
+// (the thin-catalogue guard), its pick and its whole-row read all read the narrowed predicate.
+describe('trendingRailListings — in-app listings only', () => {
+  it('the pool count, the pick and the whole-row read all carry IN_APP_ONLY', async () => {
+    const { IN_APP_ONLY } = await import('@/lib/in-app-listing')
+    await trendingRailListings()
+    expect(count.mock.calls[0][0].where.AND).toContainEqual(IN_APP_ONLY)
+    expect(findMany.mock.calls.length).toBe(2)
+    for (const [a] of findMany.mock.calls) expect(JSON.stringify(a.where)).toContain(JSON.stringify(IN_APP_ONLY))
+  })
+})
