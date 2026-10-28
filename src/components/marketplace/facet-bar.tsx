@@ -20,7 +20,7 @@ import { useBackToClose } from '@/lib/back-to-close'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useLanguage } from '@/context/language-context'
 import { CONDITION_FACET, facetsFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
-import { ANYWHERE, HANOI, HANOI_DISTRICT_KEYS, ONLINE, isHanoiDistrict, isHcmcDistrict, isHub, placeLabel, provinceCodeOfKey } from '@/lib/teachers/places'
+import { ANYWHERE, ONLINE, isHanoiDistrict, isHcmcDistrict, isHub, provinceCodeOfKey } from '@/lib/teachers/places'
 import { cn } from '@/lib/utils'
 import { formatCount, formatInteger, moneyLocale } from '@/lib/vnd'
 import { facetOptionLabel } from './facet-chip-label'
@@ -772,54 +772,6 @@ export function FacetBar({
     }
   }
 
-  /**
-   * ⛔ HÀ NỘI'S DISTRICT CHIPS (owner, 2026-10-28: "find a teacher … add Hanoi districts chip"). Most teachers on eno live
-   * in Hà Nội, so while browsing teachers its 12 districts (district-hanoi.ts) are one tap away, in a row under the bar. A
-   * chip IS the "Can teach in" pill's value — or, with "Available for cover" on, the Cover-area pill's — so a chip and its
-   * pill can never disagree, and a district reads the way a school means it (workInFilterKeys / coverAreaFilterKeys: the
-   * district and "anywhere in Hà Nội"). Place names are never machine-translated (placeLabel).
-   * ⛔ WHETHER THE ROW IS THERE NEVER DEPENDS ON THE COUNTS (review, 2026-10-28): it is drawn before they land (the ISR
-   * HTML has none), so a row that left once they said "nothing here" moved everything below it up after load. It shows
-   * while the place picked — in "Can teach in" AND in Cover area — is nothing, Hà Nội or one of its districts, all known
-   * from the URL, and is gone only when another place is picked (the school's own tap). Inside it, a district with NO teacher in view is not drawn (offeredKeys:
-   * a chip that empties the feed); one that narrows nothing still is — "Cầu Giấy" is a true answer even when every teacher
-   * in view can teach there. With none left, the row says so in words, at the same height.
-   */
-  const districtChipFacet = activeCategory === 'teachers'
-    ? advFacets.find((f) => f.key === (customFilters.cover === 'open' ? 'coverArea' : 'workIn'))
-    : undefined
-  let hanoiChips: ReactNode = null
-  const chipValue = districtChipFacet ? facetValue(districtChipFacet) : 'all'
-  const inHanoi = (v: string | undefined) => !v || v === 'all' || v === HANOI || isHanoiDistrict(v)
-  // BOTH place filters: with cover on, a "Can teach in: HCMC" still set would AND an HCMC teacher with a Hà Nội cover
-  // district — an empty feed from one tap (review, 2026-10-28).
-  if (districtChipFacet && inHanoi(customFilters.workIn) && inHanoi(customFilters.coverArea)) {
-    const dim = facetDimension(districtChipFacet)
-    const shown = offeredKeys(dim, HANOI_DISTRICT_KEYS, chipValue)
-    hanoiChips = (
-      <div
-        role="group"
-        aria-label={tr('Hanoi districts', 'Các quận Hà Nội')}
-        // ⚠️ ONE LINE AT EVERY WIDTH: a chip that leaves when the counts land changes nothing below the row.
-        className="mt-2 flex min-h-9 items-center gap-1.5 flex-nowrap overflow-x-auto overscroll-x-contain scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0"
-      >
-        <span className="shrink-0 text-sm font-semibold text-body">{placeLabel(HANOI, lang)}</span>
-        {shown.length === 0 ? (
-          <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">{tr('No teachers in Hanoi in this view yet', 'Chưa có giáo viên ở Hà Nội trong mục này')}</span>
-        ) : shown.map((k) => {
-          const on = chipValue === k
-          return (
-            <Button key={k} variant="bare" size="none" type="button" aria-pressed={on} className={cn(segBtn(on), 'shrink-0 whitespace-nowrap')}
-              onClick={() => setFacetValue(districtChipFacet, on ? 'all' : k)}>
-              {placeLabel(k, lang)}
-              <ChipCount n={chipCount(dim, k)} selected={on} />
-            </Button>
-          )
-        })}
-      </div>
-    )
-  }
-
   // The Filter pill. One element for both containers, so the trigger never differs between them.
   const filterTrigger = (
     <Button
@@ -1068,7 +1020,6 @@ export function FacetBar({
           onReset={() => { onCommit?.(); setProvince(null); setWard(null); setNearby(null); setDistrict?.('all') }}
         />
       </div>
-      {hanoiChips}
     </div>
   )
 }

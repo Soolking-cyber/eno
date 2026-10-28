@@ -2004,7 +2004,6 @@ export const UI_STRINGS: string[] = [
   "No speaking this time",
   "No statements yet.",
   "No teacher profiles here yet — be the first.",
-  "No teachers in Hanoi in this view yet",
   "No thanks",
   "No thanks — decline all",
   "No units match your filters",
