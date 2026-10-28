@@ -35,22 +35,29 @@ beforeEach(() => {
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
+/** Signed in as u1 with nothing hidden yet — hideSellerNow acts only for a signed-in account. */
+async function signedIn(): Promise<void> {
+  fetchMock.mockResolvedValueOnce(ok({ hiddenSellerIds: [] }))
+  await syncHiddenSellers('u1')
+}
+
 describe('the stylesheet', () => {
   it('hides each shop\'s [data-sid] and shows its notice; nothing for no shops', () => {
     expect(hiddenSellersCss([])).toBe('')
     expect(hiddenSellersCss(['a1', 'b2', 'a1'])).toBe('[data-sid="a1"],.eno-sid-a1,[data-sid="b2"],.eno-sid-b2{display:none!important}[data-sid-notice="a1"],[data-sid-notice="b2"]{display:block!important}'
-      + '[data-shelf]:has([data-shelf-items]):not(:has([data-shelf-items]>:not([data-sid="a1"]):not([data-sid="b2"]))){display:none!important}')
+      + '[data-shelf]:has([data-shelf-items]>[data-sid]):not(:has([data-shelf-items]>:not([data-sid="a1"]):not([data-sid="b2"]))){display:none!important}')
   })
 
   it('⛔ drops — never escapes — an id that is not a plain shop id, so nothing can close the selector', () => {
     expect(hiddenSellersCss(['x"]{}body{display:none', 'a b', '', 'ok_1-2', 'a.b'])).toBe('[data-sid="ok_1-2"],.eno-sid-ok_1-2{display:none!important}[data-sid-notice="ok_1-2"]{display:block!important}'
-      + '[data-shelf]:has([data-shelf-items]):not(:has([data-shelf-items]>:not([data-sid="ok_1-2"]))){display:none!important}')
+      + '[data-shelf]:has([data-shelf-items]>[data-sid]):not(:has([data-shelf-items]>:not([data-sid="ok_1-2"]))){display:none!important}')
     expect(hiddenSellersCss(['"}'])).toBe('')
   })
 
-  it('really hides a card and its cell, and shows the notice (jsdom applies the sheet)', () => {
+  it('really hides a card and its cell, and shows the notice (jsdom applies the sheet)', async () => {
+    await signedIn()
     document.body.innerHTML = '<div data-sid="s1" id="cell"><div data-sid="s1" id="card"></div></div><div data-sid="s2" id="other"></div><div data-sid-notice="s1" class="hidden" id="notice" style="display:none"></div><div class="eno-pin eno-sid-s1" id="pin"></div>'
-    hideSellerNow('s1')
+    hideSellerNow('s1', 'u1')
     expect(getComputedStyle(document.getElementById('cell')!).display).toBe('none')
     expect(getComputedStyle(document.getElementById('pin')!).display).toBe('none')
     expect(getComputedStyle(document.getElementById('other')!).display).not.toBe('none')
@@ -99,7 +106,7 @@ describe('hideSellerNow / syncHiddenSellers', () => {
   it('a Block hides the shop at once and stores it for the next load — for the account that made it', async () => {
     fetchMock.mockResolvedValueOnce(ok({ enabled: true, blocked: [], hiddenSellerIds: [] }))
     await syncHiddenSellers('u1')
-    hideSellerNow('linked')
+    hideSellerNow('linked', 'u1')
     expect(styleText()).toBe(hiddenSellersCss(['linked']))
     expect(stored()).toEqual({ u: 'u1', ids: ['linked'] })
   })
@@ -153,7 +160,7 @@ describe('hideSellerNow / syncHiddenSellers', () => {
     let first: (v: unknown) => void = () => {}
     fetchMock.mockReturnValueOnce(new Promise((r) => { first = r })).mockResolvedValueOnce(ok({ hiddenSellerIds: ['linked'] }))
     const a = syncHiddenSellers('u1')
-    hideSellerNow('linked')
+    hideSellerNow('linked', 'u1')
     await syncHiddenSellers('u1')
     first(ok({ hiddenSellerIds: [] }))
     await a
@@ -184,7 +191,7 @@ describe('hideSellerNow / syncHiddenSellers', () => {
     expect(hiddenSellersParam().startsWith('s0,s1,')).toBe(true)
   })
 
-  it('a CHANGE of the hidden set fires the event QueryProvider marks the feeds stale on — no change, no event', async () => {
+  it('a CHANGE of the hidden set fires the event useHiddenSellersParam listens on — no change, no event', async () => {
     const seen: number[] = []
     const on = () => seen.push(1)
     window.addEventListener(HIDDEN_SELLERS_EVENT, on)
@@ -195,16 +202,30 @@ describe('hideSellerNow / syncHiddenSellers', () => {
     expect(seen).toHaveLength(1)
   })
 
-  it('a shelf whose every item is a hidden shop goes whole; one with any other item (or a skeleton) stays', () => {
+  it('a shelf whose every item is a hidden shop goes whole; one with any other item (or a skeleton) stays', async () => {
+    await signedIn()
     document.body.innerHTML = [
       '<section data-shelf id="all"><div data-shelf-items><div data-sid="s1"></div><div data-sid="s1"></div></div></section>',
       '<section data-shelf id="mixed"><div data-shelf-items><div data-sid="s1"></div><div data-sid="s2"></div></div></section>',
       '<section data-shelf id="loading"><div data-shelf-items><div class="skeleton"></div></div></section>',
+      '<section data-shelf id="empty"><div data-shelf-items></div></section>',
     ].join('')
-    hideSellerNow('s1')
+    hideSellerNow('s1', 'u1')
     expect(getComputedStyle(document.getElementById('all')!).display).toBe('none')
     expect(getComputedStyle(document.getElementById('mixed')!).display).not.toBe('none')
     expect(getComputedStyle(document.getElementById('loading')!).display).not.toBe('none')
+    expect(getComputedStyle(document.getElementById('empty')!).display).not.toBe('none')
+  })
+
+  it('a Block that answers after a sign-out — or after another account signed in — puts nothing back', async () => {
+    await syncHiddenSellers(null)
+    hideSellerNow('linked', 'u1')
+    expect(hiddenSellerIds()).toEqual([])
+    expect(styleText()).toBeNull()
+    fetchMock.mockResolvedValueOnce(ok({ hiddenSellerIds: [] }))
+    await syncHiddenSellers('u2')
+    hideSellerNow('linked', 'u1')
+    expect(hiddenSellerIds()).toEqual([])
   })
 
   it('useHiddenSellersParam follows the set — the explorer\'s feed key moves with a block', async () => {
@@ -214,14 +235,16 @@ describe('hideSellerNow / syncHiddenSellers', () => {
     await syncHiddenSellers('u1')
     const { result } = renderHook(() => useHiddenSellersParam())
     expect(result.current).toBe('')
-    act(() => hideSellerNow('linked'))
+    act(() => hideSellerNow('linked', 'u1'))
     expect(result.current).toBe('linked')
   })
 
   it('is inert while ugc-safety is off: no fetch, no sheet, no storage', async () => {
+    await signedIn()
+    fetchMock.mockReset()
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
     await syncHiddenSellers('u1')
-    hideSellerNow('s1')
+    hideSellerNow('s1', 'u1')
     expect(fetchMock).not.toHaveBeenCalled()
     expect(styleText()).toBeNull()
     expect(localStorage.getItem(HIDDEN_SELLERS_KEY)).toBeNull()

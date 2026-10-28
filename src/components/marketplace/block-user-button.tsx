@@ -19,7 +19,7 @@ import {
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { appReviewGate } from '@/lib/app-review-gates'
-import { hideSellerNow, syncHiddenSellers } from '@/lib/hidden-sellers'
+import { hiddenSellersOwner, hideSellerNow, syncHiddenSellers } from '@/lib/hidden-sellers'
 import { cn } from '@/lib/utils'
 
 /**
@@ -63,6 +63,7 @@ export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly 
   if (!appReviewGate('ugc-safety') || (!conversationId && !sellerId) || (!!sellerId && sellerId === ownSellerId)) return null
 
   const run = async () => {
+    const uid = user?.id ?? null
     setBusy(true); setError('')
     try {
       const res = await fetch('/api/blocks', {
@@ -81,8 +82,13 @@ export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly 
         return
       }
       setOpen(false)
-      if (sellerId) hideSellerNow(sellerId)
-      void syncHiddenSellers(user?.id ?? null)
+      // Only for the account that clicked, if the hidden list is still that account's (codex + opus, review): AuthProvider
+      // re-claims it on every sign-in, sign-out and switch, so a request that answers afterwards — even from an unmounted
+      // button — touches nothing. Hide first, then the sync brings in what the server knows.
+      if (uid && hiddenSellersOwner() === uid) {
+        if (sellerId) hideSellerNow(sellerId, uid)
+        void syncHiddenSellers(uid)
+      }
       // ⚠️ Only a block made on a SHOP's page promises its listings go (opus, review): one made in a chat hides the
       // thread's shop only when the viewer was the buyer there, so its words promise the chat, not the listings.
       toast.success(shopOnly

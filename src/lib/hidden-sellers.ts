@@ -35,15 +35,15 @@ export const SELLER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 export function hiddenSellersCss(ids: readonly string[]): string {
   const ok = [...new Set(ids)].filter((id) => SELLER_ID_RE.test(id))
   if (!ok.length) return ''
-  // A SHELF (shelf.tsx) with no item outside these shops goes whole — no heading over an empty scroller (opus, review).
-  // A skeleton or any non-card child has no `data-sid`, so it keeps its shelf.
+  // A SHELF (shelf.tsx) holding cards, none of them outside these shops, goes whole — no heading over an empty scroller
+  // (opus, review). A skeleton or any non-card child has no `data-sid`, so it keeps its shelf, and so does an empty one.
   // ⚠️ ITS OWN RULE, LAST: a browser without `:has()` drops the whole rule a selector it cannot parse sits in, and the
   // cards must stay hidden there.
   const outside = ok.map((id) => `:not([data-sid="${id}"])`).join('')
   return (
     ok.map((id) => `[data-sid="${id}"],.eno-sid-${id}`).join(',') + '{display:none!important}' +
     ok.map((id) => `[data-sid-notice="${id}"]`).join(',') + '{display:block!important}' +
-    `[data-shelf]:has([data-shelf-items]):not(:has([data-shelf-items]>${outside})){display:none!important}`
+    `[data-shelf]:has([data-shelf-items]>[data-sid]):not(:has([data-shelf-items]>${outside})){display:none!important}`
   )
 }
 
@@ -68,7 +68,7 @@ export function hiddenSellersHeadJs(on: boolean): string {
     'if(!ok.length)return;var a=[],b=[];' +
     "var o='';for(var j=0;j<ok.length;j++){a.push('[data-sid=\"'+ok[j]+'\"],.eno-sid-'+ok[j]);b.push('[data-sid-notice=\"'+ok[j]+'\"]');o+=':not([data-sid=\"'+ok[j]+'\"])'}" +
     `var st=document.createElement('style');st.id=${JSON.stringify(HIDDEN_SELLERS_STYLE_ID)};` +
-    "st.textContent=a.join(',')+'{display:none!important}'+b.join(',')+'{display:block!important}'+'[data-shelf]:has([data-shelf-items]):not(:has([data-shelf-items]>'+o+')){display:none!important}';" +
+    "st.textContent=a.join(',')+'{display:none!important}'+b.join(',')+'{display:block!important}'+'[data-shelf]:has([data-shelf-items]>[data-sid]):not(:has([data-shelf-items]>'+o+')){display:none!important}';" +
     'document.head.appendChild(st)}catch(e){}})();'
   )
 }
@@ -129,6 +129,11 @@ function loadStored(): void {
 }
 loadStored()
 
+/** Whose hidden list this page holds (null: signed out, or not synced yet) — a Block answers into it only if it is the clicker's. */
+export function hiddenSellersOwner(): string | null {
+  return owner
+}
+
 /** The shop ids hidden right now (tests, and the settings list's own bookkeeping). */
 export function hiddenSellerIds(): readonly string[] {
   return current
@@ -164,8 +169,10 @@ function applyHiddenSellers(ids: readonly string[], uid: string | null): void {
  * Hide one shop NOW — the Block button calls this the moment its request succeeds, then syncs (the server's list also
  * carries the person's own shop when the block was made from a chat, which the button cannot know).
  */
-export function hideSellerNow(sellerId: string): void {
-  if (!appReviewGate('ugc-safety')) return
+export function hideSellerNow(sellerId: string, uid: string): void {
+  // Only into the list of the account that made the block (codex + opus, review): a Block that answers after a sign-out
+  // or an account switch must not land in the next account's list.
+  if (!appReviewGate('ugc-safety') || !uid || owner !== uid) return
   applyHiddenSellers([...current, sellerId], owner)
 }
 
