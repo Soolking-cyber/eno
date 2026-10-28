@@ -3,10 +3,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // ── src/lib/user-blocks.ts — blocking behind the `ugc-safety` App Store review gate (plan R3) ─────────
 
 type Row = Record<string, unknown>
-const h = vi.hoisted(() => ({ calls: [] as string[], rows: [] as Row[], feedback: [] as Row[], feedbackFails: false, kv: new Map<string, unknown>(), kvFails: false }))
+const h = vi.hoisted(() => ({
+  calls: [] as string[], rows: [] as Row[], feedback: [] as Row[], feedbackFails: false, kv: new Map<string, unknown>(), kvFails: false,
+  // SellerBlock rows, the sellers (id → ownerId), and the table being absent (before scripts/seller-blocks-ddl.mjs).
+  shopRows: [] as Row[], sellers: [] as Array<{ id: string; ownerId: string | null }>, shopTableMissing: false,
+  // Threads, for hiddenSellerIdsFor's "a person I bought from" rule.
+  convos: [] as Array<{ buyerProfileId: string; sellerProfileId: string | null; sellerId: string }>,
+}))
+/** What Prisma 7 throws for a table that does not exist (P2021). */
+const missing = () => Object.assign(new Error('The table `public.SellerBlock` does not exist in the current database.'), { code: 'P2021' })
 
 vi.mock('@/lib/db', () => ({
   db: {
+    // The batch form: the operations are already-issued promises; all of them settle, or the first rejection wins.
+    $transaction: async (ops: Promise<unknown>[]) => { h.calls.push('$transaction'); return Promise.all(ops) },
     forumUserBlock: {
       findFirst: async (q: Row) => { h.calls.push('findFirst'); const or = (q.where as { OR: Row[] }).OR; return h.rows.find((r) => or.some((c) => c.blockerProfileId === r.blockerProfileId && c.blockedProfileId === r.blockedProfileId)) ?? null },
       findMany: async (q: Row) => {
@@ -30,6 +40,37 @@ vi.mock('@/lib/db', () => ({
       deleteMany: async (q: Row) => { h.calls.push('deleteMany'); const w = q.where as Row; h.rows = h.rows.filter((r) => !(r.blockerProfileId === w.blockerProfileId && r.blockedProfileId === w.blockedProfileId)); return { count: 1 } },
     },
     feedback: { create: async (q: Row) => { if (h.feedbackFails) throw new Error('db down'); h.feedback.push(q.data as Row); return q.data } },
+    sellerBlock: {
+      findMany: async (q: Row) => { h.calls.push('sellerBlock.findMany'); if (h.shopTableMissing) throw missing(); return h.shopRows.filter((r) => r.blockerProfileId === (q.where as Row).blockerProfileId) },
+      createMany: async (q: Row) => {
+        if (h.shopTableMissing) throw missing()
+        let count = 0
+        for (const d of q.data as Row[]) {
+          if (h.shopRows.some((r) => r.blockerProfileId === d.blockerProfileId && r.sellerId === d.sellerId)) continue
+          h.shopRows.push(d); count++
+        }
+        return { count }
+      },
+      deleteMany: async (q: Row) => {
+        if (h.shopTableMissing) throw missing()
+        const w = q.where as { blockerProfileId: string; sellerId?: string; seller?: { ownerId: string } }
+        // By shop id, or (deletePersonBlock) by the shop's owner.
+        const hit = (r: Row) => r.blockerProfileId === w.blockerProfileId &&
+          (w.sellerId !== undefined ? r.sellerId === w.sellerId : h.sellers.some((x) => x.id === r.sellerId && x.ownerId === w.seller?.ownerId))
+        h.shopRows = h.shopRows.filter((r) => !hit(r))
+        return { count: 1 }
+      },
+    },
+    conversation: {
+      findMany: async (q: { where: { buyerProfileId: string; sellerProfileId: { in: string[] } } }) => {
+        h.calls.push('conversation.findMany')
+        const ids = new Set(h.convos.filter((c) => c.buyerProfileId === q.where.buyerProfileId && c.sellerProfileId && q.where.sellerProfileId.in.includes(c.sellerProfileId)).map((c) => c.sellerId))
+        return [...ids].map((sellerId) => ({ sellerId }))
+      },
+    },
+    seller: {
+      findMany: async (q: { where: { ownerId: { in: string[] } } }) => { h.calls.push('seller.findMany'); return h.sellers.filter((x) => x.ownerId && q.where.ownerId.in.includes(x.ownerId)).map((x) => ({ id: x.id })) },
+    },
     profile: {
       findUnique: async (q: { where: { id: string } }) => ({ email: q.where.id === 'staff' ? 'support@eno.vn' : `${q.where.id}@example.com` }),
       findMany: async (q: { where: { id: { in: string[] } } }) => { h.calls.push('profile.findMany'); return q.where.id.in.map((id) => ({ id, email: id === 'staff' ? 'support@eno.vn' : `${id}@example.com` })) },
@@ -51,9 +92,15 @@ vi.mock('@/lib/ratelimit', () => ({
 }))
 vi.mock('@/lib/admin', () => ({ isAdminEmail: (e: string | null | undefined) => e === 'support@eno.vn' }))
 
-const { blockHandle, blockingOn, blockStateBetween, isBlockedBetween, profilesBlockedBy, setUserBlock, unblockByHandle } = await import('./user-blocks')
+const {
+  blockHandle, blockingOn, blockStateBetween, deletePersonBlock, hiddenSellerIdsFor, isBlockedBetween, isShopOnlyBlock, profilesBlockedBy, SellerBlocksMissing,
+  setSellerBlock, setUserBlock, shopBlockHandle, unblockByHandle,
+} = await import('./user-blocks')
 
-beforeEach(() => { h.calls = []; h.rows = []; h.feedback = []; h.feedbackFails = false; h.kv = new Map(); h.kvFails = false })
+beforeEach(() => {
+  h.calls = []; h.rows = []; h.feedback = []; h.feedbackFails = false; h.kv = new Map(); h.kvFails = false
+  h.shopRows = []; h.sellers = []; h.shopTableMissing = false; h.convos = []
+})
 afterEach(() => vi.unstubAllEnvs())
 
 describe('with the gate OFF (the default)', () => {
@@ -227,5 +274,122 @@ describe('the opaque unblock handle (follow-up 3)', () => {
     expect(h.rows).toHaveLength(2)
     expect(await unblockByHandle('a', blockHandle('a', 'b')!)).toBe(true)
     expect(h.rows).toEqual([{ blockerProfileId: 'c', blockedProfileId: 'b' }])
+  })
+
+  it('a SHOP block has its own handle (over `shop:<id>`), unblocks only the caller\'s shop row, and never answers for a person', async () => {
+    h.shopRows = [{ blockerProfileId: 'a', sellerId: 'linked' }, { blockerProfileId: 'c', sellerId: 'linked' }]
+    h.rows = [{ blockerProfileId: 'a', blockedProfileId: 'linked' }]
+    const shop = shopBlockHandle('a', 'linked')!
+    expect(shop).toMatch(/^[A-Za-z0-9_-]{22}$/)
+    expect(shop).not.toBe(blockHandle('a', 'linked'))
+    expect(await unblockByHandle('a', shopBlockHandle('c', 'linked')!)).toBe(false)
+    expect(await unblockByHandle('a', shop)).toBe(true)
+    expect(h.shopRows).toEqual([{ blockerProfileId: 'c', sellerId: 'linked' }])
+    expect(h.rows).toHaveLength(1) // the person row of the same id stands
+  })
+
+  it('before the SellerBlock DDL a handle still unblocks a person, and an unknown one is a plain miss', async () => {
+    h.shopTableMissing = true
+    h.rows = [{ blockerProfileId: 'a', blockedProfileId: 'b' }]
+    expect(await unblockByHandle('a', 'AAAAAAAAAAAAAAAAAAAAAA')).toBe(false)
+    expect(await unblockByHandle('a', blockHandle('a', 'b')!)).toBe(true)
+  })
+})
+
+describe('shop blocks — a shop no blockable person runs (App Store 1.2 rejection, 2026-10-28)', () => {
+  beforeEach(() => vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety'))
+
+  it('a shop with no owner, or the eno team\'s, is blocked as a shop; a person\'s shop is not', async () => {
+    expect(await isShopOnlyBlock(null)).toBe(true)
+    expect(await isShopOnlyBlock('staff')).toBe(true)
+    expect(await isShopOnlyBlock('someone')).toBe(false)
+  })
+
+  it('a new shop block tells moderators — naming the listing it was made on — once per (blocker → shop) per day', async () => {
+    await setSellerBlock('a', 'linked', true, { surface: 'listing', sellerId: 'linked', listingId: 'l1' })
+    expect(h.shopRows).toEqual([{ blockerProfileId: 'a', sellerId: 'linked' }])
+    expect(h.feedback).toHaveLength(1)
+    expect(h.feedback[0]).toMatchObject({ kind: 'other', profileId: 'a', url: '/listings/l1' })
+    expect(String(h.feedback[0].message)).toContain('[shop block] Profile a blocked shop linked (listing) from listing l1')
+    await setSellerBlock('a', 'linked', false, { surface: 'settings' })
+    expect(h.shopRows).toEqual([])
+    await setSellerBlock('a', 'linked', true, { surface: 'storefront', sellerId: 'linked' })
+    await setSellerBlock('a', 'linked', true, { surface: 'storefront', sellerId: 'linked' })
+    expect(h.shopRows).toHaveLength(1)
+    expect(h.feedback).toHaveLength(1)
+  })
+
+  it('a storefront shop block links the storefront', async () => {
+    await setSellerBlock('a', 'linked', true, { surface: 'storefront', sellerId: 'linked' })
+    expect(h.feedback[0]).toMatchObject({ url: '/sellers/linked' })
+  })
+
+  it('before the DDL a shop block throws SellerBlocksMissing (the route says "unavailable"), and files nothing', async () => {
+    h.shopTableMissing = true
+    await expect(setSellerBlock('a', 'linked', true, { surface: 'storefront', sellerId: 'linked' })).rejects.toBeInstanceOf(SellerBlocksMissing)
+    expect(h.feedback).toEqual([])
+  })
+
+  it('the shops to hide: every SellerBlock row, plus the shop of every blocked person `me` BOUGHT from — the eno team never', async () => {
+    h.rows = [{ blockerProfileId: 'a', blockedProfileId: 'b' }, { blockerProfileId: 'a', blockedProfileId: 'staff' }, { blockerProfileId: 'x', blockedProfileId: 'c' }]
+    h.sellers = [{ id: 'shop-b', ownerId: 'b' }, { id: 'shop-staff', ownerId: 'staff' }, { id: 'shop-c', ownerId: 'c' }]
+    h.convos = [{ buyerProfileId: 'a', sellerProfileId: 'b', sellerId: 'shop-b' }, { buyerProfileId: 'a', sellerProfileId: 'staff', sellerId: 'shop-staff' }]
+    h.shopRows = [{ blockerProfileId: 'a', sellerId: 'linked' }, { blockerProfileId: 'x', sellerId: 'other' }]
+    expect((await hiddenSellerIdsFor('a')).sort()).toEqual(['linked', 'shop-b'])
+    // The THREAD's own shop — never a lookup by owner (review): no other id can come back for b.
+    expect(h.calls).not.toContain('seller.findMany')
+  })
+
+  it('⛔ a BUYER blocked from a chat keeps their shop off the list — it would tell the blocker which shop they run (review)', async () => {
+    h.rows = [{ blockerProfileId: 'seller', blockedProfileId: 'buyer' }]
+    h.sellers = [{ id: 'shop-of-buyer', ownerId: 'buyer' }]
+    h.convos = [{ buyerProfileId: 'buyer', sellerProfileId: 'seller', sellerId: 'shop-of-seller' }]
+    expect(await hiddenSellerIdsFor('seller')).toEqual([])
+    // …unless the blocker also blocked them from that shop's own page (the route then writes the shop's row).
+    h.shopRows = [{ blockerProfileId: 'seller', sellerId: 'shop-of-buyer' }]
+    expect(await hiddenSellerIdsFor('seller')).toEqual(['shop-of-buyer'])
+  })
+
+  it('unblocking a person lifts their shop\'s row with them — by handle, or by setUserBlock(off)', async () => {
+    vi.stubEnv('SUPABASE_SECRET_KEY', 'test-secret-for-block-handles')
+    h.sellers = [{ id: 'shop-b', ownerId: 'b' }, { id: 'linked', ownerId: null }]
+    h.rows = [{ blockerProfileId: 'a', blockedProfileId: 'b' }]
+    h.shopRows = [{ blockerProfileId: 'a', sellerId: 'shop-b' }, { blockerProfileId: 'a', sellerId: 'linked' }, { blockerProfileId: 'x', sellerId: 'shop-b' }]
+    expect(await unblockByHandle('a', blockHandle('a', 'b')!)).toBe(true)
+    expect(h.shopRows).toEqual([{ blockerProfileId: 'a', sellerId: 'linked' }, { blockerProfileId: 'x', sellerId: 'shop-b' }])
+    h.rows = [{ blockerProfileId: 'a', blockedProfileId: 'b' }]
+    h.shopRows.push({ blockerProfileId: 'a', sellerId: 'shop-b' })
+    await setUserBlock('a', 'b', false, { surface: 'storefront', sellerId: 'shop-b' })
+    expect(h.shopRows).toEqual([{ blockerProfileId: 'a', sellerId: 'linked' }, { blockerProfileId: 'x', sellerId: 'shop-b' }])
+    h.shopTableMissing = true
+    // Before the DDL: the person row alone, no error.
+    h.rows = [{ blockerProfileId: 'a', blockedProfileId: 'b' }]
+    await expect(deletePersonBlock('a', 'b')).resolves.toBeUndefined()
+    expect(h.rows).toEqual([])
+  })
+
+  it('a person-run shop\'s row written beside the person block files no second note', async () => {
+    await setSellerBlock('a', 'shop-b', true, { surface: 'listing', sellerId: 'shop-b', listingId: 'l1' }, { note: false })
+    expect(h.shopRows).toEqual([{ blockerProfileId: 'a', sellerId: 'shop-b' }])
+    expect(h.feedback).toEqual([])
+  })
+
+  it('before the DDL, the person half alone; with the gate off, nothing and no query', async () => {
+    h.shopTableMissing = true
+    h.rows = [{ blockerProfileId: 'a', blockedProfileId: 'b' }]
+    h.sellers = [{ id: 'shop-b', ownerId: 'b' }]
+    h.convos = [{ buyerProfileId: 'a', sellerProfileId: 'b', sellerId: 'shop-b' }]
+    expect(await hiddenSellerIdsFor('a')).toEqual(['shop-b'])
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    h.calls = []
+    expect(await hiddenSellerIdsFor('a')).toEqual([])
+    expect(h.calls).toEqual([])
+  })
+
+  it('a database failure that is NOT a missing table still throws', async () => {
+    const real = h.shopRows
+    Object.defineProperty(h, 'shopRows', { get: () => { throw new Error('db down') }, configurable: true })
+    await expect(hiddenSellerIdsFor('a')).rejects.toThrow('db down')
+    Object.defineProperty(h, 'shopRows', { value: real, writable: true, configurable: true })
   })
 })

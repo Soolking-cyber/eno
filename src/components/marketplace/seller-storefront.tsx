@@ -22,6 +22,9 @@ import { Bilingual } from '@/components/marketplace/bilingual'
 import { RichText } from '@/components/marketplace/listing-content'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { BlockUserButton } from '@/components/marketplace/block-user-button'
+import { BlockedSellerNotice } from '@/components/marketplace/blocked-seller-notice'
+import { appReviewGate } from '@/lib/app-review-gates'
+import { isShopOnlyBlock } from '@/lib/user-blocks'
 import { ReportContentButton } from '@/components/marketplace/report-content-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
 import { ShareButton } from '@/components/marketplace/share-button'
@@ -396,12 +399,17 @@ export async function SellerStorefront({ id }: { id: string }) {
   // statement without depending on having loaded them all — `every` over a capped page would call
   // a mixed seller a pure affiliate partner.
   const isAffiliatePartner = seller._count.listings > 0 && chatListingId === null
+  // Who a Block here reaches (only the dialog's words depend on it): the shop itself when nobody blockable runs it.
+  const blockShopOnly = appReviewGate('ugc-safety') ? await isShopOnlyBlock(seller.ownerId) : false
 
   return (
     <div className="flex min-h-page flex-col blob-bg">
       <ScrollToTop />
       <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
+      {/* ⛔ A SHOP THE VIEWER BLOCKED IS NOT SHOWN (App Store 1.2; src/lib/hidden-sellers.ts) — <main> hidden by its
+          `data-sid`, this notice shown instead, by the hidden-shops stylesheet. */}
+      {appReviewGate('ugc-safety') && <BlockedSellerNotice sellerId={seller.id} kind="shop" className="flex-1" />}
+      <main id="main" tabIndex={-1} data-sid={seller.id} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
         {/* Optional cover. Renders nothing for the storefronts that have not set one, which is
             almost all of them — see StorefrontBanner for why the box is sized before the image. */}
         <StorefrontBanner url={seller.bannerUrl} mobileUrl={seller.bannerMobileUrl} />
@@ -506,9 +514,10 @@ export async function SellerStorefront({ id }: { id: string }) {
                   own red block under the CTA it read as loud as "Chat now". */}
               <span className="ml-auto flex items-center">
                 <ReportButton sellerId={seller.id} />
-                {/* Block (App Store gate `ugc-safety`; renders nothing while it is off) — only on a shop
-                    a PERSON runs. An imported, ownerless shop has nobody to block. */}
-                {seller.ownerId && <BlockUserButton sellerId={seller.id} name={seller.name} />}
+                {/* Block (App Store gate `ugc-safety`; renders nothing while it is off) — on EVERY shop: one nobody
+                    blockable runs (imported, partner, eno's own) is blocked as a shop (src/lib/user-blocks.ts).
+                    Apple's 2026-10-28 rejection was exactly that storefront with Report and no Block. */}
+                <BlockUserButton sellerId={seller.id} shopOnly={blockShopOnly} name={seller.name} />
               </span>
             </div>
             {/* ⚠️ A <div>, NOT THE <p> THIS WAS. RichText emits <p>/<ul> blocks, and a block inside

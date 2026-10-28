@@ -237,7 +237,9 @@ export function Shelf({
   const { scrollerRef, canLeft, canRight, page, arrowTop } = useScrollArrows({ centerSelector: '[data-rail-media]', watch })
 
   return (
-    <section className={sectionClassName}>
+    // `data-shelf` / `data-shelf-items`: a shelf whose every item is a shop the viewer blocked goes as a whole — heading
+    // and all — rather than leaving a title over an empty scroller (src/lib/hidden-sellers.ts, App Store 1.2).
+    <section data-shelf="" className={sectionClassName}>
       <div className={SECTION_HEADER_ROW}>
         <div className="flex min-w-0 items-center gap-2">
           {Icon && <Icon className="h-4 w-4 shrink-0 text-accent-foreground" />}
@@ -250,7 +252,7 @@ export function Shelf({
       </div>
       <RailBeam scrollerRef={scrollerRef} canRight={canRight} seedItems={Children.count(children)} />
       <div className="relative">
-        <div ref={scrollerRef} className={RAIL_SCROLLER}>{children}</div>
+        <div ref={scrollerRef} data-shelf-items="" className={RAIL_SCROLLER}>{children}</div>
         <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />
       </div>
     </section>

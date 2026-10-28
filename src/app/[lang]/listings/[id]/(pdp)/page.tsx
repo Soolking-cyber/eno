@@ -74,6 +74,9 @@ import { LiveUntil } from '@/components/marketplace/live-until'
 import { sellerMetrics, topSellerReviews, sameSellerListings } from '@/lib/seller-metrics'
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
+import { BlockUserButton } from '@/components/marketplace/block-user-button'
+import { BlockedSellerNotice } from '@/components/marketplace/blocked-seller-notice'
+import { isShopOnlyBlock } from '@/lib/user-blocks'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
 import { RentalCheckToggle } from '@/components/marketplace/rental-check-toggle'
 import { isChatOnlyPartner, rentalCheckApplies } from '@/lib/rental-check/shared'
@@ -555,6 +558,9 @@ export default async function ListingPage({ params }: Props) {
    * SHOWS IT (serialize.ts partnerShown — a row that links out never counts) and an owner account to read the chat. Such
    * a listing offers no eno availability check (below); the basket and the route refuse one as well.
    */
+  // Who a Block on this page reaches: the shop itself when nobody blockable runs it (no owner, or the eno team) — only the
+  // dialog's words depend on it (src/lib/user-blocks.ts isShopOnlyBlock). No query while ugc-safety is off.
+  const blockShopOnly = appReviewGate('ugc-safety') ? await isShopOnlyBlock(rawListing.seller.ownerId) : false
   const chatOnlyPartner = isChatOnlyPartner({ officialPartner: listing.seller.officialPartner, hasOwner: rawListing.seller.ownerId != null })
   const sellerHref = `/sellers/${listing.sellerId}`
   // Caution line for throttled/held/suspended sellers (warned is notice-only, never
@@ -858,7 +864,11 @@ export default async function ListingPage({ params }: Props) {
       {/* No bottom clearance here on purpose. This page used to reserve 4rem on the ROOT for
           a fixed mobile action bar; that bar is gone, and <BottomNavSpacer/> already reserves
           the tab bar's 4.5rem globally — so the old padding just left a dead band above it. */}
-      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-8 lg:pb-12">
+      {/* ⛔ A SELLER THE VIEWER BLOCKED IS NOT SHOWN (App Store 1.2; src/lib/hidden-sellers.ts): the hidden-shops
+          stylesheet hides <main> by its `data-sid` and shows this notice in its place — before first paint on a reload,
+          the moment Block answers on a tap. The page itself stays one cached render for everyone. */}
+      {appReviewGate('ugc-safety') && <BlockedSellerNotice sellerId={listing.sellerId} kind="listing" className="flex-1" />}
+      <main id="main" tabIndex={-1} data-sid={listing.sellerId} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-8 lg:pb-12">
         {/* ONE responsive tree, TWO layouts. On a phone it is a single flex column and the
             `order-*` on each block sequences the whole page — the LEFT/RIGHT column wrappers are
             `display:contents` there, so their children flatten into this one shared order space:
@@ -1339,7 +1349,15 @@ export default async function ListingPage({ params }: Props) {
                   subcategorySlug={rawListing.subcategorySlug}
                   variant={affiliateUrl ? (isJob ? 'affiliate-job' : isBooking ? 'affiliate' : listing.listingType === 'rent' ? 'affiliate-rental' : 'affiliate-purchase') : undefined}
                   protections={affiliateUrl ? undefined : <ProtectionsRow inline />}
-                  action={<ReportButton listingId={listing.id} />}
+                  action={
+                    // REPORT AND BLOCK, side by side, on every listing (App Store 1.2 — Apple's 2026-10-28 rejection found
+                    // Report without Block). Block names the SHOP and this listing; a shop nobody blockable runs (imported,
+                    // partner, eno's own) is blocked as a shop (src/lib/user-blocks.ts). Renders nothing without `ugc-safety`.
+                    <span className="flex items-center">
+                      <ReportButton listingId={listing.id} />
+                      <BlockUserButton sellerId={listing.sellerId} listingId={listing.id} shopOnly={blockShopOnly} name={listing.seller.name} />
+                    </span>
+                  }
                 />
               </div>
 

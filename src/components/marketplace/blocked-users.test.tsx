@@ -4,6 +4,11 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { LanguageProvider } from '@/context/language-context'
 import { BlockedUsers } from './blocked-users'
 
+const synced = vi.hoisted(() => [] as Array<string | null>)
+vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
+// An unblock re-syncs the hidden shops (src/lib/hidden-sellers.ts) so that shop's listings come back at once.
+vi.mock('@/lib/hidden-sellers', () => ({ syncHiddenSellers: async (uid: string | null) => { synced.push(uid) } }))
+
 // ── Settings › Privacy › Blocked users (App Store gate `ugc-safety`) — opaque handles, honest failures ──
 
 const fetchMock = vi.fn()
@@ -19,7 +24,7 @@ function mount() {
   )
 }
 
-beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal('fetch', fetchMock) })
+beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal('fetch', fetchMock); synced.length = 0 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('BlockedUsers', () => {
@@ -30,6 +35,16 @@ describe('BlockedUsers', () => {
     await act(async () => { fireEvent.click(button) })
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ handle: H, blocked: false })
     expect(await screen.findByText('You have not blocked anyone.')).toBeTruthy()
+    expect(synced).toEqual(['u1'])
+  })
+
+  it('a shop blocked as a shop is listed as one, and unblocks the same way', async () => {
+    fetchMock.mockResolvedValueOnce(ok({ enabled: true, blocked: [{ ...row(H, "Jan's Motorbike"), kind: 'shop' }] })).mockResolvedValueOnce(ok({ blocked: false }))
+    mount()
+    expect(await screen.findByText('Shop', undefined, { timeout: 10_000 })).toBeTruthy()
+    expect(screen.getByText("Jan's Motorbike")).toBeTruthy()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Unblock' })) })
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ handle: H, blocked: false })
   })
 
   it('a stale handle (404) says the list was refreshed, and re-reads it', async () => {

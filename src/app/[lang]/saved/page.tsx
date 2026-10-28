@@ -138,7 +138,7 @@ export default function SavedPage() {
             {list.length > 0 && (
               <div className={LISTING_GRID}>
                 {list.map((l, i) => (
-                  <div key={l.id} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)}>
+                  <div key={l.id} data-sid={l.sellerId} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)}>
                     <ListingCard listing={l} onOpen={() => router.push(`/listings/${l.id}`)} onLocate={() => router.push(localizedHref(`/?focus=${l.id}`, variant))} priority={i < 4} />
                   </div>
                 ))}

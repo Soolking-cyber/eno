@@ -15,6 +15,7 @@ import { armIntent, dropIntent, markIntentRouted, pathnameOf, readIntent, type P
 import type { SignInGate, SignInMethod } from '@/lib/signup-prompt'
 import { warmFacebookSignIn } from '@/lib/facebook-flag'
 import { announceSignedInAccount } from '@/lib/signed-in-account'
+import { syncHiddenSellers } from '@/lib/hidden-sellers'
 /**
  * ⚠️ THE IDENTITY RULES LIVE IN A PURE MODULE — see auth-identity.ts for why (they shipped wrong
  * once, and testing them must not drag next/navigation and the Supabase browser client along).
@@ -329,6 +330,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // never mistaken for "signed out".
   useEffect(() => {
     if (!loading) announceSignedInAccount(user?.id ?? null)
+  }, [loading, user?.id])
+  // The shops this account's blocks hide from every feed (src/lib/hidden-sellers.ts) — synced once auth has settled, and
+  // cleared on sign-out, so another account's list never stands on this device. Inert without `ugc-safety`.
+  useEffect(() => {
+    if (!loading) void syncHiddenSellers(user?.id ?? null)
   }, [loading, user?.id])
   const [signInOpen, setSignInOpen] = useState(false)
   const [signInCtx, setSignInCtx] = useState<SignInContext | null>(null)

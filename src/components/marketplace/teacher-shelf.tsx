@@ -71,7 +71,7 @@ export function TeacherShelf({
     <div data-teacher-shelf="" className="col-span-full min-w-0 border-t border-border pt-6 pb-4 not-last:border-b">
       <Shelf icon={User} title={tr(title.name, title.nameVi)} seeAllHref={teacherSurfaceHref(localizedHref('/c/teachers', lang))}>
         {listings.map((l) => (
-          <div key={l.id} className={RAIL_CARD_W}>
+          <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
             <ListingCard listing={l} onOpen={onOpen} />
           </div>
         ))}

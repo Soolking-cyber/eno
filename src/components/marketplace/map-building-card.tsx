@@ -145,7 +145,7 @@ export function MapBuildingCard({
             <Carousel opts={{ align: 'start', dragFree: true }} className="relative">
               <CarouselContent className="-ml-2">
                 {units.map((u) => (
-                  <CarouselItem key={u.id} className="basis-[132px] pl-2">
+                  <CarouselItem key={u.id} data-sid={u.sellerId} className="basis-[132px] pl-2">
                     <Button
                       variant="bare"
                       size="none"

@@ -1,6 +1,8 @@
 // GET /api/listings query machinery: the ids fast-path, filter/where building from
 // search params, the orderBy branches, and the subcategory facet-count cache.
 // Extracted verbatim from route.ts — the route keeps the exported handlers only.
+import { HIDDEN_SELLERS_PARAM, parseHiddenSellersParam } from '@/lib/hidden-sellers'
+import { appReviewGate } from '@/lib/app-review-gates'
 import { marketplaceListingScope, teacherExclusion, scopedListingWhere } from '@/lib/edition-scope'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { NextResponse } from 'next/server'
@@ -262,6 +264,14 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
   // ⛔ TEACHER PROFILES ONLY ON THE TEACHERS CATEGORY (2026-09-30). This feed composes its own AND
   // array, so it does not inherit scopedListingWhere's default exclusion — without this, teacher
   // cards would fill the home "all" feed, search and every facet count. Own element, as above.
+  /**
+   * ⛔ THE SHOPS THIS VIEWER BLOCKED (App Store 1.2) — `xs=<ids>`, sent by the explorer for a signed-in blocker only
+   * (src/lib/hidden-sellers.ts). Out of the rows, the total, the histogram and the facets alike, so a shop that fills whole
+   * pages leaves no empty grid behind. Its own AND element, as above; plain ids only, capped. It can only NARROW a public
+   * feed, so it needs no auth — and while `ugc-safety` is off it is ignored.
+   */
+  const hiddenShops = appReviewGate('ugc-safety') ? parseHiddenSellersParam(searchParams.get(HIDDEN_SELLERS_PARAM)) : []
+  if (hiddenShops.length) andFilters.push({ sellerId: { notIn: hiddenShops } })
   const teachersIn = category === TEACHERS_CATEGORY_SLUG || opts.includeTeachers === true
   const teacherScope = await teacherExclusion({ teachers: teachersIn })
   if (teacherScope) andFilters.push(teacherScope)

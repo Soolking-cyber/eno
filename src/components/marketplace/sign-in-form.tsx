@@ -273,6 +273,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
    */
   const gateGoogle = appReviewGate('ios-hide-google')
   const gateTidy = appReviewGate('app-signin-tidy')
+  const ugcSafety = appReviewGate('ugc-safety')
   /**
    * SIGN IN WITH APPLE — the rollout flag (src/lib/apple-signin.ts), a build-time value like the gates.
    * ⛔ EMPTY FLAG ⇒ THIS FORM'S MARKUP IS TODAY'S: no Apple node on any render, and Google keeps its old look.
@@ -1947,6 +1948,16 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
         <a href="/regulations" target={legalInApp ? undefined : '_blank'} onClick={openLegal} rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Operating regulations', 'Quy chế hoạt động')}</a>
         {' '}{t('and', 'và')}{' '}
         <a href="/privacy" target={legalInApp ? undefined : '_blank'} onClick={openLegal} rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</a>.
+        {/* ⛔ THE TERMS' NO-TOLERANCE RULE, SAID BEFORE ANYONE SIGNS IN (App Store Guideline 1.2: "users must agree to
+            terms (EULA) and these terms must make it clear that there is no tolerance for objectionable content or
+            abusive users"; Apple's 2026-10-28 rejection asks to see it on camera before registering or logging in). The
+            sentence is the Terms' own (/terms, "We have no tolerance for objectionable content or abusive users"). */}
+        {ugcSafety && (
+          <>
+            {' '}
+            <span className="font-semibold text-muted-foreground">{t('We have no tolerance for objectionable content or abusive users.', 'Chúng tôi không khoan nhượng với nội dung phản cảm và người dùng có hành vi lạm dụng.')}</span>
+          </>
+        )}
       </p>
     </div>
   )

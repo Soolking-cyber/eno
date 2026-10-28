@@ -262,7 +262,7 @@ export function VideoFeed({
               onPrefetch={onPrefetch}
             />
           ) : (
-            <div key={l.id} data-idx={i} className="h-full w-full snap-start snap-always" />
+            <div key={l.id} data-idx={i} data-sid={l.sellerId} className="h-full w-full snap-start snap-always" />
           ),
         )}
       </div>
@@ -372,7 +372,7 @@ function VideoFeedItem({
   }, [listing.id, title, tr])
 
   return (
-    <div data-idx={index} className="relative flex h-full w-full snap-start snap-always items-center justify-center">
+    <div data-idx={index} data-sid={listing.sellerId} className="relative flex h-full w-full snap-start snap-always items-center justify-center">
       {/* Stage: full-bleed on mobile; a centred portrait frame on desktop (black on the sides). */}
       <div className="relative h-full w-full sm:aspect-[9/16] sm:w-auto">
         {listing.video && (

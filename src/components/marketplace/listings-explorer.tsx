@@ -1,5 +1,7 @@
 'use client'
 
+import { HIDDEN_SELLERS_PARAM } from '@/lib/hidden-sellers'
+import { useHiddenSellersParam } from '@/lib/use-hidden-sellers'
 import { fillTemplate } from '@/lib/i18n/placeholders'
 import { getTrSnapshot, subscribeTr } from '@/lib/i18n/mt-client'
 import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition, type CSSProperties } from 'react'
@@ -2157,6 +2159,7 @@ export function ListingsExplorer({
    * ⚠️ `resultSetSig` reads this same object (minus `page`), so the snapshot provenance and the append
    * guard stay keyed on exactly what the request asks for.
    */
+  const hiddenShops = useHiddenSellersParam()
   const feedKeyFields = useMemo(() => (
     {
       // ⛔ THE SHOP IS PART OF THE REQUEST (`scopedParams`), SO IT IS PART OF THE KEY — the same class
@@ -2207,11 +2210,19 @@ export function ListingsExplorer({
       // looking at the English titles react-query already had, with no refetch to correct it.
       // Caught in review before it shipped; a language switch is rare, so the extra fetch is free.
       lang,
+      /**
+       * ⛔ THE SHOPS THIS VIEWER BLOCKED (App Store 1.2; src/lib/hidden-sellers.ts) ARE PART OF THE REQUEST, SO THEY ARE
+       * PART OF THE KEY — the same class as `line` and `lang`. A block, an unblock, a sign-out or another account then
+       * starts the feed again at page 1 under the new set (codex + opus, review: pages fetched under two sets skipped
+       * rows, and a page one shop filled sat as an empty grid). '' for everyone who blocked nothing, so their key, cache
+       * entries and seed never move; a blocker's reload re-asks once, after hydration.
+       */
+      xs: hiddenShops,
     }
   ), [
     sellerId, activeCategory, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict,
     activeProvince?.code, activeWard?.code, nearby, conditionFilter, goodPriceOnly, listingType, debouncedQuery,
-    spellOn, looseMatch, sort, verifiedOnly, priceRange, selectedBuilding, customFilters, lang,
+    spellOn, looseMatch, sort, verifiedOnly, priceRange, selectedBuilding, customFilters, lang, hiddenShops,
   ])
   const feedKey = useCallback((p: number) => ['listings', { ...feedKeyFields, page: p }] as const, [feedKeyFields])
   // The feed query's key, named so `resultSetSig` can read the same object the query is keyed on.
@@ -2246,6 +2257,10 @@ export function ListingsExplorer({
       // has always done this; the two feed fetches — the ones every visitor pays on every page —
       // did not.
       params.set('lang', lang)
+      // ⛔ The shops this viewer blocked leave the feed server-side too (App Store 1.2; src/lib/hidden-sellers.ts) — FROM
+      // THE KEY (`xs` in feedKeyFields), like the page, so every page of one result set is cut by the same set.
+      const hiddenShops = (queryKey[1] as { xs?: string }).xs
+      if (hiddenShops) params.set(HIDDEN_SELLERS_PARAM, hiddenShops)
       // A worded feed opts in to the zero-result spelling correction on EVERY page (see `literalFor`):
       // the route repeats its decision per page, so page 2 of "iphnoe" is page 2 of "iphone".
       if (spellOn) params.set('spell', '1')
@@ -5230,6 +5245,8 @@ export function ListingsExplorer({
                           were away (the discovery shelves mount lazily). */}
                       <div
                         data-feed-card={l.id}
+                        // The shop, for src/lib/hidden-sellers.ts: a blocked shop's cell goes with its card (App Store 1.2).
+                        data-sid={l.sellerId}
                         className="flex flex-col h-full"
                         onMouseEnter={() => prefetchListing(l.id)}
                         // ⚠️ FOCUS AS WELL AS HOVER. Keyboard and switch users never fire a pointer
@@ -5468,6 +5485,7 @@ export function ListingsExplorer({
                       <div
                         key={l.id}
                         data-lid={l.id}
+                        data-sid={l.sellerId}
                         onMouseEnter={() => setHoveredId(l.id)}
                         onMouseLeave={() => setHoveredId(null)}
                         className={cn(
@@ -5581,7 +5599,7 @@ export function ListingsExplorer({
                 <div data-feed-restoring={restoring || undefined} className={COMPACT_LIST_GRID}>
                   {gridListings.map((l, index) => (
                     /* data-feed-card = the back-nav restore anchor (see the grid above). */
-                    <div key={l.id} data-feed-card={l.id}>
+                    <div key={l.id} data-feed-card={l.id} data-sid={l.sellerId}>
                       <CompactListingRow
                         listing={l}
                         index={index}

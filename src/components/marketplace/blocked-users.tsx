@@ -5,21 +5,26 @@ import { Loader2 } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
 import { useLanguage } from '@/context/language-context'
+import { useAuth } from '@/context/auth-context'
+import { syncHiddenSellers } from '@/lib/hidden-sellers'
 
 /**
  * One row of GET /api/blocks. `handle` is an opaque, blocker-bound HMAC (src/lib/user-blocks.ts) — the
  * list never carries the blocked person's profile id. Null only when the server has no signing secret,
  * in which case that row cannot be unblocked from here.
  */
-type Blocked = { handle: string | null; name: string; avatarUrl: string | null; avatarColor: string | null; blockedAt: string }
+type Blocked = { kind?: 'person' | 'shop'; handle: string | null; name: string; avatarUrl: string | null; avatarColor: string | null; blockedAt: string }
 
 /**
- * Settings → Privacy → "Blocked users": everyone this account blocked, each with Unblock (App Store
- * Guideline 1.2, plan R3). The caller renders it only while the `ugc-safety` review gate is on; the
- * endpoint answers `enabled: false` otherwise, and this then renders nothing either.
+ * Settings → Privacy → "Blocked users": everyone this account blocked — and every shop it blocked as a shop (an
+ * imported or partner shop, src/lib/user-blocks.ts) — each with Unblock (App Store Guideline 1.2, plan R3). The caller
+ * renders it only while the `ugc-safety` review gate is on; the endpoint answers `enabled: false` otherwise, and this
+ * then renders nothing either. An unblock re-syncs the hidden shops (src/lib/hidden-sellers.ts), so that shop's
+ * listings come back at once.
  */
 export function BlockedUsers() {
   const { tr } = useLanguage()
+  const { user } = useAuth()
   const [list, setList] = useState<Blocked[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -57,6 +62,7 @@ export function BlockedUsers() {
       }
       if (!res.ok) throw new Error(String(res.status))
       setList((l) => (l ?? []).filter((b) => b.handle !== handle))
+      void syncHiddenSellers(user?.id ?? null)
     } catch {
       setUnblockError(tr('Could not unblock right now — please try again.', 'Chưa bỏ chặn được — vui lòng thử lại.'))
     } finally {
@@ -88,7 +94,10 @@ export function BlockedUsers() {
       {list.map((b, i) => (
         <li key={b.handle ?? `row-${i}`} className="flex items-center gap-3 py-2.5">
           <Avatar name={b.name} url={b.avatarUrl} color={b.avatarColor} size="sm" />
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{b.name}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+            {b.name}
+            {b.kind === 'shop' && <span className="ml-1.5 text-xs font-normal text-muted-foreground">{tr('Shop', 'Cửa hàng')}</span>}
+          </span>
           <Button variant="outline" size="sm" disabled={!b.handle} loading={!!b.handle && busy === b.handle} onClick={() => { if (b.handle) void unblock(b.handle) }}>
             {tr('Unblock', 'Bỏ chặn')}
           </Button>

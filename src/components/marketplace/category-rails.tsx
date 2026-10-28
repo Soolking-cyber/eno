@@ -80,7 +80,7 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
         <div ref={scrollerRef} className={RAIL_SCROLLER}>
           {show
             ? listings.map((l) => (
-                <div key={l.id} className={RAIL_CARD_W}>
+                <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
                   <ListingCard
                     listing={l}
                     onOpen={(x) => router.push(`/listings/${x.id}`)}

@@ -10,6 +10,7 @@ import { LANG_VARIANTS, type LangVariant } from "@/lib/lang-variant";
 import { APP_HOME_TWIN_JS } from "@/lib/app-home-language";
 import { NATIVE_SIWA_JS } from "@/lib/native-siwa-head";
 import { NO_APPLE_WEB_JS } from "@/lib/apple-web-head";
+import { HIDDEN_SELLERS_HEAD_JS } from "@/lib/hidden-sellers";
 import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
 import { COMPANY, OPERATOR_REGISTERED } from "@/lib/site-legal";
 import { IOS_APP_URL } from "@/lib/app-store-links";
@@ -470,6 +471,10 @@ export default async function RootLayout({
             the server-rendered button never flashes before the mount effect removes it. Its own <script>, not a
             splice into the template above: it needs real regexes. Not emitted at all without `web`. */}
         {NO_APPLE_WEB_JS ? <script dangerouslySetInnerHTML={{ __html: NO_APPLE_WEB_JS }} /> : null}
+        {/* ⛔ A BLOCKED SHOP'S CONTENT NEVER PAINTS (src/lib/hidden-sellers.ts, App Store 1.2): the blocker's stored list of
+            hidden shops, applied as one stylesheet before the first frame, so a reload shows no card, listing page or
+            storefront of a shop they blocked. AuthProvider then syncs it with the server. Not emitted without `ugc-safety`. */}
+        {HIDDEN_SELLERS_HEAD_JS ? <script dangerouslySetInnerHTML={{ __html: HIDDEN_SELLERS_HEAD_JS }} /> : null}
         {/* ⚠️ THE ICON SPRITE — ONE REQUEST THAT EVERY PAGE NEEDS, AND THE ONLY THING THE PRELOAD
             SCANNER CANNOT FIND ON ITS OWN. Every glyph in the app renders as two `<use href>` into
             this file (see scripts/gen-icons.mjs), and a `<use>` reference is invisible to the

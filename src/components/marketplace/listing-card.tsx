@@ -423,6 +423,9 @@ function ListingCardImpl({
     // included — is one long-press target. Inert on web.
     <div
       data-card-root
+      // `data-sid` — the shop, for src/lib/hidden-sellers.ts: a shop the viewer blocked is hidden by one stylesheet
+      // (App Store 1.2), so every card of it disappears wherever it is drawn. The cells that hold a card carry it too.
+      data-sid={listing.sellerId}
       data-pending={pending || undefined}
       // ⚠️ PRESS IS 0.97, NOT 0.985 — the old value was below the perceptual threshold on the
       // app's most-tapped surface. Scale is RELATIVE, so the same number is a different amount

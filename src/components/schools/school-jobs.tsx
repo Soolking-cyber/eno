@@ -17,7 +17,7 @@ export function SchoolJobs({ jobs }: { jobs: { card: SerializedListingCard; empl
   return (
     <ul className={LISTING_GRID}>
       {jobs.map(({ card, employer }) => (
-        <li key={card.id} className="min-w-0">
+        <li key={card.id} data-sid={card.sellerId} className="min-w-0">
           <ListingCard listing={card} onOpen={(x) => router.push(`/listings/${x.id}`)} sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 220px" />
           {employer && (
             <p className="mt-1 truncate px-1 text-xs text-muted-foreground">

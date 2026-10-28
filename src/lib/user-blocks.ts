@@ -16,6 +16,23 @@
  *   · the thread itself says it is closed (GET /api/conversations/[id] → `closed`), on both sides.
  * The thread itself is not deleted — it is evidence if either side reports the other.
  *
+ * ⛔ AND THE BLOCKED SIDE'S CONTENT LEAVES THE BLOCKER'S FEEDS AT ONCE (App Store 1.2 rejection of 1.0.3 (4),
+ * 2026-10-28: "blocking should … remove it from the user's feed instantly"). The feeds are cached HTML and JSON shared
+ * by every visitor, so the server cannot filter them per user; instead GET /api/blocks hands the blocker the SHOP ids
+ * their blocks hide (hiddenSellerIdsFor) and src/lib/hidden-sellers.ts hides every card, the listing page and the
+ * storefront of those shops with one stylesheet — before first paint on a reload, the instant the block answers on a tap.
+ * ⚠️ A shop id is public (every card carries it), never a profile id — and ONLY A SHOP THE BLOCKER ALREADY KNOWS IS ON
+ * THAT LIST (review, codex + opus): one blocked from its own storefront or listing (a SellerBlock row, written beside
+ * the person block), or the shop of a person the blocker bought from (the seller side of a thread with them). Blocking a
+ * BUYER from a chat hides nothing of theirs: the list would otherwise hand the blocker the shop that buyer runs — an
+ * identity the chat API is careful never to expose.
+ *
+ * ⛔ A SHOP NO BLOCKABLE PERSON RUNS IS BLOCKED AS A SHOP (SellerBlock). Apple's reviewer stood on an imported "Linked
+ * shop" storefront (no owner account) and found Report with no Block beside it: "an imported, ownerless shop has
+ * nobody to block" was true of the person, not of the content. Such a shop — no owner, or one the eno team owns (the
+ * team itself cannot be blocked, see isStaffProfile) — is now blocked as a shop: its listings leave the blocker's feeds
+ * and moderators are told, exactly as for a person; there is no thread to close, because nobody is on the other side.
+ *
  * ⛔ IT NOTIFIES MODERATORS THROUGH THE FEEDBACK QUEUE, NOT A REPORT. The plan said "open a moderation
  * report on every block". A `Report` row against the blocked profile is not neutral here: an OPEN report
  * makes `eraseAccount` refuse that user's own deletion ('under_review', src/app/api/account/delete), so
@@ -174,13 +191,29 @@ export async function unblockByHandle(blocker: string, handle: string): Promise<
   // always among them.
   const rows = await db.forumUserBlock.findMany({ where: { blockerProfileId: blocker }, orderBy: { createdAt: 'desc' }, select: { blockedProfileId: true }, take: 1000 })
   const want = Buffer.from(handle)
-  const hit = rows.find((r) => {
-    const got = Buffer.from(blockHandle(blocker, r.blockedProfileId) ?? '')
+  const matches = (h: string | null) => {
+    const got = Buffer.from(h ?? '')
     return got.length === want.length && crypto.timingSafeEqual(got, want)
-  })
-  if (!hit) return false
-  await db.forumUserBlock.deleteMany({ where: { blockerProfileId: blocker, blockedProfileId: hit.blockedProfileId } })
+  }
+  const hit = rows.find((r) => matches(blockHandle(blocker, r.blockedProfileId)))
+  if (hit) {
+    await deletePersonBlock(blocker, hit.blockedProfileId)
+    return true
+  }
+  // A SHOP block's handle signs `shop:<sellerId>` (shopBlockHandle) — never a profile id's shape (a uuid), so the two
+  // kinds can never answer for each other. Before the SellerBlock DDL there are no shop rows to match.
+  const shops = await db.sellerBlock
+    .findMany({ where: { blockerProfileId: blocker }, orderBy: { createdAt: 'desc' }, select: { sellerId: true }, take: 1000 })
+    .catch((e: unknown) => { if (isMissingTable(e)) return []; throw e })
+  const shop = shops.find((r) => matches(shopBlockHandle(blocker, r.sellerId)))
+  if (!shop) return false
+  await db.sellerBlock.deleteMany({ where: { blockerProfileId: blocker, sellerId: shop.sellerId } })
   return true
+}
+
+/** The opaque handle for one (blocker → shop) SellerBlock row — the same key and cut as blockHandle, over `shop:<id>`. */
+export function shopBlockHandle(blocker: string, sellerId: string): string | null {
+  return blockHandle(blocker, `shop:${sellerId}`)
 }
 
 /**
@@ -205,15 +238,45 @@ export async function setUserBlock(
   blocker: string,
   blocked: string,
   on: boolean,
-  context: { surface: 'chat' | 'storefront' | 'settings'; conversationId?: string | null; sellerId?: string | null },
+  context: BlockContext,
 ): Promise<void> {
   if (!on) {
-    await db.forumUserBlock.deleteMany({ where: { blockerProfileId: blocker, blockedProfileId: blocked } })
+    await deletePersonBlock(blocker, blocked)
     return
   }
   const { count } = await db.forumUserBlock.createMany({ data: [{ blockerProfileId: blocker, blockedProfileId: blocked }], skipDuplicates: true })
   if (count === 0) return
-  const claimKey = `user-block-note:${blocker}:${blocked}`
+  const where = context.conversationId
+    ? ` in conversation ${context.conversationId}`
+    : context.listingId ? ` from listing ${context.listingId} (shop ${context.sellerId})` : context.sellerId ? ` from storefront ${context.sellerId}` : ''
+  // ⚠️ The note names the block that won the day's claim. A re-block of the same pair in another thread
+  // the same day files nothing new — accepted: the note links both accounts' admin pages, which list
+  // every thread and report between them (codex + opus, gate round 1).
+  await fileBlockNote(`user-block-note:${blocker}:${blocked}`, {
+    profileId: blocker,
+    message: `[user block] Profile ${blocker} blocked profile ${blocked} (${context.surface})${where}. Review the exchange and their content; a block alone is not a report. Accounts: /admin/users/${blocker} · /admin/users/${blocked}`,
+    // ⚠️ THE ADMIN VIEWS, NOT THE USER ONES (follow-up 5 of 0a470ed98). `/messages/<id>` is the
+    // participants' thread page — it 403s an admin who is not a party, which is every moderator.
+    // `/admin/conversation/<id>` is the read-only thread viewer the moderation cards, the dispute
+    // room and the enforcement console all link; a storefront block points at the blocked
+    // account's admin record (/admin/users/<id>), which lists their shop, reports and actions.
+    url: context.conversationId ? `/admin/conversation/${context.conversationId}` : `/admin/users/${blocked}`,
+  })
+}
+
+/** Where a block was made — for the moderator note. `listingId` only when the server checked it belongs to `sellerId`. */
+export type BlockContext = {
+  surface: 'chat' | 'storefront' | 'listing' | 'settings'
+  conversationId?: string | null
+  sellerId?: string | null
+  listingId?: string | null
+}
+
+/**
+ * File the moderator note for a NEW block — at most once per `claimKey` per day (BLOCK_NOTE_DEDUPE_SEC), best-effort:
+ * the block must not fail because of it.
+ */
+async function fileBlockNote(claimKey: string, note: { profileId: string; message: string; url: string }): Promise<void> {
   let claimed = false
   try {
     let first = true
@@ -224,27 +287,114 @@ export async function setUserBlock(
       logError(e, { op: 'user-blocks.noteDedupe' })
     }
     if (!first) return
-    const where = context.conversationId ? ` in conversation ${context.conversationId}` : context.sellerId ? ` from storefront ${context.sellerId}` : ''
-    // ⚠️ The note names the block that won the day's claim. A re-block of the same pair in another thread
-    // the same day files nothing new — accepted: the note links both accounts' admin pages, which list
-    // every thread and report between them (codex + opus, gate round 1).
-    await db.feedback.create({
-      data: {
-        kind: 'other',
-        profileId: blocker,
-        message: `[user block] Profile ${blocker} blocked profile ${blocked} (${context.surface})${where}. Review the exchange; a block alone is not a report. Accounts: /admin/users/${blocker} · /admin/users/${blocked}`,
-        // ⚠️ THE ADMIN VIEWS, NOT THE USER ONES (follow-up 5 of 0a470ed98). `/messages/<id>` is the
-        // participants' thread page — it 403s an admin who is not a party, which is every moderator.
-        // `/admin/conversation/<id>` is the read-only thread viewer the moderation cards, the dispute
-        // room and the enforcement console all link; a storefront block points at the blocked
-        // account's admin record (/admin/users/<id>), which lists their shop, reports and actions.
-        url: context.conversationId ? `/admin/conversation/${context.conversationId}` : `/admin/users/${blocked}`,
-      },
-    })
+    await db.feedback.create({ data: { kind: 'other', ...note } })
   } catch (e) {
     logError(e, { op: 'user-blocks.notify' })
     // ⛔ A CLAIM WITH NO NOTE BEHIND IT WOULD SILENCE THE PAIR FOR A DAY (codex + opus, gate round 1): the
     // claim was taken, the note was not written. Release it, so the next block of this pair files the note.
     if (claimed) await kv.del(claimKey).catch((err) => logError(err, { op: 'user-blocks.noteRelease' }))
+  }
+}
+
+// ── SHOP BLOCKS (SellerBlock) ─────────────────────────────────────────────────────────────────────────────────────
+//
+// For a shop no blockable person runs (see the header). The table arrives with scripts/seller-blocks-ddl.mjs, run on
+// production BEFORE the deploy; until then every read here answers "no shop blocks" and a shop block answers
+// SellerBlocksMissing (the route says "unavailable"), so the person blocks keep working either way.
+
+/** The SellerBlock table is not there yet (scripts/seller-blocks-ddl.mjs has not run on this database). */
+export class SellerBlocksMissing extends Error {
+  constructor() { super('the SellerBlock table does not exist yet — run scripts/seller-blocks-ddl.mjs'); this.name = 'SellerBlocksMissing' }
+}
+
+/** Postgres 42P01 behind Prisma: P2021 typed, or the driver's code inside a P2010 (the same test as apple-siwa.ts's). */
+export function isMissingTable(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const x = e as { code?: unknown; meta?: { code?: unknown; driverAdapterError?: { cause?: { originalCode?: unknown } } }; message?: unknown }
+  if (x.code === 'P2021' || x.code === '42P01') return true
+  if (x.meta?.code === '42P01' || x.meta?.driverAdapterError?.cause?.originalCode === '42P01') return true
+  return typeof x.message === 'string' && x.message.includes('42P01')
+}
+
+/**
+ * Is this shop blocked as a SHOP — nobody blockable runs it? No owner, or an owner on the eno team. A shop a person
+ * runs is blocked through that person (setUserBlock), which also closes their threads.
+ */
+export async function isShopOnlyBlock(ownerId: string | null): Promise<boolean> {
+  return !ownerId || (await isStaffProfile(ownerId))
+}
+
+/**
+ * Block or unblock a SHOP. Idempotent both ways, like setUserBlock; a new block files one moderator note per
+ * (blocker → shop) per day. Throws SellerBlocksMissing before the DDL has run.
+ * ALSO WRITTEN FOR A PERSON-RUN SHOP blocked from its storefront or listing (the route, `note: false`): that row is what
+ * puts the shop on the blocker's hidden list (hiddenSellerIdsFor), and unblocking the person removes it
+ * (deletePersonBlock).
+ */
+export async function setSellerBlock(blocker: string, sellerId: string, on: boolean, context: BlockContext, opts: { note?: boolean } = {}): Promise<void> {
+  try {
+    if (!on) {
+      await db.sellerBlock.deleteMany({ where: { blockerProfileId: blocker, sellerId } })
+      return
+    }
+    const { count } = await db.sellerBlock.createMany({ data: [{ blockerProfileId: blocker, sellerId }], skipDuplicates: true })
+    // `note: false` — a person-run shop's row, written beside the person block, whose own note setUserBlock files.
+    if (count === 0 || opts.note === false) return
+  } catch (e) {
+    if (isMissingTable(e)) throw new SellerBlocksMissing()
+    throw e
+  }
+  const where = context.listingId ? ` from listing ${context.listingId}` : ''
+  await fileBlockNote(`seller-block-note:${blocker}:${sellerId}`, {
+    profileId: blocker,
+    message: `[shop block] Profile ${blocker} blocked shop ${sellerId} (${context.surface})${where} — a shop no member runs (imported, partner or eno's own). Its listings are hidden from this user. Review the shop's content; a block alone is not a report. Account: /admin/users/${blocker}`,
+    url: context.listingId ? `/listings/${context.listingId}` : `/sellers/${sellerId}`,
+  })
+}
+
+/**
+ * The shop ids whose cards, listing pages and storefronts must be hidden from `me` (src/lib/hidden-sellers.ts): every
+ * shop `me` blocked as a shop, and the shop of every PERSON `me` blocked (profilesBlockedBy — so a void block with the
+ * eno team hides nothing, as it enforces nothing). Empty, with no query, while the gate is off. Before the SellerBlock
+ * DDL has run, the person half alone.
+ */
+export async function hiddenSellerIdsFor(me: string): Promise<string[]> {
+  if (!blockingOn()) return []
+  const people = [...(await profilesBlockedBy(me))]
+  const [boughtFrom, shops] = await Promise.all([
+    // The shops of threads `me` opened as the BUYER with a person `me` blocked — the very shop each thread is about, so
+    // `me` knows it (the thread's own sellerId, never a lookup by owner). Never a shop of a person `me` only SOLD to.
+    people.length
+      ? db.conversation.findMany({
+          where: { buyerProfileId: me, sellerProfileId: { in: people } },
+          select: { sellerId: true },
+          distinct: ['sellerId'],
+        })
+      : Promise.resolve([]),
+    // Newest first, so a cap can never drop the block just made (codex, review).
+    db.sellerBlock.findMany({ where: { blockerProfileId: me }, orderBy: { createdAt: 'desc' }, select: { sellerId: true }, take: 1000 }).catch((e: unknown) => {
+      if (isMissingTable(e)) return []
+      throw e
+    }),
+  ])
+  return [...new Set([...shops.map((s) => s.sellerId), ...boughtFrom.map((c) => c.sellerId)])]
+}
+
+/**
+ * Unblock a PERSON — and, in the SAME transaction (codex, review: never "they can message you again" while their shop
+ * stays hidden, or the reverse), the SellerBlock row their shop got when they were blocked from its storefront or listing
+ * (setSellerBlock's note), so the shop comes back with them. Before the DDL, the person row alone.
+ * ⚠️ By the shop's CURRENT owner: a shop that changed hands since (claim-once, so only ownerless → claimed) keeps or
+ * loses its row with the new owner — accepted, the row then reads as that person's.
+ */
+export async function deletePersonBlock(blocker: string, blockedProfileId: string): Promise<void> {
+  try {
+    await db.$transaction([
+      db.forumUserBlock.deleteMany({ where: { blockerProfileId: blocker, blockedProfileId } }),
+      db.sellerBlock.deleteMany({ where: { blockerProfileId: blocker, seller: { ownerId: blockedProfileId } } }),
+    ])
+  } catch (e) {
+    if (!isMissingTable(e)) throw e
+    await db.forumUserBlock.deleteMany({ where: { blockerProfileId: blocker, blockedProfileId } })
   }
 }

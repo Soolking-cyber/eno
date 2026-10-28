@@ -117,6 +117,7 @@ model Profile {
   forumSubscriptions      ForumPostSubscription[]
   forumBlocksCreated      ForumUserBlock[]        @relation("ForumBlocker")
   forumBlocksReceived     ForumUserBlock[]        @relation("ForumBlocked")
+  sellerBlocks            SellerBlock[]
   forumReportsFiled       ForumReport[]           @relation("ForumReportReporter")
   forumReportsReceived    ForumReport[]           @relation("ForumReportTarget")
   forumModerationReceived ForumModerationAction[] @relation("ForumModerationTarget")
@@ -426,6 +427,7 @@ model Seller {
   avatarColor              String               @default("#dc2626")
   /// Payments (eno.forum only). Money settles to a storefront, not to a person.
   orders                   Order[]
+  blockedBy                SellerBlock[]
   rating                   Float                @default(5)
   reviewCount              Int                  @default(0)
   verified                 Boolean              @default(false)
@@ -2070,6 +2072,22 @@ model ForumUserBlock {
 
   @@id([blockerProfileId, blockedProfileId])
   @@index([blockedProfileId])
+}
+
+/// A user's block of a SHOP that no blockable person runs — an imported or partner shop with no owner, or one the eno
+/// team owns (App Store Guideline 1.2, 2026-10-29: Apple rejected 1.0.3 (4) on a "Linked shop" storefront that offered
+/// Report but no Block). It hides the shop's listings from the blocker's feeds and tells moderators; it closes no thread
+/// (there is no person on the other side). A shop a PERSON runs is blocked through ForumUserBlock instead — see
+/// src/lib/user-blocks.ts. Created by scripts/seller-blocks-ddl.mjs.
+model SellerBlock {
+  blockerProfileId String   @db.Uuid
+  blocker          Profile  @relation(fields: [blockerProfileId], references: [id], onDelete: Cascade)
+  sellerId         String
+  seller           Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+
+  @@id([blockerProfileId, sellerId])
+  @@index([sellerId])
 }
 
 model ForumReport {

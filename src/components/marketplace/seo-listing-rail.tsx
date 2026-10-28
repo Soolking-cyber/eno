@@ -146,7 +146,7 @@ export function SeoListingGrid({
       <h2 lang={lang} className={cn(heading, 'text-foreground mb-4')}>{title}</h2>
       <div className={LISTING_GRID}>
         {listings.map((l) => (
-          <Link key={l.id} href={`/listings/${l.id}`} className="group flex flex-col">
+          <Link key={l.id} data-sid={l.sellerId} href={`/listings/${l.id}`} className="group flex flex-col">
             {/* The card photo's own corner, hairline and sizes (owner, 2026-10-18 — see ListingCard's media
                 box): `rounded-media`, `media-hairline` over an `isolate` box so its z-1 line stays inside
                 the tile, and the grid's derived `sizes`. */}

@@ -11,6 +11,7 @@ import { useLanguage } from '@/context/language-context'
 import { Mascot } from '@/components/marketplace/mascot'
 import { safeNextPath } from '@/lib/url'
 import { isAppleLinked } from '@/lib/apple-signin'
+import { appReviewGate } from '@/lib/app-review-gates'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { RadioGroup, Radio } from '@/components/ui/radio-group'
@@ -311,6 +312,13 @@ export function OnboardClient() {
               {t('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}
             </Link>
             .
+            {/* The Terms' no-tolerance rule, as on the sign-in form (App Store Guideline 1.2 — sign-in-form.tsx). */}
+            {appReviewGate('ugc-safety') && (
+              <>
+                {' '}
+                <span className="font-semibold">{t('We have no tolerance for objectionable content or abusive users.', 'Chúng tôi không khoan nhượng với nội dung phản cảm và người dùng có hành vi lạm dụng.')}</span>
+              </>
+            )}
           </p>
           {error && <p role="alert" className="mt-2 text-center text-xs font-semibold text-destructive">{error}</p>}
         </div>

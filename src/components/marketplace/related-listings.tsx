@@ -159,7 +159,7 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
       watch={items.length}
     >
       {items.map((l) => (
-        <div key={l.id} className={RAIL_CARD_W}>
+        <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
           <ListingCard listing={l} onOpen={(x) => router.push(`/listings/${x.id}`)} />
         </div>
       ))}

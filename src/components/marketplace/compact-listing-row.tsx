@@ -95,6 +95,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
 
   return (
     <div
+      data-sid={l.sellerId}
       onClick={open}
       onMouseEnter={() => onPrefetch(l.id)}
       onTouchStart={() => onPrefetch(l.id)}

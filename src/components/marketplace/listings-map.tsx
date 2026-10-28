@@ -1077,7 +1077,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       const { lat, lng } = getListingCoordinates(l)
       bounds.push([lat, lng])
       const lGlyph = mapGlyphFor(l.subcategorySlug)
-      const icon = L.divIcon({ html: pinHtml(pinLabel(l, locale, displayCurrency, displayRate, { free: zeroFree, job: zeroJob }), selectedId === l.id, lGlyph), className: 'eno-pin', iconSize: [0, 0] })
+      // `eno-sid-<shop>` — the hidden-shops stylesheet (src/lib/hidden-sellers.ts) takes a blocked shop's pins off the map
+      // too (App Store 1.2); a divIcon takes a class, not an attribute.
+      const icon = L.divIcon({ html: pinHtml(pinLabel(l, locale, displayCurrency, displayRate, { free: zeroFree, job: zeroJob }), selectedId === l.id, lGlyph), className: `eno-pin eno-sid-${l.sellerId}`, iconSize: [0, 0] })
       // `alt` gives the pin an accessible name (the visible label is just a price
       // string); keyboard users close the popup card via Escape on the wrapper.
       /**
@@ -1410,7 +1412,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       if (pinEl && pinEl.getAttribute('title') !== pinTitle) pinEl.setAttribute('title', pinTitle)
       const html = pinHtml(pinLabel(l, locale, displayCurrency, displayRate, { free: zeroFree, job: zeroJob }), selectedId === id, mapGlyphFor(l.subcategorySlug))
       if (markerHtmlRef.current.get(id) !== html) {
-        marker.setIcon(L.divIcon({ html, className: 'eno-pin', iconSize: [0, 0] }))
+        marker.setIcon(L.divIcon({ html, className: `eno-pin eno-sid-${l.sellerId}`, iconSize: [0, 0] }))
         markerHtmlRef.current.set(id, html)
       }
       if (selectedId === id) marker.setZIndexOffset(1000)

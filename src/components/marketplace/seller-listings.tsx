@@ -403,7 +403,7 @@ export function SellerListings({
   const grid = (
     <div className={LISTING_GRID}>
       {shown.map((l, i) => (
-        <div key={l.id} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)} onFocus={() => router.prefetch(`/listings/${l.id}`)}>
+        <div key={l.id} data-sid={l.sellerId} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)} onFocus={() => router.prefetch(`/listings/${l.id}`)}>
           <ListingCard listing={l} onOpen={() => router.push(`/listings/${l.id}`)} onLocate={() => router.push(localizedHref(`/?focus=${l.id}`, hereVariant(homeVariant ?? variantOfLanguage(lang))))} priority={i < 4} lcp={i === 0 && !remote} />
         </div>
       ))}

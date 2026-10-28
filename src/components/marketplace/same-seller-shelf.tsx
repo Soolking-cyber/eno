@@ -51,7 +51,7 @@ export function SameSellerShelf({
       watch={listings.length}
     >
       {listings.map((l) => (
-        <div key={l.id} className={RAIL_CARD_W}>
+        <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
           <ListingCard listing={l} onOpen={(x) => router.push(`/listings/${x.id}`)} />
         </div>
       ))}

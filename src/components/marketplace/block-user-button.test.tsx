@@ -7,7 +7,14 @@ import { LanguageProvider } from '@/context/language-context'
 // ── <BlockUserButton> — App Store gate `ugc-safety` (plan R3) ──────────────────────────────────────
 
 const openSignIn = vi.fn()
-vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ openSignIn }) }))
+const auth = vi.hoisted(() => ({ sellerId: null as string | null }))
+vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ openSignIn, user: { id: 'u1' }, sellerId: auth.sellerId }) }))
+// The instant hide (src/lib/hidden-sellers.ts): the shop goes the moment the block answers, then a sync.
+const hidden = vi.hoisted(() => ({ now: [] as string[], synced: [] as Array<string | null> }))
+vi.mock('@/lib/hidden-sellers', () => ({
+  hideSellerNow: (id: string) => { hidden.now.push(id) },
+  syncHiddenSellers: async (uid: string | null) => { hidden.synced.push(uid) },
+}))
 const toastSuccess = vi.fn()
 vi.mock('sonner', () => ({ toast: { success: (m: string) => toastSuccess(m), error: vi.fn() } }))
 
@@ -23,6 +30,8 @@ function mount(props: React.ComponentProps<typeof BlockUserButton>) {
 }
 
 beforeEach(() => {
+  auth.sellerId = null
+  hidden.now = []; hidden.synced = []
   fetchMock.mockReset()
   toastSuccess.mockReset()
   vi.stubGlobal('fetch', fetchMock)
@@ -51,6 +60,39 @@ describe('BlockUserButton', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/blocks', expect.objectContaining({ method: 'POST', body: JSON.stringify({ conversationId: 'c1', blocked: true }) }))
     await vi.waitFor(() => expect(onBlocked).toHaveBeenCalled())
     expect(toastSuccess).toHaveBeenCalled()
+    // A chat block promises the chat, not the listings (it hides the thread's shop only for its buyer — review).
+    expect(toastSuccess).not.toHaveBeenCalledWith(expect.stringContaining('listings'))
+  })
+
+  it('⛔ on a listing page: names the shop AND the listing, hides the shop at once, then syncs (App Store 1.2)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ blocked: true }) })
+    mount({ sellerId: 's1', listingId: 'l1', name: 'Lan' })
+    fireEvent.click(screen.getByRole('button', { name: /Block/ }))
+    expect((await screen.findByRole('alertdialog')).textContent).toContain('They will not be able to message you')
+    await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'Block' }).at(-1)!) })
+    expect(fetchMock.mock.calls[0]![1].body).toBe(JSON.stringify({ sellerId: 's1', listingId: 'l1', blocked: true }))
+    await vi.waitFor(() => expect(hidden.now).toEqual(['s1']))
+    expect(hidden.synced).toEqual(['u1'])
+  })
+
+  it('a shop nobody blockable runs: the dialog promises only what a shop block does', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ blocked: true }) })
+    mount({ sellerId: 'linked', shopOnly: true, name: "Jan's Motorbike" })
+    fireEvent.click(screen.getByRole('button', { name: /Block/ }))
+    const dialog = await screen.findByRole('alertdialog', { name: "Block Jan's Motorbike?" })
+    expect(dialog.textContent).toContain("This shop's listings disappear from everything you browse")
+    expect(dialog.textContent).not.toContain('message you')
+    await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'Block' }).at(-1)!) })
+    await vi.waitFor(() => expect(toastSuccess).toHaveBeenCalledWith(expect.stringContaining("This shop's listings are hidden")))
+  })
+
+  it('renders nothing on the viewer\'s OWN shop or listing', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+    auth.sellerId = 'mine'
+    const { container } = mount({ sellerId: 'mine', listingId: 'l1', name: 'My shop' })
+    expect(container.textContent).toBe('')
   })
 
   it('says so when the target is your own shop', async () => {

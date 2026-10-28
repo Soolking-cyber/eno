@@ -32,6 +32,9 @@ import { getVisaShopSeller } from '@/lib/visa-shop'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { BlockUserButton } from '@/components/marketplace/block-user-button'
+import { BlockedSellerNotice } from '@/components/marketplace/blocked-seller-notice'
+import { appReviewGate } from '@/lib/app-review-gates'
+import { isShopOnlyBlock } from '@/lib/user-blocks'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { storefrontJsonLd, type StorefrontLdListing } from './storefront-jsonld'
 
@@ -308,6 +311,9 @@ export default async function Storefront({ params }: Props) {
   // Null for a hidden seller AND for a gone one (ownerless with nothing public, src/lib/storefront-gone.ts).
   if (!seller) notFound()
   const card = storefrontCard(seller, convoCount)
+  // Who a Block here reaches: the shop itself when nobody blockable runs it (no owner, or the eno team) — only the
+  // dialog's words depend on it (src/lib/user-blocks.ts isShopOnlyBlock). No query while ugc-safety is off.
+  const blockShopOnly = appReviewGate('ugc-safety') ? await isShopOnlyBlock(seller.ownerId) : false
   const chatListingId = visaDesk?.id === shop.sellerId ? null : chatAnchor
   /**
    * WHICH HOST IS SERVING THIS PAGE. The same component answers `<handle>.eno.vn` (proxy.ts rewrites
@@ -349,7 +355,10 @@ export default async function Storefront({ params }: Props) {
         />
       ))}
       <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
+      {/* ⛔ A SHOP THE VIEWER BLOCKED IS NOT SHOWN (App Store 1.2; src/lib/hidden-sellers.ts): the hidden-shops stylesheet
+          hides <main> by its `data-sid` and shows this notice instead. Never on the shop's own host — no session there. */}
+      {!onShopHost && appReviewGate('ugc-safety') && <BlockedSellerNotice sellerId={shop.sellerId} kind="shop" className="flex-1" />}
+      <main id="main" tabIndex={-1} data-sid={onShopHost ? undefined : shop.sellerId} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
         {/**
           * THE SHOP'S OWN BANNER — one slot, theirs, above their stock. Owner, 2026-08-30: a shop
           * gets one banner for its store, set from its store profile.
@@ -386,8 +395,9 @@ export default async function Storefront({ params }: Props) {
           {/* REPORT AND BLOCK, UNDER SHARE (App Store Guideline 1.2; audit 1.5, 2026-10-06). eno.vn/<handle>
               renders this body in place, so it is the storefront a /sellers/<id> link lands on (the PDP's
               and the inbox's, in the apps too) — and it had neither. The same pair, on the same rules, as
-              the path storefront (seller-storefront.tsx): Report on every shop; Block only on one a PERSON
-              runs (an imported, ownerless shop has nobody to block), and nothing while `ugc-safety` is off.
+              the path storefront (seller-storefront.tsx): Report AND Block on every shop, and nothing while
+              `ugc-safety` is off. ⛔ BLOCK ON AN IMPORTED SHOP TOO (Apple's 2026-10-28 rejection was a "Linked shop"
+              with Report and no Block): a shop nobody blockable runs is blocked as a shop (src/lib/user-blocks.ts).
               ⛔ NOT ON THE SHOP'S OWN HOST. Both are writes: proxy.ts refuses one whose Origin is
               `<handle>.eno.vn`, and there is no session there to send it with, so each would only ever say
               "try again" — the reason chat above becomes a link to the canonical host there. The apps never
@@ -398,7 +408,7 @@ export default async function Storefront({ params }: Props) {
           <div className="flex shrink-0 flex-col items-end gap-2">
             <ShareButton url={canonical} title={shop.name} compact />
             {!onShopHost && <ReportButton sellerId={shop.sellerId} />}
-            {!onShopHost && seller.ownerId && <BlockUserButton sellerId={shop.sellerId} name={shop.name} />}
+            {!onShopHost && <BlockUserButton sellerId={shop.sellerId} shopOnly={blockShopOnly} name={shop.name} />}
           </div>
         </div>
         {/* Seller information (owner, 2026-10-01) — the same block, from the same builder, as eno.vn/<handle>. */}

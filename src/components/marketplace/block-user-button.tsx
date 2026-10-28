@@ -19,33 +19,48 @@ import {
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { appReviewGate } from '@/lib/app-review-gates'
+import { hideSellerNow, syncHiddenSellers } from '@/lib/hidden-sellers'
 import { cn } from '@/lib/utils'
 
 /**
- * "Block" — the sibling of <ReportButton> in the chat header and on a storefront (App Store Guideline
- * 1.2, plan R3). Renders NOTHING unless the `ugc-safety` review gate is on (src/lib/app-review-gates.ts).
+ * "Block" — the sibling of <ReportButton> wherever Report stands on someone else's content: the chat header, every
+ * storefront and every listing page (App Store Guideline 1.2, plan R3). Renders NOTHING unless the `ugc-safety` review
+ * gate is on (src/lib/app-review-gates.ts).
  *
- * It names a THREAD or a SHOP, never a person: /api/blocks resolves who is behind it, so the client
- * never needs the other party's profile id. What a block does is spelled out in the confirmation —
- * including that moderators are told, which is what Apple asks for and what src/lib/user-blocks.ts does.
+ * It names a THREAD or a SHOP (with the LISTING it was tapped on, for the moderator note), never a person: /api/blocks
+ * resolves who is behind it, so the client never needs the other party's profile id. A shop nobody blockable runs — an
+ * imported "Linked shop", a partner's, eno's own — is blocked as a shop (Apple's 2026-10-28 rejection was a Linked shop
+ * with Report and no Block). What a block does is spelled out in the confirmation — including that moderators are told
+ * and that the shop's listings disappear, which is what Apple asks for and what src/lib/user-blocks.ts does.
+ * ⛔ THE CONTENT GOES THE MOMENT THE BLOCK ANSWERS: hideSellerNow hides the shop's cards, listing pages and storefront on
+ * this page at once (src/lib/hidden-sellers.ts), then a sync brings in what the server knows (a chat block's shop).
  *
  * Styled as Report's quiet sibling: the same flush pill, in the muted ink rather than the red, so the
  * two read as a pair without Block shouting as loudly as a report.
  */
-export function BlockUserButton({ conversationId, sellerId, name, className, onBlocked }: {
+export function BlockUserButton({ conversationId, sellerId, listingId, shopOnly = false, name, className, onBlocked }: {
   conversationId?: string
   sellerId?: string
+  /** The listing page this was tapped on (with `sellerId`) — the moderator note names it. */
+  listingId?: string
+  /**
+   * Nobody blockable runs this shop (no owner, or the eno team — src/lib/user-blocks.ts isShopOnlyBlock), so the block
+   * hides its listings and tells moderators, and closes no conversation. The page decides it on the server; it only
+   * picks the words, which must not promise what a shop block does not do (codex + opus, review).
+   */
+  shopOnly?: boolean
   /** Who will be blocked, for the confirmation title. */
   name?: string | null
   className?: string
   onBlocked?: () => void
 }) {
   const { tr } = useLanguage()
-  const { openSignIn } = useAuth()
+  const { openSignIn, user, sellerId: ownSellerId } = useAuth()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  if (!appReviewGate('ugc-safety') || (!conversationId && !sellerId)) return null
+  // Not on the viewer's OWN shop or listing — the server would only answer cannot_block_self.
+  if (!appReviewGate('ugc-safety') || (!conversationId && !sellerId) || (!!sellerId && sellerId === ownSellerId)) return null
 
   const run = async () => {
     setBusy(true); setError('')
@@ -53,7 +68,7 @@ export function BlockUserButton({ conversationId, sellerId, name, className, onB
       const res = await fetch('/api/blocks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...(conversationId ? { conversationId } : { sellerId }), blocked: true }),
+        body: JSON.stringify({ ...(conversationId ? { conversationId } : { sellerId, ...(listingId ? { listingId } : {}) }), blocked: true }),
       })
       if (res.status === 401) { setOpen(false); openSignIn(); return }
       if (!res.ok) {
@@ -62,13 +77,19 @@ export function BlockUserButton({ conversationId, sellerId, name, className, onB
           ? tr('This is your own account.', 'Đây là tài khoản của bạn.')
           : code === 'cannot_block_staff'
             ? tr('This is the eno team. If something is wrong, use Report instead.', 'Đây là đội ngũ eno. Nếu có vấn đề, hãy dùng Báo cáo.')
-            : code === 'not_found'
-              ? tr('There is no one to block here — this shop is not run by a member.', 'Không có ai để chặn ở đây — cửa hàng này không do thành viên quản lý.')
             : tr('Could not block right now — please try again.', 'Chưa chặn được — vui lòng thử lại.'))
         return
       }
       setOpen(false)
-      toast.success(tr('Blocked. You can unblock them in Settings.', 'Đã chặn. Bạn có thể bỏ chặn trong Cài đặt.'))
+      if (sellerId) hideSellerNow(sellerId)
+      void syncHiddenSellers(user?.id ?? null)
+      // ⚠️ Only a block made on a SHOP's page promises its listings go (opus, review): one made in a chat hides the
+      // thread's shop only when the viewer was the buyer there, so its words promise the chat, not the listings.
+      toast.success(shopOnly
+        ? tr('Blocked. This shop\'s listings are hidden, and our moderators have been told. You can unblock it in Settings.', 'Đã chặn. Tin đăng của cửa hàng này đã được ẩn và đội kiểm duyệt đã được thông báo. Bạn có thể bỏ chặn trong Cài đặt.')
+        : conversationId
+          ? tr('Blocked. Our moderators have been told. You can unblock them in Settings.', 'Đã chặn. Đội kiểm duyệt đã được thông báo. Bạn có thể bỏ chặn trong Cài đặt.')
+          : tr('Blocked. Their listings are hidden, and our moderators have been told. You can unblock them in Settings.', 'Đã chặn. Tin đăng của họ đã được ẩn và đội kiểm duyệt đã được thông báo. Bạn có thể bỏ chặn trong Cài đặt.'))
       onBlocked?.()
     } catch {
       setError(tr('Could not block right now — please try again.', 'Chưa chặn được — vui lòng thử lại.'))
@@ -100,13 +121,23 @@ export function BlockUserButton({ conversationId, sellerId, name, className, onB
             <Ban />
           </AlertDialogMedia>
           <AlertDialogTitle>
-            {name ? `${tr('Block', 'Chặn')} ${name}?` : tr('Block this user?', 'Chặn người dùng này?')}
+            {name ? `${tr('Block', 'Chặn')} ${name}?` : shopOnly ? tr('Block this shop?', 'Chặn cửa hàng này?') : tr('Block this user?', 'Chặn người dùng này?')}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {tr(
-              'They will not be able to message you or send you offers, and you will not be able to message them. Conversations with them leave your inbox. Our moderators are told so they can look into it. You can unblock them any time in Settings.',
-              'Người này sẽ không thể nhắn tin hay gửi trả giá cho bạn, và bạn cũng không thể nhắn tin cho họ. Các cuộc trò chuyện với họ sẽ rời khỏi hộp thư của bạn. Đội kiểm duyệt sẽ được thông báo để xem xét. Bạn có thể bỏ chặn bất cứ lúc nào trong Cài đặt.',
-            )}
+            {shopOnly
+              ? tr(
+                  'This shop\'s listings disappear from everything you browse, right away. Our moderators are told so they can look into it. You can unblock it any time in Settings.',
+                  'Tin đăng của cửa hàng này sẽ biến mất ngay khỏi mọi nơi bạn xem. Đội kiểm duyệt sẽ được thông báo để xem xét. Bạn có thể bỏ chặn bất cứ lúc nào trong Cài đặt.',
+                )
+              : conversationId
+                ? tr(
+                    'They will not be able to message you or send you offers, and you will not be able to message them. Conversations with them leave your inbox. Our moderators are told so they can look into it. You can unblock them any time in Settings.',
+                    'Người này sẽ không thể nhắn tin hay gửi trả giá cho bạn, và bạn cũng không thể nhắn tin cho họ. Các cuộc trò chuyện với họ sẽ rời khỏi hộp thư của bạn. Đội kiểm duyệt sẽ được thông báo để xem xét. Bạn có thể bỏ chặn bất cứ lúc nào trong Cài đặt.',
+                  )
+                : tr(
+                    'Their listings disappear from everything you browse, right away. They will not be able to message you or send you offers, and you will not be able to message them; conversations with them leave your inbox. Our moderators are told so they can look into it. You can unblock them any time in Settings.',
+                    'Tin đăng của họ sẽ biến mất ngay khỏi mọi nơi bạn xem. Họ sẽ không thể nhắn tin hay gửi trả giá cho bạn, và bạn cũng không thể nhắn tin cho họ; các cuộc trò chuyện với họ sẽ rời khỏi hộp thư của bạn. Đội kiểm duyệt sẽ được thông báo để xem xét. Bạn có thể bỏ chặn bất cứ lúc nào trong Cài đặt.',
+                  )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
