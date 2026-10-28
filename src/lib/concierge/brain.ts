@@ -4,7 +4,8 @@ import { openAiConfig, streamJson } from '@/lib/classroom/llm-openai'
 import { hedgedDeltas, HEDGE_FIRST_MS } from '@/lib/classroom/tutor-ai'
 import { AnswerTooLong, PRIMARY_MODEL, ThinkingLevel } from '@/lib/classroom/ai'
 import { CONCIERGE_JSON_SCHEMA, GEMINI_CONCIERGE_SCHEMA, conciergeInstructions } from './brief'
-import { PHONE_DIGITS, bareDigits, speakable } from './guards'
+import { PHONE_DIGITS, spokenDigits, speakable } from './guards'
+import { digitizeRuns, type SpokenLanguage } from './i18n'
 import { topLevelMembers, partialText } from './json-stream'
 import { NO_ACTION, type ConciergeAction } from './types'
 
@@ -26,8 +27,16 @@ export type ConciergeEvent =
   | { kind: 'spoken' }
   | { kind: 'final'; said: string; chips: string[]; model: string; calls: number }
 
-/** A sentence ends at . ! ? or … (with any closing quote or bracket) followed by whitespace — the tutor's rule. */
-const SENTENCE_END = /[.!?…]["'”’)\]]*\s+/g
+/**
+ * A sentence ends at . ! ? or … (with any closing quote or bracket) followed by whitespace — the tutor's rule — or, in the
+ * languages the guide speaks since 2026-10-28, at a full-width or Devanagari end mark (。！？।), which needs no space after
+ * it, or a Thai closing particle (ค่ะ / คะ / ครับ) before a space: Thai writes no end mark (commit review, opus — without
+ * these a Chinese answer waited whole before its first sound).
+ */
+const SENTENCE_END = /[.!?…]["'”’)\]]*\s+|[。！？।]["'”’」』)\]]*\s*|(?:ค่ะ|คะ|ครับ)\s+/g
+/** Words for the cap: spaced words, and in Chinese, Japanese and Thai about two characters a word. */
+const wordsIn = (sentence: string): number =>
+  sentence.split(/\s+/).filter(Boolean).length + Math.ceil((sentence.match(/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}]/gu)?.length ?? 0) / 2)
 /** What the voice says at most per turn (the prompt asks for two short sentences). */
 const MAX_WORDS = 70
 /** Bare digits a turn may voice before its sentences with digits wait for the whole answer (no phone number has 3). */
@@ -40,7 +49,7 @@ const MAX_OUTPUT_TOKENS = 400
 
 export type BrainError = Error & { emitted: boolean; calls: number }
 
-export async function* conciergeTurnStream(ai: GoogleGenAI | null, c: { input: string; teacherTurn: boolean }, signal?: AbortSignal): AsyncGenerator<ConciergeEvent> {
+export async function* conciergeTurnStream(ai: GoogleGenAI | null, c: { input: string; teacherTurn: boolean; lang?: SpokenLanguage }, signal?: AbortSignal): AsyncGenerator<ConciergeEvent> {
   const cfg = openAiConfig()
   const brains: { model: string; deltas: () => AsyncGenerator<string> }[] = []
   if (cfg) {
@@ -52,7 +61,7 @@ export async function* conciergeTurnStream(ai: GoogleGenAI | null, c: { input: s
     calls += 1
     let emitted = false
     try {
-      for await (const ev of eventsOf(brain.deltas(), c.teacherTurn)) {
+      for await (const ev of eventsOf(brain.deltas(), c.teacherTurn, c.lang ?? 'en')) {
         if (ev.kind === 'done') { yield { kind: 'final', said: ev.said, chips: ev.chips, model: brain.model, calls }; return }
         // An action of kind none moves nothing and says nothing: the next brain may still take the turn (test review).
         if (!(ev.kind === 'action' && ev.action.kind === 'none')) emitted = true
@@ -99,7 +108,7 @@ type Step = Exclude<ConciergeEvent, { kind: 'final' }> | { kind: 'done'; said: s
  * speech guards and the word cap), `spoken` when `say` is complete, and `done` with the chips once the answer is whole.
  * Exported for tests.
  */
-export async function* eventsOf(deltas: AsyncIterable<string>, teacherTurnAtStart: boolean): AsyncGenerator<Step> {
+export async function* eventsOf(deltas: AsyncIterable<string>, teacherTurnAtStart: boolean, lang: SpokenLanguage = 'en'): AsyncGenerator<Step> {
   /** A turn about teachers — the counsel-pending words are out. ⛔ Also when the ACTION opens the teachers shelf (commit
    *  review, opus: "someone to teach my son IELTS" names no teacher): the action closes before any sentence is released. */
   let teacherTurn = teacherTurnAtStart
@@ -127,9 +136,21 @@ export async function* eventsOf(deltas: AsyncIterable<string>, teacherTurnAtStar
   }
   /** The word cap: a later sentence past it is dropped; a FIRST sentence past it is cut to it (something is said). */
   const capped = (sentence: string): string | null => {
-    const w = sentence.split(' ')
-    if (words + w.length <= MAX_WORDS) return sentence
-    return said.length ? null : `${w.slice(0, MAX_WORDS).join(' ').replace(/[,;:]+$/, '')}.`
+    if (words + wordsIn(sentence) <= MAX_WORDS) return sentence
+    if (said.length) return null
+    // Cut at a WORD boundary in any script (the browser's word segmenter knows Thai and CJK words, and never splits a Latin
+    // one in a mixed sentence — commit review round 3, opus), as many as the cap counts.
+    let kept = ''
+    for (const { segment } of new Intl.Segmenter(undefined, { granularity: 'word' }).segment(sentence)) {
+      if (wordsIn(kept + segment) <= MAX_WORDS) { kept += segment; continue }
+      // One "word" longer than what is left (a run the segmenter cannot split): whole graphemes of it, as many as fit.
+      for (const { segment: g } of new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(segment)) {
+        if (wordsIn(kept + g) > MAX_WORDS) break
+        kept += g
+      }
+      break
+    }
+    return `${kept.trim().replace(/[,;:、，]+$/u, '')}${/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]$/u.test(kept.trim()) ? '。' : /[\p{L}\p{N}]$/u.test(kept.trim()) ? '.' : ''}`
   }
   /**
    * What may be spoken NOW, in order. ⛔ NOTHING BEFORE THE ACTION (a refused action is never announced). ⛔ THE DIGIT HOLD
@@ -137,22 +158,26 @@ export async function* eventsOf(deltas: AsyncIterable<string>, teacherTurnAtStar
    * EARLY_DIGITS, the sentence carrying them — and everything after it — waits until `say` is complete, and the turn's
    * digits are judged together: a phone number spread over sentences or split by words ("Call 0901 234. Then dial 567.")
    * is never voiced in parts. "District 1" or "2 bedrooms" (a digit or two) is said at once — no delay on the common turn.
+   * A number SPELLED in any language counts the same (spokenDigits: digit words three or more in a row — commit review,
+   * codex: "không chín không một." · "hai ba bốn." · "năm sáu bảy." went out a sentence at a time).
    */
   function* release(): Generator<string> {
     while (pending.length && actionOut) {
       const next = pending[0]
-      const digit = /\d/.test(next)
-      if (digit && !sayDone && bareDigits([...said, next].join(' ')) > EARLY_DIGITS) return
+      // Counted with what was said: a number read two digits a sentence ("không chín. Không một. Hai ba.") is a run across
+      // them (commit review round 6, opus) — this sentence carries digits when it ADDS to the turn's count.
+      const digit = spokenDigits([...said, next].join(' ')) > spokenDigits(said.join(' '))
+      if (digit && !sayDone && spokenDigits([...said, next].join(' ')) > EARLY_DIGITS) return
       pending.shift()
       if (digit && sayDone) {
-        digitsOk ??= bareDigits([...said, next, ...pending].join(' ')) < PHONE_DIGITS
+        digitsOk ??= spokenDigits([...said, next, ...pending].join(' ')) < PHONE_DIGITS
         if (!digitsOk) continue
       }
       const sentence = capped(next)
       if (!sentence) continue
       // With what was already said this turn too (guards.ts): a number spread over sentences is caught only together.
-      if (!speakable(sentence, { teacherTurn }) || !speakable([...said, sentence].join(' '), { teacherTurn })) continue
-      words += sentence.split(' ').length
+      if (!speakable(sentence, { teacherTurn, lang }) || !speakable([...said, sentence].join(' '), { teacherTurn, lang })) continue
+      words += wordsIn(sentence)
       said.push(sentence)
       yield sentence
     }
@@ -176,7 +201,7 @@ export async function* eventsOf(deltas: AsyncIterable<string>, teacherTurnAtStar
     if (sayDone && actionOut && !pending.length && !spokenOut) { spokenOut = true; yield { kind: 'spoken' } }
   }
   // A cut answer throws here: the caller hands over (nothing emitted) or fails the turn.
-  const whole = JSON.parse(json) as { action?: unknown; say?: unknown; chips?: unknown }
+  const whole = firstObject(json) as { action?: unknown; say?: unknown; chips?: unknown }
   if (!actionOut) {
     actionOut = true
     const action = parseAction(JSON.stringify(whole.action ?? null))
@@ -189,7 +214,7 @@ export async function* eventsOf(deltas: AsyncIterable<string>, teacherTurnAtStar
   }
   for (const sentence of release()) yield { kind: 'say', text: sentence }
   if (!spokenOut) yield { kind: 'spoken' }
-  yield { kind: 'done', said: said.join(' '), chips: chipsOf(whole.chips, teacherTurn, said) }
+  yield { kind: 'done', said: said.join(' '), chips: chipsOf(whole.chips, teacherTurn, said, lang) }
 }
 
 /** The model's action, shape-checked (its MEANING is checked by actions.ts). Anything malformed is no action. Pure. */
@@ -220,16 +245,57 @@ export function parseAction(raw: string): ConciergeAction {
   }
 }
 
+/**
+ * The answer's FIRST JSON object. A model that runs on past it (measured 2026-10-28: "Unexpected non-whitespace character
+ * after JSON", 3 of ~25 Vietnamese turns in one window, none in the 17 after) still gives the answer the stream already
+ * acted on — its action and its words were read member by member — and its chips, instead of failing a spoken turn.
+ * Throws when even the first object is cut (the caller's "a cut answer").
+ */
+export function firstObject(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch (e) {
+    const end = objectEnd(text)
+    if (end < 0) throw e
+    return JSON.parse(text.slice(0, end))
+  }
+}
+/** Where the first top-level `{…}` ends (strings and escapes respected), or -1. */
+function objectEnd(s: string): number {
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (c === '\\') escaped = true
+      else if (c === '"') inString = false
+      continue
+    }
+    if (c === '"') inString = true
+    else if (c === '{') depth += 1
+    else if (c === '}') { depth -= 1; if (depth === 0) return i + 1 }
+  }
+  return -1
+}
+
 /** Quick replies: short strings, under the SAME guards as speech (test review: a chip is on screen — "Visa help" or a phone
  *  number must never be one). Pure. */
-function chipsOf(v: unknown, teacherTurn: boolean, said: readonly string[]): string[] {
+function chipsOf(v: unknown, teacherTurn: boolean, said: readonly string[], lang: SpokenLanguage): string[] {
   if (!Array.isArray(v)) return []
   const chips = v.flatMap((c) => {
     const chip = typeof c === 'string' ? c.trim() : ''
-    return chip && chip.length <= CHIP_CHARS && speakable(chip, { teacherTurn }) ? [chip] : []
+    return chip && chip.length <= CHIP_CHARS && speakable(chip, { teacherTurn, lang }) ? [chip] : []
   }).slice(0, MAX_CHIPS)
-  // Together too, with what was said (commit review, codex): "Call 0901" · "234" · "567" is a number on screen.
-  return bareDigits([...said, ...chips].join(' ')) < PHONE_DIGITS ? chips : chips.filter((c) => !/\d/.test(c))
+  // Together too, with what was said (commit review, codex): "Call 0901" · "234" · "567" is a number on screen — and spelled
+  // in any language ("không chín không một" · "hai ba bốn" · …: the joined text's digit-word runs — commit review, codex).
+  const ok = (cs: readonly string[]) => { const t = [...said, ...cs].join(' '); return spokenDigits(t) < PHONE_DIGITS && speakable(t, { teacherTurn, lang }) }
+  if (ok(chips)) return chips
+  // Without the chips that carry digits; ⛔ and none at all when what is left still fails together — two chips can make a
+  // phrase neither is alone ("임시" · "거주", temporary residence — commit review, opus).
+  const plain = chips.filter((c) => !/\d/.test(digitizeRuns(c)))
+  return ok(plain) ? plain : []
 }
 
 /**

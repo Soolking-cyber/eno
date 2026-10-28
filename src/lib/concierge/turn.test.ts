@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Speaker } from '@/lib/classroom/turn-stream'
 import type { ConciergeEvent } from './brain'
 import type { ConciergeLine } from './turn'
@@ -31,7 +31,11 @@ vi.mock('@/lib/log', () => ({
 
 vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
 const { conciergeTurn, REFUSED_LINE, MOVED_LINE, EMPTY_LINE, EMPTY_AFTER_LINE, EMPTY_CHIPS, RATE_EMPTY_LINE, RATE_FALLBACK_LINE, PARTIAL_LINE, LOOKING_LINES, LOOKING_PAD_S, sameView } = await import('./turn')
-const { NOT_OFFERED_LINE, NO_PAYMENTS_LINE, NO_TRIPS_LINE } = await import('./guards')
+const { NOT_OFFERED_LINE, NO_PAYMENTS_LINE, NO_TRIPS_LINE, speakable } = await import('./guards')
+// The first guard call compiles every language's lists (~1 s in Node, several under the test runner): paid once here, never
+// inside a test's own time limit (production pays it at the config read — i18n warmLanguageLists). ⚠️ From the module
+// imported AFTER the edition stub above — a static import would load the lists under the default edition.
+beforeAll(() => { speakable('Warm.', { teacherTurn: true, lang: 'en' }) }, 60_000)
 
 // ── fixtures ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 const HOME: PageState = {
@@ -167,6 +171,31 @@ describe('conciergeTurn — the stream contract (PLAN §10)', () => {
     expect(k).toEqual([
       'heard', `go:${D1}`, `say:${S1}`, 'pcm:0', 'part-end:0', `say:${S2}`, 'pcm:1', 'part-end:1', 'part-end:1:last', 'chips:Native|Fluent|Either', 'end',
     ])
+  })
+
+  it('the guide speaks the app\'s language: the brain is told each turn, its fixed lines are in it — and Khmer is English', async () => {
+    const { linesFor } = await import('./i18n')
+    brain(action({ category: 'spaceships' }), say('x.'), SPOKEN, final([]))
+    const k = kinds(await collect(turn({ lang: 'vi' }).lines))
+    expect(k).toContain(`say:${linesFor('vi').refused}`)
+    expect((h.brain.mock.calls[0][1] as { input: string }).input).toContain('Answer in Vietnamese.')
+    expect((h.brain.mock.calls[0][1] as { lang: string }).lang).toBe('vi')
+    h.brain.mockClear()
+    brain(action({ category: 'spaceships' }), say('x.'), SPOKEN, final([]))
+    const km = kinds(await collect(turn({ lang: 'km' as never }).lines))
+    expect(km).toContain(`say:${REFUSED_LINE}`)
+    expect((h.brain.mock.calls[0][1] as { input: string }).input).toContain('Answer in English.')
+  })
+
+  it('an ask eno.vn does not serve, in Chinese: the Chinese line and chips — the model is never asked', async () => {
+    const { linesFor } = await import('./i18n')
+    const { LEXICON_CASES } = await import('./i18n/lexicon-cases')
+    h.brain.mockClear()
+    // eno's own code for Chinese (src/lib/languages.ts) — Soniox's is zh
+    const k = kinds(await collect(turn({ lang: 'zh-Hans', transcript: LEXICON_CASES.zh.asks.visa[0] }).lines))
+    expect(k).toContain(`say:${linesFor('zh').notOffered}`)
+    expect(k).toContain(`chips:${linesFor('zh').offerYes}|${linesFor('zh').offerNo}`)
+    expect(h.brain).not.toHaveBeenCalled()
   })
 
   it('the new view is counted IN PARALLEL with the voice, for the next turn (rememberPageState) — never a second action', async () => {

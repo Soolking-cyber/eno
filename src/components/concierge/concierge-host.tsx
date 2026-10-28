@@ -38,7 +38,7 @@ export function ConciergeHost() {
   const userId = user?.id ?? null
   const pathname = usePathname()
   const router = useRouter()
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const [open, setOpen] = useState(false)
   const frame = useRef<HTMLIFrameElement>(null)
 
@@ -52,7 +52,7 @@ export function ConciergeHost() {
     const ask = () => {
       if (asked && Date.now() - asked < CONFIG_EVERY_MS) return
       asked = Date.now()
-      void fetch('/api/concierge/config', { cache: 'no-store' })
+      void fetch(`/api/concierge/config?lang=${encodeURIComponent(lang)}`, { cache: 'no-store' })
         .then((r) => (r.ok ? (r.json() as Promise<{ open?: boolean }>) : null))
         // ⛔ Not in the native apps (review, opus): they ask the `app-ai-notice` question before voice leaves the phone, and
         // the window does not — nor can their webview open the microphone yet (PLAN §4). ✨ stays the text assistant there.
@@ -70,7 +70,8 @@ export function ConciergeHost() {
       setConciergeAvailable(false)
       setOpen(false)
     }
-  }, [userId])
+    // The language too: the guide speaks the app's (a switch re-asks, and a window open in the old language closes).
+  }, [userId, lang])
 
   useEffect(() => {
     const onOpen = () => { if (!isConciergeHiddenPath(publicPathname(window.location.pathname))) setOpen(true) }

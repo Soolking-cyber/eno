@@ -2,6 +2,7 @@ import { fold } from '@/lib/fold'
 import { containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo } from '@/lib/publish-guard'
 import { RETIRED_TRUST_CLAIMS, TEACHERS_COUNSEL_WORDS } from '@/lib/copy-rules'
+import { EN_LINES, digitize, digitizeRuns, i18nAsk, i18nUnspeakable, linesFor, stripInvisible, type SpokenLanguage } from './i18n'
 
 /**
  * THE CONCIERGE'S SPEECH GUARDS — what the voice never says, checked in CODE before a sentence reaches the speech server,
@@ -13,6 +14,9 @@ import { RETIRED_TRUST_CLAIMS, TEACHERS_COUNSEL_WORDS } from '@/lib/copy-rules'
  *                   phone number: "15,000,000 dong", "12.000.000 ₫" and "30 to 40 million" pass.
  *   fixedLineFor()  what the person just said → eno's own fixed line when they ASK for something eno.vn does not offer
  *                   (a visa or residence paperwork, trip planning, PayPal), else null. The model is never asked.
+ * IN TEN LANGUAGES since 2026-10-28 (i18n/index.ts): the English and Vietnamese rules below run on everything, as before;
+ * the other languages' lists run beside them — a sentence by its language's list (and Vietnamese'), an ask by every
+ * language's, and a phone number read in a script's own numerals or spelled digit words counts as digits.
  *
  * ⚠️ ONE SENTENCE AT A TIME CANNOT SEE A NUMBER SPREAD OVER SENTENCES ("Call 0901. 234. 567." — the classroom's
  * src/lib/classroom/contact-gate.ts has the story): so the caller also checks each new sentence TOGETHER WITH what was
@@ -85,26 +89,41 @@ export function bareDigits(text: string): number {
   return (masked.match(/\d/g) ?? []).length
 }
 
+/**
+ * bareDigits of what a person HEARS as digits: a script's own numerals and digit words three or more in a row, in any
+ * language (i18n digitizeRuns) — for the turn's hold and total, where a spelled number spread over sentences or chips
+ * counts as the number it is (commit review, codex). A lone "không", "năm" or "un" stays a word.
+ */
+export const spokenDigits = (text: string): number => bareDigits(digitizeRuns(text))
+
 /** An email (also "name at gmail dot com"), a web address other than eno.vn's pages, a chat handle or id, a house number. */
 function carriesContact(sentence: string): boolean {
   const s = sentence.replace(ENO_ADDRESS, 'eno')
   return containsContactInfo(s) || WEB_ADDRESS.test(s) || DOMAIN.test(s) || SPOKEN_DOMAIN.test(s) || HANDLE.test(s) || CHAT_ID.test(s)
 }
 
-/** May this sentence be voiced? `teacherTurn`: the person is finding a teacher, so the counsel-pending words are out too. */
-export function speakable(sentence: string, ctx: { teacherTurn: boolean }): boolean {
-  // NFC first: a decomposed "thị thực" or "nước ngoài" would slip past every list (teachers-counsel-words.ts says so).
-  const s = sentence.normalize('NFC')
-  if (carriesPhone(s) || carriesContact(s)) return false
+/**
+ * May this sentence be voiced? `teacherTurn`: the person is finding a teacher, so the counsel-pending words are out too.
+ * `lang`: the language the guide speaks this turn (i18n/index.ts) — English when absent.
+ */
+export function speakable(sentence: string, ctx: { teacherTurn: boolean; lang?: SpokenLanguage }): boolean {
+  // NFC first: a decomposed "thị thực" or "nước ngoài" would slip past every list (teachers-counsel-words.ts says so) — and
+  // no invisible format character inside a word ("vi\u200Bsa" — commit review round 3, codex).
+  const s = stripInvisible(sentence.normalize('NFC'))
+  const lang = ctx.lang ?? 'en'
+  // A number read in a script's own numerals ("०९०१…") or in spelled digits counts as one — in RUNS only (digit words are
+  // everyday words too: "năm", "un", "ba"), so never in bareDigits' whole-turn total.
+  if (carriesPhone(s) || carriesPhone(digitize(s)) || carriesContact(s)) return false
   if (EDITION_BANNED.test(s) || RETIRED_TRUST_CLAIMS.some((re) => re.test(s))) return false
-  return !(ctx.teacherTurn && TEACHERS_COUNSEL_WORDS.test(s))
+  if (ctx.teacherTurn && TEACHERS_COUNSEL_WORDS.test(s)) return false
+  return !i18nUnspeakable(s, { lang, teacherTurn: ctx.teacherTurn })
 }
 
 /**
  * eno's own words for what eno.vn does not offer (PLAN §3 and §9.4, the owner's default). It names no such service, so it
  * passes EDITION_BANNED; "that section" is the licensed-providers aisle, which only the turn route opens, and only on a yes.
  */
-export const NOT_OFFERED_LINE = "eno.vn doesn't provide that service itself. Licensed providers can list in Services, and eno checks their licence first. Want me to open that section?"
+export const NOT_OFFERED_LINE = EN_LINES.notOffered
 
 /**
  * The transcript as the patterns read it: accents folded (Vietnamese typed or heard without them matches too), lower
@@ -135,19 +154,22 @@ const VISA_ASKS: readonly RegExp[] = [
   /\b(?:get|getting|apply|applying|extend|extending|renew|renewing|obtain|obtaining|process|processing|arrange|arranging|sort|sorting|help|make|making|do|doing|change|changing|convert|converting|buy|order)\b(?:\s+(?:me|us|him|her|them|my|our|his|their|a|an|the|for|with|out|on|new|another|tourist|business|work|working|student|family|spouse|retirement|investor|long|short|term|stay|vietnam|vietnamese|\d+|one|two|three|six|twelve|month|months|year|years|day|days|entry|single|multiple))*\s+visas?\b/,
   /\b(?:i|we|you)\s+(?:still\s+)?need\s+(?:a\s+|an\s+|my\s+|the\s+|to\s+get\s+a\s+)?(?:\w+\s+)?visas?\b/,
   /\b(?:what|which)(?:\s+(?:kind|type|sort)\s+of)?\s+visas?\b/,
-  // Vietnamese: làm / xin / gia hạn / dịch vụ … visa, visa du lịch, visa 3 tháng
-  /\b(?:lam|xin|gia han|dich vu|thu tuc|ho so|nop|doi|mua|cap)\s+(?:lai\s+|moi\s+)?visa\b/,
-  /\bvisa\s+(?:du lich|\d+\s+(?:thang|nam)|mot nam|ba thang|sau thang)\b/,
+  // Vietnamese: làm / xin / gia hạn / dịch vụ … visa, visa du lịch, visa 3 tháng — ⚠️ never a job's perk ("có hỗ trợ làm
+  // visa", "bao làm visa") or the person's own visa ("visa ba tháng của mình sắp hết", "đang ở bằng visa du lịch"): those are
+  // mentions, as in English (commit review round 4 — the verified Vietnamese mentions answered with the fixed line).
+  /(?<!\b(?:ho tro|bao|duoc|co ho tro|co bao|duoc ho tro)\s)\b(?:lam|xin|gia han|dich vu|thu tuc|ho so|nop|doi|mua|cap)\s+(?:lai\s+|moi\s+)?visa\b/,
+  /(?<!\b(?:bang|o bang|dung|co)\s)\bvisa\s+(?:du lich|\d+\s+(?:thang|nam)|mot nam|ba thang|sau thang)\b(?!\s+(?:cua|sap|het|con|dang|da))/,
 ]
 const TRIP_ASKS: readonly RegExp[] = [
   // trip planning: an itinerary, "plan my trip", "trip planner", lịch trình, lên kế hoạch du lịch
   /\bitinerar(?:y|ies)\b/,
   // ⚠️ "lịch trình làm việc / dạy / học" is a work or class SCHEDULE — a teacher or a job with flexible hours.
-  /\blich trinh\b(?!\s+(?:lam viec|lam|day|hoc|lop|linh hoat|co dinh|ranh|cong viec))/,
+  /\blich trinh\b(?!\s+(?:lam viec|lam|day|hoc|lop|linh hoat|co dinh|ranh|cong viec|xem|khoa hoc|khoa|xe|chuyen xe|tau|chuyen bay|bay|the nao))/,
   /\b(?:trip|tour|holiday|vacation|travel|journey)s?\s+(?:plan|planning|planner|planners)\b/,
   // ⚠️ Not "we're planning a trip, so we need a car" (a person's own plans) and not "I plan to …" (an intention).
   /(?<!\b(?:am|are|is|was|were|m|re|be|been|currently)\s)\b(?:plan|planning|organi[sz]e|organi[sz]ing)\b(?!\s+to\b)(?:\s+(?:me|us))?(?:\s+(?:a|an|my|our|the|this|that|one|some))?(?:\s+[a-z0-9]+){0,2}?\s+(?:trip|tour|holiday|vacation|journey|getaway|honeymoon)s?\b/,
-  /\b(?:len|lap)\s+ke hoach\s+(?:cho\s+)?(?:chuyen di|du lich|di choi|tour|ky nghi)\b|\bke hoach du lich\b/,
+  // ⚠️ Not the person's OWN plans ("bọn mình đang lên kế hoạch…", "mình đã lên kế hoạch…", "nhà mình có kế hoạch du lịch…").
+  /(?<!\b(?:da|dang|minh|toi|chung toi|chung minh|bon minh|tui minh|nha minh|co|vua|moi)\s)\b(?:len|lap)\s+ke hoach\s+(?:cho\s+)?(?:chuyen di|du lich|di choi|tour|ky nghi)\b|(?<!\b(?:co|da co|minh co|nha minh co|len|lap)\s)\bke hoach du lich\b/,
 ]
 const PAY_ASKS: readonly RegExp[] = [
   // a payment provider eno.vn does not take
@@ -155,20 +177,27 @@ const PAY_ASKS: readonly RegExp[] = [
 ]
 
 /** For trip planning: eno.vn plans no trips (CLAUDE.md, the edition boundary) — and offers nothing in its place. */
-export const NO_TRIPS_LINE = "eno.vn doesn't plan trips. I can help you find places to stay, vehicles to rent, or tickets — what do you need?"
+export const NO_TRIPS_LINE = EN_LINES.noTrips
 /** For a payment provider: eno.vn takes no payments at all (about/terms: people pay the seller directly). */
-export const NO_PAYMENTS_LINE = "eno.vn takes no payments. You pay the seller directly, after you've seen the item."
+export const NO_PAYMENTS_LINE = EN_LINES.noPayments
 
 /**
  * eno's fixed line when the person ASKS for what eno.vn does not offer — and whether it may offer the licensed-providers
  * aisle. ⛔ ONLY A VISA ASK OFFERS IT (commit review, opus: one line for all three sent "Do you accept PayPal?" → "yes"
  * into the e-Visa aisle): trips and payments get a line of their own that offers nothing. Null for everything else.
  */
-export function fixedLineFor(transcript: string): { line: string; offer: 'evisa' | null } | null {
+export function fixedLineFor(transcript: string, lang: SpokenLanguage = 'en'): { line: string; offer: 'evisa' | null } | null {
   const t = plain(transcript).replace(CARD, 'card')
-  if (!t) return null
-  if (VISA_ASKS.some((re) => re.test(t))) return { line: NOT_OFFERED_LINE, offer: 'evisa' }
-  if (TRIP_ASKS.some((re) => re.test(t))) return { line: NO_TRIPS_LINE, offer: null }
-  if (PAY_ASKS.some((re) => re.test(t))) return { line: NO_PAYMENTS_LINE, offer: null }
+  // English and Vietnamese first (as before), then the other languages' asks — the person may speak another language than
+  // the app's; the line is in the language the guide speaks.
+  const kind = !t ? i18nAsk(transcript)
+    : VISA_ASKS.some((re) => re.test(t)) ? 'visa'
+      : TRIP_ASKS.some((re) => re.test(t)) ? 'trip'
+        : PAY_ASKS.some((re) => re.test(t)) ? 'pay'
+          : i18nAsk(transcript)
+  const L = linesFor(lang)
+  if (kind === 'visa') return { line: L.notOffered, offer: 'evisa' }
+  if (kind === 'trip') return { line: L.noTrips, offer: null }
+  if (kind === 'pay') return { line: L.noPayments, offer: null }
   return null
 }

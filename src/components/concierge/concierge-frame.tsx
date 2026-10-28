@@ -13,7 +13,7 @@ import { bufferFromPcm16, decodeLine, partPlayer, pcmFromBase64, resamplePcm16 }
 import { useRecorder, type MicState } from '@/components/classroom/session/use-recorder'
 import { isFiller, openLiveStt, type LiveStt } from '@/components/classroom/session/live-stt'
 import { beginTrace, mark } from '@/components/classroom/session/trace'
-import type { ConciergeMessage } from '@/lib/concierge/client'
+import { guidedPageLang, type ConciergeMessage } from '@/lib/concierge/client'
 import type { GuideFaceConfig } from '@/lib/concierge/guide-assets'
 import { FACE_PCM_RATE, GuideFace, type GuideHandle } from './guide-face'
 
@@ -360,7 +360,7 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
       const res = await fetch('/api/concierge/turn', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ session: s.session, transcript, href: parentHref(), lang, history: history.current }),
+        body: JSON.stringify({ session: s.session, transcript, href: parentHref(), lang: guidedPageLang(lang), history: history.current }),
         signal: abort.signal,
       })
       if (!res.ok) {
@@ -611,7 +611,8 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
     go('connecting')
     setWaiting(true)
     // Bounded (pre-review, codex): a start that never answers must not hold the microphone open with no session.
-    const r = await fetch('/api/concierge/start', { method: 'POST', signal: AbortSignal.timeout(START_WAIT_MS) }).catch(() => null)
+    // The guided page's language: the guide's opening and voice are in it (src/lib/concierge/i18n).
+    const r = await fetch(`/api/concierge/start?lang=${encodeURIComponent(guidedPageLang(lang))}`, { method: 'POST', signal: AbortSignal.timeout(START_WAIT_MS) }).catch(() => null)
     const body = (await r?.json().catch(() => ({}))) as Partial<Started> & { error?: string }
     if (ended.current) {
       // ⛔ The window closed while this start was in flight: the session it made has no window — ended now.
@@ -634,7 +635,7 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
     setCaption(s.opening.text)
     liveConnecting.current = true
     void openLiveStt({
-      grant: (signal) => fetch('/api/concierge/stt-token', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: s.session }), signal }),
+      grant: (signal) => fetch('/api/concierge/stt-token', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: s.session, lang: guidedPageLang(lang) }), signal }),
       check: () => fetch(`/api/concierge/stt-token?session=${encodeURIComponent(s.session)}`, { method: 'GET' }),
     }, { utterance: (t, ms) => handlers.current.utterance(t, ms), failed: () => handlers.current.liveFailed() }).then((l) => {
       liveConnecting.current = false

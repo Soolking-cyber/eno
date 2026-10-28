@@ -333,7 +333,7 @@ const LOUD_LINE_RATE = 16_000
 function lineConfig(cfg: SonioxConfig, voice: string, style: VoiceStyle, format: 'pcm_s16le' | 'mp3', rate = TTS_RATE): Record<string, unknown> {
   return {
     model: cfg.ttsModel,
-    language: 'en',
+    language: style.language ?? 'en',
     voice,
     audio_format: format,
     ...(format === 'pcm_s16le' ? { sample_rate: rate } : {}),

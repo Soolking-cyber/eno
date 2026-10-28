@@ -49,6 +49,20 @@ export function openConcierge(): void {
   window.dispatchEvent(new Event(CONCIERGE_OPEN_EVENT))
 }
 
+/**
+ * The language of the page the window guides — its `<html lang>`, which language-context.tsx keeps in sync with the
+ * reader's language (the nine machine-translated ones included). ⛔ The guide speaks THAT, not the frame's own guess: a frame
+ * works its language out on its own and can land elsewhere (measured 2026-10-28: a Vietnamese page, the frame in English).
+ * Same origin, so readable; `fallback` when it is not (no parent, a browser that refuses).
+ */
+export function guidedPageLang(fallback: string): string {
+  try {
+    return (window.parent !== window && window.parent.document.documentElement.lang) || fallback
+  } catch {
+    return fallback
+  }
+}
+
 /** The frame → host messages (postMessage, same origin; the host checks the sender is ITS frame). */
 export type ConciergeMessage =
   | { type: 'eno-concierge:go'; href: string; closes: boolean }

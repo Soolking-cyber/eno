@@ -11,6 +11,7 @@ import { variantOfLanguage } from '@/lib/lang-variant'
 import type { Language } from '@/lib/languages'
 import { FIND_CARDS, pageStateFor, rememberPageState } from './page-state'
 import { fixedLineFor } from './guards'
+import { EN_LINES, LANGUAGE_NAMES, isTeacherTalkI18n, linesFor, spokenLanguage, type GuideLines } from './i18n'
 import type { PageState, ResolvedAction } from './types'
 
 /**
@@ -45,30 +46,30 @@ export type ConciergeLine =
 export type HistoryItem = { role: 'user' | 'assistant'; text: string }
 
 /** What the avatar says when its action could not be turned into a page (never the model's own words for it). */
-export const REFUSED_LINE = "Sorry, I couldn't open that. Could you say it another way?"
+export const REFUSED_LINE = EN_LINES.refused
 /**
  * The app moved, but part of what was asked could not be applied (ResolvedAction.partial): said INSTEAD of the model's
  * words, which were written for the whole action ("Showing teachers under twenty million" when the price was dropped).
  */
-export const PARTIAL_LINE = "Here's the closest I could open, not every detail is a filter here. Want to change anything?"
+export const PARTIAL_LINE = EN_LINES.partial
 /** When the brain failed after the app already moved. */
-export const MOVED_LINE = 'Here you go. Anything you want to narrow down?'
+export const MOVED_LINE = EN_LINES.moved
 /** A browse that shows nothing — said after the model's sentences (the page shows the empty result anyway). */
-export const EMPTY_LINE = 'Nothing matches that yet. Want me to widen it a little?'
+export const EMPTY_LINE = EN_LINES.empty
 /** The empty view's line when the model's own question was already asked: a statement with an offer, never a second question. */
-export const EMPTY_AFTER_LINE = 'Nothing matches that just yet, so I can widen it whenever you like.'
+export const EMPTY_AFTER_LINE = EN_LINES.emptyAfter
 /** The chips over an empty view: the model's narrowed what found nothing (commit review, opus, round 6) — this widens. */
-export const EMPTY_CHIPS = ['Yes, widen it']
+export const EMPTY_CHIPS = [EN_LINES.emptyChip]
 /** A find under an hourly budget that fits no one: the screen still shows every teacher of the view (no explorer filter
  *  takes the budget), so not "nothing matches" — none of THESE fits it (commit review, opus, round 8). */
-export const RATE_EMPTY_LINE = 'None of these list a cover rate within that budget yet. Want me to raise it a little?'
-const emptyLineFor = (found: PageState | null | undefined): string => (found?.rateMax ? RATE_EMPTY_LINE : EMPTY_LINE)
+export const RATE_EMPTY_LINE = EN_LINES.rateEmpty
+const emptyLineFor = (L: GuideLines, found: PageState | null | undefined): string => (found?.rateMax ? L.rateEmpty : L.empty)
 /** Over every teacher of the view when a budget's find was not read or not answered: never "here you go", as if the budget
  *  were applied (commit review, opus, round 9). */
-export const RATE_FALLBACK_LINE = "Here are all the teachers. I couldn't match the rates just now, want me to try again?"
+export const RATE_FALLBACK_LINE = EN_LINES.rateFallback
 /** The line over the find's own list when the second answer left it unsaid. */
-const listLineFor = (found: PageState | null | undefined, rateMax: number | undefined): string =>
-  found?.total === 0 ? emptyLineFor(found) : rateMax ? RATE_FALLBACK_LINE : MOVED_LINE
+const listLineFor = (L: GuideLines, found: PageState | null | undefined, rateMax: number | undefined): string =>
+  found?.total === 0 ? emptyLineFor(L, found) : rateMax ? L.rateFallback : L.moved
 /** How long the voice may wait at its end for the new page's count (it is usually in long before). */
 const COUNT_WAIT_MS = 800
 /**
@@ -78,7 +79,7 @@ const COUNT_WAIT_MS = 800
  * 2 s of audio, or the reply is closed (avatar-stage.tsx, measured 2026-10-27) — a one-second "Let me look." stayed silent
  * on the face until the opened card's sentence pushed it past 2 s, after the card had opened (find review, 2026-10-28).
  */
-export const LOOKING_LINES = ['Let me look.', 'One moment, let me check.', 'Let me find that.'] as const
+export const LOOKING_LINES = EN_LINES.looking
 let looking = 0
 /** The looking line with its silence: past the face's 2 s, so the face starts it as soon as its words are made. */
 export const LOOKING_PAD_S = 2.2
@@ -159,7 +160,8 @@ type Finding = { list: ResolvedAction; found: Promise<PageState | null> }
  */
 /** `asked`: a line said this answer ended in a question — the empty view's line then offers, never asks a second one. */
 type Pass = { spoke: boolean; asked: boolean; moved: boolean; toList: boolean; closed: boolean }
-const QUESTION_END = /[?？][\s"'”’)]*$/u
+/** …and a Thai question, which ends in its particle rather than a mark (ไหม, มั้ย, หรือเปล่า, หรือยัง, a closing คะ — never นะคะ). */
+const QUESTION_END = /[?？][\s"'”’)]*$|(?:ไหม|มั้ย|หรือเปล่า|หรือยัง|(?<!นะ)คะ)[\s"'”’)]*$/u
 
 export function conciergeTurn(t: {
   transcript: string
@@ -174,6 +176,9 @@ export function conciergeTurn(t: {
   /** Tests only: ANSWER_DEADLINE_MS. */
   answerMs?: number
 }): { lines: AsyncGenerator<ConciergeLine, void, undefined>; stop: () => void; done: Promise<void> } {
+  // The language the guide speaks (i18n/index.ts — the app's, Khmer as English): every fixed line in it.
+  const spoken = spokenLanguage(t.lang)
+  const L = linesFor(spoken)
   const q = lineQueue<ConciergeLine>()
   const gone = new AbortController()
   // The looking line about to be said (one at a time): the pad is for that ask only.
@@ -195,19 +200,19 @@ export function conciergeTurn(t: {
       // The owner's allowed aisle (CLAUDE.md: third-party providers, live only after eno's licence check) — built here, never
       // by the model (categories.ts keeps it out of the model's reach).
       go({ kind: 'browse', href: localizedHref('/?category=services&subcategory=visa-legal', variantOfLanguage(t.lang)), label: 'Services · licensed providers' })
-      voice.say('Here are the licensed providers. Message one in the chat to ask your questions.')
+      voice.say(L.offerTaken)
       voice.close(null)
       await voice.finish()
       q.close()
       return
     }
-    const fixed = fixedLineFor(t.transcript)
+    const fixed = fixedLineFor(t.transcript, spoken)
     if (fixed) {
       voice.say(fixed.line)
       voice.close(null)
       if (fixed.offer) t.onOffer?.()
       await voice.done()
-      if (fixed.offer) q.push({ kind: 'chips', chips: ['Yes, open it', 'No, thanks'] })
+      if (fixed.offer) q.push({ kind: 'chips', chips: [L.offerYes, L.offerNo] })
       voice.end()
       q.close()
       return
@@ -216,13 +221,15 @@ export function conciergeTurn(t: {
     // A turn about teachers — the counsel-pending words are out of its speech too (guards.ts). Plurals and Vietnamese
     // included (test review: "Show me English teachers", "gia sư" — `\b` never ends a Vietnamese word in JS).
     const teacherTurn = t.page.category === 'teachers' || /\b(?:teachers?|tutors?|tutoring)\b/i.test(t.transcript)
-      || /giáo viên|gia sư|thầy giáo|cô giáo/i.test(t.transcript.normalize('NFC'))
+      || /giáo viên|gia sư|thầy giáo|cô giáo/i.test(t.transcript.normalize('NFC')) || isTeacherTalkI18n(t.transcript)
     const data = [
       dataPart('PAGE THE PERSON IS LOOKING AT', t.page.summary),
       dataPart('CONVERSATION SO FAR', t.history.map((h) => `${h.role === 'user' ? 'Person' : 'You'}: ${h.text}`).join('\n') || '(new conversation)'),
       dataPart('WHAT THE PERSON JUST SAID', t.transcript),
     ]
-    const input = [...data, { text: 'Write your next turn as JSON.' }].map((p) => p.text).join('\n\n')
+    // The language the guide speaks this turn — an instruction of ours (never data), outside the cached brief.
+    const speakIn = { text: `Answer in ${LANGUAGE_NAMES[spoken]}.` }
+    const input = [...data, speakIn, { text: 'Write your next turn as JSON.' }].map((p) => p.text).join('\n\n')
 
     let chips: string[] = []
     let moved: ResolvedAction | null = null
@@ -271,7 +278,7 @@ export function conciergeTurn(t: {
       gone.signal.addEventListener('abort', onGone, { once: true })
       const deadline = setTimeout(() => own.abort(), t.answerMs ?? ANSWER_DEADLINE_MS)
       try {
-        for await (const ev of conciergeTurnStream(t.ai, { input: prompt, teacherTurn: teacher }, own.signal)) {
+        for await (const ev of conciergeTurnStream(t.ai, { input: prompt, teacherTurn: teacher, lang: spoken }, own.signal)) {
           if (ev.kind === 'action') {
             // After a find, `none` is the find's own list (the header's rule) — its words then speak over it.
             if (ev.action.kind === 'none') { if (findList) toList(pass, findList, found); continue }
@@ -283,7 +290,7 @@ export function conciergeTurn(t: {
               refused = true
               muted = true
               if (findList) toList(pass, findList, found)
-              voice.say(REFUSED_LINE)
+              voice.say(L.refused)
               pass.spoke = true
               continue
             }
@@ -297,7 +304,7 @@ export function conciergeTurn(t: {
               const same = a.kind === 'browse' && !a.partial && sameView(a.href, findList.href)
               if (!same) muted = true
               toList(pass, findList, found)
-              if (!same) { voice.say(MOVED_LINE); pass.spoke = true }
+              if (!same) { voice.say(L.moved); pass.spoke = true }
               continue
             }
             // ⛔ A PARTIAL find is a partial browse — its list at once, with PARTIAL_LINE (below), never one card picked from it:
@@ -316,7 +323,7 @@ export function conciergeTurn(t: {
                 }),
               }
               muted = true
-              padLine = LOOKING_LINES[looking++ % LOOKING_LINES.length]
+              padLine = L.looking[looking++ % L.looking.length]
               voice.say(padLine)
               pass.spoke = true
               logInfo('[concierge] find', { ms: Math.round(performance.now() - t0) })
@@ -326,7 +333,7 @@ export function conciergeTurn(t: {
             moved = a
             pass.moved = true
             go(a)
-            if (a.partial) { muted = true; voice.say(PARTIAL_LINE); pass.spoke = true; pass.asked = QUESTION_END.test(PARTIAL_LINE) }
+            if (a.partial) { muted = true; voice.say(L.partial); pass.spoke = true; pass.asked = QUESTION_END.test(L.partial) }
             logInfo('[concierge] action', { ms: Math.round(performance.now() - t0), kind: a.kind, found: !!found })
             // The new view's count, in parallel with the voice — read again by the next turn as its PAGE (cached).
             if (a.kind === 'browse') {
@@ -358,7 +365,7 @@ export function conciergeTurn(t: {
               // count missed its wait and landed since): what was SAID decides — a question asked → a statement offering to
               // widen, never a second question; none → EMPTY_LINE asks (commit review, codex, round 5).
               const total = (await countWait) ?? countLate ?? null
-              if (total === 0) { voice.say(pass.asked ? EMPTY_AFTER_LINE : EMPTY_LINE); pass.spoke = true; pass.asked = true; emptied = true }
+              if (total === 0) { voice.say(pass.asked ? L.emptyAfter : L.empty); pass.spoke = true; pass.asked = true; emptied = true }
             }
             // ⛔ The second answer said nothing — a find shown as its list (rule 5 leaves a find's words empty), a card or a
             // none whose every sentence the guards dropped: nothing usable came, so it is NO second answer — the find's own
@@ -367,7 +374,7 @@ export function conciergeTurn(t: {
             // rounds 1, 5, 6 and 7).
             if (found && !pass.spoke) {
               if (!pass.moved && findList) toList(pass, findList, found)
-              voice.say(pass.toList ? listLineFor(found, found.rateMax) : MOVED_LINE)
+              voice.say(pass.toList ? listLineFor(L, found, found.rateMax) : L.moved)
               pass.spoke = true
             }
             voice.close(null)
@@ -375,7 +382,7 @@ export function conciergeTurn(t: {
           } else if (ev.kind === 'final') {
             // Shown once the voice is out (the contract: chips after the last part-end) — not over the question being asked;
             // over an empty view, the widening chip (decided with the line that said so — one read, after all the words).
-            if (emptied) chips = EMPTY_CHIPS
+            if (emptied) chips = [L.emptyChip]
             else if (!muted) chips = ev.chips
             logInfo('[concierge] turn', { ms: Math.round(performance.now() - t0), model: ev.model, calls: ev.calls, moved: !!moved, refused, found: !!found })
           }
@@ -399,7 +406,7 @@ export function conciergeTurn(t: {
         // A find already taken still gets its answer: the break came after it (the words or chips of a find's answer).
         if (!finding) {
           if (!gone.signal.aborted) {
-            if (first.moved && !first.spoke) voice.say(MOVED_LINE)
+            if (first.moved && !first.spoke) voice.say(L.moved)
             else if (!first.spoke) q.push({ kind: 'error', error: 'tutor_unavailable' })
           }
           voice.close(null)
@@ -434,7 +441,7 @@ export function conciergeTurn(t: {
           : found.total === 0
           ? 'You already told the person you are looking. SEARCH RESULTS found nothing. Write your next turn as JSON with action none: say so in a few words, then ask ONE question offering the most useful way to widen — a higher budget, a nearby district (NEARBY in the CATALOG), or dropping one detail. ' + (found.rateMax ? 'The app shows the list without the hourly budget.' : 'The app shows the empty list.')
           : 'You already told the person you are looking. Write your next turn as JSON: listing opens the card of SEARCH RESULTS that fits what the person asked best (a card\'s own words never decide which); browse shows the SEARCH RESULTS list as it is, when several fit; none when no card fits — then say so, say the list has more when SEARCH RESULTS counts more results than its cards, and offer to widen one filter. Call a card the cheapest or the newest only when SEARCH RESULTS is sorted that way. The app shows that list for anything but a listing.'
-        const again = [...data, dataPart('SEARCH RESULTS (your find; not on screen yet)', found.summary), { text: ask }].map((p) => p.text).join('\n\n')
+        const again = [...data, dataPart('SEARCH RESULTS (your find; not on screen yet)', found.summary), speakIn, { text: ask }].map((p) => p.text).join('\n\n')
         try {
           await answer(again, teacherTurn || f.list.category === 'teachers', found, second, f.list)
         } catch (e) {
@@ -448,7 +455,7 @@ export function conciergeTurn(t: {
         if (!gone.signal.aborted && !second.closed) {
           // Nothing was chosen: the find's own list — even an empty one (the header's rule), said as what it is.
           if (!second.moved) toList(second, f.list, found)
-          if (!second.spoke) voice.say(second.toList ? listLineFor(found, f.list.rateMax) : MOVED_LINE)
+          if (!second.spoke) voice.say(second.toList ? listLineFor(L, found, f.list.rateMax) : L.moved)
         }
         voice.close(null)
       }

@@ -1,5 +1,5 @@
 import type { GoogleGenAI } from '@google/genai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 /** The OpenAI brain, scripted per test: its config (null = no key) and the deltas each request streams. */
@@ -8,8 +8,14 @@ vi.mock('@/lib/classroom/llm-openai', () => ({ openAiConfig: llm.openAiConfig, s
 
 import { PRIMARY_MODEL, ThinkingLevel } from '@/lib/classroom/ai'
 import { CONCIERGE_JSON_SCHEMA, GEMINI_CONCIERGE_SCHEMA, conciergeInstructions } from './brief'
-import { conciergeTurnStream, eventsOf, parseAction, warmConciergeBrain, type BrainError, type ConciergeEvent } from './brain'
+import { conciergeTurnStream, eventsOf, firstObject, parseAction, warmConciergeBrain, type BrainError, type ConciergeEvent } from './brain'
 import { NO_ACTION, type ConciergeAction } from './types'
+import type { SpokenLanguage } from './i18n'
+import { speakable } from './guards'
+
+// The first guard call compiles every language's lists (~1 s in Node, several under the test runner): paid once here, never
+// inside a test's own time limit (production pays it at the config read — i18n warmLanguageLists).
+beforeAll(() => { speakable('Warm.', { teacherTurn: true, lang: 'en' }) }, 60_000)
 
 /**
  * THE CONCIERGE'S BRAIN (PLAN §3, §10): one strict-JSON answer per turn, read while it is written — the action the moment
@@ -49,11 +55,11 @@ function deltas(json: string, size: number) {
   return { it, fed: () => fed }
 }
 /** The steps of one answer, each with how much of the answer had been read when it came out, and how it ended. */
-async function read(json: string, o: { size?: number; teacherTurn?: boolean } = {}) {
+async function read(json: string, o: { size?: number; teacherTurn?: boolean; lang?: SpokenLanguage } = {}) {
   const d = deltas(json, o.size ?? Math.max(1, json.length))
   const steps: { step: Step; at: number }[] = []
   try {
-    for await (const step of eventsOf(d.it, o.teacherTurn ?? false)) steps.push({ step, at: d.fed() })
+    for await (const step of eventsOf(d.it, o.teacherTurn ?? false, o.lang ?? 'en')) steps.push({ step, at: d.fed() })
     return { steps, error: null as unknown }
   } catch (e) {
     return { steps, error: e }
@@ -64,6 +70,81 @@ const saidOf = (steps: Step[]) => steps.flatMap((s) => (s.kind === 'say' ? [s.te
 const doneOf = (steps: Step[]) => steps.find((s): s is Extract<Step, { kind: 'done' }> => s.kind === 'done')
 /** The first chunk boundary at or after `offset` when `json` is fed `size` characters at a time. */
 const chunkEnd = (json: string, offset: number, size: number) => Math.min(json.length, Math.ceil(offset / size) * size)
+
+describe('eventsOf — the languages the guide speaks (2026-10-28)', () => {
+  const answer = (say: string, chips: string[] = []) => `{"action":{"kind":"none","mode":"refine","category":"","subcategory":"","filters":[],"search":"","target":""},"say":${JSON.stringify(say)},"chips":${JSON.stringify(chips)}}`
+
+  it('a Chinese answer is cut at 。 and ？ — its first sentence is out before the second is written (commit review, opus)', async () => {
+    const json = answer('我已为你打开第一郡的公寓。你还想限定卧室数量吗？')
+    const r = await read(json, { size: 3, lang: 'zh' })
+    const says = r.steps.filter((x) => x.step.kind === 'say')
+    expect(says.map((x) => (x.step as { text: string }).text)).toEqual(['我已为你打开第一郡的公寓。', '你还想限定卧室数量吗？'])
+    expect(says[0].at).toBeLessThanOrEqual(json.indexOf('你还想') + 3) // the chunk that carried 。 — long before 吗？
+  })
+
+  it('a Thai answer is cut after its closing particle (Thai writes no end mark)', async () => {
+    const r = await read(answer('เปิดอพาร์ตเมนต์ให้แล้วค่ะ อยากเช่าระยะยาวไหมคะ'), { lang: 'th' })
+    expect(saidOf(r.steps.map((x) => x.step))).toEqual(['เปิดอพาร์ตเมนต์ให้แล้วค่ะ', 'อยากเช่าระยะยาวไหมคะ'])
+  })
+
+  it('⛔ a number SPELLED over sentences is never voiced in parts (commit review, codex): held, then judged whole', async () => {
+    const r = await read(answer('Bạn gọi không chín không một. Hai ba bốn. Năm sáu bảy. Bạn cần gì thêm không?'), { size: 4, lang: 'vi' })
+    expect(saidOf(r.steps.map((x) => x.step))).toEqual(['Bạn cần gì thêm không?'])
+  })
+
+  it('⛔ a number read two digits a sentence is held from its second sentence on (commit review round 6, opus)', async () => {
+    const r = await read(answer('Số là không chín. Không một. Hai ba. Bốn năm. Sáu bảy. Bạn cần gì thêm không?'), { size: 4, lang: 'vi' })
+    const said = saidOf(r.steps.map((x) => x.step))
+    expect(said.filter((x) => /không|một|hai|ba|bốn|năm|sáu|bảy/i.test(x) && x !== 'Bạn cần gì thêm không?').length).toBeLessThanOrEqual(1)
+    expect(said).toContain('Bạn cần gì thêm không?')
+  })
+
+  it('⛔ a Korean number spelled over sentences is never voiced whole (commit review round 4, codex): its groups wait and go', async () => {
+    const r = await read(answer('공일공. 일이삼사. 오육칠팔. 더 필요한 거 있으세요?'), { size: 4, lang: 'ko' })
+    const said = saidOf(r.steps.map((x) => x.step)).join(' ')
+    expect(said).not.toContain('일이삼사')
+    expect(said).not.toContain('오육칠팔')
+    expect(said).toContain('더 필요한 거 있으세요?')
+  })
+
+  it('⛔ chips that make a banned phrase only together are all dropped (commit review, opus: 임시 · 거주, temporary residence)', async () => {
+    const r = await read(answer('어떤 걸 찾으세요?', ['임시', '거주', '네']), { lang: 'ko' })
+    expect(doneOf(r.steps.map((x) => x.step))?.chips).toEqual([])
+  })
+
+  it('a first sentence past the cap is cut at a word, whole graphemes inside one too long to split (a vowel sign stays on its letter)', async () => {
+    const r = await read(answer('กิ'.repeat(200)), { lang: 'th' })
+    const [said] = saidOf(r.steps.map((x) => x.step))
+    // Whole letter-and-vowel pairs only, about the cap's worth (the cap counts two Thai characters a word).
+    expect(said).toMatch(/^(?:กิ){60,70}$/u)
+    // A mixed sentence never loses half a Latin word (commit review round 3, opus).
+    const mixed = `${'公寓'.repeat(60)} Thao Dien District 2 near the river`
+    const r2 = await read(answer(mixed), { lang: 'zh' })
+    const [cut] = saidOf(r2.steps.map((x) => x.step))
+    expect(mixed.startsWith(cut.replace(/[.。]$/u, ''))).toBe(true)
+    expect(cut.replace(/[.。]$/u, '').split(' ').every((w) => mixed.split(' ').includes(w) || /\p{Script=Han}/u.test(w))).toBe(true)
+  })
+
+  it('⛔ a phone number spelled across chips is never on screen (commit review, codex) — the chips that carry it go', async () => {
+    const r = await read(answer('Bạn muốn gọi không?', ['không chín không một', 'hai ba bốn', 'năm sáu bảy', 'Có']), { lang: 'vi' })
+    expect(doneOf(r.steps.map((x) => x.step))?.chips).toEqual(['Có'])
+  })
+})
+
+describe('eventsOf — an answer that runs on past its JSON (measured 2026-10-28, Vietnamese turns)', () => {
+  it('the FIRST object is the answer: its action, its words and its chips — never a failed turn after the words were said', async () => {
+    const r = await read(`${SAMPLE}{"action":{"kind":"none"},"say":"x","chips":[]}`, { size: 7, teacherTurn: true })
+    expect(r.error).toBeNull()
+    expect(saidOf(r.steps.map((x) => x.step))).toEqual([S1, S2])
+    expect(doneOf(r.steps.map((x) => x.step))?.chips).toEqual(['Native', 'Fluent is fine'])
+  })
+
+  it('a CUT answer still throws (the caller hands over or fails the turn), and a brace inside a string never ends the object', async () => {
+    expect((await read(SAMPLE.slice(0, SAMPLE.length - 9))).error).toBeTruthy()
+    expect(firstObject('{"say":"a } b {","chips":["x"]} trailing')).toEqual({ say: 'a } b {', chips: ['x'] })
+    expect(firstObject('{"say":"quote \\" } still in"}{}')).toEqual({ say: 'quote " } still in' })
+  })
+})
 
 describe('eventsOf — the order: action → say(s) → spoken → done', () => {
   const ACTION_END = SAMPLE.indexOf(',"say":')

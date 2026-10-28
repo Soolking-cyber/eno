@@ -350,6 +350,16 @@ describe('⛔ the fixed line\'s offer — only a plain YES on the very next turn
     }
   })
 
+  it('the yes words in the other nine languages — the offer\'s own chip in each included; their "No, thanks" never', async () => {
+    const { linesFor, SPOKEN_LANGUAGES } = await import('@/lib/concierge/i18n')
+    for (const l of SPOKEN_LANGUAGES.filter((x) => x !== 'en')) {
+      await offered()
+      expect((await turnOf({ transcript: linesFor(l).offerYes })).acceptedOffer, `${l} yes`).toBe(true)
+      await offered()
+      expect((await turnOf({ transcript: linesFor(l).offerNo })).acceptedOffer, `${l} no`).toBe(false)
+    }
+  })
+
   it('anything else on the next turn is not a yes — and the offer is gone after it', async () => {
     await offered()
     expect((await turnOf({ transcript: 'No, thanks' })).acceptedOffer).toBe(false)

@@ -4,6 +4,7 @@ import { conciergeOpenFor, liveSession, rememberOffer, takeOffer } from '@/lib/c
 import { conciergeTurn, type ConciergeLine, type HistoryItem } from '@/lib/concierge/turn'
 import { pageStateFor } from '@/lib/concierge/page-state'
 import { conciergeSpeaker } from '@/lib/concierge/start'
+import { isI18nYes, spokenLanguage } from '@/lib/concierge/i18n'
 import { quietError } from '@/lib/classroom/quiet-error'
 import { getGeminiVertex } from '@/lib/gemini'
 import { isLanguage } from '@/lib/languages'
@@ -38,7 +39,8 @@ const YES = new Set(['yes', 'yeah', 'yep', 'yup', 'sure', 'ok', 'okay', 'please'
 const NO = /\b(?:no|not|don'?t|do not|never|nope|nah)\b|không|đừng|thôi/i
 function isPlainYes(transcript: string): boolean {
   const t = transcript.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim()
-  return !NO.test(t) && YES.has(t)
+  // …or in one of the other nine languages, the offer's own chip included (i18n/index.ts — whole short answers only).
+  return (!NO.test(t) && YES.has(t)) || isI18nYes(transcript)
 }
 
 /**
@@ -72,7 +74,7 @@ export const POST = route({ auth: 'profile', body, rateLimit: { bucket: 'concier
     page,
     lang,
     ai: getGeminiVertex(),
-    speak: conciergeSpeaker(),
+    speak: conciergeSpeaker(spokenLanguage(lang)),
     acceptedOffer: offer === 'evisa' && isPlainYes(b.transcript),
     onOffer: () => { void rememberOffer(s.id, 'evisa') },
   })

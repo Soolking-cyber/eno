@@ -53,6 +53,15 @@ afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 const settle = () => new Promise((r) => setTimeout(r, 5))
 
 describe('sonioxSpeakStream', () => {
+  it('a line in another language says so to Soniox (the voice concierge — VoiceStyle.language); the classroom stays English', async () => {
+    const call = tts.sonioxSpeakStream('Xin chào.', 'Grace', { ...style, language: 'vi' })
+    await settle()
+    const ws = FakeSocket.all[0]
+    expect(ws.sent[0]).toMatchObject({ language: 'vi', voice: 'Grace' })
+    ws.say({ stream_id: ws.line, audio: pcm(1, 2, 3) })
+    await call
+  })
+
   it('opens with the key as Soniox\'s protocol pair; sends the line\'s settings, then its words with text_end', async () => {
     const call = tts.sonioxSpeakStream('Hello there.', 'Grace', { ...style, pace: 'gentle' })
     await settle()

@@ -5,16 +5,18 @@ import { conciergeOpenFor, liveSession } from '@/lib/concierge/config'
 import { mintSttKey, sonioxConfig, sttSettingsFor } from '@/lib/classroom/soniox'
 import { rateLimit } from '@/lib/ratelimit'
 import { logWarn } from '@/lib/log'
+import { spokenLanguage } from '@/lib/concierge/i18n'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const body = z.object({ session: z.string().max(40) })
+const body = z.object({ session: z.string().max(40), lang: z.string().max(12).optional() })
 
 /**
  * POST /api/concierge/stt-token { session } — a single-use Soniox key for the window's live-listening socket (the classroom's
  * live listening, src/components/classroom/session/live-stt.ts): valid a minute to OPEN it, the stream cut at the session's
- * end. English and Vietnamese hints — the person may speak either (the avatar answers in English). 200 SttGrant; any
+ * end. Hints: the app's language (the guide speaks it), English and Vietnamese — a person may speak any of them (plan review,
+ * opus: a Vietnamese speaker with the app in English kept the Vietnamese hint they had). 200 SttGrant; any
  * refusal → the window listens the old way (no words until the person stops — then the turn says "try again").
  */
 export const POST = route({ auth: 'profile', body, rateLimit: { bucket: 'concierge-stt-token', limit: 30, window: '1 h', strict: true } }, async ({ profile, body }) => {
@@ -28,7 +30,7 @@ export const POST = route({ auth: 'profile', body, rateLimit: { bucket: 'concier
   if (!rl.success) throw new ApiError('speech_unavailable', 503)
   try {
     const apiKey = await mintSttKey(cfg, { expiresInSeconds: 60, maxSessionSeconds: (s.deadline - Date.now()) / 1000 })
-    return NextResponse.json({ apiKey, url: cfg.ws, model: cfg.model, settings: sttSettingsFor('adult'), languageHints: ['en', 'vi'] }, { headers: { 'cache-control': 'private, no-store' } })
+    return NextResponse.json({ apiKey, url: cfg.ws, model: cfg.model, settings: sttSettingsFor('adult'), languageHints: [...new Set([spokenLanguage(body.lang), 'en', 'vi'])] }, { headers: { 'cache-control': 'private, no-store' } })
   } catch (e) {
     logWarn('[concierge] soniox key failed', { status: (e as { status?: number }).status ?? null })
     throw new ApiError('speech_unavailable', 503)

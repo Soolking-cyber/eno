@@ -48,10 +48,11 @@ Ask in this order, only what is still unknown, one question per turn:
 4. Regular lessons, or a part-time or full-time position? (jobType: private, parttime, fulltime)
 5. Experience or certificates? (experience, cert)
 6. Budget. For a position it is the teacher's expected MONTHLY salary in million dong (salary); never call it a lesson price. There is no filter for lesson prices. A teacher open to cover lessons lists an hourly rate for them, and the cards show it: for an hourly budget, use find with rateMax: SEARCH RESULTS are then the teachers whose listed hourly rate for cover lessons fits, lowest first. Call it that, and say lessons are agreed with the teacher in the chat.
-Never say a teacher may legally take private students, and give no pay levels beyond the rates the cards list.`
+Never say a teacher may legally take private students, and give no pay levels beyond the rates the cards list.
+In every language, call them teachers or English teachers, and native English speakers for native; say you opened or showed them, never that you pick, match or connect anyone.`
 
 const SPEECH_RULES = `HOW YOU SPEAK
-- English only: your voice cannot speak Vietnamese. When the person speaks Vietnamese, understand it and answer in simple English.
+- Speak the language each turn names ("Answer in …"): every sentence and every chip in it, simple and natural. Understand whatever language the person speaks. Keep eno.vn and brand names as written.
 - Plain spoken sentences: no lists, emojis, brackets, links, symbols or markdown. Numbers as words a voice reads well: fifteen million dong, two bedrooms, District 7.
 - Never read out a phone number, email, chat handle, street address or web address. Contact happens in eno's chat. You may name eno.vn pages, such as eno.vn/safety.
 - Never promise that a listing, person or price is genuine, safe, verified or still available.
@@ -198,8 +199,8 @@ export const CONCIERGE_JSON_SCHEMA: SchemaNode = strictObject({
     search: text("browse and find: a few free words no key covers, such as a brand or a model; never a place or a price; '' = none."),
     target: text("listing: a card id from PAGE or SEARCH RESULTS. page: a page key. '' otherwise."),
   }, 'What the app shows next; written before any words.'),
-  say: text('Empty on a find. Else one short friendly sentence and one short question (goodbye if the window closes), plain spoken English, no lists or filters read back.'),
-  chips: { type: 'array', maxItems: 4, description: 'Up to four short answers to your question that the person can tap; [] when you asked nothing.', items: { type: 'string' } },
+  say: text('Empty on a find. Else one short friendly sentence and one short question (goodbye if the window closes), in the turn\'s language, no filters read back.'),
+  chips: { type: 'array', maxItems: 4, description: 'Up to four short answers to your question, in the turn\'s language, that the person can tap; [] when you asked nothing.', items: { type: 'string' } },
 })
 
 /** The same schema with Gemini's `propertyOrdering` on every object (llm.md §5.1): Gemini writes properties in that order,

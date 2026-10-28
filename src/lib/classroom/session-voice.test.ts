@@ -126,6 +126,15 @@ describe('speakerFor', () => {
     expect(h.boxOpts).toEqual([{ busyRetry: false }, {}, { busyRetry: false }])
   })
 
+  it('⛔ a voice in another language than English has NO box: a Soniox failure passes up (the words still show) — the English box never reads Vietnamese', async () => {
+    h.sonioxFails = { status: 502 }
+    const speak = sv.speakerFor('Zoey', () => ({ ...style, language: 'vi' }))!
+    await expect(speak('Xin chào.', new AbortController().signal)).rejects.toBeTruthy()
+    expect(h.calls.some((c) => c.startsWith('box'))).toBe(false)
+    await expect(sv.speakLine('Xin chào.', 'Zoey', { ...style, language: 'vi' }, 100)).rejects.toBeTruthy()
+    expect(h.calls.some((c) => c.startsWith('box'))).toBe(false)
+  })
+
   it('a talk-over is not a failure: no fallback, no rest', async () => {
     const stop = new AbortController()
     stop.abort()

@@ -58,7 +58,9 @@ export function stepPace(pace: VoicePace, change: PaceChange, band: AgeBand): Vo
  * (server.py TRIM_*; owner: "need super fast response"): these pauses are now most of the breath between sentences —
  * ~0.25–0.4 s for a teen or an adult by pace, ~0.6–0.7 s for a child (it was ~0.85 s and ~1.0–1.1 s).
  */
-export type VoiceStyle = { pace: VoicePace; loud: boolean; gapMs: number; pauseMs: number }
+/** `language`: what Soniox speaks the line in (an ISO code it takes) — absent = English, the classroom's. Only English has the
+ *  box behind it (its voices are English): any other language is Soniox's or the words alone (session-voice.ts). */
+export type VoiceStyle = { pace: VoicePace; loud: boolean; gapMs: number; pauseMs: number; language?: string }
 
 const PAUSE_MS: Record<VoicePace, number> = { slowest: 200, gentle: 150, natural: 80, quick: 40 }
 

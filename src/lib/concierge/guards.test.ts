@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { EDITION_BANNED as EDITION_RULE } from '@/test/edition-words'
 import { EDITION_BANNED, NOT_OFFERED_LINE, NO_PAYMENTS_LINE, NO_TRIPS_LINE, fixedLineFor, speakable } from './guards'
+
+// The first guard call compiles every language's lists (~1 s in Node, several under the test runner): paid once here, never
+// inside a test's own time limit (production pays it at the config read — i18n warmLanguageLists).
+beforeAll(() => { speakable('Warm.', { teacherTurn: true, lang: 'en' }) }, 60_000)
 
 const anyTurn = { teacherTurn: false }
 const teacherTurn = { teacherTurn: true }

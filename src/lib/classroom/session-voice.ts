@@ -31,7 +31,7 @@ const LINE_KEEP_MS = 10 * 60_000
 const LINE_KEEP_MAX = 200
 const madeLines = new Map<string, { at: number; made: Promise<Buffer> }>()
 function sonioxLine(text: string, v: Voice, style: VoiceStyle): Promise<Buffer> {
-  const key = `${v.soniox}|${style.pace}|${style.loud ? 1 : 0}|${text}`
+  const key = `${v.soniox}|${style.pace}|${style.loud ? 1 : 0}|${style.language ?? 'en'}|${text}`
   const now = Date.now()
   // Kept LINE_KEEP_MS and no longer (review, codex): an opening can carry what a learner said — expired lines are let go.
   for (const [k, e] of madeLines) if (now - e.at >= LINE_KEEP_MS) madeLines.delete(k)
@@ -81,6 +81,8 @@ function sonioxFailed(e: unknown, what: string) {
 }
 let slowLines = 0
 const voiceOf = (voice: string): Voice => voiceFor(voice) ?? VOICES[0]
+/** eno's own speech server, for an English line only (its voices are English — pace.ts VoiceStyle.language). */
+const boxFor = (style: VoiceStyle) => ((style.language ?? 'en') === 'en' ? localSpeechConfig() : null)
 /** `busyRetry: false` — the voice concierge (src/lib/concierge/start.ts): on a full box it answers in words rather than
  *  queue a second try against the classroom's paid lessons (PLAN §10). */
 type BoxOpts = { busyRetry?: boolean }
@@ -94,7 +96,7 @@ type BoxOpts = { busyRetry?: boolean }
  */
 export async function speakLine(text: string, voice: string, style: VoiceStyle, waitMs = LINE_MAKE_MS, boxOpts: BoxOpts = {}): Promise<string> {
   const v = voiceOf(voice)
-  const box = localSpeechConfig()
+  const box = boxFor(style)
   if (sonioxUp()) {
     let audio: Buffer | null = null
     try {
@@ -122,7 +124,10 @@ export async function speakLine(text: string, voice: string, style: VoiceStyle, 
  */
 export function speakerFor(voice: string, style: () => VoiceStyle, boxOpts: BoxOpts = {}): Speaker | null {
   const v = voiceOf(voice)
-  const box = localSpeechConfig()
+  // ⛔ The box speaks English only: a speaker in another language has NO box — no short first-sound budget that hands a
+  // slow line to it, no `o.box` turn, a Soniox failure leaves the words (plan review, opus: an English box reading
+  // Vietnamese, or a slow line cut for a box that is not there).
+  const box = boxFor(style())
   if (!sonioxConfig() && !box) return null
   const speak: Speaker = async (text, signal, o) => {
     // Its turn came after a voice made ahead failed: the box says it at once when there is one (review, opus).
