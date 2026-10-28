@@ -4,7 +4,8 @@
 // daily limit of NEW teachers (src/lib/teachers/dm-quota.ts — 3 unverified, 10 identity-verified, 30 as a verified
 // business). The block asks where the account stands BEFORE it opens the chat, so a refusal is said here, with the
 // step that lifts it; the server refuses the same count either way. The teacher's phone, email and CV are never here —
-// they arrive in the thread only after the teacher taps "Share".
+// they arrive in the thread only after the teacher taps "Share" — EXCEPT the Zalo a cover teacher chose to show for urgent
+// cover (owner, 2026-10-28), revealed to a school by CoverZaloReveal below (src/lib/teachers/zalo.ts).
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -18,6 +19,7 @@ import { openerVoice } from '@/lib/teachers/first-message'
 import { teacherDmLimitMessage, teacherDmStep, type TeacherDmRefusalFacts } from '@/lib/teachers/dm-limit-copy'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { cn } from '@/lib/utils'
+import { CoverZaloReveal } from './cover-zalo-reveal'
 
 /** The contact block's anchor, and the event the first-screen button fires at it (TeacherContactJump). */
 export const TEACHER_CONTACT_ID = 'teacher-contact'
@@ -175,6 +177,8 @@ export function TeacherContact({ listingId, name, image, cover = false }: {
       <Button variant={offerCover ? 'secondary' : 'cta'} className="w-full" onClick={() => start(false, 'hire')} disabled={busy}>
         {busy && intent.current === 'hire' ? tr('Opening chat…', 'Đang mở trò chuyện…') : tr('Message teacher', 'Nhắn tin cho giáo viên')}
       </Button>
+      {/* A school only, and only while the teacher offers it to this account right now (it asks; nothing is drawn else). */}
+      {cover && <CoverZaloReveal listingId={listingId} />}
       {refusal && (
         <div role="status" className="space-y-2 text-sm text-body">
           <p>{refusal}</p>
@@ -185,7 +189,9 @@ export function TeacherContact({ listingId, name, image, cover = false }: {
         </div>
       )}
       <p className="text-xs text-muted-foreground">
-        {tr('The teacher’s phone, email and CV are shared with you only if they choose to share them in your chat.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ với bạn trong cuộc trò chuyện nếu giáo viên đồng ý.')}
+        {cover
+          ? tr('The teacher’s phone, email and CV are shared with you only if they choose to: in your chat — or, for urgent cover, a Zalo number if they chose to show one to schools.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ với bạn nếu giáo viên đồng ý: trong cuộc trò chuyện — hoặc, với dạy thay khẩn, số Zalo nếu giáo viên đã chọn hiển thị cho các trường.')
+          : tr('The teacher’s phone, email and CV are shared with you only if they choose to share them in your chat.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ với bạn trong cuộc trò chuyện nếu giáo viên đồng ý.')}
       </p>
     </div>
   )

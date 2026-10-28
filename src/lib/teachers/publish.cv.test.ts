@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// Zalo for urgent cover (zalo.ts) runs on a real database in zalo.it.test.ts; here only that the save calls it.
+vi.mock('./zalo', () => ({ withdrawZaloForCoverOff: vi.fn(async () => false) }))
 
 /**
  * saveTeacherProfile — THE CV A NEW PROFILE PUBLISHES WITH (owner, 2026-10-21: "when teacher creates profile it says cv is

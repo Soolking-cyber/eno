@@ -16,8 +16,11 @@ vi.mock('@/lib/db', () => ({
     teacherProfile: { findUnique: async () => h.row },
     teacherVideoShare: { findMany: async ({ where }: { where: unknown }) => { h.sharesWhere = where; return h.shares } },
     teacherJobMatch: { findMany: async (args: Record<string, unknown>) => { h.matchesArgs = args; return h.matches } },
+    // "Zalo for urgent cover" (2026-10-28): the schools that saw the number — its own test below.
+    teacherZaloReveal: { findMany: async (args: { where: unknown }) => { zaloSeen.where = args.where; return zaloSeen.rows } },
   },
 }))
+const zaloSeen = vi.hoisted(() => ({ where: null as unknown, rows: [] as Array<{ viewerName: string; grantAt: Date; revealedAt: Date }> }))
 const { teacherExportOf } = await import('./export')
 
 const GRANT = new Date('2026-10-09T01:00:00Z')
@@ -85,5 +88,16 @@ describe('teacherExportOf', () => {
   it('no teacher profile: null', async () => {
     h.row = null
     expect(await teacherExportOf('p1')).toBeNull()
+  })
+})
+
+describe('Zalo for urgent cover in the export (2026-10-28)', () => {
+  it('carries the number, its grant and withdrawal, and every school that saw it — by name, never its account', async () => {
+    const at = new Date('2026-10-28T03:00:00Z')
+    h.row = { ...h.row, private: { phone: '0901234567', email: null, cvFileName: null, videoPath: null, updatedAt: at, coverZalo: '0901234567', coverZaloAt: at, coverZaloVersion: '2026-10-28', coverZaloWithdrawnAt: null } }
+    zaloSeen.rows = [{ viewerName: 'School One', grantAt: at, revealedAt: at }]
+    const out = await teacherExportOf('p1')
+    expect(out?.coverZalo).toEqual({ number: '0901234567', grantedAt: at, noticeVersion: '2026-10-28', withdrawnAt: null, seenBy: zaloSeen.rows })
+    expect(zaloSeen.where).toEqual({ teacherProfileId: 'tp1' })
   })
 })

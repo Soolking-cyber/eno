@@ -503,7 +503,7 @@ describe('/privacy — Sign in with Apple', () => {
     expect(en).toContain('A teacher profile can include a CV — a PDF of up to 10 MB, kept private as described above; leave out what schools don’t need, such as health details, ID numbers or your referees’ phone numbers: you can upload it when you publish your profile or add it later (an upload your profile does not end up using is deleted automatically), you can replace or remove it at any time, and it is deleted when you delete your profile.')
     // Publish before video/CV (owner, 2026-10-22; live with the 2026-10-25 deploy): nothing says a new profile NEEDS one.
     expect(en).not.toContain('A new teacher profile needs a CV')
-    expect(en).toContain('Your phone number, email address and CV are never published: the account you are talking to receives them only if you tap “Share my phone, email & CV” in your conversation with it.')
+    expect(en).toContain('Your phone number, email address and CV are never published: the account you are talking to receives them only if you tap “Share my phone, email & CV” in your conversation with it — the one exception is a Zalo number you choose to show schools for urgent cover (below).')
     expect(en).toContain('both stay private as described above, and you can change the number or replace the CV on the last step.')
     for (const s of ['which you can remove)', 'remove the CV on the last step']) expect(en, s).not.toContain(s)
     cleanup()
@@ -635,9 +635,9 @@ describe('/privacy — the teacher phone and the job-match defaults (2026-10-22)
   })
 
   const EN = [
-    'Your phone number, email address and CV are never published: the account you are talking to receives them only if you tap “Share my phone, email & CV” in your conversation with it.',
+    'Your phone number, email address and CV are never published: the account you are talking to receives them only if you tap “Share my phone, email & CV” in your conversation with it — the one exception is a Zalo number you choose to show schools for urgent cover (below).',
     'Every teacher profile needs a phone number: you give it when you publish a new profile, and a profile saved without one adds it the next time it is saved — a save that only hides your profile or switches something off is never refused for it.',
-    'Our staff call it only while “Our staff may call me” is on — about jobs that match your profile, and to offer to introduce you to the schools behind them; we never give your number to a school: only your Share tap does.',
+    'Our staff call it only while “Our staff may call me” is on — about jobs that match your profile, and to offer to introduce you to the schools behind them; we never give your number to a school: only your Share tap does, or a Zalo number you switched on for urgent cover.',
     'If you are looking for work, “Email me jobs that match my profile” and “Our staff may call me” are on by default in the form of a new teacher profile since 25 October 2026: switch either off before you publish, or at any time later in “Teacher profile” in your account, and the unsubscribe link in any job-match email switches the emails off; an existing profile keeps the choices it saved.',
     'We record when each was switched on, with the version of the notice shown beside them, and when it was switched off; if a new profile is published with a switch still at its default, we also record which one was left on, and that record is included when you download your data.',
     // ⛔ a suggestion is emailed only while the email switch is on (gate review, codex 2026-10-22: it read as always)
@@ -647,7 +647,7 @@ describe('/privacy — the teacher phone and the job-match defaults (2026-10-22)
   ]
   const VI = [
     'Mọi hồ sơ giáo viên đều cần có số điện thoại: bạn nhập số khi đăng hồ sơ mới, và hồ sơ đã lưu mà chưa có số sẽ cần thêm số vào lần lưu tiếp theo — lần lưu chỉ để ẩn hồ sơ hoặc tắt một mục thì không bao giờ bị từ chối vì thiếu số.',
-    'Nhân viên của chúng tôi chỉ gọi số này khi mục “Nhân viên của chúng tôi có thể gọi cho tôi” đang bật — về các việc làm phù hợp với hồ sơ, và để đề nghị giới thiệu bạn với các trường đăng các việc làm đó; chúng tôi không bao giờ đưa số của bạn cho trường: chỉ khi bạn bấm Chia sẻ.',
+    'Nhân viên của chúng tôi chỉ gọi số này khi mục “Nhân viên của chúng tôi có thể gọi cho tôi” đang bật — về các việc làm phù hợp với hồ sơ, và để đề nghị giới thiệu bạn với các trường đăng các việc làm đó; chúng tôi không bao giờ đưa số của bạn cho trường: chỉ khi bạn bấm Chia sẻ, hoặc số Zalo bạn đã bật cho dạy thay khẩn.',
     'Nếu bạn đang tìm việc, từ ngày 25 tháng 10 năm 2026, “Gửi email cho tôi các việc làm phù hợp với hồ sơ” và “Nhân viên của chúng tôi có thể gọi cho tôi” được bật sẵn trong biểu mẫu của hồ sơ giáo viên mới:',
     'hồ sơ đã có giữ nguyên lựa chọn đã lưu.',
     'khi mục “Gửi email cho tôi các việc làm phù hợp với hồ sơ” của giáo viên đang bật, gợi ý được gửi qua email cho giáo viên',
@@ -665,6 +665,39 @@ describe('/privacy — the teacher phone and the job-match defaults (2026-10-22)
       const vi = await policy(site, 'vi')
       for (const s of VI) expect(vi, `${site}: ${s}`).toContain(s)
       expect(vi).not.toMatch(/số điện thoại[^.]*không bắt buộc/)
+      cleanup()
+    }
+  })
+})
+
+/**
+ * ⛔ ZALO FOR URGENT COVER (owner, 2026-10-28 — src/lib/teachers/zalo.ts): the ONE exception to "only your Share tap" —
+ * stated where the promise is made, with the code's own numbers (zalo-rules.ts), the record, the bell and the deletion.
+ */
+describe('/privacy — Zalo for urgent cover', () => {
+  it('⛔ both editions, both languages: the exception, who sees it, the caps, the record, the deletion', async () => {
+    const { ZALO_REVEAL_LIMITS, ZALO_REVEAL_POOL, ZALO_REVEAL_PER_TEACHER_UNVERIFIED } = await import('@/lib/teachers/zalo-rules')
+    expect([ZALO_REVEAL_LIMITS.school, ZALO_REVEAL_POOL, ZALO_REVEAL_PER_TEACHER_UNVERIFIED, ZALO_REVEAL_LIMITS.verified]).toEqual([1, 2, 3, 20])
+    for (const site of ['marketplace', 'services'] as const) {
+      const en = await policy(site)
+      for (const s of [
+        'the one exception is a Zalo number you choose to show schools for urgent cover (below).',
+        'Zalo for urgent cover (since 28 October 2026): while cover lessons are on, you may switch on “Let schools see my Zalo for urgent cover” and give a Vietnamese mobile number with Zalo — usually your phone number.',
+        'an account whose business is not verified can see one new teacher’s number a day (all such accounts on one internet connection, two a day; one teacher’s number, by at most three such accounts a day), a verified business up to 20 a day.',
+        'An account registered as a school or business on eno — anyone can register one; only some have their business verified — can then ask to see it on your profile',
+        'We record which account saw it and when',
+        'and tell you in the app each time. Switch it off, or switch cover lessons off, and the number is deleted from eno; an account that already saw it keeps what it saw.',
+        'If you delete your teacher profile, its record of the accounts that saw your number is no longer kept with you and is deleted no later than the next day',
+        'with the account’s business name, even after that account is deleted, so a teacher still knows who has their number. The one-way code of an internet connection used for the shared daily limit is erased the day after.',
+      ]) expect(en, `${site}: ${s}`).toContain(s)
+      cleanup()
+      const vi = await policy(site, 'vi')
+      for (const s of [
+        'ngoại lệ duy nhất là số Zalo bạn chọn hiển thị cho các trường để dạy thay khẩn (bên dưới).',
+        'Zalo cho dạy thay khẩn (từ ngày 28 tháng 10 năm 2026)',
+        'tài khoản chưa xác minh doanh nghiệp xem được số của một giáo viên mới mỗi ngày (tất cả các tài khoản như vậy trên một kết nối internet: hai số mỗi ngày; số của một giáo viên: tối đa ba tài khoản như vậy mỗi ngày), doanh nghiệp đã xác minh xem được tối đa 20 số mỗi ngày.',
+        'Khi bạn tắt mục này, hoặc tắt dạy thay, số sẽ bị xóa khỏi eno; tài khoản đã xem vẫn giữ những gì họ đã xem.',
+      ]) expect(vi, `${site}: ${s}`).toContain(s)
       cleanup()
     }
   })

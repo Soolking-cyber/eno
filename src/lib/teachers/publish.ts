@@ -16,6 +16,7 @@ import { clearTombstones, writeTombstones, type TombstoneRef } from '@/lib/core/
 import { purgeStorageObjects } from '@/lib/core/storage-purge'
 import { logError } from '@/lib/log'
 import { appendAudit } from '@/lib/compliance/audit'
+import { withdrawZaloForCoverOff } from './zalo'
 import { LISTING_VIDEOS_BUCKET, TEACHER_CVS_BUCKET, TEACHER_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { planVideoChange, type StoredVideo, type VideoBody, type VideoPlan } from '@/lib/teachers/video'
 import {
@@ -777,6 +778,9 @@ export async function saveTeacherProfile(
       },
       update: { phone: tc.phone || null, email: profile.email, videoPath: finalVideoPath },
     })
+    // ⛔ COVER OFF DELETES THE "ZALO FOR URGENT COVER" NUMBER (zalo.ts, owner 2026-10-28) — in this transaction, under this
+    // lock, with what this save leaves cover at (switched off by the teacher, or by coverWrites for want of a reach).
+    await withdrawZaloForCoverOff(tx, { profileId: profile.id, teacherProfileId: tp.id, coverOpen: cover.coverOpen })
     // The unfinished profile this save publishes has done its job (src/lib/teachers/draft.ts): deleted IN the save's
     // transaction, under the lock a draft save also takes — so no late autosave can bring it back beside the profile.
     await tx.teacherDraft.deleteMany({ where: { profileId: profile.id } })
@@ -905,6 +909,8 @@ export async function saveTeacherCover(profileId: string, raw: unknown): Promise
     // A cover-only save IS the teacher confirming their availability ("Still available").
     const cover = coverWrites(t, tp, new Date(), { confirm: true })
     await tx.teacherProfile.update({ where: { id: tp.id }, data: hidden ? { ...cover, status: 'hidden' } : cover })
+    // ⛔ Cover off deletes the Zalo number — the same rule as saveTeacherProfile (zalo.ts withdrawZaloForCoverOff).
+    await withdrawZaloForCoverOff(tx, { profileId, teacherProfileId: tp.id, coverOpen: cover.coverOpen })
     let listing: { status: string; verified: boolean } | null = null
     if (tp.listingId) {
       // ⛔ A ROW THE BACKFILL HAS NOT MIGRATED (situationVersion NULL — one the old code wrote after --apply) has no v2

@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+// Zalo for urgent cover (zalo.ts) runs on a real database in zalo.it.test.ts; here only that the save calls it.
+vi.mock('./zalo', () => ({ withdrawZaloForCoverOff: vi.fn(async () => false) }))
 
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/db', () => ({ db: {} }))

@@ -3301,7 +3301,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
               }}
             />
           )}
-          {step === 'cover' && <CoverStep t={t} errors={errors} errText={errText} onCover={setCover} onGoTo={goTo} reconsentLine={reconfirm.cover} hidesProfile={mode === 'edit' && !t.coverOpen && !t.jobTypes.length} />}
+          {step === 'cover' && <CoverStep t={t} errors={errors} errText={errText} onCover={setCover} onGoTo={goTo} reconsentLine={reconfirm.cover} hidesProfile={mode === 'edit' && !t.coverOpen && !t.jobTypes.length} zaloLink={mode === 'edit' && savedCover?.coverOpen === true} />}
           {step === 'finish' && (
             <FinishStep
               {...stepProps}

@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// Zalo for urgent cover (zalo.ts) runs on a real database in zalo.it.test.ts; here only that the save calls it.
+vi.mock('./zalo', () => ({ withdrawZaloForCoverOff: vi.fn(async () => false) }))
 
 /**
  * saveTeacherProfile — the onboarding redesign's contract (2026-10-08): ONE shape (an old body is refused, never

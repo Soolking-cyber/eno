@@ -424,6 +424,12 @@ export type NicheApiErrorCode =
   | 'profile_changed' // a teacher form loaded for one TeacherProfile, saved under a session that is now another's (2026-10-07)
   | 'notice_changed' // a teacher save under an older publish / cover / AI notice than the one now in force (2026-10-08); `declaration`: POST /api/seller/identity/challenge under a superseded identity declaration — reload (409, 2026-10-16)
   | 'identity_mark_changed' // PUT /api/teachers/me/identity-mark: the switch changed in another window since the form loaded it — a show-again over a stale base is refused, never an un-hide over a newer hide (409, 2026-10-16)
+  | 'zalo_notice_changed' // PUT /api/teachers/me/cover-zalo: a switch-on from a page that did not show the current "Zalo for urgent cover" notice — reload (409, 2026-10-28)
+  | 'zalo_changed' // PUT /api/teachers/me/cover-zalo: the Zalo switch changed in another window since the page loaded it — never a switch-on over a newer switch-off (409, 2026-10-28)
+  | 'zalo_invalid' // PUT /api/teachers/me/cover-zalo: not a Vietnamese mobile number (400, 2026-10-28)
+  | 'cover_off' // PUT /api/teachers/me/cover-zalo: Zalo for urgent cover needs cover lessons ON (400, 2026-10-28)
+  | 'not_available' // POST /api/teachers/zalo: no teacher here offers Zalo for urgent cover to this account — one answer for every "no", so no oracle (404, 2026-10-28)
+  | 'busy' // POST /api/teachers/zalo: too many reveals in flight on this server — try again, nothing was counted (503, 2026-10-28)
   | 'resubscribe_in_profile' // /api/unsubscribe: teacher job-match emails are turned back ON only in the profile, under the AI notice (2026-10-08)
   | 'no_teaching_goal' // PATCH /api/teachers/me/status → live: no work picked and cover off, so nothing to show schools (D6, 2026-10-09)
   | 'terms_required' // PUT /api/teachers/me: a new account's first profile published without the Terms line on screen (2026-10-11)
@@ -912,6 +918,12 @@ const ALL = [
   'profile_changed',
   'notice_changed',
   'identity_mark_changed',
+  'zalo_notice_changed',
+  'zalo_changed',
+  'zalo_invalid',
+  'cover_off',
+  'not_available',
+  'busy',
   'resubscribe_in_profile',
   'no_teaching_goal',
   'terms_required',

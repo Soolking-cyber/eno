@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// Zalo for urgent cover (zalo.ts) runs on a real database in zalo.it.test.ts; here only that the save calls it.
+vi.mock('./zalo', () => ({ withdrawZaloForCoverOff: vi.fn(async () => false) }))
 
 /**
  * saveTeacherIdentityMark — the "Identity verified" switch's OWN save (owner, 2026-10-15; plan review R2), AUTOMATIC since

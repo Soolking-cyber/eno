@@ -97,6 +97,8 @@ model Profile {
   /// eno Classroom (2026-10-25): the learners this account practises as or for (itself, or its children).
   classroomLearners       ClassroomLearner[]
   teacherJobDmDays        TeacherJobDmDay[]
+  /// The cover teachers' Zalo numbers this account (a school) revealed (2026-10-28 — src/lib/teachers/zalo.ts).
+  teacherZaloReveals      TeacherZaloReveal[]
   messageReactions        MessageReaction[]
   notifications           Notification[]          @relation("RecipientNotifications")
   trustEvents             TrustEvent[]            @relation("SubjectTrustEvents")
@@ -1176,6 +1178,8 @@ model TeacherProfile {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   private            TeacherPrivate?
+  /// Every school that saw this teacher's Zalo for urgent cover (2026-10-28 — src/lib/teachers/zalo.ts).
+  zaloReveals        TeacherZaloReveal[]
   matches            TeacherJobMatch[]
   /// eno Classroom (2026-10-25): this teacher's AI avatar (one per teacher).
   classroomAvatar    ClassroomAvatar?
@@ -1185,12 +1189,24 @@ model TeacherProfile {
 
 /// ⛔ The only place teacher contact data lives. Revealed to a recruiter ONLY through an active
 /// TeacherContactShare on their conversation (src/app/api/teachers/contact) — the phone only when that share's
-/// `phoneShared` says its tap included it (gate review, 2026-10-09).
+/// `phoneShared` says its tap included it (gate review, 2026-10-09) — EXCEPT `coverZalo` (owner, 2026-10-28): the Zalo
+/// number a teacher with cover ON chose to show schools for urgent cover, revealed by src/lib/teachers/zalo.ts.
 model TeacherPrivate {
   teacherProfileId String         @id
   teacherProfile   TeacherProfile @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
   phone            String?
   email            String?
+  /// "Zalo for urgent cover" (owner, 2026-10-28): a VN mobile (0 + 9 digits) the teacher switched on; NULL = off. Shown
+  /// to a school that asks on the profile, within its daily cap — never in the page, an export to anyone else, or a log.
+  /// Switched off, or cover switched off, it is DELETED (set NULL) and the withdrawal stamped. Columns:
+  /// scripts/teacher-zalo-ddl.mjs.
+  coverZalo            String?
+  /// When the teacher last switched it on or gave a new number — the GRANT a reveal discloses (TeacherZaloReveal.grantAt).
+  coverZaloAt          DateTime?
+  /// The notice that grant was given under (src/lib/teachers/zalo.ts COVER_ZALO_NOTICE_VERSION).
+  coverZaloVersion     String?
+  /// When it was last switched off (by the teacher, or by cover going off).
+  coverZaloWithdrawnAt DateTime?
   /// Object path in the PRIVATE bucket `teacher-cvs` — never a URL; served by 10-minute signed URL.
   cvPath           String?
   cvFileName       String?
@@ -3059,4 +3075,32 @@ model ClassroomFeedback {
   learnerSeenAt DateTime?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @default(now()) @updatedAt
+}
+
+/// ⛔ ONE ROW PER DISCLOSURE OF A TEACHER'S ZALO (owner, 2026-10-28 — src/lib/teachers/zalo.ts): which school saw which
+/// grant of the number, and when. The school's daily cap counts its rows of the day; a school re-opening the SAME grant
+/// adds nothing (the unique key) and is never counted or rung twice, while a NEW grant (a changed number, switched off
+/// and on) is a new disclosure: counted, rung, recorded. The teacher's record of who saw it outlives the school's
+/// account: `viewerProfileId` goes NULL with it and `viewerName` keeps the name the school had then. The day's COUNTS
+/// outlive the teacher's profile (review, 2026-10-28: a cascade would hand a school its spent reveal back): the profile
+/// gone, `teacherProfileId` goes NULL and the row is only a count, swept two days later. `poolKey` (an HMAC of the
+/// connection, dm-quota.ts poolKeyFor's idiom) is set on a reveal by an account below business verification — the shared
+/// daily pool of one connection counts those — and erased after two days (zalo.ts sweepZalo, the daily retention cron).
+/// Table: scripts/teacher-zalo-ddl.mjs (RLS on, no policy).
+model TeacherZaloReveal {
+  id               String          @id @default(cuid())
+  viewerProfileId  String?         @db.Uuid
+  viewer           Profile?        @relation(fields: [viewerProfileId], references: [id], onDelete: SetNull)
+  viewerName       String
+  teacherProfileId String?
+  teacherProfile   TeacherProfile? @relation(fields: [teacherProfileId], references: [id], onDelete: SetNull)
+  grantAt          DateTime
+  day              String
+  poolKey          String?
+  revealedAt       DateTime       @default(now())
+
+  @@unique([viewerProfileId, teacherProfileId, grantAt])
+  @@index([viewerProfileId, day])
+  @@index([teacherProfileId, day])
+  @@index([poolKey, day])
 }

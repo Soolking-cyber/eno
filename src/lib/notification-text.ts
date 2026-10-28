@@ -39,6 +39,8 @@
  *                                  recipient's own language (en/vi); the title is eno's copy and stays translatable.
  *                                  They were `system` rows until 2026-10-05; the rows already written keep that type and
  *                                  are caught by their url instead (LEGACY_VERIFICATION_PATHS below).
+ *   teacher_zalo_seen              "<the school's name> saw your Zalo number for urgent cover" — names an account, the
+ *                                  school's own words (src/lib/teachers/zalo.ts, 2026-10-28)
  *   anything else                  `message` has no writer today (the schema comment still lists it)
  *
  * ⚠️ THE COST, STATED: an offer's note now shows in the language its writer used, for every reader — a Vietnamese

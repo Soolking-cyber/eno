@@ -154,6 +154,17 @@
  * (owner, 2026-10-22: "VI visitors → See teachers"), the sign-up counters paragraph counts "how many times “See teachers”
  * was tapped in the teacher form or on that screen" (see_teachers — the same anonymous daily totals).
  *
+ * And PLANNED for 2026-10-28 (owner, 2026-10-28: "ask for zalo number from teachers who opted in to cover … schools can
+ * request their number and it can be show without them texting back. Schools can reveal 1 zalo number per day for more
+ * they have to upload and go through business kyc"): the teacher paragraph's "only your Share tap" now names its ONE
+ * exception — "Zalo for urgent cover (since 28 October 2026)": the teacher's own switch and number (usually the phone),
+ * who may ask (a business account), the caps (zalo-rules.ts: 1 a day unverified, 2 per connection, 3 per teacher; 20
+ * verified), the record of who saw it (TeacherZaloReveal, kept with the profile, the name kept after the account goes),
+ * the in-app bell each time, and the deletion on switch-off or cover-off — plus, in "How long we keep your data", the
+ * Zalo retention (the number while on; who saw it while the profile exists, the school's name kept after its account goes;
+ * the connection code erased after the next day — zalo.ts sweepZalo). NEW DISCLOSURE, by the teacher's opt-in: the
+ * deploy must carry it on the day the text says — ⛔ if it slips, re-date this value AND "28 October 2026" / "28 tháng 10
+ * năm 2026" in the teacher paragraph and their pins in page.test.tsx, then retake the fingerprint.
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
  * differs from the deployed commit's PUBLISHES it, and refuses unless today in Vietnam is that day (re-date it,
@@ -161,7 +172,7 @@
  * line, `export const PRIVACY_TEXT_PUBLISHED: string = 'YYYY-MM-DD'`: that is the shape the gate reads.
  * ⚠️ Typed, never read from the clock: the page prerenders, and a build-time date would move with every rebuild.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-25'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-28'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -170,4 +181,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-25'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '7266a244fc9daefe'
+export const PRIVACY_TEXT_FINGERPRINT = 'bcedccbbcf0f256f'

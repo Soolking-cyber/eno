@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// Zalo for urgent cover (zalo.ts) runs on a real database in zalo.it.test.ts; here only that the save calls it.
+vi.mock('./zalo', () => ({ withdrawZaloForCoverOff: vi.fn(async () => false) }))
 
 /**
  * saveTeacherProfile — THE PHONE "ON NEXT SAVE" AND THE OPT-INS' DEFAULT ON RECORD (owner, 2026-10-22: "also phone number

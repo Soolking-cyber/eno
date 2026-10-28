@@ -82,6 +82,13 @@ export async function GET() {
   // An unfinished teacher profile (2026-10-11) — src/lib/teachers/draft.ts. Its own key: the profile export above is empty
   // when no profile was published.
   const teacherDraft = await teacherDraftExportOf(profile.id)
+  // "Zalo for urgent cover" (2026-10-28 — src/lib/teachers/zalo.ts): the cover teachers' Zalo numbers this account (a
+  // school) saw, and when — its own acts. The teacher's profile page and the time, never the number again.
+  const zaloRevealed = await db.teacherZaloReveal.findMany({
+    where: { viewerProfileId: profile.id },
+    select: { revealedAt: true, teacherProfile: { select: { listingId: true } } },
+    orderBy: { revealedAt: 'desc' },
+  }).then((rows) => rows.map((r) => ({ revealedAt: r.revealedAt, teacherListingId: r.teacherProfile?.listingId ?? null })))
 
   // Sign-in methods (2026-10-15): the providers this account signs in with and what each SHARED with us (PDPL access
   // right). Never a token: identity_data holds none, and anything named like one is dropped anyway. Null when the auth
@@ -144,6 +151,7 @@ export async function GET() {
     messagesSent: messages,
     teacherProfile: teacher,
     teacherProfileDraft: teacherDraft,
+    teacherZaloNumbersSeen: zaloRevealed,
     signInMethods,
     consentRecords,
     identityVerifications,

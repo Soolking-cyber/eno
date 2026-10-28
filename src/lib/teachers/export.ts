@@ -28,11 +28,11 @@ import { identityMarkHidden } from '@/lib/teachers/identity-mark'
 export async function teacherExportOf(profileId: string) {
   const row = await db.teacherProfile.findUnique({
     where: { profileId },
-    include: { private: { select: { phone: true, email: true, cvFileName: true, videoPath: true, updatedAt: true } } },
+    include: { private: { select: { phone: true, email: true, cvFileName: true, videoPath: true, updatedAt: true, coverZalo: true, coverZaloAt: true, coverZaloVersion: true, coverZaloWithdrawnAt: true } } },
   })
   if (!row) return null
   const { private: priv, ...rest } = row
-  const [videoShares, matches] = await Promise.all([
+  const [videoShares, matches, zaloSeenBy] = await Promise.all([
     db.teacherVideoShare.findMany({
       where: { conversation: { sellerProfileId: profileId } },
       select: { conversationId: true, requestedAt: true, sharedAt: true, revokedAt: true },
@@ -46,6 +46,9 @@ export async function teacherExportOf(profileId: string) {
       },
       orderBy: { createdAt: 'desc' },
     }),
+    // "Zalo for urgent cover" (2026-10-28 — zalo.ts): every school that saw a grant of the number, and when — what the
+    // teacher disclosed and to whom. The school's name as it read then; never its account id.
+    db.teacherZaloReveal.findMany({ where: { teacherProfileId: row.id }, select: { viewerName: true, grantAt: true, revealedAt: true }, orderBy: { revealedAt: 'desc' } }),
   ])
   return {
     ...rest,
@@ -56,6 +59,7 @@ export async function teacherExportOf(profileId: string) {
       wordsVersion: rest.identityMarkNoticeVersion,
     },
     private: priv ? { phone: priv.phone, email: priv.email, cvFileName: priv.cvFileName, updatedAt: priv.updatedAt, hasPrivateVideo: !!priv.videoPath } : null,
+    coverZalo: priv ? { number: priv.coverZalo, grantedAt: priv.coverZaloAt, noticeVersion: priv.coverZaloVersion, withdrawnAt: priv.coverZaloWithdrawnAt, seenBy: zaloSeenBy } : null,
     videoShares,
     matches: matches.map(({ listing, ...m }) => ({ ...m, jobTitle: listing.title })),
   }
