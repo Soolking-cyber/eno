@@ -11,6 +11,7 @@ import React from 'react'
 import { act, cleanup, configure, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Header as StaticHeader } from './header'
+import { setConciergeAvailable } from '@/lib/concierge/client'
 import * as staticBackToClose from '@/lib/back-to-close'
 
 // A full Header render (and, for NAV-8, a fresh module graph) is heavy on a loaded machine.
@@ -167,8 +168,10 @@ describe('NAV-1: Back closes the phone search panel', () => {
 
   it('an action that navigates releases first: AI opens its page and the entry is left for that push to replace', async () => {
     await openPanel()
+    // The host has decided (no voice guide here): askForHelp answers with the text assistant at once.
+    setConciergeAvailable(false)
     fireEvent.click(screen.getByRole('button', { name: 'Ask eno AI' }))
-    expect(h.push).toHaveBeenCalledWith('/messages/ai')
+    await waitFor(() => expect(h.push).toHaveBeenCalledWith('/messages/ai'))
     await waitFor(() => expect(panel()).toBeNull())
     expect(mark()).toMatchObject({ released: true })
   })

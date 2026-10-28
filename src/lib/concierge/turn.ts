@@ -29,6 +29,7 @@ import type { PageState, ResolvedAction } from './types'
  *   say/pcm/part-end/audio-failed   each sentence and its voice, exactly as the classroom's (voiceOf)
  *   part-end{last:true}             the voice is complete — sent the moment `say` is, so the face closes its reply at once
  *   chips     up to four quick replies (shown under the window; a tap sends one as the next turn)
+ *   bye       a goodbye was said: the window closes once that voice has played (owner, 2026-10-28)
  *   error     nothing could be said ("try again"), then end
  *   end       the answer is complete
  *
@@ -42,6 +43,8 @@ export type ConciergeLine =
   | TurnLine
   | { kind: 'go'; href: string; label: string; closes: boolean }
   | { kind: 'chips'; chips: string[] }
+  /** A goodbye (brief rule 13): once this answer's voice has played, the window closes itself (concierge-frame.tsx). */
+  | { kind: 'bye' }
 
 export type HistoryItem = { role: 'user' | 'assistant'; text: string }
 
@@ -232,6 +235,8 @@ export function conciergeTurn(t: {
     const input = [...data, speakIn, { text: 'Write your next turn as JSON.' }].map((p) => p.text).join('\n\n')
 
     let chips: string[] = []
+    /** The person said goodbye and the guide thanked them (brief rule 13): the window closes after this answer's voice. */
+    let bye = false
     let moved: ResolvedAction | null = null
     let count: Promise<number | null> | null = null
     /** The count within COUNT_WAIT_MS of the action (null: not in time, or not counted) — ONE budget, wherever it is awaited. */
@@ -384,7 +389,12 @@ export function conciergeTurn(t: {
             // over an empty view, the widening chip (decided with the line that said so — one read, after all the words).
             if (emptied) chips = [L.emptyChip]
             else if (!muted) chips = ev.chips
-            logInfo('[concierge] turn', { ms: Math.round(performance.now() - t0), model: ev.model, calls: ev.calls, moved: !!moved, refused, found: !!found })
+            // ⛔ A GOODBYE (owner, 2026-10-28: "when someone says good bye it should turn off itself thanking for browsing
+            // eno") is honoured only as the model's WHOLE answer: nothing moved, found or refused, its own words said, no
+            // question, no chips — a "thanks" misread as one never shuts a window that still had something to do (plan
+            // review, codex + opus).
+            if (ev.end && !found && !finding && !moved && !refused && !muted && pass.spoke && !pass.asked && !chips.length) bye = true
+            logInfo('[concierge] turn', { ms: Math.round(performance.now() - t0), model: ev.model, calls: ev.calls, moved: !!moved, refused, found: !!found, bye })
           }
         }
       } finally {
@@ -462,6 +472,7 @@ export function conciergeTurn(t: {
     }
     await voice.done()
     if (chips.length) q.push({ kind: 'chips', chips })
+    if (bye) q.push({ kind: 'bye' })
     voice.end()
     q.close()
   })().catch((e: unknown) => {

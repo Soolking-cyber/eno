@@ -42,6 +42,7 @@ type Line =
   | { kind: 'audio-failed'; part: number }
   | { kind: 'chips'; chips: string[] }
   | { kind: 'error'; error: string }
+  | { kind: 'bye' }
   | { kind: 'end' }
 
 type Started = { session: string; deadline: number; face: GuideFaceConfig | null; opening: { text: string; audio: string | null } }
@@ -66,6 +67,8 @@ const IDLE_MS = 90_000
 const HISTORY_ITEMS = 12
 /** How long the start (the session, the opening's voice) may take. */
 const START_WAIT_MS = 15_000
+/** How long each of eno's facts stays on the start screen. */
+const FACT_MS = 5_000
 
 const freshReply = (id: number) => ({ id, given: 0, lastGiven: false, played: false, audioMs: 0, startedAt: 0, toFace: false, armed: false })
 
@@ -105,6 +108,29 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
   const [deaf, setDeaf] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
   const [waiting, setWaiting] = useState(false)
+  /**
+   * THE START SCREEN'S FACTS (owner, 2026-10-28: "get rid of this message have something interesting about eno while user
+   * waits"; the processor sentence it replaced lives on /privacy — owner: "processor not important add to privacy"). eno's
+   * own facts, one at a time — each one the guide's brief already states (brief.ts KNOWLEDGE): never a promise of safety,
+   * never a feature eno.vn does not have.
+   */
+  const facts = [
+    tr('Browsing, posting and messaging sellers on eno are currently free, and eno takes no commission on a sale.', 'Xem tin, đăng tin và nhắn tin cho người bán trên eno hiện đều miễn phí, eno không thu hoa hồng khi bán.'),
+    tr("Pick up to 5 rentals and tap Check these for me: eno's team asks the landlords for you, free.", 'Chọn tối đa 5 căn cho thuê rồi bấm Kiểm tra giúp tôi: đội ngũ eno hỏi chủ nhà giúp bạn, miễn phí.'),
+    tr('The HCMC Rent Index shows the median asking rent in each district, updated daily.', 'Chỉ số giá thuê nhà TP.HCM cho biết giá chào thuê trung vị ở từng quận, cập nhật mỗi ngày.'),
+    tr('See schools rated by teachers at eno.vn/schools.', 'Xem các trường được giáo viên đánh giá tại eno.vn/schools.'),
+    tr('eno works in 11 languages, and chats are translated for you.', 'eno có 11 ngôn ngữ, và tin nhắn được dịch tự động cho bạn.'),
+    tr('Make an offer in the chat: the seller can accept, decline or counter.', 'Trả giá ngay trong chat: người bán có thể đồng ý, từ chối hoặc trả giá lại.'),
+    tr("A seller's phone shows only after they reply to you in the chat.", 'Số điện thoại của người bán chỉ hiện sau khi họ trả lời bạn trong chat.'),
+    tr('Teachers can make a free profile at teacher.eno.vn.', 'Giáo viên có thể tạo hồ sơ miễn phí tại teacher.eno.vn.'),
+    tr('eno never asks you for money for a listed item: no deposit, no holding fee.', 'eno không bao giờ đòi bạn trả tiền cho món hàng: không đặt cọc, không phí giữ chỗ.'),
+  ]
+  const [fact, setFact] = useState(0)
+  useEffect(() => {
+    if (phase !== 'intro') return
+    const t = setInterval(() => setFact((n) => n + 1), FACT_MS)
+    return () => clearInterval(t)
+  }, [phase])
   const phaseRef = useRef(phase)
   phaseRef.current = phase
   const go = useCallback((p: Phase) => { phaseRef.current = p; setPhase(p) }, [])
@@ -141,6 +167,19 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
   const openingAtFace = useRef<{ id: number; buffer: AudioBuffer; timer: ReturnType<typeof setTimeout> } | null>(null)
   const history = useRef<HistoryItem[]>([])
   const lastActivity = useRef(Date.now())
+  /**
+   * The turn whose answer was a GOODBYE (turn.ts `bye` — owner, 2026-10-28: "when someone says good bye it should turn off
+   * itself"): when that answer's voice has played, the window closes instead of listening again. A newer turn — talking
+   * over the thank-you, a chip — has another number, so a goodbye the person talked over is no goodbye (plan review, opus).
+   */
+  const byeTurn = useRef(0)
+  /**
+   * However the window closes — a goodbye, idle, the session's end, a hidden tab — it closes ONCE. ⚠️ Per OPENING: this frame
+   * is the iframe's own document, which the host creates on open and removes on close (concierge-host.tsx renders nothing
+   * while closed) — so `closed`, `byeTurn` and the hidden-tab listener live and die with one opening, never a next one.
+   */
+  const closed = useRef(false)
+  const closeRef = useRef<(why: string) => void>(() => {})
   /** A Start under way (begin): a second tap is ignored. */
   const starting = useRef(false)
   const touch = () => { lastActivity.current = Date.now() }
@@ -180,6 +219,8 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
 
   const listen = useCallback(() => {
     if (ended.current) return
+    // Every way an answer's voice finishes (the speakers, the face, the watchdog, nothing to say) comes back here.
+    if (byeTurn.current && byeTurn.current === turnGen.current) { closeRef.current('goodbye'); return }
     go('listening')
     // Without its ears the window still offers something to tap after every answer (offerStarters keeps an answer's own).
     if (session.current && !liveStt.current) startersRef.current()
@@ -304,13 +345,26 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
     toHost({ type: 'eno-concierge:chat' })
   }, [endSession, releaseAll])
 
-  /** Done here (idle, the session's end, refused): the host closes the window, which ends everything above. */
+  /** Done here (idle, the session's end, refused, a goodbye, a hidden tab): the host closes the window, which ends everything
+   *  above. Once — whichever comes first; the microphone and the voice go even if the end's POST fails. */
   const closeWindow = useCallback((why: string) => {
+    if (closed.current) return
+    closed.current = true
     mark(`closing: ${why}`)
     endSession()
     releaseAll()
     toHost({ type: 'eno-concierge:close' })
   }, [endSession, releaseAll])
+  closeRef.current = closeWindow
+
+  // ⛔ A HIDDEN TAB CLOSES THE WINDOW (owner, 2026-10-28: "when user switches tab without closing concierge concierge should
+  // close so it wont waste tokens and tts sst money"): live listening and the voice are billed while they are open, and a
+  // phone suspends a hidden page's timers — so at once, not after a delay that may never run.
+  useEffect(() => {
+    const onVisibility = () => { if (document.visibilityState === 'hidden') closeRef.current('tab hidden') }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [])
 
   const readAnswer = async (res: Response, onLine: (l: Line) => void) => {
     const reader = res.body!.getReader()
@@ -396,6 +450,13 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
           return
         }
         if (l.kind === 'chips') { setChips(l.chips); return }
+        if (l.kind === 'bye') {
+          mark('goodbye')
+          byeTurn.current = gen
+          // Its voice already played (or there was none): nothing more comes back to listen() — closed now.
+          if (phaseRef.current === 'listening') closeRef.current('goodbye')
+          return
+        }
         if (l.kind === 'error') { mark('no answer', l.error); setNotice(l.error) }
       })
       clearTimeout(timer)
@@ -754,9 +815,7 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
       {(phase === 'intro' || phase === 'refused' || phase === 'mic_denied') && (
         <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-1.5 bg-gradient-to-t from-brand-deeper/90 to-transparent p-2 pt-6 text-center">
           {phase === 'intro' && (
-            <p className="text-3xs leading-snug text-primary-foreground/85">
-              {tr('Talk to find things on eno. Soniox turns your voice into text and speaks the answers OpenAI writes; eno keeps no recording or transcript.', 'Nói để tìm trên eno. Soniox chuyển giọng nói thành chữ và đọc câu trả lời do OpenAI viết; eno không lưu bản ghi âm hay nội dung trò chuyện.')}
-            </p>
+            <p key={fact % facts.length} className="text-3xs leading-snug text-primary-foreground/85">{facts[fact % facts.length]}</p>
           )}
           {phase === 'refused' && (
             <p className="text-3xs leading-snug text-primary-foreground/85">
@@ -776,6 +835,13 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
             </Button>
           )}
           {phase !== 'intro' && chatButton}
+          {/* The text assistant one tap away from the start too — the fallback, never only for a failure (owner, 2026-10-28:
+              "the message one is fallback"). */}
+          {phase === 'intro' && (
+            <Button size="none" variant="link" className="text-3xs font-normal text-primary-foreground/85 underline" onClick={toChat}>
+              {tr('Prefer typing? Chat with eno AI', 'Muốn gõ chữ? Chat với eno AI')}
+            </Button>
+          )}
         </div>
       )}
 

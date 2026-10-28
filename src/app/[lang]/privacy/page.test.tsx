@@ -58,6 +58,25 @@ async function policy(edition: 'marketplace' | 'services', lang: 'en' | 'vi' = '
   return document.body.textContent ?? ''
 }
 
+describe('/privacy — the voice guide (owner, 2026-10-28: "processor not important add to privacy")', () => {
+  it('OpenAI and Soniox as recipients, Google as the backup, the cross-border list, and the "Voice guide" paragraph — both languages', async () => {
+    const en = await policy('marketplace')
+    const vi = await policy('marketplace', 'vi')
+    for (const t of [
+      'Only when you talk to eno’s voice guide: the words it heard, your last few turns with it, and a summary of the eno.vn page you are on',
+      'Only when you talk to eno’s voice guide: your voice, streamed while the guide is listening, to turn it into text; and the guide’s answers, to speak them aloud. We keep no recording.',
+      'And, only when OpenAI is unavailable or cannot answer in time, what eno’s voice guide would have sent to OpenAI (see OpenAI).',
+      'Voice guide: if you open eno’s voice guide (from ✨) and tap Start, your voice is streamed to Soniox while the guide listens',
+      'We keep a count of how long your account used the guide that day, for two days, to apply its daily limit.',
+    ]) expect(en, t).toContain(t)
+    for (const t of [
+      'Chỉ khi bạn nói chuyện với trợ lý giọng nói của eno: giọng nói của bạn, truyền trực tiếp trong lúc trợ lý đang nghe',
+      'Trợ lý giọng nói: nếu bạn mở trợ lý giọng nói của eno (từ ✨) và bấm Bắt đầu',
+      'Cloudflare, Microsoft, Google, Apple, Anthropic, OpenAI, Soniox, Resend',
+    ]) expect(vi, t).toContain(t)
+  })
+})
+
 describe('/privacy — its text and its date move together (commit gate B2)', () => {
   it('⛔ the policy as rendered matches PRIVACY_TEXT_FINGERPRINT — a change to the text must decide its date', async () => {
     // The build-time switches the page reads, pinned empty (commit gate B4, opus): a shell or CI env that sets them
@@ -357,7 +376,7 @@ describe('/privacy — Sign in with Apple', () => {
   it('⛔ account information and the cross-border notice name Apple', async () => {
     const text = await policy('marketplace')
     expect(text).toContain('if you use Sign in with Apple, your name from Apple — only the first time, and only if you choose to share it')
-    expect(text).toContain('Cloudflare, Microsoft, Google, Apple, Anthropic, Resend')
+    expect(text).toContain('Cloudflare, Microsoft, Google, Apple, Anthropic, OpenAI, Soniox, Resend')
   })
 
   it('⛔ D14: the Meta row and the Advertising paragraph say the email hash is never sent for an Apple account or a relay address', async () => {
@@ -406,7 +425,7 @@ describe('/privacy — Sign in with Apple', () => {
     // the Google row: what is sent, what never is, on the CV reader's terms — and its purpose, between the pinned clauses
     expect(en).toContain('And, only when you tap “Improve with AI” under “About you” in the teacher profile form, to suggest a better About text: the About text as you wrote it, without any sentence where we find contact details, and your answers in that form (the subjects and languages you teach,')
     expect(en).toContain('the work you want and your headline) — never the name or phone number fields of the form (a name you write in the About text goes with it), your email address, photo, video, CV, expected salary, start date, cover lessons or any consent — on the same terms.')
-    expect(en).toContain('checking that a teacher’s profile photo is a real photo showing a face, improving a teacher’s “About you” text when they ask, and suggesting an outcome to our team when it reviews a report or dispute (a member of our team decides).')
+    expect(en).toContain('checking that a teacher’s profile photo is a real photo showing a face, improving a teacher’s “About you” text when they ask, and suggesting an outcome to our team when it reviews a report or dispute (a member of our team decides); and answering for eno’s voice guide when OpenAI is unavailable or cannot answer in time.')
     // the teacher paragraph: when, to whom, never what, Google's terms; the form keeps it; the records and the export
     expect(en).toContain('If you tap “Improve with AI” under “About you”, Google’s Gemini AI reads the About text as you wrote it — any sentence where we find contact details is left out —')
     expect(en).toContain('about your teaching, qualifications, nationality and languages,')
@@ -562,9 +581,9 @@ describe('/privacy — teacher job matching (Anthropic)', () => {
   })
 
   it('⛔ lists Anthropic among the transfers outside Vietnam, in both languages', async () => {
-    expect(await policy('marketplace')).toContain('Cloudflare, Microsoft, Google, Apple, Anthropic, Resend')
+    expect(await policy('marketplace')).toContain('Cloudflare, Microsoft, Google, Apple, Anthropic, OpenAI, Soniox, Resend')
     cleanup()
-    expect(await policy('marketplace', 'vi')).toContain('Cloudflare, Microsoft, Google, Apple, Anthropic, Resend')
+    expect(await policy('marketplace', 'vi')).toContain('Cloudflare, Microsoft, Google, Apple, Anthropic, OpenAI, Soniox, Resend')
   })
 
   it('describes the matching as automated processing — the bar, the email limits, who sees the score, how to stop it', async () => {

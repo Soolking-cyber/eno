@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useState } from 'react'
 import { flushSync } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useParams, usePathname } from 'next/navigation'
+import { useParams, usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
@@ -14,6 +14,8 @@ import { DashboardFetchError, useSignInAgain } from '@/components/marketplace/da
 import { Search, Trash2, X, Sparkles, Check, Undo2, Tag, MoreHorizontal, AlertTriangle } from '@/components/ui/icons'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
+import { askForHelp } from '@/lib/concierge/client'
+import { variantOfLanguage } from '@/lib/lang-variant'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
@@ -39,6 +41,7 @@ export function ConversationList() {
   // document had no sb- cookie) is what lets the guest state paint before hydration — see below.
   const guest = !loading && !user
   const { lang, tr } = useLanguage()
+  const router = useRouter()
   const { convos, convosError, convosRetrying, deleteConvo, refreshConvos, retryConvos, prefetchThread } = useChat()
   const { id: activeId } = useParams<{ id?: string }>()
   const pathname = usePathname()
@@ -159,9 +162,17 @@ export function ConversationList() {
             hold the page's one ask (page-asks.ts) with no way to close it (gate, 2026-10-05). */}
         {/\/messages\/?$/.test(pathname ?? '') && <PushOptInCard surface="inbox" className="mb-2" />}
         {/* eno AI — pinned at the top; always available (a chat with the AI assistant). */}
+        {/* ⚠️ A plain tap asks for help the way every "Ask eno AI" does (client.ts askForHelp — owner, 2026-10-28: the voice
+            guide first, this chat the fallback); a modified click (new tab, new window) still just follows the link. */}
         <Link
           href="/messages/ai"
           scroll={false}
+          onClick={(e) => {
+            // …and in that chat already (a desktop's split view) the row stays the chat (commit review round 3, opus).
+            if (aiActive || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+            e.preventDefault()
+            void askForHelp({ push: (href) => router.push(href, { scroll: false }) }, variantOfLanguage(lang))
+          }}
           className={cn('mb-1 flex items-center gap-3 rounded-xl p-2.5 transition-colors active:bg-tint/60', aiActive ? 'bg-muted text-accent-foreground' : 'hover:bg-muted')}
         >
           {/* The chrome coin (icon-language §6), not a solid disc: fully-saturated brand is

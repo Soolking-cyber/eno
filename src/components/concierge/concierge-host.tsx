@@ -12,8 +12,8 @@ import { peekWard, provinceByCode } from '@/lib/vn-areas'
 import { isNativeAppClient } from '@/lib/app-review-gates'
 import { IS_SERVICES } from '@/lib/edition'
 import {
-  CONCIERGE_FRAME_PATH, CONCIERGE_OPEN_EVENT, areaForGo, isConciergeHiddenPath, safeConciergeHref, setConciergeAvailable,
-  type ConciergeMessage,
+  CONCIERGE_ASK_EVENT, CONCIERGE_FRAME_PATH, CONCIERGE_OPEN_EVENT, areaForGo, conciergeAvailable, isConciergeHiddenPath,
+  resetConciergeKnown, safeConciergeHref, setConciergeAvailable, takePendingOpen, type ConciergeMessage,
 } from '@/lib/concierge/client'
 
 /** How often the page may ask again whether this account may open the window (the server checks every turn anyway). */
@@ -46,7 +46,10 @@ export function ConciergeHost() {
   // every CONFIG_EVERY_MS (review, opus: a phone that switches apps asked on every return). Never on eno.forum, which has
   // no guide (config.ts), nor in the native apps (below): there ✨ stays the text assistant without asking.
   useEffect(() => {
-    if (!userId || IS_SERVICES || isNativeAppClient()) return
+    // Decided without asking: nobody signed in, eno.forum, the native apps — the ✨ goes to the text assistant at once.
+    if (!userId || IS_SERVICES || isNativeAppClient()) { setConciergeAvailable(false); return }
+    // This account's answer is not known until it is asked (a ✨ tapped meanwhile waits for it — client.ts askForHelp).
+    resetConciergeKnown()
     let cancelled = false
     let asked = 0
     const ask = () => {
@@ -57,15 +60,20 @@ export function ConciergeHost() {
         // ⛔ Not in the native apps (review, opus): they ask the `app-ai-notice` question before voice leaves the phone, and
         // the window does not — nor can their webview open the microphone yet (PLAN §4). ✨ stays the text assistant there.
         .then((b) => { if (!cancelled) setConciergeAvailable(!!b?.open && !isNativeAppClient()) })
-        .catch(() => { asked = 0 /* a blip is not "closed": the next look decides */ })
+        // A blip is not "closed" (the next look decides) — but it is an answer for now: a ✨ tapped meanwhile does not wait
+        // 2 s for nothing (commit review round 3, opus).
+        .catch(() => { asked = 0; if (!cancelled) setConciergeAvailable(conciergeAvailable()) })
     }
     const onVisible = () => { if (document.visibilityState === 'visible') ask() }
     document.addEventListener('visibilitychange', onVisible)
+    // A ✨ tapped before the first look (client.ts askForHelp waits for the answer): asked now.
+    window.addEventListener(CONCIERGE_ASK_EVENT, ask)
     const t = window.setTimeout(ask, 1_500)
     return () => {
       cancelled = true
       window.clearTimeout(t)
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener(CONCIERGE_ASK_EVENT, ask)
       // ⛔ Another account, or none: the window (and its microphone) goes with the old one.
       setConciergeAvailable(false)
       setOpen(false)
@@ -82,6 +90,11 @@ export function ConciergeHost() {
   // A page the window never floats over CLOSES it — a running microphone is never just hidden.
   const path = publicPathname(pathname)
   useEffect(() => { if (open && isConciergeHiddenPath(path)) setOpen(false) }, [open, path])
+  // Help asked for in the messenger (client.ts askForHelp): the app moved to the explorer, and the window opens there.
+  // Taken on the page it was asked for, available or not (client.ts takePendingOpen), opened only if this account may.
+  useEffect(() => {
+    if (!open && takePendingOpen(path) && conciergeAvailable() && !isConciergeHiddenPath(path)) setOpen(true)
+  }, [open, path])
 
   // While it is open the floating support / back-to-top cluster steps aside (back-to-top.tsx reads this attribute).
   useEffect(() => {

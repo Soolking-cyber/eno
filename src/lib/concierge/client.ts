@@ -3,6 +3,9 @@
 import { useSyncExternalStore } from 'react'
 import { isClassroomPath } from '@/lib/classroom/host'
 import { isPostFlowPath } from '@/lib/post-flow-path'
+import { explorerFallbackUrl } from '@/lib/explorer-presence'
+import { hereVariant } from '@/lib/lang-pinned'
+import { publicPathname } from '@/lib/lang-variant'
 
 /**
  * The voice concierge on the PAGE side — what the ✨ "Ask eno AI" buttons and the floating window's host share. The window
@@ -28,13 +31,29 @@ export function isConciergeHiddenPath(pathname: string | null | undefined): bool
 
 /** May this account open the window now (GET /api/concierge/config, read by the host)? */
 let available = false
+/** Has the host decided, for this page's account (asked, or nobody signed in)? */
+let known = false
 const subs = new Set<() => void>()
+const knownWaiters = new Set<() => void>()
 export function setConciergeAvailable(v: boolean): void {
+  known = true
+  const waiting = [...knownWaiters]
+  knownWaiters.clear()
+  waiting.forEach((f) => f())
   if (available === v) return
   available = v
   subs.forEach((f) => f())
 }
 export const conciergeAvailable = (): boolean => available
+/**
+ * The host is about to ask for THIS account (a sign-in, an account change): not known again until it answers (commit
+ * review, codex + opus — a signed-out page, or the moment auth loads, had marked it known for good, so a ✨ tapped in the
+ * second before the real answer went to the text chat).
+ */
+export function resetConciergeKnown(): void {
+  known = false
+  pendingOpen = null
+}
 export function useConciergeAvailable(): boolean {
   return useSyncExternalStore(
     (f) => { subs.add(f); return () => { subs.delete(f) } },
@@ -47,6 +66,79 @@ export function useConciergeAvailable(): boolean {
 export const CONCIERGE_OPEN_EVENT = 'eno:concierge-open'
 export function openConcierge(): void {
   window.dispatchEvent(new Event(CONCIERGE_OPEN_EVENT))
+}
+/** "Ask now": a tap that came before the host's first look (it waits for the page to settle) — the host asks at once. */
+export const CONCIERGE_ASK_EVENT = 'eno:concierge-ask'
+/** Resolves once the host knows whether this account may open the window, or after `ms` (then: as unknown, the text). */
+function whenKnown(ms: number): Promise<void> {
+  if (known) return Promise.resolve()
+  window.dispatchEvent(new Event(CONCIERGE_ASK_EVENT))
+  return new Promise((resolve) => {
+    const done = () => { clearTimeout(t); knownWaiters.delete(done); resolve() }
+    const t = setTimeout(done, ms)
+    knownWaiters.add(done)
+  })
+}
+
+/**
+ * Pages the window never floats over that the person can LEAVE for it without losing anything — the messenger: asking for
+ * help there opens the explorer with the guide over it. Every other such page (the post flow, sign-in, the classroom, the
+ * admin, a teacher's profile form) keeps the text assistant: leaving would drop what is being filled in, or the page owns
+ * the microphone.
+ */
+const GUIDE_VIA_EXPLORER = /^\/messages(?:\/|$)/
+/**
+ * An open asked for on such a page — FOR THE PAGE IT MOVED TO, within PENDING_OPEN_MS (commit review, codex + opus: bound to
+ * nothing, a move that failed or was superseded opened the guide on a later page). The host takes it there, available or
+ * not, and opens the window only if this account may use it.
+ */
+let pendingOpen: { at: number; path: string; from: string } | null = null
+const PENDING_OPEN_MS = 15_000
+export function takePendingOpen(path: string): boolean {
+  const p = pendingOpen
+  if (!p) return false
+  if (p.path !== path) {
+    // Still on the page it was asked from (the move has not landed yet): kept. Anywhere else, the move was abandoned or
+    // superseded (commit review round 3, codex: /messages → /post → / opened the guide unasked) — dropped.
+    if (path !== p.from || Date.now() - p.at >= PENDING_OPEN_MS) pendingOpen = null
+    return false
+  }
+  pendingOpen = null
+  return Date.now() - p.at < PENDING_OPEN_MS
+}
+
+/**
+ * ASKING FOR HELP — every "Ask eno AI" in the app (owner, 2026-10-28: "make sure it opens avatar ai all across the app when
+ * asked for assistance the message one is fallback"): the header's ✨ and its phone row, the inbox's eno AI row, and the
+ * text assistant's own "Talk instead". The VOICE GUIDE when this account may use it — in place, or on the explorer from the
+ * messenger (above); eno AI's TEXT chat otherwise, the fallback (`voiceOnly`: a caller already in that chat stays there).
+ * Waits briefly for the host's answer, so a tap before it never falls to the text by mistake (plan review, opus).
+ * `variant`: the language the page is rendered in (the explorer twin it opens).
+ */
+let helping = false
+export async function askForHelp(nav: { push: (href: string) => void }, variant: string, opts: { voiceOnly?: boolean } = {}): Promise<void> {
+  // One at a time: a second tap while the first waits for the host's answer is the same request (commit review, opus).
+  if (helping) return
+  helping = true
+  try {
+    const asked = window.location.pathname
+    await whenKnown(2_000)
+    // ⛔ The person moved on while it waited (commit review, codex: a ✨ tap, then into the post flow — never pull them out).
+    if (window.location.pathname !== asked) return
+    const path = publicPathname(window.location.pathname)
+    if (available) {
+      if (!isConciergeHiddenPath(path)) { openConcierge(); return }
+      if (GUIDE_VIA_EXPLORER.test(path)) {
+        const to = explorerFallbackUrl(null, {}, hereVariant(variant))
+        pendingOpen = { at: Date.now(), path: publicPathname(new URL(to, window.location.origin).pathname), from: path }
+        nav.push(to)
+        return
+      }
+    }
+    if (!opts.voiceOnly) nav.push('/messages/ai')
+  } finally {
+    helping = false
+  }
 }
 
 /**

@@ -57,7 +57,7 @@ const action = (a: Partial<ConciergeAction> = {}): ConciergeEvent => ({
 })
 const say = (text: string): ConciergeEvent => ({ kind: 'say', text })
 const SPOKEN: ConciergeEvent = { kind: 'spoken' }
-const final = (chips: string[] = ['Native', 'Fluent', 'Either']): ConciergeEvent => ({ kind: 'final', said: '', chips, model: 'gpt-6-luna', calls: 1 })
+const final = (chips: string[] = ['Native', 'Fluent', 'Either'], end = false): ConciergeEvent => ({ kind: 'final', said: '', chips, model: 'gpt-6-luna', calls: 1, end })
 const S1 = 'Showing teachers who can teach in District 1.'
 const S2 = 'Do you prefer a native English speaker, or is fluent English fine?'
 
@@ -137,6 +137,41 @@ afterEach(() => {
   h.remember.mockReset()
   h.logs.length = 0
   vi.useRealTimers()
+})
+
+// ── a goodbye (owner, 2026-10-28: "when someone says good bye it should turn off itself thanking for browsing eno") ──
+describe('conciergeTurn — a goodbye closes the window after its thank-you', () => {
+  const NONE = action({ kind: 'none', category: '', filters: [] })
+  const THANKS = 'Thanks for browsing eno, and happy hunting!'
+
+  it('the whole answer is a goodbye — nothing moved, its words said, no question, no chips: `bye` after the voice, before end', async () => {
+    brain(NONE, say(THANKS), SPOKEN, final([], true))
+    const t = turn({ transcript: 'ok bye' })
+    const k = kinds(await collect(t.lines))
+    expect(k).toContain(`say:${THANKS}`)
+    expect(k.indexOf('bye')).toBeGreaterThan(lastAt(k, (x) => x.startsWith('part-end')))
+    expect(k[k.length - 1]).toBe('end')
+  })
+
+  it('⛔ never when the answer still had something to do: an action that moved, a question, chips, or `end` false', async () => {
+    for (const steps of [
+      [action(), say(THANKS), SPOKEN, final([], true)],
+      [NONE, say('Bye! Want me to save this search first?'), SPOKEN, final([], true)],
+      [NONE, say(THANKS), SPOKEN, final(['Yes', 'No'], true)],
+      [NONE, say(THANKS), SPOKEN, final([], false)],
+    ]) {
+      h.brain.mockReset()
+      brain(...steps)
+      const k = kinds(await collect(turn({ transcript: 'thanks, bye' }).lines))
+      expect(k, JSON.stringify(steps.map((x) => ('kind' in x ? x.kind : '')))).not.toContain('bye')
+    }
+  })
+
+  it('⛔ never when nothing was said (the brain\'s guards dropped every sentence: no `say` reaches the turn)', async () => {
+    brain(NONE, SPOKEN, final([], true))
+    const k = kinds(await collect(turn({ transcript: 'bye' }).lines))
+    expect(k).not.toContain('bye')
+  })
 })
 
 // ── the stream contract ─────────────────────────────────────────────────────────────────────────────────────────────────

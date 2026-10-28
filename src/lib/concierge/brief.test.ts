@@ -122,7 +122,7 @@ describe('CONCIERGE_JSON_SCHEMA (OpenAI strict structured output)', () => {
   })
 
   it('writes action, then say, then chips — and no nested key is named say (the stream reader takes the first)', () => {
-    expect(Object.keys(schema.properties!)).toEqual(['action', 'say', 'chips'])
+    expect(Object.keys(schema.properties!)).toEqual(['action', 'say', 'chips', 'end'])
     const nestedSay = objects(schema).filter(({ path, node }) => path !== '$' && Object.hasOwn(node.properties ?? {}, 'say'))
     expect(nestedSay).toEqual([])
     expect(schema.properties!.say.type).toBe('string')
@@ -152,7 +152,7 @@ describe('GEMINI_CONCIERGE_SCHEMA', () => {
   it('is the same schema with propertyOrdering on every object, in the properties’ own order', () => {
     const gemini = asNode(GEMINI_CONCIERGE_SCHEMA)
     for (const { path, node } of objects(gemini)) expect(node.propertyOrdering, path).toEqual(Object.keys(node.properties ?? {}))
-    expect(gemini.propertyOrdering).toEqual(['action', 'say', 'chips'])
+    expect(gemini.propertyOrdering).toEqual(['action', 'say', 'chips', 'end'])
     expect(withoutOrdering(gemini)).toEqual(asNode(CONCIERGE_JSON_SCHEMA))
   })
 })
@@ -191,3 +191,20 @@ describe('the brief — the trust and teacher-chat numbers it states are the cod
   })
 })
 
+describe('the goodbye (owner, 2026-10-28)', () => {
+  it('`end` is the answer\'s LAST key, a required boolean (strict mode), and Gemini writes it last too', async () => {
+    const { CONCIERGE_JSON_SCHEMA, GEMINI_CONCIERGE_SCHEMA } = await import('./brief')
+    expect(Object.keys(CONCIERGE_JSON_SCHEMA.properties ?? {})).toEqual(['action', 'say', 'chips', 'end'])
+    expect(CONCIERGE_JSON_SCHEMA.properties?.end?.type).toBe('boolean')
+    expect(CONCIERGE_JSON_SCHEMA.required).toContain('end')
+    expect(GEMINI_CONCIERGE_SCHEMA.propertyOrdering).toEqual(['action', 'say', 'chips', 'end'])
+  })
+  it('the brief says when: a goodbye or "I\'m done" in any language, one warm thank-you for browsing eno, no question, no chips', async () => {
+    const { conciergeInstructions } = await import('./brief')
+    const brief = conciergeInstructions()
+    expect(brief).toMatch(/13\. A goodbye: .*any language.*action none, chips \[\], end true.*thanking them for browsing eno, with no question/)
+    // never "thanks" alone among the examples (commit review round 4, opus: the list and the next sentence disagreed)
+    expect(brief).not.toMatch(/I'm done, thanks,/)
+    expect(brief).toMatch(/A plain thanks or ok after a result is not a goodbye, nor is a thank-you that asks for more/)
+  })
+})

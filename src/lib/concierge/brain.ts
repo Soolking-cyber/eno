@@ -25,7 +25,7 @@ export type ConciergeEvent =
   | { kind: 'action'; action: ConciergeAction }
   | { kind: 'say'; text: string }
   | { kind: 'spoken' }
-  | { kind: 'final'; said: string; chips: string[]; model: string; calls: number }
+  | { kind: 'final'; said: string; chips: string[]; model: string; calls: number; end: boolean }
 
 /**
  * A sentence ends at . ! ? or … (with any closing quote or bracket) followed by whitespace — the tutor's rule — or, in the
@@ -62,7 +62,7 @@ export async function* conciergeTurnStream(ai: GoogleGenAI | null, c: { input: s
     let emitted = false
     try {
       for await (const ev of eventsOf(brain.deltas(), c.teacherTurn, c.lang ?? 'en')) {
-        if (ev.kind === 'done') { yield { kind: 'final', said: ev.said, chips: ev.chips, model: brain.model, calls }; return }
+        if (ev.kind === 'done') { yield { kind: 'final', said: ev.said, chips: ev.chips, model: brain.model, calls, end: ev.end }; return }
         // An action of kind none moves nothing and says nothing: the next brain may still take the turn (test review).
         if (!(ev.kind === 'action' && ev.action.kind === 'none')) emitted = true
         yield ev
@@ -101,7 +101,7 @@ async function* geminiDeltas(ai: GoogleGenAI, input: string, signal: AbortSignal
   }
 }
 
-type Step = Exclude<ConciergeEvent, { kind: 'final' }> | { kind: 'done'; said: string; chips: string[] }
+type Step = Exclude<ConciergeEvent, { kind: 'final' }> | { kind: 'done'; said: string; chips: string[]; end: boolean }
 
 /**
  * Deltas of one answer → its events: `action` the moment its object closes, then each spoken sentence of `say` (through the
@@ -201,7 +201,7 @@ export async function* eventsOf(deltas: AsyncIterable<string>, teacherTurnAtStar
     if (sayDone && actionOut && !pending.length && !spokenOut) { spokenOut = true; yield { kind: 'spoken' } }
   }
   // A cut answer throws here: the caller hands over (nothing emitted) or fails the turn.
-  const whole = firstObject(json) as { action?: unknown; say?: unknown; chips?: unknown }
+  const whole = firstObject(json) as { action?: unknown; say?: unknown; chips?: unknown; end?: unknown }
   if (!actionOut) {
     actionOut = true
     const action = parseAction(JSON.stringify(whole.action ?? null))
@@ -214,7 +214,9 @@ export async function* eventsOf(deltas: AsyncIterable<string>, teacherTurnAtStar
   }
   for (const sentence of release()) yield { kind: 'say', text: sentence }
   if (!spokenOut) yield { kind: 'spoken' }
-  yield { kind: 'done', said: said.join(' '), chips: chipsOf(whole.chips, teacherTurn, said, lang) }
+  // `end` (a goodbye — brief rule 13) only as the literal true: a brain that left it out (Gemini's schema is not strict) did
+  // not say goodbye.
+  yield { kind: 'done', said: said.join(' '), chips: chipsOf(whole.chips, teacherTurn, said, lang), end: whole.end === true }
 }
 
 /** The model's action, shape-checked (its MEANING is checked by actions.ts). Anything malformed is no action. Pure. */
@@ -309,7 +311,7 @@ export function warmConciergeBrain(): void {
   if (!cfg) return
   void (async () => {
     try {
-      const input = 'Session starting: nothing was said yet. Reply with action kind "none", an empty say and no chips.'
+      const input = 'Session starting: nothing was said yet. Reply with action kind "none", an empty say, no chips and end false.'
       for await (const _ of streamJson(cfg, { instructions: conciergeInstructions(), input, schema: CONCIERGE_JSON_SCHEMA, schemaName: 'concierge_turn', maxOutputTokens: 60, signal: AbortSignal.timeout(15_000) })) {
         // its words are not used: the request opens the connection and fills the cache
       }

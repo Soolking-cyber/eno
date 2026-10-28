@@ -46,6 +46,7 @@ vi.mock('@/hooks/use-is-phone', () => ({ useIsPhone: () => h.phone.value }))
 vi.mock('./ai-concierge', () => ({ AISearchButton: () => <button type="button" aria-label="AI" /> }))
 
 import { Header } from './header'
+import { setConciergeAvailable } from '@/lib/concierge/client'
 
 function memoryStorage(): Storage {
   const map = new Map<string, string>()
@@ -111,8 +112,10 @@ describe('O-03: ✨ and Map on a phone', () => {
     render(<Header />)
     act(() => field().focus())
     await waitFor(() => expect(panel()).not.toBeNull())
+    // The host has decided (no guide for this account): askForHelp answers at once with the text assistant.
+    setConciergeAvailable(false)
     fireEvent.click(screen.getByRole('button', { name: 'Ask eno AI' }))
-    expect(h.push).toHaveBeenCalledWith('/messages/ai')
+    await waitFor(() => expect(h.push).toHaveBeenCalledWith('/messages/ai'))
     await waitFor(() => expect(panel()).toBeNull())
     act(() => field().blur())
     act(() => field().focus())

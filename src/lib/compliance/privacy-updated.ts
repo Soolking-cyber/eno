@@ -170,6 +170,12 @@
  * teacher with cover lessons on who never gave a Zalo number is told about it, in the desk chat when job messages are on
  * and nothing there waits for a reply (counted toward the two until a reply), otherwise in the app only, never while
  * paused; the time is kept (TeacherPrivate.coverZaloInvitedAt) and in the download. No new recipient, no new data read.
+ * And, the same day, PLANNED for 2026-10-29 too (owner, 2026-10-28: "processor not important add to privacy" — the voice guide's window no longer
+ * names who processes the voice): OpenAI and Soniox as recipients (their rows, the cross-border list), Google's row names the
+ * voice guide's backup answers, and "What personal data we collect" gains the voice guide — what goes where, nothing
+ * recorded or transcribed, the day's time per account for the daily limit (two days), and when the guide closes itself.
+ * NEW DISCLOSURE before the guide opens to every account (src/lib/concierge/config.ts VOICE_GUIDE_IN_PRIVACY): live with
+ * the deploy. ⛔ If it slips, re-date this value, then retake the fingerprint.
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
  * differs from the deployed commit's PUBLISHES it, and refuses unless today in Vietnam is that day (re-date it,
@@ -186,4 +192,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-29'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '7365e9bd0952c871'
+export const PRIVACY_TEXT_FINGERPRINT = '7ce40a47a3573b8e'

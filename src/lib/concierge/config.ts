@@ -27,11 +27,12 @@ export const MODE_KEY = 'concierge:mode'
 
 /**
  * ⛔ THE LEGAL PREREQUISITE OF `all`, IN CODE (commit review, codex + opus: a comment alone does not hold it): /privacy must
- * name the voice guide's recipients — Soniox, OpenAI, Google — before every account may use it. False until that /privacy
- * change ships (its commit flips this; config.test.ts checks the page names them whenever it is true). Until then `all`
- * admits the staff, like `staff`.
+ * name the voice guide's recipients — Soniox, OpenAI, Google — before every account may use it. TRUE since the /privacy
+ * change of 2026-10-29 (owner, 2026-10-28: "processor not important add to privacy" — the OpenAI and Soniox rows, Google's
+ * backup line and the "Voice guide" paragraph; config.test.ts checks the page names them whenever this is true). `all` still
+ * waits for the switch itself (scripts/concierge-mode.mjs all — the owner's).
  */
-export const VOICE_GUIDE_IN_PRIVACY = false
+export const VOICE_GUIDE_IN_PRIVACY = true
 /** How long one process trusts its read of the switch; a session start reads it fresh. */
 const MODE_CACHE_MS = 30_000
 let cached: { at: number; mode: ConciergeMode } | null = null

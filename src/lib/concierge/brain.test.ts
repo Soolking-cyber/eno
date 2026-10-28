@@ -71,6 +71,14 @@ const doneOf = (steps: Step[]) => steps.find((s): s is Extract<Step, { kind: 'do
 /** The first chunk boundary at or after `offset` when `json` is fed `size` characters at a time. */
 const chunkEnd = (json: string, offset: number, size: number) => Math.min(json.length, Math.ceil(offset / size) * size)
 
+describe('eventsOf — the goodbye flag (brief rule 13)', () => {
+  const answer = (end: unknown) => `{"action":{"kind":"none","mode":"refine","category":"","subcategory":"","filters":[],"search":"","target":""},"say":"Thanks for browsing eno!","chips":[]${end === undefined ? '' : `,"end":${JSON.stringify(end)}`}}`
+  it('`end` only as the literal true; left out (Gemini is not strict) or anything else is no goodbye', async () => {
+    expect(doneOf((await read(answer(true))).steps.map((x) => x.step))?.end).toBe(true)
+    for (const v of [false, undefined, 'true', 1]) expect(doneOf((await read(answer(v))).steps.map((x) => x.step))?.end, String(v)).toBe(false)
+  })
+})
+
 describe('eventsOf — the languages the guide speaks (2026-10-28)', () => {
   const answer = (say: string, chips: string[] = []) => `{"action":{"kind":"none","mode":"refine","category":"","subcategory":"","filters":[],"search":"","target":""},"say":${JSON.stringify(say)},"chips":${JSON.stringify(chips)}}`
 
@@ -161,14 +169,14 @@ describe('eventsOf — the order: action → say(s) → spoken → done', () => 
         { step: { kind: 'say', text: S1 }, at: chunkEnd(SAMPLE, FIRST_AT, size) },
         { step: { kind: 'say', text: S2 }, at: chunkEnd(SAMPLE, SAY_END, size) },
         { step: { kind: 'spoken' }, at: chunkEnd(SAMPLE, SAY_END, size) },
-        { step: { kind: 'done', said: SAY, chips: CHIPS }, at: SAMPLE.length },
+        { step: { kind: 'done', said: SAY, chips: CHIPS, end: false }, at: SAMPLE.length },
       ])
     })
   }
 
   it('the whole answer in one delta: the same steps', async () => {
     expect(await stepsOf(SAMPLE, { teacherTurn: true })).toEqual([
-      { kind: 'action', action: ACTION }, { kind: 'say', text: S1 }, { kind: 'say', text: S2 }, { kind: 'spoken' }, { kind: 'done', said: SAY, chips: CHIPS },
+      { kind: 'action', action: ACTION }, { kind: 'say', text: S1 }, { kind: 'say', text: S2 }, { kind: 'spoken' }, { kind: 'done', said: SAY, chips: CHIPS, end: false },
     ])
   })
 })
@@ -185,7 +193,7 @@ describe('eventsOf — ⛔ no sentence before the action (PLAN §10: Gemini writ
         { step: { kind: 'say', text: S1 }, at },
         { step: { kind: 'say', text: S2 }, at },
         { step: { kind: 'spoken' }, at },
-        { step: { kind: 'done', said: SAY, chips: CHIPS }, at: GEMINI_ORDER.length },
+        { step: { kind: 'done', said: SAY, chips: CHIPS, end: false }, at: GEMINI_ORDER.length },
       ])
     })
   }
@@ -202,13 +210,13 @@ describe('eventsOf — ⛔ no sentence before the action (PLAN §10: Gemini writ
       { kind: 'say', text: 'Happy to help.' },
       { kind: 'say', text: 'What are you looking for?' },
       { kind: 'spoken' },
-      { kind: 'done', said: 'Happy to help. What are you looking for?', chips: [] },
+      { kind: 'done', said: 'Happy to help. What are you looking for?', chips: [], end: false },
     ])
   })
 
   it('an answer with no say: the action, spoken, done', async () => {
     expect(await stepsOf(JSON.stringify({ action: ACTION, chips: [] }), { size: 5 })).toEqual([
-      { kind: 'action', action: ACTION }, { kind: 'spoken' }, { kind: 'done', said: '', chips: [] },
+      { kind: 'action', action: ACTION }, { kind: 'spoken' }, { kind: 'done', said: '', chips: [], end: false },
     ])
   })
 })
@@ -442,7 +450,7 @@ describe('conciergeTurnStream — OpenAI first', () => {
     expect(r.error).toBeNull()
     expect(r.events).toEqual([
       { kind: 'action', action: ACTION }, { kind: 'say', text: S1 }, { kind: 'say', text: S2 }, { kind: 'spoken' },
-      { kind: 'final', said: SAY, chips: CHIPS, model: 'gpt-6-luna', calls: 1 },
+      { kind: 'final', said: SAY, chips: CHIPS, model: 'gpt-6-luna', calls: 1, end: false },
     ])
     expect(g.generateContentStream).not.toHaveBeenCalled()
     expect(llm.streamJson).toHaveBeenCalledTimes(1)
@@ -468,7 +476,7 @@ describe('conciergeTurnStream — ⛔ a hand-over only BEFORE any output', () =>
     const r = await turn(g.ai)
     expect(r.error).toBeNull()
     expect(kinds(r.events)).toEqual(['action', 'say', 'say', 'spoken', 'final'])
-    expect(finalOf(r.events)).toEqual({ kind: 'final', said: SAY, chips: CHIPS, model: PRIMARY_MODEL, calls: 2 })
+    expect(finalOf(r.events)).toEqual({ kind: 'final', said: SAY, chips: CHIPS, model: PRIMARY_MODEL, calls: 2, end: false })
     expect(g.generateContentStream).toHaveBeenCalled()
   })
 
@@ -569,7 +577,7 @@ describe('conciergeTurnStream — Gemini alone (no OpenAI key)', () => {
     const g = gemini(GEMINI_ORDER)
     const r = await turn(g.ai)
     expect(r.error).toBeNull()
-    expect(finalOf(r.events)).toEqual({ kind: 'final', said: SAY, chips: CHIPS, model: PRIMARY_MODEL, calls: 1 })
+    expect(finalOf(r.events)).toEqual({ kind: 'final', said: SAY, chips: CHIPS, model: PRIMARY_MODEL, calls: 1, end: false })
     const req = g.generateContentStream.mock.calls[0][0] as { model: string; contents: unknown; config: Record<string, unknown> & { thinkingConfig: { thinkingLevel: unknown }; abortSignal: unknown } }
     expect(req.model).toBe(PRIMARY_MODEL)
     expect(req.contents).toEqual([{ role: 'user', parts: [{ text: INPUT }] }])

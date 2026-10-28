@@ -203,4 +203,3 @@ describe('areaForGo — the area a `go` sets on the explorer (review, opus: ever
     expect(areaForGo(q('category=rentals'), q('category=rentals&province=79&ward=26734'))).toEqual({ province: null, ward: null })
   })
 })
-

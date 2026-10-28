@@ -12,7 +12,7 @@ import { preloadSignIn, useAuth } from '@/context/auth-context'
 import { useFavoriteCount } from '@/context/favorites-context'
 import { useSafeBack } from '@/lib/safe-back'
 import { useBackToClose } from '@/lib/back-to-close'
-import { LANG_VARIANTS, publicPathname, variantOfLanguage } from '@/lib/lang-variant'
+import { LANG_VARIANTS, variantOfLanguage } from '@/lib/lang-variant'
 import { isBrowseSurface } from '@/lib/browse-surface'
 import { LANGUAGES } from '@/lib/i18n/langs'
 import { hereVariant, localizedHref } from '@/lib/lang-pinned'
@@ -46,7 +46,7 @@ import { HEADER_SEARCH_INPUT_ID } from '@/lib/header-search'
 import { STROKE_NAV } from '@/lib/icon-tokens'
 // ⚠️ The rail's REAL open state, not a guess at it — see the logo's className below.
 import { useAccountPanel } from './account-panel'
-import { conciergeAvailable, isConciergeHiddenPath, openConcierge } from '@/lib/concierge/client'
+import { askForHelp } from '@/lib/concierge/client'
 
 // The typeahead listbox this bar owns. Static (one Header per page), and distinct
 // from the hero bar's so both can be in the DOM at once without id collisions.
@@ -568,15 +568,13 @@ export function Header() {
       router.push(explorerFallbackUrl(categoryHasMap(categoryFromPath(pathname)) ? pathname : null, { view: 'map' }, navVariant()))
     }
   }
-  // The AI concierge — likewise the pill's ✨ (sm+) and the phone panel's first row. The VOICE concierge's floating window
-  // for the accounts its switch admits (src/components/concierge — staff only today), the text assistant for everyone else.
+  // The AI concierge — likewise the pill's ✨ (sm+) and the phone panel's first row: the VOICE guide's floating window for
+  // the accounts its switch admits, on the explorer when asked from the messenger; the text assistant everywhere else and
+  // for everyone else (client.ts askForHelp — the one rule every "Ask eno AI" follows).
   const openAi = () => {
     releaseSearchPanel()
     setShowSuggestions(false)
-    // ⛔ Where the window never floats (messages, the post flow, admin, sign-in…) the host ignores an open: the text
-    // assistant there, as before — a ✨ that does nothing is a dead button (review, opus).
-    if (conciergeAvailable() && !isConciergeHiddenPath(publicPathname(window.location.pathname))) openConcierge()
-    else router.push('/messages/ai')
+    void askForHelp(router, variant)
   }
 
   const applyArea = ({ province: p, ward: w, nearby: nb }: { province: Geo | null; ward: Geo | null; nearby: Nearby | null }) => {

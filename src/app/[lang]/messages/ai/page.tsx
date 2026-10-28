@@ -20,6 +20,8 @@ import { fmtTime } from '@/lib/dates'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { aiConsentNeeded, askAiConsentAnswer, type AiConsent } from '@/lib/ai-consent'
 import { useAiConsent } from '@/hooks/use-ai-consent'
+import { askForHelp, useConciergeAvailable } from '@/lib/concierge/client'
+import { variantOfLanguage } from '@/lib/lang-variant'
 
 // The "eno AI" conversation — rendered as a native thread in the messages tab (the AI
 // is just another contact). Self-contained: messages live in component state +
@@ -37,6 +39,9 @@ const STORE_KEY = 'eno:ai_chat_v1'
 export default function AiThreadPage() {
   const router = useRouter()
   const { tr, lang } = useLanguage()
+  // The voice guide is the first way to ask for help, this chat its fallback (owner, 2026-10-28): when this account may use
+  // it, the header offers it here too (client.ts askForHelp — on the explorer, the window over it).
+  const voiceGuide = useConciergeAvailable()
   const { user, openSignIn } = useAuth()
   // Back chevron: pop this thread off the stack rather than pushing /messages on top of it.
   const onBack = useSafeBack('/messages')
@@ -194,6 +199,11 @@ export default function AiThreadPage() {
               : tr('AI shopping assistant', 'Trợ lý mua sắm AI')}
           </div>
         </div>
+        {voiceGuide && (
+          <Button size="sm" variant="secondary" onClick={() => void askForHelp(router, variantOfLanguage(lang), { voiceOnly: true })}>
+            {tr('Talk instead', 'Nói thay vì gõ')}
+          </Button>
+        )}
       </div>
 
       {/* Messages */}

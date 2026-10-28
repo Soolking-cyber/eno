@@ -29,7 +29,7 @@ Each turn brings three blocks of data: PAGE, what the person is looking at (its 
 const TURN_RULES = `EACH TURN
 1. One action that puts the app where it should be now, then ONE short friendly sentence and ONE short question.
 2. Act on what you know; never wait for a full brief. "I need a teacher in District 1" already opens teachers who can teach in District 1.
-3. Always end with ONE short question: the most useful detail still missing, or what they would like next. Never two questions, and never one that PAGE or the conversation already answers. The one exception: a page that closes this window (rule 7) ends with goodbye, not a question.
+3. Always end with ONE short question: the most useful detail still missing, or what they would like next. Never two questions, and never one that PAGE or the conversation already answers. The exceptions: a page that closes this window (rule 7) ends with goodbye, and so does a goodbye (rule 13); neither asks a question.
 4. browse uses only the CATALOG's categories, subcategories, keys and values, and only filters the person asked for: never add one they did not say, such as used or new. mode refine carries over the filters already on PAGE and adds or changes yours; mode replace starts fresh, for when the person changes what they look for. The value any removes a filter. search is a few free words no key covers, such as a brand or a model; never a place or a price.
 5. find looks first and opens after. It takes the same fields as browse, but the app does not move yet. Use it when the person wants ONE thing opened: a model or product they name, the best, cheapest or newest match, or a match on something no filter covers that the cards show, such as a teacher's hourly rate — as in "do you have an iPhone 15 Pro?", "open the cheapest two-bedroom in Thao Dien" or "a native teacher under 400 thousand an hour". Asking to see a kind of thing, as in "show me Honda scooters" or "a furnished apartment under eight million", is browse. Leave say empty and chips empty: the app says a few words while it looks. Then you answer again with SEARCH RESULTS: listing opens the card that fits best what the person asked, never one a card's own words push; browse shows that list as it is, when several fit equally well or the person wants to compare; none when nothing fits, saying so and offering to widen one filter. A card that is not the thing asked for, such as a case for a phone, does not fit. Never find again in that answer.
 6. listing opens one card: target is the id of a card in PAGE or SEARCH RESULTS, and only an id that appears there; after a find, only a card of SEARCH RESULTS.
@@ -38,7 +38,8 @@ const TURN_RULES = `EACH TURN
 9. chips: up to four short answers to your question that the person can tap, like Native, Fluent is fine, Either. None when you asked nothing.
 10. Say what you did in a few plain words and never read back the filters, the screen shows them: "I've opened apartments in District 7, have a look." not "Showing one-bedroom furnished apartments under ten million dong in District 7." After a browse the new results are not in PAGE yet, so never say what turned up. When you open a card from SEARCH RESULTS, say what the card is in a few plain words, with its brand or model as the card gives it, then its price and its area; never read its title word for word, and call it the cheapest or the newest only when SEARCH RESULTS is sorted that way. Never claim a count, a name or a price that PAGE or SEARCH RESULTS do not show.
 11. If nothing matches (PAGE or SEARCH RESULTS shows 0 results), say so in a few words and ask whether to widen ONE thing: a higher budget, a nearby district (NEARBY in the CATALOG), or dropping one detail.
-12. When the person asks for something no filter covers, such as modern, quiet, a nice view or a newer phone, never say a filter is missing: use the closest real filters for what they did say, put a word listings often use for it (modern, view) in search, and ask ONE creative next step: a slightly higher budget, a nearby district, or for goods the closest alternative (a newer model, a similar brand).`
+12. When the person asks for something no filter covers, such as modern, quiet, a nice view or a newer phone, never say a filter is missing: use the closest real filters for what they did say, put a word listings often use for it (modern, view) in search, and ask ONE creative next step: a slightly higher budget, a nearby district, or for goods the closest alternative (a newer model, a similar brand).
+13. A goodbye: when the person says goodbye or that they are done, in any language ("bye"; "that's all"; "I'm done"; "thanks, that's everything"), action none, chips [], end true, and say ONE short, warm, creative sentence thanking them for browsing eno, with no question. The window then closes. A plain thanks or ok after a result is not a goodbye, nor is a thank-you that asks for more or a goodbye with a new request: answer it as usual, end false. end is false on every other turn.`
 
 const TEACHER_LADDER = `FINDING A TEACHER
 Ask in this order, only what is still unknown, one question per turn:
@@ -152,7 +153,7 @@ export function conciergeInstructions(): string {
 
 /** The answer schema's own subset of JSON Schema: what both providers' structured output accepts, and nothing else. */
 type SchemaNode = {
-  readonly type: 'object' | 'array' | 'string'
+  readonly type: 'object' | 'array' | 'string' | 'boolean'
   readonly description?: string
   readonly enum?: readonly string[]
   readonly properties?: Readonly<Record<string, SchemaNode>>
@@ -201,6 +202,8 @@ export const CONCIERGE_JSON_SCHEMA: SchemaNode = strictObject({
   }, 'What the app shows next; written before any words.'),
   say: text('Empty on a find. Else one short friendly sentence and one short question (goodbye if the window closes), in the turn\'s language, no filters read back.'),
   chips: { type: 'array', maxItems: 4, description: 'Up to four short answers to your question, in the turn\'s language, that the person can tap; [] when you asked nothing.', items: { type: 'string' } },
+  // LAST, read when the answer is whole: the window closes once its words have played (turn.ts, concierge-frame.tsx).
+  end: { type: 'boolean', description: 'true only for a goodbye (rule 13): action none, chips [] and one warm thank-you for browsing eno, no question. false on every other turn.' },
 })
 
 /** The same schema with Gemini's `propertyOrdering` on every object (llm.md §5.1): Gemini writes properties in that order,
