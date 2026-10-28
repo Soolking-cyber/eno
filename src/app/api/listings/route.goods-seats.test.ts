@@ -25,6 +25,8 @@ type Row = {
   verified: boolean
   status: string
   price: number
+  /** A partner link (in-app-listing.ts): set = its button leads to the partner's or source site. Absent reads as null. */
+  affiliateUrl?: string | null
 }
 
 const h = vi.hoisted(() => ({ rows: [] as unknown[] }))
@@ -100,7 +102,8 @@ vi.mock('./feed-query', () => {
     resolveFeedFilters: filters,
     buildFeedOrderBy: () => [{ rankScore: 'desc' }, { id: 'desc' }],
     getSubcategoryCounts: async () => [],
-    countListingsCached: async () => h.rows.length,
+    // Counts what it is asked to count — the home feed's `total` is the in-app count (feed-payload.ts `feedWhere`).
+    countListingsCached: async (w: unknown) => (h.rows as Row[]).filter((r) => matches(r as unknown as Record<string, unknown>, w)).length,
   }
 })
 // The licensing scope, as the real one composes it — every read must carry it.
@@ -190,14 +193,20 @@ function productionShape(): Row[] {
 }
 
 const EXPLORER = (offset: number) => `sort=newest&verified=true&limit=12&offset=${offset}&lang=en`
-async function apiPage(qs: string): Promise<Row[]> {
+async function apiBody(qs: string): Promise<{ listings: Row[]; total: number }> {
   const res = await GET(new NextRequest(`https://eno.vn/api/listings?${qs}`))
-  return (await res.json()).listings as Row[]
+  return (await res.json()) as { listings: Row[]; total: number }
 }
-/** What the home page server-renders: the real page component's seed for the explorer. */
+async function apiPage(qs: string): Promise<Row[]> {
+  return (await apiBody(qs)).listings
+}
+/** What the home page server-renders: the real page component's seed (and total) for the explorer. */
+async function ssrSeed(): Promise<{ initialListings: Row[]; initialTotal: number }> {
+  const el = (await Home({ params: Promise.resolve({ lang: 'en' }) })) as { props: { initialListings: Row[]; initialTotal: number } }
+  return el.props
+}
 async function ssrPage(): Promise<Row[]> {
-  const el = (await Home({ params: Promise.resolve({ lang: 'en' }) })) as { props: { initialListings: Row[] } }
-  return el.props.initialListings
+  return (await ssrSeed()).initialListings
 }
 /** The explorer scrolling the API from page 2 until it runs dry. */
 async function scrollFromPage2(): Promise<Row[]> {
@@ -291,5 +300,65 @@ describe('the home feed’s goods seats — server render and API agree, and pag
     h.rows = productionShape().filter((r) => !isSecondHandGoods(r))
     const plain = await apiPage('sort=newest&verified=true&limit=12&offset=0&district=d1')
     expect(ids(await ssrPage())).toEqual(ids(plain))
+  })
+})
+
+/**
+ * ⛔ THE HOME FEED CARRIES ONLY LISTINGS DEALT ON eno (owner, 2026-10-28 — in-app-listing.ts). The same end-to-end walk
+ * with production's partner-link catalogues marked: the importers, the job boards, vehicle hire, the eSIM carriers and
+ * the tickets carry `affiliateUrl`. The server render and the explorer's API pages must leave every one of them out AND
+ * still agree card for card, `total` must count what the scroll serves (or the explorer stops early or never stops), and
+ * any filtered request must keep them — they stay in their category and in search.
+ */
+describe('the home feed shows only in-app listings — server render and API agree, and pages stay exact', () => {
+  const LINKED = new Set([
+    'bds', 'nhatot', 'muaban', 'rever', 'honeycomb', 'vinwonders', 'mobifone', 'viettel',
+    ...JOB_SELLER_IDS.slice(0, 4), ...VEHICLE_SELLER_IDS.slice(0, 3),
+  ])
+  const linkedShape = (): Row[] => productionShape().map((r) => ({ ...r, affiliateUrl: LINKED.has(r.sellerId) ? `https://partner.example/${r.id}` : null }))
+  const inApp = (rows: Row[]) => rows.filter((r) => !r.affiliateUrl)
+
+  it('⛔ no partner-link card in the server-rendered twelve or the API’s page 1 — the same twelve, goods seats intact', async () => {
+    h.rows = linkedShape()
+    const ssr = await ssrPage()
+    expect(ssr).toHaveLength(12)
+    expect(ssr.filter((r) => r.affiliateUrl)).toEqual([])
+    expect(ids(await apiPage(EXPLORER(0)))).toEqual(ids(ssr))
+    // "At least": with the partner catalogues gone, the goods shops lead the deal on their own.
+    expect(goodsIn(ssr, 4)).toBeGreaterThanOrEqual(2)
+    expect(goodsIn(ssr, 12)).toBeGreaterThanOrEqual(4)
+  })
+
+  it('⛔ the scroll serves every in-app listing exactly once and none with a link; both totals count exactly those', async () => {
+    h.rows = linkedShape()
+    const seed = await ssrSeed()
+    const expected = inApp(h.rows as Row[]).length
+    expect(expected).toBeLessThan(h.rows.length)
+    expect(seed.initialTotal).toBe(expected)
+    expect((await apiBody(EXPLORER(12))).total).toBe(expected)
+    const all = [...seed.initialListings, ...(await scrollFromPage2())]
+    expect(new Set(ids(all)).size).toBe(all.length)
+    expect(all.filter((r) => r.affiliateUrl)).toEqual([])
+    expect(all).toHaveLength(expected)
+  })
+
+  it.each([
+    ['an area', 'district=d1'],
+    ['a category', 'category=rentals'],
+    ['words', 'q=scooter'],
+    ['another order', 'sort=price-low'],
+    // A storefront's own feed (the explorer's seller-scoped request): a partner's shop shows its listings there.
+    ['a storefront', 'seller=vinwonders'],
+  ])('a request with %s keeps the partner-link listings (they stay in categories and search)', async (_name, qs) => {
+    h.rows = linkedShape()
+    const body = await apiBody(`verified=true&limit=100&offset=0&${qs}`)
+    expect(body.listings.some((r) => r.affiliateUrl)).toBe(true)
+    expect(body.total).toBe(h.rows.length)
+  })
+
+  it('an empty link counts as none, as the serializer’s `isPartnerBooking` reads it', async () => {
+    h.rows = linkedShape().map((r) => (r.sellerId === 'bds' ? { ...r, affiliateUrl: '' } : r))
+    expect((await ssrSeed()).initialTotal).toBe(inApp(h.rows as Row[]).length)
+    expect((await apiBody(EXPLORER(0))).total).toBe(inApp(h.rows as Row[]).length)
   })
 })

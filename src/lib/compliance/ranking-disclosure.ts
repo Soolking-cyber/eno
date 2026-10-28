@@ -104,14 +104,15 @@ export const FEATURED_BOOST_PCT = Math.round(RANK.FEATURED_BOOST * 100)
  * The date /legal/ranking prints as "Last updated" (ISO, Vietnam) — the page's OWN date, not
  * LEGAL_AMENDMENT's.
  *
- * ⛔ TIED TO THE QUY CHẾ'S VERSION 3 FOR THIS DEPLOY, SO THERE IS ONE DATE TO SET. UX program 2's ranking
- * change (the title tier, the condition words, the vehicle storefronts' shared seat, the home feed's
- * second-hand floor) reaches this page and Quy chế Article 14 in the SAME deploy, so the page's date is
+ * ⛔ TIED TO THE QUY CHẾ'S VERSION 4 FOR THIS DEPLOY, SO THERE IS ONE DATE TO SET. The home page's in-app rule
+ * (owner, 2026-10-28 — src/lib/in-app-listing.ts: the home feed and its rails show only listings dealt on the
+ * platform) reaches this page (#home) and Quy chế Article 14 in the SAME deploy, so the page's date is
  * REGULATIONS_AMENDMENT.published — the placeholder the deployer replaces with the real deploy day there,
- * held to that day by the deploy gate. Do not re-date it at any other time.
+ * held to that day by the deploy gate. Do not re-date it at any other time. (It was tied to version 3 the same
+ * way, for UX program 2's ranking change of 05/10/2026.)
  * ⚠️ THE TIE IS FOR THIS CHANGE ONLY. The next change to this page that ships WITHOUT a Quy chế amendment
  * replaces it with its own literal deploy day; a later Quy chế amendment that does not change this page
- * must not move it either — legal-copy.test.tsx holds the tie only while REGULATIONS_VERSION is '3'.
+ * must not move it either — legal-copy.test.tsx holds the tie only while REGULATIONS_VERSION is '4'.
  *
  * ⚠️ WHY ITS OWN DATE (review, 2026-10-04). Until then the page printed LEGAL_AMENDMENT.published, which is
  * true only while the page changes WITH an amendment. This disclosure follows the code (a ranking change

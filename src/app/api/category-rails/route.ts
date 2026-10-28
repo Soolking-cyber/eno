@@ -1,4 +1,5 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
+import { inAppOnly } from '@/lib/in-app-listing'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -50,7 +51,10 @@ export const GET = route({ auth: 'public' }, async () => {
     // ⚠️ RANK. Scoped together with the fill below, never alone: this groupBy applies a MIN_LISTINGS
     // floor and slices to MAX_RAILS, so scoping only the fill leaves a Services rail that ranked in
     // on the desk's demand and then renders with zero cards.
-    where: await scopedListingWhere({ verified: true, status: 'active' }),
+    // ⛔ ONLY LISTINGS DEALT ON eno, here and in the fill, for the same reason (owner, 2026-10-28 — in-app-listing.ts):
+    // these shelves are drawn on the home page alone, and a category whose rows are booked on partner sites must not
+    // rank in on them and then print them.
+    where: inAppOnly(await scopedListingWhere({ verified: true, status: 'active' })),
     _count: { _all: true },
     _sum: { views: true, contactCount: true },
   })
@@ -98,7 +102,7 @@ export const GET = route({ auth: 'public' }, async () => {
       const listings = await db.listing.findMany({
         // ⚠️ FILL — the read that actually PRINTS the cards. The take applies after the
         // exclusion, so the rail refills from real marketplace supply rather than shrinking.
-        where: await scopedListingWhere({ verified: true, status: 'active', categoryId: r.categoryId }),
+        where: inAppOnly(await scopedListingWhere({ verified: true, status: 'active', categoryId: r.categoryId })),
         // Balanced rankScore blend, then most-viewed — matches the main feed's order.
         orderBy: [
           { rankScore: 'desc' },

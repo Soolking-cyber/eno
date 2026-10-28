@@ -19,20 +19,25 @@ import { MIN_RAIL_ITEMS, RAIL_CARD_W, Shelf } from './shelf'
 const DOOR_LINK = 'relative tap-44 inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline'
 
 /**
- * THE HOME PAGE'S "FIND A TEACHER" SHELF (owner, 2026-10-13: "make teacher profiles more visible on the home page" —
- * picked: a shelf after the feed's first twelve listings). One full-width row INSIDE the feed grid, right after the
- * twelfth card: the up-to-eight teacher cards the server seeded (src/lib/core/teacher-shelf.ts — /c/teachers' own
- * default order, minus the owner's demo), "See all" to /c/teachers, and one line of text for teachers themselves.
+ * THE HOME PAGE'S "FIND A TEACHER" SHELF (owner, 2026-10-13: "make teacher profiles more visible on the home page"): the
+ * up-to-eight teacher cards the server seeded (src/lib/core/teacher-shelf.ts — /c/teachers' own default order, minus the
+ * owner's demo), "See all" to /c/teachers, and one line of text for teachers themselves.
  *
- * ⛔ BELOW PAGE ONE, NEVER ABOVE THE FEED. Nothing measured on the first screen moves: the first card's top, card 0's
- * single LCP preload, "no full-width media above the grid" and the first twelve grid children all being listing cards
- * (globals.css) all hold. The explorer owns WHERE (listings-explorer.tsx, `showTeacherShelf`: the undirected home only —
- * never a search, a filter, an area, the map or video view, or a storefront).
- * ⛔ THE CANON'S OWN PARTS: <Shelf> and <ListingCard>, unchanged — a flat section under one hairline, no eyebrow, no fill.
- * The cards take no `priority`/`lcp` (lazy photos; the page's one preload stays card 0's) and no `onLocate`.
- * ⚠️ ONE HAIRLINE BETWEEN BLOCKS. Its own on top; below, only when rows follow it (`not-last:`) — as the grid's last child
- * the feed footer's own top line ("Browse everything") is the next one. The guest capture row that follows it drops its
- * top line instead (globals.css, beside the feed-grid rules), so two parallel lines never sit a grid gap apart.
+ * ⛔ FIRST UNDER THE CATEGORIES, ABOVE THE FEED (owner, 2026-10-28: "no product with link shows there mostly the partner
+ * teachers etc the ones that dont take us out of the app"). It was a full-width row inside the feed grid after the
+ * twelfth card ("below page one, never above the feed", 2026-10-13); the owner's new ask reverses that. The explorer owns
+ * WHERE and WHEN (listings-explorer.tsx, `showTeacherShelf`: the undirected home in the default order only — never a
+ * search, a filter, an area, a sort, the map or video view, or a storefront) and the mask that keeps it off every other
+ * cold URL's first paint (globals.css).
+ * ⛔ THE CANON'S OWN PARTS: <Shelf> and <ListingCard>, unchanged — a flat section over one hairline, no eyebrow, no fill.
+ * ⚠️ THE FIRST CARD CARRIES THE PAGE'S ONE LCP HINT (`priority` + `lcp`): above the feed, its photo is the largest image
+ * on the first screen at every width (a rail card is exactly one feed column — shelf.tsx RAIL_CARD_W), so the preload
+ * moved here from feed card 0, which keeps `priority` alone. The other cards stay lazy. No `onLocate`.
+ * ⚠️ ON A MASKED COLD URL (a search, category or sort deep link) THE PRELOAD STILL FETCHES THIS PHOTO while the shelf is
+ * `display: none` (globals.css): the ISR HTML is one document for every query string and cannot know the URL. It is the
+ * same one wasted image the masked seed's card 0 carried before the move — that card was hidden and replaced too.
+ * ⚠️ ONE HAIRLINE, BELOW IT, between the shelf and the filter strip that opens the feed; above it the categories need
+ * none.
  * ⚠️ THE DOOR FOLLOWS THE CATEGORY PLATE'S (category-rail.tsx, the teachers / jobs door): a teacher with a profile gets
  * theirs, one with a saved draft gets it back on THIS host (the session is here, not on the teacher host), everyone else
  * the sign-up form on its own host — in the iOS / Android app on this host instead (keepTeacherJoinInApp). The server
@@ -68,11 +73,11 @@ export function TeacherShelf({
   if (listings.length < MIN_RAIL_ITEMS) return null
   const title = CATEGORY_ENTRY_LABELS.teachers
   return (
-    <div data-teacher-shelf="" className="col-span-full min-w-0 border-t border-border pt-6 pb-4 not-last:border-b">
+    <div data-teacher-shelf="" className="min-w-0 border-b border-border pt-2 pb-4">
       <Shelf icon={User} title={tr(title.name, title.nameVi)} seeAllHref={teacherSurfaceHref(localizedHref('/c/teachers', lang))}>
-        {listings.map((l) => (
+        {listings.map((l, i) => (
           <div key={l.id} className={RAIL_CARD_W}>
-            <ListingCard listing={l} onOpen={onOpen} />
+            <ListingCard listing={l} onOpen={onOpen} priority={i === 0} lcp={i === 0} />
           </div>
         ))}
       </Shelf>

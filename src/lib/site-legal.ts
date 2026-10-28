@@ -295,8 +295,9 @@ export const TOS_PREVIOUS_VERSION = '2'
 /**
  * The NEWEST published version of the Quy chế (/regulations) — its OWN number since the Quy chế-only
  * amendment of October 2026, which made it '3' while the Terms stayed at version 2. (The Terms reached their
- * own version 3 on 07/10/2026, a Terms-only amendment: the two numbers coincide again, and mean nothing to
- * each other.)
+ * own version 3 on 07/10/2026, a Terms-only amendment: the two numbers coincided, and mean nothing to each
+ * other.) '4' since 2026-10-28: Article 14's home-page rule — only listings contacted through the platform (immediate,
+ * owner: "Immediately (Recommended)"); version 3 is archived at /regulations/v3.
  * Published and in force on REGULATIONS_AMENDMENT's dates (src/lib/compliance/legal-amendment.ts); the
  * previous version is archived at /regulations/v{@link REGULATIONS_PREVIOUS_VERSION}.
  *
@@ -309,10 +310,10 @@ export const TOS_PREVIOUS_VERSION = '2'
  * dates into legal-archive.ts (legal-archive.test.ts says which), and set REGULATIONS_AMENDMENT's dates on
  * the DEPLOY day. If the Terms change in the same amendment, TOS_VERSION and LEGAL_AMENDMENT move too.
  */
-export const REGULATIONS_VERSION = '3'
+export const REGULATIONS_VERSION = '4'
 
 /** The Quy chế version {@link REGULATIONS_VERSION} replaced — archived, and linked from /regulations' META. */
-export const REGULATIONS_PREVIOUS_VERSION = '2'
+export const REGULATIONS_PREVIOUS_VERSION = '3'
 
 /**
  * The instant {@link TOS_VERSION} takes effect — MIDNIGHT IN VIETNAM on LEGAL_AMENDMENT.inForce,

@@ -96,7 +96,7 @@ test.describe('Guest · listing detail (first live listing)', () => {
   test.beforeEach(async ({ page }) => {
     if (!LISTING) {
       await page.goto('/')
-      const card = page.locator('a[data-card-link]').first()
+      const card = page.locator('.feed-grid a[data-card-link]').first()
       await card.waitFor({ timeout: 20_000 })
       LISTING = new URL((await card.getAttribute('href'))!, page.url()).pathname
       const label = (await card.getAttribute('aria-label')) || (await card.textContent()) || ''
@@ -129,7 +129,7 @@ test.describe('Guest · listing detail (first live listing)', () => {
     // ⚠️ It still FAILS if no listing on the first screen has a gallery: "found none" is never a silent pass.
     test.setTimeout(180_000) // up to ten listing pages plus the home feed, each a real production load — as the file's other walking tests
     await page.goto('/')
-    const cards = page.locator('a[data-card-link]')
+    const cards = page.locator('.feed-grid a[data-card-link]')
     await cards.first().waitFor({ timeout: 20_000 })
     const hrefs = [...new Set((await cards.evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).getAttribute('href'))))
       .filter((h): h is string => !!h && h.startsWith('/listings/')))]
@@ -167,7 +167,7 @@ test.describe('Guest · listing detail (first live listing)', () => {
     // ⚠️ It still FAILS if no listing on the first screen has a gallery: the affordance is what is
     // under test, so "found none" must be a failure and never a silent skip.
     await page.goto('/')
-    const cards = page.locator('a[data-card-link]')
+    const cards = page.locator('.feed-grid a[data-card-link]')
     await cards.first().waitFor({ timeout: 20_000 })
     // Absolute app paths already ("/listings/…"), so they are used as-is — resolving each against
     // `page.url()` while that url CHANGES inside the loop is a trap a reviewer rightly flagged,
@@ -238,7 +238,7 @@ test.describe('Guest · listing detail (first live listing)', () => {
     // partner stock sorted first. Green, and silently covering nothing. So walk the feed for a
     // listing that actually has a chat gate instead; the partner contract has its own spec below.
     await page.goto('/')
-    const cards = page.locator('a[data-card-link]')
+    const cards = page.locator('.feed-grid a[data-card-link]')
     await expect(cards.first()).toBeVisible({ timeout: 20_000 })
     const hrefs: string[] = []
     for (let i = 0; i < Math.min(await cards.count(), 12); i++) {

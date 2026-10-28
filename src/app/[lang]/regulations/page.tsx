@@ -20,7 +20,7 @@ import { LEGAL_BASIS } from '@/lib/compliance/legal-basis'
 import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
 import { FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
 import { PROHIBITED_AMENDED, PROHIBITED_AMENDMENT, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT } from '@/lib/compliance/legal-amendment'
-import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, V2_SUPERSEDED, archivedPath } from '@/lib/compliance/legal-archive'
+import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, V2_SUPERSEDED, V3, V3_PATHS, V3_SUPERSEDED, archivedPath } from '@/lib/compliance/legal-archive'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 /**
@@ -34,11 +34,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  * both ceased to have effect on 01/07/2026 (NĐ 248 Điều 52.3). Law and decree numbers come from
  * LEGAL_BASIS (src/lib/compliance/legal-basis.ts), the single source the takedown notices use too.
  *
- * ⚠️ AMENDED TWICE IN 2026-10 — Article 17 is the change log, and every amendment adds a dated entry there.
- * Version 2 (01/10/2026, with the Terms) and version 3 (a Quy chế-only amendment of Article 14) were both
+ * ⚠️ AMENDED THREE TIMES IN 2026-10 — Article 17 is the change log, and every amendment adds a dated entry there.
+ * Version 2 (01/10/2026, with the Terms), version 3 (05/10/2026, a Quy chế-only amendment of Article 14) and
+ * version 4 (2026-10-28, Article 14 again: the home page shows only listings contacted through the platform) were all
  * owner-decided exceptions (`immediate`): published and in force the same day, no notice window, no
- * announcement. The dates come from src/lib/compliance/legal-amendment.ts — version 3's from
- * REGULATIONS_AMENDMENT (META directly, its Article 17 entry through legal-archive.ts V2_SUPERSEDED),
+ * announcement. The dates come from src/lib/compliance/legal-amendment.ts — version 4's from
+ * REGULATIONS_AMENDMENT (META directly, its Article 17 entry through legal-archive.ts V3_SUPERSEDED),
+ * version 3's from legal-archive.ts V2_SUPERSEDED (literals since version 4 re-used REGULATIONS_AMENDMENT),
  * version 2's from legal-archive.ts V1_SUPERSEDED (literals since the Terms' own version 3 re-used
  * LEGAL_AMENDMENT on 2026-10-07 — a Terms-only amendment that changed nothing here) — and the version numbers
  * from REGULATIONS_VERSION / REGULATIONS_PREVIOUS_VERSION (site-legal.ts), never TOS_VERSION: the Terms
@@ -126,7 +128,7 @@ const INTRO: Para = {
 
 // ⚠️ THE VERSION IN FORCE IS ALWAYS PUBLISHED, AND THIS LINE SAYS WHERE (2026-10-01 review). Article 15
 // promises "Bản Quy chế đang áp dụng luôn được đăng tại /regulations kèm số phiên bản".
-// · IMMEDIATE amendment (both 2026-10 amendments — owner: in force the day it is published, no notice): the
+// · IMMEDIATE amendment (every 2026-10 amendment — owner: in force the day it is published, no notice): the
 //   text below IS the version in force, from that one date; the previous version is archived at
 //   /regulations/v<N>.
 // · An amendment WITH a notice window: until REGULATIONS_AMENDED.inForce the version in force is
@@ -270,6 +272,27 @@ const CHANGES_V3: Para[] = [
   {
     vi: 'bổ sung tại Điều 14 quy định về trang chủ: theo thứ tự mặc định, khi có đủ tin, ít nhất hai trong bốn vị trí đầu tiên và ít nhất bốn trong mười hai vị trí đầu tiên là đồ đã qua sử dụng đang được đăng bán',
     en: 'add to Article 14 the home-page rule: in the default order, where enough such listings exist, at least two of the first four positions and at least four of the first twelve are second-hand goods for sale',
+  },
+]
+
+/**
+ * ARTICLE 17's ENTRY FOR VERSION 4 — the Quy chế-only amendment of Article 14 (owner, 2026-10-28: the home page shows
+ * only listings contacted through the platform — src/lib/in-app-listing.ts; dates: REGULATIONS_AMENDMENT). Same rule as
+ * CHANGES_V2 and CHANGES_V3: one item per substantive edit, the quiet ones too, each saying what the text now says and,
+ * for an amended sentence, what it said before. Article 14 is the same on both editions, so no item takes a gate.
+ */
+const CHANGES_V4: Para[] = [
+  {
+    vi: 'bổ sung tại Điều 14 quy định về tin đăng liên hệ qua sàn: phần tin đăng theo thứ tự mặc định ở trang chủ, mục “Doanh nghiệp nổi bật” và các mục tin theo từng danh mục ở trang chủ, cùng mục “Dành cho bạn” ở mọi nơi mục này xuất hiện, không bao gồm tin đăng có nút dẫn người sử dụng sang một trang web khác (mọi tin đăng liên kết theo Điều 3 và tin đăng được đặt chỗ hoặc mua trên trang web riêng của đối tác); các tin này vẫn được hiển thị trong danh mục của tin, trong kết quả tìm kiếm và tại gian hàng của người bán, và mục “Đã xem gần đây” không thay đổi',
+    en: 'add to Article 14 the rule on listings contacted through the platform: the home page’s default feed, its “Outstanding businesses” rail and its per-category rails, and the “For You” rail wherever it appears, do not include listings whose button takes the user to another website (every linked listing under Article 3, and listings booked or bought on a partner’s own website); those listings are still shown in their category, in search results and on the seller’s storefront, and the “Recently viewed” rail is unchanged',
+  },
+  {
+    vi: 'sửa đổi đoạn về đa dạng người bán tại Điều 14: trong mỗi lượt, thứ tự theo điểm được giữ nguyên và việc xếp xen kẽ không ẩn tin nào (trước đây ghi là không tin nào bị ẩn)',
+    en: 'amend the seller-diversity paragraph of Article 14: within each round the score order is kept and the interleaving hides no listing (it previously said that no listing is hidden)',
+  },
+  {
+    vi: 'sửa đổi đoạn về mục “Dành cho bạn” tại Điều 14: khi tuỳ chọn cá nhân hoá tắt, mục hiển thị các tin liên hệ qua kênh nhắn tin của sàn đang được quan tâm nhiều, giống nhau với mọi người (trước đây ghi là các tin đang được quan tâm nhiều)',
+    en: 'amend the “For You” paragraph of Article 14: with personalisation off, the rail shows the listings contacted through the platform’s messaging that are currently drawing the most interest, the same for everyone (it previously said the listings currently drawing the most interest)',
   },
 ]
 
@@ -735,12 +758,14 @@ const ARTICLES: Article[] = [
         en: `Users can choose a different ordering themselves — newest, price ascending, price descending — and can filter by category, area, price range and other attributes; where the user has chosen, that choice is applied instead of the default ordering.`,
       },
       {
+        // ⚠️ VERSION 4 (2026-10-28): "the interleaving hides no listing", not "no listing is hidden" — the home page now
+        // leaves partner-link listings out (the paragraph after For You), and the old words would deny that.
         // ⚠️ VERSION 3 (2026-10-05) ADDED THE VEHICLE-RENTAL SEAT AND THE MEMBERS' OWN SEAT. "Members' own job
         // posts and vehicle rentals", NOT "members' own listings" at large: the eSIM seat is keyed by AISLE
         // (SHARED_SEAT_SUBCATEGORIES), so a member's own eSIM listing shares it — only the two seller-keyed
         // seats (SHARED_SEAT_SELLERS) leave a member's post its own seat.
-        vi: `Đa dạng người bán. Ở trang chủ và khi duyệt một danh mục theo thứ tự mặc định, ${FEED_DIVERSITY_WINDOW} vị trí đầu tiên được xếp xen kẽ theo người bán: tin có điểm cao nhất của mỗi người bán trước, rồi đến tin thứ hai của mỗi người bán, và cứ thế tiếp tục; trong mỗi lượt, thứ tự theo điểm được giữ nguyên và không tin nào bị ẩn. Để một danh mục do nhiều gian hàng cung cấp không chiếm hết trang đầu, ba nhóm tin dùng chung vị trí trong lượt xen kẽ đó: các gói eSIM của mọi nhà mạng dùng chung một vị trí; tin tuyển dụng dẫn từ các trang tuyển dụng dùng chung một vị trí; tin cho thuê xe dẫn từ các nền tảng và cửa hàng cho thuê xe dùng chung một vị trí. Tin tuyển dụng và tin cho thuê xe do thành viên tự đăng trên sàn vẫn giữ vị trí riêng của người đăng. Khi người sử dụng mở riêng mục eSIM, danh mục Việc làm hoặc một mục cho thuê xe, mỗi nhà mạng, mỗi trang tuyển dụng, mỗi nền tảng hoặc cửa hàng cho thuê xe lại có vị trí riêng. Khi có đủ tin, các mục tin đề xuất cũng giới hạn số tin của mỗi người bán và bỏ qua tin trùng mẫu sản phẩm hoặc trùng ảnh bìa.`,
-        en: `Seller diversity. On the home page and when browsing a category in the default order, the first ${FEED_DIVERSITY_WINDOW} positions are interleaved by seller: each seller’s highest-scoring listing first, then each seller’s second, and so on; within each round the score order is kept and no listing is hidden. So that a category supplied by many storefronts cannot fill the first page, three groups share seats in that rotation: eSIM plans from every carrier share one seat; job postings linked from job boards share one; and vehicle rentals linked from rental platforms and shops share one. Job postings and vehicle rentals that members post on the platform themselves keep their poster’s own seat. When the user opens the eSIM aisle, the Jobs category or a vehicle-rental aisle itself, each carrier, each job board and each rental platform or shop has its own seat again. Where enough listings exist, recommendation rails likewise limit how many listings each seller gets and skip listings that repeat a product model or a cover photo.`,
+        vi: `Đa dạng người bán. Ở trang chủ và khi duyệt một danh mục theo thứ tự mặc định, ${FEED_DIVERSITY_WINDOW} vị trí đầu tiên được xếp xen kẽ theo người bán: tin có điểm cao nhất của mỗi người bán trước, rồi đến tin thứ hai của mỗi người bán, và cứ thế tiếp tục; trong mỗi lượt, thứ tự theo điểm được giữ nguyên và việc xếp xen kẽ không ẩn tin nào. Để một danh mục do nhiều gian hàng cung cấp không chiếm hết trang đầu, ba nhóm tin dùng chung vị trí trong lượt xen kẽ đó: các gói eSIM của mọi nhà mạng dùng chung một vị trí; tin tuyển dụng dẫn từ các trang tuyển dụng dùng chung một vị trí; tin cho thuê xe dẫn từ các nền tảng và cửa hàng cho thuê xe dùng chung một vị trí. Tin tuyển dụng và tin cho thuê xe do thành viên tự đăng trên sàn vẫn giữ vị trí riêng của người đăng. Khi người sử dụng mở riêng mục eSIM, danh mục Việc làm hoặc một mục cho thuê xe, mỗi nhà mạng, mỗi trang tuyển dụng, mỗi nền tảng hoặc cửa hàng cho thuê xe lại có vị trí riêng. Khi có đủ tin, các mục tin đề xuất cũng giới hạn số tin của mỗi người bán và bỏ qua tin trùng mẫu sản phẩm hoặc trùng ảnh bìa.`,
+        en: `Seller diversity. On the home page and when browsing a category in the default order, the first ${FEED_DIVERSITY_WINDOW} positions are interleaved by seller: each seller’s highest-scoring listing first, then each seller’s second, and so on; within each round the score order is kept and the interleaving hides no listing. So that a category supplied by many storefronts cannot fill the first page, three groups share seats in that rotation: eSIM plans from every carrier share one seat; job postings linked from job boards share one; and vehicle rentals linked from rental platforms and shops share one. Job postings and vehicle rentals that members post on the platform themselves keep their poster’s own seat. When the user opens the eSIM aisle, the Jobs category or a vehicle-rental aisle itself, each carrier, each job board and each rental platform or shop has its own seat again. Where enough listings exist, recommendation rails likewise limit how many listings each seller gets and skip listings that repeat a product model or a cover photo.`,
       },
       {
         // Version 3 (2026-10-05) — the home-feed package's second-hand floor; see the code-fact note above.
@@ -752,8 +777,17 @@ const ARTICLES: Article[] = [
         en: `Guides and topic pages. The listing panels on these pages are drawn live from the platform: a panel for one product type or one model is sorted by price, lowest first; a panel for a whole category shows featured listings first, then the newest; a panel spanning several kinds of home puts listings with three or more photos first.`,
       },
       {
-        vi: `Mục “Dành cho bạn” và mục “Đã xem gần đây”. Mục “Dành cho bạn” xuất hiện ở trang chủ và bên dưới kết quả tìm kiếm hoặc lọc khi chỉ có ít kết quả. Mục này chỉ được cá nhân hoá khi tuỳ chọn cá nhân hoá trong phần cài đặt cookie đang bật: khi đó, các từ khoá đã tìm gần đây cùng các danh mục, thương hiệu đã xem — được lưu trên thiết bị của người sử dụng và chỉ được gửi kèm yêu cầu tải mục này — được dùng để chọn tin cho mục. Khi tuỳ chọn này tắt, mục hiển thị các tin đang được quan tâm nhiều, giống nhau với mọi người. Nếu người sử dụng đến sàn qua một đường dẫn hoặc quảng cáo có kèm từ khoá, từ khoá đó có thể được dùng cho chính lượt truy cập ấy mà không được lưu lại. Cũng chỉ khi tuỳ chọn cá nhân hoá đang bật, mục “Đã xem gần đây” ở trang chủ và trang tin đăng hiển thị các tin người sử dụng đã mở trên thiết bị này, tin mở gần nhất xếp trước; danh sách đó cũng được lưu trên thiết bị và chỉ được gửi kèm yêu cầu tải mục này. Người sử dụng có thể bật hoặc tắt cá nhân hoá bất cứ lúc nào qua liên kết “Cài đặt cookie” ở chân trang, xoá từng từ khoá gần đây trong ô tìm kiếm, hoặc xoá dữ liệu trang web trong trình duyệt. Cá nhân hoá chỉ quyết định tin nào xuất hiện trong hai mục này; thứ tự trong mục “Dành cho bạn” vẫn theo các tiêu chí tại Điều này, và kết quả duyệt danh mục, kết quả tìm kiếm không thay đổi theo người xem.`,
-        en: `The “For You” and “Recently viewed” rails. The “For You” rail appears on the home page and below a search or filter that finds only a few listings. It is personalised only while personalisation is switched on in the cookie settings: then the user’s recent searches and the categories and brands they viewed — stored on the user’s own device and sent only with the request that loads this rail — are used to choose its listings. With personalisation off, the rail shows the listings currently drawing the most interest, the same for everyone. If the user arrives through a link or an advertisement that carries search words, those words may be used for that visit only and are not stored. Likewise only while personalisation is on, a “Recently viewed” rail on the home page and on listing pages shows the listings the user opened on this device, most recent first; that list, too, is stored on the device and sent only with the request that loads the rail. The user can switch personalisation on or off at any time through the “Cookie settings” link in the footer, remove recent searches one by one in the search box, or clear the site’s data in the browser. Personalisation decides only which listings appear in these two rails; the order within “For You” follows the criteria in this Article, and category browsing and search results do not change with the viewer.`,
+        vi: `Mục “Dành cho bạn” và mục “Đã xem gần đây”. Mục “Dành cho bạn” xuất hiện ở trang chủ và bên dưới kết quả tìm kiếm hoặc lọc khi chỉ có ít kết quả. Mục này chỉ được cá nhân hoá khi tuỳ chọn cá nhân hoá trong phần cài đặt cookie đang bật: khi đó, các từ khoá đã tìm gần đây cùng các danh mục, thương hiệu đã xem — được lưu trên thiết bị của người sử dụng và chỉ được gửi kèm yêu cầu tải mục này — được dùng để chọn tin cho mục. Khi tuỳ chọn này tắt, mục hiển thị các tin liên hệ qua kênh nhắn tin của sàn đang được quan tâm nhiều, giống nhau với mọi người. Nếu người sử dụng đến sàn qua một đường dẫn hoặc quảng cáo có kèm từ khoá, từ khoá đó có thể được dùng cho chính lượt truy cập ấy mà không được lưu lại. Cũng chỉ khi tuỳ chọn cá nhân hoá đang bật, mục “Đã xem gần đây” ở trang chủ và trang tin đăng hiển thị các tin người sử dụng đã mở trên thiết bị này, tin mở gần nhất xếp trước; danh sách đó cũng được lưu trên thiết bị và chỉ được gửi kèm yêu cầu tải mục này. Người sử dụng có thể bật hoặc tắt cá nhân hoá bất cứ lúc nào qua liên kết “Cài đặt cookie” ở chân trang, xoá từng từ khoá gần đây trong ô tìm kiếm, hoặc xoá dữ liệu trang web trong trình duyệt. Cá nhân hoá chỉ quyết định tin nào xuất hiện trong hai mục này; thứ tự trong mục “Dành cho bạn” vẫn theo các tiêu chí tại Điều này, và kết quả duyệt danh mục, kết quả tìm kiếm không thay đổi theo người xem.`,
+        en: `The “For You” and “Recently viewed” rails. The “For You” rail appears on the home page and below a search or filter that finds only a few listings. It is personalised only while personalisation is switched on in the cookie settings: then the user’s recent searches and the categories and brands they viewed — stored on the user’s own device and sent only with the request that loads this rail — are used to choose its listings. With personalisation off, the rail shows the listings contacted through the platform’s messaging that are currently drawing the most interest, the same for everyone. If the user arrives through a link or an advertisement that carries search words, those words may be used for that visit only and are not stored. Likewise only while personalisation is on, a “Recently viewed” rail on the home page and on listing pages shows the listings the user opened on this device, most recent first; that list, too, is stored on the device and sent only with the request that loads the rail. The user can switch personalisation on or off at any time through the “Cookie settings” link in the footer, remove recent searches one by one in the search box, or clear the site’s data in the browser. Personalisation decides only which listings appear in these two rails; the order within “For You” follows the criteria in this Article, and category browsing and search results do not change with the viewer.`,
+      },
+      {
+        // ⚖️ VERSION 4 (owner, 2026-10-28 — src/lib/in-app-listing.ts IN_APP_ONLY: no `affiliateUrl`). The home page's
+        // default feed ((home)/page.tsx + /api/listings on goodsSeatsFor), Outstanding businesses (core/business-rail.ts),
+        // the per-category shelves (/api/category-rails) and For You — home slot AND the sparse-search recovery, both fed
+        // by /api/recommendations / core/trending-rail.ts — drop them. Category browsing, search and storefronts keep
+        // them; Recently viewed (the reader's own trail) is untouched. /legal/ranking #home says the same.
+        vi: `Tin đăng liên hệ qua sàn. Phần tin đăng theo thứ tự mặc định ở trang chủ, mục “Doanh nghiệp nổi bật” và các mục tin theo từng danh mục ở trang chủ, cùng mục “Dành cho bạn” ở mọi nơi mục này xuất hiện, chỉ gồm tin đăng mà người sử dụng liên hệ người bán qua kênh nhắn tin của sàn; tin đăng có nút dẫn người sử dụng sang một trang web khác — mọi tin đăng liên kết theo Điều 3 và tin đăng được đặt chỗ hoặc mua trên trang web riêng của đối tác — không xuất hiện ở các vị trí này. Các tin đăng đó vẫn được hiển thị trong danh mục của tin, trong kết quả tìm kiếm và tại gian hàng của người bán. Quy định này không áp dụng cho mục “Đã xem gần đây”.`,
+        en: `Listings contacted through the platform. The home page’s default feed, its “Outstanding businesses” rail and its per-category rails, and the “For You” rail wherever it appears, show only listings whose seller the user contacts through the platform’s messaging; a listing whose button takes the user to another website — every linked listing under Article 3, and any listing booked or bought on a partner’s own website — does not appear in them. Such listings are still shown in their category, in search results and on the seller’s storefront. This rule does not apply to the “Recently viewed” rail.`,
       },
       {
         vi: `Tin nổi bật, quảng cáo và hoa hồng. Vị trí “Tin nổi bật” do đơn vị vận hành chỉ định, không được bán và không nhận thanh toán; tin nổi bật được cộng một mức điểm cố định đã công bố tại /legal/ranking. Hiện không có vị trí hiển thị nào được bán hay trả phí để nâng thứ hạng; nếu sau này có, vị trí đó được gắn nhãn “Quảng cáo” hoặc “Tin ưu tiên” ngay tại chỗ hiển thị. Một số tin đăng liên kết và đường dẫn của đối tác có thể mang lại hoa hồng cho đơn vị vận hành khi người mua mua hàng qua đó; các tin, đường dẫn này được gắn nhãn “Quảng cáo” kèm ghi chú về hoa hồng, và việc một tin có thể mang lại hoa hồng hay không không phải là tiêu chí xếp hạng.`,
@@ -830,8 +864,8 @@ const ARTICLES: Article[] = [
     // moved on to the Terms' version 3 (2026-10-07), so this entry can never take a later amendment's date.
     // Its words are unchanged.
     // VERSION 3's entry (2026-10-05) is the second — immediate like version 2, so it has one date too. Dated
-    // through V2_SUPERSEDED for the same reason: REGULATIONS_AMENDMENT's dates today, a literal once a
-    // version 4 re-uses that record (legal-archive.test.ts).
+    // through V2_SUPERSEDED for the same reason — literals since version 4 re-used REGULATIONS_AMENDMENT (2026-10-28).
+    // VERSION 4's entry is the last (after the /prohibited entry below — newest last), dated through V3_SUPERSEDED.
     // ⛔ THE THIRD ENTRY IS eno.vn's ONLY, AND IT IS NOT A VERSION (owner, 2026-10-14: the e-Visa listing rules join
     // eno.vn's /prohibited, "dated amendment, 5-day notice"). /prohibited is an inseparable part of these Regulations
     // (Articles 9 and 16) and Article 15 dates every amendment here, so the list's own amendment is logged — with
@@ -867,6 +901,12 @@ const ARTICLES: Article[] = [
                 },
           ]
         : []),
+      // VERSION 4's entry (owner, 2026-10-28) — immediate like versions 2 and 3, so one date. Dated through V3_SUPERSEDED:
+      // REGULATIONS_AMENDMENT's dates today, a literal once a version 5 re-uses that record (legal-archive.test.ts).
+      {
+        vi: `Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${V3_SUPERSEDED.inForceVi}; nội dung trước sửa đổi (phiên bản ${V3}) được lưu tại ${V3_PATHS.regulations}. Nội dung sửa đổi, bổ sung gồm: ${numbered(CHANGES_V4, 'vi')}.`,
+        en: `Amendments published on and in force from ${V3_SUPERSEDED.inForceEn}; the previous text (version ${V3}) is archived at ${V3_PATHS.regulations}. They: ${numbered(CHANGES_V4, 'en')}.`,
+      },
     ],
   },
 ]
@@ -922,8 +962,8 @@ export default function RegulationsPage() {
       title="Quy chế hoạt động (Operating Regulations)"
       meta={
         <div className="mt-3 max-w-[70ch] space-y-1">
-          {/* Linkified: META names where the previous version is published (/regulations/v2 since
-              version 3 — the version in force during a notice window, if an amendment has one), and
+          {/* Linkified: META names where the previous version is published (/regulations/v3 since
+              version 4 — the version in force during a notice window, if an amendment has one), and
               Article 15 promises the version in force is always one step away. */}
           <p className="text-sm text-ink-4" lang="vi">{linkifyLegal(META.vi)}</p>
           <p className="text-sm text-ink-4" lang="en">{linkifyLegal(META.en)}</p>

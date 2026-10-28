@@ -510,14 +510,16 @@ describe('/regulations', () => {
       'biểu phí phải được công bố ít nhất 20 ngày trước ngày áp dụng thay vì 5 ngày',
     ]) expect(log).toContain(edit)
     expect(log).not.toContain('từ 5 lên 20')
-    // One entry per amendment (version 2, then version 3), each in Vietnamese then English, and each list
-    // counting 1..n with no gap — the two languages of an entry with the same n.
+    // One entry per version (2, 3, then 4), each in Vietnamese then English, and each list counting 1..n with no
+    // gap — the two languages of an entry with the same n. (The /prohibited entry is not a version and has no list.)
     const lists = entries(log).map((p) => [...p.matchAll(/\((\d+)\) /g)].map((m) => Number(m[1])))
-    expect(lists).toHaveLength(4)
+    expect(lists).toHaveLength(6)
     for (const l of lists) expect(l).toEqual(Array.from({ length: l.length }, (_, i) => i + 1))
     expect(lists[0].length).toBe(lists[1].length)
     expect(lists[2]).toEqual([1, 2, 3, 4])
     expect(lists[3]).toEqual([1, 2, 3, 4])
+    expect(lists[4]).toEqual([1, 2, 3])
+    expect(lists[5]).toEqual([1, 2, 3])
   })
 
   // ⛔ /prohibited is an inseparable part of the Quy chế (Articles 9, 16) and Article 15 dates every amendment in
@@ -530,9 +532,10 @@ describe('/regulations', () => {
     expect(log).toContain(`An amendment to the list of prohibited goods and services — an inseparable part of these Regulations under Articles 9 and 16 — published on and in force from ${PROHIBITED_AMENDED.inForceEn}: it adds`)
     expect(log).not.toContain('Before it takes effect, the list applies without those rules.')
     expect(log).not.toContain('Trước ngày có hiệu lực, Danh mục được áp dụng mà không có các quy định này.')
-    // Newest last (append-only): after version 3's entry.
+    // Newest last (append-only): after version 3's entry, before version 4's.
     expect(log.indexOf('(phiên bản 2)')).toBeLessThan(log.indexOf('Sửa đổi, bổ sung Danh mục hàng hoá'))
-    expect(REGULATIONS_VERSION).toBe('3')
+    expect(log.indexOf('Sửa đổi, bổ sung Danh mục hàng hoá')).toBeLessThan(log.indexOf('(phiên bản 3)'))
+    expect(REGULATIONS_VERSION).toBe('4')
     const forum = text(section(await regs('services'), 'changelog'))
     expect(forum).not.toContain('Danh mục hàng hoá, dịch vụ cấm đăng — một phần không tách rời')
     expect(forum).not.toContain(PROHIBITED_AMENDED.inForceVi)
@@ -550,40 +553,85 @@ describe('/regulations', () => {
     expect(log).not.toContain('đăng ký website cung cấp dịch vụ thương mại điện tử')
   })
 
-  // ⛔ Version 3 — a Quy chế-only amendment of Article 14 — is IN FORCE from its publication day (owner,
-  // 2026-10-05: "apply best recommended", the 2026-10-01 precedent). Its date is a placeholder the deployer
-  // sets (REGULATIONS_AMENDMENT), so the tests read it rather than typing it.
-  it('META: version 3 in force from its publication day, version 2 archived, the standing sentences kept', async () => {
-    expect(REGULATIONS_VERSION).toBe('3')
-    expect(REGULATIONS_PREVIOUS_VERSION).toBe('2')
+  // ⛔ Version 4 — a Quy chế-only amendment of Article 14 (the home page shows only listings contacted through the platform) —
+  // is IN FORCE from its publication day (owner, 2026-10-28: "Immediately (Recommended)", the 5 Oct and 15 Oct
+  // precedents). Its date is a placeholder the deployer sets (REGULATIONS_AMENDMENT), so the tests read it rather
+  // than typing it.
+  it('META: version 4 in force from its publication day, version 3 archived, the standing sentences kept', async () => {
+    expect(REGULATIONS_VERSION).toBe('4')
+    expect(REGULATIONS_PREVIOUS_VERSION).toBe('3')
     const html = text(await regs())
     const head = html.slice(0, html.indexOf('<nav>'))
-    expect(head).toContain(`Phiên bản 3, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi} (xem Điều 17). Phiên bản trước được lưu tại <a href="/regulations/v2"`)
-    expect(head).toContain(`Version 3, in force from ${REGULATIONS_AMENDED.inForceEn} (see Article 17). The previous version is archived at <a href="/regulations/v2"`)
+    expect(head).toContain(`Phiên bản 4, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi} (xem Điều 17). Phiên bản trước được lưu tại <a href="/regulations/v3"`)
+    expect(head).toContain(`Version 4, in force from ${REGULATIONS_AMENDED.inForceEn} (see Article 17). The previous version is archived at <a href="/regulations/v3"`)
     expect(head).toContain('Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.')
     expect(head).toContain('The Vietnamese text is the authoritative one; the English is a translation provided for convenience. Any amendment is announced on the platform at least 5 days before it takes effect.')
-    expect(head).not.toMatch(/trước ngày đó|until then|công bố ngày|Phiên bản 2,|Version 2,/)
-    expect(head.match(/href="\/regulations\/v2"/g)?.length).toBe(2) // META, both languages
+    expect(head).not.toMatch(/trước ngày đó|until then|công bố ngày|Phiên bản [23],|Version [23],/)
+    expect(head.match(/href="\/regulations\/v3"/g)?.length).toBe(2) // META, both languages
     expect(head).not.toContain('href="/regulations/v1"')
+    expect(head).not.toContain('href="/regulations/v2"')
     // The Terms count their own versions: their version 3 (2026-10-07) is another amendment, on other dates.
     expect(TOS_VERSION).toBe('3')
     expect(head).not.toContain(AMENDED.inForceVi)
   })
 
-  it('Article 17: version 2’s entry unchanged (01/10/2026, version 1 archived), then version 3’s, one date each', async () => {
+  it('Article 17: version 2’s entry unchanged (01/10/2026, version 1 archived), version 3’s (05/10/2026), then version 4’s — one date each', async () => {
     const log = text(section(await regs(), 'changelog'))
     expect(log).toContain('Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày 01/10/2026; nội dung trước sửa đổi (phiên bản 1) được lưu tại <a href="/regulations/v1"')
     expect(log).toContain('Amendments published on and in force from 1 October 2026; the previous text (version 1) is archived at <a href="/regulations/v1"')
-    expect(log).toContain(`Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi}; nội dung trước sửa đổi (phiên bản 2) được lưu tại <a href="/regulations/v2"`)
-    expect(log).toContain(`Amendments published on and in force from ${REGULATIONS_AMENDED.inForceEn}; the previous text (version 2) is archived at <a href="/regulations/v2"`)
+    // Version 3's real dates — literals since version 4 re-used REGULATIONS_AMENDMENT (legal-archive.ts V2_SUPERSEDED_BY).
+    expect(log).toContain('Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày 05/10/2026; nội dung trước sửa đổi (phiên bản 2) được lưu tại <a href="/regulations/v2"')
+    expect(log).toContain('Amendments published on and in force from 5 October 2026; the previous text (version 2) is archived at <a href="/regulations/v2"')
+    expect(log).toContain(`Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi}; nội dung trước sửa đổi (phiên bản 3) được lưu tại <a href="/regulations/v3"`)
+    expect(log).toContain(`Amendments published on and in force from ${REGULATIONS_AMENDED.inForceEn}; the previous text (version 3) is archived at <a href="/regulations/v3"`)
     expect(log).not.toMatch(/trước ngày đó|until that date/)
     // Version 2's entry never names its abandoned 07/10 window (version 3's date is whatever day it deploys).
     const [v2vi, v2en] = entries(log)
     expect(`${v2vi} ${v2en}`).not.toMatch(/07\/10\/2026|7 October/)
     expect(log.match(/href="\/regulations\/v1"/g)?.length).toBe(2)
     expect(log.match(/href="\/regulations\/v2"/g)?.length).toBe(2)
+    expect(log.match(/href="\/regulations\/v3"/g)?.length).toBe(2)
     // Newest last (append-only).
     expect(log.indexOf('(phiên bản 1)')).toBeLessThan(log.indexOf('(phiên bản 2)'))
+    expect(log.indexOf('(phiên bản 2)')).toBeLessThan(log.indexOf('(phiên bản 3)'))
+  })
+
+  it('Article 17’s version 4 entry lists every Article 14 edit, in both languages', async () => {
+    const [, , , , v4vi, v4en] = entries(text(section(await regs(), 'changelog')))
+    for (const edit of [
+      'bổ sung tại Điều 14 quy định về tin đăng liên hệ qua sàn',
+      'cùng mục “Dành cho bạn” ở mọi nơi mục này xuất hiện, không bao gồm tin đăng có nút dẫn người sử dụng sang một trang web khác (mọi tin đăng liên kết theo Điều 3 và tin đăng được đặt chỗ hoặc mua trên trang web riêng của đối tác)',
+      'vẫn được hiển thị trong danh mục của tin, trong kết quả tìm kiếm và tại gian hàng của người bán',
+      'mục “Đã xem gần đây” không thay đổi',
+      'việc xếp xen kẽ không ẩn tin nào (trước đây ghi là không tin nào bị ẩn)',
+      'mục hiển thị các tin liên hệ qua kênh nhắn tin của sàn đang được quan tâm nhiều, giống nhau với mọi người (trước đây ghi là các tin đang được quan tâm nhiều)',
+    ]) expect(v4vi).toContain(edit)
+    for (const edit of [
+      'add to Article 14 the rule on listings contacted through the platform',
+      'and the “For You” rail wherever it appears, do not include listings whose button takes the user to another website (every linked listing under Article 3, and listings booked or bought on a partner’s own website)',
+      'those listings are still shown in their category, in search results and on the seller’s storefront',
+      'the “Recently viewed” rail is unchanged',
+      'the interleaving hides no listing (it previously said that no listing is hidden)',
+      'the rail shows the listings contacted through the platform’s messaging that are currently drawing the most interest, the same for everyone (it previously said the listings currently drawing the most interest)',
+    ]) expect(v4en).toContain(edit)
+  })
+
+  // ⛔ ARTICLE 14 (version 4) SAYS WHAT THE HOME PAGE DOES (src/lib/in-app-listing.ts IN_APP_ONLY, owner 2026-10-28) AND
+  // WHAT /legal/ranking #home SAYS: only listings contacted through the platform, on the home feed, its rails and For You.
+  it('Article 14 states the in-app rule, and no longer says no listing is hidden — in both languages', async () => {
+    const r = text(section(await regs(), 'ranking'))
+    expect(r).toContain('Tin đăng liên hệ qua sàn. Phần tin đăng theo thứ tự mặc định ở trang chủ, mục “Doanh nghiệp nổi bật” và các mục tin theo từng danh mục ở trang chủ, cùng mục “Dành cho bạn” ở mọi nơi mục này xuất hiện, chỉ gồm tin đăng mà người sử dụng liên hệ người bán qua kênh nhắn tin của sàn; tin đăng có nút dẫn người sử dụng sang một trang web khác — mọi tin đăng liên kết theo Điều 3 và tin đăng được đặt chỗ hoặc mua trên trang web riêng của đối tác — không xuất hiện ở các vị trí này.')
+    expect(r).toContain('Các tin đăng đó vẫn được hiển thị trong danh mục của tin, trong kết quả tìm kiếm và tại gian hàng của người bán. Quy định này không áp dụng cho mục “Đã xem gần đây”.')
+    expect(r).toContain('Listings contacted through the platform. The home page’s default feed, its “Outstanding businesses” rail and its per-category rails, and the “For You” rail wherever it appears, show only listings whose seller the user contacts through the platform’s messaging; a listing whose button takes the user to another website — every linked listing under Article 3, and any listing booked or bought on a partner’s own website — does not appear in them.')
+    expect(r).toContain('Such listings are still shown in their category, in search results and on the seller’s storefront. This rule does not apply to the “Recently viewed” rail.')
+    expect(r).toContain('thứ tự theo điểm được giữ nguyên và việc xếp xen kẽ không ẩn tin nào')
+    expect(r).toContain('within each round the score order is kept and the interleaving hides no listing')
+    expect(r).not.toContain('không tin nào bị ẩn')
+    expect(r).not.toContain('no listing is hidden')
+    expect(r).toContain('Khi tuỳ chọn này tắt, mục hiển thị các tin liên hệ qua kênh nhắn tin của sàn đang được quan tâm nhiều, giống nhau với mọi người.')
+    expect(r).toContain('With personalisation off, the rail shows the listings contacted through the platform’s messaging that are currently drawing the most interest, the same for everyone.')
+    // The rule is the platform's, not the commission's: commission stays no ranking criterion.
+    expect(r).toContain('whether a listing can earn a commission is not a ranking criterion')
   })
 
   it('Article 17’s version 3 entry lists every Article 14 edit, in both languages', async () => {
@@ -651,9 +699,12 @@ describe('/regulations', () => {
     const forum = text(await regs('services'))
     expect(section(forum, 'ranking')).toContain('kết quả được xếp theo hai nhóm')
     expect(section(forum, 'ranking')).toContain('ít nhất hai trong bốn vị trí đầu tiên')
+    expect(section(forum, 'ranking')).toContain('Tin đăng liên hệ qua sàn.')
     expect(section(forum, 'changelog')).toContain(`(phiên bản 2) được lưu tại <a href="/regulations/v2"`)
+    expect(section(forum, 'changelog')).toContain(`(phiên bản 3) được lưu tại <a href="/regulations/v3"`)
+    expect(section(forum, 'changelog')).toContain('bổ sung tại Điều 14 quy định về tin đăng liên hệ qua sàn')
     const head = forum.slice(0, forum.indexOf('<nav>'))
-    expect(head).toContain(`Phiên bản 3, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi}`)
+    expect(head).toContain(`Phiên bản 4, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi}`)
   })
 
   it('META with a notice window (the default): says the previous version governs until the in-force date', async () => {
@@ -763,12 +814,34 @@ describe('/legal/ranking', () => {
     expect(text(await ranking('vi'))).toContain(`Cập nhật lần cuối: ${dateVi(RANKING_DISCLOSURE_UPDATED)}`)
   })
 
-  // ⛔ ONE DATE FOR ONE DEPLOY (2026-10-05): this change reaches the page and Quy chế Article 14 together, so
-  // the page's date IS the Quy chế amendment's — the placeholder the deployer sets once, held by the deploy
-  // gate. Only while version 3 is current: a later Quy chế amendment must not re-date this page.
-  it('is dated with the Quy chế’s version 3 — one date, set once, while version 3 is current', () => {
-    if (REGULATIONS_VERSION === '3') expect(RANKING_DISCLOSURE_UPDATED).toBe(REGULATIONS_AMENDMENT.published)
-    else expect(RANKING_DISCLOSURE_UPDATED, 'type this page’s own deploy day: the tie was for version 3 only').not.toBe(REGULATIONS_AMENDMENT.published)
+  // ⛔ ONE DATE FOR ONE DEPLOY (2026-10-28, as on 2026-10-05 for version 3): the home page's in-app rule reaches this
+  // page (#home) and Quy chế Article 14 together, so the page's date IS the Quy chế amendment's — the placeholder the
+  // deployer sets once, held by the deploy gate. Only while version 4 is current: a later Quy chế amendment must not
+  // re-date this page.
+  it('is dated with the Quy chế’s version 4 — one date, set once, while version 4 is current', () => {
+    if (REGULATIONS_VERSION === '4') expect(RANKING_DISCLOSURE_UPDATED).toBe(REGULATIONS_AMENDMENT.published)
+    else expect(RANKING_DISCLOSURE_UPDATED, 'type this page’s own deploy day: the tie was for version 4 only').not.toBe(REGULATIONS_AMENDMENT.published)
+  })
+
+  // ⛔ THE HOME PAGE'S IN-APP RULE (owner, 2026-10-28 — src/lib/in-app-listing.ts): the feed, Outstanding businesses, the
+  // category rails and For You (wherever it appears) leave out every listing whose button takes the reader to another website; Recently
+  // viewed does not. ⚖️ Quy chế v4 Article 14 states the same (tested above; agreement test below).
+  it('states the home page’s in-app rule in its own section, in both languages, and the rotation no longer "hides nothing"', async () => {
+    const en = text(await ranking('en'))
+    expect(en).toContain('<a href="#home">The home page</a>')
+    expect(en).toContain('<section id="home"><h2>On the home page</h2>')
+    expect(en).toContain('On the home page, the feed, the Outstanding businesses and category rails, and the For You rail wherever it appears show only listings whose seller you contact through the platform’s own messaging. They leave out every listing whose button takes you to another website — linked listings from a source site, and listings booked or bought on a partner’s own website.')
+    expect(en).toContain('Those listings still appear in their category, in search results and on their seller’s storefront, in the order described here. This rule does not change the Recently viewed rail.')
+    expect(en).toContain('Within each round the score order is kept, and the rotation itself hides nothing')
+    expect(en).not.toContain('and nothing is hidden')
+    expect(en).toContain('With personalisation off, the rail shows the listings contacted through the platform that draw the most interest right now — the same for everyone.')
+    const vi = text(await ranking('vi'))
+    expect(vi).toContain('<section id="home"><h2>Ở trang chủ</h2>')
+    expect(vi).toContain('Ở trang chủ, phần tin đăng, mục “Doanh nghiệp nổi bật”, các mục theo danh mục và mục “Dành cho bạn” ở mọi nơi mục này xuất hiện chỉ gồm các tin mà bạn liên hệ người bán qua kênh nhắn tin của sàn. Các mục này không gồm các tin có nút dẫn bạn sang một trang web khác — tin đăng liên kết từ trang nguồn và tin được đặt chỗ hoặc mua trên trang web riêng của đối tác.')
+    expect(vi).toContain('Các tin đó vẫn xuất hiện trong danh mục của tin, trong kết quả tìm kiếm và tại gian hàng của người bán, theo thứ tự nêu tại trang này. Quy định này không thay đổi mục “Đã xem gần đây”.')
+    expect(vi).toContain('bản thân việc chia lượt không ẩn tin nào')
+    expect(vi).not.toContain('không tin nào bị ẩn')
+    expect(vi).toContain('Khi tắt cá nhân hoá, mục này hiển thị những tin liên hệ qua kênh nhắn tin của sàn đang được quan tâm nhiều — giống nhau với mọi người.')
   })
 
   it('states the home feed’s second-hand floor, in both languages', async () => {
@@ -780,7 +853,7 @@ describe('/legal/ranking', () => {
 
   // The filed text and the code-following disclosure must not disagree (ranking-content.tsx: "change one and
   // change the other"). The facts UX program 2 added, each in the curated Vietnamese of both pages.
-  it('agrees with Article 14 of /regulations on every fact UX program 2 added', async () => {
+  it('agrees with Article 14 of /regulations on every fact UX program 2 and version 4 added', async () => {
     const page = text(await ranking('vi'))
     const mod = await importRegs()
     const art14 = text(renderToStaticMarkup(mod.default())).match(/<section id="ranking">[\s\S]*?<\/section>/)?.[0] ?? ''
@@ -791,6 +864,13 @@ describe('/legal/ranking', () => {
       ['kết quả là các món hàng đang được đăng bán', 'kết quả là các món hàng đang được đăng bán'],
       ['tin cho thuê xe dẫn từ các nền tảng, cửa hàng cho thuê xe', 'tin cho thuê xe dẫn từ các nền tảng và cửa hàng cho thuê xe'],
       ['ít nhất hai trong bốn tin đầu tiên và bốn trong mười hai tin đầu tiên là đồ đã qua sử dụng đang được đăng bán', 'ít nhất hai trong bốn vị trí đầu tiên và ít nhất bốn trong mười hai vị trí đầu tiên là đồ đã qua sử dụng đang được đăng bán'],
+      // Version 4 (2026-10-28): the home page's in-app rule, its four surfaces, and the trail it leaves alone.
+      ['mục “Doanh nghiệp nổi bật”, các mục theo danh mục và mục “Dành cho bạn” ở mọi nơi mục này xuất hiện', 'mục “Doanh nghiệp nổi bật” và các mục tin theo từng danh mục ở trang chủ, cùng mục “Dành cho bạn” ở mọi nơi mục này xuất hiện'],
+      ['không gồm các tin có nút dẫn bạn sang một trang web khác', 'tin đăng có nút dẫn người sử dụng sang một trang web khác'],
+      ['được đặt chỗ hoặc mua trên trang web riêng của đối tác', 'được đặt chỗ hoặc mua trên trang web riêng của đối tác'],
+      ['vẫn xuất hiện trong danh mục của tin, trong kết quả tìm kiếm và tại gian hàng của người bán', 'vẫn được hiển thị trong danh mục của tin, trong kết quả tìm kiếm và tại gian hàng của người bán'],
+      ['Quy định này không thay đổi mục “Đã xem gần đây”', 'Quy định này không áp dụng cho mục “Đã xem gần đây”'],
+      ['liên hệ người bán qua kênh nhắn tin của sàn', 'liên hệ người bán qua kênh nhắn tin của sàn'],
     ]) {
       expect(page).toContain(onPage)
       expect(art14).toContain(inArt14)
@@ -875,6 +955,62 @@ describe('version 2 of the Quy chế, archived (/regulations/v2)', () => {
       expect(r, edition).not.toMatch(/cho thuê xe|hai nhóm|second hand|đồ đã qua sử dụng đang được đăng bán/)
     }
     expect(section((await v2('marketplace')).html, 'process')).toContain('tối đa 5 tin mỗi lần')
+  })
+})
+
+// ⛔ THE QUY CHẾ'S VERSION 3 — in force from 05/10/2026 until version 4 (2026-10-28, Article 14's home-page rule).
+// Archived verbatim (regulations/v3/page.tsx header), permanently, on both editions: the Terms accepted in that
+// period incorporate it, and Article 15 promises every version in force stays published.
+describe('version 3 of the Quy chế, archived (/regulations/v3)', () => {
+  async function v3(edition: 'marketplace' | 'services') {
+    const mod = await page<{ default: () => React.ReactElement; metadata: { robots?: unknown; alternates?: { canonical?: string } } }>('./regulations/v3/page', 'en', edition)
+    return { html: text(renderToStaticMarkup(mod.default())), metadata: mod.metadata }
+  }
+  const section = (html: string, id: string) => html.match(new RegExp(`<section id="${id}">[\\s\\S]*?</section>`))?.[0] ?? ''
+
+  it('says what it is, what replaced it and when — one date — and is never indexed, on both editions', async () => {
+    const { V3_SUPERSEDED } = await import('@/lib/compliance/legal-archive')
+    expect(V3_SUPERSEDED.inForceVi).toBe(REGULATIONS_AMENDED.inForceVi)
+    for (const edition of ['marketplace', 'services'] as const) {
+      const { html, metadata } = await v3(edition)
+      expect(html, edition).toContain(`Đây là phiên bản 3 của Quy chế. Phiên bản 4 thay thế phiên bản này kể từ ngày ${V3_SUPERSEDED.inForceVi}. Bản mới nhất được đăng tại <a href="/regulations"`)
+      expect(html, edition).toContain(`This is version 3 of these Regulations. Version 4 replaced it with effect from ${V3_SUPERSEDED.inForceEn}. The latest text is published at <a href="/regulations"`)
+      expect(html, edition).not.toMatch(/until then|trước ngày đó, phiên bản 3/)
+      expect(metadata.robots).toEqual({ index: false, follow: true })
+      expect(metadata.alternates?.canonical).toBe('/regulations/v3')
+    }
+  })
+
+  it('prints version 3’s own META and Article 17 — 05/10/2026, version 2 archived, the /prohibited entry on eno.vn — and no version-4 entry', async () => {
+    const { html } = await v3('marketplace')
+    const head = html.slice(0, html.indexOf('<nav>'))
+    expect(head).toContain('Phiên bản 3, có hiệu lực từ ngày 05/10/2026 (xem Điều 17). Phiên bản trước được lưu tại <a href="/regulations/v2"')
+    expect(head).toContain('Version 3, in force from 5 October 2026 (see Article 17). The previous version is archived at <a href="/regulations/v2"')
+    expect(head).not.toContain('Phiên bản 4,')
+    const log = section(html, 'changelog')
+    expect(log).toContain('Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày 01/10/2026; nội dung trước sửa đổi (phiên bản 1) được lưu tại <a href="/regulations/v1"')
+    expect(log).toContain('Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày 05/10/2026; nội dung trước sửa đổi (phiên bản 2) được lưu tại <a href="/regulations/v2"')
+    expect(log).toContain('được công bố và có hiệu lực từ ngày 15/10/2026: bổ sung mục “Dịch vụ thị thực và xuất nhập cảnh — quy định bổ sung”')
+    expect(log).not.toContain('(phiên bản 3)')
+    expect(log).not.toContain('/regulations/v3')
+    // eno.forum's log never carried the /prohibited entry.
+    expect(section((await v3('services')).html, 'changelog')).not.toContain('Danh mục hàng hoá, dịch vụ cấm đăng — một phần không tách rời')
+  })
+
+  it('keeps version 3’s Article 14 — the home floor, no in-app rule, "no listing is hidden" — on both editions', async () => {
+    for (const edition of ['marketplace', 'services'] as const) {
+      const r = section((await v3(edition)).html, 'ranking')
+      expect(r, edition).toContain('kết quả được xếp theo hai nhóm')
+      expect(r, edition).toContain('ít nhất hai trong bốn vị trí đầu tiên và ít nhất bốn trong mười hai vị trí đầu tiên là đồ đã qua sử dụng')
+      expect(r, edition).toContain('trong mỗi lượt, thứ tự theo điểm được giữ nguyên và không tin nào bị ẩn')
+      expect(r, edition).toContain('With personalisation off, the rail shows the listings currently drawing the most interest, the same for everyone.')
+      expect(r, edition).toContain('the first 60 positions are interleaved by seller')
+      expect(r, edition).not.toMatch(/Tin đăng liên hệ qua sàn|Listings contacted through the platform|hides no listing/)
+    }
+  })
+
+  it('names the legal representative version 3 printed when replaced, on eno.vn', async () => {
+    expect(section((await v3('marketplace')).html, 'operator')).toContain('Người đại diện theo pháp luật: Nguyễn Quốc Lập')
   })
 })
 

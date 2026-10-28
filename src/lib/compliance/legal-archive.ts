@@ -15,6 +15,11 @@
 // src/app/[lang]/regulations/v2 existed then. It stays published permanently too: the Terms accepted from
 // 01/10/2026 incorporate the Quy chế as it then stood, and Article 15 says every text in force is published.
 //
+// ⚠️ THE QUY CHẾ'S VERSION 3 IS ARCHIVED SINCE ITS VERSION 4 (2026-10-28 — Article 14's home-page rule: the home page
+// shows only listings contacted through the platform; a Quy chế-only amendment, IMMEDIATE by the owner's decision —
+// REGULATIONS_AMENDMENT): src/app/[lang]/regulations/v3 — the text in force from 05/10/2026 until that day, which the
+// Terms accepted in the period incorporate. Permanently, like the others.
+//
 // ⚠️ THE TERMS' VERSION 2 IS ARCHIVED SINCE THE TERMS' VERSION 3 (2026-10-07 — App Store Guideline 1.2, a
 // Terms-only amendment, IMMEDIATE by the owner's decision: published and in force 07/10/2026):
 // src/app/[lang]/terms/v2 — every acceptance from 01/10/2026 until that instant names version 2.
@@ -33,7 +38,10 @@
 //     entry, the version-2 note in /terms' change log — so those read V1_SUPERSEDED now (/prohibited did too,
 //     until its own amendment of 2026-10-14 — PROHIBITED_AMENDMENT dates it since);
 //   · TERMS_V2_SUPERSEDED_BY borrows LEGAL_AMENDMENT while TOS_VERSION is '3';
-//   · V2_SUPERSEDED_BY borrows REGULATIONS_AMENDMENT while REGULATIONS_VERSION is '3'.
+//   · V2_SUPERSEDED_BY — LITERALS since the Quy chế's version 4 re-used REGULATIONS_AMENDMENT (2026-10-28): version
+//     3's real dates, published and in force 05/10/2026 (immediate). They also date version 3's Article 17 entry on
+//     the live page and in the v3 archive;
+//   · V3_SUPERSEDED_BY borrows REGULATIONS_AMENDMENT while REGULATIONS_VERSION is '4'.
 
 import { LEGAL_AMENDMENT, REGULATIONS_AMENDMENT, dateEn, dateVi } from './legal-amendment'
 
@@ -94,13 +102,15 @@ export const TERMS_V2_SUPERSEDED = {
 } as const
 
 /**
- * The amendment that replaced the Quy chế's version 2: the Quy chế-only amendment (version 3). See the ⛔
- * above before touching REGULATIONS_AMENDMENT.
+ * The amendment that replaced the Quy chế's version 2: the Quy chế-only amendment (version 3 — Article 14, UX program
+ * 2's ranking), an immediate amendment (owner, 2026-10-05), published and in force 05/10/2026 — deployed in 2cd70d7e2.
+ * ⛔ LITERALS: REGULATIONS_AMENDMENT moved on to version 4 (see the ⛔ above); these are the days version 3 really
+ * shipped and took effect, and they never change again.
  */
 export const V2_SUPERSEDED_BY = {
   version: '3',
-  published: REGULATIONS_AMENDMENT.published,
-  inForce: REGULATIONS_AMENDMENT.inForce,
+  published: '2026-10-05',
+  inForce: '2026-10-05',
 } as const
 
 export const V2_SUPERSEDED = {
@@ -108,4 +118,30 @@ export const V2_SUPERSEDED = {
   publishedEn: dateEn(V2_SUPERSEDED_BY.published),
   inForceVi: dateVi(V2_SUPERSEDED_BY.inForce),
   inForceEn: dateEn(V2_SUPERSEDED_BY.inForce),
+} as const
+
+/** The Quy chế's version 3 — a literal for the same reason as V1 and V2 (REGULATIONS_PREVIOUS_VERSION moves on). */
+export const V3 = '3'
+
+/**
+ * Where the Quy chế's version 3 is published. The Quy chế only: the Terms' version 3 is the Terms in force, not an
+ * archive (TOS_VERSION), so there is no /terms/v3 to point at.
+ */
+export const V3_PATHS = { regulations: archivedPath('regulations', V3) } as const
+
+/**
+ * The amendment that replaced the Quy chế's version 3: version 4 (Article 14 — the home page shows only listings
+ * contacted through the platform; owner, 2026-10-28). See the ⛔ above before touching REGULATIONS_AMENDMENT.
+ */
+export const V3_SUPERSEDED_BY = {
+  version: '4',
+  published: REGULATIONS_AMENDMENT.published,
+  inForce: REGULATIONS_AMENDMENT.inForce,
+} as const
+
+export const V3_SUPERSEDED = {
+  publishedVi: dateVi(V3_SUPERSEDED_BY.published),
+  publishedEn: dateEn(V3_SUPERSEDED_BY.published),
+  inForceVi: dateVi(V3_SUPERSEDED_BY.inForce),
+  inForceEn: dateEn(V3_SUPERSEDED_BY.inForce),
 } as const

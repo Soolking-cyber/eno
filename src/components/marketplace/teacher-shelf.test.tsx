@@ -6,9 +6,9 @@ import type { SerializedListingCard } from '@/lib/types'
 
 /**
  * The home page's "Find a teacher" shelf (owner, 2026-10-13). Pinned: the rails' 3-card floor, the category's entry label
- * as the title in both languages, See all → /c/teachers, the cards as the feed draws them minus the LCP hints (lazy
- * photos — the page's one preload stays feed card 0's), the full-width grid row the explorer's CSS keys on, and the
- * door's three states — the sign-up host (edition-aware), a saved draft, the viewer's own profile.
+ * as the title in both languages, See all → /c/teachers, the cards as the feed draws them — the first with the page's one
+ * LCP hint, since the shelf leads the home page (2026-10-28), the rest lazy — the hairline under it and the attribute the
+ * explorer's CSS keys on, and the door's three states — the sign-up host (edition-aware), a saved draft, the viewer's own profile.
  * ⛔ ON eno.forum EVERY LINK BUT THE CARDS IS eno.vn's OWN URL (owner decision 6, 2026-10-20 — the forum 308s its teacher
  * pages and its teacher host there, src/lib/teachers/surface.ts). vitest runs as eno.forum; `marketplaceShelf` re-imports
  * the shelf as eno.vn, whose links are exactly what they were.
@@ -64,12 +64,14 @@ describe('TeacherShelf', () => {
     expect(shelf({ listings: teachers(3) }).root()).not.toBeNull()
   })
 
-  it('is one full-width grid row under a hairline, keyed by its own attribute — never a feed card', () => {
+  it('is one block over a hairline (the filter strip follows it), keyed by its own attribute — never a feed card', () => {
     const root = shelf().root()!
     expect(root.hasAttribute('data-teacher-shelf')).toBe(true)
-    expect(root.className).toMatch(/\bcol-span-full\b/)
+    // Not a grid row any more: it sits above the feed grid (listings-explorer.tsx, 2026-10-28).
+    expect(root.className).not.toMatch(/\bcol-span-full\b/)
     expect(root.className).toMatch(/\bmin-w-0\b/)
-    expect(root.className).toMatch(/\bborder-t\b/)
+    expect(root.className).toMatch(/\bborder-b\b/)
+    expect(root.className).not.toMatch(/\bborder-t\b/)
     expect(root.hasAttribute('data-feed-card')).toBe(false)
     expect(root.querySelector('[data-feed-card]')).toBeNull()
   })
@@ -91,14 +93,11 @@ describe('TeacherShelf', () => {
     expect(screen.getByRole('link', { name: /See all/ }).getAttribute('href')).toBe('/c/teachers')
   })
 
-  it('draws every card with no LCP hint (no priority, no lcp, no locate), and a tap is the explorer\'s onOpen', () => {
+  it('the first card carries the page\'s one LCP hint, the rest none (and no locate); a tap is the explorer\'s onOpen', () => {
     const { onOpen } = shelf({ listings: teachers(8) })
     expect(screen.getAllByTestId('card')).toHaveLength(8)
-    for (const props of h.cards) {
-      expect(props.priority).toBeUndefined()
-      expect(props.lcp).toBeUndefined()
-      expect(props.onLocate).toBeUndefined()
-    }
+    expect(h.cards.map((p) => [p.priority, p.lcp])).toEqual([[true, true], ...Array.from({ length: 7 }, () => [false, false])])
+    for (const props of h.cards) expect(props.onLocate).toBeUndefined()
     fireEvent.click(screen.getAllByTestId('card')[2])
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 't2' }))
   })

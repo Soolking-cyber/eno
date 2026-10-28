@@ -1,5 +1,6 @@
 import { DeskResolutionError, scopedListingWhere } from '@/lib/edition-scope'
 import { HOME_FEED_SEATS } from '@/lib/feed-diversity'
+import { inAppOnly } from '@/lib/in-app-listing'
 import { diverseFeedHead } from '@/lib/feed-window'
 import type { Metadata } from 'next'
 import { db } from '@/lib/db'
@@ -59,7 +60,12 @@ async function getData(onlyTitleLang: string | undefined): Promise<{ categories:
      * original promise and still rejects on it.
      */
     categoriesPromise.catch(() => {})
-    const publicScope = await scopedListingWhere({ verified: true, status: 'active' })
+    /**
+     * ⛔ ONLY LISTINGS DEALT ON eno (owner, 2026-10-28 — in-app-listing.ts): nothing whose button leads to another website (a
+     * partner's or a source site). /api/listings narrows the explorer's identical request the same way (feed-payload.ts, on
+     * `goodsSeatsFor`), so the seed, the count and every later page describe one feed.
+     */
+    const publicScope = inAppOnly(await scopedListingWhere({ verified: true, status: 'active' }))
 
     const firstPagePromise = diverseFeedHead(
       // ⚠️ EDITION-SCOPED. eno.vn is a licensed sàn TMĐT; the e-visa SKUs are ordinary Listing
@@ -106,7 +112,7 @@ async function getData(onlyTitleLang: string | undefined): Promise<{ categories:
       // visit) the client keeps this seed (for-you-rail.tsx skips the fetch), so this exclusion is
       // what they see, not a first paint that hydration replaces.
       trendingRailListings({ excludeIds: firstPagePromise.then((rows) => rows.map((r) => r.id)) }).catch(() => []),
-      // The "Find a teacher" shelf after the feed's first page (owner, 2026-10-13 — teacher-shelf.ts): /c/teachers' own
+      // The "Find a teacher" shelf, first under the categories since 2026-10-28 (owner, 2026-10-13 — teacher-shelf.ts): /c/teachers' own
       // first cards, minus the owner's demo. Same fail-soft as the rails: a failed read is a page without the shelf. (A
       // desk-resolution failure cannot hide here — `publicScope` above already rethrew it.) ⚠️ LOGGED, unlike the rails'
       // silent catches (reviewer): the shelf has no client fetch behind it, so a failed read is a home page without

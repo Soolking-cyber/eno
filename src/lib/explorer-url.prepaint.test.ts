@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MASK_KEYS, PREPAINT_SCRIPT, RECENTS_ATTR, explorerUrlMasks, readExplorerUrl, recentSearchTerms } from './explorer-url'
+import { MASK_KEYS, PREPAINT_SCRIPT, RECENTS_ATTR, SHELF_OFF_ATTR, explorerUrlMasks, readExplorerUrl, recentSearchTerms } from './explorer-url'
 import { RECENT_SEARCHES_KEY } from './reco-signals'
 
 /**
@@ -31,6 +31,11 @@ const CASES: [string, boolean][] = [
   ['?q=', false], // an empty value directs nothing
   ['?category=rentals&district=d2', true],
   ['?sort=price-low', true], // same set, but not in the seed's order
+  ['?sort=recent', true],
+  // ⛔ The seed's own order is the seed exactly — and the home teacher shelf above the feed must stay laid out for it
+  // (MASK_KEYS; globals.css takes the shelf out of the layout under the mask). Junk reads as `newest` too.
+  ['?sort=newest', false],
+  ['?sort=junk', false],
   ['?match=any&q=sofa', true],
   ['?view=grid', false], // the default view is the seed's own
   ['?view=compact', true],
@@ -52,7 +57,7 @@ describe('the pre-paint mask rule', () => {
 
   it('every mask key alone masks; the list is the one the script was built from', () => {
     for (const k of MASK_KEYS) {
-      const v = k === 'view' ? 'map' : 'x'
+      const v = k === 'view' ? 'map' : k === 'sort' ? 'popular' : 'x'
       expect(runScript(`?${k}=${v}`).masked, k).toBe(true)
       expect(explorerUrlMasks(`?${k}=${v}`), k).toBe(true)
     }
@@ -71,6 +76,19 @@ describe('the pre-paint mask rule', () => {
     expect(r.timers).toHaveLength(1)
     r.timers[0]()
     expect(r.attrs.has('data-explorer-directed')).toBe(false)
+  })
+
+  // ⛔ THE TEACHER SHELF'S HOLD RIDES WITH THE MASK BUT OUTLIVES ITS TIMER (SHELF_OFF_ATTR, 2026-10-28): above the feed, a
+  // shelf that appeared when the mask lifted and left again at hydration would move the grid twice.
+  it.each(CASES)('%s → the shelf hold is set exactly when the mask is (%s)', (search, want) => {
+    expect(runScript(search).attrs.has(SHELF_OFF_ATTR)).toBe(want)
+  })
+
+  it('the 15s timer lifts the mask and leaves the shelf hold in place', () => {
+    const r = runScript('?q=honda')
+    r.timers.forEach((t) => t())
+    expect(r.attrs.has('data-explorer-directed')).toBe(false)
+    expect(r.attrs.has(SHELF_OFF_ATTR)).toBe(true)
   })
 
   it('never throws — a hostile environment costs the mask, not the page', () => {

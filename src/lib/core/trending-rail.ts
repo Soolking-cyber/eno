@@ -2,6 +2,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
 import { safeParse, serializeListing } from '@/lib/serialize'
 import { diversifyRail } from '@/lib/feed-diversity'
+import { inAppOnly } from '@/lib/in-app-listing'
 import { Prisma } from '@/generated/prisma/client'
 
 const LIMIT = 16
@@ -86,7 +87,9 @@ export async function trendingRailListings({ excludeIds }: { excludeIds?: readon
   // thin-catalog guard below is computed from this same count — removing the desk's rows can push a
   // small live catalogue under the threshold and make the rail disappear from the home page. That is
   // correct behaviour, not a regression: check the live active count before assuming otherwise.
-  const base: Prisma.ListingWhereInput = await scopedListingWhere({ verified: true, status: 'active' })
+  // ⛔ ONLY LISTINGS DEALT ON eno — a home-page rail (owner, 2026-10-28 — in-app-listing.ts); /api/recommendations' own
+  // fallback is this function, so the rail answers the same with and without the client fetch.
+  const base: Prisma.ListingWhereInput = inAppOnly(await scopedListingWhere({ verified: true, status: 'active' }))
   const pool = await db.listing.count({ where: base })
   if (pool < 24) return []
   // ⚠️ /api/recommendations calls this with no ids and gets exactly the rail it always served.

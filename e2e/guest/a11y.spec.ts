@@ -19,7 +19,7 @@ test.describe('Guest · accessibility', () => {
   test('listing page has no serious/critical violations', async ({ page }) => {
     // Resolve a live listing from the home feed (audit Phase 0 — no hardcoded cuid).
     await page.goto('/')
-    const card = page.locator('a[data-card-link]').first()
+    const card = page.locator('.feed-grid a[data-card-link]').first()
     await card.waitFor({ timeout: 20_000 })
     const href = new URL((await card.getAttribute('href'))!, page.url()).pathname
     await page.goto(href)

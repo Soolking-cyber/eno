@@ -1,6 +1,7 @@
 import 'server-only'
 import { db } from '@/lib/db'
 import { scopedListingWhere, teachersCategoryId } from '@/lib/edition-scope'
+import { inAppOnly } from '@/lib/in-app-listing'
 import { LISTING_CARD_SELECT, serializeListingCard } from '@/lib/serialize'
 import { LANGS } from '@/lib/i18n/langs'
 import { HOME_HIDDEN_TEACHER_LISTING_IDS, HOME_TEACHER_SHELF_TAKE } from '@/lib/teachers/constants'
@@ -41,10 +42,13 @@ export async function homeTeacherShelf(): Promise<SerializedListingCard[]> {
   // Memoised per process (edition-scope.ts); null = no teachers category, so no teacher listing can exist.
   const teachersId = await teachersCategoryId()
   if (!teachersId) return []
-  const where = await scopedListingWhere(
+  // ⛔ ONLY LISTINGS DEALT ON eno, like every home surface (owner, 2026-10-28 — in-app-listing.ts). A teacher profile carries
+  // no partner link today; the narrowing makes "the home page shows only listings contacted through the platform" true by
+  // construction rather than by that fact (codex, commit gate).
+  const where = inAppOnly(await scopedListingWhere(
     { categoryId: teachersId, verified: true, status: 'active' as const, id: { notIn: [...HOME_HIDDEN_TEACHER_LISTING_IDS] } },
     { teachers: true },
-  )
+  ))
   const rows = await db.listing.findMany({
     where,
     orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],

@@ -21,7 +21,7 @@ const topOf = async (page: Page, selector: string) =>
 const openAListing = async (page: Page) => {
   await page.goto('/')
   await dismissOverlays(page)
-  const first = page.locator('a[data-card-link="true"]').first()
+  const first = page.locator('.feed-grid a[data-card-link="true"]').first()
   await first.waitFor({ state: 'attached' })
   await page.goto((await first.getAttribute('href'))!)
   await dismissOverlays(page)

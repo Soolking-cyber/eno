@@ -48,7 +48,7 @@ test.describe('Guest · lang=vi — searching and filtering stay Vietnamese', ()
 
   test('the header search on a PDP lands on /vi', async ({ page }) => {
     await page.goto('/vi', { waitUntil: 'load' })
-    const card = page.locator('a[data-card-link]').first()
+    const card = page.locator('.feed-grid a[data-card-link]').first()
     await card.waitFor({ timeout: 20_000 })
     await page.goto(new URL((await card.getAttribute('href'))!, page.url()).pathname, { waitUntil: 'load' })
     await expect(page.locator('html')).toHaveAttribute('lang', 'vi')

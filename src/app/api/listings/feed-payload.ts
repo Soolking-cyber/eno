@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { diversityAppliesTo, goodsSeatsFor, sharedSeatsFor } from '@/lib/feed-diversity'
 import { diverseFeedHead, feedPagePlan } from '@/lib/feed-window'
 import { scopedListingWhere } from '@/lib/edition-scope'
+import { inAppOnly } from '@/lib/in-app-listing'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { buildFeedFilters, resolveFeedFilters, buildFeedOrderBy, getSubcategoryCounts, countListingsCached } from './feed-query'
@@ -153,6 +154,16 @@ export async function buildFeedPayload(searchParams: URLSearchParams, opts: { no
    * head, so the two must agree or page 2 repeats a server-rendered card and skips another.
    */
   const goodsSeats = goodsSeatsFor(searchParams)
+  /**
+   * ⛔ AND THE SAME TEST NARROWS IT TO LISTINGS DEALT ON eno (owner, 2026-10-28 — in-app-listing.ts): the home page's
+   * default feed carries nothing whose button takes the reader to another website. (home)/page.tsx seeds its twelve
+   * cards and its count from the same narrowing, and page 2 here is cut from this head — so the rows, the tail and
+   * `total` all read `feedWhere`, or the explorer repeats a card, skips one, or stops (or never stops) loading.
+   * ⚠️ NOT THE FACETS OR THE HISTOGRAM: a chip's count is what tapping it returns, and every tap leaves this feed for a
+   * filtered one, which keeps the partner rows (a histogram request is never this feed: `histogram` is not neutral).
+   * Not the text rankers either — a worded request is never this feed (goodsSeatsFor).
+   */
+  const feedWhere = goodsSeats ? inAppOnly(where) : where
 
   /**
    * ⛔ A SUBCATEGORY-SCOPED FILTER IS COUNTED THE WAY EACH SIBLING'S TAP APPLIES IT. `facetBaseFilters`
@@ -263,7 +274,7 @@ export async function buildFeedPayload(searchParams: URLSearchParams, opts: { no
         // `teachers: true`: `where` already carries buildFeedFilters' teacher decision (as the tail below).
         // The head is the window dealt by the seat rules — the same function the home render slices its
         // twelve from (feed-window.ts diverseFeedHead), so page 2 continues exactly where they stop.
-        ? diverseFeedHead(where, orderBy, LISTING_CARD_SELECT, { sharedSeats, goodsSeats, teachers: true })
+        ? diverseFeedHead(feedWhere, orderBy, LISTING_CARD_SELECT, { sharedSeats, goodsSeats, teachers: true })
             /**
              * ⛔ ROWS PAST THE WINDOW MUST EXCLUDE WHAT THE WINDOW ALREADY SERVED. The window no
              * longer contains the natural top 60 — it contains each seller's best — so continuing
@@ -292,20 +303,20 @@ export async function buildFeedPayload(searchParams: URLSearchParams, opts: { no
               const tail = await db.listing.findMany({
                 // `teachersIn`: the decision `where` carries (buildFeedFilters) — the default exclusion here
                 // would drop every /c/teachers row past the head window.
-                where: { AND: [await scopedListingWhere(where, { teachers: teachersIn }), { id: { notIn: head.map((r) => r.id) } }] },
+                where: { AND: [await scopedListingWhere(feedWhere, { teachers: teachersIn }), { id: { notIn: head.map((r) => r.id) } }] },
                 orderBy, skip: plan.tailSkip, take: plan.tailTake, select: LISTING_CARD_SELECT,
               })
               return [...fromHead, ...tail]
             })
         // edition-lint-allow: the same `where`, edition scope included (resolveFeedFilters → marketplaceListingScope).
         : db.listing.findMany({
-            where,
+            where: feedWhere,
             orderBy,
             take: limit,
             skip: offset,
             select: LISTING_CARD_SELECT,
           }))),
-    semanticListings ? Promise.resolve(semanticTotal) : countListingsCached(where),
+    semanticListings ? Promise.resolve(semanticTotal) : countListingsCached(feedWhere),
     undefined
   ]
 
