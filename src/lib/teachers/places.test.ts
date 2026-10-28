@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
-  ANYWHERE, CITY_PROVINCE, HCMC, HCMC_DISTRICT_KEYS, HUBS, HUB_PROVINCE, MAX_TEACH_AREAS, ONLINE, PLACE_KEYS, PROVINCE_PLACES,
+  ANYWHERE, CITY_PROVINCE, HANOI_DISTRICT_KEYS, HCMC, HCMC_DISTRICT_KEYS, HUBS, HUB_PROVINCE, MAX_TEACH_AREAS, ONLINE, PLACE_KEYS, PROVINCE_PLACES,
   TOWN_ALIASES, coverReachOf, homeAreaKeys, homeHasCover, hubsInProvince, isPlaceKey, mirrorCities, normalizeTeachAreas,
   otherCityKeys, placeLabel, provinceKeyOf, relocationAllowed, situationForPlace, workInFilterKeys, type PlaceSituation,
 } from './places'
@@ -64,7 +64,9 @@ describe('the home area — "Near you", and the only places cover reaches', () =
     expect(homeAreaKeys(city(HCMC))).toEqual([HCMC, ...HCMC_DISTRICT_KEYS, 'binh-duong', 'vung-tau'])
     // a Bình Dương resident lives in the same province: HCMC and its districts are near home
     expect(homeAreaKeys(city('binh-duong'))).toEqual(homeAreaKeys(city(HCMC)))
-    expect(homeAreaKeys(city('ha-noi'))).toEqual(['ha-noi'])
+    // Hà Nội is split into its 12 districts since 2026-10-28 (owner): all of them are near a Hà Nội teacher.
+    expect(homeAreaKeys(city('ha-noi'))).toEqual(['ha-noi', ...HANOI_DISTRICT_KEYS])
+    expect(HANOI_DISTRICT_KEYS).toHaveLength(12)
     // ⛔ Đồng Nai stands alone (owner, 2026-10-08) — Biên Hòa is not "near" Thủ Đức
     expect(homeAreaKeys(city('dong-nai'))).toEqual(['dong-nai'])
   })
@@ -145,7 +147,23 @@ describe('workInFilterKeys — a school\'s "Can teach in" filter', () => {
   it('expands a city to its districts, its province key (B5) and "anywhere"', () => {
     expect(workInFilterKeys(HCMC)).toEqual([HCMC, ...HCMC_DISTRICT_KEYS, ANYWHERE])
     expect(workInFilterKeys('khanh-hoa')).toEqual(['khanh-hoa', 'p-56', ANYWHERE])
-    expect(workInFilterKeys('ha-noi')).toEqual(['ha-noi', ANYWHERE])
+    expect(workInFilterKeys('ha-noi')).toEqual(['ha-noi', ...HANOI_DISTRICT_KEYS, ANYWHERE])
+  })
+  it('expands a Hà Nội district to itself, the whole of Hà Nội and "anywhere" — never an HCMC district', () => {
+    expect(workInFilterKeys('hn-cau-giay')).toEqual(['hn-cau-giay', 'ha-noi', ANYWHERE])
+    expect(workInFilterKeys('hn-cau-giay').some((k) => HCMC_DISTRICT_KEYS.includes(k))).toBe(false)
+  })
+  it('treats a Hà Nội district like an HCMC one: its province, its city, whole-city wins, and its name', () => {
+    const hn = city('ha-noi')
+    expect(normalizeTeachAreas(['hn-tay-ho', 'ha-noi', 'hn-cau-giay'], hn)).toEqual(['ha-noi'])
+    expect(normalizeTeachAreas(['hn-cau-giay', 'hn-tay-ho', ONLINE], hn)).toEqual([ONLINE, 'hn-tay-ho', 'hn-cau-giay'])
+    // Only near home: an HCMC teacher cannot list a Hà Nội district (other cities are whole-city only).
+    expect(normalizeTeachAreas(['hn-tay-ho', HCMC], city(HCMC))).toEqual([HCMC])
+    expect(mirrorCities(['hn-tay-ho', 'd1'])).toEqual([HCMC, 'ha-noi'])
+    expect(placeLabel('hn-hai-ba-trung', 'vi')).toBe('Hai Bà Trưng')
+    expect(placeLabel('hn-hai-ba-trung', 'en')).toBe('Hai Ba Trung')
+    expect(placeLabel('d1', 'en')).toBe('District 1')
+    expect(coverReachOf({ ...hn, teachAreas: ['hn-tay-ho', 'hn-ba-dinh', ONLINE] })).toEqual(['hn-ba-dinh', 'hn-tay-ho'])
   })
   it('expands a district through its umbrella to the whole city, and "anywhere"', () => {
     expect(workInFilterKeys('d2')).toEqual(expect.arrayContaining(['d2', 'thu-duc', HCMC, ANYWHERE]))

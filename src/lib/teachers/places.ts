@@ -10,21 +10,22 @@
  *
  * THE KEYS (PLACE_KEYS, in this canonical order):
  *   · 'online' — the only place Online is asked (plan review, 2026-10-08: "Online is asked once");
- *   · the 12 hub slugs (= cover.ts COVER_CITIES), each followed — for Ho Chi Minh City — by the 24 curated HCMC
- *     districts, which are cover.ts COVER_AREAS (themselves the explorer's DISTRICTS table: IMPORTED, never copied);
+ *   · the 12 hub slugs (= cover.ts COVER_CITIES), each followed by its districts — Ho Chi Minh City's 24 curated ones
+ *     (the explorer's DISTRICTS table: IMPORTED, never copied) and, since 2026-10-28, Hà Nội's 12 (district-hanoi.ts
+ *     HANOI_DISTRICTS, `hn-` keys) — all of them cover.ts COVER_AREAS;
  *   · 'p-<code>' — a vn-units province that no city chip covers whole (27 of the 34), offered only as the teacher's
  *     OWN home province;
  *   · 'anywhere' — "will move anywhere in Vietnam".
  * ⚠️ The order IS the stored order: facet tokens, coverStamp and the mirrors are built from it, so the same set must
  * always serialise the same way.
  */
-import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { VN_PROVINCES } from '@/lib/vn-areas'
 import { COVER_AREAS, COVER_AREA_BY_KEY, COVER_AREA_KEYS, COVER_CITIES, coverAreaFilterKeys } from '@/lib/teachers/cover'
 
 export const ONLINE = 'online'
 export const ANYWHERE = 'anywhere'
 export const HCMC = 'ho-chi-minh-city'
+export const HANOI = 'ha-noi'
 
 /** "Where are you now?" — NULL in the row means not answered (plan review D3, 2026-10-08: never defaulted). */
 export type LivesIn = 'city' | 'elsewhere' | 'abroad'
@@ -88,9 +89,17 @@ export const PROVINCE_PLACES: readonly ProvincePlace[] = VN_PROVINCES.filter((p)
 const PROVINCE_BY_KEY: ReadonlyMap<string, ProvincePlace> = new Map(PROVINCE_PLACES.map((p) => [p.key, p]))
 const PROVINCE_BY_CODE: ReadonlyMap<string, ProvincePlace> = new Map(PROVINCE_PLACES.map((p) => [p.code, p]))
 
+/** A city's districts, in COVER_AREAS order (HCMC and Hà Nội have them; every other city returns []). */
+export const districtKeysOf = (city: string): string[] => COVER_AREAS.filter((a) => a.city === city && !a.cityWide).map((a) => a.key)
 /** The 24 curated HCMC districts (cover.ts COVER_AREAS = the explorer's DISTRICTS, minus `all`). */
-export const HCMC_DISTRICT_KEYS: readonly string[] = COVER_AREAS.filter((a) => a.city === HCMC && !a.cityWide).map((a) => a.key)
+export const HCMC_DISTRICT_KEYS: readonly string[] = districtKeysOf(HCMC)
 const DISTRICT_SET: ReadonlySet<string> = new Set(HCMC_DISTRICT_KEYS)
+/** Hà Nội's 12 districts (district-hanoi.ts HANOI_DISTRICTS, owner 2026-10-28). */
+export const HANOI_DISTRICT_KEYS: readonly string[] = districtKeysOf(HANOI)
+/** The cities split into districts, in hub order — HCMC, Hà Nội. */
+export const DISTRICT_CITIES: readonly string[] = COVER_CITIES.map((c) => c.key).filter((c) => districtKeysOf(c).length > 0)
+/** Every district key (either city) → its city. */
+const DISTRICT_CITY: ReadonlyMap<string, string> = new Map(COVER_AREAS.filter((a) => !a.cityWide).map((a) => [a.key, a.city]))
 
 /** Every teach-area key, in the canonical (stored) order. */
 export const PLACE_KEYS: readonly string[] = [ONLINE, ...COVER_AREAS.map((a) => a.key), ...PROVINCE_PLACES.map((p) => p.key), ANYWHERE]
@@ -98,13 +107,19 @@ const PLACE_INDEX: ReadonlyMap<string, number> = new Map(PLACE_KEYS.map((k, i) =
 
 /**
  * ≥ every legal list, so normalisation never cuts a teacher's picks (the most reachable is 35: Online, Bình Dương,
- * Vũng Tàu, 23 HCMC districts and the 9 other hubs). The database CHECK `TeacherProfile_teach_bounds`
- * (scripts/teachers-ddl.mjs) holds the same number — places.test.ts reads that file.
+ * Vũng Tàu, 23 HCMC districts and the 9 other hubs), and ≥ every area there is (COVER_AREAS, 48 with Hà Nội's
+ * districts, 2026-10-28). The database CHECK `TeacherProfile_teach_bounds` (scripts/teachers-ddl.mjs) holds the same
+ * number — places.test.ts reads that file.
  */
-export const MAX_TEACH_AREAS = 40
+export const MAX_TEACH_AREAS = 60
 
 export const isHub = (k: string): boolean => HUB_SET.has(k)
 export const isHcmcDistrict = (k: string): boolean => DISTRICT_SET.has(k)
+export const isHanoiDistrict = (k: string): boolean => DISTRICT_CITY.get(k) === HANOI
+/** A district of either city — HCMC's or Hà Nội's. */
+export const isCityDistrict = (k: string): boolean => DISTRICT_CITY.has(k)
+/** The city a district belongs to, or null for anything that is not a district. */
+export const cityOfDistrict = (k: string): string | null => DISTRICT_CITY.get(k) ?? null
 export const isPlaceKey = (k: unknown): k is string => typeof k === 'string' && PLACE_INDEX.has(k)
 /** A province key's code ('p-52' → '52'), or null for anything else. */
 export const provinceCodeOfKey = (k: string): string | null => PROVINCE_BY_KEY.get(k)?.code ?? null
@@ -117,7 +132,8 @@ export const hubsInProvince = (code: string): string[] => HUBS.filter((h) => HUB
 /** The vn-units province a place key lies in (hub, HCMC district or province key), or null (online / anywhere). */
 export function provinceOfPlace(k: string): string | null {
   if (HUB_SET.has(k)) return HUB_PROVINCE[k]
-  if (DISTRICT_SET.has(k)) return HUB_PROVINCE[HCMC]
+  const city = DISTRICT_CITY.get(k)
+  if (city) return HUB_PROVINCE[city]
   return provinceCodeOfKey(k)
 }
 
@@ -165,7 +181,8 @@ export function otherCityKeys(s: PlaceSituation): string[] {
 
 /**
  * The ONE normaliser of a teach-area list: known keys only, canonical order, and no double selection —
- *   · "Anywhere in HCMC" drops HCMC's districts (B2: whole-city wins — never shrink a stated reach);
+ *   · "Anywhere in HCMC" drops HCMC's districts, "Anywhere in Hà Nội" Hà Nội's (B2: whole-city wins — never shrink a
+ *     stated reach);
  *   · Thủ Đức drops District 2 and 9 (its umbrella keeps them, cover.ts COVER_AREAS `parts`);
  *   · 'anywhere' drops the other cities (it already means all of them).
  * With the teacher's situation answered, also what they may list at all:
@@ -177,7 +194,7 @@ export function otherCityKeys(s: PlaceSituation): string[] {
  */
 export function normalizeTeachAreas(raw: unknown, s: PlaceSituation): string[] {
   let keys = canonical(Array.isArray(raw) ? raw.filter(isPlaceKey) : [])
-  if (keys.includes(HCMC)) keys = keys.filter((k) => !DISTRICT_SET.has(k))
+  for (const city of DISTRICT_CITIES) if (keys.includes(city)) keys = keys.filter((k) => DISTRICT_CITY.get(k) !== city)
   for (const a of COVER_AREAS) if (a.parts && keys.includes(a.key)) keys = keys.filter((k) => !a.parts!.includes(k))
   if (s.livesIn !== null && s.livesIn !== undefined) {
     const home = new Set(homeAreaKeys(s))
@@ -229,21 +246,21 @@ export function workInFilterKeys(value: string): string[] {
 }
 
 /**
- * The CITY level of a teach-area list — the `preferredCities` mirror (an HCMC district → HCMC; province keys dropped;
+ * The CITY level of a teach-area list — the `preferredCities` mirror (a district → its city; province keys dropped;
  * 'anywhere' and 'online' kept), in the old workIn order (12 hubs, anywhere, online). It keeps the old readers, the
  * external matcher and a rollback reading what they always read.
  */
 export function mirrorCities(teachAreas: readonly string[]): string[] {
-  const set = new Set(teachAreas.map((k) => (DISTRICT_SET.has(k) ? HCMC : k)))
+  const set = new Set(teachAreas.map((k) => DISTRICT_CITY.get(k) ?? k))
   return [...HUBS.filter((h) => set.has(h)), ...(set.has(ANYWHERE) ? [ANYWHERE] : []), ...(set.has(ONLINE) ? [ONLINE] : [])]
 }
 
-const DISTRICT_BY_KEY = new Map(DISTRICTS.filter((d) => d.slug !== 'all').map((d) => [d.slug, d]))
 const HUB_BY_KEY = new Map<string, (typeof COVER_CITIES)[number]>(COVER_CITIES.map((c) => [c.key, c]))
 
 /**
  * A place's name — NEVER machine-translated (PlaceName's rule): Vietnamese for `vi`, English for every other language.
- * Hubs as their chips say them (Nha Trang, Đà Lạt), districts by the curated DISTRICTS names, provinces by vn-units.
+ * Hubs as their chips say them (Nha Trang, Đà Lạt), districts by COVER_AREAS (HCMC's = the curated DISTRICTS names,
+ * Hà Nội's = HANOI_DISTRICTS), provinces by vn-units.
  * ⚠️ Not a `{ en, vi }` pair table on purpose: gen-ui-strings harvests such pairs into the MT catalogue.
  */
 export function placeLabel(key: string, lang: string): string {
@@ -252,8 +269,8 @@ export function placeLabel(key: string, lang: string): string {
   if (key === ANYWHERE) return vi ? 'Bất kỳ đâu tại Việt Nam' : 'Anywhere in Vietnam'
   const hub = HUB_BY_KEY.get(key)
   if (hub) return vi ? hub.vi : hub.en
-  const d = DISTRICT_BY_KEY.get(key)
-  if (d) return vi ? d.name : d.nameEn
+  const d = DISTRICT_CITY.has(key) ? COVER_AREA_BY_KEY.get(key) : undefined
+  if (d) return vi ? d.vi : d.en
   const p = PROVINCE_BY_KEY.get(key)
   if (p) return vi ? p.name : p.nameEn
   return key

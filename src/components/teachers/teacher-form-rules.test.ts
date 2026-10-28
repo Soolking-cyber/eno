@@ -20,10 +20,13 @@ describe('the home pre-selection (homeDefaultAreas)', () => {
     expect(homeDefaultAreas({ livesIn: 'elsewhere', currentCity: '', currentProvince: '52', currentDistrictKey: '' })).toEqual(['p-52'])
     expect(homeDefaultAreas({ livesIn: 'abroad', currentCity: '', currentProvince: '', currentDistrictKey: '' })).toEqual([])
   })
-  it('came for cover: HCMC opens on the home district (or nothing to pre-select without one)', () => {
+  it('came for cover: a city with districts opens on the home district (or nothing to pre-select without one)', () => {
     expect(homeDefaultAreas({ livesIn: 'city', currentCity: 'ho-chi-minh-city', currentProvince: '', currentDistrictKey: 'd7' }, true)).toEqual(['d7'])
     expect(homeDefaultAreas({ livesIn: 'city', currentCity: 'ho-chi-minh-city', currentProvince: '', currentDistrictKey: '' }, true)).toEqual([])
-    expect(homeDefaultAreas({ livesIn: 'city', currentCity: 'ha-noi', currentProvince: '', currentDistrictKey: '' }, true)).toEqual(['ha-noi'])
+    // Hà Nội is split into districts since 2026-10-28 (owner); no home district is asked there, so nothing is pre-picked.
+    expect(homeDefaultAreas({ livesIn: 'city', currentCity: 'ha-noi', currentProvince: '', currentDistrictKey: '' }, true)).toEqual([])
+    // A city without districts keeps the whole city.
+    expect(homeDefaultAreas({ livesIn: 'city', currentCity: 'da-nang', currentProvince: '', currentDistrictKey: '' }, true)).toEqual(['da-nang'])
   })
 })
 

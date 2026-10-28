@@ -46,17 +46,28 @@ describe('cover areas', () => {
     expect(COVER_AREAS.find((a) => a.key === 'thu-duc')?.parts).toEqual(['d2', 'd9'])
     expect(new Set(COVER_AREA_KEYS).size).toBe(COVER_AREA_KEYS.length)
   })
-  it('only split HCMC into districts — every other city is city-wide only', () => {
-    for (const c of COVER_CITIES.filter((x) => x.key !== 'ho-chi-minh-city')) {
+  it('split HCMC and Hà Nội into districts — every other city is city-wide only', () => {
+    for (const c of COVER_CITIES.filter((x) => x.key !== 'ho-chi-minh-city' && x.key !== 'ha-noi')) {
       expect(COVER_AREAS.filter((a) => a.city === c.key).map((a) => a.key)).toEqual([c.key])
     }
+    // Hà Nội (owner, 2026-10-28): the city-wide entry, then its 12 inner districts — own table, `hn-` keys, never DISTRICTS.
+    expect(COVER_AREAS.filter((a) => a.city === 'ha-noi').map((a) => a.key)).toEqual([
+      'ha-noi', 'hn-ba-dinh', 'hn-hoan-kiem', 'hn-tay-ho', 'hn-long-bien', 'hn-cau-giay', 'hn-dong-da', 'hn-hai-ba-trung',
+      'hn-hoang-mai', 'hn-thanh-xuan', 'hn-nam-tu-liem', 'hn-bac-tu-liem', 'hn-ha-dong',
+    ])
+    expect(DISTRICTS.some((d) => d.slug.startsWith('hn-'))).toBe(false)
+    expect(coverAreaLabel('hn-cau-giay', 'vi')).toBe('Cầu Giấy')
+    expect(coverAreaLabel('hn-cau-giay', 'en')).toBe('Cau Giay')
   })
   it('expand a school filter the way people mean it', () => {
     expect(coverAreaFilterKeys('d7')).toEqual(['d7', 'ho-chi-minh-city'])
     expect(coverAreaFilterKeys('d2')).toEqual(expect.arrayContaining(['d2', 'thu-duc', 'ho-chi-minh-city']))
     expect(coverAreaFilterKeys('thu-duc')).toEqual(expect.arrayContaining(['thu-duc', 'd2', 'd9', 'ho-chi-minh-city']))
     expect(coverAreaFilterKeys('ho-chi-minh-city')).toEqual(['ho-chi-minh-city', ...DISTRICTS.filter((d) => d.slug !== 'all').map((d) => d.slug)])
-    expect(coverAreaFilterKeys('ha-noi')).toEqual(['ha-noi'])
+    expect(coverAreaFilterKeys('ha-noi')).toEqual(['ha-noi', ...COVER_AREAS.filter((a) => a.city === 'ha-noi' && !a.cityWide).map((a) => a.key)])
+    // A Hà Nội district finds itself and "anywhere in Hà Nội" — never an HCMC district.
+    expect(coverAreaFilterKeys('hn-tay-ho')).toEqual(['hn-tay-ho', 'ha-noi'])
+    expect(coverAreaFilterKeys('da-nang')).toEqual(['da-nang'])
     expect(coverAreaFilterKeys('atlantis')).toEqual(['atlantis'])
     // d9 never finds a d2-only teacher
     expect(coverAreaFilterKeys('d9')).not.toContain('d2')

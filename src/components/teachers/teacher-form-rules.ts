@@ -7,7 +7,7 @@
  * normalizeForSave on every body, so a slip here can show a stale answer but never store a hidden one.
  */
 import {
-  ANYWHERE, HCMC, ONLINE, normalizeTeachAreas, otherCityKeys, placeLabel, provinceKeyOf, relocationAllowed,
+  ANYWHERE, DISTRICT_CITIES, HCMC, ONLINE, cityOfDistrict, normalizeTeachAreas, otherCityKeys, placeLabel, provinceKeyOf, relocationAllowed,
 } from '@/lib/teachers/places'
 import {
   DRAFT_STEPS, EMPTY_TEACHER, PRE_SIGNIN_STEPS, TEACHER_OPTIONS, TEACHER_STEPS, TEACHER_STEP_FIELDS, normalizeForSave, normalizeTeacherInput,
@@ -113,13 +113,16 @@ export const step1Answered = (t: TeacherInput): boolean =>
  * the list or edits it (teachAreasConfirmed; the server stamps teachAreasConfirmedAt). Nothing is public from an
  * untouched default.
  *   · a city chip → that city (HCMC: "Anywhere in HCMC");
- *   · HCMC when the teacher came for COVER (?goal=cover) → their home district, if they named one: cover is found by
- *     district, so "Only some districts" opens first (plan, WP2);
+ *   · a city with districts (HCMC; Hà Nội since 2026-10-28) when the teacher came for COVER (?goal=cover) → their
+ *     home district, if they named one in that city (HCMC's "Lives in" district): cover is found by district, so
+ *     "Only some districts" opens first (plan, WP2);
  *   · somewhere else → their province;  · abroad → nothing (no home area).
  */
 export function homeDefaultAreas(s: Situation, coverIntent = false): string[] {
   if (s.livesIn === 'city' && s.currentCity) {
-    if (s.currentCity === HCMC && coverIntent) return s.currentDistrictKey ? [s.currentDistrictKey] : []
+    if (coverIntent && DISTRICT_CITIES.includes(s.currentCity)) {
+      return s.currentDistrictKey && cityOfDistrict(s.currentDistrictKey) === s.currentCity ? [s.currentDistrictKey] : []
+    }
     return [s.currentCity]
   }
   if (s.livesIn === 'elsewhere') {

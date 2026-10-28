@@ -880,3 +880,88 @@ describe('<FacetBar> — the multi-select amenities group', () => {
     expect(screen.getByTestId('filters').textContent).toBe('{"amenities":"car-alley"}')
   })
 })
+
+/**
+ * ⛔ HÀ NỘI'S DISTRICT CHIPS (owner, 2026-10-28: "find a teacher … add Hanoi districts chip"). Browsing teachers, the 12
+ * districts sit in a row under the bar; a chip IS the "Can teach in" value (the Cover-area value with cover on), only the
+ * districts that narrow are drawn, the picked one stays, and names are never machine-translated.
+ */
+describe('the teachers browse — Hà Nội district chips', () => {
+  const teachers = (customFilters: Record<string, string> = {}, over: Partial<FacetBarProps> = {}) =>
+    props({ activeCategory: 'teachers', histogramQuery: 'category=teachers', customFilters, ...over })
+  const row = () => screen.getByRole('group', { name: /hanoi districts|các quận hà nội/i })
+  const lastUpdate = (setCustomFilters: ReturnType<typeof vi.fn>) =>
+    setCustomFilters.mock.calls.at(-1)![0] as (prev: Record<string, string>) => Record<string, string>
+
+  it('draws all 12 under "Hà Nội" before counts land, in the page language', () => {
+    renderIn('vi', <FacetBar {...teachers()} />)
+    const chips = within(row()).getAllByRole('button')
+    expect(chips).toHaveLength(12)
+    expect(row().textContent).toContain('Hà Nội')
+    expect(chips.map((c) => c.textContent)).toContain('Cầu Giấy')
+    cleanup()
+    renderIn('en', <FacetBar {...teachers()} />)
+    expect(within(row()).getByRole('button', { name: /^Tay Ho/ })).toBeTruthy()
+  })
+
+  it('a chip is the "Can teach in" value — tap to pick, tap again to release', async () => {
+    const user = userEvent.setup()
+    const setCustomFilters = vi.fn()
+    renderIn('en', <FacetBar {...teachers({}, { setCustomFilters })} />)
+    await user.click(within(row()).getByRole('button', { name: /^Cau Giay/ }))
+    expect(lastUpdate(setCustomFilters)({})).toEqual({ workIn: 'hn-cau-giay' })
+    cleanup()
+    const again = vi.fn()
+    renderIn('en', <FacetBar {...teachers({ workIn: 'hn-cau-giay' }, { setCustomFilters: again })} />)
+    const picked = within(row()).getByRole('button', { name: /^Cau Giay/ })
+    expect(picked.getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('combobox', { name: /can teach in/i }).textContent).toContain('Can teach in: Cau Giay')
+    await user.click(picked)
+    expect(lastUpdate(again)({ workIn: 'hn-cau-giay' })).toEqual({})
+  })
+
+  it('with "Available for cover" on, a chip is the Cover-area value', async () => {
+    const user = userEvent.setup()
+    const setCustomFilters = vi.fn()
+    renderIn('en', <FacetBar {...teachers({ cover: 'open' }, { setCustomFilters })} />)
+    await user.click(within(row()).getByRole('button', { name: /^Dong Da/ }))
+    expect(lastUpdate(setCustomFilters)({ cover: 'open' })).toEqual({ cover: 'open', coverArea: 'hn-dong-da' })
+  })
+
+  it('drops only the districts with no teacher in view; one that narrows nothing stays (a true answer)', () => {
+    const counts = { attrScope: 'teachers/all', attr: { workIn: { all: 10, values: { 'hn-cau-giay': 4, 'hn-tay-ho': 0, 'hn-ba-dinh': 10 } } } } as unknown as FacetCounts
+    renderIn('en', <FacetBar {...teachers({}, { facetCounts: counts })} />)
+    expect(within(row()).queryByRole('button', { name: /^Tay Ho/ })).toBeNull()
+    expect(within(row()).getByRole('button', { name: /^Ba Dinh/ }).textContent).toContain('10')
+    expect(within(row()).getByRole('button', { name: /^Cau Giay/ }).textContent).toContain('4')
+  })
+
+  it('⛔ never leaves when the counts land: with no Hà Nội teacher in view it says so, in words', () => {
+    const none = { attrScope: 'teachers/all', attr: { workIn: { all: 3, values: Object.fromEntries(['hn-ba-dinh', 'hn-hoan-kiem', 'hn-tay-ho', 'hn-long-bien', 'hn-cau-giay', 'hn-dong-da', 'hn-hai-ba-trung', 'hn-hoang-mai', 'hn-thanh-xuan', 'hn-nam-tu-liem', 'hn-bac-tu-liem', 'hn-ha-dong'].map((k) => [k, 0])) } } } as unknown as FacetCounts
+    renderIn('en', <FacetBar {...teachers({}, { facetCounts: none })} />)
+    expect(within(row()).queryAllByRole('button')).toHaveLength(0)
+    expect(row().textContent).toContain('No teachers in Hanoi in this view yet')
+  })
+
+  it('is there while the place picked is nothing, Hà Nội or a Hà Nội district — gone once another place is picked', () => {
+    for (const workIn of ['ha-noi', 'hn-tay-ho']) {
+      renderIn('en', <FacetBar {...teachers({ workIn })} />)
+      expect(row()).toBeTruthy()
+      cleanup()
+    }
+    renderIn('en', <FacetBar {...teachers({ workIn: 'ho-chi-minh-city' })} />)
+    expect(screen.queryByRole('group', { name: /hanoi districts/i })).toBeNull()
+    cleanup()
+    renderIn('en', <FacetBar {...teachers({ cover: 'open', coverArea: 'd1' })} />)
+    expect(screen.queryByRole('group', { name: /hanoi districts/i })).toBeNull()
+    cleanup()
+    // Cover on, "Can teach in" still on HCMC: a Hà Nội cover chip would AND the two into an empty feed — no row.
+    renderIn('en', <FacetBar {...teachers({ cover: 'open', workIn: 'ho-chi-minh-city' })} />)
+    expect(screen.queryByRole('group', { name: /hanoi districts/i })).toBeNull()
+  })
+
+  it('is not drawn outside the teachers browse', () => {
+    renderIn('en', <FacetBar {...props()} />)
+    expect(screen.queryByRole('group', { name: /hanoi districts/i })).toBeNull()
+  })
+})

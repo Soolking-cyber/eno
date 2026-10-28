@@ -23,8 +23,9 @@ describe('teachers facets', () => {
     expect(facet('jobType').options.map((o) => o.value)).toEqual(['fulltime', 'parttime', 'private'])
     expect(facet('ageGroup').options.map((o) => o.value)).toContain('business')
   })
-  it('leaves the cover facets as they were', () => {
-    expect(facet('coverArea').options).toHaveLength(36)
+  it('leaves the cover facets as they were — plus Hà Nội\'s 12 districts (owner, 2026-10-28)', () => {
+    expect(facet('coverArea').options).toHaveLength(48)
+    expect(facet('coverArea').options.filter((o) => o.value.startsWith('hn-'))).toHaveLength(12)
     expect(facet('cover').options.map((o) => o.value)).toEqual(['open'])
   })
 })

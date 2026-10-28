@@ -31,7 +31,7 @@ import { specFacets } from './electronics-specs'
 // away on the edition it does not apply to.
 import { IS_MARKETPLACE } from './edition'
 import { COVER_AREAS, COVER_SLOTS, coverSlotLabel } from './teachers/cover'
-import { ANYWHERE, HCMC_DISTRICT_KEYS, HUBS, ONLINE, PROVINCE_PLACES, placeLabel } from './teachers/places'
+import { ANYWHERE, HANOI_DISTRICT_KEYS, HCMC_DISTRICT_KEYS, HUBS, ONLINE, PROVINCE_PLACES, placeLabel } from './teachers/places'
 
 // ── Intent axis ──────────────────────────────────────────────────────────────
 export type ListingType = 'sell' | 'rent' | 'free' | 'wanted' | 'wholesale' | 'service' | 'job' | 'event' | 'teacher'
@@ -1367,6 +1367,7 @@ export const TAXONOMY: CategoryDef[] = [
       { key: 'workIn', label: 'Can teach in', labelVi: 'Có thể dạy tại', derived: true, placeNames: true, options: [
         ...HUBS.map((k) => ({ value: k, label: placeLabel(k, 'en'), labelVi: placeLabel(k, 'vi') })),
         ...HCMC_DISTRICT_KEYS.map((k) => ({ value: k, label: placeLabel(k, 'en'), labelVi: placeLabel(k, 'vi') })),
+        ...HANOI_DISTRICT_KEYS.map((k) => ({ value: k, label: placeLabel(k, 'en'), labelVi: placeLabel(k, 'vi') })),
         ...PROVINCE_PLACES.map((p) => ({ value: p.key, label: p.nameEn, labelVi: p.name })),
         // Words, not places (`word`): translated like any copy, where the places around them never are.
         { value: ONLINE, label: 'Online', labelVi: 'Trực tuyến', word: true },

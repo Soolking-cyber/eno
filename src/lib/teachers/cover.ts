@@ -14,6 +14,7 @@
  * taxonomy all read it. ⛔ It must NOT import the taxonomy — the taxonomy builds its cover facets from here.
  */
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
+import { HANOI_DISTRICTS } from './district-hanoi'
 
 export const COVER_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
 export const COVER_PARTS = ['am', 'pm', 'eve'] as const
@@ -83,8 +84,9 @@ export const COVER_LIMITS = {
   rateMin: 50_000,
   rateMax: 2_000_000,
   slots: COVER_SLOTS.length,
-  /** ≥ every area there is (12 city-wide + HCMC's districts = 38), so normalisation never silently cuts a pick. */
-  areas: 40,
+  /** ≥ every area there is (12 city-wide + HCMC's 24 districts + Hà Nội's 12 = 48), so normalisation never silently cuts
+   *  a pick. The database CHECK `TeacherProfile_cover_bounds` holds the same number (scripts/teachers-ddl.mjs). */
+  areas: 60,
 } as const
 
 /** Quick picks for the rate field (VND per hour). */
@@ -120,9 +122,9 @@ export const COVER_CONSENT_VERSION = '2026-10-08'
 /**
  * The cities a teacher can pick cover areas in — the taxonomy's `workIn` cities, minus `anywhere` and
  * `online` (a test pins the two lists together). Each one is also a CITY-WIDE area key ("anywhere in
- * Hanoi"). Only Hồ Chí Minh City is split into districts: Vietnam abolished the district tier on
- * 2025-07-01 and the curated, still-colloquial district list exists for HCMC alone (owner sign-off is
- * needed for any other city's list — plan review, 2026-10-07).
+ * Hanoi"). Hồ Chí Minh City and Hà Nội are split into districts: Vietnam abolished the district tier on 2025-07-01,
+ * but people still name the old districts — HCMC's curated list (the explorer's DISTRICTS) and, since the owner signed
+ * Hà Nội off (2026-10-28: "add Hanoi districts chip"), district-hanoi.ts HANOI_DISTRICTS. Any other city still needs that sign-off.
  */
 export const COVER_CITIES = [
   { key: 'ho-chi-minh-city', en: 'Ho Chi Minh City', vi: 'TP. Hồ Chí Minh' },
@@ -166,10 +168,14 @@ const HCMC_DISTRICTS: CoverArea[] = DISTRICTS.filter((d) => d.slug !== 'all').ma
   ...(d.slug === 'thu-duc' ? { parts: ['d2', 'd9'] as const } : {}),
 }))
 
-/** Every area a teacher can pick: each city's "anywhere in" entry, then (HCMC) its districts. */
+const HANOI = 'ha-noi'
+/** Hà Nội's 12 districts (owner, 2026-10-28) — the table and its rules are district-hanoi.ts. */
+const HANOI_AREAS: CoverArea[] = HANOI_DISTRICTS.map((d) => ({ key: d.key, city: HANOI, en: d.en, vi: d.vi }))
+
+/** Every area a teacher can pick: each city's "anywhere in" entry, then (HCMC, Hà Nội) its districts. */
 export const COVER_AREAS: readonly CoverArea[] = COVER_CITIES.flatMap((c) => [
   { key: c.key, city: c.key, en: `All of ${c.en}`, vi: `Toàn ${c.vi}`, cityWide: true as const },
-  ...(c.key === HCMC ? HCMC_DISTRICTS : []),
+  ...(c.key === HCMC ? HCMC_DISTRICTS : c.key === HANOI ? HANOI_AREAS : []),
 ])
 
 export const COVER_AREA_BY_KEY: ReadonlyMap<string, CoverArea> = new Map(COVER_AREAS.map((a) => [a.key, a]))

@@ -84,8 +84,12 @@ describe('the four teachers are what the save path makes of them', () => {
 })
 
 describe('"Can teach in" — every one of the 65 options, feed and count alike', () => {
-  it('has the 65 places the plan promised (12 cities, 24 HCMC districts, 27 provinces, Online, anywhere)', () => {
-    expect(WORK_IN).toHaveLength(65)
+  it('has the 77 places: 12 cities, 24 HCMC districts, 12 Hà Nội districts (owner, 2026-10-28), 27 provinces, Online, anywhere', () => {
+    expect(WORK_IN).toHaveLength(77)
+  })
+  it('a Hà Nội district finds the Hanoi + "anywhere" teacher (anywhere in Hà Nội) — never the HCMC one', () => {
+    expect(foundBy('hanoiAnywhere', 'workIn', ['hn-cau-giay', 'hn-tay-ho'])).toEqual(['hn-cau-giay', 'hn-tay-ho'])
+    expect(foundBy('hcmcD7', 'workIn', ['hn-cau-giay'])).toEqual([])
   })
   it('HCMC D7 (D7 + D4): found by HCMC and by its own two districts — never by another district, Bình Dương, Online or "anywhere"', () => {
     expect(foundBy('hcmcD7', 'workIn', WORK_IN).sort()).toEqual(['d4', 'd7', 'ho-chi-minh-city'])

@@ -20,7 +20,7 @@ import { useBackToClose } from '@/lib/back-to-close'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useLanguage } from '@/context/language-context'
 import { CONDITION_FACET, facetsFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
-import { ANYWHERE, ONLINE, isHcmcDistrict, isHub, provinceCodeOfKey } from '@/lib/teachers/places'
+import { ANYWHERE, HANOI, HANOI_DISTRICT_KEYS, ONLINE, isHanoiDistrict, isHcmcDistrict, isHub, placeLabel, provinceCodeOfKey } from '@/lib/teachers/places'
 import { cn } from '@/lib/utils'
 import { formatCount, formatInteger, moneyLocale } from '@/lib/vnd'
 import { facetOptionLabel } from './facet-chip-label'
@@ -91,15 +91,17 @@ function isCount(n: unknown): n is number {
 }
 
 /**
- * "CAN TEACH IN"'S READING ORDER AND HEADINGS (teacher onboarding redesign, owner, 2026-10-08). Up to 65 places in one
- * list — the taxonomy's order is places.ts's (cities, HCMC's districts, provinces, then Online and "anywhere") — so
+ * "CAN TEACH IN"'S READING ORDER AND HEADINGS (teacher onboarding redesign, owner, 2026-10-08). Up to 77 places in one
+ * list — the taxonomy's order is places.ts's (cities, HCMC's districts, Hà Nội's, provinces, then Online and "anywhere") — so
  * the menu puts the two wide picks first, beside "All" and under no heading, then one heading per kind of place.
  * Stable: within a kind the taxonomy's order stays. `rank` sorts, `heading` names the run (CustomSelect `group`).
  */
-const TEACH_IN_RANK = (v: string): number => (v === ONLINE ? 0 : v === ANYWHERE ? 1 : isHub(v) ? 2 : isHcmcDistrict(v) ? 3 : provinceCodeOfKey(v) ? 4 : 5)
+const TEACH_IN_RANK = (v: string): number =>
+  v === ONLINE ? 0 : v === ANYWHERE ? 1 : isHub(v) ? 2 : isHcmcDistrict(v) ? 3 : isHanoiDistrict(v) ? 4 : provinceCodeOfKey(v) ? 5 : 6
 function teachInHeading(v: string, tr: (en: string, vi: string) => string): string | undefined {
   if (isHub(v)) return tr('Cities', 'Thành phố')
   if (isHcmcDistrict(v)) return tr('Ho Chi Minh City districts', 'Các quận TP. Hồ Chí Minh')
+  if (isHanoiDistrict(v)) return tr('Hanoi districts', 'Các quận Hà Nội')
   if (provinceCodeOfKey(v)) return tr('Other provinces', 'Tỉnh thành khác')
   return undefined
 }
@@ -726,7 +728,7 @@ export function FacetBar({
 
   /**
    * ⛔ "CAN TEACH IN", A PILL OF ITS OWN WHEN BROWSING TEACHERS (/?category=teachers; the /c/teachers landing links to it) (teacher onboarding redesign, owner, 2026-10-08). Where a teacher
-   * can teach — one list of up to 65 places (src/lib/teachers/places.ts) — is the first thing a school filters by, and
+   * can teach — one list of up to 77 places (src/lib/teachers/places.ts) — is the first thing a school filters by, and
    * it was reachable only inside Filter. A pick reads the way a school means it (attr-match.ts workInFilterKeys: a
    * city also finds its districts, its province and "Will move anywhere"), and its counts go through the same needles
    * (facet-counts.ts → attrMatcher), so the number on an option is what the tap returns.
@@ -768,6 +770,54 @@ export function FacetBar({
         />
       ))
     }
+  }
+
+  /**
+   * ⛔ HÀ NỘI'S DISTRICT CHIPS (owner, 2026-10-28: "find a teacher … add Hanoi districts chip"). Most teachers on eno live
+   * in Hà Nội, so while browsing teachers its 12 districts (district-hanoi.ts) are one tap away, in a row under the bar. A
+   * chip IS the "Can teach in" pill's value — or, with "Available for cover" on, the Cover-area pill's — so a chip and its
+   * pill can never disagree, and a district reads the way a school means it (workInFilterKeys / coverAreaFilterKeys: the
+   * district and "anywhere in Hà Nội"). Place names are never machine-translated (placeLabel).
+   * ⛔ WHETHER THE ROW IS THERE NEVER DEPENDS ON THE COUNTS (review, 2026-10-28): it is drawn before they land (the ISR
+   * HTML has none), so a row that left once they said "nothing here" moved everything below it up after load. It shows
+   * while the place picked — in "Can teach in" AND in Cover area — is nothing, Hà Nội or one of its districts, all known
+   * from the URL, and is gone only when another place is picked (the school's own tap). Inside it, a district with NO teacher in view is not drawn (offeredKeys:
+   * a chip that empties the feed); one that narrows nothing still is — "Cầu Giấy" is a true answer even when every teacher
+   * in view can teach there. With none left, the row says so in words, at the same height.
+   */
+  const districtChipFacet = activeCategory === 'teachers'
+    ? advFacets.find((f) => f.key === (customFilters.cover === 'open' ? 'coverArea' : 'workIn'))
+    : undefined
+  let hanoiChips: ReactNode = null
+  const chipValue = districtChipFacet ? facetValue(districtChipFacet) : 'all'
+  const inHanoi = (v: string | undefined) => !v || v === 'all' || v === HANOI || isHanoiDistrict(v)
+  // BOTH place filters: with cover on, a "Can teach in: HCMC" still set would AND an HCMC teacher with a Hà Nội cover
+  // district — an empty feed from one tap (review, 2026-10-28).
+  if (districtChipFacet && inHanoi(customFilters.workIn) && inHanoi(customFilters.coverArea)) {
+    const dim = facetDimension(districtChipFacet)
+    const shown = offeredKeys(dim, HANOI_DISTRICT_KEYS, chipValue)
+    hanoiChips = (
+      <div
+        role="group"
+        aria-label={tr('Hanoi districts', 'Các quận Hà Nội')}
+        // ⚠️ ONE LINE AT EVERY WIDTH: a chip that leaves when the counts land changes nothing below the row.
+        className="mt-2 flex min-h-9 items-center gap-1.5 flex-nowrap overflow-x-auto overscroll-x-contain scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0"
+      >
+        <span className="shrink-0 text-sm font-semibold text-body">{placeLabel(HANOI, lang)}</span>
+        {shown.length === 0 ? (
+          <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">{tr('No teachers in Hanoi in this view yet', 'Chưa có giáo viên ở Hà Nội trong mục này')}</span>
+        ) : shown.map((k) => {
+          const on = chipValue === k
+          return (
+            <Button key={k} variant="bare" size="none" type="button" aria-pressed={on} className={cn(segBtn(on), 'shrink-0 whitespace-nowrap')}
+              onClick={() => setFacetValue(districtChipFacet, on ? 'all' : k)}>
+              {placeLabel(k, lang)}
+              <ChipCount n={chipCount(dim, k)} selected={on} />
+            </Button>
+          )
+        })}
+      </div>
+    )
   }
 
   // The Filter pill. One element for both containers, so the trigger never differs between them.
@@ -1018,6 +1068,7 @@ export function FacetBar({
           onReset={() => { onCommit?.(); setProvince(null); setWard(null); setNearby(null); setDistrict?.('all') }}
         />
       </div>
+      {hanoiChips}
     </div>
   )
 }

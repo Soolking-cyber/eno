@@ -151,3 +151,38 @@ describe('Online, asked once', () => {
     expect(HCMC_DISTRICT_KEYS).toHaveLength(24)
   })
 })
+
+/** Hà Nội split into its 12 districts (owner, 2026-10-28) — the same two-way choice as HCMC, with no umbrella. */
+describe('Hà Nội districts', () => {
+  const hanoi = () => withRelocate(withSituation({ ...EMPTY_TEACHER, jobTypes: ['fulltime'] }, { livesIn: 'city', currentCity: 'ha-noi' }), 'no')
+
+  it('"Only some districts" swaps all of Hà Nội for its districts — none pre-picked — and "Anywhere in the city" swaps back', async () => {
+    const { user, last } = mount(hanoi())
+    expect(isPressed('Hanoi')).toBe(true)
+    await user.click(screen.getByRole('radio', { name: 'Only some districts' }))
+    expect(last()).toEqual([])
+    expect(screen.getByText('Pick at least one district — or choose “Anywhere in the city”.')).toBeTruthy()
+    await user.click(btn('Cau Giay'))
+    await user.click(btn('Tay Ho'))
+    expect(last()).toEqual(['hn-tay-ho', 'hn-cau-giay'])
+    expect(screen.queryByText(/Thủ Đức includes/)).toBeNull()
+    await user.click(screen.getByRole('radio', { name: 'Anywhere in the city' }))
+    expect(last()).toEqual(['ha-noi'])
+  })
+
+  it('cover’s entry (?goal=cover) opens Hà Nội on its districts, none picked; taking Hà Nội off drops them all', async () => {
+    const start = withRelocate(withSituation({ ...EMPTY_TEACHER, jobTypes: [] }, { livesIn: 'city', currentCity: 'ha-noi' }, true), '')
+    expect(start.teachAreas).toEqual([])
+    const { user, last } = mount(start, { coverIntent: true })
+    expect(screen.getByRole('radio', { name: 'Only some districts' }).getAttribute('aria-checked')).toBe('true')
+    await user.click(btn('Ba Dinh'))
+    expect(last()).toEqual(['hn-ba-dinh'])
+    await user.click(btn('Hanoi'))
+    expect(last()).toEqual([])
+  })
+
+  it('an HCMC teacher is never offered Hà Nội districts', () => {
+    mount(hcmc())
+    expect(screen.queryByRole('button', { name: 'Cau Giay' })).toBeNull()
+  })
+})

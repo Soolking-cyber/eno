@@ -8,9 +8,10 @@
 //   · ONLINE — one chip, first: the ONLY place Online is asked. "Online only" on step 1 (abroad) derives it, and the
 //     chip then shows locked, with a note saying why (plan review B7).
 //   · NEAR YOU — the home area (homeAreaKeys): the home city or province is PRE-SELECTED, plus the other places of the
-//     same province (HCMC · Bình Dương · Vũng Tàu are one since the 2025 merger; Nha Trang ⇄ Khánh Hòa). Under HCMC:
-//     "Anywhere in HCMC" (one place) or "Only some districts" → the 24 curated districts, the home district
-//     pre-selected; Thủ Đức shows District 2 and 9 as included (it absorbs them).
+//     same province (HCMC · Bình Dương · Vũng Tàu are one since the 2025 merger; Nha Trang ⇄ Khánh Hòa). Under a city
+//     with districts (places.ts DISTRICT_CITIES — HCMC, and Hà Nội since 2026-10-28): "Anywhere in the city" (one place)
+//     or "Only some districts" → its districts (HCMC's 24 curated ones, the home district pre-selected; Hà Nội's 12);
+//     Thủ Đức shows District 2 and 9 as included (it absorbs them).
 //   · OTHER CITIES (whole city only) — only after "Yes, to some other cities" (or "Some cities" from abroad); after
 //     "Anywhere" they are ONE line, "Anywhere in Vietnam", with Change.
 // ⛔ THE PRE-SELECTION IS A SUGGESTION UNTIL THE TEACHER CONFIRMS IT (plan review B6): "These are the places I can
@@ -27,8 +28,8 @@ import { Fieldset } from '@/components/ui/fieldset'
 import { Radio, RadioDot, RadioGroup } from '@/components/ui/radio-group'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
-  ANYWHERE, HCMC, HCMC_DISTRICT_KEYS, ONLINE, homeAreaKeys, isHub, normalizeTeachAreas, otherCityKeys, placeLabel,
-  provinceCodeOfKey,
+  ANYWHERE, DISTRICT_CITIES, HCMC, ONLINE, districtKeysOf, homeAreaKeys, isHub, normalizeTeachAreas, otherCityKeys,
+  placeLabel, provinceCodeOfKey,
 } from '@/lib/teachers/places'
 import type { TeacherInput } from '@/lib/teachers/profile'
 
@@ -51,7 +52,7 @@ export function TeachAreaPicker({ t, onAreas, onConfirm, onChangeAnswer, coverIn
   onConfirm: (confirmed: boolean) => void
   /** "Change" beside "Anywhere in Vietnam" / the locked Online: back to that answer on step 1. */
   onChangeAnswer: () => void
-  /** Came for cover (?goal=cover): HCMC opens on "Only some districts". */
+  /** Came for cover (?goal=cover): a home city with districts opens on "Only some districts". */
   coverIntent?: boolean
   /** The list's refusal, in words (required / other_city_required). */
   error?: string
@@ -65,12 +66,16 @@ export function TeachAreaPicker({ t, onAreas, onConfirm, onChangeAnswer, coverIn
   const homeHubs = home.filter(isHub)
   const homeProvinceKeys = home.filter((k) => provinceCodeOfKey(k) !== null)
   const nearKeys = [...homeHubs, ...homeProvinceKeys]
-  const hasHcmc = homeHubs.includes(HCMC)
-  const districts = HCMC_DISTRICT_KEYS.filter((k) => picked.has(k))
+  /** The home cities split into districts (HCMC, Hà Nội) — each gets its "Anywhere in the city / Only some districts". */
+  const districtCities = DISTRICT_CITIES.filter((c) => homeHubs.includes(c))
+  const pickedIn = (city: string) => districtKeysOf(city).filter((k) => picked.has(k))
   // "Only some districts" chosen before any district is: the choice is the teacher's, so it stays open until they pick
-  // one — or until they choose "Anywhere in HCMC" or take HCMC off. Cover's entry (?goal=cover) opens here.
-  const [someDistricts, setSomeDistricts] = useState(() => hasHcmc && !picked.has(HCMC) && (districts.length > 0 || (coverIntent && t.currentCity === HCMC)))
-  const hcmcMode: 'all' | 'some' | 'off' = picked.has(HCMC) ? 'all' : districts.length || someDistricts ? 'some' : 'off'
+  // one — or until they choose "Anywhere in the city" or take the city off. Cover's entry (?goal=cover) opens here.
+  const [someFor, setSomeFor] = useState<Readonly<Record<string, boolean>>>(() => Object.fromEntries(districtCities.map((c) => [
+    c, !picked.has(c) && (pickedIn(c).length > 0 || (coverIntent && t.currentCity === c)),
+  ])))
+  const setSome = (city: string, on: boolean) => setSomeFor((prev) => ({ ...prev, [city]: on }))
+  const modeOf = (city: string): 'all' | 'some' | 'off' => picked.has(city) ? 'all' : pickedIn(city).length || someFor[city] ? 'some' : 'off'
   const relocating = t.relocate === 'some'
   const others = relocating ? otherCityKeys(t) : []
   const onlineLocked = t.relocate === 'online-only'
@@ -79,34 +84,41 @@ export function TeachAreaPicker({ t, onAreas, onConfirm, onChangeAnswer, coverIn
   const commit = (keys: readonly string[]) => onAreas(normalizeTeachAreas(keys, t))
   const without = (drop: (k: string) => boolean) => t.teachAreas.filter((k) => !drop(k))
 
-  const nearValue = nearKeys.filter((k) => (k === HCMC ? hcmcMode !== 'off' : picked.has(k)))
+  const nearValue = nearKeys.filter((k) => (districtCities.includes(k) ? modeOf(k) !== 'off' : picked.has(k)))
   const onNear = (next: string[]) => {
     const { added, removed } = toggled(nearValue, next)
-    if (added === HCMC) { setSomeDistricts(false); commit([...t.teachAreas, HCMC]) }
-    else if (removed === HCMC) { setSomeDistricts(false); commit(without((k) => k === HCMC || HCMC_DISTRICT_KEYS.includes(k))) }
+    if (added && districtCities.includes(added)) { setSome(added, false); commit([...t.teachAreas, added]) }
+    else if (removed && districtCities.includes(removed)) {
+      const ds = districtKeysOf(removed)
+      setSome(removed, false)
+      commit(without((k) => k === removed || ds.includes(k)))
+    }
     else if (added) commit([...t.teachAreas, added])
     else if (removed) commit(without((k) => k === removed))
   }
-  const onHcmcMode = (mode: string) => {
-    if (mode === 'all') { setSomeDistricts(false); commit([...without((k) => HCMC_DISTRICT_KEYS.includes(k)), HCMC]) }
+  const onCityMode = (city: string, mode: string) => {
+    const ds = districtKeysOf(city)
+    if (mode === 'all') { setSome(city, false); commit([...without((k) => ds.includes(k)), city]) }
     else {
-      setSomeDistricts(true)
-      commit([...without((k) => k === HCMC), ...(t.currentDistrictKey ? [t.currentDistrictKey] : [])])
+      setSome(city, true)
+      // The home district (HCMC's "Lives in" district, district-combobox.tsx) is pre-selected — only in its own city.
+      const home = t.currentDistrictKey && ds.includes(t.currentDistrictKey) ? [t.currentDistrictKey] : []
+      commit([...without((k) => k === city), ...home])
     }
   }
   // Thủ Đức absorbs District 2 and 9 (cover.ts COVER_AREAS `parts`): while it is picked they show as included —
-  // pressed and not tappable — and the list holds Thủ Đức alone.
+  // pressed and not tappable — and the list holds Thủ Đức alone. HCMC only: Hà Nội's districts have no umbrella.
   const thuDuc = picked.has('thu-duc')
   const absorbed = (k: string) => thuDuc && (k === 'd2' || k === 'd9')
-  const districtValue = [...districts, ...(thuDuc ? ['d2', 'd9'] : [])]
-  const onDistricts = (next: string[]) => {
-    const { added, removed } = toggled(districtValue, next)
+  const districtValueOf = (city: string) => [...pickedIn(city), ...(city === HCMC && thuDuc ? ['d2', 'd9'] : [])]
+  const onDistricts = (city: string, next: string[]) => {
+    const { added, removed } = toggled(districtValueOf(city), next)
     if (added) commit([...t.teachAreas, added])
     else if (removed) commit(without((k) => k === removed))
   }
   const onOthers = (next: string[]) => commit([...without((k) => others.includes(k)), ...next])
 
-  const ids = { near: `${uid}-near`, hcmc: `${uid}-hcmc`, districts: `${uid}-districts`, others: `${uid}-others`, confirm: `${uid}-confirm` }
+  const ids = { near: `${uid}-near`, others: `${uid}-others`, confirm: `${uid}-confirm` }
   const place = (k: string) => placeLabel(k, lang)
 
   return (
@@ -143,11 +155,11 @@ export function TeachAreaPicker({ t, onAreas, onConfirm, onChangeAnswer, coverIn
             <ToggleGroup multiple value={nearValue} onValueChange={onNear} aria-labelledby={ids.near}>
               {nearKeys.map((k) => <ToggleGroupItem key={k} value={k}>{place(k)}</ToggleGroupItem>)}
             </ToggleGroup>
-            {hasHcmc && hcmcMode !== 'off' && (
-              <div className="space-y-3 border-l-2 border-border pl-3">
-                <p id={ids.hcmc} className="text-sm text-body">{place(HCMC)}</p>
+            {districtCities.filter((city) => modeOf(city) !== 'off').map((city) => (
+              <div key={city} className="space-y-3 border-l-2 border-border pl-3">
+                <p id={`${uid}-${city}`} className="text-sm text-body">{place(city)}</p>
                 {/* Named by its own line: inside the fieldset, a radio group would otherwise take the legend as its name. */}
-                <RadioGroup value={hcmcMode} onValueChange={onHcmcMode} aria-labelledby={ids.hcmc} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <RadioGroup value={modeOf(city)} onValueChange={(mode) => onCityMode(city, mode)} aria-labelledby={`${uid}-${city}`} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <Radio value="all" className="flex w-full items-center justify-start gap-2.5 whitespace-normal rounded-xl border border-border p-3 text-left data-checked:border-brand">
                     <RadioDot />
                     <span className="text-sm font-semibold text-foreground">{tr('Anywhere in the city', 'Bất kỳ đâu trong thành phố')}</span>
@@ -157,20 +169,20 @@ export function TeachAreaPicker({ t, onAreas, onConfirm, onChangeAnswer, coverIn
                     <span className="text-sm font-semibold text-foreground">{tr('Only some districts', 'Chỉ một số quận')}</span>
                   </Radio>
                 </RadioGroup>
-                {hcmcMode === 'some' && (
+                {modeOf(city) === 'some' && (
                   <div className="space-y-2">
-                    <p id={ids.districts} className="sr-only">{tr('Districts', 'Các quận')}</p>
-                    <ToggleGroup multiple value={districtValue} onValueChange={onDistricts} aria-labelledby={ids.districts}>
-                      {HCMC_DISTRICT_KEYS.map((k) => (
+                    <p id={`${uid}-${city}-districts`} className="sr-only">{tr('Districts', 'Các quận')}</p>
+                    <ToggleGroup multiple value={districtValueOf(city)} onValueChange={(next) => onDistricts(city, next)} aria-labelledby={`${uid}-${city}-districts`}>
+                      {districtKeysOf(city).map((k) => (
                         <ToggleGroupItem key={k} value={k} disabled={absorbed(k)}>{place(k)}</ToggleGroupItem>
                       ))}
                     </ToggleGroup>
-                    {thuDuc && <p className="text-xs text-muted-foreground">{tr('Thủ Đức includes the former District 2 and District 9.', 'TP Thủ Đức bao gồm Quận 2 và Quận 9 cũ.')}</p>}
-                    {districts.length === 0 && <p className="text-sm text-muted-foreground">{tr('Pick at least one district — or choose “Anywhere in the city”.', 'Chọn ít nhất một quận — hoặc chọn “Bất kỳ đâu trong thành phố”.')}</p>}
+                    {city === HCMC && thuDuc && <p className="text-xs text-muted-foreground">{tr('Thủ Đức includes the former District 2 and District 9.', 'TP Thủ Đức bao gồm Quận 2 và Quận 9 cũ.')}</p>}
+                    {pickedIn(city).length === 0 && <p className="text-sm text-muted-foreground">{tr('Pick at least one district — or choose “Anywhere in the city”.', 'Chọn ít nhất một quận — hoặc chọn “Bất kỳ đâu trong thành phố”.')}</p>}
                   </div>
                 )}
               </div>
-            )}
+            ))}
           </div>
         )}
 

@@ -88,11 +88,13 @@ await client.query(`
     add column if not exists "coverConsentVersion" text,
     add column if not exists "coverWithdrawnAt" timestamp(3)`)
 console.log('ok  TeacherProfile cover columns')
+// 2026-10-28 (Hà Nội's districts, owner): the area cap is 60 (cover.ts COVER_LIMITS.areas; it was 40). `if not exists`
+// matches the NAME only, so a database made with 40 keeps it here — scripts/teacher-cover-zalo-ddl.mjs widens it.
 await client.query(`
   do $$ begin
     if not exists (select 1 from pg_constraint where conname = 'TeacherProfile_cover_bounds' and conrelid = '"TeacherProfile"'::regclass) then
       alter table "TeacherProfile" add constraint "TeacherProfile_cover_bounds" check (
-        coalesce(cardinality("coverSlots"), 0) <= 21 and coalesce(cardinality("coverAreas"), 0) <= 40
+        coalesce(cardinality("coverSlots"), 0) <= 21 and coalesce(cardinality("coverAreas"), 0) <= 60
         and ("coverRateVnd" is null or "coverRateVnd" between 0 and 100000000)
         and (not "coverOpen" or (
           coalesce("coverRateVnd", 0) between 50000 and 2000000
@@ -176,11 +178,13 @@ console.log('ok  TeacherProfile onboarding columns')
 // NUMBERS ARE src/lib/teachers/places.ts MAX_TEACH_AREAS and profile.ts LIMITS.teachLanguages — places.test.ts reads
 // this file and fails if they drift. coalesce(): a CHECK accepts NULL. `if not exists` matches the NAME only: to change
 // the numbers later, drop the constraint first (see TeacherProfile_cover_bounds above).
+// 2026-10-28: 60, was 40 (places.ts MAX_TEACH_AREAS, Hà Nội's districts) — widened on an existing database by
+// scripts/teacher-cover-zalo-ddl.mjs, as above.
 await client.query(`
   do $$ begin
     if not exists (select 1 from pg_constraint where conname = 'TeacherProfile_teach_bounds' and conrelid = '"TeacherProfile"'::regclass) then
       alter table "TeacherProfile" add constraint "TeacherProfile_teach_bounds" check (
-        coalesce(cardinality("teachAreas"), 0) <= 40 and coalesce(cardinality("teachLanguages"), 0) <= 8);
+        coalesce(cardinality("teachAreas"), 0) <= 60 and coalesce(cardinality("teachLanguages"), 0) <= 8);
     end if;
   end $$`)
 console.log('ok  TeacherProfile_teach_bounds')
