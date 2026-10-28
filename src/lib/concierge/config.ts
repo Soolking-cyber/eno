@@ -70,57 +70,169 @@ export async function conciergeOpenFor(profileId: string, opts: { fresh?: boolea
  */
 export const SESSION_MINUTES = 15
 /**
- * Sessions a day (ICT), per account and across the site — the spend's ceiling (Soniox listens and speaks, OpenAI answers;
- * the face costs nothing since it is drawn in the browser). The site's day was 80 for the staff test; `all` needs room,
- * and past it the window hands the person to the text assistant (the frame's "busy").
+ * WHO MAY TALK HOW LONG (owner, 2026-10-28: "unlimited for admin and 10 minutes per user per day"):
+ *   · the eno team (isStaffProfile — ADMIN_EMAILS): no day counter at all; a session still ends at SESSION_MINUTES and a
+ *     new tap starts another;
+ *   · everyone else: DAILY_SECONDS of live session a Vietnam day, ONE SESSION AT A TIME (an atomic hold per account,
+ *     `concierge:live:<id>` — commit review: a second tab, or a start racing midnight, can never run beside the first).
+ *     THE NEWEST WINDOW WINS (commit review, opus: a reload or a swiped-away tab often loses its end beacon): a start that
+ *     finds the account's hold ends the session behind it — its unused time handed back as any end does — and takes over.
+ *     A start takes the account's remaining time; its end hands back what it did not use, less MIN_CHARGE_SECONDS — the
+ *     least a session costs. That minimum is the brake on a start-✕ loop: at most DAILY_SECONDS / MIN_CHARGE_SECONDS starts
+ *     a day, so the listening keys one account can mint (stt-token: each lasts to its session's deadline) add up to under
+ *     an hour a day. A session that is never ended (the tab killed without its beacon) keeps its whole reservation —
+ *     never more time. A session ends at ICT midnight at the latest, so a day's time is spent on that day — except one
+ *     started in the day's last MIN_SESSION_SECONDS, which counts wholly on the next day (accepted, codex: at most that
+ *     many seconds of the next day's time spent before midnight).
+ *   · SITE_SESSIONS_PER_DAY starts across the site — the spend's ceiling (Soniox listens and speaks, OpenAI answers; the
+ *     face costs nothing, it is drawn in the browser); past it the window hands the person to the text assistant (the
+ *     frame's "busy"). The eno team never takes one.
+ * ⚠️ ACCEPTED (plan review): the counters live in kv_store, which is UNLOGGED — a Postgres crash empties them and every
+ * account starts the day again. This is a spend limit, not a security boundary; a durable ledger would need a table.
  */
-export const SESSIONS_PER_DAY = 8
+export const DAILY_SECONDS = 600
+/** Less than this left is "today's time is used" — a session that ends as it begins helps no one. */
+export const MIN_SESSION_SECONDS = 30
+/** The least a session costs, however soon it is closed. */
+export const MIN_CHARGE_SECONDS = 60
 export const SITE_SESSIONS_PER_DAY = 600
 
-export type ConciergeSession = { id: string; profileId: string; deadline: number }
+/**
+ * `reserved` / `budgetKey` / `startedAt`: the seconds this session holds of `budgetKey` (an account's day), handed back
+ * once at its end. Absent for the eno team, whose sessions hold nothing.
+ */
+export type ConciergeSession = { id: string; profileId: string; deadline: number; startedAt?: number; budgetKey?: string; reserved?: number }
 
 const sessionKey = (id: string) => `concierge:session:${id}`
+/** An account's one live session (not the eno team's — theirs hold nothing). */
+const liveKey = (profileId: string) => `concierge:live:${profileId}`
 /** Vietnam's day (ICT = UTC+7), as the classroom counts its days. */
-const ictDay = (now: number) => new Date(now + 7 * 3600_000).toISOString().slice(0, 10)
+const ICT_OFFSET_MS = 7 * 3600_000
+const DAY_MS = 24 * 3600_000
+const ictDay = (now: number) => new Date(now + ICT_OFFSET_MS).toISOString().slice(0, 10)
+const DAY_TTL = 2 * 24 * 3600
+
+type Hold = { id: string; at: number }
+/** A hold younger than this with no session row yet is a start still on its way — waited for, never taken over. */
+const HOLD_SETTLE_MS = 10_000
+/** How long a start waits for another start of the same account to land (two tabs at once), polling. */
+const HOLD_WAIT_MS = 3_000
+const HOLD_POLL_MS = 250
+
+/**
+ * Take the account's one-session hold: free → taken; held by a session → that session is ended (endSession: refunded,
+ * its hold handed back) and the hold taken; held by a start still on its way → waited for, then that session is taken
+ * over in turn (commit review, opus: two tabs at once must not read "today's time is used"); held with no session behind
+ * it for HOLD_SETTLE_MS — a start that failed half-way — taken. Every pass waits HOLD_POLL_MS and the whole try is bounded
+ * by HOLD_WAIT_MS (commit review, codex + opus: an end that cannot delete its row must not spin the start forever).
+ * Returns how long it waited (the session's clock starts after it), or null = refused.
+ * ⚠️ ONE AT A TIME IS BEST EFFORT, THE TIME IS NOT (commit review, codex + opus, accepted): the hold's writes are not
+ * compare-and-set, so a start that stalls past HOLD_SETTLE_MS, or an end racing a takeover, can let two sessions run side
+ * by side for a while — each still holds only what the day's counter gave it, so the account never gets more time.
+ */
+async function takeHold(profileId: string, id: string, now: number): Promise<number | null> {
+  const key = liveKey(profileId)
+  for (let waited = 0; waited <= HOLD_WAIT_MS; waited += HOLD_POLL_MS) {
+    const at = now + waited
+    if ((await kv.set(key, { id, at } satisfies Hold, { nx: true, ex: SESSION_MINUTES * 60 + 60 })) === 'OK') return waited
+    const held = await kv.get<Hold>(key)
+    const behind = held && typeof held.id === 'string' ? await kv.get<ConciergeSession>(sessionKey(held.id)) : null
+    if (behind && behind.profileId === profileId) await endSession(behind, at)
+    else if (held && (typeof held.id !== 'string' || typeof held.at !== 'number' || at - held.at >= HOLD_SETTLE_MS)) {
+      if ((await kv.get<Hold>(key))?.id === held.id) await kv.del(key)
+    }
+    await new Promise((r) => setTimeout(r, HOLD_POLL_MS))
+  }
+  return null
+}
 
 /** Start a session: the day's caps, then the session row. Null = a cap is reached (`out.cap` says which). Throws on a kv
  *  failure (the caller refuses — fail closed). */
 export async function startSession(profileId: string, now = Date.now(), out: { cap?: 'account' | 'site' } = {}): Promise<ConciergeSession | null> {
-  const day = ictDay(now)
-  const mineKey = `concierge:starts:${day}:${profileId}`
+  const id = randomBytes(16).toString('base64url')
+  // ⛔ An unreadable staff check is NOT staff: the account gets the everyone-else limits (fail closed).
+  if (await isStaffProfile(profileId).catch(() => false)) {
+    const s: ConciergeSession = { id, profileId, deadline: now + SESSION_MINUTES * 60_000, startedAt: now }
+    await kv.set(sessionKey(id), s, { ex: SESSION_MINUTES * 60 + 60 })
+    return s
+  }
+  // The day the time comes out of, and how long is left of it: a start in its last seconds counts on the next day.
+  const toMidnight = (t: number) => Math.floor((DAY_MS - ((t + ICT_OFFSET_MS) % DAY_MS)) / 1000)
+  const late = toMidnight(now) < MIN_SESSION_SECONDS
+  const day = ictDay(late ? now + MIN_SESSION_SECONDS * 1000 : now)
+  const dayLeft = late ? DAY_MS / 1000 : toMidnight(now)
   const siteKey = `concierge:starts:${day}`
-  const ttl = 2 * 24 * 3600
-  const giveBack = (...keys: string[]) => Promise.all(keys.map((k) => kv.incrby(k, -1, ttl).catch(() => 0)))
-  // The account's cap first: a start it refuses never takes a site-wide slot (test review — one capped account tapping
-  // Start could otherwise use up the site's day).
-  // A refusal gives its increment back too (review round 3, codex: two racing starts at the cap — one refused, one whose
-  // row failed — left the count one above the sessions made).
-  if ((await kv.incrby(mineKey, 1, ttl)) > SESSIONS_PER_DAY) {
-    await giveBack(mineKey)
-    out.cap = 'account'
-    return null
+  const budgetKey = `concierge:seconds:${day}:${profileId}`
+  const holdKey = liveKey(profileId)
+  // What this start has taken so far — each give-back undoes exactly that, never anyone else's.
+  const taken: Array<[string, number]> = []
+  let holding = false
+  const take = async (key: string, by: number) => {
+    const n = await kv.incrby(key, by, DAY_TTL)
+    taken.push([key, by])
+    return n
   }
-  // ⛔ From here a start that fails gives back what it took (commit review, codex: eight kv errors used up the account's
-  // day without one session).
-  const site = await kv.incrby(siteKey, 1, ttl).catch(async (e: unknown) => {
-    await giveBack(mineKey)
-    throw e
-  })
-  if (site > SITE_SESSIONS_PER_DAY) {
-    // Both increments go back (review round 4, codex: a refused start racing a failed one left the site count above the
-    // sessions made, and the site stayed shut for the day).
-    await giveBack(mineKey, siteKey)
-    out.cap = 'site'
-    return null
+  const giveBack = async () => {
+    await Promise.all(taken.splice(0).map(([k, by]) => kv.incrby(k, -by, DAY_TTL).catch(() => 0)))
+    // Only while it is still this start's (commit review, codex: a start that stalled past HOLD_SETTLE_MS may have been
+    // taken over — its give-back must not drop the newer session's hold).
+    if (holding) {
+      try {
+        if ((await kv.get<Hold>(holdKey))?.id === id) await kv.del(holdKey)
+      } catch {
+        // it ends with its TTL
+      }
+    }
+    holding = false
   }
-  const s: ConciergeSession = { id: randomBytes(16).toString('base64url'), profileId, deadline: now + SESSION_MINUTES * 60_000 }
   try {
-    await kv.set(sessionKey(s.id), s, { ex: SESSION_MINUTES * 60 + 60 })
+    // The site's day FIRST (commit review, codex): a start the site refuses must never have ended the account's live
+    // session on its way. Every refusal below hands the slot back.
+    if ((await take(siteKey, 1)) > SITE_SESSIONS_PER_DAY) {
+      // Everything goes back (review round 4, codex: a refused start racing a failed one left the site shut for the day).
+      await giveBack()
+      out.cap = 'site'
+      return null
+    }
+    // ONE SESSION AT A TIME: the hold is taken before the time is counted.
+    const waited = await takeHold(profileId, id, now)
+    if (waited === null) {
+      await giveBack()
+      out.cap = 'account'
+      return null
+    }
+    holding = true
+    now += waited
+    // THE TIME: hold everything left of the day.
+    const held = await take(budgetKey, DAILY_SECONDS)
+    let used = held - DAILY_SECONDS
+    if (used < 0) {
+      // ⛔ A NEGATIVE DAY IS MENDED, NEVER SPENT (plan review, codex + opus): a refund that landed on a key the crash had
+      // emptied leaves it below zero, and "the time left" would read more than DAILY_SECONDS. Brought back to zero used.
+      await kv.incrby(budgetKey, -used, DAY_TTL)
+      used = 0
+    }
+    const reserved = Math.min(DAILY_SECONDS - used, SESSION_MINUTES * 60, dayLeft - Math.ceil(waited / 1000))
+    if (reserved < MIN_SESSION_SECONDS) {
+      await giveBack()
+      out.cap = 'account'
+      return null
+    }
+    if (reserved < DAILY_SECONDS) {
+      await kv.incrby(budgetKey, -(DAILY_SECONDS - reserved), DAY_TTL)
+      taken.push([budgetKey, -(DAILY_SECONDS - reserved)])
+    }
+    // The hold lasts exactly as long as the session.
+    await kv.set(holdKey, { id, at: now } satisfies Hold, { ex: reserved })
+    const s: ConciergeSession = { id, profileId, deadline: now + reserved * 1000, startedAt: now, budgetKey, reserved }
+    await kv.set(sessionKey(id), s, { ex: SESSION_MINUTES * 60 + 60 })
+    return s
   } catch (e) {
-    await giveBack(mineKey, siteKey)
+    // ⛔ A start that fails gives back what it took (commit review, codex: eight kv errors used up the account's day
+    // without one session).
+    await giveBack()
     throw e
   }
-  return s
 }
 
 /** The caller's live session, or null (unknown, someone else's, past its end, or unreadable). */
@@ -136,9 +248,37 @@ export async function liveSession(id: unknown, profileId: string, now = Date.now
   }
 }
 
-/** End a session now (✕, the page going away). */
-export async function endSession(id: string): Promise<void> {
-  await kv.del(sessionKey(id)).catch(() => undefined)
+/**
+ * End a session now (✕, the page going away) and hand back the time it did not use — ONCE: ✕ and the page-away beacon can
+ * both arrive, so an atomic mark decides (takeOffer's rule; it outlives the row), and only its first increment refunds.
+ * ⛔ THE ROW GOES FIRST (plan review, opus): time is handed back only for a session that can no longer be used — a delete
+ * that failed would leave its turns running on time already refunded. (A listening key minted before the end lives to its
+ * own expiry — the start-✕ loop's bound, above.) Any failure leaves the account charged its whole reservation (fail
+ * closed — never more time).
+ */
+export async function endSession(s: ConciergeSession, now = Date.now()): Promise<void> {
+  try {
+    await kv.del(sessionKey(s.id))
+  } catch {
+    return
+  }
+  if (!s.budgetKey || typeof s.reserved !== 'number' || s.reserved <= 0) return
+  try {
+    if ((await kv.incrby(`${sessionKey(s.id)}:ended`, 1, SESSION_MINUTES * 60 + 120)) !== 1) return
+    const unused = Math.min(Math.max(Math.floor((s.deadline - now) / 1000), 0), s.reserved - MIN_CHARGE_SECONDS)
+    if (unused > 0) await kv.incrby(s.budgetKey, -unused, DAY_TTL)
+  } catch (e) {
+    logError(e, { op: 'concierge.refund' })
+  }
+  // The hold goes LAST — after the refund — so the next start reads the day as it is; and only while it is this
+  // session's. ⚠️ ACCEPTED (commit review, codex): read-then-delete is not atomic — a hold that expires in between and is
+  // retaken by a new start would be dropped, letting one more start run beside it; it needs that TTL to end inside a few
+  // milliseconds of an end.
+  try {
+    if ((await kv.get<Hold>(liveKey(s.profileId)))?.id === s.id) await kv.del(liveKey(s.profileId))
+  } catch {
+    // it ends with its TTL — the session's own end
+  }
 }
 
 /**

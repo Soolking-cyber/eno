@@ -759,7 +759,7 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
           )}
           {phase === 'refused' && (
             <p className="text-3xs leading-snug text-primary-foreground/85">
-              {refusal === 'limit_reached' ? tr("You've used today's guide sessions.", 'Bạn đã dùng hết lượt hôm nay.')
+              {refusal === 'limit_reached' ? tr("You've used today's 10 minutes with the guide.", 'Bạn đã dùng hết 10 phút hôm nay với trợ lý.')
                 : refusal === 'guide_busy' ? tr('The voice guide is busy today.', 'Trợ lý giọng nói hôm nay đang bận.')
                   : tr("The guide couldn't start — try again.", 'Không bắt đầu được — hãy thử lại.')}
             </p>

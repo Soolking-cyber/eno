@@ -4151,7 +4151,7 @@ export const UI_STRINGS: string[] = [
   "You've reached the end",
   "You've reached the hourly AI limit (10/hour). Please try again later.",
   "You've reached the saved-search limit",
-  "You've used today's guide sessions.",
+  "You've used today's 10 minutes with the guide.",
   "Young",
   "Your About text goes in your own words — minus sentences where we find a phone number, email, link or messenger ID — so a name you wrote in it goes too.",
   "Your CCCD photo",
