@@ -210,6 +210,28 @@ describe('the ward predicate matches a WHOLE name, never the start or end of a l
     expect(await feedFinds(row('TP. Thủ Đức', 'TP. Thủ Đức (P. Long Phước mới)'), 'Long Phuoc')).toBe(true)
   })
 
+  // Owner, 2026-10-29: "i select thu duc city it selects many other places". Phường Thủ Đức is ONE of former TP. Thủ Đức's
+  // twelve wards; the ward returned the whole former city (382 rentals, 199 naming another ward — live, 2026-10-30).
+  it('ward Thủ Đức is the ward, not the former city: another ward of TP. Thủ Đức is not in it', async () => {
+    for (const [district, location] of [
+      ['TP. Thủ Đức', 'TP. Thủ Đức (Phường Linh Xuân)'], // GoPlus
+      ['TP. Thủ Đức', 'TP. Thủ Đức (P. Long Phước mới)'], // Batdongsan / Nhà Tốt
+      ['Thành Phố Thủ Đức', 'Thành Phố Thủ Đức'],
+    ] as const) expect([location, await feedFinds(row(district, location), 'Thu Duc')]).toEqual([location, false])
+    for (const [district, location] of [
+      ['TP. Thủ Đức', 'TP. Thủ Đức (Phường Thủ Đức)'],
+      ['TP. Thủ Đức', 'TP. Thủ Đức (P. Thủ Đức mới)'],
+      [null, 'P. Thủ Đức, TP. Thủ Đức'],
+      [null, 'Phường Thủ Đức / TP. Thủ Đức'], // any separator after the name (review, codex)
+      [null, 'TP. Thủ Đức, P.Thủ Đức'],
+      [null, 'TP. Thủ Đức | P.Thủ Đức'],
+      ['Thủ Đức', 'Kha Vạn Cân, Thủ Đức'], // the old district's core, ambiguous: kept
+      ['Quận Thủ Đức', 'Phường Linh Đông, Quận Thủ Đức'], // the pre-2021 district, ambiguous: kept
+    ] as const) expect([location, await feedFinds(row(district, location), 'Thu Duc')]).toEqual([location, true])
+    // …and the other wards of the former city still find their own rows.
+    expect(await feedFinds(row('TP. Thủ Đức', 'TP. Thủ Đức (Phường Linh Xuân)'), 'Linh Xuan')).toBe(true)
+  })
+
   it('another ward that BEGINS a longer one, from the ward list: An Phú is not An Phú Đông, Tân Sơn is not Tân Sơn Nhất', async () => {
     const names = HCM_WARDS.map((w) => w.name)
     for (const n of ['An Phú', 'An Phú Đông', 'Tân Sơn', 'Tân Sơn Nhất']) expect(names).toContain(n)

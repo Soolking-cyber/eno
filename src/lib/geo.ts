@@ -1,4 +1,5 @@
 import type { SerializedListingCard } from '@/lib/types'
+import { canonicalDistrictSlug } from '@/lib/district-canonical'
 
 // Lean geo helpers (no Leaflet) — safe to import anywhere without pulling the map
 // bundle. Prefer stored coordinates; fall back to a deterministic district-based
@@ -91,6 +92,30 @@ export function normalizePlace(value: string | null | undefined): string {
 }
 
 /**
+ * ⛔ EVERY CURATED HCMC DISTRICT HAS A CENTRE (owner, 2026-10-29: "rentals map sorting is wrong i select thu duc city it
+ * selects many other places"). The ten hand keys in placeCoordinates know spellings like "thuduc" but not "TP. Thủ Đức"
+ * (→ "tpthuduc"), "Quận Tân Bình" or "Huyện Nhà Bè", so every such row WITHOUT a stored point fell back to the city
+ * centre — Nguyễn Huệ, District 1: measured that day, 125 of the 382 Thủ Đức rentals and 877 of 3,699 live rentals
+ * (24%) were drawn on that one spot, and a Thủ Đức filter fitted the map out to District 1. The district text now goes
+ * through the same canonicaliser the district chips use (district-canonical.ts), keyed by curated slug.
+ * Each centre is the area centroid of the outline the map itself draws for it (/api/geo/boundary, kind=district,
+ * measured 2026-10-30; every one checked to lie inside its outline). Districts 2, 7 and 9 have no outline there (2 and 9
+ * merged into Thủ Đức in 2021), and Thủ Đức keeps the hand key's point: theirs are the hand points, kept as they were.
+ */
+const HCMC_DISTRICT_CENTRES: Record<string, readonly [number, number]> = {
+  // The hand key's point, so "Thủ Đức" and "TP. Thủ Đức" land on ONE spot (review, codex — the outline's centroid,
+  // 10.8203, 106.7895, sat 4 km from it).
+  'thu-duc': [10.8500, 106.7700],
+  d1: [10.7762, 106.6972], d2: [10.8016, 106.7368], d3: [10.7815, 106.6828], d4: [10.7585, 106.7055],
+  d5: [10.7549, 106.6694], d6: [10.7459, 106.6353], d7: [10.7226, 106.7271], d8: [10.7245, 106.6405],
+  d9: [10.8428, 106.8287], d10: [10.7724, 106.6683], d11: [10.7641, 106.6477], d12: [10.8646, 106.6570],
+  'binh-tan': [10.7647, 106.5975], 'binh-thanh': [10.8121, 106.7162], 'go-vap': [10.8383, 106.6674],
+  'phu-nhuan': [10.8003, 106.6782], 'tan-binh': [10.8088, 106.6524], 'tan-phu': [10.7926, 106.6269],
+  'binh-chanh': [10.7338, 106.5759], 'can-gio': [10.5162, 106.8715], 'cu-chi': [11.0097, 106.5107],
+  'hoc-mon': [10.8858, 106.5898], 'nha-be': [10.6543, 106.7305],
+}
+
+/**
  * The point to plot a listing on when it has no stored coordinate, and whether we actually
  * recognised the place.
  *
@@ -114,7 +139,9 @@ export function placeCoordinates(city: string | null | undefined, district?: str
     district7: [10.7226, 106.7271], quan7: [10.7226, 106.7271], phumyhung: [10.7226, 106.7271],
     thuduc: [10.8500, 106.7700],
   }
-  const byDistrict = districtKey ? DISTRICTS[districtKey] : undefined
+  // The hand keys first (they also know a few wards — Thảo Điền, Phú Mỹ Hưng), then every curated HCMC district by its
+  // canonical slug. Still only inside its own city — the guard below.
+  const byDistrict = districtKey ? (DISTRICTS[districtKey] ?? (district ? HCMC_DISTRICT_CENTRES[canonicalDistrictSlug(district)] : undefined)) : undefined
   const byCity = PLACE_COORDS[cityKey]
   // ⚠️ THE DISTRICT ONLY WINS INSIDE ITS OWN CITY. 'District 1' in Da Nang is not Saigon's
   // District 1, and a global district lookup would teleport the pin 600km.

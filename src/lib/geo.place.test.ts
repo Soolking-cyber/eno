@@ -64,6 +64,29 @@ describe('placeCoordinates', () => {
   })
 })
 
+// Owner, 2026-10-29: "i select thu duc city it selects many other places" — 125 of 382 Thủ Đức rentals (no stored point)
+// were drawn on District 1's centre, because "TP. Thủ Đức" missed the hand keys. Every spelling the importers store, for
+// every curated HCMC district, now lands in its own district.
+describe('placeCoordinates — every curated HCMC district, as the importers spell it', () => {
+  const D1 = placeCoordinates('Hồ Chí Minh', 'Quận 1')
+  it.each([
+    ['TP. Thủ Đức', 10.80, 10.86, 106.74, 106.84], ['Thành Phố Thủ Đức', 10.80, 10.86, 106.74, 106.84], ['Quận Thủ Đức', 10.80, 10.88, 106.74, 106.84],
+    ['Quận 9', 10.82, 10.86, 106.80, 106.85], ['Quận Tân Bình', 10.79, 10.83, 106.63, 106.67], ['Huyện Nhà Bè', 10.62, 10.70, 106.70, 106.76],
+    ['Quận Bình Tân', 10.74, 10.79, 106.57, 106.62], ['Quận 12', 10.84, 10.89, 106.63, 106.68], ['Huyện Củ Chi', 10.95, 11.05, 106.45, 106.55],
+  ])('%s → its own district, not District 1', (district, latLo, latHi, lngLo, lngHi) => {
+    const p = placeCoordinates('Hồ Chí Minh', district)
+    expect(p.byDistrict).toBe(true)
+    expect(p.lat).toBeGreaterThan(latLo); expect(p.lat).toBeLessThan(latHi)
+    expect(p.lng).toBeGreaterThan(lngLo); expect(p.lng).toBeLessThan(lngHi)
+    expect([p.lat, p.lng]).not.toEqual([D1.lat, D1.lng])
+  })
+  it('a curated HCMC district never pulls a pin in another city', () => {
+    const p = placeCoordinates('Đà Nẵng', 'Quận Tân Bình')
+    expect(p.byDistrict).toBe(false)
+    expect(p.lat).toBeGreaterThan(15)
+  })
+})
+
 describe('getListingCoordinates', () => {
   const listing = (over: Record<string, unknown> = {}) =>
     ({ id: 'ckabc123', lat: null, lng: null, city: 'Nha Trang', district: null, ...over }) as never

@@ -21,7 +21,8 @@ import type { DimensionCounts } from '@/lib/facet-counts'
 
 export type Nearby = { lat: number; lng: number; radiusKm: number }
 export type Geo = { code: string; name: string; nameEn: string }
-type Unit = { code: string; name: string; nameEn: string }
+/** `group`/`groupEn`: the heading an HCMC ward sits under (its old district — /api/geo, src/lib/hcmc-ward-groups.ts). */
+type Unit = { code: string; name: string; nameEn: string; group?: string; groupEn?: string }
 
 // Text-form (monolith): no resting background, emphasis only on hover.
 const FIELD = 'w-full justify-between rounded-xl bg-tint px-3.5 py-2.5 text-body hover:bg-muted'
@@ -178,7 +179,7 @@ export function AreaFilter({
     if (!open) return
     let off = false
     setLoadingWards(true)
-    fetch(`/api/geo?type=wards&province=${provCode}`)
+    fetch(`/api/geo?type=wards&province=${provCode}&grouped=1`)
       .then((r) => r.json())
       .then((d) => {
         if (off) return
@@ -324,7 +325,9 @@ export function AreaFilter({
             <CustomSelect
               value={wardCode}
               onChange={setWardCode}
-              options={wards.map((w) => ({ value: w.code, label: label(w) }))}
+              // HCMC's wards under the old district each grew out of — "Thu Duc City" holds its twelve (owner, 2026-10-29:
+              // "divide thu duc city into wards so we can select specific area"); typing keeps every matching heading.
+              options={wards.map((w) => ({ value: w.code, label: label(w), group: (lang === 'vi' ? w.group : w.groupEn) || undefined }))}
               label={tr('Ward / Commune', 'Phường / Xã')}
               placeholder={keptWard && !wardCode ? label(keptWard) : tr('Choose…', 'Chọn…')}
               className={FIELD}

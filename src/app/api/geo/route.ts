@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import vnUnits from '@/data/vn-units.json'
 import { route } from '@/lib/api/handler'
+import { groupHcmcWards } from '@/lib/hcmc-ward-groups'
 
 export const runtime = 'nodejs'
 
@@ -16,7 +17,7 @@ const PROVINCES = [...DATA]
 const CACHE = 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800'
 
 // GET /api/geo?type=provinces  → { provinces }
-// GET /api/geo?type=wards&province=<code> → { wards }
+// GET /api/geo?type=wards&province=<code>[&grouped=1] → { wards } (grouped: HCMC's under their old district)
 // Static reference data (Vietnam 2025 administrative units) — cached hard.
 //
 // ⚠️ WS6 MIGRATION, AND LIKE /api/fx THE WRAPPER IS A NO-OP HERE — uniformity, not a fix.
@@ -31,7 +32,12 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
   const { searchParams } = new URL(req.url)
   if (searchParams.get('type') === 'wards') {
     const prov = DATA.find((p) => p.code === searchParams.get('province'))
-    return NextResponse.json({ wards: prov?.wards ?? [] }, { headers: { 'Cache-Control': CACHE } })
+    // HCMC's 168 wards come grouped under the old district each grew out of — Thủ Đức City's twelve together (owner,
+    // 2026-10-29: "divide thu duc city into wards"; src/lib/hcmc-ward-groups.ts). Every other province: as stored.
+    // ⚠️ ONLY WHEN ASKED (`&grouped=1`, the area filter): every other picker — the post wizard's — keeps the dataset's code
+    // order, which it shows without headings (review, opus).
+    const grouped = searchParams.get('grouped') === '1'
+    return NextResponse.json({ wards: prov ? (grouped ? groupHcmcWards(prov.code, prov.wards) : prov.wards) : [] }, { headers: { 'Cache-Control': CACHE } })
   }
   return NextResponse.json({ provinces: PROVINCES }, { headers: { 'Cache-Control': CACHE } })
 })

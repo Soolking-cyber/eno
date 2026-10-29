@@ -148,6 +148,43 @@ export function longerPlaceNames(spellings: string[], sentProvince?: string | nu
   })
 }
 
+/**
+ * ⛔ A WARD NAMED LIKE THE FORMER CITY AROUND IT (owner, 2026-10-29: "i select thu duc city it selects many other places").
+ * The 2025 reform kept old city names as ward names — Phường Thủ Đức is one of the twelve wards of former TP. Thủ Đức — and
+ * the stored text names the old city on nearly every row ("TP. Thủ Đức (Phường Linh Xuân)"): the ward "Thủ Đức" returned
+ * the whole former city, 382 rentals of which 199 name another ward (measured live 2026-10-30). The curated name is spelled
+ * "TP Thủ Đức" (no dot), so the longer-place rule below never took "TP. Thủ Đức" out. These are the city-level spellings,
+ * built from the ward's own, the same way district-canonical.ts builds its CITY_LEVEL aliases.
+ */
+const CITY_LEVEL_PREFIXES = ['TP. ', 'TP.', 'TP ', 'Tp. ', 'Tp.', 'Tp ', 'Thành phố ', 'Thành Phố ', 'THÀNH PHỐ ']
+/**
+ * The HCMC wards that carry a FORMER CITY'S name (thành phố / thị xã before the 2025 merger — Thủ Đức, and former Bình
+ * Dương's and Bà Rịa–Vũng Tàu's cities; each checked against vn-units as a ward of province 79, 2026-10-30). Only these get
+ * the city-level exclusions and the outright-ward rule: every other ward keeps its query exactly as it was, at its cost.
+ */
+const FORMER_CITY_WARDS_HCM = new Set(['Thủ Đức', 'Thủ Dầu Một', 'Dĩ An', 'Thuận An', 'Tân Uyên', 'Bến Cát', 'Vũng Tàu', 'Bà Rịa', 'Phú Mỹ'])
+/**
+ * …and a column that names the ward OUTRIGHT always counts, whatever else it names: "Phường Thủ Đức", "(P. Thủ Đức mới)",
+ * ", P.Thủ Đức / TP. Thủ Đức", a leading "P. Thủ Đức". ⚠️ THE LEAD IS DELIMITED ("(P. ", ", P. ", a column's start) because
+ * "P. Thủ Đức" is a substring of "TP. Thủ Đức"; the END is not a list of separators (every review round found one more —
+ * " /", " -", " |"): instead the column must NOT name, with the same lead, a LONGER ward of the province that begins with
+ * this one ("Phường An Phú Đông" is not An Phú). It keeps "TP. Phú Mỹ (P. Phú Mỹ mới)" in Phú Mỹ ward once "TP. Phú Mỹ"
+ * is a longer place. Measured 2026-10-30 on the 382 live Thủ Đức rentals: every real Phường Thủ Đức row is
+ * "TP. Thủ Đức (Phường Thủ Đức)".
+ */
+// " P." WITH A SPACE BEFORE IT never occurs inside "TP." — so it takes every separator before the ward (", P.", "/ P.",
+// "| P.", "- P.") without listing them (review, codex).
+const WARD_LEADS = ['Phường ', 'phường ', '(P. ', '(P.', ' P. ', ' P.'] as const
+const WARD_START_LEADS = ['P. ', 'P.', 'Phường '] as const
+const wardNamedOutright = (c: 'district' | 'location', s: string, longerWards: readonly string[]): Prisma.ListingWhereInput[] => {
+  const on = (f: { contains?: string; startsWith?: string }): Prisma.ListingWhereInput => (c === 'district' ? { district: f } : { location: f })
+  const not = (lead: string) => longerWards.map((n): Prisma.ListingWhereInput => ({ NOT: on({ contains: `${lead}${n}` }) }))
+  return [
+    ...WARD_LEADS.map((lead) => ({ AND: [on({ contains: `${lead}${s}` }), ...not(lead)] })),
+    ...WARD_START_LEADS.map((lead) => ({ AND: [on({ startsWith: `${lead}${s}` }), ...not(lead)] })),
+  ]
+}
+
 export function wardWhere(sentWard: string, sentProvince?: string | null): Prisma.ListingWhereInput {
   const w = sentWard.trim()
   const aliases = wardAliases(w, sentProvince)
@@ -157,7 +194,8 @@ export function wardWhere(sentWard: string, sentProvince?: string | null): Prism
   // value keeps the original two LIKEs — the cost of a public parameter stays the old one.
   const p = sentProvince?.trim()
   const known = !!p && !!unitFor(p)?.wards.some((x) => x.name === w || x.nameEn === w)
-  const longer = known ? longerPlaceNames(spellings, sentProvince) : []
+  const cityNamed = known && unitFor(p!)?.code === '79' && spellings.some((s) => FORMER_CITY_WARDS_HCM.has(s))
+  const longer = known ? [...new Set([...longerPlaceNames(spellings, sentProvince), ...(cityNamed ? spellings.flatMap((s) => CITY_LEVEL_PREFIXES.map((pre) => `${pre}${s}`)) : [])])] : []
   if (!longer.length) return bare
   // ⛔ PER COLUMN: a column counts when it names the ward and NONE of the longer places — so district "Quận 7 (Phú Mỹ
   // Hưng)" beside location "P. Phú Mỹ, Quận 7" (a District 7 home that IS in Phú Mỹ ward) still finds it through the
@@ -167,5 +205,9 @@ export function wardWhere(sentWard: string, sentProvince?: string | null): Prism
     AND: [c === 'district' ? { district: { contains: s } } : { location: { contains: s } },
       ...longer.map((n): Prisma.ListingWhereInput => ({ NOT: c === 'district' ? { district: { contains: n } } : { location: { contains: n } } }))],
   })
-  return { OR: spellings.flatMap((s) => [clean('district', s), clean('location', s)]) }
+  // The province's wards that BEGIN with a spelling and are longer ("An Phú Đông" for An Phú) — what the outright rule must
+  // not mistake for this ward.
+  const wardsOfProvince = p ? unitFor(p)?.wards ?? [] : []
+  const longerWardsOf = (sp: string) => wardsOfProvince.flatMap((x) => [x.name, x.nameEn]).filter((n) => n.length > sp.length && n.startsWith(`${sp} `))
+  return { OR: spellings.flatMap((sp) => [clean('district', sp), clean('location', sp), ...(cityNamed ? [...wardNamedOutright('district', sp, longerWardsOf(sp)), ...wardNamedOutright('location', sp, longerWardsOf(sp))] : [])]) }
 }

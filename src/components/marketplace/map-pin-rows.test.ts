@@ -30,8 +30,10 @@ describe('why: the text fallback cannot place a teacher', () => {
   it('a province no fallback knows (Gia Lai) lands there too', () => {
     expect(placeCoordinates('Gia Lai', null).matched).toBe(false)
   })
-  it('the curated District 7 name misses its district pin (the old free text "Quận 7" hit it)', () => {
-    expect(placeCoordinates('Hồ Chí Minh', 'Quận 7 (Phú Mỹ Hưng)').byDistrict).toBe(false)
+  // Since 2026-10-30 every curated HCMC district has a centre (geo.ts HCMC_DISTRICT_CENTRES), so the curated District 7
+  // name now finds District 7 — but a district centre is still a guess about a PERSON's home, which is why the rule stays.
+  it('the curated District 7 name lands on District 7\'s centre — a district, still not a home', () => {
+    expect(placeCoordinates('Hồ Chí Minh', 'Quận 7 (Phú Mỹ Hưng)').byDistrict).toBe(true)
     expect(placeCoordinates('Hồ Chí Minh', 'Quận 7').byDistrict).toBe(true)
   })
 })
