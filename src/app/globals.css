@@ -2910,9 +2910,12 @@ html.dark .leaflet-tile-pane {
 }
 .send-lift { animation: send-lift 220ms var(--ease-spring-snappy) both; }
 
-/* Scroll-driven feed reveal: cards gently rise + fade as they enter. Runs OFF the main
-   thread with ZERO scroll listeners. iOS Safari 26+ only → pure enhancement behind
-   @supports; iOS 18–25 and reduced-motion users just see the card (no animation). */
+/* Scroll-driven feed reveal: cards gently rise + fade as they enter, with ZERO scroll listeners.
+   A pure enhancement behind @supports; reduced-motion users just see the card (no animation).
+   ⚠️ NOT "iOS Safari 26+ only, off the main thread", as this said until 2026-10-29: every Chromium
+   from 115 runs it too, and Blink updates view timelines ON THE MAIN THREAD every frame — measured
+   on the Android app's feed (rentals, 4x CPU): 32–90 reveals started per scroll, and switching them
+   off took the main thread from 45% to 39% busy and late frames from 31% to 23%. */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
     .reveal-on-scroll {
@@ -2926,6 +2929,10 @@ html.dark .leaflet-tile-pane {
     }
   }
 }
+/* ⛔ NOT IN THE ANDROID APP (owner, 2026-10-29: "android app performance is bad doesnt scroll smooth
+   gittery … should be similar experience as ios app"): the cost above, paid on every scrolling frame.
+   `native-android` is set on <html> before first paint ([lang]/layout.tsx head script). */
+html.native-android .reveal-on-scroll { animation: none; }
 
 /* ============================================================
    TRANSLUCENT MATERIALS — the two accessibility signals besides reduced-motion
@@ -2975,6 +2982,21 @@ html.dark .leaflet-tile-pane {
    * "unprefixed only" compiles to both. That is why the first build of this rule left every surface
    * still blurred while its background had correctly gone opaque.
    */
+  backdrop-filter: none !important;
+}
+/**
+ * ⛔ NO BACKDROP BLUR IN THE ANDROID APP (owner, 2026-10-29: "android app performance is bad doesnt
+ * scroll smooth gittery … should be similar experience as ios app"). Chromium draws every blurred
+ * surface as its own render pass on EVERY frame, and the feed carries 49–59 of them — two over
+ * moving content (the tab bar's pill, the sticky sort strip), plus every card's badge and heart.
+ * iOS draws the same effect natively (Core Animation) and keeps it. Measured (home, 6x CPU, desktop
+ * software compositing — a phone GPU pays more): compositor frame cost −46%, render passes per
+ * frame 12 → 8, composited layers 197 → 107.
+ * ⚠️ THE BLUR ONLY: the tints stay as they are (95% opaque). reduce-transparency's opaque fills
+ * are NOT copied here — they would repaint the home strip's wash and turn the photo chips solid.
+ * Unprefixed only, for the reason above.
+ */
+.native-android .material {
   backdrop-filter: none !important;
 }
 /**

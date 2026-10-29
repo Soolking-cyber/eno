@@ -30,6 +30,22 @@ export const CURRENCIES: { code: CurrencyCode; symbol: string; label: string }[]
 export const CURRENCY_CODES = CURRENCIES.map((c) => c.code)
 
 /**
+ * ONE FORMATTER PER CURRENCY, kept (2026-10-29). <Price>'s "≈ $" line calls formatMoney for EVERY viewer on every card
+ * render, and a new Intl.NumberFormat is ~80x a cached one in V8: measured on the Android app's feed (4x CPU),
+ * formatMoney was a top-ten JS self-time function — 84 ms on home and 162 ms on rentals per scroll run. A currency Intl
+ * refuses throws here as it did inline (the caller falls back to VND), and is never kept.
+ */
+const MONEY_FORMATS = new Map<string, Intl.NumberFormat>()
+function moneyFormat(currency: string): Intl.NumberFormat {
+  let f = MONEY_FORMATS.get(currency)
+  if (!f) {
+    f = new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 })
+    MONEY_FORMATS.set(currency, f)
+  }
+  return f
+}
+
+/**
  * Format a VND amount in the chosen display currency. `rates` are "currency per
  * 1 VND" (from /api/fx). VND keeps the app's locale-aware suffix style
  * ("12,000,000 đ" en / "12.000.000 đ" vi — see vnd.ts); other currencies use
@@ -43,7 +59,7 @@ export function formatMoney(amountVnd: number, currency: string, rates: Record<s
   const rate = rates[currency]
   if (!rate || !Number.isFinite(rate)) return formatMoneyFull(amountVnd, '₫', locale)
   try {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(amountVnd * rate)
+    return moneyFormat(currency).format(amountVnd * rate)
   } catch {
     return formatMoneyFull(amountVnd, '₫', locale)
   }
