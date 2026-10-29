@@ -173,6 +173,11 @@ VI_ON = os.environ.get('VI_TTS') == '1'
 VI_DIR = os.environ.get('VI_MODEL_DIR', '/models/zerotts-int8')
 VI_VOICE = os.environ.get('VI_VOICE', 'baotrang')
 VI_THREADS = int(os.environ.get('VI_THREADS', '2'))
+# ZeroTTS hands its audio over in chunks that grow 1, 2, 4… frames up to this (80 ms a frame). 4 on the box: a chunk of
+# ≤ 0.32 s lands every ~0.3 s, so a player needs only ~0.2 s in hand; at ZeroTTS's own 16, bursts of 1.28 s took ~1.1 s to
+# make and the guide's voice ran dry between them (owner, 2026-10-29: "laggy chopped"). RTF 0.84-0.89 at 4 vs 0.90-0.93 at
+# 16; 3 threads did no better and 4 ran slower than real time (measured on the box, 2026-10-29).
+VI_MAX_CHUNK_FRAMES = int(os.environ.get('VI_MAX_CHUNK_FRAMES', '4'))
 VI_RATE = 24_000  # what the app plays (Phonon's rate); ZeroTTS speaks at 48 kHz — halved on the way out (Half)
 # A Vietnamese line may take longer than Phonon's TTS_DEADLINE_S: ZeroTTS is allowed RTF up to 0.8 here (the speed gate below),
 # so 20 s finishes a ~25 s line — a long one is not cut after its 200, where the app cannot tell (opus, commit review).
@@ -529,7 +534,7 @@ def speak_vi_stream(text, write):
     Returns the seconds of audio written."""
     deadline = time.perf_counter() + VI_DEADLINE_S
     half, samples = Half(), 0
-    gen = _vi.synthesize_stream(text, voice=VI_VOICE)
+    gen = _vi.synthesize_stream(text, voice=VI_VOICE, max_chunk_frames=VI_MAX_CHUNK_FRAMES)
     try:
         for chunk in gen:
             y = half.push(np.asarray(chunk, dtype=np.float32).reshape(-1))

@@ -201,6 +201,15 @@ export const SONIOX_AHEAD = 2
 
 /** A free voice on the box sounds in ~0.1 s (Phonon, measured 2026-10-26): silence past this is a slow or stuck box. */
 export const BOX_FIRST_SOUND_MS = 1_500
+/**
+ * The box's VIETNAMESE (ZeroTTS) is made only a little faster than real time (RTF 0.75-0.92 a line on the box, measured
+ * 2026-10-29) and in bursts — played as each burst lands, it ran dry between them (owner: "its laggy chopped voice"). Its
+ * line is held this long before its first sound goes out (turn-stream.ts VoiceStream.prerollMs). Measured on the box
+ * 2026-10-29 (a throwaway container of the live image, three guide lines): with the chunks capped at 4 frames (server.py
+ * VI_MAX_CHUNK_FRAMES) a player needs 0.16-0.19 s in hand never to run dry — 0.64-0.87 s with ZeroTTS's 16, the chop the
+ * owner heard against 0.12 s held. 350 ms is that with room for the network; it costs that much later a first sound.
+ */
+export const VI_PREROLL_MS = 350
 /** After the box fails — down, a server fault, two slow lines in a row — guide lines go straight to Soniox this long. */
 export const BOX_REST_MS = 60_000
 /** Rests and runs of slow lines are kept PER LANGUAGE: the box's English (Phonon) and its Vietnamese (ZeroTTS) are
@@ -251,7 +260,7 @@ async function guideBoxLine(box: LocalSpeechConfig, text: string, v: Voice, styl
       return null
     }
     boxSlow.set(langOf(style), 0)
-    return { rate: made.rate, pauseMs: made.pauseMs, chunks: withFirst(first.value, it) }
+    return { rate: made.rate, pauseMs: made.pauseMs, chunks: withFirst(first.value, it), ...(langOf(style) === 'vi' ? { prerollMs: VI_PREROLL_MS } : {}) }
   } catch (e) {
     clearTimeout(timer)
     // Talked over while the request was still on its way: a 499 like the rest (opus, commit review — it reached here as 502).

@@ -556,6 +556,15 @@ describe('the voice guide\'s Vietnamese on the box (`first`)', () => {
     expect(h.calls).toEqual(['box-stream:Zoey', 'soniox-stream:Sloane'])
   })
 
+  it('⛔ a Vietnamese line from the box asks the relay for VI_PREROLL_MS in hand before its first sound (the chop) — English does not', async () => {
+    const viLine = await sv.speakerFor('Zoey', viStyle, guide)!('Một.', go())
+    const enLine = await sv.speakerFor('Zoey', () => style, guide)!('One.', go())
+    expect(viLine.prerollMs).toBe(sv.VI_PREROLL_MS)
+    expect(enLine.prerollMs).toBeUndefined()
+    h.boxFails = { status: 503 } // Vietnamese said by Soniox: its own pacing, no hold
+    expect((await sv.speakerFor('Zoey', viStyle, guide)!('Hai.', go())).prerollMs).toBeUndefined()
+  })
+
   it('the Vietnamese opening is made on the box in Vietnamese and kept apart from the English one', async () => {
     const line = async (text: string, st: typeof style) => Buffer.from(await sv.speakLine(text, 'Zoey', st, 2_500, guide), 'base64').toString()
     expect(await line('Chào bạn!', viStyle())).toBe('mp3-from-box')

@@ -87,6 +87,19 @@ describe('streamTurn', () => {
     expect(6000).toBeGreaterThanOrEqual(PCM_LINE_BYTES)
   })
 
+  it('⛔ a voice that asks for a PRE-ROLL (the box\'s Vietnamese) holds its first sound until that much is in hand — then ~100 ms lines; a short line goes whole at its end', async () => {
+    // 24 kHz PCM16: 500 ms = 24,000 bytes.
+    const slow = (sizes: number[]): Speaker => Object.assign(async () => ({
+      rate: 24_000, prerollMs: 500, chunks: (async function* () { for (const n of sizes) yield new Uint8Array(n) })(),
+    }), {})
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Xin chào.' }, { kind: 'final', reply: REPLY({ reply: 'Xin chào.' }), model: 'm', calls: 1 }), { speak: slow([3840, 7680, 15360, 6000, 100]) })
+    const pcm = (await collect(t.lines)).filter((l) => l.kind === 'pcm') as Extract<TurnLine, { kind: 'pcm' }>[]
+    expect(pcm.map((l) => Buffer.from(l.data, 'base64').length)).toEqual([26880, 6000, 100]) // 3840+7680+15360 first, then as before
+    const short = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Dạ.' }, { kind: 'final', reply: REPLY({ reply: 'Dạ.' }), model: 'm', calls: 1 }), { speak: slow([3840, 3840]) })
+    const p2 = (await collect(short.lines)).filter((l) => l.kind === 'pcm') as Extract<TurnLine, { kind: 'pcm' }>[]
+    expect(p2.map((l) => Buffer.from(l.data, 'base64').length)).toEqual([7680]) // never reached 500 ms: the whole line at its end
+  })
+
   it('⚡ a voice made elsewhere (Soniox: ahead() > 0) is asked for the NEXT sentences while one is heard — still sent in order', async () => {
     // Each sentence's voice takes 30 ms to start; one at a time that is a hole before every sentence after the first.
     // ⚠️ ORDER, NOT THE CLOCK: whether a voice was ready when the next was asked for — a "< 30 ms" on the wall clock failed

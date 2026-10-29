@@ -57,7 +57,10 @@ export type SavedReply = {
 
 /** One line in the avatar's voice, as it is made (speech-local.ts synthesizeStream); `pauseMs` of silence goes BEFORE it
  *  when it follows another sentence of the same reply (pace.ts pauseMs) — never after a reply's last sentence. */
-export type VoiceStream = { rate: number; chunks: AsyncIterable<Uint8Array>; pauseMs?: number }
+/** `prerollMs`: hold this much of the line before its first sound goes out — a voice made only a little faster than real
+ *  time, in bursts (the guide's Vietnamese on eno's box, ZeroTTS), runs dry between them otherwise (owner, 2026-10-29: "its
+ *  laggy chopped voice"). Absent: the first frames go alone, at once, as before. */
+export type VoiceStream = { rate: number; chunks: AsyncIterable<Uint8Array>; pauseMs?: number; prerollMs?: number }
 /**
  * A sentence → its voice. `ahead()`: how many sentences may be VOICED AHEAD of the one being heard, read per sentence — 0
  * for eno's box (its 4 CPUs make one line at a time faster: one ahead slowed both), more for a voice made elsewhere at
@@ -331,6 +334,7 @@ export function voiceOf(q: Pick<LineQueue<TurnLine>, 'push'>, speak: Speaker | n
       let held: Uint8Array[] = []
       let size = 0
       let first = true
+      const preroll = v.prerollMs ? Math.round((v.rate * v.prerollMs) / 1000) * 2 : 0
       const send = () => {
         if (first && !gone.aborted) onVoiced?.(text)
         q.push({ kind: 'pcm', part, rate: v.rate, data: Buffer.concat(held).toString('base64') })
@@ -342,7 +346,7 @@ export function voiceOf(q: Pick<LineQueue<TurnLine>, 'push'>, speak: Speaker | n
         if (gone.aborted) return
         held.push(chunk)
         size += chunk.length
-        if (first || size >= PCM_LINE_BYTES) send()
+        if (first ? size >= preroll : size >= PCM_LINE_BYTES) send()
       }
       if (gone.aborted) return
       if (size) send()
