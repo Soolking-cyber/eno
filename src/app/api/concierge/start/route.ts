@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic'
 export const POST = route({ auth: 'profile', rateLimit: { bucket: 'concierge-start', limit: 20, window: '1 h', strict: true } }, async ({ profile, req }) => {
   // The language the guide speaks (?lang= — the app's; Khmer and anything else as English): its opening line and voice.
   const lang = spokenLanguage(new URL(req.url).searchParams.get('lang'))
-  if (!(await conciergeOpenFor(profile.id, { fresh: true }))) throw new ApiError('forbidden', 403)
+  if (!(await conciergeOpenFor(profile.id, { fresh: true, ua: req.headers.get('user-agent') }))) throw new ApiError('forbidden', 403)
   let session
   const out: { cap?: 'account' | 'site' } = {}
   try {

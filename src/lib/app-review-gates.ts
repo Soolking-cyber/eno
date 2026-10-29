@@ -175,6 +175,29 @@ export function isNativeAppUserAgent(ua: string | null | undefined): boolean {
 }
 
 /**
+ * THE VOICE GUIDE'S BINARIES (owner, 2026-10-29: "also ios android apps add the live concierge to them too"). Only the
+ * shells built for it append `EnoVoice/<n>` beside `EnoNativeApp/1` (capacitor.config.ts appendUserAgent): they carry the
+ * microphone permission (Android RECORD_AUDIO) and a microphone purpose string that names the guide (iOS). Every earlier
+ * binary — iOS up to build 4, Android up to versionCode 5 — sends `EnoNativeApp/1` alone, and the guide never opens there
+ * (concierge/config.ts conciergeOpenFor on the server, concierge-host.tsx on the client). A capability the binary states,
+ * not a version number: a web deploy alone can never switch the guide on in a binary that cannot hear.
+ */
+const NATIVE_VOICE_RE = /\bEnoVoice\/\d/
+
+/** Server or client: one of the apps, built to carry the voice guide — the Capacitor shells only (`EnoNativeApp/`), never the
+ *  shelved SwiftUI app (`EnoNativeTabs`), whatever else its user agent says (commit review, opus). */
+export function isNativeVoiceUserAgent(ua: string | null | undefined): boolean {
+  const s = ua ?? ''
+  return /\bEnoNativeApp\//.test(s) && NATIVE_VOICE_RE.test(s)
+}
+
+/** Client only: one of the apps, built to carry the voice guide. */
+export function isNativeVoiceClient(): boolean {
+  if (typeof navigator === 'undefined') return false
+  return isNativeVoiceUserAgent(navigator.userAgent || '')
+}
+
+/**
  * Server or client: is this user agent the iOS app? The shell appends `EnoNativeApp/1` to WebKit's own
  * UA, and only two apps carry that token — this one and the Android one, whose UA always names Android.
  * ⚠️ NOT A DEVICE-NAME TEST. The same iOS binary on an Apple-silicon Mac ("Designed for iPhone") reports

@@ -10,6 +10,7 @@ import { getGeminiVertex } from '@/lib/gemini'
 import { isLanguage } from '@/lib/languages'
 import { logError } from '@/lib/log'
 import { hiddenSellerIdsFor } from '@/lib/user-blocks'
+import { appReviewGate, isIosAppUserAgent } from '@/lib/app-review-gates'
 import type { PageState } from '@/lib/concierge/types'
 
 export const runtime = 'nodejs'
@@ -50,10 +51,10 @@ function isPlainYes(transcript: string): boolean {
  * `chips`, `end`. Refusals decided before the answer starts are the usual `{ error }` with a status.
  * ⛔ Nothing is stored — not the words, not the page, not the history.
  */
-export const POST = route({ auth: 'profile', body, rateLimit: { bucket: 'concierge-turn', limit: 240, window: '1 h', strict: true } }, async ({ profile, body: b }) => {
+export const POST = route({ auth: 'profile', body, rateLimit: { bucket: 'concierge-turn', limit: 240, window: '1 h', strict: true } }, async ({ profile, body: b, req }) => {
   const s = await liveSession(b.session, profile.id)
   if (!s) throw new ApiError('session_over', 409)
-  if (!(await conciergeOpenFor(profile.id))) throw new ApiError('forbidden', 403)
+  if (!(await conciergeOpenFor(profile.id, { ua: req.headers.get('user-agent') }))) throw new ApiError('forbidden', 403)
   // The NEWEST turns are kept (test review): the model must see its own last question above all.
   let total = 0
   const history: HistoryItem[] = []
@@ -90,6 +91,7 @@ export const POST = route({ auth: 'profile', body, rateLimit: { bucket: 'concier
     speak: conciergeSpeaker(spokenLanguage(lang)),
     acceptedOffer: offer === 'evisa' && isPlainYes(b.transcript),
     hidden,
+    kycHidden: appReviewGate('ios-hide-kyc') && isIosAppUserAgent(req.headers.get('user-agent')),
     onOffer: () => { void rememberOffer(s.id, 'evisa') },
   })
   return new Response(answerLines(turn.lines, turn.stop), {

@@ -2,7 +2,8 @@
 // ── The voice concierge: flip its runtime switch (kv `concierge:mode`, src/lib/concierge/config.ts) ─────────────────
 //
 //   set -a; . ./.env; set +a; node scripts/concierge-mode.mjs staff     # the eno team only (ADMIN_EMAILS)
-//   node scripts/concierge-mode.mjs all                                   # every signed-in account on eno.vn's website
+//   node scripts/concierge-mode.mjs all                                   # every signed-in account on eno.vn: the website, and the
+//                                                                         #  apps built for the guide (EnoVoice) after their notice
 //   node scripts/concierge-mode.mjs off                                   # the kill switch
 //   node scripts/concierge-mode.mjs                                       # print the current switch
 //
@@ -10,7 +11,8 @@
 // (config.ts MODE_CACHE_MS) and every session start reads it fresh, so 'off' refuses new sessions at once and stops the
 // open ones' next turn within 30 s. config.ts reads anything but 'staff' or 'all' as off (fail closed). ⛔ 'all' admits
 // every account only once /privacy names the guide's recipients (Soniox, OpenAI, Google) — config.ts VOICE_GUIDE_IN_PRIVACY,
-// flipped by that /privacy change; before it, 'all' admits the staff. eno.forum never opens it (config.ts IS_SERVICES).
+// flipped by that /privacy change; before it, 'all' admits the staff. eno.forum never opens it (config.ts IS_SERVICES), nor
+// does an app binary built before the guide reached the apps — no `EnoVoice` in its user agent — whatever this says.
 import pg from 'pg'
 
 const [mode] = process.argv.slice(2)

@@ -109,26 +109,61 @@ describe('readConciergeMode — the switch (fails closed)', () => {
   })
 })
 
+/** A browser's user agent — the website (the switch's own rule). */
+const WEB = { ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1' }
+/** The apps as they ship today (iOS build 4, Android vc4/vc5): `EnoNativeApp/1` alone — and the shells built for the guide. */
+const OLD_IOS_APP = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 EnoNativeApp/1'
+const OLD_ANDROID_APP = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36 EnoNativeApp/1'
+const VOICE_IOS_APP = `${OLD_IOS_APP} EnoVoice/1`
+const VOICE_ANDROID_APP = `${OLD_ANDROID_APP} EnoVoice/1`
+
+describe('⛔ the apps — only a binary built for the guide (owner, 2026-10-29: "also ios android apps add the live concierge to them too")', () => {
+  it('an app without `EnoVoice` (today\'s iOS build 4, Android vc4/vc5) is CLOSED whatever the switch says — staff included', async () => {
+    for (const mode of ['all', 'staff']) {
+      h.store.set(MODE_KEY, mode)
+      for (const ua of [OLD_IOS_APP, OLD_ANDROID_APP, 'Mozilla/5.0 EnoNativeTabs/1', 'Mozilla/5.0 EnoNativeTabs/1 EnoVoice/1']) {
+        expect(await conciergeOpenFor('staff-1', { fresh: true, ua }), `${mode} ${ua}`).toBe(false)
+      }
+    }
+  })
+
+  it('a binary that carries it follows the website\'s own rule: `all` opens it for everyone, `staff` for the team, `off` for nobody', async () => {
+    h.store.set(MODE_KEY, 'all')
+    for (const ua of [VOICE_IOS_APP, VOICE_ANDROID_APP]) expect(await conciergeOpenFor('p-member', { fresh: true, ua })).toBe(VOICE_GUIDE_IN_PRIVACY)
+    h.store.set(MODE_KEY, 'staff')
+    expect(await conciergeOpenFor('staff-1', { fresh: true, ua: VOICE_ANDROID_APP })).toBe(true)
+    expect(await conciergeOpenFor('p-member', { fresh: true, ua: VOICE_ANDROID_APP })).toBe(false)
+    h.store.set(MODE_KEY, 'off')
+    expect(await conciergeOpenFor('staff-1', { fresh: true, ua: VOICE_IOS_APP })).toBe(false)
+  })
+
+  it('the token alone, outside an app, is just a browser (no app, nothing gained): the website\'s rule', async () => {
+    h.store.set(MODE_KEY, 'staff')
+    expect(await conciergeOpenFor('p-member', { fresh: true, ua: 'Mozilla/5.0 EnoVoice/1' })).toBe(false)
+    expect(await conciergeOpenFor('staff-1', { fresh: true, ua: 'Mozilla/5.0 EnoVoice/1' })).toBe(true)
+  })
+})
+
 describe('conciergeOpenFor — who may use it now', () => {
   it('the switch at `staff` and a staff account → open', async () => {
     h.store.set(MODE_KEY, 'staff')
-    expect(await conciergeOpenFor('staff-1')).toBe(true)
+    expect(await conciergeOpenFor('staff-1', WEB)).toBe(true)
     expect(h.isStaff).toHaveBeenCalledWith('staff-1')
   })
 
   it('anyone else → closed', async () => {
     h.store.set(MODE_KEY, 'staff')
-    expect(await conciergeOpenFor('p-member')).toBe(false)
+    expect(await conciergeOpenFor('p-member', WEB)).toBe(false)
   })
 
   it('the switch at `all` (owner, 2026-10-28: "open up new concierge for everyone"): every account once /privacy names the guide\'s recipients — the staff before it', async () => {
     h.store.set(MODE_KEY, 'all')
     if (VOICE_GUIDE_IN_PRIVACY) {
-      expect(await conciergeOpenFor('p-member', { fresh: true })).toBe(true)
+      expect(await conciergeOpenFor('p-member', { fresh: true, ua: null })).toBe(true)
       expect(h.isStaff).not.toHaveBeenCalled()
     } else {
-      expect(await conciergeOpenFor('p-member', { fresh: true })).toBe(false)
-      expect(await conciergeOpenFor('staff-1', { fresh: true })).toBe(true)
+      expect(await conciergeOpenFor('p-member', { fresh: true, ua: null })).toBe(false)
+      expect(await conciergeOpenFor('staff-1', { fresh: true, ua: null })).toBe(true)
     }
   })
 
@@ -143,37 +178,37 @@ describe('conciergeOpenFor — who may use it now', () => {
   it('⛔ `all` on eno.forum: still never', async () => {
     h.services = true
     h.store.set(MODE_KEY, 'all')
-    expect(await conciergeOpenFor('p-member', { fresh: true })).toBe(false)
+    expect(await conciergeOpenFor('p-member', { fresh: true, ua: null })).toBe(false)
   })
 
   it('the switch off (or missing): closed, and the account is never looked up', async () => {
-    expect(await conciergeOpenFor('staff-1')).toBe(false)
+    expect(await conciergeOpenFor('staff-1', WEB)).toBe(false)
     h.store.set(MODE_KEY, 'off')
-    expect(await conciergeOpenFor('staff-1', { fresh: true })).toBe(false)
+    expect(await conciergeOpenFor('staff-1', { fresh: true, ua: null })).toBe(false)
     expect(h.isStaff).not.toHaveBeenCalled()
   })
 
   it('the staff check failing → closed (fails closed)', async () => {
     h.store.set(MODE_KEY, 'staff')
     h.isStaff.mockRejectedValueOnce(new Error('db down'))
-    expect(await conciergeOpenFor('staff-1')).toBe(false)
+    expect(await conciergeOpenFor('staff-1', WEB)).toBe(false)
   })
 
   it('⛔ eno.forum (the services edition): never — the switch is not even read', async () => {
     h.services = true
     h.store.set(MODE_KEY, 'staff')
-    expect(await conciergeOpenFor('staff-1', { fresh: true })).toBe(false)
+    expect(await conciergeOpenFor('staff-1', { fresh: true, ua: null })).toBe(false)
     expect(h.kv.get).not.toHaveBeenCalled()
     expect(h.isStaff).not.toHaveBeenCalled()
   })
 
   it('fresh:true reaches the switch past the cache (the start route); without it, the cached value', async () => {
     h.store.set(MODE_KEY, 'staff')
-    expect(await conciergeOpenFor('staff-1')).toBe(true)
+    expect(await conciergeOpenFor('staff-1', WEB)).toBe(true)
     h.store.set(MODE_KEY, 'off')
-    expect(await conciergeOpenFor('staff-1')).toBe(true) // cached ≤ 30 s (PLAN §10: switching off refuses within that)
-    expect(await conciergeOpenFor('staff-1', { fresh: true })).toBe(false)
-    expect(await conciergeOpenFor('staff-1')).toBe(false)
+    expect(await conciergeOpenFor('staff-1', WEB)).toBe(true) // cached ≤ 30 s (PLAN §10: switching off refuses within that)
+    expect(await conciergeOpenFor('staff-1', { fresh: true, ua: null })).toBe(false)
+    expect(await conciergeOpenFor('staff-1', WEB)).toBe(false)
   })
 })
 

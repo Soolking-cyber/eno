@@ -222,6 +222,16 @@ describe('conciergeTurn — the stream contract (PLAN §10)', () => {
     expect((h.brain.mock.calls[0][1] as { input: string }).input).toContain('Answer in English.')
   })
 
+  it('⛔ in the iOS app with identity verification hidden (ios-hide-kyc): the guide is told never to send the person there — anywhere else, nothing', async () => {
+    brain(action(), say(S1), SPOKEN, final([]))
+    await collect(turn({ kycHidden: true }).lines)
+    expect((h.brain.mock.calls[0][1] as { input: string }).input).toContain('verifying an identity or a business is not available')
+    h.brain.mockClear()
+    brain(action(), say(S1), SPOKEN, final([]))
+    await collect(turn({}).lines)
+    expect((h.brain.mock.calls[0][1] as { input: string }).input).not.toContain('identity')
+  })
+
   it('an ask eno.vn does not serve, in Chinese: the Chinese line and chips — the model is never asked', async () => {
     const { linesFor } = await import('./i18n')
     const { LEXICON_CASES } = await import('./i18n/lexicon-cases')

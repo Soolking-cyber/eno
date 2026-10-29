@@ -4,6 +4,7 @@ import { kv } from '@/lib/ratelimit'
 import { isStaffProfile } from '@/lib/user-blocks'
 import { logError } from '@/lib/log'
 import { IS_SERVICES } from '@/lib/edition'
+import { isNativeAppUserAgent, isNativeVoiceUserAgent } from '@/lib/app-review-gates'
 
 /**
  * The voice concierge's RUNTIME SWITCH and its SESSIONS (plan v2 §10). Owner, 2026-10-27: "access only for support@eno.forum
@@ -11,10 +12,13 @@ import { IS_SERVICES } from '@/lib/edition'
  *
  *   off    nobody (the default — and what a missing, unreadable or unknown value means)
  *   staff  the eno team only (ADMIN_EMAILS)
- *   all    every signed-in account on eno.vn's website (owner, 2026-10-28: "open up new concierge for everyone") — never
- *          signed-out visitors (every route needs an account), the native apps (host: no microphone in their webview, no
- *          AI question asked there) or eno.forum. ⛔ Written only after /privacy names the guide's recipients (Soniox,
- *          OpenAI, Google): the owner runs scripts/concierge-mode.mjs all.
+ *   all    every signed-in account on eno.vn — the website, and the iOS and Android apps built for the guide (owner,
+ *          2026-10-28: "open up new concierge for everyone"; 2026-10-29: "also ios android apps add the live concierge to
+ *          them too") — never signed-out visitors (every route needs an account), an app binary built before it (no
+ *          `EnoVoice` token: no microphone permission or purpose string for it, conciergeOpenFor below) or eno.forum. In
+ *          the apps the person agrees first, naming who hears and reads what (ai-consent.ts `voice_guide`).
+ *          ⛔ Written only after /privacy names the guide's recipients (Soniox, OpenAI, Google): the owner runs
+ *          scripts/concierge-mode.mjs all.
  *
  * ⚠️ A kv KEY, NOT A TABLE (no DDL for a staff test). kv_store is UNLOGGED — an unclean Postgres shutdown empties it — and
  * that is safe HERE ONLY because every reading of it fails closed: an emptied key reads `off`, an emptied session ends.
@@ -55,9 +59,15 @@ export function resetConciergeModeCache(): void {
   cached = null
 }
 
-/** May this account use the concierge now? Fails closed. */
-export async function conciergeOpenFor(profileId: string, opts: { fresh?: boolean } = {}): Promise<boolean> {
+/**
+ * May this account use the concierge now, from THIS client? Fails closed.
+ * ⛔ `ua` IS REQUIRED — every route passes its request's user agent: an app binary built before the voice guide reached the
+ * apps (no `EnoVoice` token, app-review-gates.ts) is closed whatever the switch says. Only the client's own claim, as every
+ * user agent is — it keeps the binaries that cannot hear out, it is not a lock.
+ */
+export async function conciergeOpenFor(profileId: string, opts: { ua: string | null; fresh?: boolean }): Promise<boolean> {
   if (IS_SERVICES) return false
+  if (isNativeAppUserAgent(opts.ua) && !isNativeVoiceUserAgent(opts.ua)) return false
   const mode = await readConciergeMode(opts)
   if (mode === 'all' && VOICE_GUIDE_IN_PRIVACY) return true
   if (mode !== 'staff' && mode !== 'all') return false

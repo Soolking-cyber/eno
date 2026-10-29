@@ -20,6 +20,7 @@ vi.mock('next/navigation', () => ({ usePathname: () => pathname }))
 
 import { AiConsentHost } from './ai-consent-host'
 import { AiFeaturesSetting } from './ai-features-setting'
+import { setConciergeAvailable } from '@/lib/concierge/client'
 
 const IOS_APP = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 EnoNativeApp/1'
 const ANDROID_APP = 'Mozilla/5.0 (Linux; Android 15; Pixel 9; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/140.0.0.0 Mobile Safari/537.36 EnoNativeApp/1'
@@ -274,6 +275,55 @@ describe('Settings → Preferences → Google AI', () => {
     expect(search.getAttribute('aria-checked')).toBe('false')
     fireEvent.click(search)
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Search by photo' }).getAttribute('aria-checked')).toBe('true'))
+  })
+
+  it('⛔ an app built for the voice guide (EnoVoice): its switch is there, under "AI features" — its answer the guide\'s own key; every earlier binary sees no such row', async () => {
+    inApp(`${ANDROID_APP} EnoVoice/1`)
+    setConciergeAvailable(true)
+    mountSettings()
+    expect(await screen.findByText('AI features')).toBeTruthy()
+    const voice = screen.getByRole('switch', { name: 'Voice guide' })
+    expect(voice.getAttribute('aria-checked')).toBe('false')
+    fireEvent.click(voice)
+    await waitFor(() => expect(store.get(aiConsentKey('voice_guide', ME))).toBe('on'))
+    expect(aiConsentKey('voice_guide', ME)).toBe(`ai:consent:voice_guide@1:${ME}`)
+    cleanup()
+    vi.restoreAllMocks()
+    inApp(ANDROID_APP)
+    mountSettings()
+    expect(await screen.findByText('Google AI')).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Voice guide' })).toBeNull()
+    // …and in an app built for it while the guide is CLOSED to this account (commit review, opus): no consent asked for it…
+    cleanup()
+    vi.restoreAllMocks()
+    inApp(`${ANDROID_APP} EnoVoice/1`)
+    setConciergeAvailable(false)
+    store.delete(aiConsentKey('voice_guide', ME))
+    forgetAiConsentMemory() // the page's own copy of the answer given above, too
+    mountSettings()
+    expect(await screen.findByText('Google AI')).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Voice guide' })).toBeNull()
+    // …unless a "yes" of theirs is stored: then the switch is there, to take it back (round 3, codex).
+    cleanup()
+    store.set(aiConsentKey('voice_guide', ME), 'on')
+    mountSettings()
+    const back = await screen.findByRole('switch', { name: 'Voice guide' })
+    expect(back.getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(back)
+    await waitFor(() => expect(store.get(aiConsentKey('voice_guide', ME))).toBe('off'))
+  })
+
+  it('⛔ the voice guide\'s notice is asked in an app built for it, naming who gets what', async () => {
+    inApp(`${IOS_APP} EnoVoice/1`)
+    mountHost()
+    let answer: unknown
+    void askAiConsentAnswer('voice_guide', { userId: ME }).then((a) => { answer = a })
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog.textContent).toContain('Talk to the eno voice guide?')
+    for (const named of ['Soniox', 'OpenAI', 'Google (Gemini)', 'eno keeps no recording and no transcript']) expect(dialog.textContent).toContain(named)
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await waitFor(() => expect(answer).toBe('on'))
+    expect(store.get(aiConsentKey('voice_guide', ME))).toBe('on')
   })
 
   it('in either app with the gate on: one switch per family, off until permission is given, and the switch IS the answer', async () => {

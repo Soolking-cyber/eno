@@ -3,7 +3,10 @@
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useMounted } from '@/hooks/use-mounted'
-import { aiConsentAskFirst } from '@/lib/ai-consent'
+import { useEffect, useState, useSyncExternalStore } from 'react'
+import { aiConsentAskFirst, readAiConsent, subscribeAiConsent } from '@/lib/ai-consent'
+import { isNativeVoiceClient } from '@/lib/app-review-gates'
+import { useConciergeAvailable } from '@/lib/concierge/client'
 import { AiFamilySwitchRow } from '@/components/marketplace/ai-family-switch-row'
 import { TripAiSetting } from '@/components/marketplace/trip-ai-consent'
 import { VisaPhotoCheckAiSetting } from '@/components/marketplace/visa-ai-consent'
@@ -22,17 +25,44 @@ export function AiFeaturesSetting() {
   const { tr } = useLanguage()
   const { user } = useAuth()
   const mounted = useMounted()
+  const guideOpen = useConciergeAvailable()
+  const voiceYes = useSyncExternalStore(subscribeAiConsent, () => readAiConsent('voice_guide', user?.id) === 'on', () => false)
+  // Once shown, the row stays for this visit and this account (commit review rounds 4 and 6, opus): turning a stored "yes"
+  // off must not pull the switch from under the finger, and another account starts afresh.
+  const [shownFor, setShownFor] = useState<string | null>(null)
+  const voiceNow = mounted && isNativeVoiceClient() && (guideOpen || voiceYes)
+  useEffect(() => { if (voiceNow && user?.id) setShownFor(user.id) }, [voiceNow, user?.id])
   if (!mounted || !user || !aiConsentAskFirst()) return null
+  // The voice guide's row only in an app built for it (owner, 2026-10-29): while the guide is open to this account (commit
+  // review, opus: never a consent for a feature the person cannot use) — OR while a "yes" of theirs is stored, so it can
+  // always be taken back (round 3, codex). Its recipients are not Google alone, so the heading and the sentence under it
+  // say "AI". Every earlier binary sees this section exactly as before.
+  const voice = voiceNow || (shownFor === user.id && isNativeVoiceClient())
   return (
     <section>
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-4">{tr('Google AI', 'Google AI')}</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-4">{voice ? tr('AI features', 'Tính năng AI') : tr('Google AI', 'Google AI')}</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        {tr(
-          'These features send what you type, or the photo you choose, to Google. Each one asks you the first time; you can change your answer here.',
-          'Các tính năng này gửi nội dung bạn nhập, hoặc ảnh bạn chọn, đến Google. Mỗi tính năng sẽ hỏi bạn ở lần đầu; bạn có thể đổi lựa chọn tại đây.',
-        )}
+        {voice
+          ? tr(
+            'These features send what you say or type, or the photo you choose, to AI services. Each one asks you the first time; you can change your answer here.',
+            'Các tính năng này gửi lời bạn nói hoặc nhập, hoặc ảnh bạn chọn, đến các dịch vụ AI. Mỗi tính năng sẽ hỏi bạn ở lần đầu; bạn có thể đổi lựa chọn tại đây.',
+          )
+          : tr(
+            'These features send what you type, or the photo you choose, to Google. Each one asks you the first time; you can change your answer here.',
+            'Các tính năng này gửi nội dung bạn nhập, hoặc ảnh bạn chọn, đến Google. Mỗi tính năng sẽ hỏi bạn ở lần đầu; bạn có thể đổi lựa chọn tại đây.',
+          )}
       </p>
       <div className="mt-3 space-y-4">
+        {voice && (
+          <AiFamilySwitchRow
+            family="voice_guide"
+            label={tr('Voice guide', 'Trợ lý giọng nói')}
+            description={tr(
+              'While it listens, your voice goes to Soniox to be turned into words; what it heard, your last few turns and the page you are on go to OpenAI (Google Gemini as backup) to answer. Off: eno AI’s text chat answers instead.',
+              'Khi trợ lý nghe, giọng nói của bạn được gửi đến Soniox để chuyển thành chữ; những gì trợ lý nghe được, vài lượt gần nhất và trang bạn đang xem được gửi đến OpenAI (dự phòng là Google Gemini) để trả lời. Khi tắt: eno AI trả lời bằng tin nhắn.',
+            )}
+          />
+        )}
         <AiFamilySwitchRow
           family="assistant"
           label={tr('eno AI assistant', 'Trợ lý eno AI')}

@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Mic, MicOff } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
+import { isNativeAppClient, isNativeVoiceClient } from '@/lib/app-review-gates'
+import { framedByHost } from '@/lib/concierge/frame-head'
 import { hapticTap } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
 import { streamTo16k } from '@/lib/classroom/wav'
@@ -649,6 +651,13 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
     try { await startOnce() } finally { starting.current = false }
   }
   const startOnce = async () => {
+    /**
+     * ⛔ IN THE APPS, ONLY THE HOST'S OWN WINDOW STARTS (owner, 2026-10-29; App Store 5.1.2(i)) — framed by the host, which
+     * asked for the person's "yes" before opening it and closes it when the answer is taken back (frame-head.ts
+     * framedByHost). A window reached any other way — a link straight to this page — and an app binary that cannot hear
+     * never start, before the microphone: eno AI's text chat.
+     */
+    if (isNativeAppClient() && (!isNativeVoiceClient() || !framedByHost())) { toChat(); return }
     hapticTap()
     setRefusal(null)
     beginTrace('start')

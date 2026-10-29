@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { nativeSiwaHeadJs } from '@/lib/native-siwa-head'
 import { APP_SHEET_HEAD_JS } from '@/lib/app-sheet'
+import { CONCIERGE_FRAME_HEAD_JS } from '@/lib/concierge/frame-head'
 
 /**
  * The pre-paint head script EXACTLY as src/app/[lang]/layout.tsx assembles it — read from the layout's source
@@ -20,6 +21,7 @@ export function headScriptSource(opts: { appleIos: boolean; homeTwin?: string; a
     APP_DOWNLOAD_OFF_JS: opts.appDownloadOff ?? '',
     NATIVE_SIWA_JS: nativeSiwaHeadJs(opts.appleIos),
     APP_SHEET_HEAD_JS,
+    CONCIERGE_FRAME_HEAD_JS,
   }
   for (const [, name] of template.matchAll(/\$\{(\w+)\}/g)) {
     if (!(name in values)) throw new Error(`head-script: layout.tsx interpolates \${${name}}, which this helper does not fill`)

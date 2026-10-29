@@ -177,6 +177,9 @@ export function conciergeTurn(t: {
   acceptedOffer: boolean
   /** The shops this person blocked (user-blocks.ts hiddenSellerIdsFor): never read, described or opened (page-state.ts). */
   hidden?: readonly string[]
+  /** The iOS app with identity and business-document capture hidden (app-review-gates.ts `ios-hide-kyc`): the guide must
+   *  not send the person there. */
+  kycHidden?: boolean
   onOffer?: () => void
   /** Tests only: ANSWER_DEADLINE_MS. */
   answerMs?: number
@@ -234,7 +237,15 @@ export function conciergeTurn(t: {
     ]
     // The language the guide speaks this turn — an instruction of ours (never data), outside the cached brief.
     const speakIn = { text: `Answer in ${LANGUAGE_NAMES[spoken]}.` }
-    const input = [...data, speakIn, { text: 'Write your next turn as JSON.' }].map((p) => p.text).join('\n\n')
+    /**
+     * ⛔ The iOS app hides identity and business-document capture (owner's review gate `ios-hide-kyc`), and the brief — one
+     * cached prompt for every client — tells how verifying them raises the trust score and the daily chats. In that app
+     * the guide never sends the person there (map review, 2026-10-29: a reviewer told of a feature the build hides).
+     */
+    const appNote = t.kycHidden
+      ? [{ text: 'The person is in eno\'s iOS app, where verifying an identity or a business is not available: never suggest it, and never offer it as a way to more chats or a higher trust score.' }]
+      : []
+    const input = [...data, speakIn, ...appNote, { text: 'Write your next turn as JSON.' }].map((p) => p.text).join('\n\n')
 
     let chips: string[] = []
     /** The person said goodbye and the guide thanked them (brief rule 13): the window closes after this answer's voice. */

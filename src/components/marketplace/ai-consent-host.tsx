@@ -163,6 +163,22 @@ function AiConsentHostOn() {
           off,
         }
       }
+      // The voice guide, in the apps only (owner, 2026-10-29) — what each recipient gets is ai-consent.ts's `voice_guide`.
+      case 'voice_guide': {
+        const off = tr('The voice guide is off — eno AI’s text chat answers instead. You can turn it on in Settings → Preferences.', 'Trợ lý giọng nói đang tắt — eno AI trả lời bằng tin nhắn. Bạn có thể bật lại trong Cài đặt → Tùy chọn.')
+        return {
+          title: tr('Talk to the eno voice guide?', 'Nói chuyện với trợ lý giọng nói eno?'),
+          // One sentence a tr() (gen-ui-strings harvests literals of at most 400 characters).
+          body: [
+            tr('While the voice guide listens, your voice goes live to Soniox, outside Vietnam, to be turned into words — until you close the guide or turn its microphone off.', 'Khi trợ lý giọng nói đang nghe, giọng nói của bạn được gửi trực tiếp đến Soniox, ngoài Việt Nam, để chuyển thành chữ — cho đến khi bạn đóng trợ lý hoặc tắt micro.'),
+            tr('The words it heard, your last few turns and a summary of the page you are on go to OpenAI, outside Vietnam, to write its answers — or to Google (Gemini) when OpenAI is unavailable.', 'Những gì trợ lý nghe được, vài lượt trò chuyện gần nhất và tóm tắt trang bạn đang xem được gửi đến OpenAI, ngoài Việt Nam, để soạn câu trả lời — hoặc đến Google (Gemini) khi OpenAI không khả dụng.'),
+            tr('Its answers are spoken by eno’s own speech server or by Soniox. eno keeps no recording and no transcript. Details: eno.vn/privacy.', 'Câu trả lời được đọc bởi máy chủ giọng nói của eno hoặc bởi Soniox. eno không lưu bản ghi âm hay bản ghi lời nói. Chi tiết: eno.vn/privacy.'),
+            tr('Not now: eno AI’s text chat answers instead.', 'Để sau: eno AI trả lời bằng tin nhắn.'),
+          ].join(' '),
+          declined: off,
+          off,
+        }
+      }
       default:
         return undefined // trip: its words travel with the call (trip-cards.tsx) — they may not ship in eno.vn's build
     }

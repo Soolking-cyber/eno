@@ -6,6 +6,8 @@ import { isPostFlowPath } from '@/lib/post-flow-path'
 import { explorerFallbackUrl } from '@/lib/explorer-presence'
 import { hereVariant } from '@/lib/lang-pinned'
 import { publicPathname } from '@/lib/lang-variant'
+import { aiConsentAskFirst, aiConsentCanAsk, askAiConsentAnswer, readAiConsent } from '@/lib/ai-consent'
+import { isNativeAppClient, isNativeVoiceClient } from '@/lib/app-review-gates'
 
 /**
  * The voice concierge on the PAGE side — what the ✨ "Ask eno AI" buttons and the floating window's host share. The window
@@ -60,6 +62,19 @@ export function useConciergeAvailable(): boolean {
     () => available,
     () => false,
   )
+}
+
+/**
+ * ⛔ MAY THE GUIDE LISTEN HERE, NOW? Always on the website (its tap-to-start). In the apps (owner, 2026-10-29: "Apps only")
+ * only in a binary built for the guide, with the apps' AI notice machinery on (`app-ai-notice` — the notice that asks, and
+ * the Settings switch that takes the answer back: without it a stored "yes" could never be withdrawn — commit review round
+ * 2, codex + opus), AND with the person's own "yes" to the voice guide's notice on this device (ai-consent.ts
+ * `voice_guide`). The host (concierge-host.tsx) asks THIS at every open and closes the window the moment it stops holding
+ * — the one place the apps' "yes" is enforced; the window itself only runs inside the host (frame-head.ts framedByHost).
+ */
+export function voiceAgreedHere(userId: string | null | undefined): boolean {
+  if (!isNativeAppClient()) return true
+  return isNativeVoiceClient() && aiConsentAskFirst() && readAiConsent('voice_guide', userId) === 'on'
 }
 
 /** The ✨ buttons open the window through this event (the header is rendered per page; the host lives in providers). */
@@ -127,6 +142,27 @@ export async function askForHelp(nav: { push: (href: string) => void }, variant:
     if (window.location.pathname !== asked) return
     const path = publicPathname(window.location.pathname)
     if (available) {
+      /**
+       * ⛔ IN THE APPS THE PERSON AGREES FIRST (owner, 2026-10-29: "Apps only"; App Store 5.1.2(i), Play's prominent
+       * disclosure) — before the window opens, and so before its microphone: who hears the voice and who reads the words
+       * (ai-consent.ts `voice_guide`, asked in either app whatever `app-ai-notice` says). "Not now" is eno AI's text chat;
+       * no answer (Escape, a page change) is nothing at all. The website keeps its tap-to-start.
+       */
+      if (isNativeAppClient()) {
+        // A build without the apps' AI notice (`app-ai-notice`), or no notice host mounted: no voice guide in the app at all —
+        // the text chat, as before; never a dead ✨, and never a stored "yes" that Settings could not take back (commit review,
+        // codex + opus, rounds 1 and 2).
+        if (!aiConsentAskFirst() || !aiConsentCanAsk()) {
+          if (!opts.voiceOnly) nav.push('/messages/ai')
+          return
+        }
+        const answer = await askAiConsentAnswer('voice_guide')
+        if (window.location.pathname !== asked) return
+        if (answer !== 'on') {
+          if (answer === 'off' && !opts.voiceOnly) nav.push('/messages/ai')
+          return
+        }
+      }
       if (!isConciergeHiddenPath(path)) { openConcierge(); return }
       if (GUIDE_VIA_EXPLORER.test(path)) {
         const to = explorerFallbackUrl(null, {}, hereVariant(variant))

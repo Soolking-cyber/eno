@@ -30,6 +30,14 @@
  *   teacher_cv    the teacher form's "Fill it in from my CV" (2026-10-15) → POST /api/teachers/me/import: the CV or LinkedIn
  *                 profile PDF the teacher chooses (Gemini on Vertex reads it to fill the form; nothing is kept).
  *                 "Not now": unavailable — the teacher fills the form in, which is how it works without AI anyway.
+ *   voice_guide   the VOICE GUIDE in the apps (owner, 2026-10-29: "also ios android apps add the live concierge to them too")
+ *                 → the guide's window (/concierge): while it listens, the person's VOICE goes live to Soniox (speech to
+ *                 text); the words it heard, their last few turns and a summary of the page they are on go to OpenAI to
+ *                 write the answer (Google Gemini only when OpenAI is unavailable); its spoken answers are made by eno's own
+ *                 speech server or by Soniox. eno keeps no recording and no transcript (api/concierge/turn).
+ *                 ⛔ ASKED IN EITHER APP ALWAYS, whatever `app-ai-notice` says (asksFirst below), and NEVER on the website,
+ *                 which keeps its tap-to-start (owner's choice, 2026-10-29: "Apps only"). Its key carries a NOTICE VERSION.
+ *                 "Not now": eno AI's text chat answers instead (concierge/client.ts askForHelp).
  *   teacher_bio   the teacher form's "Improve with AI" under "About you" (2026-10-21) → POST /api/teachers/me/bio-rewrite:
  *                 the About text in the teacher's own words (minus the sentences where contact details are found — a
  *                 name written in it goes too) and the form's answers, field by field — subjects, age groups,
@@ -67,9 +75,9 @@
  * false before anything is read, `askAiConsent()` answers true at once, no notice is mounted, and every request is
  * byte-for-byte what it was — on the web and in both apps.
  */
-import { nativeAppGate } from './app-review-gates'
+import { isNativeAppClient, nativeAppGate } from './app-review-gates'
 
-export const AI_FAMILIES = ['assistant', 'listing', 'photo_search', 'trip', 'document_check', 'teacher_cv', 'teacher_bio'] as const
+export const AI_FAMILIES = ['assistant', 'listing', 'photo_search', 'trip', 'document_check', 'teacher_cv', 'teacher_bio', 'voice_guide'] as const
 export type AiFamily = (typeof AI_FAMILIES)[number]
 
 /** 'on' = allowed (in the notice or in Settings); 'off' = "Not now" / turned off; null = not asked yet. */
@@ -96,7 +104,25 @@ export function aiConsentAskFirst(): boolean {
   return nativeAppGate('app-ai-notice')
 }
 
-export const aiConsentKey = (family: AiFamily, userId: string): string => `ai:consent:${family}:${userId}`
+/**
+ * Client: must THIS family ask first? The gate's rule for every family (aiConsentAskFirst) — and ALWAYS in either app for the
+ * voice guide, so it fails closed even in a build without `app-ai-notice` (no host to ask = no answer = no guide).
+ */
+function asksFirst(family: AiFamily): boolean {
+  return family === 'voice_guide' ? isNativeAppClient() : aiConsentAskFirst()
+}
+
+/**
+ * ⛔ A NOTICE VERSION where the recipients can change — the voice guide's stack moved four times in one week (Phonon, Soniox's
+ * voice, eno's own speech server, the Gemini hand-over): a new version is a new key, so a "yes" given to one set of
+ * recipients never covers another. Bump it whenever the voice guide's notice names a new recipient or a new kind of data.
+ * The other families keep their unversioned keys (their answers stand).
+ */
+export const AI_NOTICE_VERSION: Partial<Record<AiFamily, number>> = { voice_guide: 1 }
+export const aiConsentKey = (family: AiFamily, userId: string): string => {
+  const v = AI_NOTICE_VERSION[family]
+  return `ai:consent:${family}${v ? `@${v}` : ''}:${userId}`
+}
 
 /**
  * The signed-in account, mirrored by AiConsentHost (which sits under AuthProvider) so a call site with no auth context
@@ -155,7 +181,7 @@ export function writeAiConsent(family: AiFamily, userId: string | null | undefin
  * nothing but this call, with no await.
  */
 export function aiConsentNeeded(family: AiFamily, userId: string | null | undefined = account): boolean {
-  return aiConsentAskFirst() && readAiConsent(family, userId) !== 'on'
+  return asksFirst(family) && readAiConsent(family, userId) !== 'on'
 }
 
 /** The host's answer: 'on' (Allow), 'off' ("Not now", or already off), null (not answered — Escape — or VOID: the page
@@ -166,6 +192,10 @@ let asker: Asker | null = null
 export function registerAiConsentAsker(next: Asker | null): void {
   asker = next
 }
+/** Is a notice host mounted to ask (AiConsentHost, with the gate on)? Without one every question answers null. */
+export function aiConsentCanAsk(): boolean {
+  return asker !== null
+}
 
 /**
  * Resolve true when this family may send its request now. With the gate on, in either app: true once allowed; otherwise
@@ -174,7 +204,7 @@ export function registerAiConsentAsker(next: Asker | null): void {
  * notice → false. `copy` is required for families whose words cannot live in shared code (trip); the host knows the rest.
  */
 export function askAiConsent(family: AiFamily, opts?: { userId?: string | null; copy?: AiConsentCopy }): Promise<boolean> {
-  if (!aiConsentAskFirst()) return Promise.resolve(true)
+  if (!asksFirst(family)) return Promise.resolve(true)
   return askAiConsentAnswer(family, opts).then((answer) => answer === 'on')
 }
 
@@ -185,7 +215,7 @@ export function askAiConsent(family: AiFamily, opts?: { userId?: string | null; 
  * voided question under another session). With the gate off it answers 'on' at once.
  */
 export function askAiConsentAnswer(family: AiFamily, opts?: { userId?: string | null; copy?: AiConsentCopy }): Promise<AiConsent> {
-  if (!aiConsentAskFirst()) return Promise.resolve('on')
+  if (!asksFirst(family)) return Promise.resolve('on')
   const userId = opts?.userId ?? account
   if (!userId) {
     try { window.dispatchEvent(new CustomEvent('eno:require-signin')) } catch { /* no window */ }

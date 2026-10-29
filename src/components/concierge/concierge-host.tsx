@@ -9,15 +9,23 @@ import { CloseButton } from '@/components/ui/close-button'
 import { explorerMounted } from '@/lib/explorer-presence'
 import { publicPathname } from '@/lib/lang-variant'
 import { peekWard, provinceByCode } from '@/lib/vn-areas'
-import { isNativeAppClient } from '@/lib/app-review-gates'
+import { isNativeAppClient, isNativeVoiceClient } from '@/lib/app-review-gates'
+import { subscribeAiConsent } from '@/lib/ai-consent'
+import { CONCIERGE_FRAME_ATTR } from '@/lib/concierge/frame-head'
 import { IS_SERVICES } from '@/lib/edition'
 import {
   CONCIERGE_ASK_EVENT, CONCIERGE_FRAME_PATH, CONCIERGE_OPEN_EVENT, areaForGo, conciergeAvailable, isConciergeHiddenPath,
-  resetConciergeKnown, safeConciergeHref, setConciergeAvailable, takePendingOpen, type ConciergeMessage,
+  resetConciergeKnown, safeConciergeHref, setConciergeAvailable, takePendingOpen, voiceAgreedHere, type ConciergeMessage,
 } from '@/lib/concierge/client'
 
 /** How often the page may ask again whether this account may open the window (the server checks every turn anyway). */
 const CONFIG_EVERY_MS = 5 * 60_000
+
+/**
+ * An app binary built before the guide reached the apps (no `EnoVoice`: no microphone permission or purpose string for it,
+ * app-review-gates.ts) — the ✨ stays the text assistant there, without asking. The server refuses it too (config.ts).
+ */
+const appCannotHear = () => isNativeAppClient() && !isNativeVoiceClient()
 
 /**
  * THE VOICE CONCIERGE'S FLOATING WINDOW — the host, mounted once in providers.tsx (owner, 2026-10-27: "a small square
@@ -44,10 +52,10 @@ export function ConciergeHost() {
 
   // May this account open it? Asked once after the page settles, and again when the tab comes back to the front — at most
   // every CONFIG_EVERY_MS (review, opus: a phone that switches apps asked on every return). Never on eno.forum, which has
-  // no guide (config.ts), nor in the native apps (below): there ✨ stays the text assistant without asking.
+  // no guide (config.ts), nor in an app binary that cannot hear (appCannotHear): there ✨ stays the text assistant.
   useEffect(() => {
-    // Decided without asking: nobody signed in, eno.forum, the native apps — the ✨ goes to the text assistant at once.
-    if (!userId || IS_SERVICES || isNativeAppClient()) { setConciergeAvailable(false); return }
+    // Decided without asking: nobody signed in, eno.forum, an app binary without the guide — the ✨ goes to the text at once.
+    if (!userId || IS_SERVICES || appCannotHear()) { setConciergeAvailable(false); return }
     // This account's answer is not known until it is asked (a ✨ tapped meanwhile waits for it — client.ts askForHelp).
     resetConciergeKnown()
     let cancelled = false
@@ -57,9 +65,9 @@ export function ConciergeHost() {
       asked = Date.now()
       void fetch(`/api/concierge/config?lang=${encodeURIComponent(lang)}`, { cache: 'no-store' })
         .then((r) => (r.ok ? (r.json() as Promise<{ open?: boolean }>) : null))
-        // ⛔ Not in the native apps (review, opus): they ask the `app-ai-notice` question before voice leaves the phone, and
-        // the window does not — nor can their webview open the microphone yet (PLAN §4). ✨ stays the text assistant there.
-        .then((b) => { if (!cancelled) setConciergeAvailable(!!b?.open && !isNativeAppClient()) })
+        // The server answers with this client's user agent (config.ts); an app binary without the guide is refused here too.
+        // In the apps that may, the person agrees before the window opens (client.ts askForHelp).
+        .then((b) => { if (!cancelled) setConciergeAvailable(!!b?.open && !appCannotHear()) })
         // A blip is not "closed" (the next look decides) — but it is an answer for now: a ✨ tapped meanwhile does not wait
         // 2 s for nothing (commit review round 3, opus).
         .catch(() => { asked = 0; if (!cancelled) setConciergeAvailable(conciergeAvailable()) })
@@ -81,11 +89,17 @@ export function ConciergeHost() {
     // The language too: the guide speaks the app's (a switch re-asks, and a window open in the old language closes).
   }, [userId, lang])
 
+  /**
+   * ⛔ THE WINDOW OPENS ONLY WHILE voiceAgreedHere HOLDS — the host is the one place the apps' "yes" is enforced (commit
+   * review round 5, codex + opus): every open (the ✨'s event, an open carried from the messenger) checks it at the moment
+   * of opening, whatever asked for it, and the effect below closes the window the moment it stops holding. The website:
+   * always true.
+   */
   useEffect(() => {
-    const onOpen = () => { if (!isConciergeHiddenPath(publicPathname(window.location.pathname))) setOpen(true) }
+    const onOpen = () => { if (!isConciergeHiddenPath(publicPathname(window.location.pathname)) && voiceAgreedHere(userId)) setOpen(true) }
     window.addEventListener(CONCIERGE_OPEN_EVENT, onOpen)
     return () => window.removeEventListener(CONCIERGE_OPEN_EVENT, onOpen)
-  }, [])
+  }, [userId])
 
   // A page the window never floats over CLOSES it — a running microphone is never just hidden.
   const path = publicPathname(pathname)
@@ -93,8 +107,47 @@ export function ConciergeHost() {
   // Help asked for in the messenger (client.ts askForHelp): the app moved to the explorer, and the window opens there.
   // Taken on the page it was asked for, available or not (client.ts takePendingOpen), opened only if this account may.
   useEffect(() => {
-    if (!open && takePendingOpen(path) && conciergeAvailable() && !isConciergeHiddenPath(path)) setOpen(true)
-  }, [open, path])
+    if (!open && takePendingOpen(path) && conciergeAvailable() && !isConciergeHiddenPath(path) && voiceAgreedHere(userId)) setOpen(true)
+  }, [open, path, userId])
+
+  /**
+   * ⛔ IN THE APPS, THE WINDOW NEVER OUTLIVES THE PERSON'S YES OR THE APP'S FOREGROUND (owner, 2026-10-29). The voice guide's
+   * answer turned off in Settings (another tab or this one) closes it at once, microphone and all. So does the app going to
+   * the background — told by the app itself, in this page (the window's own hidden-document close is the web's, and a
+   * frame's events are not a phone's): iOS `pause`, Android `appStateChange` inactive. Never iOS `appStateChange`: it fires
+   * for the microphone permission alert itself (map review, 2026-10-29). Android's fires from Activity.onStop at depth 0
+   * (BridgeActivity.java), never onPause, so its own microphone dialog — a translucent activity — does not close the window
+   * (commit review round 2, opus asked). And this page going hidden closes it too.
+   */
+  useEffect(() => {
+    if (!open || !isNativeAppClient()) return
+    let gone = false
+    const close = () => { if (!gone) setOpen(false) }
+    // Now, as well as on every change: an account switched under an open window, or an answer taken back while it was
+    // opening, closes it at once (commit review round 5, opus).
+    if (!voiceAgreedHere(userId)) { close(); return }
+    const unsubscribe = subscribeAiConsent(() => { if (!voiceAgreedHere(userId)) close() })
+    const onHidden = () => { if (document.visibilityState === 'hidden') close() }
+    document.addEventListener('visibilitychange', onHidden)
+    const handles: { remove: () => unknown }[] = []
+    const C = (window as { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } }).Capacitor
+    if (C?.isNativePlatform?.()) {
+      const ios = C.getPlatform?.() === 'ios'
+      void import('@capacitor/app').then(async ({ App }) => {
+        const h = ios
+          ? await App.addListener('pause', close)
+          : await App.addListener('appStateChange', ({ isActive }) => { if (!isActive) close() })
+        if (gone) void h.remove()
+        else handles.push(h)
+      }).catch(() => { /* no plugin: the page's own hidden event above still closes it */ })
+    }
+    return () => {
+      gone = true
+      unsubscribe()
+      document.removeEventListener('visibilitychange', onHidden)
+      for (const h of handles) void h.remove()
+    }
+  }, [open, userId])
 
   // While it is open the floating support / back-to-top cluster steps aside (back-to-top.tsx reads this attribute).
   useEffect(() => {
@@ -154,7 +207,7 @@ export function ConciergeHost() {
           className="fixed bottom-[calc(5.5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] right-3 z-fab size-48 overflow-hidden rounded-2xl border border-foreground/10 bg-brand-deeper shadow-overlay pc:bottom-6 pc:right-6 pc:size-64"
         >
           <DialogPrimitive.Title className="sr-only">{name}</DialogPrimitive.Title>
-          <iframe ref={frame} src={CONCIERGE_FRAME_PATH} title={name} allow="microphone; autoplay" className="size-full border-0" />
+          <iframe ref={frame} src={CONCIERGE_FRAME_PATH} title={name} allow="microphone; autoplay" className="size-full border-0" {...{ [CONCIERGE_FRAME_ATTR]: '' }} />
           <DialogPrimitive.Close
             render={<CloseButton size="sm" variant="overlay" label={tr('Close the guide', 'Đóng trợ lý')} className="absolute right-1 top-1" />}
           />
