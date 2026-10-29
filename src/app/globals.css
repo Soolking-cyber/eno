@@ -2119,6 +2119,15 @@ html.native #prelaunch-banner {
 html.native #app-footer {
   display: none;
 }
+/* The app's page sheet (src/lib/app-sheet.ts): a page inside it is the page alone. The app around it already shows
+   the header, the tab bar and the floating controls; the `native` classes the head script copies in take the footer
+   and the prelaunch banner (above). Keyed on a class only the sheet's own frame can set — never on a URL a link
+   could carry (app-review-gates.ts IN_APP_SHEET_PARAM). */
+html.app-sheet #app-header,
+html.app-sheet .mobile-nav,
+html.app-sheet .bottom-nav-spacer {
+  display: none;
+}
 html.page-at-top:not(.native) body:has(#prelaunch-banner) #app-header {
   padding-top: 0;
 }

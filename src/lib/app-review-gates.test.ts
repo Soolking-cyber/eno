@@ -7,6 +7,8 @@ import {
   brandForCopy,
   unknownAppReviewGates,
   inAppSheetDocument,
+  inAppSheetFrame,
+  isNativeIOSClient,
   iosAppGate,
   isIosAppUserAgent,
   isNativeAppClient,
@@ -175,6 +177,34 @@ describe('the in-app browser sheet marker (?app_sheet=1)', () => {
       vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'app-signin-tidy,app-no-gtm')
       expect(isNativeAppClient()).toBe(false)
       expect(nativeAppGate('app-signin-tidy')).toBe(false)
+    })
+  })
+})
+
+describe('a page inside the app\'s own page sheet (src/lib/app-sheet.ts) — found by its frame, never by a URL', () => {
+  const inFrame = (marked: boolean, fn: () => void) => {
+    Object.defineProperty(window, 'frameElement', { configurable: true, get: () => ({ hasAttribute: (n: string) => marked && n === 'data-app-sheet' }) })
+    try { fn() } finally {
+      Object.defineProperty(window, 'frameElement', { configurable: true, get: () => null })
+      document.documentElement.classList.remove('native', 'native-ios', 'native-android')
+    }
+  }
+  it('is the app\'s sheet document whatever the URL and the gate', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    inFrame(true, () => {
+      expect(inAppSheetFrame()).toBe(true)
+      expect(inAppSheetDocument()).toBe(true)
+    })
+    inFrame(false, () => expect(inAppSheetFrame()).toBe(false))
+  })
+  it('⛔ stays the iOS app for every iOS gate without a bridge — from the class the head script copied', () => {
+    inFrame(true, () => {
+      document.documentElement.classList.add('native', 'native-ios')
+      expect(isNativeIOSClient()).toBe(true)
+    })
+    inFrame(true, () => {
+      document.documentElement.classList.add('native', 'native-android')
+      expect(isNativeIOSClient()).toBe(false)
     })
   })
 })

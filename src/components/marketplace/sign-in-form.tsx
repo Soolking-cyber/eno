@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { resumesInPlace } from '@/lib/onboarding-gate'
 import { Mail, Phone, Loader2, ExternalLink, Eye, EyeOff } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
@@ -18,7 +18,7 @@ import { armIntent, withResume, type PendingIntent } from '@/lib/pending-intent'
 import type { SignInGate, SignInMethod } from '@/lib/signup-prompt'
 import { HANDOFF_NEXT_KEY, handoffNonce } from '@/lib/auth/handoff-client'
 import { isNativeApp, nativeAppleSignIn, nativeAuthErrorCode, nativeOAuth, type NativeOAuthProvider } from '@/lib/native-auth'
-import { appReviewGate, inAppSheetDocument, IN_APP_SHEET_PARAM, nativeAppGate } from '@/lib/app-review-gates'
+import { appReviewGate, inAppSheetDocument } from '@/lib/app-review-gates'
 import { appleAvailableHere, appleFlagSet, appleSignInTokens, appleWebEnabled, iosGoogleHidden, iosNativeAppleReady, iosSignInPluginPresent } from '@/lib/apple-signin'
 import { facebookAvailableHere } from '@/lib/facebook-signin'
 import { useFacebookSignInOn } from '@/lib/facebook-flag'
@@ -290,31 +290,12 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   const restyleGoogle = appleFlagSet()
   const appleWebAll = appleTokens.has('web')
   const appleSsr = appleTokens.has('ios') || appleWebAll
-  const [legalInApp, setLegalInApp] = useState(false)
   /**
-   * `app-signin-tidy`: a legal link opens in the app's in-app browser sheet (SFSafariViewController /
-   * Custom Tab, the same one Google sign-in uses), NOT in this WebView and NOT in Safari. Navigating this
-   * WebView would throw away a half-finished sign-in — the typed email, the sent code, the Turnstile
-   * token (opus, review of this change); the sheet closes back onto the form exactly as it was.
-   * Without a bridge on this origin (Android off server.url, the shelved SwiftUI tabs) nothing changes:
-   * the link keeps target=_blank.
+   * The legal links open in a NEW WINDOW everywhere. In the app that window is the app's own page sheet
+   * (src/lib/app-sheet.ts, owner 2026-10-29: "pages should show like native app"): the page over this form, which stays
+   * exactly as it was — the typed email, the sent code, the Turnstile token. Until then they went to the in-app browser
+   * (SFSafariViewController / a Custom Tab), which showed the whole site again and iOS's "Open in the eno app" banner.
    */
-  const openLegal = (e: MouseEvent<HTMLAnchorElement>) => {
-    if (!legalInApp) return
-    e.preventDefault()
-    const url = new URL(e.currentTarget.getAttribute('href') || '/', window.location.origin).href
-    // The SHEET's copy is marked, so the page inside it offers no analytics/ads and loads no GTM — the
-    // sheet carries the browser's UA, not the app's (app-review-gates.ts IN_APP_SHEET_PARAM). The
-    // fallback below opens the system browser, which is not the app, so it gets the plain URL.
-    const sheet = new URL(url)
-    sheet.searchParams.set(IN_APP_SHEET_PARAM, '1')
-    // If the sheet cannot open (a binary without the plugin, a rejected call), fall back to what the
-    // link did before this gate — a NEW window, which the app hands to Safari — never to '_self', which
-    // would navigate this WebView and lose the sign-in (codex + opus, review round 4).
-    void import('@capacitor/browser')
-      .then(({ Browser }) => Browser.open({ url: sheet.href }))
-      .catch(() => { window.open(url, '_blank', 'noreferrer') })
-  }
 
   const [tab, setTab] = useState<'email' | 'phone'>(PHONE_OTP_ENABLED ? 'phone' : 'email')
   const [email, setEmail] = useState('')
@@ -481,10 +462,6 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
     // (src/lib/apple-web-head.ts), but the in-app sheet's marker belongs to ONE URL — a client-side navigation away
     // from it would otherwise keep hiding a button appleAvailableHere() now allows. Every mount re-syncs it.
     if (appleWebAll) document.documentElement.classList.toggle('no-apple-web', !appleHere)
-    // Only where the bridge can open the sheet. An app page WITHOUT one (the UA says app, but no
-    // window.Capacitor — Android off server.url, the shelved SwiftUI tabs) keeps target=_blank, because a
-    // same-window link there would throw the half-finished sign-in away (codex + opus, review round 3).
-    setLegalInApp(nativeAppGate('app-signin-tidy') && isNativeApp())
     // ⚠️ EVERY CONTEXT WITH A SEPARATE COOKIE JAR NEEDS THE CODE, NOT THE LINK — and the set of
     // those is exactly `googleOauthBlocked()`, which is why it now drives both.
     //
@@ -1943,11 +1920,11 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
         {/* ⚠️ THE QUY CHẾ IS PART OF WHAT IS ACCEPTED (2026-10-01). Opening an account binds the user to the
             platform's Operating regulations (/regulations — the Quy chế hoạt động the sàn TMĐT publishes), so
             the assent line links it beside the Terms and the Privacy Policy, as onboard-client.tsx does. */}
-        <a href="/terms" target={legalInApp ? undefined : '_blank'} onClick={openLegal} rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Terms', 'Điều khoản')}</a>
+        <a href="/terms" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Terms', 'Điều khoản')}</a>
         {', '}
-        <a href="/regulations" target={legalInApp ? undefined : '_blank'} onClick={openLegal} rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Operating regulations', 'Quy chế hoạt động')}</a>
+        <a href="/regulations" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Operating regulations', 'Quy chế hoạt động')}</a>
         {' '}{t('and', 'và')}{' '}
-        <a href="/privacy" target={legalInApp ? undefined : '_blank'} onClick={openLegal} rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</a>.
+        <a href="/privacy" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</a>.
         {/* ⛔ THE TERMS' NO-TOLERANCE RULE, SAID BEFORE ANYONE SIGNS IN (App Store Guideline 1.2: "users must agree to
             terms (EULA) and these terms must make it clear that there is no tolerance for objectionable content or
             abusive users"; Apple's 2026-10-28 rejection asks to see it on camera before registering or logging in). The

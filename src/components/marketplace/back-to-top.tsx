@@ -368,6 +368,7 @@ export function BackToTop() {
           '[html.kb-open_&]:hidden',
           // The voice concierge's floating window owns this corner while it is open (concierge-host.tsx sets the attribute).
           '[html[data-concierge]_&]:hidden',
+          '[html.app-sheet_&]:hidden', // a page inside the app's page sheet (src/lib/app-sheet.ts)
           'bottom-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))]',
           'transition-[bottom] duration-300 motion-reduce:transition-none',
           panelOpen && 'hidden',
@@ -437,6 +438,7 @@ export function BackToTop() {
           '[html.kb-open_&]:hidden',
           // The voice concierge's floating window owns this corner while it is open (concierge-host.tsx sets the attribute).
           '[html[data-concierge]_&]:hidden',
+          '[html.app-sheet_&]:hidden', // a page inside the app's page sheet (src/lib/app-sheet.ts)
           // Clear the mobile bottom-nav. The max(env, var) pairing covers Android
           // WebView < 140, where Capacitor injects --safe-area-inset-* vars instead
           // of env() passthrough (see the Android safe-area note in globals.css);

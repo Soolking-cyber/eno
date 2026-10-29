@@ -30,6 +30,7 @@ import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
 import { AccountPanelShell } from "@/components/marketplace/account-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NativeBootstrap } from "@/components/native/native-bootstrap";
+import { AppSheetHost } from "@/components/native/app-sheet-host";
 import { NativePush } from "@/components/native/native-push";
 import { NativeBadge } from "@/components/native/native-badge";
 import { PwaBadge } from "@/components/native/pwa-badge";
@@ -119,6 +120,8 @@ export function Providers({
                     <BottomNavSpacer />
                     <KeyboardViewportSync />
                     <MobileNav />
+                    {/* The app's page sheet: a new-window link to an eno page opens over the screen, never in a browser (src/lib/app-sheet.ts). */}
+                    <AppSheetHost />
                     {/* The voice concierge's floating window (2026-10-27): tiny until the ✨ opens it; the window itself is a frame. */}
                     <OutsideConciergeFrame><ConciergeHost /></OutsideConciergeFrame>
                     {/* The app-wide navigation progress bar (FAST-2): a thin top line for a client navigation

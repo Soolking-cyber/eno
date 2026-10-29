@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { isExternalUrl } from './native-browser'
+import { APP_SHEET_EXTERNAL_EVENT } from './app-sheet'
+import { isExternalUrl, openExternal } from './native-browser'
 
 // ── What may be handed to the in-app browser sheet (@capacitor/browser) ─────────────────────────────
 // Since 2026-10-06 both apps render eno.vn and eno.forum is NOT in allowNavigation. A forum link must
@@ -26,5 +27,22 @@ describe('isExternalUrl', () => {
   it('leaves non-http schemes to the platform', () => {
     for (const u of ['mailto:support@eno.vn', 'tel:+84772007921', 'sms:+84772007921'])
       expect(isExternalUrl(u)).toBe(false)
+  })
+})
+
+describe('openExternal inside the app\'s page sheet (src/lib/app-sheet.ts)', () => {
+  it('hands the URL to the app around it, RESOLVED against the framed page (a relative one too)', async () => {
+    Object.defineProperty(window, 'frameElement', { configurable: true, get: () => ({ hasAttribute: (n: string) => n === 'data-app-sheet' }) })
+    const got: string[] = []
+    const on = (e: Event) => got.push((e as CustomEvent<string>).detail)
+    window.addEventListener(APP_SHEET_EXTERNAL_EVENT, on) // jsdom: parent === window
+    try {
+      await openExternal('/api/cv/1')
+      await openExternal('https://zalo.me/1')
+    } finally {
+      window.removeEventListener(APP_SHEET_EXTERNAL_EVENT, on)
+      Object.defineProperty(window, 'frameElement', { configurable: true, get: () => null })
+    }
+    expect(got).toEqual([`${window.location.origin}/api/cv/1`, 'https://zalo.me/1'])
   })
 })

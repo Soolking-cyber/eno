@@ -1,4 +1,5 @@
 import type { MouseEvent } from 'react'
+import { APP_SHEET_EXTERNAL_EVENT, appSheetReady, appSheetUrl, inAppSheetFrame, openAppSheet } from './app-sheet'
 
 /**
  * Leaving the app, done properly (Capacitor shell).
@@ -76,7 +77,24 @@ export function isExternalUrl(url: string): boolean {
  */
 export async function openExternal(url: string): Promise<void> {
   const web = () => { window.open(url, '_blank', 'noopener,noreferrer') }
-  if (!isNativeShell() || !isExternalUrl(url)) { web(); return }
+  // A page inside the app's page sheet has no bridge (src/lib/app-sheet.ts): the app around it opens this, exactly as
+  // it would for its own page — never a subframe's window.open, which iOS hands to Safari (review, opus).
+  // Resolved here, against the framed page: the parent would read a relative URL against ITS page (review, codex + opus).
+  if (inAppSheetFrame()) {
+    let abs: string
+    try { abs = new URL(url, window.location.href).href } catch { return }
+    window.parent.dispatchEvent(new CustomEvent<string>(APP_SHEET_EXTERNAL_EVENT, { detail: abs }))
+    return
+  }
+  if (!isNativeShell()) { web(); return }
+  if (!isExternalUrl(url)) {
+    // An eno page opens as the app's own sheet, never in Safari — a new window in the app's WebView is handed to the
+    // system browser (src/lib/app-sheet.ts). The sister site, a file or a non-http scheme keeps the old way out.
+    const sheet = window.top === window && appSheetReady() ? appSheetUrl(url, window.location.href) : null
+    if (sheet) openAppSheet(sheet)
+    else web()
+    return
+  }
   try {
     const { Browser } = await import('@capacitor/browser')
     // Brand the Custom Tab / SFSafariViewController toolbar with the LIVE --card token (same

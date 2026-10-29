@@ -104,9 +104,12 @@ export function appReviewGate(gate: AppReviewGate): boolean {
   return parseAppReviewGates(process.env.NEXT_PUBLIC_APP_REVIEW_GATES).has(gate)
 }
 
-/** Client only: the Capacitor app on iOS (the injected bridge reports its platform). */
+/** Client only: the Capacitor app on iOS (the injected bridge reports its platform). A page inside the app's page
+ * sheet has no bridge (src/lib/app-sheet.ts hides it) but IS the iOS app for every gate: it answers from the
+ * `native-ios` class the head script copied from the app around it. */
 export function isNativeIOSClient(): boolean {
   if (typeof window === 'undefined') return false
+  if (inAppSheetFrame()) return document.documentElement.classList.contains('native-ios')
   const cap = (window as unknown as { Capacitor?: { getPlatform?: () => string } }).Capacitor
   return cap?.getPlatform?.() === 'ios'
 }
@@ -131,8 +134,27 @@ export function isNativeIOSClient(): boolean {
  */
 export const IN_APP_SHEET_PARAM = 'app_sheet'
 
-/** Client only: this document is the one the app opened in its in-app browser sheet (see IN_APP_SHEET_PARAM). */
+/** The attribute the app's own page sheet puts on its <iframe> (src/lib/app-sheet.ts); the framed page reads it. */
+export const APP_SHEET_FRAME_ATTR = 'data-app-sheet'
+
+/**
+ * Client only: this document is a page INSIDE the app's own page sheet (src/lib/app-sheet.ts) — its frame carries
+ * the marker. Unlike the URL param this cannot be crafted: eno.vn may be framed by eno.vn only (X-Frame-Options
+ * SAMEORIGIN, frame-ancestors 'self'), and only the app's sheet frames it with the marker.
+ */
+export function inAppSheetFrame(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return !!window.frameElement?.hasAttribute(APP_SHEET_FRAME_ATTR)
+  } catch {
+    return false
+  }
+}
+
+/** Client only: this document is the one the app opened in its in-app browser sheet (see IN_APP_SHEET_PARAM), or a
+ * page inside the app's own page sheet. */
 export function inAppSheetDocument(): boolean {
+  if (inAppSheetFrame()) return true
   if (typeof location === 'undefined' || !appReviewGate('app-signin-tidy')) return false
   try {
     return new URLSearchParams(location.search).get(IN_APP_SHEET_PARAM) === '1'

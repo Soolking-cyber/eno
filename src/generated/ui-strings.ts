@@ -2237,6 +2237,7 @@ export const UI_STRINGS: string[] = [
   "PGCE",
   "Pace",
   "Packed weight",
+  "Page",
   "Paid",
   "Paid per",
   "Paid prep time",
