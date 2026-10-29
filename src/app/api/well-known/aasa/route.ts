@@ -68,6 +68,13 @@ export async function GET() {
               // URL from /_capacitor_http_interceptor_ on the app's origin). The guard that counts is canonicalAppPath's
               // mayReachFrameworkPath, which also refuses the ENCODED spellings this literal glob may not match.
               { "/": "/_*", exclude: true },
+              // The classroom is web-only (owner, 2026-10-29): its links (a teacher's invite in Zalo, a report email) open the
+              // phone's browser, where it works — never the app, which only shows that it is not there yet
+              // (classroom-app-notice.tsx). The voice guide's window (/concierge) lives inside a page, never as a link's target.
+              // Public URLs carry no language segment (src/proxy.ts rewrites to /en|/vi inside; a public /vi/classroom
+              // is a 404), so these two cover every classroom link.
+              { "/": "/classroom*", exclude: true },
+              { "/": "/concierge*", exclude: true },
               // Everything else first-party deep-links into the app (storefronts, profiles,
               // dashboard, messages, post, listings, categories, brands …).
               { "/": "/*" },

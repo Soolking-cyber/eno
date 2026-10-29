@@ -45,6 +45,8 @@ describe('/.well-known/apple-app-site-association', () => {
       { '/': '/auth*', exclude: true },
       { '/': '/signin*', exclude: true },
       { '/': '/_*', exclude: true },
+      { '/': '/classroom*', exclude: true },
+      { '/': '/concierge*', exclude: true },
       { '/': '/*' },
     ])
   })

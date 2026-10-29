@@ -98,6 +98,22 @@ describe('in an app built for the guide', () => {
   })
 })
 
+describe('⛔ build 4 / vc4-5 — an app binary without EnoVoice (asked by the app session, 2026-10-29)', () => {
+  it('the host decides "unavailable" without asking the server, and every ✨ — the search-bar guide icon, the header, the inbox — opens the text chat', async () => {
+    ua(`${BROWSER} EnoNativeApp/1`)
+    mount()
+    await act(async () => { await new Promise((r) => setTimeout(r, 1_600)) })
+    expect(fetch).not.toHaveBeenCalled()
+    const go = { push: vi.fn() }
+    await act(async () => { await askForHelp(go, 'en') })
+    expect(go.push).toHaveBeenCalledWith('/messages/ai')
+    expect(windowOpen()).toBe(false)
+    // …and an open asked for directly never opens it either.
+    await act(async () => { openConcierge() })
+    expect(windowOpen()).toBe(false)
+  })
+})
+
 describe('the website — no notice, as before', () => {
   it('a browser: the ✨ opens the window with no "yes" asked or stored', async () => {
     ua(BROWSER)
