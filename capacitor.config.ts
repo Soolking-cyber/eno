@@ -63,8 +63,14 @@ const config: CapacitorConfig = {
    * with eno.vn") it renders eno.vn again, and eno.forum is NOT navigable in the app at all (see
    * allowNavigation) — a forum link opens the system browser, which does not carry this token. The token
    * itself never changed, which is why nothing that reads it had to move.
+   * ⛔ `EnoVoice/1` (2026-10-29, owner: "also ios android apps add the live concierge to them too"): a binary built from
+   * here on says it can HEAR. The Android manifest declares RECORD_AUDIO + MODIFY_AUDIO_SETTINGS, and iOS's microphone
+   * purpose string names the voice guide; both are in the same commit, and native-voice-capability.test.ts holds the
+   * three together. The site opens the voice guide in an app only for a user agent carrying it
+   * (app-review-gates.ts isNativeVoiceUserAgent: client AND every concierge route), so every earlier binary — iOS up to
+   * build 4, Android up to versionCode 5 — keeps the text assistant. ⛔ NEVER append it without both of those.
    */
-  appendUserAgent: 'EnoNativeApp/1',
+  appendUserAgent: 'EnoNativeApp/1 EnoVoice/1',
   server: {
     // The one URL the app renders (remote mode). For LOCAL native dev, override to your
     // machine's LAN IP (http://192.168.x.x:3100 + cleartext:true) — dev-only, never committed.

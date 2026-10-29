@@ -86,14 +86,17 @@ android {
         // 4 (2026-09-22): launch screen with no wordmark, on the web's page floor, both themes.
         //   LIVE ON PRODUCTION as 1.0.2 — the last build that rendered https://www.eno.forum.
         // 5 (2026-10-06): the WebView renders https://eno.vn again (owner: "ship both with eno.vn");
-        //   App Links claim eno.vn only, and eno.forum never renders in the app.
-        versionCode 5
-        /** ⚠️ 1.0.3, because 1.0.2 (versionCode 4) IS THE LIVE PRODUCTION RELEASE. Play allows two
-         *  bundles to share a versionName, and the result is two different builds both called
-         *  "1.0.2" in the release list, in crash reports and in the app's own about screen —
-         *  indistinguishable exactly when someone is trying to tell them apart. The name is what
-         *  humans read; the code is what Play enforces. Move both. */
-        versionName "1.0.3"
+        //   App Links claim eno.vn only, and eno.forum never renders in the app. BUILT, NEVER UPLOADED
+        //   (play-api.mjs tracks, 2026-10-29: production v4, every test track v1) — skipped, not reused.
+        // 6 (2026-10-29): everything 5 had, plus the voice guide's microphone (RECORD_AUDIO +
+        //   MODIFY_AUDIO_SETTINGS) and the `EnoVoice/1` user-agent token; App Links stop claiming
+        //   /classroom and /concierge ("/c" → "/c/" + /checkout + /contact).
+        versionCode 6
+        /** ⚠️ 1.0.4: 1.0.2 (versionCode 4) IS THE LIVE PRODUCTION RELEASE, and 1.0.3 named versionCode 5,
+         *  built and never uploaded. Play allows two bundles to share a versionName, and the result is
+         *  two different builds with one name in the release list, in crash reports and in the app's own
+         *  about screen. The name is what humans read; the code is what Play enforces. Move both. */
+        versionName "1.0.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

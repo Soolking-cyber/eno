@@ -58,12 +58,17 @@
                      that reaches the app another way (enovn://open?url=) still loads, and 308s onto
                      the apex. -->
                 <data android:host="eno.vn" />
-                <!-- ⚠️ pathPrefix IS A STRING PREFIX, NOT A PATH SEGMENT — "/c" also matches
-                     /checkout and /contact. Kept because those are first-party pages the app can
-                     render anyway, but do not add a short prefix without checking what else starts
-                     with it. -->
+                <!-- ⚠️ pathPrefix IS A STRING PREFIX, NOT A PATH SEGMENT. Until versionCode 6 this was "/c",
+                     which also claimed /checkout, /contact — and /classroom and /concierge. The classroom is
+                     WEB-ONLY (owner, 2026-10-29): its links (an invite in Zalo, a report email) must open the
+                     browser, where it works, never this app, which only says where it works; the voice
+                     guide's window (/concierge) is never a link's target. So: "/c/" for the category pages,
+                     and the two other pages the old prefix was kept for, by name. Do not add a short prefix
+                     without checking what else starts with it (native-voice-capability.test.ts). -->
                 <data android:pathPrefix="/listings" />
-                <data android:pathPrefix="/c" />
+                <data android:pathPrefix="/c/" />
+                <data android:pathPrefix="/checkout" />
+                <data android:pathPrefix="/contact" />
                 <data android:pathPrefix="/brands" />
             </intent-filter>
 
@@ -96,4 +101,13 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-feature android:name="android.hardware.location" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <!-- The voice guide (owner, 2026-10-29: "also ios android apps add the live concierge to them too"): Capacitor's
+         WebChromeClient asks for BOTH of these when the page's getUserMedia wants audio, and denies the whole request
+         unless every one is granted (BridgeWebChromeClient) — and Android refuses a runtime request for a permission
+         the manifest never declared. Asked only when the person taps Start in the guide's window, after the in-app
+         notice naming who hears the voice (src/lib/ai-consent.ts voice_guide). The binary says it can hear with the
+         `EnoVoice/1` user-agent token (capacitor.config.ts). A microphone is optional hardware. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
 </manifest>

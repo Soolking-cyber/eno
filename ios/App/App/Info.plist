@@ -45,7 +45,7 @@
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>eno saves photos to your library when you choose to.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>eno uses the microphone when you record a video for a listing or your teacher profile.</string>
+	<string>eno uses the microphone when you talk to eno's voice guide, or record a video for a listing or your teacher profile.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>eno uses your location to show listings near you and to fill in your area when you post, edit your business profile, or suggest a place to meet in chat.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>

@@ -148,7 +148,9 @@
 			</array>
 		</dict>
 		<!-- The sound recorded with a video: a listing video keeps its audio track (src/lib/video-compress.ts), and a
-		     teacher's intro video is a recording of their own voice. Added in build 3 (presubmit P4). -->
+		     teacher's intro video is a recording of their own voice. Added in build 3 (presubmit P4). From the build
+		     carrying `EnoVoice/1` (capacitor.config.ts), also the person's voice while they talk to eno's voice guide:
+		     streamed to speech-to-text (Soniox) after the in-app notice, never stored by eno. -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeAudioData</string>
