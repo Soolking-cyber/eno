@@ -18,7 +18,8 @@ import type { VoiceStyle } from './pace'
  *
  * ⛔ THE VOICE GUIDE TURNS IT ROUND (`first` — src/lib/concierge/start.ts only; owner, 2026-10-29: "priority english and
  * vietnamese rest use soniox"): its English goes to the BOX first, Soniox takes what the box cannot (guideSpeaker below).
- * Vietnamese stays on Soniox — no open Vietnamese voice passed its licence and this CPU (research, 2026-10-29).
+ * Its Vietnamese too, on the server's own /vi/ routes (Bảo Trang, ZeroTTS int8; owner: "bao tran go") — a server without
+ * them answers 404 and the line goes to Soniox. A lesson never sends Vietnamese to the box.
  */
 
 /** How long a voice line may wait for Soniox's first sound before the box takes it, when the box can — Soniox's warm first
@@ -63,9 +64,9 @@ function keptSonioxLine(text: string, v: Voice, style: VoiceStyle): Promise<Buff
 export function warmLine(text: string, voice: string, style: VoiceStyle, boxOpts: BoxOpts = {}): void {
   if (!text) return
   const v = voiceOf(voice)
-  const box = boxFor(style)
+  const box = boxFor(style, boxOpts.first)
   const ahead = () => sonioxLine(text, v, style).catch((e) => logWarn('[classroom] soniox line made ahead failed', { status: (e as { status?: number }).status ?? null }))
-  if (boxOpts.first && box && boxUp()) {
+  if (boxOpts.first && box && boxUp(langOf(style))) {
     guideBoxWhole(box, text, v, style).catch(() => { if (sonioxUp()) void ahead() })
     return
   }
@@ -100,8 +101,13 @@ function sonioxFailed(e: unknown, what: string) {
 }
 let slowLines = 0
 const voiceOf = (voice: string): Voice => voiceFor(voice) ?? VOICES[0]
-/** eno's own speech server, for an English line only (its voices are English — pace.ts VoiceStyle.language). */
-const boxFor = (style: VoiceStyle) => ((style.language ?? 'en') === 'en' ? localSpeechConfig() : null)
+/** eno's own speech server for a line in this language: English for every speaker; Vietnamese for the voice guide only
+ *  (`first` — the server's /vi/ routes are the guide's: Bảo Trang, owner 2026-10-29). Nothing else ever goes there. */
+const boxFor = (style: VoiceStyle, first = false) => {
+  const lang = style.language ?? 'en'
+  return lang === 'en' || (first && lang === 'vi') ? localSpeechConfig() : null
+}
+const langOf = (style: VoiceStyle) => style.language ?? 'en'
 /** `busyRetry: false` — the voice concierge (src/lib/concierge/start.ts): on a full box it answers in words rather than
  *  queue a second try against the classroom's paid lessons (PLAN §10). `first` — the voice guide's: the box FIRST for a
  *  line it can say, Soniox for the rest (guideSpeaker). */
@@ -116,7 +122,7 @@ type BoxOpts = { busyRetry?: boolean; first?: boolean }
  */
 export async function speakLine(text: string, voice: string, style: VoiceStyle, waitMs = LINE_MAKE_MS, boxOpts: BoxOpts = {}): Promise<string> {
   const v = voiceOf(voice)
-  const box = boxFor(style)
+  const box = boxFor(style, boxOpts.first)
   if (boxOpts.first && box) return guideLine(text, v, style, box, waitMs)
   if (sonioxUp()) {
     let audio: Buffer | null = null
@@ -145,10 +151,10 @@ export async function speakLine(text: string, voice: string, style: VoiceStyle, 
  */
 export function speakerFor(voice: string, style: () => VoiceStyle, boxOpts: BoxOpts = {}): Speaker | null {
   const v = voiceOf(voice)
-  // ⛔ The box speaks English only: a speaker in another language has NO box — no short first-sound budget that hands a
-  // slow line to it, no `o.box` turn, a Soniox failure leaves the words (plan review, opus: an English box reading
-  // Vietnamese, or a slow line cut for a box that is not there).
-  const box = boxFor(style())
+  // ⛔ The box speaks English (and, for the guide alone, Vietnamese on its own route): a speaker in any other language has
+  // NO box — no short first-sound budget that hands a slow line to it, no `o.box` turn, a Soniox failure leaves the words
+  // (plan review, opus: an English box reading Vietnamese, or a slow line cut for a box that is not there).
+  const box = boxFor(style(), boxOpts.first)
   if (!sonioxConfig() && !box) return null
   if (boxOpts.first && box) return guideSpeaker(v, style, box)
   const speak: Speaker = async (text, signal, o) => {
@@ -197,25 +203,29 @@ export const SONIOX_AHEAD = 2
 export const BOX_FIRST_SOUND_MS = 1_500
 /** After the box fails — down, a server fault, two slow lines in a row — guide lines go straight to Soniox this long. */
 export const BOX_REST_MS = 60_000
-let boxRestUntil = 0
-let boxSlowLines = 0
+/** Rests and runs of slow lines are kept PER LANGUAGE: the box's English (Phonon) and its Vietnamese (ZeroTTS) are
+ *  separate voices, and one failing never sends the other to Soniox (opus, commit review). */
+const restUntil = new Map<string, number>()
+const boxSlow = new Map<string, number>()
 /** For the tests: the guide's box tried again at once, nothing kept. */
-export function resetBoxRest() { boxRestUntil = 0; boxSlowLines = 0; guideLines.clear() }
-const boxUp = () => Date.now() >= boxRestUntil
+export function resetBoxRest() { restUntil.clear(); boxSlow.clear(); guideLines.clear() }
+const boxUp = (lang = 'en') => Date.now() >= (restUntil.get(lang) ?? 0)
 
-type BoxMiss = 'busy' | 'refused' | 'slow' | 'down'
+type BoxMiss = 'busy' | 'refused' | 'slow' | 'down' | 'unsupported'
 /** What a box refusal's status says: busy (503) — the box is fine, only full; refused — this line alone (a 4xx but the
  *  key's 401/403); down — unreachable (502, also a timeout — speech-local.ts), a server fault, the key refused. */
 const missOf = (status: number | undefined): BoxMiss =>
-  status === 503 ? 'busy' : status !== undefined && status >= 400 && status < 500 && status !== 401 && status !== 403 ? 'refused' : 'down'
-/** One guide line missed: busy and refused rest nothing; a slow or silent line counts — two in a row rest the box, like
- *  Soniox's slow lines; down rests it for every guide speaker (plan review, opus: the deadline is OUR timer, never read
- *  from a status — an abort reaches us as a 502). */
-function boxMissed(kind: BoxMiss, what: string) {
-  boxSlowLines = kind === 'slow' ? boxSlowLines + 1 : 0
-  const rest = kind === 'down' || boxSlowLines >= 2
-  if (rest) { boxRestUntil = Date.now() + BOX_REST_MS; boxSlowLines = 0 }
-  logWarn(rest ? '[concierge] the box failed — Soniox speaks for a minute' : '[concierge] the box missed a line — Soniox says it', { what, kind })
+  status === 404 ? 'unsupported' : status === 503 ? 'busy' : status !== undefined && status >= 400 && status < 500 && status !== 401 && status !== 403 ? 'refused' : 'down'
+/** One guide line missed, in `lang`: busy and refused rest nothing; a slow or silent line counts — two in a row rest
+ *  that language, like Soniox's slow lines; down, or a language the box does not speak (404 — a server without its /vi/
+ *  routes, or with them off), rests it for every guide speaker for BOX_REST_MS: one quick round trip a minute, not one a
+ *  reply (plan review, opus: the deadline is OUR timer, never read from a status — an abort reaches us as a 502). */
+function boxMissed(kind: BoxMiss, what: string, lang = 'en') {
+  const slow = kind === 'slow' ? (boxSlow.get(lang) ?? 0) + 1 : 0
+  boxSlow.set(lang, slow)
+  const rest = kind === 'down' || kind === 'unsupported' || slow >= 2
+  if (rest) { restUntil.set(lang, Date.now() + BOX_REST_MS); boxSlow.set(lang, 0) }
+  logWarn(rest ? '[concierge] the box failed — Soniox speaks for a minute' : '[concierge] the box missed a line — Soniox says it', { what, kind, lang })
 }
 
 /**
@@ -237,16 +247,16 @@ async function guideBoxLine(box: LocalSpeechConfig, text: string, v: Voice, styl
       // Talked over, no sound in time, or none at all: let the stream go (its reader too) — a miss counts as slow.
       void it.return?.(undefined)
       if (signal.aborted) throw new SpeechError(499, 'tts')
-      boxMissed('slow', 'stream')
+      boxMissed('slow', 'stream', langOf(style))
       return null
     }
-    boxSlowLines = 0
+    boxSlow.set(langOf(style), 0)
     return { rate: made.rate, pauseMs: made.pauseMs, chunks: withFirst(first.value, it) }
   } catch (e) {
     clearTimeout(timer)
     // Talked over while the request was still on its way: a 499 like the rest (opus, commit review — it reached here as 502).
     if (signal.aborted) throw new SpeechError(499, 'tts')
-    boxMissed(late ? 'slow' : missOf((e as { status?: number }).status), 'stream')
+    boxMissed(late ? 'slow' : missOf((e as { status?: number }).status), 'stream', langOf(style))
     return null
   }
 }
@@ -272,6 +282,8 @@ function withFirst(first: Uint8Array, it: AsyncIterator<Uint8Array>): AsyncItera
 
 /** The guide's speaker for one reply (speakerFor with `first`, for a language the box speaks). */
 function guideSpeaker(v: Voice, style: () => VoiceStyle, box: LocalSpeechConfig): Speaker {
+  /** The reply's language — fixed for a speaker (the guide's turn route makes one a turn, in one language). */
+  const lang = langOf(style())
   /** The reply moved to Soniox: its next lines stay there, made ahead as Soniox's are. */
   let onSoniox = false
   const soniox = async (text: string, signal: AbortSignal, firstSoundMs?: number): Promise<VoiceStream> => {
@@ -294,14 +306,14 @@ function guideSpeaker(v: Voice, style: () => VoiceStyle, box: LocalSpeechConfig)
     // The line in its turn: the box while the reply is on it — and for a line whose voice made ahead on Soniox failed or
     // was slow (o.box): the box answers at once or not at all, the quickest voice for a line already late (opus).
     let triedBox = false
-    if ((!onSoniox || o?.box) && boxUp()) {
+    if ((!onSoniox || o?.box) && boxUp(lang)) {
       triedBox = true
       const voiced = await guideBoxLine(box, text, v, style(), signal)
       if (voiced) return voiced
     }
     onSoniox = true
     if (sonioxUp()) {
-      const budget = boxUp() ? SONIOX_FIRST_SOUND_MS : undefined
+      const budget = boxUp(lang) ? SONIOX_FIRST_SOUND_MS : undefined
       try {
         // Soniox's first sound within SONIOX_FIRST_SOUND_MS while the box can still take the line (as speakerFor's — opus,
         // commit review: a stalled Soniox held the sentence its whole 10 s).
@@ -313,14 +325,14 @@ function guideSpeaker(v: Voice, style: () => VoiceStyle, box: LocalSpeechConfig)
         if (!(budget && (e as { status?: number }).status === 504)) sonioxFailed(e, 'stream')
         // Soniox refused it (three streams at once is its default, an outage) or stayed silent: the box once more — it
         // answers at once or not at all, and a line late already takes the quickest voice.
-        if (boxUp()) {
+        if (boxUp(lang)) {
           const voiced = await guideBoxLine(box, text, v, style(), signal)
           if (voiced) return voiced
         }
         throw e
       }
     }
-    if (!triedBox && boxUp()) {
+    if (!triedBox && boxUp(lang)) {
       const voiced = await guideBoxLine(box, text, v, style(), signal)
       if (voiced) return voiced
     }
@@ -355,10 +367,10 @@ function guideBoxWhole(box: LocalSpeechConfig, text: string, v: Voice, style: Vo
   guideLines.set(key, { at: now, made })
   made.then(
     // A line made is the box answering: it ends a run of slow lines as a streamed line does (codex, commit review).
-    () => { boxSlowLines = 0 },
+    () => { boxSlow.set(langOf(style), 0) },
     (e) => {
       if (guideLines.get(key)?.made === made) guideLines.delete(key)
-      boxMissed(missOf((e as { status?: number }).status), 'line')
+      boxMissed(missOf((e as { status?: number }).status), 'line', langOf(style))
     },
   )
   if (guideLines.size > GUIDE_KEEP_MAX) guideLines.delete(guideLines.keys().next().value!)
@@ -377,7 +389,7 @@ async function guideLine(text: string, v: Voice, style: VoiceStyle, box: LocalSp
   // commit review: a slow box left the opening silent while Soniox's sat ready).
   const ready = keptSonioxLine(text, v, style)
   // A resting box makes nothing new — but a line it made already still plays (codex, round 3).
-  const boxLine = boxUp() ? guideBoxWhole(box, text, v, style) : keptGuideLine(text, v, style)
+  const boxLine = boxUp(langOf(style)) ? guideBoxWhole(box, text, v, style) : keptGuideLine(text, v, style)
   if (boxLine) {
     let failed = false
     const made = boxLine.catch(() => { failed = true; return null })

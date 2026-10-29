@@ -69,7 +69,7 @@ export const TTS_STALL_MS = 4_000
 const BUSY_RETRY_MS = 400
 const RETRY_MIN_LEFT_MS = 3_000
 
-async function call(cfg: LocalSpeechConfig, path: '/stt' | '/tts', init: { headers: Record<string, string>; body: BodyInit }, budgetMs: number, stage: 'stt' | 'tts', fetchImpl: typeof fetch, busyRetry = true): Promise<{ res: Response; signal: AbortSignal }> {
+async function call(cfg: LocalSpeechConfig, path: '/stt' | '/tts' | '/vi/tts', init: { headers: Record<string, string>; body: BodyInit }, budgetMs: number, stage: 'stt' | 'tts', fetchImpl: typeof fetch, busyRetry = true): Promise<{ res: Response; signal: AbortSignal }> {
   const deadline = Date.now() + budgetMs
   for (let attempt = 0; ; attempt++) {
     // One signal per attempt, ending at the stage's deadline — it also bounds reading the answer's body.
@@ -124,6 +124,12 @@ export function spokenPart(text: string): string {
  * share of the voices (server.py GUIDE_TTS_MAX).
  */
 export type SynthOpts = { busyRetry?: boolean; guide?: boolean }
+/**
+ * A Vietnamese line goes to the server's OWN route, /vi/… (the voice guide's Bảo Trang, ZeroTTS — owner, 2026-10-29): a
+ * server without it answers 404, never Vietnamese read in an English voice (plan review: the old server ignored fields it
+ * did not know). Every other language is English here — session-voice.ts never sends this server any other.
+ */
+const langRoute = (style: VoiceStyle): '' | '/vi' => (style.language === 'vi' ? '/vi' : '')
 const guideHeader = (opts: SynthOpts): Record<string, string> => (opts.guide ? { 'x-speech-class': 'guide' } : {})
 
 /**
@@ -154,7 +160,7 @@ export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voi
   let res: Response | null = null
   for (let attempt = 0; ; attempt++) {
     try {
-      res = await fetchImpl(`${cfg.url}/tts/stream`, {
+      res = await fetchImpl(`${cfg.url}${langRoute(style)}/tts/stream`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-speech-key': cfg.key, ...guideHeader(opts) },
         body: JSON.stringify({ text: spokenPart(text), voice, ...styleBody(style) }),
@@ -224,7 +230,7 @@ function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
 
 /** One line in `voice` (an id from voices.ts — the server refuses any other) → MP3 bytes. */
 export async function synthesize(cfg: LocalSpeechConfig, text: string, voice: string, style: VoiceStyle, fetchImpl: typeof fetch = fetch, opts: SynthOpts = {}): Promise<Buffer> {
-  const { res } = await call(cfg, '/tts', { headers: { 'content-type': 'application/json', ...guideHeader(opts) }, body: JSON.stringify({ text: spokenPart(text), voice, ...styleBody(style) }) }, TTS_BUDGET_MS, 'tts', fetchImpl, opts.busyRetry !== false)
+  const { res } = await call(cfg, `${langRoute(style)}/tts` as '/tts' | '/vi/tts', { headers: { 'content-type': 'application/json', ...guideHeader(opts) }, body: JSON.stringify({ text: spokenPart(text), voice, ...styleBody(style) }) }, TTS_BUDGET_MS, 'tts', fetchImpl, opts.busyRetry !== false)
   if (!(res.headers.get('content-type') ?? '').startsWith('audio/mpeg')) throw new SpeechError(502, 'tts')
   const bytes = Buffer.from(await res.arrayBuffer().catch(() => { throw new SpeechError(502, 'tts') }))
   if (bytes.length < 200) throw new SpeechError(502, 'tts')

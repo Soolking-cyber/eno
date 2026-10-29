@@ -1,9 +1,15 @@
-"""Build step (Dockerfile): put the classroom's models into /models, pinned and checked, so the
+"""Build step (Dockerfile): put the speech models into /models, pinned and checked, so the
 running container never downloads anything (same rule as mt-server: a request path must not
 depend on the box's egress to GitHub or Hugging Face).
 
-  /models/parakeet-tdt-0.6b-v2-int8/   sherpa-onnx's int8 export of nvidia/parakeet-tdt-0.6b-v2 (CC-BY-4.0)
-  /models/phonon-31m-en/               gradium/phonon-31m-en (Apache-2.0) + voices/<Name>.safetensors
+  /models/phonon-31m-en/   gradium/phonon-31m-en (Apache-2.0) + voices/<Name>.safetensors — English
+  /models/zerotts-int8/    zeroweight-ai/ZeroTTS (MIT; codec MOSS-Audio-Tokenizer-Nano decoder, Apache-2.0), its three
+                           hot graphs quantized to int8 HERE, + the one voice the guide speaks: voices/baotrang —
+                           Vietnamese (owner, 2026-10-29: "bao tran go", "go live")
+
+⛔ PARAKEET IS NOT FETCHED SINCE 2026-10-29: no app code calls /stt (the classroom's ears are Soniox since 10-28), and
+its ~0.7 GB of RAM is what the Vietnamese voice uses. To bring /stt back: call parakeet() below again AND put
+sherpa-onnx==2.0.0 back in the Dockerfile (server.py imports it only when the model folder exists).
 
 ⛔ Every file — the four Parakeet files, the four Phonon files and each of the nine voices — is
 checked against a SHA-256 measured on 2026-10-26. A re-uploaded release asset or a moved Hugging
@@ -102,7 +108,73 @@ def phonon():
         shutil.copy(p, dest / 'voices' / f'{name}.safetensors')
 
 
+# ZeroTTS (Vietnamese), pinned to the revision measured and listened to on 2026-10-29 (zerotts 0.1.5's own default is the
+# moving `main` — never that). ZeroWeight's written answer (github.com/zeroweight-ai/ZeroTTS/issues/9, 2026-09-23): code
+# and weights MIT, commercial use permitted, "the preset voices may be used with the released model"; keep the notices,
+# pin the version.
+ZEROTTS_REPO, ZEROTTS_REV = 'zeroweight-ai/ZeroTTS', 'c2bfbd67dc648cac455077333f7cf5c18a2e3bb4'
+ZEROTTS = {
+    'config.json': '3676da6a9f4dba7a8f2d106d5c1fb02c491391dc19c91dae893133a7e219d666',
+    'tokenizer.json': '4fd646e8a1fd6694cb9c876c914a516ef8dd84b4f84db2605be1a7388885ae91',
+    'null_voice_emb.npy': 'ec014c14f79e8fc16f4ca6ea557f33fa2cbd7d448b5de5f467aace9ca0321e9f',
+    'silence_frame.npy': 'bb2628efa99ae02819b04ff7509ef43ddb3213a9fb0916e4e88b8d1a7c3a1810',
+    'onnx/text_encoder.onnx': 'd37557a4abe07953a02686a176664486e73838389a14ff4a3f36b47ac2bccd52',
+    'onnx/prefix_step.onnx': 'b7544c9fdd3535b21fe8dea855407180ad2084f9da298f8a153893522496565b',
+    'onnx/local_frame_decode.onnx': '3c4540ef4e69dcf604dc6f60f6f99f119189694ff5f31113def20406e274f025',
+    'onnx/codec/moss_audio_tokenizer_decode_full.onnx': '0fbbafe3fd4afa2a019af5c5ced204af6e2d1db044fa40f021525d2aee95b4ac',
+    'onnx/codec/moss_audio_tokenizer_decode_shared.data': 'e69d52e0f4e84ca27850557ee54face46632d3a5a16c89bd246c7c408466dcad',
+    'onnx/codec/moss_audio_tokenizer_decode_step.onnx': '9527c86a29e1837edec1f74db57d5eeaadb3a715af3382703566460afed25855',
+    'onnx/codec/codec_browser_onnx_meta.json': '32009d6ac1cd2663bbbf5c06d6835b3a862c02f7de121663071938f2edac8e92',
+    'onnx/codec/LICENSE-Apache-2.0.txt': '38ab08051cc3a06dd39507b77d7e8b928b563c49288eb7263339712652d41c6d',
+    'voices/baotrang/voice.npz': 'abbc5807cc4767e7c62cc59f7b7cd04b4b7e0dba176086447a0c114578cf695a',
+    'voices/baotrang/meta.json': 'eb2f68dde7d10da196b23adf0e276f77f9b4304e07e6517fc42b7a52104133f1',
+}
+# The three graphs every frame runs. fp32 they are too slow for the box (RTF 1.2-1.7 on the i9, 2026-10-29: memory-bound);
+# int8 is ZeroTTS's own recipe (its tools/quantize_onnx_int8.py, read 2026-10-29): fold the Identity nodes with ORT's basic
+# optimizations first (else only 41 of 561 MatMuls quantize), then dynamic-quantize the MatMuls — PLUS reduce_range, ONNX
+# Runtime's advice for x86 without VNNI (the box's Broadwell), where u8s8 products can saturate. Measured on the i9 (AVX2,
+# no VNNI): first sound ~0.1 s, RTF 0.47 at 2 threads, ~1.0 GB. The codec decoder stays fp32 (not on the per-frame path).
+ZEROTTS_HOT = ('onnx/text_encoder.onnx', 'onnx/prefix_step.onnx', 'onnx/local_frame_decode.onnx')
+# ⛔ AND THE INT8 THEY BECOME IS PINNED TOO (opus, commit review): the voice served is the one listened to on 2026-10-29 —
+# byte-identical from two separate quantizations there (onnxruntime 1.23.2, onnx 1.19.1, numpy 2.5.4). A different result
+# (another wheel, another platform) fails the build: nothing changes on the box, and the bytes are looked at first.
+ZEROTTS_INT8 = {
+    'onnx/text_encoder.onnx': 'fc076bf58fa412f1bfaee79446cfecc9aaa29db1c63c2bb03b2effc6e23de1f2',
+    'onnx/prefix_step.onnx': '86a6050cfaf5c8b5a9a92c9bb52712201635b67d7ab1284a38e26faf6cc00f0d',
+    'onnx/local_frame_decode.onnx': '004ea141c7a228dbde3273312aeb56d3d2d8656cb4095ceabbef75abeccfeffc',
+}
+
+
+def zerotts():
+    import onnxruntime as ort
+    from onnxruntime.quantization import QuantType, quantize_dynamic
+
+    dest = MODELS / 'zerotts-int8'
+    for name, want in ZEROTTS.items():
+        p = hf_hub_download(ZEROTTS_REPO, name, revision=ZEROTTS_REV)
+        check(p, want)
+        (dest / name).parent.mkdir(parents=True, exist_ok=True)
+        # copyfile, not copy: the data without the cache blob's read-only mode — the hot graphs are replaced below.
+        shutil.copyfile(p, dest / name)
+    for name in ZEROTTS_HOT:
+        fp32 = dest / name
+        folded, int8 = fp32.with_name(fp32.name + '.opt'), fp32.with_name(fp32.name + '.int8')
+        try:
+            opts = ort.SessionOptions()
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
+            opts.optimized_model_filepath = str(folded)
+            ort.InferenceSession(str(fp32), opts, providers=['CPUExecutionProvider'])
+            quantize_dynamic(str(folded), str(int8), weight_type=QuantType.QInt8, op_types_to_quantize=['MatMul'],
+                             reduce_range=True)
+            os.replace(int8, fp32)
+        finally:
+            folded.unlink(missing_ok=True)
+            int8.unlink(missing_ok=True)
+        print(f'zerotts int8 {name} {fp32.stat().st_size / 1e6:.0f} MB sha256 {sha256(fp32)}')
+        check(fp32, ZEROTTS_INT8[name])
+
+
 if __name__ == '__main__':
-    parakeet()
     phonon()
+    zerotts()
     print('models ok:', sorted(str(p.relative_to(MODELS)) for p in MODELS.rglob('*') if p.is_file()))

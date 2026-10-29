@@ -26,8 +26,23 @@ non-commercial; only `phonon-31m-en` may ship).
   while a lesson is waiting for one — and at most `GUIDE_TTS_MAX` (default 1; 0 = none) of the pool's voices speak for the
   guide at a time — never all of them. Its own share admits it: a guide line never takes one of the lessons'
   `MAX_IN_FLIGHT` slots. The app sends a guide line the box cannot take to Soniox (`src/lib/classroom/session-voice.ts`).
-- `GET /health`: the models, the voices, the pool (`ttsPool`), `maxInFlight`, the guide's share (`guideTtsMax`), and the
-  peak RSS.
+- `POST /vi/tts/stream` and `POST /vi/tts` (2026-10-29; owner: "bao tran go", "go live"): the voice guide's VIETNAMESE —
+  ZeroTTS int8 (MIT; zeroweight-ai/ZeroTTS pinned at c2bfbd67, its preset voice `baotrang`; the codec decoder is
+  MOSS-Audio-Tokenizer-Nano, Apache-2.0). The guide's alone (`x-speech-class: guide`, else 400); one line at a time; it holds
+  one of the pool's voices while it speaks (so lessons keep their share); PCM16 at 24 kHz like Phonon's. ON only with
+  `-e VI_TTS=1` on the run line — its kill switch; off, `/vi/*` are a 404, exactly like a server from before them, and the
+  app gives the line to Soniox. ZeroWeight's written answer (github.com/zeroweight-ai/ZeroTTS/issues/9, 2026-09-23): MIT,
+  commercial use permitted, the preset voices "may be used with the released model"; credit "ZeroTTS by ZeroWeight AI".
+  ⛔ EVERY START TIMES ITSELF: with `-e VI_TTS=1` the server speaks one ~7 s Vietnamese line through the real path before
+  it serves, and keeps Vietnamese ON only when the first sound comes under 1 s and the line is made under 0.8 of real time
+  on THIS machine's CPU (a laptop's numbers did not hold under load, 2026-10-29) — a reboot or a crash restart included.
+  Too slow, cut, or unable to load: Vietnamese is OFF by itself (`vi: null`; what it measured is `viCheck` in /health),
+  the guide's Vietnamese stays on Soniox, and the server still speaks English.
+- `/stt`: only while Parakeet is in the image — it is NOT since 2026-10-29 (no app code calls it; the classroom's ears are
+  Soniox), so it is a 404 and `stt` is null. ⚠️ An app from before 2026-10-28 deployed onto this image loses its fallback
+  ears.
+- `GET /health`: the models (`stt`, `tts`, `vi`), the voices, the pool (`ttsPool`), `maxInFlight`, the guide's share
+  (`guideTtsMax`), and the peak RSS.
 
 The app calls this server with `x-speech-key` on every request (`src/lib/classroom/speech-local.ts`). There is no
 fallback to a hosted service: when this server is down, the classroom says "try again". Azure is used for one thing only:
@@ -57,6 +72,9 @@ docker run -d --name eno-classroom-speech --restart always \
   -v /opt/eno/secrets/classroom-speech-key:/run/speech-key:ro -e SPEECH_KEY_FILE=/run/speech-key \
   eno-classroom-speech:local
 ```
+
+The guide's Vietnamese ON (Bảo Trang, `/vi/*`): add `-e VI_TTS=1` before the image name — it times itself at every start
+(above). Without it the server is the same image with Vietnamese off.
 
 ⚠️ The key goes in as a mounted file, not `-e SPEECH_KEY=…`: `docker inspect` prints every environment variable.
 `/opt/eno/secrets` is root-only (0700), so the file can be 0644: only root on the host and this container read it.

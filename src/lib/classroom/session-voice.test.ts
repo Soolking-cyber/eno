@@ -21,6 +21,10 @@ const h = vi.hoisted(() => ({
   onSoniox: null as null | (() => void),
   /** Box streams let go (their reader cancelled). */
   boxClosed: 0,
+  /** The language of each box call (its style's): English, or the guide's Vietnamese (/vi/…). */
+  boxLangs: [] as string[],
+  /** The box answers 404 for these languages (a server without the /vi/ routes, or with them off). */
+  boxLacks: [] as string[],
 }))
 vi.mock('./soniox', () => ({ sonioxConfig: () => (h.soniox ? { key: 'k', tts: 'wss://tts', ttsModel: 'tts-rt-v2' } : null) }))
 vi.mock('./soniox-tts', () => ({
@@ -41,9 +45,11 @@ vi.mock('./soniox-tts', () => ({
 }))
 vi.mock('./speech-local', () => ({
   localSpeechConfig: () => (h.box ? { url: 'http://box', key: 'k' } : null),
-  synthesizeStream: async (_cfg: unknown, _text: string, voice: string, _style: unknown, signal: AbortSignal | undefined, _fetch: unknown, opts?: unknown) => {
+  synthesizeStream: async (_cfg: unknown, _text: string, voice: string, style: { language?: string }, signal: AbortSignal | undefined, _fetch: unknown, opts?: unknown) => {
     h.calls.push(`box-stream:${voice}`)
     h.boxOpts.push(opts)
+    h.boxLangs.push(style.language ?? 'en')
+    if (h.boxLacks.includes(style.language ?? 'en')) throw Object.assign(new Error('not found'), { status: 404 })
     // Like speech-local.ts: a request stopped on its way is a 502 (its fetch threw).
     if (signal?.aborted) throw Object.assign(new Error('aborted'), { status: 502 })
     if (h.boxFails) throw Object.assign(new Error('box'), h.boxFails)
@@ -64,9 +70,11 @@ vi.mock('./speech-local', () => ({
       })(),
     }
   },
-  synthesize: async (_cfg: unknown, _text: string, voice: string, _style: unknown, _fetch: unknown, opts?: unknown) => {
+  synthesize: async (_cfg: unknown, _text: string, voice: string, style: { language?: string }, _fetch: unknown, opts?: unknown) => {
     h.calls.push(`box-line:${voice}`)
     h.boxOpts.push(opts)
+    h.boxLangs.push(style.language ?? 'en')
+    if (h.boxLacks.includes(style.language ?? 'en')) throw Object.assign(new Error('not found'), { status: 404 })
     if (h.boxFails) throw Object.assign(new Error('box'), h.boxFails)
     if (h.boxLineMs) await new Promise((r) => setTimeout(r, h.boxLineMs))
     return Buffer.from('mp3-from-box')
@@ -79,7 +87,7 @@ vi.mock('./speech-local', () => ({
 let sv: typeof import('./session-voice')
 const style = { pace: 'natural' as const, loud: false, gapMs: 120, pauseMs: 0 }
 beforeEach(async () => {
-  Object.assign(h, { soniox: true, box: true, sonioxFails: null, lineMs: 0, calls: [], boxOpts: [], boxFails: null, boxSilent: false, boxEmpty: false, boxLineMs: 0, sonioxBudgets: [], onSoniox: null, boxClosed: 0 })
+  Object.assign(h, { soniox: true, box: true, sonioxFails: null, lineMs: 0, calls: [], boxOpts: [], boxFails: null, boxSilent: false, boxEmpty: false, boxLineMs: 0, sonioxBudgets: [], onSoniox: null, boxClosed: 0, boxLangs: [], boxLacks: [] })
   sv = await import('./session-voice')
   sv.resetSonioxRest()
   sv.resetBoxRest()
@@ -401,9 +409,9 @@ describe('the voice guide (`first`): English on the box first, Soniox the overfl
     expect(h.calls.at(-1)).toBe('box-stream:Zoey')
   })
 
-  it('Vietnamese has no box: Soniox only, made ahead as before', async () => {
-    const speak = sv.speakerFor('Zoey', () => ({ ...style, language: 'vi' }), guide)!
-    await speak('Xin chào.', go())
+  it('a language the box does not speak (Chinese): Soniox only, made ahead as before', async () => {
+    const speak = sv.speakerFor('Zoey', () => ({ ...style, language: 'zh' }), guide)!
+    await speak('你好。', go())
     expect(h.calls).toEqual(['soniox-stream:Sloane'])
     expect(speak.ahead!()).toBe(sv.SONIOX_AHEAD)
   })
@@ -475,8 +483,85 @@ describe('the voice guide\'s opening (`first`)', () => {
     expect(h.calls).toEqual(['box-line:Zoey', 'soniox-line:Sloane', 'soniox-line:Sloane'])
   })
 
-  it('another language: Soniox, as before — the box never reads it', async () => {
-    expect(Buffer.from(await sv.speakLine('Xin chào.', 'Zoey', { ...style, language: 'vi' }, 100, guide), 'base64').toString()).toBe('mp3-from-soniox')
+  it('a language the box does not speak (Chinese): Soniox, as before — the box never reads it', async () => {
+    expect(Buffer.from(await sv.speakLine('你好。', 'Zoey', { ...style, language: 'zh' }, 100, guide), 'base64').toString()).toBe('mp3-from-soniox')
     expect(h.calls).toEqual(['soniox-line:Sloane'])
   })
 })
+
+/**
+ * THE GUIDE'S VIETNAMESE ON THE BOX (owner, 2026-10-29: "bao tran go", "go live"): the server's /vi/ routes (Bảo Trang,
+ * ZeroTTS) — the guide's alone; a server without them answers 404 and Vietnamese goes to Soniox for a minute.
+ */
+describe('the voice guide\'s Vietnamese on the box (`first`)', () => {
+  const guide = { busyRetry: false, first: true }
+  const viStyle = () => ({ ...style, language: 'vi' as const })
+  const go = () => new AbortController().signal
+
+  it('Vietnamese goes to the box first, as a guide line in Vietnamese — Soniox not asked', async () => {
+    const speak = sv.speakerFor('Zoey', viStyle, guide)!
+    await speak('Xin chào.', go())
+    expect(h.calls).toEqual(['box-stream:Zoey'])
+    expect(h.boxLangs).toEqual(['vi'])
+    expect(h.boxOpts).toEqual([{ busyRetry: false, guide: true }])
+    expect(speak.ahead!()).toBe(0)
+  })
+
+  it('⛔ a lesson never sends Vietnamese to the box (no `first`): Soniox, as before', async () => {
+    h.sonioxFails = { status: 502 }
+    await expect(sv.speakerFor('Zoey', viStyle)!('Xin chào.', go())).rejects.toBeTruthy()
+    await expect(sv.speakLine('Xin chào.', 'Zoey', viStyle(), 100)).rejects.toBeTruthy()
+    expect(h.calls.some((c) => c.startsWith('box'))).toBe(false)
+  })
+
+  it('a box WITHOUT Vietnamese (404): that reply and every Vietnamese line for BOX_REST_MS go to Soniox — English keeps the box', async () => {
+    vi.useFakeTimers()
+    h.boxLacks = ['vi']
+    await sv.speakerFor('Zoey', viStyle, guide)!('Một.', go())
+    expect(h.calls).toEqual(['box-stream:Zoey', 'soniox-stream:Sloane'])
+    await sv.speakerFor('Zoey', viStyle, guide)!('Hai.', go())
+    expect(h.calls.at(-1)).toBe('soniox-stream:Sloane') // not asked again
+    await sv.speakerFor('Zoey', () => style, guide)!('Hi.', go())
+    expect(h.calls.at(-1)).toBe('box-stream:Zoey') // English: the box, untouched
+    h.boxLacks = []
+    await vi.advanceTimersByTimeAsync(sv.BOX_REST_MS + 1)
+    await sv.speakerFor('Zoey', viStyle, guide)!('Ba.', go())
+    expect(h.calls.at(-1)).toBe('box-stream:Zoey')
+    expect(h.boxLangs.at(-1)).toBe('vi')
+  })
+
+  it('⛔ Vietnamese failing never rests the box\'s ENGLISH (opus, commit review): two slow Vietnamese lines, English still on the box', async () => {
+    vi.useFakeTimers()
+    h.boxSilent = true
+    for (const line of ['Một.', 'Hai.']) {
+      const said = sv.speakerFor('Zoey', viStyle, guide)!(line, go())
+      await vi.advanceTimersByTimeAsync(sv.BOX_FIRST_SOUND_MS + 1)
+      await said
+    }
+    h.boxSilent = false
+    await sv.speakerFor('Zoey', viStyle, guide)!('Ba.', go())
+    expect(h.calls.at(-1)).toBe('soniox-stream:Sloane') // Vietnamese: resting
+    await sv.speakerFor('Zoey', () => style, guide)!('Hi.', go())
+    expect(h.calls.at(-1)).toBe('box-stream:Zoey') // English: not
+    h.boxFails = { status: 500 }
+    await sv.speakerFor('Zoey', viStyle, guide)!('Bốn.', go()) // still resting: Soniox, the box not even asked
+    h.boxFails = null
+    expect(h.boxLangs.filter((l) => l === 'en')).toHaveLength(1)
+  })
+
+  it('⛔ a Vietnamese line the box misses goes to Soniox — NEVER to the box\'s English route', async () => {
+    h.boxFails = { status: 503 }
+    await sv.speakerFor('Zoey', viStyle, guide)!('Một.', go())
+    expect(h.boxLangs.every((l) => l === 'vi')).toBe(true)
+    expect(h.calls).toEqual(['box-stream:Zoey', 'soniox-stream:Sloane'])
+  })
+
+  it('the Vietnamese opening is made on the box in Vietnamese and kept apart from the English one', async () => {
+    const line = async (text: string, st: typeof style) => Buffer.from(await sv.speakLine(text, 'Zoey', st, 2_500, guide), 'base64').toString()
+    expect(await line('Chào bạn!', viStyle())).toBe('mp3-from-box')
+    expect(await line('Hi!', style)).toBe('mp3-from-box')
+    expect(await line('Chào bạn!', viStyle())).toBe('mp3-from-box')
+    expect(h.boxLangs).toEqual(['vi', 'en']) // made once each, by language
+  })
+})
+

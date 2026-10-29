@@ -46,7 +46,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import numpy as np
 import soundfile as sf
-import sherpa_onnx
 import ptts
 
 STT_DIR = os.environ.get('STT_MODEL_DIR', '/models/parakeet-tdt-0.6b-v2-int8')
@@ -125,11 +124,17 @@ VOICES = ('Harper', 'Hadley', 'Zoey', 'Trevor', 'Preston',   # en-US
           'Imogen', 'Maeve', 'Spencer', 'Toby')              # en-GB
 
 # ------------------------------------------------------------------------------------------- models
-_stt = sherpa_onnx.OfflineRecognizer.from_transducer(
-    encoder=f'{STT_DIR}/encoder.int8.onnx', decoder=f'{STT_DIR}/decoder.int8.onnx',
-    joiner=f'{STT_DIR}/joiner.int8.onnx', tokens=f'{STT_DIR}/tokens.txt',
-    num_threads=STT_THREADS, sample_rate=16000, feature_dim=80,
-    decoding_method='greedy_search', model_type='nemo_transducer')
+# ⛔ /stt ONLY WHEN ITS MODEL IS IN THE IMAGE (2026-10-29): no app code calls it — the classroom's ears are Soniox since
+# 10-28 — and its ~0.7 GB is the Vietnamese voice's (fetch_models.py stopped fetching Parakeet). Without it /stt is a 404
+# and /health says `stt: null`; a folder that is there but broken fails HERE, at start, never as a quiet 404.
+_stt = None
+if os.path.isdir(STT_DIR):
+    import sherpa_onnx
+    _stt = sherpa_onnx.OfflineRecognizer.from_transducer(
+        encoder=f'{STT_DIR}/encoder.int8.onnx', decoder=f'{STT_DIR}/decoder.int8.onnx',
+        joiner=f'{STT_DIR}/joiner.int8.onnx', tokens=f'{STT_DIR}/tokens.txt',
+        num_threads=STT_THREADS, sample_rate=16000, feature_dim=80,
+        decoding_method='greedy_search', model_type='nemo_transducer')
 # One decode at a time: ~0.5 s a turn on the box, and two decodes at 4 threads each on a 4-CPU
 # cap would only slow both.
 _stt_lock = threading.Lock()
@@ -159,6 +164,43 @@ _in_flight = threading.BoundedSemaphore(MAX_IN_FLIGHT)
 # GUIDE_TTS_MAX >= TTS_POOL, would let the guide hold them all).
 GUIDE_VOICES = max(0, min(GUIDE_TTS_MAX, POOL - 1))
 _guide = threading.Semaphore(GUIDE_VOICES)
+
+# THE GUIDE'S VIETNAMESE (2026-10-29; owner: "bao tran go", "go live"): ZeroTTS int8 (fetch_models.py), its preset voice
+# Bảo Trang, ONE instance and one line at a time — two at once ran 0.79-1.0x real time on the i9, ~1.2-1.5x on this box.
+# ON only with VI_TTS=1 on the run line (its kill switch); off, /vi/* are a 404, exactly like a server from before them —
+# so an app can never get Vietnamese read in an English voice (plan review: the old server ignored unknown fields).
+VI_ON = os.environ.get('VI_TTS') == '1'
+VI_DIR = os.environ.get('VI_MODEL_DIR', '/models/zerotts-int8')
+VI_VOICE = os.environ.get('VI_VOICE', 'baotrang')
+VI_THREADS = int(os.environ.get('VI_THREADS', '2'))
+VI_RATE = 24_000  # what the app plays (Phonon's rate); ZeroTTS speaks at 48 kHz — halved on the way out (Half)
+# A Vietnamese line may take longer than Phonon's TTS_DEADLINE_S: ZeroTTS is allowed RTF up to 0.8 here (the speed gate below),
+# so 20 s finishes a ~25 s line — a long one is not cut after its 200, where the app cannot tell (opus, commit review).
+VI_DEADLINE_S = 20.0
+# ⛔ THE SPEED GATE RUNS ON EVERY START (opus, commit review: a reboot or a crash restart must never bring an untested
+# Vietnamese back): one ~7 s guide line through the real path, timed. Vietnamese stays ON only when its first sound comes
+# under VI_FIRST_MAX_S and it is made under VI_RTF_MAX of real time — int8 ran at RTF 0.47 on the i9 (2026-10-29), the
+# box's cores are ~1.5x slower, and a loaded laptop measured 3.5-4.4. Off: /vi/* are a 404, the guide's Vietnamese Soniox's.
+VI_FIRST_MAX_S = 1.0
+VI_RTF_MAX = 0.8
+VI_CHECK_LINE = 'Mình tìm được 12 căn hộ ở Quận 1, giá từ 8.500.000 đ đến 15.000.000 đ một tháng. Bạn muốn xem căn nào trước?'
+VI_CHECK_MIN_S = 6.0  # that line is ~7-8 s of speech: less was cut, never a pass
+VI_CHECK = None       # what the gate measured at start ({first_s, rtf, line_s}) — /health shows it
+_vi = None
+_vi_lock = threading.Lock()
+if VI_ON:
+    # Vietnamese is OPTIONAL: one that cannot load is OFF (/vi/* a 404, the app's Soniox), never a server that cannot speak
+    # English to a lesson (opus, commit review: any of these failing at import time stopped the whole server).
+    try:
+        from zerotts import ZeroTTS
+        _vi = ZeroTTS(VI_DIR, intra_op_num_threads=VI_THREADS)
+        if VI_VOICE not in _vi.list_voices():
+            raise RuntimeError(f'voice {VI_VOICE} missing from {VI_DIR}')
+        if _vi.sample_rate != 48_000:  # Half halves 48 kHz to VI_RATE — anything else would play at the wrong speed
+            raise RuntimeError(f'ZeroTTS speaks at {_vi.sample_rate} Hz, not 48000')
+    except Exception as e:  # noqa: BLE001 — named in the log, never fatal
+        _vi = None
+        print(f'vi OFF: {type(e).__name__}: {e}', flush=True)
 
 
 class Busy(Exception):
@@ -462,6 +504,55 @@ def speak_stream(tts, text, voice, write, loud=False, gap_s=GAP_MS_DEFAULT / 100
     return samples / SAMPLE_RATE
 
 
+
+class Half:
+    """48 kHz → 24 kHz through one line's chunks (ZeroTTS speaks at 48 kHz; the app plays 24 kHz PCM, as Phonon's): one
+    low-pass FIR — 63 taps, cut at 11 kHz — whose state and sample phase carry from chunk to chunk. Resampling each chunk
+    on its own clicks at every seam (codex, plan review)."""
+    def __init__(self):
+        from scipy.signal import firwin
+        self.taps = firwin(63, 11_000, fs=48_000)
+        self.zi = np.zeros(len(self.taps) - 1)
+        self.seen = 0
+
+    def push(self, x):
+        from scipy.signal import lfilter
+        y, self.zi = lfilter(self.taps, 1.0, np.asarray(x, dtype=np.float64), zi=self.zi)
+        out = y[(-self.seen) % 2::2]  # every other sample of the WHOLE line, wherever this chunk starts
+        self.seen += len(x)
+        return out.astype(np.float32)
+
+
+def speak_vi_stream(text, write):
+    """The guide's Vietnamese line as raw PCM16 at VI_RATE, handed to `write` as ZeroTTS makes it (first sound ~0.1 s on
+    the i9). The caller holds _vi_lock. A client that hangs up stops it at the next chunk; VI_DEADLINE_S bounds it.
+    Returns the seconds of audio written."""
+    deadline = time.perf_counter() + VI_DEADLINE_S
+    half, samples = Half(), 0
+    gen = _vi.synthesize_stream(text, voice=VI_VOICE)
+    try:
+        for chunk in gen:
+            y = half.push(np.asarray(chunk, dtype=np.float32).reshape(-1))
+            if len(y):
+                pcm = (np.clip(y, -1.0, 1.0) * 32767).astype('<i2')
+                write(pcm.tobytes())
+                samples += len(pcm)
+            if time.perf_counter() > deadline:
+                raise Busy()
+    finally:
+        gen.close()  # ends ZeroTTS's own stream (its codec state) at once, however this line ended
+    return samples / VI_RATE
+
+
+def speak_vi(text):
+    """The guide's whole Vietnamese line (its opening) — MP3, 24 kHz mono, like speak()'s."""
+    parts = []
+    seconds = speak_vi_stream(text, parts.append)
+    pcm = np.frombuffer(b''.join(parts), dtype='<i2').astype(np.float32) / 32768.0
+    buf = io.BytesIO()
+    sf.write(buf, pcm, VI_RATE, format='MP3')
+    return buf.getvalue(), seconds
+
 def peak_rss_mb():
     return round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024)  # Linux: KiB
 
@@ -542,16 +633,64 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             put_voice(tts)
 
+    def _vi(self, route, text, t0):
+        """The guide's Vietnamese line (/vi/tts/stream: PCM16 at VI_RATE as it is made; /vi/tts: a whole MP3). It holds ONE
+        of the pool's voices while it speaks — not to speak with it, but so it counts: ZeroTTS's two threads are one voice
+        at work, and the guide's share (GUIDE_VOICES) and a waiting lesson's turn hold for Vietnamese as for English (opus,
+        plan review: uncounted, it put six threads on four CPUs). Busy — no voice free now, a lesson waiting, or a
+        Vietnamese line already being made — is a 503 at once."""
+        slot = take_voice(0.0, wait=False)
+        try:
+            if not _vi_lock.acquire(blocking=False):
+                raise Busy()
+            try:
+                if route == 'vi':
+                    mp3, seconds = speak_vi(text)
+                    ms = round((time.perf_counter() - t0) * 1000)
+                    print(f'vi {ms}ms audio={seconds:.1f}s chars={len(text)}', flush=True)
+                    return self._send(200, mp3, 'audio/mpeg', {'X-Audio-Seconds': f'{seconds:.2f}', 'X-Synth-Ms': str(ms)})
+                self.close_connection = True
+                self.send_response(200)
+                self.send_header('Content-Type', f'audio/L16;rate={VI_RATE};channels=1')
+                self.send_header('X-Sample-Rate', str(VI_RATE))
+                self.send_header('Cache-Control', 'no-store')
+                self.send_header('Connection', 'close')
+                self.end_headers()
+                first = [None]
+
+                def write(b):
+                    if first[0] is None:
+                        first[0] = round((time.perf_counter() - t0) * 1000)
+                    self.wfile.write(b)
+                    self.wfile.flush()
+
+                try:
+                    seconds = speak_vi_stream(text, write)
+                    print(f'vi-stream first={first[0]}ms total={round((time.perf_counter() - t0) * 1000)}ms audio={seconds:.1f}s chars={len(text)}', flush=True)
+                except (BrokenPipeError, ConnectionResetError):
+                    print('vi-stream client gone', flush=True)
+                except Busy:
+                    print('vi-stream cut at deadline', flush=True)
+                except Exception as e:  # noqa: BLE001 — after the 200 only voice may be written: the body just ends short
+                    print(f'vi-stream failed {type(e).__name__}', flush=True)
+            finally:
+                _vi_lock.release()
+        finally:
+            put_voice(slot)
+
     def do_GET(self):
         if self.path == '/health':
-            return self._send(200, {'ok': True, 'stt': 'parakeet-tdt-0.6b-v2-int8', 'tts': 'phonon-31m-en',
+            return self._send(200, {'ok': True, 'stt': 'parakeet-tdt-0.6b-v2-int8' if _stt else None, 'tts': 'phonon-31m-en',
+                                    'vi': VI_VOICE if _vi else None, 'viCheck': VI_CHECK,
                                     'voices': list(VOICES), 'sampleRate': SAMPLE_RATE, 'ttsPool': POOL, 'maxInFlight': MAX_IN_FLIGHT,
                                     'guideTtsMax': GUIDE_VOICES, 'peakRssMb': peak_rss_mb()})
         self._send(404, {'error': 'not_found'})
 
     def do_POST(self):
-        route = {'/stt': 'stt', '/tts': 'tts', '/tts/stream': 'tts-stream'}.get(self.path)
-        if route is None:
+        route = {'/stt': 'stt', '/tts': 'tts', '/tts/stream': 'tts-stream', '/vi/tts': 'vi', '/vi/tts/stream': 'vi-stream'}.get(self.path)
+        vi = route in ('vi', 'vi-stream')
+        # Off is NOT FOUND, exactly as on a server from before the route: the app then gives the line to Soniox.
+        if route is None or (vi and not _vi) or (route == 'stt' and not _stt):
             return self._send(404, {'error': 'not_found'})
         t0 = time.perf_counter()
         # The key BEFORE a slot (opus, commit review): a caller without it must not be able to fill the server.
@@ -560,6 +699,9 @@ class Handler(BaseHTTPRequestHandler):
         # The voice guide (GUIDE_VOICES): admitted by its own share, never one of the lessons' in-flight slots (codex +
         # opus, commit review: a guide line held one of the four, and a fourth lesson request got 503 at once).
         guide = route != 'stt' and self.headers.get('x-speech-class') == 'guide'
+        # Vietnamese is the voice guide's alone; a lesson never asks for it (a 400 like any refused line — never a rest).
+        if vi and not guide:
+            return self._send(400, {'error': 'guide_only'})
         gate = _guide if guide else _in_flight
         if not gate.acquire(blocking=False):
             print(f'{route} 503 {"guide_busy" if guide else "busy"}', flush=True)
@@ -574,7 +716,7 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(req, dict):
                 raise BadRequest('json')
             voice, text = req.get('voice'), req.get('text')
-            if not isinstance(voice, str) or voice not in VOICES:
+            if not vi and (not isinstance(voice, str) or voice not in VOICES):
                 return self._send(400, {'error': 'voice'})
             try:
                 style = voice_style(req)
@@ -583,6 +725,8 @@ class Handler(BaseHTTPRequestHandler):
             text = clean_text(text) if isinstance(text, str) else ''
             if not text or len(text) > MAX_TEXT_CHARS:
                 return self._send(400, {'error': 'text'})
+            if vi:
+                return self._vi(route, text, t0)
             # The guide: a voice free NOW, or busy at once (take_voice).
             if route == 'tts-stream':
                 return self._stream(text, voice, style, t0, wait=not guide)
@@ -650,9 +794,34 @@ if __name__ == '__main__':
         t.set_conditions({'duration_delta': 0.0})
         t.synth('Hello.', voice=VOICES[0])
         _tts.put(t)
-    warm = _stt.create_stream()
-    warm.accept_waveform(16000, np.zeros(16000, dtype=np.float32))  # an EMPTY stream throws (0 feature frames)
-    _stt.decode_stream(warm)
-    print(f'classroom-speech on :{port} (stt {STT_THREADS} threads, tts {TTS_THREADS}, '
+    if _stt:
+        warm = _stt.create_stream()
+        warm.accept_waveform(16000, np.zeros(16000, dtype=np.float32))  # an EMPTY stream throws (0 feature frames)
+        _stt.decode_stream(warm)
+    if _vi:
+        try:
+            _vi.warmup()
+            speak_vi('Xin chào.')  # untimed: the graphs' first runs
+            t0, first = time.perf_counter(), [None]
+
+            def heard(_pcm):
+                if first[0] is None:
+                    first[0] = time.perf_counter() - t0
+
+            line_s = speak_vi_stream(VI_CHECK_LINE, heard)
+            rtf = (time.perf_counter() - t0) / line_s if line_s else float('inf')
+            first_s = first[0] if first[0] is not None else float('inf')
+            VI_CHECK = {'first_s': round(first_s, 2), 'rtf': round(rtf, 2), 'line_s': round(line_s, 1)}
+            fast = line_s >= VI_CHECK_MIN_S and first_s < VI_FIRST_MAX_S and rtf < VI_RTF_MAX
+            print(f'vi {"ON" if fast else "OFF: too slow here"} {VI_CHECK}', flush=True)
+            if not fast:
+                _vi = None
+        except Busy:  # a line past VI_DEADLINE_S: this machine is too slow; English goes on
+            _vi = None
+            print('vi OFF: a start line was cut at the deadline — too slow here', flush=True)
+        except Exception as e:  # noqa: BLE001 — a Vietnamese that cannot speak is OFF; English goes on
+            _vi = None
+            print(f'vi OFF: warm-up failed {type(e).__name__}', flush=True)
+    print(f'classroom-speech on :{port} (stt {"on" if _stt else "off"}, vi {VI_VOICE if _vi else "off"}, tts {TTS_THREADS}, '
           f'{MAX_IN_FLIGHT} in flight, {GUIDE_VOICES} for the guide, rss {peak_rss_mb()} MB)', flush=True)
     Server(('0.0.0.0', port), Handler).serve_forever()

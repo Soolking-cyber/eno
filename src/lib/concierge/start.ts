@@ -21,9 +21,9 @@ const styleFor = (lang: SpokenLanguage): VoiceStyle => (lang === 'en' ? NATURAL_
 export const openingLine = (lang: SpokenLanguage = 'en'): string => linesFor(lang).opening
 
 /**
- * How the guide asks for its voice (session-voice.ts BoxOpts): `first` — its English on eno's own speech server FIRST, Soniox
- * for what the box cannot say (owner, 2026-10-29: "priority english and vietnamese rest use soniox"; Vietnamese has no
- * open voice that passed its licence and the box's CPU yet). ⛔ ONE ATTEMPT on the box (PLAN §10), as a GUIDE line: the
+ * How the guide asks for its voice (session-voice.ts BoxOpts): `first` — its English AND Vietnamese on eno's own speech
+ * server FIRST (Vietnamese: Bảo Trang, ZeroTTS, on the server's /vi/ routes), Soniox for what the box cannot say and for
+ * every other language (owner, 2026-10-29: "priority english and vietnamese rest use soniox", "bao tran go"). ⛔ ONE ATTEMPT on the box (PLAN §10), as a GUIDE line: the
  * server answers busy at once and lends the guide only its share of the voices — the rest are the classroom's paid lessons'.
  */
 const GUIDE_VOICE = { busyRetry: false, first: true } as const

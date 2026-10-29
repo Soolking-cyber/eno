@@ -54,35 +54,41 @@ s, _, d = req('GET', '/health', key=False)
 health = json.loads(d)
 check('health', s == 200 and health.get('ok') and len(health.get('voices', [])) == 9, d[:200])
 
-s, h, _ = req('POST', '/stt', tone, {'content-type': 'audio/wav'}, key=False)
-check('stt without key → 401 + close', s == 401 and h.get('Connection') == 'close', f'{s} {h}')
-s, _, _ = req('POST', '/stt', tone, {'content-type': 'audio/wav', 'x-speech-key': 'wrong'}, key=False)
-check('stt wrong key → 401', s == 401)
-s, _, _ = req('POST', '/stt', tone, {'content-type': 'audio/wav', 'x-speech-key': 'kéy'}, key=False)
+# The key, on /tts — every server has it (/stt only while Parakeet is in the image: server.py, 2026-10-29).
+hello = json.dumps({'text': 'Hello.', 'voice': 'Harper'})
+s, h, _ = req('POST', '/tts', hello, {'content-type': 'application/json'}, key=False)
+check('tts without key → 401 + close', s == 401 and h.get('Connection') == 'close', f'{s} {h}')
+s, _, _ = req('POST', '/tts', hello, {'content-type': 'application/json', 'x-speech-key': 'wrong'}, key=False)
+check('tts wrong key → 401', s == 401)
+s, _, _ = req('POST', '/tts', hello, {'content-type': 'application/json', 'x-speech-key': 'kéy'}, key=False)
 check('non-ASCII key → 401, not 500', s == 401)
 
-s, _, d = req('POST', '/stt', silent, {'content-type': 'audio/wav'})
-check('silence → silence (level gate)', s == 200 and json.loads(d)['status'] == 'silence' and json.loads(d).get('reason') == 'level', d)
-s, _, d = req('POST', '/stt', quiet_late, {'content-type': 'audio/wav'})
-check('quiet voice after 2 s of silence is not refused by the gate', s == 200 and json.loads(d)['seconds'] == 2.5 and 'reason' not in json.loads(d), d)
-s, _, d = req('POST', '/stt', wav([0] * 8000, rate=44100, channels=2), {'content-type': 'audio/wav'})
-check('stereo 44.1 kHz → 400', s == 400, d)
-s, _, d = req('POST', '/stt', b'not a wav at all', {'content-type': 'audio/wav'})
-check('garbage → 400', s == 400, d)
-try:  # refused from the headers alone, so the client may still be sending when the socket closes
-    s = req('POST', '/stt', b'x' * 1_700_000, {'content-type': 'audio/wav'})[0]
-except (BrokenPipeError, ConnectionResetError):
-    s = 400
-check('oversize → refused', s == 400, s)
-if speech:
-    s, _, d = req('POST', '/stt', speech, {'content-type': 'audio/wav'})
-    out = json.loads(d)
-    check('real clip → words', s == 200 and out['status'] == 'ok' and len(out['text']) > 3, d)
-    print('   transcript:', out.get('text'), f'({out.get("ms")} ms)')
+if not health.get('stt'):
+    s, _, _ = req('POST', '/stt', tone, {'content-type': 'audio/wav'})
+    check('stt not in this image → 404', s == 404, s)
+else:
+    s, _, d = req('POST', '/stt', silent, {'content-type': 'audio/wav'})
+    check('silence → silence (level gate)', s == 200 and json.loads(d)['status'] == 'silence' and json.loads(d).get('reason') == 'level', d)
+    s, _, d = req('POST', '/stt', quiet_late, {'content-type': 'audio/wav'})
+    check('quiet voice after 2 s of silence is not refused by the gate', s == 200 and json.loads(d)['seconds'] == 2.5 and 'reason' not in json.loads(d), d)
+    s, _, d = req('POST', '/stt', wav([0] * 8000, rate=44100, channels=2), {'content-type': 'audio/wav'})
+    check('stereo 44.1 kHz → 400', s == 400, d)
+    s, _, d = req('POST', '/stt', b'not a wav at all', {'content-type': 'audio/wav'})
+    check('garbage → 400', s == 400, d)
+    try:  # refused from the headers alone, so the client may still be sending when the socket closes
+        s = req('POST', '/stt', b'x' * 1_700_000, {'content-type': 'audio/wav'})[0]
+    except (BrokenPipeError, ConnectionResetError):
+        s = 400
+    check('oversize → refused', s == 400, s)
+    if speech:
+        s, _, d = req('POST', '/stt', speech, {'content-type': 'audio/wav'})
+        out = json.loads(d)
+        check('real clip → words', s == 200 and out['status'] == 'ok' and len(out['text']) > 3, d)
+        print('   transcript:', out.get('text'), f'({out.get("ms")} ms)')
 
 # A chunked body (no Content-Length) is refused, and the connection closes.
 c = conn()
-c.putrequest('POST', '/stt')
+c.putrequest('POST', '/tts')
 c.putheader('x-speech-key', KEY)
 c.putheader('Transfer-Encoding', 'chunked')
 c.endheaders()
@@ -204,7 +210,7 @@ check('unknown route → 404', s == 404)
 
 # Keep-alive: a refusal followed by a good request on the SAME connection must not desync.
 c = conn()
-c.request('POST', '/stt', body=tone, headers={'content-type': 'audio/wav'})  # no key → 401, body unread
+c.request('POST', '/tts', body=hello, headers={'content-type': 'application/json'})  # no key → 401, body unread
 r1 = c.getresponse(); r1.read()
 try:
     c.request('GET', '/health')
@@ -216,7 +222,7 @@ c.close()
 
 # A stalled body frees its thread: send headers + half a body, then wait past the socket timeout.
 sk = socket.create_connection((URL.hostname, URL.port))
-sk.sendall(f'POST /stt HTTP/1.1\r\nHost: x\r\nx-speech-key: {KEY}\r\nContent-Length: 1000\r\n\r\n'.encode() + b'x' * 10)
+sk.sendall(f'POST /tts HTTP/1.1\r\nHost: x\r\nx-speech-key: {KEY}\r\nContent-Length: 1000\r\n\r\n'.encode() + b'x' * 10)
 sk.settimeout(25)
 t = time.time()
 try:
@@ -273,6 +279,34 @@ if (pool, inflight, gmax) == (3, 4, 1):
     check('the guide holds no lesson in-flight slot: two more lessons both admitted and spoken', sorted(o[0] for o in first) == [200, 200, 200] and [o[0] for o in more] == [200, 200], (first, more))
 else:
     print(f'   (skipped: the in-flight check is written for 3 voices, 4 in flight, 1 for the guide)')
+
+# THE GUIDE'S VIETNAMESE (server.py /vi/*): the guide's alone; 24 kHz PCM16 like Phonon's; one line at a time, a second busy
+# AT ONCE. Off (VI_TTS unset) — like a server from before it — /vi/* are a 404: never Vietnamese read in an English voice.
+vi_body = json.dumps({'text': 'Chào bạn! Mình là trợ lý của eno.', 'voice': 'Zoey'})
+if health.get('vi'):
+    s, _, _ = req('POST', '/vi/tts/stream', vi_body, j)
+    check('vi without the guide header → 400 (the guide\'s alone)', s == 400, s)
+    s, h, d = req('POST', '/vi/tts/stream', vi_body, guide_h)
+    check('vi/tts/stream → PCM16 at 24 kHz, whole samples, over a second of voice',
+          s == 200 and h.get('Content-Type', '').startswith('audio/L16;rate=24000') and len(d) % 2 == 0 and len(d) > 48000,
+          (s, h.get('Content-Type'), len(d)))
+    s, h, d = req('POST', '/vi/tts', vi_body, guide_h)
+    check('vi/tts → mp3 of the whole line', s == 200 and h.get('Content-Type') == 'audio/mpeg' and float(h.get('X-Audio-Seconds', 0)) > 1.0, (s, h))
+    vi_outs = []
+    def vi_timed(out):
+        t0 = time.time()
+        try:
+            out.append((req('POST', '/vi/tts/stream', vi_body, guide_h)[0], time.time() - t0))
+        except Exception as e:  # noqa: BLE001 — a client failure is a FAILED check, never a silent pass
+            out.append((type(e).__name__, time.time() - t0))
+    ths = [threading.Thread(target=vi_timed, args=(vi_outs,)) for _ in range(2)]
+    [t.start() for t in ths]
+    [t.join() for t in ths]
+    check('two Vietnamese lines at once: one spoken, the other 503 at once (< 1.5 s)',
+          sorted(str(o[0]) for o in vi_outs) == ['200', '503'] and min(t for st, t in vi_outs if st == 503) < 1.5, vi_outs)
+else:
+    s, _, _ = req('POST', '/vi/tts/stream', vi_body, guide_h)
+    check('vi off → 404 (an app gives the line to Soniox, never an English voice)', s == 404, s)
 
 # Over the in-flight cap the server answers 503 at once instead of queueing.
 results, errors = [], []

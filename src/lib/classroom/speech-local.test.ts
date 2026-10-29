@@ -184,6 +184,17 @@ describe('synthesizeStream', () => {
       vi.useRealTimers()
     }
   })
+  it('⛔ a Vietnamese line goes to the server\'s OWN /vi/ routes (an old server: 404, never an English voice) — English to /tts', async () => {
+    const mp3 = () => new Response(MP3, { headers: { 'content-type': 'audio/mpeg' } })
+    const pcm = () => new Response(new Uint8Array([1, 2]), { headers: { 'content-type': 'audio/L16;rate=24000;channels=1' } })
+    const viStyle = { ...NATURAL_VOICE, language: 'vi' as const }
+    const f = fake(pcm(), mp3(), pcm(), mp3())
+    await synthesizeStream(CFG, 'Xin chào.', 'Zoey', viStyle, undefined, f.impl, { busyRetry: false, guide: true })
+    await synthesize(CFG, 'Xin chào.', 'Zoey', viStyle, f.impl, { busyRetry: false, guide: true })
+    await synthesizeStream(CFG, 'Hi.', 'Zoey', NATURAL_VOICE, undefined, f.impl)
+    await synthesize(CFG, 'Hi.', 'Zoey', NATURAL_VOICE, f.impl)
+    expect(f.calls.map((c) => c.url.replace(CFG.url, ''))).toEqual(['/vi/tts/stream', '/vi/tts', '/tts/stream', '/tts'])
+  })
   it('a signal stopped already: the server is never asked (a listener added now would never fire — codex)', async () => {
     const f = fake(new Response(new Uint8Array([1, 2]), { headers: { 'content-type': 'audio/L16;rate=24000;channels=1' } }))
     const stop = new AbortController()
