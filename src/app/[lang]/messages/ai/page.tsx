@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { ListingCard } from '@/components/marketplace/listing-card'
+import { ReportAiAnswer } from '@/components/marketplace/report-ai-answer'
 import { haptic } from '@/lib/haptics'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { useSafeBack } from '@/lib/safe-back'
@@ -222,7 +223,17 @@ export default function AiThreadPage() {
                 ))}
               </div>
             )}
-            <span className="mt-0.5 px-1 text-3xs text-ink-4">{fmtTime(m.createdAt, lang)}</span>
+            {m.role === 'assistant' && !m.greeting && m.content ? (
+              // The answer's own Report, on its time line (Google Play, AI-Generated Content — src/lib/ai-report.ts). Every line
+              // in the AI's place but the greeting: it reports what was on screen and never claims who wrote it, since a saved
+              // chat cannot tell an answer from eno's own line (a limit, an error), nor a keyword answer from Google's.
+              <div className="mt-0.5 flex items-center gap-1 px-1">
+                <span className="text-3xs text-ink-4">{fmtTime(m.createdAt, lang)}</span>
+                <ReportAiAnswer answer={m.content} />
+              </div>
+            ) : (
+              <span className="mt-0.5 px-1 text-3xs text-ink-4">{fmtTime(m.createdAt, lang)}</span>
+            )}
           </div>
         ))}
         {loading && (

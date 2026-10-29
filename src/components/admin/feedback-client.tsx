@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MessageSquareText, Wrench, CheckCircle2, RotateCcw, Mail, ExternalLink } from '@/components/ui/icons'
+import { MessageSquareText, Wrench, CheckCircle2, RotateCcw, Mail, ExternalLink, Sparkles } from '@/components/ui/icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -78,6 +78,8 @@ export function FeedbackClient({ items: initial }: { items: FeedbackItem[] }) {
         <ul className="space-y-3">
           {shown.map((it) => {
             const technical = it.kind === 'technical'
+            // A Report on an answer eno AI gave (src/lib/ai-report.ts): the message carries the answer.
+            const ai = it.kind === 'ai'
             const resolved = it.status === 'resolved'
             return (
               <li key={it.id}>
@@ -85,8 +87,8 @@ export function FeedbackClient({ items: initial }: { items: FeedbackItem[] }) {
                   <CardContent>
                     <div className="flex items-start justify-between gap-3">
                       <Badge variant={technical ? 'warning' : 'brand'} size="md" className="gap-1.5">
-                        {technical ? <Wrench className="h-3.5 w-3.5" /> : <MessageSquareText className="h-3.5 w-3.5" />}
-                        {technical ? 'Technical' : 'Feedback'}
+                        {technical ? <Wrench className="h-3.5 w-3.5" /> : ai ? <Sparkles className="h-3.5 w-3.5" /> : <MessageSquareText className="h-3.5 w-3.5" />}
+                        {technical ? 'Technical' : ai ? 'AI answer' : 'Feedback'}
                       </Badge>
                       <span className="shrink-0 text-xs text-muted-foreground">{fmt(it.createdAt)}</span>
                     </div>

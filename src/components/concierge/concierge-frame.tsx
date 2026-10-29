@@ -7,6 +7,7 @@ import { Mic, MicOff } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { isNativeAppClient, isNativeVoiceClient } from '@/lib/app-review-gates'
 import { framedByHost } from '@/lib/concierge/frame-head'
+import { GuideLineFlag } from './guide-line-flag'
 import { hapticTap } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
 import { streamTo16k } from '@/lib/classroom/wav'
@@ -868,7 +869,13 @@ export function ConciergeFrame({ face: initialFace, open }: { face: GuideFaceCon
           )}
           {(phase === 'thinking' || phase === 'hearing') && heardLine
             ? <p className="line-clamp-2 text-3xs italic leading-snug text-primary-foreground/80">{heardLine}</p>
-            : caption && <p className="line-clamp-3 text-2xs leading-snug text-primary-foreground">{caption}</p>}
+            : caption && (
+              <div className="flex items-start gap-1">
+                <p className="line-clamp-3 min-w-0 flex-1 text-2xs leading-snug text-primary-foreground">{caption}</p>
+                {/* Report what is on screen (Google Play, AI-Generated Content — src/lib/ai-report.ts). */}
+                <GuideLineFlag line={caption} href={parentHref} />
+              </div>
+            )}
           {chips.length > 0 && phase !== 'hearing' && (
             <div className="flex flex-wrap gap-1">
               {chips.map((c) => (

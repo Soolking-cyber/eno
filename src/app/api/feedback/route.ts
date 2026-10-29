@@ -7,7 +7,8 @@ import { rateLimit } from '@/lib/ratelimit'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const KINDS = ['feedback', 'technical', 'other'] as const
+// 'ai': a Report on an answer eno AI gave (src/lib/ai-report.ts — Google Play, AI-Generated Content).
+const KINDS = ['feedback', 'technical', 'other', 'ai'] as const
 
 // Submit feedback / a technical-problem report from the Help sheet or Help Center.
 // Anonymous-friendly (search + help are open to everyone); rate-limited by profile
