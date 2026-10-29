@@ -1266,6 +1266,8 @@ export const UI_STRINGS: string[] = [
   "Forgot it? Use a code instead",
   "Forgot it? Use a code or link instead",
   "Format",
+  "Former Ba Ria–Vung Tau",
+  "Former Binh Duong",
   "Free",
   "Free & Giveaways",
   "Free Post",

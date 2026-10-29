@@ -52,7 +52,9 @@ const h = vi.hoisted(() => {
     modeBeforeDone?: string
     modeAfterDone?: string
   }[] = []
-  return { router, language, auth, facet, nav, restores }
+  /** How many times each stub card rendered, by listing id — the stub is memo'd like the real card. */
+  const cardRenders = new Map<string, number>()
+  return { router, language, auth, facet, nav, restores, cardRenders }
 })
 
 // A1-LANG: the `/vi` pilot's lists, switched on only by the test that needs them (vitest runs as the
@@ -86,11 +88,17 @@ vi.mock('@/context/language-context', () => ({
 }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => h.auth }))
 vi.mock('@/lib/analytics', () => ({ trackSearch: () => {} }))
-vi.mock('./listing-card', () => ({
-  ListingCard: ({ listing, onOpen }: { listing: SerializedListingCard; onOpen?: (l: SerializedListingCard) => void }) => (
-    <button type="button" data-testid="card" data-id={listing.id} onClick={() => onOpen?.(listing)}>{listing.title}</button>
-  ),
-}))
+// memo'd like the real card (listing-card.tsx `memo(ListingCardImpl)`, default compare) and counted, so a test can see which
+// cards a change re-rendered.
+vi.mock('./listing-card', async () => {
+  const { memo } = await import('react')
+  return {
+    ListingCard: memo(function ListingCardStub({ listing, onOpen }: { listing: SerializedListingCard; onOpen?: (l: SerializedListingCard) => void }) {
+      h.cardRenders.set(listing.id, (h.cardRenders.get(listing.id) ?? 0) + 1)
+      return <button type="button" data-testid="card" data-id={listing.id} onClick={() => onOpen?.(listing)}>{listing.title}</button>
+    }),
+  }
+})
 vi.mock('./capture-card', () => ({ CaptureCard: () => null }))
 // The two rails are markers: the phone ladder contract is about WHETHER they are on the page.
 vi.mock('./brand-rail', () => ({ BrandRail: () => <div data-testid="brand-rail" /> }))
@@ -246,6 +254,7 @@ beforeEach(() => {
   h.facet.props = null
   h.nav.pathname = '/'
   h.restores.length = 0
+  h.cardRenders.clear()
   catalogue = Array.from({ length: 30 }, (_, i) => row(`r${i}`))
   sessionStorage.clear()
   installDomStubs()
@@ -257,6 +266,34 @@ afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   window.history.replaceState({}, '', '/')
+})
+
+describe('a page append renders only the new cards (Android scroll audit 2026-10-29, rank 4)', () => {
+  it('the cards already on screen do not re-render when page 2 lands: the open handler keeps one identity', async () => {
+    const client = newClient()
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(client)
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    const before = new Map(h.cardRenders)
+    scrollToSentinel()
+    await waitFor(() => expect(cardIds()).toHaveLength(24))
+    const pageOne = cardIds().slice(0, 12) as string[]
+    expect(pageOne.filter((id) => h.cardRenders.get(id) !== before.get(id))).toEqual([])
+    expect(cardIds().slice(12).every((id) => h.cardRenders.get(id!) === 1)).toBe(true)
+  })
+
+  it('a tap on a page-two card snapshots the feed as last committed: both pages, the depth, and the card it names', async () => {
+    const client = newClient()
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(client)
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    scrollToSentinel()
+    await waitFor(() => expect(cardIds()).toHaveLength(24))
+    act(() => { screen.getAllByTestId('card').find((c) => c.getAttribute('data-id') === 'r15')!.click() })
+    const snap = JSON.parse(sessionStorage.getItem('eno:feed-snap')!)
+    expect(snap.listings.map((l: { id: string }) => l.id)).toEqual(cardIds())
+    expect(snap).toMatchObject({ page: 2, totalCount: 30, anchorId: 'r15' })
+  })
 })
 
 describe('the next-page warm-up shares the live query\'s cache entry', () => {

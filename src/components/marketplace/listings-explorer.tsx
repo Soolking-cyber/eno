@@ -3439,9 +3439,20 @@ export function ListingsExplorer({
     return () => io.disconnect()
   }, [hasMore, queryFetching, prefetchNextPage, viewMode, showDiscovery, feedUnlocked, query, debouncedQuery, listings.length, autoLoadCeiling, seedMasked, pageWithoutAnswer])
 
+  /**
+   * What a card tap snapshots: the feed as last committed, read AT the tap. A layout effect with no deps keeps it current,
+   * like `snapSourceRef`, so `handleOpen` keeps ONE identity. With these values as its deps, it changed on every page append
+   * (the sentinel's setPage, then the append's setListings), and every memoized card re-rendered twice per page, in urgent
+   * renders that are not time-sliced (Android scroll audit 2026-10-29, rank 4; listings-explorer.feed-ux.test.tsx).
+   */
+  const tapSnapRef = useRef({ listings, page, totalCount, feedSig, feedUnlocked, autoLoadCeiling })
+  useLayoutEffect(() => {
+    tapSnapRef.current = { listings, page, totalCount, feedSig, feedUnlocked, autoLoadCeiling }
+  })
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
   const handleOpen = useCallback((l: SerializedListingCard, opts?: { anchored?: boolean }) => {
+    const { listings, page, totalCount, feedSig, feedUnlocked, autoLoadCeiling } = tapSnapRef.current
     // Snapshot the feed so a back-nav lands the buyer exactly where they left off
     // (rows + page + scroll), not at the top of a reset feed. Cap the payload so a
     // very deep scroll can't bloat sessionStorage.
@@ -3480,7 +3491,7 @@ export function ListingsExplorer({
       }
     } catch { /* ignore quota/serialization */ }
     router.push(`/listings/${l.id}`)
-  }, [listings, page, totalCount, feedSig, feedUnlocked, autoLoadCeiling, router])
+  }, [router])
   /** A tap on the home teacher shelf: the same snapshot and push, minus the anchor (see `anchored` above). */
   const openFromShelf = useCallback((l: SerializedListingCard) => handleOpen(l, { anchored: false }), [handleOpen])
   /**

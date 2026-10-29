@@ -86,6 +86,13 @@ export function SellerListings({
 }) {
   const router = useRouter()
   const { tr, lang } = useLanguage()
+  // One identity per card handler: inline closures re-rendered every memoized card on each render here (typing in the
+  // search, sort, Show more) — the explorer's `handleOpen` fix (Android scroll audit 2026-10-29, rank 4).
+  const openCard = useCallback((l: SerializedListingCard) => router.push(`/listings/${l.id}`), [router])
+  const locateCard = useCallback(
+    (l: SerializedListingCard) => router.push(localizedHref(`/?focus=${l.id}`, hereVariant(homeVariant ?? variantOfLanguage(lang)))),
+    [router, homeVariant, lang],
+  )
   const [q, setQ] = useState('')
   const [sort, setSort] = useState<SortKey>(initialSort)
 
@@ -404,7 +411,7 @@ export function SellerListings({
     <div className={LISTING_GRID}>
       {shown.map((l, i) => (
         <div key={l.id} data-sid={l.sellerId} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)} onFocus={() => router.prefetch(`/listings/${l.id}`)}>
-          <ListingCard listing={l} onOpen={() => router.push(`/listings/${l.id}`)} onLocate={() => router.push(localizedHref(`/?focus=${l.id}`, hereVariant(homeVariant ?? variantOfLanguage(lang))))} priority={i < 4} lcp={i === 0 && !remote} />
+          <ListingCard listing={l} onOpen={openCard} onLocate={locateCard} priority={i < 4} lcp={i === 0 && !remote} />
         </div>
       ))}
     </div>
