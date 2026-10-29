@@ -2119,6 +2119,42 @@ html.native #prelaunch-banner {
 html.native #app-footer {
   display: none;
 }
+/* The AI guide's mark (ai-concierge.tsx GuideMark): its two sound waves pulse in turn, near then far, like a voice.
+   ⚠️ TWICE, NOT FOREVER (review, codex + opus): an endless pulse in the header is moving content with no way to stop it
+   (WCAG 2.2.2 — anything over 5 s) and a repaint on every frame of every page on a phone. So it speaks twice when the
+   page opens (3.6 s) and again for as long as a pointer or the keyboard is on its button. Reduced motion: still. */
+/* Full ink at both ends, so the last pulse lands where the wave rests — no jump (review, opus). */
+@keyframes guide-wave {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.guide-wave {
+  animation: guide-wave 1.8s ease-in-out 2;
+}
+/* Hover only where a pointer really hovers: a phone keeps `:hover` on what was tapped, which would pulse for good
+   (review, codex + opus). The keyboard's focus is its own rule, everywhere. ⚠️ A NEW ANIMATION NAME, NOT A NEW COUNT:
+   raising the count on the finished one resumes it mid-pulse (a snap to 25 %, review opus); a new name starts at 0 %,
+   which is full ink — where the wave rests. */
+@keyframes guide-wave-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+@media (hover: hover) {
+  :is(button, a):hover .guide-wave {
+    animation-name: guide-wave-live;
+    animation-iteration-count: infinite;
+  }
+}
+:is(button, a):focus-visible .guide-wave {
+  animation-name: guide-wave-live;
+  animation-iteration-count: infinite;
+}
+.guide-wave-far {
+  animation-delay: 0.3s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-wave { animation: none; }
+}
 /* The app's page sheet (src/lib/app-sheet.ts): a page inside it is the page alone. The app around it already shows
    the header, the tab bar and the floating controls; the `native` classes the head script copies in take the footer
    and the prelaunch banner (above). Keyed on a class only the sheet's own frame can set — never on a URL a link

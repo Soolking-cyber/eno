@@ -38,7 +38,7 @@ vi.mock('./account-panel', () => ({ useAccountPanel: () => ({ open: false }) }))
 vi.mock('@/lib/safe-back', () => ({ useSafeBack: () => () => {} }))
 vi.mock('./notification-bell', () => ({ NotificationBell: () => null }))
 vi.mock('./app-download', () => ({ AppDownload: () => null }))
-vi.mock('./ai-concierge', () => ({ AISearchButton: () => null }))
+vi.mock('./ai-concierge', () => ({ AISearchButton: () => null, GuideMark: () => null }))
 
 import { Header, isPostFlowPath } from './header'
 

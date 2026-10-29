@@ -6,7 +6,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { User, Search, MapPin, Map, Clock, X, ChevronLeftIcon, LayoutGrid, Sparkles, Heart } from '@/components/ui/icons'
+import { User, Search, MapPin, Map, Clock, X, ChevronLeftIcon, LayoutGrid, Heart } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { preloadSignIn, useAuth } from '@/context/auth-context'
 import { useFavoriteCount } from '@/context/favorites-context'
@@ -35,7 +35,7 @@ import { buildSuggestItems, type PanelSuggestItem } from './search-suggest'
 import { TrendingSearches } from './trending-searches'
 import { useTrendingPanel } from '@/hooks/use-trending-searches'
 import { searchPanels, trendingEnabled } from '@/lib/search-panel'
-import { AISearchButton } from './ai-concierge'
+import { AISearchButton, GuideMark } from './ai-concierge'
 import {
   useSuggestKeyboardNav, activeSuggestOptionId, visualSearchFromPaste,
   readRecentSearches, readRecentLocations, RECENT_LOCATIONS_KEY, type RecentLocation,
@@ -1008,7 +1008,8 @@ export function Header() {
                 <>
                   {/* AI shopping concierge — pressable: press to enter AI mode (duotone), press
                       again for normal search. Sits left of the map in every search bar. */}
-                  {/* ⛔ `hidden sm:flex` — PHONES GET THIS AS THE PANEL'S FIRST ROW INSTEAD (O-03, see `isPhone`). */}
+                  {/* ⛔ ON PHONES TOO, at the field's right end (owner, 2026-10-29: "on mobile visible inside search bar
+                      riht side") — it was `hidden sm:flex`, the panel's first row only (O-03). Map stays sm+ (below). */}
                   <AISearchButton
                     active={pathname === '/messages/ai'}
                     onClick={openAi}
@@ -1023,7 +1024,7 @@ export function Header() {
                        still overhung the search input on the left, which owns those pixels, so this
                        button measured 38px — under the 44px minimum. Margin on both sides gives the
                        hit area room in both directions. */
-                    className="relative ml-2 mr-2 hidden h-10 w-10 tap-48 sm:flex"
+                    className="relative ml-2 mr-2 flex h-10 w-10 tap-48"
                   />
                   {/* ⚠️ MAP VIEW, BACK IN THE BAR (owner, 2026-08-03: "add mapview back to searchbar in
                       top navbar, inside to the right of ai search icon"). It lived in the hero search
@@ -1095,7 +1096,10 @@ export function Header() {
                       Same row geometry as the recent-search rows below (44px, `-mx-2` so the icons line up under
                       the eyebrows' glyphs), and both hold focus in the field on press like those rows do, so the
                       keyboard does not drop and shift the panel under the finger before the click lands.
-                      ⚠️ The AI row keeps the pill button's `aria-current` on /messages/ai. */}
+                      ⚠️ The AI row keeps the pill button's `aria-current` on /messages/ai.
+                      Since 2026-10-29 a phone ALSO shows the pill's button (the guide's mark at the field's right end) —
+                      but only while this panel is closed: open, the pill shows ✕ in its place, so the two are never on
+                      screen together. */}
                   <ul aria-label={tr('Other ways to search', 'Cách tìm khác')} className="-mx-2 sm:hidden">
                     <li>
                       <Button
@@ -1107,7 +1111,7 @@ export function Header() {
                         aria-current={pathname === '/messages/ai' ? 'page' : undefined}
                         className="flex w-full items-center justify-start gap-2.5 rounded-xl px-2 py-3 text-left text-sm font-semibold text-body hover:bg-muted cursor-pointer"
                       >
-                        <Sparkles className="h-5 w-5 shrink-0 text-accent-foreground" />
+                        <GuideMark className="h-5 w-5 shrink-0 text-accent-foreground" />
                         <span className="min-w-0 truncate">{tr('Ask eno AI', 'Hỏi eno AI')}</span>
                       </Button>
                     </li>

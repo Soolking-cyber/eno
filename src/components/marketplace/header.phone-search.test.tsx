@@ -43,7 +43,7 @@ vi.mock('@/lib/safe-back', () => ({ useSafeBack: () => () => {} }))
 vi.mock('./notification-bell', () => ({ NotificationBell: () => <button type="button" aria-label="Notifications" /> }))
 vi.mock('./app-download', () => ({ AppDownload: () => null }))
 vi.mock('@/hooks/use-is-phone', () => ({ useIsPhone: () => h.phone.value }))
-vi.mock('./ai-concierge', () => ({ AISearchButton: () => <button type="button" aria-label="AI" /> }))
+vi.mock('./ai-concierge', () => ({ AISearchButton: () => <button type="button" aria-label="AI" />, GuideMark: () => null }))
 
 import { Header } from './header'
 import { setConciergeAvailable } from '@/lib/concierge/client'

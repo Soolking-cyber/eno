@@ -49,7 +49,7 @@ vi.mock('./account-panel', () => ({ useAccountPanel: () => ({ open: false }) }))
 vi.mock('@/lib/safe-back', () => ({ useSafeBack: () => () => {} }))
 vi.mock('./notification-bell', () => ({ NotificationBell: () => <button type="button" aria-label="Notifications" /> }))
 vi.mock('./app-download', () => ({ AppDownload: () => null }))
-vi.mock('./ai-concierge', () => ({ AISearchButton: () => <button type="button" aria-label="AI" /> }))
+vi.mock('./ai-concierge', () => ({ AISearchButton: () => <button type="button" aria-label="AI" />, GuideMark: () => null }))
 vi.mock('@/lib/edition', async (orig) => ({ ...(await orig<typeof import('@/lib/edition')>()), get IS_SERVICES() { return h.services } }))
 
 import { Header } from './header'
