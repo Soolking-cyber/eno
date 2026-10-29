@@ -21,7 +21,13 @@ non-commercial; only `phonon-31m-en` may ship).
 - `POST /tts/stream`: the same request; the answer is raw PCM16 (`audio/L16`, 24 kHz mono) as it is made.
 - One pool of voice instances (`TTS_POOL`, default 3 — the old `TTS_NATURAL` + `TTS_SLOW` add up to it): each request sets
   its own pace on the instance it holds, so the pace costs no memory.
-- `GET /health`: the models, the voices, and the peak RSS.
+- `x-speech-class: guide` on a `/tts` or `/tts/stream` request (the voice guide's English — owner, 2026-10-29: "priority
+  english and vietnamese rest use soniox"): it never waits for a voice — `503` at once, never after `LOCK_WAIT_S`, and none
+  while a lesson is waiting for one — and at most `GUIDE_TTS_MAX` (default 1; 0 = none) of the pool's voices speak for the
+  guide at a time — never all of them. Its own share admits it: a guide line never takes one of the lessons'
+  `MAX_IN_FLIGHT` slots. The app sends a guide line the box cannot take to Soniox (`src/lib/classroom/session-voice.ts`).
+- `GET /health`: the models, the voices, the pool (`ttsPool`), `maxInFlight`, the guide's share (`guideTtsMax`), and the
+  peak RSS.
 
 The app calls this server with `x-speech-key` on every request (`src/lib/classroom/speech-local.ts`). There is no
 fallback to a hosted service: when this server is down, the classroom says "try again". Azure is used for one thing only:

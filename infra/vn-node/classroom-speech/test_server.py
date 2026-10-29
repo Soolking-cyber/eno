@@ -226,6 +226,54 @@ except socket.timeout:
 check('stalled body is cut off (socket timeout)', time.time() - t < 24, f'{time.time() - t:.1f}s {got[:60]}')
 sk.close()
 
+# THE VOICE GUIDE (server.py GUIDE_TTS_MAX): a guide line never waits for a voice — busy AT ONCE, never after LOCK_WAIT_S
+# (6 s) — and no more than GUIDE_TTS_MAX speak for the guide at a time; the app then asks Soniox (session-voice.ts).
+cap = json.loads(req('GET', '/health', key=False)[2])
+gmax, pool, inflight = cap.get('guideTtsMax'), cap.get('ttsPool'), cap.get('maxInFlight')
+check('health reports the guide\'s share of the voices — never all of them', all(isinstance(x, int) for x in (gmax, pool, inflight)) and 0 <= gmax < pool, cap)
+# ~6 s of voice: long enough to hold a voice while the next request arrives, short of the server's 12 s cut under load.
+held = json.dumps({'text': 'One two three four five six seven eight nine ten. ' * 2, 'voice': 'Zoey'})
+guide_h = {**j, 'x-speech-class': 'guide'}
+def timed(headers, out):
+    t0 = time.time()
+    try:
+        out.append((req('POST', '/tts/stream', held, headers)[0], time.time() - t0))
+    except Exception as e:  # noqa: BLE001 — a client failure is a FAILED check, never a silent pass
+        out.append((type(e).__name__, time.time() - t0))
+outs = []
+ths = [threading.Thread(target=timed, args=(guide_h, outs)) for _ in range(gmax + 2)]
+[t.start() for t in ths]
+[t.join() for t in ths]
+spoke, busy = [o for o in outs if o[0] == 200], [o for o in outs if o[0] == 503]
+check('guide lines at once: its share spoken, the rest 503 at once (< 1.5 s)',
+      len(spoke) == gmax and len(busy) == 2 and max(tm for _, tm in busy) < 1.5, outs)
+# Every voice held by a lesson: a guide line is busy at once, while a lesson's would wait (LOCK_WAIT_S). Needs a free
+# in-flight slot for the guide's request beside the lessons'.
+if pool < inflight:
+    lessons, guide_out = [], []
+    ths = [threading.Thread(target=timed, args=(j, lessons)) for _ in range(pool)]
+    [t.start() for t in ths]
+    time.sleep(0.4)
+    timed(guide_h, guide_out)
+    [t.join() for t in ths]
+    check('every voice held by a lesson: the guide gets 503 at once (< 1.5 s)', guide_out and guide_out[0][0] == 503 and guide_out[0][1] < 1.5, (guide_out, lessons))
+    check('…and the lessons all spoke', [o[0] for o in lessons] == [200] * pool, lessons)
+else:
+    print(f'   (skipped: {pool} voices and {inflight} in flight leave no slot for a guide request beside the lessons)')
+# The guide never takes a lesson's in-flight slot: with the guide's voice and two lessons' in use, two more lessons are both
+# admitted and wait for a voice (while the guide held a slot, the second of them got 503 at once — codex + opus).
+if (pool, inflight, gmax) == (3, 4, 1):
+    first, more = [], []
+    ths = [threading.Thread(target=timed, args=(h_, first)) for h_ in (j, j, guide_h)]
+    [t.start() for t in ths]
+    time.sleep(0.3)
+    ths2 = [threading.Thread(target=timed, args=(j, more)) for _ in range(2)]
+    [t.start() for t in ths2]
+    [t.join() for t in ths + ths2]
+    check('the guide holds no lesson in-flight slot: two more lessons both admitted and spoken', sorted(o[0] for o in first) == [200, 200, 200] and [o[0] for o in more] == [200, 200], (first, more))
+else:
+    print(f'   (skipped: the in-flight check is written for 3 voices, 4 in flight, 1 for the guide)')
+
 # Over the in-flight cap the server answers 503 at once instead of queueing.
 results, errors = [], []
 def hit():

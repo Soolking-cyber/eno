@@ -101,6 +101,12 @@ TRIM_FRAME_MS = 10
 # queue would only turn a busy minute into timeouts the app then retries.
 MAX_IN_FLIGHT = int(os.environ.get('MAX_IN_FLIGHT', '4'))
 LOCK_WAIT_S = 6.0           # longest a request waits for its model before answering 503
+# THE VOICE GUIDE (eno.vn's concierge; owner, 2026-10-29: "priority english … rest use soniox" — the guide's English is
+# made here first). A request marked `x-speech-class: guide` NEVER waits for a voice — busy at once, so a guide line never
+# stands in the queue ahead of a lesson's — and at most GUIDE_TTS_MAX of the POOL's voices speak for the guide at a time,
+# never all of them (GUIDE_VOICES below), so a lesson always finds one. The app sends a guide line the box cannot take at
+# once to Soniox (session-voice.ts). 0 = the guide never speaks here.
+GUIDE_TTS_MAX = int(os.environ.get('GUIDE_TTS_MAX', '1'))
 SOCKET_TIMEOUT_S = 15       # a client that stops sending mid-body frees its thread after this
 # The app stops waiting for a voice after 10 s (speech-local.ts TTS_BUDGET_MS); past this the server stops reading
 # the reply too, instead of holding that voice's lock for a client that has gone (opus, commit review).
@@ -147,6 +153,12 @@ if _missing:  # a voice the image lacks would be fetched from the catalogue at r
     raise SystemExit(f'voices missing from {TTS_DIR}: {_missing}')
 
 _in_flight = threading.BoundedSemaphore(MAX_IN_FLIGHT)
+# Plain Semaphore, not Bounded: a BoundedSemaphore(0) — GUIDE_TTS_MAX=0, the guide off — would still be valid, but a
+# Semaphore of 0 says it plainly: acquire never succeeds, and nothing is ever released into it.
+# Never every voice, whatever GUIDE_TTS_MAX says: a lesson always keeps one (codex, commit review: a pool of 1, or
+# GUIDE_TTS_MAX >= TTS_POOL, would let the guide hold them all).
+GUIDE_VOICES = max(0, min(GUIDE_TTS_MAX, POOL - 1))
+_guide = threading.Semaphore(GUIDE_VOICES)
 
 
 class Busy(Exception):
@@ -199,10 +211,38 @@ def recognize(raw):
 _SENTENCE_END = re.compile(r'(?<=[.!?])\s+')
 
 
-def take_voice(delta):
-    """A voice instance for one request, set to its pace — or Busy. The caller puts it back (put_voice) when done."""
+# Lessons waiting for a voice right now: while any does, the guide takes none — the next one freed is the lesson's
+# (opus, commit review: get_nowait() could take a voice the moment it was put back, ahead of the waiting get()).
+_waiting = 0
+_waiting_lock = threading.Lock()
+
+
+def take_voice(delta, wait=True):
+    """A voice instance for one request, set to its pace — or Busy. The caller puts it back (put_voice) when done.
+    `wait=False` (the voice guide): one that is free NOW while no lesson waits for one, or Busy at once."""
+    global _waiting
     try:
-        tts = _tts.get(timeout=LOCK_WAIT_S)
+        if wait:
+            # A free voice is taken at once; only a lesson that must WAIT is counted as waiting (opus, round 3: counted
+            # first, it refused the guide a voice that was free) — and its look and its count are ONE step under the
+            # guide's lock (codex + opus, round 4: between them, the guide could take the voice just put back).
+            with _waiting_lock:
+                try:
+                    tts = _tts.get_nowait()
+                except queue.Empty:
+                    tts = None
+                    _waiting += 1
+            if tts is None:
+                try:
+                    tts = _tts.get(timeout=LOCK_WAIT_S)
+                finally:
+                    with _waiting_lock:
+                        _waiting -= 1
+        else:
+            with _waiting_lock:
+                if _waiting:
+                    raise Busy()
+                tts = _tts.get_nowait()
     except queue.Empty:
         raise Busy()
     try:
@@ -347,11 +387,11 @@ def clean_text(text):
     return re.sub(r'\s+', ' ', text).strip()
 
 
-def speak(text, voice, delta, loud=False, gap_s=GAP_MS_DEFAULT / 1000):
+def speak(text, voice, delta, loud=False, gap_s=GAP_MS_DEFAULT / 1000, wait=True):
     """MP3 (24 kHz mono, ~7 KB a second) of the whole reply, read a sentence at a time with a short
     breath between — the same format Azure's TTS gave, so the page decodes it the same way."""
     deadline = time.perf_counter() + TTS_DEADLINE_S
-    tts = take_voice(delta)
+    tts = take_voice(delta, wait)
     try:
         gap = np.zeros(int(SAMPLE_RATE * gap_s), dtype=np.float32)
         parts = []
@@ -467,12 +507,12 @@ class Handler(BaseHTTPRequestHandler):
             raise BadRequest('short_body')
         return data
 
-    def _stream(self, text, voice, style, t0):
+    def _stream(self, text, voice, style, t0, wait=True):
         """/tts/stream: 200 and the PCM as it is made, the body ending when the connection closes (no length — it is
         not known yet). The voice instance is taken BEFORE the 200 and held to the end, so the only refusal (busy) is a
         503 — never a 200 with no voice; a failure after the 200 simply ends the body short."""
         delta, loud, gap_s = style
-        tts = take_voice(delta)
+        tts = take_voice(delta, wait)
         try:
             self.close_connection = True
             self.send_response(200)
@@ -505,7 +545,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/health':
             return self._send(200, {'ok': True, 'stt': 'parakeet-tdt-0.6b-v2-int8', 'tts': 'phonon-31m-en',
-                                    'voices': list(VOICES), 'sampleRate': SAMPLE_RATE, 'peakRssMb': peak_rss_mb()})
+                                    'voices': list(VOICES), 'sampleRate': SAMPLE_RATE, 'ttsPool': POOL, 'maxInFlight': MAX_IN_FLIGHT,
+                                    'guideTtsMax': GUIDE_VOICES, 'peakRssMb': peak_rss_mb()})
         self._send(404, {'error': 'not_found'})
 
     def do_POST(self):
@@ -516,8 +557,12 @@ class Handler(BaseHTTPRequestHandler):
         # The key BEFORE a slot (opus, commit review): a caller without it must not be able to fill the server.
         if not self._authorised():
             return self._send(401, {'error': 'unauthorised'})
-        if not _in_flight.acquire(blocking=False):
-            print(f'{route} 503 busy', flush=True)
+        # The voice guide (GUIDE_VOICES): admitted by its own share, never one of the lessons' in-flight slots (codex +
+        # opus, commit review: a guide line held one of the four, and a fourth lesson request got 503 at once).
+        guide = route != 'stt' and self.headers.get('x-speech-class') == 'guide'
+        gate = _guide if guide else _in_flight
+        if not gate.acquire(blocking=False):
+            print(f'{route} 503 {"guide_busy" if guide else "busy"}', flush=True)
             return self._send(503, {'error': 'busy'})
         try:
             if route == 'stt':
@@ -538,9 +583,10 @@ class Handler(BaseHTTPRequestHandler):
             text = clean_text(text) if isinstance(text, str) else ''
             if not text or len(text) > MAX_TEXT_CHARS:
                 return self._send(400, {'error': 'text'})
+            # The guide: a voice free NOW, or busy at once (take_voice).
             if route == 'tts-stream':
-                return self._stream(text, voice, style, t0)
-            mp3, seconds = speak(text, voice, *style)
+                return self._stream(text, voice, style, t0, wait=not guide)
+            mp3, seconds = speak(text, voice, *style, wait=not guide)
             ms = round((time.perf_counter() - t0) * 1000)
             print(f'tts {ms}ms audio={seconds:.1f}s chars={len(text)} pace={style[0]} loud={style[1]}', flush=True)
             return self._send(200, mp3, 'audio/mpeg', {'X-Audio-Seconds': f'{seconds:.2f}', 'X-Synth-Ms': str(ms)})
@@ -557,7 +603,7 @@ class Handler(BaseHTTPRequestHandler):
             print(f'{route} 500 {type(e).__name__}', flush=True)
             return self._send(500, {'error': 'internal'})
         finally:
-            _in_flight.release()
+            gate.release()
 
 
 class Server(ThreadingHTTPServer):
@@ -608,5 +654,5 @@ if __name__ == '__main__':
     warm.accept_waveform(16000, np.zeros(16000, dtype=np.float32))  # an EMPTY stream throws (0 feature frames)
     _stt.decode_stream(warm)
     print(f'classroom-speech on :{port} (stt {STT_THREADS} threads, tts {TTS_THREADS}, '
-          f'{MAX_IN_FLIGHT} in flight, rss {peak_rss_mb()} MB)', flush=True)
+          f'{MAX_IN_FLIGHT} in flight, {GUIDE_VOICES} for the guide, rss {peak_rss_mb()} MB)', flush=True)
     Server(('0.0.0.0', port), Handler).serve_forever()

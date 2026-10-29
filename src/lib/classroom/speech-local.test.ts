@@ -77,6 +77,20 @@ describe('synthesize', () => {
     expect((await synthesize(CFG, 'Hi.', 'Zoey', NATURAL_VOICE, g.impl)).length).toBe(MP3.length)
     expect(g.calls).toHaveLength(2)
   })
+  it('the voice guide\'s line is marked `x-speech-class: guide` (busy at once on the server, its share of voices) — a lesson\'s is not', async () => {
+    const mp3 = () => new Response(MP3, { headers: { 'content-type': 'audio/mpeg' } })
+    const f = fake(mp3(), mp3())
+    await synthesize(CFG, 'Hi.', 'Zoey', NATURAL_VOICE, f.impl, { busyRetry: false, guide: true })
+    await synthesize(CFG, 'Hi.', 'Zoey', NATURAL_VOICE, f.impl)
+    expect([header(f.calls[0], 'x-speech-class'), header(f.calls[1], 'x-speech-class')]).toEqual(['guide', null])
+    expect(header(f.calls[0], 'x-speech-key')).toBe(CFG.key)
+    const pcm = () => new Response(new Uint8Array([1, 2]), { headers: { 'content-type': 'audio/L16;rate=24000;channels=1' } })
+    const g = fake(pcm(), pcm())
+    await synthesizeStream(CFG, 'Hi.', 'Zoey', NATURAL_VOICE, undefined, g.impl, { busyRetry: false, guide: true })
+    await synthesizeStream(CFG, 'Hi.', 'Zoey', NATURAL_VOICE, undefined, g.impl)
+    expect([header(g.calls[0], 'x-speech-class'), header(g.calls[1], 'x-speech-class')]).toEqual(['guide', null])
+    expect(header(g.calls[0], 'x-speech-key')).toBe(CFG.key)
+  })
   it('a line over the server’s cap is cut at its last full sentence, never refused whole', async () => {
     const long = 'This is one sentence of the reply. '.repeat(30)
     expect(long.length).toBeGreaterThan(MAX_SPOKEN_CHARS)
@@ -169,6 +183,13 @@ describe('synthesizeStream', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+  it('a signal stopped already: the server is never asked (a listener added now would never fire — codex)', async () => {
+    const f = fake(new Response(new Uint8Array([1, 2]), { headers: { 'content-type': 'audio/L16;rate=24000;channels=1' } }))
+    const stop = new AbortController()
+    stop.abort()
+    await expect(synthesizeStream(CFG, 'Hi.', 'Zoey', NATURAL_VOICE, stop.signal, f.impl)).rejects.toMatchObject({ status: 502 })
+    expect(f.calls).toHaveLength(0)
   })
   it('the caller’s signal stops the voice: the stream simply ends', async () => {
     const stop = new AbortController()

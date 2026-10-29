@@ -119,6 +119,14 @@ export function spokenPart(text: string): string {
 }
 
 /**
+ * `busyRetry: false` — no second try on a full server. `guide` — the voice guide's line (src/lib/concierge/start.ts),
+ * marked so the server answers busy AT ONCE rather than queue it ahead of a lesson's, and gives the guide no more than its
+ * share of the voices (server.py GUIDE_TTS_MAX).
+ */
+export type SynthOpts = { busyRetry?: boolean; guide?: boolean }
+const guideHeader = (opts: SynthOpts): Record<string, string> => (opts.guide ? { 'x-speech-class': 'guide' } : {})
+
+/**
  * How a line is asked for (pace.ts VoiceStyle): the pace by NAME (the server maps it — never a number), a child's louder
  * voice, the breath between its sentences. ⚠️ `rate` too, for a speech server from before the paces (it reads only that):
  * the two slower paces are its 'slow'.
@@ -135,9 +143,12 @@ function styleBody(style: VoiceStyle) {
  * the breath the caller puts BEFORE this line when it follows another sentence of the same reply (turn-stream.ts) — never
  * after a reply's last one, which would only hold up the learner's turn.
  */
-export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voice: string, style: VoiceStyle, signal?: AbortSignal, fetchImpl: typeof fetch = fetch, opts: { busyRetry?: boolean } = {}): Promise<{ rate: number; chunks: AsyncGenerator<Uint8Array>; pauseMs: number }> {
+export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voice: string, style: VoiceStyle, signal?: AbortSignal, fetchImpl: typeof fetch = fetch, opts: SynthOpts = {}): Promise<{ rate: number; chunks: AsyncGenerator<Uint8Array>; pauseMs: number }> {
   const stop = new AbortController()
   const onAbort = () => stop.abort()
+  // Stopped already (talked over before its turn): the server is never asked — a listener added now would never fire, and
+  // the request would take a voice for no one (codex, commit review).
+  if (signal?.aborted) throw new SpeechError(502, 'tts')
   signal?.addEventListener('abort', onAbort, { once: true })
   const firstByte = setTimeout(onAbort, TTS_BUDGET_MS)
   let res: Response | null = null
@@ -145,7 +156,7 @@ export async function synthesizeStream(cfg: LocalSpeechConfig, text: string, voi
     try {
       res = await fetchImpl(`${cfg.url}/tts/stream`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-speech-key': cfg.key },
+        headers: { 'content-type': 'application/json', 'x-speech-key': cfg.key, ...guideHeader(opts) },
         body: JSON.stringify({ text: spokenPart(text), voice, ...styleBody(style) }),
         signal: stop.signal,
         redirect: 'error',
@@ -212,8 +223,8 @@ function concatBytes(a: Uint8Array, b: Uint8Array): Uint8Array {
 }
 
 /** One line in `voice` (an id from voices.ts — the server refuses any other) → MP3 bytes. */
-export async function synthesize(cfg: LocalSpeechConfig, text: string, voice: string, style: VoiceStyle, fetchImpl: typeof fetch = fetch, opts: { busyRetry?: boolean } = {}): Promise<Buffer> {
-  const { res } = await call(cfg, '/tts', { headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: spokenPart(text), voice, ...styleBody(style) }) }, TTS_BUDGET_MS, 'tts', fetchImpl, opts.busyRetry !== false)
+export async function synthesize(cfg: LocalSpeechConfig, text: string, voice: string, style: VoiceStyle, fetchImpl: typeof fetch = fetch, opts: SynthOpts = {}): Promise<Buffer> {
+  const { res } = await call(cfg, '/tts', { headers: { 'content-type': 'application/json', ...guideHeader(opts) }, body: JSON.stringify({ text: spokenPart(text), voice, ...styleBody(style) }) }, TTS_BUDGET_MS, 'tts', fetchImpl, opts.busyRetry !== false)
   if (!(res.headers.get('content-type') ?? '').startsWith('audio/mpeg')) throw new SpeechError(502, 'tts')
   const bytes = Buffer.from(await res.arrayBuffer().catch(() => { throw new SpeechError(502, 'tts') }))
   if (bytes.length < 200) throw new SpeechError(502, 'tts')
