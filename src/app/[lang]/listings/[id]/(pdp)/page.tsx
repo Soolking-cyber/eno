@@ -82,6 +82,8 @@ import { RentalCheckToggle } from '@/components/marketplace/rental-check-toggle'
 import { isChatOnlyPartner, rentalCheckApplies } from '@/lib/rental-check/shared'
 import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/affiliate-booking'
 import { ImportProvenance } from '@/components/marketplace/import-provenance'
+import { GoplusRoomLink } from '@/components/marketplace/goplus-room-link'
+import { goplusRoomPageUrl } from '@/lib/goplus-listing'
 import { importProvenance } from '@/lib/import-provenance'
 import { JobApplyGuard } from '@/components/marketplace/job-apply-guard'
 import { SchoolLinkForJob } from '@/components/schools/school-link-for-job'
@@ -464,6 +466,10 @@ export default async function ListingPage({ params }: Props) {
   // Where an IMPORTED listing came from, and the date that is true for that source (SEO wave B, P1):
   // a rental portal's own post date, the day eno imported it, or — for a partner shop's item — no date.
   // ⚠️ The RAW columns: `listing.postedAt` is serialized as the later of postedAt and createdAt.
+  // A GoPlus room's own page on goplus.com.vn (owner, 2026-10-29) — from the row's `goplus:<id>` externalId, which the
+  // GoPlus importer writes, on an OFFICIAL PARTNER's storefront only (a flag eno's staff set, never the seller): the
+  // link is always built here, to goplus.com.vn, never from text anyone can type.
+  const goplusPage = rawListing.seller.officialPartner === true ? goplusRoomPageUrl(rawListing.externalId) : null
   const provenance = importProvenance({
     sellerId: listing.sellerId,
     sellerName: listing.seller.name,
@@ -1403,7 +1409,7 @@ export default async function ListingPage({ params }: Props) {
 
             {/* 8 — Description + Details (+ a rental's Costs and Amenities between them). The wrapper renders
                 only when one of them does: an empty flex item in this gapped column would still earn a gap. */}
-            {(showDescription || showDetails || costRows.length > 0 || amenities.length > 0) && (
+            {(showDescription || showDetails || costRows.length > 0 || amenities.length > 0 || !!goplusPage) && (
             <div className="order-8 flex flex-col gap-8">
               {/* Section headers on this page share ONE treatment (text-lg font-semibold, matching
                   the shelf + reviews headers below) with more space above (section gap) than below. */}
@@ -1419,6 +1425,7 @@ export default async function ListingPage({ params }: Props) {
                   right after the words and before the reference table. Each renders only when the listing states it. */}
               {costRows.length > 0 && <RentalCosts rent={monthlyRent} rows={costRows} />}
               {amenities.length > 0 && <RentalAmenities items={amenities} />}
+              {goplusPage && <GoplusRoomLink href={goplusPage} />}
 
               {showDetails && (
                 <div className="space-y-2">

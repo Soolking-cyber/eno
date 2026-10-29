@@ -122,7 +122,7 @@ import type { VerificationRow } from '../src/lib/compliance/derive-verification'
 import type { SellerPublishDecision } from '../src/lib/compliance/seller-publish-decision'
 import { licenceClearedSql, licenceClearedWhere } from '../src/lib/licence-stamp'
 import {
-  GOPLUS_CATEGORY_SLUG, GOPLUS_EMAIL, GOPLUS_HANDLE, GOPLUS_MAX_PHOTOS_DEFAULT, GOPLUS_SUBCAT, GOPLUS_MIN_PHOTOS, GOPLUS_PAGE_MAX, GOPLUS_PHOTO_FLOOR,
+  GOPLUS_CATEGORY_SLUG, GOPLUS_EMAIL, GOPLUS_HANDLE, GOPLUS_MAX_PHOTOS_DEFAULT, GOPLUS_SUBCATS, GOPLUS_MIN_PHOTOS, GOPLUS_PAGE_MAX, GOPLUS_PHOTO_FLOOR,
   GOPLUS_VACANT_STATUS, goplusExternalId, goplusPartialTokens, goplusOverlaySlug,
   GOPLUS_PROJECTS_API, GOPLUS_ROOMS_API, GOPLUS_UA, GOPLUS_UA_TOKEN, GOPLUS_VIDEO_MAX_BYTES,
   goplusApplyExitCode, goplusPhotoAction, goplusPhotoPlan, goplusPublishGate, goplusReadProblem, goplusSellerRefusal, goplusSourceKey,
@@ -132,6 +132,8 @@ import {
 } from '../src/lib/goplus-listing'
 
 // ─── arguments ──────────────────────────────────────────────────────────────────────────────────
+/** The two GoPlus aisles as a SQL list (constants, quoted) — apartments and commercial space (goplus-listing.ts GOPLUS_SUBCATS). */
+const GOPLUS_SUBCATS_SQL = GOPLUS_SUBCATS.map(nhatotSqlLit).join(', ')
 const argv = process.argv.slice(2)
 /** ⛔ AN UNKNOWN FLAG IS AN ERROR — `--limt 30` silently meaning "no limit" is how a sample becomes a full write. */
 const FLAGS = new Set(['--apply', '--force', '--refresh-media', '--no-video', '--allow-no-isr', '--no-probe'])
@@ -501,7 +503,7 @@ async function rollback(path: string) {
       const args = [part.map((x) => x.id), part.map((x) => x.priorStatus), part.map((x) => x.updatedAt), EXPIRED_STATUS, j.stamp, j.sellerId] as const
       // ⛔ The GoPlus storefront and its apartment aisle, pinned — and the licence guard — so a row someone moved into
       // another aisle since cannot come back through this undo.
-      const where = `l.id = j.id AND l.status = $4 AND l."updatedAt" = $5::timestamp AND l."sellerId" = $6 AND l."subcategorySlug" = '${GOPLUS_SUBCAT}' AND ${licenceClearedSql('l.')}`
+      const where = `l.id = j.id AND l.status = $4 AND l."updatedAt" = $5::timestamp AND l."sellerId" = $6 AND l."subcategorySlug" IN (${GOPLUS_SUBCATS_SQL}) AND ${licenceClearedSql('l.')}`
       restorable += (await db.$queryRawUnsafe<{ n: number }[]>(`SELECT count(*)::int AS n FROM "Listing" l, unnest($1::text[], $2::text[], $3::text[]) AS j(id, prior, upd) WHERE ${where}`, ...args))[0].n
       if (APPLY) {
         const back = (await db.$queryRawUnsafe<{ id: string }[]>(`UPDATE "Listing" l SET status = j.prior, "updatedAt" = j.upd::timestamp, "verificationNotes" = CASE WHEN l.verified THEN NULL ELSE l."verificationNotes" END FROM unnest($1::text[], $2::text[], $3::text[]) AS j(id, prior, upd) WHERE ${where} RETURNING l.id`, ...args)).map((x) => x.id)
@@ -778,10 +780,12 @@ async function main() {
       // A building whose full amenity list was not read this run: an existing row keeps the BUILDING-WIDE amenities it
       // holds and takes the room's own as read now (goplusPartialTokens — no flip-flop on a flaky request, no frozen
       // room); a new row is created with what is known.
-      const data = { ...r.mutable, categoryId: category.id, ...(r.amenitiesPartial && cur ? { facetTokens: goplusPartialTokens(r.mutable.facetTokens, cur.facetTokens as string | null) } : {}) }
+      // A shopfront carries no amenity tokens at all (goplus-listing.ts), so nothing of an apartment's stored ones survives a
+      // re-typing into commercial space (review, codex).
+      const data = { ...r.mutable, categoryId: category.id, ...(r.amenitiesPartial && cur && r.mutable.facetTokens !== null ? { facetTokens: goplusPartialTokens(r.mutable.facetTokens, cur.facetTokens as string | null) } : {}) }
       // ⛔ Written only in the aisle every write, release, rollback and the expiry are pinned to (reviewers' catches): a row
       // created — or refreshed, or revived — into another one could never be refreshed, expired or rolled back again.
-      if (r.mutable.subcategorySlug !== GOPLUS_SUBCAT) { stat.errored++; console.warn(`  ! ${r.externalId}: mapped into "${r.mutable.subcategorySlug}", not ${GOPLUS_SUBCAT} — skipped`); return }
+      if (!GOPLUS_SUBCATS.includes(r.mutable.subcategorySlug)) { stat.errored++; console.warn(`  ! ${r.externalId}: mapped into "${r.mutable.subcategorySlug}", not ${GOPLUS_SUBCATS.join(' / ')} — skipped`); return }
       if (!cur) {
         const photos = await hostPhotos(ctx, r)
         if (photos.decision !== 'create') { bump(photos.decision === 'uploadFailed' ? 'uploadFailed' : photos.decision); return }
@@ -853,7 +857,7 @@ async function main() {
             : {}
         const back = await db.listing.updateMany({
           // ⛔ Pinned to the GoPlus storefront's apartment aisle AND the licence guard (header ⛔ 1b).
-          where: { id: cur.id, sellerId, subcategorySlug: GOPLUS_SUBCAT, status: EXPIRED_STATUS, verified: cur.verified, identityHold: cur.identityHold, updatedAt: cur.updatedAt, AND: [licenceClearedWhere([])] },
+          where: { id: cur.id, sellerId, subcategorySlug: { in: [...GOPLUS_SUBCATS] }, status: EXPIRED_STATUS, verified: cur.verified, identityHold: cur.identityHold, updatedAt: cur.updatedAt, AND: [licenceClearedWhere([])] },
           data: { ...data, ...dates, ...media, availabilityConfirmedAt: new Date(), status: 'active', ...publishState },
         })
         if (back.count !== 1) { stat.raced++; return }
@@ -871,7 +875,11 @@ async function main() {
       const w = await db.listing.updateMany({
         // Pinned to the apartment aisle too (a reviewer's catch): a room a person moved elsewhere is theirs, left alone.
         // …and on the updatedAt this run read (a reviewer's catch): a person's edit made while the media downloaded wins.
-        where: { id: cur.id, sellerId, subcategorySlug: GOPLUS_SUBCAT, status: { not: 'removed' }, updatedAt: cur.updatedAt, ...(repost ? { postedAt: cur.postedAt } : {}) },
+        // ⚠️ EITHER GoPlus aisle, and the write may MOVE a row between them: GoPlus owns these rows, so a room it re-types
+        // (2PN ↔ MB) follows its source, as every other path here treats both aisles as the importer's (review, codex +
+        // opus — pinning the write to one aisle left a re-typed room stale forever). A row a person moved to any OTHER aisle
+        // is still theirs, left alone.
+        where: { id: cur.id, sellerId, subcategorySlug: { in: [...GOPLUS_SUBCATS] }, status: { not: 'removed' }, updatedAt: cur.updatedAt, ...(repost ? { postedAt: cur.postedAt } : {}) },
         data: { ...data, ...dates, ...media },
       })
       if (w.count !== 1) { stat.raced++; return }
@@ -911,7 +919,7 @@ async function main() {
         // storefront's apartment aisle, and ANDs the licence guard — releaseIdentityHolds' shape, for this storefront.
         const releasedRows = await db.$queryRawUnsafe<{ id: string }[]>(
           `UPDATE "Listing" SET verified = true, "identityHold" = false, "verificationNotes" = NULL
-            WHERE "sellerId" = $1 AND status = 'active' AND "identityHold" AND "subcategorySlug" = '${GOPLUS_SUBCAT}' AND "externalId" LIKE 'goplus:%' AND ${licenceClearedSql()}
+            WHERE "sellerId" = $1 AND status = 'active' AND "identityHold" AND "subcategorySlug" IN (${GOPLUS_SUBCATS_SQL}) AND "externalId" LIKE 'goplus:%' AND ${licenceClearedSql()}
             RETURNING id`,
           sellerId,
         )
@@ -955,7 +963,7 @@ async function main() {
       /** Re-read NOW: the live rows after this run's creates and revivals, with the exact updatedAt the write is guarded on. */
       const live = await db.$queryRaw<{ id: string; externalId: string | null; status: string; updatedAt: string }[]>`
         SELECT id, "externalId", status, "updatedAt"::text AS "updatedAt" FROM "Listing"
-        WHERE "sellerId" = ${sellerId} AND status = 'active' AND "externalId" LIKE 'goplus:%' AND "subcategorySlug" = ${GOPLUS_SUBCAT} ORDER BY id`
+        WHERE "sellerId" = ${sellerId} AND status = 'active' AND "externalId" LIKE 'goplus:%' AND "subcategorySlug" = ANY(${[...GOPLUS_SUBCATS]}::text[]) ORDER BY id`
       const plan = planGoplusExpiry({ live, available: new Set([...available, ...vacantAgain, ...unknownBuilding]), force: FORCE })
       console.log(`expiry            ${plan.expire.length} of ${live.length} live rows no longer vacant/publishable → '${EXPIRED_STATUS}'`)
       if (plan.refusal) { expiryRefused = true; console.error(`⛔ EXPIRY REFUSED: ${plan.refusal}`) }

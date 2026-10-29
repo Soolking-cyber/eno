@@ -76,6 +76,19 @@ export const GOPLUS_EMAIL = 'contact@goplus.com.vn'
 /** Same category and subcategory as every other apartment (taxonomy.ts): rentals › apartment-rental. */
 export const GOPLUS_CATEGORY_SLUG = 'rentals'
 export const GOPLUS_SUBCAT = 'apartment-rental'
+/**
+ * GoPlus's shopfronts and shop floors (Kiot, MB — mặt bằng) — rentals › office-rental, the taxonomy's commercial space
+ * ("Mặt bằng"). Owner, 2026-10-29: "import all their inventory" → asked about the 11 commercial units: "Yes, as
+ * commercial rentals". The importer owns rows under EITHER subcategory (GOPLUS_SUBCATS), never anything else.
+ */
+export const GOPLUS_COMMERCIAL_SUBCAT = 'office-rental'
+export const GOPLUS_SUBCATS: readonly string[] = [GOPLUS_SUBCAT, GOPLUS_COMMERCIAL_SUBCAT]
+
+/** GoPlus's own page for one room — `/phong/<id>` answers 301 to the room's slug page (measured 2026-10-29). */
+export function goplusRoomPageUrl(externalId: unknown): string | null {
+  const id = goplusRoomIdOf(externalId)
+  return id ? `https://goplus.com.vn/phong/${id}` : null
+}
 /** 'VND/month' — the app decides a rent's unit (nhatot-listing.ts NHATOT_PRICE_UNIT says why). */
 export const GOPLUS_PRICE_UNIT = listingMoneyFor({ categorySlug: GOPLUS_CATEGORY_SLUG, listingType: 'rent' }).priceUnit
 /** The rentals publish floor: 3 DISTINCT photos — the bar a person's own post has to clear (publish-guard). */
@@ -97,6 +110,13 @@ export const GOPLUS_VIDEO_MAX_SECONDS = 60
 /** A monthly rent outside this is a typo or a sale price, never a room (measured: 1.4 M – 25 M). */
 export const GOPLUS_PRICE_MIN = 1_000_000
 export const GOPLUS_PRICE_MAX = 200_000_000
+/**
+ * ⚠️ A SIZE THAT CONTRADICTS THE ROOM IS NOT PUBLISHED (owner, 2026-10-29: "many apartments have wron area like 3 bedroom 20
+ * meter square" → "Hide size + tell GoPlus"). Measured that day: GoPlus's OWN page says "Cho thuê 2PN 20m²" — their data
+ * entry, copied faithfully — and 58 of their 2PN/3PN/penthouse rooms sit under 35 m². Two or more bedrooms, or a penthouse,
+ * under this floor → the room is published with no size, like a "1820 m²" typo (GOPLUS_AREA_MAX below).
+ */
+export const GOPLUS_MULTI_ROOM_MIN_AREA = 30
 /** The Size facet's own range (taxonomy.ts areaM2: 0–500) — a "1820 m²" room is a typo, published as no size. */
 export const GOPLUS_AREA_MAX = 500
 
@@ -294,7 +314,8 @@ export type GoplusUnit = 'studio' | 'duplex' | 'penthouse' | '1br' | '2br' | '3b
 /**
  * GoPlus's unit type, typos folded ("Studiô", "StudioStudio", "Diplex", "Penhouse"). A room with no type is a plain
  * "Phòng" (the five measured are titled "403 - Phòng", "G01 - Phòng"). Kiot and MB (mặt bằng — a shop floor) are
- * COMMERCIAL premises, never an apartment: dropped. An unseen type is 'unknown' and dropped rather than guessed.
+ * COMMERCIAL premises, never an apartment: filed as commercial space (GOPLUS_COMMERCIAL_SUBCAT, owner 2026-10-29). An
+ * unseen type is 'unknown' and dropped rather than guessed.
  */
 export function goplusUnit(type: string | null): GoplusUnit {
   if (!type) return 'room'
@@ -309,7 +330,7 @@ export function goplusUnit(type: string | null): GoplusUnit {
   if (t === 'phong') return 'room'
   return 'unknown'
 }
-const UNIT_LABEL: Record<Exclude<GoplusUnit, 'commercial' | 'unknown'>, { vi: string; en: string; aptType: string | null; bedrooms: string | null }> = {
+const UNIT_LABEL: Record<Exclude<GoplusUnit, 'unknown'>, { vi: string; en: string; aptType: string | null; bedrooms: string | null }> = {
   // ⚠️ A STUDIO AND A DUPLEX COUNT AS ONE BEDROOM, as every other source lists them (taxonomy.ts aptType: "STUDIO LIVES
   // HERE, not as bedrooms=0") — the Studio/Duplex distinction is `aptType`, so the 1-bedroom chip still finds them.
   studio: { vi: 'Studio', en: 'Studio', aptType: 'studio', bedrooms: '1' },
@@ -320,6 +341,7 @@ const UNIT_LABEL: Record<Exclude<GoplusUnit, 'commercial' | 'unknown'>, { vi: st
   '2br': { vi: 'Căn hộ 2 phòng ngủ', en: '2-bedroom apartment', aptType: 'serviced', bedrooms: '2' },
   '3br': { vi: 'Căn hộ 3 phòng ngủ', en: '3-bedroom apartment', aptType: 'serviced', bedrooms: '3' },
   room: { vi: 'Phòng', en: 'Room', aptType: null, bedrooms: null },
+  commercial: { vi: 'Mặt bằng', en: 'Commercial space', aptType: null, bedrooms: null },
 }
 
 /**
@@ -604,14 +626,20 @@ export const GOPLUS_OUTRO_EN = 'Message GoPlus to check availability and book a 
 export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, opts: GoplusMapOptions): { ok: true; row: GoplusMapped } | { ok: false; reason: GoplusDropReason } {
   if (room.statusId !== GOPLUS_VACANT_STATUS) return { ok: false, reason: 'notVacant' }
   const unit = goplusUnit(room.type)
-  if (unit === 'commercial') return { ok: false, reason: 'commercial' }
   if (unit === 'unknown') return { ok: false, reason: 'unknownType' }
   const price = room.price.base
   if (price === null || price <= 0) return { ok: false, reason: 'noPrice' }
   if (price < GOPLUS_PRICE_MIN || price > GOPLUS_PRICE_MAX) return { ok: false, reason: 'priceRange' }
   if (!project) return { ok: false, reason: 'noProject' }
+  /**
+   * ⚠️ A WARD IS ENOUGH (owner, 2026-10-29: "import all their inventory"). GoPlus sends NO district for its buildings in
+   * former Bình Dương — Dĩ An, Đông Hòa, Tân Uyên, Lái Thiêu: 116 vacant rooms measured that day — which are in HCMC since
+   * the 2025 merger and have no HCMC district chip. Those keep `district` NULL and their ward in the location text, as
+   * Bến Cát and Thuận An already did; a room with neither a district nor a ward is still not published.
+   */
   const district = goplusDistrict(project.district)
-  if (!district) return { ok: false, reason: 'noDistrict' }
+  const ward = goplusWard(room.ward ?? project.ward)
+  if (!district && !ward) return { ok: false, reason: 'noDistrict' }
   /**
    * `maxPhotos` below the floor would drop every row, so the floor wins. ⚠️ TWICE THE CAP AS CANDIDATES (a reviewer's catch,
    * 2026-10-19): the importer judges them in GoPlus's order and keeps the first `maxPhotos` real ones (goplusPhotoPlan
@@ -623,8 +651,10 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
   const videos = [...new Set(room.videos.filter(isGoplusVideoUrl))]
 
   const label = UNIT_LABEL[unit]
-  const area = typeof room.area === 'number' && room.area > 0 && room.area <= GOPLUS_AREA_MAX ? Math.round(room.area * 10) / 10 : null
-  const ward = goplusWard(room.ward ?? project.ward)
+  const multiRoom = unit === '2br' || unit === '3br' || unit === 'penthouse'
+  const area = typeof room.area === 'number' && room.area > 0 && room.area <= GOPLUS_AREA_MAX && !(multiRoom && room.area < GOPLUS_MULTI_ROOM_MIN_AREA)
+    ? Math.round(room.area * 10) / 10
+    : null
   /** ⛔ A STREET NAME, NEVER AN ADDRESS — Nhà Tốt's fail-closed rule (nhatotStreetName): GoPlus's street field holds
    *  door and alley numbers on some rooms ("237/38A1 Phạm Văn Chiêu", "A75 Bạch Đằng, Tân Sơn Hòa"), dropped whole. */
   const street = nhatotStreetName(room.street ?? project.street)
@@ -649,11 +679,11 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
   const sourceTime = room.updatedAt ? Date.parse(room.updatedAt) : NaN
   const sourceAt = new Date(Number.isFinite(sourceTime) ? Math.min(sourceTime, opts.now) : opts.now)
 
-  const whereVi = [ward?.vi, district.vi].filter(Boolean).join(', ')
-  const whereEn = [ward?.en, district.en].filter(Boolean).join(', ')
+  const whereVi = [ward?.vi, district?.vi].filter(Boolean).join(', ')
+  const whereEn = [ward?.en, district?.en].filter(Boolean).join(', ')
   const titleVi = `${label.vi}${area ? ` ${area} m²` : ''} · ${whereVi}`
   const title = `${label.en}${area ? ` ${area} m²` : ''} · ${whereEn}`
-  const location = district.canonical ? `${district.vi}${ward ? ` (${ward.vi})` : ''}` : [ward?.vi, district.vi].filter(Boolean).join(', ')
+  const location = district?.canonical ? `${district.vi}${ward ? ` (${ward.vi})` : ''}` : [ward?.vi, district?.vi].filter(Boolean).join(', ')
 
   /**
    * ⛔ ONE OR TWO SENTENCES, NOT A FACT SHEET (UI review, 2026-10-19). The PDP renders the costs (rent, deposit,
@@ -662,8 +692,8 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
    * everything twice. It names what and where, and how to reach GoPlus. The free-text extras GoPlus staff typed have no
    * section of their own, so they stay — in Vietnamese only, the language they were typed in.
    */
-  const placeEn = [street, ward?.en, district.en, HCM.cityEn].filter(Boolean).join(', ')
-  const placeVi = [street, ward?.vi, district.vi, HCM.cityVi].filter(Boolean).join(', ')
+  const placeEn = [street, ward?.en, district?.en, HCM.cityEn].filter(Boolean).join(', ')
+  const placeVi = [street, ward?.vi, district?.vi, HCM.cityVi].filter(Boolean).join(', ')
   const sentenceEn = `${label.en}${area ? ` of ${area} m²` : ''} ${street ? 'on' : 'in'} ${placeEn}.`
   const sentenceVi = `${label.vi}${area ? ` ${area} m²` : ''} tại ${placeVi}.${extras.length ? ` Tiện ích khác: ${extras.join(', ')}.` : ''}`
 
@@ -732,20 +762,22 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
         currency: '₫',
         negotiable: room.negotiable,
         listingType: 'rent',
-        subcategorySlug: GOPLUS_SUBCAT,
+        subcategorySlug: unit === 'commercial' ? GOPLUS_COMMERCIAL_SUBCAT : GOPLUS_SUBCAT,
         location,
-        district: district.canonical ? district.vi : null,
+        district: district?.canonical ? district.vi : null,
         city: HCM.city,
         lat: coords?.lat ?? null,
         lng: coords?.lng ?? null,
         areaM2: area,
         attributes: JSON.stringify(attrs),
-        /** Multi-valued, so its own column (facet-tokens.ts) — the `amenities` facet filters it. */
-        facetTokens: buildFacetTokens({ amenities: am.list.map((a) => a.value) }),
+        /** Multi-valued, so its own column (facet-tokens.ts) — the `amenities` facet filters it. Apartments only: commercial
+         *  space has no amenities facet (taxonomy.ts), so a shopfront carries none (review, opus). */
+        facetTokens: unit === 'commercial' ? null : buildFacetTokens({ amenities: am.list.map((a) => a.value) }),
         /** ⚠️ title and titleVi FIRST, as every importer writes it (import-i18n.ts rebaseSearchText relies on it). */
         searchText: buildSearchText([
-          title, titleVi, location, district.vi, district.en, ward?.vi, street, HCM.cityVi, HCM.cityEn, 'GoPlus',
-          ...am.list.flatMap((a) => [a.vi, a.en]), am.furnished ? 'nội thất đầy đủ fully furnished' : null, ...extras,
+          title, titleVi, location, district?.vi, district?.en, ward?.vi, street, HCM.cityVi, HCM.cityEn, 'GoPlus',
+          // An apartment's amenities are searchable; a shopfront's are not (no amenities facet there — "balcony" finds homes).
+          ...(unit === 'commercial' ? [] : am.list.flatMap((a) => [a.vi, a.en])), am.furnished ? 'nội thất đầy đủ fully furnished' : null, ...extras,
         ]),
       },
     },

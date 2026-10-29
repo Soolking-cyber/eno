@@ -7,7 +7,7 @@ import {
   goplusWard, isGoplusImageUrl, isGoplusVideoUrl, mapGoplusRoom, mp4Info, planGoplusExpiry, stageGoplusProject,
   goplusBuildingAmenityKeys, GOPLUS_BUILDING_WIDE_KEYS, goplusPartialTokens, goplusOverlaySlug,
   stageGoplusRoom, type GoplusProject, type GoplusRoom, goplusElectricityGuess, GOPLUS_ELECTRICITY_TYPICAL,
-  GOPLUS_ELECTRICITY_GUESS_MAX_OFF,
+  GOPLUS_ELECTRICITY_GUESS_MAX_OFF, GOPLUS_COMMERCIAL_SUBCAT, goplusRoomPageUrl,
 } from './goplus-listing'
 import { parseFacetTokens } from './facet-tokens'
 import { ELECTRICITY_ESTIMATED, plausibleFee, rentalCostRows } from './rental-facts'
@@ -279,11 +279,11 @@ describe('mapGoplusRoom — the sample room as it would be stored', () => {
 
 describe('mapGoplusRoom — the variants', () => {
   it('a 2PN serviced flat, furnished, water per m³, negotiable, moving in later — all in the attributes, none in the text', () => {
-    const r = mapped(room({ type: '2PN', amenityKeys: ['furnished', 'balcony'], fees: [{ id: 'water', price: 28000, unit: 'm³' }], negotiable: true, availableDate: '2026-11-02' }))
+    const r = mapped(room({ type: '2PN', area: 45, amenityKeys: ['furnished', 'balcony'], fees: [{ id: 'water', price: 28000, unit: 'm³' }], negotiable: true, availableDate: '2026-11-02' }))
     expect(JSON.parse(r.mutable.attributes)).toMatchObject({ bedrooms: '2', aptType: 'serviced', furnishing: 'fully', waterPrice: '28000', waterUnit: 'm3', availableFrom: '2026-11-02' })
     expect(r.mutable.negotiable).toBe(true)
-    expect(r.mutable.titleVi).toBe('Căn hộ 2 phòng ngủ 20 m² · Phường Trung Mỹ Tây, Quận 12')
-    expect(r.mutable.description.startsWith('2-bedroom apartment of 20 m² on Ql1a, Trung My Tay Ward, District 12, Ho Chi Minh City.')).toBe(true)
+    expect(r.mutable.titleVi).toBe('Căn hộ 2 phòng ngủ 45 m² · Phường Trung Mỹ Tây, Quận 12')
+    expect(r.mutable.description.startsWith('2-bedroom apartment of 45 m² on Ql1a, Trung My Tay Ward, District 12, Ho Chi Minh City.')).toBe(true)
     expect(r.mutable.searchText).toContain('fully furnished')
   })
   it('a past availableDate is not published; nonsense sizes and occupancies are left out', () => {
@@ -383,8 +383,6 @@ describe('mapGoplusRoom — the variants', () => {
   })
   it.each([
     ['let ("Đã thuê")', { statusId: '2', statusTitle: 'Đã thuê' }, 'notVacant'],
-    ['a kiosk', { type: 'Kiot' }, 'commercial'],
-    ['a shop floor (MB = mặt bằng)', { type: 'MB' }, 'commercial'],
     ['an unseen type', { type: 'Villa' }, 'unknownType'],
     ['no rent', { price: { base: null, electric: 1, water: 1, waterUnit: 'person', service: 1 } }, 'noPrice'],
     ['a rent under 1 M', { price: { base: 500000, electric: 1, water: 1, waterUnit: 'person', service: 1 } }, 'priceRange'],
@@ -395,9 +393,41 @@ describe('mapGoplusRoom — the variants', () => {
   ] as [string, Partial<GoplusRoom>, string][])('drops %s', (_, patch, reason) => {
     expect(mapGoplusRoom(room(patch), project(), OPTS)).toEqual({ ok: false, reason })
   })
-  it('drops a room whose building is unknown, or whose building has no district', () => {
+  it('drops a room whose building is unknown, or that has neither a district nor a ward', () => {
     expect(mapGoplusRoom(room(), null, OPTS)).toEqual({ ok: false, reason: 'noProject' })
-    expect(mapGoplusRoom(room(), project({ district: null }), OPTS)).toEqual({ ok: false, reason: 'noDistrict' })
+    expect(mapGoplusRoom(room({ ward: null }), project({ district: null, ward: null }), OPTS)).toEqual({ ok: false, reason: 'noDistrict' })
+  })
+  // Owner, 2026-10-29: "import all their inventory" — GoPlus sends no district for its former-Bình Dương buildings.
+  it('a room with a ward but no district (former Bình Dương) is published, district NULL, the ward in its place', () => {
+    const r = mapped(room({ ward: 'Phường Dĩ An' }), project({ district: null, ward: 'Phường Dĩ An' }))
+    expect(r.mutable.district).toBeNull()
+    expect(r.mutable.location).toBe('Phường Dĩ An')
+    expect(r.mutable.titleVi).toMatch(/· Phường Dĩ An$/)
+    expect(r.mutable.description).toContain('Di An Ward, Ho Chi Minh City.')
+  })
+  // Owner, 2026-10-29: "Yes, as commercial rentals" (Kiot, MB — mặt bằng).
+  it.each([['a kiosk', 'Kiot'], ['a shop floor (MB = mặt bằng)', 'MB'], ['"Mặt Bằng"', 'Mặt Bằng']])('files %s as commercial space', (_, type) => {
+    const r = mapped(room({ type }))
+    expect(r.mutable.subcategorySlug).toBe(GOPLUS_COMMERCIAL_SUBCAT)
+    expect(r.mutable.title.startsWith('Commercial space')).toBe(true)
+    expect(r.mutable.titleVi.startsWith('Mặt bằng')).toBe(true)
+    expect(JSON.parse(r.mutable.attributes)).not.toHaveProperty('bedrooms')
+    expect(r.mutable.facetTokens).toBeNull() // commercial space has no amenities facet
+  })
+  // Owner, 2026-10-29: "many apartments have wron area like 3 bedroom 20 meter square" → "Hide size + tell GoPlus".
+  it.each([['2PN', 20], ['3PN', 29], ['Penhouse', 25]])('a %s of %i m² is published with NO size (it contradicts the room)', (type, area) => {
+    const r = mapped(room({ type, area }))
+    expect(r.mutable.areaM2).toBeNull()
+    expect(r.mutable.titleVi).not.toContain('m²')
+  })
+  it('a 2PN from 30 m², and a studio or 1PN of 20 m², keep their size', () => {
+    expect(mapped(room({ type: '2PN', area: 30 })).mutable.areaM2).toBe(30)
+    expect(mapped(room({ type: 'Studio', area: 20 })).mutable.areaM2).toBe(20)
+    expect(mapped(room({ type: '1PN', area: 20 })).mutable.areaM2).toBe(20)
+  })
+  it('the room\'s own page on goplus.com.vn, from its stored externalId only', () => {
+    expect(goplusRoomPageUrl('goplus:d1c036ae6826f5254ba9e8d9')).toBe('https://goplus.com.vn/phong/d1c036ae6826f5254ba9e8d9')
+    for (const bad of [null, '', 'goplus:', 'goplus:XYZ', 'nhatot:123', 'goplus:d1c036ae6826f5254ba9e8d9/../x']) expect(goplusRoomPageUrl(bad)).toBeNull()
   })
   it('a future updatedAt is clamped to now', () => {
     expect(mapped(room({ updatedAt: '2027-01-01T00:00:00Z' })).sourceAt.getTime()).toBe(NOW)
