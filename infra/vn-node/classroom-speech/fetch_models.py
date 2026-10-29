@@ -135,13 +135,22 @@ ZEROTTS = {
 # Runtime's advice for x86 without VNNI (the box's Broadwell), where u8s8 products can saturate. Measured on the i9 (AVX2,
 # no VNNI): first sound ~0.1 s, RTF 0.47 at 2 threads, ~1.0 GB. The codec decoder stays fp32 (not on the per-frame path).
 ZEROTTS_HOT = ('onnx/text_encoder.onnx', 'onnx/prefix_step.onnx', 'onnx/local_frame_decode.onnx')
-# ⛔ AND THE INT8 THEY BECOME IS PINNED TOO (opus, commit review): the voice served is the one listened to on 2026-10-29 —
-# byte-identical from two separate quantizations there (onnxruntime 1.23.2, onnx 1.19.1, numpy 2.5.4). A different result
-# (another wheel, another platform) fails the build: nothing changes on the box, and the bytes are looked at first.
+# ⛔ AND THE INT8 THEY BECOME IS PINNED — PER PLATFORM (codex + opus, commit review). The same recipe on the same pinned
+# inputs and versions (onnxruntime 1.23.2, onnx 1.19.1, numpy 2.5.4) gives different BYTES on macOS and on Linux, and the
+# same bytes again on each: two macOS runs agreed, and so did two Linux builds on different machines — the box's and a
+# linux/amd64 Docker build (2026-10-29; the first deploy stopped on a macOS-only pin, nothing changed). The Linux voice
+# was rendered and listened to before it was pinned here. Any other platform, or new bytes on these, fails the build.
 ZEROTTS_INT8 = {
-    'onnx/text_encoder.onnx': 'fc076bf58fa412f1bfaee79446cfecc9aaa29db1c63c2bb03b2effc6e23de1f2',
-    'onnx/prefix_step.onnx': '86a6050cfaf5c8b5a9a92c9bb52712201635b67d7ab1284a38e26faf6cc00f0d',
-    'onnx/local_frame_decode.onnx': '004ea141c7a228dbde3273312aeb56d3d2d8656cb4095ceabbef75abeccfeffc',
+    'linux': {
+        'onnx/text_encoder.onnx': 'a1936ff1adf18f2bedf76c4f4ca84dfc499d58e442e1400ecee02e07441369bd',
+        'onnx/prefix_step.onnx': 'e2dc19ee89d4fabb20cf95585344a6d617e5912afe71cd74388b2a24fa1b2b38',
+        'onnx/local_frame_decode.onnx': '0876c4d5dd7c1a900d1f00fc499a398b9014b1027d6baa58756972a328c61597',
+    },
+    'darwin': {
+        'onnx/text_encoder.onnx': 'fc076bf58fa412f1bfaee79446cfecc9aaa29db1c63c2bb03b2effc6e23de1f2',
+        'onnx/prefix_step.onnx': '86a6050cfaf5c8b5a9a92c9bb52712201635b67d7ab1284a38e26faf6cc00f0d',
+        'onnx/local_frame_decode.onnx': '004ea141c7a228dbde3273312aeb56d3d2d8656cb4095ceabbef75abeccfeffc',
+    },
 }
 
 
@@ -171,7 +180,7 @@ def zerotts():
             folded.unlink(missing_ok=True)
             int8.unlink(missing_ok=True)
         print(f'zerotts int8 {name} {fp32.stat().st_size / 1e6:.0f} MB sha256 {sha256(fp32)}')
-        check(fp32, ZEROTTS_INT8[name])
+        check(fp32, ZEROTTS_INT8[sys.platform][name])  # an unknown platform is a KeyError: the build stops
 
 
 if __name__ == '__main__':
