@@ -9,6 +9,7 @@ import { quietError } from '@/lib/classroom/quiet-error'
 import { getGeminiVertex } from '@/lib/gemini'
 import { isLanguage } from '@/lib/languages'
 import { logError } from '@/lib/log'
+import { hiddenSellerIdsFor } from '@/lib/user-blocks'
 import type { PageState } from '@/lib/concierge/types'
 
 export const runtime = 'nodejs'
@@ -62,9 +63,21 @@ export const POST = route({ auth: 'profile', body, rateLimit: { bucket: 'concier
     history.unshift(h)
   }
   const lang = isLanguage(b.lang) ? b.lang : 'en'
+  /**
+   * ⛔ The account's blocked shops, read FRESH on every turn, never cached here (App Store 1.2): a block made a second ago
+   * already holds for every read and action of this answer — a listing opens only by an id this turn's own (filtered)
+   * PAGE or SEARCH RESULTS carried (actions.ts). Words the guide said in earlier turns, which the window sends back as
+   * history, are not rewritten. FAIL CLOSED (commit review, opus): without them no read may run, so the turn is refused,
+   * logged and retried by the person. Read BEFORE the offer is taken (commit review, codex): a failed read never spends
+   * the person's pending "yes".
+   */
+  const hidden = await hiddenSellerIdsFor(profile.id).catch((e: unknown) => {
+    logError(quietError(e), { op: 'concierge.blocks' })
+    throw new ApiError('guide_busy', 503)
+  })
   // An offer is answered by the very next turn or not at all.
   const offer = await takeOffer(s.id)
-  const page: PageState = await pageStateFor(b.href, { lang }).catch((e) => {
+  const page: PageState = await pageStateFor(b.href, { lang, hidden }).catch((e) => {
     logError(quietError(e), { op: 'concierge.page' })
     return { href: b.href, kind: 'other', category: null, subcategory: null, filters: {}, search: '', total: null, cards: [], summary: 'Page: unknown' } satisfies PageState
   })
@@ -76,6 +89,7 @@ export const POST = route({ auth: 'profile', body, rateLimit: { bucket: 'concier
     ai: getGeminiVertex(),
     speak: conciergeSpeaker(spokenLanguage(lang)),
     acceptedOffer: offer === 'evisa' && isPlainYes(b.transcript),
+    hidden,
     onOffer: () => { void rememberOffer(s.id, 'evisa') },
   })
   return new Response(answerLines(turn.lines, turn.stop), {

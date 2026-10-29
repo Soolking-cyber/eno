@@ -446,6 +446,114 @@ describe('a listing page', () => {
   })
 })
 
+describe('⛔ the viewer\'s blocked shops (App Store 1.2) — never read, described or opened', () => {
+  const BLOCKED = ['shop-b', 'shop-a']
+
+  it('an explorer read asks the feed as the viewer\'s own explorer does: `xs`, the blocked shops — so the count is that screen\'s', async () => {
+    h.payload.mockResolvedValue(feed(7, []))
+    await pageStateFor('/?category=teachers&attr_workIn=d1', { lang: 'en', hidden: BLOCKED })
+    expect(sent().get('xs')).toBe('shop-a,shop-b')
+    expect(sent().get('category')).toBe('teachers')
+  })
+
+  it('a viewer who blocked nothing sends no `xs` and shares the plain read; a blocker\'s read is their own (no shared cache entry)', async () => {
+    h.payload.mockResolvedValue(feed(7, []))
+    await pageStateFor('/?category=teachers', { lang: 'en' })
+    await pageStateFor('/?category=teachers', { lang: 'en', hidden: [] })
+    expect(h.payload).toHaveBeenCalledTimes(1)
+    expect(sent().has('xs')).toBe(false)
+    h.payload.mockResolvedValue(feed(5, []))
+    expect((await pageStateFor('/?category=teachers', { lang: 'en', hidden: BLOCKED })).total).toBe(5)
+    expect(h.payload).toHaveBeenCalledTimes(2)
+    // The same blocks in another order are the same read; the plain read is still the plain one.
+    await pageStateFor('/?category=teachers', { lang: 'en', hidden: ['shop-a', 'shop-b'] })
+    expect(h.payload).toHaveBeenCalledTimes(2)
+    expect((await pageStateFor('/?category=teachers', { lang: 'en' })).total).toBe(7)
+  })
+
+  it('an hourly-budget find carries `xs` too; at most MAX_HIDDEN_IN_QUERY, the newest first (the explorer\'s own cut); a malformed id never goes out', async () => {
+    h.payload.mockResolvedValue(feed(0, []))
+    const many = Array.from({ length: 101 }, (_, i) => `shop-${String(i).padStart(3, '0')}`)
+    await pageStateFor('/?category=teachers', { lang: 'en', rateMax: 300_000, hidden: [...many, 'bad id"]'] })
+    const xs = sent().get('xs')!.split(',')
+    expect(xs).toHaveLength(100)
+    expect(xs).not.toContain('shop-100')
+    expect(xs.some((id) => id.includes('"'))).toBe(false)
+    expect(sent().get('attr_cover')).toBe('open')
+  })
+
+  it('⛔ past the `xs` cut (more than MAX_HIDDEN_IN_QUERY blocks) a blocked shop\'s row that comes back is dropped — never described, the next card moves up as on the screen (commit review)', async () => {
+    const many = Array.from({ length: 101 }, (_, i) => `shop-${String(i).padStart(3, '0')}`)
+    h.payload.mockResolvedValue(feed(3, [rental({ id: 'cl-101', sellerId: 'shop-100' }), rental({ id: 'cl-ok', sellerId: 'shop-z' })]))
+    h.findMany.mockResolvedValue(rows([{ id: 'cl-101' }, { id: 'cl-ok' }]))
+    const s = await pageStateFor('/?category=rentals', { lang: 'en', hidden: many })
+    expect(sent().get('xs')!.split(',')).not.toContain('shop-100')
+    expect(s.cards.map((c) => c.id)).toEqual(['cl-ok'])
+    expect(s.summary).not.toContain('cl-101')
+    expect(s.total).toBe(3)
+  })
+
+  it('⛔ two viewers whose first hundred blocks match but whose others differ never share a read — either order (commit review, codex + opus)', async () => {
+    const hundred = Array.from({ length: 100 }, (_, i) => `shop-${String(i).padStart(3, '0')}`)
+    const viewerA = [...hundred, 'shop-x']
+    const rowsX = [rental({ id: 'cl-x', sellerId: 'shop-x' }), rental({ id: 'cl-ok', sellerId: 'shop-z' })]
+    for (const order of [['B', 'A'], ['A', 'B']]) {
+      resetPageStateCache()
+      h.payload.mockReset().mockResolvedValue(feed(2, rowsX))
+      h.findMany.mockResolvedValue(rows([{ id: 'cl-x' }, { id: 'cl-ok' }]))
+      const seen: Record<string, string[]> = {}
+      for (const who of order) {
+        const s = await pageStateFor('/?category=rentals', { lang: 'en', hidden: who === 'A' ? viewerA : hundred })
+        seen[who] = s.cards.map((c) => c.id)
+      }
+      expect(seen.A, order.join('→')).toEqual(['cl-ok'])
+      expect(seen.B, order.join('→')).toEqual(['cl-x', 'cl-ok'])
+      expect(h.payload, order.join('→')).toHaveBeenCalledTimes(2)
+    }
+  })
+
+  it('an id the query cannot carry (not a shop-id shape) still hides its rows — dropped after the read, never sent', async () => {
+    h.payload.mockResolvedValue(feed(2, [rental({ id: 'cl-odd', sellerId: 'odd.id' }), rental({ id: 'cl-ok', sellerId: 'shop-z' })]))
+    h.findMany.mockResolvedValue(rows([{ id: 'cl-odd' }, { id: 'cl-ok' }]))
+    const s = await pageStateFor('/?category=rentals', { lang: 'en', hidden: ['odd.id'] })
+    expect(sent().has('xs')).toBe(false)
+    expect(s.cards.map((c) => c.id)).toEqual(['cl-ok'])
+  })
+
+  it('…and an hourly-budget find drops it too', async () => {
+    const many = Array.from({ length: 101 }, (_, i) => `shop-${String(i).padStart(3, '0')}`)
+    h.payload.mockResolvedValue(feed(1, [card({ id: 'cl-101', sellerId: 'shop-100' })]))
+    h.findMany.mockResolvedValue([{ id: 'cl-101', attributes: null, facetTokens: null, teacherProfile: { hideFromSearch: false, coverOpen: true, coverRateVnd: 200_000, expectedSalaryM: null, jobTypes: [] } }])
+    const s = await pageStateFor('/?category=teachers', { lang: 'en', rateMax: 300_000, hidden: many })
+    expect(s.cards).toEqual([])
+    expect(s.summary).not.toContain('cl-101')
+  })
+
+  it('a listing page of a blocked shop is named, never described — no card, so the guide cannot open it either', async () => {
+    h.findFirst.mockResolvedValue({ ...rental({ id: 'cmblocked', sellerId: 'shop-a' }), attributes: null, facetTokens: null, teacherProfile: null })
+    const s = await pageStateFor('/listings/cmblocked', { lang: 'en', hidden: BLOCKED })
+    expect(s).toMatchObject({ kind: 'listing', cards: [], summary: 'Listing page · Rentals · (not described: a shop the person blocked)' })
+    // Another viewer reads the same page described — the blocker's answer was not kept for them.
+    const other = await pageStateFor('/listings/cmblocked', { lang: 'en' })
+    expect(other.cards.map((c) => c.id)).toEqual(['cmblocked'])
+    expect(h.findFirst).toHaveBeenCalledTimes(2)
+  })
+
+  it('a listing the viewer did NOT block is described as before, whatever else they blocked', async () => {
+    h.findFirst.mockResolvedValue({ ...rental({ id: 'cmfine', sellerId: 'shop-z' }), attributes: null, facetTokens: null, teacherProfile: null })
+    expect((await pageStateFor('/listings/cmfine', { lang: 'en', hidden: BLOCKED })).cards.map((c) => c.id)).toEqual(['cmfine'])
+  })
+
+  it('a view kept for the next turn (rememberPageState) is kept under the blocker\'s own key — never served to someone else', async () => {
+    const mine: PageState = { href: '/?category=teachers', kind: 'explorer', category: 'teachers', subcategory: null, filters: {}, search: '', total: 3, cards: [], summary: 'mine' }
+    rememberPageState(mine, { lang: 'en', hidden: BLOCKED })
+    h.payload.mockResolvedValue(feed(9, []))
+    expect((await pageStateFor('/?category=teachers', { lang: 'en' })).total).toBe(9)
+    expect((await pageStateFor('/?category=teachers', { lang: 'en', hidden: BLOCKED })).total).toBe(3)
+    expect(h.payload).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('the cache', () => {
   it('two spellings of one view share one read; a minute later the view is read again', async () => {
     h.payload.mockResolvedValue(feed(3, []))

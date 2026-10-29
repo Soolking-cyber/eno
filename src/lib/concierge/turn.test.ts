@@ -238,7 +238,14 @@ describe('conciergeTurn — the stream contract (PLAN §10)', () => {
     await collect(turn({ lang: 'vi' }).lines)
     expect(h.pageStateFor).toHaveBeenCalledTimes(1)
     expect(h.pageStateFor).toHaveBeenCalledWith('/vi?category=teachers&attr_workIn=d1', { lang: 'vi' })
-    expect(h.remember).toHaveBeenCalledWith(D1_STATE)
+    expect(h.remember).toHaveBeenCalledWith(D1_STATE, { hidden: undefined })
+  })
+
+  it('⛔ the viewer\'s blocked shops ride every read the turn makes (App Store 1.2): the next view\'s count and what is kept for it', async () => {
+    brain(action(), say(S1), SPOKEN, final([]))
+    await collect(turn({ lang: 'vi', hidden: ['shop-a'] }).lines)
+    expect(h.pageStateFor).toHaveBeenCalledWith('/vi?category=teachers&attr_workIn=d1', { lang: 'vi', hidden: ['shop-a'] })
+    expect(h.remember).toHaveBeenCalledWith(D1_STATE, { hidden: ['shop-a'] })
   })
 
   it('no chips from the brain: no chips line', async () => {

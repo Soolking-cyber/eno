@@ -19,6 +19,8 @@ const h = vi.hoisted(() => ({
   lines: (() => (async function* () {})()) as () => AsyncGenerator<unknown, void, undefined>,
   stopped: 0,
   page: vi.fn(),
+  /** user-blocks.ts hiddenSellerIdsFor: the shops the account blocked. */
+  hidden: vi.fn(async (_id: string): Promise<string[]> => []),
   logs: [] as unknown[][],
   limited: [] as unknown[][],
 }))
@@ -40,7 +42,7 @@ vi.mock('@/lib/ratelimit', () => {
 })
 vi.mock('@/lib/client-ip', () => ({ clientIp: () => '203.0.113.7' }))
 vi.mock('@/lib/log', () => ({ logInfo: () => {}, logWarn: (...a: unknown[]) => { h.logs.push(a) }, logError: (...a: unknown[]) => { h.logs.push(a) } }))
-vi.mock('@/lib/user-blocks', () => ({ isStaffProfile: async (id: string) => id.startsWith('staff-') }))
+vi.mock('@/lib/user-blocks', () => ({ isStaffProfile: async (id: string) => id.startsWith('staff-'), hiddenSellerIdsFor: async (id: string) => h.hidden(id) }))
 vi.mock('@/lib/edition', async (orig) => ({
   ...(await orig<Record<string, unknown>>()), EDITION: 'marketplace', IS_SERVICES: false, IS_MARKETPLACE: true, SITE_NAME: 'eno.vn',
 }))
@@ -104,6 +106,7 @@ beforeEach(async () => {
   h.lines = () => of(...ANSWER)
   h.page.mockReset()
   h.page.mockResolvedValue(HOME)
+  h.hidden.mockReset().mockResolvedValue([])
   h.store.set(MODE_KEY, 'staff')
   resetConciergeModeCache()
   session = (await startSession('staff-1'))!.id
@@ -248,17 +251,28 @@ describe('refusals before the answer — the usual { error }, never a stream', (
 })
 
 describe('what the turn is given', () => {
+  it('⛔ the account\'s blocked shops, read FRESH on every turn, go to the page read and to the turn (App Store 1.2)', async () => {
+    h.hidden.mockResolvedValueOnce(['shop-a']).mockResolvedValueOnce(['shop-a', 'shop-b'])
+    const first = await turnOf()
+    expect(h.hidden).toHaveBeenLastCalledWith('staff-1')
+    expect(h.page).toHaveBeenLastCalledWith('/', { lang: 'en', hidden: ['shop-a'] })
+    expect(first.hidden).toEqual(['shop-a'])
+    // A block made between two turns holds for the very next one (never a cached set).
+    expect((await turnOf()).hidden).toEqual(['shop-a', 'shop-b'])
+    expect(h.hidden).toHaveBeenCalledTimes(2)
+  })
+
   it('the words (trimmed), the page under the window read for this turn, the language, no Gemini client here', async () => {
     const page: PageState = { ...HOME, href: '/?category=teachers', category: 'teachers', total: 31, summary: 'Page: Teachers, 31' }
     h.page.mockResolvedValue(page)
     const t = await turnOf({ transcript: '  native please  ', href: '/?category=teachers', lang: 'vi' })
-    expect(h.page).toHaveBeenCalledWith('/?category=teachers', { lang: 'vi' })
+    expect(h.page).toHaveBeenCalledWith('/?category=teachers', { lang: 'vi', hidden: [] })
     expect(t).toMatchObject({ transcript: 'native please', page, lang: 'vi', ai: null, acceptedOffer: false })
   })
 
   it('a language the site does not have → English', async () => {
     expect((await turnOf({ lang: 'xx' })).lang).toBe('en')
-    expect(h.page).toHaveBeenLastCalledWith('/', { lang: 'en' })
+    expect(h.page).toHaveBeenLastCalledWith('/', { lang: 'en', hidden: [] })
   })
 
   it('the page could not be read: the turn goes on with the path only — the failure logged without the href', async () => {
@@ -335,6 +349,20 @@ describe('⛔ the fixed line\'s offer — only a plain YES on the very next turn
     await settle()
     expect(h.store.get(`concierge:offer:${session}`)).toBe('evisa')
   }
+
+  it('⛔ the blocks cannot be read: the turn is refused (503 guide_busy, logged, no turn) and the pending offer is NOT spent (commit review, codex)', async () => {
+    await offered()
+    h.hidden.mockRejectedValueOnce(new Error('db down'))
+    const turns = h.turns.length
+    const res = await send({ transcript: 'Yes, open it' })
+    expect(res.status).toBe(503)
+    expect(h.turns.length).toBe(turns)
+    expect(await res.json()).toEqual({ error: 'guide_busy' })
+    expect(h.store.get(`concierge:offer:${session}`)).toBe('evisa')
+    expect(h.logs.some((l) => JSON.stringify(l).includes('concierge.blocks'))).toBe(true)
+    // The person says it again: the yes still opens the aisle.
+    expect((await turnOf({ transcript: 'Yes, open it' })).acceptedOffer).toBe(true)
+  })
 
   it('a YES with the offer pending sets acceptedOffer — and takes the offer: a second yes is a new turn', async () => {
     await offered()

@@ -1,4 +1,5 @@
 import 'server-only'
+import { createHash } from 'node:crypto'
 import vnUnits from '@/data/vn-units.json'
 import { buildFeedPayload } from '@/app/api/listings/feed-payload'
 import { districtAfterProvinceChange } from '@/components/marketplace/listings-explorer.constants'
@@ -12,6 +13,7 @@ import { facetValues } from '@/lib/facet-tokens'
 import { inferDistrictFromQuery } from '@/lib/district-query'
 import { cutText } from '@/lib/feed-text'
 import { fold } from '@/lib/fold'
+import { HIDDEN_SELLERS_PARAM, MAX_HIDDEN_IN_QUERY, SELLER_ID_RE } from '@/lib/hidden-sellers'
 import { pinnedVariant, stripViPrefix } from '@/lib/lang-pinned'
 import { logError } from '@/lib/log'
 import { priceUnitSuffix } from '@/lib/price-unit'
@@ -101,8 +103,11 @@ type Plan = { answer: PageState } | { key: string; read: () => Promise<PageState
  * "Page: unknown", a page off the explorer and the listings as its path, and a read that fails or misses `timeoutMs` as
  * what the URL alone says.
  */
-export async function pageStateFor(href: string, opts: { lang: string; timeoutMs?: number; cards?: number; rateMax?: number }): Promise<PageState> {
-  const plan = planFor(href, opts.lang, Math.min(Math.max(opts.cards ?? CARD_COUNT, 1), FIND_CARDS), opts.rateMax)
+export async function pageStateFor(
+  href: string,
+  opts: { lang: string; timeoutMs?: number; cards?: number; rateMax?: number; hidden?: readonly string[] },
+): Promise<PageState> {
+  const plan = planFor(href, opts.lang, Math.min(Math.max(opts.cards ?? CARD_COUNT, 1), FIND_CARDS), opts.rateMax, opts.hidden)
   if ('answer' in plan) return plan.answer
   const now = Date.now()
   let pending = fresh(plan.key, now)
@@ -123,12 +128,12 @@ export async function pageStateFor(href: string, opts: { lang: string; timeoutMs
  * path pins — `/` and `/vi`, every explorer view on eno.vn. With neither, nothing is kept: a guess could hand one
  * language's titles to the other language's reader.
  */
-export function rememberPageState(state: PageState, opts: { lang?: string } = {}): void {
+export function rememberPageState(state: PageState, opts: { lang?: string; hidden?: readonly string[] } = {}): void {
   if (state.kind === 'explorer' && state.total === null) return
   const url = pageUrl(state.href)
   const lang = opts.lang ?? (url && pinnedVariant(url.pathname))
   if (!lang) return
-  const plan = planFor(state.href, lang)
+  const plan = planFor(state.href, lang, CARD_COUNT, undefined, opts.hidden)
   if ('key' in plan) remember(plan.key, Promise.resolve(structuredClone(state)), Date.now())
 }
 
@@ -137,9 +142,28 @@ export function resetPageStateCache(): void {
   cache.clear()
 }
 
-function planFor(href: string, lang: string, cards = CARD_COUNT, rateMax?: number): Plan {
+/**
+ * ⛔ THE SHOPS THIS VIEWER BLOCKED NEVER REACH THE GUIDE (App Store 1.2, the defect 1.0.3 (4) was rejected for;
+ * user-blocks.ts hiddenSellerIdsFor, read fresh on every turn by the route). An explorer read asks the feed exactly as the
+ * viewer's own explorer does — `xs`, the first MAX_HIDDEN_IN_QUERY of them in the server's order (hidden-sellers.ts
+ * hiddenSellersParam) — so its count and cards are that viewer's screen; a listing page of one of their shops is not
+ * described. Both go into the read's cache key, so one viewer's view is never handed to another (the reads are shared).
+ */
+function blockedOf(hidden: readonly string[] | undefined): { all: ReadonlySet<string>; param: string; key: string } {
+  // Every id the server gave, as given: the rows are dropped by these (an id the query cannot carry still hides its rows).
+  const all = new Set(hidden ?? [])
+  const param = [...all].filter((id) => SELLER_ID_RE.test(id)).slice(0, MAX_HIDDEN_IN_QUERY).sort().join(',')
+  // ⛔ THE WHOLE SET is in every key (commit review, codex + opus): two viewers whose first hundred blocks match but whose
+  // others differ ask the same `xs`, and must never be handed each other's filtered read. Hashed from its JSON (round 3,
+  // codex + opus): unambiguous whatever an id holds, and one short key however many blocks.
+  const key = all.size ? createHash('sha256').update(JSON.stringify([...all].sort())).digest('base64url') : ''
+  return { all, param, key }
+}
+
+function planFor(href: string, lang: string, cards = CARD_COUNT, rateMax?: number, hidden?: readonly string[]): Plan {
   const url = pageUrl(href)
   if (!url) return { answer: other('', 'Page: unknown') }
+  const blocked = blockedOf(hidden)
   // The language the page is RENDERED in: `/` and `/vi` pin it (lang-pinned.ts), every other path follows the reader.
   const pageLang: Lang = (pinnedVariant(url.pathname) ?? lang) === 'vi' ? 'vi' : 'en'
   const pathOnly = `Page: ${clip(url.pathname, 200)}`
@@ -149,25 +173,31 @@ function planFor(href: string, lang: string, cards = CARD_COUNT, rateMax?: numbe
     if (rateMax && rateMax > 0 && e.url.category === 'teachers') {
       const params = feedParams(e, pageLang, RATE_READ)
       params.set('attr_cover', 'open')
+      if (blocked.param) params.set(HIDDEN_SELLERS_PARAM, blocked.param)
       return {
-        key: `explorer ${params} rateMax ${rateMax} cards ${cards}`,
-        read: () => readExplorer(href, e, params, pageLang, cards, rateMax),
+        key: `explorer ${params} rateMax ${rateMax} cards ${cards}${blocked.key ? ` blocked ${blocked.key}` : ''}`,
+        read: () => readExplorer(href, e, params, pageLang, cards, blocked.all, rateMax),
         meanwhile: explorerState(href, e, null, [], null, null, FIND_SUMMARY_MAX, { max: rateMax }),
       }
     }
     const params = feedParams(e, pageLang, cards)
+    if (blocked.param) params.set(HIDDEN_SELLERS_PARAM, blocked.param)
     return {
       // The request itself is the key: every URL the explorer reads the same way (another param order, a utm tag, a view)
-      // is one entry. Its `lang` keeps the two languages' titles apart.
-      key: `explorer ${params}`,
-      read: () => readExplorer(href, e, params, pageLang, cards),
+      // is one entry. Its `lang` keeps the two languages' titles apart, its `xs` one viewer's blocks from everyone else.
+      key: `explorer ${params}${blocked.key ? ` blocked ${blocked.key}` : ''}`,
+      read: () => readExplorer(href, e, params, pageLang, cards, blocked.all),
       meanwhile: explorerState(href, e, null, [], null),
     }
   }
   const listing = LISTING_PATH.exec(url.pathname)
   if (listing) {
     const id = listing[1]
-    return { key: `listing ${pageLang} ${id}`, read: () => readListing(href, id, pathOnly, pageLang), meanwhile: other(href, pathOnly) }
+    return {
+      key: `listing ${pageLang} ${id}${blocked.key ? ` xs ${blocked.key}` : ''}`,
+      read: () => readListing(href, id, pathOnly, pageLang, blocked.all),
+      meanwhile: other(href, pathOnly),
+    }
   }
   return { answer: other(href, pathOnly) }
 }
@@ -277,7 +307,15 @@ function catalogFilters(e: Explorer): Record<string, string> {
   return f
 }
 
-async function readExplorer(href: string, e: Explorer, params: URLSearchParams, lang: Lang, cards: number, rateMax?: number): Promise<PageState | null> {
+async function readExplorer(
+  href: string, e: Explorer, params: URLSearchParams, lang: Lang, cards: number, blocked: ReadonlySet<string>, rateMax?: number,
+): Promise<PageState | null> {
+  /**
+   * ⛔ `xs` carries at most MAX_HIDDEN_IN_QUERY of the viewer's blocked shops (the explorer's own cut): a row of one past
+   * it still comes back — the screen hides its card (hidden-sellers.ts CSS, every blocked shop), so the guide drops it too,
+   * never describing or numbering it (commit review, codex + opus: shop #101 was described and offered to open).
+   */
+  const shown = (r: SerializedListingCard) => !blocked.has(r.sellerId)
   try {
     let { body } = await buildFeedPayload(new URLSearchParams(params))
     /**
@@ -316,13 +354,13 @@ async function readExplorer(href: string, e: Explorer, params: URLSearchParams, 
         return Array.isArray(b.listings) ? (b.listings as SerializedListingCard[]).slice(0, RATE_READ) : []
       }))
       const seen = new Set<string>()
-      const all = [first, ...more].flat().filter((r) => !seen.has(r.id) && seen.add(r.id))
+      const all = [first, ...more].flat().filter((r) => shown(r) && !seen.has(r.id) && seen.add(r.id))
       const rated = await describeByRate(all, lang, rateMax, cards)
       if (!rated) return null
       const { told, fitting } = rated
       return explorerState(href, e, fitting, told, inferred, corrected, FIND_SUMMARY_MAX, { max: rateMax, checked: all.length, of: body.total })
     }
-    const rows = Array.isArray(body.listings) ? (body.listings as SerializedListingCard[]).slice(0, cards) : []
+    const rows = Array.isArray(body.listings) ? (body.listings as SerializedListingCard[]).filter(shown).slice(0, cards) : []
     return explorerState(href, e, body.total, await describe(rows, lang), inferred, corrected, cards > CARD_COUNT ? FIND_SUMMARY_MAX : SUMMARY_MAX)
   } catch (err) {
     logError(err, { op: 'concierge.page-state' })
@@ -384,7 +422,7 @@ function explorerState(
 }
 
 /** `pathOnly`: the summary of the page as its path alone — what a listing the public cannot open here reads as. */
-async function readListing(href: string, id: string, pathOnly: string, lang: Lang): Promise<PageState | null> {
+async function readListing(href: string, id: string, pathOnly: string, lang: Lang, blocked: ReadonlySet<string>): Promise<PageState | null> {
   try {
     const row = await db.listing.findFirst({
       // ⛔ ONLY A LISTING THE PUBLIC CAN OPEN ON THIS EDITION — live, published, outside eno's own desk on eno.vn — with
@@ -396,6 +434,8 @@ async function readListing(href: string, id: string, pathOnly: string, lang: Lan
     const card = serializeListingCard(row)
     const head = `Listing page · ${clip(card.category.name, 40)}`
     const page = { href, kind: 'listing' as const, category: null, subcategory: null, filters: {}, search: '', total: null }
+    // The page itself says "You blocked this seller" (hidden-sellers.ts): the guide neither describes it nor may open it.
+    if (blocked.has(card.sellerId)) return { ...page, cards: [], summary: `${head} · (not described: a shop the person blocked)` }
     if (withheld(card, row)) return { ...page, cards: [], summary: `${head} · (not described)` }
     const told = pageCard(card, row, lang)
     return { ...page, cards: [told], summary: fit([head, cardLine(told)]) }

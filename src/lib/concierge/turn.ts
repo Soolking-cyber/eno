@@ -175,6 +175,8 @@ export function conciergeTurn(t: {
   speak: Speaker | null
   /** The fixed line offered the licensed-providers aisle and the person said yes (config.ts takeOffer). */
   acceptedOffer: boolean
+  /** The shops this person blocked (user-blocks.ts hiddenSellerIdsFor): never read, described or opened (page-state.ts). */
+  hidden?: readonly string[]
   onOffer?: () => void
   /** Tests only: ANSWER_DEADLINE_MS. */
   answerMs?: number
@@ -262,7 +264,7 @@ export function conciergeTurn(t: {
       pass.toList = true
       go(list)
       // ⛔ Not a find read under an hourly budget: its cards are the teachers whose rate fits, the screen shows them all.
-      if (found && found.total !== null && found.rateMax === undefined) rememberPageState(found, { lang: t.lang })
+      if (found && found.total !== null && found.rateMax === undefined) rememberPageState(found, { lang: t.lang, hidden: t.hidden })
     }
 
     /**
@@ -322,7 +324,7 @@ export function conciergeTurn(t: {
               // that does anyway is the not-read-in-time case — never an unhandled rejection, even if the person has gone.
               finding = {
                 list: a,
-                found: pageStateFor(a.href, { lang: t.lang, timeoutMs: FIND_READ_MS, cards: FIND_CARDS, rateMax: a.rateMax }).catch((e: unknown) => {
+                found: pageStateFor(a.href, { lang: t.lang, timeoutMs: FIND_READ_MS, cards: FIND_CARDS, rateMax: a.rateMax, hidden: t.hidden }).catch((e: unknown) => {
                   logError(quietError(e), { op: 'concierge.find' })
                   return null
                 }),
@@ -342,7 +344,7 @@ export function conciergeTurn(t: {
             logInfo('[concierge] action', { ms: Math.round(performance.now() - t0), kind: a.kind, found: !!found })
             // The new view's count, in parallel with the voice — read again by the next turn as its PAGE (cached).
             if (a.kind === 'browse') {
-              count = pageStateFor(a.href, { lang: t.lang }).then((st) => { rememberPageState(st); return st.total }).catch(() => null)
+              count = pageStateFor(a.href, { lang: t.lang, hidden: t.hidden }).then((st) => { rememberPageState(st, { hidden: t.hidden }); return st.total }).catch(() => null)
               void count.then((n) => { countLate = n })
               let timer: ReturnType<typeof setTimeout> | undefined
               countWait = Promise.race([count, new Promise<null>((r) => { timer = setTimeout(() => r(null), COUNT_WAIT_MS) })])
