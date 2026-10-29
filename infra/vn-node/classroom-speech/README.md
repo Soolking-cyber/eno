@@ -34,8 +34,10 @@ non-commercial; only `phonon-31m-en` may ship).
   app gives the line to Soniox. ZeroWeight's written answer (github.com/zeroweight-ai/ZeroTTS/issues/9, 2026-09-23): MIT,
   commercial use permitted, the preset voices "may be used with the released model"; credit "ZeroTTS by ZeroWeight AI".
   ⛔ EVERY START TIMES ITSELF: with `-e VI_TTS=1` the server speaks one ~7 s Vietnamese line through the real path before
-  it serves, and keeps Vietnamese ON only when the first sound comes under 1 s and the line is made under 0.8 of real time
-  on THIS machine's CPU (a laptop's numbers did not hold under load, 2026-10-29) — a reboot or a crash restart included.
+  it serves, and keeps Vietnamese ON only when the app would start playing it under 1 s, the line is made under 0.95 of
+  real time, and the app's own rule — play once 350 ms of voice is in hand — never runs dry on it (every chunk ≥ 50 ms
+  early), on THIS machine's CPU. In use, each line's own start, slack and socket hold are in the log (measured, not acted
+  on) (a laptop's numbers did not hold under load, 2026-10-29) — a reboot or a crash restart included.
   Too slow, cut, or unable to load: Vietnamese is OFF by itself (`vi: null`; what it measured is `viCheck` in /health),
   the guide's Vietnamese stays on Soniox, and the server still speaks English.
 - `/stt`: only while Parakeet is in the image — it is NOT since 2026-10-29 (no app code calls it; the classroom's ears are
@@ -123,7 +125,7 @@ container's name, loopback or a private address: any other address is ignored, a
 docker run --rm --network supabase_default -e SPEECH_URL=http://eno-classroom-speech:8090 \
   -v /opt/eno/secrets/classroom-speech-key:/run/speech-key:ro --entrypoint sh eno-classroom-speech:local \
   -c 'SPEECH_KEY=$(cat /run/speech-key) exec python -I /app/test_server.py'
-docker logs --tail 20 eno-classroom-speech      # route, ms, seconds; never words
+docker logs --tail 20 eno-classroom-speech      # route, ms, seconds; never words (vi-stream slack < 0 with little blocked = the box chopped)
 ```
 
 `test_server.py` checks the key, every refusal, silence, the stalled-body timeout and the 503 under load. It ends

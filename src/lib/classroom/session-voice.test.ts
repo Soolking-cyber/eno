@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
@@ -563,6 +564,11 @@ describe('the voice guide\'s Vietnamese on the box (`first`)', () => {
     expect(enLine.prerollMs).toBeUndefined()
     h.boxFails = { status: 503 } // Vietnamese said by Soniox: its own pacing, no hold
     expect((await sv.speakerFor('Zoey', viStyle, guide)!('Hai.', go())).prerollMs).toBeUndefined()
+  })
+
+  it('⛔ the speech server\'s start-up gate tests the hold the app plays with: server.py VI_HOLD_S = VI_PREROLL_MS (codex, commit review)', () => {
+    const m = /^VI_HOLD_S = ([0-9.]+)$/m.exec(readFileSync('infra/vn-node/classroom-speech/server.py', 'utf8'))
+    expect(m && Math.round(Number(m[1]) * 1000)).toBe(sv.VI_PREROLL_MS)
   })
 
   it('the Vietnamese opening is made on the box in Vietnamese and kept apart from the English one', async () => {

@@ -179,18 +179,33 @@ VI_THREADS = int(os.environ.get('VI_THREADS', '2'))
 # 16; 3 threads did no better and 4 ran slower than real time (measured on the box, 2026-10-29).
 VI_MAX_CHUNK_FRAMES = int(os.environ.get('VI_MAX_CHUNK_FRAMES', '4'))
 VI_RATE = 24_000  # what the app plays (Phonon's rate); ZeroTTS speaks at 48 kHz — halved on the way out (Half)
-# A Vietnamese line may take longer than Phonon's TTS_DEADLINE_S: ZeroTTS is allowed RTF up to 0.8 here (the speed gate below),
-# so 20 s finishes a ~25 s line — a long one is not cut after its 200, where the app cannot tell (opus, commit review).
-VI_DEADLINE_S = 20.0
+# A Vietnamese line may take longer than Phonon's TTS_DEADLINE_S: ZeroTTS is allowed RTF up to VI_RTF_MAX here (the speed gate
+# below), so 30 s finishes a ~30 s line — far past one of the guide's sentences — and a long one is not cut after its 200,
+# where the app cannot tell (opus, commit review: 20 s left only ~20 s at RTF 0.97).
+VI_DEADLINE_S = 30.0
 # ⛔ THE SPEED GATE RUNS ON EVERY START (opus, commit review: a reboot or a crash restart must never bring an untested
-# Vietnamese back): one ~7 s guide line through the real path, timed. Vietnamese stays ON only when its first sound comes
-# under VI_FIRST_MAX_S and it is made under VI_RTF_MAX of real time — int8 ran at RTF 0.47 on the i9 (2026-10-29), the
-# box's cores are ~1.5x slower, and a loaded laptop measured 3.5-4.4. Off: /vi/* are a 404, the guide's Vietnamese Soniox's.
-VI_FIRST_MAX_S = 1.0
-VI_RTF_MAX = 0.8
+# Vietnamese back): one ~7 s guide line through the real path, timed. Vietnamese stays ON only when the app would START
+# playing it under VI_FIRST_MAX_S, it is made faster than real time with room (VI_RTF_MAX), and — what a listener hears —
+# the app's own playing rule never runs dry on it: the app holds a line until VI_HOLD_S of VOICE has arrived, then plays
+# (src/lib/classroom/session-voice.ts VI_PREROLL_MS; opus, commit review: a hold of audio, not of clock time), so every
+# later chunk must land at least VI_JITTER_S before the voice ahead of it has played out. ⚠️ Smoothness is the hold, not
+# the ratio: the first gate's RTF < 0.8 turned a smooth voice OFF at 0.92 once its chunks were capped at 4 frames
+# (2026-10-29; the box needed a 0.16-0.19 s hold at RTF 0.84-0.89). Off: /vi/* are a 404, the guide's Vietnamese Soniox's.
+# In use, every line is MEASURED, not acted on: the log has its own start, slack and the time the socket held it
+# (vi-stream … start= slack= blocked=) — a negative slack with little blocked is the box chopping; with much, a slow
+# listener. ⚠️ An automatic rest on a bad line was tried and dropped (2026-10-29): it grew a new edge case every review
+# round (a race past the lock, a slow listener resting it for everyone, its streak, the MP3 and failure paths) — decide
+# on one from what these lines show. The limits are constants, not run-line settings (opus, commit review: a typo there
+# would stop the English voice too).
+VI_FIRST_MAX_S = 1.0  # the AUDIBLE start — the app's hold in hand — not merely the first chunk (codex, commit review)
+VI_RTF_MAX = 0.95
+VI_JITTER_S = 0.05    # the trip from here to a browser, never measured by the gate
+# ⛔ NOT a setting: the hold the app plays with (session-voice.ts VI_PREROLL_MS) — a gate testing any other hold passes a
+# voice the app chops (codex, commit review). session-voice.test.ts fails when the two disagree: change them together.
+VI_HOLD_S = 0.35
 VI_CHECK_LINE = 'Mình tìm được 12 căn hộ ở Quận 1, giá từ 8.500.000 đ đến 15.000.000 đ một tháng. Bạn muốn xem căn nào trước?'
 VI_CHECK_MIN_S = 6.0  # that line is ~7-8 s of speech: less was cut, never a pass
-VI_CHECK = None       # what the gate measured at start ({first_s, rtf, line_s}) — /health shows it
+VI_CHECK = None       # what the gate measured at start ({first_s, start_s, rtf, slack_s, line_s, heard_s}) — /health shows it
 _vi = None
 _vi_lock = threading.Lock()
 if VI_ON:
@@ -528,6 +543,42 @@ class Half:
         return out.astype(np.float32)
 
 
+def hold_play(arrivals, hold_s):
+    """How a line plays for a player that starts once hold_s of voice is in hand (the app's rule: turn-stream.ts prerollMs)
+    and then plays on: (when it starts, the least time to spare). arrivals = [(seconds since the ask, seconds of voice)].
+    Each later chunk must land before the voice queued ahead of it has played out; negative slack = the voice ran dry (the
+    chop). A line that never reaches hold_s plays whole at its end: its last chunk is the start, and it cannot run dry
+    (inf). No voice at all: (inf, inf). test_vi_gate.py checks it."""
+    start, queued, slack = None, 0.0, float('inf')
+    for at, voice in arrivals:
+        if start is None:
+            queued += voice
+            if queued >= hold_s:
+                start = at  # playing from here, with `queued` of voice ahead
+            continue
+        slack = min(slack, start + queued - at)  # the voice queued so far plays out at start + queued
+        queued += voice
+    if start is None:
+        start = arrivals[-1][0] if arrivals else float('inf')
+    return start, slack
+
+
+def vi_verdict(arrivals, line_s, elapsed_s):
+    """The start-up speed gate's decision on its timed line: (what it measured — /health's viCheck —, ON?). ON only when the
+    line is long enough to be whole (VI_CHECK_MIN_S) and its accounting adds up (the voice handed over = the seconds made,
+    within 0.1 s), the app would start playing it under VI_FIRST_MAX_S, it was made under VI_RTF_MAX of real time, and the
+    app's hold never ran dry on it with VI_JITTER_S to spare. test_vi_gate.py checks each refusal."""
+    first_s = arrivals[0][0] if arrivals else float('inf')
+    start_s, slack = hold_play(arrivals, VI_HOLD_S)
+    rtf = elapsed_s / line_s if line_s else float('inf')
+    heard_s = sum(voice for _, voice in arrivals)
+    check = {'first_s': round(min(first_s, 99.0), 2), 'start_s': round(min(start_s, 99.0), 2), 'rtf': round(min(rtf, 99.0), 2),
+             'slack_s': round(min(slack, 9.99), 2), 'line_s': round(line_s, 1), 'heard_s': round(heard_s, 1)}  # capped: JSON has no infinity
+    on = (line_s >= VI_CHECK_MIN_S and abs(heard_s - line_s) < 0.1 and start_s < VI_FIRST_MAX_S and rtf < VI_RTF_MAX
+          and slack >= VI_JITTER_S)
+    return check, on
+
+
 def speak_vi_stream(text, write):
     """The guide's Vietnamese line as raw PCM16 at VI_RATE, handed to `write` as ZeroTTS makes it (first sound ~0.1 s on
     the i9). The caller holds _vi_lock. A client that hangs up stops it at the next chunk; VI_DEADLINE_S bounds it.
@@ -642,8 +693,8 @@ class Handler(BaseHTTPRequestHandler):
         """The guide's Vietnamese line (/vi/tts/stream: PCM16 at VI_RATE as it is made; /vi/tts: a whole MP3). It holds ONE
         of the pool's voices while it speaks — not to speak with it, but so it counts: ZeroTTS's two threads are one voice
         at work, and the guide's share (GUIDE_VOICES) and a waiting lesson's turn hold for Vietnamese as for English (opus,
-        plan review: uncounted, it put six threads on four CPUs). Busy — no voice free now, a lesson waiting, or a
-        Vietnamese line already being made — is a 503 at once."""
+        plan review: uncounted, it put six threads on four CPUs). Busy — no voice free now, a lesson waiting, a Vietnamese
+        line already being made — is a 503 at once."""
         slot = take_voice(0.0, wait=False)
         try:
             if not _vi_lock.acquire(blocking=False):
@@ -661,17 +712,24 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header('Cache-Control', 'no-store')
                 self.send_header('Connection', 'close')
                 self.end_headers()
-                first = [None]
+                first, sent, blocked = [None], [], [0.0]
 
                 def write(b):
+                    now = time.perf_counter()
                     if first[0] is None:
-                        first[0] = round((time.perf_counter() - t0) * 1000)
+                        first[0] = round((now - t0) * 1000)
                     self.wfile.write(b)
                     self.wfile.flush()
+                    done = time.perf_counter()
+                    sent.append((done - t0, len(b) / 2 / VI_RATE))  # when the socket took it: the box AND the listener
+                    blocked[0] += done - now  # the listener's share: the socket holding ZeroTTS up
 
                 try:
                     seconds = speak_vi_stream(text, write)
-                    print(f'vi-stream first={first[0]}ms total={round((time.perf_counter() - t0) * 1000)}ms audio={seconds:.1f}s chars={len(text)}', flush=True)
+                    # This line against the app's hold, as the start-up gate measures it: slack < 0 = it ran dry.
+                    start, slack = hold_play(sent, VI_HOLD_S)
+                    print(f'vi-stream first={first[0]}ms start={round(min(start, 99.0) * 1000)}ms total={round((time.perf_counter() - t0) * 1000)}ms '
+                          f'audio={seconds:.1f}s slack={round(min(slack, 9.99) * 1000)}ms blocked={round(blocked[0] * 1000)}ms chars={len(text)}', flush=True)
                 except (BrokenPipeError, ConnectionResetError):
                     print('vi-stream client gone', flush=True)
                 except Busy:
@@ -807,17 +865,13 @@ if __name__ == '__main__':
         try:
             _vi.warmup()
             speak_vi('Xin chào.')  # untimed: the graphs' first runs
-            t0, first = time.perf_counter(), [None]
+            t0, arrivals = time.perf_counter(), []
 
-            def heard(_pcm):
-                if first[0] is None:
-                    first[0] = time.perf_counter() - t0
+            def heard(pcm):  # each chunk: when it landed, and how much voice it carried
+                arrivals.append((time.perf_counter() - t0, len(pcm) / 2 / VI_RATE))
 
             line_s = speak_vi_stream(VI_CHECK_LINE, heard)
-            rtf = (time.perf_counter() - t0) / line_s if line_s else float('inf')
-            first_s = first[0] if first[0] is not None else float('inf')
-            VI_CHECK = {'first_s': round(first_s, 2), 'rtf': round(rtf, 2), 'line_s': round(line_s, 1)}
-            fast = line_s >= VI_CHECK_MIN_S and first_s < VI_FIRST_MAX_S and rtf < VI_RTF_MAX
+            VI_CHECK, fast = vi_verdict(arrivals, line_s, time.perf_counter() - t0)
             print(f'vi {"ON" if fast else "OFF: too slow here"} {VI_CHECK}', flush=True)
             if not fast:
                 _vi = None

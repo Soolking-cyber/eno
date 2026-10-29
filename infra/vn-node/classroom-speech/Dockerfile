@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir "ptts==0.4.2" "numpy==2.5.4" "soundfile==0.14.0" 
  && pip install --no-cache-dir --no-deps /tmp/zerotts/zerotts-0.1.5-py3-none-any.whl && rm -rf /tmp/zerotts \
  && python -I -c "import io, numpy, soundfile; b = io.BytesIO(); soundfile.write(b, numpy.zeros(2400, dtype='float32'), 24000, format='MP3'); assert len(b.getvalue()) > 100, 'no mp3'"
 COPY --from=models /models /models
-COPY server.py test_server.py test_trim.py /app/
+COPY server.py test_server.py test_trim.py test_vi_gate.py /app/
 # MALLOC_ARENA_MAX: glibc otherwise grows an arena per thread, and this server's memory cap is tight.
 # HF_HUB_OFFLINE + a /tmp HF_HOME: the models are local paths; nothing may be fetched, nothing written.
 # VI_TTS is NOT set here: the run line turns the Vietnamese voice on (-e VI_TTS=1) — its kill switch.
