@@ -36,6 +36,7 @@ import { Input } from '@/components/ui/input'
 import { EnoSlider } from '@/components/ui/slider'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { BlockUserButton } from '@/components/marketplace/block-user-button'
+import { GoplusRoomLink } from '@/components/marketplace/goplus-room-link'
 import { CallButtons } from '@/components/calls/call-buttons'
 import { AllowCallsChip } from '@/components/calls/allow-calls-chip'
 import { ClosedThreadBanner } from '@/components/marketplace/closed-thread-banner'
@@ -2767,6 +2768,13 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                 </AlertDialogContent>
               </AlertDialog>
             </div>
+          )}
+          {/* The room's page on goplus.com.vn, for the GoPlus account answering its chat (and an admin in the thread): the
+              server decides (api/listings/[id]/goplus-link) and the renter never receives it — owner, 2026-10-30: "in chat
+              … admin can quickly link to original on goplus website but user shouldnt see the links". Nothing renders
+              until that answer says so, and it follows the room the thread is about now. */}
+          {thread?.listing && showStrip && thread.sellerIsPartner === true && (
+            <GoplusRoomLink listingId={thread.listing.id} className="shrink-0 border-t border-border bg-background px-4 py-1.5" />
           )}
           {/* "Who bought it?" (B6) — portalled, so its place in the tree changes nothing on screen. Mounted on
               the snapshot taken at the tap (see openSoldSheet), so neither its own optimistic flip nor a

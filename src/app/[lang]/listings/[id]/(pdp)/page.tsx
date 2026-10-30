@@ -466,10 +466,11 @@ export default async function ListingPage({ params }: Props) {
   // Where an IMPORTED listing came from, and the date that is true for that source (SEO wave B, P1):
   // a rental portal's own post date, the day eno imported it, or — for a partner shop's item — no date.
   // ⚠️ The RAW columns: `listing.postedAt` is serialized as the later of postedAt and createdAt.
-  // A GoPlus room's own page on goplus.com.vn (owner, 2026-10-29) — from the row's `goplus:<id>` externalId, which the
-  // GoPlus importer writes, on an OFFICIAL PARTNER's storefront only (a flag eno's staff set, never the seller): the
-  // link is always built here, to goplus.com.vn, never from text anyone can type.
-  const goplusPage = rawListing.seller.officialPartner === true ? goplusRoomPageUrl(rawListing.externalId) : null
+  // A GoPlus room: an OFFICIAL PARTNER's storefront (a flag eno's staff set, never the seller) and a `goplus:<id>`
+  // externalId the GoPlus importer writes. ⛔ ONLY THIS YES/NO reaches the page (owner, 2026-10-30: the room's page on
+  // goplus.com.vn is for the GoPlus account and eno's admins, "user shouldnt see the links"). This render is cached for
+  // every visitor, so the URL itself comes from api/listings/[id]/goplus-link, which answers it to those accounts only.
+  const goplusRoom = rawListing.seller.officialPartner === true && goplusRoomPageUrl(rawListing.externalId) !== null
   const provenance = importProvenance({
     sellerId: listing.sellerId,
     sellerName: listing.seller.name,
@@ -1409,7 +1410,7 @@ export default async function ListingPage({ params }: Props) {
 
             {/* 8 — Description + Details (+ a rental's Costs and Amenities between them). The wrapper renders
                 only when one of them does: an empty flex item in this gapped column would still earn a gap. */}
-            {(showDescription || showDetails || costRows.length > 0 || amenities.length > 0 || !!goplusPage) && (
+            {(showDescription || showDetails || costRows.length > 0 || amenities.length > 0) && (
             <div className="order-8 flex flex-col gap-8">
               {/* Section headers on this page share ONE treatment (text-lg font-semibold, matching
                   the shelf + reviews headers below) with more space above (section gap) than below. */}
@@ -1425,7 +1426,6 @@ export default async function ListingPage({ params }: Props) {
                   right after the words and before the reference table. Each renders only when the listing states it. */}
               {costRows.length > 0 && <RentalCosts rent={monthlyRent} rows={costRows} />}
               {amenities.length > 0 && <RentalAmenities items={amenities} />}
-              {goplusPage && <GoplusRoomLink href={goplusPage} />}
 
               {showDetails && (
                 <div className="space-y-2">
@@ -1499,6 +1499,11 @@ export default async function ListingPage({ params }: Props) {
               )}
             </div>
             )}
+
+            {/* 8a — A GoPlus room's page on goplus.com.vn, for the GoPlus account and eno's admins only (api/listings/[id]/
+                goplus-link decides; owner, 2026-10-30). Its own `order-8` item, like 8b below: it renders nothing for
+                everyone else, so it never holds open the section above or earns a gap (commit review, codex + opus). */}
+            {goplusRoom && <GoplusRoomLink listingId={listing.id} className="order-8" />}
 
             {/* 8b — Seller information (owner, 2026-10-01): right after Description/Details, sharing their
                 `order-8` slot so DOM order places it below them on phones too. Renders nothing when there is
