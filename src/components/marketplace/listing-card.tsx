@@ -15,6 +15,7 @@ import { CardBadges } from './card-badges'
 import { IdentityVerifiedMark } from './identity-verified-mark'
 import { RentalCheckToggle } from './rental-check-toggle'
 import Image from 'next/image'
+import { HELD_PHOTO_ATTR } from '@/lib/image-hold'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
 import { isBookingCategory } from '@/lib/affiliate-kind'
@@ -106,6 +107,8 @@ type Props = {
   // The single LCP card (first card of the first landing row): use next/image's
   // real `priority` so Next emits a <link rel=preload> for its image.
   lcp?: boolean
+  /** A main grid's card past the first screen: its photo waits for the page's scripts on a phone (src/lib/image-hold.ts). */
+  holdPhoto?: boolean
   // Accurate per-context sizing so the browser downloads card-sized images, not
   // full-width. Default = the result grid's own geometry (LISTING_CARD_SIZES, derived in
   // listing-grid.ts — a rail card is one grid column, so rails share it); map mode passes its own.
@@ -140,6 +143,7 @@ function ListingCardImpl({
   onOpen,
   priority = false,
   lcp = false,
+  holdPhoto = false,
   sizes = LISTING_CARD_SIZES,
   onLocate,
 }: Props) {
@@ -792,9 +796,11 @@ function ListingCardImpl({
                     // lcp-discovery check fails. `fetchPriority: 'high'` is what marks BOTH of them High.
                     // Still exactly ONE image — this card's first photo, and the explorer passes `lcp` to
                     // index 0 only. ⛔ Not the `preload` prop instead: Next throws when it meets both.
+                    // ⛔ `holdPhoto`: this photo also waits for the page's scripts on a phone (src/lib/image-hold.ts). The browser's lazy range
+                    // reaches 21 off-screen photos, which cost over a second of tap-ready on a mid phone.
                     {...(lcp && i === 0
                       ? { priority: true, fetchPriority: 'high' as const }
-                      : { loading: i === 0 ? (priority ? 'eager' : 'lazy') : 'eager' })}
+                      : { loading: i === 0 ? (priority ? 'eager' : 'lazy') : 'eager', ...(i === 0 && !priority && holdPhoto ? { [HELD_PHOTO_ATTR]: '' } : {}) })}
                   />
                 )}
                 {/* The app-drawn eno.vn mark, per SLIDE so each photo gets the ink measured for it. Renders

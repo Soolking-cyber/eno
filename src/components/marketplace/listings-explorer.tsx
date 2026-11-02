@@ -1,5 +1,6 @@
 'use client'
 
+import { HELD_FROM_CARD } from '@/lib/image-hold'
 import { HIDDEN_SELLERS_PARAM } from '@/lib/hidden-sellers'
 import { useHiddenSellersParam } from '@/lib/use-hidden-sellers'
 import { fillTemplate } from '@/lib/i18n/placeholders'
@@ -5313,7 +5314,7 @@ export function ListingsExplorer({
                             ⚠️ `priority` STAYS UNCONDITIONAL. It is a different lever: without
                             `lcp` it resolves to `loading="eager"` (listing-card.tsx ~435), so the
                             first card still skips lazy-loading — it just stops claiming the preload. */}
-                        <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0} onLocate={locateListing} />
+                        <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0} holdPhoto={index >= HELD_FROM_CARD} onLocate={locateListing} />
                       </div>
                       {/* Guest capture (5a #7): one full-width signup ROW after the first page.
                           Renders null once signed in (and while auth is still loading).

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, ArrowUp, ArrowDown, ArrowUpDown, AlertTriangle } from '@/components/ui/icons'
+import { HELD_FROM_CARD } from '@/lib/image-hold'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { ListingCardSkeleton } from './listing-card-skeleton'
@@ -411,7 +412,7 @@ export function SellerListings({
     <div className={LISTING_GRID}>
       {shown.map((l, i) => (
         <div key={l.id} data-sid={l.sellerId} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)} onFocus={() => router.prefetch(`/listings/${l.id}`)}>
-          <ListingCard listing={l} onOpen={openCard} onLocate={locateCard} priority={i < 4} lcp={i === 0 && !remote} />
+          <ListingCard listing={l} onOpen={openCard} onLocate={locateCard} priority={i < 4} lcp={i === 0 && !remote} holdPhoto={i >= HELD_FROM_CARD} />
         </div>
       ))}
     </div>

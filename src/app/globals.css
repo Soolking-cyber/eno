@@ -4265,6 +4265,15 @@ html[data-has-recents] .recents-row {
   [data-feed-card] { contain-intrinsic-size: auto 371px; }
 }
 
+/* ⛔ OFF-SCREEN CARD PHOTOS WAIT FOR THE PAGE'S SCRIPTS, ON A PHONE (src/lib/image-hold.ts): a lazy image with no box is not fetched, and <html> carries
+   the attribute only from the head script until `load`, the first scroll or the timer. Two columns (LISTING_GRID turns to three at `sm`), and no
+   taller than the first held frame ever starts (1,148 px at the least, measured), so a tall narrow window never shows one blank. */
+@media (max-width: 639.98px) and (max-height: 1100px) {
+  html[data-images-held] img[data-held-photo] {
+    display: none;
+  }
+}
+
 /* The first screen must never be skipped: a card that has not been rendered yet has no remembered
    size, so letting the LCP row start as the intrinsic-size guess would move the fold on first paint. Twelve
    is the first page (FIRST_PAGE_SIZE): three full rows at the widest breakpoint. The guest-capture
