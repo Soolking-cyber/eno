@@ -2997,6 +2997,7 @@ export const UI_STRINGS: string[] = [
   "Sign in to start",
   "Sign in to suggest",
   "Sign in to suggest a school.",
+  "Sign in to talk to the eno guide. It is free.",
   "Sign in to tell schools you are still available to teach.",
   "Sign in to use AI",
   "Sign in to use eno AI",

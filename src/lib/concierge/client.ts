@@ -178,6 +178,29 @@ export async function askForHelp(nav: { push: (href: string) => void }, variant:
 }
 
 /**
+ * ⛔ `?guide=1` ON THE EXPLORER: A LINK THAT OPENS THE VOICE GUIDE (owner, 2026-11-02: the Facebook group posts; until now a
+ * signed-out visitor's tap on the guide's icon reached the text chat, and signing in there stayed there). Read by the host.
+ * It only opens the window: the microphone still waits for the window's own Start tap. It is one edge-cache entry per
+ * language, not a miss per click: a fixed value, and the campaign tags beside it stay out of the key.
+ */
+const GUIDE_LINK_PARAM = 'guide'
+export const guideLinkAsked = (search: string): boolean => new URLSearchParams(search).get(GUIDE_LINK_PARAM) === '1'
+/**
+ * Done with: a reload or a Back is not a second ask. The other parameters stay (attribution reads them), and so does the rest
+ * of history.state (the explorer's marks).
+ * ⛔ WITHOUT NEXT'S `__NA` MARK, WHICH THE ROUTER READS AS "MY OWN WRITE" AND SKIPS (app-router.js replaceState; it adds the mark
+ * back itself): passed through, the router kept its own copy of the address, and the next `router.refresh()` wrote the link back
+ * (measured 2026-11-02: the address had `guide=1` again and a reload opened the guide; commit review, opus).
+ */
+export function dropGuideLink(): void {
+  const u = new URL(window.location.href)
+  u.searchParams.delete(GUIDE_LINK_PARAM)
+  const state = { ...(window.history.state as Record<string, unknown> | null) }
+  delete state.__NA
+  window.history.replaceState(state, '', `${u.pathname}${u.search}${u.hash}`)
+}
+
+/**
  * The language of the page the window guides — its `<html lang>`, which language-context.tsx keeps in sync with the
  * reader's language (the nine machine-translated ones included). ⛔ The guide speaks THAT, not the frame's own guess: a frame
  * works its language out on its own and can land elsewhere (measured 2026-10-28: a Vietnamese page, the frame in English).

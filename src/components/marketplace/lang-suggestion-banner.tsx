@@ -28,6 +28,8 @@ import { isNativeAppClient } from '@/lib/app-review-gates'
  * with `translate`, not `bottom`, so the move is a transform, not a layout shift (CLS across the bar's
  * arrival measured the same before and after), on the 150ms strong ease-out the bar rises on. Unset
  * (no bar, or the bar hidden or closed) it is 0. While Choose expands the bar the banner rides above it.
+ * ⛔ IT STEPS ASIDE WHILE THE VOICE GUIDE IS OPEN (`html[data-concierge]`, as back-to-top.tsx): on a phone it covered the
+ * guide's Start button (measured 2026-11-02, Vietnamese browser on the English home page), one z-layer above the window.
  */
 export const BANNER_COPY = {
   vi: { text: 'Trang này có bản tiếng Việt.', link: 'Xem bản tiếng Việt', dismiss: 'Đóng', hrefLang: 'vi-VN' },
@@ -100,7 +102,7 @@ export function LangSuggestionBanner() {
     setLang(shown.choice)
   }
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 -translate-y-[var(--consent-clearance,0px)] px-3 transition-[translate] duration-150 ease-out-strong pc:bottom-4 lg:px-4">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 -translate-y-[var(--consent-clearance,0px)] px-3 transition-[translate] duration-150 ease-out-strong pc:bottom-4 lg:px-4 [html[data-concierge]_&]:hidden">
       <div lang={shown.target} className="pointer-events-auto mx-auto flex w-full max-w-sm items-center gap-3 rounded-2xl border border-foreground/10 bg-popover p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 ease-out-strong lg:max-w-md">
         <p className="min-w-0 flex-1 text-sm leading-snug text-foreground">
           {copy.text}{' '}

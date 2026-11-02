@@ -14,8 +14,9 @@ import { subscribeAiConsent } from '@/lib/ai-consent'
 import { CONCIERGE_FRAME_ATTR } from '@/lib/concierge/frame-head'
 import { IS_SERVICES } from '@/lib/edition'
 import {
-  CONCIERGE_ASK_EVENT, CONCIERGE_FRAME_PATH, CONCIERGE_OPEN_EVENT, areaForGo, conciergeAvailable, isConciergeHiddenPath,
-  resetConciergeKnown, safeConciergeHref, setConciergeAvailable, takePendingOpen, voiceAgreedHere, type ConciergeMessage,
+  CONCIERGE_ASK_EVENT, CONCIERGE_FRAME_PATH, CONCIERGE_OPEN_EVENT, areaForGo, conciergeAvailable, dropGuideLink, guideLinkAsked,
+  isConciergeHiddenPath, openConcierge, resetConciergeKnown, safeConciergeHref, setConciergeAvailable, takePendingOpen, useConciergeAvailable,
+  voiceAgreedHere, type ConciergeMessage,
 } from '@/lib/concierge/client'
 
 /** How often the page may ask again whether this account may open the window (the server checks every turn anyway). */
@@ -42,7 +43,7 @@ const appCannotHear = () => isNativeAppClient() && !isNativeVoiceClient()
  * the text assistant. Closed by ✕, Escape, an account change, or a page the window never floats over.
  */
 export function ConciergeHost() {
-  const { user } = useAuth()
+  const { user, loading, identityLoaded, accountType, openSignIn } = useAuth()
   const userId = user?.id ?? null
   const pathname = usePathname()
   const router = useRouter()
@@ -109,6 +110,39 @@ export function ConciergeHost() {
   useEffect(() => {
     if (!open && takePendingOpen(path) && conciergeAvailable() && !isConciergeHiddenPath(path) && voiceAgreedHere(userId)) setOpen(true)
   }, [open, path, userId])
+
+  /**
+   * `?guide=1` (client.ts): the guide, without hunting for its icon. Signed out, the sign-in popup asks first; every way out
+   * of it returns to this address, the link included (sign-in-form.tsx signInNextPath), so the guide opens after it, also in
+   * the phone's own browser after a Facebook in-app hand-off. Closing the popup answers the link: the explorer stays.
+   * ⛔ An account with no type yet is on its way to /onboard (auth-context.tsx), and that keeps this query for the way back:
+   * it waits, or the first visit of every new account would drop the link and open nothing.
+   * ⛔ A LINK IS NOT A TAP, SO IT IS NOT askForHelp (commit review, codex + opus): that flow holds one lock for its wait and
+   * falls to the text chat, which took a real tap's lock on a slow phone and could move someone browsing into a chat they did
+   * not ask for. This holds nothing: it opens when the host's answer says it may, and until then the link stays in the
+   * address, so a closed answer or a page left behind costs nothing and a tap on the icon works as ever.
+   * Read on arrival, from the address: a link arrives as a new document or on the way back from /onboard, and nothing in the
+   * app links to it, so a query-only move on a mounted explorer is not a way in (commit review, codex: why no useSearchParams).
+   */
+  const mayOpen = useConciergeAvailable()
+  const signInAsked = useRef(false)
+  useEffect(() => {
+    if (loading || (path !== '/' && path !== '/vi') || !guideLinkAsked(window.location.search)) return
+    if (IS_SERVICES || isNativeAppClient()) { dropGuideLink(); return }
+    if (!userId) {
+      if (signInAsked.current) return
+      signInAsked.current = true
+      openSignIn({ note: tr('Sign in to talk to the eno guide. It is free.', 'Đăng nhập để nói chuyện với trợ lý eno. Miễn phí.'), onDismiss: () => { signInAsked.current = false; dropGuideLink() } })
+      return
+    }
+    signInAsked.current = false
+    if (!identityLoaded || !accountType) return
+    // Now, not at the host's first look 1.5 s in: this page was opened for the guide. `mayOpen` only re-runs this when the
+    // answer lands; the live read is the rule (this render's copy can be the previous account's, commit review, opus).
+    if (!conciergeAvailable()) { window.dispatchEvent(new Event(CONCIERGE_ASK_EVENT)); return }
+    dropGuideLink()
+    openConcierge()
+  }, [loading, path, userId, identityLoaded, accountType, mayOpen, openSignIn, tr])
 
   /**
    * ⛔ IN THE APPS, THE WINDOW NEVER OUTLIVES THE PERSON'S YES OR THE APP'S FOREGROUND (owner, 2026-10-29). The voice guide's
@@ -201,10 +235,14 @@ export function ConciergeHost() {
       <DialogPrimitive.Portal>
         {/* ⚠️ GEOMETRY: above the phone's bottom band (the tab bar's 4.5rem + the safe area + a breath — the cookie bar's
             arithmetic); on a desktop, the corner the support cluster yields. ⛔ Never `hidden` while the keyboard is up (pre-review,
-            codex): a hidden window would keep its microphone listening — it stays where it is, under the keyboard. */}
+            codex): a hidden window would keep its microphone listening — it stays where it is, under the keyboard.
+            ⛔ IT RIDES ABOVE THE FIRST-VISIT CONSENT BAR (--consent-clearance, as lang-suggestion-banner.tsx): at 390x844 the bar,
+            four seconds in, covered the whole window, Start and ✕ included, until it was answered (measured 2026-11-02). Capped at
+            what keeps the top on screen (18rem + the safe area = the bottom offset + the window + a breath): a landscape phone keeps
+            its ✕, and answering the bar brings the window back down. */}
         <DialogPrimitive.Popup
           aria-label={name}
-          className="fixed bottom-[calc(5.5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] right-3 z-fab size-48 overflow-hidden rounded-2xl border border-foreground/10 bg-brand-deeper shadow-overlay pc:bottom-6 pc:right-6 pc:size-64"
+          className="fixed bottom-[calc(5.5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] right-3 z-fab size-48 -translate-y-[min(var(--consent-clearance,0px),max(0px,calc(100dvh-18rem-max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))))] overflow-hidden rounded-2xl border border-foreground/10 bg-brand-deeper shadow-overlay transition-[translate] duration-150 ease-out-strong pc:bottom-6 pc:right-6 pc:size-64"
         >
           <DialogPrimitive.Title className="sr-only">{name}</DialogPrimitive.Title>
           <iframe ref={frame} src={CONCIERGE_FRAME_PATH} title={name} allow="microphone; autoplay" className="size-full border-0" {...{ [CONCIERGE_FRAME_ATTR]: '' }} />
