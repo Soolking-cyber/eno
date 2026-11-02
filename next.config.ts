@@ -368,6 +368,15 @@ const acceptsMarkdown = () => [
 const STAMPABLE_STATIC =
   "/:path(banners/.*|mascots/.*|icons/categories/.*|icons/services/.*|icons/nav/.*|icons/ui/.*|schools/logos/.*|avatar/.*|headaudio/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png|brand/app-icon-120\\.avif|brand/app-icon-120\\.webp)";
 
+/**
+ * ⛔ A BUILD ON A MAC IS A LOAD ON THE PRODUCTION DATABASE (2026-11-02). The tunnel's 127.0.0.1:5433 is prod Postgres, and each prerender worker holds up to 3
+ * connections (db-pool-config.ts): 15 workers on a 16-core Mac = 45, on top of ~60 from live traffic, against a limit of ~97. Past that Postgres REFUSES, and
+ * the live apps logged TooManyConnections for a few requests during the builds of that day. Capped, the peak measured 12 and the build took 157 s. Every Mac
+ * build, not "when the URL looks like the tunnel": a check that misses a URL form would fail open, in silence. The box's own deploy build keeps its workers
+ * (its budget is the note in db-pool-config.ts). ⚠️ PER BUILD: two at once are double, so don't stack them.
+ */
+const MAC_BUILD_CPUS = 4
+
 const nextConfig: NextConfig = {
   pageExtensions: PAGE_EXTENSIONS,
   /**
@@ -428,6 +437,7 @@ const nextConfig: NextConfig = {
   // Cost: +~0.3s FCP on cold Slow-4G (the link round-trip); LCP unchanged and
   // every SUBSEQUENT navigation stops re-downloading the whole stylesheet.
   experimental: {
+    ...(process.platform === 'darwin' ? { cpus: MAC_BUILD_CPUS } : {}),
     inlineCss: false,
     /**
      * ⛔ OFF: OPTIMISTIC ROUTING LEARNS `/[lang]` FROM THE `/vi` PILOT AND THEN CALLS EVERY ONE-SEGMENT PATH THE HOME PAGE.
