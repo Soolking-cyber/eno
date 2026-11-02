@@ -19,6 +19,8 @@ const LIMIT = 16
  * The pool is 96, so 16 still remain after a 12-card page.
  */
 const POOL = 96
+/** Under this many live rows the rail would mirror the grid card-for-card, so it hides. */
+const MIN_POOL = 24
 const RANK: Prisma.ListingOrderByWithRelationInput = { rankScore: 'desc' }
 const TRENDING_ORDER: Prisma.ListingOrderByWithRelationInput[] = [RANK, { views: 'desc' }, { id: 'desc' }]
 
@@ -83,15 +85,18 @@ export async function trendingRailListings({ excludeIds }: { excludeIds?: readon
   // caller's own — the home page joins the feed window these ids come from in the same Promise.all.
   // eslint-disable-next-line no-restricted-syntax
   if (excludeIds instanceof Promise) excludeIds.catch(() => {})
-  // ⚠️ SCOPED ONCE AND REUSED, so the pool count and the rows can never disagree. The `pool < 24`
-  // thin-catalog guard below is computed from this same count — removing the desk's rows can push a
+  // ⚠️ SCOPED ONCE AND REUSED, so the guard and the rows can never disagree. The thin-catalog guard below
+  // reads this same predicate — removing the desk's rows can push a
   // small live catalogue under the threshold and make the rail disappear from the home page. That is
   // correct behaviour, not a regression: check the live active count before assuming otherwise.
   // ⛔ ONLY LISTINGS DEALT ON eno — a home-page rail (owner, 2026-10-28 — in-app-listing.ts); /api/recommendations' own
   // fallback is this function, so the rail answers the same with and without the client fetch.
   const base: Prisma.ListingWhereInput = inAppOnly(await scopedListingWhere({ verified: true, status: 'active' }))
-  const pool = await db.listing.count({ where: base })
-  if (pool < 24) return []
+  // ⚠️ A PROBE, NOT count(): the guard only asks "are there at least MIN_POOL?", and the exact number was never used.
+  // /api/recommendations serves this uncached, and the COUNT over every live in-app row measured ~128 ms a call on prod
+  // (pg_stat_statements, speed audit 2026-11-01); the MIN_POOL-th row answers the same question and stops there.
+  const lastNeeded = await db.listing.findFirst({ where: base, skip: MIN_POOL - 1, select: { id: true } })
+  if (!lastNeeded) return []
   // ⚠️ /api/recommendations calls this with no ids and gets exactly the rail it always served.
   return diverseRailListings(base, TRENDING_ORDER, { pool: POOL, take: LIMIT, excludeIds })
 }

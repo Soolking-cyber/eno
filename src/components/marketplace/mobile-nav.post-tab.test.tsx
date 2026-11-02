@@ -18,11 +18,11 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
  */
 
 const auth = vi.hoisted(() => ({ user: null as null | { id: string }, loading: false, openSignIn: vi.fn() }))
-const nav = vi.hoisted(() => ({ pathname: '/', push: vi.fn() }))
+const nav = vi.hoisted(() => ({ pathname: '/', push: vi.fn(), prefetch: vi.fn() }))
 /** Every Link click, with whether the COMPONENT prevented the navigation (the mock then stops jsdom's). */
 const linkClicks = vi.hoisted(() => [] as { href: string; prevented: boolean }[])
 
-vi.mock('next/navigation', () => ({ usePathname: () => nav.pathname, useRouter: () => ({ push: nav.push, prefetch: vi.fn() }) }))
+vi.mock('next/navigation', () => ({ usePathname: () => nav.pathname, useRouter: () => ({ push: nav.push, prefetch: nav.prefetch }) }))
 vi.mock('next/link', () => ({
   default: ({ href, prefetch, onClick, children, ...rest }: { href: string; prefetch?: boolean; onClick?: (e: React.MouseEvent) => void; children: React.ReactNode } & Record<string, unknown>) => (
     <a
@@ -61,6 +61,7 @@ beforeEach(() => {
   auth.openSignIn.mockClear()
   nav.pathname = '/'
   nav.push.mockClear()
+  nav.prefetch.mockClear()
   linkClicks.length = 0
 })
 
@@ -134,10 +135,69 @@ describe('while auth is still resolving (most first taps land here)', () => {
     expect((await screen.findByTestId('guest-sheet')).getAttribute('data-open')).toBe('true')
   })
 
-  it('does not prefetch /post during that window (the cold load stays as light as before; after it, auto prefetch like Explore/Saved)', () => {
+  it('does not prefetch /post during that window (the cold load stays as light as before)', () => {
     auth.loading = true
     render(<MobileNav />)
     expect(byName('Post').getAttribute('data-prefetch')).toBe('false')
+  })
+})
+
+// ⚠️ SPECULATIVE LOADS, MEASURED (speed audit 2026-11-01): Saved warms on intent; Post keeps auto prefetch (without it the first
+// tap went from ~345 ms to ~1,100 ms on a mid phone) unless the connection is lean, and then it warms on intent too.
+describe.each([
+  ['a guest', null],
+  ['a member', { id: 'u1' }],
+])('%s: the tabs that are not walked between', (_who, user) => {
+  beforeEach(() => { auth.user = user })
+  afterEach(() => { vi.unstubAllGlobals() })
+  const lean = (connection: unknown) => vi.stubGlobal('navigator', Object.assign(Object.create(navigator), { connection }))
+
+  it('Saved fetches nothing on sight', () => {
+    render(<MobileNav />)
+    expect(byName('Saved').getAttribute('data-prefetch')).toBe('false')
+    expect(nav.prefetch).not.toHaveBeenCalled()
+  })
+
+  it('Post keeps auto prefetch on an ordinary connection', () => {
+    render(<MobileNav />)
+    expect(byName('Post').getAttribute('data-prefetch')).toBe('undefined')
+  })
+
+  it.each([
+    ['Data Saver', { saveData: true, effectiveType: '4g' }],
+    ['3G', { effectiveType: '3g' }],
+    ['2G', { effectiveType: '2g' }],
+    ['slow 2G', { effectiveType: 'slow-2g' }],
+  ])('Post fetches nothing on sight on %s', (_name, connection) => {
+    lean(connection)
+    render(<MobileNav />)
+    expect(byName('Post').getAttribute('data-prefetch')).toBe('false')
+  })
+
+  it.each([
+    ['4G', { effectiveType: '4g' }],
+    ['a browser that reports nothing (Safari)', undefined],
+  ])('Post keeps auto prefetch on %s', (_name, connection) => {
+    lean(connection)
+    render(<MobileNav />)
+    expect(byName('Post').getAttribute('data-prefetch')).toBe('undefined')
+  })
+
+  it.each([['Saved', '/saved'], ['Post', '/post']])('%s warms on the finger\'s down and on keyboard focus', (name, href) => {
+    render(<MobileNav />)
+    fireEvent.pointerDown(byName(name))
+    expect(nav.prefetch).toHaveBeenLastCalledWith(href)
+    nav.prefetch.mockClear()
+    fireEvent.focus(byName(name))
+    expect(nav.prefetch).toHaveBeenLastCalledWith(href)
+  })
+
+  it.each([['Saved', '/saved'], ['Post', '/post']])('%s warms nothing on the page it links', (name, href) => {
+    nav.pathname = href
+    render(<MobileNav />)
+    fireEvent.pointerDown(byName(name))
+    fireEvent.focus(byName(name))
+    expect(nav.prefetch).not.toHaveBeenCalled()
   })
 })
 

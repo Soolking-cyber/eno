@@ -11,7 +11,7 @@ app(){ curl -sS -o /dev/null -D - -H "Host: $1" -H "Accept-Encoding: $4" "http:/
 # names lower-cased, values verbatim; drop per-server fields, the document-only headers nginx omits by design, and
 # cache-tag (nginx adds eno-static for an operator purge; Cloudflare uses it, browsers never see a difference)
 norm(){ tr -d '\r' | awk -F': ' 'NF>1{ $1=tolower($1); print }' OFS=': ' | grep -vE \
-  '^(date|etag|last-modified|server|connection|keep-alive|content-length|transfer-encoding|content-security-policy|permissions-policy|x-frame-options|referrer-policy|x-dns-prefetch-control|reporting-endpoints|cache-tag): ' | sort; }
+  '^(date|etag|last-modified|server|connection|keep-alive|content-length|transfer-encoding|content-security-policy|content-security-policy-report-only|permissions-policy|x-frame-options|referrer-policy|x-dns-prefetch-control|reporting-endpoints|cache-tag): ' | sort; }
 code(){ head -1 | awk '{print $2}'; }
 hdr(){ tr -d '\r' | grep -i "^$1:" | cut -d' ' -f2-; }
 files(){ (cd "$1" && find _next/static -type f ! -name '*.gz' ! -name '*.br' | sort); }
@@ -28,6 +28,8 @@ for ed in "marketplace eno.vn 3001 eno-vn-app" "services www.eno.forum 3002 eno-
     done
     case "$(ngx "$H" "$u" gzip | hdr etag)" in W/*|"") bad "$E $u answered by the APP (weak/no ETag), not disk";; esac
     case "$u" in *.js|*.css|*.svg|*.ico) [ "$(ngx "$H" "$u" gzip | hdr content-encoding)" = gzip ] || bad "$E $u: no .gz sibling served";; esac
+    # Asked as Cloudflare asks. A clean reload once served no .br at all and nothing logged it (static-common.conf); .ico has no .br.
+    case "$u" in *.js|*.css|*.svg) [ "$(ngx "$H" "$u" 'gzip, br' | hdr content-encoding)" = br ] || bad "$E $u: no .br sibling served";; esac
   done
 done
 

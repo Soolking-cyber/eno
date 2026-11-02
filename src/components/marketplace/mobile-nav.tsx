@@ -106,6 +106,15 @@ const TAB = 'relative flex flex-1 cursor-pointer rounded-full after:absolute aft
 // is active across /dashboard/* but hrefs /dashboard/account. For those, "active" taps are real
 // navigations to a different route, so using `active` here would have killed a prefetch that DOES
 // pay off. (codex caught exactly that; Gemini's pass confirmed the diff and missed it.)
+//
+// ⚠️ SAVED WARMS ON INTENT, NOT ON SIGHT, AND POST ONLY WHEN THE CONNECTION CAN SPARE IT (speed audit 2026-11-01). The bar is
+// on every mobile page, so auto prefetch has every visitor to every page paying for both: 6 RSC renders at the origin, then 10
+// chunks, 127 KB on the wire. /post is 4 of those renders and 112 KB of those bytes; /saved costs far less and gains far less.
+// ⛔ POST KEEPS IT ANYWAY, MEASURED on a mid-phone profile (finger down to URL change): with no prefetch at all Post's first tap
+// went from ~345 ms to ~1,100 ms, Saved's only from ~370 ms to ~410-460 ms. Link prefetches can only start after hydration, so
+// neither delays tap-ready. Only a visitor who asked to save data, or on a 2G/3G connection, stops paying (`connectionIsLean`);
+// the finger's DOWN or the keyboard's focus still warms it for them (`useWarmOnIntent`), the way the sign-in dialog does.
+// Explore, Messages and Account keep auto: they get walked between.
 
 // ⛔ NO LABEL SLOT ANY MORE (owner, 2026-09-26 — see the note at the top). The micro-label
 // stack that lived here bottom-anchored a `text-3xs` label under each glyph so five labels
@@ -157,6 +166,22 @@ function TabFace({ on, icon, capsule = true, stack = STACK }: { on: boolean; ico
 function TabBody({ active, ...face }: { active: boolean; icon: TabIcon; capsule?: boolean; stack?: string }) {
   const { pending } = useLinkStatus()
   return <TabFace on={active || pending} {...face} />
+}
+
+/** The visitor asked to save data, or the connection is 2G/3G: nothing speculative. Chromium's Network Information API; Safari
+ *  and iOS WebViews report neither, and read as not lean. */
+function connectionIsLean(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const c = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
+  return c?.saveData === true || /^(slow-2g|2g|3g)$/.test(c?.effectiveType ?? '')
+}
+
+/** Warm a route the moment someone reaches for it: the finger's DOWN, ~100 ms before the click, or the keyboard's focus.
+ *  `here`: the page already on screen has nothing to warm. router.prefetch dedupes a second reach by itself. */
+function useWarmOnIntent(href: string, here: boolean) {
+  const router = useRouter()
+  const warm = () => { if (!here) router.prefetch(href) }
+  return { onPointerDown: warm, onFocus: warm }
 }
 
 /** A tab that needs sign-in (Messages / Account — Post left this list 2026-09-25, see the Post tab
@@ -286,6 +311,10 @@ export function MobileNav() {
   // just to know which tab to light. Account is a real page now (/dashboard/account), so every
   // tab's active state comes from the ONE source it should: the pathname.
   const at = (p: string) => mounted && pathname === p
+  // Not behind `mounted`: `prefetch` never reaches the DOM, so there is nothing to mismatch, and a remount must not prefetch once.
+  const leanConnection = connectionIsLean()
+  const warmSaved = useWarmOnIntent('/saved', at('/saved'))
+  const warmPost = useWarmOnIntent('/post', at('/post'))
   const atPrefix = (p: string) => mounted && (pathname?.startsWith(p) ?? false)
   // ⛔ EXPLORE LIGHTS ACROSS THE BROWSE SURFACES, NOT ONLY ON `/` (NAV-5, UX3 2026-10-05): a category, a
   // listing, a seller, a storefront or /brands is where exploring took you, and with an icon-only bar
@@ -428,7 +457,7 @@ export function MobileNav() {
 
       {/* Saved is public — favorites are stored device-local (localStorage), so a
           logged-out visitor can save and review listings without an account. */}
-      <Link href="/saved" prefetch={at('/saved') ? false : undefined} aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/saved'))}>
+      <Link href="/saved" prefetch={false} {...warmSaved} aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/saved'))}>
         <TabBody
           active={at('/saved')}
           icon={(
@@ -466,17 +495,18 @@ export function MobileNav() {
           guest's first tap — most first taps land in that window — would still have opened the
           modal. /post is the same page for a guest and a member, so there is nothing to wait for.
           PREFETCH: off during that window for the reason GatedTab gives (it is the slowest part of a
-          cold mobile load); after it, a guest now gets the same auto prefetch a member always had —
-          deliberately. Before, a resolved guest's coin was a <button> and prefetched nothing, because
-          it went nowhere; now it goes to /post, and auto warms only the route's shell (post/loading.tsx
-          is the boundary), which is what makes the tap paint at once. Same rule as Explore and Saved.
+          cold mobile load); after it, a guest gets the same auto prefetch a member always had, unless the
+          connection is lean (the note at the top of this file). Before, a resolved guest's coin was a
+          <button> and prefetched nothing, because it went nowhere; now it goes to /post, which is what
+          makes the tap paint at once. Same rule as Explore.
           Only this link's own props changed hands: GatedTab's `onHref` fed nothing but this prefetch
           rule, the pending highlight (useLinkStatus) lives in TabBody, and its only haptic belonged
           to the swallowed boot-window tap that no longer exists here.
           Re-tapping never scrolls to top (`false`), as before. */}
       <Link
         href="/post"
-        prefetch={at('/post') || loading ? false : undefined}
+        prefetch={at('/post') || loading || leanConnection ? false : undefined}
+        {...warmPost}
         aria-label={tr('Post', 'Đăng tin')}
         aria-current={at('/post') ? 'page' : undefined}
         className={TAB}

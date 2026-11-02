@@ -415,7 +415,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { signInCtxRef.current = signInCtx }, [signInCtx])
   // Warm "is Facebook sign-in on?" at app load (src/lib/facebook-flag.ts), so the shared flag is known before a sign-in
   // popup opens — Facebook then renders alongside Google/Apple at first paint instead of joining ~1s later.
-  useEffect(() => { warmFacebookSignIn() }, [])
+  // ⚠️ ONLY FOR A GUEST, AS SOON AS THAT IS KNOWN (speed audit 2026-11-01). A member is never shown a sign-in form, so the
+  // request bought them nothing on any page. ⛔ NO IDLE WAIT ON TOP: a guest who opened the form during it would watch Facebook
+  // join late, the very thing this warm exists to prevent, and auth resolves after hydration anyway.
+  const guestResolved = !loading && !user
+  useEffect(() => { if (guestResolved) warmFacebookSignIn() }, [guestResolved])
   /** A new open while the "Join eno" ask is still up takes the popup over: tell the prompt (onReplaced). */
   const replacingPrompt = useCallback((next: SignInPrompt | null) => {
     const prev = signInCtxRef.current?.prompt
