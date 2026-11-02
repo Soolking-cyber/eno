@@ -9,7 +9,7 @@ import { ListingCard } from './listing-card'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 import { LISTING_GRID } from './listing-grid'
 import { sortTabClass } from './sort-tab-class'
-import { CustomSelect } from './custom-select'
+import { DeferredSelect } from './deferred-select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -296,7 +296,7 @@ export function SellerListings({
     : (sortOptions.find((o) => o.value === sort)?.label ?? tr('Sort by', 'Sắp xếp'))
   const SortGlyph = sort === 'price-low' ? ArrowUp : sort === 'price-high' ? ArrowDown : ArrowUpDown
   const sortPill = (
-    <CustomSelect
+    <DeferredSelect
       value={sort}
       onChange={(v) => { hapticSelection(); setSort(v as SortKey) }}
       options={sortOptions}

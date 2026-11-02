@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Price } from './price'
 import { fold } from '@/lib/fold'
 import { cn } from '@/lib/utils'
-import { countChipLabel, countDigits } from './count-chip'
+import { countChipLabel, countDigits } from './count-chip-label'
 import type { SuggestListing, SuggestCategory, SuggestBrand, SuggestLine, SuggestScope } from '@/hooks/use-search-suggest'
 
 // Ordered, keyboard-navigable dropdown items. The 'Search for "{q}"' row is ALWAYS
