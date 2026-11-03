@@ -3,7 +3,7 @@
 import { LANGUAGES, useLanguage } from '@/context/language-context'
 import { useCurrency } from '@/context/currency-context'
 import { CURRENCIES } from '@/lib/currencies'
-import { DeferredSelect } from './deferred-select'
+import { CustomSelect } from './custom-select'
 
 /**
  * Language + display currency, in the footer, for EVERYONE — a guest included.
@@ -46,7 +46,7 @@ const TRIGGER = 'min-h-11 text-body hover:bg-muted pc:min-h-0 pc:rounded-lg pc:p
 export function LanguageSelect({ className = TRIGGER, wrapperClassName = 'shrink-0' }: { className?: string; wrapperClassName?: string }) {
   const { tr, lang, setLang } = useLanguage()
   return (
-    <DeferredSelect
+    <CustomSelect
       value={lang}
       onChange={(v) => setLang(v as typeof lang)}
       options={LANGUAGES.map((l) => ({ value: l.code, label: l.native }))}
@@ -62,7 +62,7 @@ export function CurrencySelect({ className = TRIGGER, wrapperClassName = 'shrink
   const { tr } = useLanguage()
   const { currency, setCurrency } = useCurrency()
   return (
-    <DeferredSelect
+    <CustomSelect
       value={currency}
       onChange={setCurrency}
       options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.symbol}  ${c.label}` }))}
