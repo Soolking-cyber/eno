@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useState, useRef, memo } from 'react'
+import { useEffect, useId, useLayoutEffect, useState, useRef, memo, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { Heart, Building2, MapPin, MessageCircle, Tag, Play, ArrowRight } from '@/components/ui/icons'
@@ -34,24 +34,10 @@ import { isHcmc } from '@/lib/city-short'
 import { cardTitle, jobCardMeta } from '@/lib/card-title'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
-// PostedAgo (not a bare timeAgo() call) so the card's relative time is the SAME string the PDP
-// prints — it derives its label from useLanguage at render time, which is the repo's existing
-// answer to relative time on a cached page (the PDP renders it inside the ISR'd listing route,
-// and drop-countdown.tsx follows it). Client-time derivation means the label is computed at
-// RENDER time, and the home route is ISR-cached for 6h with 12 cards baked into its HTML — so a
-// card can ship "1h ago" in that HTML and hydrate to "7h ago". MEASURED on that baked HTML: the
-// "New" badge above is already computed from Date.now() against a 48h window and is already baked
-// 26× into it, so the CLASS of mismatch is not new — ⚠️ but be honest about frequency, because a
-// reviewer was right to push on it: the badge only flips across one 48h boundary, while an
-// hours-granularity label crosses a bucket on most cards of a 6h-old page. React recovers (the
-// client value wins, which is the correct one) at the cost of re-rendering that subtree. Closing
-// it properly means gating on mount, or the <LiveUntil> treatment the PDP already uses for its
-// own Date.now()-derived claims — inside listing-content.tsx, which is a deliberate piece of work
-// and not a line in this import.
+// PostedAgo (not a bare timeAgo() call): the card's relative time is the SAME string the PDP prints, and it is safe on a cached page (relative-time.tsx).
 import { useLocalized, PostedAgo } from './listing-content'
-import { useFavorites } from '@/context/favorites-context'
+import { useFavoriteMarks } from '@/context/favorites-context'
 import { useAuth } from '@/context/auth-context'
-import { useMounted } from '@/hooks/use-mounted'
 // Perf Phase 1: both are OPTIONAL card features — the video enhancement mounts only
 // on in-viewport video cards, the discount slider only inside the owner's popover —
 // so neither belongs in the default card path every page pays for.
@@ -109,6 +95,8 @@ type Props = {
   lcp?: boolean
   /** A main grid's card past the first screen: its photo waits for the page's scripts on a phone (src/lib/image-hold.ts). */
   holdPhoto?: boolean
+  /** False for a card in HTML that lives for weeks (a listing page's shelf): its "x ago" and "New" wait for the clock, not a baked claim. */
+  clockInHtml?: boolean
   // Accurate per-context sizing so the browser downloads card-sized images, not
   // full-width. Default = the result grid's own geometry (LISTING_CARD_SIZES, derived in
   // listing-grid.ts — a rail card is one grid column, so rails share it); map mode passes its own.
@@ -144,6 +132,7 @@ function ListingCardImpl({
   priority = false,
   lcp = false,
   holdPhoto = false,
+  clockInHtml = true,
   sizes = LISTING_CARD_SIZES,
   onLocate,
 }: Props) {
@@ -216,29 +205,22 @@ function ListingCardImpl({
   const conditionLabel = listing.condition === 'new' ? tr('New', 'Mới')
     : listing.condition === 'used' ? tr('Used', 'Đã dùng')
     : listing.condition || null
-  const { isFavorite, toggle, savedDelta } = useFavorites()
-  const favorited = isFavorite(listing.id)
-  // Base savedCount (real, server-side) + this session's own toggle, floored at 0.
-  const savedTotal = Math.max(0, listing.savedCount + savedDelta(listing.id))
-  // One-shot heart-burst: set ONLY when the user saves (not on unsave, and not
-  // when favorites hydrate from storage on load). Cleared when the CSS animation
-  // ends so a later save replays it.
-  const [burst, setBurst] = useState(false)
   // Desktop quick-offer (hover bar): slide a discount, hand off to the PDP composer
   // in offer mode via ?offer=N#contact. null = collapsed.
   const [quickOffer, setQuickOffer] = useState<number | null>(null)
   const router = useRouter()
-  const { user, loading: authLoading, openSignIn, accountType } = useAuth()
-  // Gates the meta row's relative time — see the comment at its render site for why this route
-  // in particular cannot afford an ungated client-clock value.
-  const mounted = useMounted()
+  const authNow = useRef<AuthValue | null>(null)
+  const [quickBar, setQuickBar] = useState(false)
 
   // Quick actions land IN the conversation: stash the structured compose payload
   // and let /messages/pending create the thread + post it (same flow as the PDP
   // composer). Guests get the sign-in dialog with listing context — and (UX3 J5) the action is
   // remembered and finished on the listing's page after sign-in (quickActionSignIn), never sent by itself.
   const quickGo = (opts: { body?: string; offerAmount?: number | null }) => {
-    if (!user) { if (!authLoading) openSignIn({ listingTitle: displayTitle, listingImage: images[0] ?? null, ...quickActionSignIn(listing, opts) }); return }
+    const auth = authNow.current
+    // Not read yet (it arrives with the bar, in an effect): the listing's own composer rather than a tap that does nothing.
+    if (!auth) { router.push(`/listings/${listing.id}#contact`); return }
+    if (!auth.user) { if (!auth.loading) auth.openSignIn({ listingTitle: displayTitle, listingImage: images[0] ?? null, ...quickActionSignIn(listing, opts) }); return }
     if (stashQuickCompose(listing, opts)) router.push('/messages/pending')
     else router.push(`/listings/${listing.id}#contact`)
   }
@@ -427,6 +409,9 @@ function ListingCardImpl({
     // included — is one long-press target. Inert on web.
     <div
       data-card-root
+      // A finger counts only where the bar can show (`pc`: a touchscreen laptop, an iPad with a trackpad). On a phone it would re-render a card for nothing under the tap.
+      onPointerEnter={quickBar ? undefined : (e) => { if (e.pointerType !== 'touch' || window.matchMedia(PC_QUERY).matches) setQuickBar(true) }}
+      onFocusCapture={quickBar ? undefined : () => setQuickBar(true)}
       // `data-sid` — the shop, for src/lib/hidden-sellers.ts: a shop the viewer blocked is hidden by one stylesheet
       // (App Store 1.2), so every card of it disappears wherever it is drawn. The cells that hold a card carry it too.
       data-sid={listing.sellerId}
@@ -918,29 +903,12 @@ function ListingCardImpl({
             conversion signals on it. The stated reason was crowding, but the badges sit at
             `left-2 top-2` and the hover icon row is at `right-11 top-2`: they cannot collide at any
             width where that row renders. */}
-        <CardBadges listing={listing} className="absolute left-2 top-2 z-10" />
+        <CardBadges listing={listing} chipInHtml={clockInHtml} className="absolute left-2 top-2 z-10" />
 
         {/* Bottom-left status chips — a video indicator (so mobile, which has no hover,
             still knows there's a clip) + social proof "N saved" (≥3). One row so they never
             overlap; clear of the dots (center) and the action column (right). */}
-        {(listing.video || savedTotal >= 3) && (
-          <span className="pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1.5">
-            {listing.video && (
-              <span title={tr('Has a video', 'Có video')} className="flex h-5 items-center rounded-full bg-foreground/70 px-1.5 text-background material backdrop-blur-[2px]">
-                {/* Filled micro-mark (icon-language §2 spirit: a 2-weight line vanishes at
-                    this size inside a filled chip) at the ladder's 12px micro step. */}
-                <Play className="h-3 w-3 fill-current" />
-              </span>
-            )}
-            {/* base savedCount persists server-side (real saves); savedDelta adds this
-                session's own toggle so it moves the moment the heart is tapped. */}
-            {savedTotal >= 3 && (
-              <span title={tr('people saved this', 'người đã lưu tin này')} className="flex h-5 items-center gap-1 rounded-full bg-foreground/70 px-2 text-3xs font-bold text-background material backdrop-blur-[2px]">
-                <Heart className="h-3 w-3 fill-current" /> {new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(savedTotal)}
-              </span>
-            )}
-          </span>
-        )}
+        <CardStatusChips listing={listing} />
 
         {/* ⚠️ THE AVAILABILITY-CHECK CHIP (owner, 2026-09-25) — rentals only, bottom-right, the one free
             corner (badges and heart own the top, the status chips the bottom-left, the pips the centre).
@@ -960,7 +928,11 @@ function ListingCardImpl({
             lays them out [locate · offer · chat] left→right with chat against the heart.
             Mobile/tablet keep the always-on right-edge column below. Pressing Offer
             opens the centered discount bar (shared with mobile). */}
-        <span className="pointer-events-none absolute right-11 top-2 z-10 hidden flex-row-reverse items-center gap-1 pc:flex">
+        {/* ⛔ NOT IN THE HTML, MOUNTED ON THE FIRST HOVER OR FOCUS (speed audit, 2026-11-03). Three tooltips, buttons and glyphs per card, on every card of a page, hidden on every
+            phone (`hidden pc:flex`) and invisible on a desktop until hover: a quarter of the components hydrated on a page. `starting:` is what keeps the unfurl, because the
+            controls are born already hovered: with no earlier style there would be nothing to transition from. */}
+        {quickBar && <AuthAtClick into={authNow} />}
+        {quickBar && <span className="pointer-events-none absolute right-11 top-2 z-10 hidden flex-row-reverse items-center gap-1 pc:flex">
           {/* No Chat on a reference listing — nobody owns it (see /api/conversations). */}
           {quickOffer === null && !listing.isPartnerBooking && (
             // ⛔ ALL FOUR CONTROLS SHARE `variant="overlay"`, WHICH IS NOW A TRANSLUCENT PLATE
@@ -997,7 +969,7 @@ function ListingCardImpl({
                 tapTarget={false}
                 aria-label={listing.listingType === TEACHER_LISTING_TYPE ? tr('Message teacher', 'Nhắn tin cho giáo viên') : tr('Chat with seller', 'Nhắn tin với người bán')}
                 // A teacher is hired, never asked whether "this" is still available (src/lib/teachers/first-message.ts).
-                onClick={(e) => { e.stopPropagation(); quickGo({ body: quickChatOpener(listing.listingType, tr, openerVoice(accountType)) }) }}
+                onClick={(e) => { e.stopPropagation(); quickGo({ body: quickChatOpener(listing.listingType, tr, openerVoice(authNow.current?.accountType)) }) }}
                 /**
                  * ⛔ `[overflow:visible]` IS THE WHOLE FIX, AND TWO WRONG ONES CAME FIRST. Owner,
                  * 2026-08-29: *"message icon is clipping over backplate"*, then 2026-08-30 with a
@@ -1026,7 +998,7 @@ function ListingCardImpl({
                  * ⚠️ IT DOES NOT GENERALISE. Every other plated glyph is under 1.0 and would gain
                  * nothing from `overflow:visible`; this is a property of one mark, not of the plate.
                  */
-                className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="pointer-events-auto translate-x-3 opacity-0 starting:translate-x-3 starting:opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <MessageCircle className="h-5 w-5 fill-none [overflow:visible]" />
               </IconButton>
@@ -1048,7 +1020,7 @@ function ListingCardImpl({
                 // there is NO transition: Tab must not land on a control that is still fading in from
                 // opacity 0, and a keyboard-driven change never animates (the same for Locate and Edit).
                 className={cn(
-                  'pointer-events-auto translate-x-3 opacity-0 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
+                  'pointer-events-auto translate-x-3 opacity-0 starting:translate-x-3 starting:opacity-0 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
                   quickOffer === null
                     ? '[transition:translate_200ms_var(--ease-spring-snappy)_75ms,opacity_200ms_var(--ease-spring-snappy)_75ms,scale_160ms_var(--ease-spring-snappy),background-color_150ms_ease,color_150ms_ease,box-shadow_150ms_ease]'
                     : '[transition:translate_200ms_var(--ease-spring-snappy),opacity_200ms_var(--ease-spring-snappy),scale_160ms_var(--ease-spring-snappy),background-color_150ms_ease,color_150ms_ease,box-shadow_150ms_ease]',
@@ -1071,7 +1043,7 @@ function ListingCardImpl({
                 tapTarget={false}
                 aria-label={tr('Show on map', 'Xem trên bản đồ')}
                 onClick={(e) => { e.stopPropagation(); locate(listing) }}
-                className="pointer-events-auto translate-x-3 opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_150ms,opacity_200ms_var(--ease-spring-snappy)_150ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="pointer-events-auto translate-x-3 opacity-0 starting:translate-x-3 starting:opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_150ms,opacity_200ms_var(--ease-spring-snappy)_150ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <MapPin className="h-5 w-5 fill-none" />
               </IconButton>
@@ -1090,9 +1062,9 @@ function ListingCardImpl({
             sellerId={listing.sellerId}
             compact
             dense
-            className="pointer-events-auto translate-x-3 opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_200ms,opacity_200ms_var(--ease-spring-snappy)_200ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            className="pointer-events-auto translate-x-3 opacity-0 starting:translate-x-3 starting:opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_200ms,opacity_200ms_var(--ease-spring-snappy)_200ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:[transition:none] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           />
-        </span>
+        </span>}
 
         {/* Save (Heart) — pinned top-right on EVERY platform (the only control left on the
             photo). GHOST, not overlay: the heart's shadow lives on the icon itself at 0.5
@@ -1100,45 +1072,7 @@ function ListingCardImpl({
             the <Heart> child — so the primitive contributes only the shell. The mobile
             Chat/Offer/Map glyphs that used to stack down this edge now live in the card body
             (a quiet native action row); desktop keeps its on-hover unfurl above. */}
-        <IconButton
-          size="sm"
-          variant="overlay"
-          // ⚠️ THE NAME IS CONSTANT ON PURPOSE — `aria-pressed` is what reports the state, and a
-          // toggle button whose NAME also flips says the same thing twice, in contradictory
-          // words: "Remove favorite" + pressed announces as though REMOVAL were the active state,
-          // when what is active is the save. (ARIA APG, Button-Toggle: the label does not change
-          // when the state does.) The pair to read is "Save listing, pressed".
-          aria-label={tr('Save listing', 'Lưu tin')}
-          aria-pressed={favorited}
-          onClick={(e) => { e.stopPropagation(); if (!favorited) setBurst(true); toggle(listing.id) }}
-          className="absolute right-2 top-2 z-10 transition-transform hover:scale-110 active:scale-[0.96]"
-        >
-          {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow —
-              legible on ANY photo; solid fill-brand when saved (icon-language §5
-              user-state — the line stays white because it sits over media); heart-pop
-              on save. h-5 = the ladder's 20px step, same as the quick-action glyphs,
-              so the whole photo-overlay cluster shares ONE optical size. */}
-          <span onAnimationEnd={(e) => { if (e.animationName === 'heart-pop') setBurst(false) }} className={cn('inline-flex', burst && 'animate-heart-pop')}>
-            {/* ⚠️ SAVED = RED, THE SAME RED AS THE COUNTERS (owner, 2026-08-13: "clicking on heart
-                on products make it red similar to notif message counter red"), i.e. --destructive,
-                the token the counter badge uses. It was `fill-brand text-white`.
-                ⚠️ THE COLOUR HAS TO RIDE ON `text-*`, NOT `fill-*`, AND THAT IS WHY THE OLD PAIR
-                LOOKED IDENTICAL IN BOTH STATES. These glyphs are generated with `fill="currentColor"`
-                on each <path>, and a presentation attribute on the path beats a `fill:` inherited
-                from the <svg> — so `fill-brand` never reached the ink and both states painted
-                `text-white`. Setting `color` is what the paths actually follow. `fill-current` is
-                kept so the shape stays solid rather than falling back to the unset default. */}
-            {/* ⛔ `fill-none`, NOT `fill-black/25`. The translucent black interior made the heart a
-                grey blob beside the chat and pin glyphs, which are unfilled outlines — the owner
-                spotted it as "the save icon is different than others". save-listing-button.tsx had
-                already reached this conclusion and written it down: a filled interior fights the
-                outline, and the outline is what carries legibility. All three now share
-                icon-shadow-brand so the trio is one treatment. */}
-            <Heart className={cn('icon-own-ink h-5 w-5 transition-colors', favorited
-              ? 'fill-current text-destructive'
-              : 'fill-none')} />
-          </span>
-        </IconButton>
+        <CardSaveButton listingId={listing.id} />
 
         {/* Offer slide — ONE edge-to-edge bar for BOTH mobile + desktop (was a
             cramped inline panel on desktop that squeezed the amount on narrow cards).
@@ -1425,38 +1359,12 @@ function ListingCardImpl({
                 <>
                   {lead.join(' · ')}
                   <span className="hidden sm:inline">
-                    {/* ⛔ MOUNT-GATED, AND ON THIS ROUTE THAT IS NOT A NICETY — IT IS THE DIFFERENCE
-                        BETWEEN AN ISR PAGE AND A CLIENT-RENDERED ONE. `PostedAgo` derives its label
-                        from the CLIENT clock, and `/` is ISR-cached for 6h with 12 of these cards
-                        baked into the HTML (app/(home)/page.tsx revalidate=21600, take:12). So the
-                        HTML says "· 3h ago" and a visitor five hours later computes "· 8h ago".
-                        React 19 does not patch a text mismatch the way 18 did — it throws
-                        HydrationMismatchException and recovers by CLIENT-RENDERING FROM THE NEAREST
-                        SUSPENSE BOUNDARY. ⛔ SINCE UX3 FAST-8 (2026-10-05) THE HOME AND CATEGORY PAGES
-                        HAVE NO BOUNDARY EITHER — (home)/loading.tsx and (index)/loading.tsx are gone — so a
-                        stale label there now recovers from the ROOT, exactly as on a listing page: the
-                        whole document re-renders, on essentially every cache hit. (Until FAST-8 the
-                        loading boundary confined it to the feed.)
-                        ⚠️ AND ON A LISTING PAGE THERE IS NO BOUNDARY AT ALL since H1a deleted
-                        (pdp)/loading.tsx, so a mismatch in a card there recovers from the ROOT: the
-                        whole document re-renders, which makes this gate stricter, not optional.
-                        `useMounted` is the repo's own answer to exactly this and says
-                        so in its docblock; live-until.tsx and pdp-shop-link.tsx both already use the
-                        two-pass shape for client-time values, the latter after review caught it.
-                        ⚠️ BOTH SEPARATORS ARE INSIDE THE GATE, and the first version of this got it
-                        wrong in the most instructive way: it gated the time but left the LEADING
-                        " · " outside, so a listing with a lead and no brand rendered
-                        "Bình Thạnh · " — a dangling middot baked into the 6h HTML, seen by Googlebot
-                        and by every no-JS visitor permanently. The comment right here claimed the
-                        separator was gated while the line above it proved otherwise; all three
-                        review families caught it independently. A separator belongs to the thing it
-                        separates, so it lives or dies with it. */}
-                    {/* Two rules, each naming what it separates, so no state can strand one:
-                        · before TIME  — only once the time exists, and only if something precedes it
-                        · before BRAND — if brand exists AND anything precedes it (lead, or the time) */}
-                    {mounted && lead.length > 0 ? ' · ' : ''}
-                    {mounted && <PostedAgo iso={listing.postedAt} />}
-                    {brand.length > 0 && (mounted || lead.length > 0) ? ' · ' : ''}
+                    {/* The time is in the first paint: relative-time.tsx is what keeps a stale label on this cached page from a hydration error.
+                        ⚠️ A separator belongs to the thing it separates: " · " before the time only if a lead precedes it, or a card without one
+                        starts with a dangling middot, baked into the HTML for Googlebot and no-JS visitors. */}
+                    {lead.length > 0 ? ' · ' : ''}
+                    <PostedAgo iso={listing.postedAt} inHtml={clockInHtml} />
+                    {brand.length > 0 ? ' · ' : ''}
                     {brand.length > 0 ? brand.join(' · ') : ''}
                   </span>
                 </>
@@ -1529,4 +1437,98 @@ function ListingCardImpl({
 // change. With stable `onOpen`/`onLocate` callbacks from the parent (useCallback),
 // memo lets unaffected cards skip re-render — kills the map-hover re-render storm
 // across a long grid. Favorite/language changes still flow via context.
+/**
+ * ⛔ WHAT A PROVIDER CHANGES RE-RENDERS ONLY WHAT SHOWS IT (speed audit, 2026-11-03). The card body used to read auth and favourites itself, so each
+ * of those settling after hydration re-rendered every card on the page, in full, inside the longest task of the load. Auth is read at the click
+ * (nothing a card draws depends on it), and the heart and the saved count read favourites in these leaves.
+ */
+type AuthValue = ReturnType<typeof useAuth>
+/** The `pc:` variant (globals.css). */
+const PC_QUERY = '(min-width: 64rem) and (pointer: fine)'
+function AuthAtClick({ into }: { into: RefObject<AuthValue | null> }) {
+  const auth = useAuth()
+  // Layout effect: written in the commit that mounts the bar, so no click on the bar can come before it. Never rendered on the server (`quickBar` starts false).
+  useLayoutEffect(() => { into.current = auth }, [into, auth])
+  return null
+}
+
+/** The bottom-left status chips: a video indicator (so mobile, which has no hover, still knows there's a clip) + social proof "N saved" (≥3). */
+function CardStatusChips({ listing }: { listing: SerializedListingCard }) {
+  const { lang, tr } = useLanguage()
+  const { savedDelta } = useFavoriteMarks()
+  // Base savedCount (real, server-side) + this session's own toggle, floored at 0.
+  const savedTotal = Math.max(0, listing.savedCount + savedDelta(listing.id))
+  return (
+    <>
+        {(listing.video || savedTotal >= 3) && (
+          <span className="pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1.5">
+            {listing.video && (
+              <span title={tr('Has a video', 'Có video')} className="flex h-5 items-center rounded-full bg-foreground/70 px-1.5 text-background material backdrop-blur-[2px]">
+                {/* Filled micro-mark (icon-language §2 spirit: a 2-weight line vanishes at
+                    this size inside a filled chip) at the ladder's 12px micro step. */}
+                <Play className="h-3 w-3 fill-current" />
+              </span>
+            )}
+            {/* base savedCount persists server-side (real saves); savedDelta adds this
+                session's own toggle so it moves the moment the heart is tapped. */}
+            {savedTotal >= 3 && (
+              <span title={tr('people saved this', 'người đã lưu tin này')} className="flex h-5 items-center gap-1 rounded-full bg-foreground/70 px-2 text-3xs font-bold text-background material backdrop-blur-[2px]">
+                <Heart className="h-3 w-3 fill-current" /> {new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(savedTotal)}
+              </span>
+            )}
+          </span>
+        )}
+    </>
+  )
+}
+
+function CardSaveButton({ listingId }: { listingId: string }) {
+  const { tr } = useLanguage()
+  const { isFavorite, toggle } = useFavoriteMarks()
+  const favorited = isFavorite(listingId)
+  // One-shot heart-burst: set ONLY when the user saves (not on unsave, and not on hydrate). Cleared on animationend so it can fire again.
+  const [burst, setBurst] = useState(false)
+  return (
+        <IconButton
+          size="sm"
+          variant="overlay"
+          // ⚠️ THE NAME IS CONSTANT ON PURPOSE — `aria-pressed` is what reports the state, and a
+          // toggle button whose NAME also flips says the same thing twice, in contradictory
+          // words: "Remove favorite" + pressed announces as though REMOVAL were the active state,
+          // when what is active is the save. (ARIA APG, Button-Toggle: the label does not change
+          // when the state does.) The pair to read is "Save listing, pressed".
+          aria-label={tr('Save listing', 'Lưu tin')}
+          aria-pressed={favorited}
+          onClick={(e) => { e.stopPropagation(); if (!favorited) setBurst(true); toggle(listingId) }}
+          className="absolute right-2 top-2 z-10 transition-transform hover:scale-110 active:scale-[0.96]"
+        >
+          {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow —
+              legible on ANY photo; solid fill-brand when saved (icon-language §5
+              user-state — the line stays white because it sits over media); heart-pop
+              on save. h-5 = the ladder's 20px step, same as the quick-action glyphs,
+              so the whole photo-overlay cluster shares ONE optical size. */}
+          <span onAnimationEnd={(e) => { if (e.animationName === 'heart-pop') setBurst(false) }} className={cn('inline-flex', burst && 'animate-heart-pop')}>
+            {/* ⚠️ SAVED = RED, THE SAME RED AS THE COUNTERS (owner, 2026-08-13: "clicking on heart
+                on products make it red similar to notif message counter red"), i.e. --destructive,
+                the token the counter badge uses. It was `fill-brand text-white`.
+                ⚠️ THE COLOUR HAS TO RIDE ON `text-*`, NOT `fill-*`, AND THAT IS WHY THE OLD PAIR
+                LOOKED IDENTICAL IN BOTH STATES. These glyphs are generated with `fill="currentColor"`
+                on each <path>, and a presentation attribute on the path beats a `fill:` inherited
+                from the <svg> — so `fill-brand` never reached the ink and both states painted
+                `text-white`. Setting `color` is what the paths actually follow. `fill-current` is
+                kept so the shape stays solid rather than falling back to the unset default. */}
+            {/* ⛔ `fill-none`, NOT `fill-black/25`. The translucent black interior made the heart a
+                grey blob beside the chat and pin glyphs, which are unfilled outlines — the owner
+                spotted it as "the save icon is different than others". save-listing-button.tsx had
+                already reached this conclusion and written it down: a filled interior fights the
+                outline, and the outline is what carries legibility. All three now share
+                icon-shadow-brand so the trio is one treatment. */}
+            <Heart className={cn('icon-own-ink h-5 w-5 transition-colors', favorited
+              ? 'fill-current text-destructive'
+              : 'fill-none')} />
+          </span>
+        </IconButton>
+  )
+}
+
 export const ListingCard = memo(ListingCardImpl)

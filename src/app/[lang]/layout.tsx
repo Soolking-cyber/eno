@@ -5,6 +5,7 @@ import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { OutsideConciergeFrame } from "@/components/concierge/outside-frame";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
 import { Providers } from "./providers";
+import { fxSeedUsd } from "@/lib/fx-seed";
 import { notFound } from "next/navigation";
 import { IMAGE_HOLD_JS } from "@/lib/image-hold";
 import { LANG_VARIANTS, type LangVariant } from "@/lib/lang-variant";
@@ -671,7 +672,7 @@ export default async function RootLayout({
         {/* ⛔ NO DICTIONARY PROP. It used to ride here on the vi variant — 171 KB (53 KB gz) serialized
             into every Vietnamese document's RSC payload, 66% of a static page (audit #1). The provider
             now loads it as a cacheable chunk and suspends on it (context/language-context.tsx). */}
-        <Providers lang={lang}>{children}</Providers>
+        <Providers lang={lang} fxUsd={await fxSeedUsd()}>{children}</Providers>
         {/* The concierge's window is a page of this app in a frame: no second page view, no attribution from it. */}
         <OutsideConciergeFrame>
           <AnalyticsTags />

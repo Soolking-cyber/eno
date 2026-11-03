@@ -38,7 +38,7 @@ vi.mock('./listing-content', () => ({
   PostedAgo: () => null,
 }))
 vi.mock('@/context/favorites-context', () => ({
-  useFavorites: () => ({ isFavorite: () => false, toggle: vi.fn(), savedDelta: () => 0 }),
+  useFavoriteMarks: () => ({ isFavorite: () => false, toggle: vi.fn(), savedDelta: () => 0 }),
 }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: null, loading: false, openSignIn: vi.fn() }) }))
 vi.mock('@/hooks/use-mounted', () => ({ useMounted: () => true }))

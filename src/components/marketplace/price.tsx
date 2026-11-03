@@ -208,6 +208,7 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
     // 2026-10-05). Under half a dollar there is no approximation; the branch still CLAIMS the rate case,
     // so a tiny price never falls through to the reserve below.
     else if (perUsd) { if (price / perUsd >= 0.5) approx = formatMoney(price, 'USD', rates, locale) }
+    // ⚠️ ONLY WITH NO SERVER RATE SINCE 2026-11-03: the HTML normally carries the real one (lib/fx-seed.ts), and this is the fallback when that failed.
     // ⛔ THIS BRANCH RENDERS A FIGURE THAT IS NEVER SHOWN, AND THAT IS THE ENTIRE POINT.
     // /api/fx is deferred to an idle slot for the default VND viewer, so the "≈ $x" slot used to
     // appear ~620ms after paint and push everything under it down a line: on the PDP the whole

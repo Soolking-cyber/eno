@@ -113,6 +113,8 @@ export type SerializedListingCard = {
   goodPrice?: boolean
   verified: boolean
   postedAt: string
+  /** Under NEW_LISTING_MS old when this row was serialized: the card's "New" chip (card-badges.tsx). Absent on a row kept from before it existed: no chip. */
+  isNew?: boolean
   savedCount: number
   // Demand proof for the card meta line ("Đã liên hệ N") — distinct authenticated
   // contact reveals, same counter the detail page uses. Cards render it only at ≥3.
@@ -245,6 +247,7 @@ export type SerializedListing = {
   verifiedBy: string | null
   verificationNotes: string | null
   postedAt: string
+  isNew?: boolean
   views: number
   savedCount: number
   contactCount: number
@@ -269,6 +272,9 @@ export type Stats = {
 }
 
 export type VerificationMethod = 'in-person' | 'video-call' | 'document-check' | 'agent-visit'
+
+/** A listing is "New" for its first 48 hours. */
+export const NEW_LISTING_MS = 48 * 60 * 60 * 1000
 
 export function timeAgo(iso: string, lang: string = 'vi', now: number = Date.now()): string {
   const m = Math.floor((now - new Date(iso).getTime()) / 60000)

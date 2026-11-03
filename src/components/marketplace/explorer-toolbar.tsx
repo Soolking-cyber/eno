@@ -30,7 +30,7 @@ type SortTab = 'newest' | 'recent' | 'popular' | 'price'
  *  the tab could only open a map without one pin and nothing saying why. The explorer also lands `?view=map` on that
  *  feed in the default view (listings-explorer.tsx, `mapOffered`) — this prop only takes the button away.
  *  Default true: every other feed keeps all four. */
-export function ViewToggles({ viewMode, onViewMode, showVideo = true, showMap = true }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void; showVideo?: boolean; showMap?: boolean }) {
+export function ViewToggles({ viewMode, onViewMode, showVideo = true, videoUnknown = false, showMap = true }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void; showVideo?: boolean; /** The probe has not answered: its place is held, so the row does not move when it does. */ videoUnknown?: boolean; showMap?: boolean }) {
   const { tr } = useLanguage()
   // p-2.5 + 20px icon = a 40px box (h-5 is the §4 ladder step for action-row icons — the old
   // h-[18px] was an off-ladder arbitrary size).
@@ -78,6 +78,7 @@ export function ViewToggles({ viewMode, onViewMode, showVideo = true, showMap = 
           </Button>
         </Tooltip>
       )}
+      {!showVideo && videoUnknown && <span aria-hidden className={cn(tab('video'), 'invisible')}><Play className="h-5 w-5" /></span>}
       {showVideo && (
         <Tooltip content={tr('Video view', 'Xem Video')} side="bottom">
           <Button variant="bare" size="none" onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} className={tab('video')}>

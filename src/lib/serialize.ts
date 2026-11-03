@@ -5,7 +5,7 @@ import { isUnratedStorefront, partnerShown } from './linked-seller'
 import { isChatOnlyPartner } from './rental-check/shared'
 import { isCommissionLink } from './affiliate-commission'
 import { categoryDescriptionFor, takesOffers } from './taxonomy'
-import type { SerializedListing, SerializedListingCard, SerializedCategory, CategoryColor } from './types'
+import { NEW_LISTING_MS, type SerializedListing, type SerializedListingCard, type SerializedCategory, type CategoryColor } from './types'
 import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
 import { IDENTITY_MARK_NOTICE_VERSION, TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 
@@ -144,6 +144,7 @@ export function serializeListing(
     verifiedBy: null,
     verificationNotes: null,
     postedAt: listedAt(l).toISOString(),
+    isNew: Date.now() - listedAt(l).getTime() < NEW_LISTING_MS,
     views: l.views,
     savedCount: l.savedCount,
     contactCount: l.contactCount,
@@ -307,6 +308,7 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     verified: l.verified,
     // ⚠️ THE DISPLAY DATE, NOT THE RANKING AGE — see listedAt. Identical for every posted listing.
     postedAt: listedAt(l).toISOString(),
+    isNew: Date.now() - listedAt(l).getTime() < NEW_LISTING_MS,
     savedCount: l.savedCount,
     contactCount: l.contactCount,
     category: {

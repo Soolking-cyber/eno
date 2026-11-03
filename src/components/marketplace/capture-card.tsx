@@ -2,6 +2,7 @@
 
 import { Tag, MessageCircle, Bell } from '@/components/ui/icons'
 import { preloadSignIn, useAuth } from '@/context/auth-context'
+import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
@@ -9,7 +10,7 @@ import { POSTING_IS_FREE } from '@/lib/site-identity'
 /**
  * In-grid signup capture (5a #7) — one ROW slotted into the guest feed after its first page.
  * Value-first copy, one tap to the sign-in dialog (Google/phone/email all live there). Renders
- * nothing for signed-in users (or while auth is still loading); the grid simply closes up.
+ * nothing for signed-in users; the grid simply closes up.
  *
  * ⛔ A FULL-WIDTH ROW, NOT A CELL (E-ORPHAN, 2026-09-29). As one grid cell it made page one 13 cells,
  * so every breakpoint ended on an orphan row, and as a tinted `h-full` box with a bottom-pinned CTA it
@@ -33,9 +34,12 @@ import { POSTING_IS_FREE } from '@/lib/site-identity'
 export function CaptureCard() {
   const { user, loading, openSignIn } = useAuth()
   const { tr } = useLanguage()
-  if (user || loading) return null
+  // ⛔ IN THE FIRST PAINT FOR A VISITOR WITH NO SESSION (html.no-session, set before the first paint: speed audit, 2026-11-03). It used to arrive when auth settled, 93-163 px
+  // inside the grid, throwing "Browse everything" and the shelves down under a reader put back there by a reload (0.05). While auth is still loading a visitor with a
+  // session cookie sees nothing, so a signed-in reader never meets it.
+  if (user) return null
   return (
-    <div className="col-span-full flex flex-col gap-3 border-t border-border py-4 not-last:border-b sm:flex-row sm:items-center sm:gap-6">
+    <div className={cn('col-span-full flex-col gap-3 border-t border-border py-4 not-last:border-b sm:flex-row sm:items-center sm:gap-6', loading ? 'hidden no-session:flex' : 'flex')}>
       <div className="min-w-0">
         <p className="text-base font-extrabold leading-snug text-foreground">{tr('Never miss a deal.', 'Đừng bỏ lỡ món hời.')}</p>
         <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-body">

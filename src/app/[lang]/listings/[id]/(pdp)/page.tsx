@@ -866,6 +866,8 @@ export default async function ListingPage({ params }: Props) {
         brandSlug={listing.brandSlug}
       />
 
+      {/* The first paint waits for the buy box, the last of the first screen: see the note in (home)/layout.tsx. On a phone the page's parts arrived a packet at a time and slid under each other. */}
+      <link rel="expect" href="#contact" blocking="render" />
       <Header />
 
       {/* No bottom clearance here on purpose. This page used to reserve 4rem on the ROOT for

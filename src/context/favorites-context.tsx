@@ -38,6 +38,13 @@ type FavoritesCtx = {
 }
 
 const FavoritesContext = createContext<FavoritesCtx | undefined>(undefined)
+/**
+ * What a heart and a saved count draw from. ⛔ ITS OWN CONTEXT: the rest of `value` settles after hydration for every visitor (`saved` from null to [], even with
+ * nothing saved), and that used to re-render every heart on the page twice, inside the longest task of the load (speed audit, 2026-11-03). This changes only
+ * when a saved id or a count does.
+ */
+type FavoriteMarks = Pick<FavoritesCtx, 'isFavorite' | 'toggle' | 'savedDelta'>
+const FavoriteMarksContext = createContext<FavoriteMarks | undefined>(undefined)
 
 export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   const [ids, setIds] = useState<Set<string>>(new Set())
@@ -50,7 +57,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   // top of the base. Reset on route change — a freshly loaded page carries a fresh base
   // that already accounts for them, so keeping the delta would double-count.
   const [optimisticSaves, setOptimisticSaves] = useState<Record<string, number>>({})
-  useEffect(() => { setOptimisticSaves({}) }, [pathname])
+  useEffect(() => { setOptimisticSaves((m) => (Object.keys(m).length > 0 ? {} : m)) }, [pathname])
   const savedDelta = useCallback((id: string) => optimisticSaves[id] ?? 0, [optimisticSaves])
 
   /**
@@ -238,12 +245,21 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   // toggled the save straight back on. A row now leaves the moment its id does.
   const unavailableShown = useMemo(() => savedUnavailable.filter((u) => ids.has(u.id)), [savedUnavailable, ids])
   const value = useMemo(() => ({ ids, isFavorite, toggle, count: ids.size, savedDelta, saved, savedUnavailable: unavailableShown, savedError, retrySaved }), [ids, isFavorite, toggle, savedDelta, saved, unavailableShown, savedError, retrySaved])
+  const marks = useMemo(() => ({ isFavorite, toggle, savedDelta }), [isFavorite, toggle, savedDelta])
 
   return (
-    <FavoritesContext.Provider value={value}>
-      {children}
-    </FavoritesContext.Provider>
+    <FavoriteMarksContext.Provider value={marks}>
+      <FavoritesContext.Provider value={value}>
+        {children}
+      </FavoritesContext.Provider>
+    </FavoriteMarksContext.Provider>
   )
+}
+
+export function useFavoriteMarks(): FavoriteMarks {
+  const ctx = useContext(FavoriteMarksContext)
+  if (!ctx) throw new Error('useFavoriteMarks must be used within a FavoritesProvider')
+  return ctx
 }
 
 export function useFavorites() {

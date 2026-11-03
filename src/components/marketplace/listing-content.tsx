@@ -397,6 +397,6 @@ export const DESCRIPTION_CLAMP_LINES = 8
 
 /** Relative "x ago" in the active language (client — keeps the page cacheable).
  *  Hydration-stable: see RelativeTime — the clock is never read before mount. */
-export function PostedAgo({ iso }: { iso: string }) {
-  return <RelativeTime iso={iso} />
+export function PostedAgo({ iso, inHtml }: { iso: string; inHtml?: boolean }) {
+  return <RelativeTime iso={iso} inHtml={inHtml} />
 }

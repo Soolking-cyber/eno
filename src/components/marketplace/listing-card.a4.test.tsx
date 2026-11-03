@@ -40,7 +40,7 @@ vi.mock('./listing-content', () => ({
 }))
 vi.mock('@/lib/lang-pinned', () => ({ localizedHref: localized }))
 vi.mock('@/context/favorites-context', () => ({
-  useFavorites: () => ({ isFavorite: () => false, toggle: vi.fn(), savedDelta: () => 0 }),
+  useFavoriteMarks: () => ({ isFavorite: () => false, toggle: vi.fn(), savedDelta: () => 0 }),
 }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: null, loading: false, openSignIn: vi.fn() }) }))
 vi.mock('@/hooks/use-mounted', () => ({ useMounted: () => true }))
@@ -87,8 +87,12 @@ const BASE = {
   model: null,
 } as unknown as SerializedListingCard
 
-const card = (patch: Record<string, unknown> = {}) =>
-  render(<ListingCard listing={{ ...BASE, ...patch } as SerializedListingCard} onOpen={vi.fn()} />).container
+/** Hovered: the quick actions mount on the first hover or focus, so an absent one below means absent, not not-yet. */
+const card = (patch: Record<string, unknown> = {}) => {
+  const { container } = render(<ListingCard listing={{ ...BASE, ...patch } as SerializedListingCard} onOpen={vi.fn()} />)
+  fireEvent.pointerEnter(container.querySelector('[data-card-root]')!, { pointerType: 'mouse' })
+  return container
+}
 
 afterEach(() => { cleanup(); lang.current = 'vi'; push.mockClear(); localized.mockClear() })
 

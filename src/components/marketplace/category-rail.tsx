@@ -604,7 +604,7 @@ export function CategoryRail({
 
   return (
     // `relative` anchors the arrows, which sit OUTSIDE the scroller's edges (-left-8).
-    <div className="relative">
+    <div data-category-rail="" className="relative">
     <div
       ref={railRef}
       // overscroll-x-contain: a sideways flick that hits either end must not CHAIN out to an

@@ -16,6 +16,13 @@ describe('holding off-screen card photos until the scripts are in', () => {
     expect(held()).toBe(true)
   })
 
+  it.each(['reload', 'back_forward'])('never on a %s: those photos come from the cache, and a reader put back mid-page would meet grey boxes', (type) => {
+    const entries = vi.spyOn(performance, 'getEntriesByType').mockReturnValue([{ type }] as never)
+    runHead()
+    expect(held()).toBe(false)
+    entries.mockRestore()
+  })
+
   it('load ends it: every script has arrived, so the photos compete with nothing', () => {
     runHead()
     window.dispatchEvent(new Event('load'))

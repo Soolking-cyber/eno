@@ -72,6 +72,8 @@ export default async function CategoryIndexLayout({
 
   return (
     <div className="flex min-h-page flex-col blob-bg">
+      {/* The first paint waits for the feed's second row at most: see the note in (home)/layout.tsx. Not the footer: on a live category page that is 560 KB of HTML to parse first. */}
+      <link rel="expect" href="#first-screen-end" blocking="render" />
       <Header />
       {/* `pt-4`, the home page's and the PDP's top (owner, 2026-10-18: one top padding; this was pt-6). */}
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">

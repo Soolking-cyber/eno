@@ -604,7 +604,10 @@ function LanguageProviderInner({
 export function useLanguage() {
   // Subscribe to the inline-translation cache so this consumer repaints when a
   // tr() batch resolves (called before the guard to satisfy rules-of-hooks).
-  useSyncExternalStore(subscribeTr, getTrSnapshot, () => 0)
+  // ⛔ THE SAME READ FOR THE HYDRATION RENDER, NOT `() => 0` (speed audit, 2026-11-03). The Vietnamese dictionary is seeded before hydration, so the version is already 1 and React,
+  // seeing it differ from the server snapshot's 0 right after the commit, re-rendered EVERY consumer of this hook synchronously: every card, price and label, inside the
+  // longest task of each Vietnamese load, to redraw identical text. The value is never rendered, only a signal to repaint, so there is nothing for it to mismatch.
+  useSyncExternalStore(subscribeTr, getTrSnapshot, getTrSnapshot)
   const context = useContext(LanguageContext)
   if (!context) throw new Error('useLanguage must be used within a LanguageProvider')
   return context

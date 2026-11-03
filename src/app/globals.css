@@ -4323,6 +4323,33 @@ html[data-explorer-directed] #listings [data-feed-heading] {
   visibility: hidden;
 }
 
+/* ⛔ THE ROWS A FILTERED LINK WILL GROW ARE HELD OPEN FROM THE FIRST FRAME (speed audit, 2026-11-03). The ISR home has neither, so the answer pushed every result down:
+   108 px for a brand row (0.34 of layout shift on /?category=electronics, desktop) and 28 px for the phone's taller results row (0.017 on nearly every link).
+   Measured on live per category: electronics, vehicles, furniture-appliances and hobbies-sports have a brand row; the teachers feed alone keeps the shorter results row.
+   `data-explorer-cat` is the URL's category, set by the pre-paint script (explorer-url.ts). A reserve the answer does not fill closes when the mask lifts. */
+.brand-row-reserve {
+  display: none;
+}
+html[data-explorer-directed][data-explorer-cat="electronics"] .brand-row-reserve,
+html[data-explorer-directed][data-explorer-cat="vehicles"] .brand-row-reserve,
+html[data-explorer-directed][data-explorer-cat="furniture-appliances"] .brand-row-reserve,
+html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-reserve {
+  display: block;
+  height: 96px;
+}
+/* The tile rail opens a subcategory panel among its tiles once the link's category applies, sliding half of them across a desktop first screen. It stays out of sight until
+   the mask lifts, and appears as the answer has it. Paint only, like the rest of the mask. A phone's rail keeps its place. */
+@media (width >= 40rem) {
+  html[data-explorer-directed][data-explorer-cat] [data-category-rail] {
+    visibility: hidden;
+  }
+}
+@media (width < 40rem) {
+  html[data-explorer-directed]:not([data-explorer-cat="teachers"]) #results {
+    min-height: 86px;
+  }
+}
+
 /* ⛔ …AND THE HOME "FIND A TEACHER" SHELF WITH IT (owner, 2026-10-13 — teacher-shelf.tsx). Every query string gets the
    same ISR document, so a cold directed deep link (/?q=laptop) would paint the live shelf under its masked seed, as if
    teachers were the answer. Paint only, never layout — like the rules above, lifting the mask moves nothing; hydration

@@ -67,6 +67,10 @@ export default function HomeLayout({ children, params }: { children: React.React
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
         <h1 className="sr-only">{SITE_NAME}</h1>
         <script dangerouslySetInnerHTML={{ __html: PREPAINT_SCRIPT }} />
+        {/* ⛔ THE FIRST PAINT WAITS FOR THE RESULTS ROW (speed audit, 2026-11-03). A 40 KB page arrives over several packets and the browser paints between them, so a
+            phone watched the header's icons slide over, a filter chip grow from 14 px to 91 px and rows appear one by one. Everything above the feed is the first 9 KB:
+            ~50 ms on a slow phone. Chromium; elsewhere the attribute does nothing and the page paints as it did. Parsing finished also releases it. */}
+        <link rel="expect" href="#results" blocking="render" />
         {children}
         {/* ⛔ THE `/vi` PILOT'S SWITCHER LEFT THE FIRST SCREEN (owner, 2026-10-18: products first on a phone) — it was a
             16px row of its own above the category tiles. It stays a server-rendered `<a hreflang>` to the twin (CS-3

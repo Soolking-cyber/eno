@@ -411,7 +411,8 @@ export function SellerListings({
   const grid = (
     <div className={LISTING_GRID}>
       {shown.map((l, i) => (
-        <div key={l.id} data-sid={l.sellerId} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)} onFocus={() => router.prefetch(`/listings/${l.id}`)}>
+        // `first-screen-end`: what a category page's first paint waits for (c/[category]/(index)/layout.tsx).
+        <div key={l.id} id={i === Math.min(3, shown.length - 1) ? 'first-screen-end' : undefined} data-sid={l.sellerId} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)} onFocus={() => router.prefetch(`/listings/${l.id}`)}>
           <ListingCard listing={l} onOpen={openCard} onLocate={locateCard} priority={i < 4} lcp={i === 0 && !remote} holdPhoto={i >= HELD_FROM_CARD} />
         </div>
       ))}

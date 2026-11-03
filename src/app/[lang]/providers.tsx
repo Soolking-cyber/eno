@@ -28,7 +28,6 @@ import { InstallHint } from "@/components/marketplace/install-hint";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
 import { AccountPanelShell } from "@/components/marketplace/account-panel";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { NativeBootstrap } from "@/components/native/native-bootstrap";
 import { AppSheetHost } from "@/components/native/app-sheet-host";
 import { NativePush } from "@/components/native/native-push";
@@ -46,9 +45,12 @@ import { OutsideConciergeFrame } from "@/components/concierge/outside-frame";
 export function Providers({
   children,
   lang,
+  fxUsd = null,
 }: {
   children: React.ReactNode
   lang: LangVariant
+  /** Dollars per đồng for the first paint (lib/fx-seed.ts). */
+  fxUsd?: number | null
 }) {
   return (
     <>
@@ -66,7 +68,7 @@ export function Providers({
               /prohibited's own — so there is no window to announce. legal-amendment.test.ts holds the mount to
               "some record has a window"; a windowed amendment mounts it here again, after SkipLink (the skip link
               stays the first tab stop) and inside LanguageProvider (it renders the visitor's language). */}
-          <CurrencyProvider>
+          <CurrencyProvider seedUsd={fxUsd}>
           <AuthProvider>
             {/* Native push registration — no-op on web + until the plugin is wired (dormant). */}
             <OutsideConciergeFrame><NativePush /></OutsideConciergeFrame>
@@ -86,9 +88,9 @@ export function Providers({
                 <OutsideConciergeFrame><CallHost /></OutsideConciergeFrame>
                 <FavoritesProvider>
                   <QueryProvider>
-                    {/* One delay group for every ui/tooltip in the app: moving between adjacent
-                        icon tooltips feels instant once the first opens. Context only, no DOM. */}
-                    <TooltipProvider>
+                    {/* ⛔ BEFORE THE PAGE IN THE DOCUMENT (speed audit, 2026-11-03): it is `fixed`, so the order moves nothing, and it paints with the header. After
+                        {children} it waited for the whole page's HTML: the bar appeared ~6 s after first paint on a slow phone. */}
+                    <MobileNav />
                     <AccountPanelShell>
                     {children}
                     {/* Inside the shell so it can READ the panel state (it portals to
@@ -119,7 +121,6 @@ export function Providers({
                         chat composer. */}
                     <BottomNavSpacer />
                     <KeyboardViewportSync />
-                    <MobileNav />
                     {/* The app's page sheet: a new-window link to an eno page opens over the screen, never in a browser (src/lib/app-sheet.ts). */}
                     <AppSheetHost />
                     {/* The voice concierge's floating window (2026-10-27): tiny until the ✨ opens it; the window itself is a frame. */}
@@ -195,7 +196,6 @@ export function Providers({
                         Mounted ONLY while `web-test` is in NEXT_PUBLIC_APPLE_SIGNIN (inlined at build), so the dark
                         deploy's markup is unchanged. Same Suspense reason as the toast above. */}
                     {appleSignInTokens().has('web-test') && <Suspense fallback={null}><SiwaTestFlag /></Suspense>}
-                    </TooltipProvider>
                   </QueryProvider>
                 </FavoritesProvider>
               </ChatProvider>

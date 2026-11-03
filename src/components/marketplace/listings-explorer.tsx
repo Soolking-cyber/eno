@@ -5,7 +5,7 @@ import { HIDDEN_SELLERS_PARAM } from '@/lib/hidden-sellers'
 import { useHiddenSellersParam } from '@/lib/use-hidden-sellers'
 import { fillTemplate } from '@/lib/i18n/placeholders'
 import { getTrSnapshot, subscribeTr } from '@/lib/i18n/mt-client'
-import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition, type CSSProperties } from 'react'
+import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, startTransition, useSyncExternalStore, useTransition, type Dispatch, type SetStateAction, type CSSProperties } from 'react'
 import Image from 'next/image'
 // Only the glyphs this file actually renders — the vestigial hero-search set
 // (Search/MapPin/Phone/Sliders/Map/TrendingUp) died with the hero bar and was
@@ -52,6 +52,7 @@ import { useDropStaleDistrict } from './use-drop-stale-district'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch, hasSavableSearch } from './use-explorer'
 import { ViewToggles, ViewSwitch, SortStrip } from './explorer-toolbar'
+import { rowsContinue } from './grid-run'
 import { ResultLine, resultCountLabel, shouldOfferSaveSearch } from './result-line'
 import { Spinner } from '@/components/ui/spinner'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
@@ -64,7 +65,7 @@ import { Chip } from '@/components/ui/chip'
 import { IconButton } from '@/components/ui/icon-button'
 import { useLanguage, Tr } from '@/context/language-context'
 import { Bilingual } from './bilingual'
-import { useAuth } from '@/context/auth-context'
+import { useHydrationRender } from '@/hooks/use-hydration-render'
 import { useDashboard } from '@/hooks/use-dashboard'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { browseInsteadCategories, offeredKeys } from './count-chip'
@@ -135,8 +136,6 @@ function answerLang(lang: string): string | null {
 function feedSnapshotPending(): boolean {
   try { return sessionStorage.getItem('eno:feed-snap') != null } catch { return false /* storage blocked */ }
 }
-/** A store that never changes — read through useSyncExternalStore only to tell the hydration render apart. */
-const subscribeNothing = () => () => {}
 /**
  * Has an explorer COMMITTED in this document yet? Set by the first explorer's mount effect, never
  * unset (a module of the client bundle lives exactly as long as the document).
@@ -304,10 +303,8 @@ function releaseFeedEntry() {
 // and the FacetBar is no longer "filter-only", because home and search are one view and the
 // facets sit above the feed on both. FacetBar is therefore now a cold-path chunk that mounts
 // AFTER hydration directly above the grid, which is why its slot is height-reserved at the
-// call site (min-h-9 today — the reasoning is spelled out there). ForYouRail + BusinessRail stay STATIC: they SSR their
-// shimmer skeleton (reserving the rail's height) so they don't pop in and shift the feed
-// — `ssr:false` here caused the CLS "layout shift culprits". They're tiny (reuse the
-// already-bundled ListingCard), so the JS cost is negligible.
+// call site (min-h-9 today — the reasoning is spelled out there). ForYouRail + BusinessRail are static imports (they reuse the
+// already-bundled ListingCard), deferred at the call site with their height held: see DeferredShelf.
 const CategoryRails = dynamic(() => import('./category-rails').then((m) => m.CategoryRails), { ssr: false })
 
 // Perf Phase 1: mount the per-category rails only when the user approaches them —
@@ -326,6 +323,28 @@ const CategoryRails = dynamic(() => import('./category-rails').then((m) => m.Cat
 // below is now belt-and-braces rather than the load-bearing half of the deferral — do not
 // remove it on that basis: on a short/sparse catalogue (every rail above hidden by the
 // MIN_RAIL_ITEMS floor, a single grid row) the sentinel can still start inside the fold.
+/**
+ * ⛔ THE TWO SHELVES UNDER THE FEED ARE NOT IN THE HTML, AND MOST VISITS NEVER REACH THEM (speed audit, 2026-11-03). Sixteen of the home's 28 server-rendered cards sat here,
+ * a screen or more below the fold, and hydrating them was over half of the component work in the longest task of a phone's load: the page froze for shelves nobody could
+ * see yet. They render in a transition, so a scroll that reaches them is not held up. Their data stays in the page, so they are instant when they come; a crawler that runs
+ * JavaScript gets them, one that does not still has the grid's links and the sitemap.
+ * The height is the rail's, measured on production per width: it only has to keep what is below off the screen until they land.
+ */
+function DeferredShelf({ children }: { children: React.ReactNode }) {
+  const { ref, near } = useNearViewport<HTMLDivElement>()
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    if (!near) return
+    const start = () => startTransition(() => setShow(true))
+    if (typeof requestIdleCallback === 'function') { const id = requestIdleCallback(start, { timeout: 2000 }); return () => cancelIdleCallback(id) }
+    const t = setTimeout(start, 300); return () => clearTimeout(t)
+  }, [near])
+  return <div ref={ref} className={show ? undefined : 'min-h-[calc(50vw+107px)] sm:min-h-[349px] xl:min-h-[413px]'}>{show && children}</div>
+}
+
+/** Only a seed the rail will draw: below the floor it renders nothing, and held height would collapse (that collapse was once the home's whole 0.142 of layout shift). */
+const deferShelf = (seed: readonly unknown[] | undefined, rail: React.ReactNode) => ((seed?.length ?? 0) >= MIN_RAIL_ITEMS ? <DeferredShelf>{rail}</DeferredShelf> : rail)
+
 function DeferredCategoryRails(props: React.ComponentProps<typeof CategoryRails>) {
   const { ref, near } = useNearViewport<HTMLDivElement>()
   // Idle-armed on top of near-viewport: when the sentinel starts at the first-paint fold
@@ -504,6 +523,56 @@ type Props = {
 
 
 
+/**
+ * The view icons and the probe that decides the ▷ tab (filter-scoped since E-VIEWS). ⛔ A LEAF (speed audit, 2026-11-03): the probe's arming and its answer each
+ * re-rendered the whole explorer after load, and the row jumped 44 px when the tab arrived, so the tab's place is held until the probe answers.
+ * Perf Phase 1: display-only, so it stays out of the critical cold path and runs in the first post-load idle slot.
+ */
+function ViewChoices({ viewMode, onViewMode, showMap, videoProbeParams }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void; showMap: boolean; videoProbeParams: string }) {
+  const [videoProbeReady, setVideoProbeReady] = useState(false)
+  useEffect(() => {
+    const arm = () => setVideoProbeReady(true)
+    if (typeof requestIdleCallback === 'function') { const id = requestIdleCallback(arm, { timeout: 10_000 }); return () => cancelIdleCallback(id) }
+    const t = setTimeout(arm, 4000); return () => clearTimeout(t)
+  }, [])
+  const { data: videoAvail } = useQuery({
+    // The params carry the shop (`scopedParams`), so two storefronts can no longer share an answer.
+    queryKey: ['video-availability', videoProbeParams],
+    enabled: videoProbeReady,
+    queryFn: async () => {
+      const res = await fetch(`/api/listings?${videoProbeParams}&hasVideo=1&limit=1&facets=0`)
+      if (!res.ok) return { total: 0 }
+      return res.json() as Promise<{ total: number }>
+    },
+    placeholderData: (prev) => prev,
+    staleTime: 5 * 60_000,
+  })
+  // An open Video view keeps its own tab, whatever the probe says about the next filter.
+  const showVideo = viewMode === 'video' || (videoAvail?.total ?? 0) > 0
+  return (
+    <>
+      <div className="flex items-center gap-1 max-sm:hidden">
+        <ViewToggles viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} videoUnknown={videoAvail === undefined} showMap={showMap} />
+      </div>
+      <ViewSwitch viewMode={viewMode} onViewMode={onViewMode} showVideo={showVideo} showMap={showMap} className="sm:hidden" />
+    </>
+  )
+}
+
+const NO_TEACHER_FLAGS = { profile: false, draft: false }
+/**
+ * Who already HAS a teacher profile: the teachers chips then open their own profile, not the sign-up form (owner, 2026-10-09, "apply recommended"). The shared
+ * dashboard store: nothing is fetched for a visitor who is signed out. …and who has an UNFINISHED one (owner, 2026-10-11): the chip then reads "Continue your
+ * teacher profile" and reopens it on this host (/teachers/join), where the session is: the teacher host has none.
+ */
+function TeacherFlagsReader({ onChange }: { onChange: Dispatch<SetStateAction<typeof NO_TEACHER_FLAGS>> }) {
+  const { dash } = useDashboard()
+  const profile = dash?.hasTeacher === true
+  const draft = !profile && !!dash?.teacherDraft
+  useEffect(() => { onChange((was) => (was.profile === profile && was.draft === draft ? was : { profile, draft })) }, [onChange, profile, draft])
+  return null
+}
+
 export function ListingsExplorer({
   categories,
   initialListings,
@@ -520,15 +589,11 @@ export function ListingsExplorer({
   useRegisterExplorer()
   const { lang, t, tr } = useLanguage()
   // Bumps whenever a machine translation lands (see the crumbs memo below).
-  const trVersion = useSyncExternalStore(subscribeTr, getTrSnapshot, () => 0)
-  const { openSignIn } = useAuth()
-  // Who already HAS a teacher profile: the teachers chips then open their own profile, not the sign-up form (owner,
-  // 2026-10-09, "apply recommended"). The shared dashboard store — nothing is fetched for a visitor who is signed out.
-  const { dash } = useDashboard()
-  const hasTeacherProfile = dash?.hasTeacher === true
-  // …and who has an UNFINISHED one (owner, 2026-10-11): the chip then reads "Continue your teacher profile" and reopens
-  // it on this host (/teachers/join), where the session is — the teacher host has none.
-  const hasTeacherDraft = !hasTeacherProfile && !!dash?.teacherDraft
+  const trVersion = useSyncExternalStore(subscribeTr, getTrSnapshot, getTrSnapshot)
+  // ⛔ READ BY A LEAF (TeacherFlagsReader, below), so auth and the dashboard store settling for a signed-out visitor re-render nothing here.
+  const [teacherFlags, setTeacherFlags] = useState(NO_TEACHER_FLAGS)
+  const hasTeacherProfile = teacherFlags.profile
+  const hasTeacherDraft = teacherFlags.draft
   // Desktop ← / → arrows for the horizontally-scrollable category grid (same primitive as the rails).
   const { scrollerRef: catScrollerRef, canLeft: catCanLeft, canRight: catCanRight, page: catPage } = useScrollArrows()
   /**
@@ -562,7 +627,7 @@ export function ListingsExplorer({
    * this component (the layout router keys the page without its search params), so a matching
    * pathname is the Back case.
    */
-  const hydrating = useSyncExternalStore(subscribeNothing, () => false, () => true)
+  const hydrating = useHydrationRender()
   const pathname = publicPathname(usePathname() || '/')
   const [urlInit] = useState(() => (
     !hydrating && explorerCommitted && typeof window !== 'undefined' && publicPathname(window.location.pathname) === pathname
@@ -2063,6 +2128,17 @@ export function ListingsExplorer({
     sort, activeSubcategory, activeBrand, activeModel, activeLine, customFilters, priceRange, nearby,
     activeProvince?.code ?? null, activeWard?.code ?? null, selectedBuilding, looseMatch, answerLang(lang), sellerId ?? null, spellOn,
   ])
+  /**
+   * ⛔ A NEW ANSWER REPLACES THE CARDS, IT DOES NOT MOVE THEM (speed audit, 2026-11-03). Keyed by id alone, a listing in both the old rows and the new slid from its old place to
+   * its new one: to the browser, a layout shift with no input near it, because the answer lands more than 500 ms after the tap on a slow phone (0.20 on a category tile). So a
+   * different feed's rows start fresh, unless they simply carry on from the rows before. ⚠️ ONLY A DIFFERENT FEED: a refresh of this one (the background revalidation of a cold
+   * home) keeps its cards, or one new listing would remount every photo on the page, the LCP image among them, a second after it painted.
+   */
+  const [gridRun, setGridRun] = useState({ rows: gridListings, sig: filterSig, generation: 0 })
+  if (gridRun.rows !== gridListings) {
+    const sameRun = gridRun.sig === filterSig || rowsContinue(gridRun.rows, gridListings)
+    setGridRun({ rows: gridListings, sig: filterSig, generation: sameRun ? gridRun.generation : gridRun.generation + 1 })
+  }
   const prevFilterSigRef = useRef(filterSig)
   if (prevFilterSigRef.current !== filterSig) {
     prevFilterSigRef.current = filterSig
@@ -2452,14 +2528,6 @@ export function ListingsExplorer({
   // Does the feed on screen have ANY video listings? Gates the ▷ Video view toggle — with zero
   // videos the takeover is a guaranteed dead end, so the tab stays hidden until at least
   // one exists (filter-scoped since E-VIEWS — see the query below).
-  // Perf Phase 1: this probe is display-only (shows the ▷ toggle) — keep it out of
-  // the critical cold path; run it in the first post-load idle slot instead.
-  const [videoProbeReady, setVideoProbeReady] = useState(false)
-  useEffect(() => {
-    const arm = () => setVideoProbeReady(true)
-    if (typeof requestIdleCallback === 'function') { const id = requestIdleCallback(arm, { timeout: 10_000 }); return () => cancelIdleCallback(id) }
-    const t = setTimeout(arm, 4000); return () => clearTimeout(t)
-  }, [])
   /**
    * BUILDING PINS for the map view. One row per project, counted across the WHOLE filtered set —
    * not over the 24 rows currently loaded, which would print "24 units" on a 157-unit tower and
@@ -2765,20 +2833,6 @@ export function ListingsExplorer({
     p.set('sort', 'recent')
     return p.toString()
   }, [baseParamsString])
-  const { data: videoAvail } = useQuery({
-    // The params carry the shop (`scopedParams`), so two storefronts can no longer share an answer.
-    queryKey: ['video-availability', videoProbeParams],
-    enabled: videoProbeReady,
-    queryFn: async () => {
-      const res = await fetch(`/api/listings?${videoProbeParams}&hasVideo=1&limit=1&facets=0`)
-      if (!res.ok) return { total: 0 }
-      return res.json() as Promise<{ total: number }>
-    },
-    placeholderData: (prev) => prev,
-    staleTime: 5 * 60_000,
-  })
-  // An open Video view keeps its own tab, whatever the probe says about the next filter.
-  const showVideoView = viewMode === 'video' || (videoAvail?.total ?? 0) > 0
 
   /**
    * The price-histogram request: the FEED'S OWN params (plus the building drill-in the live query
@@ -4413,6 +4467,7 @@ export function ListingsExplorer({
     // where JSX comment syntax is a syntax error (tsc TS1005). This is the second time in one
     // night; CLAUDE.md records the rule.
     <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-0 pb-5 max-sm:-mx-3 max-sm:px-3 sm:pt-2 sm:pb-8">
+      <TeacherFlagsReader onChange={setTeacherFlags} />
       {/* Width + edge gutter are owned by the parent page <main> (canonical
           max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}
       <div className="relative w-full">
@@ -4694,7 +4749,7 @@ export function ListingsExplorer({
               words by 150ms, so a cold /?q= load drew the directory for that window and then pulled
               it — a 112px drop-and-return of every result under it (measured, CLS +0.11 at 390). */}
           {!showDiscovery && (activeCategory === 'all' || categoryHasBrand(activeCategory))
-            && !(activeCategory === 'all' && activeBrand === 'all' && (query.trim() !== '' || debouncedQuery.trim() !== '')) && (
+            && !(activeCategory === 'all' && activeBrand === 'all' && (query.trim() !== '' || debouncedQuery.trim() !== '')) ? (
             <BrandRail
               category={activeCategory}
               subcategory={activeSubcategory}
@@ -4710,6 +4765,9 @@ export function ListingsExplorer({
               onPickModel={setActiveModel}
               onPickLine={handlePickLine}
             />
+          ) : (
+            // The brand row's height, on a cold link to a category that has one (globals.css): nothing moves when the rail takes its place.
+            <div aria-hidden className="brand-row-reserve" />
           )}
           </LadderSlot>
 
@@ -5112,10 +5170,7 @@ export function ListingsExplorer({
               {/* The four icons from sm; a phone gets the ONE view pill instead (owner, 2026-10-18 — see the
                   heading box above). Same views, same gates. The pill holds this row's first line at 36px in the
                   directed state too, so a cold deep link's row keeps its height when the heading leaves it. */}
-              <div className="flex items-center gap-1 max-sm:hidden">
-                <ViewToggles viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} showMap={mapOffered} />
-              </div>
-              <ViewSwitch viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} showMap={mapOffered} className="sm:hidden" />
+              <ViewChoices viewMode={viewMode} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} />
             </div>
           </div>
 
@@ -5258,7 +5313,7 @@ export function ListingsExplorer({
                    (`.feed-grid > [data-teacher-shelf] + …`) need them to stay direct children too. */
                 <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', LISTING_GRID, 'max-sm:[&>.col-span-full]:px-2')}>
                   {gridListings.map((l, index) => (
-                    <Fragment key={l.id}>
+                    <Fragment key={`${gridRun.generation}:${l.id}`}>
                       {/* data-feed-card = the back-nav restore ANCHOR. The return-to-feed
                           effect realigns this exact element, which is what makes "put me
                           back where I was" survive a page whose height changed while we
@@ -5619,7 +5674,7 @@ export function ListingsExplorer({
                 <div data-feed-restoring={restoring || undefined} className={COMPACT_LIST_GRID}>
                   {gridListings.map((l, index) => (
                     /* data-feed-card = the back-nav restore anchor (see the grid above). */
-                    <div key={l.id} data-feed-card={l.id} data-sid={l.sellerId}>
+                    <div key={`${gridRun.generation}:${l.id}`} data-feed-card={l.id} data-sid={l.sellerId}>
                       <CompactListingRow
                         listing={l}
                         index={index}
@@ -5653,7 +5708,9 @@ export function ListingsExplorer({
                   "Near you" is excluded because it pulls one broad set and distance-filters it
                   client-side: there is no further page to fetch. */}
               {!nearby && viewMode !== 'map' && (
-                <div ref={loadMoreRef} className="mt-6 select-none">
+                // ⛔ WHILE MORE PAGES WILL ARRIVE ON THEIR OWN, THE FOOTER STAYS A SCREEN AWAY. A short first page of a filtered feed put the footer on screen, and the next
+                // page then threw it off: 0.08 of layout shift on every filtered link on a desktop (speed audit, 2026-11-03). The appended rows land in this reserve.
+                <div ref={loadMoreRef} className={cn('mt-6 select-none', hasMore && !(showDiscovery && !feedUnlocked) && listings.length < autoLoadCeiling && 'min-h-svh')}>
                   {pageWithoutAnswer && queryError && <div className="border-t border-border pt-6">{renderMoreError()}</div>}
                   {/* ⚠️ THE BUTTON AND THE SPINNER ARE MUTUALLY EXCLUSIVE AND BOTH KEY OFF THE SAME
                       CONDITION, or the footer swaps a 44px button for a ~19px spinner and shifts the
@@ -5774,11 +5831,11 @@ export function ListingsExplorer({
 
             {/* For You — the trending seed. It LEADS, so it keeps first claim on its cards and
                 the two rails below are deduped against it (see dedupedBusinesses/railExcludeIds). */}
-            <ForYouRail initial={initialTrending} />
+            {deferShelf(initialTrending, <ForYouRail initial={initialTrending} />)}
 
             {/* Outstanding businesses — the highest-trust business storefronts. Seeded with the
                 DEDUPED set (see railExcludeIds above) so it never repeats For You card-for-card. */}
-            <BusinessRail initial={dedupedBusinesses} />
+            {deferShelf(dedupedBusinesses, <BusinessRail initial={dedupedBusinesses} />)}
 
             {/* Browse by category — one horizontal rail per category, most-used first.
                 Tapping a heading / "See all" opens that category (same as a tile). */}

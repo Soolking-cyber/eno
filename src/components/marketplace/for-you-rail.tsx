@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sparkles, TrendingUp } from '@/components/ui/icons'
 import type { SerializedListingCard } from '@/lib/types'
@@ -19,7 +19,11 @@ const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district'
  *  otherwise Trending (plus the search terms they arrived with). Only shows on the default home view — hides as soon as a filter/search is
  *  active (it would be redundant over filtered results) — except where the explorer places it
  *  as the `recovery` rail under a sparse answer (see the prop). */
-export function ForYouRail({ initial, recovery = false }: {
+/** A card's "show on map" from a rail: the explorer listens, and may inject the listing into its map. One identity, so the card's memo holds. */
+const locateFromRail = (l: SerializedListingCard) => { window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } })) }
+
+/** ⚠️ MEMO: the explorer above re-renders on its own state, and each pass re-rendered these cards in full (speed audit, 2026-11-03). */
+export const ForYouRail = memo(function ForYouRail({ initial, recovery = false }: {
   initial?: SerializedListingCard[]
   /**
    * The explorer renders this rail a SECOND way: under a searched/filtered feed that came back with
@@ -32,6 +36,7 @@ export function ForYouRail({ initial, recovery = false }: {
 }) {
   const { tr } = useLanguage()
   const router = useRouter()
+  const openListing = useCallback((x: SerializedListingCard) => router.push(`/listings/${x.id}`), [router])
   // Perf Phase 1: the home landing passes the SERVER-KNOWN "Trending now" seed, so the
   // rail's geometry (including the thin-catalog empty → hidden case) is final at first
   // paint — the SSR'd skeletons collapsing on the client's empty answer was the
@@ -157,11 +162,11 @@ export function ForYouRail({ initial, recovery = false }: {
             <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
               <ListingCard
                 listing={l}
-                onOpen={(x) => router.push(`/listings/${x.id}`)}
-                onLocate={() => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } }))}
+                onOpen={openListing}
+                onLocate={locateFromRail}
               />
             </div>
           ))}
     </Shelf>
   )
-}
+})

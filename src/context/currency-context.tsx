@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useCallback, useLayoutEffect, useMemo, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useLayoutEffect, useMemo, useContext, useEffect, useRef, useState } from 'react'
 
 /** ⚠️ `useLayoutEffect` WARNS ON THE SERVER, AND THIS PROVIDER IS SSR'd ON EVERY PAGE. React logs
  *  "useLayoutEffect does nothing on the server" for any client component rendered there, so the
@@ -50,14 +50,30 @@ type CurrencyCtx = {
 
 const CurrencyContext = createContext<CurrencyCtx | undefined>(undefined)
 
-export function CurrencyProvider({ children }: { children: React.ReactNode }) {
+/** How far a fresh rate may sit from the HTML's before a default viewer's prices are redrawn: they read "≈", and this keeps them from flickering by a dollar. */
+const SEED_TOLERANCE = 0.01
+
+/**
+ * ⛔ `seedUsd`: DOLLARS PER ĐỒNG FROM THE SERVER (lib/fx-seed.ts), SO A DEFAULT VIEWER'S "≈ $" IS IN THE FIRST PAINT AND NEVER RE-RENDERS (speed audit, 2026-11-03).
+ * While the display currency is VND and a fresh rate is within SEED_TOLERANCE of the seed, the full table is kept in a ref, not state: it is only needed the
+ * moment the viewer picks another currency. Absent seed = the behaviour below, unchanged.
+ */
+export function CurrencyProvider({ children, seedUsd = null }: { children: React.ReactNode; seedUsd?: number | null }) {
   const [currency, setCurrencyState] = useState('VND')
-  const [rates, setRates] = useState<Record<string, number>>({})
+  const [rates, setRates] = useState<Record<string, number>>(() => (seedUsd ? { USD: seedUsd } : ({} as Record<string, number>)))
+  const fullTable = useRef<Record<string, number> | null>(null)
+  const currencyNow = useRef('VND')
+  const fetchTable = useRef<(() => void) | null>(null)
+  const adoptRates = useCallback((table: Record<string, number>) => {
+    fullTable.current = table
+    const keepSeed = !!seedUsd && currencyNow.current === 'VND' && typeof table.USD === 'number' && Math.abs(table.USD - seedUsd) / seedUsd <= SEED_TOLERANCE
+    if (!keepSeed) setRates(table)
+  }, [seedUsd])
   // ⚠️ STARTS TRUE ON THE SERVER AND ON THE FIRST CLIENT RENDER, deliberately: that is what makes
   // the reserved slot part of the SSR HTML and keeps hydration identical. It is cleared the moment
   // the rates are known — including when they are known to be UNAVAILABLE, so a broken /api/fx
   // collapses the placeholder once rather than leaving a permanent blank beside every price.
-  const [ratesPending, setRatesPending] = useState(true)
+  const [ratesPending, setRatesPending] = useState(!seedUsd)
 
   /**
    * ⛔ THE COHORT WHOSE /api/fx NEVER ANSWERS PREVIOUSLY HAD **ZERO** MOVEMENT, AND RESERVING THE
@@ -94,7 +110,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     let deadline: ReturnType<typeof setTimeout> | null = null
     try {
       const c = localStorage.getItem(CUR_KEY)
-      if (c && CURRENCY_CODES.includes(c as never)) setCurrencyState(c)
+      if (c && CURRENCY_CODES.includes(c as never)) { currencyNow.current = c; setCurrencyState(c) }
     } catch { /* storage blocked */ }
 
     // Paint instantly from cached rates, then refresh if stale (or always, cheap —
@@ -109,7 +125,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
         // cached table with entries but no usable USD rate produced `fresh = true`, so no refresh
         // ran, so nothing ever cleared `ratesPending` except the 12s deadline — reserve then
         // collapse, on every single page view, forever. A reviewer found it.
-        if (r && Object.keys(r).length) { setRates(r); fresh = FX_USABLE(r) && Date.now() - (at || 0) < FX_MAX_AGE }
+        if (r && Object.keys(r).length) { adoptRates(r); fresh = FX_USABLE(r) && Date.now() - (at || 0) < FX_MAX_AGE }
       }
     } catch { /* ignore */ }
     if (fresh) setRatesPending(false)
@@ -145,7 +161,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
             // approximation to reserve space for" — so it belongs on the failure memory below,
             // never on whether we keep what the endpoint gave us.
             if (d?.rates && Object.keys(d.rates).length) {
-              setRates(d.rates)
+              adoptRates(d.rates)
               // A usable table clears the failure memory, so one bad network moment does not
               // suppress the reservation for the next 12 hours. A table that arrived but carries
               // no usable USD rate is stored — it still converts prices — and remembered as a
@@ -172,6 +188,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
       // clock starts at mount and covers the whole window: defer + request.
       // ⚠️ 12s, and it is a CEILING not a target — the normal path clears it in `.finally()` long
       // before, and a VND viewer's rates are wanted for a quiet second line, not for the price.
+      fetchTable.current = () => { void refresh() }
       deadline = setTimeout(() => {
         if (cancelled) return
         setRatesPending(false)
@@ -189,10 +206,13 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
       else setTimeout(refresh, 4000)
     }
     return () => { cancelled = true; if (deadline) clearTimeout(deadline) }
-  }, [])
+  }, [adoptRates])
 
   const setCurrency = useCallback((c: string) => {
+    currencyNow.current = c
     setCurrencyState(c)
+    // The table the seed was keeping out of state. Not fetched yet: fetch it now rather than at the next idle moment.
+    if (c !== 'VND') { if (fullTable.current) setRates(fullTable.current); else fetchTable.current?.() }
     try { localStorage.setItem(CUR_KEY, c) } catch { /* ignore */ }
   }, [])
 

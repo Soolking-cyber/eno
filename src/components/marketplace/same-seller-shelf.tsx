@@ -52,7 +52,7 @@ export function SameSellerShelf({
     >
       {listings.map((l) => (
         <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
-          <ListingCard listing={l} onOpen={(x) => router.push(`/listings/${x.id}`)} />
+          <ListingCard listing={l} clockInHtml={false} onOpen={(x) => router.push(`/listings/${x.id}`)} />
         </div>
       ))}
     </Shelf>

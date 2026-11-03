@@ -1,11 +1,11 @@
 'use client'
 
+import { useEffect, useRef, type Ref } from 'react'
 import { Zap } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
-import { useMounted } from '@/hooks/use-mounted'
 import { dropPercent } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
-import type { SerializedListingCard } from '@/lib/types'
+import { NEW_LISTING_MS, type SerializedListingCard } from '@/lib/types'
 
 // THE one card-badge system, reused on every card surface so the top-left signals
 // read identically app-wide (no more copy-pasted colours drifting per surface).
@@ -14,7 +14,6 @@ import type { SerializedListingCard } from '@/lib/types'
 // so brand blue stays reserved for price + trust and nothing off-brand competes with
 // the card's anchor. Urgent reads as the stronger signal via a SOLID slate + the ⚡:
 //   Urgent → solid slate (act now)  ·  Drop → red (discount)  ·  New → quiet slate (fresh)
-const NEW_MS = 48 * 60 * 60 * 1000
 
 type BadgeKind = 'urgent' | 'drop' | 'new'
 type BadgeVariant = 'overlay' | 'inline'
@@ -28,11 +27,15 @@ const TONE: Record<BadgeKind, string> = {
 /** One badge chip. `overlay` = sits on a photo (shadow so it reads over any image);
  *  `inline` = in a text meta row (tighter, no shadow). */
 export function Badge({
+  ref,
+  hidden,
   kind,
   variant = 'overlay',
   className,
   children,
 }: {
+  ref?: Ref<HTMLSpanElement>
+  hidden?: boolean
   kind: BadgeKind
   variant?: BadgeVariant
   className?: string
@@ -40,6 +43,8 @@ export function Badge({
 }) {
   return (
     <span
+      ref={ref}
+      hidden={hidden}
       className={cn(
         variant === 'overlay' ? 'rounded-full px-2 py-0.5 text-3xs font-bold shadow-sm' : 'rounded-full px-1.5 py-px text-3xs font-bold',
         TONE[kind],
@@ -84,23 +89,32 @@ export function Badge({
 export function CardBadges({
   listing,
   showNew = true,
+  chipInHtml = true,
   className,
 }: {
-  listing: Pick<SerializedListingCard, 'urgent' | 'prevPrice' | 'price' | 'postedAt' | 'listingType'>
+  listing: Pick<SerializedListingCard, 'urgent' | 'prevPrice' | 'price' | 'postedAt' | 'listingType' | 'isNew'>
   showNew?: boolean
+  chipInHtml?: boolean
   className?: string
 }) {
   const { tr } = useLanguage()
   const drop = listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price)
   /**
-   * ⛔ "NEW" IS DECIDED AFTER MOUNT (Emil-skills audit, 2026-10-06). Cards are baked into ISR pages, and a listing
-   * under 48h old when the page was generated is not when it is viewed: deciding it in render put the chip in the
-   * server HTML and took it out on the client — a structural hydration mismatch on every stale feed page. The
-   * server HTML and the hydration pass carry no "New" chip; it appears a frame after mount (use-mounted.ts).
-   * Urgent and price-drop are untouched: they come from the server's data, not this clock.
+   * ⛔ "NEW" COMES WITH THE ROW, DECIDED WHERE THE ROW WAS SERIALIZED (lib/serialize.ts), so the server and the first client render read one answer and the
+   * chip is in the first paint. It used to appear a frame after mount, on every card, in the longest task of the load (speed audit, 2026-11-03).
+   * The effect squares the chip with the clock, with no state and no re-render: a hidden element is still the element the server sent, so there is no mismatch.
+   * `chipInHtml={false}` (cards in HTML that lives for weeks: a listing page is ISR for 30 days) leaves it hidden and EMPTY until that effect says it is still true, so the HTML
+   * makes no false claim to a crawler or to a phone waiting to hydrate. ⚠️ Empty: e2e/ci/crawler-html.spec.ts allows no word under [hidden]. Urgent and price-drop are untouched: not this clock.
    */
-  const mounted = useMounted()
-  const isNew = mounted && showNew && !!listing.postedAt && Date.now() - new Date(listing.postedAt).getTime() < NEW_MS
+  const chip = useRef<HTMLSpanElement>(null)
+  const isNew = showNew && listing.isNew === true
+  const newLabel = tr('New', 'Mới')
+  useEffect(() => {
+    if (!isNew || !chip.current) return
+    const lapsed = Date.now() - new Date(listing.postedAt).getTime() >= NEW_LISTING_MS
+    chip.current.hidden = lapsed
+    if (!chipInHtml && !lapsed) chip.current.textContent = newLabel
+  }, [isNew, listing.postedAt, chipInHtml, newLabel])
 
   // One badge → no wrapper. `className` therefore styles THE CHIP, not a row around it: the
   // caller's positioning classes ride on the chip (an absolutely-positioned inline/inline-flex
@@ -121,6 +135,6 @@ export function CardBadges({
     )
   }
   if (drop) return <Badge kind="drop" className={className}>{drop}</Badge>
-  if (isNew) return <Badge kind="new" className={className}>{tr('New', 'Mới')}</Badge>
+  if (isNew) return <Badge ref={chip} hidden={!chipInHtml} kind="new" className={className}>{chipInHtml ? newLabel : null}</Badge>
   return null
 }

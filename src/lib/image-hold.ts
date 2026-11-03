@@ -14,6 +14,8 @@
  * 390x844), so holding every lazy photo left it blank until hydration: a reviewer's catch, measured. A rail or a shelf can sit anywhere on a page:
  * never held. Six cards are three rows at two columns (`HELD_FROM_CARD`): the first held frame starts at 1,148 px or lower on /c/rentals, /c/teachers,
  * /vi and /?category=rentals, from 320x568 to 600x960.
+ * ⛔ NEVER ON A RELOAD OR A BACK/FORWARD (2026-11-03): those photos come from the browser's cache, so they compete with nothing, and a reader restored to the middle
+ * of the page got grey boxes first, photos popping in after them.
  * ⚠️ ONLY ON A SCREEN THAT CANNOT REACH IT (globals.css): under `sm`, where LISTING_GRID has two columns, and no taller than 1,100 px, so an iPad's
  * Slide Over or a tall narrow window keeps today's page.
  */
@@ -25,4 +27,4 @@ export const IMAGES_HELD_ATTR = 'data-images-held'
 export const HELD_PHOTO_ATTR = 'data-held-photo'
 
 /** The head script: its own try, so a throw means no hold, which is today's page. Whatever ends the hold takes the other two with it. */
-export const IMAGE_HOLD_JS = `(function(){try{var d=document.documentElement,o={capture:true,passive:true},t;var off=function(){d.removeAttribute('${IMAGES_HELD_ATTR}');clearTimeout(t);window.removeEventListener('scroll',off,o);window.removeEventListener('load',off)};d.setAttribute('${IMAGES_HELD_ATTR}','');window.addEventListener('scroll',off,o);window.addEventListener('load',off);t=setTimeout(off,${IMAGE_HOLD_TIMEOUT_MS})}catch(e){}})()`
+export const IMAGE_HOLD_JS = `(function(){try{var n=performance.getEntriesByType('navigation')[0];if(n&&n.type!=='navigate')return;var d=document.documentElement,o={capture:true,passive:true},t;var off=function(){d.removeAttribute('${IMAGES_HELD_ATTR}');clearTimeout(t);window.removeEventListener('scroll',off,o);window.removeEventListener('load',off)};d.setAttribute('${IMAGES_HELD_ATTR}','');window.addEventListener('scroll',off,o);window.addEventListener('load',off);t=setTimeout(off,${IMAGE_HOLD_TIMEOUT_MS})}catch(e){}})()`

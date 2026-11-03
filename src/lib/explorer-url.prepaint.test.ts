@@ -24,6 +24,18 @@ function runScript(search: string) {
   return { masked: attrs.has('data-explorer-directed'), timers, attrs }
 }
 
+describe('the category a cold link asks for', () => {
+  it('reaches <html>, so globals.css can hold open the rows that category will grow', () => {
+    expect(runScript('?category=electronics').attrs.get('data-explorer-cat')).toBe('electronics')
+  })
+  it('is absent when the link names none', () => {
+    expect(runScript('?q=phone').attrs.has('data-explorer-cat')).toBe(false)
+  })
+  it('never without the mask: an undirected home has nothing to reserve', () => {
+    expect(runScript('').attrs.has('data-explorer-cat')).toBe(false)
+  })
+})
+
 const CASES: [string, boolean][] = [
   ['', false],
   ['?', false],

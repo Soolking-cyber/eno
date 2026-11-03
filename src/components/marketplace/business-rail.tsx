@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Award } from '@/components/ui/icons'
 import type { SerializedListingCard } from '@/lib/types'
@@ -12,9 +12,14 @@ import { ListingCardSkeleton } from './listing-card-skeleton'
 /** "Outstanding businesses" — a horizontal rail of ONE flagship listing (most-viewed)
  *  from each of the highest-trust business storefronts. A reward for good standing.
  *  Reuses the standard ListingCard (heart, locate→map, trust). Hides when empty. */
-export function BusinessRail({ initial }: { initial?: SerializedListingCard[] }) {
+/** A card's "show on map" from a rail: one identity, so the card's memo holds. */
+const locateFromRail = (l: SerializedListingCard) => { window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } })) }
+
+/** ⚠️ MEMO: see for-you-rail.tsx. */
+export const BusinessRail = memo(function BusinessRail({ initial }: { initial?: SerializedListingCard[] }) {
   const { tr } = useLanguage()
   const router = useRouter()
+  const openListing = useCallback((x: SerializedListingCard) => router.push(`/listings/${x.id}`), [router])
   // Perf Phase 1: the home landing passes SERVER-KNOWN data — final geometry from the
   // first paint, no fetch, and an empty rail never renders skeletons it must collapse
   // (that collapse was the homepage's whole 0.142 CLS). The client fetch survives only
@@ -48,11 +53,11 @@ export function BusinessRail({ initial }: { initial?: SerializedListingCard[] })
             <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
               <ListingCard
                 listing={l}
-                onOpen={(x) => router.push(`/listings/${x.id}`)}
-                onLocate={() => window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } }))}
+                onOpen={openListing}
+                onLocate={locateFromRail}
               />
             </div>
           ))}
     </Shelf>
   )
-}
+})
