@@ -619,9 +619,14 @@ describe('/regulations', () => {
     const html = await regs()
     const a3 = text(section(html, 'activity'))
     expect(a3).toContain('Dịch vụ đối tác. Người bán hoặc bên cho thuê đã ký thoả thuận với đơn vị vận hành')
-    expect(a3).toContain('Partner services. A seller or landlord that has signed an agreement with the operator')
-    expect(a3).toContain('dành cho căn hộ, nhà và văn phòng với hợp đồng thuê từ 6 tháng trở lên')
-    expect(a3).toContain('for apartments, houses and offices on leases of 6 months or longer')
+    expect(a3).toContain('Partner service. A seller or landlord that has signed an agreement with the operator')
+    expect(a3).toContain('cho thuê căn hộ, nhà và văn phòng với hợp đồng thuê từ 6 tháng trở lên')
+    expect(a3).toContain('Đối tác dịch vụ tự thương lượng, chốt giao dịch và ký hợp đồng; đơn vị vận hành không thương lượng, không chốt giao dịch và không ký hợp đồng thay mặt bất kỳ bên nào.')
+    expect(a3).toContain('The service partner negotiates, closes the deal and signs any contract itself; the operator does not negotiate, close a deal or sign a contract for anyone.')
+    // Article 1 keeps "buyers and sellers negotiate directly": the partner closes, and eno only takes first enquiries (owner, 2026-11-03).
+    expect(text(section(html, 'scope'))).toContain('thương lượng và hoàn tất giao dịch trực tiếp với nhau, trên sàn hoặc trên trang nguồn; với tin thuộc dịch vụ đối tác tại Điều 3, đơn vị vận hành có thể trao đổi ban đầu với người mua, người thuê thay mặt đối tác dịch vụ. Đơn vị vận hành sàn')
+    expect(text(section(html, 'scope'))).toContain('complete the transaction directly, on the platform or on the source site; for a listing under the partner service in Article 3, the operator may handle first enquiries on the service partner’s behalf. The platform operator')
+    expect(a3).toContain('and apartments, houses and offices on leases of 6 months or longer')
     expect(a3).toContain('không thu và không giữ tiền của người mua, người thuê')
     expect(a3).toContain('neither collects nor holds a buyer’s or tenant’s money')
     const a8 = text(section(html, 'fees'))
@@ -630,7 +635,11 @@ describe('/regulations', () => {
       'Posting one’s own listings, browsing and contacting sellers',
       'đã bao gồm thuế giá trị gia tăng',
       'include value-added tax',
-      'Dịch vụ quản lý tin', '10%', 'Giá bán, hoặc tổng giá trị hợp đồng thuê', 'Sale price, or the whole rental contract',
+      'Đồ đã qua sử dụng, cho thuê tài sản không phải bất động sản', '10%', 'Giá bán, hoặc tổng giá trị hợp đồng thuê', 'Sale price, or the whole rental contract',
+      'Khi chốt giao dịch', 'When the deal closes',
+      // The fee reaches only customers eno sent, and the agreement defines a close.
+      'khi chốt giao dịch với khách do đơn vị vận hành gửi', 'when they close a deal with a customer the operator sent',
+      'Thoả thuận đã ký quy định cách xác định giao dịch đã chốt', 'The signed agreement sets how a closed deal is identified and reported',
       'hợp đồng từ 1 năm trở lên', 'lease of 1 year or longer', '20%',
       'hợp đồng từ 6 tháng đến dưới 1 năm', 'lease of 6 months to under 1 year', '15%',
       'Giá thuê một tháng', 'One month’s rent',
@@ -639,7 +648,7 @@ describe('/regulations', () => {
       'Nếu sau này có dịch vụ thu phí khác', 'If other paid services',
     ]) expect(a8).toContain(fact)
     // No "Ad" label on these listings, and no calling them advertising (owner, 2026-11-03).
-    for (const id of ['activity', 'fees']) expect(text(section(html, id))).not.toMatch(/dịch vụ quảng cáo|rental advertising/i)
+    for (const id of ['activity', 'fees']) expect(text(section(html, id))).not.toMatch(/dịch vụ quảng cáo|rental advertising|quản lý tin|managed listing/i)
     const a14 = text(section(html, 'ranking'))
     expect(a14).toContain('Việc trả phí dịch vụ đối tác tại Điều 8 không đem lại vị trí hiển thị và không phải là tiêu chí xếp hạng.')
     expect(a14).toContain('Paying the partner service fees in Article 8 buys no display position and is not a ranking criterion.')
