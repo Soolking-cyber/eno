@@ -41,7 +41,9 @@
 //   · V2_SUPERSEDED_BY — LITERALS since the Quy chế's version 4 re-used REGULATIONS_AMENDMENT (2026-10-29): version
 //     3's real dates, published and in force 05/10/2026 (immediate). They also date version 3's Article 17 entry on
 //     the live page and in the v3 archive;
-//   · V3_SUPERSEDED_BY borrows REGULATIONS_AMENDMENT while REGULATIONS_VERSION is '4'.
+//   · V3_SUPERSEDED_BY — LITERALS since the Quy chế's version 5 re-used REGULATIONS_AMENDMENT (2026-11-03): version 4's
+//     real dates, published and in force 29/10/2026 (immediate). They also date version 4's Article 17 entry;
+//   · V4_SUPERSEDED_BY borrows REGULATIONS_AMENDMENT while REGULATIONS_VERSION is '5'.
 
 import { LEGAL_AMENDMENT, REGULATIONS_AMENDMENT, dateEn, dateVi } from './legal-amendment'
 
@@ -135,8 +137,8 @@ export const V3_PATHS = { regulations: archivedPath('regulations', V3) } as cons
  */
 export const V3_SUPERSEDED_BY = {
   version: '4',
-  published: REGULATIONS_AMENDMENT.published,
-  inForce: REGULATIONS_AMENDMENT.inForce,
+  published: '2026-10-29',
+  inForce: '2026-10-29',
 } as const
 
 export const V3_SUPERSEDED = {
@@ -144,4 +146,27 @@ export const V3_SUPERSEDED = {
   publishedEn: dateEn(V3_SUPERSEDED_BY.published),
   inForceVi: dateVi(V3_SUPERSEDED_BY.inForce),
   inForceEn: dateEn(V3_SUPERSEDED_BY.inForce),
+} as const
+
+/** The Quy chế's version 4 — a literal for the same reason as V1, V2 and V3. */
+export const V4 = '4'
+
+/** Where the Quy chế's version 4 is published. */
+export const V4_PATHS = { regulations: archivedPath('regulations', V4) } as const
+
+/**
+ * The amendment that replaced the Quy chế's version 4: version 5 (partner services and their fees; owner, 2026-11-03).
+ * See the ⛔ above before touching REGULATIONS_AMENDMENT.
+ */
+export const V4_SUPERSEDED_BY = {
+  version: '5',
+  published: REGULATIONS_AMENDMENT.published,
+  inForce: REGULATIONS_AMENDMENT.inForce,
+} as const
+
+export const V4_SUPERSEDED = {
+  publishedVi: dateVi(V4_SUPERSEDED_BY.published),
+  publishedEn: dateEn(V4_SUPERSEDED_BY.published),
+  inForceVi: dateVi(V4_SUPERSEDED_BY.inForce),
+  inForceEn: dateEn(V4_SUPERSEDED_BY.inForce),
 } as const

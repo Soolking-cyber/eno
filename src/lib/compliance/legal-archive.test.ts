@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { LEGAL_AMENDMENT, REGULATIONS_AMENDMENT } from './legal-amendment'
-import { TERMS_V2_SUPERSEDED_BY, V1, V1_PATHS, V1_SUPERSEDED_BY, V2, V2_PATHS, V2_SUPERSEDED_BY, V3, V3_PATHS, V3_SUPERSEDED_BY, archivedPath } from './legal-archive'
+import { TERMS_V2_SUPERSEDED_BY, V1, V1_PATHS, V1_SUPERSEDED_BY, V2, V2_PATHS, V2_SUPERSEDED_BY, V3, V3_PATHS, V3_SUPERSEDED_BY, V4, V4_PATHS, V4_SUPERSEDED_BY, archivedPath } from './legal-archive'
 import { REGULATIONS_PREVIOUS_VERSION, REGULATIONS_VERSION, TOS_PREVIOUS_VERSION, TOS_VERSION } from '@/lib/site-legal'
 
 /**
@@ -43,10 +43,18 @@ describe('legal archive', () => {
   // 05/10/2026 until that day, which the Terms accepted in the period incorporate.
   it('keeps the Quy chế’s version 3 published, permanently — the Terms accepted from 05/10/2026 incorporate it', () => {
     expect(V3).toBe('3')
-    expect(REGULATIONS_VERSION).toBe('4')
-    expect(REGULATIONS_PREVIOUS_VERSION).toBe(V3)
     expect(V3_PATHS).toEqual({ regulations: '/regulations/v3' })
     expect(existsSync(pageFile('regulations', V3))).toBe(true)
+  })
+
+  // The Quy chế's version 5 (2026-11-03 — partner services and their fees) replaced version 4: the text in force from
+  // 29/10/2026 until that day, which the Terms accepted in the period incorporate.
+  it('keeps the Quy chế’s version 4 published, permanently — the Terms accepted from 29/10/2026 incorporate it', () => {
+    expect(V4).toBe('4')
+    expect(REGULATIONS_VERSION).toBe('5')
+    expect(REGULATIONS_PREVIOUS_VERSION).toBe(V4)
+    expect(V4_PATHS).toEqual({ regulations: '/regulations/v4' })
+    expect(existsSync(pageFile('regulations', V4))).toBe(true)
   })
 
   // The Terms' version 3 (2026-10-07) replaced the Terms' version 2 — the text everyone accepted from 01/10/2026
@@ -107,16 +115,28 @@ describe('legal archive', () => {
     expect(REGULATIONS_AMENDMENT.published).not.toBe(V2_SUPERSEDED_BY.published)
   })
 
-  it('borrows REGULATIONS_AMENDMENT for the Quy chế’s version 4 ONLY while that record still describes it', () => {
-    expect(block('V3_SUPERSEDED_BY'), 'the anchor below must find the block').toContain("version: '4'")
-    if (REGULATIONS_VERSION === V3_SUPERSEDED_BY.version) {
-      expect(V3_SUPERSEDED_BY.published).toBe(REGULATIONS_AMENDMENT.published)
-      expect(V3_SUPERSEDED_BY.inForce).toBe(REGULATIONS_AMENDMENT.inForce)
+  // ⛔ Since version 5 re-used the record (2026-11-03): version 4's real dates, typed once.
+  it('types the Quy chế’s version 4’s real dates — published and in force 29/10/2026 — now that REGULATIONS_AMENDMENT moved on', () => {
+    expect(V3_SUPERSEDED_BY).toEqual({ version: '4', published: '2026-10-29', inForce: '2026-10-29' })
+    expect(block('V3_SUPERSEDED_BY')).not.toMatch(/REGULATIONS_AMENDMENT\.(published|inForce)/)
+    expect(REGULATIONS_AMENDMENT.published).not.toBe(V3_SUPERSEDED_BY.published)
+  })
+
+  it('borrows REGULATIONS_AMENDMENT for the Quy chế’s version 5 ONLY while that record still describes it', () => {
+    expect(block('V4_SUPERSEDED_BY'), 'the anchor below must find the block').toContain("version: '5'")
+    if ((REGULATIONS_VERSION as string) === V4_SUPERSEDED_BY.version) {
+      expect(V4_SUPERSEDED_BY.published).toBe(REGULATIONS_AMENDMENT.published)
+      expect(V4_SUPERSEDED_BY.inForce).toBe(REGULATIONS_AMENDMENT.inForce)
     } else {
-      // A version 5 re-used REGULATIONS_AMENDMENT: version 4's real dates must be literals by now, or the
-      // version-3 archive (and version 4's Article 17 entry) print the newer amendment's dates.
-      expect(block('V3_SUPERSEDED_BY'), 'type version 4’s real publication and in-force dates into V3_SUPERSEDED_BY').not.toMatch(/REGULATIONS_AMENDMENT\.(published|inForce)/)
+      // A version 6 re-used REGULATIONS_AMENDMENT: version 5's real dates must be literals by now.
+      expect(block('V4_SUPERSEDED_BY'), 'type version 5’s real publication and in-force dates into V4_SUPERSEDED_BY').not.toMatch(/REGULATIONS_AMENDMENT\.(published|inForce)/)
     }
+  })
+
+  it('the Quy chế v4 archive keeps the legal representative it printed when replaced — on eno.vn only', () => {
+    const src = readFileSync(pageFile('regulations', V4), 'utf8')
+    expect(src).toContain("const COMPANY = IS_MARKETPLACE ? { ...LIVE_COMPANY, legalRep: 'Nguyễn Quốc Lập', contentManager: 'Nguyễn Quốc Lập' } : LIVE_COMPANY")
+    expect(src).toMatch(/COMPANY as LIVE_COMPANY/)
   })
 
   it('the Quy chế v3 archive keeps the legal representative it printed when replaced — on eno.vn only', () => {
@@ -159,6 +179,7 @@ describe('legal archive', () => {
       'src/app/[lang]/regulations/page.tsx', // live
       'src/app/[lang]/regulations/v2/page.tsx', // archive — pinned above
       'src/app/[lang]/regulations/v3/page.tsx', // archive — pinned above
+      'src/app/[lang]/regulations/v4/page.tsx', // archive — pinned above
       'src/app/md/privacy/route.ts', // live
       'src/components/marketplace/footer.tsx', // live
     ])

@@ -112,21 +112,22 @@ describe('legal-amendment', () => {
   // published, no window, no announcement. A Quy chế-only amendment: the Terms' record keeps its dates. (Version 3,
   // 05/10/2026 — owner: "apply best recommended" — was the record's previous use; its dates are literals in
   // legal-archive.ts V2_SUPERSEDED_BY now.)
-  describe('the Quy chế-only amendment (version 4, REGULATIONS_AMENDMENT)', () => {
-    it('is immediate: published and in force on one day, after version 3', async () => {
-      const { V1_SUPERSEDED_BY, V2_SUPERSEDED_BY } = await import('./legal-archive')
+  describe('the Quy chế-only amendment (version 5, REGULATIONS_AMENDMENT)', () => {
+    it('is immediate: published and in force on one day, after version 4', async () => {
+      const { V1_SUPERSEDED_BY, V2_SUPERSEDED_BY, V3_SUPERSEDED_BY } = await import('./legal-archive')
       expect(REGULATIONS_AMENDMENT.immediate).toBe(true)
       expect(REGULATIONS_AMENDMENT.inForce).toBe(REGULATIONS_AMENDMENT.published)
       expect(REGULATIONS_AMENDMENT.published > V1_SUPERSEDED_BY.published).toBe(true)
       expect(REGULATIONS_AMENDMENT.published > V2_SUPERSEDED_BY.published).toBe(true)
+      expect(REGULATIONS_AMENDMENT.published > V3_SUPERSEDED_BY.published).toBe(true)
       // The placeholder the deployer replaces with the real deploy day (the gate holds it there).
       expect(REGULATIONS_AMENDMENT.published).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     })
 
     // Two amendments, two records, and neither carries the other's dates: the Terms' version 3 (07/10/2026) did not
-    // move this record, and version 4 does not move the Terms'.
+    // move this record, and version 5 does not move the Terms'.
     it('is not the Terms’ record, and neither moved the other', () => {
-      expect(REGULATIONS_AMENDMENT).toEqual({ published: '2026-10-29', inForce: '2026-10-29', immediate: true })
+      expect(REGULATIONS_AMENDMENT).toEqual({ published: '2026-11-03', inForce: '2026-11-03', immediate: true })
       expect(LEGAL_AMENDMENT).toEqual({ published: '2026-10-07', inForce: '2026-10-07', immediate: true })
       expect(REGULATIONS_AMENDMENT.published > LEGAL_AMENDMENT.published).toBe(true)
     })
@@ -157,7 +158,7 @@ describe('legal-amendment', () => {
 
     it('moves neither the Terms’ runtime switch nor the Quy chế’s record', () => {
       expect(LEGAL_AMENDMENT).toEqual({ published: '2026-10-07', inForce: '2026-10-07', immediate: true })
-      expect(REGULATIONS_AMENDMENT).toEqual({ published: '2026-10-29', inForce: '2026-10-29', immediate: true })
+      expect(REGULATIONS_AMENDMENT).toEqual({ published: '2026-11-03', inForce: '2026-11-03', immediate: true })
     })
 
     // A closed list, like LEGAL_AMENDMENT's: a new reader is a decision about which amendment dates it.

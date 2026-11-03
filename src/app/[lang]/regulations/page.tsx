@@ -20,7 +20,7 @@ import { LEGAL_BASIS } from '@/lib/compliance/legal-basis'
 import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
 import { FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
 import { PROHIBITED_AMENDED, PROHIBITED_AMENDMENT, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT } from '@/lib/compliance/legal-amendment'
-import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, V2_SUPERSEDED, V3, V3_PATHS, V3_SUPERSEDED, archivedPath } from '@/lib/compliance/legal-archive'
+import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, V2_SUPERSEDED, V3, V3_PATHS, V3_SUPERSEDED, V4, V4_PATHS, V4_SUPERSEDED, archivedPath } from '@/lib/compliance/legal-archive'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 /**
@@ -296,6 +296,48 @@ const CHANGES_V4: Para[] = [
   },
 ]
 
+/**
+ * VERSION 5's entry (owner, 2026-11-03: partner services and their fees, matching partner.eno.vn). Same rule as the lists
+ * above: one item per substantive edit, each saying what the text now says and, for an amended sentence, what it said
+ * before. ⛔ eno.vn ONLY: partner.eno.vn sells these, and eno.forum's operator is another (pending) entity that can neither
+ * sell them nor issue the invoice — every sentence of version 5 is gated on IS_MARKETPLACE, and eno.forum's Article 17 says
+ * its text did not change.
+ */
+const CHANGES_V5: Para[] = [
+  {
+    vi: 'bổ sung dịch vụ đối tác — dịch vụ quản lý tin và dịch vụ tiếp thị tin cho thuê — tại các Điều 1, 3 và 7',
+    en: 'add the partner services — the managed listing service and the rental marketing service — to Articles 1, 3 and 7',
+  },
+  {
+    vi: 'sửa đổi Điều 3: Đối tác chính thức chỉ trao đổi với người mua qua kênh nhắn tin trên sàn, trừ việc chuyển thông tin theo dịch vụ đối tác (trước đây không có ngoại lệ này)',
+    en: 'amend Article 3: an official partner deals with buyers only through the platform’s messaging, except for details passed on under the partner services (it previously had no such exception)',
+  },
+  {
+    vi: 'bổ sung biểu phí dịch vụ đối tác tại Điều 8',
+    en: 'add the partner service price list to Article 8',
+  },
+  {
+    vi: 'sửa đổi Điều 8: việc tự đăng tin hiện miễn phí (trước đây ghi là việc đăng tin hiện miễn phí), và thời hạn công bố 20 ngày áp dụng cho dịch vụ thu phí khác và khi các mức phí trên thay đổi',
+    en: 'amend Article 8: posting one’s own listings is currently free (it previously said posting is currently free), and the 20-day publication period applies to other paid services and to changes in the rates above',
+  },
+  {
+    vi: 'sửa đổi Điều 7: việc hỗ trợ kiểm tra tình trạng còn trống tự nó không khiến đơn vị vận hành trở thành bên cho thuê, bên môi giới hay một bên của hợp đồng thuê (trước đây không có các từ “tự nó”)',
+    en: 'amend Article 7: the availability check does not of itself make the operator the landlord, the agent or a party to the tenancy (it previously lacked “of itself”)',
+  },
+  {
+    vi: 'bổ sung tại Điều 10 việc rà soát tự động tin do đơn vị vận hành đăng thay mặt đối tác dịch vụ',
+    en: 'add to Article 10 the automated screening of listings the operator posts on a service partner’s behalf',
+  },
+  {
+    vi: 'bổ sung tại Điều 11 trách nhiệm của đơn vị vận hành về việc thực hiện dịch vụ đối tác và về thông tin do chính mình trao đổi',
+    en: 'add to Article 11 the operator’s responsibility for performing a partner service and for what it says itself',
+  },
+  {
+    vi: 'bổ sung tại Điều 14 rằng việc trả phí dịch vụ đối tác không đem lại vị trí hiển thị và không phải là tiêu chí xếp hạng',
+    en: 'add to Article 14 that paying partner service fees buys no display position and is not a ranking criterion',
+  },
+]
+
 const numbered = (changes: Para[], lang: 'vi' | 'en') => changes.map((c, i) => `(${i + 1}) ${c[lang]}`).join('; ')
 
 const ARTICLES: Article[] = [
@@ -312,8 +354,8 @@ const ARTICLES: Article[] = [
       {
         // ⚠️ "SELLERS POST THEIR OWN LISTINGS" ALONE WAS FALSE OF MOST OF THE SHELF (2026-10-01): the
         // linked listings eno imports (src/lib/site-facts.ts counts them) are posted by nobody here.
-        vi: `${S} là sàn trung gian. Tin đăng trên sàn gồm tin do người bán tự đăng — người bán tự chịu trách nhiệm về tin đăng của mình — và tin đăng liên kết do đơn vị vận hành đưa về từ trang nguồn theo Điều 3. Người mua và người bán liên hệ, thương lượng và hoàn tất giao dịch trực tiếp với nhau, trên sàn hoặc trên trang nguồn. Đơn vị vận hành sàn không phải là một bên của bất kỳ giao dịch nào giữa người mua và người bán.`,
-        en: `${S} is an intermediary platform. Its listings are either posted by sellers themselves — each seller being responsible for its own listings — or linked listings that the operator brings in from a source site under Article 3. Buyers and sellers contact each other, negotiate and complete the transaction directly, on the platform or on the source site. The platform operator is not a party to any transaction between a buyer and a seller.`,
+        vi: `${S} là sàn trung gian. ${IS_MARKETPLACE ? 'Tin đăng trên sàn gồm ba loại: tin do người bán tự đăng, người bán tự chịu trách nhiệm về tin đăng của mình; tin do đơn vị vận hành đăng thay mặt đối tác dịch vụ theo thoả thuận đã ký (Điều 3); và tin đăng liên kết do đơn vị vận hành đưa về từ trang nguồn theo Điều 3.' : 'Tin đăng trên sàn gồm tin do người bán tự đăng — người bán tự chịu trách nhiệm về tin đăng của mình — và tin đăng liên kết do đơn vị vận hành đưa về từ trang nguồn theo Điều 3.'} Người mua và người bán liên hệ, thương lượng và hoàn tất giao dịch trực tiếp với nhau, trên sàn hoặc trên trang nguồn${IS_MARKETPLACE ? '; với dịch vụ đối tác tại Điều 3, đơn vị vận hành có thể thay mặt đối tác dịch vụ trao đổi với người mua, người thuê và, với dịch vụ quản lý tin, thương lượng và chốt giao dịch' : ''}. Đơn vị vận hành sàn không phải là một bên của bất kỳ giao dịch nào giữa người mua và người bán.`,
+        en: `${S} is an intermediary platform. ${IS_MARKETPLACE ? 'Its listings are of three kinds: listings posted by sellers themselves, each seller being responsible for its own; listings the operator posts on behalf of a service partner under a signed agreement (Article 3); and linked listings that the operator brings in from a source site under Article 3.' : 'Its listings are either posted by sellers themselves — each seller being responsible for its own listings — or linked listings that the operator brings in from a source site under Article 3.'} Buyers and sellers contact each other, negotiate and complete the transaction directly, on the platform or on the source site${IS_MARKETPLACE ? '; under the partner services in Article 3, the operator may deal with buyers and tenants on a service partner’s behalf and, under the managed listing service, negotiate and close the deal' : ''}. The platform operator is not a party to any transaction between a buyer and a seller.`,
       },
       {
         vi: `Người sử dụng phải từ đủ 18 tuổi trở lên, cung cấp thông tin trung thực và tuân thủ pháp luật Việt Nam cùng Quy chế này. Việc đăng ký tài khoản hoặc tiếp tục sử dụng ${S} được hiểu là người sử dụng đã đọc, hiểu và chấp nhận Quy chế.`,
@@ -401,12 +443,12 @@ const ARTICLES: Article[] = [
     titleEn: 'Article 3. Scope of the platform’s activity',
     body: [
       {
-        vi: `${S} cung cấp môi trường để tổ chức, cá nhân đăng tin rao bán hoặc cho thuê hàng hoá, dịch vụ, và để người mua tìm kiếm tin đăng rồi liên hệ trực tiếp với người bán qua kênh nhắn tin trên sàn, hoặc trên trang nguồn đối với tin đăng liên kết. Các nhóm ngành hàng chính gồm nhà ở, việc làm, xe cộ, đồ đã qua sử dụng và dịch vụ dành cho người nước ngoài đang sinh sống tại Việt Nam.`,
-        en: `${S} provides an environment where organisations and individuals post listings offering goods and services for sale or rent, and where buyers search those listings and contact sellers directly through the platform’s messaging — or, for a linked listing, on its source site. The main categories are housing, jobs, vehicles, secondhand goods and services for foreigners living in Vietnam.`,
+        vi: `${S} cung cấp môi trường để tổ chức, cá nhân đăng tin rao bán hoặc cho thuê hàng hoá, dịch vụ, và để người mua tìm kiếm tin đăng rồi liên hệ trực tiếp với người bán${IS_MARKETPLACE ? ' (hoặc đơn vị vận hành thay mặt đối tác dịch vụ)' : ''} qua kênh nhắn tin trên sàn, hoặc trên trang nguồn đối với tin đăng liên kết. Các nhóm ngành hàng chính gồm nhà ở, việc làm, xe cộ, đồ đã qua sử dụng và dịch vụ dành cho người nước ngoài đang sinh sống tại Việt Nam.`,
+        en: `${S} provides an environment where organisations and individuals post listings offering goods and services for sale or rent, and where buyers search those listings and contact sellers${IS_MARKETPLACE ? ' (or the operator on a service partner’s behalf)' : ''} directly through the platform’s messaging — or, for a linked listing, on its source site. The main categories are housing, jobs, vehicles, secondhand goods and services for foreigners living in Vietnam.`,
       },
       {
-        vi: `Sàn KHÔNG có chức năng đặt hàng trực tuyến và KHÔNG có chức năng thanh toán trực tuyến giữa người mua và người bán. Sàn không giữ tiền ký quỹ (tạm giữ) của bất kỳ bên nào, không nhận đặt cọc thay người bán, không vận chuyển và không giao nhận hàng hoá. Giá hiển thị trên tin đăng là giá chào bán do người bán tự công bố; việc chốt giá, thanh toán và bàn giao do hai bên tự thoả thuận và tự thực hiện ngoài sàn — với tin đăng liên kết, việc đặt hàng và thanh toán (nếu có) diễn ra trên trang nguồn.`,
-        en: `The platform has NO online ordering function and NO online payment function between buyer and seller. It holds no escrow for anyone, takes no deposit on a seller’s behalf, and does not ship or deliver goods. A listed price is the seller’s own published asking price; agreeing the price, paying and handing over are arranged and carried out by the two parties themselves, off the platform — for a linked listing, any ordering and payment happen on the source site.`,
+        vi: `Sàn KHÔNG có chức năng đặt hàng trực tuyến và KHÔNG có chức năng thanh toán trực tuyến giữa người mua và người bán. Sàn không giữ tiền ký quỹ (tạm giữ) của bất kỳ bên nào, không nhận đặt cọc thay người bán, không vận chuyển và không giao nhận hàng hoá. Giá hiển thị trên tin đăng là giá chào bán do người bán tự công bố; việc chốt giá, thanh toán và bàn giao do hai bên tự thoả thuận và tự thực hiện ngoài sàn — với tin đăng liên kết, việc đặt hàng và thanh toán (nếu có) diễn ra trên trang nguồn${IS_MARKETPLACE ? '; với dịch vụ quản lý tin dưới đây, đơn vị vận hành có thể thay mặt đối tác dịch vụ thoả thuận giá trong phạm vi đối tác dịch vụ cho phép' : ''}.`,
+        en: `The platform has NO online ordering function and NO online payment function between buyer and seller. It holds no escrow for anyone, takes no deposit on a seller’s behalf, and does not ship or deliver goods. A listed price is the seller’s own published asking price; agreeing the price, paying and handing over are arranged and carried out by the two parties themselves, off the platform — for a linked listing, any ordering and payment happen on the source site${IS_MARKETPLACE ? '; under the managed listing service below, the operator may agree the price on a service partner’s behalf, within the limits that partner sets' : ''}.`,
       },
       {
         // ⛔ THE CANONICAL LINKED-LISTINGS REGIME (2026-10-01) — /terms#linked says the same in other
@@ -428,12 +470,22 @@ const ARTICLES: Article[] = [
         // storefronts with officialPartner:true, set-import-partners.mjs grants it in bulk and
         // set-partner-avatar.ts --official sets it. Until those stop, the next import re-badges a shop
         // that signed nothing and this clause is false — a ship blocker for the main thread / W-C.
-        vi: `Đối tác chính thức và Cửa hàng liên kết. Huy hiệu “Đối tác chính thức” chỉ dành cho công ty đã ký thoả thuận hợp tác với đơn vị vận hành; huy hiệu do đơn vị vận hành cấp và thu hồi, người bán không thể tự gán cho mình. Đối tác chính thức chỉ trao đổi với người mua qua kênh nhắn tin trên sàn. Gian hàng có danh mục sản phẩm được hiển thị trên sàn mà chưa ký thoả thuận như vậy được gắn nhãn “Cửa hàng liên kết”. Cả hai nhãn đều không phải là sự bảo đảm của sàn đối với hàng hoá, dịch vụ.`,
-        en: `Official partners and Linked shops. The “Official partner” badge is reserved for a company that has signed a cooperation agreement with the operator; the operator grants and withdraws it, and no seller can give it to itself. An official partner deals with buyers only through the platform’s messaging. A storefront whose catalogue is shown on the platform without such an agreement is labelled “Linked shop”. Neither label is a guarantee by the platform of any goods or service.`,
+        vi: `Đối tác chính thức và Cửa hàng liên kết. Huy hiệu “Đối tác chính thức” chỉ dành cho công ty đã ký thoả thuận hợp tác với đơn vị vận hành; huy hiệu do đơn vị vận hành cấp và thu hồi, người bán không thể tự gán cho mình. Đối tác chính thức chỉ trao đổi với người mua qua kênh nhắn tin trên sàn${IS_MARKETPLACE ? ', trừ việc chuyển thông tin theo dịch vụ đối tác dưới đây' : ''}. Gian hàng có danh mục sản phẩm được hiển thị trên sàn mà chưa ký thoả thuận như vậy được gắn nhãn “Cửa hàng liên kết”. Cả hai nhãn đều không phải là sự bảo đảm của sàn đối với hàng hoá, dịch vụ.`,
+        en: `Official partners and Linked shops. The “Official partner” badge is reserved for a company that has signed a cooperation agreement with the operator; the operator grants and withdraws it, and no seller can give it to itself. An official partner deals with buyers only through the platform’s messaging${IS_MARKETPLACE ? ', except for details passed on under the partner services below' : ''}. A storefront whose catalogue is shown on the platform without such an agreement is labelled “Linked shop”. Neither label is a guarantee by the platform of any goods or service.`,
       },
+      ...(IS_MARKETPLACE
+        ? [
+            {
+              // ⛔ VERSION 5 (owner, 2026-11-03; the partner page at partner.eno.vn sells these). Fees: Article 8. The service
+              // partner stays the seller or landlord and eno holds no money, so Article 8's first paragraph stays true.
+              vi: `Dịch vụ đối tác. Người bán hoặc bên cho thuê đã ký thoả thuận với đơn vị vận hành (sau đây gọi là “đối tác dịch vụ”) có thể sử dụng các dịch vụ sau. (a) Dịch vụ quản lý tin, dành cho đồ đã qua sử dụng và cho thuê tài sản không phải bất động sản: đơn vị vận hành đăng tin sau khi đối tác dịch vụ duyệt; thay mặt đối tác dịch vụ trao đổi, thương lượng với người mua, người thuê và chốt giao dịch trong phạm vi đối tác dịch vụ cho phép; rồi chuyển thông tin về giao dịch đã chốt cho đối tác dịch vụ. (b) Dịch vụ tiếp thị tin cho thuê, dành cho căn hộ, nhà và văn phòng với hợp đồng thuê từ 6 tháng trở lên: đơn vị vận hành đăng tin sau khi đối tác dịch vụ duyệt, thay mặt đối tác dịch vụ trao đổi với những người có nhu cầu thuê, rồi chuyển thông tin của những người này cho đối tác dịch vụ. Đối tác dịch vụ vẫn là người bán hoặc bên cho thuê; Điều 5 vẫn áp dụng đối với đối tác dịch vụ, và đối tác dịch vụ chịu trách nhiệm về nội dung đã duyệt và về việc thực hiện giao dịch; đơn vị vận hành chịu trách nhiệm về thông tin do chính mình trao đổi. Đơn vị vận hành không phải là một bên của giao dịch, không ký hợp đồng thay mặt bất kỳ bên nào, không thu và không giữ tiền của người mua, người thuê; người mua, người thuê thanh toán trực tiếp cho đối tác dịch vụ. Khi trao đổi thay mặt đối tác dịch vụ, đơn vị vận hành thông báo cho người mua, người thuê rằng mình đang trao đổi thay mặt đối tác dịch vụ. Thông tin liên hệ của người mua, người thuê chỉ được chuyển cho đối tác dịch vụ khi người đó đồng ý. Phí của các dịch vụ này được quy định tại Điều 8.`,
+              en: `Partner services. A seller or landlord that has signed an agreement with the operator (a “service partner”) may use the following services. (a) The managed listing service, for second-hand goods and rentals of anything other than real property: the operator posts the listing once the service partner approves it; deals and negotiates with buyers and tenants on the service partner’s behalf and closes the deal, within the limits the service partner sets; and passes the details of the closed deal to the service partner. (b) The rental marketing service, for apartments, houses and offices on leases of 6 months or longer: the operator posts the listing once the service partner approves it, deals on the service partner’s behalf with people wanting to rent, and passes their details to the service partner. The service partner remains the seller or landlord; Article 5 still applies to it, and it answers for the approved content and for performing the transaction; the operator answers for what it says itself. The operator is not a party to the transaction, signs no contract on anyone’s behalf, and neither collects nor holds a buyer’s or tenant’s money; buyers and tenants pay the service partner directly. When dealing on a service partner’s behalf, the operator tells the buyer or tenant that it is doing so. A buyer’s or tenant’s contact details are passed to a service partner only with that person’s consent. The fees for these services are set out in Article 8.`,
+            },
+          ]
+        : []),
       {
-        vi: `Kênh nhắn tin giữa người mua và người bán là kênh trao đổi riêng tư 1:1 về một tin đăng cụ thể, không phải kênh đăng tải nội dung ra công chúng.`,
-        en: `Messaging between a buyer and a seller is a private one-to-one channel about a specific listing, not a channel for posting content to the public.`,
+        vi: `Kênh nhắn tin giữa người mua và người bán${IS_MARKETPLACE ? ' (hoặc đơn vị vận hành thay mặt đối tác dịch vụ)' : ''} là kênh trao đổi riêng tư 1:1 về một tin đăng cụ thể, không phải kênh đăng tải nội dung ra công chúng.`,
+        en: `Messaging between a buyer and a seller${IS_MARKETPLACE ? ' (or the operator on a service partner’s behalf)' : ''} is a private one-to-one channel about a specific listing, not a channel for posting content to the public.`,
       },
     ],
   },
@@ -519,6 +571,14 @@ const ARTICLES: Article[] = [
         vi: `Bước 4 — Liên hệ: người mua tìm thấy tin đăng qua tìm kiếm hoặc duyệt danh mục và liên hệ người bán qua kênh nhắn tin trên sàn; nếu người bán cho phép thương lượng, người mua có thể gửi đề nghị giá. Bước 5 — Chốt giao dịch: hai bên tự thoả thuận giá cuối cùng, phương thức thanh toán, thời điểm và địa điểm bàn giao, và tự thực hiện giao dịch ngoài sàn. Bước 6 — Sau giao dịch: người bán đánh dấu tin đã bán; người mua có thể đánh giá người bán; mọi vướng mắc được xử lý theo Điều 12.`,
         en: `Step 4 — Contact: the buyer finds the listing by searching or browsing and contacts the seller through the platform’s messaging; where the seller has allowed negotiation, the buyer may send an offer. Step 5 — Closing: the two parties agree the final price, the payment method and the time and place of handover between themselves, and carry the transaction out off the platform. Step 6 — Afterwards: the seller marks the listing sold; the buyer may review the seller; anything that goes wrong is handled under Article 12.`,
       },
+      ...(IS_MARKETPLACE
+        ? [
+            {
+              vi: `Với dịch vụ đối tác tại Điều 3, đơn vị vận hành soạn tin theo Bước 2, đăng tin sau khi đối tác dịch vụ duyệt và thực hiện phần trao đổi tại Bước 4 thay mặt đối tác dịch vụ; tin đăng vẫn qua Bước 3. Với dịch vụ quản lý tin, đơn vị vận hành cũng thay mặt đối tác dịch vụ thực hiện phần thoả thuận giá tại Bước 5 trong phạm vi được cho phép; việc này không tạo hoặc xác nhận đơn hàng trên sàn. Đối tác dịch vụ tự ký hợp đồng, tự giao hàng hoặc bàn giao, và nhận thanh toán trực tiếp từ người mua, người thuê.`,
+              en: `Under the partner services in Article 3, the operator drafts the listing under Step 2, posts it once the service partner approves it, and carries out the contact in Step 4 on the service partner’s behalf; the listing still passes Step 3. Under the managed listing service, the operator also agrees the price in Step 5 on the service partner’s behalf, within the limits set; this creates or confirms no order on the platform. The service partner signs any contract, delivers or hands over, and is paid directly by the buyer or tenant.`,
+            },
+          ]
+        : []),
       {
         vi: `Sàn không phát sinh đơn hàng, không xác nhận đơn hàng, không xuất hoá đơn thay người bán và không xử lý thanh toán giữa người mua và người bán ở bất kỳ bước nào. Nghĩa vụ về hoá đơn, chứng từ và thuế phát sinh từ giao dịch thuộc về người bán.`,
         en: `The platform creates no order, confirms no order, issues no invoice on a seller’s behalf and processes no payment between buyer and seller at any step. Invoicing, documentation and any tax arising from a transaction are the seller’s responsibility.`,
@@ -526,8 +586,8 @@ const ARTICLES: Article[] = [
       {
         // The free rental check: POST /api/rental-check, signed-in, ≤ RENTAL_CHECK_MAX_ITEMS, answered
         // in the requester's /messages thread (src/lib/rental-check/shared.ts header).
-        vi: `Tin đăng liên kết không được tạo theo các bước trên: đơn vị vận hành đưa tin từ trang nguồn về sàn, kèm tên trang nguồn và nút đưa người mua sang trang nguồn; người mua liên hệ, ứng tuyển hoặc mua hàng trên trang nguồn. Đối với tin cho thuê, kể cả tin đăng liên kết, người sử dụng đã đăng nhập có thể nhờ đơn vị vận hành kiểm tra tình trạng còn trống của tối đa ${RENTAL_CHECK_MAX_ITEMS} tin mỗi lần, miễn phí; câu trả lời được gửi trong mục tin nhắn của người sử dụng. Việc hỗ trợ này không khiến đơn vị vận hành trở thành bên cho thuê, bên môi giới hay một bên của hợp đồng thuê.`,
-        en: `Linked listings are not created through the steps above: the operator brings them in from the source site, with the source site’s name and a button that takes the user to the source site, and the buyer contacts the seller, applies or buys on the source site. For rentals, linked ones included, a signed-in user may ask the operator to check whether up to ${RENTAL_CHECK_MAX_ITEMS} of them are still available, free of charge; the answer arrives in the user’s messages. That help does not make the operator the landlord, the agent or a party to the tenancy.`,
+        vi: `Tin đăng liên kết không được tạo theo các bước trên: đơn vị vận hành đưa tin từ trang nguồn về sàn, kèm tên trang nguồn và nút đưa người mua sang trang nguồn; người mua liên hệ, ứng tuyển hoặc mua hàng trên trang nguồn. Đối với tin cho thuê, kể cả tin đăng liên kết, người sử dụng đã đăng nhập có thể nhờ đơn vị vận hành kiểm tra tình trạng còn trống của tối đa ${RENTAL_CHECK_MAX_ITEMS} tin mỗi lần, miễn phí; câu trả lời được gửi trong mục tin nhắn của người sử dụng. Việc hỗ trợ này ${IS_MARKETPLACE ? 'tự nó ' : ''}không khiến đơn vị vận hành trở thành bên cho thuê, bên môi giới hay một bên của hợp đồng thuê.`,
+        en: `Linked listings are not created through the steps above: the operator brings them in from the source site, with the source site’s name and a button that takes the user to the source site, and the buyer contacts the seller, applies or buys on the source site. For rentals, linked ones included, a signed-in user may ask the operator to check whether up to ${RENTAL_CHECK_MAX_ITEMS} of them are still available, free of charge; the answer arrives in the user’s messages. That help does not ${IS_MARKETPLACE ? 'of itself ' : ''}make the operator the landlord, the agent or a party to the tenancy.`,
       },
     ],
   },
@@ -538,15 +598,25 @@ const ARTICLES: Article[] = [
     titleEn: 'Article 8. Fees and payment',
     body: [
       {
-        vi: `Việc đăng tin, duyệt tin và liên hệ người bán trên ${S} hiện miễn phí. Đơn vị vận hành không thu tiền của người mua cho các giao dịch trên sàn, không thanh toán hộ và không giữ tiền của bất kỳ bên nào.`,
-        en: `Posting, browsing and contacting sellers on ${S} are currently free. The operator collects no money from buyers for transactions on the platform, makes no payment on anyone’s behalf and holds no one’s money.`,
+        vi: `Việc ${IS_MARKETPLACE ? 'tự ' : ''}đăng tin, duyệt tin và liên hệ người bán trên ${S} hiện miễn phí. Đơn vị vận hành không thu tiền của người mua cho các giao dịch trên sàn, không thanh toán hộ và không giữ tiền của bất kỳ bên nào.`,
+        en: `Posting${IS_MARKETPLACE ? ' one’s own listings' : ''}, browsing and contacting sellers on ${S} are currently free. The operator collects no money from buyers for transactions on the platform, makes no payment on anyone’s behalf and holds no one’s money.`,
       },
+      ...(IS_MARKETPLACE
+        ? [
+            {
+              // ⛔ VERSION 5, owner's rulings 2026-11-03: rates include VAT (eno pays it out of the percentage); leases under
+              // 6 months are not offered; no "Ad" label; invoices are the operator's own. Table: tableAfter below.
+              vi: `Phí dịch vụ đối tác. Các khoản phí dưới đây tính bằng đồng Việt Nam, đã bao gồm thuế giá trị gia tăng, áp dụng cho đối tác dịch vụ đã ký thoả thuận theo Điều 3, do đối tác dịch vụ trả cho đơn vị vận hành và không do người mua, người thuê trả. Giao dịch không chốt thì không phát sinh phí. Người tự đăng tin và không sử dụng các dịch vụ này không phải trả các khoản phí đó, kể cả với căn hộ, nhà và văn phòng. Đối tác dịch vụ thanh toán bằng chuyển khoản, theo hoá đơn do đơn vị vận hành xuất.`,
+              en: `Partner service fees. The fees below are in Vietnamese dong, include value-added tax, apply to service partners who have signed an agreement under Article 3, are paid by the service partner to the operator and are not paid by buyers or tenants. A deal that does not close incurs no fee. Anyone who posts their own listings and does not use these services pays none of these fees, including for apartments, houses and offices. Service partners pay by bank transfer, against an invoice issued by the operator.`,
+            },
+          ]
+        : []),
       {
         // ⚠️ 20 DAYS, NOT 5 (2026-10-01): NĐ 248/2026 Điều 8.2 — a change to seller fees is published at
         // least 20 days before it applies. That clause is worded for platforms with online ordering,
         // which this one has not; the stricter period is adopted anyway.
-        vi: `Nếu sau này có dịch vụ thu phí dành cho người bán — ví dụ gói đăng tin hoặc vị trí hiển thị ưu tiên — biểu phí, cách tính từng loại phí, thời điểm áp dụng và phương thức thanh toán sẽ được công bố bằng đồng Việt Nam ít nhất 20 ngày trước ngày áp dụng, và mọi vị trí hiển thị có trả phí đều được gắn nhãn rõ ràng ngay tại vị trí đó.`,
-        en: `If paid services for sellers are introduced later — for example posting packages or promoted placement — the price list, how each fee is calculated, when it applies and how it is paid will be published in Vietnamese dong at least 20 days before they apply, and any paid placement will be clearly labelled where it appears.`,
+        vi: `Nếu sau này có dịch vụ thu phí ${IS_MARKETPLACE ? 'khác ' : ''}dành cho người bán — ví dụ gói đăng tin hoặc vị trí hiển thị ưu tiên — ${IS_MARKETPLACE ? 'hoặc các mức phí trên thay đổi, ' : ''}biểu phí, cách tính từng loại phí, thời điểm áp dụng và phương thức thanh toán sẽ được công bố bằng đồng Việt Nam ít nhất 20 ngày trước ngày áp dụng, và mọi vị trí hiển thị có trả phí đều được gắn nhãn rõ ràng ngay tại vị trí đó.`,
+        en: `If ${IS_MARKETPLACE ? 'other ' : ''}paid services for sellers are introduced later — for example posting packages or promoted placement — ${IS_MARKETPLACE ? 'or the rates above change, ' : ''}the price list, how each fee is calculated, when it applies and how it is paid will be published in Vietnamese dong at least 20 days before they apply, and any paid placement will be clearly labelled where it appears.`,
       },
       {
         vi: `Trường hợp một dịch vụ trên sàn do bên thứ ba có giấy phép cung cấp, khoản mà đơn vị vận hành nhận được là hoa hồng theo hợp đồng với bên cung cấp đó. Người mua thanh toán trực tiếp cho bên cung cấp dịch vụ theo phương thức do bên đó công bố, không thanh toán cho sàn.`,
@@ -557,6 +627,39 @@ const ARTICLES: Article[] = [
         en: `The operator may earn a commission from some partners and linked shops when a buyer purchases through a link on the platform. The buyer does not pay that commission, and it does not change the price the buyer pays; links that can earn it are labelled “Ad” with a note saying so.`,
       },
     ],
+    ...(IS_MARKETPLACE
+      ? {
+        table: {
+          tableAfter: 1,
+          head: [
+            { vi: 'Dịch vụ', en: 'Service' },
+            { vi: 'Mức phí', en: 'Rate' },
+            { vi: 'Tính trên', en: 'Charged on' },
+            { vi: 'Thời điểm trả', en: 'When paid' },
+          ],
+          rows: [
+            [
+              { vi: 'Dịch vụ quản lý tin', en: 'Managed listing service' },
+              { vi: '10%', en: '10%' },
+              { vi: 'Giá bán, hoặc tổng giá trị hợp đồng thuê', en: 'Sale price, or the whole rental contract' },
+              { vi: 'Sau khi đối tác dịch vụ nhận tiền từ người mua, người thuê; tiền thuê trả nhiều đợt thì trả theo từng đợt', en: 'After the service partner is paid by the buyer or tenant; rent paid in stages is charged stage by stage' },
+            ],
+            [
+              { vi: 'Dịch vụ tiếp thị tin cho thuê, hợp đồng từ 1 năm trở lên', en: 'Rental marketing service, lease of 1 year or longer' },
+              { vi: '20%', en: '20%' },
+              { vi: 'Giá thuê một tháng', en: 'One month’s rent' },
+              { vi: 'Một lần, khi người thuê do đơn vị vận hành chuyển cho đối tác dịch vụ ký hợp đồng', en: 'Once, when a tenant the operator passed on signs the lease' },
+            ],
+            [
+              { vi: 'Dịch vụ tiếp thị tin cho thuê, hợp đồng từ 6 tháng đến dưới 1 năm', en: 'Rental marketing service, lease of 6 months to under 1 year' },
+              { vi: '15%', en: '15%' },
+              { vi: 'Giá thuê một tháng', en: 'One month’s rent' },
+              { vi: 'Một lần, khi người thuê do đơn vị vận hành chuyển cho đối tác dịch vụ ký hợp đồng', en: 'Once, when a tenant the operator passed on signs the lease' },
+            ],
+          ],
+        },
+        }
+      : {}),
   },
   {
     id: 'prohibited',
@@ -581,8 +684,8 @@ const ARTICLES: Article[] = [
     titleEn: 'Article 10. Content review, takedown and enforcement',
     body: [
       {
-        vi: `Mọi tin do người bán đăng trên sàn đều được rà soát tự động trước khi hiển thị, và mọi tin đăng — kể cả tin đăng liên kết — được rà soát lại khi có báo cáo. Đơn vị vận hành sử dụng bộ lọc từ khoá hàng cấm, kiểm tra ảnh trùng và ảnh lấy từ nguồn khác, phát hiện tin trùng lặp và kiểm tra nội dung bằng công cụ tự động, kết hợp rà soát thủ công đối với các trường hợp có dấu hiệu rủi ro. Người sử dụng có thể báo cáo tin đăng, người bán hoặc cuộc trò chuyện bằng nút Báo cáo hiển thị trên từng bề mặt.`,
-        en: `Every listing a seller posts on the platform is screened automatically before it appears, and every listing — linked listings included — is re-reviewed whenever it is reported. The operator uses a prohibited-keyword filter, duplicate- and stolen-image checks, duplicate-listing detection and automated content checks, together with manual review for anything showing risk signals. Users can report a listing, a seller or a conversation with the Report control shown on each surface.`,
+        vi: `Mọi tin do người bán đăng trên sàn${IS_MARKETPLACE ? ' và tin do đơn vị vận hành đăng thay mặt đối tác dịch vụ' : ''} đều được rà soát tự động trước khi hiển thị, và mọi tin đăng — kể cả tin đăng liên kết — được rà soát lại khi có báo cáo. Đơn vị vận hành sử dụng bộ lọc từ khoá hàng cấm, kiểm tra ảnh trùng và ảnh lấy từ nguồn khác, phát hiện tin trùng lặp và kiểm tra nội dung bằng công cụ tự động, kết hợp rà soát thủ công đối với các trường hợp có dấu hiệu rủi ro. Người sử dụng có thể báo cáo tin đăng, người bán hoặc cuộc trò chuyện bằng nút Báo cáo hiển thị trên từng bề mặt.`,
+        en: `Every listing a seller posts on the platform${IS_MARKETPLACE ? ', and every listing the operator posts on a service partner’s behalf,' : ''} is screened automatically before it appears, and every listing — linked listings included — is re-reviewed whenever it is reported. The operator uses a prohibited-keyword filter, duplicate- and stolen-image checks, duplicate-listing detection and automated content checks, together with manual review for anything showing risk signals. Users can report a listing, a seller or a conversation with the Report control shown on each surface.`,
       },
       {
         vi: `Khi phát hiện hoặc nhận được phản ánh về hành vi kinh doanh vi phạm pháp luật trên sàn, đơn vị vận hành gỡ bỏ hoặc tạm ẩn nội dung liên quan, thông báo cho người đăng kèm lý do, và phối hợp với cơ quan nhà nước có thẩm quyền. Đối với yêu cầu của cơ quan nhà nước có thẩm quyền, nội dung được gỡ bỏ trong vòng 24 giờ kể từ khi nhận được yêu cầu, và thông tin về người bán vi phạm được cung cấp cho cơ quan có thẩm quyền theo quy định.`,
@@ -605,8 +708,8 @@ const ARTICLES: Article[] = [
     titleEn: 'Article 11. Limits of the operator’s liability',
     body: [
       {
-        vi: `Đơn vị vận hành không phải người bán, không phải người mua và không phải trung gian thanh toán trong các giao dịch trên sàn. Đơn vị vận hành không chịu trách nhiệm về chất lượng, số lượng, nguồn gốc, tính hợp pháp của hàng hoá, dịch vụ do người bán cung cấp, cũng như về việc giao nhận và việc thực hiện nghĩa vụ của các bên trong giao dịch. Đơn vị vận hành không phải cơ quan nhà nước và không bảo đảm kết quả của bất kỳ dịch vụ nào do người bán hoặc bên thứ ba cung cấp. Huy hiệu xác minh và điểm uy tín là thông tin tham khảo được tính từ dữ liệu hoạt động, không phải sự bảo lãnh, chứng nhận chất lượng hay cam kết của sàn về một giao dịch cụ thể.`,
-        en: `The operator is not the seller, not the buyer and not a payment intermediary in transactions on the platform. It is not responsible for the quality, quantity, origin or legality of the goods and services sellers offer, nor for handover or for either party performing its obligations. The operator is not a state authority and does not guarantee the outcome of any service provided by a seller or by a third party. Verification badges and trust scores are indicative information computed from activity data — not a guarantee, a quality certification, or any commitment by the platform about a particular transaction.`,
+        vi: `Đơn vị vận hành không phải người bán, không phải người mua và không phải trung gian thanh toán trong các giao dịch trên sàn. Đơn vị vận hành không chịu trách nhiệm về chất lượng, số lượng, nguồn gốc, tính hợp pháp của hàng hoá, dịch vụ do người bán cung cấp, cũng như về việc giao nhận và việc thực hiện nghĩa vụ của các bên trong giao dịch.${IS_MARKETPLACE ? ' Giới hạn trách nhiệm này vẫn áp dụng khi đơn vị vận hành cung cấp dịch vụ đối tác tại Điều 3; đơn vị vận hành chịu trách nhiệm về việc thực hiện chính dịch vụ đó theo thoả thuận đã ký và về thông tin do chính mình trao đổi.' : ''} Đơn vị vận hành không phải cơ quan nhà nước và không bảo đảm kết quả của bất kỳ dịch vụ nào do người bán hoặc bên thứ ba cung cấp. Huy hiệu xác minh và điểm uy tín là thông tin tham khảo được tính từ dữ liệu hoạt động, không phải sự bảo lãnh, chứng nhận chất lượng hay cam kết của sàn về một giao dịch cụ thể.`,
+        en: `The operator is not the seller, not the buyer and not a payment intermediary in transactions on the platform. It is not responsible for the quality, quantity, origin or legality of the goods and services sellers offer, nor for handover or for either party performing its obligations.${IS_MARKETPLACE ? ' These limits still apply when the operator provides a partner service under Article 3; the operator answers for performing that service itself under the signed agreement, and for what it says itself.' : ''} The operator is not a state authority and does not guarantee the outcome of any service provided by a seller or by a third party. Verification badges and trust scores are indicative information computed from activity data — not a guarantee, a quality certification, or any commitment by the platform about a particular transaction.`,
       },
       {
         vi: `Đối với tin đăng liên kết, đơn vị vận hành chỉ hiển thị bản sao để tham khảo và đường dẫn sang trang nguồn: đơn vị vận hành không phải người bán, không phải trang nguồn, không bảo đảm tin còn hiệu lực hay chính xác, và giao dịch được thực hiện trên trang nguồn theo điều kiện của trang đó. Khi phát hiện hoặc nhận được báo cáo về tin đăng liên kết vi phạm pháp luật hoặc Quy chế này, đơn vị vận hành gỡ tin đó khỏi sàn.`,
@@ -790,8 +893,8 @@ const ARTICLES: Article[] = [
         en: `Listings contacted through the platform. The home page’s default feed, its “Outstanding businesses” rail and its per-category rails, and the “For You” rail wherever it appears, show only listings whose seller the user contacts through the platform’s messaging; a listing whose button takes the user to another website — every linked listing under Article 3, and any listing booked or bought on a partner’s own website — does not appear in them. Such listings are still shown in their category, in search results and on the seller’s storefront. This rule does not apply to the “Recently viewed” rail.`,
       },
       {
-        vi: `Tin nổi bật, quảng cáo và hoa hồng. Vị trí “Tin nổi bật” do đơn vị vận hành chỉ định, không được bán và không nhận thanh toán; tin nổi bật được cộng một mức điểm cố định đã công bố tại /legal/ranking. Hiện không có vị trí hiển thị nào được bán hay trả phí để nâng thứ hạng; nếu sau này có, vị trí đó được gắn nhãn “Quảng cáo” hoặc “Tin ưu tiên” ngay tại chỗ hiển thị. Một số tin đăng liên kết và đường dẫn của đối tác có thể mang lại hoa hồng cho đơn vị vận hành khi người mua mua hàng qua đó; các tin, đường dẫn này được gắn nhãn “Quảng cáo” kèm ghi chú về hoa hồng, và việc một tin có thể mang lại hoa hồng hay không không phải là tiêu chí xếp hạng.`,
-        en: `Featured listings, advertising and commission. “Featured” placement is assigned by the operator; it is not sold and no payment is taken for it, and a featured listing receives a fixed score boost published at /legal/ranking. No display position is currently sold, and no one can pay to rank higher; if that changes, such positions are labelled “Advertisement” or “Promoted” where they appear. Some linked listings and partner links can earn the operator a commission when a buyer purchases through them; those listings and links are labelled “Ad” with a commission note, and whether a listing can earn a commission is not a ranking criterion.`,
+        vi: `Tin nổi bật, quảng cáo và hoa hồng. Vị trí “Tin nổi bật” do đơn vị vận hành chỉ định, không được bán và không nhận thanh toán; tin nổi bật được cộng một mức điểm cố định đã công bố tại /legal/ranking. Hiện không có vị trí hiển thị nào được bán hay trả phí để nâng thứ hạng; nếu sau này có, vị trí đó được gắn nhãn “Quảng cáo” hoặc “Tin ưu tiên” ngay tại chỗ hiển thị. Một số tin đăng liên kết và đường dẫn của đối tác có thể mang lại hoa hồng cho đơn vị vận hành khi người mua mua hàng qua đó; các tin, đường dẫn này được gắn nhãn “Quảng cáo” kèm ghi chú về hoa hồng, và việc một tin có thể mang lại hoa hồng hay không không phải là tiêu chí xếp hạng.${IS_MARKETPLACE ? ' Việc trả phí dịch vụ đối tác tại Điều 8 không đem lại vị trí hiển thị và không phải là tiêu chí xếp hạng.' : ''}`,
+        en: `Featured listings, advertising and commission. “Featured” placement is assigned by the operator; it is not sold and no payment is taken for it, and a featured listing receives a fixed score boost published at /legal/ranking. No display position is currently sold, and no one can pay to rank higher; if that changes, such positions are labelled “Advertisement” or “Promoted” where they appear. Some linked listings and partner links can earn the operator a commission when a buyer purchases through them; those listings and links are labelled “Ad” with a commission note, and whether a listing can earn a commission is not a ranking criterion.${IS_MARKETPLACE ? ' Paying the partner service fees in Article 8 buys no display position and is not a ranking criterion.' : ''}`,
       },
       {
         // ⚠️ THIS SAID THE WEIGHTS WERE "NOT PUBLISHED, SO RANKING CANNOT BE GAMED" while /legal/ranking
@@ -907,6 +1010,17 @@ const ARTICLES: Article[] = [
         vi: `Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${V3_SUPERSEDED.inForceVi}; nội dung trước sửa đổi (phiên bản ${V3}) được lưu tại ${V3_PATHS.regulations}. Nội dung sửa đổi, bổ sung gồm: ${numbered(CHANGES_V4, 'vi')}.`,
         en: `Amendments published on and in force from ${V3_SUPERSEDED.inForceEn}; the previous text (version ${V3}) is archived at ${V3_PATHS.regulations}. They: ${numbered(CHANGES_V4, 'en')}.`,
       },
+      // VERSION 5's entry (owner, 2026-11-03) — immediate: "all take effect once we deploy", so one date. Dated through
+      // V4_SUPERSEDED: REGULATIONS_AMENDMENT's dates today, a literal once a version 6 re-uses that record.
+      IS_MARKETPLACE
+        ? {
+            vi: `Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${V4_SUPERSEDED.inForceVi}; nội dung trước sửa đổi (phiên bản ${V4}) được lưu tại ${V4_PATHS.regulations}. Nội dung sửa đổi, bổ sung gồm: ${numbered(CHANGES_V5, 'vi')}.`,
+            en: `Amendments published on and in force from ${V4_SUPERSEDED.inForceEn}; the previous text (version ${V4}) is archived at ${V4_PATHS.regulations}. They: ${numbered(CHANGES_V5, 'en')}.`,
+          }
+        : {
+            vi: `Phiên bản 5 được công bố và có hiệu lực từ ngày ${V4_SUPERSEDED.inForceVi}; nội dung tại ${S} không thay đổi so với phiên bản ${V4}, được lưu tại ${V4_PATHS.regulations}.`,
+            en: `Version 5 published on and in force from ${V4_SUPERSEDED.inForceEn}; the text at ${S} is unchanged from version ${V4}, archived at ${V4_PATHS.regulations}.`,
+          },
     ],
   },
 ]
@@ -962,8 +1076,8 @@ export default function RegulationsPage() {
       title="Quy chế hoạt động (Operating Regulations)"
       meta={
         <div className="mt-3 max-w-[70ch] space-y-1">
-          {/* Linkified: META names where the previous version is published (/regulations/v3 since
-              version 4 — the version in force during a notice window, if an amendment has one), and
+          {/* Linkified: META names where the previous version is published (/regulations/v4 since
+              version 5 — the version in force during a notice window, if an amendment has one), and
               Article 15 promises the version in force is always one step away. */}
           <p className="text-sm text-ink-4" lang="vi">{linkifyLegal(META.vi)}</p>
           <p className="text-sm text-ink-4" lang="en">{linkifyLegal(META.en)}</p>

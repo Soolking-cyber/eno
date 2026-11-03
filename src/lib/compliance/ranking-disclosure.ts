@@ -13,7 +13,6 @@
 // ⚠️ Both editions. This is not visa/itinerary-gated.
 
 import { RANK } from '@/lib/ranking-formula'
-import { REGULATIONS_AMENDMENT } from '@/lib/compliance/legal-amendment'
 
 /** A disclosed ranking factor: what it is, how much it counts, and what it actually measures. */
 export type RankingFactor = {
@@ -104,15 +103,9 @@ export const FEATURED_BOOST_PCT = Math.round(RANK.FEATURED_BOOST * 100)
  * The date /legal/ranking prints as "Last updated" (ISO, Vietnam) — the page's OWN date, not
  * LEGAL_AMENDMENT's.
  *
- * ⛔ TIED TO THE QUY CHẾ'S VERSION 4 FOR THIS DEPLOY, SO THERE IS ONE DATE TO SET. The home page's in-app rule
- * (owner, 2026-10-28 — src/lib/in-app-listing.ts: the home feed and its rails show only listings dealt on the
- * platform) reaches this page (#home) and Quy chế Article 14 in the SAME deploy, so the page's date is
- * REGULATIONS_AMENDMENT.published — the placeholder the deployer replaces with the real deploy day there,
- * held to that day by the deploy gate. Do not re-date it at any other time. (It was tied to version 3 the same
- * way, for UX program 2's ranking change of 05/10/2026.)
- * ⚠️ THE TIE IS FOR THIS CHANGE ONLY. The next change to this page that ships WITHOUT a Quy chế amendment
- * replaces it with its own literal deploy day; a later Quy chế amendment that does not change this page
- * must not move it either — legal-copy.test.tsx holds the tie only while REGULATIONS_VERSION is '4'.
+ * ⛔ THE PAGE'S LAST CHANGE WAS THE QUY CHẾ'S VERSION 4 (29/10/2026, the home page's in-app rule, src/lib/in-app-listing.ts).
+ * Version 5 (2026-11-03) did not change this page, so it keeps that date as a literal. The next change to this page types
+ * its own deploy day here; a later Quy chế amendment that does not change this page must not move it.
  *
  * ⚠️ WHY ITS OWN DATE (review, 2026-10-04). Until then the page printed LEGAL_AMENDMENT.published, which is
  * true only while the page changes WITH an amendment. This disclosure follows the code (a ranking change
@@ -121,4 +114,4 @@ export const FEATURED_BOOST_PCT = Math.round(RANK.FEATURED_BOOST * 100)
  * ⚠️ Typed, never read from the clock: the page prerenders (revalidate 3600), and a build-time date
  * would move with every rebuild.
  */
-export const RANKING_DISCLOSURE_UPDATED: string = REGULATIONS_AMENDMENT.published
+export const RANKING_DISCLOSURE_UPDATED: string = '2026-10-29' // this page's own last change; version 5 did not touch it
