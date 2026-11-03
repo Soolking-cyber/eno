@@ -4,6 +4,7 @@ import type { Browser, Page } from '@playwright/test'
 import { test, expect } from '../helpers'
 import { SITE_NAME } from '../../src/lib/edition'
 import { LEDE_PLACEMENT } from '../../src/app/[lang]/c/[category]/(index)/lede-placement'
+import worker from '../../infra/cloudflare/eno-html-edge-cache.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WHAT A CRAWLER READS, WITHOUT JAVASCRIPT (SEO wave B, H2; pins H1a, H1b and H1c).
@@ -152,6 +153,69 @@ test.describe('crawler-visible HTML, JavaScript off', () => {
  * nearest boundary, which on the listing page (no boundary since H1a) is the ROOT. Both `pageerror`
  * and the console are read: React 19 reports recoverable errors through reportError.
  */
+/**
+ * ⛔ THE EDGE WORKER MOVES THE PAGE'S CHUNKS BEHIND THE FIRST PAINT BY THE EXACT MARKUP REACT WRITES (infra/cloudflare/eno-html-edge-cache.js).
+ * A shape it stops recognising is a silent no-op, so a Next.js upgrade would quietly lose the gain, and a real document has never been
+ * hydrated by the unit tests: this runs a REAL build's documents through the REAL Worker, then in a real browser at 6x CPU.
+ */
+async function throughEdgeWorker(html: string, path: string): Promise<string> {
+  const realFetch = globalThis.fetch
+  const realCaches = (globalThis as { caches?: unknown }).caches
+  globalThis.fetch = (async () => new Response(html, {
+    headers: { 'content-type': 'text/html; charset=utf-8', 'content-language': 'en', 'cache-control': 's-maxage=21600' },
+  })) as typeof fetch
+  Object.defineProperty(globalThis, 'caches', { configurable: true, value: { default: { match: async () => undefined, put: async () => undefined, delete: async () => false } } })
+  try {
+    const res = await worker.fetch(new Request(`https://eno.vn${path}`, { headers: { 'accept-language': 'en' } }), {}, { waitUntil: () => undefined }) as Response
+    return await res.text()
+  } finally {
+    globalThis.fetch = realFetch
+    Object.defineProperty(globalThis, 'caches', { configurable: true, value: realCaches })
+  }
+}
+
+test.describe('the edge Worker on a real build', () => {
+  for (const path of [HOME, CATEGORY]) {
+    test(`${path}: head chunks move to the loader, the bootstrap stays, and the page hydrates clean`, async ({ page, request }) => {
+      test.setTimeout(120_000)
+      const html = await (await request.get(path, { headers: { 'accept-language': 'en' } })).text()
+      const out = await throughEdgeWorker(html, path)
+      const head = out.slice(0, out.indexOf('</head>'))
+      expect(head.match(/<script\b[^>]*\bsrc="\/_next\/static\/[^"]+"[^>]*>/g)?.filter((t) => !/noModule/i.test(t)) ?? [], 'chunk tags left in the head').toEqual([])
+      const loader = /<script>\(function\(s,d\).*?\}\)\((\[.*?\]),0\)<\/script>$/.exec(head)
+      expect(loader, 'the loader, at the end of the head').not.toBeNull()
+      expect(JSON.parse(loader![1]).length, 'chunks moved').toBeGreaterThan(5)
+      expect(out.slice(out.indexOf('</head>')), 'the bootstrap, still in the body').toMatch(/<script src="\/_next\/static\/[^"]+" id="_R_" async=""><\/script>/)
+
+      const errors: string[] = []
+      page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`))
+      page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(`console.${m.type()}: ${m.text()}`) })
+      const asked = new Map<string, number>()
+      page.on('request', (r) => { if (/\/_next\/static\/.*\.js/.test(r.url())) asked.set(r.url(), (asked.get(r.url()) ?? 0) + 1) })
+      let served = ''
+      await page.route((u) => u.pathname === path && !u.search, async (route) => {
+        if (route.request().resourceType() !== 'document') return route.fallback()
+        const res = await route.fetch()
+        served = await throughEdgeWorker(await res.text(), path)
+        await route.fulfill({ response: res, body: served })
+      })
+      const cdp = await page.context().newCDPSession(page)
+      await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 })
+      await page.goto(path, { waitUntil: 'load', timeout: 90_000 })
+      await page.waitForFunction(() => {
+        const form = document.querySelector('form[role="search"]')
+        return !!form && Object.keys(form).some((k) => k.startsWith('__reactFiber'))
+      }, null, { timeout: 90_000 })
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 1500)))))
+      expect(served, 'the browser must have been given the Worker\'s document').toContain('(function(s,d)')
+      expect(await page.locator('head script:not([src])').evaluateAll((ss) => ss.some((s) => s.textContent?.startsWith('(function(s,d)'))), 'the loader, in the page').toBe(true)
+      expect(errors.filter((e) => /^pageerror|#(418|423|425|467)\b|hydrat|Content Security Policy/i.test(e))).toEqual([])
+      expect([...asked].filter(([, n]) => n > 1), 'a chunk asked for twice').toEqual([])
+      expect(asked.size, 'chunks the loader asked for').toBeGreaterThan(5)
+    })
+  }
+})
+
 test.describe('no hydration error under 6x CPU', () => {
   for (const path of [HOME, CATEGORY, LISTING]) {
     test(`${path} hydrates without a React #418/#423/#425/#467 or a "Hydration" message`, async ({ page }) => {

@@ -22,7 +22,7 @@ import { computeCacheBustingSearchParam, computeLegacyCacheBustingSearchParam } 
 
 import worker from '../../infra/cloudflare/eno-html-edge-cache.js'
 
-type Origin = { status?: number; html?: string; headers?: Record<string, string> }
+type Origin = { status?: number; html?: string | ReadableStream<Uint8Array>; headers?: Record<string, string> }
 const h = {
   store: new Map<string, Response>(),
   matched: [] as string[],
@@ -1005,5 +1005,227 @@ describe('edge Worker — RSC payloads are cached under a CHECKED `_rsc` (speed 
     expect(pass).toHaveBeenCalledTimes(1)
     await worker.fetch(new Request('https://eno.vn/c/rentals?_rsc=nope', { headers: NAV }), {}, failOpen)
     expect(pass).toHaveBeenCalledTimes(1)
+  })
+})
+
+/**
+ * ⛔ THE PAGE'S CHUNKS START AT THE FIRST PAINT (2026-11-04). The markup below is React's own shape, copied from a production
+ * build; e2e/ci/crawler-html.spec.ts runs a real build through the same path in a browser, so a Next.js upgrade fails there.
+ */
+describe('edge Worker — chunks start at the first paint', () => {
+  const BOOT_TAG = '<script src="/_next/static/chunks/boot.js" id="_R_" async=""></script>'
+  const HINT = '<link rel="preload" as="script" fetchPriority="low" href="/_next/static/chunks/boot.js"/>'
+  const CHUNK_A = '<script src="/_next/static/chunks/a.js" async=""></script>'
+  const CHUNK_B = '<script src="/_next/static/chunks/b.js" async=""></script>'
+  const POLYFILL = '<script src="/_next/static/chunks/poly.js" noModule=""></script>'
+  const BODY = `</head><body><h1>Nhà cho thuê – ₫</h1><main>${'<p>card</p>'.repeat(50)}</main>${BOOT_TAG}<script>self.__next_f.push([1,"đ"])</script></body></html>`
+  const page = (head = `${HINT}${CHUNK_A}${POLYFILL}${CHUNK_B}<title>Thuê nhà</title>`) => `<!DOCTYPE html><html lang="en"><head>${head}${BODY}`
+  const loaderOf = (html: string) => /<script>(\(function\(s,d\).*?)<\/script><\/head>/.exec(html)?.[1]
+  const srcsOf = (loader: string) => JSON.parse(/\}\)\((\[.*\]),0\)$/.exec(loader)![1]) as string[]
+  const inPieces = (html: string, size: number) => {
+    const bytes = new TextEncoder().encode(html)
+    return new ReadableStream<Uint8Array>({
+      start(c) {
+        for (let i = 0; i < bytes.length; i += size) c.enqueue(bytes.slice(i, i + size))
+        c.close()
+      },
+    })
+  }
+
+  it('takes the chunks out of the head, for the reader and the stored copy', async () => {
+    h.respond = () => ({ html: page() })
+    const html = await (await call(ADAPTIVE)).text()
+    await Promise.all(h.waits)
+    expect(html).not.toContain(CHUNK_A)
+    expect(html).not.toContain(CHUNK_B)
+    expect(srcsOf(loaderOf(html)!)).toEqual(['/_next/static/chunks/a.js', '/_next/static/chunks/b.js'])
+    const again = await call(ADAPTIVE)
+    expect(again.headers.get('x-eno-cache')).toBe('HIT')
+    expect(await again.text()).toBe(html)
+  })
+
+  it('never moves the bootstrap: its place is the promise that the shell is parsed before hydration starts', async () => {
+    h.respond = () => ({ html: page() })
+    const html = await (await call(ADAPTIVE)).text()
+    expect(html.indexOf(BOOT_TAG)).toBeGreaterThan(html.indexOf('</main>'))
+    expect(srcsOf(loaderOf(html)!)).not.toContain('/_next/static/chunks/boot.js')
+  })
+
+  it('changes nothing else, byte for byte', async () => {
+    h.respond = () => ({ html: page() })
+    const html = await (await call(ADAPTIVE)).text()
+    const loader = `<script>${loaderOf(html)}</script>`
+    expect(html).toBe(page().replace(CHUNK_A, '').replace(CHUNK_B, '').replace('</head>', `${loader}</head>`))
+    expect(html).toContain(POLYFILL)
+    expect(html).toContain(HINT)
+  })
+
+  it('gives the same bytes however the origin cuts them, one byte at a time included', async () => {
+    h.respond = () => ({ html: page() })
+    const whole = await (await call(ADAPTIVE)).text()
+    await Promise.all(h.waits)
+    for (const size of [1, 2, 7, 64, 1024]) {
+      h.store = new Map()
+      h.respond = () => ({ html: inPieces(page(), size) })
+      expect(await (await call(ADAPTIVE)).text(), `pieces of ${size}`).toBe(whole)
+      await Promise.all(h.waits)
+    }
+  })
+
+  it('leaves a document it does not recognise exactly as it came', async () => {
+    const cases: Record<string, string> = {
+      'no chunks in the head': page(`${HINT}<title>x</title>`),
+      'chunks in another shape': page(`${HINT}<script async src="/_next/static/chunks/a.js"></script>`),
+      'somebody else\'s script': page('<script src="https://example.com/x.js" async=""></script>'),
+      'no head at all': '<html><body>x</body></html>',
+      empty: '',
+    }
+    for (const [name, html] of Object.entries(cases)) {
+      h.store = new Map()
+      h.respond = () => ({ html })
+      expect(await (await call(ADAPTIVE)).text(), name).toBe(html)
+      await Promise.all(h.waits)
+    }
+  })
+
+  it('passes on a head that runs past the limit unchanged, however it arrives', async () => {
+    const html = `<html><head>${CHUNK_A}${'<meta name="x"/>'.repeat(5000)}</head><body>x</body></html>`
+    for (const body of [inPieces(html, 1024), html]) {
+      h.store = new Map()
+      h.respond = () => ({ html: body })
+      expect(await (await call(ADAPTIVE)).text()).toBe(html)
+      await Promise.all(h.waits)
+    }
+  })
+
+  it('leaves the document alone when the text </head><body sits inside an inline script', async () => {
+    const html = page(`${CHUNK_A}<script>var a="</head><body";</script>`)
+    h.respond = () => ({ html })
+    expect(await (await call(ADAPTIVE)).text()).toBe(html)
+  })
+
+  it('is not fooled by the text </head> inside an inline script', async () => {
+    const inline = '<script>var a="</head>";</script>'
+    h.respond = () => ({ html: page(`${inline}${CHUNK_A}`) })
+    const html = await (await call(ADAPTIVE)).text()
+    expect(html).toContain(inline)
+    expect(html).not.toContain(CHUNK_A)
+    expect(srcsOf(loaderOf(html)!)).toEqual(['/_next/static/chunks/a.js'])
+  })
+
+  describe('when the origin connection fails', () => {
+    const bytes = new TextEncoder().encode(page())
+    const breaksAfter = (n: number) => {
+      let sent = false
+      return new ReadableStream<Uint8Array>({
+        pull(c) {
+          if (sent) return c.error(new Error('connection reset'))
+          sent = true
+          c.enqueue(bytes.slice(0, n))
+        },
+      })
+    }
+    const within = <T,>(p: Promise<T>) => Promise.race([p, new Promise<never>((_, no) => setTimeout(() => no(new Error('HUNG')), 1000))])
+
+    for (const [where, n] of [['inside the head', 40], ['after the head', bytes.length - 40]] as const) {
+      it(`${where}: the reader gets a failed body, not a wait, and nothing is stored`, async () => {
+        // The real cache.put() reads the whole body before it stores anything.
+        vi.stubGlobal('caches', {
+          default: {
+            match: async () => undefined,
+            delete: async () => false,
+            put: async (req: Request, res: Response) => { const body = await res.text(); h.store.set(req.url, new Response(body, res)) },
+          },
+        })
+        h.respond = () => ({ html: breaksAfter(n) })
+        const r = await call(ADAPTIVE)
+        await expect(within(r.text())).rejects.toThrow('connection reset')
+        const settled = await within(Promise.allSettled(h.waits))
+        expect(settled.length).toBeGreaterThan(0)
+        expect(h.store.size).toBe(0)
+      })
+    }
+  })
+
+  it('drops the origin length, which no longer describes the body', async () => {
+    h.respond = () => ({ html: page(), headers: { 'content-length': String(new TextEncoder().encode(page()).length) } })
+    const r = await call(ADAPTIVE)
+    expect(r.headers.get('content-length')).toBeNull()
+    await r.text()
+  })
+
+  it('never touches a path the Worker hands back, or a page the origin will not share', async () => {
+    const html = page()
+    h.respond = () => ({ html })
+    expect(await (await call('/listings/x1')).text()).toBe(html)
+    h.respond = () => ({ html, headers: { 'cache-control': 'private, no-store' } })
+    expect(await (await call(ADAPTIVE)).text()).toBe(html)
+  })
+
+  describe('the loader', () => {
+    type Tag = { src: string; async: boolean }
+    type Hooks = { paint?: (l: { getEntries: () => unknown[] }) => void; ready?: () => void; timers: Array<[() => void, number]>; added: string[]; tags: Tag[] }
+    const A = ['/_next/static/chunks/a.js', '/_next/static/chunks/b.js']
+    const run = async (opts: { present?: string[]; noObserver?: boolean } = {}) => {
+      const hooks: Hooks = { timers: [], added: [], tags: [] }
+      const present = new Set(opts.present ?? [])
+      const document = {
+        querySelector: (sel: string) => (present.has(/src="([^"]+)"/.exec(sel)![1]) ? {} : null),
+        createElement: () => ({ src: '', async: false }),
+        head: { appendChild: (e: Tag) => { hooks.added.push(e.src); hooks.tags.push(e); present.add(e.src) } },
+        addEventListener: (_: string, f: () => void) => { hooks.ready = f },
+      }
+      class Observer {
+        constructor(f: Hooks['paint']) {
+          if (opts.noObserver) throw new Error('unsupported')
+          hooks.paint = f
+        }
+        observe() {}
+      }
+      h.respond = () => ({ html: page() })
+      h.store = new Map()
+      const code = loaderOf(await (await call(ADAPTIVE)).text())!
+      new Function('document', 'PerformanceObserver', 'setTimeout', code)(document, Observer, (f: () => void, ms: number) => { hooks.timers.push([f, ms]) })
+      return hooks
+    }
+
+    it('starts nothing until something says so, then each chunk once, async', async () => {
+      const hooks = await run()
+      expect(hooks.added).toEqual([])
+      hooks.paint!({ getEntries: () => [] })
+      expect(hooks.added).toEqual([])
+      hooks.paint!({ getEntries: () => [{}] })
+      expect(hooks.added).toEqual(A)
+      expect(hooks.tags.every((t) => t.async)).toBe(true)
+      hooks.paint!({ getEntries: () => [{}] })
+      hooks.ready!()
+      hooks.timers.forEach(([f]) => f())
+      expect(hooks.added).toEqual(A)
+    })
+
+    it('a page that never paints still starts, at DOMContentLoaded', async () => {
+      const hooks = await run()
+      hooks.ready!()
+      expect(hooks.added).toEqual([])
+      hooks.timers.at(-1)![0]()
+      expect(hooks.added).toEqual(A)
+    })
+
+    it('a document that stalls still starts, on the timer', async () => {
+      const hooks = await run()
+      expect(hooks.timers.map(([, ms]) => ms)).toEqual([2500])
+      hooks.timers[0][0]()
+      expect(hooks.added).toEqual(A)
+    })
+
+    it('a browser without the observer starts at once', async () => {
+      expect((await run({ noObserver: true })).added).toEqual(A)
+    })
+
+    it('never adds a chunk the bootstrap has already asked for', async () => {
+      const hooks = await run({ present: [A[0]] })
+      hooks.timers[0][0]()
+      expect(hooks.added).toEqual([A[1]])
+    })
   })
 })

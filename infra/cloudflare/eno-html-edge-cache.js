@@ -386,6 +386,122 @@ function cacheKeyFor(url, variant, rsc) {
 }
 
 /**
+ * ⛔ THE PAGE'S CHUNKS START AT THE FIRST PAINT, NOT BEFORE IT (2026-11-04). React writes every chunk as `<script async>` in the
+ * head, and async scripts run the moment they arrive. A returning visitor has them cached, so ~50 of them ran before the first
+ * frame (a trace on 4x CPU: 160 ms of script). Next.js has no setting for this, and this Worker is the one place every shared
+ * document passes through, once per fill.
+ * Measured through this code on live documents, local proxy, 4x CPU, same moment, a busy Mac: first photo on a return visit, `/`
+ * 1,036 -> 608 ms and /c/rentals 1,028 -> 772 ms; first visit unchanged at 10 Mbit/s (1,024 -> 1,060 ms), slow 4G 1,736 -> 1,584 ms.
+ * Tappable within 80 ms either way, longest task unchanged. Lighthouse's phone setup, which charges every script that STARTS before
+ * the photo to the photo: `/` ~60 -> ~68, LCP 4.7 -> 2.9 s; /c/rentals 58 -> 71, LCP 4.4 -> 2.5 s. Most of that score is the
+ * simulation; the real gain is for a returning reader. Google ranks on real visitors, not on this score.
+ * ⛔ THE BOOTSTRAP (`id="_R_"`, past 270 KB, after the footer) STAYS WHERE REACT PUT IT. It is what starts hydration, and its
+ * place in the document is the promise that the shell has been parsed by then; loaded from here it could hydrate half a page on
+ * a slow connection, and React would throw the page away and rebuild it (second opinion, 2026-11-04). Chunks only define
+ * modules, in any order, as they always could.
+ * ⛔ THE LOADER IS NOW THE ONLY THING THAT LOADS THEM: measured, without it the page never hydrates (the bootstrap does not fetch
+ * them). It needs what the page's flight data already needs, inline scripts being allowed, so it adds no new way to fail; but a
+ * nonce-based CSP would have to reach this tag too. e2e/ci/crawler-html.spec.ts hydrates a real build through it under the build's
+ * own CSP (next.config.ts, `'unsafe-inline'` today).
+ * ⛔ ROLLING THIS BACK TAKES TWO STEPS: the previous Worker AND a purge of the `eno-html` tag, because the moved documents are in the
+ * cache and are served until they expire.
+ * ⚠️ NOT `defer`: tried, less of the gain in every case, and the longest task grew by up to 90 ms.
+ * ⚠️ THE SHAPE IS EXACT AND A MISS IS A NO-OP: a tag this does not recognise stays and runs as it did, so a Next.js upgrade that
+ * changes the markup loses the gain and breaks nothing. e2e/ci/crawler-html.spec.ts runs a real build through this Worker.
+ * ⚠️ `async = true` ON THE INSERTED TAG IS LOAD-BEARING: React finds a script already on the page by `script[async][src=…]`; the
+ * `querySelector` is for the other direction, a chunk the bootstrap has already asked for.
+ * ⚠️ THE HEAD IS HELD UNTIL IT IS WHOLE (17 KB today), so its stylesheets start a moment later on a fill. A prerendered document
+ * arrives in one go; a reader who is served from the cache never sees this.
+ * ⚠️ THREE WAYS TO START, WHICHEVER COMES FIRST: a paint, DOMContentLoaded (a background tab never paints), and a timer for a
+ * document that stalls in mid-air.
+ */
+const BYTES_IN = new TextEncoder();
+// With `<body`, so the text `</head>` inside an inline script is not taken for the end of the head.
+const HEAD_END = BYTES_IN.encode("</head><body");
+const NO_BYTES = new Uint8Array(0);
+const HEAD_SCAN_LIMIT = 64 * 1024;
+const CHUNKS_BACKSTOP_MS = 2500;
+const HEAD_CHUNK = /<script src="(\/_next\/static\/[^"<>&]+\.js)" async=""><\/script>/g;
+
+function chunksLoader(srcs) {
+  return `(function(s,d){function g(){if(d)return;d=1;for(var i=0;i<s.length;i++){if(document.querySelector('script[src="'+s[i]+'"]'))continue;var e=document.createElement("script");e.src=s[i];e.async=true;document.head.appendChild(e)}}try{new PerformanceObserver(function(l){if(l.getEntries().length)g()}).observe({type:"paint",buffered:true})}catch(x){g()}document.addEventListener("DOMContentLoaded",function(){setTimeout(g,0)});setTimeout(g,${CHUNKS_BACKSTOP_MS})})(${JSON.stringify(srcs)},0)`;
+}
+
+/** The head without its chunk tags, plus the loader; the same head when it has none it knows or is not whole. */
+function moveHeadChunks(head) {
+  // An open script here means `</head><body` was text inside it, not the end of the head: leave the document alone.
+  if ((head.match(/<script\b/g) ?? []).length !== (head.match(/<\/script>/g) ?? []).length) return head;
+  const srcs = [];
+  const rest = head.replace(HEAD_CHUNK, (_, src) => {
+    srcs.push(src);
+    return "";
+  });
+  return srcs.length ? `${rest}<script>${chunksLoader(srcs)}</script>` : head;
+}
+
+function indexOfBytes(hay, needle) {
+  const last = hay.length - needle.length;
+  for (let i = hay.indexOf(needle[0]); i !== -1 && i <= last; i = hay.indexOf(needle[0], i + 1)) {
+    let j = 1;
+    while (j < needle.length && hay[i + j] === needle[j]) j++;
+    if (j === needle.length) return i;
+  }
+  return -1;
+}
+
+/**
+ * JavaScript reads only the head; everything after it is a native pipe. A TransformStream over the whole document also worked, at
+ * 47 ms of runtime CPU per fill against 28 here and 5.5 untouched (workerd on a Mac, 430 KB). `IdentityTransformStream` is the
+ * Workers runtime's own; the plain one is what the unit tests have.
+ */
+function chunksAtFirstPaint(body) {
+  if (!body) return body;
+  const { readable, writable } = new (globalThis.IdentityTransformStream ?? TransformStream)();
+  const reader = body.getReader();
+  const writer = writable.getWriter();
+  const pump = async () => {
+    try {
+      let held = NO_BYTES;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) {
+          if (held.length) await writer.write(held);
+          await writer.close();
+          return;
+        }
+        const all = new Uint8Array(held.length + value.length);
+        all.set(held);
+        all.set(value, held.length);
+        const end = indexOfBytes(all, HEAD_END);
+        if (end === -1 && all.length < HEAD_SCAN_LIMIT) {
+          held = all;
+          continue;
+        }
+        if (end === -1 || end >= HEAD_SCAN_LIMIT) {
+          await writer.write(all);
+        } else {
+          await writer.write(BYTES_IN.encode(moveHeadChunks(new TextDecoder("utf-8", { ignoreBOM: true }).decode(all.subarray(0, end)))));
+          await writer.write(all.slice(end));
+        }
+        break;
+      }
+    } catch (e) {
+      // ⛔ THROUGH THE WRITER: `writable.abort()` on a locked stream only rejects, and the reader would wait forever. Aborting fails
+      // the reader's body and the body cache.put() is reading; cancelling lets go of the origin.
+      await writer.abort(e).catch(() => {});
+      await reader.cancel(e).catch(() => {});
+      return;
+    }
+    reader.releaseLock();
+    writer.releaseLock();
+    await body.pipeTo(writable);
+  };
+  // From here pipeTo carries a failure in both directions; the rejection itself has nobody left to tell.
+  pump().catch(() => {});
+  return readable;
+}
+
+/**
  * Normalise an origin response into the thing we store.
  * ⚠️ `vary` is DELETED, and that is load-bearing: `cache.put()` returns OK while every later read
  * misses if the stored response carries `Vary: Accept-Encoding` — three hours went into finding
@@ -393,7 +509,9 @@ function cacheKeyFor(url, variant, rsc) {
  * An RSC payload is kept for FRESH_TTL only: it is never served stale (see fetch), so there is nothing to keep it for.
  */
 function toStored(res, now, rsc) {
-  const store = new Response(res.body, res);
+  const store = new Response(rsc ? res.body : chunksAtFirstPaint(res.body), res);
+  // The document's length just changed; a length left over from the origin would truncate or stall it.
+  if (!rsc) store.headers.delete("content-length");
   // Kept aside for an RSC reader, who gets the origin's Vary back (forClient): Next's router reads it to file a route
   // that can be intercepted, and the stored copy cannot carry it. A document's reader never needed it.
   const vary = res.headers.get("vary");
