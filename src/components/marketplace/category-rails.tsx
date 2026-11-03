@@ -6,6 +6,7 @@ import { ChevronRight } from '@/components/ui/icons'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { CategoryIcon } from './category-icons'
+import { fetchTimeLimit } from '@/lib/fetch-time-limit'
 import { RAIL_CARD_W, RAIL_SCROLLER, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT, SECTION_HEADER_ROW, SECTION_TITLE, SECTION_SEE_ALL, RailBeam } from './shelf'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
@@ -106,7 +107,7 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
  *  `excludeIds`: listings the rails ABOVE already showed (For You / Outstanding seeds) —
  *  on a 13-listing catalogue the same card in three adjacent rails reads as padding, not
  *  supply. Each rail dedups against it and hides below the shared sparse floor. */
-export function CategoryRails({ categories, onCategory, excludeIds }: { categories: SerializedCategory[]; onCategory: (slug: string) => void; excludeIds?: string[] }) {
+export function CategoryRails({ categories, onCategory, excludeIds, onAnswer }: { categories: SerializedCategory[]; onCategory: (slug: string) => void; excludeIds?: string[]; onAnswer?: (a: 'rails' | 'none') => void }) {
   const [rails, setRails] = useState<Rail[] | null>(null)
   const [active, setActive] = useState(true) // default (unfiltered) home view?
 
@@ -115,9 +116,10 @@ export function CategoryRails({ categories, onCategory, excludeIds }: { categori
 
   useEffect(() => {
     let off = false
-    fetch('/api/category-rails')
+    // A time limit, because the caller holds 1,400px or more of the page until this answers.
+    fetch('/api/category-rails', { signal: fetchTimeLimit(10_000) })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!off && d) setRails(d.rails || []) })
+      .then((d) => { if (!off) setRails(d ? d.rails || [] : []) })
       .catch(() => { if (!off) setRails([]) })
     return () => { off = true }
   }, [])
@@ -135,16 +137,13 @@ export function CategoryRails({ categories, onCategory, excludeIds }: { categori
     return () => { window.removeEventListener('eno:query', check); window.removeEventListener('popstate', check) }
   }, [])
 
-  if (!active) return null
-  if (rails === null) return null // wait for data; the feed below already fills the page
-
   // Dedup + sparse floor BEFORE render: drop cards the rails above already showed, then hide
   // any rail that falls below MIN_RAIL_ITEMS — a category heading over one or two cards is
   // manufactured density, and every listing still appears in the feed grid below. Computed
   // first so that when NOTHING survives we return null instead of an empty in-flow div —
   // inside the landing's space-y container even a zero-height div earns a full 32-48px
   // spacing unit (the exact phantom-band failure the deferred wrapper above defends against).
-  const visible = rails
+  const visible = (rails ?? [])
     .map((rail) => {
       const cat = bySlug.get(rail.slug)
       if (!cat) return null
@@ -153,6 +152,13 @@ export function CategoryRails({ categories, onCategory, excludeIds }: { categori
       return { cat, items, slug: rail.slug }
     })
     .filter((r): r is NonNullable<typeof r> => r !== null)
+  // The caller holds this block's place until there is an answer. Filtered away lets the place go too: this
+  // stays mounted, and clearing the filter brings the rails back (eno:query).
+  const answer = !active || (rails !== null && visible.length === 0) ? 'none' : rails !== null ? 'rails' : null
+  useEffect(() => { if (answer) onAnswer?.(answer) }, [answer, onAnswer])
+
+  if (!active) return null
+  if (rails === null) return null // wait for data; the feed below already fills the page
   if (visible.length === 0) return null
 
   return (

@@ -46,6 +46,8 @@ const tileCls = 'group flex w-[4.75rem] shrink-0 flex-col items-center gap-1.5 p
 // everything else already chosen" (src/lib/facet-counts.ts). The conditional number is the one
 // worth SHOWING; the directory number stays the one that ORDERS. See `sortedBrands` for why the
 // order is deliberately not moved onto the conditional counts.
+const NO_BRANDS_YET = new Set(['rentals', 'fashion-beauty', 'baby-kids', 'sports'])
+
 export function BrandRail({
   category,
   subcategory = 'all',
@@ -207,6 +209,11 @@ export function BrandRail({
    * roughly a phone's worth plus one, so the strip reads as scrollable before it has anything to
    * scroll.
    */
+  // ⛔ NOT WHERE THE ANSWER IS ALREADY KNOWN TO BE NONE (2026-11-03). These are brand categories in the
+  // taxonomy and /api/brands answers none for each, so the skeleton only ever appeared to vanish: every
+  // result below it dropped 108px and came back, measured 0.27 of CLS on /?category=rentals at 1350x940 and
+  // 0.16 on a phone. If one of them gains brands the rail arrives without a placeholder.
+  if (brandsLoading && brands.length === 0 && NO_BRANDS_YET.has(category)) return null
   if (brandsLoading && brands.length === 0) {
     return (
       <div className="flex items-center gap-4 overflow-hidden py-1" aria-hidden="true">

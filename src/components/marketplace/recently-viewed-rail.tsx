@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import { History } from '@/components/ui/icons'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
-import { Shelf, RAIL_CARD_W } from './shelf'
+import { ListingCardSkeleton } from './listing-card-skeleton'
+import { Shelf, RAIL_CARD_W, RAIL_SKELETON_COUNT } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import { useNearViewport } from '@/hooks/use-near-viewport'
 import { personalizationAllowed } from '@/lib/consent'
 import { CONSENT_V2_KEY } from '@/lib/consent-value'
+import { fetchTimeLimit } from '@/lib/fetch-time-limit'
 import { getViewedListingIds } from '@/lib/reco-signals'
 
 // History floor, deliberately below the promotional rails' MIN_RAIL_ITEMS — see the doc
@@ -38,12 +40,18 @@ export function RecentlyViewedRail({ excludeId, sectionClassName }: { excludeId?
   // deleted the history these cards came from (consent-runtime.ts `enforceConsentCleanup`).
   const [allowed, setAllowed] = useState(false)
   const { ref, near } = useNearViewport<HTMLDivElement>()
+  // ⛔ THE SHELF'S PLACE IS HELD AS SOON AS THE HISTORY SAYS IT IS COMING (2026-11-03): at hydration, far from
+  // the reader, rather than when the fetch answers, which can be under their eyes. It sits above the home's
+  // other shelves and right above the footer on a PDP, so it arrived pushing whatever they were reading.
+  const [expected, setExpected] = useState(false)
+  const [answered, setAnswered] = useState(false)
 
   useEffect(() => {
     const sync = () => {
       const ok = personalizationAllowed()
       setAllowed(ok)
       if (!ok) setListings((prev) => (prev.length ? [] : prev))
+      setExpected(ok && getViewedListingIds().filter((id) => id !== excludeId).length >= MIN_HISTORY_ITEMS)
     }
     sync()
     // Another tab's choice arrives as `storage`, not `eno:consent` (same filter as AnalyticsTags).
@@ -51,7 +59,7 @@ export function RecentlyViewedRail({ excludeId, sectionClassName }: { excludeId?
     window.addEventListener('eno:consent', sync)
     window.addEventListener('storage', onStorage)
     return () => { window.removeEventListener('eno:consent', sync); window.removeEventListener('storage', onStorage) }
-  }, [])
+  }, [excludeId])
 
   useEffect(() => {
     // `allowed` is a dependency so a withdrawal also cancels a fetch still in flight (`off`).
@@ -61,10 +69,11 @@ export function RecentlyViewedRail({ excludeId, sectionClassName }: { excludeId?
     ids = ids.slice(0, 12)
     if (ids.length < MIN_HISTORY_ITEMS) return
     let off = false
-    fetch(`/api/listings?ids=${ids.join(',')}${lang !== 'en' && lang !== 'vi' ? `&lang=${lang}` : ''}`)
+    setAnswered(false)
+    fetch(`/api/listings?ids=${ids.join(',')}${lang !== 'en' && lang !== 'vi' ? `&lang=${lang}` : ''}`, { signal: fetchTimeLimit(10_000) })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!off && d?.listings) setListings(d.listings) })
-      .catch(() => { /* ignore */ })
+      .then((d) => { if (off) return; if (d?.listings) setListings(d.listings); setAnswered(true) })
+      .catch(() => { if (!off) setAnswered(true) })
     return () => { off = true }
   }, [near, excludeId, lang, allowed])
 
@@ -74,6 +83,15 @@ export function RecentlyViewedRail({ excludeId, sectionClassName }: { excludeId?
   // the section gap whenever the rail self-hides. Absolute keeps its static position (IO
   // still fires; zero-area targets intersect at threshold 0) with no layout contribution.
   // NOT `hidden`/display:none — those never intersect and would silently kill the rail.
+  if (allowed && expected && !answered && listings.length < MIN_HISTORY_ITEMS) {
+    return (
+      <div ref={ref} data-rv-loading="">
+        <Shelf icon={History} title={tr('Recently viewed', 'Đã xem gần đây')} sectionClassName={sectionClassName}>
+          {Array.from({ length: RAIL_SKELETON_COUNT }).map((_, i) => <ListingCardSkeleton key={i} className={RAIL_CARD_W} />)}
+        </Shelf>
+      </div>
+    )
+  }
   if (!allowed || listings.length < MIN_HISTORY_ITEMS) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
 
   return (

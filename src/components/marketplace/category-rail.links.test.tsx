@@ -26,7 +26,7 @@ HTMLElement.prototype.scrollTo = () => {}
 
 type Cats = React.ComponentProps<typeof CategoryRail>['categories']
 const cats = ['rentals', 'electronics', 'vehicles'].map((slug) => ({ id: slug, slug, name: slug, nameVi: slug, icon: 'Car', verifiedCount: 10 })) as unknown as Cats
-const INTENTS = [{ type: 'free', name: 'Free', nameVi: 'Miễn phí', icon: 'Gift' }]
+const INTENTS = [{ type: 'wholesale', name: 'Wholesale', nameVi: 'Bán sỉ', icon: 'Gift' }]
 const hrefFor = (p: { category?: string; type?: string } | null) => (p ? `/?${new URLSearchParams(p as Record<string, string>)}` : '/')
 
 function rail(over: Partial<React.ComponentProps<typeof CategoryRail>> = {}) {
@@ -50,7 +50,7 @@ describe('<CategoryRail> tiles are links (E-TILES)', () => {
     expect(tile('electronics').getAttribute('href')).toBe('/')
     expect(tile('electronics').getAttribute('aria-current')).toBe('true')
     expect(tile('rentals').hasAttribute('aria-pressed')).toBe(false)
-    expect(document.querySelector('[data-intent="free"]')!.getAttribute('href')).toBe('/?type=free')
+    expect(document.querySelector('[data-intent="wholesale"]')!.getAttribute('href')).toBe('/?type=wholesale')
   })
 
   it('a plain click filters in place and does not navigate', () => {
@@ -59,8 +59,8 @@ describe('<CategoryRail> tiles are links (E-TILES)', () => {
     document.querySelector('[data-cat="rentals"]')!.dispatchEvent(ev)
     expect(ev.defaultPrevented).toBe(true)
     expect(onCategory).toHaveBeenCalledWith('rentals')
-    fireEvent.click(document.querySelector('[data-intent="free"]')!)
-    expect(onIntent).toHaveBeenCalledWith('free')
+    fireEvent.click(document.querySelector('[data-intent="wholesale"]')!)
+    expect(onIntent).toHaveBeenCalledWith('wholesale')
   })
 
   it('a ctrl/cmd/shift click is left to the browser (a new tab) and filters nothing here', () => {

@@ -7,8 +7,8 @@ import { LanguageProvider } from '@/context/language-context'
 /**
  * A10-SOLD (2026-10-04): the sold page's "Similar items still available" rail. Below sm it sits ABOVE the
  * seller · category · Home buttons (sold-listing.tsx), so it holds its place while it loads — a rail
- * arriving from nothing pushed those buttons a card height down. The PDP's rail is below the fold and
- * keeps its zero-size sentinel. "See all" keeps a Vietnamese reader in Vietnamese.
+ * arriving from nothing pushed those buttons a card height down. The PDP's rail holds its place too.
+ * "See all" keeps a Vietnamese reader in Vietnamese.
  */
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('./listing-card', () => ({ ListingCard: ({ listing }: { listing: { id: string } }) => <article data-card={listing.id} /> }))
@@ -57,10 +57,10 @@ describe('RelatedListings', () => {
     expect(container.querySelector('[data-related-loading]')).toBeNull()
   })
 
-  it('pdp: no placeholder — the zero-size sentinel only, as before', () => {
+  it('pdp: holds its place too: it sits right above the footer, which it threw 350px down (0.22 of CLS)', () => {
     const { container } = renderIn('en', <RelatedListings listingId="l1" categorySlug="electronics" />)
-    expect(container.querySelector('section')).toBeNull()
-    expect(container.querySelector('div[aria-hidden="true"].absolute')).not.toBeNull()
+    expect(container.querySelector('[data-related-loading]')).not.toBeNull()
+    expect(container.querySelectorAll('[data-related-loading] .skeleton-photo').length).toBeGreaterThan(0)
   })
 
   it('"See all" keeps a Vietnamese reader in Vietnamese on eno.vn (an English-pinned pilot path gets its /vi twin)', async () => {

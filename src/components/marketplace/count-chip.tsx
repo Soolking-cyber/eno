@@ -211,14 +211,20 @@ export function browseInsteadCategories<C extends { slug: string; verifiedCount:
   return offeredCategories(all, undefined, activeCategory).filter((c) => c.slug !== activeCategory).slice(0, take)
 }
 
+const UNPROVEN_INTENTS = new Set(['free', 'wanted'])
+
 /**
  * The intent tiles (Free & Giveaways, Wanted, Wholesale) are listing-type filters, read off the `type`
  * rail the same way: measured 2026-09-25, Free and Wanted returned 0 on every browse state. The active
- * one stays; with no counts every tile stays.
+ * one stays.
+ * ⛔ WITH NO COUNTS YET, WHICH IS THE SERVER'S HTML, FREE AND WANTED WAIT TO BE PROVEN (2026-11-03). They
+ * were drawn and then taken away when the first counts came, about a second into every load, and the tiles
+ * after them jumped 153px sideways on desktop. Counts that do show rows bring them in.
  */
 export function offeredIntents<I extends { type: string }>(all: I[] | undefined, facets: FacetCounts | undefined, activeType: string | undefined): I[] | undefined {
   if (!all) return all
   const dim = railDimension(facets?.type, all.map((x) => x.type))
+  if (!dim) return all.filter((it) => it.type === activeType || !UNPROVEN_INTENTS.has(it.type))
   return all.filter((it) => offeredKeys(dim, [it.type], activeType).length > 0)
 }
 

@@ -6,7 +6,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { LanguageProvider, useLanguage, type Language } from '@/context/language-context'
 import { formatCount } from '@/lib/vnd'
 import { resultCountLabel, type TrFn } from './result-line'
-import { CountChip, browseInsteadCategories, countChipLabel, countDigits, offeredCategories, optionCount, railDimension } from './count-chip'
+import { CountChip, browseInsteadCategories, countChipLabel, countDigits, offeredCategories, offeredIntents, optionCount, railDimension } from './count-chip'
 import { CategoryRail } from './category-rail'
 import { BrandRail } from './brand-rail'
 
@@ -735,5 +735,20 @@ describe('browseInsteadCategories — the "Or browse" chips under an empty resul
   it('skips an empty or retired category rather than leading to it', () => {
     const thin = rail.map((c) => (c.slug === 'jobs' || c.slug === 'services' ? { ...c, verifiedCount: 0 } : c))
     expect(slugs(browseInsteadCategories(thin, 'all'))).toEqual(['rentals', 'teachers', 'electronics', 'furniture-appliances'])
+  })
+})
+
+describe('offeredIntents before any counts (the server HTML)', () => {
+  const ALL = [{ type: 'free' }, { type: 'wanted' }, { type: 'wholesale' }]
+  it('Free and Wanted wait to be proven: drawn then removed, they threw the next tile 153px sideways', () => {
+    expect(offeredIntents(ALL, undefined, undefined)?.map((x) => x.type)).toEqual(['wholesale'])
+    expect(offeredIntents(ALL, {}, undefined)?.map((x) => x.type)).toEqual(['wholesale'])
+  })
+  it('the active one always stays, so a deep link into it can be read and left', () => {
+    expect(offeredIntents(ALL, undefined, 'free')?.map((x) => x.type)).toEqual(['free', 'wholesale'])
+  })
+  it('counts with rows bring them in', () => {
+    const type = { values: { free: 3, wanted: 0, wholesale: 9 }, total: 12 }
+    expect(offeredIntents(ALL, { type } as never, undefined)?.map((x) => x.type)).toEqual(['free', 'wholesale'])
   })
 })

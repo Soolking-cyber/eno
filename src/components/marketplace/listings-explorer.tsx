@@ -314,6 +314,13 @@ const CategoryRails = dynamic(() => import('./category-rails').then((m) => m.Cat
 // they injected many sections above the feed right after hydration (layout shift +
 // an immediate /api/category-rails fetch on every cold load). The sentinel is
 // zero-height, so deferral itself never moves anything.
+// ⛔ THE RAILS' PLACE IS HELD FROM THE FIRST BYTE (2026-11-03). They are the last thing above the footer,
+// and they arrived from nothing: 1,250-1,735px landing under a footer already on screen. PageSpeed's
+// real-user CLS on the home page was 0.42 on desktop and 0.17 on a phone with 0 in the lab, because a lab
+// run does not scroll: measured on production by wheel scroll, 0.16 at 1366x768 and 0.32 on a phone, the
+// footer the only thing that moved. The heights are this block's, measured at each width with its four
+// rails; they need not be exact, only keep the footer below the screen until the rails land. Nothing
+// to show collapses the place (a shift, but rare: a catalogue with no rail over the sparse floor).
 // ⚠️ Since 2026-08-11 these rails render BELOW the results grid, so the sentinel is a
 // full feed away from the fold and `near` no longer fires on first paint. The idle gate
 // below is now belt-and-braces rather than the load-bearing half of the deferral — do not
@@ -330,15 +337,16 @@ function DeferredCategoryRails(props: React.ComponentProps<typeof CategoryRails>
     if (typeof requestIdleCallback === 'function') { const id = requestIdleCallback(arm, { timeout: 8000 }); return () => cancelIdleCallback(id) }
     const t = setTimeout(arm, 3500); return () => clearTimeout(t)
   }, [])
-  // Pre-arm the sentinel is OUT OF FLOW (absolute, zero-size — the recently-viewed-rail
-  // pattern, and for the same reason): this sits in a space-y container, where even a
-  // zero-height in-flow div earns a full spacing unit — a permanent 32–48px dead band
-  // whenever the rails are absent, PLUS a second one while they loaded. IO still fires on
-  // zero-area targets, `near` latches true, and armed is a one-shot — so once mounted the
-  // rails stay mounted and the wrapper isn't needed at all. NOT `hidden`/display:none —
-  // those never intersect and would silently kill the rails forever.
-  if (!(armed && near)) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
-  return <CategoryRails {...props} />
+  const [answer, setAnswer] = useState<'pending' | 'rails' | 'none'>('pending')
+  // ⚠️ NOTHING TO SHOW GOES OUT OF FLOW, in the space-y container this sits in: even a zero-height in-flow div
+  // earns a full spacing unit there, a permanent 32–48px dead band. It stays mounted, because the answer can
+  // change (a filter cleared). NOT `hidden`/display:none: those never intersect and would kill the rails forever.
+  const place = answer === 'pending' ? 'min-h-[calc(200vw+520px)] sm:min-h-[1400px] lg:min-h-[1480px] xl:min-h-[1735px]' : answer === 'none' ? 'absolute h-0 w-0' : undefined
+  return (
+    <div ref={ref} className={place}>
+      {armed && near && <CategoryRails {...props} onAnswer={setAnswer} />}
+    </div>
+  )
 }
 /**
  * ⛔ `loading` IS THE SERVER'S FACET ROW (E-TOOLBAR, 2026-09-29). Without it the ISR HTML carried only
@@ -4787,7 +4795,7 @@ export function ListingsExplorer({
             goodPrice={goodPriceOnly}
             onGoodPrice={(on) => startFilterTransition(() => setGoodPriceOnly(on))}
             // Drawn only while it would narrow the feed (facets.deal — the same rule as every rail).
-            goodPriceOffered={offeredKeys(facetCounts.deal, ['good'], null, { hideNoOp: true }).length > 0}
+            goodPriceOffered={facetCounts.deal === undefined ? activeCategory === 'electronics' : offeredKeys(facetCounts.deal, ['good'], null, { hideNoOp: true }).length > 0}
             headerHidden={headerHidden}
             leading={
               <div className="min-h-9">

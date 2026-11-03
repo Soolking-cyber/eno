@@ -138,8 +138,8 @@ describe('<CategoryRail> grid shape', () => {
     for (const n of [0, 1, 4, 10]) {
       const { tiles } = renderRail(cats(n))
       expect(tiles.map((t) => t.getAttribute('data-cat'))).not.toContain('all')
-      // every category the edition passed IS a tile, plus the three intents
-      expect(tiles.length).toBe(n + INTENTS.length)
+      // every category the edition passed IS a tile, plus the one intent drawn before counts prove the others (offeredIntents)
+      expect(tiles.length).toBe(n + 1)
     }
   })
 })

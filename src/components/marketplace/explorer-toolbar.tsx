@@ -164,7 +164,9 @@ export function SortStrip({
    * band, or every one is (the feed's `facets.deal`). Measured on production 2026-09-25: it returned
    * 0 in 71 of 83 category and subcategory views, because only Electronics carries market bands. The
    * toggle is then not drawn (owner: "show only available filter options") — unless it is ON, which
-   * must stay visible so it can be switched off. Defaults to true: no counts, no evidence.
+   * must stay visible so it can be switched off. Defaults to true: no counts, no evidence. The explorer
+   * passes false for a server-rendered view outside Electronics (2026-11-03): drawn and then taken away
+   * when the counts came, it moved the sort tabs 111px sideways about a second into every load.
    */
   goodPriceOffered?: boolean
   headerHidden: boolean

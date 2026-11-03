@@ -128,13 +128,16 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
    * nothing pushed those buttons a whole card height down, under a thumb already on its way to one.
    * The placeholder is the loaded shelf's own shape (title, ListingCardSkeleton at RAIL_CARD_W) and it
    * is in the SSR HTML. An empty answer still collapses to nothing — rare, the last pass is the whole
-   * category. The PDP's rail is below the fold and keeps its zero-size sentinel.
+   * category.
+   * ⛔ THE PDP'S RAIL TOO (2026-11-03). It is the last thing above the footer, and by "below the fold" its
+   * zero-size sentinel let a reader reach the footer first: measured on production, 0.22 of CLS on a phone,
+   * the footer thrown 350px down with nobody touching the page.
    */
   // The gone page's rail is the same case: the first thing under the item's name, with the search link below it.
   // The gone rail with nothing to match on (no shelf, no brand — see the passes above) asks for nothing, so it
   // renders nothing from the first frame instead of flashing its "similar" heading over a placeholder.
   if (variant === 'gone' && !subcategorySlug && !brandSlug) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
-  if (items === null && variant !== 'pdp') {
+  if (items === null) {
     return (
       <div ref={ref} data-related-loading="">
         <Shelf title={title} seeAllHref={seeAllHref} sectionClassName={sectionClassName}>
