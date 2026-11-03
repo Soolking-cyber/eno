@@ -135,7 +135,7 @@ function logDir() {
 const since = () => iso(Date.now() - 60_000).replace('Z', '123456Z')
 const tsvRows = (dir: string, sha: string) =>
   readFileSync(join(dir, `${sha}.tsv`), 'utf8').trim().split('\n').map((l) => l.split('\t'))
-const PAGES = ['/', '/c/electronics', '/c/rentals/d1', '/c/rentals/thu-duc', '/gone', '/guide?a=1&b=2', '/listings/l1']
+const PAGES = ['/', '/c/electronics', '/c/rentals/d1', '/c/rentals/thu-duc', '/gone', '/guide?a=1&b=2']
 
 describe('eno-warmup.sh', () => {
   it('warms the rent index first, then the sitemaps, then every page in en and vi, and exits 0', async () => {
@@ -156,16 +156,18 @@ describe('eno-warmup.sh', () => {
     expect(vn.hits.slice(5, 7).map((h) => [h.path, h.lang])).toEqual([['/c/rentals', 'en-US'], ['/c/rentals', 'vi-VN']])
     // Every other page exactly twice, once per language: sitemap locs on this origin, de-duplicated,
     // `&amp;` decoded, plus the district links read from /c/rentals.
-    const pages = vn.hits.slice(7, 21)
+    const pages = vn.hits.slice(7, 19)
     expect([...new Set(pages.map((h) => h.path))].sort()).toEqual(PAGES)
     for (const p of PAGES) {
       expect(pages.filter((h) => h.path === p).map((h) => h.lang).sort(), p).toEqual(['en-US', 'vi-VN'])
     }
     // Then the first writes are read again, so they are the most recently used when it ends.
-    expect(vn.hits.slice(21).map((h) => [h.path, h.lang ?? '-'])).toEqual([
+    expect(vn.hits.slice(19).map((h) => [h.path, h.lang ?? '-'])).toEqual([
       ['/c/rentals', 'en-US'], ['/c/rentals', 'vi-VN'], ['/sitemap.xml', '-'],
       ['/sitemaps/pages.xml', '-'], ['/sitemaps/listings-0.xml', '-'], ['/hcmc-rent-index.csv', '-'],
     ])
+    // ⛔ Never a listing: they were 94% of the time, into a cache the pages after them refill.
+    expect(paths.some((p) => p.startsWith('/listings/'))).toBe(false)
     // Never another origin's URL, and always the public Host header.
     expect(paths.some((p) => p.includes('stolen') || p.includes('elsewhere'))).toBe(false)
     expect(new Set(vn.hits.map((h) => h.host))).toEqual(new Set(['eno.vn']))
@@ -183,9 +185,9 @@ describe('eno-warmup.sh', () => {
     expect(rows.slice(1).every((x) => x.length === 6 && /^\d{3}$/.test(x[2]) && /^[0-9.]+$/.test(x[3]))).toBe(true)
     expect(rows.filter((x) => x[5] === 'page')).toHaveLength(2 + PAGES.length * 2)
     expect(rows.filter((x) => x[5] === 'retouch')).toHaveLength(6)
-    expect(r.out).toMatch(/eno\.vn +HTTP.* 200x14/)
+    expect(r.out).toMatch(/eno\.vn +HTTP.* 200x12/)
     expect(r.out).toMatch(/eno\.vn +HTTP.* 404x2/)
-    expect(r.out).toMatch(/eno\.vn +all +n=16 +ttfb p50 [0-9.]+s +p95 [0-9.]+s +max [0-9.]+s/)
+    expect(r.out).toMatch(/eno\.vn +all +n=14 +ttfb p50 [0-9.]+s +p95 [0-9.]+s +max [0-9.]+s/)
     expect(r.out).toMatch(/eno\.vn +district +n=4 /)
     expect(r.out).toContain('404 en https://eno.vn/gone')
   })
@@ -195,9 +197,9 @@ describe('eno-warmup.sh', () => {
     const dir = logDir()
     const r = await run([`--vn=${vn.addr}`, '--forum=', `--dir=${dir}`, '--sha=t4', '--dry-run'])
     expect(r.code).toBe(0)
-    expect(r.out).toContain('dry run: would send 14 page requests')
+    expect(r.out).toContain('dry run: would send 12 page requests')
     expect(readFileSync(join(dir, 't4.eno.vn.plan'), 'utf8').trim().split('\n')).toEqual([
-      '/listings/l1', '/gone', '/guide?a=1&b=2', '/c/rentals/d1', '/c/rentals/thu-duc', '/c/electronics', '/',
+      '/gone', '/guide?a=1&b=2', '/c/rentals/d1', '/c/rentals/thu-duc', '/c/electronics', '/',
     ])
     expect(vn.hits.map((h) => h.path).filter((p) => !/^\/(hcmc-rent-index|sitemap|c\/rentals$)/.test(p))).toEqual([])
   })
@@ -219,7 +221,7 @@ describe('eno-warmup.sh', () => {
     expect(forum.hits.some((h) => h.path.startsWith('/hcmc-rent-index'))).toBe(false)
     expect(forum.hits[0].path).toBe('/sitemap.xml')
     expect(new Set(forum.hits.map((h) => h.host))).toEqual(new Set(['www.eno.forum']))
-    expect(forum.hits.filter((h) => h.path === '/listings/l1')).toHaveLength(2)
+    expect(forum.hits.filter((h) => h.path === '/c/electronics')).toHaveLength(2)
   })
 
   it('a snapshot older than the container is not accepted: it waits for one from this build', async () => {
@@ -240,7 +242,7 @@ describe('eno-warmup.sh', () => {
     const r = await run([`--vn=${vn.addr}`, '--forum=', `--dir=${dir}`, '--sha=t7', `--since=${since()}`])
     expect(r.code).toBe(0)
     expect(r.out).toMatch(/\[!!\]\S* rent-index-cold above is NOT a cold time/)
-    expect(vn.hits.some((h) => h.path === '/listings/l1')).toBe(true)
+    expect(vn.hits.some((h) => h.path === '/c/electronics')).toBe(true)
   })
 
   it('without --since it says freshness was not checked, never "from this build"', async () => {
@@ -318,7 +320,7 @@ describe('eno-warmup.sh', () => {
       '/hcmc-rent-index', '/hcmc-rent-index.csv', '/sitemap.xml', '/sitemaps/pages.xml', '/sitemaps/listings-0.xml', '/c/rentals',
     ])
     expect(forum.hits).toEqual([])
-    expect(r.out).toMatch(/\[!!\]\S* eno\.vn: a newer deploy started \(\S+ exists\); 15 page request\(s\) not sent/)
+    expect(r.out).toMatch(/\[!!\]\S* eno\.vn: a newer deploy started \(\S+ exists\); 13 page request\(s\) not sent/)
     expect(tsvRows(dir, 't13').filter((x) => x[5] === 'retouch')).toHaveLength(0)
   })
 

@@ -29,8 +29,13 @@
 # languages, and they are separate ISR entries. It does NOT fill the Cloudflare edge — nothing from
 # the box can — and it only ever requests URLs a sitemap lists, plus the rentals district links:
 # own listings only (submittedListingWhere), never the 25,000 imports.
-# ⚠️ ABOUT 1,200 PAGE REQUESTS AT CONCURRENCY 4: 293 eno.vn + 305 eno.forum paths (sitemap URLs plus
-# the 24 district links) × 2 languages, measured on local production builds on 2026-09-29.
+# ⛔ NOT THE LISTINGS (2026-11-03). They grew to 3,993 URLs, 7,986 of the 8,628 eno.vn requests and 94% of
+# the server time, and they went first, into a 256 MB LRU (cache-handler.cjs) that the 642 pages after them
+# then fill, so little of that work survived. It also spent the whole 840 s budget: on the last deploys the
+# forum got 2 of its pages other than listings, and neither edition's server was quiet for 14 minutes. A
+# listing's first visitor now pays its cold render: 0.33 s p50, 0.45 s p95, 1.35 s max on 2026-11-03.
+# ⚠️ ABOUT 930 PAGE REQUESTS AT CONCURRENCY 4: 321 eno.vn + 142 eno.forum paths from pages.xml (2026-11-03)
+# × 2 languages, about 1.5 minutes.
 # ─────────────────────────────────────────────────────────────────────────────
 set -uo pipefail
 
@@ -177,10 +182,10 @@ warm_site(){ local addr=$1 host=$2 code child n=0 paths
   # set is twice that. MEASURED on a local production build of eno.vn (2026-09-29, the cache
   # handler instrumented): the warm-up wrote 213 MB in 383 entries and 176 were evicted. Warmed in
   # sitemap order, 0 of the 97 home, category, district and sitemap entries were still cached
-  # afterwards; warmed in this order, 97 of 97. So: listings, then guides and other pages, then
-  # the category subpages and districts, then the categories, then home.
-  LC_ALL=C sort -u "$paths" | grep -vx '/c/rentals' | grep -E '^/[^[:space:]]*$' \
-    | awk '{ r = $0 == "/" ? 4 : $0 ~ /^\/c\/[^\/]+$/ ? 3 : $0 ~ /^\/c\// ? 2 : $0 ~ /^\/listings\// ? 0 : 1; print r "\t" $0 }' \
+  # afterwards; warmed in this order, 97 of 97. So: guides and other pages, then the category
+  # subpages and districts, then the categories, then home. No listings: see the top of this file.
+  LC_ALL=C sort -u "$paths" | grep -vx '/c/rentals' | grep -E '^/[^[:space:]]*$' | { grep -v '^/listings/' || true; } \
+    | awk '{ r = $0 == "/" ? 4 : $0 ~ /^\/c\/[^\/]+$/ ? 3 : $0 ~ /^\/c\// ? 2 : 1; print r "\t" $0 }' \
     | LC_ALL=C sort -s -t$'\t' -k1,1n | cut -f2- > "$paths.u" || true
   local total; total=$(wc -l < "$paths.u" | tr -d ' ')
   say "$host: $n sitemap file(s), $total pages to warm (+ /c/rentals), en then vi"

@@ -164,6 +164,9 @@ RUN node -e "const m=require('sharp'); const s=m.default??m; s({create:{width:1,
 # one traced into the standalone bundle — so a build that skipped it cannot become an image. It passes
 # on the patched 16.3.x file and on Next >= 16.4's own fix, and fails on 16.3.x as shipped.
 RUN node -e "const f='node_modules/next/dist/server/image-optimizer.js',s=require('fs').readFileSync(f,'utf8');if(/socket: _req\.socket,\s*maximumResponseBody/.test(s)||!/MockedResponse\(\{\s*maximumResponseBody\s*\}\)/.test(s)){console.error('UNPATCHED '+f+': a dropped request wedges its /_next/image variant until restart (vercel/next.js#98168). scripts/patch-next-image-optimizer.mjs must run in npm run build.');process.exit(1)}console.log('next image-optimizer OK: the response mock carries no socket')"
+# ⛔ AND THE IMAGE CACHE SCAN PATCH (same script): as shipped, every photo waits for a read of the whole
+# image cache after a restart. Next >= 16.4 needs this reading again, not deleting.
+RUN node -e "const s=require('fs').readFileSync('node_modules/next/dist/server/image-optimizer.js','utf8');if(!s.includes('eno-patch: image cache scan')){console.error('image-optimizer.js does not carry the image cache scan patch');process.exit(1)}"
 EXPOSE 8080
 # Runtime env arrives as a Secret Manager volume mounted at /secrets/env (one
 # dotenv file per service — see gcloud run deploy --set-secrets). Sourcing it

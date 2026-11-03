@@ -1,10 +1,10 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import Module, { createRequire } from 'node:module'
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, promises as fsPromises, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { AFTER, BEFORE, classify, patchImageOptimizer } from '../../scripts/patch-next-image-optimizer.mjs'
+import { AFTER, BEFORE, HIT_AFTER, HIT_BEFORE, SCAN_AFTER, SCAN_BEFORE, SET_AFTER, SET_BEFORE, WRITE_AFTER, WRITE_BEFORE, classify, classifyScan, patchImageOptimizer } from '../../scripts/patch-next-image-optimizer.mjs'
 
 /**
  * ⛔ THE NEXT 16.3.x `/_next/image` WEDGE, REPRODUCED IN-PROCESS — AND THE PATCH THAT FIXES IT.
@@ -17,6 +17,7 @@ import { AFTER, BEFORE, classify, patchImageOptimizer } from '../../scripts/patc
  */
 const require = createRequire(import.meta.url)
 const FILE = require.resolve('next/dist/server/image-optimizer.js')
+const { resetDiskLRU } = require('next/dist/server/lib/disk-lru-cache.external') as { resetDiskLRU: () => void }
 const { serveStatic } = require('next/dist/server/serve-static') as {
   serveStatic: (req: unknown, res: unknown, file: string, opts: { root: string }) => Promise<void>
 }
@@ -84,5 +85,135 @@ describe('Next image-optimizer dropped-request wedge (vercel/next.js#98168 backp
     const runner = dockerfile.slice(dockerfile.indexOf('AS runner'))
     expect(runner).toContain("node_modules/next/dist/server/image-optimizer.js")
     expect(runner).toContain('socket: _req\\.socket,\\s*maximumResponseBody')
+    expect(runner).toContain('eno-patch: image cache scan')
+  })
+})
+
+/**
+ * ⛔ EVERY PHOTO WAITED FOR A SCAN OF THE WHOLE IMAGE CACHE AFTER A RESTART. Same method as above: the installed
+ * Next's own ImageOptimizerCache, compiled as shipped and patched, with an LRU promise that never settles standing
+ * in for a scan still running.
+ */
+describe('the image cache scan after a restart', () => {
+  type Cache = {
+    cacheDiskLRU: Promise<unknown>
+    get(key: string): Promise<{ value: { buffer: Buffer } } | null>
+    set(key: string, value: unknown, opts: { cacheControl: { revalidate: number } }): Promise<void>
+  }
+  type Compiled = { ImageOptimizerCache: new (o: unknown) => Cache }
+  const shippedScan = [[SCAN_AFTER, SCAN_BEFORE], [HIT_AFTER, HIT_BEFORE], [SET_AFTER, SET_BEFORE], [WRITE_AFTER, WRITE_BEFORE]].reduce((s, [a, b]) => s.replace(a, () => b), shipped)
+  const patchedScan = patchImageOptimizer(shippedScan).source
+  const BODY = Buffer.from('fake image bytes')
+  const config = { images: { minimumCacheTTL: 60, maximumDiskCacheSize: undefined }, experimental: { isrFlushToDisk: true } }
+  const seeded = (keys: string[]) => {
+    const distDir = mkdtempSync(path.join(tmpdir(), 'eno-img-scan-'))
+    for (const k of keys) {
+      const dir = path.join(distDir, 'cache', 'images', k)
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(path.join(dir, `60.${Date.now() + 60_000}.etag.up.webp`), BODY)
+    }
+    return distDir
+  }
+  const cacheFrom = (source: string, distDir: string) => {
+    resetDiskLRU()
+    return new (compile(source) as unknown as Compiled).ImageOptimizerCache({ distDir, nextConfig: config })
+  }
+  const stuck = (c: Cache) => { c.cacheDiskLRU = new Promise(() => {}) }
+  const race = <T,>(p: Promise<T>) => Promise.race([p.then((v) => ({ settled: true as const, v })), new Promise<{ settled: false }>((r) => setTimeout(() => r({ settled: false }), 400))])
+  const entry = { kind: 'IMAGE', etag: 'e', buffer: BODY, extension: 'webp', upstreamEtag: 'u' }
+
+  it('recognises the installed Next', () => {
+    expect(classifyScan(shippedScan)).toBe('unpatched')
+    expect(classifyScan(patchedScan)).toBe('patched')
+    expect(patchImageOptimizer(patchedScan).source).toBe(patchedScan)
+  })
+
+  it('CONTROL: as shipped, a cached photo and a new one both wait for the scan', async () => {
+    const c = cacheFrom(shippedScan, seeded(['hit']))
+    stuck(c)
+    expect((await race(c.get('hit'))).settled).toBe(false)
+    expect((await race(c.set('new', entry, { cacheControl: { revalidate: 60 } }))).settled).toBe(false)
+  })
+
+  it('patched, neither waits, and the new photo is on disk', async () => {
+    const distDir = seeded(['hit'])
+    const c = cacheFrom(patchedScan, distDir)
+    stuck(c)
+    const hit = await race(c.get('hit'))
+    expect(hit.settled && hit.v?.value.buffer.equals(BODY)).toBe(true)
+    expect((await race(c.set('new', entry, { cacheControl: { revalidate: 60 } }))).settled).toBe(true)
+    expect(readdirSync(path.join(distDir, 'cache', 'images', 'new'))).toHaveLength(1)
+  })
+
+  it('when a slow scan ends, a promotion and a new photo reach the LRU', async () => {
+    const c = cacheFrom(patchedScan, seeded(['hit']))
+    let finish!: (lru: unknown) => void
+    c.cacheDiskLRU = new Promise((r) => { finish = r })
+    await c.get('hit')
+    await c.set('new', entry, { cacheControl: { revalidate: 60 } })
+    const lru = { get: vi.fn(), set: vi.fn(() => true) }
+    finish(lru)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(lru.get).toHaveBeenCalledWith('hit')
+    expect(lru.set).toHaveBeenCalledWith('new', BODY.byteLength)
+  })
+
+  it('a photo the LRU refuses when the scan ends is taken off the disk', async () => {
+    const distDir = seeded([])
+    const c = cacheFrom(patchedScan, distDir)
+    let finish!: (lru: unknown) => void
+    c.cacheDiskLRU = new Promise((r) => { finish = r })
+    await c.set('big', entry, { cacheControl: { revalidate: 60 } })
+    expect(existsSync(path.join(distDir, 'cache', 'images', 'big'))).toBe(true)
+    finish({ get: vi.fn(), set: vi.fn(() => false) })
+    await vi.waitFor(() => expect(existsSync(path.join(distDir, 'cache', 'images', 'big'))).toBe(false))
+  })
+
+  it('a scan that ends in the middle of the write: the refused photo still comes off the disk', async () => {
+    const distDir = seeded([])
+    const c = cacheFrom(patchedScan, distDir)
+    let finish!: (lru: unknown) => void
+    c.cacheDiskLRU = new Promise((r) => { finish = r })
+    const real = fsPromises.writeFile
+    const write = vi.spyOn(fsPromises, 'writeFile').mockImplementation(async (...args: Parameters<typeof real>) => {
+      finish({ get: vi.fn(), set: vi.fn(() => false) })
+      await new Promise((r) => setTimeout(r, 20))
+      return real(...args)
+    })
+    await c.set('big', entry, { cacheControl: { revalidate: 60 } })
+    write.mockRestore()
+    await vi.waitFor(() => expect(existsSync(path.join(distDir, 'cache', 'images', 'big'))).toBe(false))
+  })
+
+  it('once the scan is done Next still refuses what the LRU cannot hold, and an empty image', async () => {
+    const distDir = seeded([])
+    resetDiskLRU()
+    const c = new (compile(patchedScan) as unknown as Compiled).ImageOptimizerCache({ distDir, nextConfig: { ...config, images: { ...config.images, maximumDiskCacheSize: 4 } } })
+    await c.cacheDiskLRU
+    await c.set('big', entry, { cacheControl: { revalidate: 60 } })
+    expect(existsSync(path.join(distDir, 'cache', 'images', 'big'))).toBe(false)
+    await c.set('empty', { ...entry, buffer: Buffer.alloc(0) }, { cacheControl: { revalidate: 60 } })
+    expect(existsSync(path.join(distDir, 'cache', 'images', 'empty'))).toBe(false)
+  })
+
+  it('the scan reads past its first batch of 64', async () => {
+    const keys = Array.from({ length: 130 }, (_, i) => `k${i}`)
+    const lru = (await cacheFrom(patchedScan, seeded(keys)).cacheDiskLRU) as { has(k: string): boolean; size: number }
+    for (const k of keys) expect(lru.has(k), k).toBe(true)
+  })
+
+  it('the scan learns the same entries from sizes alone, and reads no image', async () => {
+    const distDir = seeded(['a', 'b', 'c'])
+    const empty = path.join(distDir, 'cache', 'images', 'empty')
+    mkdirSync(empty)
+    writeFileSync(path.join(empty, `60.${Date.now() + 60_000}.etag.up.webp`), '')
+    mkdirSync(path.join(distDir, 'cache', 'images', 'no-file'))
+    const reads = vi.spyOn(fsPromises, 'readFile')
+    const lru = (await cacheFrom(patchedScan, distDir).cacheDiskLRU) as { has(k: string): boolean; currentSize: number; size: number }
+    expect(reads).not.toHaveBeenCalled()
+    reads.mockRestore()
+    for (const k of ['a', 'b', 'c']) expect(lru.has(k), k).toBe(true)
+    for (const k of ['empty', 'no-file']) expect(lru.has(k), k).toBe(false)
+    expect(lru.currentSize).toBe(3 * BODY.byteLength)
   })
 })
