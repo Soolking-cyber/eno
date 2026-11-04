@@ -170,25 +170,28 @@ INSERT INTO auth.eno_facebook_refused_emails (email)
 -- ⛔ SECURITY DEFINER (gate review, 2026-10-16): GoTrue inserts identities as ITS database role, which has no grant on the
 -- operators' table this script owns — invoker's rights would make every Facebook sign-up fail with "permission denied".
 -- A fixed search_path, so the definer's rights reach nothing but what is named here.
+-- ENO-FB-GUARD-BEGIN (byte-identical in apply-facebook-signin.sh: a re-run of either must never restore an older guard; src/lib/apply-facebook-connect.test.ts)
 CREATE OR REPLACE FUNCTION auth.eno_refuse_facebook_identity() RETURNS trigger LANGUAGE plpgsql
   SECURITY DEFINER SET search_path = pg_catalog, auth AS $fn$
-DECLARE em text;
+DECLARE em text; acct text;
 BEGIN
   IF lower(coalesce(NEW.provider, '')) <> 'facebook' THEN RETURN NEW; END IF;
-  -- Never ADDED to an account someone already uses (GoTrue's automatic linking by email): one that is confirmed or has
-  -- ever been signed in to — with or without an identity row (an old or an admin-made one included). A brand-new account
-  -- is neither when its Facebook identity is written (v2.189: signupNewUser, then createNewIdentity, then Confirm —
-  -- external.go). ⚠️ A GoTrue that ever confirmed FIRST would make this refuse every new Facebook sign-up — closed, and
-  -- seen at once (facebook-signin.md: re-test a new sign-up after a Supabase upgrade); no time window that could let a
-  -- link through instead (gate review, 2026-10-16). An email-code sign-up nobody finished is GoTrue's own case: it links
-  -- that one and drops its unconfirmed identities itself (RemoveUnconfirmedIdentities — its pre-account-takeover rule).
-  IF EXISTS (SELECT 1 FROM auth.users u WHERE u.id = NEW.user_id
-             AND (u.email_confirmed_at IS NOT NULL OR u.phone_confirmed_at IS NOT NULL OR u.last_sign_in_at IS NOT NULL)) THEN
-    RAISE EXCEPTION 'eno: Facebook is never linked into an existing account';
+  SELECT lower(coalesce(u.email, '')) INTO acct FROM auth.users u WHERE u.id = NEW.user_id;
+  -- Never ADDED to an account someone already uses by GoTrue's automatic linking by email: one that is confirmed or has
+  -- ever been signed in to, with or without an identity row. A brand-new account is neither when its Facebook identity is
+  -- written (v2.189: signupNewUser, then createNewIdentity, then Confirm). An email-code sign-up nobody finished is
+  -- GoTrue's own case: it links that one and drops its unconfirmed identities itself.
+  -- ⛔ THE ONE EXCEPTION IS auth.eno_connect_facebook, the person's own Connect (src/lib/auth/facebook-connect.ts). The
+  -- setting alone is not enough: GoTrue's own connection never qualifies, whatever it set.
+  IF NOT (coalesce(current_setting('eno.fb_link', true), '') = 'on' AND session_user <> 'supabase_auth_admin') THEN
+    IF EXISTS (SELECT 1 FROM auth.users u WHERE u.id = NEW.user_id
+               AND (u.email_confirmed_at IS NOT NULL OR u.phone_confirmed_at IS NOT NULL OR u.last_sign_in_at IS NOT NULL)) THEN
+      RAISE EXCEPTION 'eno: Facebook is never linked into an existing account';
+    END IF;
   END IF;
-  -- Never an operator's address, even as a new account.
-  em := lower(coalesce(NULLIF(NEW.identity_data->>'email', ''), (SELECT u.email FROM auth.users u WHERE u.id = NEW.user_id), ''));
-  IF em <> '' AND EXISTS (SELECT 1 FROM auth.eno_facebook_refused_emails r WHERE r.email = em) THEN
+  -- Never an operator's address, on the account OR in Facebook's answer, with or without the exception above.
+  em := lower(coalesce(NEW.identity_data->>'email', ''));
+  IF EXISTS (SELECT 1 FROM auth.eno_facebook_refused_emails r WHERE r.email IN (em, coalesce(acct, ''))) THEN
     RAISE EXCEPTION 'eno: Facebook is never an operator''s way in';
   END IF;
   RETURN NEW;
@@ -197,6 +200,42 @@ $fn$;
 DROP TRIGGER IF EXISTS eno_refuse_facebook_identity ON auth.identities;
 CREATE TRIGGER eno_refuse_facebook_identity BEFORE INSERT ON auth.identities
   FOR EACH ROW EXECUTE FUNCTION auth.eno_refuse_facebook_identity();
+-- ⛔ A FACEBOOK IDENTITY KEEPS NO ADDRESS BUT THE ACCOUNT'S OWN (found 2026-11-04, reading GoTrue's models/linking.go).
+-- DetermineAccountLinking links a new sign-in into whichever user holds an IDENTITY with that verified email, and it counts
+-- Facebook's emails as verified. So a connected Facebook whose address differs from the account's would pull a stranger in:
+-- the real owner of that address, signing in with Google or Apple for the first time, would land in THIS account. Stripped
+-- on INSERT and on GoTrue's UPDATE at every Facebook sign-in; the generated identities.email is then NULL and matches nothing.
+-- ⚠️ NAMED TO FIRE AFTER eno_refuse_… (same-event BEFORE triggers run in name order): that one reads the address first.
+CREATE OR REPLACE FUNCTION auth.eno_strip_facebook_identity_email() RETURNS trigger LANGUAGE plpgsql
+  SECURITY DEFINER SET search_path = pg_catalog, auth AS $fn$
+DECLARE acct text;
+BEGIN
+  IF lower(coalesce(NEW.provider, '')) <> 'facebook' OR NOT (NEW.identity_data ? 'email') THEN RETURN NEW; END IF;
+  SELECT lower(coalesce(u.email, '')) INTO acct FROM auth.users u WHERE u.id = NEW.user_id;
+  IF lower(coalesce(NEW.identity_data->>'email', '')) IS DISTINCT FROM coalesce(acct, '') THEN
+    NEW.identity_data := NEW.identity_data - 'email' - 'email_verified';
+  END IF;
+  RETURN NEW;
+END
+$fn$;
+DROP TRIGGER IF EXISTS eno_strip_facebook_identity_email ON auth.identities;
+CREATE TRIGGER eno_strip_facebook_identity_email BEFORE INSERT OR UPDATE ON auth.identities
+  FOR EACH ROW EXECUTE FUNCTION auth.eno_strip_facebook_identity_email();
+-- And when the ACCOUNT's address changes (commit gate, codex + opus, 2026-11-04): a Facebook whose address matched the old one
+-- would otherwise keep it, and whoever owns that old address could be pulled in the same way. Re-reads through the strip above.
+CREATE OR REPLACE FUNCTION auth.eno_recheck_facebook_identity_email() RETURNS trigger LANGUAGE plpgsql
+  SECURITY DEFINER SET search_path = pg_catalog, auth AS $fn$
+BEGIN
+  UPDATE auth.identities i SET identity_data = i.identity_data
+    WHERE i.user_id = NEW.id AND lower(i.provider) = 'facebook' AND i.identity_data ? 'email';
+  RETURN NULL;
+END
+$fn$;
+DROP TRIGGER IF EXISTS eno_recheck_facebook_identity_email ON auth.users;
+CREATE TRIGGER eno_recheck_facebook_identity_email AFTER UPDATE OF email ON auth.users
+  FOR EACH ROW WHEN (lower(coalesce(OLD.email, '')) IS DISTINCT FROM lower(coalesce(NEW.email, '')))
+  EXECUTE FUNCTION auth.eno_recheck_facebook_identity_email();
+-- ENO-FB-GUARD-END
 COMMIT;
 SQL
 echo "  auth.flow_state + auth.identities: Facebook's token never written, never linked into an account in use, never an operator's (both triggers, one transaction)"

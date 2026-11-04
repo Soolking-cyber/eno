@@ -87,6 +87,17 @@ every new one. Any failure puts
 agree: `set -a; . ./.env; set +a; npx tsx scripts/signup-prompt-report.ts --days 7` (read-only) — the gates' `facebk`
 column vs `completed`, in-app vs browser. One line in sign-in-form.tsx (the in-app block's order).
 
+## Connect Facebook (Settings › Privacy, owner 2026-11-04)
+
+An account made another way adds Facebook as a second way in. Why it is not GoTrue's manual linking, which stays off: `src/lib/auth/facebook-connect.ts`.
+
+1. **Meta app `eno.vn Login` → Facebook Login → Settings → Valid OAuth Redirect URIs,** add `https://eno.vn/auth/facebook/connect/callback` and `https://www.eno.vn/auth/facebook/connect/callback` (nginx serves the app on both). eno.forum no longer serves it since 2026-11-04, so it gets none.
+2. `DRY_RUN=1 bash infra/vn-node/apply-facebook-connect.sh`, then without `DRY_RUN`, BEFORE the deploy. It proves the guards and the two functions in a rolled-back trial, installs them, and copies the app id and secret from GoTrue's env into eno.vn's env file. GoTrue is not restarted.
+3. Deploy. The row, /privacy and the help text go live together.
+4. **Test on a real account (nothing else exercises GoTrue with a row made this way):** an email-code account connects a Facebook with a DIFFERENT email, signs out, and "Continue with Facebook" lands in the same account; the email code still works; the mailbox got the notice. `auth.identities.email` for that row is NULL. Disconnect takes a code too: other devices stop refreshing (signed out within the hour their access token lasts), and Facebook then starts a new account or refuses, as for anyone. A Facebook account that sends no email ends on the no-email message (the owner's own account does). An account made with Facebook shows Connected and no Disconnect.
+
+⛔ Re-running `apply-facebook-signin.sh` keeps the same guard: both scripts hold it byte for byte (`src/lib/apply-facebook-connect.test.ts`).
+
 ## Undo
 
 `cd /opt/eno/supabase && cp .env.bak-facebook-<stamp> .env && cp docker-compose.override.yml.bak-facebook-<stamp>

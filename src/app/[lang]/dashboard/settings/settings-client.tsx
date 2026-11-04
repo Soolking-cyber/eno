@@ -23,6 +23,7 @@ import { ReminderSettings } from '@/components/marketplace/reminder-settings'
 import { PushEventList } from '@/components/marketplace/push-opt-in-card'
 import { DeleteAccount } from '@/components/marketplace/delete-account'
 import { BlockedUsers } from '@/components/marketplace/blocked-users'
+import { FacebookConnectRow } from '@/components/marketplace/facebook-connect-row'
 import { appReviewGate } from '@/lib/app-review-gates'
 import { PHONE_OTP_ENABLED } from '@/lib/auth-policy'
 import { SectionHeader } from '@/components/marketplace/section-header'
@@ -236,6 +237,8 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
               </Button>
             </SettingsGroup>
           )}
+          {/* Connect Facebook (owner, 2026-11-04): renders nothing unless it can run here and now. */}
+          {section === 'privacy' && <FacebookConnectRow />}
           {/* App Store gate `ugc-safety` (R3): the place to undo a block. Off ⇒ not rendered. */}
           {section === 'privacy' && appReviewGate('ugc-safety') && (
             <SettingsGroup caption={tr('Blocked users', 'Người dùng đã chặn')}><BlockedUsers /></SettingsGroup>

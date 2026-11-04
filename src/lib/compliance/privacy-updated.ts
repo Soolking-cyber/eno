@@ -182,8 +182,11 @@
  * commit, re-run — or PRIVACY_TEXT_ACK=<date> for a text that really went live then). Keep the declaration on one
  * line, `export const PRIVACY_TEXT_PUBLISHED: string = 'YYYY-MM-DD'`: that is the shape the gate reads.
  * ⚠️ Typed, never read from the clock: the page prerenders, and a build-time date would move with every rebuild.
+ * And 2026-11-04, Connect Facebook (owner: "they can log in with fb" on an account made another way): the Meta row no longer
+ * says Facebook is never added to an existing account; it says when it is. ⛔ THE PLANNED DAY, like the rest: re-date it to
+ * the day the deploy that carries it runs, then retake the fingerprint.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-29'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-04'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -192,4 +195,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-29'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '7ce40a47a3573b8e'
+export const PRIVACY_TEXT_FINGERPRINT = '8ced5be2c0914f00'

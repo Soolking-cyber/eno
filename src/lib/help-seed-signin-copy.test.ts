@@ -96,11 +96,11 @@ describe('help centre — the sign-in answers after Sign in with Apple', () => {
     expect(sentenceWith(it_.body, 'Continue with Facebook')).toContain('wherever its button shows')
     expect(it_.body).toContain('Continue with Facebook (where you see that button)')
     expect(it_.bodyVi).toContain('Tiếp tục với Facebook (nếu bạn thấy nút này)')
-    // …and never added to an account that already exists (the database guard), which the answer says rather than promising
-    // one account for every way in.
-    expect(it_.body).toContain('If your email address already has an account here, sign in the way you did before: Facebook is not added to it.')
+    // …and signing in never adds it to an account that already exists (the database guard): the answer says so, and names
+    // the person's own Connect, rather than promising one account for every way in.
+    expect(it_.body).toContain('If your email address already has an account here, sign in the way you did before; you can then connect Facebook in Settings › Privacy.')
     expect(it_.body).toContain('Google, Apple and an emailed code open the same account')
-    expect(it_.bodyVi).toContain('Facebook không được thêm vào tài khoản đó')
+    expect(it_.bodyVi).toContain('sau đó bạn có thể kết nối Facebook trong Cài đặt › Quyền riêng tư')
     expect(`${it_.body}\n${it_.bodyVi}`).not.toMatch(/Use Google instead|Dùng Google/)
   })
 })

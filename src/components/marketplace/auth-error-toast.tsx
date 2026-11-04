@@ -87,12 +87,12 @@ export function AuthErrorToast() {
             'Facebook didn’t share an email address with us, so that sign-in didn’t go through.',
             'Facebook không chia sẻ địa chỉ email với chúng tôi nên lần đăng nhập đó chưa thực hiện được.',
           )
-        // A Facebook identity is never added to an account that already exists (the database guard — /auth/callback's
-        // `facebook_linked`): that account keeps the way in it was made with.
+        // Signing in with Facebook never adds it to an account that already exists (the database guard — /auth/callback's
+        // `facebook_linked`): only the person's own Connect does, from Settings › Privacy (src/lib/auth/facebook-connect.ts).
         : code === 'facebook_linked'
         ? tr(
-            'We could not finish signing you in with Facebook. If this email address already has an account here, sign in the way you did before — with your email code, Google or Apple; Facebook is not added to it.',
-            'Chúng tôi chưa hoàn tất đăng nhập bằng Facebook. Nếu địa chỉ email này đã có tài khoản ở đây, hãy đăng nhập như lần trước — bằng mã qua email, Google hoặc Apple; Facebook không được thêm vào tài khoản đó.',
+            'We could not finish signing you in with Facebook. If this email address already has an account here, sign in the way you did before — with your email code, Google or Apple. You can then connect Facebook in Settings › Privacy.',
+            'Chúng tôi chưa hoàn tất đăng nhập bằng Facebook. Nếu địa chỉ email này đã có tài khoản ở đây, hãy đăng nhập như lần trước — bằng mã qua email, Google hoặc Apple. Sau đó bạn có thể kết nối Facebook trong Cài đặt › Quyền riêng tư.',
           )
         : tr(
             'We could not finish signing you in. Please try again.',
