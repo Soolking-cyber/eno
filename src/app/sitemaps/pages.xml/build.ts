@@ -12,6 +12,7 @@ import { EXPAT_GUIDE_PATHS, MARKETPLACE_GUIDE_PATHS, guideDates } from '@/lib/ex
 import { vehicleHubLiveCount, VEHICLE_HUB_KIND_BY_SLUG } from '@/lib/vehicle-hubs'
 import { PHONE_GUIDE_PATHS } from '@/lib/phone-guides'
 import { releasedGuides, TEACH_BASE, teachGuideDates, teachHubNewest, teachPath } from '@/lib/teach-guides/registry'
+import { GUIDE_BASE, guideDates as libraryGuideDates, guidePath, liveGuides } from '@/lib/guides/registry'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
 import { seoLandingWhere, type SeoLandingTarget } from '@/components/marketplace/seo-landing-where'
 import { LANDING_TARGET as JOBS_TARGET } from '@/app/[lang]/jobs-vietnam-expats/landing-target'
@@ -647,6 +648,11 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
       }
       urls.push(`  <url><loc>${hostUrl}${TEACH_BASE}</loc>${lm(teachHubNewest(live))}</url>\n`)
       for (const e of live) urls.push(`  <url><loc>${hostUrl}${teachPath(e.slug)}</loc>${lm(lastmod(e.slug))}</url>\n`)
+    }
+    for (const lang of ['en', 'vi'] as const) if (liveGuides().some((e) => e.lang === lang)) urls.push(`  <url><loc>${hostUrl}${GUIDE_BASE[lang]}</loc></url>\n`)
+    for (const e of liveGuides()) {
+      const d = libraryGuideDates(e)
+      urls.push(`  <url><loc>${hostUrl}${guidePath(e)}</loc>${lm(d.updated ?? d.published)}</url>\n`)
     }
   }
 

@@ -83,7 +83,7 @@ export const RUM_MAX_NAVS = 8
 
 // ── The kind of page ────────────────────────────────────────────────────────────────────────────────────
 const ACCOUNT = new Set(['dashboard', 'account', 'saved', 'post', 'onboard', 'checkout', 'signin', 'auth', 'admin', 'disputes', 'reports', 'appeal', 'unsubscribe', 'account-deletion', 'teachers'])
-const CONTENT = new Set(['guide', 'help', 'legal', 'privacy', 'terms', 'regulations', 'prohibited', 'safety', 'trust', 'about', 'contact', 'developers', 'partners', 'returns', 'schools', 'teach-in-vietnam', 'hcmc-rent-index', 'forum', 'brands'])
+const CONTENT = new Set(['guide', 'guides', 'huong-dan', 'help', 'legal', 'privacy', 'terms', 'regulations', 'prohibited', 'safety', 'trust', 'about', 'contact', 'developers', 'partners', 'returns', 'schools', 'teach-in-vietnam', 'hcmc-rent-index', 'forum', 'brands'])
 
 /**
  * The page kind from the address the visitor sees (public URLs carry no /en|/vi — src/proxy.ts rewrites inside).

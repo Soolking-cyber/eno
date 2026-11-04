@@ -29,11 +29,11 @@ export type InlineToken =
 
 const MONEY = /^vnd:(\d{1,12})(?:-(\d{1,12}))?$/
 
-export function moneyText(a: number, b?: number): string {
-  if (b === undefined) return formatMoneyFull(a, '₫', 'en')
+export function moneyText(a: number, b?: number, lang: 'en' | 'vi' = 'en'): string {
+  if (b === undefined) return formatMoneyFull(a, '₫', lang)
   if (!(b > a)) throw new Error(`teach-guides inline: money range ${a}-${b} is not increasing`)
   // "25,000,000–35,000,000 đ": one currency mark, at the end, as a range is read aloud.
-  return `${formatMoneyFull(a, '₫', 'en').replace(/ đ$/, '')}–${formatMoneyFull(b, '₫', 'en')}`
+  return `${formatMoneyFull(a, '₫', lang).replace(/ đ$/, '')}–${formatMoneyFull(b, '₫', lang)}`
 }
 
 function fail(src: string, msg: string): never {
@@ -96,7 +96,7 @@ export function checkHref(href: string, src: string): { href: string; external: 
   return { href, external: true }
 }
 
-export function parseInline(src: string): InlineToken[] {
+export function parseInline(src: string, lang: 'en' | 'vi' = 'en'): InlineToken[] {
   const out: InlineToken[] = []
   let i = 0
   let text = ''
@@ -112,7 +112,7 @@ export function parseInline(src: string): InlineToken[] {
       if (!inner.trim()) fail(src, 'empty **bold**')
       flush()
       // Bold may hold money and plain text, never a link or another bold (nothing in a guide needs it).
-      const children = parseInline(inner)
+      const children = parseInline(inner, lang)
       if (children.some((c) => c.t === 'link' || c.t === 'bold')) fail(src, 'a link or bold inside **bold**')
       out.push({ t: 'bold', children })
       i = end + 2
@@ -136,7 +136,7 @@ export function parseInline(src: string): InlineToken[] {
       const m = MONEY.exec(src.slice(i + 2, end))
       if (!m) fail(src, `unknown token {{${src.slice(i + 2, end)}}}`)
       flush()
-      out.push({ t: 'money', text: moneyText(Number(m[1]), m[2] === undefined ? undefined : Number(m[2])) })
+      out.push({ t: 'money', text: moneyText(Number(m[1]), m[2] === undefined ? undefined : Number(m[2]), lang) })
       i = end + 2
       continue
     }

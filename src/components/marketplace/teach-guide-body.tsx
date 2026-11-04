@@ -11,9 +11,9 @@ import { formatArticleDate } from '@/lib/dates'
  * inherit the house article: the date line, "On this page", Keep reading, the FAQ block and the Article/
  * FAQPage JSON-LD. Nothing here decides SEO; it only turns blocks into the house prose primitives.
  *
- * ⚠️ EVERY WORD OF CHROME HERE IS ENGLISH ON PURPOSE — the guides are English articles, and seo-article.tsx
- * explains why an article's chrome follows the ARTICLE's language and never the visitor's (`tr()` would
- * follow the visitor). Same rule, same reason: plain constants.
+ * ⚠️ THE CHROME HERE FOLLOWS THE ARTICLE'S LANGUAGE, NEVER THE VISITOR'S: English for the teach guides, and the `lang` a
+ * guide in src/lib/guides declares. seo-article.tsx explains why (`tr()` would follow the visitor). Same rule, same
+ * reason: plain constants.
  *
  * ⚠️ A LINK TO A GUIDE THAT IS NOT LIVE YET RENDERS AS ITS TEXT. The library is released in waves
  * (registry.ts `published`), so a live guide may mention one that is scheduled; `isLiveHref` decides,
@@ -28,16 +28,16 @@ import { formatArticleDate } from '@/lib/dates'
  */
 const OWN_HOST = /^https:\/\/([a-z0-9-]+\.)*eno\.vn(\/|$)/i
 
-function Inline({ src, isLiveHref }: { src: string; isLiveHref: (href: string) => boolean }) {
-  return <>{renderTokens(parseInline(src), isLiveHref)}</>
+function Inline({ src, isLiveHref, lang = 'en' }: { src: string; isLiveHref: (href: string) => boolean; lang?: 'en' | 'vi' }) {
+  return <>{renderTokens(parseInline(src, lang), isLiveHref, lang)}</>
 }
 
-function renderTokens(tokens: InlineToken[], isLiveHref: (href: string) => boolean): React.ReactNode[] {
+function renderTokens(tokens: InlineToken[], isLiveHref: (href: string) => boolean, lang: 'en' | 'vi' = 'en'): React.ReactNode[] {
   return tokens.map((t, i) => {
     if (t.t === 'text') return t.v
     // Money never breaks across a line: "25,000,000 đ" split after the comma reads as two numbers.
     if (t.t === 'money') return <span key={i} className="whitespace-nowrap">{t.text}</span>
-    if (t.t === 'bold') return <strong key={i} className="font-semibold text-foreground">{renderTokens(t.children, isLiveHref)}</strong>
+    if (t.t === 'bold') return <strong key={i} className="font-semibold text-foreground">{renderTokens(t.children, isLiveHref, lang)}</strong>
     if (!t.external) return isLiveHref(t.href) ? <HereLink key={i} href={t.href}>{t.label}</HereLink> : t.label
     if (OWN_HOST.test(t.href))
       return (
@@ -51,27 +51,28 @@ function renderTokens(tokens: InlineToken[], isLiveHref: (href: string) => boole
 
 /** Said to a screen reader before a callout: the icon is the only other difference between the tones. */
 const TONE_LABEL = { note: 'Note', warning: 'Warning', tip: 'Tip' } as const
+const TONE_LABEL_VI = { note: 'Ghi chú', warning: 'Cảnh báo', tip: 'Mẹo' } as const
 
-function Block({ b, isLiveHref }: { b: TeachBlock; isLiveHref: (href: string) => boolean }) {
+function Block({ b, isLiveHref, lang = 'en' }: { b: TeachBlock; isLiveHref: (href: string) => boolean; lang?: 'en' | 'vi' }) {
   switch (b.type) {
     case 'p':
-      return <P><Inline src={b.text} isLiveHref={isLiveHref} /></P>
+      return <P><Inline src={b.text} isLiveHref={isLiveHref} lang={lang} /></P>
     case 'h3':
       return <h3 className="mt-7 max-w-[60ch] text-base font-bold text-foreground">{b.text}</h3>
     case 'ul':
       return (
         <Ul>
-          {b.items.map((it, i) => <li key={i}><Inline src={it} isLiveHref={isLiveHref} /></li>)}
+          {b.items.map((it, i) => <li key={i}><Inline src={it} isLiveHref={isLiveHref} lang={lang} /></li>)}
         </Ul>
       )
     case 'ol':
       return (
         <ol className="mt-3 max-w-[60ch] list-decimal space-y-2 pl-5 text-base leading-relaxed text-body marker:font-semibold marker:text-ink-4">
-          {b.items.map((it, i) => <li key={i}><Inline src={it} isLiveHref={isLiveHref} /></li>)}
+          {b.items.map((it, i) => <li key={i}><Inline src={it} isLiveHref={isLiveHref} lang={lang} /></li>)}
         </ol>
       )
     case 'table':
-      return <GuideTable b={b} isLiveHref={isLiveHref} />
+      return <GuideTable b={b} isLiveHref={isLiveHref} lang={lang} />
     case 'callout': {
       const Icon = b.tone === 'warning' ? AlertTriangle : Info
       return (
@@ -80,9 +81,9 @@ function Block({ b, isLiveHref }: { b: TeachBlock; isLiveHref: (href: string) =>
         <aside className="mt-5 flex max-w-[60ch] items-start gap-3 rounded-xl bg-tint p-4">
           <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
           <div className="min-w-0 text-sm leading-relaxed text-body">
-            <span className="sr-only">{TONE_LABEL[b.tone]}: </span>
+            <span className="sr-only">{(lang === 'vi' ? TONE_LABEL_VI : TONE_LABEL)[b.tone]}: </span>
             {b.title && <p className="font-bold text-foreground">{b.title}</p>}
-            <p className={b.title ? 'mt-1' : undefined}><Inline src={b.text} isLiveHref={isLiveHref} /></p>
+            <p className={b.title ? 'mt-1' : undefined}><Inline src={b.text} isLiveHref={isLiveHref} lang={lang} /></p>
           </div>
         </aside>
       )
@@ -96,7 +97,7 @@ function Block({ b, isLiveHref }: { b: TeachBlock; isLiveHref: (href: string) =>
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold text-accent-foreground tabular-nums">{i + 1}</span>
               <div className="min-w-0">
                 <p className="text-base font-bold text-foreground">{s.title}</p>
-                <p className="mt-1 text-base leading-relaxed text-body"><Inline src={s.text} isLiveHref={isLiveHref} /></p>
+                <p className="mt-1 text-base leading-relaxed text-body"><Inline src={s.text} isLiveHref={isLiveHref} lang={lang} /></p>
               </div>
             </li>
           ))}
@@ -111,7 +112,7 @@ function Block({ b, isLiveHref }: { b: TeachBlock; isLiveHref: (href: string) =>
  * column's name, so a phone never scrolls a table inside the page. The <table> stays one table, which is
  * what a crawler and an answer engine read.
  */
-function GuideTable({ b, isLiveHref }: { b: Extract<TeachBlock, { type: 'table' }>; isLiveHref: (href: string) => boolean }) {
+function GuideTable({ b, isLiveHref, lang = 'en' }: { b: Extract<TeachBlock, { type: 'table' }>; isLiveHref: (href: string) => boolean; lang?: 'en' | 'vi' }) {
   return (
     <figure className="mt-5 max-w-3xl">
       <table className="w-full text-sm max-md:block">
@@ -128,12 +129,12 @@ function GuideTable({ b, isLiveHref }: { b: Extract<TeachBlock, { type: 'table' 
               {row.map((cell, c) =>
                 c === 0 ? (
                   <th key={c} scope="row" className="text-left align-top font-semibold text-foreground max-md:block md:py-2 md:pr-4">
-                    <Inline src={cell} isLiveHref={isLiveHref} />
+                    <Inline src={cell} isLiveHref={isLiveHref} lang={lang} />
                   </th>
                 ) : (
                   <td key={c} className="align-top text-body max-md:mt-1 max-md:block md:py-2 md:pr-4">
                     <span className="mr-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:hidden">{b.headers[c]}:</span>
-                    <Inline src={cell} isLiveHref={isLiveHref} />
+                    <Inline src={cell} isLiveHref={isLiveHref} lang={lang} />
                   </td>
                 ),
               )}
@@ -142,34 +143,42 @@ function GuideTable({ b, isLiveHref }: { b: Extract<TeachBlock, { type: 'table' 
         </tbody>
       </table>
       <figcaption className="mt-2 text-xs leading-relaxed text-muted-foreground">
-        <Inline src={b.caption} isLiveHref={isLiveHref} />
+        <Inline src={b.caption} isLiveHref={isLiveHref} lang={lang} />
       </figcaption>
     </figure>
   )
 }
 
 /** The guide's sections in SeoArticle's shape, plus the closing "Sources" section. */
-export function teachGuideSections(g: TeachGuide, isLiveHref: (href: string) => boolean): ArticleSection[] {
+export function teachGuideSections(g: TeachGuide, isLiveHref: (href: string) => boolean, lang: 'en' | 'vi' = 'en'): ArticleSection[] {
   const sections: ArticleSection[] = g.sections.map((s) => ({
     id: s.id,
     title: s.title,
     body: (
       <>
-        {s.blocks.map((b, i) => <Block key={i} b={b} isLiveHref={isLiveHref} />)}
+        {s.blocks.map((b, i) => <Block key={i} b={b} isLiveHref={isLiveHref} lang={lang} />)}
       </>
     ),
   }))
   sections.push({
     id: 'sources',
-    title: 'Sources',
+    title: lang === 'vi' ? 'Nguồn' : 'Sources',
     body: (
       <>
-        <P>
-          Facts in this guide were last checked on{' '}
-          <time dateTime={g.lastChecked}>{formatArticleDate(g.lastChecked, 'en')}</time> against the sources below.
-          Rules, fees and processes in Vietnam change; where a source is an authority, its current page wins over
-          this one.
-        </P>
+        {lang === 'vi' ? (
+          <P>
+            Thông tin trong bài được kiểm tra lần cuối vào{' '}
+            <time dateTime={g.lastChecked}>{formatArticleDate(g.lastChecked, 'vi')}</time> dựa trên các nguồn dưới đây.
+            Quy định, phí và thủ tục ở Việt Nam có thể thay đổi; với nguồn của cơ quan có thẩm quyền, trang hiện tại của họ có giá trị hơn bài này.
+          </P>
+        ) : (
+          <P>
+            Facts in this guide were last checked on{' '}
+            <time dateTime={g.lastChecked}>{formatArticleDate(g.lastChecked, 'en')}</time> against the sources below.
+            Rules, fees and processes in Vietnam change; where a source is an authority, its current page wins over
+            this one.
+          </P>
+        )}
         <Ul>
           {g.sources.map((s) => (
             <li key={s.url}>
@@ -192,14 +201,14 @@ export function teachGuideSections(g: TeachGuide, isLiveHref: (href: string) => 
 const KEY_POINTS_ID = 'key-points'
 
 /** The "Key points" box under the lede (SeoArticle `ledeRow`): the page's answer before the long read. */
-export function TeachKeyPoints({ g, isLiveHref }: { g: TeachGuide; isLiveHref: (href: string) => boolean }) {
+export function TeachKeyPoints({ g, isLiveHref, lang = 'en' }: { g: TeachGuide; isLiveHref: (href: string) => boolean; lang?: 'en' | 'vi' }) {
   return (
     <section aria-labelledby={KEY_POINTS_ID} className="mt-6 max-w-3xl rounded-xl bg-tint p-5">
       <h2 id={KEY_POINTS_ID} className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-accent-foreground">
-        <ListChecks className="h-4 w-4" aria-hidden /> Key points
+        <ListChecks className="h-4 w-4" aria-hidden /> {lang === 'vi' ? 'Điểm chính' : 'Key points'}
       </h2>
       <ul className="mt-3 list-disc space-y-2 pl-5 text-base leading-relaxed text-body marker:text-ink-4">
-        {g.keyPoints.map((k, i) => <li key={i}><Inline src={k} isLiveHref={isLiveHref} /></li>)}
+        {g.keyPoints.map((k, i) => <li key={i}><Inline src={k} isLiveHref={isLiveHref} lang={lang} /></li>)}
       </ul>
     </section>
   )

@@ -64,6 +64,8 @@ const RESERVED = new Set([
   // /teach-in-vietnam is the teacher guide library (2026-10-10). Separator-free, so one entry also
   // covers teach-in-vietnam, teach_in_vietnam and teachinvietnam (isReservedHandle folds `-`/`_`).
   'teachinvietnam',
+  // /guides and /huong-dan are the general guide library (2026-11-04, src/lib/guides).
+  'guides', 'huongdan',
   // ⚠️ `docs` IS NOT AN app ROUTE — IT IS A REWRITE, WHICH IS EXACTLY WHY IT IS EASY TO MISS.
   // next.config.ts rewrites /docs -> /developers in `afterFiles`, which Next resolves BEFORE
   // dynamic routes, so it outranks src/app/[lang]/[handle]. A seller holding `docs` would have a

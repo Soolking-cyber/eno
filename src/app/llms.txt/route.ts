@@ -4,6 +4,7 @@ import { SERVICES_LLMS_WHEN_TO_USE, SERVICES_SITE_DESCRIPTION } from '@/lib/edit
 import { EXPAT_GUIDES, MARKETPLACE_GUIDES, expatGuidePath } from '@/lib/expat-guides'
 import { PHONE_GUIDES } from '@/lib/phone-guides'
 import { releasedGuides, TEACH_BASE, TEACH_CLUSTERS, teachPath } from '@/lib/teach-guides/registry'
+import { guideBlurb, guideLabel, guidePath, liveGuides } from '@/lib/guides/registry'
 import { TEACHER_COST_INDEX_CSV_PATH, TEACHER_COST_INDEX_NAME, TEACHER_COST_INDEX_PATH } from '@/lib/teacher-cost-index'
 import { LANGUAGES } from '@/lib/i18n/langs'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
@@ -289,6 +290,13 @@ ${guideLines(MARKETPLACE_GUIDES)}
 
 ${guideLines(PHONE_GUIDES)}`
 
+/** The general guide library (src/lib/guides): released guides only, marketplace only, like the teach guides. */
+function librarySection(): string {
+  const live = liveGuides()
+  if (!live.length) return ''
+  return `\n\n## Guides\n\n${live.map((e) => `- [${guideLabel(e)}](${SITE_ORIGIN}${guidePath(e)}): ${guideBlurb(e)}`).join('\n')}`
+}
+
 /**
  * The teacher guide library — RELEASED guides only (registry.ts), grouped as the hub groups them, so a guide
  * appears here the day its wave opens. Marketplace only: the services edition 308s the path to eno.vn.
@@ -340,7 +348,7 @@ ${marketplaceAbout(f)}
 
 ${marketplaceCategories(f)}
 
-${MARKETPLACE_GUIDES_SECTION}${teachSection()}
+${MARKETPLACE_GUIDES_SECTION}${librarySection()}${teachSection()}
 
 ${DEVELOPER_SECTION}
 

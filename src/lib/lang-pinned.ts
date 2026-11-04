@@ -161,6 +161,9 @@ export function pinnedRoute(pathname: string, lists: ViPilot = VI_PILOT): Pinned
     return null
   }
   if (lists.live.includes(pathname)) return { variant: 'en', internalPath: pathname }
+  // The general guide library (src/lib/guides): the address says the language, so no list comes with it.
+  if (/^\/guides(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)?$/.test(pathname)) return { variant: 'en', internalPath: pathname }
+  if (/^\/huong-dan(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)?$/.test(pathname)) return { variant: 'vi', internalPath: pathname }
   const slug = pathname.slice(1)
   if (!slug || !Object.hasOwn(FIXED_LANG, slug)) return null
   return { variant: FIXED_LANG[slug].lang, internalPath: pathname }
@@ -181,6 +184,8 @@ export function pinnedPair(pathname: string, lists: ViPilot = VI_PILOT): string 
   if (plain !== null) return lists.live.includes(plain) ? plain : null
   if (lists.live.includes(pathname)) return viTwin(pathname)
   if (!pinnedVariant(pathname, lists)) return null
+  // A library guide is pinned by its address, not by this list. Its other language, if it has one, is in the article's own hreflang.
+  if (!Object.hasOwn(FIXED_LANG, pathname.slice(1))) return null
   const pair = FIXED_LANG[pathname.slice(1)].pair
   return pair ? `/${pair}` : null
 }
