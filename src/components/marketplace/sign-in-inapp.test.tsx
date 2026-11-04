@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import * as React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { LanguageProvider } from '@/context/language-context'
 import { VI_OVERRIDES } from '@/generated/vi-overrides'
@@ -67,6 +67,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
   Object.defineProperty(window, 'location', { configurable: true, value: realLocation })
 })
+// input-otp's uncleared mount timers (0, 10, 50 ms) must not outlive this file's jsdom: see sign-in-code-length.test.tsx.
+afterAll(() => new Promise((done) => setTimeout(done, 60)))
 
 describe('on the teacher sign-up form, any browser: the emailed CODE, typed in place (owner, 2026-10-11)', () => {
   it('⛔ "Send code", with no switch back to a link (a link opens a new tab with an empty form) — Google stays offered', async () => {

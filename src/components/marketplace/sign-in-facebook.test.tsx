@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import * as React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LanguageProvider } from '@/context/language-context'
 import { VI_OVERRIDES } from '@/generated/vi-overrides'
@@ -80,6 +80,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
   Object.defineProperty(window, 'location', { configurable: true, value: realLocation })
 })
+// input-otp's uncleared mount timers (0, 10, 50 ms) must not outlive this file's jsdom: see sign-in-code-length.test.tsx.
+afterAll(() => new Promise((done) => setTimeout(done, 60)))
 
 describe('Continue with Facebook — dark until GoTrue has it on', () => {
   it('off: no button in a real browser', async () => {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import * as React from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { LanguageProvider } from '@/context/language-context'
 
@@ -37,6 +37,9 @@ beforeEach(() => {
   })))
 })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+// input-otp sets timers at 0, 10 and 50 ms when it mounts and never clears them. If one fires after this file's jsdom
+// is gone it throws "window is not defined", and that fails the whole run even though every test passed (CI 4c7b87b40).
+afterAll(() => new Promise((done) => setTimeout(done, 60)))
 
 async function reachCodeScreen() {
   render(
