@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 // Settings › Privacy › Facebook › Disconnect. It only ever removes THIS account's Facebook row, and refuses an account with no proved
 // address to get back in by (auth.eno_disconnect_facebook). Every other session of the account ends with it.
 //
-// ⛔ THE SAME CODE AS CONNECT (commit gate, opus, 2026-11-04): ending every other session is a weapon in a stolen session's hands: it would
+// ⛔ IT TAKES A CODE, THOUGH CONNECT NO LONGER DOES (commit gate, opus, 2026-11-04): ending every other session is a weapon in a stolen session's hands: it would
 // sign the owner out and keep itself. Only the mailbox's owner can do this. getUser asks GoTrue, so a session already ended can't either.
 export const POST = route({ auth: 'userId', rateLimit: { bucket: 'fb-disconnect', limit: 10, window: '1 h', strict: true } }, async ({ req, userId }) => {
   const sb = await createSupabaseServer()

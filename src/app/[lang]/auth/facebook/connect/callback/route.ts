@@ -1,5 +1,5 @@
 import { canonicalAuthOrigin, stateMatches } from '@/lib/auth/google-oauth'
-import { confirmationValid, connectFacebookIdentity, FB_OK_COOKIE, fbTxCookieName, isConnectState, readCookie, readFacebookProfile } from '@/lib/auth/facebook-connect'
+import { connectFacebookIdentity, fbTxCookieName, isConnectState, readFacebookProfile } from '@/lib/auth/facebook-connect'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { authRedirect } from '@/lib/auth-finish'
 import { renderFacebookConnectedEmail } from '@/lib/emails/facebook-connected'
@@ -17,12 +17,12 @@ const OUTCOME_PARAM: Record<string, string> = {
   held_elsewhere: 'held',
   operator: 'refused',
   no_account: 'failed',
-  no_email: 'no_email',
+  no_email: 'failed',
   bad_input: 'failed',
 }
 
 // Where Facebook returns the visitor. ⛔ THESE MUST AGREE before anything is read from Facebook: the full state, the httpOnly
-// cookie that holds it, the live signed-in user against the user who started, and this flow's code confirmed for this session. Together they close link CSRF in both
+// cookie that holds it, and the live signed-in user against the user who started. Together they close link CSRF in both
 // directions: a Facebook URL or a callback URL sent to someone else finds no matching cookie in that browser.
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -48,7 +48,6 @@ export async function GET(request: Request) {
   const finish = (fb: string | null) => {
     const res = authRedirect(`${origin}/dashboard/settings?tab=privacy${fb ? `&fb=${fb}` : ''}`)
     if (cookieName) res.cookies.set(cookieName, '', { path: '/', maxAge: 0 })
-    res.cookies.set(FB_OK_COOKIE, '', { path: '/', maxAge: 0 })
     return res
   }
 
@@ -63,13 +62,9 @@ export async function GET(request: Request) {
     // getUser asks GoTrue: getClaims alone verifies locally, and would let a session Disconnect just ended keep going until its
     // access token expires (commit gate, opus).
     if (data?.claims?.sub !== tx.u || live?.user?.id !== tx.u) return finish('failed')
-    // ⛔ THE CODE IS CHECKED HERE TOO (commit gate, opus): the transaction cookie is not signed, so someone holding a stolen session
-    // can set one and open Facebook's dialog themselves, skipping /start. They can't make this one without the mailbox.
-    const sessionId = data.claims.session_id
-    if (typeof sessionId !== 'string' || !confirmationValid(readCookie(request, FB_OK_COOKIE), tx.u, sessionId, Math.floor(Date.now() / 1000))) return finish('expired')
 
     const read = await readFacebookProfile(code, origin)
-    if (!read.ok) return finish(read.reason === 'no_email' ? 'no_email' : 'failed')
+    if (!read.ok) return finish('failed')
 
     const outcome = await connectFacebookIdentity(tx.u, read.profile)
     // The session's JWT carries app_metadata.providers; a fresh one names Facebook at once. Best effort: the next refresh does it.

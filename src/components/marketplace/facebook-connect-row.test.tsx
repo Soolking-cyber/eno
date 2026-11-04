@@ -75,35 +75,24 @@ describe('Settings › Privacy › Facebook', () => {
     await new Promise((r) => setTimeout(r, 10))
     expect(container.textContent).toBe('')
   })
-  it('Connect mails a code first, then a right code leaves for the start route', async () => {
+  it('Connect goes straight to Facebook: no code, no mail', async () => {
     const f = answer({ on: true, connected: false, canDisconnect: false })
     const assign = vi.fn()
     vi.stubGlobal('location', { ...window.location, assign })
     render(<FacebookConnectRow />)
     fireEvent.click(await screen.findByRole('button', { name: 'Connect' }))
-    const code = await screen.findByLabelText('code')
-    expect(screen.getByText(/a@x\.example/)).toBeTruthy()
-    fireEvent.change(code, { target: { value: '007302' } })
-    // Leading zeros intact: a string end to end.
-    await waitFor(() => expect(f).toHaveBeenCalledWith('/api/auth/facebook/connect/verify', expect.objectContaining({ body: JSON.stringify({ code: '007302' }) })))
-    await waitFor(() => expect(assign).toHaveBeenCalledWith('/auth/facebook/connect/start'))
+    expect(assign).toHaveBeenCalledWith('/auth/facebook/connect/start')
+    expect(screen.queryByLabelText('code')).toBeNull()
+    expect(f).not.toHaveBeenCalledWith('/api/auth/facebook/connect', expect.objectContaining({ method: 'POST' }))
   })
-  it('a wrong code stays on the code and can be retried', async () => {
-    answer({ on: true, connected: false, canDisconnect: false })
-    h.verifyOk = false
+  it('a Disconnect code that can’t be mailed says so and opens no dialog', async () => {
+    answer({ on: true, connected: true, canDisconnect: true }, 502)
     render(<FacebookConnectRow />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Connect' }))
-    fireEvent.change(await screen.findByLabelText('code'), { target: { value: '111111' } })
-    expect((await screen.findByRole('alert')).textContent).toContain('didn’t work')
-  })
-  it('a mail that fails says so and opens no dialog', async () => {
-    answer({ on: true, connected: false, canDisconnect: false }, 502)
-    render(<FacebookConnectRow />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Connect' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Disconnect' }))
     await waitFor(() => expect(h.error).toHaveBeenCalled())
     expect(screen.queryByLabelText('code')).toBeNull()
   })
-  it('Disconnect takes the code too, then removes and refreshes this session', async () => {
+  it('Disconnect takes a code, then removes and refreshes this session', async () => {
     const f = answer({ on: true, connected: true, canDisconnect: true })
     render(<FacebookConnectRow />)
     fireEvent.click(await screen.findByRole('button', { name: 'Disconnect' }))

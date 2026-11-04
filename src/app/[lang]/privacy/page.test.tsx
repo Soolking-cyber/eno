@@ -1250,7 +1250,7 @@ describe('Continue with Facebook (2026-10-16)', () => {
       expect(text, site).toContain('Meta (Continue with Facebook)')
       expect(text, site).toContain('never Facebook’s access token')
       expect(text, site).toContain('we never show or copy your Facebook picture or post anything to Facebook')
-      expect(text, site).toContain('If Facebook has no email address for you, no account is created')
+      expect(text, site).toContain('If Facebook has no email address for you, no new account is created')
       expect(text, site).toContain('Facebook is added to an account that already exists here only when you connect it yourself in Settings › Privacy')
       expect(text, site).toContain('If the email address Facebook has for you is not your account’s, we never use it to sign you in or to match you to another account.')
       expect(text, site).toContain('if you use Continue with Facebook, your name and email address from Facebook')

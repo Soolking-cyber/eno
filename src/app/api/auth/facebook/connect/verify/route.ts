@@ -6,7 +6,7 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
-// The code from the mail, for this user and this session. ⛔ STRICT, BY ACCOUNT: six digits are guessable without this ceiling.
+// The code from the mail, for this user and this session: what Disconnect requires. ⛔ STRICT, BY ACCOUNT: six digits are guessable without this ceiling.
 export const POST = route({ auth: 'userId', rateLimit: { bucket: 'fb-connect-verify', limit: 10, window: '1 h', strict: true } }, async ({ req, userId }) => {
   const body = (await req.json().catch(() => null)) as { code?: unknown } | null
   const code = typeof body?.code === 'string' ? body.code.trim() : ''

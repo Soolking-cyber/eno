@@ -25,7 +25,7 @@ vi.mock('@/lib/auth/facebook-connect', () => ({
   newConnectCode: () => '004217',
   sealConnectCode: (c: string, u: string, s: string) => `sealed-${c}-${u}-${s}`,
 }))
-vi.mock('@/lib/emails/facebook-connect-code', () => ({ renderFacebookConnectCodeEmail: ({ code }: { code: string }) => ({ subject: 's', html: code, text: code }) }))
+vi.mock('@/lib/emails/facebook-disconnect-code', () => ({ renderFacebookDisconnectCodeEmail: ({ code }: { code: string }) => ({ subject: 's', html: code, text: code }) }))
 vi.mock('@/lib/mail', () => ({ sendMail: h.mail }))
 vi.mock('@/lib/log', () => ({ logError: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({

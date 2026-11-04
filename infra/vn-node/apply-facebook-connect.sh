@@ -3,9 +3,10 @@
 # redirect URI (facebook-signin.md § Connect):
 #   bash infra/vn-node/apply-facebook-connect.sh            (DRY_RUN=1 runs every check and changes nothing)
 #
-# What it does: (1) proves the guards and the two functions below in a rolled-back trial, then installs them in one transaction; (2) copies
+# What it does: (0) lets GoTrue sign in a connected Facebook that sends no email, AFTER the guard that refuses a new account without one, which
+# restarts GoTrue: a few seconds of failed sign-ins; (1) proves the guards and the two functions below in a rolled-back trial, then installs them in one transaction; (2) copies
 # Facebook's app id and secret from GoTrue's env into eno.vn's env file. The app picks those up at its next `up`, so the
-# row, /privacy and the help text all go live with that one deploy. GoTrue is not touched: no failed sign-ins.
+# row, /privacy and the help text all go live with that one deploy.
 # ⛔ eno.vn ONLY: eno.forum stopped serving the app on 2026-11-04 (its domain hosts Reach), and Meta knows no redirect for it.
 #
 # ⛔ GOTRUE'S MANUAL LINKING STAYS OFF (src/lib/auth/facebook-connect.ts says why). This script refuses to run if it is on.
@@ -78,6 +79,11 @@ BEGIN
     IF EXISTS (SELECT 1 FROM auth.users u WHERE u.id = NEW.user_id
                AND (u.email_confirmed_at IS NOT NULL OR u.phone_confirmed_at IS NOT NULL OR u.last_sign_in_at IS NOT NULL)) THEN
       RAISE EXCEPTION 'eno: Facebook is never linked into an existing account';
+    END IF;
+    -- ⛔ A NEW ACCOUNT NEEDS AN ADDRESS: with neither email nor phone it has no recovery and gets no messages. GoTrue's
+    -- FACEBOOK_EMAIL_OPTIONAL is on so a CONNECTED Facebook with no email can sign in (2026-11-04); it would otherwise make such accounts too.
+    IF coalesce(NEW.identity_data->>'email', '') = '' THEN
+      RAISE EXCEPTION 'eno: a new Facebook account needs an email address';
     END IF;
   END IF;
   -- Never an operator's address, on the account OR in Facebook's answer, with or without the exception above.
@@ -222,6 +228,7 @@ PROOF_SQL=$(cat <<'SQL'
 SELECT set_config('eno.guard_op', :'op', true);
 SELECT set_config('eno.guard_role', :'app_role', true);
 INSERT INTO auth.users (id, email, created_at, email_confirmed_at, last_sign_in_at, raw_app_meta_data) VALUES
+  ('00000000-0000-4000-8000-00000000fc07', NULL, now(), NULL, NULL, '{}'),
   ('00000000-0000-4000-8000-00000000fc06', 'eno-conn-6@example.invalid', now() - interval '400 days', now() - interval '400 days', now(), '{"provider":"email"}'),
   ('00000000-0000-4000-8000-00000000fc01', 'eno-conn-1@example.invalid', now() - interval '30 days', now() - interval '30 days', now(), '{"provider":"email","providers":["email"]}'),
   ('00000000-0000-4000-8000-00000000fc02', 'eno-conn-2@example.invalid', now() - interval '30 days', now() - interval '30 days', now(), '{"provider":"email","providers":["email"]}'),
@@ -230,6 +237,14 @@ INSERT INTO auth.identities (provider_id, user_id, identity_data, provider) VALU
   ('eno-conn-1', '00000000-0000-4000-8000-00000000fc01', '{"email":"eno-conn-1@example.invalid"}', 'email'),
   ('eno-conn-2', '00000000-0000-4000-8000-00000000fc02', '{"email":"eno-conn-2@example.invalid"}', 'email');
 DO $d$ DECLARE r text; c text; e text; p jsonb; BEGIN
+  -- A brand-new account from a Facebook with no email stays refused, as GoTrue's own login: only the guard stops it, with email optional on.
+  EXECUTE 'SET LOCAL SESSION AUTHORIZATION supabase_auth_admin';
+  BEGIN
+    INSERT INTO auth.identities (provider_id, user_id, identity_data, provider) VALUES ('991000010', '00000000-0000-4000-8000-00000000fc07', '{"sub":"991000010"}', 'facebook');
+    RAISE NOTICE 'NOEMAIL_ALLOWED';
+  EXCEPTION WHEN others THEN RAISE NOTICE 'NOEMAIL_REFUSED: %', SQLERRM;
+  END;
+  EXECUTE 'RESET SESSION AUTHORIZATION';
   -- As GoTrue's own login, with the setting forced on: its automatic link must stay refused.
   PERFORM set_config('eno.fb_link', 'on', true);
   EXECUTE 'SET LOCAL SESSION AUTHORIZATION supabase_auth_admin';
@@ -300,16 +315,70 @@ SQL
 echo "=== TRIAL: install and prove inside a transaction that is rolled back ==="
 PR=$(printf 'BEGIN;\n%s\n%s\nROLLBACK;\n' "$INSTALL_SQL" "$PROOF_SQL" | psqlx -v op="$OPS1" -v app_role="$R_VN" 2>&1 || true)
 want() { case "$PR" in *"$1"*) ;; *) echo "  ⛔ proof failed: wanted '$1' in: ${PR:0:900}"; echo "  Nothing was changed. Fix, then re-run."; exit 1 ;; esac; }
-want GOTRUE_REFUSED; want GOTRUE_CALL_REFUSED; want PLAIN_REFUSED
+want 'NOEMAIL_REFUSED: eno: a new Facebook account needs an email address'; want GOTRUE_REFUSED; want GOTRUE_CALL_REFUSED; want PLAIN_REFUSED
 want 'CONNECT=ok EMAILCOL=null HASKEY=false'; want 'AFTERUPDATE=null'; want 'HELD=held_elsewhere'; want 'OTHER=other_facebook'; want 'AGAIN=already'
 want 'APPROLE_OK'; want 'OPERATOR=operator'; want 'MATCH=ok KEEPS=eno-conn-2@example.invalid'; want 'MOVED=null'; want 'BAD=bad_input'; want 'DISCONNECT=ok'; want 'SESSIONS=1 KEPT=1 OTHERUSER=1'; want 'META=false/Kept'; want 'NOTCONN=not_connected'; want 'NOROWS=ok'; want 'MADEWITHFB=only_way_in'
 case "$PR" in *PROVIDERS2*facebook*) echo "  ⛔ Disconnect left facebook in providers. Nothing was changed."; exit 1 ;; esac
-echo "  GoTrue's own login: link refused, functions refused ✅ · Connect links and drops a different address ✅ · GoTrue's update can't restore it ✅"
+echo "  GoTrue's own login: link refused, functions refused, a new account with no email refused ✅ · Connect links and drops a different address ✅ · GoTrue's update can't restore it ✅"
 echo "  one Facebook per account, one account per Facebook ✅ · operators refused ✅ · a matching address stays until the account moves ✅ · the app's role can do its part ✅ · Disconnect, its sessions and its metadata ✅"
 
 echo "=== WRITE: guards and functions, one transaction ==="
 printf 'BEGIN;\n%s\nCOMMIT;\n' "$INSTALL_SQL" | psqlx -v app_role="$R_VN" >/dev/null
 echo "  installed ✅"
+
+echo "=== WRITE: GoTrue signs in a connected Facebook with no email ==="
+OV=/opt/eno/supabase/docker-compose.override.yml
+K=$(grep -m1 '^ANON_KEY=' "$E" | cut -d= -f2-)
+settings() { curl -s --max-time 10 http://127.0.0.1:8000/auth/v1/settings -H "apikey: $K"; }
+EO=$(docker exec "$AUTHC" printenv GOTRUE_EXTERNAL_FACEBOOK_EMAIL_OPTIONAL 2>/dev/null </dev/null || true)
+if [ "$EO" = true ]; then
+  echo "  already on ✅"
+else
+  STAMP=$(date +%Y%m%d%H%M%S)
+  cp -p "$E" "$E.bak-fbconnect-$STAMP"; cp -p "$OV" "$OV.bak-fbconnect-$STAMP"
+  undo_auth() {
+    echo "  ↩ rolling back GoTrue's env from *.bak-fbconnect-$STAMP"
+    cp -p "$E.bak-fbconnect-$STAMP" "$E"; cp -p "$OV.bak-fbconnect-$STAMP" "$OV"
+    (cd /opt/eno/supabase && docker compose up -d auth </dev/null >/dev/null 2>&1) || echo "  ⛔ auth did not come back: cd /opt/eno/supabase && docker compose up -d auth"
+  }
+  trap 'undo_auth' ERR
+  trap 'undo_auth; exit 1' INT TERM HUP PIPE
+  python3 - "$E" "$OV" <<'PY'
+import re, sys
+e, ov = sys.argv[1], sys.argv[2]
+KEY = 'GOTRUE_EXTERNAL_FACEBOOK_EMAIL_OPTIONAL'
+lines = open(e).read().split('\n')
+hit = False
+for i, l in enumerate(lines):
+    if l.startswith(KEY + '='):
+        lines[i] = KEY + '=true'; hit = True
+if not hit:
+    if lines and lines[-1] == '': lines.insert(len(lines) - 1, KEY + '=true')
+    else: lines.append(KEY + '=true')
+open(e, 'w').write('\n'.join(lines))
+text = open(ov).read().split('\n')
+if any(re.match(r'^ *' + KEY + r'\s*:', l) for l in text):
+    sys.exit(0)
+at = [i for i, l in enumerate(text) if re.match(r'^ *GOTRUE_EXTERNAL_FACEBOOK_ENABLED\s*:', l)]
+if len(at) != 1:
+    print('  ⛔ override: expected one GOTRUE_EXTERNAL_FACEBOOK_ENABLED line, found', len(at)); sys.exit(4)
+ind = text[at[0]][:len(text[at[0]]) - len(text[at[0]].lstrip(' '))]
+text.insert(at[0] + 1, f'{ind}{KEY}: ${{{KEY}}}')
+open(ov, 'w').write('\n'.join(text))
+PY
+  (cd /opt/eno/supabase && docker compose up -d auth </dev/null >/dev/null 2>&1)
+  FOK=no
+  for i in $(seq 1 15); do
+    AUTHC=$(cd /opt/eno/supabase && docker compose ps -q auth 2>/dev/null | head -1)
+    EO=$(docker exec "$AUTHC" printenv GOTRUE_EXTERNAL_FACEBOOK_EMAIL_OPTIONAL 2>/dev/null </dev/null || true)
+    FB=$(settings | python3 -c "import json,sys;print(json.load(sys.stdin)['external'].get('facebook'))" 2>/dev/null || true)
+    [ "$EO" = true ] && [ "$FB" = True ] && { FOK=yes; break; }
+    sleep 4
+  done
+  [ "$FOK" = yes ] || { echo "  ⛔ GoTrue did not come back with it on"; undo_auth; exit 1; }
+  trap - ERR INT TERM HUP PIPE
+  echo "  on, and GoTrue reports Facebook ✅"
+fi
 
 echo "=== WRITE: eno.vn's env (read at its next up) ==="
 # In the environment, not the argv: `ps` shows an argv to everyone on the box.

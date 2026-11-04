@@ -91,8 +91,8 @@ export function AuthErrorToast() {
         // `facebook_linked`): only the person's own Connect does, from Settings › Privacy (src/lib/auth/facebook-connect.ts).
         : code === 'facebook_linked'
         ? tr(
-            'We could not finish signing you in with Facebook. If this email address already has an account here, sign in the way you did before — with your email code, Google or Apple. You can then connect Facebook in Settings › Privacy.',
-            'Chúng tôi chưa hoàn tất đăng nhập bằng Facebook. Nếu địa chỉ email này đã có tài khoản ở đây, hãy đăng nhập như lần trước — bằng mã qua email, Google hoặc Apple. Sau đó bạn có thể kết nối Facebook trong Cài đặt › Quyền riêng tư.',
+            'We could not finish signing you in with Facebook. If you already have an account here, sign in the way you did before — with your email code, Google or Apple — then connect Facebook in Settings › Privacy. A new account needs Facebook to share your email address.',
+            'Chúng tôi chưa hoàn tất đăng nhập bằng Facebook. Nếu bạn đã có tài khoản ở đây, hãy đăng nhập như lần trước — bằng mã qua email, Google hoặc Apple — rồi kết nối Facebook trong Cài đặt › Quyền riêng tư. Tài khoản mới cần Facebook chia sẻ địa chỉ email của bạn.',
           )
         : tr(
             'We could not finish signing you in. Please try again.',

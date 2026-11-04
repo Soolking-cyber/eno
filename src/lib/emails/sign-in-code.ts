@@ -1,4 +1,4 @@
-import { renderBrandEmail, esc, EMAIL } from './layout'
+import { emailCopyCodeRow, renderBrandEmail, esc, EMAIL } from './layout'
 import type { SignInMode } from './sign-in-link'
 
 // The sign-in CODE email — what the native apps get instead of a magic link.
@@ -15,8 +15,9 @@ import type { SignInMode } from './sign-in-link'
 // `email_otp` from that same mint immediately returned `otp_expired`. So an email carrying
 // both is a self-inflicted denial of service — a corporate mail scanner that pre-fetches
 // the link burns the code before the user has finished typing it. That is why this is a
-// separate renderer with NO url parameter and no link anywhere in its output, rather than
-// an extra block bolted onto sign-in-link.ts. A vitest asserts neither email leaks the
+// separate renderer with NO url parameter and no link to the token in its output, rather than
+// an extra block bolted onto sign-in-link.ts. (The "Copy code" button links to a page that verifies
+// nothing, so a scanner's fetch burns nothing: layout.ts emailCopyCodeRow.) A vitest asserts neither email leaks the
 // other's token.
 //
 // ⚠️ THE CODE IS A STRING WITH MEANINGFUL LEADING ZEROS — never round-trip it through Number().
@@ -115,9 +116,10 @@ export function renderSignInCodeEmail(opts: {
         <p style="margin:10px 0 0;font-size:13px;color:${MUTED};line-height:1.6;">${esc(s.forAddress)} <strong style="color:${INK};">${esc(email)}</strong></p>
       </td></tr>
       <tr><td align="center" style="padding:22px 24px 8px;">
-        <div style="display:inline-block;background:#f5f6f8;border:1px solid ${EMAIL.BORDER};border-radius:14px;padding:16px 26px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:30px;font-weight:700;line-height:1.2;letter-spacing:0.22em;color:${INK};">${esc(code)}</div>
+        <div style="display:inline-block;background:#f5f6f8;border:1px solid ${EMAIL.BORDER};border-radius:14px;padding:16px 26px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:30px;font-weight:700;line-height:1.2;letter-spacing:0.22em;color:${INK};-webkit-user-select:all;user-select:all;">${esc(code)}</div>
       </td></tr>
-      <tr><td style="padding:6px 24px 4px;">
+      ${emailCopyCodeRow(code, origin, lang)}
+      <tr><td style="padding:6px 24px 20px;">
         <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">${esc(s.expiry)} ${esc(c.ignore)}</p>
         <p style="margin:12px 0 0;font-size:12px;font-weight:600;color:${INK};line-height:1.6;">${esc(s.phishing)}</p>
       </td></tr>`

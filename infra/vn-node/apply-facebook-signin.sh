@@ -67,10 +67,18 @@ AUTHC=$(cd /opt/eno/supabase && docker compose ps -q auth 2>/dev/null | head -1)
 [ -n "$AUTHC" ] || { echo "  ⛔ cannot find the running GoTrue (auth) container"; exit 3; }
 UV=$(docker exec "$AUTHC" printenv GOTRUE_MAILER_ALLOW_UNVERIFIED_EMAIL_SIGN_INS 2>/dev/null || true)
 case "$UV" in ''|false|False|0) echo "  allow unverified email sign-ins: off ✅" ;; *) echo "  ⛔ GOTRUE_MAILER_ALLOW_UNVERIFIED_EMAIL_SIGN_INS=$UV — stop."; exit 3 ;; esac
-# ⛔ EMAIL STAYS REQUIRED (plan v4 review): an account with neither email nor phone has no recovery and gets no messages.
-# A Facebook account without an email gets "use your email instead" from /auth/callback (no_email).
+# ⛔ A NEW ACCOUNT STILL NEEDS AN EMAIL (plan v4 review): with neither email nor phone it has no recovery and gets no messages. Since 2026-11-04
+# GoTrue's FACEBOOK_EMAIL_OPTIONAL is on (apply-facebook-connect.sh) so a CONNECTED Facebook with no email can sign in; the identity guard below
+# is what refuses a new account without one. On here without that guard is the one state to stop for.
 EO=$(docker exec "$AUTHC" printenv GOTRUE_EXTERNAL_FACEBOOK_EMAIL_OPTIONAL 2>/dev/null || true)
-case "$EO" in ''|false|False|0) echo "  facebook email optional: off ✅" ;; *) echo "  ⛔ GOTRUE_EXTERNAL_FACEBOOK_EMAIL_OPTIONAL=$EO — stop."; exit 3 ;; esac
+case "$EO" in
+  ''|false|False|0) echo "  facebook email optional: off ✅" ;;
+  true)
+    GUARD=$(docker exec "$(cd /opt/eno/supabase && docker compose ps -q db 2>/dev/null | head -1)" psql -U supabase_admin -d postgres -tA -c "select count(*) from pg_proc where proname = 'eno_refuse_facebook_identity' and prosrc like '%needs an email address%'" </dev/null 2>/dev/null || echo 0)
+    [ "$GUARD" = 1 ] || { echo "  ⛔ GOTRUE_EXTERNAL_FACEBOOK_EMAIL_OPTIONAL is on without the guard that refuses a new account with no email — stop."; exit 3; }
+    echo "  facebook email optional: on, with its guard ✅" ;;
+  *) echo "  ⛔ GOTRUE_EXTERNAL_FACEBOOK_EMAIL_OPTIONAL=$EO — stop."; exit 3 ;;
+esac
 # ⛔ THE CODE FIRST. Enabling the provider before the deploy would let a Facebook sign-in reach a callback that cannot
 # strip Facebook's token, and a profile that would take Facebook's expiring picture link — refused until it can.
 # ⛔ STRAIGHT TO THE APPS' OWN PORTS (apps.compose.yml binds eno-vn-app to 127.0.0.1:3001 and eno-forum-app to :3002; nginx
@@ -187,6 +195,11 @@ BEGIN
     IF EXISTS (SELECT 1 FROM auth.users u WHERE u.id = NEW.user_id
                AND (u.email_confirmed_at IS NOT NULL OR u.phone_confirmed_at IS NOT NULL OR u.last_sign_in_at IS NOT NULL)) THEN
       RAISE EXCEPTION 'eno: Facebook is never linked into an existing account';
+    END IF;
+    -- ⛔ A NEW ACCOUNT NEEDS AN ADDRESS: with neither email nor phone it has no recovery and gets no messages. GoTrue's
+    -- FACEBOOK_EMAIL_OPTIONAL is on so a CONNECTED Facebook with no email can sign in (2026-11-04); it would otherwise make such accounts too.
+    IF coalesce(NEW.identity_data->>'email', '') = '' THEN
+      RAISE EXCEPTION 'eno: a new Facebook account needs an email address';
     END IF;
   END IF;
   -- Never an operator's address, on the account OR in Facebook's answer, with or without the exception above.

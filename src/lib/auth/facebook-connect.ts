@@ -11,7 +11,7 @@ import { db } from '@/lib/db'
  * exchange (internal/api/external.go). So an attacker could start Connect on their own account and send a victim the
  * Facebook URL: one tap puts the victim's Facebook on the attacker's account, and the victim's next "Continue with
  * Facebook" lands there. This flow binds `state` to an httpOnly cookie holding the user id, and the callback requires
- * the signed-in user to be that user, with a live session and this flow's own code confirmed. The manual-linking flag and the nginx 403 on its route stay as they are.
+ * the signed-in user to be that user, with a live session. The manual-linking flag and the nginx 403 on its route stay as they are.
  *
  * ⛔ THE DATABASE IS STILL THE BOUNDARY. Only auth.eno_connect_facebook (infra/vn-node/apply-facebook-connect.sh) may add
  * a Facebook identity to an account in use; GoTrue's automatic link-by-email stays refused by the trigger.
@@ -29,16 +29,14 @@ const FETCH_TIMEOUT_MS = 8_000
 /** 10 minutes: long enough to answer Facebook's dialog, short enough that a leaked transaction is stale. */
 export const FB_TX_TTL_SECONDS = 10 * 60
 /**
- * ⛔ A CODE FOR THIS ONE ACT (CONNECTING OR DISCONNECTING), BOUND TO THIS ONE SESSION (commit gate, 2026-11-04, after three rounds on the first design). That
- * design asked the session's `amr` for a recent `otp`, and an ordinary email-code sign-in looks exactly like that: a session stolen
- * within ten minutes of one could add its Facebook with no mailbox at all (codex). So Connect mails its own code, saying what it is
- * for, and accepts only that. Nothing is stored: the code's HMAC rides in an httpOnly cookie, tied to the user and the session id,
- * and a right answer swaps it for a confirmation sealed the same way, which /start and the callback both require.
+ * Connect itself asks no code (owner, 2026-11-04: "they are already in their account remove code and connect directly"). The notice mail is
+ * what tells an owner if someone else used a signed-in device to add a Facebook. ⛔ DISCONNECT STILL TAKES ONE (commit gate, opus): it ends every
+ * other session, which in a stolen session's hands signs the owner out and keeps itself. Nothing is stored: the code's HMAC rides in an httpOnly
+ * cookie, tied to the user and the session id, and a right answer swaps it for a confirmation sealed the same way.
  */
 export const FB_CODE_COOKIE = 'eno_fbc_code'
 export const FB_OK_COOKIE = 'eno_fbc_ok'
 export const FB_CODE_TTL_SECONDS = 10 * 60
-/** Long enough to answer Facebook's dialog after the code. */
 export const FB_OK_TTL_SECONDS = 15 * 60
 export const FB_CODE_LENGTH = 6
 
@@ -102,10 +100,10 @@ export function buildConnectUrl(state: string, origin: string): string | null {
   return u.toString()
 }
 
-export type FacebookProfile = { id: string; email: string; name: string; picture: string | null }
+export type FacebookProfile = { id: string; email: string | null; name: string; picture: string | null }
 export type ProfileResult =
   | { ok: true; profile: FacebookProfile }
-  | { ok: false; reason: 'not_configured' | 'exchange' | 'profile' | 'no_email' }
+  | { ok: false; reason: 'not_configured' | 'exchange' | 'profile' }
 
 type GraphMe = { id?: unknown; email?: unknown; first_name?: unknown; last_name?: unknown; picture?: { data?: { url?: unknown } } }
 
@@ -135,16 +133,15 @@ export async function readFacebookProfile(code: string, origin: string): Promise
     if (!res.ok) return { ok: false, reason: 'profile' }
     const me = (await res.json()) as GraphMe
     if (typeof me.id !== 'string' || !me.id) return { ok: false, reason: 'profile' }
-    // ⛔ NO EMAIL, NO CONNECT. GoTrue's sign-in callback answers 500 for a Facebook account that sends none (external.go:
-    // `len(userData.Emails) == 0 && !emailOptional`), so the connection could never be used to sign in.
-    if (typeof me.email !== 'string' || !me.email.trim()) return { ok: false, reason: 'no_email' }
+    // A Facebook that sends no email connects all the same: the eno account has its own. GoTrue's FACEBOOK_EMAIL_OPTIONAL lets it sign in later;
+    // the guard still refuses a NEW account without one (apply-facebook-connect.sh), which would have no recovery and get no messages.
     const part = (v: unknown) => (typeof v === 'string' ? v : '')
     const picture = me.picture?.data?.url
     return {
       ok: true,
       profile: {
         id: me.id,
-        email: me.email.trim().toLowerCase(),
+        email: typeof me.email === 'string' && me.email.trim() ? me.email.trim().toLowerCase() : null,
         name: `${part(me.first_name)} ${part(me.last_name)}`.trim(),
         picture: typeof picture === 'string' && picture ? picture : null,
       },
@@ -167,8 +164,7 @@ export function facebookIdentityData(p: FacebookProfile): Record<string, unknown
     name: p.name,
     full_name: p.name,
     ...(p.picture ? { picture: p.picture, avatar_url: p.picture } : {}),
-    email: p.email,
-    email_verified: true,
+    ...(p.email ? { email: p.email, email_verified: true } : {}),
     phone_verified: false,
   }
 }
@@ -199,7 +195,7 @@ export async function disconnectFacebookIdentity(userId: string, keepSession: st
 
 /**
  * What the Settings row needs. Disconnect needs a way back in that has really been proved, so it is offered only for a Facebook row Connect
- * made: that person typed a code from the mailbox. ⛔ AN ACCOUNT MADE WITH FACEBOOK WAS CONFIRMED ON FACEBOOK'S WORD: if that mailbox is dead,
+ * made: that account already had its own way in. ⛔ AN ACCOUNT MADE WITH FACEBOOK WAS CONFIRMED ON FACEBOOK'S WORD: if that mailbox is dead,
  * Disconnect would strand it. ⛔ NOT app_metadata.provider: GoTrue rewrites it at every sign-in (auth.eno_facebook_connected says why).
  */
 export async function facebookConnectionState(userId: string): Promise<{ connected: boolean; canDisconnect: boolean; email: string | null }> {

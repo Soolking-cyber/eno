@@ -16,8 +16,8 @@ type Status = { on: boolean; connected: boolean; canDisconnect: boolean }
  * Settings › Privacy › Facebook (owner, 2026-11-04): an account made another way adds Facebook as a second way in, and
  * both keep working. The flow and why it is not GoTrue's: src/lib/auth/facebook-connect.ts.
  *
- * ⛔ A CODE FROM THE ACCOUNT'S OWN MAILBOX COMES FIRST: someone holding a stolen session must not be able to add a lasting way in.
- * /auth/facebook/connect/start refuses a session that hasn't confirmed this flow's own code (facebook-connect.ts FB_OK_COOKIE).
+ * Connect goes straight to Facebook (owner, 2026-11-04). ⛔ DISCONNECT TAKES A CODE FROM THE MAILBOX: it ends every other session, which a stolen
+ * session could otherwise use to sign the owner out (facebook-connect.ts FB_OK_COOKIE).
  *
  * Connect shows only where it can run: never in the eno apps (facebookAvailableHere: Meta's dialog does not run in a webview), and
  * not while the server has it off. Disconnect shows for anyone connected.
@@ -30,8 +30,6 @@ export function FacebookConnectRow() {
   const [status, setStatus] = useState<Status | null>(null)
   const [canConnectHere, setCanConnectHere] = useState(false)
   const [open, setOpen] = useState(false)
-  // What the code in the dialog will do once it's confirmed.
-  const [action, setAction] = useState<'connect' | 'disconnect'>('connect')
   const [code, setCode] = useState('')
   const [codeLength, setCodeLength] = useState(6)
   const [busy, setBusy] = useState(false)
@@ -43,11 +41,9 @@ export function FacebookConnectRow() {
     if (!outcome) return
     const said: Record<string, [string, string] | undefined> = {
       connected: [tr('Facebook connected. You can now sign in with it too.', 'Đã kết nối Facebook. Giờ bạn cũng có thể đăng nhập bằng Facebook.'), 'success'],
-      no_email: [tr('Facebook didn’t share an email address, so it can’t be used to sign in here. Allow email when Facebook asks, or add one to your Facebook account.', 'Facebook không chia sẻ địa chỉ email nên không thể dùng để đăng nhập ở đây. Hãy cho phép email khi Facebook hỏi, hoặc thêm email vào tài khoản Facebook của bạn.'), 'error'],
       held: [tr('That Facebook account already belongs to another eno account.', 'Tài khoản Facebook này đã thuộc về một tài khoản eno khác.'), 'error'],
       other: [tr('This account already has a different Facebook connected. Disconnect it first.', 'Tài khoản này đã kết nối với một Facebook khác. Hãy ngắt kết nối trước.'), 'error'],
       refused: [tr('Facebook can’t be connected to this account.', 'Không thể kết nối Facebook với tài khoản này.'), 'error'],
-      expired: [tr('Enter a new code to connect Facebook.', 'Hãy nhập mã mới để kết nối Facebook.'), 'error'],
       failed: [tr('Facebook didn’t connect. Please try again.', 'Chưa kết nối được Facebook. Vui lòng thử lại.'), 'error'],
     }
     const s = said[outcome]
@@ -79,8 +75,10 @@ export function FacebookConnectRow() {
   // whose code was phished here to disconnect, and they may be reading it in the eno app.
   if (!status || !user?.email || (!status.connected && !(status.on && canConnectHere))) return null
 
-  const sendCode = async (next: 'connect' | 'disconnect') => {
-    setAction(next)
+  // A full navigation: the start route leaves for Facebook.
+  const connect = () => window.location.assign('/auth/facebook/connect/start')
+
+  const sendCode = async () => {
     setBusy(true); setError(null); setCode(''); lastTried.current = ''
     try {
       const r = await fetch('/api/auth/facebook/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lang }) })
@@ -101,11 +99,6 @@ export function FacebookConnectRow() {
     try {
       const r = await fetch('/api/auth/facebook/connect/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: c }) })
       if (!r.ok) throw new Error(String(r.status))
-      if (action === 'connect') {
-        // A full navigation: the start route reads the confirmation cookie and leaves for Facebook.
-        window.location.assign('/auth/facebook/connect/start')
-        return
-      }
     } catch {
       setError(tr('That code didn’t work. Check it, or ask for a new one.', 'Mã không đúng. Hãy kiểm tra lại hoặc yêu cầu mã mới.'))
       lastTried.current = ''
@@ -136,12 +129,12 @@ export function FacebookConnectRow() {
             : tr('Connect Facebook to sign in with it too. Your current way of signing in keeps working.', 'Kết nối Facebook để đăng nhập bằng cả Facebook. Cách đăng nhập hiện tại vẫn dùng được.')}
         </p>
         {!status.connected && (
-          <Button variant="outline" size="sm" className="shrink-0" loading={busy} onClick={() => void sendCode('connect')}>
+          <Button variant="outline" size="sm" className="shrink-0" loading={busy} onClick={connect}>
             {tr('Connect', 'Kết nối')}
           </Button>
         )}
         {status.canDisconnect && (
-          <Button variant="outline" size="sm" className="shrink-0" loading={busy} onClick={() => void sendCode('disconnect')}>
+          <Button variant="outline" size="sm" className="shrink-0" loading={busy} onClick={() => void sendCode()}>
             {tr('Disconnect', 'Ngắt kết nối')}
           </Button>
         )}
@@ -152,7 +145,7 @@ export function FacebookConnectRow() {
           <DialogHeader>
             <DialogTitle>{tr('Confirm it’s you', 'Xác nhận đó là bạn')}</DialogTitle>
             <DialogDescription>
-              {tr('Enter the code we sent to', 'Nhập mã chúng tôi đã gửi đến')} {user.email}
+              {tr('To disconnect Facebook, enter the code we sent to', 'Để ngắt kết nối Facebook, hãy nhập mã chúng tôi đã gửi đến')} {user.email}
             </DialogDescription>
           </DialogHeader>
           <InputOTP maxLength={codeLength} value={code} onChange={setCode} onComplete={(v: string) => void verify(v)} autoFocus autoComplete="one-time-code" inputMode="numeric" disabled={busy}>
@@ -161,7 +154,7 @@ export function FacebookConnectRow() {
             </InputOTPGroup>
           </InputOTP>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-          <Button variant="ghost" size="sm" className="self-start" disabled={busy} onClick={() => void sendCode(action)}>
+          <Button variant="ghost" size="sm" className="self-start" disabled={busy} onClick={() => void sendCode()}>
             {tr('Send a new code', 'Gửi mã mới')}
           </Button>
         </DialogContent>

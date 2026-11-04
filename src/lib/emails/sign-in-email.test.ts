@@ -32,6 +32,16 @@ describe('sign-in emails · one token per email, never both', () => {
     expect(all).toContain(CODE)
   })
 
+  it('the CODE email has a Copy code button: the code only in the fragment, and nothing a scanner could burn', () => {
+    const en = renderSignInCodeEmail({ code: '00730251', origin: ORIGIN, email: EMAIL }).html
+    expect(en).toContain(`${ORIGIN}/api/auth/copy-code#00730251`)
+    expect(en).toContain('Copy code')
+    expect(en).not.toMatch(/copy-code\?[^#"]*00730251/)
+    const vi = renderSignInCodeEmail({ code: '00730251', origin: ORIGIN, email: EMAIL, lang: 'vi' }).html
+    expect(vi).toContain(`${ORIGIN}/api/auth/copy-code?l=vi#00730251`)
+    expect(vi).toContain('Sao chép mã')
+  })
+
   it('the LINK email contains no 8-digit code', () => {
     const { html, text } = renderSignInEmail({ url: URL, origin: ORIGIN, email: EMAIL })
     // The link's own token is hex, so a bare 8-digit run could only be an OTP.

@@ -23,6 +23,14 @@ describe('Connect Facebook on the box', () => {
     expect(read('apply-facebook-connect.sh')).toMatch(/GOTRUE_SECURITY_MANUAL_LINKING_ENABLED[\s\S]*Stop\./)
     expect(read('nginx/eno.conf')).toMatch(/identities\/\+authorize \{ return 403; \}/)
   })
+  // ⛔ GoTrue's FACEBOOK_EMAIL_OPTIONAL is on so a connected Facebook with no email can sign in. Only the guard keeps new accounts from being made without one.
+  it('a new account with no email stays refused, past the setting that would allow it', () => {
+    const g = guard(read('apply-facebook-connect.sh'))!
+    expect(g).toContain("'eno: a new Facebook account needs an email address'")
+    const s = read('apply-facebook-connect.sh')
+    expect(s.indexOf('INSTALL_SQL')).toBeLessThan(s.indexOf('=== WRITE: GoTrue signs in a connected Facebook'))
+    expect(read('apply-facebook-signin.sh')).toContain('is on without the guard')
+  })
   it('only the app’s role can call the functions', () => {
     const s = read('apply-facebook-connect.sh')
     expect(s).toContain('REVOKE ALL ON FUNCTION auth.eno_connect_facebook(uuid, text, jsonb) FROM PUBLIC')

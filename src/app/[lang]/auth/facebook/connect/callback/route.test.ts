@@ -20,9 +20,6 @@ vi.mock('@/lib/supabase/server', () => ({
 vi.mock('@/lib/auth/facebook-connect', () => ({
   fbTxCookieName: (s: string) => `eno_fbc_${s.slice(0, 12)}`,
   isConnectState: (v: string | null) => !!v && /^[\w-]{43}$/.test(v),
-  FB_OK_COOKIE: 'eno_fbc_ok',
-  confirmationValid: (c: string | null, _u: string, sid: string) => c === 'OK' && sid === 'sess-1',
-  readCookie: (r: Request, n: string) => r.headers.get('cookie')?.split('; ').find((c) => c.startsWith(`${n}=`))?.slice(n.length + 1) ?? null,
   readFacebookProfile: h.read,
   connectFacebookIdentity: h.connect,
 }))
@@ -32,7 +29,7 @@ const { GET } = await import('./route')
 const STATE = 's'.repeat(43)
 const COOKIE = `eno_fbc_${STATE.slice(0, 12)}`
 const PROFILE = { id: '123456', email: 'a@x.example', name: 'An', picture: null }
-const tx = (u = 'user-1', s = STATE, ok = true) => `${COOKIE}=${encodeURIComponent(JSON.stringify({ s, u }))}${ok ? '; eno_fbc_ok=OK' : ''}`
+const tx = (u = 'user-1', s = STATE) => `${COOKIE}=${encodeURIComponent(JSON.stringify({ s, u }))}`
 const call = (query: string, cookie?: string) =>
   GET(new Request(`https://eno.vn/auth/facebook/connect/callback?${query}`, { headers: { host: 'eno.vn', ...(cookie ? { cookie } : {}) } }))
 const fb = (r: Response) => new URL(r.headers.get('location')!).searchParams.get('fb')
@@ -53,7 +50,6 @@ describe('Connect Facebook callback', () => {
     expect(h.connect).toHaveBeenCalledWith('user-1', PROFILE)
     expect(h.refresh).toHaveBeenCalled()
     expect(r.headers.get('set-cookie')).toContain(`${COOKIE}=;`)
-    expect(r.headers.get('set-cookie')).toContain('eno_fbc_ok=;')
     expect(r.headers.get('cache-control')).toContain('no-store')
     // The account's own address hears about the new way in.
     expect(h.mail).toHaveBeenCalledWith(expect.objectContaining({ to: 'a@x.example', subject: 'notice-en' }))
@@ -82,13 +78,6 @@ describe('Connect Facebook callback', () => {
     expect(h.connect).not.toHaveBeenCalled()
   })
 
-  // ⛔ THE TRANSACTION COOKIE ISN'T SIGNED: a stolen session can set its own and skip /start. It can't make the confirmation.
-  it('a session with no confirmed code reads nothing, even with a matching cookie', async () => {
-    expect(fb(await call(`code=C&state=${STATE}`, tx('user-1', STATE, false)))).toBe('expired')
-    expect(h.read).not.toHaveBeenCalled()
-    expect(h.connect).not.toHaveBeenCalled()
-  })
-
   it('a session GoTrue no longer knows reads nothing, though its token still verifies', async () => {
     h.live = null
     expect(fb(await call(`code=C&state=${STATE}`, tx()))).toBe('failed')
@@ -105,7 +94,7 @@ describe('Connect Facebook callback', () => {
   it.each(['((((', '%0a', 'a%3Bb', 'x'.repeat(44)])('a hand-made state %s cannot throw, and sets no cookie from it', async (s) => {
     const r = await call(`code=C&state=${s}`)
     expect(fb(r)).toBe('failed')
-    expect(r.headers.get('set-cookie')).not.toContain('eno_fbc_(')
+    expect(r.headers.get('set-cookie')).toBeNull()
     expect(r.status).toBe(307)
   })
 
@@ -115,7 +104,7 @@ describe('Connect Facebook callback', () => {
     ['held_elsewhere', 'held'],
     ['operator', 'refused'],
     ['no_account', 'failed'],
-    ['no_email', 'no_email'],
+    ['no_email', 'failed'],
     ['bad_input', 'failed'],
   ])('database answer %s → fb=%s, and only a new link refreshes the session', async (answer, param) => {
     h.connect.mockResolvedValue(answer)
@@ -124,10 +113,11 @@ describe('Connect Facebook callback', () => {
     expect(h.mail).not.toHaveBeenCalled()
   })
 
-  it('no email from Facebook links nothing', async () => {
-    h.read.mockResolvedValue({ ok: false, reason: 'no_email' })
-    expect(fb(await call(`code=C&state=${STATE}`, tx()))).toBe('no_email')
-    expect(h.connect).not.toHaveBeenCalled()
+  it('a Facebook that sends no email still connects', async () => {
+    const profile = { ...PROFILE, email: null }
+    h.read.mockResolvedValue({ ok: true, profile })
+    expect(fb(await call(`code=C&state=${STATE}`, tx()))).toBe('connected')
+    expect(h.connect).toHaveBeenCalledWith('user-1', profile)
   })
 
   it('a database failure lands on the message, not a 500', async () => {

@@ -45,6 +45,17 @@ export function emailCta(label: string, url: string): string {
 }
 
 /**
+ * "Copy code", for every email that carries a code (owner, 2026-11-04: "copy button for ease of use everywhere"). ⛔ AN EMAIL CAN'T COPY ANYTHING, because mail
+ * clients strip scripts: this links to a page that does (copy-code-page.ts). The code rides in the URL's fragment, so eno's own server never receives it, and a
+ * scanner pre-fetching the link burns nothing: the page verifies nothing. ⚠️ Resend's click tracking, when on, rewrites the link and so does hold it; Resend sent
+ * the code anyway. If a rewrite ever loses the fragment, the page says to copy from the email.
+ */
+export function emailCopyCodeRow(code: string, origin: string, lang: 'en' | 'vi'): string {
+  const url = `${origin}/api/auth/copy-code${lang === 'vi' ? '?l=vi' : ''}#${code}`
+  return `<tr><td align="center" style="padding:10px 24px 8px;">${emailCta(lang === 'vi' ? 'Sao chép mã' : 'Copy code', url)}</td></tr>`
+}
+
+/**
  * The legal line at the foot of every email — PER EDITION, exactly as the site footer is.
  *
  * ⛔ IT USED TO BE A LITERAL "Công ty TNHH ENO · … · support@eno.vn / eno.vn — …" ON BOTH BUILDS,
@@ -127,7 +138,8 @@ export function renderBrandEmail(opts: {
   return `<!-- preheader --><div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${E.CANVAS};margin:0;padding:0;">
   <tr><td align="center" style="padding:24px 12px;font-family:${E.FONT};">
-    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:16px;border:1px solid ${E.BORDER};overflow:hidden;">
+    <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0"><tr><td><![endif]-->
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:16px;border:1px solid ${E.BORDER};overflow:hidden;">
       <!-- header: the real wordmark, linked home — or, for a partner's mail, the partner's name -->
       <tr><td style="padding:22px 24px 6px;">
         ${provider
@@ -147,6 +159,7 @@ export function renderBrandEmail(opts: {
         </p>
       </td></tr>
     </table>
+    <!--[if mso]></td></tr></table><![endif]-->
   </td></tr>
 </table>`.trim()
 }

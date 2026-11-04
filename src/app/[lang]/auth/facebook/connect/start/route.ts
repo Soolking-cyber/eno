@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { canonicalAuthOrigin } from '@/lib/auth/google-oauth'
-import { buildConnectUrl, confirmationValid, facebookConnectConfigured, FB_OK_COOKIE, FB_TX_TTL_SECONDS, fbTxCookieName, newConnectState, readCookie } from '@/lib/auth/facebook-connect'
+import { buildConnectUrl, facebookConnectConfigured, FB_TX_TTL_SECONDS, fbTxCookieName, newConnectState } from '@/lib/auth/facebook-connect'
 import { facebookSignInEnabled } from '@/lib/auth/facebook'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { authRedirect } from '@/lib/auth-finish'
@@ -11,23 +11,22 @@ export const dynamic = 'force-dynamic'
 // Begin Connect Facebook. Why this flow and not GoTrue's: src/lib/auth/facebook-connect.ts.
 export async function GET(request: Request) {
   const origin = canonicalAuthOrigin(request)
+  // Connect starts from our own Settings row, never from a link on another site: with no code any more, that link would be one tap from adding whichever
+  // Facebook this browser has open (commit gate, opus, 2026-11-04). A browser that sends no such header is let through; the rest of the flow still binds it.
+  if (request.headers.get('sec-fetch-site') === 'cross-site') return authRedirect(`${origin}/dashboard/settings?tab=privacy`)
   const settings = (fb: string) => authRedirect(`${origin}/dashboard/settings?tab=privacy&fb=${fb}`)
   // Facebook sign-in off means no new Facebook connections either: one could never be used.
   if (!facebookConnectConfigured() || !(await facebookSignInEnabled().catch(() => false))) return settings('failed')
 
   let userId: string | null = null
-  let sessionId: unknown = null
   try {
     const sb = await createSupabaseServer()
     const { data } = await sb.auth.getClaims()
     userId = typeof data?.claims?.sub === 'string' ? data.claims.sub : null
-    sessionId = data?.claims?.session_id
   } catch {
     return settings('failed')
   }
   if (!userId) return authRedirect(`${origin}/signin?next=${encodeURIComponent('/dashboard/settings?tab=privacy')}`)
-  // Only with this flow's own code confirmed for this very session: see FB_OK_COOKIE.
-  if (typeof sessionId !== 'string' || !confirmationValid(readCookie(request, FB_OK_COOKIE), userId, sessionId, Math.floor(Date.now() / 1000))) return settings('expired')
 
   const state = newConnectState()
   const authorize = buildConnectUrl(state, origin)

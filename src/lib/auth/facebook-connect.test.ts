@@ -13,7 +13,7 @@ const load = async () => {
 beforeEach(() => vi.unstubAllGlobals())
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals() })
 
-describe('the code for this one act', () => {
+describe('the code Disconnect takes', () => {
   const now = 2_000_000_000
   it('matches only the same code, user and session, until it expires', async () => {
     const { sealConnectCode, connectCodeMatches, FB_CODE_TTL_SECONDS } = await load()
@@ -82,10 +82,15 @@ describe('readFacebookProfile', () => {
     expect(meUrl).not.toContain('TOKEN')
     expect(String(f.mock.calls[0][0])).not.toContain('a'.repeat(32))
   })
-  it('no email: refused, because it could never sign in', async () => {
+  it('no email still connects: the eno account has its own', async () => {
     vi.stubGlobal('fetch', answers({ id: '123456', first_name: 'An' }))
-    const { readFacebookProfile } = await load()
-    expect(await readFacebookProfile('CODE', 'https://eno.vn')).toEqual({ ok: false, reason: 'no_email' })
+    const { readFacebookProfile, facebookIdentityData } = await load()
+    const r = await readFacebookProfile('CODE', 'https://eno.vn')
+    expect(r).toEqual({ ok: true, profile: { id: '123456', email: null, name: 'An', picture: null } })
+    // GoTrue's shape with no address at all: an empty one would be matched against other accounts' empties.
+    const d = facebookIdentityData((r as { ok: true; profile: Parameters<typeof facebookIdentityData>[0] }).profile)
+    expect(d).not.toHaveProperty('email')
+    expect(d).not.toHaveProperty('email_verified')
   })
   it('a refused code or a network failure never throws', async () => {
     vi.stubGlobal('fetch', answers({}, false))
