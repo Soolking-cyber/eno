@@ -12,6 +12,9 @@ import { GUIDE_CONTENT } from './content.generated'
  * changed since). Drafts are written with AI by eno Reach; a person approves them there, and Google's guidance on AI content asks for exactly that before publishing.
  *
  * Released by date: `published` can be in the future, so one deploy can carry several guides and release them a few at a time. A new domain publishing in bulk reads as scaled production.
+ *
+ * scripts/carry-guides.mjs brings approved guides over from Reach and owns the generated block below: run it right before a deploy that should take them. It dates each one the day it is carried,
+ * never ahead, because a date ahead would let a guide go live long after a person took it back.
  */
 export type GuideEntry = {
   slug: string
