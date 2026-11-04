@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 // Shared multiline field — same idioms as <Input> (filled tint default, outline
 // variant). See input.tsx.
 const VARIANTS = {
-  filled: 'bg-tint focus:ring-2 focus:ring-ring/30',
+  filled: 'bg-tint shadow-[inset_0_0_0_1px_var(--color-border)] focus:ring-2 focus:ring-ring/30',
   outline:
     'border border-line-strong bg-card focus:border-brand focus:ring-2 focus:ring-ring/30',
 } as const

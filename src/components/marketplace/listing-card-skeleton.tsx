@@ -20,7 +20,7 @@ export const SAVED_SKELETON_COUNT = 8
  *  Re-derived from the classes for the owner's Facebook-spaced grid (2026-10-18) — the card body is
  *  pt-2 (8) + price + gap-0.5 (2) + title + 2 + the info row's pt-1 (4) + its line:
  *      phone (<640)    8 + 20 + 2 + 19.25 + 2 + 4 + 16  = 71.25px   (under a 189px photo at 390)
- *      sm and up       8 + 22.5 + 2 + 19.25 + 2 + 4 + 15 = 72.75px  (under 192–298px photos)
+ *      sm and up       8 + 22.5 + 2 + 19.25 + 2 + 4 + 16 = 73.75px  (under 192–298px photos)
  *  The bar heights below are those line boxes, so keep them tied to the type they stand in for
  *  rather than rounding them to spacing steps. (The 2026-08-07 table that sat here — 117 / 94 / 75px —
  *  measured the old two-title-line card.)
@@ -58,9 +58,8 @@ export function ListingCardSkeleton({ className }: { className?: string }) {
         {/* TITLE — `truncate` text-sm/leading-snug: one 19.25px line. */}
         <Skeleton className="h-[19.25px] w-4/5" />
         {/* META — the unchanged info line under the real row's pt-1 (4px): text-xs on a phone (a 16px line —
-            this bar was 15px, a pixel short, since D-TYPE raised the phone row to 12px), text-2xs from sm
-            (14.85px, and the 15px trust chip sets the row). */}
-        <Skeleton className="mt-1 h-4 w-1/2 sm:h-[15px]" />
+            this bar was 15px, a pixel short, since D-TYPE raised the phone row to 12px), and text-xs from sm too since 2026-11-05. */}
+        <Skeleton className="mt-1 h-4 w-1/2" />
       </div>
     </div>
   )

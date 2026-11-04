@@ -406,7 +406,7 @@ function FooterBody() {
   ].filter((c) => c.links.length > 0)
 
   return (
-    <footer id="app-footer" className="mt-auto pt-8 pb-8 text-muted-foreground">
+    <footer id="app-footer" className="mt-auto pt-8 pb-8 text-muted-foreground max-sm:pb-4">
       <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
         {/* Blends into the page canvas (no bg-card). The divider is on the GRID, so it spans the
             CONTENT width inset by the gutter — a contained hairline, NOT the full-viewport edge. */}
@@ -694,7 +694,7 @@ function FooterBody() {
             entity is incorporated, the fix is to fill in `OPERATORS.services` and drop this gate —
             not to leave the forum with no operator notice indefinitely. */}
         {IS_MARKETPLACE && (
-        <div className="mt-12 space-y-1 border-t border-border/60 pt-6 text-2xs leading-relaxed text-body max-sm:mt-8">
+        <div className="mt-12 space-y-1 border-t border-border/60 pt-6 text-2xs leading-relaxed text-body max-sm:mt-5 max-sm:pt-4">
           <p className="font-semibold text-muted-foreground">{COMPANY.name}</p>
           <p>{tr('Head office', 'Trụ sở')}: {COMPANY.address}</p>
           {/* ⚠️ THE TWO NEW LINES HERE ARE MOCKS AWAITING REAL VALUES (owner, 2026-08-02: "place
@@ -766,7 +766,7 @@ function FooterBody() {
             each group was squeezed until its own text broke mid-phrase: "All rights / reserved.",
             "Made in Saigon / ❤️", "30 / sellers". Row one is identity + counters; the links get a
             row of their own, where they can wrap as a whole row instead of word by word. */}
-        <div className="mt-8 flex flex-col gap-4 border-t border-border/60 pt-6 text-xs text-body">
+        <div className="mt-8 flex flex-col gap-4 border-t border-border/60 pt-6 text-xs text-body max-sm:mt-4 max-sm:gap-2 max-sm:pt-4">
         <div className="flex flex-col items-center gap-3 lg:flex-row lg:flex-wrap lg:justify-between">
           {/* `whitespace-nowrap` on each clause, `flex-wrap` on the line: a clause may move to the next
               line as a unit, but never breaks inside itself. */}

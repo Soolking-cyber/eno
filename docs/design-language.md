@@ -44,7 +44,7 @@ was meta), 15→`base`.
 
 **D-TYPE — two size rules (owner, 2026-09-30: "do what's recommended", plan row O-39):**
 
-- **Card meta is 12px on phones.** `<ListingCard>`'s metadata row is `text-xs sm:text-2xs`:
+- **Card meta is 12px at every width since 2026-11-05, in `ink-4`** (UI climb: 11px `muted-foreground` read as tiny and faint on a desktop, three judges' rounds running). Until then the row was `text-xs sm:text-2xs`:
   12px below `sm`, 11px from `sm` up, where the row carries four facts instead of two. It is a
   single truncating line, so it never wraps — measured on the dev feed at 360/390, 0 wrapped rows
   in EN and VI, light and dark. Truncation does rise (home at 390: 4 → 21 of 28 rows;
@@ -298,7 +298,7 @@ until load → strips it from SSR → costs the LCP; reason in the file).
 | Static chip / badge / status pill | `<Badge>` — variants: `neutral` (tint), `brand`, `success`, `warning`, `destructive`, `outline`; sizes `sm` (2xs) / `md` (xs) |
 | Interactive chip | `<Chip>` (ui/chip) — an action chip, or a filter toggle when `pressed` is passed (Base UI Toggle, `aria-pressed`); sizes `xs` 28 / `sm` 32 / `md` 36, tones `ghost` / `neutral` / `warning`; `chipVariants()` on a `<Link>` |
 | Page title row | `<PageHeader>` (ui/page-header) — the h1 on the ramp + meta line + actions |
-| Text input | `<Input>` — filled tint idiom (`rounded-xl bg-tint px-4 py-3 text-sm`); `variant="outline"` for bordered forms |
+| Text input | `<Input>` — filled tint idiom with a hairline (`rounded-xl bg-tint shadow-[inset_0_0_0_1px_var(--color-border)] px-4 py-3 text-sm`: tint alone on the canvas is 1.02:1 and read as disabled; a shadow so the line takes no layout); `variant="outline"` for bordered forms |
 | Multiline | `<Textarea>` — same idioms as Input |
 | Checkbox | `<Checkbox>` |
 | On/off toggle | `<Switch>` (has haptics); `<SwitchRow>` (ui/switch) when its words must be in view — a VISIBLE label plus a description (a consent notice) that is read with it and is not a tap target |

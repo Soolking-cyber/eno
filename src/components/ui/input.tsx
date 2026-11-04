@@ -22,7 +22,8 @@ import { cn } from '@/lib/utils'
 const BOX = 'w-full rounded-xl px-4 py-3 text-sm'
 
 const VARIANTS = {
-  filled: `${BOX} bg-tint focus:ring-2 focus:ring-ring/30`,
+  // An inset shadow, not a border: the hairline takes no layout, so no field changes height. Not an inset ring either: that would drag the focus ring inside with it.
+  filled: `${BOX} bg-tint shadow-[inset_0_0_0_1px_var(--color-border)] focus:ring-2 focus:ring-ring/30`,
   outline: `${BOX} border border-line-strong bg-card focus:border-brand focus:ring-2 focus:ring-ring/30`,
   unstyled: 'bg-transparent',
 } as const

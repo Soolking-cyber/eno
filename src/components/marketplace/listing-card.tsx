@@ -1296,7 +1296,7 @@ function ListingCardImpl({
             (role=img so AT still announces it) to keep the row from wrapping on a narrow card. The
             "N contacted" demand count moved to the PDP — one fewer shrink-0 item keeps this line
             from overflowing on a 2-col mobile card, and reads cleaner. */}
-        <div className="mt-auto flex items-center gap-1.5 pt-1 text-xs text-muted-foreground sm:text-2xs">
+        <div className="mt-auto flex items-center gap-1.5 pt-1 text-xs text-ink-4">
           <span className="min-w-0 flex-1 truncate">
             {/* condition leads the line (owner, 2026-07-23) — the fastest signal a buyer scans
                 for. Stored values are the two facet buckets 'new'/'used'; anything else shows
