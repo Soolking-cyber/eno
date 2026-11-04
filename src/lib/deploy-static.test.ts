@@ -89,7 +89,7 @@ describe('eno-deploy.sh — static on disk before the swap, tags instead of purg
       const dir = mkdtempSync(join(tmpdir(), 'forum-public-'))
       writeFileSync(join(dir, 'conf'), conf)
       writeFileSync(join(dir, 'nginx'), `#!/bin/sh\ncat "${join(dir, 'conf')}"\nexit ${exit}\n`, { mode: 0o755 })
-      return spawnSync('bash', ['-c', `set -uo pipefail\n${fn}\nforum_public`], { env: { PATH: `${dir}:${process.env.PATH}` } }).status
+      return spawnSync('bash', ['-c', `set -uo pipefail\n${fn}\nforum_public`], { env: { PATH: `${dir}:${process.env.PATH}` } as unknown as NodeJS.ProcessEnv }).status
     }
     const toContainer = '  proxy_pass http://127.0.0.1:3002;\n'
     expect(answer(`server {\n  server_name eno.forum www.eno.forum;\n${toContainer}}\n`)).toBe(0)
