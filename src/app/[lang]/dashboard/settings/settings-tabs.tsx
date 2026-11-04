@@ -2,9 +2,10 @@
 
 import { useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 import { DashboardTabs, DashboardTabPanelSkeleton, type DashboardTab } from '@/components/marketplace/dashboard-tabs'
 import { useLanguage } from '@/context/language-context'
-import { useAuth } from '@/context/auth-context'
+import { OtherDevicesNotSignedOut, useAuth } from '@/context/auth-context'
 import { useDashboard } from '@/hooks/use-dashboard'
 import { Button } from '@/components/ui/button'
 import { LogOut } from '@/components/ui/icons'
@@ -53,10 +54,25 @@ function PreferencesTab() {
           gate is on in either app. */}
       <AiFeaturesSetting />
       {/* Quiet sign-out (canon §6): the least-used destructive action stays the quietest control. */}
-      <div className="border-t border-border pt-6">
+      <div className="space-y-2 border-t border-border pt-6">
         <Button variant="outline" size="sm" onClick={() => void signOut()} className="w-full justify-center">
           <LogOut className="h-4 w-4" />
           {tr('Sign out', 'Đăng xuất')}
+        </Button>
+        {/* ⛔ "Sign out" ends this browser only since 2026-11-04, so this is the one way left to end a session on a lost or borrowed
+            device, and the payout-change alert sends people here for exactly that ("sign out everywhere from Settings",
+            api/seller/payout). Remove it and that email tells someone under attack to press a button that is not there. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            signOut({ scope: 'global' }).catch((e) => toast.error(e instanceof OtherDevicesNotSignedOut
+              ? tr('You are signed out here, but your other devices could not be reached. Sign in and try again.', 'Bạn đã đăng xuất trên thiết bị này, nhưng chưa thể đăng xuất các thiết bị khác. Hãy đăng nhập rồi thử lại.')
+              : tr('Could not sign out. Check your connection and try again.', 'Không thể đăng xuất. Hãy kiểm tra kết nối rồi thử lại.')))
+          }}
+          className="w-full justify-center text-ink-4"
+        >
+          {tr('Sign out of all devices', 'Đăng xuất khỏi mọi thiết bị')}
         </Button>
       </div>
     </div>

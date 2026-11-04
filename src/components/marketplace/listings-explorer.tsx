@@ -26,6 +26,7 @@ import { ListingCard } from './listing-card'
 import { CompactListingRowSkeleton, COMPACT_LIST_GRID } from './compact-listing-row-skeleton'
 import { CaptureCard } from './capture-card'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
+import { useTapGlide } from '@/hooks/use-tap-glide'
 import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
 import { customFilterChipLabel } from './facet-chip-label'
@@ -1693,6 +1694,13 @@ export function ListingsExplorer({
   const handleCategorySelect = (slug: string) => {
     commitView() // a category tile is a step Back undoes (NAV-1)
     applyCategory(slug)
+  }
+  /** A tile in the ladder: the rows below glide to their new place instead of jumping (use-tap-glide.ts). Not the shelves' path: that one scrolls. */
+  const ladderRef = useRef<HTMLDivElement>(null)
+  const glideLadder = useTapGlide(ladderRef, '[data-cat], [data-shortcut], [data-intent]')
+  const handleTileSelect = (slug: string) => {
+    glideLadder()
+    handleCategorySelect(slug)
   }
   /** The category pick's filter resets, without the Back step — for a caller that already took one. */
   const applyCategory = (slug: string) => {
@@ -4643,7 +4651,7 @@ export function ListingsExplorer({
             LANDING tree, an entrance here would fire on every cold home load. */}
         {/* ⚠️ space-y-3, NOT 4 (home fold trim, 2026-09-30): 4px back between each rung — rail, recents,
             strip, results header — at every width. (home)/loading.tsx mirrored this rhythm until UX3 FAST-8. */}
-        <div className="space-y-3">
+        <div ref={ladderRef} className="space-y-3">
 
           {/* CATEGORY LADDER — ONE SLOT, TWO REPRESENTATIONS.
               Undirected: the FINN-style two-row tile grid (big tiles, eno's own two products
@@ -4682,7 +4690,7 @@ export function ListingsExplorer({
                 categories={categories}
                 activeCategory={activeCategory}
                 activeSubcategory={activeSubcategory}
-                onCategory={handleCategorySelect}
+                onCategory={handleTileSelect}
                 onSubcategory={setActiveSubcategory}
                 intents={sellerId ? undefined : INTENT_SHORTCUTS}
                 activeType={listingType}
@@ -4709,7 +4717,7 @@ export function ListingsExplorer({
                has no number yet. `isLoading` is only true on the very first fetch and would leave
                exactly the case the owner reported unfixed. */
             countsPending={queryFetching}
-            onCategory={handleCategorySelect}
+            onCategory={handleTileSelect}
             onSubcategory={setActiveSubcategory}
             /**
              * ⛔ NEITHER SHORTCUT GROUP BELONGS ON A SHOP'S STOREFRONT. Owner, 2026-08-30, with a

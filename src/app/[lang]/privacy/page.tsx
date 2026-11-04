@@ -519,8 +519,10 @@ const ON_DEVICE: Table = {
       // the "Join eno" reminder this visit has already shown — {k: 'consent' | 'install' | 'join', t: when the visit
       // was last in use, so 30 minutes away starts a new one}; owner 2026-10-18, one per visit; never sent anywhere;
       // gone with the tab) — "whether you … already saw it" below.
+      // · last-signin-method.ts LAST_KEY 'eno:signin-last' (localStorage: the method alone, never who; sign-out leaves it on purpose)
+      // — "which way you last signed in" below.
       { en: 'Small reminders', vi: 'Ghi nhớ nhỏ' },
-      { en: 'Whether you dismissed a prompt or already saw it, whether chat translation is on for a conversation, where to take you back to after signing in, and similar flags.', vi: 'Bạn đã đóng hay đã xem một lời nhắc chưa, dịch tin nhắn có đang bật cho từng cuộc trò chuyện không, trang cần đưa bạn quay lại sau khi đăng nhập, và các ghi nhớ tương tự.' },
+      { en: 'Whether you dismissed a prompt or already saw it, whether chat translation is on for a conversation, where to take you back to after signing in, which way you last signed in (Google, Apple, Facebook or email, not which account), and similar flags.', vi: 'Bạn đã đóng hay đã xem một lời nhắc chưa, dịch tin nhắn có đang bật cho từng cuộc trò chuyện không, trang cần đưa bạn quay lại sau khi đăng nhập, cách đăng nhập bạn dùng lần trước (Google, Apple, Facebook hoặc email, không phải tài khoản nào), và các ghi nhớ tương tự.' },
       { en: 'When you clear this site’s data in your browser.', vi: 'Khi bạn xóa dữ liệu của website trong trình duyệt.' },
     ],
   ],

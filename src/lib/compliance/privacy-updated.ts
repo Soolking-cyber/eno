@@ -195,4 +195,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-04'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = 'da29844623538284'
+export const PRIVACY_TEXT_FINGERPRINT = '0a68c385698ea6af'

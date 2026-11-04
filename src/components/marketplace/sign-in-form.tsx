@@ -6,6 +6,7 @@ import { Mail, Phone, Loader2, ExternalLink, Eye, EyeOff } from '@/components/ui
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -14,6 +15,7 @@ import { escapeInAppBrowser, googleOauthBlocked, inAppHost, isIOS, isNativeTabs,
 import { CARRY_PARAM, teacherCarry } from '@/lib/auth/in-app-carry'
 import { PHONE_OTP_ENABLED } from '@/lib/auth-policy'
 import { noteGateMethod } from '@/lib/signin-gates'
+import { lastSignInMethod } from '@/lib/last-signin-method'
 import { armIntent, withResume, type PendingIntent } from '@/lib/pending-intent'
 import type { SignInGate, SignInMethod } from '@/lib/signup-prompt'
 import { HANDOFF_NEXT_KEY, handoffNonce } from '@/lib/auth/handoff-client'
@@ -445,6 +447,14 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   }
   const reportEmail = () => { reportGateMethod('email'); if (emailReported.current) return; emailReported.current = true; onMethod?.('email') }
   const openEmail = () => { setEmailOpened(true); reportEmail() }
+  // "Last used" (src/lib/last-signin-method.ts). After mount, as the page's HTML cannot know this device; the tag is absolute, so nothing
+  // moves when it appears. Not in the apps: Apple reviews the look of its button there, and an app stays signed in anyway.
+  const [lastMethod, setLastMethod] = useState<SignInMethod | null>(null)
+  useEffect(() => { if (!isNativeApp()) setLastMethod(lastSignInMethod()) }, [])
+  const lastUsedTag = (m: SignInMethod) => lastMethod === m && <LastUsedTag label={t('Last used', 'Dùng lần trước')} />
+  // ⚠️ ONLY ON THE BUTTON THAT WEARS THE TAG: ui/button is `relative` only while loading, and without a tag the markup stays as it was
+  // (sign-in-app-gates.test.tsx holds Google's classes byte for byte).
+  const tagAnchor = (m: SignInMethod) => lastMethod === m && 'relative'
   useEffect(() => {
     setOauthBlocked(googleOauthBlocked() && !isNativeApp())
     setInAppGoogle(googleOauthBlocked() && !isNativeApp() && inAppHost() !== null)
@@ -1471,9 +1481,10 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
                 screen reader, as it did. `ios-nosiwa-hidden` (was `ios-app-hidden`): hidden in the iOS app
                 before hydration unless the head script marked it `native-siwa` — Google only beside Apple. */}
             {!hideGoogle && (
-              <Button variant="bare" size="none" disabled={loading} loading={googleBusy} onClick={pressGoogle} className={cn(restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY, gateGoogle && 'ios-nosiwa-hidden')}>
+              <Button variant="bare" size="none" disabled={loading} loading={googleBusy} onClick={pressGoogle} className={cn(restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY, gateGoogle && 'ios-nosiwa-hidden', tagAnchor('google'))}>
                 <GoogleIcon />
                 {googleBusy ? t('Signing you in…', 'Đang đăng nhập…') : t('Continue with Google', 'Tiếp tục với Google')}
+                {lastUsedTag('google')}
               </Button>
             )}
             {/* ⛔ APPLE'S OWN LOOK, PER THE HIG (D6) — App Review evaluates a custom Sign in with Apple button:
@@ -1487,9 +1498,10 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
                 `apple-native-only` while `web` is not in the flag: the server's node is then for that iOS
                 binary alone, until the mount effect finds a `web-test` tester here. */}
             {showApple && (
-              <Button variant="bare" size="none" disabled={loading} loading={appleBusy} onClick={pressApple} className={cn(APPLE_BUTTON, 'ios-nosiwa-hidden', appleWebAll && 'apple-web', !appleWebAll && !appleWebHere && 'apple-native-only')}>
+              <Button variant="bare" size="none" disabled={loading} loading={appleBusy} onClick={pressApple} className={cn(APPLE_BUTTON, 'ios-nosiwa-hidden', appleWebAll && 'apple-web', !appleWebAll && !appleWebHere && 'apple-native-only', tagAnchor('apple'))}>
                 <AppleIcon />
                 <span className={PROVIDER_TITLE}>{t('Continue with Apple', 'Tiếp tục với Apple')}</span>
+                {lastUsedTag('apple')}
               </Button>
             )}
           </ProviderPair>
@@ -1497,9 +1509,10 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
               leading, until it is seen to finish in Facebook's own browser). Google's shape and type, so no provider
               outweighs another (D6); Facebook's own blue "f" on it. Never in the eno apps, so no first-frame hook. */}
           {showFacebook && (
-            <Button variant="bare" size="none" disabled={loading} loading={facebookBusy} onClick={pressFacebook} className={restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY} data-provider="facebook">
+            <Button variant="bare" size="none" disabled={loading} loading={facebookBusy} onClick={pressFacebook} className={cn(restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY, tagAnchor('facebook'))} data-provider="facebook">
               <FacebookIcon />
               {t('Continue with Facebook', 'Tiếp tục với Facebook')}
+              {lastUsedTag('facebook')}
             </Button>
           )}
 
@@ -1519,8 +1532,9 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
           `outline`, a real 44px target, and quieter than Google's — Google is the ask, email the
           alternative. Opening it renders the tabs below in this same form and moves focus into them. */}
       {emailCollapsed ? (
-        <Button variant="outline" size="none" onClick={openEmail} className="flex min-h-11 w-full items-center justify-center rounded-xl px-4 text-sm font-semibold text-foreground cursor-pointer">
+        <Button variant="outline" size="none" onClick={openEmail} className={cn('flex min-h-11 w-full items-center justify-center rounded-xl px-4 text-sm font-semibold text-foreground cursor-pointer', tagAnchor('email'))}>
           {t('Use email instead', 'Dùng email')}
+          {lastUsedTag('email')}
         </Button>
       ) : (
       <>
@@ -1604,8 +1618,9 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
                   A flat gray field is unmistakably inert; disabled:opacity-100 cancels the base. */}
               {/* ⚠️ ENABLED ON A COMPLETE ADDRESS, NOT ON AN "@" (auth-06): "an@gmail" was sendable and simply
                   never arrived. emailLooksComplete wants a '.' after the '@' — the Enter guard above is the same test. */}
-              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendEmail} disabled={loading || !emailLooksComplete(email)} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
+              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendEmail} disabled={loading || !emailLooksComplete(email)} className={cn('flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer', tagAnchor('email'))}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {emailCode ? t('Send code', 'Gửi mã') : t('Send magic link', 'Gửi liên kết đăng nhập')}
+                {lastUsedTag('email')}
               </Button>
               {/* DELIVERY TOGGLE — link vs code, chosen by the visitor.
                   ⛔ ONLY THE CLIENT MAY DECIDE THIS, and that is why the switch lives here rather
@@ -1864,9 +1879,10 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
             <span className="h-px flex-1 bg-border" />
           </div>
           {showFacebook && (
-            <Button variant="bare" size="none" disabled={loading} loading={facebookBusy} onClick={pressFacebook} className={restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY} data-provider="facebook">
+            <Button variant="bare" size="none" disabled={loading} loading={facebookBusy} onClick={pressFacebook} className={cn(restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY, tagAnchor('facebook'))} data-provider="facebook">
               <FacebookIcon />
               {t('Continue with Facebook', 'Tiếp tục với Facebook')}
+              {lastUsedTag('facebook')}
             </Button>
           )}
           {!hideGoogle && (
@@ -1878,11 +1894,12 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
                 loading={googleBusy}
                 onClick={pressGoogle}
                 aria-describedby={googleNoteId}
-                className={restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY}
+                className={cn(restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY, tagAnchor('google'))}
                 data-provider="google"
               >
                 <GoogleIcon />
                 {t('Continue with Google', 'Tiếp tục với Google')}
+                {lastUsedTag('google')}
               </Button>
               {googleInBrowser ? (
                 // "Try again" runs the whole hand-over again — a NEW token and the answers sent again (commit gate, opus: the same
@@ -2085,6 +2102,11 @@ const PROVIDER_TITLE = 'text-[19px] font-bold leading-tight' // design-lint-allo
  * email form then jumps out of. Hidden by the same rule, the pair takes no space either. After mount it is never
  * empty: the whole block renders only while a provider does (`providersShown`).
  */
+/** On the button's top edge. Inside it, so a screen reader hears it with the button's name. Its button carries `tagAnchor`. */
+function LastUsedTag({ label }: { label: string }) {
+  return <Badge variant="brand" className="pointer-events-none absolute -top-2 right-3 z-10">{label}</Badge>
+}
+
 function ProviderPair({ pair, firstFrameHook, children }: { pair: boolean; firstFrameHook: boolean; children: ReactNode }) {
   if (!pair) return <>{children}</>
   return <div className={cn('grid auto-rows-fr gap-3', firstFrameHook && 'ios-nosiwa-hidden')}>{children}</div>

@@ -24,7 +24,7 @@
 import React from 'react'
 import { cleanup, render, screen, act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AuthProvider, shouldBootAuth, useAuth, type AuthBootProbe } from './auth-context'
+import { AuthProvider, shouldBootAuth, useAuth, type AuthBootProbe, OtherDevicesNotSignedOut } from './auth-context'
 import { BEFORE_SIGN_OUT_EVENT, SIGN_OUT_FLUSH_WAIT_MS, type BeforeSignOutDetail } from '@/lib/api/acting-account'
 import { __resetClientSignalForTests, noteClientCreated } from '@/lib/supabase/client-signal'
 
@@ -313,6 +313,50 @@ describe('AuthProvider — signOut leaves nothing of the seller behind on a shar
     const { signOut } = useAuth()
     return <button type="button" onClick={() => { void signOut() }}>sign out</button>
   }
+
+  describe('"Sign out" ends this browser only: a phone stays signed in when a laptop signs out', () => {
+    function ScopeProbe({ opts }: { opts?: unknown }) {
+      const { signOut } = useAuth()
+      return <button type="button" onClick={() => { void (signOut as (o?: unknown) => Promise<void>)(opts) }}>sign out</button>
+    }
+    it.each([
+      ['no option at all', undefined, 'local'],
+      ['a click event handed straight to it by an onClick', { type: 'click', target: {} }, 'local'],
+      ['an explicit local', { scope: 'local' }, 'local'],
+      ['an explicit global, the only way to end every device', { scope: 'global' }, 'global'],
+    ])('%s', async (_, opts, scope) => {
+      const signOut = vi.fn(() => Promise.resolve({ error: null }))
+      createSupabaseBrowser.mockImplementation(() => ({ auth: { ...fakeClient().auth, signOut } }))
+      render(<AuthProvider><ScopeProbe opts={opts} /></AuthProvider>)
+      await act(async () => { screen.getByRole('button').click() })
+      await act(async () => { await vi.dynamicImportSettled() })
+      expect(signOut).toHaveBeenCalledWith({ scope })
+    })
+
+    function Failing({ opts, onError }: { opts?: { scope: 'global' | 'local' }; onError: (e: unknown) => void }) {
+      const { signOut } = useAuth()
+      return <button type="button" onClick={() => { signOut(opts).catch(onError) }}>sign out</button>
+    }
+    const failing = async (opts?: { scope: 'global' | 'local' }) => {
+      const onError = vi.fn()
+      createSupabaseBrowser.mockImplementation(() => ({ auth: { ...fakeClient().auth, signOut: () => Promise.resolve({ error: new Error('network') }) } }))
+      localStorage.setItem('eno-listing-draft', '{"title":"kept"}')
+      render(<AuthProvider><Failing opts={opts} onError={onError} /></AuthProvider>)
+      await act(async () => { screen.getByRole('button').click() })
+      await act(async () => { await vi.dynamicImportSettled() })
+      return onError
+    }
+    it('"all devices" that failed says so, and this device is still cleaned: the library has signed it out either way', async () => {
+      const onError = await failing({ scope: 'global' })
+      expect(onError.mock.calls[0][0]).toBeInstanceOf(OtherDevicesNotSignedOut)
+      expect(localStorage.getItem('eno-listing-draft')).toBeNull()
+    })
+    it('a plain sign-out that failed carries on as it always has', async () => {
+      const onError = await failing()
+      expect(onError).not.toHaveBeenCalled()
+      expect(localStorage.getItem('eno-listing-draft')).toBeNull()
+    })
+  })
 
   it('drops the unpublished /post draft: the text in localStorage AND the photos in IndexedDB', async () => {
     createSupabaseBrowser.mockImplementation(() => ({

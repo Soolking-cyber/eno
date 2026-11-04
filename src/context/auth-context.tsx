@@ -11,6 +11,7 @@ import { createSignOutFlush } from '@/lib/api/acting-account'
 // The replayable "a Supabase client exists" signal — NEVER `@/lib/supabase/browser` statically (that is the 66 KB chunk).
 import { onClientCreated } from '@/lib/supabase/client-signal'
 import { classifyGate, noteGateOpen, pressedInChrome, settleGateSignIn, type PressInfo } from '@/lib/signin-gates'
+import { rememberLastSignIn } from '@/lib/last-signin-method'
 import { armIntent, dropIntent, markIntentRouted, pathnameOf, readIntent, type PendingIntent } from '@/lib/pending-intent'
 import type { SignInGate, SignInMethod } from '@/lib/signup-prompt'
 import { warmFacebookSignIn } from '@/lib/facebook-flag'
@@ -178,10 +179,14 @@ type AuthCtx = {
    */
   identityLoaded: boolean
   /**
-   * Sign out and clear this device's per-account data. `scope` is supabase-js's: the default 'global'
-   * revokes the session on EVERY device (the account menu's "Sign out"); 'local' ends only this browser's
-   * session — for a path that signs out because THIS browser's session was refused (a 401), where a false
-   * 401 must not log the person out everywhere. The device cleanup is the same either way.
+   * Sign out and clear this device's per-account data. `scope` is supabase-js's: the default 'local' ends only
+   * this browser's session; 'global' revokes the session on EVERY device.
+   * ⛔ LOCAL BY DEFAULT (owner, 2026-11-04: signed in on a phone, it should stay signed in). It was global, so
+   * "Sign out" on a laptop logged the phone out too; the auth log's 18 session_not_found and 14 refresh_token_not_found
+   * in 7 days are the kind of thing that produces. Ending every session is now its own quiet control in Settings, which
+   * the payout-change alert sends people to ("sign out everywhere from Settings", api/seller/payout); deleting an account
+   * also ends them all (delete-account.tsx). The device cleanup is the same either way. Rejects only when 'global' could
+   * not reach the other devices, after this one is signed out.
    */
   signOut: (opts?: { scope?: 'global' | 'local' }) => Promise<void>
   openSignIn: (ctx?: SignInContext) => void
@@ -318,6 +323,9 @@ function probeAuthBoot(): AuthBootProbe {
 }
 
 const AuthContext = createContext<AuthCtx | undefined>(undefined)
+
+/** "All devices" signed this browser out but could not reach the others. Any other rejection of signOut() signed out nothing. */
+export class OtherDevicesNotSignedOut extends Error {}
 
 /** One per tab: the shared wait signOut() takes for the writes it flushes (createSignOutFlush). */
 const flushBeforeSignOut = createSignOutFlush()
@@ -514,7 +522,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // `resume=` in the address to carry it (src/lib/pending-intent.ts).
             const ctx = signInCtxRef.current
             if (signInOpenRef.current && ctx?.resume) armIntent(ctx.resume.nonce)
-            setSignInOpen(false); maybeTrackSignUp(session.user)
+            setSignInOpen(false); maybeTrackSignUp(session.user); rememberLastSignIn(session)
           }
           // Native-shell Phase 2 · M2: mirror the session into native Preferences so
           // LOCAL shell pages (different origin — no cookie access) can restore it via
@@ -821,10 +829,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch { /* push not supported / no reg — nothing to tear down */ }
 
     const { createSupabaseBrowser } = await import('@/lib/supabase/browser')
-    // `opts?.scope` only when it is a real scope: a caller that hands `signOut` straight to an onClick passes a
-    // click event here, which must mean the default (global), exactly as before this option existed.
-    const scope = opts?.scope === 'local' || opts?.scope === 'global' ? opts.scope : undefined
-    await createSupabaseBrowser().auth.signOut(scope ? { scope } : undefined)
+    // `=== 'global'` only: a caller that hands `signOut` straight to an onClick passes a click event here, which must
+    // mean the default. supabase-js's OWN default is global, so this always says which.
+    const { error } = await createSupabaseBrowser().auth.signOut({ scope: opts?.scope === 'global' ? 'global' : 'local' })
     setUser(null)
     setIdentity(null)
     // Clear the per-account device data (inbox + thread caches, saved, dashboard, notifications, the
@@ -841,6 +848,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // The basket's in-memory copy is the tab's source of truth (rental-check/store.ts), so removing
     // its keys alone would leave the pill and the cards showing the old basket until a reload.
     void import('@/lib/rental-check/store').then((m) => { m.clearBasket(); m.clearDraft() }).catch(() => {})
+    // ⛔ "ALL DEVICES" MUST NOT LOOK DONE WHEN IT WAS NOT, AND THIS IS LAST ON PURPOSE. When the server refuses, supabase-js (auth-js 2.111
+    // `_signOut`) STILL removes this browser's session and returns `{ error }`, measured in a real browser: so this device is signed
+    // out and must be cleaned like any other, and what failed is the OTHER devices, which only the caller can tell the person.
+    if (error && opts?.scope === 'global') throw new OtherDevicesNotSignedOut()
   }, [])
 
   /**
