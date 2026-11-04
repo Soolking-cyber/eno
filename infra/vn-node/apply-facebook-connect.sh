@@ -52,6 +52,9 @@ case "$R_VN" in supabase_auth_admin|anon|authenticated|service_role|'') echo "  
 [ "$(psqlq "select count(*) from pg_roles where rolname = '$R_VN'")" = 1 ] || { echo "  ⛔ role '$R_VN' does not exist here. Stop."; exit 3; }
 # It calls the functions and reads which identities an account has. Nothing here grants that: it must already hold.
 [ "$(psqlq "select has_schema_privilege('$R_VN', 'auth', 'USAGE') and has_table_privilege('$R_VN', 'auth.identities', 'SELECT') and has_table_privilege('$R_VN', 'auth.users', 'SELECT')")" = t ] || { echo "  ⛔ role '$R_VN' can't read auth.identities and auth.users. Stop."; exit 3; }
+# A privilege alone can read back nothing under row-level security, which would hide Disconnect from someone connected.
+RLS_OK=$(psqlq "select (select rolsuper or rolbypassrls from pg_roles where rolname = '$R_VN') or not exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'auth' and c.relname in ('users', 'identities') and c.relrowsecurity)")
+[ "$RLS_OK" = t ] || { echo "  ⛔ row-level security would hide accounts from role '$R_VN'. Stop."; exit 3; }
 echo "  the app connects as '$R_VN', which can read auth.identities and auth.users ✅"
 if [ "${FB_DRY:-0}" = "1" ]; then echo "=== DRY RUN: every check passed, nothing written ==="; exit 0; fi
 

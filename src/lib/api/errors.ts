@@ -580,6 +580,12 @@ export type NicheApiErrorCode =
    * (a confirm that revives) and the bulk/sync row results.
    */
   | 'released_charge_listing_cap'
+  // Connect Facebook (src/lib/auth/facebook-connect.ts): a wrong or expired code; Disconnect without one; an account with no address
+  // to mail one to; Disconnect on an account made with Facebook, whose mailbox nobody proved.
+  | 'bad_code'
+  | 'confirm_required'
+  | 'no_email'
+  | 'only_way_in'
   | 'send_failed'
   | 'send_in_flight'
   | 'sign_failed'
@@ -995,6 +1001,10 @@ const ALL = [
   'account_held',
   'account_suspended',
   'released_charge_listing_cap',
+  'bad_code',
+  'confirm_required',
+  'no_email',
+  'only_way_in',
   'send_failed',
   'send_in_flight',
   'shop_unavailable',

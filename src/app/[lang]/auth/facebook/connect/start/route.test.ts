@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const h = vi.hoisted(() => ({ claims: null as Record<string, unknown> | null, configured: true }))
+const h = vi.hoisted(() => ({ claims: null as Record<string, unknown> | null, configured: true, signInOn: true }))
 
 vi.mock('server-only', () => ({}))
+vi.mock('@/lib/auth/facebook', () => ({ facebookSignInEnabled: async () => h.signInOn }))
 vi.mock('@/lib/supabase/server', () => ({ createSupabaseServer: async () => ({ auth: { getClaims: async () => ({ data: h.claims ? { claims: h.claims } : null }) } }) }))
 vi.mock('@/lib/auth/facebook-connect', () => ({
   buildConnectUrl: (s: string) => `https://www.facebook.com/dialog/oauth?state=${s}`,
@@ -18,7 +19,7 @@ vi.mock('@/lib/auth/facebook-connect', () => ({
 const { GET } = await import('./route')
 const call = (cookie: string | null = 'eno_fbc_ok=OK') => GET(new Request('https://eno.vn/auth/facebook/connect/start', { headers: { host: 'eno.vn', ...(cookie ? { cookie } : {}) } }))
 
-beforeEach(() => { h.configured = true; h.claims = { sub: 'user-1', session_id: 'sess-1' } })
+beforeEach(() => { h.signInOn = true; h.configured = true; h.claims = { sub: 'user-1', session_id: 'sess-1' } })
 
 describe('Connect Facebook start', () => {
   it('leaves for Facebook with an httpOnly cookie binding this user to the state', async () => {
@@ -47,6 +48,10 @@ describe('Connect Facebook start', () => {
   })
   it('off: no Facebook', async () => {
     h.configured = false
+    expect((await call()).headers.get('location')).toContain('fb=failed')
+  })
+  it('Facebook sign-in off: no new connection, which could never sign in', async () => {
+    h.signInOn = false
     expect((await call()).headers.get('location')).toContain('fb=failed')
   })
 })

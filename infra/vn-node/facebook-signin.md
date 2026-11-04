@@ -96,6 +96,8 @@ An account made another way adds Facebook as a second way in. Why it is not GoTr
 3. Deploy. The row, /privacy and the help text go live together.
 4. **Test on a real account (nothing else exercises GoTrue with a row made this way):** an email-code account connects a Facebook with a DIFFERENT email, signs out, and "Continue with Facebook" lands in the same account; the email code still works; the mailbox got the notice. `auth.identities.email` for that row is NULL. Disconnect takes a code too: other devices stop refreshing (signed out within the hour their access token lasts), and Facebook then starts a new account or refuses, as for anyone. A Facebook account that sends no email ends on the no-email message (the owner's own account does). An account made with Facebook shows Connected and no Disconnect.
 
+**Undo Connect:** remove `FACEBOOK_APP_ID` and `FACEBOOK_APP_SECRET` from eno.vn's env (the script leaves `eno-vn.env.bak-fbconnect-<stamp>` beside it) and redeploy: the Connect button goes, and Disconnect goes with the secret. Rows already connected keep signing in; to remove them, run `SELECT auth.eno_disconnect_facebook(user_id, NULL) FROM auth.eno_facebook_connected` as supabase_admin BEFORE dropping anything. Then `DROP FUNCTION auth.eno_connect_facebook(uuid, text, jsonb); DROP FUNCTION auth.eno_disconnect_facebook(uuid, uuid); DROP TABLE auth.eno_facebook_connected;`. The guards can stay: they only act on Facebook rows. The strip is one way: an address it removed from a row returns at that person's next Facebook sign-in only if it matches their account.
+
 ⛔ Re-running `apply-facebook-signin.sh` keeps the same guard: both scripts hold it byte for byte (`src/lib/apply-facebook-connect.test.ts`).
 
 ## Undo

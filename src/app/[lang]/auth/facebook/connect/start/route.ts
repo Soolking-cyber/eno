@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { canonicalAuthOrigin } from '@/lib/auth/google-oauth'
 import { buildConnectUrl, confirmationValid, facebookConnectConfigured, FB_OK_COOKIE, FB_TX_TTL_SECONDS, fbTxCookieName, newConnectState, readCookie } from '@/lib/auth/facebook-connect'
+import { facebookSignInEnabled } from '@/lib/auth/facebook'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { authRedirect } from '@/lib/auth-finish'
 
@@ -11,7 +12,8 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: Request) {
   const origin = canonicalAuthOrigin(request)
   const settings = (fb: string) => authRedirect(`${origin}/dashboard/settings?tab=privacy&fb=${fb}`)
-  if (!facebookConnectConfigured()) return settings('failed')
+  // Facebook sign-in off means no new Facebook connections either: one could never be used.
+  if (!facebookConnectConfigured() || !(await facebookSignInEnabled().catch(() => false))) return settings('failed')
 
   let userId: string | null = null
   let sessionId: unknown = null
