@@ -155,17 +155,17 @@ describe('scripts/vehicle-rentals-weekly.sh — what the review pinned', () => {
     const base = join(dir, 'latest'), next = join(dir, 'run', 'next-baseline')
     mkdirSync(base, { recursive: true }); mkdirSync(next, { recursive: true })
     for (const f of ['mioto.json', 'bonbon.json', 'bikes.json']) { writeFileSync(join(base, f), 'old'); writeFileSync(join(next, f), 'new') }
-    writeFileSync(join(dir, 'run', 'import.log'), 'STATUS STEP REFUSED for: mioto: would expire 400 of 761 live rows | tuanmotorbike: would create 30 rows against 9 live\n')
+    writeFileSync(join(dir, 'run', 'import.log'), 'STATUS STEP REFUSED for: mioto: would expire 400 of 761 live rows | bonboncar: would create 300 rows against 90 live\n')
     const r = spawnSync('bash', ['-c', `set -uo pipefail
 RUN=${JSON.stringify(join(dir, 'run'))}; BASE=${JSON.stringify(base)}; APPLY=--apply; PARTIAL=1
-SHOPS="janmotorbike theextramile dungmotorbikes tuanmotorbike rentabikevn"
 . ${JSON.stringify(LIB)}
 die() { echo "DIE: $1"; exit 1; }
 if true; then
 ${block}
 fi`], { encoding: 'utf8' })
-    expect(r.stdout).toContain("baseline bikes.json kept as it was (tuanmotorbike's creations were held this run)")
-    expect(['mioto.json', 'bonbon.json', 'bikes.json'].map((f) => readFileSync(join(base, f), 'utf8'))).toEqual(['new', 'new', 'old'])
+    expect(r.stdout).toContain("baseline bonbon.json kept as it was (bonboncar's creations were held this run)")
+    // bikes.json is the retired shops' last baseline (2026-11-04): nothing writes it any more, whatever the helper left.
+    expect(['mioto.json', 'bonbon.json', 'bikes.json'].map((f) => readFileSync(join(base, f), 'utf8'))).toEqual(['new', 'old', 'old'])
   })
 
   it('⛔ the success stamp is the run\'s START, taken once the lock is held', () => {
@@ -181,9 +181,13 @@ fi`], { encoding: 'utf8' })
   it('a failed scrape group is left out of the gone helper and of both stages — never `die`', () => {
     expect(text).toMatch(/\) \|\| \{ FAILED="\$FAILED mioto";/)
     expect(text).toMatch(/\) \|\| \{ FAILED="\$FAILED bonboncar";/)
-    expect(text).toMatch(/\) \|\| \{ FAILED="\$FAILED bikes";/)
     expect(text).toContain('has_failed mioto || SRC+=(--mioto "$MIOTO" --trips "$TRIPS_USE")')
-    expect(text).toContain('has_failed bikes || GONE_SRC+=(--bikes "$BIKES")')
+    expect(text).toContain('has_failed bonboncar || GONE_SRC+=(--bonbon "$BONBON")')
+  })
+
+  it('⛔ the retired bike shops are never scraped or passed on (owner, 2026-11-04): --bikes would create every bike it has not seen', () => {
+    const code = text.split('\n').filter((l) => !l.trimStart().startsWith('#')).join('\n')
+    expect(code).not.toMatch(/--bikes|\$BIKES|\$SHOPS|scrapers\.|has_failed bikes/)
   })
 
   it('the dry run judges with a preview copy of the trips history, filed with this scrape', () => {

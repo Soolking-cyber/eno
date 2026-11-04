@@ -10,15 +10,15 @@
 #                stamp $JROOT/.last-success = that run's start, written only at the very end of a fully successful
 #                --apply run): a failed or refused run retries the next morning, and a trigger missed in sleep fires on
 #                wake. Then ONE RUN AT A TIME (atomic mkdir lock in $HOME, a dead holder's lock cleared) under caffeinate.
-#   1. scrape    Mioto (HCMC query points), BonbonCar (HCMC), the five HCMC bike shops — EACH GROUP ON ITS OWN: a group
+#   1. scrape    Mioto (HCMC query points), BonbonCar (HCMC) — EACH GROUP ON ITS OWN: a group
 #                whose scrape fails is left out of this run (its rows untouched, alert), the others go on
 #   2. trips     snapshot this scrape's Mioto trip counts (seeding from the older snapshots on disk) —
 #                scripts/vehicle-trips-history.ts; the 14-day trip test reads them (a dry run: a preview copy)
 #   3. gone      positive gone signals only, 80% count guard (scripts/vehicle-rentals-gone.py) → 'hidden'
-#   4. photos    host the photos of what will be written: reliable cars and listed bikes only
-#   5. import    create / update reliable cars + listed bikes, hide the gone ones, then the STATUS STEP — expire
-#                cars that fail the reliability rule or vanished from complete scrapes and bikes missing from
-#                their shop's last 3 checks; revive expired ones that are fresh again (journal + per-page
+#   4. photos    host the photos of what will be written: reliable cars only
+#   5. import    create / update reliable cars, hide the gone ones, then the STATUS STEP — expire
+#                cars that fail the reliability rule or vanished from complete scrapes; revive expired ones that
+#                are fresh again (journal + per-page
 #                tombstones + per-source count / shrink / growth guards; src/lib/vehicle-status-plan.ts). The
 #                database itself is probed right before (SELECT 1 — a port that answers is not a tunnel that
 #                works), the supervised tunnel (scripts/db-tunnel.sh) restarted if it does not answer, and the stage
@@ -30,6 +30,11 @@
 #
 # DRY BY DEFAULT: scrapes and computes everything, prints what every write WOULD do, writes nothing to the database,
 # storage, the trips/presence history or the stamp. `--apply` (what the LaunchAgent passes) writes.
+#
+# ⛔ NO BIKE SHOPS SINCE 2026-11-04 (owner: "remove all motorbike rentals and add properly the from this partner … remove all
+# fetched motorbike rental listings"). The five shops' rows are retired (scripts/retire-broker-rentals.ts --motorbike-imports)
+# and motorbikes are Blvck Motorbike's own storefront now (scripts/import-blvck.ts), which an admin manages by hand. Passing
+# --bikes to the importer again would CREATE every bike it has not seen: this job must not, and nothing else schedules it.
 #
 # Run by ~/Library/LaunchAgents/vn.eno.vehicle-rentals-weekly.plist (scripts/vn.eno.vehicle-rentals-weekly.plist),
 # daily at 04:30. Log: ~/eno-import-journals/vehicles/weekly.log; per run: …/vehicles/<stamp>/ (+ journal/).
@@ -44,7 +49,7 @@
 #   VEH_FORCE_RUN=1   an --apply hand run that ignores the 66 h gate (the lock still applies)
 #   VEH_ACCEPT=a,b    pass `--accept a,b` to the import: for one run, ALL of those sources' guards are overridden (count,
 #                     shrink, growth — creations included); check the dry run first
-#   MIOTO_DIR / BONBON_DIR / BIKES_DIR   dataset roots (defaults ~/mioto_rentals_vn …)
+#   MIOTO_DIR / BONBON_DIR   dataset roots (defaults ~/mioto_rentals_vn …)
 #
 # ⚠️ `set -e` is NOT relied on (it is a no-op in this setup): every step that matters ends in a test.
 # ⚠️ bash 3.2 (macOS /bin/bash): arrays expand as ${A[@]+"${A[@]}"} under `set -u`; zsh would not word-split.
@@ -54,7 +59,6 @@ ENO="${ENO_REPO:-$HOME/eno-vehicles-job}"
 ENVF="${VEH_ENV_FILE:-$HOME/eno.vn/.env}"
 MIOTO="${MIOTO_DIR:-$HOME/mioto_rentals_vn}"
 BONBON="${BONBON_DIR:-$HOME/bonboncar_rentals_vn}"
-BIKES="${BIKES_DIR:-$HOME/motorbike_rentals_vn}"
 JROOT="${VEH_JOURNAL:-$HOME/eno-import-journals/vehicles}"
 STAMP="$(date +%F-%H%M%S)"   # unique per run: a dry run and an --apply on one day must not collide
 RUN="$JROOT/$STAMP"
@@ -67,7 +71,6 @@ REFUSED="$JROOT/.last-refused"  # the last run's problems (refused sources, fail
 # (~/mioto_rentals_vn/state, ~/bonboncar_rentals_vn/raw/detail), which VEH_JOURNAL does not move — a test run with a
 # scratch journal took its own lock and could move the scheduled run's Mioto checkpoints aside mid-scrape.
 LOCKDIR="$HOME/.eno-vehicle-refresh.lock"
-SHOPS="janmotorbike theextramile dungmotorbikes tuanmotorbike rentabikevn"
 PY=/usr/bin/python3             # the python.org 3.13 here lacks CA certs; the system one works
 # Every way this job can end badly notifies — including the early exits, before any scrape.
 # (Double quotes and backslashes are stripped: inside the AppleScript string literal they would end or escape it.)
@@ -139,12 +142,6 @@ if [ "${VEH_SKIP_SCRAPE:-}" != "1" ]; then
     $PY download_images.py > "$RUN/bonbon-images.log" 2>&1 || exit 1
     $PY scraper.py --reuse-index > "$RUN/bonbon-build.log" 2>&1 || exit 1
   ) || { FAILED="$FAILED bonboncar"; echo "  ⛔ bonboncar scrape FAILED — see $RUN/bonbon-*.log; BonbonCar is left out of this run"; }
-  # Shops: each scraper keeps a bike's downloaded photos when its photo list is unchanged.
-  ( cd "$BIKES" || exit 1
-    for s in $SHOPS; do .venv/bin/python -m "scrapers.$s" >> "$RUN/bikes-scrape.log" 2>&1 || exit 1; done
-    .venv/bin/python download_images.py $SHOPS > "$RUN/bikes-images.log" 2>&1 || exit 1
-    .venv/bin/python build_dataset.py > "$RUN/bikes-build.log" 2>&1 || exit 1
-  ) || { FAILED="$FAILED bikes"; echo "  ⛔ bike scrape FAILED — see $RUN/bikes-*.log; the shops are left out of this run"; }
   [ -z "$FAILED" ] && echo "  scrape ok"
   [ -n "$FAILED" ] && [ -n "$APPLY" ] && notify "scrape FAILED for:$FAILED — the other sources go on; see $RUN"
 else
@@ -152,7 +149,7 @@ else
 fi
 
 PARTIAL=""; ALL_FAILED=""; TOMB_FAILED=""
-if has_failed mioto && has_failed bonboncar && has_failed bikes; then
+if has_failed mioto && has_failed bonboncar; then
   ALL_FAILED=1
   echo "  every scrape group FAILED — nothing to import this run"
 else
@@ -178,7 +175,6 @@ else
   GONE_SRC=()
   has_failed mioto || GONE_SRC+=(--mioto "$MIOTO")
   has_failed bonboncar || GONE_SRC+=(--bonbon "$BONBON")
-  has_failed bikes || GONE_SRC+=(--bikes "$BIKES")
   $PY "$ENO/scripts/vehicle-rentals-gone.py" --prev "$BASE" ${GONE_SRC[@]+"${GONE_SRC[@]}"} \
     --out "$GONE" --next-baseline "$RUN/next-baseline" | tee "$RUN/gone.log" || die "gone list FAILED — see $RUN/gone.log"
 
@@ -213,7 +209,6 @@ else
   SRC=(--manifest "$JROOT/photos-manifest.jsonl")
   has_failed mioto || SRC+=(--mioto "$MIOTO" --trips "$TRIPS_USE")
   has_failed bonboncar || SRC+=(--bonbon "$BONBON")
-  has_failed bikes || SRC+=(--bikes "$BIKES")
   npx tsx scripts/import-vehicle-rentals.ts --stage photos "${SRC[@]}" $APPLY > "$RUN/photos.log" 2>&1 \
     || { tail -5 "$RUN/photos.log" | sed 's/^/  /'; die "photos stage FAILED — see $RUN/photos.log"; }
   grep -E "reliability|trips history|trips snapshot|shop presence|staged|dropped|rows needing|^\{|mode" "$RUN/photos.log" | sed 's/^/  /'
@@ -259,12 +254,12 @@ else
   # the previous baseline untouched for a source its 80% guard skipped or this run left out. ⛔ A source whose
   # CREATIONS the import held this run keeps last run's file too (gate review): a spike of new rows nobody vouched for
   # must not become the gone helper's reference, or every correct scrape after it reads as short. (Only creations: a
-  # shrink or revival refusal says nothing against the scrape's count — and bikes.json is all five shops' file.)
+  # shrink or revival refusal says nothing against the scrape's count.)
   if [ -n "$APPLY" ]; then
     mkdir -p "$BASE" || die "cannot create $BASE"
     REFUSED_NOW=" $( [ -n "$PARTIAL" ] && creation_refused_sources "$RUN/import.log" | tr '\n' ' ') "
-    for f in mioto.json bonbon.json bikes.json; do
-      case "$f" in mioto.json) in_file="mioto" ;; bonbon.json) in_file="bonboncar" ;; *) in_file="$SHOPS" ;; esac
+    for f in mioto.json bonbon.json; do
+      case "$f" in mioto.json) in_file="mioto" ;; *) in_file="bonboncar" ;; esac
       kept=""
       for s in $in_file; do case "$REFUSED_NOW" in *" $s "*) kept="$s" ;; esac; done
       if [ -n "$kept" ]; then echo "  baseline $f kept as it was ($kept's creations were held this run)"; continue; fi

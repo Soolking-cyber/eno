@@ -92,6 +92,25 @@ const PARTNERS = {
     // not confirm by hand. Profile.dailyReminderOptIn is the account's own switch — GoPlus can turn it back on.
     dailyReminderOptIn: false,
   },
+  // Owner, 2026-11-04: "https://thuexemaysaigon.vn/ eno.vn lets remove all motorbike rentals and add properly the from this
+  // partner, create account with their email hand me password so our admin can manage listings". The address is their
+  // footer's; scripts/import-blvck.ts writes their 19 bikes once onto THIS storefront (handle AND email), then the account
+  // manages them. set-official-partner.mjs blvck keeps it chat-only; set-partner-avatar.ts sets their published logo.
+  blvck: {
+    email: 'thuexemaysaigonblvck@gmail.com',
+    handle: 'blvck',
+    name: 'Blvck Motorbike',
+    // ⚠️ NULL ON PURPOSE: their footer's tax code is the placeholder "xxxxxxxxxxxxx", so no registered name can be read off it.
+    legalName: null,
+    // GMBR's shape: what they do, how a renter reaches them here, then the closing clause that keeps eno the marketplace
+    // introducing them. Not trimmable.
+    bio: 'Motorbike rental in Ho Chi Minh City: scooters, semi-automatics, clutch bikes, an electric scooter and big bikes, from 100,000 đ a day, with lower daily prices for longer rentals. Two helmets with every bike, delivery across the city, or collect in District 1. Message the shop here on eno to check availability. eno introduces Blvck Motorbike; the rental contract is with them.',
+    // Set from their own published logo afterwards (scripts/set-partner-avatar.ts), so no deploy is needed for it.
+    avatarUrl: null,
+    avatarColor: '#111111',
+    // ⛔ NO DAILY "CONFIRM AVAILABILITY" MAIL to the partner's inbox: eno's admin manages this account (GoPlus's reasoning).
+    dailyReminderOptIn: false,
+  },
 }
 
 const KEY = process.argv[2]

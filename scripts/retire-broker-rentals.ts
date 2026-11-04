@@ -24,11 +24,18 @@
  * houses/rooms/offices (the APT_PLACES=1 unit) are not touched. ⚠️ 'stale' is what the Nhà Tốt importer's 7-day rule
  * revives, so a by-name `APT_SOURCES=nhatot` run of scripts/apartments-weekly.sh would bring back the owners it sees
  * listed within 7 days — the job no longer runs it by default (2026-10-19), and must not be asked to.
+ * ⛔ --motorbike-imports — THE FIVE FETCHED MOTORBIKE SHOPS' RENTALS, AND ONLY THOSE (owner, 2026-11-04: "remove all motorbike
+ * rentals and add properly the from this partner … remove all fetched motorbike rental listings"). Every `active`/`hidden`
+ * motorbike-rental row of Jan's, The Extra Mile, Dung, Tuan and Rentabike → 'stale', with the same journal and per-row
+ * rollback, and each page tombstoned at once (a PDP is ISR for 30 days). EXPLICIT AND ALONE, as --nhatot-apartments.
+ * Mioto's and BonbonCar's cars share the vehicle importer and are never named here. scripts/vehicle-rentals-weekly.sh no
+ * longer scrapes these shops, and the importer's status step moves only active ↔ expired, so 'stale' stays down.
  *
  *   DRY (read-only session):  set -a; . ./.env; set +a; npx tsx scripts/retire-broker-rentals.ts
  *   WRITE (journal first):     … scripts/retire-broker-rentals.ts --journal-dir <durable dir> --apply
  *   Scope to some sellers:     … --seller muaban-net-import-seller-0001 --seller honeycomb-import-seller-0001
  *   Nhà Tốt's apartments:      … scripts/retire-broker-rentals.ts --nhatot-apartments [--journal-dir <durable dir> --apply]
+ *   The fetched motorbikes:    … scripts/retire-broker-rentals.ts --motorbike-imports [--journal-dir <durable dir> --apply]
  *
  * ⛔ STATUS 'stale', NOT 'hidden', AND THE DIFFERENCE IS LOAD-BEARING: `hide-imageless-imports.ts --restore`
  * re-activates every hidden import row that has a photo, so it would republish these. 'stale' is publicly
@@ -47,9 +54,10 @@ import { join, resolve } from 'node:path'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { journalDirProblem } from '../src/lib/honeycomb-listing'
+import { tombstonePdps } from '../src/lib/pdp-tombstone'
 
 /** What a target retires: every rental row of a whole-broker seller, or only a seller's APARTMENTS (Nhà Tốt's opt-in). */
-type Target = { id: string; name: string; scope: 'rentals' | 'apartments' }
+type Target = { id: string; name: string; scope: 'rentals' | 'apartments' | 'motorbikes' }
 /** The whole-broker rental sellers, pinned by id and verified by name. NOT Nhà Tốt (owner-filtered). */
 const BROKER_SELLERS: ReadonlyArray<Target> = [
   { id: 'bds-vn-import-seller-0001', name: 'Batdongsan.com.vn', scope: 'rentals' },
@@ -59,8 +67,18 @@ const BROKER_SELLERS: ReadonlyArray<Target> = [
 ]
 /** ⛔ OPT-IN ONLY (--nhatot-apartments, the header): Nhà Tốt's apartment-rental rows, pinned like the others. */
 const NHATOT_APARTMENTS: Target = { id: 'nhatot-import-seller-0001', name: 'Nhatot.com', scope: 'apartments' }
+/** ⛔ OPT-IN ONLY (--motorbike-imports, the header): the five bike shops' motorbike rentals, pinned like the others. */
+const MOTORBIKE_IMPORTS: ReadonlyArray<Target> = [
+  { id: 'vehicle-import-seller-janmotorbike', name: "Jan's Motorbike", scope: 'motorbikes' },
+  { id: 'vehicle-import-seller-theextramile', name: 'The Extra Mile', scope: 'motorbikes' },
+  { id: 'vehicle-import-seller-dungmotorbikes', name: 'Dung Motorbikes', scope: 'motorbikes' },
+  { id: 'vehicle-import-seller-tuanmotorbike', name: 'Tuan Motorbike', scope: 'motorbikes' },
+  { id: 'vehicle-import-seller-rentabikevn', name: 'Rentabike Vietnam', scope: 'motorbikes' },
+]
 /** The rows a target retires — repeated in the WRITE, so the write can never touch a row the read did not mean. */
-const scopeWhere = (t: Target) => t.scope === 'apartments'
+const scopeWhere = (t: Target) => t.scope === 'motorbikes'
+  ? { subcategorySlug: 'motorbike-rental' }
+  : t.scope === 'apartments'
   ? { subcategorySlug: 'apartment-rental' }
   // ⛔ RENTALS ONLY: any *-rental subcategory, plus unclassified (null) rows of these rental-only sellers — never a
   //    non-rental classified row, even for a pinned seller (codex).
@@ -76,6 +94,7 @@ const strs = (f: string) => argv.flatMap((a, i) => (argv[i - 1] === f ? [a] : []
 const JOURNAL_DIR = (() => { const i = argv.indexOf('--journal-dir'); return i >= 0 ? argv[i + 1] ?? null : null })()
 const SCOPE = strs('--seller')
 const NHATOT_FLAG = argv.includes('--nhatot-apartments')
+const MOTORBIKE_FLAG = argv.includes('--motorbike-imports')
 
 function recordDurably(file: string, line: string) {
   const fd = openSync(file, 'a')
@@ -107,7 +126,8 @@ async function main() {
   if (NHATOT_FLAG && SCOPE.length) throw new Error('--nhatot-apartments is its own run: pass it alone, without --seller (retiring a whole source\'s apartments is its own decision)')
   const unknown = SCOPE.filter((id) => !BROKER_SELLERS.some((s) => s.id === id))
   if (unknown.length) throw new Error(`--seller ${unknown.join(', ')} is not a known whole-broker rental seller (known: ${BROKER_SELLERS.map((s) => s.id).join(', ')})`)
-  const targets: ReadonlyArray<Target> = NHATOT_FLAG ? [NHATOT_APARTMENTS] : SCOPE.length ? BROKER_SELLERS.filter((s) => SCOPE.includes(s.id)) : BROKER_SELLERS
+  if (MOTORBIKE_FLAG && (SCOPE.length || NHATOT_FLAG)) throw new Error('--motorbike-imports is its own run: pass it alone, without --seller or --nhatot-apartments')
+  const targets: ReadonlyArray<Target> = MOTORBIKE_FLAG ? MOTORBIKE_IMPORTS : NHATOT_FLAG ? [NHATOT_APARTMENTS] : SCOPE.length ? BROKER_SELLERS.filter((s) => SCOPE.includes(s.id)) : BROKER_SELLERS
   const journalDir = APPLY ? ensureJournalDir(JOURNAL_DIR!) : null
 
   const db = new PrismaClient({
@@ -135,12 +155,12 @@ async function main() {
       })
       const nActive = rows.filter((r) => r.status === 'active').length
       grandTotal += rows.length
-      console.log(`${target.name.padEnd(18)} ${String(rows.length).padStart(6)} ${target.scope === 'apartments' ? 'apartment' : 'rental'} rows → '${STALE}'   (${nActive} active + ${rows.length - nActive} hidden)   [${bySubcat(rows)}]`)
+      console.log(`${target.name.padEnd(18)} ${String(rows.length).padStart(6)} ${target.scope === 'apartments' ? 'apartment' : target.scope === 'motorbikes' ? 'motorbike' : 'rental'} rows → '${STALE}'   (${nActive} active + ${rows.length - nActive} hidden)   [${bySubcat(rows)}]`)
       if (!APPLY) continue
 
       const stamp = new Date().toISOString().replace(/[:.]/g, '-')
       const safeId = target.id.replace(/[^a-z0-9-]/gi, '_')
-      const kind = target.scope === 'apartments' ? 'apartments' : 'broker'
+      const kind = target.scope === 'rentals' ? 'broker' : target.scope
       const JOURNAL = join(journalDir!, `${kind}-${safeId}-stale-${stamp}.ids`)
       const ROLLBACK = join(journalDir!, `${kind}-${safeId}-stale-${stamp}.rollback.sql`)
       recordDurably(ROLLBACK, `-- rollback ${target.name} (${target.id}): replay with psql, THEN purge ISR (scripts/purge-isr-listings.mjs) + Cloudflare tags {eno-html,eno-public} on both zones.`)
@@ -155,6 +175,9 @@ async function main() {
           const idsOf = chunk.filter((r) => r.status === orig).map((r) => r.id)
           if (idsOf.length) recordDurably(ROLLBACK, `UPDATE "Listing" SET status='${orig}', "updatedAt"=now() WHERE status='${STALE}' AND "sellerId"='${target.id}' AND id IN (${idsOf.map((x) => `'${x}'`).join(',')});`)
         }
+        // ⛔ TOMBSTONED BEFORE THE WRITE TOO (a reviewer's catch, as the vehicle importer's gone hides): a 'stale' row is never
+        // selected again, so a tombstone that failed only after the write would have no retry.
+        if (target.scope === 'motorbikes') await tombstonePdps(db, ids)
         const res = await db.listing.updateMany({
           // seller.ownerId null re-checked in the write too — closes the find→update race against a seller being claimed.
           // The target's row predicate is repeated here so the write can never touch a row outside it.
@@ -162,6 +185,9 @@ async function main() {
           data: { status: STALE },
         })
         done += res.count
+        // A PDP is ISR for 30 days: these go at once, without the cold purge of every listing page NEXT describes.
+        // Again after the write: a page re-rendered between the first tombstone and the write would have cached it live.
+        if (target.scope === 'motorbikes') await tombstonePdps(db, ids)
       }
       grandDone += done
       console.log(`  → marked ${STALE}   ${done} of ${rows.length}   journal ${JOURNAL}`)
