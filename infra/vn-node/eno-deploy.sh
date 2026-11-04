@@ -62,6 +62,11 @@ bad(){ printf '  \033[31m[XX]\033[0m %s\n' "$*"; }
 # ⚠️ FOR ADVISORY MISSES ONLY. `bad` counts nothing either (failures are counted by probe()'s and
 # purge_edge()'s return codes and by explicit `exit 1`), but it prints exactly like a real failure.
 warn(){ printf '  \033[33m[!!]\033[0m %s\n' "$*"; }
+# ⛔ eno.forum stopped serving the eno.vn copy when nginx stopped routing to its container (owner, 2026-11-04: the domain hosts the
+# internal marketing app; its vhosts and the old-link redirects live in that app's repo, scripts/box/reach.conf). nginx's own config
+# answers this, not a flag, so the two can never disagree. If it cannot be read the answer is yes: the checks run and fail loudly.
+# The container still runs, privately, for the cron jobs only it can answer (storage-tombstones, over 127.0.0.1:3002), so the image steps stay.
+forum_public(){ local c; c=$(nginx -T 2>/dev/null) || return 0; c=$(sed 's/#.*//' <<<"$c"); grep -q '127\.0\.0\.1:3002' <<<"$c"; }
 
 # ⛔ ONE DEPLOY AT A TIME. Two concurrent runs share the :local and :prev tags and a
 # single checkout: they can build from a moving tree, overwrite each other's rollback
@@ -122,13 +127,21 @@ probe(){
                     else printf '  %-38s %s (want a 308 to www) ⛔\n' "$1" "${code%% *}"; fail=1; fi ;;
                esac; }
   check https://eno.vn/             200
+  if forum_public; then
   hostcheck https://eno.forum/      200
   check https://www.eno.forum/      200
+  else
+    # Retired: old links must land on eno.vn. A warning, not a failure: this is no reason to roll back a healthy eno.vn deploy.
+    for u in https://eno.forum/privacy https://www.eno.forum/privacy; do
+      got=$(curl -s -o /dev/null --max-time 15 -w '%{http_code} %{redirect_url}' "$u") || got="no answer"
+      [ "$got" = "301 https://eno.vn/privacy" ] && ok "$u redirects to eno.vn" || warn "$u should redirect to eno.vn; it answered: $got"
+    done
+  fi
   # ⛔ THE LICENSING CHECK. eno.vn is a licensed sàn TMĐT and may not serve these at
   # all. A 200 here is a compliance failure, not a bug.
   check https://eno.vn/visa         404
   check https://eno.vn/itinerary    404
-  hostcheck https://eno.forum/itinerary 200
+  if forum_public; then hostcheck https://eno.forum/itinerary 200; fi
   # ⛔ THE SAME URL IN TWO LANGUAGES, WITH NO CACHE-BUSTER. Pages render in the visitor's language
   # at one public URL (src/proxy.ts), so a shared cache keyed on the URL alone would hand the first
   # visitor's language to everyone. `check` above appends ?d=… and can never see that; this cannot miss it.
@@ -197,14 +210,16 @@ probe(){
       fi
     done
   done
+  if forum_public; then
   for h in https://eno.forum https://www.eno.forum; do
     langcheck "$h/" vi-VN vi
     langcheck "$h/" en-US en
   done
+  fi
   langcheck https://eno.vn/privacy vi-VN vi
   langcheck https://eno.vn/privacy en-US en
   check https://eno.vn/vi/c/rentals 404
-  check https://www.eno.forum/vi    404
+  if forum_public; then check https://www.eno.forum/vi    404; fi
   # ⚠️ AND THE COOKIE PATH, WHICH THE HEADER PROBES ABOVE NEVER EXERCISE: a returning visitor carries
   # `lang`, the proxy prefers it over Accept-Language, and the box's micro-cache keys on it. An English
   # browser holding a Vietnamese cookie must get Vietnamese.
@@ -226,8 +241,10 @@ probe(){
   # ⚠️ eno.vn's cookie check reads /privacy, not `/`: the pinned `/` ignores the cookie by design (V-a),
   # so only an adaptive page can show the cookie path working.
   cookiecheck https://eno.vn/privacy
+  if forum_public; then
   cookiecheck https://eno.forum/
   cookiecheck https://www.eno.forum/
+  fi
   if [ "$pilot" = on ]; then
     cookiecheck https://eno.vn/vi en vi   # the twin stays Vietnamese for a stored English choice
     cookiecheck https://eno.vn/ vi en     # and the pinned `/` stays English for a stored Vietnamese one
@@ -946,6 +963,9 @@ else
     pb=$("$SS" ingest "$ed" "$img:prev") || { bad "static ingest of $img:prev FAILED — nothing swapped"; untag_bad; exit 1; }
     nb=$("$SS" ingest "$ed" "$img:local") || { bad "static ingest of $img:local FAILED — nothing swapped"; untag_bad; exit 1; }
     if [ "$ed" = marketplace ]; then PREVBID_VN=$pb; NEWBID_VN=$nb; else PREVBID_FO=$pb; NEWBID_FO=$nb; fi
+    # ⛔ A retired eno.forum has no nginx vhost for this edition (the name now redirects), so this proof cannot pass and nothing
+    # public can ask for these files. The forum container still swaps below and the ingest above still runs.
+    if [ "$ed" = services ] && ! forum_public; then ok "$host: retired, static build not proven through nginx"; continue; fi
     # nginx, not the app: the RUNNING container cannot serve the new build's manifest, so a 200 with a strong
     # (non-W/) ETag proves the disk tree is live behind this vhost. Through the tunnel listener on loopback,
     # never through the edge — a probe through Cloudflare would cache the new build before the swap.
@@ -1095,7 +1115,7 @@ fi
 # success:true proves nothing about eviction, and a tag purge that missed would leave the pre-deploy page up for six
 # hours with this deploy reporting green. The edge's `/` must carry the BUILD_ID the containers report (step 7).
 if [ "$SKIP_PURGE" != 1 ] && [ "$PURGE_ALL" != 1 ]; then
-  if ! { edge_html_fresh eno.vn "$BID_VN" && edge_html_fresh www.eno.forum "$BID_FO"; }; then
+  if ! { edge_html_fresh eno.vn "$BID_VN" && { ! forum_public || edge_html_fresh www.eno.forum "$BID_FO"; }; }; then
     bad "the tag purge did not refresh the edge — falling back to purge_everything"
     PURGE_ALL=1
     if ! purge_edge; then
@@ -1105,7 +1125,7 @@ if [ "$SKIP_PURGE" != 1 ] && [ "$PURGE_ALL" != 1 ]; then
       bad "site, then remove /opt/eno/deploy-incomplete (left in place so the next run cannot pin these images)."
       exit 1
     fi
-    edge_html_fresh eno.vn "$BID_VN"; edge_html_fresh www.eno.forum "$BID_FO"
+    edge_html_fresh eno.vn "$BID_VN"; ! forum_public || edge_html_fresh www.eno.forum "$BID_FO"
   fi
 fi
 

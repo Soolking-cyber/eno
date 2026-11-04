@@ -86,12 +86,13 @@ if [ -n "$fmt" ]; then fmt=@{fmt//'%{http_code}'/$code}; printf '%s' "@{fmt//'%{
 const tmp: string[] = []
 afterEach(() => { for (const d of tmp.splice(0)) rmSync(d, { recursive: true, force: true }) })
 
-function runProbe(site: Site, mode: 'deploy' | 'rollback') {
+function runProbe(site: Site, mode: 'deploy' | 'rollback', forum: 'public' | 'retired' = 'public') {
   const d = mkdtempSync(join(tmpdir(), 'eno-probe-'))
   tmp.push(d)
   writeFileSync(join(d, 'curl'), FAKE_CURL)
   chmodSync(join(d, 'curl'), 0o755)
-  writeFileSync(join(d, 'fn.sh'), `PILOT_EXPECT=${PILOT_EXPECT}\n${PROBE}\n`)
+  // forum_public asks nginx, which is not here: this answers for it. Its own test is in deploy-static.test.ts.
+  writeFileSync(join(d, 'fn.sh'), `PILOT_EXPECT=${PILOT_EXPECT}\nok(){ :; }\nwarn(){ printf '[!!] %s\\n' "$*"; }\nforum_public(){ return ${forum === 'public' ? 0 : 1}; }\n${PROBE}\n`)
   const r = spawnSync('bash', ['-c', `set -uo pipefail; source "${d}/fn.sh"; probe ${mode === 'rollback' ? 'rollback' : ''}; echo "rc=$?"`], {
     encoding: 'utf8',
     timeout: 15_000,
@@ -186,6 +187,19 @@ describe('eno-deploy.sh probe() — the /vi pilot (V5)', { timeout: 20_000 }, ()
  * itself back. The apex lines now accept the canonical hop — and only that one: a redirect anywhere else still fails,
  * and images from before the redirect (a rollback) still pass.
  */
+describe('eno-deploy.sh probe() — a retired eno.forum', { timeout: 20_000 }, () => {
+  it('skips every check of the copy, so a site without it passes; old links that do not redirect only warn', () => {
+    const r = runProbe({ pilot: 'on', forumApex: 'www' }, 'deploy', 'retired')
+    expect(r.rc).toBe('0')
+    expect(r.out).not.toMatch(/eno\.forum\/itinerary/)
+    expect(r.out).not.toMatch(/lang=.*eno\.forum/)
+    expect(r.out).toMatch(/\[!!\] https:\/\/eno\.forum\/privacy should redirect to eno\.vn/)
+  })
+  it('the licensing checks on eno.vn still run', () => {
+    expect(runProbe({ pilot: 'on', forumApex: 'www' }, 'deploy', 'retired').out).toMatch(/https:\/\/eno\.vn\/visa\s+404/)
+  })
+})
+
 describe('eno-deploy.sh probe() — the forum apex moves to www', { timeout: 20_000 }, () => {
   it('a deploy whose apex 308s to www passes, and the www target is checked in its place', () => {
     const r = runProbe({ pilot: 'on', forumApex: 'www' }, 'deploy')

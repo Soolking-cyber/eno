@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -82,10 +82,46 @@ describe('eno-deploy.sh — static on disk before the swap, tags instead of purg
     expect(block).toMatch(/-lt 93600 \]; then[\s\S]*else[\s\S]*PURGE_ALL=1\nfi/)
   })
 
+  it('nginx itself says whether eno.forum still serves the copy, and not knowing counts as yes', () => {
+    const fn = deploy.match(/^forum_public\(\)\{.*\}$/m)?.[0]
+    expect(fn).toBeTruthy()
+    const answer = (conf: string, exit = 0) => {
+      const dir = mkdtempSync(join(tmpdir(), 'forum-public-'))
+      writeFileSync(join(dir, 'conf'), conf)
+      writeFileSync(join(dir, 'nginx'), `#!/bin/sh\ncat "${join(dir, 'conf')}"\nexit ${exit}\n`, { mode: 0o755 })
+      return spawnSync('bash', ['-c', `set -uo pipefail\n${fn}\nforum_public`], { env: { PATH: `${dir}:${process.env.PATH}` } }).status
+    }
+    const toContainer = '  proxy_pass http://127.0.0.1:3002;\n'
+    expect(answer(`server {\n  server_name eno.forum www.eno.forum;\n${toContainer}}\n`)).toBe(0)
+    expect(answer(`server {\n  server_name www.eno.forum eno.forum;\n${toContainer}}\n`), 'names in any order').toBe(0)
+    expect(answer(`server {\n  server_name *.eno.forum;\n${toContainer}}\n`), 'only the shops left').toBe(0)
+    expect(answer('server {\n  server_name eno.forum;\n  proxy_pass http://127.0.0.1:4321;\n}\n'), 'the marketing app holds the name').toBe(1)
+    expect(answer('# proxy_pass http://127.0.0.1:3002;\nserver {\n  server_name eno.vn;\n  proxy_pass http://127.0.0.1:3001;\n}\n'), 'a comment').toBe(1)
+    expect(answer('', 1), 'nginx -T failed').toBe(0)
+    expect(answer(`server {\n${toContainer}}\n`.repeat(20000)), 'a long config, no broken pipe').toBe(0)
+  })
+
+  it('a retired eno.forum skips every public check of the copy, and only then', () => {
+    for (const line of [/^\s*hostcheck https:\/\/eno\.forum\/ {6}200$/m, /^\s*check https:\/\/www\.eno\.forum\/ {6}200$/m, /^\s*cookiecheck https:\/\/eno\.forum\/$/m, /^\s*cookiecheck https:\/\/www\.eno\.forum\/$/m]) {
+      const found = deploy.match(line)
+      expect(found, String(line)).not.toBeNull()
+      const before = deploy.slice(0, found!.index)
+      expect(before.lastIndexOf('if forum_public; then'), String(line)).toBeGreaterThan(before.lastIndexOf('\n  fi\n'))
+    }
+    expect(deploy).toMatch(/if forum_public; then hostcheck https:\/\/eno\.forum\/itinerary 200; fi/)
+    expect(deploy).toMatch(/if \[ "\$ed" = services \] && ! forum_public; then ok "\$host: retired[^\n]*; continue; fi/)
+    // Old links must still land on eno.vn; a warning, because this is no reason to roll back eno.vn.
+    expect(deploy).toMatch(/\[ "\$got" = "301 https:\/\/eno\.vn\/privacy" \] && ok[^\n]*\|\| warn/)
+    // The licensing checks on eno.vn are never gated.
+    expect(deploy).toMatch(/^\s*check https:\/\/eno\.vn\/visa {9}404$/m)
+    expect(deploy).toMatch(/^\s*check https:\/\/eno\.vn\/itinerary {4}404$/m)
+  })
+
   it('a tag purge the edge does not reflect falls back to purge_everything, and a failed fallback is fatal', () => {
     const block = deploy.slice(at('# ⛔ READ IT BACK, AND FALL BACK'), at('say "9. verify through the edge"'))
     // Exact, not a timing guess: the edge's `/` must embed the BUILD_ID the new containers report.
-    expect(block).toMatch(/if ! \{ edge_html_fresh eno\.vn "\$BID_VN" && edge_html_fresh www\.eno\.forum "\$BID_FO"; \}; then/)
+    // A retired eno.forum has no edge page to read back, so only eno.vn answers for it then.
+    expect(block).toMatch(/if ! \{ edge_html_fresh eno\.vn "\$BID_VN" && \{ ! forum_public \|\| edge_html_fresh www\.eno\.forum "\$BID_FO"; \}; \}; then/)
     expect(block).toMatch(/PURGE_ALL=1\n\s+if ! purge_edge; then[\s\S]*?exit 1/)
     const fresh = deploy.slice(at('edge_html_fresh(){'), at('# ⛔ BEFORE THE SWAP') > 0 ? at('# ⛔ BEFORE THE SWAP') : undefined)
     expect(fresh).toMatch(/grep -qF -- "\$bid" <<<"\$body"/)
@@ -138,7 +174,10 @@ describe('nginx — each edition serves only its own static directory', () => {
   it('every app location / tags its responses eno-public, and /_next/image is tagged eno-img', () => {
     const conf = read('infra/vn-node/nginx/eno.conf')
     const appLocations = conf.match(/location \/ \{\n\s+proxy_pass http:\/\/127\.0\.0\.1:300[12];[\s\S]*?\n {2}\}/g) ?? []
-    expect(appLocations).toHaveLength(4)
+    // eno.vn and its shops. eno.forum no longer serves the copy (owner, 2026-11-04): the name belongs to the marketing app.
+    expect(appLocations).toHaveLength(2)
+    expect(conf).not.toMatch(/^\s*server_name[^;]*eno\.forum/m)
+    expect(conf).not.toMatch(/^\s*proxy_pass http:\/\/127\.0\.0\.1:3002;/m)
     for (const l of appLocations) expect(l).toContain('add_header Cache-Tag "eno-public" always;')
     for (const ed of ['marketplace', 'services']) {
       expect(read(`infra/vn-node/nginx/static-${ed}.conf`)).toMatch(/location = \/_next\/image \{[\s\S]*add_header Cache-Tag "eno-img" always;/)
