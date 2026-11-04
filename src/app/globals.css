@@ -1914,7 +1914,7 @@ body:has(.dashboard-canvas) #status-bar-backdrop {
   pointer-events: none;
   opacity: 0;
   transition: opacity 140ms ease;
-  background-image: url('/watermark.svg');
+  background-image: url('/watermark.svg?v=6e37f5ef');
   background-repeat: repeat;
   background-size: 200px 138px;
 }

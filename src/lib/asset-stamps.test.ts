@@ -93,6 +93,33 @@ describe('content stamps on immutable static assets', () => {
   })
 
   it.each([
+    ['/logo-dotvn.svg', 2],
+    ['/logo-dotforum.svg', 1],
+    ['/watermark.svg', 2],
+  ])('%s — every reference carries the CURRENT hash of the file, or PageSpeed flags it for the 4h lane', (asset, sites) => {
+    const expected = stamp(readFileSync(`public${asset}`))
+    const hits = stampsFor(asset as string)
+    expect(hits.length, `${asset} lost a stamp`).toBeGreaterThanOrEqual(sites as number)
+    const wrong = hits.filter(h => h.stamp !== expected)
+    expect(wrong, `public${asset} now hashes to ${expected}. Bump the stamp in: ${wrong.map(w => w.file).join(', ')}`).toEqual([])
+    expect(readFileSync('next.config.ts', 'utf8').match(/const STAMPABLE_STATIC =\s*"([^"]*)"/)?.[1]).toContain((asset as string).slice(1).replace('.', '\\\\.'))
+  })
+
+  it('no bare /logo-dotvn.svg, /logo-dotforum.svg or /watermark.svg is left: a bare one stays on the 4h lane and fetches the file twice', () => {
+    // A path in quotes, backticks, url() or a Link header's <>, anywhere the shipped site is configured. Comment lines name these files
+    // in prose and do not count, nor does this file's own list. apps/forum is dormant source (CLAUDE.md), not a site.
+    let found = ''
+    try {
+      found = execFileSync('git', ['grep', '-nE', '([\'"`<]|url\\()/(logo-dotvn|logo-dotforum|watermark)\\.svg([\'"`>]|\\))', '--', 'src', 'public', 'infra', 'next.config.ts', ':!src/lib/asset-stamps.test.ts'], { encoding: 'utf8' })
+    } catch (e) {
+      // git grep exits 1 for "no matches". Anything else means it never looked, and that must not read as a pass.
+      if ((e as { status?: number }).status !== 1) throw e
+    }
+    const bare = found.split('\n').filter((line) => line && !/^[^:]+:\d+:\s*(\*|\/\/|\/\*|\{\/\*)/.test(line))
+    expect(bare).toEqual([])
+  })
+
+  it.each([
     '/avatar/eno-guide-v1.bin',
     '/avatar/eno-guide-face-v1.webp',
     '/headaudio/headworklet-1.0.0.js',

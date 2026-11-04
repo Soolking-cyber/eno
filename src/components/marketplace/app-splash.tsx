@@ -248,7 +248,7 @@ export function AppSplash() {
           ⚠️ PER-EDITION FILE — logo-dotvn.svg spells the licensed marketplace's name and must never
           render on eno.forum, and logo-dotforum.svg the reverse. */}
       <img
-        src={IS_SERVICES ? '/logo-dotforum.svg' : '/logo-dotvn.svg'}
+        src={IS_SERVICES ? '/logo-dotforum.svg?v=06b1301a' : '/logo-dotvn.svg?v=50550388'}
         alt=""
         fetchPriority="high"
         decoding="sync"

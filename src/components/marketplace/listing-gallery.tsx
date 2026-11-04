@@ -197,7 +197,7 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
           as a pattern printed over the gutters — a dense field of wordmarks beside a photo that already
           carries its own ImageMark. At 0.08 it is a texture you notice only on a wide letterbox. The
           per-photo <ImageMark> below is unchanged: the brand mark on the image is the real one. */}
-      <span aria-hidden className="pointer-events-none absolute inset-0 bg-repeat opacity-[0.08] [background-image:url('/watermark.svg')] [background-size:116px_80px] md:[background-size:248px_171px]" />
+      <span aria-hidden className="pointer-events-none absolute inset-0 bg-repeat opacity-[0.08] [background-image:url('/watermark.svg?v=6e37f5ef')] [background-size:116px_80px] md:[background-size:248px_171px]" />
       <Image
         src={img}
         alt={alt}

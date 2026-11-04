@@ -408,7 +408,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
           )}
         >
           <img
-            src={IS_MARKETPLACE ? '/logo-dotvn.svg' : '/logo.svg'}
+            src={IS_MARKETPLACE ? '/logo-dotvn.svg?v=50550388' : '/logo.svg'}
             alt=""
             aria-hidden
             // ⚠️ THESE ARE THE ASSETS' OWN viewBox NUMBERS AND THEY MUST TRACK IT. They only

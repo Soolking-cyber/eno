@@ -13,6 +13,7 @@ import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useVisitorEngaged } from '@/lib/visitor-engaged'
 import { hapticTap } from '@/lib/haptics'
 import { Compass, Heart, Plus, User, MessageSquare } from '@/components/ui/icons'
 import { STROKE_NAV } from '@/lib/icon-tokens'
@@ -114,6 +115,9 @@ const TAB = 'relative flex flex-1 cursor-pointer rounded-full after:absolute aft
 // went from ~345 ms to ~1,100 ms, Saved's only from ~370 ms to ~410-460 ms. Link prefetches can only start after hydration, so
 // neither delays tap-ready. Only a visitor who asked to save data, or on a 2G/3G connection, stops paying (`connectionIsLean`);
 // the finger's DOWN or the keyboard's focus still warms it for them (`useWarmOnIntent`), the way the sign-in dialog does.
+// ⛔ AND POST'S WAITS FOR THE VISITOR TO DO SOMETHING (PageSpeed, 2026-11-04: src/lib/visitor-engaged.ts): 4 origin renders, 22 KB of
+// payload and 98 KB of chunks on every page, the top of its "unused JavaScript", went to whoever looked and left too. The trade: a
+// visitor who taps this tab before scrolling, or just after, gets the unwarmed tap above, warmed only by that finger.
 // Explore, Messages and Account keep auto: they get walked between.
 
 // ⛔ NO LABEL SLOT ANY MORE (owner, 2026-09-26 — see the note at the top). The micro-label
@@ -313,6 +317,7 @@ export function MobileNav() {
   const at = (p: string) => mounted && pathname === p
   // Not behind `mounted`: `prefetch` never reaches the DOM, so there is nothing to mismatch, and a remount must not prefetch once.
   const leanConnection = connectionIsLean()
+  const engaged = useVisitorEngaged()
   const warmSaved = useWarmOnIntent('/saved', at('/saved'))
   const warmPost = useWarmOnIntent('/post', at('/post'))
   const atPrefix = (p: string) => mounted && (pathname?.startsWith(p) ?? false)
@@ -505,7 +510,7 @@ export function MobileNav() {
           Re-tapping never scrolls to top (`false`), as before. */}
       <Link
         href="/post"
-        prefetch={at('/post') || loading || leanConnection ? false : undefined}
+        prefetch={at('/post') || loading || leanConnection || !engaged ? false : undefined}
         {...warmPost}
         aria-label={tr('Post', 'Đăng tin')}
         aria-current={at('/post') ? 'page' : undefined}

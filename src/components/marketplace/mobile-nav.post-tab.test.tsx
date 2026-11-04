@@ -36,6 +36,8 @@ vi.mock('next/link', () => ({
   ),
   useLinkStatus: () => ({ pending: false }),
 }))
+const engaged = vi.hoisted(() => ({ now: true }))
+vi.mock('@/lib/visitor-engaged', () => ({ useVisitorEngaged: () => engaged.now }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => auth, preloadSignIn: vi.fn() }))
 vi.mock('@/context/favorites-context', () => ({ useFavorites: () => ({ count: 0 }) }))
 vi.mock('@/context/chat-context', () => ({ useChat: () => ({ unread: 0 }) }))
@@ -62,6 +64,7 @@ beforeEach(() => {
   nav.pathname = '/'
   nav.push.mockClear()
   nav.prefetch.mockClear()
+  engaged.now = true
   linkClicks.length = 0
 })
 
@@ -156,6 +159,15 @@ describe.each([
     render(<MobileNav />)
     expect(byName('Saved').getAttribute('data-prefetch')).toBe('false')
     expect(nav.prefetch).not.toHaveBeenCalled()
+  })
+
+  it('Post does not prefetch for a visitor who has done nothing yet, and a finger on it still warms it', () => {
+    engaged.now = false
+    render(<MobileNav />)
+    expect(byName('Post').getAttribute('data-prefetch')).toBe('false')
+    expect(nav.prefetch).not.toHaveBeenCalled()
+    fireEvent.pointerDown(byName('Post'))
+    expect(nav.prefetch).toHaveBeenLastCalledWith('/post')
   })
 
   it('Post keeps auto prefetch on an ordinary connection', () => {

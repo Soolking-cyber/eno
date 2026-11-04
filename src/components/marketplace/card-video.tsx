@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { autoplayAllowed } from '@/lib/autoplay'
+import { whenVisitorEngaged } from '@/lib/visitor-engaged'
 import { cn } from '@/lib/utils'
 
 // ── Inline card autoplay ─────────────────────────────────────────────────────────
@@ -23,6 +24,8 @@ import { cn } from '@/lib/utils'
 //    cache-control 1y).
 //  • Save-Data / 2g / prefers-reduced-motion viewers never autoplay (hover still
 //    works — an explicit gesture outranks the heuristic).
+//  • Nothing starts by itself until the visitor has scrolled, swiped, moved the mouse or
+//    typed, or has stayed on the page for a while (visitor-engaged.ts).
 
 const playing = new Set<string>()
 const MAX_CONCURRENT = 2
@@ -83,30 +86,35 @@ export function CardVideo({ src, hover, suspend = false }: {
   useEffect(() => {
     const el = boxRef.current
     if (!el || !autoplayAllowed()) return
-    const obs = new IntersectionObserver(
-      (entries) => {
-        // Entries queue between dispatches (fast fling / busy main thread can cross the
-        // threshold twice before we run) — only the LAST one reflects current reality;
-        // acting on the first would strand an invisible playing clip holding a slot.
-        const e = entries[entries.length - 1]
-        const engaged = e.isIntersecting && e.intersectionRatio >= 0.6 && e.boundingClientRect.width >= 150
-        inViewRef.current = engaged
-        if (engaged) {
-          if (armTimer.current) return
-          armTimer.current = setTimeout(() => {
-            armTimer.current = null
-            if (inViewRef.current && !suspendRef.current) start(false)
-          }, SETTLE_MS)
-        } else if (!hoverRef.current) {
-          // Don't yank the clip out from under a still-hovering pointer just because the
-          // card dipped below the visibility threshold mid-scroll.
-          stop()
-        }
-      },
-      { threshold: [0.6] },
-    )
-    obs.observe(el)
-    return () => { obs.disconnect(); stop() }
+    let obs: IntersectionObserver | undefined
+    // ⛔ NOT BEFORE THE VISITOR HAS DONE SOMETHING (src/lib/visitor-engaged.ts): a clip is 4-20 MB, and it used to start on the first
+    // screen of a phone for everyone, including whoever left straight away. A real hover (below) does not wait.
+    const stopWaiting = whenVisitorEngaged(() => {
+      obs = new IntersectionObserver(
+        (entries) => {
+          // Entries queue between dispatches (fast fling / busy main thread can cross the
+          // threshold twice before we run) — only the LAST one reflects current reality;
+          // acting on the first would strand an invisible playing clip holding a slot.
+          const e = entries[entries.length - 1]
+          const engaged = e.isIntersecting && e.intersectionRatio >= 0.6 && e.boundingClientRect.width >= 150
+          inViewRef.current = engaged
+          if (engaged) {
+            if (armTimer.current) return
+            armTimer.current = setTimeout(() => {
+              armTimer.current = null
+              if (inViewRef.current && !suspendRef.current) start(false)
+            }, SETTLE_MS)
+          } else if (!hoverRef.current) {
+            // Don't yank the clip out from under a still-hovering pointer just because the
+            // card dipped below the visibility threshold mid-scroll.
+            stop()
+          }
+        },
+        { threshold: [0.6] },
+      )
+      obs.observe(el)
+    })
+    return () => { stopWaiting(); obs?.disconnect(); stop() }
   }, [])
 
   // Desktop hover: instant start (no settle beat, bypasses the concurrency cap).
