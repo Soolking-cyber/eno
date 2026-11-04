@@ -532,7 +532,10 @@ export function SortStrip({
           size="sm"
           onClick={() => pagePhoneRow(1)}
           aria-label={tr('More', 'Xem thêm')}
-          className="material absolute right-0 top-1/2 z-10 -translate-y-1/2 bg-card/70 text-body shadow-sm ring-1 ring-border/60 backdrop-blur-sm sm:hidden"
+          // ⛔ NOT ON A TOUCH SCREEN (UI climb, 2026-11-05): there the row swipes and the hard-clipped pill already says there is more,
+          // as on Facebook Marketplace and Chợ Tốt, and a 32px disc over the third pill's label read as a layout bug. A mouse in
+          // a narrow window has no swipe, so it keeps this button.
+          className="material absolute right-0 top-1/2 z-10 -translate-y-1/2 bg-card/70 text-body shadow-sm ring-1 ring-border/60 backdrop-blur-sm pointer-coarse:hidden sm:hidden"
         >
           <ChevronRight className="h-5 w-5" strokeWidth={STROKE_UI} />
         </IconButton>

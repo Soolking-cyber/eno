@@ -211,12 +211,15 @@ export function RentalCheckHint({ className }: { className?: string }) {
   return (
     <p className={cn('flex items-start gap-2 text-sm text-body', className)}>
       <ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
-      <span>
+      {/* ⛔ THE PHONE'S LINE IS WRITTEN TO FIT, NOT CUT TO FIT (UI climb 2026-11-05). It holds one line beside "Check availability"
+          (owner, 2026-10-18); cut at ~31 characters the long sentence read "Pick up to 5 rentals and the en…". */}
+      <span className="max-sm:hidden">
         {tr(
           'Pick up to 5 rentals and the eno team checks availability for you — a free service to find your next home, and the price you see is the price you get.',
           'Chọn tối đa 5 căn, đội ngũ eno kiểm tra phòng trống giúp bạn — dịch vụ miễn phí giúp bạn tìm nhà, giá bạn thấy là giá bạn trả.',
         )}
       </span>
+      <span className="sm:hidden">{tr('Free check, up to 5 rentals', 'Kiểm tra miễn phí 5 căn')}</span>
     </p>
   )
 }

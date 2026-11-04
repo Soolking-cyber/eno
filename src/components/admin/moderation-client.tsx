@@ -332,7 +332,8 @@ function AiReviewPanel({ caseId, internalNote, onUse, refresh }: {
   )
 }
 
-const RAIL = { critical: 'border-l-destructive', high: 'border-l-warning', standard: 'border-l-line-strong' }
+// ⛔ A DOT, NOT A LEFT RAIL (owner, 2026-08-13 and 2026-11-02: no accent line on a card's left edge). Standard needs no mark.
+const SEVERITY_DOT = { critical: 'bg-destructive', high: 'bg-warning', standard: null }
 
 /**
  * ⛔ A META LINE JOINS ONLY THE PARTS THAT SAY SOMETHING (2026-10-09). The case card printed "<category> · <location>"
@@ -375,13 +376,14 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
 
   return (
     // No transition-shadow: the selection ring follows the j/k hotkeys, which never animate.
-    <Card onClick={onSelect} className={cn('cursor-pointer gap-0 border-l-[3px] px-4 shadow-pop', RAIL[c.bucket], selected && !readOnly && 'ring-2 ring-brand/40', readOnly && 'opacity-90')}>
+    <Card onClick={onSelect} className={cn('cursor-pointer gap-0 px-4 shadow-pop', selected && !readOnly && 'ring-2 ring-brand/40', readOnly && 'opacity-90')}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {!readOnly && onCheck && <Checkbox checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="h-3.5 w-3.5" aria-label="Select case" />}
           {c.appeal && <Badge variant="warning" size="sm" className="px-1.5 text-3xs uppercase tracking-wide">Appeal</Badge>}
           {c.bucket === 'critical' && !c.appeal && !readOnly && <Badge variant="destructive" size="sm" className="px-1.5 text-3xs uppercase tracking-wide">Critical</Badge>}
           {c.preScreen && !readOnly && <Badge variant="neutral" size="sm" className="px-1.5 text-3xs uppercase tracking-wide" title="Filed by a reporter with 2+ false-report strikes — triaged last">Pre-screened</Badge>}
+          {SEVERITY_DOT[c.bucket] && <span aria-hidden className={cn('h-1.5 w-1.5 shrink-0 rounded-full', SEVERITY_DOT[c.bucket])} />}
           <span className="text-sm font-bold text-foreground">{REASON_LABEL[c.reason] || c.reason}</span>
           {c.communityCount > 1 && !readOnly && <Badge variant="warning" size="sm" className="text-3xs">{c.communityCount} on this target</Badge>}
           <Badge variant="neutral" size="sm" className="text-3xs font-semibold capitalize">{t.kind}</Badge>
@@ -531,13 +533,13 @@ function CaseRow({ c, active, checked, readOnly, onSelect, onCheck }: {
 }) {
   const t = c.target
   const isListing = t.kind === 'listing' && t.listing
-  // Flat (§3b): a hairline-separated row, not a per-item outline card. Keep only the left border-l
-  // severity rail (RAIL); the active row is a bg-tint well, inactive rows show the canvas + a hover.
+  // Flat (§3b): a hairline-separated row, not a per-item outline card. Keep only the
+  // severity dot (SEVERITY_DOT); the active row is a bg-tint well, inactive rows show the canvas + a hover.
   // The old rounded border+bg-card box read as a stack of faint outlines once the fill collapsed into
   // the canvas; the container draws the divide-y between rows.
   return (
     // No transition-colors: the j/k hotkeys move `active`, and a keyboard-driven change never animates.
-    <button type="button" onClick={onSelect} className={cn('block w-full text-left cursor-pointer border-l-[3px] p-2.5', RAIL[c.bucket], active ? 'bg-tint' : 'hover:bg-muted/50')}> {/* design-lint-allow */}
+    <button type="button" onClick={onSelect} className={cn('block w-full text-left cursor-pointer p-2.5', active ? 'bg-tint' : 'hover:bg-muted/50')}> {/* design-lint-allow */}
       <div className="flex items-start gap-2">
         {!readOnly && onCheck && <Checkbox checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="mt-0.5 h-3.5 w-3.5" aria-label="Select case" />}
         {isListing && (
@@ -548,7 +550,7 @@ function CaseRow({ c, active, checked, readOnly, onSelect, onCheck }: {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             {c.appeal && <Badge variant="warning" size="sm" className="px-1 text-3xs uppercase leading-none">Appeal</Badge>}
-            {c.bucket === 'critical' && !c.appeal && !readOnly && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive" />}
+            {SEVERITY_DOT[c.bucket] && <span aria-hidden className={cn('h-1.5 w-1.5 shrink-0 rounded-full', SEVERITY_DOT[c.bucket])} />}
             <span className="truncate text-sm font-bold text-foreground">{REASON_LABEL[c.reason] || c.reason}</span>
           </div>
           <p className="mt-0.5 truncate text-2xs text-muted-foreground">

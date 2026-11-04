@@ -2530,7 +2530,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           the Publish button is never remounted (and never drops focus) when the chips arrive. */}
       <StickyActionBar
         className="lg:hidden"
-        offsetBottom="4.5rem"
+        // The pill stands down on /post and /listings/<id>/edit, the only two routes that mount this today (mobile-nav.tsx). An
+        // embedded wizard would sit under the pill on some other page, so it keeps the clearance.
+        offsetBottom={embedded ? '4.5rem' : undefined}
         label={edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing')}
         // Not `render`: `disabled` flips while the seller watches, and the primitive's own note
         // says to take the plain path for exactly that.
@@ -2591,15 +2593,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         }}
         onReset={() => { setProvince(null); setWard(null); setNearby(null) }}
       />
-      {/* Stands in for the mobile bar at the end of the flow — the same `lg:hidden` as the bar.
-          ⚠️ PLUS THE TAB BAR'S 4.5rem (`h-18`, the same length as `offsetBottom` above), which the
-          spacer deliberately leaves out: it counts on the app-wide <BottomNavSpacer /> for that, and
-          the BottomNavSpacer sits after the FOOTER. At the end of the form the bar stands 72px panel +
-          72px offset tall over a reserve of 72px + main's pb-12, so the Contact section ended 24px
-          under the Publish button (measured at 390×844) — reachable only by scrolling on into the
-          footer. The reserve belongs to the form, so it goes here. */}
+      {/* Stands in for the mobile bar at the end of the flow — the same `lg:hidden` as the bar. The tab bar stands down on this
+          path (mobile-nav.tsx), so the bar sits on the bottom edge and this spacer alone is the whole reserve. */}
       <StickyActionBarSpacer className="lg:hidden" />
-      <div aria-hidden className="h-18 lg:hidden" />
+      {embedded && <div aria-hidden className="h-18 lg:hidden" />}
     </div>
   )
 }

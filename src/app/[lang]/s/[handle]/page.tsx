@@ -358,7 +358,7 @@ export default async function Storefront({ params }: Props) {
       {/* ⛔ A SHOP THE VIEWER BLOCKED IS NOT SHOWN (App Store 1.2; src/lib/hidden-sellers.ts): the hidden-shops stylesheet
           hides <main> by its `data-sid` and shows this notice instead. Never on the shop's own host — no session there. */}
       {!onShopHost && appReviewGate('ugc-safety') && <BlockedSellerNotice sellerId={shop.sellerId} kind="shop" className="flex-1" />}
-      <main id="main" tabIndex={-1} data-sid={onShopHost ? undefined : shop.sellerId} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
+      <main id="main" tabIndex={-1} data-browse-surface="" data-sid={onShopHost ? undefined : shop.sellerId} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
         {/**
           * THE SHOP'S OWN BANNER — one slot, theirs, above their stock. Owner, 2026-08-30: a shop
           * gets one banner for its store, set from its store profile.

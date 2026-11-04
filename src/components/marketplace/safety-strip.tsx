@@ -136,7 +136,9 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
     // ⚠️ `--warning` is amber-800 (#92400e) in light and amber-400 in dark, both chosen for
     // contrast as TEXT (see the token note in globals.css) — so this is safe as ink, which is
     // exactly why the token exists rather than a raw amber.
-    <div className={cn('flex items-start gap-2.5 rounded-xl bg-warning/10 px-3 py-2.5 text-xs leading-relaxed', className)}>
+    // ⛔ FLAT SINCE 2026-11-05 (UI climb; canon §3b, lines not boxes). The tint made a pink box beside the CTA, the one off-palette
+    // block in the buy box. The hierarchy this note asks for stays in the glyph and in the first line's `font-semibold text-warning`.
+    <div className={cn('flex items-start gap-2.5 border-t border-border pt-3 text-xs leading-relaxed', className)}>
       {/* ⚠️ SOLAR, NOT THE HAND-DRAWN SEAL (owner, 2026-08-13: "old icon make sure all icons are
           solar"). This mount used to re-draw the eno seal inline — SEAL_CHIEF + SEAL_OUTLINE +
           SEAL_CHECK stroked by hand — purely so the chief could take the strip's amber ink instead

@@ -872,7 +872,7 @@ export function Header() {
                 : 'rounded-2xl bg-tint',
             )}
             >
-              <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-ink-4" strokeWidth={STROKE} />
+              <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-brand" strokeWidth={STROKE} />
               {/* The field's slot. `@container/q` so the placeholder below can ask how wide the field
                   is; `text-base` so its `em` thresholds are the field's own 16px. */}
               <div className="@container/q relative flex min-w-0 flex-1 text-base">

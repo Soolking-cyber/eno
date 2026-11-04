@@ -861,7 +861,9 @@ export function CategoryRail({
           size="sm"
           onClick={() => page(1)}
           aria-label={tr('More', 'Xem thêm')}
-          className="material absolute right-0 top-1/2 z-10 -translate-y-1/2 bg-card/70 text-body shadow-sm ring-1 ring-border/60 backdrop-blur-sm pc:hidden"
+          // ⚠️ 12px BELOW CENTRE (UI climb 2026-11-05): at dead centre the 32px disc sat on the end of the top row's third label ("Electronics").
+          // Here it lands in the gap beside the second row's art, and it is solid: a glass disc over a label read as a layout bug.
+          className="absolute right-0 top-[calc(50%+0.75rem)] z-10 -translate-y-1/2 border border-border bg-popover text-body pc:hidden"
         >
           {/* ⛔ STATIC — the owner removed the drift the moment they saw it ("remove animation from
               right arrow"). */}

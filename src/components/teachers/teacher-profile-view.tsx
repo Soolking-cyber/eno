@@ -269,7 +269,10 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
         </Breadcrumb>
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_20rem]">
           <div className="space-y-8">
-            <header className="flex items-start gap-4">
+            {/* ⛔ A PHONE'S HEADER IS TWO BANDS (UI climb 2026-11-05): photo + name + share, then the headline, the facts and Message at
+                the full width. A 96px photo beside everything left the words a 240px column, about ten lines of them. From `sm`
+                it is the three columns it always was. */}
+            <header className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 sm:grid-rows-[auto_1fr] sm:gap-x-4">
               {/* ⚠️ THROUGH THE OPTIMIZER, PRELOADED AT HIGH PRIORITY (speed plan item 7, 2026-10-16). The raw <img> sent
                   the uploaded original — 71 KB for a 96px circle on the measured profile, ~2 KB as AVIF — at the
                   default image priority. `priority` is the preload and `fetchPriority`
@@ -277,12 +280,12 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                   but a canonical listing-bucket image) is passed through as before. The JSON-LD, the share card
                   and TeacherContact keep the original URL (`photo`). */}
               {photo
-                ? <Image src={photo} alt="" width={96} height={96} quality={60} priority fetchPriority="high" unoptimized={!isListingImageUrl(photo) || isMockImageUrl(photo)} className="size-24 shrink-0 rounded-full object-cover" />
-                : <span className="size-24 shrink-0 rounded-full bg-muted" />}
-              <div className="min-w-0 [overflow-wrap:anywhere]">
-                <h1 className="text-2xl font-semibold text-foreground">{name}</h1>
+                ? <Image src={photo} alt="" width={96} height={96} quality={60} priority fetchPriority="high" unoptimized={!isListingImageUrl(photo) || isMockImageUrl(photo)} className="col-start-1 row-start-1 size-16 shrink-0 rounded-full object-cover sm:row-span-2 sm:size-24" />
+                : <span className="col-start-1 row-start-1 size-16 shrink-0 rounded-full bg-muted sm:row-span-2 sm:size-24" />}
+              <h1 className="col-start-2 row-start-1 min-w-0 self-center text-2xl font-semibold text-foreground [overflow-wrap:anywhere] sm:self-start">{name}</h1>
+              <div className="col-span-3 row-start-2 mt-3 min-w-0 [overflow-wrap:anywhere] sm:col-span-1 sm:col-start-2 sm:mt-1">
                 {/* The teacher's own words, translated for the reader like a listing description is (LocalizedText). */}
-                {tp && <p className="mt-1 text-body"><LocalizedText text={tp.headline} /></p>}
+                {tp && <p className="text-body"><LocalizedText text={tp.headline} /></p>}
                 {facts.length > 0 && (
                   <p className="mt-2 text-sm text-muted-foreground">
                     {facts.map((f, i) => <Fragment key={f.key}>{i > 0 && ' · '}{f.node}</Fragment>)}
@@ -290,7 +293,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                 )}
                 {/* "Message" in the first screen (rentals-12): scrolls to the contact block below and runs
                     its action. Phones and tablets only — on lg the block is the sticky right column. */}
-                <TeacherContactJump listingId={listing.id} className="mt-3 lg:hidden" />
+                <TeacherContactJump listingId={listing.id} className="mt-3 w-full sm:w-auto lg:hidden" />
               </div>
               {/* SHARE (owner, 2026-10-11: "make it easy to share on facebook and zalo or whatsapp") — the page's own
                   link; Facebook and Zalo build the card from its Open Graph tags (the photo, name and headline — never a
@@ -301,7 +304,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                   url={canonicalUrl}
                   title={tp?.headline ? `${name} — ${tp.headline}` : name}
                   subject="teacher-profile"
-                  className="ml-auto shrink-0"
+                  className="col-start-3 row-start-1 shrink-0"
                 />
               )}
             </header>
@@ -310,7 +313,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                 name column is ~128px). The label and ONE sentence on exactly what was checked and what was not; never the
                 tier, the document, its number or its expiry. BadgeCheck: the card's own glyph — one claim, one glyph. */}
             {identityShown && (
-              <div data-identity-line="" className="flex flex-col gap-2 rounded-2xl bg-tint p-4 sm:flex-row sm:items-start sm:gap-3">
+              <div data-identity-line="" className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
                 <Badge variant="success" size="md" className="self-start">
                   <BadgeCheck aria-hidden className="h-3.5 w-3.5" />
                   <Bilingual en="Identity verified" vi="Đã xác minh danh tính" />
@@ -331,7 +334,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
               <section aria-labelledby="t-cover" className="space-y-3 rounded-2xl bg-tint p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <h2 id="t-cover" className="text-lg font-semibold text-foreground"><Bilingual en="Available for cover lessons" vi="Nhận dạy thay" /></h2>
-                  <p className="font-semibold text-foreground">{formatMoneyFull(cover.rate, '₫', moneyLocale(lang))} <Bilingual en="/ hour" vi="/ giờ" /></p>
+                  <p className="font-semibold text-price">{formatMoneyFull(cover.rate, '₫', moneyLocale(lang))} <Bilingual en="/ hour" vi="/ giờ" /></p>
                 </div>
                 <Table className="table-fixed">
                   <TableHeader>

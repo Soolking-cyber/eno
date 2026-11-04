@@ -344,7 +344,7 @@ export function EnforcementClient() {
           <p className="mt-0.5 mb-3 text-xs text-muted-foreground">Overturn lifts the action, restores pulled listings and resolves the appeal in the seller&apos;s favour. Uphold keeps the action and closes the appeal. An appeal on an action that has already ended (lifted or expired) is closed without a notice to the seller.</p>
           <div className="space-y-3">
             {queue.appeals.map((a) => (
-              <Card key={a.id} size="sm" className="block border-l-[3px] border-l-warning p-4 shadow-pop">
+              <Card key={a.id} size="sm" className="block p-4 shadow-pop">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge className="bg-warning uppercase tracking-wide text-white">Appeal</Badge>
                   <StateChip state={a.state} />
@@ -383,7 +383,7 @@ export function EnforcementClient() {
           <p className="mt-0.5 mb-3 text-xs text-muted-foreground">Open reports unanswered by the seller for over 72 hours — resolve them in <a href="/admin/moderation?tab=reports" className="font-semibold text-accent-foreground hover:underline">Moderation</a>, or suspend a clear bad actor here.</p>
           <div className="space-y-2">
             {queue.buyerWaiting.map((r) => (
-              <Card key={r.id} size="sm" className="block border-l-[3px] border-l-destructive p-3.5 shadow-pop">
+              <Card key={r.id} size="sm" className="block p-3.5 shadow-pop">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge variant="destructive" className="uppercase tracking-wide"><Clock className="h-3 w-3" /> waiting {Math.floor(r.waitingHours / 24) > 0 ? `${Math.floor(r.waitingHours / 24)}d` : `${r.waitingHours}h`}</Badge>
                   <span className="text-sm font-bold capitalize text-foreground">{r.reason}</span>

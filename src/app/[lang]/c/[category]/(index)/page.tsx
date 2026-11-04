@@ -7,6 +7,7 @@ import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 // teacher exclusion (scopedListingWhere) can only ever empty /c/teachers — it hides nothing elsewhere.
 import { loadCategory } from '../load-category'
 import { loadDistrictChips, loadJobCities, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline, loadTeacherLinks, loadTeachingJobsCount, TEACHING_JOBS } from '../category-data'
+import { AreaChipsRow } from './area-chips-row'
 import { byAreaChips, categoryMetadata, crumbNames, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
 import { CategoryGuides, OtherRentalsLink, PlaceName, RentalsDistricts } from '../category-text'
 import { CategoryFiltersLink } from '../category-filters-link'
@@ -328,7 +329,7 @@ export default async function CategoryPage({ params }: Props) {
           clips at its padding box; `overflow-y-hidden` keeps it a one-axis scroller, so a vertical
           drag that starts on a chip still scrolls the page (explorer-toolbar.tsx measured that trap). */}
       {districts.length > 0 && (
-        <div className="scrollbar-none mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1 sm:mt-6 sm:flex-wrap sm:overflow-visible sm:py-0">
+        <AreaChipsRow>
           <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
           {/* prefetch={false}: every chip in view was a district page request on every category view — two on a phone,
               up to 41 on a desktop row (speed plan item 7, measured on production 2026-10-16). */}
@@ -338,7 +339,7 @@ export default async function CategoryPage({ params }: Props) {
               <PlaceName en={d.label.en} vi={d.label.vi} />
             </Badge>
           ))}
-        </div>
+        </AreaChipsRow>
       )}
 
       {/* /c/jobs: "Theo tỉnh/thành / By city" with counts, the jobs page's "By area" (rentals-11) — only

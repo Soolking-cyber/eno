@@ -78,6 +78,7 @@ import { BlockUserButton } from '@/components/marketplace/block-user-button'
 import { BlockedSellerNotice } from '@/components/marketplace/blocked-seller-notice'
 import { isShopOnlyBlock } from '@/lib/user-blocks'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
+import { collapseRepeatedName, collapseRepeatedNames } from '@/lib/location-text'
 import { RentalCheckToggle } from '@/components/marketplace/rental-check-toggle'
 import { isChatOnlyPartner, rentalCheckApplies } from '@/lib/rental-check/shared'
 import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/affiliate-booking'
@@ -1175,7 +1176,7 @@ export default async function ListingPage({ params }: Props) {
                   ))}
                   <span data-fab-avoid className="inline-flex min-w-0 items-center gap-1">
                     <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
-                    <span className="truncate"><LocalizedText text={listing.location} vi={mayBeVietnamese(listing.location) ? listing.location : null} i18n={i18n[listing.location]} /></span>
+                    <span className="truncate"><LocalizedText text={collapseRepeatedName(listing.location)} vi={mayBeVietnamese(listing.location) ? collapseRepeatedName(listing.location) : null} i18n={collapseRepeatedNames(i18n[listing.location])} /></span>
                   </span>
                   {showPosted && (
                     <span data-fab-avoid className="inline-flex shrink-0 items-center gap-1">

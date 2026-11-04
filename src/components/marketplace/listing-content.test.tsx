@@ -633,6 +633,6 @@ describe('PDP location chip — an authored Vietnamese place name', () => {
   it('the chip passes vi only for text that may be Vietnamese', async () => {
     const { readFileSync } = await import('node:fs')
     const page = readFileSync('src/app/[lang]/listings/[id]/(pdp)/page.tsx', 'utf8')
-    expect(page).toContain('<LocalizedText text={listing.location} vi={mayBeVietnamese(listing.location) ? listing.location : null} i18n={i18n[listing.location]} />')
+    expect(page).toContain('<LocalizedText text={collapseRepeatedName(listing.location)} vi={mayBeVietnamese(listing.location) ? collapseRepeatedName(listing.location) : null} i18n={collapseRepeatedNames(i18n[listing.location])} />')
   })
 })

@@ -338,7 +338,7 @@ export function ContactComposer({
         // that reassurance was the one thing worth keeping from the block this replaced.
         ? tr('Free — you answer a few questions in the chat and get a day-by-day plan.', 'Miễn phí — bạn trả lời vài câu hỏi trong khung chat và nhận lịch trình theo từng ngày.')
         : sellerIsPartner
-          ? tr('Official partners talk with buyers in eno chat — no phone number is shared.', 'Đối tác chính thức trao đổi với người mua qua chat trên eno — không chia sẻ số điện thoại.')
+          ? tr('Partners answer in eno chat. No phone number is shared.', 'Đối tác trả lời qua chat trên eno. Không chia sẻ số điện thoại.')
           : tr('Request their number once they reply — one number works for both Zalo and WhatsApp.', 'Yêu cầu số điện thoại sau khi họ trả lời — một số dùng được cho cả Zalo và WhatsApp.')}
     </p>
   )

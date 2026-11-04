@@ -176,7 +176,7 @@ export function ConversationList() {
           className={cn('mb-1 flex items-center gap-3 rounded-xl p-2.5 transition-colors active:bg-tint/60', aiActive ? 'bg-muted text-accent-foreground' : 'hover:bg-muted')}
         >
           {/* The chrome coin (icon-language §6), not a solid disc: fully-saturated brand is
-              reserved for user-state (§5 — the unread rail/badge in the rows below), so the
+              reserved for user-state (§5 — the unread tint/badge in the rows below), so the
               always-on AI avatar sits on the same flat brand-50 coin as the nav's Post chip. */}
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand"><Sparkles className="h-5 w-5" aria-hidden /></span>
           <div className="min-w-0 flex-1">
@@ -320,10 +320,8 @@ export function ConversationList() {
                         : 'hover:bg-muted',
                 )}
               >
-                {/* Unread → clear blue left rail so the new thread to reply to stands out. */}
-                {c.unread > 0 && activeId !== c.id && (
-                  <span aria-hidden className="absolute inset-y-2 left-0 w-1 rounded-full bg-accent-foreground" />
-                )}
+                {/* ⛔ NO LEFT RAIL ON AN UNREAD ROW (owner, 2026-08-13: "remove accent line on left, look all across the app"; 2026-11-02:
+                    "never use line on the left of the card"). The row's tint, bold name and count badge already say it. */}
                 {/* `active:` on the LINK, not the row: the row's hover tints never fire on a phone, so
                     a tap showed nothing until the thread painted — and `:active` on the wrapper would
                     also flash while pressing the delete button beside it. */}

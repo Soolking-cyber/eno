@@ -55,8 +55,8 @@ describe('ContactComposer — the footnote under Chat now', () => {
 
   it('an official partner: never offers a number — the server refuses one (partner_chat_only)', () => {
     const { en, vi } = footnote(true)
-    expect(en).toContain('Official partners talk with buyers in eno chat — no phone number is shared.')
-    expect(vi).toContain('Đối tác chính thức trao đổi với người mua qua chat trên eno — không chia sẻ số điện thoại.')
+    expect(en).toContain('Partners answer in eno chat. No phone number is shared.')
+    expect(vi).toContain('Đối tác trả lời qua chat trên eno. Không chia sẻ số điện thoại.')
     expect(en).not.toMatch(/Request their number|Zalo|WhatsApp/)
     expect(vi).not.toMatch(/Yêu cầu số điện thoại|Zalo|WhatsApp/)
   })

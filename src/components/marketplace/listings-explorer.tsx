@@ -1282,6 +1282,8 @@ export function ListingsExplorer({
     sort === 'recent' ? tr('Latest listings', 'Tin đăng mới nhất')
       : sort === 'popular' ? tr('Most contacted', 'Được quan tâm')
         : sort === 'price-low' || sort === 'price-high' ? tr('By price', 'Theo giá')
+          // One shop's whole stock is not a recommendation (UI climb 2026-11-05).
+          : sellerId ? tr('All listings', 'Tất cả tin đăng')
           : tr('Recommended', 'Đề xuất')
 
   const resetToLandingPage = useCallback(() => {

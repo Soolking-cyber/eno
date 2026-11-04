@@ -195,7 +195,8 @@ export function PublishLabel({
           // signal at all. Change the variant, change this.
           className="inline-flex min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-2xs font-bold tabular-nums"
         >
-          {missingCount}
+          {/* "items left", never a bare "left": alone, the nine machine-translated languages can read it as the direction. */}
+          {missingCount} {missingCount === 1 ? t('mục nữa', 'item left') : t('mục nữa', 'items left')}
         </span>
       )}
     </span>

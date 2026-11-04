@@ -156,7 +156,7 @@ export function TeachAreaPicker({ t, onAreas, onConfirm, onChangeAnswer, coverIn
               {nearKeys.map((k) => <ToggleGroupItem key={k} value={k}>{place(k)}</ToggleGroupItem>)}
             </ToggleGroup>
             {districtCities.filter((city) => modeOf(city) !== 'off').map((city) => (
-              <div key={city} className="space-y-3 border-l-2 border-border pl-3">
+              <div key={city} className="space-y-3 pl-3">
                 <p id={`${uid}-${city}`} className="text-sm text-body">{place(city)}</p>
                 {/* Named by its own line: inside the fieldset, a radio group would otherwise take the legend as its name. */}
                 <RadioGroup value={modeOf(city)} onValueChange={(mode) => onCityMode(city, mode)} aria-labelledby={`${uid}-${city}`} className="grid grid-cols-1 gap-2 sm:grid-cols-2">

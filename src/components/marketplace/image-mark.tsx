@@ -8,7 +8,10 @@ export const IMAGE_MARK_SPRITE = '/brand/eno-mark.svg#m'
  *  watermark-mark.test.ts. */
 export const IMAGE_MARK_BOX = { w: 9132.3, h: 1588.3 }
 
-const INK = { dark: 'text-black/40', light: 'text-white/85' } as const
+// ⚠️ THE OWNER'S RULE IS ONE SIZE AND ONE CORNER (below), NOT THIS STRENGTH. At white/85 and black/40 the mark out-shouted the
+// card's own title on every photo (UI climb 2026-11-05). A save or copy still gets the full-strength `.img-watermark`
+// (image-shield.tsx); a screenshot carries this mark at the lighter ink, and that is the trade.
+const INK = { dark: 'text-black/25', light: 'text-white/60' } as const
 
 /**
  * THE APP-DRAWN eno.vn MARK over a listing photo — one size and one corner on every image.

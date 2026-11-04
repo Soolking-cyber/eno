@@ -396,6 +396,9 @@ export function BackToTop() {
           // right edge. Right-aligning changes nothing for the chevron and the support mark: both are
           // exactly 44px wide, so their boxes land where they did.
           'pointer-events-none fixed z-fab flex flex-col items-end gap-2.5',
+          // ⛔ THE OWNER'S "NO FLOATERS" REACHES THE CLEAN /<handle> STOREFRONT TOO (`floatersOff` above). browse-surface.ts cannot
+          // tell a one-segment path from /about without ~50 KB of registries, so the page says what it is and CSS stands down.
+          'mobile:[body:has([data-browse-surface])_&]:hidden',
           // ⚠️ NEVER OVER A MODAL. At z-[60] this cluster floated ON TOP of the report
           // dialog's "Gửi báo cáo" submit and over the protections sheet's copy — a tap on
           // the CTA's right edge scrolled the page instead of filing a fraud report (blind

@@ -13,6 +13,7 @@ import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { isPostFlowPath } from '@/lib/post-flow-path'
 import { useVisitorEngaged } from '@/lib/visitor-engaged'
 import { hapticTap } from '@/lib/haptics'
 import { Compass, Heart, Plus, User, MessageSquare } from '@/components/ui/icons'
@@ -393,6 +394,10 @@ export function MobileNav() {
     <nav
       inert={keyboardOpen}
       className={cn(
+        // ⛔ POSTING IS A FOCUSED TASK ON A PHONE (UI climb 2026-11-05): Publish alone holds the bottom edge, with Exit at the top of the form.
+        // The Publish bar stacked on this pill took ~130px of a phone's height and left the form clipped between layers. The
+        // same subject-position hook as the header's Post button (header.tsx): the wizard's success screen brings the pill back.
+        isPostFlowPath(pathname) && '[html:not([data-post-done])_&]:hidden',
         // ⛔ A FLOATING PILL, NOT A DOCKED BAR (owner, 2026-09-26 — the note at the top of this file).
         // GEOMETRY: `inset-x-3` + `max-w-sm mx-auto` = 12px from each side on a phone, centred and
         // capped at 384px on anything wider, so five icon-only tabs never stretch into a strip.
