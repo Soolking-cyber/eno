@@ -21,6 +21,7 @@ import {
   type LinkedTier,
   type RentalsFacts,
   type RentalsHeadline,
+  rentalsHeadlineHasShortForm,
 } from './category-copy'
 
 /**
@@ -60,6 +61,23 @@ export function RentalsHeading({ headline }: { headline: RentalsHeadline }) {
     default:
       return <>{tr('Rentals in Vietnam', 'Cho thuê tại Việt Nam')}</>
   }
+}
+
+/**
+ * The phone's painted line for a headline too long for its one line (owner, 2026-10-18), which cut the full name off mid-word
+ * ("… in Ho C…"), the first thing a visitor read. The real H1 stays whole in the HTML, `max-sm:sr-only` there; this is decoration
+ * for sighted phones, whole sentences so a machine-translated language keeps its own word order. Null for a headline that fits.
+ */
+export function RentalsHeadingShort({ headline, className }: { headline: RentalsHeadline; className?: string }) {
+  const { tr } = useLanguage()
+  if (!rentalsHeadlineHasShortForm(headline)) return null
+  return (
+    <p aria-hidden className={className}>
+      {headline === 'apartments-houses-hcmc'
+        ? tr('Apartments & houses for rent in HCMC', 'Cho thuê căn hộ và nhà tại TP.HCM')
+        : tr('Apartments for rent in HCMC', 'Cho thuê căn hộ ở TP.HCM')}
+    </p>
+  )
 }
 
 /**

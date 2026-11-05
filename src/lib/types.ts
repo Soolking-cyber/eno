@@ -113,7 +113,7 @@ export type SerializedListingCard = {
   goodPrice?: boolean
   verified: boolean
   postedAt: string
-  /** Under NEW_LISTING_MS old when this row was serialized: the card's "New" chip (card-badges.tsx). Absent on a row kept from before it existed: no chip. */
+  /** Under NEW_LISTING_MS old when this row was serialized: the card's "Just in" chip (card-badges.tsx). Absent on a row kept from before it existed: no chip. */
   isNew?: boolean
   savedCount: number
   // Demand proof for the card meta line ("Đã liên hệ N") — distinct authenticated
@@ -273,8 +273,8 @@ export type Stats = {
 
 export type VerificationMethod = 'in-person' | 'video-call' | 'document-check' | 'agent-visit'
 
-/** A listing is "New" for its first 48 hours. */
-export const NEW_LISTING_MS = 48 * 60 * 60 * 1000
+/** A listing wears "Just in" for its first 24 hours (48 until 2026-11-05: fresh imports put it on nearly every rental card). */
+export const NEW_LISTING_MS = 24 * 60 * 60 * 1000
 
 export function timeAgo(iso: string, lang: string = 'vi', now: number = Date.now()): string {
   const m = Math.floor((now - new Date(iso).getTime()) / 60000)

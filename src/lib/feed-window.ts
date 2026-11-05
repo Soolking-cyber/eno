@@ -3,7 +3,7 @@ import { db } from './db'
 import { Prisma } from '@/generated/prisma/client'
 import {
   FEED_DIVERSITY_WINDOW, GOODS_CATEGORY_SLUGS, GOODS_SEAT_ROWS, SHARED_SEAT_SELLERS, SHARED_SEAT_SUBCATEGORIES,
-  diversifyBySeller, isSecondHandGoods, mergeRoundRobin, type Diversifiable, type SeatOptions,
+  diversifyBySeller, isSecondHandGoods, mergeRoundRobin, splitRepeatedCovers, type Diversifiable, type SeatOptions,
 } from './feed-diversity'
 import { scopedListingWhere } from './edition-scope'
 
@@ -205,6 +205,7 @@ export async function diverseFeedWindow<S extends Prisma.ListingSelect & { id: t
     return hit.rows.then((r) => r.slice()) as Promise<Prisma.ListingGetPayload<{ select: S }>[]>
   }
   const built: Promise<WindowBuild> = buildWindow(scoped, orderBy, select, sharedSeats)
+    .then((w) => varyCovers(w, scoped, orderBy, select))
     .then((w) => (goodsSeats ? withGoodsCandidates(w, scoped, orderBy, select) : w))
   const rows = built.then((r) => r.rows as WindowRow[])
   // A fresh build stored nothing, and must not delete a memoized caller's entry under the same key either.
@@ -403,6 +404,63 @@ async function buildWindow(
 }
 
 /** The goods seats' rows as a predicate — feed-diversity.ts isSecondHandGoods: used, for sale, in a category of things. */
+/** Below this many repeats from one seller the seller's rows are only reordered, with no extra query. */
+const COVER_REPEATS_WORTH_A_QUERY = 6
+
+/**
+ * EACH SELLER SHOWS DIFFERENT PHOTOS BEFORE REPEATING ONE, INSIDE THE SEATS THAT SELLER ALREADY HOLDS (splitRepeatedCovers).
+ * ⛔ PER SELLER, NEVER ACROSS SELLERS: the window's fairness comes from the fan-out above, and a global "distinct first" pushed a
+ * small seller's second row behind dozens of a big seller's, or off the window altogether (review, 2026-11-05). So every row
+ * keeps a position belonging to its own seller, and only which of that seller's rows sits there changes.
+ * When a seller's repeats are enough to be a wall, that seller's next-ranked rows under other titles come ahead of them. The
+ * repeats are never lost: rows pushed off the end of the window reach the feed through the tail, which continues in rank order
+ * excluding only what the window served. A failed top-up costs the variety, not the feed.
+ */
+async function varyCovers(
+  win: WindowBuild,
+  scoped: Prisma.ListingWhereInput,
+  orderBy: Prisma.ListingOrderByWithRelationInput[],
+  select: Prisma.ListingSelect,
+): Promise<WindowBuild> {
+  type Row = { id: string; sellerId?: string | null; title?: string | null }
+  const rows = win.rows as Row[]
+  const keyOf = (r: Row) => r.sellerId ?? `row:${r.id}`
+  const bySeller = new Map<string, Row[]>()
+  for (const r of rows) {
+    const list = bySeller.get(keyOf(r))
+    if (list) list.push(r)
+    else bySeller.set(keyOf(r), [r])
+  }
+  const split = new Map([...bySeller].map(([k, list]) => [k, splitRepeatedCovers(list)] as const))
+  if (![...split.values()].some((v) => v.repeats.length > 0)) return win
+
+  const walls = [...split].filter(([, v]) => v.repeats.length >= COVER_REPEATS_WORTH_A_QUERY)
+  let more: Row[] = []
+  if (walls.length > 0) {
+    // One query per wall seller, each with its own exclusions and its own quota: a global `take` let one seller use up another's, and one
+    // seller's "Studio" says nothing about another's. Walls are rare (usually one seller), and this runs once per memoized window.
+    const found = await Promise.all(walls.map(([k, v]) =>
+      // edition-lint-allow: `scoped` — the value the exported wrapper resolved from scopedListingWhere(where).
+      db.listing.findMany({
+        where: { AND: [scoped, { id: { notIn: rows.map((r) => r.id) } }, { sellerId: k }, { title: { notIn: [...new Set(v.repeats.flatMap((r) => (r.title ? [r.title] : [])))] } }] },
+        orderBy, take: v.repeats.length, select,
+      }).catch((e: unknown) => {
+        console.error('[feed-window] cover top-up failed — serving the reordered window', e)
+        return []
+      }) as Promise<Row[]>))
+    more = found.flat()
+  }
+
+  const queue = new Map([...split].map(([k, v]) => {
+    const extra = more.filter((r) => keyOf(r) === k).slice(0, v.repeats.length)
+    // A top-up row can carry a cover already shown under another title (a building's duplex and commercial unit share one
+    // photo), so this seller's whole candidate list is split again: every distinct cover leads, whichever query found it.
+    const final = splitRepeatedCovers([...v.distinct, ...extra])
+    return [k, [...final.distinct, ...final.repeats, ...v.repeats].slice(0, bySeller.get(k)!.length)] as const
+  }))
+  return { ...win, rows: rows.map((r) => queue.get(keyOf(r))!.shift()!) }
+}
+
 const GOODS_WHERE: Prisma.ListingWhereInput = { listingType: 'sell', condition: 'used', category: { slug: { in: [...GOODS_CATEGORY_SLUGS] } } }
 
 type SeatFields = Diversifiable & { sellerId: string }

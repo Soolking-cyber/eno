@@ -207,6 +207,13 @@ describe('post wizard — success, draft notice, loading label (sell-04 / si-10 
     expect(onDiscard).toHaveBeenCalledTimes(1)
   })
 
+  it('names the next step while one is open, a verb either way; an edit and a finished post keep their own words', () => {
+    expect(renderToString(<PublishLabel submitting={false} edit={false} missingCount={5} nextStep="Add 3 photos" t={t} />)).toContain('Add 3 photos')
+    expect(renderToString(<PublishLabel submitting={false} edit={false} missingCount={5} nextStep="Add 3 photos" t={t} />)).not.toContain('Publish listing')
+    expect(renderToString(<PublishLabel submitting={false} edit={false} missingCount={0} t={t} />)).toContain('Publish listing')
+    expect(renderToString(<PublishLabel submitting={false} edit missingCount={0} t={t} />)).toContain('Save changes')
+  })
+
   it('names the profile load on the Publish button instead of a count — ui/button’s busy state, no hand-built spinner', () => {
     const label = renderToString(<PublishLabel submitting={false} loadingProfile edit={false} missingCount={4} t={t} />)
     expect(label).toContain('Loading your details…')

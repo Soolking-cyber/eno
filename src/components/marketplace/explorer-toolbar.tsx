@@ -350,7 +350,11 @@ export function SortStrip({
         options={sortOptions}
         label={tr('Sort by', 'Sắp xếp theo')}
         triggerLabel={sortPillLabel}
-        icon={<SortGlyph className={cn('size-3.5 shrink-0', sort === 'newest' && 'text-ink-4')} />}
+        // AT THE DEFAULT ORDER THE PILL SAYS "Sort" (UI climb 2026-11-05): "Relevance" says nothing a buyer acts on and cost the
+        // first screen one filter, while a glyph alone was less clear to both judges. Any other order names itself, tinted.
+        // The order's name stays for assistive tech either way.
+        icon={<><SortGlyph className={cn('size-4 shrink-0', sort === 'newest' && 'text-ink-3')} />{sort === 'newest' && <span aria-hidden>{tr('Sort', 'Sắp xếp')}</span>}</>}
+        labelClassName={sort === 'newest' ? 'sr-only' : undefined}
         indicator="down"
         searchable={false}
         className={cn(PILL_BOX, sort === 'newest' && PILL_REST, PILL_OPEN_ATTR)}

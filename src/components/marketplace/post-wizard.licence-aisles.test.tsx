@@ -173,7 +173,7 @@ const nameInput = () => document.getElementById('pw-providerLegalName') as HTMLI
 const numberInput = () => document.getElementById('pw-providerLicenceNo') as HTMLInputElement | null
 const type = async (el: Element | null, value: string) => { await act(async () => { fireEvent.change(el!, { target: { value } }) }) }
 /** The Publish / Save controls (the desktop button and the mobile bar's twin), by their visible name. */
-const publish = async () => { await click(screen.getAllByRole('button').find((b) => /Publish listing|Save changes/.test(b.textContent ?? ''))!) ; await settle() }
+const publish = async () => { await click(screen.getAllByRole('button').find((b) => /Publish listing|Save changes|\d+ items? left/.test(b.textContent ?? ''))!) ; await settle() }
 const saves = () => h.sent.filter((s) => s.url === '/api/listings' || s.url === '/api/listings/l1')
 /** The note's title (post-wizard-evisa.tsx), per aisle. */
 const VISA_NOTE = 'e-Visa listings go live after a licence check'

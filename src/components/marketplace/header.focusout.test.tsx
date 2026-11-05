@@ -194,7 +194,7 @@ describe('a first visit still opens on somewhere to go', () => {
 describe('the placeholder ladder', () => {
   it('keeps the long copy in the attribute — the accessible description, and what the e2e suites find the box by', () => {
     render(<Header />)
-    expect(field().getAttribute('placeholder')).toBe('Find products…')
+    expect(field().getAttribute('placeholder')).toBe('Search eno…')
     expect(field().className).toContain('placeholder:text-transparent')
   })
 
@@ -203,7 +203,7 @@ describe('the placeholder ladder', () => {
     const overlay = document.querySelector('[data-search-placeholder]')!
     expect(overlay.getAttribute('aria-hidden')).toBe('true')
     expect(overlay.className).toContain('peer-placeholder-shown:@min-[4.55em]/q:flex')
-    expect(overlay.querySelector('[data-rung="long"]')!.textContent).toBe('Find products…')
+    expect(overlay.querySelector('[data-rung="long"]')!.textContent).toBe('Search eno…')
     expect(overlay.querySelector('[data-rung="long"]')!.className).toContain('@min-[8.6em]/q:block')
     // The short rung is the field's accessible NAME, so what a voice user sees is what they can say.
     expect(overlay.querySelector('[data-rung="short"]')!.textContent).toBe(field().getAttribute('aria-label'))

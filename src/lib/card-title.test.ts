@@ -167,3 +167,28 @@ describe('jobCardMeta', () => {
     expect(cardCity('Khánh Hoà'.normalize('NFD'), 'vi', vi)).toBe('Khánh Hoà')
   })
 })
+
+describe('GoPlus\'s location tail (the info line prints the area)', () => {
+  const GOPLUS = '1f82663d-0bf3-4da0-9adf-91b1ae6a82a8'
+  const run = (title: string, sellerId: string, lang = 'en', location: string | null = 'Quận 12 (Phường An Phú Đông)') => cardTitle({ title, lang, sellerId, categorySlug: 'rentals', location })
+  it('comes off, in both languages', () => {
+    expect(run('Duplex 20 m² · An Phu Dong Ward, District 12', GOPLUS)).toBe('Duplex 20 m²')
+    expect(run('Căn hộ 1 phòng ngủ 20 m² · Phường Đức Nhuận, Quận Phú Nhuận', GOPLUS, 'vi')).toBe('Căn hộ 1 phòng ngủ 20 m²')
+  })
+  it('stays when it would leave one word, or names no place', () => {
+    expect(run('Studio · Nha Be Commune, Nha Be District', GOPLUS)).toBe('Studio · Nha Be Commune, Nha Be District')
+    expect(run('BMW S1000RR for rent · big bike', GOPLUS)).toBe('BMW S1000RR for rent · big bike')
+    expect(run('Duplex 20 m² · Wardrobe included', GOPLUS)).toBe('Duplex 20 m² · Wardrobe included')
+    expect(run('Căn hộ 20 m² · Nhà ở xã hội', GOPLUS, 'vi')).toBe('Căn hộ 20 m² · Nhà ở xã hội')
+    expect(run('Duplex 20 m² · Near District 1 market', GOPLUS)).toBe('Duplex 20 m² · Near District 1 market')
+  })
+  it('stays when the info line would print only the city, or nothing', () => {
+    expect(run('Duplex 20 m² · An Phu Dong Ward, District 12', GOPLUS, 'en', 'Hồ Chí Minh')).toBe('Duplex 20 m² · An Phu Dong Ward, District 12')
+    expect(run('Duplex 20 m² · An Phu Dong Ward, District 12', GOPLUS, 'en', null)).toBe('Duplex 20 m² · An Phu Dong Ward, District 12')
+    expect(run('Duplex 20 m² · An Phu Dong Ward, District 12', GOPLUS, 'en', 'Bình Dương')).toBe('Duplex 20 m² · An Phu Dong Ward, District 12')
+  })
+  it('never touches another importer (a tail can hold a building name) or a member', () => {
+    expect(run('Căn hộ 3PN — Masteri An Phu, P. Thảo Điền, Quận 2', 'honeycomb-import-seller-0001')).toBe('Căn hộ 3PN — Masteri An Phu, P. Thảo Điền, Quận 2')
+    expect(run('Duplex 20 m² · An Phu Dong Ward, District 12', 'some-member')).toBe('Duplex 20 m² · An Phu Dong Ward, District 12')
+  })
+})

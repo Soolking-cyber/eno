@@ -52,10 +52,9 @@ was meta), 15→`base`.
   gets clipped is the city tail (", Hồ Chí Minh"), not the ward. Buy width back with a shorter
   location string, not by shrinking the type again.
 - **A section heading is always larger than the card price.** `SECTION_TITLE` (shelf.tsx —
-  shared by every Shelf, category-rails and the home feed heading) is `text-lg sm:text-xl`,
-  against the card `<Price>`'s `text-base sm:text-lg`: 18 > 16 on phones, 20 > 18 from `sm`
-  (measured at 360/390/1440). Both steps have a 28px line box, so skeletons do not move. Raise
-  the price and you raise the heading in the same change.
+  shared by every Shelf, category-rails and the home feed heading) is `text-xl sm:text-2xl`,
+  against the card `<Price>`'s `text-base sm:text-lg`: 20 > 16 on phones, 24 > 18 from `sm`
+  (raised 2026-11-05). Raise the price and you raise the heading in the same change.
   ⚠️ Open follow-up: the PDP page's own section `<h2>`s (Description, Details, Location) and
   `reviews-preview` still hand-type `text-lg`, so from `sm` up they sit one step below the
   "More like this" / "More from this seller" shelves on the same page.
@@ -233,7 +232,7 @@ costs conversions. It stays a separate, owner-reviewed decision.
 - 8pt rhythm: prefer `1 / 2 / 3 / 4 / 6 / 8 / 12` steps (4–48px).
 - Arbitrary px values are acceptable for **geometry** (safe-area calc, precise
   overlay offsets, media aspect boxes) — never for font size, radius, or color.
-- Page frame: `max-w-7xl px-3 sm:px-6 lg:px-8` (header/footer edge-aligned);
+- Page frame: `max-w-7xl` (fluid 1280–1360px here: `--container-7xl`, clear of the support mark, 316–318px cards from 1440 on the 360w/640w image rungs) `px-3 sm:px-6 lg:px-8` (header/footer edge-aligned);
   explorer fills parent `main` — no double containers.
 - Listing grid (`LISTING_GRID`, listing-grid.ts) — Facebook-Marketplace spacing (owner, 2026-10-18:
   "minimal wasted space around cards and a bit larger"): on a phone it **bleeds 8px out of the

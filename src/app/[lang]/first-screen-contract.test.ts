@@ -52,7 +52,7 @@ describe('the first screen', () => {
     const s = code('src/app/[lang]/c/[category]/(index)/layout.tsx')
     expect(s).toMatch(/<main id="main"[^>]*className="[^"]*\bpt-4 pb-12"/)
     expect(s).not.toMatch(/\bpt-6\b/)
-    expect(s).toMatch(/<h1 className="h-display text-foreground max-sm:truncate max-sm:py-0\.5 max-sm:\[--text-display:var\(--text-title\)\]">/)
+    expect(s).toContain("'h-display text-foreground max-sm:truncate max-sm:py-0.5 max-sm:[--text-display:var(--text-title)]'")
     expect(s.indexOf('<LangPilotSwitch')).toBeGreaterThan(s.indexOf('{children}'))
     expect(s.indexOf('<LangPilotSwitch')).toBeLessThan(s.indexOf('</main>'))
   })

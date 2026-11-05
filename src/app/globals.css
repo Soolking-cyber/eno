@@ -309,6 +309,12 @@
    that, a caller's `z-[70]` would NOT replace a primitive's `z-overlay` and stylesheet order would
    pick the winner. Emitted only where used; a new tier goes in this table first. */
 @theme {
+  /* The page frame (`max-w-7xl`) grows from Tailwind's 1280 to 1360: 316-318px cards at 1440+ on the same 360w/640w image rungs
+     (owner, 10-18: "minimal wasted space"). ⚠️ FLUID, because the floating support mark's left edge sits 68px from the screen's:
+     `100vw - 88px` keeps the last card clear of it from 1368 up, a classic 16px scrollbar included (100vw counts the bar), where
+     a flat 1360 put it over the title at a 1366 laptop (measured 2026-11-05). At 1368 and below the frame is the 1280 it always
+     was. listing-grid.ts (the `sizes`) and category-rail.tsx TILE_W repeat this arithmetic: change them together. */
+  --container-7xl: max(80rem, min(85rem, calc(100vw - 88px)));
   --z-index-raised: 10;
   --z-index-sticky: 30;
   --z-index-nav: 40;

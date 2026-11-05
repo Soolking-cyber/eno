@@ -174,7 +174,7 @@ export function TeacherContact({ listingId, name, image, cover = false }: {
           {busy && intent.current === 'cover' ? tr('Opening chat…', 'Đang mở trò chuyện…') : tr('Ask about a cover lesson', 'Hỏi về buổi dạy thay')}
         </Button>
       )}
-      <Button variant={offerCover ? 'secondary' : 'cta'} className="w-full" onClick={() => start(false, 'hire')} disabled={busy}>
+      <Button variant={offerCover ? 'outline' : 'cta'} className="w-full" onClick={() => start(false, 'hire')} disabled={busy}>
         {busy && intent.current === 'hire' ? tr('Opening chat…', 'Đang mở trò chuyện…') : tr('Message teacher', 'Nhắn tin cho giáo viên')}
       </Button>
       {/* A school only, and only while the teacher offers it to this account right now (it asks; nothing is drawn else). */}
@@ -218,7 +218,7 @@ export function TeacherContactJump({ listingId, className }: { listingId: string
         window.dispatchEvent(new CustomEvent(TEACHER_CONTACT_EVENT, { detail: { listingId } }))
       }}
     >
-      {tr('Message', 'Nhắn tin')}
+      {tr('Contact teacher', 'Liên hệ giáo viên')}
     </Button>
   )
 }

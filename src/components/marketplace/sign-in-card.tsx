@@ -75,7 +75,7 @@ export function SignInCard({
   if (join) {
     return (
       <div className={cn('w-full', className)}>
-        <Title className="block px-8 text-center text-lg font-bold text-foreground">
+        <Title className="block px-8 text-center text-2xl font-bold text-foreground">
           {tr('Join eno — it’s free', 'Tham gia eno — miễn phí')}
         </Title>
         {/**
@@ -127,7 +127,7 @@ export function SignInCard({
           </div>
         </div>
       ) : (
-        <Title className="block px-8 text-center text-lg font-bold text-foreground">
+        <Title className="block px-8 text-center text-2xl font-bold text-foreground">
           {/*
             ⛔ "LOG IN OR SIGN UP", NOT "SIGN IN TO eno.vn" (auth-04, 2026-10-04). A first-time visitor read
             "Sign in" as "for people who already have an account" and looked for a separate sign-up; this one

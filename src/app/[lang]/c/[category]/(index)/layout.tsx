@@ -7,10 +7,12 @@ import { Bilingual } from '@/components/marketplace/bilingual'
 import { Tr } from '@/context/language-context'
 import { getCategoryRow } from '../load-category'
 import { loadRentalsHeadline } from '../category-data'
-import { RentalsHeading } from '../category-text'
+import { cn } from '@/lib/utils'
+import { RentalsHeading, RentalsHeadingShort } from '../category-text'
+import { rentalsHeadlineHasShortForm } from '../category-copy'
 import { TeachersHeading } from '@/components/marketplace/category-lede'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
-import { CategoryLedeBlock } from './category-lede-block'
+import { CategoryLedeBlock, CategoryLedeLinks } from './category-lede-block'
 import { LEDE_PLACEMENT } from './lede-placement'
 import { VI_PILOT, localizedHref } from '@/lib/lang-pinned'
 import { SITE_NAME } from '@/lib/edition'
@@ -108,13 +110,18 @@ export default async function CategoryIndexLayout({
             /c/teachers says what the people hiring look for — "Find English teachers in Vietnam" (plan B3, approved in the
             plan, 2026-10-18; category-copy.ts TEACHERS_H1, which its <title> is built from and which says why its Vietnamese
             is an interim) — from the row it already has, awaiting nothing. category-copy.test.ts pins this branch. */}
-        <h1 className="h-display text-foreground max-sm:truncate max-sm:py-0.5 max-sm:[--text-display:var(--text-title)]">
+        <h1 className={cn('h-display text-foreground max-sm:truncate max-sm:py-0.5 max-sm:[--text-display:var(--text-title)]', headline && rentalsHeadlineHasShortForm(headline) && 'max-sm:sr-only')}>
           {headline ? <RentalsHeading headline={headline} />
             : cat.slug === TEACHERS_CATEGORY_SLUG ? <TeachersHeading />
             : <><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /> <Tr text="in Vietnam" /></>}
         </h1>
-        {LEDE_PLACEMENT === 'layout' && <CategoryLedeBlock slug={cat.slug} />}
+        {headline && <RentalsHeadingShort headline={headline} className="h-display truncate py-0.5 text-foreground [--text-display:var(--text-title)] sm:hidden" />}
+        <CategoryLedeLinks slug={cat.slug} />
         {children}
+        {/* ⚠️ THE LEDE COMES AFTER THE GRID IN THE DOM, NOT ONLY ON SCREEN: the products come first (owner, 2026-10-18; Facebook and Airbnb open on
+            goods), and it holds links, so painting it low with `order` would send a keyboard user below the listings and back (WCAG 2.4.3).
+            No Suspense boundary sits between, so it is still in the first HTML for crawlers. */}
+        {LEDE_PLACEMENT === 'layout' && <CategoryLedeBlock slug={cat.slug} />}
         {/* ⛔ THE `/vi` PILOT'S SWITCHER LEFT THE FIRST SCREEN (owner, 2026-10-18: products first on a phone). It was
             a row of its own above the breadcrumb. It stays a server-rendered `<a hreflang>` to the twin (crawlers and
             readers without JavaScript keep the link, CS-3 V3b-4), now at the end of the page; on a phone the

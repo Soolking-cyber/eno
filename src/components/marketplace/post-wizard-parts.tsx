@@ -111,6 +111,7 @@ export function PublishButton({
   loadingProfile = false,
   edit,
   missingCount,
+  nextStep,
   t,
 }: {
   className?: string
@@ -121,6 +122,7 @@ export function PublishButton({
   loadingProfile?: boolean
   edit: boolean
   missingCount: number
+  nextStep?: string
   t: (vi: string, en: string) => string
 }) {
   return (
@@ -147,7 +149,7 @@ export function PublishButton({
       // without lying about whether the control works.
       className={cn('w-full rounded-xl px-7 py-3 text-sm transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer', className)}
     >
-      <PublishLabel submitting={submitting} loadingProfile={loadingProfile} edit={edit} missingCount={missingCount} t={t} />
+      <PublishLabel submitting={submitting} loadingProfile={loadingProfile} edit={edit} missingCount={missingCount} nextStep={nextStep} t={t} />
     </Button>
   )
 }
@@ -159,12 +161,15 @@ export function PublishLabel({
   loadingProfile = false,
   edit,
   missingCount,
+  nextStep,
   t,
 }: {
   submitting: boolean
   loadingProfile?: boolean
   edit: boolean
   missingCount: number
+  /** The first step still open ("Add 3 photos"), the same one a tap jumps to. The button says it instead of promising a publish. */
+  nextStep?: string
   t: (vi: string, en: string) => string
 }) {
   if (submitting) return <>{edit ? t('Đang lưu…', 'Saving…') : t('Đang đăng…', 'Posting…')}</>
@@ -177,9 +182,10 @@ export function PublishLabel({
     // primary action belongs, so the button stopped naming what it does at the exact moment
     // the seller is deciding whether to bother. The verb stays put and the count rides
     // alongside as a badge: same information, but the button still says what pressing it is
-    // for. `tabular-nums` so the badge does not reflow the label as the count ticks down.
+    // for. Every step is a verb too ("Add 3 photos"), so with `nextStep` the button names the next thing to do, and the
+    // tap goes there (2026-11-05, as Airbnb's and Facebook's flows do). `tabular-nums` so the badge does not reflow the label as the count ticks down.
     <span className="inline-flex items-center justify-center gap-2">
-      {edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing')}
+      {nextStep ?? (edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing'))}
       {missingCount > 0 && (
         <span
           // ⚠️ THE NUMBER STAYS OUTSIDE t(). This was `t(\`Còn ${n} mục chưa xong\`, \`${n} still
@@ -361,7 +367,7 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
   // ONE predicate for the pill, aria-pressed and the glyph's fill, so the three can never disagree about a chip.
   const on = (v: string) => (typeof value === 'string' ? value === v : value.includes(v))
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex max-w-2xl flex-wrap gap-2">
       {options.map((o) => (
         <Button
           variant="bare"

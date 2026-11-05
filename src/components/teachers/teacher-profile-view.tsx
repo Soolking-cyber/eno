@@ -246,7 +246,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
       {describe && ld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />}
       {describe && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(breadcrumbLd) }} />}
       <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
         {/* The way up (the /c page's trail, ui/breadcrumb — hidden in the native app by its data-crumb-trail). The leaf
             repeats the h1 just below, so a phone shows only the way up: one line, no wrap. */}
         <Breadcrumb className="mb-4">
@@ -267,7 +267,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_20rem]">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_24rem] lg:gap-x-10">
           <div className="space-y-8">
             {/* ⛔ A PHONE'S HEADER IS TWO BANDS (UI climb 2026-11-05): photo + name + share, then the headline, the facts and Message at
                 the full width. A 96px photo beside everything left the words a 240px column, about ten lines of them. From `sm`
@@ -293,6 +293,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                 )}
                 {/* "Message" in the first screen (rentals-12): scrolls to the contact block below and runs
                     its action. Phones and tablets only — on lg the block is the sticky right column. */}
+                {cover && <p className="mt-3 text-lg font-bold text-price lg:hidden">{formatMoneyFull(cover.rate, '₫', moneyLocale(lang))} <span className="text-sm font-semibold"><Bilingual en="/ hour" vi="/ giờ" /></span></p>}
                 <TeacherContactJump listingId={listing.id} className="mt-3 w-full sm:w-auto lg:hidden" />
               </div>
               {/* SHARE (owner, 2026-10-11: "make it easy to share on facebook and zalo or whatsapp") — the page's own
@@ -327,15 +328,32 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
               </div>
             )}
 
-            {/* COVER LESSONS — first after the name, because a school arriving from the cover filter came for exactly
-                this. ⛔ The rate is display only, never JSON-LD (a person is not an Offer — jsonld.ts). Dates are a plain
+            {publicVideo && (
+              <section aria-labelledby="t-video">
+                <h2 id="t-video" className="mb-3 text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Intro video" vi="Video giới thiệu" /></h2>
+                <video src={publicVideo} controls preload="metadata" playsInline className="aspect-video w-full rounded-2xl bg-black" />
+              </section>
+            )}
+            {/* Kept private, sent on request (2026-10-07): whoever messages the teacher asks in the chat — any account since
+                2026-10-13, not only a school — and the teacher sends it there. */}
+            {videoOnRequest && (
+              <section aria-labelledby="t-video">
+                <h2 id="t-video" className="mb-2 text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Intro video" vi="Video giới thiệu" /></h2>
+                <p className="flex items-center gap-2 text-sm text-body">
+                  <Lock className="size-4 shrink-0 text-muted-foreground" />
+                  <Bilingual en="Sent on request — message this teacher and ask for it in the chat." vi="Gửi theo yêu cầu — hãy nhắn tin cho giáo viên và đề nghị xem trong cuộc trò chuyện." />
+                </p>
+              </section>
+            )}
+
+            {/* COVER LESSONS — right after the intro video (2026-11-05: a person before a timetable, as Preply opens), because a
+                school arriving from the cover filter came for exactly this; the rate is already at the button above. ⛔ The rate is display only, never JSON-LD (a person is not an Offer — jsonld.ts). Dates are a plain
                 calendar day (formatCalendarDay): this page is ISR-cached, so nothing here may read the clock. */}
             {cover && (
               <section aria-labelledby="t-cover" className="space-y-3 rounded-2xl bg-tint p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 id="t-cover" className="text-lg font-semibold text-foreground"><Bilingual en="Available for cover lessons" vi="Nhận dạy thay" /></h2>
-                  <p className="font-semibold text-price">{formatMoneyFull(cover.rate, '₫', moneyLocale(lang))} <Bilingual en="/ hour" vi="/ giờ" /></p>
-                </div>
+                  <h2 id="t-cover" className="text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Available for cover lessons" vi="Nhận dạy thay" /></h2>
+                                  </div>
                 <Table className="table-fixed">
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
@@ -382,34 +400,16 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
               </section>
             )}
 
-            {publicVideo && (
-              <section aria-labelledby="t-video">
-                <h2 id="t-video" className="mb-3 text-lg font-semibold text-foreground"><Bilingual en="Intro video" vi="Video giới thiệu" /></h2>
-                <video src={publicVideo} controls preload="metadata" playsInline className="aspect-video w-full rounded-2xl bg-black" />
-              </section>
-            )}
-            {/* Kept private, sent on request (2026-10-07): whoever messages the teacher asks in the chat — any account since
-                2026-10-13, not only a school — and the teacher sends it there. */}
-            {videoOnRequest && (
-              <section aria-labelledby="t-video">
-                <h2 id="t-video" className="mb-2 text-lg font-semibold text-foreground"><Bilingual en="Intro video" vi="Video giới thiệu" /></h2>
-                <p className="flex items-center gap-2 text-sm text-body">
-                  <Lock className="size-4 shrink-0 text-muted-foreground" />
-                  <Bilingual en="Sent on request — message this teacher and ask for it in the chat." vi="Gửi theo yêu cầu — hãy nhắn tin cho giáo viên và đề nghị xem trong cuộc trò chuyện." />
-                </p>
-              </section>
-            )}
-
             {tp?.bio && (
               <section aria-labelledby="t-about">
-                <h2 id="t-about" className="mb-2 text-lg font-semibold text-foreground"><Bilingual en="About" vi="Giới thiệu" /></h2>
+                <h2 id="t-about" className="mb-2 text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="About" vi="Giới thiệu" /></h2>
                 <p className="max-w-prose whitespace-pre-line text-body"><LocalizedText text={tp.bio} /></p>
               </section>
             )}
 
             {tp && (
               <section aria-labelledby="t-teaching" className="space-y-4">
-                <h2 id="t-teaching" className="text-lg font-semibold text-foreground"><Bilingual en="Teaching" vi="Giảng dạy" /></h2>
+                <h2 id="t-teaching" className="text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Teaching" vi="Giảng dạy" /></h2>
                 <dl className="divide-y divide-border">
                   {/* Row labels say what the /c/teachers filter calls the same facet (taxonomy labelVi). */}
                   <Row label={<Bilingual en="Subjects" vi="Môn dạy" />}><Chips items={subjectChips} /></Row>
@@ -431,7 +431,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
             {experience.length > 0 && (
               <section aria-labelledby="t-exp">
                 {/* ⛔ Not <Tr>: the UI-string "Experience" is "Trải nghiệm" (an experience you go on); this is work history. */}
-                <h2 id="t-exp" className="mb-3 text-lg font-semibold text-foreground"><Bilingual en="Experience" vi="Kinh nghiệm" /></h2>
+                <h2 id="t-exp" className="mb-3 text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Experience" vi="Kinh nghiệm" /></h2>
                 <ol className="space-y-3">
                   {experience.map((x, i) => (
                     <li key={i}>
@@ -445,7 +445,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
 
             {tp && (degreeLabel || certificates.length > 0) && (
               <section aria-labelledby="t-quals">
-                <h2 id="t-quals" className="mb-3 text-lg font-semibold text-foreground"><Bilingual en="Qualifications" vi="Bằng cấp và chứng chỉ" /></h2>
+                <h2 id="t-quals" className="mb-3 text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Qualifications" vi="Bằng cấp và chứng chỉ" /></h2>
                 <ul className="space-y-2 text-sm text-body">
                   {degreeLabel && tp.degreeLevel && (
                     <li><OptionLabel opts={degreeOpts} value={tp.degreeLevel} />{tp.degreeMajor ? `, ${tp.degreeMajor}` : ''}{tp.degreeInstitution ? ` — ${tp.degreeInstitution}` : ''}{tp.degreeYear ? ` (${tp.degreeYear})` : ''}</li>
@@ -463,6 +463,8 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
           </div>
 
           <aside className="lg:sticky lg:top-24 lg:self-start">
+            {/* The rate sits with the action on desktop; below lg it stays in the cover card's head. */}
+            {cover && <p className="mb-3 hidden text-2xl font-bold tracking-tight text-price lg:block">{formatMoneyFull(cover.rate, '₫', moneyLocale(lang))} <span className="text-base font-semibold"><Bilingual en="/ hour" vi="/ giờ" /></span></p>}
             <TeacherContact listingId={listing.id} name={name} image={photo} cover={!!cover} />
           </aside>
         </div>

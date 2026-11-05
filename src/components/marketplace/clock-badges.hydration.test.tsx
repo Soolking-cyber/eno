@@ -5,7 +5,7 @@
  * The PDP and the feeds are ISR-cached, so the HTML was rendered at GENERATION time and is hydrated at the
  * visitor's NOW. Two components read `Date.now()` during render and so disagreed with their own HTML once
  * the page aged: the price-drop "N days left" suffix (and its element, once the window lapsed) and the card's
- * "New" chip (under 48h at generation, older now). A structural mismatch makes React throw the server HTML
+ * "Just in" chip (under 24h at generation, older now). A structural mismatch makes React throw the server HTML
  * away and client-render the region. The countdown is decided after mount (use-mounted.ts). The "New" chip and the
  * relative time are now in the HTML and correct themselves with no state and no render (speed audit, 2026-11-03):
  * the chip is decided where the row is serialized, and hides itself when the HTML has outlived it.
@@ -77,37 +77,37 @@ describe('CardBadges "New" on a feed generated days earlier', () => {
 
   it('⛔ a listing that was new at generation and is not now hydrates without a mismatch, and its chip hides itself', async () => {
     const r = await renderThenHydrate(<CardBadges listing={listing(GENERATED - 3_600_000, true)} />, GENERATED, GENERATED + 3 * DAY)
-    expect(r.html).toContain('New')
+    expect(r.html).toContain('Just in')
     expect(r.recoverable).toEqual([])
     expect(chip()?.hidden).toBe(true)
   })
 
-  it('a listing still under 48h has its chip in the first paint, and keeps it', async () => {
+  it('a listing still under 24h has its chip in the first paint, and keeps it', async () => {
     const r = await renderThenHydrate(<CardBadges listing={listing(GENERATED - 3_600_000, true)} />, GENERATED, GENERATED + 3_600_000)
-    expect(r.html).toContain('New')
+    expect(r.html).toContain('Just in')
     expect(r.recoverable).toEqual([])
-    expect(r.text).toBe('New')
+    expect(r.text).toBe('Just in')
     expect(chip()?.hidden).toBe(false)
   })
 
   it('⛔ in HTML that lives for weeks the chip claims nothing until the clock agrees', async () => {
     const stale = await renderThenHydrate(<CardBadges chipInHtml={false} listing={listing(GENERATED - 3_600_000, true)} />, GENERATED, GENERATED + 3 * DAY)
     expect(stale.html).toContain('hidden')
-    expect(stale.html).not.toContain('New')
+    expect(stale.html).not.toContain('Just in')
     expect(stale.recoverable).toEqual([])
     expect(chip()?.hidden).toBe(true)
     document.body.innerHTML = ''
     const fresh = await renderThenHydrate(<CardBadges chipInHtml={false} listing={listing(GENERATED - 3_600_000, true)} />, GENERATED, GENERATED + 3_600_000)
-    expect(fresh.html).not.toContain('New')
+    expect(fresh.html).not.toContain('Just in')
     expect(fresh.recoverable).toEqual([])
     expect(chip()?.hidden).toBe(false)
-    expect(fresh.text).toBe('New')
+    expect(fresh.text).toBe('Just in')
   })
 
   it('no chip when the row says no, or when a row kept from before the field does not say', async () => {
     for (const isNew of [false, undefined]) {
       const r = await renderThenHydrate(<CardBadges listing={listing(GENERATED - 3_600_000, isNew)} />, GENERATED, GENERATED)
-      expect(r.html).not.toContain('New')
+      expect(r.html).not.toContain('Just in')
       expect(r.text).toBe('')
     }
   })

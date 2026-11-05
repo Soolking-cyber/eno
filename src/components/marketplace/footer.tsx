@@ -767,10 +767,10 @@ function FooterBody() {
             "Made in Saigon / ❤️", "30 / sellers". Row one is identity + counters; the links get a
             row of their own, where they can wrap as a whole row instead of word by word. */}
         <div className="mt-8 flex flex-col gap-4 border-t border-border/60 pt-6 text-xs text-body max-sm:mt-4 max-sm:gap-2 max-sm:pt-4">
-        <div className="flex flex-col items-center gap-3 lg:flex-row lg:flex-wrap lg:justify-between">
+        <div className="flex flex-col items-center gap-3 max-sm:items-start lg:flex-row lg:flex-wrap lg:justify-between">
           {/* `whitespace-nowrap` on each clause, `flex-wrap` on the line: a clause may move to the next
               line as a unit, but never breaks inside itself. */}
-          <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1">
+          <p className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 max-sm:justify-start">
             {/* ⚠️ SITE_NAME, NOT A LITERAL — a copyright line is a claim about WHO OPERATES THIS
                 SITE, so eno.forum asserting "© eno.vn" was the licensed marketplace claiming
                 ownership of a service it is not licensed to run. It survived the 2026-08-02 wordmark
@@ -800,7 +800,7 @@ function FooterBody() {
               painted last (globals.css: "PREFER NOT NEEDING IT"). `max-sm:min-h-11` with no row gap is the
               Explore/columns pattern above (D-TAP): rows 44px apart, no overlap, no pseudo-element. From sm
               up the row is unchanged. */}
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 max-sm:gap-y-0 lg:justify-end">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 max-sm:justify-start max-sm:gap-y-0 lg:justify-end">
             <a href="/terms" className={LEGAL_LINK}>{tr('Terms', 'Điều khoản')}</a>
             <a href="/privacy" className={LEGAL_LINK}>{tr('Privacy', 'Quyền riêng tư')}</a>
             <a href="/regulations" className={LEGAL_LINK}>{tr('Regulations', 'Quy chế')}</a>

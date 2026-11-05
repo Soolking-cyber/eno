@@ -60,7 +60,7 @@ function SignInPageInner() {
        anchor keeps everything above the form still; `max(3rem, 10dvh)` keeps the plain, airy frame. */
     /* `<main id="main" tabIndex={-1}>` (quality-12): the skip link targets #main on every page, and this one
        had no main landmark at all — the skip link went nowhere and a screen reader found no main region. */
-    <main id="main" tabIndex={-1} className="flex min-h-page w-full flex-col items-center justify-start px-6 pb-12 pt-[max(3rem,10dvh)]">
+    <main id="main" tabIndex={-1} data-browse-surface="" className="flex min-h-page w-full flex-col items-center justify-start px-6 pb-12 pt-[max(3rem,10dvh)]">
       <div className="w-full max-w-sm">
         <LocalizedLink href="/" className="mb-8 flex justify-center">
           {/* `?v=` is a content stamp that earns this file `max-age=31536000, immutable`
@@ -84,7 +84,7 @@ function SignInPageInner() {
         {/* Operator identity — this layout has no Footer, and Đ.36 wants the operator identifiable
             on every public page. Compact single block behind a hairline. */}
         <p className="mt-8 border-t border-border/60 pt-4 text-center text-3xs leading-relaxed text-ink-4">
-          {COMPANY.name} · {COMPANY.address} · {tr('Business reg. no.', 'GCN ĐKDN số')}: {COMPANY.erc} · {COMPANY.email}
+          {COMPANY.name} · {COMPANY.address} · {tr('Business reg. no.', 'GCN ĐKDN số')}: {COMPANY.erc} · <a href={`mailto:${COMPANY.email}`} className="relative tap-44 underline underline-offset-2 transition-colors hover:text-accent-foreground">{COMPANY.email}</a>
         </p>
       </div>
     </main>

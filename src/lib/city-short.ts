@@ -51,3 +51,18 @@ export function isHcmc(location: string | null | undefined): boolean {
   if (!location) return false
   return HCMC.test(fold(location))
 }
+
+/**
+ * A CARD'S AREA: the ward in brackets and a Ho Chi Minh City tail come off, because the card's one-line row clipped there
+ * anyway ("Quận Gò Vấp (Phường A…"). Runs on the TRANSLATED text, so the MT dictionary still keys on the stored value.
+ * ⛔ DISPLAY ONLY, like everything in this file. The PDP keeps the whole string.
+ */
+export function cardArea(text: string): string {
+  // Only a bracket that is nothing but a WARD goes, in the stored shape "Quận 12 (Phường An Phú Đông)" or its translation
+  // "District 12 (An Phu Dong Ward)". A bracket with anything else in it may be the only place naming the district, so it stays.
+  // ⚠️ No lookbehind and no `\b`: Safari before 16.4 cannot parse the first and would lose the whole card chunk, and `\b` is ASCII-only.
+  const bare = text.replace(/\s*[(（](?:Phường|Xã|Thị trấn)\s[^)）,]*[)）]\s*|\s*[(（][^)）,]*\s(?:Ward|Commune)[)）]\s*/giu, ' ').replace(/\s+/g, ' ').trim()
+  const parts = bare.split(/\s*,\s*/)
+  if (parts.length > 1 && isHcmc(parts[parts.length - 1])) parts.pop()
+  return parts.join(', ') || text
+}

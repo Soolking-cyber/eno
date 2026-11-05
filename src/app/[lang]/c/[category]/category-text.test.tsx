@@ -7,7 +7,7 @@ import { LanguageProvider } from '@/context/language-context'
 import { guidesForCategory } from '@/lib/category-guides'
 import { CATEGORY_LINKED_SENTENCE, DISTRICT_RENTALS_H1, RENTALS_H1, RENTALS_LINKED_SENTENCE, REPORT_SENTENCE, TEACHERS_CONTACT_SENTENCE, categoryMetadata, districtLinkedSentence, districtMetadata, homeFacts, rentalKinds, type RentalsHeadline } from './category-copy'
 import { CategoryLede } from '@/components/marketplace/category-lede'
-import { CategoryGuides, DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentalsDistricts, RentalsHeading, RentalsLede, rentalsLinkedLede } from './category-text'
+import { CategoryGuides, DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentalsDistricts, RentalsHeading, RentalsHeadingShort, RentalsLede, rentalsLinkedLede } from './category-text'
 import { readFileSync } from 'node:fs'
 
 /**
@@ -52,6 +52,12 @@ describe('RentalsHeading', () => {
     for (const lang of ['en', 'vi'] as const) {
       expect(text(lang, <RentalsHeading headline={key} />)).toBe(RENTALS_H1[key][lang])
     }
+  })
+  it('the phone line is a whole sentence, hidden from assistive tech, and only for a headline that needs it', () => {
+    expect(html('en', <RentalsHeadingShort headline="apartments-hcmc" />)).toContain('aria-hidden')
+    expect(text('en', <RentalsHeadingShort headline="apartments-hcmc" />)).toBe('Apartments for rent in HCMC')
+    expect(text('vi', <RentalsHeadingShort headline="apartments-houses-hcmc" />)).toBe('Cho thuê căn hộ và nhà tại TP.HCM')
+    expect(text('en', <RentalsHeadingShort headline="rentals-vietnam" />)).toBe('')
   })
 })
 

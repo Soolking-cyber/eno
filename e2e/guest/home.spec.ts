@@ -115,7 +115,7 @@ test.describe('Guest · homepage', () => {
     // deleted, so that string is no longer on any page — matching it here failed against a homepage
     // that was working perfectly. `:visible` + .first() because the header renders a mobile and a
     // desktop input and BOTH are in the DOM; a bare locator trips Playwright's strict mode.
-    await expect(page.locator('input[placeholder*="Find products"]:visible').first()).toBeVisible()
+    await expect(page.locator('input[placeholder*="Search eno"]:visible').first()).toBeVisible()
     // Post + Sign-in routes are wired; on desktop they're in the header, on mobile the bottom
     // nav. Assert a VISIBLE Post affordance (viewport-agnostic) and that a Sign-in link exists.
     await expect(page.locator('a[href="/post"]:visible').first()).toBeVisible()

@@ -56,10 +56,10 @@ export function ListingCardSkeleton({ className }: { className?: string }) {
             collide with the owner's "price 1 line" card spec (2026-09-13). */}
         <Skeleton className="h-5 w-1/2 sm:h-[22.5px]" />
         {/* TITLE — `truncate` text-sm/leading-snug: one 19.25px line. */}
-        <Skeleton className="h-[19.25px] w-4/5" />
+        <Skeleton className="h-[19.25px] w-4/5 sm:h-[22px]" />
         {/* META — the unchanged info line under the real row's pt-1 (4px): text-xs on a phone (a 16px line —
             this bar was 15px, a pixel short, since D-TYPE raised the phone row to 12px), and text-xs from sm too since 2026-11-05. */}
-        <Skeleton className="mt-1 h-4 w-1/2" />
+        <Skeleton className="mt-1 h-4 w-1/2 lg:h-5" />
       </div>
     </div>
   )

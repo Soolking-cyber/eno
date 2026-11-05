@@ -213,6 +213,32 @@ function dealBySeat<T extends Diversifiable>(rows: readonly T[], opts?: SeatOpti
 }
 
 /**
+ * ONE PHOTO, ONE PLACE IN THE FRONT OF THE FEED. Sellers are not the only thing that can make a feed look like one
+ * thing over and over: measured 2026-11-05, 25 of the first 48 cards on the rentals feed were one partner's units in
+ * one building, every one with the same cover photo (same dHash in the URL, a different file per row), and the seller
+ * round-robin cannot see that because one seller holds nearly the whole category.
+ * This only says which rows repeat a cover already seen; feed-window.ts varyCovers acts on it, one seller at a time so
+ * nobody loses a seat. Nothing is dropped: past the window the natural order continues.
+ * A cover with no hash (older uploads) is never called a repeat, since nothing proves it is one.
+ */
+export function splitRepeatedCovers<T>(rows: readonly T[]): { distinct: T[]; repeats: T[] } {
+  const seen = new Set<string>()
+  const distinct: T[] = []
+  const repeats: T[] = []
+  for (const row of rows) {
+    // `images` is a JSON string column on these rows; only its first element matters, so nothing parses the rest.
+    const cover = /^\s*\[\s*"([^"]+)"/.exec((row as { images?: string | null }).images ?? '')?.[1]
+    const hash = cover ? hashFromUrl(cover) : null
+    if (hash && seen.has(hash)) repeats.push(row)
+    else {
+      if (hash) seen.add(hash)
+      distinct.push(row)
+    }
+  }
+  return { distinct, repeats }
+}
+
+/**
  * Whether the seller round-robin applies to a given sort.
  *
  * ⛔ ONLY THE DEFAULT BLEND. Diversity is a MERCHANDISING rule: it decides what a visitor who has

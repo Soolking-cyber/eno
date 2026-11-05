@@ -27,7 +27,7 @@ test.describe('Guest · search', () => {
     await page.goto('/')
     // Header search (the hero bar was removed 2026-08-03) — :visible picks the mobile-vs-desktop
     // twin that is actually rendered at this viewport; both are in the DOM.
-    const box = page.locator('input[placeholder*="Find products"]:visible').first()
+    const box = page.locator('input[placeholder*="Search eno"]:visible').first()
     await box.fill('iphone')
     await box.press('Enter')
     await expect(page).toHaveURL(/[?&](category|brand|model|q|search)=/i)
@@ -40,7 +40,7 @@ test.describe('Guest · search', () => {
     await page.goto('/')
     // Header search (the hero bar was removed 2026-08-03) — :visible picks the mobile-vs-desktop
     // twin that is actually rendered at this viewport; both are in the DOM.
-    const box = page.locator('input[placeholder*="Find products"]:visible').first()
+    const box = page.locator('input[placeholder*="Search eno"]:visible').first()
     await box.fill('honda')
     await box.press('Enter')
     await expect(page.getByText(RESULTS_COUNT).first()).toBeVisible()

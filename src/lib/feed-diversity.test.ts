@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   mergeRoundRobin, diversifyBySeller, diversifyRail, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW, SHARED_SEAT_SELLERS, seatKey, sharedSeatsFor,
-  GOODS_CATEGORY_SLUGS, GOODS_SEATS, GOODS_SEAT_ROWS, HOME_FEED_SEATS, goodsSeatsFor, isSecondHandGoods, reserveGoodsSeats,
+  GOODS_CATEGORY_SLUGS, GOODS_SEATS, GOODS_SEAT_ROWS, HOME_FEED_SEATS, goodsSeatsFor, isSecondHandGoods, reserveGoodsSeats, splitRepeatedCovers,
 } from './feed-diversity'
 import { CATEGORY_BY_SLUG, TAXONOMY } from './taxonomy'
 import { JOB_SELLER_IDS } from './job-listing'
@@ -579,5 +579,28 @@ describe('goodsSeatsFor â€” the API serves the home feed only for the explorerâ€
     expect({ sharedSeats: sharedSeatsFor(p.get('subcategory'), p.get('category')), goodsSeats: goodsSeatsFor(p) }).toEqual(HOME_FEED_SEATS)
     expect(HOME_FEED_SEATS).toEqual({ sharedSeats: true, goodsSeats: true })
     expect(Object.isFrozen(HOME_FEED_SEATS)).toBe(true)
+  })
+})
+
+describe('splitRepeatedCovers', () => {
+  // The real column: a JSON string, the shape LISTING_CARD_SELECT reads (an array here hid that it never matched).
+  const row = (id: string, hash?: string) => ({ id, images: JSON.stringify(hash ? [`https://x/${id}-h${hash}.webp`, 'https://x/second.webp'] : ['https://x/old.webp']) })
+  const a = 'cdcc49dbb9210d0f'
+  const b = '43361dafa78f2f1f'
+
+  it('keeps the first row of a cover and moves later ones to repeats, in order, even when each row has its own file', () => {
+    const { distinct, repeats } = splitRepeatedCovers([row('1', a), row('2', a), row('3', b), row('4', a)])
+    expect(distinct.map((r) => r.id)).toEqual(['1', '3'])
+    expect(repeats.map((r) => r.id)).toEqual(['2', '4'])
+  })
+  it('never calls an unhashed or photoless row a repeat', () => {
+    const { distinct, repeats } = splitRepeatedCovers([row('1'), row('2'), { id: '3', images: '[]' }, { id: '4' }])
+    expect(distinct).toHaveLength(4)
+    expect(repeats).toHaveLength(0)
+  })
+  it('loses nothing', () => {
+    const rows = [row('1', a), row('2', a), row('3', b), row('4', b), row('5')]
+    const { distinct, repeats } = splitRepeatedCovers(rows)
+    expect([...distinct, ...repeats].map((r) => r.id).sort()).toEqual(['1', '2', '3', '4', '5'])
   })
 })

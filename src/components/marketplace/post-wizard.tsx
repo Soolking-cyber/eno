@@ -1186,6 +1186,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // steps is not final, and a badge that reads 6 and then 5 looks like the form changed its mind.
   const countReady = !authLoading && (isGuest || meLoaded)
   const badgeCount = countReady ? pendingSteps.length : 0
+  // The Publish button says what comes next, and a tap goes there (scrollToMissing starts from this same step). An edit keeps
+  // "Save changes": the listing exists, and nothing is being finished for the first time.
+  const nextStep = countReady && !edit ? pendingSteps[0]?.todo : undefined
 
   // On-blur inline validation for the high-traffic fields — errors surface as the
   // user leaves a field, not only on submit (says what's wrong + how to fix).
@@ -1802,6 +1805,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     loadingProfile: profileLoading,
     edit: !!edit,
     missingCount: badgeCount,
+    nextStep,
     t,
   }
 
@@ -2008,7 +2012,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     // the error appears.
                     // rounded-2xl, not xl: the chips inside are pills now, and a 12px ring corner
                     // 8px outside a pill's curve clipped visually into the first chip's cap.
-                    className={cn('flex flex-wrap gap-2 rounded-2xl transition-colors', err.category && '-mx-2 -mt-2 p-2 ring-2 ring-destructive/60')}
+                    className={cn('flex max-w-2xl flex-wrap gap-2 rounded-2xl transition-colors', err.category && '-mx-2 -mt-2 p-2 ring-2 ring-destructive/60')}
                 >
                   {gridCats.map((c) => (
                     <Button
@@ -2538,7 +2542,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         // says to take the plain path for exactly that.
         // `loading` while it publishes too, not `disabled`: ui/button's busy state draws the spinner, keeps the label as
         // the accessible name and keeps focus — `disabled` only dimmed it, and threw a keyboard user's focus away.
-        primary={{ label: <PublishLabel submitting={submitting} loadingProfile={profileLoading} edit={!!edit} missingCount={badgeCount} t={t} />, onClick: submit, loading: submitting || profileLoading }}
+        primary={{ label: <PublishLabel submitting={submitting} loadingProfile={profileLoading} edit={!!edit} missingCount={badgeCount} nextStep={nextStep} t={t} />, onClick: submit, loading: submitting || profileLoading }}
         // Progress while it publishes; otherwise why one stopped AND the "Still needed" chips, stacked — neither may
         // hide the other: the chips are the navigation, and the reason is the only place a refusal shows here (a field
         // emptied mid-save can bring the chips back while the server refuses; review, 2026-10-07).

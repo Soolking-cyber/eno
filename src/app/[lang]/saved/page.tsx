@@ -117,8 +117,10 @@ export default function SavedPage() {
           <EmptyState
             tone="bare"
             size="lg"
-            className="py-20"
-            media={<Mascot name="saved" className="h-52 w-52" />}
+            // The phone's stack sits high, but the box still fills the screen: the footer rising into view when the skeleton
+            // gave way was a 0.28 layout shift (measured 2026-11-05).
+            className="py-8 sm:py-20 max-sm:min-h-[calc(100dvh-8rem)] max-sm:justify-start"
+            media={<Mascot name="saved" className="h-40 w-40 sm:h-52 sm:w-52" />}
             title={tr('No saved listings yet', 'Chưa có tin nào được lưu')}
             // Pointer-neutral ("Tap" is wrong on a desktop); the Vietnamese "Nhấn" already is.
             subtitle={tr(

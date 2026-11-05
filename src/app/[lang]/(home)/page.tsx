@@ -1,3 +1,4 @@
+import { PHASE_PRODUCTION_BUILD } from 'next/constants'
 import { DeskResolutionError, scopedListingWhere } from '@/lib/edition-scope'
 import { HOME_FEED_SEATS } from '@/lib/feed-diversity'
 import { inAppOnly } from '@/lib/in-app-listing'
@@ -136,6 +137,13 @@ async function getData(onlyTitleLang: string | undefined): Promise<{ categories:
      * hiding the one error an operator needs to see. Re-thrown so it surfaces.
      */
     if (e instanceof DeskResolutionError) throw e
+    /**
+     * ⛔ ONLY A BUILD MAY PRERENDER EMPTY. A blip during the 6-hourly regeneration used to take this same path, and that empty page is
+     * what got cached: measured 2026-11-05, a preview that lost its database for a minute served one category tile and no listing in
+     * the HTML for the rest of the window, to visitors and to crawlers, with the database long back. Throwing at runtime makes ISR
+     * keep the last good page and try again on the next request.
+     */
+    if (process.env.NEXT_PHASE !== PHASE_PRODUCTION_BUILD) throw e
     // DB unreachable at build → prerender empty and let ISR (revalidate) fill it
     // on the first request, so a transient build-time DB error never fails the deploy.
     return { categories: [], listings: [], total: 0, businesses: [], trending: [], teachers: [] }

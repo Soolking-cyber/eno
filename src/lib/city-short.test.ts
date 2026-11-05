@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isHcmc } from './city-short'
+import { cardArea, isHcmc } from './city-short'
 
 describe('isHcmc', () => {
   /** The value 9,726 of 9,773 live listings carry, in the exact form the database stores. */
@@ -47,5 +47,31 @@ describe('isHcmc', () => {
     expect(isHcmc(null)).toBe(false)
     expect(isHcmc(undefined)).toBe(false)
     expect(isHcmc('')).toBe(false)
+  })
+})
+
+describe('cardArea', () => {
+  it('drops the bracketed ward and the trailing city, in the shapes the database and the translator produce', () => {
+    expect(cardArea('Quận 12 (Phường An Phú Đông)')).toBe('Quận 12')
+    expect(cardArea('Huyện Bình Chánh (Xã Bình Chánh)')).toBe('Huyện Bình Chánh')
+    expect(cardArea('District 12 (An Phu Dong Ward)')).toBe('District 12')
+    expect(cardArea('District 1, Ho Chi Minh City')).toBe('District 1')
+  })
+  it('keeps every other city: only HCMC is implied', () => {
+    expect(cardArea('Hoàn Kiếm, Hà Nội')).toBe('Hoàn Kiếm, Hà Nội')
+    expect(cardArea('Lê Chân')).toBe('Lê Chân')
+  })
+  it('keeps a bracket that is not a ward: it may be the only place naming the district', () => {
+    expect(cardArea('Hoàn Kiếm (near the station), Hà Nội')).toBe('Hoàn Kiếm (near the station), Hà Nội')
+    expect(cardArea('Phường 22 (Bình Thạnh), Hồ Chí Minh')).toBe('Phường 22 (Bình Thạnh)')
+    expect(cardArea('Phường 22 (Ward 22, Bình Thạnh), Hồ Chí Minh')).toBe('Phường 22 (Ward 22, Bình Thạnh)')
+  })
+  it('never empties a location that is only the city or only a ward', () => {
+    expect(cardArea('Hồ Chí Minh')).toBe('Hồ Chí Minh')
+    expect(cardArea('(Phường 22)')).toBe('(Phường 22)')
+  })
+  it('parses on Safari before 16.4: no lookbehind in the module that every card imports', async () => {
+    const { readFileSync } = await import('node:fs')
+    expect(readFileSync(new URL('./city-short.ts', import.meta.url), 'utf8')).not.toMatch(/\(\?<[!=]/)
   })
 })

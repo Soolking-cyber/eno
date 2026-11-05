@@ -108,7 +108,8 @@ export function CardBadges({
    */
   const chip = useRef<HTMLSpanElement>(null)
   const isNew = showNew && listing.isNew === true
-  const newLabel = tr('New', 'Mới')
+  // Not 'New': the card's own meta line says New for the condition, and this means the listing is fresh.
+  const newLabel = tr('Just in', 'Mới đăng')
   useEffect(() => {
     if (!isNew || !chip.current) return
     const lapsed = Date.now() - new Date(listing.postedAt).getTime() >= NEW_LISTING_MS

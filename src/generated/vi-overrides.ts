@@ -563,7 +563,6 @@ export const VI_OVERRIDES: Record<string, string> = {
   "Filter": "Lọc",
   "Filter listings by status": "Lọc tin đăng theo trạng thái",
   "Filters": "Bộ lọc",
-  "Find products…": "Tìm sản phẩm…",
   "Finding your address…": "Đang tìm địa chỉ của bạn…",
   "Finish in your browser": "Hoàn tất trên trình duyệt",
   "First chat — never pay or ship before meeting. Meet in public, inspect, then pay.": "Lần đầu trò chuyện — tuyệt đối không thanh toán hay giao hàng trước khi gặp mặt. Hãy gặp ở nơi công cộng, kiểm tra hàng rồi mới thanh toán.",

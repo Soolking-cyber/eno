@@ -714,3 +714,109 @@ describe('diverseFeedWindow — the goods seats’ candidates (home feed only)',
     expect(typeof narrow).toBe('function')
   })
 })
+
+/** 25 of the first 48 rental cards were one partner's units with one cover (measured 2026-11-05). */
+describe('a window full of one cover photo', () => {
+  const COVER = 'cdcc49dbb9210d0f'
+  const unit = (i: number) => ({ id: `unit-${i}`, sellerId: 'gp', title: 'Duplex 20 m²', images: JSON.stringify([`https://x/gp-${i}-h${COVER}.webp`]) })
+  const other = (i: number) => ({ id: `other-${i}`, sellerId: 'gp', title: `Home ${i}`, images: JSON.stringify([`https://x/o-${i}-h${String(i).padStart(16, 'a')}.webp`]) })
+
+  it('shows different photos first, tops up past the repeated title, and keeps the size', async () => {
+    groupBy.mockResolvedValue([{ sellerId: 'gp', _max: { rankScore: 1 } }])
+    const win = [other(1), unit(1), unit(2), unit(3), unit(4), unit(5), unit(6), unit(7), unit(8), other(2)]
+    findMany.mockImplementation(async (a: { where: { AND?: unknown[] }; take: number }) =>
+      JSON.stringify(a.where).includes('"notIn":["Duplex 20 m²"]') ? [other(3), other(4)].slice(0, a.take) : win)
+    const rows = await diverseFeedWindow({}, RANK_DESC, SELECT)
+    const ids = rows.map((r) => (r as { id: string }).id)
+    expect(ids.slice(0, 5)).toEqual(['other-1', 'unit-1', 'other-2', 'other-3', 'other-4'])
+    expect(ids).toHaveLength(win.length)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('a top-up row repeating a cover under another title goes behind the new covers', async () => {
+    groupBy.mockResolvedValue([{ sellerId: 'gp', _max: { rankScore: 1 } }])
+    const sameCover = { id: 'shop-1', sellerId: 'gp', title: 'Commercial space', images: JSON.stringify([`https://x/s-h${COVER}.webp`]) }
+    const win = [unit(1), unit(2), unit(3), unit(4), unit(5), unit(6), unit(7), other(1)]
+    findMany.mockImplementation(async (a: { where: unknown }) =>
+      JSON.stringify(a.where).includes('"notIn":["Duplex 20 m²"]') ? [sameCover, other(2)] : win)
+    const ids = (await diverseFeedWindow({}, RANK_DESC, SELECT)).map((r) => (r as { id: string }).id)
+    expect(ids.indexOf('other-2')).toBeLessThan(ids.indexOf('shop-1'))
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('tops up only from the sellers giving way, so a small seller keeps its seats', async () => {
+    groupBy.mockResolvedValue([{ sellerId: 'gp', _max: { rankScore: 1 } }])
+    const win = [unit(1), unit(2), unit(3), unit(4), unit(5), unit(6), unit(7), other(1)]
+    const asked: string[] = []
+    findMany.mockImplementation(async (a: { where: unknown }) => {
+      asked.push(JSON.stringify(a.where))
+      return JSON.stringify(a.where).includes('Duplex') ? [] : win
+    })
+    await diverseFeedWindow({}, RANK_DESC, SELECT)
+    const topUp = asked.find((q) => q.includes('Duplex'))!
+    expect(topUp).toContain('{"sellerId":"gp"}')
+    expect(topUp).toContain('{"title":{"notIn":["Duplex 20 m²"]}}')
+  })
+
+  it('a small seller keeps its seats: repeats move only among that seller\'s own rows, and a big seller\'s top-up never takes them', async () => {
+    const shared = JSON.stringify([`https://x/s-h${'b'.repeat(16)}.webp`])
+    const small = [{ id: 's-1', sellerId: 'small', title: 'A', images: shared }, { id: 's-2', sellerId: 'small', title: 'B', images: shared }]
+    const big = [unit(1), unit(2), unit(3), unit(4), unit(5), unit(6), unit(7), unit(8)]
+    groupBy.mockResolvedValue([{ sellerId: 'gp', _max: { rankScore: 2 } }, { sellerId: 'small', _max: { rankScore: 1 } }])
+    findMany.mockImplementation(async (a: { where: unknown }) => {
+      const q = JSON.stringify(a.where)
+      if (q.includes('Duplex')) return [other(5), other(6), other(7), other(8), other(9), other(10), other(11)]
+      if (q.includes('"sellerId":"small"')) return small
+      if (q.includes('"sellerId":"gp"')) return big
+      return []
+    })
+    const ids = (await diverseFeedWindow({}, RANK_DESC, SELECT)).map((r) => (r as { id: string }).id)
+    expect(ids).toContain('s-1')
+    expect(ids).toContain('s-2')
+    expect(ids).toHaveLength(big.length + small.length)
+    expect(new Set(ids).size).toBe(ids.length)
+    // Both of the small seller's rows hold the positions they had before any of this ran: the round-robin's 2 and 4.
+    expect(ids.indexOf('s-1')).toBe(1)
+    expect(ids.indexOf('s-2')).toBe(3)
+  })
+
+  it('two sellers with walls each get their own query and quota', async () => {
+    const wall = (seller: string) => Array.from({ length: 7 }, (_, i) => ({ id: `${seller}-${i}`, sellerId: seller, title: `${seller} unit`, images: JSON.stringify([`https://x/${seller}-${i}-h${(seller === 'a' ? 'a' : 'b').repeat(16)}.webp`]) }))
+    const fresh = (seller: string, i: number) => ({ id: `${seller}-new-${i}`, sellerId: seller, title: `${seller} other ${i}`, images: JSON.stringify([`https://x/${seller}n${i}-h${String(i).padStart(15, '0')}${seller === 'a' ? 'c' : 'd'}.webp`]) })
+    groupBy.mockResolvedValue([{ sellerId: 'a', _max: { rankScore: 2 } }, { sellerId: 'b', _max: { rankScore: 1 } }])
+    findMany.mockImplementation(async (q: { where: unknown; take: number }) => {
+      const w = JSON.stringify(q.where)
+      if (w.includes('a unit')) return [fresh('a', 1), fresh('a', 2)]
+      if (w.includes('b unit')) return [fresh('b', 1), fresh('b', 2)]
+      if (w.includes('"sellerId":"a"')) return wall('a')
+      if (w.includes('"sellerId":"b"')) return wall('b')
+      return []
+    })
+    const ids = (await diverseFeedWindow({}, RANK_DESC, SELECT)).map((r) => (r as { id: string }).id)
+    expect(ids).toContain('a-new-1')
+    expect(ids).toContain('b-new-1')
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('a few repeats cost no query: they only move behind the distinct covers', async () => {
+    groupBy.mockResolvedValue([{ sellerId: 'gp', _max: { rankScore: 1 } }])
+    findMany.mockResolvedValue([unit(1), unit(2), other(1)])
+    const rows = await diverseFeedWindow({}, RANK_DESC, SELECT)
+    expect(rows.map((r) => (r as { id: string }).id)).toEqual(['unit-1', 'other-1', 'unit-2'])
+    expect(findMany).toHaveBeenCalledTimes(1)
+  })
+
+  it('a failed top-up still serves the reordered window', async () => {
+    groupBy.mockResolvedValue([{ sellerId: 'gp', _max: { rankScore: 1 } }])
+    const win = [unit(1), unit(2), unit(3), unit(4), unit(5), unit(6), unit(7), other(1)]
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    findMany.mockImplementation(async (a: { where: unknown }) => {
+      if (JSON.stringify(a.where).includes('Duplex')) throw new Error('down')
+      return win
+    })
+    const rows = await diverseFeedWindow({}, RANK_DESC, SELECT)
+    expect(rows.map((r) => (r as { id: string }).id).slice(0, 2)).toEqual(['unit-1', 'other-1'])
+    expect(rows).toHaveLength(win.length)
+    err.mockRestore()
+  })
+})

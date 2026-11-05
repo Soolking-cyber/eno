@@ -1214,7 +1214,9 @@ export function ListingsExplorer({
     if (urlLadderSig === null) setUrlLadderSig(ladderSig)
     else if (urlLadderSig !== ladderSig) setFoldArmed(true)
   }
-  const liveCollapse = !showDiscovery && !mdUp && foldArmed
+  // A word search answers in results, so on desktop too the ladder folds to its one row while it does (2026-11-05: the
+  // results started 315px down, under thirteen tiles); a browsing desktop keeps the rail that rolls out subcategories.
+  const liveCollapse = !showDiscovery && foldArmed && (!mdUp || (activeCategory === 'all' && debouncedQuery.trim() !== ''))
   /**
    * ⛔ THE LADDER HOLDS STILL WHILE A FILTER PANEL IS OPEN (E-FILTER-SHEET, 2026-09-29). A price preset
    * or an area pick directs the feed, which folds the phone ladder (above) — and a fold behind an open
@@ -1238,7 +1240,7 @@ export function ListingsExplorer({
   const [ladderOpen, setLadderOpen] = useState(false)
   // Folded again for the next search once the feed is back to undirected — or once the screen is wide
   // enough to show the whole ladder anyway (a rotated tablet), so narrowing it back starts folded.
-  if ((showDiscovery || mdUp) && ladderOpen) setLadderOpen(false)
+  if ((showDiscovery || (mdUp && !liveCollapse)) && ladderOpen) setLadderOpen(false)
 
   /**
    * ⛔ THE PREDICATE THESE FOUR PARAGRAPHS DOCUMENTED IS GONE, AND THIS IS WHAT IS WORTH KEEPING.

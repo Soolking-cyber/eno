@@ -902,7 +902,7 @@ export function Header() {
                 tabIndex={pathname && /^\/messages\/.+/.test(pathname) ? -1 : undefined}
                 // Named so the pre-hydration GET above actually carries the query.
                 name="q"
-                placeholder={tr('Find products…', 'Tìm sản phẩm…')}
+                placeholder={tr('Search eno…', 'Tìm trên eno…')}
                 aria-label={tr('Search', 'Tìm kiếm')}
                 // Combobox semantics for the typeahead the arrow keys already drive.
                 // aria-expanded/-controls track `instantOpen` ONLY — the empty-focus
@@ -930,7 +930,7 @@ export function Header() {
                   next paragraph are the BEFORE state. Re-measured after (dev build, guest, en + vi): the idle
                   field is 110 / 150 / 165 / 180px at 320 / 360 / 375 / 390 on Android ("Get the app" shown)
                   and 154 / 194 / 209 / 224px on iOS — so every phone from 360 up now shows the LONG copy
-                  ("Find products…" / "Tìm sản phẩm…"), and only a 320px Android falls to the one word.
+                  ("Search eno…" / "Tìm trên eno…"; "Find products…" until 2026-11-05, which misnamed homes, jobs and teachers), and only a 320px Android falls to the one word.
                   The ladder stays: it is what keeps that 320px case and the MT languages honest.
                   BEFORE O-03 — measured on the integrated build at every phone width, guest, en and vi: the idle
                   field's text room is 0 / 30 / 45 / 60 / 82px at 320 / 360 / 375 / 390 / 412 on Android
@@ -957,7 +957,7 @@ export function Header() {
                 data-search-placeholder=""
                 className={cn('pointer-events-none absolute inset-y-0 left-2 right-2 hidden items-center text-ink-4', placeholderFit.overlay)}
               >
-                <span data-rung="long" className={cn('hidden min-w-0 truncate', placeholderFit.long)}>{tr('Find products…', 'Tìm sản phẩm…')}</span>
+                <span data-rung="long" className={cn('hidden min-w-0 truncate', placeholderFit.long)}>{tr('Search eno…', 'Tìm trên eno…')}</span>
                 <span data-rung="short" className={cn('min-w-0 truncate', placeholderFit.short)}>{tr('Search', 'Tìm kiếm')}</span>
               </span>
               </div>

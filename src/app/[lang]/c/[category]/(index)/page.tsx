@@ -364,11 +364,11 @@ export default async function CategoryPage({ params }: Props) {
       {/* Masthead boundary — on the content box, like the sort strip's own hairline below and the
           home toolbar's (C1-HAIRLINE); it used to bleed to the page frame with negative margins.
           Tighter on a phone, where the fold is the budget (C1-FOLD). */}
-      <div aria-hidden className="mt-4 border-t border-border sm:mt-8" />
+      <div aria-hidden className="mt-4 border-t border-border sm:mt-5" />
 
       {listings.length > 0 ? (
         <>
-          <div className="mt-4 sm:mt-6">
+          <div className="mt-2 sm:mt-3">
             {/* sr-only h2: the card titles below are h3s, and without this the outline
                 jumps h1 → h3 (detector-confirmed skip; same fix as the home feed header). */}
             <h2 className="sr-only"><Tr text="Listings" /></h2>

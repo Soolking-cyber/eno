@@ -55,6 +55,27 @@ export function isTemplateTitleSeller(sellerId: string): boolean {
   return isImportSeller(sellerId) || VEHICLE_IMPORT_SELLER_IDS.includes(sellerId)
 }
 
+/**
+ * GoPlus's prod storefront id. It is deliberately in neither import list (import-sellers.ts: the rooms are a partner's own), but its
+ * titles ARE a template ("Duplex 20 m² · An Phu Dong Ward, District 12"), so only the location tail below applies to it.
+ */
+const GOPLUS_SELLER_ID = '1f82663d-0bf3-4da0-9adf-91b1ae6a82a8'
+/**
+ * GOPLUS'S LOCATION TAIL (2026-11-05). The card's info line right under it already prints the area, and this tail is what the one line
+ * lost its end to: "Duplex 20 m² · An Phu D…". Facebook, Airbnb and Mercari print the item in the title and the place under it.
+ * ⛔ GOPLUS ONLY. Other importers' tails can hold what the info line does not ("Căn hộ 3PN — Masteri An Phu, P. Thảo Điền": a building), so
+ * they keep theirs. GoPlus's template is type · ward, district, so the last segment is only ever the place.
+ */
+const GOPLUS_LOCATION_TAIL = /\s*·\s*(?:[^·,]+ (?:Ward|Commune)|(?:Phường|Xã) [^·,]+)(?:, [^·]+)?$/u
+/** The stored location names a district or ward, so the info line under the title really prints the area. */
+const NAMES_AN_AREA = /^(?:Quận|Huyện|Phường|Xã|TP\.|Thành phố)\s/iu
+
+/** Its listing date is the importer's run, not somebody listing something: the "Just in" pill on these rows said nothing (nearly every
+ *  rental card wore it). Their age stays on the info line. */
+export function hasImportDate(sellerId: string): boolean {
+  return isTemplateTitleSeller(sellerId) || sellerId === GOPLUS_SELLER_ID
+}
+
 const RENT_PREFIX = /^cho thuê\s+/iu
 const VEHICLE_WORD = /^(?:xe máy|xe tự lái|ô tô)\s+/iu
 /** The two category labels that are a pair of synonyms; the first word of each is the one a buyer reads.
@@ -110,11 +131,18 @@ export function cardTitle({ title, lang, sellerId, categorySlug, listingType, co
   const src = title.normalize('NFC')
   let out = src
   if (categorySlug === 'rentals') {
-    if (lang !== 'vi' || !isTemplateTitleSeller(sellerId) || !RENT_PREFIX.test(src)) return title
-    out = src.replace(RENT_PREFIX, '').replace(VEHICLE_WORD, '')
-    for (const [re, short] of LABEL_PAIRS) out = out.replace(re, short)
-    // Honeycomb writes the category in lower case ("Cho thuê căn hộ 3PN…"); a title starts with a capital.
-    out = out.charAt(0).toLocaleUpperCase('vi') + out.slice(1)
+    if (sellerId === GOPLUS_SELLER_ID) {
+      // A bare city or province ("Hồ Chí Minh", "Bình Dương") is all the info line would print, so the tail stays: it names the district.
+      if (!location || !NAMES_AN_AREA.test(location.normalize('NFC').trim())) return title
+      out = src.replace(GOPLUS_LOCATION_TAIL, '')
+      if (out === src) return title
+    } else {
+      if (lang !== 'vi' || !isTemplateTitleSeller(sellerId) || !RENT_PREFIX.test(src)) return title
+      out = src.replace(RENT_PREFIX, '').replace(VEHICLE_WORD, '')
+      for (const [re, short] of LABEL_PAIRS) out = out.replace(re, short)
+      // Honeycomb writes the category in lower case ("Cho thuê căn hộ 3PN…"); a title starts with a capital.
+      out = out.charAt(0).toLocaleUpperCase('vi') + out.slice(1)
+    }
   } else if (listingType === 'sell' && categorySlug !== 'jobs' && categorySlug !== 'teachers') {
     // Up to three leading tags ("[Like New] [HCM] Dell XPS…"), each only if it repeats the info line.
     let dropped = 0

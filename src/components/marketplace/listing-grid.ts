@@ -30,19 +30,20 @@ export const LISTING_GRID = '-mx-2 grid grid-cols-2 gap-x-1 gap-y-3 sm:mx-0 sm:g
 /**
  * The `sizes` of a card photo in LISTING_GRID (and in a rail, whose card is one grid column) — derived from
  * the grid, so it moves with it: phone (390 − 8 edge − 4 gap) / 2 = 50vw − 6px; sm–md (px-6 frame, two 8px
- * gaps) (100vw − 64px) / 3; lg (px-8 frame, three gaps) (100vw − 88px) / 4; ≥1280 the frame caps at 1216px,
- * so (1216 − 24) / 4 = 298px. It replaces a `50vw / 33vw / 25vw` guess that told a 430px DPR3 phone its card
+ * gaps) (100vw − 64px) / 3; lg (px-8 frame, three gaps) (100vw − 88px) / 4; the page frame (--container-7xl in globals.css) is then
+ * 1280px up to a 1368 screen ((1216 − 24) / 4 = 298px), follows the screen to 1448 ((100vw − 88px − 64px − 24px) / 4 =
+ * 25vw − 44px) and caps at 1360px ((1296 − 24) / 4 = 318px). It replaces a `50vw / 33vw / 25vw` guess that told a 430px DPR3 phone its card
  * was 215px, so it fetched the 1080w file for a 209px tile (645 > 640). The widths themselves come from
  * next.config.ts (deviceSizes [360,420,640,1080] + imageSizes); at 390 a DPR2 phone now asks for 378px → the
  * 420w rung, a DPR3 one 567px → 640w.
  */
-export const LISTING_CARD_SIZES = '(min-width: 1280px) 298px, (min-width: 1024px) calc(25vw - 22px), (min-width: 640px) calc(33.33vw - 21px), calc(50vw - 6px)'
+export const LISTING_CARD_SIZES = '(min-width: 1448px) 318px, (min-width: 1368px) calc(25vw - 44px), (min-width: 1280px) 298px, (min-width: 1024px) calc(25vw - 22px), (min-width: 640px) calc(33.33vw - 21px), calc(50vw - 6px)'
 
 /**
  * The explorer's MAP-mode list (listings-explorer.tsx): one full-width column below lg — no bleed there, so
  * the page gutter (24px on a phone, 48px from sm) is the whole margin; 5/12 of the frame at lg
- * ((100vw − 64px) · 5/12 − 9px of column gaps ≈ 41.67vw − 36px); two cards in half of the capped 1216px
- * frame from xl ((600 − 16) / 2 = 292px). It used to inherit the grid's half-width guess, so a phone's
+ * ((100vw − 64px) · 5/12 − 9px of column gaps ≈ 41.67vw − 36px); two cards in half of the frame from xl:
+ * 292px while the frame is 1280, 25vw − 50px while it follows the screen, 312px at its 1360 cap. It used to inherit the grid's half-width guess, so a phone's
  * full-width map card loaded a half-width photo.
  */
-export const MAP_CARD_SIZES = '(min-width: 1280px) 292px, (min-width: 1024px) calc(41.67vw - 36px), (min-width: 640px) calc(100vw - 48px), calc(100vw - 24px)'
+export const MAP_CARD_SIZES = '(min-width: 1448px) 312px, (min-width: 1368px) calc(25vw - 50px), (min-width: 1280px) 292px, (min-width: 1024px) calc(41.67vw - 36px), (min-width: 640px) calc(100vw - 48px), calc(100vw - 24px)'

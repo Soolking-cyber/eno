@@ -707,8 +707,15 @@ describe('on a phone, a directed feed folds its category ladder into one compact
   it('a free-text search on "All" draws no brand directory, on desktop too (E-RESULTS)', async () => {
     viewport.desktop = true
     mountAt('/?q=honda')
-    await waitFor(() => expect(rails().category).toBe(true))
+    // The ladder folds to its one row on a desktop word search too (the results started 315px down, under thirteen tiles).
+    await waitFor(() => expect(compactRow()).not.toBeNull())
     expect(rails().brand).toBe(false)
+  })
+
+  it('a desktop browse keeps the full rail: only a word search folds it', async () => {
+    viewport.desktop = true
+    mountAt('/?category=electronics')
+    await waitFor(() => expect(rails().category).toBe(true))
     expect(compactRow()).toBeNull()
   })
 })

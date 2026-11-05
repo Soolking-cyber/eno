@@ -34,9 +34,9 @@ export const RAIL_SKELETON_COUNT = 4
 export const SECTION_HEADER_ROW = 'mb-3 flex items-center justify-between gap-2'
 //  ⚠️ ALWAYS ONE STEP ABOVE THE CARD PRICE (D-TYPE, owner 2026-09-30): the card's <Price> is
 //  text-base → sm:text-lg, so a text-lg title TIED it from sm up and the shelf read as a list of
-//  prices with a caption. text-lg → sm:text-xl keeps 18>16 and 20>18; both have a 28px line box, so
-//  the loading.tsx skeleton (h-7) still matches. Raise the price, raise this.
-export const SECTION_TITLE = 'text-lg font-semibold text-foreground sm:text-xl'
+//  prices with a caption. text-xl → sm:text-2xl (2026-11-05) keeps 20>16 and 24>18. No skeleton draws this
+//  heading (measured layout shift 0 on home and /c/*). Raise the price, raise this.
+export const SECTION_TITLE = 'text-xl font-semibold text-foreground sm:text-2xl'
 // `relative tap-44 active:opacity-60`: See all was 63x20 and answered a press with nothing on a Link
 // (the Button call sites get ui/button's scale on top). The 44px area is a ::before, so it needs the
 // `relative` beside it — see the tap-44 note in globals.css.

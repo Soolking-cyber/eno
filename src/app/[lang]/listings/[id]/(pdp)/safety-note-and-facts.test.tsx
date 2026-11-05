@@ -130,7 +130,7 @@ describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip ke
 
   it('the H1, the market price and every meta item opt into the support bubble’s yield (pdp-01, si-11)', () => {
     // `[overflow-wrap:anywhere]` joined the class list (break-ui, 2026-10-05) — a title with no spaces must not widen the page.
-    expect(PAGE).toContain('<LocalizedTitleHeading className="text-lg font-bold leading-snug text-foreground [overflow-wrap:anywhere]"')
+    expect(PAGE).toContain('<LocalizedTitleHeading className="text-xl font-bold leading-snug sm:text-2xl sm:leading-tight text-foreground [overflow-wrap:anywhere]"')
     // The one H1 is LocalizedTitleHeading's (the only `<h1` left in the page is the layout comment).
     expect(PAGE.match(/<h1[\s>]/g) ?? []).toHaveLength(1)
     expect(PAGE.match(/<LocalizedTitleHeading className=/g)).toHaveLength(1)

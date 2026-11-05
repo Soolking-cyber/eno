@@ -912,8 +912,9 @@ export default async function ListingPage({ params }: Props) {
               a WCAG 2.4.3 focus-order failure that no typecheck, unit test or e2e run can see. One
               slot below `#contact` it lands just under the fold, so focus moves a little instead of
               teleporting, and the 44px is still recovered. It deliberately SHARES slot 7 with the
-              shop link below: equal `order` falls back to DOM order, so the two stack in source
-              order with no third number to find.
+              shop link, the costs and the safety note: equal `order` falls back to DOM order, so they
+              stack in source order with no further number to find. ⛔ Not lower (tried 2026-11-05): with
+              the costs and the note in the buy box that sent focus a screen down and back.
               ⚠️ `lg:order-1` keeps it FIRST on desktop, where it sits full-width above the grid and
               the fold problem does not exist. And the BreadcrumbList JSON-LD is emitted separately, so
               the position here is presentation only — Google still gets every level. */}
@@ -1142,7 +1143,7 @@ export default async function ListingPage({ params }: Props) {
                     real iOS) — it now yields there (back-to-top.tsx OBSTACLES; a wide value is yielded to,
                     never risen above). A machine-translated title gets "Translated · See original" under it. */}
                 {/* `[overflow-wrap:anywhere]` (break-ui, 2026-10-05): a title with no spaces in it must not widen the page. */}
-                <LocalizedTitleHeading className="text-lg font-bold leading-snug text-foreground [overflow-wrap:anywhere]" title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} />
+                <LocalizedTitleHeading className="text-xl font-bold leading-snug sm:text-2xl sm:leading-tight text-foreground [overflow-wrap:anywhere]" title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} />
 
                 {/* Metadata — ONE tightly-packed subdued row: brand · condition · specs · location ·
                     posted · social proof; flex-wrap spills to a second row only when it must.
@@ -1342,8 +1343,19 @@ export default async function ListingPage({ params }: Props) {
                   the two were adjacent boxes circling the same subject, and the warning is the
                   half that can stop someone losing money, so it keeps the container and the ink.
                   See the notes in safety-strip.tsx and protections-row.tsx for why the merge went
-                  in this direction rather than the other. */}
-              <div className="order-9">
+                  in this direction rather than the other.
+                  `order-7` (2026-11-05): after the seller and the costs, before the description (slot 8), so a buyer meets the warning
+                  while deciding to contact, on a phone as on desktop, instead of after the whole listing. */}
+              {/* The storefront link, DESKTOP/TABLET: in the buy box, right under the action it answers for (who am I contacting?),
+                    which also lets the photo start level with the price; hidden below md (mobile twin above). */}
+              <div className="order-7 hidden md:block">
+                <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} unrated={sellerUnrated} linkedShop={sellerLinkedShop} />
+              </div>
+
+              {/* A RENTAL'S COSTS SIT WITH THE ACTION, as a booking card's fee lines do (Airbnb; 2026-11-05): the deposit and the monthly
+                  fees decide a rental, and they were a screen below Chat now while the column beside it stood empty. */}
+              {costRows.length > 0 && <div className="order-7"><RentalCosts rent={monthlyRent} rows={costRows} /></div>}
+              <div className="order-7">
                 {/*
                   * ⛔ NO REPORTS-AND-DISPUTES ROW ON A PARTNER LISTING. ProtectionsRow explains eno's
                   * report process and tells the buyer to pay the seller directly after meeting, and
@@ -1389,12 +1401,6 @@ export default async function ListingPage({ params }: Props) {
               it names (`md:col-start-1 md:row-start-2` — FAST-10, see the buy box above); `contents` on
               phones flattens these into the shared order space. */}
           <div className="contents md:order-2 md:col-span-6 md:col-start-1 md:row-start-2 md:flex md:flex-col md:gap-6 lg:col-span-7 lg:gap-8">
-            {/* Shop-on-top (Shopee): storefront link above the media, DESKTOP/TABLET. order-1 so it
-                leads the left column from md (above the gallery); hidden below md (mobile twin above). */}
-            <div className="order-1 hidden md:block">
-              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} unrated={sellerUnrated} linkedShop={sellerLinkedShop} />
-            </div>
-
             {/* Gallery, DESKTOP mount (hidden below md; the mobile mount handles small screens). None on a
                 linked job — see the mobile mount. */}
             {!noGallery && (
@@ -1413,26 +1419,25 @@ export default async function ListingPage({ params }: Props) {
 
             {/* 8 — Description + Details (+ a rental's Costs and Amenities between them). The wrapper renders
                 only when one of them does: an empty flex item in this gapped column would still earn a gap. */}
-            {(showDescription || showDetails || costRows.length > 0 || amenities.length > 0) && (
+            {(showDescription || showDetails || amenities.length > 0) && (
             <div className="order-8 flex flex-col gap-8">
               {/* Section headers on this page share ONE treatment (text-lg font-semibold, matching
                   the shelf + reviews headers below) with more space above (section gap) than below. */}
               {showDescription && (
               <div className="space-y-2">
-                <h2 className="text-lg font-semibold text-foreground"><Tr text="Description" /></h2>
+                <h2 className="text-lg font-semibold text-foreground sm:text-xl"><Tr text="Description" /></h2>
                 {/* max-w-prose caps the reading measure at ~65ch — the col-7 body otherwise runs wide. */}
                 <ListingDescription text={listing.description} vi={listing.descriptionVi} i18n={i18n[listing.description]} className={`max-w-prose space-y-3 text-base leading-relaxed text-body ${repeatedFacts}`} />
               </div>
               )}
 
-              {/* A rental's monthly bill and its amenities (rental-facts.tsx) — what a renter compares before messaging,
-                  right after the words and before the reference table. Each renders only when the listing states it. */}
-              {costRows.length > 0 && <RentalCosts rent={monthlyRent} rows={costRows} />}
+              {/* A rental's amenities (rental-facts.tsx), right after the words and before the reference table; rendered only when
+                  the listing states them. Its monthly bill is in the buy box above. */}
               {amenities.length > 0 && <RentalAmenities items={amenities} />}
 
               {showDetails && (
                 <div className="space-y-2">
-                  <h2 className="text-lg font-semibold text-foreground"><Tr text="Details" /></h2>
+                  <h2 className="text-lg font-semibold text-foreground sm:text-xl"><Tr text="Details" /></h2>
                   {/* Spec table: hairline row dividers, muted label / strong value, even row height.
                       `data-fab-avoid` on every value: the floating support mark yields (fades) when it
                       would sit over one — these right-aligned values run into the corner it rests in,
@@ -1521,7 +1526,7 @@ export default async function ListingPage({ params }: Props) {
                 as before, district-level or not. */}
             {showMap && (
             <div id="location-on-map" className="order-11 space-y-2 scroll-mt-20">
-              <h2 className="text-lg font-semibold text-foreground"><Tr text="Location" /></h2>
+              <h2 className="text-lg font-semibold text-foreground sm:text-xl"><Tr text="Location" /></h2>
               {approxArea && (
                 <p data-map-approximate className="text-xs text-muted-foreground">
                   {tr('Approximate area — the exact address is not on the map.', 'Khu vực gần đúng — bản đồ không hiển thị địa chỉ chính xác.')}

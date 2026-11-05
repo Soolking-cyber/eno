@@ -84,10 +84,10 @@ function profile() {
   )
 }
 
-describe('TeacherContactJump — "Message" beside the name', () => {
+describe('TeacherContactJump — "Contact teacher" beside the name', () => {
   it('scrolls to the contact block and asks a guest to sign in: "Sign in to message teachers."', () => {
     profile()
-    fireEvent.click(screen.getByRole('button', { name: 'Message' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Contact teacher' }))
     expect(scrolled.map((el) => el.id)).toEqual([TEACHER_CONTACT_ID])
     expect(auth.openSignIn).toHaveBeenCalledTimes(1)
     expect(auth.openSignIn.mock.calls[0][0]).toMatchObject({ sellerName: 'Ms Lan', listingTitle: 'a teaching job', note: 'Sign in to message teachers.' })
@@ -101,7 +101,7 @@ describe('TeacherContactJump — "Message" beside the name', () => {
     quotaAnswer = UNDER_LIMIT
     profile()
     await settle()
-    fireEvent.click(screen.getByRole('button', { name: 'Message' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Contact teacher' }))
     expect(stash).toHaveBeenCalledTimes(1)
     // A person, never "we are hiring" on behalf of a school it is not.
     expect(stash.mock.calls[0][0]).toMatchObject({ listingId: 't1', listingTitle: 'Ms Lan', ...PERSON_PICK })
@@ -115,7 +115,7 @@ describe('TeacherContactJump — "Message" beside the name', () => {
     quotaAnswer = OVER_LIMIT
     profile()
     await settle()
-    fireEvent.click(screen.getByRole('button', { name: 'Message' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Contact teacher' }))
     await settle() // the tap re-asks before it refuses
     expect(scrolled.map((el) => el.id)).toEqual([TEACHER_CONTACT_ID])
     expect(screen.getByRole('status').textContent).toContain('You can start chats with up to 3 new teachers a day.')
@@ -128,7 +128,7 @@ describe('TeacherContactJump — "Message" beside the name', () => {
     quotaAnswer = BUSINESS
     profile()
     await settle()
-    fireEvent.click(screen.getByRole('button', { name: 'Message' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Contact teacher' }))
     expect(stash.mock.calls[0][0]).toMatchObject(SCHOOL_PICK)
     expect(push).toHaveBeenCalledWith('/messages/pending')
   })
@@ -140,7 +140,7 @@ describe('TeacherContactJump — "Message" beside the name', () => {
         <TeacherContact listingId="t1" name="Ms Lan" image={null} />
       </>,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Message' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Contact teacher' }))
     expect(auth.openSignIn).not.toHaveBeenCalled()
   })
 })
@@ -329,7 +329,7 @@ describe('TeacherContactJump on a cover teacher', () => {
       </>,
     )
     await settle()
-    fireEvent.click(screen.getByRole('button', { name: 'Message' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Contact teacher' }))
     expect(scrolled.map((el) => el.id)).toEqual([TEACHER_CONTACT_ID])
     expect(push).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Ask about a cover lesson' })).toBeTruthy()
@@ -345,7 +345,7 @@ describe('TeacherContactJump on a cover teacher', () => {
       </>,
     )
     await settle()
-    fireEvent.click(screen.getByRole('button', { name: 'Message' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Contact teacher' }))
     expect(stash.mock.calls[0][0]).toMatchObject(PERSON_PICK)
     expect(push).toHaveBeenCalledWith('/messages/pending')
   })

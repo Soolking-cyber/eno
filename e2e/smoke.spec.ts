@@ -130,7 +130,7 @@ test.describe.serial('Golden path · seller posts → buyer finds & chats → se
     await buyer.goto('/')
     // Header search (the hero bar was removed 2026-08-03) — :visible picks the mobile-vs-desktop
     // twin that is actually rendered at this viewport; both are in the DOM.
-    const box = buyer.locator('input[placeholder*="Find products"]:visible').first()
+    const box = buyer.locator('input[placeholder*="Search eno"]:visible').first()
     await box.fill(TITLE)
     await box.press('Enter')
 

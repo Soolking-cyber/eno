@@ -93,8 +93,15 @@ describe('LISTING_CARD_SIZES follows the grid', () => {
       expect(Math.abs(got.px - expected(bp).px), bp).toBeLessThan(0.5)
     }
   })
-  it('≥1280: the capped 1216px frame shared by four columns', () => {
+  it('≥1280: the frame is 1280 to a 1368 screen, follows it to 1448, then caps at 1360 (--container-7xl)', () => {
     expect(terms.find((s) => s.startsWith('(min-width: 1280px)'))).toBe(`(min-width: 1280px) ${(1216 - 3 * gapPx('lg:')) / 4}px`)
+    expect(terms.find((s) => s.startsWith('(min-width: 1368px)'))).toBe('(min-width: 1368px) calc(25vw - 44px)')
+    expect(terms.find((s) => s.startsWith('(min-width: 1448px)'))).toBe(`(min-width: 1448px) ${(1296 - 3 * gapPx('lg:')) / 4}px`)
+  })
+  it("map mode's two cards from xl: no gap above 1280 that advertises one wide column for a 292px card", () => {
+    expect(MAP_CARD_SIZES).toContain('(min-width: 1280px) 292px')
+    expect(MAP_CARD_SIZES).toContain('(min-width: 1368px) calc(25vw - 50px)')
+    expect(MAP_CARD_SIZES).toContain('(min-width: 1448px) 312px')
   })
   it("map mode's phone card is the full frame width, not half of it", () => {
     expect(MAP_CARD_SIZES.split(/,\s*/).at(-1)).toBe(`calc(100vw - ${2 * FRAME_PX['']}px)`)

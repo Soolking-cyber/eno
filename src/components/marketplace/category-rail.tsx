@@ -361,10 +361,10 @@ export function CategoryRail({
    * "subcategories will pop next to like brand subbrand but will take all 2 rows to the right").
    * With `max-content` columns, each column is as wide as what is in it: a tile column is this
    * width, the box's column is the box. The phone number is the same arithmetic as before — three
-   * tiles and two 8px gaps inside a viewport less its 12px gutters — and the desktop one is the
-   * 1280px container's eighth, so both screens still show what they showed.
+   * tiles and two 8px gaps inside a viewport less its 12px gutters — and the desktop one is seven
+   * columns filling the page frame (--container-7xl, less its 64px gutters and six 12.5px gaps).
    */
-  const TILE_W = 'w-[calc((100vw-40px)/3)] md:w-[141px]'
+  const TILE_W = 'w-[calc((100vw-40px)/3)] md:w-[141px] xl:w-[calc((max(1200px,min(1296px,100vw-152px))-75px)/7)]'
   /**
    * ⛔ NO `snap-start` ON THE TILE, AND THE ABSENCE IS THE FEATURE (owner, 2026-09-21: "make
    * springy action much less now its too much friction and frustrating to swipe").
@@ -424,10 +424,10 @@ export function CategoryRail({
          all a tint needs, and the tile still fits: 60 + 6 gap + a two-line 28px label + 8 padding is
          102px inside the opening tile (118px measured at 390, 2026-09-30). */
       'flex items-center justify-center rounded-2xl p-1 transition-colors duration-200',
-      big ? 'h-15 w-15 md:h-12 md:w-12' : 'h-11 w-11 p-0.5 md:h-12 md:w-12 md:p-1',
+      big ? 'h-15 w-15 md:h-14 md:w-14' : 'h-11 w-11 p-0.5 md:h-14 md:w-14 md:p-1',
       on && 'bg-brand-50',
     )
-  const glyphSize = (big: boolean) => (big ? 'h-13 w-13 md:h-11 md:w-11' : 'h-10 w-10 md:h-11 md:w-11')
+  const glyphSize = (big: boolean) => (big ? 'h-13 w-13 md:h-12 md:w-12' : 'h-10 w-10 md:h-12 md:w-12')
   /**
    * Is one of eno's own product tiles the current view? Only a `filter` shortcut can be — a `route`
    * one navigates away, so it is never "on" while this rail is showing.
@@ -461,7 +461,7 @@ export function CategoryRail({
   // content language differs from the page's (WCAG 3.1.2) — so the hyphenation follows the word,
   // not the interface.
   const nameCls = (active: boolean) =>
-    cn('line-clamp-2 w-full hyphens-auto break-words text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
+    cn('line-clamp-2 w-full hyphens-auto break-words text-xs font-bold leading-tight transition-colors md:text-sm', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
 
 
 

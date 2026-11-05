@@ -183,6 +183,12 @@ export function rentalsMetadata(
  * harvester can pre-translate them; category-text.test.tsx renders all four in both languages and
  * compares them with this map, so the two cannot drift.
  */
+/** Too long for the phone's one-line H1, so a phone paints RentalsHeadingShort instead. Here, not in category-text.tsx: that file is
+ *  'use client', and the server layout calling a function from it is a 500 on the whole page (measured 2026-11-05). */
+export function rentalsHeadlineHasShortForm(headline: RentalsHeadline): boolean {
+  return headline === 'apartments-houses-hcmc' || headline === 'apartments-hcmc'
+}
+
 export const RENTALS_H1: Record<RentalsHeadline, Record<PageLang, string>> = {
   'apartments-houses-hcmc': { en: 'Apartments & houses for rent in Ho Chi Minh City', vi: HEADLINE_TITLE['apartments-houses-hcmc'].vi },
   'apartments-hcmc': { en: 'Apartments for rent in Ho Chi Minh City', vi: HEADLINE_TITLE['apartments-hcmc'].vi },

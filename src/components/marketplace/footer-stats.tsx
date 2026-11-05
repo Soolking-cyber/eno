@@ -96,7 +96,7 @@ export function FooterStats() {
            tree. A <dl> here would need the term before the description, which is the opposite of
            the reading order the design wants; a list item that simply reads "2 visitors" is both
            correct and what a person actually hears. */
-        <ul className="flex flex-wrap items-baseline justify-center gap-x-5 gap-y-1">
+        <ul className="flex flex-wrap items-baseline justify-center gap-x-4 gap-y-1 max-sm:justify-start">
           {items.map((i) => (
             // ⚠️ `whitespace-nowrap` + `shrink-0`: a counter is ONE unit. Squeezed by its row it used to
             // break between its number and its label ("30 / sellers"); now the list wraps between counters.
@@ -109,8 +109,8 @@ export function FooterStats() {
                      opt-in under prefers-reduced-motion: no-preference. */
                   <span aria-hidden className="live-dot mb-px inline-block h-1.5 w-1.5 shrink-0 self-center rounded-full bg-success" />
                 )}
-                <span className="text-sm font-bold tabular-nums text-foreground">{fmt(i.value)}</span>
-                <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{i.label}</span>
+                <span className="text-xs font-semibold tabular-nums text-ink-3">{fmt(i.value)}</span>
+                <span className="text-xs text-ink-4">{i.label}</span>
               </span>
             </li>
           ))}

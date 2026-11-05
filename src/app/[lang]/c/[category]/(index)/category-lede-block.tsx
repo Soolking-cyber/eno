@@ -47,7 +47,8 @@ export async function CategoryLedeBlock({ slug }: { slug: string }) {
   // `data-category-lede` is how H2's crawler spec finds the lede, wherever it renders (ClampedLede's <p>).
   return (
     <>
-      <ClampedLede className="mt-3 max-w-prose text-base leading-relaxed text-body">
+      <div className="mt-8 sm:mt-10">
+      <ClampedLede className="max-w-prose text-base leading-relaxed text-body">
         {rentals ? (
           <RentalsLede total={rentals.total} allHcmc={rentals.allHcmc} kinds={rentals.kinds} linked={rentals.linked} vehicles={rentals.vehicles} homes={rentals.homes} homesLinked={rentals.homesLinked} />
         ) : (
@@ -59,6 +60,19 @@ export async function CategoryLedeBlock({ slug }: { slug: string }) {
           </>
         )}
       </ClampedLede>
+      </div>
+    </>
+  )
+}
+
+/**
+ * The lines that must stay above the grid: the rental availability check and the schools' cover-lesson door. The lede's paragraph
+ * itself renders after the grid (see the layout), and these used to follow it.
+ */
+export function CategoryLedeLinks({ slug }: { slug: string }) {
+  const cat = { slug }
+  return (
+    <>
       {/* The availability check is invisible until something says it exists — rentals only.
           ⛔ ONE LINE ON A PHONE, WITH ITS LINK (owner, 2026-10-18: products first on a phone's first screen). The
           promise wrapped to four lines at 390px; below sm it now truncates to one, and "Check availability" beside it

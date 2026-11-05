@@ -25,13 +25,14 @@ import { Badge as UiBadge } from '@/components/ui/badge'
 import { formatMoneyFull, moneyLocale, dropPercent, cardCompactAbove } from '@/lib/vnd'
 import { LISTING_CARD_SIZES } from './listing-grid'
 import { CategoryIcon } from './category-icons'
+import { CategoryTileGlyph } from './category-art'
 import { cardSlots, isSwipe } from '@/lib/card-slots'
 import { rubberBand } from '@/hooks/use-swipe-dismiss'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
-import { isHcmc } from '@/lib/city-short'
-import { cardTitle, jobCardMeta } from '@/lib/card-title'
+import { cardArea, isHcmc } from '@/lib/city-short'
+import { cardTitle, hasImportDate, jobCardMeta } from '@/lib/card-title'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
 // PostedAgo (not a bare timeAgo() call): the card's relative time is the SAME string the PDP prints, and it is safe on a cached page (relative-time.tsx).
@@ -117,7 +118,7 @@ type Props = {
  * (two shipped cuts, 2026-08-13), so nothing repaints today; the class now says what the card means, and keeps
  * meaning it if a 500 cut ever ships.
  */
-const TITLE_LINE = 'truncate text-sm font-normal leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2'
+const TITLE_LINE = 'truncate text-sm font-normal leading-snug sm:text-base text-foreground group-hover:underline decoration-1 underline-offset-2'
 
 /** The travel (px) after which a card's touch is judged sideways (the strip follows) or not (the page scrolls). */
 const CARD_DRAG_LOCK_PX = 8
@@ -199,7 +200,7 @@ function ListingCardImpl({
    * was 54 requested texts per Vietnamese home view (2026-09-29).
    */
   const translatedLocation = useTr(isHcmc(listing.location) ? '' : listing.location)
-  const displayLocation = isHcmc(listing.location) ? tr('HCM', 'TP.HCM') : translatedLocation
+  const displayLocation = isHcmc(listing.location) ? tr('HCM', 'TP.HCM') : cardArea(translatedLocation)
   // Condition badge text for the metadata line. new/used are the canonical facet values
   // (verified in prod); an unexpected value is shown verbatim rather than dropped.
   const conditionLabel = listing.condition === 'new' ? tr('New', 'Mới')
@@ -845,8 +846,9 @@ function ListingCardImpl({
             )}
           </div>
         ) : (
+          // UI climb 2026-11-05: a listing with no photo wears its category's 3D art, not a small grey outline glyph.
           <div className="flex h-full w-full items-center justify-center bg-tint">
-            <CategoryIcon name={listing.category.icon} className="h-11 w-11 text-muted-foreground" />
+            <CategoryTileGlyph slug={listing.category.slug} icon={listing.category.icon} className="size-1/2" />
           </div>
         )}
 
@@ -903,7 +905,7 @@ function ListingCardImpl({
             conversion signals on it. The stated reason was crowding, but the badges sit at
             `left-2 top-2` and the hover icon row is at `right-11 top-2`: they cannot collide at any
             width where that row renders. */}
-        <CardBadges listing={listing} chipInHtml={clockInHtml} className="absolute left-2 top-2 z-10" />
+        <CardBadges listing={listing} chipInHtml={clockInHtml} showNew={!hasImportDate(listing.sellerId)} className="absolute left-2 top-2 z-10" />
 
         {/* Bottom-left status chips — a video indicator (so mobile, which has no hover,
             still knows there's a clip) + social proof "N saved" (≥3). One row so they never
@@ -1296,7 +1298,7 @@ function ListingCardImpl({
             (role=img so AT still announces it) to keep the row from wrapping on a narrow card. The
             "N contacted" demand count moved to the PDP — one fewer shrink-0 item keeps this line
             from overflowing on a 2-col mobile card, and reads cleaner. */}
-        <div className="mt-auto flex items-center gap-1.5 pt-1 text-xs text-ink-4">
+        <div className="mt-auto flex items-center gap-1.5 pt-1 text-xs text-ink-4 lg:text-sm">
           <span className="min-w-0 flex-1 truncate">
             {/* condition leads the line (owner, 2026-07-23) — the fastest signal a buyer scans
                 for. Stored values are the two facet buckets 'new'/'used'; anything else shows

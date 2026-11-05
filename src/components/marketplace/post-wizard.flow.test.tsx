@@ -71,7 +71,7 @@ function fakeFetch(url: string, init?: RequestInit) {
 }
 
 /** The Publish / Save controls (the desktop button and the mobile bar's twin), by their visible name. */
-const publishButtons = () => screen.getAllByRole('button').filter((b) => /Publish listing|Loading your details…|Save changes/.test(b.textContent ?? ''))
+const publishButtons = () => screen.getAllByRole('button').filter((b) => /Publish listing|Loading your details…|Save changes|\d+ items? left/.test(b.textContent ?? ''))
 
 beforeEach(() => {
   // jsdom has no layout: scrollIntoView is not implemented (the wizard calls it on a failed Publish).
@@ -99,7 +99,7 @@ describe('a hung /api/me', () => {
     await act(async () => { vi.advanceTimersByTime(10_000) })
     await act(async () => { await Promise.resolve() })
     expect(publishButtons().some((b) => b.getAttribute('aria-busy') === 'true')).toBe(false)
-    expect(publishButtons()[0].textContent).toContain('Publish listing')
+    expect(publishButtons()[0].textContent).toMatch(/\d+ items? left/)
     // The contact is unknown, so the seller is asked for it — the ordinary missing-field path.
     expect(screen.getByLabelText('Phone number')).toBeTruthy()
   })
