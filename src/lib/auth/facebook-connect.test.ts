@@ -71,23 +71,48 @@ describe('readFacebookProfile', () => {
   ))
 
   it('reads who this is and proves the token with the app secret', async () => {
-    const f = answers({ id: '123456', email: 'A@X.example', name: 'Tran An', first_name: 'An', last_name: 'Tran', picture: { data: { url: 'https://p/x.jpg' } }, p200: { data: { url: 'https://p/200.jpg' } }, p40: { data: { url: 'https://p/40.jpg' } } })
+    const f = answers({ id: '123456', email: 'A@X.example', name: 'Tran An', first_name: 'An', last_name: 'Tran', picture: { data: { url: 'https://p/x.jpg' } } })
     vi.stubGlobal('fetch', f)
     const { readFacebookProfile } = await load()
     const r = await readFacebookProfile('CODE', 'https://eno.vn')
-    expect(r).toEqual({ ok: true, profile: { id: '123456', email: 'a@x.example', name: 'An Tran', picture: 'https://p/x.jpg', pictureIsDefault: false, displayName: 'Tran An', pictures: ['https://p/x.jpg', 'https://p/40.jpg', 'https://p/200.jpg'] } })
+    expect(r).toEqual({ ok: true, profile: { id: '123456', email: 'a@x.example', name: 'An Tran', picture: 'https://p/x.jpg', pictureIsDefault: false, displayName: 'Tran An' } })
     const meUrl = String(f.mock.calls[1][0])
     expect(meUrl).toMatch(/appsecret_proof=[0-9a-f]{64}/)
-    expect(meUrl).toContain('picture.width(200).height(200).as(p200)')
+    // ⛔ Graph answers 400 to `.as(p40)`: that one word took Connect down (2026-11-05).
+    expect(meUrl).not.toContain('.as(')
+    expect(f).toHaveBeenCalledTimes(2)
     // Neither the secret nor the token in a URL (nginx and proxy logs).
     expect(meUrl).not.toContain('TOKEN')
     expect(String(f.mock.calls[0][0])).not.toContain('a'.repeat(32))
+  })
+  it('an import also asks for each picture size, separately, and a size that fails is only a size missing', async () => {
+    const seen: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (u: unknown) => {
+      const url = String(u)
+      seen.push(url)
+      if (url.includes('/oauth/access_token')) return new Response(JSON.stringify({ access_token: 'TOKEN' }), { status: 200 })
+      if (url.includes('/me/picture')) {
+        if (url.includes('width=50&')) return new Response('{}', { status: 500 })
+        return new Response(JSON.stringify({ data: { url: `https://p/${/width=(\d+)/.exec(url)![1]}.jpg` } }), { status: 200 })
+      }
+      return new Response(JSON.stringify({ id: '123456', first_name: 'An', picture: { data: { url: 'https://p/x.jpg' } } }), { status: 200 })
+    }))
+    const { readFacebookProfile } = await load()
+    const r = await readFacebookProfile('CODE', 'https://eno.vn', { pictureSizes: true })
+    expect(r).toMatchObject({ ok: true, profile: { pictures: ['https://p/x.jpg', 'https://p/40.jpg', 'https://p/80.jpg', 'https://p/100.jpg', 'https://p/160.jpg', 'https://p/200.jpg', 'https://p/320.jpg'] } })
+    expect(seen.filter((u) => u.includes('/me/picture'))).toHaveLength(7)
+    expect(seen.every((u) => !u.includes('TOKEN') && !u.includes('.as('))).toBe(true)
+  })
+  it('Graph refuses the profile call: says so with its code, and Connect reports a failure', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (u: unknown) => String(u).includes('/oauth/access_token') ? new Response(JSON.stringify({ access_token: 'TOKEN' }), { status: 200 }) : new Response(JSON.stringify({ error: { code: 2500, message: 'quotes the request' } }), { status: 400 })))
+    const { readFacebookProfile } = await load()
+    expect(await readFacebookProfile('CODE', 'https://eno.vn')).toEqual({ ok: false, reason: 'profile' })
   })
   it('no email still connects: the eno account has its own', async () => {
     vi.stubGlobal('fetch', answers({ id: '123456', first_name: 'An' }))
     const { readFacebookProfile, facebookIdentityData } = await load()
     const r = await readFacebookProfile('CODE', 'https://eno.vn')
-    expect(r).toEqual({ ok: true, profile: { id: '123456', email: null, name: 'An', picture: null, pictureIsDefault: false, displayName: 'An', pictures: [] } })
+    expect(r).toEqual({ ok: true, profile: { id: '123456', email: null, name: 'An', picture: null, pictureIsDefault: false, displayName: 'An' } })
     // GoTrue's shape with no address at all: an empty one would be matched against other accounts' empties.
     const d = facebookIdentityData((r as { ok: true; profile: Parameters<typeof facebookIdentityData>[0] }).profile)
     expect(d).not.toHaveProperty('email')

@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
 }))
 
 vi.mock('server-only', () => ({}))
-vi.mock('@/lib/log', () => ({ logError: h.log }))
+vi.mock('@/lib/log', () => ({ logError: h.log, logWarn: vi.fn() }))
 vi.mock('@/lib/mail', () => ({ sendMail: h.mail }))
 vi.mock('@/lib/emails/facebook-connected', () => ({ renderFacebookConnectedEmail: ({ lang }: { lang: string }) => ({ subject: `notice-${lang}`, html: 'h', text: 't' }) }))
 vi.mock('@/lib/supabase/server', () => ({

@@ -86,7 +86,12 @@ for (;;) {
   // A whole job fits in what's left of today, or it waits for tomorrow in eno's queue.
   if (pagesToday() + 130 > PAGES_PER_DAY) { await wait(5 * POLL_MS); continue }
   let job = null
-  try { job = (await call('claim')).json?.job ?? null } catch (e) { console.error('claim failed', e.name) }
+  try {
+    const claim = await call('claim')
+    // ⛔ A refusal must not read as "no work": a wrong token or a block would otherwise look like a quiet queue for ever.
+    if (claim.status !== 200) console.error('claim refused', claim.status)
+    job = claim.json?.job ?? null
+  } catch (e) { console.error('claim failed', e.name) }
   if (!job) { await wait(POLL_MS); continue }
   console.log(new Date().toISOString(), 'job', job.jobId)
   try {

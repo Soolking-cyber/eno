@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { authRedirect } from '@/lib/auth-finish'
 import { renderFacebookConnectedEmail } from '@/lib/emails/facebook-connected'
-import { logError } from '@/lib/log'
+import { logError, logWarn } from '@/lib/log'
 import { sendMail } from '@/lib/mail'
 
 export const runtime = 'nodejs'
@@ -41,7 +41,7 @@ async function queueImport(userId: string, profile: FacebookProfile, connected_:
     return res?.ok ? createHash('sha256').update(Buffer.from(await res.arrayBuffer())).digest('hex') : null
   }))
   const pictureShas = [...new Set(hashes.filter((h): h is string => h !== null))]
-  if (!pictureShas.length) return 'failed'
+  if (!pictureShas.length) { logWarn('[fb-import] no copy of the picture could be fetched', { tried: hashes.length }); return 'failed' }
   const job = await createImportJob(userId, profile.displayName || profile.name, pictureShas)
   return job.ok ? 'queued' : job.reason
 }
@@ -79,18 +79,19 @@ export async function GET(request: Request) {
 
   // Declining Facebook's dialog is a decision, not a failure: back to the row, no message.
   if (url.searchParams.get('error')) return finish(null)
-  if (!code || !state || typeof tx.s !== 'string' || typeof tx.u !== 'string') return finish('failed')
-  if (!stateMatches(state, tx.s)) return finish('failed')
+  // Each way out says which: every one of these used to end in the same silent "failed", and finding this cost a deploy (2026-11-05).
+  if (!code || !state || typeof tx.s !== 'string' || typeof tx.u !== 'string') { logWarn('[facebook-connect] callback without its state cookie'); return finish('failed') }
+  if (!stateMatches(state, tx.s)) { logWarn('[facebook-connect] callback state mismatch'); return finish('failed') }
 
   try {
     const sb = await createSupabaseServer()
     const [{ data }, { data: live }] = await Promise.all([sb.auth.getClaims(), sb.auth.getUser()])
     // getUser asks GoTrue: getClaims alone verifies locally, and would let a session Disconnect just ended keep going until its
     // access token expires (commit gate, opus).
-    if (data?.claims?.sub !== tx.u || live?.user?.id !== tx.u) return finish('failed')
+    if (data?.claims?.sub !== tx.u || live?.user?.id !== tx.u) { logWarn('[facebook-connect] callback from a different or ended session'); return finish('failed') }
 
-    const read = await readFacebookProfile(code, origin)
-    if (!read.ok) return finish('failed')
+    const read = await readFacebookProfile(code, origin, { pictureSizes: forImport })
+    if (!read.ok) { logWarn('[facebook-connect] could not read the profile', { reason: read.reason }); return finish('failed') }
 
     // Told to the account's own address. Best effort: the link has happened, and a failed mail must not read as a failed link.
     // GoTrue's answer, not the token's: a token can name an address the account has since left.

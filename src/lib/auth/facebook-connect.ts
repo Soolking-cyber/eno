@@ -1,6 +1,7 @@
 import 'server-only'
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
+import { logWarn } from '@/lib/log'
 
 /**
  * CONNECT FACEBOOK (owner, 2026-11-04): an account made another way adds Facebook as a second way in, from Settings ›
@@ -105,6 +106,7 @@ export type FacebookProfile = { id: string; email: string | null; name: string; 
 /**
  * Every size of their picture Login can hand us. ⛔ THE IMPORT'S MATCH NEEDS MORE THAN ONE: a profile shows another account only small copies, and each size is its own file. Measured 2026-11-05 from a
  * separate account: 200 and 40 px equal Login's bytes exactly, a same-named stranger's equal none, and Login's 400 request (a 480 px file) is not on the page at all, so matching it alone found nobody.
+ * ⛔ ONE CALL PER SIZE, ONLY FOR AN IMPORT, NEVER AS ALIASES IN THE PROFILE CALL: Graph answers 400 to `.as(p40)` ("p40 is not a valid name"), and that one word took Connect down with it (live 2026-11-05).
  */
 export const FACEBOOK_PICTURE_SIZES = [40, 50, 80, 100, 160, 200, 320] as const
 export type ProfileResult =
@@ -112,10 +114,28 @@ export type ProfileResult =
   | { ok: false; reason: 'not_configured' | 'exchange' | 'profile' }
 
 type GraphPicture = { data?: { url?: unknown; is_silhouette?: unknown } }
-type GraphMe = { id?: unknown; email?: unknown; name?: unknown; first_name?: unknown; last_name?: unknown; picture?: GraphPicture } & { [size: `p${number}`]: GraphPicture | undefined }
+type GraphMe = { id?: unknown; email?: unknown; name?: unknown; first_name?: unknown; last_name?: unknown; picture?: GraphPicture }
 
 /** Code → token → who this is. The token dies with this function. Never throws. */
-export async function readFacebookProfile(code: string, origin: string): Promise<ProfileResult> {
+/** Whichever sizes Facebook will give. Best effort, one at a time in parallel: a size that fails is only a size the import can't compare. */
+async function pictureSizes(token: string, proof: string): Promise<string[]> {
+  const urls = await Promise.all(FACEBOOK_PICTURE_SIZES.map(async (w) => {
+    try {
+      const res = await fetch(`${GRAPH}/me/picture?width=${w}&height=${w}&redirect=false&appsecret_proof=${proof}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
+      if (!res.ok) return null
+      const url = ((await res.json()) as GraphPicture).data?.url
+      return typeof url === 'string' && url ? url : null
+    } catch {
+      return null
+    }
+  }))
+  const found = urls.filter((u): u is string => u !== null)
+  // The 400 alone is not on anyone's page, so this import will find nobody: say why.
+  if (!found.length) logWarn('[facebook-connect] no picture size came back', { tried: FACEBOOK_PICTURE_SIZES.length })
+  return found
+}
+
+export async function readFacebookProfile(code: string, origin: string, opts: { pictureSizes?: boolean } = {}): Promise<ProfileResult> {
   if (!APP_ID || !APP_SECRET) return { ok: false, reason: 'not_configured' }
   let token: string
   try {
@@ -135,10 +155,14 @@ export async function readFacebookProfile(code: string, origin: string): Promise
   }
   try {
     const proof = createHmac('sha256', APP_SECRET).update(token).digest('hex')
-    const sizes = FACEBOOK_PICTURE_SIZES.map((w) => `,picture.width(${w}).height(${w}).as(p${w})`).join('')
-    const url = `${GRAPH}/me?fields=id,email,name,first_name,last_name,picture.width(400).height(400)${sizes}&appsecret_proof=${proof}`
+    const url = `${GRAPH}/me?fields=id,email,name,first_name,last_name,picture.width(400).height(400)&appsecret_proof=${proof}`
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
-    if (!res.ok) return { ok: false, reason: 'profile' }
+    if (!res.ok) {
+      // Facebook's own code and status: its message can quote what was sent, and a silent failure here cost a whole deploy (2026-11-05).
+      const code = ((await res.json().catch(() => null)) as { error?: { code?: unknown } } | null)?.error?.code
+      logWarn('[facebook-connect] Graph refused the profile call', { status: res.status, code: typeof code === 'number' ? code : null })
+      return { ok: false, reason: 'profile' }
+    }
     const me = (await res.json()) as GraphMe
     if (typeof me.id !== 'string' || !me.id) return { ok: false, reason: 'profile' }
     // A Facebook that sends no email connects all the same: the eno account has its own. GoTrue's FACEBOOK_EMAIL_OPTIONAL lets it sign in later;
@@ -155,7 +179,7 @@ export async function readFacebookProfile(code: string, origin: string): Promise
         pictureIsDefault: me.picture?.data?.is_silhouette === true,
         // As Facebook shows it, for the import's search: first + last reads backwards for many Vietnamese names.
         displayName: typeof me.name === 'string' && me.name.trim() ? me.name.trim() : `${part(me.first_name)} ${part(me.last_name)}`.trim(),
-        pictures: [picture, ...FACEBOOK_PICTURE_SIZES.map((w) => me[`p${w}`]?.data?.url)].filter((u): u is string => typeof u === 'string' && u !== ''),
+        ...(opts.pictureSizes && typeof picture === 'string' && picture ? { pictures: [picture, ...(await pictureSizes(token, proof))] } : {}),
       },
     }
   } catch {
