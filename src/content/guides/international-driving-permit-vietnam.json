@@ -4,13 +4,13 @@
   "description": "Vietnam accepts only 1968-convention permits. See which countries qualify, what it means for motorbikes, cars and insurance, and how to convert a licence.",
   "h1": "International driving permit in Vietnam: is yours valid?",
   "eyebrow": "Driving in Vietnam",
-  "intro": "Your international driving permit is valid in Vietnam only if a country that is party to the 1968 Vienna Convention issued it, and only when carried with your home licence for the same class of vehicle. A permit from a non-party such as the US, Canada or Australia does not count, so you risk being treated as unlicensed and your insurer may refuse to pay. If you live here, converting to a Vietnamese licence is the lasting fix.",
+  "intro": "Your international driving permit is valid in Vietnam only if a country that is party to the 1968 Vienna Convention issued it, and only when carried with your home licence for the same class of vehicle. A permit from a non-party such as the US, Canada or Australia does not count, so you risk being treated as unlicensed and your insurer may refuse to pay. A domestic licence from an ASEAN member may work: ask the traffic police. A permit suits a short stay; people living here should exchange their licence.",
   "keyPoints": [
-    "Vietnam recognises permits from **1968 Vienna Convention** countries. The UK, France, Germany, South Africa and the Philippines are parties; the US, Canada, Australia, New Zealand, Japan, India and Ireland are not.",
+    "Vietnam recognises permits from **1968 Vienna Convention** countries. The UK, France, Germany, South Africa and the Philippines are parties; the US, Canada, Australia, New Zealand, Japan, India and Ireland are not. A domestic licence from an ASEAN member may work without a permit under a 1985 regional agreement, but we could not open the agreement itself, so ask the traffic police before relying on it.",
     "A valid permit still needs your home licence with it, and it only covers the classes on that licence. A car-only licence does not let you ride a motorbike.",
-    "Riding without a valid licence costs {{vnd:2000000-4000000}} up to 125 cc and {{vnd:6000000-8000000}} above that. Driving a car without one costs {{vnd:18000000-20000000}}.",
-    "The compulsory third-party cover lists having no valid licence as an exclusion, and travel or medical policies commonly require a locally valid licence. Get your insurer's answer in writing.",
-    "People who live, work or study here can exchange a valid home licence from any country for a Vietnamese one, for a fee of {{vnd:115000}}. An international permit cannot be exchanged."
+    "Riding a motorbike that needs a licence without a valid one costs {{vnd:2000000-4000000}} up to 125 cc and {{vnd:6000000-8000000}} above that. Driving a car without one costs {{vnd:18000000-20000000}}. For mopeds, see the moped question in the FAQs.",
+    "Decree 67/2023/ND-CP lists having no valid licence as an exclusion from compulsory third-party cover, but it has since been amended and we could not read a consolidated version, so check your own certificate. Vietcetera reports that most travel and medical policies require a locally valid licence, and we did not review individual policies. Get your insurer's answer in writing.",
+    "People who live, work or study here can apply to exchange a valid home licence for a Vietnamese one. Article 24 of Circular 108/2026 does not limit exchange to Convention countries, so a valid licence from elsewhere can qualify. Reporting on the fee schedule gives {{vnd:115000}}, but we could not open the schedule itself, so confirm the amount when you file. An international permit cannot be exchanged."
   ],
   "sections": [
     {
@@ -106,13 +106,13 @@
           "rows": [
             [
               "1968 permit + home licence with motorbike and car classes",
-              "Yes, within those classes",
-              "Yes"
+              "Yes, within those classes, for a short stay. If you live here, exchange your licence",
+              "Yes, for a short stay. If you live here, exchange your licence"
             ],
             [
               "1968 permit + car-only home licence",
               "No",
-              "Yes"
+              "Yes, for a short stay. If you live here, exchange your licence"
             ],
             [
               "Permit from a non-party country + home licence",
@@ -153,18 +153,18 @@
         },
         {
           "type": "table",
-          "caption": "Fines for driving without a valid licence, Decree 168/2024/ND-CP, as of November 2026",
+          "caption": "Fines for driving without a valid licence, on motorbikes that need a licence and on cars, Decree 168/2024/ND-CP, as of November 2026. For mopeds, see the moped question in the FAQs",
           "headers": [
             "Vehicle",
             "Fine"
           ],
           "rows": [
             [
-              "Motorbike up to 125 cc or 11 kW",
+              "Motorbike that needs a licence, up to 125 cc or 11 kW",
               "{{vnd:2000000-4000000}}"
             ],
             [
-              "Motorbike over 125 cc or 11 kW",
+              "Motorbike that needs a licence, over 125 cc or 11 kW",
               "{{vnd:6000000-8000000}}"
             ],
             [
@@ -172,14 +172,22 @@
               "{{vnd:18000000-20000000}}"
             ],
             [
-              "No valid compulsory insurance certificate, motorbike",
+              "No valid compulsory insurance certificate, motorbike or moped",
               "{{vnd:200000-300000}}"
             ]
           ]
         },
         {
           "type": "p",
-          "text": "These bands come from [summaries of Article 18](https://www.momo.vn/phat-nguoi/blog/loi-khong-giay-phep-lai-xe-muc-phat-va-cach-momo-giup-ban-giai-quyet-77), a [legal journal on the car fine](https://lsvn.vn/su-dung-giay-phep-lai-xe-da-bi-tru-het-diem-co-the-bi-phat-den-20-trieu-dong-a152286.html) and [another on insurance](https://lsvn.vn/tang-muc-phat-doi-voi-hanh-vi-khong-co-bao-hiem-xe-may-bat-buoc-tu-nam-2025-a152421.html). [Decree 238/2026/ND-CP](https://ketoananpha.vn/nghi-dinh-238-2026-nd-cp) amended Decree 168 from 15 August 2026, and the text we read did not change the no-licence fines. The same summary says the vehicle can be impounded for 7 days to 2 months."
+          "text": "These bands come from [Article 18 of Decree 168/2024/ND-CP](https://xaydungchinhsach.chinhphu.vn/toan-van-nghi-dinh-168-2024-nd-cp-quy-dinh-xu-phat-vi-pham-hanh-chinh-ve-trat-tu-an-toan-giao-thong-duong-bo-119241231164556785.htm), read on 5 November 2026 on a Vietnamese government site: clauses 5, 7 and 9 for the licence fines and clause 2 for insurance. Clauses 5 and 7 name motorbikes, not mopeds, while clause 2 names both."
+        },
+        {
+          "type": "p",
+          "text": "[Decree 238/2026/ND-CP](https://ketoananpha.vn/nghi-dinh-238-2026-nd-cp) amended Decree 168 from 15 August 2026. We read its text as reproduced by an accounting firm, because we did not find a government copy. In Article 18 it changes only clause 4(a), on riders aged 16 to under 18, and one phrase in clause 3(c), so it did not change the no-licence fines."
+        },
+        {
+          "type": "p",
+          "text": "Article 48 of Decree 168 also lets officers impound the vehicle for these licence offences. It gives no period in the text we read. A [MoMo summary](https://www.momo.vn/phat-nguoi/blog/loi-khong-giay-phep-lai-xe-muc-phat-va-cach-momo-giup-ban-giai-quyet-77) says 7 days to 2 months, which we could not confirm in the decree."
         },
         {
           "type": "p",
@@ -280,7 +288,7 @@
             },
             {
               "title": "Prepare the rest of the file",
-              "text": "[A law firm's reading of the circular](https://fdvn.vn/thu-tuc-doi-bang-lai-xe-nuoc-ngoai-sang-viet-nam-cho-nguoi-nuoc-ngoai-2026/) lists the application form, two 3x4 cm photos on white and a health certificate, plus further paperwork that depends on your situation. If you work here, your employer arranges the rest of your paperwork once your work permit is issued: ask them exactly what they cover and what it costs."
+              "text": "[A law firm's reading of the circular](https://fdvn.vn/thu-tuc-doi-bang-lai-xe-nuoc-ngoai-sang-viet-nam-cho-nguoi-nuoc-ngoai-2026/) lists the application form, two 3x4 cm photos on white and a health certificate, plus further paperwork that depends on your situation. Ask the office you file with what else it needs."
             },
             {
               "title": "File with the police",
@@ -312,7 +320,7 @@
     },
     {
       "q": "Is a UK international driving permit valid in Vietnam?",
-      "a": "Yes, if it is the 1968 version and you carry your UK licence with it. The UK government lists Vietnam as a 1968 country. The permit costs £5.50 from certain PayPoint shops."
+      "a": "Yes, if it is the 1968 version and you carry your UK licence with it. It suits a short stay and only covers the classes on your UK licence, and people living here should exchange their licence. The UK government lists Vietnam as a 1968 country. The permit costs £5.50 from certain PayPoint shops."
     },
     {
       "q": "Can I drive in Vietnam on my home licence alone?",
@@ -358,6 +366,11 @@
       "url": "https://luatvietnam.vn/giao-thong/thong-tu-108-2026-tt-bca-quy-dinh-sat-hach-cap-giay-phep-lai-xe-va-giay-phep-lai-xe-quoc-te-438989-d1.html"
     },
     {
+      "title": "Decree 168/2024/ND-CP on administrative penalties for road traffic violations: full text",
+      "publisher": "Xây dựng chính sách, Vietnamese Government",
+      "url": "https://xaydungchinhsach.chinhphu.vn/toan-van-nghi-dinh-168-2024-nd-cp-quy-dinh-xu-phat-vi-pham-hanh-chinh-ve-trat-tu-an-toan-giao-thong-duong-bo-119241231164556785.htm"
+    },
+    {
       "title": "Decree 67/2023/ND-CP on compulsory motor vehicle owner liability insurance",
       "publisher": "LuatVietnam",
       "url": "https://luatvietnam.vn/xay-dung/nghi-dinh-67-2023-nd-cp-bao-hiem-bat-buoc-cua-chu-xe-co-gioi-bao-hiem-chay-no-266177-d1.html"
@@ -396,16 +409,6 @@
       "title": "Fines for driving without a licence",
       "publisher": "MoMo",
       "url": "https://www.momo.vn/phat-nguoi/blog/loi-khong-giay-phep-lai-xe-muc-phat-va-cach-momo-giup-ban-giai-quyet-77"
-    },
-    {
-      "title": "Using a licence with all points deducted can bring fines of up to 20 million dong",
-      "publisher": "Tạp chí Luật sư Việt Nam",
-      "url": "https://lsvn.vn/su-dung-giay-phep-lai-xe-da-bi-tru-het-diem-co-the-bi-phat-den-20-trieu-dong-a152286.html"
-    },
-    {
-      "title": "Higher fines for riding without compulsory motorbike insurance from 2025",
-      "publisher": "Tạp chí Luật sư Việt Nam",
-      "url": "https://lsvn.vn/tang-muc-phat-doi-voi-hanh-vi-khong-co-bao-hiem-xe-may-bat-buoc-tu-nam-2025-a152421.html"
     },
     {
       "title": "Decree 238/2026/ND-CP amending Decree 168/2024/ND-CP",

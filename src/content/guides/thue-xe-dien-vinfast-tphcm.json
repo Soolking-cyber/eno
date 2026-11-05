@@ -1,0 +1,603 @@
+{
+  "slug": "thue-xe-dien-vinfast-tphcm",
+  "title": "Thuê xe điện VinFast ở TP.HCM: giá, cọc, sạc pin, giấy tờ",
+  "description": "Giá thuê xe máy và ô tô điện VinFast ở TP.HCM, mức cọc từng bên, ai trả tiền sạc, khi nào cần bằng A1 và các phụ phí dễ bỏ sót.",
+  "h1": "Thuê xe điện VinFast ở TP.HCM: chi phí thực tế, tiền cọc, sạc pin và bằng lái",
+  "eyebrow": "Di chuyển ở TP.HCM",
+  "intro": "Chỉ chạy trong thành phố thì thuê xe máy điện VinFast là lựa chọn rẻ nhất; cần chở cả nhà hoặc đi xa thì thuê ô tô. Giá và cọc chênh nhau nhiều giữa các bên, nên hãy so tổng chi phí gồm phụ phí cuối tuần, giới hạn km và tiền sạc. Về bằng lái, Izigo ghi Evo200 Lite không cần bằng nhưng yêu cầu bằng với Feliz II và Evo Max. Giá cụ thể nằm trong các bảng bên dưới, kiểm tra ngày 5/11/2026.",
+  "keyPoints": [
+    "Xe máy điện: gói chung của Izigo là {{vnd:100000-150000}} một ngày tùy thời gian thuê, hoặc {{vnd:1800000}} một tháng; Feliz II và Evo Max là {{vnd:200000}} một ngày.",
+    "Ô tô điện: bảng giá chính của Green Future từ {{vnd:550000}} một ngày cho VF 3, cộng {{vnd:100000}} mỗi ngày thứ Bảy, Chủ nhật; thuê tháng từ {{vnd:9900000}}.",
+    "Cọc ô tô dao động lớn: từ {{vnd:5000000}} ở Green Future tới {{vnd:15000000-20000000}} tiền mặt ở Nhiều Xe. Xe máy có nơi ghi không cọc, có nơi {{vnd:1000000-5000000}}.",
+    "Giá sạc công bố của V-Green là {{vnd:3858}}/kWh. Green Future ghi miễn phí sạc tại V-Green tới hết năm 2027 trên một số trang; BonbonCar thì để khách trả lại tiền sạc khi trả xe.",
+    "Xe không cần bằng phải vừa có vận tốc thiết kế không quá 50 km/h, vừa có công suất động cơ không quá 4 kW. Evo200 bản thường và Feliz II, được các bài báo ghi tối đa 70 km/h, không thuộc nhóm này.",
+    "Sau khi sạc ô tô, từ phút thứ 11 V-Green tính phí đỗ, tối đa {{vnd:1000000}} mỗi lần. Hãy hỏi trước ai chịu khoản này."
+  ],
+  "sections": [
+    {
+      "id": "gia-thue-xe-may-dien",
+      "title": "Giá thuê xe máy điện VinFast",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Các mức công bố tập trung quanh {{vnd:150000-200000}} một ngày. Thuê càng lâu giá ngày càng giảm. Theo gói chung của Izigo, gói tháng bắt đầu có lợi khi bạn thuê từ khoảng 18 ngày."
+        },
+        {
+          "type": "table",
+          "caption": "Giá xe máy điện do các bên tự công bố, đọc ngày 5/11/2026. Motogo là giá tham khảo nhiều thành phố; trang này hiển thị ngày 8/9/2026.",
+          "headers": [
+            "Bên / dòng xe",
+            "Theo ngày",
+            "Theo tháng",
+            "Cọc và giấy tờ"
+          ],
+          "rows": [
+            [
+              "[Izigo TP.HCM](https://izigo.vn/thue-xe-may-dien-tai-ho-chi-minh/), gói chung",
+              "{{vnd:150000}} (1–3 ngày), {{vnd:130000}} (4–7 ngày), {{vnd:100000}} (trên 7 ngày)",
+              "{{vnd:1800000}}",
+              "Trang này ghi không cọc, chỉ cần ảnh CCCD hoặc hộ chiếu; [trang Tân Bình](https://izigo.vn/thue-xe-may-dien-tan-binh/) lại ghi cọc linh hoạt theo xe và gói"
+            ],
+            [
+              "Izigo: Feliz II, Evo Max",
+              "{{vnd:200000}}",
+              "{{vnd:2100000}}",
+              "Yêu cầu có bằng lái"
+            ],
+            [
+              "[Motogo](https://motogo.vn/gia-thue-xe-may-dien/): Ludo, nhóm phổ thông cùng Evo Lite",
+              "{{vnd:80000-150000}}",
+              "{{vnd:1200000-1800000}}",
+              "Cọc chung: {{vnd:1000000-5000000}} tùy xe và cửa hàng"
+            ],
+            [
+              "Motogo: Feliz",
+              "{{vnd:150000-220000}}",
+              "Không có giá riêng; nhóm xe trung cấp {{vnd:1800000-2500000}}",
+              "Cọc chung như trên"
+            ],
+            [
+              "Motogo: Klara S",
+              "{{vnd:220000-300000}}",
+              "{{vnd:2500000-3500000}}; một cửa hàng báo {{vnd:3000000}} kèm đổi pin tại trạm",
+              "Cọc chung như trên; bài không nêu mức riêng cho xe VinFast"
+            ],
+            [
+              "Một tin Evo 200 ở Quận 1 trên [eno.vn](/motorbike-rental-ho-chi-minh-city)",
+              "{{vnd:150000}}",
+              "Không ghi",
+              "Thỏa thuận với chủ tin; hỏi rõ bản thường hay bản Lite vì liên quan tới bằng lái"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Trang của Izigo có điểm chưa khớp: gói tháng chung là {{vnd:1800000}}, nhưng Feliz II và Evo Max là {{vnd:2100000}}; trang Tân Bình lại ghi giá tham khảo {{vnd:130000-180000}} một ngày. Khi đặt, hãy yêu cầu ghi rõ tên xe, mức giá và số ngày trong tin nhắn hoặc hợp đồng."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Đừng nhầm với gói thuê của tài xế công nghệ",
+          "text": "Gói Evo {{vnd:1610000}} một tháng trên [tài liệu chính sách do một đại lý VinFast đăng](https://vinfastvietnam3s.com.vn/chinh-sach-thue-so-huu-xe-may-dien-vinfast-cung-xanh-sm-gsm-moi/) là chương trình dành cho tài xế chạy trên nền tảng GSM. Hợp đồng kéo dài 2 năm, tổng cọc {{vnd:3000000}}, yêu cầu online tối thiểu 9 giờ và khoảng 15 cuốc mỗi ngày ở TP.HCM. Gói này không dành cho người chỉ cần xe đi lại."
+        }
+      ]
+    },
+    {
+      "id": "gia-thue-o-to-dien",
+      "title": "Giá thuê ô tô điện VinFast tự lái",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Green Future là đơn vị duy nhất trong bài công bố bảng giá đầy đủ các dòng VF 3, VF 6, VF 8 và VF 9. [Trang dịch vụ chính](https://greenfuture.tech/thue-xe-tu-lai) và [trang Quận 12](https://greenfuture.tech/tin-tuc/thue-xe-tu-lai-quan-12) ghi giá ngày khác nhau, trong khi giá tháng giống nhau. Phần hỏi đáp của trang chính còn ghi giá ngày tới {{vnd:2600000}}, cao hơn mức {{vnd:2100000}} trong bảng của chính trang đó, nên hãy xin báo giá theo đúng ngày thuê."
+        },
+        {
+          "type": "table",
+          "caption": "Giá tự lái của Green Future, đọc ngày 5/11/2026. Giá ngày chưa gồm phụ phí cuối tuần {{vnd:100000}} một ngày. Giá trang chính gồm VAT, phí bảo dưỡng, phí đường bộ và pin; trang Quận 12 ghi gồm cả bảo hiểm.",
+          "headers": [
+            "Xe",
+            "Trang dịch vụ chính: theo ngày",
+            "Trang Quận 12: theo ngày",
+            "Theo tháng"
+          ],
+          "rows": [
+            [
+              "VF 3",
+              "{{vnd:550000}}",
+              "{{vnd:590000}}",
+              "{{vnd:9900000}}"
+            ],
+            [
+              "VF 6S",
+              "{{vnd:1000000}}",
+              "{{vnd:1100000}}",
+              "{{vnd:16500000}}"
+            ],
+            [
+              "VF 6 Plus",
+              "{{vnd:1100000}}",
+              "{{vnd:1250000}}",
+              "{{vnd:18700000}}"
+            ],
+            [
+              "VF 8 Eco",
+              "{{vnd:1250000}}",
+              "{{vnd:1700000}}",
+              "{{vnd:20400000}}"
+            ],
+            [
+              "VF 8 Plus",
+              "{{vnd:1400000}}",
+              "{{vnd:1800000}}",
+              "{{vnd:22100000}}"
+            ],
+            [
+              "VF 9 Eco",
+              "{{vnd:1850000}}",
+              "{{vnd:2400000}}",
+              "{{vnd:28350000}}"
+            ],
+            [
+              "VF 9 Plus",
+              "{{vnd:2100000}}",
+              "{{vnd:2600000}}",
+              "{{vnd:31400000}}"
+            ]
+          ]
+        },
+        {
+          "type": "table",
+          "caption": "Giá do các bên khác tự công bố, đọc ngày 5/11/2026. Ngày trong ngoặc là ngày đăng, nếu trang có ghi.",
+          "headers": [
+            "Bên",
+            "Xe",
+            "Giá",
+            "Cọc",
+            "Giới hạn km"
+          ],
+          "rows": [
+            [
+              "[Nhiều Xe](https://nhieuxe.vn/thue-xe-vf3.html)",
+              "VF 3",
+              "{{vnd:550000}} (thứ Hai–thứ Sáu), {{vnd:650000}} (cuối tuần), {{vnd:11000000}} một tháng gồm tiền sạc; chưa gồm VAT",
+              "{{vnd:15000000-20000000}} tiền mặt, hoặc thế chấp xe máy kèm cà vẹt gốc",
+              "Khoảng 250 km/ngày; gói tháng 3.000 km"
+            ],
+            [
+              "[BonbonCar](https://www.bonboncar.vn/blog/bang-gia-thue-xe-tu-lai-vinfast-tai-tp-hcm-cap-nhat-moi-nhat-2026/) (31/3/2026)",
+              "VF 3, VF 5 Plus, VF 6, VF 8",
+              "Giá tham khảo ngày thường: từ {{vnd:500000}}, {{vnd:400000-600000}}, {{vnd:900000-1100000}}, {{vnd:1200000-1500000}}",
+              "Bài ghi hai mức: {{vnd:3000000-5000000}} và {{vnd:10000000-15000000}}",
+              "Thường 400 km/ngày"
+            ],
+            [
+              "[Sigo](https://sigo.vn/news/thue-xe-vinfast-vf5-tu-lai) (25/8/2025)",
+              "VF 5",
+              "{{vnd:650000}} một ngày, {{vnd:12000000}} một tháng",
+              "Không nêu mức; miễn cọc với hợp đồng từ 6 tháng",
+              "Không nêu"
+            ],
+            [
+              "Một tin của BonbonCar ở Quận Bình Thạnh trên [trang thuê ô tô của eno.vn](/car-rental-ho-chi-minh-city)",
+              "VinFast VF5 2025",
+              "{{vnd:722500}} một ngày, là giá nguồn niêm yết trước giảm giá riêng",
+              "Do nguồn đăng tin quy định",
+              "Do nguồn đăng tin quy định"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Hãy coi giá trong bài blog là mức tham khảo. Cùng là BonbonCar, bài viết ghi VF 5 Plus {{vnd:400000-600000}}, còn tin VF5 2025 đang đăng lại là {{vnd:722500}}. Giá để chốt là giá hiện trên trang đặt xe của đúng chiếc bạn thuê."
+        },
+        {
+          "type": "h3",
+          "text": "Ba tình huống tính nhanh"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Xe máy một tuần:** gói chung của Izigo là 7 × {{vnd:130000}} = {{vnd:910000}}.",
+            "**VF 3 cuối tuần ở Green Future:** 2 × ({{vnd:550000}} + {{vnd:100000}}) = {{vnd:1300000}} theo bảng giá chính, cộng cọc từ {{vnd:5000000}}.",
+            "**VF 3 cả tháng ở Green Future:** {{vnd:9900000}}, so với {{vnd:16500000}} nếu tính 30 ngày theo giá ngày, chưa kể phụ phí cuối tuần."
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Những khoản hay phát sinh"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Vượt km:** Green Future giới hạn 300 km/ngày, 3.000 km/tháng; [trang bảng giá xe 4 chỗ](https://greenfuture.tech/tin-tuc/thue-xe-4-cho-tu-lai-va-co-tai) ghi phí vượt {{vnd:2500}}/km ở gói ngày biển trắng. Nhiều Xe tính khoảng {{vnd:3000}}/km.",
+            "**Giao xe:** trang Quận 12 của Green Future miễn phí trong bán kính 1 km, sau đó {{vnd:20000}}/km trong giờ hành chính, {{vnd:25000}}/km ngoài giờ và {{vnd:40000}}/km dịp lễ, Tết. Quận 12 là tên cũ: sau tháng 7/2025 giấy tờ dùng tên phường mới.",
+            "**Lễ, Tết:** Green Future có phụ phí nhưng không ghi số tiền, và yêu cầu đặt trước ít nhất 5 ngày làm việc vào dịp cao điểm.",
+            "**Vệ sinh:** Green Future có phí vệ sinh nếu xe trả về bị bẩn, nhưng trang chính không ghi số tiền.",
+            "**Phạt nguội:** BonbonCar ghi khách chịu toàn bộ tiền phạt phát sinh trong thời gian thuê. Với bên khác, hãy hỏi rõ điểm này."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tien-coc",
+      "title": "Tiền cọc và cách tránh rắc rối khi lấy lại cọc",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Ở Green Future, khách **trả trước tiền thuê và đặt cọc từ {{vnd:5000000}}** tùy dòng xe; trang Quận 12 ghi {{vnd:5000000-10000000}}. Vì vậy số tiền cần chuẩn bị ngay từ đầu cao hơn nhiều so với giá một ngày."
+        },
+        {
+          "type": "p",
+          "text": "Motogo cho biết thiếu bằng lái hoặc căn cước có thể khiến mức cọc cao hơn, còn đủ giấy tờ có thể được giảm cọc. BonbonCar ghi hoàn cọc sau khi kết thúc hợp đồng, còn trang của Green Future không nêu thời hạn hoàn cọc; cả hai đều không ghi số ngày, nên hãy hỏi trước khi chuyển tiền."
+        },
+        {
+          "type": "ol",
+          "items": [
+            "Hỏi mức cọc, hình thức cọc và số ngày hoàn lại, rồi yêu cầu ghi vào hợp đồng hoặc tin nhắn.",
+            "Nếu bên thuê giữ giấy tờ gốc hoặc xe thế chấp, yêu cầu biên nhận ghi rõ từng món.",
+            "Quay video toàn xe, đồng hồ km và mức pin ngay khi nhận và khi trả.",
+            "Hỏi phần cọc có được giữ lại để chờ phạt nguội hay không, và giữ trong bao lâu."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sac-pin-va-doi-pin",
+      "title": "Sạc pin, đổi pin và ai trả tiền",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "[Giá công bố của V-Green](https://vgreen.net/vi/cau-hoi-thuong-gap) là **{{vnd:3858}}/kWh, có VAT**, cho cả ô tô và xe máy điện, áp dụng từ 19/3/2024 cho tới khi có thông báo mới. Mạng này chỉ phục vụ xe điện VinFast."
+        },
+        {
+          "type": "h3",
+          "text": "Với ô tô"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Green Future:** [trang Quận 12](https://greenfuture.tech/tin-tuc/thue-xe-tu-lai-quan-12) và [trang xe 4 chỗ](https://greenfuture.tech/tin-tuc/thue-xe-4-cho-tu-lai-va-co-tai) ghi miễn phí sạc tới hết năm 2027, nhưng trang dịch vụ chính không nhắc ưu đãi này và các trang này không nói có bao gồm phí đỗ sau sạc hay không.",
+            "**BonbonCar:** tiền sạc ghi vào tài khoản ứng dụng VinFast của chủ xe, khách trả lại khi trả xe.",
+            "**Nhiều Xe:** gói tháng của VF 3 gồm cả tiền sạc. Với gói ngày, hãy hỏi rõ.",
+            "**Chi phí tham khảo:** Nhiều Xe ước tính sạc đầy VF 3 (khoảng 18,6 kWh) tốn khoảng {{vnd:72000}}. Với pin 37,23 kWh của VF 5 theo Sigo, tính theo đơn giá V-Green sẽ vào khoảng {{vnd:144000}}.",
+            "**Quãng đường:** Nhiều Xe ước tính VF 3 chạy khoảng 180–200 km mỗi lần sạc đầy, và sạc nhanh từ 10% lên 70% mất khoảng 30–35 phút. Hãy dùng con số thấp khi lập kế hoạch đi xa.",
+            "**Khi nhận xe:** hỏi bên cho thuê mức pin lúc giao và nơi sạc trên cung đường bạn đi, rồi chụp lại phần trăm pin."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "[Tuổi Trẻ](https://tuoitre.vn/vinfast-mien-phi-sac-pin-o-to-den-dau-nam-2029-xe-may-dien-mien-phi-doi-pin-den-giua-nam-2028-20260209080709921.htm) nêu khách cá nhân mua ô tô VinFast từ 10/2/2026 sẽ được miễn phí sạc tại V-Green tới 10/2/2029, tối đa 10 lần mỗi tháng. Đây là ưu đãi cho người mua xe và bài không nói về đơn vị cho thuê tự lái, nên khách thuê chỉ được hưởng nếu bên cho thuê xác nhận."
+        },
+        {
+          "type": "table",
+          "caption": "Phí sau khi sạc xong tại trạm ô tô của V-Green, áp dụng từ 1/11/2025. Không áp dụng cho xe máy điện và trụ sạc AC 11 kW.",
+          "headers": [
+            "Thời gian đỗ sau khi sạc xong",
+            "Đơn giá"
+          ],
+          "rows": [
+            [
+              "Phút 1–10",
+              "Miễn phí"
+            ],
+            [
+              "Phút 11–60",
+              "{{vnd:1000}}/phút"
+            ],
+            [
+              "Phút 61–120",
+              "{{vnd:2000}}/phút"
+            ],
+            [
+              "Từ phút 121",
+              "{{vnd:4000}}/phút, tối đa {{vnd:1000000}} mỗi lần"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Rời trụ ngay khi sạc xong",
+          "text": "BonbonCar khuyên rời chỗ trong 30 phút sau khi đầy pin, nhưng bảng của V-Green tính phí từ phút thứ 11, nên hãy theo mốc sớm hơn. [V-Green](https://vgreen.net/vi/san-pham-dich-vu) còn có phí chiếm dụng {{vnd:200000}} một giờ, tối đa {{vnd:1500000}} mỗi lần, với xe đỗ ở vị trí sạc mà không cắm sạc. Ở TP.HCM, phí này áp dụng tại sảnh chính Vincom Center Landmark 81."
+        },
+        {
+          "type": "h3",
+          "text": "Với xe máy"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Sạc tại trạm công cộng:** cùng đơn giá {{vnd:3858}}/kWh, không có phí quá giờ. V-Green cho biết [một lần sạc đầy tiêu chuẩn mất khoảng 4 giờ](https://vgreen.net/en/tram-sac-xe-may-dien), nên cách này hợp khi đỗ xe lâu.",
+            "**Sạc tại chỗ ở:** Izigo ghi giá thuê có kèm bộ sạc, mũ bảo hiểm và áo mưa, sạc đầy khoảng 8 giờ, có thể sạc tại khách sạn hoặc đổi lấy xe đã sạc đầy tại điểm Izigo gần nhất.",
+            "**Đổi pin:** V-Green tính {{vnd:9000}} một lần, có VAT. Ưu đãi 20 lần miễn phí mỗi tháng tới 30/6/2028 chỉ dành cho bản MAX hỗ trợ đổi pin.",
+            "**Điều cần hỏi trước:** V-Green ghi điều kiện đổi pin là khách là chủ xe, xe có hợp đồng thuê pin còn hiệu lực và không nợ quá hạn. Vì vậy, hãy hỏi bên cho thuê xe có đổi pin được không, dùng tài khoản nào và ai trả tiền."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bang-lai-va-giay-to",
+      "title": "Bằng lái và giấy tờ cần có",
+      "blocks": [
+        {
+          "type": "h3",
+          "text": "Xe máy điện: xem cả tốc độ lẫn công suất"
+        },
+        {
+          "type": "p",
+          "text": "Theo Luật Trật tự, an toàn giao thông đường bộ 2024 (36/2024/QH15), [xe gắn máy](https://lsvn.vn/cuc-csgt-lam-ro-quy-dinh-ve-xu-phat-nguoi-16-18-tuoi-lai-xe-moto-tu-15-8-a175536.html) là xe có vận tốc thiết kế không quá 50 km/h và, nếu dùng động cơ điện, công suất không quá 4 kW. Xe ngoài định nghĩa này là mô tô và cần bằng phù hợp. Quy định về [độ tuổi](https://luatvietnam.vn/tin-van-ban-moi/quy-dinh-ve-do-tuoi-duoc-cap-giay-phep-lai-xe-tung-hang-tu-01-01-2025-186-99699-article.html) nằm ở Điều 59 của luật này."
+        },
+        {
+          "type": "table",
+          "caption": "Phân loại theo Luật 36/2024/QH15. Thông số xe lấy từ các nguồn trong bài, không phải tài liệu kỹ thuật của từng xe cho thuê.",
+          "headers": [
+            "Loại xe",
+            "Điều kiện",
+            "Ví dụ từ nguồn đọc được"
+          ],
+          "rows": [
+            [
+              "Xe gắn máy: tối đa 50 km/h và 4 kW",
+              "Đủ 16 tuổi, không cần bằng",
+              "Evo200 Lite, [giới hạn 49 km/h](https://vietnamfinance.vn/chi-tiet-xe-may-dien-vinfast-evo200-gia-thap-nhat-chay-xa-nhat-d86691.html) theo bài năm 2022; Izigo cũng ghi không cần bằng"
+            ],
+            [
+              "Mô tô điện đến 11 kW",
+              "[Bằng A1 hoặc B1](https://luatvietnam.vn/tin-van-ban-moi/tu-01-01-2025-truong-hop-dieu-khien-mo-to-dien-phai-co-giay-phep-lai-xe-186-99295-article.html) và phải đủ 18 tuổi",
+              "Evo200 bản thường: 1,5 kW nhưng tối đa 70 km/h theo bài năm 2022; [Feliz II](https://baohatinh.vn/tv/vinfast-feliz-ii-xe-may-dien-pho-thong-gia-249-trieu-dong-pham-vi-toi-156-km-32222.html): tối đa 3 kW và 70 km/h theo Báo Hà Tĩnh ngày 2/3/2026; Feliz II, Evo Max được Izigo yêu cầu có bằng"
+            ],
+            [
+              "Mô tô điện trên 11 kW",
+              "Bằng A và phải đủ 18 tuổi",
+              "Hỏi thông số chính xác của xe"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Công suất nhỏ chưa chắc là được miễn bằng",
+          "text": "[VietNamNet](https://vietnamnet.vn/xe-may-dien-co-phai-dang-ky-bien-so-khong-va-can-gplx-gi-trong-nam-2026-2486106.html) tóm tắt quy tắc bằng lái theo ngưỡng 4 kW, nhưng định nghĩa mà chính bài đó dẫn còn có giới hạn 50 km/h. Trang Tân Bình của Izigo cũng ghi chưa nhất quán về bằng lái. Hãy hỏi bên thuê tên phiên bản, vận tốc thiết kế và công suất của đúng chiếc xe. Lái mô tô đến 11 kW khi không có bằng có thể bị phạt {{vnd:2000000-4000000}}, theo [bài tổng hợp của MoMo](https://www.momo.vn/phat-nguoi/blog/loi-khong-giay-phep-lai-xe-muc-phat-va-cach-momo-giup-ban-giai-quyet-77) ngày 8/6/2026 về Nghị định 168/2024/NĐ-CP. Người từ đủ 16 tuổi tới dưới 18 tuổi lái mô tô bị phạt {{vnd:400000-600000}}, theo [Cục CSGT](https://lsvn.vn/cuc-csgt-lam-ro-quy-dinh-ve-xu-phat-nguoi-16-18-tuoi-lai-xe-moto-tu-15-8-a175536.html). [Nghị định 238/2026/NĐ-CP](https://xaydungchinhsach.chinhphu.vn/nghi-dinh-so-238-2026-nd-cp-sua-doi-quy-dinh-xu-phat-vi-pham-giao-thong-duong-bo-tru-diem-phuc-hoi-diem-giay-phep-lai-xe-119260630142033452.htm) sửa nghị định này từ 15/8/2026, và bài này chưa đối chiếu được toàn văn để xác nhận mức phạt không bằng có đổi hay không. [Luật 118/2025/QH15](https://lsvn.vn/nhung-chinh-sach-giao-thong-dang-chu-y-co-hieu-luc-tu-nam-2026-a168245.html) cũng sửa một số quy định về giao thông từ 1/7/2026; bài tổng hợp đó không nhắc tới định nghĩa xe gắn máy. Nếu còn băn khoăn, cơ quan cảnh sát giao thông là nơi trả lời có giá trị nhất."
+        },
+        {
+          "type": "p",
+          "text": "Bằng A1 cấp trước 1/1/2025 mà chưa đổi vẫn lái được xe điện từ 4 kW tới dưới 14 kW, theo [LuatVietnam](https://luatvietnam.vn/tin-van-ban-moi/tu-01-01-2025-truong-hop-dieu-khien-mo-to-dien-phai-co-giay-phep-lai-xe-186-99295-article.html)."
+        },
+        {
+          "type": "h3",
+          "text": "Ô tô điện"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Green Future:** CCCD hoặc CMND và bằng lái hợp lệ; trang Quận 12 ghi cần bản gốc.",
+            "**BonbonCar:** CCCD gắn chip bản gốc hoặc VNeID mức 2, cùng bằng B1, B2 hoặc C còn hiệu lực.",
+            "**Sigo:** CCCD và bằng B1 trở lên, kèm khoản đặt cọc.",
+            "**Lưu ý tên hạng bằng:** từ năm 2025, người lái ô tô được cấp hạng B, còn hạng B1 mới dành cho mô tô ba bánh, trong khi nhiều trang thuê xe vẫn dùng tên hạng cũ. [Bằng B1, B2 cấp trước 1/1/2025](https://baolaocai.vn/co-can-doi-cap-lai-giay-phep-lai-xe-hang-b1-b2-sau-ngay-112025-khong-post389911.html) vẫn dùng tới hết thời hạn ghi trên bằng. Nếu bằng của bạn cấp theo phân hạng mới, hãy gửi ảnh cho bên thuê xác nhận.",
+            "**Chở trẻ em:** từ 1/7/2026, [trẻ dưới 10 tuổi và cao dưới 1,35 m](https://lsvn.vn/nhung-chinh-sach-giao-thong-dang-chu-y-co-hieu-luc-tu-nam-2026-a168245.html) không ngồi cùng hàng ghế với người lái, trừ xe chỉ có một hàng ghế, và phải dùng thiết bị an toàn phù hợp. Nếu đi cùng con nhỏ, hãy hỏi bên thuê có ghế trẻ em không."
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Nếu người lái là người nước ngoài"
+        },
+        {
+          "type": "p",
+          "text": "[Green Future](https://greenfuture.tech/tin-tuc/thue-xe-4-cho-tu-lai-va-co-tai) yêu cầu hộ chiếu còn hiệu lực và bằng lái hợp lệ. BonbonCar yêu cầu bằng lái quốc tế, hộ chiếu còn hạn ít nhất 6 tháng và một công dân Việt Nam bảo lãnh. Bằng nào được chấp nhận còn tùy quốc tịch và loại bằng đang có, nên hãy hỏi rõ bên cho thuê trước khi đặt. Với xe máy, xem thêm [hướng dẫn về bằng lái cho người nước ngoài](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners)."
+        }
+      ]
+    },
+    {
+      "id": "chon-xe-va-so-sanh",
+      "title": "Chọn xe và so sánh giá ở đâu",
+      "blocks": [
+        {
+          "type": "table",
+          "caption": "Gợi ý theo nhu cầu, dựa trên giá và điều kiện trong bài",
+          "headers": [
+            "Nhu cầu",
+            "Nên thuê",
+            "Lý do"
+          ],
+          "rows": [
+            [
+              "Đi làm, đi học trong thành phố từ vài tuần trở lên",
+              "Xe máy điện, gói tháng",
+              "Tổng chi phí thấp hơn nhiều so với ô tô"
+            ],
+            [
+              "Chạy quanh thành phố, hai tới bốn người",
+              "VF 3",
+              "Giá ô tô thấp nhất trong bảng Green Future; Nhiều Xe khuyên cân nhắc nếu chở hơn 3 người lớn kèm hành lý cồng kềnh"
+            ],
+            [
+              "Đi xa cuối tuần với gia đình",
+              "VF 6 hoặc VF 8",
+              "Xe 5 chỗ theo bảng Green Future, trong khi Nhiều Xe xem VF 3 hợp với đi lại trong thành phố hơn chuyến tỉnh xa; vẫn cần xem giới hạn km và kế hoạch sạc"
+            ],
+            [
+              "Chưa có bằng lái xe máy",
+              "Xe gắn máy như Evo200 Lite",
+              "Không cần bằng nếu xe đúng là xe gắn máy, nhưng bị giới hạn tốc độ"
+            ]
+          ]
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Chốt nhu cầu",
+              "text": "Ước tính số ngày, quãng đường mỗi ngày và số người đi. Xác định bạn sạc ở đâu trước khi chọn xe."
+            },
+            {
+              "title": "So từ hai tới ba nguồn",
+              "text": "Xem xe máy tại [trang thuê xe máy trên eno.vn](/motorbike-rental-ho-chi-minh-city), nơi bạn nhắn chủ tin trong ứng dụng để thỏa thuận giá, cọc và giấy tờ. Xem ô tô tại [trang thuê ô tô](/car-rental-ho-chi-minh-city), nơi có xe từ BonbonCar và Mioto kèm liên kết về tin gốc; ngày 5/11/2026 trang này có sáu xe, trong đó một chiếc VinFast. Sau đó đối chiếu với [bảng giá Green Future](https://greenfuture.tech/thue-xe-tu-lai)."
+            },
+            {
+              "title": "Hỏi cùng một danh sách câu hỏi",
+              "text": "Giá có VAT chưa, phụ phí cuối tuần và lễ Tết, phí giao xe, giới hạn km, phí vượt, ai trả tiền sạc, mức pin khi nhận và trả, nơi sạc trên cung đường bạn đi, tiền cọc, thời hạn hoàn cọc, bảo hiểm và phần khách phải tự chịu khi có sự cố."
+            },
+            {
+              "title": "Chốt bằng văn bản",
+              "text": "Đừng chuyển cọc khi chưa có hợp đồng hoặc tin nhắn ghi đủ các điều trên. eno.vn không nhận đặt xe: với xe từ BonbonCar và Mioto, bạn đặt, trả tiền, ký và giao cọc với bên đăng tin gốc, nên hãy kiểm tra cọc, phí giao xe, giới hạn km và bảo hiểm trên trang đặt của bên đó. Với Green Future, hãy xác nhận mức cọc và phụ phí qua tổng đài ghi trên trang của họ."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Thuê theo ngày có được dùng đủ 24 giờ không?",
+      "a": "Ở Green Future, gói ngày được tính 24 giờ liên tục kể từ lúc nhận xe. Các bên khác có thể quy định khác, nên hãy hỏi giờ nhận, giờ trả và phí trả muộn trước khi đặt."
+    },
+    {
+      "q": "Có thuê được VF 5 ở Green Future không?",
+      "a": "Bảng giá thuê tự lái của Green Future đọc ngày 5/11/2026 không có VF 5. Nếu cần đúng mẫu này, hãy xem BonbonCar, Sigo hoặc trang thuê ô tô trên eno.vn, nơi hôm đó có một tin VF 5."
+    },
+    {
+      "q": "Xe hết pin giữa đường thì làm sao?",
+      "a": "Hãy gọi ngay số hỗ trợ của bên cho thuê. Nhiều Xe cho biết có đội hỗ trợ 24/7, nhưng trang này không nói chi phí cứu hộ, còn trang chính của Green Future không đề cập tình huống này, nên hãy hỏi trước ai trả khoản đó."
+    },
+    {
+      "q": "Có sạc xe VinFast thuê ở trạm không phải V-Green được không?",
+      "a": "Các nguồn đã đọc không xác nhận điều này cho từng mạng sạc, nên hãy hỏi bên cho thuê trước. Tiền và cách thanh toán khi đó không theo bảng giá V-Green; Tuổi Trẻ ghi nhận TMT Egreen và Bitcharge có đơn giá thay đổi theo khung giờ."
+    },
+    {
+      "q": "Chuyến đi Vũng Tàu có nên thuê VF 3 không?",
+      "a": "Nhiều Xe xem VF 3 phù hợp cho chuyến cuối tuần gần Sài Gòn như Vũng Tàu, Hồ Tràm, nhưng ít phù hợp với chuyến liên tỉnh dài. Hãy tính cả lượt về, chọn trạm sạc từ trước và không dựa vào quãng đường tối đa do hãng công bố."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Câu hỏi thường gặp",
+      "publisher": "V-Green",
+      "url": "https://vgreen.net/vi/cau-hoi-thuong-gap"
+    },
+    {
+      "title": "Sản phẩm dịch vụ",
+      "publisher": "V-Green",
+      "url": "https://vgreen.net/vi/san-pham-dich-vu"
+    },
+    {
+      "title": "Charging Station for Electric Scooters",
+      "publisher": "V-Green",
+      "url": "https://vgreen.net/en/tram-sac-xe-may-dien"
+    },
+    {
+      "title": "Nghị định số 238/2026/NĐ-CP sửa đổi quy định xử phạt vi phạm giao thông đường bộ; trừ điểm, phục hồi điểm giấy phép lái xe",
+      "publisher": "Chính sách và cuộc sống, Cổng TTĐT Chính phủ",
+      "url": "https://xaydungchinhsach.chinhphu.vn/nghi-dinh-so-238-2026-nd-cp-sua-doi-quy-dinh-xu-phat-vi-pham-giao-thong-duong-bo-tru-diem-phuc-hoi-diem-giay-phep-lai-xe-119260630142033452.htm"
+    },
+    {
+      "title": "Dịch vụ cho thuê xe ô tô điện tự lái, có tài xế",
+      "publisher": "Green Future",
+      "url": "https://greenfuture.tech/thue-xe-tu-lai"
+    },
+    {
+      "title": "Dịch vụ thuê xe tự lái Quận 12",
+      "publisher": "Green Future",
+      "url": "https://greenfuture.tech/tin-tuc/thue-xe-tu-lai-quan-12"
+    },
+    {
+      "title": "Bảng giá thuê xe 4 chỗ tự lái và có tài",
+      "publisher": "Green Future",
+      "url": "https://greenfuture.tech/tin-tuc/thue-xe-4-cho-tu-lai-va-co-tai"
+    },
+    {
+      "title": "Độ tuổi được cấp Giấy phép lái xe từng hạng từ 01/01/2025",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/tin-van-ban-moi/quy-dinh-ve-do-tuoi-duoc-cap-giay-phep-lai-xe-tung-hang-tu-01-01-2025-186-99699-article.html"
+    },
+    {
+      "title": "Từ 01/01/2025: Trường hợp điều khiển mô tô điện phải có Giấy phép lái xe",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/tin-van-ban-moi/tu-01-01-2025-truong-hop-dieu-khien-mo-to-dien-phai-co-giay-phep-lai-xe-186-99295-article.html"
+    },
+    {
+      "title": "Cục CSGT làm rõ quy định về xử phạt người 16-18 tuổi lái xe môtô từ 15/8",
+      "publisher": "Luật sư Việt Nam",
+      "url": "https://lsvn.vn/cuc-csgt-lam-ro-quy-dinh-ve-xu-phat-nguoi-16-18-tuoi-lai-xe-moto-tu-15-8-a175536.html"
+    },
+    {
+      "title": "Những chính sách giao thông đáng chú ý có hiệu lực từ năm 2026",
+      "publisher": "Luật sư Việt Nam",
+      "url": "https://lsvn.vn/nhung-chinh-sach-giao-thong-dang-chu-y-co-hieu-luc-tu-nam-2026-a168245.html"
+    },
+    {
+      "title": "Có cần đổi, cấp lại giấy phép lái xe hạng B1, B2 sau ngày 1/1/2025 không?",
+      "publisher": "Báo Lào Cai",
+      "url": "https://baolaocai.vn/co-can-doi-cap-lai-giay-phep-lai-xe-hang-b1-b2-sau-ngay-112025-khong-post389911.html"
+    },
+    {
+      "title": "Xe máy điện có phải đăng ký biển số không và cần GPLX gì trong năm 2026?",
+      "publisher": "VietNamNet",
+      "url": "https://vietnamnet.vn/xe-may-dien-co-phai-dang-ky-bien-so-khong-va-can-gplx-gi-trong-nam-2026-2486106.html"
+    },
+    {
+      "title": "Lỗi không giấy phép lái xe 2026: Mức phạt và cách nộp qua MoMo",
+      "publisher": "MoMo",
+      "url": "https://www.momo.vn/phat-nguoi/blog/loi-khong-giay-phep-lai-xe-muc-phat-va-cach-momo-giup-ban-giai-quyet-77"
+    },
+    {
+      "title": "Chi tiết xe máy điện VinFast Evo200: Giá thấp nhất, chạy xa nhất",
+      "publisher": "VietnamFinance",
+      "url": "https://vietnamfinance.vn/chi-tiet-xe-may-dien-vinfast-evo200-gia-thap-nhat-chay-xa-nhat-d86691.html"
+    },
+    {
+      "title": "VinFast Feliz II: Xe máy điện phổ thông giá 24,9 triệu đồng, phạm vi tới 156 km",
+      "publisher": "Báo Hà Tĩnh",
+      "url": "https://baohatinh.vn/tv/vinfast-feliz-ii-xe-may-dien-pho-thong-gia-249-trieu-dong-pham-vi-toi-156-km-32222.html"
+    },
+    {
+      "title": "VinFast miễn phí sạc pin ô tô đến đầu năm 2029, xe máy điện miễn phí đổi pin đến giữa năm 2028",
+      "publisher": "Tuổi Trẻ",
+      "url": "https://tuoitre.vn/vinfast-mien-phi-sac-pin-o-to-den-dau-nam-2029-xe-may-dien-mien-phi-doi-pin-den-giua-nam-2028-20260209080709921.htm"
+    },
+    {
+      "title": "Cuộc chơi trạm sạc xe điện cho cả tài xế lẫn nhà đầu tư",
+      "publisher": "Tuổi Trẻ",
+      "url": "https://tuoitre.vn/cuoc-choi-tram-sac-xe-dien-cho-ca-tai-xe-lan-nha-dau-tu-100260721233954397.htm"
+    },
+    {
+      "title": "Thuê xe máy điện tại Hồ Chí Minh",
+      "publisher": "Izigo",
+      "url": "https://izigo.vn/thue-xe-may-dien-tai-ho-chi-minh/"
+    },
+    {
+      "title": "Thuê xe máy điện tại Tân Bình 2026",
+      "publisher": "Izigo",
+      "url": "https://izigo.vn/thue-xe-may-dien-tan-binh/"
+    },
+    {
+      "title": "Giá thuê xe máy điện: Bảng giá chi tiết các dòng xe phổ biến 2026",
+      "publisher": "Motogo",
+      "url": "https://motogo.vn/gia-thue-xe-may-dien/"
+    },
+    {
+      "title": "Bảng giá thuê xe tự lái VinFast tại TP.HCM cập nhật mới nhất 2026",
+      "publisher": "BonbonCar",
+      "url": "https://www.bonboncar.vn/blog/bang-gia-thue-xe-tu-lai-vinfast-tai-tp-hcm-cap-nhat-moi-nhat-2026/"
+    },
+    {
+      "title": "Thuê xe VF3 tự lái, có tài",
+      "publisher": "Nhiều Xe",
+      "url": "https://nhieuxe.vn/thue-xe-vf3.html"
+    },
+    {
+      "title": "Cho thuê xe VinFast VF5 tự lái",
+      "publisher": "Sigo",
+      "url": "https://sigo.vn/news/thue-xe-vinfast-vf5-tu-lai"
+    },
+    {
+      "title": "Chính sách thuê sở hữu xe máy điện VinFast Evo và Feliz II cùng Xanh SM",
+      "publisher": "VinFast Việt Nam 3S (đại lý)",
+      "url": "https://vinfastvietnam3s.com.vn/chinh-sach-thue-so-huu-xe-may-dien-vinfast-cung-xanh-sm-gsm-moi/"
+    }
+  ],
+  "related": [
+    "getting-around-ho-chi-minh-city",
+    "motorbike-licence-in-vietnam-for-foreigners",
+    "your-first-weeks-in-ho-chi-minh-city"
+  ],
+  "lastChecked": "2026-11-05"
+}

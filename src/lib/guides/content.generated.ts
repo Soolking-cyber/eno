@@ -2,7 +2,9 @@
 // Validated at module load by src/lib/guides/content.ts (src/lib/teach-guides/schema.ts).
 
 import g0 from '@/content/guides/international-driving-permit-vietnam.json'
+import g1 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
 
 export const GUIDE_CONTENT: Readonly<Record<string, unknown>> = {
   'international-driving-permit-vietnam': g0,
+  'thue-xe-dien-vinfast-tphcm': g1,
 }
