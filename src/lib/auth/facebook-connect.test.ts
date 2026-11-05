@@ -71,13 +71,14 @@ describe('readFacebookProfile', () => {
   ))
 
   it('reads who this is and proves the token with the app secret', async () => {
-    const f = answers({ id: '123456', email: 'A@X.example', first_name: 'An', last_name: 'Tran', picture: { data: { url: 'https://p/x.jpg' } } })
+    const f = answers({ id: '123456', email: 'A@X.example', name: 'Tran An', first_name: 'An', last_name: 'Tran', picture: { data: { url: 'https://p/x.jpg' } }, p200: { data: { url: 'https://p/200.jpg' } }, p40: { data: { url: 'https://p/40.jpg' } } })
     vi.stubGlobal('fetch', f)
     const { readFacebookProfile } = await load()
     const r = await readFacebookProfile('CODE', 'https://eno.vn')
-    expect(r).toEqual({ ok: true, profile: { id: '123456', email: 'a@x.example', name: 'An Tran', picture: 'https://p/x.jpg' } })
+    expect(r).toEqual({ ok: true, profile: { id: '123456', email: 'a@x.example', name: 'An Tran', picture: 'https://p/x.jpg', pictureIsDefault: false, displayName: 'Tran An', pictures: ['https://p/x.jpg', 'https://p/40.jpg', 'https://p/200.jpg'] } })
     const meUrl = String(f.mock.calls[1][0])
     expect(meUrl).toMatch(/appsecret_proof=[0-9a-f]{64}/)
+    expect(meUrl).toContain('picture.width(200).height(200).as(p200)')
     // Neither the secret nor the token in a URL (nginx and proxy logs).
     expect(meUrl).not.toContain('TOKEN')
     expect(String(f.mock.calls[0][0])).not.toContain('a'.repeat(32))
@@ -86,7 +87,7 @@ describe('readFacebookProfile', () => {
     vi.stubGlobal('fetch', answers({ id: '123456', first_name: 'An' }))
     const { readFacebookProfile, facebookIdentityData } = await load()
     const r = await readFacebookProfile('CODE', 'https://eno.vn')
-    expect(r).toEqual({ ok: true, profile: { id: '123456', email: null, name: 'An', picture: null } })
+    expect(r).toEqual({ ok: true, profile: { id: '123456', email: null, name: 'An', picture: null, pictureIsDefault: false, displayName: 'An', pictures: [] } })
     // GoTrue's shape with no address at all: an empty one would be matched against other accounts' empties.
     const d = facebookIdentityData((r as { ok: true; profile: Parameters<typeof facebookIdentityData>[0] }).profile)
     expect(d).not.toHaveProperty('email')

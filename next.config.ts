@@ -1351,7 +1351,7 @@ const nextConfig: NextConfig = {
       // (OAuth sign-in) — without it they render as a broken-image icon.
       // ⛔ No `www.facebook.com`: that was the Meta pixel's 1x1 image beacon, and with the pixel gone
       // its only remaining use would be a tag-manager image tag firing before consent (see script-src).
-      `img-src 'self' capacitor: data: blob: ${SUPABASE_ORIGIN} https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://www.google-analytics.com https://www.googletagmanager.com`,
+      `img-src 'self' capacitor: data: blob: ${SUPABASE_ORIGIN} https://*.googleusercontent.com https://*.fbcdn.net https://*.basemaps.cartocdn.com https://www.google-analytics.com https://www.googletagmanager.com`,
       // <video> sources for listing videos: our public bucket + blob: (the wizard's
       // client-side preview object URL). Without this, default-src 'self' blocks playback.
       `media-src 'self' blob: ${SUPABASE_ORIGIN}`,

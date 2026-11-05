@@ -30,6 +30,7 @@ model Category {
 // authenticated user has exactly one Profile (buyer and/or seller-owner).
 // The auth.users FK is added via raw SQL (Prisma can't model the auth schema).
 model Profile {
+  fbImportJobs FacebookImportJob[]
   /// Payments (eno.forum only — see the Order model). Back-relations; nothing on eno.vn reads them.
   ordersBought         Order[]   @relation("OrderBuyer")
   custodyWallet        CustodyWallet?
@@ -3124,4 +3125,63 @@ model TeacherZaloReveal {
   @@index([viewerProfileId, day])
   @@index([teacherProfileId, day])
   @@index([poolKey, day])
+}
+
+/// One seller's Import from Facebook (src/lib/fb-import/). Deleted with its items after 7 days (src/app/api/cron/fb-import). `pictureShas` are hashes of their Facebook
+/// profile picture, never the picture. Created by scripts/fb-import-ddl.sql: run it before the deploy that carries this.
+model FacebookImportJob {
+  id          String    @id @default(cuid())
+  profileId   String    @db.Uuid
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  /// queued | reading | sorting | ready | not_found | unavailable | failed
+  status      String    @default("queued")
+  fbName      String
+  pictureShas String[]
+  /// Fences the worker: a report must carry the lease it was given (src/lib/fb-import/jobs.ts).
+  leaseId     String?
+  leaseUntil  DateTime?
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  items       FacebookImportItem[]
+
+  @@index([status, createdAt])
+  @@index([profileId, createdAt])
+}
+
+/// One Facebook listing in an import. `raw` is what the page said; the other fields are the seller's draft of it.
+model FacebookImportItem {
+  id              String   @id @default(cuid())
+  jobId           String
+  job             FacebookImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  fbItemId        String
+  raw             Json
+  /// raw | draft | publishing | published | skipped
+  status          String   @default("raw")
+  categorySlug    String?
+  subcategorySlug String?
+  listingType     String?
+  title           String?
+  description     String?
+  /// As Listing.price is: a flat at 3 billion đồng doesn't fit an Int.
+  price           Float?
+  /// From Facebook's location line; the seller can change it. A post needs a place.
+  district        String?
+  city            String?
+  condition       String?
+  brand           String?
+  model           String?
+  /// Facet answers: strings, or arrays for a multi-select facet.
+  attributes      Json?
+  /// Range facets by column (year, mileageKm…).
+  specs           Json?
+  /// Why it can't publish yet: a code the review screen turns into words.
+  reason          String?
+  listingId       String?
+  publishingSince DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([jobId, fbItemId])
+  @@index([status, updatedAt])
 }

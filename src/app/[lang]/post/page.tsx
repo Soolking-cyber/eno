@@ -7,6 +7,7 @@ import type { SerializedCategory } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { PostWizard } from '@/components/marketplace/post-wizard'
+import { PostImportLink } from '@/components/marketplace/post-import-link'
 import { serializeCategoryBasic } from '@/lib/serialize'
 
 const METADATA: Metadata = { title: `Post a listing | ${SITE_NAME}`, robots: { index: false, follow: false } }
@@ -40,6 +41,7 @@ export default async function PostPage() {
           </div>
           {/* eslint-enable react/jsx-no-literals */}
         </noscript>
+        <PostImportLink />
         <PostWizard categories={serialized} />
       </main>
       <Footer />

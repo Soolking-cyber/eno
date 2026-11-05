@@ -185,6 +185,8 @@
  * And 2026-11-04, Connect Facebook (owner: "they can log in with fb" on an account made another way): the Meta row no longer
  * says Facebook is never added to an existing account; it says when it is, and that no email from Facebook now stops only a NEW account. ⛔ THE PLANNED DAY, like the rest: re-date it to
  * the day the deploy that carries it runs, then retake the fingerprint.
+ * And 2026-11-05, Import from Facebook (owner, 2026-11-04): the Meta row says the reading happens, and the OpenAI row names each imported listing's text and first photo (src/lib/fb-import/luna.ts). ⛔ THE PLANNED DAY, like the rest:
+ * the day the deploy that carries it runs, then retake the fingerprint.
  */
 export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-05'
 
@@ -195,4 +197,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-05'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '8d6946a0d8792e51'
+export const PRIVACY_TEXT_FINGERPRINT = '9bc58e96ee3f952a'

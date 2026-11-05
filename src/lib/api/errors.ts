@@ -47,6 +47,7 @@ import type { CallRefusalCode } from '@/lib/calls/server/eligibility'
 export type SharedApiErrorCode =
   | 'auth_required'                     // 89
   | 'not_found'                         // 73
+  | 'lease_lost'                        // 1
   | 'rate_limited'                      // 63
   | 'reason_required'                  // admin Users console: revoke / erase need a written reason for the audit row
   | 'bad_request'                       // 25
@@ -863,6 +864,7 @@ const ALL = [
   'not_confirmed',
   'not_decided',
   'not_found',
+  'lease_lost',
   'not_negotiable',
   'not_participant',
   'not_recallable',

@@ -55,6 +55,7 @@ rows of the table: **identical as of that date. It is a check, not a guarantee**
 | `eno.conf` | `/etc/nginx/sites-enabled/eno.conf` (a regular file on the box today; the Deploy steps write it to `sites-available/` and symlink it) |
 | `partner.eno.vn.conf` | `/etc/nginx/sites-enabled/partner.eno.vn.conf`: the static B2B profile |
 | `../cloudflared/eno-tunnel.conf` | `/etc/nginx/sites-enabled/eno-tunnel.conf`: the Cloudflare Tunnel listener (`../cloudflared/README.md`) |
+| `eno-header-buffers.conf` | `/etc/nginx/conf.d/eno-header-buffers.conf`: the request header limit, 16k (http level) |
 | `proxy-params.conf` | `/etc/nginx/snippets/eno-proxy.conf` |
 | `ssl-params.conf` | `/etc/nginx/snippets/eno-ssl.conf` |
 | `static-marketplace.conf` | `/etc/nginx/snippets/eno-static-marketplace.conf` — `/_next/static/` from disk (`/var/www/eno-static/marketplace`, filled by `../eno-static-sync.sh` at each deploy, step 6b) with fallback to :3001, and `/_next/image` tagged `eno-img`. ⛔ Included ONLY by :3001 server blocks |

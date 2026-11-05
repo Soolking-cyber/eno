@@ -8,6 +8,8 @@ const h = vi.hoisted(() => ({
   refresh: vi.fn(async () => ({})),
   mail: vi.fn(async () => true),
   log: vi.fn(),
+  queue: vi.fn(async () => ({ ok: true, id: 'j1' })),
+  alreadyConnected: null as string | null,
 }))
 
 vi.mock('server-only', () => ({}))
@@ -22,7 +24,11 @@ vi.mock('@/lib/auth/facebook-connect', () => ({
   isConnectState: (v: string | null) => !!v && /^[\w-]{43}$/.test(v),
   readFacebookProfile: h.read,
   connectFacebookIdentity: h.connect,
+  connectedFacebookId: async () => h.alreadyConnected,
 }))
+
+vi.mock('@/lib/fb-import/jobs', () => ({ createImportJob: h.queue }))
+vi.mock('@/lib/ssrf', () => ({ safeFetch: async () => new Response('picture') }))
 
 const { GET } = await import('./route')
 
@@ -41,9 +47,26 @@ beforeEach(() => {
   h.connect.mockReset().mockResolvedValue('ok')
   h.refresh.mockClear()
   h.mail.mockClear().mockResolvedValue(true)
+  h.queue.mockClear()
 })
 
 describe('Connect Facebook callback', () => {
+  // ⛔ Connecting through Import is the same new way in, and the mail is what a phished owner recovers by.
+  const importTx = () => `${COOKIE}=${encodeURIComponent(JSON.stringify({ s: STATE, u: 'user-1', f: 'import' }))}`
+  it('Import connects Facebook for the first time: the account hears about it, and the job has every picture size', async () => {
+    h.alreadyConnected = null
+    h.read.mockResolvedValue({ ok: true, profile: { ...PROFILE, picture: 'https://p/400.jpg', pictures: ['https://p/400.jpg', 'https://p/200.jpg'], displayName: 'An Tran' } })
+    await call(`code=C&state=${STATE}`, importTx())
+    expect(h.mail).toHaveBeenCalledWith(expect.objectContaining({ to: 'a@x.example', subject: 'notice-en' }))
+    expect(h.queue).toHaveBeenCalledWith('user-1', 'An Tran', [expect.stringMatching(/^[0-9a-f]{64}$/)])
+  })
+  it('Import on an account already connected sends no notice', async () => {
+    h.alreadyConnected = '123456'
+    h.read.mockResolvedValue({ ok: true, profile: { ...PROFILE, picture: 'https://p/400.jpg', pictures: ['https://p/400.jpg'] } })
+    await call(`code=C&state=${STATE}`, importTx())
+    expect(h.mail).not.toHaveBeenCalled()
+    expect(h.connect).not.toHaveBeenCalled()
+  })
   it('connects the signed-in person who started it, refreshes the session and burns the cookie', async () => {
     const r = await call(`code=C&state=${STATE}`, tx())
     expect(fb(r)).toBe('connected')

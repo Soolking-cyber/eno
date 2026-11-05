@@ -102,6 +102,8 @@ declare -A SCHED=(
   # run is a check, not a precondition — this job is SAFE (below), so a full re-run of the installer before the deploy
   # installs it early, and its unit then FAILS nightly (the route 404s) until the deploy lands, harmlessly.
   [licence-holds]="*-*-* 17:00:00 UTC"
+  # Import from Facebook (owner, 2026-11-04 — src/app/api/cron/fb-import): sorts drafts a report didn't reach, closes a queue nobody read, deletes imports past 7 days.
+  [fb-import]="hourly"
   # The nightly identity reconcile (owner, 2026-10-15 — src/app/api/cron/identity-reconcile/route.ts): every profile with
   # an identity_verifications row is recomputed — the verification cache, trust (a LIVE verified identity is +10), the
   # enforcement state and a teacher's pages. 02:05 UTC = 09:05 ICT, NOT midnight: a document lapses at 00:00 ICT, but

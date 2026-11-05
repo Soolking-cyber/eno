@@ -100,12 +100,19 @@ export function buildConnectUrl(state: string, origin: string): string | null {
   return u.toString()
 }
 
-export type FacebookProfile = { id: string; email: string | null; name: string; picture: string | null }
+export type FacebookProfile = { id: string; email: string | null; name: string; picture: string | null; pictureIsDefault?: boolean; displayName?: string; pictures?: string[] }
+
+/**
+ * Every size of their picture Login can hand us. ⛔ THE IMPORT'S MATCH NEEDS MORE THAN ONE: a profile shows another account only small copies, and each size is its own file. Measured 2026-11-05 from a
+ * separate account: 200 and 40 px equal Login's bytes exactly, a same-named stranger's equal none, and Login's 400 request (a 480 px file) is not on the page at all, so matching it alone found nobody.
+ */
+export const FACEBOOK_PICTURE_SIZES = [40, 50, 80, 100, 160, 200, 320] as const
 export type ProfileResult =
   | { ok: true; profile: FacebookProfile }
   | { ok: false; reason: 'not_configured' | 'exchange' | 'profile' }
 
-type GraphMe = { id?: unknown; email?: unknown; first_name?: unknown; last_name?: unknown; picture?: { data?: { url?: unknown } } }
+type GraphPicture = { data?: { url?: unknown; is_silhouette?: unknown } }
+type GraphMe = { id?: unknown; email?: unknown; name?: unknown; first_name?: unknown; last_name?: unknown; picture?: GraphPicture } & { [size: `p${number}`]: GraphPicture | undefined }
 
 /** Code → token → who this is. The token dies with this function. Never throws. */
 export async function readFacebookProfile(code: string, origin: string): Promise<ProfileResult> {
@@ -128,7 +135,8 @@ export async function readFacebookProfile(code: string, origin: string): Promise
   }
   try {
     const proof = createHmac('sha256', APP_SECRET).update(token).digest('hex')
-    const url = `${GRAPH}/me?fields=id,email,first_name,last_name,picture&appsecret_proof=${proof}`
+    const sizes = FACEBOOK_PICTURE_SIZES.map((w) => `,picture.width(${w}).height(${w}).as(p${w})`).join('')
+    const url = `${GRAPH}/me?fields=id,email,name,first_name,last_name,picture.width(400).height(400)${sizes}&appsecret_proof=${proof}`
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
     if (!res.ok) return { ok: false, reason: 'profile' }
     const me = (await res.json()) as GraphMe
@@ -144,6 +152,10 @@ export async function readFacebookProfile(code: string, origin: string): Promise
         email: typeof me.email === 'string' && me.email.trim() ? me.email.trim().toLowerCase() : null,
         name: `${part(me.first_name)} ${part(me.last_name)}`.trim(),
         picture: typeof picture === 'string' && picture ? picture : null,
+        pictureIsDefault: me.picture?.data?.is_silhouette === true,
+        // As Facebook shows it, for the import's search: first + last reads backwards for many Vietnamese names.
+        displayName: typeof me.name === 'string' && me.name.trim() ? me.name.trim() : `${part(me.first_name)} ${part(me.last_name)}`.trim(),
+        pictures: [picture, ...FACEBOOK_PICTURE_SIZES.map((w) => me[`p${w}`]?.data?.url)].filter((u): u is string => typeof u === 'string' && u !== ''),
       },
     }
   } catch {
@@ -198,6 +210,12 @@ export async function disconnectFacebookIdentity(userId: string, keepSession: st
  * made: that account already had its own way in. ⛔ AN ACCOUNT MADE WITH FACEBOOK WAS CONFIRMED ON FACEBOOK'S WORD: if that mailbox is dead,
  * Disconnect would strand it. ⛔ NOT app_metadata.provider: GoTrue rewrites it at every sign-in (auth.eno_facebook_connected says why).
  */
+/** The Facebook id this account has connected, if any: Import must be that one. */
+export async function connectedFacebookId(userId: string): Promise<string | null> {
+  const rows = await db.$queryRaw<{ provider_id: string }[]>`SELECT provider_id FROM auth.identities WHERE user_id = ${userId}::uuid AND lower(provider) = 'facebook' LIMIT 1`
+  return rows[0]?.provider_id ?? null
+}
+
 export async function facebookConnectionState(userId: string): Promise<{ connected: boolean; canDisconnect: boolean; email: string | null }> {
   const rows = await db.$queryRaw<{ connected: boolean; made_by_connect: boolean; email: string | null }[]>`
     SELECT EXISTS (SELECT 1 FROM auth.identities i WHERE i.user_id = u.id AND lower(i.provider) = 'facebook') AS connected,

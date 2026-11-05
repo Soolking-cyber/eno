@@ -60,6 +60,8 @@ const ALLOW = new Map([
   // Regenerating this list from "what the lint still reports" silently dropped them once,
   // because an allowlisted file is not reported. They go first so that cannot recur.
   ["src/lib/edition-scope.ts", "defines the predicate itself"],
+  ["src/lib/fb-import/publish.ts", "owner-scoped: one seller's own listing by its fb:<id> externalId, to avoid posting it twice; never rendered"],
+  ["src/app/api/fb-import/route.ts", 'the signed-in user\'s own storefront, by ownerId: userId, for its contact phone only'],
   ["src/lib/visa-shop.ts", "resolves the desk BY owner email — it must see the desk to exclude it; services-side by definition"],
   ["src/lib/trips/dm-thread.ts", "resolves the trip desk — services-side by definition"],
   // ⚠️ EVERY ENTRY CARRIES THE CONSTRAINT THAT MAKES IT SAFE, not the word "internal". This list

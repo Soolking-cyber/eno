@@ -63,7 +63,8 @@ describe('/privacy — the voice guide (owner, 2026-10-28: "processor not import
     const en = await policy('marketplace')
     const vi = await policy('marketplace', 'vi')
     for (const t of [
-      'Only when you talk to eno’s voice guide: the words it heard, your last few turns with it, and a summary of the eno.vn page you are on',
+      'When you talk to eno’s voice guide: the words it heard, your last few turns with it, and a summary of the eno.vn page you are on',
+      'When you import from Facebook: the text and first photo of each listing.',
       'Only when you talk to eno’s voice guide: your voice, streamed while the guide is listening, to turn it into text; and the guide’s answers, to speak them aloud. We keep no recording.',
       'And, only when OpenAI is unavailable or cannot answer in time, what eno’s voice guide would have sent to OpenAI (see OpenAI).',
       'Voice guide: if you open eno’s voice guide (from ✨) and tap Start, your voice is streamed to Soniox while the guide listens',
@@ -1251,7 +1252,7 @@ describe('Continue with Facebook (2026-10-16)', () => {
       expect(text, site).toContain('never Facebook’s access token')
       expect(text, site).toContain('we never show or copy your Facebook picture or post anything to Facebook')
       expect(text, site).toContain('If Facebook has no email address for you, no new account is created')
-      expect(text, site).toContain('Facebook is added to an account that already exists here only when you connect it yourself in Settings › Privacy')
+      expect(text, site).toContain('Facebook is added to an account that already exists here only when you connect it yourself, in Settings › Privacy or by starting Import from Facebook')
       expect(text, site).toContain('If the email address Facebook has for you is not your account’s, we never use it to sign you in or to match you to another account.')
       expect(text, site).toContain('if you use Continue with Facebook, your name and email address from Facebook')
       expect(text, site).toContain('You can remove eno from your Facebook settings (Apps and websites) at any time, and deleting your eno account deletes what Facebook sent us.')

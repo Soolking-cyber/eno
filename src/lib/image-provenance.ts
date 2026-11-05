@@ -57,6 +57,9 @@ export async function indexAndCheckProvenance(listingId: string): Promise<void> 
         JOIN "Listing" li ON li.id = lih."listingId"
         WHERE lih."sellerId" <> ${l.sellerId}
           AND li.status = 'active' AND li.verified = true
+          -- ⛔ AN IMPORTED LISTING IS NEVER "THE ORIGINAL" (2026-11-04). Import from Facebook can't prove the goods are the importer's (src/lib/fb-import/shared.ts), so
+          -- being first must not get the real owner's later post hidden. It still loses to an older listing, as anything does.
+          AND (li."externalId" IS NULL OR li."externalId" NOT LIKE 'fb:%')
           AND (lih.hash <~> ${bits}::bit(64)) <= ${CROSS_THRESHOLD}
         ORDER BY lih.hash <~> ${bits}::bit(64)
         LIMIT 3

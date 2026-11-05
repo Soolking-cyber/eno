@@ -6,6 +6,7 @@ import { useLanguage } from '@/context/language-context'
 import { useDashboard } from '@/hooks/use-dashboard'
 import { ListingsClient } from './listings-client'
 import { BulkClient } from '../bulk/bulk-client'
+import { FacebookImportPanel } from '@/components/marketplace/facebook-import-panel'
 
 /**
  * LISTINGS — folds the former /dashboard/bulk into /dashboard/listings as a tab (owner, 2026-09-01).
@@ -30,6 +31,7 @@ export function ListingsTabs() {
   // (just All), which the shell renders cleanly.
   const tabs: DashboardTab[] = [
     { value: 'all', label: tr('All listings', 'Tất cả'), content: <ListingsClient embedded /> },
+    { value: 'facebook', label: tr('Import from Facebook', 'Nhập từ Facebook'), content: <FacebookImportPanel /> },
   ]
   // `confirmedIndividual` is the ONLY state that hides a requested Bulk tab: the payload came back
   // and the viewer is not business. Loading and a FAILED payload both leave it un-confirmed.
