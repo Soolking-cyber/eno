@@ -31,8 +31,8 @@ export type GuideEntry = {
 
 export const GUIDES: readonly GuideEntry[] = [
   // <generated-guides>
-  { slug: 'international-driving-permit-vietnam', lang: 'en', published: '2026-11-05', updated: '2026-11-05', released: '2026-11-05', reviewed: '2026-11-05', reviewedDigest: '9a19c10eafed7c45' },
-  { slug: 'thue-xe-dien-vinfast-tphcm', lang: 'vi', published: '2026-11-05', reviewed: '2026-11-05', reviewedDigest: 'f6fc4b8b9a5ed893' },
+  { slug: 'international-driving-permit-vietnam', lang: 'en', published: '2026-11-05', updated: '2026-11-05', released: '2026-11-05', reviewed: '2026-11-05', reviewedDigest: 'd8dac8a4a78173f7' },
+  { slug: 'thue-xe-dien-vinfast-tphcm', lang: 'vi', published: '2026-11-05', updated: '2026-11-05', released: '2026-11-05', reviewed: '2026-11-05', reviewedDigest: '966a9ddbce0e1c2c' },
   // </generated-guides>
 ]
 
