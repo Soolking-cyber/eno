@@ -47,6 +47,16 @@ describe('carrying approved guides from Reach', () => {
       expect(planCarry([{ slug: 'taken-back', lang: 'en', status }], [held], { today: TODAY }).problems[0], status).toMatch(/took it back/)
     }
     expect(planCarry([], [held], { today: TODAY }).problems[0]).toMatch(/not in Reach/)
+    // Being rewritten while live is not taken back, but only for the text Reach kept as live: anything else in the registry was carried and then sent back, and would ship at the next deploy.
+    for (const status of ['idea', 'writing', 'draft', 'failed']) {
+      const rewriting = planCarry([{ slug: 'taken-back', lang: 'en', status, liveDigest: 'abc' }], [held], { today: TODAY })
+      expect(rewriting.problems, status).toEqual([])
+      expect(rewriting.rewriting, status).toEqual(['taken-back'])
+      expect(rewriting.carry, status).toEqual([])
+      expect(rewriting.entries, 'the live text stays').toEqual([held])
+      expect(planCarry([{ slug: 'taken-back', lang: 'en', status, liveDigest: 'older' }], [held], { today: TODAY }).problems[0], status).toMatch(/took it back/)
+    }
+    expect(planCarry([{ slug: 'taken-back', lang: 'en', status: 'rejected', liveDigest: 'abc' }], [held], { today: TODAY }).problems[0], 'rejected is always taken back').toMatch(/took it back/)
     const live = row('taken-back', { status: 'published' })
     expect(planCarry([live], [{ ...held, reviewedDigest: live.digest }], { today: TODAY }).problems).toEqual([])
   })

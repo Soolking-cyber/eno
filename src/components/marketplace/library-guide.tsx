@@ -100,6 +100,8 @@ export function libraryGuideMetadata(slug: string, lang: Lang): Metadata {
     alternates: { canonical: path, ...(pair && isGuideLive(pair, requestNow()) ? { languages: { [pair.lang]: guidePath(pair), [lang]: path } } : {}) },
     robots: TEACH_ROBOTS,
     ...pageShare({ title, description: hit.guide.description, url: path, type: 'article' }),
+    // Which approved text this page is showing: eno Reach reads it to say "On eno.vn", because a rewritten guide's address answers with the old words until the deploy.
+    ...(hit.entry.reviewedDigest ? { other: { 'eno-guide-digest': hit.entry.reviewedDigest } } : {}),
   }
 }
 

@@ -97,4 +97,9 @@ describe('a page in the general guide library', () => {
     const m = libraryGuideMetadata('thue-xe', 'vi')
     expect(m.alternates).toEqual({ canonical: '/huong-dan/thue-xe', languages: { en: '/guides/rent-a-bike', vi: '/huong-dan/thue-xe' } })
   })
+
+  it('says which approved text it is showing, which is how eno Reach knows a rewrite has gone live', () => {
+    expect(libraryGuideMetadata('thue-xe', 'vi').other).toEqual({ 'eno-guide-digest': 'x' })
+    expect(libraryGuideMetadata('nothing', 'en').other).toBeUndefined()
+  })
 })

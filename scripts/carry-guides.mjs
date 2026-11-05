@@ -30,6 +30,7 @@ const OPEN = '  // <generated-guides>'
 const CLOSE = '  // </generated-guides>'
 const FIELDS = ['slug', 'lang', 'published', 'updated', 'released', 'reviewed', 'reviewedDigest', 'pair']
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+const BEING_WRITTEN = ['idea', 'writing', 'draft', 'failed']
 
 /** The same value as src/lib/teach-guides/digest.ts (carry.test.ts) and Reach's digestOf (its test/content.test.ts). */
 export const digestOf = (doc) => createHash('sha256').update(JSON.stringify(doc)).digest('hex').slice(0, 16)
@@ -62,11 +63,15 @@ export function renderRegistry(source, entries) {
 /** What to do, decided from what Reach says and what the registry holds. Writes nothing. Rows come oldest approval first. */
 export function planCarry(rows, entries, { today, max = 3 }) {
   const problems = []
+  const rewriting = []
   const bySlug = new Map(rows.map((r) => [r.slug, r]))
   for (const e of entries) {
     const r = bySlug.get(e.slug)
     if (!r) problems.push(`${e.slug} is in the registry but not in Reach.`)
-    else if (r.status !== 'approved' && r.status !== 'published') problems.push(`${e.slug} is in the registry, but Reach has it as "${r.status}": a person took it back. Decide whether to remove it.`)
+    else if (r.status === 'approved' || r.status === 'published') continue
+    // A live guide being rewritten: Reach kept the text that is live, and the registry holds that text, so it stays until a new version is approved. Any other text was carried and then sent back.
+    else if (BEING_WRITTEN.includes(r.status) && r.liveDigest && e.reviewedDigest === r.liveDigest) rewriting.push(e.slug)
+    else problems.push(`${e.slug} is in the registry, but Reach has it as "${r.status}": a person took it back. Decide whether to remove it.`)
   }
   const todo = []
   for (const r of rows) {
@@ -91,7 +96,7 @@ export function planCarry(rows, entries, { today, max = 3 }) {
     if (held) merged[merged.indexOf(held)] = line
     else merged.push(line)
   }
-  return { problems, carry: carry.map((c) => c.row), waiting: todo.slice(max).map((c) => c.row.slug), entries: merged }
+  return { problems, rewriting, carry: carry.map((c) => c.row), waiting: todo.slice(max).map((c) => c.row.slug), entries: merged }
 }
 
 export const guideAddress = (r) => `https://eno.vn/${r.lang === 'vi' ? 'huong-dan' : 'guides'}/${r.slug}`
@@ -117,7 +122,7 @@ export function applyCarry(plan, { registry, contentDir, generated, check }) {
 /** Read-only on the box: the session itself refuses writes. */
 function readFromBox() {
   const key = process.env.ENO_SSH_KEY || join(homedir(), '.ssh/CS-Linux-20260920135129228.pem')
-  const sql = `select coalesce(json_agg(json_build_object('slug', slug, 'lang', lang, 'status', status, 'digest', digest,
+  const sql = `select coalesce(json_agg(json_build_object('slug', slug, 'lang', lang, 'status', status, 'digest', digest, 'liveDigest', live->>'digest',
       'approvedOn', to_char(approved_at at time zone 'Asia/Ho_Chi_Minh', 'YYYY-MM-DD'), 'doc', case when status in ('approved', 'published') then doc end) order by approved_at nulls last, slug), '[]')
     from articles where library = 'guides'`
   const out = execFileSync('ssh', ['-o', 'IdentitiesOnly=yes', '-i', key, '-p', '24700', '-o', 'ConnectTimeout=20', 'root@162.4.176.233',
@@ -139,6 +144,7 @@ function main() {
     console.error(`Nothing written:\n- ${plan.problems.join('\n- ')}`)
     process.exit(1)
   }
+  if (plan.rewriting.length) console.log(`being rewritten, and their current text stays live: ${plan.rewriting.join(', ')}`)
   if (!plan.carry.length) {
     console.log('No approved guide waiting to be carried.')
     return
