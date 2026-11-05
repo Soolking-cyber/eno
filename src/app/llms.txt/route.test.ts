@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { SiteFacts } from '@/lib/site-facts'
+import { GUIDES, guideBlurb, guideLabel, guidePath } from '@/lib/guides/registry'
 
 /**
  * /llms.txt is the file agents read to decide who this site is. It used to live in `public/`,
@@ -178,8 +179,10 @@ describe('/llms.txt on the marketplace', () => {
       // The one exception is the guide index naming the HCMC motorbike-RENTAL hub by its own URL
       // (src/lib/expat-guides.ts, 2026-09-29): a registry line, not a claim about for-sale stock, and
       // the hub itself goes noindex when it has nothing live. The two Teach in Vietnam guides about getting around
-      // and the licence are the same kind of line (2026-10-11). Everything else stays banned.
-      const claims = body.split('\n').filter((l) => !/\]\(https:\/\/eno\.vn\/(motorbike-rental-ho-chi-minh-city|thue-xe-may-tphcm|teach-in-vietnam\/(getting-around-ho-chi-minh-city|motorbike-licence-in-vietnam-for-foreigners))\)/.test(l)).join('\n')
+      // and the licence are the same kind of line (2026-10-11). So is a guide a person approved (src/lib/guides, 2026-11-05),
+      // matched as the whole line the registry writes, so no other wording can ride along with its link. Everything else stays banned.
+      const approved = new Set(GUIDES.map((e) => `- [${guideLabel(e)}](https://eno.vn${guidePath(e)}): ${guideBlurb(e)}`))
+      const claims = body.split('\n').filter((l) => !approved.has(l) && !/\]\(https:\/\/eno\.vn\/(motorbike-rental-ho-chi-minh-city|thue-xe-may-tphcm|teach-in-vietnam\/(getting-around-ho-chi-minh-city|motorbike-licence-in-vietnam-for-foreigners))\)/.test(l)).join('\n')
       expect(claims).not.toMatch(/motorbike/i)
       expect(body).not.toMatch(/moving[ -]sale/i)
     })

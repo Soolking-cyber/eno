@@ -151,8 +151,8 @@ function main() {
       registry: REGISTRY, contentDir: CONTENT, generated: GENERATED,
       check: () => {
         execFileSync(process.execPath, [join(ROOT, 'scripts/gen-guides.mjs')], { stdio: 'inherit' })
-        // eno.vn's own rules over the real files: its schema, its word rule and the digest. A failure here would fail every deploy, so it stops here instead.
-        execFileSync('npx', ['vitest', 'run', 'src/lib/guides', 'src/components/marketplace/library-guide.test.tsx'], { cwd: ROOT, stdio: 'inherit' })
+        // eno.vn's own rules over the real files: its schema, its word rule and the digest, and the two public lists a guide's own words land in. A failure here would fail CI, so it stops here instead.
+        execFileSync('npx', ['vitest', 'run', 'src/lib/guides', 'src/components/marketplace/library-guide.test.tsx', 'src/app/llms.txt', 'src/app/sitemaps'], { cwd: ROOT, stdio: 'inherit' })
       },
     })
   } catch (e) {

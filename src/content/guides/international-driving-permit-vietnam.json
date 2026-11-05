@@ -1,0 +1,429 @@
+{
+  "slug": "international-driving-permit-vietnam",
+  "title": "IDP Vietnam: is your international driving permit valid?",
+  "description": "Vietnam accepts only 1968-convention permits. See which countries qualify, what it means for motorbikes, cars and insurance, and how to convert a licence.",
+  "h1": "International driving permit in Vietnam: is yours valid?",
+  "eyebrow": "Driving in Vietnam",
+  "intro": "Your international driving permit is valid in Vietnam only if a country that is party to the 1968 Vienna Convention issued it, and only when carried with your home licence for the same class of vehicle. A permit from a non-party such as the US, Canada or Australia does not count, so you risk being treated as unlicensed and your insurer may refuse to pay. If you live here, converting to a Vietnamese licence is the lasting fix.",
+  "keyPoints": [
+    "Vietnam recognises permits from **1968 Vienna Convention** countries. The UK, France, Germany, South Africa and the Philippines are parties; the US, Canada, Australia, New Zealand, Japan, India and Ireland are not.",
+    "A valid permit still needs your home licence with it, and it only covers the classes on that licence. A car-only licence does not let you ride a motorbike.",
+    "Riding without a valid licence costs {{vnd:2000000-4000000}} up to 125 cc and {{vnd:6000000-8000000}} above that. Driving a car without one costs {{vnd:18000000-20000000}}.",
+    "The compulsory third-party cover lists having no valid licence as an exclusion, and travel or medical policies commonly require a locally valid licence. Get your insurer's answer in writing.",
+    "People who live, work or study here can exchange a valid home licence from any country for a Vietnamese one, for a fee of {{vnd:115000}}. An international permit cannot be exchanged."
+  ],
+  "sections": [
+    {
+      "id": "which-permits-vietnam-recognises",
+      "title": "Which permits Vietnam recognises",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Vietnam [joined the 1968 Convention on Road Traffic on 20 August 2014](https://treaties.un.org/pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en). The [road traffic law, Article 57(8)](https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/dieu-57), defines an international permit as one issued by a competent authority of a Vienna Convention member. It lasts up to 3 years and cannot outlast the national licence behind it."
+        },
+        {
+          "type": "p",
+          "text": "So the test is **who issued the permit and under which convention**, not what the booklet is called or where you bought it. The table shows the [UN treaty record](https://treaties.un.org/pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en) as read on 5 November 2026, when it listed 91 parties."
+        },
+        {
+          "type": "table",
+          "caption": "Status of common licence countries under the 1968 Convention (UN Treaty Collection, read 5 November 2026)",
+          "headers": [
+            "Status",
+            "Countries",
+            "What it means for a permit from there"
+          ],
+          "rows": [
+            [
+              "Party",
+              "UK, France, Germany, Netherlands, Italy, Belgium, Austria, Switzerland, Portugal, Greece, Poland, Denmark, Sweden, Norway, Finland, Russia, Ukraine, Türkiye, Israel, South Africa, Philippines, Thailand, Brazil, Kenya, Nigeria, Zimbabwe, Pakistan",
+              "Can count, if it is the 1968 version and you carry your home licence"
+            ],
+            [
+              "Signed, never ratified",
+              "Spain, South Korea, Indonesia, Mexico",
+              "Signature alone does not make a country a party, so do not rely on the permit"
+            ],
+            [
+              "Not a party",
+              "US, Canada, Australia, New Zealand, Japan, India, Ireland, Malaysia, Singapore, Cambodia, Laos",
+              "Not recognised under the Convention; ASEAN licence holders should read the note below"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Check the booklet, not just the country",
+          "text": "Some countries issue more than one version. The [UK has three types](https://www.gov.uk/driving-abroad/international-driving-permit) (1926, 1949 and 1968) and lists Vietnam under 1968. Read which convention your booklet names before you rely on it, and replace it if it is the wrong one."
+        },
+        {
+          "type": "h3",
+          "text": "Where published lists disagree"
+        },
+        {
+          "type": "p",
+          "text": "A [May 2026 Viet Nam News column](https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html) names South Africa and Israel among countries that cannot issue a valid permit. The UN record shows South Africa acceded on 1 November 1977 and Israel ratified on 11 May 1971, so this guide follows the UN. If you hold one of these permits, confirm it with the traffic police. [Circular 108/2026/TT-BCA, Article 36(3)](https://luatvietnam.vn/giao-thong/thong-tu-108-2026-tt-bca-quy-dinh-sat-hach-cap-giay-phep-lai-xe-va-giay-phep-lai-xe-quoc-te-438989-d1.html) tells the Traffic Police Department to publish the list of Convention countries each year, though we did not find that list online."
+        },
+        {
+          "type": "h3",
+          "text": "What does not count"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Online \"international licences\".** These [have no legal standing](https://vietcetera.com/en/why-many-foreigners-ride-illegally-in-vietnam-without-realizing-it).",
+            "**A permit Vietnam itself issued.** Under [Article 30(1) of Circular 108/2026](https://luatvietnam.vn/giao-thong/thong-tu-108-2026-tt-bca-quy-dinh-sat-hach-cap-giay-phep-lai-xe-va-giay-phep-lai-xe-quoc-te-438989-d1.html), it is not valid for driving inside Vietnam.",
+            "**A valid permit without the home licence.** You must [carry both](https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/dieu-57). The [UK government](https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security) says the same for car and motorbike."
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "ASEAN licences"
+        },
+        {
+          "type": "p",
+          "text": "Viet Nam News reports that Vietnam joined the 1985 ASEAN agreement on domestic licences on 22 January 1997, and that members can use a domestic licence in other member countries without a permit. It names the Philippines, Singapore, Malaysia and Thailand among them. We could not open the agreement itself, so ask the traffic police before relying on it, particularly for the class you want to ride or drive."
+        }
+      ]
+    },
+    {
+      "id": "motorbikes-and-cars",
+      "title": "What this means for motorbikes and cars",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The permit copies your home entitlement and adds nothing to it. Viet Nam News puts it plainly: you must hold the correct licence for the vehicle you intend to drive, so a car-only licence does not let you ride a motorbike. This catches many people who hold a valid 1968 permit."
+        },
+        {
+          "type": "table",
+          "caption": "Your position by licence and vehicle (Law 36/2024/QH15 and Circular 108/2026/TT-BCA, read 5 November 2026)",
+          "headers": [
+            "What you hold",
+            "Motorbike",
+            "Car"
+          ],
+          "rows": [
+            [
+              "1968 permit + home licence with motorbike and car classes",
+              "Yes, within those classes",
+              "Yes"
+            ],
+            [
+              "1968 permit + car-only home licence",
+              "No",
+              "Yes"
+            ],
+            [
+              "Permit from a non-party country + home licence",
+              "Not valid under the Convention",
+              "Not valid under the Convention"
+            ],
+            [
+              "Home licence alone, non-ASEAN",
+              "No",
+              "No"
+            ],
+            [
+              "Vietnamese licence of the right class",
+              "Yes, if the class fits",
+              "Yes, if class B or higher"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Vietnamese classes turn on engine size. [Article 57](https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/dieu-57) puts two-wheelers up to 125 cc under A1 and larger ones under A, with passenger cars up to 8 seats besides the driver under B. For classes, the moped exception and getting a licence if you have none at home, read [the motorbike licence guide](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners)."
+        },
+        {
+          "type": "h3",
+          "text": "Renting does not settle it"
+        },
+        {
+          "type": "p",
+          "text": "A shop handing you the keys does not make you legal, and it will not be with you at a police stop or an insurance claim. Ask before you book, using [the motorbike rental guide](/motorbike-rental-ho-chi-minh-city) or [the car rental guide](/car-rental-ho-chi-minh-city), because accepted licences and insurance terms vary. The UK government also warns [not to leave your passport as a deposit](https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security) for a hired vehicle."
+        },
+        {
+          "type": "p",
+          "text": "If your paperwork falls short, a car with a driver or a ride-hailing app avoids the problem. See [getting around Ho Chi Minh City](/teach-in-vietnam/getting-around-ho-chi-minh-city)."
+        },
+        {
+          "type": "h3",
+          "text": "What you risk"
+        },
+        {
+          "type": "table",
+          "caption": "Fines for driving without a valid licence, Decree 168/2024/ND-CP, as of November 2026",
+          "headers": [
+            "Vehicle",
+            "Fine"
+          ],
+          "rows": [
+            [
+              "Motorbike up to 125 cc or 11 kW",
+              "{{vnd:2000000-4000000}}"
+            ],
+            [
+              "Motorbike over 125 cc or 11 kW",
+              "{{vnd:6000000-8000000}}"
+            ],
+            [
+              "Car",
+              "{{vnd:18000000-20000000}}"
+            ],
+            [
+              "No valid compulsory insurance certificate, motorbike",
+              "{{vnd:200000-300000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "These bands come from [summaries of Article 18](https://www.momo.vn/phat-nguoi/blog/loi-khong-giay-phep-lai-xe-muc-phat-va-cach-momo-giup-ban-giai-quyet-77), a [legal journal on the car fine](https://lsvn.vn/su-dung-giay-phep-lai-xe-da-bi-tru-het-diem-co-the-bi-phat-den-20-trieu-dong-a152286.html) and [another on insurance](https://lsvn.vn/tang-muc-phat-doi-voi-hanh-vi-khong-co-bao-hiem-xe-may-bat-buoc-tu-nam-2025-a152421.html). [Decree 238/2026/ND-CP](https://ketoananpha.vn/nghi-dinh-238-2026-nd-cp) amended Decree 168 from 15 August 2026, and the text we read did not change the no-licence fines. The same summary says the vehicle can be impounded for 7 days to 2 months."
+        },
+        {
+          "type": "p",
+          "text": "The fine is rarely the worst outcome. The [UK government warns](https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security) that after an accident you could face criminal charges and possibly a travel ban during the investigation."
+        }
+      ]
+    },
+    {
+      "id": "insurance",
+      "title": "How your licence affects insurance",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Three kinds of cover are in play, and your licence matters for all of them. The [UK government](https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security) notes that driving without third-party insurance is illegal."
+        },
+        {
+          "type": "h3",
+          "text": "Compulsory third-party insurance"
+        },
+        {
+          "type": "p",
+          "text": "This belongs to the vehicle and pays for harm to other people, not your own injuries. [Decree 67/2023/ND-CP](https://luatvietnam.vn/xay-dung/nghi-dinh-67-2023-nd-cp-bao-hiem-bat-buoc-cua-chu-xe-co-gioi-bao-hiem-chay-no-266177-d1.html) caps it at {{vnd:150000000}} per person for injury or death, and {{vnd:50000000}} per accident for property damage caused by a motorbike."
+        },
+        {
+          "type": "p",
+          "text": "**Article 7(2)(c) lists a driver with no licence, an invalid or expired licence, or the wrong class as an exclusion.** The same text notes an amendment by Decree 220/2026/ND-CP, and we could not read a consolidated version, so check the exclusions on your own certificate."
+        },
+        {
+          "type": "h3",
+          "text": "Travel and medical insurance"
+        },
+        {
+          "type": "p",
+          "text": "[Vietcetera reports](https://vietcetera.com/en/why-many-foreigners-ride-illegally-in-vietnam-without-realizing-it) that most travel and medical policies require a locally valid licence, and that insurers can reject claims for treatment, bike damage or third-party liability if you were riding illegally. Viet Nam News adds that cover is void if you ride while intoxicated. Wording differs by insurer, and we did not review individual policies."
+        },
+        {
+          "type": "p",
+          "text": "Before you ride, email your insurer and keep the reply. Ask these questions:"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Do you accept my permit and home licence, naming the convention and classes on them, as valid in Vietnam?",
+            "Am I covered as rider, and as passenger, on a bike of this engine size?",
+            "Are motorbike accidents, medical evacuation and liability to others covered, and up to what limit?"
+          ]
+        },
+        {
+          "type": "p",
+          "text": "For cover if you live here, see [healthcare and health insurance in Ho Chi Minh City](/teach-in-vietnam/healthcare-and-health-insurance-in-ho-chi-minh-city) and, if you are employed, [social and health insurance for foreign employees](/teach-in-vietnam/social-and-health-insurance-for-foreign-teachers-in-vietnam)."
+        },
+        {
+          "type": "h3",
+          "text": "The rental's own insurance"
+        },
+        {
+          "type": "p",
+          "text": "Terms are set by each company, so read them on the booking page and ask what happens if your licence is not valid here. Do not assume a daily insurance add-on overrides a licence condition."
+        }
+      ]
+    },
+    {
+      "id": "living-here",
+      "title": "Can you rely on a permit if you live here?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Do not plan on it. [Article 18(7) of Circular 108/2026](https://luatvietnam.vn/giao-thong/thong-tu-108-2026-tt-bca-quy-dinh-sat-hach-cap-giay-phep-lai-xe-va-giay-phep-lai-xe-quoc-te-438989-d1.html) says foreigners who hold a national licence and want to drive here must exchange it for the matching Vietnamese one, unless a treaty Vietnam has joined says otherwise. A [2024 parliamentary newspaper answer](https://daibieunhandan.vn/nguoi-nuoc-ngoai-lai-xe-o-viet-nam-co-phai-chuyen-doi-giay-phep-lai-xe-khong-10330947.html), written under earlier circulars, treated a valid Convention permit as that exception."
+        },
+        {
+          "type": "p",
+          "text": "We found no official text saying how long someone living here can keep using a permit, and the time limits quoted on commercial sites could not be confirmed. Treat a permit as suited to a short stay, convert if you are staying, and ask the traffic police if your case is unusual."
+        }
+      ]
+    },
+    {
+      "id": "converting-a-licence",
+      "title": "Converting your licence to a Vietnamese one",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "[Article 62 of the road traffic law](https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/dieu-62) allows a valid foreign licence from a competent authority to be exchanged. Since 1 July 2026 the procedure sits in [Article 24 of Circular 108/2026/TT-BCA](https://luatvietnam.vn/giao-thong/thong-tu-108-2026-tt-bca-quy-dinh-sat-hach-cap-giay-phep-lai-xe-va-giay-phep-lai-xe-quoc-te-438989-d1.html). It is written for foreigners living, working or studying in Vietnam, not holidaymakers."
+        },
+        {
+          "type": "p",
+          "text": "This is the good news for non-Convention licences: the article does not limit exchange to Convention countries, so a valid US or Australian licence can qualify even though the permit from those countries does not. You convert the **home licence**. Article 24 excludes international permits, temporary licences, expired or altered licences, and licences not issued by a competent authority."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Check your home licence",
+              "text": "It must be in date and show the classes you want. Viet Nam News notes you need a motorbike endorsement to convert to a motorbike class."
+            },
+            {
+              "title": "Get a certified translation",
+              "text": "The circular asks for a Vietnamese translation certified by a notary in Vietnam or a Vietnamese mission abroad, attached to a copy of the licence."
+            },
+            {
+              "title": "Prepare the rest of the file",
+              "text": "[A law firm's reading of the circular](https://fdvn.vn/thu-tuc-doi-bang-lai-xe-nuoc-ngoai-sang-viet-nam-cho-nguoi-nuoc-ngoai-2026/) lists the application form, two 3x4 cm photos on white and a health certificate, plus further paperwork that depends on your situation. If you work here, your employer arranges the rest of your paperwork once your work permit is issued: ask them exactly what they cover and what it costs."
+            },
+            {
+              "title": "File with the police",
+              "text": "Apply at the Traffic Police Division of the provincial police or a designated commune-level police office, or online through the National Public Service Portal. Bring originals in case they are checked. If you are refused, Article 24(3) requires a written reply with reasons."
+            },
+            {
+              "title": "Pay and collect",
+              "text": "The fee is {{vnd:115000}}. The same law firm says the licence data is entered within 1 day of a complete file, and a printed licence can follow within 2.5 working days on request. Verification checks can take longer."
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "title": "The fee you may see quoted",
+          "text": "Older pages quote {{vnd:135000}}, the rate before 2026. [Reporting that quotes the schedule to Circular 154/2025/TT-BTC](https://cafef.vn/tin-vui-cho-hang-trieu-nguoi-dan-lam-giay-phep-lai-xe-trong-nam-nay-188260110100936723.chn) gives {{vnd:115000}} for issuing, exchanging or reissuing a licence. We could not open the schedule itself, so confirm the amount when you file."
+        },
+        {
+          "type": "p",
+          "text": "Check the expiry date on the new licence. Article 24(5) ties it to the documents in your file, and the law firm's reading says it cannot run past your foreign licence's expiry, so it may be shorter than you expect. The police have the final word on your file, so confirm the document list before you pay for translations. For Ho Chi Minh City counters, see [the motorbike licence guide](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners)."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Is an IDP from AAA or another US motoring club valid in Vietnam?",
+      "a": "No. The US is not a party to the 1968 Convention on the UN record, and Vietnamese law recognises permits issued by Convention members. A valid US licence can still be considered for exchange if you live, work or study here."
+    },
+    {
+      "q": "Is a UK international driving permit valid in Vietnam?",
+      "a": "Yes, if it is the 1968 version and you carry your UK licence with it. The UK government lists Vietnam as a 1968 country. The permit costs £5.50 from certain PayPoint shops."
+    },
+    {
+      "q": "Can I drive in Vietnam on my home licence alone?",
+      "a": "Generally no. The possible exception is a licence from an ASEAN member under a 1985 regional agreement, and the traffic police can tell you whether it covers your licence and class."
+    },
+    {
+      "q": "How long is a 1968 international permit valid?",
+      "a": "Vietnam's road traffic law describes it as valid for up to 3 years and never beyond the expiry of the national licence it accompanies. Check the expiry dates on both documents."
+    },
+    {
+      "q": "Can I exchange my international driving permit for a Vietnamese licence?",
+      "a": "No. Circular 108/2026/TT-BCA excludes international permits from exchange. You exchange the valid national licence issued in your home country."
+    },
+    {
+      "q": "Do I need a licence for a 50 cc moped?",
+      "a": "The road traffic law exempts moped riders from the licence requirement, but age, health and insurance rules still apply. Check the limits in our motorbike licence guide before you assume a bike qualifies, because engine size and power both matter."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Convention on Road Traffic, Vienna, 8 November 1968: status",
+      "publisher": "United Nations Treaty Collection",
+      "url": "https://treaties.un.org/pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en"
+    },
+    {
+      "title": "Law on Road Traffic Order and Safety 2024, Article 57",
+      "publisher": "Hệ thống Pháp luật",
+      "url": "https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/dieu-57"
+    },
+    {
+      "title": "Law on Road Traffic Order and Safety 2024, Article 62",
+      "publisher": "Hệ thống Pháp luật",
+      "url": "https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/dieu-62"
+    },
+    {
+      "title": "Law on Road Traffic Order and Safety 2024, Article 56",
+      "publisher": "Hệ thống Pháp luật",
+      "url": "https://hethongphapluat.com/luat-trat-tu-an-toan-giao-thong-duong-bo-2024/dieu-56"
+    },
+    {
+      "title": "Circular 108/2026/TT-BCA on driving tests, licences and international driving permits",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/giao-thong/thong-tu-108-2026-tt-bca-quy-dinh-sat-hach-cap-giay-phep-lai-xe-va-giay-phep-lai-xe-quoc-te-438989-d1.html"
+    },
+    {
+      "title": "Decree 67/2023/ND-CP on compulsory motor vehicle owner liability insurance",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/xay-dung/nghi-dinh-67-2023-nd-cp-bao-hiem-bat-buoc-cua-chu-xe-co-gioi-bao-hiem-chay-no-266177-d1.html"
+    },
+    {
+      "title": "Vietnam travel advice: safety and security",
+      "publisher": "GOV.UK, Foreign, Commonwealth & Development Office",
+      "url": "https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security"
+    },
+    {
+      "title": "Driving abroad: international driving permits",
+      "publisher": "GOV.UK",
+      "url": "https://www.gov.uk/driving-abroad/international-driving-permit"
+    },
+    {
+      "title": "Using the roads in Việt Nam as a foreigner",
+      "publisher": "Viet Nam News",
+      "url": "https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html"
+    },
+    {
+      "title": "Why many foreigners ride illegally in Vietnam without realizing it",
+      "publisher": "Vietcetera",
+      "url": "https://vietcetera.com/en/why-many-foreigners-ride-illegally-in-vietnam-without-realizing-it"
+    },
+    {
+      "title": "Procedure for exchanging a foreign driving licence for foreigners, 2026",
+      "publisher": "FDVN Law Firm",
+      "url": "https://fdvn.vn/thu-tuc-doi-bang-lai-xe-nuoc-ngoai-sang-viet-nam-cho-nguoi-nuoc-ngoai-2026/"
+    },
+    {
+      "title": "Good news on licence fees this year (Circular 154/2025/TT-BTC)",
+      "publisher": "CafeF",
+      "url": "https://cafef.vn/tin-vui-cho-hang-trieu-nguoi-dan-lam-giay-phep-lai-xe-trong-nam-nay-188260110100936723.chn"
+    },
+    {
+      "title": "Fines for driving without a licence",
+      "publisher": "MoMo",
+      "url": "https://www.momo.vn/phat-nguoi/blog/loi-khong-giay-phep-lai-xe-muc-phat-va-cach-momo-giup-ban-giai-quyet-77"
+    },
+    {
+      "title": "Using a licence with all points deducted can bring fines of up to 20 million dong",
+      "publisher": "Tạp chí Luật sư Việt Nam",
+      "url": "https://lsvn.vn/su-dung-giay-phep-lai-xe-da-bi-tru-het-diem-co-the-bi-phat-den-20-trieu-dong-a152286.html"
+    },
+    {
+      "title": "Higher fines for riding without compulsory motorbike insurance from 2025",
+      "publisher": "Tạp chí Luật sư Việt Nam",
+      "url": "https://lsvn.vn/tang-muc-phat-doi-voi-hanh-vi-khong-co-bao-hiem-xe-may-bat-buoc-tu-nam-2025-a152421.html"
+    },
+    {
+      "title": "Decree 238/2026/ND-CP amending Decree 168/2024/ND-CP",
+      "publisher": "Kế toán An Pha",
+      "url": "https://ketoananpha.vn/nghi-dinh-238-2026-nd-cp"
+    },
+    {
+      "title": "Must foreigners driving in Vietnam convert their driving licence?",
+      "publisher": "Báo Đại biểu Nhân dân",
+      "url": "https://daibieunhandan.vn/nguoi-nuoc-ngoai-lai-xe-o-viet-nam-co-phai-chuyen-doi-giay-phep-lai-xe-khong-10330947.html"
+    }
+  ],
+  "related": [
+    "motorbike-licence-in-vietnam-for-foreigners",
+    "getting-around-ho-chi-minh-city",
+    "healthcare-and-health-insurance-in-ho-chi-minh-city",
+    "social-and-health-insurance-for-foreign-teachers-in-vietnam",
+    "your-first-weeks-in-ho-chi-minh-city"
+  ],
+  "lastChecked": "2026-11-05"
+}

@@ -31,6 +31,7 @@ export type GuideEntry = {
 
 export const GUIDES: readonly GuideEntry[] = [
   // <generated-guides>
+  { slug: 'international-driving-permit-vietnam', lang: 'en', published: '2026-11-05', reviewed: '2026-11-05', reviewedDigest: '4a3ae185fcf24009' },
   // </generated-guides>
 ]
 
