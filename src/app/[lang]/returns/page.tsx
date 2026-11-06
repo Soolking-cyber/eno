@@ -80,7 +80,14 @@ export async function generateMetadata({ params }: LangParams): Promise<Metadata
 }
 
 type Para = { en: string; vi: string }
-type Section = { id: string; title: string; titleVi: string; paras: Para[] }
+/**
+ * A case paragraph of "Who this policy covers" that opens on its outcome (2026-11-06 audit): `lead` is its first sentence,
+ * set in the foreground weight, and `lead` + ' ' + the rest is the paragraph exactly as it read before, in both languages.
+ * The three cases (a business seller that accepted the policy, a linked listing, a private seller) then scan as three
+ * answers instead of three equal walls of prose; no word of this policy changed (the privacy page's lead labels, again).
+ */
+type CasePara = Para & { lead: Para }
+type Section = { id: string; title: string; titleVi: string; paras: (Para | CasePara)[] }
 
 // ⚠️ THE OPERATOR SENTENCE FORKS, AND IT IS NOT A FORMALITY — see the identical note in /terms.
 const operatorPara: Para = OPERATOR_REGISTERED
@@ -105,16 +112,28 @@ const sections: Section[] = [
         vi: `${SITE_NAME} không tự bán bất kỳ hàng hoá nào. Website không có chức năng thanh toán: mọi món hàng do chính cá nhân hoặc doanh nghiệp đăng tin chào bán — hoặc, với tin đăng liên kết, do người bán trên trang nguồn chào bán — và tiền được chuyển trực tiếp giữa người mua và người bán. Điều này chi phối toàn bộ nội dung dưới đây, nên cần nói rõ ngay từ đầu thay vì để trong phần chú thích.`,
       },
       {
-        en: `The ${WINDOW_DAYS}-day commitment on this page applies only to purchases from a business seller that sells through chat on ${SITE_NAME} and has accepted this policy with us. Where you buy from such a seller, the terms on this page apply to your purchase and the seller is required to honour them. Before you pay, you can ask the seller in the chat whether it has accepted this policy.`,
-        vi: `Cam kết ${WINDOW_DAYS} ngày trên trang này chỉ áp dụng cho giao dịch mua từ người bán là doanh nghiệp bán hàng qua kênh nhắn tin trên ${SITE_NAME} và đã chấp nhận chính sách này với chúng tôi. Khi bạn mua từ người bán như vậy, các điều kiện trên trang này áp dụng cho giao dịch của bạn và người bán có nghĩa vụ thực hiện. Trước khi thanh toán, bạn có thể hỏi người bán ngay trong cuộc trò chuyện xem họ đã chấp nhận chính sách này hay chưa.`,
+        lead: {
+          en: `The ${WINDOW_DAYS}-day commitment on this page applies only to purchases from a business seller that sells through chat on ${SITE_NAME} and has accepted this policy with us.`,
+          vi: `Cam kết ${WINDOW_DAYS} ngày trên trang này chỉ áp dụng cho giao dịch mua từ người bán là doanh nghiệp bán hàng qua kênh nhắn tin trên ${SITE_NAME} và đã chấp nhận chính sách này với chúng tôi.`,
+        },
+        en: `Where you buy from such a seller, the terms on this page apply to your purchase and the seller is required to honour them. Before you pay, you can ask the seller in the chat whether it has accepted this policy.`,
+        vi: `Khi bạn mua từ người bán như vậy, các điều kiện trên trang này áp dụng cho giao dịch của bạn và người bán có nghĩa vụ thực hiện. Trước khi thanh toán, bạn có thể hỏi người bán ngay trong cuộc trò chuyện xem họ đã chấp nhận chính sách này hay chưa.`,
       },
       {
-        en: `A linked listing — one whose button takes you to its source site, such as an online shop, to buy or pay there — is not covered by this page. That purchase is made with the seller on the source site and follows that seller's own returns and refund policy; ${SITE_NAME} cannot accept the return or make the refund.`,
-        vi: `Tin đăng liên kết — loại tin có nút đưa bạn sang trang nguồn, chẳng hạn một cửa hàng trực tuyến, để mua hoặc thanh toán tại đó — không thuộc phạm vi của trang này. Giao dịch đó được thực hiện với người bán trên trang nguồn và tuân theo chính sách đổi trả, hoàn tiền của chính người bán đó; ${SITE_NAME} không thể nhận lại hàng hay hoàn tiền thay họ.`,
+        lead: {
+          en: `A linked listing — one whose button takes you to its source site, such as an online shop, to buy or pay there — is not covered by this page.`,
+          vi: `Tin đăng liên kết — loại tin có nút đưa bạn sang trang nguồn, chẳng hạn một cửa hàng trực tuyến, để mua hoặc thanh toán tại đó — không thuộc phạm vi của trang này.`,
+        },
+        en: `That purchase is made with the seller on the source site and follows that seller's own returns and refund policy; ${SITE_NAME} cannot accept the return or make the refund.`,
+        vi: `Giao dịch đó được thực hiện với người bán trên trang nguồn và tuân theo chính sách đổi trả, hoàn tiền của chính người bán đó; ${SITE_NAME} không thể nhận lại hàng hay hoàn tiền thay họ.`,
       },
       {
-        en: `A listing posted by a private individual is a person-to-person sale, and this policy gives it no return right — nor does it to a business seller that has not accepted it, whose own terms apply. Inspect the item, test it, and agree the price before any money changes hands. If something goes wrong afterwards you can still open a case in the Dispute Center, and we can act against a seller who misrepresented what they sold — but we cannot compel a seller to take an item back. Your rights under Vietnamese law apply whoever you buy from.`,
-        vi: `Tin do cá nhân đăng là giao dịch mua bán giữa cá nhân với nhau, và chính sách này không tạo ra quyền đổi trả cho giao dịch đó — tương tự với người bán là doanh nghiệp chưa chấp nhận chính sách, khi đó điều kiện riêng của họ được áp dụng. Hãy kiểm tra, dùng thử món hàng và thống nhất giá trước khi trả tiền. Nếu sau đó có vấn đề, bạn vẫn có thể mở hồ sơ tại Trung tâm giải quyết tranh chấp, và chúng tôi có thể xử lý người bán đã mô tả sai hàng hoá — nhưng chúng tôi không thể buộc người bán nhận lại hàng. Dù bạn mua của ai, các quyền của bạn theo pháp luật Việt Nam vẫn được giữ nguyên.`,
+        lead: {
+          en: `A listing posted by a private individual is a person-to-person sale, and this policy gives it no return right — nor does it to a business seller that has not accepted it, whose own terms apply.`,
+          vi: `Tin do cá nhân đăng là giao dịch mua bán giữa cá nhân với nhau, và chính sách này không tạo ra quyền đổi trả cho giao dịch đó — tương tự với người bán là doanh nghiệp chưa chấp nhận chính sách, khi đó điều kiện riêng của họ được áp dụng.`,
+        },
+        en: `Inspect the item, test it, and agree the price before any money changes hands. If something goes wrong afterwards you can still open a case in the Dispute Center, and we can act against a seller who misrepresented what they sold — but we cannot compel a seller to take an item back. Your rights under Vietnamese law apply whoever you buy from.`,
+        vi: `Hãy kiểm tra, dùng thử món hàng và thống nhất giá trước khi trả tiền. Nếu sau đó có vấn đề, bạn vẫn có thể mở hồ sơ tại Trung tâm giải quyết tranh chấp, và chúng tôi có thể xử lý người bán đã mô tả sai hàng hoá — nhưng chúng tôi không thể buộc người bán nhận lại hàng. Dù bạn mua của ai, các quyền của bạn theo pháp luật Việt Nam vẫn được giữ nguyên.`,
       },
     ],
   },
@@ -274,6 +293,11 @@ export default async function ReturnsPage({ params }: { params: Promise<{ lang: 
           <div className="space-y-2">
             {s.paras.map((p, j) => (
               <p key={j} className="text-base leading-relaxed text-body">
+                {'lead' in p && (
+                  <>
+                    <strong className="font-semibold text-foreground">{vi ? linkifyLegal(p.lead.vi) : <LinkifiedTr text={p.lead.en} />}</strong>{' '}
+                  </>
+                )}
                 {vi ? linkifyLegal(p.vi) : <LinkifiedTr text={p.en} />}
               </p>
             ))}

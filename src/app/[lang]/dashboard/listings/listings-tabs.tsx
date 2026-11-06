@@ -30,7 +30,9 @@ export function ListingsTabs() {
   // `?tab=bulk` falls back to All, not a bounce. An individual therefore sees a single-tab section
   // (just All), which the shell renders cleanly.
   const tabs: DashboardTab[] = [
-    { value: 'all', label: tr('All listings', 'Tất cả'), content: <ListingsClient embedded /> },
+    // "Listings", not "All listings" / "Tất cả" (2026-11-06 audit): the status filter right under it opens on "All" /
+    // "Tất cả", and two "All"s stacked read as two levels of one filter. The tab names what it holds; `value` stays 'all'.
+    { value: 'all', label: tr('Listings', 'Tin đăng'), content: <ListingsClient embedded /> },
     { value: 'facebook', label: tr('Import from Facebook', 'Nhập từ Facebook'), content: <FacebookImportPanel /> },
   ]
   // `confirmedIndividual` is the ONLY state that hides a requested Bulk tab: the payload came back

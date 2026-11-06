@@ -480,7 +480,8 @@ export default async function CategoryDistrictPage({ params }: Props) {
               ← <Tr text="All" /> <Bilingual en={cat.name} vi={cat.nameVi || cat.name} />
             </Link>
           </Button>
-          <Button asChild variant="cta" size="none" className="gap-1.5">
+          {/* A secondary pair with "← All …" (2026-11-06 audit, /c's twin): the sort strip carries the same Filters. */}
+          <Button asChild variant="outline" size="none" className="gap-1.5 border-line-strong font-bold hover:bg-muted hover:text-foreground">
             {/* ⛔ THE DISTRICT USED TO BE DROPPED HERE. This linked to `/?category=<slug>` and the
                 reader landed in the whole category, one click after choosing a district. */}
             <Link href={scopedExplorer} rel="nofollow" prefetch={false} className="px-5 py-2.5">

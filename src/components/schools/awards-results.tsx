@@ -80,8 +80,14 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
             </p>
           </section>
           <h2 className="mt-8 text-lg font-bold text-foreground"><Bilingual en="Qualified so far" vi="Đã đủ điều kiện" /></h2>
-          <p className="mt-1 max-w-prose text-sm text-muted-foreground">
-            <Bilingual en="In alphabetical order: the order is decided only when the year closes." vi="Theo thứ tự chữ cái: thứ hạng chỉ được quyết định khi năm khép lại." />
+          {/* The bar before the list (2026-11-06 audit: five "None yet." came before a reader learnt what a place needs). The whole
+              rule stays in "How the winners are chosen" below. */}
+          <p className="mt-1 max-w-prose text-sm text-body">
+            <Bilingual
+              en="A place qualifies with votes from at least {voters} teachers, more of them up than down, and at least {reviews} reviews. Listed alphabetically: the order is decided only when the year closes."
+              vi="Một nơi đủ điều kiện khi có phiếu của ít nhất {voters} giáo viên, phiếu lên nhiều hơn phiếu xuống, và ít nhất {reviews} đánh giá. Danh sách theo thứ tự chữ cái: thứ hạng chỉ được quyết định khi năm khép lại."
+              values={{ voters: String(AWARD_MIN_VOTERS), reviews: String(AWARD_MIN_REVIEWS) }}
+            />
           </p>
           {/* One ruled list, not five boxes that each said "None yet." (2026-11-06 audit; the flat canon, ui/rows): a category with
               no place yet is one line with its status at the right; one with places lists them under its name. */}
@@ -102,8 +108,10 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
         </>
       )}
 
-      <section aria-labelledby="awards-how-h" className="mt-10 max-w-prose rounded-2xl bg-tint p-4 sm:p-6">
-        <h2 id="awards-how-h" className="text-base font-bold text-foreground"><Bilingual en="How the winners are chosen" vi="Cách chọn ra kết quả" /></h2>
+      {/* A section like "How to take part", its heading the same size, not a grey panel (2026-11-06 audit: the tint gave the rules
+          a notice's weight). */}
+      <section aria-labelledby="awards-how-h" className="mt-10 max-w-prose">
+        <h2 id="awards-how-h" className="text-lg font-bold text-foreground"><Bilingual en="How the winners are chosen" vi="Cách chọn ra kết quả" /></h2>
         {/* Three short rules under a lead each, not one paragraph that ran eligibility, ranking, ties and finality together
             (2026-11-06 audit). The words are the rule's own; the Vietnamese now names the Top rated tab by its label, "Đánh giá
             cao" (schools-board.tsx), not the old "Được đánh giá cao". */}

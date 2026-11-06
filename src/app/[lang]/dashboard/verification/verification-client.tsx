@@ -126,7 +126,8 @@ function VerificationHub({ userId }: { userId: string | null }) {
           The column starts on the section's left edge, like every dashboard section, not centred off it. */}
       <div className="max-w-2xl">
         <h1 className="h-title text-foreground max-lg:sr-only">{tr('Verification', 'Xác minh')}</h1>
-        <p className="mt-1 text-sm text-muted-foreground lg:mt-1">
+        {/* In the secondary ink PageHeader's meta line uses, not the tertiary grey (2026-11-06 audit). */}
+        <p className="mt-1 text-sm text-body">
           {tr(
             'Two steps. You verify yourself, then your business — a named person has to stand behind a business storefront.',
             'Hai bước. Bạn xác minh bản thân, sau đó xác minh doanh nghiệp — một cá nhân có danh tính phải đứng sau gian hàng doanh nghiệp.',

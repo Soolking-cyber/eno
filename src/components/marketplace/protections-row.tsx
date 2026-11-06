@@ -221,7 +221,8 @@ export function ProtectionsRow({ inline = false }: {
               describes a process. Suppressed when inline: the safety strip already carries a
               glyph, and two in one box devalue both. */}
           {!inline && <Scale className={ICON_SIZE.lg} />}
-          <span className={cn('min-w-0 text-xs leading-snug text-body', !inline && 'flex-1')}>
+          {/* 14px from lg, as the PDP's safety strip it rides in (2026-11-06 audit; the PDP is its one caller). */}
+          <span className={cn('min-w-0 text-xs leading-snug text-body lg:text-sm', !inline && 'flex-1')}>
             <span className="font-bold text-foreground">{tr('Reports & disputes', 'Báo cáo & khiếu nại')}</span>
             {' — '}
             {tr('how they work', 'cách xử lý')}

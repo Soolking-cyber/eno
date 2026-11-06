@@ -7,7 +7,10 @@ import { pageShare } from '@/lib/site-identity'
 import { guideEntry as teachEntry, isLive as teachLive, isLiveTeachHref, teachPath } from '@/lib/teach-guides/registry'
 import { requestNow } from '@/lib/teach-guides/request-clock'
 import { TEACH_ROBOTS } from '@/lib/teach-guides/robots'
-import { HereLink, P, SeoArticle, Ul, type ArticleContent, type ArticleSection } from './seo-article'
+import Link from 'next/link'
+import { ChevronRight } from '@/components/ui/icons'
+import { Rows, Row } from '@/components/ui/rows'
+import { HereLink, P, SeoArticle, type ArticleContent, type ArticleSection } from './seo-article'
 import { TeachKeyPoints, teachGuideSections } from './teach-guide-body'
 
 /**
@@ -75,9 +78,33 @@ export function LibraryHub({ lang }: { lang: Lang }) {
   if (!guides.length) notFound()
   const hub = HUB[lang]
   const otherLang: Lang = lang === 'en' ? 'vi' : 'en'
+  // 2026-11-06 audit: each guide is a row of its own, the shape of SeoArticle's "Keep reading" rows: its title on a line,
+  // what it answers under it, a hairline between, the whole row the link. It was a bullet that ran title and blurb into
+  // one sentence. The other language's guides close the list they extend, so "How these are made" is only that.
   const sections: ArticleSection[] = [
-    { id: 'all', title: hub.listTitle, body: <Ul>{guides.map((e) => <li key={e.slug}><HereLink href={guidePath(e)}>{guideLabel(e)}</HereLink>: {guideBlurb(e)}</li>)}</Ul> },
-    { id: 'how', title: hub.howTitle, body: <><P>{hub.how}</P>{hubGuides(otherLang, now).length > 0 && <P><HereLink href={HUB[otherLang].path}>{hub.other}</HereLink></P>}</> },
+    {
+      id: 'all',
+      title: hub.listTitle,
+      body: (
+        <>
+          <Rows bordered className="max-w-[60ch]">
+            {guides.map((e) => (
+              <Row key={e.slug} className="py-0">
+                <Link href={guidePath(e)} className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
+                  <span className="min-w-0">
+                    <span className="block text-lg font-bold leading-snug text-foreground group-hover:text-accent-foreground">{guideLabel(e)}</span>
+                    <span className="mt-1 block text-base leading-relaxed text-body">{guideBlurb(e)}</span>
+                  </span>
+                  <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
+                </Link>
+              </Row>
+            ))}
+          </Rows>
+          {hubGuides(otherLang, now).length > 0 && <P><HereLink href={HUB[otherLang].path}>{hub.other}</HereLink></P>}
+        </>
+      ),
+    },
+    { id: 'how', title: hub.howTitle, body: <P>{hub.how}</P> },
   ]
   const dates = guides.map((e) => guideDates(e).published).sort()
   const content: ArticleContent = {

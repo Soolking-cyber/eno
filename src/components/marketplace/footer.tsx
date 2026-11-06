@@ -532,8 +532,11 @@ function FooterBody({ compact }: { compact: boolean }) {
                 lines (five marks over four with a mouse) instead of six over three on a wide screen. Measured, not assumed (2026-11-06,
                 from the shipped Open Runde Bold): the second mark carries the "Group" tag and is ~73px, so five marks fill ~233px of
                 the 240px row and a sixth needs ~273px; only just above 1024px, where the row is ~232px, does English wrap four over
-                five. A reviewer who counted every mark at 36px got six over three here. */}
-            <div className="-mx-2 mobile:-mx-3 flex flex-wrap items-center gap-1 pt-1 lg:max-w-60">
+                five. A reviewer who counted every mark at 36px got six over three here.
+                2026-11-06 audit: `max-sm:max-w-72` does the same for a phone's 44px marks, five over four instead of seven over
+                two, which read as a stray pair: five marks with the ~81px "Group" one fill ~273px of the 288px row, a sixth needs
+                ~321px. Every mark, target size and label is unchanged. */}
+            <div className="-mx-2 mobile:-mx-3 flex flex-wrap items-center gap-1 pt-1 max-sm:max-w-72 lg:max-w-60">
               {/* ⛔ ONE LIST, NOT SEVEN HAND-WRITTEN ANCHORS (src/lib/socials.ts). The row carried three
                   channels and the owner asked for all of them plus the community group; a data list is
                   what stops the next addition from being another copy-pasted anchor with a different

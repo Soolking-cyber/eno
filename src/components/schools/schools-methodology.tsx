@@ -61,8 +61,10 @@ const ITEMS: { h: { en: string; vi: string }; p: { en: string; vi: string } }[] 
 ]
 
 export function SchoolsMethodology() {
+  // A section under a hairline, not a grey panel (2026-11-06 audit: the tint gave the page's longest reading the weight of a
+  // notice). It reads as the page's own text, which it is.
   return (
-    <section id="how-it-works" aria-labelledby="how-it-works-h" className="mt-12 scroll-mt-24 rounded-2xl bg-tint p-4 sm:p-6">
+    <section id="how-it-works" aria-labelledby="how-it-works-h" className="mt-12 scroll-mt-24 border-t border-border pt-8">
       <h2 id="how-it-works-h" className="text-lg font-bold text-foreground sm:text-xl">
         <Bilingual en="How the ranking works" vi="Cách xếp hạng hoạt động" />
       </h2>

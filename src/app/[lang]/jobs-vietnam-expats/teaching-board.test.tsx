@@ -71,7 +71,8 @@ describe('<TeachingJobsBoard>', () => {
     expect([...doc.querySelectorAll('section a[href^="/listings/"]')].map((a) => a.getAttribute('href'))).toEqual(['/listings/hcm-1', '/listings/hn-1'])
     const hanoi = doc.querySelector('section#hanoi a[href="/listings/hn-1"]')
     expect(hanoi?.textContent).toContain('Psychology Teacher (Cambridge, AP), Hanoi')
-    expect(hanoi?.textContent).toContain('Korea Global School · 60,000,000 VND / month · Apply by 26 Oct 2026 · via TEAST')
+    // The pay on its own line under the title, then the employer, the apply-by date and the source (2026-11-06 audit).
+    expect([...hanoi!.querySelectorAll('span.block')].slice(1).map((s) => s.textContent)).toEqual(['60,000,000 VND / month', 'Korea Global School · Apply by 26 Oct 2026 · via TEAST'])
     // Each section is labelled by its heading, which names the city.
     expect(doc.querySelector('section#hanoi')?.getAttribute('aria-labelledby')).toBe('hanoi-title')
     expect(doc.getElementById('hanoi-title')?.textContent).toBe('Teaching jobs in Hanoi')

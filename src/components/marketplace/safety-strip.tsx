@@ -143,7 +143,10 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
     // ⛔ NEUTRAL INK SINCE 2026-11-06 (audit): orange is for prices and the Post button only (owner), and amber-800 read as the
     // price's own orange one block below it. The warning keeps its shield, its first-line place and its `font-semibold`, in ink;
     // the red Report beside it is unchanged. If it ever reads as a grey note again, the fix is weight and order, not amber.
-    <div className={cn('flex items-start gap-2.5 border-t border-border pt-3 text-xs leading-relaxed', className)}>
+    // 14px FROM lg, WITH A STEP MORE AIR (2026-11-06 audit). In the desktop buy box the strip's 12px read as fine print under a
+    // 24px title, for the lines that decide a payment or an application. The phone keeps 12px: its fold is the budget there.
+    // The row it carries follows (protections-row.tsx inline, and the PDP's Report and Block get `lg:text-sm`).
+    <div className={cn('flex items-start gap-2.5 border-t border-border pt-3 text-xs leading-relaxed lg:pt-4 lg:text-sm', className)}>
       {/* ⚠️ SOLAR, NOT THE HAND-DRAWN SEAL (owner, 2026-08-13: "old icon make sure all icons are
           solar"). This mount used to re-draw the eno seal inline — SEAL_CHIEF + SEAL_OUTLINE +
           SEAL_CHECK stroked by hand — purely so the chief could take the strip's amber ink instead
@@ -158,7 +161,7 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
           them, so the block read as a pile of links rather than one statement with a footnote.
           `space-y-1.5` separates them enough to be read in order, which is the whole reason
           they are stacked in this order in the first place. */}
-      <div className="min-w-0 flex-1 space-y-1.5">
+      <div className="min-w-0 flex-1 space-y-1.5 lg:space-y-2">
         {/* Ink and weight, not amber (2026-11-06; see the note on the container): `font-semibold` in the darkest ink, over
             the quiet lines below it, is what makes it the warning. */}
         <p className="font-semibold text-foreground">{line}</p>

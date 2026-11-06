@@ -425,6 +425,11 @@ export const PRELAUNCH = EDITION === 'marketplace'
  * while the filing is open is a different act, and not one to perform as a side effect.
  * ⚠️ WHEN THE REGISTRATION NUMBER IS ISSUED: set `PRELAUNCH` false as well and add the number to the
  * Quy chế, which is what that paragraph itself promises readers.
+ * ⚠️ THE HELP CENTRE SAYS IT TOO (2026-11-06). The pinned "What is eno.vn" answer (`what-is-eno-vn` in
+ * scripts/help-center-seed.json) closes its list on "our e-commerce registration with the Ministry of Industry and
+ * Trade is in progress", in both languages. A UI-audit pass dropped that bullet while tightening the answer, with the
+ * filing still open, and it was put back the same day: removing a true registration disclosure is not a copy edit.
+ * Reword it on the day this flag flips, then run scripts/sync-help-center.ts (an owner-approved prod write).
  */
 export const PRELAUNCH_BANNER = false
 

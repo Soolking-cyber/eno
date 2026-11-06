@@ -61,11 +61,11 @@ function ListingRowSkeleton() {
  *  block = 56px of document**, and because it is `inline-flex` it is the SAME width on a
  *  phone as on a desktop. The skeleton reserved neither, which is half of a measured +112px jump
  *  at both 390 and 1440. Since 2026-11-06 the status is no longer inside the button (~184px alone, was
- *  292px with it): it sits UNDER it on a phone (+4 gap +20 line = 64px) and BESIDE it from sm (40px),
- *  and this placeholder takes the same two shapes. */
+ *  292px with it): it sits BESIDE it from 360px (40px: at most two lines of status, the button's own height)
+ *  and UNDER it below that (+4 gap +20 line = 64px), and this placeholder takes the same two shapes. */
 function AvailabilityPillSkeleton() {
   return (
-    <div className="mt-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-3">
+    <div className="mt-4 flex flex-col items-start gap-1 min-[360px]:flex-row min-[360px]:items-center min-[360px]:gap-3">
       <Skeleton className="h-10 w-[184px] max-w-full rounded-xl" />
       <Skeleton className="h-5 w-28 rounded-lg" />
     </div>
@@ -84,18 +84,15 @@ function StatusFilterSkeleton() {
   return <Skeleton className="mb-3 h-11 w-full rounded-xl" />
 }
 
-/** The four marketplace stat tiles, reserved (`h-[72px]`, the tile's px-3 py-3 + text-lg/text-sm
- *  stack; `lg:h-[76px]` once the figure steps up to text-2xl). Shared by the auth-resolving gate and the
- *  dash-fetching state so the two agree. Two across until md, as the real grid is (2026-11-06; the reason is beside it). */
+/** The stats strip, reserved: below md its two rows are 1 + 68 + 69 + 1 = 139px (a cell is py-2.5 around the
+ *  text-lg/text-sm stack, 68px; the second row adds its own hairline); from md its one row is 1 + 68 + 1 = 70px, and
+ *  74px from lg once the figure steps up to text-2xl. Shared by the auth-resolving gate and the dash-fetching state so
+ *  the two agree. */
 function StatsGridSkeleton() {
-  return (
-    <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[72px] rounded-xl lg:h-[76px]" />)}
-    </div>
-  )
+  return <Skeleton className="mt-4 h-[139px] rounded-xl md:h-[70px] lg:h-[74px]" />
 }
 
-/** A stat tile's figure and its label — one pair per measure, the same in every tile (2026-11-06 audit). */
+/** A cell's figure and its label — one pair per measure, the same in every cell (2026-11-06 audit). */
 const STAT_FIGURE = 'text-lg font-bold tabular-nums lg:text-2xl'
 const STAT_LABEL = 'text-sm text-body'
 
@@ -139,7 +136,7 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
   if (loading || !user) {
     // Content-shaped first paint (dashboard native-feel review, Gemini): the auth-resolving gate
     // renders the SAME shell as the loaded state — stack title bar + greeting + availability pill
-    // + a 4-tile stats grid + the status filter + three row skeletons — matching geometry exactly,
+    // + the stats strip + the status filter + three row skeletons — matching geometry exactly,
     // so entering the section never flashes a spinner then pops to a full layout.
     return (
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
@@ -149,7 +146,9 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
             stack is space-y-1, not space-y-1.5. */}
         <div className="space-y-1">
           <Skeleton className="h-[calc(var(--text-display)*1.15)] w-40 rounded-lg" />
-          <Skeleton className="h-5 w-52 rounded-lg" />
+          {/* Only where the loaded stack has its subtitle (2026-11-06 audit): embedded under the Listings tabs it has none,
+              and this 24px line moved the whole screen up the moment the session resolved. */}
+          {!embedded && <Skeleton className="h-5 w-52 rounded-lg" />}
         </div>
         <AvailabilityPillSkeleton />
         <StatsGridSkeleton />
@@ -213,23 +212,20 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
       {dash ? <AvailabilityButton dash={dash} tr={tr} lang={lang} /> : stuck ? null : <AvailabilityPillSkeleton />}
       {/* Marketplace stats live HERE now (owner 2026-07-18: no dedicated dashboard home —
           the sections are the dashboard, and market info belongs to My listings). */}
-      {/* One figure over one label in every tile (2026-11-06 audit): the last tile put a second figure inside its label
-          ("Views · 23 leads"), two measures at two weights. Views and leads now stand side by side in it — "Liên hệ", not
-          "Lượt liên hệ", and gap-x-4: the longer pair wrapped the tile to two lines on a 360–393px phone in Vietnamese.
-          ⚠️ FOUR ACROSS FROM md, NOT sm (2026-11-06 review). From 640 to ~670px a tile's text box is 118–125px, and the
-          Vietnamese pair needs ~125px at text-sm (Open Runde advance widths): the tile stacked its two figures, 120px against
-          the 72px skeleton, and the whole row stretched with it, while "Unread messages" (119px) and "Tin nhắn chưa đọc"
-          (122px) broke onto two lines. Two across, as on a phone, until a tile's text box reaches 150px at 768.
-          StatsGridSkeleton follows. */}
+      {/* FIVE MEASURES, FIVE CELLS, ONE HAIRLINE STRIP (2026-11-06 audit). Four tiles held five measures, so the last one
+          carried two (judged "squeezed" in it, "cryptic" as "Views · 23 leads" before), and their grey fills read as
+          controls beside the tab track, the status filter and the row chips. Now hairlines and no fill: on a phone the
+          account's own counts over the buyers' (views · leads · saves, each row's meta order), five across from md.
+          ⚠️ px-2 FROM md TO lg: at 768 a fifth of the column is 144px, and px-3 would leave "Tin nhắn chưa đọc" (122px at
+          text-sm) 119px — a label that wraps stretches the row past StatsGridSkeleton (the 2026-11-06 review's sm→md
+          lesson); px-2 leaves it 127px. Each cell draws its own hairlines, so nothing clips the Messages cell's focus ring. */}
       {!dash ? (stuck ? null : <StatsGridSkeleton />) : (
-        <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
-          <div className="rounded-xl bg-tint px-3 py-3"><p className={STAT_FIGURE}>{grouped(dash.stats.activeCount ?? dash.listings.filter((l) => l.status === 'active').length)}</p><p className={STAT_LABEL}>{tr('Active listings', 'Tin đang đăng')}</p></div>
-          <Link href="/messages" className="press rounded-xl bg-tint px-3 py-3 transition-colors hover:bg-muted"><p className={STAT_FIGURE}>{grouped(dash.stats.unreadMessages ?? 0)}</p><p className={STAT_LABEL}>{tr('Unread messages', 'Tin nhắn chưa đọc')}</p></Link>
-          <div className="rounded-xl bg-tint px-3 py-3"><p className={STAT_FIGURE}>{grouped(dash.stats.saves ?? 0)}</p><p className={STAT_LABEL}>{tr('Saves', 'Lượt lưu')}</p></div>
-          <div className="flex flex-wrap gap-x-4 rounded-xl bg-tint px-3 py-3">
-            <div><p className={STAT_FIGURE}>{grouped(dash.stats.totalViews ?? 0)}</p><p className={STAT_LABEL}>{tr('Views', 'Lượt xem')}</p></div>
-            <div><p className={STAT_FIGURE}>{grouped(dash.stats.totalLeads ?? 0)}</p><p className={STAT_LABEL}>{tr('Leads', 'Liên hệ')}</p></div>
-          </div>
+        <div className="mt-4 grid grid-cols-6 border-y border-border md:grid-cols-5">
+          <div className="col-span-3 py-2.5 pr-3 md:col-span-1 md:pr-2 lg:pr-3"><p className={STAT_FIGURE}>{grouped(dash.stats.activeCount ?? dash.listings.filter((l) => l.status === 'active').length)}</p><p className={STAT_LABEL}>{tr('Active listings', 'Tin đang đăng')}</p></div>
+          <Link href="/messages" className="col-span-3 border-l border-border px-3 py-2.5 transition-colors hover:bg-muted md:col-span-1 md:px-2 lg:px-3"><p className={STAT_FIGURE}>{grouped(dash.stats.unreadMessages ?? 0)}</p><p className={STAT_LABEL}>{tr('Unread messages', 'Tin nhắn chưa đọc')}</p></Link>
+          <div className="col-span-2 border-t border-border py-2.5 pr-3 md:col-span-1 md:border-t-0 md:border-l md:px-2 lg:px-3"><p className={STAT_FIGURE}>{grouped(dash.stats.totalViews ?? 0)}</p><p className={STAT_LABEL}>{tr('Views', 'Lượt xem')}</p></div>
+          <div className="col-span-2 border-l border-t border-border px-3 py-2.5 md:col-span-1 md:border-t-0 md:px-2 lg:px-3"><p className={STAT_FIGURE}>{grouped(dash.stats.totalLeads ?? 0)}</p><p className={STAT_LABEL}>{tr('Leads', 'Liên hệ')}</p></div>
+          <div className="col-span-2 border-l border-t border-border px-3 py-2.5 md:col-span-1 md:border-t-0 md:px-2 lg:px-3"><p className={STAT_FIGURE}>{grouped(dash.stats.saves ?? 0)}</p><p className={STAT_LABEL}>{tr('Saves', 'Lượt lưu')}</p></div>
         </div>
       )}
       <div className="mt-6">
@@ -330,10 +326,17 @@ function AvailabilityButton({ dash, tr, lang }: {
   if (!dash || !hasActive) return null
   const overdue = !lastReviewed || nowTick - lastReviewed > 3 * 864e5
   return (
-    // The status is no longer INSIDE the button (2026-11-06 audit): one control carried an action and a report. Beside it
-    // from sm; UNDER it on a phone, always — beside it, "Xem lại lần cuối 12 phút trước" wrapped at 390px while the
-    // English fitted, a line that drops only sometimes is a layout shift the skeleton cannot reserve.
-    <div className="mt-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-3">
+    // The status is no longer INSIDE the button (2026-11-06 audit): one control carried an action and a report. BESIDE it
+    // from 360px, wrapping inside its own column rather than dropping under the button: at 360 the widest status, "Xem
+    // lại lần cuối 59 phút trước" (197px at text-sm), makes two 20px lines beside the ~186px Vietnamese button — the
+    // button's own 40px, and the button never shrinks (ui/button's base is shrink-0) — so the row never changes height
+    // and the skeleton holds it. text-balance splits those two lines evenly ("Xem lại lần cuối / 59 phút trước"), never a
+    // lone "ago" or "nào" — where the browser balances text (Safari 17.5+, Chrome 114+); Safari 16 wraps greedily, still
+    // two lines and the same 40px, only split unevenly (2026-11-06 review). Those widths are Vietnamese at the default
+    // text size; the nine machine-translated languages are unmeasured. (The first cut let the line DROP under the button
+    // when it did not fit, a shift no skeleton can reserve, so it put the line under on every phone: one more line above
+    // the stats.) Under it only below 360px.
+    <div className="mt-4 flex flex-col items-start gap-1 min-[360px]:flex-row min-[360px]:items-center min-[360px]:gap-3">
       {/* ON THE PRIMITIVE, not the Link (break-ui, 2026-10-05): ui/button's base carries `whitespace-nowrap`
           and `justify-center`, and an asChild child's classes are CONCATENATED, not merged (CLAUDE.md) — only
           <Button className> goes through tailwind-merge. Without the wrap, "Xác nhận còn hàng · Chưa xác
@@ -352,7 +355,7 @@ function AvailabilityButton({ dash, tr, lang }: {
           <span>{tr('Review availability', 'Xác nhận còn hàng')}</span>
         </Link>
       </Button>
-      <span className="text-sm text-body">
+      <span className="min-w-0 text-balance text-sm text-body">
         {lastReviewed
           ? `${tr('Last reviewed', 'Xem lại lần cuối')} ${timeAgo(new Date(lastReviewed).toISOString(), lang)}`
           : tr('Not reviewed yet', 'Chưa xác nhận lần nào')}

@@ -200,10 +200,15 @@ export function teachGuideSections(g: TeachGuide, isLiveHref: (href: string) => 
 
 const KEY_POINTS_ID = 'key-points'
 
-/** The "Key points" box under the lede (SeoArticle `ledeRow`): the page's answer before the long read. */
+/**
+ * The "Key points" box under the lede (SeoArticle `ledeRow`): the page's answer before the long read.
+ * 2026-11-06 audit: flat and closed by one hairline, not a grey well. A summary in a tinted box read as a notice and weighed as
+ * much as the article around it (judges: teach and guide pages; docs/flat-surface-plan.md, "lines, not boxes"). No top rule:
+ * on a phone SeoArticle's contents row sits right above it with its own.
+ */
 export function TeachKeyPoints({ g, isLiveHref, lang = 'en' }: { g: TeachGuide; isLiveHref: (href: string) => boolean; lang?: 'en' | 'vi' }) {
   return (
-    <section aria-labelledby={KEY_POINTS_ID} className="mt-6 max-w-3xl rounded-xl bg-tint p-5">
+    <section aria-labelledby={KEY_POINTS_ID} className="mt-6 max-w-3xl border-b border-border pb-6">
       <h2 id={KEY_POINTS_ID} className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-accent-foreground">
         <ListChecks className="h-4 w-4" aria-hidden /> {lang === 'vi' ? 'Điểm chính' : 'Key points'}
       </h2>

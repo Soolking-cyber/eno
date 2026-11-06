@@ -29,13 +29,17 @@ function monogram(name: string): string {
   return (/^[A-Z0-9]{2,}$/.test(first.replace(/[^A-Za-z0-9]/g, '')) || words.length < 2 ? first.replace(/[^A-Za-zÀ-ỹ0-9]/g, '').slice(0, 2) : first[0] + words[1][0]).toUpperCase()
 }
 
-/** One 2:1 box per size, shared by the logo and the monogram so a row lines up either way. */
+/**
+ * One 2:1 box per size, shared by the logo and the monogram so a row lines up either way. `row` is the /schools board's: `sm` on a
+ * phone, `md` from sm (2026-11-06 audit: beside the vote column an 80px logo left a 390px row ~225px for the name and areas).
+ */
 const TILE = {
   sm: 'h-8 w-16 rounded-lg text-xs',
+  row: 'h-8 w-16 rounded-lg text-xs sm:h-12 sm:w-24 sm:rounded-xl sm:text-sm',
   md: 'h-10 w-20 rounded-lg text-sm sm:h-12 sm:w-24 sm:rounded-xl',
   lg: 'h-16 w-32 rounded-xl text-xl sm:h-20 sm:w-40 sm:rounded-2xl',
 } as const
-const SIZES = { sm: '64px', md: '(min-width: 640px) 96px, 80px', lg: '(min-width: 640px) 160px, 128px' } as const
+const SIZES = { sm: '64px', row: '(min-width: 640px) 96px, 64px', md: '(min-width: 640px) 96px, 80px', lg: '(min-width: 640px) 160px, 128px' } as const
 
 /**
  * The school's own logo (owner, 2026-10-05: "add official logos of all these education centers and

@@ -62,8 +62,9 @@ export default function TeacherCoverPage() {
         </p>
 
         <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-          {/* Flat cards with a hairline (2026-11-06 audit): grey wells read as one more filled control. */}
-          <section aria-labelledby="cover-schools" className="space-y-4 rounded-2xl border border-border p-5">
+          {/* Flat cards with a hairline (2026-11-06 audit): grey wells read as one more filled control. Each a column whose
+              button takes its foot, so the two doors' actions sit level on a desktop (2026-11-07 audit). */}
+          <section aria-labelledby="cover-schools" className="flex flex-col gap-4 rounded-2xl border border-border p-5">
             <h2 id="cover-schools" className="text-lg font-semibold text-foreground">
               <Bilingual en="For schools: a teacher for this week's lesson" vi="Cho các trường: giáo viên cho buổi học tuần này" />
             </h2>
@@ -75,10 +76,10 @@ export default function TeacherCoverPage() {
                   grey it read as fine print the line above contradicted). The same two sentences, the rule first. */}
               <Point Icon={Building2} en="Asking a teacher for a cover lesson is for school and business accounts. Any account can message teachers — verify your identity or your business to message more each day." vi="Việc nhờ giáo viên dạy thay chỉ dành cho tài khoản trường học và doanh nghiệp. Mọi tài khoản đều có thể nhắn tin cho giáo viên — xác minh danh tính hoặc doanh nghiệp để nhắn cho nhiều giáo viên hơn mỗi ngày." />
             </ul>
-            <Button variant="cta" asChild><LocalizedLink href={SCHOOLS_URL} rel="nofollow" prefetch={false}><Bilingual en="Find a cover teacher" vi="Tìm giáo viên dạy thay" /></LocalizedLink></Button>
+            <Button variant="cta" asChild className="mt-auto self-start"><LocalizedLink href={SCHOOLS_URL} rel="nofollow" prefetch={false}><Bilingual en="Find a cover teacher" vi="Tìm giáo viên dạy thay" /></LocalizedLink></Button>
           </section>
 
-          <section aria-labelledby="cover-teachers" className="space-y-4 rounded-2xl border border-border p-5">
+          <section aria-labelledby="cover-teachers" className="flex flex-col gap-4 rounded-2xl border border-border p-5">
             <h2 id="cover-teachers" className="text-lg font-semibold text-foreground">
               <Bilingual en="For teachers: fill your free periods" vi="Cho giáo viên: tận dụng các buổi rảnh" />
             </h2>
@@ -90,7 +91,7 @@ export default function TeacherCoverPage() {
             {/* `?goal=cover`: the form asks for cover first — "Also looking for a job?" is optional, and HCMC opens on its
                 districts (teacher-form.tsx). */}
             {/* The teachers' door is a primary action too (2026-11-06 audit): a grey secondary on the grey card read as disabled. */}
-            <Button variant="cta" asChild><Link href="/teachers/join?goal=cover"><Bilingual en="Offer cover lessons — free" vi="Nhận dạy thay — miễn phí" /></Link></Button>
+            <Button variant="cta" asChild className="mt-auto self-start"><Link href="/teachers/join?goal=cover"><Bilingual en="Offer cover lessons — free" vi="Nhận dạy thay — miễn phí" /></Link></Button>
           </section>
         </div>
 

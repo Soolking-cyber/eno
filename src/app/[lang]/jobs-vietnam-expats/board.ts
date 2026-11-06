@@ -266,6 +266,14 @@ export function jobLine(j: BoardJob): string {
   ].filter(Boolean).join(' · ')
 }
 
+/**
+ * The same line without the pay, for the board's rows, which print the pay on a line of its own above it (2026-11-06 audit: the
+ * one figure a teacher looks for sat mid-sentence between the employer and the apply-by date).
+ */
+export function jobMeta(j: BoardJob): string {
+  return jobLine({ ...j, pay: null })
+}
+
 export type BoardSummary = {
   total: number
   /** The sections that hold jobs, in page order. */

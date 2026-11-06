@@ -12,7 +12,8 @@ import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
  * real iPhone the messages got 352 of 654px).
  * ⛔ AN ALLOW-LIST BY ID FORMAT, NOT A DENY-LIST OF SIBLINGS. src/app/[lang]/messages/ holds the inbox
  * (page.tsx), the thread ([id]/page.tsx + loading.tsx), the eno AI chat (ai/) and the composer's resolver
- * (pending/) — and only the thread's header owns the status-bar inset. A deny-list (`ai|pending`) would
+ * (pending/) — and only the thread's header owns the status-bar inset (since 2026-11-07 the AI chat's too:
+ * dropsSiteHeader below). A deny-list (`ai|pending`) would
  * hand the NEXT sibling route a screen with no site header and a Back under the status bar; matching the
  * id itself keeps every sibling, present or future, on the site header.
  * The id is Prisma's `cuid()` (Conversation.id `@default(cuid())`): 'c' + 24 lowercase letters / digits —
@@ -25,9 +26,19 @@ export function isConversationPath(pathname: string | null | undefined): boolean
 }
 
 /**
+ * The pages that drop the site header below lg (messages-shell.tsx): a real conversation, and the eno AI chat — NAMED,
+ * so this stays an allow-list and a sibling added later still keeps the site header (2026-11-07 audit: on a phone the AI
+ * chat stacked the site header's 64px over its own Back-and-name header, a composer and the tab bar). Its header wears
+ * THREAD_HEADER_CLASS since, so it owns the status-bar inset the way the thread's does (messages/ai/page.tsx).
+ */
+export function dropsSiteHeader(pathname: string | null | undefined): boolean {
+  return isConversationPath(pathname) || /^\/messages\/ai\/?$/.test(pathname || '')
+}
+
+/**
  * The thread header's box — shared by the page, its loading skeleton and its guest / not-found states so
  * the swap between them never moves on native.
- * ⚠️ BELOW lg THIS IS THE TOP OF THE SCREEN (see isConversationPath), so it owns the status-bar inset the
+ * ⚠️ BELOW lg THIS IS THE TOP OF THE SCREEN (see dropsSiteHeader), so it owns the status-bar inset the
  * site header used to pad: `0.75rem + max(0, inset − banner)` — the same py-3 breathing room BELOW the
  * inset that the rest of the bar has, never flush against the notch. `--banner-h` on <html>
  * (keyboard-viewport-sync.tsx) is 0px with no banner AND on native (where the banner is display:none), and

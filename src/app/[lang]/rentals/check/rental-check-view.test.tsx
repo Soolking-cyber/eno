@@ -149,6 +149,10 @@ describe('the list', () => {
     expect(await screen.findByText('Your list is empty')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Browse rentals' }).getAttribute('href')).toBe('/c/rentals')
     expect(screen.getByText(FREE)).toBeTruthy()
+    // The card's button by its own mark, with its name for a screen reader (2026-11-07 audit).
+    const how = screen.getByText(/on any rental — up to 5 —/)
+    expect(how.querySelector('[data-icon="clipboard-check"]')).toBeTruthy()
+    expect(how.textContent).toContain('Tap Check availability on any rental')
   })
 
   it('marks a rental the refresh cannot find — and does NOT remove it', async () => {

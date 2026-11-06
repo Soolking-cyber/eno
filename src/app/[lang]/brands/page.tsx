@@ -136,9 +136,17 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
                 href={home(`/?brand=${encodeURIComponent(b.slug)}`)}
                 className="flex flex-col items-center gap-2 rounded-2xl border border-border px-4 py-4 text-center transition-colors hover:border-line-strong hover:bg-muted active:bg-muted"
               >
-                {/* One 44px slot for every mark, whatever its shape, so the names below stay on one line across the wall. */}
-                <span className="flex h-11 items-center justify-center">
-                  <BrandLogo name={b.name} iconPath={b.iconUrl ? null : b.iconPath} iconUrl={b.iconUrl} size={44} fit={b.fit} />
+                {/* One 44px slot for every mark, whatever its shape, so the names below stay on one line across the wall.
+                    2026-11-06 audit: a brand with no mark on file shows its name as a wordmark, in the marks' ink and at about their
+                    optical size, instead of BrandLogo's two-letter chip (NEKTAR read as an "NE" avatar among wordmarks). The name
+                    under it is the tile's label, so the wordmark is hidden from assistive tech rather than read twice. BrandLogo itself
+                    is unchanged: the chip stays on the PDP, the rails and admin. */}
+                <span className="flex h-11 max-w-full items-center justify-center">
+                  {b.iconUrl || b.iconPath ? (
+                    <BrandLogo name={b.name} iconPath={b.iconUrl ? null : b.iconPath} iconUrl={b.iconUrl} size={44} fit={b.fit} />
+                  ) : (
+                    <span aria-hidden className="max-w-full truncate text-xl font-bold text-body">{b.name}</span>
+                  )}
                 </span>
                 <span className="line-clamp-1 text-sm font-semibold text-foreground">{b.name}</span>
                 <span className="text-xs text-body">

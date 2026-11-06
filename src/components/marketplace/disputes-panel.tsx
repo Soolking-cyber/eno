@@ -126,8 +126,13 @@ export function DisputesPanel({ compact = false, underSectionHeader = false }: {
           className="mt-6"
           icon={Scale}
           title={t('No disputes', 'Chưa có khiếu nại nào')}
-          // Where a case starts, not only where it lands (2026-11-06 audit): Report sits on the listing, the seller's page and the chat.
-          subtitle={t('To report a listing, a seller or a chat, use Report on its page. Cases you open — and any about you — appear here.', 'Để báo cáo tin đăng, người bán hoặc cuộc trò chuyện, hãy dùng nút Báo cáo ngay trên trang đó. Hồ sơ bạn gửi — và hồ sơ liên quan đến bạn — sẽ hiển thị ở đây.')}
+          // Where a case starts, once, and the guide to it (2026-11-07 audit, tools + dash judges: "Cases you open —
+          // and any about you — appear here" repeated the lede, and nothing led on from "Report"). The guide is the help
+          // center's seeded answer: help-center-seed.json `how-reporting-works`, id `help-how-reporting-works`.
+          subtitle={<>
+            {t('To open a case, use Report on the listing, the seller’s page or the chat.', 'Để mở hồ sơ khiếu nại, hãy dùng nút Báo cáo trên tin đăng, trang người bán hoặc cuộc trò chuyện.')}{' '}
+            <Link href="/help/help-how-reporting-works" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{t('How reporting works', 'Quy trình báo cáo')}</Link>
+          </>}
         />
       ) : (
         /* One stacked column on EVERY breakpoint (user-picked 2026-07-14). The old

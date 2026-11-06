@@ -70,7 +70,10 @@ export function Checkbox({
       indeterminate={indeterminate}
       disabled={disabled}
       className={cn(
-        'flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-lg border-2 border-line-strong bg-card outline-none transition-colors',
+        // 2026-11-06 audit: the unchecked box drew its edge in line-strong (#d4d4d4, ~1.4:1 on the canvas), and the declaration and
+        // consent boxes read as faint outlines beside their long labels (judges: verify, business verification). muted-foreground
+        // at 80% lands ~3.1:1, the WCAG 1.4.11 floor for a control's boundary, and stays lighter than the label beside it.
+        'flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-lg border-2 border-muted-foreground/80 bg-card outline-none transition-colors',
         'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         'data-checked:border-brand data-checked:bg-primary data-checked:text-white',
         'data-indeterminate:border-brand data-indeterminate:bg-primary data-indeterminate:text-white',

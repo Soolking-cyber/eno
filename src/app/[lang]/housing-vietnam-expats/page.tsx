@@ -85,7 +85,9 @@ const AREAS_LEAD = 'Rentals by district:'
 const CONTENT: SeoContent = {
   eyebrow: 'Housing · Ho Chi Minh City',
   h1: 'Expat Housing in Vietnam: Renting in Ho Chi Minh City',
-  intro: `Looking for somewhere to live in Vietnam? This page covers Ho Chi Minh City: apartments, houses, rooms and serviced flats for rent, from studios to family houses, furnished or not, on monthly or yearly terms. Many listings are linked from other property listing sites: each says where it is listed and links to the original posting. Listings posted directly on ${SITE_NAME} can be messaged in-app, and on any rental the eno team will check availability for you, free.`,
+  // The scope and the free check, then the homes (2026-11-06 audit: on a phone this lede filled the first screen and the rail began
+  // at its foot). How a linked listing differs from one posted here is said in "What you’ll find" and the FAQ below.
+  intro: `Looking for somewhere to live in Vietnam? This page covers Ho Chi Minh City: apartments, houses, rooms and serviced flats for rent, from studios to family houses, furnished or not, on monthly or yearly terms. On any rental here, the eno team will check availability for you, free.`,
   // ⚠️ `rentals`, not `house-rentals` — that slug does not exist and never did on this taxonomy.
   // Both CTAs on this page fed `/c/house-rentals`, which renders the not-found boundary, and the
   // listing strip queried a category slug matching nothing so it was permanently empty. A rename

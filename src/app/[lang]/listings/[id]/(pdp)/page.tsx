@@ -1026,10 +1026,14 @@ export default async function ListingPage({ params }: Props) {
               `row-start` (row 2: the breadcrumb owns row 1) put it in its final cell on the first
               paint, wherever the parser is. The `order-*` classes stay — DOM order, and therefore
               reading and tab order, is unchanged. */}
-          <div className="contents md:order-3 md:col-span-6 md:col-start-7 md:row-start-2 md:block lg:col-span-5 lg:col-start-8">
+          {/* ⚠️ NO GALLERY (a job, `noGallery`): THIS IS THE LEFT CELL FROM md (2026-11-06 audit). The left column opened on
+              "Details" while the job's title and Apply stood to its right, so a desktop reader met the facts before the job. With no
+              photo to lead, the box the DOM already puts first paints first, its hairline on its right edge; Details and Seller
+              information take the right cell. Both cells stay named (FAST-10). A page with a gallery is exactly as it was. */}
+          <div className={cn('contents md:order-3 md:col-span-6 md:row-start-2 md:block lg:col-span-5', noGallery ? 'md:col-start-1' : 'md:col-start-7 lg:col-start-8')}>
             {/* ⚠️ STICKY STAYS lg-ONLY. At 768-1023 and in landscape the buy box (strip, reviews) is
                 taller than the viewport, and a sticky column would park its lower half out of reach. */}
-            <div className="contents md:flex md:flex-col md:gap-4 md:border-l md:border-border/70 md:pl-6 lg:sticky lg:top-24 lg:pl-10">
+            <div className={cn('contents md:flex md:flex-col md:gap-4 md:border-border/70 lg:sticky lg:top-24', noGallery ? 'md:border-r md:pr-6 lg:pr-10' : 'md:border-l md:pl-6 lg:pl-10')}>
 
               {/* 3 — HEADER BLOCK: price (the anchor) → title → metadata, kept tight (gap-2) so the
                   three read as one cohesive unit. Price is the largest, boldest text on the page. */}
@@ -1390,8 +1394,9 @@ export default async function ListingPage({ params }: Props) {
                     // Report without Block). Block names the SHOP and this listing; a shop nobody blockable runs (imported,
                     // partner, eno's own) is blocked as a shop (src/lib/user-blocks.ts). Renders nothing without `ugc-safety`.
                     <span className="flex items-center">
-                      <ReportButton listingId={listing.id} />
-                      <BlockUserButton sellerId={listing.sellerId} listingId={listing.id} shopOnly={blockShopOnly} name={listing.seller.name} />
+                      {/* 14px from lg, with the strip's text (2026-11-06 audit). The storefront and the chat keep their 12px pair. */}
+                      <ReportButton listingId={listing.id} className="lg:text-sm" />
+                      <BlockUserButton sellerId={listing.sellerId} listingId={listing.id} shopOnly={blockShopOnly} name={listing.seller.name} className="lg:text-sm" />
                     </span>
                   }
                 />
@@ -1414,7 +1419,8 @@ export default async function ListingPage({ params }: Props) {
               follows the buy box in the DOM (reading order) but paints on the LEFT from md, in the cell
               it names (`md:col-start-1 md:row-start-2` — FAST-10, see the buy box above); `contents` on
               phones flattens these into the shared order space. */}
-          <div className="contents md:order-2 md:col-span-6 md:col-start-1 md:row-start-2 md:flex md:flex-col md:gap-6 lg:col-span-7 lg:gap-8">
+          {/* No gallery (a job): the RIGHT cell from md, beside the buy box (2026-11-06 audit; the note on the buy box). */}
+          <div className={cn('contents md:order-2 md:col-span-6 md:row-start-2 md:flex md:flex-col md:gap-6 lg:col-span-7 lg:gap-8', noGallery ? 'md:col-start-7 lg:col-start-6' : 'md:col-start-1')}>
             {/* Gallery, DESKTOP mount (hidden below md; the mobile mount handles small screens). None on a
                 linked job — see the mobile mount. */}
             {!noGallery && (

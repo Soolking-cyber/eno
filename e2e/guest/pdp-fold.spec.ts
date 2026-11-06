@@ -17,15 +17,26 @@ type Page = import('@playwright/test').Page
 const topOf = async (page: Page, selector: string) =>
   page.locator(selector).first().evaluate((el) => Math.round(el.getBoundingClientRect().top + window.scrollY))
 
-/** Open a real listing off the live feed — pinning a cuid rots into a false pass after a reseed. */
+/**
+ * Open a real listing off the live feed — pinning a cuid rots into a false pass after a reseed.
+ * ⚠️ THE FIRST ONE WITH A GALLERY (icons-and-fold.spec.ts says why). A gallery-less job (`[data-job-header]`) has none, so
+ * `[data-protected]` below resolved to a card in a rail far down the page; and since such a page paints its buy box in the
+ * LEFT cell (2026-11-06 audit), the desktop claim would fail on it for a layout that is right.
+ */
 const openAListing = async (page: Page) => {
   await page.goto('/')
   await dismissOverlays(page)
-  const first = page.locator('.feed-grid a[data-card-link="true"]').first()
-  await first.waitFor({ state: 'attached' })
-  await page.goto((await first.getAttribute('href'))!)
-  await dismissOverlays(page)
-  await page.locator('h1').first().waitFor()
+  const cards = page.locator('.feed-grid a[data-card-link="true"]')
+  await cards.first().waitFor({ state: 'attached' })
+  const hrefs = (await cards.evaluateAll((els) => els.map((el) => el.getAttribute('href')))).filter(Boolean).slice(0, 8) as string[]
+  for (const href of hrefs) {
+    await page.goto(href)
+    await dismissOverlays(page)
+    await page.locator('h1').first().waitFor()
+    // The job header is server-rendered, so its presence is settled once the H1 is there.
+    if (await page.locator('[data-job-header]').count() === 0) return
+  }
+  test.skip(true, `every one of the first ${hrefs.length} home cards is a gallery-less job: no PDP gallery to measure`)
 }
 
 test.describe('Guest · PDP market band sits below the CTA on phones', () => {

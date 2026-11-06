@@ -114,6 +114,11 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
     }
     return out
   }, [shown, ranked])
+  // Under Top rated, while no row shown has a vote, the order falls to A–Z (logic.ts compareSchools); the count line says so.
+  // Both counts are read (2026-11-06 gate review): the order's, frozen until a filter or the sort changes, so "A–Z" holds, and
+  // the live ones every row prints, so a vote cast since, or a cached page's older zeros, never leave "no votes yet" over a row
+  // that says "1 vote so far".
+  const unranked = ranked && shown.length > 1 && shown.every((r) => { const c = live.counts[r.id] ?? r; return r.up + r.down === 0 && c.up + c.down === 0 })
   return (
     <section aria-labelledby="schools-board-h" className="mt-8">
       <h2 id="schools-board-h" className="sr-only">{tr('Ranking', 'Bảng xếp hạng')}</h2>
@@ -174,10 +179,13 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
         ]}
       />
 
-      <p className="mt-4 text-sm text-muted-foreground" aria-live="polite">
+      <p className="mt-4 text-sm text-body" aria-live="polite">
         {shown.length === 1
           ? tr('1 school or centre', '1 trường hoặc trung tâm')
           : tr('{n} schools and centres', '{n} trường và trung tâm').replace('{n}', formatInteger(shown.length, moneyLocale(lang)))}
+        {/* 2026-11-06 audit: "Top rated" sat over an alphabetical list with nothing to say why. While nobody has voted the order
+            is A–Z, and the line says so. */}
+        {unranked && ` · ${tr('no votes yet, so A–Z', 'chưa ai bình chọn, xếp A–Z')}`}
       </p>
 
       {shown.length ? (
@@ -214,7 +222,7 @@ function BoardRowItem({ row, rank }: { row: BoardRow; rank: number | null }) {
         <VoteControl schoolId={row.id} schoolName={row.name} />
       </div>
       <div className="flex min-w-0 flex-1 items-start gap-3 py-1">
-        <SchoolLogo slug={row.slug} logo={row.logo} name={row.name} kind={row.kind} />
+        <SchoolLogo slug={row.slug} logo={row.logo} name={row.name} kind={row.kind} size="row" />
         <div className="min-w-0 flex-1">
           <p className="flex items-baseline gap-2">
             {rank !== null && <span className="text-xs font-semibold tabular-nums text-muted-foreground">#{rank}</span>}
@@ -223,7 +231,8 @@ function BoardRowItem({ row, rank }: { row: BoardRow; rank: number | null }) {
             </Link>
           </p>
           {row.award && <p className="mt-1"><AwardBadge year={row.award.year} rank={row.award.rank} /></p>}
-          <p className="mt-0.5 truncate text-sm text-muted-foreground">
+          {/* The kind and areas in body ink: they tell two similar names apart (2026-11-06 audit: small and pale on desktop). */}
+          <p className="mt-0.5 truncate text-sm text-body">
             <KindLabel kind={row.kind} />
             {row.districts.length > 0 && <> · {row.districts.slice(0, 2).map((d) => areaLabel(d, lang)).join(', ')}{row.districts.length > 2 ? ` +${row.districts.length - 2}` : ''}</>}
           </p>

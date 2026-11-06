@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Badge } from '@/components/ui/badge'
+import { ChevronDown } from '@/components/ui/icons'
 import { API_BASE, API_NAME, DISCOVERY, MEDIA_ORIGIN, SCOPES, SITE_ORIGIN, SUPPORT_EMAIL } from './reference'
 
 /**
@@ -34,6 +35,26 @@ export const metadata: Metadata = withShare({
 })
 
 const BASE = API_BASE
+
+/**
+ * Discovery documents a CLIENT reads rather than a person opens — the spec's original path and the OAuth and MCP metadata —
+ * listed under one native <details> row in Specs & discovery (2026-11-06 audit): eight equal rows put four aliases and
+ * protocol files between a reader and Authentication. Still real anchors in the server HTML (the header note: agents and
+ * crawlers follow an <a href>, and a closed <details> keeps its children in the document); opening it runs no script.
+ */
+const TUCKED = new Set(['/api/v1/openapi.json', '/.well-known/oauth-authorization-server', '/.well-known/oauth-protected-resource', '/.well-known/mcp.json'])
+
+/** One discovery document: its path as the link, what it is under it. */
+function DiscoveryItem({ href, label, note }: { href: string; label: string; note: string }) {
+  return (
+    <li className="border-t border-border pt-3">
+      <a href={href} className="font-mono text-sm font-semibold text-accent-foreground hover:underline">
+        {label}
+      </a>
+      <p className="mt-1 text-sm leading-relaxed text-body">{note}</p>
+    </li>
+  )
+}
 
 /** The hosted MCP server's tools, one chip each below. */
 const MCP_TOOLS = [
@@ -117,16 +138,23 @@ export default function DevelopersPage() {
             Machine-readable descriptions of this API. All {DISCOVERY.length} are public, need no credentials, and are served from this
             same origin.
           </p>
+          {/* The starting points in view (status, the canonical spec, llms.txt, the sitemap); TUCKED one tap below. */}
           <ul className="mt-4 space-y-3">
-            {DISCOVERY.map((d) => (
-              <li key={d.href} className="border-t border-border pt-3">
-                <a href={d.href} className="font-mono text-sm font-semibold text-accent-foreground hover:underline">
-                  {d.label}
-                </a>
-                <p className="mt-1 text-sm leading-relaxed text-body">{d.note}</p>
-              </li>
+            {DISCOVERY.filter((d) => !TUCKED.has(d.href)).map((d) => (
+              <DiscoveryItem key={d.href} {...d} />
             ))}
           </ul>
+          <details className="group mt-3 border-t border-border">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+              <span>OAuth and MCP metadata, and the spec alias</span>
+              <ChevronDown className="size-5 shrink-0 text-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+            </summary>
+            <ul className="space-y-3 pb-1">
+              {DISCOVERY.filter((d) => TUCKED.has(d.href)).map((d) => (
+                <DiscoveryItem key={d.href} {...d} />
+              ))}
+            </ul>
+          </details>
           {/* ⛔ INLINE <code>, NEVER <Code> INSIDE A <p>. <Code> renders a <pre>, the HTML parser closes
               the <p> in front of it, and the server DOM stops matching React's tree — React #418 on
               every cold load, and the duplicated layout JSON-LD from the client re-render that follows

@@ -381,8 +381,10 @@ export default async function TeachHubPage() {
   const costShare = rentFact && costIndex ? cellFigures(costIndex, 'city', 'all', 'br1') : null
 
   // No school count and no rent figure: no box (a heading over an empty list, or over the job count alone, is worse than none).
+  // 2026-11-06 audit: flat and closed by one hairline, not a grey well that gave live facts a notice's weight; its eyebrow
+  // heading opens it, so no top rule.
   const facts = !((schools && schools.total > 0) || rentFact) ? null : (
-    <section aria-label={FACTS_LABEL} className="mt-6 max-w-3xl rounded-xl bg-tint p-5">
+    <section aria-label={FACTS_LABEL} className="mt-6 max-w-3xl border-b border-border pb-6">
       <p className="text-sm font-bold uppercase tracking-wide text-accent-foreground">Saigon for teachers, today</p>
       <ul className="mt-3 list-disc space-y-2 pl-5 text-base leading-relaxed text-body marker:text-ink-4">
         {schools && schools.total > 0 && (

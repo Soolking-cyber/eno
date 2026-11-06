@@ -14,7 +14,8 @@ test.describe('seller dashboard', () => {
     // No dedicated home (owner 2026-07-18): /dashboard lands on the listings section,
     // which carries the greeting + marketplace stats + the availability button.
     await expect(page).toHaveURL(/\/dashboard\/listings/)
-    await expect(page.locator('h1')).toContainText(/Hi|Chào/)
+    // Under the Listings tabs the section's h1 is "My listings"; the greeting is the h2 under it (listings-client.tsx).
+    await expect(page.locator('#main h2').filter({ hasText: /Hi|Chào/ })).toBeVisible()
     // The persistent account rail (a non-modal dialog on desktop) links to the sections.
     const rail = page.locator('aside[role="dialog"]')
     await expect(rail).toBeVisible()
@@ -191,7 +192,7 @@ test.describe('one dashboard — rail integrity', () => {
       const mPage = await mobile.newPage()
       await mPage.goto('/dashboard/listings')
       // Wait for auth to resolve (the home greets the account) so the role-gated rows are present.
-      await expect(mPage.locator('#main h1').filter({ hasText: /Hi|Chào/ })).toBeVisible()
+      await expect(mPage.locator('#main h2').filter({ hasText: /Hi|Chào/ })).toBeVisible()
       await mPage.getByRole('link', { name: /^(Account|Tài khoản)$/ }).click()
       await expect(mPage).toHaveURL(/\/dashboard\/account/)
 

@@ -151,7 +151,8 @@ export function MessageBubble({
         /**
          * ⚠️ THE TINT IS PER SIDE AND IT IS NOT COSMETIC. Outside the bubble this line sat on the
          * page and wore `text-ink-4`; inside a `bg-primary` sent bubble that grey is ~1.9:1 against
-         * white-on-blue and effectively invisible. `text-white/70` is the sent-bubble equivalent.
+         * white-on-blue and effectively invisible. `text-white/85` is the sent-bubble equivalent: 4.56:1 on
+         * --primary #0a66c2, where /70 measured 3.6:1, under the 4.5:1 small text needs (2026-11-07 audit).
          * ⚠️ `justify-end` on BOTH sides. It is the trailing corner of the bubble in either
          * alignment, which is where every chat app puts a timestamp — mirroring it to the left on
          * received messages would put it under the start of the text instead.
@@ -162,8 +163,9 @@ export function MessageBubble({
             // corner, 18px wide and inset 8px, so a timestamp running to the padding edge sits
             // under it. Twenty pixels of trailing space is the whole fix, and it costs nothing on
             // a message that has no glyph.
-            'mt-0.5 flex items-center justify-end gap-1 pe-5 text-3xs leading-none',
-            failed ? 'text-destructive' : mine ? 'text-white/70' : 'text-ink-4',
+            // 11px, the dense-meta size (2026-11-07 audit: at 10px the time read as a speck beside 14px text).
+            'mt-0.5 flex items-center justify-end gap-1 pe-5 text-2xs leading-none',
+            failed ? 'text-destructive' : mine ? 'text-white/85' : 'text-ink-4',
           )}
         >
           {meta}

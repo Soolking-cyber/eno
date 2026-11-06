@@ -2957,7 +2957,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                 // Button — overriding a button's role would strip its button semantics and lose the
                 // retry affordance.
                 <span role="alert">
-                  <Button variant="bare" size="none" onClick={() => retry(m)} className="relative gap-1 px-0 text-3xs font-semibold text-destructive hover:underline cursor-pointer tap-44">
+                  <Button variant="bare" size="none" onClick={() => retry(m)} className="relative gap-1 px-0 text-2xs font-semibold text-destructive hover:underline cursor-pointer tap-44">
                     <RotateCcw className="h-3 w-3" aria-hidden /> {tr('Not sent — tap to retry', 'Chưa gửi — chạm để thử lại')}
                   </Button>
                 </span>
@@ -3261,7 +3261,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                     {/* Owner, 2026-08-16: "timestamp is inside box for all other in chat elements
                         too like offers etc". The shell cards get the same line from
                         ChatCardMetaProvider; this card is inline JSX, so it carries its own. */}
-                    <div className={cn('mt-1.5 flex items-center justify-end gap-1 text-3xs leading-none', m.failed ? 'text-destructive' : 'text-ink-4')}>
+                    <div className={cn('mt-1.5 flex items-center justify-end gap-1 text-2xs leading-none', m.failed ? 'text-destructive' : 'text-ink-4')}>
                       {metaNode}
                     </div>
                   </div>

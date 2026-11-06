@@ -124,7 +124,7 @@ function Figure({ label, s, locale, four = false }: { label: ReactNode; s: Stats
       {s.medianPerM2 !== null && (
         <p className="text-xs text-body">{money(Math.round(s.medianPerM2 / ROUND_VND) * ROUND_VND, locale)} {PER_M2}</p>
       )}
-      <p className="mt-2 text-xs text-muted-foreground">{count(s.n, locale)} <Tr text="listings" /></p>
+      <p className="mt-2 text-xs text-body">{count(s.n, locale)} <Tr text="listings" /></p>
     </div>
   )
 }
@@ -175,7 +175,9 @@ function Cell({ s, heading, locale }: { s: Stats; heading: ReactNode; locale: Mo
   // range and the count are the evidence behind each figure, and the judges kept finding them small and pale (2026-11-06 audit).
   // Read off the 1440px capture: the widest range, "4,800,000 đ – 15,000,000 đ", is about 155px at 12px, so ~181px at 14px, and
   // four band columns then take ~950px of the bedroom table's 1,024. Below xl the sizes are as they were (lg left unmeasured).
-  const listed = <span className="block text-2xs tabular-nums text-muted-foreground xl:text-sm">{count(s.n, locale)} <Tr text="listings" /></span>
+  // Under a figure the count is in body ink, as its range is: the sample a reader weighs the median by (2026-11-06 audit, a later
+  // round). Under a dash it stays muted with the dash, so a column with nothing to show stays quiet.
+  const listed = <span className={`block text-2xs tabular-nums xl:text-sm ${publishable(s) ? 'text-body' : 'text-muted-foreground'}`}>{count(s.n, locale)} <Tr text="listings" /></span>
   if (!publishable(s)) {
     return (
       <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
@@ -214,7 +216,8 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
       <h2 id="by-district" className="h-section text-foreground mb-1">
         <Tr text="Median rent by district" />
       </h2>
-      <p className="mb-4 max-w-prose text-sm text-muted-foreground">
+      {/* The tables' helper lines in body ink, like the count under each figure (2026-11-06 audit: the evidence read small and pale). */}
+      <p className="mb-4 max-w-prose text-sm text-body">
         <Tr text="Each cell shows the median monthly asking rent, the middle half of asking rents below it, and how many listings it is computed from. A dash means fewer listings than the publishing threshold." />
       </p>
       {/* ⚠️ ONE TABLE AT EVERY WIDTH, RESTYLED BELOW md — NOT A SCROLLER, NOT A SECOND LIST (C-RENT-INDEX).
@@ -295,7 +298,7 @@ export function BedroomTable({ index, lang, locale }: { index: RentIndex; lang: 
       <h2 id="by-bedrooms" className="h-section text-foreground mb-1">
         <Bilingual en="Apartment rent by bedrooms and district" vi="Giá thuê căn hộ theo số phòng ngủ và theo quận" />
       </h2>
-      <p className="mb-4 max-w-prose text-sm text-muted-foreground">
+      <p className="mb-4 max-w-prose text-sm text-body">
         <Bilingual
           en="Median monthly asking rent for apartments, by number of bedrooms. A dash means fewer listings than the publishing threshold."
           vi="Giá thuê chào trung vị mỗi tháng của căn hộ, theo số phòng ngủ. Dấu gạch nghĩa là số tin chưa đạt ngưỡng công bố."

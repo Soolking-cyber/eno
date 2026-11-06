@@ -64,11 +64,18 @@ export function StepRail({
   current,
   onStepSelect,
   allowForward = false,
+  names = false,
   className,
 }: {
   steps: WizardStep[]
   current: number | string
   onStepSelect?: (key: string, index: number) => void
+  /**
+   * Each step's name under its node, from md (2026-11-06 audit): a rail of glyphs named the CURRENT step and nothing about the
+   * rest, so a teacher could not see what the form would still ask for. Below md the nodes keep their spacing and
+   * StepWizard's one-line caption names the step instead.
+   */
+  names?: boolean
   /**
    * Upcoming nodes are tappable too — for a form whose every step is already answered (an EDIT of a saved
    * profile), where "jump ahead" skips nothing. Off by default: a flow being filled for the first time must
@@ -99,8 +106,8 @@ export function StepRail({
         return (
           <li
             key={step.key}
-            // Every node but the last flex-grows so the connectors distribute the row evenly.
-            className={cn('flex items-center', i < steps.length - 1 && 'flex-1')}
+            // Every node but the last flex-grows so the connectors distribute the row evenly; `relative` seats the name below.
+            className={cn('relative flex items-center', i < steps.length - 1 && 'flex-1')}
             aria-current={state === 'current' ? 'step' : undefined}
           >
             {(state === 'done' || (allowForward && state === 'upcoming')) && onStepSelect ? (
@@ -121,6 +128,20 @@ export function StepRail({
             )}
             {i < steps.length - 1 && (
               <span aria-hidden className={cn('mx-1.5 h-0.5 flex-1 rounded-full', i < active ? 'bg-brand' : 'bg-border')} />
+            )}
+            {names && (
+              // Under its node: the first flush with the rail's left edge, the last with its right, the rest centred on the node
+              // (its 18px half-width). aria-hidden: the node already carries this name, and the live line says it again.
+              <span
+                aria-hidden
+                className={cn(
+                  'pointer-events-none absolute top-full mt-3 hidden w-max max-w-28 text-xs leading-tight md:block',
+                  i === 0 ? 'left-0' : i === steps.length - 1 ? 'right-0 text-right' : 'left-4.5 -translate-x-1/2 text-center',
+                  state === 'current' ? 'font-semibold text-foreground' : 'text-body',
+                )}
+              >
+                {step.label}
+              </span>
             )}
           </li>
         )
@@ -175,6 +196,7 @@ export function StepWizard({
   /**
    * Shows the live line — the step's name and its place, "Your plans · 1/5" — as the rail's caption, for a flow whose glyphs
    * do not name themselves (the teacher form, 2026-11-06 audit). Off by default: the line stays screen-reader only.
+   * From md the rail names every node instead (StepRail `names`), and the line goes back to the screen reader.
    */
   showStepName?: boolean
   className?: string
@@ -194,12 +216,14 @@ export function StepWizard({
   return (
     <div data-slot="step-wizard" className={cn('flex flex-col', className)}>
       {header}
-      <StepRail steps={steps} current={active} onStepSelect={onStepSelect} allowForward={allowForward} className={showStepName ? 'mb-3' : 'mb-6'} />
+      {/* `names` from md: the rail keeps 48px under itself for them, and the caption below is the phone's (and every width's live
+          region). */}
+      <StepRail steps={steps} current={active} onStepSelect={onStepSelect} allowForward={allowForward} names={showStepName} className={showStepName ? 'mb-3 md:mb-12' : 'mb-6'} />
 
       {/* Polite live region — announces "<label> · n/total" on change without stealing focus. The
           visible rail carries the same information for sighted users; with `showStepName` this line
           shows too, as the rail's caption. */}
-      <p id={liveId} aria-live="polite" className={showStepName ? 'mb-4 text-xs font-semibold text-body' : 'sr-only'}>
+      <p id={liveId} aria-live="polite" className={showStepName ? 'mb-4 text-xs font-semibold text-body md:sr-only' : 'sr-only'}>
         {step ? `${step.label} · ${active + 1}/${steps.length}` : ''}
       </p>
 

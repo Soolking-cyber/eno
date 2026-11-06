@@ -230,7 +230,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
         <Field invalid={!!fieldErr.phone}>
           <Label htmlFor="biz-phone">{tr('Contact phone (Zalo / WhatsApp)', 'Điện thoại (Zalo / WhatsApp)')}</Label>
           <FieldControl id="biz-phone" render={<Input id="biz-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" />} />
-          <FieldDescription className="text-muted-foreground">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ với người mua sau khi bạn trả lời — không hiển thị công khai.')}</FieldDescription>
+          <FieldDescription>{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ với người mua sau khi bạn trả lời — không hiển thị công khai.')}</FieldDescription>
           {fieldErr.phone && <FieldError>{fieldErr.phone}</FieldError>}
         </Field>
       </div>
@@ -307,7 +307,8 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
             props — the image appears to upload successfully and silently does not stick. Reviewers
             found it on the new banner; it was already true of the logo, which is why both flags are
             here rather than only the new one. */}
-        <Button variant="cta" onClick={save} disabled={saving || uploading || !dirty || name.trim().length < 2}>
+        {/* Neutral until something changes (2026-11-06 audit), as in profile-editor.tsx. */}
+        <Button variant={dirty ? 'cta' : 'secondary'} onClick={save} disabled={saving || uploading || !dirty || name.trim().length < 2}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved && !dirty ? <Check className="h-4 w-4" /> : null}
           {saved && !dirty ? tr('Saved', 'Đã lưu') : tr('Save changes', 'Lưu thay đổi')}
         </Button>

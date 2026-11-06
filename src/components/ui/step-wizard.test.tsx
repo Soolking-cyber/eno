@@ -54,3 +54,17 @@ describe('StepWizard actionNote', () => {
     expect(container.querySelector('.lg\\:block')).toBeNull()
   })
 })
+
+describe('StepWizard showStepName (2026-11-06 audit)', () => {
+  it('names every node under the rail from md — aria-hidden, the node keeps its own name — and keeps the live line', () => {
+    const { container } = render(<StepWizard steps={STEPS} current="b" showStepName><div /></StepWizard>)
+    const names = [...container.querySelectorAll('[data-slot="step-rail"] > li > span.md\\:block')]
+    expect(names.map((n) => n.textContent)).toEqual(['Your plans', 'Where you teach', 'Your teaching'])
+    expect(names.every((n) => n.getAttribute('aria-hidden') === 'true')).toBe(true)
+    expect(screen.getByText('Where you teach · 2/3')).toBeTruthy()
+  })
+  it('off by default: no names under the rail', () => {
+    const { container } = render(<StepWizard steps={STEPS} current="b"><div /></StepWizard>)
+    expect(container.querySelector('[data-slot="step-rail"] span.md\\:block')).toBeNull()
+  })
+})

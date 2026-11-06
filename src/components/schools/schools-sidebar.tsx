@@ -57,7 +57,9 @@ export function SchoolsSidebar({ rows, lang }: { rows: SchoolListRow[]; lang: st
         </section>
       )}
 
-      <section aria-labelledby="schools-teach-h" className="rounded-2xl bg-tint p-4">
+      {/* On the canvas with a hairline like the cards around it, not the column's one grey panel (2026-11-06 audit); its heading
+          stays the column's strongest, for the one thing it asks of a teacher. */}
+      <section aria-labelledby="schools-teach-h" className="rounded-2xl bg-card p-4 ring-1 ring-border">
         <h2 id="schools-teach-h" className="flex items-center gap-2 text-base font-bold text-foreground">
           <GraduationCap aria-hidden className="size-5 text-accent-foreground" /> <Bilingual en="Taught at one of these?" vi="Bạn từng dạy ở một trong những nơi này?" />
         </h2>

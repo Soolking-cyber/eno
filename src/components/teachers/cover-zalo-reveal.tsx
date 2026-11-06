@@ -29,7 +29,16 @@ type Standing = {
   next: string | null
 }
 
-const timeout = () => (typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(8000) : undefined)
+/** Every ask here is bounded at 8 s: AbortSignal.timeout where the browser has it; elsewhere (an older in-app browser) an
+ *  AbortController on the same timer, let go once the request AND its body have settled. The `undefined` this returned
+ *  there left the wait unbounded (2026-11-06 audit; the teacher panels' bounded()). */
+const WAIT_MS = 8000
+async function bounded<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  if (typeof AbortSignal.timeout === 'function') return run(AbortSignal.timeout(WAIT_MS))
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), WAIT_MS)
+  try { return await run(ctl.signal) } finally { clearTimeout(timer) }
+}
 
 /**
  * Keyed by the ACCOUNT AND THE TEACHER (review, 2026-10-28): a number shown for one teacher must never stay on screen when
@@ -66,8 +75,10 @@ function CoverZaloRevealFor({ listingId }: { listingId: string }) {
     if (!user || !identityLoaded || accountType !== 'business') return
     let off = false
     const uid = user.id
-    fetch(`/api/teachers/zalo?listingId=${encodeURIComponent(listingId)}`, { cache: 'no-store', signal: timeout() })
-      .then((r) => (r.ok ? (r.json() as Promise<Standing>) : null))
+    bounded(async (signal) => {
+      const res = await fetch(`/api/teachers/zalo?listingId=${encodeURIComponent(listingId)}`, { cache: 'no-store', signal })
+      return res.ok ? ((await res.json()) as Standing) : null
+    })
       .then((s) => {
         if (off) return
         if (s) { failedAsks.current = 0; setStandingFor({ uid, s }); return }
@@ -96,11 +107,13 @@ function CoverZaloRevealFor({ listingId }: { listingId: string }) {
     setFailed(false)
     const uid = user.id
     try {
-      const r = await fetch('/api/teachers/zalo', {
-        method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listingId }), signal: timeout(),
+      const { r, j } = await bounded(async (signal) => {
+        const res = await fetch('/api/teachers/zalo', {
+          method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ listingId }), signal,
+        })
+        return { r: res, j: (await res.json().catch(() => null)) as { zalo?: string; href?: string; standing?: Standing; error?: string } | null }
       })
-      const j = (await r.json().catch(() => null)) as { zalo?: string; href?: string; standing?: Standing; error?: string } | null
       if (r.ok && j?.zalo && j.href) { setShownFor({ uid, zalo: j.zalo, href: j.href }); if (j.standing) setStandingFor({ uid, s: j.standing }) }
       else if (r.status === 404) setStandingFor({ uid, s: { ...standing, available: false } })
       else if (j?.standing) setStandingFor({ uid, s: j.standing })

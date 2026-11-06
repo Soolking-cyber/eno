@@ -7,10 +7,11 @@ import { CalendarDays } from '@/components/ui/icons'
  * COVER LESSONS PROMO (2026-10-07) — a small two-sided card for pages both teachers and schools read (/schools).
  * Teachers are the main readers there, so it leads with them; schools get the direct door to the cover filter.
  * Server-renderable: its words come through <Bilingual>, a client island, like the page around it.
+ * On the canvas with a hairline, like the /schools sidebar cards under it, not a grey panel (2026-11-06 audit).
  */
 export function CoverPromoCard({ className }: { className?: string }) {
   return (
-    <section aria-labelledby="cover-promo" className={['space-y-2 rounded-2xl bg-tint p-4', className].filter(Boolean).join(' ')}>
+    <section aria-labelledby="cover-promo" className={['space-y-2 rounded-2xl bg-card p-4 ring-1 ring-border', className].filter(Boolean).join(' ')}>
       <h2 id="cover-promo" className="flex items-center gap-2 text-base font-semibold text-foreground">
         <CalendarDays className="size-4 text-brand" />
         <Bilingual en="Cover lessons" vi="Dạy thay" />

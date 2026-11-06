@@ -60,12 +60,16 @@ const FEATURES: { Icon: typeof Search | FeatureGlyph; id?: string; title: string
   // photo minimum is three for most categories (one for services) — assertPublishable / minPhotosFor in
   // src/lib/publish-guard.ts. Trust scores belong to sellers who post here, not to linked listings.
   // ⚠️ "INSTANTLY" CARRIES ITS TWO EXCEPTIONS (2026-11-06 audit) — a Restricted account, a licence-check aisle — as /about's do.
+  // 2026-11-06 audit (second pass): WITHOUT THE CHECKS' INVENTORY. The parenthesis (banned items, contact details, three photos
+  // for most aisles, one for services) made this the one 11-line paragraph in a list of two-liners, and its photo rule was
+  // not even whole (some aisles need none — minPhotosFor). /about's "Automated checks" step lists the checks and the post
+  // wizard states each aisle's photo rule where it applies. The owner's report sentence is untouched.
   {
     Icon: BadgeCheck,
     id: 'verification',
     title: 'Trust & reputation',
-    body: 'Listings posted here go live as soon as they pass automated checks (no banned items, no contact details in the text, and enough real photos — three for most categories, one for services), unless the seller’s account is Restricted or the category needs a licence check first. Members can report any listing that breaks the rules. A seller’s trust score rises with good service and falls when a report against them is confirmed — the blue Trusted and gold Exceptional badges are earned, not given. A score is a signal, not a guarantee; always inspect before you pay.',
-    bodyVi: 'Tin đăng trực tiếp tại đây được hiển thị ngay khi vượt qua bước kiểm tra tự động (không có hàng cấm, không chèn thông tin liên hệ vào nội dung và có đủ ảnh thật — ba ảnh với hầu hết danh mục, một ảnh với dịch vụ), trừ khi tài khoản người bán đang bị hạn chế hoặc danh mục cần kiểm tra giấy phép trước. Thành viên có thể báo cáo bất kỳ tin vi phạm nào. Điểm uy tín của người bán tăng khi phục vụ tốt và giảm khi một báo cáo về họ được xác nhận — huy hiệu Đáng tin cậy màu xanh và Xuất sắc màu vàng do người bán tự tích lũy, không ai được cấp sẵn. Điểm uy tín chỉ là tín hiệu tham khảo, không phải sự bảo đảm; hãy luôn kiểm tra hàng trước khi trả tiền.',
+    body: 'Listings posted here go live as soon as they pass automated checks, unless the seller’s account is Restricted or the category needs a licence check first. Members can report any listing that breaks the rules. A seller’s trust score rises with good service and falls when a report against them is confirmed — the blue Trusted and gold Exceptional badges are earned, not given. A score is a signal, not a guarantee; always inspect before you pay.',
+    bodyVi: 'Tin đăng trực tiếp tại đây được hiển thị ngay khi vượt qua bước kiểm tra tự động, trừ khi tài khoản người bán đang bị hạn chế hoặc danh mục cần kiểm tra giấy phép trước. Thành viên có thể báo cáo bất kỳ tin vi phạm nào. Điểm uy tín của người bán tăng khi phục vụ tốt và giảm khi một báo cáo về họ được xác nhận — huy hiệu Đáng tin cậy màu xanh và Xuất sắc màu vàng do người bán tự tích lũy, không ai được cấp sẵn. Điểm uy tín chỉ là tín hiệu tham khảo, không phải sự bảo đảm; hãy luôn kiểm tra hàng trước khi trả tiền.',
   },
   { Icon: Tag, title: 'Messaging & offers', body: 'All contact happens in-app: tap Message to chat, or Make an offer to send a price the seller can accept or counter. Phone/Zalo is exchanged inside the chat, never published on the listing — which keeps spam out.' },
   { Icon: Bell, title: 'Notifications', body: 'The bell at the top-right alerts you to new messages and offers in real time, on desktop and mobile. Each notification links straight to the conversation.' },

@@ -28,6 +28,17 @@ export const TEACHER_CONTACT_EVENT = 'eno:teacher-contact'
 /** GET /api/teachers/dm-quota — where the account stands today on the teacher DM ladder, and its thread with this teacher. */
 type Quota = TeacherDmRefusalFacts & { remaining: number; hasThread: boolean; threadId?: string | null }
 
+/** Bounded at 8 s: AbortSignal.timeout where the browser has it; elsewhere (an older in-app browser) an AbortController on
+ *  the same timer, let go once the request and its body have settled (2026-11-06 audit; cover-zalo-reveal.tsx and the teacher
+ *  panels carry the same helper). */
+const WAIT_MS = 8000
+async function bounded<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  if (typeof AbortSignal.timeout === 'function') return run(AbortSignal.timeout(WAIT_MS))
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), WAIT_MS)
+  try { return await run(ctl.signal) } finally { clearTimeout(timer) }
+}
+
 export function TeacherContact({ listingId, name, image, cover = false }: {
   listingId: string
   name: string
@@ -54,12 +65,11 @@ export function TeacherContact({ listingId, name, image, cover = false }: {
 
   // Ask once the account is known. The page is ISR, so this is client state; a failed ask changes nothing. Bounded at 8 s
   // like every other wait here: on a dead connection the tap's re-ask must not hold the buttons on "Opening chat…".
-  const askQuota = () => fetch(`/api/teachers/dm-quota?listingId=${encodeURIComponent(listingId)}`, {
-    cache: 'no-store',
-    signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(8000) : undefined,
-  })
-    .then((r) => (r.ok ? r.json() as Promise<Quota> : null))
-    .catch(() => null)
+  // ⚠️ bounded(), not `AbortSignal.timeout ?? undefined`: where the browser lacks it the wait had no bound at all.
+  const askQuota = () => bounded(async (signal) => {
+    const r = await fetch(`/api/teachers/dm-quota?listingId=${encodeURIComponent(listingId)}`, { cache: 'no-store', signal })
+    return r.ok ? ((await r.json()) as Quota) : null
+  }).catch(() => null)
   useEffect(() => {
     if (!user || !identityLoaded) return
     let off = false

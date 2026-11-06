@@ -63,6 +63,31 @@ const CONTACT_ID = 'rc-contact'
 const PROBLEMS: readonly RentalContactProblem[] = ['empty', 'zalo_needs_vn_mobile', 'phone_invalid', 'email_invalid']
 
 /**
+ * The empty list's how-to names the card's button by its own mark (2026-11-07 audit: "the check button" named nothing a
+ * reader could find — on a card the chip is the glyph alone, rental-check-toggle.tsx). The chip's plate and glyph sit in the
+ * sentence, its name beside them for a screen reader. Split on `{mark}` as import-provenance-copy.ts splits on `{date}`: a
+ * translation that lost the placeholder says the English sentence instead.
+ */
+const TAP_MARK_EN = 'Tap {mark} on any rental — up to 5 — and the eno team checks availability for you, free.'
+function TapTheMark() {
+  const { tr } = useLanguage()
+  // The English again, as a literal: gen-ui-strings harvests only a literal first argument.
+  const said = tr('Tap {mark} on any rental — up to 5 — and the eno team checks availability for you, free.', 'Chạm {mark} trên bất kỳ căn nào — tối đa 5 căn — đội ngũ eno sẽ kiểm tra phòng trống giúp bạn, miễn phí.')
+  const line = said.includes('{mark}') ? said : TAP_MARK_EN
+  const at = line.indexOf('{mark}')
+  return (
+    <>
+      {line.slice(0, at)}
+      <span aria-hidden className="inline-flex size-5 items-center justify-center rounded-full bg-foreground/70 align-middle text-background">
+        <ClipboardCheck className="size-3" />
+      </span>
+      <span className="sr-only">{tr('Check availability', 'Kiểm tra phòng trống')}</span>
+      {line.slice(at + '{mark}'.length)}
+    </>
+  )
+}
+
+/**
  * The availability-check "checkout": the collected rentals, what to ask, where to reply, and one
  * button. Mobile first — at 390px it is a single column that reads top to bottom in the order the
  * visitor decides things.
@@ -508,10 +533,7 @@ export function RentalCheckView() {
           className="mt-6 lg:items-start lg:px-0 lg:py-4 lg:text-left"
           icon={ClipboardCheck}
           title={tr('Your list is empty', 'Danh sách đang trống')}
-          subtitle={tr(
-            'Tap the check button on any rental — up to 5 — and the eno team checks availability for you, free.',
-            'Chạm nút kiểm tra trên bất kỳ căn nào — tối đa 5 căn — đội ngũ eno sẽ kiểm tra phòng trống giúp bạn, miễn phí.',
-          )}
+          subtitle={<TapTheMark />}
           action={
             <Button asChild variant="cta" className="min-h-11 px-5">
               <Link href="/c/rentals">{tr('Browse rentals', 'Xem căn cho thuê')}</Link>

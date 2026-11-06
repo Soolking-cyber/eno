@@ -7,7 +7,7 @@ import { ConversationList } from '@/components/marketplace/conversation-list'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { KbDebug } from '@/components/marketplace/kb-debug'
 import { cn } from '@/lib/utils'
-import { isConversationPath } from '@/lib/thread-chrome'
+import { dropsSiteHeader } from '@/lib/thread-chrome'
 
 // Desktop messenger shell: a persistent two-pane layout (conversation list left,
 // thread right) — not a stretched mobile card. On mobile it's single-pane: the
@@ -16,10 +16,10 @@ import { isConversationPath } from '@/lib/thread-chrome'
 export function MessagesShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const inThread = /^\/messages\/.+/.test(pathname || '') // viewing a specific conversation
-  // Narrower than inThread: a real conversation (/messages/<conversation id>), matched by the ID'S FORMAT —
-  // never the AI chat, the composer's resolver or any sibling route added later. The thread's header is the
-  // only one that owns the status-bar inset, so only a thread drops the site header (src/lib/thread-chrome.ts).
-  const inConversation = isConversationPath(pathname)
+  // Narrower than inThread: a real conversation (/messages/<conversation id>), matched by the ID'S FORMAT, and the eno AI
+  // chat by name (2026-11-07 audit) — never the composer's resolver or any sibling route added later. Only those two
+  // headers own the status-bar inset, so only they drop the site header (src/lib/thread-chrome.ts dropsSiteHeader).
+  const inConversation = dropsSiteHeader(pathname)
 
   // Size the shell to the visible viewport height while the keyboard is up (iOS overlays
   // the keyboard without shrinking dvh). Composer is the bottom flex row. The shell is
@@ -69,10 +69,10 @@ export function MessagesShell({ children }: { children: React.ReactNode }) {
           this column exactly as before (a plain wrapper would add a box around a sticky element).
           The thread header takes over the status-bar inset the global header used to pad
           (THREAD_HEADER_CLASS, src/lib/thread-chrome.ts — the page, its loading skeleton and its
-          guest / not-found bar all wear it). ⛔ `inConversation`, NOT `inThread`: /messages/ai,
-          /messages/pending and any future sibling keep the site header — their own bars do not pad the
-          inset, and the AI chat's Back sat under the status bar in the native app. The tab bar stays —
-          owner decision C15. */}
+          guest / not-found bar all wear it, and since 2026-11-07 the eno AI chat's header). ⛔ `inConversation`,
+          NOT `inThread`: /messages/pending and any future sibling keep the site header — their own bars do not
+          pad the inset (the AI chat's Back once sat under the status bar in the native app, before its header
+          wore THREAD_HEADER_CLASS). The tab bar stays — owner decision C15. */}
       <div className={inConversation ? 'hidden lg:contents' : 'contents'}>
         <Header />
       </div>

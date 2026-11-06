@@ -54,22 +54,48 @@ export const metadata: Metadata = {
 /** A plain string goes through <Tr> (generated dictionary, else machine translation); a pair is authored. */
 type Copy = string | { en: string; vi: string }
 
-const SECTIONS: [id: string, title: string, paras: Copy[], link?: { href: string; en: string; vi: string }][] = [
+/** One authored line in the reader's language. */
+function Words({ copy }: { copy: Copy }) {
+  return typeof copy === 'string' ? <Tr text={copy} /> : <Bilingual en={copy.en} vi={copy.vi} />
+}
+
+/**
+ * THE IN-APP ROUTE AS NUMBERED STEPS (2026-11-06 audit: one paragraph mixed the phone, app and computer paths). The words
+ * are the authored sentences, split only where a sentence already ended, so page.test.tsx still holds every label they
+ * quote. A step's first line is the step; the lines after it are the ways to do it — phone or app, and computer. What
+ * happens after the last step is the paragraph under the list, not a fourth step.
+ */
+const IN_APP_STEPS: Copy[][] = [
+  [
+    { en: 'Sign in to the app or the website, then open Settings.', vi: 'Đăng nhập vào ứng dụng hoặc trang web, rồi mở Cài đặt.' },
+    {
+      en: 'In the app or on a phone, tap Account (the person icon at the bottom right), then tap your name or photo at the top of that screen.',
+      vi: 'Trên ứng dụng hoặc điện thoại, chạm vào Tài khoản (biểu tượng hình người ở góc dưới bên phải), rồi chạm vào tên hoặc ảnh đại diện của bạn ở đầu màn hình đó.',
+    },
+    { en: 'On a computer, click your name or photo at the bottom of the menu on the left.', vi: 'Trên máy tính, nhấp vào tên hoặc ảnh đại diện của bạn ở cuối thanh menu bên trái.' },
+  ],
+  [
+    { en: 'In Settings, open the Account tab and, under "Danger zone", select "Delete my account".', vi: 'Trong Cài đặt, mở thẻ Tài khoản, rồi ở mục "Vùng nguy hiểm", chọn "Xóa tài khoản của tôi".' },
+  ],
+  [
+    { en: 'Type DELETE to confirm and select "Permanently delete".', vi: 'Nhập XÓA để xác nhận và chọn "Xóa vĩnh viễn".' },
+  ],
+]
+
+/** [id, title, paras, link, steps] — a section's numbered `steps` come before its paragraphs. */
+const SECTIONS: [id: string, title: string, paras: Copy[], link?: { href: string; en: string; vi: string }, steps?: Copy[][]][] = [
   [
     'in-app',
     'Delete it yourself, in the app',
     [
       {
-        en: 'Sign in to the app or the website, then open Settings. In the app or on a phone, tap Account (the person icon at the bottom right), then tap your name or photo at the top of that screen. On a computer, click your name or photo at the bottom of the menu on the left.',
-        vi: 'Đăng nhập vào ứng dụng hoặc trang web, rồi mở Cài đặt. Trên ứng dụng hoặc điện thoại, chạm vào Tài khoản (biểu tượng hình người ở góc dưới bên phải), rồi chạm vào tên hoặc ảnh đại diện của bạn ở đầu màn hình đó. Trên máy tính, nhấp vào tên hoặc ảnh đại diện của bạn ở cuối thanh menu bên trái.',
-      },
-      {
-        en: 'In Settings, open the Account tab and, under "Danger zone", select "Delete my account". Type DELETE to confirm and select "Permanently delete". Deletion then runs immediately — you do not need to contact us and you do not need to wait for approval. Only if your account has an open report or review does the screen say so and ask you to write to us instead.',
-        vi: 'Trong Cài đặt, mở thẻ Tài khoản, rồi ở mục "Vùng nguy hiểm", chọn "Xóa tài khoản của tôi". Nhập XÓA để xác nhận và chọn "Xóa vĩnh viễn". Tài khoản sẽ bị xóa ngay lập tức — bạn không cần liên hệ với chúng tôi và cũng không cần chờ phê duyệt. Chỉ khi tài khoản của bạn đang có báo cáo hoặc đang được xem xét, màn hình sẽ thông báo và đề nghị bạn viết thư cho chúng tôi.',
+        en: 'Deletion then runs immediately — you do not need to contact us and you do not need to wait for approval. Only if your account has an open report or review does the screen say so and ask you to write to us instead.',
+        vi: 'Tài khoản sẽ bị xóa ngay lập tức — bạn không cần liên hệ với chúng tôi và cũng không cần chờ phê duyệt. Chỉ khi tài khoản của bạn đang có báo cáo hoặc đang được xem xét, màn hình sẽ thông báo và đề nghị bạn viết thư cho chúng tôi.',
       },
       'This is the fastest route and the one we recommend. The same screen also lets you export a copy of your data first, which is worth doing before you delete anything, because deletion cannot be undone.',
     ],
     { href: '/dashboard/settings?tab=account', en: 'Go straight to Settings → Account', vi: 'Mở ngay Cài đặt → Tài khoản' },
+    IN_APP_STEPS,
   ],
   [
     'by-request',
@@ -109,12 +135,26 @@ export default function AccountDeletionPage() {
          cannot sign in — out of the page's own index. */
       sections={[...SECTIONS.map(([id, title]) => ({ id, label: title })), { id: 'contact', label: 'Where to write' }]}
     >
-      {SECTIONS.map(([id, title, paras, link]) => (
+      {SECTIONS.map(([id, title, paras, link, steps]) => (
         <ContentSection key={id} id={id} title={title}>
           <div className="space-y-2">
+            {steps && (
+              <ol className="list-decimal space-y-2 pl-5 text-base leading-relaxed text-body marker:font-semibold marker:text-foreground">
+                {steps.map(([step, ...ways], i) => (
+                  <li key={i}>
+                    <Words copy={step} />
+                    {ways.length > 0 && (
+                      <ul className="mt-1 list-disc space-y-1 pl-5 marker:text-ink-4">
+                        {ways.map((w, j) => <li key={j}><Words copy={w} /></li>)}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            )}
             {paras.map((p, j) => (
               <p key={j} className="text-base leading-relaxed text-body">
-                {typeof p === 'string' ? <Tr text={p} /> : <Bilingual en={p.en} vi={p.vi} />}
+                <Words copy={p} />
               </p>
             ))}
             {link && (

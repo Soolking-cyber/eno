@@ -168,9 +168,17 @@ const GROUPS: { id: string; title: string; titleVi: string; items: Pair[] }[] = 
   },
 ]
 
+// 2026-11-06 audit: THE PREAMBLE IN TWO PARTS, EVERY WORD AND ITS ORDER UNCHANGED. The prohibition is the lede; the screening
+// and the consequences (INTRO_REST) open the body, straight after "On this page". As one 11-line lede they pushed the phone's
+// contents row to the foot of the first screen, under the language note — the move /regulations' preamble made the same day.
+// This page is part of the Quy chế: neither part may be reworded or moved further than that.
 const INTRO: Pair = {
-  en: `These goods and services must never be listed on ${SITE_NAME} — because Vietnamese law bans trading or advertising them, or because platform policy does. Listings posted here are screened automatically when posted and removed when reported, and the same list applies to linked listings: one found to offer anything below is taken off the platform. Posting them leads to removal, trust penalties and, for serious or repeated violations, account bans — and may be reported to authorities where the law requires.`,
-  vi: `Không được đăng các hàng hoá, dịch vụ dưới đây trên ${SITE_NAME} — vì pháp luật Việt Nam cấm kinh doanh hoặc quảng cáo chúng, hoặc vì chính sách của sàn cấm. Tin đăng trực tiếp trên sàn được sàng lọc tự động khi đăng và bị gỡ khi bị báo cáo; danh mục này cũng áp dụng cho tin đăng liên kết: tin liên kết chào bán bất kỳ mục nào dưới đây sẽ bị gỡ khỏi sàn. Đăng các mặt hàng này dẫn đến việc gỡ tin, trừ điểm uy tín và, với vi phạm nghiêm trọng hoặc tái phạm, khoá tài khoản — và có thể bị báo cho cơ quan chức năng khi pháp luật yêu cầu.`,
+  en: `These goods and services must never be listed on ${SITE_NAME} — because Vietnamese law bans trading or advertising them, or because platform policy does.`,
+  vi: `Không được đăng các hàng hoá, dịch vụ dưới đây trên ${SITE_NAME} — vì pháp luật Việt Nam cấm kinh doanh hoặc quảng cáo chúng, hoặc vì chính sách của sàn cấm.`,
+}
+const INTRO_REST: Pair = {
+  en: `Listings posted here are screened automatically when posted and removed when reported, and the same list applies to linked listings: one found to offer anything below is taken off the platform. Posting them leads to removal, trust penalties and, for serious or repeated violations, account bans — and may be reported to authorities where the law requires.`,
+  vi: `Tin đăng trực tiếp trên sàn được sàng lọc tự động khi đăng và bị gỡ khi bị báo cáo; danh mục này cũng áp dụng cho tin đăng liên kết: tin liên kết chào bán bất kỳ mục nào dưới đây sẽ bị gỡ khỏi sàn. Đăng các mặt hàng này dẫn đến việc gỡ tin, trừ điểm uy tín và, với vi phạm nghiêm trọng hoặc tái phạm, khoá tài khoản — và có thể bị báo cho cơ quan chức năng khi pháp luật yêu cầu.`,
 }
 
 const ENFORCEMENT: Pair = {
@@ -251,6 +259,7 @@ export default async function ProhibitedPage({ params }: { params: Promise<{ lan
       intro={say(INTRO)}
       sections={sections}
     >
+      <p className="max-w-[60ch] text-base leading-relaxed text-body">{say(INTRO_REST)}</p>
       {GROUPS.map((g) => (
         <ContentSection key={g.id} id={g.id} title={g.title} titleVi={g.titleVi}>
           {/* text-base, the size of the lede and of every other legal page's body (2026-11-06 audit): the lists ARE this

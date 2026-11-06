@@ -83,7 +83,11 @@ export function ContentPage({ title, titleVi, meta, intro, sections, children }:
             </ul>
           </details>
         )}
-        <div className={cn('mt-10', hasRail && 'lg:grid lg:grid-cols-[210px_minmax(0,1fr)] lg:gap-12')}>
+        {/* 2026-11-06 audit: a 240px rail, not 210. /privacy's contents labels are its own section titles (its text is
+            fingerprinted, so they cannot be shortened) and nine of its fourteen wrapped to two lines in the all10 capture;
+            /terms and /regulations shortened theirs for 210 and only gain room. The prose keeps its 60ch measure, and the
+            /safety and /regulations two-column grids still clear it (440px and 4fr:3fr of 928px at their breakpoints). */}
+        <div className={cn('mt-10', hasRail && 'lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-12')}>
           {/* ⚠️ The rail names itself with aria-labelledBY, not aria-label. This is a SERVER
               component, so there is no `tr()` in scope for an attribute string — and the rail
               already renders those very words, translated, as its visible heading. Pointing the

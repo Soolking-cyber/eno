@@ -123,7 +123,7 @@ function ShareFigure({ label, n, f }: { label: string; n: number; f: CellFigures
       {/* No nowrap on the range: at md's four columns "28,000,000–32,100,000 đ" is about the column's width, so it may
           break after its dash (a line-break opportunity in Unicode) rather than run into the next figure. */}
       <p className="text-xs text-body">Left after rent: {leftText(f.leftAfterRentVnd)}</p>
-      <p className="mt-2 text-xs text-muted-foreground">{listings(n)}</p>
+      <p className="mt-2 text-xs text-body">{listings(n)}</p>
     </div>
   )
 }
@@ -134,7 +134,7 @@ function CityFigures({ e }: { e: Edition }) {
   return (
     <section className="mt-8" aria-labelledby="city-wide">
       <h2 id="city-wide" className="h-section text-foreground mb-1">Rent as a share of take-home pay, city-wide</h2>
-      <p className="mb-4 max-w-prose text-sm text-muted-foreground">
+      <p className="mb-4 max-w-prose text-sm text-body">
         The median monthly asking rent of an apartment in Ho Chi Minh City, divided by a full-time language-centre teacher&apos;s
         modelled take-home pay: the lower share at {money(high.grossVnd)} gross a month ({money(high.takeHomeVnd)} take-home), the
         higher at {money(low.grossVnd)} ({money(low.takeHomeVnd)}). A dash means fewer listings than the publishing threshold.
@@ -153,7 +153,9 @@ function ShareCell({ cell, f, heading }: { cell: RentCell | undefined; f: CellFi
   const label = <span className="block text-2xs font-semibold text-muted-foreground md:hidden">{heading}</span>
   // From xl 16px, 14px, 14px — the share, the median, the count — as on the Rent Index's table (rent-index-sections.tsx Cell): the
   // median and the count are the evidence behind the share, and they read small and pale (2026-11-06 audit). Classes only.
-  const listed = <span className="block text-2xs tabular-nums text-muted-foreground xl:text-sm">{listings(cell?.n ?? 0)}</span>
+  // Under a share the count is in body ink, as on the Rent Index; under a dash it stays muted with the dash (2026-11-06 audit, a
+  // later round). Classes only: the edition is frozen.
+  const listed = <span className={`block text-2xs tabular-nums xl:text-sm ${f ? 'text-body' : 'text-muted-foreground'}`}>{listings(cell?.n ?? 0)}</span>
   if (!f) {
     return (
       <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
@@ -197,7 +199,7 @@ function DistrictTable({ e }: { e: Edition }) {
   return (
     <section className="mt-12" aria-labelledby="by-district">
       <h2 id="by-district" className="h-section text-foreground mb-1">By district</h2>
-      <p className="mb-4 max-w-prose text-sm text-muted-foreground">
+      <p className="mb-4 max-w-prose text-sm text-body">
         Each cell shows the rent as a share of the same take-home pay, the median monthly asking rent and how many listings it is
         computed from. A dash means fewer listings than the publishing threshold.
       </p>
@@ -393,8 +395,10 @@ function Editions({ e, editions }: { e: Edition; editions: readonly Edition[] })
 function EditionNotes({ e, latest, errata }: { e: Edition; latest: Edition; errata: readonly Erratum[] }) {
   const notes = editionNotes(e, errata)
   if (e.edition === latest.edition && notes.length === 0) return null
+  // Between two hairlines, not a grey panel (2026-11-06 audit: the tint made the notes the heaviest thing above the figures). Classes
+  // only: this edition is frozen, its words as they were.
   return (
-    <div className="mt-4 max-w-prose space-y-2 rounded-xl bg-tint p-4 text-sm leading-relaxed text-body">
+    <div className="mt-4 max-w-prose space-y-2 border-y border-border py-3 text-sm leading-relaxed text-body">
       {e.edition !== latest.edition && (
         <p className="font-semibold text-foreground">
           This is the {editionMonth(e.edition)} edition. The newest is the{' '}

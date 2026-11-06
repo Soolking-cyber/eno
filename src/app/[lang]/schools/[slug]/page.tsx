@@ -120,7 +120,7 @@ export default async function SchoolPageRoute({ params }: Props) {
                 {page.awards.length > 0 && (
                   <p className="mt-2 flex flex-wrap gap-2">{page.awards.map((a) => <AwardBadge key={a.year} year={a.year} rank={a.rank} />)}</p>
                 )}
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="mt-1 text-sm text-body">
                   <KindLabel kind={school.kind} />
                   {school.districts.length > 0 && <> · {school.districts.slice(0, 3).map((d) => areaLabel(d, lang)).join(', ')}</>}
                   {school.districts.length > 3 && (
@@ -193,7 +193,7 @@ export default async function SchoolPageRoute({ params }: Props) {
               </section>
             </div>
             <aside className="mt-10 flex flex-col gap-6 lg:col-start-2 lg:row-start-1 lg:row-end-3 lg:mt-0">
-              <PaySection pay={page.pay} />
+              <PaySection pay={page.pay} slug={school.slug} />
               <AboutCard school={school} website={website} lang={lang} />
             </aside>
             {/* The page's footnote: last on a phone, after the pay note and the facts (inside the left column it fell between the open
@@ -253,7 +253,7 @@ function AboutCard({ school, website, lang }: { school: SchoolPage['school']; we
   )
 }
 
-function PaySection({ pay }: { pay: SchoolPage['pay'] }) {
+function PaySection({ pay, slug }: { pay: SchoolPage['pay']; slug: string }) {
   // ⚠️ `pay` holds ONLY the periods that cleared the floor (queries.ts publicPay): below it the page says
   // nothing period-specific, so it never reveals that a lone reviewer reported pay, or which kind.
   return (
@@ -261,11 +261,16 @@ function PaySection({ pay }: { pay: SchoolPage['pay'] }) {
       <h2 id="pay-h" className="text-lg font-bold text-foreground sm:text-xl"><Bilingual en="Pay reported by teachers" vi="Mức lương giáo viên báo cáo" /></h2>
       {pay.length === 0 ? (
         <p className="mt-2 max-w-prose text-sm leading-relaxed text-body">
+          {/* The way to report pay is in the note that asks for it, as "Write the first review" is in the reviews' (2026-11-06 audit:
+              the note said a review carries pay, and only the Reviews section linked the form). */}
           <Bilingual
-            en="Not enough pay reports yet. Teachers can add their pay to a review; it is never shown with the review, and a range appears here once {n} teachers have reported."
-            vi="Chưa đủ báo cáo lương. Giáo viên có thể ghi mức lương trong đánh giá; mức lương không bao giờ hiển thị cùng đánh giá, và khoảng lương chỉ xuất hiện ở đây khi có {n} giáo viên báo cáo."
+            en="Not enough pay reports yet. A range appears here once {n} teachers have reported; pay is never shown with a review."
+            vi="Chưa đủ báo cáo lương. Khoảng lương chỉ xuất hiện ở đây khi có {n} giáo viên báo cáo; mức lương không bao giờ hiển thị cùng đánh giá."
             values={{ n: String(PAY_MIN_REPORTS) }}
-          />
+          />{' '}
+          <Link href={`/schools/${slug}/review`} className="font-semibold text-accent-foreground hover:underline">
+            <Bilingual en="Add your pay to a review" vi="Thêm mức lương của bạn vào đánh giá" />
+          </Link>
         </p>
       ) : (
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">

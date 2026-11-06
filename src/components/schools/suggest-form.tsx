@@ -122,14 +122,17 @@ export function SuggestForm() {
         </div>
         <div className="flex flex-col gap-2">
           <label htmlFor="suggest-website" className={label}>{tr('Website or Facebook page (optional)', 'Website hoặc trang Facebook (không bắt buộc)')}</label>
-          {/* type="text", NOT "url": the browser's own URL check would refuse "example.edu.vn" — what the placeholder
-              invites — before the server, which accepts a bare domain, ever sees it (found on the scratch preview). */}
-          <Input id="suggest-website" type="text" inputMode="url" autoComplete="url" maxLength={300} placeholder="example.edu.vn" value={website} onChange={(e) => { setWebsite(e.target.value); setFound(null) }} className="min-h-11 rounded-xl" />
+          {/* type="text", NOT "url": the browser's own URL check would refuse a bare domain such as "abc.edu.vn" — what the
+              placeholder invites — before the server, which accepts one, ever sees it (found on the scratch preview). The placeholder
+              shows both kinds the label names, short enough for a 360px phone at the 16px touch size (2026-11-06 audit: it showed
+              a domain only). */}
+          <Input id="suggest-website" type="text" inputMode="url" autoComplete="url" maxLength={300} placeholder={tr('abc.edu.vn or facebook.com/abc', 'abc.edu.vn hay facebook.com/abc')} value={website} onChange={(e) => { setWebsite(e.target.value); setFound(null) }} className="min-h-11 rounded-xl" />
         </div>
         <div className="flex flex-col gap-2">
           <label htmlFor="suggest-note" className={label}>{tr('Anything that helps us find it (optional)', 'Thông tin giúp chúng tôi tìm nơi này (không bắt buộc)')}</label>
           <Textarea id="suggest-note" rows={3} maxLength={SUGGESTION_NOTE_MAX} value={note} onChange={(e) => setNote(e.target.value)} className="rounded-xl" />
-          <p className="text-xs text-muted-foreground">{tr('For example the street or the brand it trades under. No phone numbers or emails.', 'Ví dụ tên đường hoặc thương hiệu. Không ghi số điện thoại hay email.')}</p>
+          {/* What the note is for, and where a school's contact belongs instead (2026-11-06 audit: it only said what to leave out). */}
+          <p className="text-xs text-body">{tr('The street, or the brand it trades under. No phone numbers or emails: the website or Facebook page above is enough.', 'Tên đường hoặc thương hiệu của nơi đó. Không ghi số điện thoại hay email: website hoặc trang Facebook ở trên là đủ.')}</p>
         </div>
 
         {found?.kind === 'listed' && (

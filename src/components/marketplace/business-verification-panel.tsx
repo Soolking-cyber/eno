@@ -357,15 +357,18 @@ export function BusinessVerificationPanel({ showPersonSteps = true, flat = false
         </p>
       ) : (
         <>
+          {/* The files the documents route takes, said before the upload instead of after a refusal (2026-11-06 audit):
+              ERROR_COPY's unsupported_file_type and file_too_large, and the inputs' accept list. On BOTH paths (2026-11-06
+              review): a re-submit after an expiry uploads the same two files through the same buttons below. */}
           <p className="mt-2 text-sm leading-relaxed text-body">
             {live === 'expired'
-              ? tr(
+              ? `${tr(
                 'Your verification no longer matches your current details (or has expired). Re-submit the two documents to verify again.',
                 'Xác minh không còn khớp với thông tin hiện tại (hoặc đã hết hạn). Hãy gửi lại hai giấy tờ để xác minh lại.',
-              )
+              )} ${tr('JPG, PNG or PDF, up to 15 MB each.', 'JPG, PNG hoặc PDF, tối đa 15 MB mỗi tệp.')}`
               : tr(
-                'Add two proofs and a specialist confirms them: a business or ID document, and a bank document whose account-holder name matches your legal name. Your tax code is checked automatically.',
-                'Thêm hai giấy tờ để chuyên viên xác nhận: giấy tờ kinh doanh hoặc định danh, và giấy tờ ngân hàng có tên chủ tài khoản trùng với tên pháp lý của bạn. Mã số thuế được kiểm tra tự động.',
+                'Add two proofs and a specialist confirms them: a business or ID document, and a bank document whose account-holder name matches your legal name. JPG, PNG or PDF, up to 15 MB each. Your tax code is checked automatically.',
+                'Thêm hai giấy tờ để chuyên viên xác nhận: giấy tờ kinh doanh hoặc định danh, và giấy tờ ngân hàng có tên chủ tài khoản trùng với tên pháp lý của bạn. JPG, PNG hoặc PDF, tối đa 15 MB mỗi tệp. Mã số thuế được kiểm tra tự động.',
               )}
           </p>
           {live === 'rejected' && view?.note && (

@@ -68,9 +68,10 @@ export default async function SchoolReviewPage({ params }: Props) {
             </div>
           </div>
           {/* What a useful review covers first, then the way back to the school: on a phone the topics now follow the form, or the
-              sign-in card, directly — a preview of what is asked — instead of a card repeating the title (2026-11-06 audit). */}
+              sign-in card, directly — a preview of what is asked — instead of a card repeating the title (2026-11-06 audit). The
+              topics sit under a hairline, not in a grey panel that gave a list of suggestions a notice's weight (same audit). */}
           <aside className="mt-10 flex flex-col gap-4 lg:mt-3">
-            <section aria-labelledby="review-tips-h" className="rounded-2xl bg-tint p-4">
+            <section aria-labelledby="review-tips-h" className="border-t border-border pt-4">
               <h2 id="review-tips-h" className="text-base font-bold text-foreground">
                 <Bilingual en="What helps the next teacher" vi="Điều giúp giáo viên đến sau" />
               </h2>

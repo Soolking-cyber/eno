@@ -23,6 +23,7 @@ import { aiConsentNeeded, askAiConsentAnswer, type AiConsent } from '@/lib/ai-co
 import { useAiConsent } from '@/hooks/use-ai-consent'
 import { askForHelp, useConciergeAvailable } from '@/lib/concierge/client'
 import { variantOfLanguage } from '@/lib/lang-variant'
+import { THREAD_HEADER_CLASS } from '@/lib/thread-chrome'
 
 // The "eno AI" conversation — rendered as a native thread in the messages tab (the AI
 // is just another contact). Self-contained: messages live in component state +
@@ -222,8 +223,9 @@ export default function AiThreadPage() {
     // anchor has a bounded height to push against — without it the list grows past the
     // shell, content strands at the top, and a white void opens above the composer.
     <div className="flex h-full w-full flex-col overflow-hidden bg-background">
-      {/* Header — matches the thread page; back arrow only on mobile. */}
-      <div className="flex items-center gap-3 bg-background px-4 py-3">
+      {/* Header — matches the thread page; back arrow only on mobile. Below lg it is the top of the screen (no site header:
+          messages-shell.tsx, 2026-11-07 audit), so it wears the thread header's box and owns the status-bar inset. */}
+      <div className={THREAD_HEADER_CLASS}>
         {/* Pops rather than pushing /messages (src/lib/safe-back.ts) — same control, same
             rule as the regular thread; the href stays the cold-start fallback. */}
         {/* Back = nav chrome: h-6 at the platform weight, matching section-header's chevron. */}
@@ -267,11 +269,11 @@ export default function AiThreadPage() {
               // in the AI's place but the greeting: it reports what was on screen and never claims who wrote it, since a saved
               // chat cannot tell an answer from eno's own line (a limit, an error), nor a keyword answer from Google's.
               <div className="mt-0.5 flex items-center gap-1 px-1">
-                <span className="text-3xs text-ink-4">{fmtTime(m.createdAt, lang)}</span>
+                <span className="text-2xs text-ink-4">{fmtTime(m.createdAt, lang)}</span>
                 <ReportAiAnswer answer={m.content} />
               </div>
             ) : (
-              <span className="mt-0.5 px-1 text-3xs text-ink-4">{fmtTime(m.createdAt, lang)}</span>
+              <span className="mt-0.5 px-1 text-2xs text-ink-4">{fmtTime(m.createdAt, lang)}</span>
             )}
           </div>
         ))}

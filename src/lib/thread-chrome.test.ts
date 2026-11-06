@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { THREAD_HEADER_CLASS, isConversationPath, threadStripGates, type StripThread } from './thread-chrome'
+import { THREAD_HEADER_CLASS, dropsSiteHeader, isConversationPath, threadStripGates, type StripThread } from './thread-chrome'
 
 /**
  * THE THREAD'S CHROME (UX program 2, A7). Which pages drop the site header on a phone, the header that then
@@ -8,7 +8,7 @@ import { THREAD_HEADER_CLASS, isConversationPath, threadStripGates, type StripTh
  * and "Đã bán" only where a sale is the right word.
  */
 
-describe('isConversationPath — only a real conversation id drops the site header', () => {
+describe('isConversationPath — only a real conversation id, matched by its format', () => {
   // Prisma cuid() — 'c' + 24 lowercase letters / digits (the shape of every production Conversation.id).
   const ID = 'cmg8x0abc123def456ghi789j'
 
@@ -18,7 +18,7 @@ describe('isConversationPath — only a real conversation id drops the site head
     expect(isConversationPath(`/messages/${ID}/`)).toBe(true)
   })
 
-  it('⛔ every sibling route keeps the site header — today\'s and any future one', () => {
+  it('⛔ no sibling route is a conversation — today\'s and any future one', () => {
     // Today's siblings under src/app/[lang]/messages/: the eno AI chat and the composer's resolver.
     expect(isConversationPath('/messages/ai')).toBe(false)
     expect(isConversationPath('/messages/ai/')).toBe(false)
@@ -41,6 +41,22 @@ describe('isConversationPath — only a real conversation id drops the site head
     expect(isConversationPath('/messages/')).toBe(false)
     expect(isConversationPath(null)).toBe(false)
     expect(isConversationPath(undefined)).toBe(false)
+  })
+})
+
+describe('dropsSiteHeader — a conversation and the eno AI chat, named; every other sibling keeps the site header', () => {
+  it('a conversation id and the AI chat', () => {
+    expect(dropsSiteHeader('/messages/cmg8x0abc123def456ghi789j')).toBe(true)
+    expect(dropsSiteHeader('/messages/ai')).toBe(true)
+    expect(dropsSiteHeader('/messages/ai/')).toBe(true)
+  })
+
+  it('⛔ the inbox, the resolver, a near miss and any future sibling keep it', () => {
+    const keep = [
+      '/messages', '/messages/', '/messages/pending', '/messages/aix', '/messages/ai/x', '/messages/new', '/messages/e2e-conv-1',
+      '', null, undefined,
+    ]
+    for (const p of keep) expect(dropsSiteHeader(p)).toBe(false)
   })
 })
 

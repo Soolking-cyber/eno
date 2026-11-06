@@ -115,13 +115,15 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
         <Field invalid={!!fieldErr.phone}>
           <Label htmlFor="profile-phone">{tr('Contact phone (Zalo / WhatsApp)', 'Điện thoại (Zalo / WhatsApp)')}</Label>
           <FieldControl id="profile-phone" render={<Input id="profile-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" />} />
-          <FieldDescription className="text-muted-foreground">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ sau khi bạn trả lời — không hiển thị công khai.')}</FieldDescription>
+          <FieldDescription>{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ sau khi bạn trả lời — không hiển thị công khai.')}</FieldDescription>
           {fieldErr.phone && <FieldError>{fieldErr.phone}</FieldError>}
         </Field>
       </div>
 
       <div className="mt-4 flex items-center gap-3">
-        <Button variant="cta" onClick={save} disabled={saving || !dirty || name.trim().length < 2}>
+        {/* Neutral until something changes (2026-11-06 audit): at rest a disabled brand-blue "Save changes" read as broken.
+            The first edit makes it the CTA, as the handle's Save further down does. */}
+        <Button variant={dirty ? 'cta' : 'secondary'} onClick={save} disabled={saving || !dirty || name.trim().length < 2}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved && !dirty ? <Check className="h-4 w-4" /> : null}
           {saved && !dirty ? tr('Saved', 'Đã lưu') : tr('Save changes', 'Lưu thay đổi')}
         </Button>

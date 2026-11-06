@@ -438,6 +438,28 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
     })),
   }
 
+  /**
+   * The phone's "On this page" row (lg:hidden: from lg the rail beside the sections does this job). Built once, rendered in one
+   * of two places below: straight under the lede when the article has a lede row, else above the first section.
+   */
+  const phoneToc = content.sections.length >= 4 ? (
+    <details className="group mt-6 max-w-3xl border-y border-border lg:hidden">
+      {/* 2026-11-06 audit: ContentPage's contents row, one treatment for both families — the label in primary
+          ink and a 20px chevron that turns on open, a wash on press; the count is for a screen reader only (a bare
+          number beside the chevron read as unexplained). The links are ContentPage's 44px rows, not 20px inline
+          links a thumb had to hit. */}
+      <summary className="-mx-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-2 text-sm font-semibold text-foreground active:bg-muted [&::-webkit-details-marker]:hidden">
+        <span>{chrome.onThisPage}<span className="sr-only"> · {content.sections.length}</span></span>
+        <ChevronDown className="size-5 shrink-0 text-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+      </summary>
+      <ul className="pb-3">
+        {content.sections.map((s) => (
+          <li key={s.id}><a href={`#${s.id}`} className="-mx-2 block rounded-lg px-2 py-3 text-sm text-body hover:bg-muted hover:text-foreground active:bg-muted">{s.title}</a></li>
+        ))}
+      </ul>
+    </details>
+  ) : null
+
   return (
     <div className="flex min-h-page flex-col blob-bg">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(articleLd) }} />
@@ -457,11 +479,14 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
             <nav aria-label={chrome.breadcrumb} className="mb-4">
               <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-ink-4">
                 {content.breadcrumb.map((c, i, all) => (
-                  <li key={c.href} className="flex items-center gap-x-1.5">
+                  // 2026-11-06 audit: below sm a trail of three or more keeps its last crumb for a screen reader only, and the chevron
+                  // before it goes too. That crumb repeats the h1 printed right under it, and on a phone it wrapped the trail onto two
+                  // or three lines on every guide; "Home › Teach in Vietnam" still says where the page sits.
+                  <li key={c.href} className={`flex items-center gap-x-1.5${i === all.length - 1 && all.length > 2 ? ' max-sm:sr-only' : ''}`}>
                     {i < all.length - 1 ? (
                       <>
                         <Link href={c.href} prefetch={false} className="hover:text-accent-foreground hover:underline">{c.label}</Link>
-                        <ChevronRight className="size-3.5 text-ink-4" aria-hidden />
+                        <ChevronRight className={`size-3.5 text-ink-4${i === all.length - 2 && all.length > 2 ? ' max-sm:hidden' : ''}`} aria-hidden />
                       </>
                     ) : (
                       <span aria-current="page" className="text-body">{c.label}</span>
@@ -480,6 +505,11 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
             <time dateTime={modified}>{formatArticleDate(modified, articleLang)}</time> · {SITE_NAME}
           </p>
           <p className="mt-4 max-w-3xl text-base leading-relaxed text-body">{content.intro}</p>
+          {/* 2026-11-06 audit: with a lede row (a guide's Key points, the teach hub's facts, a vehicle hub's filters) the phone's
+              contents row comes first, straight under the lede. Below a long Key points box it landed a screen or more down,
+              behind the summary a reader may want to skip (judges: teach pages, the VinFast and driving-permit guides). With no
+              lede row it stays below the CTA and the disclosure, so a hub's one brand button keeps its place under the lede. */}
+          {content.ledeRow ? phoneToc : null}
           {content.ledeRow}
           {content.cta && <ArticleCta cta={content.cta} className="mt-6" />}
 
@@ -499,23 +529,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
               floated ~450px from the 60ch prose and ~280px from a vehicle hub's grid; it now sits 48px off the column it indexes. */}
           <div className={content.sections.length >= 4 ? 'lg:grid lg:grid-cols-[minmax(0,48rem)_15rem] lg:justify-start lg:gap-x-12' : undefined}>
             <div className="min-w-0">
-              {content.sections.length >= 4 && (
-                <details className="group mt-6 max-w-3xl border-y border-border lg:hidden">
-                  {/* 2026-11-06 audit: ContentPage's contents row, one treatment for both families — the label in primary
-                      ink and a 20px chevron that turns on open, a wash on press; the count is for a screen reader only (a bare
-                      number beside the chevron read as unexplained). The links are ContentPage's 44px rows, not 20px inline
-                      links a thumb had to hit. */}
-                  <summary className="-mx-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-2 text-sm font-semibold text-foreground active:bg-muted [&::-webkit-details-marker]:hidden">
-                    <span>{chrome.onThisPage}<span className="sr-only"> · {content.sections.length}</span></span>
-                    <ChevronDown className="size-5 shrink-0 text-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
-                  </summary>
-                  <ul className="pb-3">
-                    {content.sections.map((s) => (
-                      <li key={s.id}><a href={`#${s.id}`} className="-mx-2 block rounded-lg px-2 py-3 text-sm text-body hover:bg-muted hover:text-foreground active:bg-muted">{s.title}</a></li>
-                    ))}
-                  </ul>
-                </details>
-              )}
+              {content.ledeRow ? null : phoneToc}
               <ArticleSections sections={leadSections} className="mt-10" />
             </div>
             {content.sections.length >= 4 && (

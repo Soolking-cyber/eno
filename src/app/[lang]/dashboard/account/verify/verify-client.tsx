@@ -973,13 +973,14 @@ export function VerifyClient() {
             2026-10-16 (owner: "if they verify it should be auto"; the consent is clause 5 of the declaration below,
             identity-v2), never the document, and the teacher can hide it in their teacher profile. Web only under
             ios-hide-kyc (page.tsx sends the app to the hub); never put this on the hub (verification-client.tsx), which
-            the iOS app shows. */}
-        <p className="text-body">
+            the iOS app shows. A step under the lede (2026-11-06 audit): what the law asks reads first at reading size, and
+            what a verified identity adds is the detail under it — the intro in two weights, not two equal walls. */}
+        <p className="text-sm text-body">
           {tr('A verified identity also adds 10 points to your trust score — one of the factors in the order of browse results — while your verification is current.', 'Danh tính đã xác minh còn cộng 10 điểm vào điểm uy tín của bạn — một trong các yếu tố sắp xếp kết quả khi duyệt tin — trong thời gian kết quả xác minh còn hiệu lực.')}
           {' '}
           {tr('If you have a teacher profile, it shows “Identity verified” once your identity is verified — never your document or anything on it. You can hide it in your teacher profile.', 'Nếu có hồ sơ giáo viên, hồ sơ sẽ hiển thị nhãn “Đã xác minh danh tính” khi danh tính của bạn đã được xác minh — không bao giờ hiển thị giấy tờ hay thông tin trên giấy tờ. Bạn có thể ẩn nhãn này trong hồ sơ giáo viên.')}
         </p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-body">
           {/* Statute citations are shown as published, never machine-translated — a translator can mangle
               the decree and law numbers a reader would look up. */}
           {/* i18n-invariant: a statute citation. */}
@@ -1004,7 +1005,11 @@ export function VerifyClient() {
             together and a reader had to hunt for where each began. The words are the recorded text, untouched — only the
             line breaks became paragraphs (declaration-text.ts joins the lines with \n). */}
         <div className="space-y-2 text-sm leading-relaxed text-body">
-          {body.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+          {/* A numbered clause hangs its number in the margin (2026-11-06 audit), so (1)–(5) run down the left edge as a
+              list. 1.625em is the width of "(2) " to "(5) " here (22.6–23.1px of 14px Open Runde; "(1) " is 20.6px), so a
+              clause's later lines start under its first word; em, not px, so it holds at any text size. A class only:
+              every word and space is the recorded text. */}
+          {body.split('\n').map((line, i) => <p key={i} className={/^\(\d+\)\s/.test(line) ? 'pl-[1.625em] -indent-[1.625em]' : undefined}>{line}</p>)}
         </div>
 
         {/* The consent closes the card under a hairline (2026-11-06 audit), flat like the rest: the 40% grey box around it
@@ -1403,8 +1408,9 @@ export function VerifyClient() {
         in our own private storage for a person on our team to look at. This file's own history
         already records one correction for exactly this class of error; an inaccurate privacy claim
         on the page asking for a passport is the worst thing on it to get wrong.
+        In body ink, not the tertiary grey (2026-11-06 audit): this promise is not fine print.
       */}
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-body">
         {tr(
           'Your two photographs are stored privately by eno.vn and are opened only by a reviewer on our team, through a link that expires in ten minutes. We keep the result, the document expiry date, and a one-way fingerprint that lets us spot duplicate accounts — never the document number itself.',
           'Hai ảnh của bạn được eno.vn lưu trữ riêng tư và chỉ được mở bởi nhân viên xét duyệt của chúng tôi, qua đường dẫn hết hạn sau mười phút. Chúng tôi lưu kết quả, ngày hết hạn giấy tờ và một dấu vân tay một chiều để phát hiện tài khoản trùng lặp — không bao giờ lưu số giấy tờ.',

@@ -408,7 +408,9 @@ export default async function Storefront({ params }: Props) {
               ⚠️ FROM md, A ROW ON THE CARD'S BOTTOM LINE (2026-11-06 audit): there is room for one there, and as a column it
               floated at the top right, apart from "Chat now". Share · Report · Block now end Chat's line, at the far side. */}
           <div className="flex shrink-0 flex-col items-end gap-2 md:flex-row md:items-center">
-            <ShareButton url={canonical} title={shop.name} compact />
+            {/* The page-ground Share (2026-11-06 audit), in Report's own pill: a glyph on a phone, "Share" from sm. `compact` is the
+                over-photo control, and on the page it drew a grey disc beside two flush text pills. */}
+            <ShareButton url={canonical} title={shop.name} className="rounded-full px-2.5 py-1.5 text-xs" />
             {!onShopHost && <ReportButton sellerId={shop.sellerId} />}
             {!onShopHost && <BlockUserButton sellerId={shop.sellerId} shopOnly={blockShopOnly} name={shop.name} />}
           </div>

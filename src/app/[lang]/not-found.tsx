@@ -191,7 +191,13 @@ export default function NotFound() {
             ⚠️ The label must differ from that one's — two same-named landmarks are worse than one
             unnamed one.
           */}
-          <LocalizedNav label="Machine-readable indexes" labelVi="Chỉ mục cho máy đọc" className="mt-10 text-xs text-muted-foreground">
+          {/* ⚠️ VISUALLY HIDDEN, NOT REMOVED (2026-11-06 audit). The anchors, their path-as-text and this landmark are all still in
+              the server HTML (the agent contract above; not-found-contract.test.ts reads the hrefs), and a screen reader still
+              reaches the landmark. A sighted reader is offered the four ways out above; a keyboard that tabs into the links
+              brings the line into view (`focus-within:not-sr-only`, the skip link's pattern), and people reach the same three
+              documents from the footer's "Developers & API". As a visible footnote it still read as a developer panel in a
+              consumer's way out. The span carries the old top margin and ink, so the revealed line looks as it did. */}
+          <LocalizedNav label="Machine-readable indexes" labelVi="Chỉ mục cho máy đọc" className="sr-only focus-within:not-sr-only">
             {/* Plain <a>, not <Link>: these are non-HTML documents served by route handlers, and
                 the client router should not try to prefetch or soft-navigate them.
                 ⚠️ `type` IS THE ADVERTISED MEDIA TYPE OF THE TARGET, and it is here for the same
@@ -201,12 +207,14 @@ export default function NotFound() {
                 the route handler before editing: src/app/sitemap.xml/route.ts, llms.txt/route.ts
                 and openapi.json/route.ts are the authorities, and a `type` that disagrees with the
                 response is worse than none. */}
-            <MachineIndexLead />{' '}
-            <a href="/sitemap.xml" type="application/xml" className={MACHINE_LINK}>{SITEMAP_FILE}</a>
-            {' · '}
-            <a href="/llms.txt" type="text/plain" className={MACHINE_LINK}>{LLMS_FILE}</a>
-            {' · '}
-            <a href="/openapi.json" type="application/json" className={MACHINE_LINK}>{OPENAPI_FILE}</a>
+            <span className="mt-10 block text-xs text-muted-foreground">
+              <MachineIndexLead />{' '}
+              <a href="/sitemap.xml" type="application/xml" className={MACHINE_LINK}>{SITEMAP_FILE}</a>
+              {' · '}
+              <a href="/llms.txt" type="text/plain" className={MACHINE_LINK}>{LLMS_FILE}</a>
+              {' · '}
+              <a href="/openapi.json" type="application/json" className={MACHINE_LINK}>{OPENAPI_FILE}</a>
+            </span>
           </LocalizedNav>
         </div>
       </main>

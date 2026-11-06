@@ -14,8 +14,9 @@ export default function DisputesPage() {
     <div className="flex min-h-page flex-col">
       <Header />
       {/* Same max-w-7xl content width as the dashboard/header so the standalone page
-          matches the dashboard Disputes tab (the list is already 2-col on desktop). */}
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 py-10 sm:px-6 lg:px-8">
+          matches the dashboard Disputes tab (the list is already 2-col on desktop) — and the same top offset
+          as it and every tool page (2026-11-07 audit: py-10 set this title 16px lower than theirs). */}
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 pt-6 pb-12 sm:px-6 lg:px-8">
         <DisputesPanel />
       </main>
       <Footer compact />

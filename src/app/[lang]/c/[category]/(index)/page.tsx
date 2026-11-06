@@ -413,7 +413,9 @@ export default async function CategoryPage({ params }: Props) {
             {/* The strip's own Filters glyph at h-4, gap-1.5 on the BUTTON (asChild concatenates the child's className). */}
             {/* nofollow + no prefetch: /?category= is canonicalised to /, and a prefetch would render
                 the full explorer for everyone who scrolls this far (as the strip's Filters link). */}
-            <Button asChild variant="cta" size="none" className="gap-1.5">
+            {/* 2026-11-06 audit: the house secondary button (the district page's "← All …", the grid's "Show more"), not the
+                brand CTA. Under a short grid the blue block read as the page's main action, for a door the sort strip holds. */}
+            <Button asChild variant="outline" size="none" className="gap-1.5 border-line-strong font-bold hover:bg-muted hover:text-foreground">
               <Link href={explorerHref} rel="nofollow" prefetch={false} className="px-5 py-2.5">
                 {/* 2026-11-06 audit, second pass: the grid's end says what the strip's chip says ("Filters", with its glyph)
                     because it is the same door: this category, and homes while the grid is homes, into the explorer's facets
