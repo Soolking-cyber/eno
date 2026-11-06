@@ -31,7 +31,7 @@ import { rubberBand } from '@/hooks/use-swipe-dismiss'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
-import { cardArea, isHcmc } from '@/lib/city-short'
+import { cardArea, cardAreaEn, isHcmc } from '@/lib/city-short'
 import { cardTitle, hasImportDate, jobCardMeta } from '@/lib/card-title'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -200,7 +200,7 @@ function ListingCardImpl({
    * was 54 requested texts per Vietnamese home view (2026-09-29).
    */
   const translatedLocation = useTr(isHcmc(listing.location) ? '' : listing.location)
-  const displayLocation = isHcmc(listing.location) ? tr('HCM', 'TP.HCM') : cardArea(translatedLocation)
+  const displayLocation = isHcmc(listing.location) ? tr('HCM', 'TP.HCM') : lang === 'en' ? cardAreaEn(cardArea(translatedLocation)) : cardArea(translatedLocation)
   // Condition badge text for the metadata line. new/used are the canonical facet values
   // (verified in prod); an unexpected value is shown verbatim rather than dropped.
   const conditionLabel = listing.condition === 'new' ? tr('New', 'Mới')

@@ -42,6 +42,8 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // ever messaged about it, "someone not on eno" is already picked, so it is still one tap; when it cannot,
   // nothing is picked and the seller says it. Any other listing keeps the instant flip.
   const [soldOpen, setSoldOpen] = useState(false)
+  // A room is rented, not sold: the same status, in the word its owner would use.
+  const isRental = listing.category?.slug === 'rentals'
   const asksWhoBought = soldSheetApplies({ listingType: listing.listingType, categorySlug: listing.category?.slug })
 
   const title = lang === 'vi' ? (listing.titleVi || listing.title) : listing.title
@@ -68,7 +70,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       // tell a pulled seller the wrong story (gate review). The post wizard says it at the moment it happens instead.
       ? { label: tr('Held', 'Đang giữ'), variant: 'warning', className: 'text-2xs', cls: 'bg-warning/15 text-warning' }
       : status === 'sold'
-        ? { label: tr('Sold', 'Đã bán'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
+        ? { label: isRental ? tr('Rented', 'Đã cho thuê') : tr('Sold', 'Đã bán'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
         : status === 'hidden'
           ? { label: tr('Hidden', 'Đã ẩn'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
           // ⚠️ "Live" ONLY FOR `active` (break-ui, 2026-10-05). It used to be the fallback, so an `expired`
@@ -221,7 +223,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
         </Button>
       ) : status === 'active' ? (
         <Button variant="bare" size="none" onClick={() => (asksWhoBought ? setSoldOpen(true) : void setStatus('sold'))} className={chip}>
-          <CheckCircle2 className="size-4" /> {tr('Mark sold', 'Đã bán')}
+          <CheckCircle2 className="size-4" /> {isRental ? tr('Mark rented', 'Đã cho thuê') : tr('Mark sold', 'Đã bán')}
         </Button>
       ) : (
         <Button variant="bare" size="none" onClick={() => setStatus('active')} className={chip}>

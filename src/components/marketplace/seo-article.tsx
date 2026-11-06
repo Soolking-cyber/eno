@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, ArrowUpRight, ChevronRight, Info } from '@/components/ui/icons'
+import { ArrowRight, ArrowUpRight, ChevronDown, ChevronRight, Info } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Rows, Row } from '@/components/ui/rows'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
@@ -492,25 +492,37 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
             </aside>
           )}
 
-          {/* "On this page" — a plain anchor list. These guides run long by design and a reader who
-              arrived from a query about one of the sections should be able to reach it. It is also
-              how Google finds the jump links it sometimes shows under a result. */}
-          {content.sections.length >= 4 && (
-            <nav aria-label={chrome.onThisPage} className="mt-8 max-w-3xl border-t border-border pt-5">
-              <p className="eyebrow mb-3 text-ink-4">{chrome.onThisPage}</p>
-              <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {content.sections.map((s) => (
-                  <li key={s.id}>
-                    <a href={`#${s.id}`} className="text-sm font-semibold text-body hover:text-accent-foreground hover:underline">
-                      {s.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          )}
-
-          <ArticleSections sections={leadSections} className="mt-10" />
+          {/* "On this page". These guides run long by design, and a reader who arrived from a query about one section should reach it; it is also how
+              Google finds the jump links it sometimes shows under a result. One row on a phone, where the open list took most of a screen before
+              the first section; beside the text on desktop, where the column stood empty. */}
+          <div className={content.sections.length >= 4 ? 'lg:grid lg:grid-cols-[minmax(0,48rem)_15rem] lg:justify-between lg:gap-x-12' : undefined}>
+            <div className="min-w-0">
+              {content.sections.length >= 4 && (
+                <details className="mt-6 max-w-3xl border-y border-border lg:hidden">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-body [&::-webkit-details-marker]:hidden">
+                    <span>{chrome.onThisPage} <span className="font-normal text-ink-4">· {content.sections.length}</span></span>
+                    <ChevronDown className="size-4 text-ink-4" aria-hidden />
+                  </summary>
+                  <ul className="space-y-2 pb-4 pt-1">
+                    {content.sections.map((s) => (
+                      <li key={s.id}><a href={`#${s.id}`} className="text-sm font-medium text-accent-foreground hover:underline">{s.title}</a></li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              <ArticleSections sections={leadSections} className="mt-10" />
+            </div>
+            {content.sections.length >= 4 && (
+              <nav aria-label={chrome.onThisPage} className="hidden self-start lg:sticky lg:top-24 lg:mt-10 lg:block">
+                <p className="eyebrow mb-3 text-ink-4">{chrome.onThisPage}</p>
+                <ul className="space-y-2">
+                  {content.sections.map((s) => (
+                    <li key={s.id}><a href={`#${s.id}`} className="block text-sm font-medium text-body hover:text-accent-foreground hover:underline">{s.title}</a></li>
+                  ))}
+                </ul>
+              </nav>
+            )}
+          </div>
         </ArticleText>
 
         {/* Full width, not the 3xl prose column: in 768px the grid's four cards were ~180px and every

@@ -50,7 +50,7 @@ function Row({ name, children }: { name: LabelPair; children: ReactNode }) {
 export function RentalCosts({ rent, rows }: { rent: number | null; rows: readonly CostRow[] }) {
   return (
     <div className="space-y-2">
-      <h2 className="text-lg font-semibold text-foreground"><Bilingual en={RENTAL_FACT_LABELS.costs.label} vi={RENTAL_FACT_LABELS.costs.labelVi} /></h2>
+      <h2 className="text-lg font-semibold text-foreground sm:text-xl"><Bilingual en={RENTAL_FACT_LABELS.costs.label} vi={RENTAL_FACT_LABELS.costs.labelVi} /></h2>
       <dl className="divide-y divide-border text-sm">
         {rent != null && rent > 0 && <Row name={RENT_ROW}><VndValue value={rent} /><Per per={RENT_PER} /></Row>}
         {rows.map((r) => (

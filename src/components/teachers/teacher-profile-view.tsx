@@ -463,7 +463,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
           </div>
 
           <aside className="lg:sticky lg:top-24 lg:self-start">
-            {/* The rate sits with the action on desktop; below lg it stays in the cover card's head. */}
+            {/* The rate sits with the action: here on desktop, above the Contact button below lg. */}
             {cover && <p className="mb-3 hidden text-2xl font-bold tracking-tight text-price lg:block">{formatMoneyFull(cover.rate, '₫', moneyLocale(lang))} <span className="text-base font-semibold"><Bilingual en="/ hour" vi="/ giờ" /></span></p>}
             <TeacherContact listingId={listing.id} name={name} image={photo} cover={!!cover} />
           </aside>

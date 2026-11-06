@@ -1421,7 +1421,7 @@ export default async function ListingPage({ params }: Props) {
                 only when one of them does: an empty flex item in this gapped column would still earn a gap. */}
             {(showDescription || showDetails || amenities.length > 0) && (
             <div className="order-8 flex flex-col gap-8">
-              {/* Section headers on this page share ONE treatment (text-lg font-semibold, matching
+              {/* Section headers on this page share ONE treatment (text-lg sm:text-xl font-semibold, matching
                   the shelf + reviews headers below) with more space above (section gap) than below. */}
               {showDescription && (
               <div className="space-y-2">

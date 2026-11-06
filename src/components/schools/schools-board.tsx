@@ -100,6 +100,11 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
   }, [rows])
 
   const ranked = sort === 'top' || sort === 'net'
+  // Ranks stop at the first school nobody has voted on: below it the order is alphabetical, and a "#140" there
+  // reads as a verdict on a real employer. Both ranked sorts (compareSchools) put every school with an up-vote
+  // ahead of the unvoted ones, so the numbers run #1, #2, #3 with no gap; a school with only down-votes sorts
+  // below the unvoted and gets no number either.
+  const rankedUpTo = ranked ? (() => { const k = shown.findIndex((r) => r.up + r.down === 0); return k < 0 ? shown.length : k })() : 0
   return (
     <section aria-labelledby="schools-board-h" className="mt-8">
       <h2 id="schools-board-h" className="sr-only">{tr('Ranking', 'Bảng xếp hạng')}</h2>
@@ -166,7 +171,7 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
 
       {shown.length ? (
         <ol className="mt-2 flex flex-col gap-2">
-          {shown.map((r, i) => <BoardRowItem key={r.id} row={r} rank={ranked ? i + 1 : null} />)}
+          {shown.map((r, i) => <BoardRowItem key={r.id} row={r} rank={i < rankedUpTo ? i + 1 : null} />)}
         </ol>
       ) : (
         <EmptyState

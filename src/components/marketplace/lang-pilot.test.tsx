@@ -201,7 +201,7 @@ describe('localizedHref at each link site (source contract)', () => {
     expect(s).toMatch(/pageShare\(\{ title, description, url \}\)/)
   })
   it('district chips stay plain: their /vi twins would 404', () => {
-    expect(src('src/app/[lang]/c/[category]/[district]/page.tsx')).toMatch(/<Link href=\{`\/c\/\$\{cat\.slug\}\/\$\{d\.slug\}`\} \/>/)
+    expect(src('src/app/[lang]/c/[category]/[district]/page.tsx')).toMatch(/<Link href=\{`\/c\/\$\{cat\.slug\}\/\$\{d\.slug\}`\} prefetch=\{false\} \/>/)
   })
 })
 

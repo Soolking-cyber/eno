@@ -2479,6 +2479,8 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
   const { strip: showStrip, listingLive, offer: stripOffer, sold: stripSold, contact: stripContact, composerTag } =
     threadStripGates(thread, { contactRevealed: !!contact, showOffer, productThreadStrip: IS_SERVICES })
   const stripTitle = thread?.listing?.title ?? ''
+  // A room is rented, not sold: the strip's button, its confirm and its toast use the word its owner would.
+  const stripRental = thread?.listing?.categorySlug === 'rentals'
   // The inbox list (already in memory: it is the left pane / the page we came from) says this thread has NO
   // listing — support or the rental desk — so its loading state paints no item-strip placeholder. Unknown
   // (no row, or an older cached row without `listingId`) keeps the placeholder.
@@ -2504,7 +2506,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
         body: JSON.stringify({ status: 'sold' }),
       })
       if (!res.ok) throw new Error('status_failed')
-      toast.success(tr('Marked as sold', 'Đã đánh dấu là đã bán'))
+      toast.success(l.categorySlug === 'rentals' ? tr('Marked as rented', 'Đã đánh dấu là đã cho thuê') : tr('Marked as sold', 'Đã đánh dấu là đã bán'))
     } catch {
       setThread((t) => (t && t.listing && t.listing.id === l.id && t.listing.status === 'sold' ? { ...t, listing: { ...t.listing, status: before } } : t))
       toast.error(tr('Could not mark as sold — please try again.', 'Chưa đánh dấu được — vui lòng thử lại.'))
@@ -2748,7 +2750,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   disabled={markingSold}
                   className="relative shrink-0 rounded-full px-3 py-1.5 text-xs cursor-pointer tap-44"
                 >
-                  {tr('Mark sold', 'Đã bán')}
+                  {stripRental ? tr('Mark rented', 'Đã cho thuê') : tr('Mark sold', 'Đã bán')}
                 </Button>
               )}
               {/* The confirm for 'Đã bán' (portalled — where it sits in the tree changes nothing on screen).
@@ -2758,12 +2760,12 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                 <AlertDialogContent size="sm">
                   <AlertDialogHeader>
                     {/* A replacer FUNCTION: a string replacement would read `$&` / `$$` in a seller's title as patterns. */}
-                    <AlertDialogTitle className="[overflow-wrap:anywhere]">{tr('Mark "{title}" as sold?', 'Đánh dấu "{title}" là đã bán?').replace('{title}', () => stripTitle)}</AlertDialogTitle>
-                    <AlertDialogDescription>{tr('It will no longer be for sale. You can relist it from My listings.', 'Tin sẽ không còn được rao bán. Bạn có thể đăng lại trong Tin của tôi.')}</AlertDialogDescription>
+                    <AlertDialogTitle className="[overflow-wrap:anywhere]">{(stripRental ? tr('Mark "{title}" as rented?', 'Đánh dấu "{title}" là đã cho thuê?') : tr('Mark "{title}" as sold?', 'Đánh dấu "{title}" là đã bán?')).replace('{title}', () => stripTitle)}</AlertDialogTitle>
+                    <AlertDialogDescription>{stripRental ? tr('It will no longer be listed for rent. You can relist it from My listings.', 'Tin sẽ không còn được cho thuê. Bạn có thể đăng lại trong Tin của tôi.') : tr('It will no longer be for sale. You can relist it from My listings.', 'Tin sẽ không còn được rao bán. Bạn có thể đăng lại trong Tin của tôi.')}</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>{tr('Cancel', 'Hủy')}</AlertDialogCancel>
-                    <AlertDialogAction variant="cta" onClick={() => { void markSoldFromStrip() }}>{tr('Mark as sold', 'Đánh dấu đã bán')}</AlertDialogAction>
+                    <AlertDialogAction variant="cta" onClick={() => { void markSoldFromStrip() }}>{stripRental ? tr('Mark as rented', 'Đánh dấu đã cho thuê') : tr('Mark as sold', 'Đánh dấu đã bán')}</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>

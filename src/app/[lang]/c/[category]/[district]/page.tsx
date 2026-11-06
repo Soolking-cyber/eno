@@ -25,6 +25,7 @@ import { staleBelowFloor } from '@/lib/stale-noindex'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { localizedHref } from '@/lib/lang-pinned'
 import { crumbNames, districtMetadata, districtRentalsHeadline, homeFacts, linkedTier, listsHomesOnly, pageLang, rentalsPlaceLabel } from '../category-copy'
+import { AreaChipsRow } from '../(index)/area-chips-row'
 import { DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentIndexLink } from '../category-text'
 import { RentalCheckHint } from '@/components/marketplace/rental-check-toggle'
 import { notFound, permanentRedirect } from 'next/navigation'
@@ -392,40 +393,25 @@ export default async function CategoryDistrictPage({ params }: Props) {
         <h1 className="h-display text-foreground">
           {headline ? <RentalsDistrictHeading headline={headline} place={searchPlace} /> : <DistrictHeading name={cat.name} nameVi={cat.nameVi} place={searchPlace} />}
         </h1>
-        {/* Measured lede — 65ch, same as the category page. */}
-        <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
-          {/* ⚠️ THE SCOPE'S TRUE COUNT, NOT THE PAGE'S. This read `listings.length` — the survivors of
-              a 600-row window — and announced them as the district's inventory. */}
-          <DistrictLede
-            total={total} name={cat.name} nameVi={cat.nameVi} categorySlug={cat.slug} place={searchPlace} linked={linked}
-            homes={homes} homesLinked={homesLinked} slug={district}
-            linkable={districts.filter((d) => isIndexableCount(d.count)).map((d) => d.slug)}
-          />
-        </p>
         {/* ⛔ THE CHECK THE DESCRIPTION PROMISES IS ON THE PAGE (D1, v3): "Pick up to N and eno checks
             availability for free" is in the meta description, so the hint that says how is here, in the
             HTML with JavaScript off — rentals pages only, as on /c/rentals. */}
         {rentals && <RentalCheckHint className="mt-2 max-w-prose" />}
         {/* Filters, map and bedrooms at the top, above the rent block (rentals-03) — scoped to this page. */}
         <DistrictFilterRow categorySlug={cat.slug} district={district} homesOnly={!!homes} lang={lang} />
-        {/* Only for an HCMC district: the index covers Ho Chi Minh City and nothing else. The block when
-            the snapshot has a figure for this district; the plain link otherwise (and on eno.forum,
-            where RentIndexLink renders nothing). */}
-        {rentals && data.inHcmc && (rent ? <DistrictRent place={place} slug={district} cells={rent.cells} asOf={rent.asOf} /> : <RentIndexLink />)}
-
         {otherDistricts.length > 0 && (
-          <div className="mt-6 flex flex-wrap gap-2">
-            <span className="self-center text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
+          <AreaChipsRow>
+            <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
             {otherDistricts.map((d) => (
-              <Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+              <Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} prefetch={false} />} className="shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
                 <PlaceName en={d.label.en} vi={d.label.vi} />
               </Badge>
             ))}
-          </div>
+          </AreaChipsRow>
         )}
 
         {/* Masthead boundary — on the content box, like the sort strip's own border (C1-HAIRLINE). */}
-        <div aria-hidden className="mt-8 border-t border-border" />
+        <div aria-hidden className="mt-4 border-t border-border sm:mt-5" />
 
         <div className="mt-6">
           {/* sr-only h2 — card titles are h3s; without this the outline jumps h1 → h3. */}
@@ -449,6 +435,25 @@ export default async function CategoryDistrictPage({ params }: Props) {
         </div>
         {homes && <OtherRentalsLink n={homes.offices} href={localizedHref(`/?category=rentals&district=${district}&subcategory=office-rental`, lang)} />}
 
+        {/* The goods come first, as on /c (owner, 2026-10-18): the lede and the rent figures render after the grid, in the DOM too, so the first photo
+            is no longer 1,000px down a phone and the tab order follows what is painted. Both stay in the first HTML for crawlers. */}
+        <div className="mt-8 sm:mt-10">
+        {/* Measured lede — 65ch, same as the category page. */}
+        <p className="max-w-prose text-base leading-relaxed text-body">
+          {/* ⚠️ THE SCOPE'S TRUE COUNT, NOT THE PAGE'S. This read `listings.length` — the survivors of
+              a 600-row window — and announced them as the district's inventory. */}
+          <DistrictLede
+            total={total} name={cat.name} nameVi={cat.nameVi} categorySlug={cat.slug} place={searchPlace} linked={linked}
+            homes={homes} homesLinked={homesLinked} slug={district}
+            linkable={districts.filter((d) => isIndexableCount(d.count)).map((d) => d.slug)}
+          />
+        </p>
+        {/* Only for an HCMC district: the index covers Ho Chi Minh City and nothing else. The block when
+            the snapshot has a figure for this district; the plain link otherwise (and on eno.forum,
+            where RentIndexLink renders nothing). */}
+        {rentals && data.inHcmc && (rent ? <DistrictRent place={place} slug={district} cells={rent.cells} asOf={rent.asOf} /> : <RentIndexLink />)}
+
+        </div>
         <div className="mt-8 flex flex-wrap gap-3">
           <Button asChild variant="outline" size="none" className="border-line-strong font-bold hover:bg-muted hover:text-foreground">
             <Link href={localizedHref(`/c/${cat.slug}`, lang)} className="px-5 py-2.5 text-sm">

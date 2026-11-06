@@ -133,7 +133,7 @@ export function cardTitle({ title, lang, sellerId, categorySlug, listingType, co
   if (categorySlug === 'rentals') {
     if (sellerId === GOPLUS_SELLER_ID) {
       // A bare city or province ("Hồ Chí Minh", "Bình Dương") is all the info line would print, so the tail stays: it names the district.
-      if (!location || !NAMES_AN_AREA.test(location.normalize('NFC').trim())) return title
+      if (!location || isHcmc(location) || !NAMES_AN_AREA.test(location.normalize('NFC').trim())) return title
       out = src.replace(GOPLUS_LOCATION_TAIL, '')
       if (out === src) return title
     } else {

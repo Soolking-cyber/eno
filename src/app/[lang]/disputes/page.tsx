@@ -18,7 +18,7 @@ export default function DisputesPage() {
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 py-10 sm:px-6 lg:px-8">
         <DisputesPanel />
       </main>
-      <Footer />
+      <Footer compact />
     </div>
   )
 }

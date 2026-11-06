@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cardArea, isHcmc } from './city-short'
+import { cardArea, cardAreaEn, isHcmc } from './city-short'
 
 describe('isHcmc', () => {
   /** The value 9,726 of 9,773 live listings carry, in the exact form the database stores. */
@@ -73,5 +73,22 @@ describe('cardArea', () => {
   it('parses on Safari before 16.4: no lookbehind in the module that every card imports', async () => {
     const { readFileSync } = await import('node:fs')
     expect(readFileSync(new URL('./city-short.ts', import.meta.url), 'utf8')).not.toMatch(/\(\?<[!=]/)
+  })
+})
+
+describe('cardAreaEn', () => {
+  it('prints the spelling the English chips use', () => {
+    expect(cardAreaEn('Quận 12')).toBe('District 12')
+    expect(cardAreaEn('Quận Bình Thạnh')).toBe('Binh Thanh District')
+    expect(cardAreaEn('Huyện Bình Chánh')).toBe('Binh Chanh District')
+    expect(cardAreaEn('TP. Thủ Đức')).toBe('Thu Duc City')
+    expect(cardAreaEn('Tân Hưng')).toBe('Tan Hung')
+    expect(cardAreaEn('Hoàn Kiếm, Hà Nội')).toBe('Hoan Kiem, Ha Noi')
+  })
+  it('labels each administrative level on its own', () => {
+    expect(cardAreaEn('Quận Hoàn Kiếm, Hà Nội')).toBe('Hoan Kiem District, Ha Noi')
+    expect(cardAreaEn('Phường Bến Nghé, Quận 1')).toBe('Ben Nghe Ward, District 1')
+    expect(cardAreaEn('Phường 5')).toBe('Ward 5')
+    expect(cardAreaEn('TP.Thủ Đức')).toBe('Thu Duc City')
   })
 })

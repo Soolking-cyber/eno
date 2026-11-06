@@ -145,13 +145,17 @@ const SOCIAL_ICON: Record<Social['key'], (p: { className?: string }) => React.Re
 /** A legal-row link: 44px tall below sm by real height (see the row's note), unchanged from sm up. */
 const LEGAL_LINK = 'transition-colors hover:text-accent-foreground max-sm:inline-flex max-sm:min-h-11 max-sm:items-center'
 
-export function Footer() {
+/**
+ * `compact`: signed-in tool pages only (dashboard, disputes, a teacher's own tools). The operator's legal block, language, currency, legal links and
+ * Help center stay, as Decree 52 and the stores want; the link columns are for public pages, and on a short tool page they outweighed the tool.
+ */
+export function Footer({ compact = false }: { compact?: boolean } = {}) {
   const pathname = usePathname()
   if (isPostFlowPath(pathname)) return null
-  return <FooterBody />
+  return <FooterBody compact={compact} />
 }
 
-function FooterBody() {
+function FooterBody({ compact }: { compact: boolean }) {
   const { tr, lang } = useLanguage()
   /**
    * ⚠️ LITERAL `tr()` PAIRS, NOT A TEMPLATE. scripts/gen-ui-strings.mjs harvests `tr('…', '…')` by
@@ -413,6 +417,7 @@ function FooterBody() {
         {/* Symmetric rows on md+: row 1 = brand (2 tracks) + Explore (2 tracks); row 2 = the
             four link columns, one track each. The previous md:col-span-1 brand left row 2 with
             a dangling empty fourth track — three columns and a hole. */}
+        {!compact && (
         <div className="grid grid-cols-2 gap-8 border-t border-border/60 pt-12 md:grid-cols-4 max-sm:gap-y-5 max-sm:pt-8">
           {/* Brand column */}
           <div className="col-span-2 space-y-3">
@@ -673,6 +678,7 @@ function FooterBody() {
             ))}
           </Accordion>
         </div>
+        )}
 
         {/* Legal identity of the operator — Decree 52/2013 Đ.36/Đ.29 requires the
             company name, address, ERC and contacts displayed on the site. Values
@@ -801,6 +807,8 @@ function FooterBody() {
               Explore/columns pattern above (D-TAP): rows 44px apart, no overlap, no pseudo-element. From sm
               up the row is unchanged. */}
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 max-sm:justify-start max-sm:gap-y-0 lg:justify-end">
+            {/* The compact footer's link to help: its link columns, where Help center sat, are gone. */}
+            {compact && <a href="/help" className={LEGAL_LINK}>{tr('Help center', 'Trung tâm trợ giúp')}</a>}
             <a href="/terms" className={LEGAL_LINK}>{tr('Terms', 'Điều khoản')}</a>
             <a href="/privacy" className={LEGAL_LINK}>{tr('Privacy', 'Quyền riêng tư')}</a>
             <a href="/regulations" className={LEGAL_LINK}>{tr('Regulations', 'Quy chế')}</a>

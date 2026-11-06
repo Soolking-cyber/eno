@@ -514,7 +514,7 @@ export default function DisputeRoomPage() {
           </>
         )}
       </main>
-      <Footer />
+      <Footer compact />
     </div>
   )
 }

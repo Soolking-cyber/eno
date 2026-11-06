@@ -22,7 +22,7 @@ export default function TeacherJobMessagesPage() {
       <main id="main" tabIndex={-1} className="flex-1 max-w-2xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         <JobMessagesPanel />
       </main>
-      <Footer />
+      <Footer compact />
     </div>
   )
 }

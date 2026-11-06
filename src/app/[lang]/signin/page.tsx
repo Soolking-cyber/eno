@@ -81,6 +81,10 @@ function SignInPageInner() {
               real forum build, that was the last eno.vn string left on the page. */}
           {IS_SERVICES ? tr('Back to eno.forum', 'Về trang chủ') : tr('Back to eno.vn', 'Về trang chủ')}
         </LocalizedLink>
+        {/* The route to help on a phone, where the floating support mark stands down (it covered the legal line) and there is no tab bar. */}
+        <LocalizedLink href="/contact" className="relative tap-44 mt-4 flex items-center justify-center text-sm font-semibold text-accent-foreground hover:underline sm:hidden">
+          {tr('Trouble signing in? Contact support', 'Không đăng nhập được? Liên hệ hỗ trợ')}
+        </LocalizedLink>
         {/* Operator identity — this layout has no Footer, and Đ.36 wants the operator identifiable
             on every public page. Compact single block behind a hairline. */}
         <p className="mt-8 border-t border-border/60 pt-4 text-center text-3xs leading-relaxed text-ink-4">

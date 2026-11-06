@@ -96,7 +96,7 @@ export default function TrustPage() {
       ]}
     >
       <ContentSection id="colors" title="What the colors mean" titleVi="Ý nghĩa các màu">
-          <p className="text-sm leading-relaxed text-body"><Bilingual en="Scores run from 0 to 150." vi="Điểm nằm trong khoảng từ 0 đến 150." />{' '}<Tr text="Every account starts at 60 — a neutral 'Building' state, not a warning. The upper tiers are earned with real volume: a badge certifies a track record, never just a number." /></p>
+          <p className="text-base leading-relaxed text-body"><Bilingual en="Scores run from 0 to 150." vi="Điểm nằm trong khoảng từ 0 đến 150." />{' '}<Tr text="Every account starts at 60 — a neutral 'Building' state, not a warning. The upper tiers are earned with real volume: a badge certifies a track record, never just a number." /></p>
           {/* ⛔ ONLY BANDS A SCORE CAN REACH (C-TRUST, owner-approved 2026-09-29). This ladder opened
               with "Elite · 160 and up" while composeScore clamps every score at TRUST.MAX = 150
               (src/lib/trust-math.ts) — a published tier nobody can ever be in. trust-score.ts keeps
@@ -112,7 +112,7 @@ export default function TrustPage() {
       </ContentSection>
 
       <ContentSection id="built" title="How the score is built" titleVi="Điểm được tính thế nào">
-          <p className="text-sm leading-relaxed text-body"><Tr text="The score starts at 60 and adds four components, each with a hard ceiling — so no single tactic can be farmed to the top. Everything except verification is windowed: only recent behavior moves it." /></p>
+          <p className="text-base leading-relaxed text-body"><Tr text="The score starts at 60 and adds four components, each with a hard ceiling — so no single tactic can be farmed to the top. Everything except verification is windowed: only recent behavior moves it." /></p>
           <div className="mt-1">
             <Points rows={[
               // ⛔ MIRRORS TRUST.V_PHONE / V_KYC / V_AGE / V_AGE_DAYS (trust-math.ts); trust-ladder-contract.test.ts holds the
@@ -127,12 +127,12 @@ export default function TrustPage() {
       </ContentSection>
 
       <ContentSection id="reviews" title="Reviews that can't be gamed" titleVi="Đánh giá không thể gian lận">
-          <p className="text-sm leading-relaxed text-body"><Tr text="Only verified buyers — people who actually completed a deal through eno chat — can review, and each buyer counts once per 90 days. Ratings are statistically smoothed toward the platform average, so two perfect ratings can never beat two hundred near-perfect ones. Reply speed is judged the same way: a proven rate over many conversations beats a lucky streak of three." /></p>
-          <p className="text-sm leading-relaxed text-body"><Tr text="Who says it matters too: reviews and reports from established, verified accounts carry full weight, while a day-old account carries very little — so burner accounts can neither inflate a friend nor sink a rival." /></p>
+          <p className="text-base leading-relaxed text-body"><Tr text="Only verified buyers — people who actually completed a deal through eno chat — can review, and each buyer counts once per 90 days. Ratings are statistically smoothed toward the platform average, so two perfect ratings can never beat two hundred near-perfect ones. Reply speed is judged the same way: a proven rate over many conversations beats a lucky streak of three." /></p>
+          <p className="text-base leading-relaxed text-body"><Tr text="Who says it matters too: reviews and reports from established, verified accounts carry full weight, while a day-old account carries very little — so burner accounts can neither inflate a friend nor sink a rival." /></p>
       </ContentSection>
 
       <ContentSection id="penalties" title="What costs you trust" titleVi="Điều gì làm giảm uy tín">
-          <p className="text-sm leading-relaxed text-body"><Tr text="Only reports confirmed by our moderators count, weighted by severity and by the reporter's credibility. Minor issues fade in about 3 months of clean trading; misrepresentation takes about a year." /></p>
+          <p className="text-base leading-relaxed text-body"><Tr text="Only reports confirmed by our moderators count, weighted by severity and by the reporter's credibility. Minor issues fade in about 3 months of clean trading; misrepresentation takes about a year." /></p>
           <div className="mt-1">
             <Points rows={[
               ['Confirmed scam or counterfeit', -45, 'Does NOT fade with time — see below'],
@@ -146,11 +146,11 @@ export default function TrustPage() {
               src/lib/scam-hold-copy.test.ts. The old sentence promised the penalty would start fading
               after five new sales — sales the seller marked sold themselves. That exit was removed on
               2026-09-23; only a person ends a scam hold now, and a release does not thaw the penalty. */}
-          <p className="text-sm leading-relaxed text-body"><Tr text="A confirmed scam is different: waiting does nothing, and neither does marking items as sold. The seller's listings stay hidden until our team releases them — no sooner than 14 days after the report was confirmed, and only for a seller who has verified their identity and sent us a written plan. Time alone never launders fraud." />{' '}<Tr text="A release does not clear the record: the full penalty stays on the score, and while the confirmed report stands the seller can post again but keep at most 10 active listings." /></p>
+          <p className="text-base leading-relaxed text-body"><Tr text="A confirmed scam is different: waiting does nothing, and neither does marking items as sold. The seller's listings stay hidden until our team releases them — no sooner than 14 days after the report was confirmed, and only for a seller who has verified their identity and sent us a written plan. Time alone never launders fraud." />{' '}<Tr text="A release does not clear the record: the full penalty stays on the score, and while the confirmed report stands the seller can post again but keep at most 10 active listings." /></p>
       </ContentSection>
 
       <ContentSection id="fair" title="Fair by design" titleVi="Công bằng ngay từ thiết kế">
-          <p className="text-sm leading-relaxed text-body">
+          <p className="text-base leading-relaxed text-body">
             <Tr text="One hostile buyer can never sink a seller alone: reports only pull a tier down when they come from at least two different people AND exceed 2% of the seller's deals — or when a scam is confirmed. Penalties scale with your volume in practice, judgments are windowed so an old mistake doesn't mark you forever, and nothing heals by waiting: scores rise only through verification, real deals, real reviews, and fast replies. Daily gains are capped — only a newly verified phone or identity counts in full at once — so trust can only be built the slow, honest way — and higher trust ranks higher in search and the feed, so being reliable directly earns more views, chats, and sales." />
           </p>
       </ContentSection>

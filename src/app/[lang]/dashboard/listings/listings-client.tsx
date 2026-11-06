@@ -308,16 +308,15 @@ function AvailabilityButton({ dash, tr, lang }: {
         <Link
           href="/dashboard/availability"
           className={
-            // `text-destructive-foreground`, not `text-white`: the dark --destructive is a LIGHT red,
-            // and white on it measured 2.73:1 (3.17 before 2026-09-29). The token is white in light mode.
+            // The one blue, not red (2026-11-05): a review that is due is the next thing to do, not an alarm, and red is the Report colour.
             overdue
-              ? 'availability-overdue press inline-flex items-center gap-2 rounded-xl bg-destructive px-4 py-2.5 font-bold text-destructive-foreground cursor-pointer'
+              ? 'availability-overdue press inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 font-bold text-primary-foreground cursor-pointer'
               : 'press inline-flex items-center gap-2 rounded-xl bg-tint px-4 py-2.5 font-semibold text-body transition-colors hover:bg-muted cursor-pointer'
           }
         >
           <ListChecks className="h-4 w-4 shrink-0" />
           <span>{tr('Availability review', 'Xác nhận còn hàng')}</span>
-          <span className={overdue ? 'text-xs font-medium text-destructive-foreground/85' : 'text-xs font-medium text-ink-4'}>
+          <span className={overdue ? 'text-xs font-medium text-primary-foreground/90' : 'text-xs font-medium text-ink-4'}>
             {lastReviewed
               ? `· ${tr('Last reviewed', 'Xem lại lần cuối')} ${timeAgo(new Date(lastReviewed).toISOString(), lang)}`
               : `· ${tr('Not reviewed yet', 'Chưa xác nhận lần nào')}`}

@@ -66,3 +66,23 @@ export function cardArea(text: string): string {
   if (parts.length > 1 && isHcmc(parts[parts.length - 1])) parts.pop()
   return parts.join(', ') || text
 }
+
+const unaccent = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+/**
+ * A card's area in English: "Quận 12" reads as District 12 and "Quận Bình Thạnh" as Binh Thanh District, the spelling the area chips and H1s already use.
+ * 23 Vietnamese place names sat on the live English /c/rentals (measured 2026-11-05). Display only, for a stored value no translation reached.
+ */
+export function cardAreaEn(text: string): string {
+  return text.normalize('NFC').split(/\s*,\s*/).map(areaSegmentEn).join(', ')
+}
+
+/** One administrative level at a time: a comma-joined value carries several ("Phường Bến Nghé, Quận 1"), each with its own label. */
+function areaSegmentEn(segment: string): string {
+  const t = segment.trim()
+  const m = /^(Quận|Huyện|Phường|Xã|Thị trấn|TP\.?|Thành phố)\s*(.+)$/iu.exec(t)
+  if (!m) return unaccent(t)
+  const kind = m[1].toLocaleLowerCase('vi')
+  const label = kind.startsWith('phường') ? 'Ward' : kind === 'xã' ? 'Commune' : kind === 'thị trấn' ? 'Town' : kind.startsWith('tp') || kind.startsWith('thành') ? 'City' : 'District'
+  // A number leads ("District 1", "Ward 5"), a name follows ("Binh Thanh District"), as the English chips write them.
+  return /^\d+$/.test(m[2]) ? `${label} ${m[2]}` : `${unaccent(m[2])} ${label}`
+}

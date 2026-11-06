@@ -70,7 +70,12 @@ export default function ContactPage() {
       sections={RAIL}
     >
       <ContentSection id="support" title="Get help">
-        <p className="text-sm text-body">
+        {/* This page's whole job is reaching someone, so the routes are targets to tap, not links inside a sentence. */}
+        <div className="flex flex-wrap gap-3">
+          <a href={`mailto:${COMPANY.email}`} className="inline-flex min-h-11 items-center rounded-xl border border-border px-4 text-base font-semibold text-accent-foreground transition-colors hover:bg-muted">{COMPANY.email}</a>
+          {OPERATOR_REGISTERED ? <a href={`tel:${COMPANY.phone}`} className="inline-flex min-h-11 items-center rounded-xl border border-border px-4 text-base font-semibold text-accent-foreground transition-colors hover:bg-muted">{COMPANY.phone}</a> : null}
+        </div>
+        <p className="text-base leading-relaxed text-body">
           <Tr text="For anything about your account, a listing, a message or a payment question, email" />{' '}
           <a href={`mailto:${COMPANY.email}`} className={LINK}>{COMPANY.email}</a>
           {OPERATOR_REGISTERED ? (
@@ -81,7 +86,7 @@ export default function ContactPage() {
           ) : null}
           . <Tr text="We answer in Vietnamese and English." />
         </p>
-        <p className="text-sm text-body">
+        <p className="text-base leading-relaxed text-body">
           {/* The fastest route is genuinely not email, and saying so is more useful than a form.
               A signed-in user's thread carries the listing and the counterparty already. */}
           <Tr text="If your question is about a specific listing or a conversation, the quickest route is the in-app thread — it already carries the context, so nobody has to ask you for links or screenshots." />{' '}
@@ -91,9 +96,9 @@ export default function ContactPage() {
       </ContentSection>
 
       <ContentSection id="operator" title="Who operates this site">
-        <p className="text-sm text-body"><Tr text={OPERATOR_LINE} /></p>
+        <p className="text-base leading-relaxed text-body"><Tr text={OPERATOR_LINE} /></p>
         {OPERATOR_REGISTERED ? (
-          <p className="text-sm text-body">
+          <p className="text-base leading-relaxed text-body">
             <Tr text="Correspondence and legal notices can be sent to that address or to" />{' '}
             <a href={`mailto:${COMPANY.email}`} className={LINK}>{COMPANY.email}</a>.{' '}
             <Tr text="The person responsible for content is" /> {COMPANY.contentManager}.
@@ -102,7 +107,7 @@ export default function ContactPage() {
       </ContentSection>
 
       <ContentSection id="reporting" title="Reporting a problem">
-        <p className="text-sm text-body">
+        <p className="text-base leading-relaxed text-body">
           {/* ⚠️ Points at the in-product control rather than an inbox on purpose: a report filed
               through the app is deduplicated, attached to the item, and visible to moderation.
               An email about a listing arrives with none of that. */}
@@ -110,13 +115,13 @@ export default function ContactPage() {
           <Link href="/safety" className={LINK}><Tr text="Safe trading" /></Link>{' '}
           <Tr text="explains what we check and what to watch for when meeting or paying." />
         </p>
-        <p className="text-sm text-body">
+        <p className="text-base leading-relaxed text-body">
           <Tr text="If someone is in immediate danger, contact the local authorities first. We can help with the account afterwards." />
         </p>
       </ContentSection>
 
       <ContentSection id="privacy" title="Privacy and your data">
-        <p className="text-sm text-body">
+        <p className="text-base leading-relaxed text-body">
           <Tr text="To ask what personal data we hold, request a copy, or ask us to delete your account, email" />{' '}
           <a href={`mailto:${COMPANY.privacyEmail}`} className={LINK}>{COMPANY.privacyEmail}</a>.{' '}
           <Tr text="You can also export or delete your data yourself from account settings — that route is immediate and does not wait on us." />{' '}

@@ -403,7 +403,6 @@ async function buildWindow(
   return { rows: [...merged, ...top], diverse: groups.length >= 2 }
 }
 
-/** The goods seats' rows as a predicate — feed-diversity.ts isSecondHandGoods: used, for sale, in a category of things. */
 /** Below this many repeats from one seller the seller's rows are only reordered, with no extra query. */
 const COVER_REPEATS_WORTH_A_QUERY = 6
 
@@ -434,7 +433,9 @@ async function varyCovers(
   const split = new Map([...bySeller].map(([k, list]) => [k, splitRepeatedCovers(list)] as const))
   if (![...split.values()].some((v) => v.repeats.length > 0)) return win
 
-  const walls = [...split].filter(([, v]) => v.repeats.length >= COVER_REPEATS_WORTH_A_QUERY)
+  // Not a shared seat's sellers: their rows are dealt as one catalogue (feed-diversity.ts), so a top-up by seller could not keep that deal.
+  const sharedSellers = new Set(Object.values(SHARED_SEAT_SELLERS).flat())
+  const walls = [...split].filter(([k, v]) => v.repeats.length >= COVER_REPEATS_WORTH_A_QUERY && !sharedSellers.has(k))
   let more: Row[] = []
   if (walls.length > 0) {
     // One query per wall seller, each with its own exclusions and its own quota: a global `take` let one seller use up another's, and one
@@ -461,6 +462,7 @@ async function varyCovers(
   return { ...win, rows: rows.map((r) => queue.get(keyOf(r))!.shift()!) }
 }
 
+/** The goods seats' rows as a predicate — feed-diversity.ts isSecondHandGoods: used, for sale, in a category of things. */
 const GOODS_WHERE: Prisma.ListingWhereInput = { listingType: 'sell', condition: 'used', category: { slug: { in: [...GOODS_CATEGORY_SLUGS] } } }
 
 type SeatFields = Diversifiable & { sellerId: string }

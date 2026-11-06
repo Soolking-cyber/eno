@@ -949,7 +949,7 @@ export function VerifyClient() {
         {/* ⚠️ `hidden lg:flex` — SectionHeader already renders this title as the mobile bar, so an
             always-visible h1 put "Verify your identity" on the phone TWICE (two h1s). Desktop has
             no SectionHeader, so the h1 shows there. The description below stays on both. */}
-        <h1 className="h-display hidden items-center gap-2 text-foreground lg:flex">
+        <h1 className="h-title hidden items-center gap-2 text-foreground lg:flex">
           {/* Identity verification is first-party trust → the eno seal, not lucide ShieldCheck
               (icon-language §0b). Washed chief carries the brand; the LINE is currentColor and
               inherits the heading's ink (§0) — a blue outline beside a near-black heading would
