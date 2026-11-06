@@ -21,7 +21,7 @@ import { TAXONOMY } from '@/lib/taxonomy'
 
 type Item = {
   id: string; status: string; title: string | null; description: string | null; titleVi: string | null; descriptionVi: string | null; fbTitle: string; fresh: boolean
-  price: number | null; fbPrice: string | null; district: string | null; categorySlug: string | null; subcategorySlug: string | null; listingType: string | null
+  price: number | null; fbPrice: string | null; district: string | null; city: string | null; categorySlug: string | null; subcategorySlug: string | null; listingType: string | null
   attributes: Record<string, unknown> | null; reason: string | null; listingId: string | null; photo: string | null; photoCount: number
 }
 type State = { on: boolean; connected: boolean; phone: string | null; job: { id: string; status: string; createdAt: string; items: Item[] } | null }
@@ -48,7 +48,8 @@ export function FacebookImportPanel() {
     const words: Record<string, string> = {
       no_category: tr('Choose a category.', 'Hãy chọn danh mục.'),
       price_required: tr('Add a price in đồng.', 'Hãy thêm giá bằng đồng.'),
-      location_required: tr('Add the area: a ward or district.', 'Hãy thêm khu vực: phường hoặc quận.'),
+      location_required: tr('Add a ward or district to the location above.', 'Hãy thêm phường hoặc quận vào vị trí ở trên.'),
+      location_contact: tr('Remove phone numbers, contact details or words we don’t allow from the location above.', 'Hãy bỏ số điện thoại, thông tin liên hệ hoặc từ không được phép khỏi vị trí ở trên.'),
       contact_in_text: tr('Remove the phone number or contact details from the text.', 'Hãy bỏ số điện thoại hoặc thông tin liên hệ khỏi nội dung.'),
       banned_words: tr('The text has a word we don’t allow.', 'Nội dung có từ không được phép.'),
       title_short: tr('The title is too short.', 'Tiêu đề quá ngắn.'),
@@ -108,7 +109,29 @@ export function FacebookImportPanel() {
   useEffect(() => { if (state?.phone) setPhone((p) => p || (state.phone as string)) }, [state?.phone])
   const drafts = useMemo(() => (state?.job?.items ?? []).filter((i) => i.status === 'draft'), [state])
   const chosen = drafts.filter((d) => picked.has(d.id))
-  useEffect(() => { setPicked(new Set(drafts.filter((d) => !d.reason && d.price != null && d.district).map((d) => d.id))) }, [state?.job?.id, state?.job?.status])
+  useEffect(() => { setPicked(new Set(drafts.filter((d) => !d.reason && d.price != null).map((d) => d.id))) }, [state?.job?.id, state?.job?.status])
+
+  // ⛔ ONE PLACE FOR THE WHOLE IMPORT, CHECKED BY THE SELLER BEFORE ANYTHING IS PUBLISHED (owner, 2026-11-07: "imported post has wrong location … ask the user
+  // if location is correct … not per product but for whole import with default as taken from fb but they have to review it before posting no new buttons").
+  // It starts as the place Facebook gave most of these listings; Publish says "Check the location first" until the box is ticked, and every listing gets it.
+  // The tick confirms the text as shown: changing the text unticks it (commit gate, codex + opus).
+  const [area, setArea] = useState('')
+  const [areaOk, setAreaOk] = useState(false)
+  // ⛔ ONCE PER IMPORT, when its drafts are there: a seller's own correction and tick are never put back by a later poll or the job finishing (commit gate, opus).
+  const areaFor = useRef<string | null>(null)
+  // A new import is never published on the last one's tick (commit gate, codex + opus).
+  useEffect(() => { setAreaOk(false) }, [state?.job?.id])
+  useEffect(() => {
+    const jobId = state?.job?.id ?? null
+    const st = state?.job?.status
+    // Not while the import runs: the first draft's place is not yet "the place most listings had" (commit gate, opus).
+    if (!jobId || areaFor.current === jobId || drafts.length === 0 || st === 'queued' || st === 'reading' || st === 'sorting') return
+    areaFor.current = jobId
+    const count = new Map<string, number>()
+    for (const d of drafts) if (d.district) { const k = d.city && d.city !== d.district ? `${d.district}, ${d.city}` : d.district; count.set(k, (count.get(k) ?? 0) + 1) }
+    setArea([...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '')
+    setAreaOk(false)
+  }, [state?.job?.id, state?.job?.status, drafts])
 
   // ⛔ AN EDIT SAVES ON BLUR AND THE SAME TAP PRESSES PUBLISH: without waiting for it, the old price goes live and the edit then finds the row taken.
   const saving = useRef(new Set<Promise<boolean>>())
@@ -141,11 +164,12 @@ export function FacebookImportPanel() {
     }
     const out: Record<string, string> = {}
     for (const { id } of chosen) {
-      const r = await fetch(`/api/fb-import/items/${id}/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contactPhone: phone }) }).catch(() => null)
+      const r = await fetch(`/api/fb-import/items/${id}/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contactPhone: phone, area: area.trim() }) }).catch(() => null)
       const d = (await r?.json().catch(() => null)) as { ok?: boolean; code?: string; error?: string } | null
       out[id] = d?.ok ? 'ok' : d?.code ?? d?.error ?? 'publish_failed'
       setResults({ ...out })
-      if (out[id] === 'phone_required' || out[id] === 'phone_taken') break
+      // These are about the whole import, not this listing: the rest would fail the same way.
+      if (out[id] === 'phone_required' || out[id] === 'phone_taken' || out[id] === 'location_required' || out[id] === 'location_contact') break
     }
     const done = Object.values(out).filter((v) => v === 'ok').length
     if (done) toast.success(fillTemplate(tr('Published: {n}', 'Đã đăng: {n}'), 'Published: {n}', { n: String(done) }))
@@ -202,14 +226,25 @@ export function FacebookImportPanel() {
               <Input className="mt-1" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
             </label>
             )}
-            <Button className="ml-auto" variant="cta" loading={publishing} disabled={chosen.length === 0 || phone.replace(/\D/g, '').length < 9} onClick={() => void publish()}>
-              {fillTemplate(tr('Publish {n}', 'Đăng {n} tin'), 'Publish {n}', { n: String(chosen.length) })}
+            <Button className="ml-auto" variant="cta" loading={publishing} disabled={chosen.length === 0 || phone.replace(/\D/g, '').length < 9 || !areaOk || !area.trim()} onClick={() => void publish()}>
+              {areaOk && area.trim() ? fillTemplate(tr('Publish {n}', 'Đăng {n} tin'), 'Publish {n}', { n: String(chosen.length) }) : tr('Check the location first', 'Kiểm tra vị trí trước')}
             </Button>
+          </div>
+          <div className="space-y-2 rounded-xl border border-border p-3">
+            <label className="block text-sm font-medium text-ink">
+              {tr('Location of these listings', 'Vị trí của các tin này')}
+              <Input className="mt-1" placeholder={tr('Ward or district, city', 'Phường hoặc quận, thành phố')} maxLength={120} value={area} onChange={(e) => { setArea(e.target.value); setAreaOk(false) }} />
+            </label>
+            <p className="text-xs text-body">{tr('Taken from Facebook, which is often wrong. Every listing in this import gets this place.', 'Lấy từ Facebook, thường không chính xác. Mọi tin trong lần nhập này sẽ dùng vị trí này.')}</p>
+            <div className="flex items-center gap-2">
+              <Checkbox id="fbi-area-ok" checked={areaOk} onChange={(on: boolean) => setAreaOk(on)} />
+              <label htmlFor="fbi-area-ok" className="text-sm text-ink">{tr('This location is right', 'Vị trí này đúng')}</label>
+            </div>
           </div>
           <ul className="space-y-3">
             {drafts.map((d) => {
               const facets = d.categorySlug ? askableFacetsFor(d.categorySlug, d.subcategorySlug).filter((f) => isRequiredFacet(f) && f.key !== 'condition' && f.options?.length && !f.multi) : []
-              const why = results[d.id] && results[d.id] !== 'ok' ? results[d.id] : d.reason ?? (d.price == null ? 'price_required' : !d.district ? 'location_required' : null)
+              const why = results[d.id] && results[d.id] !== 'ok' ? results[d.id] : d.reason ?? (d.price == null ? 'price_required' : null)
               // The seller's own language first (owner, 2026-11-06): an edit saves in it, and Publish writes the other one again.
               // ⛔ EACH FIELD SAVES IN THE LANGUAGE OF THE TEXT SHOWN, which is the app's when it has one: an older draft with no Vietnamese shows English, and an
               // edit to it must not land in the Vietnamese field (commit gate, opus).
@@ -231,7 +266,6 @@ export function FacebookImportPanel() {
                       <Input key={`t-${titleLang}`} aria-label={tr('Title', 'Tiêu đề')} defaultValue={shownTitle} onBlur={(e) => { if (e.target.value !== shownTitle) void patch(d.id, { title: e.target.value, lang: titleLang }) }} />
                       <DraftPrice price={d.price} label={tr('Price in đồng', 'Giá bằng đồng')} onSave={(v) => void patch(d.id, { price: v })} />
                       {d.fbPrice && <p className="text-xs text-body">{fillTemplate(tr('Facebook said ₫{n}. Change it if we read it wrong.', 'Facebook ghi ₫{n}. Hãy sửa nếu chúng tôi đọc sai.'), 'Facebook said ₫{n}. Change it if we read it wrong.', { n: d.fbPrice })}</p>}
-                      <Input aria-label={tr('Area (ward or district)', 'Khu vực (phường hoặc quận)')} placeholder={tr('Area (ward or district)', 'Khu vực (phường hoặc quận)')} maxLength={80} defaultValue={d.district ?? ''} onBlur={(e) => { const v = e.target.value.trim(); if (v !== (d.district ?? '')) void patch(d.id, { district: v || null }) }} />
                       <ChipSelect label={tr('Category', 'Danh mục')} placeholder={tr('Choose a category', 'Chọn danh mục')} value={d.categorySlug ?? ''} options={categories} onChange={(v) => void patch(d.id, { categorySlug: v })} />
                       {facets.map((f) => (
                         <ChipSelect key={f.key} label={tr(f.label, f.labelVi)} placeholder={tr(f.label, f.labelVi)} value={String(d.attributes?.[f.key] ?? '')} options={f.options.map((o) => [o.value, tr(o.label, o.labelVi)])} onChange={(v) => void patch(d.id, { attributes: { ...(d.attributes ?? {}), [f.key]: v } })} />

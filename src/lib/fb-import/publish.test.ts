@@ -17,13 +17,13 @@ vi.mock('@/lib/handle', () => ({ consolidateSellerHandle: vi.fn() }))
 vi.mock('@/lib/enforcement', () => ({ postingGate: h.gate }))
 vi.mock('@/lib/core/bulk', () => ({ claimRehostedImages: h.claim, discardRehostedImages: h.discard, rehostListingImage: h.rehost }))
 vi.mock('@/lib/core/listings', () => ({ createListingCore: h.create }))
-vi.mock('@/lib/publish-guard', () => ({ PublishBlockedError: h.PublishBlockedError, containsContactInfo: () => false, findBannedWord: () => null }))
+vi.mock('@/lib/publish-guard', () => ({ PublishBlockedError: h.PublishBlockedError, containsContactInfo: () => false, findBannedWord: () => null, assertCleanTexts: (t: (string | null)[]) => { if (t.some((x) => x && /\d{9,}/.test(x))) throw new h.PublishBlockedError('contact_in_text', 'phone') } }))
 vi.mock('@/lib/log', () => ({ logError: vi.fn() }))
 vi.mock('@/app/api/listings/resolve-seller', () => ({ resolveSellerForPost: h.resolve }))
 vi.mock('./sort', () => ({ textProblem: (t: string) => (t.length < 3 ? 'title_short' : null), translateText: h.translate }))
 
 const { publishImportItem } = await import('./publish')
-const call = () => publishImportItem('p1', 'i1', '0901234567', '', new Headers())
+const call = (area = 'Quận 12, Hồ Chí Minh') => publishImportItem('p1', 'i1', '0901234567', '', new Headers(), area)
 const photos = Array.from({ length: 10 }, (_, i) => `https://scontent.fbcdn.net/${i}.jpg`)
 const ITEM = { id: 'i1', fbItemId: '12345678', title: 'A good chair', description: 'Solid', titleVi: 'Ghế tốt', descriptionVi: 'Chắc chắn', price: 500000, district: 'Quận 12', city: 'Hồ Chí Minh', categorySlug: 'furniture', subcategorySlug: null, listingType: 'sell', condition: 'used', brand: null, model: null, attributes: { color: 'red' }, specs: { year: 2020 }, raw: { photos, location: 'Thu Duc' } }
 
@@ -57,9 +57,9 @@ describe('publishImportItem', () => {
     expect(h.claim).toHaveBeenCalledWith(['https://sb.eno.vn/a.webp'])
     expect(h.create).not.toHaveBeenCalled()
   })
-  it('no area: says so before any photo is fetched', async () => {
-    h.items.findUniqueOrThrow.mockResolvedValue({ ...ITEM, district: ' ' })
-    expect(await call()).toEqual({ ok: false, code: 'location_required' })
+  it('no confirmed area: says so before any photo is fetched, whatever Facebook guessed', async () => {
+    h.items.findUniqueOrThrow.mockResolvedValue({ ...ITEM, district: 'Quận 12' })
+    expect(await call(' ')).toEqual({ ok: false, code: 'location_required' })
     expect(h.rehost).not.toHaveBeenCalled()
   })
   it('the area goes to the listing as the post form sends it', async () => {
@@ -158,6 +158,35 @@ describe('publishImportItem', () => {
       expect(await call()).toEqual({ ok: false, code: 'translation_failed' })
       expect(h.create).not.toHaveBeenCalled()
       expect(h.items.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'draft', reason: 'translation_failed' }) }))
+    })
+  })
+
+  describe('the location the seller confirmed for the whole import (owner, 2026-11-07)', () => {
+    it('replaces Facebook\'s guess on every listing, and Facebook\'s location line is not the listing\'s place text', async () => {
+      h.items.findUniqueOrThrow.mockResolvedValue({ ...ITEM, district: 'Quận 12', city: 'Hồ Chí Minh', raw: { photos, location: 'Somewhere wrong' } })
+      await call('Thảo Điền, Hồ Chí Minh')
+      const body = h.create.mock.calls[0][0].body
+      expect(body).toMatchObject({ district: 'Thảo Điền', city: 'Hồ Chí Minh' })
+      expect(body.location).toBeUndefined()
+    })
+    it('a city alone is no place to meet: nothing published, and the draft keeps no reason (it is the import\'s place, not this draft)', async () => {
+      expect(await call('Hồ Chí Minh')).toEqual({ ok: false, code: 'location_required' })
+      expect(h.create).not.toHaveBeenCalled()
+      expect(h.items.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'draft', reason: null }) }))
+      // A draft's own problem stays: only the import's place was wrong.
+      h.items.findUniqueOrThrow.mockResolvedValue({ ...ITEM, reason: 'title_short' })
+      await call('Hồ Chí Minh')
+      expect(h.items.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ reason: 'title_short' }) }))
+    })
+    it('the place is screened like a title: a phone number in it publishes nothing', async () => {
+      expect(await call('Quận 7 0901234567')).toEqual({ ok: false, code: 'location_contact' })
+      expect(h.create).not.toHaveBeenCalled()
+    })
+    it('nothing in the draft\'s details can put another place over the confirmed one', async () => {
+      h.items.findUniqueOrThrow.mockResolvedValue({ ...ITEM, specs: { year: 2020, district: 'Quận 1', city: 'Hà Nội', location: 'Elsewhere' } })
+      await call('Thảo Điền, Hồ Chí Minh')
+      expect(h.create.mock.calls[0][0].body).toMatchObject({ district: 'Thảo Điền', city: 'Hồ Chí Minh', year: 2020 })
+      expect(h.create.mock.calls[0][0].body.location).toBeUndefined()
     })
   })
 })
