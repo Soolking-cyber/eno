@@ -17,8 +17,11 @@ export default function ThreadLoading() {
           <Skeleton className="h-6 w-6 lg:hidden" />
           <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
           <div className="min-w-0 flex-1 space-y-1">
-            {/* counterpart name (text-sm) + the trust / presence line (text-2xs) */}
-            <Skeleton className="h-4 w-32" />
+            {/* counterpart name (text-sm, text-base from lg) + the trust / presence line (text-2xs). The name's bar sits in the
+                name's own line box, 20px and 24px from lg (2026-11-06 review): bare, the h-4 bar left this column at 30px, under the
+                36px avatar, while from lg the page's uncached header (its 24px name + the same trust-line placeholder) is 38px, so
+                the swap grew the header by 2px. */}
+            <div className="flex h-5 items-center lg:h-6"><Skeleton className="h-4 w-32" /></div>
             <Skeleton className="h-2.5 w-24" />
           </div>
         </div>
@@ -38,10 +41,10 @@ export default function ThreadLoading() {
           ))}
         </div>
 
-        {/* Composer — offer toggle · input (py-2.5 text-sm rows=1 → 42px) · send */}
+        {/* Composer — offer toggle · input (py-2.5, one 26px line at 16px, its border → 48px at every width) · send */}
         <div className="flex items-end gap-2 bg-background px-4 py-3 lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
-          <Skeleton className="h-[42px] flex-1 rounded-2xl" />
+          <Skeleton className="h-12 flex-1 rounded-2xl" />
           <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
         </div>
       </div>

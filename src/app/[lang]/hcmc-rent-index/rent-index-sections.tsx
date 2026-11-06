@@ -101,10 +101,12 @@ function Figure({ label, s, locale, four = false }: { label: ReactNode; s: Stats
     // ONE LINE BELOW md — the label, then the words and the count — not a ~100px block: on a phone, Houses and Rooms stacked two
     // of them between the city-wide figure and the district table (2026-11-06 audit). From md it is a column like the figures
     // beside it. Words, not a 30px bold dash: at that size the dash read as a loading bar (2026-11-06, both design judges).
+    // At 14px and text weight from md too, as on a phone (2026-11-07 audit: at 16px semibold the words under the floor took a
+    // figure's weight beside the one real figure, Houses and Rooms two thirds of the band).
     return (
       <div className={`${pad} max-md:flex max-md:flex-wrap max-md:items-baseline max-md:gap-x-3 max-md:py-3`}>
         <p className="text-sm font-semibold text-muted-foreground">{label}</p>
-        <p className="mt-2 text-base font-semibold text-muted-foreground max-md:mt-0 max-md:text-sm max-md:font-normal"><Tr text="Too few listings for a figure" /></p>
+        <p className="mt-2 text-sm text-muted-foreground max-md:mt-0"><Tr text="Too few listings for a figure" /></p>
         <p className="mt-2 text-xs text-muted-foreground max-md:mt-0">{count(s.n, locale)} <Tr text="listings" /></p>
       </div>
     )
@@ -227,7 +229,12 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
           the header row stays in the DOM for assistive tech but leaves the layout. Keeping one <table>
           keeps what the Dataset JSON-LD, print and a crawler read, and never prints a number twice.
           From md it is the plain table again, horizontally scrollable only if a column ever outgrows it.
-          ⚠️ AT MOST max-w-4xl: at the page's full width the district names sat ~700px from their figures (2026-11-06 audit). */}
+          ⚠️ AT MOST max-w-4xl: at the page's full width the district names sat ~700px from their figures (2026-11-06 audit).
+          Below md the Apartments column is the wider, 3fr to the others' 2fr (2026-11-07 audit): measured on Open Runde, its middle
+          half ("3,200,000 đ – 5,300,000 đ", 138px at 11px) now fits one line in 147px at 390, where a third of the row (114px)
+          broke it in two; Houses and Rooms keep 98px, room for an eight-digit figure ("88,800,000 đ", 95px at 14px bold).
+          ⚠️ NEVER NARROWER THAN THEIR FIGURE (min-content, 2026-11-06 gate review): at 360 a 2fr share is 89px, under that figure,
+          which never wraps, so it ran into the gap; there the Apartments column gives up the difference instead. */}
       <div className="max-w-4xl md:overflow-x-auto">
         <table className="w-full text-sm max-md:block md:min-w-[36rem]">
           <thead className="max-md:sr-only">
@@ -240,7 +247,7 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
           </thead>
           <tbody className="max-md:block">
             {index.districts.map((d) => (
-              <tr key={d.slug} className="border-t border-border max-md:grid max-md:grid-cols-3 max-md:gap-x-3 max-md:py-3">
+              <tr key={d.slug} className="border-t border-border max-md:grid max-md:grid-cols-[minmax(0,3fr)_minmax(min-content,2fr)_minmax(min-content,2fr)] max-md:gap-x-3 max-md:py-3">
                 <th scope="row" className="text-left align-top font-semibold text-foreground max-md:col-span-3 max-md:pb-2 md:min-w-[9rem] md:py-2 md:pr-4 xl:text-base">
                   {/* ⚠️ EVERY ROW HERE HAS ≥ 1 LISTING, AND /c/rentals/<slug> MATCHES A SUPERSET OF
                       THEM (the same curated spellings on `district` OR `location`; apartments, houses

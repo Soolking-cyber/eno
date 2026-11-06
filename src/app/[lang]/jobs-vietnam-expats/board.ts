@@ -250,6 +250,9 @@ const sameName = (a: string, b: string | null) => {
   return x.includes(y) || y.includes(x)
 }
 
+/** "Apply by 26 Oct 2026", or null with no date: the one wording a job's line and its parts share. */
+const applyByText = (j: BoardJob): string | null => (j.applyBy ? `Apply by ${formatCalendarDay(j.applyBy, 'en')}` : null)
+
 /**
  * The line under a job's title: employer · place (in the last section only — the three cities' headings name theirs) ·
  * pay · apply-by · where it came from: the site a linked job was posted on (left out when the site IS the employer, a
@@ -260,7 +263,7 @@ export function jobLine(j: BoardJob): string {
     j.employer,
     j.section === 'other' ? j.place : null,
     j.pay,
-    j.applyBy ? `Apply by ${formatCalendarDay(j.applyBy, 'en')}` : null,
+    applyByText(j),
     j.site && !sameName(j.site, j.employer) ? `via ${j.site}` : null,
     j.poster ? `posted directly by ${j.poster}` : null,
   ].filter(Boolean).join(' · ')
@@ -272,6 +275,16 @@ export function jobLine(j: BoardJob): string {
  */
 export function jobMeta(j: BoardJob): string {
   return jobLine({ ...j, pay: null })
+}
+
+/**
+ * jobMeta's line as its parts, the apply-by date marked, so a row can set the deadline in the title's ink (2026-11-07 audit:
+ * the employer, the deadline and the source read as one grey sentence, and a deadline was hard to find down the list). Split
+ * on the separator jobLine joins with, so the parts joined again are jobMeta's line exactly.
+ */
+export function jobMetaParts(j: BoardJob): { text: string; due: boolean }[] {
+  const due = applyByText(j)
+  return jobMeta(j).split(' · ').map((text) => ({ text, due: text === due }))
 }
 
 export type BoardSummary = {

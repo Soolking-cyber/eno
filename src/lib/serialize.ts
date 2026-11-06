@@ -192,7 +192,7 @@ export const LISTING_CARD_SELECT = {
   listingType: true,
   /**
    * ⚠️ READ FOR ONE STRING AND NEVER SHIPPED WHOLE: a job card's `jobType` (the jobs `jobtype` facet),
-   * which its price slot prints instead of "Salary: see details" (rentals-09). Measured 2026-10-04 over
+   * which its info line prints after the place (2026-11-07; rentals-09 printed it in the price slot). Measured 2026-10-04 over
    * every active listing: 55 bytes average, 222 max — under a seventh of `images`, which every card
    * already reads. Every other listing's attributes stop here.
    */

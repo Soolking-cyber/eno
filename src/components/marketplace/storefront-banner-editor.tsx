@@ -109,14 +109,16 @@ export function StorefrontBannerEditor({ bannerUrl, handle, onSaved }: Props) {
 
   return (
     <div>
-      <p className="text-sm text-muted-foreground">
+      {/* Body ink, not the tertiary grey (2026-11-07 audit): on the Profile tab every line, label and field read pale enough that
+          judges took the editable form for a disabled one. FieldDescription's ink, like the phone note under the profile. */}
+      <p className="text-sm text-body">
         {tr(
           `Shown across the top of your storefront. Upload a wide image — ${BANNER_W} × ${BANNER_H} works best.`,
           `Hiển thị ở đầu trang cửa hàng của bạn. Hãy dùng ảnh ngang — ${BANNER_W} × ${BANNER_H} là đẹp nhất.`,
         )}
       </p>
       {shopUrl && (
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p className="mt-1 text-xs text-body">
           {tr('Your storefront:', 'Cửa hàng của bạn:')}{' '}
           {/* Opens the shop IN THE APP at eno.vn/<handle> (owner, 2026-09-13: "when seller clicks my storefront
               use page redirect only"); the text is the shareable subdomain address. */}
@@ -137,7 +139,7 @@ export function StorefrontBannerEditor({ bannerUrl, handle, onSaved }: Props) {
           {url ? (
             <Image src={url} alt="" width={BANNER_W} height={BANNER_H} className="h-full w-full object-cover" unoptimized />
           ) : (
-            <span className="flex h-full w-full items-center justify-center gap-2 text-sm font-medium text-muted-foreground">
+            <span className="flex h-full w-full items-center justify-center gap-2 text-sm font-semibold text-body">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-5 w-5 shrink-0" />}
               {tr('Add a banner', 'Thêm ảnh bìa')}
             </span>

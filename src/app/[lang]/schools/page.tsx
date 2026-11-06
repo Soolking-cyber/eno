@@ -60,30 +60,34 @@ export default async function SchoolsPage({ params }: { params: Promise<{ lang: 
           <div className="min-w-0">
             <h1 className="h-display text-foreground"><Bilingual en="Saigon schools, ranked by teachers" vi="Trường học ở Sài Gòn, do giáo viên xếp hạng" /></h1>
             <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
-              {/* Two short sentences, not a 330-character paragraph that ran eight lines on a phone above the links and the search
-                  (2026-11-06 audit): what is listed, then what a vote means and what the reviews cover. */}
+              {/* One sentence: what a vote means and what the reviews cover, four lines on a 390px phone where two sentences ran six above
+                  the links and the search (2026-11-07 audit). The kinds of place the first sentence listed are the type chips over the
+                  list, which name and count them; the city is the title's. */}
               <Bilingual
-                en="English centres, international and bilingual schools and teacher recruiters in Ho Chi Minh City. Teachers who worked or interviewed there vote a place up if they would recommend working there, down if not, and review its pay, hours and contracts."
-                vi="Trung tâm tiếng Anh, trường quốc tế, trường song ngữ và đơn vị tuyển dụng giáo viên tại TP. Hồ Chí Minh. Giáo viên từng làm việc hoặc phỏng vấn ở đó bình chọn lên nếu thấy nên làm việc ở đó, xuống nếu không, và đánh giá về lương, giờ dạy và hợp đồng."
+                en="Teachers who worked or interviewed at a school vote it up if they would recommend working there, down if not, and review its pay, hours and contracts."
+                vi="Giáo viên từng làm việc hoặc phỏng vấn ở một trường bình chọn lên nếu thấy nên làm việc ở đó, xuống nếu không, và đánh giá về lương, giờ dạy và hợp đồng."
               />
             </p>
+            {/* Grouped (2026-11-07 audit: six links of one weight read as a loose cluster beside the search): first the places a
+                teacher reads on to, in bold, then the two asks, suggest a school and post a job, in the link ink at text weight. In
+                English on a 390px phone the row runs four lines where it ran five. */}
             <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
               <a href="#how-it-works" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="How the ranking works" vi="Cách xếp hạng hoạt động" /></a>
-              <Link href="/c/jobs" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Browse all jobs" vi="Xem mọi việc làm" /></Link>
+              <Link href={`${AWARDS_PATH}/${awardYear}`} className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Teachers' Choice {y}" vi="Giáo viên bình chọn {y}" values={{ y: String(awardYear) }} /></Link>
               {/* The teacher library's hub (teacher visibility plan, 2026-10-18 — src/lib/teach-guides/site-links.ts): the
                   page teachers reach to vet a school linked nothing in it. English-only guides, so `hrefLang` and the
                   Vietnamese label says so. Marketplace only: eno.forum 308s the library to eno.vn. */}
               {!IS_SERVICES && (
                 <Link href={TEACH_HUB_PATH} hrefLang="en" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Guide to teaching in Vietnam" vi="Cẩm nang dạy học ở Việt Nam (tiếng Anh)" /></Link>
               )}
-              <Link href="/schools/suggest" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Missing a school? Suggest it" vi="Thiếu trường? Đề xuất ngay" /></Link>
-              <Link href={`${AWARDS_PATH}/${awardYear}`} className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Teachers' Choice {y}" vi="Giáo viên bình chọn {y}" values={{ y: String(awardYear) }} /></Link>
+              <Link href="/c/jobs" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Browse all jobs" vi="Xem mọi việc làm" /></Link>
+              <Link href="/schools/suggest" className="text-accent-foreground hover:underline"><Bilingual en="Missing a school? Suggest it" vi="Thiếu trường? Đề xuất ngay" /></Link>
               {/* The school side's way in (teacher visibility plan §4 channel 6; copy approved in the plan, 2026-10-18 —
                   teaching-links.tsx PostJobLink): "Hiring? Post your job ad free on eno", to the post form with Jobs picked.
-                  Last in the row, after the teachers' links, at the row's top level — no edition gate around it (the test
-                  pins that); the whole prompt is the link, in the row's classes, like "Missing a school? Suggest it".
-                  Both editions — the post form is on both. */}
-              <PostJobLink row href={localizedHref('/post?category=jobs', lang)} className="font-semibold text-accent-foreground hover:underline" />
+                  Last in the row, after the teachers' links and "Missing a school? Suggest it", at the row's top level — no edition
+                  gate around it (the test pins that); the whole prompt is the link, in that link's classes (the two asks at text
+                  weight since 2026-11-07). Both editions — the post form is on both. */}
+              <PostJobLink row href={localizedHref('/post?category=jobs', lang)} className="text-accent-foreground hover:underline" />
             </p>
             <SchoolsBoard rows={rows} areas={areas} />
           </div>

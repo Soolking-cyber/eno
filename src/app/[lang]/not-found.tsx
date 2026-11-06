@@ -72,13 +72,18 @@ const MOTIF: { Icon: typeof MapPin; top: string; left: string; size: number; rot
   { Icon: Search, top: '58%', left: '71%', size: 46, rotate: -14 },
 ]
 
-const RECOVERY_LINK = 'font-semibold text-accent-foreground hover:underline'
+/**
+ * "Search all listings", the way out this page exists for. On a phone the four ways out are one column, this one first and a
+ * step larger, each a 44px line (2026-11-07 audit): as one wrapping group they broke 3 + 1 at 390px, the fourth alone on a
+ * second line, and still read as four near-equal choices (the Vietnamese labels are longer still). From sm, the one row.
+ */
+const RECOVERY_LINK = 'font-semibold text-accent-foreground hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center max-sm:text-base'
 /**
  * The other three ways out, a step below "Search all listings" (2026-11-06 audit): the footer's quiet link, body ink that
  * turns brand on hover. Four links in one brand blue read as four equal choices under the search box, and searching is
  * the way out this page exists for.
  */
-const SECONDARY_LINK = 'font-medium text-body transition-colors hover:text-accent-foreground'
+const SECONDARY_LINK = 'font-medium text-body transition-colors hover:text-accent-foreground max-sm:inline-flex max-sm:min-h-11 max-sm:items-center'
 /**
  * The machine documents' links (2026-11-06 audit): the same server-rendered anchors with the path as their text — the agent
  * contract below and not-found-contract.test.ts hold — in a footnote's ink, so a person is offered four ways out, not seven.
@@ -146,7 +151,7 @@ export default function NotFound() {
             gen-ui-strings.mjs's services path list, so a services word here ships in the catalogue
             every eno.vn visitor downloads. See the header of src/app/[lang]/about/page.tsx.
           */}
-          <LocalizedNav label="Where to go next" labelVi="Đi tiếp đến đâu" className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm">
+          <LocalizedNav label="Where to go next" labelVi="Đi tiếp đến đâu" className="mt-3 flex flex-col items-center text-sm sm:mt-6 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-4 sm:gap-y-2">
             {/* The home explorer in the reader's language (`/vi` on a Vietnamese 404) — a client island. */}
             <NotFoundHomeLink className={RECOVERY_LINK} />
             {/*

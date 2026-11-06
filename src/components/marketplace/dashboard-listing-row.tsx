@@ -93,8 +93,8 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // ⚠️ NO icon color override here (§6/§1 currentColor law): the glyph inherits the chip's own
   // text-foreground, so all three siblings (Discount / Mark sold / …) carry ONE ink. A blue icon
   // beside an ink label made three adjacent chips read as three different controls.
-  // ⚠️ px-2.5, NOT px-3 (inbox-12): the three inline chips must sit on ONE row in the 220px a 360px phone
-  // leaves beside the 80px thumb (336 content − p-3 − thumb − gap). Measured with Open Runde's advance
+  // ⚠️ px-2.5, NOT px-3 (inbox-12): the three inline chips must sit on ONE row in the 244px a 360px phone
+  // leaves beside the 80px thumb (336 content − thumb − gap; 220px while the row still had side padding). Measured with Open Runde's advance
   // widths, worst case each language: vi "Sửa · Đăng lại · •••" 196px, en "Edit · Mark sold · •••" 208px.
   const chip =
     'inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-tint px-2.5 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:opacity-40 cursor-pointer [&_svg]:size-4'
@@ -333,10 +333,13 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // ⚠️ lg: THE ACTIONS TAKE THE ROW'S TRAILING EDGE (2026-11-06 audit). Stacked under the text on a 1,200px row they made
   // every row 132px tall around an 80px photo, with the list's right half empty. Beside the text, the photo (96px from
   // lg; the 80px srcset's 128/256 candidates still cover it) sets the row at 120px, and the chips end on one line at
-  // the row's edge, down the list. Phones keep the stack: the 220px beside a 360px phone's thumb cannot also hold the chips.
+  // the row's edge, down the list. Phones keep the stack: the 244px beside a 360px phone's thumb cannot also hold the chips.
   // ListingRowSkeleton (listings-client.tsx) mirrors both shapes.
+  // ⚠️ FLAT, BETWEEN HAIRLINES (2026-11-07 audit): the list draws a rule between rows (listings-client.tsx), so the row has no
+  // radius (a rounded box bends its rule up at the corners) and, below lg, no side padding: the photo starts on the edge the
+  // greeting, the stats and the status filter start on. From lg the hover band keeps its px-3.
   return (
-    <div className={cn('flex gap-3 rounded-2xl p-3 transition-colors lg:items-center lg:gap-4', selected ? 'bg-accent' : 'hover:bg-muted')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
+    <div className={cn('flex gap-3 py-3 transition-colors lg:items-center lg:gap-4 lg:px-3', selected ? 'bg-accent' : 'hover:bg-muted')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
       {selectable && <span className="self-center">{checkbox}</span>}
       {selectable ? (
         <Button variant="bare" size="none" onClick={open} className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint lg:h-24 lg:w-24" aria-label={title}>
@@ -356,10 +359,14 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
       <div className="min-w-0 flex-1 lg:flex lg:items-center lg:gap-6">
         <div className="min-w-0 lg:flex-1">
-          {/* lg: the pill follows the title; justify-between left it ~900px from the words it qualifies on a wide row. */}
+          {/* lg: the pill follows the title; justify-between left it ~900px from the words it qualifies on a wide row.
+              Below lg a LIVE row shows no pill (2026-11-07 audit): "Live" on nearly every row cut its title short beside the
+              80px photo, to repeat what the row's own actions and the Active filter already say. Held, Sold or Rented,
+              Hidden, Expired and Not live keep theirs; the desktop row, with room beside the title, keeps Live too.
+              sr-only, not hidden: a screen reader still hears "Live" after the title. */}
           <div className="flex items-start justify-between gap-2 lg:justify-start">
             <p className="min-w-0 truncate text-base font-semibold text-foreground">{title}</p>
-            <Badge variant={statusChip.variant} size="md" className={statusChip.className}>{statusChip.label}</Badge>
+            <Badge variant={statusChip.variant} size="md" className={cn(statusChip.className, isPublic && 'max-lg:sr-only')}>{statusChip.label}</Badge>
           </div>
           <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} linked={listing.isPartnerBooking} compact className="text-base" />
           <div className="mt-0.5">{meta}</div>

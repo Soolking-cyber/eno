@@ -8,7 +8,7 @@
  *     focus link goes through localizedHref in the reader's variant;
  *   · the support mark's yield (`data-fab-avoid`) sits on each <Price> figure, never on the full-width row,
  *     and the "≈ $" estimate is never hidden (owner, 2026-09-13);
- *   · a price-0 job hands <Price> its type · city, or null with no type.
+ *   · a price-0 LINKED job hands <Price> null — its slot holds pay only — and its type follows the place (2026-11-07).
  * The card's own rules are the subject; everything else it pulls in is stubbed (the trust-chip test's harness).
  */
 import React from 'react'
@@ -186,33 +186,44 @@ describe('ListingCard — the price row', () => {
     expect(prices.map((p) => p.getAttribute('data-fab-avoid-prop'))).toEqual(['true', 'true'])
   })
 
-  it('never hides the "≈ $" estimate, on a per-unit price or any other (owner, 2026-09-13)', () => {
-    expect(card().querySelector('[data-price]')!.getAttribute('data-approx-class')).toBe('')
+  it('never hides the "≈ $" estimate, on a per-unit price or any other (owner, 2026-09-13) — its one class is the desktop ink', () => {
+    expect(card().querySelector('[data-price]')!.getAttribute('data-approx-class')).toBe('lg:text-body')
     cleanup()
-    expect(card({ priceUnit: '', category: { icon: 'phone', slug: 'electronics' }, listingType: 'sell' }).querySelector('[data-price]')!.getAttribute('data-approx-class')).toBe('')
+    expect(card({ priceUnit: '', category: { icon: 'phone', slug: 'electronics' }, listingType: 'sell' }).querySelector('[data-price]')!.getAttribute('data-approx-class')).toBe('lg:text-body')
   })
 
-  it('a price-0 job hands <Price> its type and city', () => {
+  it('a price-0 linked job hands <Price> null — the slot holds pay only — and its type follows the place on the info line', () => {
     const job = { category: { icon: 'briefcase', slug: 'jobs' }, listingType: 'job', price: 0, city: 'Hà Nội', sellerId: 'eslboards-com-import-seller-0001' }
-    expect(card({ ...job, jobType: 'fulltime' }).querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('Toàn thời gian · Hà Nội')
+    const inVi = card({ ...job, jobType: 'fulltime' })
+    expect(inVi.querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('null')
+    // The place first and the type after it (review r31, 2026-11-07): the newest fact is the one the ellipsis takes.
+    expect(inVi.textContent).toContain('TP.HCM · Toàn thời gian')
     cleanup()
     lang.current = 'en'
-    expect(card({ ...job, jobType: 'fulltime' }).querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('Full-time · Hanoi')
+    const inEn = card({ ...job, jobType: 'fulltime' })
+    expect(inEn.querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('null')
+    expect(inEn.textContent).toContain('HCM · Full-time')
     cleanup()
-    expect(card({ ...job, jobType: null }).querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('null')
+    const untyped = card({ ...job, jobType: null })
+    expect(untyped.querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('null')
+    expect(untyped.textContent).not.toContain('Full-time')
   })
 
   it('every other card leaves jobMeta out', () => {
     expect(card().querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('undefined')
   })
 
-  it("an employer's own job (not linked) never gets jobMeta — it keeps \"Lương: thỏa thuận\"", () => {
+  it("an employer's own job (not linked) never gets jobMeta — it keeps \"Lương: thỏa thuận\" — and its type follows the place on the info line too", () => {
     const job = { category: { icon: 'briefcase', slug: 'jobs' }, listingType: 'job', price: 0, city: 'Hà Nội', sellerId: 'cm-employer-seller', isPartnerBooking: false }
-    expect(card({ ...job, jobType: 'fulltime' }).querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('undefined')
+    const c = card({ ...job, jobType: 'fulltime' })
+    expect(c.querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('undefined')
+    expect(c.textContent).toContain('TP.HCM · Toàn thời gian')
   })
 
-  it('a job card from a payload without the projection (full listing, stored card) keeps today\'s label', () => {
+  it('a job card from a payload without the projection (full listing, stored card) gets the same pay-only slot, and no type', () => {
     const job = { category: { icon: 'briefcase', slug: 'jobs' }, listingType: 'job', price: 0, city: 'Hà Nội', sellerId: 'eslboards-com-import-seller-0001' }
-    expect(card(job).querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('undefined')
+    const c = card(job)
+    expect(c.querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('null')
+    expect(c.textContent).not.toContain('Toàn thời gian')
   })
 })

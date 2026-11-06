@@ -32,7 +32,7 @@ import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
 import { cardArea, cardAreaEn, isHcmc } from '@/lib/city-short'
-import { cardTitle, hasImportDate, jobCardMeta } from '@/lib/card-title'
+import { cardTitle, hasImportDate, jobTypeLabel } from '@/lib/card-title'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
 // PostedAgo (not a bare timeAgo() call): the card's relative time is the SAME string the PDP prints, and it is safe on a cached page (relative-time.tsx).
@@ -242,17 +242,20 @@ function ListingCardImpl({
    */
   const canLocate = listing.lat != null && listing.lng != null && ['rentals', 'services', 'jobs'].includes(listing.category?.slug ?? '')
   /**
-   * A price-0 job's price slot: type · city, or null (no type → today's label, muted). Only computed for one.
-   * ⚠️ ONLY WHEN THE PAYLOAD CARRIES THE PROJECTION. `jobType` comes from serializeListingCard; a card built
-   * from a full listing (the trending / for-you rails, serializeListing) or a recently-viewed card stored on
-   * the device before it existed has no such key — that is "not known", not "no type", so it keeps today's
-   * label in today's ink rather than greying a job that may well have a type.
+   * A price-0 LINKED job's price slot (2026-11-07 audit): `null`, which <Price> prints as "Salary: see details" in the
+   * muted no-figure ink — the slot holds PAY and nothing else. Since rentals-09 it had printed "Full-time · Hanoi" when
+   * the payload carried a type, so one bold line alternated between a salary, a type and city, and the label, and the
+   * judges could not compare jobs by it (every round since all7). The type now joins the info line (`jobTypeText`,
+   * below). With or without the `jobType` projection (a full-listing rail card has none), the slot reads the same.
    */
-  // ⛔ A LINKED job only (`isPartnerBooking`): an employer's own job keeps "Lương: thỏa thuận" — <Price>
-  // ignores jobMeta there too (price.tsx `jobMeta`); not computing it also keeps its label untruncated.
-  const jobMeta = listing.listingType === 'job' && listing.price === 0 && listing.isPartnerBooking !== false && listing.jobType !== undefined
-    ? jobCardMeta(listing.jobType, listing.city, lang, tr)
-    : undefined
+  // ⛔ A LINKED job only (`isPartnerBooking`): an employer's own job keeps "Lương: thỏa thuận" in body ink — <Price>
+  // ignores jobMeta there too (price.tsx `jobMeta`).
+  const jobMeta = listing.listingType === 'job' && listing.price === 0 && listing.isPartnerBooking !== false ? null : undefined
+  /**
+   * The job type for the info line, after the place ("Full-time" / "Toàn thời gian"), on any job whose card payload carries
+   * the `jobType` projection (serializeListingCard); null otherwise, and the line reads as before.
+   */
+  const jobTypeText = listing.listingType === 'job' ? jobTypeLabel(listing.jobType, tr) : null
   // Video-on-card: <CardVideo> autoplays the clip (muted, looping, cover-first fade-in) once
   // the card settles in the viewport — mobile finally sees video without hover. The hover
   // flag just makes desktop start INSTANTLY instead of waiting for the settle beat.
@@ -1248,8 +1251,8 @@ function ListingCardImpl({
               Measured in the preview: that line and "15 triệu / tháng" fit at 390; "12,5 triệu / tháng"
               wraps there and fits at 412 — the full record is in vnd.ts. The skeleton reserves one
               line; see listing-card-skeleton.tsx. */}
-          {/* `jobMeta`: a price-0 LINKED job prints its type and city here instead of "Lương: xem chi
-              tiết" (rentals-09) — truncating, so the row stays one line and the card keeps its height.
+          {/* `jobMeta`: a price-0 LINKED job's slot holds pay only — `null`, the muted "Lương: xem chi tiết" (2026-11-07
+              audit). rentals-09 printed its type and city here; the type is now on the info line below.
               `fabAvoid`: the floating support mark fades over the figure rather than covering it
               (home-03; the owner's 09-25 yield model) — on the figure, never the full-width row. */}
           {/* `compact` (break-ui, 2026-10-05): 10 billion đồng and up reads "95 tỷ đ" here — at 320px the
@@ -1260,10 +1263,13 @@ function ListingCardImpl({
             compact
             compactAbove={pairCompactAbove}
             fabAvoid
+            // 2026-11-07 audit: the "≈ $" estimate in body ink from lg, where it read as faint beside the 18px price; a phone
+            // keeps the quieter grey. A colour only, never a hiding class (owner, 2026-09-13).
+            approxClassName="lg:text-body"
             price={listing.price}
             currency={listing.currency}
             priceUnit={listing.priceUnit}
-            className={cn('text-base leading-tight sm:text-lg', jobMeta && 'min-w-0 truncate')}
+            className="text-base leading-tight sm:text-lg"
             listingType={listing.listingType}
             linked={listing.isPartnerBooking}
             jobMeta={jobMeta}
@@ -1318,7 +1324,9 @@ function ListingCardImpl({
             (role=img so AT still announces it) to keep the row from wrapping on a narrow card. The
             "N contacted" demand count moved to the PDP — one fewer shrink-0 item keeps this line
             from overflowing on a 2-col mobile card, and reads cleaner. */}
-        <div className="mt-auto flex items-center gap-1.5 pt-1 text-xs text-ink-4 lg:text-sm">
+        {/* 2026-11-07 audit: body ink from lg — at desk distance the 14px grey line (place, freshness, brand) read as fine
+            print. A phone keeps the tertiary grey its measured two-fact budget was set in; no fact moves. */}
+        <div className="mt-auto flex items-center gap-1.5 pt-1 text-xs text-ink-4 lg:text-sm lg:text-body">
           <span className="min-w-0 flex-1 truncate">
             {/* condition leads the line (owner, 2026-07-23) — the fastest signal a buyer scans
                 for. Stored values are the two facet buckets 'new'/'used'; anything else shows
@@ -1375,17 +1383,25 @@ function ListingCardImpl({
                 time out of this span, or make it conditional, and the brand's middot has to become
                 conditional in the same edit. */}
             {(() => {
+              // A job's type is the LAST fact each width shows (2026-11-07 audit; moved off the head the same day, review r31):
+              // after the place on a phone, "HCM · Full-time", and after the time from sm, "HCM · 2d ago · Full-time". It is
+              // the newest fact on this line, so it is the one the ellipsis takes. At the head it cut the facts this line was
+              // measured for (Open Runde, 12px): "Toàn thời gian · " is ≈90px, all of an employer's own job's span at 320px
+              // (its trust chip shows), so the place was gone; and "Toàn thời gian · TP.HCM · 14 ngày trước" is ≈220px against
+              // a 3-column card's 188px at 640, so the freshness was cut. Every other card's line is exactly as before.
               const lead = [conditionLabel, displayLocation].filter(Boolean)
               const brand = [listing.brandSlug ? prettyBrand(listing.brandSlug) : null, listing.model].filter(Boolean)
               return (
                 <>
                   {lead.join(' · ')}
+                  {jobTypeText && <span className="sm:hidden">{lead.length > 0 ? ' · ' : ''}{jobTypeText}</span>}
                   <span className="hidden sm:inline">
                     {/* The time is in the first paint: relative-time.tsx is what keeps a stale label on this cached page from a hydration error.
                         ⚠️ A separator belongs to the thing it separates: " · " before the time only if a lead precedes it, or a card without one
                         starts with a dangling middot, baked into the HTML for Googlebot and no-JS visitors. */}
                     {lead.length > 0 ? ' · ' : ''}
                     <PostedAgo iso={listing.postedAt} inHtml={clockInHtml} />
+                    {jobTypeText ? ` · ${jobTypeText}` : ''}
                     {brand.length > 0 ? ' · ' : ''}
                     {brand.length > 0 ? brand.join(' · ') : ''}
                   </span>

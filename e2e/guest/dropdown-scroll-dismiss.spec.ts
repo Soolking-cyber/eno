@@ -21,13 +21,16 @@ import { test, expect } from '../helpers'
 // asserts the sheet contract instead: the phone never renders the popover, and the Price pill opens a
 // full-width sheet on the bottom edge that closes through its own action.
 
-// ⚠️ A LIVE SHELF, NOT `vehicles`: vehicles is RETIRED (src/lib/retired-categories.ts — 2 live rows), and on
-// 2026-10-05 this spec's failure there right after a cold deploy was read as "UX3 removed the phone Price pill".
-// It had not: the pill was present, the FacetBar (an ssr:false chunk) had simply not mounted in time. Electronics
-// carries the full live bar (Filter, Price, Area, condition, Good price) and enough rows to scroll. The specs
-// navigate on `domcontentloaded` and use the FacetBar's own mount as the readiness signal: the full `load` event
-// waits on every image of a big shelf and once exceeded the 20 s goto budget under parallel load (2026-10-06).
-const CATEGORY_ROUTE = '/?category=electronics'
+// ⚠️ A VIEW WHOSE FILTER PILL CANNOT VANISH (2026-11-07). The readiness signal below is the Filter control, and FacetBar
+// keeps it only while one of the view's facets would narrow the feed (offeredKeys hideNoOp, owner 2026-09-25): drawn as the
+// bar mounts, it goes once the view's counts say nothing would. Electronics, this route until then, fell to 9 live rows
+// with no such facet, so its Filter legitimately went. Apartments for rent keep one (the Size range is offered while any
+// apartment has a size), plus Price, Area and thousands of rows to scroll; filters-mobile.spec.ts opens the same view.
+// Not `vehicles` either: it is RETIRED (src/lib/retired-categories.ts), and on 2026-10-05 this spec's failure there after a
+// cold deploy was read as "UX3 removed the phone Price pill"; the FacetBar (an ssr:false chunk) had simply not mounted in
+// time. The specs navigate on `domcontentloaded` and use the bar's own Filter as the readiness signal: the full `load`
+// event waits on every image of a big shelf and once exceeded the 20 s goto budget under parallel load (2026-10-06).
+const CATEGORY_ROUTE = '/?category=rentals&subcategory=apartment-rental'
 const POPOVER = '[data-slot="popover-content"]'
 const SHEET = '[data-slot="drawer-popup"]'
 
@@ -35,12 +38,12 @@ const SHEET = '[data-slot="drawer-popup"]'
  * The FacetBar is `dynamic(…, { ssr: false })` with a painted FacetBarFallback (aria-hidden, inert, no data-slot)
  * until its chunk mounts. Wait for the REAL bar's Filter control first, so an unmounted bar reports as such —
  * not as "the Price pill is missing", the misreading this replaces. (The fallback carries no marker, so the
- * message names both causes rather than guessing.)
+ * message names each cause rather than guessing.)
  */
 async function facetBarMounted(page: import('@playwright/test').Page) {
   await expect(
     page.locator('[data-slot="drawer-trigger"],[data-slot="popover-trigger"]', { hasText: /^\s*(Filter|Bộ lọc)/ }).filter({ visible: true }).first(),
-    'no FacetBar Filter control on screen — usually its ssr:false chunk has not mounted (FacetBarFallback, an inert picture, is still painted: a load or deploy-skew problem); if the real bar IS mounted, its Filter control is missing',
+    'no FacetBar Filter control on screen — usually its ssr:false chunk has not mounted (FacetBarFallback, an inert picture, is still painted: a load or deploy-skew problem); if the real bar IS mounted, no facet of this view narrows the feed any more (FacetBar then hides Filter: point CATEGORY_ROUTE at a view that keeps one) or its Filter control is missing',
   ).toBeVisible({ timeout: 15_000 })
 }
 

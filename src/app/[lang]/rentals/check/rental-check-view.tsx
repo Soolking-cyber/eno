@@ -65,23 +65,27 @@ const PROBLEMS: readonly RentalContactProblem[] = ['empty', 'zalo_needs_vn_mobil
 /**
  * The empty list's how-to names the card's button by its own mark (2026-11-07 audit: "the check button" named nothing a
  * reader could find — on a card the chip is the glyph alone, rental-check-toggle.tsx). The chip's plate and glyph sit in the
- * sentence, its name beside them for a screen reader. Split on `{mark}` as import-provenance-copy.ts splits on `{date}`: a
+ * sentence with its name beside them, in the line. Split on `{mark}` as import-provenance-copy.ts splits on `{date}`: a
  * translation that lost the placeholder says the English sentence instead.
  */
-const TAP_MARK_EN = 'Tap {mark} on any rental — up to 5 — and the eno team checks availability for you, free.'
+const TAP_MARK_EN = 'Tap {mark} on any rental — up to 5 — and the eno team asks the landlords for you, free.'
 function TapTheMark() {
   const { tr } = useLanguage()
   // The English again, as a literal: gen-ui-strings harvests only a literal first argument.
-  const said = tr('Tap {mark} on any rental — up to 5 — and the eno team checks availability for you, free.', 'Chạm {mark} trên bất kỳ căn nào — tối đa 5 căn — đội ngũ eno sẽ kiểm tra phòng trống giúp bạn, miễn phí.')
+  const said = tr('Tap {mark} on any rental — up to 5 — and the eno team asks the landlords for you, free.', 'Chạm {mark} trên bất kỳ căn nào — tối đa 5 căn — đội ngũ eno sẽ hỏi chủ nhà giúp bạn, miễn phí.')
   const line = said.includes('{mark}') ? said : TAP_MARK_EN
   const at = line.indexOf('{mark}')
   return (
     <>
       {line.slice(0, at)}
-      <span aria-hidden className="inline-flex size-5 items-center justify-center rounded-full bg-foreground/70 align-middle text-background">
-        <ClipboardCheck className="size-3" />
+      {/* The chip's plate with its 16px glyph, as a card draws it, and its NAME beside it in the line (2026-11-07 audit: a 20px
+          plate round a 12px glyph was a speck nobody could match to a card). -my-0.5 keeps the 20px line box. */}
+      <span className="whitespace-nowrap font-semibold text-foreground">
+        <span aria-hidden className="-my-0.5 me-1 inline-flex size-6 items-center justify-center rounded-full bg-foreground/70 align-middle text-background">
+          <ClipboardCheck className="size-4" />
+        </span>
+        {tr('Check availability', 'Kiểm tra phòng trống')}
       </span>
-      <span className="sr-only">{tr('Check availability', 'Kiểm tra phòng trống')}</span>
       {line.slice(at + '{mark}'.length)}
     </>
   )
@@ -504,7 +508,7 @@ export function RentalCheckView() {
     return (
       <div aria-busy="true">
         {heading}
-        <div className="mt-6 space-y-3">
+        <div className="mt-6 max-w-2xl space-y-3">
           <Skeleton className="h-16 w-full rounded-xl" />
           <Skeleton className="h-16 w-full rounded-xl" />
         </div>
@@ -513,8 +517,10 @@ export function RentalCheckView() {
   }
 
   if (sent) {
+    // In the list's narrow column, where the list it replaces stood (2026-11-06 review): page.tsx no longer wraps the view in
+    // max-w-2xl, and without its own the confirmation re-centred in the 1280px frame, well right of the Send just pressed.
     return (
-      <div role="status" className="flex flex-col items-center gap-3 py-16 text-center">
+      <div role="status" className="flex max-w-2xl flex-col items-center gap-3 py-16 text-center">
         <CheckCircle2 className="h-10 w-10 text-success" aria-hidden />
         <p className="text-lg font-bold text-foreground">{tr('Sent to the eno team', 'Đã gửi tới đội ngũ eno')}</p>
         <p className="max-w-sm text-sm text-body">{rentalFreeLine(tr)}</p>
@@ -528,9 +534,9 @@ export function RentalCheckView() {
       <div>
         {heading}
         <EmptyState
-          // From lg, on the task column's left edge under its title (2026-11-06 audit: centred inside the left-hand column, it
-          // left the page lopsided). A phone, where the column is the screen, keeps the centred stack.
-          className="mt-6 lg:items-start lg:px-0 lg:py-4 lg:text-left"
+          // Centred in the app frame under the title at every width, as the empty /disputes and /saved are (2026-11-07 audit:
+          // on the task column's left edge it read as a different page from its siblings). Only the list keeps the column.
+          className="mt-6"
           icon={ClipboardCheck}
           title={tr('Your list is empty', 'Danh sách đang trống')}
           subtitle={<TapTheMark />}
@@ -548,8 +554,9 @@ export function RentalCheckView() {
     ? tr('Email', 'Email')
     : channel === 'zalo' ? tr('Zalo number', 'Số Zalo') : tr('WhatsApp number', 'Số WhatsApp')
 
+  // The list and its form keep the narrow column, on the app frame's left edge (page.tsx; an empty list centres in the frame).
   return (
-    <div>
+    <div className="max-w-2xl">
       {heading}
       <p className="mt-1 text-sm text-body">
         {tr('The eno team asks the landlords and replies in your Messages.', 'Đội ngũ eno sẽ hỏi chủ nhà và trả lời bạn trong mục Tin nhắn.')}

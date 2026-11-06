@@ -295,23 +295,12 @@ export function HelpThreadClient({
         {!post.official && <ReportContentButton kind="help-post" id={post.id} className="ml-auto" />}
       </div>
 
-      {related.length > 0 && (
-        <section className="mt-8" aria-labelledby="help-thread-related">
-          <h2 id="help-thread-related" className="h-section text-foreground">
-            {tr('Related answers', 'Câu trả lời liên quan')}
-          </h2>
-          <Rows bordered className="mt-3">
-            {related.map((item) => (
-              <RelatedRow key={item.id} item={item} />
-            ))}
-          </Rows>
-        </section>
-      )}
-
       {/* ⚠️ NO "No replies yet" HEADING AT ZERO (C-HELP-CENTER). It was the page's only h2 on every
           official answer — the outline announced an absence. The heading exists when there is
           something under it; until then the section is one button. */}
-      <section className="mt-8" aria-labelledby={comments.length > 0 ? 'help-thread-replies' : undefined}>
+      {/* 2026-11-06 audit: straight under "Was this helpful?", ahead of Related answers. The vote is upvote-only by design
+          (help-vote.tsx), so asking a follow-up is how a reader says an answer fell short, and it sat below the related list. */}
+      <section className="mt-6" aria-labelledby={comments.length > 0 ? 'help-thread-replies' : undefined}>
         {comments.length > 0 && (
           <h2 id="help-thread-replies" className="flex items-center gap-2 text-base font-bold text-foreground">
             <MessageCircle className="size-4" aria-hidden />
@@ -352,6 +341,19 @@ export function HelpThreadClient({
           </ul>
         )}
       </section>
+
+      {related.length > 0 && (
+        <section className="mt-10" aria-labelledby="help-thread-related">
+          <h2 id="help-thread-related" className="h-section text-foreground">
+            {tr('Related answers', 'Câu trả lời liên quan')}
+          </h2>
+          <Rows bordered className="mt-3">
+            {related.map((item) => (
+              <RelatedRow key={item.id} item={item} />
+            ))}
+          </Rows>
+        </section>
+      )}
     </article>
   )
 }

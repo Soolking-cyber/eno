@@ -316,19 +316,24 @@ describe('each surface renders <PostJobLink>, to the post form with Jobs picked,
     expect(schools).toMatch(/import \{ PostJobLink \} from '@\/app\/\[lang\]\/c\/\[category\]\/teaching-links'/)
     const row = schools.indexOf('<p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">')
     const rowEnd = schools.indexOf('</p>', row)
-    const at = schools.indexOf(`<PostJobLink row href={localizedHref('/post?category=jobs', lang)} className="font-semibold text-accent-foreground hover:underline" />`)
+    const at = schools.indexOf(`<PostJobLink row href={localizedHref('/post?category=jobs', lang)} className="text-accent-foreground hover:underline" />`)
     // The Teachers' Choice link goes straight to the open year's page (plan P1 item 17, 2026-10-20 — schools-page.test.tsx).
     const awards = schools.indexOf('<Link href={`${AWARDS_PATH}/${awardYear}`}', row)
+    // Grouped since 2026-11-07: the teachers' links, Teachers' Choice among them, then the two asks at text weight —
+    // "Missing a school? Suggest it", then the prompt.
+    const suggest = schools.indexOf('<Link href="/schools/suggest" className="text-accent-foreground hover:underline">', row)
     expect(row).toBeGreaterThan(-1)
-    expect(at).toBeGreaterThan(awards)
+    expect(awards).toBeGreaterThan(row)
+    expect(suggest).toBeGreaterThan(awards)
+    expect(at).toBeGreaterThan(suggest)
     expect(at).toBeLessThan(rowEnd)
-    // ⛔ AT THE ROW'S TOP LEVEL, NO EDITION GATE AROUND IT. The JSX shape is pinned: the awards link, then only a comment,
-    // then the prompt, then the row's own </p> — a `{cond && (` opened anywhere before it (around the awards link and the
+    // ⛔ AT THE ROW'S TOP LEVEL, NO EDITION GATE AROUND IT. The JSX shape is pinned: the suggest link, then only a comment,
+    // then the prompt, then the row's own </p> — a `{cond && (` opened anywhere before it (around the suggest link and the
     // prompt, or the prompt alone) would put `)}` or `</>` between the prompt and the </p>.
     expect(schools).toMatch(new RegExp([
-      String.raw`<Link href=\{\`\$\{AWARDS_PATH\}/\$\{awardYear\}\`\}[^\n]*</Link>`,
+      String.raw`<Link href="/schools/suggest"[^\n]*</Link>`,
       String.raw`\{/\*[^]*?\*/\}`,
-      String.raw`<PostJobLink row href=\{localizedHref\('/post\?category=jobs', lang\)\} className="font-semibold text-accent-foreground hover:underline" />`,
+      String.raw`<PostJobLink row href=\{localizedHref\('/post\?category=jobs', lang\)\} className="text-accent-foreground hover:underline" />`,
       String.raw`</p>`,
     ].join(String.raw`\s*`)))
     // …and every expression the row opens before it is closed before it: braces and parens balance from the row's <p> to
@@ -337,7 +342,7 @@ describe('each surface renders <PostJobLink>, to the post form with Jobs picked,
     const count = (re: RegExp) => before.match(re)?.length ?? 0
     expect(count(/\{/g)).toBe(count(/\}/g))
     expect(count(/\(/g)).toBe(count(/\)/g))
-    // No edition gate of its own (the hub link's marketplace gate closes before the awards link).
-    expect(schools.slice(awards, at)).not.toContain('IS_SERVICES')
+    // No edition gate of its own (the hub link's marketplace gate closes before the suggest link).
+    expect(schools.slice(suggest, at)).not.toContain('IS_SERVICES')
   })
 })

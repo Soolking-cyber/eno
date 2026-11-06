@@ -153,7 +153,10 @@ export default function SavedPage() {
           </>
         )}
       </main>
-      <Footer />
+      {/* Compact, as on every tool page (2026-11-07 audit: the full footer outweighed this short page four rounds running).
+          /saved is noindex, nofollow (next.config.ts), so its link columns carried no crawl weight; the legal block, language,
+          currency, legal links and Help center stay. loading.tsx draws the same footer, so the skeleton swap keeps its height. */}
+      <Footer compact />
     </div>
   )
 }

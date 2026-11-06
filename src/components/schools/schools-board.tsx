@@ -44,10 +44,17 @@ export function SchoolsBoard({ rows, areas }: { rows: BoardRow[]; areas: string[
 
 function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
   const { tr, lang } = useLanguage()
+  // While no school has a vote the list opens on A–Z, the order Top rated falls back to then (2026-11-07 audit: "Top rated"
+  // selected over an alphabetical list read as a ranking nobody had made). Read from the rendered rows, so the server render
+  // and the first client render agree; with a vote anywhere on the list it opens on Top rated, as before.
+  const defaultSort: SchoolSort = rows.some((r) => r.up + r.down > 0) ? 'top' : 'name'
   const [q, setQ] = React.useState('')
   const [kind, setKind] = React.useState<SchoolKind | typeof ALL>(ALL)
   const [area, setArea] = React.useState<string>(ALL)
-  const [sort, setSort] = React.useState<SchoolSort>('top')
+  const [sort, setSort] = React.useState<SchoolSort>(defaultSort)
+  // A sort the visitor picked or a shared link carried: A–Z then stays in the URL even while it is the default (2026-11-06 gate
+  // review). The default follows the votes, so a link that left it out would open on Top rated once the first vote lands.
+  const sortPicked = React.useRef(false)
 
   // Read a shared/filtered URL once, after hydration (see the component note).
   React.useEffect(() => {
@@ -56,7 +63,7 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
     if (isSchoolKind(k)) setKind(k)
     if (a && areas.includes(a)) setArea(a)
     // 'net' has no tab: a shared ?sort=net shows as Top rated, so it IS Top rated (Wilson), never a label lie.
-    if (isSchoolSort(s) && s !== 'net') setSort(s)
+    if (isSchoolSort(s) && s !== 'net') { sortPicked.current = true; setSort(s) }
     if (text) setQ(text.slice(0, 80))
   }, [areas])
 
@@ -68,12 +75,12 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
     const put = (k: string, v: string | null) => { if (v) sp.set(k, v); else sp.delete(k) }
     put('kind', kind !== ALL ? kind : null)
     put('area', area !== ALL ? area : null)
-    put('sort', sort !== 'top' ? sort : null)
+    put('sort', sort !== defaultSort || (sort === 'name' && sortPicked.current) ? sort : null)
     put('q', q.trim() || null)
     const qs = sp.toString()
     const next = `${window.location.pathname}${qs ? `?${qs}` : ''}`
     if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, '', next)
-  }, [kind, area, sort, q])
+  }, [kind, area, sort, q, defaultSort])
 
   // Ranked on the LIVE counts as of the moment a sort or filter is chosen (diff review), but not re-ranked
   // on every vote — a row must not jump from under the visitor's finger. The ref carries the latest counts
@@ -167,7 +174,7 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
         className="mt-3 sm:max-w-lg"
         aria-label={tr('Sort', 'Sắp xếp')}
         value={sort === 'net' ? 'top' : sort}
-        onValueChange={(v) => setSort(v)}
+        onValueChange={(v) => { sortPicked.current = true; setSort(v) }}
         // Short labels below `sm`: four segments at 390px leave ~85px each, and "Most reviewed" truncated.
         // From `sm` up each segment leaves ~110px of text: "Được đánh giá cao" needed 127 and was cut to "Được đánh gi…"
         // (sweep, 2026-10-22), so the Vietnamese long label is the shorter "Đánh giá cao".

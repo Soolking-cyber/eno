@@ -125,7 +125,8 @@ export function MessageBubble({
         // opportunity, so at 320px a Drive URL ran 584px inside a 230px bubble and the whole thread
         // scrolled sideways (on a phone the locked thread cannot pan, so its tail was simply cut off).
         // `anywhere` breaks only where nothing else fits — ordinary words wrap exactly as before.
-        'allow-select rounded-2xl px-3.5 py-2 text-sm leading-relaxed [overflow-wrap:anywhere]',
+        // 16px from lg (2026-11-07 audit: at 14px a desktop thread read as a miniature on a wide pane); a phone keeps 14px.
+        'allow-select rounded-2xl px-3.5 py-2 text-sm leading-relaxed [overflow-wrap:anywhere] lg:text-base',
         // Received bubble: a subtle `tint` well. `bg-card` collapsed into the canvas in the flat
         // design pass (docs/design-language.md §3b), which left received messages with NO fill —
         // bare text on the page. `tint` restores the light-grey received-bubble well (the shape

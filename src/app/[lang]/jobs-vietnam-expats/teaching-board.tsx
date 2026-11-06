@@ -8,7 +8,7 @@ import { vnToday } from '@/lib/job-listing'
 import { Row, Rows } from '@/components/ui/rows'
 import { ChevronRight } from '@/components/ui/icons'
 import { LANDING_TARGET } from './landing-target'
-import { boardJobs, boardSections, boardSummary, emptySectionLine, jobMeta, sectionHeading, summaryLead, summaryRest, type BoardJob } from './board'
+import { boardJobs, boardSections, boardSummary, emptySectionLine, jobMeta, jobMetaParts, sectionHeading, summaryLead, summaryRest, type BoardJob } from './board'
 
 /**
  * THE ENGLISH TEACHING JOBS BOARD on /jobs-vietnam-expats (teacher visibility plan B2, 2026-10-18): every live teaching
@@ -109,8 +109,19 @@ export function TeachingJobsBoard({ board }: { board: TeachingBoard }) {
                       {/* The pay, where a posting states one, on its own line under the title, as a price sits under a card's title; the
                           employer, apply-by date and source follow (2026-11-06 audit: the pay sat mid-sentence in the line below). */}
                       {j.pay && <span className="mt-1 block text-sm font-semibold text-foreground [overflow-wrap:anywhere]">{j.pay}</span>}
-                      {/* No line when the pay was all it held: an empty block left a 4px gap under the pay (2026-11-06 gate review). */}
-                      {jobMeta(j) && <span className="mt-1 block text-sm leading-relaxed text-body [overflow-wrap:anywhere]">{jobMeta(j)}</span>}
+                      {/* No line when the pay was all it held: an empty block left a 4px gap under the pay (2026-11-06 gate review). The
+                          apply-by date in the title's ink, on one line, so a reader running down the list picks out each row's deadline;
+                          the employer and the source stay in body ink (2026-11-07 audit). */}
+                      {jobMeta(j) && (
+                        <span className="mt-1 block text-sm leading-relaxed text-body [overflow-wrap:anywhere]">
+                          {jobMetaParts(j).map((p, i) => (
+                            <Fragment key={i}>
+                              {i > 0 && ' · '}
+                              {p.due ? <span className="whitespace-nowrap text-foreground">{p.text}</span> : p.text}
+                            </Fragment>
+                          ))}
+                        </span>
+                      )}
                     </span>
                     <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
                   </Link>

@@ -138,7 +138,9 @@ export function BreakUiClient() {
       <Section id="dashboard" title={`Dashboard listing rows (${of(ROWS_CAP, rows.length)} · grid ${of(GRID_CAP, rows.length)})`}>
         {rows.length === 0 ? <Empty /> : (
           <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="flex min-w-0 flex-col gap-2">
+            {/* Rows between hairlines, as on the dashboard (2026-11-06 review): DashboardListingRow is flat now, with no radius and
+                no side padding below lg (its FLAT, BETWEEN HAIRLINES note), so this gap-2 column showed rows with nothing between them. */}
+            <div className="min-w-0 divide-y divide-border">
               {rows.slice(0, ROWS_CAP).map((l) => <DashboardListingRow key={l.id} listing={l} onChanged={noop} />)}
             </div>
             <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">

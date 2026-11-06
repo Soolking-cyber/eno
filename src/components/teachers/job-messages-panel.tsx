@@ -73,8 +73,12 @@ export function jobDmRequest(on: boolean): { on: true; notice: string } | { on: 
  */
 export function JobMessagesNotice() {
   const { tr } = useLanguage()
+  // Who messages you (and that it is on), and how often and how to stop, in the primary ink; the sources and the matched
+  // fields stay in the description's (2026-11-07 audit: four equal paragraphs). Ink only, by paragraph position in
+  // NoticeParagraphs: no word moves, so JOB_DM_NOTICE_VERSION holds; a notice that did not split (a translation without the
+  // starts) is one paragraph and keeps the description's ink, hence :not(:only-child).
   return (
-    <span data-testid="job-dm-notice">
+    <span data-testid="job-dm-notice" className="[&>span>span:first-child:not(:only-child)]:text-foreground [&>span>span:nth-child(4)]:text-foreground">
       <NoticeParagraphs
         // 2026-11-06 audit: four short paragraphs — who sends and what, where the jobs come from and where matching runs, what
         // it uses, the limits and how to stop. Where each one begins, in either language; the string below is untouched, so

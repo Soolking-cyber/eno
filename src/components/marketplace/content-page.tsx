@@ -51,14 +51,15 @@ export function ContentPage({ title, titleVi, meta, intro, sections, children }:
         {/**
           * ⚠️ PHONES GET THE CONTENTS TOO, COLLAPSED (C-TOC). The rail below is lg-only, so below 1024px
           * a 14-section /terms or a 16-article /regulations (25,000px tall on a phone) had no way to
-          * reach a section but scrolling. Four sections is the threshold for the same reason
-          * SeoArticle's anchor list uses it: fewer than that is one screen of scrolling anyway.
+          * reach a section but scrolling. Three sections is the threshold (2026-11-07 audit; it was SeoArticle's four):
+          * /guide's three — buyers, sellers, features — run four phone screens, and its desktop rail already lists them, so
+          * the phone was the one width where the page had no way to its sections.
           * ⚠️ NATIVE <details>, NOT ui/collapsible (Base UI), ON PURPOSE: this is a SERVER component,
           * and <details> opens with zero JavaScript, keeps its links in the server HTML for a crawler
           * and a no-JS reader, and needs no client island for a disclosure the browser already draws.
           * Rows are 44px (py-3 on 20px lines) — full-width block links, so no tap-44 layer is needed.
           */}
-        {sections && sections.length >= 4 && (
+        {sections && sections.length >= 3 && (
           // Straight under the hero's hairline, which is its top edge: a second rule 24px lower read
           // as a double line. The link text aligns with the summary; the hover wash bleeds past it.
           <details className="group border-b border-border lg:hidden">

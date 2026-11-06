@@ -74,8 +74,8 @@ export type SerializedListingCard = {
   /** Listing.listingType ('sell' | 'rent' | 'job' | …) — <Price> labels a price-0 job. Optional: some card builders predate it. */
   listingType?: string
   /** A JOB's `jobtype` facet value ('fulltime', 'parttime', …), projected from its attributes by
-   *  serializeListingCard; absent on every other listing. The card's price slot prints it with the city
-   *  instead of "Salary: see details" (src/lib/card-title.ts jobCardMeta). */
+   *  serializeListingCard; absent on every other listing. The card prints it on its info line, after the place
+   *  (src/lib/card-title.ts jobTypeLabel); until 2026-11-07 it replaced "Salary: see details" in the price slot. */
   jobType?: string | null
   /**
    * "IDENTITY VERIFIED" (owner, 2026-10-15; AUTOMATIC since 2026-10-16) — a TEACHER card whose teacher's identity check

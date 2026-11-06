@@ -229,13 +229,13 @@ describe('rules v5: the Studio band on the page', () => {
     // ⚠️ THE MEASURED SIZE STEP-DOWN (`Figure`'s `four`): with the type row's sizes 12 band figures wrapped or overflowed at
     // 768px, so each band figure's median steps down from md and is full size again at xl, on a tighter gutter. Without
     // this a refactor that drops `four` keeps four columns and passes everything else. Under the floor the figure is words
-    // at body size since 2026-11-06 (a 30px dash read as a loading bar), so there is no step-down to make.
+    // since 2026-11-06 (a 30px dash read as a loading bar), at 14px since 2026-11-07, so there is no step-down to make.
     let medians = 0
     for (const f of figures) {
       expect(f.className).toContain('md:px-4')
       const value = f.querySelectorAll('p')[1]
       // A median has digits in either language; the words under the floor have none.
-      if (!/\d/.test(value.textContent ?? '')) expect(value.className).toContain('text-base')
+      if (!/\d/.test(value.textContent ?? '')) expect(value.className).toContain('text-sm')
       else { medians++; expect(value.className).toContain('md:text-xl lg:text-2xl xl:text-3xl') }
     }
     expect(medians).toBeGreaterThan(0)
@@ -244,7 +244,7 @@ describe('rules v5: the Studio band on the page', () => {
     expect(typeRow.className).toContain('md:grid-cols-3')
     for (const f of typeRow.children) {
       const value = f.querySelectorAll('p')[1]
-      expect(value.className).toContain(/\d/.test(value.textContent ?? '') ? 'md:text-2xl lg:text-3xl' : 'text-base')
+      expect(value.className).toContain(/\d/.test(value.textContent ?? '') ? 'md:text-2xl lg:text-3xl' : 'text-sm')
     }
   })
 

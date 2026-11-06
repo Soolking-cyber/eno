@@ -139,3 +139,25 @@ describe('Button loading', () => {
     expect(el.hasAttribute('loading')).toBe(false)
   })
 })
+
+describe('Button — the phone CTA size (2026-11-07 audit)', () => {
+  // jsdom applies no stylesheet. What it can hold: the selector rides on the cta variant only, and tailwind-merge keeps
+  // it beside a caller's own min-h / text size (it carries other variants), so the 48px/16px phone size reaches every
+  // full-width brand CTA without a call-site change.
+  const PHONE_CTA = [
+    'max-sm:[&.w-full:not(.text-xs):not(.text-2xs)]:min-h-12',
+    'max-sm:[&.w-full:not(.text-xs):not(.text-2xs)]:text-base',
+  ]
+
+  it('rides on the cta variant, beside a caller min-h and text size', () => {
+    render(<Button variant="cta" className="min-h-11 w-full text-sm">{SAVE}</Button>)
+    expect(classes(screen.getByRole('button', { name: 'Save' }))).toEqual(expect.arrayContaining([...PHONE_CTA, 'min-h-11', 'w-full', 'text-sm']))
+    // Below sm only (review r31, 2026-11-07): a `w-full sm:w-auto` CTA keeps the class from 640px, where it sits inline.
+    expect(classes(screen.getByRole('button', { name: 'Save' })).some((c) => c.startsWith('max-lg:'))).toBe(false)
+  })
+
+  it('never on another variant', () => {
+    render(<Button variant="outline" className="w-full">{SAVE}</Button>)
+    expect(classes(screen.getByRole('button', { name: 'Save' })).some((c) => c.startsWith('max-sm:[&.w-full'))).toBe(false)
+  })
+})

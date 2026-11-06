@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { test, expect } from '../helpers'
 
 // Offline state. Nothing used to watch connectivity: public/sw.js is push-only and the
@@ -9,9 +10,26 @@ import { test, expect } from '../helpers'
 // Driven with context.setOffline() rather than route interception: it is what actually
 // fires the window 'offline'/'online' events the banner subscribes to.
 
+/**
+ * ⚠️ HYDRATED FIRST (2026-11-07). The banner is a client effect, and these tests went offline the instant goto resolved: on a
+ * remote server that raced hydration — a chunk still on its way failed offline, React never hydrated and the banner never
+ * mounted ("element(s) not found" on the prod re-run). The suite's hydration marker is the header's search form carrying a
+ * React fiber (e2e/ci/marketplace.spec.ts); the banner sits above the header in the tree (QueryProvider, providers.tsx), so it
+ * has hydrated by then, and two frames let its mount effect run — it reads navigator.onLine itself, so a drop from then on
+ * is seen either way.
+ */
+async function hydrated(page: Page) {
+  await page.waitForFunction(() => {
+    const form = document.querySelector('form[role="search"]')
+    return !!form && Object.keys(form).some((k) => k.startsWith('__reactFiber'))
+  })
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+}
+
 test.describe('Guest · offline banner', () => {
   test('appears when the connection drops mid-session, and clears when it returns', async ({ page }) => {
     await page.goto('/')
+    await hydrated(page)
     const banner = page.getByTestId('offline-banner')
 
     // Nothing to announce while the connection is fine — otherwise this spec would pass
@@ -27,6 +45,7 @@ test.describe('Guest · offline banner', () => {
 
   test('can be dismissed, and comes back on the NEXT drop', async ({ page }) => {
     await page.goto('/')
+    await hydrated(page)
     const banner = page.getByTestId('offline-banner')
 
     await page.context().setOffline(true)

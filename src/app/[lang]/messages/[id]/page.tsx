@@ -2625,9 +2625,9 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
             <Avatar name={thread?.counterpart.name} url={thread?.counterpart.avatarUrl} color={thread?.counterpart.avatarColor} size="sm" />
             <div className="min-w-0 flex-1 cursor-pointer">
               {thread?.counterpart.sellerId && thread.counterpart.storefront !== false ? (
-                <Link href={`/sellers/${thread.counterpart.sellerId}`} className="block truncate text-sm font-bold text-foreground hover:underline">{thread.counterpart.name}</Link>
+                <Link href={`/sellers/${thread.counterpart.sellerId}`} className="block truncate text-sm font-bold text-foreground hover:underline lg:text-base">{thread.counterpart.name}</Link>
               ) : (
-                <div className="truncate text-sm font-bold text-foreground">{thread?.counterpart.name || '…'}</div>
+                <div className="truncate text-sm font-bold text-foreground lg:text-base">{thread?.counterpart.name || '…'}</div>
               )}
               {/* ONE subtitle line: the trust chip and the presence ("Hoạt động hôm nay") share it, and
                   the listing title moved down into the item strip below (inbox-01/03). */}
@@ -3784,8 +3784,8 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
               </div>
             ) : showOffer ? (
               <div className="relative flex-1">
-                {/* text-base + lg:text-sm is LOAD-BEARING (iOS zooms the viewport on focus
-                    below 16px); border-brand is the armed/active state. */}
+                {/* text-base is LOAD-BEARING (iOS zooms the viewport on focus below 16px), and a desktop
+                    keeps it since 2026-11-07, as the message field; border-brand is the armed/active state. */}
                 <Input
                   variant="outline"
                   value={offerInput}
@@ -3798,7 +3798,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   aria-label={tr('Offer amount in Vietnamese đồng', 'Số tiền đề nghị (đồng)')}
                   placeholder={tr('Offer amount (đ)', 'Số tiền đề nghị (đ)')}
                   onKeyDown={(e) => { if (e.key === 'Enter') submitOffer() }}
-                  className="rounded-2xl border-brand px-3.5 py-2.5 pr-16 text-base focus:ring-brand/20 lg:text-sm"
+                  className="rounded-2xl border-brand px-3.5 py-2.5 pr-16 text-base focus:ring-brand/20"
                 />
                 {/* +000 chip, inside the input's right corner (×1,000 shortcut) */}
                 <Button

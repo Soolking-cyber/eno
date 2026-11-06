@@ -134,13 +134,15 @@ export function AvailabilityClient() {
                 still available". Now the question is the one a tick says yes to. */}
             <DialogPrimitive.Title className="mt-2 h-title text-foreground">{anyRental ? tr('Anything sold or rented?', 'Có tin nào đã bán hoặc đã cho thuê chưa?') : tr('Anything sold?', 'Có món nào đã bán chưa?')}</DialogPrimitive.Title>
             {/* What a tick does and what the rest get (2026-11-06 audit), not "gets bumped": a ticked row is marked sold or
-                rented by api/listings/availability, which takes it down; the others are confirmed and their recency bumped,
-                so they rise in search again. ⚠️ "AT MOST ONCE A WEEK" IS BUMP_COOLDOWN_DAYS (7, lib/stale.ts; 2026-11-06
+                rented by api/listings/availability, which takes it out of search; the others are confirmed and their recency
+                bumped, so they rise in search again. "TAKEN OUT OF SEARCH", NOT "TAKEN DOWN" (2026-11-07 audit): a sold
+                listing's own page still opens, as the sold page with its badge ((pdp)/page.tsx); search, the feed and the
+                storefront drop it. ⚠️ "AT MOST ONCE A WEEK" IS BUMP_COOLDOWN_DAYS (7, lib/stale.ts; 2026-11-06
                 review): a row bumped in the last 7 days is only confirmed, and the reminder comes after 3 (STALE_DAYS), so
                 an unqualified "moves back to the top" was false for every such row. A new cooldown means new words here. */}
             <p className="mt-1 text-sm text-body">{anyRental
-              ? tr('Anything you tick is marked sold or rented and taken down. Everything else moves back to the top of search, at most once a week.', 'Tin bạn đánh dấu sẽ chuyển sang đã bán hoặc đã cho thuê và được gỡ xuống. Những tin còn lại sẽ được đẩy lên đầu kết quả tìm kiếm, tối đa một lần mỗi tuần.')
-              : tr('Anything you tick is marked sold and taken down. Everything else moves back to the top of search, at most once a week.', 'Món bạn đánh dấu sẽ chuyển sang đã bán và được gỡ xuống. Những món còn lại sẽ được đẩy lên đầu kết quả tìm kiếm, tối đa một lần mỗi tuần.')}</p>
+              ? tr('Anything you tick is marked sold or rented and taken out of search. Everything else moves back to the top of search, at most once a week.', 'Tin bạn đánh dấu sẽ chuyển sang đã bán hoặc đã cho thuê và không còn hiện trong kết quả tìm kiếm. Những tin còn lại sẽ được đẩy lên đầu kết quả tìm kiếm, tối đa một lần mỗi tuần.')
+              : tr('Anything you tick is marked sold and taken out of search. Everything else moves back to the top of search, at most once a week.', 'Món bạn đánh dấu sẽ chuyển sang đã bán và không còn hiện trong kết quả tìm kiếm. Những món còn lại sẽ được đẩy lên đầu kết quả tìm kiếm, tối đa một lần mỗi tuần.')}</p>
             {/* Icon-only control → ui/close-button (the IconButton shell, 44px tap target, glyph sized
                 to its button), composed onto the Base UI Close via the render prop — not a bare
                 padded button. The ✕ is CloseButton's own child, so the Close takes none.

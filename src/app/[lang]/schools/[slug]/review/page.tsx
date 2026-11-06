@@ -96,7 +96,10 @@ export default async function SchoolReviewPage({ params }: Props) {
           </aside>
         </div>
       </main>
-      <Footer />
+      {/* The compact footer, as on the tool pages (2026-11-07 audit): this sign-in form is never indexed and its links are never
+          followed (robots above), and the full directory footer under it was taller than the page. The operator's legal block,
+          language, currency, legal links and Help center stay. */}
+      <Footer compact />
     </div>
   )
 }

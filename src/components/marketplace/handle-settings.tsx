@@ -30,9 +30,12 @@ export function HandleSettings() {
       <Skeleton className="h-11 w-full rounded-xl" />
     </div>
   )
-  // The single handle lives on the SHOP only for a BUSINESS account; an individual
-  // (even one with a lingering storefront row) manages a personal handle.
-  const isBusiness = me.accountType === 'business' && !!me.sellerId
+  // The single handle lives on the SHOP for a BUSINESS account, and for anyone whose storefront already holds it (2026-11-07
+  // audit): posting a listing moves a person's handle onto their storefront (consolidateSellerHandle, one handle per
+  // account), so this field sat empty under "Your storefront: <name>.eno.vn", and a personal handle saved here was deleted
+  // again at the next post. A person whose storefront holds none (no storefront yet, or a business turned back into a
+  // person, revertToPersonalHandle) still manages the personal one.
+  const onShop = !!me.sellerId && (me.accountType === 'business' || !!me.shopHandle)
   return (
     <div className="space-y-5">
       <p className="text-sm leading-relaxed text-body">
@@ -42,7 +45,7 @@ export function HandleSettings() {
             handle keeps the path and an underscore handle's host drops the underscores (`sdcstore.eno.vn`
             for `sdc_store`), so promising either would be wrong for someone. The editor below shows (and
             copies) the shop's real link. */}
-        {isBusiness
+        {onShop
           ? tr(
             'Your shop handle is your public link — copy it below and share it anywhere; people land straight on your shop.',
             'Tên gian hàng là liên kết công khai của bạn — sao chép bên dưới và chia sẻ ở bất cứ đâu; khách vào thẳng gian hàng.',
@@ -52,11 +55,11 @@ export function HandleSettings() {
             `Tên định danh là liên kết công khai của bạn — chia sẻ ${SITE_NAME}/ban ở bất cứ đâu.`,
           )}
       </p>
-      {/* One handle per account: the shop's for a business, else personal. */}
-      {isBusiness ? (
+      {/* One handle per account: the shop's for a business or a storefront that holds it, else personal. */}
+      {onShop ? (
         <HandleEditor target="seller" initial={me.shopHandle} shareUrl={me.shopUrl} label={tr('Shop handle', 'Tên gian hàng')} />
       ) : (
-        <HandleEditor target="profile" initial={me.handle} label={tr('Your handle', 'Tên của bạn')} />
+        <HandleEditor target="profile" initial={me.handle} label={tr('Your handle', 'Tên định danh của bạn')} />
       )}
     </div>
   )

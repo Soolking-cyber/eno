@@ -76,7 +76,7 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
               four `h-28 rounded-2xl` cards this used to draw promised exactly the boxed
               treatment the flat canon removed, and account-client.tsx's own comment warns
               against it. */}
-          <div className="mt-6">
+          <div className={cn(!embedded && 'mt-6')}>
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className={cn(i > 0 && 'mt-6 border-t border-border pt-6')}>
                 <Skeleton className="h-4 w-24" />
@@ -116,14 +116,14 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
       {!dash && error ? (
         // ⛔ NEVER A SKELETON THAT WILL NOT LOAD (inbox-10): a dashboard fetch that failed (or a session the
         // server refused) says so, with the one way forward — Retry, or Sign in.
-        <div className="mt-6">
+        <div className={cn(!embedded && 'mt-6')}>
           <DashboardFetchError error={error} onRetry={refresh} next="/dashboard/settings" />
         </div>
       ) : !dash ? (
         // Second stage (auth resolved, `dash` still in flight) — the SAME flat-group shape as
         // the gate above, so the two skeletons agree instead of swapping a 16+10+10 stack for
         // four cards.
-        <div className="mt-6">
+        <div className={cn(!embedded && 'mt-6')}>
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className={cn(i > 0 && 'mt-6 border-t border-border pt-6')}>
               <Skeleton className="h-4 w-24" />
@@ -137,7 +137,9 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
       ) : (
         <div
           // No space-y: each SettingsGroup carries its own hairline + rhythm now.
-          className="mt-6"
+          // mt-6 only under this page's own title (2026-11-07 audit): embedded, the tab shell already leaves 24px under its
+          // strip, and the extra 24px put "Your profile" 48px down where every sibling tab starts at 24.
+          className={cn(!embedded && 'mt-6')}
         >
           {/*
             ⛔ SIX TABS INSTEAD OF ONE, and the old shape is why. "Settings" held TEN unrelated

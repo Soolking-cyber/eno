@@ -78,7 +78,11 @@ test.describe('Guest · help center', () => {
     // section also contains that h3 as a descendant, so an unanchored :has matched both and
     // counted all 40 answers instead of the topic's 10.
     const group = page.locator('main section:has(> h3)').filter({ has: page.getByRole('heading', { level: 3, name: /Vietnam travel|Du lịch Việt Nam/i }) })
-    const expected = await group.locator('[data-slot="accordion-trigger"]').count()
+    // While Top questions shows, its posts are left out of their topic groups (help-center.tsx), so the topic holds its group
+    // plus the top questions that name it (data-topic, which a top-question link carries only while its post is left out of
+    // its group: with no more answers than Top questions holds, none is, and the group already counts them; 2026-11-06 gate).
+    const featured = await page.locator('section[aria-labelledby="help-top-title"] a[data-topic="vietnam-travel"]').count()
+    const expected = (await group.locator('[data-slot="accordion-trigger"]').count()) + featured
     expect(expected).toBeGreaterThan(0)
 
     const chip = page.getByRole('button', { name: /Vietnam travel/i })

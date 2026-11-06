@@ -181,7 +181,7 @@ export function ConversationList() {
           {/* Open, the row is the open-thread tint (= brand-50), so the coin turns to the page colour to stay a coin. */}
           <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-brand', aiActive ? 'bg-background' : 'bg-brand-50')}><Sparkles className="h-5 w-5" aria-hidden /></span>
           <div className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-bold text-foreground">{tr('eno AI', 'eno AI')}</span>
+            <span className="block truncate text-sm font-bold text-foreground lg:text-base">{tr('eno AI', 'eno AI')}</span>
             <p className="truncate text-xs text-accent-foreground lg:text-sm">{tr('Ask anything — find products by chat', 'Hỏi bất cứ điều gì — tìm đồ bằng chat')}</p>
           </div>
         </Link>
@@ -336,7 +336,8 @@ export function ConversationList() {
                   <Avatar name={c.counterpart.name} url={c.counterpart.avatarUrl} color={c.counterpart.avatarColor} size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-bold text-foreground">{c.counterpart.name}</span>
+                      {/* 16px from lg, the thread header's size (2026-11-07 audit); the preview stays 14px under it. */}
+                      <span className="truncate text-sm font-bold text-foreground lg:text-base">{c.counterpart.name}</span>
                       {/* When, then how many — right-aligned the Zalo / Chợ Tốt way (inbox-02). The list is
                           client-fetched data, never server HTML, so a render-time clock cannot mismatch. */}
                       {/* ⚠️ THE NAME ALWAYS KEEPS A SHARE OF THE ROW (break-ui, 2026-10-05). At 320px an

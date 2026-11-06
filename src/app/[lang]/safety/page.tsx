@@ -343,9 +343,9 @@ function CopyText({ copy }: { copy: Copy }) {
   return typeof copy === 'string' ? <Tr text={copy} /> : <Bilingual en={copy.en} vi={copy.vi} />
 }
 
-// ⚠️ TWO COLUMNS AT EVERY WIDTH ABOVE sm, NEVER THREE (C-SAFETY, 2026-09-29). Beside the 210px rail
-// a 3-up grid gave 298px tiles — ~40-character lines — and 3 divides none of the tip counts (4, 5, 7,
-// 6), so every grid ended on an orphan row. Two ~455px columns read at ~58 characters and fill 4 and
+// ⚠️ TWO COLUMNS AT EVERY WIDTH ABOVE sm, NEVER THREE (C-SAFETY, 2026-09-29). Beside the rail (210px then, 240px
+// since 2026-11-06) a 3-up grid gave 298px tiles — ~40-character lines — and 3 divides none of the tip counts (4, 5, 7,
+// 6), so every grid ended on an orphan row. Two columns (~455px then, ~440px now) read at ~58 characters and fill 4 and
 // 6 evenly; 5 and 7 leave one tile on the last row, which a two-up list carries fine.
 // ⚠️ THE GLYPH SITS BESIDE THE HEADING, NOT ON A LINE OF ITS OWN ABOVE IT (2026-11-06 audit): the family's one icon-item
 // shape — /guide's features draw it this way — and a line saved on every one of the page's twenty-odd tips.

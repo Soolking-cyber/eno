@@ -127,6 +127,12 @@ describe('StickyActionBar keeps the action reachable', () => {
     // …and the secondary must not compete with it.
     expect(screen.getByRole('button', { name: 'Make offer' }).className).not.toContain('font-bold')
   })
+
+  it('sets the primary label at 16px below lg and leaves the secondary at 14px (2026-11-07 audit)', () => {
+    render(<StickyActionBar primary={{ label: 'Chat' }} secondary={{ label: 'Make offer' }} />)
+    expect(screen.getByRole('button', { name: 'Chat' }).className.split(/\s+/)).toContain('max-lg:text-base')
+    expect(screen.getByRole('button', { name: 'Make offer' }).className.split(/\s+/)).not.toContain('max-lg:text-base')
+  })
 })
 
 describe('StickyActionBar shares the bottom edge instead of taking it', () => {

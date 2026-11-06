@@ -77,7 +77,7 @@ export function CategoryLedeLinks({ slug }: { slug: string }) {
           ⛔ ONE LINE ON A PHONE, WITH ITS LINK (owner, 2026-10-18: products first on a phone's first screen). The
           promise wrapped to four lines at 390px; below sm it now truncates to one, and "Check availability" beside it
           opens /rentals/check, whose empty list says the rest (how to pick, up to 5, free). The whole sentence stays
-          in the HTML, and from sm it reads in full as before, without the link. */}
+          in the HTML, and from sm it reads in full with the same link at its end (RentalCheckHint, 2026-11-07 audit). */}
       {cat.slug === 'rentals' && (
         <div className="mt-2 flex max-w-prose items-center gap-2">
           <RentalCheckHint className="min-w-0 flex-1 max-sm:items-center max-sm:[&>span]:min-w-0 max-sm:[&>span]:truncate" />

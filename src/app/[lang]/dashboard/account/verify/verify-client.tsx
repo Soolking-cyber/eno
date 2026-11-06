@@ -1056,7 +1056,9 @@ export function VerifyClient() {
             // ⚠️ whitespace-normal: Button's base is whitespace-nowrap, so the description never wrapped —
             // on a phone both cards widened the grid past the page (96–229px measured at 320–390), and in
             // two columns the passport line ran 46–218px out of its card (EN/VI, 640–768).
-            className="h-auto flex-col items-start gap-1 whitespace-normal rounded-2xl p-4 text-left"
+            // LOCKED AT 60%, ITS LINE AT FULL STRENGTH (2026-11-07 audit): the base's 50% on top of the line's own 80% left what each
+            // way asks for at ~2.5:1, hard to read before the tick; now ~4.6:1, still plainly greyed beside the line that says why.
+            className="group h-auto flex-col items-start gap-1 whitespace-normal rounded-2xl p-4 text-left disabled:opacity-60"
           >
             {/* §2: tier-choice leads are BUTTON content, not nav chrome — the hand-typed 2.25
                 was tier drift; the UI default (lucide's own 2) is the law for this surface. */}
@@ -1067,7 +1069,7 @@ export function VerifyClient() {
             {/* Said like the passport card beside it (2026-11-06 audit): "about two minutes" read as the whole wait, while the
                 lede above says a person reviews it, usually within a working day (kyc/service.ts files it as cccd_manual).
                 The selfie is the wizard's second step for both tiers. */}
-            <span className="text-xs font-normal opacity-80">{tr('Your citizen ID card (CCCD), plus a selfie — reviewed by our team', 'Thẻ CCCD của bạn, kèm ảnh chân dung — đội ngũ của chúng tôi xem xét')}</span>
+            <span className="text-xs font-normal opacity-80 group-disabled:opacity-100">{tr('Your citizen ID card (CCCD), plus a selfie — reviewed by our team', 'Thẻ CCCD của bạn, kèm ảnh chân dung — đội ngũ của chúng tôi xem xét')}</span>
           </Button>
           <Button
             type="button"
@@ -1075,7 +1077,7 @@ export function VerifyClient() {
             disabled={!accepted || retrySecs > 0 || declarationChanged}
             onClick={() => void start('B')}
             aria-busy={starting && tier === 'B'}
-            className="h-auto flex-col items-start gap-1 whitespace-normal rounded-2xl p-4 text-left"
+            className="group h-auto flex-col items-start gap-1 whitespace-normal rounded-2xl p-4 text-left disabled:opacity-60"
           >
             <span className="flex items-center gap-2 font-bold"><IdCard className="h-5 w-5" />{tr('Foreign resident', 'Người nước ngoài')}</span>
             {/* ⚠️ THIS SENTENCE WAS FALSE AND HAD TO CHANGE. It said "read on your device, not
@@ -1088,7 +1090,7 @@ export function VerifyClient() {
                 review by our own team, so the old sentence described a data flow that does not
                 happen. This file's own history warns about exactly this: an inaccurate privacy
                 claim on the page asking for a passport is the worst thing here to get wrong. */}
-            <span className="text-xs font-normal opacity-80">{tr('Passport valid 6+ months, plus a selfie — reviewed by our team', 'Hộ chiếu còn hạn ít nhất 6 tháng, kèm ảnh chân dung — đội ngũ của chúng tôi xem xét')}</span>
+            <span className="text-xs font-normal opacity-80 group-disabled:opacity-100">{tr('Passport valid 6+ months, plus a selfie — reviewed by our team', 'Hộ chiếu còn hạn ít nhất 6 tháng, kèm ảnh chân dung — đội ngũ của chúng tôi xem xét')}</span>
           </Button>
         </div>
         </>)}

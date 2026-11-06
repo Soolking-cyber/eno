@@ -76,8 +76,12 @@ export function coverZaloViewOf(d: unknown): CoverZaloView | null {
  */
 export function CoverZaloNotice() {
   const { tr } = useLanguage()
+  // Who can see the number (and when), and how to take it back, in the primary ink; the why and the limits stay in the
+  // description's (2026-11-07 audit: four equal paragraphs hid the two a teacher must not miss). Ink only, by paragraph
+  // position in NoticeParagraphs: no word moves, so COVER_ZALO_NOTICE_VERSION holds; one unsplit paragraph (a start the
+  // text does not carry) simply stays in the description's ink.
   return (
-    <span data-testid="cover-zalo-notice">
+    <span data-testid="cover-zalo-notice" className="[&>span>span:nth-child(2)]:text-foreground [&>span>span:nth-child(4)]:text-foreground">
       <NoticeParagraphs
         // 2026-11-06 audit: four short paragraphs — why, who sees it, the limits and the record, how to stop — so each
         // consequence can be found before the switch is touched. Where each one begins, in either language; the string

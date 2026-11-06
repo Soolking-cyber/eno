@@ -34,6 +34,8 @@ type Props = {
    * means the card looked and found no job type, so today's label stays, in muted ink. Left out
    * (every other surface: rows, map, suggestions — and a card whose payload has no `jobType` key)
    * nothing changes. Ignored on anything but a LINKED job at 0.
+   * ⚠️ SINCE THE 2026-11-07 AUDIT THE CARD PASSES `null` ONLY, for every linked job at 0: its slot holds pay, and the
+   * type follows the place on the card's info line (listing-card.tsx `jobTypeText`). The string form is still honoured and tested.
    * ⛔ NEVER ON AN EMPLOYER'S OWN JOB (`linked === false`). Its label is "Salary: negotiable" — a fact
    * about the pay that the type would drop, and on a phone the slot truncates, so even "Full-time ·
    * negotiable" would lose the one word that matters. The plan's target is the linked board's

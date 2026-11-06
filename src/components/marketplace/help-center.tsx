@@ -174,11 +174,14 @@ const ROW_LINK = 'group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3
 const ROW_CHEVRON = 'size-4 text-muted-foreground group-hover:text-accent-foreground'
 
 /** A "Top questions" row: the post's title in the reader's language, linking to its thread. */
-function TopQuestion({ post, i18n }: { post: HelpPost; i18n?: HelpI18n }) {
+function TopQuestion({ post, i18n, leftOut }: { post: HelpPost; i18n?: HelpI18n; leftOut: boolean }) {
   const title = useHelpText(post, post.title, i18n, 'title')
   return (
     <Row className="py-0 lg:border-t lg:border-border">
-      <Link href={`/help/${encodeURIComponent(post.id)}`} className={ROW_LINK}>
+      {/* data-topic: the topic group this question is left out of while it is listed here (e2e/guest/help.spec.ts counts by it).
+          Only while it IS left out (2026-11-06 gate): with no more answers than Top questions holds, every post stays in its
+          group, and a data-topic on every top link made the chip test count those answers twice. */}
+      <Link href={`/help/${encodeURIComponent(post.id)}`} data-topic={leftOut ? post.community : undefined} className={ROW_LINK}>
         <span className="min-w-0">{title}</span>
         <ChevronRight className={ROW_CHEVRON} aria-hidden />
       </Link>
@@ -367,13 +370,23 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
   // Grouped by topic when browsing everything; a flat list once the reader has
   // narrowed by topic or typed a query (grouping one bucket is just noise).
   const grouped = !topic && !needle
+  // 2026-11-06 audit: while Top questions shows, its posts are left out of their topic groups. The same six questions read
+  // twice within a screen, once as links to their pages and once as accordions (the info and dashboard judges both). A topic
+  // chip or a search lists every answer again, and when there are no more answers than Top questions holds, none is left
+  // out. Opening a top question in place instead was declined in batch 26: it breaks Back and starves the view count that
+  // ranks the list.
+  const showTop = grouped && top.length >= 3
+  const featured = useMemo(
+    () => new Set<string>(showTop && answers.length > top.length ? top.map((post) => post.id) : []),
+    [showTop, answers.length, top],
+  )
   const groups = useMemo(
     () =>
       HELP_TOPICS.map((item) => ({
         topic: item,
-        posts: answers.filter((post) => post.community === item.slug),
+        posts: answers.filter((post) => post.community === item.slug && !featured.has(post.id)),
       })).filter((group) => group.posts.length > 0),
-    [answers],
+    [answers, featured],
   )
 
   // Two BALANCED columns, packed here rather than by the grid.
@@ -476,7 +489,7 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
         })}
       </div>
 
-      {!needle && !topic && top.length >= 3 && (
+      {showTop && (
         // max-w-3xl, like every other list of links to read: at the page's full width the chevron sat
         // ~900px from a 300px question (the note on MORE_LINKS measured the same failure).
         // 2026-11-06 audit: from lg the list takes the Answers' two columns (gap-x-12) instead, so each chevron ends a ~540px
@@ -489,7 +502,7 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
           {/* Top rule only — the Answers section's own hairline closes the list (see PolicyMatches). */}
           <Rows className="mt-3 border-t border-border lg:grid lg:grid-cols-2 lg:gap-x-12 lg:divide-y-0 lg:border-t-0">
             {top.map((post) => (
-              <TopQuestion key={post.id} post={post} i18n={i18n} />
+              <TopQuestion key={post.id} post={post} i18n={i18n} leftOut={featured.has(post.id)} />
             ))}
           </Rows>
         </section>

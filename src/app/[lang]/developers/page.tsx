@@ -183,18 +183,23 @@ export default function DevelopersPage() {
               .well-known DOCUMENTS ADVERTISE. Hand-typing the list is how a fifth scope ships
               undocumented, or a renamed one keeps being documented after it stops being accepted —
               and here the documentation and the metadata would then disagree in public. */}
-          <p className="mt-3 text-sm leading-relaxed text-body">
-            Keys are scoped:{' '}
-            {SCOPES.map((s, i) => (
-              <span key={s}>
-                <code className="rounded-lg bg-muted px-1 text-xs font-semibold">{s}</code>
-                {i < SCOPES.length - 1 ? ', ' : ' '}
-              </span>
-            ))}
-            (write is opt-in when you mint the key). Every key acts for one shop; requests only ever see that shop&apos;s
-            own data. Revoke a key anytime — it takes effect immediately. There is no sandbox and no test key: a key is
-            live from the moment it is issued.
-          </p>
+          {/* 2026-11-06 audit: what a key opens and how it behaves, as labelled lines in the Conventions list's form. That a key
+              is live the moment it is issued, and that revoking is immediate, were the closing clauses of one paragraph. */}
+          <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-body">
+            <li>
+              • <strong className="text-foreground">Scopes:</strong>{' '}
+              {SCOPES.map((s, i) => (
+                <span key={s}>
+                  <code className="rounded-lg bg-muted px-1 text-xs font-semibold">{s}</code>
+                  {i < SCOPES.length - 1 ? ', ' : ' '}
+                </span>
+              ))}
+              (write is opt-in when you mint the key).
+            </li>
+            <li>• <strong className="text-foreground">One shop per key:</strong> requests only ever see that shop&apos;s own data.</li>
+            <li>• <strong className="text-foreground">No sandbox:</strong> there is no test key — a key is live from the moment it is issued.</li>
+            <li>• <strong className="text-foreground">Revoke anytime:</strong> it takes effect immediately.</li>
+          </ul>
           <p className="mt-3 text-sm leading-relaxed text-body">
             {SITE_NAME} and its sibling site run the same software on separate deployments, and they share one database — so a key
             issued by either one authenticates at both. Send requests to the host you got your key from anyway: that is the

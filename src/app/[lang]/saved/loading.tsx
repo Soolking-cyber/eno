@@ -26,7 +26,8 @@ export default function SavedLoading() {
           ))}
         </div>
       </main>
-      <Footer />
+      {/* Compact, as the page itself ends (saved/page.tsx): the same footer on both sides of the swap. */}
+      <Footer compact />
     </div>
   )
 }

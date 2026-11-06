@@ -205,7 +205,7 @@ function PdpToggle({ listing, className }: { listing: RentalCheckSource; classNa
   )
 }
 
-/** The one-line explainer under the /c/rentals lede — the feature is invisible until someone says it exists. */
+/** The one-line explainer under the /c/rentals lede — the feature is invisible until someone says it exists — and, from sm, its link. */
 export function RentalCheckHint({ className }: { className?: string }) {
   const { tr } = useLanguage()
   return (
@@ -218,6 +218,12 @@ export function RentalCheckHint({ className }: { className?: string }) {
           'Pick up to 5 rentals and the eno team checks availability for you — a free service to find your next home, and the price you see is the price you get.',
           'Chọn tối đa 5 căn, đội ngũ eno kiểm tra phòng trống giúp bạn — dịch vụ miễn phí giúp bạn tìm nhà, giá bạn thấy là giá bạn trả.',
         )}
+        {/* The check itself, at the end of the promise, from sm (2026-11-07 audit): a desktop read what the service does with
+            nothing to start it. The phone's link sits beside its short line (category-lede-block.tsx CategoryLedeLinks). */}
+        {' '}
+        <Link href={RENTAL_CHECK_PATH} prefetch={false} className="whitespace-nowrap font-semibold text-accent-foreground hover:underline">
+          {tr('Check availability', 'Kiểm tra phòng trống')}
+        </Link>
       </span>
       <span className="sm:hidden">{tr('Free check, up to 5 rentals', 'Kiểm tra miễn phí 5 căn')}</span>
     </p>

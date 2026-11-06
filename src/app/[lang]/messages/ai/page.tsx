@@ -95,7 +95,7 @@ export default function AiThreadPage() {
         {greetingText.slice(0, at - q)}
         {/* Ending the greeting, the example takes a line of its own (2026-11-06 audit); a translation that puts it
             mid-sentence keeps it in the line. */}
-        <Button variant="link" size="none" type="button" onClick={tryExample} className={`relative whitespace-normal text-left font-semibold leading-relaxed text-accent-foreground underline underline-offset-2 tap-44 ${after.trim() ? 'inline-block' : 'mt-1 block w-fit'}`}>
+        <Button variant="link" size="none" type="button" onClick={tryExample} className={`relative whitespace-normal text-left font-semibold leading-relaxed text-accent-foreground underline underline-offset-2 tap-44 lg:text-base ${after.trim() ? 'inline-block' : 'mt-1 block w-fit'}`}>
           {greetingText.slice(at - q, at + example.length + q)}
         </Button>
         {after}
@@ -234,8 +234,8 @@ export default function AiThreadPage() {
             for user-state, so the AI identity rides the flat brand-50 coin like the Post chip. */}
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand"><Sparkles className="h-5 w-5" aria-hidden /></span>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-bold text-foreground">{tr('eno AI', 'eno AI')}</div>
-          <div className="truncate text-xs text-accent-foreground">
+          <div className="truncate text-sm font-bold text-foreground lg:text-base">{tr('eno AI', 'eno AI')}</div>
+          <div className="truncate text-xs text-accent-foreground lg:text-sm">
             {googleAiOff
               ? tr('Keyword search · Google AI off', 'Tìm theo từ khóa · Đã tắt Google AI')
               : tr('AI shopping assistant', 'Trợ lý mua sắm AI')}
@@ -279,7 +279,7 @@ export default function AiThreadPage() {
         ))}
         {loading && (
           <div className="flex items-start">
-            <div className="flex items-center gap-2 rounded-2xl bg-tint px-3.5 py-2.5 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 rounded-2xl bg-tint px-3.5 py-2.5 text-sm text-muted-foreground lg:text-base">
               <Loader2 className="h-4 w-4 animate-spin" /> {tr('Searching…', 'Đang tìm…')}
             </div>
           </div>
@@ -317,7 +317,8 @@ export default function AiThreadPage() {
             rows={1}
             enterKeyHint="send"
             placeholder={tr('Ask for anything…', 'Hỏi bất cứ điều gì…')}
-            className="min-h-0 max-h-28 flex-1 resize-none rounded-2xl px-3.5 py-2.5 text-base lg:text-sm"
+            // 16px at every width since 2026-11-07, as the thread's field and the bubbles from lg.
+            className="min-h-0 max-h-28 flex-1 resize-none rounded-2xl px-3.5 py-2.5 text-base"
           />
           <ChatSendButton
             onClick={() => send()}

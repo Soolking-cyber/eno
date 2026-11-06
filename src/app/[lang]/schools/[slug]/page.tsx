@@ -192,9 +192,12 @@ export default async function SchoolPageRoute({ params }: Props) {
                 )}
               </section>
             </div>
+            {/* The school's facts before a pay note that only says there is none yet; a published range keeps the top (2026-11-07
+                audit: on a phone the empty note stood between the open jobs and the type, areas and website). */}
             <aside className="mt-10 flex flex-col gap-6 lg:col-start-2 lg:row-start-1 lg:row-end-3 lg:mt-0">
-              <PaySection pay={page.pay} slug={school.slug} />
+              {page.pay.length > 0 && <PaySection pay={page.pay} slug={school.slug} />}
               <AboutCard school={school} website={website} lang={lang} />
+              {page.pay.length === 0 && <PaySection pay={page.pay} slug={school.slug} />}
             </aside>
             {/* The page's footnote: last on a phone, after the pay note and the facts (inside the left column it fell between the open
                 jobs and the pay note); on desktop the grid's second row, straight under the jobs. */}

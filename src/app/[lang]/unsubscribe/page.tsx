@@ -84,6 +84,13 @@ function UnsubscribeForm() {
       {label}
     </Link>
   )
+  // A dead link's way forward as the state's one full-width button (2026-11-06 audit): an underlined text link under the
+  // error read as an afterthought on a phone, where Unsubscribe and Try again are full-width buttons. 44px tall (min-h-11).
+  const recoveryButton = (href: string, label: string) => (
+    <Button asChild variant="cta" size="none" className="mt-6 min-h-11 w-full py-2.5">
+      <Link href={href}>{label}</Link>
+    </Button>
+  )
 
   const resubscribeButton = (
     <Button
@@ -155,21 +162,19 @@ function UnsubscribeForm() {
             ? {
                 title: tr("That link didn't work", 'Liên kết không hợp lệ'),
                 body: tr('The unsubscribe link is invalid or expired, so nothing has changed. You can turn teaching-job match emails off in your teacher profile.', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn, nên chưa có gì thay đổi. Bạn có thể tắt email gợi ý việc làm giảng dạy trong hồ sơ giáo viên của mình.'),
-                action: profileLink(tr('Open my teacher profile', 'Mở hồ sơ giáo viên của tôi')),
+                action: recoveryButton('/teachers/edit', tr('Open my teacher profile', 'Mở hồ sơ giáo viên của tôi')),
               }
             : state === 'error'
               ? {
                   title: tr("That link didn't work", 'Liên kết không hợp lệ'),
                   // 2026-11-06 audit: what a reader most needs from a dead link: nothing was changed, and the settings ahead need a
                   // sign-in (the link below is a dashboard route). Worded to stay true for a reader who is already signed in.
-                  body: tr('The unsubscribe link is invalid or expired, so nothing has changed. You can manage email preferences in your account settings (sign-in required).', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn, nên chưa có gì thay đổi. Bạn có thể quản lý email trong cài đặt tài khoản (cần đăng nhập).'),
-                  // The way forward this line names, as a link (2026-11-06 audit): it was a dead end, worst on the no-token
-                  // landing. The digest switch is Settings › Notifications; a signed-out reader goes through sign-in first.
-                  action: (
-                    <Link href="/dashboard/settings?tab=notifications" className="relative tap-44 mt-6 inline-flex font-bold text-accent-foreground underline underline-offset-2">
-                      {tr('Open email settings', 'Mở cài đặt email')}
-                    </Link>
-                  ),
+                  // A fresh link needs no sign-in: every digest is sent with a working one, and the tokens do not expire
+                  // (unsubscribe-token.ts), so the line names that route first.
+                  body: tr('The unsubscribe link is invalid or expired, so nothing has changed. Use the link in your latest weekly {site} digest, or turn the digest off in your account settings (sign-in required).', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn, nên chưa có gì thay đổi. Hãy dùng liên kết trong bản tin hằng tuần mới nhất của {site}, hoặc tắt bản tin trong cài đặt tài khoản (cần đăng nhập).').replace(/\{site\}/g, SITE_NAME),
+                  // The way forward this line names (2026-11-06 audit): it was a dead end, worst on the no-token landing. The digest
+                  // switch is Settings › Notifications; a signed-out reader goes through sign-in first.
+                  action: recoveryButton('/dashboard/settings?tab=notifications', tr('Open email settings', 'Mở cài đặt email')),
                 }
               : teacherMatches
                 ? {

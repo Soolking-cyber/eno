@@ -30,16 +30,17 @@ const ROWS_STEP = 60
  *  action chips wrap onto a second line. Reproducing the same `flex flex-wrap` chip row makes
  *  the placeholder wrap where the row wraps, so it is never 40–78px short.
  *  From lg (2026-11-06) the row puts its chips beside the text and its 96px thumb sets the height — 120px —
- *  and this placeholder takes the same shape. */
+ *  and this placeholder takes the same shape. Since 2026-11-07 the rows are flat between hairlines, flush below lg, and a
+ *  phone's live row has no pill — so neither does this placeholder there. */
 function ListingRowSkeleton() {
   return (
-    <div className="flex gap-3 rounded-2xl p-3 lg:items-center lg:gap-4">
+    <div className="flex gap-3 py-3 lg:items-center lg:gap-4 lg:px-3">
       <Skeleton className="h-20 w-20 shrink-0 rounded-xl lg:h-24 lg:w-24" />
       <div className="min-w-0 flex-1 lg:flex lg:items-center lg:gap-6">
         <div className="min-w-0 lg:flex-1">
           <div className="flex items-start justify-between gap-2 lg:justify-start">
             <Skeleton className="h-6 w-48 max-w-full" />
-            <Skeleton className="h-6 w-12 shrink-0 rounded-full" />
+            <Skeleton className="h-6 w-12 shrink-0 rounded-full max-lg:hidden" />
           </div>
           {/* Price — text-base line box (24), not the 20px glyph height */}
           <Skeleton className="h-6 w-28" />
@@ -154,7 +155,7 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
         <StatsGridSkeleton />
         <div className="mt-6">
           <StatusFilterSkeleton />
-          <div className="space-y-2.5">
+          <div className="divide-y divide-border">
             {Array.from({ length: 3 }).map((_, i) => <ListingRowSkeleton key={i} />)}
           </div>
         </div>
@@ -240,7 +241,7 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
         ) : !dash ? (
           <>
             <StatusFilterSkeleton />
-            <div className="space-y-2.5">
+            <div className="divide-y divide-border">
               {Array.from({ length: 3 }).map((_, i) => (
                 <ListingRowSkeleton key={i} />
               ))}
@@ -282,9 +283,14 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
                 <p className="py-10 text-center text-sm text-muted-foreground">{tr('No listings in this filter.', 'Không có tin nào phù hợp bộ lọc.')}</p>
               ) : (
                 <div className="space-y-2.5">
-                  {shown.slice(0, limit).map((l) => (
-                    <DashboardListingRow key={l.id} listing={l} onChanged={refresh} />
-                  ))}
+                  {/* Rows between hairlines (2026-11-07 audit): with 10px of air and no rule, a desktop row's actions, far
+                      across the row from its title, belonged to no row, and on a phone where one row ended was a guess. Each
+                      row is flat (dashboard-listing-row.tsx); "Show more" keeps its gap below the last. */}
+                  <div className="divide-y divide-border">
+                    {shown.slice(0, limit).map((l) => (
+                      <DashboardListingRow key={l.id} listing={l} onChanged={refresh} />
+                    ))}
+                  </div>
                   {shown.length > limit && (
                     <Button variant="outline" className="w-full" onClick={() => setLimit((l) => l + ROWS_STEP)}>
                       {tr('Show {n} more', 'Xem thêm {n} tin').replace('{n}', () => grouped(Math.min(ROWS_STEP, shown.length - limit)))}

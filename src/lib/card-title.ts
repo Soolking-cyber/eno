@@ -158,12 +158,27 @@ export function cardTitle({ title, lang, sellerId, categorySlug, listingType, co
 }
 
 /**
- * THE JOB CARD'S PRICE SLOT WHEN THERE IS NO đồng FIGURE (rentals-09): "Toàn thời gian · Hà Nội"
- * instead of the 25 identical "Lương: xem chi tiết". The type is the jobs `jobtype` facet (taxonomy.ts,
- * the jobs category — labels pinned by card-title.test.ts); the city is the stored `Listing.city`.
- * Returns null when there is no known job type, so the caller keeps today's label.
+ * THE JOB TYPE AS A CARD PRINTS IT — "Full-time" / "Toàn thời gian" — or null for no known type. Since the 2026-11-07
+ * audit it follows the place on a job card's info line (the newest fact, so the one an ellipsis takes); the price slot
+ * holds pay only. The type is the jobs `jobtype` facet (taxonomy.ts, the jobs category — labels pinned by
+ * card-title.test.ts).
  * ⚠️ `tr()` CALLS, NOT A DATA MAP, so scripts/gen-ui-strings.mjs harvests the labels for the nine
  * machine-translated languages like every other piece of copy.
+ */
+export function jobTypeLabel(jobType: string | null | undefined, tr: (en: string, vi: string) => string): string | null {
+  return jobType === 'fulltime' ? tr('Full-time', 'Toàn thời gian')
+    : jobType === 'parttime' ? tr('Part-time', 'Bán thời gian')
+    : jobType === 'contract' ? tr('Contract', 'Hợp đồng')
+    : jobType === 'freelance' ? tr('Freelance', 'Tự do')
+    : jobType === 'temporary' ? tr('Temporary', 'Thời vụ')
+    : jobType === 'remote' ? tr('Remote', 'Từ xa')
+    : null
+}
+
+/**
+ * Type · city — "Toàn thời gian · Hà Nội" (rentals-09), what a job card's price slot printed from 2026-10-04 until the
+ * 2026-11-07 audit gave the slot back to pay. No card calls it now; it stays, tested, beside cardCity. The city is the
+ * stored `Listing.city`. Null when there is no known job type.
  */
 export function jobCardMeta(
   jobType: string | null | undefined,
@@ -171,13 +186,7 @@ export function jobCardMeta(
   lang: string,
   tr: (en: string, vi: string) => string,
 ): string | null {
-  const type = jobType === 'fulltime' ? tr('Full-time', 'Toàn thời gian')
-    : jobType === 'parttime' ? tr('Part-time', 'Bán thời gian')
-    : jobType === 'contract' ? tr('Contract', 'Hợp đồng')
-    : jobType === 'freelance' ? tr('Freelance', 'Tự do')
-    : jobType === 'temporary' ? tr('Temporary', 'Thời vụ')
-    : jobType === 'remote' ? tr('Remote', 'Từ xa')
-    : null
+  const type = jobTypeLabel(jobType, tr)
   if (!type) return null
   const place = cardCity(city, lang, tr)
   return place ? `${type} · ${place}` : type

@@ -297,7 +297,7 @@ until load → strips it from SSR → costs the LCP; reason in the file).
 | Static chip / badge / status pill | `<Badge>` — variants: `neutral` (tint), `brand`, `success`, `warning`, `destructive`, `outline`; sizes `sm` (2xs) / `md` (xs) |
 | Interactive chip | `<Chip>` (ui/chip) — an action chip, or a filter toggle when `pressed` is passed (Base UI Toggle, `aria-pressed`); sizes `xs` 28 / `sm` 32 / `md` 36, tones `ghost` / `neutral` / `warning`; `chipVariants()` on a `<Link>` |
 | Page title row | `<PageHeader>` (ui/page-header) — the h1 on the ramp + meta line + actions |
-| Text input | `<Input>` — filled tint idiom with a hairline (`rounded-xl bg-tint shadow-[inset_0_0_0_1px_var(--color-border)] px-4 py-3 text-sm`: tint alone on the canvas is 1.02:1 and read as disabled; a shadow so the line takes no layout); `variant="outline"` for bordered forms |
+| Text input | `<Input>` — filled tint idiom with a hairline (`rounded-xl bg-tint shadow-[inset_0_0_0_1px_var(--color-line-strong)] px-4 py-3 text-sm`: tint alone on the canvas is 1.02:1 and read as disabled; a shadow so the line takes no layout; line-strong since 2026-11-07, when the divider grey still read as inactive); `variant="outline"` for bordered forms |
 | Multiline | `<Textarea>` — same idioms as Input |
 | Checkbox | `<Checkbox>` |
 | On/off toggle | `<Switch>` (has haptics); `<SwitchRow>` (ui/switch) when its words must be in view — a VISIBLE label plus a description (a consent notice) that is read with it and is not a tap target |

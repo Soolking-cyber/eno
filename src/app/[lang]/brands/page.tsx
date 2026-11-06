@@ -148,9 +148,11 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
                     <span aria-hidden className="max-w-full truncate text-xl font-bold text-body">{b.name}</span>
                   )}
                 </span>
-                <span className="line-clamp-1 text-sm font-semibold text-foreground">{b.name}</span>
-                <span className="text-xs text-body">
-                  {b.count} {b.count === 1 ? <Tr text="listing" /> : <Tr text="listings" />}
+                {/* 2026-11-06 audit: the name a step lighter, since most marks above already spell it, and the count at 14px with
+                    its number in the heading ink. The name stays visible: it is the label of a glyph mark (Honda's H). */}
+                <span className="line-clamp-1 text-sm font-medium text-foreground">{b.name}</span>
+                <span className="text-sm text-body">
+                  <span className="font-semibold text-foreground tabular-nums">{b.count}</span> {b.count === 1 ? <Tr text="listing" /> : <Tr text="listings" />}
                 </span>
               </Link>
             ))}

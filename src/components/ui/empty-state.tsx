@@ -122,10 +122,13 @@ export function EmptyState({
             </span>
           ))}
       {/* 2026-11-06 audit: the title is the state's headline, so it takes the primary ink at both sizes, and the hint is
-          readable body copy (14px, text-body) instead of 12px tertiary grey that read as fine print. */}
-      <div className="space-y-1">
-        <TitleTag className={size === 'lg' ? 'text-base font-semibold text-foreground' : 'text-sm font-semibold text-foreground'}>{title}</TitleTag>
-        {subtitle && <p className="mx-auto max-w-sm text-sm text-body">{subtitle}</p>}
+          readable body copy (text-body) instead of 12px tertiary grey that read as fine print.
+          2026-11-07 audit: one step up at both sizes. A page-level state (`lg`: Saved, the inbox, a route error, an empty
+          category) is the 18px section heading over 16px copy; an inline one 16px over 14px. Under a 160–208px mascot a
+          14–16px caption read as small and stranded on a desktop canvas (judges: Saved, Messages, Disputes). */}
+      <div className={size === 'lg' ? 'space-y-1.5' : 'space-y-1'}>
+        <TitleTag className={size === 'lg' ? 'h-section text-foreground' : 'text-base font-semibold text-foreground'}>{title}</TitleTag>
+        {subtitle && <p className={cn('mx-auto text-body', size === 'lg' ? 'max-w-md text-base' : 'max-w-sm text-sm')}>{subtitle}</p>}
       </div>
       {action}
     </div>

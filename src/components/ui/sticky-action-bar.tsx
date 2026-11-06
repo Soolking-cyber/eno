@@ -261,7 +261,9 @@ function BarAction({
   // recoverable — rather than hiding the one control the surface exists for, which is not.
   // ⚠️ Both must go on the PRIMITIVE, not on a render child: a className on a render/asChild child
   // is CONCATENATED, not merged, so stylesheet order would decide against `whitespace-nowrap`.
-  const className = 'min-h-12 min-w-0 flex-1 gap-1.5 whitespace-normal'
+  // 2026-11-07 audit: the primary's label is 16px below lg, the phone CTA size ui/button gives a full-width `cta` (Publish,
+  // Next); the secondary keeps 14px so the pair still reads as one choice and its alternative.
+  const className = cn('min-h-12 min-w-0 flex-1 gap-1.5 whitespace-normal', marker === 'primary' && 'max-lg:text-base')
 
   if (action.render && !action.disabled) {
     // ui/button's asChild clones the child and does NOT compose handlers, so onClick has to go

@@ -110,8 +110,18 @@ const buttonVariants = cva(
         // Canonical brand CTA — matches the app's hand-rolled primary buttons
         // (solid brand blue, white text, bold, darken-on-hover). Use this for new
         // primary actions instead of re-coding bg-primary/hover:bg-brand-dark.
+        // 2026-11-07 audit: on a phone (below sm, the app's phone line: useIsPhone, the picker sheets) a FULL-WIDTH one is
+        // the next step, so it gets a 48px body and a 16px label (Chat now, Buy on…, a form's Continue; both blind judges
+        // credited the bigger phone actions, pz31/pz32). The element's own `w-full` class is the signal: desktop, tablet and
+        // inline CTAs keep their size, and a micro CTA that sets its own 11-12px type (the card's quick offer) is left alone.
+        // The selector outranks a caller's single min-h or text-sm class, and tailwind-merge keeps both (different
+        // variants), so no call site had to change.
+        // ⚠️ BELOW sm, NOT BELOW lg (review r31, 2026-11-07): the class is a reliable signal only where no responsive width
+        // overrides it. Six CTAs are `w-full sm:w-auto` and keep the class from 640 to 1023px while they sit inline, so a
+        // below-lg rule grew them there: the CV import's Continue stood 48px with a 16px label beside its 36px Undo
+        // (teacher-import-panel.tsx), and the others grew in place.
         cta:
-          "bg-primary text-white font-bold hover:bg-brand-dark",
+          "bg-primary text-white font-bold hover:bg-brand-dark max-sm:[&.w-full:not(.text-xs):not(.text-2xs)]:min-h-12 max-sm:[&.w-full:not(.text-xs):not(.text-2xs)]:text-base",
         /**
          * ⛔ `commerce` IS NOT `cta`, AND THE DIFFERENCE IS 128 BUTTONS. `variant="cta"` is the app's
          * primary action — 128 call sites, including every admin panel — so painting IT orange is the

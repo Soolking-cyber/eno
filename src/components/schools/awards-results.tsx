@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { Bilingual } from '@/components/marketplace/bilingual'
-import { Award, Users } from '@/components/ui/icons'
+import { Award, ChevronDown, Users } from '@/components/ui/icons'
 import { Rows, Row } from '@/components/ui/rows'
 import type { AwardsPage } from '@/lib/schools/awards'
 import { AWARD_MIN_REVIEWS, AWARD_MIN_VOTERS, KIND_LABEL, SCHOOL_KINDS, type SchoolKind } from '@/lib/schools/constants'
@@ -108,14 +108,19 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
         </>
       )}
 
-      {/* A section like "How to take part", its heading the same size, not a grey panel (2026-11-06 audit: the tint gave the rules
-          a notice's weight). */}
-      <section aria-labelledby="awards-how-h" className="mt-10 max-w-prose">
-        <h2 id="awards-how-h" className="text-lg font-bold text-foreground"><Bilingual en="How the winners are chosen" vi="Cách chọn ra kết quả" /></h2>
+      {/* Like "How to take part", not a grey panel (2026-11-06 audit), and a native disclosure while the year runs (2026-11-07
+          audit: "Qualified so far" already states the bar, and these rules said it again before the confidence-interval detail);
+          open on a final year, whose results they explain. No client JavaScript, and the words stay in the HTML. The summary is
+          the guides' "On this page" row (seo-article.tsx): 44px, its chevron at the end, a wash on press. */}
+      <details open={page.state === 'final'} aria-labelledby="awards-how-h" className="group mt-10 max-w-prose border-y border-border">
+        <summary className="-mx-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-2 active:bg-muted [&::-webkit-details-marker]:hidden">
+          <h2 id="awards-how-h" className="text-lg font-bold text-foreground"><Bilingual en="How the winners are chosen" vi="Cách chọn ra kết quả" /></h2>
+          <ChevronDown className="size-5 shrink-0 text-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+        </summary>
         {/* Three short rules under a lead each, not one paragraph that ran eligibility, ranking, ties and finality together
             (2026-11-06 audit). The words are the rule's own; the Vietnamese now names the Top rated tab by its label, "Đánh giá
             cao" (schools-board.tsx), not the old "Được đánh giá cao". */}
-        <div className="mt-2 space-y-2 text-sm leading-relaxed text-body">
+        <div className="space-y-2 pb-4 text-sm leading-relaxed text-body">
           <p>
             <strong className="font-semibold text-foreground"><Bilingual en="Who qualifies." vi="Điều kiện." /></strong>{' '}
             <Bilingual
@@ -139,7 +144,7 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
             />
           </p>
         </div>
-      </section>
+      </details>
     </>
   )
 }

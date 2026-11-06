@@ -27,10 +27,14 @@ export default function RentalCheckPage() {
     <div className="flex min-h-page flex-col">
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 pb-16 pt-6 sm:px-6 lg:px-8">
-        {/* The narrow column starts at the app frame's left edge (the header's, every dashboard page's), not centred on its own: both design judges (2026-11-06) read the centred column as a different site. */}
-        <div className="max-w-2xl"><RentalCheckView /></div>
+        {/* The view sets its own measure (2026-11-07 audit): the list and its form keep the narrow column on the app frame's left
+            edge (centred on its own, 2026-11-06, it read as a different site), while an EMPTY list centres in the frame under
+            the title, as the empty /disputes and /saved do — on the column's left edge it read as a third layout. */}
+        <RentalCheckView />
       </main>
-      <Footer />
+      {/* Compact, as on every tool page (2026-11-07 audit: the full footer outweighed the empty list). This page is noindex,
+          nofollow (above), so the link columns carried no crawl weight; the legal block and Help center stay. */}
+      <Footer compact />
     </div>
   )
 }

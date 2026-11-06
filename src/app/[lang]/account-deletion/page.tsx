@@ -82,8 +82,14 @@ const IN_APP_STEPS: Copy[][] = [
   ],
 ]
 
-/** [id, title, paras, link, steps] — a section's numbered `steps` come before its paragraphs. */
-const SECTIONS: [id: string, title: string, paras: Copy[], link?: { href: string; en: string; vi: string }, steps?: Copy[][]][] = [
+/**
+ * The in-app shortcut ends the intro (2026-11-07 audit): at the foot of "Delete it yourself" a phone met it about a screen and
+ * a half down, under the very steps it skips. Still the page's one link to Settings, so page.test.tsx finds it by its `href`.
+ */
+const SETTINGS_SHORTCUT = { href: '/dashboard/settings?tab=account', en: 'Go straight to Settings → Account', vi: 'Mở ngay Cài đặt → Tài khoản' }
+
+/** [id, title, paras, steps] — a section's numbered `steps` come before its paragraphs. */
+const SECTIONS: [id: string, title: string, paras: Copy[], steps?: Copy[][]][] = [
   [
     'in-app',
     'Delete it yourself, in the app',
@@ -94,7 +100,6 @@ const SECTIONS: [id: string, title: string, paras: Copy[], link?: { href: string
       },
       'This is the fastest route and the one we recommend. The same screen also lets you export a copy of your data first, which is worth doing before you delete anything, because deletion cannot be undone.',
     ],
-    { href: '/dashboard/settings?tab=account', en: 'Go straight to Settings → Account', vi: 'Mở ngay Cài đặt → Tài khoản' },
     IN_APP_STEPS,
   ],
   [
@@ -128,14 +133,14 @@ export default function AccountDeletionPage() {
     <ContentPage
       title="Delete your account"
       meta={<p className="mt-3 text-sm text-ink-4"><Bilingual en="Last updated: October 2026" vi="Cập nhật lần cuối: Tháng 10 năm 2026" /></p>}
-      intro={<Tr text="You can delete your account and the personal data attached to it at any time, either yourself in the app or by asking us. This page explains both, and what happens afterwards." />}
+      intro={<><Tr text="You can delete your account and the personal data attached to it at any time, either yourself in the app or by asking us. This page explains both, and what happens afterwards." />{' '}<Link className="font-semibold underline underline-offset-2" href={SETTINGS_SHORTCUT.href}><Bilingual en={SETTINGS_SHORTCUT.en} vi={SETTINGS_SHORTCUT.vi} /></Link></>}
       /* ⚠️ THE CONTACT SECTION IS IN THE RAIL TOO. It is rendered separately from SECTIONS (it
          carries a mailto link rather than plain paragraphs), and building the rail from SECTIONS
          alone left the written-request address — the whole point of this page for someone who
          cannot sign in — out of the page's own index. */
       sections={[...SECTIONS.map(([id, title]) => ({ id, label: title })), { id: 'contact', label: 'Where to write' }]}
     >
-      {SECTIONS.map(([id, title, paras, link, steps]) => (
+      {SECTIONS.map(([id, title, paras, steps]) => (
         <ContentSection key={id} id={id} title={title}>
           <div className="space-y-2">
             {steps && (
@@ -157,11 +162,6 @@ export default function AccountDeletionPage() {
                 <Words copy={p} />
               </p>
             ))}
-            {link && (
-              <p className="text-base leading-relaxed text-body">
-                <Link className="font-semibold underline underline-offset-2" href={link.href}><Bilingual en={link.en} vi={link.vi} /></Link>
-              </p>
-            )}
           </div>
         </ContentSection>
       ))}

@@ -196,7 +196,8 @@ function CheckInFor() {
   }
 
   const q = checkInQuestion(view)
-  const editLink = <Button variant="secondary" asChild><Link href="/teachers/edit">{tr('Change my details', 'Thay đổi thông tin')}</Link></Button>
+  // 44px on a phone, where the answers stack full-width (2026-11-07 audit: the stack's 36px buttons sat under the tap floor).
+  const editLink = <Button variant="secondary" asChild className="max-sm:min-h-11"><Link href="/teachers/edit">{tr('Change my details', 'Thay đổi thông tin')}</Link></Button>
 
   return (
     <div className="space-y-5">
@@ -246,13 +247,14 @@ function CheckInFor() {
               still says what hiding does before anything is sent. Its label wraps on a narrow phone or a zoomed text size. */}
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap [&>*]:max-sm:w-full">
             {done !== 'confirmed' && (
-              <Button variant="cta" loading={busy} disabled={busy} onClick={() => { void confirm() }}>
+              // The phone's full-width primary at the house's 48px / 16px (2026-11-07); a row of three from sm keeps the default.
+              <Button variant="cta" loading={busy} disabled={busy} onClick={() => { void confirm() }} className="max-sm:min-h-12 max-sm:text-base">
                 {tr('Yes, I’m still available', 'Có, tôi vẫn sẵn sàng')}
               </Button>
             )}
             {editLink}
             <AlertDialog open={confirmOpen} onOpenChange={(next) => { if (!busy) setConfirmOpen(next) }}>
-              <AlertDialogTrigger render={<Button variant="outline" type="button" className="whitespace-normal text-center" />}>
+              <AlertDialogTrigger render={<Button variant="outline" type="button" className="whitespace-normal text-center max-sm:min-h-11" />}>
                 {tr('Not available now — hide my profile', 'Hiện chưa sẵn sàng — ẩn hồ sơ của tôi')}
               </AlertDialogTrigger>
               <AlertDialogContent>

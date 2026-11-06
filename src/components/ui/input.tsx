@@ -23,7 +23,9 @@ const BOX = 'w-full rounded-xl px-4 py-3 text-sm'
 
 const VARIANTS = {
   // An inset shadow, not a border: the hairline takes no layout, so no field changes height. Not an inset ring either: that would drag the focus ring inside with it.
-  filled: `${BOX} bg-tint shadow-[inset_0_0_0_1px_var(--color-border)] focus:ring-2 focus:ring-ring/30`,
+  // 2026-11-07 audit: the hairline is line-strong, the token for input edges, not the divider grey: a tint field drawn in the
+  // divider grey read as one more inactive control beside a disabled Save (judges: Settings, Developer). Same height.
+  filled: `${BOX} bg-tint shadow-[inset_0_0_0_1px_var(--color-line-strong)] focus:ring-2 focus:ring-ring/30`,
   outline: `${BOX} border border-line-strong bg-card focus:border-brand focus:ring-2 focus:ring-ring/30`,
   unstyled: 'bg-transparent',
 } as const

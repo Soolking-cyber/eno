@@ -115,10 +115,17 @@ export default function TrustPage() {
               here to TRUST.MAX, so raising the cap means re-adding the band, not the other way round. */}
           <div className="mt-1 max-w-[60ch] divide-y divide-border">
             <Band score={130} name="Exceptional" range="110–150" note="At least 10 completed deals in the last year, reviews from 5 different buyers, a proven fast-reply record, and 6 clean months." />
-            <Band score={95} name="Trusted" range="85–109" note="A verified account with at least 3 completed deals and either 60 days on eno or reviews from 3 different buyers — plus a clean last 90 days." />
+            {/* 2026-11-06 audit: what must all hold, then the either/or, as tierFor (trust-math.ts) groups them. Same claims as
+                before; tierFor itself has no verification gate (handed to the owner). */}
+            <Band score={95} name="Trusted" range="85–109" note="A verified account, at least 3 completed deals and a clean last 90 days — plus either 60 days on eno or reviews from 3 different buyers." />
             <Band score={70} name="Building" range="60–84" note="Where every account starts, and where accounts with fewer than 3 completed deals stay. Not a penalty — just an unproven track record." />
             <Band score={45} name="Restricted" range={<Tr text="below 60" />} note="A serious or repeated confirmed problem — including any confirmed scam. New listings may be held for review." />
           </div>
+          {/* 2026-11-06 audit: the one place /trust says what an official partner shows, as /about and /partners put it and as
+              the owner ruled (2026-10-04, recorded in guide/page.tsx: a partner shows its partner badge instead). The badge
+              takes the score's place on a partner's listings and storefront (listing-card, pdp-shop-link, seller-storefront
+              trustShown; owner 2026-08-13: partner replaces trust). */}
+          <p className="text-base leading-relaxed text-body"><Bilingual en="On an official partner’s listings and storefront, the partner badge takes the place of the score: it records a signed agreement with eno, not a track record." vi="Trên tin đăng và gian hàng của đối tác chính thức, huy hiệu đối tác được hiển thị thay cho điểm uy tín: huy hiệu này ghi nhận thoả thuận đã ký với eno, chứ không phải thành tích giao dịch." /></p>
       </ContentSection>
 
       <ContentSection id="built" title="How the score is built" titleVi="Điểm được tính thế nào">

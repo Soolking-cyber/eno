@@ -111,8 +111,9 @@ const ND248 = LEGAL_BASIS.identityDecree
 type Para = { vi: string; en: string }
 type Article = {
   id: string
-  /** Left-rail label. English on purpose: it is navigation chrome and goes through <Tr>. One line of the 210px rail
-   *  (about 26 characters at 14px; 2026-11-06 audit): five used to wrap, so the 17 entries outran a laptop screen. */
+  /** Left-rail label. English on purpose: it is navigation chrome and goes through <Tr>. One line of the rail: about 26
+   *  characters at 14px when it was 210px (2026-11-06 audit: five used to wrap, so the 17 entries outran a laptop screen),
+   *  about 30 since it is 240px. */
   rail: string
   titleVi: string
   titleEn: string
@@ -1102,8 +1103,8 @@ export default function RegulationsPage() {
         * invariant above still holds: nothing is hidden, and the Vietnamese comes first in source
         * order, so it is what a screen reader and a phone read first. NOT ui/tabs: Base UI's panels
         * unmount (or hide) the inactive language, and "a reviewer with an English UI must still see the
-        * Vietnamese" is exactly what that would break. xl rather than lg: beside the 210px rail two
-        * columns at 1024px are ~330px each — 40-character lines of legal text.
+        * Vietnamese" is exactly what that would break. xl rather than lg: beside the 240px rail two
+        * columns at 1024px are ~315px each — 40-character lines of legal text.
         * 4fr : 3fr, not halves: the Vietnamese is set a size larger and runs longer, so equal columns
         * left the English finishing a third early beside every paragraph (measured 8,996 vs 6,695px of
         * text at 1440). The wider Vietnamese column evens the pair out and says which text governs.

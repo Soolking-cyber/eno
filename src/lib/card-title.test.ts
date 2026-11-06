@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cardTitle, cardCity, jobCardMeta, VEHICLE_IMPORT_SELLER_IDS, isTemplateTitleSeller } from './card-title'
+import { cardTitle, cardCity, jobCardMeta, jobTypeLabel, VEHICLE_IMPORT_SELLER_IDS, isTemplateTitleSeller } from './card-title'
 import { VEHICLE_SELLERS } from './vehicle-rental-listing'
 import { TAXONOMY } from './taxonomy'
 
@@ -127,6 +127,19 @@ describe('template sellers', () => {
     expect(isTemplateTitleSeller('bds-vn-import-seller-0001')).toBe(true)
     expect(isTemplateTitleSeller('vehicle-import-seller-mioto')).toBe(true)
     expect(isTemplateTitleSeller('vehicle-import-seller-someone-new')).toBe(false)
+  })
+})
+
+describe('jobTypeLabel', () => {
+  it('is the jobs jobtype facet label in the reader\'s language, or null', () => {
+    const facet = TAXONOMY.find((c) => c.slug === 'jobs')!.facets!.find((f) => f.key === 'jobtype')!
+    for (const o of facet.options) {
+      expect(jobTypeLabel(o.value, en)).toBe(o.label)
+      expect(jobTypeLabel(o.value, vi)).toBe(o.labelVi)
+    }
+    expect(jobTypeLabel(null, en)).toBeNull()
+    expect(jobTypeLabel(undefined, en)).toBeNull()
+    expect(jobTypeLabel('weekend', vi)).toBeNull()
   })
 })
 

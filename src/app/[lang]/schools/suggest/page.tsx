@@ -37,7 +37,10 @@ export default function SuggestSchoolPage() {
         </p>
         <SuggestForm />
       </main>
-      <Footer />
+      {/* The compact footer, as on the tool pages (2026-11-07 audit): a form that is never indexed (robots above), and the full
+          directory footer under it outweighed the form. The operator's legal block, language, currency, legal links and Help
+          center stay. */}
+      <Footer compact />
     </div>
   )
 }

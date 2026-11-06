@@ -3,7 +3,8 @@ import { cn } from '@/lib/utils'
 // Shared multiline field — same idioms as <Input> (filled tint default, outline
 // variant). See input.tsx.
 const VARIANTS = {
-  filled: 'bg-tint shadow-[inset_0_0_0_1px_var(--color-border)] focus:ring-2 focus:ring-ring/30',
+  // The same line-strong hairline as <Input> (2026-11-07 audit), so a form's fields share one edge.
+  filled: 'bg-tint shadow-[inset_0_0_0_1px_var(--color-line-strong)] focus:ring-2 focus:ring-ring/30',
   outline:
     'border border-line-strong bg-card focus:border-brand focus:ring-2 focus:ring-ring/30',
 } as const

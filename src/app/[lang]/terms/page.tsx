@@ -89,7 +89,7 @@ export async function generateMetadata({ params }: LangParams): Promise<Metadata
 
 /** One paragraph. `vi` absent = English source only (the services-edition copy). */
 type Para = { en: string; vi?: string }
-// `rail` / `railVi` (2026-11-06 audit): a shorter contents label where the heading runs past one line of the 210px rail;
+// `rail` / `railVi` (2026-11-06 audit): a shorter contents label where the heading ran past one line of the rail (210px then, 240px now);
 // the section heading itself keeps its full title. Navigation chrome, not the Terms' text.
 type Section = { id: string; title: string; titleVi?: string; rail?: string; railVi?: string; paras: Para[] }
 

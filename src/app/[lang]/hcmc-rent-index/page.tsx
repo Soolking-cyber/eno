@@ -172,7 +172,9 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         <p className="eyebrow text-accent-foreground mb-2"><Tr text="Data · Ho Chi Minh City" /></p>
-        <h1 className="h-display text-foreground"><Tr text="Ho Chi Minh City Rent Index" /></h1>
+        {/* text-pretty on this title only (2026-11-07): balance, the site rule for h1/h2, split the name as "Ho Chi Minh / City Rent
+            Index"; pretty keeps "Ho Chi Minh City" on the first line. A global switch to pretty lost a blind round (t31). */}
+        <h1 className="h-display text-pretty text-foreground"><Tr text="Ho Chi Minh City Rent Index" /></h1>
         <p className="mt-4 max-w-prose text-base leading-relaxed text-body">
           <Tr text="What renting a home in Saigon costs right now, district by district: the median monthly asking rent for apartments, houses and rooms, recalculated every day from live listings and free to cite." />
         </p>

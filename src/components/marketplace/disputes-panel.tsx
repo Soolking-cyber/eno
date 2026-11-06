@@ -129,10 +129,15 @@ export function DisputesPanel({ compact = false, underSectionHeader = false }: {
           // Where a case starts, once, and the guide to it (2026-11-07 audit, tools + dash judges: "Cases you open —
           // and any about you — appear here" repeated the lede, and nothing led on from "Report"). The guide is the help
           // center's seeded answer: help-center-seed.json `how-reporting-works`, id `help-how-reporting-works`.
-          subtitle={<>
-            {t('To open a case, use Report on the listing, the seller’s page or the chat.', 'Để mở hồ sơ khiếu nại, hãy dùng nút Báo cáo trên tin đăng, trang người bán hoặc cuộc trò chuyện.')}{' '}
-            <Link href="/help/help-how-reporting-works" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{t('How reporting works', 'Quy trình báo cáo')}</Link>
-          </>}
+          subtitle={t('To open a case, use Report on the listing, the seller’s page or the chat.', 'Để mở hồ sơ khiếu nại, hãy dùng nút Báo cáo trên tin đăng, trang người bán hoặc cuộc trò chuyện.')}
+          // The guide on a line of its own, named after the article it opens (2026-11-07 audit: tacked onto the sentence as "How
+          // reporting works", it read as part of it). 44px tall: the empty state's one way on.
+          action={
+            <Link href="/help/help-how-reporting-works" prefetch={false} className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline">
+              {t('How to report and what happens next', 'Cách báo cáo và những gì xảy ra tiếp theo')}
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </Link>
+          }
         />
       ) : (
         /* One stacked column on EVERY breakpoint (user-picked 2026-07-14). The old

@@ -285,6 +285,14 @@ export default async function CategoryPage({ params }: Props) {
    */
   const homesQuery: Record<string, string> = homes ? { [HOMES_ONLY_PARAM.key]: HOMES_ONLY_PARAM.value } : {}
   const explorerHref = localizedHref(`/?${new URLSearchParams({ category: cat.slug, ...homesQuery }).toString()}`, pageLang(lang))
+  /**
+   * The Filters button under the grid only where the grid does not hold the whole scope, or where no sort strip carries
+   * Filters (2026-11-07 audit). Under a grid that shows everything (3, 7, 9 cards) the strip's own Filters chip is a screen
+   * above, and a second one after the last row read as an unexplained duplicate in the space before the guides. Past a page
+   * it stays, beside "Show more": a reader who went through 48 cards without finding it narrows from there. One listing
+   * draws no strip (`sortable` below), so there it is the one way into the explorer. The two totals are the strip's own.
+   */
+  const gridEndFilters = (homes?.total ?? total) <= 1 || (homes?.total ?? rentals?.total ?? total) > listings.length
   const isTeachers = cat.slug === TEACHERS_CATEGORY_SLUG
   // N8: the teaching cross-links, in the page's language (localizedHref — the `/vi` twin on a Vietnamese page).
   const teachingJobsHref = localizedHref(`/?${new URLSearchParams(TEACHING_JOBS).toString()}`, pageLang(lang))
@@ -409,7 +417,7 @@ export default async function CategoryPage({ params }: Props) {
             />
           </div>
           {homes && <OtherRentalsLink n={homes.offices} href={localizedHref('/?category=rentals&subcategory=office-rental', pageLang(lang))} />}
-          <div className="mt-8">
+          {gridEndFilters && <div className="mt-8">
             {/* The strip's own Filters glyph at h-4, gap-1.5 on the BUTTON (asChild concatenates the child's className). */}
             {/* nofollow + no prefetch: /?category= is canonicalised to /, and a prefetch would render
                 the full explorer for everyone who scrolls this far (as the strip's Filters link). */}
@@ -423,7 +431,7 @@ export default async function CategoryPage({ params }: Props) {
                 <SlidersHorizontal className="h-4 w-4" aria-hidden /> <Bilingual en="Filters" vi="Bộ lọc" />
               </Link>
             </Button>
-          </div>
+          </div>}
           {rentals && <RentalsDistricts allHcmc={rentals.allHcmc} top={rentals.top} />}
           <CategoryGuides guides={guides} />
           {/* /c/teachers: a plain, followed link to every live profile the grid above does not show — what Show-more

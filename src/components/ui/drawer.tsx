@@ -241,7 +241,10 @@ function DrawerFooter({ className, ...props }: React.ComponentProps<"div">) {
       // `html.kb-open .chat-composer` in globals.css, and the documented fix for `.kb-lift`
       // trap #2: a safe-area padding that survives the lift). NOT `.kb-bottom` — that would
       // ADD --kb-h on top of the popup's transform lift and double-count it.
-      className={cn("mt-auto flex shrink-0 flex-col gap-2 p-4 pt-0 pb-[max(1rem,env(safe-area-inset-bottom))] group-data-kb-open/drawer-popup:pb-4", className)}
+      // 2026-11-07 audit: below lg the sheet's own primary (a direct-child Button on the brand fill: "Show 1,204 results",
+      // Apply) is 48px with a 16px label, the phone CTA size ui/button gives a full-width `cta`. In a row footer the Clear
+      // beside it stretches to the same height; a desktop popover never renders this footer.
+      className={cn("mt-auto flex shrink-0 flex-col gap-2 p-4 pt-0 pb-[max(1rem,env(safe-area-inset-bottom))] group-data-kb-open/drawer-popup:pb-4 max-lg:[&>[data-slot=button].bg-primary]:min-h-12 max-lg:[&>[data-slot=button].bg-primary]:text-base", className)}
       {...props}
     />
   )

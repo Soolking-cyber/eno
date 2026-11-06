@@ -95,7 +95,9 @@ export function StepRail({
             aria-hidden
             className={cn(
               'grid size-9 shrink-0 place-items-center rounded-full border-2 transition-colors',
-              filled ? 'border-brand bg-brand text-white' : 'border-border bg-card text-muted-foreground',
+              // 2026-11-07 audit: an upcoming node's ring in line-strong and its glyph in body ink — divider grey and the faintest
+              // grey made the steps still ahead read as disabled (judges: teacher sign-up, desktop).
+              filled ? 'border-brand bg-brand text-white' : 'border-line-strong bg-card text-body',
               // A ring lifts the CURRENT node off the done ones (both are brand-filled).
               state === 'current' && 'ring-2 ring-brand/25 ring-offset-2 ring-offset-card',
             )}

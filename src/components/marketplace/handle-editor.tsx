@@ -134,7 +134,8 @@ export function HandleEditor({ target, initial, shareUrl, label }: { target: 'pr
     // add a second helping. Field is here for the WIRING (aria-invalid + a merged aria-describedby),
     // not for the spacing.
     <Field invalid={hint?.kind === 'error'} className="gap-0">
-      <FieldLabel render={<Label />} className="block text-xs font-semibold leading-normal text-muted-foreground">
+      {/* The field's label like "Your name" above it (2026-11-07 audit): 14px in the label ink, not a 12px grey caption. */}
+      <FieldLabel render={<Label />} className="block leading-normal">
         {label || tr('Public handle', 'Tên định danh công khai')}
       </FieldLabel>
       <div className="mt-1 flex items-center gap-2">
