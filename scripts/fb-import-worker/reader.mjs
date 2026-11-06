@@ -62,24 +62,33 @@ export async function readProfile(page, path) {
  */
 export async function listSellerItems(page, sellerId, { max = 200, patience = 3 } = {}) {
   await open(page, `https://www.facebook.com/marketplace/profile/${sellerId}/`, 4500)
-  const inPanel = () => page.evaluate(() => {
-    const d = document.querySelector('[role=dialog]')
-    return d ? [...new Set([...d.querySelectorAll('a[href*="/marketplace/item/"]')].map((a) => (a.href.match(/item\/(\d+)/) || [])[1]).filter(Boolean))] : null
-  })
-  const first = await inPanel()
+  // ⛔ EVERY DIALOG, NOT "THE" PANEL (measured 2026-11-06, the box's reader on the owner's profile with one listing: a 295-character Marketplace notice
+  // with no item links came first and the panel second, so reading the first dialog gave 0). Guessing which dialog is the panel (the last with links, the
+  // most links, pinned once) failed a new order or a slow load every review round (commit gate, codex + opus), so no guess: item links from every dialog,
+  // every dialog scrolled, never the feed behind them (strangers'). Ownership is settled where it can be: each item page must name this seller before it
+  // leaves the box (worker.mjs, "THE SECOND LINE"), so a link from another dialog costs one page read, never a stranger's listing in someone's import.
+  // Any dialog at all is a panel, so a seller with nothing for sale is not a soft block.
+  const step = (scroll) => page.evaluate((scroll) => {
+    const dialogs = [...document.querySelectorAll('[role=dialog]')]
+    if (!dialogs.length) return null
+    if (scroll) {
+      for (const d of dialogs) {
+        const t = [d, ...d.querySelectorAll('*')].filter((e) => /(auto|scroll)/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 10).sort((x, y) => y.scrollHeight - x.scrollHeight)[0]
+        if (t) t.scrollTop = t.scrollHeight
+      }
+    }
+    return [...new Set(dialogs.flatMap((d) => [...d.querySelectorAll('a[href*="/marketplace/item/"]')].map((a) => (a.href.match(/item\/(\d+)/) || [])[1]).filter(Boolean)))]
+  }, scroll)
+  const first = await step(false)
   if (first === null) return { ids: [], panel: false }
   const seen = new Set(first)
   let still = 0
   while (seen.size < max && still < patience) {
-    await page.evaluate(() => {
-      const d = document.querySelector('[role=dialog]')
-      if (!d) return
-      const t = [d, ...d.querySelectorAll('*')].filter((e) => /(auto|scroll)/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 10).sort((a, b) => b.scrollHeight - a.scrollHeight)[0]
-      if (t) t.scrollTop = t.scrollHeight
-    })
-    await wait(2200)
     const before = seen.size
-    for (const id of (await inPanel()) || []) seen.add(id)
+    // What a scroll shows is kept too: a virtualised list can replace those cards again before the next look (commit gate, codex).
+    for (const id of (await step(true)) || []) seen.add(id)
+    await wait(2200)
+    for (const id of (await step(false)) || []) seen.add(id)
     still = seen.size > before ? 0 : still + 1
   }
   return { ids: [...seen].slice(0, max), panel: true }
