@@ -67,7 +67,7 @@ export function BulkClient({ embedded = false }: { embedded?: boolean } = {}) {
     <>
       {/* Native stack-nav title bar (mobile only) — the one section that was missing its back bar. */}
       {!embedded && <SectionHeader title={tr('Bulk upload', 'Tải hàng loạt')} />}
-      {!embedded && <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Bulk upload', 'Tải hàng loạt')}</h1>}
+      {!embedded && <h1 className="h-title text-foreground max-lg:sr-only">{tr('Bulk upload', 'Tải hàng loạt')}</h1>}
       <div className="mt-4">
         <BulkUploadPanel onDone={() => router.push('/dashboard/listings')} />
       </div>

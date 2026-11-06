@@ -78,14 +78,17 @@ function homesShelf<R extends { id: string; images: string | null; sellerId: str
   rows: R[], photos: (r: R) => number, inCity: ((r: R) => boolean) | undefined,
 ): R[] {
   const lit = [...rows.filter((r) => photos(r) >= 3), ...rows.filter((r) => photos(r) < 3)]
-  const own = inCity ? lit.filter(inCity) : []
-  // Eight of the page's own city: the shelf is that city only, so a seller or photo skip below cannot let another city's
-  // row in ahead of the min-fill's own-city repeats. Fewer: the city first, then the rest, so the shelf still fills.
-  const placed = !inCity ? lit : own.length >= 8 ? own : [...own, ...lit.filter((r) => !inCity(r))]
-  return diversifyRail(
-    placed.map((row) => ({ id: row.id, sellerId: row.sellerId, subcategorySlug: row.subcategorySlug, listingType: row.listingType, condition: row.condition, category: row.category, brandSlug: row.brandSlug, model: row.model, images: safeParse<string[]>(row.images, []), row })),
-    { take: 8, min: 8, interleave: false },
+  const shelf = (list: R[], take: number) => diversifyRail(
+    list.map((row) => ({ id: row.id, sellerId: row.sellerId, subcategorySlug: row.subcategorySlug, listingType: row.listingType, condition: row.condition, category: row.category, brandSlug: row.brandSlug, model: row.model, images: safeParse<string[]>(row.images, []), row })),
+    { take, min: take, interleave: false },
   ).map((x) => x.row)
+  if (!inCity) return shelf(lit, 8)
+  // TWO PASSES: the page's own city is chosen first, under the rails' rule over its own rows, and only the places left go
+  // to the rest. One pass over both let the per-seller cap skip a city row and seat another city's in its place (codex,
+  // 2026-11-06: seven city rows from one seller lost places to two sellers elsewhere). The seller cap is per pass, so on a
+  // thin city a seller seated in it may be seated again in the fill: the city first is worth more than seller spread.
+  const own = shelf(lit.filter(inCity), 8)
+  return own.length >= 8 ? own : [...own, ...shelf(lit.filter((r) => !inCity(r)), 8 - own.length)]
 }
 
 export async function loadSeoRail(target: SeoRailTarget): Promise<{ listings: RailListing[]; known: boolean }> {

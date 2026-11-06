@@ -208,7 +208,8 @@ function CheckInFor() {
           ) : (
             view.confirmedAt && <p className="text-xs text-muted-foreground">{tr('Last answered', 'Trả lời lần cuối')}: {formatCalendarDay(view.confirmedAt, lang)}</p>
           )}
-          <div className="flex flex-wrap gap-2">
+          {/* Phone: one full-width column, the answer first (2026-11-06 audit: ragged widths read as unrelated). */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap [&>*]:max-sm:w-full">
             {done !== 'confirmed' && (
               <Button variant="cta" loading={busy} disabled={busy} onClick={() => { void confirm() }}>
                 {tr('Yes, I’m still available', 'Có, tôi vẫn sẵn sàng')}
@@ -217,7 +218,7 @@ function CheckInFor() {
             {editLink}
           </div>
           <AlertDialog open={confirmOpen} onOpenChange={(next) => { if (!busy) setConfirmOpen(next) }}>
-            <AlertDialogTrigger render={<Button variant="link" size="none" type="button" className="text-sm font-semibold text-muted-foreground" />}>
+            <AlertDialogTrigger render={<Button variant="link" size="none" type="button" className="text-sm font-semibold text-body" />}>
               {tr('Not available now — hide my profile', 'Hiện chưa sẵn sàng — ẩn hồ sơ của tôi')}
             </AlertDialogTrigger>
             <AlertDialogContent>

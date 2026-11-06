@@ -63,7 +63,7 @@ export function DevClient({ embedded = false }: { embedded?: boolean } = {}) {
 
   return (
     <>
-      {!embedded && <h1 className="text-xl font-bold text-foreground">{tr('Developers', 'Lập trình')}</h1>}
+      {!embedded && <h1 className="h-title text-foreground">{tr('Developers', 'Lập trình')}</h1>}
       <div className="mt-4">
         <DevelopersPanel />
       </div>

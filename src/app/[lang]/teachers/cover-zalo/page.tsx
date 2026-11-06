@@ -15,8 +15,9 @@ export default function TeacherCoverZaloPage() {
   return (
     <div className="flex min-h-page flex-col">
       <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-2xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
-        <CoverZaloPanel />
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+        {/* The narrow column starts at the app frame's left edge (the header's, every dashboard page's), not centred on its own: both design judges (2026-11-06) read the centred column as a different site. */}
+        <div className="max-w-2xl"><CoverZaloPanel /></div>
       </main>
       <Footer compact />
     </div>

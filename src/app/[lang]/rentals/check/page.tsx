@@ -26,8 +26,9 @@ export default function RentalCheckPage() {
   return (
     <div className="flex min-h-page flex-col">
       <Header />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-4 pb-16 pt-6 sm:px-6">
-        <RentalCheckView />
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 pb-16 pt-6 sm:px-6 lg:px-8">
+        {/* The narrow column starts at the app frame's left edge (the header's, every dashboard page's), not centred on its own: both design judges (2026-11-06) read the centred column as a different site. */}
+        <div className="max-w-2xl"><RentalCheckView /></div>
       </main>
       <Footer />
     </div>

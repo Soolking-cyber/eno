@@ -81,6 +81,19 @@ describe('loadSeoRail — a homes shelf on a page that names its city', () => {
     expect(shown.every((r) => r.district === 'Quận Bình Thạnh')).toBe(true)
   })
 
+  it('seats every city row before another city, even when the per-seller cap would skip some', async () => {
+    q.rows = [
+      row('b', 'Phường Biên Hòa, Biên Hòa', null), row('c', 'Phường Cẩm Lệ, Cẩm Lệ', null),
+      row('b', 'Phường Tam Phước, Biên Hòa', null), row('c', 'Phường Liên Chiểu, Liên Chiểu', null),
+      ...Array.from({ length: 7 }, (_, i) => row('a', `Quận 3 (Phường ${i})`, 'Quận 3')),
+    ]
+    const { listings } = await loadSeoRail({ ...target, railCity: 'hcmc' })
+    const shown = listings as unknown as { district: string | null }[]
+    expect(shown).toHaveLength(8)
+    expect(shown.slice(0, 7).every((r) => r.district === 'Quận 3')).toBe(true)
+    expect(shown[7].district).toBeNull()
+  })
+
   it('still fills a full shelf from the other rows when the city has too few', async () => {
     q.rows = [
       row('a', 'Phường Biên Hòa, Biên Hòa', null), row('b', 'Phường Cẩm Lệ, Cẩm Lệ', null), row('c', 'Phường Liên Chiểu, Liên Chiểu', null),

@@ -987,9 +987,11 @@
   :where(h1, h2):not(.truncate, [class*='line-clamp']) {
     text-wrap-style: balance;
   }
-  /* text-wrap-style is INHERITED, so the :not() above alone still reaches a clamped or truncated line inside one
-     (<h2><a class="line-clamp-2">): that line goes back to the default. */
-  :where(h1, h2) :where(.truncate, [class*='line-clamp']) {
+  /* text-wrap-style is INHERITED, so the :not() above alone would still balance a clamped or truncated line inside a
+     heading (<h2><a class="line-clamp-2">), and it reaches a heading inside a clamped wrapper: both keep the default.
+     :is(), not :where(): the rule above weighs (0,1,0) through its :not(.truncate), so a weightless reset would lose. */
+  :where(h1, h2) :is(.truncate, [class*='line-clamp']),
+  :is(.truncate, [class*='line-clamp']) :where(h1, h2) {
     text-wrap-style: auto;
   }
   /* The <html> background IS the canvas: it paints the whole viewport, including the strip a
