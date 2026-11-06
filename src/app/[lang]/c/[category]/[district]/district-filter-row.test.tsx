@@ -69,4 +69,16 @@ describe('DistrictFilterRow — the hub\'s way into the explorer, at the top', (
     expect(screen.getAllByRole('link')).toHaveLength(1)
     expect(document.querySelector('[data-icon="map"]')).toBeNull()
   })
+
+  it('with Filters on the page\'s sort strip (`filters={false}`), the row keeps Map and the bedroom chips', () => {
+    render(<DistrictFilterRow categorySlug="rentals" district="d2" homesOnly lang="vi" filters={false} />)
+    expect(screen.queryByRole('link', { name: /Bộ lọc/ })).toBeNull()
+    expect(params(screen.getByRole('link', { name: /Bản đồ/ }))).toEqual({ path: '/vi', q: { category: 'rentals', district: 'd2', homes: '1', view: 'map' } })
+    expect(within(screen.getByRole('group', { name: 'Căn hộ:' })).getAllByRole('link')).toHaveLength(3)
+  })
+
+  it('…and renders nothing at all where neither is left (a teachers district page)', () => {
+    const { container } = render(<DistrictFilterRow categorySlug="teachers" district="d7" homesOnly={false} lang="en" filters={false} />)
+    expect(container.firstChild).toBeNull()
+  })
 })

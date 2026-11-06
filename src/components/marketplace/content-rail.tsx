@@ -58,9 +58,12 @@ export function ContentRail({ sections }: { sections: RailSection[] }) {
             aria-current={active ? 'location' : undefined}
             // ⚠️ INK AND TINT MARK THE CURRENT SECTION, NOT WEIGHT: a bolder label is a wider label, so a
             // two-word entry could wrap and shove every link below it as the reader scrolls.
+            // 2026-11-06 audit: these links ARE the way through a 15-section page, and in tertiary grey they were fainter than
+            // the eyebrow above them. Body ink now, the current section in the location ink (icon-language §5), and py-1.5
+            // so a wrapped two-line entry reads as one target.
             className={cn(
-              'block rounded-lg px-2 py-1 text-sm font-medium transition-colors hover:bg-muted hover:text-foreground active:bg-muted',
-              active ? 'bg-muted text-foreground' : 'text-muted-foreground',
+              'block rounded-lg px-2 py-1.5 text-sm font-medium transition-colors hover:bg-muted active:bg-muted',
+              active ? 'bg-muted text-accent-foreground' : 'text-body hover:text-foreground',
             )}
           >
             {s.labelVi ? <Bilingual en={s.label} vi={s.labelVi} /> : <Tr text={s.label} />}

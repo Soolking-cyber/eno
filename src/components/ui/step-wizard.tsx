@@ -142,6 +142,7 @@ export function StepWizard({
   actionNote,
   actionBarLabel,
   offsetBottom,
+  showStepName = false,
   className,
 }: {
   steps: WizardStep[]
@@ -171,6 +172,11 @@ export function StepWizard({
   /** CSS length of whatever owns the bottom edge on this surface — `'4.5rem'` where <MobileNav> is
    *  mounted, omitted elsewhere. Forwarded verbatim to <StickyActionBar>. */
   offsetBottom?: string
+  /**
+   * Shows the live line — the step's name and its place, "Your plans · 1/5" — as the rail's caption, for a flow whose glyphs
+   * do not name themselves (the teacher form, 2026-11-06 audit). Off by default: the line stays screen-reader only.
+   */
+  showStepName?: boolean
   className?: string
 }) {
   const active = activeIndexOf(steps, current)
@@ -188,11 +194,12 @@ export function StepWizard({
   return (
     <div data-slot="step-wizard" className={cn('flex flex-col', className)}>
       {header}
-      <StepRail steps={steps} current={active} onStepSelect={onStepSelect} allowForward={allowForward} className="mb-6" />
+      <StepRail steps={steps} current={active} onStepSelect={onStepSelect} allowForward={allowForward} className={showStepName ? 'mb-3' : 'mb-6'} />
 
       {/* Polite live region — announces "<label> · n/total" on change without stealing focus. The
-          visible rail carries the same information for sighted users. */}
-      <p id={liveId} aria-live="polite" className="sr-only">
+          visible rail carries the same information for sighted users; with `showStepName` this line
+          shows too, as the rail's caption. */}
+      <p id={liveId} aria-live="polite" className={showStepName ? 'mb-4 text-xs font-semibold text-body' : 'sr-only'}>
         {step ? `${step.label} · ${active + 1}/${steps.length}` : ''}
       </p>
 

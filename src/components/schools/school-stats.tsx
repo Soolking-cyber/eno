@@ -16,12 +16,17 @@ export function SchoolScore({ schoolId, schoolName }: { schoolId: string; school
   const votes = c.up + c.down
   const pct = votes >= PCT_MIN_VOTES ? positivePct(c.up, c.down) : null
   return (
-    <div className="flex items-center gap-4 rounded-2xl bg-card p-3 ring-1 ring-border">
-      <VoteControl schoolId={schoolId} schoolName={schoolName} size="lg" />
+    // ▲ n ▼ in a row beside the words, not stacked in a ringed box: the box stood taller than the school's name and left a dead
+    // band under the title on desktop. Below the floor the first line asks what the arrows answer, where a 24px dash read
+    // as a loading bar (2026-11-06 audit).
+    <div className="flex items-center gap-4">
+      <VoteControl schoolId={schoolId} schoolName={schoolName} size="lg" layout="row" />
       <div>
-        <p className={cn('text-2xl font-bold tabular-nums', pct === null ? 'text-muted-foreground' : pct >= 60 ? 'text-success' : pct >= 40 ? 'text-foreground' : 'text-destructive')}>
-          {pct === null ? '—' : `${pct}%`}
-        </p>
+        {pct === null ? (
+          <p className="text-sm font-semibold text-foreground">{tr('Recommend working here?', 'Có nên làm việc ở đây?')}</p>
+        ) : (
+          <p className={cn('text-2xl font-bold tabular-nums', pct >= 60 ? 'text-success' : pct >= 40 ? 'text-foreground' : 'text-destructive')}>{pct}%</p>
+        )}
         <p className="text-sm text-muted-foreground">
           {votes === 0
             ? tr('No votes yet', 'Chưa có bình chọn')

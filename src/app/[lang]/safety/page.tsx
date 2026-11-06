@@ -347,14 +347,18 @@ function CopyText({ copy }: { copy: Copy }) {
 // a 3-up grid gave 298px tiles — ~40-character lines — and 3 divides none of the tip counts (4, 5, 7,
 // 6), so every grid ended on an orphan row. Two ~455px columns read at ~58 characters and fill 4 and
 // 6 evenly; 5 and 7 leave one tile on the last row, which a two-up list carries fine.
+// ⚠️ THE GLYPH SITS BESIDE THE HEADING, NOT ON A LINE OF ITS OWN ABOVE IT (2026-11-06 audit): the family's one icon-item
+// shape — /guide's features draw it this way — and a line saved on every one of the page's twenty-odd tips.
 function TipGrid({ tips, danger = false }: { tips: Tip[]; danger?: boolean }) {
   return (
     <div className="grid grid-cols-1 gap-x-12 gap-y-8 sm:grid-cols-2">
       {tips.map(([Icon, title, body], i) => (
-        <div key={i}>
-          <Icon className={danger ? 'h-5 w-5 text-destructive' : 'h-5 w-5 text-accent-foreground'} strokeWidth={2} aria-hidden />
-          <h3 className="mt-2 text-base font-bold text-foreground"><CopyText copy={title} /></h3>
-          <p className="mt-1 max-w-[60ch] text-sm leading-relaxed text-body"><CopyText copy={body} /></p>
+        <div key={i} className="flex gap-3.5">
+          <Icon className={danger ? 'mt-0.5 h-5 w-5 shrink-0 text-destructive' : 'mt-0.5 h-5 w-5 shrink-0 text-accent-foreground'} strokeWidth={2} aria-hidden />
+          <div className="min-w-0">
+            <h3 className="text-base font-bold text-foreground"><CopyText copy={title} /></h3>
+            <p className="mt-1 max-w-[60ch] text-sm leading-relaxed text-body"><CopyText copy={body} /></p>
+          </div>
         </div>
       ))}
     </div>

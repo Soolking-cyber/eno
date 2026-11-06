@@ -59,12 +59,16 @@ export async function generateMetadata({ params }: { params: Promise<{ lang: str
  * ⚠️ COPY IS AUTHORED IN BOTH LANGUAGES (<Bilingual>), so a Vietnamese reader's server HTML carries the
  * curated Vietnamese rather than a machine translation; the nine other languages translate the English.
  */
-/** One "what eno asks for" row. Nodes, not strings, so every literal stays in the JSX below. */
+/**
+ * One "what eno asks for" row. Nodes, not strings, so every literal stays in the JSX below.
+ * ⚠️ /trust's ROW, NOT A CAPTION (2026-11-06 audit): the requirement was 14px caption ink (ink-4) under 16px prose, so
+ * the four things a partner must show read as fine print. A semibold label over body-ink text, as /trust's points rows.
+ */
 function Check({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="py-3">
-      <div className="text-sm font-medium text-foreground">{title}</div>
-      <div className="mt-0.5 text-sm leading-relaxed text-ink-4">{children}</div>
+      <div className="text-base font-semibold text-foreground">{title}</div>
+      <div className="mt-1 text-sm leading-relaxed text-body">{children}</div>
     </div>
   )
 }
@@ -139,7 +143,8 @@ export default function PartnersPage() {
 
       <ContentSection id="checks" title="What eno asks for before signing" titleVi="eno yêu cầu những gì trước khi ký">
         {/* Written out rather than mapped over a tuple array, so every literal stays visible here. */}
-        <div className="divide-y divide-border">
+        {/* max-w-[60ch], the paragraphs' measure: the rows' hairlines ran ~100px past the prose above them. */}
+        <div className="max-w-[60ch] divide-y divide-border">
           <Check title={<Bilingual en="Business registration" vi="Đăng ký doanh nghiệp" />}>
             <Bilingual
               en="The company is a registered entity, and the name on the storefront is the name on the paperwork."

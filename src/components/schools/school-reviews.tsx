@@ -3,12 +3,11 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { ArrowBigUp, BadgeCheck, Flag, MessageSquareText, PencilLine } from '@/components/ui/icons'
+import { ArrowBigUp, BadgeCheck, Flag } from '@/components/ui/icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/segmented'
 import { Textarea } from '@/components/ui/textarea'
-import { EmptyState } from '@/components/ui/empty-state'
 import { RadioGroup, Radio, RadioDot } from '@/components/ui/radio-group'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAuth } from '@/context/auth-context'
@@ -35,19 +34,14 @@ export function SchoolReviews({ reviews, slug, schoolName }: { reviews: PublicRe
     return out
   }, [reviews, sort])
 
+  // One line, in the shape of the Open jobs section's own empty line under it: the dashed box carried a second "Write a
+  // review" button a few lines under the page's own (2026-11-06 audit).
   if (!reviews.length) {
     return (
-      <EmptyState
-        tone="dashed"
-        icon={MessageSquareText}
-        title={tr('No reviews yet', 'Chưa có đánh giá')}
-        subtitle={tr('Worked or taught here? Your review helps the next teacher decide.', 'Bạn từng dạy ở đây? Đánh giá của bạn giúp giáo viên đến sau quyết định.')}
-        action={
-          <Button variant="cta" asChild>
-            <Link href={`/schools/${slug}/review`}><PencilLine aria-hidden /> {tr('Write a review', 'Viết đánh giá')}</Link>
-          </Button>
-        }
-      />
+      <p className="text-sm text-muted-foreground">
+        {tr('No reviews yet. Worked or taught here?', 'Chưa có đánh giá. Bạn từng dạy ở đây?')}{' '}
+        <Link href={`/schools/${slug}/review`} className="font-semibold text-accent-foreground hover:underline">{tr('Write the first review', 'Viết đánh giá đầu tiên')}</Link>
+      </p>
     )
   }
   return (

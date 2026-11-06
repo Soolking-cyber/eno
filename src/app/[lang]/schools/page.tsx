@@ -61,8 +61,8 @@ export default async function SchoolsPage({ params }: { params: Promise<{ lang: 
             <h1 className="h-display text-foreground"><Bilingual en="Saigon schools, ranked by teachers" vi="Trường học ở Sài Gòn, do giáo viên xếp hạng" /></h1>
             <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
               <Bilingual
-                en="English centres, international and bilingual schools and teacher recruiters in Ho Chi Minh City. Teachers who worked or interviewed there vote them up or down and say what is good and bad, so the next teacher knows what to expect: pay, hours, management and how contracts really work."
-                vi="Trung tâm tiếng Anh, trường quốc tế, trường song ngữ và đơn vị tuyển dụng giáo viên tại TP. Hồ Chí Minh. Giáo viên từng làm việc hoặc phỏng vấn ở đó bình chọn lên hoặc xuống và chia sẻ điểm tốt, điểm chưa tốt, để giáo viên đến sau biết trước: lương, giờ dạy, cách quản lý và hợp đồng thực tế ra sao."
+                en="English centres, international and bilingual schools and teacher recruiters in Ho Chi Minh City. Teachers who worked or interviewed there vote a place up if they would recommend working there and down if not, and say what is good and bad, so the next teacher knows what to expect: pay, hours, management and how contracts really work."
+                vi="Trung tâm tiếng Anh, trường quốc tế, trường song ngữ và đơn vị tuyển dụng giáo viên tại TP. Hồ Chí Minh. Giáo viên từng làm việc hoặc phỏng vấn ở đó bình chọn lên nếu thấy nên làm việc ở đó, xuống nếu không, và chia sẻ điểm tốt, điểm chưa tốt, để giáo viên đến sau biết trước: lương, giờ dạy, cách quản lý và hợp đồng thực tế ra sao."
               />
             </p>
             <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">

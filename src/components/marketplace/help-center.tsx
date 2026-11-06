@@ -220,12 +220,13 @@ function AnswerItem({ post, i18n }: { post: HelpPost; i18n?: HelpI18n }) {
       <AccordionPanel>
         {/* Headings, paragraphs and lists, not a pre-line <p> printing "•" (C-HELP-RENDER). h4: the
             trigger above is this answer's h3. Sub-heads are guessed only on the eno team's answers. */}
-        <div>{formatHelpBody(body, { implicitHeadings: post.official, headingLevel: 4 })}</div>
+        <div>{formatHelpBody(body, { implicitHeadings: post.official, headingLevel: 4, links: post.official })}</div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <HelpVote id={post.id} kind="post" score={post.score} viewerVote={post.viewerVote} size="sm" />
+          {/* The question, then the vote that answers it (2026-11-06 audit). */}
           <span className="text-xs text-muted-foreground">
             {tr('Was this helpful?', 'Câu trả lời này có hữu ích không?')}
           </span>
+          <HelpVote id={post.id} kind="post" score={post.score} viewerVote={post.viewerVote} size="sm" />
           <Link
             href={`/help/${encodeURIComponent(post.id)}`}
             className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-accent-foreground hover:underline"

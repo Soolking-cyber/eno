@@ -172,13 +172,19 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
             : linked || unrated ? null : <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />}
         </div>
         {strip.length > 0 && (
-          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
-            {strip.map((node, i) => (
-              <span key={i} className="inline-flex items-center gap-1.5">
-                {i > 0 && <span aria-hidden className="text-border">·</span>}
-                {node}
-              </span>
-            ))}
+          <div className="mt-1 overflow-x-clip">
+            {/* overflow-x-clip, not overflow-hidden: only the side edge has to cut the dots; the links' focus rings and
+                tap-44 areas above and below stay whole (2026-11-06 review). */}
+            {/* 2026-11-06 audit: no wrapped line starts on a separator — seller-card.tsx's strip, the same clip: every item carries
+                its dot, and the row sits 10px left (the dot's 4px box + the 6px gap) inside this box, so each line's first dot is cut. */}
+            <div className="-ml-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+              {strip.map((node, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5">
+                  <span aria-hidden className="w-1 shrink-0 text-center text-border">·</span>
+                  {node}
+                </span>
+              ))}
+            </div>
           </div>
         )}
       </div>

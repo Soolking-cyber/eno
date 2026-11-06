@@ -145,7 +145,8 @@ function CityFigures({ e }: { e: Edition }) {
 /** One district × band cell: the share, the median and the count — or a dash and the count (the Rent Index's `Cell`). */
 function ShareCell({ cell, f, heading }: { cell: RentCell | undefined; f: CellFigures | null; heading: string }) {
   const label = <span className="block text-2xs font-semibold text-muted-foreground md:hidden">{heading}</span>
-  const listed = <span className="block text-2xs tabular-nums text-muted-foreground">{listings(cell?.n ?? 0)}</span>
+  // 12px from xl, as on the Rent Index's table: the median and the count are the evidence behind the share (2026-11-06 audit).
+  const listed = <span className="block text-2xs tabular-nums text-muted-foreground xl:text-xs">{listings(cell?.n ?? 0)}</span>
   if (!f) {
     return (
       <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
@@ -159,7 +160,7 @@ function ShareCell({ cell, f, heading }: { cell: RentCell | undefined; f: CellFi
     <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
       {label}
       <span className="block whitespace-nowrap font-bold tabular-nums text-foreground">{shareText(f.shareWhole)}</span>
-      <span className="block whitespace-nowrap text-2xs tabular-nums text-body">{shown(f.cell.medianVnd)}</span>
+      <span className="block whitespace-nowrap text-2xs tabular-nums text-body xl:text-xs">{shown(f.cell.medianVnd)}</span>
       {listed}
     </td>
   )
@@ -191,7 +192,8 @@ function DistrictTable({ e }: { e: Edition }) {
         Each cell shows the rent as a share of the same take-home pay, the median monthly asking rent and how many listings it is
         computed from. A dash means fewer listings than the publishing threshold.
       </p>
-      <div className="md:overflow-x-auto">
+      {/* At most max-w-4xl, as on the Rent Index: at full width the district names sat ~700px from their figures (2026-11-06 audit). */}
+      <div className="max-w-4xl md:overflow-x-auto">
         <table className="w-full text-sm max-md:block md:min-w-[36rem]">
           <thead className="max-md:sr-only">
             <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">

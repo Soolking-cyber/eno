@@ -23,11 +23,13 @@ export function SchoolsSidebar({ rows, lang }: { rows: SchoolListRow[]; lang: st
     <div className="flex flex-col gap-4">
       <section aria-labelledby="schools-glance-h" className="rounded-2xl bg-card p-4 ring-1 ring-border">
         <h2 id="schools-glance-h" className="text-sm font-semibold text-muted-foreground"><Bilingual en="At a glance" vi="Tổng quan" /></h2>
+        {/* A figure only once it is above zero: "0 teacher reviews" and "0 with a pay range" as 24px hero numbers read as a
+            dead directory rather than a young one (2026-11-06 audit). */}
         <dl className="mt-3 grid grid-cols-2 gap-3">
           <Stat value={n(rows.length)} label={<Bilingual en="schools and centres" vi="trường và trung tâm" />} />
-          <Stat value={n(reviews)} label={<Bilingual en="teacher reviews" vi="đánh giá của giáo viên" />} />
-          <Stat value={n(jobs)} label={<Bilingual en="open jobs" vi="việc đang tuyển" />} />
-          <Stat value={n(withPay)} label={<Bilingual en="with a pay range" vi="có khoảng lương" />} />
+          {reviews > 0 && <Stat value={n(reviews)} label={<Bilingual en="teacher reviews" vi="đánh giá của giáo viên" />} />}
+          {jobs > 0 && <Stat value={n(jobs)} label={<Bilingual en="open jobs" vi="việc đang tuyển" />} />}
+          {withPay > 0 && <Stat value={n(withPay)} label={<Bilingual en="with a pay range" vi="có khoảng lương" />} />}
         </dl>
       </section>
 

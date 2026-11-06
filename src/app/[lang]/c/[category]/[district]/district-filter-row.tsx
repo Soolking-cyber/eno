@@ -44,23 +44,32 @@ export function DistrictFilterRow({
   district,
   homesOnly,
   lang,
+  filters = true,
 }: {
   categorySlug: string
   district: string
   homesOnly: boolean
   lang: 'en' | 'vi'
+  /**
+   * false where the page's sort strip carries Filters (SellerListings `stripEnd`, as on /c — 2026-11-06 audit). The row
+   * keeps Map and the bedroom chips, which then fit one line on a phone, and renders nothing when neither applies.
+   */
+  filters?: boolean
 }) {
   const scope: Record<string, string> = { district, ...(homesOnly ? { [HOMES_ONLY_PARAM.key]: HOMES_ONLY_PARAM.value } : {}) }
   const explorer = (extra: Record<string, string>) =>
     localizedHref(`/?${new URLSearchParams({ category: categorySlug, ...extra }).toString()}`, lang)
   const rentals = categorySlug === 'rentals'
   const bedsLabel = useId()
+  const map = categoryHasMap(categorySlug)
+  // An empty row would still spend its mt-4 above the area chips.
+  if (!filters && !map && !(rentals && homesOnly)) return null
   return (
     <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-      <CategoryFiltersLink slug={categorySlug} query={scope} />
+      {filters && <CategoryFiltersLink slug={categorySlug} query={scope} />}
       {/* ⛔ No Map link where the category has no map (teachers — map-pin-rows.ts `categoryHasMap`): it led to the
           district's teacher list, never a map (gate review, 2026-10-09). */}
-      {categoryHasMap(categorySlug) && (
+      {map && (
         <Link
           href={explorer({ ...scope, view: 'map' })}
           rel="nofollow"

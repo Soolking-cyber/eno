@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { brandLogoUrl, isFullSvgLogo } from './brand-logo-url'
+import { brandLogoFit, brandLogoUrl, isFullSvgLogo } from './brand-logo-url'
 
 /**
  * ⛔ THE FAILURE THIS GUARDS IS SILENT AND TOTAL. `BrandLogo` paints the mark as a CSS mask over
@@ -52,5 +52,47 @@ describe('brandLogoUrl', () => {
   /** Slugs come from the database and land in a URL path. */
   it('encodes the slug', () => {
     expect(brandLogoUrl({ slug: 'a b/c', logoPath: svg })).toContain('/api/brand-logo/a%20b%2Fc?v=')
+  })
+})
+
+/**
+ * /brands draws every mark at one optical size (2026-11-06 audit): a wordmark inside a 24×24 simple-icons square came out
+ * as a 7px sliver beside a 44px glyph.
+ */
+describe('brandLogoFit', () => {
+  it('crops path data to what it draws, and draws a wordmark wide and short', () => {
+    // A 24×4 bar: a wordmark's proportions, drawn mid-artboard as simple-icons draws one.
+    const fit = brandLogoFit('M0 10h24v4H0z')!
+    expect(fit.viewBox).toBe('0 9.75 24 4.5')
+    expect(fit.width).toBeGreaterThan(fit.height * 3)
+    expect(fit.width).toBeLessThanOrEqual(112)
+  })
+
+  it('keeps a round glyph square and inside the 44px slot', () => {
+    const fit = brandLogoFit('M12 0a12 12 0 1 0 0 24a12 12 0 1 0 0-24z')!
+    expect(fit.viewBox).toBe('0 0 24 24')
+    expect(fit.width).toBe(fit.height)
+    expect(fit.height).toBeLessThanOrEqual(44)
+  })
+
+  it('⛔ never cuts a mark: an arc’s peak lies inside the box, whatever its radius', () => {
+    // A radius-100 arc whose top, (12, 12), is inside the artboard (2026-11-06 review): sampled at 24 points it came
+    // out with its top at 12.39, a sliver of the mark outside the viewBox.
+    const fit = brandLogoFit('M25.0526 12.8555A100 100 0 1 1 23.3203 12.6428z')!
+    const [, top] = fit.viewBox!.split(' ').map(Number)
+    expect(top).toBeLessThanOrEqual(12)
+  })
+
+  it('sizes a curated <svg> from its own viewBox, and gives it no viewBox to crop', () => {
+    const fit = brandLogoFit('<svg viewBox="0 0 200 40"><path d="M0 0h200v40H0z"/></svg>')!
+    expect(fit.viewBox).toBeUndefined()
+    expect(fit.width / fit.height).toBeCloseTo(5, 0)
+  })
+
+  it('returns null — the old square — for anything it cannot read', () => {
+    expect(brandLogoFit(null)).toBeNull()
+    expect(brandLogoFit('not a path')).toBeNull()
+    expect(brandLogoFit('M1 1 2')).toBeNull()
+    expect(brandLogoFit('<svg><path d="M0 0h1v1z"/></svg>')).toBeNull()
   })
 })

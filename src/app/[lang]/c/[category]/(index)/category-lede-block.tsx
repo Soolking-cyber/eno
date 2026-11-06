@@ -88,7 +88,7 @@ export function CategoryLedeLinks({ slug }: { slug: string }) {
         </div>
       )}
       {/* Cover lessons: the schools' door, outside the clamped lede so a phone shows it (category-lede.tsx). */}
-      {cat.slug === 'teachers' && <TeacherCoverLink className="mt-2 max-w-prose text-sm" />}
+      {cat.slug === 'teachers' && <TeacherCoverLink className="mt-2 max-w-prose text-sm text-body" />}
     </>
   )
 }

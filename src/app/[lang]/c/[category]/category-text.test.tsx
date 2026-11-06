@@ -453,9 +453,9 @@ describe('rentals district copy (D1)', () => {
     expect(text(lang, <OtherRentalsLink n={1} href="/x" />)).toBe(lang === 'vi' ? 'Ngoài ra còn 1 văn phòng, mặt bằng cho thuê' : 'Also here: 1 office or shopfront')
   })
 
-  it('the district page renders the availability hint on rentals only, under the lede', () => {
+  it('the district page renders the availability hint on rentals only, as the /c/rentals line with its link', () => {
     const src = readFileSync('src/app/[lang]/c/[category]/[district]/page.tsx', 'utf8')
-    expect(src).toMatch(/\{rentals && <RentalCheckHint /)
+    expect(src).toMatch(/\{rentals && <CategoryLedeLinks slug=\{cat\.slug\} \/>\}/)
     expect(src).toMatch(/const rentals = cat\.slug === 'rentals'/)
   })
 })

@@ -253,7 +253,9 @@ export default async function ProhibitedPage({ params }: { params: Promise<{ lan
     >
       {GROUPS.map((g) => (
         <ContentSection key={g.id} id={g.id} title={g.title} titleVi={g.titleVi}>
-          <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-body">
+          {/* text-base, the size of the lede and of every other legal page's body (2026-11-06 audit): the lists ARE this
+              page, and at 14px under a 16px lede they read as its fine print. */}
+          <ul className="list-disc space-y-1.5 pl-5 text-base leading-relaxed text-body">
             {g.items.map((it) => (
               <li key={it.en}>{say(it)}</li>
             ))}
@@ -265,7 +267,7 @@ export default async function ProhibitedPage({ params }: { params: Promise<{ lan
             August). Typed dates, so the sentence stays true before and after that day on this static prerender.
             Immediate (owner, 2026-10-15: "apply from now"): one date — published and in force the same day. */}
         {IS_MARKETPLACE && (
-          <p className="text-sm leading-relaxed text-body">
+          <p className="text-base leading-relaxed text-body">
             {PROHIBITED_AMENDMENT.immediate ? (
               <Bilingual
                 en="These rules were published on {published} and apply on {site} from that day, including to listings posted before it."
@@ -283,17 +285,17 @@ export default async function ProhibitedPage({ params }: { params: Promise<{ lan
             )}
           </p>
         )}
-        <p className="text-sm leading-relaxed text-body">{say(VISA_RULES.intro)}</p>
-        <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-body">
+        <p className="text-base leading-relaxed text-body">{say(VISA_RULES.intro)}</p>
+        <ul className="list-disc space-y-1.5 pl-5 text-base leading-relaxed text-body">
           {VISA_RULES.items.map((it) => (
             <li key={it.en}>{say(it)}</li>
           ))}
         </ul>
       </ContentSection>
       <ContentSection id="enforcement" title="Enforcement" titleVi="Xử lý vi phạm">
-        <p className="text-sm leading-relaxed text-body">{say(ENFORCEMENT)}</p>
+        <p className="text-base leading-relaxed text-body">{say(ENFORCEMENT)}</p>
         {IS_SERVICES && !!PROHIBITED_SERVICES_CROSSLINK.href && (
-          <p className="text-sm leading-relaxed text-body">
+          <p className="text-base leading-relaxed text-body">
             {vi ? PROHIBITED_SERVICES_CROSSLINK.leadVi : <Tr text={PROHIBITED_SERVICES_CROSSLINK.lead} />}{' '}
             <a href={PROHIBITED_SERVICES_CROSSLINK.href} rel={CROSS_SITE_REL} className="font-semibold text-accent-foreground hover:underline">
               {PROHIBITED_SERVICES_CROSSLINK.label}

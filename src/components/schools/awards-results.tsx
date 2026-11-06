@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Award, Users } from '@/components/ui/icons'
+import { Rows, Row } from '@/components/ui/rows'
 import type { AwardsPage } from '@/lib/schools/awards'
 import { AWARD_MIN_REVIEWS, AWARD_MIN_VOTERS, KIND_LABEL, SCHOOL_KINDS, type SchoolKind } from '@/lib/schools/constants'
 import { schoolLogo } from '@/lib/schools/logos'
@@ -67,32 +68,54 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
           <p className="mt-1 max-w-prose text-sm text-muted-foreground">
             <Bilingual en="In alphabetical order: the order is decided only when the year closes." vi="Theo thứ tự chữ cái: thứ hạng chỉ được quyết định khi năm khép lại." />
           </p>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* One ruled list, not five boxes that each said "None yet." (2026-11-06 audit; the flat canon, ui/rows): a category with
+              no place yet is one line with its status at the right; one with places lists them under its name. */}
+          <Rows bordered className="mt-4 max-w-prose">
             {SCHOOL_KINDS.map((kind) => (
-              <section key={kind} aria-labelledby={`q-${kind}`} className="rounded-2xl bg-card p-4 ring-1 ring-border">
+              <Row key={kind} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h3 id={`q-${kind}`} className="text-sm font-semibold text-foreground"><Bilingual en={KIND_LABEL[kind].pluralEn} vi={KIND_LABEL[kind].pluralVi} /></h3>
                 {page.qualified[kind].length ? (
-                  <ul className="mt-2 flex flex-col gap-1 text-sm">
+                  <ul aria-labelledby={`q-${kind}`} className="flex w-full flex-col gap-1 text-sm">
                     {page.qualified[kind].map((s) => <li key={s.slug}><Link href={`/schools/${s.slug}`} className="text-body hover:underline">{s.name}</Link></li>)}
                   </ul>
                 ) : (
-                  <p className="mt-2 text-sm text-muted-foreground"><Bilingual en="None yet." vi="Chưa có." /></p>
+                  <p className="text-sm text-muted-foreground"><Bilingual en="None yet." vi="Chưa có." /></p>
                 )}
-              </section>
+              </Row>
             ))}
-          </div>
+          </Rows>
         </>
       )}
 
       <section aria-labelledby="awards-how-h" className="mt-10 max-w-prose rounded-2xl bg-tint p-4 sm:p-6">
         <h2 id="awards-how-h" className="text-base font-bold text-foreground"><Bilingual en="How the winners are chosen" vi="Cách chọn ra kết quả" /></h2>
-        <p className="mt-2 text-sm leading-relaxed text-body">
-          <Bilingual
-            en="Each place is compared only with places of its own kind. A place qualifies when more of its voters recommend it than not, with votes from at least {voters} teachers and at least {reviews} reviews a moderator has read, all cast during the year, Saigon time. Each teacher's last vote of the year counts. Qualified places are ranked by the lower bound of a 95% confidence interval on the share of up-votes, the same score as the list's Top rated, so a place cannot win on a handful of friendly votes; ties go to more voters. The teachers' choice and up to two finalists are recorded when the year closes and never change afterwards."
-            vi="Mỗi nơi chỉ được so với các nơi cùng loại hình. Một nơi đủ điều kiện khi số người đề xuất nhiều hơn số người không đề xuất, có phiếu của ít nhất {voters} giáo viên và ít nhất {reviews} đánh giá đã được kiểm duyệt viên đọc, tất cả trong năm, theo giờ Sài Gòn. Phiếu cuối cùng trong năm của mỗi giáo viên được tính. Các nơi đủ điều kiện được xếp theo cận dưới của khoảng tin cậy 95% cho tỷ lệ phiếu lên, cùng cách tính với mục Được đánh giá cao của danh sách, nên không nơi nào thắng nhờ vài phiếu quen biết; nếu bằng điểm, nơi có nhiều người bình chọn hơn xếp trên. Lựa chọn của giáo viên và tối đa hai nơi vào chung kết được ghi lại khi năm khép lại và không thay đổi sau đó."
-            values={{ voters: String(AWARD_MIN_VOTERS), reviews: String(AWARD_MIN_REVIEWS) }}
-          />
-        </p>
+        {/* Three short rules under a lead each, not one paragraph that ran eligibility, ranking, ties and finality together
+            (2026-11-06 audit). The words are the rule's own; the Vietnamese now names the Top rated tab by its label, "Đánh giá
+            cao" (schools-board.tsx), not the old "Được đánh giá cao". */}
+        <div className="mt-2 space-y-2 text-sm leading-relaxed text-body">
+          <p>
+            <strong className="font-semibold text-foreground"><Bilingual en="Who qualifies." vi="Điều kiện." /></strong>{' '}
+            <Bilingual
+              en="Each place is compared only with places of its own kind. A place qualifies when more of its voters recommend it than not, with votes from at least {voters} teachers and at least {reviews} reviews a moderator has read, all cast during the year, Saigon time. Each teacher's last vote of the year counts."
+              vi="Mỗi nơi chỉ được so với các nơi cùng loại hình. Một nơi đủ điều kiện khi số người đề xuất nhiều hơn số người không đề xuất, có phiếu của ít nhất {voters} giáo viên và ít nhất {reviews} đánh giá đã được kiểm duyệt viên đọc, tất cả trong năm, theo giờ Sài Gòn. Phiếu cuối cùng trong năm của mỗi giáo viên được tính."
+              values={{ voters: String(AWARD_MIN_VOTERS), reviews: String(AWARD_MIN_REVIEWS) }}
+            />
+          </p>
+          <p>
+            <strong className="font-semibold text-foreground"><Bilingual en="How they are ranked." vi="Cách xếp hạng." /></strong>{' '}
+            <Bilingual
+              en="By the lower bound of a 95% confidence interval on the share of up-votes, the same score as the list's Top rated, so a place cannot win on a handful of friendly votes. Ties go to more voters."
+              vi="Theo cận dưới của khoảng tin cậy 95% cho tỷ lệ phiếu lên, cùng cách tính với mục Đánh giá cao của danh sách, nên không nơi nào thắng nhờ vài phiếu quen biết. Nếu bằng điểm, nơi có nhiều người bình chọn hơn xếp trên."
+            />
+          </p>
+          <p>
+            <strong className="font-semibold text-foreground"><Bilingual en="When it is final." vi="Kết quả chính thức." /></strong>{' '}
+            <Bilingual
+              en="The teachers' choice and up to two finalists are recorded when the year closes and never change afterwards."
+              vi="Lựa chọn của giáo viên và tối đa hai nơi vào chung kết được ghi lại khi năm khép lại và không thay đổi sau đó."
+            />
+          </p>
+        </div>
       </section>
     </>
   )

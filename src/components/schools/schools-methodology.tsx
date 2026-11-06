@@ -13,7 +13,7 @@ const ITEMS: { h: { en: string; vi: string }; p: { en: string; vi: string } }[] 
     h: { en: 'Votes', vi: 'Bình chọn' },
     p: {
       en: 'Teachers who worked or interviewed at a school vote it up or down. "Top rated" uses the lower bound of a 95% confidence interval on the share of up-votes, the method behind Reddit\'s "best" sort, so a school with 40 up-votes and 5 down-votes ranks above one with a single up-vote. A "% recommend" figure appears once a school has 5 votes.',
-      vi: 'Giáo viên từng làm việc hoặc phỏng vấn tại trường bình chọn lên hoặc xuống. Mục "Được đánh giá cao" dùng cận dưới của khoảng tin cậy 95% cho tỷ lệ phiếu lên, cách Reddit dùng cho mục "best", nên trường có 40 phiếu lên và 5 phiếu xuống sẽ xếp trên trường chỉ có một phiếu lên. Tỷ lệ "% đề xuất" chỉ hiển thị khi trường có từ 5 phiếu.',
+      vi: 'Giáo viên từng làm việc hoặc phỏng vấn tại trường bình chọn lên hoặc xuống. Mục "Đánh giá cao" dùng cận dưới của khoảng tin cậy 95% cho tỷ lệ phiếu lên, cách Reddit dùng cho mục "best", nên trường có 40 phiếu lên và 5 phiếu xuống sẽ xếp trên trường chỉ có một phiếu lên. Tỷ lệ "% đề xuất" chỉ hiển thị khi trường có từ 5 phiếu.',
     },
   },
   {
@@ -41,7 +41,7 @@ const ITEMS: { h: { en: string; vi: string }; p: { en: string; vi: string } }[] 
     h: { en: "Teachers' Choice", vi: 'Giáo viên bình chọn' },
     p: {
       en: "Each year, Teachers' Choice records the places teachers recommend, one category for each kind of place. A place qualifies when more of its voters recommend it than not, with votes from at least 10 teachers and at least 3 reviews, all during the year in Saigon time, and is ranked by the same score as Top rated. While the year is open, only the names of places that qualify are shown; the results are recorded when the year closes and never change.",
-      vi: 'Mỗi năm, mục Giáo viên bình chọn ghi nhận những nơi được giáo viên đề xuất, mỗi loại hình một hạng mục. Một nơi đủ điều kiện khi số người đề xuất nhiều hơn số người không đề xuất, có phiếu của ít nhất 10 giáo viên và ít nhất 3 đánh giá, tất cả trong năm theo giờ Sài Gòn, và được xếp theo cùng cách tính với mục Được đánh giá cao. Khi năm còn mở, chỉ tên các nơi đủ điều kiện được hiển thị; kết quả được ghi lại khi năm khép lại và không thay đổi.',
+      vi: 'Mỗi năm, mục Giáo viên bình chọn ghi nhận những nơi được giáo viên đề xuất, mỗi loại hình một hạng mục. Một nơi đủ điều kiện khi số người đề xuất nhiều hơn số người không đề xuất, có phiếu của ít nhất 10 giáo viên và ít nhất 3 đánh giá, tất cả trong năm theo giờ Sài Gòn, và được xếp theo cùng cách tính với mục Đánh giá cao. Khi năm còn mở, chỉ tên các nơi đủ điều kiện được hiển thị; kết quả được ghi lại khi năm khép lại và không thay đổi.',
     },
   },
   {

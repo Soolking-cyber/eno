@@ -1,6 +1,7 @@
 import { createElement, Fragment } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { linkifyLegal } from './legal-linkify'
 
 const html = (text: string) => renderToStaticMarkup(createElement(Fragment, null, ...linkifyLegal(text)))
@@ -49,5 +50,35 @@ describe('linkifyLegal', () => {
 
   it('returns plain text untouched', () => {
     expect(linkifyLegal('Nothing to link here.')).toEqual(['Nothing to link here.'])
+  })
+})
+
+describe('linkifyLegal — the operator’s phone, and old Safari', () => {
+  afterEach(() => { vi.unstubAllEnvs() })
+
+  it('links the marketplace operator’s number as an E.164 tel: — and no other number', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
+    vi.resetModules()
+    const { linkifyLegal: link } = await import('./legal-linkify')
+    const { COMPANY } = await import('@/lib/site-legal')
+    const s = `Write to ${COMPANY.email} or call ${COMPANY.phone}. Business registration no. ${COMPANY.erc}.`
+    const out = renderToStaticMarkup(createElement(Fragment, null, ...link(s)))
+    expect(out).toContain(`<a href="tel:+84${COMPANY.phone.slice(1)}" class="font-semibold text-accent-foreground hover:underline">${COMPANY.phone}</a>.`)
+    expect(out.match(/href="tel:/g)).toHaveLength(1)
+    expect(text(out)).toBe(s)
+  })
+
+  it('links no number while the edition’s phone is still the placeholder', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'services')
+    vi.resetModules()
+    const { linkifyLegal: link } = await import('./legal-linkify')
+    const { COMPANY } = await import('@/lib/site-legal')
+    expect(COMPANY.phone).not.toMatch(/\d/)
+    expect(renderToStaticMarkup(createElement(Fragment, null, ...link('Call 0772007921 or 0909123456.')))).not.toContain('tel:')
+  })
+
+  it('⛔ carries no regex lookbehind — it ships to Safari 16.0–16.3, where one is a SyntaxError', () => {
+    const src = readFileSync('src/components/marketplace/legal-linkify.tsx', 'utf8').replace(/\/\*[\s\S]*?\*\/|(^|[^:])\/\/[^\n]*/g, '$1')
+    expect(src).not.toMatch(/\(\?<[!=]/)
   })
 })

@@ -129,7 +129,10 @@ export function AvailabilityClient() {
         >
           <div className="relative shrink-0 px-4 pt-6 pb-1 text-center sm:px-6">
             <Mascot name="success" className="mx-auto h-24 w-24" />
-            <DialogPrimitive.Title className="mt-2 h-title text-foreground">{tr('Still available?', 'Còn hàng không?')}</DialogPrimitive.Title>
+            {/* ⛔ THE TITLE ASKS WHAT A TICK ANSWERS (2026-11-06 audit). "Still available?" over boxes ticked for SOLD read
+                backwards — api/listings/availability records four teachers who ticked their own live profile meaning "yes,
+                still available". Now the question is the one a tick says yes to. */}
+            <DialogPrimitive.Title className="mt-2 h-title text-foreground">{anyRental ? tr('Anything sold or rented?', 'Có tin nào đã bán hoặc đã cho thuê chưa?') : tr('Anything sold?', 'Có món nào đã bán chưa?')}</DialogPrimitive.Title>
             <p className="mt-1 text-sm text-muted-foreground">{anyRental
               ? tr('Tick anything that sold or was rented — everything else gets bumped to the top.', 'Đánh dấu tin đã bán hoặc đã cho thuê — những tin còn lại sẽ được đẩy lên đầu.')
               : tr('Tick anything that sold — everything else gets bumped to the top.', 'Đánh dấu món đã bán — những món còn lại sẽ được đẩy lên đầu.')}</p>

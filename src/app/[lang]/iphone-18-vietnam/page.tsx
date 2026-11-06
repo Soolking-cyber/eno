@@ -255,8 +255,11 @@ export default async function IPhone18VietnamPage() {
       lede={
         <>
           {/* ⛔ NO EMPTY TABLE AND NO SILENCE EITHER: with no second-hand iPhone 18 yet, one line says so —
-              and only when the catalogue was actually read (PriceTable owns the could-not-read state). */}
-          {phones.known && rows.length === 0 ? (
+              and only when the catalogue was actually read (PriceTable owns the could-not-read state).
+              ⚠️ BUT NOT A THIRD TIME (2026-11-06 audit): with neither table, the intro already says used units usually appear a
+              few weeks after launch, and the empty-shelf note above offers the listing and the browse link. So the line shows
+              beside an iPhone 17 table, or when that table could not be read and the intro therefore said nothing. */}
+          {phones.known && rows.length === 0 && (rows17.length > 0 || !phones17.known) ? (
             <p className="mt-8 max-w-prose text-sm leading-relaxed text-body">
               <Tr text="No second-hand shop lists an iPhone 18 here yet — used units usually appear a few weeks after launch." />{' '}
               <LocalizedLink href="/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used" rel="nofollow" prefetch={false} className="font-semibold text-accent-foreground hover:underline">

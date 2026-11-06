@@ -110,7 +110,9 @@ export default async function SchoolPageRoute({ params }: Props) {
         </BreadcrumbNav>
 
         <SchoolLiveProvider schoolIds={[school.id]} reviewIds={page.reviews.map((r) => r.id)} initial={{ [school.id]: { up: page.up, down: page.down } }}>
-          <header className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          {/* The score sits beside the name from lg only: as one row of arrows and words it is ~330px wide, and between sm and lg
+              it would squeeze the school's name beside a 160px logo (2026-11-06 audit). */}
+          <header className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
               <SchoolLogo slug={school.slug} logo={school.logo} name={school.name} kind={school.kind} size="lg" />
               <div className="min-w-0">
@@ -152,28 +154,31 @@ export default async function SchoolPageRoute({ params }: Props) {
             <SchoolClaim schoolId={school.id} schoolName={school.name} />
           </div>
 
-          {/* The facts first in the DOM, so on a phone pay comes before the reviews; on desktop they are the
-              right-hand column, beside what teachers wrote. */}
+          {/* What teachers wrote first in the DOM, so on a phone the reviews and open jobs follow the actions, and the pay note and
+              the directory facts come after them (2026-11-06 audit: four lines of "not enough pay reports yet" and a card that
+              repeats the header stood between the actions and the reviews). On desktop the facts stay the right-hand column,
+              beside the reviews: both blocks sit on the grid's first row. */}
           <div className="mt-10 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-10">
-            <aside className="flex flex-col gap-6 lg:col-start-2 lg:row-start-1">
-              <PaySection pay={page.pay} />
-              <AboutCard school={school} website={website} lang={lang} />
-            </aside>
-            <div className="mt-10 flex min-w-0 flex-col gap-10 lg:col-start-1 lg:row-start-1 lg:mt-0">
+            <div className="flex min-w-0 flex-col gap-10 lg:col-start-1 lg:row-start-1">
               <TagSection good={page.goodTags} bad={page.badTags} reviews={page.reviews.length} />
 
               <section aria-labelledby="reviews-h">
                 <h2 id="reviews-h" className="text-lg font-bold text-foreground sm:text-xl">
-                  <Bilingual en="Reviews from teachers ({n})" vi="Đánh giá từ giáo viên ({n})" values={{ n: formatInteger(page.reviews.length, loc) }} />
+                  {/* No "(0)" in a heading: the line under it says there are none (2026-11-06 audit). */}
+                  {page.reviews.length > 0
+                    ? <Bilingual en="Reviews from teachers ({n})" vi="Đánh giá từ giáo viên ({n})" values={{ n: formatInteger(page.reviews.length, loc) }} />
+                    : <Bilingual en="Reviews from teachers" vi="Đánh giá từ giáo viên" />}
                 </h2>
-                <div className="mt-4">
+                <div className={page.reviews.length > 0 ? 'mt-4' : 'mt-2'}>
                   <SchoolReviews reviews={page.reviews} slug={school.slug} schoolName={school.name} />
                 </div>
               </section>
 
               <section id="jobs" aria-labelledby="jobs-h" className="scroll-mt-24">
                 <h2 id="jobs-h" className="text-lg font-bold text-foreground sm:text-xl">
-                  <Bilingual en="Open jobs ({n})" vi="Việc đang tuyển ({n})" values={{ n: formatInteger(page.jobs.length, loc) }} />
+                  {page.jobs.length > 0
+                    ? <Bilingual en="Open jobs ({n})" vi="Việc đang tuyển ({n})" values={{ n: formatInteger(page.jobs.length, loc) }} />
+                    : <Bilingual en="Open jobs" vi="Việc đang tuyển" />}
                 </h2>
                 {page.jobs.length ? (
                   <div className="mt-4"><SchoolJobs jobs={page.jobs} /></div>
@@ -184,16 +189,21 @@ export default async function SchoolPageRoute({ params }: Props) {
                   </p>
                 )}
               </section>
-
-              <p className="text-sm text-muted-foreground">
-                <Bilingual en="Reviews are the opinions of individual teachers, checked by a moderator before they appear." vi="Đánh giá là ý kiến của từng giáo viên, được kiểm duyệt trước khi hiển thị." />{' '}
-                {school.logo && (
-                  <><Bilingual en="The logo belongs to the school and is shown only to identify it; {site} is not affiliated with it." vi="Logo thuộc về trường và chỉ dùng để nhận diện trường; {site} không liên kết với trường." values={{ site: SITE_NAME }} />{' '}</>
-                )}
-                <Link href="/schools#how-it-works" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="How the ranking works" vi="Cách xếp hạng hoạt động" /></Link>
-              </p>
             </div>
+            <aside className="mt-10 flex flex-col gap-6 lg:col-start-2 lg:row-start-1 lg:mt-0">
+              <PaySection pay={page.pay} />
+              <AboutCard school={school} website={website} lang={lang} />
+            </aside>
           </div>
+
+          {/* The page's footnote, under both columns: inside the left one it fell between the open jobs and, on a phone, the pay note. */}
+          <p className="mt-10 max-w-prose text-sm text-muted-foreground">
+            <Bilingual en="Reviews are the opinions of individual teachers, checked by a moderator before they appear." vi="Đánh giá là ý kiến của từng giáo viên, được kiểm duyệt trước khi hiển thị." />{' '}
+            {school.logo && (
+              <><Bilingual en="The logo belongs to the school and is shown only to identify it; {site} is not affiliated with it." vi="Logo thuộc về trường và chỉ dùng để nhận diện trường; {site} không liên kết với trường." values={{ site: SITE_NAME }} />{' '}</>
+            )}
+            <Link href="/schools#how-it-works" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="How the ranking works" vi="Cách xếp hạng hoạt động" /></Link>
+          </p>
         </SchoolLiveProvider>
       </main>
       <Footer />

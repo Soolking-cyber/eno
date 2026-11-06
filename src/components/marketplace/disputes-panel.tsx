@@ -126,7 +126,8 @@ export function DisputesPanel({ compact = false, underSectionHeader = false }: {
           className="mt-6"
           icon={Scale}
           title={t('No disputes', 'Chưa có khiếu nại nào')}
-          subtitle={t('If you report a listing, seller or conversation — or someone reports you — the case appears here.', 'Khi bạn báo cáo tin đăng, người bán hay cuộc trò chuyện — hoặc có người báo cáo bạn — hồ sơ sẽ hiển thị ở đây.')}
+          // Where a case starts, not only where it lands (2026-11-06 audit): Report sits on the listing, the seller's page and the chat.
+          subtitle={t('To report a listing, a seller or a chat, use Report on its page. Cases you open — and any about you — appear here.', 'Để báo cáo tin đăng, người bán hoặc cuộc trò chuyện, hãy dùng nút Báo cáo ngay trên trang đó. Hồ sơ bạn gửi — và hồ sơ liên quan đến bạn — sẽ hiển thị ở đây.')}
         />
       ) : (
         /* One stacked column on EVERY breakpoint (user-picked 2026-07-14). The old

@@ -107,7 +107,10 @@ export const DISCOVERY: ReadonlyArray<{ href: string; label: string; note: strin
   {
     href: '/api/v1/status',
     label: '/api/v1/status',
-    note: 'The only endpoint that needs no credential. Edition, API version, links to everything below — and live RateLimit headers, so you can see the throttle before you have a key. Start here.',
+    // "In the reference below", never a bare "the only endpoint" (2026-11-06 audit): the line above this list says all of
+    // its entries need no credential, and the bare claim read as contradicting it. Status is the one CALL among the
+    // endpoints the page documents that answers without a key; the rest of this list are documents.
+    note: 'The only endpoint in the reference below that needs no credential. Edition, API version, links to everything below — and live RateLimit headers, so you can see the throttle before you have a key. Start here.',
   },
   {
     href: '/openapi.json',

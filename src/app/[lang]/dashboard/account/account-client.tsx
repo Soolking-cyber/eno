@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SectionHeader } from '@/components/marketplace/section-header'
+import { PageHeader } from '@/components/ui/page-header'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { DASHBOARD_NAV } from '@/components/marketplace/dashboard-nav'
 import { resolveNavGroups, type ResolvedNavItem } from '@/components/marketplace/dashboard-nav-resolve'
@@ -131,7 +132,9 @@ export function AccountClient() {
     return (
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
         <SectionHeader title={tr('Account', 'Tài khoản')} />
-        <div className="mx-auto w-full max-w-2xl pb-4">
+        {/* The desktop title, reserved (the loaded page's PageHeader). */}
+        <Skeleton className="mb-3 h-7 w-28 rounded-lg max-lg:hidden" />
+        <div className="w-full max-w-2xl pb-4">
           {/* IDENTITY — the real block is a <Link> with `-mx-1 px-1 py-3`, an xl (h-20) avatar,
               a TrustScore chip under the email and a trailing ChevronRight: 104px, not 80. The
               old `flex items-center gap-3 px-1` skeleton dropped the 24px of vertical padding
@@ -143,7 +146,8 @@ export function AccountClient() {
               <Skeleton className="mt-1 h-4 w-52 max-w-full" />
               <Skeleton className="mt-1.5 h-5 w-24 rounded-full" />
             </div>
-            <Skeleton className="h-5 w-5 shrink-0" />
+            {/* "Settings ›" — the row's destination in words, as the loaded row reads. */}
+            <Skeleton className="h-5 w-20 shrink-0" />
           </div>
           {/* Skeleton geometry must match what replaces it — flat hairline-separated ROWS
               inside <RowsSection> groups, not a stack of floating 44px cards. A nav row is
@@ -191,7 +195,12 @@ export function AccountClient() {
   return (
     <>
       <SectionHeader title={tr('Account', 'Tài khoản')} />
-    <div className="mx-auto w-full max-w-2xl pb-4">
+      {/* The page's h1, the canon's PageHeader: plain on desktop, sr-only under the phone's SectionHeader bar, which is a
+          span, not a heading (2026-11-06 audit: the hub was the one dashboard page with no h1 on any size). */}
+      <PageHeader title={tr('Account', 'Tài khoản')} titleClassName="max-lg:sr-only" className="lg:mb-3" />
+    {/* Left-aligned like every dashboard section (2026-11-06 audit): centred, the column sat off the line the
+        section titles, the header search and the footer share. */}
+    <div className="w-full max-w-2xl pb-4">
       {/* IDENTITY — the header a native account tab opens with: who you are, and the one number
           that means anything here. It is also the way into Settings, exactly as on the desktop
           rail (whose identity card carries the same link) — without this, Settings has no row in
@@ -228,10 +237,18 @@ export function AccountClient() {
             // block is already a link to Settings — an anchor inside an anchor is invalid and
             // browsers recover from it unpredictably (the same trap the PDP shop strip avoids).
             // The score still explains itself on /trust from every other surface that shows it.
-            <div className="mt-1.5"><TrustScore score={dash.profile.trustScore} size="sm" /></div>
+            // Named beside the shield: alone it was a bare "62" nobody could read (2026-11-06 audit).
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <TrustScore score={dash.profile.trustScore} size="sm" />
+              <span className="text-xs text-body">{tr('Trust score', 'Điểm uy tín')}</span>
+            </div>
           )}
         </div>
-        <ChevronRight className="h-5 w-5 shrink-0 text-ink-4" aria-hidden />
+        {/* Where the row goes, in words — a chevron alone left the destination to a guess (2026-11-06 audit). */}
+        <span className="flex shrink-0 items-center gap-0.5 text-sm font-semibold text-body">
+          {tr('Settings', 'Cài đặt')}
+          <ChevronRight className="h-5 w-5 shrink-0 text-ink-4" aria-hidden />
+        </span>
       </Link>
       )}
 

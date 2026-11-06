@@ -63,6 +63,16 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
   const { color, label, labelVi, band } = trustScoreColor(score)
   const n = Math.round(score)
   const title = `${tr('Trust score', 'Điểm uy tín')}: ${n} · ${tr(label, labelVi)}`
+  // 2026-11-06 audit: the hover hint also says what moves the number (adapted from the /safety page's wording), so a
+  // bare shield on a card explains what was assessed without a word added to the row; the accessible name stays the
+  // short `title`, which a screen reader hears once per card in a feed. "This account", not "the seller": the same
+  // chip sits on a chat counterpart, who may be the buyer, and on your own account panel.
+  const hint = (
+    <span className="block max-w-64">
+      {title}
+      <span className="mt-0.5 block font-normal">{tr('Goes up with verification, verified reviews, quick replies and completed deals; goes down when a report against this account is upheld.', 'Tăng nhờ xác minh, đánh giá đã xác minh, trả lời tin nhắn nhanh và các giao dịch đã hoàn tất; giảm khi một báo cáo về tài khoản này có căn cứ.')}</span>
+    </span>
+  )
   // The 'shield' and 'number' spans carry a NATIVE title only when there is NO href — that is the
   // unwrapped case where it's the sole hint. When href is set the badge is wrapped in a Base UI
   // <Tooltip> below, which owns the hint; leaving the native title on too would fire BOTH bubbles
@@ -73,7 +83,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
   const wrap = (node: React.ReactNode) => href
     // prefetch={false}: a trust badge renders on EVERY card in the feed, so auto-prefetch would
     // warm the same /trust explainer once per visible card. It is a rarely-followed footnote link.
-    ? <Tooltip content={title} side="top"><Link href={href} prefetch={false} aria-label={tr('How trust works', 'Điểm uy tín hoạt động thế nào')} className="inline-flex cursor-pointer transition-transform hover:scale-105 active:scale-[0.96]">{node}</Link></Tooltip>
+    ? <Tooltip content={hint} side="top"><Link href={href} prefetch={false} aria-label={tr('How trust works', 'Điểm uy tín hoạt động thế nào')} className="inline-flex cursor-pointer transition-transform hover:scale-105 active:scale-[0.96]">{node}</Link></Tooltip>
     : <>{node}</>
 
   if (variant === 'mini') {
@@ -126,7 +136,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
         {n}
       </span>
     )
-    return href ? wrap(chip) : <Tooltip content={title} side="top">{chip}</Tooltip>
+    return href ? wrap(chip) : <Tooltip content={hint} side="top">{chip}</Tooltip>
   }
 
   if (variant === 'number') {

@@ -28,10 +28,11 @@ export default function SuggestSchoolPage() {
           <Bilingual en="← All schools" vi="← Tất cả trường" />
         </Link>
         <h1 className="h-display mt-3 text-foreground"><Bilingual en="Suggest a school" vi="Đề xuất một trường" /></h1>
+        {/* "Sign in and tell us": the sign-in requirement in the lede, not first met on the button under five fields (2026-11-06 audit). */}
         <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
           <Bilingual
-            en="Taught at a school, English centre or recruiter in Ho Chi Minh City that is not on the list? Tell us, and a moderator adds it, usually within a few days. You can then vote on it and review it."
-            vi="Bạn từng dạy ở một trường, trung tâm tiếng Anh hay đơn vị tuyển dụng tại TP. Hồ Chí Minh chưa có trong danh sách? Hãy cho chúng tôi biết, kiểm duyệt viên sẽ thêm vào, thường trong vài ngày. Sau đó bạn có thể bình chọn và đánh giá nơi đó."
+            en="Taught at a school, English centre or recruiter in Ho Chi Minh City that is not on the list? Sign in and tell us, and a moderator adds it, usually within a few days. You can then vote on it and review it."
+            vi="Bạn từng dạy ở một trường, trung tâm tiếng Anh hay đơn vị tuyển dụng tại TP. Hồ Chí Minh chưa có trong danh sách? Hãy đăng nhập và cho chúng tôi biết, kiểm duyệt viên sẽ thêm vào, thường trong vài ngày. Sau đó bạn có thể bình chọn và đánh giá nơi đó."
           />
         </p>
         <SuggestForm />

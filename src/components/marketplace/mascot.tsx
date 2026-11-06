@@ -47,7 +47,7 @@ const MASCOTS_V = '5725a4f5'
 /**
  * eno.vn's shield mascots (public/mascots/*.svg), rendered as a CSS mask filled with
  * `currentColor`, so they're crisp at any size and adapt to the theme automatically: dark
- * line-art in light mode, light line-art in dark mode (via `text-foreground`). No raster,
+ * line-art in light mode, light line-art in dark mode (a quiet `ink-4` at 60% by default). No raster,
  * no dark-mode invert hacks. Pass `white` to force white (e.g. on the blue panel).
  *
  * ⚠️ The nine files are not nine drawings — they are ONE drawing with nine props. The whole
@@ -103,7 +103,10 @@ export function Mascot({ name, className, white = false }: { name: MascotName; c
   return (
     <span
       aria-hidden
-      className={cn('inline-block bg-current', white ? 'text-white' : 'text-line-strong', className)}
+      // 2026-11-06 audit: line-strong (1.4:1 on the canvas) read as a disabled or unfinished asset in two judge findings
+      // (empty states, the 404); ink-4 at 60% (~2.6:1) is a deliberate drawing that still sits below the empty state's
+      // own words, which lead.
+      className={cn('inline-block bg-current', white ? 'text-white' : 'text-ink-4/60', className)}
       style={{
         maskImage: url,
         WebkitMaskImage: url,

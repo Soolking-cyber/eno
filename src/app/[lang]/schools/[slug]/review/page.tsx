@@ -67,11 +67,9 @@ export default async function SchoolReviewPage({ params }: Props) {
               <ReviewForm schoolId={school.id} slug={school.slug} schoolName={school.name} />
             </div>
           </div>
+          {/* What a useful review covers first, then the way back to the school: on a phone the topics now follow the form, or the
+              sign-in card, directly — a preview of what is asked — instead of a card repeating the title (2026-11-06 audit). */}
           <aside className="mt-10 flex flex-col gap-4 lg:mt-3">
-            <Link href={`/schools/${school.slug}`} className="flex items-center gap-3 rounded-2xl bg-card p-3 ring-1 ring-border hover:bg-tint">
-              <SchoolLogo slug={school.slug} logo={schoolLogo(school.slug)} name={school.name} kind={school.kind as SchoolKind} />
-              <span className="min-w-0 truncate text-sm font-semibold text-foreground">{school.name}</span>
-            </Link>
             <section aria-labelledby="review-tips-h" className="rounded-2xl bg-tint p-4">
               <h2 id="review-tips-h" className="text-base font-bold text-foreground">
                 <Bilingual en="What helps the next teacher" vi="Điều giúp giáo viên đến sau" />
@@ -82,13 +80,18 @@ export default async function SchoolReviewPage({ params }: Props) {
                 <li><Bilingual en="The contract and the work permit: what was promised and what happened" vi="Hợp đồng và giấy phép lao động: những gì được hứa và thực tế ra sao" /></li>
                 <li><Bilingual en="Management, training and support" vi="Cách quản lý, đào tạo và hỗ trợ" /></li>
               </ul>
+              {/* "Your name is never shown" is the sign-in card's line and the form's: said there, not a second time here. */}
               <p className="mt-3 text-sm leading-relaxed text-body">
                 <Bilingual
-                  en="Your name is never shown, and a moderator reads every review before it appears."
-                  vi="Tên của bạn không bao giờ hiển thị, và mọi đánh giá đều được kiểm duyệt trước khi hiển thị."
+                  en="A moderator reads every review before it appears."
+                  vi="Mọi đánh giá đều được kiểm duyệt trước khi hiển thị."
                 />
               </p>
             </section>
+            <Link href={`/schools/${school.slug}`} className="flex items-center gap-3 rounded-2xl bg-card p-3 ring-1 ring-border hover:bg-tint">
+              <SchoolLogo slug={school.slug} logo={schoolLogo(school.slug)} name={school.name} kind={school.kind as SchoolKind} />
+              <span className="min-w-0 truncate text-sm font-semibold text-foreground">{school.name}</span>
+            </Link>
           </aside>
         </div>
       </main>

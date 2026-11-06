@@ -382,7 +382,7 @@ export default async function Storefront({ params }: Props) {
             to chat from (the cookie is scoped to the canonical host), so it is a link that crosses to
             the listing there — `chatOrigin`. Affiliate-only shops and the visa desk get null and no
             button at all (owner, 2026-08-24). The count is the shop's whole scoped stock, as in the grid. */}
-        <div className="flex items-start justify-between gap-3 pb-4 pt-3">
+        <div className="flex items-start justify-between gap-3 pb-4 pt-3 md:items-end">
           <div className="min-w-0 max-w-md flex-1">
             <StorefrontSellerCard
               seller={card.cardSeller}
@@ -404,8 +404,10 @@ export default async function Storefront({ params }: Props) {
               open that host in the WebView: capacitor.config.ts allowNavigation holds only the canonical ones.
               ⚠️ A COLUMN, NOT A ROW: three controls beside the card leave it ~140px on a 360px phone. And
               `gap-2` is the floor — each pill's tap-44 hit area reaches 8px past it, so any less and Block's
-              swallows the bottom of Report. */}
-          <div className="flex shrink-0 flex-col items-end gap-2">
+              swallows the bottom of Report.
+              ⚠️ FROM md, A ROW ON THE CARD'S BOTTOM LINE (2026-11-06 audit): there is room for one there, and as a column it
+              floated at the top right, apart from "Chat now". Share · Report · Block now end Chat's line, at the far side. */}
+          <div className="flex shrink-0 flex-col items-end gap-2 md:flex-row md:items-center">
             <ShareButton url={canonical} title={shop.name} compact />
             {!onShopHost && <ReportButton sellerId={shop.sellerId} />}
             {!onShopHost && <BlockUserButton sellerId={shop.sellerId} shopOnly={blockShopOnly} name={shop.name} />}

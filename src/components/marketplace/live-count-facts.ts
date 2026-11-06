@@ -52,6 +52,9 @@ export type LiveCountFacts = {
   allInside: boolean
 }
 
+/** A row that names its district (see liveCountWhere): the same pair the housing rail's own-city read uses (seo-listing-rail.tsx). */
+const HAS_DISTRICT = [{ district: { not: null } }, { NOT: { district: '' } }]
+
 /**
  * The Prisma predicate for a target, UNSCOPED.
  *
@@ -65,7 +68,11 @@ export function liveCountWhere(target: LiveCountTarget, province?: string) {
     : { verified: true, status: 'active' }
   // ⚠️ AN `AND` ARRAY, NOT A SPREAD. seoLandingWhere may already carry its own `AND` (the condition
   // narrowing); spreading the province predicate beside it would silently overwrite one of the two.
-  return province ? { AND: [base, provinceWhere(province)] } : base
+  // ⚠️ AND "INSIDE" ALSO NEEDS A DISTRICT ON THE ROW (2026-11-06). The partner import stores city "Hồ Chí Minh" on its rows in
+  // Biên Hòa and Đà Nẵng, and those are exactly its rows with no district (the housing rail's own-city read uses the same
+  // rule), so the city alone printed "every one of them in Ho Chi Minh City" over a rail of Biên Hòa homes. A row with no
+  // district can only REMOVE the claim, never assert it: the one direction this count may fail in.
+  return province ? { AND: [base, { AND: [provinceWhere(province), ...HAS_DISTRICT] }] } : base
 }
 
 const EN = new Intl.NumberFormat('en-US')

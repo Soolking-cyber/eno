@@ -1047,7 +1047,7 @@ function DeadlineTable({ head, rows }: { head: Para[]; rows: Para[][] }) {
           {head.map((h) => (
             <TableHead key={h.en} scope="col" className="h-auto py-2 align-bottom whitespace-normal">
               <span className="block text-sm font-semibold text-foreground" lang="vi">{h.vi}</span>
-              <span className="block text-xs font-normal text-ink-4" lang="en">{h.en}</span>
+              <span className="block text-xs font-normal text-body" lang="en">{h.en}</span>
             </TableHead>
           ))}
         </TableRow>
@@ -1058,7 +1058,7 @@ function DeadlineTable({ head, rows }: { head: Para[]; rows: Para[][] }) {
             {r.map((c, j) => (
               <TableCell key={j} className="py-2.5 align-top whitespace-normal">
                 <span className={j === 0 ? 'block text-sm font-medium text-foreground' : 'block text-sm text-body'} lang="vi">{linkifyLegal(c.vi)}</span>
-                <span className="block text-xs text-ink-4" lang="en">{linkifyLegal(c.en)}</span>
+                <span className="block text-xs text-body" lang="en">{linkifyLegal(c.en)}</span>
               </TableCell>
             ))}
           </TableRow>
@@ -1087,7 +1087,7 @@ export default function RegulationsPage() {
       intro={
         <>
           <span className="block" lang="vi">{INTRO.vi}</span>
-          <span className="mt-3 block text-sm text-ink-4" lang="en">{INTRO.en}</span>
+          <span className="mt-3 block text-sm" lang="en">{INTRO.en}</span>
         </>
       }
       sections={ARTICLES.map((a) => ({ id: a.id, label: a.rail }))}
@@ -1107,18 +1107,22 @@ export default function RegulationsPage() {
         * `wide` lifts ContentSection's 70ch wrapper so the pair can use the column; each paragraph
         * keeps its own 60ch measure. `linkifyLegal` links the document paths and mailboxes the text
         * names without changing a character of it.
+        * ⚠️ THE ENGLISH IS SMALLER, NEVER FAINTER (2026-11-06 audit). It sat a step fainter than the Vietnamese beside it
+        * (ink-4), and it is the column most of this site's readers actually read. Its size, its place second and the
+        * narrower column still say which text governs; the ink is body ink (the deadline table's English too), its titles
+        * the weight of a heading's subtitle.
         */}
       {ARTICLES.map((a) => (
         <ContentSection key={a.id} id={a.id} wide>
           <div className="grid grid-cols-1 gap-1 xl:grid-cols-[4fr_3fr] xl:items-baseline xl:gap-x-10">
             <h2 className="h-title text-foreground" lang="vi">{a.titleVi}</h2>
-            <p className="text-sm font-medium text-ink-4" lang="en">{a.titleEn}</p>
+            <p className="text-sm font-semibold text-body" lang="en">{a.titleEn}</p>
           </div>
           {a.body.map((p, i) => (
             <Fragment key={i}>
               <div className="grid grid-cols-1 gap-1.5 xl:grid-cols-[4fr_3fr] xl:items-baseline xl:gap-x-10">
                 <p className="max-w-[60ch] text-base leading-relaxed text-body" lang="vi">{linkifyLegal(p.vi)}</p>
-                <p className="max-w-[60ch] text-sm leading-relaxed text-ink-4" lang="en">{linkifyLegal(p.en)}</p>
+                <p className="max-w-[60ch] text-sm leading-relaxed text-body" lang="en">{linkifyLegal(p.en)}</p>
               </div>
               {a.table?.tableAfter === i && <DeadlineTable head={a.table.head} rows={a.table.rows} />}
             </Fragment>

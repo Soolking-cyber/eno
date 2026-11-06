@@ -253,43 +253,43 @@ export function HelpThreadClient({
       </div>
 
       <h1 className="mt-3 text-2xl font-bold tracking-tight text-foreground sm:text-3xl [overflow-wrap:anywhere]">{title}</h1>
-      <p className="mt-2 text-xs text-muted-foreground">
-        {post.author.name}
-        {/* ⚠️ AN OFFICIAL ANSWER SHOWS WHEN ITS COPY LAST CHANGED, NOT A RELATIVE "2 months ago" (C-DATES).
-            The date is helpModifiedAt — `editedAt ?? createdAt`, the same value /help/[id]'s JSON-LD
-            dateModified and the sitemap lastmod carry (I3c), so the page and the crawler agree — printed
-            only once editedAt exists (a real edit, I3b): never-edited it is the seed's curated-order
-            createdAt, and the line is left out rather than print that. formatArticleDate is zone-free string surgery, and
-            `lang` is the page's [lang] variant in both the server render and the first client pass
-            (the provider starts from it), so this cannot mismatch. */}
-        {post.official ? (
-          modifiedAt && (
-            <>
-              <span aria-hidden> · </span>
-              {tr('Updated', 'Cập nhật')}{' '}
-              <time dateTime={modifiedAt}>{formatArticleDate(modifiedAt, lang)}</time>
-            </>
-          )
-        ) : (
-          <>
-            <span aria-hidden> · </span>
-            <RelativeTime iso={post.createdAt} />
-          </>
-        )}
-      </p>
+      {/* ⚠️ AN OFFICIAL ANSWER SHOWS WHEN ITS COPY LAST CHANGED, NOT A RELATIVE "2 months ago" (C-DATES).
+          The date is helpModifiedAt — `editedAt ?? createdAt`, the same value /help/[id]'s JSON-LD
+          dateModified and the sitemap lastmod carry (I3c), so the page and the crawler agree — printed
+          only once editedAt exists (a real edit, I3b): never-edited it is the seed's curated-order
+          createdAt, and the line is left out rather than print that. formatArticleDate is zone-free string surgery, and
+          `lang` is the page's [lang] variant in both the server render and the first client pass
+          (the provider starts from it), so this cannot mismatch.
+          ⚠️ AND NO AUTHOR NAME ON IT (2026-11-06 audit): the "From the eno team" chip above already says who wrote
+          it, and "eno team" under the title said it a second time. A member's question keeps its name and its age. */}
+      {post.official ? (
+        modifiedAt && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {tr('Updated', 'Cập nhật')}{' '}
+            <time dateTime={modifiedAt}>{formatArticleDate(modifiedAt, lang)}</time>
+          </p>
+        )
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {post.author.name}
+          <span aria-hidden> · </span>
+          <RelativeTime iso={post.createdAt} />
+        </p>
+      )}
 
       {/* Headings, paragraphs and lists (rich-text.tsx formatHelpBody), not a pre-line <p> printing
           "•" characters (C-HELP-RENDER). Sub-heads are only guessed on the eno team's own answers;
           a community post keeps its lines and lists. 60ch holds the measure inside the 3xl column. */}
       <div className="mt-5 max-w-[60ch] text-base leading-relaxed text-body [overflow-wrap:anywhere]">
-        {formatHelpBody(body, { implicitHeadings: post.official, headingLevel: 2 })}
+        {formatHelpBody(body, { implicitHeadings: post.official, headingLevel: 2, links: post.official })}
       </div>
 
       <div className="mt-6 flex items-center gap-3 border-y border-border py-3">
-        <HelpVote id={post.id} kind="post" score={post.score} viewerVote={post.viewerVote} />
+        {/* The question, then the vote that answers it (2026-11-06 audit): with the button first, the prompt read as an afterthought. */}
         <span className="text-sm text-muted-foreground">
           <Tr text="Was this helpful?" />
         </span>
+        <HelpVote id={post.id} kind="post" score={post.score} viewerVote={post.viewerVote} />
         {/* App Store gate `ugc-safety` (R5): a MEMBER's question can be reported; the eno team's own
             answers are edited, not moderated, and the server refuses them as a report target. */}
         {!post.official && <ReportContentButton kind="help-post" id={post.id} className="ml-auto" />}

@@ -19,11 +19,22 @@ export type LegalCopy = { en: string; vi: string }
  * ⚠️ The strings arrive as props from a server page, so scripts/gen-ui-strings.mjs does not harvest
  * them into the shipped catalogue — which is what keeps services-only legal copy out of eno.vn's.
  */
-export function LegalText({ en, vi }: LegalCopy) {
+/**
+ * A paragraph's lead-in label ("Account information:", "Thông tin tài khoản:"), set in the foreground weight when the
+ * caller asks for it (`lead`) so a section of definitions scans as a list (2026-11-06 audit). Up to 60 characters
+ * before the first colon, with no full stop, semicolon or dash in between, so a sentence that merely contains a colon is
+ * never taken for one. The words, and the page's textContent, are unchanged.
+ */
+const LEAD = /^([^:.;—]{2,60}:)\s/
+
+export function LegalText({ en, vi, lead = false }: LegalCopy & { lead?: boolean }) {
   const { tr, lang } = useLanguage()
   const out = tr(en, vi)
   const cl = detectContentLang(out)
-  const nodes = linkifyLegal(out)
+  const head = lead ? LEAD.exec(out) : null
+  const nodes = head
+    ? [<strong key="lead" className="font-semibold text-foreground">{head[1]}</strong>, ...linkifyLegal(out.slice(head[1].length))]
+    : linkifyLegal(out)
   return cl && cl !== lang ? <span lang={cl}>{nodes}</span> : <>{nodes}</>
 }
 

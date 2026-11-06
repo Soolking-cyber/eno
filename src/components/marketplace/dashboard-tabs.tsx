@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/ui/page-header'
 import { useLanguage } from '@/context/language-context'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 /**
  * THE ONE TABBED SECTION SHELL — how the dashboard consolidates several old pages into one.
@@ -93,6 +94,39 @@ export function DashboardTabs({
     [params, pathname, router],
   )
 
+  // ⚠️ A DEEP LINK OPENS ON ITS OWN TAB (2026-11-06 audit). Settings' five tabs run past a 390px screen, so a link to
+  // ?tab=preferences opened with the selected tab out of sight. The selected tab is brought into the strip — the strip's
+  // own scroll, never scrollIntoView, which would move the page too (brand-rail's rule). No edge fade: the owner removed
+  // the rails' "cloudy effect" on 2026-08-26, and the hard clip is the accepted cue (shelf.tsx, category-rail.tsx).
+  const hasStrip = tabs.length > 1
+  const stripRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = stripRef.current
+    if (!el) return
+    const reveal = () => {
+      const tab = el.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+      if (!tab || el.scrollWidth <= el.clientWidth) return
+      const box = el.getBoundingClientRect()
+      const t = tab.getBoundingClientRect()
+      // Clear of the strip's 12px phone gutter.
+      const pad = 12
+      const by = t.right > box.right - pad ? t.right - box.right + pad
+        : t.left < box.left + pad && el.scrollLeft > 0 ? t.left - box.left - pad
+        : 0
+      if (by) el.scrollTo({ left: el.scrollLeft + by, behavior: scrollBehavior() })
+    }
+    reveal()
+    // ⚠️ AND AGAIN WHENEVER THE STRIP OR ITS TABS CHANGE SIZE, not only when `active` does (2026-11-06 review): a phone
+    // turned from landscape to portrait, or a machine-translated language's labels landing after the first paint (they
+    // arrive from an effect in language-context.tsx), put the selected tab back out of sight. A swipe along the strip
+    // resizes nothing, so the reader's own scroll is never undone. Guarded because jsdom has no ResizeObserver.
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(reveal)
+    ro.observe(el)
+    if (el.firstElementChild) ro.observe(el.firstElementChild)
+    return () => ro.disconnect()
+  }, [active, hasStrip])
+
   return (
     <>
       {/* Mobile-only pushed-screen title bar (lg:hidden); the rail carries the title on desktop. */}
@@ -117,12 +151,14 @@ export function DashboardTabs({
               individual's Listings is just "All" once Bulk is gated away — and a one-item tab strip is
               pointless chrome under the section title. Hide the list (the panel still renders via the
               controlled value); the strip reappears the moment a second tab does. */}
-          {tabs.length > 1 && (
+          {hasStrip && (
             /* The strip scrolls on a narrow phone rather than wrapping to two rows. */
-            <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0 scroll-thin">
+            <div ref={stripRef} className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0 scroll-thin">
               <TabsList aria-label={typeof title === 'string' ? title : tr('Section', 'Mục')}>
                 {tabs.map((t) => (
-                  <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>
+                  // text-body: a resting tab reads at the strength of the captions under it, not a 60% grey;
+                  // lg:px-3: on a desktop the selected pill clears its label instead of hugging it (2026-11-06 audit).
+                  <TabsTrigger key={t.value} value={t.value} className="text-body lg:px-3">{t.label}</TabsTrigger>
                 ))}
               </TabsList>
             </div>

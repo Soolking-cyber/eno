@@ -408,7 +408,7 @@ test.describe('marketplace, against known fixtures', () => {
   // one of the curated DISTRICTS keys.
   test('leaving a district page for the full search keeps the district', async ({ page }) => {
     await page.goto('/c/electronics/thao-dien-fixture')
-    await page.getByRole('link', { name: /Refine in full search/ }).click()
+    await page.getByRole('link', { name: /Search with filters/ }).click()
     await expect(page).toHaveURL(/district=thao-dien-fixture/)
     // ⚠️ ANCHOR ON A CARD FIRST. `toHaveCount(0)` is trivially true while the feed is still
     // fetching, so on its own this assertion passes against a build that never filtered at all

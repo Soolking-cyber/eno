@@ -37,6 +37,9 @@ import { coverSlotLabel } from '@/lib/teachers/cover'
 import { formatCalendarDay } from '@/lib/calendar-day'
 
 const ENDPOINT = '/api/teachers/me/check-in'
+/** Bounded like the Zalo page's waits (cover-zalo-panel.tsx — 2026-11-06 audit): a stalled request must never hold the page on
+ *  its spinner, or a button busy; it ends as a failed read (Try again) or a re-read of the truth. */
+const timeout = () => (typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(10_000) : undefined)
 
 /** The endpoint's answer (check-in.ts CheckInView). */
 export type CheckInViewData = {
@@ -94,7 +97,7 @@ function CheckInFor() {
 
   const read = useCallback(async (): Promise<CheckInViewData | null> => {
     try {
-      const res = await fetch(ENDPOINT, { cache: 'no-store' })
+      const res = await fetch(ENDPOINT, { cache: 'no-store', signal: timeout() })
       return res.ok ? checkInViewOf(await res.json().catch(() => null)) : null
     } catch {
       return null
@@ -120,6 +123,7 @@ function CheckInFor() {
     setLine('')
     let ok = false
     lineIsNotLive.current = false
+    const before = view?.confirmedAt ?? null
     try {
       const res = await send()
       ok = res.ok
@@ -133,12 +137,15 @@ function CheckInFor() {
       else if (ok && onOk === 'hidden') setView((v) => (v ? { ...v, live: false, hidden: true } : v))
       // …and a "yes" refused as not live (409) with the re-read failed: no live question or "Yes" left beside the line (codex, gate).
       else if (!ok && onOk === 'confirmed' && lineIsNotLive.current) setView((v) => (v ? { ...v, live: false } : v))
+      // A request its 10s limit cut off can still have landed (opus, gate 2026-11-06): when the re-read shows it did, that is
+      // the answer — never "could not save" beside it. The line says what the server shows, as job-messages-panel.tsx's does.
+      if (!ok && fresh && (onOk === 'hidden' ? fresh.hidden : fresh.confirmedAt !== null && fresh.confirmedAt !== before)) { setLine(''); setDone(onOk); setConfirmOpen(false) }
       busyRef.current = false
       setBusy(false)
     }
   }
-  const confirm = () => act(() => fetch(ENDPOINT, { method: 'POST' }), 'confirmed')
-  const hide = () => act(() => fetch('/api/teachers/me/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'hidden' }) }), 'hidden')
+  const confirm = () => act(() => fetch(ENDPOINT, { method: 'POST', signal: timeout() }), 'confirmed')
+  const hide = () => act(() => fetch('/api/teachers/me/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'hidden' }), signal: timeout() }), 'hidden')
 
   const title = tr('Weekly check-in', 'Kiểm tra hằng tuần')
   if (authLoading) return <Loading />

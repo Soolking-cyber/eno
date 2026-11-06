@@ -627,7 +627,8 @@ function FooterBody({ compact }: { compact: boolean }) {
                           area can overlap its neighbour's — the tap-44 trap, avoided by real height. */}
                       {/* teacherSurfaceHref: on eno.forum "Find a teacher" is eno.vn's page (the forum 308s it there,
                           src/lib/teachers/surface.ts), linked directly; every other category, and eno.vn, unchanged. */}
-                      <a href={teacherSurfaceHref(localizedHref(`/c/${cat.slug}`, variantOfLanguage(lang)))} className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center max-sm:text-sm">{tr(cat.name, cat.nameVi)}</a>
+                      {/* 2026-11-06 audit: 14px body ink, not 12px tertiary grey — two judges read the desktop link grid as fine print. */}
+                      <a href={teacherSurfaceHref(localizedHref(`/c/${cat.slug}`, variantOfLanguage(lang)))} className="text-sm text-body transition-colors hover:text-accent-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center">{tr(cat.name, cat.nameVi)}</a>
                     </li>
                   ))}
                 </ul>
@@ -668,7 +669,8 @@ function FooterBody({ compact }: { compact: boolean }) {
                                 goToForum(link.forumPath!)
                               }
                             : handleExternalClick}
-                          className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center max-sm:text-sm"
+                          // 2026-11-06 audit: 14px body ink, not 12px tertiary grey, the same as the Explore links above.
+                          className="text-sm text-body transition-colors hover:text-accent-foreground max-sm:flex max-sm:min-h-11 max-sm:items-center"
                         >{link.label}</a>
                       </li>
                     ))}
@@ -700,7 +702,9 @@ function FooterBody({ compact }: { compact: boolean }) {
             entity is incorporated, the fix is to fill in `OPERATORS.services` and drop this gate —
             not to leave the forum with no operator notice indefinitely. */}
         {IS_MARKETPLACE && (
-        <div className="mt-12 space-y-1 border-t border-border/60 pt-6 text-2xs leading-relaxed text-body max-sm:mt-5 max-sm:pt-4">
+        // 2026-11-06 audit: on the compact footer no link grid sits above this block, so its own top margin only stacked on
+        // the footer's pt-8 (80px of air under a desktop tool page, 52px on a phone); there the hairline is the separation.
+        <div className={`${compact ? '' : 'mt-12 max-sm:mt-5 '}space-y-1 border-t border-border/60 pt-6 text-2xs leading-relaxed text-body max-sm:pt-4`}>
           <p className="font-semibold text-muted-foreground">{COMPANY.name}</p>
           <p>{tr('Head office', 'Trụ sở')}: {COMPANY.address}</p>
           {/* ⚠️ THE TWO NEW LINES HERE ARE MOCKS AWAITING REAL VALUES (owner, 2026-08-02: "place

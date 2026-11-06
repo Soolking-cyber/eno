@@ -60,16 +60,26 @@ function Band({ score, name, range, note }: { score: number; name: string; range
 // ⚠️ THE SUB-LINE IS THE RULE, NOT METADATA. "Verified phone +10, verified identity +10 while it is current, account
 // older than 90 days +5" is the method this page exists to publish, and it was set at 12px in ink-4
 // like a caption (C-TRUST, measured 2026-09-29). It reads as body copy now: 14px, relaxed, body ink.
-function Points({ rows }: { rows: [string, number, string][] }) {
+//
+// ⚠️ `cap`: IN "HOW THE SCORE IS BUILT" EVERY NUMBER IS A CEILING, AND THE COLUMN SAYS SO (2026-11-06 audit). Each is the
+// most a component can move the score — Conduct's −90 is the deepest it can cut, not a charge every account pays — and a
+// bare "−90" under three bare "+" values read as a fixed penalty. The penalties table keeps bare values: those ARE the
+// amounts one confirmed report subtracts.
+// ⚠️ max-w-[60ch], THE PROSE MEASURE: the rows ran to the 70ch wrapper, so the values and hairlines stood ~100px right
+// of the paragraphs above them. The tier ladder's rows take the same edge.
+function Points({ rows, cap = false }: { rows: [string, number, string][]; cap?: boolean }) {
   return (
-    <div className="divide-y divide-border">
+    <div className="max-w-[60ch] divide-y divide-border">
       {rows.map(([action, pts, sub], i) => (
         <div key={i} className="flex items-start justify-between gap-4 py-3">
           <div className="min-w-0">
             <div className="text-base font-semibold text-foreground"><Tr text={action} /></div>
             {sub && <div className="mt-1 text-sm leading-relaxed text-body"><Tr text={sub} /></div>}
           </div>
-          <span className={`shrink-0 text-base font-bold tabular-nums ${pts > 0 ? 'text-success' : 'text-destructive'}`}>{pts > 0 ? `+${pts}` : `\u2212${Math.abs(pts)}`}</span>
+          <span className={`shrink-0 text-base font-bold tabular-nums ${pts > 0 ? 'text-success' : 'text-destructive'}`}>
+            {cap && <span className="mr-1 text-xs font-medium text-muted-foreground"><Bilingual en="up to" vi="tối đa" /></span>}
+            {pts > 0 ? `+${pts}` : `\u2212${Math.abs(pts)}`}
+          </span>
         </div>
       ))}
     </div>
@@ -103,7 +113,7 @@ export default function TrustPage() {
               160 as headroom ON PURPOSE (read its note before touching it); what changed is that
               this page no longer advertises it. ./trust-ladder-contract.test.ts holds every band
               here to TRUST.MAX, so raising the cap means re-adding the band, not the other way round. */}
-          <div className="mt-1 divide-y divide-border">
+          <div className="mt-1 max-w-[60ch] divide-y divide-border">
             <Band score={130} name="Exceptional" range="110–150" note="At least 10 completed deals in the last year, reviews from 5 different buyers, a proven fast-reply record, and 6 clean months." />
             <Band score={95} name="Trusted" range="85–109" note="A verified account with at least 3 completed deals and either 60 days on eno or reviews from 3 different buyers — plus a clean last 90 days." />
             <Band score={70} name="Building" range="60–84" note="Where every account starts, and where accounts with fewer than 3 completed deals stay. Not a penalty — just an unproven track record." />
@@ -114,7 +124,7 @@ export default function TrustPage() {
       <ContentSection id="built" title="How the score is built" titleVi="Điểm được tính thế nào">
           <p className="text-base leading-relaxed text-body"><Tr text="The score starts at 60 and adds four components, each with a hard ceiling — so no single tactic can be farmed to the top. Everything except verification is windowed: only recent behavior moves it." /></p>
           <div className="mt-1">
-            <Points rows={[
+            <Points cap rows={[
               // ⛔ MIRRORS TRUST.V_PHONE / V_KYC / V_AGE / V_AGE_DAYS (trust-math.ts); trust-ladder-contract.test.ts holds the
               // numbers and the curated Vietnamese (vi-overrides.ts). The identity counts while deriveVerification says
               // 'verified' (owner, 2026-10-15) — not one-time, and not business verification.

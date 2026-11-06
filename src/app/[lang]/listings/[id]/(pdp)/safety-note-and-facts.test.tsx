@@ -105,13 +105,14 @@ describe('PDP description — rows Details already shows are hidden', () => {
  * database behind it; the client halves are rendered in their own tests).
  */
 describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip keeps the reader’s language', () => {
-  it('a linked job KEEPS the bottom safety note: its ID-documents advice is nowhere else on the page (pdp-09, adjusted in review)', () => {
-    // The first branch is every job, linked or not — no `affiliateUrl ? null` ahead of it.
-    // ⚠️ Split so the gen-ui-strings harvester (which reads test files too) never sees a JSX Tr literal here.
-    const JOB_LINE = 'Never pay a fee, a deposit or for training to get a job, and don\'t send copies of your ID documents before you have checked the employer.'
+  it('a job has no bottom safety note: its ID-documents advice is the SafetyStrip line beside Apply (2026-11-06 audit)', () => {
+    // The first branch is every job, linked or not, and it renders nothing: the strip carries never-pay, the training fee and the ID advice.
     expect(NOTE.startsWith("const safetyNote = listing.listingType === 'job'\n")).toBe(true)
-    expect(NOTE.split('\n')[1].trim()).toBe('? <Tr' + ' text="' + JOB_LINE + '" />')
-    expect(NOTE).not.toContain("listing.listingType === 'job' && affiliateUrl ? null")
+    expect(NOTE.split('\n')[1].trim()).toBe('? null')
+    const STRIP = readFileSync(join(process.cwd(), 'src/components/marketplace/safety-strip.tsx'), 'utf8')
+    expect(STRIP).toMatch(/\{isJobStrip && \(\s*<p data-job-id-line=""/)
+    expect(STRIP).toContain("const isJobStrip = categorySlug === 'jobs' || job")
+    expect(STRIP).toContain("Don't send copies of your ID documents before you have checked the employer, and never pay for training.")
   })
 
   it('the Details "Source" fact is hidden when Seller information shows a Source row (pdp-09)', () => {

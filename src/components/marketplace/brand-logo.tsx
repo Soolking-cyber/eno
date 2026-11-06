@@ -15,6 +15,7 @@ export function BrandLogo({
   size = 40,
   flat = false,
   className = '',
+  fit = null,
 }: {
   name: string
   iconPath?: string | null
@@ -35,7 +36,15 @@ export function BrandLogo({
   // the on-canvas brand rail). Default keeps the tinted circle (cards/chips).
   flat?: boolean
   className?: string
+  /**
+   * The box to draw the mark in instead of the `size` square (2026-11-06 audit, /brands): px, and for path data the
+   * extent it actually draws as `viewBox`, so a wordmark is drawn wide and short rather than as a sliver across a 24×24
+   * square. Computed on the server (brand-logo-url.ts brandLogoFit); the monogram keeps its square.
+   */
+  fit?: { width: number; height: number; viewBox?: string } | null
 }) {
+  const w = fit?.width ?? size
+  const h = fit?.height ?? size
   if (iconUrl) {
     const uri = `url("${iconUrl}")`
     return (
@@ -44,8 +53,8 @@ export function BrandLogo({
         aria-label={name}
         className={`inline-block shrink-0 bg-current text-body ${className}`}
         style={{
-          width: size,
-          height: size,
+          width: w,
+          height: h,
           WebkitMaskImage: uri,
           maskImage: uri,
           WebkitMaskRepeat: 'no-repeat',
@@ -82,8 +91,8 @@ export function BrandLogo({
           aria-label={name}
           className={`inline-block shrink-0 bg-current text-body ${className}`}
           style={{
-            width: size,
-            height: size,
+            width: w,
+            height: h,
             WebkitMaskImage: uri,
             maskImage: uri,
             WebkitMaskRepeat: 'no-repeat',
@@ -100,9 +109,9 @@ export function BrandLogo({
     // render in currentColor so it tints with the rail/card.
     return (
       <svg
-        viewBox="0 0 24 24"
-        width={size}
-        height={size}
+        viewBox={fit?.viewBox ?? '0 0 24 24'}
+        width={w}
+        height={h}
         role="img"
         aria-label={name}
         className={`text-body ${className}`}

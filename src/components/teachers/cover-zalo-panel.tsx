@@ -14,7 +14,7 @@ import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PageHeader } from '@/components/ui/page-header'
-import { SwitchRow } from '@/components/ui/switch'
+import { NoticeParagraphs, SwitchRow } from '@/components/ui/switch'
 import { Loader2 } from '@/components/ui/icons'
 import { COVER_ZALO_NOTICE_VERSION, formatVnMobile, normalizeVnMobile } from '@/lib/teachers/zalo-rules'
 import { fillTemplate } from '@/lib/i18n/placeholders'
@@ -65,8 +65,14 @@ export function CoverZaloNotice() {
   const { tr } = useLanguage()
   return (
     <span data-testid="cover-zalo-notice">
-      {tr('When a class needs urgent cover, it is hard for a school to reach the right teacher in time — so eno lets schools reach you directly. While cover lessons and this switch are on, an account registered as a school or business on eno can see this Zalo number on your profile and contact you straight away, without waiting for your reply in eno chat — anyone can register such an account, and only some have their business verified. It is usually your phone number: a school that sees it has your number. An account whose business is not verified can see one new teacher’s number a day (accounts on one internet connection, two a day between them); a verified business up to 20 a day. We record which school saw it and when, and tell you each time. Switch this off, or switch cover lessons off, at any time — the number is then deleted from eno (a school that already saw it keeps what it saw). See our', 'Khi một lớp cần người dạy thay gấp, các trường rất khó liên hệ đúng giáo viên kịp thời — vì vậy eno cho phép các trường liên hệ trực tiếp với bạn. Khi bạn bật dạy thay và bật mục này, tài khoản đăng ký là trường học hoặc doanh nghiệp trên eno có thể xem số Zalo này trên hồ sơ của bạn và liên hệ ngay, không cần chờ bạn trả lời trong tin nhắn eno — ai cũng có thể đăng ký loại tài khoản này, và chỉ một số đã xác minh doanh nghiệp. Đây thường là số điện thoại của bạn: trường đã xem sẽ có số của bạn. Tài khoản chưa xác minh doanh nghiệp chỉ xem được số của một giáo viên mới mỗi ngày (các tài khoản trên cùng một kết nối internet: tổng cộng hai số mỗi ngày); doanh nghiệp đã xác minh xem được tối đa 20 số mỗi ngày. Chúng tôi ghi lại trường nào đã xem và khi nào, và báo cho bạn mỗi lần. Bạn có thể tắt mục này, hoặc tắt dạy thay, bất cứ lúc nào — khi đó số sẽ bị xóa khỏi eno (trường đã xem vẫn giữ những gì họ đã xem). Xem')}{' '}
-      <Link href="/privacy" className="underline">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</Link>.
+      <NoticeParagraphs
+        // 2026-11-06 audit: four short paragraphs — why, who sees it, the limits and the record, how to stop — so each
+        // consequence can be found before the switch is touched. Where each one begins, in either language; the string
+        // below is untouched, so COVER_ZALO_NOTICE_VERSION holds.
+        starts={['While cover lessons and this switch are on', 'An account whose business is not verified', 'Switch this off, or switch cover lessons off', 'Khi bạn bật dạy thay và bật mục này', 'Tài khoản chưa xác minh doanh nghiệp', 'Bạn có thể tắt mục này']}
+        tail={<><Link href="/privacy" className="underline">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</Link>.</>}
+        text={tr('When a class needs urgent cover, it is hard for a school to reach the right teacher in time — so eno lets schools reach you directly. While cover lessons and this switch are on, an account registered as a school or business on eno can see this Zalo number on your profile and contact you straight away, without waiting for your reply in eno chat — anyone can register such an account, and only some have their business verified. It is usually your phone number: a school that sees it has your number. An account whose business is not verified can see one new teacher’s number a day (accounts on one internet connection, two a day between them); a verified business up to 20 a day. We record which school saw it and when, and tell you each time. Switch this off, or switch cover lessons off, at any time — the number is then deleted from eno (a school that already saw it keeps what it saw). See our', 'Khi một lớp cần người dạy thay gấp, các trường rất khó liên hệ đúng giáo viên kịp thời — vì vậy eno cho phép các trường liên hệ trực tiếp với bạn. Khi bạn bật dạy thay và bật mục này, tài khoản đăng ký là trường học hoặc doanh nghiệp trên eno có thể xem số Zalo này trên hồ sơ của bạn và liên hệ ngay, không cần chờ bạn trả lời trong tin nhắn eno — ai cũng có thể đăng ký loại tài khoản này, và chỉ một số đã xác minh doanh nghiệp. Đây thường là số điện thoại của bạn: trường đã xem sẽ có số của bạn. Tài khoản chưa xác minh doanh nghiệp chỉ xem được số của một giáo viên mới mỗi ngày (các tài khoản trên cùng một kết nối internet: tổng cộng hai số mỗi ngày); doanh nghiệp đã xác minh xem được tối đa 20 số mỗi ngày. Chúng tôi ghi lại trường nào đã xem và khi nào, và báo cho bạn mỗi lần. Bạn có thể tắt mục này, hoặc tắt dạy thay, bất cứ lúc nào — khi đó số sẽ bị xóa khỏi eno (trường đã xem vẫn giữ những gì họ đã xem). Xem')}
+      />
     </span>
   )
 }
@@ -234,10 +240,15 @@ function CoverZaloFor() {
             disabled={busy || (!view.coverOn && !view.on)}
             aria-invalid={line === 'invalid' ? true : undefined}
             aria-describedby="cover-zalo-number-hint"
-            placeholder="0901 234 567"
+            // An example, not a value (2026-11-06 audit): a bare realistic number in the empty field read as a saved one.
+            placeholder={tr('e.g. 0901 234 567', 'Ví dụ: 0901 234 567')}
           />
           <span id="cover-zalo-number-hint" className="block text-xs text-muted-foreground">
             {tr('A Vietnamese mobile number with Zalo. Check that it opens your Zalo.', 'Số di động Việt Nam có dùng Zalo. Hãy kiểm tra số này mở đúng Zalo của bạn.')}
+            {/* Until the switch is on, nothing typed here is saved — said where the number is typed (2026-11-06 audit). Once
+                on, an edit brings its own "Save the new number". Never while cover lessons are off (opus, gate 2026-11-06): the
+                switch is then shut, or its switch-on refused (cover_off), and the alert above says what comes first. */}
+            {view.coverOn && !(view.on && !view.stale) && <>{' '}{tr('It is saved when you switch on the setting below.', 'Số được lưu khi bạn bật mục bên dưới.')}</>}
           </span>
         </label>
         <SwitchRow

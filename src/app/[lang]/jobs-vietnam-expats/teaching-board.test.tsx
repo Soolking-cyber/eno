@@ -83,7 +83,11 @@ describe('<TeachingJobsBoard>', () => {
     h.rows = [HANOI, HCMC]
     const doc = parse(renderToString(<TeachingJobsBoard board={await loadTeachingBoard(NOW)} />))
     const summary = doc.querySelector('p')!
-    expect(summary.textContent).toMatch(/^On 18 Oct 2026, this page listed 2 teaching job postings: 1 in Ho Chi Minh City and 1 in Hanoi\. /)
+    expect(summary.textContent).toBe('On 18 Oct 2026, this page listed 2 teaching job postings: 1 in Ho Chi Minh City and 1 in Hanoi.')
+    // The rest of the summary (the sites, the pay, the apply-by dates) closes the board, after the last city's jobs.
+    const foot = doc.querySelector('div > p:last-child')!
+    expect(foot.textContent).toContain('Both link to an original posting on TEAST.')
+    expect(foot.textContent).toContain('for the pay.')
     const links = [...summary.querySelectorAll('a')].map((a) => [a.textContent, a.getAttribute('href')])
     expect(links).toEqual([['Ho Chi Minh City', '#ho-chi-minh-city'], ['Hanoi', '#hanoi']])
     for (const [, href] of links) expect(doc.getElementById(href!.slice(1))?.tagName).toBe('SECTION')

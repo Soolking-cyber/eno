@@ -498,10 +498,12 @@ export function CategoryGuides({ guides }: { guides: CategoryGuide[] }) {
         {guides.map((g) => (
           <Row key={g.href}>
             <Link href={g.href} lang={g.lang === lang ? undefined : g.lang} className="group flex flex-col">
-              <span className="flex items-center gap-1 text-sm font-semibold text-foreground group-hover:text-accent-foreground">
+              {/* 2026-11-06 audit: the guide's name a step above its blurb (16px over 14px) and the blurb on the reading measure —
+                  at one size and 700px wide the rail read as a block of footer links, not buying advice. */}
+              <span className="flex items-center gap-1 text-base font-semibold text-foreground group-hover:text-accent-foreground">
                 {g.label} <ArrowRight className="h-4 w-4 shrink-0" />
               </span>
-              <span className="mt-1 text-sm leading-relaxed text-body">{g.blurb}</span>
+              <span className="mt-1 max-w-prose text-sm leading-relaxed text-body">{g.blurb}</span>
             </Link>
           </Row>
         ))}

@@ -6,6 +6,9 @@ import { rentIndexRetrySoon } from '@/lib/rent-index-retry'
 import { formatCalendarDay } from '@/lib/calendar-day'
 import { DistrictRent } from './district-rent'
 import { DistrictFilterRow } from './district-filter-row'
+import { CategoryFiltersLink } from '../category-filters-link'
+import { PILL_BOX, PILL_REST } from '@/components/ui/chip-style'
+import { cn } from '@/lib/utils'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { districtPageRows } from '@/lib/district-page-base'
 import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
@@ -26,8 +29,8 @@ import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { localizedHref } from '@/lib/lang-pinned'
 import { crumbNames, districtMetadata, districtRentalsHeadline, homeFacts, linkedTier, listsHomesOnly, pageLang, rentalsPlaceLabel } from '../category-copy'
 import { AreaChipsRow } from '../(index)/area-chips-row'
+import { CategoryLedeLinks } from '../(index)/category-lede-block'
 import { DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentIndexLink } from '../category-text'
-import { RentalCheckHint } from '@/components/marketplace/rental-check-toggle'
 import { notFound, permanentRedirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { pageShare } from '@/lib/site-identity'
@@ -368,7 +371,8 @@ export default async function CategoryDistrictPage({ params }: Props) {
     <div className="flex min-h-page flex-col blob-bg">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
       <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+      {/* `pt-4`, the top of /c, home and the PDP (owner, 2026-10-18: one top padding). This page still had pt-6 (2026-11-06 audit). */}
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
         {/* Same Breadcrumb primitive as the sibling category page (was a hand-rolled <nav>) —
             the family's statement header opens identically on every browse surface. */}
         <Breadcrumb className="mb-4">
@@ -390,15 +394,21 @@ export default async function CategoryDistrictPage({ params }: Props) {
         </Breadcrumb>
 
         {/* English place names on English pages: "Rentals in District 2", never "Rentals in Quận 2". */}
-        <h1 className="h-display text-foreground">
+        {/* 2026-11-06 audit: the /c/* phone step (docs/design-language.md §1) — the title size below sm, as the category's H1.
+            It wraps instead of truncating: the place is the point of this page, and "… in Go Vap Dis…" would cut it off. */}
+        <h1 className="h-display text-foreground max-sm:[--text-display:var(--text-title)]">
           {headline ? <RentalsDistrictHeading headline={headline} place={searchPlace} /> : <DistrictHeading name={cat.name} nameVi={cat.nameVi} place={searchPlace} />}
         </h1>
         {/* ⛔ THE CHECK THE DESCRIPTION PROMISES IS ON THE PAGE (D1, v3): "Pick up to N and eno checks
             availability for free" is in the meta description, so the hint that says how is here, in the
-            HTML with JavaScript off — rentals pages only, as on /c/rentals. */}
-        {rentals && <RentalCheckHint className="mt-2 max-w-prose" />}
-        {/* Filters, map and bedrooms at the top, above the rent block (rentals-03) — scoped to this page. */}
-        <DistrictFilterRow categorySlug={cat.slug} district={district} homesOnly={!!homes} lang={lang} />
+            HTML with JavaScript off — rentals pages only, as on /c/rentals.
+            ⚠️ /c/rentals' OWN LINE, WITH ITS LINK (2026-11-06 audit): one line on a phone with "Check availability" beside it
+            (owner, 2026-10-18 — category-lede-block.tsx). Here a phone read "Free check, up to 5 rentals" with nothing to tap. */}
+        {rentals && <CategoryLedeLinks slug={cat.slug} />}
+        {/* Map and bedrooms at the top (rentals-03), scoped to this page. Filters rides the sort strip's end below, as on /c
+            (2026-11-06 audit: on a phone Filters, Map and the bedroom chips took two rows over the grid); the row keeps it only
+            where there is no strip to carry it (`sortable` is off at one listing). */}
+        <DistrictFilterRow categorySlug={cat.slug} district={district} homesOnly={!!homes} lang={lang} filters={listedTotal <= 1} />
         {otherDistricts.length > 0 && (
           <AreaChipsRow>
             <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
@@ -413,7 +423,8 @@ export default async function CategoryDistrictPage({ params }: Props) {
         {/* Masthead boundary — on the content box, like the sort strip's own border (C1-HAIRLINE). */}
         <div aria-hidden className="mt-4 border-t border-border sm:mt-5" />
 
-        <div className="mt-6">
+        {/* Tight under the hairline, as on /c ((index)/page.tsx, `mt-2 sm:mt-3`): mt-6 put 24px of nothing over the sort row. */}
+        <div className="mt-2 sm:mt-3">
           {/* sr-only h2 — card titles are h3s; without this the outline jumps h1 → h3. */}
           <h2 className="sr-only"><Tr text="Listings" /></h2>
           {/* ⛔ SORT AND LOAD-MORE ARE SCOPED QUERIES. Sorting this page's 48 cards in the browser
@@ -422,6 +433,9 @@ export default async function CategoryDistrictPage({ params }: Props) {
           <SellerListings
             listings={listings}
             sortable={listedTotal > 1}
+            // The strip's Filters as the browse chip, as on /c ((index)/page.tsx; owner, 2026-10-18: the home's sort pill + Filters
+            // chip), scoped like the row above it: the district, and homes while the grid is homes only. Drawn only with the strip.
+            stripEnd={<CategoryFiltersLink slug={cat.slug} query={{ district, ...homesQuery }} className={cn(PILL_BOX, PILL_REST, 'py-0 hover:no-underline')} />}
             serverScope={{
               params: {
                 category: cat.slug, district,
@@ -464,7 +478,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
             {/* ⛔ THE DISTRICT USED TO BE DROPPED HERE. This linked to `/?category=<slug>` and the
                 reader landed in the whole category, one click after choosing a district. */}
             <Link href={scopedExplorer} rel="nofollow" prefetch={false} className="px-5 py-2.5">
-              <Tr text="Refine in full search" /> →
+              <Bilingual en="Search with filters" vi="Lọc chi tiết hơn" /> →
             </Link>
           </Button>
         </div>

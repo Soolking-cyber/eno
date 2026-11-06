@@ -1079,6 +1079,13 @@ const SECTIONS: Section[] = [
 const isTable = (b: Block): b is { table: Table } => 'table' in b
 
 /**
+ * The sections that are LISTS OF DEFINITIONS, every paragraph opening on a label ("Account information: …", "Publish
+ * checks: …"). LegalText sets that label in the foreground weight (`lead`), so they scan as lists rather than walls of
+ * same-weight prose (2026-11-06 audit). No word changes, and the textContent PRIVACY_TEXT_FINGERPRINT hashes is the same.
+ */
+const LABELLED = new Set(['what-we-collect', 'automated'])
+
+/**
  * ⚠️ "LAST UPDATED" IS THE AMENDMENT'S PUBLICATION DATE, ON BOTH EDITIONS. This text changed on both
  * builds (the curated Vietnamese, Consent v2, and the cross-border paragraph that no longer claims a
  * dossier filing — PDP_DOSSIERS_FILED), and it shipped in the deploy that published the October legal
@@ -1177,7 +1184,7 @@ export default function PrivacyPage() {
                   <LegalTable caption={b.table.caption} head={b.table.head} rows={b.table.rows} />
                 </div>
               ) : (
-                <p key={j} className="text-base leading-relaxed text-body"><LegalText en={b.en} vi={b.vi} /></p>
+                <p key={j} className="text-base leading-relaxed text-body"><LegalText en={b.en} vi={b.vi} lead={LABELLED.has(s.id)} /></p>
               ),
             )}
           </div>

@@ -134,8 +134,10 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
   // Shared between the row + square-card layouts. Stat glyphs sit on the §4 dense-meta
   // step (h-3.5 beside text-xs) — size-4 read a step too loud against the 12px counts.
+  // ink-4, the card meta's ink since 2026-11-05 (design-language §1): views, leads and saves in a pale 12px grey were
+  // the hardest numbers on the page to read (2026-11-06 audit).
   const meta = (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-4">
       {/* Grouped counts and a singular "lead" (break-ui, 2026-10-05): the row printed "12840 liên hệ" and
           "1 leads". Vietnamese has no plural, so only the English string forks on 1. */}
       <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{formatInteger(listing.views ?? 0, moneyLocale(lang))}</span>

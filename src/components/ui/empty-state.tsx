@@ -79,7 +79,9 @@ export function EmptyState({
       className={cn(
         'flex flex-col items-center justify-center gap-4',
         tone !== 'bare' && 'rounded-2xl border',
-        'px-6 py-14 text-center',
+        // 2026-11-06 audit: py-14 put 112px of air around four lines on pages whose whole body is this state (Check
+        // availability, a filtered-out list); 40px a side keeps it centred without stranding it.
+        'px-6 py-10 text-center',
         tone === 'admin' ? 'border-border' : tone === 'dashed' && 'border-dashed border-line-strong',
         className,
       )}
@@ -119,9 +121,11 @@ export function EmptyState({
               <Icon className="h-8 w-8 text-brand" strokeWidth={STROKE_DISPLAY} />
             </span>
           ))}
+      {/* 2026-11-06 audit: the title is the state's headline, so it takes the primary ink at both sizes, and the hint is
+          readable body copy (14px, text-body) instead of 12px tertiary grey that read as fine print. */}
       <div className="space-y-1">
-        <TitleTag className={size === 'lg' ? 'text-base font-semibold text-foreground' : 'text-sm font-semibold text-body'}>{title}</TitleTag>
-        {subtitle && <p className={cn('mx-auto max-w-sm text-muted-foreground', size === 'lg' ? 'text-sm' : 'text-xs')}>{subtitle}</p>}
+        <TitleTag className={size === 'lg' ? 'text-base font-semibold text-foreground' : 'text-sm font-semibold text-foreground'}>{title}</TitleTag>
+        {subtitle && <p className="mx-auto max-w-sm text-sm text-body">{subtitle}</p>}
       </div>
       {action}
     </div>

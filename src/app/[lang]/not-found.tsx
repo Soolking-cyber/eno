@@ -73,6 +73,11 @@ const MOTIF: { Icon: typeof MapPin; top: string; left: string; size: number; rot
 ]
 
 const RECOVERY_LINK = 'font-semibold text-accent-foreground hover:underline'
+/**
+ * The machine documents' links (2026-11-06 audit): the same server-rendered anchors with the path as their text — the agent
+ * contract below and not-found-contract.test.ts hold — in a footnote's ink, so a person is offered four ways out, not seven.
+ */
+const MACHINE_LINK = 'underline underline-offset-2 hover:text-foreground'
 
 // ⚠️ CONSTANTS, NOT `<Tr>`. eslint's react/jsx-no-literals routes every JSX string through the
 // translation catalogue, which is right for copy and wrong for these: they are FILENAMES. Wrapping
@@ -145,7 +150,7 @@ export default function NotFound() {
               deployment actually holds, and it exists on both editions — so it needs no gate.
             */}
             <Link href="/brands" className={RECOVERY_LINK}><Tr text="Browse by brand" /></Link>
-            <Link href="/help" className={RECOVERY_LINK}><Tr text="Help centre" /></Link>
+            <Link href="/help" className={RECOVERY_LINK}><Tr text="Help center" /></Link>
             <Link href="/contact" className={RECOVERY_LINK}><Tr text="Contact us" /></Link>
           </LocalizedNav>
           {/*
@@ -171,7 +176,7 @@ export default function NotFound() {
           {/*
             ⚠️ `<nav>`, NOT `<p>` — A MARKUP-SEMANTICS CHANGE WITH ZERO PIXEL COST. Tailwind's
             preflight zeroes the margin on both elements and both are `display: block`, so the same
-            `mt-3 text-xs text-body` renders byte-identically; what changes is that the three
+            classes render byte-identically; what changes is that the three
             machine documents become a NAMED LANDMARK an agent (or a screen-reader user pressing
             the landmarks key) can jump to, instead of a paragraph it has to read to discover. The
             sibling recovery list above is already a labelled `<nav>` for the same reason; these
@@ -179,7 +184,7 @@ export default function NotFound() {
             ⚠️ The label must differ from that one's — two same-named landmarks are worse than one
             unnamed one.
           */}
-          <LocalizedNav label="Machine-readable indexes" labelVi="Chỉ mục cho máy đọc" className="mt-3 text-xs text-body">
+          <LocalizedNav label="Machine-readable indexes" labelVi="Chỉ mục cho máy đọc" className="mt-10 text-xs text-muted-foreground">
             {/* Plain <a>, not <Link>: these are non-HTML documents served by route handlers, and
                 the client router should not try to prefetch or soft-navigate them.
                 ⚠️ `type` IS THE ADVERTISED MEDIA TYPE OF THE TARGET, and it is here for the same
@@ -190,11 +195,11 @@ export default function NotFound() {
                 and openapi.json/route.ts are the authorities, and a `type` that disagrees with the
                 response is worse than none. */}
             <MachineIndexLead />{' '}
-            <a href="/sitemap.xml" type="application/xml" className={RECOVERY_LINK}>{SITEMAP_FILE}</a>
+            <a href="/sitemap.xml" type="application/xml" className={MACHINE_LINK}>{SITEMAP_FILE}</a>
             {' · '}
-            <a href="/llms.txt" type="text/plain" className={RECOVERY_LINK}>{LLMS_FILE}</a>
+            <a href="/llms.txt" type="text/plain" className={MACHINE_LINK}>{LLMS_FILE}</a>
             {' · '}
-            <a href="/openapi.json" type="application/json" className={RECOVERY_LINK}>{OPENAPI_FILE}</a>
+            <a href="/openapi.json" type="application/json" className={MACHINE_LINK}>{OPENAPI_FILE}</a>
           </LocalizedNav>
         </div>
       </main>

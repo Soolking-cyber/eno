@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Sparkles, Loader2 } from '@/components/ui/icons'
@@ -35,6 +35,10 @@ type Msg = { role: 'user' | 'assistant'; content: string; listings?: SerializedL
 // An authored { en, vi } pair, so gen-ui-strings still harvests it for the machine-translated languages.
 const GREETING = { en: "Hi! I'm eno AI. Tell me what you're looking for — e.g. “a road bike under 8M near Thảo Điền” — and I'll find it.", vi: 'Chào bạn! Mình là eno AI. Bạn đang tìm gì? Ví dụ "xe đạp dưới 8 triệu gần Thảo Điền" — mình sẽ tìm giúp.' }
 
+// The greeting's example, a button that fills the composer (2026-11-06 audit): these exact words, which the greeting quotes in
+// both languages. An authored pair like GREETING; a translation that does not carry them word for word keeps the greeting plain.
+const GREETING_EXAMPLE = { en: 'a road bike under 8M near Thảo Điền', vi: 'xe đạp dưới 8 triệu gần Thảo Điền' }
+
 const STORE_KEY = 'eno:ai_chat_v1'
 
 export default function AiThreadPage() {
@@ -62,6 +66,31 @@ export default function AiThreadPage() {
   const greeting: Msg = { role: 'assistant', createdAt: new Date().toISOString(), content: '', greeting: true }
   // What a message says on screen and to the concierge: the greeting in today's language, anything else as stored.
   const said = (m: Msg) => (m.greeting ? greetingText : m.content)
+  // A tap on the greeting's example puts it in the composer, to send or to change — never sent for the reader; a guest is asked
+  // to sign in first, as Send asks (2026-11-06 audit). ⚠️ NEVER OVER A DRAFT (codex + opus, gate 2026-11-06): words already in
+  // the composer stay — the example fills an empty one only; with a draft, the tap just puts the reader back in it.
+  const composerId = useId()
+  const example = tr(GREETING_EXAMPLE.en, GREETING_EXAMPLE.vi)
+  const tryExample = () => {
+    if (!user) { openSignIn(); return }
+    setText((t) => (t.trim() ? t : example))
+    document.getElementById(composerId)?.focus()
+  }
+  const greetingBody = () => {
+    const at = greetingText.indexOf(example)
+    if (at < 0) return greetingText
+    // Its quote marks ride inside the button, so a narrow bubble never strands one at the end of a line.
+    const q = /["“]/.test(greetingText.charAt(at - 1)) && /["”]/.test(greetingText.charAt(at + example.length)) ? 1 : 0
+    return (
+      <span>
+        {greetingText.slice(0, at - q)}
+        <Button variant="link" size="none" type="button" onClick={tryExample} className="relative inline-block whitespace-normal text-left font-semibold leading-relaxed text-accent-foreground underline underline-offset-2 tap-44">
+          {greetingText.slice(at - q, at + example.length + q)}
+        </Button>
+        {greetingText.slice(at + example.length + q)}
+      </span>
+    )
+  }
 
   // Restore prior chat (this device); seed the greeting if empty.
   // `restoredCount`: everything restored was already read, so only messages added AFTER it play the
@@ -215,7 +244,7 @@ export default function AiThreadPage() {
         <div className="mt-auto space-y-3">
         {messages.map((m, i) => (
           <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} ${i === messages.length - 1 && i >= restoredCount.current ? 'bubble-in' : ''}`}>
-            <MessageBubble mine={m.role === 'user'} className="max-w-[85%]">{said(m)}</MessageBubble>
+            <MessageBubble mine={m.role === 'user'} className="max-w-[85%]">{m.greeting ? greetingBody() : said(m)}</MessageBubble>
             {m.listings && m.listings.length > 0 && (
               <div className="mt-2 grid w-full grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5">
                 {m.listings.map((l) => (
@@ -268,6 +297,7 @@ export default function AiThreadPage() {
               inflating to the primitive's min-h-24, AND keeps the --footer-h
               ResizeObserver from over-padding the message list with that height. */}
           <Textarea
+            id={composerId}
             variant="outline"
             value={text}
             onChange={(e) => setText(e.target.value)}

@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Fingerprint, IdCard, ShieldCheck, Camera, User, Pencil, ChevronLeft } from "@/components/ui/icons"
+import { Fingerprint, IdCard, Camera, User, Pencil, ChevronLeft } from "@/components/ui/icons"
 import { StepWizard, type WizardStep } from '@/components/ui/step-wizard'
 import { useAuth } from '@/context/auth-context'
 import { fillBilingual } from '@/components/marketplace/bilingual'
@@ -794,10 +794,10 @@ export function VerifyClient() {
       {/* ⚠️ THE TITLE BAR IS IN THE SKELETON TOO. Without it the back affordance appears only after
           the session resolves, so a phone briefly shows a pushed screen with no way out of it. */}
       <SectionHeader title={tr('Verify your identity', 'Xác minh danh tính')} fallbackHref="/dashboard/verification" />
-      <div role="status" aria-label={tr('Loading…', 'Đang tải…')} className="mx-auto max-w-2xl space-y-6">
+      <div role="status" aria-label={tr('Loading…', 'Đang tải…')} className="max-w-2xl space-y-6">
         <div className="space-y-2">
-          {/* h1 — h-display + the h-8 seal beside it (fluid: 28 → 40px × 1.12) */}
-          <Skeleton className="h-[calc(var(--text-display)*1.12)] w-72 max-w-full" />
+          {/* The h1 — h-title (fluid: 20 → 24px × 1.22), desktop only: on a phone it is sr-only under the SectionHeader bar. */}
+          <Skeleton className="h-[calc(var(--text-title)*1.22)] w-72 max-w-full max-lg:hidden" />
           <div className="space-y-1">
             <Skeleton className="h-6 w-full" />
             <Skeleton className="h-6 w-full" />
@@ -944,18 +944,15 @@ export function VerifyClient() {
         * just told to verify is the dead end this page's own header warns about, one step later.
         */}
       <SectionHeader title={tr('Verify your identity', 'Xác minh danh tính')} fallbackHref="/dashboard/verification" />
-      <div className="mx-auto max-w-2xl space-y-6">
+      {/* Left-aligned like every dashboard section (2026-11-06 audit), not a centred column off the title line. */}
+      <div className="max-w-2xl space-y-6">
       <header className="space-y-2">
-        {/* ⚠️ `hidden lg:flex` — SectionHeader already renders this title as the mobile bar, so an
-            always-visible h1 put "Verify your identity" on the phone TWICE (two h1s). Desktop has
-            no SectionHeader, so the h1 shows there. The description below stays on both. */}
-        <h1 className="h-title hidden items-center gap-2 text-foreground lg:flex">
-          {/* Identity verification is first-party trust → the eno seal, not lucide ShieldCheck
-              (icon-language §0b). Washed chief carries the brand; the LINE is currentColor and
-              inherits the heading's ink (§0) — a blue outline beside a near-black heading would
-              spend §6's link-blue on a non-interactive mark. h-8 against the ~40px display
-              heading: at h-6 the seal read as a bullet, not a signature (R2 critic). */}
-          <ShieldCheck className="h-8 w-8" />
+        {/* ⚠️ `max-lg:sr-only` — SectionHeader already shows this title as the mobile bar, so a visible h1 put "Verify your
+            identity" on the phone TWICE; but the bar is a plain span, so `hidden` left the phone with no h1 at all
+            (2026-11-06 audit; DashboardTabs' rule). One h1 on every size, visible on desktop. PLAIN, like every other
+            dashboard title (disputes-panel's R3 note): the shield made it the one h1 in the dashboard wearing a glyph.
+            The description below stays on both. */}
+        <h1 className="h-title text-foreground max-lg:sr-only">
           {tr('Verify your identity', 'Xác minh danh tính')}
         </h1>
         {/* ⛔ NO LONGER "CHECKED BY VNPT eKYC". That integration is blocked and nothing on this page
@@ -1056,7 +1053,7 @@ export function VerifyClient() {
             {/* ⚠️ CCCD ONLY, BECAUSE VNeID IS NOT WIRED (the native app already says so). The next
                 step unconditionally photographs a CCCD; naming VNeID promised a route that does not
                 exist to a seller who has VNeID and no card to hand. */}
-            <span className="text-xs font-normal opacity-80">{tr('Your CCCD — about two minutes', 'Thẻ CCCD của bạn — khoảng hai phút')}</span>
+            <span className="text-xs font-normal opacity-80">{tr('Your citizen ID card (CCCD) — about two minutes', 'Thẻ CCCD của bạn — khoảng hai phút')}</span>
           </Button>
           <Button
             type="button"

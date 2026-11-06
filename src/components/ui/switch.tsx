@@ -157,3 +157,24 @@ export function SwitchRow({
     </div>
   )
 }
+
+/**
+ * A LONG NOTICE IN SHORT PARAGRAPHS (2026-11-06 audit) — for a SwitchRow `description` that is one long consent string. The
+ * text breaks before each of `starts` it carries, so its words, and the notice version a consent records, stay exactly as
+ * written: no string is split for this. A start the text does not carry (a machine translation, a later rewording) is
+ * skipped — the notice is then one paragraph, never a word lost. `tail` (the policy link) ends the last paragraph.
+ */
+export function NoticeParagraphs({ text, starts, tail }: { text: string; starts: readonly string[]; tail?: React.ReactNode }) {
+  const cuts = [0, ...starts.map((s) => text.indexOf(s)).filter((i) => i > 0).sort((a, b) => a - b)]
+  return (
+    <span className="block space-y-2">
+      {cuts.map((at, i) => (
+        <span key={i} className="block">
+          {i > 0 && ' '}
+          {text.slice(at, cuts[i + 1]).trim()}
+          {i === cuts.length - 1 && tail ? <>{' '}{tail}</> : null}
+        </span>
+      ))}
+    </span>
+  )
+}

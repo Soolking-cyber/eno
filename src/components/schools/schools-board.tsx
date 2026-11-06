@@ -179,7 +179,7 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
       </p>
 
       {shown.length ? (
-        <ol className="mt-2 flex flex-col gap-2">
+        <ol className="mt-2 divide-y divide-border border-y border-border">
           {shown.map((r) => <BoardRowItem key={r.id} row={r} rank={ranks.get(r.id) ?? null} />)}
         </ol>
       ) : (
@@ -205,7 +205,9 @@ function BoardRowItem({ row, rank }: { row: BoardRow; rank: number | null }) {
   const loc = moneyLocale(lang)
   const pay = row.pay.find((p) => p.period === 'hour') ?? row.pay[0]
   return (
-    <li className="flex items-start gap-2 rounded-2xl bg-card p-2 ring-1 ring-border sm:gap-3 sm:p-3">
+    // A ruled row, not a ringed card with a gap under it: 172 boxes were the heaviest thing on the page, against the flat
+    // canon (ui/rows.tsx — owner, 2026-07-24: "open borders with lines between elements") (2026-11-06 audit).
+    <li className="flex items-start gap-2 py-2 sm:gap-3 sm:py-3">
       <div className="flex w-10 shrink-0 flex-col items-center sm:w-12">
         <VoteControl schoolId={row.id} schoolName={row.name} />
       </div>

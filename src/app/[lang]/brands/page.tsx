@@ -12,7 +12,7 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { EmptyState } from '@/components/ui/empty-state'
 import { db } from '@/lib/db'
 import { brandIconPath } from '@/lib/brand-icons'
-import { brandLogoUrl } from '@/lib/brand-logo-url'
+import { brandLogoFit, brandLogoUrl } from '@/lib/brand-logo-url'
 import { listedBrands, liveBrandCounts } from '@/lib/live-brands'
 import { localizedHref } from '@/lib/lang-pinned'
 
@@ -71,7 +71,11 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
      serialised into the RSC flight payload whether the component reads them or not, so passing
      both would keep shipping the full ~241 kB of SVG source that this change exists to remove —
      it would just no longer be percent-encoded. A reviewer caught that. */
-  const items = brands.map((b) => ({ ...b, iconPath: brandIconPath(b), iconUrl: brandLogoUrl(b) }))
+  // `fit`: the box each mark is drawn in, one optical size for a wordmark and a glyph alike (brand-logo-url.ts brandLogoFit).
+  const items = brands.map((b) => {
+    const iconPath = brandIconPath(b)
+    return { ...b, iconPath, iconUrl: brandLogoUrl(b), fit: brandLogoFit(iconPath) }
+  })
 
   return (
     <div className="flex min-h-page flex-col blob-bg">
@@ -130,7 +134,10 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
                 href={home(`/?brand=${encodeURIComponent(b.slug)}`)}
                 className="flex flex-col items-center gap-3 rounded-2xl border border-border px-4 py-6 text-center transition-colors hover:border-line-strong hover:bg-muted active:bg-muted"
               >
-                <BrandLogo name={b.name} iconPath={b.iconUrl ? null : b.iconPath} iconUrl={b.iconUrl} size={44} />
+                {/* One 44px slot for every mark, whatever its shape, so the names below stay on one line across the wall. */}
+                <span className="flex h-11 items-center justify-center">
+                  <BrandLogo name={b.name} iconPath={b.iconUrl ? null : b.iconPath} iconUrl={b.iconUrl} size={44} fit={b.fit} />
+                </span>
                 <span className="line-clamp-1 text-sm font-semibold text-foreground">{b.name}</span>
                 <span className="text-xs text-muted-foreground">
                   {b.count} {b.count === 1 ? <Tr text="listing" /> : <Tr text="listings" />}

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 
 /**
  * LINKS INSIDE LEGAL PROSE — the document paths and mailboxes a policy names, made clickable without
@@ -12,8 +13,8 @@ import type { ReactNode } from 'react'
  * VISIBLE TEXT IS UNCHANGED, so the legal wording and every translation key stay what they were.
  *
  * ⚠️ ONLY THE SITE'S OWN DOCUMENT PATHS, NAMED. A generic "/anything" rule would link a fraction
- * ("1/2"), a date or a unit ("đ/tháng"). The lookbehind refuses a path glued to a word, a slash or a
- * dot, so "eno.vn/safety" (a domain, already readable as one) stays text; the lookahead refuses a
+ * ("1/2"), a date or a unit ("đ/tháng"). A path glued to a word, a slash or a dot is refused (the
+ * `lead` group below), so "eno.vn/safety" (a domain, already readable as one) stays text; the lookahead refuses a
  * longer path ("/terms-of-sale"). An email's trailing sentence full stop is never part of the match.
  * Machine-translated Vietnamese that rewrites a path ("/ privacy") simply stays unlinked — it fails
  * soft, as text.
@@ -25,8 +26,22 @@ import type { ReactNode } from 'react'
 // ⚠️ `/terms/v1` and `/regulations/v1` are the ARCHIVED versions (src/lib/compliance/legal-archive.ts):
 // the amended texts point readers at the version still in force during a notice window. Only those two
 // documents carry versions, so only they take the `/vN` suffix — `/privacy/v1` stays text.
-const TOKEN =
-  /([\w.+-]+@[\w-]+(?:\.[\w-]+)+)|(?<![\w/.])(\/(?:(?:regulations|terms)(?:\/v\d+)?|privacy|prohibited|returns|disputes|contact|trust|safety|legal\/ranking))(?![\w/-])/g
+// ⛔ NO LOOKBEHIND (2026-11-06 audit). This module ships in client chunks (LegalText, LinkifiedTr), and a regex with
+// `(?<!…)` is a SyntaxError that takes the whole chunk down on Safari below 16.4 — inside the browserslist (package.json:
+// safari >= 16). The character before a path or a phone is CAPTURED instead (`lead`) and given back as text, so the
+// boundary rule is the one it always was and no character of the text moves.
+// ⚠️ THE OPERATOR'S OWN PHONE IS LINKED TOO, AND ONLY IT: "or call 0772007921" on /privacy and Article 2's "Điện thoại:"
+// were the one contact on those pages a phone could not tap, while the email beside it was a link. It is COMPANY.phone
+// (site-legal.ts), never a generic number rule, which would also link the ten-digit business registration number; on an
+// edition whose phone is still the placeholder, nothing is added. The href is E.164, so it dials from a foreign SIM too.
+// Only for a REGISTERED operator, /contact's own rule for its tel: button (2026-11-06 review): before registration the
+// number stays text wherever the prose prints it.
+const PHONE = OPERATOR_REGISTERED && /^0\d{8,10}$/.test(COMPANY.phone) ? COMPANY.phone : null
+const PATH = String.raw`(\/(?:(?:regulations|terms)(?:\/v\d+)?|privacy|prohibited|returns|disputes|contact|trust|safety|legal\/ranking))(?![\w/-])`
+const TOKEN = new RegExp(
+  String.raw`([\w.+-]+@[\w-]+(?:\.[\w-]+)+)|(^|[^\w/.])(?:${PATH}${PHONE ? String.raw`|(${PHONE})(?!\d)` : ''})`,
+  'g',
+)
 
 const LINK = 'font-semibold text-accent-foreground hover:underline'
 
@@ -34,17 +49,21 @@ export function linkifyLegal(text: string): ReactNode[] {
   const out: ReactNode[] = []
   let last = 0
   for (const m of text.matchAll(TOKEN)) {
-    const at = m.index ?? 0
+    const [token, email, lead = '', path, phone] = m
+    const start = m.index ?? 0
+    // The boundary character stays text; only the email, the path or the number is the link.
+    const at = email ? start : start + lead.length
     if (at > last) out.push(text.slice(last, at))
-    const [token, email, path] = m
     out.push(
       email ? (
         <a key={at} href={`mailto:${email}`} className={LINK}>{email}</a>
-      ) : (
+      ) : path ? (
         <a key={at} href={path} className={LINK}>{path}</a>
+      ) : (
+        <a key={at} href={`tel:+84${phone.slice(1)}`} className={LINK}>{phone}</a>
       ),
     )
-    last = at + token.length
+    last = start + token.length
   }
   if (last < text.length) out.push(text.slice(last))
   return out

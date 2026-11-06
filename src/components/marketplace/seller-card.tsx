@@ -237,13 +237,20 @@ export function SellerCard({
             )}
           </div>
           {strip.length > 0 && (
-            <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
-              {strip.map((node, i) => (
-                <span key={i} className="inline-flex items-center gap-1.5">
-                  {i > 0 && <span aria-hidden className="text-border">·</span>}
-                  {node}
-                </span>
-              ))}
+            <div className="mt-1 overflow-x-clip">
+              {/* overflow-x-clip, not overflow-hidden: only the side edge has to cut the dots; the links' focus rings and
+                  tap-44 areas above and below stay whole (2026-11-06 review). */}
+              {/* 2026-11-06 audit: no wrapped line starts on a separator ("· 4,728 listings on eno.vn" on a phone). Every item
+                  carries its dot, and the row is pulled 10px left (the dot's 4px box + the 6px gap) inside this clip, so the
+                  first item of EVERY line — not only the first line — has its dot cut off at the edge. */}
+              <div className="-ml-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+                {strip.map((node, i) => (
+                  <span key={i} className="inline-flex items-center gap-1.5">
+                    <span aria-hidden className="w-1 shrink-0 text-center text-border">·</span>
+                    {node}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>

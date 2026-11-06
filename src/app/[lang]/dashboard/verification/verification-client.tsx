@@ -120,13 +120,12 @@ function VerificationHub({ userId }: { userId: string | null }) {
       {/* Mobile-only pushed-screen title bar; the nav rail carries this on desktop. */}
       <SectionHeader title={tr('Verification', 'Xác minh')} />
 
-      {/* ⚠️ THE DESKTOP HEADING IS `hidden lg:block`, NOT THE OTHER WAY AROUND — SectionHeader
-          already renders the title on small screens, and showing both would put the same words on
-          the page twice, which is also two <h1>s for a screen reader. */}
-      <div className="mx-auto max-w-2xl">
-        <div className="hidden lg:block">
-          <h1 className="h-title text-foreground">{tr('Verification', 'Xác minh')}</h1>
-        </div>
+      {/* ⚠️ THE h1 IS `max-lg:sr-only`, NOT `hidden lg:block` (2026-11-06 audit). SectionHeader shows the title on a
+          phone, but it is a plain span, not a heading — display:none took the page's only h1 out of the phone's
+          accessibility tree (DashboardTabs' rule). Visually hidden there, plain on desktop: one h1 on every size.
+          The column starts on the section's left edge, like every dashboard section, not centred off it. */}
+      <div className="max-w-2xl">
+        <h1 className="h-title text-foreground max-lg:sr-only">{tr('Verification', 'Xác minh')}</h1>
         <p className="mt-1 text-sm text-muted-foreground lg:mt-1">
           {tr(
             'Two steps. You verify yourself, then your business — a named person has to stand behind a business storefront.',
@@ -175,7 +174,7 @@ function VerificationHub({ userId }: { userId: string | null }) {
                             // ⚠️ THE COMMENT SITS ABOVE THE CALL: the string extractor cannot see past a
                             // comment placed between `tr(` and its first argument, and skipped this line.
                             : tr(
-                                'A photograph of your passport or CCCD, and a selfie. Takes a few minutes, once.',
+                                'A photograph of your passport or citizen ID card (CCCD), and a selfie. Takes a few minutes, once.',
                                 'Một ảnh hộ chiếu hoặc CCCD, và một ảnh chân dung. Mất vài phút, chỉ một lần.',
                               )}
                   </p>
@@ -215,14 +214,12 @@ function VerificationHub({ userId }: { userId: string | null }) {
                 <h2 className="font-bold text-foreground">
                   {tr('Step 2 — verify your business', 'Bước 2 — xác minh doanh nghiệp')}
                 </h2>
-                <p className="mt-1 text-sm text-body">
-                  {gate && !personDone
-                    ? tr('Available once step 1 is done.', 'Khả dụng sau khi hoàn tất bước 1.')
-                    : tr(
-                        'Your tax code, business licence and a bank document showing the account-holder name.',
-                        'Mã số thuế, giấy phép kinh doanh và giấy tờ ngân hàng có tên chủ tài khoản.',
-                      )}
-                </p>
+                {/* Only the lock is said here. The panel below names the two documents in its upload buttons' own words;
+                    a second list here asked for a "business licence" while the button took a "Business / ID document"
+                    (2026-11-06 audit). */}
+                {gate && !personDone && (
+                  <p className="mt-1 text-sm text-body">{tr('Available once step 1 is done.', 'Khả dụng sau khi hoàn tất bước 1.')}</p>
+                )}
               </div>
             </div>
 
@@ -238,8 +235,17 @@ function VerificationHub({ userId }: { userId: string | null }) {
               */}
             {/* ⚠️ `showPersonSteps={false}` — THIS hub already renders the step 1/step 2 rail above;
                 letting the panel draw its own too would double the sequence.
-                Mounted only for a session (see the sign-in gate above): signed out, its own read can only 401. */}
-            {userId && <BusinessVerificationPanel showPersonSteps={false} />}
+                Mounted only for a session (see the sign-in gate above): signed out, its own read can only 401.
+                Until there is one, the panel's own `flat` loading shape holds the place (2026-11-06 review): with the
+                documents line gone from this card, a session still resolving left Step 2 a heading over nothing.
+                aria-hidden and no role: step 1's skeleton is this page's one "Loading…" status. */}
+            {userId ? <BusinessVerificationPanel showPersonSteps={false} flat /> : (
+              <div aria-hidden="true" className="mt-4 border-t border-border pt-4">
+                <Skeleton className="h-5 w-40 rounded-lg" />
+                <Skeleton className="mt-3 h-4 w-full rounded-lg" />
+                <Skeleton className="mt-2 h-4 w-2/3 rounded-lg" />
+              </div>
+            )}
           </div>
         </section>
       </div>

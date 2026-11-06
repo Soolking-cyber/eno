@@ -82,7 +82,8 @@ export function MessagesShell({ children }: { children: React.ReactNode }) {
       <div className="mx-auto flex w-full max-w-7xl flex-1 overflow-hidden px-0 sm:px-6 lg:px-8">
         {/* List pane — full width on mobile (hidden when a thread is open); fixed
             sidebar on desktop, always visible. */}
-        <aside className={cn('w-full shrink-0 lg:w-[380px]', inThread && 'hidden lg:block')}>
+        {/* 420px from xl (2026-11-06 audit), where the thread still keeps 650px+: at 380 a desktop preview was cut after a few words. */}
+        <aside className={cn('w-full shrink-0 lg:w-[380px] xl:w-[420px]', inThread && 'hidden lg:block')}>
           <ConversationList />
         </aside>
         {/* Thread / right pane — hidden on mobile unless a thread is open. Carries

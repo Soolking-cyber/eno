@@ -212,6 +212,21 @@ describe('SellerListings in server-scoped mode', () => {
     release({ ok: true, json: async () => ({ listings: [{ id: 'x', title: 'Cheapest', price: 1 }], total: 1 }) })
   })
 
+  it('the Price tab names the order a tap gives, and the re-tap flip renames it (the explorer strip, UX3 NAV-13)', async () => {
+    const urls = stubFetch(() => ({ listings: [CHEAPEST], total: 9726 }))
+    renderShop()
+    const tab = () => screen.getByRole('tab', { name: /^Price: / })
+    expect(tab().textContent).toBe('Price low → high')
+    expect(tab().getAttribute('aria-label')).toBe('Price: low to high')
+    await userEvent.click(tab())
+    await waitFor(() => expect(urls.length).toBe(1))
+    await userEvent.click(tab())
+    await waitFor(() => expect(urls.length).toBe(2))
+    expect(urls[1].searchParams.get('sort')).toBe('price-high')
+    expect(tab().textContent).toBe('Price high → low')
+    expect(tab().getAttribute('aria-label')).toBe('Price: high to low')
+  })
+
   it('pluralises the count — "1 listing", not "1 listings"', async () => {
     stubFetch(() => ({ listings: [card('only', 1)], total: 1 }))
     renderShop()
@@ -276,9 +291,9 @@ describe('SellerListings on a category page', () => {
     expect(urls[0].searchParams.get('sort')).toBe('price-low')
   })
 
-  it('calls the price sort "Salary" over jobs', () => {
+  it('calls the price sort "Salary" over jobs, and names the order a tap gives, as the explorer strip does', () => {
     render(<SellerListings listings={PAGE} sortable priceLabel="salary" serverScope={{ params: { category: 'jobs' }, total: 900 }} />)
-    expect(screen.getByRole('tab', { name: 'Sort by salary' }).textContent).toContain('Salary')
+    expect(screen.getByRole('tab', { name: 'Salary: low to high' }).textContent).toBe('Salary low → high')
   })
 
   it('a search that matches nothing says so and offers the way back', async () => {

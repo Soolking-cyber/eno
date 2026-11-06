@@ -239,7 +239,8 @@ const OPERATOR_LINE = OPERATOR_REGISTERED
 // heading (see /guide and /safety's recovery list). The sequence is the information.
 // `text` is one <Tr> per sentence, so a sentence with curated Vietnamese (vi-overrides.ts) renders it
 // whatever its neighbours have.
-const STEPS: { title: string; text: string[] }[] = [
+// A `{ en, vi }` sentence is AUTHORED in both languages and renders through <Bilingual>; a plain string goes to <Tr>.
+const STEPS: { title: string; text: (string | { en: string; vi: string })[] }[] = [
   {
     title: 'Listing submitted',
     text: ['A seller posts an item with photos, price and location.'],
@@ -258,7 +259,16 @@ const STEPS: { title: string; text: string[] }[] = [
     // "do not last" is an outcome no code measures. The second sentence is the owner's approved report
     // sentence, verbatim (category-copy.ts REPORT_SENTENCE): every listing page carries the Report
     // button, and a signed-in member's report reaches the admin queue (api/report/route.ts).
-    text: ['Listings publish right away.', 'Members can report any listing that breaks the rules.'],
+    // ⚠️ "RIGHT AWAY" CARRIES ITS TWO EXCEPTIONS (2026-11-06 audit), which /trust's Restricted tier and the licence
+    // check publish: publish-guard.ts refuses a Restricted account's post, and a listing in a licence-check aisle
+    // (taxonomy.ts licenceCheckHold) waits for eno's check. /guide says the same.
+    text: [
+      {
+        en: 'Listings that pass go live right away — unless the seller’s account is Restricted, or the category needs a licence check first.',
+        vi: 'Tin đạt yêu cầu được hiển thị ngay — trừ khi tài khoản người bán đang bị hạn chế, hoặc danh mục cần kiểm tra giấy phép trước.',
+      },
+      'Members can report any listing that breaks the rules.',
+    ],
   },
 ]
 
@@ -524,7 +534,7 @@ export default async function AboutPage() {
                     {s.text.map((t, j) => (
                       <Fragment key={j}>
                         {j > 0 && ' '}
-                        <Tr text={t} />
+                        {typeof t === 'string' ? <Tr text={t} /> : <Bilingual en={t.en} vi={t.vi} />}
                       </Fragment>
                     ))}
                   </p>

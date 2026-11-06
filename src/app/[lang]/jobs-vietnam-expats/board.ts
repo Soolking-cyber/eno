@@ -372,10 +372,23 @@ function applyBySentence(s: BoardSummary): string | null {
  */
 export function summarySegments(s: BoardSummary, siteName: string, day: string): Segment[] {
   if (!s.total) return []
-  const rest = [sitesSentence(s, siteName), paySentence(s), applyBySentence(s)].filter(Boolean).join(' ')
+  return [...summaryLead(s, day), { text: ` ${summaryRest(s, siteName)}` }]
+}
+
+/**
+ * The summary's first sentence alone: the day of the read, how many postings, and where, each place linked to its section.
+ * The board leads with it and closes with `summaryRest`, so the first job is one sentence under the count (2026-11-06 audit).
+ */
+export function summaryLead(s: BoardSummary, day: string): Segment[] {
+  if (!s.total) return []
   return [
     { text: `On ${formatCalendarDay(day, 'en')}, this page listed ${n(s.total)} ${s.total === 1 ? 'teaching job posting' : 'teaching job postings'}` },
     ...placesRun(s),
-    { text: ` ${rest}` },
   ]
+}
+
+/** The rest of the summary: which sites the postings link to, how many state the pay, and the span of the apply-by dates. */
+export function summaryRest(s: BoardSummary, siteName: string): string {
+  if (!s.total) return ''
+  return [sitesSentence(s, siteName), paySentence(s), applyBySentence(s)].filter(Boolean).join(' ')
 }

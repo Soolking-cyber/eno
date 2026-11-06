@@ -870,18 +870,33 @@
   }
  },
  {
-  "en": "Need a cover teacher? See who is free",
+  "en": "Need a cover teacher?",
   "context": "teacher cover lessons (substitute teaching — never shelter or a lid): a short UI label, button or heading",
   "translations": {
-   "zh-Hans": "需要代课老师？看看谁有空",
-   "ko": "대체 교사가 필요하신가요? 가능한 선생님을 확인하세요",
-   "ja": "代講の先生が必要ですか？空いている先生を見る",
-   "ru": "Нужен учитель на замену? Посмотрите, кто свободен",
-   "km": "ត្រូវការគ្រូបង្រៀនជំនួស? មើលថាអ្នកណាទំនេរ",
-   "ms": "Perlukan guru ganti? Lihat siapa yang lapang",
-   "th": "ต้องการครูสอนแทน? ดูว่าใครว่าง",
-   "fr": "Besoin d’un remplaçant ? Voyez qui est disponible",
-   "hi": "स्थानापन्न शिक्षक चाहिए? देखें कौन खाली है"
+   "zh-Hans": "需要代课老师？",
+   "ko": "대체 교사가 필요하신가요?",
+   "ja": "代講の先生が必要ですか？",
+   "ru": "Нужен учитель на замену?",
+   "km": "ត្រូវការគ្រូបង្រៀនជំនួស?",
+   "ms": "Perlukan guru ganti?",
+   "th": "ต้องการครูสอนแทน?",
+   "fr": "Besoin d’un remplaçant ?",
+   "hi": "स्थानापन्न शिक्षक चाहिए?"
+  }
+ },
+ {
+  "en": "See who is free",
+  "context": "teacher cover lessons (substitute teaching — never shelter or a lid): a short UI label, button or heading",
+  "translations": {
+   "zh-Hans": "看看谁有空",
+   "ko": "가능한 선생님을 확인하세요",
+   "ja": "空いている先生を見る",
+   "ru": "Посмотрите, кто свободен",
+   "km": "មើលថាអ្នកណាទំនេរ",
+   "ms": "Lihat siapa yang lapang",
+   "th": "ดูว่าใครว่าง",
+   "fr": "Voyez qui est disponible",
+   "hi": "देखें कौन खाली है"
   }
  },
  {

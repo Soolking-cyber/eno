@@ -13,7 +13,7 @@ const LICENSED_VEHICLE_HIRE = ['car-rental', 'motorbike-rental']
 // #1 marketplace scam, so the warning must be read BEFORE the buyer contacts the
 // seller, not buried in the footer note. Copy is category-aware: vehicles get the
 // papers/chassis check, property & rentals get the visit-before-deposit rule.
-export function SafetyStrip({ categorySlug, subcategorySlug = null, action, protections, className, variant }: { categorySlug: string; /**
+export function SafetyStrip({ categorySlug, subcategorySlug = null, action, protections, className, variant, job = false }: { categorySlug: string; /** A job listing, whatever its category: the PDP's bottom note left every listingType 'job', so the ID line keys on the same fact (2026-11-06 review). */ job?: boolean; /**
    * The listing's subcategory. Only VEHICLE HIRE inside `rentals` reads it (2026-10-01): a car or a
    * motorbike is not a home, so the housing lines ("meet the landlord or agent", "hold a place") are
    * swapped for vehicle ones, and a car or motorbike adds the driving-licence line. And Vehicles › Parts
@@ -36,6 +36,8 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
   // Vehicle hire inside the one rentals category (taxonomy.ts: vehicle hire is the tail of its list).
   const vehicleHire = categorySlug === 'rentals' && !!subcategorySlug && VEHICLE_RENTAL_SUBCATS.includes(subcategorySlug)
   const licensedVehicle = vehicleHire && LICENSED_VEHICLE_HIRE.includes(subcategorySlug!)
+  // A job's strip: the Jobs category, or a job listing wherever it is filed (`job`), for all three job lines below.
+  const isJobStrip = categorySlug === 'jobs' || job
 
   // ⚠️ "partner tickets" IS WRONG ON A PHONE. The affiliate line was written for VinWonders and
   // then inherited by an imported electronics catalogue, where it told a reader buying a laptop
@@ -96,7 +98,7 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
     // scam, and the check that protects a candidate is the workplace itself — the same advice the linked
     // job's line gives, said for a post whose employer is on eno. "eno", not "eno.vn": this strip renders
     // on both editions (see the rental line above).
-    categorySlug === 'jobs'
+    isJobStrip
       ? tr(
           'Never pay a fee or a deposit to get a job — eno never asks for one. Meet the employer at the workplace before you start.',
           'Đừng bao giờ trả phí hay đặt cọc để được nhận việc — eno không bao giờ yêu cầu. Hãy gặp nhà tuyển dụng tại nơi làm việc trước khi bắt đầu.',
@@ -137,7 +139,10 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
     // contrast as TEXT (see the token note in globals.css) — so this is safe as ink, which is
     // exactly why the token exists rather than a raw amber.
     // ⛔ FLAT SINCE 2026-11-05 (UI climb; canon §3b, lines not boxes). The tint made a pink box beside the CTA, the one off-palette
-    // block in the buy box. The hierarchy this note asks for stays in the glyph and in the first line's `font-semibold text-warning`.
+    // block in the buy box. The hierarchy this note asks for stays in the glyph and in the first line's weight.
+    // ⛔ NEUTRAL INK SINCE 2026-11-06 (audit): orange is for prices and the Post button only (owner), and amber-800 read as the
+    // price's own orange one block below it. The warning keeps its shield, its first-line place and its `font-semibold`, in ink;
+    // the red Report beside it is unchanged. If it ever reads as a grey note again, the fix is weight and order, not amber.
     <div className={cn('flex items-start gap-2.5 border-t border-border pt-3 text-xs leading-relaxed', className)}>
       {/* ⚠️ SOLAR, NOT THE HAND-DRAWN SEAL (owner, 2026-08-13: "old icon make sure all icons are
           solar"). This mount used to re-draw the eno seal inline — SEAL_CHIEF + SEAL_OUTLINE +
@@ -147,16 +152,16 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
           drifts from the icon set the rest of the app draws from.
           `shield-check` is the same idea in the shared vocabulary: it takes `currentColor`, so the
           amber comes for free, and it gains the outline/bold weights every other icon has. */}
-      <ShieldCheck aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+      <ShieldCheck aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-body" />
       {/* ⚠️ THE RHYTHM CARRIES THE HIERARCHY. At `space-y-0.5` the three lines — warning,
           protections, actions — sat at the same distance from each other as the words within
           them, so the block read as a pile of links rather than one statement with a footnote.
           `space-y-1.5` separates them enough to be read in order, which is the whole reason
           they are stacked in this order in the first place. */}
       <div className="min-w-0 flex-1 space-y-1.5">
-        {/* `text-warning`, not `text-foreground` — see the note on the container. A warning
-            printed in body ink is a sentence; printed in its own ink it is a warning. */}
-        <p className="font-semibold text-warning">{line}</p>
+        {/* Ink and weight, not amber (2026-11-06; see the note on the container): `font-semibold` in the darkest ink, over
+            the quiet lines below it, is what makes it the warning. */}
+        <p className="font-semibold text-foreground">{line}</p>
         {/* ⚠️ THE DRIVING-LICENCE LINE — cars and motorbikes only (2026-10-01). Quiet second line: the money
             warning above stays the loudest thing in the strip.
             ⛔ SELF-DRIVE, NOT "RENTING". `car-rental` also holds hire WITH a driver (taxonomy.ts: its keywords
@@ -167,6 +172,21 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
             {tr(
               'Driving a hired car or motorbike yourself needs a valid licence for it — an owner may not hand a vehicle to someone without one.',
               'Tự lái ô tô hoặc xe máy thuê cần có giấy phép lái xe hợp lệ, đúng hạng xe — chủ xe không được giao xe cho người không có giấy phép lái xe.',
+            )}
+          </p>
+        )}
+        {/* THE ID-DOCUMENTS LINE — every job, an employer's own and a linked one (2026-11-06 audit). It carries what the PDP's
+            bottom note said that this strip did not; that note is gone (its fee and deposit repeated the money line above, a
+            screen further down), so the advice is read here, beside Apply. Quiet, like the licence line. The Vietnamese is the
+            note's curated override, with "khi chưa" for its stiff "trước khi đã".
+            ⚠️ THE TRAINING FEE RIDES HERE TOO (2026-11-06 review): neither money line above names it — they say a fee, a deposit,
+            money — and "pay for your training first" is how the fee-to-get-hired scam usually asks (the job-text screen refuses
+            "training fee" in a post for the same reason, job-listing.ts). It was half of why the 2026-10-04 review kept the note. */}
+        {isJobStrip && (
+          <p data-job-id-line="" className="text-body">
+            {tr(
+              "Don't send copies of your ID documents before you have checked the employer, and never pay for training.",
+              'Đừng gửi bản sao giấy tờ tùy thân khi chưa xác minh nhà tuyển dụng, và đừng bao giờ trả phí đào tạo.',
             )}
           </p>
         )}
@@ -194,8 +214,9 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
             clears it, so each of the three controls owns its full 44px. */}
         <div className="-mb-1 mt-0.5 flex items-center justify-between gap-3">
           <Link href="/safety" className="relative tap-44 font-semibold text-accent-foreground hover:underline active:opacity-60">
-            {/* Nothing is TRADED on a job post, so its link is the safety guide by its plain name. */}
-            {categorySlug === 'jobs' && !variant ? tr('Safety guide', 'Cẩm nang an toàn') : tr('Safe trading guide', 'Cẩm nang giao dịch an toàn')}
+            {/* Nothing is TRADED on a job post, so its link is the safety guide by its plain name — on a linked job too
+                (2026-11-06 audit: the `affiliate-job` strip still read "Safe trading guide"). */}
+            {isJobStrip ? tr('Safety guide', 'Cẩm nang an toàn') : tr('Safe trading guide', 'Cẩm nang giao dịch an toàn')}
           </Link>
           {action}
         </div>

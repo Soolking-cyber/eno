@@ -41,16 +41,7 @@ const KNOWN_ENGLISH_ONLY = new Map<string, string>([
   // /account-deletion
   ['Delete your account', FOLLOW_ON],
   ['Where to write', FOLLOW_ON],
-  // /contact
-  ['Who operates this site', FOLLOW_ON],
-  ['Reporting a problem', FOLLOW_ON],
-  ['Privacy and your data', FOLLOW_ON],
-  // /guide
-  ['How eno.vn works', FOLLOW_ON],
-  ['For buyers', FOLLOW_ON],
-  ['For sellers', FOLLOW_ON],
-  ['Features & how they work', FOLLOW_ON],
-  ['Features', FOLLOW_ON],
+  // /contact and /guide carry authored Vietnamese since 2026-11-06 (UI climb, info pages).
   // /partners and /prohibited carry authored Vietnamese since 2026-10-01 (legal-copy pass W-B).
 ])
 

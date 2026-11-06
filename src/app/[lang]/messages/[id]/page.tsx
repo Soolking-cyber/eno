@@ -3759,7 +3759,8 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                 onClick={toggleOffer}
                 aria-label={showOffer ? tr('Back to message', 'Quay lại nhắn tin') : tr('Make an offer', 'Gửi đề nghị giá')}
                 title={showOffer ? tr('Back to message', 'Quay lại nhắn tin') : tr('Make an offer', 'Gửi đề nghị giá')}
-                className={`transition-colors ${showOffer ? 'bg-primary/10 text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
+                // Body ink at rest, as the AI composer's camera (2026-11-06 audit): ink-4 read as a disabled control beside the field.
+                className={`transition-colors ${showOffer ? 'bg-primary/10 text-accent-foreground' : 'text-body hover:bg-muted'}`}
               >
                 {/* 20px composer-action step (§4); armed = the location-active duotone (§5):
                     accent ink + the brand-100 wash on the tag's one closed body region. */}

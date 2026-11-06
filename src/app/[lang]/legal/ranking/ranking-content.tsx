@@ -75,10 +75,16 @@ export function RankingContent({ diversityWindow }: { diversityWindow: number })
       titleVi="Cách chúng tôi sắp xếp kết quả"
       // ⚠️ THE PAGE'S OWN DATE (ranking-disclosure.ts RANKING_DISCLOSURE_UPDATED, set on deploy day), not the
       // legal amendment's: this disclosure follows the code and changes between amendments.
-      meta={tr(
-        `Published under ${LEGAL_BASIS.ecommerceLaw.en} · Last updated: ${dateEn(RANKING_DISCLOSURE_UPDATED)}`,
-        `Công bố theo ${LEGAL_BASIS.ecommerceLaw.vi} · Cập nhật lần cuối: ${dateVi(RANKING_DISCLOSURE_UPDATED)}`,
-      )}
+      // ⚠️ IN THE FAMILY'S META LINE (2026-11-06 audit): a bare string landed straight under the h1 at body size in the
+      // primary ink — heavier than the lede — where /privacy, /terms, /returns and /prohibited set it small and quiet.
+      meta={
+        <p className="mt-3 text-sm text-ink-4">
+          {tr(
+            `Published under ${LEGAL_BASIS.ecommerceLaw.en} · Last updated: ${dateEn(RANKING_DISCLOSURE_UPDATED)}`,
+            `Công bố theo ${LEGAL_BASIS.ecommerceLaw.vi} · Cập nhật lần cuối: ${dateVi(RANKING_DISCLOSURE_UPDATED)}`,
+          )}
+        </p>
+      }
       intro={tr(
         `${SITE_NAME} does not sell placement: no listing appears higher because someone paid for it. Category browsing and search results are the same for everyone; the two rails that can adapt to you, For You and Recently viewed, are explained below — and they adapt only while personalisation is on in your cookie settings.`,
         `${SITE_NAME} không bán vị trí hiển thị: không tin đăng nào được xếp cao hơn nhờ trả tiền. Kết quả duyệt danh mục và kết quả tìm kiếm giống nhau với mọi người; hai mục có thể thay đổi theo bạn là “Dành cho bạn” và “Đã xem gần đây”, được giải thích bên dưới — và chúng chỉ thay đổi khi cá nhân hoá trong phần cài đặt cookie đang bật.`,

@@ -776,12 +776,13 @@ export default async function ListingPage({ params }: Props) {
    * ⛔ An e-visa page keeps the line it had on BOTH editions — visa copy is held for the owner (above).
    */
   const tr = (en: string, vi: string) => <Bilingual en={en} vi={vi} />
-  // ⚠️ A LINKED job (affiliateUrl) KEEPS this line, though pdp-09 proposed dropping it as a repeat of
-  // the SafetyStrip above. It is not one: the 'affiliate-job' strip says only "never pay money to get a
-  // job"; this line adds training fees and deposits, and the ID-documents advice appears NOWHERE else on
-  // the page (review, 2026-10-04). Only the Details 'Nguồn' row was a true repeat, and it is gone.
+  // ⛔ A JOB HAS NO BOTTOM NOTE (2026-11-06 audit). A linked job kept one after pdp-09 proposed dropping it as a repeat of
+  // the SafetyStrip above (review, 2026-10-04), because its training-fee and ID-documents advice appeared nowhere else on
+  // the page. Both are now the strip's own quiet line on every job, beside Apply (safety-strip.tsx `data-job-id-line`);
+  // the rest (never pay a fee or a deposit) repeated the strip's first line a screen further down, and the linked
+  // job page said "never pay" four times. Only the Details 'Nguồn' row was a true repeat, and it is gone.
   const safetyNote = listing.listingType === 'job'
-    ? <Tr text="Never pay a fee, a deposit or for training to get a job, and don't send copies of your ID documents before you have checked the employer." />
+    ? null
     : affiliateUrl ? null
     : (catSlug === 'rentals' || catSlug === 'property' || listing.listingType === 'rent')
       ? (IS_SERVICES
@@ -895,6 +896,14 @@ export default async function ListingPage({ params }: Props) {
             (which shows up to 1023px). Side by side, both sit in the first screen. */}
         <div className="flex flex-col gap-6 md:grid md:grid-cols-12 md:gap-x-6 md:gap-y-6 lg:gap-x-10 lg:gap-y-8">
 
+          {/* The compact storefront link, MOBILE (its history is the note under the breadcrumb). FIRST IN THE DOM, AHEAD OF THE
+              CRUMB (2026-11-06 audit): both paint in slot 7, below `#contact`, and equal `order` falls back to source order — with
+              the crumb first, "eno.vn / Rentals / Motorbike" sat between "Chat now" and the seller it answers for. Both still lead
+              the DOM, so the focus order is the one the breadcrumb note argues for, one row lower. */}
+          <div className="order-7 md:hidden">
+            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} unrated={sellerUnrated} linkedShop={sellerLinkedShop} />
+          </div>
+
           {/* 1 — Breadcrumb (subdued, full width): site / category / subcategory / title. Leaf crumb
               hidden on mobile (it duplicates the H1); the BreadcrumbList JSON-LD still carries it. */}
           {/* ⚠️ `order-7` ON MOBILE — BELOW THE CTA, NOT ABOVE THE PHOTO. MEASURED, NOT PREFERRED.
@@ -968,10 +977,8 @@ export default async function ListingPage({ params }: Props) {
               ⛔ DO NOT "RESTORE" THIS ABOVE THE GALLERY. The gallery is square and full-bleed by the
               owner's decision (2026-07-23/24) and is the hero; anything stacked on top of it is spent
               from the same 772px budget, and this page has no sticky mobile CTA to fall back on —
-              `PdpMobileBar` was deleted deliberately and must not come back. */}
-          <div className="order-7 md:hidden">
-            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} unrated={sellerUnrated} linkedShop={sellerLinkedShop} />
-          </div>
+              `PdpMobileBar` was deleted deliberately and must not come back.
+              ⚠️ THE ROW ITSELF RENDERS ABOVE THE BREADCRUMB NOW (2026-11-06 audit) — the note there says why. */}
 
           {/* 2 — Gallery, MOBILE mount: edge-to-edge (negative gutter cancels <main>'s padding),
               md:hidden. Its desktop twin lives in the left column below; the variant gates stop
@@ -1369,6 +1376,7 @@ export default async function ListingPage({ params }: Props) {
                 <SafetyStrip
                   categorySlug={rawListing.category.slug}
                   subcategorySlug={rawListing.subcategorySlug}
+                  job={listing.listingType === 'job'}
                   variant={affiliateUrl ? (isJob ? 'affiliate-job' : isBooking ? 'affiliate' : listing.listingType === 'rent' ? 'affiliate-rental' : 'affiliate-purchase') : undefined}
                   protections={affiliateUrl ? undefined : <ProtectionsRow inline />}
                   action={

@@ -44,6 +44,9 @@ describe('liveCountWhere — the rows a live count selects', () => {
     // The condition narrowing inside the first element survives intact.
     expect(w.AND[0]).toEqual(seoLandingWhere({ categorySlug: 'furniture-appliances', condition: 'used' }))
     expect(JSON.stringify(w.AND[1])).toContain('Ho Chi Minh')
+    // ⚠️ And "inside" needs a district on the row (2026-11-06): the partner import stores city HCMC on its Biên Hòa and Đà Nẵng
+    // rows, none with a district, so a row with no district must leave the inside count — it can only remove the claim.
+    expect((w.AND[1] as { AND: object[] }).AND.slice(1)).toEqual([{ district: { not: null } }, { NOT: { district: '' } }])
   })
 })
 

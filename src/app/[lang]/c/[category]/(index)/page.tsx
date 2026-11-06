@@ -413,7 +413,9 @@ export default async function CategoryPage({ params }: Props) {
                 the full explorer for everyone who scrolls this far (as the strip's Filters link). */}
             <Button asChild variant="cta" size="none" className="gap-1.5">
               <Link href={explorerHref} rel="nofollow" prefetch={false} className="px-5 py-2.5">
-                <Tr text="Refine in full search" /> <ArrowRight className="h-4 w-4" />
+                {/* 2026-11-06 audit: the button says what it opens — the search, with this category's filters. "Refine in full
+                    search" left a reader asking what was not full about this page. The Vietnamese is the one it always had. */}
+                <Bilingual en="Search with filters" vi="Lọc chi tiết hơn" /> <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
           </div>

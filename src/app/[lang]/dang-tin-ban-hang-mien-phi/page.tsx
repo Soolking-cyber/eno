@@ -276,37 +276,37 @@ const CONTENT: ArticleContent = {
           <P>
             Với đồ gia dụng và nội thất cũ, đây là mặt bằng giá đọc trực tiếp từ tin rao thật trên
             sàn (mẫu 300 tin), không phải giá niêm yết của cửa hàng. Giá chung: trung vị{' '}
-            <strong>2.480.000 đ</strong>, một phần tư số tin dưới 1.050.000 đ và một phần tư trên
-            4.100.000 đ. Theo từng món:
+            <strong>2.480.000&nbsp;đ</strong>, một phần tư số tin dưới 1.050.000&nbsp;đ và một phần tư trên
+            4.100.000&nbsp;đ. Theo từng món:
           </P>
           <Ul>
             <li>
-              <strong>Máy lạnh</strong> &mdash; trung vị 4.298.000 đ, phần lớn nằm trong khoảng
-              3.948.000 đ đến 5.498.000 đ.
+              <strong>Máy lạnh</strong> &mdash; trung vị 4.298.000&nbsp;đ, phần lớn nằm trong khoảng
+              3.948.000&nbsp;đ đến 5.498.000&nbsp;đ.
             </li>
             <li>
-              <strong>Máy giặt</strong> &mdash; trung vị 2.730.000 đ, khoảng phổ biến 1.648.000 đ đến
-              3.480.000 đ.
+              <strong>Máy giặt</strong> &mdash; trung vị 2.730.000&nbsp;đ, khoảng phổ biến 1.648.000&nbsp;đ đến
+              3.480.000&nbsp;đ.
             </li>
             <li>
-              <strong>Sofa</strong> &mdash; trung vị 2.515.000 đ, khoảng phổ biến 1.390.000 đ đến
-              4.510.000 đ.
+              <strong>Sofa</strong> &mdash; trung vị 2.515.000&nbsp;đ, khoảng phổ biến 1.390.000&nbsp;đ đến
+              4.510.000&nbsp;đ.
             </li>
             <li>
-              <strong>Tủ quần áo</strong> &mdash; trung vị 6.200.000 đ, khoảng phổ biến 3.980.000 đ
-              đến 7.800.000 đ. Đây là nhóm giữ giá tốt nhất.
+              <strong>Tủ quần áo</strong> &mdash; trung vị 6.200.000&nbsp;đ, khoảng phổ biến 3.980.000&nbsp;đ
+              đến 7.800.000&nbsp;đ. Đây là nhóm giữ giá tốt nhất.
             </li>
             <li>
-              <strong>Bàn các loại</strong> &mdash; trung vị 1.650.000 đ, khoảng phổ biến 1.050.000 đ
-              đến 3.200.000 đ.
+              <strong>Bàn các loại</strong> &mdash; trung vị 1.650.000&nbsp;đ, khoảng phổ biến 1.050.000&nbsp;đ
+              đến 3.200.000&nbsp;đ.
             </li>
             <li>
-              <strong>Kệ và tủ</strong> &mdash; trung vị 1.980.000 đ, khoảng phổ biến 1.180.000 đ đến
-              3.380.000 đ.
+              <strong>Kệ và tủ</strong> &mdash; trung vị 1.980.000&nbsp;đ, khoảng phổ biến 1.180.000&nbsp;đ đến
+              3.380.000&nbsp;đ.
             </li>
             <li>
-              <strong>Máy lọc không khí</strong> trung vị 6.000.000 đ và <strong>robot hút bụi</strong>{' '}
-              trung vị 9.000.000 đ &mdash; hai nhóm mẫu còn mỏng, nên hãy đọc như một mốc tham chiếu
+              <strong>Máy lọc không khí</strong> trung vị 6.000.000&nbsp;đ và <strong>robot hút bụi</strong>{' '}
+              trung vị 9.000.000&nbsp;đ &mdash; hai nhóm mẫu còn mỏng, nên hãy đọc như một mốc tham chiếu
               chứ chưa phải mặt bằng chắc chắn.
             </li>
           </Ul>

@@ -373,17 +373,16 @@ export function SellerListings({
             // tab), so the tick has to be fired here or the second Price press feels dead.
             if (priceSortActive) { hapticSelection(); setSort(sort === 'price-low' ? 'price-high' : 'price-low') }
           }}
-          aria-label={salary ? tr('Sort by salary', 'Sắp xếp theo lương') : tr('Sort by price', 'Sắp xếp theo giá')}
+          // The spoken form of the visible label, from the phone menu's own options (`sortOptions`), as on the explorer's strip.
+          aria-label={sortOptions.find((o) => o.value === (sort === 'price-high' ? 'price-high' : 'price-low'))?.label}
           className={sortTabClass(priceSortActive)}
         >
-          {salary ? tr('Salary', 'Lương') : tr('Price', 'Giá')}
-          {sort === 'price-low' ? (
-            <ArrowUp className="size-3.5" />
-          ) : sort === 'price-high' ? (
-            <ArrowDown className="size-3.5" />
-          ) : (
-            <ArrowUpDown className="size-3.5 text-ink-4" />
-          )}
+          {/* 2026-11-06 audit: the tab names the order a tap gives, in words — "Price low → high", and after the re-tap flip
+              "Price high → low" — as the explorer's strip has since UX3 NAV-13 (explorer-toolbar.tsx). "Price ⇅" left the
+              direction to a 14px glyph, and the two strips said one thing two ways. The phone keeps its sort pill. */}
+          {sort === 'price-high'
+            ? (salary ? tr('Salary high → low', 'Lương cao → thấp') : tr('Price high → low', 'Giá cao → thấp'))
+            : (salary ? tr('Salary low → high', 'Lương thấp → cao') : tr('Price low → high', 'Giá thấp → cao'))}
         </TabsTrigger>
       </TabsList>
       {/* At the far end from sm (the tablist takes the rest); right after the pill on a phone. The short rule

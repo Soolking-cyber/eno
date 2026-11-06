@@ -4,6 +4,7 @@ import { POSTING_IS_FREE, withShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
+import { Bilingual } from '@/components/marketplace/bilingual'
 import { Button } from '@/components/ui/button'
 import { Search, Tag, Plus, BadgeCheck, Bell, Heart, Globe, ChevronRight, ShieldCheck } from "@/components/ui/icons"
 import { LocalizedLink } from '@/components/marketplace/localized-link'
@@ -28,9 +29,15 @@ const BUYER_STEPS: { title: string; body: string }[] = [
   { title: 'Meet & inspect', body: 'Agree a public meeting spot, check the item in person, and only pay once you’re happy.' },
 ]
 
-const SELLER_STEPS: { title: string; body: string }[] = [
+// `bodyVi`: an AUTHORED Vietnamese body, rendered through <Bilingual>; without one the body goes to <Tr>.
+const SELLER_STEPS: { title: string; body: string; bodyVi?: string }[] = [
   { title: 'Post your listing', body: 'Pick a category, add details, price and photos. The VND price field has quick chips so big numbers are fast to type.' },
-  { title: 'Build trust', body: 'Your listing goes live right away. Build a public trust score with good service to earn a Trusted badge.' },
+  // ⚠️ "RIGHT AWAY" CARRIES ITS TWO EXCEPTIONS (2026-11-06 audit) — the same two /about's trust steps name.
+  {
+    title: 'Build trust',
+    body: 'Your listing goes live as soon as it passes the checks — unless your account is Restricted or the category needs a licence check first. Build a public trust score with good service to earn a Trusted badge.',
+    bodyVi: 'Tin của bạn được hiển thị ngay khi vượt qua bước kiểm tra — trừ khi tài khoản của bạn đang bị hạn chế hoặc danh mục cần kiểm tra giấy phép trước. Hãy phục vụ tốt để xây dựng điểm uy tín công khai và nhận huy hiệu Đáng tin cậy.',
+  },
   { title: 'Reply & sell', body: 'Buyers message you in-app; you get a notification for every reply and offer. Share your number in chat when ready.' },
 ]
 
@@ -48,11 +55,18 @@ type FeatureGlyph = (props: { className?: string; strokeWidth?: number }) => Rea
 const SealGlyph: FeatureGlyph = ({ className, strokeWidth }) => (
   <ShieldCheck className={className} strokeWidth={strokeWidth} />
 )
-const FEATURES: { Icon: typeof Search | FeatureGlyph; id?: string; title: string; body: string }[] = [
+const FEATURES: { Icon: typeof Search | FeatureGlyph; id?: string; title: string; body: string; bodyVi?: string }[] = [
   // ⛔ NOT "PHONE VERIFIED, AT LEAST ONE REAL PHOTO" (2026-10-01): no phone check runs on a post, and the
   // photo minimum is three for most categories (one for services) — assertPublishable / minPhotosFor in
   // src/lib/publish-guard.ts. Trust scores belong to sellers who post here, not to linked listings.
-  { Icon: BadgeCheck, id: 'verification', title: 'Trust & reputation', body: 'Listings posted here publish instantly after automated checks (no banned items, no contact details in the text, and enough real photos — three for most categories, one for services). Members can report any listing that breaks the rules. A seller’s trust score rises with good service and falls when a report against them is confirmed — the blue Trusted and gold Exceptional badges are earned, not given. A score is a signal, not a guarantee; always inspect before you pay.' },
+  // ⚠️ "INSTANTLY" CARRIES ITS TWO EXCEPTIONS (2026-11-06 audit) — a Restricted account, a licence-check aisle — as /about's do.
+  {
+    Icon: BadgeCheck,
+    id: 'verification',
+    title: 'Trust & reputation',
+    body: 'Listings posted here go live as soon as they pass automated checks (no banned items, no contact details in the text, and enough real photos — three for most categories, one for services), unless the seller’s account is Restricted or the category needs a licence check first. Members can report any listing that breaks the rules. A seller’s trust score rises with good service and falls when a report against them is confirmed — the blue Trusted and gold Exceptional badges are earned, not given. A score is a signal, not a guarantee; always inspect before you pay.',
+    bodyVi: 'Tin đăng trực tiếp tại đây được hiển thị ngay khi vượt qua bước kiểm tra tự động (không có hàng cấm, không chèn thông tin liên hệ vào nội dung và có đủ ảnh thật — ba ảnh với hầu hết danh mục, một ảnh với dịch vụ), trừ khi tài khoản người bán đang bị hạn chế hoặc danh mục cần kiểm tra giấy phép trước. Thành viên có thể báo cáo bất kỳ tin vi phạm nào. Điểm uy tín của người bán tăng khi phục vụ tốt và giảm khi một báo cáo về họ được xác nhận — huy hiệu Đáng tin cậy màu xanh và Xuất sắc màu vàng do người bán tự tích lũy, không ai được cấp sẵn. Điểm uy tín chỉ là tín hiệu tham khảo, không phải sự bảo đảm; hãy luôn kiểm tra hàng trước khi trả tiền.',
+  },
   { Icon: Tag, title: 'Messaging & offers', body: 'All contact happens in-app: tap Message to chat, or Make an offer to send a price the seller can accept or counter. Phone/Zalo is exchanged inside the chat, never published on the listing — which keeps spam out.' },
   { Icon: Bell, title: 'Notifications', body: 'The bell at the top-right alerts you to new messages and offers in real time, on desktop and mobile. Each notification links straight to the conversation.' },
   { Icon: Heart, title: 'Saving listings', body: 'Tap the heart on any card or listing to save it. Your saved items live in the Saved tab — handy for comparing places or items before you decide.' },
@@ -65,6 +79,9 @@ export default function GuidePage() {
   return (
     <ContentPage
       title="How eno.vn works"
+      // `titleVi` / `labelVi`: AUTHORED Vietnamese (L-CONTENT-VI, 2026-11-06 audit) — string props the ui-strings harvester
+      // never sees, so the Vietnamese server HTML carried every heading here in English (content-page-vi-contract.test.ts).
+      titleVi="eno.vn hoạt động thế nào"
       // ⛔ NOT "eno.vn is the trusted marketplace for Vietnam’s international community." (owner, 2026-10-04):
       // the site's own description, as the home page's Vietnamese says it (HOME_DESCRIPTION_VI).
       // Two literal <Tr>s, not one <Tr text={cond ? a : b}>: gen-ui-strings extracts literals only, and a string
@@ -73,18 +90,19 @@ export default function GuidePage() {
         ? <Tr text="eno.vn is a free classifieds marketplace for expats and locals in Vietnam. Here’s everything you need in a couple of minutes." />
         : <Tr text="eno.vn is a classifieds marketplace for expats and locals in Vietnam. Here’s everything you need in a couple of minutes." />}
       sections={[
-        { id: 'buyers', label: 'For buyers' },
-        { id: 'sellers', label: 'For sellers' },
-        { id: 'features', label: 'Features' },
+        { id: 'buyers', label: 'For buyers', labelVi: 'Dành cho người mua' },
+        { id: 'sellers', label: 'For sellers', labelVi: 'Dành cho người bán' },
+        { id: 'features', label: 'Features', labelVi: 'Tính năng' },
       ]}
     >
-      <ContentSection id="buyers" title="For buyers" wide>
+      <ContentSection id="buyers" title="For buyers" titleVi="Dành cho người mua" wide>
           <div className="mt-1 grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-3">
             {BUYER_STEPS.map(({ title, body }, i) => (
               <div key={title} className="flex gap-4">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold text-accent-foreground tabular-nums">{i + 1}</span>
                 <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-foreground"><Tr text={title} /></h3>
+                  {/* text-base: one step heading size across the family — /about's steps and this page's features (2026-11-06 audit). */}
+                  <h3 className="text-base font-bold text-foreground"><Tr text={title} /></h3>
                   <p className="mt-1 text-sm leading-relaxed text-body"><Tr text={body} /></p>
                 </div>
               </div>
@@ -92,28 +110,28 @@ export default function GuidePage() {
           </div>
       </ContentSection>
 
-      <ContentSection id="sellers" title="For sellers" wide>
+      <ContentSection id="sellers" title="For sellers" titleVi="Dành cho người bán" wide>
           <div className="mt-1 grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-3">
-            {SELLER_STEPS.map(({ title, body }, i) => (
+            {SELLER_STEPS.map(({ title, body, bodyVi }, i) => (
               <div key={title} className="flex gap-4">
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold text-accent-foreground tabular-nums">{i + 1}</span>
                 <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-foreground"><Tr text={title} /></h3>
-                  <p className="mt-1 text-sm leading-relaxed text-body"><Tr text={body} /></p>
+                  <h3 className="text-base font-bold text-foreground"><Tr text={title} /></h3>
+                  <p className="mt-1 text-sm leading-relaxed text-body">{bodyVi ? <Bilingual en={body} vi={bodyVi} /> : <Tr text={body} />}</p>
                 </div>
               </div>
             ))}
           </div>
       </ContentSection>
 
-      <ContentSection id="features" title="Features & how they work" wide>
+      <ContentSection id="features" title="Features & how they work" titleVi="Tính năng và cách hoạt động" wide>
           <div className="mt-1 grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-2">
-            {FEATURES.map(({ Icon, id, title, body }) => (
+            {FEATURES.map(({ Icon, id, title, body, bodyVi }) => (
               <div key={title} id={id} className="scroll-mt-24 flex gap-3.5">
                 <span className="mt-0.5 shrink-0 text-accent-foreground"><Icon className="h-5 w-5" /></span>
                 <div className="min-w-0">
                   <h3 className="text-base font-bold text-foreground"><Tr text={title} /></h3>
-                  <p className="mt-1 text-sm leading-relaxed text-body"><Tr text={body} /></p>
+                  <p className="mt-1 text-sm leading-relaxed text-body">{bodyVi ? <Bilingual en={body} vi={bodyVi} /> : <Tr text={body} />}</p>
                 </div>
               </div>
             ))}

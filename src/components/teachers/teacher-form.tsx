@@ -2932,7 +2932,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   if (mode === 'edit' && !user) {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
-        <p className="text-body">{tr('Sign in to edit your teacher profile.', 'Đăng nhập để sửa hồ sơ giáo viên.')}</p>
+        {/* The page's title here too, as every other state of the teacher pages has one (2026-11-06 audit). */}
+        <h1 className="h-title text-foreground">{tr('Your teacher profile', 'Hồ sơ giáo viên của bạn')}</h1>
+        <p className="mt-2 text-sm text-body">{tr('Sign in to edit your teacher profile.', 'Đăng nhập để sửa hồ sơ giáo viên.')}</p>
         <Button variant="cta" className="mt-4" onClick={() => openSignIn()}>{tr('Sign in', 'Đăng nhập')}</Button>
       </div>
     )
@@ -3171,6 +3173,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       <StepWizard
         steps={rail}
         current={step}
+        // The rail's glyphs alone did not say what a step is, or how many are left (2026-11-06 audit): its caption shows.
+        showStepName
         // A new profile jumps back only (the rail's default); an edit, both ways — every step is already answered.
         onStepSelect={(k) => { if (isTeacherStep(k)) setStepKey(k) }}
         allowForward={mode === 'edit'}
@@ -3232,13 +3236,17 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
                 )}
               </div>
               {draftLine}
-              <p className="mt-1 text-sm text-muted-foreground">{tr('Free. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
+              <p className="mt-1 text-sm text-body">{tr('Free. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
               {/* What Publish will ask for, said before the first answer (2026-10-17 — the bounce study's "say the video up
                   front": since the video became required on 10-16, half of those who reached the last step stopped there).
                   The CV too (owner, 2026-10-21) — a PDF, which a teacher may first have to make. Since 2026-10-22 both are
                   asked for, never required to publish (owner: "publish before video/CV"), so the line says "now or after". */}
               {mode === 'join' && !existing && step === 'plans' && (
-                <p className="mt-1 text-sm text-muted-foreground">{tr('You will add a clear photo of yourself. A short intro video (20–30 seconds is enough) and your CV as a PDF help schools choose you — add them now or after you publish. Once you sign in, your answers are saved, so you can finish on a laptop.', 'Bạn sẽ thêm một ảnh rõ mặt. Một video giới thiệu ngắn (20–30 giây là đủ) và CV dạng PDF giúp các trường chọn bạn — thêm ngay hoặc sau khi đăng hồ sơ. Sau khi đăng nhập, câu trả lời được lưu, nên bạn có thể hoàn tất trên máy tính.')}</p>
+                <p className="mt-1 text-sm text-body">
+                  {tr('You will add a clear photo of yourself. A short intro video (20–30 seconds is enough) and your CV as a PDF help schools choose you — add them now or after you publish.', 'Bạn sẽ thêm một ảnh rõ mặt. Một video giới thiệu ngắn (20–30 giây là đủ) và CV dạng PDF giúp các trường chọn bạn — thêm ngay hoặc sau khi đăng hồ sơ.')}
+                  {/* Signed in, the saved-answers line above already says this (2026-11-06 audit) — once is enough. */}
+                  {!user && <>{' '}{tr('Once you sign in, your answers are saved, so you can finish on a laptop.', 'Sau khi đăng nhập, câu trả lời được lưu, nên bạn có thể hoàn tất trên máy tính.')}</>}
+                </p>
               )}
             </div>
             {/* AN EDIT OF A PROFILE PUBLISHED WITHOUT ITS VIDEO OR CV (owner, 2026-10-22: "publish before video/CV"): the way to

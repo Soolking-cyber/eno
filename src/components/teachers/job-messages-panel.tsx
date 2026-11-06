@@ -23,11 +23,14 @@ import { useLanguage } from '@/context/language-context'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
-import { SwitchRow } from '@/components/ui/switch'
+import { NoticeParagraphs, SwitchRow } from '@/components/ui/switch'
 import { Loader2 } from '@/components/ui/icons'
 import { JOB_DM_NOTICE_VERSION } from '@/lib/teachers/job-dms/constants'
 
 const ENDPOINT = '/api/teachers/me/job-dms'
+/** Bounded like the Zalo page's waits (cover-zalo-panel.tsx — 2026-11-06 audit): a stalled request must never hold the page on
+ *  its spinner, or a button busy; it ends as a failed read (Try again) or a re-read of the truth. */
+const timeout = () => (typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(10_000) : undefined)
 
 /** The endpoint's answer (consent.ts JobDmState). */
 export type JobDmView = { on: boolean; noticeVersion: string | null; current: boolean; teacher: boolean; paused: boolean }
@@ -60,8 +63,14 @@ export function JobMessagesNotice() {
   const { tr } = useLanguage()
   return (
     <span data-testid="job-dm-notice">
-      {tr('Job messages are on for every teacher profile on eno.vn until you switch them off. eno.vn’s jobs desk, shown in chat as “Alex · eno.vn”, may send you automatic messages in eno.vn chat about jobs and cover lessons that fit your teacher profile. We find them in Facebook teaching-job groups, LinkedIn job alerts, posts our team passes on and eno.vn’s own job listings, and match them automatically on eno’s own server in Vietnam — no AI company outside Vietnam receives your profile for this. The matching uses where you live, the places you can teach, the work you want, your subjects, age groups, English level, degree, certificate types, years of experience and expected salary — and, while cover lessons are on, your cover areas, free periods and hourly rate. At most one jobs message and one cover-lesson message a day, with at most 5 jobs in each, and at most two messages until you reply; your replies go to our team. Reply STOP, or switch this off here, at any time. See our', 'Tin nhắn việc làm được bật cho mọi hồ sơ giáo viên trên eno.vn cho đến khi bạn tắt. Bộ phận việc làm của eno.vn, hiển thị trong tin nhắn là “Alex · eno.vn”, có thể gửi cho bạn tin nhắn tự động trong mục tin nhắn của eno.vn về các việc làm và buổi dạy thay phù hợp với hồ sơ giáo viên của bạn. Chúng tôi tìm các tin này trong các nhóm Facebook tuyển giáo viên, thông báo việc làm của LinkedIn, các tin do đội ngũ của chúng tôi chuyển đến và các tin tuyển dụng của chính eno.vn, rồi so khớp tự động trên máy chủ riêng của eno tại Việt Nam — không có công ty AI nào ngoài Việt Nam nhận hồ sơ của bạn cho việc này. Việc so khớp dùng nơi bạn đang sống, các nơi bạn có thể dạy, loại công việc bạn muốn, môn dạy, độ tuổi học viên, trình độ tiếng Anh, bằng cấp, loại chứng chỉ, số năm kinh nghiệm và mức lương mong muốn — và, khi bạn bật dạy thay, các khu vực dạy thay, các buổi rảnh và mức phí theo giờ. Tối đa một tin nhắn việc làm và một tin nhắn dạy thay mỗi ngày, mỗi tin tối đa 5 việc, và tối đa hai tin nhắn cho đến khi bạn trả lời; tin trả lời của bạn được gửi đến đội ngũ của chúng tôi. Bạn có thể trả lời STOP, hoặc tắt mục này tại đây, bất cứ lúc nào. Xem')}{' '}
-      <Link href="/privacy" className="underline">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</Link>.
+      <NoticeParagraphs
+        // 2026-11-06 audit: four short paragraphs — who sends and what, where the jobs come from and where matching runs, what
+        // it uses, the limits and how to stop. Where each one begins, in either language; the string below is untouched, so
+        // JOB_DM_NOTICE_VERSION holds.
+        starts={['We find them in', 'The matching uses', 'At most one jobs message', 'Chúng tôi tìm các tin này', 'Việc so khớp dùng', 'Tối đa một tin nhắn việc làm']}
+        tail={<><Link href="/privacy" className="underline">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</Link>.</>}
+        text={tr('Job messages are on for every teacher profile on eno.vn until you switch them off. eno.vn’s jobs desk, shown in chat as “Alex · eno.vn”, may send you automatic messages in eno.vn chat about jobs and cover lessons that fit your teacher profile. We find them in Facebook teaching-job groups, LinkedIn job alerts, posts our team passes on and eno.vn’s own job listings, and match them automatically on eno’s own server in Vietnam — no AI company outside Vietnam receives your profile for this. The matching uses where you live, the places you can teach, the work you want, your subjects, age groups, English level, degree, certificate types, years of experience and expected salary — and, while cover lessons are on, your cover areas, free periods and hourly rate. At most one jobs message and one cover-lesson message a day, with at most 5 jobs in each, and at most two messages until you reply; your replies go to our team. Reply STOP, or switch this off here, at any time. See our', 'Tin nhắn việc làm được bật cho mọi hồ sơ giáo viên trên eno.vn cho đến khi bạn tắt. Bộ phận việc làm của eno.vn, hiển thị trong tin nhắn là “Alex · eno.vn”, có thể gửi cho bạn tin nhắn tự động trong mục tin nhắn của eno.vn về các việc làm và buổi dạy thay phù hợp với hồ sơ giáo viên của bạn. Chúng tôi tìm các tin này trong các nhóm Facebook tuyển giáo viên, thông báo việc làm của LinkedIn, các tin do đội ngũ của chúng tôi chuyển đến và các tin tuyển dụng của chính eno.vn, rồi so khớp tự động trên máy chủ riêng của eno tại Việt Nam — không có công ty AI nào ngoài Việt Nam nhận hồ sơ của bạn cho việc này. Việc so khớp dùng nơi bạn đang sống, các nơi bạn có thể dạy, loại công việc bạn muốn, môn dạy, độ tuổi học viên, trình độ tiếng Anh, bằng cấp, loại chứng chỉ, số năm kinh nghiệm và mức lương mong muốn — và, khi bạn bật dạy thay, các khu vực dạy thay, các buổi rảnh và mức phí theo giờ. Tối đa một tin nhắn việc làm và một tin nhắn dạy thay mỗi ngày, mỗi tin tối đa 5 việc, và tối đa hai tin nhắn cho đến khi bạn trả lời; tin trả lời của bạn được gửi đến đội ngũ của chúng tôi. Bạn có thể trả lời STOP, hoặc tắt mục này tại đây, bất cứ lúc nào. Xem')}
+      />
     </span>
   )
 }
@@ -95,7 +104,7 @@ function JobMessagesFor() {
 
   const read = useCallback(async (): Promise<JobDmView | null> => {
     try {
-      const res = await fetch(ENDPOINT, { cache: 'no-store' })
+      const res = await fetch(ENDPOINT, { cache: 'no-store', signal: timeout() })
       return res.ok ? jobDmViewOf(await res.json().catch(() => null)) : null
     } catch {
       return null
@@ -123,7 +132,7 @@ function JobMessagesFor() {
       setLine(fresh && (next ? fresh.current === true || !fresh.teacher : fresh.on === false) ? '' : 'failed')
     }
     try {
-      const res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(jobDmRequest(next)) })
+      const res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(jobDmRequest(next)), signal: timeout() })
       const d: unknown = await res.json().catch(() => null)
       const saved = res.ok ? jobDmViewOf(d) : null
       if (saved) { setView(saved); return }

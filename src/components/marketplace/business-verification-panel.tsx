@@ -55,7 +55,9 @@ const ERROR_COPY: Record<string, [string, string]> = {
   ],
 }
 
-export function BusinessVerificationPanel({ showPersonSteps = true }: { showPersonSteps?: boolean } = {}) {
+/** `flat` — inside the verification hub's own Step 2 card, under its own heading: a hairline instead of the tinted box,
+ *  and no "Get your business verified" title of its own (2026-11-06 audit: a third nested surface, a second title). */
+export function BusinessVerificationPanel({ showPersonSteps = true, flat = false }: { showPersonSteps?: boolean; flat?: boolean } = {}) {
   const { tr } = useLanguage()
   /**
    * App Store gate `ios-hide-kyc` (src/lib/ios-hide-kyc.ts) — off by default. On, the iOS app keeps the
@@ -178,7 +180,7 @@ export function BusinessVerificationPanel({ showPersonSteps = true }: { showPers
   }
 
   if (loading) return (
-    <div role="status" className="mt-6 rounded-2xl bg-tint p-4">
+    <div role="status" className={flat ? 'mt-4 border-t border-border pt-4' : 'mt-6 rounded-2xl bg-tint p-4'}>
       <Skeleton className="h-5 w-40 rounded-lg" />
       <Skeleton className="mt-3 h-4 w-full rounded-lg" />
       <Skeleton className="mt-2 h-4 w-2/3 rounded-lg" />
@@ -257,7 +259,7 @@ export function BusinessVerificationPanel({ showPersonSteps = true }: { showPers
   const hasBank = view?.documentKinds.includes('bank')
 
   return (
-    <div className="mt-6 rounded-2xl bg-tint p-4">
+    <div className={flat ? 'mt-4 border-t border-border pt-4' : 'mt-6 rounded-2xl bg-tint p-4'}>
       {/* First-party verification is a SEAL moment (icon-language §0b): the eno seal replaces
           lucide ShieldCheck + BadgeCheck here — this panel claims eno's own trust, not a generic one. */}
       {/* text-foreground on the WRAPPER so the seal's line inherits the heading ink (§0 —
@@ -269,7 +271,7 @@ export function BusinessVerificationPanel({ showPersonSteps = true }: { showPers
         * to do a thing they had already done, in bolder type than the confirmation.
         * A panel in a terminal state should state that state, not keep advertising the journey.
         */}
-      {!isVerified && (
+      {!isVerified && !flat && (
         <div className="flex items-center gap-2 text-foreground">
           <ShieldCheck className="h-4 w-4" />
           <h3 className="text-sm font-bold text-foreground">{tr('Get your business verified', 'Xác minh doanh nghiệp')}</h3>

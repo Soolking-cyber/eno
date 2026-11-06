@@ -78,7 +78,8 @@ export function DuoCard({ rows, known, checked }: { rows: PriceRow[]; known: boo
           </tbody>
         </table>
       ) : (
-        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
+        // The prose column's width, not the page's: the 2TB price sat ~800px from the sentence above it (2026-11-06 audit).
+        <dl className="mt-4 grid max-w-prose grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
           {DUO_RRP.map(([storage, price]) => (
             <div key={storage}>
               <dt className="text-xs uppercase tracking-wide text-muted-foreground">{storage}</dt>
@@ -90,7 +91,7 @@ export function DuoCard({ rows, known, checked }: { rows: PriceRow[]; known: boo
         </dl>
       )}
 
-      <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+      <p className="mt-4 max-w-prose text-xs leading-relaxed text-muted-foreground">
         {/* ⚠️ THREE STATES, NOT TWO. The middle one — the catalogue could not be read — must not be
             reported as "nobody is listing one": that sentence would then be a build outage
             masquerading as a fact, cached for an hour (opus). */}

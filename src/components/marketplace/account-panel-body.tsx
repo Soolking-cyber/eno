@@ -129,8 +129,16 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   // On mobile the rail is a launcher — tapping an item navigates and the rail must close (a route
   // CHANGE already closes it, but re-tapping the current route wouldn't, so close here too).
   const closeOnMobile = () => { if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 64rem)').matches) onClose() }
+  // ⚠️ A ROUTE WITH NO ROW OF ITS OWN LIGHTS THE ROW IT BELONGS TO (2026-11-06 audit: on these the rail said nothing
+  // about where you were). Verify-your-identity is step 1 of Verification; the availability review is My listings'.
+  // Settings and the account hub have no row either: the identity card below is their door, so it lights for them.
+  const here = pathname === '/dashboard/account/verify' ? '/dashboard/verification'
+    : pathname === '/dashboard/availability' ? '/dashboard/listings'
+    : pathname
+  const onSettings = pathname === '/dashboard/settings'
+  const onIdentity = onSettings || pathname === '/dashboard/account'
   const active = (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname === href || (pathname?.startsWith(href + '/') ?? false)
+    exact ? here === href : here === href || (here?.startsWith(href + '/') ?? false)
 
   // Ghost pill (borderless, tactile). On the collapsed desktop rail the icon sits CENTRED in the
   // 72px column with no label; expanded, it left-aligns with the revealed label. bg-secondary/60 on
@@ -479,10 +487,11 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
           ) : (
           /* Fixed shape like the nav rows: `lg:px-1.5` centres the 36px avatar in the collapsed 48px
              row — on the same vertical axis as the icons above — and it stays put when the rail opens. */
-          <div className="group relative flex items-center gap-3 rounded-2xl px-3 py-2 transition-colors hover:bg-tint lg:px-1.5">
+          <div className={cn('group relative flex items-center gap-3 rounded-2xl px-3 py-2 transition-colors lg:px-1.5', onIdentity ? 'bg-secondary' : 'hover:bg-tint')}>
             <Link
               href="/dashboard/settings"
               aria-label={tr('Settings', 'Cài đặt')}
+              aria-current={onSettings ? 'page' : undefined}
               className="absolute inset-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
             {/* `pointer-events-none` on the avatar AND the text block: both paint ABOVE the stretched

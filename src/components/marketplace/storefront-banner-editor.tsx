@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { compressImageFile } from '@/lib/normalize-image'
 import { storefrontUrl } from '@/lib/storefront-host'
+import { cn } from '@/lib/utils'
 
 /**
  * THE STOREFRONT BANNER CONTROL — a shop's one cover image for its own storefront.
@@ -126,11 +127,13 @@ export function StorefrontBannerEditor({ bannerUrl, handle, onSaved }: Props) {
       )}
 
       <label
-        className="group relative mt-3 block cursor-pointer overflow-hidden rounded-2xl border border-line-strong bg-tint"
+        className={cn('group relative mt-3 block cursor-pointer overflow-hidden border border-line-strong bg-tint', url ? 'rounded-2xl' : 'rounded-xl')}
         title={tr('Change banner', 'Đổi ảnh bìa')}
       >
-        {/* The reserved box is the storefront's own ratio — see BANNER_W/H above. */}
-        <span className="block w-full" style={{ aspectRatio: `${BANNER_W} / ${BANNER_H}` }}>
+        {/* The reserved box is the storefront's own ratio — see BANNER_W/H above — once there is a banner to preview.
+            EMPTY, IT IS ONE COMPACT ROW (2026-11-06 audit): across the desktop column the ratio reserved ~240px of blank
+            tint and pushed the handle a screen further down, to show nothing. */}
+        <span className={cn('block w-full', !url && 'h-14')} style={url ? { aspectRatio: `${BANNER_W} / ${BANNER_H}` } : undefined}>
           {url ? (
             <Image src={url} alt="" width={BANNER_W} height={BANNER_H} className="h-full w-full object-cover" unoptimized />
           ) : (

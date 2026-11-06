@@ -35,10 +35,23 @@ export const metadata: Metadata = withShare({
 
 const BASE = API_BASE
 
-function Code({ children }: { children: string }) {
+/** The hosted MCP server's tools, one chip each below. */
+const MCP_TOOLS = [
+  'get_shop', 'update_shop', 'list_listings', 'get_listing', 'create_listing', 'update_listing', 'set_listing_status',
+  'delete_listing', 'bulk_create_listings', 'sync_catalogue', 'analytics_summary', 'analytics_listings', 'list_webhooks',
+  'register_webhook', 'delete_webhook',
+]
+
+/**
+ * ⚠️ `whole`: ONE TAP OR CLICK SELECTS THE WHOLE VALUE (`user-select: all`), ready to copy (2026-11-06 audit). A Copy
+ * button would be client JavaScript on a page whose readers are mostly agents that run none (the header note); the
+ * selection is its no-JS form. Only on blocks that are ONE value to paste — the base URL, a header, a one-line command —
+ * so a multi-line example keeps ordinary selection and a reader can still take one line of it.
+ */
+function Code({ children, whole = false }: { children: string; whole?: boolean }) {
   return (
     <pre className="overflow-x-auto rounded-xl bg-foreground/[0.04] p-3.5 text-xs leading-relaxed text-foreground ring-1 ring-border">
-      <code className="font-mono">{children}</code>
+      <code className={whole ? 'select-all font-mono' : 'font-mono'}>{children}</code>
     </pre>
   )
 }
@@ -71,13 +84,11 @@ export default function DevelopersPage() {
 
         <section className="mt-8">
           <h2 className="h-section text-foreground">Base URL</h2>
-          <div className="mt-3"><Code>{BASE}</Code></div>
+          <div className="mt-3"><Code whole>{BASE}</Code></div>
+          {/* The sibling deployment and its shared keys are explained in Authentication, beside the key they are about
+              (2026-11-06 audit): here they stood between the base URL and the first request. */}
           <p className="mt-3 text-sm leading-relaxed text-body">
-            Everything below is served from <strong className="text-foreground">{SITE_ORIGIN}</strong>. {SITE_NAME} and its
-            sibling site run the same software on separate deployments, and they share one database — so a key issued
-            by either one authenticates at both. Send requests to the host you got your key from anyway: that is the
-            host whose catalogue and storefront the responses describe. Treat a key as a credential for your shop, not
-            for a single hostname, and revoke it in the dashboard if it leaks.
+            Everything below is served from <strong className="text-foreground">{SITE_ORIGIN}</strong>.
           </p>
         </section>
 
@@ -118,35 +129,11 @@ export default function DevelopersPage() {
             Nothing here requires an account. Together with <code className="font-mono text-foreground">GET /status</code> below, this is what you can
             call before you have a key:
           </p>
-          <div className="mt-3"><Code>{`curl ${SITE_ORIGIN}/openapi.json`}</Code></div>
+          <div className="mt-3"><Code whole>{`curl ${SITE_ORIGIN}/openapi.json`}</Code></div>
         </section>
 
-        {/* A section on the canvas like every other one here — a hairline, not a tinted box and a
-            "New" kicker (flat-surface canon §3b; C-BOXES, C-KICKERS). The code wells stay wells. */}
-        <section className="mt-8 border-t border-border pt-6">
-          <h2 className="h-section text-foreground">Manage your shop with AI (MCP)</h2>
-          <p className="mt-2 text-sm leading-relaxed text-body">
-            {SITE_NAME} runs a hosted <a href="https://modelcontextprotocol.io" className="font-semibold text-accent-foreground hover:underline">Model Context Protocol</a> server,
-            so an AI agent (Claude, etc.) can manage your storefront directly — list, create, edit, bulk-import, sync a catalogue,
-            read analytics, and manage webhooks. Add it as a remote MCP server with your API key as the Bearer token:
-          </p>
-          {/* ⚠️ DERIVED, LIKE EVERY OTHER HOST HERE. This was `https://eno.vn/api/mcp` verbatim, so a
-              forum partner pasting it into an MCP client pointed the agent at the other deployment
-              and got a 401 it had no way to interpret. Verified 2026-08-23: GET /api/mcp answers 405
-              (POST-only JSON-RPC) on BOTH origins, so the endpoint is real on both. */}
-          <div className="mt-3"><Code>{`${SITE_ORIGIN}/api/mcp
-Authorization: Bearer eno_live_…`}</Code></div>
-          <p className="mt-3 text-sm leading-relaxed text-body">
-            Your key stays in the client&apos;s connection settings — it is <strong className="text-foreground">never passed as a tool argument, so it never reaches the model</strong>.
-            Tools are scoped exactly like the REST API (a read-only key exposes only the read tools). Available tools:
-          </p>
-          <p className="mt-2 text-sm leading-relaxed text-body font-mono">
-            get_shop · update_shop · list_listings · get_listing · create_listing · update_listing · set_listing_status ·
-            delete_listing · bulk_create_listings · sync_catalogue · analytics_summary · analytics_listings · list_webhooks ·
-            register_webhook · delete_webhook
-          </p>
-        </section>
-
+        {/* Authentication BEFORE the MCP server (2026-11-06 audit): the MCP setup connects with the key minted here, so
+            the page reads discovery → a key → what the key opens. */}
         <section className="mt-8">
           <h2 className="h-section text-foreground">Authentication</h2>
           <p className="mt-2 text-sm leading-relaxed text-body">
@@ -157,7 +144,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
             Create a key in your <Link href="/dashboard/dev" className="font-semibold text-accent-foreground hover:underline">dashboard → Developers</Link> section
             (business accounts). The full secret is shown once — store it safely. Send it as a Bearer token on every request:
           </p>
-          <div className="mt-3"><Code>{`Authorization: Bearer eno_live_…`}</Code></div>
+          <div className="mt-3"><Code whole>{`Authorization: Bearer eno_live_…`}</Code></div>
           {/* ⚠️ RENDERED FROM `OAUTH_SCOPES`, THE CONSTANT THE TOKEN ENDPOINT ENFORCES AND BOTH
               .well-known DOCUMENTS ADVERTISE. Hand-typing the list is how a fifth scope ships
               undocumented, or a renamed one keeps being documented after it stops being accepted —
@@ -173,6 +160,12 @@ Authorization: Bearer eno_live_…`}</Code></div>
             (write is opt-in when you mint the key). Every key acts for one shop; requests only ever see that shop&apos;s
             own data. Revoke a key anytime — it takes effect immediately. There is no sandbox and no test key: a key is
             live from the moment it is issued.
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-body">
+            {SITE_NAME} and its sibling site run the same software on separate deployments, and they share one database — so a key
+            issued by either one authenticates at both. Send requests to the host you got your key from anyway: that is the
+            host whose catalogue and storefront the responses describe. Treat a key as a credential for your shop, not
+            for a single hostname, and revoke it in the dashboard if it leaks.
           </p>
 
           <h3 className="mt-6 text-xs font-bold uppercase tracking-wide text-ink-4">OAuth 2.0 (optional) — short-lived tokens</h3>
@@ -199,6 +192,35 @@ Authorization: Bearer eno_live_…`}</Code></div>
 # then:  Authorization: Bearer eyJ…`}</Code></div>
         </section>
 
+        {/* A section on the canvas like every other one here — a hairline, not a tinted box and a
+            "New" kicker (flat-surface canon §3b; C-BOXES, C-KICKERS). The code wells stay wells. */}
+        <section className="mt-8 border-t border-border pt-6">
+          <h2 className="h-section text-foreground">Manage your shop with AI (MCP)</h2>
+          <p className="mt-2 text-sm leading-relaxed text-body">
+            {SITE_NAME} runs a hosted <a href="https://modelcontextprotocol.io" className="font-semibold text-accent-foreground hover:underline">Model Context Protocol</a> server,
+            so an AI agent (Claude, etc.) can manage your storefront directly — list, create, edit, bulk-import, sync a catalogue,
+            read analytics, and manage webhooks. Add it as a remote MCP server with your API key as the Bearer token:
+          </p>
+          {/* ⚠️ DERIVED, LIKE EVERY OTHER HOST HERE. This was `https://eno.vn/api/mcp` verbatim, so a
+              forum partner pasting it into an MCP client pointed the agent at the other deployment
+              and got a 401 it had no way to interpret. Verified 2026-08-23: GET /api/mcp answers 405
+              (POST-only JSON-RPC) on BOTH origins, so the endpoint is real on both. */}
+          <div className="mt-3"><Code>{`${SITE_ORIGIN}/api/mcp
+Authorization: Bearer eno_live_…`}</Code></div>
+          <p className="mt-3 text-sm leading-relaxed text-body">
+            Your key stays in the client&apos;s connection settings — it is <strong className="text-foreground">never passed as a tool argument, so it never reaches the model</strong>.
+            Tools are scoped exactly like the REST API (a read-only key exposes only the read tools). Available tools:
+          </p>
+          {/* One chip per tool (2026-11-06 audit): fifteen names run together with dots wrapped mid-list and could not be scanned. */}
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {MCP_TOOLS.map((tool) => (
+              <li key={tool}>
+                <code className="rounded-lg bg-muted px-1.5 py-0.5 font-mono text-xs font-semibold text-foreground">{tool}</code>
+              </li>
+            ))}
+          </ul>
+        </section>
+
         <section className="mt-8">
           <h2 className="h-section text-foreground">Conventions</h2>
           <ul className="mt-2 space-y-1.5 text-sm leading-relaxed text-body">
@@ -217,7 +239,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
             which is why a human reading the page never noticed. A reviewer caught it. */}
         <h2 className="mt-10 h-section text-foreground">Endpoints</h2>
         <div className="mt-4 space-y-6">
-          <Endpoint method="GET" path="/status" desc="Service status and discovery. The only endpoint that needs NO credential — and the one to call first, because its RateLimit headers tell you the throttle before you have a key.">
+          <Endpoint method="GET" path="/status" desc="Service status and discovery. The only endpoint here that needs NO credential — and the one to call first, because its RateLimit headers tell you the throttle before you have a key.">
             <Code>{`curl -i ${BASE}/status`}</Code>
           </Endpoint>
 

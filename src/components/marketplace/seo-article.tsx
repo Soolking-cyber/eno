@@ -498,10 +498,15 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
           <div className={content.sections.length >= 4 ? 'lg:grid lg:grid-cols-[minmax(0,48rem)_15rem] lg:justify-between lg:gap-x-12' : undefined}>
             <div className="min-w-0">
               {content.sections.length >= 4 && (
-                <details className="mt-6 max-w-3xl border-y border-border lg:hidden">
-                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-body [&::-webkit-details-marker]:hidden">
-                    <span>{chrome.onThisPage} <span className="font-normal text-ink-4">· {content.sections.length}</span></span>
-                    <ChevronDown className="size-4 text-ink-4" aria-hidden />
+                <details className="group mt-6 max-w-3xl border-y border-border lg:hidden">
+                  {/* 2026-11-06 audit: ContentPage's contents row, one treatment for both families — the label in primary
+                      ink, the count beside a 20px chevron that turns on open, a wash on press. It read as passive metadata. */}
+                  <summary className="-mx-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-2 text-sm font-semibold text-foreground active:bg-muted [&::-webkit-details-marker]:hidden">
+                    <span>{chrome.onThisPage}<span className="sr-only"> · </span></span>
+                    <span className="flex shrink-0 items-center gap-1.5 font-normal tabular-nums text-body">
+                      {content.sections.length}
+                      <ChevronDown className="size-5 text-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+                    </span>
                   </summary>
                   <ul className="space-y-2 pb-4 pt-1">
                     {content.sections.map((s) => (

@@ -164,10 +164,15 @@ export function HandleEditor({ target, initial, shareUrl, label }: { target: 'pr
             {(state === 'taken' || state === 'reserved' || state === 'invalid') && dirty && <X className="h-4 w-4 text-destructive" />}
           </span>
         </div>
-        {dirty ? (
+        {/* Save sits beside the field even before anything is typed when there is no handle yet: this field saves itself,
+            apart from the profile's "Save changes" above it, and an empty field with no button left that unsaid
+            (2026-11-06 audit). Disabled until the name is available. NEUTRAL UNTIL SOMETHING IS TYPED (2026-11-06 review):
+            at rest it stood beside the profile's "Save changes" as a second solid brand CTA; the first keystroke makes it
+            the CTA it always was while editing. `secondary`, not `outline`: no border to add on the swap. */}
+        {dirty || !current ? (
           <Button
             type="button"
-            variant="cta"
+            variant={dirty ? 'cta' : 'secondary'}
             size="none"
             disabled={state !== 'available' || saving}
             onClick={save}
@@ -202,6 +207,11 @@ export function HandleEditor({ target, initial, shareUrl, label }: { target: 'pr
         <p className="text-xs text-muted-foreground">
           {at >= 0 ? <>{shown.slice(0, at)}<span className="font-semibold text-body">{bold}</span>{shown.slice(at + bold.length)}</> : shown}
         </p>
+      )}
+      {/* A person's link once the typed handle is free — the address Save will give them (2026-11-06 audit: the "/you"
+          example left its effect a guess). Never for a shop: the server decides a shop's link (see `link`). */}
+      {dirty && target === 'profile' && state === 'available' && (
+        <p className="text-xs text-muted-foreground">{SITE_NAME}/<span className="font-semibold text-body">{normalized}</span></p>
       )}
       {/* Save failed — a verdict on the ATTEMPT (incl. rate limits), so it is announced, not described. */}
       {error && <p role="alert" className="mt-1 text-xs font-semibold text-destructive">{error}</p>}

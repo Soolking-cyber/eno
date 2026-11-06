@@ -182,7 +182,7 @@ export function ConversationList() {
           <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-brand', aiActive ? 'bg-background' : 'bg-brand-50')}><Sparkles className="h-5 w-5" aria-hidden /></span>
           <div className="min-w-0 flex-1">
             <span className="block truncate text-sm font-bold text-foreground">{tr('eno AI', 'eno AI')}</span>
-            <p className="truncate text-xs text-accent-foreground">{tr('Ask anything — find products by chat', 'Hỏi bất cứ điều gì — tìm đồ bằng chat')}</p>
+            <p className="truncate text-xs text-accent-foreground lg:text-sm">{tr('Ask anything — find products by chat', 'Hỏi bất cứ điều gì — tìm đồ bằng chat')}</p>
           </div>
         </Link>
         {/* ⛔ A FAILED PULL IS SAID, NEVER SHOWN AS AN EMPTY INBOX (Emil-skills audit, 2026-10-06). The
@@ -391,8 +391,9 @@ export function ConversationList() {
                           : `${tr('New offer', 'Đề nghị mới')}: ${amt}`
                         : (c.lastMessageText ? localizeOfferLine(c.lastMessageText, moneyLocale(lang)) : tr('New conversation', 'Cuộc trò chuyện mới'))
                       const incoming = !!o && o.status === 'pending' && !o.mine
+                      // 2026-11-06 audit: the preview takes the list's 14px from lg — at 12px beside a 14px name it read as fine print on a desktop.
                       return (
-                        <p className={cn('flex min-w-0 items-center gap-1 text-xs', incoming ? 'font-bold text-accent-foreground' : c.unread > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
+                        <p className={cn('flex min-w-0 items-center gap-1 text-xs lg:text-sm', incoming ? 'font-bold text-accent-foreground' : c.unread > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
                           {OfferIcon && (
                             <OfferIcon
                               className={cn('h-3.5 w-3.5 shrink-0', o?.status === 'accepted' && 'text-success', o?.status === 'declined' && 'text-destructive')}
@@ -450,9 +451,10 @@ export function ConversationList() {
                           <IconButton
                             size="sm"
                             aria-label={tr('More actions', 'Thêm thao tác')}
-                            className="mr-2 ml-1 text-ink-4 transition hover:bg-muted hover-pointer:hidden"
+                            className="mr-2 ml-1 text-body transition hover:bg-muted hover-pointer:hidden"
                           >
-                            <MoreHorizontal className="h-4 w-4" aria-hidden />
+                            {/* 20px in body ink (2026-11-06 audit): Solar's outline dots at 16px in ink-4 were three pin-pricks. */}
+                            <MoreHorizontal className="h-5 w-5" aria-hidden />
                           </IconButton>
                         }
                       />

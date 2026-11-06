@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
+import { Bilingual } from '@/components/marketplace/bilingual'
 import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 
 /**
@@ -55,11 +56,14 @@ const OPERATOR_LINE = OPERATOR_REGISTERED
   ? `${SITE_NAME} is operated by ${COMPANY.name} (${COMPANY.nameEn}). Registered office: ${COMPANY.address}. Business registration no. ${COMPANY.erc}, issued ${COMPANY.ercIssued} by ${COMPANY.ercAuthority}.`
   : `${SITE_NAME} is run by a Vietnamese company that is still completing its business registration. Until the certificate is issued there is no registration number to publish; this page is updated the day it arrives.`
 
+// `labelVi` / `titleVi`: AUTHORED Vietnamese (L-CONTENT-VI, 2026-11-06 audit). Headings reach ContentPage as string props,
+// which the ui-strings harvester never sees, so a Vietnamese reader's server HTML carried these three in English until
+// machine translation swapped them after hydration (content-page-vi-contract.test.ts). "Get help" is in the curated dictionary.
 const RAIL = [
   { id: 'support', label: 'Get help' },
-  { id: 'operator', label: 'Who operates this site' },
-  { id: 'reporting', label: 'Reporting a problem' },
-  { id: 'privacy', label: 'Privacy and your data' },
+  { id: 'operator', label: 'Who operates this site', labelVi: 'Ai vận hành website này' },
+  { id: 'reporting', label: 'Reporting a problem', labelVi: 'Báo cáo vấn đề' },
+  { id: 'privacy', label: 'Privacy and your data', labelVi: 'Quyền riêng tư và dữ liệu của bạn' },
 ]
 
 export default function ContactPage() {
@@ -75,16 +79,21 @@ export default function ContactPage() {
           <a href={`mailto:${COMPANY.email}`} className="inline-flex min-h-11 items-center rounded-xl border border-border px-4 text-base font-semibold text-accent-foreground transition-colors hover:bg-muted">{COMPANY.email}</a>
           {OPERATOR_REGISTERED ? <a href={`tel:${COMPANY.phone}`} className="inline-flex min-h-11 items-center rounded-xl border border-border px-4 text-base font-semibold text-accent-foreground transition-colors hover:bg-muted">{COMPANY.phone}</a> : null}
         </div>
+        {/* ⚠️ THE ADDRESS AND THE NUMBER ARE THE TWO TARGETS RIGHT ABOVE (2026-11-06 audit): this line printed both a second
+            time. It says what they are for instead — and says "call" only when there is a number to call. */}
         <p className="text-base leading-relaxed text-body">
-          <Tr text="For anything about your account, a listing, a message or a payment question, email" />{' '}
-          <a href={`mailto:${COMPANY.email}`} className={LINK}>{COMPANY.email}</a>
           {OPERATOR_REGISTERED ? (
-            <>
-              {' '}<Tr text="or call" />{' '}
-              <a href={`tel:${COMPANY.phone}`} className={LINK}>{COMPANY.phone}</a>
-            </>
-          ) : null}
-          . <Tr text="We answer in Vietnamese and English." />
+            <Bilingual
+              en="Email or call us about your account, a listing, a message or a payment."
+              vi="Hãy gửi email hoặc gọi cho chúng tôi về tài khoản, tin đăng, tin nhắn hoặc vấn đề thanh toán."
+            />
+          ) : (
+            <Bilingual
+              en="Email us about your account, a listing, a message or a payment."
+              vi="Hãy gửi email cho chúng tôi về tài khoản, tin đăng, tin nhắn hoặc vấn đề thanh toán."
+            />
+          )}{' '}
+          <Tr text="We answer in Vietnamese and English." />
         </p>
         <p className="text-base leading-relaxed text-body">
           {/* The fastest route is genuinely not email, and saying so is more useful than a form.
@@ -95,7 +104,7 @@ export default function ContactPage() {
         </p>
       </ContentSection>
 
-      <ContentSection id="operator" title="Who operates this site">
+      <ContentSection id="operator" title="Who operates this site" titleVi="Ai vận hành website này">
         <p className="text-base leading-relaxed text-body"><Tr text={OPERATOR_LINE} /></p>
         {OPERATOR_REGISTERED ? (
           <p className="text-base leading-relaxed text-body">
@@ -106,7 +115,7 @@ export default function ContactPage() {
         ) : null}
       </ContentSection>
 
-      <ContentSection id="reporting" title="Reporting a problem">
+      <ContentSection id="reporting" title="Reporting a problem" titleVi="Báo cáo vấn đề">
         <p className="text-base leading-relaxed text-body">
           {/* ⚠️ Points at the in-product control rather than an inbox on purpose: a report filed
               through the app is deduplicated, attached to the item, and visible to moderation.
@@ -120,7 +129,7 @@ export default function ContactPage() {
         </p>
       </ContentSection>
 
-      <ContentSection id="privacy" title="Privacy and your data">
+      <ContentSection id="privacy" title="Privacy and your data" titleVi="Quyền riêng tư và dữ liệu của bạn">
         <p className="text-base leading-relaxed text-body">
           <Tr text="To ask what personal data we hold, request a copy, or ask us to delete your account, email" />{' '}
           <a href={`mailto:${COMPANY.privacyEmail}`} className={LINK}>{COMPANY.privacyEmail}</a>.{' '}

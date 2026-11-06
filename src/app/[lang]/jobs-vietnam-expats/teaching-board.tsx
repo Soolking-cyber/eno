@@ -8,7 +8,7 @@ import { vnToday } from '@/lib/job-listing'
 import { Row, Rows } from '@/components/ui/rows'
 import { ChevronRight } from '@/components/ui/icons'
 import { LANDING_TARGET } from './landing-target'
-import { boardJobs, boardSections, boardSummary, emptySectionLine, jobLine, sectionHeading, summarySegments, type BoardJob } from './board'
+import { boardJobs, boardSections, boardSummary, emptySectionLine, jobLine, sectionHeading, summaryLead, summaryRest, type BoardJob } from './board'
 
 /**
  * THE ENGLISH TEACHING JOBS BOARD on /jobs-vietnam-expats (teacher visibility plan B2, 2026-10-18): every live teaching
@@ -80,10 +80,11 @@ export async function loadTeachingBoard(now: number = Date.now()): Promise<Teach
  */
 export function TeachingJobsBoard({ board }: { board: TeachingBoard }) {
   if (!board.known || board.jobs.length === 0) return null
+  const summary = boardSummary(board.jobs)
   return (
     <div className="mt-8 max-w-3xl">
       <p className="text-base leading-relaxed text-body">
-        {summarySegments(boardSummary(board.jobs), SITE_NAME, board.day).map((s, i) =>
+        {summaryLead(summary, board.day).map((s, i) =>
           s.href ? (
             <a key={i} href={s.href} className="font-semibold text-accent-foreground hover:underline">
               {s.text}
@@ -117,6 +118,9 @@ export function TeachingJobsBoard({ board }: { board: TeachingBoard }) {
           )}
         </section>
       ))}
+      {/* Where the postings come from, how many state the pay and the span of the apply-by dates: after the jobs, not between
+          the count and the first one, where the paragraph ran ten lines on a phone (2026-11-06 audit). */}
+      <p className="mt-10 text-sm leading-relaxed text-body">{summaryRest(summary, SITE_NAME)}</p>
     </div>
   )
 }

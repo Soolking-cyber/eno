@@ -41,8 +41,9 @@ function PreferencesTab() {
     if (!loading && !user) router.replace(`/signin?next=${encodeURIComponent(window.location.pathname + window.location.search)}`)
   }, [loading, user, router])
   if (!loading && !user) return null
+  // Left-aligned under the tab strip like the other Settings tabs (2026-11-06 audit): centred, it sat apart from its tabs.
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="max-w-2xl space-y-6">
       <section>
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-4">{tr('Display', 'Hiển thị')}</h2>
         <PreferencesInline className="pt-1" />

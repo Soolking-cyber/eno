@@ -86,7 +86,8 @@ export default function TeacherCoverPage() {
             </ul>
             {/* `?goal=cover`: the form asks for cover first — "Also looking for a job?" is optional, and HCMC opens on its
                 districts (teacher-form.tsx). */}
-            <Button variant="secondary" asChild><Link href="/teachers/join?goal=cover"><Bilingual en="Offer cover lessons — free" vi="Nhận dạy thay — miễn phí" /></Link></Button>
+            {/* The teachers' door is a primary action too (2026-11-06 audit): a grey secondary on the grey card read as disabled. */}
+            <Button variant="cta" asChild><Link href="/teachers/join?goal=cover"><Bilingual en="Offer cover lessons — free" vi="Nhận dạy thay — miễn phí" /></Link></Button>
           </section>
         </div>
 

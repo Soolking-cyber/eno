@@ -170,7 +170,7 @@ function Cell({ s, heading, locale }: { s: Stats; heading: ReactNode; locale: Mo
       <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
         {label}
         <span className="block font-semibold text-muted-foreground">—</span>
-        <span className="block text-2xs tabular-nums text-muted-foreground">{count(s.n, locale)} <Tr text="listings" /></span>
+        <span className="block text-2xs tabular-nums text-muted-foreground xl:text-xs">{count(s.n, locale)} <Tr text="listings" /></span>
       </td>
     )
   }
@@ -178,8 +178,11 @@ function Cell({ s, heading, locale }: { s: Stats; heading: ReactNode; locale: Mo
     <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
       {label}
       <span className="block whitespace-nowrap font-bold tabular-nums text-foreground">{shown(s.median, locale)}</span>
-      <span className="block text-2xs tabular-nums text-body md:whitespace-nowrap">{shown(s.p25!, locale)} – {shown(s.p75!, locale)}</span>
-      <span className="block text-2xs tabular-nums text-muted-foreground">{count(s.n, locale)} <Tr text="listings" /></span>
+      {/* 12px from xl, not 11: the range and the count are the evidence behind each figure, and they were the faintest text on
+          the page (2026-11-06 audit). Not below xl: at lg, four nowrap ranges at 12px leave the bedroom table little room
+          (estimated, not measured). */}
+      <span className="block text-2xs tabular-nums text-body md:whitespace-nowrap xl:text-xs">{shown(s.p25!, locale)} – {shown(s.p75!, locale)}</span>
+      <span className="block text-2xs tabular-nums text-muted-foreground xl:text-xs">{count(s.n, locale)} <Tr text="listings" /></span>
     </td>
   )
 }
@@ -210,8 +213,9 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
           each district row becomes a heading line over a 3-up grid of its figures, each cell labelled;
           the header row stays in the DOM for assistive tech but leaves the layout. Keeping one <table>
           keeps what the Dataset JSON-LD, print and a crawler read, and never prints a number twice.
-          From md it is the plain table again, horizontally scrollable only if a column ever outgrows it. */}
-      <div className="md:overflow-x-auto">
+          From md it is the plain table again, horizontally scrollable only if a column ever outgrows it.
+          ⚠️ AT MOST max-w-4xl: at the page's full width the district names sat ~700px from their figures (2026-11-06 audit). */}
+      <div className="max-w-4xl md:overflow-x-auto">
         <table className="w-full text-sm max-md:block md:min-w-[36rem]">
           <thead className="max-md:sr-only">
             <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -287,8 +291,9 @@ export function BedroomTable({ index, lang, locale }: { index: RentIndex; lang: 
           vi="Giá thuê chào trung vị mỗi tháng của căn hộ, theo số phòng ngủ. Dấu gạch nghĩa là số tin chưa đạt ngưỡng công bố."
         />
       </p>
-      {/* One table at every width, restyled below md exactly like the district table above. */}
-      <div className="md:overflow-x-auto">
+      {/* One table at every width, restyled below md exactly like the district table above, and capped like it: one step wider
+          (max-w-5xl) for its four band columns. */}
+      <div className="max-w-5xl md:overflow-x-auto">
         <table className="w-full text-sm max-md:block md:min-w-[36rem]">
           <thead className="max-md:sr-only">
             <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">

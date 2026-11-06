@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { IS_SERVICES } from '@/lib/edition'
 import { Bilingual } from './bilingual'
 import { LocalizedLink } from './localized-link'
+import { ArrowRight } from '@/components/ui/icons'
 import { formatCountFull, joinList } from '@/app/[lang]/c/[category]/category-copy'
 
 /**
@@ -136,8 +137,14 @@ export function TeacherCoverLink({ className }: { className?: string }) {
   const { tr } = useLanguage()
   return (
     <p className={className}>
+      {/* 2026-11-06 audit: the shape of the teaching lines under it (teaching-links.tsx) — the question in the line's ink, the
+          answer as the link with its arrow. The whole sentence was one underlined brand link, the odd line out of three.
+          The two halves keep their reviewed translations in the nine machine languages (src/lib/i18n/glossary.ts). */}
+      {tr('Need a cover teacher?', 'Cần giáo viên dạy thay?')}{' '}
       {/* LocalizedLink: `/` is the English-pinned home, so a Vietnamese reader must land on its `/vi` twin. */}
-      <LocalizedLink href="/?category=teachers&attr_cover=open" rel="nofollow" prefetch={false} className="font-semibold text-brand underline">{tr('Need a cover teacher? See who is free', 'Cần giáo viên dạy thay? Xem ai đang rảnh')}</LocalizedLink>
+      <LocalizedLink href="/?category=teachers&attr_cover=open" rel="nofollow" prefetch={false} className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
+        {tr('See who is free', 'Xem ai đang rảnh')} <ArrowRight className="h-4 w-4 shrink-0" />
+      </LocalizedLink>
     </p>
   )
 }

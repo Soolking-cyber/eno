@@ -794,7 +794,8 @@ const RATCHETS = {
     // form's <h1>s moved onto .h-title too, but they live in src/components/teachers/, outside this count (page surfaces
     // only, below). ⚠️ So this number and src/app/[lang]/unsubscribe/page.tsx ship in ONE commit: the baseline without
     // that page reads 24 > 20 and fails `npm run build` (gate review, 2026-10-08).
-    baseline: 20,
+    // 20 → 19 (2026-11-06): the dashboard's Bulk upload and Developers <h1>s moved onto .h-title (commit 024a0ad6d).
+    baseline: 19,
     what: 'a page <h1> whose literal classes name none of h-display / h-title / h-greeting / sr-only',
     fix: 'use <PageHeader> (ui/page-header) or the .h-display / .h-title class (docs/design-language.md §1)',
   },

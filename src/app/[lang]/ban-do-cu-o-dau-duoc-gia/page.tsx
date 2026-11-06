@@ -92,33 +92,34 @@ const CONTENT: ArticleContent = {
             kiểm tra vị trí, cả 100 đều ở TP.HCM, nên hãy đọc nó như giá TP.HCM.
           </P>
           <P>
-            Toàn danh mục: trung vị <strong>2.480.000 đ</strong>. Một phần tư số tin dưới 1.050.000 đ,
-            một phần tư trên 4.100.000 đ. Theo từng loại món, trung vị và khoảng giữa:
+            {/* &nbsp; between each figure and its "đ": the unit wrapped alone onto the next line ("5.498.000 / đ.", 2026-11-06 audit). */}
+            Toàn danh mục: trung vị <strong>2.480.000&nbsp;đ</strong>. Một phần tư số tin dưới 1.050.000&nbsp;đ,
+            một phần tư trên 4.100.000&nbsp;đ. Theo từng loại món, trung vị và khoảng giữa:
           </P>
           <Ul>
             <li>
-              <strong>Máy lạnh:</strong> 4.298.000 đ, nửa giữa số tin nằm trong 3.948.000 đ &ndash; 5.498.000 đ.
+              <strong>Máy lạnh:</strong> 4.298.000&nbsp;đ, nửa giữa số tin nằm trong 3.948.000&nbsp;đ&nbsp;&ndash; 5.498.000&nbsp;đ.
             </li>
             <li>
-              <strong>Máy giặt:</strong> 2.730.000 đ, nửa giữa số tin nằm trong 1.648.000 đ &ndash; 3.480.000 đ.
+              <strong>Máy giặt:</strong> 2.730.000&nbsp;đ, nửa giữa số tin nằm trong 1.648.000&nbsp;đ&nbsp;&ndash; 3.480.000&nbsp;đ.
             </li>
             <li>
-              <strong>Sofa:</strong> 2.515.000 đ, nửa giữa số tin nằm trong 1.390.000 đ &ndash; 4.510.000 đ.
+              <strong>Sofa:</strong> 2.515.000&nbsp;đ, nửa giữa số tin nằm trong 1.390.000&nbsp;đ&nbsp;&ndash; 4.510.000&nbsp;đ.
             </li>
             <li>
-              <strong>Tủ quần áo:</strong> 6.200.000 đ, nửa giữa số tin nằm trong 3.980.000 đ &ndash; 7.800.000 đ.
+              <strong>Tủ quần áo:</strong> 6.200.000&nbsp;đ, nửa giữa số tin nằm trong 3.980.000&nbsp;đ&nbsp;&ndash; 7.800.000&nbsp;đ.
               Đây là nhóm nội thất có trung vị cao nhất trong mẫu đo.
             </li>
             <li>
-              <strong>Bàn các loại:</strong> 1.650.000 đ, nửa giữa số tin nằm trong 1.050.000 đ &ndash; 3.200.000 đ.
+              <strong>Bàn các loại:</strong> 1.650.000&nbsp;đ, nửa giữa số tin nằm trong 1.050.000&nbsp;đ&nbsp;&ndash; 3.200.000&nbsp;đ.
             </li>
             <li>
-              <strong>Kệ và tủ nhỏ:</strong> 1.980.000 đ, nửa giữa số tin nằm trong 1.180.000 đ &ndash; 3.380.000 đ.
+              <strong>Kệ và tủ nhỏ:</strong> 1.980.000&nbsp;đ, nửa giữa số tin nằm trong 1.180.000&nbsp;đ&nbsp;&ndash; 3.380.000&nbsp;đ.
             </li>
             <li>
-              <strong>Máy lọc không khí:</strong> trung vị 6.000.000 đ. <strong>Robot hút bụi:</strong>{' '}
-              trung vị 9.000.000 đ. Hai nhóm này ít tin nên con số chỉ mang tính tham khảo, nhưng cả hai
-              đều nằm cao hơn hẳn trung vị 2.480.000 đ của toàn danh mục.
+              <strong>Máy lọc không khí:</strong> trung vị 6.000.000&nbsp;đ. <strong>Robot hút bụi:</strong>{' '}
+              trung vị 9.000.000&nbsp;đ. Hai nhóm này ít tin nên con số chỉ mang tính tham khảo, nhưng cả hai
+              đều nằm cao hơn hẳn trung vị 2.480.000&nbsp;đ của toàn danh mục.
             </li>
           </Ul>
           <P>
@@ -186,14 +187,14 @@ const CONTENT: ArticleContent = {
           <Ul>
             <li>
               <strong>Giá bán nhanh</strong> &ndash; quanh mức một phần tư thấp của loại món đó, ví dụ
-              1.648.000 đ cho máy giặt. Dùng khi bạn còn dưới một tuần.
+              1.648.000&nbsp;đ cho máy giặt. Dùng khi bạn còn dưới một tuần.
             </li>
             <li>
-              <strong>Giá thị trường</strong> &ndash; quanh trung vị, ví dụ 2.730.000 đ cho máy giặt.
+              <strong>Giá thị trường</strong> &ndash; quanh trung vị, ví dụ 2.730.000&nbsp;đ cho máy giặt.
               Đây là mức đông người hỏi nhất.
             </li>
             <li>
-              <strong>Giá chờ</strong> &ndash; quanh mức một phần tư cao, ví dụ 3.480.000 đ. Chỉ hợp lý
+              <strong>Giá chờ</strong> &ndash; quanh mức một phần tư cao, ví dụ 3.480.000&nbsp;đ. Chỉ hợp lý
               khi món còn rất mới, còn hộp hoặc còn bảo hành, và bạn có ít nhất vài tuần.
             </li>
           </Ul>
@@ -205,7 +206,7 @@ const CONTENT: ArticleContent = {
           </P>
           <P>
             Cuối cùng, chốt trước chuyện vận chuyển và tháo lắp, vì đó là chỗ hay vỡ nhất. Cái tủ quần
-            áo trung vị 6.200.000 đ mà nhà không có thang máy là một con số hoàn toàn khác: hãy ghi
+            áo trung vị 6.200.000&nbsp;đ mà nhà không có thang máy là một con số hoàn toàn khác: hãy ghi
             trong tin ai tháo, ai khiêng, tầng mấy, có thang máy không. Máy lạnh thì tiền tháo và lắp
             lại phải thống nhất trước khi chốt giá, không phải lúc thợ đã đến.
           </P>
@@ -267,7 +268,7 @@ const CONTENT: ArticleContent = {
             </li>
             <li>
               <strong>Món cồng kềnh nhưng giá thấp.</strong> Với những thứ nằm quanh hoặc dưới mức
-              1.050.000 đ, việc hẹn hết người này đến người khác để nhích thêm một chút không đáng
+              1.050.000&nbsp;đ, việc hẹn hết người này đến người khác để nhích thêm một chút không đáng
               thời gian, nhất là khi lần nào bạn cũng phải có mặt ở nhà.
             </li>
             <li>
@@ -294,7 +295,7 @@ const CONTENT: ArticleContent = {
   faqs: [
     {
       q: 'Bán đồ cũ ở đâu được giá nhất?',
-      a: 'Bán thẳng cho người dùng cuối bằng một tin rao luôn được giá cao nhất, vì đó đúng là chỗ mà cửa hàng thu mua sẽ bán lại món của bạn. Trên sàn này, trung vị giá rao của hàng gia dụng và nội thất cũ tại TP.HCM là 2.480.000 đ, với một nửa số tin nằm trong khoảng 1.050.000 đ đến 4.100.000 đ. Cửa hàng thu mua tận nhà nhanh nhất nhưng trả giá sỉ; nhóm cư dân hợp với món nhỏ gọn.',
+      a: 'Bán thẳng cho người dùng cuối bằng một tin rao luôn được giá cao nhất, vì đó đúng là chỗ mà cửa hàng thu mua sẽ bán lại món của bạn. Trên sàn này, trung vị giá rao của hàng gia dụng và nội thất cũ tại TP.HCM là 2.480.000\u00a0đ, với một nửa số tin nằm trong khoảng 1.050.000\u00a0đ đến 4.100.000\u00a0đ. Cửa hàng thu mua tận nhà nhanh nhất nhưng trả giá sỉ; nhóm cư dân hợp với món nhỏ gọn.',
     },
     {
       q: 'Cửa hàng thu mua trả bao nhiêu thì hợp lý?',
@@ -302,7 +303,7 @@ const CONTENT: ArticleContent = {
     },
     {
       q: 'Máy lạnh cũ bán được khoảng bao nhiêu?',
-      a: 'Giá rao trên sàn tại TP.HCM có trung vị 4.298.000 đ, nửa giữa số tin nằm trong khoảng 3.948.000 đ đến 5.498.000 đ. Đây là giá rao chứ không phải giá đã chốt, và giá đó chưa tính chuyện tháo lắp: hãy thống nhất ai tháo, ai lắp lại và ai trả tiền thợ trước khi chốt, chứ đừng để đến lúc thợ đã tới.',
+      a: 'Giá rao trên sàn tại TP.HCM có trung vị 4.298.000\u00a0đ, nửa giữa số tin nằm trong khoảng 3.948.000\u00a0đ đến 5.498.000\u00a0đ. Đây là giá rao chứ không phải giá đã chốt, và giá đó chưa tính chuyện tháo lắp: hãy thống nhất ai tháo, ai lắp lại và ai trả tiền thợ trước khi chốt, chứ đừng để đến lúc thợ đã tới.',
     },
     {
       q: 'Bao lâu thì bán được một món đồ cũ?',

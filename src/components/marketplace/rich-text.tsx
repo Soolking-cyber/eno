@@ -24,17 +24,54 @@ export type { DetailFact }
 // SUBSET into clean, semantic blocks. Safe by construction: it only ever builds known React
 // elements + escaped text (no dangerouslySetInnerHTML), so untrusted text can't inject markup.
 
-/** Inline pass: **bold** → <strong>, the rest is plain (escaped) text. */
-function inlineFmt(text: string, key: string): React.ReactNode[] {
+/**
+ * THIS SITE'S OWN PATHS IN A HELP ANSWER ("eno.vn/safety", "https://www.eno.vn/help/…") ARE LINKS (2026-11-06 audit).
+ * The answers name their next step as a bare domain path, and "Safety advice before you pay anyone: eno.vn/safety" read
+ * as body copy on the very line that sends a reader to the safety guide. The visible text stays as written; the href is
+ * the bare path, so each edition links its own copy. Only lowercase path segments match, so "eno.vn//x" and a bare
+ * "eno.vn" stay text and no href built here can leave the site. The eno team's answers only (formatHelpBody's `links`): a
+ * member's question and a seller's description never link.
+ * ⚠️ NO LOOKBEHIND: this file ships in client chunks (/help and the thread page), and `(?<!…)` is a SyntaxError on Safari
+ * below 16.4, inside the browserslist. The character before the domain is captured and given back as text instead, so
+ * "myeno.vn/x", "a/eno.vn/x" and "a@eno.vn/x" are never linked.
+ */
+// ⚠️ A PATH THE LINK WOULD CUT SHORT STAYS TEXT (2026-11-06 review): the lookahead refuses a match that runs on into a
+// query, a fragment, another slash, an uppercase or "_" segment, a %-escape or a ".ext" — "eno.vn/guide#verification"
+// linked "/guide" and left "#verification" outside the link. A sentence's full stop or comma after the path still links.
+const SITE_PATH = /(^|[^\w.@/-])((?:https?:\/\/)?(?:www\.)?eno\.vn(\/[a-z0-9][a-z0-9-]*(?:\/[a-z0-9][a-z0-9-]*)*))(?![\w/?#%-]|\.\w)/g
+
+// ⛔ NEVER A LINK TO A LICENSED SURFACE (codex, 2026-11-06 review): the visa desk and itineraries are eno.forum's alone
+// (root CLAUDE.md), so an answer that names one stays text, exactly as every help answer was before paths were linked.
+// A language prefix (/vi/visa, /en/itinerary/…) is looked through, and any "visa-…" path (visa-runs) counts as a visa one.
+const LICENSED_PATH = /^(?:\/(?:en|vi))?\/(?:e-?visa|visa(?:-[a-z0-9-]+)?|itinerar(?:y|ies)|paypal)(?:\/|$)/
+
+function sitePaths(text: string, key: string): React.ReactNode[] {
+  const out: React.ReactNode[] = []
+  let last = 0, j = 0
+  for (const m of text.matchAll(SITE_PATH)) {
+    if (LICENSED_PATH.test(m[3])) continue
+    const at = (m.index ?? 0) + m[1].length
+    if (at > last) out.push(text.slice(last, at))
+    out.push(<a key={`${key}-a${j++}`} href={m[3]} className="font-semibold text-accent-foreground hover:underline">{m[2]}</a>)
+    last = at + m[2].length
+  }
+  if (last < text.length) out.push(text.slice(last))
+  return out
+}
+
+/** Inline pass: **bold** → <strong>, the rest is plain (escaped) text — with this site's own paths linked when `site`. */
+function inlineFmt(text: string, key: string, site = false): React.ReactNode[] {
   const nodes: React.ReactNode[] = []
+  const plain = (s: string, k: string) => { if (site) nodes.push(...sitePaths(s, k)); else nodes.push(s) }
   const re = /\*\*(.+?)\*\*/g
   let last = 0, m: RegExpExecArray | null, i = 0
   while ((m = re.exec(text)) !== null) {
-    if (m.index > last) nodes.push(text.slice(last, m.index))
-    nodes.push(<strong key={`${key}-b${i++}`} className="font-semibold text-foreground">{m[1]}</strong>)
+    if (m.index > last) plain(text.slice(last, m.index), `${key}-p${i}`)
+    // A bold path links too (2026-11-06 review): "**eno.vn/trust**" stayed text beside a linked "eno.vn/safety".
+    nodes.push(<strong key={`${key}-b${i++}`} className="font-semibold text-foreground">{site ? sitePaths(m[1], `${key}-s${i}`) : m[1]}</strong>)
     last = m.index + m[0].length
   }
-  if (last < text.length) nodes.push(text.slice(last))
+  if (last < text.length) plain(text.slice(last), `${key}-p${i}`)
   return nodes
 }
 
@@ -155,17 +192,21 @@ export function isImplicitHeading(lines: string[], i: number): boolean {
  * a thread (under the question's h1 and a section h2), h4 inside the /help accordion (whose trigger is
  * the h3). Server-safe like everything in this file.
  */
-export function formatHelpBody(text: string, opts: { implicitHeadings: boolean; headingLevel?: 2 | 3 | 4 }): ReactNode[] {
+export function formatHelpBody(text: string, opts: { implicitHeadings: boolean; headingLevel?: 2 | 3 | 4; links?: boolean }): ReactNode[] {
   const lines = text.replace(/\r\n?/g, '\n').split('\n')
   const H = opts.headingLevel === 4 ? 'h4' : opts.headingLevel === 2 ? 'h2' : 'h3'
+  // ⚠️ `links`: ONLY THE ENO TEAM'S ANSWERS LINK THEIR eno.vn PATHS (2026-11-06 review). A member's question renders
+  // here too, on its thread page, and its "eno.vn/s/…" or "eno.vn/listings/…" came out as the same accent link the
+  // team's answers carry — a member steering readers in eno's voice. Off unless the caller says the post is the team's.
+  const site = opts.links === true
   const out: ReactNode[] = []
   let ul: string[] = [], ol: string[] = [], k = 0
   // The block right under a heading sits 8px below it, every other block 16px (12px for a list) below
   // its predecessor: a heading has to belong to what follows it, not float between two paragraphs.
   let tight = false
   const gap = (normal: string) => { const c = tight ? 'mt-2' : normal; tight = false; return c }
-  const flushUl = () => { if (ul.length) { out.push(<ul key={k++} className={`${gap('mt-3')} list-disc space-y-2 pl-5 marker:text-ink-4 first:mt-0`}>{ul.map((li, i) => <li key={i}>{inlineFmt(li, `hu${k}-${i}`)}</li>)}</ul>); ul = [] } }
-  const flushOl = () => { if (ol.length) { out.push(<ol key={k++} className={`${gap('mt-3')} list-decimal space-y-2 pl-5 marker:text-ink-4 first:mt-0`}>{ol.map((li, i) => <li key={i}>{inlineFmt(li, `ho${k}-${i}`)}</li>)}</ol>); ol = [] } }
+  const flushUl = () => { if (ul.length) { out.push(<ul key={k++} className={`${gap('mt-3')} list-disc space-y-2 pl-5 marker:text-ink-4 first:mt-0`}>{ul.map((li, i) => <li key={i}>{inlineFmt(li, `hu${k}-${i}`, site)}</li>)}</ul>); ul = [] } }
+  const flushOl = () => { if (ol.length) { out.push(<ol key={k++} className={`${gap('mt-3')} list-decimal space-y-2 pl-5 marker:text-ink-4 first:mt-0`}>{ol.map((li, i) => <li key={i}>{inlineFmt(li, `ho${k}-${i}`, site)}</li>)}</ol>); ol = [] } }
   lines.forEach((raw, i) => {
     const line = raw.trim()
     if (line === '') { flushUl(); flushOl(); return }
@@ -180,7 +221,7 @@ export function formatHelpBody(text: string, opts: { implicitHeadings: boolean; 
       tight = true
       return
     }
-    out.push(<p key={k++} className={`${gap('mt-4')} first:mt-0`}>{inlineFmt(line, `hp${k}`)}</p>)
+    out.push(<p key={k++} className={`${gap('mt-4')} first:mt-0`}>{inlineFmt(line, `hp${k}`, site)}</p>)
   })
   flushUl(); flushOl()
   return out

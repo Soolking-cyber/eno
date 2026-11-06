@@ -161,7 +161,13 @@ function UnsubscribeForm() {
               ? {
                   title: tr("That link didn't work", 'Liên kết không hợp lệ'),
                   body: tr('The unsubscribe link is invalid or expired. You can manage email preferences from your account settings.', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn. Bạn có thể quản lý email trong cài đặt tài khoản.'),
-                  action: null,
+                  // The way forward this line names, as a link (2026-11-06 audit): it was a dead end, worst on the no-token
+                  // landing. The digest switch is Settings › Notifications; a signed-out reader goes through sign-in first.
+                  action: (
+                    <Link href="/dashboard/settings?tab=notifications" className="relative tap-44 mt-6 inline-flex font-bold text-accent-foreground underline underline-offset-2">
+                      {tr('Open email settings', 'Mở cài đặt email')}
+                    </Link>
+                  ),
                 }
               : teacherMatches
                 ? {

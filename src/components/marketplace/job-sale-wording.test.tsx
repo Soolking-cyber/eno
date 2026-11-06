@@ -32,11 +32,43 @@ describe('the listing page safety line on an employer\'s own job', () => {
     expect(en).toContain('Never pay a fee or a deposit to get a job — eno never asks for one. Meet the employer at the workplace before you start.')
     expect(en).toContain('Safety guide')
     expect(en).not.toMatch(/inspect, then pay|Safe trading guide/)
+    // The ID-documents and training-fee advice ride the strip on a job now — the listing page's bottom note is gone (2026-11-06 audit).
+    expect(en).toContain("Don't send copies of your ID documents before you have checked the employer, and never pay for training.")
     LANG = 'vi'
     const vi = strip('jobs')
     expect(vi).toContain('Đừng bao giờ trả phí hay đặt cọc để được nhận việc')
     expect(vi).toContain('Cẩm nang an toàn')
+    expect(vi).toContain('Đừng gửi bản sao giấy tờ tùy thân khi chưa xác minh nhà tuyển dụng, và đừng bao giờ trả phí đào tạo.')
     expect(vi).not.toContain('kiểm tra hàng')
+  })
+
+  it('a job filed outside Jobs still gets the ID-documents and training-fee line (the strip keys on the listing type too)', () => {
+    LANG = 'en'
+    const other = text(renderToString(<SafetyStrip categorySlug="services" job />))
+    expect(other).toContain("Don't send copies of your ID documents before you have checked the employer, and never pay for training.")
+    expect(other).toContain('Never pay a fee or a deposit to get a job')
+    expect(other).toContain('Safety guide')
+    expect(other).not.toContain('Safe trading guide')
+    expect(text(renderToString(<SafetyStrip categorySlug="services" />))).not.toContain('ID documents')
+  })
+
+  it('a LINKED job (the affiliate-job strip) reads "Safety guide" too, never the trading guide', () => {
+    LANG = 'en'
+    const linked = text(renderToString(<SafetyStrip categorySlug="jobs" variant="affiliate-job" />))
+    expect(linked).toContain('Apply only on the original posting')
+    // …and the bottom note's training-fee and ID advice, which this line never named (2026-11-06 review).
+    expect(linked).toContain("Don't send copies of your ID documents before you have checked the employer, and never pay for training.")
+    expect(linked).toContain('Safety guide')
+    expect(linked).not.toContain('Safe trading guide')
+  })
+
+  it('the warning is ink, not amber — orange is for prices and the Post button (owner)', () => {
+    LANG = 'en'
+    for (const slug of ['jobs', 'electronics', 'rentals']) {
+      const html = renderToString(<SafetyStrip categorySlug={slug} />)
+      expect(html, slug).not.toContain('text-warning')
+      expect(html, slug).toContain('font-semibold text-foreground')
+    }
   })
 
   it('CONTROL: a sale keeps "Meet, inspect, then pay" and the trading guide', () => {
@@ -44,6 +76,7 @@ describe('the listing page safety line on an employer\'s own job', () => {
     const sale = strip('electronics')
     expect(sale).toContain('Meet, inspect, then pay.')
     expect(sale).toContain('Safe trading guide')
+    expect(sale).not.toContain('ID documents')
   })
 })
 
