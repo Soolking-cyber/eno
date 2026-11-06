@@ -8,7 +8,7 @@ import { confirmExitToast, EXIT_CONFIRM_MS } from '@/lib/subtle-toast'
 import { setNativeKeyboard } from '@/hooks/use-virtual-keyboard'
 import { hapticLongPress, hapticTap } from '@/lib/haptics'
 import { canonicalAppPath } from '@/lib/deep-link'
-import { authCallbackPathFromDeepLink } from '@/lib/native-auth'
+import { authCallbackPathFromDeepLink, fbConnectPathFromDeepLink } from '@/lib/native-auth'
 import { backPressClosesOverlay } from '@/lib/back-to-close'
 import { IS_SERVICES } from '@/lib/edition'
 import { leavingForHomeTwin } from '@/lib/app-home-language'
@@ -687,7 +687,8 @@ export function NativeBootstrap() {
         if (url === lastUrl && now - lastAt < 5000) return
         lastUrl = url
         lastAt = now
-        const authPath = authCallbackPathFromDeepLink(url)
+        // Connect or Import from Facebook coming back from the in-app browser sheet (fbConnectPathFromDeepLink): the same hand-off.
+        const authPath = authCallbackPathFromDeepLink(url) ?? fbConnectPathFromDeepLink(url)
         if (authPath) {
           void import('@capacitor/browser').then(({ Browser }) => Browser.close().catch(() => {}))
           hardNavAt = Date.now()

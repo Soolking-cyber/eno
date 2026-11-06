@@ -4,6 +4,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 
 const h = vi.hoisted(() => ({
   available: true,
+  iosApp: false,
+  browserOpen: vi.fn(async (_o: { url: string }) => {}),
   user: { id: 'u1', email: 'a@x.example' } as { id: string; email?: string } | null,
   fb: null as string | null,
   verifyOk: true,
@@ -15,7 +17,8 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: h.user }) }))
-vi.mock('@/lib/facebook-signin', () => ({ facebookAvailableHere: () => h.available }))
+vi.mock('@/lib/facebook-signin', () => ({ FACEBOOK_DIALOG: 'https://www.facebook.com/dialog/oauth', facebookAvailableHere: () => h.available, facebookIosApp: () => h.iosApp }))
+vi.mock('@capacitor/browser', () => ({ Browser: { open: (o: { url: string }) => h.browserOpen(o) } }))
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: h.replace }),
   useSearchParams: () => new URLSearchParams(h.fb ? `tab=privacy&fb=${h.fb}` : 'tab=privacy'),
@@ -46,7 +49,7 @@ const answer = (status: { on: boolean; connected: boolean; canDisconnect: boolea
   return f
 }
 
-beforeEach(() => { h.available = true; h.user = { id: 'u1', email: 'a@x.example' }; h.fb = null; vi.clearAllMocks(); h.verifyOk = true })
+beforeEach(() => { h.available = true; h.iosApp = false; h.user = { id: 'u1', email: 'a@x.example' }; h.fb = null; vi.clearAllMocks(); h.verifyOk = true })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('Settings › Privacy › Facebook', () => {
@@ -81,9 +84,23 @@ describe('Settings › Privacy › Facebook', () => {
     vi.stubGlobal('location', { ...window.location, assign })
     render(<FacebookConnectRow />)
     fireEvent.click(await screen.findByRole('button', { name: 'Connect' }))
-    expect(assign).toHaveBeenCalledWith('/auth/facebook/connect/start')
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/auth/facebook/connect/start'))
     expect(screen.queryByLabelText('code')).toBeNull()
     expect(f).not.toHaveBeenCalledWith('/api/auth/facebook/connect', expect.objectContaining({ method: 'POST' }))
+  })
+  it('the iOS app: Connect asks the start route for Facebook\'s address and opens it in the in-app browser sheet, never in the WebView', async () => {
+    h.available = false
+    h.iosApp = true
+    const dialog = 'https://www.facebook.com/dialog/oauth?client_id=1&state=n.x'
+    const f = vi.fn(async (u: string) => new Response(JSON.stringify(u.includes('/connect/start') ? { to: dialog } : { on: true, connected: false, canDisconnect: false })))
+    vi.stubGlobal('fetch', f)
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign })
+    render(<FacebookConnectRow />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect' }))
+    await waitFor(() => expect(h.browserOpen).toHaveBeenCalledWith({ url: dialog }))
+    expect(f).toHaveBeenCalledWith('/auth/facebook/connect/start?native=1', expect.anything())
+    expect(assign).not.toHaveBeenCalled()
   })
   it('a Disconnect code that can’t be mailed says so and opens no dialog', async () => {
     answer({ on: true, connected: true, canDisconnect: true }, 502)

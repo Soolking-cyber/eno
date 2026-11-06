@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
-import { facebookAvailableHere } from '@/lib/facebook-signin'
+import { facebookAvailableHere, facebookIosApp } from '@/lib/facebook-signin'
+import { startFacebookConnect } from '@/lib/facebook-connect-client'
 import { fillTemplate } from '@/lib/i18n/placeholders'
 import { askableFacetsFor, isRequiredFacet } from '@/lib/taxonomy'
 import { IMPORT_CATEGORY_SLUGS } from '@/lib/fb-import/categories'
@@ -24,7 +25,7 @@ type State = { on: boolean; connected: boolean; phone: string | null; job: { id:
 
 /**
  * My listings › Import from Facebook (owner, 2026-11-04): connect if needed, read, review, publish. How it works and why it runs from a worker on the box: src/lib/fb-import/shared.ts.
- * Web only, like Connect: Meta's dialog doesn't run in a webview. Nothing goes public until Publish.
+ * A browser, or the iOS app through its in-app browser sheet (facebookIosApp), like Connect: Meta's dialog doesn't run in a webview. Nothing goes public until Publish.
  */
 export function FacebookImportPanel() {
   const { tr } = useLanguage()
@@ -33,6 +34,7 @@ export function FacebookImportPanel() {
   const params = useSearchParams()
   const [state, setState] = useState<State | null>(null)
   const [canRunHere, setCanRunHere] = useState(false)
+  const [starting, setStarting] = useState(false)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [phone, setPhone] = useState('')
   const [publishing, setPublishing] = useState(false)
@@ -67,7 +69,7 @@ export function FacebookImportPanel() {
     if (r?.ok) setState((await r.json()) as State)
   }, [])
 
-  useEffect(() => { setCanRunHere(facebookAvailableHere()); if (user) void load() }, [user, load])
+  useEffect(() => { setCanRunHere(facebookAvailableHere() || facebookIosApp()); if (user) void load() }, [user, load])
 
   // While a job is moving, look again. A person is watching this; a closed tab asks nothing.
   const status = state?.job?.status
@@ -83,7 +85,6 @@ export function FacebookImportPanel() {
     const words: Record<string, [string, string]> = {
       queued: ['We’re reading your listings. You can leave this page.', 'Chúng tôi đang đọc các tin của bạn. Bạn có thể rời trang này.'],
       active: ['An import is already running.', 'Một lần nhập đang chạy.'],
-      daily_limit: ['That’s today’s imports used. Try again tomorrow.', 'Bạn đã dùng hết lượt nhập hôm nay. Hãy thử lại vào ngày mai.'],
       no_picture: ['Your Facebook account needs a profile picture for us to find it.', 'Tài khoản Facebook của bạn cần có ảnh đại diện để chúng tôi tìm thấy.'],
       other: ['That isn’t the Facebook connected to this account.', 'Đó không phải Facebook đã kết nối với tài khoản này.'],
       held: ['That Facebook account already belongs to another eno account.', 'Tài khoản Facebook này đã thuộc về một tài khoản eno khác.'],
@@ -153,13 +154,20 @@ export function FacebookImportPanel() {
   if (!state.on) return <p className="mx-auto max-w-2xl text-sm text-body">{tr('Import from Facebook isn’t available right now.', 'Hiện chưa thể nhập từ Facebook.')}</p>
 
   const categories: [string, string][] = TAXONOMY.filter((c) => IMPORT_CATEGORY_SLUGS.includes(c.slug)).map((c) => [c.slug, tr(c.name, c.nameVi)])
-  const start = () => window.location.assign('/auth/facebook/connect/start?for=import')
+  // A browser leaves for Facebook; the iOS app opens it in its sheet and comes back here (facebook-connect-client.ts).
+  const start = async () => {
+    setStarting(true)
+    const how = await startFacebookConnect(true).catch(() => 'failed' as const)
+    if (how === 'failed') toast.error(tr('Facebook didn’t open. Please try again.', 'Chưa mở được Facebook. Vui lòng thử lại.'))
+    // Never left spinning: a page that comes back from Facebook by Back (Safari's back-forward cache) must not find it stuck (commit gate, opus).
+    setStarting(false)
+  }
   const job = state.job
   const moving = job && ['queued', 'reading', 'sorting'].includes(job.status)
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      {!moving && drafts.length > 0 && <Button variant="outline" size="sm" onClick={start}>{tr('Import again', 'Nhập lại')}</Button>}
+      {!moving && drafts.length > 0 && <Button variant="outline" size="sm" loading={starting} onClick={() => void start()}>{tr('Import again', 'Nhập lại')}</Button>}
       {!moving && drafts.length === 0 && (
         <section className="space-y-3">
           <h2 className="text-base font-semibold text-ink">{tr('Import your Facebook Marketplace listings', 'Nhập tin từ Facebook Marketplace')}</h2>
@@ -170,7 +178,7 @@ export function FacebookImportPanel() {
             )}
           </p>
           <p className="text-sm text-body">{tr('Import only your own listings. Facebook can also pause this at any time, so it may not always be available.', 'Chỉ nhập tin của chính bạn. Facebook cũng có thể tạm dừng tính năng này bất cứ lúc nào nên không phải lúc nào cũng dùng được.')}</p>
-          <Button variant="cta" onClick={start}>{state.connected ? tr('Import from Facebook', 'Nhập từ Facebook') : tr('Connect Facebook and import', 'Kết nối Facebook và nhập')}</Button>
+          <Button variant="cta" loading={starting} onClick={() => void start()}>{state.connected ? tr('Import from Facebook', 'Nhập từ Facebook') : tr('Connect Facebook and import', 'Kết nối Facebook và nhập')}</Button>
         </section>
       )}
 

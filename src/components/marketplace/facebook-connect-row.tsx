@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
-import { facebookAvailableHere } from '@/lib/facebook-signin'
+import { facebookAvailableHere, facebookIosApp } from '@/lib/facebook-signin'
+import { startFacebookConnect } from '@/lib/facebook-connect-client'
 
 type Status = { on: boolean; connected: boolean; canDisconnect: boolean }
 
@@ -19,7 +20,7 @@ type Status = { on: boolean; connected: boolean; canDisconnect: boolean }
  * Connect goes straight to Facebook (owner, 2026-11-04). ⛔ DISCONNECT TAKES A CODE FROM THE MAILBOX: it ends every other session, which a stolen
  * session could otherwise use to sign the owner out (facebook-connect.ts FB_OK_COOKIE).
  *
- * Connect shows only where it can run: never in the eno apps (facebookAvailableHere: Meta's dialog does not run in a webview), and
+ * Connect shows only where it can run: a browser, or the iOS app through its in-app browser sheet (facebookIosApp), never Android's app (Meta's dialog does not run in a webview), and
  * not while the server has it off. Disconnect shows for anyone connected.
  */
 export function FacebookConnectRow() {
@@ -61,7 +62,7 @@ export function FacebookConnectRow() {
     // Another account's row must not outlive the account (commit gate, codex): nothing shows until this one's answer arrives.
     setStatus(null); setOpen(false); setCode(''); setError(null); lastTried.current = ''
     if (!userId) return
-    setCanConnectHere(facebookAvailableHere())
+    setCanConnectHere(facebookAvailableHere() || facebookIosApp())
     let off = false
     fetch('/api/auth/facebook/connect', { cache: 'no-store' })
       .then((r) => (r.ok ? (r.json() as Promise<Status>) : null))
@@ -75,8 +76,14 @@ export function FacebookConnectRow() {
   // whose code was phished here to disconnect, and they may be reading it in the eno app.
   if (!status || !user?.email || (!status.connected && !(status.on && canConnectHere))) return null
 
-  // A full navigation: the start route leaves for Facebook.
-  const connect = () => window.location.assign('/auth/facebook/connect/start')
+  // A browser leaves for Facebook; the iOS app opens it in its sheet (facebook-connect-client.ts).
+  const connect = async () => {
+    setBusy(true)
+    const how = await startFacebookConnect(false).catch(() => 'failed' as const)
+    if (how === 'failed') toast.error(tr('Facebook didn’t open. Please try again.', 'Chưa mở được Facebook. Vui lòng thử lại.'))
+    // Never left spinning: a page that comes back from Facebook by Back (Safari's back-forward cache) must not find it stuck (commit gate, opus).
+    setBusy(false)
+  }
 
   const sendCode = async () => {
     setBusy(true); setError(null); setCode(''); lastTried.current = ''
@@ -129,7 +136,7 @@ export function FacebookConnectRow() {
             : tr('Connect Facebook to sign in with it too. Your current way of signing in keeps working.', 'Kết nối Facebook để đăng nhập bằng cả Facebook. Cách đăng nhập hiện tại vẫn dùng được.')}
         </p>
         {!status.connected && (
-          <Button variant="outline" size="sm" className="shrink-0" loading={busy} onClick={connect}>
+          <Button variant="outline" size="sm" className="shrink-0" loading={busy} onClick={() => void connect()}>
             {tr('Connect', 'Kết nối')}
           </Button>
         )}

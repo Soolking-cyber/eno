@@ -1214,6 +1214,7 @@ export const UI_STRINGS: string[] = [
   "Facebook connected. You can now sign in with it too.",
   "Facebook didn’t connect. Please try again.",
   "Facebook didn’t disconnect. Please try again.",
+  "Facebook didn’t open. Please try again.",
   "Facebook didn’t share an email address with us, so that sign-in didn’t go through.",
   "Facebook didn’t share your email address. Continue with your email instead — we’ll send you a code.",
   "Facebook disconnected.",

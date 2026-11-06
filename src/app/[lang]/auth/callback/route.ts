@@ -30,6 +30,8 @@ import { isAdminEmail } from '@/lib/admin'
 type CallbackError = 'cancel' | 'signup_disabled' | 'no_email' | 'facebook_linked' | 'oauth'
 function callbackError(error: string, errorCode: string, description = ''): CallbackError {
   if (error === 'user_cancelled_authorize' || error === 'cancel') return 'cancel'
+  // The iOS app's own return (the `native=1` hop below) carries the MAPPED code, so a mapped Facebook code reads back as itself.
+  if (error === 'no_email' || error === 'facebook_linked') return error
   if (errorCode === 'signup_disabled' || error === 'signup_disabled') return 'signup_disabled'
   if (/^error getting user email from external provider$/i.test(description.trim())) return 'no_email'
   if (/^error creating identity$/i.test(description.trim())) return 'facebook_linked'
@@ -237,17 +239,18 @@ export async function GET(request: Request) {
   //   · AN ERROR GOES AS A MAPPED CODE (cancel | signup_disabled | oauth), never `error_description` — a cancel
   //     must still reach the app (stranding it in the tab was the cost of "hop only with a code"), but the
   //     provider's prose is attacker-influenceable text.
-  //   · `p` ONLY WHEN IT IS apple OR google, and Location ENDS WITH `#`: a redirect without a fragment inherits
+  //   · `p` ONLY WHEN IT IS apple, google OR facebook (the iOS app's Facebook sign-in), and Location ENDS WITH `#`: a redirect without a fragment inherits
   //     the request's, and an implicit-flow redirect carries the tokens there. An explicit empty fragment wins.
   if (url.searchParams.get('native') === '1') {
     const q = new URLSearchParams()
     const hopError = url.searchParams.get('error')
     if (code) q.set('code', code)
-    else if (hopError) q.set('error', callbackError(hopError, url.searchParams.get('error_code') || ''))
+    // The description is READ to map Facebook's two fixed refusals (no email, identity taken), never forwarded (commit gate, opus, 2026-11-06).
+    else if (hopError) q.set('error', callbackError(hopError, url.searchParams.get('error_code') || '', url.searchParams.get('error_description') || ''))
     else return redirect(`${origin}/signin`)
     q.set('next', next)
     const p = url.searchParams.get('p')
-    if (p === 'apple' || p === 'google') q.set('p', p)
+    if (p === 'apple' || p === 'google' || p === FACEBOOK_PROVIDER) q.set('p', p)
     return new NextResponse(null, {
       status: 302,
       headers: { Location: `${NATIVE_OAUTH_REDIRECT}?${q.toString()}#`, 'Cache-Control': 'private, no-store, max-age=0' },

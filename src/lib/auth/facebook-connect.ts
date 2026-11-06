@@ -1,7 +1,8 @@
 import 'server-only'
-import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
 import { logWarn } from '@/lib/log'
+import { FACEBOOK_DIALOG } from '@/lib/facebook-signin'
 
 /**
  * CONNECT FACEBOOK (owner, 2026-11-04): an account made another way adds Facebook as a second way in, from Settings ›
@@ -24,7 +25,7 @@ import { logWarn } from '@/lib/log'
 const APP_ID = process.env.FACEBOOK_APP_ID?.trim() || null
 const APP_SECRET = process.env.FACEBOOK_APP_SECRET?.trim() || null
 const GRAPH = 'https://graph.facebook.com'
-const DIALOG = 'https://www.facebook.com/dialog/oauth'
+const DIALOG = FACEBOOK_DIALOG
 const FETCH_TIMEOUT_MS = 8_000
 
 /** 10 minutes: long enough to answer Facebook's dialog, short enough that a leaked transaction is stale. */
@@ -82,13 +83,43 @@ export function facebookConnectConfigured(): boolean {
 }
 
 export const fbConnectRedirectUri = (origin: string) => `${origin}/auth/facebook/connect/callback`
-export const newConnectState = () => randomBytes(32).toString('base64url')
+/**
+ * `n.` MARKS A CONNECT STARTED IN THE iOS APP (owner, 2026-11-06). Facebook returns to the app's in-app browser sheet, whose cookie jar is not the app's, so
+ * the callback finds no state cookie there and hands code and state back to the app (FB_CONNECT_APP_RETURN), where the cookie is. The mark only picks that
+ * hand-back; it proves nothing, and the callback that finishes still requires the cookie and the same signed-in user.
+ */
+export const NATIVE_CONNECT_PREFIX = 'n.'
+export const newConnectState = (native = false) => `${native ? NATIVE_CONNECT_PREFIX : ''}${randomBytes(32).toString('base64url')}`
 /** What newConnectState makes. Anything else came from a hand-made URL, and must never reach a cookie name. */
-export const isConnectState = (s: string | null): s is string => !!s && /^[\w-]{43}$/.test(s)
+export const isConnectState = (s: string | null): s is string => !!s && /^(?:n\.)?[\w-]{43}$/.test(s)
+export const isNativeConnectState = (s: string) => s.startsWith(NATIVE_CONNECT_PREFIX)
 /** One cookie per transaction, keyed by the state: two tabs never overwrite each other (google-oauth.ts). */
-export const fbTxCookieName = (state: string) => `eno_fbc_${state.slice(0, 12)}`
+export const fbTxCookieName = (state: string) => `eno_fbc_${(isNativeConnectState(state) ? state.slice(NATIVE_CONNECT_PREFIX.length) : state).slice(0, 12)}`
+/** Where the callback hands an app's Connect back: the Capacitor app's own scheme (ios/App/App/Info.plist), read by native-auth.ts fbConnectPathFromDeepLink. */
+export const FB_CONNECT_APP_RETURN = 'enovn://fb-connect'
 
-export function buildConnectUrl(state: string, origin: string): string | null {
+/**
+ * THE APP'S RETURN CARRIES FACEBOOK'S CODE (commit gate, codex + opus, 2026-11-06). The link opens only on the phone whose sheet Facebook redirected, and a
+ * code another app on that phone catches from the person's OWN Connect is useless without the PKCE verifier in the app's cookie (newPkceVerifier).
+ * ⚠️ WHAT REMAINS: an attacker who starts a Connect (holding its verifier), gets someone to finish Facebook's dialog from that link, AND has an app on that
+ * person's phone that claims `enovn://`, could still link that person's Facebook to the attacker's account. Closing it needs a return the app captures itself
+ * (its web-auth session, which opens only GoTrue today: a new binary). ⛔ Holding the code on the server
+ * instead was REFUTED: any browser without the cookie would park a code for whoever holds the state, so an attacker who sent someone their own dialog link
+ * could collect that person's code and link their Facebook to the attacker's account.
+ */
+
+/**
+ * ⛔ EVERY CONNECT CODE IS BOUND TO A PKCE VERIFIER (commit gate, codex, 2026-11-06). The iOS app's return carries the code through `enovn://`, which another
+ * app on the phone could claim, and a caught code could otherwise be fed into its owner's own Connect. Measured 2026-11-06 with a real login on this app and
+ * this redirect address: the code with a wrong verifier and no secret → 400 "Error validating code verifier"; with the right one → 200 and a token. So the
+ * exchange sends the verifier and NOT the secret (with the secret, whether Facebook still checks the verifier is unmeasured), and the verifier lives only
+ * in the transaction's httpOnly cookie. The web flow does the same.
+ */
+export const newPkceVerifier = () => randomBytes(48).toString('base64url')
+export const isPkceVerifier = (v: unknown): v is string => typeof v === 'string' && /^[\w-]{43,128}$/.test(v)
+export const pkceChallenge = (verifier: string) => createHash('sha256').update(verifier).digest('base64url')
+
+export function buildConnectUrl(state: string, origin: string, challenge: string): string | null {
   if (!APP_ID) return null
   const u = new URL(DIALOG)
   u.searchParams.set('client_id', APP_ID)
@@ -98,6 +129,8 @@ export function buildConnectUrl(state: string, origin: string): string | null {
   u.searchParams.set('state', state)
   // A person who declined email once is asked again: without one, Facebook can never sign in here (below).
   u.searchParams.set('auth_type', 'rerequest')
+  u.searchParams.set('code_challenge', challenge)
+  u.searchParams.set('code_challenge_method', 'S256')
   return u.toString()
 }
 
@@ -135,14 +168,16 @@ async function pictureSizes(token: string, proof: string): Promise<string[]> {
   return found
 }
 
-export async function readFacebookProfile(code: string, origin: string, opts: { pictureSizes?: boolean } = {}): Promise<ProfileResult> {
+export async function readFacebookProfile(code: string, origin: string, opts: { pictureSizes?: boolean; verifier: string }): Promise<ProfileResult> {
   if (!APP_ID || !APP_SECRET) return { ok: false, reason: 'not_configured' }
+  if (!isPkceVerifier(opts.verifier)) return { ok: false, reason: 'exchange' }
   let token: string
   try {
     const res = await fetch(`${GRAPH}/oauth/access_token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ client_id: APP_ID, client_secret: APP_SECRET, redirect_uri: fbConnectRedirectUri(origin), code }),
+      // The verifier, never the secret (newPkceVerifier): the secret still signs every Graph call below (appsecret_proof).
+      body: new URLSearchParams({ client_id: APP_ID, redirect_uri: fbConnectRedirectUri(origin), code, code_verifier: opts.verifier }),
       cache: 'no-store',
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     })

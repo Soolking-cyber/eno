@@ -1,5 +1,6 @@
 /**
- * THE PAGE BEHIND AN EMAIL'S "Copy code" BUTTON (owner, 2026-11-04: "add quick copy button"). ⛔ AN EMAIL CANNOT COPY ANYTHING: mail clients strip every
+ * THE PAGE BEHIND THE "Copy code" BUTTON OF EMAILS SENT BEFORE 2026-11-06 (owner, 2026-11-04: "add quick copy button"; removed 2026-11-06: "does not copy
+ * and takes out of email to browser", layout.ts emailCopyHintRow). Kept only so those links don't 404. ⛔ AN EMAIL CANNOT COPY ANYTHING: mail clients strip every
  * script, so the button is a link to this page, which does the copying.
  *
  * ⛔ THE CODE TRAVELS IN THE URL'S FRAGMENT, WHICH NO SERVER EVER SEES, and is dropped from the address at once. This page is a bare document on purpose: no

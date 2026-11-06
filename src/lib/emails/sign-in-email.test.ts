@@ -32,14 +32,14 @@ describe('sign-in emails · one token per email, never both', () => {
     expect(all).toContain(CODE)
   })
 
-  it('the CODE email has a Copy code button: the code only in the fragment, and nothing a scanner could burn', () => {
-    const en = renderSignInCodeEmail({ code: '00730251', origin: ORIGIN, email: EMAIL }).html
-    expect(en).toContain(`${ORIGIN}/api/auth/copy-code#00730251`)
-    expect(en).toContain('Copy code')
-    expect(en).not.toMatch(/copy-code\?[^#"]*00730251/)
-    const vi = renderSignInCodeEmail({ code: '00730251', origin: ORIGIN, email: EMAIL, lang: 'vi' }).html
-    expect(vi).toContain(`${ORIGIN}/api/auth/copy-code?l=vi#00730251`)
-    expect(vi).toContain('Sao chép mã')
+  it('the CODE email links nowhere to copy it: no button that opens the browser, a press-and-hold line, and the code selectable whole', () => {
+    for (const lang of ['en', 'vi'] as const) {
+      const html = renderSignInCodeEmail({ code: '00730251', origin: ORIGIN, email: EMAIL, lang }).html
+      expect(html).not.toMatch(/copy-code|Copy code|Sao chép mã/)
+      expect(html).not.toMatch(/href="[^"]*00730251/)
+      expect(html).toContain(lang === 'vi' ? 'Để sao chép, nhấn giữ mã (bấm đúp trên máy tính).' : 'To copy it, press and hold the code (double-click on a computer).')
+      expect(html).toMatch(/user-select:all;">00730251</)
+    }
   })
 
   it('the LINK email contains no 8-digit code', () => {

@@ -53,13 +53,15 @@ describe('the code Disconnect takes', () => {
 describe('buildConnectUrl', () => {
   it('asks for email and the public profile on the visitor’s own host, with the state', async () => {
     const { buildConnectUrl } = await load()
-    const u = new URL(buildConnectUrl('STATE', 'https://www.eno.forum')!)
+    const u = new URL(buildConnectUrl('STATE', 'https://www.eno.forum', 'CHALLENGE')!)
     expect(u.origin + u.pathname).toBe('https://www.facebook.com/dialog/oauth')
     expect(u.searchParams.get('client_id')).toBe('1079252418272870')
     expect(u.searchParams.get('redirect_uri')).toBe('https://www.eno.forum/auth/facebook/connect/callback')
     expect(u.searchParams.get('state')).toBe('STATE')
     expect(u.searchParams.get('scope')).toBe('email,public_profile')
     expect(u.toString()).not.toContain('a'.repeat(32))
+    expect(u.searchParams.get('code_challenge')).toBe('CHALLENGE')
+    expect(u.searchParams.get('code_challenge_method')).toBe('S256')
   })
 })
 
@@ -74,7 +76,7 @@ describe('readFacebookProfile', () => {
     const f = answers({ id: '123456', email: 'A@X.example', name: 'Tran An', first_name: 'An', last_name: 'Tran', picture: { data: { url: 'https://p/x.jpg' } } })
     vi.stubGlobal('fetch', f)
     const { readFacebookProfile } = await load()
-    const r = await readFacebookProfile('CODE', 'https://eno.vn')
+    const r = await readFacebookProfile('CODE', 'https://eno.vn', { verifier: 'v'.repeat(64) })
     expect(r).toEqual({ ok: true, profile: { id: '123456', email: 'a@x.example', name: 'An Tran', picture: 'https://p/x.jpg', pictureIsDefault: false, displayName: 'Tran An' } })
     const meUrl = String(f.mock.calls[1][0])
     expect(meUrl).toMatch(/appsecret_proof=[0-9a-f]{64}/)
@@ -84,6 +86,22 @@ describe('readFacebookProfile', () => {
     // Neither the secret nor the token in a URL (nginx and proxy logs).
     expect(meUrl).not.toContain('TOKEN')
     expect(String(f.mock.calls[0][0])).not.toContain('a'.repeat(32))
+  })
+  it('⛔ the code is exchanged with its PKCE verifier and never the app secret; no verifier, no exchange', async () => {
+    const f = answers({ id: '123456', email: 'a@x.example', name: 'An', picture: { data: { url: 'https://p/x.jpg' } } })
+    vi.stubGlobal('fetch', f)
+    const { readFacebookProfile, pkceChallenge, newPkceVerifier, isPkceVerifier } = await load()
+    await readFacebookProfile('CODE', 'https://eno.vn', { verifier: 'v'.repeat(64) })
+    const body = new URLSearchParams(String(((f.mock.calls[0] as unknown[])[1] as RequestInit).body))
+    expect(body.get('code_verifier')).toBe('v'.repeat(64))
+    expect(body.get('code')).toBe('CODE')
+    expect(body.has('client_secret')).toBe(false)
+    f.mockClear()
+    for (const bad of ['', 'short', 'v'.repeat(129), 'a b'.padEnd(64, 'x')]) expect(await readFacebookProfile('CODE', 'https://eno.vn', { verifier: bad })).toEqual({ ok: false, reason: 'exchange' })
+    expect(f).not.toHaveBeenCalled()
+    // RFC 7636's own example, and a fresh verifier is a valid one.
+    expect(pkceChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk')).toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM')
+    expect(isPkceVerifier(newPkceVerifier())).toBe(true)
   })
   it('an import also asks for each picture size, separately, and a size that fails is only a size missing', async () => {
     const seen: string[] = []
@@ -98,7 +116,7 @@ describe('readFacebookProfile', () => {
       return new Response(JSON.stringify({ id: '123456', first_name: 'An', picture: { data: { url: 'https://p/x.jpg' } } }), { status: 200 })
     }))
     const { readFacebookProfile } = await load()
-    const r = await readFacebookProfile('CODE', 'https://eno.vn', { pictureSizes: true })
+    const r = await readFacebookProfile('CODE', 'https://eno.vn', { pictureSizes: true, verifier: 'v'.repeat(64) })
     expect(r).toMatchObject({ ok: true, profile: { pictures: ['https://p/x.jpg', 'https://p/40.jpg', 'https://p/80.jpg', 'https://p/100.jpg', 'https://p/160.jpg', 'https://p/200.jpg', 'https://p/320.jpg'] } })
     expect(seen.filter((u) => u.includes('/me/picture'))).toHaveLength(7)
     expect(seen.every((u) => !u.includes('TOKEN') && !u.includes('.as('))).toBe(true)
@@ -106,12 +124,12 @@ describe('readFacebookProfile', () => {
   it('Graph refuses the profile call: says so with its code, and Connect reports a failure', async () => {
     vi.stubGlobal('fetch', vi.fn(async (u: unknown) => String(u).includes('/oauth/access_token') ? new Response(JSON.stringify({ access_token: 'TOKEN' }), { status: 200 }) : new Response(JSON.stringify({ error: { code: 2500, message: 'quotes the request' } }), { status: 400 })))
     const { readFacebookProfile } = await load()
-    expect(await readFacebookProfile('CODE', 'https://eno.vn')).toEqual({ ok: false, reason: 'profile' })
+    expect(await readFacebookProfile('CODE', 'https://eno.vn', { verifier: 'v'.repeat(64) })).toEqual({ ok: false, reason: 'profile' })
   })
   it('no email still connects: the eno account has its own', async () => {
     vi.stubGlobal('fetch', answers({ id: '123456', first_name: 'An' }))
     const { readFacebookProfile, facebookIdentityData } = await load()
-    const r = await readFacebookProfile('CODE', 'https://eno.vn')
+    const r = await readFacebookProfile('CODE', 'https://eno.vn', { verifier: 'v'.repeat(64) })
     expect(r).toEqual({ ok: true, profile: { id: '123456', email: null, name: 'An', picture: null, pictureIsDefault: false, displayName: 'An' } })
     // GoTrue's shape with no address at all: an empty one would be matched against other accounts' empties.
     const d = facebookIdentityData((r as { ok: true; profile: Parameters<typeof facebookIdentityData>[0] }).profile)
@@ -121,10 +139,10 @@ describe('readFacebookProfile', () => {
   it('a refused code or a network failure never throws', async () => {
     vi.stubGlobal('fetch', answers({}, false))
     const a = await load()
-    expect(await a.readFacebookProfile('CODE', 'https://eno.vn')).toEqual({ ok: false, reason: 'exchange' })
+    expect(await a.readFacebookProfile('CODE', 'https://eno.vn', { verifier: 'v'.repeat(64) })).toEqual({ ok: false, reason: 'exchange' })
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('net') }))
     const b = await load()
-    expect(await b.readFacebookProfile('CODE', 'https://eno.vn')).toEqual({ ok: false, reason: 'exchange' })
+    expect(await b.readFacebookProfile('CODE', 'https://eno.vn', { verifier: 'v'.repeat(64) })).toEqual({ ok: false, reason: 'exchange' })
   })
   it('off without the secret', async () => {
     vi.resetModules()
@@ -132,7 +150,7 @@ describe('readFacebookProfile', () => {
     vi.stubEnv('FACEBOOK_APP_SECRET', '')
     const { facebookConnectConfigured, readFacebookProfile } = await import('./facebook-connect')
     expect(facebookConnectConfigured()).toBe(false)
-    expect(await readFacebookProfile('CODE', 'https://eno.vn')).toEqual({ ok: false, reason: 'not_configured' })
+    expect(await readFacebookProfile('CODE', 'https://eno.vn', { verifier: 'v'.repeat(64) })).toEqual({ ok: false, reason: 'not_configured' })
   })
 })
 
@@ -141,6 +159,9 @@ describe('isConnectState', () => {
     const { isConnectState, newConnectState } = await load()
     expect(isConnectState(newConnectState())).toBe(true)
     for (const bad of [null, '', 'short', 'a\nb'.padEnd(43, 'x'), 'a;b'.padEnd(43, 'x'), 'x'.repeat(44)]) expect(isConnectState(bad)).toBe(false)
+    // The iOS app's mark: exactly `n.` before the same 43, and nothing else that could reach a cookie name.
+    expect(isConnectState(newConnectState(true))).toBe(true)
+    for (const bad of ['n.' + 'x'.repeat(42), 'n:' + 'x'.repeat(43), 'm.' + 'x'.repeat(43), 'n.n.' + 'x'.repeat(43)]) expect(isConnectState(bad)).toBe(false)
   })
 })
 
@@ -150,5 +171,17 @@ describe('facebookIdentityData', () => {
     const d = facebookIdentityData({ id: '123456', email: 'a@x.example', name: 'An Tran', picture: null })
     expect(d).toMatchObject({ sub: '123456', provider_id: '123456', name: 'An Tran', full_name: 'An Tran', email: 'a@x.example', email_verified: true })
     expect(d).not.toHaveProperty('picture')
+  })
+})
+
+describe('the iOS app\'s connect state', () => {
+  it('is marked, keys its cookie by the random part, and a plain state is not marked', async () => {
+    const { newConnectState, isNativeConnectState, fbTxCookieName } = await load()
+    const app = newConnectState(true)
+    expect(app.startsWith('n.')).toBe(true)
+    expect(isNativeConnectState(app)).toBe(true)
+    expect(isNativeConnectState(newConnectState())).toBe(false)
+    expect(fbTxCookieName(app)).toBe(`eno_fbc_${app.slice(2, 14)}`)
+    expect(fbTxCookieName(app)).toMatch(/^eno_fbc_[\w-]{12}$/)
   })
 })

@@ -20,8 +20,11 @@ vi.mock('@/lib/supabase/server', () => ({
   createSupabaseServer: async () => ({ auth: { getClaims: async () => ({ data: h.sub ? { claims: { sub: h.sub, session_id: 'sess-1', email: 'stale@x.example' } } : null }), getUser: async () => ({ data: { user: h.live ? { id: h.live, email: 'a@x.example' } : null } }), refreshSession: h.refresh } }),
 }))
 vi.mock('@/lib/auth/facebook-connect', () => ({
-  fbTxCookieName: (s: string) => `eno_fbc_${s.slice(0, 12)}`,
-  isConnectState: (v: string | null) => !!v && /^[\w-]{43}$/.test(v),
+  fbTxCookieName: (s: string) => `eno_fbc_${(s.startsWith('n.') ? s.slice(2) : s).slice(0, 12)}`,
+  isConnectState: (v: string | null) => !!v && /^(?:n\.)?[\w-]{43}$/.test(v),
+  isNativeConnectState: (v: string) => v.startsWith('n.'),
+  isPkceVerifier: (v: unknown) => typeof v === 'string' && /^[\w-]{43,128}$/.test(v),
+  FB_CONNECT_APP_RETURN: 'enovn://fb-connect',
   readFacebookProfile: h.read,
   connectFacebookIdentity: h.connect,
   connectedFacebookId: async () => h.alreadyConnected,
@@ -33,9 +36,10 @@ vi.mock('@/lib/ssrf', () => ({ safeFetch: async () => new Response('picture') })
 const { GET } = await import('./route')
 
 const STATE = 's'.repeat(43)
+const VER = 'v'.repeat(64)
 const COOKIE = `eno_fbc_${STATE.slice(0, 12)}`
 const PROFILE = { id: '123456', email: 'a@x.example', name: 'An', picture: null }
-const tx = (u = 'user-1', s = STATE) => `${COOKIE}=${encodeURIComponent(JSON.stringify({ s, u }))}`
+const tx = (u = 'user-1', s = STATE) => `${COOKIE}=${encodeURIComponent(JSON.stringify({ s, u, v: VER }))}`
 const call = (query: string, cookie?: string) =>
   GET(new Request(`https://eno.vn/auth/facebook/connect/callback?${query}`, { headers: { host: 'eno.vn', ...(cookie ? { cookie } : {}) } }))
 const fb = (r: Response) => new URL(r.headers.get('location')!).searchParams.get('fb')
@@ -52,7 +56,7 @@ beforeEach(() => {
 
 describe('Connect Facebook callback', () => {
   // ⛔ Connecting through Import is the same new way in, and the mail is what a phished owner recovers by.
-  const importTx = () => `${COOKIE}=${encodeURIComponent(JSON.stringify({ s: STATE, u: 'user-1', f: 'import' }))}`
+  const importTx = () => `${COOKIE}=${encodeURIComponent(JSON.stringify({ s: STATE, u: 'user-1', v: VER, f: 'import' }))}`
   it('Import connects Facebook for the first time: the account hears about it, and the job has every picture size', async () => {
     h.alreadyConnected = null
     h.read.mockResolvedValue({ ok: true, profile: { ...PROFILE, picture: 'https://p/400.jpg', pictures: ['https://p/400.jpg', 'https://p/200.jpg'], displayName: 'An Tran' } })
@@ -148,5 +152,51 @@ describe('Connect Facebook callback', () => {
     const r = await call(`code=C&state=${STATE}`, tx())
     expect(r.status).toBe(307)
     expect(fb(r)).toBe('failed')
+  })
+
+  // ⛔ THE iOS APP'S RETURN: Facebook lands in the app's in-app browser sheet, which holds none of the app's cookies.
+  it('⛔ PKCE: the code goes to Facebook with the cookie\'s verifier, and a cookie without one (made before PKCE, or edited) exchanges nothing', async () => {
+    h.alreadyConnected = null
+    await call(`code=C&state=${STATE}`, tx())
+    expect(h.read).toHaveBeenCalledWith('C', 'https://eno.vn', expect.objectContaining({ verifier: VER }))
+    h.read.mockClear()
+    for (const v of [undefined, '', 'short', 42]) {
+      expect(fb(await call(`code=C&state=${STATE}`, `${COOKIE}=${encodeURIComponent(JSON.stringify({ s: STATE, u: 'user-1', v }))}`))).toBe('failed')
+    }
+    expect(h.read).not.toHaveBeenCalled()
+  })
+
+  describe('the iOS app', () => {
+    const APP_STATE = `n.${STATE}`
+    const appCookie = (u = 'user-1') => `${COOKIE}=${encodeURIComponent(JSON.stringify({ s: APP_STATE, u, v: VER }))}`
+    it('in the sheet (no cookie): hands code and state to the app on this phone, keeps nothing, reads nothing from Facebook', async () => {
+      const r = await call(`code=C&state=${APP_STATE}`)
+      expect(r.status).toBe(302)
+      expect(r.headers.get('location')).toBe(`enovn://fb-connect?code=C&state=${encodeURIComponent(APP_STATE)}#`)
+      expect(r.headers.get('set-cookie')).toBeNull()
+      expect(h.read).not.toHaveBeenCalled()
+    })
+    it('a decline, or nothing at all, goes back to the app as a bare cancel, never Facebook\'s words', async () => {
+      expect((await call(`error=access_denied&error_description=${encodeURIComponent('<b>evil</b>')}&state=${APP_STATE}`)).headers.get('location')).toBe(`enovn://fb-connect?error=cancel&state=${encodeURIComponent(APP_STATE)}#`)
+      expect((await call(`state=${APP_STATE}`)).headers.get('location')).toBe(`enovn://fb-connect?error=cancel&state=${encodeURIComponent(APP_STATE)}#`)
+    })
+    it('in the app (app=1, its cookie): finishes like the web, binding and all', async () => {
+      const r = await call(`code=C&state=${APP_STATE}&app=1`, appCookie())
+      expect(r.headers.get('location')).not.toMatch(/^enovn:/)
+      expect(h.read).toHaveBeenCalledWith('C', 'https://eno.vn', expect.anything())
+      expect(h.connect).toHaveBeenCalled()
+      h.read.mockClear()
+      expect(fb(await call(`code=C&state=${APP_STATE}&app=1`, appCookie('someone-else')))).toBe('failed')
+      expect(h.read).not.toHaveBeenCalled()
+    })
+    it('⛔ the app\'s own attempt (app=1) with its cookie gone fails here, never hands off to itself again', async () => {
+      const r = await call(`code=C&state=${APP_STATE}&app=1`)
+      expect(r.headers.get('location')).not.toMatch(/^enovn:/)
+      expect(fb(r)).toBe('failed')
+      expect(h.read).not.toHaveBeenCalled()
+    })
+    it('a plain web state never hands off, cookie or not', async () => {
+      expect(fb(await call(`code=C&state=${STATE}`))).toBe('failed')
+    })
   })
 })

@@ -61,6 +61,30 @@ export function nativeAuthErrorCode(e: unknown): NativeAuthErrorCode | null {
 }
 
 /**
+ * The WebView path for an `enovn://fb-connect?…` deep link (Connect or Import from Facebook in the iOS app), or null for any other URL. Facebook returns
+ * to the app's in-app browser sheet, whose cookie jar is not the app's, so the connect callback hands `code` and `state` back here
+ * (src/app/[lang]/auth/facebook/connect/callback/route.ts) and the WebView finishes it where the state cookie lives. Only `code`, `error` and `state` travel, query only, and
+ * never without a state: the callback still requires its cookie, so a crafted link fails there like any stray callback. `app=1` marks the attempt as the app's.
+ */
+export function fbConnectPathFromDeepLink(url: string): string | null {
+  try {
+    const u = new URL(url)
+    if (u.protocol !== 'enovn:' || u.host !== 'fb-connect') return null
+    const q = new URLSearchParams()
+    for (const k of ['code', 'error', 'state']) {
+      const v = u.searchParams.get(k)
+      if (v) q.set(k, v)
+    }
+    if (!q.get('state')) return null
+    // `app=1`: this attempt is the app's own, so the callback finishes or fails here and never hands off again (commit gate, codex: a missing cookie looped).
+    q.set('app', '1')
+    return `/auth/facebook/connect/callback?${q.toString()}`
+  } catch {
+    return null
+  }
+}
+
+/**
  * The WebView path for an `enovn://auth-callback?…` deep link, or null for any other URL.
  *
  * ⛔ THE QUERY ONLY — NEVER THE FRAGMENT. The old dispatcher forwarded `url.split('?')[1]`, which carried a
@@ -78,15 +102,16 @@ export function authCallbackPathFromDeepLink(url: string): string | null {
   }
 }
 
-export type NativeOAuthProvider = 'google' | 'apple'
+export type NativeOAuthProvider = 'google' | 'apple' | 'facebook'
 
 /**
- * Start Google (any native app) or Apple's web flow (the Android app) in a real browser surface.
+ * Start Google (any native app), Apple's web flow (the Android app) or Facebook (the iOS app, facebookSignInInIosApp) in a real browser surface.
+ * `queryParams` go to the provider (Facebook's `auth_type: 'rerequest'`, as on the web).
  * Resolves once the browser is open (Custom Tab / SFSafariViewController — the deep link finishes it), or
  * once the WebView is on its way to `/auth/callback` (ASWebAuthenticationSession captured the callback).
  * Throws NativeAuthError('canceled') when the web-auth sheet is closed; other failures throw.
  */
-export async function nativeOAuth(supabase: SupabaseClient, provider: NativeOAuthProvider, next: string): Promise<void> {
+export async function nativeOAuth(supabase: SupabaseClient, provider: NativeOAuthProvider, next: string, queryParams?: Record<string, string>): Promise<void> {
   // ⚠️ A FLOW START, SO IT STARTS CLEAN — the web paths always did (sign-in-form.tsx); this one never did, so
   // every abandoned native attempt left a verifier cookie behind for good. See src/lib/auth-pkce.ts.
   clearStalePkceCookies()
@@ -96,7 +121,7 @@ export async function nativeOAuth(supabase: SupabaseClient, provider: NativeOAut
   const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}&native=1&p=${provider}`
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
-    options: { redirectTo, skipBrowserRedirect: true },
+    options: { redirectTo, skipBrowserRedirect: true, ...(queryParams ? { queryParams } : {}) },
   })
   if (error) throw error
   if (!data?.url) throw new Error('No OAuth URL returned')

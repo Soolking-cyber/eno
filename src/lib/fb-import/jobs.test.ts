@@ -24,9 +24,9 @@ describe('createImportJob', () => {
     expect(await createImportJob('p', 'An', ['sha'])).toEqual({ ok: false, reason: 'active' })
     expect(h.jobs.create).not.toHaveBeenCalled()
   })
-  it('two a day', async () => {
-    h.jobs.findMany.mockResolvedValue([{ status: 'ready' }, { status: 'not_found' }])
-    expect(await createImportJob('p', 'An', ['sha'])).toEqual({ ok: false, reason: 'daily_limit' })
+  it('no daily cap for now (owner, 2026-11-06): finished and failed tries never stop the next one', async () => {
+    h.jobs.findMany.mockResolvedValue([{ status: 'ready' }, { status: 'not_found' }, { status: 'failed' }, { status: 'unavailable' }])
+    expect(await createImportJob('p', 'An', ['sha'])).toEqual({ ok: true, id: 'j1' })
   })
 })
 

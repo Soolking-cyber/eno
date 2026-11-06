@@ -89,6 +89,13 @@ describe('native=1 — the hop back into the app', () => {
     for (const r of [cancel, google, disabled, other]) expect(r.headers.get('location')).not.toMatch(/description|evil|denied|boom/)
   })
 
+  it('the iOS app\'s Facebook sign-in: no email crosses the hop as the mapped code and lands as the email-first message, never the prose', async () => {
+    const hop = await call('?native=1&next=%2F&p=facebook&error=server_error&error_code=unexpected_failure&error_description=Error+getting+user+email+from+external+provider')
+    expect(hop.headers.get('location')).toBe('enovn://auth-callback?error=no_email&next=%2F&p=facebook#')
+    expect((await call('?error=no_email&next=%2F&p=facebook')).headers.get('location')).toBe('https://eno.vn/?auth_error=no_email')
+    expect((await call('?error=no_email&next=%2F&p=google')).headers.get('location')).toBe('https://eno.vn/?auth_error=oauth')
+  })
+
   it('does NOT hop with neither a code nor an error — it shows /signin inside the tab', async () => {
     const res = await call('?native=1&next=%2Fx&p=apple')
     expect(res.status).toBe(307)

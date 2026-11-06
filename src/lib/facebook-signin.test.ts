@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest'
-import { facebookAvailableHere, isFacebookLinked } from './facebook-signin'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { facebookAvailableHere, facebookIosApp, facebookSignInInIosApp, isFacebookLinked } from './facebook-signin'
 
 // An account carries a Facebook identity — its email is then Platform Data that never reaches another ad network.
 describe('isFacebookLinked', () => {
@@ -42,5 +42,31 @@ describe('facebookAvailableHere', () => {
       setUa(ua)
       expect(facebookAvailableHere(), ua).toBe(false)
     }
+  })
+})
+
+// The iOS app (owner, 2026-11-06): Connect and Import through its in-app browser sheet; sign-in only beside Apple (Guideline 4.8).
+describe('the iOS app', () => {
+  const cap = (platform: string | null, plugin = true) => {
+    vi.stubGlobal('Capacitor', platform ? { isNativePlatform: () => true, getPlatform: () => platform, isPluginAvailable: (n: string) => plugin && n === 'EnoSignIn' } : undefined)
+  }
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
+  it('Connect and Import: the iOS app, never Android\'s app or a browser', () => {
+    cap('ios')
+    expect(facebookIosApp()).toBe(true)
+    cap('android')
+    expect(facebookIosApp()).toBe(false)
+    cap(null)
+    expect(facebookIosApp()).toBe(false)
+  })
+  it('⛔ sign-in: only where the native Apple sheet runs beside it', () => {
+    vi.stubEnv('NEXT_PUBLIC_APPLE_SIGNIN', 'ios')
+    cap('ios')
+    expect(facebookSignInInIosApp()).toBe(true)
+    cap('ios', false)
+    expect(facebookSignInInIosApp()).toBe(false)
+    vi.stubEnv('NEXT_PUBLIC_APPLE_SIGNIN', '')
+    cap('ios')
+    expect(facebookSignInInIosApp()).toBe(false)
   })
 })

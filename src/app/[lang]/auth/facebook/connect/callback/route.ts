@@ -1,5 +1,6 @@
+import { NextResponse } from 'next/server'
 import { canonicalAuthOrigin, stateMatches } from '@/lib/auth/google-oauth'
-import { connectedFacebookId, connectFacebookIdentity, fbTxCookieName, isConnectState, readFacebookProfile, type FacebookProfile } from '@/lib/auth/facebook-connect'
+import { connectedFacebookId, connectFacebookIdentity, FB_CONNECT_APP_RETURN, fbTxCookieName, isConnectState, isNativeConnectState, isPkceVerifier, readFacebookProfile, type FacebookProfile } from '@/lib/auth/facebook-connect'
 import { createImportJob } from '@/lib/fb-import/jobs'
 import { safeFetch } from '@/lib/ssrf'
 import { createHash } from 'node:crypto'
@@ -63,11 +64,28 @@ export async function GET(request: Request) {
     ? request.headers.get('cookie')?.split('; ').find((c) => c.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1)
     : null
   // ⚠️ VALID JSON IS NOT AN OBJECT: `null` parses fine, and reading a field of it would be a 500 (commit gate, codex).
-  let tx: { s?: unknown; u?: unknown; f?: unknown } = {}
+  let tx: { s?: unknown; u?: unknown; f?: unknown; v?: unknown } = {}
   try {
     const parsed: unknown = raw ? JSON.parse(decodeURIComponent(raw)) : null
     if (parsed && typeof parsed === 'object') tx = parsed
   } catch { tx = {} }
+
+  // ⛔ THE iOS APP'S RETURN (facebook-connect.ts NATIVE_CONNECT_PREFIX): Facebook brought it to the app's in-app browser sheet, which doesn't hold the
+  // app's cookies, so there is no state cookie here to check or burn. Hand code and state to the app on this same phone, where the cookie is, and let this
+  // route finish there (`app=1`). Nothing is kept here: a code parked for a cookieless browser could be collected by whoever holds the state (commit gate,
+  // opus). A code another app catches from the person's own Connect is useless without the verifier in the app's cookie (what remains: facebook-connect.ts FB_CONNECT_APP_RETURN). Never Facebook's error text (the sign-in hop's rule), and Location ends with `#` so no
+  // fragment rides along. A crafted link lands in the app with a state no cookie there matches, and fails like any stray callback.
+  // ⛔ NEVER FROM THE APP'S OWN ATTEMPT (`app=1`, native-auth.ts fbConnectPathFromDeepLink): with its cookie gone that one must fail here, not hand off to
+  // itself again (commit gate, codex).
+  if (state && isNativeConnectState(state) && !raw && url.searchParams.get('app') !== '1') {
+    const q = new URLSearchParams()
+    // With neither a code nor an error, the app is still told (as a cancel): Settings inside the sheet would be a signed-out page and a dead end
+    // (commit gate, opus).
+    if (code) q.set('code', code)
+    else q.set('error', 'cancel')
+    q.set('state', state)
+    return new NextResponse(null, { status: 302, headers: { Location: `${FB_CONNECT_APP_RETURN}?${q.toString()}#`, 'Cache-Control': 'private, no-store, max-age=0' } })
+  }
 
   // Whatever happens, the transaction is burned on the way out: one try per cookie.
   const forImport = tx.f === 'import'
@@ -81,6 +99,8 @@ export async function GET(request: Request) {
   if (url.searchParams.get('error')) return finish(null)
   // Each way out says which: every one of these used to end in the same silent "failed", and finding this cost a deploy (2026-11-05).
   if (!code || !state || typeof tx.s !== 'string' || typeof tx.u !== 'string') { logWarn('[facebook-connect] callback without its state cookie'); return finish('failed') }
+  // ⛔ No verifier, no exchange: a cookie made before PKCE (or edited by hand) never falls back to the secret (facebook-connect.ts newPkceVerifier).
+  if (!isPkceVerifier(tx.v)) { logWarn('[facebook-connect] callback without a PKCE verifier'); return finish('failed') }
   if (!stateMatches(state, tx.s)) { logWarn('[facebook-connect] callback state mismatch'); return finish('failed') }
 
   try {
@@ -90,7 +110,7 @@ export async function GET(request: Request) {
     // access token expires (commit gate, opus).
     if (data?.claims?.sub !== tx.u || live?.user?.id !== tx.u) { logWarn('[facebook-connect] callback from a different or ended session'); return finish('failed') }
 
-    const read = await readFacebookProfile(code, origin, { pictureSizes: forImport })
+    const read = await readFacebookProfile(code, origin, { pictureSizes: forImport, verifier: tx.v })
     if (!read.ok) { logWarn('[facebook-connect] could not read the profile', { reason: read.reason }); return finish('failed') }
 
     // Told to the account's own address. Best effort: the link has happened, and a failed mail must not read as a failed link.

@@ -2,16 +2,17 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
-import { ACTIVE_JOB_STATUSES, FB_IMPORT_JOBS_PER_DAY, FB_IMPORT_LEASE_MINUTES, FB_IMPORT_MAX_ATTEMPTS, FB_IMPORT_MAX_ITEMS, FB_IMPORT_QUEUE_HOURS, FB_IMPORT_RETENTION_DAYS, vndFromFacebook, type ReportedItem } from './shared'
+import { ACTIVE_JOB_STATUSES, FB_IMPORT_LEASE_MINUTES, FB_IMPORT_MAX_ATTEMPTS, FB_IMPORT_MAX_ITEMS, FB_IMPORT_QUEUE_HOURS, FB_IMPORT_RETENTION_DAYS, vndFromFacebook, type ReportedItem } from './shared'
 import { areaFromFacebook } from './area'
 
-export type NewJobOutcome = { ok: true; id: string } | { ok: false; reason: 'active' | 'daily_limit' }
+export type NewJobOutcome = { ok: true; id: string } | { ok: false; reason: 'active' }
 
 export async function createImportJob(profileId: string, fbName: string, pictureShas: string[]): Promise<NewJobOutcome> {
+  // One at a time: a second import while one is still reading would read the same page twice. ⛔ NO DAILY CAP FOR NOW (owner, 2026-11-06: "we will put
+  // guardrails once everything works remove it for now"): it was 2 a day and counted failed tries, so testing ran out of imports.
   const since = new Date(Date.now() - 24 * 3600_000)
   const recent = await db.facebookImportJob.findMany({ where: { profileId, createdAt: { gte: since } }, select: { status: true } })
   if (recent.some((j) => (ACTIVE_JOB_STATUSES as readonly string[]).includes(j.status))) return { ok: false, reason: 'active' }
-  if (recent.length >= FB_IMPORT_JOBS_PER_DAY) return { ok: false, reason: 'daily_limit' }
   const job = await db.facebookImportJob.create({ data: { profileId, fbName: fbName.slice(0, 200), pictureShas }, select: { id: true } })
   return { ok: true, id: job.id }
 }

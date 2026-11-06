@@ -22,7 +22,7 @@ import { HANDOFF_NEXT_KEY, handoffNonce } from '@/lib/auth/handoff-client'
 import { isNativeApp, nativeAppleSignIn, nativeAuthErrorCode, nativeOAuth, type NativeOAuthProvider } from '@/lib/native-auth'
 import { appReviewGate, inAppSheetDocument } from '@/lib/app-review-gates'
 import { appleAvailableHere, appleFlagSet, appleSignInTokens, appleWebEnabled, iosGoogleHidden, iosNativeAppleReady, iosSignInPluginPresent } from '@/lib/apple-signin'
-import { facebookAvailableHere } from '@/lib/facebook-signin'
+import { facebookAvailableHere, facebookSignInInIosApp } from '@/lib/facebook-signin'
 import { useFacebookSignInOn } from '@/lib/facebook-flag'
 import { googleFirstPartyEnabled } from '@/lib/google-identity'
 import { useTurnstile } from './turnstile'
@@ -388,8 +388,9 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   // paint (no late jump); on the SSR'd /signin form navigator is undefined → false, matching the server, and the effect
   // below fills it in — so no server node disagrees with the mount.
   const facebookOn = useFacebookSignInOn()
+  // The iOS app counts too, through its web sign-in sheet and only beside Apple (facebookSignInInIosApp, owner 2026-11-06).
   const [facebookHere, setFacebookHere] = useState(
-    () => typeof navigator !== 'undefined' && facebookAvailableHere(),
+    () => typeof navigator !== 'undefined' && (facebookAvailableHere() || facebookSignInInIosApp()),
   )
   // ⛔ NOT RIGHT AFTER FACEBOOK SHARED NO EMAIL (`emailLead`): a second tap ends the same way.
   const showFacebook = facebookOn && facebookHere && !emailLead
@@ -466,7 +467,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
     setHideGoogle((isNativeTabs() && !isNativeApp()) || iosGoogleHidden() || inAppSheetDocument())
     const appleHere = appleAvailableHere()
     setShowApple(appleHere)
-    setFacebookHere(facebookAvailableHere())
+    setFacebookHere(facebookAvailableHere() || facebookSignInInIosApp())
     setAppleWebHere(appleWebEnabled())
     // ⛔ RECONCILE THE PRE-PAINT CLASS (commit gate, codex + opus): `no-apple-web` is set once per document
     // (src/lib/apple-web-head.ts), but the in-app sheet's marker belongs to ONE URL — a client-side navigation away
@@ -922,6 +923,20 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
     setFacebookBusy(true)
     const sb = await getSupabase()
     if (!sb) { setFacebookBusy(false); return } // getSupabase already cleared loading and set the error
+    // THE iOS APP: Facebook's dialog never runs in the app's WebView, so it opens in the same web sign-in sheet as Google and comes back through
+    // the `native=1` hop (nativeOAuth). The sheet captures its return and this WebView follows it, so the busy state stays on success. A closed
+    // sheet is the visitor's answer: silent.
+    if (facebookSignInInIosApp()) {
+      try {
+        await nativeOAuth(sb, 'facebook', signInNextPath(window.location, resume), { auth_type: 'rerequest' })
+        return
+      } catch (e) {
+        if (nativeAuthErrorCode(e) !== 'canceled') setError({ code: 'facebook_failed' })
+      }
+      setLoading(false)
+      setFacebookBusy(false)
+      return
+    }
     // Same instant as Google's and Apple's: clear what abandoned attempts left, immediately before the new flow.
     clearStalePkceCookies()
     // ⚠️ auth_type=rerequest: once a visitor has authorised the app, Facebook does a SILENT re-login and returns only the
@@ -1507,7 +1522,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
           </ProviderPair>
           {/* CONTINUE WITH FACEBOOK, after Google and Apple in a real browser (src/lib/facebook-signin.ts: offered, not
               leading, until it is seen to finish in Facebook's own browser). Google's shape and type, so no provider
-              outweighs another (D6); Facebook's own blue "f" on it. Never in the eno apps, so no first-frame hook. */}
+              outweighs another (D6); Facebook's own blue "f" on it. In the eno apps only the iOS app's, beside Apple (facebookSignInInIosApp). */}
           {showFacebook && (
             <Button variant="bare" size="none" disabled={loading} loading={facebookBusy} onClick={pressFacebook} className={cn(restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY, tagAnchor('facebook'))} data-provider="facebook">
               <FacebookIcon />

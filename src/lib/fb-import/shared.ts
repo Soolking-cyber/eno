@@ -11,7 +11,6 @@ import { z } from 'zod'
  */
 export const FB_IMPORT_MAX_ITEMS = 100
 export const FB_IMPORT_MAX_PHOTOS = 8
-export const FB_IMPORT_JOBS_PER_DAY = 2
 export const FB_IMPORT_RETENTION_DAYS = 7
 export const FB_IMPORT_LEASE_MINUTES = 20
 export const FB_IMPORT_MAX_ATTEMPTS = 3

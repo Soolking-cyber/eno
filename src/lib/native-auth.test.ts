@@ -22,7 +22,7 @@ vi.mock('@/lib/native-sign-in-plugin', () => ({
 }))
 vi.mock('@capacitor/browser', () => ({ Browser: { open: (o: { url: string }) => h.browserOpen(o) } }))
 
-const { authCallbackPathFromDeepLink, nativeOAuth, nativeAppleSignIn, NativeAuthError, nativeAuthErrorCode } = await import('./native-auth')
+const { authCallbackPathFromDeepLink, fbConnectPathFromDeepLink, nativeOAuth, nativeAppleSignIn, NativeAuthError, nativeAuthErrorCode } = await import('./native-auth')
 
 const realLocation = window.location
 const assign = vi.fn()
@@ -54,6 +54,21 @@ describe('authCallbackPathFromDeepLink', () => {
     expect(authCallbackPathFromDeepLink('enonative://auth-callback?code=x')).toBeNull()
     expect(authCallbackPathFromDeepLink('enovn://open?url=enovn%3A%2F%2Fauth-callback%3Fcode%3Dx')).toBeNull()
     expect(authCallbackPathFromDeepLink('not a url')).toBeNull()
+  })
+})
+
+describe('fbConnectPathFromDeepLink', () => {
+  it('Connect coming back to the iOS app: code, error and state only, query only, marked as the app\'s own attempt', () => {
+    expect(fbConnectPathFromDeepLink('enovn://fb-connect?code=C&state=n.abc#')).toBe('/auth/facebook/connect/callback?code=C&state=n.abc&app=1')
+    expect(fbConnectPathFromDeepLink('enovn://fb-connect?error=cancel&state=n.abc')).toBe('/auth/facebook/connect/callback?error=cancel&state=n.abc&app=1')
+    expect(fbConnectPathFromDeepLink('enovn://fb-connect?code=C&state=n.abc&next=%2F%2Fevil.example&app=0#access_token=T')).toBe('/auth/facebook/connect/callback?code=C&state=n.abc&app=1')
+  })
+  it('nothing without a state, and nothing but enovn://fb-connect', () => {
+    expect(fbConnectPathFromDeepLink('enovn://fb-connect?code=C')).toBeNull()
+    expect(fbConnectPathFromDeepLink('enovn://auth-callback?code=C&state=s')).toBeNull()
+    expect(fbConnectPathFromDeepLink('https://eno.vn/fb-connect?code=C&state=s')).toBeNull()
+    expect(fbConnectPathFromDeepLink('enonative://fb-connect?code=C&state=s')).toBeNull()
+    expect(fbConnectPathFromDeepLink('not a url')).toBeNull()
   })
 })
 
@@ -98,6 +113,18 @@ describe('nativeOAuth', () => {
     expect(e2).toBeInstanceOf(NativeAuthError)
     expect(nativeAuthErrorCode(e2)).toBe('oauth_failed')
     expect(assign).not.toHaveBeenCalled()
+  })
+
+  it('iOS app, Facebook: the same sheet as Google, Facebook asked to re-ask for email, and the return names Facebook', async () => {
+    h.pluginAvailable = true
+    h.webAuth = vi.fn(async () => ({ url: 'enovn://auth-callback?code=c2&next=%2F&p=facebook#' }))
+    const { client, signInWithOAuth } = sb('https://sb.eno.vn/auth/v1/authorize?provider=facebook')
+    await nativeOAuth(client, 'facebook', '/', { auth_type: 'rerequest' })
+    const arg = signInWithOAuth.mock.calls[0][0] as { provider: string; options: { redirectTo: string; queryParams?: Record<string, string> } }
+    expect(arg.provider).toBe('facebook')
+    expect(arg.options.redirectTo).toContain('&native=1&p=facebook')
+    expect(arg.options.queryParams).toEqual({ auth_type: 'rerequest' })
+    expect(assign).toHaveBeenCalledWith('/auth/callback?code=c2&next=%2F&p=facebook')
   })
 
   it('an OAuth URL that never came back is an error, not a silent no-op', async () => {

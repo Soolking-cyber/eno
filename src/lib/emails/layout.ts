@@ -45,14 +45,13 @@ export function emailCta(label: string, url: string): string {
 }
 
 /**
- * "Copy code", for every email that carries a code (owner, 2026-11-04: "copy button for ease of use everywhere"). ⛔ AN EMAIL CAN'T COPY ANYTHING, because mail
- * clients strip scripts: this links to a page that does (copy-code-page.ts). The code rides in the URL's fragment, so eno's own server never receives it, and a
- * scanner pre-fetching the link burns nothing: the page verifies nothing. ⚠️ Resend's click tracking, when on, rewrites the link and so does hold it; Resend sent
- * the code anyway. If a rewrite ever loses the fragment, the page says to copy from the email.
+ * The line under the code in every email that carries one: how to copy it WITHOUT LEAVING THE EMAIL. ⛔ NO "Copy code" BUTTON (owner, 2026-11-06: "the copy
+ * code from email does not copy and takes out of email to browser"): mail clients strip scripts, so a button can only be a link, and the link opened the
+ * browser, where Safari won't copy without another tap. The code box is one unbroken run of digits marked user-select:all, so pressing and holding it selects
+ * the whole code, and iPhone's Mail and Gmail can offer the code by themselves (AutoFill from Mail, Gmail's own "Copy code").
  */
-export function emailCopyCodeRow(code: string, origin: string, lang: 'en' | 'vi'): string {
-  const url = `${origin}/api/auth/copy-code${lang === 'vi' ? '?l=vi' : ''}#${code}`
-  return `<tr><td align="center" style="padding:10px 24px 8px;">${emailCta(lang === 'vi' ? 'Sao chép mã' : 'Copy code', url)}</td></tr>`
+export function emailCopyHintRow(lang: 'en' | 'vi'): string {
+  return `<tr><td align="center" style="padding:2px 24px 8px;"><p style="margin:0;font-size:13px;color:${EMAIL.MUTED};line-height:1.6;">${esc(lang === 'vi' ? 'Để sao chép, nhấn giữ mã (bấm đúp trên máy tính).' : 'To copy it, press and hold the code (double-click on a computer).')}</p></td></tr>`
 }
 
 /**

@@ -1,4 +1,5 @@
-import { inAppSheetDocument } from './app-review-gates'
+import { inAppSheetDocument, inAppSheetFrame, isNativeIOSClient } from './app-review-gates'
+import { iosNativeAppleReady } from './apple-signin'
 import { META_IN_APP_HOSTS, inAppHost, isNativeTabs } from './in-app-browser'
 
 /**
@@ -22,6 +23,9 @@ import { META_IN_APP_HOSTS, inAppHost, isNativeTabs } from './in-app-browser'
  * script installs, and /auth/callback strips any that still arrives (stripFacebookToken).
  */
 export const FACEBOOK_PROVIDER = 'facebook'
+
+/** Facebook's login dialog: the connect flow's address (auth/facebook-connect.ts buildConnectUrl), and the only page the iOS app's sheet opens for it (facebook-connect-client.ts). */
+export const FACEBOOK_DIALOG = 'https://www.facebook.com/dialog/oauth'
 
 /**
  * The account has a Facebook identity: `app_metadata.providers` (or the first `provider`) names it, in any case (GoTrue
@@ -62,4 +66,24 @@ export function facebookAvailableHere(): boolean {
     if (host ? !META_HOSTS.has(host) : /\bwv\b/.test(ua)) return false
   }
   return true
+}
+
+/**
+ * THE eno iOS APP (owner, 2026-11-06: "iphone ios app doesnt have fb import one add it too with fb login"): the Capacitor bridge itself, never the
+ * app's page sheet (no bridge there). Facebook's dialog never runs in the app's WebView: Connect and Import open it in the app's in-app browser sheet and
+ * come back by `enovn://fb-connect` (facebook-connect-client.ts, the connect callback), and sign-in runs through the same web sign-in sheet as Google
+ * (native-auth.ts nativeOAuth). Android's app keeps the old rule (facebookAvailableHere: nothing) until its own hand-back is built and tried.
+ */
+export function facebookIosApp(): boolean {
+  if (typeof window === 'undefined') return false
+  const c = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
+  return !!c?.isNativePlatform?.() && isNativeIOSClient() && !inAppSheetFrame()
+}
+
+/**
+ * "Continue with Facebook" in the iOS app: ⛔ ONLY BESIDE SIGN IN WITH APPLE (Guideline 4.8, the invariant iosGoogleHidden keeps for Google). An app
+ * that offers a third-party sign-in must offer Apple's too, so a binary without the native Apple sheet, or with Apple switched off, shows no Facebook.
+ */
+export function facebookSignInInIosApp(): boolean {
+  return facebookIosApp() && iosNativeAppleReady()
 }
