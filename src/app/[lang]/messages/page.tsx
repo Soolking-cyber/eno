@@ -25,7 +25,9 @@ export default function MessagesPage() {
         tone="bare"
         size="lg"
         className={cn('h-full w-full', loading && 'no-session:hidden')}
-        media={<Mascot name="chat" className="h-56 w-56" />}
+        // 160px, as the guest gate and the list's own empty state draw it, and the art's empty ground band (a fifth of its box,
+        // under the feet) taken back, so the line sits with the drawing (2026-11-06 audit: a ~60px gap read as two things).
+        media={<Mascot name="chat" className="-mb-6 h-40 w-40" />}
         title={tr('Select a conversation to start chatting.', 'Chọn một cuộc trò chuyện để bắt đầu.')}
       />
       {loading && <MessagesGuestGate className="hidden h-full w-full justify-center no-session:flex" />}

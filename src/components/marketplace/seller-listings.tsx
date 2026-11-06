@@ -318,7 +318,7 @@ export function SellerListings({
    * hears one live count. It truncates last, and drops to its own line before it would cut the pill or Filters.
    */
   const phoneNote = serverMode && !loadError && (
-    <p className="ml-auto min-w-0 truncate text-xs text-muted-foreground sm:hidden" aria-live="polite">
+    <p className="ml-auto min-w-0 truncate text-xs text-body sm:hidden" aria-live="polite">
       {awaitingFirstRows
         ? tr('Searching…', 'Đang tìm…')
         : shown.length >= resultTotal
@@ -395,8 +395,11 @@ export function SellerListings({
   // Not over a failed query either: "Showing 0 of 63,652" above "Couldn't load listings." reported
   // the failure as an empty answer.
   // `max-sm:hidden` beside a strip: there the phone reads the short twin on the sort row (`phoneNote`).
+  // 2026-11-06 audit: 14px in body ink, the readable secondary step. At 12px muted it was the faintest line between the strip
+  // and the grid on a desktop, for the one figure a reader compares the page by. The phone twin keeps 12px (the sort row's
+  // budget) in the same ink.
   const serverNote = serverMode && !loadError && (
-    <p className={cn('text-xs text-muted-foreground', sortable && 'max-sm:hidden')} aria-live="polite">
+    <p className={cn('text-sm text-body', sortable && 'max-sm:hidden')} aria-live="polite">
       {awaitingFirstRows
         ? tr('Searching all listings…', 'Đang tìm trong tất cả tin đăng…')
         : (shown.length >= resultTotal

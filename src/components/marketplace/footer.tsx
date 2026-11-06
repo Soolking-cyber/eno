@@ -175,7 +175,7 @@ function FooterBody({ compact }: { compact: boolean }) {
     tiktok: tr('ENO on TikTok', 'ENO trên TikTok'),
   }
 
-  const columns: { title: string; links: FooterLink[] }[] = [
+  const columns: { title: string; links: FooterLink[]; wide?: boolean }[] = [
     {
       title: tr('Customer service', 'Chăm sóc khách hàng'),
       links: [
@@ -227,6 +227,8 @@ function FooterBody({ compact }: { compact: boolean }) {
     },
     {
       title: tr('Popular searches', 'Tìm kiếm phổ biến'),
+      // Two grid tracks from lg, its links in two columns (see the grid's note in the render).
+      wide: true,
       links: [
         /* ⛔ EVERY LINK IN THIS COLUMN MUST LAND ON A PAGE WITH SOMETHING ON IT THAT GOOGLE MAY INDEX.
            It is on every page of both editions, so a dead end here is a dead end ~250 times over.
@@ -414,13 +416,18 @@ function FooterBody({ compact }: { compact: boolean }) {
       <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
         {/* Blends into the page canvas (no bg-card). The divider is on the GRID, so it spans the
             CONTENT width inset by the gutter — a contained hairline, NOT the full-viewport edge. */}
-        {/* Symmetric rows on md+: row 1 = brand (2 tracks) + Explore (2 tracks); row 2 = the
+        {/* Symmetric rows on md: row 1 = brand (2 tracks) + Explore (2 tracks); row 2 = the
             four link columns, one track each. The previous md:col-span-1 brand left row 2 with
-            a dangling empty fourth track — three columns and a hole. */}
+            a dangling empty fourth track — three columns and a hole.
+            2026-11-06 audit: from lg the brand takes ONE track and Popular searches TWO, its twelve links in two columns of
+            six, so the same four tracks hold brand · Explore · Customer service over About · Shortcuts · Popular searches:
+            two rows of six links instead of six over twelve, ~190px less footer under every desktop page (judges in every
+            group read the tall second tier as the footer outweighing the page). DOM order, tab order and the phone accordion
+            do not change, and the inner columns step by the grid's own 32px gap, so every column of links sits on a track. */}
         {!compact && (
         <div className="grid grid-cols-2 gap-8 border-t border-border/60 pt-12 md:grid-cols-4 max-sm:gap-y-5 max-sm:pt-8">
           {/* Brand column */}
-          <div className="col-span-2 space-y-3">
+          <div className="col-span-2 space-y-3 lg:col-span-1">
             {/* alt + tagline are PER-EDITION. Both said "eno.vn" unconditionally, so eno.forum's
                 footer introduced itself as the licensed Vietnamese marketplace — the leak class
                 SITE_NAME exists for. The two taglines are spelled out as separate literals rather
@@ -520,8 +527,13 @@ function FooterBody({ compact }: { compact: boolean }) {
                 ⚠️ 44px ON A TOUCH SCREEN (`mobile:p-3`, owner-approved D-TAP 2026-09-29) — so the row is
                 TWO lines on every phone now, deliberately: nine 44px targets are 396px before the
                 "Group" tag, wider than any phone's row, and a one-line row would have meant 36px
-                targets under a thumb. A mouse (`pc`) keeps the 36px row, which fits its column. */}
-            <div className="-mx-2 mobile:-mx-3 flex flex-wrap items-center gap-1 pt-1">
+                targets under a thumb. A mouse (`pc`) keeps the 36px row. From lg the brand holds one grid track
+                (2026-11-06 audit, the grid's note above) and the row wraps there too: `lg:max-w-60` makes that two even
+                lines (five marks over four with a mouse) instead of six over three on a wide screen. Measured, not assumed (2026-11-06,
+                from the shipped Open Runde Bold): the second mark carries the "Group" tag and is ~73px, so five marks fill ~233px of
+                the 240px row and a sixth needs ~273px; only just above 1024px, where the row is ~232px, does English wrap four over
+                five. A reviewer who counted every mark at 36px got six over three here. */}
+            <div className="-mx-2 mobile:-mx-3 flex flex-wrap items-center gap-1 pt-1 lg:max-w-60">
               {/* ⛔ ONE LIST, NOT SEVEN HAND-WRITTEN ANCHORS (src/lib/socials.ts). The row carried three
                   channels and the owner asked for all of them plus the community group; a data list is
                   what stops the next addition from being another copy-pasted anchor with a different
@@ -615,7 +627,7 @@ function FooterBody({ compact }: { compact: boolean }) {
               {/* `text-base leading-normal` restores the 16/24 the list inherited from <body> before it
                   sat in a panel (the primitive's text-sm/leading-relaxed would grow every desktop row). */}
               <AccordionPanel className="pb-3 text-base leading-normal sm:pb-0">
-                <ul className="grid grid-cols-2 gap-x-6 sm:gap-y-2">
+                <ul className="grid grid-cols-2 gap-x-6 sm:gap-y-2 lg:gap-x-8">
                   {/* Each link is a way IN, so it wears the entry label — "Find a teacher", not "Teachers"
                       (nav audit N8, category-entry-label.ts); the slug and href are the category's own.
                       ⛔ IN THE OWNER'S LEAD ORDER, read across the two columns (owner, 2026-10-10: "put find a
@@ -637,13 +649,13 @@ function FooterBody({ compact }: { compact: boolean }) {
 
             {/* Link columns */}
             {columns.map((col) => (
-              <AccordionItem key={col.title} value={col.title} className="border-border/60 sm:space-y-3 sm:border-b-0">
+              <AccordionItem key={col.title} value={col.title} className={`border-border/60 sm:space-y-3 sm:border-b-0${col.wide ? ' lg:col-span-2' : ''}`}>
                 {/* h3 for the same reason as "Explore" above — one tier below the footer's tagline
                     heading, so the document outline reads h1 → h2 → h3 with no skipped level. */}
                 <h3 className="hidden text-sm font-bold text-foreground sm:block">{col.title}</h3>
                 <AccordionTrigger className="min-h-11 items-center py-3 text-sm">{col.title}</AccordionTrigger>
                 <AccordionPanel className="pb-3 text-base leading-normal sm:pb-0">
-                  <ul className="sm:space-y-2">
+                  <ul className={col.wide ? 'sm:space-y-2 lg:grid lg:grid-cols-2 lg:gap-x-8 lg:gap-y-2 lg:space-y-0' : 'sm:space-y-2'}>
                     {col.links.map((link) => (
                       <li key={link.label}>
                         {/* href stays a REAL url for a11y / middle-click / cmd-click; a plain

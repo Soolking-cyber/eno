@@ -38,8 +38,20 @@ import { formatCalendarDay } from '@/lib/calendar-day'
 
 const ENDPOINT = '/api/teachers/me/check-in'
 /** Bounded like the Zalo page's waits (cover-zalo-panel.tsx — 2026-11-06 audit): a stalled request must never hold the page on
- *  its spinner, or a button busy; it ends as a failed read (Try again) or a re-read of the truth. */
-const timeout = () => (typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(10_000) : undefined)
+ *  its spinner, or a button busy; it ends as a failed read (Try again) or a re-read of the truth. AbortSignal.timeout where the
+ *  browser has it; elsewhere (an older in-app browser) an AbortController on the same timer, let go once the request AND its
+ *  body have settled — the `undefined` this returned there left the wait unbounded (2026-11-06 audit). */
+const WAIT_MS = 10_000
+async function bounded<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  if (typeof AbortSignal.timeout === 'function') return run(AbortSignal.timeout(WAIT_MS))
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), WAIT_MS)
+  try { return await run(ctl.signal) } finally { clearTimeout(timer) }
+}
+
+/** A write its limit cut off can still commit a moment later: before "could not save" stays, the page looks once more, this
+ *  long after the re-read that did not show it (2026-11-06 audit). */
+const RECHECK_MS = 3_000
 
 /** The endpoint's answer (check-in.ts CheckInView). */
 export type CheckInViewData = {
@@ -97,8 +109,10 @@ function CheckInFor() {
 
   const read = useCallback(async (): Promise<CheckInViewData | null> => {
     try {
-      const res = await fetch(ENDPOINT, { cache: 'no-store', signal: timeout() })
-      return res.ok ? checkInViewOf(await res.json().catch(() => null)) : null
+      return await bounded(async (signal) => {
+        const res = await fetch(ENDPOINT, { cache: 'no-store', signal })
+        return res.ok ? checkInViewOf(await res.json().catch(() => null)) : null
+      })
     } catch {
       return null
     }
@@ -122,30 +136,42 @@ function CheckInFor() {
     setBusy(true)
     setLine('')
     let ok = false
+    // No answer at all (cut off, dropped), or one that is no refusal (a 5xx, a proxy page): the write may still land.
+    let unsure = false
     lineIsNotLive.current = false
     const before = view?.confirmedAt ?? null
+    // What the server shows this answer did: the profile hidden, or a "yes" newer than the one on screen.
+    const landed = (v: CheckInViewData | null) => !!v && (onOk === 'hidden' ? v.hidden : v.confirmedAt !== null && v.confirmedAt !== before)
     try {
       const res = await send()
       ok = res.ok
       lineIsNotLive.current = !ok && res.status === 409 && onOk === 'confirmed'
-      if (ok) { setDone(onOk); setConfirmOpen(false) } else setLine(res.status === 429 ? 'rate_limited' : lineIsNotLive.current ? 'not_live' : 'failed')
+      unsure = !ok && res.status !== 429 && !lineIsNotLive.current
+      if (ok) { setDone(onOk); setConfirmOpen(false) } else if (!unsure) setLine(res.status === 429 ? 'rate_limited' : 'not_live')
     } catch {
-      setLine('failed')
+      unsure = true
     } finally {
-      const fresh = await read()
+      let fresh = await read()
+      // ⚠️ A WRITE ITS 10s LIMIT CUT OFF CAN COMMIT A MOMENT LATER (2026-11-06 audit): when the re-read does not show it yet,
+      // the page looks once more a few seconds on, still busy, before "could not save" is said — and never says it meanwhile.
+      if (unsure && !landed(fresh)) {
+        await new Promise((r) => setTimeout(r, RECHECK_MS))
+        fresh = (await read()) ?? fresh
+      }
       if (fresh) setView(fresh)
       else if (ok && onOk === 'hidden') setView((v) => (v ? { ...v, live: false, hidden: true } : v))
       // …and a "yes" refused as not live (409) with the re-read failed: no live question or "Yes" left beside the line (codex, gate).
       else if (!ok && onOk === 'confirmed' && lineIsNotLive.current) setView((v) => (v ? { ...v, live: false } : v))
       // A request its 10s limit cut off can still have landed (opus, gate 2026-11-06): when the re-read shows it did, that is
       // the answer — never "could not save" beside it. The line says what the server shows, as job-messages-panel.tsx's does.
-      if (!ok && fresh && (onOk === 'hidden' ? fresh.hidden : fresh.confirmedAt !== null && fresh.confirmedAt !== before)) { setLine(''); setDone(onOk); setConfirmOpen(false) }
+      if (!ok && landed(fresh)) { setLine(''); setDone(onOk); setConfirmOpen(false) }
+      else if (unsure) setLine('failed')
       busyRef.current = false
       setBusy(false)
     }
   }
-  const confirm = () => act(() => fetch(ENDPOINT, { method: 'POST', signal: timeout() }), 'confirmed')
-  const hide = () => act(() => fetch('/api/teachers/me/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'hidden' }), signal: timeout() }), 'hidden')
+  const confirm = () => act(() => bounded((signal) => fetch(ENDPOINT, { method: 'POST', signal })), 'confirmed')
+  const hide = () => act(() => bounded((signal) => fetch('/api/teachers/me/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'hidden' }), signal })), 'hidden')
 
   const title = tr('Weekly check-in', 'Kiểm tra hằng tuần')
   if (authLoading) return <Loading />
@@ -213,9 +239,11 @@ function CheckInFor() {
               <Check className="inline size-4" /> {tr('Thanks — your profile stays up. We’ll ask again next week.', 'Cảm ơn bạn — hồ sơ của bạn vẫn hiển thị. Tuần sau chúng tôi sẽ hỏi lại.')}
             </Alert>
           ) : (
-            view.confirmedAt && <p className="text-xs text-muted-foreground">{tr('Last answered', 'Trả lời lần cuối')}: {formatCalendarDay(view.confirmedAt, lang)}</p>
+            view.confirmedAt && <p className="text-sm text-body">{tr('Last answered', 'Trả lời lần cuối')}: {formatCalendarDay(view.confirmedAt, lang)}</p>
           )}
-          {/* Phone: one full-width column, the answer first (2026-11-06 audit: ragged widths read as unrelated). */}
+          {/* Phone: one full-width column, the answer first (2026-11-06 audit: ragged widths read as unrelated). The third answer
+              is a button among the other two, not a bold line under them that read as more copy (2026-11-06 audit); its confirm
+              still says what hiding does before anything is sent. Its label wraps on a narrow phone or a zoomed text size. */}
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap [&>*]:max-sm:w-full">
             {done !== 'confirmed' && (
               <Button variant="cta" loading={busy} disabled={busy} onClick={() => { void confirm() }}>
@@ -223,24 +251,24 @@ function CheckInFor() {
               </Button>
             )}
             {editLink}
+            <AlertDialog open={confirmOpen} onOpenChange={(next) => { if (!busy) setConfirmOpen(next) }}>
+              <AlertDialogTrigger render={<Button variant="outline" type="button" className="whitespace-normal text-center" />}>
+                {tr('Not available now — hide my profile', 'Hiện chưa sẵn sàng — ẩn hồ sơ của tôi')}
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{tr('Hide your teacher profile?', 'Ẩn hồ sơ giáo viên của bạn?')}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {tr('Schools won’t find your profile or be able to start a new chat about it until you show it again from your profile. Nothing is deleted, and you can show it again any time.', 'Các trường sẽ không tìm thấy hồ sơ của bạn hay bắt đầu cuộc trò chuyện mới về hồ sơ cho đến khi bạn hiển thị lại trong hồ sơ của mình. Không có gì bị xóa, và bạn có thể hiển thị lại bất cứ lúc nào.')}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{tr('Keep it visible', 'Vẫn hiển thị')}</AlertDialogCancel>
+                  <AlertDialogAction variant="destructive" disabled={busy} onClick={() => { void hide() }}>{tr('Hide my profile', 'Ẩn hồ sơ')}</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
-          <AlertDialog open={confirmOpen} onOpenChange={(next) => { if (!busy) setConfirmOpen(next) }}>
-            <AlertDialogTrigger render={<Button variant="link" size="none" type="button" className="text-sm font-semibold text-body" />}>
-              {tr('Not available now — hide my profile', 'Hiện chưa sẵn sàng — ẩn hồ sơ của tôi')}
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{tr('Hide your teacher profile?', 'Ẩn hồ sơ giáo viên của bạn?')}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {tr('Schools won’t find your profile or be able to start a new chat about it until you show it again from your profile. Nothing is deleted, and you can show it again any time.', 'Các trường sẽ không tìm thấy hồ sơ của bạn hay bắt đầu cuộc trò chuyện mới về hồ sơ cho đến khi bạn hiển thị lại trong hồ sơ của mình. Không có gì bị xóa, và bạn có thể hiển thị lại bất cứ lúc nào.')}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{tr('Keep it visible', 'Vẫn hiển thị')}</AlertDialogCancel>
-                <AlertDialogAction variant="destructive" disabled={busy} onClick={() => { void hide() }}>{tr('Hide my profile', 'Ẩn hồ sơ')}</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </section>
       )}
 

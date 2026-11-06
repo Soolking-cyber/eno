@@ -148,19 +148,21 @@ function UnsubscribeForm() {
           : state === 'error' && teacherMessages
             ? {
                 title: tr("That link didn't work", 'Liên kết không hợp lệ'),
-                body: tr('The unsubscribe link is invalid or expired. Use the link in the latest message email from {site}.', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn. Hãy dùng liên kết trong email thông báo tin nhắn mới nhất từ {site}.').replace(/\{site\}/g, SITE_NAME),
+                body: tr('The unsubscribe link is invalid or expired, so nothing has changed. Use the link in the latest message email from {site}.', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn, nên chưa có gì thay đổi. Hãy dùng liên kết trong email thông báo tin nhắn mới nhất từ {site}.').replace(/\{site\}/g, SITE_NAME),
                 action: null,
               }
           : state === 'error' && teacherMatches
             ? {
                 title: tr("That link didn't work", 'Liên kết không hợp lệ'),
-                body: tr('The unsubscribe link is invalid or expired. You can turn teaching-job match emails off in your teacher profile.', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn. Bạn có thể tắt email gợi ý việc làm giảng dạy trong hồ sơ giáo viên của mình.'),
+                body: tr('The unsubscribe link is invalid or expired, so nothing has changed. You can turn teaching-job match emails off in your teacher profile.', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn, nên chưa có gì thay đổi. Bạn có thể tắt email gợi ý việc làm giảng dạy trong hồ sơ giáo viên của mình.'),
                 action: profileLink(tr('Open my teacher profile', 'Mở hồ sơ giáo viên của tôi')),
               }
             : state === 'error'
               ? {
                   title: tr("That link didn't work", 'Liên kết không hợp lệ'),
-                  body: tr('The unsubscribe link is invalid or expired. You can manage email preferences from your account settings.', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn. Bạn có thể quản lý email trong cài đặt tài khoản.'),
+                  // 2026-11-06 audit: what a reader most needs from a dead link: nothing was changed, and the settings ahead need a
+                  // sign-in (the link below is a dashboard route). Worded to stay true for a reader who is already signed in.
+                  body: tr('The unsubscribe link is invalid or expired, so nothing has changed. You can manage email preferences in your account settings (sign-in required).', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn, nên chưa có gì thay đổi. Bạn có thể quản lý email trong cài đặt tài khoản (cần đăng nhập).'),
                   // The way forward this line names, as a link (2026-11-06 audit): it was a dead end, worst on the no-token
                   // landing. The digest switch is Settings › Notifications; a signed-out reader goes through sign-in first.
                   action: (
@@ -194,7 +196,8 @@ function UnsubscribeForm() {
 
         {/* ONE heading for every state, on the type ramp (.h-title — docs/design-language.md §1). */}
         <h1 className="h-title mt-4 text-foreground">{view.title}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{view.body}</p>
+        {/* 2026-11-06 audit: the line that says what happened, in readable body ink rather than tertiary grey. */}
+        <p className="mt-2 text-sm text-body">{view.body}</p>
         {view.action}
 
         {/* Same quiet exit as /signin: hairline seam + arrow icon + the shared string. */}

@@ -18,7 +18,7 @@ import { hapticTap } from '@/lib/haptics'
 // `data-checked:` shorthand compiles to `[data-checked]` and matches. (Contrast `data-orientation="vertical"`,
 // a VALUED attribute, which is why the separator needed an explicit @custom-variant. No custom-variant
 // is needed here.) Bonus: `.data-checked\:bg-primary[data-checked]` is class+attribute specificity, so it
-// beats the plain `bg-input` base regardless of stylesheet order.
+// beats the plain `bg-line-strong` base regardless of stylesheet order.
 const SIZES = {
   /**
    * ⛔ THE THUMB TRAVELS BY `transform`, NOT BY `left`. Animating `left` is a LAYOUT property: every
@@ -82,7 +82,10 @@ export function Switch({
       disabled={disabled}
       aria-label={label}
       className={cn(
-        'inline-flex relative shrink-0 cursor-pointer rounded-full bg-input outline-none transition-colors',
+        // 2026-11-06 audit: the OFF track is `line-strong` (neutral-300), as ui/slider's rail is, not the input fill: on a
+        // SwitchRow's tint well the input fill sat at ~1.15:1 and judges read an off switch as missing. ~1.35:1 there, a touch
+        // firmer than iOS's own off track on a white cell; the white thumb and the checked brand blue are unchanged.
+        'inline-flex relative shrink-0 cursor-pointer rounded-full bg-line-strong outline-none transition-colors',
         'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         'data-checked:bg-primary',
         'data-disabled:cursor-not-allowed data-disabled:opacity-50',

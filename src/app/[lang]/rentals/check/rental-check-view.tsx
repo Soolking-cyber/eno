@@ -503,7 +503,9 @@ export function RentalCheckView() {
       <div>
         {heading}
         <EmptyState
-          className="mt-6"
+          // From lg, on the task column's left edge under its title (2026-11-06 audit: centred inside the left-hand column, it
+          // left the page lopsided). A phone, where the column is the screen, keeps the centred stack.
+          className="mt-6 lg:items-start lg:px-0 lg:py-4 lg:text-left"
           icon={ClipboardCheck}
           title={tr('Your list is empty', 'Danh sách đang trống')}
           subtitle={tr(

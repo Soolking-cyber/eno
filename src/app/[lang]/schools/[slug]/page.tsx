@@ -157,8 +157,10 @@ export default async function SchoolPageRoute({ params }: Props) {
           {/* What teachers wrote first in the DOM, so on a phone the reviews and open jobs follow the actions, and the pay note and
               the directory facts come after them (2026-11-06 audit: four lines of "not enough pay reports yet" and a card that
               repeats the header stood between the actions and the reviews). On desktop the facts stay the right-hand column,
-              beside the reviews: both blocks sit on the grid's first row. */}
-          <div className="mt-10 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-10">
+              beside the reviews: both blocks start on the grid's first row. The facts span the second row too, where the footnote
+              sits straight under the jobs; `auto 1fr` hands their extra height to that flexible row, so the first is only as tall
+              as the reviews and jobs (2026-11-06 audit: under both columns, the footnote sat ~200px below a short reviews section). */}
+          <div className="mt-10 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-10">
             <div className="flex min-w-0 flex-col gap-10 lg:col-start-1 lg:row-start-1">
               <TagSection good={page.goodTags} bad={page.badTags} reviews={page.reviews.length} />
 
@@ -190,20 +192,20 @@ export default async function SchoolPageRoute({ params }: Props) {
                 )}
               </section>
             </div>
-            <aside className="mt-10 flex flex-col gap-6 lg:col-start-2 lg:row-start-1 lg:mt-0">
+            <aside className="mt-10 flex flex-col gap-6 lg:col-start-2 lg:row-start-1 lg:row-end-3 lg:mt-0">
               <PaySection pay={page.pay} />
               <AboutCard school={school} website={website} lang={lang} />
             </aside>
+            {/* The page's footnote: last on a phone, after the pay note and the facts (inside the left column it fell between the open
+                jobs and the pay note); on desktop the grid's second row, straight under the jobs. */}
+            <p className="mt-10 max-w-prose text-sm text-muted-foreground lg:col-start-1 lg:row-start-2 lg:mt-0">
+              <Bilingual en="Reviews are the opinions of individual teachers, checked by a moderator before they appear." vi="Đánh giá là ý kiến của từng giáo viên, được kiểm duyệt trước khi hiển thị." />{' '}
+              {school.logo && (
+                <><Bilingual en="The logo belongs to the school and is shown only to identify it; {site} is not affiliated with it." vi="Logo thuộc về trường và chỉ dùng để nhận diện trường; {site} không liên kết với trường." values={{ site: SITE_NAME }} />{' '}</>
+              )}
+              <Link href="/schools#how-it-works" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="How the ranking works" vi="Cách xếp hạng hoạt động" /></Link>
+            </p>
           </div>
-
-          {/* The page's footnote, under both columns: inside the left one it fell between the open jobs and, on a phone, the pay note. */}
-          <p className="mt-10 max-w-prose text-sm text-muted-foreground">
-            <Bilingual en="Reviews are the opinions of individual teachers, checked by a moderator before they appear." vi="Đánh giá là ý kiến của từng giáo viên, được kiểm duyệt trước khi hiển thị." />{' '}
-            {school.logo && (
-              <><Bilingual en="The logo belongs to the school and is shown only to identify it; {site} is not affiliated with it." vi="Logo thuộc về trường và chỉ dùng để nhận diện trường; {site} không liên kết với trường." values={{ site: SITE_NAME }} />{' '}</>
-            )}
-            <Link href="/schools#how-it-works" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="How the ranking works" vi="Cách xếp hạng hoạt động" /></Link>
-          </p>
         </SchoolLiveProvider>
       </main>
       <Footer />

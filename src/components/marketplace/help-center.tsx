@@ -166,15 +166,18 @@ const POLICY_PAGES: { href: string; en: string; vi: string; k: string }[] = [
   { href: '/contact', en: 'Contact us', vi: 'Liên hệ', k: 'contact email phone support liên hệ hỗ trợ' },
 ]
 
+// 2026-11-06 audit: the size and the chevron ink of the Answers' accordion rows (ui/accordion: text-base, muted chevron), so a
+// top question and the same question under its topic read as one kind of row; the chevron's direction still says which
+// one opens its page (right) and which one opens in place (down).
 /** One link row on the flat canvas: the label, then a chevron on a shared right edge. */
-const ROW_LINK = 'group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-3 text-sm font-semibold text-foreground hover:text-accent-foreground'
-const ROW_CHEVRON = 'size-4 text-ink-4 group-hover:text-accent-foreground'
+const ROW_LINK = 'group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-3 text-base font-semibold text-foreground hover:text-accent-foreground'
+const ROW_CHEVRON = 'size-4 text-muted-foreground group-hover:text-accent-foreground'
 
 /** A "Top questions" row: the post's title in the reader's language, linking to its thread. */
 function TopQuestion({ post, i18n }: { post: HelpPost; i18n?: HelpI18n }) {
   const title = useHelpText(post, post.title, i18n, 'title')
   return (
-    <Row className="py-0">
+    <Row className="py-0 lg:border-t lg:border-border">
       <Link href={`/help/${encodeURIComponent(post.id)}`} className={ROW_LINK}>
         <span className="min-w-0">{title}</span>
         <ChevronRight className={ROW_CHEVRON} aria-hidden />
@@ -476,12 +479,15 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
       {!needle && !topic && top.length >= 3 && (
         // max-w-3xl, like every other list of links to read: at the page's full width the chevron sat
         // ~900px from a 300px question (the note on MORE_LINKS measured the same failure).
-        <section className="mt-8 max-w-3xl" aria-labelledby="help-top-title">
+        // 2026-11-06 audit: from lg the list takes the Answers' two columns (gap-x-12) instead, so each chevron ends a ~540px
+        // column as the accordion rows' do and no empty half sits beside six rows. Each row then draws its own top rule
+        // (lg:divide-y-0), so the rules break at the gutter the way the Answers' do; below lg it stays one column.
+        <section className="mt-8 max-w-3xl lg:max-w-none" aria-labelledby="help-top-title">
           <h2 id="help-top-title" className="h-section text-foreground">
             {tr('Top questions', 'Câu hỏi được xem nhiều')}
           </h2>
           {/* Top rule only — the Answers section's own hairline closes the list (see PolicyMatches). */}
-          <Rows className="mt-3 border-t border-border">
+          <Rows className="mt-3 border-t border-border lg:grid lg:grid-cols-2 lg:gap-x-12 lg:divide-y-0 lg:border-t-0">
             {top.map((post) => (
               <TopQuestion key={post.id} post={post} i18n={i18n} />
             ))}

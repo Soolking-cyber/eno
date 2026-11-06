@@ -162,24 +162,45 @@ describe('the job-messages page', () => {
     expect(sw().getAttribute('aria-checked')).toBe('false')
   })
 
-  it('⛔ an unclear failure re-reads the server: "could not save" only when it really differs', async () => {
-    // The save failed and the server still says OFF.
-    answers = [{ status: 200, body: OFF }, { status: 500, body: { error: 'internal_error' } }, { status: 200, body: OFF }]
-    render(<JobMessagesPanel />)
-    await settle()
-    fireEvent.click(sw())
-    await settle()
-    expect(screen.getByRole('alert').textContent).toMatch(/could not save/)
-    expect(sw().getAttribute('aria-checked')).toBe('false')
-    cleanup()
-    // The answer was lost but the save committed: no failure line — the switch simply shows it.
-    answers = [{ status: 200, body: OFF }, 'network', { status: 200, body: ON }]
-    render(<JobMessagesPanel />)
-    await settle()
-    fireEvent.click(sw())
-    await settle()
-    expect(screen.queryByRole('alert')).toBeNull()
-    expect(sw().getAttribute('aria-checked')).toBe('true')
+  it('⛔ an unclear failure re-reads the server: "could not save" only when it really differs — after one more look', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      // The save failed and the server still says OFF — on the re-read, and on the look a few seconds later.
+      answers = [{ status: 200, body: OFF }, { status: 500, body: { error: 'internal_error' } }, { status: 200, body: OFF }, { status: 200, body: OFF }]
+      render(<JobMessagesPanel />)
+      await settle()
+      fireEvent.click(sw())
+      await settle()
+      // Still looking: nothing said yet, and the switch stays busy on the server's last answer.
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(sw().hasAttribute('data-disabled')).toBe(true)
+      await act(async () => { await vi.advanceTimersByTimeAsync(3_000) })
+      expect(requests.map((r) => r.method)).toEqual(['GET', 'POST', 'GET', 'GET'])
+      expect(screen.getByRole('alert').textContent).toMatch(/could not save/)
+      expect(sw().getAttribute('aria-checked')).toBe('false')
+      cleanup()
+      // The answer was lost but the save committed: no failure line — the switch simply shows it.
+      answers = [{ status: 200, body: OFF }, 'network', { status: 200, body: ON }]
+      render(<JobMessagesPanel />)
+      await settle()
+      fireEvent.click(sw())
+      await settle()
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(sw().getAttribute('aria-checked')).toBe('true')
+      cleanup()
+      // ⛔ The answer was lost and the save committed LATE, after the first re-read (2026-11-06 audit): the second look shows
+      // it, so the switch is on and no "could not save" stands beside it.
+      answers = [{ status: 200, body: OFF }, 'network', { status: 200, body: OFF }, { status: 200, body: ON }]
+      render(<JobMessagesPanel />)
+      await settle()
+      fireEvent.click(sw())
+      await settle()
+      await act(async () => { await vi.advanceTimersByTimeAsync(3_000) })
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(sw().getAttribute('aria-checked')).toBe('true')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('an ON under an older notice reads OFF, with the line that says to switch it on again', async () => {
@@ -197,6 +218,36 @@ describe('the job-messages page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     await settle()
     expect(sw().getAttribute('aria-checked')).toBe('false')
+  })
+
+  it('without AbortSignal.timeout (an older in-app browser): a save that never answers is cut off at 10s, and the page re-reads the server', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const native = AbortSignal.timeout
+    Object.defineProperty(AbortSignal, 'timeout', { value: undefined, configurable: true, writable: true })
+    try {
+      const posts: Array<AbortSignal | null | undefined> = []
+      const reads: View[] = [OFF, ON]
+      vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => {
+        if ((init?.method ?? 'GET') !== 'POST') return Promise.resolve({ ok: true, status: 200, json: async () => reads.shift() })
+        posts.push(init?.signal)
+        // Held open and ended only by its signal, as a real fetch is.
+        return new Promise<never>((_, reject) => { init?.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError'))) })
+      }))
+      render(<JobMessagesPanel />)
+      await settle()
+      fireEvent.click(sw())
+      await settle()
+      expect(posts[0]?.aborted).toBe(false)
+      expect(sw().hasAttribute('data-disabled')).toBe(true)
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
+      expect(posts[0]?.aborted).toBe(true)
+      // It landed after all: the re-read shows it, and no failure is said.
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(sw().getAttribute('aria-checked')).toBe('true')
+    } finally {
+      Object.defineProperty(AbortSignal, 'timeout', { value: native, configurable: true, writable: true })
+      vi.useRealTimers()
+    }
   })
 
   it('jobDmViewOf takes the endpoint’s five fields and nothing that is not one', () => {

@@ -1000,10 +1000,16 @@ export function VerifyClient() {
       {(!challenge || !tier) && !submitted && !terminal && !showExistingPanel && (
       <section className="rounded-2xl border border-border bg-card p-5 space-y-4">
         <h2 className="h-section text-foreground">{tr('Your declaration', 'Cam đoan của bạn')}</h2>
-        {/* whitespace-pre-line: the text is authored as numbered lines and must render that way. */}
-        <p className="whitespace-pre-line text-sm leading-relaxed text-body">{body}</p>
+        {/* One paragraph per authored line, a step apart (2026-11-06 audit): as one pre-line block the numbered clauses ran
+            together and a reader had to hunt for where each began. The words are the recorded text, untouched — only the
+            line breaks became paragraphs (declaration-text.ts joins the lines with \n). */}
+        <div className="space-y-2 text-sm leading-relaxed text-body">
+          {body.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+        </div>
 
-        <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-muted/40 p-3">
+        {/* The consent closes the card under a hairline (2026-11-06 audit), flat like the rest: the 40% grey box around it
+            was a second panel barely distinct from the card it sat in. */}
+        <label className="flex cursor-pointer items-start gap-3 border-t border-border pt-4">
           {/* ⚠️ NEVER PRE-CHECKED. buildDeclaration() refuses a record without explicit acceptance,
               and a pre-ticked box would make that server-side guard a formality over a UI that had
               already decided for the user.
@@ -1053,7 +1059,10 @@ export function VerifyClient() {
             {/* ⚠️ CCCD ONLY, BECAUSE VNeID IS NOT WIRED (the native app already says so). The next
                 step unconditionally photographs a CCCD; naming VNeID promised a route that does not
                 exist to a seller who has VNeID and no card to hand. */}
-            <span className="text-xs font-normal opacity-80">{tr('Your citizen ID card (CCCD) — about two minutes', 'Thẻ CCCD của bạn — khoảng hai phút')}</span>
+            {/* Said like the passport card beside it (2026-11-06 audit): "about two minutes" read as the whole wait, while the
+                lede above says a person reviews it, usually within a working day (kyc/service.ts files it as cccd_manual).
+                The selfie is the wizard's second step for both tiers. */}
+            <span className="text-xs font-normal opacity-80">{tr('Your citizen ID card (CCCD), plus a selfie — reviewed by our team', 'Thẻ CCCD của bạn, kèm ảnh chân dung — đội ngũ của chúng tôi xem xét')}</span>
           </Button>
           <Button
             type="button"

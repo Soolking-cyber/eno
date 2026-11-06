@@ -59,9 +59,11 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
   if (gone) return null
 
-  // Rendered TWO ways, deliberately. The row variant is a <Badge> (neutral = bg-tint
-  // text-ink-4, so the muted tone is re-pinned via className — the later class wins
-  // through cn()/twMerge; text-3xs overrides Badge's sm text-2xs). The GRID variant is
+  // Rendered TWO ways, deliberately. The row variant is a <Badge> at size md — 12px, a 24px pill as tall as the title's
+  // line — with the neutral ones in body ink via className (the later class wins through cn()/twMerge): at 11px in the
+  // paler muted grey the status read as a footnote, though it decides which actions the row offers (2026-11-06 audit).
+  // Body, not the neutral variant's own ink-4: in dark mode ink-4 (#a0a0a0) is dimmer than the muted grey it would
+  // replace (#b8b8b8, design-language D-GREYS), and body is the strongest of the three in both themes. The GRID variant is
   // an over-image overlay with a drop-shadow, which badge.tsx's own header explicitly
   // disowns — so it stays a bespoke span and carries the raw token pair in `cls`.
   const statusChip: { label: string; variant: 'warning' | 'brand' | 'neutral'; className: string; cls: string } =
@@ -69,20 +71,20 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       // ⚠️ ONE "Held" FOR EVERY UNPUBLISHED ROW, an e-Visa listing waiting for the licence check included (2026-10-14): the
       // row cannot say WHY it is unpublished — a takedown writes the same verified=false — so a "Licence check" chip would
       // tell a pulled seller the wrong story (gate review). The post wizard says it at the moment it happens instead.
-      ? { label: tr('Held', 'Đang giữ'), variant: 'warning', className: 'text-2xs', cls: 'bg-warning/15 text-warning' }
+      ? { label: tr('Held', 'Đang giữ'), variant: 'warning', className: '', cls: 'bg-warning/15 text-warning' }
       : status === 'sold'
-        ? { label: isRental ? tr('Rented', 'Đã cho thuê') : tr('Sold', 'Đã bán'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
+        ? { label: isRental ? tr('Rented', 'Đã cho thuê') : tr('Sold', 'Đã bán'), variant: 'neutral', className: 'text-body', cls: 'bg-tint text-muted-foreground' }
         : status === 'hidden'
-          ? { label: tr('Hidden', 'Đã ẩn'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
+          ? { label: tr('Hidden', 'Đã ẩn'), variant: 'neutral', className: 'text-body', cls: 'bg-tint text-muted-foreground' }
           // ⚠️ "Live" ONLY FOR `active` (break-ui, 2026-10-05). It used to be the fallback, so an `expired`
           // (the apartment freshness rule) or `stale` row read "Live" to its seller. Those statuses are written
           // to ownerless import sellers today — but a claimed import storefront would carry them into a real
           // dashboard, and a status the row does not know must never claim the listing is public.
           : status === 'active'
-            ? { label: tr('Live', 'Đang hiển thị'), variant: 'brand', className: 'text-2xs', cls: 'bg-accent text-accent-foreground' }
+            ? { label: tr('Live', 'Đang hiển thị'), variant: 'brand', className: '', cls: 'bg-accent text-accent-foreground' }
             : status === 'expired'
-              ? { label: tr('Expired', 'Hết hạn'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
-              : { label: tr('Not live', 'Không hiển thị'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
+              ? { label: tr('Expired', 'Hết hạn'), variant: 'neutral', className: 'text-body', cls: 'bg-tint text-muted-foreground' }
+              : { label: tr('Not live', 'Không hiển thị'), variant: 'neutral', className: 'text-body', cls: 'bg-tint text-muted-foreground' }
 
   // Unified tinted action chips (owner 2026-07-17): every action is the SAME soft tint chip with
   // even spacing — consistent, forum-scale (text-sm label + size-4 icon). The `border-transparent`
@@ -143,10 +145,11 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
 
   // Shared between the row + square-card layouts. Stat glyphs sit on the §4 dense-meta
   // step (h-3.5 beside text-xs) — size-4 read a step too loud against the 12px counts.
-  // ink-4, the card meta's ink since 2026-11-05 (design-language §1): views, leads and saves in a pale 12px grey were
-  // the hardest numbers on the page to read (2026-11-06 audit).
+  // Body ink, wider gaps and tabular digits (2026-11-06 audit): these are the seller's own performance numbers, not a
+  // card's meta, and even in ink-4 the 12px string still read pale and ran together; tabular-nums keeps a count's width
+  // steady from row to row. 14px from lg, where the row has the room (the glyphs stay on the h-3.5 step beside it).
   const meta = (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-4">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs tabular-nums text-body lg:text-sm">
       {/* Grouped counts and a singular "lead" (break-ui, 2026-10-05): the row printed "12840 liên hệ" and
           "1 leads". Vietnamese has no plural, so only the English string forks on 1. */}
       <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{formatInteger(listing.views ?? 0, moneyLocale(lang))}</span>
@@ -327,17 +330,22 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   }
 
   // Row (list view) — horizontal thumbnail + details.
+  // ⚠️ lg: THE ACTIONS TAKE THE ROW'S TRAILING EDGE (2026-11-06 audit). Stacked under the text on a 1,200px row they made
+  // every row 132px tall around an 80px photo, with the list's right half empty. Beside the text, the photo (96px from
+  // lg; the 80px srcset's 128/256 candidates still cover it) sets the row at 120px, and the chips end on one line at
+  // the row's edge, down the list. Phones keep the stack: the 220px beside a 360px phone's thumb cannot also hold the chips.
+  // ListingRowSkeleton (listings-client.tsx) mirrors both shapes.
   return (
-    <div className={cn('flex gap-3 rounded-2xl p-3 transition-colors', selected ? 'bg-accent' : 'hover:bg-muted')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
+    <div className={cn('flex gap-3 rounded-2xl p-3 transition-colors lg:items-center lg:gap-4', selected ? 'bg-accent' : 'hover:bg-muted')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
       {selectable && <span className="self-center">{checkbox}</span>}
       {selectable ? (
-        <Button variant="bare" size="none" onClick={open} className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint" aria-label={title}>
+        <Button variant="bare" size="none" onClick={open} className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint lg:h-24 lg:w-24" aria-label={title}>
           {img && (
             <Image src={img} alt="" width={80} height={80} quality={60} unoptimized={imgUnoptimized} className="h-full w-full object-cover" />
           )}
         </Button>
       ) : (
-        <Button asChild variant="bare" size="none" className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint">
+        <Button asChild variant="bare" size="none" className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint lg:h-24 lg:w-24">
           <a href={listingHref} draggable={false} onClick={goHere(listingHref)} aria-label={title}>
             {img && (
               <Image src={img} alt="" width={80} height={80} quality={60} unoptimized={imgUnoptimized} className="h-full w-full object-cover" />
@@ -346,16 +354,18 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
         </Button>
       )}
 
-      <div className="min-w-0 flex-1">
-        {/* lg: the pill follows the title; justify-between left it ~900px from the words it qualifies on a wide row. */}
-        <div className="flex items-start justify-between gap-2 lg:justify-start">
-          <p className="min-w-0 truncate text-base font-semibold text-foreground">{title}</p>
-          <Badge variant={statusChip.variant} className={statusChip.className}>{statusChip.label}</Badge>
+      <div className="min-w-0 flex-1 lg:flex lg:items-center lg:gap-6">
+        <div className="min-w-0 lg:flex-1">
+          {/* lg: the pill follows the title; justify-between left it ~900px from the words it qualifies on a wide row. */}
+          <div className="flex items-start justify-between gap-2 lg:justify-start">
+            <p className="min-w-0 truncate text-base font-semibold text-foreground">{title}</p>
+            <Badge variant={statusChip.variant} size="md" className={statusChip.className}>{statusChip.label}</Badge>
+          </div>
+          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} linked={listing.isPartnerBooking} compact className="text-base" />
+          <div className="mt-0.5">{meta}</div>
+          {nudge}
         </div>
-        <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} linked={listing.isPartnerBooking} compact className="text-base" />
-        <div className="mt-0.5">{meta}</div>
-        {nudge}
-        <div className="mt-2">{actions}</div>
+        <div className="mt-2 lg:mt-0 lg:shrink-0">{actions}</div>
       </div>
     </div>
   )

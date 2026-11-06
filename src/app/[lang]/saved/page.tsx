@@ -120,7 +120,9 @@ export default function SavedPage() {
             // The phone's stack sits high, but the box still fills the screen: the footer rising into view when the skeleton
             // gave way was a 0.28 layout shift (measured 2026-11-05).
             className="py-8 sm:py-20 max-sm:min-h-[calc(100dvh-8rem)] max-sm:justify-start"
-            media={<Mascot name="saved" className="h-40 w-40 sm:h-52 sm:w-52" />}
+            // The art's empty ground band (a fifth of its box, under the feet) taken back, so the title sits with the drawing
+            // (2026-11-06 audit: 48–57px of air read as two things). Sizes unchanged; the phone box keeps its measured min-height.
+            media={<Mascot name="saved" className="-mb-6 h-40 w-40 sm:-mb-8 sm:h-52 sm:w-52" />}
             title={tr('No saved listings yet', 'Chưa có tin nào được lưu')}
             // Pointer-neutral ("Tap" is wrong on a desktop); the Vietnamese "Nhấn" already is.
             subtitle={tr(

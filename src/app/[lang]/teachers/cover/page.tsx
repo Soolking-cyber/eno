@@ -7,7 +7,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Button } from '@/components/ui/button'
 import { LocalizedLink } from '@/components/marketplace/localized-link'
-import { CalendarDays, Check, GraduationCap, MapPin, MessageSquare } from '@/components/ui/icons'
+import { Building2, CalendarDays, Check, GraduationCap, MapPin, MessageSquare } from '@/components/ui/icons'
 
 // COVER LESSONS — the two-sided landing to promote (owner, 2026-10-07: "we will promote it for both sides to
 // teachers and schools to match for urgent covers"). Static: no listing data, nothing to revalidate. The school
@@ -62,7 +62,8 @@ export default function TeacherCoverPage() {
         </p>
 
         <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-          <section aria-labelledby="cover-schools" className="space-y-4 rounded-2xl bg-tint p-5">
+          {/* Flat cards with a hairline (2026-11-06 audit): grey wells read as one more filled control. */}
+          <section aria-labelledby="cover-schools" className="space-y-4 rounded-2xl border border-border p-5">
             <h2 id="cover-schools" className="text-lg font-semibold text-foreground">
               <Bilingual en="For schools: a teacher for this week's lesson" vi="Cho các trường: giáo viên cho buổi học tuần này" />
             </h2>
@@ -70,12 +71,14 @@ export default function TeacherCoverPage() {
               <Point Icon={MapPin} en="Filter by district and by free period — Monday morning, Thursday evening…" vi="Lọc theo quận và theo buổi rảnh — sáng Thứ 2, tối Thứ 5…" />
               <Point Icon={GraduationCap} en="See each teacher's hourly rate, experience and qualifications — and their intro video, shown on the profile or sent on request." vi="Xem mức phí theo giờ, kinh nghiệm và bằng cấp của từng giáo viên — cùng video giới thiệu, hiển thị trên hồ sơ hoặc gửi theo yêu cầu." />
               <Point Icon={MessageSquare} en="Message them in the app. A teacher's phone, email and CV are shared only if they choose to." vi="Nhắn tin trong ứng dụng. Số điện thoại, email và CV của giáo viên chỉ được chia sẻ nếu họ đồng ý." />
+              {/* Who may ask, said BEFORE the button and apart from the messaging line (2026-11-06 audit: under the button in 12px
+                  grey it read as fine print the line above contradicted). The same two sentences, the rule first. */}
+              <Point Icon={Building2} en="Asking a teacher for a cover lesson is for school and business accounts. Any account can message teachers — verify your identity or your business to message more each day." vi="Việc nhờ giáo viên dạy thay chỉ dành cho tài khoản trường học và doanh nghiệp. Mọi tài khoản đều có thể nhắn tin cho giáo viên — xác minh danh tính hoặc doanh nghiệp để nhắn cho nhiều giáo viên hơn mỗi ngày." />
             </ul>
             <Button variant="cta" asChild><LocalizedLink href={SCHOOLS_URL} rel="nofollow" prefetch={false}><Bilingual en="Find a cover teacher" vi="Tìm giáo viên dạy thay" /></LocalizedLink></Button>
-            <p className="text-xs text-muted-foreground"><Bilingual en="Any account can message teachers — verify your identity or your business to message more each day. Asking a teacher for a cover lesson is for school and business accounts." vi="Mọi tài khoản đều có thể nhắn tin cho giáo viên — xác minh danh tính hoặc doanh nghiệp để nhắn cho nhiều giáo viên hơn mỗi ngày. Việc nhờ giáo viên dạy thay chỉ dành cho tài khoản trường học và doanh nghiệp." /></p>
           </section>
 
-          <section aria-labelledby="cover-teachers" className="space-y-4 rounded-2xl bg-tint p-5">
+          <section aria-labelledby="cover-teachers" className="space-y-4 rounded-2xl border border-border p-5">
             <h2 id="cover-teachers" className="text-lg font-semibold text-foreground">
               <Bilingual en="For teachers: fill your free periods" vi="Cho giáo viên: tận dụng các buổi rảnh" />
             </h2>

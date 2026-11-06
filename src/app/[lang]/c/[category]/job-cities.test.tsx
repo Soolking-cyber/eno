@@ -81,4 +81,21 @@ describe('JobCityChips — "Theo tỉnh/thành / By city"', () => {
     fireEvent.click(screen.getByRole('link', { name: /Hanoi/ }), { ctrlKey: true })
     expect(sessionStorage.getItem('eno:pending-area')).toBeNull()
   })
+
+  it('with the page\'s count, the row opens on "All N": this page, in the applied look, not a link (2026-11-06 audit)', () => {
+    render(<JobCityChips cities={cities} total={15} />)
+    const group = screen.getByRole('group', { name: 'By city:' })
+    expect(within(group).getAllByRole('link')).toHaveLength(2)
+    const all = group.querySelector('[aria-current="page"]')!
+    expect(all.tagName).toBe('SPAN')
+    expect(all.textContent).toBe('All15')
+    expect(all.className).toMatch(/\bbg-brand-50\b/)
+    // Right after the label, ahead of every city.
+    expect(group.children[1]).toBe(all)
+  })
+
+  it('without it, the cities alone (nothing in the applied look)', () => {
+    render(<JobCityChips cities={cities} />)
+    expect(screen.getByRole('group', { name: 'By city:' }).querySelector('[aria-current]')).toBeNull()
+  })
 })

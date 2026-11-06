@@ -28,21 +28,25 @@ const ROWS_STEP = 60
  *  row: it is 132px in the dashboard's content column (p-3 + an 80px thumb beside a
  *  24 title / 24 price / 16 meta / 34 action-chip stack) and 170px on a phone, where the
  *  action chips wrap onto a second line. Reproducing the same `flex flex-wrap` chip row makes
- *  the placeholder wrap where the row wraps, so it is never 40–78px short. */
+ *  the placeholder wrap where the row wraps, so it is never 40–78px short.
+ *  From lg (2026-11-06) the row puts its chips beside the text and its 96px thumb sets the height — 120px —
+ *  and this placeholder takes the same shape. */
 function ListingRowSkeleton() {
   return (
-    <div className="flex gap-3 rounded-2xl p-3">
-      <Skeleton className="h-20 w-20 shrink-0 rounded-xl" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <Skeleton className="h-6 w-48 max-w-full" />
-          <Skeleton className="h-[19px] w-10 shrink-0 rounded-full" />
+    <div className="flex gap-3 rounded-2xl p-3 lg:items-center lg:gap-4">
+      <Skeleton className="h-20 w-20 shrink-0 rounded-xl lg:h-24 lg:w-24" />
+      <div className="min-w-0 flex-1 lg:flex lg:items-center lg:gap-6">
+        <div className="min-w-0 lg:flex-1">
+          <div className="flex items-start justify-between gap-2 lg:justify-start">
+            <Skeleton className="h-6 w-48 max-w-full" />
+            <Skeleton className="h-6 w-12 shrink-0 rounded-full" />
+          </div>
+          {/* Price — text-base line box (24), not the 20px glyph height */}
+          <Skeleton className="h-6 w-28" />
+          <div className="mt-0.5"><Skeleton className="h-4 w-40 max-w-full lg:h-5" /></div>
         </div>
-        {/* Price — text-base line box (24), not the 20px glyph height */}
-        <Skeleton className="h-6 w-28" />
-        <div className="mt-0.5"><Skeleton className="h-4 w-40 max-w-full" /></div>
-        {/* Edit · Mark sold · overflow — the row's chips since inbox-12, at their phone widths (one row at 360) */}
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        {/* Edit · Mark sold · overflow — the row's chips since inbox-12, at their phone widths (one row at 360); beside the text from lg */}
+        <div className="mt-2 flex flex-wrap items-center gap-2 lg:mt-0 lg:shrink-0">
           <Skeleton className="h-[34px] w-[48px] rounded-lg" />
           <Skeleton className="h-[34px] w-[90px] rounded-lg" />
           <Skeleton className="h-[30px] w-[36px] rounded-lg" />
@@ -54,11 +58,18 @@ function ListingRowSkeleton() {
 
 /** The `<AvailabilityButton>` pill, reserved. Measured 2026-08-07 on the real row: the link is
  *  `size="none"` + `px-4 py-2.5` around a text-base line box → **40px tall in its own `mt-4`
- *  block = 56px of document**, and because it is `inline-flex` it is the SAME 292px wide on a
+ *  block = 56px of document**, and because it is `inline-flex` it is the SAME width on a
  *  phone as on a desktop. The skeleton reserved neither, which is half of a measured +112px jump
- *  at both 390 and 1440. */
+ *  at both 390 and 1440. Since 2026-11-06 the status is no longer inside the button (~184px alone, was
+ *  292px with it): it sits UNDER it on a phone (+4 gap +20 line = 64px) and BESIDE it from sm (40px),
+ *  and this placeholder takes the same two shapes. */
 function AvailabilityPillSkeleton() {
-  return <div className="mt-4"><Skeleton className="h-10 w-[292px] max-w-full rounded-xl" /></div>
+  return (
+    <div className="mt-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-3">
+      <Skeleton className="h-10 w-[184px] max-w-full rounded-xl" />
+      <Skeleton className="h-5 w-28 rounded-lg" />
+    </div>
+  )
 }
 
 /** The status `<Segmented>` filter, reserved. `p-1` around an `h-9` track = **44px**, plus its own
@@ -73,15 +84,20 @@ function StatusFilterSkeleton() {
   return <Skeleton className="mb-3 h-11 w-full rounded-xl" />
 }
 
-/** The four marketplace stat tiles, reserved (`h-[68px]`, the tile's px-3 py-3 + text-lg/text-xs
- *  stack). Shared by the auth-resolving gate and the dash-fetching state so the two agree. */
+/** The four marketplace stat tiles, reserved (`h-[72px]`, the tile's px-3 py-3 + text-lg/text-sm
+ *  stack; `lg:h-[76px]` once the figure steps up to text-2xl). Shared by the auth-resolving gate and the
+ *  dash-fetching state so the two agree. Two across until md, as the real grid is (2026-11-06; the reason is beside it). */
 function StatsGridSkeleton() {
   return (
-    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[68px] rounded-xl" />)}
+    <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[72px] rounded-xl lg:h-[76px]" />)}
     </div>
   )
 }
+
+/** A stat tile's figure and its label — one pair per measure, the same in every tile (2026-11-06 audit). */
+const STAT_FIGURE = 'text-lg font-bold tabular-nums lg:text-2xl'
+const STAT_LABEL = 'text-sm text-body'
 
 /** /dashboard/listings — the seller's listings management, rendered in <main>.
  *  Reads the shared dashboard cache so an edit/delete here re-pulls the one source. */
@@ -197,12 +213,23 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
       {dash ? <AvailabilityButton dash={dash} tr={tr} lang={lang} /> : stuck ? null : <AvailabilityPillSkeleton />}
       {/* Marketplace stats live HERE now (owner 2026-07-18: no dedicated dashboard home —
           the sections are the dashboard, and market info belongs to My listings). */}
+      {/* One figure over one label in every tile (2026-11-06 audit): the last tile put a second figure inside its label
+          ("Views · 23 leads"), two measures at two weights. Views and leads now stand side by side in it — "Liên hệ", not
+          "Lượt liên hệ", and gap-x-4: the longer pair wrapped the tile to two lines on a 360–393px phone in Vietnamese.
+          ⚠️ FOUR ACROSS FROM md, NOT sm (2026-11-06 review). From 640 to ~670px a tile's text box is 118–125px, and the
+          Vietnamese pair needs ~125px at text-sm (Open Runde advance widths): the tile stacked its two figures, 120px against
+          the 72px skeleton, and the whole row stretched with it, while "Unread messages" (119px) and "Tin nhắn chưa đọc"
+          (122px) broke onto two lines. Two across, as on a phone, until a tile's text box reaches 150px at 768.
+          StatsGridSkeleton follows. */}
       {!dash ? (stuck ? null : <StatsGridSkeleton />) : (
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{grouped(dash.stats.activeCount ?? dash.listings.filter((l) => l.status === 'active').length)}</p><p className="text-xs text-body">{tr('Active listings', 'Tin đang đăng')}</p></div>
-          <Link href="/messages" className="press rounded-xl bg-tint px-3 py-3 transition-colors hover:bg-muted"><p className="text-lg font-bold tabular-nums">{grouped(dash.stats.unreadMessages ?? 0)}</p><p className="text-xs text-body">{tr('Unread messages', 'Tin nhắn chưa đọc')}</p></Link>
-          <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{grouped(dash.stats.saves ?? 0)}</p><p className="text-xs text-body">{tr('Saves', 'Lượt lưu')}</p></div>
-          <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{grouped(dash.stats.totalViews ?? 0)}</p><p className="text-xs text-body">{tr('Views', 'Lượt xem')} · {grouped(dash.stats.totalLeads ?? 0)} {(dash.stats.totalLeads ?? 0) === 1 ? tr('lead', 'liên hệ') : tr('leads', 'liên hệ')}</p></div>
+        <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="rounded-xl bg-tint px-3 py-3"><p className={STAT_FIGURE}>{grouped(dash.stats.activeCount ?? dash.listings.filter((l) => l.status === 'active').length)}</p><p className={STAT_LABEL}>{tr('Active listings', 'Tin đang đăng')}</p></div>
+          <Link href="/messages" className="press rounded-xl bg-tint px-3 py-3 transition-colors hover:bg-muted"><p className={STAT_FIGURE}>{grouped(dash.stats.unreadMessages ?? 0)}</p><p className={STAT_LABEL}>{tr('Unread messages', 'Tin nhắn chưa đọc')}</p></Link>
+          <div className="rounded-xl bg-tint px-3 py-3"><p className={STAT_FIGURE}>{grouped(dash.stats.saves ?? 0)}</p><p className={STAT_LABEL}>{tr('Saves', 'Lượt lưu')}</p></div>
+          <div className="flex flex-wrap gap-x-4 rounded-xl bg-tint px-3 py-3">
+            <div><p className={STAT_FIGURE}>{grouped(dash.stats.totalViews ?? 0)}</p><p className={STAT_LABEL}>{tr('Views', 'Lượt xem')}</p></div>
+            <div><p className={STAT_FIGURE}>{grouped(dash.stats.totalLeads ?? 0)}</p><p className={STAT_LABEL}>{tr('Leads', 'Liên hệ')}</p></div>
+          </div>
         </div>
       )}
       <div className="mt-6">
@@ -303,7 +330,10 @@ function AvailabilityButton({ dash, tr, lang }: {
   if (!dash || !hasActive) return null
   const overdue = !lastReviewed || nowTick - lastReviewed > 3 * 864e5
   return (
-    <div className="mt-4">
+    // The status is no longer INSIDE the button (2026-11-06 audit): one control carried an action and a report. Beside it
+    // from sm; UNDER it on a phone, always — beside it, "Xem lại lần cuối 12 phút trước" wrapped at 390px while the
+    // English fitted, a line that drops only sometimes is a layout shift the skeleton cannot reserve.
+    <div className="mt-4 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-3">
       {/* ON THE PRIMITIVE, not the Link (break-ui, 2026-10-05): ui/button's base carries `whitespace-nowrap`
           and `justify-center`, and an asChild child's classes are CONCATENATED, not merged (CLAUDE.md) — only
           <Button className> goes through tailwind-merge. Without the wrap, "Xác nhận còn hàng · Chưa xác
@@ -320,13 +350,13 @@ function AvailabilityButton({ dash, tr, lang }: {
         >
           <ListChecks className="h-4 w-4 shrink-0" />
           <span>{tr('Review availability', 'Xác nhận còn hàng')}</span>
-          <span className={overdue ? 'text-xs font-medium text-primary-foreground/90' : 'text-xs font-medium text-ink-4'}>
-            {lastReviewed
-              ? `· ${tr('Last reviewed', 'Xem lại lần cuối')} ${timeAgo(new Date(lastReviewed).toISOString(), lang)}`
-              : `· ${tr('Not reviewed yet', 'Chưa xác nhận lần nào')}`}
-          </span>
         </Link>
       </Button>
+      <span className="text-sm text-body">
+        {lastReviewed
+          ? `${tr('Last reviewed', 'Xem lại lần cuối')} ${timeAgo(new Date(lastReviewed).toISOString(), lang)}`
+          : tr('Not reviewed yet', 'Chưa xác nhận lần nào')}
+      </span>
     </div>
   )
 }

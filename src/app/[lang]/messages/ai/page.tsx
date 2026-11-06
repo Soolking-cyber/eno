@@ -33,7 +33,14 @@ import { variantOfLanguage } from '@/lib/lang-variant'
 // stayed in the language of the first visit (an English bubble on a Vietnamese page, and the reverse).
 type Msg = { role: 'user' | 'assistant'; content: string; listings?: SerializedListingCard[]; createdAt: string; greeting?: true }
 // An authored { en, vi } pair, so gen-ui-strings still harvests it for the machine-translated languages.
-const GREETING = { en: "Hi! I'm eno AI. Tell me what you're looking for — e.g. “a road bike under 8M near Thảo Điền” — and I'll find it.", vi: 'Chào bạn! Mình là eno AI. Bạn đang tìm gì? Ví dụ "xe đạp dưới 8 triệu gần Thảo Điền" — mình sẽ tìm giúp.' }
+// The example ENDS the greeting (2026-11-06 audit): mid-sentence, its button wrapped onto a line of its own and left
+// "— e.g." and "— and I'll find it." as fragments around it; last, it takes the last line whole.
+const GREETING = { en: "Hi! I'm eno AI. Tell me what you're looking for and I'll find it. For example: “a road bike under 8M near Thảo Điền”", vi: 'Chào bạn! Mình là eno AI. Bạn cần tìm gì, mình sẽ tìm giúp. Ví dụ: "xe đạp dưới 8 triệu gần Thảo Điền"' }
+// The greeting's words before the mark (2026-10-22): a chat stored then holds them as TEXT, and is recognised by them.
+const GREETING_STORED = [
+  "Hi! I'm eno AI. Tell me what you're looking for — e.g. “a road bike under 8M near Thảo Điền” — and I'll find it.",
+  'Chào bạn! Mình là eno AI. Bạn đang tìm gì? Ví dụ "xe đạp dưới 8 triệu gần Thảo Điền" — mình sẽ tìm giúp.',
+]
 
 // The greeting's example, a button that fills the composer (2026-11-06 audit): these exact words, which the greeting quotes in
 // both languages. An authored pair like GREETING; a translation that does not carry them word for word keeps the greeting plain.
@@ -81,13 +88,16 @@ export default function AiThreadPage() {
     if (at < 0) return greetingText
     // Its quote marks ride inside the button, so a narrow bubble never strands one at the end of a line.
     const q = /["“]/.test(greetingText.charAt(at - 1)) && /["”]/.test(greetingText.charAt(at + example.length)) ? 1 : 0
+    const after = greetingText.slice(at + example.length + q)
     return (
       <span>
         {greetingText.slice(0, at - q)}
-        <Button variant="link" size="none" type="button" onClick={tryExample} className="relative inline-block whitespace-normal text-left font-semibold leading-relaxed text-accent-foreground underline underline-offset-2 tap-44">
+        {/* Ending the greeting, the example takes a line of its own (2026-11-06 audit); a translation that puts it
+            mid-sentence keeps it in the line. */}
+        <Button variant="link" size="none" type="button" onClick={tryExample} className={`relative whitespace-normal text-left font-semibold leading-relaxed text-accent-foreground underline underline-offset-2 tap-44 ${after.trim() ? 'inline-block' : 'mt-1 block w-fit'}`}>
           {greetingText.slice(at - q, at + example.length + q)}
         </Button>
-        {greetingText.slice(at + example.length + q)}
+        {after}
       </span>
     )
   }
@@ -100,7 +110,7 @@ export default function AiThreadPage() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null')
       // A chat stored before the mark keeps its greeting as text: recognised by its exact wording, in either language.
-      if (Array.isArray(saved) && saved[0]?.role === 'assistant' && (saved[0].content === GREETING.en || saved[0].content === GREETING.vi)) {
+      if (Array.isArray(saved) && saved[0]?.role === 'assistant' && GREETING_STORED.includes(saved[0].content)) {
         saved[0] = { ...saved[0], content: '', greeting: true }
       }
       const restored = Array.isArray(saved) && saved.length ? saved : [greeting]

@@ -3,6 +3,8 @@
 import { useId, type MouseEvent } from 'react'
 import Link from 'next/link'
 import { chipVariants } from '@/components/ui/chip'
+import { PILL_ON } from '@/components/ui/chip-style'
+import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -27,7 +29,15 @@ const PENDING_AREA_KEY = 'eno:pending-area'
  * ⚠️ NAVIGATING CHIPS ARE `chipVariants()` ON A <Link> (the canon's interactive chip; a link is not a
  * toggle — ui/chip.tsx), and the "Theo tỉnh/thành: / By city:" label names their group for a screen reader.
  */
-export function JobCityChips({ cities }: { cities: JobCity[] }) {
+export function JobCityChips({ cities, total }: {
+  cities: JobCity[]
+  /**
+   * The page's whole count (2026-11-06 audit). With it the row opens on "All N" (this page, in the applied look; not a link,
+   * so `aria-current`): the row listed only the cities to go to, so nothing on it said the grid is every city, and HCMC's
+   * "48" beside "Showing 48 of 71" read as the grid's own filter. Left out, the row is the cities alone.
+   */
+  total?: number
+}) {
   const { tr, lang } = useLanguage()
   const href = localizedHref('/?category=jobs', variantOfLanguage(lang))
   const handOff = (e: MouseEvent, city: JobCity) => {
@@ -38,6 +48,12 @@ export function JobCityChips({ cities }: { cities: JobCity[] }) {
   return (
     <div role="group" aria-labelledby={labelId} className="scrollbar-none mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1 sm:mt-6 sm:flex-wrap sm:overflow-visible sm:py-0">
       <span id={labelId} className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4">{tr('By city:', 'Theo tỉnh/thành:')}</span>
+      {total != null && (
+        <span aria-current="page" className={cn(chipVariants({ size: 'sm', tone: 'neutral' }), 'cursor-default', PILL_ON)}>
+          {tr('All', 'Tất cả')}
+          <span className="font-normal tabular-nums">{total}</span>
+        </span>
+      )}
       {cities.map((c) => (
         <Link
           key={c.geo.code}

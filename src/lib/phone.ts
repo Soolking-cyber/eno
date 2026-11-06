@@ -33,18 +33,25 @@ export function normalizePhoneNoPlus(raw: string): string {
  */
 // Separators allow spaces/dashes but NOT dots — VN prices use dot thousand-
 // separators (1.080.000.000), which must not be mistaken for a phone number.
-// `(?<![\d+])` on the 0/84 anchor stops it starting MID-number: without it, a model
-// number ending in 0 next to a year range ("E200 2016-2020") matched as "0 2016-2020"
-// and falsely blocked legit car/electronics listings. A real phone's leading 0/8 is
-// never immediately preceded by another digit, so this only kills the false positive.
-const EMBEDDED_PHONE_RE = /(?<![\d+])(?:\+?84|0)[\s-]?[2-9](?:[\s-]?\d){7,9}|\+\d(?:[\s-]?\d){7,}/
+// The 0/84 anchor must not start MID-number: without that guard, a model number ending in 0 next to a year range
+// ("E200 2016-2020") matched as "0 2016-2020" and falsely blocked legit car/electronics listings. A real phone's leading
+// 0/8 is never immediately preceded by another digit (or a '+'), so the guard only kills the false positive.
+// ⛔ NO LOOKBEHIND (2026-11-06): this module ships in client chunks (sign-in, the post wizard, chat), and a `(?<!…)`
+// literal is a SyntaxError that takes the whole chunk down on Safari 16.0–16.3 (browserslist: safari >= 16). The guard
+// is a CONSUMED start-or-non-[digit/+] instead, and the number is capture group 1 (the 0/84 form) or 2 (any +<digits>):
+// read them with phoneOf(), never m[0], which can carry the consumed character. Fuzzed against the lookbehind form.
+const EMBEDDED_PHONE_RE = /(?:^|[^\d+])((?:\+?84|0)[\s-]?[2-9](?:[\s-]?\d){7,9})|(\+\d(?:[\s-]?\d){7,})/
 
 // Dot-separated phones (090.123.4567) — a VERY common VN format — evade the regex above
 // (which excludes dots so it doesn't trip on dotted VND prices). Strip ONLY dots, then
 // look for a STANDALONE VN number anchored on 0/84 (10–11 contiguous digits). The
 // digit-boundary lookarounds + the 0/84 anchor keep prices out: "1.080.000.000" →
 // "1080000000" (starts with 1, and any inner 0[2-9]… run is bounded by digits).
-const DOTTED_PHONE_RE = /(?<!\d)(?:84|0)[2-9]\d{8}(?!\d)/
+// No lookbehind either (see above): a consumed start-or-non-digit, the number in group 1.
+const DOTTED_PHONE_RE = /(?:^|\D)((?:84|0)[2-9]\d{8})(?!\d)/
+
+/** The phone a match found: its capture group, never m[0] (which can include the consumed boundary character). */
+const phoneOf = (m: RegExpMatchArray | null): string | undefined => (m ? (m[1] ?? m[2]) : undefined)
 
 // Full-width digits (０９…) → ASCII so they can't slip past the regex.
 function toAsciiDigits(s: string): string {
@@ -127,10 +134,10 @@ export function containsPhoneNumber(text: string | null | undefined): boolean {
 export function extractPhoneNumber(text: string | null | undefined): string | null {
   if (!text) return null
   const norm = toAsciiDigits(text)
-  const direct = norm.match(EMBEDDED_PHONE_RE)?.[0]
+  const direct = phoneOf(norm.match(EMBEDDED_PHONE_RE))
   // Dotted VN form (090.123.4567) only after stripping dots — the same fallback, and the
   // same reason: keep spaces so two adjacent numbers cannot merge into one.
-  const dotted = direct ? null : norm.replace(/[.·]/g, '').match(DOTTED_PHONE_RE)?.[0]
+  const dotted = direct ? null : phoneOf(norm.replace(/[.·]/g, '').match(DOTTED_PHONE_RE))
   const raw = direct || dotted
   if (!raw) return null
   const digits = normalizePhoneNoPlus(raw)

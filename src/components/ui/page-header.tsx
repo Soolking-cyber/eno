@@ -46,7 +46,9 @@ export function PageHeader({
         <Heading id={id} className={cn(level === 'display' ? 'h-display' : 'h-title', 'text-balance text-foreground', titleClassName)}>
           {title}
         </Heading>
-        {meta && <p className="mt-1 text-sm text-muted-foreground">{meta}</p>}
+        {/* 2026-11-06 audit: the meta line is the screen's own lede (Disputes, Saved, the teacher tools), so it reads in the
+            secondary ink, not the tertiary grey judges took for fine print. */}
+        {meta && <p className="mt-1 text-sm text-body">{meta}</p>}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </div>

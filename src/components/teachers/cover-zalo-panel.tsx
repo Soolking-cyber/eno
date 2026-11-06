@@ -20,8 +20,21 @@ import { COVER_ZALO_NOTICE_VERSION, formatVnMobile, normalizeVnMobile } from '@/
 import { fillTemplate } from '@/lib/i18n/placeholders'
 
 const ENDPOINT = '/api/teachers/me/cover-zalo'
-/** Bounded like every other wait here (review round 8): a stalled request must never hold the page — or the switch-off. */
-const timeout = () => (typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(10_000) : undefined)
+/** Bounded like every other wait here (review round 8): a stalled request must never hold the page — or the switch-off.
+ *  AbortSignal.timeout where the browser has it; elsewhere (an older in-app browser) an AbortController on the same timer,
+ *  let go once the request AND its body have settled — the `undefined` this returned there left the wait unbounded
+ *  (2026-11-06 audit). */
+const WAIT_MS = 10_000
+async function bounded<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  if (typeof AbortSignal.timeout === 'function') return run(AbortSignal.timeout(WAIT_MS))
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), WAIT_MS)
+  try { return await run(ctl.signal) } finally { clearTimeout(timer) }
+}
+
+/** A write its limit cut off can still commit a moment later: before "could not save" stays, the page looks once more, this
+ *  long after the re-read that did not show it (2026-11-06 audit). */
+const RECHECK_MS = 3_000
 
 /** The endpoint's answer (zalo.ts CoverZaloState). */
 export type CoverZaloView = {
@@ -109,10 +122,12 @@ function CoverZaloFor() {
 
   const read = useCallback(async (): Promise<CoverZaloView | null> => {
     try {
-      const res = await fetch(ENDPOINT, { cache: 'no-store', signal: timeout() })
-      // No teacher profile is an ANSWER, not a failure: the page offers to create one (review, 2026-10-28).
-      if (res.status === 404) return NO_PROFILE
-      return res.ok ? coverZaloViewOf(await res.json().catch(() => null)) : null
+      return await bounded(async (signal) => {
+        const res = await fetch(ENDPOINT, { cache: 'no-store', signal })
+        // No teacher profile is an ANSWER, not a failure: the page offers to create one (review, 2026-10-28).
+        if (res.status === 404) return NO_PROFILE
+        return res.ok ? coverZaloViewOf(await res.json().catch(() => null)) : null
+      })
     } catch {
       return null
     }
@@ -136,10 +151,29 @@ function CoverZaloFor() {
     busyRef.current = true
     setBusy(true)
     setLine('')
+    // Not saved — or not KNOWN to be: read the truth, show it (the field too), and call it saved only when the saved
+    // state is what this tap asked for — the switch, AND the number and a current grant for a switch-on (review round
+    // 3: an edited number that failed must never read as saved while schools still see the old one).
+    const asked = on ? normalizeVnMobile(number) : null
+    const applied = (v: CoverZaloView | null) => !!v && v.on === on && (!on || (v.zalo === asked && !v.stale))
+    const reconcile = async () => {
+      let fresh = await read()
+      // ⚠️ A SAVE ITS 10s LIMIT CUT OFF CAN COMMIT A MOMENT LATER (2026-11-06 audit) — and a cut-off one said "could not save"
+      // even beside a re-read that showed it saved: look once more a few seconds on, then say what the server shows.
+      if (!applied(fresh)) {
+        await new Promise((r) => setTimeout(r, RECHECK_MS))
+        fresh = (await read()) ?? fresh
+      }
+      if (fresh) { setView(fresh); setNumber(formatVnMobile(fresh.zalo ?? fresh.phoneSuggestion ?? '')) }
+      setLine(applied(fresh) ? '' : 'failed')
+    }
     try {
       const body = on ? { on: true, zalo: number, zaloNotice: COVER_ZALO_NOTICE_VERSION, base: view.base } : { on: false }
-      const res = await fetch(ENDPOINT, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: timeout() })
-      const d: unknown = await res.json().catch(() => null)
+      // The body inside the same bound: an answer cut off mid-body is no answer, and the page re-reads the server.
+      const { res, d } = await bounded(async (signal): Promise<{ res: Response; d: unknown }> => {
+        const r = await fetch(ENDPOINT, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal })
+        return { res: r, d: await r.json().catch(() => null) }
+      })
       const saved = res.ok ? coverZaloViewOf(d) : null
       if (saved) { setView(saved); if (saved.zalo) setNumber(formatVnMobile(saved.zalo)); return }
       const code = d && typeof d === 'object' ? (d as { error?: unknown }).error : null
@@ -155,17 +189,9 @@ function CoverZaloFor() {
       if (res.status === 400 && code === 'zalo_invalid') { setLine('invalid'); return }
       if (res.status === 400 && code === 'cover_off') { setLine('cover_off'); return }
       if (res.status === 429) { setLine('rate_limited'); return }
-      // Not saved — or not KNOWN to be: read the truth, show it (the field too), and call it saved only when the saved
-      // state is what this tap asked for — the switch, AND the number and a current grant for a switch-on (review round
-      // 3: an edited number that failed must never read as saved while schools still see the old one).
-      const fresh = await read()
-      if (fresh) { setView(fresh); setNumber(formatVnMobile(fresh.zalo ?? fresh.phoneSuggestion ?? '')) }
-      const asked = on ? normalizeVnMobile(number) : null
-      setLine(fresh && fresh.on === on && (!on || (fresh.zalo === asked && !fresh.stale)) ? '' : 'failed')
+      await reconcile()
     } catch {
-      setLine('failed')
-      const fresh = await read()
-      if (fresh) { setView(fresh); setNumber(formatVnMobile(fresh.zalo ?? fresh.phoneSuggestion ?? '')) }
+      await reconcile()
     } finally {
       busyRef.current = false
       setBusy(false)
@@ -243,7 +269,8 @@ function CoverZaloFor() {
             // An example, not a value (2026-11-06 audit): a bare realistic number in the empty field read as a saved one.
             placeholder={tr('e.g. 0901 234 567', 'Ví dụ: 0901 234 567')}
           />
-          <span id="cover-zalo-number-hint" className="block text-xs text-muted-foreground">
+          {/* Readable, not fine print (2026-11-06 audit): it says when the number is saved. */}
+          <span id="cover-zalo-number-hint" className="block text-sm text-body">
             {tr('A Vietnamese mobile number with Zalo. Check that it opens your Zalo.', 'Số di động Việt Nam có dùng Zalo. Hãy kiểm tra số này mở đúng Zalo của bạn.')}
             {/* Until the switch is on, nothing typed here is saved — said where the number is typed (2026-11-06 audit). Once
                 on, an edit brings its own "Save the new number". Never while cover lessons are off (opus, gate 2026-11-06): the
@@ -253,6 +280,9 @@ function CoverZaloFor() {
         </label>
         <SwitchRow
           id="cover-zalo-switch"
+          // On the page with a hairline, not a grey well (2026-11-06 audit): on the well the OFF track (#e5e5e5 on #f5f5f5)
+          // all but vanished, and it read as one more filled field under the number's.
+          className="border border-border bg-card"
           checked={view.on && !view.stale}
           onChange={(next) => { void save(next) }}
           disabled={busy || (!view.coverOn && !view.on)}
@@ -285,7 +315,7 @@ function CoverZaloFor() {
       <section className="space-y-2">
         <h2 className="text-base font-semibold text-foreground">{tr('Schools that saw your Zalo', 'Các trường đã xem số Zalo của bạn')}</h2>
         {view.seenBy.length === 0
-          ? <p className="text-sm text-muted-foreground">{tr('No school has seen it yet.', 'Chưa có trường nào xem.')}</p>
+          ? <p className="text-sm text-body">{tr('No school has seen it yet.', 'Chưa có trường nào xem.')}</p>
           : (
             <ul className="divide-y divide-border rounded-xl border border-border">
               {view.seenBy.map((s, i) => (

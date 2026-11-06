@@ -237,9 +237,12 @@ export function LocalizedTitleHeading({ title, titleVi, i18n, className }: { tit
   const showOriginal = machine && original
   const shown = showOriginal ? title : out
   const cl = showOriginal ? originalLang(title, lang) : detectContentLang(shown)
+  // 2026-11-06 audit: a no-break space ties each " · " to the word before it, so a wrapped title never opens its second
+  // line on the dot ("Honda SH Mode for rent / · automatic scooter"); the break after the dot stays. Display only.
+  const text = shown.replace(/ · /g, '\u00a0· ')
   return (
     <>
-      <h1 data-fab-avoid className={className}>{cl && cl !== lang ? <span lang={cl}>{shown}</span> : shown}</h1>
+      <h1 data-fab-avoid className={className}>{cl && cl !== lang ? <span lang={cl}>{text}</span> : text}</h1>
       {machine ? <MachineTranslationNote original={original} onToggle={() => setOriginal((o) => !o)} /> : reserve ? <MachineTranslationReserve /> : null}
     </>
   )

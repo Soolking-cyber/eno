@@ -128,14 +128,16 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
 
   if (loading) return <Skeleton className="h-96 w-full rounded-2xl" />
   if (!user) {
+    // Sized to its words and aligned with the heading above it (2026-11-06 audit: a short centred message in a box as wide as the
+    // form column, ~750px on desktop, read as unfinished). A phone gets the same full-width card, now left-aligned like the page.
     return (
-      <div className="rounded-2xl bg-card p-6 text-center ring-1 ring-border">
+      <div className="max-w-xl rounded-2xl bg-card p-6 ring-1 ring-border">
         <p className="text-base font-semibold text-foreground">{tr('Sign in to write a review', 'Đăng nhập để viết đánh giá')}</p>
-        <p className="mx-auto mt-2 max-w-md text-sm text-body">
+        <p className="mt-2 text-sm text-body">
           {tr('Your name is never shown. Reviews appear with a broad description only, such as "Former teacher · 1–2 years".', 'Tên của bạn không bao giờ hiển thị. Đánh giá chỉ kèm mô tả chung, ví dụ "Giáo viên cũ · 1–2 năm".')}
         </p>
         {REVIEWS_NEED_PROOF && (
-          <p className="mx-auto mt-2 max-w-md text-sm text-body">
+          <p className="mt-2 text-sm text-body">
             {tr('To keep reviews genuine, we ask for private proof that you worked there: your LinkedIn profile. Only our moderators see it.', 'Để đánh giá luôn chân thực, chúng tôi cần bằng chứng riêng tư rằng bạn từng làm ở đó: hồ sơ LinkedIn của bạn. Chỉ kiểm duyệt viên của chúng tôi thấy.')}
           </p>
         )}

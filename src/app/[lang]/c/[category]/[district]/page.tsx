@@ -7,7 +7,7 @@ import { formatCalendarDay } from '@/lib/calendar-day'
 import { DistrictRent } from './district-rent'
 import { DistrictFilterRow } from './district-filter-row'
 import { CategoryFiltersLink } from '../category-filters-link'
-import { PILL_BOX, PILL_REST } from '@/components/ui/chip-style'
+import { PILL_BOX, PILL_ON, PILL_REST } from '@/components/ui/chip-style'
 import { cn } from '@/lib/utils'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { districtPageRows } from '@/lib/district-page-base'
@@ -40,6 +40,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Badge } from '@/components/ui/badge'
+import { SlidersHorizontal } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Tr } from '@/context/language-context'
@@ -412,6 +413,11 @@ export default async function CategoryDistrictPage({ params }: Props) {
         {otherDistricts.length > 0 && (
           <AreaChipsRow>
             <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
+            {/* 2026-11-06 audit: this page's own place leads the row in the applied look. The row named only the other areas,
+                so nothing on it said where the reader is. Not a link: it is this page (`aria-current`), as /c's "All" is there. */}
+            <Badge size="md" aria-current="page" className={cn('shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold', PILL_ON)}>
+              <PlaceName en={place.en} vi={place.vi} />
+            </Badge>
             {otherDistricts.map((d) => (
               <Badge key={d.slug} size="md" interactive render={<Link href={`/c/${cat.slug}/${d.slug}`} prefetch={false} />} className="shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
                 <PlaceName en={d.label.en} vi={d.label.vi} />
@@ -474,11 +480,12 @@ export default async function CategoryDistrictPage({ params }: Props) {
               ← <Tr text="All" /> <Bilingual en={cat.name} vi={cat.nameVi || cat.name} />
             </Link>
           </Button>
-          <Button asChild variant="cta" size="none">
+          <Button asChild variant="cta" size="none" className="gap-1.5">
             {/* ⛔ THE DISTRICT USED TO BE DROPPED HERE. This linked to `/?category=<slug>` and the
                 reader landed in the whole category, one click after choosing a district. */}
             <Link href={scopedExplorer} rel="nofollow" prefetch={false} className="px-5 py-2.5">
-              <Bilingual en="Search with filters" vi="Lọc chi tiết hơn" /> →
+              {/* The strip's Filters, in words and glyph: the same door, scoped the same way (2026-11-06 audit; /c's twin). */}
+              <SlidersHorizontal className="h-4 w-4" aria-hidden /> <Bilingual en="Filters" vi="Bộ lọc" />
             </Link>
           </Button>
         </div>

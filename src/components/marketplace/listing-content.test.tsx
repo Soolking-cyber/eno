@@ -521,6 +521,11 @@ describe('"Translated · See original" under a machine-translated H1 and above t
     expect(b.queryByText(/Translated/)).toBeNull()
   })
 
+  it('a " · " in a title keeps its dot on the line it closes: a no-break space before it, a plain one after (2026-11-06 audit)', () => {
+    const { container } = renderLang('en', <LocalizedTitleHeading title="Honda SH Mode for rent · automatic scooter" titleVi={null} />)
+    expect(container.querySelector('h1')!.textContent).toBe('Honda SH Mode for rent\u00a0· automatic scooter')
+  })
+
   it('the description gets the same note above it; its own descriptionVi gets none', () => {
     const a = renderLang('vi', <ListingDescription text={EN_DESC} vi={null} i18n={{ vi: VI_MT }} />)
     expect(a.getByRole('button', { name: 'Xem bản gốc' })).toBeTruthy()

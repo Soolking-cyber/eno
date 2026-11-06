@@ -74,6 +74,12 @@ const MOTIF: { Icon: typeof MapPin; top: string; left: string; size: number; rot
 
 const RECOVERY_LINK = 'font-semibold text-accent-foreground hover:underline'
 /**
+ * The other three ways out, a step below "Search all listings" (2026-11-06 audit): the footer's quiet link, body ink that
+ * turns brand on hover. Four links in one brand blue read as four equal choices under the search box, and searching is
+ * the way out this page exists for.
+ */
+const SECONDARY_LINK = 'font-medium text-body transition-colors hover:text-accent-foreground'
+/**
  * The machine documents' links (2026-11-06 audit): the same server-rendered anchors with the path as their text — the agent
  * contract below and not-found-contract.test.ts hold — in a footnote's ink, so a person is offered four ways out, not seven.
  */
@@ -112,8 +118,9 @@ export default function NotFound() {
 
         <div className="relative w-full max-w-lg text-center">
           {/* 160px on a phone, not 288: at 390×844 the full-size mascot pushed the heading, the
-              search and every recovery link below the fold of the one page whose job is a way out. */}
-          <Mascot name="search" className="mx-auto h-40 w-40 sm:h-72 sm:w-72" />
+              search and every recovery link below the fold of the one page whose job is a way out.
+              192px from sm, not 288 (2026-11-06 audit): the drawing outweighed the heading and the search under it. */}
+          <Mascot name="search" className="mx-auto h-40 w-40 sm:h-48 sm:w-48" />
           {/* No "Error 404" kicker: pure-label eyebrows are retired (owner, 2026-08-05; C-KICKERS), and
               the status is the response's business — the heading says what happened.
               The path-aware heading + lede + the search box — a client island, see its header for why. */}
@@ -149,9 +156,9 @@ export default function NotFound() {
               arbitrary category. `/brands` is a distinct, fully crawlable index of what the
               deployment actually holds, and it exists on both editions — so it needs no gate.
             */}
-            <Link href="/brands" className={RECOVERY_LINK}><Tr text="Browse by brand" /></Link>
-            <Link href="/help" className={RECOVERY_LINK}><Tr text="Help center" /></Link>
-            <Link href="/contact" className={RECOVERY_LINK}><Tr text="Contact us" /></Link>
+            <Link href="/brands" className={SECONDARY_LINK}><Tr text="Browse by brand" /></Link>
+            <Link href="/help" className={SECONDARY_LINK}><Tr text="Help center" /></Link>
+            <Link href="/contact" className={SECONDARY_LINK}><Tr text="Contact us" /></Link>
           </LocalizedNav>
           {/*
             ⛔ THE THREE MACHINE DOCUMENTS ARE THE WHOLE POINT OF THIS PARAGRAPH, and an agent audit

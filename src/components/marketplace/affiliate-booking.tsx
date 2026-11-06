@@ -206,10 +206,12 @@ export function AffiliateBooking({
           <QrFigure svg={qr} en={qrName.en} vi={qrName.vi} values={{ site: partnerName }} className="shrink-0 [&>svg]:size-20 [&>svg]:rounded-lg" />
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground">
-              {job ? <Tr text="Scan to open the job posting on your phone" /> : booking ? <Tr text="Scan to book on your phone" /> : rental ? tr('Scan to open this rental on your phone', 'Quét để mở tin cho thuê này trên điện thoại') : <Tr text="Scan to open on your phone" />}
+              {/* A job's code says where it goes (2026-11-06 audit): "the job posting" could have been this page. It is the
+                  original posting, on its own site, as the rental's caption says "the original ad on {site}". */}
+              {job ? tr('Scan to open the original posting on your phone', 'Quét để mở tin tuyển dụng gốc trên điện thoại') : booking ? <Tr text="Scan to book on your phone" /> : rental ? tr('Scan to open this rental on your phone', 'Quét để mở tin cho thuê này trên điện thoại') : <Tr text="Scan to open on your phone" />}
             </p>
             <p className="mt-1 text-xs text-body">
-              {job ? <Tr text="Opens the same job posting, where you apply." /> : booking ? <Tr text="Opens the same booking page, with the discount code ready to enter." /> : rental ? tr('Opens the original ad on {site}.', 'Mở tin gốc trên {site}.', { site: partnerName }) : <Tr text="Opens the same product page on the shop's website." />}
+              {job ? tr('Opens the job on {site}, where you apply.', 'Mở tin tuyển dụng trên {site}, nơi bạn nộp hồ sơ.', { site: partnerName }) : booking ? <Tr text="Opens the same booking page, with the discount code ready to enter." /> : rental ? tr('Opens the original ad on {site}.', 'Mở tin gốc trên {site}.', { site: partnerName }) : <Tr text="Opens the same product page on the shop's website." />}
             </p>
           </div>
         </div>

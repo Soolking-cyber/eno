@@ -68,6 +68,25 @@ export function isStopReply(text: string | null | undefined): boolean {
 const VI_WORD = '(?<![\\p{L}\\p{N}])' // JS's \\b is ASCII-only, even under /u: "\\bđừng" never matches (opus, gate 3e)
 
 /**
+ * ⛔ EVERY LOOKBEHIND HERE IS BUILT ON FIRST USE, THROUGH THIS (2026-11-06). The chat thread and the quick-reply chips
+ * import this module, and Safari 16.0–16.3 (browserslist: safari >= 16) has no lookbehind: a `(?<!…)` regex LITERAL is a
+ * SyntaxError that takes the whole chunk down, and a module-scope `new RegExp` with one throws while the module loads.
+ * Built here, an engine that refuses it gets null and that one rule reads as "no match"; every other engine compiles
+ * exactly the regex it always did. ⚠️ "No match" is the cheap error only for KEEP_ASKS (nothing is taken out, so the reply
+ * pauses; the complaint rule only chooses whether KEEP_ASKS applies). For the Vietnamese rule in longOptOut it is a MISSED
+ * opt-out — safe only because mayBeOptOut runs on the server alone (run.ts, server-only: Node compiles every rule); the
+ * browser reads just the chip texts and isStopReply, which have no lookbehind (opus, gate r27, 2026-11-06).
+ */
+const compiled = new Map<string, RegExp | null>()
+function re(source: string, flags = ''): RegExp | null {
+  const key = `${flags}/${source}`
+  if (!compiled.has(key)) {
+    try { compiled.set(key, new RegExp(source, flags)) } catch { compiled.set(key, null) }
+  }
+  return compiled.get(key) ?? null
+}
+
+/**
  * A reply that MAY ask the desk to stop — broad on purpose, because a miss here is the costly error and a false hit costs
  * only a pause: run.ts sends that teacher nothing more until someone on the team has answered in the thread (a person
  * reads every reply anyway — /privacy). Never a withdrawal by itself: that is isStopReply, which is narrow.
@@ -91,13 +110,13 @@ const DONT = '(please )?((don t|do not|dont)( ever| you dare)?|never( ever)?)'
  * sending me jobs" and "DID you stop sending me these like I asked?" (opus, gate 6e) are the opposite — a question about
  * stopping can be either, and a wrong pause is the cheap error.
  */
-// ⚠️ 'g' — used ONLY with String.replace (which resets lastIndex); a .test() on it would be stateful.
-const KEEP_ASKS = new RegExp([
+// ⚠️ 'g' — used ONLY with String.replace (which resets lastIndex); a .test() on it would be stateful. A SOURCE, built by re().
+const KEEP_ASKS = [
   `${NOT_A_SUBJECT}\\b${DONT} stop (the|these|sending|your|them)\\b`,
   `${NOT_A_SUBJECT}\\b${DONT} (turn|switch|shut) (off (${MSGS}|it|this)|(${MSGS}|it|this) off)\\b`,
   '\\bwhy (did|would|have) you (stop|stopped)\\b',
   '\\b(hope|wish) (that )?(you |eno )?(won t|will not|don t|do not|never) (ever )?stop\\b',
-].join('|'), 'g')
+].join('|')
 /** "Please keep them stopped", "leave the job alerts off" (codex, gate 6h). */
 const KEEP_THEM_OFF = new RegExp(`\\b(keep|leave) ${MSGS}( switched| turned)? (stopped|off)\\b`)
 /** "Turn off the job alerts", "switch those off", "how do I turn off my job alerts?" (codex + opus, gates 6h–7a2). */
@@ -111,11 +130,14 @@ function longOptOut(t: string, raw: string): boolean {
   const goOn = /\b(keep|continue|please do) (sending|send)\b/.test(t) && !/\b(do not|don t|dont|never|why do you|why are you|stop) (keep|continue)/.test(t)
   // A threat or a complaint about THESE messages — aimed at us, whole words: "I'll report back", "blocks of lessons" and
   // "Suez" are not (opus, gate 6c), and nor is "they aren't spam" (codex, gate 6c) — but "I just love spam" is.
-  const threatened = /\b(report|block|sue)(ed|ing)? (you|this|these|it|eno|your)\b|\b(police|lawyer|harass\w*)\b|(?<!\b(aren t|are not|isn t|is not|not|never|no|any) )\b(complain\w*|spam(my|ming|med)?)\b/.test(t)
+  // One alternation split in three (`/A|B|C/.test` is A || B || C): only the third needs a lookbehind, so only it goes
+  // through re().
+  const threatened = /\b(report|block|sue)(ed|ing)? (you|this|these|it|eno|your)\b|\b(police|lawyer|harass\w*)\b/.test(t)
+    || (re(String.raw`(?<!\b(aren t|are not|isn t|is not|not|never|no|any) )\b(complain\w*|spam(my|ming|med)?)\b`)?.test(t) ?? false)
   const notAboutUs = t
     // Asking to KEEP them is taken out (KEEP_ASKS) — unless the reply threatens or complains, which leaves every "stop"
     // where it is ("if you don't stop the job messages I'll report you" — codex + opus, gate 6b).
-    .replace(threatened ? /$^/ : KEEP_ASKS, ' ')
+    .replace(threatened ? /$^/ : (re(KEEP_ASKS, 'g') ?? /$^/), ' ')
     .replace(/\bbus stop\b|\bstop by\b|\bstop (teaching|working|doing)\b|\b(never|didn t|did not|doesn t|does not|don t|do not) (text|message|reply|answer|call|write|email)s? (me )?back\b/g, ' ')
     // what the TEACHER sends or is sent about one job: "I'll stop sending CVs", "don't send me the address", "no more
     // messages from the school", "remove me from the shortlist", "I opt out of nights" (gates 3b–3d)
@@ -163,7 +185,7 @@ function longOptOut(t: string, raw: string): boolean {
   // Vietnamese, typed with its marks (unambiguous) …
   const typed = raw.normalize('NFC').toLowerCase()
   // ("thôi gửi CV cho trường đó" is the teacher's own sending — opus, gate 3f — so "thôi" counts only with "tin" / "cho tôi")
-  if (new RegExp(`${VI_WORD}(đừng|ngừng|dừng) (gửi|nhắn)|${VI_WORD}thôi (gửi|nhắn) (tin|cho (tôi|mình|em))|${VI_WORD}không (muốn )?nhận (thêm |tin nhắn |tin |việc làm |việc )?nữa|${VI_WORD}(hủy|huỷ) đăng ký|${VI_WORD}không (muốn|cần) nhận (tin nhắn|tin|việc)`, 'u').test(typed)) return true
+  if (re(`${VI_WORD}(đừng|ngừng|dừng) (gửi|nhắn)|${VI_WORD}thôi (gửi|nhắn) (tin|cho (tôi|mình|em))|${VI_WORD}không (muốn )?nhận (thêm |tin nhắn |tin |việc làm |việc )?nữa|${VI_WORD}(hủy|huỷ) đăng ký|${VI_WORD}không (muốn|cần) nhận (tin nhắn|tin|việc)`, 'u')?.test(typed)) return true
   // … or folded, where the words are not also names or "đúng" ("dung gui" is also "Dũng gửi"; "ko nhan tin lai" is
   // "did not text back")
   return /\b(ngung (gui|nhan)|huy dang ky|khong muon nhan|(khong|ko) nhan (tin nhan |tin |viec lam )?nua)\b/.test(t)

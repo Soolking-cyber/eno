@@ -135,6 +135,68 @@ describe('the weekly check-in page', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('without AbortSignal.timeout (an older in-app browser): a read still ends at 10s in "Try again", and an answered one lets its timer go', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const native = AbortSignal.timeout
+    Object.defineProperty(AbortSignal, 'timeout', { value: undefined, configurable: true, writable: true })
+    try {
+      const signals: Array<AbortSignal | null | undefined> = []
+      let hang = false
+      vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => {
+        signals.push(init?.signal)
+        // Held open and ended only by its signal, as a real fetch is — or answered at once.
+        if (hang) return new Promise<never>((_, reject) => { init?.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError'))) })
+        return Promise.resolve({ ok: true, status: 200, json: async () => LIVE })
+      }))
+      render(<CheckInPanel />)
+      await settle()
+      expect(screen.getByRole('button', { name: 'Yes, I’m still available' })).toBeTruthy()
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
+      expect(signals[0]?.aborted).toBe(false) // answered, so its timer was let go
+      cleanup()
+      hang = true
+      render(<CheckInPanel />)
+      await settle()
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
+      expect(signals[1]?.aborted).toBe(true)
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+    } finally {
+      Object.defineProperty(AbortSignal, 'timeout', { value: native, configurable: true, writable: true })
+      vi.useRealTimers()
+    }
+  })
+
+  it('⛔ a "yes" whose answer was lost: one more look a few seconds on before "could not save" — and none when it landed late', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const answered = { ...LIVE, confirmedAt: '2026-11-06T02:00:00.000Z' }
+      // The POST's answer is lost (a proxy's 502); the re-read still shows the old answer; a few seconds on, this one.
+      answers = [{ status: 200, body: LIVE }, { status: 502, body: null }, { status: 200, body: LIVE }, { status: 200, body: answered }]
+      render(<CheckInPanel />)
+      await settle()
+      fireEvent.click(screen.getByRole('button', { name: 'Yes, I’m still available' }))
+      await settle()
+      expect(screen.queryByRole('alert')).toBeNull()
+      await act(async () => { await vi.advanceTimersByTimeAsync(3_000) })
+      expect(requests.map((r) => r.method)).toEqual(['GET', 'POST', 'GET', 'GET'])
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(screen.getByRole('status').textContent).toContain('your profile stays up')
+      cleanup()
+      // …and when the second look still shows the old answer, the failure is said.
+      answers = [{ status: 200, body: LIVE }, { status: 502, body: null }, { status: 200, body: LIVE }, { status: 200, body: LIVE }]
+      render(<CheckInPanel />)
+      await settle()
+      fireEvent.click(screen.getByRole('button', { name: 'Yes, I’m still available' }))
+      await settle()
+      await act(async () => { await vi.advanceTimersByTimeAsync(3_000) })
+      expect(screen.getByRole('alert').textContent).toContain('could not save')
+      expect(screen.queryByText(/your profile stays up/)).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('checkInViewOf rejects a body that is not a view (a proxy page, an error body)', () => {
     expect(checkInViewOf({ error: 'x' })).toBeNull()
     expect(checkInViewOf(LIVE)).toEqual(LIVE)

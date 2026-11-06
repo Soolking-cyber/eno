@@ -89,7 +89,9 @@ export async function generateMetadata({ params }: LangParams): Promise<Metadata
 
 /** One paragraph. `vi` absent = English source only (the services-edition copy). */
 type Para = { en: string; vi?: string }
-type Section = { id: string; title: string; titleVi?: string; paras: Para[] }
+// `rail` / `railVi` (2026-11-06 audit): a shorter contents label where the heading runs past one line of the 210px rail;
+// the section heading itself keeps its full title. Navigation chrome, not the Terms' text.
+type Section = { id: string; title: string; titleVi?: string; rail?: string; railVi?: string; paras: Para[] }
 
 const en = (p: string): Para => ({ en: p })
 
@@ -135,6 +137,8 @@ const sections: Section[] = [
     id: 'acceptance',
     title: 'Acceptance and what these Terms cover',
     titleVi: 'Chấp nhận Điều khoản và phạm vi áp dụng',
+    rail: 'Acceptance and scope',
+    railVi: 'Chấp nhận và phạm vi',
     paras: [
       operatorPara,
       {
@@ -236,6 +240,8 @@ const sections: Section[] = [
     id: 'trust',
     title: 'Trust, verification and moderation',
     titleVi: 'Uy tín, xác minh và kiểm duyệt',
+    rail: 'Trust and moderation',
+    railVi: 'Uy tín và kiểm duyệt',
     paras: [
       {
         en: `Listings posted here go live after automated checks, and every seller who posts here carries a trust score earned from verified activity, reviews and confirmed reports. The method is published in full at /trust. A trust score describes a seller who posts here; it says nothing about a linked listing.`,
@@ -255,6 +261,8 @@ const sections: Section[] = [
     id: 'platform',
     title: `${SITE_NAME} is a platform, not a party to the deal`,
     titleVi: `${SITE_NAME} là nền tảng trung gian, không phải một bên của giao dịch`,
+    rail: 'A platform, not a party',
+    railVi: 'Nền tảng trung gian',
     paras: [
       {
         en: `${SITE_NAME} is an intermediary. We provide a place to publish listings, find them and contact the people behind them. We are not the buyer and not the seller, we take no payment from you for anything listed, we hold no escrow, and we are not responsible for the quality, safety, legality, description, delivery or fitness for purpose of what is listed, or for the conduct of any user.`,
@@ -314,6 +322,8 @@ const sections: Section[] = [
     id: 'liability',
     title: 'Disclaimers and limitation of liability',
     titleVi: 'Miễn trừ và giới hạn trách nhiệm',
+    rail: 'Disclaimers and liability',
+    railVi: 'Miễn trừ trách nhiệm',
     paras: [
       {
         en: `${SITE_NAME} is provided "as is" and "as available", without warranties of any kind so far as the law allows. We do not promise that the service will be uninterrupted or error-free, and we do not verify or endorse user-posted content.`,
@@ -393,6 +403,8 @@ const sections: Section[] = [
     id: 'changes',
     title: 'Changes to these Terms, and contact',
     titleVi: 'Sửa đổi Điều khoản và liên hệ',
+    rail: 'Changes and contact',
+    railVi: 'Sửa đổi và liên hệ',
     paras: [
       {
         // ⚠️ "THE VERSION SHOWN … CHANGES WITH THEM" IS THE PRE-EXISTING PROMISE, KEPT WORD FOR WORD: rewording it
@@ -468,7 +480,7 @@ export default async function TermsPage({ params }: { params: Promise<{ lang: st
           <LegalLanguageNote />
         </>
       }
-      sections={sections.map((s) => ({ id: s.id, label: s.title, labelVi: s.titleVi }))}
+      sections={sections.map((s) => ({ id: s.id, label: s.rail ?? s.title, labelVi: s.railVi ?? s.titleVi }))}
     >
       {sections.map((s) => (
         <ContentSection key={s.id} id={s.id} title={s.title} titleVi={s.titleVi}>

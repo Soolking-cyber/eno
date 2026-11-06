@@ -34,12 +34,12 @@ import { pageShare } from '@/lib/site-identity'
 import { langAlternates, localizedHref } from '@/lib/lang-pinned'
 import { teacherSurfaceHref } from '@/lib/teachers/host'
 import Link from 'next/link'
-import { ArrowRight } from '@/components/ui/icons'
+import { SlidersHorizontal } from '@/components/ui/icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Mascot } from '@/components/marketplace/mascot'
-import { PILL_BOX, PILL_REST } from '@/components/ui/chip-style'
+import { PILL_BOX, PILL_ON, PILL_REST } from '@/components/ui/chip-style'
 import { cn } from '@/lib/utils'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Bilingual } from '@/components/marketplace/bilingual'
@@ -331,6 +331,10 @@ export default async function CategoryPage({ params }: Props) {
       {districts.length > 0 && (
         <AreaChipsRow>
           <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
+          {/* 2026-11-06 audit: the row opens on where the reader is, "All" (this page, in the applied look; not a link, so
+              `aria-current`). It listed only the places to go, so nothing on it said what the grid below covers. A district
+              page opens on its own place the same way, and /c/jobs' city row on "All N". */}
+          <Badge size="md" aria-current="page" className={cn('shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold', PILL_ON)}><Tr text="All" /></Badge>
           {/* prefetch={false}: every chip in view was a district page request on every category view — two on a phone,
               up to 41 on a desktop row (speed plan item 7, measured on production 2026-10-16). */}
           {districts.map((d) => (
@@ -344,7 +348,7 @@ export default async function CategoryPage({ params }: Props) {
 
       {/* /c/jobs: "Theo tỉnh/thành / By city" with counts, the jobs page's "By area" (rentals-11) — only
           with two cities or more, where there is a choice to make. */}
-      {jobCities.length > 1 && <JobCityChips cities={jobCities} />}
+      {jobCities.length > 1 && <JobCityChips cities={jobCities} total={total} />}
 
       {/* N8 (nav audit): a teacher who came looking for WORK is pointed at the jobs, and a teacher browsing
           jobs at the profile form — one line each, above the grid or the empty state (teaching-links.tsx). */}
@@ -406,16 +410,15 @@ export default async function CategoryPage({ params }: Props) {
           </div>
           {homes && <OtherRentalsLink n={homes.offices} href={localizedHref('/?category=rentals&subcategory=office-rental', pageLang(lang))} />}
           <div className="mt-8">
-            {/* Real ArrowRight at h-4, not a literal '→' — the SEO-landing CTAs already
-                use the lucide arrow, and one page family should speak one arrow language.
-                gap-1.5 on the BUTTON (asChild concatenates the child's className). */}
+            {/* The strip's own Filters glyph at h-4, gap-1.5 on the BUTTON (asChild concatenates the child's className). */}
             {/* nofollow + no prefetch: /?category= is canonicalised to /, and a prefetch would render
                 the full explorer for everyone who scrolls this far (as the strip's Filters link). */}
             <Button asChild variant="cta" size="none" className="gap-1.5">
               <Link href={explorerHref} rel="nofollow" prefetch={false} className="px-5 py-2.5">
-                {/* 2026-11-06 audit: the button says what it opens — the search, with this category's filters. "Refine in full
-                    search" left a reader asking what was not full about this page. The Vietnamese is the one it always had. */}
-                <Bilingual en="Search with filters" vi="Lọc chi tiết hơn" /> <ArrowRight className="h-4 w-4" />
+                {/* 2026-11-06 audit, second pass: the grid's end says what the strip's chip says ("Filters", with its glyph)
+                    because it is the same door: this category, and homes while the grid is homes, into the explorer's facets
+                    (CategoryFiltersLink). "Search with filters" read as a second search mode; "Refine in full search" before it. */}
+                <SlidersHorizontal className="h-4 w-4" aria-hidden /> <Bilingual en="Filters" vi="Bộ lọc" />
               </Link>
             </Button>
           </div>

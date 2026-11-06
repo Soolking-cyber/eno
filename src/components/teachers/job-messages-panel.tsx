@@ -29,8 +29,20 @@ import { JOB_DM_NOTICE_VERSION } from '@/lib/teachers/job-dms/constants'
 
 const ENDPOINT = '/api/teachers/me/job-dms'
 /** Bounded like the Zalo page's waits (cover-zalo-panel.tsx — 2026-11-06 audit): a stalled request must never hold the page on
- *  its spinner, or a button busy; it ends as a failed read (Try again) or a re-read of the truth. */
-const timeout = () => (typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(10_000) : undefined)
+ *  its spinner, or a button busy; it ends as a failed read (Try again) or a re-read of the truth. AbortSignal.timeout where the
+ *  browser has it; elsewhere (an older in-app browser) an AbortController on the same timer, let go once the request AND its
+ *  body have settled — the `undefined` this returned there left the wait unbounded (2026-11-06 audit). */
+const WAIT_MS = 10_000
+async function bounded<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  if (typeof AbortSignal.timeout === 'function') return run(AbortSignal.timeout(WAIT_MS))
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), WAIT_MS)
+  try { return await run(ctl.signal) } finally { clearTimeout(timer) }
+}
+
+/** A write its limit cut off can still commit a moment later: before "could not save" stays, the page looks once more, this
+ *  long after the re-read that did not show it (2026-11-06 audit). */
+const RECHECK_MS = 3_000
 
 /** The endpoint's answer (consent.ts JobDmState). */
 export type JobDmView = { on: boolean; noticeVersion: string | null; current: boolean; teacher: boolean; paused: boolean }
@@ -104,8 +116,10 @@ function JobMessagesFor() {
 
   const read = useCallback(async (): Promise<JobDmView | null> => {
     try {
-      const res = await fetch(ENDPOINT, { cache: 'no-store', signal: timeout() })
-      return res.ok ? jobDmViewOf(await res.json().catch(() => null)) : null
+      return await bounded(async (signal) => {
+        const res = await fetch(ENDPOINT, { cache: 'no-store', signal })
+        return res.ok ? jobDmViewOf(await res.json().catch(() => null)) : null
+      })
     } catch {
       return null
     }
@@ -124,16 +138,26 @@ function JobMessagesFor() {
     setBusy(true)
     setLine('')
     // Not saved — or not KNOWN to be: read the truth, and say "could not save" only when it differs from the tap.
+    // An OFF is saved when the grant is gone (`on`), not when the switch merely draws OFF — a paused or lapsed ON
+    // already draws OFF (opus, gate 5a).
+    const applied = (v: JobDmView | null) => !!v && (next ? v.current === true || !v.teacher : v.on === false)
     const reread = async () => {
-      const fresh = await read()
+      let fresh = await read()
+      // ⚠️ A SAVE ITS 10s LIMIT CUT OFF CAN COMMIT A MOMENT LATER (2026-11-06 audit): when the re-read does not show it yet,
+      // look once more a few seconds on — the switch still busy on the server's last answer — before "could not save" stays.
+      if (!applied(fresh)) {
+        await new Promise((r) => setTimeout(r, RECHECK_MS))
+        fresh = (await read()) ?? fresh
+      }
       if (fresh) setView(fresh)
-      // An OFF is saved when the grant is gone (`on`), not when the switch merely draws OFF — a paused or lapsed ON
-      // already draws OFF (opus, gate 5a).
-      setLine(fresh && (next ? fresh.current === true || !fresh.teacher : fresh.on === false) ? '' : 'failed')
+      setLine(applied(fresh) ? '' : 'failed')
     }
     try {
-      const res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(jobDmRequest(next)), signal: timeout() })
-      const d: unknown = await res.json().catch(() => null)
+      // The body inside the same bound: an answer cut off mid-body is no answer, and the page re-reads the server.
+      const { res, d } = await bounded(async (signal): Promise<{ res: Response; d: unknown }> => {
+        const r = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(jobDmRequest(next)), signal })
+        return { res: r, d: await r.json().catch(() => null) }
+      })
       const saved = res.ok ? jobDmViewOf(d) : null
       if (saved) { setView(saved); return }
       const code = d && typeof d === 'object' ? (d as { error?: unknown }).error : null
@@ -174,7 +198,9 @@ function JobMessagesFor() {
     <div className="space-y-5">
       <PageHeader
         title={tr('Job messages', 'Tin nhắn việc làm')}
-        meta={tr('Jobs and cover lessons that fit your teacher profile, sent to you in eno chat.', 'Việc làm và buổi dạy thay phù hợp với hồ sơ giáo viên, gửi cho bạn qua tin nhắn eno.')}
+        // Who sends, how and how often, before the notice says it at length (2026-11-06 audit: the switch is on by default, and
+        // "automatic" and "Alex · eno.vn" were only inside its first paragraph). The cap is JOB_DM_RULES.perDayPerKind (1).
+        meta={tr('Jobs and cover lessons that fit your teacher profile, sent automatically in eno chat from “Alex · eno.vn” — at most one message of each kind a day.', 'Việc làm và buổi dạy thay phù hợp với hồ sơ giáo viên, được gửi tự động qua tin nhắn eno từ “Alex · eno.vn” — mỗi loại tối đa một tin mỗi ngày.')}
       />
 
       {!view.teacher && (
@@ -206,6 +232,8 @@ function JobMessagesFor() {
           )}
           <SwitchRow
             id="job-dms-switch"
+            // On the page with a hairline, not a grey well (2026-11-06 audit): the well read as one more filled control.
+            className="border border-border bg-card"
             checked={view.current}
             onChange={(next) => { void toggle(next) }}
             // No profile left: nothing to switch ON (the save would 404) — "Stop job messages completely" stays (opus, 5b).

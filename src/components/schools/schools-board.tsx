@@ -133,7 +133,8 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
         </label>
         {/* The house picker (a bottom sheet on a phone — owner, 2026-10-18), in the filled idiom of the search
             field beside it; searchable once the list passes SEARCHABLE_FROM. `activeClassName` repeats the box, so a
-            picked area reads as a value, not as the facet pills' accent fill. */}
+            picked area reads as a value, not as the facet pills' accent fill. Its glyph is the facet pills' ⌄, not the form pickers'
+            ⇅: a filter a row above the sort tabs, where ⇅ read as a sort control (2026-11-06 audit; custom-select.tsx `indicator`). */}
         <CustomSelect
           value={area}
           onChange={setArea}
@@ -142,6 +143,7 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
           className="min-h-11 rounded-xl bg-tint px-4 font-normal text-foreground hover:bg-muted"
           activeClassName="min-h-11 rounded-xl bg-tint px-4 font-normal text-foreground hover:bg-muted"
           wrapperClassName="w-full sm:w-56"
+          indicator="down"
         />
       </div>
 

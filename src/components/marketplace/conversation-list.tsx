@@ -93,8 +93,8 @@ export function ConversationList() {
     // Stable newest-first order (`convos` is already recency-sorted). We deliberately
     // do NOT re-sort by unread/active: doing so made the clicked thread jump to the
     // top of the list (and an unread thread jump down the instant opening it marked it
-    // read). Unread threads are already unmistakable via the blue rail + count badge +
-    // accent background, so opening a conversation now leaves the list order untouched —
+    // read). Unread threads are already unmistakable via the count badge + semibold
+    // preview, so opening a conversation now leaves the list order untouched —
     // only genuinely new activity (a fresh message bumping recency) reorders it.
     return q
       ? convos.filter((c) => `${c.counterpart.name} ${c.listingTitle} ${c.lastMessageText ?? ''}`.toLowerCase().includes(q))
@@ -176,7 +176,7 @@ export function ConversationList() {
           className={cn('mb-1 flex items-center gap-3 rounded-xl p-2.5 transition-colors active:bg-tint/60', aiActive ? 'bg-accent text-accent-foreground' : 'hover:bg-muted')}
         >
           {/* The chrome coin (icon-language §6), not a solid disc: fully-saturated brand is
-              reserved for user-state (§5 — the unread tint/badge in the rows below), so the
+              reserved for user-state (§5 — the unread badge in the rows below), so the
               always-on AI avatar sits on the same flat brand-50 coin as the nav's Post chip. */}
           {/* Open, the row is the open-thread tint (= brand-50), so the coin turns to the page colour to stay a coin. */}
           <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-brand', aiActive ? 'bg-background' : 'bg-brand-50')}><Sparkles className="h-5 w-5" aria-hidden /></span>
@@ -243,7 +243,8 @@ export function ConversationList() {
           <EmptyState
             tone="bare"
             size="lg"
-            media={<Mascot name="chat" className="mx-auto h-40 w-40" />}
+            // The art's empty ground band taken back (2026-11-06 audit), as on the desktop pane and /saved.
+            media={<Mascot name="chat" className="mx-auto -mb-6 h-40 w-40" />}
             title={tr('No messages yet', 'Chưa có tin nhắn')}
             subtitle={tr('Tap "Message" on any listing to start a chat.', 'Nhấn "Nhắn tin" trên một tin đăng để bắt đầu trò chuyện.')}
             action={
@@ -291,7 +292,7 @@ export function ConversationList() {
                  * nothing for it, so the row would have rendered with NO background while tsc,
                  * eslint and design-lint all passed. The established pair here is `bg-warning/10`
                  * (27 uses) and `/15`; the stronger one is used because this row competes with
-                 * the open thread's `bg-accent` and the unread rows' `bg-accent/60` for attention and must win.
+                 * the open thread's `bg-accent` for attention and must win.
                  *
                  * ⚠️ `pending` IS THE ONLY STATUS THAT QUALIFIES. accepted / declined / countered
                  * are all resolved — a countered offer has already been answered, and the counter
@@ -315,18 +316,17 @@ export function ConversationList() {
                   c.lastOffer?.status === 'pending' && !c.lastOffer.mine
                     ? 'bg-warning/15 hover:bg-warning/20'
                     // The OPEN thread takes the full tint (2026-11-06, both design judges): with unread on bg-accent and the
-                    // open row on bg-muted, the thread being read looked less important than every unread one. Unread
-                    // keeps a lighter tint (the notification bell's /60), so a phone's list, where nothing is open,
-                    // still shows at a glance which threads need attention: open > unread > read.
+                    // open row on bg-muted, the thread being read looked less important than every unread one.
+                    // ⚠️ AND THE TINT MEANS OPEN, NOTHING ELSE (2026-11-06 audit): unread on a /60 of the same tint read as a
+                    // second selection beside the open row (eno AI open, GoPlus unread). Unread is said by the semibold preview
+                    // and the count badge, as Messenger and WhatsApp say it — on a phone's list too.
                     : activeId === c.id
                       ? 'text-accent-foreground bg-accent'
-                      : c.unread > 0
-                        ? 'bg-accent/60 hover:bg-accent/80'
-                        : 'hover:bg-muted',
+                      : 'hover:bg-muted',
                 )}
               >
                 {/* ⛔ NO LEFT RAIL ON AN UNREAD ROW (owner, 2026-08-13: "remove accent line on left, look all across the app"; 2026-11-02:
-                    "never use line on the left of the card"). The row's tint, bold name and count badge already say it. */}
+                    "never use line on the left of the card"). The semibold preview and the count badge already say it. */}
                 {/* `active:` on the LINK, not the row: the row's hover tints never fire on a phone, so
                     a tap showed nothing until the thread painted — and `:active` on the wrapper would
                     also flash while pressing the delete button beside it. */}

@@ -62,17 +62,15 @@ export function ContentPage({ title, titleVi, meta, intro, sections, children }:
           // Straight under the hero's hairline, which is its top edge: a second rule 24px lower read
           // as a double line. The link text aligns with the summary; the hover wash bleeds past it.
           <details className="group border-b border-border lg:hidden">
-            {/* 2026-11-06 audit: a grey "· 15" and a 16px grey chevron made the page's own navigation read as metadata. The
-                count now sits with the chevron at the row's end, the way a settings row carries its value, both in readable
-                ink; the row washes on press, its label still on the links' left edge. */}
+            {/* 2026-11-06 audit: a grey "· 15" and a 16px grey chevron made the page's own navigation read as metadata, and a
+                bare "15" beside the chevron then read as an unexplained number (two judges, info and guides). The row is the
+                label and a 20px chevron at its end, like a disclosure row in Settings; it washes on press, its label on the
+                links' left edge. */}
             <summary className="-mx-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-2 text-sm font-semibold text-foreground active:bg-muted [&::-webkit-details-marker]:hidden">
-              {/* The " · " stays in the text, hidden from sight: a screen reader keeps the pause between label and count, and
+              {/* " · 15" stays in the text, hidden from sight: a screen reader still hears how many sections there are, and
                   /privacy's PRIVACY_TEXT_FINGERPRINT (which hashes the rendered page) does not move for a style change. */}
-              <span><Tr text="On this page" /><span className="sr-only"> · </span></span>
-              <span className="flex shrink-0 items-center gap-1.5 font-normal tabular-nums text-body">
-                {sections.length}
-                <ChevronDown className="size-5 text-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
-              </span>
+              <span><Tr text="On this page" /><span className="sr-only"> · {sections.length}</span></span>
+              <ChevronDown className="size-5 shrink-0 text-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
             </summary>
             <ul className="pb-3">
               {sections.map((s) => (

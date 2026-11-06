@@ -652,7 +652,13 @@ export default async function ListingPage({ params }: Props) {
   // Metadata and JSON-LD still use the description.
   const normText = (s: string) => s.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
   const descNorm = normText(listing.description)
-  const showDescription = descNorm !== '' && descNorm !== normText(listing.title) && descNorm !== normText(listing.titleVi ?? '')
+  // ⛔ AND NOT ON A LINKED JOB (2026-11-06 audit). Its description is eno's importer template, never the source's words
+  // (job-listing.ts mapStagedJob). The first sentence repeats what Details, the meta row and the buy box already print:
+  // employer, place, board, posted, apply-by and pay. The second paragraph repeats what the shop row, the SafetyStrip and
+  // Seller information say: it links to the posting, eno has not verified the employer, never pay a fee. It opened a desktop's
+  // left column ahead of the role and said the strip's "never pay" a second time; Details now leads. The page is noindex
+  // (isLinkedJobReference), metadata still reads the text, and an employer's own job (no affiliateUrl) keeps its words.
+  const showDescription = !isJob && descNorm !== '' && descNorm !== normText(listing.title) && descNorm !== normText(listing.titleVi ?? '')
   // Brand chip (when the listing carries a canonical brand) — links into the
   // brand-filtered feed (resolved in the parallel batch above).
   const brandLogoPath = brand ? brandIconPath(brand) : null

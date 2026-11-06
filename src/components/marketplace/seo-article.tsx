@@ -494,23 +494,24 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
 
           {/* "On this page". These guides run long by design, and a reader who arrived from a query about one section should reach it; it is also how
               Google finds the jump links it sometimes shows under a result. One row on a phone, where the open list took most of a screen before
-              the first section; beside the text on desktop, where the column stood empty. */}
-          <div className={content.sections.length >= 4 ? 'lg:grid lg:grid-cols-[minmax(0,48rem)_15rem] lg:justify-between lg:gap-x-12' : undefined}>
+              the first section; beside the text on desktop, where the column stood empty.
+              2026-11-06 audit: `justify-start`, not `-between`. Between handed the spare width (~230px at 1440) to the gap, so the rail
+              floated ~450px from the 60ch prose and ~280px from a vehicle hub's grid; it now sits 48px off the column it indexes. */}
+          <div className={content.sections.length >= 4 ? 'lg:grid lg:grid-cols-[minmax(0,48rem)_15rem] lg:justify-start lg:gap-x-12' : undefined}>
             <div className="min-w-0">
               {content.sections.length >= 4 && (
                 <details className="group mt-6 max-w-3xl border-y border-border lg:hidden">
                   {/* 2026-11-06 audit: ContentPage's contents row, one treatment for both families — the label in primary
-                      ink, the count beside a 20px chevron that turns on open, a wash on press. It read as passive metadata. */}
+                      ink and a 20px chevron that turns on open, a wash on press; the count is for a screen reader only (a bare
+                      number beside the chevron read as unexplained). The links are ContentPage's 44px rows, not 20px inline
+                      links a thumb had to hit. */}
                   <summary className="-mx-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-2 text-sm font-semibold text-foreground active:bg-muted [&::-webkit-details-marker]:hidden">
-                    <span>{chrome.onThisPage}<span className="sr-only"> · </span></span>
-                    <span className="flex shrink-0 items-center gap-1.5 font-normal tabular-nums text-body">
-                      {content.sections.length}
-                      <ChevronDown className="size-5 text-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
-                    </span>
+                    <span>{chrome.onThisPage}<span className="sr-only"> · {content.sections.length}</span></span>
+                    <ChevronDown className="size-5 shrink-0 text-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
                   </summary>
-                  <ul className="space-y-2 pb-4 pt-1">
+                  <ul className="pb-3">
                     {content.sections.map((s) => (
-                      <li key={s.id}><a href={`#${s.id}`} className="text-sm font-medium text-accent-foreground hover:underline">{s.title}</a></li>
+                      <li key={s.id}><a href={`#${s.id}`} className="-mx-2 block rounded-lg px-2 py-3 text-sm text-body hover:bg-muted hover:text-foreground active:bg-muted">{s.title}</a></li>
                     ))}
                   </ul>
                 </details>

@@ -88,7 +88,10 @@ export function docxBodyText(xml: string, hiddenStyles: ReadonlySet<string> = ne
     return id && hiddenStyles.has(id) ? '' : run
   })
   let text = ''
-  for (const m of body.matchAll(/<w:t(?:\s[^>]*)?(?<!\/)>([\s\S]*?)<\/w:t>|<w:tab\b[^>]*\/>|<w:(?:br|cr)\b[^>]*\/>|<\/w:p>/g)) {
+  // ⛔ NO LOOKBEHIND (2026-11-06): this reaches a client chunk (the CV import), and `(?<!\/)` is a SyntaxError on Safari
+  // 16.0–16.3 (browserslist: safari >= 16). "An opening <w:t …>, never a self-closing <w:t …/>" is now said by the attribute
+  // run ending on a character that is not '/' (or being a lone space). Fuzzed against the lookbehind form: same matches.
+  for (const m of body.matchAll(/<w:t(?:\s[^>]*[^>/]|\s)?>([\s\S]*?)<\/w:t>|<w:tab\b[^>]*\/>|<w:(?:br|cr)\b[^>]*\/>|<\/w:p>/g)) {
     if (m[1] !== undefined) text += m[1]
     else text += m[0].startsWith('<w:tab') ? '\t' : '\n'
   }

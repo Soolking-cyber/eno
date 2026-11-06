@@ -126,20 +126,22 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
         ) : (
           /* Hairline tiles, not tint fills — flat canon (lines separate, boxes don't). Every tile
              shares one structure (44px logo box → one-line name → one-line meta) so heights stay
-             equal across the wall; logos never move on hover, only the surface responds. */
+             equal across the wall; logos never move on hover, only the surface responds.
+             2026-11-06 audit: 16px above and below and 8px between (were 24 and 12). On a phone seven brands were four 152px
+             rows, the last under the tab bar; now ~130px, far past the 44px tap floor. The grid gaps are unchanged. */
           <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5">
             {items.map((b) => (
               <Link
                 key={b.slug}
                 href={home(`/?brand=${encodeURIComponent(b.slug)}`)}
-                className="flex flex-col items-center gap-3 rounded-2xl border border-border px-4 py-6 text-center transition-colors hover:border-line-strong hover:bg-muted active:bg-muted"
+                className="flex flex-col items-center gap-2 rounded-2xl border border-border px-4 py-4 text-center transition-colors hover:border-line-strong hover:bg-muted active:bg-muted"
               >
                 {/* One 44px slot for every mark, whatever its shape, so the names below stay on one line across the wall. */}
                 <span className="flex h-11 items-center justify-center">
                   <BrandLogo name={b.name} iconPath={b.iconUrl ? null : b.iconPath} iconUrl={b.iconUrl} size={44} fit={b.fit} />
                 </span>
                 <span className="line-clamp-1 text-sm font-semibold text-foreground">{b.name}</span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-body">
                   {b.count} {b.count === 1 ? <Tr text="listing" /> : <Tr text="listings" />}
                 </span>
               </Link>

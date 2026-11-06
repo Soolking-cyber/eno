@@ -77,9 +77,15 @@ export default function DevelopersPage() {
         {/* No "<site> API" kicker above the h1: API_NAME already leads with the product name, and
             pure-label eyebrows are retired (owner, 2026-08-05; C-KICKERS). */}
         <h1 className="h-display text-foreground">{API_NAME}</h1>
-        <p className="mt-3 text-sm leading-relaxed text-body">
-          Manage your {SITE_NAME} storefront programmatically — from your own systems or an AI agent. A REST API with
-          bearer-key auth, supporting <strong className="text-foreground">read and write</strong>.
+        {/* 2026-11-06 audit: the lede is the reference's map. Its own words link the three sections a reader comes for (the
+            MCP server, the endpoints, the key), so the long page has direct routes without a contents block, which would
+            bring the rail's client script to a page that must ship none (header note). 16px, the family's lede size. */}
+        <p className="mt-3 text-base leading-relaxed text-body">
+          Manage your {SITE_NAME} storefront programmatically — from your own systems or an{' '}
+          <a href="#mcp" className="font-semibold text-accent-foreground hover:underline">AI agent</a>. A{' '}
+          <a href="#endpoints" className="font-semibold text-accent-foreground hover:underline">REST API</a> with{' '}
+          <a href="#authentication" className="font-semibold text-accent-foreground hover:underline">bearer-key auth</a>, supporting{' '}
+          <strong className="text-foreground">read and write</strong>.
         </p>
 
         <section className="mt-8">
@@ -134,7 +140,7 @@ export default function DevelopersPage() {
 
         {/* Authentication BEFORE the MCP server (2026-11-06 audit): the MCP setup connects with the key minted here, so
             the page reads discovery → a key → what the key opens. */}
-        <section className="mt-8">
+        <section id="authentication" className="mt-8 scroll-mt-24">
           <h2 className="h-section text-foreground">Authentication</h2>
           <p className="mt-2 text-sm leading-relaxed text-body">
             {/* ⚠️ /dashboard/dev, NOT /dashboard?tab=dev. The query form still resolves — dashboard/page.tsx
@@ -168,7 +174,9 @@ export default function DevelopersPage() {
             for a single hostname, and revoke it in the dashboard if it leaks.
           </p>
 
-          <h3 className="mt-6 text-xs font-bold uppercase tracking-wide text-ink-4">OAuth 2.0 (optional) — short-lived tokens</h3>
+          {/* 2026-11-06 audit: the sub-heads in the heading ink at 16px, in their own case. As faint 12px capitals they read
+              fainter than the body under them, and printed the case-sensitive scope names as LISTINGS:WRITE. */}
+          <h3 className="mt-6 text-base font-semibold text-foreground">OAuth 2.0 (optional) — short-lived tokens</h3>
           <p className="mt-2 text-sm leading-relaxed text-body">
             Prefer not to put the long-lived key on every request? Exchange it for a 1-hour bearer token via the
             client-credentials grant — <code className="rounded-lg bg-muted px-1 text-xs font-semibold">client_id</code> is the
@@ -194,7 +202,7 @@ export default function DevelopersPage() {
 
         {/* A section on the canvas like every other one here — a hairline, not a tinted box and a
             "New" kicker (flat-surface canon §3b; C-BOXES, C-KICKERS). The code wells stay wells. */}
-        <section className="mt-8 border-t border-border pt-6">
+        <section id="mcp" className="mt-8 scroll-mt-24 border-t border-border pt-6">
           <h2 className="h-section text-foreground">Manage your shop with AI (MCP)</h2>
           <p className="mt-2 text-sm leading-relaxed text-body">
             {SITE_NAME} runs a hosted <a href="https://modelcontextprotocol.io" className="font-semibold text-accent-foreground hover:underline">Model Context Protocol</a> server,
@@ -237,7 +245,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
             `https://eno.vn/api/v1` + `/v1/shop` = `/api/v1/v1/shop`, which 404s. The curl examples
             below were always correct because they interpolate BASE directly; only the labels lied,
             which is why a human reading the page never noticed. A reviewer caught it. */}
-        <h2 className="mt-10 h-section text-foreground">Endpoints</h2>
+        <h2 id="endpoints" className="mt-10 scroll-mt-24 h-section text-foreground">Endpoints</h2>
         <div className="mt-4 space-y-6">
           <Endpoint method="GET" path="/status" desc="Service status and discovery. The only endpoint here that needs NO credential — and the one to call first, because its RateLimit headers tell you the throttle before you have a key.">
             <Code>{`curl -i ${BASE}/status`}</Code>
@@ -272,7 +280,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
   "total_leads", "active", "sold", "hidden", "held" } }`}</Code>
           </Endpoint>
 
-          <h3 className="pt-4 text-xs font-bold uppercase tracking-wide text-ink-4">Write — scopes: listings:write / media:write</h3>
+          <h3 className="pt-4 text-base font-semibold text-foreground">Write — scopes: listings:write / media:write</h3>
 
           <Endpoint method="POST" path="/listings" desc="Create a listing. Body: categorySlug, title, price + optional description, images[], district, condition, listingType, brand, model… Send an Idempotency-Key to make retries safe.">
             <Code>{`curl -X POST ${BASE}/listings \\
@@ -318,7 +326,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
   -d '{"bio":"Authorized reseller in District 1"}'`}</Code>
           </Endpoint>
 
-          <h3 className="pt-4 text-xs font-bold uppercase tracking-wide text-ink-4">Bulk &amp; catalogue sync — scope: listings:write</h3>
+          <h3 className="pt-4 text-base font-semibold text-foreground">Bulk &amp; catalogue sync — scope: listings:write</h3>
 
           <Endpoint method="POST" path="/listings/bulk" desc="Create up to 200 listings in one call. Each row is independent (one bad row never aborts the batch); remote image URLs are re-hosted. Send an Idempotency-Key so a retry can't import twice. Returns per-row results.">
             <Code>{`curl -X POST ${BASE}/listings/bulk \\
@@ -345,7 +353,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
   "results": [ { "external_id": "SKU-1", "id": "…", "action": "updated" }, … ] }`}</Code>
           </Endpoint>
 
-          <h3 className="pt-4 text-xs font-bold uppercase tracking-wide text-ink-4">Per-listing analytics — scope: analytics:read</h3>
+          <h3 className="pt-4 text-base font-semibold text-foreground">Per-listing analytics — scope: analytics:read</h3>
 
           <Endpoint method="GET" path="/analytics/listings" desc="Daily views + leads (per-day deltas) for each of your listings over a date range, plus current totals. Keyset-paginated by listing. ?from=YYYY-MM-DD&to=YYYY-MM-DD (default last 30 days, max 92).">
             <Code>{`curl "${BASE}/analytics/listings?from=2026-06-01&to=2026-06-29&limit=50" \\
@@ -357,7 +365,7 @@ Authorization: Bearer eno_live_…`}</Code></div>
   "next_cursor": "eyJ…" | null }`}</Code>
           </Endpoint>
 
-          <h3 className="pt-4 text-xs font-bold uppercase tracking-wide text-ink-4">Webhooks — scope: listings:write (register) / listings:read (list)</h3>
+          <h3 className="pt-4 text-base font-semibold text-foreground">Webhooks — scope: listings:write (register) / listings:read (list)</h3>
 
           <Endpoint method="POST" path="/webhooks" desc="Register an HTTPS endpoint to receive SIGNED listing events (listing.created / .updated / .status_changed / .deleted), or pass events:'*' for all. The signing secret is returned ONCE — store it. Up to 10 endpoints per shop. The url must be a public HTTPS address.">
             <Code>{`curl -X POST ${BASE}/webhooks \\

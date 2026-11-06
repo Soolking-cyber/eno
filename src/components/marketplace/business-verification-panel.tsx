@@ -393,12 +393,19 @@ export function BusinessVerificationPanel({ showPersonSteps = true, flat = false
             <span>{tr('I allow eno to process these documents to verify my business. They are deleted after review.', 'Tôi cho phép eno xử lý các giấy tờ này để xác minh doanh nghiệp. Chúng sẽ được xóa sau khi xét duyệt.')}</span>
           </label>
 
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
             <Button variant="cta" size="sm" disabled={busy || !hasId || !hasBank || !consent || stepOneIncomplete} onClick={() => void submit()}>
               {/* line variant: on the solid brand CTA the ink already carries the meaning (§0b). */}
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
               {tr('Submit for verification', 'Gửi để xác minh')}
             </Button>
+            {/* What opens it, beside it (2026-11-06 audit): a pale Submit with no reason read as broken — the verify page's
+                "Tick the declaration above first" line, here. Stated as the condition, so it stays true whichever of the three
+                is still missing (the ✓ on each upload and the box show which). Not while step 1 locks the panel: that lock says
+                why itself. */}
+            {!busy && !stepOneIncomplete && (!hasId || !hasBank || !consent) && (
+              <p className="text-xs text-body">{tr('You can submit once both documents are added and the box above is ticked.', 'Bạn có thể gửi khi đã thêm đủ hai giấy tờ và đánh dấu vào ô ở trên.')}</p>
+            )}
           </div>
           </>)}
         </>

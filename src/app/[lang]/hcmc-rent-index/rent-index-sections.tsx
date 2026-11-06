@@ -96,27 +96,33 @@ export function Unavailable() {
  * width (2026-10-21). Literal class strings, so Tailwind sees them.
  */
 function Figure({ label, s, locale, four = false }: { label: ReactNode; s: Stats; locale: MoneyLocale; four?: boolean }) {
+  const pad = four ? 'min-w-0 py-4 md:px-4 md:first:pl-0' : 'min-w-0 py-4 md:px-6 md:first:pl-0'
+  if (!publishable(s)) {
+    // ONE LINE BELOW md — the label, then the words and the count — not a ~100px block: on a phone, Houses and Rooms stacked two
+    // of them between the city-wide figure and the district table (2026-11-06 audit). From md it is a column like the figures
+    // beside it. Words, not a 30px bold dash: at that size the dash read as a loading bar (2026-11-06, both design judges).
+    return (
+      <div className={`${pad} max-md:flex max-md:flex-wrap max-md:items-baseline max-md:gap-x-3 max-md:py-3`}>
+        <p className="text-sm font-semibold text-muted-foreground">{label}</p>
+        <p className="mt-2 text-base font-semibold text-muted-foreground max-md:mt-0 max-md:text-sm max-md:font-normal"><Tr text="Too few listings for a figure" /></p>
+        <p className="mt-2 text-xs text-muted-foreground max-md:mt-0">{count(s.n, locale)} <Tr text="listings" /></p>
+      </div>
+    )
+  }
   return (
-    <div className={four ? 'min-w-0 py-4 md:px-4 md:first:pl-0' : 'min-w-0 py-4 md:px-6 md:first:pl-0'}>
+    <div className={pad}>
       <p className="text-sm font-semibold text-muted-foreground">{label}</p>
-      {publishable(s) ? (
-        <>
-          <p className={four
-            ? 'mt-1 text-3xl font-bold tabular-nums text-foreground md:text-xl lg:text-2xl xl:text-3xl'
-            : 'mt-1 text-3xl font-bold tabular-nums text-foreground md:text-2xl lg:text-3xl'}
-          >
-            {shown(s.median, locale)} <span className="whitespace-nowrap text-sm font-semibold text-muted-foreground"><Tr text="per month" /></span>
-          </p>
-          <p className="mt-1 text-xs text-body">
-            <Tr text="Middle half" />: {shown(s.p25!, locale)} – {shown(s.p75!, locale)}
-          </p>
-          {s.medianPerM2 !== null && (
-            <p className="text-xs text-body">{money(Math.round(s.medianPerM2 / ROUND_VND) * ROUND_VND, locale)} {PER_M2}</p>
-          )}
-        </>
-      ) : (
-        // Words, not a 30px bold dash: at that size the dash read as a loading bar (2026-11-06, both design judges).
-        <p className="mt-2 text-base font-semibold text-muted-foreground"><Tr text="Too few listings for a figure" /></p>
+      <p className={four
+        ? 'mt-1 text-3xl font-bold tabular-nums text-foreground md:text-xl lg:text-2xl xl:text-3xl'
+        : 'mt-1 text-3xl font-bold tabular-nums text-foreground md:text-2xl lg:text-3xl'}
+      >
+        {shown(s.median, locale)} <span className="whitespace-nowrap text-sm font-semibold text-muted-foreground"><Tr text="per month" /></span>
+      </p>
+      <p className="mt-1 text-xs text-body">
+        <Tr text="Middle half" />: {shown(s.p25!, locale)} – {shown(s.p75!, locale)}
+      </p>
+      {s.medianPerM2 !== null && (
+        <p className="text-xs text-body">{money(Math.round(s.medianPerM2 / ROUND_VND) * ROUND_VND, locale)} {PER_M2}</p>
       )}
       <p className="mt-2 text-xs text-muted-foreground">{count(s.n, locale)} <Tr text="listings" /></p>
     </div>
@@ -165,24 +171,28 @@ export function Headline({ index, locale }: { index: RentIndex; locale: MoneyLoc
  */
 function Cell({ s, heading, locale }: { s: Stats; heading: ReactNode; locale: MoneyLocale }) {
   const label = <span className="block text-2xs font-semibold text-muted-foreground md:hidden">{heading}</span>
+  // From xl a cell reads 16px, 14px, 14px — the median, its middle half, its count — where it was 14px over two 12px lines: the
+  // range and the count are the evidence behind each figure, and the judges kept finding them small and pale (2026-11-06 audit).
+  // Read off the 1440px capture: the widest range, "4,800,000 đ – 15,000,000 đ", is about 155px at 12px, so ~181px at 14px, and
+  // four band columns then take ~950px of the bedroom table's 1,024. Below xl the sizes are as they were (lg left unmeasured).
+  const listed = <span className="block text-2xs tabular-nums text-muted-foreground xl:text-sm">{count(s.n, locale)} <Tr text="listings" /></span>
   if (!publishable(s)) {
     return (
       <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
         {label}
-        <span className="block font-semibold text-muted-foreground">—</span>
-        <span className="block text-2xs tabular-nums text-muted-foreground xl:text-xs">{count(s.n, locale)} <Tr text="listings" /></span>
+        <span className="block font-semibold text-muted-foreground xl:text-base">—</span>
+        {/* From md, an empty line where a figure's range sits, so this count is level with the counts beside it (it sat a line high). */}
+        <span aria-hidden className="hidden text-2xs md:block xl:text-sm">&nbsp;</span>
+        {listed}
       </td>
     )
   }
   return (
     <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
       {label}
-      <span className="block whitespace-nowrap font-bold tabular-nums text-foreground">{shown(s.median, locale)}</span>
-      {/* 12px from xl, not 11: the range and the count are the evidence behind each figure, and they were the faintest text on
-          the page (2026-11-06 audit). Not below xl: at lg, four nowrap ranges at 12px leave the bedroom table little room
-          (estimated, not measured). */}
-      <span className="block text-2xs tabular-nums text-body md:whitespace-nowrap xl:text-xs">{shown(s.p25!, locale)} – {shown(s.p75!, locale)}</span>
-      <span className="block text-2xs tabular-nums text-muted-foreground xl:text-xs">{count(s.n, locale)} <Tr text="listings" /></span>
+      <span className="block whitespace-nowrap font-bold tabular-nums text-foreground xl:text-base">{shown(s.median, locale)}</span>
+      <span className="block text-2xs tabular-nums text-body md:whitespace-nowrap xl:text-sm">{shown(s.p25!, locale)} – {shown(s.p75!, locale)}</span>
+      {listed}
     </td>
   )
 }
@@ -228,7 +238,7 @@ export function DistrictTable({ index, lang, locale }: { index: RentIndex; lang:
           <tbody className="max-md:block">
             {index.districts.map((d) => (
               <tr key={d.slug} className="border-t border-border max-md:grid max-md:grid-cols-3 max-md:gap-x-3 max-md:py-3">
-                <th scope="row" className="text-left align-top font-semibold text-foreground max-md:col-span-3 max-md:pb-2 md:min-w-[9rem] md:py-2 md:pr-4">
+                <th scope="row" className="text-left align-top font-semibold text-foreground max-md:col-span-3 max-md:pb-2 md:min-w-[9rem] md:py-2 md:pr-4 xl:text-base">
                   {/* ⚠️ EVERY ROW HERE HAS ≥ 1 LISTING, AND /c/rentals/<slug> MATCHES A SUPERSET OF
                       THEM (the same curated spellings on `district` OR `location`; apartments, houses
                       and rooms are all places), so the link can never land on that page's 404. Its
@@ -306,7 +316,7 @@ export function BedroomTable({ index, lang, locale }: { index: RentIndex; lang: 
           <tbody className="max-md:block">
             {rows.map((d) => (
               <tr key={d.slug} className="border-t border-border max-md:grid max-md:grid-cols-2 max-md:gap-x-3 max-md:gap-y-2 max-md:py-3">
-                <th scope="row" className="text-left align-top font-semibold text-foreground max-md:col-span-2 max-md:pb-2 md:min-w-[9rem] md:py-2 md:pr-4">
+                <th scope="row" className="text-left align-top font-semibold text-foreground max-md:col-span-2 max-md:pb-2 md:min-w-[9rem] md:py-2 md:pr-4 xl:text-base">
                   {lang === 'vi' ? d.name : d.nameEn}
                   <DistrictNote d={d} />
                 </th>

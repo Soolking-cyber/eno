@@ -98,6 +98,12 @@ describe('PDP description — rows Details already shows are hidden', () => {
   it('puts it on the description, not on Details', () => {
     expect(PAGE).toMatch(/<ListingDescription [^>]*className=\{`max-w-prose [^`]*\$\{repeatedFacts\}`\}/)
   })
+
+  it('a LINKED job prints no description: the importer\'s template only repeats Details and the safety lines (2026-11-06 audit)', () => {
+    expect(PAGE).toContain("const showDescription = !isJob && descNorm !== ''")
+    // …keyed on the link-out, so an employer's own job post (no affiliateUrl) keeps its words.
+    expect(PAGE).toContain("const isJob = !!affiliateUrl && listing.listingType === 'job'")
+  })
 })
 
 /**

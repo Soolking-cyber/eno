@@ -111,7 +111,8 @@ const ND248 = LEGAL_BASIS.identityDecree
 type Para = { vi: string; en: string }
 type Article = {
   id: string
-  /** Left-rail label. English on purpose: it is navigation chrome and goes through <Tr>. */
+  /** Left-rail label. English on purpose: it is navigation chrome and goes through <Tr>. One line of the 210px rail
+   *  (about 26 characters at 14px; 2026-11-06 audit): five used to wrap, so the 17 entries outran a laptop screen. */
   rail: string
   titleVi: string
   titleEn: string
@@ -560,7 +561,7 @@ const ARTICLES: Article[] = [
   },
   {
     id: 'process',
-    rail: '7. Listing & transaction process',
+    rail: '7. Listings & transactions',
     titleVi: 'Điều 7. Quy trình đăng tin và giao dịch',
     titleEn: 'Article 7. The listing and transaction process',
     body: [
@@ -664,7 +665,7 @@ const ARTICLES: Article[] = [
   },
   {
     id: 'prohibited',
-    rail: '9. Prohibited goods & services',
+    rail: '9. What may not be listed',
     titleVi: 'Điều 9. Hàng hoá, dịch vụ không được đăng trên sàn',
     titleEn: 'Article 9. Goods and services that may not be listed',
     body: [
@@ -680,7 +681,7 @@ const ARTICLES: Article[] = [
   },
   {
     id: 'moderation',
-    rail: '10. Moderation & enforcement',
+    rail: '10. Review & enforcement',
     titleVi: 'Điều 10. Rà soát nội dung, gỡ bỏ và biện pháp xử lý vi phạm',
     titleEn: 'Article 10. Content review, takedown and enforcement',
     body: [
@@ -704,7 +705,7 @@ const ARTICLES: Article[] = [
   },
   {
     id: 'liability',
-    rail: '11. Limits of the platform’s liability',
+    rail: '11. Limits of liability',
     titleVi: 'Điều 11. Giới hạn trách nhiệm của đơn vị vận hành sàn',
     titleEn: 'Article 11. Limits of the operator’s liability',
     body: [
@@ -907,7 +908,7 @@ const ARTICLES: Article[] = [
   },
   {
     id: 'amendments',
-    rail: '15. Amendments & governing law',
+    rail: '15. Amendments & law',
     titleVi: 'Điều 15. Sửa đổi Quy chế, luật áp dụng và hiệu lực',
     titleEn: 'Article 15. Amendments, governing law and effect',
     body: [
@@ -1068,9 +1069,9 @@ function DeadlineTable({ head, rows }: { head: Para[]; rows: Para[][] }) {
   )
 }
 
-// ⚠️ ContentPage renders `intro` INSIDE a <p>, so only phrasing content may be passed to it —
-// <span className="block">, never a <div> or a nested <p>. `meta` is a sibling of the <h1> and has
-// no such constraint.
+// ⚠️ The preamble (INTRO) is NOT ContentPage's `intro` any more: it opens the body (the note there says why). Were it
+// passed back as `intro`, ContentPage renders that INSIDE a <p>, so it would have to be phrasing content again —
+// <span className="block">, never a <div> or a nested <p>. `meta` is a sibling of the <h1> and has no such constraint.
 export default function RegulationsPage() {
   return (
     <ContentPage
@@ -1084,14 +1085,16 @@ export default function RegulationsPage() {
           <p className="text-sm text-ink-4" lang="en">{linkifyLegal(META.en)}</p>
         </div>
       }
-      intro={
-        <>
-          <span className="block" lang="vi">{INTRO.vi}</span>
-          <span className="mt-3 block text-sm" lang="en">{INTRO.en}</span>
-        </>
-      }
       sections={ARTICLES.map((a) => ({ id: a.id, label: a.rail }))}
     >
+      {/* 2026-11-06 audit: the preamble opens the body instead of the header. As the header's lede it stacked a second
+          bilingual block under the bilingual META, so a phone met "On this page" only on its second screen; here it
+          follows the contents and, from xl, sits as a Vietnamese | English pair like every article below. Same words,
+          same order, both languages always rendered (C-LEGAL-UX). */}
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[4fr_3fr] xl:items-baseline xl:gap-x-10">
+        <p className="max-w-[60ch] text-base leading-relaxed text-body" lang="vi">{INTRO.vi}</p>
+        <p className="max-w-[60ch] text-sm leading-relaxed text-body" lang="en">{INTRO.en}</p>
+      </div>
       {/**
         * ⚠️ SIDE BY SIDE FROM xl, INTERLEAVED BELOW IT — AND BOTH LANGUAGES ALWAYS IN THE DOM (C-LEGAL-UX).
         * Each Vietnamese paragraph and its English translation are one grid row from 1280px, so the

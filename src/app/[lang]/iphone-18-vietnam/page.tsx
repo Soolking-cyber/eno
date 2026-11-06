@@ -80,6 +80,11 @@ function secondHand17Faq(rows17: PriceRow[]): { q: string; a: string }[] {
 
 /** Apple Vietnam's price for the 256GB iPhone 18 Pro — read from the one table the price pages share. */
 const PRO_FROM = APPLE_VN_FROM_PRICE['iPhone 18 Pro']
+/** The Pro Max's and the Duo's 256GB prices, from the same table: the intro sets all three side by side. */
+const MAX_FROM = APPLE_VN_FROM_PRICE['iPhone 18 Pro Max']
+const DUO_FROM = APPLE_VN_FROM_PRICE['iPhone Duo']
+/** An intro price, its "đ" kept on the number's line: vnd.ts joins them with a plain space, which a line can break. */
+const rrp = (n: number) => money(n).replace(/ đ$/, '\u00a0đ')
 
 /**
  * `known` is false when a price read failed (a build with the database unreachable): then nothing here says
@@ -104,9 +109,11 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
   return {
     eyebrow: 'Apple · Vietnam',
     h1: 'iPhone 18 price in Vietnam',
+    // THE ANSWER FIRST (2026-11-06 audit): a price search met launch dates and one model's price. Apple Vietnam's three 256GB
+    // prices now lead, in bold (RichBlock's **…**), then the dates — in the past tense, since the Duo went on sale on 23 October.
     intro:
-      'Apple’s iPhone 18 Pro and iPhone 18 Pro Max reached Vietnamese buyers on 18 September 2026, and the folding iPhone Duo goes on sale on 23 October. ' +
-      `Apple Vietnam’s own price for the 256GB iPhone 18 Pro is ${money(PRO_FROM)}.` +
+      `Apple Vietnam’s prices for the 256GB models: iPhone 18 Pro **${rrp(PRO_FROM)}**, iPhone 18 Pro Max **${rrp(MAX_FROM)}** and the folding iPhone Duo **${rrp(DUO_FROM)}**. ` +
+      'The two Pro models reached Vietnamese buyers on 18 September 2026, and the Duo on 23 October.' +
       priceClause +
       /**
        * ⚠️ THE PROMISE IS CONDITIONAL ON THERE BEING A TABLE TO POINT AT (opus) — and since 2026-10-03 on
@@ -145,7 +152,7 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
       {
         title: 'What Apple actually released in 2026',
         body:
-          'Apple split the year in two. The iPhone 18 Pro and Pro Max were announced on 9 September 2026, took pre-orders in Vietnam from 7pm on 12 September and reach buyers on 18 September. The foldable — sold as iPhone Duo, not “iPhone 18 Fold” — was announced at the same event but goes on sale a month later, on 23 October. A plain iPhone 18, an iPhone 18e and a second iPhone Air are expected in spring 2027 rather than this autumn, so for now “iPhone 18” in a Vietnamese shop means one of the two Pro models.',
+          'Apple split the year in two. The iPhone 18 Pro and Pro Max were announced on 9 September 2026, took pre-orders in Vietnam from 7pm on 12 September and reached buyers on 18 September. The foldable — sold as iPhone Duo, not “iPhone 18 Fold” — was announced at the same event but went on sale a month later, on 23 October. A plain iPhone 18, an iPhone 18e and a second iPhone Air are expected in spring 2027 rather than this autumn, so for now “iPhone 18” in a Vietnamese shop means one of the two Pro models.',
       },
       {
         title: 'Storage is the only real decision',

@@ -135,7 +135,7 @@ export function AccountClient() {
         {/* The desktop title, reserved (the loaded page's PageHeader). */}
         <Skeleton className="mb-3 h-7 w-28 rounded-lg max-lg:hidden" />
         <div className="w-full max-w-2xl pb-4">
-          {/* IDENTITY — the real block is a <Link> with `-mx-1 px-1 py-3`, an xl (h-20) avatar,
+          {/* IDENTITY — the real block (a stretched link to Settings, 2026-11-06) is `-mx-1 px-1 py-3`, an xl (h-20) avatar,
               a TrustScore chip under the email and a trailing ChevronRight: 104px, not 80. The
               old `flex items-center gap-3 px-1` skeleton dropped the 24px of vertical padding
               and both trailing affordances. */}
@@ -210,11 +210,11 @@ export function AccountClient() {
       {!dash && error === 'auth' ? (
         <div className="py-3"><DashboardFetchError error="auth" onRetry={refresh} next="/dashboard/account" /></div>
       ) : (
-      <Link
-        href="/dashboard/settings"
-        aria-label={tr('Settings', 'Cài đặt')}
-        className="flex items-center gap-3 -mx-1 px-1 py-3 transition-colors hover:bg-tint/40 active:bg-tint/60"
-      >
+      // ⚠️ A STRETCHED LINK, SO THE TRUST SCORE CAN BE A LINK TOO (2026-11-06 audit). The block still opens Settings from
+      // anywhere on it — the "Settings" link's ::after covers the whole block — and the trust row sits above that layer
+      // (relative z-10) as its own link to /trust, which says what moves the number. Sibling anchors, never nested ones.
+      // Still exactly ONE link to /dashboard/settings here (account-deletion/page.test.tsx counts it).
+      <div className="relative flex items-center gap-3 -mx-1 px-1 py-3 transition-colors hover:bg-tint/40 active:bg-tint/60">
         <Avatar name={name} url={dash?.profile.avatarUrl} color={dash?.profile.avatarColor} size="xl" />
         <div className="min-w-0 flex-1">
           {/* A failed fetch ('failed') paints the session's own identity, never a skeleton that will not fill. */}
@@ -233,23 +233,32 @@ export function AccountClient() {
             </div>
           )}
           {typeof dash?.profile.trustScore === 'number' && (
-            // ⚠️ NO href HERE. TrustScore renders its own <a> when given one, and this whole
-            // block is already a link to Settings — an anchor inside an anchor is invalid and
-            // browsers recover from it unpredictably (the same trap the PDP shop strip avoids).
-            // The score still explains itself on /trust from every other surface that shows it.
-            // Named beside the shield: alone it was a bare "62" nobody could read (2026-11-06 audit).
-            <div className="mt-1.5 flex items-center gap-1.5">
+            // ⚠️ NO href ON TrustScore. It renders its own <a> when given one, and it sits inside this link to /trust — an
+            // anchor inside an anchor is invalid and browsers recover from it unpredictably (the trap the PDP shop strip avoids).
+            // Named beside the shield: alone it was a bare "62" nobody could read (2026-11-06 audit); the chevron says it opens.
+            <Link
+              href="/trust"
+              prefetch={false}
+              aria-label={`${tr('Trust score', 'Điểm uy tín')}: ${Math.round(dash.profile.trustScore)}`}
+              className="tap-44 relative z-10 mt-1.5 flex w-fit items-center gap-1.5 rounded-lg text-xs text-body transition-colors hover:text-foreground"
+            >
               <TrustScore score={dash.profile.trustScore} size="sm" />
-              <span className="text-xs text-body">{tr('Trust score', 'Điểm uy tín')}</span>
-            </div>
+              {tr('Trust score', 'Điểm uy tín')}
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-ink-4" aria-hidden />
+            </Link>
           )}
         </div>
-        {/* Where the row goes, in words — a chevron alone left the destination to a guess (2026-11-06 audit). */}
-        <span className="flex shrink-0 items-center gap-0.5 text-sm font-semibold text-body">
+        {/* Where the row goes, in words — a chevron alone left the destination to a guess (2026-11-06 audit). Its ::after
+            stretches over the whole block, so a tap on the photo or the name still opens Settings. */}
+        <Link
+          href="/dashboard/settings"
+          aria-label={tr('Settings', 'Cài đặt')}
+          className="flex shrink-0 items-center gap-0.5 text-sm font-semibold text-body after:absolute after:inset-0"
+        >
           {tr('Settings', 'Cài đặt')}
           <ChevronRight className="h-5 w-5 shrink-0 text-ink-4" aria-hidden />
-        </span>
-      </Link>
+        </Link>
+      </div>
       )}
 
       {/* FLAT (canon §3b): a caption, a hairline above the block, and rows separated by lines —

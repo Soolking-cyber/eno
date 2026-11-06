@@ -28,6 +28,26 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
         <Award aria-hidden className="size-8 shrink-0 text-accent-foreground" />
         <Bilingual en="Teachers' Choice {y}" vi="Giáo viên bình chọn {y}" values={{ y }} />
       </h1>
+      {/* The year's state under its title, where a reader looks first: "Teachers' Choice 2026" alone read as a published result
+          while "voting is open" sat in a grey box under the lede (2026-11-06 audit). A final year says when it closed, under the lede. */}
+      {page.state !== 'final' && (
+        <p className="mt-2 flex items-start gap-2 text-sm text-body">
+          {page.state === 'open' && <span aria-hidden className="mt-1.5 size-2 shrink-0 rounded-full bg-success" />}
+          <span>
+            {page.state === 'open' ? (
+              <>
+                <strong className="font-semibold text-foreground"><Bilingual en="Voting open" vi="Đang mở bình chọn" /></strong>{' '}
+                <Bilingual en="until midnight on 31 December {y}, Saigon time. Results in early January {next}." vi="đến nửa đêm 31/12/{y} (giờ Sài Gòn). Kết quả công bố đầu tháng 1/{next}." values={{ y, next }} />
+              </>
+            ) : (
+              <>
+                <strong className="font-semibold text-foreground"><Bilingual en="Voting closed" vi="Đã đóng bình chọn" /></strong>{' '}
+                <Bilingual en="on 31 December {y}. The results are being counted." vi="ngày 31/12/{y}. Kết quả đang được tổng hợp." values={{ y }} />
+              </>
+            )}
+          </span>
+        </p>
+      )}
       <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
         <Bilingual
           en="The schools, English centres and recruiters in Ho Chi Minh City that teachers recommend working for, chosen by teachers' votes and reviews on {site}. One category for each kind of place."
@@ -49,11 +69,6 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
         </>
       ) : (
         <>
-          <p className="mt-4 rounded-2xl bg-tint px-4 py-3 text-sm text-foreground">
-            {page.state === 'open'
-              ? <Bilingual en="Voting is open until 31 December {y}, midnight in Saigon. Results in early January {next}, once the year's last reviews are read." vi="Bình chọn mở đến nửa đêm 31/12/{y} (giờ Sài Gòn). Kết quả công bố vào đầu tháng 1/{next}, sau khi các đánh giá cuối cùng của năm được đọc." values={{ y, next }} />
-              : <Bilingual en="Voting closed on 31 December {y}. The results are being counted." vi="Bình chọn đã đóng ngày 31/12/{y}. Kết quả đang được tổng hợp." values={{ y }} />}
-          </p>
           <section aria-labelledby="awards-take-part-h" className="mt-6 max-w-prose">
             <h2 id="awards-take-part-h" className="text-lg font-bold text-foreground"><Bilingual en="How to take part" vi="Cách tham gia" /></h2>
             <p className="mt-2 text-sm leading-relaxed text-body">

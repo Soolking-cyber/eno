@@ -128,12 +128,36 @@ export function RankingContent({ diversityWindow }: { diversityWindow: number })
             storefronts' shared seat and the home feed's second-hand floor (#diversity) in version 3 — an
             immediate amendment (owner: "apply best recommended"; REGULATIONS_AMENDMENT, legal-amendment.ts),
             dated with this page (RANKING_DISCLOSURE_UPDATED). Change one, change the other. */}
-        <p>
-          {tr(
-            'With the default order, listings come first when every word you typed is in their own title, model or brand, or is the name of the aisle they are listed in; then come listings that need their category for one of the words, each group ranked by the score above. Listings that match only elsewhere, such as in the description, follow in the browse order. Listings with exactly equal scores are interleaved by seller and by model. If you search for a brand while browsing a category, each page of results puts that brand’s listings in your category ahead of the rest of that page; no listing moves from one page to another.',
-            'Với thứ tự mặc định, các tin mà mọi từ bạn nhập đều có trong tiêu đề, mẫu mã hoặc thương hiệu của chính tin đó, hoặc là tên của mục mà tin được đăng, sẽ được xếp trước; tiếp theo là các tin cần đến danh mục của tin để khớp một trong các từ, mỗi nhóm được xếp theo điểm nêu trên. Các tin chỉ khớp ở phần khác, như phần mô tả, được xếp sau theo thứ tự khi duyệt. Các tin bằng điểm nhau được xếp xen kẽ theo người bán và mẫu sản phẩm. Nếu bạn tìm một thương hiệu khi đang xem một danh mục, trong mỗi trang kết quả, tin của thương hiệu đó thuộc danh mục bạn đang xem được đưa lên trước các tin còn lại của trang; không tin nào bị chuyển từ trang kết quả này sang trang khác.',
-          )}
-        </p>
+        {/* 2026-11-06 audit: the default order's four rules as a numbered list, in the order they apply (the match tier,
+            what matches only elsewhere, ties, then the brand rule on each page) instead of one 700-character paragraph
+            after the weights. The same sentences, word for word, both languages; each now fits the 400-character harvest
+            limit noted under #diversity. */}
+        <ol className="list-decimal space-y-2 pl-5 marker:font-semibold marker:text-foreground">
+          <li>
+            {tr(
+              'With the default order, listings come first when every word you typed is in their own title, model or brand, or is the name of the aisle they are listed in; then come listings that need their category for one of the words, each group ranked by the score above.',
+              'Với thứ tự mặc định, các tin mà mọi từ bạn nhập đều có trong tiêu đề, mẫu mã hoặc thương hiệu của chính tin đó, hoặc là tên của mục mà tin được đăng, sẽ được xếp trước; tiếp theo là các tin cần đến danh mục của tin để khớp một trong các từ, mỗi nhóm được xếp theo điểm nêu trên.',
+            )}
+          </li>
+          <li>
+            {tr(
+              'Listings that match only elsewhere, such as in the description, follow in the browse order.',
+              'Các tin chỉ khớp ở phần khác, như phần mô tả, được xếp sau theo thứ tự khi duyệt.',
+            )}
+          </li>
+          <li>
+            {tr(
+              'Listings with exactly equal scores are interleaved by seller and by model.',
+              'Các tin bằng điểm nhau được xếp xen kẽ theo người bán và mẫu sản phẩm.',
+            )}
+          </li>
+          <li>
+            {tr(
+              'If you search for a brand while browsing a category, each page of results puts that brand’s listings in your category ahead of the rest of that page; no listing moves from one page to another.',
+              'Nếu bạn tìm một thương hiệu khi đang xem một danh mục, trong mỗi trang kết quả, tin của thương hiệu đó thuộc danh mục bạn đang xem được đưa lên trước các tin còn lại của trang; không tin nào bị chuyển từ trang kết quả này sang trang khác.',
+            )}
+          </li>
+        </ol>
         {/* search-synonyms.ts splitConditionWords → feed-query.ts: the words leave the text and filter NOTHING
             (commit gate, 2026-10-04 — the wizard stores "Như mới" / like-new as 'new'); a query of condition
             words only gets the sale scope (`listingType: 'sell'`, `saleScopeFromWords`); an explicit

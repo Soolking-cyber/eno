@@ -113,16 +113,18 @@ interface CustomSelectProps {
    *  filtering by label is useless and the scroll is the point. */
   searchable?: boolean
   /**
-   * The trigger's glyph. `'updown'` (default) is the stacked ⇅ value-picker mark every form and admin
-   * picker has always worn. `'down'` is the facet pills' ⌄ (E-TOOLBAR, 2026-09-29): in the explorer's
-   * toolbar "Any type" and "Any condition" wore ⇅ beside Price's and Area's ⌄ and the Price SORT tab's
-   * own ⇅, so one row mixed two disclosure marks and borrowed the sort's. It turns with the menu.
+   * The trigger's glyph. `'down'` (the default since 2026-11-06) is the facet pills' ⌄ (E-TOOLBAR, 2026-09-29): in the
+   * explorer's toolbar "Any type" and "Any condition" wore ⇅ beside Price's and Area's ⌄ and the Price SORT tab's own ⇅,
+   * so one row mixed two disclosure marks and borrowed the sort's. It turns with the menu. `'updown'` is the ⇅ every form
+   * and admin picker used to wear: the sprite draws ChevronsUpDown as Solar's `sort-vertical`, two arrows
+   * (scripts/lucide-solar-map.mjs), and judges read it on the schools Area picker and the suggest form as a sort control
+   * (2026-11-06 audit), so a caller now has to ask for it.
    */
   indicator?: 'updown' | 'down'
 }
 
 /** The trigger's disclosure glyph — see `indicator`. Same 14px box either way, so no pill reflows. */
-function TriggerGlyph({ indicator = 'updown', open }: { indicator?: 'updown' | 'down'; open: boolean }) {
+function TriggerGlyph({ indicator = 'down', open }: { indicator?: 'updown' | 'down'; open: boolean }) {
   if (indicator === 'down') {
     return <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 ml-1.5 text-ink-4 transition-transform', open && 'rotate-180')} />
   }
@@ -225,9 +227,9 @@ const POPUP_CARD =
  *  aria-selected, NOT by the check, so never lean on the check for semantics.)
  *
  *  Why NOT src/components/ui/select.tsx (the admin-skinned wrapper over the same primitive):
- *    · its SelectTrigger hard-renders a ChevronDown; this trigger's glyph is the stacked
- *      ChevronsUpDown (shadcn/macOS "value picker" convention), and the wrapper exposes no
- *      way to suppress its own icon;
+ *    · its SelectTrigger hard-renders its own ChevronDown with no way to suppress or swap it, and
+ *      this trigger's glyph is a prop (`indicator`: the ⌄ that turns with the menu, or the ⇅ —
+ *      Solar's sort-vertical — a caller can still ask for);
  *    · its SelectContent hardcodes `isolate z-50` on the Positioner. AreaFilter portals its
  *      panel at z-[100] over a z-[99] scrim and facet-bar's advanced panel at z-[1100] over
  *      z-[1099] — a z-50 menu opened from inside either one renders UNDERNEATH the scrim

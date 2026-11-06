@@ -19,7 +19,7 @@ import { CustomSelect } from './custom-select'
  * are NOT in scripts/critical-icons.mjs CRITICAL_GLYPHS — and the footer renders on every route, so
  * drawing them here would bind the ~188 KB deferred sprite (glyphs-rest.svg) to every page load
  * (src/lib/critical-glyphs.guard.test.ts). For the same reason there is no Globe icon: CustomSelect's
- * own trigger glyph (ChevronsUpDown) is core, so these two cost no sprite request.
+ * own trigger glyph (ChevronDown since 2026-11-06, ChevronsUpDown before) is core, so these two cost no sprite request.
  *
  * Hydration-safe as rendered on the server: language starts at the [lang] route's variant and currency
  * at 'VND' on both the server and the first client render (currency-context.tsx), and the stored

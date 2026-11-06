@@ -99,24 +99,30 @@ function Lede({ e }: { e: Edition }) {
 const BAND_ROW_FOUR = 'grid grid-cols-1 border-t border-border md:grid-cols-4 md:divide-x md:divide-border max-md:divide-y max-md:divide-border'
 
 function ShareFigure({ label, n, f }: { label: string; n: number; f: CellFigures | null }) {
+  if (!f) {
+    // One line below md, as on the Rent Index (rent-index-sections.tsx Figure) — the label, the dash, the count — not a ~100px
+    // block; and a 16px dash at every width, where the 30px bold one read as a loading bar (2026-11-06 audit). Classes only:
+    // this edition is frozen, and its words and figures are as they were.
+    return (
+      <div className="min-w-0 py-4 md:px-4 md:first:pl-0 max-md:flex max-md:flex-wrap max-md:items-baseline max-md:gap-x-3 max-md:py-3">
+        <p className="text-sm font-semibold text-muted-foreground">{label}</p>
+        <p className="mt-2 text-base font-semibold text-muted-foreground max-md:mt-0">—</p>
+        <p className="mt-2 text-xs text-muted-foreground max-md:mt-0">{listings(n)}</p>
+      </div>
+    )
+  }
   return (
     <div className="min-w-0 py-4 md:px-4 md:first:pl-0">
       <p className="text-sm font-semibold text-muted-foreground">{label}</p>
-      {f ? (
-        <>
-          <p className="mt-1 text-3xl font-bold tabular-nums text-foreground md:text-xl lg:text-2xl xl:text-3xl">
-            {shareText(f.shareWhole)} <span className="whitespace-nowrap text-sm font-semibold text-muted-foreground">of take-home pay</span>
-          </p>
-          <p className="mt-1 text-xs text-body">
-            Median rent <span className="whitespace-nowrap">{shown(f.cell.medianVnd)}</span> a month
-          </p>
-          {/* No nowrap on the range: at md's four columns "28,000,000–32,100,000 đ" is about the column's width, so it may
-              break after its dash (a line-break opportunity in Unicode) rather than run into the next figure. */}
-          <p className="text-xs text-body">Left after rent: {leftText(f.leftAfterRentVnd)}</p>
-        </>
-      ) : (
-        <p className="mt-1 text-3xl font-bold text-muted-foreground md:text-xl lg:text-2xl xl:text-3xl">—</p>
-      )}
+      <p className="mt-1 text-3xl font-bold tabular-nums text-foreground md:text-xl lg:text-2xl xl:text-3xl">
+        {shareText(f.shareWhole)} <span className="whitespace-nowrap text-sm font-semibold text-muted-foreground">of take-home pay</span>
+      </p>
+      <p className="mt-1 text-xs text-body">
+        Median rent <span className="whitespace-nowrap">{shown(f.cell.medianVnd)}</span> a month
+      </p>
+      {/* No nowrap on the range: at md's four columns "28,000,000–32,100,000 đ" is about the column's width, so it may
+          break after its dash (a line-break opportunity in Unicode) rather than run into the next figure. */}
+      <p className="text-xs text-body">Left after rent: {leftText(f.leftAfterRentVnd)}</p>
       <p className="mt-2 text-xs text-muted-foreground">{listings(n)}</p>
     </div>
   )
@@ -145,13 +151,16 @@ function CityFigures({ e }: { e: Edition }) {
 /** One district × band cell: the share, the median and the count — or a dash and the count (the Rent Index's `Cell`). */
 function ShareCell({ cell, f, heading }: { cell: RentCell | undefined; f: CellFigures | null; heading: string }) {
   const label = <span className="block text-2xs font-semibold text-muted-foreground md:hidden">{heading}</span>
-  // 12px from xl, as on the Rent Index's table: the median and the count are the evidence behind the share (2026-11-06 audit).
-  const listed = <span className="block text-2xs tabular-nums text-muted-foreground xl:text-xs">{listings(cell?.n ?? 0)}</span>
+  // From xl 16px, 14px, 14px — the share, the median, the count — as on the Rent Index's table (rent-index-sections.tsx Cell): the
+  // median and the count are the evidence behind the share, and they read small and pale (2026-11-06 audit). Classes only.
+  const listed = <span className="block text-2xs tabular-nums text-muted-foreground xl:text-sm">{listings(cell?.n ?? 0)}</span>
   if (!f) {
     return (
       <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
         {label}
-        <span className="block font-semibold text-muted-foreground">—</span>
+        <span className="block font-semibold text-muted-foreground xl:text-base">—</span>
+        {/* From md, an empty line where a figure's median sits, so this count is level with the counts beside it (it sat a line high). */}
+        <span aria-hidden className="hidden text-2xs md:block xl:text-sm">&nbsp;</span>
         {listed}
       </td>
     )
@@ -159,8 +168,8 @@ function ShareCell({ cell, f, heading }: { cell: RentCell | undefined; f: CellFi
   return (
     <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
       {label}
-      <span className="block whitespace-nowrap font-bold tabular-nums text-foreground">{shareText(f.shareWhole)}</span>
-      <span className="block whitespace-nowrap text-2xs tabular-nums text-body xl:text-xs">{shown(f.cell.medianVnd)}</span>
+      <span className="block whitespace-nowrap font-bold tabular-nums text-foreground xl:text-base">{shareText(f.shareWhole)}</span>
+      <span className="block whitespace-nowrap text-2xs tabular-nums text-body xl:text-sm">{shown(f.cell.medianVnd)}</span>
       {listed}
     </td>
   )
@@ -206,7 +215,7 @@ function DistrictTable({ e }: { e: Edition }) {
           <tbody className="max-md:block">
             {rows.map((d) => (
               <tr key={d.slug} className="border-t border-border max-md:grid max-md:grid-cols-3 max-md:gap-x-3 max-md:py-3">
-                <th scope="row" className="text-left align-top font-semibold text-foreground max-md:col-span-3 max-md:pb-2 md:min-w-[9rem] md:py-2 md:pr-4">
+                <th scope="row" className="text-left align-top font-semibold text-foreground max-md:col-span-3 max-md:pb-2 md:min-w-[9rem] md:py-2 md:pr-4 xl:text-base">
                   {d.cells[0].districtName}
                   <DistrictNote slug={d.slug} partOf={d.cells[0].partOf} />
                 </th>
