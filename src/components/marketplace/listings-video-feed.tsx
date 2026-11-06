@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { openerVoice, quickChatOpener } from '@/lib/teachers/first-message'
+import { isPlainClick } from '@/lib/plain-click'
 
 // Full-screen TikTok-style vertical feed of the listings (in the current search/filters) that
 // carry a video. It TAKES OVER the viewport (portal → <body>, black canvas) rather than sitting
@@ -328,6 +329,8 @@ function VideoFeedItem({
   const location = useTr(listing.location)
   const videoRef = useRef<HTMLVideoElement>(null)
   const [paused, setPaused] = useState(false)
+  // A plain click opens the listing in place (and stashes the clip for Back); any other is the browser's new tab or window.
+  const openHere = (e: React.MouseEvent) => { if (!isPlainClick(e)) return; e.preventDefault(); onOpen(listing) }
 
   // Play only the active clip; pause + rewind the rest (one streams at a time).
   useEffect(() => {
@@ -416,14 +419,12 @@ function VideoFeedItem({
           {/* whitespace-normal: the base is whitespace-nowrap and white-space INHERITS — without
               it the line-clamp-2 <h3> below collapses to one unwrappable line. `block` keeps the
               original box (the base is inline-flex). */}
-          <Button
-            variant="bare"
-            size="none"
-            onClick={() => onOpen(listing)}
-            onMouseEnter={() => onPrefetch?.(listing.id)}
-            className="block max-w-md whitespace-normal text-left"
-          >
-            <h3 className="line-clamp-2 text-base font-semibold leading-snug drop-shadow sm:text-lg">{title}</h3>
+          {/* The title and "View listing" are LINKS to the listing (owner, 2026-11-07: right-click "Open link in new tab"
+              did nothing): a plain click opens it in place as before, any other click is the browser's. */}
+          <Button asChild variant="bare" size="none" className="block max-w-md whitespace-normal text-left">
+            <a href={`/listings/${listing.id}`} draggable={false} onClick={openHere} onMouseEnter={() => onPrefetch?.(listing.id)}>
+              <h3 className="line-clamp-2 text-base font-semibold leading-snug drop-shadow sm:text-lg">{title}</h3>
+            </a>
           </Button>
           <div className="mt-1">
             <Price native price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} linked={listing.isPartnerBooking} compact className="text-xl text-white drop-shadow" />
@@ -432,17 +433,17 @@ function VideoFeedItem({
             <p className="mt-0.5 truncate text-sm text-white/80 drop-shadow">{[location, listing.model].filter(Boolean).join(' · ')}</p>
           )}
           <Button
+            asChild
             variant="bare"
             size="none"
-            type="button"
-            onClick={() => onOpen(listing)}
-            onMouseEnter={() => onPrefetch?.(listing.id)}
             // font-bold / active:scale-[0.96] / transition-transform sit on the PRIMITIVE (not a
             // child), so cn() merges them over the base font-medium / active:scale-[0.97] /
             // transition-all instead of concatenating and losing on stylesheet order.
             className="mt-3 inline-flex items-center rounded-full bg-white px-5 py-2 text-sm font-bold text-black transition-transform active:scale-[0.96]"
           >
-            {tr('View listing', 'Xem tin')}
+            <a href={`/listings/${listing.id}`} draggable={false} onClick={openHere} onMouseEnter={() => onPrefetch?.(listing.id)}>
+              {tr('View listing', 'Xem tin')}
+            </a>
           </Button>
         </div>
 

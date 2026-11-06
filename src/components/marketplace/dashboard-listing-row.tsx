@@ -24,6 +24,7 @@ import { copyText } from '@/lib/copy-text'
 import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { formatInteger, moneyLocale } from '@/lib/vnd'
+import { isPlainClick } from '@/lib/plain-click'
 
 // One row in the seller dashboard's listings table. Lifecycle actions are
 // OPTIMISTIC: the row's status/availability flips INSTANTLY (local override), the
@@ -100,6 +101,14 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   const prefetch = () => router.prefetch(`/listings/${listing.id}`)
   // In select mode, tapping the thumbnail toggles selection instead of opening.
   const open = () => (selectable ? onSelectToggle?.() : router.push(`/listings/${listing.id}`))
+  /**
+   * The cover, the thumbnail and Edit are LINKS when they go somewhere (owner, 2026-11-07: right-click "Open link in new
+   * tab" did nothing): a plain click opens the page in place as before, any other is the browser's new tab or window. In
+   * select mode the cover toggles the row instead, so it stays a button there.
+   */
+  const listingHref = `/listings/${listing.id}`
+  const editHref = `/listings/${listing.id}/edit`
+  const goHere = (href: string) => (e: React.MouseEvent) => { if (!isPlainClick(e)) return; e.preventDefault(); router.push(href) }
 
   // Real checkbox semantics (role, aria-checked, Space, disabled) instead of a <button>
   // wearing role="checkbox". ui/checkbox is HEADLESS — it paints the box (Root) and we
@@ -167,14 +176,10 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
         ? fillTemplate(tr('{savedCount} people saved this — a small price drop usually sells it', '{savedCount} người đã lưu tin này — giảm giá một chút thường sẽ bán được'), '{savedCount} people saved this — a small price drop usually sells it', { savedCount: formatInteger(listing.savedCount, moneyLocale(lang)) })
         : tr('Lots of views but no contacts yet — a lower price usually fixes this', 'Nhiều lượt xem nhưng chưa có liên hệ — giảm giá thường sẽ bán được')}
       {' · '}
-      <Button
-        variant="bare"
-        size="none"
-        onClick={() => router.push(`/listings/${listing.id}/edit`)}
-        onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)}
-        className="text-sm font-semibold underline underline-offset-2 transition-colors hover:text-foreground"
-      >
-        {tr('Edit price', 'Sửa giá')}
+      <Button asChild variant="bare" size="none" className="text-sm font-semibold underline underline-offset-2 transition-colors hover:text-foreground">
+        <a href={editHref} draggable={false} onClick={goHere(editHref)} onMouseEnter={() => router.prefetch(editHref)}>
+          {tr('Edit price', 'Sửa giá')}
+        </a>
       </Button>
     </p>
   ) : null
@@ -208,15 +213,11 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
    */
   const actions = (
     <div className="flex flex-wrap items-center gap-2">
-      <Button
-        variant="bare"
-        size="none"
-        onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)}
-        onClick={() => router.push(`/listings/${listing.id}/edit`)}
-        className={chip}
-      >
-        {/* The pencil steps out below sm — it is what buys the English row its fit at 360. */}
-        <Pencil className="size-4 max-sm:hidden" /> {tr('Edit', 'Sửa')}
+      <Button asChild variant="bare" size="none" className={chip}>
+        <a href={editHref} draggable={false} onClick={goHere(editHref)} onMouseEnter={() => router.prefetch(editHref)}>
+          {/* The pencil steps out below sm — it is what buys the English row its fit at 360. */}
+          <Pencil className="size-4 max-sm:hidden" /> {tr('Edit', 'Sửa')}
+        </a>
       </Button>
       {/* A teacher's live row: Hide takes this slot (see isTeacher) — narrower than "Mark sold", so the 360px row holds. */}
       {status === 'active' && isTeacher ? (
@@ -298,13 +299,22 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
     // border's curve. So the seller's tile takes the buyer's card corner, frame and cover together.
     return (
       <div className={cn('flex flex-col rounded-media border bg-card transition-colors', selected ? 'border-brand ring-1 ring-brand' : 'border-border/70 hover:border-line-strong')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
-        <button onClick={open} className="relative aspect-square w-full overflow-hidden rounded-t-media bg-tint cursor-pointer" aria-label={title}>
-          {img && (
-            <Image src={img} alt="" fill sizes="(min-width: 640px) 25vw, 50vw" quality={60} unoptimized={imgUnoptimized} className="object-cover" />
-          )}
-          {selectable && <span className="absolute right-2 top-2">{checkbox}</span>}
-          <span className={cn('absolute left-2 top-2 rounded-full px-2 py-0.5 text-2xs font-bold shadow-sm', statusChip.cls)}>{statusChip.label}</span>
-        </button>
+        {selectable ? (
+          <button onClick={open} className="relative aspect-square w-full overflow-hidden rounded-t-media bg-tint cursor-pointer" aria-label={title}>
+            {img && (
+              <Image src={img} alt="" fill sizes="(min-width: 640px) 25vw, 50vw" quality={60} unoptimized={imgUnoptimized} className="object-cover" />
+            )}
+            <span className="absolute right-2 top-2">{checkbox}</span>
+            <span className={cn('absolute left-2 top-2 rounded-full px-2 py-0.5 text-2xs font-bold shadow-sm', statusChip.cls)}>{statusChip.label}</span>
+          </button>
+        ) : (
+          <a href={listingHref} draggable={false} onClick={goHere(listingHref)} className="relative block aspect-square w-full overflow-hidden rounded-t-media bg-tint cursor-pointer" aria-label={title}>
+            {img && (
+              <Image src={img} alt="" fill sizes="(min-width: 640px) 25vw, 50vw" quality={60} unoptimized={imgUnoptimized} className="object-cover" />
+            )}
+            <span className={cn('absolute left-2 top-2 rounded-full px-2 py-0.5 text-2xs font-bold shadow-sm', statusChip.cls)}>{statusChip.label}</span>
+          </a>
+        )}
         <div className="flex min-w-0 flex-1 flex-col gap-1 p-3">
           <p className="line-clamp-2 text-base font-semibold text-foreground">{title}</p>
           <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} linked={listing.isPartnerBooking} compact className="text-base" />
@@ -320,11 +330,21 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   return (
     <div className={cn('flex gap-3 rounded-2xl p-3 transition-colors', selected ? 'bg-accent' : 'hover:bg-muted')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
       {selectable && <span className="self-center">{checkbox}</span>}
-      <Button variant="bare" size="none" onClick={open} className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint" aria-label={title}>
-        {img && (
-          <Image src={img} alt="" width={80} height={80} quality={60} unoptimized={imgUnoptimized} className="h-full w-full object-cover" />
-        )}
-      </Button>
+      {selectable ? (
+        <Button variant="bare" size="none" onClick={open} className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint" aria-label={title}>
+          {img && (
+            <Image src={img} alt="" width={80} height={80} quality={60} unoptimized={imgUnoptimized} className="h-full w-full object-cover" />
+          )}
+        </Button>
+      ) : (
+        <Button asChild variant="bare" size="none" className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint">
+          <a href={listingHref} draggable={false} onClick={goHere(listingHref)} aria-label={title}>
+            {img && (
+              <Image src={img} alt="" width={80} height={80} quality={60} unoptimized={imgUnoptimized} className="h-full w-full object-cover" />
+            )}
+          </a>
+        </Button>
+      )}
 
       <div className="min-w-0 flex-1">
         {/* lg: the pill follows the title; justify-between left it ~900px from the words it qualifies on a wide row. */}

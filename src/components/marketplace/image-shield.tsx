@@ -23,9 +23,17 @@ export function ImageShield() {
     const inProtected = (t: EventTarget | null) =>
       t instanceof Element && !!t.closest('[data-protected]')
 
+    // A LINK laid over a protected photo (a listing card's photo link) is not the photo: the pointer meets the <a>, not
+    // the <img>, so the browser's menu there is the link's ("Open link in new tab", "Copy link address") with no "Save
+    // image" in it. Blocking it took away the one way to open a listing in a new tab from its photo (owner, 2026-11-07:
+    // "on desktop clicking right and opening in new tab doesnt work"). The photo itself, and anything protected that is
+    // not inside a link, is still blocked.
+    const onLinkOverPhoto = (t: EventTarget | null) =>
+      t instanceof Element && !t.closest('img,picture,video,canvas') && !!t.closest('a[href]')
+
     // Right-click / long-press on a protected photo → block the save menu + flash.
     const onContextMenu = (e: MouseEvent) => {
-      if (inProtected(e.target)) { e.preventDefault(); flash() }
+      if (inProtected(e.target) && !onLinkOverPhoto(e.target)) { e.preventDefault(); flash() }
     }
     // Dragging a protected <img> out → block (would otherwise drop the raw file).
     const onDragStart = (e: DragEvent) => {

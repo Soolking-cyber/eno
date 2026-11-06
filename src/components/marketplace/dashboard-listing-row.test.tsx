@@ -91,11 +91,13 @@ describe('DashboardListingRow actions', () => {
 
   it('inline: Edit, Mark sold and the overflow — nothing else', () => {
     const { container } = render(<DashboardListingRow listing={live} onChanged={() => {}} />)
-    const edit = screen.getByRole('button', { name: 'Edit' })
+    // Edit is a LINK to the edit page (right-click "Open link in new tab", 2026-11-07), styled as the same chip.
+    const edit = screen.getByRole('link', { name: 'Edit' })
+    expect(edit.getAttribute('href')).toBe(`/listings/${live.id}/edit`)
     const sold = screen.getByRole('button', { name: 'Mark sold' })
     const more = screen.getByRole('button', { name: 'More actions' })
     const actionRow = edit.parentElement!
-    expect(Array.from(actionRow.querySelectorAll(':scope > button'))).toEqual([edit, sold, more])
+    expect(Array.from(actionRow.querySelectorAll(':scope > a, :scope > button'))).toEqual([edit, sold, more])
     for (const b of [edit, sold]) expect(b.className).toContain('px-2.5')
     // The price cut is NOT an inline chip any more: its dialog is mounted without a trigger.
     const qd = container.querySelector('[data-quick-discount]') as HTMLElement
@@ -105,7 +107,7 @@ describe('DashboardListingRow actions', () => {
 
   it('the pencil steps out below sm (what buys the English row its fit)', () => {
     render(<DashboardListingRow listing={live} onChanged={() => {}} />)
-    const svg = screen.getByRole('button', { name: 'Edit' }).querySelector('svg')!
+    const svg = screen.getByRole('link', { name: 'Edit' }).querySelector('svg')!
     expect(svg.getAttribute('class')).toContain('max-sm:hidden')
   })
 
@@ -164,10 +166,10 @@ describe('DashboardListingRow actions', () => {
     setStatus.mockClear()
     const teacher = { ...live, listingType: 'teacher', price: 25_000_000 } as SerializedListing
     const { container } = render(<DashboardListingRow listing={teacher} onChanged={() => {}} />)
-    const edit = screen.getByRole('button', { name: 'Edit' })
+    const edit = screen.getByRole('link', { name: 'Edit' })
     const hide = screen.getByRole('button', { name: 'Hide' })
     const more = screen.getByRole('button', { name: 'More actions' })
-    expect(Array.from(edit.parentElement!.querySelectorAll(':scope > button'))).toEqual([edit, hide, more])
+    expect(Array.from(edit.parentElement!.querySelectorAll(':scope > a, :scope > button'))).toEqual([edit, hide, more])
     expect(hide.className).toContain('px-2.5')
     expect(screen.queryByRole('button', { name: 'Mark sold' })).toBeNull()
     expect(container.querySelector('[data-mark-sold-flow]')).toBeNull()

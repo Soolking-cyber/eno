@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import Image from 'next/image'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { Search, Tag } from '@/components/ui/icons'
@@ -10,6 +11,7 @@ import { fold } from '@/lib/fold'
 import { cn } from '@/lib/utils'
 import { countChipLabel, countDigits } from './count-chip-label'
 import type { SuggestListing, SuggestCategory, SuggestBrand, SuggestLine, SuggestScope } from '@/hooks/use-search-suggest'
+import { isModifiedClick } from '@/lib/plain-click'
 
 // Ordered, keyboard-navigable dropdown items. The 'Search for "{q}"' row is ALWAYS
 // first — Enter with no arrow-key selection executes that raw free-text search,
@@ -173,18 +175,71 @@ export type SearchSuggestProps<T extends PanelSuggestItem> = {
   /** Receives only what `items` holds — the hero's handler never sees a row it cannot follow. */
   onPick: (it: T) => void
   onSubmitQuery: () => void
+  /** Where a row goes, when it goes somewhere: that row is then a real link (see SuggestOption). */
+  hrefFor?: (it: T) => string | null
 }
 
-/** Instant-match results rendered inside a search bar's dropdown surface. Shared
- *  by the header + hero search so they're identical on mobile and desktop. */
+type OptionAttrs = { id: string; role: 'option'; 'aria-selected': boolean; tabIndex: -1 }
+
+/**
+ * One row of the panel. ⛔ A ROW THAT GOES SOMEWHERE IS A REAL LINK (owner, 2026-11-07: "on desktop clicking right and
+ * opening in new tab doesnt work"). The rows were buttons picked on mousedown, so a right-click offered no "Open link in
+ * new tab" and a Cmd/Ctrl or middle click could not open one. Worse, the pick ran for ANY button: a right-click on a row
+ * opened it in place, under the menu.
+ * · The pick still fires on a PRIMARY, unmodified mousedown, with preventDefault, so it runs before the input blurs and
+ *   the outside-click handler closes the panel; the link's own click that follows is prevented. A click with no press
+ *   before it (assistive tech) picks on the click.
+ * · A right or middle press is never a pick. On a link row a modified press is not one either: the browser's click opens
+ *   the new tab or window, and the panel stays open behind it. A row with no href (the "Search for" row) keeps picking on
+ *   a modified press, as before.
+ * · The option attributes go on the <a> too: `option` is a role an <a href> may take, and the input stays the one tab
+ *   stop that speaks for the list (tabIndex -1). draggable={false}: a sloppy press must still pick.
+ */
+function SuggestOption({ href, option, onPick, className, children }: {
+  href?: string | null
+  option: OptionAttrs
+  onPick: () => void
+  className?: string
+  children: React.ReactNode
+}) {
+  // Set by a press that picked, so the click that follows it does not pick a second time.
+  const picked = useRef(false)
+  const onMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    // Not isPlainClick: a press something else already prevented (a surface keeping the input's focus) is still a pick.
+    picked.current = e.button === 0 && (!href || !isModifiedClick(e))
+    if (picked.current) onPick()
+  }
+  // A click with no press before it (assistive tech activating the option) picks here instead; a click after a press that
+  // picked is only prevented. On a link row a modified click is the browser's and is left alone.
+  const onClick = (e: React.MouseEvent) => {
+    if (href && isModifiedClick(e)) return
+    e.preventDefault()
+    if (!picked.current) onPick()
+    picked.current = false
+  }
+  // A press released off the row is followed by no click here: forget it, or a later click with no press would not pick.
+  const offRow = () => { picked.current = false }
+  if (!href) {
+    return <Button variant="bare" size="none" type="button" {...option} onMouseDown={onMouseDown} onClick={onClick} onMouseLeave={offRow} className={className}>{children}</Button>
+  }
+  return (
+    <Button asChild variant="bare" size="none" className={className}>
+      <a href={href} {...option} draggable={false} onMouseDown={onMouseDown} onClick={onClick} onMouseLeave={offRow}>
+        {children}
+      </a>
+    </Button>
+  )
+}
+
+/** Instant-match results rendered inside a search bar's dropdown surface: the header's (desktop and phone). The hero's
+ *  typeahead state in listings-explorer.tsx renders no panel since the bar moved into the header (2026-08-03). A caller
+ *  passes `hrefFor`, or its rows that go somewhere are buttons with no "Open link in new tab". */
 export function SearchSuggest<T extends PanelSuggestItem>({
-  items, loading, query, activeIndex, listboxId, onPick, onSubmitQuery,
+  items, loading, query, activeIndex, listboxId, onPick, onSubmitQuery, hrefFor,
 }: SearchSuggestProps<T>) {
   const { lang, tr } = useLanguage()
   const q = query.trim()
-  // onMouseDown + preventDefault so the pick fires BEFORE the input blurs and the
-  // outside-click handler closes the panel.
-  const pickDown = (fn: () => void) => (e: React.MouseEvent) => { e.preventDefault(); fn() }
 
   const hasQueryRow = items[0]?.type === 'query'
   const didYouMeanItems = items.filter((i): i is Extract<T, { type: 'didYouMean' }> => i.type === 'didYouMean')
@@ -244,12 +299,9 @@ export function SearchSuggest<T extends PanelSuggestItem>({
       {/* Raw free-text search — ALWAYS the first row; Enter with no arrow-key
           selection executes exactly this. Flat index 0. */}
       {hasQueryRow && q.length >= 2 && (
-        <Button
-          variant="bare"
-          size="none"
-          type="button"
-          {...optionProps(0)}
-          onMouseDown={pickDown(onSubmitQuery)}
+        <SuggestOption
+          option={optionProps(0)}
+          onPick={onSubmitQuery}
           // py-2.5 (≈40px): the row Enter runs, and the one a thumb aims for first — it was 36px.
           className={cn(
             // `transition-[scale]`: the Button's press still eases, but the arrow-key highlight
@@ -262,38 +314,34 @@ export function SearchSuggest<T extends PanelSuggestItem>({
           )}
         >
           <Search className="h-4 w-4 shrink-0" /> {tr('Search for', 'Tìm')} “{q}”
-        </Button>
+        </SuggestOption>
       )}
 
       {/* "Did you mean" — a typo's likely spelling, a search to run like the query row above it. */}
       {didYouMeanItems.map((d, i) => (
-        <Button
-          variant="bare"
-          size="none"
+        <SuggestOption
           key={`dym|${d.q}`}
-          type="button"
-          {...optionProps(didYouMeanStart + i)}
-          onMouseDown={pickDown(() => onPick(d))}
+          option={optionProps(didYouMeanStart + i)}
+          onPick={() => onPick(d)}
+          href={hrefFor?.(d)}
           className={cn(actionRowCls, activeIndex === didYouMeanStart + i ? 'bg-muted' : 'hover:bg-muted', (lineItems.length > 0 || scopeItems.length > 0) && 'mb-0')}
         >
           <Search className="h-4 w-4 shrink-0" />
           <span className="min-w-0 truncate">
             {tr('Did you mean', 'Có phải bạn muốn tìm')} <span className="font-semibold">“{d.q}”</span>?
           </span>
-        </Button>
+        </SuggestOption>
       ))}
 
       {/* Product lines — "iPhone · Apple", every live listing of the line (suggest-entities.ts). */}
       {lineItems.length > 0 && (
         <div role="group" aria-label={linesLabel} className={cn(scopeItems.length > 0 && 'mb-0')}>
           {lineItems.map((l, i) => (
-            <Button
-              variant="bare"
-              size="none"
+            <SuggestOption
               key={`${l.brand}|${l.line}`}
-              type="button"
-              {...optionProps(lineStart + i)}
-              onMouseDown={pickDown(() => onPick(l))}
+              option={optionProps(lineStart + i)}
+              onPick={() => onPick(l)}
+              href={hrefFor?.(l)}
               className={cn(actionRowCls, activeIndex === lineStart + i ? 'bg-muted' : 'hover:bg-muted')}
             >
               <Tag className="h-4 w-4 shrink-0 text-ink-4" />
@@ -304,7 +352,7 @@ export function SearchSuggest<T extends PanelSuggestItem>({
                 <span className="text-muted-foreground"> · {l.brandName}</span>
               </span>
               <RowCount count={l.count} />
-            </Button>
+            </SuggestOption>
           ))}
         </div>
       )}
@@ -317,19 +365,17 @@ export function SearchSuggest<T extends PanelSuggestItem>({
             // get the aisle in their language next to their "in", not English beside it.
             const place = `${tr(sc.categoryName, sc.categoryNameVi)}${AISLE_SEP}${tr(sc.subName, sc.subNameVi)}`
             return (
-              <Button
-                variant="bare"
-                size="none"
+              <SuggestOption
                 key={`${sc.category}|${sc.subcategory}`}
-                type="button"
-                {...optionProps(scopeStart + i)}
-                onMouseDown={pickDown(() => onPick(sc))}
+                option={optionProps(scopeStart + i)}
+                onPick={() => onPick(sc)}
+                href={hrefFor?.(sc)}
                 className={cn(actionRowCls, activeIndex === scopeStart + i ? 'bg-muted' : 'hover:bg-muted')}
               >
                 <Search className="h-4 w-4 shrink-0" />
                 <span className="min-w-0 truncate">“{q}” {tr('in', 'trong')} {place}</span>
                 <RowCount count={sc.count} />
-              </Button>
+              </SuggestOption>
             )
           })}
         </div>
@@ -340,13 +386,11 @@ export function SearchSuggest<T extends PanelSuggestItem>({
           <span aria-hidden className={sectionLabelCls}>{brandsLabel}</span>
           <div className="flex flex-wrap gap-1.5">
             {brandItems.map((b, i) => (
-              <Button
-                variant="bare"
-                size="none"
+              <SuggestOption
                 key={b.slug}
-                type="button"
-                {...optionProps(brandStart + i)}
-                onMouseDown={pickDown(() => onPick(b))}
+                option={optionProps(brandStart + i)}
+                onPick={() => onPick(b)}
+                href={hrefFor?.(b)}
                 className={cn('flex items-center gap-1.5', chipCls(activeIndex === brandStart + i))}
               >
                 <Tag className="h-3.5 w-3.5 shrink-0 text-ink-4" />
@@ -354,7 +398,7 @@ export function SearchSuggest<T extends PanelSuggestItem>({
                     this flex chip each piece became its own flex item with the gap between them —
                     "Sam sung" (measured headless, 2026-09-29: innerText "Sam\nsung"). */}
                 <span className="min-w-0 truncate"><Highlight text={b.name} query={q} /></span>
-              </Button>
+              </SuggestOption>
             ))}
           </div>
         </div>
@@ -365,18 +409,16 @@ export function SearchSuggest<T extends PanelSuggestItem>({
           <span aria-hidden className={sectionLabelCls}>{categoriesLabel}</span>
           <div className="flex flex-wrap gap-1.5">
             {categoryItems.map((c, i) => (
-              <Button
-                variant="bare"
-                size="none"
+              <SuggestOption
                 key={c.slug}
-                type="button"
-                {...optionProps(categoryStart + i)}
-                onMouseDown={pickDown(() => onPick(c))}
+                option={optionProps(categoryStart + i)}
+                onPick={() => onPick(c)}
+                href={hrefFor?.(c)}
                 className={chipCls(activeIndex === categoryStart + i)}
               >
                 {/* Same wrap as the brand chip: the Button base is inline-flex with a gap ("Ren tals"). */}
                 <span className="min-w-0 truncate"><Highlight text={tr(c.name, c.nameVi || c.name)} query={q} /></span>
-              </Button>
+              </SuggestOption>
             ))}
           </div>
         </div>
@@ -389,13 +431,11 @@ export function SearchSuggest<T extends PanelSuggestItem>({
             const l = it.listing
             const title = lang === 'vi' ? (l.titleVi || l.title) : l.title
             return (
-              <Button
-                variant="bare"
-                size="none"
+              <SuggestOption
                 key={l.id}
-                type="button"
-                {...optionProps(listingStart + i)}
-                onMouseDown={pickDown(() => onPick(it))}
+                option={optionProps(listingStart + i)}
+                onPick={() => onPick(it)}
+                href={hrefFor?.(it)}
                 className={cn(
                   'group flex w-full items-center justify-start gap-3 rounded-xl px-2 py-1.5 text-left font-normal transition-[scale] cursor-pointer',
                   activeIndex === listingStart + i ? 'bg-muted' : 'hover:bg-muted',
@@ -415,7 +455,7 @@ export function SearchSuggest<T extends PanelSuggestItem>({
                     <span className="truncate">· {l.location}</span>
                   </span>
                 </span>
-              </Button>
+              </SuggestOption>
             )
           })}
         </div>

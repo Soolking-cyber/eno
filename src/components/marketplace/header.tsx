@@ -440,38 +440,44 @@ export function Header() {
   const { activeIdx, moveDown, moveUp } = useSuggestKeyboardNav(searchVal)
   const activeOptionId = activeSuggestOptionId(SUGGEST_ID, instantOpen, activeIdx, suggestItems.length)
 
-  const pickSuggest = (it: PanelSuggestItem) => {
-    setShowSuggestions(false)
-    if (it.type === 'query') { submitSearch(searchVal); return }
-    // A typo's likely spelling: the box takes the corrected words, and they are searched as typed.
-    if (it.type === 'didYouMean') { setSearchVal(it.q); submitSearch(it.q); return }
-    // A facet link: applied in place on the explorer (it filters with replaceState, so a push would
-    // not reach it), navigated to anywhere else.
-    const openUrl = (url: string) => {
-      if (onExplorer()) window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url } }))
-      else { releaseSearchPanel(); router.push(url) }
-    }
+  /**
+   * Where a suggestion goes — ONE map, read by the pick below and by the panel, which makes each such row a real link
+   * (owner, 2026-11-07: right-click "Open link in new tab" on a suggestion; search-suggest.tsx SuggestOption). The query
+   * and "did you mean" rows are searches run in place (null): they set the box too.
+   */
+  const suggestHref = (it: PanelSuggestItem): string | null => {
     // Open the brand's facets — the explorer resolves its dominant category.
-    if (it.type === 'brand') { openUrl(localizedHref(`/?brand=${encodeURIComponent(it.slug)}`, navVariant())); return }
+    if (it.type === 'brand') return localizedHref(`/?brand=${encodeURIComponent(it.slug)}`, navVariant())
     /**
      * A product line, with the category most of it lives in. With a brand set, the explorer sends that
      * category as a boost (`priorityCategory`), not a filter, so the total is the row's count; it is in
      * the URL so the rail lights the right category on arrival instead of after the brand-heal fetch
      * (api/search/suggest/suggest-entities.ts).
      */
-    if (it.type === 'line') {
-      openUrl(localizedHref(`/?category=${encodeURIComponent(it.category)}&brand=${encodeURIComponent(it.brand)}&line=${encodeURIComponent(it.line)}`, navVariant()))
-      return
-    }
+    if (it.type === 'line') return localizedHref(`/?category=${encodeURIComponent(it.category)}&brand=${encodeURIComponent(it.brand)}&line=${encodeURIComponent(it.line)}`, navVariant())
     // The query, in its aisle. The words stay the query, so the explorer's box shows them.
-    if (it.type === 'scope') {
-      openUrl(localizedHref(`/?q=${encodeURIComponent(searchVal.trim())}&category=${encodeURIComponent(it.category)}&subcategory=${encodeURIComponent(it.subcategory)}`, navVariant()))
+    if (it.type === 'scope') return localizedHref(`/?q=${encodeURIComponent(searchVal.trim())}&category=${encodeURIComponent(it.category)}&subcategory=${encodeURIComponent(it.subcategory)}`, navVariant())
+    // A category's page as this edition links it: on eno.forum "Find a teacher" is eno.vn's /c/teachers (teacherSurfaceHref),
+    // which the router opens as the cross-site page it is rather than asking the forum for a payload that 308s.
+    if (it.type === 'category') return teacherSurfaceHref(localizedHref(`/c/${it.slug}`, navVariant()))
+    if (it.type === 'listing') return `/listings/${it.listing.id}`
+    return null
+  }
+  const pickSuggest = (it: PanelSuggestItem) => {
+    setShowSuggestions(false)
+    if (it.type === 'query') { submitSearch(searchVal); return }
+    // A typo's likely spelling: the box takes the corrected words, and they are searched as typed.
+    if (it.type === 'didYouMean') { setSearchVal(it.q); submitSearch(it.q); return }
+    const url = suggestHref(it)
+    if (!url) return
+    // A facet link: applied in place on the explorer (it filters with replaceState, so a push would
+    // not reach it), navigated to anywhere else.
+    if ((it.type === 'brand' || it.type === 'line' || it.type === 'scope') && onExplorer()) {
+      window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url } }))
       return
     }
     releaseSearchPanel()
-    // A category's page as this edition links it: on eno.forum "Find a teacher" is eno.vn's /c/teachers (teacherSurfaceHref),
-    // which the router opens as the cross-site page it is rather than asking the forum for a payload that 308s.
-    router.push(it.type === 'category' ? teacherSurfaceHref(localizedHref(`/c/${it.slug}`, navVariant())) : `/listings/${it.listing.id}`)
+    router.push(url)
   }
   const onSearchKeyDown = (e: React.KeyboardEvent) => {
     if (!instantOpen || suggestItems.length === 0) return
@@ -1250,6 +1256,7 @@ export function Header() {
                     activeIndex={activeIdx}
                     listboxId={SUGGEST_ID}
                     onPick={pickSuggest}
+                    hrefFor={suggestHref}
                     onSubmitQuery={() => { submitSearch(searchVal); setShowSuggestions(false) }}
                   />
                 )}

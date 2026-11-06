@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
 import { describeParams, paramsFromUrl } from '@/lib/saved-search'
+import { isPlainClick } from '@/lib/plain-click'
 
 type SavedSearch = { id: string; label: string; notify: boolean; createdAt: string; url: string }
 
@@ -80,16 +81,19 @@ export function SavedSearches() {
       <div className="mt-2 divide-y divide-transparent">
         {searches.map((s) => (
           <div key={s.id} className="group flex items-center gap-2 rounded-xl py-2 pr-1 transition-colors hover:bg-muted">
-            <Button
-              variant="bare"
-              size="none"
-              // The stored URL is the plain `/?…`; a Vietnamese reader runs it on the `/vi` twin (A1-LANG). On a
-              // shop's host the proxy sends that twin on to the apex — where a marketplace-wide search belongs.
-              onClick={() => router.push(localizedHref(s.url, variantOfLanguage(lang)))}
-              className="flex min-w-0 flex-1 shrink items-center justify-start gap-2.5 px-2 text-left cursor-pointer"
-            >
-              <Search className="h-4 w-4 shrink-0 text-accent-foreground" />
-              <span className="truncate text-sm font-medium text-foreground group-hover:underline">{labelOf(s)}</span>
+            {/* A LINK to the search (owner, 2026-11-07: right-click "Open link in new tab" did nothing): a plain click runs
+                it in place as before, any other is the browser's new tab or window.
+                The stored URL is the plain `/?…`; a Vietnamese reader runs it on the `/vi` twin (A1-LANG). On a
+                shop's host the proxy sends that twin on to the apex — where a marketplace-wide search belongs. */}
+            <Button asChild variant="bare" size="none" className="flex min-w-0 flex-1 shrink items-center justify-start gap-2.5 px-2 text-left cursor-pointer">
+              <a
+                href={localizedHref(s.url, variantOfLanguage(lang))}
+                draggable={false}
+                onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); router.push(localizedHref(s.url, variantOfLanguage(lang))) }}
+              >
+                <Search className="h-4 w-4 shrink-0 text-accent-foreground" />
+                <span className="truncate text-sm font-medium text-foreground group-hover:underline">{labelOf(s)}</span>
+              </a>
             </Button>
             <Tooltip content={s.notify ? tr('Alerts on', 'Đang báo') : tr('Alerts off', 'Đã tắt')} side="top">
               <IconButton

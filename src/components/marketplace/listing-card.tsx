@@ -48,6 +48,7 @@ const Slider = dynamic(() => import('@/components/ui/slider').then((m) => m.Slid
 import { quickActionSignIn, stashQuickCompose } from '@/lib/quick-contact'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { openerVoice, quickChatOpener } from '@/lib/teachers/first-message'
+import { isModifiedClick } from '@/lib/plain-click'
 
 /**
  * ⛔ THE BLUR PLACEHOLDER IS GONE, AND ITS OWN COMMENT IS WHY. It said "matches the card's bg" and
@@ -500,12 +501,12 @@ function ListingCardImpl({
           // an interactive ancestor, so the buttons inside it are NOT nested-in-interactive
           // (which is exactly why it can't be an <a> — that would re-nest them). The card-link
           // <a> below sits UNDER the image, so it only catches clicks over the body/title.
-          // ⚠️ The image therefore has to reproduce the anchor's modifier behaviour itself, or
-          // Cmd/Ctrl/Shift-click over the PHOTO (the dominant area) would client-navigate instead
-          // of opening a new tab — which is the whole point of having a real href. Middle-click is
-          // handled in onAuxClick (it never fires onClick).
+          // Over bare photo the pointer meets the PHOTO LINK (data-photo-link, below): a modifier
+          // or middle click there is the browser's own new tab, so it is left alone here (opening
+          // one more would be a second tab); a plain click reaches this handler as before. The
+          // window.open branch is the fallback for whatever over the photo is not a link.
           if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
-            window.open(`/listings/${listing.id}`, '_blank', 'noopener')
+            if (!(e.target instanceof Element && e.target.closest('a[href]'))) window.open(`/listings/${listing.id}`, '_blank', 'noopener')
             return
           }
           if (Date.now() - suppressClickAt.current < SWIPE_CLICK_WINDOW_MS) { suppressClickAt.current = 0; return }
@@ -514,7 +515,8 @@ function ListingCardImpl({
         onAuxClick={(e) => {
           // Middle-click (button 1) → open the listing in a new tab, matching the anchor and what
           // a middle-click on any real link does. onClick never fires for the middle button.
-          if (e.button === 1) { e.preventDefault(); window.open(`/listings/${listing.id}`, '_blank', 'noopener') }
+          // Through the photo link, the browser's own middle click already opens it (see onClick above).
+          if (e.button === 1 && !(e.target instanceof Element && e.target.closest('a[href]'))) { e.preventDefault(); window.open(`/listings/${listing.id}`, '_blank', 'noopener') }
         }}
         onMouseEnter={() => {
           // A re-entry inside the grace period cancels the pending release, so the slides the
@@ -852,29 +854,47 @@ function ListingCardImpl({
           </div>
         )}
 
-        {/* THE HOVER ZONES — `segments` invisible equal columns laid over the photo. Entering one
-            selects its slide, so sweeping left→right walks the strip with no clicking (Avito's
-            card gallery; the owner's reference).
-            · z-[1]: above the photo, BELOW every control. The heart, the quick-action row, the
-              badges and the offer overlay are all z-10+, so they keep their own hover and clicks;
-              only bare photo is covered. CardVideo is `pointer-events-none absolute inset-0` with
-              no z-index, so it neither intercepts these nor paints over them.
-            · A click on a zone bubbles to the media box → opens the listing, unchanged.
-            · hover-pointer, not `pc`: the precondition is a real hovering pointer, not a wide
-              screen. `pc` would deny hover-scan to a mouse user with a half-width window, and the
-              arrows this replaces are gone. Gating it at all matters because touch devices emit a
-              synthetic mouseenter on tap, which would jump the photo out from under the thumb. */}
-        {segments > 1 && (
-          <span aria-hidden className="pointer-events-none absolute inset-0 z-[1] hidden hover-pointer:flex">
-            {Array.from({ length: segments }, (_, i) => (
-              <span
-                key={i}
-                className="pointer-events-auto h-full flex-1"
-                onMouseEnter={() => { setExpanded(true); hoverNav.current = true; setIdx(i) }}
-              />
-            ))}
-          </span>
-        )}
+        {/* ⛔ THE PHOTO LINK — the photo IS a link to the browser, so a right-click on it offers "Open link in new tab" and
+            "Copy link address", the status bar shows where it goes, and Cmd/Ctrl, Shift and middle click do what they do
+            on any link (owner, 2026-11-07: "on desktop clicking right and opening in
+            new tab doesnt work"). The photo is a plain div because a link may not hold the heart and the quick actions, and
+            the card link sits under it, so before this the photo had no href at all: right-click gave the photo's own menu,
+            which ImageShield then blocked outright. This <a> is laid over the photo and under every control (z-[1]; they
+            are z-10+), so the pointer meets it instead of the <img>: the menu is the link's, with no "Save image"
+            (image-shield.tsx lets exactly this through and still blocks the photo's own menu).
+            · A plain click is the media box's, as before: preventDefault here, and the click bubbles on to its onClick,
+              which opens the listing in the app or swallows a swipe's release. A modifier or middle click is the
+              browser's own new tab or window, untouched; the box's fallback sees it came through a link and stays out.
+            · tabIndex -1 and aria-hidden: the card link is the card's one stop for the keyboard and assistive tech.
+            · draggable={false}, as the card link and the category tiles: a sloppy click that slides a few px must still
+              open the listing, not start dragging a URL.
+            · `data-photo-link`: native-bootstrap.tsx counts it as card surface, so a long-press here still opens the
+              native sheet instead of being taken for another control's link.
+            · The hover zones live inside it (`segments` invisible columns: entering one selects its slide, Avito's card
+              gallery, the owner's reference), so sweeping across the photo still walks the strip, and a right-click on a
+              zone is still the link's. hover-pointer, not `pc`: the precondition is a real hovering pointer; touch devices
+              emit a synthetic mouseenter on tap, which would jump the photo out from under the thumb. */}
+        <a
+          href={`/listings/${listing.id}`}
+          tabIndex={-1}
+          aria-hidden
+          data-photo-link=""
+          draggable={false}
+          onClick={(e) => { if (!isModifiedClick(e)) e.preventDefault() }}
+          className="absolute inset-0 z-[1]"
+        >
+          {segments > 1 && (
+            <span className="pointer-events-none absolute inset-0 hidden hover-pointer:flex">
+              {Array.from({ length: segments }, (_, i) => (
+                <span
+                  key={i}
+                  className="pointer-events-auto h-full flex-1"
+                  onMouseEnter={() => { setExpanded(true); hoverNav.current = true; setIdx(i) }}
+                />
+              ))}
+            </span>
+          )}
+        </a>
 
         {/* Video: autoplays over the cover once the card settles in view (see CardVideo —
             IO-gated, cover-beat fade-in, page-wide concurrency cap, Save-Data respected).
@@ -905,7 +925,7 @@ function ListingCardImpl({
             conversion signals on it. The stated reason was crowding, but the badges sit at
             `left-2 top-2` and the hover icon row is at `right-11 top-2`: they cannot collide at any
             width where that row renders. */}
-        <CardBadges listing={listing} chipInHtml={clockInHtml} showNew={!hasImportDate(listing.sellerId)} className="absolute left-2 top-2 z-10" />
+        <CardBadges listing={listing} chipInHtml={clockInHtml} showNew={!hasImportDate(listing.sellerId)} className="pointer-events-none absolute left-2 top-2 z-10" />
 
         {/* Bottom-left status chips — a video indicator (so mobile, which has no hover,
             still knows there's a clip) + social proof "N saved" (≥3). One row so they never
@@ -1136,7 +1156,7 @@ function ListingCardImpl({
                 `max-sm:hidden` (owner, 2026-10-18 — a calmer photo, as on Facebook's grid): a phone card
                 is heart + one badge. The swipe still pages the strip, and the fourth slot's "+N photos"
                 doorway still says there is more; from sm, where hover-scan lives, the pips stay. */}
-            <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 max-sm:hidden">
+            <div className="pointer-events-none absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 max-sm:hidden">
               {Array.from({ length: segments }, (_, i) => (
                 <span
                   key={i}

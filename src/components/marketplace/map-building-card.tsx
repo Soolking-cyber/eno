@@ -13,6 +13,7 @@ import type { BuildingPin, SerializedListingCard } from '@/lib/types'
 import { compactPrice, moneyLocale } from '@/lib/vnd'
 import { LocalizedText } from './listing-content'
 import { Price } from './price'
+import { isPlainClick } from '@/lib/plain-click'
 
 /**
  * THE CARD A BUILDING PIN OPENS: the project's own photograph, how many units are available in it,
@@ -146,33 +147,33 @@ export function MapBuildingCard({
               <CarouselContent className="-ml-2">
                 {units.map((u) => (
                   <CarouselItem key={u.id} data-sid={u.sellerId} className="basis-[132px] pl-2">
-                    <Button
-                      variant="bare"
-                      size="none"
-                      onClick={() => onOpenListing(u)}
-                      className="block w-full cursor-pointer whitespace-normal text-left font-normal active:scale-100"
-                    >
-                      <span className="relative block aspect-[4/3] w-full overflow-hidden rounded-lg bg-tint">
-                        {u.images[0] && (
-                          <Image
-                            src={u.images[0]}
-                            alt=""
-                            fill
-                            sizes="132px"
-                            quality={60}
-                            unoptimized={isMockImageUrl(u.images[0]) || undefined}
-                            className="object-cover"
-                          />
-                        )}
-                      </span>
-                      {/* Same order as <ListingCard>: price, then one line of title.
-                          `approxClassName="text-3xs"`: <Price>'s ≈ is a fixed 12px, the size of this
-                          tile's own figure — and text-xs's 16px line box is taller than this
-                          leading-tight line. 10px keeps the estimate a step below the price. */}
-                      <Price native price={u.price} currency={u.currency} priceUnit={u.priceUnit} className="mt-1 block text-xs leading-tight" approxClassName="text-3xs" />
-                      <span className="block truncate text-2xs text-body">
-                        <LocalizedText text={u.title} vi={u.titleVi} i18n={u.titleI18n} />
-                      </span>
+                    {/* A LINK to the unit (owner, 2026-11-07: right-click "Open link in new tab" did nothing): a plain click
+                        opens it as before, any other is the browser's. A drag of the carousel still swallows the click
+                        (embla prevents it), and draggable={false} keeps a mouse drag the carousel's. */}
+                    <Button asChild variant="bare" size="none" className="block w-full cursor-pointer whitespace-normal text-left font-normal active:scale-100">
+                      <a href={`/listings/${u.id}`} draggable={false} onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); onOpenListing(u) }}>
+                        <span className="relative block aspect-[4/3] w-full overflow-hidden rounded-lg bg-tint">
+                          {u.images[0] && (
+                            <Image
+                              src={u.images[0]}
+                              alt=""
+                              fill
+                              sizes="132px"
+                              quality={60}
+                              unoptimized={isMockImageUrl(u.images[0]) || undefined}
+                              className="object-cover"
+                            />
+                          )}
+                        </span>
+                        {/* Same order as <ListingCard>: price, then one line of title.
+                            `approxClassName="text-3xs"`: <Price>'s ≈ is a fixed 12px, the size of this
+                            tile's own figure — and text-xs's 16px line box is taller than this
+                            leading-tight line. 10px keeps the estimate a step below the price. */}
+                        <Price native price={u.price} currency={u.currency} priceUnit={u.priceUnit} className="mt-1 block text-xs leading-tight" approxClassName="text-3xs" />
+                        <span className="block truncate text-2xs text-body">
+                          <LocalizedText text={u.title} vi={u.titleVi} i18n={u.titleI18n} />
+                        </span>
+                      </a>
                     </Button>
                   </CarouselItem>
                 ))}

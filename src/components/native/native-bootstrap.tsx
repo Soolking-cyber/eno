@@ -343,8 +343,9 @@ export function NativeBootstrap() {
     // holding the heart a beat too long would silently fail to save. `a:not([data-card-link])` is
     // the same rule for links: resolving DOWN from the card root means any OTHER anchor the card
     // ever grows (a seller link, a category chip) would otherwise hand the sheet the LISTING's url
-    // and eat the tap that was meant for it.
-    const CARD_CONTROL = 'button,[role="button"],[role="slider"],input,textarea,select,a:not([data-card-link])'
+    // and eat the tap that was meant for it. The card's PHOTO LINK (`data-photo-link`, listing-card.tsx) is the same
+    // listing's link laid over its photo, so it is card surface, not another control.
+    const CARD_CONTROL = 'button,[role="button"],[role="slider"],input,textarea,select,a:not([data-card-link]):not([data-photo-link])'
 
     /**
      * The card link under a touch — the ONE thing that makes the whole card a long-press target.

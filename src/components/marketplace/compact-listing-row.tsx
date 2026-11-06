@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { EnoSlider } from '@/components/marketplace/eno-slider'
+import { isModifiedClick } from '@/lib/plain-click'
 
 type Props = {
   listing: SerializedListingCard
@@ -96,12 +97,29 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
   return (
     <div
       data-sid={l.sellerId}
-      onClick={open}
+      // A modifier or middle click on the row's link is the browser's new tab or window: the row must not open it here too.
+      onClick={(e) => { if (!isModifiedClick(e)) open() }}
       onMouseEnter={() => onPrefetch(l.id)}
       onTouchStart={() => onPrefetch(l.id)}
       data-pending={pending || undefined}
-      className="group flex items-center gap-3 rounded-xl p-1.5 pr-1 text-left transition-[background-color,scale] duration-100 hover:bg-muted active:scale-[0.99] has-[button:active]:scale-100 data-pending:scale-[0.99] cursor-pointer"
+      className="group relative flex items-center gap-3 rounded-xl p-1.5 pr-1 text-left transition-[background-color,scale] duration-100 hover:bg-muted active:scale-[0.99] has-[button:active]:scale-100 data-pending:scale-[0.99] cursor-pointer"
     >
+      {/* ⛔ THE ROW'S LINK (owner, 2026-11-07: "on desktop clicking right and opening in new tab doesnt work"). The row was
+          a clickable div with no href anywhere in it: no right-click "Open link in new tab", no Cmd/Ctrl or middle click,
+          no URL in the status bar, and no keyboard stop at all. ListingCard's shape: a real <a> stretched over the row
+          (z-[1]), with the photo and the text UNDER it and every control ABOVE it (the actions cluster and the chips that
+          carry their own tooltip or link, z-[2]), so no control is nested in the link. A plain click is prevented here
+          and bubbles on to the row's onClick, which opens the listing in the app (and keeps the pressed state); a
+          modifier or middle click is the browser's own, untouched, and the row's onClick leaves it alone.
+          draggable={false}, as on the card. */}
+      <a
+        href={`/listings/${l.id}`}
+        aria-label={displayTitle}
+        data-row-link=""
+        draggable={false}
+        onClick={(e) => { if (!isModifiedClick(e)) e.preventDefault() }}
+        className="absolute inset-0 z-[1] rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
       {/* Thumbnail — SQUARE, small enough that the row reads as one line.
           ⚠️ IT WAS `h-14 w-16` — 64×56 — AND IT WAS THE ONLY NON-SQUARE PRODUCT PHOTO LEFT IN THE
           APP (owner, 2026-08-12: "make sure all product images are square"). Every other surface
@@ -174,7 +192,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {/* "Identity verified" (owner, 2026-10-15) — the card's tick, right after the name it vouches for, on the first
               line (`items-start` + the glyph's 2px drop); a marked TEACHER row only, from the server's boolean. Before the
               chips, which hang `ml-auto` off the right edge as before. */}
-          {teacher && l.identityMark === true && <IdentityVerifiedMark className="mt-0.5" />}
+          {teacher && l.identityMark === true && <IdentityVerifiedMark className="relative z-[2] mt-0.5" />}
           {/* ⚠️ THE RING NEEDS A NAME, AND THIS ROW SHIPPED WITHOUT ONE. The gold ring on the
               thumbnail is an `::after` overlay, and pseudo-element content is never announced —
               so for a screen-reader user, and for the ~8% of men who read this gold as a
@@ -198,13 +216,13 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {l.seller.officialPartner ? (
             l.isSponsored
               ? <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>
-              : <PartnerBadge className={cn('ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')} />
+              : <PartnerBadge className={cn('relative z-[2] ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')} />
           ) : cardHidesTrust(l) ? null : (
             <TrustScore
               score={l.seller.trustScore}
               variant="mini"
               size="sm"
-              className={cn('ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')}
+              className={cn('relative z-[2] ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')}
             />
           )}
         </div>
@@ -274,9 +292,9 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           )}
           {l.isSponsored && <UiBadge variant="neutral" size="sm" data-ad-marker="" className={cn('ml-auto hidden shrink-0 sm:inline-flex', offer !== null && 'sm:hidden')}>{tr('Ad', 'Quảng cáo')}</UiBadge>}
           {l.seller.officialPartner ? (
-            l.isSponsored ? null : <PartnerBadge className={cn('ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
+            l.isSponsored ? null : <PartnerBadge className={cn('relative z-[2] ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
           ) : cardHidesTrust(l) ? null : (
-            <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className={cn('ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
+            <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className={cn('relative z-[2] ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
           )}
         </div>
         {/* PHONES: where and how fresh, on a line of its own — the facts the desktop meta line carries
@@ -293,7 +311,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
 
       {/* Actions paired together (not stranded): offer + quick-chat + locate + favorite.
           The offer slider rolls open leftwards, replacing nothing — icons stay put. */}
-      <div className="relative flex shrink-0 items-center" onMouseLeave={() => setOffer(null)}>
+      <div className="relative z-[2] flex shrink-0 items-center" onMouseLeave={() => setOffer(null)}>
         {offer !== null && (
           // A div, not a span: <EnoSlider> renders a <div> root, which is not
           // phrasing content — a span wrapper would be invalid nesting. Same
