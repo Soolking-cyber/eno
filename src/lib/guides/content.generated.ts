@@ -3,8 +3,10 @@
 
 import g0 from '@/content/guides/international-driving-permit-vietnam.json'
 import g1 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
+import g2 from '@/content/guides/thue-xe-may-sai-gon-kinh-nghiem.json'
 
 export const GUIDE_CONTENT: Readonly<Record<string, unknown>> = {
   'international-driving-permit-vietnam': g0,
   'thue-xe-dien-vinfast-tphcm': g1,
+  'thue-xe-may-sai-gon-kinh-nghiem': g2,
 }
