@@ -8,6 +8,8 @@ import { isMockImageUrl } from '@/lib/listing-image'
 import { categoryFor, subcategoryFor } from '@/lib/feed-taxonomy'
 import { ArrowRight } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
+import { diversifyRail } from '@/lib/feed-diversity'
+import { provinceWhere } from '@/lib/province-match'
 import { ImageMark } from './image-mark'
 import { cardCompactAbove } from '@/lib/vnd'
 import { LISTING_CARD_SIZES, LISTING_GRID } from './listing-grid'
@@ -41,6 +43,8 @@ export type SeoRailTarget = SeoLandingTarget & SeoBrowseTarget & {
    * rail by price because their question is what a thing costs.
    */
   order?: 'recent'
+  /** See SeoContent.railCity. */
+  railCity?: 'hcmc'
 }
 type RailListing = ReturnType<typeof serializeListing>
 
@@ -59,25 +63,63 @@ export type SeoBrowseLinkProps = { rel?: string; prefetch?: boolean; href?: stri
  * build time — which is NOT the same state as an empty result: SeoLanding's "nothing to browse yet"
  * branch must only ever show for the second (see its `hasNoInventory` note).
  */
+/**
+ * A SUBCATEGORY-SET SHELF (the housing guides): best-photographed rows first, the page's city first when it names one,
+ * then the rails' own rule (diversifyRail: one card per photo, two per seller once three sellers are in it). Measured
+ * 2026-11-06 on /housing-vietnam-expats: seven of eight cards were one bathroom photo in Biên Hòa, on a page that says it
+ * covers Ho Chi Minh City. `min: 8` keeps a thin pool's repeats rather than a short shelf.
+ * ⚠️ "IN THE CITY" IS DECIDED ONCE, BY THE CITY READ in loadSeoRail (`inCity` = the row came back from it), so the read and
+ * the shelf cannot disagree about a row. History: the first version tested isHcmc(location), which matches a bare city
+ * value while these rows' location reads "Quận Bình Thạnh (Phường …)", so it matched nothing and the shelf did not
+ * change; and the city alone is not enough: measured the same day, the partner import stores city "Hồ Chí Minh" on rows
+ * in Biên Hòa and Đà Nẵng (Ngũ Hành Sơn, Cẩm Lệ, Liên Chiểu), and those are exactly its rows with no district.
+ */
+function homesShelf<R extends { id: string; images: string | null; sellerId: string; subcategorySlug: string | null; listingType: string | null; condition: string | null; category: { slug: string } | null; brandSlug: string | null; model: string | null }>(
+  rows: R[], photos: (r: R) => number, inCity: ((r: R) => boolean) | undefined,
+): R[] {
+  const lit = [...rows.filter((r) => photos(r) >= 3), ...rows.filter((r) => photos(r) < 3)]
+  const own = inCity ? lit.filter(inCity) : []
+  // Eight of the page's own city: the shelf is that city only, so a seller or photo skip below cannot let another city's
+  // row in ahead of the min-fill's own-city repeats. Fewer: the city first, then the rest, so the shelf still fills.
+  const placed = !inCity ? lit : own.length >= 8 ? own : [...own, ...lit.filter((r) => !inCity(r))]
+  return diversifyRail(
+    placed.map((row) => ({ id: row.id, sellerId: row.sellerId, subcategorySlug: row.subcategorySlug, listingType: row.listingType, condition: row.condition, category: row.category, brandSlug: row.brandSlug, model: row.model, images: safeParse<string[]>(row.images, []), row })),
+    { take: 8, min: 8, interleave: false },
+  ).map((x) => x.row)
+}
+
 export async function loadSeoRail(target: SeoRailTarget): Promise<{ listings: RailListing[]; known: boolean }> {
   try {
-    const rows = await db.listing.findMany({
+    const read = async (where: object, take: number) => db.listing.findMany({
       // ⚠️ ONE INSERTION COVERS TEN LANDING PAGES AND THE GUIDES. This is a COMPONENT, so a route-level
       // audit never finds it — and these pages were built to surface the live visa listings by
       // attribute, which is exactly what must not happen on eno.vn.
       // ⛔ THE SAME PREDICATE `generateMetadata` COUNTS WITH — see seo-landing-where.ts. Built once,
       // in one place, so the rail and the page's own `robots` tag can never disagree about whether
       // the page has inventory.
-      where: await scopedListingWhere(seoLandingWhere(target)),
+      where: await scopedListingWhere(where),
       // Narrowed pages sort by price: these are products (one entry type × one speed), and the
       // question a visitor arrives with is what it costs. Category pages keep featured-then-newest.
       // Narrowed pages sort by price — and a brand/model page is the narrowest of them.
       orderBy: target.order !== 'recent' && (target.subcategorySlug || target.models?.length) ? [{ price: 'asc' }] : [{ featured: 'desc' }, { postedAt: 'desc' }],
-      // A model page over-fetches so the accessory guard below can drop rows and still fill the rail;
-      // a subcategory-set page, so the photo partition below has rows to choose from.
-      take: target.models?.length ? 64 : target.subcategoryIn?.length ? 24 : 8,
+      take,
       include: { category: true, seller: true },
     })
+    const base = seoLandingWhere(target)
+    // A model page over-fetches so the accessory guard below can drop rows and still fill the rail;
+    // a subcategory-set page, so the photo partition below has rows to choose from.
+    const poolRead = read(base, target.models?.length ? 64 : target.subcategoryIn?.length ? 24 : 8)
+    // A page that names its city also reads that city's homes on their own: the newest 24 can all be one partner's rows
+    // elsewhere (its Biên Hòa and Đà Nẵng rows are stored as city HCMC, with no district — see homesShelf), and the
+    // shelf must still find its own city's. The pool stays behind them, so a thin city still fills the shelf.
+    // District-resolved rows first is a preference, not a definition of the city: an HCMC row with no district still
+    // fills after them from the pool. The city read failing costs only the preference: the pool already loaded is kept.
+    const ownRead = target.railCity === 'hcmc' && target.subcategoryIn?.length && !target.subcategorySlug
+      ? read({ AND: [base, provinceWhere('Ho Chi Minh'), { district: { not: null } }, { NOT: { district: '' } }] }, 24).catch(() => [])
+      : Promise.resolve([])
+    const [pool, own] = await Promise.all([poolRead, ownRead])
+    const ownIds = new Set(own.map((r) => r.id))
+    const rows = own.length ? [...own, ...pool.filter((r) => !ownIds.has(r.id))] : pool
     /**
      * ⚠️ THE RAIL, LIKE THE PRICE TABLE, MUST NOT DEPEND ON A REPAIR SCRIPT HAVING RUN. Both external
      * reviewers found that the table re-derives the shelf from the title and this rail did not, so a
@@ -98,7 +140,7 @@ export async function loadSeoRail(target: SeoRailTarget): Promise<{ listings: Ra
           return !(shelf && ACCESSORY_SHELVES.has(shelf))
         }).slice(0, 8)
       : target.subcategoryIn?.length && !target.subcategorySlug
-        ? [...rows.filter((r) => photos(r) >= 3), ...rows.filter((r) => photos(r) < 3)].slice(0, 8)
+        ? homesShelf(rows, photos, target.railCity ? (r) => ownIds.has(r.id) : undefined)
         : rows
     return { listings: await localizeListingTitles(shown.map(serializeListing)), known: true }
   } catch {

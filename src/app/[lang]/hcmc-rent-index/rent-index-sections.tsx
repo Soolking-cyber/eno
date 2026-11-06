@@ -115,7 +115,8 @@ function Figure({ label, s, locale, four = false }: { label: ReactNode; s: Stats
           )}
         </>
       ) : (
-        <p className={four ? 'mt-1 text-3xl font-bold text-muted-foreground md:text-xl lg:text-2xl xl:text-3xl' : 'mt-1 text-3xl font-bold text-muted-foreground md:text-2xl lg:text-3xl'}>—</p>
+        // Words, not a 30px bold dash: at that size the dash read as a loading bar (2026-11-06, both design judges).
+        <p className="mt-2 text-base font-semibold text-muted-foreground"><Tr text="Too few listings for a figure" /></p>
       )}
       <p className="mt-2 text-xs text-muted-foreground">{count(s.n, locale)} <Tr text="listings" /></p>
     </div>

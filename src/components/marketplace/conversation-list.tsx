@@ -173,12 +173,13 @@ export function ConversationList() {
             e.preventDefault()
             void askForHelp({ push: (href) => router.push(href, { scroll: false }) }, variantOfLanguage(lang))
           }}
-          className={cn('mb-1 flex items-center gap-3 rounded-xl p-2.5 transition-colors active:bg-tint/60', aiActive ? 'bg-muted text-accent-foreground' : 'hover:bg-muted')}
+          className={cn('mb-1 flex items-center gap-3 rounded-xl p-2.5 transition-colors active:bg-tint/60', aiActive ? 'bg-accent text-accent-foreground' : 'hover:bg-muted')}
         >
           {/* The chrome coin (icon-language §6), not a solid disc: fully-saturated brand is
               reserved for user-state (§5 — the unread tint/badge in the rows below), so the
               always-on AI avatar sits on the same flat brand-50 coin as the nav's Post chip. */}
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand"><Sparkles className="h-5 w-5" aria-hidden /></span>
+          {/* Open, the row is the open-thread tint (= brand-50), so the coin turns to the page colour to stay a coin. */}
+          <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-brand', aiActive ? 'bg-background' : 'bg-brand-50')}><Sparkles className="h-5 w-5" aria-hidden /></span>
           <div className="min-w-0 flex-1">
             <span className="block truncate text-sm font-bold text-foreground">{tr('eno AI', 'eno AI')}</span>
             <p className="truncate text-xs text-accent-foreground">{tr('Ask anything — find products by chat', 'Hỏi bất cứ điều gì — tìm đồ bằng chat')}</p>
@@ -290,7 +291,7 @@ export function ConversationList() {
                  * nothing for it, so the row would have rendered with NO background while tsc,
                  * eslint and design-lint all passed. The established pair here is `bg-warning/10`
                  * (27 uses) and `/15`; the stronger one is used because this row competes with
-                 * `bg-accent` unread rows for attention and must win.
+                 * the open thread's `bg-accent` and the unread rows' `bg-accent/60` for attention and must win.
                  *
                  * ⚠️ `pending` IS THE ONLY STATUS THAT QUALIFIES. accepted / declined / countered
                  * are all resolved — a countered offer has already been answered, and the counter
@@ -313,10 +314,14 @@ export function ConversationList() {
                   // recipient should carry it.
                   c.lastOffer?.status === 'pending' && !c.lastOffer.mine
                     ? 'bg-warning/15 hover:bg-warning/20'
+                    // The OPEN thread takes the full tint (2026-11-06, both design judges): with unread on bg-accent and the
+                    // open row on bg-muted, the thread being read looked less important than every unread one. Unread
+                    // keeps a lighter tint (the notification bell's /60), so a phone's list, where nothing is open,
+                    // still shows at a glance which threads need attention: open > unread > read.
                     : activeId === c.id
-                      ? 'text-accent-foreground bg-muted'
+                      ? 'text-accent-foreground bg-accent'
                       : c.unread > 0
-                        ? 'bg-accent hover:bg-accent'
+                        ? 'bg-accent/60 hover:bg-accent/80'
                         : 'hover:bg-muted',
                 )}
               >

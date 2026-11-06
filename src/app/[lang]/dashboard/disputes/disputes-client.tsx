@@ -51,7 +51,7 @@ export function DisputesClient() {
       {/* No wrapper <h1> — DisputesPanel renders its own (icon + title), so the wrapper
           copy made TWO h1s on one page (strict-mode e2e catch, 2026-07-23) and a doubled
           visible title on desktop. Same fix help-client.tsx already carries. */}
-      <DisputesPanel />
+      <DisputesPanel underSectionHeader />
     </>
   )
 }

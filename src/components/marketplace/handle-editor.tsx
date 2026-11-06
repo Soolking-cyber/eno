@@ -154,7 +154,7 @@ export function HandleEditor({ target, initial, shareUrl, label }: { target: 'pr
                 autoCapitalize="none"
                 spellCheck={false}
                 variant="filled"
-                className="py-2.5 pl-10 pr-9 font-semibold transition-colors focus:ring-brand/20"
+                className="py-2.5 pl-10 pr-9 font-semibold transition-colors placeholder:font-normal placeholder:text-ink-4 focus:ring-brand/20"
               />
             }
           />

@@ -81,6 +81,8 @@ type SeoContentFields = {
    * Ignored when `subcategorySlug` is set.
    */
   subcategoryIn?: readonly string[]
+  /** The rail shows this city's rows first (the page says it covers it); the others still fill a short rail. */
+  railCity?: 'hcmc'
   /**
    * Narrow to one listing INTENT — a `ListingType` from `taxonomy.ts` (`wholesale`, `service`,
    * `wanted`, `rent`, …), matched against `Listing.listingType`.

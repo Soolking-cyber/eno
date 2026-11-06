@@ -99,6 +99,8 @@ const CONTENT: SeoContent = {
   // 1,400m² unit among them) under a page about where an expat lives. The live count below is the
   // same set, so the number and the rail agree (C1-HOUSING).
   subcategoryIn: HOME_RENTAL_SUBCATS,
+  // The intro says this page covers Ho Chi Minh City; its rail leads with it (seo-listing-rail homesShelf).
+  railCity: 'hcmc',
   // Not "Trusted listings" (the component default): the rail is mostly partner imports that
   // nobody here has vetted, the same reason the jobs landing renames its rail.
   railTitle: 'Latest rentals',

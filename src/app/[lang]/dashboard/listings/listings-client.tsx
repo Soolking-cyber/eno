@@ -167,7 +167,8 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
         ) : (
           <h1 className="h-greeting text-ink-2">{tr('Hi', 'Chào')}{name ? ` ${name}` : ''}</h1>
         )}
-        <p className="text-sm text-muted-foreground">{tr('Manage your listings', 'Quản lý tin đăng của bạn')}</p>
+        {/* Embedded, the section's h1 above already says "My listings"; the line would say it twice. */}
+        {!embedded && <p className="text-sm text-muted-foreground">{tr('Manage your listings', 'Quản lý tin đăng của bạn')}</p>}
       </div>
       {/* Availability review lives HERE now (owner 2026-07-18: out of the rail, into the tab
           it governs). Red + a periodic hop once no listing has been confirmed for 3+ days;
@@ -201,7 +202,7 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
           <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{grouped(dash.stats.activeCount ?? dash.listings.filter((l) => l.status === 'active').length)}</p><p className="text-xs text-body">{tr('Active listings', 'Tin đang đăng')}</p></div>
           <Link href="/messages" className="press rounded-xl bg-tint px-3 py-3 transition-colors hover:bg-muted"><p className="text-lg font-bold tabular-nums">{grouped(dash.stats.unreadMessages ?? 0)}</p><p className="text-xs text-body">{tr('Unread messages', 'Tin nhắn chưa đọc')}</p></Link>
           <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{grouped(dash.stats.saves ?? 0)}</p><p className="text-xs text-body">{tr('Saves', 'Lượt lưu')}</p></div>
-          <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{grouped(dash.stats.totalViews ?? 0)} / {grouped(dash.stats.totalLeads ?? 0)}</p><p className="text-xs text-body">{tr('Views / leads', 'Lượt xem / liên hệ')}</p></div>
+          <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{grouped(dash.stats.totalViews ?? 0)}</p><p className="text-xs text-body">{tr('Views', 'Lượt xem')} · {grouped(dash.stats.totalLeads ?? 0)} {(dash.stats.totalLeads ?? 0) === 1 ? tr('lead', 'liên hệ') : tr('leads', 'liên hệ')}</p></div>
         </div>
       )}
       <div className="mt-6">
@@ -239,14 +240,17 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
             <>
               {showFilter && (
                 <Segmented
-                  className="mb-3"
+                  // Capped on desktop: four ~255px segments across the whole column read as an empty bar, not a filter (2026-11-06 audit).
+                  className="mb-3 lg:max-w-lg"
                   aria-label={tr('Filter listings by status', 'Lọc tin theo trạng thái')}
                   value={statusFilter}
                   onValueChange={(v) => { setStatusFilter(v); setLimit(ROWS_STEP) }}
                   options={[
                     { value: 'all', label: tr('All', 'Tất cả') },
                     { value: 'active', label: tr('Active', 'Đang đăng') },
-                    { value: 'sold', label: tr('Sold', 'Đã bán') },
+                    // A rented room lands here too (its row says "Rented"), so with a rental in the list the tab is "Closed":
+                    // "Sold / rented" truncated in the four-way control on a 390px phone (blind judge, 2026-11-06).
+                    { value: 'sold', label: dash.listings.some((l) => l.category?.slug === 'rentals') ? tr('Closed', 'Đã đóng') : tr('Sold', 'Đã bán') },
                     { value: 'hidden', label: tr('Hidden', 'Đã ẩn') },
                   ]}
                 />
@@ -315,7 +319,7 @@ function AvailabilityButton({ dash, tr, lang }: {
           }
         >
           <ListChecks className="h-4 w-4 shrink-0" />
-          <span>{tr('Availability review', 'Xác nhận còn hàng')}</span>
+          <span>{tr('Review availability', 'Xác nhận còn hàng')}</span>
           <span className={overdue ? 'text-xs font-medium text-primary-foreground/90' : 'text-xs font-medium text-ink-4'}>
             {lastReviewed
               ? `· ${tr('Last reviewed', 'Xem lại lần cuối')} ${timeAgo(new Date(lastReviewed).toISOString(), lang)}`

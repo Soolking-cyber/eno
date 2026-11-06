@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils'
  */
 export function LegalLanguageNote({ className }: { className?: string }) {
   return (
-    <p className={cn('mt-2 max-w-[70ch] text-xs text-muted-foreground italic', className)}>
+    <p className={cn('mt-2 max-w-[70ch] text-sm text-body', className)}>
       {LEGAL_VI_APPROVED ? (
         <Bilingual en="The Vietnamese text is the authoritative one." vi="Bản tiếng Việt là bản có giá trị pháp lý." />
       ) : (

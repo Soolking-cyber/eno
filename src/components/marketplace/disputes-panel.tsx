@@ -54,7 +54,8 @@ function timeLeft(iso: string | null): string | null {
   return `${h}h ${m}m`
 }
 
-export function DisputesPanel({ compact = false }: { compact?: boolean }) {
+/** `underSectionHeader`: the dashboard's phone title bar already shows the title, so the h1 is sr-only below lg (DashboardTabs' rule). */
+export function DisputesPanel({ compact = false, underSectionHeader = false }: { compact?: boolean; underSectionHeader?: boolean }) {
   const { user, loading } = useAuth()
   const { tr, lang } = useLanguage()
   const t = (en: string, vi: string) => tr(en, vi)
@@ -98,7 +99,7 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
       {compact ? (
         <p className="text-sm text-muted-foreground">{disputesLede}</p>
       ) : (
-        <PageHeader title={t('Disputes', 'Khiếu nại')} meta={disputesLede} />
+        <PageHeader title={t('Disputes', 'Khiếu nại')} meta={disputesLede} {...(underSectionHeader ? { titleClassName: 'max-lg:sr-only' } : {})} />
       )}
 
       {loading ? (

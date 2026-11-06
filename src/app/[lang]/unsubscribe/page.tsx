@@ -27,7 +27,14 @@ export default function UnsubscribePage() {
   )
 }
 
+// Keyed by the link (token and list): a different link starts its own form, never on the previous link's outcome (the
+// state below is seeded from the token once, on mount).
 function UnsubscribeInner() {
+  const params = useSearchParams()
+  return <UnsubscribeForm key={`${params.get('token') ?? ''}|${params.get('list') ?? ''}`} />
+}
+
+function UnsubscribeForm() {
   const { tr } = useLanguage()
   const params = useSearchParams()
   const token = params.get('token') ?? ''
@@ -36,7 +43,9 @@ function UnsubscribeInner() {
   // the DM ladder, 2026-10-13): a service notice, so they CAN be switched back on here.
   const teacherMessages = params.get('list') === 'teacher-messages'
   const list = teacherMatches ? '&list=teacher-matches' : teacherMessages ? '&list=teacher-messages' : ''
-  const [state, setState] = useState<'idle' | 'saving' | 'unsubscribed' | 'resubscribed' | 'retry' | 'error'>('idle')
+  // No token = no way to act: open on the "That link didn't work" state and its way forward, not on a dead, greyed
+  // Unsubscribe button with no reason given (2026-11-06 audit).
+  const [state, setState] = useState<'idle' | 'saving' | 'unsubscribed' | 'resubscribed' | 'retry' | 'error'>(token ? 'idle' : 'error')
   // The action a 'retry' repeats: the unsubscribe, or the digest's re-subscribe.
   const [lastOptIn, setLastOptIn] = useState(false)
 

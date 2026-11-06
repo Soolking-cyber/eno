@@ -2509,7 +2509,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
       toast.success(l.categorySlug === 'rentals' ? tr('Marked as rented', 'Đã đánh dấu là đã cho thuê') : tr('Marked as sold', 'Đã đánh dấu là đã bán'))
     } catch {
       setThread((t) => (t && t.listing && t.listing.id === l.id && t.listing.status === 'sold' ? { ...t, listing: { ...t.listing, status: before } } : t))
-      toast.error(tr('Could not mark as sold — please try again.', 'Chưa đánh dấu được — vui lòng thử lại.'))
+      toast.error(l.categorySlug === 'rentals' ? tr('Could not mark as rented — please try again.', 'Chưa đánh dấu được — vui lòng thử lại.') : tr('Could not mark as sold — please try again.', 'Chưa đánh dấu được — vui lòng thử lại.'))
     } finally {
       setMarkingSold(false)
       void load()

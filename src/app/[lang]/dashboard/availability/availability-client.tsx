@@ -71,6 +71,9 @@ export function AvailabilityClient() {
     if (user && fresh && listings && listings.length === 0) { markDone(); router.replace('/dashboard') }
   }, [user, fresh, listings, markDone, router])
 
+  // A room is rented, not sold: with a rental in the list the prompt names both (dashboard-listing-row's word).
+  const anyRental = !!listings?.some((l) => l.category?.slug === 'rentals')
+
   const toggle = (id: string) => setSoldIds((prev) => {
     const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n
   })
@@ -127,7 +130,9 @@ export function AvailabilityClient() {
           <div className="relative shrink-0 px-4 pt-6 pb-1 text-center sm:px-6">
             <Mascot name="success" className="mx-auto h-24 w-24" />
             <DialogPrimitive.Title className="mt-2 h-title text-foreground">{tr('Still available?', 'Còn hàng không?')}</DialogPrimitive.Title>
-            <p className="mt-1 text-sm text-muted-foreground">{tr('Tick anything that sold — everything else gets bumped to the top.', 'Đánh dấu món đã bán — những món còn lại sẽ được đẩy lên đầu.')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{anyRental
+              ? tr('Tick anything that sold or was rented — everything else gets bumped to the top.', 'Đánh dấu tin đã bán hoặc đã cho thuê — những tin còn lại sẽ được đẩy lên đầu.')
+              : tr('Tick anything that sold — everything else gets bumped to the top.', 'Đánh dấu món đã bán — những món còn lại sẽ được đẩy lên đầu.')}</p>
             {/* Icon-only control → ui/close-button (the IconButton shell, 44px tap target, glyph sized
                 to its button), composed onto the Base UI Close via the render prop — not a bare
                 padded button. The ✕ is CloseButton's own child, so the Close takes none.
@@ -175,7 +180,7 @@ export function AvailabilityClient() {
                     {l.images[0] && <img src={l.images[0]} alt="" className={cn('h-full w-full object-cover transition-opacity', sold && 'opacity-50')} loading="lazy" />}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className={cn('truncate text-sm font-semibold', sold ? 'text-muted-foreground line-through' : 'text-foreground')}>{l.titleVi || l.title}</p>
+                    <p className={cn('truncate text-sm font-semibold', sold ? 'text-muted-foreground line-through' : 'text-foreground')}>{lang === 'vi' ? (l.titleVi || l.title) : l.title}</p>
                     {/* ⚠️ A SOLD ROW MUTES ITS TITLE AND DIMS ITS PHOTO, SO THE PRICE MUST GO
                         QUIET TOO. Price now defaults to text-price, and a bold red beside a
                         struck-through muted title reads as live asking money on a listing that is

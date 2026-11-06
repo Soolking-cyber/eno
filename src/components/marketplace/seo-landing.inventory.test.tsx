@@ -8,12 +8,13 @@ import { LanguageProvider } from '@/context/language-context'
 // /jobs-vietnam-expats) takes the rail's place — its block where the rail would be, its own read deciding the empty state,
 // and no rail query at all (eight cards over the same rows would repeat the list's first eight lines).
 
-const rail = vi.hoisted(() => ({ calls: 0 }))
+const rail = vi.hoisted(() => ({ calls: 0, target: null as unknown }))
 vi.mock('./header', () => ({ Header: () => null }))
 vi.mock('./footer', () => ({ Footer: () => null }))
 vi.mock('./seo-listing-rail', () => ({
-  loadSeoRail: async () => {
+  loadSeoRail: async (target: unknown) => {
     rail.calls++
+    rail.target = target
     return { listings: [{ id: 'l1' }], known: true }
   },
   SeoListingGrid: () => <section data-grid="1" />,
@@ -46,6 +47,11 @@ const EMPTY_STATE = 'This part of the marketplace is just getting started'
 beforeEach(() => { rail.calls = 0 })
 
 describe('SeoLanding × inventory', () => {
+  it('hands the page’s railCity to the rail (the housing guide’s city-first shelf, 2026-11-06)', async () => {
+    await SeoLanding({ content: { ...content, railCity: 'hcmc' } })
+    expect((rail.target as { railCity?: string }).railCity).toBe('hcmc')
+  })
+
   it('without it, nothing changes: the rail is read and drawn', async () => {
     const d = await doc()
     expect(rail.calls).toBe(1)

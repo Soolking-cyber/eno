@@ -1030,6 +1030,10 @@ export function VerifyClient() {
       <section className="space-y-3">
         {(!challenge || !tier) && !submitted && !terminal && !showExistingPanel && (<>
         <h2 className="h-section text-foreground">{tr('Choose how to verify', 'Chọn cách xác minh')}</h2>
+        {/* Greyed cards with no reason beside them read as broken (2026-11-06, both design judges): say what opens them. */}
+        {!accepted && retrySecs <= 0 && !declarationChanged && (
+          <p className="text-sm text-body">{tr('Tick the declaration above first. Both ways open as soon as you do.', 'Hãy đánh dấu vào ô cam đoan ở trên trước. Hai cách xác minh sẽ mở ngay khi bạn đánh dấu.')}</p>
+        )}
 
         {/* ⚠️ DISABLED, NOT HIDDEN. Hiding the options until the box is ticked leaves the page
             looking broken — a declaration with no visible consequence. Showing them greyed makes

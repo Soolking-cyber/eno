@@ -227,16 +227,25 @@ describe('rules v5: the Studio band on the page', () => {
     expect(figures[0].textContent).toContain(formatMoneyFull(4_400_000, '₫', locale(lang)))
     expect(figures[0].textContent).toContain(lang === 'vi' ? '2.377' : '2,377')
     // ⚠️ THE MEASURED SIZE STEP-DOWN (`Figure`'s `four`): with the type row's sizes 12 band figures wrapped or overflowed at
-    // 768px, so each band figure — its median, or the dash under the floor — steps down from md and is full size again at
-    // xl, on a tighter gutter. Without this a refactor that drops `four` keeps four columns and passes everything else.
+    // 768px, so each band figure's median steps down from md and is full size again at xl, on a tighter gutter. Without
+    // this a refactor that drops `four` keeps four columns and passes everything else. Under the floor the figure is words
+    // at body size since 2026-11-06 (a 30px dash read as a loading bar), so there is no step-down to make.
+    let medians = 0
     for (const f of figures) {
       expect(f.className).toContain('md:px-4')
-      expect(f.querySelectorAll('p')[1].className).toContain('md:text-xl lg:text-2xl xl:text-3xl')
+      const value = f.querySelectorAll('p')[1]
+      // A median has digits in either language; the words under the floor have none.
+      if (!/\d/.test(value.textContent ?? '')) expect(value.className).toContain('text-base')
+      else { medians++; expect(value.className).toContain('md:text-xl lg:text-2xl xl:text-3xl') }
     }
+    expect(medians).toBeGreaterThan(0)
     // The type row above keeps its three columns and its sizes.
     const typeRow = [...el.querySelectorAll('div.grid')][0]
     expect(typeRow.className).toContain('md:grid-cols-3')
-    for (const f of typeRow.children) expect(f.querySelectorAll('p')[1].className).toContain('md:text-2xl lg:text-3xl')
+    for (const f of typeRow.children) {
+      const value = f.querySelectorAll('p')[1]
+      expect(value.className).toContain(/\d/.test(value.textContent ?? '') ? 'md:text-2xl lg:text-3xl' : 'text-base')
+    }
   })
 
   it.each(['en', 'vi'] as const)('%s: the bedroom table has a Studio column first, and keeps a district whose only banded flats are studios', (lang) => {

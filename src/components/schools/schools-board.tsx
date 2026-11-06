@@ -100,11 +100,20 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
   }, [rows])
 
   const ranked = sort === 'top' || sort === 'net'
-  // Ranks stop at the first school nobody has voted on: below it the order is alphabetical, and a "#140" there
-  // reads as a verdict on a real employer. Both ranked sorts (compareSchools) put every school with an up-vote
-  // ahead of the unvoted ones, so the numbers run #1, #2, #3 with no gap; a school with only down-votes sorts
-  // below the unvoted and gets no number either.
-  const rankedUpTo = ranked ? (() => { const k = shown.findIndex((r) => r.up + r.down === 0); return k < 0 ? shown.length : k })() : 0
+  // A number only for a school someone has up-voted, and only above the first school nobody has voted on: below
+  // that the order is alphabetical, and a "#140" there reads as a verdict on a real employer; a school with only
+  // down-votes gets none either, even when a filter has left no unvoted school above it (gate review). The numbers
+  // count the ranked rows only, so they run #1, #2, #3 with no gap.
+  const ranks = React.useMemo(() => {
+    const out = new Map<string, number>()
+    if (!ranked) return out
+    let n = 0
+    for (const r of shown) {
+      if (r.up + r.down === 0) break
+      if (r.up > 0) out.set(r.id, ++n)
+    }
+    return out
+  }, [shown, ranked])
   return (
     <section aria-labelledby="schools-board-h" className="mt-8">
       <h2 id="schools-board-h" className="sr-only">{tr('Ranking', 'Bảng xếp hạng')}</h2>
@@ -171,7 +180,7 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
 
       {shown.length ? (
         <ol className="mt-2 flex flex-col gap-2">
-          {shown.map((r, i) => <BoardRowItem key={r.id} row={r} rank={i < rankedUpTo ? i + 1 : null} />)}
+          {shown.map((r) => <BoardRowItem key={r.id} row={r} rank={ranks.get(r.id) ?? null} />)}
         </ol>
       ) : (
         <EmptyState
@@ -220,10 +229,13 @@ function BoardRowItem({ row, rank }: { row: BoardRow; rank: number | null }) {
                 : votes === 0 ? tr('No votes yet', 'Chưa có bình chọn')
                 : votes === 1 ? tr('1 vote so far', 'Mới có 1 phiếu') : tr('{n} votes so far', 'Mới có {n} phiếu').replace('{n}', String(votes))}
             </span>
-            <span className="inline-flex items-center gap-1 text-muted-foreground">
-              <MessageSquareText aria-hidden className="size-4" />
-              {row.reviews === 1 ? tr('1 review', '1 đánh giá') : tr('{n} reviews', '{n} đánh giá').replace('{n}', formatInteger(row.reviews, loc))}
-            </span>
+            {/* Only once there is one: "0 reviews" on all 172 rows was noise beside "No votes yet" (2026-11-06 audit). */}
+            {row.reviews > 0 && (
+              <span className="inline-flex items-center gap-1 text-muted-foreground">
+                <MessageSquareText aria-hidden className="size-4" />
+                {row.reviews === 1 ? tr('1 review', '1 đánh giá') : tr('{n} reviews', '{n} đánh giá').replace('{n}', formatInteger(row.reviews, loc))}
+              </span>
+            )}
             {row.jobs > 0 && (
               <Link href={`/schools/${row.slug}#jobs`} className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
                 <Briefcase aria-hidden className="size-4" />

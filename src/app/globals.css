@@ -979,6 +979,19 @@
   * {
     @apply border-border;
   }
+  /* Page and section titles break into even lines, so a title never ends on one stranded word ("Rent / Index",
+     both design judges 2026-11-06). h1 and h2 only, and never a clamped or truncated one: balance moves the
+     break, and on a clamped line that would cut the visible text shorter. Progressive: an older browser wraps as before. */
+  /* The LONGHAND, text-wrap-style: the text-wrap shorthand would also set text-wrap-mode: wrap on the heading, and a
+     heading inside a nowrap strip would then break onto two lines. Browsers without the longhand wrap as before. */
+  :where(h1, h2):not(.truncate, [class*='line-clamp']) {
+    text-wrap-style: balance;
+  }
+  /* text-wrap-style is INHERITED, so the :not() above alone still reaches a clamped or truncated line inside one
+     (<h2><a class="line-clamp-2">): that line goes back to the default. */
+  :where(h1, h2) :where(.truncate, [class*='line-clamp']) {
+    text-wrap-style: auto;
+  }
   /* The <html> background IS the canvas: it paints the whole viewport, including the strip a
      rubber-band overscroll exposes past either edge and the area below a page shorter than the
      screen. --card is right for the second case (an empty /saved sits on the card surface) and

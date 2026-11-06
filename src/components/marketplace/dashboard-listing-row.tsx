@@ -325,8 +325,9 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       </Button>
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <p className="truncate text-base font-semibold text-foreground">{title}</p>
+        {/* lg: the pill follows the title; justify-between left it ~900px from the words it qualifies on a wide row. */}
+        <div className="flex items-start justify-between gap-2 lg:justify-start">
+          <p className="min-w-0 truncate text-base font-semibold text-foreground">{title}</p>
           <Badge variant={statusChip.variant} className={statusChip.className}>{statusChip.label}</Badge>
         </div>
         <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} linked={listing.isPartnerBooking} compact className="text-base" />
