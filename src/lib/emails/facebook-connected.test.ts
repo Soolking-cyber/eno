@@ -33,11 +33,11 @@ describe('the emails are laid out as rows of the card', () => {
     expect(body).toContain('<tr><td style="padding:8px 24px')
     expect(body.replace(/<td[^>]*>[\s\S]*?<\/td>/g, '').replace(/<\/?tr>/g, '').trim()).toBe('')
   })
-  it('the code email has no button that leaves it, only the press-and-hold line', () => {
+  it('the code email is the code alone: no copy button, no copy instructions', () => {
     for (const lang of ['en', 'vi'] as const) {
       const html = renderFacebookDisconnectCodeEmail({ code: '004217', origin: 'https://eno.vn', lang }).html
-      expect(html).not.toMatch(/copy-code|href="[^"]*004217/)
-      expect(html).toContain(lang === 'vi' ? 'Để sao chép, nhấn giữ mã (bấm đúp trên máy tính).' : 'To copy it, press and hold the code (double-click on a computer).')
+      expect(html).not.toMatch(/copy-code|href="[^"]*004217|press and hold|Nhấn giữ/i)
+      expect(html).toContain('>004217<')
     }
   })
 })

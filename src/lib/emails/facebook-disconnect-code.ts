@@ -1,4 +1,4 @@
-import { emailCopyHintRow, renderBrandEmail, esc, EMAIL } from './layout'
+import { renderBrandEmail, esc, EMAIL } from './layout'
 
 const COPY = {
   en: {
@@ -32,7 +32,6 @@ export function renderFacebookDisconnectCodeEmail(opts: { code: string; origin: 
       <tr><td align="center" style="padding:22px 24px 8px;">
         <div style="display:inline-block;background:#f5f6f8;border:1px solid ${EMAIL.BORDER};border-radius:14px;padding:16px 26px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:32px;font-weight:800;letter-spacing:6px;color:${EMAIL.INK};-webkit-user-select:all;user-select:all;">${esc(opts.code)}</div>
       </td></tr>
-      ${emailCopyHintRow(opts.lang)}
       <tr><td style="padding:14px 24px 20px;">
         <p style="margin:0;font-size:12px;color:${EMAIL.MUTED};line-height:1.6;">${esc(c.warn)}</p>
       </td></tr>`,

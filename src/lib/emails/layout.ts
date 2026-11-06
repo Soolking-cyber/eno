@@ -45,16 +45,6 @@ export function emailCta(label: string, url: string): string {
 }
 
 /**
- * The line under the code in every email that carries one: how to copy it WITHOUT LEAVING THE EMAIL. ⛔ NO "Copy code" BUTTON (owner, 2026-11-06: "the copy
- * code from email does not copy and takes out of email to browser"): mail clients strip scripts, so a button can only be a link, and the link opened the
- * browser, where Safari won't copy without another tap. The code box is one unbroken run of digits marked user-select:all, so pressing and holding it selects
- * the whole code, and iPhone's Mail and Gmail can offer the code by themselves (AutoFill from Mail, Gmail's own "Copy code").
- */
-export function emailCopyHintRow(lang: 'en' | 'vi'): string {
-  return `<tr><td align="center" style="padding:2px 24px 8px;"><p style="margin:0;font-size:13px;color:${EMAIL.MUTED};line-height:1.6;">${esc(lang === 'vi' ? 'Để sao chép, nhấn giữ mã (bấm đúp trên máy tính).' : 'To copy it, press and hold the code (double-click on a computer).')}</p></td></tr>`
-}
-
-/**
  * The legal line at the foot of every email — PER EDITION, exactly as the site footer is.
  *
  * ⛔ IT USED TO BE A LITERAL "Công ty TNHH ENO · … · support@eno.vn / eno.vn — …" ON BOTH BUILDS,

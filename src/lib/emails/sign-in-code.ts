@@ -1,4 +1,4 @@
-import { emailCopyHintRow, renderBrandEmail, esc, EMAIL } from './layout'
+import { renderBrandEmail, esc, EMAIL } from './layout'
 import type { SignInMode } from './sign-in-link'
 
 // The sign-in CODE email — what the native apps get instead of a magic link.
@@ -116,7 +116,6 @@ export function renderSignInCodeEmail(opts: {
       <tr><td align="center" style="padding:22px 24px 8px;">
         <div style="display:inline-block;background:#f5f6f8;border:1px solid ${EMAIL.BORDER};border-radius:14px;padding:16px 26px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:30px;font-weight:700;line-height:1.2;letter-spacing:0.22em;color:${INK};-webkit-user-select:all;user-select:all;">${esc(code)}</div>
       </td></tr>
-      ${emailCopyHintRow(lang)}
       <tr><td style="padding:6px 24px 20px;">
         <p style="margin:0;font-size:12px;color:${MUTED};line-height:1.6;">${esc(s.expiry)} ${esc(c.ignore)}</p>
         <p style="margin:12px 0 0;font-size:12px;font-weight:600;color:${INK};line-height:1.6;">${esc(s.phishing)}</p>

@@ -32,13 +32,12 @@ describe('sign-in emails · one token per email, never both', () => {
     expect(all).toContain(CODE)
   })
 
-  it('the CODE email links nowhere to copy it: no button that opens the browser, a press-and-hold line, and the code selectable whole', () => {
+  it('the CODE email is the code alone: no copy button, no copy instructions (owner, 2026-11-07: "mail copy code doesnt work remove it")', () => {
     for (const lang of ['en', 'vi'] as const) {
       const html = renderSignInCodeEmail({ code: '00730251', origin: ORIGIN, email: EMAIL, lang }).html
-      expect(html).not.toMatch(/copy-code|Copy code|Sao chép mã/)
+      expect(html).not.toMatch(/copy-code|Copy code|Sao chép|press and hold|Nhấn giữ/i)
       expect(html).not.toMatch(/href="[^"]*00730251/)
-      expect(html).toContain(lang === 'vi' ? 'Để sao chép, nhấn giữ mã (bấm đúp trên máy tính).' : 'To copy it, press and hold the code (double-click on a computer).')
-      expect(html).toMatch(/user-select:all;">00730251</)
+      expect(html).toContain('>00730251<')
     }
   })
 
