@@ -8,7 +8,7 @@ import { PublishBlockedError } from '@/lib/publish-guard'
 import { logError } from '@/lib/log'
 import { resolveSellerForPost } from '@/app/api/listings/resolve-seller'
 import { FB_IMPORT_MAX_PHOTOS, type ReportedItem } from './shared'
-import { textProblem } from './sort'
+import { textProblem, translateText } from './sort'
 
 export type PublishResult = { ok: true; listingId: string } | { ok: false; code: string; detail?: string }
 
@@ -18,6 +18,33 @@ export type PublishResult = { ok: true; listingId: string } | { ok: false; code:
  * made, so an existing fb:<id> on this seller is that listing, not a reason to make another. ⚠️ A process killed in the instant between creating the listing and stamping its fb:<id> isn't covered.
  * Photos are re-hosted here, not at import: the store's tombstones give an unclaimed photo an hour, and a draft waits for days. fbcdn links do expire, so a draft left too long says so.
  */
+/**
+ * The listing's two languages (owner, 2026-11-06: "at least 2 proper translations vietnamese english"): English in `title`/`description`, Vietnamese beside it,
+ * the feed importer's layout. The draft PATCH translates each edit as it saves it, so normally both are whole here; a gap a failed call left is filled now,
+ * FIELD BY FIELD FROM ITS OWN SOURCE LANGUAGE (commit gate, codex + opus: a title edited in one language and a description in the other). With a gap still
+ * there: the language that is whole goes out alone, as any hand post does (the site's machine translation still shows it in both); with neither whole,
+ * nothing is published and the seller is asked to try again, so their words are never dropped and a listing is never half one language.
+ */
+async function bothLanguages(item: { title: string | null; description: string | null; titleVi: string | null; descriptionVi: string | null }): Promise<{ title: string; description: string; titleVi: string | null; descriptionVi: string | null } | null> {
+  // ⚠️ A draft sorted before 2026-11-06 kept the seller's own language in title/description, so a Vietnamese one is read as English here and goes out with
+  // Vietnamese in both. No letter test tells them apart ("Bán xe" and "Café" share their accents), and those few drafts expire in 7 days: Import again
+  // replaces them with two-language drafts.
+  const t = { en: (item.title ?? '').trim(), vi: (item.titleVi ?? '').trim() }
+  const d = { en: (item.description ?? '').trim(), vi: (item.descriptionVi ?? '').trim() }
+  // A description exists if either side has one; a side lacking it then has a gap.
+  const hasD = !!(d.en || d.vi)
+  for (const [field, kind] of [[t, 'title'], [d, 'description']] as const) {
+    if (kind === 'description' && !hasD) continue
+    if (!field.en && field.vi) field.en = (await translateText(field.vi, kind, 'en')) ?? ''
+    if (!field.vi && field.en) field.vi = (await translateText(field.en, kind, 'vi')) ?? ''
+  }
+  const whole = (l: 'en' | 'vi') => !!t[l] && (!hasD || !!d[l])
+  if (whole('en') && whole('vi')) return { title: t.en, description: d.en, titleVi: t.vi, descriptionVi: d.vi || null }
+  if (whole('en')) return { title: t.en, description: d.en, titleVi: null, descriptionVi: null }
+  if (whole('vi')) return { title: t.vi, description: d.vi, titleVi: null, descriptionVi: null }
+  return null
+}
+
 export async function publishImportItem(profileId: string, itemId: string, contactPhone: string, contactName: string, headers: Headers): Promise<PublishResult> {
   const claimed = await db.facebookImportItem.updateMany({
     where: { id: itemId, status: 'draft', job: { profileId } },
@@ -32,13 +59,17 @@ export async function publishImportItem(profileId: string, itemId: string, conta
   try {
     const item = await db.facebookImportItem.findUniqueOrThrow({ where: { id: itemId }, include: { job: { select: { fbName: true } } } })
     const raw = item.raw as unknown as ReportedItem
-    const title = (item.title ?? '').trim()
-    const description = (item.description ?? '').trim()
     if (!item.categorySlug) { await release('no_category'); return back('no_category') }
     if (item.price == null) { await release('price_required'); return back('price_required') }
     if (!item.district?.trim()) { await release('location_required'); return back('location_required') }
-    const problem = textProblem(title, description)
+    // The seller's own text first: a cleared title is "too short", never "try again" (commit gate, opus).
+    const first = textProblem(item.title ?? item.titleVi ?? '', item.description ?? item.descriptionVi ?? '')
+    if (first) { await release(first); return back(first) }
+    const text = await bothLanguages(item)
+    if (!text) { await release('translation_failed'); return back('translation_failed') }
+    const problem = textProblem(text.title, text.description) ?? (text.titleVi ? textProblem(text.titleVi, text.descriptionVi ?? text.description) : null)
     if (problem) { await release(problem); return back(problem) }
+    const { title, description } = text
 
     // A first-time seller's new shop takes the name they import under, not a blank.
     const seller = await resolveSellerForPost(profileId, contactPhone, contactName || item.job?.fbName || '')
@@ -71,6 +102,7 @@ export async function publishImportItem(profileId: string, itemId: string, conta
 
     const created = await createListingCore({
       seller, guestCreate: false, category, title, price: item.price, headers,
+      imported: { titleVi: text.titleVi, descriptionVi: text.descriptionVi },
       body: {
         title, description, price: item.price, images: fresh,
         subcategorySlug: item.subcategorySlug, listingType: item.listingType, condition: item.condition,

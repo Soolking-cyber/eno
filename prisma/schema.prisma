@@ -3161,8 +3161,12 @@ model FacebookImportItem {
   categorySlug    String?
   subcategorySlug String?
   listingType     String?
+  /// English, as Listing.title is when titleVi is set (the feed importer's layout).
   title           String?
   description     String?
+  /// The AI's Vietnamese pair of title and description (2026-11-06). An edit in one language clears the other; Publish translates it again.
+  titleVi         String?
+  descriptionVi   String?
   /// As Listing.price is: a flat at 3 billion đồng doesn't fit an Int.
   price           Float?
   /// From Facebook's location line; the seller can change it. A post needs a place.

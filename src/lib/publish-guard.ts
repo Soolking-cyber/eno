@@ -506,11 +506,13 @@ export function assertPublishable(input: {
   lat?: number | null
   lng?: number | null
   district?: string | null
+  /** Import from Facebook: one photo is enough (assertEnoughAngles). */
+  imported?: boolean
 }) {
   assertIdentityVerified(input.verificationStatus)
   if (input.trustTier === 'restricted' && !input.releasedCharge?.waivesRestricted) throw new PublishBlockedError('account_restricted')
   if (input.releasedCharge && input.releasedCharge.remaining <= 0) throw new PublishBlockedError('released_charge_listing_cap')
-  assertEnoughAngles(input.images, input.categorySlug)
+  assertEnoughAngles(input.images, input.categorySlug, { imported: input.imported })
   assertCleanTexts(input.texts)
   assertHasLocation({ district: input.district, lat: input.lat, lng: input.lng })
 }
@@ -577,9 +579,11 @@ export function assertHasLocation(input: { district?: string | null; lat?: numbe
  *  can't drop a live listing below the bar. Images are the listing's stored URLs (their dHash is
  *  in the URL); older/unhashed images fail open (counted as distinct).
  *  `categorySlug` relaxes the bar to a single photo for service categories — pass it on every
- *  path, or a service listing gets held to the physical-goods rule. */
-export function assertEnoughAngles(images: unknown[], categorySlug?: string | null) {
-  const min = minPhotosFor(categorySlug)
+ *  path, or a service listing gets held to the physical-goods rule. `imported` (Import from Facebook, create and edit) asks for one. */
+export function assertEnoughAngles(images: unknown[], categorySlug?: string | null, opts: { imported?: boolean } = {}) {
+  // ⛔ AN IMPORTED LISTING NEEDS ONE PHOTO, NOT THE CATEGORY'S THREE (owner, 2026-11-06: "3 images rule dont apply to fb import cos we couldnt
+  // post it imported product with 1 image"): a Facebook listing has what its seller gave it. Still at least one.
+  const min = opts.imported ? Math.min(minPhotosFor(categorySlug), 1) : minPhotosFor(categorySlug)
   // A photo-optional category (jobs) publishes with none — and the photos it does carry are not
   // held to a distinct-angle bar, since none was required in the first place.
   if (min === 0) return

@@ -19,7 +19,7 @@ vi.mock('./luna', () => ({ askLuna: h.luna }))
 const { sortPendingItems } = await import('./sort')
 const raw = { title: 'A good chair', description: 'Solid', priceAmount: '65', currency: 'VND', location: 'Quận 12, Hồ Chí Minh', photos: [] }
 const item = (over: object = {}) => ({ id: 'i1', raw, district: 'Quận 12', createdAt: new Date(), ...over })
-const answer = { category: 'furniture-appliances', subcategory: '', listingType: 'sell', condition: 'used', priceUnit: 'million', area: '', brand: '', model: '', title: 'A good chair', description: 'A solid chair.' }
+const answer = { category: 'furniture-appliances', subcategory: '', listingType: 'sell', condition: 'used', priceUnit: 'million', area: '', brand: '', model: '', title: 'A good chair', description: 'A solid chair.', title_vi: 'Ghế tốt', description_vi: 'Một chiếc ghế chắc chắn.' }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -34,6 +34,8 @@ describe('sortPendingItems', () => {
     h.items.findMany.mockResolvedValue([item()])
     await sortPendingItems()
     expect(h.items.updateMany.mock.calls[0][0].data).toMatchObject({ status: 'draft', price: 65_000_000 })
+    // Both proper versions (owner, 2026-11-06): English in title, Vietnamese beside it.
+    expect(h.items.updateMany.mock.calls[0][0].data).toMatchObject({ title: 'A good chair', titleVi: 'Ghế tốt', descriptionVi: 'Một chiếc ghế chắc chắn.' })
   })
   it('⛔ writes only while the row is still raw: a second sorter can’t overwrite an edit or a publish', async () => {
     h.items.findMany.mockResolvedValue([item()])

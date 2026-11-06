@@ -12,13 +12,16 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { facebookAvailableHere, facebookIosApp } from '@/lib/facebook-signin'
 import { startFacebookConnect } from '@/lib/facebook-connect-client'
+import { FacebookImportProgress } from './facebook-import-progress'
+import { VndInput } from './vnd-input'
 import { fillTemplate } from '@/lib/i18n/placeholders'
 import { askableFacetsFor, isRequiredFacet } from '@/lib/taxonomy'
 import { IMPORT_CATEGORY_SLUGS } from '@/lib/fb-import/categories'
 import { TAXONOMY } from '@/lib/taxonomy'
 
 type Item = {
-  id: string; status: string; title: string; description: string; price: number | null; fbPrice: string | null; district: string | null; categorySlug: string | null; subcategorySlug: string | null; listingType: string | null
+  id: string; status: string; title: string | null; description: string | null; titleVi: string | null; descriptionVi: string | null; fbTitle: string; fresh: boolean
+  price: number | null; fbPrice: string | null; district: string | null; categorySlug: string | null; subcategorySlug: string | null; listingType: string | null
   attributes: Record<string, unknown> | null; reason: string | null; listingId: string | null; photo: string | null; photoCount: number
 }
 type State = { on: boolean; connected: boolean; phone: string | null; job: { id: string; status: string; createdAt: string; items: Item[] } | null }
@@ -28,7 +31,7 @@ type State = { on: boolean; connected: boolean; phone: string | null; job: { id:
  * A browser, or the iOS app through its in-app browser sheet (facebookIosApp), like Connect: Meta's dialog doesn't run in a webview. Nothing goes public until Publish.
  */
 export function FacebookImportPanel() {
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const { user } = useAuth()
   const router = useRouter()
   const params = useSearchParams()
@@ -49,6 +52,7 @@ export function FacebookImportPanel() {
       contact_in_text: tr('Remove the phone number or contact details from the text.', 'Hãy bỏ số điện thoại hoặc thông tin liên hệ khỏi nội dung.'),
       banned_words: tr('The text has a word we don’t allow.', 'Nội dung có từ không được phép.'),
       title_short: tr('The title is too short.', 'Tiêu đề quá ngắn.'),
+      translation_failed: tr('We couldn’t write the other language just now. Press Publish again in a minute.', 'Chưa viết được ngôn ngữ còn lại. Hãy nhấn Đăng lại sau một phút.'),
       photos_expired: tr('The photos could not be fetched any more. Import again to refresh them.', 'Không còn tải được ảnh. Hãy nhập lại để làm mới.'),
       phone_required: tr('Add your contact phone above.', 'Hãy thêm số điện thoại liên hệ ở trên.'),
       phone_taken: tr('That phone number belongs to another account.', 'Số điện thoại này thuộc về tài khoản khác.'),
@@ -182,12 +186,13 @@ export function FacebookImportPanel() {
         </section>
       )}
 
-      {moving && <p role="status" className="text-sm text-body">{job.status === 'queued' ? tr('You’re in the queue. We read one seller at a time, so this can take a while. You can leave this page.', 'Bạn đang trong hàng chờ. Chúng tôi đọc lần lượt từng người bán nên có thể mất một lúc. Bạn có thể rời trang này.') : job.status === 'reading' ? tr('Reading your listings…', 'Đang đọc các tin của bạn…') : tr('Sorting your listings…', 'Đang phân loại các tin của bạn…')}</p>}
+      {moving && <FacebookImportProgress status={job.status} startedAt={job.createdAt} items={job.items.filter((i) => i.fresh).map((i) => ({ id: i.id, status: i.status, photo: i.photo, fbTitle: i.fbTitle, categorySlug: i.categorySlug }))} />}
       {job?.status === 'not_found' && <p className="text-sm text-body">{tr('We couldn’t confirm your Facebook profile from your name and picture, so nothing was imported. A profile picture that’s visible to everyone helps.', 'Chúng tôi không xác nhận được trang Facebook của bạn từ tên và ảnh đại diện nên chưa nhập gì. Ảnh đại diện công khai sẽ giúp ích.')}</p>}
       {job?.status === 'unavailable' && <p className="text-sm text-body">{tr('Import from Facebook isn’t available right now. Please try again later.', 'Hiện chưa thể nhập từ Facebook. Vui lòng thử lại sau.')}</p>}
       {job?.status === 'failed' && <p className="text-sm text-body">{tr('That import didn’t finish. Please try again.', 'Lần nhập đó chưa hoàn tất. Vui lòng thử lại.')}</p>}
       {job?.status === 'ready' && job.items.length === 0 && <p className="text-sm text-body">{tr('We found your profile, but no listings for sale on it.', 'Chúng tôi đã tìm thấy trang của bạn nhưng không có tin đang bán.')}</p>}
 
+      {/* Drafts stay reviewable while an import runs: a stalled sort must never hide them, nor an earlier import's (commit gate, opus). */}
       {drafts.length > 0 && (
         <section className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -205,24 +210,33 @@ export function FacebookImportPanel() {
             {drafts.map((d) => {
               const facets = d.categorySlug ? askableFacetsFor(d.categorySlug, d.subcategorySlug).filter((f) => isRequiredFacet(f) && f.key !== 'condition' && f.options?.length && !f.multi) : []
               const why = results[d.id] && results[d.id] !== 'ok' ? results[d.id] : d.reason ?? (d.price == null ? 'price_required' : !d.district ? 'location_required' : null)
+              // The seller's own language first (owner, 2026-11-06): an edit saves in it, and Publish writes the other one again.
+              // ⛔ EACH FIELD SAVES IN THE LANGUAGE OF THE TEXT SHOWN, which is the app's when it has one: an older draft with no Vietnamese shows English, and an
+              // edit to it must not land in the Vietnamese field (commit gate, opus).
+              const vi = lang === 'vi'
+              // `!= null`, not truthiness: a description the seller emptied is still that language's (commit gate, codex).
+              const titleLang: 'en' | 'vi' = vi ? (d.titleVi != null ? 'vi' : 'en') : (d.title != null ? 'en' : d.titleVi != null ? 'vi' : 'en')
+              const descriptionLang: 'en' | 'vi' = vi ? (d.descriptionVi != null ? 'vi' : 'en') : (d.description != null ? 'en' : d.descriptionVi != null ? 'vi' : 'en')
+              const shownTitle = (titleLang === 'vi' ? d.titleVi : d.title) ?? d.fbTitle
+              const shownDescription = (descriptionLang === 'vi' ? d.descriptionVi : d.description) ?? ''
               return (
                 <li key={d.id} className="rounded-xl border border-border p-3">
                   <div className="flex gap-3">
-                    <Checkbox aria-label={d.title} className="mt-1 shrink-0" checked={picked.has(d.id)} onChange={(on: boolean) => setPicked((p) => { const n = new Set(p); if (on) n.add(d.id); else n.delete(d.id); return n })} />
+                    <Checkbox aria-label={shownTitle} className="mt-1 shrink-0" checked={picked.has(d.id)} onChange={(on: boolean) => setPicked((p) => { const n = new Set(p); if (on) n.add(d.id); else n.delete(d.id); return n })} />
                     {d.photo && (
                       // Facebook's own link, for this one seller to check: <Image> would proxy it through the app's optimizer, which only takes our hosts.
                       <img src={d.photo} alt="" referrerPolicy="no-referrer" className="size-20 shrink-0 rounded-lg object-cover" loading="lazy" />
                     )}
                     <div className="min-w-0 flex-1 space-y-2">
-                      <Input aria-label={tr('Title', 'Tiêu đề')} defaultValue={d.title} onBlur={(e) => { if (e.target.value !== d.title) void patch(d.id, { title: e.target.value }) }} />
-                      <Input aria-label={tr('Price in đồng', 'Giá bằng đồng')} inputMode="numeric" defaultValue={d.price ?? ''} placeholder={tr('Price in đồng', 'Giá bằng đồng')} onBlur={(e) => { const n = e.target.value.replace(/\D/g, ''); const v = n ? Number(n) : null; if (v !== d.price) void patch(d.id, { price: v }) }} />
+                      <Input key={`t-${titleLang}`} aria-label={tr('Title', 'Tiêu đề')} defaultValue={shownTitle} onBlur={(e) => { if (e.target.value !== shownTitle) void patch(d.id, { title: e.target.value, lang: titleLang }) }} />
+                      <DraftPrice price={d.price} label={tr('Price in đồng', 'Giá bằng đồng')} onSave={(v) => void patch(d.id, { price: v })} />
                       {d.fbPrice && <p className="text-xs text-body">{fillTemplate(tr('Facebook said ₫{n}. Change it if we read it wrong.', 'Facebook ghi ₫{n}. Hãy sửa nếu chúng tôi đọc sai.'), 'Facebook said ₫{n}. Change it if we read it wrong.', { n: d.fbPrice })}</p>}
                       <Input aria-label={tr('Area (ward or district)', 'Khu vực (phường hoặc quận)')} placeholder={tr('Area (ward or district)', 'Khu vực (phường hoặc quận)')} maxLength={80} defaultValue={d.district ?? ''} onBlur={(e) => { const v = e.target.value.trim(); if (v !== (d.district ?? '')) void patch(d.id, { district: v || null }) }} />
                       <ChipSelect label={tr('Category', 'Danh mục')} placeholder={tr('Choose a category', 'Chọn danh mục')} value={d.categorySlug ?? ''} options={categories} onChange={(v) => void patch(d.id, { categorySlug: v })} />
                       {facets.map((f) => (
                         <ChipSelect key={f.key} label={tr(f.label, f.labelVi)} placeholder={tr(f.label, f.labelVi)} value={String(d.attributes?.[f.key] ?? '')} options={f.options.map((o) => [o.value, tr(o.label, o.labelVi)])} onChange={(v) => void patch(d.id, { attributes: { ...(d.attributes ?? {}), [f.key]: v } })} />
                       ))}
-                      <Textarea aria-label={tr('Description', 'Mô tả')} rows={3} defaultValue={d.description} onBlur={(e) => { if (e.target.value !== d.description) void patch(d.id, { description: e.target.value }) }} />
+                      <Textarea key={`d-${descriptionLang}`} aria-label={tr('Description', 'Mô tả')} rows={3} defaultValue={shownDescription} onBlur={(e) => { if (e.target.value !== shownDescription) void patch(d.id, { description: e.target.value, lang: descriptionLang }) }} />
                       {why && <p role="alert" className="text-sm text-destructive">{reasonText(why === 'missing_details' && facets.length === 0 ? 'publish_failed' : why)}</p>}
                     </div>
                   </div>
@@ -244,5 +258,22 @@ function ChipSelect({ label, placeholder, value, options, onChange }: { label: s
         {options.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
       </SelectContent>
     </Select>
+  )
+}
+
+/**
+ * A draft's price, grouped as it is typed (owner, 2026-11-06: "has to have a , format example 65,000,000 so user knows how many 0s"): the post form's own
+ * VndInput, so the separators follow the app's language (65,000,000 · 65.000.000) and the ×1,000 / ×1,000,000 chips are there. ⛔ SAVED WHEN FOCUS LEAVES
+ * THE WHOLE BOX, not the input: a keyboard user tabs from the input to a chip, and saving on the input's own blur would store "65" before the chip made it
+ * 65,000,000 (commit gate, opus). Publish waits for the save (`saving`).
+ */
+export function DraftPrice({ price, label, onSave }: { price: number | null; label: string; onSave: (v: number | null) => void }) {
+  const [digits, setDigits] = useState(price != null ? String(price) : '')
+  useEffect(() => { setDigits(price != null ? String(price) : '') }, [price])
+  const save = () => { const v = digits ? Number(digits) : null; if (v !== price) onSave(v) }
+  return (
+    <div onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) save() }}>
+      <VndInput value={digits} onChange={setDigits} aria-label={label} placeholder={label} />
+    </div>
   )
 }

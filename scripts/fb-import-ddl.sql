@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS "FacebookImportItem" (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "FacebookImportItem_jobId_fbItemId_key" ON "FacebookImportItem"("jobId", "fbItemId");
 CREATE INDEX IF NOT EXISTS "FacebookImportItem_status_updatedAt_idx" ON "FacebookImportItem"("status", "updatedAt");
+-- 2026-11-06: the Vietnamese pair of the AI's English title and description (owner: "at least 2 proper translations vietnamese english"). Additive and nullable: an older row just has none.
+ALTER TABLE "FacebookImportItem" ADD COLUMN IF NOT EXISTS "titleVi" TEXT;
+ALTER TABLE "FacebookImportItem" ADD COLUMN IF NOT EXISTS "descriptionVi" TEXT;
 -- The server reads these through Prisma. A seller's raw listings have no business on PostgREST: the event trigger already does this (rls-guard.sql); said here so a restore without it can't open them.
 ALTER TABLE "FacebookImportJob" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "FacebookImportItem" ENABLE ROW LEVEL SECURITY;

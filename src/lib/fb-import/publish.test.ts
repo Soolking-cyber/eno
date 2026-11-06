@@ -8,6 +8,7 @@ const h = vi.hoisted(() => {
     listing: { findFirst: vi.fn(), update: vi.fn() },
     category: { findUnique: vi.fn() },
     resolve: vi.fn(), gate: vi.fn(), rehost: vi.fn(), claim: vi.fn(), discard: vi.fn(async () => {}), create: vi.fn(),
+    translate: vi.fn(async (_t: string, _k: string, _to: string): Promise<string | null> => null),
   }
 })
 vi.mock('server-only', () => ({}))
@@ -19,12 +20,12 @@ vi.mock('@/lib/core/listings', () => ({ createListingCore: h.create }))
 vi.mock('@/lib/publish-guard', () => ({ PublishBlockedError: h.PublishBlockedError, containsContactInfo: () => false, findBannedWord: () => null }))
 vi.mock('@/lib/log', () => ({ logError: vi.fn() }))
 vi.mock('@/app/api/listings/resolve-seller', () => ({ resolveSellerForPost: h.resolve }))
-vi.mock('./sort', () => ({ textProblem: (t: string) => (t.length < 3 ? 'title_short' : null) }))
+vi.mock('./sort', () => ({ textProblem: (t: string) => (t.length < 3 ? 'title_short' : null), translateText: h.translate }))
 
 const { publishImportItem } = await import('./publish')
 const call = () => publishImportItem('p1', 'i1', '0901234567', '', new Headers())
 const photos = Array.from({ length: 10 }, (_, i) => `https://scontent.fbcdn.net/${i}.jpg`)
-const ITEM = { id: 'i1', fbItemId: '12345678', title: 'A good chair', description: 'Solid', price: 500000, district: 'Quận 12', city: 'Hồ Chí Minh', categorySlug: 'furniture', subcategorySlug: null, listingType: 'sell', condition: 'used', brand: null, model: null, attributes: { color: 'red' }, specs: { year: 2020 }, raw: { photos, location: 'Thu Duc' } }
+const ITEM = { id: 'i1', fbItemId: '12345678', title: 'A good chair', description: 'Solid', titleVi: 'Ghế tốt', descriptionVi: 'Chắc chắn', price: 500000, district: 'Quận 12', city: 'Hồ Chí Minh', categorySlug: 'furniture', subcategorySlug: null, listingType: 'sell', condition: 'used', brand: null, model: null, attributes: { color: 'red' }, specs: { year: 2020 }, raw: { photos, location: 'Thu Duc' } }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -38,6 +39,7 @@ beforeEach(() => {
   h.category.findUnique.mockResolvedValue({ id: 'c1', slug: 'furniture' })
   h.rehost.mockImplementation(async (u: string) => `https://sb.eno.vn/${u.split('/').pop()}`)
   h.create.mockResolvedValue({ id: 'L1', verified: true })
+  h.translate.mockReset().mockResolvedValue(null)
 })
 
 describe('publishImportItem', () => {
@@ -112,5 +114,50 @@ describe('publishImportItem', () => {
     h.items.findUniqueOrThrow.mockResolvedValue({ ...ITEM, ...patch })
     expect(await call()).toEqual({ ok: false, code })
     expect(h.rehost).not.toHaveBeenCalled()
+  })
+
+  describe('two languages (owner, 2026-11-06)', () => {
+    const tr = (map: Record<string, string>) => h.translate.mockImplementation(async (t: string, _k: string, to: string) => map[`${to}:${t}`] ?? null)
+    it('both whole: they go to the listing as they are, English in title and Vietnamese beside it, marked as an import', async () => {
+      await call()
+      expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'A good chair', imported: { titleVi: 'Ghế tốt', descriptionVi: 'Chắc chắn' } }))
+      expect(h.translate).not.toHaveBeenCalled()
+    })
+    it('a gap an edit left is filled from its own field: English title from the Vietnamese title', async () => {
+      h.items.findUniqueOrThrow.mockResolvedValue({ ...ITEM, title: null, titleVi: 'Ghế gỗ đẹp' })
+      tr({ 'en:Ghế gỗ đẹp': 'Nice wooden chair' })
+      await call()
+      expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'Nice wooden chair', imported: { titleVi: 'Ghế gỗ đẹp', descriptionVi: 'Chắc chắn' } }))
+    })
+    it('⛔ a title edited in English and a description in Vietnamese: each translated from its own source, nothing dropped', async () => {
+      h.items.findUniqueOrThrow.mockResolvedValue({ ...ITEM, title: 'Oak chair', titleVi: null, description: null, descriptionVi: 'Gỗ sồi' })
+      tr({ 'vi:Oak chair': 'Ghế gỗ sồi', 'en:Gỗ sồi': 'Solid oak' })
+      await call()
+      expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'Oak chair', body: expect.objectContaining({ description: 'Solid oak' }), imported: { titleVi: 'Ghế gỗ sồi', descriptionVi: 'Gỗ sồi' } }))
+    })
+    it('no AI and English whole: English alone, never half a Vietnamese side', async () => {
+      h.items.findUniqueOrThrow.mockResolvedValue({ ...ITEM, descriptionVi: null })
+      await call()
+      expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'A good chair', imported: { titleVi: null, descriptionVi: null } }))
+    })
+    it('no AI and Vietnamese whole: Vietnamese alone, in the main fields', async () => {
+      h.items.findUniqueOrThrow.mockResolvedValue({ ...ITEM, description: null })
+      await call()
+      expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'Ghế tốt', body: expect.objectContaining({ description: 'Chắc chắn' }), imported: { titleVi: null, descriptionVi: null } }))
+    })
+
+
+
+    it('⛔ a cleared title is "too short", never "try again"', async () => {
+      h.items.findUniqueOrThrow.mockResolvedValue({ ...ITEM, title: 'ab', titleVi: null })
+      expect(await call()).toEqual({ ok: false, code: 'title_short' })
+      expect(h.translate).not.toHaveBeenCalled()
+    })
+    it('⛔ no AI and neither whole: nothing published, the draft back with a reason, the seller\'s words kept', async () => {
+      h.items.findUniqueOrThrow.mockResolvedValue({ ...ITEM, title: 'Oak chair', titleVi: null, description: null, descriptionVi: 'Gỗ sồi' })
+      expect(await call()).toEqual({ ok: false, code: 'translation_failed' })
+      expect(h.create).not.toHaveBeenCalled()
+      expect(h.items.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'draft', reason: 'translation_failed' }) }))
+    })
   })
 })

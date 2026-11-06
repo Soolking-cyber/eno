@@ -718,6 +718,8 @@ export async function updateListingCore(
       // Read-only here (the wizard cannot edit them), but load-bearing: the folded search blob
       // below must keep BOTH languages or an edit deletes the Vietnamese half of the index.
       titleVi: true, descriptionVi: true,
+      // `fb:<id>`: an imported listing keeps its one-photo bar on edit (assertEnoughAngles `imported`).
+      externalId: true,
       // Price-drop pipeline + urgent gate inputs
       price: true, createdAt: true, sellerId: true, previousPrice: true, priceDropAt: true, lowestNotifiedPrice: true, priceDropNotifiedAt: true, urgentUntil: true,
       // A job's pay: its price is re-derived from the salary on every edit, and it never takes offers.
@@ -927,7 +929,7 @@ export async function updateListingCore(
     try {
       // The listing's OWN category — an edit cannot move a listing between categories,
       // so this is the same bar create used, and a 1-photo service listing stays editable.
-      assertEnoughAngles(images, current.category.slug)
+      assertEnoughAngles(images, current.category.slug, { imported: current.externalId?.startsWith('fb:') ?? false })
     } catch (e) {
       if (e instanceof PublishBlockedError) return { ok: false, code: 400, error: e.code }
       throw e
@@ -1513,6 +1515,11 @@ export async function createListingCore(input: {
   price: number
   body: Record<string, unknown>
   headers: Headers
+  /**
+   * Import from Facebook (src/lib/fb-import/publish.ts): `title`/`body.description` in English and these in Vietnamese, both written by the AI
+   * (owner, 2026-11-06: "at least 2 proper translations vietnamese english"), the feed importer's layout. Screened like the rest, and one photo is enough.
+   */
+  imported?: { titleVi: string | null; descriptionVi: string | null }
 }): Promise<{ id: string; verified: boolean; held?: true }> {
   const { seller, guestCreate, category, title, price, body, headers } = input
   const categorySlug = category.slug
@@ -1585,7 +1592,9 @@ export async function createListingCore(input: {
   // charges an admin RELEASED may post despite the restricted tier the frozen charge keeps them in,
   // up to the active-listing cap. Null for everyone else (one cheap read) — the gate is unchanged.
   const releasedCharge = await releasedChargeGate(seller.ownerId, seller.id)
-  assertPublishable({ trustTier: seller.trustTier, releasedCharge, images, texts: [title, description], categorySlug, lat, lng, district })
+  const titleVi = input.imported?.titleVi ? cutText(input.imported.titleVi.trim(), 140) || null : null
+  const descriptionVi = input.imported?.descriptionVi ? cutText(input.imported.descriptionVi.trim(), 5000) || null : null
+  assertPublishable({ trustTier: seller.trustTier, releasedCharge, images, texts: [title, description, titleVi, descriptionVi], categorySlug, lat, lng, district, imported: !!input.imported })
 
   // Intent + subcategory from the taxonomy. listingType must be valid for the category
   // (else its primary type); subcategory falls back to keyword-suggest.
@@ -1759,7 +1768,8 @@ export async function createListingCore(input: {
   // listing's id so clients can link "edit / bump it instead". Fail-open inside the guard.
   // Same ACCEPTED check-then-create race as the urgent quota above: two simultaneous
   // posts of the same item can both pass — the dup is visible and admin-removable.
-  const searchText = buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi, brandSlug, model])
+  // An import's Vietnamese is searched too, as an edit's rebuild folds it (below, updateListingCore); a hand post's recipe is unchanged (commit gate, opus).
+  const searchText = buildSearchText([title, ...(titleVi ? [titleVi] : []), String(body.description || ''), ...(descriptionVi ? [descriptionVi] : []), district, category.name, category.nameVi, brandSlug, model])
   // `attributes` is the taxonomy facet set — two listings that differ by facet are variants,
   // not reposts. It is the JSON string built above, so parse it back to the shape the guard
   // compares; a malformed value degrades to "no facets", i.e. the guard's old behaviour.
@@ -1779,6 +1789,8 @@ export async function createListingCore(input: {
     data: {
       title,
       description,
+      ...(titleVi ? { titleVi } : {}),
+      ...(descriptionVi ? { descriptionVi } : {}),
       price: storedPrice,
       priceUnit,
       currency: money.currency,

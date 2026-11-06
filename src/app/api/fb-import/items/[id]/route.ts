@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
 import { askableFacetsFor, rangeFacetsFor, typesFor, postableSubcategoriesFor } from '@/lib/taxonomy'
 import { areaFromTyped } from '@/lib/fb-import/area'
-import { IMPORT_CATEGORIES, textProblem, validChips, validShelf } from '@/lib/fb-import/sort'
+import { IMPORT_CATEGORIES, textProblem, translateText, validChips, validShelf } from '@/lib/fb-import/sort'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +18,8 @@ const edit = z.object({
   subcategorySlug: z.string().max(60).nullable().optional(),
   attributes: z.record(z.string(), z.unknown()).optional(),
   skip: z.boolean().optional(),
+  /** The language of the text the seller edited (the one the review showed). The same field in the other language is translated at once. */
+  lang: z.enum(['en', 'vi']).optional(),
 })
 
 // The seller's edits to a draft, checked as an import is: only a draft of their own, a shelf import offers, and chips the taxonomy has.
@@ -37,16 +39,22 @@ export const PATCH = route({ auth: 'userId', rateLimit: { bucket: 'fb-import-edi
   const facets = categorySlug ? askableFacetsFor(categorySlug, subcategorySlug) : []
   const ranges = categorySlug ? rangeFacetsFor(categorySlug, subcategorySlug) : []
   const chips = b.attributes ? validChips(b.attributes, facets, ranges).attributes : moved ? {} : ((item.attributes as Record<string, string | string[]> | null) ?? {})
-  const title = b.title ?? item.title ?? ''
-  const description = b.description ?? item.description ?? ''
+  // ⛔ AN EDIT IS SAVED IN THE LANGUAGE THE SELLER SAW, AND TRANSLATED AT ONCE (owner, 2026-11-06: two proper versions, Vietnamese and English). The
+  // other language's same field gets the translation, or null when no AI answered, for Publish to fill (publish.ts bothLanguages). One field at a time,
+  // so a title edited in one language and a description in the other each keep their own source (commit gate, codex + opus).
+  const vi = b.lang === 'vi'
+  const title = b.title ?? (vi ? item.titleVi ?? item.title : item.title ?? item.titleVi) ?? ''
+  const description = b.description ?? (vi ? item.descriptionVi ?? item.description : item.description ?? item.descriptionVi) ?? ''
   const reason = textProblem(title, description)
+  const other = vi ? 'en' : 'vi'
   // ⛔ STILL UNCLAIMED: a publish can take the row between the read above and here, and an edit must not hand it back.
   const done = await db.facebookImportItem.updateMany({
     where: { id: item.id, status: { in: ['draft', 'skipped'] } },
     // ⛔ ONLY WHAT THIS EDIT CHANGES: two fields saved at once each read the same row, and the second would write the first back to what it was.
     data: {
-      ...(b.title !== undefined ? { title } : {}),
-      ...(b.description !== undefined ? { description } : {}),
+      // The seller's words first, the other language's field emptied (stale): the translation below fills it.
+      ...(b.title !== undefined ? (vi ? { titleVi: title, title: null } : { title, titleVi: null }) : {}),
+      ...(b.description !== undefined ? (vi ? { descriptionVi: description, description: null } : { description, descriptionVi: null }) : {}),
       ...(b.categorySlug !== undefined || b.subcategorySlug !== undefined || moved ? { categorySlug, subcategorySlug } : {}),
       ...(moved && categorySlug ? { listingType: typesFor(categorySlug)[0] } : {}),
       ...(b.attributes !== undefined || moved ? { attributes: chips as Prisma.InputJsonValue } : {}),
@@ -58,5 +66,16 @@ export const PATCH = route({ auth: 'userId', rateLimit: { bucket: 'fb-import-edi
     },
   })
   if (done.count !== 1) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  // ⛔ THE TRANSLATION ONLY OVER THE WORDS IT CAME FROM (commit gate, codex + opus): a later edit to the same field, saved while this one waited on the AI,
+  // must never be overwritten by the older text's translation. No AI answer leaves the gap for Publish to fill.
+  for (const [kind, text] of [['title', b.title !== undefined ? title : null], ['description', b.description !== undefined ? description : null]] as const) {
+    if (text === null) continue
+    // At most 12 s each: behind Cloudflare a request dies at 100 s, and the seller's words are already saved; a slow answer is left for Publish (commit gate, opus).
+    const translated = await Promise.race([translateText(text, kind, other), new Promise<null>((r) => setTimeout(() => r(null), 12_000))])
+    if (!translated) continue
+    const source = vi ? (kind === 'title' ? 'titleVi' : 'descriptionVi') : kind
+    const target = vi ? kind : (kind === 'title' ? 'titleVi' : 'descriptionVi')
+    await db.facebookImportItem.updateMany({ where: { id: item.id, status: { in: ['draft', 'skipped'] }, [source]: text }, data: { [target]: translated } })
+  }
   return NextResponse.json({ id: item.id, status: b.skip !== undefined ? (b.skip ? 'skipped' : 'draft') : item.status, reason: categorySlug ? reason : 'no_category' }, { headers: { 'Cache-Control': 'no-store' } })
 })

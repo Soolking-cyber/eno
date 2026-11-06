@@ -227,6 +227,15 @@ describe('publish-guard · photo minimum by category', () => {
     expect(blockCodeOf(() => assertPublishable({ ...goods, images: one, categorySlug: 'services' }))).toBeNull()
   })
 
+  it('⛔ an imported listing (Import from Facebook) needs one photo in any category, never none (owner, 2026-11-06)', () => {
+    for (const slug of ['electronics', 'vehicles', 'fashion']) {
+      expect(() => assertEnoughAngles(one, slug, { imported: true })).not.toThrow()
+      expect(blockCodeOf(() => assertEnoughAngles([], slug, { imported: true }))).toBe('photo_required')
+      expect(blockCodeOf(() => assertEnoughAngles(one, slug))).toBe('photos_min')
+      expect(blockCodeOf(() => assertPublishable({ ...goods, images: one, categorySlug: slug, imported: true }))).toBeNull()
+    }
+  })
+
   it('physical categories still need 3 DISTINCT angles', () => {
     for (const slug of ['electronics', 'vehicles', 'property', 'fashion', 'rentals']) {
       expect(minPhotosFor(slug)).toBe(3)

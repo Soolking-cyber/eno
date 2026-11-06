@@ -31,7 +31,7 @@ export const GET = route({ auth: 'userId' }, async ({ userId }) => {
       createdAt: job.createdAt,
       items: [...olderDrafts.filter((d) => d.jobId !== job.id && !job.items.some((i) => i.fbItemId === d.fbItemId)), ...job.items].map((i) => {
         const raw = i.raw as unknown as ReportedItem
-        return { id: i.id, status: i.status, title: i.title ?? raw.title, description: i.description ?? raw.description ?? '', price: i.price, fbPrice: raw.currency === 'VND' && raw.priceAmount && i.price != null && Number(raw.priceAmount) !== i.price ? raw.priceAmount : null, district: i.district, categorySlug: i.categorySlug, subcategorySlug: i.subcategorySlug, listingType: i.listingType, condition: i.condition, attributes: i.attributes, reason: i.reason, listingId: i.listingId, photo: raw.photos?.[0] ?? null, photoCount: raw.photos?.length ?? 0 }
+        return { id: i.id, status: i.status, title: i.title ?? (i.titleVi != null ? null : raw.title), description: i.description ?? (i.descriptionVi != null ? null : raw.description ?? ''), titleVi: i.titleVi, descriptionVi: i.descriptionVi, fbTitle: raw.title, fresh: i.jobId === job.id, price: i.price, fbPrice: raw.currency === 'VND' && raw.priceAmount && i.price != null && Number(raw.priceAmount) !== i.price ? raw.priceAmount : null, district: i.district, categorySlug: i.categorySlug, subcategorySlug: i.subcategorySlug, listingType: i.listingType, condition: i.condition, attributes: i.attributes, reason: i.reason, listingId: i.listingId, photo: raw.photos?.[0] ?? null, photoCount: raw.photos?.length ?? 0 }
       }),
     },
   }, { headers: { 'Cache-Control': 'no-store' } })
