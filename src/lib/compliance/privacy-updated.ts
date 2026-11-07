@@ -188,7 +188,7 @@
  * And 2026-11-05, Import from Facebook (owner, 2026-11-04): the Meta row says the reading happens, and the OpenAI row names each imported listing's text and first photo (src/lib/fb-import/luna.ts). ⛔ THE PLANNED DAY, like the rest:
  * the day the deploy that carries it runs, then retake the fingerprint.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-05'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-07'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -197,4 +197,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-05'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '9bc58e96ee3f952a'
+export const PRIVACY_TEXT_FINGERPRINT = '52f4546979168a8b'

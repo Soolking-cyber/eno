@@ -8,7 +8,6 @@ import { assertCleanTexts, PublishBlockedError } from '@/lib/publish-guard'
 import { logError } from '@/lib/log'
 import { resolveSellerForPost } from '@/app/api/listings/resolve-seller'
 import { FB_IMPORT_MAX_PHOTOS, type ReportedItem } from './shared'
-import { areaFromTyped } from './area'
 import { textProblem, translateText } from './sort'
 
 export type PublishResult = { ok: true; listingId: string } | { ok: false; code: string; detail?: string }
@@ -47,11 +46,14 @@ async function bothLanguages(item: { title: string | null; description: string |
 }
 
 /**
- * `area`: the place the seller CONFIRMED for this whole import on the review screen (owner, 2026-11-07: "imported post has wrong location … ask the user if
- * location is correct … for whole import with default as taken from fb but they have to review it before posting"). It replaces each draft's own guess
- * from Facebook's location line; with none, nothing is published.
+ * `place`: where the seller CONFIRMED this whole import is, on the review screen (owner, 2026-11-07: "imported post has wrong location … ask the user if
+ * location is correct … for whole import with default as taken from fb but they have to review it before posting"; then "make it a selector dropdown for
+ * city ward plus … pin location"). The city and ward the post form's picker gives, and its pin: stored as the post form stores them (post-wizard.tsx,
+ * district = the ward, city = the province, the pin when it is in Vietnam). It replaces each draft's own guess from Facebook; with none, nothing is published.
  */
-export async function publishImportItem(profileId: string, itemId: string, contactPhone: string, contactName: string, headers: Headers, area: string): Promise<PublishResult> {
+export type ConfirmedPlace = { province: string; ward: string; lat?: number | null; lng?: number | null }
+const inVietnam = (lat: number, lng: number) => lat >= 8 && lat <= 23.6 && lng >= 102 && lng <= 110
+export async function publishImportItem(profileId: string, itemId: string, contactPhone: string, contactName: string, headers: Headers, confirmed: ConfirmedPlace): Promise<PublishResult> {
   const claimed = await db.facebookImportItem.updateMany({
     where: { id: itemId, status: 'draft', job: { profileId } },
     data: { status: 'publishing', publishingSince: new Date() },
@@ -68,10 +70,11 @@ export async function publishImportItem(profileId: string, itemId: string, conta
     if (!item.categorySlug) { await release('no_category'); return back('no_category') }
     if (item.price == null) { await release('price_required'); return back('price_required') }
     // Public text on every listing: the same screens as a title (phone, contact, banned words), the import's not the draft's (commit gate, opus).
-    try { assertCleanTexts([area]) } catch (e) { if (e instanceof PublishBlockedError) { await release(item.reason ?? null); return back('location_contact') } throw e }
-    const place = areaFromTyped(area, item.city)
+    const province = confirmed.province.trim(), ward = confirmed.ward.trim()
+    try { assertCleanTexts([province, ward]) } catch (e) { if (e instanceof PublishBlockedError) { await release(item.reason ?? null); return back('location_contact') } throw e }
     // The import's place, not this draft's fault: the draft keeps the reason it had, so a fixed place publishes it without re-ticking each one (commit gate, opus).
-    if (!place.district?.trim()) { await release(item.reason ?? null); return back('location_required') }
+    if (!province || !ward) { await release(item.reason ?? null); return back('location_required') }
+    const pin = confirmed.lat != null && confirmed.lng != null && inVietnam(confirmed.lat, confirmed.lng) ? { lat: confirmed.lat, lng: confirmed.lng } : {}
     // The seller's own text first: a cleared title is "too short", never "try again" (commit gate, opus).
     const first = textProblem(item.title ?? item.titleVi ?? '', item.description ?? item.descriptionVi ?? '')
     if (first) { await release(first); return back(first) }
@@ -119,7 +122,8 @@ export async function publishImportItem(profileId: string, itemId: string, conta
         brand: item.brand, model: item.model,
         attributes: item.attributes ?? undefined, ...(item.specs && typeof item.specs === 'object' ? (item.specs as Record<string, unknown>) : {}),
         // Last, so nothing above can put another place over the one the seller confirmed (commit gate, codex).
-        district: place.district, city: place.city ?? place.district, location: undefined,
+        // lat/lng always set here, so a point in the draft's details never stands in for the one the seller confirmed (commit gate, codex).
+        district: ward, city: province, location: ward, lat: undefined, lng: undefined, ...pin,
       },
     })
     made = created.id

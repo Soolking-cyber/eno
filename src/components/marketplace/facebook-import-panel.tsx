@@ -14,6 +14,7 @@ import { facebookAvailableHere, facebookIosApp } from '@/lib/facebook-signin'
 import { startFacebookConnect } from '@/lib/facebook-connect-client'
 import { FacebookImportProgress } from './facebook-import-progress'
 import { VndInput } from './vnd-input'
+import { areaAt, ImportLocationPicker, type ImportPlace } from './import-location-picker'
 import { fillTemplate } from '@/lib/i18n/placeholders'
 import { askableFacetsFor, isRequiredFacet } from '@/lib/taxonomy'
 import { IMPORT_CATEGORY_SLUGS } from '@/lib/fb-import/categories'
@@ -114,9 +115,22 @@ export function FacebookImportPanel() {
   // ⛔ ONE PLACE FOR THE WHOLE IMPORT, CHECKED BY THE SELLER BEFORE ANYTHING IS PUBLISHED (owner, 2026-11-07: "imported post has wrong location … ask the user
   // if location is correct … not per product but for whole import with default as taken from fb but they have to review it before posting no new buttons").
   // It starts as the place Facebook gave most of these listings; Publish says "Check the location first" until the box is ticked, and every listing gets it.
-  // The tick confirms the text as shown: changing the text unticks it (commit gate, codex + opus).
-  const [area, setArea] = useState('')
+  // The tick confirms the place as shown: any change to it unticks it (commit gate, codex + opus). Picked with the city and ward picker, an address search
+  // and a map pin (owner, 2026-11-07: "like when you pin location on shoppee or … grab"; import-location-picker.tsx).
+  const [place, setPlaceRaw] = useState<ImportPlace>({ province: null, ward: null, lat: null, lng: null })
+  // `touched`: the seller changed the place, so the default's late answer never lands on their pick (commit gate, opus).
+  const touched = useRef(false)
+  // The tick confirms the city and ward: a new pin inside the same ones (the ward's own search, a nudge) leaves it ticked (commit gate, opus).
+  const setPlace = (next: ImportPlace) => {
+    touched.current = true
+    if (place.province?.name !== next.province?.name || place.ward?.name !== next.ward?.name) setAreaOk(false)
+    setPlaceRaw(next)
+  }
   const [areaOk, setAreaOk] = useState(false)
+  // Read by the default pin's late answer: it never moves a place the seller has already confirmed.
+  const areaOkRef = useRef(false)
+  useEffect(() => { areaOkRef.current = areaOk }, [areaOk])
+  const placeReady = !!place.province?.name && !!place.ward?.name
   // ⛔ ONCE PER IMPORT, when its drafts are there: a seller's own correction and tick are never put back by a later poll or the job finishing (commit gate, opus).
   const areaFor = useRef<string | null>(null)
   // A new import is never published on the last one's tick (commit gate, codex + opus).
@@ -127,10 +141,26 @@ export function FacebookImportPanel() {
     // Not while the import runs: the first draft's place is not yet "the place most listings had" (commit gate, opus).
     if (!jobId || areaFor.current === jobId || drafts.length === 0 || st === 'queued' || st === 'reading' || st === 'sorting') return
     areaFor.current = jobId
-    const count = new Map<string, number>()
-    for (const d of drafts) if (d.district) { const k = d.city && d.city !== d.district ? `${d.district}, ${d.city}` : d.district; count.set(k, (count.get(k) ?? 0) + 1) }
-    setArea([...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '')
+    const count = new Map<string, { n: number; district: string; city: string | null }>()
+    for (const d of drafts) if (d.district) { const k = `${d.district}|${d.city ?? ''}`; const c = count.get(k); count.set(k, { n: (c?.n ?? 0) + 1, district: d.district, city: d.city }) }
+    const top = [...count.values()].sort((a, b) => b.n - a.n)[0]
+    const geo = (name: string) => ({ code: '', name, nameEn: name })
+    setPlaceRaw({ province: top?.city ? geo(top.city) : null, ward: top ? geo(top.district) : null, lat: null, lng: null })
     setAreaOk(false)
+    touched.current = false
+    // The pin for that default, and its city and ward as the map names them (Facebook's names can be old districts): one search and one lookup, not a stream
+    // (OpenStreetMap's rules). Only while the seller hasn't touched the place or ticked it; they move it if Facebook was wrong.
+    if (top) {
+      const still = () => areaFor.current === jobId && !touched.current && !areaOkRef.current
+      void fetch(`/api/geocode/search?q=${encodeURIComponent([top.district, top.city].filter(Boolean).join(', '))}&lang=vi`).then((r) => (r.ok ? r.json() : null)).then(async (d: { results?: { lat: number; lng: number }[] } | null) => {
+        const p = d?.results?.[0]
+        if (!p || !still()) return
+        setPlaceRaw((cur) => ({ ...cur, lat: p.lat, lng: p.lng }))
+        const area = await areaAt(p.lat, p.lng, lang)
+        // Both from the map, or neither: never the map's city over Facebook's ward (commit gate, codex).
+        if (area.province && area.ward && still()) setPlaceRaw((cur) => ({ ...cur, province: area.province, ward: area.ward }))
+      }).catch(() => {})
+    }
   }, [state?.job?.id, state?.job?.status, drafts])
 
   // ⛔ AN EDIT SAVES ON BLUR AND THE SAME TAP PRESSES PUBLISH: without waiting for it, the old price goes live and the edit then finds the row taken.
@@ -164,7 +194,7 @@ export function FacebookImportPanel() {
     }
     const out: Record<string, string> = {}
     for (const { id } of chosen) {
-      const r = await fetch(`/api/fb-import/items/${id}/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contactPhone: phone, area: area.trim() }) }).catch(() => null)
+      const r = await fetch(`/api/fb-import/items/${id}/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contactPhone: phone, place: { province: place.province?.name ?? '', ward: place.ward?.name ?? '', lat: place.lat, lng: place.lng } }) }).catch(() => null)
       const d = (await r?.json().catch(() => null)) as { ok?: boolean; code?: string; error?: string } | null
       out[id] = d?.ok ? 'ok' : d?.code ?? d?.error ?? 'publish_failed'
       setResults({ ...out })
@@ -226,18 +256,16 @@ export function FacebookImportPanel() {
               <Input className="mt-1" type="tel" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
             </label>
             )}
-            <Button className="ml-auto" variant="cta" loading={publishing} disabled={chosen.length === 0 || phone.replace(/\D/g, '').length < 9 || !areaOk || !area.trim()} onClick={() => void publish()}>
-              {areaOk && area.trim() ? fillTemplate(tr('Publish {n}', 'Đăng {n} tin'), 'Publish {n}', { n: String(chosen.length) }) : tr('Check the location first', 'Kiểm tra vị trí trước')}
+            <Button className="ml-auto" variant="cta" loading={publishing} disabled={chosen.length === 0 || phone.replace(/\D/g, '').length < 9 || !areaOk || !placeReady} onClick={() => void publish()}>
+              {areaOk && placeReady ? fillTemplate(tr('Publish {n}', 'Đăng {n} tin'), 'Publish {n}', { n: String(chosen.length) }) : tr('Check the location first', 'Kiểm tra vị trí trước')}
             </Button>
           </div>
           <div className="space-y-2 rounded-xl border border-border p-3">
-            <label className="block text-sm font-medium text-ink">
-              {tr('Location of these listings', 'Vị trí của các tin này')}
-              <Input className="mt-1" placeholder={tr('Ward or district, city', 'Phường hoặc quận, thành phố')} maxLength={120} value={area} onChange={(e) => { setArea(e.target.value); setAreaOk(false) }} />
-            </label>
+            <h3 className="text-sm font-medium text-ink">{tr('Location of these listings', 'Vị trí của các tin này')}</h3>
+            <ImportLocationPicker value={place} onChange={setPlace} />
             <p className="text-xs text-body">{tr('Taken from Facebook, which is often wrong. Every listing in this import gets this place.', 'Lấy từ Facebook, thường không chính xác. Mọi tin trong lần nhập này sẽ dùng vị trí này.')}</p>
             <div className="flex items-center gap-2">
-              <Checkbox id="fbi-area-ok" checked={areaOk} onChange={(on: boolean) => setAreaOk(on)} />
+              <Checkbox id="fbi-area-ok" checked={areaOk} disabled={!placeReady} onChange={(on: boolean) => setAreaOk(on)} />
               <label htmlFor="fbi-area-ok" className="text-sm text-ink">{tr('This location is right', 'Vị trí này đúng')}</label>
             </div>
           </div>

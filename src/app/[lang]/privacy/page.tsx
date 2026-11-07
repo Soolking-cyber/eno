@@ -271,11 +271,12 @@ const RECIPIENTS: Table = {
       // src/app/api/reverse-geocode/route.ts:38 (Google, only when a key is set), :74 (Nominatim) —
       // called from OUR server with lat/lng (and the page language) only. Callers: the address pickers
       // (post-wizard, business profile, chat location) AND the area filter's "Use my current location"
-      // (src/components/marketplace/area-filter.tsx:206 fetch, :434 shows the resolved address).
+      // (src/components/marketplace/area-filter.tsx:206 fetch, :434 shows the resolved address). 2026-11-07: AND an address the seller types in Import from
+      // Facebook's location picker (src/app/api/geocode/search/route.ts, Nominatim only, on Enter; import-location-picker.tsx).
       { en: 'Google Maps geocoding, or OpenStreetMap (Nominatim)', vi: 'Google Maps (chuyển đổi tọa độ) hoặc OpenStreetMap (Nominatim)' },
       { en: 'Outside Vietnam', vi: 'Ngoài Việt Nam' },
-      { en: 'Map coordinates only — sent by our server, without your account or your IP address — when you use your location to fill in an address, or to show the area you searched near.', vi: 'Chỉ tọa độ bản đồ — do máy chủ của chúng tôi gửi, không kèm tài khoản hay địa chỉ IP của bạn — khi bạn dùng vị trí của mình để điền địa chỉ, hoặc để hiển thị khu vực bạn đang tìm kiếm xung quanh.' },
-      { en: 'Turning a location into an address.', vi: 'Chuyển vị trí thành địa chỉ.' },
+      { en: 'Map coordinates, or an address or place name to look up (one you type, or the ward or area chosen for your listings) — sent by our server, without your account or your IP address — when you use your location or look up a place to fill in a location, or to show the area you searched near.', vi: 'Tọa độ bản đồ, hoặc địa chỉ hay tên địa điểm cần tìm (do bạn nhập, hoặc phường hay khu vực được chọn cho tin của bạn) — do máy chủ của chúng tôi gửi, không kèm tài khoản hay địa chỉ IP của bạn — khi bạn dùng vị trí của mình hoặc tìm một địa điểm để điền vị trí, hoặc để hiển thị khu vực bạn đang tìm kiếm xung quanh.' },
+      { en: 'Turning a location into an address, and an address into a location.', vi: 'Chuyển vị trí thành địa chỉ, và địa chỉ thành vị trí.' },
     ],
     [
       // src/lib/basemap.ts:30 (tiles load in the visitor's browser)
