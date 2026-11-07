@@ -96,18 +96,20 @@ export function Unavailable() {
  * width (2026-10-21). Literal class strings, so Tailwind sees them.
  */
 function Figure({ label, s, locale, four = false }: { label: ReactNode; s: Stats; locale: MoneyLocale; four?: boolean }) {
-  const pad = four ? 'min-w-0 py-4 md:px-4 md:first:pl-0' : 'min-w-0 py-4 md:px-6 md:first:pl-0'
+  // From md a column with its count at the foot (`md:mt-auto` below): the figures on a band stretch to one height, so every count
+  // on it is level, a dash's beside a median's, as the tables' counts are (2026-11-07 audit: one way to show a missing figure).
+  const pad = four ? 'min-w-0 py-4 md:flex md:flex-col md:px-4 md:first:pl-0' : 'min-w-0 py-4 md:flex md:flex-col md:px-6 md:first:pl-0'
   if (!publishable(s)) {
     // ONE LINE BELOW md — the label, then the words and the count — not a ~100px block: on a phone, Houses and Rooms stacked two
     // of them between the city-wide figure and the district table (2026-11-06 audit). From md it is a column like the figures
     // beside it. Words, not a 30px bold dash: at that size the dash read as a loading bar (2026-11-06, both design judges).
-    // At 14px and text weight from md too, as on a phone (2026-11-07 audit: at 16px semibold the words under the floor took a
-    // figure's weight beside the one real figure, Houses and Rooms two thirds of the band).
+    // ⛔ AND NOT THE TABLES' 16px DASH EITHER (t33, 2026-11-07): batch 30 tried it here with a legend under the heading, and both
+    // blind judges read the words in the figure's place more clearly (a lone dash "reads as punctuation" beside its count).
     return (
       <div className={`${pad} max-md:flex max-md:flex-wrap max-md:items-baseline max-md:gap-x-3 max-md:py-3`}>
         <p className="text-sm font-semibold text-muted-foreground">{label}</p>
         <p className="mt-2 text-sm text-muted-foreground max-md:mt-0"><Tr text="Too few listings for a figure" /></p>
-        <p className="mt-2 text-xs text-muted-foreground max-md:mt-0">{count(s.n, locale)} <Tr text="listings" /></p>
+        <p className="mt-2 text-xs text-muted-foreground max-md:mt-0 md:mt-auto md:pt-2">{count(s.n, locale)} <Tr text="listings" /></p>
       </div>
     )
   }
@@ -126,7 +128,7 @@ function Figure({ label, s, locale, four = false }: { label: ReactNode; s: Stats
       {s.medianPerM2 !== null && (
         <p className="text-xs text-body">{money(Math.round(s.medianPerM2 / ROUND_VND) * ROUND_VND, locale)} {PER_M2}</p>
       )}
-      <p className="mt-2 text-xs text-body">{count(s.n, locale)} <Tr text="listings" /></p>
+      <p className="mt-2 text-xs text-body md:mt-auto md:pt-2">{count(s.n, locale)} <Tr text="listings" /></p>
     </div>
   )
 }
@@ -137,6 +139,7 @@ const BAND_ROW = 'grid grid-cols-1 border-t border-border md:grid-cols-3 md:divi
 const BAND_ROW_FOUR = 'grid grid-cols-1 border-t border-border md:grid-cols-4 md:divide-x md:divide-border max-md:divide-y max-md:divide-border'
 
 export function Headline({ index, locale }: { index: RentIndex; locale: MoneyLocale }) {
+  const banded = APARTMENT_BANDS.some((b) => index.cityBands[b].n > 0)
   return (
     <section className="mt-8" aria-labelledby="city-wide">
       <h2 id="city-wide" className="h-section text-foreground mb-4">
@@ -152,7 +155,7 @@ export function Headline({ index, locale }: { index: RentIndex; locale: MoneyLoc
           no bedroom count and no studio type has no band but still counts in "Apartments" (rules v3, R-d;
           the Studio band since v5 — rent-index.ts `apartmentBand`). */}
       {/* Like BedroomTable: no row of "— 0 listings" when no apartment is in any band. */}
-      {APARTMENT_BANDS.some((b) => index.cityBands[b].n > 0) && (
+      {banded && (
         <>
           <h3 className="mt-6 mb-2 text-sm font-bold text-foreground">
             <Bilingual en="Apartments by number of bedrooms" vi="Căn hộ theo số phòng ngủ" />
@@ -179,10 +182,12 @@ function Cell({ s, heading, locale }: { s: Stats; heading: ReactNode; locale: Mo
   // four band columns then take ~950px of the bedroom table's 1,024. Below xl the sizes are as they were (lg left unmeasured).
   // Under a figure the count is in body ink, as its range is: the sample a reader weighs the median by (2026-11-06 audit, a later
   // round). Under a dash it stays muted with the dash, so a column with nothing to show stays quiet.
-  const listed = <span className={`block text-2xs tabular-nums xl:text-sm ${publishable(s) ? 'text-body' : 'text-muted-foreground'}`}>{count(s.n, locale)} <Tr text="listings" /></span>
+  // Below md a cell is a column with its count at the foot: a row's cells stretch to one height, so a dash's count is level with a
+  // figure's beside it, where it sat a line high (2026-11-07 audit). From md the empty line under the dash does that.
+  const listed = <span className={`block text-2xs tabular-nums max-md:mt-auto xl:text-sm ${publishable(s) ? 'text-body' : 'text-muted-foreground'}`}>{count(s.n, locale)} <Tr text="listings" /></span>
   if (!publishable(s)) {
     return (
-      <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
+      <td className="min-w-0 align-top max-md:flex max-md:flex-col md:py-2 md:pl-4 md:text-right">
         {label}
         <span className="block font-semibold text-muted-foreground xl:text-base">—</span>
         {/* From md, an empty line where a figure's range sits, so this count is level with the counts beside it (it sat a line high). */}
@@ -192,7 +197,7 @@ function Cell({ s, heading, locale }: { s: Stats; heading: ReactNode; locale: Mo
     )
   }
   return (
-    <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
+    <td className="min-w-0 align-top max-md:flex max-md:flex-col md:py-2 md:pl-4 md:text-right">
       {label}
       <span className="block whitespace-nowrap font-bold tabular-nums text-foreground xl:text-base">{shown(s.median, locale)}</span>
       <span className="block text-2xs tabular-nums text-body md:whitespace-nowrap xl:text-sm">{shown(s.p25!, locale)} – {shown(s.p75!, locale)}</span>
@@ -204,10 +209,11 @@ function Cell({ s, heading, locale }: { s: Stats; heading: ReactNode; locale: Mo
 /** Thủ Đức is the union of its own rows and Districts 2 and 9, so each of those rows says so. */
 function DistrictNote({ d }: { d: DistrictRow }) {
   if (d.slug === 'thu-duc') {
-    return <span className="block text-2xs font-normal text-muted-foreground"><Tr text="All of Thu Duc City, including listings still labelled District 2 or 9" /></span>
+    // 12px in body ink: what the row holds is the source note behind its figures (2026-11-07 audit: small and pale).
+    return <span className="block text-xs font-normal text-body"><Tr text="All of Thu Duc City, including listings still labelled District 2 or 9" /></span>
   }
   if (d.partOf) {
-    return <span className="block text-2xs font-normal text-muted-foreground"><Tr text="Listings labelled with the former district name; also counted in Thu Duc City" /></span>
+    return <span className="block text-xs font-normal text-body"><Tr text="Listings labelled with the former district name; also counted in Thu Duc City" /></span>
   }
   return null
 }

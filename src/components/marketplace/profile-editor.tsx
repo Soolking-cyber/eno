@@ -86,7 +86,9 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
 
   return (
     <div>
-      <label className="group relative inline-block cursor-pointer" title={tr('Change photo', 'Đổi ảnh')}>
+      {/* The photo's file input is sr-only, not display:none (2026-11-07 audit), so a keyboard reaches it, named "Change photo";
+          the ring shows round the photo while it has keyboard focus. */}
+      <label className="group relative inline-block cursor-pointer rounded-full has-[input:focus-visible]:ring-[3px] has-[input:focus-visible]:ring-ring/50" title={tr('Change photo', 'Đổi ảnh')}>
         <Avatar name={name} url={avatarUrl} color={profile.avatarColor} size="xl" />
         {/* Line-only CHROME, not a coin: §6's coin allowlist is enumerative (EmptyState badge,
             bottom-nav Post chip) and this affordance is neither — the R2 critic flagged the
@@ -103,7 +105,7 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
               conventional read for "working" — it also only shows during an upload. */}
           {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-[29px] w-[29px] shrink-0" />}
         </span>
-        <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f) }} />
+        <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="sr-only" aria-label={tr('Change photo', 'Đổi ảnh')} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f) }} />
       </label>
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -114,7 +116,9 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
         </Field>
         <Field invalid={!!fieldErr.phone}>
           <Label htmlFor="profile-phone">{tr('Contact phone (Zalo / WhatsApp)', 'Điện thoại (Zalo / WhatsApp)')}</Label>
-          <FieldControl id="profile-phone" render={<Input id="profile-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" />} />
+          {/* "e.g.", like the name field's placeholder (2026-11-07 audit): a bare "0901 234 567" in placeholder grey read as a
+              number already filled in a disabled field. The Zalo panel's own pair (cover-zalo-panel.tsx). */}
+          <FieldControl id="profile-phone" render={<Input id="profile-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder={tr('e.g. 0901 234 567', 'Ví dụ: 0901 234 567')} />} />
           <FieldDescription>{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ sau khi bạn trả lời — không hiển thị công khai.')}</FieldDescription>
           {fieldErr.phone && <FieldError>{fieldErr.phone}</FieldError>}
         </Field>

@@ -10,6 +10,9 @@ import { cleanup, render } from '@testing-library/react'
 
 vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
 vi.mock('@/components/marketplace/trust-score', () => ({ TrustScore: () => <a href="/trust" data-trust-score="" aria-label="trust" /> }))
+// The mock keeps the one prop the header sets (2026-11-06 review: a mock that ignored it let the test pass whatever the
+// header drew): a /partners link by default, a plain span with `asLink={false}`, as partner-badge.tsx's LinkOrSpan does.
+vi.mock('@/components/marketplace/partner-badge', () => ({ PartnerBadge: ({ asLink = true }: { asLink?: boolean }) => (asLink ? <a href="/partners" data-partner-badge="" aria-label="partner" /> : <span role="img" data-partner-badge="" aria-label="partner" />) }))
 vi.mock('@/lib/last-seen', () => ({ lastSeenBucket: (d?: string | null) => (d ? { key: 'today', en: 'Active today', vi: 'Hoạt động hôm nay' } : { key: null, en: '', vi: '' }) }))
 
 import { TrustMeta } from './trust-meta'
@@ -57,5 +60,28 @@ describe('TrustMeta — the response label', () => {
     cleanup()
     const line = render(<TrustMeta {...props} responseBucket={usual} singleLine />)
     expect(line.container.querySelector('[data-trust-meta-line]')?.textContent).toContain('Usually replies within a day')
+  })
+})
+
+describe('TrustMeta — an official partner', () => {
+  // A partner carries no trust score on any surface (owner, 2026-09-30): the plate takes the chip's place in the chat header too.
+  it('shows the partner plate instead of the trust chip, on both layouts, and keeps the year and the presence', () => {
+    for (const singleLine of [false, true]) {
+      const { container } = render(<TrustMeta {...props} partner singleLine={singleLine} />)
+      expect(container.querySelector('[data-partner-badge]')).not.toBeNull()
+      // The header's one line draws the plate as a span, never the /partners link (its clip box has no room for the link's
+      // focus ring, trust-meta.tsx); the wrapping layout keeps the link (2026-11-06 review).
+      expect(container.querySelector('a[href="/partners"]') === null).toBe(singleLine)
+      expect(container.querySelector('[data-trust-score]')).toBeNull()
+      expect(container.textContent).toContain('Joined 2023')
+      expect(container.textContent).toContain('Active today')
+      cleanup()
+    }
+  })
+
+  it('without the flag, the trust chip as before', () => {
+    const { container } = render(<TrustMeta {...props} singleLine />)
+    expect(container.querySelector('[data-trust-score]')).not.toBeNull()
+    expect(container.querySelector('[data-partner-badge]')).toBeNull()
   })
 })

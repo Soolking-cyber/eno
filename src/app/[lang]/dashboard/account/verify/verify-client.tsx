@@ -1412,7 +1412,8 @@ export function VerifyClient() {
         on the page asking for a passport is the worst thing on it to get wrong.
         In body ink, not the tertiary grey (2026-11-06 audit): this promise is not fine print.
       */}
-      <p className="text-xs text-body">
+      {/* 14px (2026-11-07 audit): at 12px this privacy promise read as fine print on a desktop. */}
+      <p className="text-sm text-body">
         {tr(
           'Your two photographs are stored privately by eno.vn and are opened only by a reviewer on our team, through a link that expires in ten minutes. We keep the result, the document expiry date, and a one-way fingerprint that lets us spot duplicate accounts — never the document number itself.',
           'Hai ảnh của bạn được eno.vn lưu trữ riêng tư và chỉ được mở bởi nhân viên xét duyệt của chúng tôi, qua đường dẫn hết hạn sau mười phút. Chúng tôi lưu kết quả, ngày hết hạn giấy tờ và một dấu vân tay một chiều để phát hiện tài khoản trùng lặp — không bao giờ lưu số giấy tờ.',

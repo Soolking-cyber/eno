@@ -2943,7 +2943,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     return (
       <div className="mx-auto max-w-md py-16 text-center">
         <h1 className="h-title text-foreground">{tr('You don’t have a teacher profile yet', 'Bạn chưa có hồ sơ giáo viên')}</h1>
-        <p className="mt-2 text-sm text-body">{tr('It is free, and schools across Vietnam can find you once it is published.', 'Hồ sơ miễn phí, và các trường trên toàn Việt Nam có thể tìm thấy bạn khi hồ sơ được đăng.')}</p>
+        {/* 16px from lg and balanced over its two lines (2026-11-07 audit: on a desktop "published." sat alone on the second). */}
+        <p className="mt-2 text-balance text-sm text-body lg:text-base">{tr('It is free, and schools across Vietnam can find you once it is published.', 'Hồ sơ miễn phí, và các trường trên toàn Việt Nam có thể tìm thấy bạn khi hồ sơ được đăng.')}</p>
         <Button variant="cta" className="mt-4" asChild>
           <Link href="/teachers/join">{noProfileDraft ? tr('Continue my teacher profile', 'Tiếp tục hồ sơ giáo viên') : tr('Create my teacher profile', 'Tạo hồ sơ giáo viên')}</Link>
         </Button>

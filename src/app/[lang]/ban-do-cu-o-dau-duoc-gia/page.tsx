@@ -31,6 +31,48 @@ import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/m
  */
 const SLUG = 'ban-do-cu-o-dau-duoc-gia'
 
+/**
+ * The six item types with a middle half, from the section's own sample (23.09.2026, 300 listings), as one table instead of six
+ * bullets that set every figure mid-sentence, so comparing two items meant reading both sentences again (2026-11-07 audit). The
+ * figures are the bullets' own; the column heads are the words of the sentence above the table ("trung vị và khoảng giữa"),
+ * "Khoảng giữa" as the Rent Index prints "Middle half" in Vietnamese. A range prints one "đ" at its end, as the guides print a
+ * range, and may break after its dash on a narrow phone; a no-break space keeps each "đ" on its number's line (the 2026-11-06
+ * fix). Air purifiers and robot vacuums, with a median only and few listings, stay in the sentence after the table with their
+ * caveat.
+ */
+const PRICE_ROWS: readonly (readonly [item: string, median: string, middle: string])[] = [
+  ['Máy lạnh', '4.298.000\u00a0đ', '3.948.000–5.498.000\u00a0đ'],
+  ['Máy giặt', '2.730.000\u00a0đ', '1.648.000–3.480.000\u00a0đ'],
+  ['Sofa', '2.515.000\u00a0đ', '1.390.000–4.510.000\u00a0đ'],
+  ['Tủ quần áo', '6.200.000\u00a0đ', '3.980.000–7.800.000\u00a0đ'],
+  ['Bàn các loại', '1.650.000\u00a0đ', '1.050.000–3.200.000\u00a0đ'],
+  ['Kệ và tủ nhỏ', '1.980.000\u00a0đ', '1.180.000–3.380.000\u00a0đ'],
+]
+
+/** Ruled rows, figures right-aligned in tabular digits (the Rent Index's table idiom); 14px on a phone so three columns fit 320px. */
+function ItemPriceTable() {
+  return (
+    <table className="mt-4 w-full max-w-lg text-sm sm:text-base">
+      <thead>
+        <tr className="border-b border-border text-left text-sm text-body">
+          <th scope="col" className="py-2 pr-4 font-semibold">Loại món</th>
+          <th scope="col" className="py-2 pr-4 text-right font-semibold">Trung vị</th>
+          <th scope="col" className="py-2 text-right font-semibold">Khoảng giữa</th>
+        </tr>
+      </thead>
+      <tbody>
+        {PRICE_ROWS.map(([item, median, middle]) => (
+          <tr key={item} className="border-b border-border">
+            <th scope="row" className="py-2 pr-4 text-left align-top font-semibold text-foreground">{item}</th>
+            <td className="whitespace-nowrap py-2 pr-4 text-right align-top font-semibold tabular-nums text-foreground">{median}</td>
+            <td className="py-2 text-right align-top tabular-nums text-body">{middle}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
 const CONTENT: ArticleContent = {
   eyebrow: 'Cẩm nang bán lại',
   h1: 'Bán đồ cũ ở đâu được giá',
@@ -96,32 +138,12 @@ const CONTENT: ArticleContent = {
             Toàn danh mục: trung vị <strong>2.480.000&nbsp;đ</strong>. Một phần tư số tin dưới 1.050.000&nbsp;đ,
             một phần tư trên 4.100.000&nbsp;đ. Theo từng loại món, trung vị và khoảng giữa:
           </P>
-          <Ul>
-            <li>
-              <strong>Máy lạnh:</strong> 4.298.000&nbsp;đ, nửa giữa số tin nằm trong 3.948.000&nbsp;đ&nbsp;&ndash; 5.498.000&nbsp;đ.
-            </li>
-            <li>
-              <strong>Máy giặt:</strong> 2.730.000&nbsp;đ, nửa giữa số tin nằm trong 1.648.000&nbsp;đ&nbsp;&ndash; 3.480.000&nbsp;đ.
-            </li>
-            <li>
-              <strong>Sofa:</strong> 2.515.000&nbsp;đ, nửa giữa số tin nằm trong 1.390.000&nbsp;đ&nbsp;&ndash; 4.510.000&nbsp;đ.
-            </li>
-            <li>
-              <strong>Tủ quần áo:</strong> 6.200.000&nbsp;đ, nửa giữa số tin nằm trong 3.980.000&nbsp;đ&nbsp;&ndash; 7.800.000&nbsp;đ.
-              Đây là nhóm nội thất có trung vị cao nhất trong mẫu đo.
-            </li>
-            <li>
-              <strong>Bàn các loại:</strong> 1.650.000&nbsp;đ, nửa giữa số tin nằm trong 1.050.000&nbsp;đ&nbsp;&ndash; 3.200.000&nbsp;đ.
-            </li>
-            <li>
-              <strong>Kệ và tủ nhỏ:</strong> 1.980.000&nbsp;đ, nửa giữa số tin nằm trong 1.180.000&nbsp;đ&nbsp;&ndash; 3.380.000&nbsp;đ.
-            </li>
-            <li>
-              <strong>Máy lọc không khí:</strong> trung vị 6.000.000&nbsp;đ. <strong>Robot hút bụi:</strong>{' '}
-              trung vị 9.000.000&nbsp;đ. Hai nhóm này ít tin nên con số chỉ mang tính tham khảo, nhưng cả hai
-              đều nằm cao hơn hẳn trung vị 2.480.000&nbsp;đ của toàn danh mục.
-            </li>
-          </Ul>
+          <ItemPriceTable />
+          <P>
+            Tủ quần áo là nhóm nội thất có trung vị cao nhất trong mẫu đo. Máy lọc không khí (trung vị 6.000.000&nbsp;đ) và robot
+            hút bụi (trung vị 9.000.000&nbsp;đ) ít tin nên con số chỉ mang tính tham khảo, nhưng cả hai đều nằm cao hơn hẳn trung vị
+            2.480.000&nbsp;đ của toàn danh mục.
+          </P>
           <P>
             Hai lưu ý để dùng đúng mấy con số này. Thứ nhất, đó là <strong>giá rao</strong>, không phải
             giá đã chốt; giá chốt thường thấp hơn một bậc thương lượng. Thứ hai, và đây mới là chỗ quan

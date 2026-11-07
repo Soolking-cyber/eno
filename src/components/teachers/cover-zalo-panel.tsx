@@ -286,7 +286,10 @@ function CoverZaloFor() {
           id="cover-zalo-switch"
           // On the page with a hairline, not a grey well (2026-11-06 audit): on the well the OFF track (#e5e5e5 on #f5f5f5)
           // all but vanished, and it read as one more filled field under the number's.
-          className="border border-border bg-card"
+          // The switch's name is the card's heading, 16px over the notice (2026-11-07 audit: at the notice's own 14px, with the
+          // inked paragraphs in its ink, the card read as one wall of text), and from lg the notice is 16px body copy in a
+          // roomier card (at 14px it ran ~95 characters a line in the 672px column). SwitchRow's label span and description div.
+          className="border border-border bg-card lg:px-5 lg:py-4 [&>label>span:first-child]:text-base lg:[&>div]:text-base"
           checked={view.on && !view.stale}
           onChange={(next) => { void save(next) }}
           disabled={busy || (!view.coverOn && !view.on)}

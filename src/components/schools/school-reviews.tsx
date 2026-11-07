@@ -38,7 +38,8 @@ export function SchoolReviews({ reviews, slug, schoolName }: { reviews: PublicRe
   // review" button a few lines under the page's own (2026-11-06 audit).
   if (!reviews.length) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm text-body">
+        {/* Body ink, like the pay note beside it on desktop (2026-11-07 audit: the page's status lines read pale). */}
         {tr('No reviews yet. Worked or taught here?', 'Chưa có đánh giá. Bạn từng dạy ở đây?')}{' '}
         <Link href={`/schools/${slug}/review`} className="font-semibold text-accent-foreground hover:underline">{tr('Write the first review', 'Viết đánh giá đầu tiên')}</Link>
       </p>

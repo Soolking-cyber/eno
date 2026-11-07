@@ -128,8 +128,12 @@ export function StorefrontBannerEditor({ bannerUrl, handle, onSaved }: Props) {
         </p>
       )}
 
+      {/* AN ACTION THAT LOOKS AVAILABLE (2026-11-07 audit): the empty slot was a bg-tint well, the grey of the disabled "Save
+          changes" above it, and judges took it for unavailable. Canvas-white inside the strong edge, as an outline button is,
+          tinting on hover. Its file input is sr-only rather than display:none, so a keyboard reaches it; the ring shows on
+          this box while the input has keyboard focus. */}
       <label
-        className={cn('group relative mt-3 block cursor-pointer overflow-hidden border border-line-strong bg-tint', url ? 'rounded-2xl' : 'rounded-xl')}
+        className={cn('group relative mt-3 block cursor-pointer overflow-hidden border border-line-strong bg-card transition-colors hover:bg-muted has-[input:focus-visible]:ring-[3px] has-[input:focus-visible]:ring-ring/50', url ? 'rounded-2xl' : 'rounded-xl')}
         title={tr('Change banner', 'Đổi ảnh bìa')}
       >
         {/* The reserved box is the storefront's own ratio — see BANNER_W/H above — once there is a banner to preview.
@@ -139,7 +143,7 @@ export function StorefrontBannerEditor({ bannerUrl, handle, onSaved }: Props) {
           {url ? (
             <Image src={url} alt="" width={BANNER_W} height={BANNER_H} className="h-full w-full object-cover" unoptimized />
           ) : (
-            <span className="flex h-full w-full items-center justify-center gap-2 text-sm font-semibold text-body">
+            <span className="flex h-full w-full items-center justify-center gap-2 text-sm font-semibold text-foreground">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-5 w-5 shrink-0" />}
               {tr('Add a banner', 'Thêm ảnh bìa')}
             </span>
@@ -153,7 +157,8 @@ export function StorefrontBannerEditor({ bannerUrl, handle, onSaved }: Props) {
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp,.heic,.heif"
-          className="hidden"
+          className="sr-only"
+          aria-label={url ? tr('Change banner', 'Đổi ảnh bìa') : tr('Add a banner', 'Thêm ảnh bìa')}
           disabled={busy}
           onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = '' }}
         />

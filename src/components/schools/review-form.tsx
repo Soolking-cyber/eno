@@ -134,7 +134,10 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
       <div className="max-w-xl rounded-2xl bg-card p-6 ring-1 ring-border">
         <p className="text-base font-semibold text-foreground">{tr('Sign in to write a review', 'Đăng nhập để viết đánh giá')}</p>
         <p className="mt-2 text-sm text-body">
-          {tr('Your name is never shown. Reviews appear with a broad description only, such as "Former teacher · 1–2 years".', 'Tên của bạn không bao giờ hiển thị. Đánh giá chỉ kèm mô tả chung, ví dụ "Giáo viên cũ · 1–2 năm".')}
+          {/* Where the line is drawn, in full: what never shows, and what a review does carry — the details the writer picks in the
+              form (role, time there, contract; an area or the year they left only if given) and its month (school-reviews.tsx
+              ReviewCard). "Never shown" beside "a broad description" read as a boundary left unstated (2026-11-07 audit). */}
+          {tr('Your name and profile are never shown. A review carries only the details you choose, such as "Former teacher · 1–2 years · Full-time", and the month it was written.', 'Tên và hồ sơ của bạn không bao giờ hiển thị. Đánh giá chỉ kèm những thông tin bạn chọn, ví dụ "Giáo viên cũ · 1–2 năm · Toàn thời gian", và tháng viết đánh giá.')}
         </p>
         {REVIEWS_NEED_PROOF && (
           <p className="mt-2 text-sm text-body">

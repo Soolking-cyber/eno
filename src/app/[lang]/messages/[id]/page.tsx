@@ -2637,6 +2637,9 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                 <div className="mt-0.5">
                   <TrustMeta
                     singleLine
+                    // A partner seller, read by its buyer: the partner plate where the score was — a partner carries no trust score on
+                    // any surface (owner, 2026-09-30), and /partners names the chat header (2026-11-07 audit).
+                    partner={thread.sellerIsPartner === true && !thread.iAmSeller}
                     trustScore={thread.counterpart.trust.trustScore}
                     trustTier={thread.counterpart.trust.trustTier}
                     memberSinceYear={thread.counterpart.trust.memberSinceYear}
@@ -3260,8 +3263,9 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                     )}
                     {/* Owner, 2026-08-16: "timestamp is inside box for all other in chat elements
                         too like offers etc". The shell cards get the same line from
-                        ChatCardMetaProvider; this card is inline JSX, so it carries its own. */}
-                    <div className={cn('mt-1.5 flex items-center justify-end gap-1 text-2xs leading-none', m.failed ? 'text-destructive' : 'text-ink-4')}>
+                        ChatCardMetaProvider; this card is inline JSX, so it carries its own — 12px from lg, as the bubble's
+                        (chat-parts.tsx, 2026-11-07 audit). */}
+                    <div className={cn('mt-1.5 flex items-center justify-end gap-1 text-2xs leading-none lg:text-xs', m.failed ? 'text-destructive' : 'text-ink-4')}>
                       {metaNode}
                     </div>
                   </div>
@@ -3436,7 +3440,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                     legitimately pasting a landlord's Zalo must not be flagged to the requester as an
                     off-platform lure. */}
                 {receipt && m.id === receipt.anchorId && (
-                  <p data-seen="" className="-mt-1 pr-1 text-right text-2xs text-ink-4">
+                  <p data-seen="" className="-mt-1 pr-1 text-right text-2xs text-ink-4 lg:text-xs">
                     {receipt.seen ? tr('Seen', 'Đã xem') : tr('Sent', 'Đã gửi')}
                   </p>
                 )}

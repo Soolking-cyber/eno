@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { ChevronRight } from '@/components/ui/icons'
 import { SITE_NAME } from '@/lib/edition'
 import { Tr } from '@/context/language-context'
 import { Bilingual } from '@/components/marketplace/bilingual'
@@ -85,6 +86,8 @@ const IN_APP_STEPS: Copy[][] = [
 /**
  * The in-app shortcut ends the intro (2026-11-07 audit): at the foot of "Delete it yourself" a phone met it about a screen and
  * a half down, under the very steps it skips. Still the page's one link to Settings, so page.test.tsx finds it by its `href`.
+ * ON A LINE OF ITS OWN, in the link ink with a chevron and a 44px row (2026-11-07 audit, second pass): run into the sentence it
+ * wrapped mid-label ("Go / straight to Settings") and read as part of the paragraph, not as the page's fastest route.
  */
 const SETTINGS_SHORTCUT = { href: '/dashboard/settings?tab=account', en: 'Go straight to Settings → Account', vi: 'Mở ngay Cài đặt → Tài khoản' }
 
@@ -133,7 +136,7 @@ export default function AccountDeletionPage() {
     <ContentPage
       title="Delete your account"
       meta={<p className="mt-3 text-sm text-ink-4"><Bilingual en="Last updated: October 2026" vi="Cập nhật lần cuối: Tháng 10 năm 2026" /></p>}
-      intro={<><Tr text="You can delete your account and the personal data attached to it at any time, either yourself in the app or by asking us. This page explains both, and what happens afterwards." />{' '}<Link className="font-semibold underline underline-offset-2" href={SETTINGS_SHORTCUT.href}><Bilingual en={SETTINGS_SHORTCUT.en} vi={SETTINGS_SHORTCUT.vi} /></Link></>}
+      intro={<><Tr text="You can delete your account and the personal data attached to it at any time, either yourself in the app or by asking us. This page explains both, and what happens afterwards." />{' '}<Link className="mt-2 flex min-h-11 w-fit max-w-full items-center gap-1 font-semibold text-accent-foreground underline-offset-2 hover:underline" href={SETTINGS_SHORTCUT.href}><Bilingual en={SETTINGS_SHORTCUT.en} vi={SETTINGS_SHORTCUT.vi} /><ChevronRight className="size-4 shrink-0" aria-hidden="true" /></Link></>}
       /* ⚠️ THE CONTACT SECTION IS IN THE RAIL TOO. It is rendered separately from SECTIONS (it
          carries a mailto link rather than plain paragraphs), and building the rail from SECTIONS
          alone left the written-request address — the whole point of this page for someone who

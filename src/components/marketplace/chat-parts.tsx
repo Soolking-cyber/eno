@@ -164,8 +164,9 @@ export function MessageBubble({
             // corner, 18px wide and inset 8px, so a timestamp running to the padding edge sits
             // under it. Twenty pixels of trailing space is the whole fix, and it costs nothing on
             // a message that has no glyph.
-            // 11px, the dense-meta size (2026-11-07 audit: at 10px the time read as a speck beside 14px text).
-            'mt-0.5 flex items-center justify-end gap-1 pe-5 text-2xs leading-none',
+            // 11px, the dense-meta size (2026-11-07 audit: at 10px the time read as a speck beside 14px text), and 12px from lg
+            // under the desktop's 16px bubble text (2026-11-07 audit: still small there).
+            'mt-0.5 flex items-center justify-end gap-1 pe-5 text-2xs leading-none lg:text-xs',
             failed ? 'text-destructive' : mine ? 'text-white/85' : 'text-ink-4',
           )}
         >

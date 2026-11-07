@@ -87,6 +87,9 @@ export function AvailabilityClient() {
   const total = listings?.length ?? 0
   const soldCount = soldIds.size
   const availCount = total - soldCount
+  // The footer says what the tap records in the rows' own words (2026-11-07 audit), so it needs how many ticked rows are rentals.
+  const soldRentals = listings ? listings.filter((l) => soldIds.has(l.id) && l.category?.slug === 'rentals').length : 0
+  const counts = { soldCount: formatInteger(soldCount, moneyLocale(lang)), availCount: formatInteger(availCount, moneyLocale(lang)) }
 
   const submit = async () => {
     if (!listings || submitting) return
@@ -140,9 +143,19 @@ export function AvailabilityClient() {
                 storefront drop it. ⚠️ "AT MOST ONCE A WEEK" IS BUMP_COOLDOWN_DAYS (7, lib/stale.ts; 2026-11-06
                 review): a row bumped in the last 7 days is only confirmed, and the reminder comes after 3 (STALE_DAYS), so
                 an unqualified "moves back to the top" was false for every such row. A new cooldown means new words here. */}
-            <p className="mt-1 text-sm text-body">{anyRental
-              ? tr('Anything you tick is marked sold or rented and taken out of search. Everything else moves back to the top of search, at most once a week.', 'Tin bạn đánh dấu sẽ chuyển sang đã bán hoặc đã cho thuê và không còn hiện trong kết quả tìm kiếm. Những tin còn lại sẽ được đẩy lên đầu kết quả tìm kiếm, tối đa một lần mỗi tuần.')
-              : tr('Anything you tick is marked sold and taken out of search. Everything else moves back to the top of search, at most once a week.', 'Món bạn đánh dấu sẽ chuyển sang đã bán và không còn hiện trong kết quả tìm kiếm. Những món còn lại sẽ được đẩy lên đầu kết quả tìm kiếm, tối đa một lần mỗi tuần.')}</p>
+            <p className="mt-1 text-sm text-body">
+              {/* What a tick does leads, in the foreground ink (2026-11-07 audit: a tick meaning "gone" beside a button saying
+                  "still available" was easy to misread); what the rest get follows at the paragraph's own weight. Same sentences, split. */}
+              <span className="font-semibold text-foreground">
+                {anyRental
+                  ? tr('Anything you tick is marked sold or rented and taken out of search.', 'Tin bạn đánh dấu sẽ chuyển sang đã bán hoặc đã cho thuê và không còn hiện trong kết quả tìm kiếm.')
+                  : tr('Anything you tick is marked sold and taken out of search.', 'Món bạn đánh dấu sẽ chuyển sang đã bán và không còn hiện trong kết quả tìm kiếm.')}
+              </span>
+              {' '}
+              {anyRental
+                ? tr('Every other listing moves back to the top of search, at most once a week.', 'Những tin còn lại sẽ được đẩy lên đầu kết quả tìm kiếm, tối đa một lần mỗi tuần.')
+                : tr('Everything else moves back to the top of search, at most once a week.', 'Những món còn lại sẽ được đẩy lên đầu kết quả tìm kiếm, tối đa một lần mỗi tuần.')}
+            </p>
             {/* Icon-only control → ui/close-button (the IconButton shell, 44px tap target, glyph sized
                 to its button), composed onto the Base UI Close via the render prop — not a bare
                 padded button. The ✕ is CloseButton's own child, so the Close takes none.
@@ -215,15 +228,21 @@ export function AvailabilityClient() {
             <div className="shrink-0 border-t border-border bg-card px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-3">
               <div className="flex items-center justify-between gap-3">
                 {canSkip ? (
-                  <Button variant="bare" size="none" onClick={skip} className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer">{tr('Skip for now', 'Để sau')}</Button>
+                  <Button variant="bare" size="none" onClick={skip} className="relative tap-44 text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer">{tr('Skip for now', 'Để sau')}</Button>
                 ) : (
                   <span className="max-w-[55%] text-xs text-muted-foreground">{tr('Quick check needed — confirm what’s still available to keep your listings live.', 'Cần xác nhận nhanh — xác nhận món còn hàng để giữ tin của bạn hiển thị.')}</span>
                 )}
                 <Button variant="cta" size="none" onClick={submit} disabled={submitting} className="inline-flex shrink items-center gap-2 whitespace-normal rounded-xl px-5 py-2.5 text-sm transition-colors disabled:opacity-50 cursor-pointer">
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {soldCount > 0
-                    ? fillTemplate(tr('Bump {availCount} · sold {soldCount}', 'Đẩy {availCount} · đã bán {soldCount}'), 'Bump {availCount} · sold {soldCount}', { availCount: formatInteger(availCount, moneyLocale(lang)), soldCount: formatInteger(soldCount, moneyLocale(lang)) })
-                    : tr('Everything’s still available', 'Tất cả vẫn còn')}
+                  {/* What the tap records, in the rows' own words (2026-11-07 audit): "Bump 3 · sold 1" was jargon, and called a
+                      rented room sold. The ticked rows first, as the title asks about them, then the rest. */}
+                  {soldCount === 0
+                    ? tr('Everything’s still available', 'Tất cả vẫn còn')
+                    : soldRentals === soldCount
+                      ? fillTemplate(tr('{soldCount} rented · {availCount} still available', '{soldCount} đã cho thuê · còn {availCount}'), '{soldCount} rented · {availCount} still available', counts)
+                      : soldRentals === 0
+                        ? fillTemplate(tr('{soldCount} sold · {availCount} still available', '{soldCount} đã bán · còn {availCount}'), '{soldCount} sold · {availCount} still available', counts)
+                        : fillTemplate(tr('{soldCount} sold or rented · {availCount} still available', '{soldCount} đã bán hoặc cho thuê · còn {availCount}'), '{soldCount} sold or rented · {availCount} still available', counts)}
                 </Button>
               </div>
             </div>

@@ -50,6 +50,13 @@ type SeoContentFields = {
    */
   rail?: false
   /**
+   * Which way leads while the category holds nothing yet (the empty-inventory branch below). 'list', the default, keeps "Be the
+   * first to list one" as the brand button: on a category page what is missing is supply. 'browse' is for a buyer's price or
+   * buying guide (2026-11-07 audit: the iPhone 18 hub, two rounds of judges): its readers came to buy, so browsing — where the
+   * alert is set — takes the button and listing becomes the text link. One brand CTA either way, and the same two destinations.
+   */
+  emptyPrimary?: 'list' | 'browse'
+  /**
    * `recent` — the rail lists featured-then-newest, not cheapest-first (seo-listing-rail.tsx). For a page
    * that quotes prices: a price-sorted rail would put the cheapest listing — a typo, or a lure priced to be
    * clicked — first, right under a table built to leave such prices out (review, 2026-10-03).
@@ -335,24 +342,41 @@ export async function SeoLanding({ content, lede, after, inventory }: {
               This part of the marketplace is just getting started, so there is not much to browse
               here yet.
             </p>
-            <div lang="en" className="mt-4 flex flex-wrap items-center gap-3">
-              <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold">
-                <Link href="/post" className="px-5 py-2.5 text-sm">
-                  Be the first to list one <ArrowRight className="h-4 w-4" />
+            {content.emptyPrimary === 'browse' ? (
+              // A buyer's guide (`emptyPrimary`): the same two ways, browse first, and still one brand button. A label short enough for
+              // one line on a 320px phone (t33, 2026-11-07: the longer "Browse the category — you can set an alert there" ran off it).
+              // `shrink` on the Button (2026-11-06 review): its base is `shrink-0`, so `whitespace-normal` alone never let this ~400px
+              // label wrap. It stayed on one line and ran past a phone's 296–390px column, scrolling the page sideways.
+              <div lang="en" className="mt-4 flex flex-wrap items-center gap-3">
+                <Button asChild variant="cta" size="none" className="shrink gap-1.5 font-semibold whitespace-normal text-center">
+                  <LocalizedLink href={browseHref} className="px-5 py-2.5 text-sm">
+                    Browse and set an alert <ArrowRight className="h-4 w-4" />
+                  </LocalizedLink>
+                </Button>
+                <Link href="/post" className="text-sm font-semibold text-accent-foreground hover:underline">
+                  Or be the first to list one
                 </Link>
-              </Button>
-              {/* ⚠️ THE ANCHOR DESCRIBES WHAT THE LINK DOES, NOT WHAT HAPPENS TWO TAPS LATER.
-                  An earlier draft read "Or set an alert for when one appears" while pointing at
-                  the browse URL — the alert button lives in the explorer's zero-results state, so
-                  the link promised an action its destination does not perform. Naming both steps
-                  is honest and still routes to the recovery UI that is already built. */}
-              <LocalizedLink
-                href={browseHref}
-                className="text-sm font-semibold text-accent-foreground hover:underline"
-              >
-                Or browse the category — you can set an alert there
-              </LocalizedLink>
-            </div>
+              </div>
+            ) : (
+              <div lang="en" className="mt-4 flex flex-wrap items-center gap-3">
+                <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold">
+                  <Link href="/post" className="px-5 py-2.5 text-sm">
+                    Be the first to list one <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+                {/* ⚠️ THE ANCHOR DESCRIBES WHAT THE LINK DOES, NOT WHAT HAPPENS TWO TAPS LATER.
+                    An earlier draft read "Or set an alert for when one appears" while pointing at
+                    the browse URL — the alert button lives in the explorer's zero-results state, so
+                    the link promised an action its destination does not perform. Naming both steps
+                    is honest and still routes to the recovery UI that is already built. */}
+                <LocalizedLink
+                  href={browseHref}
+                  className="text-sm font-semibold text-accent-foreground hover:underline"
+                >
+                  Or browse the category — you can set an alert there
+                </LocalizedLink>
+              </div>
+            )}
           </>
         ) : content.browseLinks ? (
           <div className="mt-6 flex flex-wrap gap-3">

@@ -136,6 +136,9 @@ function content(rows: PriceRow[], rows17: PriceRow[], known: boolean): SeoConte
     browseQuery: 'iPhone',
     railTitle: 'Second-hand iPhones listed now',
     order: 'recent',
+    // A price-research page (codex all12, third round): with no stock it leads with browse-and-alert, and listing one is
+    // the text link. Every other landing keeps the default, 'list'.
+    emptyPrimary: 'browse',
     /**
      * ⛔ THE HUB'S CTAs GO TO ITS CHILDREN, NOT TO THE EXPLORER. "Browse every iPhone 18" linked
      * `/?category=electronics&…&q=iPhone+18`, which canonicalises to `/` — three followed links (the

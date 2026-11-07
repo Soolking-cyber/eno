@@ -101,32 +101,42 @@ export function TeachingJobsBoard({ board }: { board: TeachingBoard }) {
           </h2>
           {s.jobs.length > 0 ? (
             <Rows bordered className="mt-3">
-              {s.jobs.map((j) => (
-                <Row key={j.id} className="py-0">
-                  <Link href={`/listings/${j.id}`} prefetch={false} className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
-                    <span className="min-w-0">
-                      <span className="block text-base font-bold text-foreground group-hover:text-accent-foreground [overflow-wrap:anywhere]">{j.title}</span>
-                      {/* The pay, where a posting states one, on its own line under the title, as a price sits under a card's title; the
-                          employer, apply-by date and source follow (2026-11-06 audit: the pay sat mid-sentence in the line below). */}
-                      {j.pay && <span className="mt-1 block text-sm font-semibold text-foreground [overflow-wrap:anywhere]">{j.pay}</span>}
-                      {/* No line when the pay was all it held: an empty block left a 4px gap under the pay (2026-11-06 gate review). The
-                          apply-by date in the title's ink, on one line, so a reader running down the list picks out each row's deadline;
-                          the employer and the source stay in body ink (2026-11-07 audit). */}
-                      {jobMeta(j) && (
-                        <span className="mt-1 block text-sm leading-relaxed text-body [overflow-wrap:anywhere]">
-                          {jobMetaParts(j).map((p, i) => (
-                            <Fragment key={i}>
-                              {i > 0 && ' · '}
-                              {p.due ? <span className="whitespace-nowrap text-foreground">{p.text}</span> : p.text}
-                            </Fragment>
-                          ))}
-                        </span>
-                      )}
-                    </span>
-                    <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
-                  </Link>
-                </Row>
-              ))}
+              {s.jobs.map((j) => {
+                // The apply-by date last, at one place in every row: on a phone it ends the line, from sm it is a column at the row's
+                // right edge, its separator dropped and the text column leaving it 11rem ("Apply by 30 May 2027" is ~149px at 14px in
+                // Open Runde, so a ~26px gutter) (2026-11-07 audit: with no employer named the date led the line, so the deadlines did
+                // not line up down the list). One copy in the DOM, read in line order. Only a row with a date leaves the date its
+                // 11rem: a direct post may carry none (an imported job always has one, job-listing.ts), and an undated title gave up
+                // 176px to an empty column, wrapping at ~390px of a 564px column at 640 (2026-11-06 gate review).
+                const parts = jobMetaParts(j)
+                const rest = parts.filter((p) => !p.due)
+                const due = parts.find((p) => p.due)
+                return (
+                  <Row key={j.id} className="py-0">
+                    <Link href={`/listings/${j.id}`} prefetch={false} className="group relative grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
+                      <span className={due ? 'min-w-0 sm:pr-44' : 'min-w-0'}>
+                        <span className="block text-base font-bold text-foreground group-hover:text-accent-foreground [overflow-wrap:anywhere]">{j.title}</span>
+                        {/* The pay, where a posting states one, on its own line under the title, as a price sits under a card's title; the
+                            employer, source and apply-by date follow (2026-11-06 audit: the pay sat mid-sentence in the line below). */}
+                        {j.pay && <span className="mt-1 block text-sm font-semibold text-foreground [overflow-wrap:anywhere]">{j.pay}</span>}
+                        {/* No line when the pay was all it held: an empty block left a 4px gap under the pay (2026-11-06 gate review). The
+                            apply-by date in the title's ink, on one line, so a reader running down the list picks out each row's deadline;
+                            the employer and the source stay in body ink (2026-11-07 audit). From sm a date alone leaves this line nothing
+                            in flow, the date being the column at the row's right edge, so there the line drops its margin: the empty block's
+                            mt-1 was that 4px gap again, under the title or the pay (2026-11-06 gate review). */}
+                        {jobMeta(j) && (
+                          <span className={`mt-1 block text-sm leading-relaxed text-body [overflow-wrap:anywhere]${due && rest.length === 0 ? ' sm:mt-0' : ''}`}>
+                            {rest.map((p) => p.text).join(' · ')}
+                            {due && rest.length > 0 && <span className="sm:hidden">{' · '}</span>}
+                            {due && <span className="whitespace-nowrap text-foreground sm:absolute sm:right-7 sm:top-1/2 sm:-translate-y-1/2">{due.text}</span>}
+                          </span>
+                        )}
+                      </span>
+                      <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
+                    </Link>
+                  </Row>
+                )
+              })}
             </Rows>
           ) : (
             <p className="mt-2 text-sm leading-relaxed text-body">{emptySectionLine(s)}</p>

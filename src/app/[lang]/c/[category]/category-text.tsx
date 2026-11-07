@@ -494,7 +494,11 @@ export function CategoryGuides({ guides }: { guides: CategoryGuide[] }) {
   return (
     <section className="mt-12 border-t border-border pt-8">
       <h2 className="h-section text-foreground">{tr('Guides', 'Cẩm nang')}</h2>
-      <Rows className="mt-2 max-w-3xl">
+      {/* 2026-11-07 audit: two to a row from lg, across the content width. One column of up to four guides filled the left
+          half of a desktop and left the right half empty under a four-across grid. Below lg the ruled list stays. Side by side
+          the rules go, because `divide-y` rules every item but the last, which would leave one cell of a row ruled and its
+          neighbour not; the gaps separate the guides. */}
+      <Rows className="mt-2 max-w-3xl lg:grid lg:max-w-none lg:grid-cols-2 lg:gap-x-12 lg:divide-y-0">
         {guides.map((g) => (
           <Row key={g.href}>
             <Link href={g.href} lang={g.lang === lang ? undefined : g.lang} className="group flex flex-col">

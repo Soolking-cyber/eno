@@ -95,15 +95,17 @@ describe('ConversationList rows (inbox-02)', () => {
     return () => { chat.convos = before }
   }
 
-  it('right-aligns the time beside the unread badge, as a <time> the screen reader can read', () => {
+  it('right-aligns the time alone on the name’s line and ends the preview’s line with the unread count; the time is a <time> the screen reader can read', () => {
     const restore = withRow({ lastMessageAt: new Date(Date.now() - 3 * 3600_000).toISOString(), unread: 2 })
     try {
       render(<ConversationList />)
       const time = document.querySelector('a[href="/messages/c1"] time')!
       expect(time.textContent).toBe('3h ago')
       expect(time.className).toContain('tabular-nums')
-      // Time first, then the count, in one right-hand cluster.
-      expect(time.nextElementSibling?.textContent).toBe('2')
+      // Nothing beside the time, so every row's time ends at the same edge (2026-11-07 audit)…
+      expect(time.nextElementSibling).toBeNull()
+      // …and the count ends the preview's line, under it (the WhatsApp / Telegram place).
+      expect(screen.getByText('hi').closest('p')!.nextElementSibling?.textContent).toBe('2')
     } finally { restore() }
   })
 

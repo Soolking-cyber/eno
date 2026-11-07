@@ -81,7 +81,7 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
           </section>
           <h2 className="mt-8 text-lg font-bold text-foreground"><Bilingual en="Qualified so far" vi="Đã đủ điều kiện" /></h2>
           {/* The bar before the list (2026-11-06 audit: five "None yet." came before a reader learnt what a place needs). The whole
-              rule stays in "How the winners are chosen" below. */}
+              rule stays in the disclosure below, whose label names both halves (2026-11-07 audit). */}
           <p className="mt-1 max-w-prose text-sm text-body">
             <Bilingual
               en="A place qualifies with votes from at least {voters} teachers, more of them up than down, and at least {reviews} reviews. Listed alphabetically: the order is decided only when the year closes."
@@ -114,7 +114,9 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
           the guides' "On this page" row (seo-article.tsx): 44px, its chevron at the end, a wash on press. */}
       <details open={page.state === 'final'} aria-labelledby="awards-how-h" className="group mt-10 max-w-prose border-y border-border">
         <summary className="-mx-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-2 active:bg-muted [&::-webkit-details-marker]:hidden">
-          <h2 id="awards-how-h" className="text-lg font-bold text-foreground"><Bilingual en="How the winners are chosen" vi="Cách chọn ra kết quả" /></h2>
+          {/* Who qualifies AND how winners are chosen: the label promised only the second, so the qualification rule inside it read
+              as separate from the bar above the list (2026-11-07 audit). */}
+          <h2 id="awards-how-h" className="text-lg font-bold text-foreground"><Bilingual en="Who qualifies, and how the winners are chosen" vi="Điều kiện và cách chọn ra kết quả" /></h2>
           <ChevronDown className="size-5 shrink-0 text-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
         </summary>
         {/* Three short rules under a lead each, not one paragraph that ran eligibility, ranking, ties and finality together

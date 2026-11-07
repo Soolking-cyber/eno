@@ -34,7 +34,7 @@ Six working sizes for UI markup. Nothing in between.
 | `text-2xs` | 11 | dense card meta **from `sm` up**, chip labels, trust-chip text |
 | `text-xs` | 12 | standard meta, captions, secondary labels |
 | `text-sm` | 14 | UI default — buttons, inputs, labels, list rows |
-| `text-base` | 16 | body copy on content pages, PDP description |
+| `text-base` | 16 | body copy on content pages, PDP description; the long-form guides' prose (SeoArticle `P`/`Ul`, the lede, key points, FAQ) steps to `text-lg` from `lg` — an editorial 18px at desktop distance, its 60ch measure resolving at that size (2026-11-07) |
 | `text-lg`+ | 18+ | headings — use `lg / xl / 2xl / 3xl` steps only |
 
 **Banned:** arbitrary font sizes (`text-[9px]`, `text-[10px]`, `text-[11px]`,

@@ -147,20 +147,21 @@ function VerificationHub({ userId }: { userId: string | null }) {
               'rounded-2xl border p-4',
               personDone ? 'border-success/40 bg-success/5' : 'border-border bg-card',
             )}>
-              {/* ⚠️ `flex-col sm:flex-row` — ON A PHONE THE BADGE AND THE TEXT STACK. Side by side
-                  in 360px the copy wraps to four words a line and the CTA is squeezed off. */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+              {/* ⚠️ ON A PHONE THE BADGE SITS BESIDE THE HEADING ONLY (2026-11-07 audit): beside the copy, 360px wrapped it to four
+                  words a line; above it, the badge took a 36px row of its own. The text column dissolves (max-sm:contents) and
+                  every line under the heading spans both grid columns (col-span-2). From sm, the badge leads the block as before. */}
+              <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 sm:flex sm:items-start">
                 <span className={cn(
                   'flex size-9 shrink-0 items-center justify-center rounded-full',
                   personDone ? 'bg-success text-success-foreground' : 'bg-tint text-foreground',
                 )}>
                   {personDone ? <Check className="size-4" aria-hidden="true" /> : <IdCard className="size-4" aria-hidden="true" />}
                 </span>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 max-sm:contents">
                   <h2 className="font-bold text-foreground">
                     {tr('Step 1 — verify yourself', 'Bước 1 — xác minh bản thân')}
                   </h2>
-                  <p className="mt-1 text-sm text-body">
+                  <p className="col-span-2 mt-1 text-sm text-body">
                     {personDone
                       ? tr('Done. Your identity is verified.', 'Hoàn tất. Danh tính của bạn đã được xác minh.')
                       : personPending
@@ -182,9 +183,9 @@ function VerificationHub({ userId }: { userId: string | null }) {
                   {/* ⚠️ `w-full sm:w-auto` — a full-width primary action is the phone convention and
                       the reason the CTA is reachable with a thumb; it shrinks to its label on
                       wider screens where a full-width button reads as a banner. */}
-                  {!personDone && !personPending && captureElsewhere && <IosVerifyElsewhereNote kind="identity" className="mt-3" />}
+                  {!personDone && !personPending && captureElsewhere && <IosVerifyElsewhereNote kind="identity" className="col-span-2 mt-3" />}
                   {!personDone && !personPending && !captureElsewhere && (
-                    <Button variant="cta" asChild className="mt-3 w-full sm:w-auto">
+                    <Button variant="cta" asChild className="col-span-2 mt-3 w-full sm:w-auto">
                       <a href="/dashboard/account/verify">
                         {person === 'rejected' || person === 'expired'
                           ? tr('Try again', 'Thử lại')
@@ -207,11 +208,12 @@ function VerificationHub({ userId }: { userId: string | null }) {
             // showing it greyed makes the sequence legible, which is the whole point of the screen.
             gate && !personDone && 'opacity-60',
           )}>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+            {/* The badge beside the heading on a phone, as on step 1's card (2026-11-07 audit). */}
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 sm:flex sm:items-start">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-tint text-foreground">
                 <ShieldCheck className="size-4" aria-hidden="true" />
               </span>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 max-sm:contents">
                 <h2 className="font-bold text-foreground">
                   {tr('Step 2 — verify your business', 'Bước 2 — xác minh doanh nghiệp')}
                 </h2>
@@ -219,7 +221,7 @@ function VerificationHub({ userId }: { userId: string | null }) {
                     a second list here asked for a "business licence" while the button took a "Business / ID document"
                     (2026-11-06 audit). */}
                 {gate && !personDone && (
-                  <p className="mt-1 text-sm text-body">{tr('Available once step 1 is done.', 'Khả dụng sau khi hoàn tất bước 1.')}</p>
+                  <p className="col-span-2 mt-1 text-sm text-body">{tr('Available once step 1 is done.', 'Khả dụng sau khi hoàn tất bước 1.')}</p>
                 )}
               </div>
             </div>

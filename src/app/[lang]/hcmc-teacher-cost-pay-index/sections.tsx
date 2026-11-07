@@ -101,18 +101,19 @@ const BAND_ROW_FOUR = 'grid grid-cols-1 border-t border-border md:grid-cols-4 md
 function ShareFigure({ label, n, f }: { label: string; n: number; f: CellFigures | null }) {
   if (!f) {
     // One line below md, as on the Rent Index (rent-index-sections.tsx Figure) — the label, the dash, the count — not a ~100px
-    // block; and a 16px dash at every width, where the 30px bold one read as a loading bar (2026-11-06 audit). Classes only:
-    // this edition is frozen, and its words and figures are as they were.
+    // block; and a 16px dash at every width, where the 30px bold one read as a loading bar (2026-11-06 audit). From md each
+    // figure is a column with its count at the foot, so the band's counts are level, a dash's beside a share's (2026-11-07
+    // audit). Classes only: this edition is frozen, and its words and figures are as they were.
     return (
-      <div className="min-w-0 py-4 md:px-4 md:first:pl-0 max-md:flex max-md:flex-wrap max-md:items-baseline max-md:gap-x-3 max-md:py-3">
+      <div className="min-w-0 py-4 md:flex md:flex-col md:px-4 md:first:pl-0 max-md:flex max-md:flex-wrap max-md:items-baseline max-md:gap-x-3 max-md:py-3">
         <p className="text-sm font-semibold text-muted-foreground">{label}</p>
         <p className="mt-2 text-base font-semibold text-muted-foreground max-md:mt-0">—</p>
-        <p className="mt-2 text-xs text-muted-foreground max-md:mt-0">{listings(n)}</p>
+        <p className="mt-2 text-xs text-muted-foreground max-md:mt-0 md:mt-auto md:pt-2">{listings(n)}</p>
       </div>
     )
   }
   return (
-    <div className="min-w-0 py-4 md:px-4 md:first:pl-0">
+    <div className="min-w-0 py-4 md:flex md:flex-col md:px-4 md:first:pl-0">
       <p className="text-sm font-semibold text-muted-foreground">{label}</p>
       <p className="mt-1 text-3xl font-bold tabular-nums text-foreground md:text-xl lg:text-2xl xl:text-3xl">
         {shareText(f.shareWhole)} <span className="whitespace-nowrap text-sm font-semibold text-muted-foreground">of take-home pay</span>
@@ -123,7 +124,7 @@ function ShareFigure({ label, n, f }: { label: string; n: number; f: CellFigures
       {/* No nowrap on the range: at md's four columns "28,000,000–32,100,000 đ" is about the column's width, so it may
           break after its dash (a line-break opportunity in Unicode) rather than run into the next figure. */}
       <p className="text-xs text-body">Left after rent: {leftText(f.leftAfterRentVnd)}</p>
-      <p className="mt-2 text-xs text-body">{listings(n)}</p>
+      <p className="mt-2 text-xs text-body md:mt-auto md:pt-2">{listings(n)}</p>
     </div>
   )
 }
@@ -155,10 +156,11 @@ function ShareCell({ cell, f, heading }: { cell: RentCell | undefined; f: CellFi
   // median and the count are the evidence behind the share, and they read small and pale (2026-11-06 audit). Classes only.
   // Under a share the count is in body ink, as on the Rent Index; under a dash it stays muted with the dash (2026-11-06 audit, a
   // later round). Classes only: the edition is frozen.
-  const listed = <span className={`block text-2xs tabular-nums xl:text-sm ${f ? 'text-body' : 'text-muted-foreground'}`}>{listings(cell?.n ?? 0)}</span>
+  // Below md a column with its count at the foot, as on the Rent Index: a dash's count level with a share's (2026-11-07 audit).
+  const listed = <span className={`block text-2xs tabular-nums max-md:mt-auto xl:text-sm ${f ? 'text-body' : 'text-muted-foreground'}`}>{listings(cell?.n ?? 0)}</span>
   if (!f) {
     return (
-      <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
+      <td className="min-w-0 align-top max-md:flex max-md:flex-col md:py-2 md:pl-4 md:text-right">
         {label}
         <span className="block font-semibold text-muted-foreground xl:text-base">—</span>
         {/* From md, an empty line where a figure's median sits, so this count is level with the counts beside it (it sat a line high). */}
@@ -168,7 +170,7 @@ function ShareCell({ cell, f, heading }: { cell: RentCell | undefined; f: CellFi
     )
   }
   return (
-    <td className="min-w-0 align-top md:py-2 md:pl-4 md:text-right">
+    <td className="min-w-0 align-top max-md:flex max-md:flex-col md:py-2 md:pl-4 md:text-right">
       {label}
       <span className="block whitespace-nowrap font-bold tabular-nums text-foreground xl:text-base">{shareText(f.shareWhole)}</span>
       <span className="block whitespace-nowrap text-2xs tabular-nums text-body xl:text-sm">{shown(f.cell.medianVnd)}</span>
@@ -179,8 +181,9 @@ function ShareCell({ cell, f, heading }: { cell: RentCell | undefined; f: CellFi
 
 /** Thủ Đức is the union of its own rows and Districts 2 and 9, so each of those rows says so (as on the Rent Index). */
 function DistrictNote({ slug, partOf }: { slug: string; partOf: string | null }) {
-  if (slug === 'thu-duc') return <span className="block text-2xs font-normal text-muted-foreground">All of Thu Duc City, including listings still labelled District 2 or 9</span>
-  if (partOf) return <span className="block text-2xs font-normal text-muted-foreground">Listings labelled with the former district name; also counted in Thu Duc City</span>
+  // 12px in body ink, as on the Rent Index (2026-11-07 audit: the source note read small and pale). Classes only.
+  if (slug === 'thu-duc') return <span className="block text-xs font-normal text-body">All of Thu Duc City, including listings still labelled District 2 or 9</span>
+  if (partOf) return <span className="block text-xs font-normal text-body">Listings labelled with the former district name; also counted in Thu Duc City</span>
   return null
 }
 
@@ -441,7 +444,8 @@ export function TeacherCostIndexMain({ e, editions, errata, origin, siteName, se
       <p className="eyebrow text-accent-foreground mb-2">Data · Ho Chi Minh City</p>
       <h1 className="h-display text-foreground">Ho Chi Minh City Teacher Cost &amp; Pay Index{series ? '' : `, ${month}`}</h1>
       <Lede e={e} />
-      <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+      <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-body">
+        {/* The edition and its rents' day in body ink, as on the Rent Index (2026-11-07 audit: dates read pale). Classes only. */}
         <span>{month} edition · rents of {saigonDay(e.rent.snapshotUtc)}</span>
         {/* The cite box sits at the foot of the page; this puts it one tap from the top, as on the Rent Index. */}
         <a href="#cite" className="font-semibold text-accent-foreground hover:underline">Cite or link to this data</a>

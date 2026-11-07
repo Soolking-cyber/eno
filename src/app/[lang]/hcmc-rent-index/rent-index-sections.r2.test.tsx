@@ -114,6 +114,10 @@ describe('the city-wide band row', () => {
     expect(text).toContain(formatMoneyFull(8_600_000, '₫', locale(lang)))
     expect(text).toContain(formatMoneyFull(31_000_000, '₫', locale(lang)))
     expect(text).toContain(lang === 'vi' ? '2 phòng ngủ' : '2 bedrooms')
+    // A figure under the floor says so in its own place, in words (t33, 2026-11-07: both blind judges over a dash and a legend).
+    // <Tr> prints its source text in this harness, in either language (the heading above reads in English here too).
+    expect(text).toContain('Too few listings for a figure')
+    expect(text).not.toContain(lang === 'vi' ? 'Dấu gạch nghĩa' : 'A dash means')
   })
 })
 
@@ -229,14 +233,18 @@ describe('rules v5: the Studio band on the page', () => {
     // ⚠️ THE MEASURED SIZE STEP-DOWN (`Figure`'s `four`): with the type row's sizes 12 band figures wrapped or overflowed at
     // 768px, so each band figure's median steps down from md and is full size again at xl, on a tighter gutter. Without
     // this a refactor that drops `four` keeps four columns and passes everything else. Under the floor the figure is words
-    // since 2026-11-06 (a 30px dash read as a loading bar), at 14px since 2026-11-07, so there is no step-down to make.
+    // since 2026-11-06 (a 30px dash read as a loading bar), at 14px since 2026-11-07 (a 16px dash lost the t33 blind round to
+    // the words), so there is no step-down to make.
     let medians = 0
     for (const f of figures) {
       expect(f.className).toContain('md:px-4')
-      const value = f.querySelectorAll('p')[1]
+      const ps = f.querySelectorAll('p')
+      const value = ps[1]
       // A median has digits in either language; the words under the floor have none.
       if (!/\d/.test(value.textContent ?? '')) expect(value.className).toContain('text-sm')
       else { medians++; expect(value.className).toContain('md:text-xl lg:text-2xl xl:text-3xl') }
+      // Every count at its figure's foot, so the band's counts are level (2026-11-07 audit).
+      expect(ps[ps.length - 1].className).toContain('md:mt-auto')
     }
     expect(medians).toBeGreaterThan(0)
     // The type row above keeps its three columns and its sizes.

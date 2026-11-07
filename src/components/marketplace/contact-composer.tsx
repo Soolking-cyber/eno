@@ -330,8 +330,10 @@ export function ContactComposer({
   // was consolidated into the shop-on-top link, which took over the identity/trust). chatNow() sends
   // the canned opener straight to a thread and gates guests to sign-in; the composer still ALSO
   // answers the eno:chat-now event (the mobile action bar).
+  // 14px in body ink from lg (2026-11-07 audit), with the safety strip and Report/Block under it: at 12px in the quietest grey,
+  // how contact works read as fine print under a desktop's CTA. A phone keeps 12px.
   const safetyLine = (
-    <p className="text-center text-xs text-muted-foreground">
+    <p className="text-center text-xs text-muted-foreground lg:text-sm lg:text-body">
       {planning
         // The desk is eno's own, so stranger-safety advice is both irrelevant and slightly
         // alarming here. Say what the tap actually does instead, including that it is free —

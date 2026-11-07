@@ -338,19 +338,19 @@ export function ConversationList() {
                     <div className="flex items-center justify-between gap-2">
                       {/* 16px from lg, the thread header's size (2026-11-07 audit); the preview stays 14px under it. */}
                       <span className="truncate text-sm font-bold text-foreground lg:text-base">{c.counterpart.name}</span>
-                      {/* When, then how many — right-aligned the Zalo / Chợ Tốt way (inbox-02). The list is
-                          client-fetched data, never server HTML, so a render-time clock cannot mismatch. */}
+                      {/* When — alone at the right of the name's line, so every row's time ends at the same edge, in the meta ink
+                          (ink-4, as card meta); how many ends the preview's line under it, as WhatsApp and Telegram place it
+                          (2026-11-07 audit: with the count beside it, an unread row's time stood a badge's width left of every other
+                          row's). The list is client-fetched data, never server HTML, so a render-time clock cannot mismatch. */}
                       {/* ⚠️ THE NAME ALWAYS KEEPS A SHARE OF THE ROW (break-ui, 2026-10-05). At 320px an
                           uncapped "100000" badge beside "11 tháng trước" took all of it and the person's
-                          name vanished entirely. Now the count caps at 99+ (the account tab's cap), old
-                          times become a short date (inboxTime), and the group cannot pass 60% of the
-                          row — past that the TIME ellipsizes, never the name. Measured at 320px: the
-                          name keeps ~34% (the remaining 40% less the gap), about six letters. */}
+                          name vanished entirely. Now the count caps at 99+ (the account tab's cap) and sits on the
+                          preview's line, old times become a short date (inboxTime), and the time cannot pass 60% of
+                          the row — past that the TIME ellipsizes, never the name. */}
                       <span className="flex max-w-[60%] shrink-0 items-center gap-1.5">
                         {c.lastMessageAt && (
-                          <time dateTime={c.lastMessageAt} className="truncate text-xs tabular-nums text-muted-foreground">{inboxTime(c.lastMessageAt, lang)}</time>
+                          <time dateTime={c.lastMessageAt} className="truncate text-xs tabular-nums text-ink-4">{inboxTime(c.lastMessageAt, lang)}</time>
                         )}
-                        {c.unread > 0 && <Badge variant="counter-brand" size="count" className="h-5 min-w-5 shrink-0 px-1.5">{c.unread > 99 ? '99+' : c.unread}</Badge>}
                       </span>
                     </div>
                     {/* ⚠️ THE LABEL EXISTS BECAUSE THE COUNTERPART NAME CANNOT DISTINGUISH THESE.
@@ -394,15 +394,20 @@ export function ConversationList() {
                       const incoming = !!o && o.status === 'pending' && !o.mine
                       // 2026-11-06 audit: the preview takes the list's 14px from lg — at 12px beside a 14px name it read as fine print on a desktop.
                       return (
-                        <p className={cn('flex min-w-0 items-center gap-1 text-xs lg:text-sm', incoming ? 'font-bold text-accent-foreground' : c.unread > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
-                          {OfferIcon && (
-                            <OfferIcon
-                              className={cn('h-3.5 w-3.5 shrink-0', o?.status === 'accepted' && 'text-success', o?.status === 'declined' && 'text-destructive')}
-                              aria-hidden
-                            />
-                          )}
-                          <span className="truncate">{label}</span>
-                        </p>
+                        <div className="flex min-w-0 items-center gap-2">
+                          {/* A read preview in the body ink (2026-11-07 audit: the tertiary grey read as faint beside the bold name). */}
+                          <p className={cn('flex min-w-0 flex-1 items-center gap-1 text-xs lg:text-sm', incoming ? 'font-bold text-accent-foreground' : c.unread > 0 ? 'font-semibold text-foreground' : 'text-body')}>
+                            {OfferIcon && (
+                              <OfferIcon
+                                className={cn('h-3.5 w-3.5 shrink-0', o?.status === 'accepted' && 'text-success', o?.status === 'declined' && 'text-destructive')}
+                                aria-hidden
+                              />
+                            )}
+                            <span className="truncate">{label}</span>
+                          </p>
+                          {/* How many, at the end of the preview's line, under the time (see the name's line). */}
+                          {c.unread > 0 && <Badge variant="counter-brand" size="count" className="h-5 min-w-5 shrink-0 px-1.5">{c.unread > 99 ? '99+' : c.unread}</Badge>}
+                        </div>
                       )
                     })()}
                   </div>

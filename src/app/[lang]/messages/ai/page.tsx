@@ -128,8 +128,9 @@ export default function AiThreadPage() {
   // Keep the latest message pinned above the composer by scrolling the LIST ONLY (its own
   // scrollTop) — never scrollIntoView, which on iOS can scroll <body> and shove the header
   // off-screen. Re-run when the keyboard opens: the list shrinks, so tall result cards must
-  // re-anchor to the bottom instead of stranding at the top (short chats bottom-anchor via
-  // the mt-auto wrapper). rAF lets the keyboard-open resize settle before we measure.
+  // re-anchor to the bottom instead of stranding at the top (a chat shorter than the list
+  // simply reads from the top, as a person's thread does). rAF lets the keyboard-open resize
+  // settle before we measure.
   // ⚠️ THE FIRST PIN IS INSTANT. `messages` starts [] and the history is restored from localStorage
   // in an effect, so this ran a second time with up to 30 turns in the pane — and SMOOTH-scrolled
   // from the top through all of them, listing-card grids included, on every open. Opening a thread
@@ -219,9 +220,7 @@ export default function AiThreadPage() {
 
   return (
     // overflow-hidden is load-bearing: it forces the flex-1 message list to respect the
-    // shell height (like the regular thread) so it actually scrolls + the mt-auto bottom-
-    // anchor has a bounded height to push against — without it the list grows past the
-    // shell, content strands at the top, and a white void opens above the composer.
+    // shell height (like the regular thread), so it scrolls instead of growing past the shell.
     <div className="flex h-full w-full flex-col overflow-hidden bg-background">
       {/* Header — matches the thread page; back arrow only on mobile. Below lg it is the top of the screen (no site header:
           messages-shell.tsx, 2026-11-07 audit), so it wears the thread header's box and owns the status-bar inset. */}
@@ -250,10 +249,10 @@ export default function AiThreadPage() {
 
       {/* Messages */}
       <div ref={listRef} role="log" aria-live="polite" className="chat-scroll flex flex-1 min-h-0 flex-col overflow-y-auto overscroll-contain px-4 py-4 scroll-thin [&_.reveal-on-scroll]:![animation:none]">
-        {/* Bottom-anchor: a short chat (greeting + a reply) sits just above the composer
-            instead of stranded at the top with a huge gap. mt-auto pushes content down when
-            it's shorter than the list, and simply collapses (scrolls normally) once it fills. */}
-        <div className="mt-auto space-y-3">
+        {/* From the top, as a person's thread reads (2026-11-07 audit: anchored to the composer, the greeting alone sat at
+            the foot of an empty pane and the page read as blank — under the header is where eno AI first says what it does).
+            A chat taller than the list scrolls, pinned to its newest turn by the layout effect above. */}
+        <div className="space-y-3">
         {messages.map((m, i) => (
           <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} ${i === messages.length - 1 && i >= restoredCount.current ? 'bubble-in' : ''}`}>
             <MessageBubble mine={m.role === 'user'} className="max-w-[85%]">{m.greeting ? greetingBody() : said(m)}</MessageBubble>
@@ -269,11 +268,11 @@ export default function AiThreadPage() {
               // in the AI's place but the greeting: it reports what was on screen and never claims who wrote it, since a saved
               // chat cannot tell an answer from eno's own line (a limit, an error), nor a keyword answer from Google's.
               <div className="mt-0.5 flex items-center gap-1 px-1">
-                <span className="text-2xs text-ink-4">{fmtTime(m.createdAt, lang)}</span>
+                <span className="text-2xs text-ink-4 lg:text-xs">{fmtTime(m.createdAt, lang)}</span>
                 <ReportAiAnswer answer={m.content} />
               </div>
             ) : (
-              <span className="mt-0.5 px-1 text-2xs text-ink-4">{fmtTime(m.createdAt, lang)}</span>
+              <span className="mt-0.5 px-1 text-2xs text-ink-4 lg:text-xs">{fmtTime(m.createdAt, lang)}</span>
             )}
           </div>
         ))}

@@ -43,7 +43,7 @@ function UnsubscribeForm() {
   // the DM ladder, 2026-10-13): a service notice, so they CAN be switched back on here.
   const teacherMessages = params.get('list') === 'teacher-messages'
   const list = teacherMatches ? '&list=teacher-matches' : teacherMessages ? '&list=teacher-messages' : ''
-  // No token = no way to act: open on the "That link didn't work" state and its way forward, not on a dead, greyed
+  // No token = no way to act: open on the "That unsubscribe link didn't work" state and its way forward, not on a dead, greyed
   // Unsubscribe button with no reason given (2026-11-06 audit).
   const [state, setState] = useState<'idle' | 'saving' | 'unsubscribed' | 'resubscribed' | 'retry' | 'error'>(token ? 'idle' : 'error')
   // The action a 'retry' repeats: the unsubscribe, or the digest's re-subscribe.
@@ -154,19 +154,20 @@ function UnsubscribeForm() {
               }
           : state === 'error' && teacherMessages
             ? {
-                title: tr("That link didn't work", 'Liên kết không hợp lệ'),
+                // 2026-11-07 audit: the three dead-link states name the task that failed (was "That link didn't work").
+                title: tr("That unsubscribe link didn't work", 'Liên kết hủy đăng ký không hoạt động'),
                 body: tr('The unsubscribe link is invalid or expired, so nothing has changed. Use the link in the latest message email from {site}.', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn, nên chưa có gì thay đổi. Hãy dùng liên kết trong email thông báo tin nhắn mới nhất từ {site}.').replace(/\{site\}/g, SITE_NAME),
                 action: null,
               }
           : state === 'error' && teacherMatches
             ? {
-                title: tr("That link didn't work", 'Liên kết không hợp lệ'),
+                title: tr("That unsubscribe link didn't work", 'Liên kết hủy đăng ký không hoạt động'),
                 body: tr('The unsubscribe link is invalid or expired, so nothing has changed. You can turn teaching-job match emails off in your teacher profile.', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn, nên chưa có gì thay đổi. Bạn có thể tắt email gợi ý việc làm giảng dạy trong hồ sơ giáo viên của mình.'),
                 action: recoveryButton('/teachers/edit', tr('Open my teacher profile', 'Mở hồ sơ giáo viên của tôi')),
               }
             : state === 'error'
               ? {
-                  title: tr("That link didn't work", 'Liên kết không hợp lệ'),
+                  title: tr("That unsubscribe link didn't work", 'Liên kết hủy đăng ký không hoạt động'),
                   // 2026-11-06 audit: what a reader most needs from a dead link: nothing was changed, and the settings ahead need a
                   // sign-in (the link below is a dashboard route). Worded to stay true for a reader who is already signed in.
                   // A fresh link needs no sign-in: every digest is sent with a working one, and the tokens do not expire

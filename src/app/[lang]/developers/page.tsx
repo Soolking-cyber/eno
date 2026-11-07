@@ -171,6 +171,9 @@ export default function DevelopersPage() {
         <section id="authentication" className="mt-8 scroll-mt-24">
           <h2 className="h-section text-foreground">Authentication</h2>
           <p className="mt-2 text-sm leading-relaxed text-body">
+            {/* 2026-11-07 audit: that every key is live leads the section, ahead of how to make one. It was the third of four
+                bullets under the header example, among the routine notes on scopes and revoking; same words as that bullet. */}
+            <strong className="text-foreground">There is no sandbox and no test key — a key is live from the moment it is issued.</strong>{' '}
             {/* ⚠️ /dashboard/dev, NOT /dashboard?tab=dev. The query form still resolves — dashboard/page.tsx
                 keeps a TAB_TO_ROUTE map for bookmarked links — but it costs the reader a redirect and
                 documents a legacy shape as the current one. The section pages became real routes in the
@@ -183,8 +186,8 @@ export default function DevelopersPage() {
               .well-known DOCUMENTS ADVERTISE. Hand-typing the list is how a fifth scope ships
               undocumented, or a renamed one keeps being documented after it stops being accepted —
               and here the documentation and the metadata would then disagree in public. */}
-          {/* 2026-11-06 audit: what a key opens and how it behaves, as labelled lines in the Conventions list's form. That a key
-              is live the moment it is issued, and that revoking is immediate, were the closing clauses of one paragraph. */}
+          {/* 2026-11-06 audit: what a key opens and how it behaves, as labelled lines in the Conventions list's form (they were the
+              closing clauses of one paragraph). That a key is live leads the paragraph above since 2026-11-07. */}
           <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-body">
             <li>
               • <strong className="text-foreground">Scopes:</strong>{' '}
@@ -197,7 +200,6 @@ export default function DevelopersPage() {
               (write is opt-in when you mint the key).
             </li>
             <li>• <strong className="text-foreground">One shop per key:</strong> requests only ever see that shop&apos;s own data.</li>
-            <li>• <strong className="text-foreground">No sandbox:</strong> there is no test key — a key is live from the moment it is issued.</li>
             <li>• <strong className="text-foreground">Revoke anytime:</strong> it takes effect immediately.</li>
           </ul>
           <p className="mt-3 text-sm leading-relaxed text-body">

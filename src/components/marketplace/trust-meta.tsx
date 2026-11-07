@@ -5,6 +5,7 @@ import { UserPlus } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { TrustScore } from '@/components/marketplace/trust-score'
+import { PartnerBadge } from '@/components/marketplace/partner-badge'
 import { lastSeenBucket } from '@/lib/last-seen'
 import type { ResponseBucket } from '@/lib/seller-metrics'
 
@@ -28,6 +29,12 @@ type Props = {
    * clip box for the trust chip's focus ring (2px outline + 2px offset).
    */
   singleLine?: boolean
+  /**
+   * The counterpart is an OFFICIAL PARTNER (the thread's seller, as its buyer reads it): the partner plate takes the trust
+   * chip's place, as on every card, shop link and seller card — a partner carries no trust score (owner, 2026-09-30,
+   * K-TRUST-BADGE option D) — and the join year and presence stay. /partners names the chat header among its surfaces.
+   */
+  partner?: boolean
 }
 
 /**
@@ -35,7 +42,7 @@ type Props = {
  * counterpart's name. Reuses the shared TrustScore chip. When `isNew`, shows a
  * neutral "New user" pill rather than a positive signal.
  */
-export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBucket, isNew, lastSeenDay, singleLine = false }: Props) {
+export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBucket, isNew, lastSeenDay, singleLine = false, partner = false }: Props) {
   const { tr } = useLanguage()
   void trustTier // tier is encoded by TrustScore's color; kept for caller symmetry
   // Thread data arrives via client fetch (never SSR HTML), so render-time bucketing
@@ -45,7 +52,9 @@ export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBuck
   if (!singleLine) {
     return (
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs leading-none text-muted-foreground">
-        {isNew ? (
+        {partner ? (
+          <PartnerBadge />
+        ) : isNew ? (
           <Badge variant="neutral" size="sm" className="bg-muted px-1.5 font-semibold leading-none text-body">
             <UserPlus className="h-3 w-3" aria-hidden />
             {tr('New user', 'Người dùng mới')}
@@ -78,7 +87,12 @@ export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBuck
   // Single-line (the thread header) — see `singleLine`.
   return (
     <div data-trust-meta-line="" className="-m-1 flex min-w-0 flex-nowrap items-center gap-x-2 overflow-hidden whitespace-nowrap p-1 text-2xs leading-none text-muted-foreground">
-      {isNew ? (
+      {partner ? (
+        // The plate in the chip's slot, at the chip's own 15px (partner-badge.tsx), so the line keeps its height — the span,
+        // not the /partners link: this line clips 4px out for a focus ring (above), and the link's grown 24px box would carry
+        // its ring past that. The plate keeps its tooltip and its name ("Official partner").
+        <span className="inline-flex shrink-0"><PartnerBadge asLink={false} /></span>
+      ) : isNew ? (
         <Badge variant="neutral" size="sm" className="shrink-0 bg-muted px-1.5 font-semibold leading-none text-body">
           <UserPlus className="h-3 w-3" aria-hidden />
           {tr('New user', 'Người dùng mới')}

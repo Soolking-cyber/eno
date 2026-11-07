@@ -243,7 +243,9 @@ export function SellerCard({
               {/* 2026-11-06 audit: no wrapped line starts on a separator ("· 4,728 listings on eno.vn" on a phone). Every item
                   carries its dot, and the row is pulled 10px left (the dot's 4px box + the 6px gap) inside this clip, so the
                   first item of EVERY line — not only the first line — has its dot cut off at the edge. */}
-              <div className="-ml-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+              {/* 2026-11-07 audit: 14px in body ink from lg, as the PDP's shop row (pdp-shop-link.tsx): at 12px in the quietest grey
+                  the storefront's activity and listing count read as fine print beside a desktop's title-size name. */}
+              <div className="-ml-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground lg:text-sm lg:text-body">
                 {strip.map((node, i) => (
                   <span key={i} className="inline-flex items-center gap-1.5">
                     <span aria-hidden className="w-1 shrink-0 text-center text-border">·</span>

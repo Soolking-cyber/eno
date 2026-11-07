@@ -137,7 +137,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
               so on the link itself the 44px area would exist in the stylesheet and nowhere on screen.
               The link keeps `min-w-0` (what `overflow:hidden` used to give it for free) so a long name
               still shrinks to the row and ellipsises inside the span. */}
-          <Link href={href} prefetch={false} className="relative min-w-0 tap-44 text-sm font-bold text-foreground hover:underline active:opacity-60"><span className="block truncate">{name}</span></Link>
+          <Link href={href} prefetch={false} className="relative min-w-0 tap-44 text-sm font-bold text-foreground hover:underline active:opacity-60 lg:text-base"><span className="block truncate">{name}</span></Link>
           {/* ⚠️ THE RING IS DECORATION; THIS IS THE ACTUAL LABEL. The worded badge was removed
               (owner, 2026-08-11) in favour of the gold ring on the avatar above — but a ring
               has no accessible name and no meaning to anyone who cannot separate that gold
@@ -177,7 +177,9 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
                 tap-44 areas above and below stay whole (2026-11-06 review). */}
             {/* 2026-11-06 audit: no wrapped line starts on a separator — seller-card.tsx's strip, the same clip: every item carries
                 its dot, and the row sits 10px left (the dot's 4px box + the 6px gap) inside this box, so each line's first dot is cut. */}
-            <div className="-ml-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+            {/* 2026-11-07 audit: from lg the strip is 14px in body ink under a 16px name, and "Shop ›" 14px: at 12px in the quietest
+                grey a desktop read who it is dealing with as fine print. A phone keeps 12px. The dot geometry above is size-free. */}
+            <div className="-ml-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground lg:text-sm lg:text-body">
               {strip.map((node, i) => (
                 <span key={i} className="inline-flex items-center gap-1.5">
                   <span aria-hidden className="w-1 shrink-0 text-center text-border">·</span>
@@ -197,7 +199,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
         // `relative tap-44`: 64x28 → a 44px-tall hit area around the same pill. `active:bg-secondary`
         // is the press — the hover wash, shown on touch too, in 60ms; the release eases back at the
         // transition's normal 150ms, so the press reads instantly and the let-go does not flash.
-        className="group relative tap-44 flex shrink-0 items-center gap-0.5 rounded-xl px-2 py-1.5 text-xs font-semibold text-accent-foreground transition-colors hover:bg-secondary active:bg-secondary active:duration-[60ms]"
+        className="group relative tap-44 flex shrink-0 items-center gap-0.5 rounded-xl px-2 py-1.5 text-xs font-semibold text-accent-foreground transition-colors hover:bg-secondary active:bg-secondary active:duration-[60ms] lg:text-sm"
       >
         {linked === 'job' ? tr('More jobs', 'Việc làm khác') : tr('Shop', 'Gian hàng')}
         {/* `motion-reduce:group-hover:translate-x-0` is NOT redundant beside

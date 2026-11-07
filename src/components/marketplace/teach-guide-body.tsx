@@ -58,7 +58,8 @@ function Block({ b, isLiveHref, lang = 'en' }: { b: TeachBlock; isLiveHref: (hre
     case 'p':
       return <P><Inline src={b.text} isLiveHref={isLiveHref} lang={lang} /></P>
     case 'h3':
-      return <h3 className="mt-7 max-w-[60ch] text-base font-bold text-foreground">{b.text}</h3>
+      // 2026-11-07 audit: 20px from lg, a step over the guides' 18px desktop body (seo-article.tsx P) and under the 24px h2.
+      return <h3 className="mt-7 max-w-[60ch] text-base font-bold text-foreground lg:text-xl">{b.text}</h3>
     case 'ul':
       return (
         <Ul>
@@ -67,7 +68,7 @@ function Block({ b, isLiveHref, lang = 'en' }: { b: TeachBlock; isLiveHref: (hre
       )
     case 'ol':
       return (
-        <ol className="mt-3 max-w-[60ch] list-decimal space-y-2 pl-5 text-base leading-relaxed text-body marker:font-semibold marker:text-ink-4">
+        <ol className="mt-3 max-w-[60ch] list-decimal space-y-2 pl-5 text-base leading-relaxed text-body marker:font-semibold marker:text-ink-4 lg:text-lg">
           {b.items.map((it, i) => <li key={i}><Inline src={it} isLiveHref={isLiveHref} lang={lang} /></li>)}
         </ol>
       )
@@ -80,7 +81,7 @@ function Block({ b, isLiveHref, lang = 'en' }: { b: TeachBlock; isLiveHref: (hre
         // tone only changes the glyph, so a page of callouts never reads as a page of red boxes.
         <aside className="mt-5 flex max-w-[60ch] items-start gap-3 rounded-xl bg-tint p-4">
           <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
-          <div className="min-w-0 text-sm leading-relaxed text-body">
+          <div className="min-w-0 text-sm leading-relaxed text-body lg:text-base">
             <span className="sr-only">{(lang === 'vi' ? TONE_LABEL_VI : TONE_LABEL)[b.tone]}: </span>
             {b.title && <p className="font-bold text-foreground">{b.title}</p>}
             <p className={b.title ? 'mt-1' : undefined}><Inline src={b.text} isLiveHref={isLiveHref} lang={lang} /></p>
@@ -96,8 +97,8 @@ function Block({ b, isLiveHref, lang = 'en' }: { b: TeachBlock; isLiveHref: (hre
             <li key={i} className="flex gap-4">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold text-accent-foreground tabular-nums">{i + 1}</span>
               <div className="min-w-0">
-                <p className="text-base font-bold text-foreground">{s.title}</p>
-                <p className="mt-1 text-base leading-relaxed text-body"><Inline src={s.text} isLiveHref={isLiveHref} lang={lang} /></p>
+                <p className="text-base font-bold text-foreground lg:text-lg">{s.title}</p>
+                <p className="mt-1 text-base leading-relaxed text-body lg:text-lg"><Inline src={s.text} isLiveHref={isLiveHref} lang={lang} /></p>
               </div>
             </li>
           ))}
@@ -111,15 +112,23 @@ function Block({ b, isLiveHref, lang = 'en' }: { b: TeachBlock; isLiveHref: (hre
  * C-RENT-INDEX), not a sideways scroller: below md each row becomes a block and every cell carries its
  * column's name, so a phone never scrolls a table inside the page. The <table> stays one table, which is
  * what a crawler and an answer engine read.
+ * 2026-11-07 audit, from md (where it is a table): the head row names its columns in sentence case and the primary ink,
+ * bottom-aligned on the rule, not in 12px grey capitals, and the first column (each row's name) never narrows below 10rem,
+ * so "Teaching certificate" or "Signed, never ratified" no longer stacks a word a line beside the prose columns (judges: eight
+ * guide desktops). The floor holds from md on a table of up to three columns, and from xl on a wider one: estimated on the
+ * guides' own tables, a four- or five-column table of unbreakable money ranges already needs ~660px at its narrowest, so the
+ * floor would push it past the 672px column beside the rail at 1024px; from xl that column is 768px. The cells stay 14px, one
+ * size for every table: at 16px the widest money tables would not fit beside the rail below xl.
  */
 function GuideTable({ b, isLiveHref, lang = 'en' }: { b: Extract<TeachBlock, { type: 'table' }>; isLiveHref: (href: string) => boolean; lang?: 'en' | 'vi' }) {
+  const firstCol = b.headers.length <= 3 ? 'md:min-w-40' : 'xl:min-w-40'
   return (
     <figure className="mt-5 max-w-3xl">
       <table className="w-full text-sm max-md:block">
         <thead className="max-md:sr-only">
-          <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <tr className="text-left text-foreground">
             {b.headers.map((h, i) => (
-              <th key={i} scope="col" className="pb-2 pr-4 font-semibold">{h}</th>
+              <th key={i} scope="col" className={`pb-2 pr-4 align-bottom font-semibold${i === 0 ? ` ${firstCol}` : ''}`}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -128,7 +137,7 @@ function GuideTable({ b, isLiveHref, lang = 'en' }: { b: Extract<TeachBlock, { t
             <tr key={r} className="border-t border-border max-md:block max-md:py-3">
               {row.map((cell, c) =>
                 c === 0 ? (
-                  <th key={c} scope="row" className="text-left align-top font-semibold text-foreground max-md:block md:py-2 md:pr-4">
+                  <th key={c} scope="row" className={`text-left align-top font-semibold text-foreground max-md:block ${firstCol} md:py-2 md:pr-4`}>
                     <Inline src={cell} isLiveHref={isLiveHref} lang={lang} />
                   </th>
                 ) : (
@@ -142,7 +151,8 @@ function GuideTable({ b, isLiveHref, lang = 'en' }: { b: Extract<TeachBlock, { t
           ))}
         </tbody>
       </table>
-      <figcaption className="mt-2 text-xs leading-relaxed text-muted-foreground">
+      {/* 2026-11-07 audit: the table's source and the day it was read are its evidence, so body ink, not the faint grey. */}
+      <figcaption className="mt-2 text-xs leading-relaxed text-body">
         <Inline src={b.caption} isLiveHref={isLiveHref} lang={lang} />
       </figcaption>
     </figure>
@@ -205,6 +215,7 @@ const KEY_POINTS_ID = 'key-points'
  * 2026-11-06 audit: flat and closed by one hairline, not a grey well. A summary in a tinted box read as a notice and weighed as
  * much as the article around it (judges: teach and guide pages; docs/flat-surface-plan.md, "lines, not boxes"). No top rule:
  * on a phone SeoArticle's contents row sits right above it with its own.
+ * 2026-11-07 audit: the points at the prose's 60ch measure and, from lg, its 18px; in the 3xl box they ran ~95 characters a line.
  */
 export function TeachKeyPoints({ g, isLiveHref, lang = 'en' }: { g: TeachGuide; isLiveHref: (href: string) => boolean; lang?: 'en' | 'vi' }) {
   return (
@@ -212,7 +223,7 @@ export function TeachKeyPoints({ g, isLiveHref, lang = 'en' }: { g: TeachGuide; 
       <h2 id={KEY_POINTS_ID} className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-accent-foreground">
         <ListChecks className="h-4 w-4" aria-hidden /> {lang === 'vi' ? 'Điểm chính' : 'Key points'}
       </h2>
-      <ul className="mt-3 list-disc space-y-2 pl-5 text-base leading-relaxed text-body marker:text-ink-4">
+      <ul className="mt-3 max-w-[60ch] list-disc space-y-2 pl-5 text-base leading-relaxed text-body marker:text-ink-4 lg:text-lg">
         {g.keyPoints.map((k, i) => <li key={i}><Inline src={k} isLiveHref={isLiveHref} lang={lang} /></li>)}
       </ul>
     </section>
@@ -227,7 +238,7 @@ export function TeachKeyPoints({ g, isLiveHref, lang = 'en' }: { g: TeachGuide; 
  */
 export function TeachDataLink({ href, label, text }: { href: string; label: string; text: string }) {
   return (
-    <p className="mt-4 max-w-3xl text-sm leading-relaxed text-body">
+    <p className="mt-4 max-w-3xl text-sm leading-relaxed text-body lg:text-base">
       <span className="font-semibold text-foreground">Data:</span> <HereLink href={href}>{label}</HereLink> — {text}
     </p>
   )

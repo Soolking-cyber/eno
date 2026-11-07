@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Loader2, Upload, ShieldCheck, Check } from "@/components/ui/icons"
+import { Loader2, Upload, ShieldCheck, Check, FileText, Landmark } from "@/components/ui/icons"
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
@@ -94,6 +94,9 @@ export function BusinessVerificationPanel({ showPersonSteps = true, flat = false
   const [status, setStatus] = useState<'ok' | 'no-storefront' | 'failed'>('ok')
   const [busy, setBusy] = useState(false)
   const [consent, setConsent] = useState(false)
+  /** Which document a file is going into, and each document's last refusal: said on that document's own row (2026-11-07 audit). */
+  const [uploading, setUploading] = useState<'identity' | 'bank' | null>(null)
+  const [slotError, setSlotError] = useState<{ identity?: string; bank?: string }>({})
   /**
    * ⚠️ ONLY THE NEWEST `load()` MAY WRITE STATE. `load()` runs on mount and again after every
    * upload and submit, so two can overlap — and without this an older, slower failure could land
@@ -133,6 +136,9 @@ export function BusinessVerificationPanel({ showPersonSteps = true, flat = false
       {
         setStatus('ok')
         setView(b.case)
+        // Drop the refusal of any document the server now holds (2026-11-07 review): one added from another device kept this
+        // device's old error, red beside its check, until a same-kind upload here succeeded.
+        setSlotError((s) => ({ identity: b.case?.documentKinds.includes('identity') ? undefined : s.identity, bank: b.case?.documentKinds.includes('bank') ? undefined : s.bank }))
         setLive(b.view ?? 'unverified')
         setPersonGate(b.personGate === true)
         // ⚠️ DEFAULTS TO TRUE, so an older server that does not send the field cannot silently lock
@@ -153,16 +159,23 @@ export function BusinessVerificationPanel({ showPersonSteps = true, flat = false
 
   const upload = async (kind: 'identity' | 'bank', file: File) => {
     setBusy(true)
+    setUploading(kind)
     try {
       const form = new FormData()
       form.set('kind', kind)
       form.set('file', file)
       const res = await fetch('/api/seller/verification/documents', { method: 'POST', body: form })
       const b = (await res.json().catch(() => null)) as { error?: string } | null
-      if (!res.ok) { toast.error(errCopy(b?.error)); return }
+      if (!res.ok) {
+        const why = errCopy(b?.error)
+        toast.error(why)
+        setSlotError((s) => ({ ...s, [kind]: why }))
+        return
+      }
+      setSlotError((s) => ({ ...s, [kind]: undefined }))
       toast.success(tr('Document uploaded.', 'Đã tải lên giấy tờ.'))
       await load()
-    } finally { setBusy(false) }
+    } finally { setBusy(false); setUploading(null) }
   }
 
   const submit = async () => {
@@ -368,9 +381,14 @@ export function BusinessVerificationPanel({ showPersonSteps = true, flat = false
                 'Your verification no longer matches your current details (or has expired). Re-submit the two documents to verify again.',
                 'Xác minh không còn khớp với thông tin hiện tại (hoặc đã hết hạn). Hãy gửi lại hai giấy tờ để xác minh lại.',
               )} ${tr('JPG, PNG or PDF, up to 15 MB each.', 'JPG, PNG hoặc PDF, tối đa 15 MB mỗi tệp.')}`
-              : tr(
+              // No rows in the iOS app (uploadsElsewhere) name the two documents or the bank rule (2026-11-07 review), so there
+              // the sentence that named them before the rows still does.
+              : uploadsElsewhere ? tr(
                 'Add two proofs and a specialist confirms them: a business or ID document, and a bank document whose account-holder name matches your legal name. JPG, PNG or PDF, up to 15 MB each. The tax code on your business profile is checked automatically.',
                 'Thêm hai giấy tờ để chuyên viên xác nhận: giấy tờ kinh doanh hoặc định danh, và giấy tờ ngân hàng có tên chủ tài khoản trùng với tên pháp lý của bạn. JPG, PNG hoặc PDF, tối đa 15 MB mỗi tệp. Mã số thuế trong hồ sơ doanh nghiệp được kiểm tra tự động.',
+              ) : tr(
+                'A specialist confirms two documents. JPG, PNG or PDF, up to 15 MB each. The tax code on your business profile is checked automatically.',
+                'Chuyên viên sẽ xác nhận hai giấy tờ. JPG, PNG hoặc PDF, tối đa 15 MB mỗi tệp. Mã số thuế trong hồ sơ doanh nghiệp được kiểm tra tự động.',
               )}
           </p>
           {live === 'rejected' && view?.note && (
@@ -380,18 +398,39 @@ export function BusinessVerificationPanel({ showPersonSteps = true, flat = false
           )}
 
           {uploadsElsewhere ? <IosVerifyElsewhereNote kind="business" className="mt-3" /> : (<>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <input ref={idInput} type="file" accept="image/jpeg,image/png,application/pdf" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload('identity', f); e.target.value = '' }} />
-            <input ref={bankInput} type="file" accept="image/jpeg,image/png,application/pdf" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload('bank', f); e.target.value = '' }} />
-            <Button variant="outline" size="sm" disabled={busy || stepOneIncomplete} onClick={() => idInput.current?.click()}>
-              <Upload className="h-4 w-4" /> {hasId ? tr('Business / ID ✓', 'Giấy tờ KD/định danh ✓') : tr('Business / ID document', 'Giấy tờ KD/định danh')}
-            </Button>
-            <Button variant="outline" size="sm" disabled={busy || stepOneIncomplete} onClick={() => bankInput.current?.click()}>
-              <Upload className="h-4 w-4" /> {hasBank ? tr('Bank document ✓', 'Giấy tờ ngân hàng ✓') : tr('Bank document', 'Giấy tờ ngân hàng')}
-            </Button>
-          </div>
+          <input ref={idInput} type="file" accept="image/jpeg,image/png,application/pdf" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload('identity', f); e.target.value = '' }} />
+          <input ref={bankInput} type="file" accept="image/jpeg,image/png,application/pdf" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload('bank', f); e.target.value = '' }} />
+          {/* THE TWO DOCUMENTS AS ROWS (2026-11-07 audit): two small buttons with a ✓ in the label read as optional extras. Each row
+              says what it is, whether it is in (or why its upload was refused) and holds the upload. "Add another", never
+              "Replace": the route APPENDS (appendVerificationDoc). The badge is bg-card inside Settings' tinted panel. */}
+          <ul className="mt-3 divide-y divide-border border-y border-border">
+            {([
+              { kind: 'identity', added: hasId, input: idInput, Icon: FileText, name: tr('Business / ID document', 'Giấy tờ KD/định danh'), need: tr('Not added yet', 'Chưa thêm') },
+              { kind: 'bank', added: hasBank, input: bankInput, Icon: Landmark, name: tr('Bank document', 'Giấy tờ ngân hàng'), need: tr('The account holder’s name must match your legal name.', 'Tên chủ tài khoản phải trùng với tên pháp lý của bạn.') },
+            ] as const).map(({ kind, added, input, Icon, name, need }) => (
+              <li key={kind} className="flex items-center gap-3 py-3">
+                <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-full', added ? 'bg-success text-success-foreground' : flat ? 'bg-tint text-body' : 'bg-card text-body')}>
+                  {uploading === kind
+                    ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    : added ? <Check className="h-4 w-4" aria-hidden="true" /> : <Icon className="h-4 w-4" aria-hidden="true" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">{name}</p>
+                  <p className={cn('text-xs lg:text-sm', uploading === kind ? 'text-body' : slotError[kind] ? 'font-semibold text-destructive' : added ? 'font-semibold text-success' : 'text-body')}>
+                    {uploading === kind ? tr('Uploading…', 'Đang tải lên…') : slotError[kind] ?? (added ? tr('Added', 'Đã thêm') : need)}
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" disabled={busy || stepOneIncomplete} onClick={() => input.current?.click()} className="relative tap-44 shrink-0">
+                  <Upload className="h-4 w-4" />
+                  {added ? tr('Add another', 'Thêm tệp') : tr('Upload', 'Tải lên')}
+                  <span className="sr-only">{' '}{name}</span>
+                </Button>
+              </li>
+            ))}
+          </ul>
 
-          <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-body">
+          {/* 14px on every size (2026-11-07 audit): a consent to process identity and bank documents is not fine print. */}
+          <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-sm leading-relaxed text-body">
             {/* h-5: matches the listing-row/availability rounded-square check boxes — the h-4
                 default turns the 7px radius token into a circle and forks the checkbox family. */}
             <Checkbox checked={consent} onChange={setConsent} className="mt-0.5 h-5 w-5" />
@@ -406,10 +445,10 @@ export function BusinessVerificationPanel({ showPersonSteps = true, flat = false
             </Button>
             {/* What opens it, beside it (2026-11-06 audit): a pale Submit with no reason read as broken — the verify page's
                 "Tick the declaration above first" line, here. Stated as the condition, so it stays true whichever of the three
-                is still missing (the ✓ on each upload and the box show which). Not while step 1 locks the panel: that lock says
-                why itself. */}
+                is still missing (each document's row and the box show which). Not while step 1 locks the panel: that lock says
+                why itself. 14px from lg, where 12px read as fine print (2026-11-07 audit). */}
             {!busy && !stepOneIncomplete && (!hasId || !hasBank || !consent) && (
-              <p className="text-xs text-body">{tr('You can submit once both documents are added and the box above is ticked.', 'Bạn có thể gửi khi đã thêm đủ hai giấy tờ và đánh dấu vào ô ở trên.')}</p>
+              <p className="text-xs text-body lg:text-sm">{tr('You can submit once both documents are added and the box above is ticked.', 'Bạn có thể gửi khi đã thêm đủ hai giấy tờ và đánh dấu vào ô ở trên.')}</p>
             )}
           </div>
           </>)}

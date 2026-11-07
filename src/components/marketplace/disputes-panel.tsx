@@ -124,6 +124,9 @@ export function DisputesPanel({ compact = false, underSectionHeader = false }: {
         // STROKE_DISPLAY — same dashed card the sibling /dashboard/listings empty renders.
         <EmptyState
           className="mt-6"
+          // The page-level tier, as /saved and the inbox draw theirs (2026-11-07 audit: the empty /saved led with an 18px heading
+          // over 16px copy, its sibling tool pages with 16px over 14px).
+          size="lg"
           icon={Scale}
           title={t('No disputes', 'Chưa có khiếu nại nào')}
           // Where a case starts, once, and the guide to it (2026-11-07 audit, tools + dash judges: "Cases you open —

@@ -8,6 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { PageHeader } from '@/components/ui/page-header'
 import { useLanguage } from '@/context/language-context'
 import { scrollBehavior } from '@/lib/reduced-motion'
+import { cn } from '@/lib/utils'
+import { sortTabClass } from './sort-tab-class'
 
 /**
  * THE ONE TABBED SECTION SHELL — how the dashboard consolidates several old pages into one.
@@ -152,13 +154,20 @@ export function DashboardTabs({
               pointless chrome under the section title. Hide the list (the panel still renders via the
               controlled value); the strip reappears the moment a second tab does. */}
           {hasStrip && (
-            /* The strip scrolls on a narrow phone rather than wrapping to two rows. */
-            <div ref={stripRef} className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0 scroll-thin">
-              <TabsList aria-label={typeof title === 'string' ? title : tr('Section', 'Mục')}>
+            /* The strip scrolls on a narrow phone rather than wrapping to two rows. UNDERLINED 44px TABS, NOT A GREY PILL
+               (2026-11-07 audit): the pill looked like the status filter under it, missed the 44px floor, and ended flush at a
+               phone's edge without saying it scrolls; a label cut at the edge does. No edge fade (owner, 2026-08-26). -mb-px
+               lays each underline over the list's own border, so nothing overflows; the ring is inset, the scroller clips. */
+            <div ref={stripRef} className="-mx-3 overflow-x-auto overflow-y-hidden px-3 sm:mx-0 sm:px-0 scroll-thin">
+              <TabsList
+                variant="line"
+                aria-label={typeof title === 'string' ? title : tr('Section', 'Mục')}
+                className="min-w-full justify-start border-b border-border p-0 group-data-horizontal/tabs:h-auto"
+              >
                 {tabs.map((t) => (
-                  // text-body: a resting tab reads at the strength of the captions under it, not a 60% grey;
-                  // lg:px-3: on a desktop the selected pill clears its label instead of hugging it (2026-11-06 audit).
-                  <TabsTrigger key={t.value} value={t.value} className="text-body lg:px-3">{t.label}</TabsTrigger>
+                  <TabsTrigger key={t.value} value={t.value} className={cn(sortTabClass(active === t.value), '-mb-px min-h-11 focus-visible:ring-inset')}>
+                    {t.label}
+                  </TabsTrigger>
                 ))}
               </TabsList>
             </div>

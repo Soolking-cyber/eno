@@ -537,6 +537,8 @@ export function RentalCheckView() {
           // Centred in the app frame under the title at every width, as the empty /disputes and /saved are (2026-11-07 audit:
           // on the task column's left edge it read as a different page from its siblings). Only the list keeps the column.
           className="mt-6"
+          // The page-level tier, as /saved, /disputes and the inbox draw theirs (2026-11-07 audit): 18px over 16px.
+          size="lg"
           icon={ClipboardCheck}
           title={tr('Your list is empty', 'Danh sách đang trống')}
           subtitle={<TapTheMark />}

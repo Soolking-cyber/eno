@@ -122,9 +122,9 @@ function GuideRows({ guides }: { guides: TeachGuideEntry[] }) {
   return (
     <ul className="mt-2 max-w-3xl divide-y divide-border border-y border-border">
       {guides.map((g) => (
-        <li key={g.slug} className="py-3">
+        <li key={g.slug} className="py-3 lg:text-lg">
           <HereLink href={teachPath(g.slug)}>{g.label}</HereLink>
-          <p className="mt-1 text-sm leading-relaxed text-body">{g.blurb}</p>
+          <p className="mt-1 text-sm leading-relaxed text-body lg:text-base">{g.blurb}</p>
         </li>
       ))}
     </ul>
@@ -326,9 +326,9 @@ function ShortAnswers({ answers, bySlug }: { answers: ShortAnswer[]; bySlug: Rea
         return (
           <Row key={x.id} className="py-4">
             {/* The anchor is on the question, so a jump lands on it below the sticky header. */}
-            <h3 id={x.id} className="scroll-mt-24 text-base font-bold text-foreground">{x.q}</h3>
-            <p className="mt-1 max-w-[60ch] text-base leading-relaxed text-body">{x.a}</p>
-            <p className="mt-2 text-sm leading-relaxed text-ink-4">
+            <h3 id={x.id} className="scroll-mt-24 text-base font-bold text-foreground lg:text-lg">{x.q}</h3>
+            <p className="mt-1 max-w-[60ch] text-base leading-relaxed text-body lg:text-lg">{x.a}</p>
+            <p className="mt-2 text-sm leading-relaxed text-ink-4 lg:text-base">
               Facts checked <time dateTime={x.checked}>{formatArticleDate(x.checked, 'en')}</time>
               {guides.length > 0 && (
                 <>
@@ -386,7 +386,7 @@ export default async function TeachHubPage() {
   const facts = !((schools && schools.total > 0) || rentFact) ? null : (
     <section aria-label={FACTS_LABEL} className="mt-6 max-w-3xl border-b border-border pb-6">
       <p className="text-sm font-bold uppercase tracking-wide text-accent-foreground">Saigon for teachers, today</p>
-      <ul className="mt-3 list-disc space-y-2 pl-5 text-base leading-relaxed text-body marker:text-ink-4">
+      <ul className="mt-3 max-w-[60ch] list-disc space-y-2 pl-5 text-base leading-relaxed text-body marker:text-ink-4 lg:text-lg">
         {schools && schools.total > 0 && (
           <li>
             <strong className="font-semibold text-foreground">{plural(schools.total, ['employer', 'employers'])}</strong> in{' '}
@@ -445,8 +445,8 @@ export default async function TeachHubPage() {
         <div className="grid grid-cols-1 max-w-3xl gap-x-8 gap-y-6 sm:grid-cols-2">
           {start.map((p) => (
             <div key={p.title} className="min-w-0">
-              <h3 className="text-base font-bold text-foreground">{p.title}</h3>
-              <ul className="mt-2 space-y-1.5 text-base">
+              <h3 className="text-base font-bold text-foreground lg:text-lg">{p.title}</h3>
+              <ul className="mt-2 space-y-1.5 text-base lg:text-lg">
                 {p.guides.map((g) => <li key={g.slug}><HereLink href={teachPath(g.slug)}>{g.label}</HereLink></li>)}
               </ul>
             </div>

@@ -70,8 +70,9 @@ export function JobApplyBy({ applyBy, className }: { applyBy: string; className?
     ? ` · ${days <= 1 ? tr('Last day', 'Hôm nay là hạn cuối') : tr('{n} days left', 'còn {n} ngày').replace('{n}', String(days))}`
     : ''
   const urgent = counting && days <= 3
+  // 14px from lg (2026-11-07 audit), with the other notes under a desktop's CTA; a phone keeps 12px.
   return (
-    <p className={cn('text-xs text-body', urgent && 'font-semibold text-warning', className)}>
+    <p className={cn('text-xs text-body lg:text-sm', urgent && 'font-semibold text-warning', className)}>
       {tr('Apply by', 'Hạn nộp:')} <time dateTime={applyBy}>{formatCalendarDay(applyBy, lang)}</time>{left}
     </p>
   )

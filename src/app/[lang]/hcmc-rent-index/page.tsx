@@ -179,7 +179,9 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
           <Tr text="What renting a home in Saigon costs right now, district by district: the median monthly asking rent for apartments, houses and rooms, recalculated every day from live listings and free to cite." />
         </p>
         {index ? (
-          <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+          <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-body">
+            {/* The snapshot's day in body ink, not the faintest grey: it is what a citation names (2026-11-07 audit: dates and counts
+                read small and pale beside the bold figures). */}
             <span><Tr text="Snapshot" />: {snapshot}</span>
             {/* The backlink box sits at the foot of the page; this puts it one tap from the top. */}
             <a href="#cite" className="font-semibold text-accent-foreground hover:underline">

@@ -210,7 +210,8 @@ export function AffiliateBooking({
                   original posting, on its own site, as the rental's caption says "the original ad on {site}". */}
               {job ? tr('Scan to open the original posting on your phone', 'Quét để mở tin tuyển dụng gốc trên điện thoại') : booking ? <Tr text="Scan to book on your phone" /> : rental ? tr('Scan to open this rental on your phone', 'Quét để mở tin cho thuê này trên điện thoại') : <Tr text="Scan to open on your phone" />}
             </p>
-            <p className="mt-1 text-xs text-body">
+            {/* 14px from lg (2026-11-07 audit), with the other notes in the buy box; this row only ever shows on a desktop (`pc:`). */}
+            <p className="mt-1 text-xs text-body lg:text-sm">
               {job ? tr('Opens the job on {site}, where you apply.', 'Mở tin tuyển dụng trên {site}, nơi bạn nộp hồ sơ.', { site: partnerName }) : booking ? <Tr text="Opens the same booking page, with the discount code ready to enter." /> : rental ? tr('Opens the original ad on {site}.', 'Mở tin gốc trên {site}.', { site: partnerName }) : <Tr text="Opens the same product page on the shop's website." />}
             </p>
           </div>

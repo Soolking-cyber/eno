@@ -146,8 +146,8 @@ function ChatCardMeta() {
   if (!meta) return null
   // `pe-5` for the same reason as the text bubble's line — the quick-react glyph is sunk into the
   // card's bottom-right corner and would sit over a timestamp that ran to the padding edge.
-  // 11px, as the text bubble's time (chat-parts.tsx MessageBubble — 2026-11-07 audit).
-  return <div className="mt-1.5 flex items-center justify-end gap-1 pe-5 text-2xs leading-none text-ink-4">{meta}</div>
+  // 11px, as the text bubble's time (chat-parts.tsx MessageBubble — 2026-11-07 audit), and 12px from lg as it is.
+  return <div className="mt-1.5 flex items-center justify-end gap-1 pe-5 text-2xs leading-none text-ink-4 lg:text-xs">{meta}</div>
 }
 
 /**

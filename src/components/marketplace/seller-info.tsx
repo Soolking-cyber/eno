@@ -67,14 +67,16 @@ export function SellerInfo({ info, variant = 'pdp', className }: { info: SellerI
         ))}
       </dl>
       {info.kind === 'business' && (
-        <p className="text-xs text-muted-foreground">{tr('As provided by the seller.', 'Theo thông tin người bán cung cấp.')}</p>
+        <p className="text-xs text-muted-foreground lg:text-sm lg:text-body">{tr('As provided by the seller.', 'Theo thông tin người bán cung cấp.')}</p>
       )}
       {/* ⚠️ LITERAL PAIRS BEHIND THE EDITION — the block renders on both sites, and gen-ui-strings
           harvests literals only, so `${SITE_NAME}` cannot go inside the copy. True by construction: a
           linked listing's PDP replaces chat with the outbound button (page.tsx, the affiliateUrl branch).
           ⚠️ THE VERB FOLLOWS THE LISTING TYPE (`info.action`, sourceActionFor): a linked JOB is applied for
-          and a linked RENTAL (home or vehicle) is contacted or booked — "buy" on those was simply wrong. */}
-      {info.kind === 'source' && <p className="text-xs text-muted-foreground">{sourceCaption(info.action, tr)}</p>}
+          and a linked RENTAL (home or vehicle) is contacted or booked — "buy" on those was simply wrong.
+          2026-11-07 audit: both captions 14px in body ink from lg, as the rows above them; at 12px in the quietest grey "eno.vn is
+          not the employer" read as fine print on a desktop. */}
+      {info.kind === 'source' && <p className="text-xs text-muted-foreground lg:text-sm lg:text-body">{sourceCaption(info.action, tr)}</p>}
     </section>
   )
 }

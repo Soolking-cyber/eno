@@ -44,7 +44,9 @@ export function NotFoundBody() {
       <h1 className="h-display mt-6 text-foreground">
         {isListing ? tr('This page has moved on.', 'Trang này không còn tồn tại.') : tr("We can't find that page.", 'Không tìm thấy trang này.')}
       </h1>
-      <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-body">
+      {/* 16px, the reading size (2026-11-07 audit): at 14px under the display heading the one sentence that says what happened
+          read as a caption. */}
+      <p className="mx-auto mt-3 max-w-md text-base leading-relaxed text-body">
         {isListing
           ? tr(
               "The listing may have sold, been taken down, or the link is broken — let's get you back to the good stuff.",

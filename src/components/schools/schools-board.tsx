@@ -238,8 +238,10 @@ function BoardRowItem({ row, rank }: { row: BoardRow; rank: number | null }) {
             </Link>
           </p>
           {row.award && <p className="mt-1"><AwardBadge year={row.award.year} rank={row.award.rank} /></p>}
-          {/* The kind and areas in body ink: they tell two similar names apart (2026-11-06 audit: small and pale on desktop). */}
-          <p className="mt-0.5 truncate text-sm text-body">
+          {/* The kind and areas in body ink: they tell two similar names apart (2026-11-06 audit: small and pale on desktop). Up to
+              two lines, not one cut short: on a phone the vote column already makes the row that tall, and the cut took the area
+              count with it (2026-11-07 audit: "Language centre · District 12, Go V…"). One line on desktop, as before. */}
+          <p className="mt-0.5 line-clamp-2 text-sm text-body">
             <KindLabel kind={row.kind} />
             {row.districts.length > 0 && <> · {row.districts.slice(0, 2).map((d) => areaLabel(d, lang)).join(', ')}{row.districts.length > 2 ? ` +${row.districts.length - 2}` : ''}</>}
           </p>

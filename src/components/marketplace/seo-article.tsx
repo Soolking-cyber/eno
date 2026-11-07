@@ -241,14 +241,17 @@ function ArticleCta({ cta, className }: { cta: NonNullable<ArticleContent['cta']
 /**
  * Body paragraph. `max-w-[60ch]` holds the reading measure inside the 3xl column: the column alone
  * set 768px lines — ~80 characters at 16px (C-TYPO).
+ * 2026-11-07 audit: 18px from lg, an editorial size at desktop distance — at 16px the guides read small on the wide canvas
+ * (judges: eight guide desktops). `ch` resolves at the element's own size, so the measure stays ~65–70 characters a line
+ * (≈675px). Below lg every size is as before.
  */
 export function P({ children }: { children: React.ReactNode }) {
-  return <p className="mt-3 max-w-[60ch] text-base leading-relaxed text-body first:mt-0">{children}</p>
+  return <p className="mt-3 max-w-[60ch] text-base leading-relaxed text-body first:mt-0 lg:text-lg">{children}</p>
 }
 
-/** Body list. Markers are inside the content box so a wrapped line aligns under the text. */
+/** Body list. Markers are inside the content box so a wrapped line aligns under the text. 18px from lg, as P. */
 export function Ul({ children }: { children: React.ReactNode }) {
-  return <ul className="mt-3 max-w-[60ch] list-disc space-y-2 pl-5 text-base leading-relaxed text-body marker:text-ink-4">{children}</ul>
+  return <ul className="mt-3 max-w-[60ch] list-disc space-y-2 pl-5 text-base leading-relaxed text-body marker:text-ink-4 lg:text-lg">{children}</ul>
 }
 
 /**
@@ -438,11 +441,13 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
     })),
   }
 
+  /** Four sections or more: the phone's "On this page" row and, from lg, the rail beside the article. */
+  const hasToc = content.sections.length >= 4
   /**
    * The phone's "On this page" row (lg:hidden: from lg the rail beside the sections does this job). Built once, rendered in one
    * of two places below: straight under the lede when the article has a lede row, else above the first section.
    */
-  const phoneToc = content.sections.length >= 4 ? (
+  const phoneToc = hasToc ? (
     <details className="group mt-6 max-w-3xl border-y border-border lg:hidden">
       {/* 2026-11-06 audit: ContentPage's contents row, one treatment for both families — the label in primary
           ink and a 20px chevron that turns on open, a wash on press; the count is for a screen reader only (a bare
@@ -504,40 +509,51 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
             {revised ? DATE_LINE[articleLang].updated : DATE_LINE[articleLang].published}{' '}
             <time dateTime={modified}>{formatArticleDate(modified, articleLang)}</time> · {SITE_NAME}
           </p>
-          <p className="mt-4 max-w-3xl text-base leading-relaxed text-body">{content.intro}</p>
+          {/* 2026-11-07 audit: the lede at the body's 60ch measure and, from lg, its 18px. In the 3xl column it ran ~95 characters
+              a line on a desktop, longer than any paragraph under it. */}
+          <p className="mt-4 max-w-[60ch] text-base leading-relaxed text-body lg:text-lg">{content.intro}</p>
           {/* 2026-11-06 audit: with a lede row (a guide's Key points, the teach hub's facts, a vehicle hub's filters) the phone's
               contents row comes first, straight under the lede. Below a long Key points box it landed a screen or more down,
               behind the summary a reader may want to skip (judges: teach pages, the VinFast and driving-permit guides). With no
               lede row it stays below the CTA and the disclosure, so a hub's one brand button keeps its place under the lede. */}
           {content.ledeRow ? phoneToc : null}
-          {content.ledeRow}
-          {content.cta && <ArticleCta cta={content.cta} className="mt-6" />}
-
-          {content.disclosure && (
-            // Lines and a tinted panel rather than a shouty callout: this is a statement of who is
-            // responsible for what, and it should read as information, not as a warning.
-            <aside className="mt-6 flex max-w-3xl items-start gap-3 rounded-xl bg-tint p-4">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
-              <p className="text-sm leading-relaxed text-body">{content.disclosure}</p>
-            </aside>
-          )}
 
           {/* "On this page". These guides run long by design, and a reader who arrived from a query about one section should reach it; it is also how
               Google finds the jump links it sometimes shows under a result. One row on a phone, where the open list took most of a screen before
               the first section; beside the text on desktop, where the column stood empty.
               2026-11-06 audit: `justify-start`, not `-between`. Between handed the spare width (~230px at 1440) to the gap, so the rail
-              floated ~450px from the 60ch prose and ~280px from a vehicle hub's grid; it now sits 48px off the column it indexes. */}
-          <div className={content.sections.length >= 4 ? 'lg:grid lg:grid-cols-[minmax(0,48rem)_15rem] lg:justify-start lg:gap-x-12' : undefined}>
+              floated ~450px from the 60ch prose and ~280px from a vehicle hub's grid; it now sits 48px off the column it indexes.
+              2026-11-07 audit: the grid opens right under the lede, so the rail stands beside the Key points (or the CTA), where the
+              phone's row sits, not a screen lower beside the first section (judges: the teach pages and the VinFast guide). From xl
+              it is 17rem, 64px off the column: fewer entries wrap, and less of a wide screen stands empty. Below lg nothing moves. */}
+          <div className={hasToc ? 'lg:grid lg:grid-cols-[minmax(0,48rem)_15rem] lg:justify-start lg:gap-x-12 xl:grid-cols-[minmax(0,48rem)_17rem] xl:gap-x-16' : undefined}>
             <div className="min-w-0">
+              {content.ledeRow}
+              {content.cta && <ArticleCta cta={content.cta} className="mt-6" />}
+
+              {content.disclosure && (
+                // Lines and a tinted panel rather than a shouty callout: this is a statement of who is
+                // responsible for what, and it should read as information, not as a warning.
+                <aside className="mt-6 flex max-w-3xl items-start gap-3 rounded-xl bg-tint p-4">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
+                  <p className="text-sm leading-relaxed text-body">{content.disclosure}</p>
+                </aside>
+              )}
+
               {content.ledeRow ? null : phoneToc}
               <ArticleSections sections={leadSections} className="mt-10" />
             </div>
-            {content.sections.length >= 4 && (
-              <nav aria-label={chrome.onThisPage} className="hidden self-start lg:sticky lg:top-24 lg:mt-10 lg:block">
-                <p className="eyebrow mb-3 text-ink-4">{chrome.onThisPage}</p>
-                <ul className="space-y-2">
+            {hasToc && (
+              // Level with the first block beside it: a lede row, the CTA and the disclosure open 24px down, the first section 40px.
+              <nav aria-label={chrome.onThisPage} className={`hidden self-start lg:sticky lg:top-24 lg:block ${content.ledeRow || content.cta || content.disclosure ? 'lg:mt-6' : 'lg:mt-10'}`}>
+                <p className="eyebrow mb-2 text-ink-4">{chrome.onThisPage}</p>
+                {/* 2026-11-07 audit: ContentPage's rail rows (px-2, a wash under the pointer), the list pulled out 8px so the labels keep
+                    the eyebrow's edge. No current-section mark yet: it needs ContentRail's scroll-spy (client JavaScript on a server
+                    page) or CSS scroll-target-group, whose focus rules (focus can follow the current entry while the reader
+                    scrolls) are not settled. */}
+                <ul className="-mx-2 space-y-0.5">
                   {content.sections.map((s) => (
-                    <li key={s.id}><a href={`#${s.id}`} className="block text-sm font-medium text-body hover:text-accent-foreground hover:underline">{s.title}</a></li>
+                    <li key={s.id}><a href={`#${s.id}`} className="block rounded-lg px-2 py-1.5 text-sm font-medium text-body transition-colors hover:bg-muted hover:text-foreground active:bg-muted">{s.title}</a></li>
                   ))}
                 </ul>
               </nav>
@@ -571,8 +587,8 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
                   <Row key={r.href} className="py-0">
                     <Link href={r.href} className="group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3 py-4">
                       <span className="min-w-0">
-                        <span className="block text-base font-bold text-foreground group-hover:text-accent-foreground">{r.label}</span>
-                        <span className="mt-1 block line-clamp-2 text-sm leading-relaxed text-body">{r.blurb}</span>
+                        <span className="block text-base font-bold text-foreground group-hover:text-accent-foreground lg:text-lg">{r.label}</span>
+                        <span className="mt-1 block line-clamp-2 text-sm leading-relaxed text-body lg:text-base">{r.blurb}</span>
                       </span>
                       <ChevronRight className="size-4 text-ink-4 group-hover:text-accent-foreground" aria-hidden />
                     </Link>
@@ -588,8 +604,8 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
               <div className="space-y-6">
                 {content.faqs.map((f, i) => (
                   <div key={i}>
-                    <h3 className="text-base font-bold text-foreground">{f.q}</h3>
-                    <p className="mt-1 max-w-[60ch] text-base leading-relaxed text-body">{f.a}</p>
+                    <h3 className="text-base font-bold text-foreground lg:text-lg">{f.q}</h3>
+                    <p className="mt-1 max-w-[60ch] text-base leading-relaxed text-body lg:text-lg">{f.a}</p>
                   </div>
                 ))}
               </div>
@@ -605,17 +621,17 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
               family is only honest if the reader is told they are in one brand family — and the
               constant may never be reworded to say the sites are unrelated, which they are not. When
               CrossSitePromo is rendered it already carries this line; showing it twice is worse than
-              showing it once, hence the guard. */}
-          {!content.crossSitePromo && (
-            <p className="mt-14 max-w-3xl border-t border-border pt-6 text-xs leading-relaxed text-muted-foreground">
-              {chrome.affiliation}
+              showing it once, hence the guard.
+              2026-11-07 audit: one colophon under one hairline — who published the page and its caveat, then the family line —
+              not two blocks 32px apart, which gave the fine print the weight of a section of its own (judges: the guides hub). The
+              words of both lines are unchanged. */}
+          <div className="mt-14 max-w-3xl space-y-2 border-t border-border pt-6 text-sm leading-relaxed text-muted-foreground">
+            <p>
+              <ArrowUpRight className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />
+              {chrome.publishedBy[0]}<strong className="font-semibold text-foreground">{SITE_NAME}</strong>{chrome.publishedBy[1]}
             </p>
-          )}
-
-          <p className="mt-8 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-            <ArrowUpRight className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />
-            {chrome.publishedBy[0]}<strong className="font-semibold text-foreground">{SITE_NAME}</strong>{chrome.publishedBy[1]}
-          </p>
+            {!content.crossSitePromo && <p className="text-xs leading-relaxed">{chrome.affiliation}</p>}
+          </div>
         </ArticleText>
       </main>
 

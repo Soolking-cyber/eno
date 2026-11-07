@@ -146,8 +146,10 @@ const SOCIAL_ICON: Record<Social['key'], (p: { className?: string }) => React.Re
 const LEGAL_LINK = 'transition-colors hover:text-accent-foreground max-sm:inline-flex max-sm:min-h-11 max-sm:items-center'
 
 /**
- * `compact`: signed-in tool pages only (dashboard, disputes, a teacher's own tools). The operator's legal block, language, currency, legal links and
- * Help center stay, as Decree 52 and the stores want; the link columns are for public pages, and on a short tool page they outweighed the tool.
+ * `compact`: tool and form pages that are never indexed — the signed-in tools (dashboard, disputes, a teacher's own tools) and, since
+ * 2026-11-07, the noindex pages a guest can reach (/saved, /rentals/check, a school's review form, /schools/suggest). The operator's legal
+ * block, language, currency, legal links and Help center stay, as Decree 52 and the stores want; the link columns are for public,
+ * indexed pages, and on a short tool page they outweighed the tool.
  */
 export function Footer({ compact = false }: { compact?: boolean } = {}) {
   const pathname = usePathname()

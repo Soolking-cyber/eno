@@ -48,18 +48,21 @@ import {
 
 function FactorList({ factors }: { factors: RankingFactor[] }) {
   const { tr } = useLanguage()
+  // 2026-11-07 audit: the factor on its own line beside its weight and what it measures under it, so the browsing and the
+  // searching breakdowns compare down two aligned columns (weight, then factor) instead of three rows of prose. The weight
+  // is a step up (18px): it is the figure this list exists to state. Same words in the same order; the line break replaces
+  // the dash that joined factor and explanation.
   return (
-    <ul className="space-y-3">
+    <ul className="space-y-4">
       {factors.map((f) => (
-        <li key={f.key} className="flex gap-3">
+        <li key={f.key} className="flex items-baseline gap-4">
           {/* tabular-nums keeps the percentage column aligned down the list. */}
-          <span className="w-12 shrink-0 text-right font-bold tabular-nums text-foreground">
+          <span className="w-12 shrink-0 text-right text-lg font-bold tabular-nums text-foreground">
             {f.weightPct}%
           </span>
           <span className="min-w-0">
-            <strong className="text-foreground">{tr(f.labelEn, f.labelVi)}</strong>
-            {' — '}
-            {tr(f.explainEn, f.explainVi)}
+            <strong className="block font-semibold text-foreground">{tr(f.labelEn, f.labelVi)}</strong>
+            <span className="mt-0.5 block">{tr(f.explainEn, f.explainVi)}</span>
           </span>
         </li>
       ))}

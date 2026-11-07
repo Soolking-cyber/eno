@@ -61,9 +61,12 @@ export function ContentRail({ sections }: { sections: RailSection[] }) {
             // 2026-11-06 audit: these links ARE the way through a 15-section page, and in tertiary grey they were fainter than
             // the eyebrow above them. Body ink now, the current section in the location ink (icon-language §5), and py-1.5
             // so a wrapped two-line entry reads as one target.
+            // 2026-11-07 audit: the current section on the selection tint (bg-accent, as the open thread in Messages), not the neutral
+            // wash, which on the blue-wash canvas was barely a step (judges: twelve info desktops). The pointer's wash stays neutral and
+            // on the other rows only, so "here" and "under the pointer" never look alike.
             className={cn(
-              'block rounded-lg px-2 py-1.5 text-sm font-medium transition-colors hover:bg-muted active:bg-muted',
-              active ? 'bg-muted text-accent-foreground' : 'text-body hover:text-foreground',
+              'block rounded-lg px-2 py-1.5 text-sm font-medium transition-colors active:bg-muted',
+              active ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-foreground',
             )}
           >
             {s.labelVi ? <Bilingual en={s.label} vi={s.labelVi} /> : <Tr text={s.label} />}

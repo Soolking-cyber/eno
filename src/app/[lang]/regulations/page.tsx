@@ -1114,13 +1114,18 @@ export default function RegulationsPage() {
         * ⚠️ THE ENGLISH IS SMALLER, NEVER FAINTER (2026-11-06 audit). It sat a step fainter than the Vietnamese beside it
         * (ink-4), and it is the column most of this site's readers actually read. Its size, its place second and the
         * narrower column still say which text governs; the ink is body ink (the deadline table's English too), its titles
-        * the weight of a heading's subtitle.
+        * the weight of a heading's subtitle below xl, and from xl the English column's own heading (2026-11-07, below).
         */}
       {ARTICLES.map((a) => (
         <ContentSection key={a.id} id={a.id} wide>
           <div className="grid grid-cols-1 gap-1 xl:grid-cols-[4fr_3fr] xl:items-baseline xl:gap-x-10">
             <h2 className="h-title text-foreground" lang="vi">{a.titleVi}</h2>
-            <p className="text-sm font-semibold text-body" lang="en">{a.titleEn}</p>
+            {/* 2026-11-07 audit: from xl, where it tops the English column, the English title is that column's heading,
+                in the heading ink and one step down the heading ramp from the Vietnamese: 18px (h-section's size) beside
+                h-title's 24px, as the English body sits a step under the Vietnamese (14 vs 16px). At 14px in body ink it
+                sat four type steps under the h2 beside it, and the English column had nothing to scan by. Below xl it
+                stays the h2's subtitle, straight under it. Size, place and the 3fr column still say which text governs. */}
+            <p className="text-balance text-sm font-semibold text-body xl:text-lg xl:leading-snug xl:font-bold xl:text-foreground" lang="en">{a.titleEn}</p>
           </div>
           {a.body.map((p, i) => (
             <Fragment key={i}>

@@ -111,8 +111,9 @@ export default async function SchoolPageRoute({ params }: Props) {
 
         <SchoolLiveProvider schoolIds={[school.id]} reviewIds={page.reviews.map((r) => r.id)} initial={{ [school.id]: { up: page.up, down: page.down } }}>
           {/* The score sits beside the name from lg only: as one row of arrows and words it is ~330px wide, and between sm and lg
-              it would squeeze the school's name beside a 160px logo (2026-11-06 audit). */}
-          <header className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              it would squeeze the school's name beside a 160px logo (2026-11-06 audit). Right after the name and centred on the logo,
+              not pushed to the far edge, where at 1440px it floated ~390px from the school it scores (2026-11-07 audit). */}
+          <header className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-12">
             <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
               <SchoolLogo slug={school.slug} logo={school.logo} name={school.name} kind={school.kind} size="lg" />
               <div className="min-w-0">
@@ -185,7 +186,8 @@ export default async function SchoolPageRoute({ params }: Props) {
                 {page.jobs.length ? (
                   <div className="mt-4"><SchoolJobs jobs={page.jobs} /></div>
                 ) : (
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="mt-2 text-sm text-body">
+                    {/* Body ink, like the reviews' line above and the pay note beside it (2026-11-07 audit: status lines read pale). */}
                     <Bilingual en="No open jobs listed right now." vi="Hiện chưa có tin tuyển dụng." />{' '}
                     <Link href="/c/jobs" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Browse all jobs" vi="Xem mọi việc làm" /></Link>
                   </p>

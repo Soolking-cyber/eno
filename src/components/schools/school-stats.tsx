@@ -27,7 +27,9 @@ export function SchoolScore({ schoolId, schoolName }: { schoolId: string; school
         ) : (
           <p className={cn('text-2xl font-bold tabular-nums', pct >= 60 ? 'text-success' : pct >= 40 ? 'text-foreground' : 'text-destructive')}>{pct}%</p>
         )}
-        <p className="text-sm text-muted-foreground">
+        {/* Body ink: the vote count is the evidence behind the share, as a count is under each Rent Index figure (2026-11-07 audit:
+            the page's status lines read pale). */}
+        <p className="text-sm text-body">
           {votes === 0
             ? tr('No votes yet', 'Chưa có bình chọn')
             : pct === null

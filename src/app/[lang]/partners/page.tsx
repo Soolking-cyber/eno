@@ -1,7 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { withShare } from '@/lib/site-identity'
-import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { PartnerBadge } from '@/components/marketplace/partner-badge'
 import { Bilingual } from '@/components/marketplace/bilingual'
@@ -96,9 +95,17 @@ export default function PartnersPage() {
       ]}
     >
       <ContentSection id="what" title="What the badge means" titleVi="Ý nghĩa của huy hiệu">
-        <div className="flex items-center gap-2">
+        {/* 2026-11-07 audit: the sample names the badge it shows. The plate is icon-only at its one real size (owner, 2026-09-30),
+            so the line beside it carries 'Official partner', in readable ink, and says where the badge is drawn today: a
+            partner's storefront and its listings (listing-card, pdp-shop-link, seller-card), and the chat header a buyer reads
+            (trust-meta.tsx `partner`, messages/[id]: the plate takes the score's place there since the same audit). */}
+        <div className="flex items-center gap-2.5">
           <PartnerBadge size="md" />
-          <span className="text-sm text-ink-4"><Tr text="on a storefront, a listing, or a chat header" /></span>
+          <span className="text-sm text-body">
+            <strong className="font-semibold text-foreground"><Bilingual en="Official partner" vi="Đối tác chính thức" /></strong>
+            {' · '}
+            <Bilingual en="on a storefront, a listing or a chat header" vi="trên gian hàng, tin đăng hoặc đầu đoạn chat" />
+          </span>
         </div>
         <p className="leading-relaxed">
           <Bilingual
