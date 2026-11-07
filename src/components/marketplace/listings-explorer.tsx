@@ -43,7 +43,8 @@ import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE } from './shelf'
 import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { queryChips } from '@/lib/district-query'
 import { clearPlaceForTypedDistrict, queryAfterAreaPick } from './explorer-place'
-import { applyFilterParams, isSeededFeed, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView } from '@/lib/explorer-url'
+import { warmListing } from '@/lib/warm-listing'
+import { applyFilterParams, isSeededFeed, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView, type FilterHrefParam } from '@/lib/explorer-url'
 import { publicPathname, variantOfLanguage } from '@/lib/lang-variant'
 import { localizedHref } from '@/lib/lang-pinned'
 import { handBackAfterLeaving, holdScrollRestoration, pinnedChromeBottom, releaseScrollRestoration, runRestore } from './feed-restore'
@@ -820,12 +821,18 @@ export function ListingsExplorer({
    * agree (the provider starts at the variant the server rendered), so the href hydrates as rendered.
    */
   const tileVariant = sellerId ? 'en' : variantOfLanguage(lang)
-  const tileHref = useCallback((param: { category?: string; type?: string } | null) => {
+  // Subcategory, brand and model chips link the same way (owner, 2026-11-07: "Open link in new tab" on a chip): the path
+  // down the ladder they stand for, each step only when given — the explorer reads every one back (explorer-url.ts).
+  const tileHref = useCallback((param: FilterHrefParam | null) => {
     if (!param) return localizedHref(pathname, tileVariant)
     const q = new URLSearchParams()
-    if (param.category) q.set('category', param.category)
+    if (param.category && param.category !== 'all') q.set('category', param.category)
+    if (param.subcategory && param.subcategory !== 'all' && param.category && param.category !== 'all') q.set('subcategory', param.subcategory)
+    if (param.brand && param.brand !== 'all') q.set('brand', param.brand)
+    if (param.model && param.model !== 'all' && param.brand && param.brand !== 'all') q.set('model', param.model)
     if (param.type) q.set('type', param.type)
-    return localizedHref(`${pathname}?${q.toString()}`, tileVariant)
+    const qs = q.toString()
+    return localizedHref(qs ? `${pathname}?${qs}` : pathname, tileVariant)
   }, [pathname, tileVariant])
   // ⛔ NO FILTERS DRAWER ANY MORE, AND NO 'open-mobile-filters' LISTENER. The bottom drawer
   // (explorer-filters.tsx) could only be opened by that window event, and nothing had dispatched it
@@ -3607,12 +3614,8 @@ export function ListingsExplorer({
    * issued ~150 prefetches. Hover has the same shape on a fast mouse sweep. One route is warmed
    * once per session; `router.prefetch` caches internally too, but not before paying the call.
    */
-  const prefetchedRef = useRef<Set<string>>(new Set())
-  const prefetchListing = useCallback((id: string) => {
-    if (prefetchedRef.current.has(id)) return
-    prefetchedRef.current.add(id)
-    router.prefetch(`/listings/${id}`)
-  }, [router])
+  // The dedupe is page-wide now (src/lib/warm-listing.ts): every ListingCard warms its own route too (mouse and focus), wherever it is drawn.
+  const prefetchListing = useCallback((id: string) => warmListing(router, id), [router])
 
   // "Locate on map" from any card/row → switch to the map view focused on this
   // listing (the map flies to + opens its pin). Scrolls the feed into view so the
@@ -4776,6 +4779,7 @@ export function ListingsExplorer({
               onPickBrand={(b) => { setActiveBrand(b); setActiveLine('') }}
               onPickModel={setActiveModel}
               onPickLine={handlePickLine}
+              hrefFor={tileHref}
             />
           ) : (
             // The brand row's height, on a cold link to a category that has one (globals.css): nothing moves when the rail takes its place.

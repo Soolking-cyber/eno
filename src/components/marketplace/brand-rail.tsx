@@ -18,6 +18,8 @@ import { STROKE_UI } from '@/lib/icon-tokens'
 // the route ships are literally the same type.
 import type { FacetCounts } from '@/lib/facet-counts'
 import { scrollBehavior } from '@/lib/reduced-motion'
+import type { FilterHrefParam } from '@/lib/explorer-url'
+import { isPlainClick } from '@/lib/plain-click'
 
 type BrandItem = { slug: string; name: string; count: number; iconPath: string | null }
 
@@ -59,6 +61,7 @@ export function BrandRail({
   sellerId,
   onPickBrand,
   onPickModel,
+  hrefFor,
 }: {
   category: string
   subcategory?: string
@@ -96,8 +99,34 @@ export function BrandRail({
   sellerId?: string
   onPickBrand: (slug: string) => void
   onPickModel: (model: string) => void
+  /** Where a brand or model chip links (the explorer's `tileHref`). Absent = they stay toggle buttons. */
+  hrefFor?: (param: FilterHrefParam | null) => string
 }) {
   const { tr } = useLanguage()
+  /**
+   * ⛔ A CHIP IS A LINK WHEN THE PAGE CAN SAY WHERE IT GOES (owner, 2026-11-07: right-click "Open link in new tab", Cmd/Ctrl
+   * and middle click on a brand or model). category-rail.tsx's `tile` rule: with `hrefFor` the chip is an <a href> to the
+   * ladder it stands for (category, subcategory, brand, model); a plain primary click is prevented and applied in place
+   * through the same handler the button called, any other click is the browser's. A link has no pressed state, so the
+   * active chip says `aria-current`. draggable={false}: a mouse drag across the rail must not drag a URL out of it.
+   */
+  const chip = (props: { key: string; className: string; href: string | null; onSelect: () => void; data: Record<string, string>; pressed: boolean; iconSize?: false; children: React.ReactNode }) => {
+    if (props.href == null) {
+      return (
+        <Button key={props.key} variant="bare" size="none" iconSize={props.iconSize} {...props.data} aria-pressed={props.pressed} onClick={props.onSelect} className={props.className}>
+          {props.children}
+        </Button>
+      )
+    }
+    return (
+      <Button key={props.key} asChild variant="bare" size="none" iconSize={props.iconSize} className={props.className}>
+        <a href={props.href} draggable={false} {...props.data} aria-current={props.pressed ? 'true' : undefined} onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); props.onSelect() }}>
+          {props.children}
+        </a>
+      </Button>
+    )
+  }
+  const ladder = { category, subcategory }
   // Desktop ← / → arrows, same as the home rails (owner, 2026-07-22: "category brand reels
   // also need arrows like in home page"). The hook's ref IS the rail element, so it also
   // serves the auto-centre-the-active-brand effect below — one node, one ref.
@@ -394,19 +423,21 @@ export function BrandRail({
           <Fragment key={b.slug}>
             {/* whitespace-normal: the base is whitespace-nowrap and white-space INHERITS,
                 which would turn the line-clamp-2 brand name into one unwrappable line. */}
-            <Button
-              variant="bare"
-              size="none"
+            {chip({
+              key: b.slug,
               // ⚠️ iconSize={false} is REQUIRED. ui/button's base carries `[:where(&)_svg]:size-4`,
               // which out-specificities the BrandLogo svg's width/height ATTRIBUTES (presentational
               // attrs = specificity 0) and silently shrank the mark to 16px — the CategoryIcon dodged
               // it only because it sets h-11/w-11 CLASSES. Turning the rule off lets `size={48}` land.
-              iconSize={false}
-              data-brand={b.slug}
-              aria-pressed={isActive}
-              onClick={() => { onPickBrand(isActive ? 'all' : b.slug); onPickModel('all') }}
-              className={cn(tileCls, 'whitespace-normal')}
-            >
+              iconSize: false,
+              data: { 'data-brand': b.slug },
+              pressed: isActive,
+              // The active brand links where a tap on it goes: the same aisle with no brand.
+              href: hrefFor ? hrefFor(isActive ? ladder : { ...ladder, brand: b.slug }) : null,
+              onSelect: () => { onPickBrand(isActive ? 'all' : b.slug); onPickModel('all') },
+              className: cn(tileCls, 'whitespace-normal'),
+              children: (
+              <>
               {/* Logo sits in the same h-11 box as the category icon, but at 48px (not 44) so a
                   brand MARK — which carries less internal ink than a full-bleed line icon, and is
                   short on wordmark brands (Samsung) — reads as visually the SAME size as the
@@ -431,7 +462,9 @@ export function BrandRail({
                   fallback — see their own note. The instruction is about the figure UNDER a tile
                   name, and a chip's count reads as part of the chip. */}
               <span className={nameCls(isActive)}>{b.name}</span>
-            </Button>
+              </>
+              ),
+            })}
 
             {/* Models roll out to the right of the active brand */}
             {/*
@@ -492,27 +525,36 @@ export function BrandRail({
                       chosen brand's total under the current filters — legitimately larger than
                       the model chips sum to, since a listing with no `model` set comes back when
                       the rail is cleared. Never rendered as a sum of what is on screen. */}
-                  <Button variant="bare" size="none" aria-pressed={activeModel === 'all'} onClick={() => onPickModel('all')} className={cn(modelChip(activeModel === 'all'), 'justify-start gap-0')}>
-                    {tr('All', 'Tất cả')}
-                    {/* ml-auto right-aligns the count to the chip's edge, so the model grid's counts line
-                        up in a column — matching the subcategory plate and this rail's own "More" overflow. */}
-                    <CountChip count={modelDim?.all} className="ml-auto pl-2" />
-                  </Button>
+                  {chip({
+                    key: 'model-all',
+                    data: {},
+                    pressed: activeModel === 'all',
+                    href: hrefFor ? hrefFor({ ...ladder, brand: activeBrand }) : null,
+                    onSelect: () => onPickModel('all'),
+                    className: cn(modelChip(activeModel === 'all'), 'justify-start gap-0'),
+                    children: (
+                      <>
+                        {tr('All', 'Tất cả')}
+                        {/* ml-auto right-aligns the count to the chip's edge, so the model grid's counts line
+                            up in a column — matching the subcategory plate and this rail's own "More" overflow. */}
+                        <CountChip count={modelDim?.all} className="ml-auto pl-2" />
+                      </>
+                    ),
+                  })}
                   {visibleModels.map((m) => {
                     const mActive = activeModel === m.model
-                    return (
-                      // gap-0 too: the count is pushed right with ml-auto; the base gap-2 would fight it.
-                      <Button
-                        key={m.model}
-                        variant="bare"
-                        size="none"
-                        // ⚠️ The first-run tour anchors its guided drill-down here and waits for a
-                        // real click; an attribute survives translation where the label would not.
-                        data-model={m.model}
-                        aria-pressed={mActive}
-                        onClick={() => onPickModel(mActive ? 'all' : m.model)}
-                        className={cn(modelChip(mActive), 'justify-start gap-0')}
-                      >
+                    // gap-0 too: the count is pushed right with ml-auto; the base gap-2 would fight it.
+                    // ⚠️ The first-run tour anchors its guided drill-down on `data-model` and waits for a
+                    // real click; an attribute survives translation where the label would not.
+                    return chip({
+                      key: m.model,
+                      data: { 'data-model': m.model },
+                      pressed: mActive,
+                      href: hrefFor ? hrefFor(mActive ? { ...ladder, brand: activeBrand } : { ...ladder, brand: activeBrand, model: m.model }) : null,
+                      onSelect: () => onPickModel(mActive ? 'all' : m.model),
+                      className: cn(modelChip(mActive), 'justify-start gap-0'),
+                      children: (
+                      <>
                         {m.model}
                         {/* ⚠️ NO `?? m.count` FALLBACK, AND REMOVING IT WAS A CORRECTION. The first
                             version fell back to the /api/brands directory figure whenever the
@@ -529,8 +571,9 @@ export function BrandRail({
                             reads "0". The one exception is a caller that has not been wired for
                             counts at all — see `legacyModelCount`. */}
                         <CountChip count={optionCount(modelDim, m.model) ?? legacyModelCount(m)} className="ml-auto pl-2" />
-                      </Button>
-                    )
+                      </>
+                      ),
+                    })
                   })}
                   {overflowModels.length > 0 && (
                     <MoreOverflow count={overflowModels.length}>
@@ -540,18 +583,22 @@ export function BrandRail({
                           // All four base-colliding classes ride the BUTTON: w-full (the base is
                           // inline-flex), justify-between (the base CENTRES), gap-3 (the base gap-2)
                           // and font-semibold (the base font-medium would inherit into the spans).
-                          <Button
-                            key={m.model}
-                            variant="bare"
-                            size="none"
-                            data-model={m.model}
-                            aria-pressed={mActive}
-                            onClick={() => onPickModel(mActive ? 'all' : m.model)}
-                            className={cn('w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors active:scale-100', mActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
-                          >
-                            <span className="truncate">{m.model}</span>
-                            <CountChip count={optionCount(modelDim, m.model) ?? legacyModelCount(m)} className="shrink-0" />
-                          </Button>
+                          // ⚠️ href: null — MoreOverflow renders each row AS a Base UI menu item over a real <button>
+                          // (nativeButton); a link row there would need a link item, so the overflow rows stay buttons.
+                          chip({
+                            key: m.model,
+                            data: { 'data-model': m.model },
+                            pressed: mActive,
+                            href: null,
+                            onSelect: () => onPickModel(mActive ? 'all' : m.model),
+                            className: cn('w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors active:scale-100', mActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground'),
+                            children: (
+                              <>
+                                <span className="truncate">{m.model}</span>
+                                <CountChip count={optionCount(modelDim, m.model) ?? legacyModelCount(m)} className="shrink-0" />
+                              </>
+                            ),
+                          })
                         )
                       })}
                     </MoreOverflow>

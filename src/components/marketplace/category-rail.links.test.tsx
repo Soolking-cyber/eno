@@ -81,6 +81,43 @@ describe('<CategoryRail> tiles are links (E-TILES)', () => {
   })
 })
 
+describe('<CategoryRail> subcategory chips are links too (2026-11-07)', () => {
+  // Owner: right-click "Open link in new tab" on a chip. Same rule as the tiles: an <a href> to this category with just
+  // that subcategory (the active chip, and "All", to the category alone); a plain click filters in place.
+  const facets = { subcategory: { all: 50, values: { 'apartment-rental': 40, 'office-rental': 10 } } } as unknown as FacetCounts
+  const hrefFor2 = (p: Record<string, string> | null) => (p ? `/?${new URLSearchParams(p)}` : '/')
+
+  it('renders each chip as <a href> to its subcategory, "All" and the active chip to the category alone', () => {
+    rail({ activeCategory: 'rentals', activeSubcategory: 'office-rental', facets, hrefFor: hrefFor2 })
+    const chip = (slug: string) => document.querySelector(`[data-subcat="${slug}"]`)!
+    expect(chip('apartment-rental').tagName).toBe('A')
+    expect(chip('apartment-rental').getAttribute('href')).toBe('/?category=rentals&subcategory=apartment-rental')
+    expect(chip('office-rental').getAttribute('href')).toBe('/?category=rentals')
+    expect(chip('office-rental').getAttribute('aria-current')).toBe('true')
+    const all = screen.getByRole('link', { name: /^All/ })
+    expect(all.getAttribute('href')).toBe('/?category=rentals')
+  })
+
+  it('a plain click filters in place; a modified click is the browser\'s', () => {
+    const onSubcategory = vi.fn()
+    rail({ activeCategory: 'rentals', facets, hrefFor: hrefFor2, onSubcategory })
+    const chip = document.querySelector('[data-subcat="apartment-rental"]')!
+    const plain = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 })
+    chip.dispatchEvent(plain)
+    expect(plain.defaultPrevented).toBe(true)
+    expect(onSubcategory).toHaveBeenCalledWith('apartment-rental')
+    const cmd = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, metaKey: true })
+    chip.dispatchEvent(cmd)
+    expect(cmd.defaultPrevented).toBe(false)
+    expect(onSubcategory).toHaveBeenCalledTimes(1)
+  })
+
+  it('without hrefFor the chips stay toggle buttons', () => {
+    rail({ activeCategory: 'rentals', facets, hrefFor: undefined })
+    expect(document.querySelector('[data-subcat="apartment-rental"]')!.tagName).toBe('BUTTON')
+  })
+})
+
 describe('the phone compact row offers the rail\'s chips (E-TILES)', () => {
   // Rentals with only apartments and offices in view: the zero-seeded subcategory dimension says so.
   const facets = {

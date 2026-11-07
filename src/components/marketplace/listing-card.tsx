@@ -49,6 +49,7 @@ import { quickActionSignIn, stashQuickCompose } from '@/lib/quick-contact'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { openerVoice, quickChatOpener } from '@/lib/teachers/first-message'
 import { isModifiedClick } from '@/lib/plain-click'
+import { warmListing } from '@/lib/warm-listing'
 
 /**
  * ⛔ THE BLUR PLACEHOLDER IS GONE, AND ITS OWN COMMENT IS WHY. It said "matches the card's bg" and
@@ -414,9 +415,15 @@ function ListingCardImpl({
     // included — is one long-press target. Inert on web.
     <div
       data-card-root
-      // A finger counts only where the bar can show (`pc`: a touchscreen laptop, an iPad with a trackpad). On a phone it would re-render a card for nothing under the tap.
-      onPointerEnter={quickBar ? undefined : (e) => { if (e.pointerType !== 'touch' || window.matchMedia(PC_QUERY).matches) setQuickBar(true) }}
-      onFocusCapture={quickBar ? undefined : () => setQuickBar(true)}
+      // Warm the listing's page on the way to a click, on every surface that draws this card (src/lib/warm-listing.ts):
+      // a mouse over it or keyboard focus on it, NOT a finger — a touch is usually a scroll starting. The feed grid did
+      // this alone before (and keeps its own touch warm-up); the rails and shelves not at all.
+      // A finger counts for the quick bar only where it can show (`pc`: a touchscreen laptop, an iPad with a trackpad). On a phone it would re-render a card for nothing under the tap.
+      onPointerEnter={(e) => {
+        if (e.pointerType !== 'touch') warmListing(router, listing.id)
+        if (!quickBar && (e.pointerType !== 'touch' || window.matchMedia(PC_QUERY).matches)) setQuickBar(true)
+      }}
+      onFocusCapture={() => { warmListing(router, listing.id); if (!quickBar) setQuickBar(true) }}
       // `data-sid` — the shop, for src/lib/hidden-sellers.ts: a shop the viewer blocked is hidden by one stylesheet
       // (App Store 1.2), so every card of it disappears wherever it is drawn. The cells that hold a card carry it too.
       data-sid={listing.sellerId}

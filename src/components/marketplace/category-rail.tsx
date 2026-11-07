@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { TEACHER_DOOR_CATEGORIES } from '@/lib/teachers/constants'
 import { teacherJoinUrl } from '@/lib/teachers/host'
 import { localizedHref } from '@/lib/lang-pinned'
+import type { FilterHrefParam } from '@/lib/explorer-url'
 import { keepTeacherJoinInApp } from '@/components/teachers/teacher-join-click'
 import type { SerializedCategory } from '@/lib/types'
 // Type only — erased at compile time, so the client bundle never reaches for the module's
@@ -164,7 +165,7 @@ export function CategoryRail({
    * through `onCategory`/`onIntent` with no navigation. Omitted, they stay buttons.
    * The explorer builds it from the CURRENT path, so a storefront's tiles stay on the storefront.
    */
-  hrefFor?: (param: { category?: string; type?: string } | null) => string
+  hrefFor?: (param: FilterHrefParam | null) => string
   /** The viewer already has a teacher profile: the teachers plate's last chip opens it instead of the sign-up form. */
   teacherProfile?: boolean
   /** An unfinished teacher profile is saved to this account (dash.teacherDraft): the chip continues it. */
@@ -749,16 +750,37 @@ export function CategoryRail({
                       without `gap-0` the base 8px gap would double the icon/count margins. An empty
                       icon-slot spacer keeps "All" left-aligned with the chips below it (which carry an
                       icon); the count is pushed to the right edge (`ml-auto`) so every count lines up. */}
-                  <Button variant="bare" size="none" aria-pressed={activeSubcategory === 'all'} onClick={() => onSubcategory('all')} className={cn('flex items-center justify-start gap-0', subChip(activeSubcategory === 'all'))}>
-                    <span className="mr-2 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    {tr('All', 'Tất cả')}
-                    <CountChip pending={countsPending} count={subDim?.all} className="ml-auto pl-2" />
-                  </Button>
+                  {/* The chips are LINKS like the tiles above (owner, 2026-11-07: right-click "Open link in new tab", Cmd/Ctrl
+                      and middle click): each goes to this category with just that subcategory, and "All" to the category
+                      alone; a plain click still filters in place. Without `hrefFor` they stay toggle buttons. */}
+                  {tile({
+                    key: 'sub-all',
+                    className: cn('flex items-center justify-start gap-0', subChip(activeSubcategory === 'all')),
+                    href: hrefFor ? hrefFor({ category: cat.slug }) : null,
+                    onSelect: () => onSubcategory('all'),
+                    data: {},
+                    pressed: activeSubcategory === 'all',
+                    children: (
+                      <>
+                        <span className="mr-2 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        {tr('All', 'Tất cả')}
+                        <CountChip pending={countsPending} count={subDim?.all} className="ml-auto pl-2" />
+                      </>
+                    ),
+                  })}
                   {/* ⛔ NO "MORE" DROPDOWN. Every subcategory is a chip; the rail scrolls. */}
                   {subs.map((sub) => {
                     const subActive = activeSubcategory === sub.slug
-                    return (
-                      <Button key={sub.slug} variant="bare" size="none" data-subcat={sub.slug} aria-pressed={subActive} onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('flex items-center justify-start gap-0', subChip(subActive))}>
+                    return tile({
+                      key: sub.slug,
+                      className: cn('flex items-center justify-start gap-0', subChip(subActive)),
+                      // The active chip links where a tap on it goes: back to the whole category.
+                      href: hrefFor ? hrefFor(subActive ? { category: cat.slug } : { category: cat.slug, subcategory: sub.slug }) : null,
+                      onSelect: () => onSubcategory(subActive ? 'all' : sub.slug),
+                      data: { 'data-subcat': sub.slug },
+                      pressed: subActive,
+                      children: (
+                      <>
                         {/* ⚠️ `flex items-center` CENTRES the icon on the label — it used to be an inline
                             `align-[-2px]` nudge that sat the glyph low ("icon below its text", owner
                             2026-10-16). `justify-start gap-0` override ui/button's base (see the All chip).
@@ -767,8 +789,9 @@ export function CategoryRail({
                         <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="mr-2 h-3.5 w-3.5 shrink-0" />
                         <Bilingual en={sub.name} vi={sub.nameVi || sub.name} />
                         <CountChip pending={countsPending} count={subCount(sub.slug)} className="ml-auto pl-2" />
-                      </Button>
-                    )
+                      </>
+                      ),
+                    })
                   })}
                   {/* ⛔ TEACHERS: THE PLATE'S LAST CHIP IS THE WAY IN — the teacher sign-up form on its own host (owner,
                       2026-10-09: "on home page add a button here as subcat that will redirect to teacher.eno.vn to create

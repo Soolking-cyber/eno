@@ -32,6 +32,7 @@ import { handleExternalClick } from '@/lib/native-browser'
 import { EnoLoader } from '@/components/ui/eno-loader'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { isModifiedClick, isPlainClick } from '@/lib/plain-click'
 
 // Compact price for map labels (Airbnb-style price pins). VND uses the shared
 // compactPrice, which follows the viewer's language — "850K" / "51M" / "1.2B"
@@ -729,6 +730,11 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     if (scroll) onPinOpen?.(l.id)
   }
   // Tap/click on the popup card itself.
+  /**
+   * The pin's card opens the listing, so it is a LINK (owner, 2026-11-07: right-click "Open link in new tab", Cmd/Ctrl
+   * and middle click): a plain click goes through activateCard as before (on a stacked layout its first tap brings the
+   * feed card into view); any other click is the browser's new tab or window.
+   */
   const activateCard = (l: SerializedListingCard) => {
     // No feed to scroll to (the listing-detail location map passes no onPinOpen), or the
     // feed is a side column that's already visible → never swallow the first tap.
@@ -1100,7 +1106,15 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       // A rebuild mid-selection must keep the selected pin on top — the styling
       // effect only runs on [selectedId, ready], not on a redraw.
       if (selectedId === l.id) marker.setZIndexOffset(1000)
-      marker.on('click', () => {
+      /**
+       * Cmd/Ctrl, Shift or middle click on a pin opens the listing in a new tab, as on any listing link (owner, 2026-11-07).
+       * A pin is a Leaflet marker, not an <a>, so this is done by hand: `click` carries the modifiers, and the middle button
+       * fires only `auxclick`, on the marker's own element. The page itself does not move.
+       */
+      const openInNewTab = () => window.open(`/listings/${l.id}`, '_blank', 'noopener')
+      marker.getElement()?.addEventListener('auxclick', (e) => { if (e.button === 1) { e.preventDefault(); openInNewTab() } })
+      marker.on('click', (e: { originalEvent?: MouseEvent }) => {
+        if (e.originalEvent && isModifiedClick(e.originalEvent)) { openInNewTab(); return }
         // Click = centre the pin + show the card on EVERY input (mobile pattern
         // everywhere, user decision 2026-07-06); the card itself opens the page.
         // The pin scrolls the feed ONLY when the feed is a side column — stacked
@@ -1663,18 +1677,20 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
               // Short map (listing detail) → slim horizontal card: thumb + title + price
               // + a close ✕. Fits within a ~260px-tall map without dwarfing it.
               <div className="flex items-center gap-2.5 p-2">
-                <Button variant="bare" size="none" onClick={() => activateCard(card)} className="flex min-w-0 flex-1 items-center justify-start gap-2.5 whitespace-normal text-left font-normal cursor-pointer active:scale-100">
-                  <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-tint">
-                    {card.images[0] && (
-                      <Image src={card.images[0]} alt="" fill sizes="44px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    {/* Same order as <ListingCard>: price → one-line title (owner, 2026-09-13). */}
-                    <Price native price={card.price} currency={card.currency} priceUnit={card.priceUnit} listingType={card.listingType} linked={card.isPartnerBooking} className="block text-sm leading-tight" />
-                    <span className="block truncate text-xs text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></span>
-                    <span className="mt-0.5 block"><MapTravel to={getListingCoordinates(card)} userLoc={userLoc} state={locState} onRequest={requestLoc} compact /></span>
-                  </span>
+                <Button asChild variant="bare" size="none" className="flex min-w-0 flex-1 items-center justify-start gap-2.5 whitespace-normal text-left font-normal cursor-pointer active:scale-100">
+                  <a href={`/listings/${card.id}`} draggable={false} onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); activateCard(card) }}>
+                    <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-tint">
+                      {card.images[0] && (
+                        <Image src={card.images[0]} alt="" fill sizes="44px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      {/* Same order as <ListingCard>: price → one-line title (owner, 2026-09-13). */}
+                      <Price native price={card.price} currency={card.currency} priceUnit={card.priceUnit} listingType={card.listingType} linked={card.isPartnerBooking} className="block text-sm leading-tight" />
+                      <span className="block truncate text-xs text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></span>
+                      <span className="mt-0.5 block"><MapTravel to={getListingCoordinates(card)} userLoc={userLoc} state={locState} onRequest={requestLoc} compact /></span>
+                    </span>
+                  </a>
                 </Button>
                 {card.seller.officialPartner
                   ? <PartnerBadge asLink={false} className="shrink-0" />
@@ -1720,31 +1736,33 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
               : 'fill-none')} />
                   </IconButton>
                 </div>
-                <Button variant="bare" size="none" onClick={() => activateCard(card)} className="block w-full whitespace-normal text-left font-normal cursor-pointer active:scale-100">
-                  <div className="relative aspect-square w-full bg-tint">
-                    {card.images[0] && (
-                      <Image src={card.images[0]} alt="" fill sizes="280px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
-                    )}
-                    <ImageMark src={card.images[0]} />
-                  </div>
-                  {/* Same shape as <ListingCard>: price → one-line title → location, with the trust
-                      chip closing the location line (owner, 2026-09-13). The price is the STORED đồng
-                      amount, as on the cards and the pin — see pinLabel. */}
-                  <div className="flex flex-col gap-0.5 p-3 pb-1.5">
-                    <Price native price={card.price} currency={card.currency} priceUnit={card.priceUnit} listingType={card.listingType} linked={card.isPartnerBooking} className="text-lg leading-tight" />
-                    <p className="truncate text-sm leading-snug text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></p>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <span className="min-w-0 flex-1 truncate"><PopupPlace district={card.district} location={card.location} /></span>
-                      {/* PARTNER REPLACES TRUST, as on the card — a partner must read the same one tap later.
-                          And a REFERENCE listing (portal import, linked job) shows neither, as on the card:
-                          eno.vn never rated its source. Since 2026-10-01 nor does any unrated storefront
-                          (no owner, not a partner) — cardHidesTrust is the card's own rule. */}
-                      {card.seller.officialPartner
-                        ? <PartnerBadge asLink={false} className="shrink-0" />
-                        : cardHidesTrust(card) ? null
-                        : <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />}
+                <Button asChild variant="bare" size="none" className="block w-full whitespace-normal text-left font-normal cursor-pointer active:scale-100">
+                  <a href={`/listings/${card.id}`} draggable={false} onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); activateCard(card) }}>
+                    <div className="relative aspect-square w-full bg-tint">
+                      {card.images[0] && (
+                        <Image src={card.images[0]} alt="" fill sizes="280px" quality={60} unoptimized={isMockImageUrl(card.images[0]) || undefined} className="object-cover" />
+                      )}
+                      <ImageMark src={card.images[0]} />
                     </div>
-                  </div>
+                    {/* Same shape as <ListingCard>: price → one-line title → location, with the trust
+                        chip closing the location line (owner, 2026-09-13). The price is the STORED đồng
+                        amount, as on the cards and the pin — see pinLabel. */}
+                    <div className="flex flex-col gap-0.5 p-3 pb-1.5">
+                      <Price native price={card.price} currency={card.currency} priceUnit={card.priceUnit} listingType={card.listingType} linked={card.isPartnerBooking} className="text-lg leading-tight" />
+                      <p className="truncate text-sm leading-snug text-foreground"><LocalizedText text={card.title} vi={card.titleVi} i18n={card.titleI18n} /></p>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span className="min-w-0 flex-1 truncate"><PopupPlace district={card.district} location={card.location} /></span>
+                        {/* PARTNER REPLACES TRUST, as on the card — a partner must read the same one tap later.
+                            And a REFERENCE listing (portal import, linked job) shows neither, as on the card:
+                            eno.vn never rated its source. Since 2026-10-01 nor does any unrated storefront
+                            (no owner, not a partner) — cardHidesTrust is the card's own rule. */}
+                        {card.seller.officialPartner
+                          ? <PartnerBadge asLink={false} className="shrink-0" />
+                          : cardHidesTrust(card) ? null
+                          : <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />}
+                      </div>
+                    </div>
+                  </a>
                 </Button>
                 {/* ⚠️ THE AVAILABILITY-CHECK CHIP, as on the grid card (owner, 2026-09-26: "add this to cards
                     on map too"). A SIBLING of the open-listing button, never inside it — a <button> in a
