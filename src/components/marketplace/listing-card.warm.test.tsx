@@ -7,7 +7,7 @@
  */
 import React from 'react'
 import { cleanup, fireEvent, render } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { SerializedListingCard } from '@/lib/types'
 
 const prefetch = vi.fn()
@@ -70,6 +70,13 @@ const LISTING = {
   brandSlug: null,
   model: null,
 } as unknown as SerializedListingCard
+
+// jsdom has no matchMedia; the card's quick-bar check calls it for a touch pointer (every real browser has it).
+// Stubbed for this file only, and restored after it.
+beforeAll(() => {
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false }))
+})
+afterAll(() => { vi.unstubAllGlobals() })
 
 afterEach(() => { cleanup() })
 
