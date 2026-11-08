@@ -830,6 +830,7 @@ export function ListingsExplorer({
     if (param.subcategory && param.subcategory !== 'all' && param.category && param.category !== 'all') q.set('subcategory', param.subcategory)
     if (param.brand && param.brand !== 'all') q.set('brand', param.brand)
     if (param.model && param.model !== 'all' && param.brand && param.brand !== 'all') q.set('model', param.model)
+    if (param.line && param.brand && param.brand !== 'all') q.set('line', param.line)
     if (param.type) q.set('type', param.type)
     const qs = q.toString()
     return localizedHref(qs ? `${pathname}?${qs}` : pathname, tileVariant)

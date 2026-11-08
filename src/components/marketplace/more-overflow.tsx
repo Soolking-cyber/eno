@@ -5,7 +5,7 @@ import { Menu } from '@base-ui/react/menu'
 import { ChevronDown } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, useInMenuSheet } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLinkItem, DropdownMenuTrigger, useInMenuSheet } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
 /** A "More +N" chip that reveals overflow items in a dropdown — opens on HOVER on
@@ -89,6 +89,8 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
  *  outside a Menu popup). */
 function OverflowRow({ row }: { row: ReactElement }) {
   const inSheet = useInMenuSheet()
+  // A caller's DropdownMenuLinkItem (a chip that is a link, brand-rail.tsx) is its own menu item in both forms.
+  if (row.type === DropdownMenuLinkItem) return row
   if (inSheet) return <DropdownMenuItem render={row} />
   return (
     <Menu.Item

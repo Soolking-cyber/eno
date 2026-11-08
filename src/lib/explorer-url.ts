@@ -73,10 +73,10 @@ export type ExplorerUrlState = {
  */
 /**
  * One step of the browse ladder a tile or chip links to (the explorer's `tileHref` builds the URL): a category, a
- * subcategory in it, a brand, a model of that brand, an intent. Only the steps given are set, so a link to a filtered
+ * subcategory in it, a brand, a model or product line of that brand, an intent. Only the steps given are set, so a link to a filtered
  * view carries that path and nothing else the reader had applied.
  */
-export type FilterHrefParam = { category?: string; subcategory?: string; brand?: string; model?: string; type?: string }
+export type FilterHrefParam = { category?: string; subcategory?: string; brand?: string; model?: string; line?: string; type?: string }
 
 export function applyFilterParams(p: URLSearchParams, customFilters: Record<string, string>, categorySlug: string, subcategorySlug: string) {
   const sub = subcategorySlug === 'all' ? null : subcategorySlug

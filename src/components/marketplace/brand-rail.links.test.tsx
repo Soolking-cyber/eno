@@ -6,7 +6,8 @@
  * `hrefFor` they stay toggle buttons.
  */
 import * as React from 'react'
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en, t: (en: string) => en }) }))
@@ -65,6 +66,23 @@ describe('BrandRail chips are links', () => {
     expect(plain.defaultPrevented).toBe(true)
     expect(onPickBrand).toHaveBeenCalledWith('yamaha')
     expect(onPickModel).toHaveBeenCalledWith('all')
+  })
+
+  it('the models under "More" are link rows too (desktop menu)', async () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({ model: `M${i + 1}`, count: 20 - i }))
+    vi.stubGlobal('fetch', vi.fn((url: string) => Promise.resolve({
+      json: () => Promise.resolve(url.includes('/models') ? { models: many } : { brands: [{ slug: 'honda', name: 'Honda', count: 80, iconPath: null }] }),
+    })))
+    const user = userEvent.setup()
+    const { onPickModel } = rail({ activeModel: 'all' })
+    const more = await screen.findByRole('button', { name: /More/ })
+    await user.click(more)
+    const row = await screen.findByRole('menuitem', { name: /M12/ })
+    expect(row.tagName).toBe('A')
+    expect(row.getAttribute('href')).toBe('/?category=vehicles&subcategory=motorbikes&brand=honda&model=M12')
+    expect(row.getAttribute('data-model')).toBe('M12')
+    await user.click(row)
+    expect(onPickModel).toHaveBeenCalledWith('M12')
   })
 
   it('without hrefFor they stay toggle buttons', async () => {

@@ -20,6 +20,7 @@ import type { FacetCounts } from '@/lib/facet-counts'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import type { FilterHrefParam } from '@/lib/explorer-url'
 import { isPlainClick } from '@/lib/plain-click'
+import { DropdownMenuLinkItem } from '@/components/ui/dropdown-menu'
 
 type BrandItem = { slug: string; name: string; count: number; iconPath: string | null }
 
@@ -505,6 +506,7 @@ export function BrandRail({
                 activeLine={activeLine}
                 activeModel={activeModel}
                 onPick={onPickLine}
+                hrefFor={hrefFor ? (p) => hrefFor({ ...ladder, brand: b.slug, ...p }) : undefined}
               />
             )}
             {isActive && models.length > 0 && !(onPickLine && hasCascade(b.slug, models)) && (
@@ -583,9 +585,21 @@ export function BrandRail({
                           // All four base-colliding classes ride the BUTTON: w-full (the base is
                           // inline-flex), justify-between (the base CENTRES), gap-3 (the base gap-2)
                           // and font-semibold (the base font-medium would inherit into the spans).
-                          // ⚠️ href: null — MoreOverflow renders each row AS a Base UI menu item over a real <button>
-                          // (nativeButton); a link row there would need a link item, so the overflow rows stay buttons.
-                          chip({
+                          // A link on the desktop menu, the plain row in the phone sheet (DropdownMenuLinkItem); without
+                          // `hrefFor` the button row MoreOverflow renders AS a menu item, as before.
+                          hrefFor ? (
+                            <DropdownMenuLinkItem
+                              key={m.model}
+                              data={{ 'data-model': m.model }}
+                              href={hrefFor(mActive ? { ...ladder, brand: activeBrand } : { ...ladder, brand: activeBrand, model: m.model })}
+                              onSelect={() => onPickModel(mActive ? 'all' : m.model)}
+                              pressed={mActive}
+                              className={cn('w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors active:scale-100', mActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
+                            >
+                              <span className="truncate">{m.model}</span>
+                              <CountChip count={optionCount(modelDim, m.model) ?? legacyModelCount(m)} className="shrink-0" />
+                            </DropdownMenuLinkItem>
+                          ) : chip({
                             key: m.model,
                             data: { 'data-model': m.model },
                             pressed: mActive,

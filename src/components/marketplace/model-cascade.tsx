@@ -5,7 +5,8 @@ import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ChevronDown } from '@/components/ui/icons'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLinkItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { isPlainClick } from '@/lib/plain-click'
 import { CountChip } from './count-chip'
 import { splitModel, type ModelParts } from '@/lib/model-lineage'
 import { linesFor, canonicalModel } from '@/generated/model-lineage'
@@ -129,13 +130,22 @@ export function hasCascade(brandSlug: string, rows: ModelRow[]): boolean {
   return buildLines(brandSlug, rows) !== null
 }
 
-function LineChip({ line, lineKeys, activeLine, activeModel, onPick }: {
+/**
+ * Where a cascade chip or row links, within its brand's aisle: a line, a model, or the brand alone (`{}`). Given, every
+ * chip and row that applies a filter is a LINK as well (owner, 2026-11-07: right-click "Open link in new tab", Cmd/Ctrl
+ * and middle click on a chip — brand-rail.tsx's `chip` rule): a plain click picks in place as before, any other is the
+ * browser's. The line trigger that opens a menu stays a button. Absent, everything is the button it was.
+ */
+type CascadeHref = (p: { line?: string; model?: string }) => string
+
+function LineChip({ line, lineKeys, activeLine, activeModel, onPick, hrefFor }: {
   line: Line
   /** Every line name in this brand, so a chip can tell a longer sibling has the better claim. */
   lineKeys: string[]
   activeLine: string
   activeModel: string
   onPick: (line: string, model: string) => void
+  hrefFor?: CascadeHref
 }) {
   const { tr } = useLanguage()
   const [open, setOpen] = useState(false)
@@ -162,12 +172,23 @@ function LineChip({ line, lineKeys, activeLine, activeModel, onPick }: {
    * teaches nothing; the chip filters directly instead.
    */
   if (line.models.length < 2) {
+    const pick = () => onPick('', on ? 'all' : line.models[0].model)
+    if (hrefFor) {
+      return (
+        <Button asChild variant="bare" size="none" className={cn(chipCls, on ? chipOn : chipOff)}>
+          <a href={hrefFor(on ? {} : { model: line.models[0].model })} draggable={false} aria-current={on ? 'true' : undefined} onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); pick() }}>
+            {line.label}
+            <CountChip count={line.count} className="ml-auto pl-2" />
+          </a>
+        </Button>
+      )
+    }
     return (
       <Button
         variant="bare"
         size="none"
         aria-pressed={on}
-        onClick={() => onPick('', on ? 'all' : line.models[0].model)}
+        onClick={pick}
         className={cn(chipCls, on ? chipOn : chipOff)}
       >
         {line.label}
@@ -217,8 +238,19 @@ function LineChip({ line, lineKeys, activeLine, activeModel, onPick }: {
         // reach. `--available-height` is Base UI's measured room below the trigger.
         className="flex w-64 max-h-[min(60vh,var(--available-height,60vh))] flex-col gap-0.5 overflow-y-auto scroll-thin rounded-2xl bg-brand-100 p-1.5 shadow-pop ring-0"
       >
-        {/* The whole line, stated rather than implied by tapping the chip. */}
-        <DropdownMenuItem
+        {/* The whole line, stated rather than implied by tapping the chip. With `hrefFor`, a link row on the desktop
+            menu (DropdownMenuLinkItem: the plain row in the phone sheet). */}
+        {hrefFor ? (
+          <DropdownMenuLinkItem
+            href={hrefFor(activeLine === line.key ? {} : { line: line.key })}
+            onSelect={() => onPick(activeLine === line.key ? '' : line.key, 'all')}
+            pressed={activeLine === line.key}
+            className={cn(menuRowCls, activeLine === line.key ? menuRowOn : menuRowOff)}
+          >
+            {tr('All', 'Tất cả')} {line.label}
+            <CountChip count={line.count} className="ml-auto pl-2" />
+          </DropdownMenuLinkItem>
+        ) : <DropdownMenuItem
           nativeButton
           className="p-0 focus:bg-transparent data-highlighted:bg-card/70"
           render={
@@ -246,8 +278,19 @@ function LineChip({ line, lineKeys, activeLine, activeModel, onPick }: {
               <CountChip count={line.count} className="ml-auto pl-2" />
             </Button>
           }
-        />
-        {line.models.map((m) => (
+        />}
+        {line.models.map((m) => hrefFor ? (
+          <DropdownMenuLinkItem
+            key={m.model}
+            href={hrefFor(activeModel === m.model ? {} : { model: m.model })}
+            onSelect={() => onPick('', activeModel === m.model ? 'all' : m.model)}
+            pressed={activeModel === m.model}
+            className={cn(menuRowCls, activeModel === m.model ? menuRowOn : menuRowOff)}
+          >
+            {m.model}
+            <CountChip count={m.count} className="ml-auto pl-2" />
+          </DropdownMenuLinkItem>
+        ) : (
           /**
            * ⚠️ NO `aria-pressed` ON A MENU ROW. Base UI gives these `role="menuitem"`, where
            * `aria-pressed` is not a valid state — a screen reader would announce a toggle that
@@ -302,7 +345,7 @@ const chipCls = 'inline-flex w-full shrink-0 items-center justify-start gap-0 wh
 const chipOn = 'bg-card text-accent-foreground shadow-sm'
 const chipOff = 'text-foreground hover:bg-card/70 hover:text-accent-foreground'
 
-export function ModelCascade({ brandSlug, rows, activeLine, activeModel, onPick }: {
+export function ModelCascade({ brandSlug, rows, activeLine, activeModel, onPick, hrefFor }: {
   brandSlug: string
   rows: ModelRow[]
   /** The current `?line=` prefix, or ''. */
@@ -311,6 +354,8 @@ export function ModelCascade({ brandSlug, rows, activeLine, activeModel, onPick 
   activeModel: string
   /** `(line, model)` — at most one is set; both empty clears the filter. */
   onPick: (line: string, model: string) => void
+  /** Where a chip or row links within this brand's aisle (see CascadeHref). Absent = buttons, as before. */
+  hrefFor?: CascadeHref
 }) {
   const { tr } = useLanguage()
   const lines = useMemo(() => buildLines(brandSlug, rows), [brandSlug, rows])
@@ -367,7 +412,7 @@ export function ModelCascade({ brandSlug, rows, activeLine, activeModel, onPick 
         className="grid min-h-[6.25rem] grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 overflow-x-auto scrollbar-none rounded-2xl bg-brand-50 p-1.5 [grid-template-rows:repeat(3,min-content)]"
       >
         {lines.map((l) => (
-          <LineChip key={l.key} line={l} lineKeys={lineKeys} activeLine={activeLine} activeModel={activeModel} onPick={onPick} />
+          <LineChip key={l.key} line={l} lineKeys={lineKeys} activeLine={activeLine} activeModel={activeModel} onPick={onPick} hrefFor={hrefFor} />
         ))}
       </div>
     </div>

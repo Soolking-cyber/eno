@@ -5,7 +5,8 @@ import { Menu as MenuPrimitive } from "@base-ui/react/menu"
 
 import { cn } from "@/lib/utils"
 import { ChevronRightIcon, CheckIcon } from "@/components/ui/icons"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { isPlainClick } from "@/lib/plain-click"
 import { useScrollDismissedRoot } from "@/components/ui/use-dismiss-on-user-scroll"
 import {
   LazyPickerSheet,
@@ -405,6 +406,51 @@ function DropdownMenuItem({
   )
 }
 
+/**
+ * A row that GOES somewhere a plain click also reaches in place: a filter chip's row inside a menu (the brand rail's
+ * "More" models, a product line's models; owner, 2026-11-07: right-click "Open link in new tab" on a chip).
+ * · On the desktop popup it is Base UI's Menu.LinkItem, a real <a href>: the right-click menu and Cmd/Ctrl, Shift and
+ *   middle click are the browser's; a plain click is prevented, runs `onSelect` and closes the menu as an item does.
+ * · In the phone sheet it is the plain button row it always was. A sheet row that is a link releases the sheet's Back
+ *   entry, because a link leaves the page; this one filters in place, so as a link it would leave a stray Back step.
+ * `className` styles the row in both forms, as a rendered <Button>'s className does on DropdownMenuItem.
+ */
+function DropdownMenuLinkItem({ href, onSelect, className, pressed, data, children }: {
+  href: string
+  onSelect: () => void
+  className?: string
+  /** `data-*` hooks (tests, the tour) that must land on the row in both forms. */
+  data?: Record<string, string>
+  /** The row's filter is the one applied. A link has no pressed state, so the link form says `aria-current`. */
+  pressed?: boolean
+  children: React.ReactNode
+}) {
+  const sheet = React.useContext(MenuSheetContext)
+  if (React.useContext(InMenuSheetContext) && sheet) {
+    return (
+      <DropdownMenuItem
+        nativeButton
+        // No aria-pressed: the sheet's rows were plain buttons with none (model-cascade.tsx's note on menu rows).
+        render={<Button variant="bare" size="none" type="button" {...data} onClick={onSelect} className={className}>{children}</Button>}
+      />
+    )
+  }
+  return (
+    <MenuPrimitive.LinkItem
+      data-slot="dropdown-menu-link-item"
+      {...data}
+      href={href}
+      closeOnClick
+      draggable={false}
+      aria-current={pressed ? "true" : undefined}
+      onClick={(e) => { if (!isPlainClick(e)) return; e.preventDefault(); onSelect() }}
+      className={cn(buttonVariants({ variant: "bare", size: "none" }), "outline-hidden data-highlighted:bg-card/70 data-highlighted:text-accent-foreground", className)}
+    >
+      {children}
+    </MenuPrimitive.LinkItem>
+  )
+}
+
 // A sheet has no submenus: inside one, a submenu's trigger becomes a heading and its items join the list (no consumer
 // sheet menu has one — the admin moderation menu that does keeps `sheet={false}`).
 function DropdownMenuSub({ ...props }: MenuPrimitive.SubmenuRoot.Props) {
@@ -624,6 +670,7 @@ export {
   DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuItem,
+  DropdownMenuLinkItem,
   DropdownMenuCheckboxItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
