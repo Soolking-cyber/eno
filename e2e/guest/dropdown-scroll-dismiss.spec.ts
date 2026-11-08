@@ -64,7 +64,9 @@ test.describe('Guest · open popups dismiss on a user scroll', () => {
     await page.mouse.wheel(0, 450)
 
     await expect(page.locator(POPOVER)).toHaveCount(0)
-    expect(await page.evaluate(() => window.scrollY), 'the page should have actually moved').toBeGreaterThan(0)
+    // Polled, not read once (2026-11-08: 0 once against eno.vn with the popover already closed): the wheel's scroll is
+    // applied asynchronously, after the event the popover closes on.
+    await expect.poll(() => page.evaluate(() => window.scrollY), { message: 'the page should have actually moved' }).toBeGreaterThan(0)
   })
 
   test('on a phone the price pill opens a full-width bottom sheet that closes', async ({ page }, testInfo) => {
