@@ -95,6 +95,13 @@ buttons nested inside. Fixing it is a card-architecture change (card-as-link pat
 **dedicated follow-up**; the rule is baselined (not hidden) so the gate still catches *new* a11y
 regressions. The transient "Loading map…" contrast issue axe flagged was fixed (`text-slate-700`).
 
+**Pre-hydration taps (tracked debt, 2026-11-08):** server-rendered controls are visible and focusable before React
+attaches their handlers, and a tap or an Enter in that gap does nothing (measured on eno.vn under the e2e suite: the
+phone sort pill took focus and opened nothing, the rental check chip stayed unpressed, a search Enter stayed on "/").
+The guest specs wait for hydration before a first tap (`waitForHydrated`, e2e/helpers.ts), so they test the control,
+not the race. A visitor on a slow phone meets the gap; shrinking it is a speed task (less JS before hydration), and
+the e2e suite would not show it.
+
 **a11y: pre-hydration tab stops (tracked debt, 2026-10-06):** Base UI composites render every tab
 `tabindex="-1"` on the server and choose the roving tab stop only on mount. Until hydration, the
 explorer's horizontally scrolling sort tablist has no keyboard-focusable tab, and axe's

@@ -1,4 +1,4 @@
-import { test, expect, dismissOverlays } from '../helpers'
+import { test, expect, dismissOverlays, waitForHydrated } from '../helpers'
 
 /**
  * PHONE FILTERS ARE BOTTOM SHEETS (E-FILTER-SHEET, 2026-09-29) — the smoke test for the three panels
@@ -15,6 +15,10 @@ test.describe('Guest · phone filter sheets', () => {
     await page.goto('/?category=rentals&subcategory=apartment-rental')
     await dismissOverlays(page)
     await expect(page.locator('#explorer-toolbar')).toBeVisible()
+    // The toolbar is server HTML, visible before its handlers attach: a first tap before hydration is lost (2026-11-08,
+    // "Back closes a picker sheet" failed one run in three on eno.vn with the sheet never opened). helpers.ts says how.
+    await waitForHydrated(page.getByRole('combobox', { name: /sort|sắp xếp/i }))
+    await waitForHydrated(page.locator('#explorer-toolbar').getByRole('button', { name: /^(Price|Giá)/ }))
   })
 
   test('Price opens a full-width sheet over the tab bar, with a grouped count on its action', async ({ page }) => {

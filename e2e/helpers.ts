@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright'
-import { test as base, expect, type Page } from '@playwright/test'
+import { test as base, expect, type Locator, type Page } from '@playwright/test'
 
 // ── Shared E2E fixtures + utilities ─────────────────────────────────────────────────
 // Keep selectors semantic (role/text/placeholder) so specs read like user intent and
@@ -66,6 +66,23 @@ export async function expectNoA11yViolations(page: Page, context = 'page') {
     console.log(`a11y violations on ${context}:\n` + blocking.map((v) => `  • [${v.impact}] ${v.id} — ${v.help} (${v.nodes.length} node(s))`).join('\n'))
   }
   expect(blocking, `serious/critical a11y violations on ${context}`).toEqual([])
+}
+
+/**
+ * Wait until React has hydrated the element `target` resolves to (2026-11-08). A server-rendered control is visible and
+ * focusable before its handlers attach, and a tap in that gap is lost: on eno.vn the phone sort pill took focus and
+ * opened nothing, so its picker tests failed one run in several. Its markup is identical before and after hydration, so
+ * the signal is React's own: a hydrated host element carries a `__reactProps$…` key. Use it before the FIRST tap on a
+ * page that was just loaded; a control that never hydrates fails here, at the timeout, with this message.
+ * ⚠️ WHAT IT PROVES, AND WHAT IT HIDES (review r-e2e). It says React has attached the element's props, not that every
+ * mount effect has run; measured enough for these controls (60 of 60 runs of the sort and filter specs on eno.vn). And
+ * the gap it waits out is a real one for a visitor on a slow phone: a tap on server HTML before hydration does nothing.
+ * That is tracked product debt (TESTING.md, "pre-hydration taps", beside "pre-hydration tab stops"), not test noise.
+ */
+export async function waitForHydrated(target: Locator, timeout = 15_000) {
+  await expect
+    .poll(() => target.first().evaluate((el) => Object.keys(el).some((k) => k.startsWith('__reactProps$'))), { message: 'the control never hydrated', timeout })
+    .toBe(true)
 }
 
 // Belt-and-suspenders: if any overlay/consent banner still slips through, dismiss it so it

@@ -2,7 +2,7 @@ import { test, expect } from '../helpers'
 import type { Page } from '@playwright/test'
 
 // The "Join eno" prompt (owner, 2026-10-01: ask a guest to sign up after a minute of browsing;
-// dismissible, and it returns). It is THE sign-in popup in its join presentation.
+// dismissible, and it returns on a later visit — one ask per visit since 2026-10-18). It is THE sign-in popup in its join presentation.
 //
 // ⛔ IT NEVER APPEARS UNDER AUTOMATION — `navigator.webdriver` is true in every Playwright run, which is
 // what keeps it out of every other spec here. This spec turns it on deliberately with the test override
@@ -65,7 +65,12 @@ test.describe('Guest · Join eno prompt', () => {
     expect(hit).toBe(true)
   })
 
-  test('the × closes it and it comes back — at most twice in a tab', async ({ page }) => {
+  test('the × closes it, and that tab is not asked again', async ({ page }) => {
+    // ⛔ ONE ASK PER TAB SESSION (owner, 2026-10-18: "one per visit, no floaters"; src/lib/signup-prompt.ts MAX_PER_TAB).
+    // Until 2026-11-08 this test still waited for a second ask in the same tab, the rule before that day, and failed on
+    // every run. "It returns on the next visit" is not asserted here: that visit's one interruption goes to whichever ask
+    // appears first, the install card included (src/lib/page-asks.ts), so it is a race by design; the schedule itself is
+    // unit-tested (signup-prompt.test.ts).
     await getOnly(page)
     await forcePrompt(page)
     await page.goto('/')
@@ -75,16 +80,21 @@ test.describe('Guest · Join eno prompt', () => {
     await dialog.getByRole('button', { name: 'Close' }).click()
     await expect(dialog).toBeHidden()
     expect(await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}').dismissals, DEVICE_KEY)).toBe(1)
-
-    // Returns after the (overridden) re-ask delay; Esc is the same dismissal as the ×.
-    await expect(dialog).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(dialog).toBeHidden()
-    expect(await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}').dismissals, DEVICE_KEY)).toBe(2)
-
-    // A third ask in the same tab never comes.
+    // Several times past the (overridden) delays: no second ask in this tab.
     await page.waitForTimeout(5_000)
     await expect(dialog).toBeHidden()
+  })
+
+  test('Esc is the same dismissal as the ×', async ({ page }) => {
+    await getOnly(page)
+    await forcePrompt(page)
+    await page.goto('/')
+    const dialog = page.getByRole('dialog', { name: JOIN })
+    await expect(dialog).toBeVisible()
+    await page.waitForTimeout(450)
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+    expect(await page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}').dismissals, DEVICE_KEY)).toBe(1)
   })
 
   test('“Continue with Google” is the sign-in form’s Google round-trip, returning to the page the visitor is on', async ({ page }) => {

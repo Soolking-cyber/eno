@@ -110,7 +110,10 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,         // a stray .only must fail CI, never silently narrow it
   retries: 1, // post-deploy ISR regeneration transiently trips the a11y homepage spec — one retry absorbs it (was CI-only)
-  workers: process.env.CI ? 4 : undefined,
+  // Four against production too, as on CI (2026-11-08): a local run defaulted to half the cores, eight browsers loading
+  // eno.vn's image-heavy pages at once, and the odd `page.goto` waiting for `load` passed its 20 s budget (the home, /help)
+  // while the server answered in ~0.2 s. A local preview keeps the default.
+  workers: process.env.CI || /^https:\/\//.test(process.env.E2E_BASE ?? '') ? 4 : undefined,
   timeout: 30_000,
   expect: { timeout: 10_000 },
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : [['list'], ['html', { open: 'never' }]],

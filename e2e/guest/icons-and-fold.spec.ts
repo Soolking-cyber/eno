@@ -43,9 +43,11 @@ test.describe('Guest · icon sprite', () => {
     await page.goto('/')
     await dismissOverlays(page)
     // An unresolved <use> (missing file, missing symbol id, bad viewBox) collapses to zero size.
-    // ⚠️ `.first()` is the header's search glyph, which is above the fold on every page and every
-    // breakpoint — deliberately not a glyph that a layout change could scroll out of existence.
-    const box = await page.locator('use').first().boundingBox()
+    // ⚠️ THE HEADER'S SEARCH GLYPH, NAMED — above the fold on every page and every breakpoint. This said
+    // `page.locator('use').first()` and trusted document order to make that the header's glyph; once the
+    // phone tab bar came first in the DOM (hidden from `pc`, so 0x0 on a desktop) it failed on desktop
+    // while every icon painted (2026-11-08, probed on eno.vn: `header use` 21px wide at 1440 and 390).
+    const box = await page.locator('header use[href*="#Search-"]').first().boundingBox()
     expect(box?.width ?? 0, 'a resolved symbol paints; an unresolved one is 0x0').toBeGreaterThan(4)
   })
 })

@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import type { Locator, Page } from '@playwright/test'
-import { test, expect } from '../helpers'
+import { test, expect, waitForHydrated } from '../helpers'
 import { PILL_OBSTACLES, TAP_FLOOR } from '../../src/lib/fab-clearance'
 
 /**
@@ -82,6 +82,9 @@ async function collectTwo(page: Page) {
     // Centred, not merely "in view": near the bottom edge the fixed nav covers the photo's lower
     // corner, which is exactly where this chip sits (category.spec.ts hit the same thing).
     await chip.evaluate((el) => el.scrollIntoView({ block: 'center' }))
+    // A tap on the server-rendered chip before hydration is lost (2026-11-08: aria-pressed stayed "false" one full-suite
+    // run in three on eno.vn); helpers.ts says how the hydration is read.
+    await waitForHydrated(chip)
     await chip.click()
     await expect(chip).toHaveAttribute('aria-pressed', 'true')
   }

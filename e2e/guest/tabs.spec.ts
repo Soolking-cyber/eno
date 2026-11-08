@@ -1,4 +1,4 @@
-import { test, expect } from '../helpers'
+import { test, expect, waitForHydrated } from '../helpers'
 
 // The explorer's sort strip (Liên quan / Mới nhất / Được quan tâm / Giá) was a row of plain
 // <button>s until 2026-07-14. It LOOKED like tabs and reported nothing: no tablist, no
@@ -73,6 +73,10 @@ test.describe('Guest · sort tabs — a11y semantics', () => {
 
     const tablist = page.getByRole('tablist').first()
     const selected = tablist.getByRole('tab', { selected: true })
+    // ⚠️ MOUNTED FIRST (2026-11-08: flaky against eno.vn, green locally): Base UI renders every tab tabindex=-1 on the
+    // server and picks the roving stop on mount (helpers.ts says the same for axe), so a focus + arrow before hydration
+    // moved nothing. The one tab stop appearing is the mount.
+    await expect(tablist.locator('[role="tab"][tabindex="0"]')).toHaveCount(1)
     const before = (await selected.textContent())?.trim()
 
     // Roving focus: the selected tab is the strip's single tab stop.
@@ -103,9 +107,8 @@ test.describe('Guest · sort tabs — a11y semantics', () => {
     await expect(pill).toBeVisible()
     await expectChipHitArea(pill)
     const sorted = page.waitForRequest((r) => new URL(r.url()).searchParams.get('sort') === 'price-low')
-    await pill.click()
-    // By its words, not its role: the picker's phone surface is the select's to choose (a menu or a sheet).
-    await page.getByText(/^(Price: low to high|Giá: thấp đến cao)$/).first().click()
+    await openPicker(page, pill)
+    await page.getByText(PRICE_LOW).filter({ visible: true }).first().click()
     await sorted
     await expect(page).toHaveURL(/sort=price-low/)
   })
@@ -125,12 +128,28 @@ test.describe('Guest · sort tabs — a11y semantics', () => {
       const u = new URL(r.url())
       return u.pathname === '/api/listings' && u.searchParams.get('category') === 'electronics' && u.searchParams.get('sort') === 'price-low'
     })
-    await pill.click()
-    await page.getByText(/^(Price: low to high|Giá: thấp đến cao)$/).first().click()
+    await openPicker(page, pill)
+    await page.getByText(PRICE_LOW).filter({ visible: true }).first().click()
     await sorted
     expect(new URL(page.url()).pathname).toBe('/c/electronics')
   })
 })
+
+/** "Price: low to high", by its words, not its role: the picker's phone surface is the select's to choose (a menu or a sheet). */
+const PRICE_LOW = /^(Price: low to high|Giá: thấp đến cao)$/
+
+/**
+ * Open the sort picker and wait for its VISIBLE "Price: low to high" (2026-11-08, both measured on eno.vn):
+ * · each option carries its words twice, a 0x0 copy first, so `.first()` alone waited on the hidden one until the test
+ *   timed out, on every phone run;
+ * · a tap that lands before the page has hydrated focuses the server-rendered pill and opens nothing (the failure's page
+ *   snapshot: the combobox [active], no listbox), so the pill is tapped once React has hydrated it (helpers.ts).
+ */
+async function openPicker(page: import('@playwright/test').Page, pill: import('@playwright/test').Locator) {
+  await waitForHydrated(pill)
+  await pill.click()
+  await expect(page.getByText(PRICE_LOW).filter({ visible: true }).first()).toBeVisible()
+}
 
 /**
  * The browse chip's geometry (owner, 2026-10-18: one chip style): a 36px pill whose 44px tap target is the invisible

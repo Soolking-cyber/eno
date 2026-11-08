@@ -1,3 +1,13 @@
+# ✅ THE GUEST SUITE IS GREEN ON eno.vn AGAIN AS OF 2026-11-08 — any failure is a regression
+
+Five reds had crept in and were read as "the usual five" across several deploys. All five were test drift, fixed
+2026-11-08 and re-run against production three times: `icons-and-fold` measured the first `<use>` in the page, now the
+phone tab bar's (0x0 on a desktop), so it names the header's search glyph; `signup-prompt` still expected a second ask
+in one tab, which the owner's one-ask-per-visit rule (2026-10-18) removed; the two phone sort tests in `tabs` clicked
+`.first()` of an option's words, a hidden 0x0 copy, so they click the visible one; and the desktop arrow-key test
+pressed before the strip had mounted, so it waits for the roving tab stop. eno.forum's public pages are retired
+(301 to eno.vn), so the suite is no longer run against it (ship skill, step 7).
+
 # ✅ THE GUEST SUITE IS GREEN ON eno.vn AS OF 2026-09-06 — 143 passed, 3 skipped, 0 failed
 
 ⚠️ **READ THIS BEFORE THE SECTION BELOW, WHICH DESCRIBES A BASELINE THAT NO LONGER EXISTS.**

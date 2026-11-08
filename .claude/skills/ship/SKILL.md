@@ -236,22 +236,30 @@ every recent build's files stay on disk (`infra/vn-node/eno-static-sync.sh`), so
 hydrates. `/_next/image` and sb.eno.vn are purged nightly instead (`infra/vn-node/eno-edge-nightly-purge.sh`,
 the erasure bound). `purge_everything` evicted every chunk, font and image variant several times a day.
 
-## 7. Prod smoke — BOTH domains
-
-⚠️ **Both editions deploy together, so smoke both.** Pointing only at `https://eno.vn` lets a forum
-regression sail through.
+## 7. Prod smoke — eno.vn, and eno.forum's redirects
 
 ```bash
-E2E_BASE=https://eno.vn        npx playwright test --project=guest-desktop --project=guest-mobile
-E2E_BASE=https://www.eno.forum npx playwright test --project=guest-desktop --workers=2
+E2E_BASE=https://eno.vn npx playwright test --project=guest-desktop --project=guest-mobile
 ```
 
-⚠️ **THE FORUM'S BASE IS `www`, ITS CANONICAL HOST.** Since dc58a7004 the apex 308s every page to
-`www.eno.forum` (next.config.ts), so `E2E_BASE=https://eno.forum` would test redirects followed into
-www rather than the pages themselves. ⚠️ Run the forum suite AFTER the eno.vn one, not beside it: eight
-workers on each against production right after a purge timed out seven forum page loads on
-2026-10-08 (cold pages + Cloudflare's bot probe), all of which passed re-run with `--workers=2` — hence
-the flag above.
+⚠️ **NO GUEST SUITE AGAINST eno.forum SINCE ITS PUBLIC PAGES WERE RETIRED (owner, 2026-11-03).** `www.eno.forum` and
+the old forum paths 301 to eno.vn (`https://www.eno.forum/visa` → `https://eno.vn/visa`), and the apex is the Reach hub
+behind its sign-in. Pointed at `www.eno.forum`, the suite follows every redirect into eno.vn and asserts forum-edition
+behaviour there: ~20 failures on every deploy that mean nothing (2026-11-07 and 11-08, both green on eno.vn). The forum
+container is still built and health-checked by `eno-deploy.sh`; what the public sees is the redirect, so check that:
+
+```bash
+# Silent and exit 0 when all are right (a permanent redirect, 301 or 308, to the same path on eno.vn); otherwise it names
+# the wrong one and exits 1.
+fail=0; for p in / /visa /itinerary /listings; do r=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' "https://www.eno.forum$p"); case "$r" in "301 https://eno.vn$p"|"308 https://eno.vn$p") ;; *) echo "FORUM REDIRECT WRONG: $p -> $r"; fail=1 ;; esac; done; [ $fail -eq 0 ]
+```
+
+⛔ The `/visa` and `/itinerary` redirects land on eno.vn's, which MUST 404 — the boundary check below is what makes this redirect
+safe, so never skip it. The apex's Reach hub is not this deploy: it ships and is checked with Reach's own box update.
+
+⚠️ The eno.vn suite has no known failures: any red is a regression (e2e/known-failures.md). On 2026-11-08 the last five
+reds were test drift and were fixed (a hidden first icon, the one-ask-per-visit prompt rule, a hidden duplicate option,
+a pre-hydration arrow key); a new red is not "the usual five".
 
 ⛔ And check the licensing boundary explicitly — it is the one failure that is a legal problem
 rather than a bug:

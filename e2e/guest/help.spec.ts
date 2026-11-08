@@ -7,7 +7,9 @@ import { test, expect, expectNoA11yViolations } from '../helpers'
 // this suite flaky in a way it never was locally. Wait for the component's own hydration
 // marker instead of sleeping.
 async function openHelp(page: Page, path = '/help') {
-  await page.goto(path)
+  // DOMContentLoaded, not `load` (2026-11-08): the page's own hydration flag below is what the tests need, and waiting
+  // for every image on a 548 KB page timed `goto` out at 20 s under the full suite's eight workers against eno.vn.
+  await page.goto(path, { waitUntil: 'domcontentloaded' })
   await page.locator('[data-help-center][data-hydrated="true"]').waitFor({ state: 'attached' })
 }
 
@@ -93,15 +95,21 @@ test.describe('Guest · help center', () => {
   })
 
   test('an answer opens its own thread page', async ({ page }) => {
+    // Its navigation alone may take up to 25 s under load (below), inside the suite's 30 s per test.
+    test.setTimeout(60_000)
     await openHelp(page)
     const trigger = answerTriggers(page).first()
     // Capture the question we clicked, so we can prove the thread that opens is THAT one.
     const question = ((await trigger.textContent()) ?? '').trim()
     expect(question.length).toBeGreaterThan(0)
     await trigger.click()
-    await page.getByRole('link', { name: /Ask a follow-up|Discussion/i }).first().click()
-
-    await expect(page).toHaveURL(/\/help\/[^/]+$/)
+    const thread = page.getByRole('link', { name: /Ask a follow-up|Discussion/i }).first()
+    await expect(thread).toBeVisible()
+    await thread.click()
+    // ⚠️ ONE TAP, A LONGER WAIT (2026-11-08): under the full suite at eight workers against eno.vn the URL was still /help
+    // 10 s after the tap, while the test passed 20 of 20 alone and the thread page answers in ~0.2 s: a client transition
+    // starved of CPU. Not a retried tap: one that a visitor's first tap would not survive must stay red (review r-e2e).
+    await expect(page).toHaveURL(/\/help\/[^/]+$/, { timeout: 25_000 })
     // ⚠️ Every assertion here used to be satisfied by the global 404 PAGE — it has an <h1>,
     // and footer.tsx:18 renders a site-wide "Help center" link. Proven by breaking the thread
     // route and watching this test stay green. Assert the ANSWER, not the page furniture:
