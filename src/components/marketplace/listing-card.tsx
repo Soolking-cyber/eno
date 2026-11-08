@@ -758,7 +758,10 @@ function ListingCardImpl({
                     // a white ground is the brightest surface on the dark canvas and glares. The dark
                     // HOVER is spelled out (0.97) because it ties `group-hover:brightness-105` on
                     // specificity and must win it — hover still brightens, and still never scales.
-                    className="object-cover transition-[filter] duration-200 group-hover:brightness-105 dark:brightness-[0.92] dark:group-hover:brightness-[0.97]"
+                    // ⚠️ A TEACHER'S PHOTO IS A FACE (2026-11-08, codex all17 on /c/teachers: "the square crop cuts off most of the
+                    // teacher's face"): a portrait centred in the square lost the forehead and eyes. Anchored near the top, where a
+                    // portrait keeps its face; a landscape photo crops sideways and is unchanged. Every other card stays centred.
+                    className={cn('object-cover transition-[filter] duration-200 group-hover:brightness-105 dark:brightness-[0.92] dark:group-hover:brightness-[0.97]', isTeacher && 'object-[50%_18%]')}
                     quality={60}
                     // Mock/seed images (picsum) are already CDN-sized — bypass the Vercel
                     // optimizer (saves transformations AND removes a failure hop). No-op
@@ -833,7 +836,7 @@ function ListingCardImpl({
                     fill
                     sizes={sizes}
                     // The same dark-mode dim as the slides it follows (see the photo above).
-                    className="object-cover dark:brightness-[0.92]"
+                    className={cn('object-cover dark:brightness-[0.92]', isTeacher && 'object-[50%_18%]')}
                     // ⚠️ 60, NOT a cheaper number, even though this image is never seen
                     // unscrimmed. `qualities` in next.config.ts is an ALLOWLIST — [60, 70] — and
                     // Next's optimizer answers 400 to any `q` outside it (the same invariant

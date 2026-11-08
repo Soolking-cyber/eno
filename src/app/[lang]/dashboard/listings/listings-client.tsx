@@ -18,6 +18,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Segmented } from '@/components/ui/segmented'
 import { Alert } from '@/components/ui/alert'
 import { inAvailabilityReview } from '@/lib/stale'
+import { cn } from '@/lib/utils'
 
 
 const ROWS_STEP = 60
@@ -89,13 +90,25 @@ function StatusFilterSkeleton() {
  *  text-lg/text-sm stack, 68px; the second row adds its own hairline); from md its one row is 1 + 68 + 1 = 70px, and
  *  74px from lg once the figure steps up to text-2xl. Shared by the auth-resolving gate and the dash-fetching state so
  *  the two agree. */
-function StatsGridSkeleton() {
-  return <Skeleton className="mt-4 h-[139px] rounded-xl md:h-[70px] lg:h-[74px]" />
+function StatsGridSkeleton({ english }: { english: boolean }) {
+  // 57px below sm: the one-row strip measured in both languages at 360 and 390 (2026-11-08). Below 360 the Vietnamese
+  // labels wrap and the strip is 72px, so outside English the skeleton reserves that there (the English labels fit at 320).
+  return <Skeleton className={cn('mt-4 h-[57px] rounded-xl sm:h-[70px] lg:h-[74px]', !english && 'max-[359px]:h-[72px]')} />
 }
 
-/** A cell's figure and its label — one pair per measure, the same in every cell (2026-11-06 audit). */
-const STAT_FIGURE = 'text-lg font-bold tabular-nums lg:text-2xl'
-const STAT_LABEL = 'text-sm text-body'
+/** A cell's figure and its label — one pair per measure, the same in every cell (2026-11-06 audit). Compact below sm, where
+ *  the five share one row (2026-11-08): 16px figures over 12px labels, the long two in a short form until md. */
+const STAT_FIGURE = 'whitespace-nowrap text-base font-bold tabular-nums sm:text-lg lg:text-2xl'
+// Tight on a phone only: from sm text-sm keeps its 20px line. `min-w-0` on the cells and wrap-anywhere here (review r47): a
+// flex-auto cell otherwise stops at its longest word, and a long machine-translated label ("Непрочитанные") or a huge count
+// would push the row past the screen, scrolling the page sideways; now that label breaks inside its cell instead.
+const STAT_LABEL = 'text-xs text-body max-sm:leading-tight sm:text-sm [overflow-wrap:anywhere]'
+/** Each cell draws its own hairline, so nothing clips the Messages cell's focus ring; the first has none.
+ *  ⚠️ CONTENT-WIDTH CELLS BELOW md, NOT FIFTHS (measured 2026-11-08 in the site font at 12px): at 360 a fifth leaves 52px
+ *  and "Đang đăng" is 62, "Chưa đọc" 55, "Lượt xem" 53, so equal cells wrapped three Vietnamese labels and the strip
+ *  outgrew its skeleton. As a flex row of `flex-auto` cells the five take ~310px of 328. From md the grid's fifths again. */
+const STAT_CELL_FIRST = 'min-w-0 flex-auto py-2 pr-1.5 sm:py-2.5 sm:pr-3 md:pr-2 lg:pr-3'
+const STAT_CELL = 'min-w-0 flex-auto border-l border-border px-1.5 py-2 sm:px-3 sm:py-2.5 md:px-2 lg:px-3'
 
 /** /dashboard/listings — the seller's listings management, rendered in <main>.
  *  Reads the shared dashboard cache so an edit/delete here re-pulls the one source. */
@@ -104,6 +117,11 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
   const { tr, lang } = useLanguage()
   // Grouped like every other count in the app (break-ui, 2026-10-05): the tiles printed "1284000 / 12841".
   const grouped = (v: number) => formatInteger(v, moneyLocale(lang))
+  // A phone's one-row stat strip (below sm) shows a count of 10,000 or more compact ("12.3K" / "12,3 N", "1.23M"), so no
+  // figure outgrows its share of the row (review r47: a full "1,234,567" at 16px overlapped the next cell at 320); from sm
+  // the full grouped figure. Two spans, one shown: the hidden one is display:none, so a screen reader hears one figure.
+  const compact = (v: number) => new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US', { notation: 'compact', maximumSignificantDigits: 3 }).format(v)
+  const stat = (v: number) => (v < 10_000 ? grouped(v) : <><span className="sm:hidden">{compact(v)}</span><span className="max-sm:hidden">{grouped(v)}</span></>)
   const router = useRouter()
   const { dash: cachedDash, refresh, error } = useDashboard()
   /**
@@ -152,7 +170,7 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
           {!embedded && <Skeleton className="h-5 w-52 rounded-lg" />}
         </div>
         <AvailabilityPillSkeleton />
-        <StatsGridSkeleton />
+        <StatsGridSkeleton english={lang === 'en'} />
         <div className="mt-6">
           <StatusFilterSkeleton />
           <div className="divide-y divide-border">
@@ -215,18 +233,20 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
           the sections are the dashboard, and market info belongs to My listings). */}
       {/* FIVE MEASURES, FIVE CELLS, ONE HAIRLINE STRIP (2026-11-06 audit). Four tiles held five measures, so the last one
           carried two (judged "squeezed" in it, "cryptic" as "Views · 23 leads" before), and their grey fills read as
-          controls beside the tab track, the status filter and the row chips. Now hairlines and no fill: on a phone the
-          account's own counts over the buyers' (views · leads · saves, each row's meta order), five across from md.
+          controls beside the tab track, the status filter and the row chips. Now hairlines and no fill.
+          ⚠️ ONE ROW AT EVERY WIDTH SINCE 2026-11-08 (codex all17: on a phone the tabs, greeting, availability, the strip's
+          two rows and the filter left one listing on the first screen): five across on a phone too, compact, with "Active"
+          and "Unread" for the two long labels until md. ~80px back above the first listing.
           ⚠️ px-2 FROM md TO lg: at 768 a fifth of the column is 144px, and px-3 would leave "Tin nhắn chưa đọc" (122px at
           text-sm) 119px — a label that wraps stretches the row past StatsGridSkeleton (the 2026-11-06 review's sm→md
           lesson); px-2 leaves it 127px. Each cell draws its own hairlines, so nothing clips the Messages cell's focus ring. */}
-      {!dash ? (stuck ? null : <StatsGridSkeleton />) : (
-        <div className="mt-4 grid grid-cols-6 border-y border-border md:grid-cols-5">
-          <div className="col-span-3 py-2.5 pr-3 md:col-span-1 md:pr-2 lg:pr-3"><p className={STAT_FIGURE}>{grouped(dash.stats.activeCount ?? dash.listings.filter((l) => l.status === 'active').length)}</p><p className={STAT_LABEL}>{tr('Active listings', 'Tin đang đăng')}</p></div>
-          <Link href="/messages" className="col-span-3 border-l border-border px-3 py-2.5 transition-colors hover:bg-muted md:col-span-1 md:px-2 lg:px-3"><p className={STAT_FIGURE}>{grouped(dash.stats.unreadMessages ?? 0)}</p><p className={STAT_LABEL}>{tr('Unread messages', 'Tin nhắn chưa đọc')}</p></Link>
-          <div className="col-span-2 border-t border-border py-2.5 pr-3 md:col-span-1 md:border-t-0 md:border-l md:px-2 lg:px-3"><p className={STAT_FIGURE}>{grouped(dash.stats.totalViews ?? 0)}</p><p className={STAT_LABEL}>{tr('Views', 'Lượt xem')}</p></div>
-          <div className="col-span-2 border-l border-t border-border px-3 py-2.5 md:col-span-1 md:border-t-0 md:px-2 lg:px-3"><p className={STAT_FIGURE}>{grouped(dash.stats.totalLeads ?? 0)}</p><p className={STAT_LABEL}>{tr('Leads', 'Liên hệ')}</p></div>
-          <div className="col-span-2 border-l border-t border-border px-3 py-2.5 md:col-span-1 md:border-t-0 md:px-2 lg:px-3"><p className={STAT_FIGURE}>{grouped(dash.stats.saves ?? 0)}</p><p className={STAT_LABEL}>{tr('Saves', 'Lượt lưu')}</p></div>
+      {!dash ? (stuck ? null : <StatsGridSkeleton english={lang === 'en'} />) : (
+        <div className="mt-4 flex border-y border-border md:grid md:grid-cols-5">
+          <div className={STAT_CELL_FIRST}><p className={STAT_FIGURE}>{stat(dash.stats.activeCount ?? dash.listings.filter((l) => l.status === 'active').length)}</p><p className={STAT_LABEL}><span className="md:hidden">{tr('Active', 'Đang đăng')}</span><span className="max-md:hidden">{tr('Active listings', 'Tin đang đăng')}</span></p></div>
+          <Link href="/messages" className={cn(STAT_CELL, 'transition-colors hover:bg-muted')}><p className={STAT_FIGURE}>{stat(dash.stats.unreadMessages ?? 0)}</p><p className={STAT_LABEL}><span className="md:hidden">{tr('Unread', 'Chưa đọc')}</span><span className="max-md:hidden">{tr('Unread messages', 'Tin nhắn chưa đọc')}</span></p></Link>
+          <div className={STAT_CELL}><p className={STAT_FIGURE}>{stat(dash.stats.totalViews ?? 0)}</p><p className={STAT_LABEL}>{tr('Views', 'Lượt xem')}</p></div>
+          <div className={STAT_CELL}><p className={STAT_FIGURE}>{stat(dash.stats.totalLeads ?? 0)}</p><p className={STAT_LABEL}>{tr('Leads', 'Liên hệ')}</p></div>
+          <div className={STAT_CELL}><p className={STAT_FIGURE}>{stat(dash.stats.saves ?? 0)}</p><p className={STAT_LABEL}>{tr('Saves', 'Lượt lưu')}</p></div>
         </div>
       )}
       <div className="mt-6">

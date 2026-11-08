@@ -3830,6 +3830,7 @@ export const UI_STRINGS: string[] = [
   "Unmute",
   "Unpaid prep time",
   "Unpaid prep, schedule changes, contract terms, deductions…",
+  "Unread",
   "Unread messages",
   "Unsubscribe",
   "Unsubscribe from the weekly digest?",

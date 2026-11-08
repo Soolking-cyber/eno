@@ -147,3 +147,17 @@ describe('with a cache', () => {
     expect(container.querySelector('[data-dash-stale]')).toBeNull()
   })
 })
+
+describe('the stat strip (2026-11-08)', () => {
+  it('a count of 10,000 or more is compact on a phone and grouped from sm; a smaller one is grouped once', () => {
+    h.dash = { ...DASH, stats: { ...DASH.stats, totalViews: 1_234_567, totalLeads: 9_999, activeCount: 4 } }
+    const { container } = render(<ListingsClient embedded />)
+    const text = container.textContent ?? ''
+    // Both forms are in the DOM, one of them display:none by breakpoint (jsdom has no media queries).
+    expect(container.querySelector('span.sm\\:hidden')?.textContent).toBe('1.23M')
+    expect(container.querySelector('span.max-sm\\:hidden')?.textContent).toBe('1,234,567')
+    // Under 10,000 there is one figure and no compact twin.
+    expect(text).toContain('9,999')
+    expect(text).not.toContain('10K')
+  })
+})
