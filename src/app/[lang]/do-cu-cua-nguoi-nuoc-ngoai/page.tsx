@@ -239,7 +239,7 @@ const CONTENT: ArticleContent = {
             Người bán đăng tin bằng tài khoản trên {SITE_NAME} có một điểm uy tín công khai, hiện ngay cạnh tên (riêng đối
             tác chính thức thì hiện huy hiệu đối tác thay cho điểm số), và điểm được tính lại từ dữ
             liệu thật: giao dịch đã hoàn tất, đánh giá của người mua và báo cáo vi phạm đã được xác nhận. Mọi tài khoản bắt đầu ở 60 — đó là trạng thái chưa có thành tích, không
-            phải cảnh báo. Từ 85 trở lên là tài khoản đã xác minh và đã có giao dịch hoàn tất, từ 110
+            phải cảnh báo. Từ 85 trở lên là tài khoản đã có giao dịch hoàn tất, từ 110
             trở lên là người bán có lịch sử dài và trả lời nhanh đã được đo, còn dưới 60 nghĩa là đã
             có lỗi nghiêm trọng hoặc lặp lại được xác nhận. Cách đọc thực dụng: 60 không đáng sợ, dưới
             60 thì đừng đi.

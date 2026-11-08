@@ -113,13 +113,14 @@ describe('BackToTop — the chevron shows only while scrolling UP', () => {
 })
 
 describe('BackToTop — the support mark', () => {
-  it('rides away with the tab bar on a phone', () => {
-    y = 2000
-    render(<BackToTop />)
-    act(() => { vi.advanceTimersByTime(20) })
-    scrollTo(2100) // the tab bar's hook anchors on its first scroll frame
-    scrollTo(2400)
-    expect(support().hasAttribute('inert')).toBe(true)
+  it('is not on a phone, on any page (owner, 2026-11-08: support chat is Help\'s "Message support" there)', () => {
+    for (const path of ['/dashboard/listings', '/help', '/trust', '/saved']) {
+      nav.pathname = path
+      const { unmount } = render(<BackToTop />)
+      act(() => { vi.advanceTimersByTime(20) })
+      expect(document.querySelector('.support-mark'), path).toBeNull()
+      unmount()
+    }
   })
 
   it('stays usable on a desktop after a scroll down — the hide classes are max-lg, and now inert is too', () => {
@@ -134,6 +135,9 @@ describe('BackToTop — the support mark', () => {
 })
 
 describe('BackToTop — at rest, never on a page control', () => {
+  // ⚠️ THE SUPPORT MARK IS ON A `pc` ONLY SINCE 2026-11-08 (owner: support chat moved into Help on a phone), so these run as a
+  // `pc`. The solve is the same at every width; the stubbed geometry stays the measured 390x844 one.
+  beforeEach(() => { desktop = true })
   it('a FOCUSED mark still yields — shown to the keyboard, never back under a finger', () => {
     control({ left: 338, right: 370, top: 730, bottom: 762 })
     render(<BackToTop />)
@@ -281,6 +285,9 @@ describe('BackToTop — stands down under every popup, not only the modals', () 
 })
 
 describe('BackToTop — yields to the opt-in values and to the footer', () => {
+  // ⚠️ THE SUPPORT MARK IS ON A `pc` ONLY SINCE 2026-11-08 (owner: support chat moved into Help on a phone), so these run as a
+  // `pc`. The solve is the same at every width; the stubbed geometry stays the measured 390x844 one.
+  beforeEach(() => { desktop = true })
   it('a [data-fab-avoid] value under the mark (a PDP Details value) yields it — text alone never does', () => {
     const main = document.createElement('main')
     document.body.prepend(main)
@@ -421,8 +428,9 @@ describe('BackToTop — the phone rental-check pill yields at rest (rentals-04)'
 /**
  * ⛔ NO FLOATERS ON A PHONE'S BROWSE PAGES (owner, 2026-10-18: "one per visit, no floaters"). Below `pc` the support
  * bubble and the chevron do not render on the pages Explore lights for — home and its search results, /c/*, a listing,
- * a seller, a storefront, /brands, and their `/vi` twins. They stay on the dashboard, Help and every other page, and
- * on a desktop everywhere. Help stays reachable on a phone from the Account sheet and the footer.
+ * a seller, a storefront, /brands, and their `/vi` twins. The chevron stays on the dashboard, Help and every other page,
+ * and on a desktop everywhere; since 2026-11-08 the support mark is on no phone page at all (owner): support chat is
+ * Help's "Message support", one tap from the Account sheet.
  */
 describe('BackToTop — no floaters on a phone\'s browse pages', () => {
   const chevronEl = () => document.querySelector('.back-to-top-chevron')
@@ -439,15 +447,22 @@ describe('BackToTop — no floaters on a phone\'s browse pages', () => {
   )
 
   it.each(['/dashboard', '/dashboard/listings', '/help', '/help/abc', '/saved', '/listings/abc123/edit'])(
-    'a phone on %s keeps the chevron (and the support mark off the post flow)',
+    'a phone on %s keeps the chevron, and no phone page has the support mark (owner, 2026-11-08)',
     (path) => {
       nav.pathname = path
       render(<BackToTop />)
       expect(chevronEl()).not.toBeNull()
-      // The post flow (a listing's edit page) never had the mark (O-30); every other page here keeps it.
-      expect(supportEl() !== null).toBe(!path.endsWith('/edit'))
+      expect(supportEl()).toBeNull()
     },
   )
+
+  it.each(['/dashboard', '/help', '/saved', '/listings/abc123/edit'])('a desktop on %s has the support mark, except on the post flow', (path) => {
+    desktop = true
+    nav.pathname = path
+    render(<BackToTop />)
+    // The post flow (a listing's edit page) never had the mark (O-30).
+    expect(supportEl() !== null).toBe(!path.endsWith('/edit'))
+  })
 
   it('a desktop keeps both on a browse page', () => {
     desktop = true

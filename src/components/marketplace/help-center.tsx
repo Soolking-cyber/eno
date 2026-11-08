@@ -56,6 +56,8 @@ function useHelpText(post: HelpPost, text: string, i18n: HelpI18n | undefined, c
 }
 import { cn } from '@/lib/utils'
 import { COMPANY } from '@/lib/site-legal'
+import { useAuth } from '@/context/auth-context'
+import { useOpenSupportThread } from '@/components/marketplace/use-open-support-thread'
 
 // The Help Center body — shared by the public /help page AND the dashboard "Help" tab.
 //
@@ -322,6 +324,72 @@ function ReviewCard({ review }: { review: HelpReview }) {
         </p>
       </Link>
     </li>
+  )
+}
+
+/**
+ * "Still need help?" — the human path out, and since 2026-11-08 the phone's way into support chat (owner: the floating
+ * support bubble left phones, support chat moved into Help; back-to-top.tsx). It renders on /help and on Account › Help
+ * (dashboard/help), which the guest Account sheet and the signed-in Account menu both reach in one tap.
+ *
+ * Signed in → "Message support" opens the same support thread the desktop bubble opens (use-open-support-thread.ts),
+ * with the email beside it. Signed out → the email, and a sign-in link that comes back here, as the bubble's own guest
+ * panel said. While auth is still loading, only the email shows: no sign-in prompt flashes at someone who is signed in.
+ * ⚠️ On a failed open the email is the fallback, named in a status line, because it reaches the same inbox.
+ */
+export function StillNeedHelp() {
+  const { tr } = useLanguage()
+  const { user, loading } = useAuth()
+  const { open, opening } = useOpenSupportThread()
+  const [failed, setFailed] = useState(false)
+  return (
+    <div className="mt-12 flex flex-col items-start gap-3 border-t border-border pt-8 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-sm font-bold text-foreground"><Tr text="Still need help?" /></p>
+        <p className="text-sm text-body">
+          <Tr text="Our team replies within one business day." />
+          {!loading && !user && (
+            <>
+              {' '}
+              <Link href="/signin?next=/help" prefetch={false} className="font-semibold text-accent-foreground underline-offset-2 hover:underline">
+                {tr('Sign in', 'Đăng nhập')}
+              </Link>{' '}
+              {tr('to chat with support.', 'để trò chuyện trực tiếp với hỗ trợ.')}
+            </>
+          )}
+        </p>
+        {failed && (
+          <p role="status" className="mt-1 text-sm text-body">
+            {tr('The chat did not open. Email us instead — it reaches the same team.', 'Không mở được cuộc trò chuyện. Hãy gửi email cho chúng tôi — email cũng đến đội hỗ trợ.')}
+          </p>
+        )}
+      </div>
+      {/* On a phone the two stack full width — the canon's phone CTA (`cta` + `w-full` → 48px, text-base), with the email
+          matched to it — instead of two ragged widths; from `sm` they sit side by side at their own size. */}
+      <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+        {user && (
+          <Button
+            variant="cta"
+            size="none"
+            type="button"
+            className="w-full px-5 py-2.5 sm:w-auto"
+            aria-busy={opening || undefined}
+            disabled={opening}
+            onClick={async () => { setFailed(!(await open())) }}
+          >
+            <MessageCircle className="size-4" aria-hidden /> {tr('Message support', 'Nhắn tin cho đội hỗ trợ')}
+          </Button>
+        )}
+        {/* ⚠️ COMPANY.email, NOT A LITERAL: this said support@eno.vn on BOTH editions, so eno.forum's
+            help centre sent its readers to the marketplace's mailbox. The footer's "Contact us" was
+            fixed for exactly this drift before; site-legal.ts holds the per-edition address. */}
+        <Button asChild variant={user ? 'outline' : 'cta'} size="none" className={cn('w-full sm:w-auto', user && 'max-sm:min-h-12 max-sm:text-base')}>
+          <a href={`mailto:${COMPANY.email}`} className="px-5 py-2.5">
+            <Mail className="size-4" aria-hidden /> {COMPANY.email}
+          </a>
+        </Button>
+      </div>
+    </div>
   )
 }
 
@@ -693,20 +761,7 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
 
       {/* Escalation. Kept as the LAST thing on the page on purpose: a reader who got
           here did not find their answer above, and this is the human path out. */}
-      <div className="mt-12 flex flex-col items-start gap-3 border-t border-border pt-8 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-bold text-foreground"><Tr text="Still need help?" /></p>
-          <p className="text-sm text-body"><Tr text="Our team replies within one business day." /></p>
-        </div>
-        {/* ⚠️ COMPANY.email, NOT A LITERAL: this said support@eno.vn on BOTH editions, so eno.forum's
-            help centre sent its readers to the marketplace's mailbox. The footer's "Contact us" was
-            fixed for exactly this drift before; site-legal.ts holds the per-edition address. */}
-        <Button asChild variant="cta" size="none">
-          <a href={`mailto:${COMPANY.email}`} className="shrink-0 px-5 py-2.5">
-            <Mail className="size-4" /> {COMPANY.email}
-          </a>
-        </Button>
-      </div>
+      <StillNeedHelp />
     </div>
   )
 }

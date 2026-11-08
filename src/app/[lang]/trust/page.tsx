@@ -115,9 +115,10 @@ export default function TrustPage() {
               here to TRUST.MAX, so raising the cap means re-adding the band, not the other way round. */}
           <div className="mt-1 max-w-[60ch] divide-y divide-border">
             <Band score={130} name="Exceptional" range="110–150" note="At least 10 completed deals in the last year, reviews from 5 different buyers, a proven fast-reply record, and 6 clean months." />
-            {/* 2026-11-06 audit: what must all hold, then the either/or, as tierFor (trust-math.ts) groups them. Same claims as
-                before; tierFor itself has no verification gate (handed to the owner). */}
-            <Band score={95} name="Trusted" range="85–109" note="A verified account, at least 3 completed deals and a clean last 90 days — plus either 60 days on eno or reviews from 3 different buyers." />
+            {/* 2026-11-06 audit: what must all hold, then the either/or, as tierFor (trust-math.ts) groups them.
+                ⛔ NO "verified account" HERE (owner 2026-11-08): tierFor has no verification gate, so the page claims none.
+                The owner will gate Trusted on a verified phone once eno has 100,000 users; the words come back with that gate. */}
+            <Band score={95} name="Trusted" range="85–109" note="At least 3 completed deals and a clean last 90 days — plus either 60 days on eno or reviews from 3 different buyers." />
             <Band score={70} name="Building" range="60–84" note="Where every account starts, and where accounts with fewer than 3 completed deals stay. Not a penalty — just an unproven track record." />
             <Band score={45} name="Restricted" range={<Tr text="below 60" />} note="A serious or repeated confirmed problem — including any confirmed scam. New listings may be held for review." />
           </div>

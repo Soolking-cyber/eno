@@ -2,9 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
-import { logError } from '@/lib/log'
+import { useOpenSupportThread } from '@/components/marketplace/use-open-support-thread'
 import { SupportDialog, Mail } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
@@ -22,8 +21,9 @@ import { YIELDED } from '@/lib/fab-clearance'
  * solves every hard part of being a floating control here, and each one was a bug first: it clears
  * the mobile bottom-nav with the `max(env, var)` pairing Android WebView needs, it disappears under
  * any dialog/sheet/alert (at z-[60] it used to sit ON TOP of the report dialog's submit button), and
- * it stands down entirely on /messages, which owns the bottom-right corner with its composer — and, on a
- * phone, on every browse page (owner, 2026-10-18: "no floaters"; Help is in the Account sheet there). A
+ * it stands down entirely on /messages, which owns the bottom-right corner with its composer — and it is not on
+ * a phone at all (owner, 2026-10-18 "no floaters" on browse pages, then 2026-11-08 every page: support chat is
+ * Help's "Message support", reached from the Account sheet; back-to-top.tsx). A
  * second fixed element would have to re-derive all of that and would drift from it. Being a sibling
  * in the same flex column is also what makes "must not overlap the back-to-top arrow" true by
  * construction rather than by a magic offset.
@@ -42,34 +42,12 @@ import { YIELDED } from '@/lib/fab-clearance'
 export function SupportButton({ className, hidden = false, yielded = false }: { className?: string; hidden?: boolean; yielded?: boolean }) {
   const { tr } = useLanguage()
   const { user } = useAuth()
-  const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [opening, setOpening] = useState(false)
+  const { open: openSupportThread, opening } = useOpenSupportThread()
 
-  /**
-   * Signed in → a real conversation in /messages. Owner: *"auto open message ... route to message
-   * tab and open message with support"*.
-   *
-   * ⚠️ THE ROUTE TAKES NO BODY. Buyer, seller and edition are all resolved server-side, so there is
-   * nothing here that could open somebody else's thread or reach the other edition's desk.
-   * ⚠️ ON FAILURE IT FALLS BACK TO THE PANEL RATHER THAN TO AN ERROR. A person tapping "support" is
-   * already having a problem; the email form still reaches the same inbox, so a 500 costs them a
-   * different form, not their route to help.
-   */
+  /** Signed in → a real conversation in /messages (use-open-support-thread.ts); on failure, this panel's email form. */
   const openThread = async () => {
-    if (opening) return
-    setOpening(true)
-    try {
-      const res = await fetch('/api/support/thread', { method: 'POST' })
-      if (!res.ok) throw new Error(`support-thread ${res.status}`)
-      const { id } = (await res.json()) as { id: string }
-      router.push(`/messages/${id}`)
-    } catch (e) {
-      logError(e, { op: 'support.openThread' })
-      setOpen(true)
-    } finally {
-      setOpening(false)
-    }
+    if (!(await openSupportThread())) setOpen(true)
   }
   /**
    * ⚠️ THE SAME SIGNAL THE BOTTOM NAV USES, so the two move as one piece of chrome rather than as
@@ -88,6 +66,8 @@ export function SupportButton({ className, hidden = false, yielded = false }: { 
    * tablet at ≥64rem has the tab bar (break-ui decision, 2026-10-05), so the cluster passes `hidden` there;
    * under `max-lg:` the mark went inert with no ride-down — the same dead mark, on an iPad.
    */
+  // ⚠️ Since 2026-11-08 the mark renders only on a `pc` (owner: no support bubble on a phone), where the cluster never
+  // passes a scroll-away `hidden`; the ride-down below is kept so that decision reverts in one line (back-to-top.tsx).
   const scrolledAway = hidden
   /**
    * ⚠️ YIELDED IS NOT SCROLLED AWAY. The cluster sets it when, at rest, this mark sits on one of the

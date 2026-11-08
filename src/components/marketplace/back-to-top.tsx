@@ -544,7 +544,11 @@ export function BackToTop() {
             Post button (lib/post-flow-path.ts) — and this cluster only mounts after hydration anyway, so
             there is no server HTML to disagree with. The chevron stays: it is not chrome that competes
             with Publish, and a long form is exactly where "back to top" earns its slot. */}
-        {!isPostFlowPath(pathname) && !floatersOff && <SupportButton className="pointer-events-auto" hidden={supportAway} yielded={supportYields} />}
+        {/* ⛔ NO SUPPORT BUBBLE BELOW `pc`, ON ANY PAGE (owner, 2026-11-08, on the blind judges' most-cited phone issue: it
+            covered text on content pages, the dashboard and the tools). Support chat moved into Help: the guest Account
+            sheet's and the signed-in Account menu's "Help center" both open HelpCenter, whose "Still need help?" carries
+            "Message support", the same thread this bubble opens (use-open-support-thread.ts). The chevron is unchanged. */}
+        {desktop && !isPostFlowPath(pathname) && <SupportButton className="pointer-events-auto" hidden={supportAway} yielded={supportYields} />}
 
       </div>
 
