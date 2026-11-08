@@ -829,8 +829,32 @@ publishes the app) and checks the VN storefront listing (the US is excluded in v
   only iOS (the token's `app-` prefix; Play's disclosure duty is the same).
 - **D15 Version 1.0.3** (done; = Android 1.0.3 / versionCode 5). **D16 One iOS app only** — never a second
   near-identical eno.vn app (4.3(a)).
-- **D17 US storefront — EXCLUDED for v1 (P5).** Texas, Utah and Louisiana age-assurance laws; the answer is Apple's
-  Declared Age Range API in v1.1. OPEN: the owner confirms.
+- **D17 US storefront — EXCLUDED for v1 (P5); 1.1 BUILT 2026-11-09 to open it** (owner: "Build 1.1 with age check, then
+  open US"). Texas SB 2420 applies to new Texas Apple Accounts since 2026-06-04 (developer.apple.com/news/?id=sg176nne);
+  Apple's Q&A: an 18+ app must still check where the law requires it. `ios/App/App/AgeGate.swift` asks Apple's Declared
+  Age Range with one gate, 18, only where Apple says the law applies (`requiredRegulatoryFeatures ∋
+  .declaredAgeRangeRequired` on 26.4+, `isEligibleForAgeFeatures` on 26.2–26.3). 18+ → nothing changes; under 18 → the
+  page is blanked and "eno is for adults" stays up; a decline or an unsettled range → the same screen with Try again
+  (and a pointer to Settings). Apple's request is never cut off while its sheet is up (a plain timeout grew a new race
+  every review round); 60 s with NO sheet and no answer counts as hung = Apple's failure (rule below). ⛔ The first page is NOT held for the region signal (2.2–3.3 s on the simulator, every launch,
+  every country; eno.vn is public in any browser); from "the law applies" on, an opaque cover sits over the page and
+  NavigationFailureFilter holds every new main-frame load until Apple answers. ⛔ Apple's FAILURE (a throw, an unreadable
+  region signal — 10 s per read, measured 2.2–3.3 s) OPENS it, except that once Apple has said the law applies, in the US
+  storefront it CLOSES it (Try again) — not on a failed region read alone, so App Review's US devices get in:
+  the simulator answers "required" then throws `notAvailable` every launch, 1.1 reaches all 145 countries on approval,
+  and failing closed everywhere could lock out Vietnam; the US has no users until ticked, after the device test. One ask per
+  cold launch, plus Try again — no foreground/network re-checks (they blanked pages mid-task; removed after review). A
+  failure never opens a gate an ANSWER closed, and "the law applies" sticks for the session. Below iOS 26.2 nothing is
+  asked. Logs are DEBUG-only (no age status in a release device's log); nothing is stored or sent.
+  Entitlement `com.apple.developer.declared-age-range` (App ID capability, no approval); the framework is WEAK-linked
+  (OTHER_LDFLAGS) — scripts/ios-release.sh refuses either missing. Not built: PermissionKit significant-change consent,
+  RESCIND_CONSENT, ageRatingCode — minors cannot stay past the gate (⚠️ a legal reading, and the fail-open policy, are
+  for the lawyer). A LATER significant change may owe ADULTS a notice where `.significantAppChangeRequiresAdultNotification`
+  is required (`showSignificantUpdateAcknowledgment`, 26.4+); 1.1 owes none (first US build; the rating was already 18+).
+  Simulator script (DEBUG only): `-EnoAgeGateSim adult|minor|declined|straddle|error|unregulated|hang|requesthang`, `-EnoAgeGateStorefront USA`.
+  ⛔ BEFORE ticking the US: a real iPhone on iOS 26.4+ in Apple's age-assurance sandbox (a Texas sandbox account) must
+  return a real range — the simulator never does, so 1.1's regulated path is unproven on hardware until then.
+  ⏳ Upload (scripts/ios-release.sh 6 --upload), review, release → THEN tick United States in Pricing and Availability.
 - **D18 — DECIDED 2026-10-06: both apps render eno.vn; the licensed company's apps send no one to eno.forum**
   (owner: "ship both with eno.vn").
 - **D19 — DECIDED 2026-10-06: e-Visa in both apps as VietKite's photos-only chat** (owner: "have evisa application

@@ -33,6 +33,32 @@ class MainViewController: CAPBridgeViewController {
     /// failure callbacks, which it filters first. See `BenignNavigationError` below for why.
     private var navigationFilter: NavigationFailureFilter?
 
+    /// The adults-only gate (AgeGate.swift, 1.1). It starts open — the first page is not held for Apple's region signal
+    /// (2–3 s measured; see AgeGate) — and closes while Apple is asked where the law applies (`.pending`) or after an
+    /// answer that does not prove 18+. While closed, NavigationFailureFilter cancels every main-frame eno.vn load — the
+    /// watchdog's reloads, AppDelegate's deep links, a link tap, a pull-to-refresh — and remembers the last in `heldURL`.
+    /// Below iOS 26.2 it never closes.
+    private let ageGate = AgeGate()
+    private var heldURL: URL?
+    private var ageBlockController: AgeGateBlockViewController?
+    /// Opaque, over the page, while Apple is asked where the law applies (`.pending`): the site may already be up (the
+    /// first page is not held), but it cannot be used until the answer. Apple's sheet presents above it.
+    private lazy var ageCover: UIView = {
+        let cover = UIView()
+        cover.backgroundColor = .systemBackground
+        cover.accessibilityViewIsModal = true // VoiceOver cannot reach the page behind it
+        cover.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.startAnimating()
+        cover.addSubview(spinner)
+        NSLayoutConstraint.activate([
+            spinner.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: cover.centerYAnchor),
+        ])
+        return cover
+    }()
+
     /// Registers the shell's own plugin, `EnoSignIn` (EnoSignInPlugin.swift: Sign in with Apple, and Google through
     /// ASWebAuthenticationSession — build 3 of 1.0.3 on). Capacitor auto-registers only the npm plugins listed in the
     /// generated capacitor.config.json, so an in-repo plugin is registered by hand; the bridge keeps the instance.
@@ -43,14 +69,22 @@ class MainViewController: CAPBridgeViewController {
     /// `Capacitor.isPluginAvailable('EnoSignIn')` — what the pre-paint head script (src/app/[lang]/layout.tsx) reads
     /// to set `native-siwa`, the class that lets the sign-in buttons show on the first frame. Registered any later,
     /// the first page would render as build 2 (no Apple, no Google) until the next full navigation.
+    ///
+    /// ⚠️ The navigation filter is installed here too (it was in viewDidLoad until 1.1): this runs before loadWebView,
+    /// so Capacitor's FIRST load already passes through it — which the age gate needs to hold that load.
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(EnoSignInPlugin())
+        installNavigationFailureFilter()
     }
 
     override func viewDidLoad() {
+        // Fallback, BEFORE super (which starts the first load): capacitorDidLoad has already installed it — Capacitor's
+        // loadView sets the WebView and its delegate before calling it — so this is a no-op unless that ever changes.
+        installNavigationFailureFilter()
         super.viewDidLoad()
         configureNativeFeel()
-        installNavigationFailureFilter()
+        ageGate.onChange = { [weak self] state, previous in self?.ageGateChanged(state, previous: previous) }
+        ageGate.check(presenter: self) // once per cold launch; the block screen's Try again asks again
         scheduleWatchdog(after: 3.0)
         // UIKit does NOT call viewDidAppear on background→foreground, so the blank-page re-check
         // must hang off the app lifecycle.
@@ -73,6 +107,7 @@ class MainViewController: CAPBridgeViewController {
         if let foregroundObserver {
             NotificationCenter.default.removeObserver(foregroundObserver)
         }
+
         urlObservation?.invalidate()
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "enoRefreshDone")
     }
@@ -163,6 +198,7 @@ class MainViewController: CAPBridgeViewController {
     }
 
     @objc private func handlePullRefresh() {
+        guard ageGate.isAllowed else { refreshControl.endRefreshing(); return }
         refreshGeneration += 1
         let generation = refreshGeneration
         // Tag the pull with its generation so the web can echo it back on `enoRefreshDone` and we
@@ -189,6 +225,8 @@ class MainViewController: CAPBridgeViewController {
     // First presentation only (foreground returns are covered by the didBecomeActive observer).
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        // A block decided before this view reached a window could not be presented then; present it now.
+        if case let .blocked(reason) = ageGate.state, ageBlockController == nil { showAgeBlock(reason) }
         scheduleWatchdog(after: 1.5)
     }
 
@@ -202,7 +240,8 @@ class MainViewController: CAPBridgeViewController {
     }
 
     private func recoverIfBlank() {
-        guard let wv = webView else { return }
+        // A held load is not a blank page to recover: retrying it would only be cancelled again and spend the budget.
+        guard ageGate.isAllowed, let wv = webView else { return }
         // Still fetching the first response → give it more time.
         if wv.isLoading { scheduleWatchdog(after: 2.0); return }
         // No URL and not loading → the provisional load failed. Reload from server.
@@ -241,14 +280,99 @@ class MainViewController: CAPBridgeViewController {
     /// (`forwardingTarget(for:)`) hands every selector we do NOT define straight to the original, so
     /// adding a Capacitor callback later needs no change here.
     private func installNavigationFailureFilter() {
-        guard let webView = self.webView, let inner = webView.navigationDelegate else { return }
+        guard navigationFilter == nil else { return }
+        guard let webView = self.webView, let inner = webView.navigationDelegate else {
+            NSLog("⚡️  Navigation filter NOT installed: no WebView or delegate yet — loads are not held")
+            return
+        }
         let filter = NavigationFailureFilter(inner: inner)
+        filter.holdsAppLoads = { [weak self] in !(self?.ageGate.isAllowed ?? true) }
+        filter.onHeldLoad = { [weak self] url in self?.heldURL = url }
         navigationFilter = filter // the WebView holds its delegate WEAKLY; this owns it
         webView.navigationDelegate = filter
     }
 
+    /// Re-opens the site once Apple's answer proves 18+, or blanks it and puts up the block screen. Opening loads a held
+    /// navigation if there is one, else — when no page of the site is showing (blanked, or never loaded) — where the
+    /// user last was, else Capacitor's start URL (the web's boot code reads a launch deep link through App.getLaunchUrl).
+    private func ageGateChanged(_ state: AgeGate.State, previous: AgeGate.State) {
+        switch state {
+        case .pending:
+            if ageCover.superview == nil {
+                view.endEditing(true) // no keyboard left typing into the page underneath
+                ageCover.frame = view.bounds
+                view.addSubview(ageCover)
+            }
+            return
+        case .allowed:
+            ageCover.removeFromSuperview()
+            // Already open (a check that found nothing to ask): nothing to reload.
+            guard previous != .allowed else { return }
+            let showingSite = ["http", "https"].contains(webView?.url?.scheme?.lowercased() ?? "")
+            let target = heldURL ?? (showingSite ? nil : lastGoodURL ?? bridge?.config.appStartServerURL)
+            heldURL = nil
+            // Dismissed FROM ITS PRESENTER: after Try again, Apple's sheet is presented BY the block screen, and dismiss
+            // sent to the block screen would close only that sheet (opus, review round 7). The recorded screen, or one
+            // whose present is still finishing (recorded only in its completion).
+            if let block = ageBlockController ?? presentedViewController as? AgeGateBlockViewController {
+                block.presentingViewController?.dismiss(animated: true)
+            }
+            ageBlockController = nil
+            reloadAttempts = 0
+            if let target, let wv = webView { _ = wv.load(URLRequest(url: target)) }
+            scheduleWatchdog(after: 3.0)
+        case let .blocked(reason):
+            // The site loads before Apple answers (it is not held at launch): never leave it running — or still loading —
+            // behind the screen. ⚠️ about:blank is not an app URL, so Capacitor's own policy CANCELS it (measured: the
+            // page stayed https://eno.vn/); the filter lets exactly this one through.
+            if let wv = webView {
+                wv.stopLoading()
+                navigationFilter?.allowsNextBlank = true
+                wv.loadHTMLString("", baseURL: nil)
+            }
+            #if DEBUG
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                AgeGateLog.step("behind the block screen: \(self?.webView?.url?.absoluteString ?? "nil")")
+            }
+            #endif
+            // Also after a SAME verdict: setting `reason` re-renders, which gives "Try again" back and stops its spinner.
+            showAgeBlock(reason)
+        }
+    }
+
+    /// Presents the block screen, or updates the one showing. ⚠️ Apple's sheet may still be on screen or dismissing
+    /// when its answer arrives, and UIKit DROPS a present that collides with it — so wait until nothing is presented,
+    /// and count the screen as shown only once UIKit has shown it (a dropped present leaves the loads held behind a
+    /// blank page with no Try again).
+    private func showAgeBlock(_ reason: AgeGate.BlockReason) {
+        if let shown = ageBlockController {
+            shown.reason = reason
+            return
+        }
+        let retry = { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                guard let self, self.ageBlockController == nil, case let .blocked(current) = self.ageGate.state else { return }
+                self.showAgeBlock(current)
+            }
+        }
+        guard viewIfLoaded?.window != nil, presentedViewController == nil, transitionCoordinator == nil else {
+            retry()
+            return
+        }
+        let block = AgeGateBlockViewController(reason: reason)
+        block.onTryAgain = { [weak self, weak block] in
+            guard let self, let block else { return }
+            self.ageGate.check(presenter: block)
+        }
+        present(block, animated: false) { [weak self, weak block] in
+            guard let self, let block, self.presentedViewController === block else { return }
+            self.ageBlockController = block
+        }
+        retry() // a no-op once the completion above has recorded it
+    }
+
     private func reloadFromServer() {
-        guard let wv = webView, reloadAttempts < 6 else { return }
+        guard ageGate.isAllowed, let wv = webView, reloadAttempts < 6 else { return }
         reloadAttempts += 1
         // Recover to WHERE THE USER WAS. Jetsam kills the web content process routinely while the
         // app is backgrounded, so this path fires in ordinary use — not just on a broken first load
@@ -297,6 +421,14 @@ private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
 /// not failures. See `installNavigationFailureFilter` for the full reasoning.
 private final class NavigationFailureFilter: NSObject, WKNavigationDelegate {
     private let inner: WKNavigationDelegate
+    /// True while the age gate is closed (MainViewController.ageGate): every main-frame load of an app host is
+    /// cancelled and reported to `onHeldLoad` instead. The cancel surfaces as error 102, which `isBenign` swallows,
+    /// so Capacitor never swaps in its offline page.
+    var holdsAppLoads: (() -> Bool)?
+    var onHeldLoad: ((URL) -> Void)?
+    /// One-shot, set by the age gate's block: the next main-frame about:blank is allowed here, before Capacitor's
+    /// handler, which cancels every top-level URL that is not the app's (and would hand about:blank to the system).
+    var allowsNextBlank = false
 
     init(inner: WKNavigationDelegate) {
         self.inner = inner
@@ -339,6 +471,12 @@ private final class NavigationFailureFilter: NSObject, WKNavigationDelegate {
     /// offline page, about:blank) go to Capacitor untouched. Server.url keeps NO trailing slash on purpose: the
     /// capacitor:// file-fetch CORS check depends on it, so the prefix check cannot simply be made stricter there.
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if allowsNextBlank, navigationAction.request.url?.absoluteString == "about:blank",
+           navigationAction.targetFrame == nil || navigationAction.targetFrame?.isMainFrame == true {
+            allowsNextBlank = false
+            decisionHandler(.allow)
+            return
+        }
         if let url = navigationAction.request.url,
            let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
            navigationAction.targetFrame == nil || navigationAction.targetFrame?.isMainFrame == true,
@@ -346,6 +484,14 @@ private final class NavigationFailureFilter: NSObject, WKNavigationDelegate {
             if UIApplication.shared.applicationState == .active {
                 UIApplication.shared.open(url, options: [:], completionHandler: nil)
             }
+            decisionHandler(.cancel)
+            return
+        }
+        if let url = navigationAction.request.url,
+           let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+           navigationAction.targetFrame == nil || navigationAction.targetFrame?.isMainFrame == true,
+           holdsAppLoads?() == true {
+            onHeldLoad?(url)
             decisionHandler(.cancel)
             return
         }

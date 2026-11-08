@@ -114,7 +114,8 @@ describe('EnoSignInPlugin.swift implements src/lib/native-sign-in-plugin.ts', ()
 describe('the shell carries the plugin into the binary', () => {
   it('MainViewController registers it before the first page loads', () => {
     const vc = read('ios/App/App/MainViewController.swift')
-    expect(vc).toMatch(/override func capacitorDidLoad\(\) \{\s*bridge\?\.registerPluginInstance\(EnoSignInPlugin\(\)\)\s*\}/)
+    // 1.1 adds the navigation filter's install after it, in the same pre-first-load hook (the age gate needs that).
+    expect(vc).toMatch(/override func capacitorDidLoad\(\) \{\s*bridge\?\.registerPluginInstance\(EnoSignInPlugin\(\)\)\s*installNavigationFailureFilter\(\)\s*\}/)
   })
 
   it('project.pbxproj compiles EnoSignInPlugin.swift into the App target', () => {
@@ -142,6 +143,111 @@ describe('the shell carries the plugin into the binary', () => {
   it('scripts/ios-release.sh refuses an archive signed without it', () => {
     const script = read('scripts/ios-release.sh')
     expect(script).toContain('[ "$(ent com.apple.developer.applesignin:0)" = "Default" ] && [ -z "$(ent com.apple.developer.applesignin:1)" ]')
+  })
+})
+
+/**
+ * 1.1 — Apple's Declared Age Range gate (ios/App/App/AgeGate.swift; D17, owner 2026-11-09: "Build 1.1 with age check,
+ * then open US"). The decisions a later edit could quietly undo, each of which fails only on a device: a strong link
+ * (no launch below iOS 26), a filter installed after the first load (the page renders before Apple answers), a gate
+ * that closes on Apple's failure (a lockout with no recovery, measured on the simulator), a stored age range.
+ */
+describe('the 1.1 age gate', () => {
+  const gate = read('ios/App/App/AgeGate.swift')
+  const vc = read('ios/App/App/MainViewController.swift')
+  const pbx = read('ios/App/App.xcodeproj/project.pbxproj')
+  const script = read('scripts/ios-release.sh')
+
+  it('project.pbxproj compiles AgeGate.swift and weak-links DeclaredAgeRange in both configurations', () => {
+    const sources = pbx.match(/\/\* Begin PBXSourcesBuildPhase section \*\/([\s\S]*?)\/\* End PBXSourcesBuildPhase section \*\//)?.[1] ?? ''
+    expect(sources).toContain('/* AgeGate.swift in Sources */')
+    expect(pbx).toMatch(/\/\* AgeGate\.swift \*\/ = \{isa = PBXFileReference; lastKnownFileType = sourcecode\.swift; path = AgeGate\.swift;/)
+    const flags = [...pbx.matchAll(/OTHER_LDFLAGS = \(([\s\S]*?)\n\s*\);/g)].map((m) => m[1].replace(/\s+/g, ' ').trim())
+    expect(flags).toEqual(['"$(inherited)", "-weak_framework", DeclaredAgeRange,', '"$(inherited)", "-weak_framework", DeclaredAgeRange,'])
+    expect([...pbx.matchAll(/IPHONEOS_DEPLOYMENT_TARGET = ([\d.]+);/g)].map((m) => m[1])).not.toContain('26.0')
+  })
+
+  it('App.entitlements carries com.apple.developer.declared-age-range = true, and the release script requires it and the weak link', () => {
+    expect(read('ios/App/App/App.entitlements')).toMatch(/<key>com\.apple\.developer\.declared-age-range<\/key>\s*<true\/>/)
+    expect(script).toContain('[ "$(ent com.apple.developer.declared-age-range)" = "true" ]')
+    expect(script).toContain('LC_LOAD_WEAK_DYLIB')
+  })
+
+  it('the first page is NOT held for the region signal (2–3 s measured); loads are held from "the law applies" on', () => {
+    expect(gate).toContain('private(set) var state: State = .allowed')
+    // …but the page cannot be used while Apple is asked: an opaque cover over it from `.pending`, off at `.allowed`.
+    expect(vc).toMatch(/case \.pending:\s*if ageCover\.superview == nil \{[\s\S]{0,200}view\.addSubview\(ageCover\)/)
+    expect(vc).toMatch(/case \.allowed:\s*ageCover\.removeFromSuperview\(\)/)
+    expect(gate).toMatch(/guard regulated else \{ return \.allowed \}[\s\S]{0,200}state = \.pending\s*onChange\?\(\.pending, \.allowed\)/)
+  })
+
+  it('the navigation filter is installed before the first load and holds every main-frame load while the gate is closed', () => {
+    // …and again as an idempotent fallback BEFORE super.viewDidLoad(), which is what starts Capacitor's first load.
+    expect(vc).toMatch(/override func viewDidLoad\(\) \{(?:\s*\/\/[^\n]*)*\s*installNavigationFailureFilter\(\)\s*super\.viewDidLoad\(\)/)
+    expect(vc).toContain('guard navigationFilter == nil else { return }')
+    expect(vc).toContain('filter.holdsAppLoads = { [weak self] in !(self?.ageGate.isAllowed ?? true) }')
+    expect(vc).toMatch(/holdsAppLoads\?\(\) == true \{\s*onHeldLoad\?\(url\)\s*decisionHandler\(\.cancel\)/)
+    // The watchdog and pull-to-refresh never retry a held load (each retry would be cancelled and spend the budget).
+    expect(vc).toContain('guard ageGate.isAllowed, let wv = webView else { return }')
+    expect(vc).toContain('guard ageGate.isAllowed, let wv = webView, reloadAttempts < 6 else { return }')
+    expect(vc).toContain('guard ageGate.isAllowed else { refreshControl.endRefreshing(); return }')
+  })
+
+  it('opens on 18+ only, closes on under-18 / decline / an unsettled range; Apple FAILING opens it outside the US storefront only', () => {
+    expect(gate).toContain('if let lower, lower >= 18 { return .allowed }')
+    expect(gate).toContain('if let upper, upper < 18 { return .blocked(.minor) }')
+    expect(gate).toMatch(/case \.declined:\s*return \.blocked\(\.unconfirmed\)/)
+    expect(gate).toContain('requestAgeRange(ageGates: 18, in: presenter)')
+    // Every Apple failure (region unreadable, no window, a throw) goes through ONE rule: an answer-closed gate stays
+    // closed; the US storefront closes (with Try again); anywhere else opens — 1.1 reaches all 145 countries on
+    // approval, and failing closed there on simulator-like devices would lock out Vietnam.
+    expect(gate.match(/return await failure\(\)/g)).toHaveLength(4)
+    // …and the US rule needs Apple's own "the law applies" first: App Review's US devices must get past a failed read.
+    expect(gate).toMatch(/let failure: \(\) async -> State = \{\s*if let closedByAnswer \{ return closedByAnswer \}\s*if self\.knownRegulated,\s*case let \.value\(country\) = await self\.race\(timeout: 5\.0, \{ await self\.signals\.storefrontCountry\(\) \}\), country == "USA" \{[\s\S]{0,120}return \.blocked\(\.unconfirmed\)\s*\}[\s\S]{0,200}return \.allowed/)
+    // The region read is not held for, so its timeout sits well above the measured 2.2–3.3 s (opus, review round 5).
+    expect(gate).toContain('race(timeout: 10.0, { try await self.signals.regionRequiresCheck() })')
+    // ⛔ Apple's age request is never cut off while Apple's sheet is up (a plain timeout grew a new interleaving every
+    // round); only 60 s with NO sheet and no answer counts as hung — Apple's failure, not an endless cover (round 8).
+    expect(gate).not.toMatch(/race\(timeout: [\d.]+, \{ try await self\.signals\.requestAdultGate/)
+    expect(gate).toContain('withoutSheet = presenter.presentedViewController == nil ? withoutSheet + 5.0 : 0')
+    expect(gate).toMatch(/if withoutSheet >= 60\.0 \{\s*AgeGateLog\.step\("age request hung with no sheet for 60 s"\)\s*return await failure\(\)/)
+    // A failure never opens a gate an ANSWER closed, and "the law applies" sticks for the session — a later
+    // "not required" included (codex, review round 4).
+    expect(gate.match(/if let closedByAnswer \{ return closedByAnswer \}/g)).toHaveLength(1)
+    expect(gate).toContain('guard let regulated = knownRegulated ? true : regulatedRead else {')
+    // ⛔ One ask per cold launch + Try again. The foreground / network re-checks of round 2 fired over pickers and
+    // sign-in sheets, blanked pages mid-task and re-covered the app on every Wi-Fi↔cellular switch (round 4).
+    expect(vc).not.toMatch(/NWPathMonitor|willEnterForegroundNotification/)
+    expect(gate).not.toContain('openedOnFailure')
+    // The site is up before Apple answers (not held at launch), so a block always blanks a running page.
+    // …stopping a first load still in flight, and letting exactly that about:blank past Capacitor, which cancels every
+    // top-level URL that is not the app's (measured: without this the page stayed https://eno.vn/ behind the block).
+    expect(vc).toMatch(/wv\.stopLoading\(\)\s*navigationFilter\?\.allowsNextBlank = true\s*wv\.loadHTMLString\("", baseURL: nil\)/)
+    expect(vc).toMatch(/if allowsNextBlank, navigationAction\.request\.url\?\.absoluteString == "about:blank",[\s\S]{0,140}allowsNextBlank = false\s*decisionHandler\(\.allow\)/)
+    // Every check reports back (a second decline must give Try again back); only closed → open loads the site.
+    expect(gate).toContain('self.onChange?(result, previous)')
+    expect(gate).not.toContain('guard result != self.state')
+    expect(vc).toContain('guard previous != .allowed else { return }')
+    // Opening dismisses the block screen FROM ITS PRESENTER (after Try again it presents Apple's sheet itself).
+    expect(vc).toContain('block.presentingViewController?.dismiss(animated: true)')
+    // Apple's sheet waits for nothing to be presented (a picker the page opened would swallow it).
+    expect(gate).toContain("presenter?.presentedViewController != nil) && waited < 1200")
+    expect(vc).toContain('cover.accessibilityViewIsModal = true')
+    // Asked only where Apple says the law applies: never a bare request (that shows Apple's sheet in every country).
+    expect(gate).toContain('requiredRegulatoryFeatures.contains(.declaredAgeRangeRequired)')
+    expect(gate).toContain('AgeRangeService.shared.isEligibleForAgeFeatures')
+    expect(gate).toMatch(/#available\(iOS 26\.2, \*\)/)
+  })
+
+  it('stores, sends and logs nothing in release, and its simulator script is compiled out of release builds', () => {
+    expect(gate).not.toMatch(/UserDefaults\.standard\.set|Keychain|URLSession|fetch\(/)
+    // NSLog only inside #if DEBUG: "blocked(minor)" must never reach a release device's log.
+    const logs = [...gate.matchAll(/NSLog\(/g)].map((m) => m.index ?? 0)
+    expect(logs.length).toBeGreaterThan(0)
+    for (const at of logs) expect(gate.lastIndexOf('#if DEBUG', at), String(at)).toBeGreaterThan(gate.lastIndexOf('#endif', at))
+    const sim = gate.indexOf('private struct SimulatedAgeSignals')
+    expect(sim).toBeGreaterThan(-1)
+    expect(gate.lastIndexOf('#if DEBUG', sim)).toBeGreaterThan(gate.lastIndexOf('#endif', sim))
   })
 })
 

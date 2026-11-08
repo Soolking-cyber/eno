@@ -24,6 +24,10 @@
   submitted binary can only be withdrawn by another submission; scripts/ios-release.sh refuses any
   other set. www.eno.vn 308s to the apex for every path, the association file included, so it could
   never be listed anyway.
+  - Declared Age Range (1.1, owner 2026-11-09: "Build 1.1 with age check, then open US"):
+    com.apple.developer.declared-age-range = true lets AgeGate.swift ask Apple for the age range where
+    the law requires it (Texas SB 2420 and successors). App ID vn.eno.app needs the Declared Age Range
+    capability (no approval; automatic signing adds it). scripts/ios-release.sh refuses an archive without it.
 -->
 <plist version="1.0">
 <dict>
@@ -37,5 +41,7 @@
 	<array>
 		<string>applinks:eno.vn</string>
 	</array>
+	<key>com.apple.developer.declared-age-range</key>
+	<true/>
 </dict>
 </plist>
