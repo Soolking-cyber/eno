@@ -82,8 +82,12 @@ export function MessagesShell({ children }: { children: React.ReactNode }) {
       <div className="mx-auto flex w-full max-w-7xl flex-1 overflow-hidden px-0 sm:px-6 lg:px-8">
         {/* List pane — full width on mobile (hidden when a thread is open); fixed
             sidebar on desktop, always visible. */}
-        {/* 420px from xl (2026-11-06 audit), where the thread still keeps 650px+: at 380 a desktop preview was cut after a few words. */}
-        <aside className={cn('w-full shrink-0 lg:w-[380px] xl:w-[420px]', inThread && 'hidden lg:block')}>
+        {/* 420px from xl (2026-11-06 audit), where the thread still keeps 650px+: at 380 a desktop preview was cut after a few words.
+            A hairline between the panes from lg (2026-11-09, codex all20: the list and the thread floated together on one
+            canvas with no edge between them). Neutral `border-border`, the panes' only rule — not a coloured edge.
+            ⚠️ THE 13px IT TAKES (pr-3 + the 1px rule) IS ADDED TO THE PANE, NOT TAKEN FROM THE LIST (review r1): the list keeps
+            the 380 / 420px its previews were measured at, so 393 / 433px with the rule; the thread gives up the 13px. */}
+        <aside className={cn('w-full shrink-0 lg:w-[393px] lg:border-r lg:border-border lg:pr-3 xl:w-[433px]', inThread && 'hidden lg:block')}>
           <ConversationList />
         </aside>
         {/* Thread / right pane — hidden on mobile unless a thread is open. Carries

@@ -228,15 +228,24 @@ function BoardRowItem({ row, rank }: { row: BoardRow; rank: number | null }) {
       <div className="flex w-10 shrink-0 flex-col items-center sm:w-12">
         <VoteControl schoolId={row.id} schoolName={row.name} />
       </div>
-      <div className="flex min-w-0 flex-1 items-start gap-3 py-1">
-        <SchoolLogo slug={row.slug} logo={row.logo} name={row.name} kind={row.kind} size="row" />
-        <div className="min-w-0 flex-1">
-          <p className="flex items-baseline gap-2">
-            {rank !== null && <span className="text-xs font-semibold tabular-nums text-muted-foreground">#{rank}</span>}
-            <Link href={`/schools/${row.slug}`} className="line-clamp-2 break-words text-base font-semibold text-foreground hover:underline">
-              {row.name}
-            </Link>
-          </p>
+      {/* ⚠️ A GRID, SO A PHONE'S DETAIL LINES RUN UNDER THE LOGO (2026-11-09, codex all20): with the vote column AND a 64px logo
+          column, the kind, the areas and the vote line had ~240px on a 390px phone and wrapped on most rows. Below sm the logo
+          sits beside the name only ('logo name' / 'meta meta'), and everything under the name takes the full width; from sm the
+          logo is a column again ('logo name' / 'logo meta'), as before. One logo, one name: nothing is rendered twice.
+          ⚠️ `sm:grid-rows-[auto_1fr]` (review r2): where the logo spans both rows and is taller than the name plus the
+          details, auto rows would share the extra height and open a gap under the name; the details row takes it all. */}
+      <div className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 py-1 [grid-template-areas:'logo_name'_'meta_meta'] sm:grid-rows-[auto_1fr] sm:items-start sm:[grid-template-areas:'logo_name'_'logo_meta']">
+        {/* `flex`: the logo is an inline <img> or inline-flex tile, and a block box would add a line-box's descender under it. */}
+        <div className="flex [grid-area:logo]">
+          <SchoolLogo slug={row.slug} logo={row.logo} name={row.name} kind={row.kind} size="row" />
+        </div>
+        <p className="flex items-baseline gap-2 [grid-area:name]">
+          {rank !== null && <span className="text-xs font-semibold tabular-nums text-muted-foreground">#{rank}</span>}
+          <Link href={`/schools/${row.slug}`} className="line-clamp-2 break-words text-base font-semibold text-foreground hover:underline">
+            {row.name}
+          </Link>
+        </p>
+        <div className="min-w-0 [grid-area:meta]">
           {row.award && <p className="mt-1"><AwardBadge year={row.award.year} rank={row.award.rank} /></p>}
           {/* The kind and areas in body ink: they tell two similar names apart (2026-11-06 audit: small and pale on desktop). Up to
               two lines, not one cut short: on a phone the vote column already makes the row that tall, and the cut took the area

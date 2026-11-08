@@ -1365,6 +1365,18 @@
   font-weight: 400;
   letter-spacing: -0.02em;
 }
+/* The greeting UNDER A PAGE'S OWN h1, from lg — the Listings shell (dashboard-tabs.tsx), whose PageHeader h1 shows from lg
+   while a phone gets SectionHeader's small bar instead. There a display-size h2 out-ranked the h1 above it, so from lg it is
+   a 20px subtitle; below lg it stays the hero (2026-11-09, blind t41: both judges preferred the small greeting on desktop,
+   and opus preferred the hero on a phone, "a clearer, more confident start"). Unlayered and after .h-greeting, like it:
+   a layered `lg:text-xl` utility could not override an unlayered rule. */
+@media (min-width: 64rem) {
+  .h-greeting-sub-lg {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+    letter-spacing: normal;
+  }
+}
 
 /* ============================================================
    CONTINUOUS CURVATURE (squircles) — progressive enhancement

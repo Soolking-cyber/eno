@@ -164,7 +164,7 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
             flat h-8 bar was 14px short on a desktop. The subtitle is text-sm (20), and the real
             stack is space-y-1, not space-y-1.5. */}
         <div className="space-y-1">
-          <Skeleton className="h-[calc(var(--text-display)*1.15)] w-40 rounded-lg" />
+          <Skeleton className={cn('h-[calc(var(--text-display)*1.15)] w-40 rounded-lg', embedded && 'lg:h-7 lg:w-28')} />
           {/* Only where the loaded stack has its subtitle (2026-11-06 audit): embedded under the Listings tabs it has none,
               and this 24px line moved the whole screen up the moment the session resolved. */}
           {!embedded && <Skeleton className="h-5 w-52 rounded-lg" />}
@@ -196,8 +196,13 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
           so the greeting drops to an <h2> under it rather than putting a second <h1> on the page.
           Standalone (no shell) it stays the page's <h1>. */}
       <div className="space-y-1">
+        {/* ⚠️ EMBEDDED, A 20px SUBTITLE FROM lg, THE HERO BELOW IT (2026-11-09; globals.css .h-greeting-sub-lg). From lg the
+            shell's "My listings" h1 shows above the tabs, and a display-size h2 under it out-ranked it (codex all20); below lg
+            that h1 is sr-only and the title is SectionHeader's small bar, so the greeting is the screen's hero there. Blind
+            t41: both judges preferred the small greeting on desktop, opus the hero on a phone. The skeleton above follows the
+            same switch (28px from lg = text-xl's line), so nothing moves when the session resolves. */}
         {embedded ? (
-          <h2 className="h-greeting text-ink-2">{tr('Hi', 'Chào')}{name ? ` ${name}` : ''}</h2>
+          <h2 className="h-greeting h-greeting-sub-lg text-ink-2">{tr('Hi', 'Chào')}{name ? ` ${name}` : ''}</h2>
         ) : (
           <h1 className="h-greeting text-ink-2">{tr('Hi', 'Chào')}{name ? ` ${name}` : ''}</h1>
         )}
