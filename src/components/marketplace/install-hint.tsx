@@ -4,10 +4,10 @@ import { cn } from '@/lib/utils'
 import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { browserContext } from '@/lib/in-app-browser'
 import { ArtImage } from '@/components/marketplace/art-image'
 import { X } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
-import { isIOS } from '@/lib/in-app-browser'
 import { consentAnswered } from '@/lib/consent'
 import { askHidden, askShown, mayAsk, notePageView } from '@/lib/page-asks'
 import { isClassroomPath } from '@/lib/classroom/host'
@@ -20,8 +20,8 @@ import { IconButton } from '@/components/ui/icon-button'
 // a side effect: it used to read an unset NEXT_PUBLIC_ANDROID_APP_URL and return early on every
 // device, and the shared module falls back to the live Play listing (production v3, 2026-09-15). The
 // engagement gate below is unchanged — a returning visitor after 4s, a first-timer after 75s dwell —
-// so the prompt is still never a first-load banner. iOS stays silent until its listing exists.
-import { ANDROID_APP_URL, IOS_APP_URL } from '@/lib/app-store-links'
+// so the prompt is still never a first-load banner. iOS asks too since its listing went live (2026-11-07).
+import { ANDROID_APP_URL, IOS_APP_URL, storeOs } from '@/lib/app-store-links'
 // ⚠️ BOTH EDITIONS, BY THE OWNER'S DECISION (2026-09-16: "put on both"), taken after they were told the
 // published Android build renders eno.forum. The reasoning — and the real fix, an eno.vn build of the
 // app — is written out in app-download.tsx; this prompt follows that decision rather than restating it.
@@ -83,14 +83,18 @@ export function InstallHint() {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
-      // Inside the native app already — nothing to download.
-      if ((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) return
+      // Inside the native app already — nothing to download. ⚠️ browserContext, not Capacitor alone: the native iOS tabs
+      // (EnoNativeTabs) carry no Capacitor bridge, and with no App Store link this card never asked on iOS to find out.
+      // …and the pre-paint `native` class too, which the app's page sheet (a frame with no bridge, src/lib/app-sheet.ts)
+      // inherits — the same signal that hides the footer and the header's control there (review 2026-11-08, opus).
+      if (browserContext() === 'native' || document.documentElement.classList.contains('native')) return
       if (localStorage.getItem(DISMISS_KEY)) return
 
-      // Which store, and do we even have a link for it? (Desktop → neither → skip.)
-      const ios = isIOS()
-      const url = ios ? IOS_URL : ANDROID_URL
-      if (!url) return
+      // Which store? A desktop has neither, so it gets no card — it has the header's QR panel. (This read
+      // `isIOS() ? App Store : Play`, so every desktop was offered Google Play.)
+      const os = storeOs(navigator.userAgent || '', navigator.platform || '', navigator.maxTouchPoints || 0)
+      if (!os) return
+      const ios = os === 'ios'
 
       // Engagement gate: returning visitor gets it quickly (4s settle); an engaged FIRST-timer
       // earns it by dwell (75s) — never a first-load banner, which burns the one-shot ask.
@@ -110,7 +114,6 @@ export function InstallHint() {
 
   if (!mode || inClassroom) return null
   const url = mode === 'ios' ? IOS_URL : ANDROID_URL
-  if (!url) return null
 
   const dismiss = () => {
     try { localStorage.setItem(DISMISS_KEY, '1') } catch { /* ignore */ }

@@ -292,14 +292,20 @@ describe('Footer links', () => {
     }
   })
 
-  // ⛔ O-04 (owner-approved 2026-09-29): no dashed "App Store · coming soon" chip while there is no link.
-  it('shows a store only when it has a link — no "coming soon" chip', async () => {
+  // Both stores are live (App Store since 2026-11-07); each link names its store for globals.css, which shows a phone
+  // only its own (owner, 2026-11-08) — a desktop keeps both. Never a "coming soon" chip (O-04).
+  it('links both stores, each tagged with its store, and no "coming soon" chip', async () => {
     for (const lang of ['en', 'vi'] as const) {
-      const { container, hrefs } = await renderFooter('marketplace', lang)
+      const { container } = await renderFooter('marketplace', lang)
       expect(container.textContent).not.toMatch(/coming soon|sắp có/)
-      expect(hrefs.some((h) => h.startsWith('https://play.google.com/'))).toBe(true)
+      expect(container.querySelector('a[data-store="ios"]')?.getAttribute('href')).toBe('https://apps.apple.com/app/id6819638569')
+      expect(container.querySelector('a[data-store="play"]')?.getAttribute('href')).toMatch(/^https:\/\/play\.google\.com\//)
       cleanup()
     }
+  })
+  it('globals.css hides the other store on a phone, by the pre-paint os class', () => {
+    const css = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8')
+    expect(css).toMatch(/html\.os-ios \[data-store="play"\],\s*html\.os-android \[data-store="ios"\] \{\s*display: none !important;/)
   })
 
   // G-LANG: a guest's only way to change language or currency. Both editions, both languages.

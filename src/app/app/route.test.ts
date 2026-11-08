@@ -27,3 +27,23 @@ describe('/app language', () => {
     expect(await langOf({ cookie: 'lang=toString', 'accept-language': 'th' })).toBe('th')
   })
 })
+
+describe('/app sends each device to its own store (App Store live since 2026-11-07)', () => {
+  const get = (ua: string) => GET(new NextRequest('https://eno.vn/app', { headers: { 'user-agent': ua } }))
+  it('an iPhone and an iPad agent go to the App Store; Android to Google Play — never shared-cacheable', () => {
+    for (const ua of ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X)', 'Mozilla/5.0 (iPad; CPU OS 18_1 like Mac OS X)']) {
+      const res = get(ua)
+      expect(res.status).toBe(302)
+      expect(res.headers.get('location')).toBe('https://apps.apple.com/app/id6819638569')
+      expect(res.headers.get('cache-control')).toBe('private, no-store')
+    }
+    const android = get('Mozilla/5.0 (Linux; Android 15; Pixel 8)')
+    expect(android.headers.get('location')).toBe('https://play.google.com/store/apps/details?id=eno.vn')
+  })
+  it('a desktop (or an iPad on its Mac agent) gets both stores as links, and no "coming soon"', async () => {
+    const html = await get('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)').text()
+    expect(html).toContain('href="https://apps.apple.com/app/id6819638569"')
+    expect(html).toContain('href="https://play.google.com/store/apps/details?id=eno.vn"')
+    expect(html).not.toMatch(/coming soon/i)
+  })
+})

@@ -2370,13 +2370,13 @@ html.native #app-header {
 html.native [data-app-download] {
   display: none !important;
 }
-/* ⛔ …AND ON iOS, AND IN AN INSTALLED PWA, UNTIL THE APP STORE LISTING EXISTS (owner-approved O-04,
-   2026-09-29). On an iPhone the control opened /app, a page saying the iOS app is not out yet — a
-   header button whose only destination is "not yet". `no-app-download` is added by the same pre-paint
-   script, and only on a build where NEXT_PUBLIC_IOS_APP_URL is unset (the test is interpolated in at
-   build time), so setting the URL brings the control back with no code change. Android in a normal tab
-   is untouched. Same first-frame reasoning as the rule above: no flash, no shift, no hydration branch. */
-html.no-app-download [data-app-download] {
+/* ⚠️ A PHONE IS SHOWN ITS OWN STORE ONLY (owner, 2026-11-08: "apple device should be shown ios download and android
+   one the android version"). The same pre-paint script puts `os-ios` (iPhone, iPad) or `os-android` on <html>
+   (STORE_OS_JS in layout.tsx); a store link carries `data-store`, and the other store's goes before the first frame.
+   A desktop has neither class and keeps both. (Until the App Store listing went live on 2026-11-07 this slot held
+   O-04's `no-app-download`, which hid the header control on iOS.) */
+html.os-ios [data-store="play"],
+html.os-android [data-store="ios"] {
   display: none !important;
 }
 

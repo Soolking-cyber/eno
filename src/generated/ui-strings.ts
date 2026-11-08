@@ -356,7 +356,6 @@ export const UI_STRINGS: string[] = [
   "Apartments, all sizes",
   "Apartments:",
   "App Store",
-  "App Store — coming soon",
   "Appeal submitted",
   "Appeal this decision",
   "Appeal with proof",

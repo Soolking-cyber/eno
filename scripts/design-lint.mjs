@@ -785,7 +785,8 @@ const RATCHETS = {
     fix: 'use <CloseButton size=… variant=…> — it derives the glyph from the button (CLOSE_GLYPH in src/lib/icon-tokens.ts)',
   },
   'icon-sizing': {
-    baseline: 5,
+    // 5 → 4 (2026-11-08): the header's "App Store — coming soon" row (a Clock with a literal strokeWidth) went with the live listing.
+    baseline: 4,
     what: 'an icon sized off the ladder (arbitrary size not in ICON_FIT, an h-N/w-M pair that disagrees, or a literal strokeWidth)',
     fix: 'use ICON_SIZE / a square size-* class and the STROKE_* constants (src/lib/icon-tokens.ts); an owner-measured fit goes in ICON_FIT with its measurement',
   },

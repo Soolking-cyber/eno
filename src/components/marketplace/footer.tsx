@@ -759,18 +759,19 @@ function FooterBody({ compact }: { compact: boolean }) {
               the footer still said "Google Play · coming soon" on every page (owner, 2026-09-17: "add
               google app link") — two sources for one fact, drifting exactly as that module's header
               says it exists to prevent. Those constants are deleted, not left beside this.
-              ⚠️ A STORE WITH NO URL IS LEFT OUT, NOT SHOWN AS A DASHED "coming soon" CHIP (owner-approved
-              O-04, 2026-09-29) — the same call as the header control, which now stands down on iOS until
-              the listing exists. The row still renders its Google Play link, and NEXT_PUBLIC_IOS_APP_URL
-              brings the App Store badge back as a real link with no code change. */}
+              ✅ BOTH STORES ARE LIVE (App Store since 2026-11-07). A phone sees only its own (owner, 2026-11-08:
+              "apple device should be shown ios download and android one the android version"): `data-store`
+              meets the pre-paint `os-ios` / `os-android` class in globals.css, so the server renders both and
+              the other store is gone before the first frame; a desktop keeps both. */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className="text-ink-4">{tr('Get the app', 'Tải ứng dụng')}:</span>
             {[
-              { name: 'App Store', href: IOS_APP_URL },
-              { name: 'Google Play', href: ANDROID_APP_URL },
-            ].filter((store): store is { name: string; href: string } => !!store.href).map((store) => (
+              { name: 'App Store', href: IOS_APP_URL, os: 'ios' },
+              { name: 'Google Play', href: ANDROID_APP_URL, os: 'play' },
+            ].map((store) => (
               <a
                 key={store.name}
+                data-store={store.os}
                 href={store.href}
                 onClick={handleExternalClick}
                 target="_blank"

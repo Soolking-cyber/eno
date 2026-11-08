@@ -17,7 +17,7 @@ import { APP_SHEET_HEAD_JS } from "@/lib/app-sheet";
 import { CONCIERGE_FRAME_HEAD_JS } from "@/lib/concierge/frame-head";
 import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
 import { COMPANY, OPERATOR_REGISTERED } from "@/lib/site-legal";
-import { IOS_APP_URL } from "@/lib/app-store-links";
+import { STORE_OS_HEAD_JS } from "@/lib/app-store-links";
 import { MARKETPLACE_TAGLINE, SITE_TITLE } from "@/lib/site-title";
 // The Organization/WebSite JSON-LD's entity fields (@id, sameAs, legalName…) — see that block below.
 import { marketplaceOrganizationFields, ogLocaleFor, ORGANIZATION_TYPE, organizationId, POSTING_IS_FREE, registeredOperatorFields, SHARE_CARD, SHARE_CARD_ALT, toE164VN, websiteId } from "@/lib/site-identity";
@@ -50,18 +50,7 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
 /** The operator's phone as the Organization JSON-LD states it: E.164, or null (see toE164VN). */
 const ORG_TELEPHONE = toE164VN(COMPANY.phone);
 
-/**
- * The pre-paint half of hiding the header's "Download the app" control where it can only say "not yet"
- * (owner-approved O-04, 2026-09-29): an iPhone/iPad — the same test as isIOS() in
- * src/lib/in-app-browser.ts — or an installed PWA, which is already the app on the home screen. It adds
- * `no-app-download` to <html>, which globals.css hides the control on from the first frame.
- * ⚠️ DECIDED AT BUILD TIME: with NEXT_PUBLIC_IOS_APP_URL set this is '' and the script carries no test at
- * all, so the control comes back everywhere with a rebuild and no code change. The string is spliced
- * into a template literal, so it must stay free of backslashes (a `\s` there would silently become `s`).
- */
-const APP_DOWNLOAD_OFF_JS = IOS_APP_URL
-  ? ""
-  : "if(/iPhone|iPod|iPad/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches))dc.add('no-app-download');";
+// The pre-paint `os-ios` / `os-android` class (the phone's own store): STORE_OS_HEAD_JS in src/lib/app-store-links.ts.
 
 /**
  * ⚠️ THE VARIABLE CLASS GOES ON <html>, NOT <body>. THIS IS THE WHOLE BUG THAT USED TO BE HERE.
@@ -320,6 +309,9 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
   appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: "default" },
+  // ⛔ NO `itunes` (Safari's Smart App Banner), DELIBERATELY (review 2026-11-08, codex): Safari paints it on the FIRST page of a
+  // visit, beside the cookie bar, and no page code can delay or count it — the owner's "one per visit" (2026-10-18) rule
+  // that InstallHint keeps through src/lib/page-asks.ts. The card asks iOS Safari instead, after engagement.
   // ⚠️ THE BRAND KEYWORD IS SITE_NAME, AND IT USED TO BE "eno.vn" TWICE — a duplicate that was
   // also the licensed company's name on the services build. Keywords are near-worthless as a
   // signal; being wrong about who the site IS is not.
@@ -458,7 +450,7 @@ export default async function RootLayout({
               Google and Apple buttons may paint (globals.css `ios-nosiwa-hidden` / `apple-native-only`). ''
               without `ios` — see NATIVE_SIWA_JS in src/lib/native-siwa-head.ts. ⚠️ ITS OWN try BLOCK, after the
               two classes it depends on, so a throw costs only itself (the email form shows — the safe side).
-            · `no-app-download` — see APP_DOWNLOAD_OFF_JS above.
+            · `os-ios` / `os-android` — the phone's own store, outside the app only; see STORE_OS_HEAD_JS in src/lib/app-store-links.ts.
             · `app-sheet` (+ the app's `native` classes) — this page is INSIDE the app's page sheet, a frame the
               Capacitor bridge never reaches; see APP_SHEET_HEAD_JS in src/lib/app-sheet.ts. ITS OWN try BLOCK, before
               the native one, which then takes its web branch in the frame (no Capacitor there).
@@ -469,7 +461,7 @@ export default async function RootLayout({
               page-at-top classes above, and a throw means no class — today's behaviour. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var m=matchMedia('(prefers-reduced-transparency: reduce)');var a=function(){document.documentElement.classList.toggle('reduce-transparency',m.matches)};a();if(m.addEventListener)m.addEventListener('change',a);}catch(e){}try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');var l=localStorage.getItem('lang');if(l&&l!=='en'&&l!=='vi'&&document.documentElement.lang!=='vi')document.documentElement.lang=l;}catch(e){}try{var de=document.documentElement,tc=document.querySelector('meta[name="theme-color"]');if(!tc){tc=document.createElement('meta');tc.name='theme-color';document.head.appendChild(tc);}tc.content=getComputedStyle(de).getPropertyValue('--background').trim()||(de.classList.contains('dark')?'#1c1d1f':'#f8fbfe');}catch(e){}${APP_SHEET_HEAD_JS}${CONCIERGE_FRAME_HEAD_JS}try{var dc=document.documentElement.classList;var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));${NATIVE_SIWA_JS}${APP_HOME_TWIN_JS}if(!window.__enoLeaving)(function(){var done=false;var lift=function(){if(done)return;try{var r=C.nativePromise('SplashScreen','hide',{fadeOutDuration:200});done=true;if(r&&typeof r.catch==='function')r.catch(function(){done=false;});}catch(e){}};var po=null;try{po=new PerformanceObserver(function(list){for(var i=0,e=list.getEntries();i<e.length;i++){if(e[i].name==='first-contentful-paint'){po.disconnect();requestAnimationFrame(lift);return;}}});po.observe({type:'paint',buffered:true});}catch(e){po=null;}if(!po){var dcl=function(){requestAnimationFrame(function(){requestAnimationFrame(lift);});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',dcl,{once:true});else dcl();}setTimeout(lift,4000);})();}else if(navigator.userAgent.indexOf('EnoNativeTabs')>-1){dc.add('native');dc.add('native-ios');dc.add('native-tabs');}else{${APP_DOWNLOAD_OFF_JS}if(!window.scrollY)dc.add('page-at-top');}}catch(e){}try{var hd=document.documentElement.classList;if(!hd.contains('native')&&('; '+document.cookie).indexOf('; sb-')<0)hd.add('no-session');}catch(e){}})();`,
+            __html: `(function(){try{var m=matchMedia('(prefers-reduced-transparency: reduce)');var a=function(){document.documentElement.classList.toggle('reduce-transparency',m.matches)};a();if(m.addEventListener)m.addEventListener('change',a);}catch(e){}try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');var l=localStorage.getItem('lang');if(l&&l!=='en'&&l!=='vi'&&document.documentElement.lang!=='vi')document.documentElement.lang=l;}catch(e){}try{var de=document.documentElement,tc=document.querySelector('meta[name="theme-color"]');if(!tc){tc=document.createElement('meta');tc.name='theme-color';document.head.appendChild(tc);}tc.content=getComputedStyle(de).getPropertyValue('--background').trim()||(de.classList.contains('dark')?'#1c1d1f':'#f8fbfe');}catch(e){}${APP_SHEET_HEAD_JS}${CONCIERGE_FRAME_HEAD_JS}try{var dc=document.documentElement.classList;var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));${NATIVE_SIWA_JS}${APP_HOME_TWIN_JS}if(!window.__enoLeaving)(function(){var done=false;var lift=function(){if(done)return;try{var r=C.nativePromise('SplashScreen','hide',{fadeOutDuration:200});done=true;if(r&&typeof r.catch==='function')r.catch(function(){done=false;});}catch(e){}};var po=null;try{po=new PerformanceObserver(function(list){for(var i=0,e=list.getEntries();i<e.length;i++){if(e[i].name==='first-contentful-paint'){po.disconnect();requestAnimationFrame(lift);return;}}});po.observe({type:'paint',buffered:true});}catch(e){po=null;}if(!po){var dcl=function(){requestAnimationFrame(function(){requestAnimationFrame(lift);});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',dcl,{once:true});else dcl();}setTimeout(lift,4000);})();}else if(navigator.userAgent.indexOf('EnoNativeTabs')>-1){dc.add('native');dc.add('native-ios');dc.add('native-tabs');}else{${STORE_OS_HEAD_JS}if(!window.scrollY)dc.add('page-at-top');}}catch(e){}try{var hd=document.documentElement.classList;if(!hd.contains('native')&&('; '+document.cookie).indexOf('; sb-')<0)hd.add('no-session');}catch(e){}})();`,
           }}
         />
         {/* ⛔ OFF-SCREEN CARD PHOTOS WAIT FOR THE PAGE'S SCRIPTS ON A PHONE (src/lib/image-hold.ts): before the first <img>, so it is here. */}

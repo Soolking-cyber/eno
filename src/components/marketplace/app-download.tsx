@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react'
 import { Popover, PopoverTrigger, PopoverContent, PopoverTitle } from '@/components/ui/popover'
 import { IconButton } from '@/components/ui/icon-button'
 import { Button } from '@/components/ui/button'
-import { Download, Smartphone, Clock } from '@/components/ui/icons'
+import { Download, Smartphone } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
-import { ANDROID_APP_URL, IOS_APP_URL } from '@/lib/app-store-links'
+import { ANDROID_APP_URL, IOS_APP_URL, storeOs } from '@/lib/app-store-links'
 import { isNativeShell } from '@/lib/native-browser'
-import { isIOS } from '@/lib/in-app-browser'
+import { browserContext } from '@/lib/in-app-browser'
 import { cn } from '@/lib/utils'
 
 /**
@@ -53,15 +53,21 @@ export function AppDownload() {
   const [qr, setQr] = useState<string | null>(null)
   // Explicit, because a failed encode used to leave "Loading…" on screen forever (astra).
   const [qrFailed, setQrFailed] = useState(false)
+  /**
+   * The phone's own store, straight (owner, 2026-11-08: "apple device should be shown ios download and android one the
+   * android version"). The server renders `/app`, which resolves the same thing by user agent — except on an iPad, whose
+   * Safari sends a Mac agent and gets the two-store page there; isIOS()'s touch test sees it here. Swapping an href after
+   * hydration moves nothing on screen.
+   */
+  const [storeHref, setStoreHref] = useState('/app')
 
   useEffect(() => {
-    // ⚠️ ALSO GONE ON iOS AND IN AN INSTALLED PWA WHILE THERE IS NO APP STORE LINK (owner-approved O-04,
-    // 2026-09-29): there the control's only destination was a "the iOS app is not out yet" page. The
-    // pre-paint `no-app-download` class (layout.tsx) hides it from the first frame; this is the belt to
-    // that CSS's braces, exactly as for the native shell. Setting NEXT_PUBLIC_IOS_APP_URL restores it.
-    const standalone = window.matchMedia?.('(display-mode: standalone)').matches ?? false
-    setInApp(isNativeShell() || (!IOS_APP_URL && (isIOS() || standalone)))
+    // (Until the App Store listing went live on 2026-11-07 this also stood down on iPhones and in an installed PWA, whose
+    // only destination was "not out yet" — O-04. Both stores are live now, so only the app itself hides it.)
+    setInApp(isNativeShell() || browserContext() === 'native')
     setFine(window.matchMedia?.('(pointer: fine)').matches ?? false)
+    const os = storeOs(navigator.userAgent || '', navigator.platform || '', navigator.maxTouchPoints || 0)
+    if (os) setStoreHref(os === 'ios' ? IOS_APP_URL : ANDROID_APP_URL)
   }, [])
 
   /**
@@ -94,7 +100,7 @@ export function AppDownload() {
 
   const label = tr('Download the eno app', 'Tải ứng dụng eno')
 
-  // The default branch: one tap, straight to `/app`, which sends the device to its own store.
+  // The default branch: one tap, straight to this phone's store (or `/app`, which sends a device to its own).
   if (!fine) {
     return (
       // ⚠️ ui/button + asChild, NOT ui/icon-button: IconButton renders Base UI's Button primitive and takes
@@ -103,7 +109,7 @@ export function AppDownload() {
       // The shell classes are IconButton's own (rounded-full, tap-44, its `lg` box) so the two glyphs in
       // this header stay identical; keep them in step if that primitive's sizes change.
       <Button asChild variant="bare" size="none" className="relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full tap-44 text-body transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]">
-        <a href="/app" data-app-download="" aria-label={label}>
+        <a href={storeHref} data-app-download="" aria-label={label}>
           <Download className="h-7 w-7" strokeWidth={1.75} />
         </a>
       </Button>
@@ -168,7 +174,10 @@ export function AppDownload() {
         <p className="px-4 pb-2 text-xs text-ink-4">
           {tr('Scan with your phone — it opens the right store.', 'Quét bằng điện thoại — mở đúng cửa hàng ứng dụng.')}
         </p>
+        {/* `data-store`: on an iPad or Android tablet with a trackpad (a fine pointer, so this panel) globals.css keeps only
+            that device's own store, as in the footer (codex, review 2026-11-08); a desktop has no os class and keeps both. */}
         <a
+          data-store="play"
           href={ANDROID_APP_URL}
           target="_blank"
           rel="noopener noreferrer"
@@ -178,26 +187,17 @@ export function AppDownload() {
           <Smartphone className="h-5 w-5 shrink-0 text-ink-4" strokeWidth={1.75} />
           {tr('Google Play', 'Google Play')}
         </a>
-        {IOS_APP_URL ? (
-          <a
-            href={IOS_APP_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setOpen(false)}
-            className={cn(row, 'font-semibold text-foreground transition-colors hover:bg-accent active:bg-accent cursor-pointer')}
-          >
-            <Smartphone className="h-5 w-5 shrink-0 text-ink-4" strokeWidth={1.75} />
-            {tr('App Store', 'App Store')}
-          </a>
-        ) : (
-          // Not a disabled button: there is nothing to press, and a greyed control invites a tap that
-          // can never do anything. It is a line of copy that says when to come back.
-          <p className={cn(row, 'text-ink-4')}>
-            {/* No Apple glyph in the sprite (a trademark, deliberately absent) — a clock says "later". */}
-            <Clock className="h-5 w-5 shrink-0" strokeWidth={1.75} />
-            {tr('App Store — coming soon', 'App Store — sắp có')}
-          </p>
-        )}
+        <a
+          data-store="ios"
+          href={IOS_APP_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => setOpen(false)}
+          className={cn(row, 'font-semibold text-foreground transition-colors hover:bg-accent active:bg-accent cursor-pointer')}
+        >
+          <Smartphone className="h-5 w-5 shrink-0 text-ink-4" strokeWidth={1.75} />
+          {tr('App Store', 'App Store')}
+        </a>
       </PopoverContent>
     </Popover>
   )

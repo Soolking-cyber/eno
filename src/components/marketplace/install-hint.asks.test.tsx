@@ -32,7 +32,10 @@ function memoryStorage() {
 }
 const card = () => screen.queryByRole('dialog', { name: 'Get the eno app' })
 
+// An Android phone: a desktop gets no card at all (it has the header's QR panel), and these tests are about WHEN it asks.
+const ANDROID = 'Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36'
 beforeEach(() => {
+  vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue(ANDROID)
   vi.useFakeTimers()
   vi.stubGlobal('localStorage', memoryStorage())
   vi.stubGlobal('sessionStorage', memoryStorage())
@@ -40,7 +43,7 @@ beforeEach(() => {
   nav.pathname = '/'
   consent.answered = true
 })
-afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('InstallHint × the join prompt', () => {
   it('shows at its usual time when nothing else asked in this visit — and takes the visit: the prompt may not', async () => {

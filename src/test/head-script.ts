@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { nativeSiwaHeadJs } from '@/lib/native-siwa-head'
 import { APP_SHEET_HEAD_JS } from '@/lib/app-sheet'
 import { CONCIERGE_FRAME_HEAD_JS } from '@/lib/concierge/frame-head'
+import { STORE_OS_HEAD_JS } from '@/lib/app-store-links'
 
 /**
  * The pre-paint head script EXACTLY as src/app/[lang]/layout.tsx assembles it — read from the layout's source
@@ -12,13 +13,13 @@ import { CONCIERGE_FRAME_HEAD_JS } from '@/lib/concierge/frame-head'
  * ⚠️ Every `${…}` in the template must be one this helper knows how to fill; a new one fails loudly here rather
  * than being silently left as text. `appleIos` stands for `ios` in NEXT_PUBLIC_APPLE_SIGNIN at build time.
  */
-export function headScriptSource(opts: { appleIos: boolean; homeTwin?: string; appDownloadOff?: string }): string {
+export function headScriptSource(opts: { appleIos: boolean; homeTwin?: string }): string {
   const layout = readFileSync(join(process.cwd(), 'src/app/[lang]/layout.tsx'), 'utf8')
   const template = layout.match(/__html: `([^`]*)`,/)?.[1]
   if (!template) throw new Error('head-script: the backtick __html template was not found in layout.tsx')
   const values: Record<string, string> = {
     APP_HOME_TWIN_JS: opts.homeTwin ?? '',
-    APP_DOWNLOAD_OFF_JS: opts.appDownloadOff ?? '',
+    STORE_OS_HEAD_JS,
     NATIVE_SIWA_JS: nativeSiwaHeadJs(opts.appleIos),
     APP_SHEET_HEAD_JS,
     CONCIERGE_FRAME_HEAD_JS,

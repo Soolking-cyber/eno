@@ -119,7 +119,6 @@ export const VI_OVERRIDES: Record<string, string> = {
   "Anything this shop posts shows up here automatically.": "Mọi tin đăng từ shop này sẽ tự động xuất hiện ở đây.",
   "Anything to add? (optional)": "Bạn muốn bổ sung gì không? (tùy chọn)",
   "Apartment": "Căn hộ",
-  "App Store — coming soon": "App Store — sắp ra mắt",
   "Appeal submitted": "Đã gửi khiếu nại",
   "Appeal this decision": "Khiếu nại quyết định này",
   "Appeal with proof": "Khiếu nại kèm bằng chứng",
