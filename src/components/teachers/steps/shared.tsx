@@ -32,10 +32,18 @@ export type StepProps = {
   mode: TeacherFormMode
 }
 
-/** A radio drawn as a chip (a row that wraps): the neutral chip, its checked state the pressed chip's. */
+/**
+ * A radio drawn as a chip (a row that wraps). OUTLINED, NOT A PALE TAG (2026-11-08, codex all13 on /teachers/join: the
+ * neutral chip's grey fill read as a label, not a choice, and its pale checked tint as barely different): unchecked a card
+ * fill inside a line-strong edge, the edge the form's fields carry; checked the selection tint inside a 2px brand edge.
+ * ⚠️ `inset-ring`, NOT `ring` (review r39): the radio's keyboard focus is `focus-visible:ring-[3px]` (ui/radio-group), and
+ * a `ring-inset` edge turned that ring inward too, where the checked chip's own ring took its place. The edge lives in its
+ * own inset-ring layer, so the focus ring stays outside.
+ */
 export const RADIO_CHIP = cn(
   chipVariants({ size: 'md', tone: 'neutral' }),
-  'relative tap-44 data-checked:bg-accent data-checked:text-accent-foreground data-checked:ring-1 data-checked:ring-brand/30',
+  'relative tap-44 bg-card text-foreground inset-ring inset-ring-line-strong',
+  'data-checked:bg-accent data-checked:text-accent-foreground data-checked:inset-ring-2 data-checked:inset-ring-brand',
   // ⛔ An unchecked radio must not hover into the checked look (ui/chip's TOGGLE_HOVER rule, for data-checked).
   'not-data-checked:hover:bg-muted not-data-checked:hover:text-foreground',
 )

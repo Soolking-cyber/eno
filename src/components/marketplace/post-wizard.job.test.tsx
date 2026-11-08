@@ -133,9 +133,10 @@ describe('the preview promises the line the published card prints (review, 2026-
     }
   })
 
-  it('a LINKED job at 0 (pay on the original posting) keeps the neutral "see details"', () => {
+  it('a LINKED job at 0 points at the original posting; a caller that does not know keeps the neutral "see details"', () => {
+    // "see posting", as the listing page's own line says it ("Salary: see the original posting") (2026-11-08: "see details" promised a figure that page lacks).
     const linked = renderToString(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" linked />).replace(/<[^>]+>/g, '')
-    expect(linked).toBe('Salary: see details')
+    expect(linked).toBe('Salary: see posting')
     // …and so does a caller that does not know (only an explicit false says negotiable).
     expect(renderToString(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" />).replace(/<[^>]+>/g, '')).toBe('Salary: see details')
   })

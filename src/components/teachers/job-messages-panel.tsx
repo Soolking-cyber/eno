@@ -239,7 +239,8 @@ function JobMessagesFor() {
             // On the page with a hairline, not a grey well (2026-11-06 audit): the well read as one more filled control.
             // The switch's name as the card's heading (16px) and, from lg, the notice as 16px body copy in a roomier card, as on
             // the Zalo page (2026-11-07 audit; cover-zalo-panel.tsx says why).
-            className="border border-border bg-card lg:px-5 lg:py-4 [&>label>span:first-child]:text-base lg:[&>div]:text-base"
+            variant="card"
+            stateLabels={{ on: tr('Switched on', 'Đang bật'), off: tr('Switched off', 'Đang tắt') }}
             checked={view.current}
             onChange={(next) => { void toggle(next) }}
             // No profile left: nothing to switch ON (the save would 404) — "Stop job messages completely" stays (opus, 5b).

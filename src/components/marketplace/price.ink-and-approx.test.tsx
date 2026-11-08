@@ -90,12 +90,13 @@ describe('<Price> jobMeta (card only)', () => {
     expect(el.className).not.toMatch(/\btext-muted-foreground\b/)
   })
 
-  it('null keeps today\'s label, in muted ink', () => {
+  it('null keeps the no-figure label, in muted ink: a linked job points at the posting', () => {
     const el = root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" linked jobMeta={null} />)
-    expect(el.textContent).toBe('Salary: see details')
+    expect(el.textContent).toBe('Salary: see posting')
     expect(el.className).toMatch(/\btext-muted-foreground\b/)
     expect(el.className).not.toMatch(/\btext-body\b/)
   })
+
 
   it('left out, nothing changes; and it never touches a job with a figure or a teacher profile', () => {
     expect(root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" />).className).not.toMatch(/\btext-muted-foreground\b/)

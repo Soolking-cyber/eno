@@ -349,7 +349,7 @@ export function ConversationList() {
                           the row — past that the TIME ellipsizes, never the name. */}
                       <span className="flex max-w-[60%] shrink-0 items-center gap-1.5">
                         {c.lastMessageAt && (
-                          <time dateTime={c.lastMessageAt} className="truncate text-xs tabular-nums text-ink-4">{inboxTime(c.lastMessageAt, lang)}</time>
+                          <time dateTime={c.lastMessageAt} className="truncate text-xs tabular-nums text-ink-4 lg:text-sm">{inboxTime(c.lastMessageAt, lang)}</time>
                         )}
                       </span>
                     </div>
@@ -434,18 +434,24 @@ export function ConversationList() {
                   </div>
                 ) : (
                   <>
-                    <IconButton
-                      size="sm"
-                      onClick={() => setConfirmId(c.id)}
-                      aria-label={tr('Delete conversation', 'Xóa cuộc trò chuyện')}
-                      // Hidden-until-hover only where a fine pointer can hover it back (see the same
-                      // note in notification-bell.tsx): `sm:opacity-0` hid it on iPads and landscape
-                      // phones too, where the invisible 44px target still opened the delete confirm.
-                      // ⚠️ AND NOT DRAWN AT ALL ON TOUCH — the overflow below carries it there.
-                      className="mr-2 ml-1 hidden text-ink-4 transition hover:bg-destructive/10 hover:text-destructive hover-pointer:pointer-events-none hover-pointer:flex hover-pointer:opacity-0 hover-pointer:group-hover:pointer-events-auto hover-pointer:group-hover:opacity-100 hover-pointer:focus-visible:pointer-events-auto hover-pointer:focus-visible:opacity-100"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </IconButton>
+                    {/* ⚠️ NO WIDTH AT REST ON A MOUSE (2026-11-08, codex all13 on four desktop inbox screens): the hidden-until-hover
+                        Delete still took its ~48px, so every time, count and preview stopped short of the list's right edge. The slot
+                        opens while the row is hovered or its own button holds focus, and the time and count move aside for it; nothing
+                        is drawn over the cover, the count or the preview (an overlay did that, review r43). */}
+                    <span className="hidden shrink-0 overflow-x-clip hover-pointer:flex hover-pointer:w-0 hover-pointer:group-hover:w-12 hover-pointer:focus-within:w-12">
+                      <IconButton
+                        size="sm"
+                        onClick={() => setConfirmId(c.id)}
+                        aria-label={tr('Delete conversation', 'Xóa cuộc trò chuyện')}
+                        // Hidden-until-hover only where a fine pointer can hover it back (see the same
+                        // note in notification-bell.tsx): `sm:opacity-0` hid it on iPads and landscape
+                        // phones too, where the invisible 44px target still opened the delete confirm.
+                        // ⚠️ AND NOT DRAWN AT ALL ON TOUCH — the overflow below carries it there.
+                        className="mr-2 ml-1 hidden text-ink-4 transition hover:bg-destructive/10 hover:text-destructive hover-pointer:pointer-events-none hover-pointer:flex hover-pointer:opacity-0 hover-pointer:group-hover:pointer-events-auto hover-pointer:group-hover:opacity-100 hover-pointer:focus-visible:pointer-events-auto hover-pointer:focus-visible:opacity-100"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </IconButton>
+                    </span>
                     {/* TOUCH: a row overflow instead of a bare trash can (inbox-02). A red-adjacent bin on
                         every row, one thumb-slip from the thread link, is how chats got deleted by
                         accident; the menu puts one deliberate tap in front of the same confirm.

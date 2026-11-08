@@ -128,6 +128,8 @@ export function SwitchRow({
   disabled,
   id,
   className,
+  variant = 'well',
+  stateLabels,
 }: {
   checked: boolean
   onChange?: (next: boolean) => void
@@ -139,24 +141,48 @@ export function SwitchRow({
   /** Lands on the switch itself (an error reveal or a deep link can focus it). */
   id?: string
   className?: string
+  /**
+   * `well` (the settings lists): a grey well, a 14px name. `card` (a page whose whole subject is this one switch, the teacher
+   * consent pages): a hairline card, the name as the card's 16px heading, and from lg a roomier card with the description
+   * as 16px body copy. It replaced call-site selectors into this row's DOM (`[&>label>span:first-child]`, `[&>div]`).
+   */
+  variant?: 'well' | 'card'
+  /**
+   * The state in words beside the switch, `{ on: tr('Switched on', 'Đang bật'), off: tr('Switched off', 'Đang tắt') }` — never a
+   * bare "On" (a preposition to the machine-translated languages; "Bật" alone reads as the command) (2026-11-08, codex all13: on the
+   * consent cards the state was a thumb's position under a long wrapping name). The caller passes the words, so this
+   * primitive needs no language context. Visual only: the switch announces its own state, so it is never read twice.
+   */
+  stateLabels?: { on: React.ReactNode; off: React.ReactNode }
 }) {
   const uid = useId()
   const labelId = `${uid}-label`
   const descId = `${uid}-desc`
+  const card = variant === 'card'
   return (
-    <div data-slot="switch-row" className={cn('rounded-2xl bg-tint px-4 py-3', className)}>
+    <div data-slot="switch-row" className={cn(card ? 'rounded-2xl border border-border bg-card px-4 py-3 lg:px-5 lg:py-4' : 'rounded-2xl bg-tint px-4 py-3', className)}>
       <label className={cn('flex items-center justify-between gap-4', disabled ? 'cursor-not-allowed' : 'cursor-pointer')}>
-        <span id={labelId} className="min-w-0 text-sm font-semibold text-foreground">{label}</span>
-        <Switch
-          id={id}
-          checked={checked}
-          onChange={onChange}
-          disabled={disabled}
-          aria-labelledby={labelId}
-          aria-describedby={description ? descId : undefined}
-        />
+        <span id={labelId} className={cn('min-w-0 font-semibold text-foreground', card ? 'text-base' : 'text-sm')}>{label}</span>
+        {/* Under the switch on a phone, beside it from sm (t37, the design judge: beside it on a phone it squeezed a long name
+            to three lines). Plain ink, not the link blue it first wore, which read as a link. The state word comes second in
+            the DOM: under the switch in the phone's column, to its left in the reversed row from sm. */}
+        <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row-reverse sm:items-center sm:gap-2.5">
+          <Switch
+            id={id}
+            checked={checked}
+            onChange={onChange}
+            disabled={disabled}
+            aria-labelledby={labelId}
+            aria-describedby={description ? descId : undefined}
+          />
+          {stateLabels && (
+            <span aria-hidden className={cn('text-xs font-semibold sm:text-sm', checked ? 'text-foreground' : 'text-ink-4')}>
+              {checked ? stateLabels.on : stateLabels.off}
+            </span>
+          )}
+        </span>
       </label>
-      {description ? <div id={descId} className="mt-1.5 text-sm text-body">{description}</div> : null}
+      {description ? <div id={descId} className={cn('mt-1.5 text-sm text-body', card && 'lg:text-base')}>{description}</div> : null}
     </div>
   )
 }

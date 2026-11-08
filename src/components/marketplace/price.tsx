@@ -171,7 +171,12 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
     // A teacher profile (2026-09-30) has no price: it is a person, never "Free".
     ? (listingType === 'teacher' ? tr('Teacher profile', 'Hồ sơ giáo viên')
       : jobSlot && jobMeta ? jobMeta
-      : noFigure ? (linked === false ? tr('Salary: negotiable', 'Lương: thỏa thuận') : tr('Salary: see details', 'Lương: xem chi tiết'))
+      : noFigure ? (linked === false ? tr('Salary: negotiable', 'Lương: thỏa thuận')
+        // A caller that knows the job links out says where the pay is (codex all13: "see details" promised a figure the job
+        // page does not have; that page says "Salary: see the original posting"); one that does not keeps the neutral words. As short as
+        // "see details" (t35, both blind judges: "see the posting" took two lines on a phone card and broke the row's line).
+        : linked === true ? tr('Salary: see posting', 'Lương: xem tin gốc')
+        : tr('Salary: see details', 'Lương: xem chi tiết'))
       : tr('Free', 'Miễn phí'))
     // `compact`: a narrow surface shows HUGE_VND+ in words ("95 tỷ đ") — only while the figure shown is
     // đồng (`native`, or a VND viewer). A viewer in USD/EUR/KRW/… keeps their own currency (opus, 2026-10-05).
@@ -258,6 +263,11 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
   // dropped for space. 'fit' therefore only ever hides a genuine approximation.
   // A reviewer caught this; the first version applied the container query unconditionally.
   const approxIsEstimate = native || displayCur !== 'USD'
+
+  // A job's no-figure label is ONE line, truncated, never wrapped at its last space as a figure is (t35: a two-line label
+  // pushed every title in a phone row out of line). It is words, not digits, so there is no unit to keep with it.
+  // inline-block: some callers set the price inline beside other text, where a block would break it. After every hook above.
+  if (noFigure && listingType === 'job') return <span title={amount} className={cn('inline-block max-w-full truncate align-bottom font-semibold text-body', jobSlot && !jobMeta && 'text-muted-foreground', className)}><FigureRun fabAvoid={fabAvoid}>{amount}</FigureRun></span>
 
   return (
     // tabular-nums: fixed-width digits so price columns align across card grids.
