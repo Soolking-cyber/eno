@@ -298,7 +298,7 @@ describe('Footer links', () => {
     for (const lang of ['en', 'vi'] as const) {
       const { container } = await renderFooter('marketplace', lang)
       expect(container.textContent).not.toMatch(/coming soon|sắp có/)
-      expect(container.querySelector('a[data-store="ios"]')?.getAttribute('href')).toBe('https://apps.apple.com/app/id6819638569')
+      expect(container.querySelector('a[data-store="ios"]')?.getAttribute('href')).toBe('https://apps.apple.com/vn/app/eno-marketplace/id6819638569')
       expect(container.querySelector('a[data-store="play"]')?.getAttribute('href')).toMatch(/^https:\/\/play\.google\.com\//)
       cleanup()
     }

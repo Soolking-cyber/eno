@@ -21,9 +21,9 @@ const UA = {
 }
 
 describe('the App Store link', () => {
-  it('is the live listing, with no storefront country (each reader opens their own)', () => {
+  it('is the live listing in the Vietnam storefront — a link with no country is the US storefront, which 404s', () => {
     expect(IOS_APP_STORE_ID).toBe('6819638569')
-    expect(IOS_APP_URL).toBe('https://apps.apple.com/app/id6819638569')
+    expect(IOS_APP_URL).toBe('https://apps.apple.com/vn/app/eno-marketplace/id6819638569')
   })
 })
 

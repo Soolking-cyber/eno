@@ -55,9 +55,9 @@ describe('InstallHint — the phone\'s own store', () => {
     expect(await cardAs(UA.android)).toBe('https://play.google.com/store/apps/details?id=eno.vn')
   })
   it('an iPhone, in Safari or in Chrome → the App Store', async () => {
-    expect(await cardAs(UA.iphoneSafari)).toBe('https://apps.apple.com/app/id6819638569')
+    expect(await cardAs(UA.iphoneSafari)).toBe('https://apps.apple.com/vn/app/eno-marketplace/id6819638569')
     cleanup(); vi.restoreAllMocks(); localStorage.clear(); sessionStorage.clear(); __resetPageAsksForTests()
-    expect(await cardAs(UA.iphoneChrome)).toBe('https://apps.apple.com/app/id6819638569')
+    expect(await cardAs(UA.iphoneChrome)).toBe('https://apps.apple.com/vn/app/eno-marketplace/id6819638569')
   })
   it('a desktop → no card (it was offered Google Play before)', async () => {
     expect(await cardAs(UA.windows)).toBeNull()

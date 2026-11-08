@@ -11,10 +11,11 @@
  * 1.0.3, App Store id 6819638569, bundle vn.eno.app — read from Apple's public lookup
  * (itunes.apple.com/lookup?bundleId=vn.eno.app), released 2026-11-07. Until then iOS said "coming soon"
  * everywhere and the header control stood down on iPhones (O-04); those branches went with this.
- * ⚠️ THE LINK CARRIES NO COUNTRY (`/app/id…`, not `/vn/app/…`): the App Store opens it in the reader's own
- * storefront, and most readers here are expats whose Apple ID is British, Korean, Australian… A storefront
- * where the app is not offered shows Apple's "not available in your country" — that is App Store Connect's
- * Pricing and Availability, not this link.
+ * ⛔ THE LINK NAMES THE VIETNAM STOREFRONT (`/vn/app/eno-marketplace/id…`). A link with no country (`/app/id…`)
+ * is served from the US storefront, and the app is not offered there (App Store Connect › Pricing and
+ * Availability: the US is off, D17), so every browser opened a blank 404 page (owner, 2026-11-09: "ios app link is
+ * empty"; measured: /app/id… and /us/app/id… 404, /vn/… and /th/… 200). Vietnam is the home storefront and always
+ * carries the app. Any storefront change goes through a 200 check of this URL (~/eno-newtab-2026-11/ios-probe.mjs).
  *
  * ⚠️ `NEXT_PUBLIC_*` IS INLINED AT BUILD TIME, so changing the Android env var needs a rebuild + deploy,
  * not just a restart. Both editions build from this repo, so both get the same links.
@@ -26,7 +27,7 @@ export const ANDROID_APP_URL =
 /** Apple's numeric id for the listing. */
 export const IOS_APP_STORE_ID = '6819638569'
 
-export const IOS_APP_URL = `https://apps.apple.com/app/id${IOS_APP_STORE_ID}`
+export const IOS_APP_URL = `https://apps.apple.com/vn/app/eno-marketplace/id${IOS_APP_STORE_ID}`
 
 /**
  * Which store a device installs from, by its user agent — EXACTLY the tests STORE_OS_HEAD_JS runs before paint (and isIOS()),

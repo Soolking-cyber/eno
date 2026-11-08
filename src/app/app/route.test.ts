@@ -34,7 +34,7 @@ describe('/app sends each device to its own store (App Store live since 2026-11-
     for (const ua of ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X)', 'Mozilla/5.0 (iPad; CPU OS 18_1 like Mac OS X)']) {
       const res = get(ua)
       expect(res.status).toBe(302)
-      expect(res.headers.get('location')).toBe('https://apps.apple.com/app/id6819638569')
+      expect(res.headers.get('location')).toBe('https://apps.apple.com/vn/app/eno-marketplace/id6819638569')
       expect(res.headers.get('cache-control')).toBe('private, no-store')
     }
     const android = get('Mozilla/5.0 (Linux; Android 15; Pixel 8)')
@@ -42,7 +42,7 @@ describe('/app sends each device to its own store (App Store live since 2026-11-
   })
   it('a desktop (or an iPad on its Mac agent) gets both stores as links, and no "coming soon"', async () => {
     const html = await get('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)').text()
-    expect(html).toContain('href="https://apps.apple.com/app/id6819638569"')
+    expect(html).toContain('href="https://apps.apple.com/vn/app/eno-marketplace/id6819638569"')
     expect(html).toContain('href="https://play.google.com/store/apps/details?id=eno.vn"')
     expect(html).not.toMatch(/coming soon/i)
   })
