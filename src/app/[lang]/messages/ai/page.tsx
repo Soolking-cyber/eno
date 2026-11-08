@@ -87,16 +87,19 @@ export default function AiThreadPage() {
   const greetingBody = () => {
     const at = greetingText.indexOf(example)
     if (at < 0) return greetingText
-    // Its quote marks ride inside the button, so a narrow bubble never strands one at the end of a line.
+    // The quote marks around it are dropped with it: the chip is the quotation (a narrow bubble never strands one either).
     const q = /["“]/.test(greetingText.charAt(at - 1)) && /["”]/.test(greetingText.charAt(at + example.length)) ? 1 : 0
     const after = greetingText.slice(at + example.length + q)
     return (
       <span>
         {greetingText.slice(0, at - q)}
-        {/* Ending the greeting, the example takes a line of its own (2026-11-06 audit); a translation that puts it
-            mid-sentence keeps it in the line. */}
-        <Button variant="link" size="none" type="button" onClick={tryExample} className={`relative whitespace-normal text-left font-semibold leading-relaxed text-accent-foreground underline underline-offset-2 tap-44 lg:text-base ${after.trim() ? 'inline-block' : 'mt-1 block w-fit'}`}>
-          {greetingText.slice(at - q, at + example.length + q)}
+        {/* ⚠️ A SUGGESTION CHIP, NOT AN UNDERLINED LINK (2026-11-09, codex all20: "its clickable behavior is visually
+            indistinguishable from ordinary navigation"). It never navigated — it fills the composer — so it wears the
+            shape AI chats use for a prompt to try: outlined, rounded, the assistant's Sparkles mark. Ending the greeting it
+            takes a line of its own (2026-11-06 audit); a translation that puts it mid-sentence keeps it in the line. */}
+        <Button variant="outline" size="none" type="button" onClick={tryExample} className={`relative gap-1.5 rounded-full bg-card px-3 py-1.5 text-left text-sm font-semibold whitespace-normal text-foreground tap-44 hover:bg-muted hover:text-foreground ${after.trim() ? 'inline-flex align-middle' : 'mt-2 flex w-fit'}`}>
+          <Sparkles className="size-4 shrink-0 text-accent-foreground" aria-hidden />
+          {example}
         </Button>
         {after}
       </span>

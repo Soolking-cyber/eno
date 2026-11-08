@@ -22,8 +22,10 @@ const EN = "Hi! I'm eno AI. Tell me what you're looking for and I'll find it. Fo
 const VI = 'Chào bạn! Mình là eno AI. Bạn cần tìm gì, mình sẽ tìm giúp. Ví dụ: "xe đạp dưới 8 triệu gần Thảo Điền"'
 // A chat stored before the mark (2026-10-22) holds the greeting as text, in the words it had then.
 const STORED_EN = "Hi! I'm eno AI. Tell me what you're looking for — e.g. “a road bike under 8M near Thảo Điền” — and I'll find it."
-// The greeting's example is a button inside the sentence (2026-11-06 audit), so the sentence is matched whole.
-const sentence = (text: string) => (_: string, el: Element | null) => el?.tagName === 'SPAN' && el.textContent === text
+// The greeting's example is a button inside the sentence (2026-11-06 audit), so the sentence is matched whole — and since
+// 2026-11-09 a suggestion chip that IS the quotation, so the quote marks around it are not drawn.
+const unquoted = (text: string) => text.replace(/[“"]([^”"]+)[”"]/, '$1')
+const sentence = (text: string) => (_: string, el: Element | null) => el?.tagName === 'SPAN' && el.textContent === unquoted(text)
 let store: Map<string, string>
 beforeEach(() => {
   store = new Map()
@@ -66,7 +68,7 @@ describe('eno AI greeting — in the language of the page, not of the first visi
   it('the example in the greeting is a button: a guest is asked to sign in, and nothing is sent', async () => {
     renderIn('en')
     openSignIn.mockClear()
-    fireEvent.click(await screen.findByRole('button', { name: '“a road bike under 8M near Thảo Điền”' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'a road bike under 8M near Thảo Điền' }))
     expect(openSignIn).toHaveBeenCalledTimes(1)
     expect(JSON.parse(store.get('eno:ai_chat_v1')!)).toHaveLength(1) // the greeting alone
   })
