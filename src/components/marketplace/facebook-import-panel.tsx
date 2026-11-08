@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { IconButton } from '@/components/ui/icon-button'
+import { X } from '@/components/ui/icons'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -43,6 +45,8 @@ export function FacebookImportPanel() {
   const [phone, setPhone] = useState('')
   const [publishing, setPublishing] = useState(false)
   const [results, setResults] = useState<Record<string, string>>({})
+  // Drafts the seller removed with ✕, hidden at once while the server marks them skipped.
+  const [gone, setGone] = useState<Set<string>>(new Set())
 
   const reasonText = useCallback((code: string | null): string | null => {
     if (!code) return null
@@ -108,7 +112,7 @@ export function FacebookImportPanel() {
 
   // A number already on file means nothing to type at Publish.
   useEffect(() => { if (state?.phone) setPhone((p) => p || (state.phone as string)) }, [state?.phone])
-  const drafts = useMemo(() => (state?.job?.items ?? []).filter((i) => i.status === 'draft'), [state])
+  const drafts = useMemo(() => (state?.job?.items ?? []).filter((i) => i.status === 'draft' && !gone.has(i.id)), [state, gone])
   const chosen = drafts.filter((d) => picked.has(d.id))
   useEffect(() => { setPicked(new Set(drafts.filter((d) => !d.reason && d.price != null).map((d) => d.id))) }, [state?.job?.id, state?.job?.status])
 
@@ -181,6 +185,23 @@ export function FacebookImportPanel() {
     if (r?.ok && ('price' in body || 'district' in body)) setPicked((p) => new Set(p).add(id))
     await load()
     return !!r?.ok
+  }
+
+  // ✕ ON A DRAFT (owner, 2026-11-08: "add small x to remove unwanted imports"): the server's own skip, so it never publishes and an older import's copy
+  // doesn't come back on the next read. Gone at once, with Undo; a failed save puts it back. A later Import again reads it as a new draft.
+  const remove = (id: string) => {
+    const wasPicked = picked.has(id)
+    const show = (on: boolean) => {
+      setGone((g) => { const n = new Set(g); if (on) n.delete(id); else n.add(id); return n })
+      setPicked((p) => { const n = new Set(p); if (on && wasPicked) n.add(id); else if (!on) n.delete(id); return n })
+    }
+    show(false)
+    void patch(id, { skip: true }).then((ok) => {
+      if (!ok) return show(true)
+      toast.success(tr('Removed from this import.', 'Đã bỏ khỏi lần nhập này.'), {
+        action: { label: tr('Undo', 'Hoàn tác'), onClick: () => void patch(id, { skip: false }).then((back) => { if (back) show(true) }) },
+      })
+    })
   }
 
   const publish = async () => {
@@ -301,6 +322,10 @@ export function FacebookImportPanel() {
                       <Textarea key={`d-${descriptionLang}`} aria-label={tr('Description', 'Mô tả')} rows={3} defaultValue={shownDescription} onBlur={(e) => { if (e.target.value !== shownDescription) void patch(d.id, { description: e.target.value, lang: descriptionLang }) }} />
                       {why && <p role="alert" className="text-sm text-destructive">{reasonText(why === 'missing_details' && facets.length === 0 ? 'publish_failed' : why)}</p>}
                     </div>
+                    <IconButton size="sm" disabled={publishing} onClick={() => remove(d.id)} aria-label={fillTemplate(tr('Remove {t}', 'Bỏ {t}'), 'Remove {t}', { t: shownTitle })} title={tr('Remove', 'Bỏ')}
+                      className="-mr-1 -mt-1 text-ink-4 transition-colors hover:bg-muted hover:text-ink disabled:opacity-50">
+                      <X className="size-4" />
+                    </IconButton>
                   </div>
                 </li>
               )

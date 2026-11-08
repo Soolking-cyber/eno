@@ -46,6 +46,19 @@ describe('draft edit: two languages', () => {
     await patch({ title: 'x', lang: 'vi' })
     expect(data().reason).toBe('title_short')
   })
+  // Owner, 2026-11-08: "add small x to remove unwanted imports". ✕ sends skip: true and its Undo skip: false; both must reach the row.
+  it('✕ marks the draft skipped, and Undo (skip: false) makes it a draft again', async () => {
+    expect((await patch({ skip: true })).status).toBe(200)
+    expect(data()).toMatchObject({ status: 'skipped' })
+    expect(h.updateMany.mock.calls[0][0].where).toEqual({ id: 'i1', status: { in: ['draft', 'skipped'] } })
+    h.updateMany.mockClear()
+    h.findFirst.mockResolvedValue({ ...DRAFT, status: 'skipped' })
+    const back = await patch({ skip: false })
+    expect(await back.json()).toMatchObject({ status: 'draft' })
+    expect(data()).toMatchObject({ status: 'draft' })
+    expect(data()).not.toHaveProperty('title')
+    expect(h.translate).not.toHaveBeenCalled()
+  })
   it('a language other than the two is refused', async () => {
     expect((await patch({ title: 'Stuhl', lang: 'de' })).status).toBe(400)
     expect(h.updateMany).not.toHaveBeenCalled()
