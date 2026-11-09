@@ -17,11 +17,11 @@ import { IS_SERVICES } from './edition'
  *   Blvck        thuexemaysaigon.vn/…/Black_Retro_Motorcycle_Circle_Logo__1_-removebg-preview.png (BLVCK_LOGO_URL)
  *   VinWonders   static.vinwonders.com/production/logo_footer.png
  *   VietKite     vietkite.com.vn/wp-content/uploads/2024/12/logo-cty-canh-dieu-viet-vietkite.jpg
- *   GMBR         public/gmbr-logo.png (the partner's own file, already on eno)
  *   Saigon Moving saigonmoving.com/upload/images/Group_6.png
  *
- * ⛔ EDITIONS (CLAUDE.md "EVERY FIX SHIPS TO BOTH SITES", promo-slides.ts): eno.vn promotes VietKite + GMBR + VinWonders,
- * eno.forum its own visa/trip desk + VinWonders — so VietKite (e-Visa) and GMBR (travel) are `marketplaceOnly`. The
+ * ⛔ EDITIONS (CLAUDE.md "EVERY FIX SHIPS TO BOTH SITES", promo-slides.ts): eno.vn promotes VietKite + VinWonders,
+ * eno.forum its own visa/trip desk + VinWonders — so VietKite (e-Visa) is `marketplaceOnly`. GMBR left the roster on
+ * 2026-11-09 (owner: "remove gmbr account and from strip"). The
  * marketplace partners (rentals, motorbikes, moving) and VinWonders are on both.
  *
  * `label` is ONE word for what the partner does, English + Vietnamese (tr()). `size` is the logo's optical height class:
@@ -43,11 +43,10 @@ export const PARTNER_STRIP: readonly StripPartner[] = [
   { handle: 'blvck', name: 'Blvck Motorbike', logo: { src: '/partners/blvck.webp', width: 65, height: 96 }, label: { en: 'Motorbikes', vi: 'Xe máy' }, size: 'square', dark: true },
   { handle: 'saigonmoving', name: 'Saigon Moving', logo: { src: '/partners/saigonmoving.webp', width: 171, height: 96 }, label: { en: 'Moving', vi: 'Chuyển nhà' }, size: 'square' },
   { handle: 'vinwonders', name: 'VinWonders', logo: { src: '/partners/vinwonders.webp', width: 174, height: 96 }, label: { en: 'Tickets', vi: 'Vé tham quan' }, size: 'square' },
-  { handle: 'gmbr', name: 'GMBR', logo: { src: '/partners/gmbr.webp', width: 186, height: 96 }, label: { en: 'Travel', vi: 'Du lịch' }, size: 'square', marketplaceOnly: true },
   { handle: 'vietkite', name: 'VietKite', logo: { src: '/partners/vietkite.webp', width: 96, height: 96 }, label: { en: 'e-Visa', vi: 'Visa' }, size: 'square', marketplaceOnly: true },
 ]
 
-/** The partners this edition shows: eno.forum leaves out the visa and travel partners that compete with its own desk. */
+/** The partners this edition shows: eno.forum leaves out the visa partner that competes with its own desk. */
 export function stripPartners(services: boolean = IS_SERVICES): StripPartner[] {
   return PARTNER_STRIP.filter((p) => !(services && p.marketplaceOnly))
 }

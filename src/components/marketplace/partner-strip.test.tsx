@@ -111,8 +111,9 @@ describe('the partner roster', () => {
     for (const p of PARTNER_STRIP) expect(p.label.en).toMatch(/^[\w-]+$/)
   })
 
-  it('leaves the visa and travel partners off eno.forum, and keeps every marketplace partner on both', () => {
+  it('leaves the visa partner off eno.forum, keeps every marketplace partner on both, and no longer lists GMBR', () => {
     expect(stripPartners(true).map((p) => p.handle)).toEqual(['goplus', 'blvck', 'saigonmoving', 'vinwonders'])
+    expect(PARTNER_STRIP.map((p) => p.handle)).not.toContain('gmbr')
     expect(stripPartners(false).map((p) => p.handle)).toEqual(PARTNER_STRIP.map((p) => p.handle))
   })
 
