@@ -125,12 +125,25 @@ export type CardTitleInput = {
   condition?: string | null
   /** The listing's stored location — what the info line prints as the place. */
   location?: string | null
+  /**
+   * A no-pay LINKED job's employer, when the card's price slot prints it (listing-card.tsx `jobMeta`, UI climb 2026-11-09).
+   * The importer titles such a job "<role> — <employer>" (job-listing.ts), so the tail would only repeat the slot above
+   * it and push the role past the ellipsis on a phone — it goes, and only an exact " — <employer>" tail.
+   */
+  employer?: string | null
 }
 
-export function cardTitle({ title, lang, sellerId, categorySlug, listingType, condition, location }: CardTitleInput): string {
+export function cardTitle({ title, lang, sellerId, categorySlug, listingType, condition, location, employer }: CardTitleInput): string {
   const src = title.normalize('NFC')
   let out = src
-  if (categorySlug === 'rentals') {
+  if (employer && listingType === 'job') {
+    const tail = ` — ${employer.normalize('NFC')}`
+    // ⚠️ Cut first, compare after: lower-casing can change a string's length (İ → i̇), so comparing lowered strings and then
+    // cutting by the employer's length could cut into the role (commit review).
+    const end = src.slice(-tail.length)
+    if (src.length <= tail.length || end.toLocaleLowerCase() !== tail.toLocaleLowerCase()) return title
+    out = src.slice(0, src.length - tail.length).trimEnd()
+  } else if (categorySlug === 'rentals') {
     if (sellerId === GOPLUS_SELLER_ID) {
       // A bare city or province ("Hồ Chí Minh", "Bình Dương") is all the info line would print, so the tail stays: it names the district.
       if (!location || isHcmc(location) || !NAMES_AN_AREA.test(location.normalize('NFC').trim())) return title

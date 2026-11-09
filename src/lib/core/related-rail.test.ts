@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * The sparse-search "More in" rail (UI climb 2026-11-09, hunt #9): which answers ask for it, which category it is, and
- * that its rows come through Trending's public base — the edition scope, verified + active, only listings dealt on eno —
- * with the answer and the viewer's blocked shops out of the pool, at least three, in the picker's order, card-shaped.
+ * that its rows come through Trending's public base — the edition scope, verified + active, linked listings INCLUDED (owner,
+ * 2026-11-09) — with the answer and the viewer's blocked shops out of the pool, at least three, in the picker's order,
+ * card-shaped.
  */
 const h = vi.hoisted(() => ({
   picked: [] as string[], pickedSub: [] as string[], pickArgs: [] as unknown[], calls: [] as unknown[][], found: [] as unknown[], findWhere: null as unknown,
@@ -14,7 +15,6 @@ vi.mock('@/lib/taxonomy', () => ({
     : c === 'electronics' ? [{ slug: 'phones', name: 'Phones', nameVi: 'Điện thoại' }] : []),
 }))
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: object) => ({ scoped: w }) }))
-vi.mock('@/lib/in-app-listing', () => ({ inAppOnly: (w: object) => ({ inApp: w }) }))
 vi.mock('@/lib/serialize', () => ({ LISTING_CARD_SELECT: { card: true }, serializeListingCard: (r: object) => ({ ...r, serialized: true }) }))
 vi.mock('@/lib/db', () => ({ db: { listing: { findMany: vi.fn(async (a: { where: unknown }) => { h.findWhere = a.where; return h.found }) } } }))
 vi.mock('./trending-rail', () => ({
@@ -82,7 +82,7 @@ describe('relatedRail', () => {
     expect(h.calls).toHaveLength(1)
     const [scoped, order, opts] = h.calls[0] as [unknown, unknown, { pool: number; take: number; excludeIds: string[] }]
     // The blocked shops are their OWN AND element beside the scoped where, never a key inside it.
-    const base = { inApp: { AND: [{ scoped: { verified: true, status: 'active', category: { slug: 'electronics' } } }, { sellerId: { notIn: ['s9'] } }] } }
+    const base = { AND: [{ scoped: { verified: true, status: 'active', category: { slug: 'electronics' } } }, { sellerId: { notIn: ['s9'] } }] }
     expect(scoped).toEqual({ AND: [base, { subcategorySlug: 'phones' }] })
     expect(order).toEqual(['trending-order'])
     expect(opts.excludeIds).toEqual(['a1', 'a2'])
@@ -96,7 +96,14 @@ describe('relatedRail', () => {
     h.pickedSub = ['r1', 'r2', 'r3']
     h.found = [row('r1'), row('r2'), row('r3')]
     await relatedRail({ rows: [row('a1')], category: 'electronics', hiddenSellerIds: [] })
-    expect(h.calls[0][0]).toEqual({ AND: [{ inApp: { scoped: { verified: true, status: 'active', category: { slug: 'electronics' } } } }, { subcategorySlug: 'phones' }] })
+    expect(h.calls[0][0]).toEqual({ AND: [{ scoped: { verified: true, status: 'active', category: { slug: 'electronics' } } }, { subcategorySlug: 'phones' }] })
+  })
+  it('linked listings are NOT filtered out (owner 2026-11-09): no affiliateUrl clause in the pick or the load', async () => {
+    h.pickedSub = ['r1', 'r2', 'r3']
+    h.found = [row('r1'), row('r2'), row('r3')]
+    await relatedRail({ rows: [row('a1')], category: 'electronics', hiddenSellerIds: ['s9'] })
+    expect(JSON.stringify(h.calls[0][0])).not.toContain('affiliateUrl')
+    expect(JSON.stringify(h.findWhere)).not.toContain('affiliateUrl')
   })
   it('"vespa" found a motorbike rental: more motorbike rentals, named by the taxonomy, not apartments', async () => {
     h.pickedSub = ['m1', 'm2', 'm3']

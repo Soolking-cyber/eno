@@ -209,6 +209,19 @@ describe('ListingCard — the price row', () => {
     expect(untyped.textContent).not.toContain('Full-time')
   })
 
+  it('a price-0 linked job with an employer hands <Price> the employer, and the title drops its " — <employer>" tail (2026-11-09)', () => {
+    lang.current = 'en'
+    const job = { category: { icon: 'briefcase', slug: 'jobs' }, listingType: 'job', price: 0, city: 'Hà Nội', sellerId: 'eslboards-com-import-seller-0001',
+      title: 'Associate Lecturer, Psychology — RMIT University Vietnam', jobEmployer: 'RMIT University Vietnam', jobType: 'fulltime' }
+    const c = card(job)
+    expect(c.querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('RMIT University Vietnam')
+    const h3 = c.querySelector('h3')!
+    expect(h3.textContent).toContain('Associate Lecturer, Psychology')
+    expect(h3.textContent).not.toContain('— RMIT')
+    // The full title still names the card for a screen reader and the tooltip.
+    expect(h3.getAttribute('title')).toBe('Associate Lecturer, Psychology — RMIT University Vietnam')
+  })
+
   it('every other card leaves jobMeta out', () => {
     expect(card().querySelector('[data-price]')!.getAttribute('data-job-meta')).toBe('undefined')
   })

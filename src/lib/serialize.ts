@@ -234,10 +234,19 @@ type ListingCardRow = {
   seller: { trustScore: number; officialPartner: boolean; ownerId: string | null; owner?: { accountType: string | null } | null }
 }
 
-/** A job's `jobtype` facet value from its attributes JSON, or null — a short slug, never the whole object. */
-function cardJobType(attributes: string | null | undefined): string | null {
-  const v = safeParse<Record<string, unknown> | null>(attributes ?? null, null)?.jobtype
-  return typeof v === 'string' && v.length <= 32 ? v : null
+/**
+ * A job card's two facts from its attributes JSON — never the whole object:
+ *   · `jobType`, the `jobtype` facet slug (the info line prints it after the place), or null;
+ *   · `jobEmployer`, a LINKED job's employer as the importer stored it (job-listing.ts `attributes.employer`: the board's
+ *     own line, past its person-name screen — a public fact the listing's title and Details already print), or null.
+ *     The card's price slot prints it when the posting gives no figure (UI climb 2026-11-09, owner "resolve with
+ *     recommended" on the all21 hunt's #4). ⛔ Linked jobs only: an employer's OWN job keeps "Salary: negotiable".
+ */
+function cardJobFacts(attributes: string | null | undefined, linked: boolean): { jobType: string | null; jobEmployer: string | null } {
+  const a = safeParse<Record<string, unknown> | null>(attributes ?? null, null)
+  const t = a?.jobtype
+  const e = linked && typeof a?.employer === 'string' ? a.employer.replace(/\s+/g, ' ').trim() : ''
+  return { jobType: typeof t === 'string' && t.length <= 32 ? t : null, jobEmployer: e && e.length <= 120 ? e : null }
 }
 
 export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
@@ -269,8 +278,8 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     // The commission-bearing subset (the card's "Ad" marker) — computed here so the link never ships.
     isSponsored: isCommissionLink(l.affiliateUrl),
     listingType: l.listingType,
-    // Only a job carries it, so no other card's payload grows (see LISTING_CARD_SELECT.attributes).
-    ...(l.listingType === 'job' ? { jobType: cardJobType(l.attributes) } : {}),
+    // Only a job carries them, so no other card's payload grows (see LISTING_CARD_SELECT.attributes).
+    ...(l.listingType === 'job' ? cardJobFacts(l.attributes, Boolean(l.affiliateUrl)) : {}),
     /**
      * ⛔ "IDENTITY VERIFIED" — A BOOLEAN, AND ONLY ON A TEACHER CARD HOLDING TODAY'S VALUE (owner, 2026-10-15; AUTOMATIC
      * since 2026-10-16). The cache holds the rule version the mark was last computed SHOWN under (identity-mark-card.ts,

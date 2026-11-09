@@ -163,6 +163,19 @@ function ListingCardImpl({
    * rules — importer templates by seller id only; a goods tag only from an allowlist, and only when the
    * info line already says it — live in src/lib/card-title.ts.
    */
+  /**
+   * A price-0 LINKED job's price slot: its EMPLOYER, in the muted no-figure ink, when the payload carries one
+   * (serialize.ts cardJobFacts); `null` otherwise, which <Price> prints as "Salary: see posting".
+   * ⚠️ THE 2026-11-07 RULE WAS "PAY AND NOTHING ELSE" (judges: one bold line alternating between a salary, a type and city,
+   * and a label could not be compared). The all21 phone hunt (#4) found what that left: 7 of 8 job cards in view said
+   * "Salary: see posting", and the employer — the first thing a teacher looks for — was only inside the cover at ~6px.
+   * The owner said "resolve with recommended" (2026-11-09): the employer is the SAME kind of fact on every no-pay card, a
+   * real salary still stands out in price orange, and the type stays on the info line (`jobTypeText`, below).
+   * The title then drops the importer's " — <employer>" tail (card-title.ts `employer`), so the role gets the line.
+   */
+  // ⛔ A LINKED job only (`isPartnerBooking`): an employer's own job keeps "Lương: thỏa thuận" in body ink — <Price>
+  // ignores jobMeta there too (price.tsx `jobMeta`).
+  const jobMeta = listing.listingType === 'job' && listing.price === 0 && listing.isPartnerBooking !== false ? (listing.jobEmployer || null) : undefined
   const lineTitle = cardTitle({
     title: displayTitle,
     lang,
@@ -172,6 +185,8 @@ function ListingCardImpl({
     // What the info line below prints — a bracket tag is only dropped when it repeats one of these.
     condition: listing.condition,
     location: listing.location,
+    // What the price slot prints for a no-pay linked job (`jobMeta`, declared above) — its " — <employer>" tail goes.
+    employer: jobMeta,
   })
   // A SHORTENED line names the link (WCAG 2.5.3, above); the FULL title rides along as its description, so a
   // screen-reader user still hears the seller's whole title (commit-gate review 2026-10-04).
@@ -242,16 +257,6 @@ function ListingCardImpl({
    * vehicle hire), services and jobs are where the buyer goes to the place.
    */
   const canLocate = listing.lat != null && listing.lng != null && ['rentals', 'services', 'jobs'].includes(listing.category?.slug ?? '')
-  /**
-   * A price-0 LINKED job's price slot (2026-11-07 audit): `null`, which <Price> prints as "Salary: see details" in the
-   * muted no-figure ink — the slot holds PAY and nothing else. Since rentals-09 it had printed "Full-time · Hanoi" when
-   * the payload carried a type, so one bold line alternated between a salary, a type and city, and the label, and the
-   * judges could not compare jobs by it (every round since all7). The type now joins the info line (`jobTypeText`,
-   * below). With or without the `jobType` projection (a full-listing rail card has none), the slot reads the same.
-   */
-  // ⛔ A LINKED job only (`isPartnerBooking`): an employer's own job keeps "Lương: thỏa thuận" in body ink — <Price>
-  // ignores jobMeta there too (price.tsx `jobMeta`).
-  const jobMeta = listing.listingType === 'job' && listing.price === 0 && listing.isPartnerBooking !== false ? null : undefined
   /**
    * The job type for the info line, after the place ("Full-time" / "Toàn thời gian"), on any job whose card payload carries
    * the `jobType` projection (serializeListingCard); null otherwise, and the line reads as before.

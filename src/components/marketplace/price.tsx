@@ -29,13 +29,11 @@ type Props = {
    */
   linked?: boolean
   /**
-   * CARD ONLY (rentals-09): what a price-0 JOB prints instead of the salary label — "Toàn thời gian ·
-   * Hà Nội" (src/lib/card-title.ts jobCardMeta). A string replaces the label, in the same ink; `null`
-   * means the card looked and found no job type, so today's label stays, in muted ink. Left out
-   * (every other surface: rows, map, suggestions — and a card whose payload has no `jobType` key)
-   * nothing changes. Ignored on anything but a LINKED job at 0.
-   * ⚠️ SINCE THE 2026-11-07 AUDIT THE CARD PASSES `null` ONLY, for every linked job at 0: its slot holds pay, and the
-   * type follows the place on the card's info line (listing-card.tsx `jobTypeText`). The string form is still honoured and tested.
+   * CARD ONLY: what a price-0 LINKED job prints instead of the salary label — since 2026-11-09 its EMPLOYER
+   * (listing-card.tsx `jobMeta`, serialize.ts cardJobFacts), in the muted no-figure ink like the label it replaces, so a
+   * real salary still stands out in price orange. `null` means the card looked and found no employer: the label stays.
+   * Left out (every other surface: rows, map, suggestions) nothing changes. Ignored on anything but a LINKED job at 0.
+   * (rentals-09 printed "Full-time · Hanoi" here in body ink; the 2026-11-07 audit moved the type to the info line.)
    * ⛔ NEVER ON AN EMPLOYER'S OWN JOB (`linked === false`). Its label is "Salary: negotiable" — a fact
    * about the pay that the type would drop, and on a phone the slot truncates, so even "Full-time ·
    * negotiable" would lose the one word that matters. The plan's target is the linked board's
@@ -168,8 +166,11 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
   const jobSlot = noFigure && listingType === 'job' && linked !== false && jobMeta !== undefined
   const step = compactVndStep(price)
   const amount = isFree
-    // A teacher profile (2026-09-30) has no price: it is a person, never "Free".
-    ? (listingType === 'teacher' ? tr('Teacher profile', 'Hồ sơ giáo viên')
+    // A teacher profile (2026-09-30) has no price: it is a person, never "Free". Since 2026-11-09 it says the rate is asked
+    // for, not "Teacher profile" — on /c/teachers every card is one (all21 phone hunt #4). ⚠️ "Thù lao" (pay, a fee), never
+    // "Học phí" (tuition a student pays): the figure is a teacher's salary OR cover rate (profile.ts teacherCardPrice), and
+    // a school reading the card is not paying tuition (commit review).
+    ? (listingType === 'teacher' ? tr('Rate on request', 'Thù lao: liên hệ')
       : jobSlot && jobMeta ? jobMeta
       : noFigure ? (linked === false ? tr('Salary: negotiable', 'Lương: thỏa thuận')
         // A caller that knows the job links out says where the pay is (codex all13: "see details" promised a figure the job
@@ -267,7 +268,7 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
   // A job's no-figure label is ONE line, truncated, never wrapped at its last space as a figure is (t35: a two-line label
   // pushed every title in a phone row out of line). It is words, not digits, so there is no unit to keep with it.
   // inline-block: some callers set the price inline beside other text, where a block would break it. After every hook above.
-  if (noFigure && listingType === 'job') return <span title={amount} className={cn('inline-block max-w-full truncate align-bottom font-semibold text-body', jobSlot && !jobMeta && 'text-muted-foreground', className)}><FigureRun fabAvoid={fabAvoid}>{amount}</FigureRun></span>
+  if (noFigure && listingType === 'job') return <span title={amount} className={cn('inline-block max-w-full truncate align-bottom font-semibold text-body', jobSlot && 'text-muted-foreground', className)}><FigureRun fabAvoid={fabAvoid}>{amount}</FigureRun></span>
 
   return (
     // tabular-nums: fixed-width digits so price columns align across card grids.
@@ -323,7 +324,7 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
  *   wrapper — that is the case that would flip red silently, so re-run the grep before adding a
  *   twelfth.
  */
-    <span className={cn('tabular-nums font-bold text-price', noFigure && 'font-semibold text-body', jobSlot && !jobMeta && 'text-muted-foreground', className)}>
+    <span className={cn('tabular-nums font-bold text-price', noFigure && 'font-semibold text-body', (jobSlot || (noFigure && listingType === 'teacher')) && 'text-muted-foreground', className)}>
       {/**
         * ⛔ THE AMOUNT AND ITS UNIT ARE ONE UNBREAKABLE RUN. Without this the price broke between
         * the number and the currency word on EVERY phone width — measured on the home feed, 12 of

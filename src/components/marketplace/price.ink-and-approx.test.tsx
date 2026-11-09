@@ -81,13 +81,14 @@ describe('<Price> "≈" slot', () => {
   })
 })
 
-// rentals-09 (2026-10-04): a CARD hands a price-0 job its type · city; every other surface leaves it out.
+// A CARD hands a price-0 LINKED job its employer (UI climb 2026-11-09; rentals-09 handed it type · city); every other
+// surface leaves it out.
 describe('<Price> jobMeta (card only)', () => {
-  it('a string replaces the salary label, in the same body ink', () => {
-    const el = root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" jobMeta="Full-time · Hanoi" className="text-base" />)
-    expect(el.textContent?.replace(/\s+/g, ' ')).toBe('Full-time · Hanoi')
-    expect(el.className.split(' ')).toEqual(expect.arrayContaining(['text-body', 'font-semibold', 'text-base']))
-    expect(el.className).not.toMatch(/\btext-muted-foreground\b/)
+  it('a string (the employer) replaces the salary label, in the same muted no-figure ink', () => {
+    const el = root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" linked jobMeta="RMIT University Vietnam" className="text-base" />)
+    expect(el.textContent?.replace(/\s+/g, ' ')).toBe('RMIT University Vietnam')
+    expect(el.className.split(' ')).toEqual(expect.arrayContaining(['font-semibold', 'text-base', 'text-muted-foreground']))
+    expect(el.className).not.toMatch(/\btext-price\b/)
   })
 
   it('null keeps the no-figure label, in muted ink: a linked job points at the posting', () => {
@@ -103,16 +104,23 @@ describe('<Price> jobMeta (card only)', () => {
     cleanup()
     expect(root(<Price native price={250_000} currency="₫" priceUnit="VND" listingType="job" jobMeta="Full-time · Hanoi" />).textContent).toContain('250,000')
     cleanup()
-    expect(root(<Price native price={0} currency="₫" priceUnit="VND" listingType="teacher" jobMeta="Full-time" />).textContent).toBe('Teacher profile')
+    expect(root(<Price native price={0} currency="₫" priceUnit="VND" listingType="teacher" jobMeta="Full-time" />).textContent).toBe('Rate on request')
+  })
+
+  it('a teacher with no rate says it is asked for, in the muted no-figure ink (2026-11-09; was "Teacher profile")', () => {
+    const el = root(<Price native price={0} currency="₫" priceUnit="VND/hour" listingType="teacher" />)
+    expect(el.textContent).toBe('Rate on request')
+    expect(el.className).toMatch(/\btext-muted-foreground\b/)
+    expect(el.className).not.toMatch(/\btext-price\b/)
   })
 
   // The card's price (owner, 2026-10-11 — profile.ts teacherCardPrice): a teacher with a salary or a cover rate states it
-  // like any price, with its unit; only a profile with neither still reads "Teacher profile".
+  // like any price, with its unit; only a profile with neither reads "Rate on request".
   it('a teacher with a salary or a cover rate states it, with its unit, in the price ink', () => {
     const month = root(<Price native price={40_000_000} currency="₫" priceUnit="VND/month" listingType="teacher" />)
     expect(month.textContent).toContain('40,000,000')
     expect(month.textContent).toContain('/ month')
-    expect(month.textContent).not.toContain('Teacher profile')
+    expect(month.textContent).not.toContain('Rate on request')
     expect(month.className).not.toMatch(/\btext-body\b/)
     cleanup()
     const hour = root(<Price native price={300_000} currency="₫" priceUnit="VND/hour" listingType="teacher" />)

@@ -14,6 +14,8 @@ import type { Prisma } from '@/generated/prisma/client'
  *   · the rails only the home route draws — Trending / For You (trending-rail.ts, /api/recommendations), Outstanding
  *     businesses (business-rail.ts) and Browse by category (/api/category-rails).
  * ⚠️ NOT "Recently viewed": that rail is the reader's own trail (Quy chế Article 14 promises it shows what they opened).
+ * ⚠️ NOT the sparse-search "More in <category>" rail (core/related-rail.ts): the owner allowed linked listings there
+ * (2026-11-09) — it sits under search results, which show them too.
  * ⚠️ `''` COUNTS AS NO LINK, as `Boolean(affiliateUrl)` reads it — the predicate is the serializer's flag, not the column's
  * nullness, so a card the home page shows can never carry the "partner booking" CTA.
  * ⚖️ /legal/ranking (#home) and the Quy chế's Article 14 state this rule; change one, change the others.

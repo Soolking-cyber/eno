@@ -1,7 +1,6 @@
 import { db } from '@/lib/db'
 import type { Prisma } from '@/generated/prisma/client'
 import { scopedListingWhere } from '@/lib/edition-scope'
-import { inAppOnly } from '@/lib/in-app-listing'
 import { LISTING_CARD_SELECT, serializeListingCard } from '@/lib/serialize'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { subcategoriesFor } from '@/lib/taxonomy'
@@ -22,6 +21,10 @@ import { pickRailIds, TRENDING_ORDER } from './trending-rail'
  * here reads a cookie or the viewer. The viewer's blocked shops come in the URL (`xs`) and are honoured like the grid's.
  * ⚠️ "MORE OF THIS KIND", NOT "MORE OF THIS SEARCH": the answer's other filters (area, price, condition) are not carried. A
  * sparse answer is exactly where they bit; carrying them would mostly empty the rail too.
+ * ⛔ LINKED LISTINGS INCLUDED (owner, 2026-11-09, asked "may More in… show partner-linked listings?": "yes"). The rail was
+ * built in-app only, the home rails' rule (in-app-listing.ts), and that left the aisles that are mostly linked on Trending:
+ * Electronics was 9 of 9 linked, Jobs 60 of the first 100, so "iphone" never got its rail. It sits under search results,
+ * which show linked listings too (/legal/ranking #home names the surfaces that leave them out; this rail is not one).
  */
 
 /** The explorer's recovery window: its rail follows an answer of 1-7 (listings-explorer.tsx, `totalCount < 8`). */
@@ -109,10 +112,10 @@ function modal(values: readonly (string | null | undefined)[]): string | null {
 }
 
 /**
- * The rest of the answer's category: Trending's own public base (verified, active, the edition scope that keeps eno's
- * visa desk and licence-held rows off eno.vn, and only listings dealt on eno — the home rails' rule, in-app-listing.ts),
- * the answer's rows and the viewer's blocked shops left out of the pool BEFORE choosing, then Trending's order and seller
- * diversity (pickRailIds). Card-shaped rows (LISTING_CARD_SELECT), like the answer's own: this rides on a search response.
+ * The rest of the answer's category: Trending's public base (verified, active, the edition scope that keeps eno's visa
+ * desk and licence-held rows off eno.vn) WITHOUT the home rails' in-app rule (linked listings included, owner 2026-11-09:
+ * header), the answer's rows and the viewer's blocked shops left out of the pool BEFORE choosing, then Trending's order and
+ * seller diversity (pickRailIds). Card-shaped rows (LISTING_CARD_SELECT), like the answer's own: this rides on a search response.
  * Only the answer's subcategory (relatedSubcategorySlug), named by the taxonomy; never a "-other" catch-all (a rail of
  * "Other" says nothing). Null without one or under RELATED_MIN, so the explorer keeps Trending.
  */
@@ -131,7 +134,7 @@ export async function relatedRail({
   if (!slug) return null
   // The blocked shops are their OWN AND element, as in the feed (feed-query.ts) — never a key beside the caller's own.
   const scoped = await scopedListingWhere({ verified: true, status: 'active', category: { slug } })
-  const base = inAppOnly(hiddenSellerIds.length ? { AND: [scoped, { sellerId: { notIn: [...hiddenSellerIds] } }] } : scoped)
+  const base = hiddenSellerIds.length ? { AND: [scoped, { sellerId: { notIn: [...hiddenSellerIds] } }] } : scoped
   const subSlug = relatedSubcategorySlug(rows, slug, subcategory)
   const sub = subSlug && !subSlug.endsWith('-other') ? subcategoriesFor(slug).find((s) => s.slug === subSlug) ?? null : null
   if (!sub) return null

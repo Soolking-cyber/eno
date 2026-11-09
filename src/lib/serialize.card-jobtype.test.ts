@@ -23,11 +23,25 @@ describe('serializeListingCard — jobType', () => {
     expect(LISTING_CARD_SELECT.attributes).toBe(true)
   })
 
-  it('projects a job\'s jobtype, and nothing else from its attributes', () => {
+  it('projects a job\'s jobtype and a LINKED job\'s employer, and nothing else from its attributes', () => {
     const card = row({})
     expect(card.jobType).toBe('fulltime')
-    expect(JSON.stringify(card)).not.toContain('VUS')
+    // The price slot prints it when the posting gives no figure (UI climb 2026-11-09).
+    expect(card.jobEmployer).toBe('VUS')
+    expect(JSON.stringify(card)).not.toContain('ESL Boards')
+    expect(JSON.stringify(card)).not.toContain('required')
     expect(card).not.toHaveProperty('attributes')
+  })
+
+  it("an employer's OWN job (no link) gets no employer — its slot keeps \"Salary: negotiable\"", () => {
+    expect(row({ affiliateUrl: null }).jobEmployer).toBeNull()
+  })
+
+  it('the employer is one short line or nothing', () => {
+    expect(row({ attributes: JSON.stringify({ employer: '  RMIT\n University  ' }) }).jobEmployer).toBe('RMIT University')
+    expect(row({ attributes: JSON.stringify({ employer: 'x'.repeat(121) }) }).jobEmployer).toBeNull()
+    expect(row({ attributes: JSON.stringify({ employer: 7 }) }).jobEmployer).toBeNull()
+    expect(row({ attributes: '{not json' }).jobEmployer).toBeNull()
   })
 
   it('is null for a job with no type, junk, or unparseable attributes', () => {

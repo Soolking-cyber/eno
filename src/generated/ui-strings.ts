@@ -2653,6 +2653,7 @@ export const UI_STRINGS: string[] = [
   "Raising hands",
   "Ranked by how many buyers asked for the seller's number",
   "Ranking",
+  "Rate on request",
   "Rating",
   "Rattan",
   "Re-subscribe",

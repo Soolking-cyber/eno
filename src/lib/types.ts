@@ -77,6 +77,9 @@ export type SerializedListingCard = {
    *  serializeListingCard; absent on every other listing. The card prints it on its info line, after the place
    *  (src/lib/card-title.ts jobTypeLabel); until 2026-11-07 it replaced "Salary: see details" in the price slot. */
   jobType?: string | null
+  /** A LINKED job's employer (serialize.ts cardJobFacts) — the price slot prints it when the posting gives no figure; null
+   *  when the importer stored none; absent on every other card. */
+  jobEmployer?: string | null
   /**
    * "IDENTITY VERIFIED" (owner, 2026-10-15; AUTOMATIC since 2026-10-16) — a TEACHER card whose teacher's identity check
    * is live with the profile's name within the ID's, and who has not hidden the mark (src/lib/teachers/identity-mark.ts),

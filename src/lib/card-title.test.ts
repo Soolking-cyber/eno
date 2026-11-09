@@ -205,3 +205,26 @@ describe('GoPlus\'s location tail (the info line prints the area)', () => {
     expect(run('Duplex 20 m² · An Phu Dong Ward, District 12', 'some-member')).toBe('Duplex 20 m² · An Phu Dong Ward, District 12')
   })
 })
+
+describe('a no-pay linked job whose slot prints the employer (UI climb 2026-11-09)', () => {
+  const job = (title: string, employer: string | null | undefined, lang = 'en') =>
+    cardTitle({ title, lang, sellerId: 'eslboards-com-import-seller-0001', categorySlug: 'jobs', listingType: 'job', employer })
+  it('drops the importer\'s exact " — <employer>" tail, so the role gets the line', () => {
+    expect(job('Associate Lecturer, Psychology — RMIT University Vietnam', 'RMIT University Vietnam')).toBe('Associate Lecturer, Psychology')
+    expect(job('Giảng viên Tâm lý học — RMIT University Vietnam', 'rmit university vietnam', 'vi')).toBe('Giảng viên Tâm lý học')
+  })
+  it('keeps the title when the slot prints no employer, the tail is another, or one word would be left', () => {
+    expect(job('Associate Lecturer — RMIT University Vietnam', null)).toBe('Associate Lecturer — RMIT University Vietnam')
+    expect(job('Associate Lecturer — RMIT University Vietnam', undefined)).toBe('Associate Lecturer — RMIT University Vietnam')
+    expect(job('Associate Lecturer — RMIT University Vietnam', 'VUS')).toBe('Associate Lecturer — RMIT University Vietnam')
+    expect(job('RMIT University Vietnam is hiring', 'RMIT University Vietnam')).toBe('RMIT University Vietnam is hiring')
+    expect(job('Lecturer — RMIT University Vietnam', 'RMIT University Vietnam')).toBe('Lecturer — RMIT University Vietnam')
+  })
+  it('a case change that changes length never cuts into the role (cut first, compare after)', () => {
+    expect(job('Senior Lecturer — İŞ', 'i̇ş')).toBe('Senior Lecturer — İŞ')
+    expect(job('Senior Lecturer — Đại Học Mở', 'đại học mở', 'vi')).toBe('Senior Lecturer')
+  })
+  it('never applies to anything but a job', () => {
+    expect(cardTitle({ title: 'Sofa — IKEA', lang: 'en', sellerId: 'm', categorySlug: 'furniture-appliances', listingType: 'sell', employer: 'IKEA' })).toBe('Sofa — IKEA')
+  })
+})
