@@ -1,0 +1,372 @@
+{
+  "slug": "renting-a-motorbike-in-vietnam",
+  "title": "Motorbike rental in Vietnam: costs, deposits, checks (2026)",
+  "description": "Motorbike rental prices in Saigon, Hanoi and Da Nang, with dated sources, plus the deposits and papers shops ask for, licence rules, fines and bike checks.",
+  "h1": "Renting a motorbike in Vietnam: what it costs, what shops ask for and what to check",
+  "eyebrow": "Getting around",
+  "intro": "In late 2025 and 2026, day rates for a basic automatic scooter depended on the city and the model (see the price table below). Monthly rates cost much less per day. Most shops want a cash deposit or your passport. Before you pay, check that you hold the right licence: Vietnam accepts only a 1968-convention international permit with your home licence, and if you ride without a valid licence your insurer can refuse to pay.",
+  "keyPoints": [
+    "Day rates read on 9 November 2026 from one Saigon shop: {{vnd:160000}} for an older Yamaha Nouvo, up to {{vnd:300000}} for a Honda PCX. Hanoi and Da Nang guides from December 2025 put a standard scooter at about {{vnd:100000-190000}} a day.",
+    "Renting by the month cuts the cost a lot. The same Saigon shop listed a new Honda Airblade 125 at {{vnd:250000}} a day or {{vnd:2600000}} a month.",
+    "Expect a cash deposit of about {{vnd:1000000-3000000}} for a scooter, or a request to hold your passport. A cash deposit is the safer option.",
+    "Under Law 36/2024/QH15, an **A1** licence covers bikes up to 125 cc and an **A** licence covers bikes above that. Riding a bike of 125 cc or less without a valid licence is fined {{vnd:2000000-4000000}}. Above 125 cc the fine is {{vnd:6000000-8000000}}.",
+    "Vietnam accepts an international driving permit issued under the 1968 Vienna Convention, carried with your home motorcycle licence. A permit issued under the 1949 Geneva Convention has no legal effect in Vietnam.",
+    "Ask for the bike's registration certificate and its compulsory insurance certificate before you ride. Not carrying either one is fined {{vnd:200000-300000}}."
+  ],
+  "sections": [
+    {
+      "id": "what-it-costs",
+      "title": "What renting a motorbike costs in Vietnam",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Prices depend on the city, the model and its age, and how long you rent for. Shops publish few prices, and the ones that do rarely date them, so the figures below show the source and date for each one. Treat them as a starting point for asking around, not as fixed rates."
+        },
+        {
+          "type": "table",
+          "caption": "Published motorbike rental prices by city (each figure comes from the source and date named)",
+          "headers": [
+            "City",
+            "Bike",
+            "Per day",
+            "Longer rentals",
+            "Source and date"
+          ],
+          "rows": [
+            [
+              "Saigon",
+              "Yamaha Nouvo 4 (scooter)",
+              "{{vnd:160000}}",
+              "{{vnd:800000}} a week, {{vnd:1500000}} a month",
+              "Saigon Motorcycles rentals page, read 9 November 2026"
+            ],
+            [
+              "Saigon",
+              "Honda Airblade 125 (new)",
+              "{{vnd:250000}}",
+              "{{vnd:1200000}} a week, {{vnd:2600000}} a month",
+              "Saigon Motorcycles, read 9 November 2026"
+            ],
+            [
+              "Saigon",
+              "Honda PCX",
+              "{{vnd:300000}}",
+              "{{vnd:1400000}} a week, {{vnd:3500000}} a month",
+              "Saigon Motorcycles, read 9 November 2026"
+            ],
+            [
+              "Hanoi",
+              "Standard scooter",
+              "about {{vnd:150000}} (shops listed from {{vnd:100000}} to {{vnd:190000}})",
+              "Some shops discount longer rentals but published no amounts",
+              "VinWonders, 4 December 2025"
+            ],
+            [
+              "Hanoi",
+              "Higher-end models",
+              "{{vnd:200000-300000}}",
+              "Not published",
+              "VinWonders, 4 December 2025"
+            ],
+            [
+              "Da Nang",
+              "Standard scooter (e.g. Honda Vision)",
+              "{{vnd:100000-150000}}",
+              "{{vnd:600000-900000}} a week",
+              "Motorbike Tour Expert, updated 9 December 2025"
+            ],
+            [
+              "Da Nang",
+              "Semi-automatic (e.g. Honda Wave)",
+              "{{vnd:80000-120000}}",
+              "{{vnd:500000-800000}} a week",
+              "Motorbike Tour Expert, updated 9 December 2025"
+            ],
+            [
+              "Da Nang",
+              "Manual (e.g. Honda XR150)",
+              "{{vnd:250000-350000}}",
+              "{{vnd:1500000-2200000}} a week",
+              "Motorbike Tour Expert, updated 9 December 2025"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "**Monthly rentals are where you save money.** At the Saigon shop above, a new Airblade cost {{vnd:2600000}} a month, about a third of 30 day rates. Shops in all three cities say they discount long rentals, so if you are staying for a while, ask for a monthly price instead of paying day by day."
+        },
+        {
+          "type": "p",
+          "text": "Other costs to add: fuel (bikes often come with little in the tank), any damage you cause, and late-return fees. Some shops also sell a damage waiver. Saigon Motorcycles' waiver only applies to its larger touring bikes, such as the Honda XR150 and CB500X, and it does not cover theft or damage to third parties."
+        }
+      ]
+    },
+    {
+      "id": "deposits-and-documents",
+      "title": "Deposits and documents rental shops ask for",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Most shops want either a cash deposit or your passport. In the guides read for this page, a scooter deposit usually came to about {{vnd:1000000-3000000}}. Saigon Motorcycles listed {{vnd:2000000}} for its city scooters and said the deposit is refunded when the bike comes back. It takes cash, card or online payment in advance."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Your licence**, plus a 1968-convention international permit if your licence is foreign (see the licence section below). Many shops never ask, but the police can.",
+            "**Your passport or ID**, which some shops hold until you return the bike. Others take a cash deposit instead.",
+            "**A signed rental contract.** Read it for what you pay if the bike is damaged or stolen, and whether the shop helps if it breaks down."
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Pay a cash deposit instead of leaving your passport",
+          "text": "If a shop holds your passport, it has leverage in any dispute over damage, and you may need your passport elsewhere, for example at a bank or when you sign a [lease](/renting-an-apartment-vietnam-foreigner). Ask to pay a cash deposit instead, or offer a photocopy, and get a written receipt that states the amount and the condition for getting it back."
+        },
+        {
+          "type": "p",
+          "text": "Also ask for two papers that should stay with the bike: the **registration certificate** (giấy đăng ký xe) and the **compulsory civil liability insurance certificate**. Under Decree 168/2024/ND-CP, not carrying either one is fined {{vnd:200000-300000}}. Check that the plate number on the registration certificate matches the bike, and that the plate itself is readable: since 15 August 2026, a missing, covered or altered plate on a motorbike is fined {{vnd:4000000-6000000}}."
+        }
+      ]
+    },
+    {
+      "id": "how-to-check-a-bike",
+      "title": "How to check a rental bike before you ride off",
+      "blocks": [
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Photograph and film the bike",
+              "text": "Take photos of every side, the mirrors, the seat and the dashboard while the shop owner is there. Most deposit disputes are about scratches that were already on the bike."
+            },
+            {
+              "title": "Test both brakes",
+              "text": "Squeeze each lever and walk the bike forward. The brakes should bite firmly before the lever reaches the handlebar."
+            },
+            {
+              "title": "Look at the tyres",
+              "text": "Check the tread depth and look for cracks or bulges. Bald tyres are dangerous on wet roads, especially in the rainy season."
+            },
+            {
+              "title": "Check the lights and horn",
+              "text": "Test the headlight, brake light, indicators and horn. You will use the horn constantly in city traffic."
+            },
+            {
+              "title": "Note the fuel level and mileage",
+              "text": "Write both down or photograph the dashboard, so it is clear what you owe when you return the bike."
+            },
+            {
+              "title": "Check the papers and the helmet",
+              "text": "Make sure the registration and insurance certificates are under the seat and match the plate. Then check that the helmet fits and its strap fastens. Without a properly fastened helmet, the fine under Decree 168/2024/ND-CP is {{vnd:400000-600000}}, and the same fine applies to a passenger."
+            },
+            {
+              "title": "Get the breakdown number",
+              "text": "Save the shop's phone or Zalo number before you leave. Reputable shops usually help when a bike breaks down, but ask how. You need a working local number for this, which our [SIM and eSIM guide](/esim-vietnam-guide) covers."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "licence-and-insurance",
+      "title": "Licence and insurance: what makes riding legal",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The [Law on Road Traffic Order and Safety (Law 36/2024/QH15)](https://luatvietnam.vn/giao-thong/luat-trat-tu-an-toan-giao-thong-duong-bo-2024-quy-dinh-nhu-the-nao-ve-giay-phep-lai-xe-hang-a1-863-100479-article.html) has applied since 1 January 2025. Under it, a **class A1** licence covers two-wheelers up to 125 cc (or electric motors up to 11 kW), and a **class A** licence covers bikes above that. A1 and A licences have no expiry date. A Vietnamese A1 licence issued before 2025 and not yet exchanged still covers bikes from 50 cc to under 175 cc."
+        },
+        {
+          "type": "p",
+          "text": "With a foreign licence, you need two things together: a home licence that covers motorcycles, and an **international driving permit issued under the 1968 Vienna Convention**. Permits issued under the 1949 Geneva Convention, the kind the US and Canada mainly issue, have no legal effect in Vietnam. Websites that sell an \"international driving licence\" give you a document with no legal standing. A car licence does not cover a scooter."
+        },
+        {
+          "type": "table",
+          "caption": "Fines for licence and paperwork offences on a motorbike under Decree 168/2024/ND-CP, as summarised by Thư viện Nhà đất and read on 9 November 2026",
+          "headers": [
+            "Offence",
+            "Fine"
+          ],
+          "rows": [
+            [
+              "No valid licence, bike up to 125 cc",
+              "{{vnd:2000000-4000000}}"
+            ],
+            [
+              "No valid licence, bike over 125 cc",
+              "{{vnd:6000000-8000000}}"
+            ],
+            [
+              "Licence not carried",
+              "{{vnd:200000-300000}}"
+            ],
+            [
+              "Registration certificate not carried",
+              "{{vnd:200000-300000}}"
+            ],
+            [
+              "No compulsory insurance, or not carried",
+              "{{vnd:200000-300000}}"
+            ],
+            [
+              "Helmet not worn or not fastened",
+              "{{vnd:400000-600000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Decree 238/2026/ND-CP amended parts of Decree 168 from 15 August 2026. [Phu Tho provincial police's summary](https://congan.phutho.gov.vn/article/Tu-1582026-Nhung-thay-doi-dang-chu-y-ve-xu-31345-36), read on 9 November 2026, mentions no change to the licence, insurance or helmet fines; the changes it lists include the plate fine above. The police officer who stops you has the final word."
+        },
+        {
+          "type": "h3",
+          "text": "Insurance: what covers you and what doesn't"
+        },
+        {
+          "type": "p",
+          "text": "Every bike must have **compulsory civil liability insurance** under Decree 67/2023/ND-CP. [Chubb lists the premium](https://www.chubb.com/vn-en/assurance/products/motorbike-ctpl.html) at {{vnd:60000}} a year for a bike over 50 cc, before 10% VAT. It pays up to {{vnd:150000000}} per person per accident for death or injury to other people, including your passenger, and up to {{vnd:50000000}} per accident for damage to their property. It does not pay out if the rider has no valid licence. It is not cover for your own injuries."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "No valid licence usually means no medical cover",
+          "text": "Most travel and health policies only cover a motorbike accident if you held a licence valid in Vietnam when it happened, and insurers can refuse claims on that basis. Read your policy before you ride. Our guide to [healthcare and health insurance in Ho Chi Minh City](/teach-in-vietnam/healthcare-and-health-insurance-in-ho-chi-minh-city) explains what treatment can cost."
+        },
+        {
+          "type": "p",
+          "text": "Many shops do not check whether your licence is valid. That a shop let you rent a bike does not mean you are legal to ride it. If you are staying long-term, getting a Vietnamese licence is the lasting fix, and our guide to the [motorbike licence in Vietnam for foreigners](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners) covers conversion and the test."
+        }
+      ]
+    },
+    {
+      "id": "saigon-hanoi-da-nang",
+      "title": "What differs in Saigon, Hanoi and Da Nang",
+      "blocks": [
+        {
+          "type": "h3",
+          "text": "Saigon (Ho Chi Minh City)"
+        },
+        {
+          "type": "p",
+          "text": "Saigon had the most published monthly prices of the three cities in the sources read, and shops there rent to long-stay customers. On 9 November 2026, Saigon Motorcycles priced older versions of a model lower than newer ones: {{vnd:160000}} a day for a Nouvo 4 against {{vnd:220000}} for a Nouvo 6. For shops and longer-term deals in the city, see our [motorbike rental guide for Ho Chi Minh City](/motorbike-rental-ho-chi-minh-city), and for the alternatives (Grab, the metro, buses) see [getting around Ho Chi Minh City](/teach-in-vietnam/getting-around-ho-chi-minh-city). If you need four wheels, see [car rental in Ho Chi Minh City](/car-rental-ho-chi-minh-city)."
+        },
+        {
+          "type": "h3",
+          "text": "Hanoi"
+        },
+        {
+          "type": "p",
+          "text": "Day rates in Hanoi were similar to Da Nang in the December 2025 guide, from about {{vnd:100000}} at the cheapest shops. Shops there mention discounts for long rentals but published none. Hanoi also restricts traffic in the centre. [Báo Công lý reported on 22 October 2026](https://congly.vn/ha-noi-hoan-thien-va-mo-rong-vung-phat-thai-thap-544266.html) that a low-emission zone pilot has run in Hoan Kiem ward since 1 July 2026 and lasts until 31 December 2026. It covers the Old Quarter and the area around Hoan Kiem Lake, with motor vehicles kept out of the walking zone from Friday evening to the end of Sunday."
+        },
+        {
+          "type": "p",
+          "text": "An earlier draft would have banned petrol motorbikes on 11 Old Quarter streets, but [the revised plan reported by Dân trí on 30 May 2026](https://dantri.com.vn/thoi-su/ha-noi-doi-phuong-an-du-kien-chua-cam-xe-may-xang-o-vung-loi-hoan-kiem-20260530140808961.htm) dropped that. Instead it proposed barring all motor vehicles, petrol and electric alike, from the core zone from 7pm to midnight on Fridays, Saturdays and Sundays. Wider phases are planned for 2027 and 2028-2029. Báo Công lý said formal fines had not yet been applied in October."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "text": "Reports differ on which vehicles are restricted and at which hours, and we could not find the full official rules. Follow the signs at the zone's checkpoints, and ask the rental shop what applies before you ride into the Old Quarter at the weekend."
+        },
+        {
+          "type": "h3",
+          "text": "Da Nang"
+        },
+        {
+          "type": "p",
+          "text": "Da Nang was the cheapest city in the published figures. A semi-automatic cost from {{vnd:80000}} a day in December 2025, and a manual bike for longer trips cost {{vnd:250000-350000}}. A manual bike suits experienced riders on longer routes such as the Hai Van Pass. If you are not used to long-distance riding, the same guide suggests a guided ride. September to December is the rainy season, when roads get slippery, so check the tyres with extra care then. To compare the cities as places to live, see [Hanoi vs Ho Chi Minh City (and Da Nang)](/teach-in-vietnam/hanoi-vs-ho-chi-minh-city-for-teachers)."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Can I rent a motorbike in Vietnam without a licence?",
+      "a": "Many shops will rent you one, but riding without a valid licence is illegal. The fines, set out in the table above, are higher for bikes over 125 cc, and your insurer can refuse to pay after an accident."
+    },
+    {
+      "q": "Is my international driving permit valid in Vietnam?",
+      "a": "Only if it was issued under the 1968 Vienna Convention, it covers motorcycles, and you carry it with your home licence. Vietnam does not recognise a permit issued under the 1949 Geneva Convention."
+    },
+    {
+      "q": "Do I need an A1 or an A licence for a rental scooter?",
+      "a": "Most rental scooters, such as the Honda Vision, Wave or Airblade 125, are 125 cc or less, so class A1 covers them. Bikes above 125 cc, such as a PCX 160, ADV160 or XR150, need class A."
+    },
+    {
+      "q": "Should I leave my passport as a rental deposit?",
+      "a": "It is better not to. Offer a cash deposit instead, and get a written receipt that states the amount and when you get it back. Some shops insist on the passport, so compare shops before you agree."
+    },
+    {
+      "q": "Does the rental bike's insurance cover me if I crash?",
+      "a": "The compulsory insurance covers injury to other people, damage to their property and your passenger, up to set limits. It is not cover for your own injuries, and it does not pay out if you ride without a valid licence."
+    },
+    {
+      "q": "Can I ride a petrol scooter in Hanoi's Old Quarter?",
+      "a": "On weekdays, generally yes. Since 1 July 2026 a pilot zone in Hoan Kiem ward has kept motor vehicles out of the lake and Old Quarter area from Friday evening to Sunday, so follow the signs and ask the rental shop."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Luật Trật tự, an toàn giao thông đường bộ 2024 quy định như thế nào về GPLX hạng A1?",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/giao-thong/luat-trat-tu-an-toan-giao-thong-duong-bo-2024-quy-dinh-nhu-the-nao-ve-giay-phep-lai-xe-hang-a1-863-100479-article.html"
+    },
+    {
+      "title": "Nghị định 168 đối với xe máy: 10 mức phạt cần biết",
+      "publisher": "Thư viện Nhà đất",
+      "url": "https://thuviennhadat.vn/phap-luat/nghi-dinh-168-doi-voi-xe-may-10-muc-phat-can-biet-632712.html"
+    },
+    {
+      "title": "Từ 15/8/2026: Những thay đổi đáng chú ý về xử phạt giao thông",
+      "publisher": "Phu Tho Provincial Police",
+      "url": "https://congan.phutho.gov.vn/article/Tu-1582026-Nhung-thay-doi-dang-chu-y-ve-xu-31345-36"
+    },
+    {
+      "title": "Motorbike Compulsory Third Party Liability",
+      "publisher": "Chubb Vietnam",
+      "url": "https://www.chubb.com/vn-en/assurance/products/motorbike-ctpl.html"
+    },
+    {
+      "title": "Bike Rental",
+      "publisher": "Saigon Motorcycles",
+      "url": "https://saigonmotorcycles.com/rentals/"
+    },
+    {
+      "title": "Motorbike rental in Hanoi: Requirements, costs and more",
+      "publisher": "VinWonders",
+      "url": "https://vinwonders.com/en/wonderpedia/news/motorbike-rental-in-hanoi/"
+    },
+    {
+      "title": "Motorbike Rental Da Nang",
+      "publisher": "Motorbike Tour Expert",
+      "url": "https://motorbiketourexpert.com/useful-blog/motorbike-rental-da-nang"
+    },
+    {
+      "title": "Why Many Foreigners Ride Illegally In Vietnam Without Realizing It?",
+      "publisher": "Vietcetera",
+      "url": "https://vietcetera.com/en/why-many-foreigners-ride-illegally-in-vietnam-without-realizing-it"
+    },
+    {
+      "title": "Renting a motorbike in Vietnam: the legal truth nobody tells tourists",
+      "publisher": "Vietnam Tourism",
+      "url": "https://vietnamtourism.com/en/renting-a-motorbike-in-vietnam-the-legal-truth-nobody-tells-tourists"
+    },
+    {
+      "title": "Hà Nội hoàn thiện và mở rộng vùng phát thải thấp",
+      "publisher": "Báo Công lý",
+      "url": "https://congly.vn/ha-noi-hoan-thien-va-mo-rong-vung-phat-thai-thap-544266.html"
+    },
+    {
+      "title": "Hà Nội đổi phương án, dự kiến chưa cấm xe máy xăng ở vùng lõi Hoàn Kiếm",
+      "publisher": "Dân trí",
+      "url": "https://dantri.com.vn/thoi-su/ha-noi-doi-phuong-an-du-kien-chua-cam-xe-may-xang-o-vung-loi-hoan-kiem-20260530140808961.htm"
+    }
+  ],
+  "related": [
+    "motorbike-licence-in-vietnam-for-foreigners",
+    "getting-around-ho-chi-minh-city",
+    "healthcare-and-health-insurance-in-ho-chi-minh-city",
+    "hanoi-vs-ho-chi-minh-city-for-teachers",
+    "your-first-weeks-in-ho-chi-minh-city"
+  ],
+  "lastChecked": "2026-11-09"
+}

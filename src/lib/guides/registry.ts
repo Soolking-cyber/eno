@@ -34,6 +34,7 @@ export const GUIDES: readonly GuideEntry[] = [
   { slug: 'international-driving-permit-vietnam', lang: 'en', published: '2026-11-05', updated: '2026-11-05', released: '2026-11-05', reviewed: '2026-11-05', reviewedDigest: 'd8dac8a4a78173f7' },
   { slug: 'thue-xe-dien-vinfast-tphcm', lang: 'vi', published: '2026-11-05', updated: '2026-11-05', released: '2026-11-05', reviewed: '2026-11-05', reviewedDigest: '966a9ddbce0e1c2c' },
   { slug: 'thue-xe-may-sai-gon-kinh-nghiem', lang: 'vi', published: '2026-11-06', reviewed: '2026-11-06', reviewedDigest: '762b685ca2260839' },
+  { slug: 'renting-a-motorbike-in-vietnam', lang: 'en', published: '2026-11-09', reviewed: '2026-11-09', reviewedDigest: 'c2da1dd61042260d' },
   // </generated-guides>
 ]
 

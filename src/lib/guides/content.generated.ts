@@ -2,11 +2,13 @@
 // Validated at module load by src/lib/guides/content.ts (src/lib/teach-guides/schema.ts).
 
 import g0 from '@/content/guides/international-driving-permit-vietnam.json'
-import g1 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
-import g2 from '@/content/guides/thue-xe-may-sai-gon-kinh-nghiem.json'
+import g1 from '@/content/guides/renting-a-motorbike-in-vietnam.json'
+import g2 from '@/content/guides/thue-xe-dien-vinfast-tphcm.json'
+import g3 from '@/content/guides/thue-xe-may-sai-gon-kinh-nghiem.json'
 
 export const GUIDE_CONTENT: Readonly<Record<string, unknown>> = {
   'international-driving-permit-vietnam': g0,
-  'thue-xe-dien-vinfast-tphcm': g1,
-  'thue-xe-may-sai-gon-kinh-nghiem': g2,
+  'renting-a-motorbike-in-vietnam': g1,
+  'thue-xe-dien-vinfast-tphcm': g2,
+  'thue-xe-may-sai-gon-kinh-nghiem': g3,
 }
