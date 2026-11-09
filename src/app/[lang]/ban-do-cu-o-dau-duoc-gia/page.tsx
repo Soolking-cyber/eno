@@ -3,6 +3,7 @@ import { pageShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { localizedHref } from '@/lib/lang-pinned'
 
 /**
  * BÁN ĐỒ CŨ Ở ĐÂU ĐƯỢC GIÁ — the marketplace's own Vietnamese resale guide.
@@ -81,6 +82,12 @@ const CONTENT: ArticleContent = {
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'vi',
+  /**
+   * The seller's way in, under the lede (UI climb 2026-11-09, phone UX hunt): a resale guide that never offered the button —
+   * the only "đăng tin là miễn phí" link sat inline on the second phone screen. The same CTA, href helper and label as the
+   * sibling seller guide (dang-tin-ban-hang-mien-phi); not repeated at the end.
+   */
+  cta: { href: localizedHref('/post', 'vi'), label: 'Đăng tin miễn phí' },
   sections: [
     {
       id: 'ban-o-dau',

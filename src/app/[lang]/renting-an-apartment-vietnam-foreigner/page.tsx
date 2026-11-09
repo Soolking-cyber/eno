@@ -5,6 +5,7 @@ import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { LiveCounts } from '@/components/marketplace/live-count'
 import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
+import { localizedHref } from '@/lib/lang-pinned'
 import { formatMoneyFull } from '@/lib/vnd'
 
 /**
@@ -58,9 +59,16 @@ const CONTENT: ArticleContent = {
   eyebrow: 'Guide',
   h1: 'Renting an apartment in Vietnam as a foreigner',
   intro:
-    'Almost everything written about renting here is written by someone who earns a commission when you sign. This guide is the other half: how listings and viewings actually work in Ho Chi Minh City, what a normal lease says, what the deposit is for and how it comes back, who has to declare your residence at the address, which bills sit outside the rent, and the clauses that are genuinely negotiable.',
+    'Almost everything written about renting here is written by someone who earns a commission when you sign. This guide is the other half: how renting in Ho Chi Minh City actually works, from the first viewing to getting your deposit back.',
   canonical: '/renting-an-apartment-vietnam-foreigner',
   ...guideDates('renting-an-apartment-vietnam-foreigner'),
+  /**
+   * THE GUIDE'S WAY IN, UNDER THE LEDE (UI climb 2026-11-09, phone UX hunt): two phone screens held nothing to act on — the
+   * only rental link sat inline in the second. The one brand CTA, as the sibling guides carry it; not repeated at the end,
+   * where the homes rail already says "Browse rentals". The intro stopped listing the sections ("On this page" names them
+   * one line lower) and keeps one full sentence for the Article description.
+   */
+  cta: { href: localizedHref('/c/rentals', 'en'), label: 'Browse rentals' },
   sections: [
     {
       id: 'how-listings-work',

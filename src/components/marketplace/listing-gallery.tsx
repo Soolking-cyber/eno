@@ -6,6 +6,7 @@ import { ImageMark } from './image-mark'
 import { X, ChevronLeft, ChevronRight, Images, Play, Volume2, VolumeX } from '@/components/ui/icons'
 import { STROKE_FLOAT } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
+import { internalize } from '@/lib/image-loader'
 import { Button } from '@/components/ui/button'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 import { IconButton } from '@/components/ui/icon-button'
@@ -157,6 +158,80 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
 // Lightbox double-tap zoom factor. Transform-only (compositor) — no library.
 const ZOOM = 2.5
 
+/**
+ * THE PHOTO'S OWN EDGE COLOUR, WHEN ITS BORDER IS ONE FLAT COLOUR — a studio packshot on white — else null (UI climb
+ * 2026-11-09, phone UX hunt). The blurred copy behind a contained photo is right for real photos, whose edges carry the
+ * room; behind a white-background bike it painted a pink-grey smear above and a grey band below, meeting the white photo at
+ * hard seams, so the first screen looked half-loaded. Read from the backdrop's own 64px source (already loaded, same-origin
+ * /_next/image output): 16×16, the outer ring, every channel within 12 of the others → its mean.
+ * ⚠️ A tainted canvas (a cross-origin mock image) throws on getImageData: caught → null → the blur stays. Any doubt keeps
+ * the blur, which is what every photo had before.
+ */
+export function edgeColor(el: HTMLImageElement): string | null {
+  try {
+    const n = 16
+    const canvas = document.createElement('canvas')
+    canvas.width = n
+    canvas.height = n
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return null
+    ctx.drawImage(el, 0, 0, n, n)
+    const d = ctx.getImageData(0, 0, n, n).data
+    const lo = [255, 255, 255], hi = [0, 0, 0], sum = [0, 0, 0]
+    let count = 0
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        if (x !== 0 && y !== 0 && x !== n - 1 && y !== n - 1) continue
+        const i = (y * n + x) * 4
+        // A transparent border (a cut-out PNG/WebP) is no colour at all: drawn, it reads as black — keep the blur (commit review).
+        if (d[i + 3] < 250) return null
+        for (let c = 0; c < 3; c++) { const v = d[i + c]; lo[c] = Math.min(lo[c], v); hi[c] = Math.max(hi[c], v); sum[c] += v }
+        count++
+      }
+    }
+    // 12, not 24 (commit review): a false "flat" leaves a visible step against a shaded studio sweep; a false "not flat" only
+    // keeps the blur every photo had. When in doubt, the blur.
+    if ([0, 1, 2].some((c) => hi[c] - lo[c] > 12)) return null
+    // …AND THE MIDDLE MUST NOT BE FLAT TOO (commit review): a packshot has a subject. A whole image of one colour is a blank
+    // frame — or a privacy browser's fake canvas data (Firefox resistFingerprinting), which would whiten every real photo's
+    // gutters. Either way: the blur.
+    let inner = 0
+    for (let y = 4; y < n - 4; y++) {
+      for (let x = 4; x < n - 4; x++) {
+        const i = (y * n + x) * 4
+        for (let c = 0; c < 3; c++) inner = Math.max(inner, Math.abs(d[i + c] - sum[c] / count))
+      }
+    }
+    if (inner <= 12) return null
+    const [r, g, b] = sum.map((v) => Math.round(v / count))
+    return `rgb(${r}, ${g}, ${b})`
+  } catch {
+    return null
+  }
+}
+
+/**
+ * IS THIS <img> SHOWING `img`? A reused gallery instance can deliver the PREVIOUS photo's load event to the current handler
+ * (commit review), so both load handlers in BlurFillImage check identity first. next/image serves the photo through
+ * /_next/image?url=<src>&w=…; unoptimized (mocks), it is the URL itself. The comparison is exact on the normalized URL —
+ * never a substring (`/p/a.jpg` must not match `/p/a.jpg?v=2`). Any doubt → false → nothing is stamped.
+ */
+export function isShowing(el: HTMLImageElement, img: string): boolean {
+  try {
+    const here = window.location.href
+    const u = new URL(el.currentSrc || el.src, here)
+    const shown = u.pathname === '/_next/image' ? u.searchParams.get('url') : u.href
+    if (shown == null) return false
+    // ⚠️ THROUGH THE LOADER'S OWN ORIGIN SWAP (commit review): on the box, src/lib/image-loader.ts hands the optimizer
+    // `url=<internal origin>` for a public storage photo, so comparing with the public URL alone never matched in production
+    // and the fill silently never ran. Either form is this photo; nothing else is.
+    const want = new Set([img, internalize(img)].map((x) => new URL(x, here).href))
+    return want.has(new URL(shown, here).href)
+  } catch {
+    return false
+  }
+}
+
 /** One hero slide that never crops: the full photo (object-contain) over a blurred,
  *  scaled copy of ITSELF so portrait/pano shots fill the frame with their own colors
  *  instead of dead bars, plus a faint repeating eno.vn brand mark in the letterbox
@@ -181,6 +256,18 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
   // A photo that failed to load takes its mark with it — never an eno.vn wordmark over an empty frame.
   // Keyed by the source, so a reused instance showing a different photo starts clean.
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  // A packshot's flat edge colour (edgeColor above), keyed by the source like failedSrc. When set, the blurred copy fades out
+  // (opacity, NOT unmounted — it stays the eager-loaded backdrop the LCP note below is about) and the gutters take that colour.
+  const [flat, setFlat] = useState<{ src: string; color: string } | null>(null)
+  // ⚠️ ONLY ONCE THE SHARP PHOTO IS IN (commit review): the fill covers the frame, so applied on the 64px backdrop's load it
+  // turned a slow connection's blurred preview into a blank white rectangle until the photo arrived. Keyed by source too.
+  const [sharpSrc, setSharpSrc] = useState<string | null>(null)
+  // A → B → A: neither "A's sharp photo is in" nor A's sampled colour survives the visit to B (commit review) — the
+  // reset-during-render pattern, so the return samples and waits again (from cache both fire at once). A failed sharp photo
+  // never gets the fill; one that loads after all clears its failure (its mark comes back too).
+  const [sharpFor, setSharpFor] = useState(img)
+  if (sharpFor !== img) { setSharpFor(img); setSharpSrc(null); setFlat(null) }
+  const flatFill = flat?.src === img && sharpSrc === img && failedSrc !== img ? flat.color : null
   return (
     <>
       {/* quality MUST be one of next.config `qualities: [60, 70]` — any other value (e.g. the
@@ -192,7 +279,19 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
           backdrop is the LARGEST painted image, so Chrome reported IT as the LCP element — and it was
           lazy, i.e. held until after hydration. It is a 64px source, so loading it eagerly costs ~1 KB
           and does not compete with the sharp layer's fetchPriority=high. */}
-      <Image src={img} alt="" fill sizes="64px" quality={60} unoptimized={mock || undefined} aria-hidden loading={priority || eager ? 'eager' : undefined} className="scale-110 object-cover blur-2xl dark:brightness-[0.92]" />
+      <Image
+        src={img} alt="" fill sizes="64px" quality={60} unoptimized={mock || undefined} aria-hidden loading={priority || eager ? 'eager' : undefined}
+        // A late load event from the PREVIOUS photo (a reused instance) must not stamp its colour on this one: isShowing.
+        onLoad={(e) => {
+          const el = e.currentTarget
+          if (!isShowing(el, img)) return
+          const c = edgeColor(el)
+          if (c) setFlat({ src: img, color: c })
+        }}
+        className={cn('scale-110 object-cover blur-2xl transition-opacity duration-150 dark:brightness-[0.92]', flatFill && 'opacity-0')}
+      />
+      {/* The packshot's flat gutter (edgeColor): its own edge colour, dimmed in dark mode like the photo it continues. */}
+      {flatFill && <span aria-hidden className="pointer-events-none absolute inset-0 animate-in fade-in duration-150 dark:brightness-[0.92]" style={{ backgroundColor: flatFill }} />}
       {/* ⚠️ 0.08, NOT 0.7 (owner, 2026-09-30, I-MARK-DENSITY option B). At 0.7 the repeating tile read
           as a pattern printed over the gutters — a dense field of wordmarks beside a photo that already
           carries its own ImageMark. At 0.08 it is a texture you notice only on a wide letterbox. The
@@ -225,6 +324,7 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
         fetchPriority={priority ? 'high' : undefined}
         loading={eager && !priority ? 'eager' : undefined}
         className="object-contain dark:brightness-[0.92]"
+        onLoad={(e) => { if (isShowing(e.currentTarget, img)) { setSharpSrc(img); setFailedSrc((f) => (f === img ? null : f)) } }}
         onError={() => setFailedSrc(img)}
       />
       {failedSrc !== img && <ImageMark src={img} fit="contain" />}
