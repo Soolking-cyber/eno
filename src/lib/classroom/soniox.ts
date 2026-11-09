@@ -6,7 +6,7 @@ import type { AgeBand } from './limits'
 /**
  * SONIOX — THE CLASSROOM'S EARS, LIVE (owner, 2026-10-26: "its too slow no feel like live speech … make it instant
  * conversation"). Measured on the owner's own session: the turn waited 1.2 s of silence, then for eno's speech server to
- * transcribe the WHOLE clip after the learner stopped (0.5 s for 4 s of speech, 5.5 s for 45 s). Soniox stt-rt-v5 writes
+ * transcribe the WHOLE clip after the learner stopped (0.5 s for 4 s of speech, 5.5 s for 45 s). Soniox's real-time model writes
  * the words down WHILE the learner speaks and ends the turn on meaning, pauses and intonation (semantic endpointing), so
  * the text exists ~0.2 s after they stop. Picked 2026-10-26 by a research workflow checked against vendor pages: never
  * trains on audio, does not store it, ~$0.10 per practice-hour, the tightest latency tail measured (260/305/313 ms).
@@ -28,8 +28,13 @@ const HOSTS: Readonly<Record<string, { rest: string; ws: string; tts: string }>>
 /** `ws`/`model`: the ears (live speech-to-text); `tts`/`ttsModel`: the avatar's voice (soniox-tts.ts) — one key, one region. */
 export type SonioxConfig = { key: string; rest: string; ws: string; model: string; tts: string; ttsModel: string }
 
-/** SONIOX_API_KEY (+ SONIOX_REGION, default us; CLASSROOM_STT_MODEL, default stt-rt-v5; CLASSROOM_TTS_MODEL, default
- *  tts-rt-v2), or null — then no session starts: Soniox is the classroom's only ear (session-start.ts). */
+/**
+ * SONIOX_API_KEY (+ SONIOX_REGION, default us; CLASSROOM_STT_MODEL, default stt-rt-v6; CLASSROOM_TTS_MODEL, default
+ * tts-rt-v2), or null — then no session starts: Soniox is the classroom's only ear (session-start.ts).
+ * ⛔ stt-rt-v6 SINCE 2026-11-09 (owner: "use v6 for both stt and tts"): released 2026-11-03, a drop-in for v5 ("replace the
+ * model name"), which Soniox removes 2026-12-15. The endpointing below was MEASURED on v5 — re-check that a pause mid-sentence
+ * still holds on v6 (the owner's next lesson). TTS has no v6: tts-rt-v2 is Soniox's newest (docs.soniox.com/tts/models).
+ */
 export function sonioxConfig(): SonioxConfig | null {
   const key = process.env.SONIOX_API_KEY?.trim()
   if (!key || key.length < 20 || /\s/.test(key)) return null
@@ -39,7 +44,7 @@ export function sonioxConfig(): SonioxConfig | null {
     if (refusedRegion !== region) { refusedRegion = region; logWarn('[classroom] SONIOX_REGION is not a known region — live listening is off', { region: region.slice(0, 20) }) }
     return null
   }
-  return { key, ...hosts, model: process.env.CLASSROOM_STT_MODEL?.trim() || 'stt-rt-v5', ttsModel: process.env.CLASSROOM_TTS_MODEL?.trim() || 'tts-rt-v2' }
+  return { key, ...hosts, model: process.env.CLASSROOM_STT_MODEL?.trim() || 'stt-rt-v6', ttsModel: process.env.CLASSROOM_TTS_MODEL?.trim() || 'tts-rt-v2' }
 }
 let refusedRegion = ''
 
