@@ -23,6 +23,9 @@ const s = vi.hoisted(() => ({
   deleteFails: false,
   /** Ids Soniox refuses to delete (an outage on those, a bad id). */
   failIds: new Set<string>(),
+  /** Ids whose delete takes this long, then fails (a Soniox that hangs to its timeout). */
+  slowIds: new Map<string, number>(),
+  listFails: false,
   recomputed: [] as string[],
   /** Voices Soniox still has but leaves out of its list (a voice made after the list was read). */
   unlisted: new Map<string, FakeVoice>(),
@@ -50,8 +53,11 @@ vi.mock('./soniox-voices', async (orig) => {
       return out(v)
     },
     getVoice: async (_c: unknown, id: string) => (s.voices.has(id) ? out(s.voices.get(id)!) : s.unlisted.has(id) ? out(s.unlisted.get(id)!) : null),
-    listOurVoices: async (_c: unknown, prefix: string) => [...s.voices.values()].filter((v) => v.name.startsWith(prefix)).map(out),
-    deleteVoice: async (_c: unknown, id: string) => { if (s.deleteFails || s.failIds.has(id)) throw new SonioxError(503); s.voices.delete(id); s.deleted.push(id); return true },
+    listOurVoices: async (_c: unknown, prefix: string) => s.listFails ? Promise.reject(new SonioxError(504)) : [...s.voices.values()].filter((v) => v.name.startsWith(prefix)).map(out),
+    deleteVoice: async (_c: unknown, id: string) => {
+      const slow = s.slowIds.get(id)
+      if (slow) { await new Promise((r) => setTimeout(r, slow)); throw new SonioxError(504) }
+      if (s.deleteFails || s.failIds.has(id)) throw new SonioxError(503); s.voices.delete(id); s.deleted.push(id); return true },
     recomputeVoice: async (_c: unknown, id: string) => { s.recomputed.push(id); const v = s.voices.get(id); if (v) v.status = 'ready' },
   }
 })
@@ -105,6 +111,8 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
     s.voices.clear()
     s.unlisted.clear()
     s.failIds.clear()
+    s.slowIds.clear()
+    s.listFails = false
   })
 
   afterAll(async () => {
@@ -341,6 +349,29 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
       s.voices.set('lv', { id: 'lv', name: voices.voiceName('lostrow'), created_at: new Date().toISOString(), status: 'ready' })
       await ov.reconcileVoices()
       expect(s.voices.has('lv')).toBe(false)
+    })
+
+    it('⛔ ids that hang to their timeout spend each run\'s time — yet a name marker gets its turn within a few runs', async () => {
+      for (const i of [1, 2]) {
+        const id = `0000000${i}-2222-4000-8000-000000000000`
+        s.slowIds.set(id, 80)
+        await db.$executeRaw`INSERT INTO public.classroom_voice_deletion (soniox_voice_id, reason, queued_at) VALUES (${id}, 'deleted', now() - interval '2 hours')`
+      }
+      await db.$executeRaw`INSERT INTO public.classroom_voice_deletion (soniox_voice_id, reason) VALUES (${'name:' + voices.voiceName('lostrow2')}, 'lost')`
+      s.voices.set('lv2', { id: 'lv2', name: voices.voiceName('lostrow2'), created_at: new Date().toISOString(), status: 'ready' })
+      // A 50 ms share: one hanging id spends it. Each refused id sinks below the marker, which then goes first.
+      for (let run = 0; run < 3 && s.voices.has('lv2'); run++) await ov.reconcileVoices(new Date(), 50)
+      expect(s.voices.has('lv2')).toBe(false)
+    })
+
+    it('⛔ Soniox\'s list down: the ids are still deleted that run, the name markers just wait (no try spent, no time)', async () => {
+      await db.$executeRaw`INSERT INTO public.classroom_voice_deletion (soniox_voice_id, reason) VALUES (${'name:' + voices.voiceName('lostrow3')}, 'lost')`
+      await db.$executeRaw`INSERT INTO public.classroom_voice_deletion (soniox_voice_id, reason, queued_at) VALUES ('33333333-0000-4000-8000-000000000000', 'deleted', now() + interval '1 minute')`
+      s.voices.set('33333333-0000-4000-8000-000000000000', { id: '33333333-0000-4000-8000-000000000000', name: voices.voiceName('x'), created_at: new Date().toISOString(), status: 'ready' })
+      s.listFails = true
+      expect((await ov.reconcileVoices()).deleted).toBe(1)
+      expect(s.deleted).toEqual(['33333333-0000-4000-8000-000000000000'])
+      expect(await db.$queryRaw<{ attempts: number }[]>`SELECT attempts FROM public.classroom_voice_deletion WHERE soniox_voice_id = ${'name:' + voices.voiceName('lostrow3')}`).toEqual([{ attempts: 0 }])
     })
 
     it('⛔ Soniox refusing deletes: counted on the queue and retried next run — the row is gone at once', async () => {

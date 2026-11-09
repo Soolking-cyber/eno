@@ -346,7 +346,7 @@ const NAME_MARK = 'name:'
  *  4. A making/ready row whose voice is not listed is asked for directly; only Soniox's "no such voice" fails it as gone
  *     (opus: a voice attached after the list was read must not be failed for missing from it).
  */
-export async function reconcileVoices(now = new Date()): Promise<ReconcileResult> {
+export async function reconcileVoices(now = new Date(), budgetMs = QUEUE_BUDGET_MS): Promise<ReconcileResult> {
   const out: ReconcileResult = { stuck: 0, deleted: 0, deleteFailed: 0, ready: 0, failed: 0, recomputed: 0 }
   out.stuck = (await db.classroomVoice.updateMany({ where: { status: { in: ['checking', 'making'] }, updatedAt: { lt: new Date(now.getTime() - STUCK_MS) } }, data: { status: 'failed', failReason: 'timeout', sample: null } })).count
   await db.classroomVoice.deleteMany({ where: { status: 'script', expiresAt: { lt: new Date(now.getTime() - 24 * 3600_000) } } })
@@ -365,23 +365,29 @@ export async function reconcileVoices(now = new Date()): Promise<ReconcileResult
   const ahead = (now.getTime() - Date.now()) / 1000
   const done = (id: string) => db.$executeRaw`UPDATE public.classroom_voice_deletion SET done_at = now() WHERE soniox_voice_id = ${id} AND done_at IS NULL`
   const tried = (id: string) => db.$executeRaw`UPDATE public.classroom_voice_deletion SET attempts = attempts + 1 WHERE soniox_voice_id = ${id}`
-  const budgetEnds = Date.now() + QUEUE_BUDGET_MS
-  // By id FIRST: an erasure never waits on Soniox's list answering (commit gate, codex).
-  for (const { soniox_voice_id: id } of due.filter((d) => !d.soniox_voice_id.startsWith(NAME_MARK))) {
+  // Soniox's list, read ONCE and BEFORE the loop (commit gate: a list call inside it could spend the run's time on a marker
+  // that never sinks): unreadable, the name markers wait for the next run at no cost, the ids go on, and the steps below
+  // that need it are skipped this run.
+  let listed: SonioxVoice[] | null = null
+  try { listed = await listOurVoices(cfg, VOICE_PREFIX) } catch (e) { logWarn('[classroom] own voice: Soniox\'s list could not be read', { status: (e as { status?: number }).status ?? null }) }
+  const budgetEnds = Date.now() + budgetMs
+  // ⛔ ONE LOOP OVER ONE LIST, both kinds in the query's order (fewest tries, then oldest — commit gate, four rounds of
+  // starvation findings across batches and kinds): every entry that spends time either finishes (it leaves the queue) or
+  // gains a try and sinks below the rest, so no entry and no kind waits behind another for good.
+  for (const { soniox_voice_id: id, age_s: age } of due) {
     if (Date.now() > budgetEnds) break
-    try {
-      await deleteVoice(cfg, id)
-      await done(id)
-      out.deleted++
-    } catch {
-      await tried(id)
-      out.deleteFailed++
+    if (!id.startsWith(NAME_MARK)) {
+      try {
+        await deleteVoice(cfg, id)
+        await done(id)
+        out.deleted++
+      } catch {
+        await tried(id)
+        out.deleteFailed++
+      }
+      continue
     }
-  }
-
-  const listed = await listOurVoices(cfg, VOICE_PREFIX)
-  for (const { soniox_voice_id: id, age_s: age } of due.filter((d) => d.soniox_voice_id.startsWith(NAME_MARK))) {
-    if (Date.now() > budgetEnds) break
+    if (!listed) continue // no list this run: the marker waits, spending nothing
     // A create whose id never reached its row: every voice of that name goes; the marker stays until the create window
     // has passed with none left (a create still in flight may land after this list — ours time out at 30 s).
     const name = id.slice(NAME_MARK.length)
@@ -392,6 +398,7 @@ export async function reconcileVoices(now = new Date()): Promise<ReconcileResult
     if (left) await tried(id)
     else if (age + ahead > LOST_CREATE_MS / 1000) await done(id)
   }
+  if (!listed) return out
 
   const rows = new Map((await db.classroomVoice.findMany({
     where: { id: { in: listed.filter((v) => v.name).map((v) => v.name.slice(VOICE_PREFIX.length)) } },
