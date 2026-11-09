@@ -70,3 +70,36 @@ describe('sortPendingItems', () => {
     expect(h.items.updateMany).not.toHaveBeenCalled()
   })
 })
+
+// Owner, 2026-11-09: "import has to be right category subcategory" — the vending machine filed as Vehicles › Other.
+describe('a machine the model filed as Vehicles › Other', () => {
+  const vending = { ...raw, title: 'Afen vending machine 60 slots', description: 'Máy bán hàng tự động 60 khay' }
+  it('is asked about once more, and lands on the shelf that answer names', async () => {
+    h.items.findMany.mockResolvedValue([item({ raw: vending })])
+    h.luna.mockImplementation(async (instruction: string) => (
+      instruction.includes('was filed under Vehicles › Other')
+        ? JSON.stringify({ transport: false, category: 'furniture-appliances', subcategory: 'white-goods' })
+        : instruction.includes('You sort one second-hand')
+          ? JSON.stringify({ ...answer, category: 'vehicles', subcategory: 'vehicle-other', title: 'Afen vending machine' })
+          : JSON.stringify({})
+    ))
+    await sortPendingItems()
+    expect(h.items.updateMany.mock.calls[0][0].data).toMatchObject({ categorySlug: 'furniture-appliances', subcategorySlug: 'white-goods' })
+  })
+  it('a real vehicle shelf is never asked about again', async () => {
+    h.items.findMany.mockResolvedValue([item()])
+    h.luna.mockImplementation(async (instruction: string) => (instruction.includes('You sort one second-hand') ? JSON.stringify({ ...answer, category: 'vehicles', subcategory: 'motorbike' }) : JSON.stringify({})))
+    await sortPendingItems()
+    expect(h.luna.mock.calls.some(([i]) => String(i).includes('was filed under Vehicles › Other'))).toBe(false)
+    expect(h.items.updateMany.mock.calls[0][0].data).toMatchObject({ categorySlug: 'vehicles', subcategorySlug: 'motorbike' })
+  })
+  it('no answer to the check keeps the first filing (a shelf, not a safety call)', async () => {
+    h.items.findMany.mockResolvedValue([item({ raw: vending })])
+    h.luna.mockImplementation(async (instruction: string) => {
+      if (instruction.includes('was filed under Vehicles › Other')) throw new Error('down')
+      return instruction.includes('You sort one second-hand') ? JSON.stringify({ ...answer, category: 'vehicles', subcategory: 'vehicle-other' }) : JSON.stringify({})
+    })
+    await sortPendingItems()
+    expect(h.items.updateMany.mock.calls[0][0].data).toMatchObject({ categorySlug: 'vehicles', subcategorySlug: 'vehicle-other' })
+  })
+})

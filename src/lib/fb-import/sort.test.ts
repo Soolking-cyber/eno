@@ -58,3 +58,30 @@ describe('textProblem', () => {
   it('catches a phone number left in', () => expect(textProblem('A good chair', 'Call 0901234567 today')).toBe('contact_in_text'))
   it('catches a short title', () => expect(textProblem('ab', 'fine')).toBe('title_short'))
 })
+
+// Owner, 2026-11-09: "import has to be right category subcategory" — a vending machine went live as Vehicles › Other.
+describe('a machine filed as Vehicles › Other gets one more question', () => {
+  it('only Vehicles › Other, or Vehicles with no subcategory — never a real vehicle shelf, never another category', async () => {
+    const { needsVehicleCheck } = await import('./sort')
+    expect(needsVehicleCheck({ categorySlug: 'vehicles', subcategorySlug: 'vehicle-other' })).toBe(true)
+    expect(needsVehicleCheck({ categorySlug: 'vehicles', subcategorySlug: null })).toBe(true)
+    for (const sub of ['motorbike', 'car', 'parts-gear', 'bicycle', 'ebike-scooter']) expect(needsVehicleCheck({ categorySlug: 'vehicles', subcategorySlug: sub })).toBe(false)
+    expect(needsVehicleCheck({ categorySlug: 'furniture-appliances', subcategorySlug: 'white-goods' })).toBe(false)
+  })
+  it('⛔ "vehicle-other" is the taxonomy\'s real slug (or the check would silently never run)', () => {
+    expect(validShelf({ category: 'vehicles', subcategory: 'vehicle-other', listingType: 'sell' })).toMatchObject({ subcategorySlug: 'vehicle-other' })
+  })
+  it('an item that carries nothing moves to the shelf the check names; a rental stays a rental where it can', async () => {
+    const { afterVehicleCheck } = await import('./sort')
+    const first = { categorySlug: 'vehicles', subcategorySlug: 'vehicle-other', listingType: 'sell' }
+    expect(afterVehicleCheck(first, { transport: false, category: 'furniture-appliances', subcategory: 'white-goods' })).toMatchObject({ categorySlug: 'furniture-appliances', subcategorySlug: 'white-goods' })
+    expect(afterVehicleCheck(first, { transport: false, category: 'electronics', subcategory: 'printers' })).toMatchObject({ categorySlug: 'electronics', subcategorySlug: 'printers' })
+  })
+  it('a means of transport or a part for one stays; an answer that is unclear, invalid or "vehicles" keeps the first filing', async () => {
+    const { afterVehicleCheck } = await import('./sort')
+    const first = { categorySlug: 'vehicles', subcategorySlug: 'vehicle-other', listingType: 'sell' }
+    for (const a of [{ transport: true, category: 'vehicles', subcategory: '' }, { transport: false, category: 'vehicles', subcategory: '' }, { transport: false, category: 'made-up', subcategory: '' }, { transport: 'no' }, null, 'x']) {
+      expect(afterVehicleCheck(first, a)).toBe(first)
+    }
+  })
+})
