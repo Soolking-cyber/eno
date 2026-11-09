@@ -381,6 +381,9 @@ export async function startTeacherTest(accountId: string, tutorId?: string, now 
     const tests = await tx.classroomSession.count({ where: { testerId: accountId, startedAt: { gte: ictDayStart(now) } } })
     if (tests >= LIMITS.teacherTestsPerDay && !devUnlimited() && !staff) throw new NextAtRefusal('test_limit', nextPracticeAt('day_limit', now).toISOString())
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${BUDGET_LOCK}, 0))`
+    // An archived tutor is named only to RELOAD its try (testTutor): never a new one (commit gate round 2, opus) — read AGAIN
+    // under the budget lock, which archiving takes too (tutors.ts): no new try lands on a tutor archived in between.
+    if ((await tx.classroomAvatar.findUnique({ where: { id: asked.id }, select: { archivedAt: true } }))?.archivedAt !== null) throw new ApiError('tutor_not_found', 404)
     const over = budgetRefusal(await budgetUse(tx, tp.id), config, minutes)
     if (over === 'teacher') throw new ApiError('budget_teacher', 409)
     if (over) throw new ApiError('budget_classroom', 409)

@@ -19,7 +19,8 @@ const h = vi.hoisted(() => {
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/db', () => ({ db: h.db }))
 
-const { archiveTutor, createTutor, saveDefaultTutor, teacherLock, tutorOfTeacher, updateTutor } = await import('./tutors')
+const { archiveTutor, createTutor, teacherLock, tutorOfTeacher, updateTutor } = await import('./tutors')
+const { BUDGET_LOCK } = await import('./budget')
 const { validateAvatar } = await import('./avatar')
 const { LIMITS } = await import('./constants')
 const { VOICES } = await import('./voices')
@@ -97,32 +98,8 @@ describe('archiving a tutor (never deleting: its seats would cascade)', () => {
     h.tx.classroomAvatar.findFirst.mockResolvedValue({ id: 't1', customStatus: 'removed' })
     h.tx.classroomEnrollment.count.mockResolvedValue(0)
     await archiveTutor('tp1', 't1')
-    expect(lockSql()).toEqual([teacherLock('tp1')])
+    // The teacher's lock, then the budget lock every new try takes: no try is made on a tutor archived meanwhile.
+    expect(lockSql()).toEqual([teacherLock('tp1'), BUDGET_LOCK])
     expect(h.tx.classroomAvatar.update.mock.calls[0][0]).toMatchObject({ where: { id: 't1' }, data: { archivedAt: expect.any(Date) } })
-  })
-})
-
-describe('the old one-avatar save (a page opened before several tutors)', () => {
-  it('⛔ chooses the teacher\'s first tutor UNDER THE TEACHER\'S LOCK, so two first saves at once make one tutor', async () => {
-    h.tx.classroomAvatar.findFirst.mockResolvedValue(null)
-    h.tx.classroomAvatar.create.mockResolvedValue({ id: 't1' })
-    await saveDefaultTutor('tp1', input(), true, null)
-    expect(lockSql()).toEqual([teacherLock('tp1')])
-    expect(h.tx.classroomAvatar.findFirst.mock.calls[0][0].where).toEqual({ teacherProfileId: 'tp1', archivedAt: null })
-    expect(h.tx.classroomAvatar.create).toHaveBeenCalledTimes(1)
-  })
-  it('updates the oldest tutor, keeping its "best for" line when the old page did not send one', async () => {
-    h.tx.classroomAvatar.findFirst.mockResolvedValue({ id: 't1', bestFor: 'Shy beginners' })
-    await saveDefaultTutor('tp1', { ...input(), bestFor: '' }, false, 't1')
-    expect(h.tx.classroomAvatar.update.mock.calls[0][0]).toMatchObject({ where: { id: 't1' }, data: { bestFor: 'Shy beginners' } })
-    expect(h.tx.classroomAvatar.create).not.toHaveBeenCalled()
-  })
-  it('⛔ refuses when the oldest tutor changed since the request was checked (archived in another tab, or a first one made)', async () => {
-    h.tx.classroomAvatar.findFirst.mockResolvedValue({ id: 't2', bestFor: '' })
-    await expect(saveDefaultTutor('tp1', input(), true, 't1')).rejects.toMatchObject({ code: 'tutor_not_found' })
-    h.tx.classroomAvatar.findFirst.mockResolvedValue({ id: 't1', bestFor: '' })
-    await expect(saveDefaultTutor('tp1', input(), true, null)).rejects.toMatchObject({ code: 'tutor_not_found' })
-    expect(h.tx.classroomAvatar.update).not.toHaveBeenCalled()
-    expect(h.tx.classroomAvatar.create).not.toHaveBeenCalled()
   })
 })

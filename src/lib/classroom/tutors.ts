@@ -3,6 +3,7 @@ import { ApiError } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import type { Prisma } from '@/generated/prisma/client'
 import { LIMITS } from './constants'
+import { BUDGET_LOCK } from './budget'
 import { AVATAR_SELECT, avatarData, type AvatarInput } from './avatar'
 import { DEFAULT_TRAITS } from './persona'
 import { defaultVoice, voiceById, voiceFor } from './voices'
@@ -61,28 +62,6 @@ export async function createTutor(teacherProfileId: string, v: AvatarInput) {
   })
 }
 
-/**
- * The old one-avatar save (PUT /api/classroom/avatar — kept for a page opened before several tutors): the teacher's oldest
- * tutor, or their first one, chosen and written UNDER THE TEACHER'S LOCK — two first saves at once make one tutor, as the old
- * unique key's upsert did (commit gate round 2, codex). That page knows no "best for" line: one it does not send is kept.
- * ⛔ ONLY ONTO THE TUTOR THE REQUEST WAS CHECKED AGAINST (`expectedId`, read before the lock; null = none yet): if the oldest
- * tutor changed meanwhile — archived in another tab, or a first one made — the save is refused, never written onto another
- * tutor (commit gate, codex + opus).
- */
-export async function saveDefaultTutor(teacherProfileId: string, v: AvatarInput, sentBestFor: boolean, expectedId: string | null) {
-  return db.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${teacherLock(teacherProfileId)}, 0))`
-    const current = await defaultTutor(teacherProfileId, tx)
-    if ((current?.id ?? null) !== expectedId) throw new ApiError('tutor_not_found', 404)
-    if (!current) return tx.classroomAvatar.create({ data: { teacherProfileId, ...avatarData(v) }, select: AVATAR_SELECT })
-    return tx.classroomAvatar.update({
-      where: { id: current.id },
-      data: { ...avatarData(v), ...(sentBestFor ? {} : { bestFor: current.bestFor }), updatedAt: new Date() },
-      select: AVATAR_SELECT,
-    })
-  })
-}
-
 /** Only while the tutor is still the teacher's and not archived (an archive in between wins). */
 export async function updateTutor(teacherProfileId: string, tutorId: string, v: AvatarInput) {
   const done = await db.classroomAvatar.updateMany({
@@ -105,8 +84,10 @@ export async function archiveTutor(teacherProfileId: string, tutorId: string) {
     if (t.customStatus === 'requested' || t.customStatus === 'ready') throw new ApiError('tutor_has_likeness', 409)
     const seats = await tx.classroomEnrollment.count({ where: { avatarId: t.id, status: { not: 'removed' } } })
     if (seats) throw new ApiError('tutor_has_students', 409)
-    // A try of it running (another tab): a reload must find its tutor (commit gate round 2, codex).
-    // Only a try still in its time: one whose tab was closed is over at its end (the sweep ends it), and never blocks this.
+    // A try of it running (another tab): a reload must find its tutor (commit gate round 2, codex). Only a try still in its
+    // time: one whose tab was closed is over at its end (the sweep ends it), and never blocks this. ⛔ Under the BUDGET lock
+    // too, which every new try takes before it is made (session-start.ts): a try is never made on a tutor archived meanwhile.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${BUDGET_LOCK}, 0))`
     if (await tx.classroomSession.count({ where: { avatarId: t.id, status: 'live', endsAt: { gte: new Date() } } })) throw new ApiError('session_live', 409)
     const now = new Date()
     await tx.classroomAvatar.update({ where: { id: t.id }, data: { archivedAt: now, updatedAt: now } })

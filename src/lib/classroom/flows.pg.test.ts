@@ -791,6 +791,9 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
       await db.classroomEnrollment.deleteMany({ where: { avatarId: second.id } })
       await archiveTutor(tp.id, second.id)
       expect((await db.classroomAvatar.findUnique({ where: { id: second.id } }))!.archivedAt).not.toBeNull()
+      // An archived tutor is never tried anew (a running try of it would still reload).
+      await db.classroomSession.deleteMany({ where: { testerId: teacherId } })
+      await expect(start.startTeacherTest(teacherId, second.id)).rejects.toMatchObject({ code: 'tutor_not_found' })
     } finally {
       await db.classroomSession.deleteMany({ where: { avatarId: second.id } })
       await db.classroomEnrollment.deleteMany({ where: { avatarId: second.id } })

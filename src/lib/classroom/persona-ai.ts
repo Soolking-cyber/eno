@@ -8,7 +8,7 @@ import { containsPhoneNumber } from '@/lib/phone'
 /**
  * WRITE WITH AI — the avatar's persona, drafted by Gemini 3.8 Flash from the teacher's own profile and the chips they
  * picked (owner: "assisted with ai writing use 3.8flash api"). The teacher reads and edits it before saving; nothing is
- * stored from here (the route answers the draft; PUT /api/classroom/avatar saves what the teacher keeps).
+ * stored from here (the route answers the draft; PUT /api/classroom/tutors/<id> — or POST /api/classroom/tutors — saves what the teacher keeps).
  */
 
 export type PersonaRequest = {
