@@ -103,6 +103,28 @@ describe('DisputesPanel', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
   })
 
+  it('back to an account (A → B → A) never redraws A\'s OLD answer while A reloads', async () => {
+    answers.push(json({ cases: [CASE] }))
+    const view = mount()
+    await waitFor(() => expect(screen.getByText(/Studio in District 1/)).toBeTruthy())
+    AUTH.user = { id: 'u2' }
+    view.rerender(panel())
+    AUTH.user = { id: 'u1' } // A again; its reload never answers in this test
+    view.rerender(panel())
+    expect(screen.queryByText(/Studio in District 1/)).toBeNull()
+  })
+
+  it('signed out and back in as the same account: the old answer is gone too', async () => {
+    answers.push(json({ error: 'unauthorized' }, 401))
+    const view = mount()
+    await waitFor(() => expect(screen.getByText('Your session has expired')).toBeTruthy())
+    AUTH.user = null
+    view.rerender(panel())
+    AUTH.user = { id: 'u1' } // signed in again; the reload never answers in this test
+    view.rerender(panel())
+    expect(screen.queryByText('Your session has expired')).toBeNull()
+  })
+
   it('a new user object for the SAME account (a token refresh) keeps the list and asks nothing again', async () => {
     answers.push(json({ cases: [CASE] }))
     const view = mount()

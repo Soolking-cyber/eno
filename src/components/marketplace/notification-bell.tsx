@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { CloseButton } from '@/components/ui/close-button'
 import { Popover, PopoverContent, PopoverHeader, PopoverTrigger, useInPopoverSheet } from '@/components/ui/popover'
+import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage, Tr } from '@/context/language-context'
 import { timeAgo } from '@/lib/types'
@@ -97,6 +98,9 @@ export function NotificationBell() {
         setOpen(next)
       }}
     >
+      {/* A hover / keyboard-focus hint (ui/tooltip; UI climb 2026-11-09: the header's icon-only controls read as unexplained
+          to a first-time visitor). Off while the panel is open — the panel is the answer, and the hint would sit over it. */}
+      <Tooltip content={open ? null : tr('Notifications', 'Thông báo')} side="bottom">
       <PopoverTrigger
         render={
           <IconButton
@@ -124,6 +128,7 @@ export function NotificationBell() {
           </IconButton>
         }
       />
+      </Tooltip>
 
       {/* side=bottom align=end anchors the dropdown under the bell — from `sm` up only: below it the
           content opens in the phone sheet instead (`mobileSheet`), which retired the full-bleed

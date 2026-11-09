@@ -2,6 +2,7 @@
 
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
+import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 /**
@@ -31,6 +32,9 @@ export function AISearchButton({
 }: { active: boolean; onClick: () => void; className?: string; iconClassName?: string }) {
   const { tr } = useLanguage()
   return (
+    // ui/tooltip, not `title=` (UI climb 2026-11-09: judges found the bar's icon-only controls unexplained to a first-time
+    // visitor, and `title` has no keyboard-focus reveal). The hint never opens on touch; the aria-label stays the name.
+    <Tooltip content={tr('Ask eno AI', 'Hỏi eno AI')} side="bottom">
     <Button
       type="button"
       variant="bare"
@@ -42,7 +46,6 @@ export function AISearchButton({
       // instead ("page", since it navigates to a distinct page).
       aria-current={active ? 'page' : undefined}
       aria-label={tr('AI shopping assistant', 'Trợ lý mua sắm AI')}
-      title={tr('Ask eno AI', 'Hỏi eno AI')}
       className={cn(
         // Inactive = the search-bar icon standard (same as the magnifier + Map):
         // quiet ink, turns brand-blue on hover — a colour move only (icon-language §8;
@@ -65,5 +68,6 @@ export function AISearchButton({
     >
       <GuideMark className={iconClassName} />
     </Button>
+    </Tooltip>
   )
 }

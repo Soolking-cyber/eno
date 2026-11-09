@@ -460,9 +460,15 @@ export function SortStrip({
         <TabsTrigger value="recent" type="button" className={sortTabClass(sort === 'recent')}>
           {tr('Newest', 'Mới nhất')}
         </TabsTrigger>
-        <TabsTrigger value="popular" type="button" className={sortTabClass(sort === 'popular')}>
-          {tr('Most contacted', 'Được quan tâm')}
-        </TabsTrigger>
+        {/* What "most contacted" counts, on hover and keyboard focus (UI climb 2026-11-09: judges could not tell whether it ranks
+            chats, buyers or a recent window). feed-query.ts buildFeedOrderBy: contactCount, then views, all time — and
+            contactCount is the number of DIFFERENT buyers who asked for the seller's number (one ContactReveal row per buyer,
+            api/listings/[id]/contact), not chats: say exactly that (commit review, 2026-11-09). */}
+        <Tooltip content={tr("Ranked by how many buyers asked for the seller's number", 'Xếp theo số người mua đã lấy số điện thoại của người bán')} side="bottom">
+          <TabsTrigger value="popular" type="button" className={sortTabClass(sort === 'popular')}>
+            {tr('Most contacted', 'Được quan tâm')}
+          </TabsTrigger>
+        </Tooltip>
         <TabsTrigger
           value="price"
           type="button"

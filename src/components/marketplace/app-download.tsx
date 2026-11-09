@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Popover, PopoverTrigger, PopoverContent, PopoverTitle } from '@/components/ui/popover'
+import { Tooltip } from '@/components/ui/tooltip'
 import { IconButton } from '@/components/ui/icon-button'
 import { Button } from '@/components/ui/button'
 import { Download, Smartphone } from '@/components/ui/icons'
@@ -122,6 +123,8 @@ export function AppDownload() {
     // `mobileSheet`: a narrow window with a mouse (below `sm`) gets the filter card's bottom sheet, like every
     // other dropdown there (owner, 2026-10-18) — a phone itself never reaches this branch (`fine` above).
     <Popover mobileSheet open={open} onOpenChange={setOpen}>
+      {/* A hover / keyboard-focus hint, off while the panel is open (as the bell's; UI climb 2026-11-09). */}
+      <Tooltip content={open ? null : tr('Get the app', 'Tải ứng dụng')} side="bottom">
       <PopoverTrigger
         render={
           <IconButton
@@ -138,6 +141,7 @@ export function AppDownload() {
           </IconButton>
         }
       />
+      </Tooltip>
       <PopoverContent
         side="bottom"
         align="end"

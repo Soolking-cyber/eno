@@ -89,6 +89,11 @@ export function DisputesPanel({ compact = false, underSectionHeader = false }: {
   const uid = user?.id ?? null
   const [attempt, setAttempt] = useState(0)
   const [answer, setAnswer] = useState<{ uid: string; attempt: number; cases: DisputeCaseRow[] | null; error: DashError } | null>(null)
+  // …AND ANY CHANGE OF ACCOUNT DROPS THE STORED ANSWER BEFORE ANYTHING PAINTS (commit review r4): A → B → A, or a sign-out and
+  // back in as A, would otherwise draw A's OLD answer — withdrawn cases, an old stage, an expired-session prompt — until A's
+  // reload landed. React's reset-during-render: the render that sees the new id discards the answer and runs again at once.
+  const [answerFor, setAnswerFor] = useState(uid)
+  if (answerFor !== uid) { setAnswerFor(uid); setAnswer(null) }
   const current = answer && answer.uid === uid && answer.attempt === attempt ? answer : null
   const cases = current?.cases ?? null
   const loadError: DashError = current?.error ?? null

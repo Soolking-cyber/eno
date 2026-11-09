@@ -509,8 +509,10 @@ export function RentalCheckView() {
     return (
       <div aria-busy="true">
         {heading}
-        {/* The empty basket's height (measured 393px below sm, 409px from sm, EN at 390 and 1440 wide): what usually replaces
-            this on a first visit is "Your list is empty" under its mascot (pre-deploy review, 2026-11-09). */}
+        {/* The empty basket's height — what usually replaces this on a first visit is "Your list is empty" under its mascot
+            (pre-deploy review, 2026-11-09). Measured 393px below sm and 409px from sm in English AND Vietnamese at 390, 768
+            and 1440 wide (417px in Vietnamese at 360, where the footer is below the fold: CLS 0); CLS 0 at every one. A basket
+            with picks renders its list and form, taller than this. */}
         <div className="mt-6 min-h-[393px] max-w-2xl space-y-3 sm:min-h-[409px]">
           <Skeleton className="h-16 w-full rounded-xl" />
           <Skeleton className="h-16 w-full rounded-xl" />

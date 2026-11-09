@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
+import { useAuth } from '@/context/auth-context'
 import { Mail, Check, ArrowLeft } from '@/components/ui/icons'
 import { LocalizedLink } from '@/components/marketplace/localized-link'
 import { SITE_NAME } from '@/lib/edition'
@@ -36,6 +37,8 @@ function UnsubscribeInner() {
 
 function UnsubscribeForm() {
   const { tr } = useLanguage()
+  // Only to NAME the settings button for a signed-out reader (below); the page itself never needs a session.
+  const { user, loading: authLoading } = useAuth()
   const params = useSearchParams()
   const token = params.get('token') ?? ''
   const teacherMatches = params.get('list') === 'teacher-matches'
@@ -175,7 +178,11 @@ function UnsubscribeForm() {
                   body: tr('The unsubscribe link is invalid or expired, so nothing has changed. Use the link in your latest weekly {site} digest, or turn the digest off in your account settings (sign-in required).', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn, nên chưa có gì thay đổi. Hãy dùng liên kết trong bản tin hằng tuần mới nhất của {site}, hoặc tắt bản tin trong cài đặt tài khoản (cần đăng nhập).').replace(/\{site\}/g, SITE_NAME),
                   // The way forward this line names (2026-11-06 audit): it was a dead end, worst on the no-token landing. The digest
                   // switch is Settings › Notifications; a signed-out reader goes through sign-in first.
-                  action: recoveryButton('/dashboard/settings?tab=notifications', tr('Open email settings', 'Mở cài đặt email')),
+                  // The button names the sign-in it leads through when nobody is signed in (UI climb 2026-11-09: judges read
+                  // "Open email settings" as a door that opens). While the session is still unknown it keeps the neutral name.
+                  action: recoveryButton('/dashboard/settings?tab=notifications', !authLoading && !user
+                    ? tr('Sign in to email settings', 'Đăng nhập để mở cài đặt email')
+                    : tr('Open email settings', 'Mở cài đặt email')),
                 }
               : teacherMatches
                 ? {

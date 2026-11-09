@@ -23,6 +23,7 @@ import { useIsPhone } from '@/hooks/use-is-phone'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Tooltip } from '@/components/ui/tooltip'
 import { IconButton } from '@/components/ui/icon-button'
 import { Badge } from '@/components/ui/badge'
 import { chipVariants } from '@/components/ui/chip'
@@ -1042,6 +1043,8 @@ export function Header() {
                       the button never dead-ends. Icon weight matches the magnifier and the ✨ beside it
                       (STROKE_NAV) — the search-bar icon standard. Hover is a colour move only
                       (icon-language §8: scale-on-hover belongs to tile glyphs, not chrome). */}
+                  {/* ui/tooltip, not `title=`: a hint a keyboard reaches too (UI climb 2026-11-09). */}
+                  <Tooltip content={tr('Map', 'Bản đồ')} side="bottom">
                   <Button
                     // ⚠️ type="button" IS LOAD-BEARING — this sits inside the search <form> (line ~358)
                     // and ui/button sets no default type, so without it the browser treats it as
@@ -1053,12 +1056,12 @@ export function Header() {
                     size="none"
                     onClick={openMap}
                     aria-label={tr('Map', 'Bản đồ')}
-                    title={tr('Map', 'Bản đồ')}
                     // `hidden sm:flex` — the phone reaches the map from the focus panel's second row (O-03).
                     className="relative mr-2 hidden h-10 w-10 sm:flex shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,scale] duration-200 ease-[var(--ease-spring-snappy)] hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
                   >
                     <Map className="h-6 w-6" strokeWidth={STROKE} />
                   </Button>
+                  </Tooltip>
                 </>
               )}
               {/* Photo search folded into the AI assistant (✨ → camera in the chat
@@ -1366,6 +1369,7 @@ export function Header() {
               · `size-7`, not `h-7 w-7`: ui/button's base `[&_svg:not([class*='size-'])]:size-4` would shrink an
                 h-/w- sized glyph to 16px under `asChild` (CLAUDE.md, "ui/button inflates small icons"). */}
           {!user && (
+            <Tooltip content={tr('Saved', 'Đã lưu')} side="bottom">
             <Button
               asChild
               variant="bare"
@@ -1389,6 +1393,7 @@ export function Header() {
                 )}
               </Link>
             </Button>
+            </Tooltip>
           )}
           <NotificationBell />
           {/* "Get the app" — ONE control placed to satisfy both placements the owner asked for

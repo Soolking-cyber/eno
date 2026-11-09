@@ -8,6 +8,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 // teacher profile, where the AI notice is shown). The digest's page is unchanged.
 let query = ''
 vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(query) }))
+// The session only NAMES the dead link's settings button (signed out → "Sign in to email settings").
+let auth: { user: { id: string } | null; loading: boolean } = { user: null, loading: false }
+vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
 
 import { LanguageProvider } from '@/context/language-context'
 import UnsubscribePage from './page'
@@ -17,6 +20,7 @@ let status = 200
 beforeEach(() => {
   calls.length = 0
   status = 200
+  auth = { user: null, loading: false }
   vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
     calls.push({ url, body: JSON.parse(String(init.body)) })
     return new Response(JSON.stringify(status === 200 ? { ok: true, optIn: false } : { error: 'invalid_token' }), { status })
@@ -74,6 +78,28 @@ describe('/unsubscribe — teacher job-match emails', () => {
   it('reads in Vietnamese on the Vietnamese variant', () => {
     open('token=t1&list=teacher-matches', 'vi')
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Ngừng nhận email gợi ý việc làm giảng dạy?')
+  })
+})
+
+describe('/unsubscribe — a dead digest link names the sign-in its way forward needs (UI climb 2026-11-09)', () => {
+  const settings = () => screen.getByRole('link', { name: /email settings/ })
+  it('signed out: "Sign in to email settings", to Settings › Notifications', () => {
+    open('')
+    expect(settings().textContent).toBe('Sign in to email settings')
+    expect(settings().getAttribute('href')).toBe('/dashboard/settings?tab=notifications')
+  })
+  it('signed in, or while the session is still unknown: "Open email settings"', () => {
+    auth = { user: { id: 'u1' }, loading: false }
+    open('')
+    expect(settings().textContent).toBe('Open email settings')
+    cleanup()
+    auth = { user: null, loading: true }
+    open('')
+    expect(settings().textContent).toBe('Open email settings')
+  })
+  it('in Vietnamese', () => {
+    open('', 'vi')
+    expect(screen.getByRole('link', { name: /cài đặt email/ }).textContent).toBe('Đăng nhập để mở cài đặt email')
   })
 })
 
