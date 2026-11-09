@@ -78,6 +78,101 @@ describe('carrying approved guides from Reach', () => {
     expect(entries).toHaveLength(3)
   })
 
+  it('⛔ stops on a new guide whose address already has a text in the repo that no registry line owns, rather than write over it', () => {
+    const { problems, carry } = planCarry([row('taken-address')], [], { today: TODAY, files: new Set(['taken-address']) })
+    expect(problems[0]).toMatch(/src\/content\/guides\/taken-address\.json already exists and no registry line owns it[\s\S]*not live on eno\.vn[\s\S]*killed[\s\S]*delete it[\s\S]*change the Reach article's address/)
+    expect(carry).toEqual([])
+    const r = row('owned', { doc: doc('owned', { title: 'New words' }), digest: digestOf(doc('owned', { title: 'New words' })) })
+    const held = [{ slug: 'owned', lang: 'en', published: '2026-11-04', reviewed: '2026-11-04', reviewedDigest: 'old' }]
+    expect(planCarry([r], held, { today: TODAY, files: new Set(['owned']) }).problems, 'its own text, owned by its line: a rewrite').toEqual([])
+  })
+
+  it('takes a night of four in one run by default, and still waits past six', () => {
+    const rows = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((s) => row(`guide-${s}`))
+    const { carry, waiting } = planCarry(rows, [], { today: TODAY })
+    expect(carry).toHaveLength(6)
+    expect(waiting).toEqual(['guide-g'])
+  })
+
+  describe('twins', () => {
+    const en = (extra: Record<string, unknown> = {}) => row('rent-a-bike', { pair: 'thue-xe', ...extra })
+    const vi = (extra: Record<string, unknown> = {}) => row('thue-xe', { lang: 'vi', pair: 'rent-a-bike', ...extra })
+
+    it('links both lines when both are carried in the same run', () => {
+      const { entries, paired } = planCarry([en(), vi()], [], { today: TODAY })
+      expect(entries.map((e: { slug: string; pair?: string }) => [e.slug, e.pair])).toEqual([['rent-a-bike', 'thue-xe'], ['thue-xe', 'rent-a-bike']])
+      expect(paired).toEqual(['rent-a-bike', 'thue-xe'])
+    })
+
+    it('a twin carried alone ships unpaired, and the run that brings the other links both', () => {
+      const first = planCarry([en(), vi({ status: 'draft', doc: undefined, digest: null, approvedOn: null })], [], { today: TODAY })
+      expect(first.carry.map((r: { slug: string }) => r.slug)).toEqual(['rent-a-bike'])
+      expect(first.entries).toEqual([{ slug: 'rent-a-bike', lang: 'en', published: TODAY, reviewed: '2026-11-04', reviewedDigest: digestOf(doc('rent-a-bike')) }])
+      expect(first.paired).toEqual([])
+      // The next day: the English one is live and Reach calls it published; only the Vietnamese one comes over, and the English line gains its pair and nothing else.
+      const later = planCarry([en({ status: 'published' }), vi({ approvedOn: '2026-11-06' })], first.entries, { today: '2026-11-06' })
+      expect(later.carry.map((r: { slug: string }) => r.slug)).toEqual(['thue-xe'])
+      expect(later.entries).toEqual([
+        { ...first.entries[0], pair: 'thue-xe' },
+        { slug: 'thue-xe', lang: 'vi', published: '2026-11-06', reviewed: '2026-11-06', reviewedDigest: digestOf(doc('thue-xe')), pair: 'rent-a-bike' },
+      ])
+      expect(later.paired).toEqual(['rent-a-bike', 'thue-xe'])
+      expect(planCarry([en({ status: 'published' }), vi({ status: 'published' })], later.entries, { today: '2026-11-07' }).paired, 'linked once').toEqual([])
+    })
+
+    type Line = { slug: string; lang: string; pair?: string }
+    const reciprocal = (entries: Line[]) => entries.every((e) => !e.pair || entries.some((t) => t.slug === e.pair && t.pair === e.slug && t.lang !== e.lang))
+    const linkedLines = () => planCarry([en(), vi()], [], { today: TODAY }).entries as Line[]
+    const live = (r: Record<string, unknown>) => ({ ...r, status: 'published' })
+    const omit = (r: Record<string, unknown>) => { const { pair: _gone, ...rest } = r; return rest }
+
+    it('unlinks both lines when Reach stops naming the pair, from either side', () => {
+      const lines = linkedLines()
+      for (const rows of [[live(en({ pair: null })), live(omit(vi()))], [live(en()), live(vi({ pair: null }))], [live(en({ pair: null })), live(vi())]]) {
+        const { entries, paired, problems } = planCarry(rows, lines, { today: TODAY })
+        expect(problems).toEqual([])
+        expect(entries.map((e: Line) => e.pair)).toEqual([undefined, undefined])
+        expect(paired).toEqual(['rent-a-bike', 'thue-xe'])
+      }
+    })
+
+    it('unlinks both lines when one twin is gone from the export, and the run stops on it anyway', () => {
+      const { entries, problems } = planCarry([live(vi())], linkedLines(), { today: TODAY })
+      expect(problems[0]).toMatch(/rent-a-bike is in the registry but not in Reach/)
+      expect(entries.map((e: Line) => e.pair)).toEqual([undefined, undefined])
+    })
+
+    it('⛔ never writes a one-way link, whatever Reach says and whatever the registry held', () => {
+      const says = [undefined, null, 'other-guide', 'self']
+      // What one side's row says: no word at all, no twin, someone else, or its real twin.
+      const as = (v: string | null | undefined, twin: string) => (v === undefined ? {} : { pair: v === 'self' ? twin : v })
+      for (const start of [[], linkedLines(), [{ ...linkedLines()[0] }, { ...linkedLines()[1], pair: undefined }]]) {
+        for (const a of says) for (const b of says) {
+          const rows = [{ ...omit(en()), ...as(a, 'thue-xe') }, { ...omit(vi()), ...as(b, 'rent-a-bike') }].map((r) => (start.length ? live(r) : r))
+          const { entries } = planCarry(rows, start as Line[], { today: TODAY })
+          expect(reciprocal(entries), JSON.stringify({ a, b, start: start.map((e: Line) => e.pair) })).toBe(true)
+        }
+      }
+    })
+
+    it('stops when Reach has more than one twin for a guide it carries', () => {
+      expect(planCarry([en({ twins: 2 }), vi()], [], { today: TODAY }).problems[0]).toMatch(/rent-a-bike has 2 twins in Reach/)
+    })
+
+    it('links only twins in two languages that name each other; an export from before twins changes no line', () => {
+      const same = planCarry([en(), vi({ lang: 'en' })], [], { today: TODAY })
+      expect(same.entries.every((e: { pair?: string }) => !e.pair)).toBe(true)
+      const oneWay = planCarry([en(), vi({ pair: 'someone-else' })], [], { today: TODAY })
+      expect(oneWay.entries.every((e: { pair?: string }) => !e.pair)).toBe(true)
+      const linked = planCarry([en(), vi()], [], { today: TODAY }).entries
+      const { pair: _a, ...enOld }: Record<string, unknown> = en({ status: 'published' })
+      const { pair: _b, ...viOld }: Record<string, unknown> = vi({ status: 'published' })
+      expect(planCarry([enOld, viOld], linked, { today: TODAY })).toMatchObject({ problems: [], carry: [], paired: [], entries: linked })
+      // A twin Reach has not written yet is named by a placeholder address that is in no registry.
+      expect(planCarry([en({ pair: 'twin-0b6c2a4e-9f1d-4a8e-b3a1-2c5d7e9f0a1b' })], [], { today: TODAY }).entries[0].pair).toBeUndefined()
+    })
+  })
+
   it('a rewrite approved again replaces the digest and the review day, and keeps its first date', () => {
     const r = row('rewritten', { doc: doc('rewritten', { title: 'New words' }), digest: digestOf(doc('rewritten', { title: 'New words' })), approvedOn: TODAY })
     const held = [{ slug: 'rewritten', lang: 'en', published: '2026-11-04', reviewed: '2026-11-04', reviewedDigest: 'old' }]
@@ -133,6 +228,17 @@ describe('carrying approved guides from Reach', () => {
       applyCarry(plan, { ...at, check: () => {} })
       expect(digestOf(JSON.parse(readFileSync(join(at.dir, 'new-one.json'), 'utf8')))).toBe(digestOf(doc('new-one')))
       expect(readRegistry(readFileSync(at.registry, 'utf8')).map((e: { slug: string }) => e.slug)).toEqual(['new-one', 'old'])
+    })
+
+    it('linking twins later writes the registry only: neither guide\'s text, so neither digest, changes', () => {
+      const at = setUp()
+      const held = [{ slug: 'old', lang: 'en', published: '2026-11-04', reviewed: '2026-11-04', reviewedDigest: digestOf(doc('old')) }, { slug: 'cu', lang: 'vi', published: '2026-11-04', reviewed: '2026-11-04', reviewedDigest: digestOf(doc('cu')) }]
+      writeFileSync(at.registry, renderRegistry(SOURCE, held))
+      const linking = planCarry([row('old', { status: 'published', pair: 'cu' }), row('cu', { lang: 'vi', status: 'published', pair: 'old' })], held, { today: TODAY })
+      expect(linking).toMatchObject({ problems: [], carry: [], paired: ['old', 'cu'] })
+      applyCarry(linking, { ...at, check: () => {} })
+      expect(readFileSync(join(at.dir, 'old.json'), 'utf8')).toBe('the first text\n')
+      expect(readRegistry(readFileSync(at.registry, 'utf8'))).toEqual([{ ...held[0], pair: 'cu' }, { ...held[1], pair: 'old' }])
     })
 
     it('⛔ puts every file back when eno.vn refuses them, so the next run is not told they are carried', () => {
