@@ -293,14 +293,22 @@ function RoomPicker({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
     setUploads(r.data.backgrounds)
     if ((latest.current.backgroundId ?? latest.current.traits.background) === pickedAtStart) setD({ ...latest.current, backgroundId: r.data.id })
   }
+  // ⛔ The draft lets go of the photo BEFORE the delete is sent (commit gate, codex): an answer that lands after the step was
+  // left changes nothing, so the draft must never be left holding a deleted id. A delete that fails puts it back.
   const remove = async (id: string) => {
     setBusy(true); setErr(null)
+    const wasPicked = latest.current.backgroundId === id
+    if (wasPicked) setD({ ...latest.current, backgroundId: null })
     const r = await api(`/api/classroom/backgrounds/${encodeURIComponent(id)}`, { method: 'DELETE' })
     if (!mounted.current) return
     setBusy(false)
     setConfirming(null)
-    if (!r.ok) return setErr({ code: r.error })
+    if (!r.ok) {
+      if (wasPicked && latest.current.backgroundId === null) setD({ ...latest.current, backgroundId: id })
+      return setErr({ code: r.error })
+    }
     setUploads((u) => (u ?? []).filter((x) => x.id !== id))
+    // Picked again while the delete was on its way: let go of it now too (commit gate, codex).
     if (latest.current.backgroundId === id) setD({ ...latest.current, backgroundId: null })
   }
   const value = d.backgroundId ? `up:${d.backgroundId}` : d.traits.background
