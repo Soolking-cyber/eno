@@ -213,8 +213,10 @@ export function AvailabilityClient() {
                   </div>
                   {/* Unchecked = a clearly-STROKED empty box (border-2, like ui/checkbox and the
                       listing-row select box) — a borderless tint blob read as decoration, not as
-                      a tickable affordance. border-2 on BOTH states so the flip never resizes. */}
-                  <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 text-xs font-bold transition-colors', sold ? 'border-primary bg-primary text-white' : 'border-line-strong bg-card')}>
+                      a tickable affordance. border-2 on BOTH states so the flip never resizes.
+                      ⚠️ ui/checkbox's own ink, `border-muted-foreground/80` (UI climb 2026-11-09, phone UX hunt): line-strong
+                      (#d4d4d4) was ~1.5:1 on the card, under the 3:1 a control's outline needs, and read as no box at all. */}
+                  <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 text-xs font-bold transition-colors', sold ? 'border-primary bg-primary text-white' : 'border-muted-foreground/80 bg-card')}>
                     {/* §2: a Check inside a small filled box is a MARK — checkbox weight. */}
                     {sold ? <Check className="h-4 w-4" strokeWidth={STROKE_MARK} /> : ''}
                   </span>

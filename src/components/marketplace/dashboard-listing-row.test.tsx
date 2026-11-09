@@ -33,8 +33,8 @@ vi.mock('./quick-discount', () => ({ QuickDiscount: ({ open, trigger }: { open?:
 vi.mock('./listing-sparkline', () => ({ ListingSparkline: () => null }))
 vi.mock('./price', () => ({ Price: () => null }))
 vi.mock('next/image', () => ({
-  default: ({ src, quality, unoptimized, width, height }: { src: string; quality?: number; unoptimized?: boolean; width?: number; height?: number }) => (
-    <img data-next-image src={src} data-quality={quality} data-unoptimized={String(!!unoptimized)} width={width} height={height} alt="" />
+  default: ({ src, quality, unoptimized, width, height, onError }: { src: string; quality?: number; unoptimized?: boolean; width?: number; height?: number; onError?: () => void }) => (
+    <img data-next-image src={src} data-quality={quality} data-unoptimized={String(!!unoptimized)} width={width} height={height} alt="" onError={onError} />
   ),
 }))
 
@@ -211,5 +211,27 @@ describe('DashboardListingRow demand nudge', () => {
     render(<DashboardListingRow listing={{ ...saved(7), views: 80, listingType: 'teacher' } as unknown as SerializedListing} onChanged={() => {}} />)
     expect(screen.queryByText(/Lots of views but no contacts/)).toBeNull()
     expect(screen.queryByText(/people saved this/)).toBeNull()
+  })
+})
+
+describe('DashboardListingRow photo that fails to load (UI climb 2026-11-09)', () => {
+  it('leaves the tinted tile, never a broken image', () => {
+    const { container } = render(<DashboardListingRow listing={row('https://sb.example.test/storage/v1/object/public/listings/x.webp')} onChanged={() => {}} />)
+    const img = container.querySelector('img[data-next-image]')!
+    expect(img).not.toBeNull()
+    fireEvent.error(img)
+    expect(container.querySelector('img[data-next-image]')).toBeNull()
+  })
+
+  it('a row whose photo changes tries the new one, and the old one again when it comes back', () => {
+    const A = 'https://sb.example.test/storage/v1/object/public/listings/a.webp'
+    const B = 'https://sb.example.test/storage/v1/object/public/listings/b.webp'
+    const view = render(<DashboardListingRow listing={row(A)} onChanged={() => {}} />)
+    fireEvent.error(view.container.querySelector('img[data-next-image]')!)
+    expect(view.container.querySelector('img[data-next-image]')).toBeNull()
+    view.rerender(<DashboardListingRow listing={row(B)} onChanged={() => {}} />)
+    expect(view.container.querySelector('img[data-next-image]')?.getAttribute('src')).toBe(B)
+    view.rerender(<DashboardListingRow listing={row(A)} onChanged={() => {}} />)
+    expect(view.container.querySelector('img[data-next-image]')?.getAttribute('src')).toBe(A)
   })
 })

@@ -56,6 +56,12 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // `unoptimized` only where the optimizer would refuse the source (anything outside our listings
   // bucket 400s against remotePatterns) and for mock/seed CDN images, which are already sized.
   const imgUnoptimized = !!img && (!isListingImageUrl(img) || isMockImageUrl(img))
+  // A photo that fails to load leaves the tinted tile, never the browser's broken-image icon (UI climb 2026-11-09, phone UX
+  // hunt — ListingCard already falls back). Keyed by the source, so a row whose photo changes tries the new one.
+  const [imgFailed, setImgFailed] = useState<string | null>(null)
+  // A new photo gets a fresh try, and so does the old one when it comes back (commit review: A fails → B → A must retry A).
+  const [imgSeen, setImgSeen] = useState(img)
+  if (imgSeen !== img) { setImgSeen(img); setImgFailed(null) }
 
   if (gone) return null
 
@@ -304,16 +310,16 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       <div className={cn('flex flex-col rounded-media border bg-card transition-colors', selected ? 'border-brand ring-1 ring-brand' : 'border-border/70 hover:border-line-strong')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
         {selectable ? (
           <button onClick={open} className="relative aspect-square w-full overflow-hidden rounded-t-media bg-tint cursor-pointer" aria-label={title}>
-            {img && (
-              <Image src={img} alt="" fill sizes="(min-width: 640px) 25vw, 50vw" quality={60} unoptimized={imgUnoptimized} className="object-cover" />
+            {img && imgFailed !== img && (
+              <Image src={img} alt="" fill sizes="(min-width: 640px) 25vw, 50vw" quality={60} unoptimized={imgUnoptimized} className="object-cover" onError={() => setImgFailed(img)} />
             )}
             <span className="absolute right-2 top-2">{checkbox}</span>
             <span className={cn('absolute left-2 top-2 rounded-full px-2 py-0.5 text-2xs font-bold shadow-sm', statusChip.cls)}>{statusChip.label}</span>
           </button>
         ) : (
           <a href={listingHref} draggable={false} onClick={goHere(listingHref)} className="relative block aspect-square w-full overflow-hidden rounded-t-media bg-tint cursor-pointer" aria-label={title}>
-            {img && (
-              <Image src={img} alt="" fill sizes="(min-width: 640px) 25vw, 50vw" quality={60} unoptimized={imgUnoptimized} className="object-cover" />
+            {img && imgFailed !== img && (
+              <Image src={img} alt="" fill sizes="(min-width: 640px) 25vw, 50vw" quality={60} unoptimized={imgUnoptimized} className="object-cover" onError={() => setImgFailed(img)} />
             )}
             <span className={cn('absolute left-2 top-2 rounded-full px-2 py-0.5 text-2xs font-bold shadow-sm', statusChip.cls)}>{statusChip.label}</span>
           </a>
@@ -343,15 +349,15 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       {selectable && <span className="self-center">{checkbox}</span>}
       {selectable ? (
         <Button variant="bare" size="none" onClick={open} className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint lg:h-24 lg:w-24" aria-label={title}>
-          {img && (
-            <Image src={img} alt="" width={80} height={80} quality={60} unoptimized={imgUnoptimized} className="h-full w-full object-cover" />
+          {img && imgFailed !== img && (
+            <Image src={img} alt="" width={80} height={80} quality={60} unoptimized={imgUnoptimized} className="h-full w-full object-cover" onError={() => setImgFailed(img)} />
           )}
         </Button>
       ) : (
         <Button asChild variant="bare" size="none" className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint lg:h-24 lg:w-24">
           <a href={listingHref} draggable={false} onClick={goHere(listingHref)} aria-label={title}>
-            {img && (
-              <Image src={img} alt="" width={80} height={80} quality={60} unoptimized={imgUnoptimized} className="h-full w-full object-cover" />
+            {img && imgFailed !== img && (
+              <Image src={img} alt="" width={80} height={80} quality={60} unoptimized={imgUnoptimized} className="h-full w-full object-cover" onError={() => setImgFailed(img)} />
             )}
           </a>
         </Button>

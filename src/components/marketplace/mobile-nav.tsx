@@ -26,6 +26,9 @@ import { localizedHref, stripViPrefix } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
 import { isBrowseSurface } from '@/lib/browse-surface'
 
+/** The signed-in tools outside /dashboard that the Account tab owns (it lights there; see `accountToolHere`). */
+const ACCOUNT_TOOL_PATHS = ['/account', '/account-deletion', '/disputes', '/teachers/edit', '/teachers/check-in', '/teachers/cover', '/teachers/cover-zalo', '/teachers/job-messages']
+
 /**
  * The guest Account sheet (O-09) — loaded on demand: only a signed-out visitor who touches the Account
  * tab ever needs it, and the tab bar is on every page. The chunk starts on the finger's DOWN
@@ -332,6 +335,12 @@ export function MobileNav() {
   // Account owns the whole /dashboard/** subtree, so it stays lit while you are inside any
   // section you reached from it (codex, plan review).
   const accountActive = mounted && (pathname?.startsWith('/dashboard') ?? false)
+  // ⚠️ …AND IT LIGHTS (ONLY LIGHTS) ON THE ACCOUNT TOOLS REACHED FROM IT OUTSIDE /dashboard (UI climb 2026-11-09, phone UX
+  // hunt): on /disputes, /account, /account-deletion and a teacher's own tools no tab said where you were, and with an
+  // icon-only bar nothing else does. Like `accountActive` on /dashboard it says which SECTION this is, signed in or not (a
+  // guest there meets the sign-in prompt, and the tab opens the guest sheet). The LIGHT only: a tap there still goes to /dashboard/account — the way back — instead of
+  // scrolling to the top, so `accountActive` (re-tap) is untouched. Exact segments: /teachers/join (public sign-up) is not one.
+  const accountToolHere = mounted && ACCOUNT_TOOL_PATHS.some((p) => pathname === p || (pathname?.startsWith(`${p}/`) ?? false))
 
   // ⚠️ The <Link> does the navigating. Every tab used to preventDefault() its own Link and
   // router.push() instead — which silently killed the useLinkStatus() pending highlight the
@@ -602,7 +611,7 @@ export function MobileNav() {
           that comes free and this tab behaves exactly like the other four. */}
       <GatedTab
         href="/dashboard/account"
-        active={accountActive}
+        active={accountActive || accountToolHere}
         // Same trap as Messages: accountActive is startsWith('/dashboard'), so on
         // /dashboard/listings this tab is active while its href is another route.
         onHref={at('/dashboard/account')}
