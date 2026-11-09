@@ -74,6 +74,7 @@ export function MediaSection({
   categorySlug,
   subcategorySlug,
   t,
+  mark,
 }: {
   media: PostMedia
   errPhoto: boolean
@@ -88,6 +89,8 @@ export function MediaSection({
   categorySlug?: string
   subcategorySlug?: string
   t: T
+  /** The section's phone state (✓ / "Needed"), built by post-wizard.tsx from its publish steps — Section's `mark`. */
+  mark?: React.ReactNode
 }) {
   const { photos, setPhotos, addPhotos, applySquareCrop, keepFullPhoto, movePhoto, bindPhoto, draggingPhoto, converting, video, videoBusy, addVideo, removeVideo, removePhoto } = media
   // Which photo's square-reframe dialog is open (index), or null.
@@ -155,7 +158,7 @@ export function MediaSection({
   }
 
   return (
-    <Section
+    <Section mark={mark}
       id="pw-photo"
       title={t('Ảnh', 'Photos')}
       hint={!categorySlug
@@ -429,6 +432,7 @@ export function PriceSection({
   maxFactor,
   hideUrgent,
   t,
+  mark,
 }: {
   /** Services sell at a stated price: no offers, no urgency (owner, 2026-07-22). */
   fixedPriceOnly?: boolean
@@ -453,10 +457,12 @@ export function PriceSection({
   /** The largest unit chip VndInput offers — ×1.000.000.000 (tỷ) only where billions are plausible. */
   maxFactor?: 1_000_000 | 1_000_000_000
   t: T
+  /** The section's phone state (✓ / "Needed"), built by post-wizard.tsx from its publish steps — Section's `mark`. */
+  mark?: React.ReactNode
 }) {
   const heading = priceHeading ?? t('Giá', 'Price')
   return (
-    <Section id="pw-price" title={heading}>
+    <Section mark={mark} id="pw-price" title={heading}>
       <div onBlur={() => touch('price')}>
         <div className="flex max-w-xs items-center gap-2">
           {/* VndInput renders a <div> (input + VND suffix + preset chips), so it is not a
@@ -645,6 +651,7 @@ export function LocationSection({
   useMyLocation,
   locating,
   t,
+  mark,
 }: {
   errLocation: boolean
   areaLabel: string
@@ -653,9 +660,11 @@ export function LocationSection({
   useMyLocation: () => void
   locating: boolean
   t: T
+  /** The section's phone state (✓ / "Needed"), built by post-wizard.tsx from its publish steps — Section's `mark`. */
+  mark?: React.ReactNode
 }) {
   return (
-    <Section id="pw-location" title={t('Khu vực', 'Location')}>
+    <Section mark={mark} id="pw-location" title={t('Khu vực', 'Location')}>
       {/* A popover trigger + a geolocate button — no labelable control, so this is
           Field's contract by hand. The trigger carries it too: it is the focusable
           one, so it is what a screen reader actually lands on. */}
@@ -736,6 +745,7 @@ export function ContactSection({
   audience = 'buyers',
   resumePhonePrompt = false,
   t,
+  mark,
 }: {
   meLoaded: boolean
   isGuest: boolean
@@ -752,6 +762,8 @@ export function ContactSection({
   /** Back from the sign-in Publish asked for, and the account has no phone: say that it is the last step. */
   resumePhonePrompt?: boolean
   t: T
+  /** The section's phone state (✓ / "Needed"), built by post-wizard.tsx from its publish steps — Section's `mark`. */
+  mark?: React.ReactNode
 }) {
   const candidates = audience === 'candidates'
   /**
@@ -765,7 +777,7 @@ export function ContactSection({
   const [editingPhone, setEditingPhone] = useState(false) // quick-edit the contact number inline
   const [editingName, setEditingName] = useState(false)
   return (
-    <Section
+    <Section mark={mark}
       id="pw-contact"
       title={t('Liên hệ', 'Contact')}
       hint={candidates

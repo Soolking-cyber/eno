@@ -209,11 +209,24 @@ export function PublishLabel({
   )
 }
 
-export function Section({ title, hint, children, id }: { title: string; hint?: string; children: React.ReactNode; id?: string }) {
+/**
+ * `mark`: the section's state on a PHONE (UI climb 2026-11-09, phone UX hunt) — a ✓ when its publish steps are done, "Needed"
+ * while one is open. Desktop has the checklist under Publish; the phone had only "N items left" naming the first, and its
+ * "Still needed" chips appear only after a failed Publish (they stay out of the bar — post-wizard.tsx). The caller builds the
+ * mark from the same `steps` the badge counts, so a heading can never disagree with the gate; `lg:hidden` here.
+ */
+export function Section({ title, hint, children, id, mark }: { title: string; hint?: string; children: React.ReactNode; id?: string; mark?: React.ReactNode }) {
   return (
     <section id={id} className="space-y-3 scroll-mt-24">
       <div>
-        <h2 className="h-section text-foreground">{title}</h2>
+        {mark ? (
+          <div className="flex items-baseline gap-2">
+            <h2 className="h-section text-foreground">{title}</h2>
+            <span className="lg:hidden">{mark}</span>
+          </div>
+        ) : (
+          <h2 className="h-section text-foreground">{title}</h2>
+        )}
         {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
       </div>
       {children}

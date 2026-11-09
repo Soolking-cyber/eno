@@ -15,7 +15,9 @@ const CAP = 999_000_000_000 // 999 tỷ — guards the ×unit chips from absurd 
 // the chips WRAP in the post wizard's max-w-xs price column, and at the old 6px row gap each row's
 // 10px reach overlapped the other's by 14px, so the lower chip (later in the DOM, painted on top)
 // stole taps from the bottom of the one above. 20px lets the two reaches meet without crossing.
-const chip = 'relative rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:hover:bg-tint disabled:hover:text-body cursor-pointer tap-44'
+// `disabled:opacity-60`, not 40 (UI climb 2026-11-09, phone UX hunt): at 40% the chips read ~1.9:1 and looked dead on the one
+// field where a VND price needs 6-9 zeros. Still disabled until a digit is typed (the note below: no reflow on the first keystroke).
+const chip = 'relative rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-60 disabled:hover:bg-tint disabled:hover:text-body cursor-pointer tap-44'
 
 /**
  * VND amount input. VND has many zeros (12.000.000), so typing is made fast:

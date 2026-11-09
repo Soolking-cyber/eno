@@ -412,6 +412,9 @@ export default async function CategoryPage({ params }: Props) {
               }}
               // The strip's Filters, as the browse chip (owner, 2026-10-18: the home's sort pill + Filters chip on /c).
               stripEnd={<CategoryFiltersLink slug={cat.slug} query={homesQuery} className={cn(PILL_BOX, PILL_REST, 'py-0 hover:no-underline')} />}
+              // Pinned under the header like Home's toolbar (UI climb 2026-11-09): a re-sort deep in a category no longer
+              // means scrolling back to the top.
+              pinStrip
               priceLabel={cat.slug === 'jobs' ? 'salary' : 'price'}
               sortable={(homes?.total ?? total) > 1}
             />

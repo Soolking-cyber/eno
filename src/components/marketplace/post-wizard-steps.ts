@@ -62,6 +62,9 @@ export function publishSteps(i: {
   missingFacetLabels: string[]
   /** False while auth or the profile is loading, and for a guest. */
   showContact: boolean
+  /** False until a category is picked: the photo minimum IS the category's (jobs 0, services 1, goods 3), so until then
+   *  the photo step says "Add photos" with no number. Omitted = picked (the old behaviour). */
+  categoryPicked?: boolean
   /** Which half of the contact gate is unmet, so the step names it. Omitted = both (the old wording). */
   contactMissing?: { name: boolean; phone: boolean }
   /** The FIRST problem with the provider's licence values (provider-licence.ts providerLicenceProblems), or null — what
@@ -82,7 +85,12 @@ export function publishSteps(i: {
     const left = Math.max(0, i.minPhotos - i.photos)
     const n = left || i.minPhotos
     const fresh = i.photos === 0 || left === 0
-    const todo = fresh && n === 1
+    // ⚠️ NO NUMBER BEFORE A CATEGORY (UI climb 2026-11-09, phone UX hunt): the sticky button said "Add 3 photos" over a hint
+    // that says the minimum depends on the category (sell-08) and a tile that says "up to 6" — three photo rules on the first
+    // screen, and a false one for a job poster (0) or a tutor (1).
+    const todo = i.categoryPicked === false
+      ? t('Thêm ảnh', 'Add photos')
+      : fresh && n === 1
       ? t('Thêm 1 ảnh', 'Add 1 photo')
       : fresh && n === 3
         ? t('Thêm 3 ảnh', 'Add 3 photos')

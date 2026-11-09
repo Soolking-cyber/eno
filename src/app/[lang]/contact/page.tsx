@@ -6,6 +6,7 @@ import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
+import { SupportChatChip } from '@/components/marketplace/support-chat-chip'
 
 /**
  * CONTACT — a trust-anchor page, which is a different job from a contact form.
@@ -78,6 +79,9 @@ export default function ContactPage() {
         <div className="flex flex-wrap gap-3">
           <a href={`mailto:${COMPANY.email}`} className="inline-flex min-h-11 items-center rounded-xl border border-border px-4 text-base font-semibold text-accent-foreground transition-colors hover:bg-muted">{COMPANY.email}</a>
           {OPERATOR_REGISTERED ? <a href={`tel:${COMPANY.phone}`} className="inline-flex min-h-11 items-center rounded-xl border border-border px-4 text-base font-semibold text-accent-foreground transition-colors hover:bg-muted">{COMPANY.phone}</a> : null}
+          {/* The support chat, the one route with the context already in it (UI climb 2026-11-09): on a phone it was only at the
+              end of Help since the bubble left phones (owner, 2026-11-08). A client island; guests sign in first. */}
+          <SupportChatChip />
         </div>
         {/* ⚠️ THE ADDRESS AND THE NUMBER ARE THE TWO TARGETS RIGHT ABOVE (2026-11-06 audit): this line printed both a second
             time. It says what they are for instead — and says "call" only when there is a number to call. */}

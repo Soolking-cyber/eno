@@ -343,7 +343,8 @@ export function StillNeedHelp() {
   const { open, opening } = useOpenSupportThread()
   const [failed, setFailed] = useState(false)
   return (
-    <div className="mt-12 flex flex-col items-start gap-3 border-t border-border pt-8 sm:flex-row sm:items-center sm:justify-between">
+    // The target of the intro's "ask anything that is missing" (#still-need-help); scroll-mt clears the sticky header after the jump.
+    <div id="still-need-help" className="mt-12 flex scroll-mt-24 flex-col items-start gap-3 border-t border-border pt-8 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="text-sm font-bold text-foreground"><Tr text="Still need help?" /></p>
         <p className="text-sm text-body">
@@ -481,8 +482,14 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
   return (
     <div data-help-center data-hydrated={hydrated ? 'true' : 'false'} className="w-full">
       <h1 className="h-display max-w-4xl text-balance text-foreground"><Tr text="How can we help?" /></h1>
+      {/* "ask anything that is missing" JUMPS TO "Still need help?" (UI climb 2026-11-09, phone UX hunt): since the support bubble
+          left phones (owner, 2026-11-08) the support chat sits at the very end of this page, two screens of answers below an
+          intro that invited questions with no way to ask one. Same words, same place; the escalation itself stays last. */}
       <p className="mt-4 max-w-[70ch] text-base leading-relaxed text-body">
-        <Tr text="Answers about buying, selling, trust and staying safe on eno.vn — plus practical guides for getting around Vietnam. Upvote what helped you, and ask anything that is missing." />
+        {/* Two whole sentences, never a sentence cut at the link (commit review): the nine machine-translated languages translate
+            each string on its own, and a fragment ending "…, and" read as a broken sentence in a language with another word order. */}
+        {tr('Answers about buying, selling, trust and staying safe on eno.vn — plus practical guides for getting around Vietnam. Upvote what helped you.', 'Giải đáp về mua bán, độ uy tín và an toàn trên eno.vn — cùng cẩm nang thực tế khi đi lại tại Việt Nam. Bình chọn câu trả lời hữu ích.')}{' '}
+        <a href="#still-need-help" className="font-semibold text-accent-foreground underline-offset-2 hover:underline">{tr('Ask anything that is missing.', 'Đặt câu hỏi nếu bạn chưa tìm thấy thông tin cần thiết.')}</a>
       </p>
 
       {/* Search — the page's primary affordance. The wrapper owns the box, so it also

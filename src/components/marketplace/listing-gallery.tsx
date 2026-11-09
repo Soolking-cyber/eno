@@ -728,7 +728,10 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
            *  controls inside, which would otherwise tear the lightbox down mid-open. */
           onAnimationEnd={(e) => { if (e.target === e.currentTarget && closing) { setClosing(false); setOpen(false) } }}
           className={cn(
-            'fixed inset-0 z-[100] flex [touch-action:pinch-zoom] items-center justify-center overscroll-none bg-black/92 outline-none',
+            // ⚠️ SOLID BLACK BELOW sm, AND THE PHOTO EDGE TO EDGE (UI climb 2026-11-09, phone UX hunt): at 92% the listing page
+            // showed through — the header, the hero's share and heart, and a ghost "Chat now" right under the photo that read as
+            // part of the viewer — and 4% gutters each side shrank the one thing open. Desktop keeps its 92% scrim and inset.
+            'fixed inset-0 z-[100] flex [touch-action:pinch-zoom] items-center justify-center overscroll-none bg-black outline-none sm:bg-black/92',
             // ⚠️ ONCE IT IS LEAVING IT MUST STOP TAKING TAPS. A reviewer caught it: the scrim keeps
             // `fixed inset-0` and a live onClick for the whole exit, so a tap-to-close followed
             // straight away by a tap on what is underneath ate the second one — 100ms of dead
@@ -776,7 +779,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             // the insets plus the two control bands (Close top, rail bottom), so the controls frame the
             // photo instead of covering it. Inert wherever 78vh already fits: at 0 insets on a 390x844
             // phone, and on a 1280x800 desktop, 78vh is the smaller of the two.
-            className="relative h-[78vh] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-9rem)] w-[92vw] max-w-5xl [touch-action:pinch-zoom] overflow-hidden"
+            className="relative h-[78vh] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-9rem)] w-screen max-w-5xl [touch-action:pinch-zoom] overflow-hidden sm:w-[92vw]"
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => toggleZoom(e.clientX, e.clientY)}
             // A zoomed photo follows the MOUSE (Emil audit, tier 3): on a desktop it showed a grab cursor and could not be
@@ -1008,12 +1011,13 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                   ? { transform: `translate(${dragX}px, ${dragY}px)`, opacity: 1 - Math.min(0.6, Math.abs(dragY) / 500) }
                   : undefined}
             >
-              <Image src={images[idx]} alt={photoAlt(idx + 1, images.length)} fill sizes="92vw" quality={60} /* ⛔ MATCHES THE HERO'S TIER ON PURPOSE. 70 here looks like the right
+              <Image src={images[idx]} alt={photoAlt(idx + 1, images.length)} fill sizes="(max-width: 639px) 100vw, 92vw" quality={60} /* ⛔ MATCHES THE HERO'S TIER ON PURPOSE. 70 here looks like the right
                       call — the user has deliberately zoomed to inspect condition — but a different q is a guaranteed
                       cache MISS and a fresh sharp encode at the exact moment they are waiting. ⚠️ It only shares the
                       hero's actual variant where the two resolve to the SAME width rung: the hero is
-                      `(max-width:1024px) 100vw, 60vw` against 92vw here, so they coincide on phones and diverge on
-                      desktop (a reviewer's correction — the first version of this note claimed they always match).
+                      `(max-width:1024px) 100vw, 60vw` against `(max-width: 639px) 100vw, 92vw` here (the photo runs edge to
+                      edge on a phone since 2026-11-09), so they are the same 100vw on phones and diverge on desktop (a
+                      reviewer's correction — the first version of this note claimed they always match).
                       Matching the tier costs nothing either way and removes one of the two encodes wherever they do. */ unoptimized={isMockImageUrl(images[idx]) || undefined} className="object-contain" onError={() => setLightboxFailed((prev) => new Set(prev).add(images[idx]))} />
               {/* Max-quality detail layer: on an explicit zoom (double-tap/-click) load the
                   ≤1600px stored master via `unoptimized` (the raw stored WebP, higher-res than

@@ -442,6 +442,8 @@ export default async function CategoryDistrictPage({ params }: Props) {
             // The strip's Filters as the browse chip, as on /c ((index)/page.tsx; owner, 2026-10-18: the home's sort pill + Filters
             // chip), scoped like the row above it: the district, and homes while the grid is homes only. Drawn only with the strip.
             stripEnd={<CategoryFiltersLink slug={cat.slug} query={{ district, ...homesQuery }} className={cn(PILL_BOX, PILL_REST, 'py-0 hover:no-underline')} />}
+            // Pinned under the header, as on /c (UI climb 2026-11-09).
+            pinStrip
             serverScope={{
               params: {
                 category: cat.slug, district,

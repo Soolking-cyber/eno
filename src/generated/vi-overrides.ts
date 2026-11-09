@@ -112,7 +112,6 @@ export const VI_OVERRIDES: Record<string, string> = {
   "Already taken": "Đã được sử dụng",
   "An eno specialist is in this chat — Eno concierge stays quiet.": "Chuyên viên eno đã tham gia đoạn chat — Eno concierge sẽ tạm giữ im lặng.",
   "Answers": "Giải đáp",
-  "Answers about buying, selling, trust and staying safe on eno.vn — plus practical guides for getting around Vietnam. Upvote what helped you, and ask anything that is missing.": "Giải đáp về mua bán, độ uy tín và an toàn trên eno.vn — cùng cẩm nang thực tế khi đi lại tại Việt Nam. Bình chọn câu trả lời hữu ích và đặt câu hỏi nếu bạn chưa tìm thấy thông tin cần thiết.",
   "Any": "Bất kỳ",
   "Any condition": "Mọi tình trạng",
   "Any type": "Mọi loại",

@@ -314,14 +314,14 @@ describe('each surface renders <PostJobLink>, to the post form with Jobs picked,
   it('/schools: in the intro link row, the row form, after the teachers’ links', () => {
     const schools = read('src/app/[lang]/schools/page.tsx')
     expect(schools).toMatch(/import \{ PostJobLink \} from '@\/app\/\[lang\]\/c\/\[category\]\/teaching-links'/)
-    const row = schools.indexOf('<p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">')
+    const row = schools.indexOf('<p className="mt-3 flex flex-wrap gap-x-4 text-sm">')
     const rowEnd = schools.indexOf('</p>', row)
-    const at = schools.indexOf(`<PostJobLink row href={localizedHref('/post?category=jobs', lang)} className="text-accent-foreground hover:underline" />`)
+    const at = schools.indexOf(`<PostJobLink row href={localizedHref('/post?category=jobs', lang)} className="inline-flex min-h-6 items-center text-accent-foreground hover:underline" />`)
     // The Teachers' Choice link goes straight to the open year's page (plan P1 item 17, 2026-10-20 — schools-page.test.tsx).
     const awards = schools.indexOf('<Link href={`${AWARDS_PATH}/${awardYear}`}', row)
     // Grouped since 2026-11-07: the teachers' links, Teachers' Choice among them, then the two asks at text weight —
     // "Missing a school? Suggest it", then the prompt.
-    const suggest = schools.indexOf('<Link href="/schools/suggest" className="text-accent-foreground hover:underline">', row)
+    const suggest = schools.indexOf('<Link href="/schools/suggest" className="inline-flex min-h-6 items-center text-accent-foreground hover:underline">', row)
     expect(row).toBeGreaterThan(-1)
     expect(awards).toBeGreaterThan(row)
     expect(suggest).toBeGreaterThan(awards)
@@ -333,7 +333,7 @@ describe('each surface renders <PostJobLink>, to the post form with Jobs picked,
     expect(schools).toMatch(new RegExp([
       String.raw`<Link href="/schools/suggest"[^\n]*</Link>`,
       String.raw`\{/\*[^]*?\*/\}`,
-      String.raw`<PostJobLink row href=\{localizedHref\('/post\?category=jobs', lang\)\} className="text-accent-foreground hover:underline" />`,
+      String.raw`<PostJobLink row href=\{localizedHref\('/post\?category=jobs', lang\)\} className="inline-flex min-h-6 items-center text-accent-foreground hover:underline" />`,
       String.raw`</p>`,
     ].join(String.raw`\s*`)))
     // …and every expression the row opens before it is closed before it: braces and parens balance from the row's <p> to

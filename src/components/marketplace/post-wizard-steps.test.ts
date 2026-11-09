@@ -296,3 +296,15 @@ describe('publishSteps agrees with the publish gate', () => {
     expect(steps.filter((s) => !s.ok)).toEqual([{ key: 'identity', ok: false, name: 'Verify your identity', todo: 'Verify your identity', target: 'identity' }])
   })
 })
+
+describe('publishSteps — the photo step before a category is picked (UI climb 2026-11-09)', () => {
+  const checks: GateCheck[] = [{ key: 'photo', ok: false, label: 'Photos' }]
+  const base = { checks, photos: 0, minPhotos: 3, missingFacetLabels: [], showContact: false, t }
+  it('names no number: the minimum is the category\'s (jobs 0, services 1, goods 3)', () => {
+    expect(publishSteps({ ...base, categoryPicked: false })[0].todo).toBe('Add photos')
+  })
+  it('once picked (or when the caller does not say), the count is the category\'s, as before', () => {
+    expect(publishSteps({ ...base, categoryPicked: true })[0].todo).toBe('Add 3 photos')
+    expect(publishSteps(base)[0].todo).toBe('Add 3 photos')
+  })
+})

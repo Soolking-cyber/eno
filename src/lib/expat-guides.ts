@@ -218,7 +218,10 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
    * the reserved handles and the hreflang pair see them. `published` is the hubs' launch day (6b3a2c75);
    * there is no `updated`: a hub's dateModified is its newest listing change (vehicleHubContent), not an edit.
    * ⚠️ NO `categories`: /c/rentals is homes-only and its Guides block is about homes; that page links
-   * the hubs from its "Plus N cars and N motorbikes for hire" line instead (category-text.tsx).
+   * the hubs from its "Plus N cars and N motorbikes for hire" line instead (category-text.tsx). Never add 'rentals' here.
+   * ⚠️ …EXCEPT 'vehicles' ON THE MOTORBIKE PAIR (UI climb 2026-11-09, phone UX hunt): /c/vehicles is the for-sale shelf (owner,
+   * 2026-10-17), and a reader there looking to RENT a bike met four unrelated listings and nothing pointing to the bikes for
+   * hire — two of the three trending searches are bike searches. Its Guides block (empty until now) carries the hub.
    */
   {
     slug: 'car-rental-ho-chi-minh-city',
@@ -240,6 +243,7 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
     slug: 'motorbike-rental-ho-chi-minh-city',
     lang: 'en',
     pair: 'thue-xe-may-tphcm',
+    categories: ['vehicles'],
     label: 'Motorbike rental in Ho Chi Minh City',
     blurb: 'Scooters and manual bikes from local shops, day and month prices kept apart, and how booking with the shop works.',
     published: '2026-09-29',
@@ -248,6 +252,7 @@ export const MARKETPLACE_GUIDES: readonly ExpatGuide[] = [
     slug: 'thue-xe-may-tphcm',
     lang: 'vi',
     pair: 'motorbike-rental-ho-chi-minh-city',
+    categories: ['vehicles'],
     label: 'Thuê xe máy TP.HCM',
     blurb: 'Xe ga và xe số từ các cửa hàng cho thuê, giá theo ngày và theo tháng tính riêng, và cách đặt xe với cửa hàng.',
     published: '2026-09-29',

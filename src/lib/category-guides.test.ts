@@ -44,13 +44,18 @@ describe('guidesForCategory', () => {
     expect(slugs('electronics', 'vi')[0]).toBe('mua-iphone-o-dau-uy-tin')
   })
 
+  it('links the motorbike-hire hub from Vehicles, in the page\'s language (the for-sale shelf points renters to the bikes)', () => {
+    expect(slugs('vehicles', 'en')).toEqual(['motorbike-rental-ho-chi-minh-city'])
+    expect(slugs('vehicles', 'vi')).toEqual(['thue-xe-may-tphcm'])
+  })
+
   it('links the eSIM guide from services, where the eSIM plans are listed', () => {
     expect(slugs('services', 'en')).toEqual(['esim-vietnam-guide'])
     expect(slugs('services', 'vi')).toEqual(['esim-viettel-vinaphone-mobifone'])
   })
 
   it('returns nothing for a category no guide is written for', () => {
-    expect(guidesForCategory('vehicles', 'en')).toEqual([])
+    expect(guidesForCategory('baby-kids', 'en')).toEqual([])
     expect(guidesForCategory('property', 'vi')).toEqual([])
     expect(guidesForCategory('rentals', 'en', 0)).toEqual([])
   })

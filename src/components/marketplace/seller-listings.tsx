@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { PILL_BOX, PILL_ON, PILL_OPEN_ATTR, PILL_REST } from '@/components/ui/chip-style'
 import { cn } from '@/lib/utils'
+import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { EmptyState } from '@/components/ui/empty-state'
 import { fold } from '@/lib/fold'
 import { hapticSelection } from '@/lib/haptics'
@@ -35,6 +36,31 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? one : many)
 // the ISR pages that render this (/c/*, storefronts) stay static: sorting is a client fetch.
 type SortKey = 'relevance' | 'recent' | 'popular' | 'price-low' | 'price-high'
 
+/**
+ * THE /c PAGES' PINNED SORT STRIP (`pinStrip`) — Home's pinned bar exactly (explorer-toolbar.tsx, where every one of these is
+ * measured and explained): the frosted in-flow bar, `top` as the ONLY moving property (a sticky top is a no-op until it sticks;
+ * -9rem clears a two-row strip with room), the visible pin at the safe-area inset + the 56px header, back at the inset when focus
+ * is inside while the header is hidden, and the page-gutter bleed so the frosting covers the viewport while the strip's own
+ * hairline stays on the content box. Its own component so only a pinned strip runs the scroll hook (storefronts never do).
+ */
+function PinnedStrip({ children }: { children: React.ReactNode }) {
+  const headerHidden = useHideOnScroll()
+  return (
+    <div
+      data-pinned-strip=""
+      className={cn(
+        'sticky z-30 bg-background/95 material material-bar backdrop-blur transition-[top] duration-[var(--duration-sticky,250ms)] ease-out motion-reduce:transition-none',
+        headerHidden
+          ? 'top-[-9rem] focus-within:top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]'
+          : 'top-[calc(max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))+3.5rem)]',
+        '-mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8',
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
 export function SellerListings({
   listings,
   searchable = false,
@@ -44,6 +70,7 @@ export function SellerListings({
   stripEnd,
   priceLabel = 'price',
   homeVariant,
+  pinStrip = false,
 }: {
   listings: SerializedListingCard[]
   searchable?: boolean
@@ -62,6 +89,14 @@ export function SellerListings({
    * someone actually searches, sorts or asks for more.
    */
   serverScope?: { params: Record<string, string>; total: number; pageSize?: number }
+  /**
+   * PIN THE SORT STRIP UNDER THE HEADER, the way Home's toolbar is pinned (UI climb 2026-11-09, phone UX hunt): on /c pages the
+   * strip scrolled away with the first cards, so re-sorting 1,130 Gò Vấp rentals or switching 181 teachers to Newest meant
+   * scrolling back to the top. It leaves WITH the header on scroll-down and comes back under it on scroll-up (owner,
+   * 2026-08-12, Home's rule) — one hook (useHideOnScroll), so header and strip move on the same frame. Opt-in: storefronts and
+   * the vehicle hub keep their in-flow strip.
+   */
+  pinStrip?: boolean
   /** The order `listings` is already in, so the strip opens on the truth. */
   initialSort?: SortKey
   /**
@@ -327,8 +362,9 @@ export function SellerListings({
     </p>
   )
 
-  // Same tab visuals as the explorer's results strip (kept in sync deliberately),
-  // minus the sticky/header-hide coupling — this landing page is short.
+  // Same tab visuals as the explorer's results strip (kept in sync deliberately); the sticky/header-hide coupling is opt-in
+  // (`pinStrip`, the /c pages — a category is anything but short: 4,706 rentals).
+
   // ⚠️ THE HAIRLINE SITS ON THE CONTENT BOX, like the home toolbar's and the canon's (§4: no doubled
   // frame). It used to bleed to the page frame with `-mx-3 px-3 sm:-mx-6 …`, 32px wider than the grid
   // under it at 1440 (C1-HAIRLINE). Tab label x positions are unchanged: the bleed's padding undid it.
@@ -432,7 +468,7 @@ export function SellerListings({
 
   return (
     <div className="space-y-4" data-listings-ready={ready ? 'true' : undefined}>
-      {sortable && sortStrip}
+      {sortable && (pinStrip ? <PinnedStrip>{sortStrip}</PinnedStrip> : sortStrip)}
       {serverNote}
       {searchable && (
         /* Just a search within this seller's catalog — no category/type filters. */

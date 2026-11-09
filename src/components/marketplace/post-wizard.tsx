@@ -1179,6 +1179,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     showContact: !authLoading && !isGuest && meLoaded,
     contactMissing: { name: contactName.trim().length < 2, phone: !phoneOk },
     provider: providerProblems[0] ?? null,
+    categoryPicked: !!categorySlug,
     t,
   })
   const pendingSteps = steps.filter((s) => !s.ok)
@@ -1189,6 +1190,20 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // The Publish button says what comes next, and a tap goes there (scrollToMissing starts from this same step). An edit keeps
   // "Save changes": the listing exists, and nothing is being finished for the first time.
   const nextStep = countReady && !edit ? pendingSteps[0]?.todo : undefined
+  /**
+   * A SECTION'S STATE ON A PHONE (UI climb 2026-11-09, phone UX hunt): ✓ when every publish step it holds is done, "Needed"
+   * while one is open — a display-only view of the same `steps` the badge counts, so a heading cannot disagree with the gate.
+   * Nothing on an edit (the listing exists; "Needed" would read as broken) or before the count is ready; nothing for a section
+   * with no step of its own (Salary, a guest's Contact). Section shows it below lg only: desktop has the checklist.
+   */
+  const sectionMark = (...keys: string[]): React.ReactNode => {
+    if (edit || !countReady) return undefined
+    const mine = steps.filter((st) => keys.includes(st.key))
+    if (!mine.length) return undefined
+    return mine.every((st) => st.ok)
+      ? <span className="inline-flex text-success"><Check className="size-4" aria-hidden /><span className="sr-only">{t('Đã xong', 'Done')}</span></span>
+      : <span className="text-xs font-medium text-ink-4">{t('Cần điền', 'Needed')}</span>
+  }
 
   // On-blur inline validation for the high-traffic fields — errors surface as the
   // user leaves a field, not only on submit (says what's wrong + how to fix).
@@ -1871,7 +1886,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         {t('Điền các mục bên dưới', 'Fill in the sections below')}
         {' — '}
         <span className="hidden lg:inline">{t('bản xem trước cập nhật ngay.', 'your preview updates live.')}</span>
-        <span className="lg:hidden">{t('kiểm tra lại từng mục trước khi đăng.', 'check each section before you publish.')}</span>
+        {/* A guest's phone line says what desktop says under Publish (UI climb 2026-11-09): sign-in comes last. It was only in two
+            grey Contact paragraphs at the very end. Signed in, the section marks now show what each section still needs. */}
+        <span className="lg:hidden">{isGuest ? t('đăng nhập ở bước cuối, khi bạn đăng tin.', 'sign-in comes last, when you publish.') : t('kiểm tra lại từng mục trước khi đăng.', 'check each section before you publish.')}</span>
       </p>
       {draftNotice && (
         <div className="mt-4">
@@ -1893,10 +1910,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         {/* ── FORM ── */}
         <div className="min-w-0 space-y-10">
           {/* Photos (+ optional video) — moved verbatim to post-wizard-sections.tsx */}
-          <MediaSection media={media} errPhoto={err.photo} minPhotos={minPhotos} aiEnabled={aiEnabled} aiBusy={aiBusy} autofillFromPhoto={autofillFromPhoto} isGuest={isGuest} categorySlug={categorySlug} subcategorySlug={subcategorySlug} t={t} />
+          <MediaSection media={media} errPhoto={err.photo} minPhotos={minPhotos} aiEnabled={aiEnabled} aiBusy={aiBusy} autofillFromPhoto={autofillFromPhoto} isGuest={isGuest} categorySlug={categorySlug} subcategorySlug={subcategorySlug} t={t} mark={sectionMark('photo')} />
 
           {/* Category & type */}
-          <Section id="pw-category" title={t('Danh mục', 'Category')} hint={salaryPaid ? t('Chọn đúng danh mục để ứng viên dễ tìm thấy.', 'Pick the right category so candidates find you.') : t('Chọn đúng danh mục để người mua dễ tìm thấy.', 'Pick the right category so buyers find you.')}>
+          <Section id="pw-category" title={t('Danh mục', 'Category')} mark={sectionMark('category', 'subcategory', 'provider')} hint={salaryPaid ? t('Chọn đúng danh mục để ứng viên dễ tìm thấy.', 'Pick the right category so candidates find you.') : t('Chọn đúng danh mục để người mua dễ tìm thấy.', 'Pick the right category so buyers find you.')}>
             {showRentToggle && (
               <Field group label={t('Bán hay cho thuê?', 'For sale or for rent?')}>
                 {/* Single-select and mutually exclusive = a radio group, not two buttons that
@@ -2208,7 +2225,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           </Section>
 
           {/* Details */}
-          <Section title={t('Chi tiết', 'Details')}>
+          <Section title={t('Chi tiết', 'Details')} mark={sectionMark('about')}>
             {/* `className="max-w-2xl"` caps the label row to the control's width, so the counter ends
                 at the field's right edge. aria-required, NOT the native `required` attribute: native
                 would light up :invalid styling on a pristine form, and this form validates in state. */}
@@ -2323,7 +2340,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
           {/* Specifics (condition + attributes) */}
           {categorySlug && (hasCondition || attrFacets.length > 0) && (
-            <Section title={t('Thông số', 'Specifics')}>
+            <Section title={t('Thông số', 'Specifics')} mark={sectionMark('specifics')}>
               {hasCondition && (
                 <Field group id="pw-condition" label={t('Tình trạng', 'Condition')} error={err.condition ? t('Hãy chọn tình trạng', 'Pick the condition') : undefined}>
                   {/* The taxonomy's own labels (sell-09): the stored value 'new' covers "like new" too, and
@@ -2369,6 +2386,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             />
           ) : (
           <PriceSection
+            mark={sectionMark('price')}
             price={price}
             setPrice={setPrice}
             touch={touch}
@@ -2409,6 +2427,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           {/* Location — moved verbatim to post-wizard-sections.tsx (AreaFilter popover
               itself stays below, anchored to areaBtnRef) */}
           <LocationSection
+            mark={sectionMark('location')}
             errLocation={err.location}
             areaLabel={areaLabel}
             areaBtnRef={areaBtnRef}
@@ -2420,6 +2439,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
           {/* Contact — moved verbatim to post-wizard-sections.tsx */}
           <ContactSection
+            mark={sectionMark('contact')}
             meLoaded={meLoaded}
             isGuest={isGuest}
             postingAs={postingAs}
