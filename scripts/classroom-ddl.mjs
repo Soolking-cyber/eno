@@ -669,10 +669,9 @@ for (const [con, sql, has] of [
     console.log(`fix    ${con} (the earlier, narrower check)`)
     await client.query(`alter table public.classroom_voice_deletion drop constraint "${con}", add constraint "${con}" ${sql}`)
   }
-  // Whatever state it was found in (a check under another name, none at all): it is the wide one now, or nothing is made.
-  const now = (await client.query(`select pg_get_constraintdef(oid) as def from pg_constraint where conrelid = 'public.classroom_voice_deletion'::regclass and conname = $1`, [con])).rows[0]
-  if (!now?.def.includes(has)) throw new Error(`${con} is not the declared check — fix it by hand, then re-run (nothing after it was made)`)
 }
+// Any other state (a check under another name, none, a different one): the shape check at the end compares every constraint
+// EXACTLY with the declared table and rolls the whole run back (commit gate: a substring is no proof — the shape check is).
 await client.query(`create or replace function public.classroom_queue_voice() returns trigger language plpgsql as $fn$${VOICE_FN_BODY}$fn$`)
 await client.query(`
   do $$ begin

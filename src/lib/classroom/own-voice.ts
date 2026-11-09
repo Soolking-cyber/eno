@@ -323,8 +323,11 @@ export async function tutorVoice(avatar: { voice: string; ownVoiceId: string | n
 // ── 5. The sweep ───────────────────────────────────────────────────────────────────────────────────────────────────────
 export type ReconcileResult = { stuck: number; deleted: number; deleteFailed: number; ready: number; failed: number; recomputed: number }
 
-/** Queued deletions the sweep takes a run. */
-const DELETES_PER_RUN = 50
+/** The most queued deletions one run takes — far above any real queue (20 voices per Soniox organisation): a runaway bound. */
+const QUEUE_CAP = 500
+/** The deletions' share of one sweep run: past it the rest wait for the next run (a slow or failing Soniox — each call may
+ *  take its 10 s timeout — never keeps the sweep's later steps from running; refused entries gain a try and sink). */
+const QUEUE_BUDGET_MS = 20_000
 /** A queue entry by NAME (the DDL's trigger): a create whose id never reached its row. */
 const NAME_MARK = 'name:'
 
@@ -352,22 +355,20 @@ export async function reconcileVoices(now = new Date()): Promise<ReconcileResult
 
   // Ages in SQL, never a raw timestamptz read into JS: those come back shifted by the session's time zone (measured on a
   // scratch database at +07). `now` may run ahead of the clock (tests): the difference is added to every age.
-  // ⛔ TWO BATCHES, EACH ITS OWN SHARE (commit gate, codex + opus): ids and name markers never starve one another — young
-  // markers (waiting out their window by design) never hold back an id, and ids Soniox keeps refusing never hold back a
-  // marker. Ids that failed least go first, so a stuck one never holds back a fresh erasure either.
+  // ⛔ EVERY PENDING ENTRY, EVERY RUN (commit gate, three rounds of batch-fairness findings — a batch was the wrong shape):
+  // the queue is a few dozen entries at most (Soniox allows 20 voices per organisation), so each run takes them all —
+  // fewest failed tries first — and nothing waits behind anything. QUEUE_CAP only bounds a runaway.
   const due = await db.$queryRaw<{ soniox_voice_id: string; age_s: number }[]>`
-    (SELECT soniox_voice_id, extract(epoch FROM now() - queued_at)::float8 AS age_s
-       FROM public.classroom_voice_deletion WHERE done_at IS NULL AND soniox_voice_id NOT LIKE 'name:%'
-      ORDER BY attempts, queued_at LIMIT ${DELETES_PER_RUN})
-    UNION ALL
-    (SELECT soniox_voice_id, extract(epoch FROM now() - queued_at)::float8 AS age_s
-       FROM public.classroom_voice_deletion WHERE done_at IS NULL AND soniox_voice_id LIKE 'name:%'
-      ORDER BY queued_at LIMIT ${DELETES_PER_RUN})`
+    SELECT soniox_voice_id, extract(epoch FROM now() - queued_at)::float8 AS age_s
+      FROM public.classroom_voice_deletion WHERE done_at IS NULL
+     ORDER BY attempts, queued_at LIMIT ${QUEUE_CAP}`
   const ahead = (now.getTime() - Date.now()) / 1000
   const done = (id: string) => db.$executeRaw`UPDATE public.classroom_voice_deletion SET done_at = now() WHERE soniox_voice_id = ${id} AND done_at IS NULL`
   const tried = (id: string) => db.$executeRaw`UPDATE public.classroom_voice_deletion SET attempts = attempts + 1 WHERE soniox_voice_id = ${id}`
+  const budgetEnds = Date.now() + QUEUE_BUDGET_MS
   // By id FIRST: an erasure never waits on Soniox's list answering (commit gate, codex).
   for (const { soniox_voice_id: id } of due.filter((d) => !d.soniox_voice_id.startsWith(NAME_MARK))) {
+    if (Date.now() > budgetEnds) break
     try {
       await deleteVoice(cfg, id)
       await done(id)
@@ -380,6 +381,7 @@ export async function reconcileVoices(now = new Date()): Promise<ReconcileResult
 
   const listed = await listOurVoices(cfg, VOICE_PREFIX)
   for (const { soniox_voice_id: id, age_s: age } of due.filter((d) => d.soniox_voice_id.startsWith(NAME_MARK))) {
+    if (Date.now() > budgetEnds) break
     // A create whose id never reached its row: every voice of that name goes; the marker stays until the create window
     // has passed with none left (a create still in flight may land after this list — ours time out at 30 s).
     const name = id.slice(NAME_MARK.length)
