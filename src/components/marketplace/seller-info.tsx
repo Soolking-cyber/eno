@@ -1,6 +1,7 @@
 'use client'
 
 import { useLanguage } from '@/context/language-context'
+import { SECTION_TITLE } from '@/components/marketplace/section-title'
 import { cn } from '@/lib/utils'
 import { IS_SERVICES } from '@/lib/edition'
 import type { SellerInfoProps, SourceAction } from '@/lib/seller-info'
@@ -50,9 +51,9 @@ export function SellerInfo({ info, variant = 'pdp', className }: { info: SellerI
 
   return (
     <section aria-labelledby={`seller-info-${variant}`} data-seller-info={info.kind} className={cn('space-y-2', className)}>
-      {/* The PDP's section treatment (text-lg font-semibold, as "Description" / "Details"); the storefront's
-          own `h-section`, as its "Reviews" / "Listings by" heads. */}
-      <h2 id={`seller-info-${variant}`} className={variant === 'storefront' ? 'h-section text-foreground' : 'text-lg font-semibold text-foreground'}>
+      {/* The PDP's section treatment (SECTION_TITLE, as "Description" / "Details" since 2026-11-09 — it was left at text-lg
+          between them, pre-deploy review); the storefront's own `h-section`, as its "Reviews" / "Listings by" heads. */}
+      <h2 id={`seller-info-${variant}`} className={variant === 'storefront' ? 'h-section text-foreground' : SECTION_TITLE}>
         {tr('Seller information', 'Thông tin người bán')}
       </h2>
       {/* The Details table's row grammar: hairline dividers, muted label, strong value. */}

@@ -6,7 +6,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Rows, Row } from '@/components/ui/rows'
-import { DisputesPanel } from '@/components/marketplace/disputes-panel'
+import { DisputesPanel, DISPUTES_SKELETON_ROWS } from '@/components/marketplace/disputes-panel'
 import { SectionHeader } from '@/components/marketplace/section-header'
 
 /** /dashboard/disputes — my dispute cases as a full in-<main> section page.
@@ -37,7 +37,8 @@ export function DisputesClient() {
           <Skeleton className="h-5 w-full max-w-md rounded-lg" />
           <Skeleton className="mt-1 h-5 w-2/3 max-w-sm rounded-lg lg:hidden" />
         </div>
-        <Rows className="mt-6">
+        {/* The panel's own loading rows, height and all (DISPUTES_SKELETON_ROWS): they reserve the empty state's height. */}
+        <Rows className={DISPUTES_SKELETON_ROWS}>
           {Array.from({ length: 3 }).map((_, i) => <Row key={i}><Skeleton className="h-12 rounded-lg" /></Row>)}
         </Rows>
       </div>

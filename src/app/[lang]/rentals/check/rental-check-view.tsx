@@ -509,7 +509,9 @@ export function RentalCheckView() {
     return (
       <div aria-busy="true">
         {heading}
-        <div className="mt-6 max-w-2xl space-y-3">
+        {/* The empty basket's height (measured 393px below sm, 409px from sm, EN at 390 and 1440 wide): what usually replaces
+            this on a first visit is "Your list is empty" under its mascot (pre-deploy review, 2026-11-09). */}
+        <div className="mt-6 min-h-[393px] max-w-2xl space-y-3 sm:min-h-[409px]">
           <Skeleton className="h-16 w-full rounded-xl" />
           <Skeleton className="h-16 w-full rounded-xl" />
         </div>

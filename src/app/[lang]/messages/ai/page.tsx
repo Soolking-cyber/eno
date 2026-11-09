@@ -96,8 +96,10 @@ export default function AiThreadPage() {
         {/* ⚠️ A SUGGESTION CHIP, NOT AN UNDERLINED LINK (2026-11-09, codex all20: "its clickable behavior is visually
             indistinguishable from ordinary navigation"). It never navigated — it fills the composer — so it wears the
             shape AI chats use for a prompt to try: outlined, rounded, the assistant's Sparkles mark. Ending the greeting it
-            takes a line of its own (2026-11-06 audit); a translation that puts it mid-sentence keeps it in the line. */}
-        <Button variant="outline" size="none" type="button" onClick={tryExample} className={`relative gap-1.5 rounded-full bg-card px-3 py-1.5 text-left text-sm font-semibold whitespace-normal text-foreground tap-44 hover:bg-muted hover:text-foreground ${after.trim() ? 'inline-flex align-middle' : 'mt-2 flex w-fit'}`}>
+            takes a line of its own (2026-11-06 audit); a translation that puts it mid-sentence keeps it in the line.
+            ⚠️ NO hover:bg-muted HERE: --muted IS the received bubble's --tint (#f5f5f5 / #262626), so a hover blanked the chip into
+            its bubble (pre-deploy review, 2026-11-09). The outline variant's own hover:bg-accent shows. */}
+        <Button variant="outline" size="none" type="button" onClick={tryExample} className={`relative gap-1.5 rounded-full bg-card px-3 py-1.5 text-left text-sm font-semibold whitespace-normal text-foreground tap-44 ${after.trim() ? 'inline-flex align-middle' : 'mt-2 flex w-fit'}`}>
           <Sparkles className="size-4 shrink-0 text-accent-foreground" aria-hidden />
           {example}
         </Button>

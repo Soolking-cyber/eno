@@ -10,6 +10,8 @@ import { deviceOrIntlLocale } from '@/lib/i18n/langs'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
+import { DashboardFetchError } from '@/components/marketplace/dashboard-fetch-error'
+import type { DashError } from '@/hooks/use-dashboard'
 import { Mascot } from '@/components/marketplace/mascot'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Rows, Row } from '@/components/ui/rows'
@@ -56,22 +58,56 @@ function timeLeft(iso: string | null): string | null {
 }
 
 /** `underSectionHeader`: the dashboard's phone title bar already shows the title, so the h1 is sr-only below lg (DashboardTabs' rule). */
+/**
+ * THE LOADING ROWS HOLD THE EMPTY STATE'S HEIGHT (pre-deploy review, 2026-11-09). Most people have no cases, so what replaces
+ * this skeleton is usually "No disputes" under its mascot: measured 369px (EN) / 393px (VI) below sm at 360 and 390 wide, and
+ * 409px in both from sm (768 and 1440 wide). Three 48px rows were about half that, and the footer jumped when the answer came —
+ * CLS 0.22 on a phone, 0.12–0.14 on a desktop; 0 / 0.07 with this (the 0.07 is older and elsewhere). The empty state takes
+ * the same min-height, so the shorter English one does not pull the footer UP either. A list of cases can still differ, as it
+ * always did; `compact` (no caller today) keeps its plain margin.
+ * ⚠️ /dashboard/disputes DRAWS THE SAME ROWS WHILE AUTH LOADS (disputes-client.tsx) — it imports this, so the two skeletons
+ * stay one height: with its own three short rows the footer still jumped 81px when the panel mounted (measured 2026-11-09).
+ */
+export const DISPUTES_SKELETON_ROWS = 'mt-6 min-h-[393px] sm:min-h-[409px]'
+
 export function DisputesPanel({ compact = false, underSectionHeader = false }: { compact?: boolean; underSectionHeader?: boolean }) {
   const { user, loading } = useAuth()
   const { tr, lang } = useLanguage()
   const t = (en: string, vi: string) => tr(en, vi)
 
-  const [cases, setCases] = useState<DisputeCaseRow[] | null>(null)
+  // ⛔ A FAILED LOAD IS A FAULT, NEVER "No disputes" (pre-deploy review, 2026-11-09). It used to set the list to [] — so a
+  // network failure told the reader they had no cases, and since batch 36 under the lifebuoy mascot, which the canon keeps
+  // off a fault (icon-language §6) — while an error ANSWER (401/5xx, no `cases`) left the skeleton up for good. Now any
+  // answer that is not a 2xx with a `cases` list is a failure: a 401 asks for sign-in again (the session is gone, so Try
+  // again could never work), anything else is the fault coin with Try again. One component for both: the dashboard's own
+  // DashboardFetchError, so a dead session reads the same here as on every other dashboard surface.
+  // ⛔ EVERY ANSWER CARRIES THE ACCOUNT AND THE ATTEMPT THAT ASKED, AND THE RENDER SHOWS ONLY THE CURRENT ONE'S (commit
+  // review r3, 2026-11-09). Clearing state in the effect was the wrong mechanism: the render BEFORE the effect still painted
+  // the previous account's cases for a frame, and keying the effect on the `user` object blanked a reader's list to the
+  // skeleton whenever the context handed out a new object for the same account. So the effect keys on the account ID, and
+  // what is shown is derived here: another account's answer, or a fault from an earlier attempt, is never drawn.
+  const uid = user?.id ?? null
+  const [attempt, setAttempt] = useState(0)
+  const [answer, setAnswer] = useState<{ uid: string; attempt: number; cases: DisputeCaseRow[] | null; error: DashError } | null>(null)
+  const current = answer && answer.uid === uid && answer.attempt === attempt ? answer : null
+  const cases = current?.cases ?? null
+  const loadError: DashError = current?.error ?? null
 
   useEffect(() => {
-    if (!user) return
+    if (!uid) return
     let alive = true
+    const settle = (cases: DisputeCaseRow[] | null, error: DashError) => { if (alive) setAnswer({ uid, attempt, cases, error }) }
     fetch('/api/disputes')
-      .then((r) => r.json())
-      .then((d) => { if (alive && Array.isArray(d.cases)) setCases(d.cases) })
-      .catch(() => { if (alive) setCases([]) })
+      .then(async (r) => {
+        if (r.status === 401) return settle(null, 'auth')
+        if (!r.ok) throw new Error(`disputes ${r.status}`)
+        const d = (await r.json()) as { cases?: unknown }
+        if (!Array.isArray(d.cases)) throw new Error('disputes: no cases list')
+        settle(d.cases as DisputeCaseRow[], null)
+      })
+      .catch(() => settle(null, 'failed'))
     return () => { alive = false }
-  }, [user])
+  }, [uid, attempt])
 
   const stageChip = (c: DisputeCaseRow) => {
     if (c.stage === 'evidence') {
@@ -104,7 +140,7 @@ export function DisputesPanel({ compact = false, underSectionHeader = false }: {
       )}
 
       {loading ? (
-        <Rows className="mt-6">
+        <Rows className={compact ? 'mt-6' : DISPUTES_SKELETON_ROWS}>
           {Array.from({ length: 3 }).map((_, i) => <Row key={i}><Skeleton className="h-12 rounded-lg" /></Row>)}
         </Rows>
       ) : !user ? (
@@ -112,8 +148,18 @@ export function DisputesPanel({ compact = false, underSectionHeader = false }: {
           <p className="text-sm text-muted-foreground">{t('Sign in to see your dispute cases.', 'Đăng nhập để xem hồ sơ khiếu nại của bạn.')}</p>
           <div className="mt-4"><SignInPrompt /></div>
         </div>
+      ) : loadError ? (
+        // The reserved height too (commit review r3): a failed load must not collapse the 393/409px the skeleton held.
+        <div className={compact ? 'mt-6' : DISPUTES_SKELETON_ROWS}>
+          <DashboardFetchError
+            error={loadError}
+            onRetry={() => setAttempt((a) => a + 1)}
+            next={underSectionHeader ? '/dashboard/disputes' : '/disputes'}
+            failedTitle={t('Couldn’t load your cases.', 'Không tải được hồ sơ khiếu nại.')}
+          />
+        </div>
       ) : cases === null ? (
-        <Rows className="mt-6">
+        <Rows className={compact ? 'mt-6' : DISPUTES_SKELETON_ROWS}>
           {Array.from({ length: 3 }).map((_, i) => <Row key={i}><Skeleton className="h-12 rounded-lg" /></Row>)}
         </Rows>
       ) : cases.length === 0 ? (
@@ -125,7 +171,9 @@ export function DisputesPanel({ compact = false, underSectionHeader = false }: {
         // here beside their mascots read as pages "assembled independently"; the mascots are the warm-empty voice, and
         // nothing here is a fault).
         <EmptyState
-          className="mt-6"
+          // The skeleton's reserved height, held here too, so English (369px of content below sm) and Vietnamese (393px)
+          // both land on the height the loading rows kept — no footer move either way (measured 2026-11-09).
+          className={compact ? 'mt-6' : DISPUTES_SKELETON_ROWS}
           // The page-level tier, as /saved and the inbox draw theirs (2026-11-07 audit: the empty /saved led with an 18px heading
           // over 16px copy, its sibling tool pages with 16px over 14px).
           size="lg"

@@ -926,6 +926,7 @@ export const UI_STRINGS: string[] = [
   "Couldn’t load more listings.",
   "Couldn’t load new data",
   "Couldn’t load this conversation.",
+  "Couldn’t load your cases.",
   "Couldn’t load your listings",
   "Couldn’t reach eno — check your connection and try again.",
   "Couldn’t turn on notifications. Please try again.",
