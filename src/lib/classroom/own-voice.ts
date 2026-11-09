@@ -36,8 +36,10 @@ import { parseWav } from './wav'
  * ⛔ ERASURE CANNOT BE FORGOTTEN BY A CALLER: deleting (or failing) the row is the whole of a withdrawal, an account erasure
  * (the TeacherProfile cascade) or an admin takedown — the DATABASE queues the voice it held (classroom_voice_deletion, a
  * trigger: scripts/classroom-ddl.mjs) and `reconcileVoices` (the classroom sweep) deletes it at Soniox. ⛔ Only voices this
- * database held are ever deleted (commit gate, codex + opus): a restored copy of it never deletes production's newer voices
- * for want of a row.
+ * database made are ever deleted — by the id a row held, or by the name of its own attempt whose id never arrived; never
+ * a voice merely because no row holds it (commit gate, codex + opus).
+ * ⛔ A COPY OF THIS DATABASE MUST NEVER GET THE PRODUCTION SONIOX KEY: holding production's rows, it would act on
+ * production's voices (a withdrawal there deletes the real voice). The local stack runs without it (env -i).
  */
 
 /** A row stuck in checking/making this long lost its request (a crash, a timeout): failed by the sweep. */
@@ -165,7 +167,8 @@ export async function submitRecording(teacher: { id: string; profileId: string }
   try {
     heard = await transcribePcm(cfg, pcm, VOICE_RATE)
   } catch (e) {
-    await fail(rowId, 'checking', 'soniox')
+    // Unheard (Soniox down or slow) is not the teacher's doing: the same sentences may be read again (commit gate, opus).
+    await db.classroomVoice.updateMany({ where: { id: rowId, status: 'checking' }, data: { status: 'script' } })
     logWarn('[classroom] own voice: the words could not be heard', { status: (e as { status?: number }).status ?? null })
     throw new ApiError('voice_unavailable', 503)
   }
@@ -236,8 +239,9 @@ async function advanceMaking(cfg: SonioxConfig, row: Pick<Row, 'id' | 'sonioxVoi
     if (await fail(row.id, 'making', 'unusable')) await eraseNow(cfg, v.id)
     return true
   }
-  // Created before our TTS model was there to prepare it for (codex): asked to prepare it, then polled as usual.
-  if (v.status === 'not_computed') {
+  // Not prepared for our TTS model — not_computed, or no entry for it at all (codex, both rounds): asked to prepare it, then
+  // polled as usual.
+  if (v.status === 'not_computed' || v.status === null) {
     await recomputeVoice(cfg, v.id).catch((e) => logWarn('[classroom] own voice: recompute failed', { status: (e as { status?: number }).status ?? null }))
     return false
   }
@@ -321,6 +325,8 @@ export type ReconcileResult = { stuck: number; deleted: number; deleteFailed: nu
 
 /** Queued deletions the sweep takes a run. */
 const DELETES_PER_RUN = 50
+/** A queue entry by NAME (the DDL's trigger): a create whose id never reached its row. */
+const NAME_MARK = 'name:'
 
 /**
  * ⛔ THE ERASURE NOBODY CAN FORGET (plan review + commit gate, codex + opus). One pass, safe to run anywhere at once (both
@@ -328,12 +334,12 @@ const DELETES_PER_RUN = 50
  *  1. checking/making rows older than STUCK_MS are failed (their request died); script rows long expired are let go.
  *  2. THE QUEUE: every voice this database held and let go (deleted, failed, replaced — the trigger) is deleted at Soniox and
  *     ticked off; a refusal counts a try and waits for the next run (Admin › Classroom shows what is waiting).
- *  3. ONE list of our voices at Soniox, each judged ONLY by a row of this database that its name names — a voice no row here
- *     names is NOT this database's to judge, and is left alone:
- *     · the row holds it: making → ready (the sample) / failed; ready but failed at Soniox → failed (then queued);
- *       not prepared for our TTS model → recompute;
- *     · the row never got its id and is failed, or making past LOST_CREATE_MS, and the voice was made after the row: a
- *       create whose answer was lost — deleted.
+ *     A row that was making and went (deleted or failed) before its id reached it queues its NAME: every voice of that
+ *     name is deleted, and the marker is done once the create window has passed with none left (codex, round 2).
+ *  3. ONE list of our voices at Soniox, each judged ONLY by the row of this database that HOLDS it — a voice no row here
+ *     holds is the queue's (by id or by name) or not this database's at all, and is left alone:
+ *     making → ready (the sample) / failed; ready but failed at Soniox → failed (then queued); not prepared for our TTS
+ *     model → recompute.
  *  4. A making/ready row whose voice is not listed is asked for directly; only Soniox's "no such voice" fails it as gone
  *     (opus: a voice attached after the list was read must not be failed for missing from it).
  */
@@ -344,45 +350,58 @@ export async function reconcileVoices(now = new Date()): Promise<ReconcileResult
   const cfg = sonioxConfig()
   if (!cfg) return out
 
-  const due = await db.$queryRaw<{ soniox_voice_id: string }[]>`
-    SELECT soniox_voice_id FROM public.classroom_voice_deletion WHERE done_at IS NULL ORDER BY queued_at LIMIT ${DELETES_PER_RUN}`
-  for (const { soniox_voice_id: id } of due) {
+  // Ages in SQL, never a raw timestamptz read into JS: those come back shifted by the session's time zone (measured on a
+  // scratch database at +07). `now` may run ahead of the clock (tests): the difference is added to every age.
+  const due = await db.$queryRaw<{ soniox_voice_id: string; age_s: number }[]>`
+    SELECT soniox_voice_id, extract(epoch FROM now() - queued_at)::float8 AS age_s
+      FROM public.classroom_voice_deletion WHERE done_at IS NULL ORDER BY queued_at LIMIT ${DELETES_PER_RUN}`
+  const ahead = (now.getTime() - Date.now()) / 1000
+  const done = (id: string) => db.$executeRaw`UPDATE public.classroom_voice_deletion SET done_at = now() WHERE soniox_voice_id = ${id} AND done_at IS NULL`
+  const tried = (id: string) => db.$executeRaw`UPDATE public.classroom_voice_deletion SET attempts = attempts + 1 WHERE soniox_voice_id = ${id}`
+  // By id FIRST: an erasure never waits on Soniox's list answering (commit gate, codex).
+  for (const { soniox_voice_id: id } of due.filter((d) => !d.soniox_voice_id.startsWith(NAME_MARK))) {
     try {
       await deleteVoice(cfg, id)
-      await db.$executeRaw`UPDATE public.classroom_voice_deletion SET done_at = now() WHERE soniox_voice_id = ${id} AND done_at IS NULL`
+      await done(id)
       out.deleted++
     } catch {
-      await db.$executeRaw`UPDATE public.classroom_voice_deletion SET attempts = attempts + 1 WHERE soniox_voice_id = ${id}`
+      await tried(id)
       out.deleteFailed++
     }
   }
 
   const listed = await listOurVoices(cfg, VOICE_PREFIX)
-  const rows = new Map((await db.classroomVoice.findMany({
-    where: { id: { in: listed.map((v) => v.name.slice(VOICE_PREFIX.length)) } },
-    select: { id: true, status: true, sonioxVoiceId: true, updatedAt: true, createdAt: true },
-  })).map((r) => [r.id, r]))
-  const lostBefore = new Date(now.getTime() - LOST_CREATE_MS)
-  for (const v of listed) {
-    const row = rows.get(v.name.slice(VOICE_PREFIX.length))
-    if (!row) continue // ⛔ no row of THIS database names it: not ours to judge
-    if (row.sonioxVoiceId === v.id) {
-      if (row.status === 'making') {
-        if ((v.status === 'ready' || v.status === 'failed') && (await advanceMaking(cfg, row, v))) {
-          if (v.status === 'ready') out.ready++
-          else out.failed++
-        } else if (v.status === 'not_computed') await advanceMaking(cfg, row, v)
-      } else if (row.status === 'ready' && v.status === 'failed') {
-        if (await fail(row.id, 'ready', 'unusable')) out.failed++ // the trigger queues it; deleted next run
-      } else if (row.status === 'ready' && v.status === 'not_computed') {
-        try { await recomputeVoice(cfg, v.id); out.recomputed++ } catch (e) { logWarn('[classroom] own voice: recompute failed', { status: (e as { status?: number }).status ?? null }) }
-      }
-      continue
+  for (const { soniox_voice_id: id, age_s: age } of due.filter((d) => d.soniox_voice_id.startsWith(NAME_MARK))) {
+    // A create whose id never reached its row: every voice of that name goes; the marker stays until the create window
+    // has passed with none left (a create still in flight may land after this list — ours time out at 30 s).
+    const name = id.slice(NAME_MARK.length)
+    let left = 0
+    for (const v of listed.filter((x) => x.name === name)) {
+      try { await deleteVoice(cfg, v.id); v.name = ''; out.deleted++ } catch { left++; out.deleteFailed++ }
     }
-    const lost = row.sonioxVoiceId === null && v.createdAt >= row.createdAt
-      && (row.status === 'failed' || (row.status === 'making' && row.updatedAt < lostBefore))
-    if (!lost) continue
-    try { await deleteVoice(cfg, v.id); out.deleted++ } catch { out.deleteFailed++ }
+    if (left) await tried(id)
+    else if (age + ahead > LOST_CREATE_MS / 1000) await done(id)
+  }
+
+  const rows = new Map((await db.classroomVoice.findMany({
+    where: { id: { in: listed.filter((v) => v.name).map((v) => v.name.slice(VOICE_PREFIX.length)) } },
+    select: { id: true, status: true, sonioxVoiceId: true },
+  })).map((r) => [r.id, r]))
+  for (const v of listed) {
+    if (!v.name) continue // deleted above
+    const row = rows.get(v.name.slice(VOICE_PREFIX.length))
+    // ⛔ Judged only by the row of THIS database that holds it — anything else is the queue's (by id or by name), or not ours.
+    if (!row || row.sonioxVoiceId !== v.id) continue
+    if (row.status === 'making') {
+      if ((v.status === 'ready' || v.status === 'failed') && (await advanceMaking(cfg, row, v))) {
+        if (v.status === 'ready') out.ready++
+        else out.failed++
+      } else if (v.status === 'not_computed' || v.status === null) await advanceMaking(cfg, row, v)
+    } else if (row.status === 'ready' && v.status === 'failed') {
+      if (await fail(row.id, 'ready', 'unusable')) out.failed++ // the trigger queues it; deleted next run
+    } else if (row.status === 'ready' && (v.status === 'not_computed' || v.status === null)) {
+      try { await recomputeVoice(cfg, v.id); out.recomputed++ } catch (e) { logWarn('[classroom] own voice: recompute failed', { status: (e as { status?: number }).status ?? null }) }
+    }
   }
 
   const listedIds = new Set(listed.map((v) => v.id))
@@ -396,8 +415,11 @@ export async function reconcileVoices(now = new Date()): Promise<ReconcileResult
 }
 
 /** For Admin › Classroom: voices queued for deletion at Soniox and not deleted yet — how many, the oldest, the most tries. */
-export async function pendingVoiceDeletions(now = new Date()): Promise<{ count: number; oldestMinutes: number; attempts: number }> {
-  const [r] = await db.$queryRaw<{ n: number; oldest: Date | null; attempts: number | null }[]>`
-    SELECT count(*)::int AS n, min(queued_at) AS oldest, max(attempts)::int AS attempts FROM public.classroom_voice_deletion WHERE done_at IS NULL`
-  return { count: r?.n ?? 0, oldestMinutes: r?.oldest ? Math.round((now.getTime() - r.oldest.getTime()) / 60_000) : 0, attempts: r?.attempts ?? 0 }
+export async function pendingVoiceDeletions(): Promise<{ count: number; oldestMinutes: number; attempts: number }> {
+  // A name marker waits out the create window by design: counted only past it.
+  const [r] = await db.$queryRaw<{ n: number; oldest_min: number | null; attempts: number | null }[]>`
+    SELECT count(*)::int AS n, (extract(epoch FROM now() - min(queued_at)) / 60)::float8 AS oldest_min, max(attempts)::int AS attempts
+      FROM public.classroom_voice_deletion
+     WHERE done_at IS NULL AND (soniox_voice_id NOT LIKE 'name:%' OR queued_at < now() - make_interval(secs => ${LOST_CREATE_MS / 1000}))`
+  return { count: r?.n ?? 0, oldestMinutes: Math.round(r?.oldest_min ?? 0), attempts: r?.attempts ?? 0 }
 }

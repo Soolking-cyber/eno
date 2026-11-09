@@ -99,15 +99,22 @@ const queueTriggerSql = (on) => `create trigger "${QUEUE_TRIGGER}" before insert
 
 // A teacher's own voice at Soniox (2026-11-09, own-voice.ts) — the same rule as a likeness: ⛔ THE DATABASE QUEUES IT, NOT A
 // CALLER. Any row that held a Soniox voice and is deleted (a withdrawal, an admin, the TeacherProfile cascade of an account
-// erasure, a hand-run DELETE), fails, or lets its id go queues THAT voice id; the sweep deletes it at Soniox. Only ids this
-// database itself held are ever deleted (commit gate, codex + opus: a restored copy of the database never deletes
-// production's newer voices because "no row holds them").
+// erasure, a hand-run DELETE), fails, or lets its id go queues THAT voice id; the sweep deletes it at Soniox. A row that was
+// MAKING its voice and goes (deleted, or failed) before the id reached it queues its NAME instead, 'name:eno-cv-<row id>'
+// (commit gate round 2, codex: a create whose answer was lost, or that landed after its attempt was deleted, would otherwise
+// stay at Soniox for good). Only voices this database made are queued — never one because "no row holds it". ⛔ A copy of
+// this database must never get the production Soniox key (own-voice.ts): holding production's rows, it acts on its voices.
 const VOICE_FN_BODY = `
   begin
     if old."sonioxVoiceId" is not null and (tg_op = 'DELETE' or new."sonioxVoiceId" is distinct from old."sonioxVoiceId"
        or (new."status" = 'failed' and old."status" is distinct from 'failed')) then
       insert into public.classroom_voice_deletion (soniox_voice_id, reason)
       values (old."sonioxVoiceId", case when tg_op = 'DELETE' then 'deleted' else 'failed' end)
+      on conflict (soniox_voice_id) do nothing;
+    elsif old."sonioxVoiceId" is null and old."status" = 'making'
+       and (tg_op = 'DELETE' or new."status" = 'failed') then
+      insert into public.classroom_voice_deletion (soniox_voice_id, reason)
+      values ('name:eno-cv-' || old."id", 'lost')
       on conflict (soniox_voice_id) do nothing;
     end if;
     if tg_op = 'DELETE' then
@@ -643,8 +650,9 @@ if (!(await client.query(`select 1 from pg_trigger where tgname = $1 and tgrelid
 // LOGGED; a Soniox id, why, when, and the tries — nothing about the person.
 await client.query(`
   create table if not exists public.classroom_voice_deletion (
-    soniox_voice_id text        primary key check (soniox_voice_id ~ '^[0-9a-fA-F-]{8,64}$'),
-    reason          text        not null check (reason in ('deleted', 'failed')),
+    -- A Soniox id, or 'name:<voice name>' for a create whose id never reached its row (the sweep deletes by name).
+    soniox_voice_id text        primary key check (soniox_voice_id ~ '^([0-9a-fA-F-]{8,64}|name:eno-cv-[A-Za-z0-9_-]{1,64})$'),
+    reason          text        not null check (reason in ('deleted', 'failed', 'lost')),
     queued_at       timestamptz not null default now(),
     done_at         timestamptz,
     attempts        integer     not null default 0 check (attempts >= 0)

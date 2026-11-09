@@ -32,6 +32,8 @@ export function useVoiceTake() {
   const peak = useRef(0)
   const tick = useRef<ReturnType<typeof setInterval> | null>(null)
   const gen = useRef(0)
+  /** Between the tap and the first frame (the permission prompt, the worklet loading). */
+  const starting = useRef(false)
 
   const release = useCallback(() => {
     gen.current++
@@ -47,7 +49,9 @@ export function useVoiceTake() {
   }, [])
 
   const interrupt = useCallback(() => {
-    if (!node.current) return
+    // Recording, or still STARTING (commit gate, codex): release() makes the pending start stop what it is granted.
+    if (!node.current && !starting.current) return
+    starting.current = false
     release()
     frames.current = []
     wav.current = null
@@ -76,11 +80,12 @@ export function useVoiceTake() {
     wav.current = null
     setSeconds(0)
     setState('starting')
+    starting.current = true
     let s: MediaStream
     try {
       s = await navigator.mediaDevices.getUserMedia({ audio: RAW, video: false })
     } catch {
-      if (mine === gen.current) setState('denied')
+      if (mine === gen.current) { starting.current = false; setState('denied') }
       return
     }
     if (mine !== gen.current) { s.getTracks().forEach((t) => t.stop()); return }
@@ -91,7 +96,7 @@ export function useVoiceTake() {
     } catch {
       s.getTracks().forEach((t) => t.stop())
       void c.close().catch(() => {})
-      if (mine === gen.current) setState('interrupted')
+      if (mine === gen.current) { starting.current = false; setState('interrupted') }
       return
     }
     if (mine !== gen.current) { s.getTracks().forEach((t) => t.stop()); void c.close().catch(() => {}); return }
@@ -118,6 +123,7 @@ export function useVoiceTake() {
     // A call, Siri, a locked screen or a track that ends: the take is dropped, never sent half-made.
     c.addEventListener('statechange', () => { if (c.state !== 'running' && node.current === n) interrupt() })
     for (const t of s.getAudioTracks()) { t.addEventListener('ended', () => { if (node.current === n) interrupt() }); t.addEventListener('mute', () => { if (node.current === n) interrupt() }) }
+    starting.current = false
     tick.current = setInterval(() => {
       setSeconds(Math.floor(count.current / c.sampleRate))
       setLevel(Math.min(1, last * 6))

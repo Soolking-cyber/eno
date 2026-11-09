@@ -12,12 +12,13 @@ const parsed = (() => { try { return new URL(url) } catch { return null } })()
 const loopback = ['127.0.0.1', 'localhost', '::1'].includes(parsed?.hostname ?? '')
 const live = process.env.CLASSROOM_PG_TESTS === '1' && loopback && parsed?.port !== '5433' && /_it$/.test(parsed?.pathname ?? '')
 
-type FakeVoice = { id: string; name: string; created_at: string; status: string }
+type FakeVoice = { id: string; name: string; created_at: string; status: string | null }
 const s = vi.hoisted(() => ({
   voices: new Map<string, FakeVoice>(),
   deleted: [] as string[],
   heard: '' as string,
-  createStatus: 'ready',
+  sttFails: false,
+  createStatus: 'ready' as string | null,
   createFails: null as number | null,
   deleteFails: false,
   recomputed: [] as string[],
@@ -31,13 +32,13 @@ vi.mock('./soniox', async (orig) => ({
   ...(await orig<typeof import('./soniox')>()),
   sonioxConfig: () => ({ key: 'k'.repeat(40), rest: 'https://api.soniox.com', ws: 'wss://stt', model: 'stt-rt-v5', tts: 'wss://tts', ttsModel: 'tts-rt-v2' }),
 }))
-vi.mock('./voice-stt', () => ({ transcribePcm: async () => s.heard }))
+vi.mock('./voice-stt', () => ({ transcribePcm: async () => { if (s.sttFails) throw Object.assign(new Error('stt'), { status: 504 }); return s.heard } }))
 vi.mock('./soniox-tts', () => ({ sonioxSpeakLine: async () => Buffer.alloc(3_000, 1) }))
 vi.mock('./session-voice', () => ({ forgetVoiceLines: () => {} }))
 vi.mock('./soniox-voices', async (orig) => {
   const real = await orig<typeof import('./soniox-voices')>()
   const { SonioxError } = await import('./soniox')
-  const out = (v: FakeVoice) => ({ id: v.id, name: v.name, createdAt: new Date(v.created_at), status: v.status as 'ready', errorType: null })
+  const out = (v: FakeVoice) => ({ id: v.id, name: v.name, createdAt: new Date(v.created_at), status: v.status as 'ready' | null, errorType: null })
   return {
     ...real,
     createVoice: async (_c: unknown, name: string) => {
@@ -98,7 +99,7 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
     await db.classroomAvatar.update({ where: { id: tutorId }, data: { ownVoiceId: null } })
     await db.$executeRaw`DELETE FROM rl_window WHERE name = 'classroom-voice'`
     await db.$executeRaw`DELETE FROM public.classroom_voice_deletion`
-    Object.assign(s, { heard: '', createStatus: 'ready', createFails: null, deleteFails: false, deleted: [], recomputed: [] })
+    Object.assign(s, { heard: '', sttFails: false, createStatus: 'ready', createFails: null, deleteFails: false, deleted: [], recomputed: [] })
     s.voices.clear()
     s.unlisted.clear()
   })
@@ -150,6 +151,15 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
     await db.classroomVoice.update({ where: { id: view.id }, data: { expiresAt: new Date(Date.now() - 1000) } })
     await expect(ov.submitRecording(teacher, view.id, recording(), consent())).rejects.toMatchObject({ code: 'voice_script_expired' })
     expect(s.voices.size).toBe(0)
+  })
+
+  it('Soniox could not hear the recording (down, slow): the SAME sentences may be read again — the attempt is not burned', async () => {
+    const view = await readScript()
+    s.sttFails = true
+    await expect(ov.submitRecording(teacher, view.id, recording(), consent())).rejects.toMatchObject({ code: 'voice_unavailable' })
+    expect(await db.classroomVoice.findUnique({ where: { id: view.id } })).toMatchObject({ status: 'script' })
+    s.sttFails = false
+    expect((await ov.submitRecording(teacher, view.id, recording(), consent())).status).toBe('ready')
   })
 
   it('⛔ a ready voice is not replaced by a new script (the teacher deletes it first)', async () => {
@@ -226,12 +236,32 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
       expect([...s.voices.keys()].sort()).toEqual(['o1', 'o2'])
     })
 
-    it('a failed attempt whose create answer was lost: its own voice (made after the row) is deleted', async () => {
+    const making = async () => {
       const view = await readScript()
-      await db.classroomVoice.update({ where: { id: view.id }, data: { status: 'failed', failReason: 'soniox' } })
-      s.voices.set('lost', { id: 'lost', name: voices.voiceName(view.id), created_at: new Date(Date.now() + 1000).toISOString(), status: 'ready' })
+      await db.classroomVoice.update({ where: { id: view.id }, data: { status: 'making', consentVersion: 'v', consentSha: '0123456789abcdef', consentAt: new Date() } })
+      return view.id
+    }
+    it('⛔ a create whose answer was lost (the attempt failed with no id): its voice is found BY NAME and deleted', async () => {
+      const id = await making()
+      await db.classroomVoice.update({ where: { id }, data: { status: 'failed', failReason: 'soniox' } })
+      s.voices.set('lost', { id: 'lost', name: voices.voiceName(id), created_at: new Date().toISOString(), status: 'ready' })
+      // …even once the failed attempt itself is gone (a new script replaced it — codex, round 2).
+      await db.classroomVoice.delete({ where: { id } })
       expect((await ov.reconcileVoices()).deleted).toBe(1)
       expect(s.voices.has('lost')).toBe(false)
+    })
+
+    it('⛔ an attempt deleted while Soniox made its voice: the voice that lands later is deleted by name', async () => {
+      const id = await making()
+      await ov.deleteOwnVoice(teacher.id, accountId, 'teacher')
+      await ov.reconcileVoices() // nothing there yet: the marker waits
+      s.voices.set('late', { id: 'late', name: voices.voiceName(id), created_at: new Date().toISOString(), status: 'processing' })
+      expect((await ov.reconcileVoices()).deleted).toBe(1)
+      expect(s.voices.size).toBe(0)
+      // The marker is done only once the create window has passed with nothing left.
+      expect(await db.$queryRaw<{ done: boolean }[]>`SELECT done_at IS NOT NULL AS done FROM public.classroom_voice_deletion WHERE soniox_voice_id = ${'name:' + voices.voiceName(id)}`).toEqual([{ done: false }])
+      await ov.reconcileVoices(new Date(Date.now() + ov.STUCK_MS + 60_000))
+      expect(await db.$queryRaw<{ done: boolean }[]>`SELECT done_at IS NOT NULL AS done FROM public.classroom_voice_deletion WHERE soniox_voice_id = ${'name:' + voices.voiceName(id)}`).toEqual([{ done: true }])
     })
 
     it('⛔ a create in flight is spared: a making row with no id yet', async () => {
@@ -273,6 +303,13 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
       s.unlisted.clear()
       await ov.reconcileVoices()
       expect(await db.classroomVoice.findUnique({ where: { id: view.id } })).toMatchObject({ status: 'failed', failReason: 'gone' })
+    })
+
+    it('a clone with NO entry for our TTS model: asked to recompute too', async () => {
+      const view = await readScript()
+      s.createStatus = null
+      expect((await ov.submitRecording(teacher, view.id, recording(), consent(), new Date(), 0)).status).toBe('ready')
+      expect(s.recomputed).toHaveLength(1)
     })
 
     it('a voice made before our TTS model could prepare it (not_computed): asked to recompute, then ready', async () => {

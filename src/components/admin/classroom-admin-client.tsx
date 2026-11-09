@@ -32,6 +32,8 @@ export function ClassroomAdminClient() {
   const [msg, setMsg] = useState<string | null>(null)
   const [cohort, setCohort] = useState('')
   const [readyIds, setReadyIds] = useState<Record<string, string>>({})
+  /** The own voice whose Delete was tapped once — a second tap deletes it (irreversible at Soniox). */
+  const [confirmVoice, setConfirmVoice] = useState<string | null>(null)
   const load = useCallback(async () => {
     const r = await fetch('/api/admin/classroom', { cache: 'no-store' })
     const j = (await r.json()) as State
@@ -167,7 +169,9 @@ export function ClassroomAdminClient() {
             <li key={v.teacherProfileId} className="flex flex-wrap items-center gap-3 text-sm">
               <span className="min-w-0 flex-1 truncate text-ink">{v.teacher} <span className="text-ink-4">{v.email ?? ''} · {v.status} · {new Date(v.at).toLocaleDateString()}</span></span>
               {v.status === 'ready' && <audio controls preload="none" src={`/api/admin/classroom/voice-sample?teacher=${encodeURIComponent(v.teacherProfileId)}`} className="h-8" />}
-              <Button size="sm" variant="outline" onClick={() => call('POST', { action: 'voice-remove', teacherProfileId: v.teacherProfileId })}>Delete</Button>
+              {confirmVoice === v.teacherProfileId
+                ? <Button size="sm" variant="destructive" onClick={() => { setConfirmVoice(null); void call('POST', { action: 'voice-remove', teacherProfileId: v.teacherProfileId }) }}>Delete for good</Button>
+                : <Button size="sm" variant="outline" onClick={() => setConfirmVoice(v.teacherProfileId)}>Delete</Button>}
             </li>
           ))}
         </ul>
