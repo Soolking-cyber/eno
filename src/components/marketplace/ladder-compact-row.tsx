@@ -236,7 +236,10 @@ export function LadderSlot({
   row: ReactNode
   children: ReactNode
 }) {
-  if (!collapsed) return <>{children}</>
+  // `.ladder-row-reserve` — display:none, EXCEPT on a phone whose pre-paint script marked a link the explorer will fold
+  // (html[data-explorer-fold], explorer-url.ts): there it holds the folded row's height open while the rails it replaces
+  // are hidden, so the first frame is the folded page and the fold itself moves nothing (all21 phone hunt #1, 2026-11-09).
+  if (!collapsed) return <><div aria-hidden className="ladder-row-reserve" />{children}</>
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
       {row}

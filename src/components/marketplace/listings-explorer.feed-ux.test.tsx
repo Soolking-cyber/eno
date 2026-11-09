@@ -696,6 +696,73 @@ describe('on a phone, a directed feed folds its category ladder into one compact
     }
   })
 
+  /** A cold load the way the browser does it: the ISR HTML, the pre-paint script's marks, then hydration. */
+  async function coldLoad(url: string, marks: string[], body: (foldLog: string[]) => Promise<void>) {
+    window.history.replaceState({}, '', url)
+    for (const m of marks) document.documentElement.setAttribute(m, '')
+    // Every change of the fold mark, with whether the folded row was already in the DOM at that moment.
+    const foldLog: string[] = []
+    const mo = new MutationObserver(() => foldLog.push(`fold=${document.documentElement.hasAttribute('data-explorer-fold')} row=${!!compactRow()}`))
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-explorer-fold'] })
+    const el = (
+      <QueryClientProvider client={newClient()}>
+        <ListingsExplorer categories={CATS} initialListings={catalogue.slice(0, 12)} initialTotal={catalogue.length} />
+      </QueryClientProvider>
+    )
+    const container = document.body.appendChild(document.createElement('div'))
+    container.innerHTML = renderToString(el)
+    let root: Root | null = null
+    await act(async () => { root = hydrateRoot(container, el) })
+    try { await body(foldLog) } finally {
+      mo.disconnect()
+      act(() => { root?.unmount() })
+      container.remove()
+      for (const m of ['data-explorer-fold', 'data-explorer-directed']) document.documentElement.removeAttribute(m)
+    }
+  }
+
+  it('⛔ a cold link the pre-paint script PAINTED folded (all21 #1, 2026-11-09): on a phone it folds at once, then drops the mark', async () => {
+    await coldLoad('/?q=phone', ['data-explorer-fold', 'data-explorer-directed'], async (foldLog) => {
+      // ⛔ The mark never leaves before the fold commits — a word search turns the explorer on one effect after its URL
+      // applies, and dropping the mark in that frame showed the rails (review). Watched on every attribute change.
+      await waitFor(() => expect(compactRow()).not.toBeNull())
+      await waitFor(() => expect(foldLog).toEqual(['fold=false row=true']))
+      expect(rails().category).toBe(false)
+      // The space the CSS held is the row's now: the mark goes in the same commit (before paint).
+      expect(document.documentElement.hasAttribute('data-explorer-fold')).toBe(false)
+    })
+  })
+
+  it('a stale link (a category this build does not know) still folds: the explorer keeps the URL\'s category, so the mark holds', async () => {
+    await coldLoad('/?category=retired-slug', ['data-explorer-fold', 'data-explorer-directed'], async () => {
+      await waitFor(() => expect(compactRow()).not.toBeNull())
+      expect(rails().category).toBe(false)
+      expect(document.documentElement.hasAttribute('data-explorer-fold')).toBe(false)
+    })
+  })
+
+  it('a mark the explorer does not bear out (the URL reads undirected) goes with the mask, and the rails stay', async () => {
+    await coldLoad('/', ['data-explorer-fold', 'data-explorer-directed'], async () => {
+      await waitFor(() => expect(document.documentElement.hasAttribute('data-explorer-fold')).toBe(false))
+      expect(compactRow()).toBeNull()
+      expect(rails().category).toBe(true)
+    })
+  })
+
+  it('a desktop with the mark keeps the cold rule — nothing was reserved there, so it never folds under the reader', async () => {
+    viewport.desktop = true
+    await coldLoad('/?q=phone', ['data-explorer-fold', 'data-explorer-directed'], async () => {
+      // Not armed here, so the mark goes in the hydration commit itself — before any answer lands: a window narrowed to
+      // phone width then keeps its rails (review r4).
+      expect(document.documentElement.hasAttribute('data-explorer-fold')).toBe(false)
+      expect(document.documentElement.hasAttribute('data-explorer-directed')).toBe(true)
+      await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('q') === 'phone')).toBe(true))
+      await new Promise((r) => setTimeout(r, 50))
+      expect(compactRow()).toBeNull()
+      expect(rails().category).toBe(true)
+    })
+  })
+
   it('desktop keeps the full rails when directed', async () => {
     viewport.desktop = true
     mountAt('/?category=electronics')

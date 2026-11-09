@@ -261,4 +261,50 @@ export function recentSearchTerms(raw: unknown): string[] {
   return out
 }
 
-export const PREPAINT_SCRIPT = `(function(){try{var K=${JSON.stringify(MASK_KEYS)};var m=false;new URLSearchParams(location.search).forEach(function(v,k){if(m||!v)return;if(k==='view'){if(v!=='grid')m=true;return}if(K.indexOf(k)>-1||k.indexOf('attr_')===0||k.indexOf('range_')===0)m=true});if(!m){try{var r=JSON.parse(localStorage.getItem(${JSON.stringify(RECENT_SEARCHES_KEY)})||'[]');if(Array.isArray(r))for(var i=0;i<r.length;i++){if(typeof r[i]==='string'&&r[i].trim()){document.documentElement.setAttribute(${JSON.stringify(RECENTS_ATTR)},'');break}}}catch(e){}return}var d=document.documentElement;d.setAttribute('data-explorer-directed','');var c=new URLSearchParams(location.search).get('category');if(c)d.setAttribute('data-explorer-cat',c);setTimeout(function(){d.removeAttribute('data-explorer-directed')},15000)}catch(e){}})();`
+/**
+ * ⛔ A PHONE PAINTS A DIRECTED LINK ALREADY FOLDED (all21 phone hunt #1; owner, 2026-11-09: "resolve with recommended").
+ * The owner's 2026-09-24 "collapse to one compact row" reached only a feed the reader moved: a cold /?q=iphone (an alert
+ * email, a shared link) kept the full tile grid, so the first photo sat at y≈440 of 844 while typing the same words put it
+ * at y≈275 — one search, two layouts. The fold could not happen after hydration (CLS 0.54, listings-explorer.tsx
+ * `foldArmed`), so the first frame is painted folded instead: this attribute marks a URL the explorer WILL fold, and
+ * globals.css (phones only) hides the tile and brand rows and holds the compact row's height open; the explorer then
+ * mounts the folded row into that space, so nothing moves.
+ * ⚠️ `explorerUrlFolds` IS `readExplorerUrl(…).directed` RESTATED FOR RAW PARAMS (explorer-url.prepaint.test.ts holds
+ * the two together), and it is never true where `explorerUrlMasks` is false: no mask, no fold.
+ * ⚠️ THE 15 s NET LIFTS THE FOLD WITH THE MASK (PREPAINT_SCRIPT): a page whose JavaScript never arrives gets its full
+ * category ladder back — its links still work without the explorer. The cost, accepted: a phone whose scripts take longer
+ * than 15 s sees the rails return then (one shift), and the explorer, mounting after, keeps the cold rule (no second).
+ * One narrower window, accepted: an explorer that reads the mark just before the 15 s mark and commits its fold just after
+ * shows the rails for that moment between.
+ */
+export const FOLD_ATTR = 'data-explorer-fold'
+/** Keys whose value directs the feed (with the exceptions in `explorerUrlFolds`). */
+export const FOLD_KEYS = ['q', 'category', 'subcategory', 'brand', 'model', 'line', 'type', 'condition', 'priceMin', 'priceMax', 'district'] as const
+/** Keys whose value `all` is their default — undirected. */
+export const FOLD_ALL_DEFAULT = ['category', 'subcategory', 'brand', 'model', 'type', 'condition', 'district'] as const
+
+/**
+ * Will the explorer fold this URL's ladder? `readExplorerUrl(search).directed`, minus what only it can know.
+ * ⚠️ THE FIRST VALUE OF EACH KEY, as the explorer reads it (`params.get`): `?category=all&category=electronics` is
+ * undirected there, so it must not fold here (review).
+ */
+export function explorerUrlFolds(search: string | URLSearchParams): boolean {
+  let fold = false
+  const p = new URLSearchParams(search)
+  new Set(p.keys()).forEach((k) => {
+    if (fold) return
+    const v = (p.get(k) ?? '').trim()
+    if (!v) return
+    // `grid` is the default view, and an unmasked one (explorerUrlMasks): never folded from the first frame.
+    if (k === 'view') { if (v === 'compact' || v === 'map' || v === 'video') fold = true; return }
+    if (k === 'deal') { if (v === 'good') fold = true; return }
+    if (k === 'province') { if (/^\d{1,6}$/.test(v)) fold = true; return }
+    if (v === 'all' && (FOLD_ALL_DEFAULT as readonly string[]).includes(k)) return
+    // ⚠️ NOT `attr_*` / `range_*`: the explorer keeps only those its category defines (parseFilterParams), and the
+    // category itself already folds — alone they would fold a page the explorer then leaves unfolded.
+    if ((FOLD_KEYS as readonly string[]).includes(k)) fold = true
+  })
+  return fold
+}
+
+export const PREPAINT_SCRIPT = `(function(){try{var K=${JSON.stringify(MASK_KEYS)};var m=false;new URLSearchParams(location.search).forEach(function(v,k){if(m||!v)return;if(k==='view'){if(v!=='grid')m=true;return}if(K.indexOf(k)>-1||k.indexOf('attr_')===0||k.indexOf('range_')===0)m=true});if(!m){try{var r=JSON.parse(localStorage.getItem(${JSON.stringify(RECENT_SEARCHES_KEY)})||'[]');if(Array.isArray(r))for(var i=0;i<r.length;i++){if(typeof r[i]==='string'&&r[i].trim()){document.documentElement.setAttribute(${JSON.stringify(RECENTS_ATTR)},'');break}}}catch(e){}return}var d=document.documentElement;d.setAttribute('data-explorer-directed','');var c=new URLSearchParams(location.search).get('category');if(c)d.setAttribute('data-explorer-cat',c);var FK=${JSON.stringify(FOLD_KEYS)},FA=${JSON.stringify(FOLD_ALL_DEFAULT)},f=false,P=new URLSearchParams(location.search),S={};P.forEach(function(_,k){if(f||S[k])return;S[k]=1;var v=(P.get(k)||'').trim();if(!v)return;if(k==='view'){if(v==='compact'||v==='map'||v==='video')f=true;return}if(k==='deal'){if(v==='good')f=true;return}if(k==='province'){if(/^\\d{1,6}$/.test(v))f=true;return}if(v==='all'&&FA.indexOf(k)>-1)return;if(FK.indexOf(k)>-1)f=true});if(f)d.setAttribute(${JSON.stringify(FOLD_ATTR)},'');setTimeout(function(){d.removeAttribute('data-explorer-directed');d.removeAttribute(${JSON.stringify(FOLD_ATTR)})},15000)}catch(e){}})();`

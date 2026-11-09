@@ -46,7 +46,7 @@ import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvives
 import { queryChips } from '@/lib/district-query'
 import { clearPlaceForTypedDistrict, queryAfterAreaPick } from './explorer-place'
 import { warmListing } from '@/lib/warm-listing'
-import { applyFilterParams, isSeededFeed, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView, type FilterHrefParam } from '@/lib/explorer-url'
+import { applyFilterParams, FOLD_ATTR, isSeededFeed, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView, type FilterHrefParam } from '@/lib/explorer-url'
 import { publicPathname, variantOfLanguage } from '@/lib/lang-variant'
 import { localizedHref } from '@/lib/lang-pinned'
 import { handBackAfterLeaving, holdScrollRestoration, pinnedChromeBottom, releaseScrollRestoration, runRestore } from './feed-restore'
@@ -1219,7 +1219,19 @@ export function ListingsExplorer({
     activeWard?.code ?? null, nearby ? 1 : 0, conditionFilter, goodPriceOnly, listingType, query, priceRange, customFilters, viewMode,
   ])
   const [urlLadderSig, setUrlLadderSig] = useState<string | null>(null)
-  const [foldArmed, setFoldArmed] = useState(!coldLoad)
+  /**
+   * ⛔ …EXCEPT A LINK THE PRE-PAINT SCRIPT ALREADY PAINTED FOLDED (all21 phone hunt #1; owner, 2026-11-09: "resolve with
+   * recommended"). On a phone, `html[data-explorer-fold]` (explorer-url.ts FOLD_ATTR) made globals.css hide the tile and
+   * brand rows and hold the compact row's height open from the first frame — there is no unfolded geometry on screen to
+   * shift from, so the fold is armed at once and lands in that space. ⚠️ PHONES ONLY (`md` and below, the CSS's own
+   * width): desktop folds a word search too (`liveCollapse`), and there nothing was reserved, so a cold desktop link keeps
+   * the rule above. Read once, as this mount begins — the hydration render itself is undirected, so nothing it draws
+   * depends on this.
+   */
+  const [foldArmed, setFoldArmed] = useState(
+    () => !coldLoad || (typeof document !== 'undefined' && document.documentElement.hasAttribute(FOLD_ATTR)
+      && typeof window.matchMedia === 'function' && !window.matchMedia('(min-width: 768px)').matches),
+  )
   if (!foldArmed && urlApplied) {
     if (urlLadderSig === null) setUrlLadderSig(ladderSig)
     else if (urlLadderSig !== ladderSig) setFoldArmed(true)
@@ -1238,6 +1250,21 @@ export function ListingsExplorer({
    */
   const [panelFreeze, setPanelFreeze] = useState<boolean | null>(null)
   const collapseLadder = panelFreeze ?? liveCollapse
+  // The painted fold is the explorer's own once its folded row commits: drop the mark before that frame paints (the rails
+  // it hid now sit in the closed panel, not where the CSS looks). Never sooner — until then the CSS holds the space.
+  // ⚠️ NOT on "the URL read undirected": a word search turns the explorer on one effect AFTER its URL applies
+  // (`showExplorer`), so for a frame every ?q= link looks undirected — dropping the mark there flashed the rails before the
+  // fold (measured in review). The URL reading itself never disagrees with the mark (explorerUrlFolds is held to
+  // readExplorerUrl), and the explorer keeps an unknown category as directed; the mask's lift (below) is the backstop.
+  useLayoutEffect(() => {
+    if (collapseLadder) document.documentElement.removeAttribute(FOLD_ATTR)
+  }, [collapseLadder])
+  // …and at once where this mount did NOT arm from it (a desktop, which the CSS never touched): a window then narrowed
+  // to phone width must not hide its rails behind a row that is never coming (review r4).
+  const armedAtMount = useRef(foldArmed)
+  useLayoutEffect(() => {
+    if (!armedAtMount.current) document.documentElement.removeAttribute(FOLD_ATTR)
+  }, [])
   const liveCollapseRef = useRef(liveCollapse)
   useEffect(() => { liveCollapseRef.current = liveCollapse }, [liveCollapse])
   const onFacetPanelOpenChange = useCallback((open: boolean) => {
@@ -1849,7 +1876,7 @@ export function ListingsExplorer({
     // Anything else (a client mount, or no mark) must not leave one behind.
     const root = document.documentElement
     const masked = coldLoad && root.hasAttribute('data-explorer-directed')
-    if (!masked) root.removeAttribute('data-explorer-directed')
+    if (!masked) { root.removeAttribute('data-explorer-directed'); root.removeAttribute(FOLD_ATTR) }
     const mountSearch = window.location.search
     const found = areaForLocation(readExplorerUrl(mountSearch), window.history.state)
     /** The URL is read (once): its params applied, the writer released, the mask armed for its answer. */
@@ -3320,6 +3347,8 @@ export function ListingsExplorer({
     // Nothing to lift once it is down — this runs on every grid change, so it must cost nothing then.
     if (!seedMasked || !urlApplied || awaitingUrlAnswer || gridListings !== shownListings) return
     document.documentElement.removeAttribute('data-explorer-directed')
+    // A page that did not fold after all (a wider screen than the mark expected) gets its rails back with the answer.
+    document.documentElement.removeAttribute(FOLD_ATTR)
     setSeedMasked(false)
   }, [seedMasked, urlApplied, awaitingUrlAnswer, gridListings, shownListings])
   /**
@@ -4664,7 +4693,7 @@ export function ListingsExplorer({
             LANDING tree, an entrance here would fire on every cold home load. */}
         {/* ⚠️ space-y-3, NOT 4 (home fold trim, 2026-09-30): 4px back between each rung — rail, recents,
             strip, results header — at every width. (home)/loading.tsx mirrored this rhythm until UX3 FAST-8. */}
-        <div ref={ladderRef} className="space-y-3">
+        <div ref={ladderRef} data-ladder="" className="space-y-3">
 
           {/* CATEGORY LADDER — ONE SLOT, TWO REPRESENTATIONS.
               Undirected: the FINN-style two-row tile grid (big tiles, eno's own two products

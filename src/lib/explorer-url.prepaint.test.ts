@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MASK_KEYS, PREPAINT_SCRIPT, RECENTS_ATTR, explorerUrlMasks, readExplorerUrl, recentSearchTerms } from './explorer-url'
+import { FOLD_ATTR, MASK_KEYS, PREPAINT_SCRIPT, RECENTS_ATTR, explorerUrlFolds, explorerUrlMasks, readExplorerUrl, recentSearchTerms } from './explorer-url'
 import { RECENT_SEARCHES_KEY } from './reco-signals'
 
 /**
@@ -141,5 +141,33 @@ describe('the returning-visitor recents reservation (E-RETURNING, O-16)', () => 
 describe('recentSearchTerms — no duplicate chips (gate 2026-09-30)', () => {
   it('dedupes case-insensitively after trimming, first wins', () => {
     expect(recentSearchTerms(['sofa', 'sofa ', 'Sofa', 'honda'])).toEqual(['sofa', 'honda'])
+  })
+})
+
+describe('the fold mark (all21 phone hunt #1, 2026-11-09) — a phone paints a directed link already folded', () => {
+  const marks = (search: string) => runScript(search).attrs.has(FOLD_ATTR)
+  it('the script marks exactly what explorerUrlFolds says, and that is readExplorerUrl(…).directed for every masked link', () => {
+    const urls = ['?q=iphone', '?q=%20%20', '?category=rentals', '?category=all', '?subcategory=apartment-rental', '?brand=apple', '?brand=all',
+      '?model=x', '?line=pro', '?type=rent', '?type=all', '?condition=used', '?condition=all', '?deal=good', '?deal=bad', '?priceMin=100',
+      '?priceMax=9', '?district=q1', '?district=all', '?province=79', '?province=79&ward=26734', '?province=x', '?view=map', '?view=video',
+      '?view=compact', '?sort=price-low', '?match=any', '?q=honda&category=vehicles&sort=price-low', '?ref=email', '',
+      // The first value of a key decides, as the explorer reads it (review): undirected, then directed.
+      '?category=all&category=electronics', '?category=electronics&category=all', '?line=all', '?priceMin=abc']
+    for (const u of urls) {
+      expect(marks(u), u).toBe(explorerUrlFolds(u))
+      if (explorerUrlMasks(u)) expect(explorerUrlFolds(u), u).toBe(readExplorerUrl(u).directed)
+      else expect(explorerUrlFolds(u), u).toBe(false) // no mask, no fold
+    }
+  })
+  it('a category\'s own filters fold with the category, never alone (the explorer keeps only the ones it defines)', () => {
+    expect(explorerUrlFolds('?attr_bedrooms=2')).toBe(false)
+    expect(explorerUrlFolds('?category=rentals&attr_bedrooms=2')).toBe(true)
+  })
+  it('the 15 s net lifts the fold with the mask', () => {
+    const { attrs, timers } = runScript('?q=iphone')
+    expect(attrs.has(FOLD_ATTR)).toBe(true)
+    timers.forEach((fn) => fn())
+    expect(attrs.has(FOLD_ATTR)).toBe(false)
+    expect(attrs.has('data-explorer-directed')).toBe(false)
   })
 })

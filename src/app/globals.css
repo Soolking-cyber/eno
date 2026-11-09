@@ -4356,6 +4356,34 @@ html[data-explorer-directed] #listings [data-feed-heading] {
   visibility: hidden;
 }
 
+/* ⛔ A PHONE PAINTS A DIRECTED LINK ALREADY FOLDED (all21 phone hunt #1; owner, 2026-11-09: "resolve with recommended").
+   On a phone a directed feed folds its category ladder into ONE compact row (owner, 2026-09-24) — but a cold link could
+   not fold after hydration without moving every result ~220px (listings-explorer.tsx `foldArmed`), so /?q=iphone from an
+   email kept the full tile grid and its first photo started at y≈440 of 844. The pre-paint script marks a link the
+   explorer WILL fold (`html[data-explorer-fold]`, explorer-url.ts explorerUrlFolds); here, below `md` (the explorer's own
+   fold width, useMdUp), the tile rail and the brand row's reserve leave the first frame and `.ladder-row-reserve`
+   (LadderSlot) holds the folded row's exact height in their place. The explorer arms the fold at once and its row mounts
+   into that space — nothing moves — then drops the mark (useLayoutEffect, before that frame paints).
+   ⚠️ DIRECT CHILDREN OF THE LADDER ONLY (`[data-ladder] >`): folded, the same rails sit inside the row's closed panel and
+   must open normally. ⚠️ THE HEIGHT IS THE ROW'S, MEASURED (ladder-compact-row.tsx: a min-h-9 trigger and h-9 chips — 36px at
+   every phone width, EN and VI) and IN THE ROW'S UNIT, rem, so a reader's larger default font grows both alike: change one,
+   change the other, or the fold moves the page by the difference. ⚠️ `768px`, NOT `48rem`: the explorer arms the fold by
+   `(min-width: 768px)` (useMdUp), and a rem media query follows the browser's default font size — with a larger one a
+   tablet would hide its rails here while the explorer stays unfolded (review). */
+.ladder-row-reserve {
+  display: none;
+}
+@media (width < 768px) {
+  html[data-explorer-fold] [data-ladder] > [data-category-rail],
+  html[data-explorer-fold] [data-ladder] > .brand-row-reserve {
+    display: none !important;
+  }
+  html[data-explorer-fold] [data-ladder] > .ladder-row-reserve {
+    display: block;
+    height: 2.25rem;
+  }
+}
+
 /* ⛔ THE ROWS A FILTERED LINK WILL GROW ARE HELD OPEN FROM THE FIRST FRAME (speed audit, 2026-11-03). The ISR home has neither, so the answer pushed every result down:
    108 px for a brand row (0.34 of layout shift on /?category=electronics, desktop) and 28 px for the phone's taller results row (0.017 on nearly every link).
    Measured on live per category: electronics, vehicles, furniture-appliances and hobbies-sports have a brand row; the teachers feed alone keeps the shorter results row.
