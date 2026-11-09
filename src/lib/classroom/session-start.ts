@@ -20,7 +20,7 @@ import { NextAtRefusal } from './refusal'
 import { containsContactInfo } from '@/lib/publish-guard'
 import { containsPhoneNumber } from '@/lib/phone'
 import { isStaffProfile } from '@/lib/user-blocks'
-import { defaultTutor, tutorOfTeacher } from './tutors'
+import { defaultTutor } from './tutors'
 
 /**
  * START A SESSION (plan "Concurrency, limits and budget"). ONE transaction under two locks:
@@ -117,11 +117,16 @@ type FaceLook = Pick<SeatRow['avatar'], 'look' | 'libraryAvatarId' | 'customStat
 /** A teacher's try: which of their tutors (`tutorId`, else their oldest — several tutors since 2026-11-09). */
 export type TestTarget = { test: true; tutorId?: string }
 
-/** The teacher and the tutor a try would use, or null (no teacher profile, or no such tutor of theirs). */
+/**
+ * The teacher and the tutor a try would use, or null (no teacher profile, or no such tutor of theirs). A tutor NAMED may be
+ * archived: a try started as it was archived must still reload (commit gate, codex) — it is the teacher's own, no student
+ * meets it, and the class pages never offer an archived one.
+ */
 async function testTutor(accountId: string, tutorId: string | undefined) {
   const tp = await db.teacherProfile.findUnique({ where: { profileId: accountId }, select: { id: true, photoUrl: true } })
   if (!tp) return null
-  const avatar = tutorId === undefined ? await defaultTutor(tp.id) : await tutorOfTeacher(tutorId, tp.id)
+  const named = typeof tutorId === 'string' && tutorId.length > 0 && tutorId.length <= 64
+  const avatar = tutorId === undefined ? await defaultTutor(tp.id) : named ? await db.classroomAvatar.findFirst({ where: { id: tutorId, teacherProfileId: tp.id } }) : null
   return { tp, avatar }
 }
 

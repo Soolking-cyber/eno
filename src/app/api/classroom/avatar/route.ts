@@ -3,7 +3,7 @@ import { ApiError, route } from '@/lib/api/handler'
 import { AVATAR_SELECT, validateAvatar } from '@/lib/classroom/avatar'
 import { requireTeacher } from '@/lib/classroom/guards'
 import { readCapped } from '@/lib/classroom/http'
-import { createTutor, defaultTutor, tutorDefaults, updateTutor, withListedVoice } from '@/lib/classroom/tutors'
+import { defaultTutor, saveDefaultTutor, tutorDefaults, withListedVoice } from '@/lib/classroom/tutors'
 import { db } from '@/lib/db'
 
 export const runtime = 'nodejs'
@@ -36,6 +36,6 @@ export const PUT = route({ auth: 'profile', rateLimit: { bucket: 'classroom-avat
   const current = await defaultTutor(teacher.id)
   const v = validateAvatar(body, current?.customStatus ?? 'none')
   if (!v.ok) throw new ApiError(v.code, 400)
-  const avatar = current ? await updateTutor(teacher.id, current.id, v.value) : await createTutor(teacher.id, v.value)
+  const avatar = await saveDefaultTutor(teacher.id, v.value, 'bestFor' in body, current?.id ?? null)
   return NextResponse.json({ avatar }, { headers: NO_STORE })
 })

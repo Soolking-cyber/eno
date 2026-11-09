@@ -6,7 +6,7 @@ const h = vi.hoisted(() => {
     $executeRaw: vi.fn(async () => 1),
     classroomAvatar: { count: vi.fn(), create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     classroomEnrollment: { count: vi.fn() },
-    classroomSession: { groupBy: vi.fn() },
+    classroomSession: { count: vi.fn(async () => 0) },
   }
   return {
     tx,
@@ -19,7 +19,7 @@ const h = vi.hoisted(() => {
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/db', () => ({ db: h.db }))
 
-const { archiveTutor, createTutor, teacherLock, tutorOfTeacher, updateTutor } = await import('./tutors')
+const { archiveTutor, createTutor, saveDefaultTutor, teacherLock, tutorOfTeacher, updateTutor } = await import('./tutors')
 const { validateAvatar } = await import('./avatar')
 const { LIMITS } = await import('./constants')
 const { VOICES } = await import('./voices')
@@ -31,7 +31,7 @@ const input = () => {
 }
 const lockSql = () => (h.tx.$executeRaw.mock.calls as unknown as [TemplateStringsArray, ...unknown[]][]).map((c) => c.slice(1).join(','))
 
-beforeEach(() => { vi.clearAllMocks() })
+beforeEach(() => { vi.clearAllMocks(); h.tx.classroomSession.count.mockResolvedValue(0) })
 
 describe('making a tutor', () => {
   it('counts the teacher\'s tutors under the teacher\'s lock and refuses past the cap', async () => {
@@ -85,11 +85,44 @@ describe('archiving a tutor (never deleting: its seats would cascade)', () => {
     await expect(archiveTutor('tp1', 't1')).rejects.toMatchObject({ code: 'tutor_not_found', status: 404 })
     expect(h.tx.classroomAvatar.findFirst.mock.calls[0][0].where).toEqual({ id: 't1', teacherProfileId: 'tp1', archivedAt: null })
   })
+  it('is refused while a try of it is running (a reload must still find its tutor)', async () => {
+    h.tx.classroomAvatar.findFirst.mockResolvedValue({ id: 't1', customStatus: 'none' })
+    h.tx.classroomEnrollment.count.mockResolvedValue(0)
+    h.tx.classroomSession.count.mockResolvedValue(1)
+    await expect(archiveTutor('tp1', 't1')).rejects.toMatchObject({ code: 'session_live', status: 409 })
+    expect(h.tx.classroomSession.count).toHaveBeenCalledWith({ where: { avatarId: 't1', status: 'live', endsAt: { gte: expect.any(Date) } } })
+    expect(h.tx.classroomAvatar.update).not.toHaveBeenCalled()
+  })
   it('with no students it is archived — under the same lock a seat move takes', async () => {
     h.tx.classroomAvatar.findFirst.mockResolvedValue({ id: 't1', customStatus: 'removed' })
     h.tx.classroomEnrollment.count.mockResolvedValue(0)
     await archiveTutor('tp1', 't1')
     expect(lockSql()).toEqual([teacherLock('tp1')])
     expect(h.tx.classroomAvatar.update.mock.calls[0][0]).toMatchObject({ where: { id: 't1' }, data: { archivedAt: expect.any(Date) } })
+  })
+})
+
+describe('the old one-avatar save (a page opened before several tutors)', () => {
+  it('⛔ chooses the teacher\'s first tutor UNDER THE TEACHER\'S LOCK, so two first saves at once make one tutor', async () => {
+    h.tx.classroomAvatar.findFirst.mockResolvedValue(null)
+    h.tx.classroomAvatar.create.mockResolvedValue({ id: 't1' })
+    await saveDefaultTutor('tp1', input(), true, null)
+    expect(lockSql()).toEqual([teacherLock('tp1')])
+    expect(h.tx.classroomAvatar.findFirst.mock.calls[0][0].where).toEqual({ teacherProfileId: 'tp1', archivedAt: null })
+    expect(h.tx.classroomAvatar.create).toHaveBeenCalledTimes(1)
+  })
+  it('updates the oldest tutor, keeping its "best for" line when the old page did not send one', async () => {
+    h.tx.classroomAvatar.findFirst.mockResolvedValue({ id: 't1', bestFor: 'Shy beginners' })
+    await saveDefaultTutor('tp1', { ...input(), bestFor: '' }, false, 't1')
+    expect(h.tx.classroomAvatar.update.mock.calls[0][0]).toMatchObject({ where: { id: 't1' }, data: { bestFor: 'Shy beginners' } })
+    expect(h.tx.classroomAvatar.create).not.toHaveBeenCalled()
+  })
+  it('⛔ refuses when the oldest tutor changed since the request was checked (archived in another tab, or a first one made)', async () => {
+    h.tx.classroomAvatar.findFirst.mockResolvedValue({ id: 't2', bestFor: '' })
+    await expect(saveDefaultTutor('tp1', input(), true, 't1')).rejects.toMatchObject({ code: 'tutor_not_found' })
+    h.tx.classroomAvatar.findFirst.mockResolvedValue({ id: 't1', bestFor: '' })
+    await expect(saveDefaultTutor('tp1', input(), true, null)).rejects.toMatchObject({ code: 'tutor_not_found' })
+    expect(h.tx.classroomAvatar.update).not.toHaveBeenCalled()
+    expect(h.tx.classroomAvatar.create).not.toHaveBeenCalled()
   })
 })

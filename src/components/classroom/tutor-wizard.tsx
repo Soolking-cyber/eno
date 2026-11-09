@@ -34,6 +34,9 @@ type Loaded = {
   teacher: { fullName: string; photoUrl: string | null; nationality: string }
   tutor: null | SavedTutor
   defaults: { name: string; voice: string; traits: Traits }
+  /** A new tutor: how many the teacher has and may keep — at the cap the page says so before any step (commit gate round 2). */
+  tutors?: unknown[]
+  limit?: number
 }
 type Draft = { name: string; bestFor: string; persona: string; greeting: string; traits: Traits; voice: string; look: AvatarLook; libraryAvatarId: string | null }
 
@@ -92,6 +95,10 @@ export function TutorWizard({ tutorId }: { tutorId?: string }) {
   if (!user) return <EmptyState icon={UserRound} title={tr('Sign in to make a tutor', 'Đăng nhập để tạo gia sư')} action={<Button variant="cta" className="min-h-11" onClick={() => openSignIn()}>{tr('Sign in', 'Đăng nhập')}</Button>} className="mt-12" />
   if (failed) return <EmptyState icon={UserRound} title={tr(refusalCopy(failed).en, refusalCopy(failed).vi)} className="mt-12" />
   if (!data || !d) return <Skeleton className="mt-4 h-64 w-full rounded-2xl" />
+  if (!tutorId && data.limit !== undefined && (data.tutors?.length ?? 0) >= data.limit) {
+    return <EmptyState icon={UserRound} title={tr(refusalCopy('tutor_limit').en, refusalCopy('tutor_limit').vi)} className="mt-12"
+      action={<Button variant="outline" className="min-h-11" onClick={() => router.push('/classroom')}>{tr('Your class', 'Lớp của bạn')}</Button>} />
+  }
 
   const steps: WizardStep[] = [
     { key: 'look', icon: <Camera className="size-4" />, label: tr('Look', 'Diện mạo') },
