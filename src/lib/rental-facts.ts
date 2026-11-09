@@ -102,6 +102,10 @@ export const RENTAL_FACT_LABELS = {
   mezzanineFloor: { label: 'Mezzanine', labelVi: 'Tầng lửng' },
   // A guessed amount (CostRow.estimated): the word printed after its unit, in plain sight (rental-facts.tsx).
   estimate: { label: 'estimate', labelVi: 'ước tính' },
+  // The deposit chip beside the price (depositSummary).
+  depositMonth: { label: 'Deposit: 1 month', labelVi: 'Cọc 1 tháng' },
+  depositMonths: { label: 'Deposit: {n} months', labelVi: 'Cọc {n} tháng' },
+  depositAmount: { label: 'Deposit:', labelVi: 'Cọc' },
 } as const satisfies Record<string, LabelPair>
 
 /**
@@ -137,6 +141,23 @@ export function rentalFactsApply(l: { categorySlug: string | null | undefined; s
 
 /** `estimated`: the amount is a guess (ELECTRICITY_ESTIMATED) — the page prints "≈" before it and "estimate" after it. */
 export type CostRow = { key: string; name: LabelPair; amount: number; per: LabelPair | null; estimated: boolean }
+
+/**
+ * ⛔ THE DEPOSIT, BESIDE THE PRICE (best-practice gap 2026-11-10: rent with its unit AND its deposit — a decision fact on the
+ * first screen; it sat in Costs a scroll below). In MONTHS only when the deposit is an exact whole number of months' rent
+ * (1–6): "Deposit: 2 months" is a promise about money, so 3.8 million against a 4 million rent prints the amount instead.
+ * From rentalCostRows, so the same plausibility rules decide whether there is a deposit at all; `monthlyRent` is null for
+ * a rent that is not per month (the amount then).
+ */
+export function depositSummary(rows: readonly CostRow[], monthlyRent: number | null): { months: number } | { amount: number } | null {
+  const dep = rows.find((r) => r.key === 'deposit')
+  if (!dep) return null
+  if (monthlyRent != null && monthlyRent > 0) {
+    const n = dep.amount / monthlyRent
+    if (Number.isInteger(n) && n >= 1 && n <= 6) return { months: n }
+  }
+  return { amount: dep.amount }
+}
 
 /** A positive whole number (of people), from the stored string — else null. */
 function wholePositive(v: unknown): number | null {

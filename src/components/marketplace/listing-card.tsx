@@ -30,7 +30,8 @@ import { cardSlots, isSwipe } from '@/lib/card-slots'
 import { rubberBand } from '@/hooks/use-swipe-dismiss'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
-import { useLanguage, useTr } from '@/context/language-context'
+import { useLanguage } from '@/context/language-context'
+import { usePlaceText } from './place-name'
 import { cardArea, cardAreaEn, isHcmc } from '@/lib/city-short'
 import { cardTitle, hasImportDate, jobTypeLabel } from '@/lib/card-title'
 import { localizedHref } from '@/lib/lang-pinned'
@@ -216,8 +217,11 @@ function ListingCardImpl({
    * runs (hooks are unconditional) with '', its no-op. Translating it and throwing the answer away
    * was 54 requested texts per Vietnamese home view (2026-09-29).
    */
-  const translatedLocation = useTr(isHcmc(listing.location) ? '' : listing.location)
-  const displayLocation = isHcmc(listing.location) ? tr('HCM', 'TP.HCM') : lang === 'en' ? cardAreaEn(cardArea(translatedLocation)) : cardArea(translatedLocation)
+  // ⛔ A place name never goes through machine translation (place-name.tsx usePlaceText): a French card read "Huyện Nhà Bè"
+  // as "La maison de la bête". Anything not wholly administrative is translated as before.
+  const translatedLocation = usePlaceText(isHcmc(listing.location) ? '' : listing.location)
+  // English reads the stored value through cardAreaEn, as always — it never went through machine translation.
+  const displayLocation = isHcmc(listing.location) ? tr('HCM', 'TP.HCM') : lang === 'en' ? cardAreaEn(cardArea(listing.location)) : cardArea(translatedLocation)
   // Condition badge text for the metadata line. new/used are the canonical facet values
   // (verified in prod); an unexpected value is shown verbatim rather than dropped.
   const conditionLabel = listing.condition === 'new' ? tr('New', 'Mới')

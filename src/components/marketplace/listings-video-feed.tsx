@@ -8,7 +8,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Heart, MessageCircle, Share2, Volume2, VolumeX, Play, Film, X, ChevronUp, ChevronDown } from '@/components/ui/icons'
 import { STROKE_NAV, STROKE_FLOAT, STROKE_DISPLAY } from '@/lib/icon-tokens'
 import type { SerializedListingCard } from '@/lib/types'
-import { useLanguage, useTr } from '@/context/language-context'
+import { useLanguage } from '@/context/language-context'
+import { usePlaceText } from './place-name'
 import { useFavorites } from '@/context/favorites-context'
 import { useAuth } from '@/context/auth-context'
 import { useLocalized } from './listing-content'
@@ -326,7 +327,8 @@ function VideoFeedItem({
   const { isFavorite, toggle } = useFavorites()
   const favorited = isFavorite(listing.id)
   const title = useLocalized(listing.title, listing.titleVi, listing.titleI18n)
-  const location = useTr(listing.location)
+  // A place name is never machine-translated (place-name.tsx usePlaceText).
+  const location = usePlaceText(listing.location)
   const videoRef = useRef<HTMLVideoElement>(null)
   const [paused, setPaused] = useState(false)
   // A plain click opens the listing in place (and stashes the clip for Back); any other is the browser's new tab or window.

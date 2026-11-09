@@ -38,11 +38,8 @@ import {
  */
 
 /** A place name: English on every page but a Vietnamese one — never machine-translated. */
-export function PlaceName({ en, vi }: { en: string; vi: string }) {
-  const { lang } = useLanguage()
-  // i18n-invariant: a place name — never machine-translated (the rule this component exists for).
-  return <>{lang === 'vi' ? vi : en}</>
-}
+// i18n-invariant: a place name — never machine-translated. Shared with the listing page and the cards since 2026-11-10.
+export { PlaceName } from '@/components/marketplace/place-name'
 
 /**
  * /c/rentals H1 — the four strings category-copy.ts `RENTALS_H1` holds, as literals (tested equal).

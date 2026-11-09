@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ELECTRICITY_ESTIMATED, RENTAL_FACT_KEYS, RENTAL_FACT_LABELS, amenityOptions, plausibleFee, rentalCostRows, rentalFactHiddenKeys, rentalFactRows, rentalFactsApply } from './rental-facts'
+import { ELECTRICITY_ESTIMATED, RENTAL_FACT_KEYS, RENTAL_FACT_LABELS, amenityOptions, depositSummary, plausibleFee, rentalCostRows, rentalFactHiddenKeys, rentalFactRows, rentalFactsApply, type CostRow } from './rental-facts'
 
 /**
  * A rental's structured facts for the listing page (GoPlus partnership, 2026-10-19). The importer writes every value as
@@ -188,5 +188,24 @@ describe('rentalFactsApply + rentalFactHiddenKeys', () => {
     expect(rentalFactHiddenKeys({ electricityPrice: '4000000', electricityEstimated: '4000' })).toEqual(['electricityEstimated'])
     // Any other value is not the importer's flag: it keeps its generic row, like every malformed value here.
     expect(rentalFactHiddenKeys({ electricityPrice: '4000', electricityEstimated: 'yes' })).toEqual(['electricityPrice'])
+  })
+})
+
+describe('depositSummary — the deposit beside the price (best-practice gap 2026-11-10)', () => {
+  const row = (amount: number): CostRow => ({ key: 'deposit', name: { label: 'Deposit', labelVi: 'Tiền cọc' }, amount, per: null, estimated: false })
+  it('a whole number of months (1–6) reads in months', () => {
+    expect(depositSummary([row(3_800_000)], 3_800_000)).toEqual({ months: 1 })
+    expect(depositSummary([row(8_000_000)], 4_000_000)).toEqual({ months: 2 })
+    expect(depositSummary([row(24_000_000)], 4_000_000)).toEqual({ months: 6 })
+  })
+  it('anything else is the amount — "2 months" is a promise about money', () => {
+    expect(depositSummary([row(3_800_000)], 4_000_000)).toEqual({ amount: 3_800_000 })
+    expect(depositSummary([row(28_000_000)], 4_000_000)).toEqual({ amount: 28_000_000 }) // 7 months: not a usual deposit
+    expect(depositSummary([row(2_000_000)], 4_000_000)).toEqual({ amount: 2_000_000 }) // half a month
+    expect(depositSummary([row(3_000_000)], null)).toEqual({ amount: 3_000_000 }) // rent not per month
+  })
+  it('no deposit row, no chip', () => {
+    expect(depositSummary([], 4_000_000)).toBeNull()
+    expect(depositSummary(rentalCostRows({ deposit: '2 tháng' }), 4_000_000)).toBeNull() // free text keeps its own row
   })
 })

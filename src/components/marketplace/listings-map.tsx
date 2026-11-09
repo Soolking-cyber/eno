@@ -16,7 +16,8 @@ import type { SerializedListingCard, BuildingPin } from '@/lib/types'
 import { formatMoneyFull, compactPrice, moneyLocale, type MoneyLocale } from '@/lib/vnd'
 import { useCurrency, vndPerUsd } from '@/context/currency-context'
 import { Price } from './price'
-import { useLanguage, useTr } from '@/context/language-context'
+import { useLanguage } from '@/context/language-context'
+import { PopupPlace } from './place-name'
 import { useFavorites } from '@/context/favorites-context'
 import { LocalizedText } from './listing-content'
 import { getListingCoordinates } from '@/lib/geo'
@@ -83,16 +84,7 @@ function pinLabel(l: SerializedListingCard, locale: MoneyLocale, currency?: stri
   return formatMoneyFull(l.price, l.currency, locale)
 }
 
-/** The popup's place line — the city goes through the same `useTr` the card uses (identity in
- *  English and Vietnamese; machine-translated for the other UI languages). The district is printed as
- *  stored, exactly as on the card: it is a proper noun, and machine translation of ward names is how
- *  "Bình Thạnh" becomes a word salad. The full city name stays (the popup is 300px; the card's "HCM"
- *  is a width fix). A component because the popup's listing changes while the map stays mounted, and
- *  a hook cannot be called conditionally inside it. */
-function PopupPlace({ district, location }: { district: string | null; location: string }) {
-  const city = useTr(location)
-  return <>{district && district !== location ? `${district}, ${city}` : city}</>
-}
+// The popup's place line: place-name.tsx PopupPlace (with the other place-name rules, so it can be tested without a map).
 
 type Props = {
   listings: SerializedListingCard[]

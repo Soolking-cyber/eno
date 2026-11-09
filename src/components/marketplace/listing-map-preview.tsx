@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { SerializedListingCard } from '@/lib/types'
-import { Tr, useLanguage, useTr } from '@/context/language-context'
+import { Tr, useLanguage } from '@/context/language-context'
+import { PopupPlace } from './place-name'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { Info, Map as MapIcon } from '@/components/ui/icons'
@@ -156,7 +157,7 @@ export function ListingMapPreview({ listing, liveMap, approximate = null }: {
         >
           <SheetHeader className="pr-14">
             <SheetTitle><Tr text="Location" /></SheetTitle>
-            <SheetDescription><PreviewPlace district={listing.district} location={listing.location} /></SheetDescription>
+            <SheetDescription><PopupPlace district={listing.district} location={listing.location} /></SheetDescription>
           </SheetHeader>
           <div className="relative min-h-0 flex-1 border-t border-border">{liveMap()}</div>
         </SheetContent>
@@ -166,14 +167,9 @@ export function ListingMapPreview({ listing, liveMap, approximate = null }: {
   )
 }
 
-/** The place line: the district as stored (a proper noun — machine translation is how ward names become
- *  word salad) and the location through the catalogue, as the live map's popup prints it — except that
- *  a location which already names its district is shown alone. Measured on real listings: the popup's
- *  rule rendered "Quận 2, P. Thảo Điền, Quận 2". A component because `useTr` is a hook. */
-function PreviewPlace({ district, location }: { district: string | null; location: string }) {
-  const place = useTr(location)
-  return <>{district && !location.includes(district) ? `${district}, ${place}` : place}</>
-}
+// The place line is the live map popup's own (place-name.tsx PopupPlace, 2026-11-10): one rule for both, which already drops
+// a district the location names ("Quận 2, P. Thảo Điền, Quận 2", measured here once) — by exact level, so "Quận 1" survives
+// beside "Quận 12" — and never mixes a stored "Quận 7" with a spelled "Tan Phong Ward".
 
 /**
  * The basemap credits, in the same collapsed ⓘ form the live map uses (listings-map.tsx `MapCredit`,

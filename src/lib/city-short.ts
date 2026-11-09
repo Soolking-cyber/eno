@@ -76,6 +76,82 @@ export function cardAreaEn(text: string): string {
   return text.normalize('NFC').split(/\s*,\s*/).map(areaSegmentEn).join(', ')
 }
 
+/**
+ * One administrative level in English, or null. The prefix must END (a space, or "TP." with its dot: "TPBank" is a bank), and
+ * the name after it must be a place's: a district or ward number, or one to three capitalised words of letters (review:
+ * "Quận 7 Phú Mỹ Hưng", "Quận 1 gần chợ Bến Thành" and "Tỉnh lộ 10" are a seller's words, and keep their translation).
+ */
+function adminLevelEn(segment: string): string | null {
+  // "TP" only with its dot ("TP. Thủ Đức", "TP.HCM"): "TP Tower" is a building (review).
+  const m = /^(?:(Quận|Huyện|Phường|Xã|Thị trấn|Thị xã|Tỉnh|Thành phố)\s+|(TP)\.\s*)(.+)$/iu.exec(segment.trim())
+  if (!m) return null
+  const level = m[1] ?? m[2]
+  const name = m[3].trim()
+  // A number, or one to three capitalised words of letters only: district and ward names run one to three syllables-words
+  // ("Gò Vấp", "Nguyễn Cư Trinh"); a fourth word is a seller's ("Quận Bình Thạnh Gần Sông", review) — it keeps its translation.
+  const words = name.split(/\s+/)
+  const number = /^\d{1,2}$/.test(name)
+  if (!number && !(words.length <= 3 && words.every((w) => /^\p{Lu}\p{L}*$/u.test(w)))) return null
+  const kind = level.toLocaleLowerCase('vi')
+  const label = kind.startsWith('phường') ? 'Ward' : kind === 'xã' ? 'Commune' : kind === 'thị trấn' || kind === 'thị xã' ? 'Town'
+    : kind === 'tỉnh' ? 'Province' : kind.startsWith('tp') || kind.startsWith('thành') ? 'City' : 'District'
+  return number ? `${label} ${name}` : `${unaccent(name)} ${label}`
+}
+
+/**
+ * ⛔ A PLACE NAME IS NEVER MACHINE-TRANSLATED (best-practice gap 2026-11-10). A stored location that is NOTHING BUT Vietnamese
+ * administrative places — "Huyện Nhà Bè (Xã Nhà Bè)" (the rental importers' district-with-ward shape), "Quận 7",
+ * "Quận Bình Thạnh, TP. Hồ Chí Minh" — in English: "Nha Be District (Nha Be Commune)", "District 7", "Binh Thanh District,
+ * Ho Chi Minh City".
+ * Machine translation read "Huyện Nhà Bè" word by word: every English Nha Be rental page said "The House of Bee", the French
+ * one "La maison de la bête". Null for anything that is not wholly administrative (a building, a street, free text), which
+ * keeps its translation. Display only, like everything in this file.
+ */
+export function adminPlaceEn(text: string | null | undefined): string | null {
+  if (!text) return null
+  const segments = text.normalize('NFC').trim().split(/\s*,\s*/)
+  // ⚠️ A WARD-LEVEL NAME IS TRUSTED ONLY IN BRACKETS: streets are named like wards ("Xã Đàn" is a Hanoi street — alone or as
+  // "Xã Đàn, Quận Đống Đa", review), so every top-level part must be a district or higher ("Quận Bình Thạnh", "TP. Thủ Đức"),
+  // its ward in the importers' brackets. Every location the 2026-11-10 sample of 2,220 live listings classed as
+  // administrative was "district (ward)".
+  if (segments.some((seg) => /^(?:Phường|Xã|Thị trấn)\s/iu.test(seg))) return null
+  const out: string[] = []
+  for (const seg of segments) {
+    // A level with its finer one in brackets ("Quận 7 (Phường Tân Phong)"), or a level alone.
+    const m = /^([^()（）]+?)\s*(?:[(（]([^()（）]+)[)）])?$/u.exec(seg)
+    if (!m) return null
+    const head = adminLevelEn(m[1])
+    const sub = m[2] == null ? '' : adminLevelEn(m[2])
+    if (head == null || sub == null) return null
+    out.push(sub ? `${head} (${sub})` : head)
+  }
+  return out.join(', ')
+}
+
+/**
+ * Does any of `texts` (a title, say) already name the place in the location's brackets — as stored or as spelled? The
+ * importers' titles do ("Studio · Nha Be Commune, Nha Be District"); a seller's own "Studio for rent" does not. Accent- and
+ * case-blind.
+ */
+export function bracketNamedIn(location: string, texts: readonly (string | null | undefined)[]): boolean {
+  const inner = /[(（]([^()（）]+)[)）]/u.exec(location.normalize('NFC'))?.[1]?.trim()
+  if (!inner) return false
+  // The bracket of an administrative location is a ward: spelled level by level, not judged alone like a bare location.
+  const wants = [inner, adminLevelEn(inner)].filter((w): w is string => !!w)
+  return texts.some((t) => !!t && wants.some((w) => placeNamedIn(t, w)))
+}
+
+/**
+ * Does `text` name `place` as whole words — accent- and case-blind? "…, Quận 7 TP.HCM" names "Quận 7"; "Quận 12" does not name
+ * "Quận 1", nor a title about "Phường 12" "Phường 1" (review: a substring said yes to both, an exact segment no to the first).
+ */
+export function placeNamedIn(text: string, place: string): boolean {
+  const fold = (s: string) => unaccent(s.normalize('NFC')).toLowerCase().trim()
+  const p = fold(place)
+  if (!p) return false
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^\\p{L}\\p{N}])`, 'u').test(fold(text))
+}
+
 /** One administrative level at a time: a comma-joined value carries several ("Phường Bến Nghé, Quận 1"), each with its own label. */
 function areaSegmentEn(segment: string): string {
   const t = segment.trim()
