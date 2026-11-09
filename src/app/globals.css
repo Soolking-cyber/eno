@@ -4592,3 +4592,113 @@ body:has([data-concierge-frame]) .support-mark,
 body:has([data-concierge-frame]) .back-to-top-chevron {
   display: none;
 }
+
+/* ── THE HOME PAGE'S PARTNER STRIP (src/components/marketplace/partner-strip.tsx; roster src/lib/partner-strip.ts) ──
+   Owner, 2026-11-09: official partner logos scrolling right to left, one word each, "super professional minimal".
+   ⛔ A SEAMLESS LOOP NEEDS EQUAL HALVES, EACH WIDER THAN THE BAND: the track holds two halves of repeated rosters
+   (partner-strip.tsx REPEAT) and moves by exactly -50%. Spacing is each
+   item's trailing padding, never the track's `gap` (a gap has no partner after the last item, so -50% would land one gap
+   short and the loop would jump).
+   ⛔ THE LOGO TILES ARE WHITE IN BOTH THEMES: the partners drew their marks for a white ground (GoPlus's maroon, VinWonders'
+   brown outline disappear on the dark canvas). Blvck's mark is drawn for black, so its tile is black. The tile's hairline is
+   the theme's border, so it reads as a card edge in light and a soft rim in dark.
+   ⛔ REDUCED MOTION: no movement at all — the copy is hidden and the row scrolls by hand (the global kill switch alone would
+   only shorten the animation, not stop a looping marquee from jumping). */
+.partner-strip {
+  height: 3.25rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-card);
+}
+@media (min-width: 640px) {
+  .partner-strip { height: 3.5rem; }
+}
+.partner-strip-viewport {
+  position: relative;
+  min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 1.5rem, #000 calc(100% - 2.5rem), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 1.5rem, #000 calc(100% - 2.5rem), transparent);
+}
+.partner-strip-track {
+  display: flex;
+  width: max-content;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* The loop runs only once the client has added the second copy (partner-strip.tsx `data-loop`): before that the row is the
+   server's one still copy, and sliding it by -50% would empty half the band. */
+.partner-strip-track[data-loop] {
+  animation: partner-strip-scroll var(--partner-strip-duration, 70s) linear infinite;
+}
+/* A pointer resting on the band holds it where it is (desktop). */
+.partner-strip-viewport:hover .partner-strip-track {
+  animation-play-state: paused;
+}
+/* ⛔ KEYBOARD FOCUS AND THE PAUSE TOGGLE STOP THE LOOP OUTRIGHT, back at its start (review 2026-11-09):
+   - focus: only the first roster's links are tabbable, and a merely paused track can hold that roster off to the left while
+     its repeats fill the band, so the focused link would be invisible. With the animation gone the track is at 0 and the
+     browser scrolls the focused link into view. ⛔ `:focus-visible`, NEVER `:focus-within`: Chromium focuses a link on
+     MOUSEDOWN, so a focus rule fired by a click jerked the track back to 0 between mousedown and mouseup and the click
+     landed on another logo or none (opus). A mouse click on a link is not :focus-visible.
+   - Pause (WCAG 2.2.2): stopped at the start, the row scrolls by hand, so a phone can reach every partner while paused.
+   The scroll that either leaves behind is reset by partner-strip.tsx before the loop runs again. */
+.partner-strip-viewport:has(:focus-visible) .partner-strip-track,
+.partner-strip-track[data-paused] {
+  animation: none;
+}
+/* The row scrolls by hand whenever it is not looping: the server's still row (or no JavaScript at all), and while paused. */
+.partner-strip-viewport:has(> .partner-strip-track:not([data-loop])),
+.partner-strip-viewport:has(> .partner-strip-track[data-paused]) {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.partner-strip-item {
+  flex: none;
+  padding-inline-end: 2rem;
+}
+@media (min-width: 640px) {
+  .partner-strip-item { padding-inline-end: 2.75rem; }
+}
+.partner-strip-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-lg);
+  outline: none;
+}
+.partner-strip-link:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-ring);
+}
+.partner-strip-tile {
+  display: inline-flex;
+  height: 2.25rem;
+  align-items: center;
+  border-radius: var(--radius-lg);
+  padding-inline: 0.5rem;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+.partner-strip-tile-dark {
+  background: #0b0b0b;
+  box-shadow: none;
+}
+.partner-strip-logo { display: block; height: 1.75rem; width: auto; }
+.partner-strip-logo-wide { display: block; height: 1.25rem; width: auto; }
+@keyframes partner-strip-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .partner-strip-track[data-loop] { animation: none; }
+  .partner-strip-item[data-copy="1"],
+  .partner-strip-pause { display: none; }
+  .partner-strip-viewport {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}

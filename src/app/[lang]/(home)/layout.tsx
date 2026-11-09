@@ -5,6 +5,7 @@ import { PREPAINT_SCRIPT } from '@/lib/explorer-url'
 import { VI_PILOT } from '@/lib/lang-pinned'
 import { LangPilotSwitch } from '@/components/marketplace/lang-pilot-switch'
 import { LangSuggestionBanner } from '@/components/marketplace/lang-suggestion-banner'
+import { PartnerStrip } from '@/components/marketplace/partner-strip'
 
 /**
  * ⛔ THE `/vi` PILOT'S SWITCHER AND BANNER (SEO wave B, V3b) MOUNT ONLY WHILE `/` IS A LIVE PILOT PATH —
@@ -64,6 +65,9 @@ export default function HomeLayout({ children, params }: { children: React.React
           Moving it into the client component fixed that; deleting the hero image removed the need
           entirely. */}
       <Header />
+      {/* The partner band (owner, 2026-11-09): official partners' logos drifting right to left, under the header so the
+          header keeps the top and its notch inset (why: partner-strip.tsx). Static roster, no data — this layout awaits nothing. */}
+      <PartnerStrip />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
         <h1 className="sr-only">{SITE_NAME}</h1>
         <script dangerouslySetInnerHTML={{ __html: PREPAINT_SCRIPT }} />
