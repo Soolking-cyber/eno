@@ -5,7 +5,7 @@ import { localSpeechConfig, synthesize, synthesizeStream, type LocalSpeechConfig
 import { sonioxConfig } from './soniox'
 import { sonioxSpeakLine, sonioxSpeakStream } from './soniox-tts'
 import type { Speaker, VoiceStream } from './turn-stream'
-import { VOICES, voiceFor, type Voice } from './voices'
+import { VOICES, voiceFor, type TutorVoice, type Voice } from './voices'
 import type { VoiceStyle } from './pace'
 
 /**
@@ -36,14 +36,19 @@ const LINE_KEEP_MS = 10 * 60_000
 const LINE_KEEP_MAX = 200
 const madeLines = new Map<string, { at: number; made: Promise<Buffer> }>()
 const sonioxKey = (text: string, v: Voice, style: VoiceStyle) => `${v.soniox}|${style.pace}|${style.loud ? 1 : 0}|${style.language ?? 'en'}|${text}`
-function sonioxLine(text: string, v: Voice, style: VoiceStyle): Promise<Buffer> {
+function sonioxLine(text: string, v: Spoken, style: VoiceStyle): Promise<Buffer> {
   const key = sonioxKey(text, v, style)
   const now = Date.now()
   // Kept LINE_KEEP_MS and no longer (review, codex): an opening can carry what a learner said — expired lines are let go.
   for (const [k, e] of madeLines) if (now - e.at >= LINE_KEEP_MS) madeLines.delete(k)
   const kept = madeLines.get(key)
   if (kept && now - kept.at < LINE_KEEP_MS) return kept.made
-  const made = sonioxSpeakLine(text, v.soniox, style, LINE_MAKE_MS)
+  const made = sonioxSpeakLine(text, v.soniox, style, LINE_MAKE_MS).catch((e: unknown) => {
+    // The teacher's own voice refused (gone, not ready, failed at Soniox): this line in the tutor's stock Soniox voice.
+    if (!v.stockSoniox || !voiceProblem(e)) throw e
+    markBroken(v.soniox)
+    return sonioxSpeakLine(text, v.stockSoniox, style, LINE_MAKE_MS)
+  })
   madeLines.set(key, { at: now, made })
   // Let go at LINE_KEEP_MS whether or not anything asks again (review, codex): unref'd — it never holds the process open.
   setTimeout(() => { if (madeLines.get(key)?.made === made) madeLines.delete(key) }, LINE_KEEP_MS).unref?.()
@@ -61,7 +66,7 @@ function keptSonioxLine(text: string, v: Voice, style: VoiceStyle): Promise<Buff
 
 /** Start making a whole line now, for an ask that is about to come (session-start.ts warmOpening). Never throws. The
  *  guide's (`first`): made on the box and kept — Soniox makes it ahead instead only when the box cannot. */
-export function warmLine(text: string, voice: string, style: VoiceStyle, boxOpts: BoxOpts = {}): void {
+export function warmLine(text: string, voice: string | TutorVoice, style: VoiceStyle, boxOpts: BoxOpts = {}): void {
   if (!text) return
   const v = voiceOf(voice)
   const box = boxFor(style, boxOpts.first)
@@ -74,7 +79,7 @@ export function warmLine(text: string, voice: string, style: VoiceStyle, boxOpts
 }
 
 /** For the tests: nothing made ahead. */
-export function forgetLines() { madeLines.clear() }
+export function forgetLines() { madeLines.clear(); brokenUntil.clear() }
 /** After a Soniox failure, the box speaks for this long before Soniox is tried again. */
 export const SONIOX_REST_MS = 60_000
 let sonioxRestUntil = 0
@@ -100,7 +105,49 @@ function sonioxFailed(e: unknown, what: string) {
   logWarn(rest ? '[classroom] soniox voice failed — the box speaks for a minute' : '[classroom] soniox missed a line — the box says it', { what, status })
 }
 let slowLines = 0
-const voiceOf = (voice: string): Voice => voiceFor(voice) ?? VOICES[0]
+/** A voice as spoken: `stockSoniox` set when `soniox` is the teacher's OWN cloned voice (the stock one stands behind it). */
+type Spoken = Voice & { stockSoniox?: string }
+/**
+ * The voice a line is said in. A tutor's (TutorVoice): the teacher's own while it is in use and not broken here, else the
+ * stock voice. A plain id (the voice guide, a sample): that voice. An unknown id: the first voice, rather than failing.
+ */
+function voiceOf(voice: string | TutorVoice): Spoken {
+  const stock = voiceFor(typeof voice === 'string' ? voice : voice.stock) ?? VOICES[0]
+  if (typeof voice === 'string' || !voice.own || broken(voice.own)) return stock
+  return { ...stock, soniox: voice.own, stockSoniox: stock.soniox }
+}
+
+/**
+ * ⛔ A TEACHER'S OWN VOICE THAT FAILS IS THAT TUTOR'S PROBLEM, NEVER EVERYONE'S (plan review, codex + opus): Soniox refuses a
+ * cloned voice per line — voice_not_found 404, voice_not_prepared 409, voice_not_ready / voice_failed 503 — and a 503 would
+ * otherwise rest Soniox for every session (sonioxFailed). Such a line is said again at once in the tutor's STOCK Soniox
+ * voice, and the voice is left alone here for BROKEN_MS (the sweep re-checks it at Soniox and fails the row if it is gone).
+ */
+const BROKEN_MS = 10 * 60_000
+const brokenUntil = new Map<string, number>()
+function broken(own: string): boolean {
+  const until = brokenUntil.get(own)
+  if (until === undefined) return false
+  if (Date.now() < until) return true
+  brokenUntil.delete(own)
+  return false
+}
+function markBroken(own: string) {
+  brokenUntil.set(own, Date.now() + BROKEN_MS)
+  if (brokenUntil.size > 200) brokenUntil.delete(brokenUntil.keys().next().value!)
+  logWarn('[classroom] a teacher\'s own voice refused a line — the stock voice speaks for now', {})
+}
+/** A refusal of the VOICE (stream-level), not of Soniox: a socket failure is 502/504, a key or credit 401–403. */
+const voiceProblem = (e: unknown) => { const s = (e as { status?: number }).status; return s === 404 || s === 409 || s === 503 }
+
+/**
+ * ⛔ A WITHDRAWN VOICE IS LET GO HERE AT ONCE (plan review, opus): every line made in it and still kept (LINE_KEEP_MS) is
+ * dropped — not only unreachable. Another process's kept lines are unreachable (the key is the voice) and expire on their own.
+ */
+export function forgetVoiceLines(own: string) {
+  for (const k of madeLines.keys()) if (k.startsWith(`${own}|`)) madeLines.delete(k)
+  brokenUntil.delete(own)
+}
 /** eno's own speech server for a line in this language: English for every speaker; Vietnamese for the voice guide only
  *  (`first` — the server's /vi/ routes are the guide's: Bảo Trang, owner 2026-10-29). Nothing else ever goes there. */
 const boxFor = (style: VoiceStyle, first = false) => {
@@ -120,7 +167,7 @@ type BoxOpts = { busyRetry?: boolean; first?: boolean }
  * words without the voice (the captions still show them), never a broken session. A voice saved before 2026-10-26 speaks
  * as its counterpart (voices.ts voiceFor); an unknown one in the first voice, rather than failing.
  */
-export async function speakLine(text: string, voice: string, style: VoiceStyle, waitMs = LINE_MAKE_MS, boxOpts: BoxOpts = {}): Promise<string> {
+export async function speakLine(text: string, voice: string | TutorVoice, style: VoiceStyle, waitMs = LINE_MAKE_MS, boxOpts: BoxOpts = {}): Promise<string> {
   const v = voiceOf(voice)
   const box = boxFor(style, boxOpts.first)
   if (boxOpts.first && box) return guideLine(text, v, style, box, waitMs)
@@ -149,7 +196,7 @@ export async function speakLine(text: string, voice: string, style: VoiceStyle, 
  * (the tutor's `pace` comes before its first sentence — session-turn.ts). Null when neither Soniox nor the box is set up:
  * the words still reach the screen.
  */
-export function speakerFor(voice: string, style: () => VoiceStyle, boxOpts: BoxOpts = {}): Speaker | null {
+export function speakerFor(voice: string | TutorVoice, style: () => VoiceStyle, boxOpts: BoxOpts = {}): Speaker | null {
   const v = voiceOf(voice)
   // ⛔ The box speaks English (and, for the guide alone, Vietnamese on its own route): a speaker in any other language has
   // NO box — no short first-sound budget that hands a slow line to it, no `o.box` turn, a Soniox failure leaves the words
@@ -164,7 +211,17 @@ export function speakerFor(voice: string, style: () => VoiceStyle, boxOpts: BoxO
       try {
         // A line asked AHEAD is not waited for yet — a longer first-sound budget, so queueing behind the line being heard
         // is never read as Soniox being slow (review, opus).
-        const voiced = await sonioxSpeakStream(text, v.soniox, style(), signal, box && !o?.ahead ? SONIOX_FIRST_SOUND_MS : undefined)
+        const budget = box && !o?.ahead ? SONIOX_FIRST_SOUND_MS : undefined
+        // The teacher's own voice while it holds; once it refused a line, the stock voice (voiceProblem).
+        const own = v.stockSoniox && !broken(v.soniox)
+        let voiced: Awaited<ReturnType<typeof sonioxSpeakStream>>
+        try {
+          voiced = await sonioxSpeakStream(text, own ? v.soniox : (v.stockSoniox ?? v.soniox), style(), signal, budget)
+        } catch (e) {
+          if (!own || signal.aborted || !voiceProblem(e)) throw e
+          markBroken(v.soniox)
+          voiced = await sonioxSpeakStream(text, v.stockSoniox!, style(), signal, budget)
+        }
         slowLines = 0
         return voiced
       } catch (e) {

@@ -19,10 +19,11 @@ import { refusalCopy } from './classroom-copy'
 import { SessionLauncher } from './session-launcher'
 import { TutorFace } from './tutor-card'
 import { PANEL_BUTTON, Panel } from './panel'
+import { SwitchRow } from '@/components/ui/switch'
 
 type Loaded = {
   teacher: { fullName: string; photoUrl: string | null; nationality: string; open: boolean }
-  tutor: { id: string; name: string; bestFor: string; voice: string; look: string; libraryAvatarId: string | null; customStatus: string; traits: unknown; students: number; backgroundUrl: string | null; backgroundThumbUrl: string | null }
+  tutor: { id: string; name: string; bestFor: string; voice: string; ownVoice?: boolean; look: string; libraryAvatarId: string | null; customStatus: string; traits: unknown; students: number; backgroundUrl: string | null; backgroundThumbUrl: string | null }
 }
 
 /** A page action: a 44px target that shares its row, its label wrapping (Vietnamese runs long) rather than spilling. */
@@ -55,6 +56,9 @@ function TutorDetailFor({ tutorId }: { tutorId: string }) {
   const [moving, setMoving] = useState<string | null>(null)
   const [archiving, setArchiving] = useState(false)
   const [confirmArchive, setConfirmArchive] = useState(false)
+  /** The teacher's own voice (own-voice.ts): may they make one, and is it ready — the "Your voice" row below. */
+  const [own, setOwn] = useState<{ open: boolean; status: string } | null>(null)
+  const [ownSaving, setOwnSaving] = useState(false)
 
   const load = useCallback(async () => {
     const [t, s] = await Promise.all([
@@ -63,6 +67,7 @@ function TutorDetailFor({ tutorId }: { tutorId: string }) {
     ])
     if (!t.ok) { setError(t.error); return }
     setD(t.data)
+    void api<{ voice: { status: string }; open: boolean }>('/api/classroom/own-voice').then((r) => { if (r.ok) setOwn({ open: r.data.open, status: r.data.voice.status }) })
     if (s.ok) setSeats(s.data.seats)
     else setActionError(s.error)
   }, [tutorId])
@@ -86,6 +91,14 @@ function TutorDetailFor({ tutorId }: { tutorId: string }) {
     setSeats(r.data.seats)
     setD((cur) => cur && { ...cur, tutor: { ...cur.tutor, students: r.data.seats.filter((s) => s.tutor.id === tutor.id).length } })
   }
+  const setOwnVoice = async (on: boolean) => {
+    setOwnSaving(true)
+    setActionError(null)
+    const r = await api<{ ownVoiceTutorIds: string[] }>('/api/classroom/own-voice/tutors', { body: { tutorIds: [tutor.id], on } })
+    setOwnSaving(false)
+    if (!r.ok) return setActionError(r.error)
+    setD((cur) => cur && { ...cur, tutor: { ...cur.tutor, ownVoice: r.data.ownVoiceTutorIds.includes(tutor.id) } })
+  }
   const archive = async () => {
     setArchiving(true)
     setActionError(null)
@@ -108,7 +121,7 @@ function TutorDetailFor({ tutorId }: { tutorId: string }) {
           <h1 className="h-title min-w-0 max-w-full truncate">{tutor.name}</h1>
           {tutor.bestFor && <p className="text-sm text-body">{tutor.bestFor}</p>}
           <p className="text-xs text-ink-4">
-            {tr('AI avatar', 'Avatar AI')}{voice ? ` · ${voice.name}` : ''}
+            {tr('AI avatar', 'Avatar AI')}{tutor.ownVoice && own?.status === 'ready' ? ` · ${tr('your voice', 'giọng của bạn')}` : voice ? ` · ${voice.name}` : ''}
             {tutor.customStatus === 'requested' ? ` · ${tr('your 3D face is being made', 'đang tạo khuôn mặt 3D của bạn')}` : ''}
           </p>
         </div>
@@ -122,6 +135,23 @@ function TutorDetailFor({ tutorId }: { tutorId: string }) {
           </Button>
         </div>
       </div>
+
+      {/* The teacher's own voice: switch it on for this tutor once it is ready, or go and make it (staff pilot first). */}
+      {own?.status === 'ready' ? (
+        <SwitchRow checked={!!tutor.ownVoice} disabled={ownSaving} onChange={(on) => void setOwnVoice(on)} label={tr('Speaks in your voice', 'Nói bằng giọng của bạn')}
+          description={<span className="flex flex-col gap-1">
+            {voice && <span>{tr('If your voice can’t be reached, it speaks as', 'Nếu không dùng được giọng của bạn, gia sư nói bằng giọng')} {voice.name}.</span>}
+            <Link href="/classroom/voice" prefetch={false} className="press self-start font-semibold text-brand">{tr('Manage your voice', 'Quản lý giọng nói')}</Link>
+          </span>} />
+      ) : own?.open || (own && own.status !== 'none') ? (
+        <Link href="/classroom/voice" prefetch={false} className="press flex min-h-12 items-center justify-between gap-3 rounded-2xl bg-tint px-4 py-3">
+          <span className="flex min-w-0 flex-col">
+            <span className="text-sm font-semibold text-ink">{tr('Use your own voice', 'Dùng giọng của chính bạn')}</span>
+            <span className="text-xs text-ink-4">{own.status === 'making' || own.status === 'checking' ? tr('Being made…', 'Đang tạo…') : tr('Read a few sentences, about a minute', 'Đọc vài câu, khoảng một phút')}</span>
+          </span>
+          <Mic aria-hidden className="size-5 shrink-0 text-brand" />
+        </Link>
+      ) : null}
 
       <section aria-labelledby="tutor-students" className="flex flex-col gap-3">
         <h2 id="tutor-students" className="text-lg font-bold text-ink">{tr('Students', 'Học viên')}</h2>

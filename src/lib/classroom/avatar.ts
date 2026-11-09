@@ -25,6 +25,11 @@ export type AvatarInput = {
    *  request did not say — left as it is (commit gate, opus: a client that never sends it must not wipe a room). Its
    *  OWNERSHIP is the route's to check (tutors routes: backgroundOfTeacher) — this only reads the shape. */
   backgroundId?: string | null
+  /** Speak in the teacher's own voice (own-voice.ts) — UNDEFINED when the request did not say (left as it is). True only while
+   *  that voice is ready: the route's to check (ownVoiceReady), like the room's ownership. */
+  ownVoice?: boolean
+  /** What a save writes for it: the teacher's ready voice's id (on), null (off), undefined (left as it is) — the route's. */
+  ownVoiceId?: string | null
   persona: string
   greeting: string
   traits: Traits
@@ -51,6 +56,8 @@ export function validateAvatar(raw: Record<string, unknown>, customStatus: strin
     : raw.backgroundId === null ? null
       : typeof raw.backgroundId === 'string' && raw.backgroundId.length > 0 && raw.backgroundId.length <= 64 ? raw.backgroundId : false
   if (backgroundId === false) return { ok: false, code: 'look_invalid' }
+  if (raw.ownVoice !== undefined && typeof raw.ownVoice !== 'boolean') return { ok: false, code: 'voice_invalid' }
+  const ownVoice = raw.ownVoice as boolean | undefined
   const voice = voiceById(raw.voice)
   if (!voice) return { ok: false, code: 'voice_invalid' }
   const look = (AVATAR_LOOKS as readonly string[]).includes(String(raw.look)) ? (raw.look as AvatarLook) : null
@@ -66,18 +73,18 @@ export function validateAvatar(raw: Record<string, unknown>, customStatus: strin
     const code = teacherTextRefusal(field === 'name' || field === 'bestFor' ? 'headline' : 'bio', text)
     if (code) return { ok: false, code }
   }
-  return { ok: true, value: { name, bestFor, backgroundId, persona, greeting, traits: parseTraits(raw.traits), voice: voice.id, look, libraryAvatarId } }
+  return { ok: true, value: { name, bestFor, backgroundId, ownVoice, persona, greeting, traits: parseTraits(raw.traits), voice: voice.id, look, libraryAvatarId } }
 }
 
 /** The columns a save writes (tutors.ts). */
 export function avatarData(v: AvatarInput) {
   return {
-    name: v.name, bestFor: v.bestFor, ...(v.backgroundId !== undefined ? { backgroundId: v.backgroundId } : {}), persona: v.persona, greeting: v.greeting, traits: v.traits, voice: v.voice, look: v.look,
+    name: v.name, bestFor: v.bestFor, ...(v.backgroundId !== undefined ? { backgroundId: v.backgroundId } : {}), ...(v.ownVoiceId !== undefined ? { ownVoiceId: v.ownVoiceId } : {}), persona: v.persona, greeting: v.greeting, traits: v.traits, voice: v.voice, look: v.look,
     libraryAvatarId: v.libraryAvatarId,
   }
 }
 
 export const AVATAR_SELECT = {
-  id: true, name: true, bestFor: true, backgroundId: true, persona: true, greeting: true, traits: true, voice: true, look: true, libraryAvatarId: true,
+  id: true, name: true, bestFor: true, backgroundId: true, ownVoiceId: true, persona: true, greeting: true, traits: true, voice: true, look: true, libraryAvatarId: true,
   customStatus: true, photoConsentAt: true, createdAt: true, updatedAt: true,
 } as const

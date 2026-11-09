@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { LIMITS } from './constants'
 import { BUDGET_LOCK } from './budget'
 import { buildPendingFeedback } from './feedback'
+import { reconcileVoices } from './own-voice'
 import { logError } from '@/lib/log'
 import { quietError } from './quiet-error'
 
@@ -11,7 +12,7 @@ export const ABANDON_AFTER_S = 120
 /** A pronunciation score still pending this long never comes: the clip lived only in memory, in the process that died. */
 export const ASSESS_STALE_S = 120
 
-export type SweepResult = { ended: number; assessFailed: number; turnsFailed: number; invitesExpired: number; erased: number; reports: number }
+export type SweepResult = { ended: number; assessFailed: number; turnsFailed: number; invitesExpired: number; erased: number; reports: number; voicesErased: number }
 
 /**
  * One sweep pass (src/app/api/cron/classroom-sweep). Each step is one statement, and the session ends take the BUDGET LOCK
@@ -83,8 +84,13 @@ export async function sweepClassroom({ killAll }: { killAll: boolean }): Promise
        AND NOT EXISTS (SELECT 1 FROM "ClassroomEnrollment" e WHERE e."learnerId" = l."id")`)
   const erased = seatsErased + testsErased + learnersErased
 
+  // ⛔ Teachers' own voices at Soniox that no row holds any more — a withdrawal Soniox missed, an erased account, a lost
+  // create — are deleted there (own-voice.ts reconcileVoices); stuck attempts are failed and ready voices kept current.
+  // Every run, whatever the classroom's mode: an erasure never waits for the classroom to be open.
+  const voicesErased = await step('voices', async () => (await reconcileVoices()).deleted)
+
   // Reports nobody built yet (the end route's after() died, or the session was abandoned) — a few per run.
   const reports = await step('reports', () => buildPendingFeedback(5))
 
-  return { ended, assessFailed, turnsFailed, invitesExpired, erased, reports }
+  return { ended, assessFailed, turnsFailed, invitesExpired, erased, reports, voicesErased }
 }

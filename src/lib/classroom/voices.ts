@@ -25,6 +25,12 @@ export type Accent = 'US' | 'UK'
  */
 export const VOICE_SAMPLE_LINE = "Hi! I'm your teacher's AI avatar. Shall we practise some English together today?"
 
+/**
+ * What a TUTOR speaks with (own-voice.ts tutorVoiceOf): its stock voice (an id below — the box's fallback, and Soniox's when
+ * the teacher's own cannot speak), and the teacher's own cloned voice at Soniox (a uuid) when the tutor uses it and it is ready.
+ */
+export type TutorVoice = { stock: string; own: string | null }
+
 /** `id`: the saved id and the box's Phonon voice (the fallback); `soniox`: the Soniox voice that speaks it. */
 export type Voice = { id: string; name: string; accent: Accent; gender: 'f' | 'm'; note?: 'young-learners'; soniox: string }
 

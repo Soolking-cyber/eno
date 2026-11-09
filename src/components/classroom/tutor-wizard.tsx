@@ -30,7 +30,7 @@ import { api } from './api'
 import { refusalCopy } from './classroom-copy'
 import { TutorFace } from './tutor-card'
 
-type SavedTutor = { id: string; name: string; bestFor: string; backgroundId: string | null; persona: string; greeting: string; traits: unknown; voice: string; look: string; libraryAvatarId: string | null; customStatus: string }
+type SavedTutor = { id: string; name: string; bestFor: string; backgroundId: string | null; ownVoice?: boolean; persona: string; greeting: string; traits: unknown; voice: string; look: string; libraryAvatarId: string | null; customStatus: string }
 type Loaded = {
   teacher: { fullName: string; photoUrl: string | null; nationality: string }
   tutor: null | SavedTutor
@@ -39,7 +39,7 @@ type Loaded = {
   tutors?: unknown[]
   limit?: number
 }
-type Draft = { name: string; bestFor: string; backgroundId: string | null; persona: string; greeting: string; traits: Traits; voice: string; look: AvatarLook; libraryAvatarId: string | null }
+type Draft = { name: string; bestFor: string; backgroundId: string | null; ownVoice: boolean; persona: string; greeting: string; traits: Traits; voice: string; look: AvatarLook; libraryAvatarId: string | null }
 
 /**
  * MAKE / EDIT A TUTOR (owner, 2026-11-09: a tutor for each student, "take teacher through process nicely", Praktika's
@@ -79,6 +79,7 @@ export function TutorWizard({ tutorId }: { tutorId?: string }) {
         name: a?.name ?? r.data.defaults.name,
         bestFor: a?.bestFor ?? '',
         backgroundId: a?.backgroundId ?? null,
+        ownVoice: a?.ownVoice ?? false,
         persona: a?.persona ?? '',
         greeting: a?.greeting ?? '',
         // Parsed here too: an avatar saved before a trait existed (the background) gets its default, shown as picked.
@@ -111,9 +112,12 @@ export function TutorWizard({ tutorId }: { tutorId?: string }) {
   const save = async () => {
     setBusy(true)
     setError(null)
+    // The own-voice choice only when the teacher changed it here: a tutor saved in a voice that has since gone keeps its flag
+    // without the save being refused (the server speaks its stock voice meanwhile).
+    const body = { ...d, ownVoice: d.ownVoice !== (data.tutor?.ownVoice ?? false) ? d.ownVoice : undefined }
     const r = tutorId
-      ? await api<{ tutor: { id: string } }>(`/api/classroom/tutors/${encodeURIComponent(tutorId)}`, { method: 'PUT', body: d })
-      : await api<{ tutor: { id: string } }>('/api/classroom/tutors', { body: d })
+      ? await api<{ tutor: { id: string } }>(`/api/classroom/tutors/${encodeURIComponent(tutorId)}`, { method: 'PUT', body })
+      : await api<{ tutor: { id: string } }>('/api/classroom/tutors', { body })
     if (!r.ok) {
       setBusy(false)
       setError(r.error)
@@ -456,6 +460,9 @@ function CharacterStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
   )
 }
 
+/** The sample-player key of the teacher's own voice (never a stock voice id). */
+const OWN = ':own'
+
 function VoiceStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
   const { tr } = useLanguage()
   const audio = useRef<HTMLAudioElement | null>(null)
@@ -486,18 +493,55 @@ function VoiceStep({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
   }
   // Leaving the step stops the sample FOR GOOD: no handler still owns it, so a late fallback never plays on a later step.
   useEffect(() => () => { audio.current?.pause(); audio.current = null }, [])
+  // The teacher's OWN voice (own-voice.ts), first in the list once it is ready; the stock voice picked stays behind it.
+  const [own, setOwn] = useState<{ sampleUrl: string } | null>(null)
+  useEffect(() => {
+    let gone = false
+    void api<{ voice: { status: string; sampleUrl?: string } }>('/api/classroom/own-voice').then((r) => {
+      if (!gone && r.ok && r.data.voice.status === 'ready' && r.data.voice.sampleUrl) setOwn({ sampleUrl: r.data.voice.sampleUrl })
+    })
+    return () => { gone = true }
+  }, [])
+  const playOwn = () => {
+    if (sample?.id === OWN) { stop(); return }
+    audio.current?.pause()
+    const a = new Audio(own!.sampleUrl)
+    audio.current = a
+    setSample({ id: OWN, state: 'loading' })
+    const mine = () => audio.current === a
+    a.onplaying = () => { if (mine()) setSample({ id: OWN, state: 'playing' }) }
+    a.onended = () => { if (mine()) { audio.current = null; setSample(null) } }
+    a.onerror = () => { if (mine()) { audio.current = null; setSample(null) } }
+    void a.play().catch(() => { if (mine()) { audio.current = null; setSample(null) } })
+  }
+  const stockName = VOICES.find((v) => v.id === d.voice)?.name ?? ''
+  const ownOn = !!own && d.ownVoice
   return (
     <div className="flex flex-col gap-2">
       <p className="mb-2 text-sm text-body">{tr('Pick the voice your avatar speaks with. Tap ▶ to listen.', 'Chọn giọng nói cho avatar. Chạm ▶ để nghe thử.')}</p>
       <ul className="divide-y divide-border border-y border-border">
+        {own && (
+          <li className={cn('flex items-center gap-2 py-1', ownOn && 'bg-accent')}>
+            <Button variant="bare" size="none" aria-pressed={ownOn} onClick={() => setD({ ...d, ownVoice: true })} className="press flex min-h-12 min-w-0 flex-1 flex-wrap items-center justify-start gap-x-3 gap-y-0.5 whitespace-normal rounded-xl px-2 py-1 text-left">
+              <span className="text-sm font-semibold text-ink">{tr('Your voice', 'Giọng của bạn')}</span>
+              {ownOn && stockName && <span className="text-xs text-ink-4">{tr('if it can’t be reached:', 'khi không dùng được:')} {stockName}</span>}
+              {ownOn && <Check aria-hidden className="ml-auto size-5 text-brand" />}
+            </Button>
+            <Button variant="ghost" size="icon" className="size-11" onClick={playOwn} aria-pressed={sample?.id === OWN && sample.state === 'playing'}
+              loading={sample?.id === OWN && sample.state === 'loading'}
+              aria-label={sample?.id === OWN && sample.state === 'playing' ? tr('Stop', 'Dừng') : tr('Listen', 'Nghe thử')}>
+              {sample?.id === OWN && sample.state === 'playing' ? <Pause aria-hidden className="size-5 text-brand" /> : <Play aria-hidden className="size-5" />}
+            </Button>
+          </li>
+        )}
         {VOICES.map((v) => (
-          <li key={v.id} className={cn('flex items-center gap-2 py-1', d.voice === v.id && 'bg-accent')}>
+          <li key={v.id} className={cn('flex items-center gap-2 py-1', !ownOn && d.voice === v.id && 'bg-accent')}>
             {/* The whole row picks the voice (a 48px target), ▶ beside it only plays — two thumb-size targets per row. */}
-            <Button variant="bare" size="none" aria-pressed={d.voice === v.id} onClick={() => setD({ ...d, voice: v.id })} className="press flex min-h-12 min-w-0 flex-1 flex-wrap items-center justify-start gap-x-3 gap-y-0.5 whitespace-normal rounded-xl px-2 py-1 text-left">
+            <Button variant="bare" size="none" aria-pressed={!ownOn && d.voice === v.id} onClick={() => setD({ ...d, voice: v.id, ownVoice: false })} className="press flex min-h-12 min-w-0 flex-1 flex-wrap items-center justify-start gap-x-3 gap-y-0.5 whitespace-normal rounded-xl px-2 py-1 text-left">
               <span className="text-sm font-semibold text-ink">{v.name}</span>
               <span className="text-xs text-ink-4">{tr(ACCENT_LABEL[v.accent].en, ACCENT_LABEL[v.accent].vi)}</span>
               {v.note === 'young-learners' && <span className="text-xs text-ink-4">{tr('playful, for young learners', 'vui tươi, hợp với các em nhỏ')}</span>}
-              {d.voice === v.id && <Check aria-hidden className="ml-auto size-5 text-brand" />}
+              {!ownOn && d.voice === v.id && <Check aria-hidden className="ml-auto size-5 text-brand" />}
             </Button>
             {/* ▶ → the house busy state while the sound loads (Button `loading`) → ❚❚ while it plays: tap to stop. */}
             <Button variant="ghost" size="icon" className="size-11" onClick={() => play(v)} aria-pressed={sample?.id === v.id && sample.state === 'playing'}

@@ -27,11 +27,12 @@ const check = process.argv.includes('--check')
 const url = process.env.DIRECT_URL || process.env.DATABASE_URL
 if (!url) { console.error('Set DIRECT_URL'); process.exit(1) }
 
-const TABLES = ['ClassroomBackground', 'ClassroomAvatar', 'ClassroomLearner', 'ClassroomEnrollment', 'ClassroomPlan', 'ClassroomSession', 'ClassroomTurn', 'ClassroomFeedback', 'classroom_config', 'classroom_likeness_deletion']
+const TABLES = ['ClassroomBackground', 'ClassroomVoice', 'ClassroomAvatar', 'ClassroomLearner', 'ClassroomEnrollment', 'ClassroomPlan', 'ClassroomSession', 'ClassroomTurn', 'ClassroomFeedback', 'classroom_config', 'classroom_likeness_deletion', 'classroom_voice_deletion']
 
 // FKs — Prisma's own names and actions, so `prisma migrate diff` shows no drift for them.
 const FKS = [
   ['ClassroomBackground', 'teacherProfileId', 'TeacherProfile'],
+  ['ClassroomVoice', 'teacherProfileId', 'TeacherProfile'],
   ['ClassroomAvatar', 'teacherProfileId', 'TeacherProfile'],
   ['ClassroomLearner', 'ownerId', 'Profile'],
   ['ClassroomEnrollment', 'avatarId', 'ClassroomAvatar'],
@@ -96,6 +97,29 @@ const QUEUE_TRIGGER = 'ClassroomAvatar_queue_likeness'
 const queueTriggerSql = (on) => `create trigger "${QUEUE_TRIGGER}" before insert or delete or update of "spatiusAvatarId", "customStatus" on ${on}
   for each row execute function public.classroom_queue_likeness()`
 
+// A teacher's own voice at Soniox (2026-11-09, own-voice.ts) — the same rule as a likeness: ⛔ THE DATABASE QUEUES IT, NOT A
+// CALLER. Any row that held a Soniox voice and is deleted (a withdrawal, an admin, the TeacherProfile cascade of an account
+// erasure, a hand-run DELETE), fails, or lets its id go queues THAT voice id; the sweep deletes it at Soniox. Only ids this
+// database itself held are ever deleted (commit gate, codex + opus: a restored copy of the database never deletes
+// production's newer voices because "no row holds them").
+const VOICE_FN_BODY = `
+  begin
+    if old."sonioxVoiceId" is not null and (tg_op = 'DELETE' or new."sonioxVoiceId" is distinct from old."sonioxVoiceId"
+       or (new."status" = 'failed' and old."status" is distinct from 'failed')) then
+      insert into public.classroom_voice_deletion (soniox_voice_id, reason)
+      values (old."sonioxVoiceId", case when tg_op = 'DELETE' then 'deleted' else 'failed' end)
+      on conflict (soniox_voice_id) do nothing;
+    end if;
+    if tg_op = 'DELETE' then
+      return old;
+    end if;
+    return new;
+  end `
+const VOICE_TRIGGER = 'ClassroomVoice_queue_deletion'
+const voiceTriggerSql = (on) => `create trigger "${VOICE_TRIGGER}" before delete or update of "sonioxVoiceId", "status" on ${on}
+  for each row execute function public.classroom_queue_voice()`
+const FUNCTIONS = [['classroom_queue_likeness', () => QUEUE_FN_BODY], ['classroom_queue_voice', () => VOICE_FN_BODY]]
+
 /**
  * ⛔ THE SHAPE IS POSTGRES'S TO COMPARE, NOT A PARSER'S (core review rounds 1–2, codex + opus). "IF NOT EXISTS" never
  * repairs a table, and each hand-written "is it the declared one?" missed a case — a CHECK's body, an index's predicate,
@@ -155,12 +179,18 @@ async function shapeProblems(client) {
   const problems = []
   await client.query('savepoint classroom_shape')
   try {
-    const fn = await rowsOf(client, `select prosrc from pg_proc where oid = to_regprocedure('public.classroom_queue_likeness()')`)
-    if (!fn.length) problems.push('function public.classroom_queue_likeness() MISSING')
-    else if (fn[0].prosrc !== QUEUE_FN_BODY) problems.push('function public.classroom_queue_likeness() is not the declared one')
-    const fnOpen = (await rowsOf(client, `select coalesce(r.rolname, 'PUBLIC') as who from pg_proc p cross join aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
-      left join pg_roles r on r.oid = a.grantee where p.oid = to_regprocedure('public.classroom_queue_likeness()') and a.privilege_type = 'EXECUTE' and (a.grantee = 0 or r.rolname in ('anon', 'authenticated'))`))
-    for (const r of fnOpen) problems.push(`function public.classroom_queue_likeness() is executable by ${r.who}`)
+    // Both queue functions, as declared and executable by nobody but their owner. `fn` — both exist: the triggers are compared.
+    const fn = []
+    for (const [name, body] of FUNCTIONS) {
+      const got = await rowsOf(client, `select prosrc from pg_proc where oid = to_regprocedure($1)`, [`public.${name}()`])
+      if (!got.length) problems.push(`function public.${name}() MISSING`)
+      else if (got[0].prosrc !== body()) problems.push(`function public.${name}() is not the declared one`)
+      else fn.push(name)
+      const fnOpen = (await rowsOf(client, `select coalesce(r.rolname, 'PUBLIC') as who from pg_proc p cross join aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+        left join pg_roles r on r.oid = a.grantee where p.oid = to_regprocedure($1) and a.privilege_type = 'EXECUTE' and (a.grantee = 0 or r.rolname in ('anon', 'authenticated'))`, [`public.${name}()`]))
+      for (const r of fnOpen) problems.push(`function public.${name}() is executable by ${r.who}`)
+    }
+    if (fn.length < FUNCTIONS.length) fn.length = 0
 
     for (const t of TABLES) {
       const real = (await rowsOf(client, `select c.oid, c.relrowsecurity as rls, c.relpersistence as persistence,
@@ -187,6 +217,7 @@ async function shapeProblems(client) {
       const want = (await rowsOf(client, `select c.oid from pg_class c where c.oid = to_regclass($1)`, [`pg_temp.${qualified(t).replace(/^public\./, '')}`]))[0]
       for (const sql of declaredIndexes(t)) await client.query(sql)
       if (t === 'ClassroomAvatar' && fn.length) await client.query(queueTriggerSql('pg_temp."ClassroomAvatar"'))
+      if (t === 'ClassroomVoice' && fn.length) await client.query(voiceTriggerSql('pg_temp."ClassroomVoice"'))
 
       compare(problems, 'column', t, await columnsOf(client, want.oid), await columnsOf(client, real.oid))
       compare(problems, 'constraint', t, await constraintsOf(client, want.oid), await constraintsOf(client, real.oid))
@@ -288,6 +319,33 @@ await client.query(`
   )`)
 await ensureIndex(`create index if not exists "ClassroomBackground_teacherProfileId_status_idx" on "ClassroomBackground"("teacherProfileId", "status")`)
 
+// A teacher's own voice at Soniox (2026-11-09) — a NEW table, made empty. One row per attempt (own-voice.ts); the state
+// rules below are what the code relies on: a voice in use has its consent, a ready one its Soniox id and its sample.
+await client.query(`
+  create table if not exists "ClassroomVoice" (
+    "id" text not null,
+    "teacherProfileId" text not null,
+    "status" text not null default 'script',
+    "script" text not null,
+    "expiresAt" timestamp(3) not null,
+    "sonioxVoiceId" text,
+    "failReason" text,
+    "consentVersion" text,
+    "consentSha" text,
+    "consentAt" timestamp(3),
+    "sample" bytea,
+    "createdAt" timestamp(3) not null default current_timestamp,
+    "updatedAt" timestamp(3) not null default current_timestamp,
+    constraint "ClassroomVoice_pkey" primary key ("id"),
+    constraint "ClassroomVoice_status_check" check ("status" in ('script', 'checking', 'making', 'ready', 'failed')),
+    constraint "ClassroomVoice_failReason_check" check ("failReason" is null or "failReason" in ('not_script', 'too_quiet', 'soniox', 'unusable', 'gone', 'timeout', 'slots_full')),
+    constraint "ClassroomVoice_bounds" check (char_length("id") <= 64 and "script" ~ '^[0-9]{1,3}(,[0-9]{1,3}){3,9}$' and ("sonioxVoiceId" is null or "sonioxVoiceId" ~ '^[0-9a-fA-F-]{8,64}$') and ("consentVersion" is null or char_length("consentVersion") <= 40) and ("consentSha" is null or "consentSha" ~ '^[0-9a-f]{16}$') and ("sample" is null or octet_length("sample") between 1 and 409600)),
+    -- A voice past the script step was consented to; a ready one is at Soniox and has its sample; a failed one says why.
+    constraint "ClassroomVoice_state_rules" check (("status" in ('script', 'failed') or ("consentVersion" is not null and "consentSha" is not null and "consentAt" is not null)) and ("status" <> 'ready' or ("sonioxVoiceId" is not null and "sample" is not null)) and (("status" = 'failed') = ("failReason" is not null)))
+  )`)
+await ensureIndex(`create unique index if not exists "ClassroomVoice_teacherProfileId_key" on "ClassroomVoice"("teacherProfileId")`)
+await ensureIndex(`create unique index if not exists "ClassroomVoice_sonioxVoiceId_key" on "ClassroomVoice"("sonioxVoiceId")`)
+
 await client.query(`
   create table if not exists "ClassroomAvatar" (
     "id" text not null,
@@ -309,7 +367,9 @@ await client.query(`
     "bestFor" text not null default '',
     "archivedAt" timestamp(3),
     "backgroundId" text,
+    "ownVoiceId" text,
     constraint "ClassroomAvatar_pkey" primary key ("id"),
+    constraint "ClassroomAvatar_ownVoiceId_check" check ("ownVoiceId" is null or char_length("ownVoiceId") <= 64),
     constraint "ClassroomAvatar_backgroundId_check" check ("backgroundId" is null or char_length("backgroundId") <= 64),
     constraint "ClassroomAvatar_bestFor_check" check (char_length("bestFor") <= 80),
     constraint "ClassroomAvatar_archivedAt_check" check ("archivedAt" is null or "archivedAt" >= "createdAt"),
@@ -330,6 +390,7 @@ await client.query(`
 await ensureColumn('ClassroomAvatar', 'bestFor', `text not null default ''`, `char_length("bestFor") <= 80`)
 await ensureColumn('ClassroomAvatar', 'archivedAt', 'timestamp(3)', `"archivedAt" is null or "archivedAt" >= "createdAt"`)
 await ensureColumn('ClassroomAvatar', 'backgroundId', 'text', `"backgroundId" is null or char_length("backgroundId") <= 64`)
+await ensureColumn('ClassroomAvatar', 'ownVoiceId', 'text', `"ownVoiceId" is null or char_length("ownVoiceId") <= 64`)
 // Several tutors per teacher (2026-11-09): a plain index, made CONCURRENTLY before the transaction on a table that holds rows
 // (the step above `begin`); here it is only declared (and made on a fresh database).
 await ensureIndex(`create index if not exists "ClassroomAvatar_teacherProfileId_idx" on "ClassroomAvatar"("teacherProfileId")`)
@@ -576,6 +637,27 @@ await client.query(`
   end $$`)
 if (!(await client.query(`select 1 from pg_trigger where tgname = $1 and tgrelid = '"ClassroomAvatar"'::regclass and not tgisinternal`, [QUEUE_TRIGGER])).rows.length) {
   await client.query(queueTriggerSql('"ClassroomAvatar"'))
+}
+
+// Teachers' own voices to delete at Soniox — queued by the database (VOICE_FN_BODY), deleted by the sweep (own-voice.ts).
+// LOGGED; a Soniox id, why, when, and the tries — nothing about the person.
+await client.query(`
+  create table if not exists public.classroom_voice_deletion (
+    soniox_voice_id text        primary key check (soniox_voice_id ~ '^[0-9a-fA-F-]{8,64}$'),
+    reason          text        not null check (reason in ('deleted', 'failed')),
+    queued_at       timestamptz not null default now(),
+    done_at         timestamptz,
+    attempts        integer     not null default 0 check (attempts >= 0)
+  )`)
+await client.query(`create or replace function public.classroom_queue_voice() returns trigger language plpgsql as $fn$${VOICE_FN_BODY}$fn$`)
+await client.query(`
+  do $$ begin
+    revoke execute on function public.classroom_queue_voice() from public;
+    if to_regrole('anon') is not null then revoke execute on function public.classroom_queue_voice() from anon; end if;
+    if to_regrole('authenticated') is not null then revoke execute on function public.classroom_queue_voice() from authenticated; end if;
+  end $$`)
+if (!(await client.query(`select 1 from pg_trigger where tgname = $1 and tgrelid = '"ClassroomVoice"'::regclass and not tgisinternal`, [VOICE_TRIGGER])).rows.length) {
+  await client.query(voiceTriggerSql('"ClassroomVoice"'))
 }
 
 

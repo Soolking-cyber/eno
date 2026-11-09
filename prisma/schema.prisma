@@ -1188,6 +1188,7 @@ model TeacherProfile {
   classroomAvatars   ClassroomAvatar[]
   /// Rooms this teacher uploaded for behind their tutors (2026-11-09).
   classroomBackgrounds ClassroomBackground[]
+  classroomVoice     ClassroomVoice?
 
   @@index([status, currentCity])
 }
@@ -2905,6 +2906,9 @@ model ClassroomAvatar {
   /// The teacher's own uploaded room (ClassroomBackground), shown instead of traits.background while it is `ok`. No FK on
   /// purpose: a removed or deleted upload just falls back to the library room (backgrounds-upload.ts roomOf).
   backgroundId           String?
+  /// Speaks in THIS own voice of the teacher's (a ClassroomVoice id) while that voice is `ready`; `voice` stays the stock voice
+  /// it falls back to. An id, not a flag: a voice made again later is never switched on by an old choice. No FK (like backgroundId).
+  ownVoiceId             String?
   seats                  ClassroomEnrollment[]
   sessions               ClassroomSession[]
 
@@ -2930,6 +2934,30 @@ model ClassroomBackground {
   createdAt        DateTime       @default(now())
 
   @@index([teacherProfileId, status])
+}
+
+/// A teacher's own voice, cloned at Soniox (2026-11-09, src/lib/classroom/own-voice.ts). ONE ROW PER ATTEMPT, a state
+/// machine: script (sentences handed out, single use) → checking (the recording's words) → making (at Soniox) → ready |
+/// failed. ⛔ Never the recording itself: it lives in memory for one request. Deleting (or failing) the row is enough: the
+/// database queues its Soniox voice (classroom_voice_deletion, a trigger) and the sweep deletes it there (own-voice.ts).
+model ClassroomVoice {
+  id               String         @id @default(cuid())
+  teacherProfileId String         @unique
+  teacherProfile   TeacherProfile @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
+  status           String         @default("script") // script | checking | making | ready | failed
+  /// The sentences handed out to read (indexes into own-voice-script.ts SENTENCES, comma-separated), and until when.
+  script           String
+  expiresAt        DateTime
+  sonioxVoiceId    String?        @unique
+  failReason       String?
+  /// The consent: version, the sha of the exact notice shown, when (also on the audit chain, which outlives the row).
+  consentVersion   String?
+  consentSha       String?
+  consentAt        DateTime?
+  /// Our own TTS of the sample line in this voice (MP3) — for the teacher to hear; deleted with the row.
+  sample           Bytes?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @default(now()) @updatedAt
 }
 
 /// Who practises: the account holder (kind self, 18+) or a child they are parent or legal guardian of (kind child — no login

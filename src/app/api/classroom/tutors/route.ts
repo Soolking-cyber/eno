@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ApiError, route } from '@/lib/api/handler'
 import { validateAvatar } from '@/lib/classroom/avatar'
+import { readyVoiceId } from '@/lib/classroom/own-voice'
 import { requireTeacher } from '@/lib/classroom/guards'
 import { readCapped } from '@/lib/classroom/http'
 import { LIMITS } from '@/lib/classroom/constants'
@@ -20,10 +21,12 @@ export const GET = route({ auth: 'profile' }, async ({ profile }) => {
   const teacher = await requireTeacher(profile.id, { open: false })
   const tutors = await listTutors(teacher.id)
   const okRooms = await okRoomIds(tutors.map((t) => t.backgroundId))
+  // `ownVoice`: the tutor speaks in the teacher's CURRENT ready voice (one it named that has since gone reads as off).
+  const ready = await readyVoiceId(teacher.id)
   return NextResponse.json({
     teacher: { fullName: teacher.fullName, photoUrl: teacher.photoUrl, nationality: teacher.nationality },
     // A room taken down (or deleted) is not handed back: the wizard would show a dead picture and send an id a save refuses.
-    tutors: tutors.map((t) => ({ ...withListedVoice(t, teacher.nationality), ...roomOf(t, okRooms), backgroundId: t.backgroundId && okRooms.has(t.backgroundId) ? t.backgroundId : null })),
+    tutors: tutors.map((t) => ({ ...withListedVoice(t, teacher.nationality), ...roomOf(t, okRooms), backgroundId: t.backgroundId && okRooms.has(t.backgroundId) ? t.backgroundId : null, ownVoice: !!ready && t.ownVoiceId === ready })),
     defaults: tutorDefaults(teacher),
     limit: LIMITS.tutorsPerTeacher,
   }, { headers: NO_STORE })
@@ -37,6 +40,12 @@ export const POST = route({ auth: 'profile', rateLimit: { bucket: 'classroom-ava
   if (!v.ok) throw new ApiError(v.code, 400)
   // Only one of the teacher's own uploaded rooms, still ok — never another teacher's, never one taken down.
   if (v.value.backgroundId && !(await backgroundOfTeacher(v.value.backgroundId, teacher.id))) throw new ApiError('background_not_found', 400)
+  // The teacher's own voice: on = THIS ready voice, by its id (a voice made later is never switched on by it); off = none.
+  if (v.value.ownVoice !== undefined) {
+    const ready = v.value.ownVoice ? await readyVoiceId(teacher.id) : null
+    if (v.value.ownVoice && !ready) throw new ApiError('voice_invalid', 400)
+    v.value.ownVoiceId = ready
+  }
   const tutor = await createTutor(teacher.id, v.value)
   return NextResponse.json({ tutor }, { status: 201, headers: NO_STORE })
 })

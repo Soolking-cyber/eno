@@ -12,6 +12,7 @@ import { spatiusConfig } from './spatius'
 import { sonioxConfig } from './soniox'
 import { libraryAvatarById } from './library-avatars'
 import { speakLine, warmLine } from './session-voice'
+import { tutorVoice } from './own-voice'
 import { clampPace, defaultPace, voiceStyle } from './pace'
 import { parseTraits } from './persona'
 import type { Background } from './backgrounds'
@@ -259,7 +260,7 @@ export async function startLearnerSession(seatId: string, accountId: string, now
   }, { maxWait: 5_000, timeout: 15_000 })
 
   warmTutorBrain() // while the opening line is voiced (tutor-ai.ts says why)
-  const audio = await speakLine(result.opening.text, seat.avatar.voice, voiceStyle(band, result.pace), OPENING_WAIT_MS).catch((e) => {
+  const audio = await speakLine(result.opening.text, await tutorVoice(seat.avatar), voiceStyle(band, result.pace), OPENING_WAIT_MS).catch((e) => {
     logWarn('[classroom] opening line TTS failed', { status: (e as { status?: number }).status ?? null })
     return null
   })
@@ -300,7 +301,7 @@ export async function warmOpening(accountId: string, target: { seatId: string } 
       if (!(await classroomOpenFor(accountId)).open) return
       if (await db.classroomSession.findFirst({ where: { testerId: accountId, status: 'live', endsAt: { gte: now } }, select: { id: true } })) return
       const plan: SessionPlan = { ...firstPlan('B1', avatar.greeting, avatar.name), planId: null }
-      warmLine(openingOf(plan, avatar.name).text, avatar.voice, voiceStyle('adult', defaultPace('adult', 'B1', parseTraits(avatar.traits).pace)))
+      warmLine(openingOf(plan, avatar.name).text, await tutorVoice(avatar), voiceStyle('adult', defaultPace('adult', 'B1', parseTraits(avatar.traits).pace)))
       return
     }
     const seat = await loadSeat(target.seatId, accountId)
@@ -316,7 +317,7 @@ export async function warmOpening(accountId: string, target: { seatId: string } 
     const band = ageBand(kind, learner.birthYear, now)
     const pace = clampPace(learner.voicePace, band, defaultPace(band, seat.level, parseTraits(seat.avatar.traits).pace))
     const plans = await db.classroomPlan.findMany({ where: { enrollmentId: seat.id, status: { not: 'used' } }, orderBy: { updatedAt: 'desc' }, take: 10 })
-    warmLine(openingOf(planFrom(pickPlan(plans), seat), seat.avatar.name).text, seat.avatar.voice, voiceStyle(band, pace))
+    warmLine(openingOf(planFrom(pickPlan(plans), seat), seat.avatar.name).text, await tutorVoice(seat.avatar), voiceStyle(band, pace))
   } catch (e) {
     logWarn('[classroom] the opening could not be made ahead', { error: (e as Error).name })
   }
@@ -403,7 +404,7 @@ export async function startTeacherTest(accountId: string, tutorId?: string, now 
   }, { maxWait: 5_000, timeout: 15_000 })
 
   warmTutorBrain() // while the opening line is voiced (tutor-ai.ts says why)
-  const audio = await speakLine(opening.text, avatar.voice, voiceStyle('adult', pace), OPENING_WAIT_MS).catch(() => null)
+  const audio = await speakLine(opening.text, await tutorVoice(avatar), voiceStyle('adult', pace), OPENING_WAIT_MS).catch(() => null)
   return {
     id: session.id,
     endsAt: session.endsAt.toISOString(),

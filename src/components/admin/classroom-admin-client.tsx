@@ -21,6 +21,8 @@ type State = {
   deletions: { spatiusAvatarId: string; reason: string; queuedAt: string }[]
   failedReports: { sessionId: string; startedAt: string; avatar: string }[]
   rooms: { id: string; status: string; removedBy: string | null; at: string; teacher: string; email: string | null; thumbUrl: string }[]
+  voices: { teacherProfileId: string; status: string; at: string; teacher: string; email: string | null }[]
+  voicesAwaitingDeletion: { count: number; oldestMinutes: number; attempts: number } | null
   flagged: { sessionId: string; at: string; avatar: string; teacher: string; teacherEmail: string | null; learner: string; said: string; reply: string }[]
 } | { tables: false }
 
@@ -147,6 +149,25 @@ export function ClassroomAdminClient() {
               <span className="truncate text-ink">{r.teacher}</span>
               <span className="truncate text-ink-4">{new Date(r.at).toLocaleDateString()}{r.status === 'ok' ? '' : ` · removed by ${r.removedBy ?? '?'}`}</span>
               {r.status === 'ok' && <Button size="sm" variant="outline" onClick={() => call('POST', { action: 'background-remove', backgroundId: r.id })}>Take down</Button>}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Teachers' own voices (2026-11-09, own-voice.ts): cloned at Soniox from a read script. Delete stops it at once — the
+          tutors speak their stock voice — and deletes it at Soniox (the sweep retries a refusal). */}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-bold text-ink">Own voices ({s.voices.length})</h2>
+        {s.voicesAwaitingDeletion && s.voicesAwaitingDeletion.count > 0 && (
+          <p className="text-sm text-destructive">{s.voicesAwaitingDeletion.count} voice(s) still to delete at Soniox — the oldest {s.voicesAwaitingDeletion.oldestMinutes} min, {s.voicesAwaitingDeletion.attempts} tries. The sweep retries each run; if this stays, check the Soniox key&apos;s Cloned voices permission.</p>
+        )}
+        {s.voicesAwaitingDeletion === null && <p className="text-xs text-ink-4">The deletion queue could not be read just now.</p>}
+        <ul className="flex flex-col gap-2">
+          {s.voices.map((v) => (
+            <li key={v.teacherProfileId} className="flex flex-wrap items-center gap-3 text-sm">
+              <span className="min-w-0 flex-1 truncate text-ink">{v.teacher} <span className="text-ink-4">{v.email ?? ''} · {v.status} · {new Date(v.at).toLocaleDateString()}</span></span>
+              {v.status === 'ready' && <audio controls preload="none" src={`/api/admin/classroom/voice-sample?teacher=${encodeURIComponent(v.teacherProfileId)}`} className="h-8" />}
+              <Button size="sm" variant="outline" onClick={() => call('POST', { action: 'voice-remove', teacherProfileId: v.teacherProfileId })}>Delete</Button>
             </li>
           ))}
         </ul>

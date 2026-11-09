@@ -12,6 +12,7 @@ import { markLikenessDeleted, pendingLikenessDeletions } from '@/lib/classroom/l
 import { libraryAvatarById } from '@/lib/classroom/library-avatars'
 import { uploadedRoomUrl } from '@/lib/classroom/backgrounds'
 import { appendAudit } from '@/lib/compliance/audit'
+import { deleteOwnVoice, pendingVoiceDeletions } from '@/lib/classroom/own-voice'
 
 export const runtime = 'nodejs'
 // "Retry the report" builds it inside the request (2c round 2, opus): the model's own deadlines fit well inside this.
@@ -46,6 +47,7 @@ const postBody = z.discriminatedUnion('action', [
   z.strictObject({ action: z.literal('likeness-deleted'), spatiusAvatarId: z.string().trim().min(4).max(120) }),
   z.strictObject({ action: z.literal('retry-report'), sessionId: z.string().max(40) }),
   z.strictObject({ action: z.literal('background-remove'), backgroundId: z.string().min(1).max(64) }),
+  z.strictObject({ action: z.literal('voice-remove'), teacherProfileId: z.string().min(1).max(64) }),
 ])
 
 type ConfigRow = { mode: string; cohort: string[]; day_minutes: number; month_minutes: number; teacher_month_minutes: number; spatius_children_ok: boolean; updated_at: Date; updated_by: string | null; swept_at: Date | null }
@@ -63,7 +65,7 @@ async function describe() {
   const ids = r?.cohort ?? []
   const people = ids.length ? await db.profile.findMany({ where: { id: { in: ids } }, select: { id: true, email: true } }) : []
   const monthStart = new Date(Date.now() - 31 * 86_400_000)
-  const [use, sessions, likeness, failed, flagged, consentRows, rooms] = await Promise.all([
+  const [use, sessions, likeness, failed, flagged, consentRows, rooms, voices, orphans] = await Promise.all([
     db.$transaction((tx) => budgetUse(tx, '')),
     db.classroomSession.aggregate({ where: { startedAt: { gte: monthStart } }, _count: { _all: true }, _sum: { costMicroUsd: true, usedSeconds: true } }),
     db.classroomAvatar.findMany({
@@ -94,6 +96,10 @@ async function describe() {
       db.classroomBackground.findMany({ where: { status: 'ok' }, orderBy: { createdAt: 'desc' }, select: { id: true, status: true, createdAt: true, removedBy: true, teacherProfile: { select: { fullName: true, profile: { select: { email: true } } } } } }),
       db.classroomBackground.findMany({ where: { status: 'removed' }, orderBy: { removedAt: 'desc' }, take: 20, select: { id: true, status: true, createdAt: true, removedBy: true, teacherProfile: { select: { fullName: true, profile: { select: { email: true } } } } } }),
     ]).then(([live, removed]) => [...live, ...removed]),
+    // Teachers' own voices (2026-11-09, own-voice.ts) — every one in use or being made; an admin deletes one here.
+    db.classroomVoice.findMany({ where: { status: { in: ['checking', 'making', 'ready'] } }, orderBy: { createdAt: 'desc' }, select: { teacherProfileId: true, status: true, createdAt: true, teacherProfile: { select: { fullName: true, profile: { select: { email: true } } } } } }),
+    // Voices queued for deletion at Soniox — the sweep deletes them; a number that stays up means Soniox keeps refusing.
+    pendingVoiceDeletions().catch(() => null),
   ])
   const consented = new Map(consentRows.flatMap((r) => (r.photo_url ? [[r.avatar_id, r.photo_url] as const] : [])))
   return {
@@ -117,6 +123,8 @@ async function describe() {
       status: a.customStatus, spatiusAvatarId: a.spatiusAvatarId, consentAt: a.photoConsentAt?.toISOString() ?? null,
     })),
     deletions: (await pendingLikenessDeletions()).map((d) => ({ spatiusAvatarId: d.spatius_avatar_id, reason: d.reason, queuedAt: d.queued_at.toISOString() })),
+    voices: voices.map((v) => ({ teacherProfileId: v.teacherProfileId, status: v.status, at: v.createdAt.toISOString(), teacher: v.teacherProfile.fullName, email: v.teacherProfile.profile.email })),
+    voicesAwaitingDeletion: orphans,
     rooms: rooms.map((b) => ({ id: b.id, status: b.status, removedBy: b.removedBy, at: b.createdAt.toISOString(), teacher: b.teacherProfile.fullName, email: b.teacherProfile.profile.email, thumbUrl: uploadedRoomUrl(b.id, 'thumb') })),
     failedReports: failed.map((s) => ({ sessionId: s.id, startedAt: s.startedAt.toISOString(), avatar: s.avatar.name })),
     flagged: flagged.map((f) => ({
@@ -187,6 +195,14 @@ export const POST = route({ auth: 'admin', body: postBody }, async ({ admin, bod
       // The subject is the teacher whose picture it was (the audit's subjects are people, listings, sellers and consents).
       if (done.count && bg) await appendAudit(tx, { actorType: 'admin', actorId: admin, action: 'classroom.background.removed', subjectType: 'profile', subjectId: bg.teacherProfile.profileId, detail: { backgroundId: body.backgroundId } })
     })
+    return describe()
+  }
+  if (body.action === 'voice-remove') {
+    // A takedown of a teacher's own voice: the row now (their tutors back to their stock voice), Soniox at once (the sweep
+    // retries). The admin is the actor on the audit chain, the teacher the subject (own-voice.ts deleteOwnVoice).
+    const tp = await db.teacherProfile.findUnique({ where: { id: body.teacherProfileId }, select: { profileId: true } })
+    if (!tp) throw new ApiError('not_found', 404)
+    await deleteOwnVoice(body.teacherProfileId, tp.profileId, 'admin', admin)
     return describe()
   }
   if (body.action === 'retry-report') {

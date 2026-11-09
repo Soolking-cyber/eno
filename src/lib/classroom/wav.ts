@@ -22,19 +22,20 @@ export function encodeWav(pcm: Int16Array, sampleRate = SAMPLE_RATE): Uint8Array
 export type WavInfo = { ms: number; peak: number }
 
 /**
- * Is this exactly the format we send — RIFF/WAVE, PCM, mono, 16 kHz, 16-bit, data length consistent — and how long is it?
- * Null for anything else. `peak` is the loudest sample (0–32767): near-silence never needs a speech service.
+ * Is this exactly the format we send — RIFF/WAVE, PCM, mono, 16 kHz (or `rate`: the own-voice recording's 24 kHz), 16-bit,
+ * data length consistent — and how long is it? Null for anything else. `peak` is the loudest sample (0–32767): near-silence
+ * never needs a speech service.
  */
-export function parseWav(bytes: Uint8Array): WavInfo | null {
+export function parseWav(bytes: Uint8Array, rate: number = SAMPLE_RATE): WavInfo | null {
   if (bytes.length < 44) return null
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   const tag = (at: number) => String.fromCharCode(v.getUint8(at), v.getUint8(at + 1), v.getUint8(at + 2), v.getUint8(at + 3))
   if (tag(0) !== 'RIFF' || tag(8) !== 'WAVE' || tag(12) !== 'fmt ' || tag(36) !== 'data') return null
   if (v.getUint32(16, true) !== 16 || v.getUint16(20, true) !== 1 || v.getUint16(22, true) !== 1) return null
-  if (v.getUint32(24, true) !== SAMPLE_RATE || v.getUint16(34, true) !== 16) return null
+  if (v.getUint32(24, true) !== rate || v.getUint16(34, true) !== 16) return null
   // Every field that restates the format must agree with it (core review, codex): the byte rate, the block size, and
   // the RIFF size against the real length — a header that contradicts itself is not the file we send.
-  if (v.getUint32(28, true) !== SAMPLE_RATE * 2 || v.getUint16(32, true) !== 2) return null
+  if (v.getUint32(28, true) !== rate * 2 || v.getUint16(32, true) !== 2) return null
   if (v.getUint32(4, true) !== bytes.length - 8) return null
   const dataLen = v.getUint32(40, true)
   if (dataLen % 2 !== 0 || dataLen !== bytes.length - 44) return null
@@ -43,7 +44,7 @@ export function parseWav(bytes: Uint8Array): WavInfo | null {
     const s = Math.min(32_767, Math.abs(v.getInt16(i, true))) // -32768 counts as full scale, 32767
     if (s > peak) peak = s
   }
-  return { ms: Math.round((dataLen / 2 / SAMPLE_RATE) * 1000), peak }
+  return { ms: Math.round((dataLen / 2 / rate) * 1000), peak }
 }
 
 /** The low-pass's taps: a Hann-windowed sinc, unity gain at DC, `half` taps either side of the centre. */
@@ -83,9 +84,14 @@ function lowPass(input: Float32Array, cutoff: number, half: number): Float32Arra
  * only interpolated (an 8 kHz headset upsamples).
  */
 export function toPcm16k(input: Float32Array, inputRate: number): Int16Array {
-  if (!(inputRate > 0) || !input.length) return new Int16Array(0)
-  const ratio = inputRate / SAMPLE_RATE
-  const src = ratio > 1 ? lowPass(input, (0.42 * SAMPLE_RATE) / inputRate, Math.round(11 * ratio)) : input
+  return toPcmAt(input, inputRate, SAMPLE_RATE)
+}
+
+/** toPcm16k at any output rate (the own-voice recording's 24 kHz — iOS ignores a rate asked of its AudioContext). */
+export function toPcmAt(input: Float32Array, inputRate: number, outRate: number): Int16Array {
+  if (!(inputRate > 0) || !(outRate > 0) || !input.length) return new Int16Array(0)
+  const ratio = inputRate / outRate
+  const src = ratio > 1 ? lowPass(input, (0.42 * outRate) / inputRate, Math.round(11 * ratio)) : input
   const n = Math.floor(src.length / ratio)
   const out = new Int16Array(n)
   for (let i = 0; i < n; i++) {

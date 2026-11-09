@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   ASSESS_STATUSES, AVATAR_LOOKS, TURN_FLAGS, TURN_STATUSES, CUSTOM_STATUSES, END_REASONS, FEEDBACK_STATUSES, LEARNER_KINDS, LEVELS, PLAN_SOURCES,
-  PLAN_STATUSES, SEAT_STATUSES, SESSION_MINUTES, SESSION_MODES, SESSION_STATUSES, STRICTNESS, BACKGROUND_STATUSES } from './constants'
+  PLAN_STATUSES, SEAT_STATUSES, SESSION_MINUTES, SESSION_MODES, SESSION_STATUSES, STRICTNESS, BACKGROUND_STATUSES, VOICE_STATUSES, VOICE_FAIL_REASONS } from './constants'
 
 /**
  * scripts/classroom-ddl.mjs creates these tables by hand (CLAUDE.md: `prisma db push` would drop the tables Prisma does not
@@ -13,7 +13,7 @@ import {
 const ROOT = join(__dirname, '../../..')
 const SCHEMA = readFileSync(join(ROOT, 'prisma/schema.prisma'), 'utf8')
 const DDL = readFileSync(join(ROOT, 'scripts/classroom-ddl.mjs'), 'utf8')
-const MODELS = ['ClassroomBackground', 'ClassroomAvatar', 'ClassroomLearner', 'ClassroomEnrollment', 'ClassroomPlan', 'ClassroomSession', 'ClassroomTurn', 'ClassroomFeedback']
+const MODELS = ['ClassroomBackground', 'ClassroomVoice', 'ClassroomAvatar', 'ClassroomLearner', 'ClassroomEnrollment', 'ClassroomPlan', 'ClassroomSession', 'ClassroomTurn', 'ClassroomFeedback']
 const SCALARS = new Set(['String', 'Boolean', 'Int', 'Float', 'DateTime', 'Json', 'BigInt', 'Decimal', 'Bytes'])
 const DDL_TYPE: Record<string, string> = { String: 'text', Boolean: 'boolean', Int: 'integer', DateTime: 'timestamp(3)', Json: 'jsonb', Bytes: 'bytea' }
 
@@ -125,6 +125,8 @@ describe('scripts/classroom-ddl.mjs ↔ prisma/schema.prisma', () => {
 describe('every CHECK list is the constants list the API validates with', () => {
   const cases: [string, string, readonly (string | number)[]][] = [
     ['ClassroomBackground', 'status', BACKGROUND_STATUSES],
+    ['ClassroomVoice', 'status', VOICE_STATUSES],
+    ['ClassroomVoice', 'failReason', VOICE_FAIL_REASONS],
     ['ClassroomAvatar', 'look', AVATAR_LOOKS],
     ['ClassroomAvatar', 'customStatus', CUSTOM_STATUSES],
     ['ClassroomLearner', 'kind', LEARNER_KINDS],

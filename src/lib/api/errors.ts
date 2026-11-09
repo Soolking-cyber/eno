@@ -134,6 +134,16 @@ export type NicheApiErrorCode =
   | 'background_not_found'
   | 'background_not_image'
   | 'background_refused'
+  // a teacher's own voice (2026-11-09, src/lib/classroom/own-voice.ts)
+  | 'voice_exists'
+  | 'voice_not_script'
+  | 'voice_rate_limited'
+  | 'voice_script_expired'
+  | 'voice_slots_full'
+  | 'voice_too_long'
+  | 'voice_too_quiet'
+  | 'voice_too_short'
+  | 'voice_unavailable'
   // several tutors per teacher (2026-11-09, src/lib/classroom/tutors.ts)
   | 'tutor_has_likeness'
   | 'tutor_has_students'
@@ -717,6 +727,15 @@ const ALL = [
   'token_limit',
   'turn_cap',
   'turn_in_progress',
+  'voice_exists',
+  'voice_not_script',
+  'voice_rate_limited',
+  'voice_script_expired',
+  'voice_slots_full',
+  'voice_too_long',
+  'voice_too_quiet',
+  'voice_too_short',
+  'voice_unavailable',
   'tutor_has_likeness',
   'tutor_has_students',
   'tutor_limit',

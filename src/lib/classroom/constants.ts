@@ -78,6 +78,13 @@ export const LIKENESS_REQUESTS_OPEN: boolean = false
 /** Teachers upload their own rooms behind their tutors (2026-11-09) — every picture checked first (backgrounds-upload.ts). The
  * classroom's own switch (config.ts) still decides who can use it at all; this one closes uploads alone. */
 export const BACKGROUND_UPLOADS_OPEN: boolean = true
+/**
+ * Who may MAKE their own voice (2026-11-09, own-voice.ts): 'staff' until the legal amendment for voice (Decree 13 —
+ * biometric data) is live, then 'all'. Deleting a voice is open to its teacher always.
+ */
+export const OWN_VOICE_OPEN: 'staff' | 'all' = 'staff'
+/** The own-voice recording: PCM16 mono at this rate (Soniox's TTS speaks at 24 kHz). */
+export const VOICE_RATE = 24_000
 export const CUSTOM_STATUSES = ['none', 'requested', 'ready', 'removed'] as const
 export type CustomStatus = (typeof CUSTOM_STATUSES)[number]
 
@@ -123,6 +130,15 @@ export const LIMITS = {
   backgroundsPerTeacher: 12,
   /** Tutors a teacher keeps at once (owner, 2026-11-09: a tutor for each student); archived ones don't count. */
   tutorsPerTeacher: 5,
+  /** Own voices kept at Soniox across ALL teachers (making + ready): Soniox allows 20 per organisation — two left spare. */
+  ownVoicesTotal: 18,
+  /** Recordings a teacher may send for their own voice a day (each one is a speech check and maybe a clone). */
+  ownVoiceAttemptsPerDay: 5,
+  /** The sentences handed out to read are good for this long, and once. */
+  voiceScriptMinutes: 15,
+  /** The recording: at least / at most (Soniox takes up to 2 minutes). */
+  voiceMinSeconds: 20,
+  voiceMaxSeconds: 120,
 } as const
 
 /** From this age a child also agrees, in their own words, before practising (Vietnam's PDP law). */
@@ -134,3 +150,8 @@ export const ADULT_AGE = 18
 
 /** A teacher's uploaded room (ClassroomBackground.status — the DDL's CHECK list). */
 export const BACKGROUND_STATUSES = ['ok', 'removed'] as const
+/** A teacher's own voice (ClassroomVoice.status / failReason — the DDL's CHECK lists). */
+export const VOICE_STATUSES = ['script', 'checking', 'making', 'ready', 'failed'] as const
+export type VoiceStatus = (typeof VOICE_STATUSES)[number]
+export const VOICE_FAIL_REASONS = ['not_script', 'too_quiet', 'soniox', 'unusable', 'gone', 'timeout', 'slots_full'] as const
+export type VoiceFailReason = (typeof VOICE_FAIL_REASONS)[number]

@@ -12,6 +12,7 @@ import { openAiConfig } from './llm-openai'
 import { parseFocus } from './plans'
 import { workingOnLines } from './focus'
 import { speakerFor } from './session-voice'
+import { tutorVoice } from './own-voice'
 import { replayTurn, streamTurn, type Answer, type SavedReply, type TurnStream } from './turn-stream'
 import { classroomOpenFor } from './config'
 import { alertSafetyTeam, safetyReply } from './safety'
@@ -53,7 +54,7 @@ async function sessionOfCaller(sessionId: string, accountId: string, now: Date) 
       // The session's OWN learner decides whose it is (report.ts's rule), never the seat's current one.
       learner: { select: { ownerId: true, withdrawnAt: true } },
       enrollment: { select: { status: true, learnerId: true, focusNote: true, focusItems: true } },
-      avatar: { select: { name: true, persona: true, voice: true, traits: true, teacherProfile: { select: { profileId: true } } } },
+      avatar: { select: { name: true, persona: true, voice: true, ownVoiceId: true, teacherProfileId: true, traits: true, teacherProfile: { select: { profileId: true } } } },
     },
   })
   const mine = s && (s.testerId === accountId || s.learner?.ownerId === accountId)
@@ -144,7 +145,7 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
       // line, without a voice. The family's report hides that exchange; a replayed upload must not hand it over either.
       if (d.flag) return { kind: 'answer', ...replayTurn({ seq: d.seq, learnerText: '', reply: safetyReply(bandOf(session)), hint: '', hintVi: '', expect: null, heardAs: [], secondsLeft: Math.max(0, Math.round((session.endsAt.getTime() - Date.now()) / 1000)) }, null) }
       const latest = await db.classroomTurn.findFirst({ where: { sessionId, status: 'ok' }, orderBy: { seq: 'desc' }, select: { id: true } })
-      return { kind: 'answer', ...replayTurn(replyOf(d, session, now), latest?.id === d.id ? speakerFor(session.avatar.voice, () => voiceStyle(bandOf(session), paceOf(session, bandOf(session)))) : null) }
+      return { kind: 'answer', ...replayTurn(replyOf(d, session, now), latest?.id === d.id ? speakerFor(await tutorVoice(session.avatar), () => voiceStyle(bandOf(session), paceOf(session, bandOf(session)))) : null) }
     }
     if (d.status === 'processing') throw new ApiError('turn_in_progress', 409)
     throw new ApiError('tutor_unavailable', 503)
@@ -290,7 +291,7 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     ...streamTurn({
       learnerText,
       events,
-      speak: speakerFor(session.avatar.voice, () => voiceStyle(band, pace)),
+      speak: speakerFor(await tutorVoice(session.avatar), () => voiceStyle(band, pace)),
       onPace: (change) => {
         const next = stepPace(pace, change, band)
         if (next !== pace) { pace = next; paceMoved = true }

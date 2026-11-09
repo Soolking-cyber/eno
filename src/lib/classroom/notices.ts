@@ -52,6 +52,30 @@ export const PHOTO_NOTICE: readonly NoticeText[] = [
 ]
 export const photoNoticeBody = (): string => noticeBody([PHOTO_ACTION, ...PHOTO_NOTICE])
 
+// ── Teacher: Make my voice (the tutors' voice — own-voice.ts) ─────────────────────────────────────────────────────────
+export const VOICE_NOTICE_VERSION = '2026-11-09'
+export const VOICE_ACTION: NoticeText = { en: 'Make my voice', vi: 'Tạo giọng của tôi' }
+export const VOICE_NOTICE: readonly NoticeText[] = [
+  {
+    en: 'You read a few sentences aloud. The recording goes to Soniox, Inc. (USA), first to check the words, then to make an AI copy of your voice.',
+    vi: 'Bạn đọc to vài câu. Bản ghi âm được gửi đến Soniox, Inc. (Mỹ), trước hết để kiểm tra lời đọc, sau đó để tạo bản sao giọng nói của bạn bằng AI.',
+  },
+  {
+    en: 'Your tutors then speak in it to your students, children included, saying lines the AI writes, not you. Students always see it is an AI avatar.',
+    vi: 'Sau đó các gia sư AI của bạn nói bằng giọng này với học viên, kể cả trẻ em, nói những câu do AI viết, không phải bạn. Học viên luôn thấy đây là avatar AI.',
+  },
+  {
+    en: 'Soniox doesn’t train its AI on it. We don’t keep the recording; we keep a short sample in your voice so you can hear it.',
+    vi: 'Soniox không dùng giọng nói này để huấn luyện AI. Chúng tôi không lưu bản ghi âm, chỉ lưu một đoạn mẫu ngắn bằng giọng của bạn để bạn nghe lại.',
+  },
+  {
+    en: 'Delete your voice any time: it is deleted at Soniox, and your tutors go back to their usual voice from their next reply.',
+    vi: 'Bạn có thể xóa giọng nói bất cứ lúc nào: giọng sẽ bị xóa tại Soniox, và gia sư quay lại giọng thường từ câu trả lời tiếp theo.',
+  },
+]
+export const VOICE_ATTESTATION: NoticeText = { en: 'This is my own voice, and I am the person reading.', vi: 'Đây là giọng nói của chính tôi, và tôi là người đang đọc.' }
+export const voiceNoticeBody = (): string => noticeBody([VOICE_ACTION, ...VOICE_NOTICE, VOICE_ATTESTATION])
+
 // ── Learner, purpose 1: voice practice ─────────────────────────────────────────────────────────────────────────────
 // 2026-10-26: the meaning changed — the replies are voiced on eno's own server in Vietnam (Azure only scores
 // repeat-after-me sentences), and OpenAI writes the live replies. 2026-10-26b: the learner's voice is written down LIVE by

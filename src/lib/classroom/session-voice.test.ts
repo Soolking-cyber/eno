@@ -26,6 +26,8 @@ const h = vi.hoisted(() => ({
   boxLangs: [] as string[],
   /** The box answers 404 for these languages (a server without the /vi/ routes, or with them off). */
   boxLacks: [] as string[],
+  /** Soniox refuses this one voice (a teacher's own cloned voice gone or broken), with this status. */
+  failVoice: null as null | { voice: string; status: number },
 }))
 vi.mock('./soniox', () => ({ sonioxConfig: () => (h.soniox ? { key: 'k', tts: 'wss://tts', ttsModel: 'tts-rt-v2' } : null) }))
 vi.mock('./soniox-tts', () => ({
@@ -34,11 +36,13 @@ vi.mock('./soniox-tts', () => ({
     h.sonioxBudgets.push(firstSoundMs)
     h.onSoniox?.()
     if (signal?.aborted) throw Object.assign(new Error('aborted'), { status: 499 })
+    if (h.failVoice?.voice === voice) throw Object.assign(new Error('voice'), { status: h.failVoice.status })
     if (h.sonioxFails) throw Object.assign(new Error('soniox'), h.sonioxFails)
     return { rate: 24_000, chunks: (async function* () { yield new Uint8Array(2) })(), pauseMs: 0 }
   },
   sonioxSpeakLine: async (_text: string, voice: string) => {
     h.calls.push(`soniox-line:${voice}`)
+    if (h.failVoice?.voice === voice) throw Object.assign(new Error('voice'), { status: h.failVoice.status })
     if (h.sonioxFails) throw Object.assign(new Error('soniox'), h.sonioxFails)
     if (h.lineMs) await new Promise((r) => (Number.isFinite(h.lineMs) ? setTimeout(r, h.lineMs) : undefined))
     return Buffer.from('mp3-from-soniox')
@@ -88,7 +92,7 @@ vi.mock('./speech-local', () => ({
 let sv: typeof import('./session-voice')
 const style = { pace: 'natural' as const, loud: false, gapMs: 120, pauseMs: 0 }
 beforeEach(async () => {
-  Object.assign(h, { soniox: true, box: true, sonioxFails: null, lineMs: 0, calls: [], boxOpts: [], boxFails: null, boxSilent: false, boxEmpty: false, boxLineMs: 0, sonioxBudgets: [], onSoniox: null, boxClosed: 0, boxLangs: [], boxLacks: [] })
+  Object.assign(h, { soniox: true, box: true, sonioxFails: null, lineMs: 0, calls: [], boxOpts: [], boxFails: null, boxSilent: false, boxEmpty: false, boxLineMs: 0, sonioxBudgets: [], onSoniox: null, boxClosed: 0, boxLangs: [], boxLacks: [], failVoice: null })
   sv = await import('./session-voice')
   sv.resetSonioxRest()
   sv.resetBoxRest()
@@ -580,3 +584,41 @@ describe('the voice guide\'s Vietnamese on the box (`first`)', () => {
   })
 })
 
+
+describe('⛔ a teacher\'s OWN voice (own-voice.ts): it speaks while it holds; when it fails, that tutor\'s stock voice — never everyone\'s rest', () => {
+  const OWN = '21b9c8e2-1c3a-4d5e-9f8a-123456789abc'
+  const tutor = { stock: 'Harper', own: OWN }
+  it('a tutor in its teacher\'s own voice: Soniox speaks the clone\'s uuid; with none, the stock voice', async () => {
+    await sv.speakerFor(tutor, () => style)!('Hi.', new AbortController().signal)
+    await sv.speakerFor({ stock: 'Harper', own: null }, () => style)!('Hi.', new AbortController().signal)
+    expect(h.calls).toEqual([`soniox-stream:${OWN}`, 'soniox-stream:Grace'])
+  })
+  it('⛔ the clone refused (voice_failed is a 503): the SAME line in the stock Soniox voice at once, and every other session keeps Soniox', async () => {
+    h.failVoice = { voice: OWN, status: 503 }
+    const speak = sv.speakerFor(tutor, () => style)!
+    await speak('One.', new AbortController().signal)
+    expect(h.calls).toEqual([`soniox-stream:${OWN}`, 'soniox-stream:Grace'])
+    // Broken here now: the next line goes straight to the stock voice — and another tutor's line is still Soniox's.
+    await speak('Two.', new AbortController().signal)
+    await sv.speakerFor('Trevor', () => style)!('Three.', new AbortController().signal)
+    expect(h.calls.slice(2)).toEqual(['soniox-stream:Grace', 'soniox-stream:Shane'])
+    expect(h.calls.some((c) => c.startsWith('box'))).toBe(false)
+  })
+  it('a whole line (the opening) in a refused clone: the stock voice says it', async () => {
+    h.failVoice = { voice: OWN, status: 404 }
+    const b64 = await sv.speakLine('Hello there.', tutor, style)
+    expect(Buffer.from(b64, 'base64').toString()).toBe('mp3-from-soniox')
+    expect(h.calls).toEqual([`soniox-line:${OWN}`, 'soniox-line:Grace'])
+  })
+  it('⛔ a withdrawn voice\'s kept lines are dropped at once (forgetVoiceLines): the same text is made again, not served', async () => {
+    await sv.speakLine('Same line.', tutor, style)
+    sv.forgetVoiceLines(OWN)
+    await sv.speakLine('Same line.', tutor, style)
+    expect(h.calls).toEqual([`soniox-line:${OWN}`, `soniox-line:${OWN}`])
+  })
+  it('a Soniox outage (402) with the clone still rests Soniox for everyone, as for any voice', async () => {
+    h.sonioxFails = { status: 402 }
+    await sv.speakerFor(tutor, () => style)!('One.', new AbortController().signal)
+    expect(h.calls).toEqual([`soniox-stream:${OWN}`, 'box-stream:Harper'])
+  })
+})
