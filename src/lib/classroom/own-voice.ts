@@ -352,9 +352,17 @@ export async function reconcileVoices(now = new Date()): Promise<ReconcileResult
 
   // Ages in SQL, never a raw timestamptz read into JS: those come back shifted by the session's time zone (measured on a
   // scratch database at +07). `now` may run ahead of the clock (tests): the difference is added to every age.
+  // ⛔ TWO BATCHES, EACH ITS OWN SHARE (commit gate, codex + opus): ids and name markers never starve one another — young
+  // markers (waiting out their window by design) never hold back an id, and ids Soniox keeps refusing never hold back a
+  // marker. Ids that failed least go first, so a stuck one never holds back a fresh erasure either.
   const due = await db.$queryRaw<{ soniox_voice_id: string; age_s: number }[]>`
-    SELECT soniox_voice_id, extract(epoch FROM now() - queued_at)::float8 AS age_s
-      FROM public.classroom_voice_deletion WHERE done_at IS NULL ORDER BY queued_at LIMIT ${DELETES_PER_RUN}`
+    (SELECT soniox_voice_id, extract(epoch FROM now() - queued_at)::float8 AS age_s
+       FROM public.classroom_voice_deletion WHERE done_at IS NULL AND soniox_voice_id NOT LIKE 'name:%'
+      ORDER BY attempts, queued_at LIMIT ${DELETES_PER_RUN})
+    UNION ALL
+    (SELECT soniox_voice_id, extract(epoch FROM now() - queued_at)::float8 AS age_s
+       FROM public.classroom_voice_deletion WHERE done_at IS NULL AND soniox_voice_id LIKE 'name:%'
+      ORDER BY queued_at LIMIT ${DELETES_PER_RUN})`
   const ahead = (now.getTime() - Date.now()) / 1000
   const done = (id: string) => db.$executeRaw`UPDATE public.classroom_voice_deletion SET done_at = now() WHERE soniox_voice_id = ${id} AND done_at IS NULL`
   const tried = (id: string) => db.$executeRaw`UPDATE public.classroom_voice_deletion SET attempts = attempts + 1 WHERE soniox_voice_id = ${id}`

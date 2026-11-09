@@ -21,6 +21,8 @@ const s = vi.hoisted(() => ({
   createStatus: 'ready' as string | null,
   createFails: null as number | null,
   deleteFails: false,
+  /** Ids Soniox refuses to delete (an outage on those, a bad id). */
+  failIds: new Set<string>(),
   recomputed: [] as string[],
   /** Voices Soniox still has but leaves out of its list (a voice made after the list was read). */
   unlisted: new Map<string, FakeVoice>(),
@@ -49,7 +51,7 @@ vi.mock('./soniox-voices', async (orig) => {
     },
     getVoice: async (_c: unknown, id: string) => (s.voices.has(id) ? out(s.voices.get(id)!) : s.unlisted.has(id) ? out(s.unlisted.get(id)!) : null),
     listOurVoices: async (_c: unknown, prefix: string) => [...s.voices.values()].filter((v) => v.name.startsWith(prefix)).map(out),
-    deleteVoice: async (_c: unknown, id: string) => { if (s.deleteFails) throw new SonioxError(503); s.voices.delete(id); s.deleted.push(id); return true },
+    deleteVoice: async (_c: unknown, id: string) => { if (s.deleteFails || s.failIds.has(id)) throw new SonioxError(503); s.voices.delete(id); s.deleted.push(id); return true },
     recomputeVoice: async (_c: unknown, id: string) => { s.recomputed.push(id); const v = s.voices.get(id); if (v) v.status = 'ready' },
   }
 })
@@ -102,6 +104,7 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
     Object.assign(s, { heard: '', sttFails: false, createStatus: 'ready', createFails: null, deleteFails: false, deleted: [], recomputed: [] })
     s.voices.clear()
     s.unlisted.clear()
+    s.failIds.clear()
   })
 
   afterAll(async () => {
@@ -318,6 +321,26 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
       // No wait of the route's own: the recompute is asked at once, and the view that follows finds it prepared.
       expect((await ov.submitRecording(teacher, view.id, recording(), consent(), new Date(), 0)).status).toBe('ready')
       expect(s.recomputed).toHaveLength(1)
+    })
+
+    it('⛔ sixty young name markers never starve an erasure by id: ids are taken first', async () => {
+      for (let i = 0; i < 60; i++) await db.$executeRaw`INSERT INTO public.classroom_voice_deletion (soniox_voice_id, reason) VALUES (${`name:eno-cv-waiting${i}`}, 'lost')`
+      await db.$executeRaw`INSERT INTO public.classroom_voice_deletion (soniox_voice_id, reason, queued_at) VALUES ('99999999-0000-4000-8000-000000000000', 'deleted', now() + interval '1 minute')`
+      s.voices.set('99999999-0000-4000-8000-000000000000', { id: '99999999-0000-4000-8000-000000000000', name: voices.voiceName('gone-row'), created_at: new Date().toISOString(), status: 'ready' })
+      await ov.reconcileVoices()
+      expect(s.deleted).toContain('99999999-0000-4000-8000-000000000000')
+    })
+
+    it('⛔ …and ids Soniox keeps refusing never starve a name marker (each kind has its own share)', async () => {
+      for (let i = 0; i < 60; i++) {
+        const id = `${String(i).padStart(8, '0')}-1111-4000-8000-000000000000`
+        s.failIds.add(id)
+        await db.$executeRaw`INSERT INTO public.classroom_voice_deletion (soniox_voice_id, reason, queued_at) VALUES (${id}, 'deleted', now() - interval '2 hours')`
+      }
+      await db.$executeRaw`INSERT INTO public.classroom_voice_deletion (soniox_voice_id, reason) VALUES (${'name:' + voices.voiceName('lostrow')}, 'lost')`
+      s.voices.set('lv', { id: 'lv', name: voices.voiceName('lostrow'), created_at: new Date().toISOString(), status: 'ready' })
+      await ov.reconcileVoices()
+      expect(s.voices.has('lv')).toBe(false)
     })
 
     it('⛔ Soniox refusing deletes: counted on the queue and retried next run — the row is gone at once', async () => {

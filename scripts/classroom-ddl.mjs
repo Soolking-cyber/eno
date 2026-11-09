@@ -657,6 +657,22 @@ await client.query(`
     done_at         timestamptz,
     attempts        integer     not null default 0 check (attempts >= 0)
   )`)
+// A table made by the first version of this file (2026-11-09, before the name markers) keeps its old CHECKs — `create table
+// if not exists` never changes one — and the trigger's 'name:…' / 'lost' insert would then fail the very delete it guards
+// (commit gate, codex + opus). Each is put right here before the trigger is (re)made; a clean re-run changes nothing.
+for (const [con, sql, has] of [
+  ['classroom_voice_deletion_soniox_voice_id_check', `check (soniox_voice_id ~ '^([0-9a-fA-F-]{8,64}|name:eno-cv-[A-Za-z0-9_-]{1,64})$')`, 'name:eno-cv-'],
+  ['classroom_voice_deletion_reason_check', `check (reason in ('deleted', 'failed', 'lost'))`, "'lost'"],
+]) {
+  const cur = (await client.query(`select pg_get_constraintdef(oid) as def from pg_constraint where conrelid = 'public.classroom_voice_deletion'::regclass and conname = $1`, [con])).rows[0]
+  if (cur && !cur.def.includes(has)) {
+    console.log(`fix    ${con} (the earlier, narrower check)`)
+    await client.query(`alter table public.classroom_voice_deletion drop constraint "${con}", add constraint "${con}" ${sql}`)
+  }
+  // Whatever state it was found in (a check under another name, none at all): it is the wide one now, or nothing is made.
+  const now = (await client.query(`select pg_get_constraintdef(oid) as def from pg_constraint where conrelid = 'public.classroom_voice_deletion'::regclass and conname = $1`, [con])).rows[0]
+  if (!now?.def.includes(has)) throw new Error(`${con} is not the declared check — fix it by hand, then re-run (nothing after it was made)`)
+}
 await client.query(`create or replace function public.classroom_queue_voice() returns trigger language plpgsql as $fn$${VOICE_FN_BODY}$fn$`)
 await client.query(`
   do $$ begin
