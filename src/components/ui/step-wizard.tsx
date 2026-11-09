@@ -166,6 +166,7 @@ export function StepWizard({
   actionBarLabel,
   offsetBottom,
   showStepName = false,
+  captionNext,
   className,
 }: {
   steps: WizardStep[]
@@ -201,6 +202,12 @@ export function StepWizard({
    * From md the rail names every node instead (StepRail `names`), and the line goes back to the screen reader.
    */
   showStepName?: boolean
+  /**
+   * What the primary action opens, already translated by the caller ("Next: About you") — appended to the live line, so the
+   * caption reads "Your plans · 1/5 · Next: Where you teach" (best-practice gap 2026-11-10, NN/g wizards: the wizard names the
+   * next step). The primitive stays copy-free; omitted or null, the line is exactly what it was.
+   */
+  captionNext?: string | null
   className?: string
 }) {
   const active = activeIndexOf(steps, current)
@@ -226,7 +233,7 @@ export function StepWizard({
           visible rail carries the same information for sighted users; with `showStepName` this line
           shows too, as the rail's caption. */}
       <p id={liveId} aria-live="polite" className={showStepName ? 'mb-4 text-xs font-semibold text-body md:sr-only' : 'sr-only'}>
-        {step ? `${step.label} · ${active + 1}/${steps.length}` : ''}
+        {step ? `${step.label} · ${active + 1}/${steps.length}${captionNext ? ` · ${captionNext}` : ''}` : ''}
       </p>
 
       {/* The body is a programmatic focus target (tabIndex -1, no focus ring) so a step change lands

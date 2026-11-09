@@ -74,6 +74,7 @@ import { BIO_OWN_TEXT_MIN } from '@/lib/teachers/bio-context'
 import { BIO_ACTION_LABEL, BIO_NOTICE, TEACHER_BIO_NOTICE_VERSION } from '@/lib/teachers/bio-notice'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
+import { fillTemplate } from '@/lib/i18n/placeholders'
 
 const DRAFT_KEY = 'eno.teacherDraft.v1'
 
@@ -2761,6 +2762,13 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const secondary = mode === 'edit'
     ? (!isLast ? { label: tr('Next step', 'Bước tiếp'), onClick: () => setStepKey(steps[stepIdx + 1]) } : stepIdx > 0 ? { label: tr('Back', 'Quay lại'), onClick: () => setStepKey(steps[stepIdx - 1]) } : undefined)
     : stepIdx > 0 ? { label: tr('Back', 'Quay lại'), onClick: () => setStepKey(steps[stepIdx - 1]) } : undefined
+  // ⚠️ THE CAPTION NAMES WHAT NEXT OPENS (best-practice gap 2026-11-10, NN/g wizards): "Your plans · 1/5 · Next: Where you teach".
+  // Only on the plain Next of a new profile — Continue, Sign in and Publish already say where they lead — and on the caption, never
+  // the button: "Next: Where you teach" beside Back wraps to two lines in the 375px bar, which the 2026-10-09 browser run shortened
+  // "Sign in" to avoid.
+  const captionNext = mode === 'join' && primary.onClick === next && stepIdx + 1 < steps.length
+    ? fillTemplate(tr('Next: {step}', 'Tiếp theo: {step}'), 'Next: {step}', { step: stepLabel(steps[stepIdx + 1]) })
+    : null
   // ⛔ THE PUBLISH NOTICE, beside the tap that is the consent: on the last step of a new profile, on every step of an
   // edit (Save changes publishes too). Its meaning is PUBLISH_NOTICE_VERSION (profile.ts) — sent as `publishNotice`.
   // ── SHARING THE PROFILE (owner, 2026-10-11: "make it easy to share on facebook and zalo or whatsapp") ─────────────────
@@ -3176,6 +3184,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         current={step}
         // The rail's glyphs alone did not say what a step is, or how many are left (2026-11-06 audit): its caption shows.
         showStepName
+        captionNext={captionNext}
         // A new profile jumps back only (the rail's default); an edit, both ways — every step is already answered.
         onStepSelect={(k) => { if (isTeacherStep(k)) setStepKey(k) }}
         allowForward={mode === 'edit'}

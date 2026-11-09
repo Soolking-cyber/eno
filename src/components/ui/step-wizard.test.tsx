@@ -63,6 +63,15 @@ describe('StepWizard showStepName (2026-11-06 audit)', () => {
     expect(names.every((n) => n.getAttribute('aria-hidden') === 'true')).toBe(true)
     expect(screen.getByText('Where you teach · 2/3')).toBeTruthy()
   })
+  it('names what the primary action opens when the caller says (captionNext, best-practice gap 2026-11-10)', () => {
+    render(<StepWizard steps={STEPS} current="a" showStepName captionNext="Next: Where you teach"><div /></StepWizard>)
+    expect(screen.getByText('Your plans · 1/3 · Next: Where you teach')).toBeTruthy()
+  })
+  it('without captionNext (or with null) the caption is exactly the step and its place', () => {
+    const { unmount } = render(<StepWizard steps={STEPS} current="b" showStepName captionNext={null}><div /></StepWizard>)
+    expect(screen.getByText('Where you teach · 2/3')).toBeTruthy()
+    unmount()
+  })
   it('off by default: no names under the rail', () => {
     const { container } = render(<StepWizard steps={STEPS} current="b"><div /></StepWizard>)
     expect(container.querySelector('[data-slot="step-rail"] span.md\\:block')).toBeNull()

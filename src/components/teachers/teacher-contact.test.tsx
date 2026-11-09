@@ -318,8 +318,9 @@ describe('TeacherContact — cover lessons (2026-10-07)', () => {
   })
 })
 
-describe('TeacherContactJump on a cover teacher', () => {
-  it('only brings the school to the two openers — it never sends the hiring opener for them', async () => {
+describe('TeacherContactJump on a cover teacher (best-practice gap 2026-11-10: the first button starts the message)', () => {
+  // Nothing is sent from here (owner, 2026-10-21): the chooser shows the openers, so the jump opens it for a school too.
+  it('a school gets the chooser with the cover-lesson opener among its chips — nothing sent, the page scrolled there', async () => {
     Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'business' })
     quotaAnswer = BUSINESS
     render(
@@ -331,8 +332,83 @@ describe('TeacherContactJump on a cover teacher', () => {
     await settle()
     fireEvent.click(screen.getByRole('button', { name: 'Contact teacher' }))
     expect(scrolled.map((el) => el.id)).toEqual([TEACHER_CONTACT_ID])
+    expect(stash).toHaveBeenCalledTimes(1)
+    expect(stash.mock.calls[0][0]).toMatchObject({ pick: { voice: 'school', cover: true } })
+    expect(push).toHaveBeenCalledWith('/messages/pending')
+  })
+
+  it('a school that taps before its account type has loaded still gets the cover opener when the replay runs (review)', async () => {
+    Object.assign(auth, { user: { id: 'u1' }, identityLoaded: false, accountType: null })
+    quotaAnswer = BUSINESS
+    const view = render(
+      <>
+        <TeacherContactJump listingId="t1" />
+        <TeacherContact listingId="t1" name="Ms Lan" image={null} cover />
+      </>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Contact teacher' }))
+    expect(stash).not.toHaveBeenCalled() // queued until the account type is known
+    Object.assign(auth, { identityLoaded: true, accountType: 'business' })
+    view.rerender(
+      <>
+        <TeacherContactJump listingId="t1" />
+        <TeacherContact listingId="t1" name="Ms Lan" image={null} cover />
+      </>,
+    )
+    await settle()
+    expect(stash.mock.calls[0][0]).toMatchObject({ pick: { voice: 'school', cover: true } })
+    expect(push).toHaveBeenCalledWith('/messages/pending')
+  })
+
+  it('…and a personal account that taps while loading gets the job openers, never the cover one', async () => {
+    Object.assign(auth, { user: { id: 'u1' }, identityLoaded: false, accountType: null })
+    quotaAnswer = UNDER_LIMIT
+    const view = render(
+      <>
+        <TeacherContactJump listingId="t1" />
+        <TeacherContact listingId="t1" name="Ms Lan" image={null} cover />
+      </>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Contact teacher' }))
+    Object.assign(auth, { identityLoaded: true, accountType: 'individual' })
+    view.rerender(
+      <>
+        <TeacherContactJump listingId="t1" />
+        <TeacherContact listingId="t1" name="Ms Lan" image={null} cover />
+      </>,
+    )
+    await settle()
+    expect(stash.mock.calls[0][0]).toMatchObject(PERSON_PICK)
+  })
+
+  it('a guest is asked to sign in "about a teaching job" — never "a cover lesson": they may be a parent', () => {
+    render(
+      <>
+        <TeacherContactJump listingId="t1" />
+        <TeacherContact listingId="t1" name="Ms Lan" image={null} cover />
+      </>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Contact teacher' }))
+    expect(auth.openSignIn).toHaveBeenCalledTimes(1)
+    expect(auth.openSignIn.mock.calls[0][0]).toMatchObject({ listingTitle: 'a teaching job' })
+    expect(stash).not.toHaveBeenCalled()
+  })
+
+  it('a school over its daily limit gets the refusal where it lands — nothing stashed', async () => {
+    Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'business' })
+    quotaAnswer = standing({ tier: 'business', limit: 30, used: 30, remaining: 0, reason: 'limit', next: 'tomorrow', nextLimit: null })
+    render(
+      <>
+        <TeacherContactJump listingId="t1" />
+        <TeacherContact listingId="t1" name="Ms Lan" image={null} cover />
+      </>,
+    )
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Contact teacher' }))
+    await settle()
+    expect(stash).not.toHaveBeenCalled()
     expect(push).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Ask about a cover lesson' })).toBeTruthy()
+    expect(screen.getByRole('status')).toBeTruthy()
   })
 
   it('a personal account has one opener there, so the jump starts it — in its own voice', async () => {

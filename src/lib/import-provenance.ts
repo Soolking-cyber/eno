@@ -48,7 +48,8 @@ export type ImportProvenance = {
   iso: string | null
 }
 
-const hostOf = (url: string): string | null => {
+/** The link's host as a reader would type it — lower case, no "www." — or null for a URL that does not parse. */
+export const hostOf = (url: string): string | null => {
   try { return new URL(url).hostname.toLowerCase().replace(/^www\./, '') } catch { return null }
 }
 

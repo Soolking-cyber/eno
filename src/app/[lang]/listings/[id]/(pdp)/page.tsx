@@ -86,7 +86,7 @@ import { AffiliateBooking, AffiliateCtaRepeat } from '@/components/marketplace/a
 import { ImportProvenance } from '@/components/marketplace/import-provenance'
 import { GoplusRoomLink } from '@/components/marketplace/goplus-room-link'
 import { goplusRoomPageUrl } from '@/lib/goplus-listing'
-import { importProvenance } from '@/lib/import-provenance'
+import { hostOf, importProvenance } from '@/lib/import-provenance'
 import { JobApplyGuard } from '@/components/marketplace/job-apply-guard'
 import { SchoolLinkForJob } from '@/components/schools/school-link-for-job'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
@@ -1255,6 +1255,8 @@ export default async function ListingPage({ params }: Props) {
                         /* A job is applied for on the posting — see the prop's comment. */
                         job={isJob}
                         applyBy={jobApplyBy}
+                        /* The site Apply opens, under the button (best-practice gap 2026-11-10). */
+                        host={isJob && affiliateUrl ? hostOf(affiliateUrl) : null}
                         provenance={provenance ? <ImportProvenance kind={provenance.kind} site={provenance.site} iso={provenance.iso} href={affiliateUrl} /> : null}
                         lang={pageVariant}
                       />

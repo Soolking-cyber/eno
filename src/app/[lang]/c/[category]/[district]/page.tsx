@@ -413,8 +413,16 @@ export default async function CategoryDistrictPage({ params }: Props) {
         {otherDistricts.length > 0 && (
           <AreaChipsRow>
             <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
+            {/* "All" first, as on /c (best-practice gap 2026-11-10): nothing on this row widened back to the whole city, only the
+                breadcrumb two lines up. A link — this page is a subset — in the resting look: the place beside it keeps the only
+                applied one (two blue chips side by side blurred which is applied, the Map-chip judges). No `homes`: /c is the
+                whole city. */}
+            <Badge size="md" interactive render={<Link href={localizedHref(`/c/${cat.slug}`, lang)} prefetch={false} />} className="shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+              <Tr text="All" />
+            </Badge>
             {/* 2026-11-06 audit: this page's own place leads the row in the applied look. The row named only the other areas,
-                so nothing on it said where the reader is. Not a link: it is this page (`aria-current`), as /c's "All" is there. */}
+                so nothing on it said where the reader is. Not a link: it is this page (`aria-current`), as /c's "All" is there. It follows
+                "All" since 2026-11-10, still the only applied chip. */}
             <Badge size="md" aria-current="page" className={cn('shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold', PILL_ON)}>
               <PlaceName en={place.en} vi={place.vi} />
             </Badge>

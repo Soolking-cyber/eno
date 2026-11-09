@@ -38,6 +38,7 @@ export function AffiliateBooking({
   rental = false,
   job = false,
   applyBy = null,
+  host = null,
   provenance = null,
   lang = 'en',
 }: {
@@ -67,6 +68,12 @@ export function AffiliateBooking({
   job?: boolean
   /** A job's apply-by date ('YYYY-MM-DD'), printed directly under the Apply button — see JobApplyBy. */
   applyBy?: string | null
+  /**
+   * A job's link host ("careers.nordanglia.com", import-provenance.ts hostOf), said under the Apply button: "Opens
+   * careers.nordanglia.com" (best-practice gap 2026-11-10 — the button named the employer, and nothing said which site it
+   * opens; Indeed and LinkedIn name it). Jobs only: P-b keeps every other import line off jobs, and this one off the rest.
+   */
+  host?: string | null
   /**
    * Where an IMPORTED listing came from — <ImportProvenance>, built by the page from the server-only
    * import-provenance.ts (SEO wave B, P1). A slot rather than props, so this component never learns
@@ -162,7 +169,15 @@ export function AffiliateBooking({
 
       {/* The deadline belongs to the button it limits, so it sits right under it (8px: `-mt-2` against
           this column's 16px gap) — not below the QR row, where it would read as a caption of the code. */}
-      {job && applyBy ? <JobApplyBy applyBy={applyBy} className="-mt-2" /> : null}
+      {/* …and the site it opens, on ITS OWN line from the first render: JobApplyBy's "· 8 days left" arrives after mount, and
+          the host appended to that line would wrap it one frame after load, in the phone's first screen. A long host breaks
+          anywhere rather than overflow (rmit.wd3.myworkdayjobs.com). */}
+      {job && (applyBy || host) ? (
+        <div className="-mt-2 space-y-0.5">
+          {applyBy ? <JobApplyBy applyBy={applyBy} /> : null}
+          {host ? <p className="text-xs text-body lg:text-sm [overflow-wrap:anywhere]">{tr('Opens {host}', 'Mở {host}', { host })}</p> : null}
+        </div>
+      ) : null}
 
       {/* ⚠️ ONLY WHERE THE AFFILIATE LINK CANNOT REACH THE PRODUCT, and only after the button above
           has been used. `embeddedProductUrl` returns null for every campaign that deep-links

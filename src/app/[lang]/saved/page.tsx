@@ -31,6 +31,14 @@ export default function SavedPage() {
   // Preloaded + cached in FavoritesContext — instant, no fetch-on-open.
   const list = saved ?? []
   const loading = saved === null
+  // ⛔ A READ THAT FAILED WITH NOTHING ON SCREEN IS A FAULT, NOT "NO SAVED LISTINGS YET" (best-practice gap 2026-11-10). A signed-in
+  // account whose first read failed settles with an empty list (saved-sync.ts `failed` + `ready`), as does a list loaded empty
+  // whose next fetch failed after a new heart: the page said "0 saved listings", "Some saved listings couldn't be loaded" and
+  // "No saved listings yet" at once — a reader told their saves are gone re-saves or gives up. With nothing loaded the page
+  // shows the fault block alone; the warning row stays the caution over a PARTLY loaded grid (or "No longer available").
+  const failedEmpty = savedError && !loading && list.length === 0 && savedUnavailable.length === 0
+  // …and the header does not count what it could not read: "0 saved listings" is a guess when the account's list never came.
+  const countUnknown = failedEmpty && count === 0
 
   return (
     <div className="flex min-h-page flex-col blob-bg">
@@ -48,10 +56,11 @@ export default function SavedPage() {
           title={tr('Saved', 'Tin đã lưu')}
           meta={
             <>
-              {count} {tr(count === 1 ? 'saved listing' : 'saved listings', 'tin đã lưu')}
+              {/* The line keeps its height when it has nothing else to say: an empty line would collapse and lift the page. */}
+              {countUnknown ? (synced || authLoading ? '\u00a0' : null) : <>{count} {tr(count === 1 ? 'saved listing' : 'saved listings', 'tin đã lưu')}</>}
               {!synced && !authLoading && (
                 <span className="text-ink-4">
-                  {' · '}{tr('on this device only', 'chỉ trên thiết bị này')}
+                  {!countUnknown && ' · '}{tr('on this device only', 'chỉ trên thiết bị này')}
                   {!user && count > 0 && (
                     <>
                       {' · '}
@@ -76,7 +85,7 @@ export default function SavedPage() {
             this is a caution over content (ui/alert warning, flat), not a page that failed. The
             hand-rolled row it replaces painted `bg-surface`, a colour no token defines — it drew
             nothing (D-STATES / D-TOKENS, 2026-09-29). */}
-        {savedError && !loading ? (
+        {savedError && !loading && !failedEmpty ? (
           <Alert
             tone="warning"
             appearance="flat"
@@ -92,19 +101,31 @@ export default function SavedPage() {
           </Alert>
         ) : null}
 
-        {loading && savedError ? (
+        {(loading && savedError) || failedEmpty ? (
           // Fetch failed with no cache — an error must NOT read as endless loading. The FAULT coin
           // (neutral disc, destructive ink), never the brand's warm "nothing here yet" one: the
           // product let the reader down here (icon-language §6). `bare`: the flat canon, no box.
+          // The empty state's phone box (below): the footer must not rise when the skeletons give way (0.28, 2026-11-05).
+          // ⚠️ THE APP'S ERROR PAGE, NOT A BARE LINE (blind judges, UI climb 2026-11-10: the bare block lost to the old, false
+          // "No saved listings yet" on warmth and a way forward). What failed, that nothing was lost — a failed read removes
+          // nothing — and two ways on, as [lang]/error.tsx: Try again, and the browsing the empty state offers.
           <EmptyState
             tone="bare"
             variant="fault"
+            size="lg"
+            className="py-8 sm:py-20 max-sm:min-h-[calc(100dvh-8rem)] max-sm:justify-start"
             icon={AlertTriangle}
-            title={<span role="alert">{tr("Couldn't load listings.", 'Không tải được tin đăng.')}</span>}
+            title={<span role="alert">{tr("Couldn't load your saved listings.", 'Không tải được tin đã lưu.')}</span>}
+            subtitle={tr('Nothing you saved was removed. Try again, or keep browsing meanwhile.', 'Không tin nào bạn đã lưu bị xóa. Hãy thử lại, hoặc xem tiếp các tin khác trong lúc chờ.')}
             action={
-              <Button variant="cta" onClick={retrySaved}>
-                {tr('Try again', 'Thử lại')}
-              </Button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button variant="cta" onClick={retrySaved}>
+                  {tr('Try again', 'Thử lại')}
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href={localizedHref('/', variant)}>{tr('Browse listings', 'Khám phá tin đăng')}</Link>
+                </Button>
+              </div>
             }
           />
         ) : loading ? (

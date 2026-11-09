@@ -159,19 +159,24 @@ export function TeacherContact({ listingId, name, image, cover = false }: {
   // (sign-in, the daily limit, the queue) — never a second copy of them. A ref, so the listener
   // reads the current render's closure without re-subscribing on every render.
   // Kept current in an effect, never written during render (React refs rule); the listener below reads it.
-  const startRef = useRef(start)
-  useEffect(() => { startRef.current = start })
+  // ⛔ IT OPENS THE CHOOSER ON A COVER TEACHER TOO (best-practice gap 2026-11-10). It used to only scroll there, because
+  // "starting the hiring chat would send 'we are hiring' to someone they came to ask about a cover" (2026-10-07) — but since
+  // the owner's 2026-10-21 rule nothing is sent from here: /messages/pending shows the openers and the writer picks. So a
+  // school gets the chooser WITH the cover-lesson opener among its chips (`pick.cover`, business only, as below); anyone
+  // else the job ones — a guest's sign-in sheet never says "a cover lesson": they may be a parent. The scroll stays, so a
+  // refusal still shows where the reader lands. ⚠️ ASKED FOR WHILE THE ACCOUNT MAY STILL BE A SCHOOL (review): signed in with
+  // the type still loading, the tap is queued and replayed — and openChat sets `pick.cover` only for a business, so a
+  // personal account that turns out not to be one gets the job openers anyway.
+  const startRef = useRef<() => void>(() => {})
+  useEffect(() => { startRef.current = () => start(false, offerCover && user ? 'cover' : 'hire') })
   useEffect(() => {
     const onJump = (e: Event) => {
       if ((e as CustomEvent<{ listingId?: string }>).detail?.listingId !== listingId) return
-      // A cover teacher has TWO openers here (a cover lesson, or a job): the jump only brings the visitor to them —
-      // starting the hiring chat would send "we are hiring" to someone they came to ask about a cover (2026-10-07).
-      if (offerCover) return
       startRef.current()
     }
     window.addEventListener(TEACHER_CONTACT_EVENT, onJump)
     return () => window.removeEventListener(TEACHER_CONTACT_EVENT, onJump)
-  }, [listingId, offerCover])
+  }, [listingId])
 
   const refusal = refused ? teacherDmLimitMessage(refused, tr) : null
   const step = refused ? teacherDmStep(refused.next, accountType, tr) : null
