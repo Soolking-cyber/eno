@@ -8,6 +8,7 @@ import type { IconComponent } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
+import { SECTION_TITLE } from './section-title'
 
 // Horizontal "shelf" rail primitive — the section header (optional icon + bold title +
 // optional "See all") and the snap scroller that ~8 rails hand-rolled identically.
@@ -32,11 +33,9 @@ export const RAIL_SKELETON_COUNT = 4
  *  import the same strings instead of re-typing them — that re-typing is how the
  *  headers drifted apart in the first place. mb-3, not mb-2.5: the 8pt rhythm steps. */
 export const SECTION_HEADER_ROW = 'mb-3 flex items-center justify-between gap-2'
-//  ⚠️ ALWAYS ONE STEP ABOVE THE CARD PRICE (D-TYPE, owner 2026-09-30): the card's <Price> is
-//  text-base → sm:text-lg, so a text-lg title TIED it from sm up and the shelf read as a list of
-//  prices with a caption. text-xl → sm:text-2xl (2026-11-05) keeps 20>16 and 24>18. No skeleton draws this
-//  heading (measured layout shift 0 on home and /c/*). Raise the price, raise this.
-export const SECTION_TITLE = 'text-xl font-semibold text-foreground sm:text-2xl'
+//  The heading's size lives in section-title.ts (a plain module, so the listing page's server components share it):
+//  always one step above the card price (D-TYPE, owner 2026-09-30). Re-exported for this file's client consumers.
+export { SECTION_TITLE }
 // `relative tap-44 active:opacity-60`: See all was 63x20 and answered a press with nothing on a Link
 // (the Button call sites get ui/button's scale on top). The 44px area is a ::before, so it needs the
 // `relative` beside it — see the tap-44 note in globals.css.

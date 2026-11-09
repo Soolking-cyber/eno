@@ -51,13 +51,14 @@ was meta), 15→`base`.
   `/c/rentals` at 390: 19 → 27 of 48; 360 was already truncating 22/28 and moved by one); what
   gets clipped is the city tail (", Hồ Chí Minh"), not the ward. Buy width back with a shorter
   location string, not by shrinking the type again.
-- **A section heading is always larger than the card price.** `SECTION_TITLE` (shelf.tsx —
+- **A section heading is always larger than the card price.** `SECTION_TITLE` (section-title.ts —
   shared by every Shelf, category-rails and the home feed heading) is `text-xl sm:text-2xl`,
   against the card `<Price>`'s `text-base sm:text-lg`: 20 > 16 on phones, 24 > 18 from `sm`
   (raised 2026-11-05). Raise the price and you raise the heading in the same change.
-  ⚠️ Open follow-up: the PDP page's own section `<h2>`s (Description, Details, Location) and
-  `reviews-preview` still hand-type `text-lg`, so from `sm` up they sit one step below the
-  "More like this" / "More from this seller" shelves on the same page.
+  The listing page's own section `<h2>`s (Description, Details, Location, a rental's Costs and
+  Amenities, Buyer reviews) take the same `SECTION_TITLE` since 2026-11-09 — it lives in the plain
+  module `section-title.ts` so those server components can import it — so they no longer sit a step
+  below the "More like this" / "More from this seller" shelves on the same page.
 
 **Page titles sit on the heading ramp.** A page's `<h1>` is `.h-display` (28→40px — landing,
 category, SEO, /post) or `.h-title` (20→24px — app screens) — `.h-greeting` for the dashboard's

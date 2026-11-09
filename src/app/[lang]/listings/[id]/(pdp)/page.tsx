@@ -30,6 +30,7 @@ import { SHARE_CARD, SHARE_CARD_ALT } from '@/lib/site-identity'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
+import { SECTION_TITLE } from '@/components/marketplace/section-title'
 import { PdpShopLink } from '@/components/marketplace/pdp-shop-link'
 import { Badge } from '@/components/ui/badge'
 import { Footer } from '@/components/marketplace/footer'
@@ -1441,11 +1442,11 @@ export default async function ListingPage({ params }: Props) {
                 only when one of them does: an empty flex item in this gapped column would still earn a gap. */}
             {(showDescription || showDetails || amenities.length > 0) && (
             <div className="order-8 flex flex-col gap-8">
-              {/* Section headers on this page share ONE treatment (text-lg sm:text-xl font-semibold, matching
-                  the shelf + reviews headers below) with more space above (section gap) than below. */}
+              {/* Section headers on this page share ONE treatment, SECTION_TITLE (section-title.ts) — the shelves' and
+                  the reviews header's below — with more space above (section gap) than below. */}
               {showDescription && (
               <div className="space-y-2">
-                <h2 className="text-lg font-semibold text-foreground sm:text-xl"><Tr text="Description" /></h2>
+                <h2 className={SECTION_TITLE}><Tr text="Description" /></h2>
                 {/* max-w-prose caps the reading measure at ~65ch — the col-7 body otherwise runs wide. */}
                 <ListingDescription text={listing.description} vi={listing.descriptionVi} i18n={i18n[listing.description]} className={`max-w-prose space-y-3 text-base leading-relaxed text-body ${repeatedFacts}`} />
               </div>
@@ -1457,7 +1458,7 @@ export default async function ListingPage({ params }: Props) {
 
               {showDetails && (
                 <div className="space-y-2">
-                  <h2 className="text-lg font-semibold text-foreground sm:text-xl"><Tr text="Details" /></h2>
+                  <h2 className={SECTION_TITLE}><Tr text="Details" /></h2>
                   {/* Spec table: hairline row dividers, muted label / strong value, even row height.
                       `data-fab-avoid` on every value: the floating support mark yields (fades) when it
                       would sit over one — these right-aligned values run into the corner it rests in,
@@ -1546,7 +1547,7 @@ export default async function ListingPage({ params }: Props) {
                 as before, district-level or not. */}
             {showMap && (
             <div id="location-on-map" className="order-11 space-y-2 scroll-mt-20">
-              <h2 className="text-lg font-semibold text-foreground sm:text-xl"><Tr text="Location" /></h2>
+              <h2 className={SECTION_TITLE}><Tr text="Location" /></h2>
               {approxArea && (
                 <p data-map-approximate className="text-xs text-muted-foreground">
                   {tr('Approximate area — the exact address is not on the map.', 'Khu vực gần đúng — bản đồ không hiển thị địa chỉ chính xác.')}

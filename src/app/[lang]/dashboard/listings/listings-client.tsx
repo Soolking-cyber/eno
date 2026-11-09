@@ -15,6 +15,7 @@ import { SectionHeader } from '@/components/marketplace/section-header'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Mascot } from '@/components/marketplace/mascot'
 import { Segmented } from '@/components/ui/segmented'
 import { Alert } from '@/components/ui/alert'
 import { inAvailabilityReview } from '@/lib/stale'
@@ -274,7 +275,10 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
           </>
         ) : dash.listings.length === 0 ? (
           <EmptyState
-            icon={ListChecks}
+            // The waving mascot, not a coin (UI climb 2026-11-09): a new seller's first look at their dashboard is a welcome,
+            // and the other page-level empties of the account (/saved, /rentals/check, /disputes) lead with their mascots.
+            // 128px with the art's ground band (a fifth of its box) taken back, so the line sits with the drawing.
+            media={<Mascot name="wave" className="-mb-5 h-32 w-32" />}
             title={tr('No listings yet', 'Chưa có tin nào')}
             subtitle={tr('Post your first one — it only takes a minute.', 'Đăng tin đầu tiên — chỉ mất một phút.')}
             action={<Button variant="cta" asChild><Link href="/post">{tr('Post a listing', 'Đăng tin')}</Link></Button>}

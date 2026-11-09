@@ -10,6 +10,7 @@ import { deviceOrIntlLocale } from '@/lib/i18n/langs'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Mascot } from '@/components/marketplace/mascot'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Rows, Row } from '@/components/ui/rows'
 import { PageHeader } from '@/components/ui/page-header'
@@ -93,7 +94,7 @@ export function DisputesPanel({ compact = false, underSectionHeader = false }: {
           (brand line-only = links/affordances, solid = user-state, wash = artwork/active)
           and a static header icon fits no bucket — nor do the sibling dashboard sections
           (listings, help) or any mobile SectionHeader carry a title glyph. The concept
-          keeps its Scale where it MEANS something: the rail row and the empty state. */}
+          keeps its Scale where it MEANS something: the rail row and a case's row. */}
       {/* The page title row is ui/page-header (the heading ramp + its meta line); `compact` (embedded
           in another screen that owns the title) keeps only the line. */}
       {compact ? (
@@ -120,14 +121,15 @@ export function DisputesPanel({ compact = false, underSectionHeader = false }: {
         // the one §2 breach left on the dashboard: a bare ~40px Scale carrying the UI/nav
         // stroke, i.e. exactly the "rubber-stamped" look the display tier exists to
         // prevent, and a second empty-state language beside the listings page's coin).
-        // EmptyState bakes the sanctioned §6 treatment once: brand-50 coin, brand glyph,
-        // STROKE_DISPLAY — same dashed card the sibling /dashboard/listings empty renders.
+        // Since 2026-11-09 it leads with the lifebuoy mascot, as /saved and /rentals/check lead with theirs (UI climb: a coin
+        // here beside their mascots read as pages "assembled independently"; the mascots are the warm-empty voice, and
+        // nothing here is a fault).
         <EmptyState
           className="mt-6"
           // The page-level tier, as /saved and the inbox draw theirs (2026-11-07 audit: the empty /saved led with an 18px heading
           // over 16px copy, its sibling tool pages with 16px over 14px).
           size="lg"
-          icon={Scale}
+          media={<Mascot name="help" className="-mb-6 h-40 w-40 sm:-mb-8 sm:h-52 sm:w-52" />}
           title={t('No disputes', 'Chưa có khiếu nại nào')}
           // Where a case starts, once, and the guide to it (2026-11-07 audit, tools + dash judges: "Cases you open —
           // and any about you — appear here" repeated the lede, and nothing led on from "Report"). The guide is the help

@@ -6,6 +6,7 @@ import { useLanguage, Tr } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { getInitials } from '@/lib/utils'
 import { RatingValue } from './rating-value'
+import { SECTION_TITLE } from './section-title'
 import { ReportContentButton } from './report-content-button'
 import type { SellerReviewPreview } from '@/lib/seller-metrics'
 
@@ -32,9 +33,9 @@ export function ReviewsPreview({
     // No outer margin: the PDP wrapper owns this block's spacing (hairline + pt), so a
     // margin here double-counted against the buy-box column's gap.
     <section>
-      {/* Shared PDP section-header treatment (text-lg sm:text-xl font-semibold); the count + rating
+      {/* Shared PDP section-header treatment (SECTION_TITLE, section-title.ts); the count + rating
           drop to text-sm so the heading word carries the weight, aligned on the baseline. */}
-      <h2 className="mb-3 flex items-baseline gap-1.5 text-lg font-semibold text-foreground sm:text-xl">
+      <h2 className={`mb-3 flex items-baseline gap-1.5 ${SECTION_TITLE}`}>
         {tr('Buyer reviews', 'Đánh giá về người bán')}
         <span className="text-sm font-medium text-muted-foreground">({total})</span>
         {/* self-center: an inline-flex box's baseline comes from its FIRST item — the star SVG,

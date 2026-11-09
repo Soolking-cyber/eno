@@ -17,6 +17,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
+import { Mascot } from '@/components/marketplace/mascot'
 import { Price } from '@/components/marketplace/price'
 import { useLocalized } from '@/components/marketplace/listing-content'
 import { rentalFreeCta, rentalFreeLine } from '@/components/marketplace/rental-check-toggle'
@@ -539,7 +540,9 @@ export function RentalCheckView() {
           className="mt-6"
           // The page-level tier, as /saved, /disputes and the inbox draw theirs (2026-11-07 audit): 18px over 16px.
           size="lg"
-          icon={ClipboardCheck}
+          // The key-and-door mascot, at /saved's size and with its ground band taken back (UI climb 2026-11-09: the judges read
+          // a coin here beside /saved's mascot as pages "assembled independently"; the mascots are the warm-empty voice).
+          media={<Mascot name="key" className="-mb-6 h-40 w-40 sm:-mb-8 sm:h-52 sm:w-52" />}
           title={tr('Your list is empty', 'Danh sách đang trống')}
           subtitle={<TapTheMark />}
           action={

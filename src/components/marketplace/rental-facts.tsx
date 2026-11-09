@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Bilingual } from '@/components/marketplace/bilingual'
+import { SECTION_TITLE } from '@/components/marketplace/section-title'
 import { CalendarDay } from '@/components/marketplace/calendar-day'
 import { CountValue, VndValue } from '@/components/marketplace/rating-value'
 import {
@@ -50,7 +51,7 @@ function Row({ name, children }: { name: LabelPair; children: ReactNode }) {
 export function RentalCosts({ rent, rows }: { rent: number | null; rows: readonly CostRow[] }) {
   return (
     <div className="space-y-2">
-      <h2 className="text-lg font-semibold text-foreground sm:text-xl"><Bilingual en={RENTAL_FACT_LABELS.costs.label} vi={RENTAL_FACT_LABELS.costs.labelVi} /></h2>
+      <h2 className={SECTION_TITLE}><Bilingual en={RENTAL_FACT_LABELS.costs.label} vi={RENTAL_FACT_LABELS.costs.labelVi} /></h2>
       <dl className="divide-y divide-border text-sm">
         {rent != null && rent > 0 && <Row name={RENT_ROW}><VndValue value={rent} /><Per per={RENT_PER} /></Row>}
         {rows.map((r) => (
@@ -125,7 +126,7 @@ const AMENITY_ICON: Readonly<Record<string, IconComponent>> = {
 export function RentalAmenities({ items }: { items: readonly (LabelPair & { value: string })[] }) {
   return (
     <div className="space-y-3">
-      <h2 className="text-lg font-semibold text-foreground"><Bilingual en={RENTAL_FACT_LABELS.amenities.label} vi={RENTAL_FACT_LABELS.amenities.labelVi} /></h2>
+      <h2 className={SECTION_TITLE}><Bilingual en={RENTAL_FACT_LABELS.amenities.label} vi={RENTAL_FACT_LABELS.amenities.labelVi} /></h2>
       <ul className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm text-foreground sm:grid-cols-3">
         {items.map((a) => {
           const Icon = AMENITY_ICON[a.value] ?? CheckCircle2
