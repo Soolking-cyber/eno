@@ -4912,7 +4912,11 @@ export function ListingsExplorer({
             goodPrice={goodPriceOnly}
             onGoodPrice={(on) => startFilterTransition(() => setGoodPriceOnly(on))}
             // Drawn only while it would narrow the feed (facets.deal — the same rule as every rail).
-            goodPriceOffered={facetCounts.deal === undefined ? activeCategory === 'electronics' : offeredKeys(facetCounts.deal, ['good'], null, { hideNoOp: true }).length > 0}
+            // ⚠️ NOT GUESSED BEFORE THE COUNTS ANSWER — not even for Electronics (UI climb 2026-11-10). The 11-03 audit drew it
+            // there up front because Electronics usually had good deals; it has none now (9 listings), so the guess vanished on
+            // every cold Electronics link, moving the sort tabs 111px — and from 1110 to 1180px its width was what wrapped the
+            // pending strip onto two lines and back (0.44 at 1180, production). The audit's own rule: what vanishes stays away.
+            goodPriceOffered={facetCounts.deal === undefined ? false : offeredKeys(facetCounts.deal, ['good'], null, { hideNoOp: true }).length > 0}
             headerHidden={headerHidden}
             leading={
               <div className="min-h-9">
