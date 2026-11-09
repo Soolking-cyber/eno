@@ -47,7 +47,7 @@ const MASCOTS_V = '5725a4f5'
 /**
  * eno.vn's shield mascots (public/mascots/*.svg), rendered as a CSS mask filled with
  * `currentColor`, so they're crisp at any size and adapt to the theme automatically: dark
- * line-art in light mode, light line-art in dark mode (a quiet `ink-4` at 60% by default). No raster,
+ * line-art in light mode, light line-art in dark mode (`ink-4` at 80% by default). No raster,
  * no dark-mode invert hacks. Pass `white` to force white (e.g. on the blue panel).
  *
  * ⚠️ The nine files are not nine drawings — they are ONE drawing with nine props. The whole
@@ -104,9 +104,11 @@ export function Mascot({ name, className, white = false }: { name: MascotName; c
     <span
       aria-hidden
       // 2026-11-06 audit: line-strong (1.4:1 on the canvas) read as a disabled or unfinished asset in two judge findings
-      // (empty states, the 404); ink-4 at 60% (~2.6:1) is a deliberate drawing that still sits below the empty state's
-      // own words, which lead.
-      className={cn('inline-block bg-current', white ? 'text-white' : 'text-ink-4/60', className)}
+      // (empty states, the 404). ink-4 at 60% (~2.6:1) still read "a little pale" — both blind judges preferred 80% on all seven
+      // mascot screens (t44, 2026-11-09). Measured on the canvas the empty states sit on: 3.8:1 light (#7f8080 on #f8fbfe), 4.6:1
+      // dark (#868686 on #1c1d1f) — a drawing you see at once that still sits well below the empty state's own words (title and
+      // subtitle 10.5–15:1 in both themes), which lead. Decorative (aria-hidden): no WCAG contrast rule binds it; this is legibility.
+      className={cn('inline-block bg-current', white ? 'text-white' : 'text-ink-4/80', className)}
       style={{
         maskImage: url,
         WebkitMaskImage: url,
