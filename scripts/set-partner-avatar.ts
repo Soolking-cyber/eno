@@ -20,6 +20,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 import { db } from '../src/lib/db'
+import { PARTNER_AVATAR_MIN_VISIBLE_PCT, PARTNER_AVATAR_SIZE, renderPartnerAvatar } from '../src/lib/partner-avatar'
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
@@ -29,7 +30,7 @@ const APPLY = process.argv.includes('--apply')
 // specifically (2026-08-25), so it is a flag someone has to type, not a side effect of an avatar.
 const OFFICIAL = process.argv.includes('--official')
 const BUCKET = 'listings'
-const SIZE = 512
+const SIZE = PARTNER_AVATAR_SIZE
 /** The partner's own icon, as published on their site. Defaults to VinWonders, the first partner. */
 const SELLER_NAME = arg('seller')
 /**
@@ -89,31 +90,10 @@ async function main() {
     if (!res.ok) { console.error(`logo fetch failed: ${res.status}`); process.exit(1) }
     src = Buffer.from(await res.arrayBuffer())
   }
-  const sharp = (await import('sharp')).default
-  const meta = await sharp(src).metadata()
-  /**
-   * ⚠️ AN SVG RASTERISES AT ITS INTRINSIC SIZE — a carrier's header logo is typically ~120x30 — and
-   * resizing that up to 512 is a blur. Render it at the density that already reaches SIZE instead.
-   */
-  const w = meta.width ?? SIZE, h = meta.height ?? SIZE
-  const density = meta.format === 'svg' ? Math.min(2400, Math.ceil((72 * SIZE) / Math.max(w, h))) : undefined
-  /**
-   * ⚠️ THE AVATAR IS A CIRCLE (ui/avatar: rounded-full). A square mark fills it as before; a WIDE
-   * wordmark fitted edge to edge loses both ends to the mask. So a non-square mark is fitted inside
-   * the circle — its box's half-diagonal no more than the radius — and padded back out to SIZE.
-   */
-  const aspect = Math.max(w, h) / Math.min(w, h)
-  const inner = aspect > 1.15 ? Math.floor(SIZE / Math.sqrt(1 + 1 / (aspect * aspect))) : SIZE
-  const pad = Math.floor((SIZE - inner) / 2)
-  // Flattened onto white rather than left transparent: the avatar renders on several surfaces
-  // (dark chips, coloured cards) and a transparent cut-out would pick up whatever sits behind it.
-  const out = await sharp(src, density ? { density } : {})
-    .resize(inner, inner, { fit: 'contain', background: '#ffffff' })
-    .extend({ top: pad, bottom: SIZE - inner - pad, left: pad, right: SIZE - inner - pad, background: '#ffffff' })
-    .flatten({ background: '#ffffff' })
-    .webp({ quality: 92 })
-    .toBuffer()
-  console.log(`logo: ${meta.width}x${meta.height} ${meta.format}${density ? ` @${density}dpi` : ''} -> ${SIZE}x${SIZE} webp (mark ${inner}px), ${out.length} bytes`)
+  // The circle fit, the white flatten and the visibility measure: src/lib/partner-avatar.ts (shared with the importers
+  // that set an owned partner storefront's logo, which this script refuses).
+  const { out, width, height, format, density, inner, visiblePct: pct } = await renderPartnerAvatar(src)
+  console.log(`logo: ${width}x${height} ${format}${density ? ` @${density}dpi` : ''} -> ${SIZE}x${SIZE} webp (mark ${inner}px), ${out.length} bytes`)
 
   /**
    * ⛔ REFUSE A LOGO THAT IS INVISIBLE ON THE BACKGROUND WE FLATTENED IT ONTO.
@@ -126,12 +106,8 @@ async function main() {
    * ⚠️ The check is on the OUTPUT, not the input, because that is the artefact people see. Their
    * colour asset (`logo-cps.png`) measures 81% visible against the same background.
    */
-  const { data: grey } = await sharp(out).greyscale().raw().toBuffer({ resolveWithObject: true })
-  let visible = 0
-  for (const px of grey) if (px < 245) visible++
-  const pct = (visible / grey.length) * 100
   console.log(`visible against the white flatten: ${pct.toFixed(1)}%`)
-  if (pct < 8) {
+  if (pct < PARTNER_AVATAR_MIN_VISIBLE_PCT) {
     console.error(`\n⛔ REFUSING: only ${pct.toFixed(1)}% of this mark is visible on white — it is almost certainly`)
     console.error('   the light-on-dark variant. Brands publish both; pass the COLOUR one via --logo.')
     console.error('   (CellphoneS: Logo-CPS-m.png is white-on-transparent; logo-cps.png is the colour mark.)')

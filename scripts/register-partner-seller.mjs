@@ -111,6 +111,28 @@ const PARTNERS = {
     // ⛔ NO DAILY "CONFIRM AVAILABILITY" MAIL to the partner's inbox: eno's admin manages this account (GoPlus's reasoning).
     dailyReminderOptIn: false,
   },
+  // Owner, 2026-11-09: "add https://saigonmoving.com/bang-gia.htm saigon moving as a partner for moving home". The email is
+  // the one their own about and home pages publish; scripts/import-saigonmoving.ts writes their one home-moving listing
+  // onto THIS storefront (handle AND email) and sets the address and logo; then the account manages it (the runbook is
+  // that script's header). set-official-partner.mjs saigonmoving keeps it chat-only.
+  saigonmoving: {
+    email: 'saigonmoving.com@gmail.com',
+    handle: 'saigonmoving',
+    name: 'Saigon Moving',
+    // ⚠️ NULL ON PURPOSE: their site names the company only in English ("SAIGON MOVING CO., LTD.", /bang-gia.htm, read
+    // 2026-11-09), with no Vietnamese registered name and no tax code, so no registered name can be verified from it.
+    legalName: null,
+    // GMBR's shape: what they do, how a customer reaches them here, then the closing clause that keeps eno the marketplace
+    // introducing them. Not trimmable. The claims are their own site's.
+    bio: 'Full-package moving in Ho Chi Minh City and the neighbouring provinces: homes, offices and warehouses. Free consultation and a free survey, packing materials supplied, furniture taken apart, wrapped, moved and set back in place. Message Saigon Moving here on eno for a quote. eno introduces Saigon Moving; the moving contract is with them.',
+    // Set from their own published logo afterwards (scripts/import-saigonmoving.ts: set-partner-avatar.ts refuses an owned
+    // storefront), so no deploy is needed for it.
+    avatarUrl: null,
+    // The red of their "SaigonMoving" wordmark: the mean of its 22,388 opaque pixels in public/partners/saigonmoving.png.
+    avatarColor: '#ed1c25',
+    // ⛔ NO DAILY "CONFIRM AVAILABILITY" MAIL to the partner's inbox: eno's admin manages this account (GoPlus's reasoning).
+    dailyReminderOptIn: false,
+  },
 }
 
 const KEY = process.argv[2]
