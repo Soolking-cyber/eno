@@ -77,6 +77,40 @@ function lowPass(input: Float32Array, cutoff: number, half: number): Float32Arra
 }
 
 /**
+ * THE OWN-VOICE TAKE BROUGHT UP TO FULL LEVEL (owner, 2026-11-09: "it says voice too quiet and even i speak close to phone it
+ * barely picks up"): one gain for the whole take — a plain volume change, which a clone does not hear as processing.
+ * ⛔ THE GAIN FOLLOWS THE VOICE, NOT ITS LOUDEST CLICK (commit gate, opus): it is set from the 99.9th percentile of the
+ * level (a histogram — a two-minute take is millions of samples), so one thump (the Stop tap through the phone) cannot
+ * hold the voice down; the few samples above `target` after the gain are clipped at full scale. At most `maxGain`
+ * (+26 dB). Returns a new array and the gain used; silence comes back as it was.
+ */
+export function peakNormalize(input: Float32Array, target = 0.89, maxGain = 20): { samples: Float32Array; gain: number } {
+  const BINS = 2048
+  const hist = new Uint32Array(BINS)
+  let n = 0
+  for (let i = 0; i < input.length; i++) {
+    const a = Math.min(1, Math.abs(input[i]))
+    if (a > 0) { hist[Math.min(BINS - 1, Math.floor(a * BINS))]++; n++ }
+  }
+  if (!n) return { samples: input, gain: 1 }
+  // The level only 0.1% of the take's samples are above.
+  let above = 0
+  let bin = BINS - 1
+  for (; bin > 0; bin--) { above += hist[bin]; if (above >= n * 0.001) break }
+  const level = (bin + 1) / BINS
+  const gain = Math.min(maxGain, target / level)
+  const out = new Float32Array(input.length)
+  for (let i = 0; i < input.length; i++) out[i] = Math.max(-1, Math.min(1, input[i] * gain))
+  return { samples: out, gain }
+}
+
+/** The take without its first and last `ms` — where the Start and Stop taps land, and nobody is speaking yet. */
+export function trimEnds(input: Float32Array, rate: number, ms = 150): Float32Array {
+  const cut = Math.round((rate * ms) / 1000)
+  return input.length > cut * 4 ? input.subarray(cut, input.length - cut) : input
+}
+
+/**
  * Float32 samples at the device's rate → 16 kHz Int16. ⛔ LOW-PASS FIRST (round 10, opus): plain interpolation from
  * 44.1/48 kHz folds everything above 8 kHz — the sibilants — back into the speech band, and Azure's pronunciation scores
  * pay for it. So a windowed-sinc low-pass at 6.7 kHz (0.42 of the output rate) runs at the input rate, then linear

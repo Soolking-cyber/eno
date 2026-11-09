@@ -96,7 +96,9 @@ function Flow() {
     if (v.status !== 'script') return
     const { wav, peak } = take.take()
     if (!wav) return
-    if (peak < 0.06) return setError('voice_too_quiet')
+    // Only a take with no voice in it at all (−46 dBFS at its loudest): anything above is brought up to level (peakNormalize),
+    // and whether it IS a voice reading the sentences is the server's check of the words.
+    if (peak < 0.005) return setError('voice_too_quiet')
     setBusy(true)
     setError(null)
     const q = new URLSearchParams({ id: v.id, consent: VOICE_NOTICE_VERSION, own: '1' })

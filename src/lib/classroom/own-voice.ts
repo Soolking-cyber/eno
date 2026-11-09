@@ -49,8 +49,9 @@ const LOST_CREATE_MS = STUCK_MS
 /** The route's own wait for Soniox to finish making the voice; the page's GET and the sweep carry on after it. */
 const READY_WAIT_MS = 20_000
 const POLL_EVERY_MS = 2_000
-/** The recording is refused below this loudness (0–32767): a voice that quiet clones badly. */
-const QUIET_PEAK = 2_000
+/** The recording is refused below this loudness (0–32767). The page brings every take up to full level first (wav.ts
+ *  peakNormalize), so this only catches a take with nothing in it (owner, 2026-11-09: 2,000 refused real, close speech). */
+const QUIET_PEAK = 300
 /** 120 s of 24 kHz PCM16 + the header. */
 export const MAX_RECORDING_BYTES = LIMITS.voiceMaxSeconds * VOICE_RATE * 2 + 44
 /** A cloned voice's id as Soniox gives it (a uuid) — the DDL's bound, and what the speaking side accepts. */

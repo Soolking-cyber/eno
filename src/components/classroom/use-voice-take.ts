@@ -2,21 +2,22 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { LIMITS, VOICE_RATE } from '@/lib/classroom/constants'
-import { encodeWav, toPcmAt } from '@/lib/classroom/wav'
+import { encodeWav, peakNormalize, toPcmAt, trimEnds } from '@/lib/classroom/wav'
 
 /**
  * THE TEACHER READING THEIR SCRIPT, for their own voice (own-voice-flow.tsx). The lesson's worklet
  * (public/classroom/recorder-worklet.js) hands over every frame; nothing is sent until the teacher taps Send, and then ONE
  * WAV — PCM16 mono at VOICE_RATE — goes to /api/classroom/own-voice/recording and is never stored (own-voice.ts).
- * ⛔ THE MICROPHONE RAW (plan review, opus): echo cancellation, noise suppression and auto gain OFF — a clone copies what it
- * hears, processing included; the page asks for a quiet room instead.
+ * THE MICROPHONE NEARLY RAW: echo cancellation and noise suppression OFF (a clone copies what it hears, processing
+ * included — plan review, opus), AUTO GAIN ON (owner, 2026-11-09: with it off a phone recorded so low that "voice too quiet"
+ * came up even close to the phone). The finished take is then brought up to full level by one plain gain (peakNormalize).
  * ⛔ iOS: the AudioContext is made on the Start TAP (a gesture), runs at the device's own rate whatever is asked (the JS
  * resampler makes 24 kHz), and stops when the screen locks or a call comes — the take is then dropped ("interrupted"),
  * never sent half-made.
  */
 export type TakeState = 'idle' | 'starting' | 'recording' | 'done' | 'interrupted' | 'denied'
 
-const RAW: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 }
+const RAW: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: true, channelCount: 1 }
 
 export function useVoiceTake() {
   const [state, setState] = useState<TakeState>('idle')
@@ -67,7 +68,7 @@ export function useVoiceTake() {
     let at = 0
     for (const f of frames.current) { all.set(f, at); at += f.length }
     frames.current = []
-    wav.current = encodeWav(toPcmAt(all, rate, VOICE_RATE), VOICE_RATE)
+    wav.current = encodeWav(toPcmAt(peakNormalize(trimEnds(all, rate)).samples, rate, VOICE_RATE), VOICE_RATE)
     setState('done')
   }, [release])
 
@@ -126,7 +127,8 @@ export function useVoiceTake() {
     starting.current = false
     tick.current = setInterval(() => {
       setSeconds(Math.floor(count.current / c.sampleRate))
-      setLevel(Math.min(1, last * 6))
+      // A square-root curve: quiet speech still moves the bar visibly, loud speech does not pin it.
+      setLevel(Math.min(1, Math.sqrt(last) * 2.4))
     }, 100)
     setState('recording')
   }, [release, stop, interrupt])
@@ -137,7 +139,7 @@ export function useVoiceTake() {
     return () => { document.removeEventListener('visibilitychange', hidden); release() }
   }, [interrupt, release])
 
-  /** The finished take (after stop) and how loud it got (0–1). */
+  /** The finished take (after stop) and how loud the microphone got (0–1, before the take was brought up to level). */
   const take = useCallback(() => ({ wav: wav.current, peak: peak.current }), [])
   const reset = useCallback(() => { release(); frames.current = []; wav.current = null; setSeconds(0); setState('idle') }, [release])
 
