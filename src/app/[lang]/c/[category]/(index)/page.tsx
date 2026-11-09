@@ -8,6 +8,7 @@ import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { loadCategory } from '../load-category'
 import { loadDistrictChips, loadJobCities, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline, loadTeacherLinks, loadTeachingJobsCount, TEACHING_JOBS } from '../category-data'
 import { AreaChipsRow } from './area-chips-row'
+import { CategoryMapChip } from './category-map-chip'
 import { byAreaChips, categoryMetadata, crumbNames, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
 import { CategoryGuides, OtherRentalsLink, PlaceName, RentalsDistricts } from '../category-text'
 import { CategoryFiltersLink } from '../category-filters-link'
@@ -343,6 +344,8 @@ export default async function CategoryPage({ params }: Props) {
               `aria-current`). It listed only the places to go, so nothing on it said what the grid below covers. A district
               page opens on its own place the same way, and /c/jobs' city row on "All N". */}
           <Badge size="md" aria-current="page" className={cn('shrink-0 whitespace-nowrap px-3.5 py-1.5 font-semibold', PILL_ON)}><Tr text="All" /></Badge>
+          {/* The map, chosen by area: right after "All", so the row still opens on where the reader is (category-map-chip.tsx). */}
+          <CategoryMapChip slug={cat.slug} homesOnly={!!homes} lang={pageLang(lang)} />
           {/* prefetch={false}: every chip in view was a district page request on every category view — two on a phone,
               up to 41 on a desktop row (speed plan item 7, measured on production 2026-10-16). */}
           {districts.map((d) => (
