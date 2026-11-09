@@ -49,7 +49,8 @@ export function sonioxConfig(): SonioxConfig | null {
 let refusedRegion = ''
 
 export class SonioxError extends Error {
-  constructor(readonly status: number) { super(`soniox_${status}`) }
+  /** `detail`: why a call that never got an answer failed (the error's name and cause code — never a word of content). */
+  constructor(readonly status: number, readonly detail?: string) { super(`soniox_${status}`) }
 }
 
 /** One single-use temporary key for ONE WebSocket, valid to open it for `expiresInSeconds` (1–3600); the stream it opens

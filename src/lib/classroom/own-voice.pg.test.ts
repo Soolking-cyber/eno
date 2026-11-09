@@ -20,6 +20,8 @@ const s = vi.hoisted(() => ({
   sttFails: false,
   createStatus: 'ready' as string | null,
   createFails: null as number | null,
+  /** While set, Soniox's create does not answer (a slow create). */
+  createHold: null as Promise<void> | null,
   deleteFails: false,
   /** Ids Soniox refuses to delete (an outage on those, a bad id). */
   failIds: new Set<string>(),
@@ -32,6 +34,10 @@ const s = vi.hoisted(() => ({
   seq: 0,
 }))
 vi.mock('server-only', () => ({}))
+// The clone runs after the answer (own-voice.ts): the tests await it.
+const pending: Promise<unknown>[] = []
+vi.mock('next/server', async (orig) => ({ ...(await orig<typeof import('next/server')>()), after: (fn: () => unknown) => { pending.push(Promise.resolve().then(fn)) } }))
+const settle = async () => { while (pending.length) await Promise.all(pending.splice(0)) }
 vi.mock('@/lib/user-blocks', () => ({ isStaffProfile: async () => true }))
 vi.mock('./soniox', async (orig) => ({
   ...(await orig<typeof import('./soniox')>()),
@@ -47,6 +53,7 @@ vi.mock('./soniox-voices', async (orig) => {
   return {
     ...real,
     createVoice: async (_c: unknown, name: string) => {
+      if (s.createHold) await s.createHold
       if (s.createFails) throw new SonioxError(s.createFails)
       const v = { id: `${String(++s.seq).padStart(8, '0')}-0000-4000-8000-000000000000`, name, created_at: new Date().toISOString(), status: s.createStatus }
       s.voices.set(v.id, v)
@@ -80,6 +87,12 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
     return wav.encodeWav(pcm, 24_000)
   }
   const consent = () => ({ version: notices.VOICE_NOTICE_VERSION, ownVoice: true })
+  /** A recording sent, the background clone awaited, and the view the page's next GET would get. */
+  const submit = async (...a: Parameters<typeof ov.submitRecording>) => {
+    const first = await ov.submitRecording(...a)
+    await settle()
+    return first.status === 'none' ? first : ov.voiceView(a[0].id, new Date(Date.now() + 10_000))
+  }
   const readScript = async () => {
     const view = await ov.issueScript(teacher.id)
     if (view.status !== 'script') throw new Error('no script')
@@ -107,7 +120,7 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
     await db.classroomAvatar.update({ where: { id: tutorId }, data: { ownVoiceId: null } })
     await db.$executeRaw`DELETE FROM rl_window WHERE name = 'classroom-voice'`
     await db.$executeRaw`DELETE FROM public.classroom_voice_deletion`
-    Object.assign(s, { heard: '', sttFails: false, createStatus: 'ready', createFails: null, deleteFails: false, deleted: [], recomputed: [] })
+    Object.assign(s, { heard: '', sttFails: false, createStatus: 'ready', createFails: null, createHold: null, deleteFails: false, deleted: [], recomputed: [] })
     s.voices.clear()
     s.unlisted.clear()
     s.failIds.clear()
@@ -121,7 +134,7 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
 
   it('read the script → checked, made, ready with its sample; the consent on the row AND on the audit chain', async () => {
     const view = await readScript()
-    const done = await ov.submitRecording(teacher, view.id, recording(), consent())
+    const done = await submit(teacher, view.id, recording(), consent())
     expect(done.status).toBe('ready')
     const row = await db.classroomVoice.findUniqueOrThrow({ where: { id: view.id } })
     expect(row).toMatchObject({ status: 'ready', consentVersion: notices.VOICE_NOTICE_VERSION })
@@ -132,9 +145,30 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
     expect(Number(audit[0].n)).toBe(1)
   })
 
+  it('⛔ the page is answered at once ("making"): the clone runs after the answer — a slow Soniox never times the page out', async () => {
+    const view = await readScript()
+    let release!: () => void
+    s.createHold = new Promise<void>((r) => { release = r })
+    // Soniox has not answered yet — the page has.
+    const first = await ov.submitRecording(teacher, view.id, recording(), consent())
+    expect(first.status).toBe('making')
+    expect(s.voices.size).toBe(0)
+    release()
+    await settle()
+    expect((await ov.voiceView(teacher.id, new Date(Date.now() + 10_000))).status).toBe('ready')
+  })
+
+  it('a create that never gets an answer: the row fails (reason soniox) and the page shows it; nothing is left at Soniox', async () => {
+    const view = await readScript()
+    s.createFails = 502
+    expect(await submit(teacher, view.id, recording(), consent())).toMatchObject({ status: 'failed', reason: 'soniox' })
+    // The trigger queued the attempt's name: whatever Soniox may have made under it is deleted by the sweep.
+    expect(await db.$queryRaw<{ n: number }[]>`SELECT count(*)::int AS n FROM public.classroom_voice_deletion WHERE soniox_voice_id = ${'name:' + voices.voiceName(view.id)}`).toEqual([{ n: 1 }])
+  })
+
   it('⛔ a script is good ONCE: a second upload of the same one is refused, and nothing more is made', async () => {
     const view = await readScript()
-    await ov.submitRecording(teacher, view.id, recording(), consent())
+    await submit(teacher, view.id, recording(), consent())
     await expect(ov.submitRecording(teacher, view.id, recording(), consent())).rejects.toMatchObject({ code: 'voice_script_expired' })
     expect(s.voices.size).toBe(1)
   })
@@ -142,6 +176,7 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
   it('⛔ two uploads of one script at once: exactly one is checked', async () => {
     const view = await readScript()
     const r = await Promise.allSettled([ov.submitRecording(teacher, view.id, recording(), consent()), ov.submitRecording(teacher, view.id, recording(), consent())])
+    await settle()
     expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1)
     expect(s.voices.size).toBe(1)
   })
@@ -170,19 +205,19 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
     await expect(ov.submitRecording(teacher, view.id, recording(), consent())).rejects.toMatchObject({ code: 'voice_unavailable' })
     expect(await db.classroomVoice.findUnique({ where: { id: view.id } })).toMatchObject({ status: 'script' })
     s.sttFails = false
-    expect((await ov.submitRecording(teacher, view.id, recording(), consent())).status).toBe('ready')
+    expect((await submit(teacher, view.id, recording(), consent())).status).toBe('ready')
   })
 
   it('⛔ a ready voice is not replaced by a new script (the teacher deletes it first)', async () => {
     const view = await readScript()
-    await ov.submitRecording(teacher, view.id, recording(), consent())
+    await submit(teacher, view.id, recording(), consent())
     await expect(ov.issueScript(teacher.id)).rejects.toMatchObject({ code: 'voice_exists' })
   })
 
   it('⛔ Soniox\'s organisation full (429): the attempt fails as slots_full, nothing is held', async () => {
     const view = await readScript()
     s.createFails = 429
-    await expect(ov.submitRecording(teacher, view.id, recording(), consent())).rejects.toMatchObject({ code: 'voice_slots_full' })
+    expect(await submit(teacher, view.id, recording(), consent())).toMatchObject({ status: 'failed', reason: 'slots_full' })
     expect(await db.classroomVoice.findUnique({ where: { id: view.id } })).toMatchObject({ status: 'failed', failReason: 'slots_full' })
   })
 
@@ -190,14 +225,14 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
     const view = await readScript()
     s.createStatus = 'processing'
     // No wait (the route's is READY_WAIT_MS): still processing when it answers.
-    expect((await ov.submitRecording(teacher, view.id, recording(), consent(), new Date(), 0)).status).toBe('making')
+    expect((await submit(teacher, view.id, recording(), consent(), new Date(), 0)).status).toBe('making')
     for (const v of s.voices.values()) v.status = 'ready'
-    expect((await ov.voiceView(teacher.id, new Date(Date.now() + 10_000))).status).toBe('ready')
+    expect((await ov.voiceView(teacher.id, new Date(Date.now() + 20_000))).status).toBe('ready')
   })
 
   it('⛔ the tutor speaks the clone only while it is ready and the tutor names it; a delete takes it back, queues it, and deletes it at Soniox', async () => {
     const view = await readScript()
-    await ov.submitRecording(teacher, view.id, recording(), consent())
+    await submit(teacher, view.id, recording(), consent())
     const avatar = () => db.classroomAvatar.findUniqueOrThrow({ where: { id: tutorId }, select: { voice: true, ownVoiceId: true, teacherProfileId: true } })
     expect((await ov.tutorVoice(await avatar())).own).toBeNull() // not switched on for this tutor
     await db.classroomAvatar.update({ where: { id: tutorId }, data: { ownVoiceId: await ov.readyVoiceId(teacher.id) } })
@@ -212,13 +247,13 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
 
   it('⛔ a voice that FAILED and a new one made after it: the tutor that named the old one does not speak the new one', async () => {
     const first = await readScript()
-    await ov.submitRecording(teacher, first.id, recording(), consent())
+    await submit(teacher, first.id, recording(), consent())
     await db.classroomAvatar.update({ where: { id: tutorId }, data: { ownVoiceId: first.id } })
     for (const v of s.voices.values()) v.status = 'failed'
     await ov.reconcileVoices()
     expect(await db.classroomVoice.findUnique({ where: { id: first.id } })).toMatchObject({ status: 'failed', failReason: 'unusable' })
     const second = await readScript()
-    expect((await ov.submitRecording(teacher, second.id, recording(), consent())).status).toBe('ready')
+    expect((await submit(teacher, second.id, recording(), consent())).status).toBe('ready')
     const avatar = await db.classroomAvatar.findUniqueOrThrow({ where: { id: tutorId }, select: { voice: true, ownVoiceId: true, teacherProfileId: true } })
     expect(await ov.tutorVoice(avatar)).toEqual({ stock: 'Harper', own: null })
   })
@@ -230,7 +265,7 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
     const view = await ov.issueScript(tp.id)
     if (view.status !== 'script') throw new Error('no script')
     s.heard = view.sentences.join(' ')
-    await ov.submitRecording({ id: tp.id, profileId: other }, view.id, recording(), consent())
+    await submit({ id: tp.id, profileId: other }, view.id, recording(), consent())
     const id = [...s.voices.keys()][0]
     await db.profile.delete({ where: { id: other } })
     expect(await ov.pendingVoiceDeletions()).toMatchObject({ count: 1 })
@@ -295,7 +330,7 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
 
     it('a ready voice Soniox failed: the row fails (queued by the trigger) and the next run deletes it', async () => {
       const view = await readScript()
-      await ov.submitRecording(teacher, view.id, recording(), consent())
+      await submit(teacher, view.id, recording(), consent())
       for (const v of s.voices.values()) v.status = 'failed'
       await ov.reconcileVoices()
       expect(await db.classroomVoice.findUnique({ where: { id: view.id } })).toMatchObject({ status: 'failed', failReason: 'unusable', sample: null })
@@ -305,7 +340,7 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
 
     it('⛔ "gone" only on Soniox\'s own word: a voice left out of the list but still there is kept; one Soniox no longer has fails its row', async () => {
       const view = await readScript()
-      await ov.submitRecording(teacher, view.id, recording(), consent())
+      await submit(teacher, view.id, recording(), consent())
       const [v] = [...s.voices.values()]
       s.voices.delete(v.id)
       s.unlisted.set(v.id, v)
@@ -319,7 +354,7 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
     it('a clone with NO entry for our TTS model: asked to recompute too', async () => {
       const view = await readScript()
       s.createStatus = null
-      expect((await ov.submitRecording(teacher, view.id, recording(), consent(), new Date(), 0)).status).toBe('ready')
+      expect((await submit(teacher, view.id, recording(), consent(), new Date(), 0)).status).toBe('ready')
       expect(s.recomputed).toHaveLength(1)
     })
 
@@ -327,7 +362,7 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
       const view = await readScript()
       s.createStatus = 'not_computed'
       // No wait of the route's own: the recompute is asked at once, and the view that follows finds it prepared.
-      expect((await ov.submitRecording(teacher, view.id, recording(), consent(), new Date(), 0)).status).toBe('ready')
+      expect((await submit(teacher, view.id, recording(), consent(), new Date(), 0)).status).toBe('ready')
       expect(s.recomputed).toHaveLength(1)
     })
 
@@ -376,7 +411,7 @@ describe.skipIf(!live)('a teacher\'s own voice against a real Postgres', () => {
 
     it('⛔ Soniox refusing deletes: counted on the queue and retried next run — the row is gone at once', async () => {
       const view = await readScript()
-      await ov.submitRecording(teacher, view.id, recording(), consent())
+      await submit(teacher, view.id, recording(), consent())
       s.deleteFails = true
       await ov.deleteOwnVoice(teacher.id, accountId, 'teacher')
       expect(await db.classroomVoice.findUnique({ where: { id: view.id } })).toBeNull()

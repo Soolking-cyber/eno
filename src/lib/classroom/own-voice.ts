@@ -1,4 +1,5 @@
 import 'server-only'
+import { after } from 'next/server'
 import { randomInt } from 'node:crypto'
 import { ApiError } from '@/lib/api/handler'
 import { db } from '@/lib/db'
@@ -46,7 +47,7 @@ import { parseWav } from './wav'
 export const STUCK_MS = 15 * 60_000
 /** A create whose answer never reached its row is judged lost only after this (it may still be in flight). */
 const LOST_CREATE_MS = STUCK_MS
-/** The route's own wait for Soniox to finish making the voice; the page's GET and the sweep carry on after it. */
+/** The background's own wait for Soniox to finish making the voice; the page's GET and the sweep carry on after it. */
 const READY_WAIT_MS = 20_000
 const POLL_EVERY_MS = 2_000
 /** The recording is refused below this loudness (0–32767). The page brings every take up to full level first (wav.ts
@@ -189,35 +190,48 @@ export async function submitRecording(teacher: { id: string; profileId: string }
   if (slot === 'full') { await fail(rowId, 'checking', 'slots_full'); throw new ApiError('voice_slots_full', 503) }
   if (slot === 'gone') throw new ApiError('voice_script_expired', 409) // deleted (or failed by the sweep) meanwhile
 
+  // ⛔ THE CLONE RUNS AFTER THE ANSWER (owner, 2026-11-10: "again we couldnt" — Soniox held the create past our 30 s and the
+  // teacher saw an error): the page is told "making" now and asks again every few seconds; the server makes the voice in
+  // the background. A failure there fails the row with its reason, which the page then shows. A process that dies mid-way
+  // leaves a making row the sweep fails after STUCK_MS — and the trigger's name marker deletes whatever Soniox made.
+  // Anything unexpected in the background (a database blip) fails the attempt AT ONCE — the page shows it, never a 15-minute
+  // "making" (commit gate, codex + opus); a voice already made is then queued for deletion by the trigger.
+  const work = makeAtSoniox(cfg, rowId, wav, waitMs).catch(async (e) => {
+    logError(quietError(e), { op: 'classroom.voice.make' })
+    await fail(rowId, 'making', 'soniox').catch((e2) => logError(quietError(e2), { op: 'classroom.voice.make-fail' }))
+  })
+  try { after(() => work) } catch { /* outside a request (a script): the work still runs */ }
+  return voiceView(teacher.id)
+}
+
+/** The clone itself, its id onto the row, and a short wait for it to be ready (the page's GET and the sweep carry on after). */
+async function makeAtSoniox(cfg: SonioxConfig, rowId: string, wav: Uint8Array, waitMs: number): Promise<void> {
   let made: SonioxVoice
   try {
     made = await createVoice(cfg, voiceName(rowId), wav)
   } catch (e) {
     const status = e instanceof SonioxError ? e.status : 502
-    // ⛔ An unclear answer may still have made the voice: the row is failed, and the reconcile deletes a voice named for this
-    // row of THIS database (a lost create).
+    // ⛔ An unclear answer may still have made the voice: the row is failed, and the trigger queues its NAME, which the sweep
+    // deletes at Soniox.
     await fail(rowId, 'making', status === 429 ? 'slots_full' : 'soniox')
-    logWarn('[classroom] own voice: Soniox did not make it', { status })
-    throw new ApiError(status === 429 ? 'voice_slots_full' : 'voice_unavailable', 503)
+    logWarn('[classroom] own voice: Soniox did not make it', { status, detail: e instanceof SonioxError ? e.detail ?? null : (e as Error)?.name ?? null })
+    return
   }
-  if (!UUID.test(made.id)) { await fail(rowId, 'making', 'soniox'); throw new ApiError('voice_unavailable', 503) }
+  if (!UUID.test(made.id)) { await fail(rowId, 'making', 'soniox'); return }
   const attached = await db.classroomVoice.updateMany({ where: { id: rowId, status: 'making', sonioxVoiceId: null }, data: { sonioxVoiceId: made.id } })
   if (!attached.count) {
-    // Deleted or failed while Soniox made it: this voice belongs to nobody — let it go now (the reconcile would, later).
-    await deleteVoice(cfg, made.id).catch((e) => logWarn('[classroom] own voice: an unclaimed voice was not deleted yet — the reconcile will', { status: (e as { status?: number }).status ?? null }))
-    throw new ApiError('voice_script_expired', 409)
+    // Deleted or failed while Soniox made it: this voice belongs to nobody — let it go now (the name marker would, later).
+    await deleteVoice(cfg, made.id).catch((e) => logWarn('[classroom] own voice: an unclaimed voice was not deleted yet — the sweep will', { status: (e as { status?: number }).status ?? null }))
+    return
   }
-
-  // Ready in seconds, usually: wait a little here; the page's GET and the sweep carry on after.
   let v: SonioxVoice | null | undefined = made
-  const row = { id: rowId, teacherProfileId: teacher.id, status: 'making', sonioxVoiceId: made.id, updatedAt: now, createdAt: now }
+  const row = { id: rowId, sonioxVoiceId: made.id }
   for (const until = Date.now() + waitMs; ;) {
     if (await advanceMaking(cfg, row, v)) break
     if (Date.now() + POLL_EVERY_MS > until) break
     await new Promise((r) => setTimeout(r, POLL_EVERY_MS))
     v = await getVoice(cfg, made.id).catch(() => undefined)
   }
-  return voiceView(teacher.id)
 }
 
 async function fail(rowId: string, from: VoiceStatus | VoiceStatus[], reason: VoiceFailReason): Promise<number> {

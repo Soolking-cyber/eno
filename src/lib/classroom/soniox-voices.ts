@@ -49,8 +49,10 @@ async function call(cfg: SonioxConfig, path: string, init: RequestInit & { timeo
       signal: AbortSignal.timeout(init.timeoutMs ?? 10_000),
       redirect: 'error',
     })
-  } catch {
-    throw new SonioxError(502)
+  } catch (e) {
+    // No answer at all — a timeout, a reset, a refused connection: say which (owner, 2026-11-10: a bare 502 told us nothing).
+    const err = e as { name?: string; cause?: { code?: string; name?: string } }
+    throw new SonioxError(502, `${err?.name ?? 'Error'}${err?.cause?.code ? `:${err.cause.code}` : err?.cause?.name ? `:${err.cause.name}` : ''}`.slice(0, 60))
   }
 }
 
@@ -64,7 +66,9 @@ export async function createVoice(cfg: SonioxConfig, name: string, wav: Uint8Arr
   const form = new FormData()
   form.set('name', name)
   form.set('file', new Blob([wav as Uint8Array<ArrayBuffer>], { type: 'audio/wav' }), 'voice.wav')
-  const res = await call(cfg, '/v1/voices', { method: 'POST', body: form, timeoutMs: 30_000 }, fetchImpl)
+  // Soniox may hold the request open while it builds the voice (2026-11-10: a 30 s limit cut the owner's first voice off):
+  // two minutes, run in the background of the page's request (own-voice.ts), so no browser waits on it.
+  const res = await call(cfg, '/v1/voices', { method: 'POST', body: form, timeoutMs: 120_000 }, fetchImpl)
   if (!res.ok) return fail(res)
   const v = voiceOf(await res.json().catch(() => null), cfg.ttsModel)
   if (!v) throw new SonioxError(502)
