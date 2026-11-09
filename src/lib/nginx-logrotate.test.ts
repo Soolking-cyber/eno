@@ -209,7 +209,12 @@ describe.skipIf(!LOGROTATE)('nginx log retention · logrotate resolves the two s
       expect(r.out).toMatch(new RegExp(`^nginx:1 ignore duplicate log entry for \\S+/${f.replace(/\./g, '\\.')}$`, 'm'))
       expect(r.rotations.get(f), f).toBe(400)
     }
-    expect(r.out).toMatch(/\(14 rotations\)\n[^\n]*\nNo logs found\. Rotation not needed\./)
+    // The package stanza's own entry (14 rotations) is followed by "No logs found": nothing is left for it to rotate.
+    // ⚠️ TWO logrotate OUTPUT SHAPES (CI runner image, 2026-11-09): older builds printed one more line between the
+    // "(14 rotations)" entry and "No logs found"; newer ones print "(14 rotations), old logs are removed" on one line and
+    // "No logs found" straight after (measured in run 42600101220). So: at most one line in between, and never another
+    // stanza's "rotating pattern" — the "No logs found" must still be the package stanza's own.
+    expect(r.out).toMatch(/\(14 rotations\)[^\n]*\n(?:(?!rotating pattern)[^\n]*\n)?No logs found\. Rotation not needed\./)
     expect(r.wroteState).toBe(false)
   })
 
