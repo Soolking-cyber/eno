@@ -20,7 +20,7 @@ const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district'
  *  active (it would be redundant over filtered results) — except where the explorer places it
  *  as the `recovery` rail under a sparse answer (see the prop). */
 /** A card's "show on map" from a rail: the explorer listens, and may inject the listing into its map. One identity, so the card's memo holds. */
-const locateFromRail = (l: SerializedListingCard) => { window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } })) }
+export const locateFromRail = (l: SerializedListingCard) => { window.dispatchEvent(new CustomEvent('eno:locate', { detail: { id: l.id, listing: l } })) }
 
 /** ⚠️ MEMO: the explorer above re-renders on its own state, and each pass re-rendered these cards in full (speed audit, 2026-11-03). */
 export const ForYouRail = memo(function ForYouRail({ initial, recovery = false }: {

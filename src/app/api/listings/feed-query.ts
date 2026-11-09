@@ -215,6 +215,14 @@ export type FeedFilterOptions = {
 }
 
 /** Parse the feed's search params and build the Prisma where clause + the tracked sub-filters. */
+/**
+ * The viewer's blocked shops from the URL (`xs`), while `ugc-safety` is on — the feed's rule (buildFeedFilters, below), shared
+ * with the sparse-search "More in" rail (src/lib/core/related-rail.ts) so a blocked shop is out of both.
+ */
+export function hiddenShopsParam(searchParams: URLSearchParams): string[] {
+  return appReviewGate('ugc-safety') ? parseHiddenSellersParam(searchParams.get(HIDDEN_SELLERS_PARAM)) : []
+}
+
 export async function buildFeedFilters(searchParams: URLSearchParams, opts: FeedFilterOptions = {}) {
   const category = searchParams.get('category') || undefined // slug
   const subcategory = searchParams.get('subcategory') || undefined // slug
@@ -270,7 +278,7 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
    * pages leaves no empty grid behind. Its own AND element, as above; plain ids only, capped. It can only NARROW a public
    * feed, so it needs no auth — and while `ugc-safety` is off it is ignored.
    */
-  const hiddenShops = appReviewGate('ugc-safety') ? parseHiddenSellersParam(searchParams.get(HIDDEN_SELLERS_PARAM)) : []
+  const hiddenShops = hiddenShopsParam(searchParams)
   if (hiddenShops.length) andFilters.push({ sellerId: { notIn: hiddenShops } })
   const teachersIn = category === TEACHERS_CATEGORY_SLUG || opts.includeTeachers === true
   const teacherScope = await teacherExclusion({ teachers: teachersIn })

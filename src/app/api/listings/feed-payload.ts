@@ -6,7 +6,9 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { inAppOnly } from '@/lib/in-app-listing'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
-import { buildFeedFilters, resolveFeedFilters, buildFeedOrderBy, getSubcategoryCounts, countListingsCached } from './feed-query'
+import { buildFeedFilters, resolveFeedFilters, buildFeedOrderBy, getSubcategoryCounts, countListingsCached, hiddenShopsParam } from './feed-query'
+import { RELATED_DEADLINE_MS, relatedRail, wantsRelatedRail, withinDeadline } from '@/lib/core/related-rail'
+import { logError } from '@/lib/log'
 import { computeFacetCounts, releasedParams, subcategoryDimension, subcategoryDropPlan, type FacetCounts } from '@/lib/facet-counts'
 import { PROVINCE_NAMES_EN } from '@/lib/province-match'
 import { semanticRank } from './semantic-rank'
@@ -381,15 +383,41 @@ export async function buildFeedPayload(searchParams: URLSearchParams, opts: { no
     })
   }
 
+  /**
+   * THE SPARSE-SEARCH "MORE IN" RAIL (src/lib/core/related-rail.ts): words that found 1-7 things, page 1, carry the rest of
+   * their category IN THIS RESPONSE, so the explorer never fetches a rail after the answer (the race that sank the first
+   * try). Optional: a failure is logged and the explorer keeps Trending; past RELATED_DEADLINE_MS the answer goes without
+   * it, so it never costs the answer more than that. URL-only inputs (the category asked for, the viewer's `xs`), so the
+   * shared edge copy stays correct.
+   */
+  // ⚠️ THE WHOLE OPTIONAL STEP IS INSIDE THE CATCH, its titles' localization included (commit review), and it runs BESIDE
+  // the answer's own localization below, not after it.
+  const relatedPromise = wantsRelatedRail({ offset, q, total })
+    ? withinDeadline(
+        relatedRail({ rows: ordered, category, subcategory: searchParams.get('subcategory'), hiddenSellerIds: hiddenShopsParam(searchParams) })
+          .then(async (r) => (r ? { ...r, listings: await localizeListingTitles(r.listings, searchParams.get('lang') || undefined) } : null))
+          .catch((e: unknown) => {
+            logError(e, { op: 'feed.related-rail' })
+            return null
+          }),
+        RELATED_DEADLINE_MS,
+        null,
+      )
+    : null
+  const [answerListings, related] = await Promise.all([
+    // lang comes from the QUERY (the client sends it only for non-en/vi) so the CDN cache
+    // key varies with the payload — the cookie-read variant poisoned the shared edge
+    // entry with whichever language hit first (audit P2).
+    localizeListingTitles(
+      ordered.map((l) => (matchClassOf ? { ...serializeListingCard(l), matchClass: matchClassOf(l.id) } : serializeListingCard(l))),
+      searchParams.get('lang') || undefined,
+    ),
+    relatedPromise,
+  ])
+
   return {
     body: {
-      // lang comes from the QUERY (the client sends it only for non-en/vi) so the CDN cache
-      // key varies with the payload — the cookie-read variant poisoned the shared edge
-      // entry with whichever language hit first (audit P2).
-      listings: await localizeListingTitles(
-        ordered.map((l) => (matchClassOf ? { ...serializeListingCard(l), matchClass: matchClassOf(l.id) } : serializeListingCard(l))),
-        searchParams.get('lang') || undefined,
-      ),
+      listings: answerListings,
       total,
       offset,
       limit,
@@ -406,6 +434,8 @@ export async function buildFeedPayload(searchParams: URLSearchParams, opts: { no
        * (resolveFeedFilters). The native apps and any other client read it for the same reason.
        */
       inferredDistrict,
+      // Only when there is one: an absent key is "no related rail", the explorer's Trending fallback.
+      ...(related ? { related } : {}),
     },
     // s-maxage = Cloudflare edge TTL (the browser keeps the shorter max-age);
     // stale-while-revalidate serves the cached feed instantly from the VN edge

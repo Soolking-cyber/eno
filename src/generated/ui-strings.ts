@@ -1957,6 +1957,7 @@ export const UI_STRINGS: string[] = [
   "More from eno.vn",
   "More from other sellers",
   "More from this seller",
+  "More in {category}",
   "More jobs",
   "More jobs from this board",
   "More jobs from {name}",

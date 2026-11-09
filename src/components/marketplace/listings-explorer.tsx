@@ -35,6 +35,8 @@ import { FacetBarFallback } from './facet-bar-fallback'
 import { LISTING_GRID, MAP_CARD_SIZES } from './listing-grid'
 import { LadderCompactRow, LadderSlot, useMdUp } from './ladder-compact-row'
 import { ForYouRail } from './for-you-rail'
+import { RelatedShelf } from './related-shelf'
+import { useRecoveryRail } from './use-recovery-rail'
 import { RecentlyViewedRail } from './recently-viewed-rail'
 import { useNearViewport } from '@/hooks/use-near-viewport'
 import { BusinessRail } from './business-rail'
@@ -2463,6 +2465,9 @@ export function ListingsExplorer({
     setListings(listingsData.listings)
     setTotalCount(listingsData.total)
   }
+  /** The rail under a sparse answer — "More in <category>", Trending, or none yet — decided once per answer, from the answer
+   *  itself (use-recovery-rail.ts; `related` rides in /api/listings' own body, src/lib/core/related-rail.ts). */
+  const recoveryRail = useRecoveryRail(listingsData, shownListings)
 
   /**
    * ⛔ THE DISTRICT THE SERVER READ OUT OF THE WORDS, AS THE SERVER SAID IT — never re-derived here.
@@ -5831,9 +5836,14 @@ export function ListingsExplorer({
             not deferred — mounted under them, then rose ~1,500px when the grid caught up (measured:
             CLS 0.26 on a cold /?q=kindel at 390). Gated on the grid, both land in one commit. */}
         {!showDiscovery && !sellerId && viewMode === 'grid' && !isLoading && !queryError && !failedWithoutAnswer
-          && shownListings.length > 0 && gridListings === shownListings && totalCount > 0 && totalCount < 8 && !hasMore && (
+          && shownListings.length > 0 && gridListings === shownListings && totalCount > 0 && totalCount < 8 && !hasMore
+          && recoveryRail.kind !== 'unknown' && (
           <div className="mt-8 sm:mt-12 lg:mt-8">
-            <ForYouRail initial={initialTrending} recovery />
+            {/* ⛔ "MORE IN <CATEGORY>" WHEN THE ANSWER BROUGHT IT (UI climb 2026-11-09, hunt #9): a search for "iphone" with two
+                answers ended on a keyboard and a hair tool under "Trending now". Words that found 1-7 things carry the rest of
+                their category in the same response; the rail is decided once per answer and never swaps after it paints,
+                and with no decision yet (`unknown`) there is no rail at all rather than a Trending that might change. */}
+            {recoveryRail.kind === 'related' ? <RelatedShelf related={recoveryRail.related} /> : <ForYouRail initial={initialTrending} recovery />}
           </div>
         )}
 

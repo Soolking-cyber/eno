@@ -22,7 +22,7 @@ const POOL = 96
 /** Under this many live rows the rail would mirror the grid card-for-card, so it hides. */
 const MIN_POOL = 24
 const RANK: Prisma.ListingOrderByWithRelationInput = { rankScore: 'desc' }
-const TRENDING_ORDER: Prisma.ListingOrderByWithRelationInput[] = [RANK, { views: 'desc' }, { id: 'desc' }]
+export const TRENDING_ORDER: Prisma.ListingOrderByWithRelationInput[] = [RANK, { views: 'desc' }, { id: 'desc' }]
 
 /** Only what choosing needs — the seat, the cover hash (in the image URL) and the model. */
 const RAIL_PICK_SELECT = { id: true, sellerId: true, subcategorySlug: true, images: true, brandSlug: true, model: true } as const
@@ -56,20 +56,35 @@ export async function diverseRailListings(
   // eslint-disable-next-line no-restricted-syntax
   if (excludeIds instanceof Promise) excludeIds.catch(() => {})
   const scoped = await scopedListingWhere(where)
-  const narrow = await db.listing.findMany({ where: scoped, orderBy, take: pool, select: RAIL_PICK_SELECT })
-  const exclude = new Set(excludeIds ? await excludeIds : [])
-  const candidates = narrow.filter((r) => !exclude.has(r.id)).map((r) => ({ ...r, images: safeParse<string[]>(r.images, []) }))
-  const picked = diversifyRail(candidates, { take })
+  const picked = await pickRailIds(scoped, orderBy, { pool, take, excludeIds })
   if (!picked.length) return []
   const rows = await db.listing.findMany({
-    where: { AND: [scoped, { id: { in: picked.map((r) => r.id) } }] },
+    where: { AND: [scoped, { id: { in: picked } }] },
     include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
   })
   const byId = new Map(rows.map((r) => [r.id, r] as const))
-  return picked.flatMap((p) => {
-    const r = byId.get(p.id)
+  return picked.flatMap((id) => {
+    const r = byId.get(id)
     return r ? [serializeListing(r)] : []
   })
+}
+
+/**
+ * THE RAIL'S CHOICE, IDS ONLY — the narrow read (`pool` rows in `orderBy`), the caller's exclusions out of the pool BEFORE
+ * choosing, then diversifyRail. Shared by diverseRailListings above and the sparse-search "More in" rail
+ * (related-rail.ts), which loads its own card-shaped rows. `scoped` must already be scoped (scopedListingWhere).
+ * ⚠️ THE EXCLUSIONS ARE AWAITED AFTER THE NARROW READ, as they were before this was split out (commit review): the home
+ * page hands a promise of its feed window's ids, and awaiting it first would queue the read behind it.
+ */
+export async function pickRailIds(
+  scoped: Prisma.ListingWhereInput,
+  orderBy: Prisma.ListingOrderByWithRelationInput[],
+  { pool, take, excludeIds }: { pool: number; take: number; excludeIds?: readonly string[] | Promise<readonly string[]> },
+): Promise<string[]> {
+  const narrow = await db.listing.findMany({ where: scoped, orderBy, take: pool, select: RAIL_PICK_SELECT })
+  const exclude = new Set(excludeIds ? await excludeIds : [])
+  const candidates = narrow.filter((r) => !exclude.has(r.id)).map((r) => ({ ...r, images: safeParse<string[]>(r.images, []) }))
+  return diversifyRail(candidates, { take }).map((r) => r.id)
 }
 
 /** The non-personalized "Trending now" rail — the exact fallback GET

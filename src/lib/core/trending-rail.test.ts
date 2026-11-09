@@ -55,6 +55,15 @@ describe('trendingRailListings', () => {
     expect(rows.map((r) => r.id)).toEqual(narrow.slice(12, 28).map((r) => r.id))
   })
 
+  it('the narrow read does not wait for the id promise — it runs alongside the feed window that produces them (commit review)', async () => {
+    let release!: (ids: string[]) => void
+    const ids = new Promise<string[]>((r) => { release = r })
+    const rail = trendingRailListings({ excludeIds: ids })
+    await vi.waitFor(() => expect(findMany).toHaveBeenCalledTimes(1)) // the pool read is out while the ids are still pending
+    release(['l0'])
+    expect((await rail).map((r) => r.id)).not.toContain('l0')
+  })
+
   it('a failed id promise rejects the rail (the home page catches it) without an unhandled rejection', async () => {
     findFirst.mockResolvedValue(null) // thin catalogue: returns before awaiting the ids
     const failing = Promise.reject(new Error('window failed'))
