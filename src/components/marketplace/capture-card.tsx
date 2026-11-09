@@ -27,8 +27,9 @@ import { POSTING_IS_FREE } from '@/lib/site-identity'
  * 2026-08-28. "Join free" says what the tap does. ⚠️ The card must NOT start Google OAuth itself: the
  * consent line ("18 or older … Terms") lives in the sign-in form, and a one-tap OAuth here would skip
  * it. `onPointerDown` warms the dialog's chunk so the tap opens it at once.
- * ⚠️ "Keep your saved items" is gone because it was false: saves are device-local for signed-in users
- * too (favorites-context.tsx). "Post listings for free" is shown only while POSTING_IS_FREE holds —
+ * ⚠️ "Keep your saved items" went when it was false (saves were device-local for everyone). Since
+ * 2026-11-09 an account keeps them on every device — the first-save note says so (save-signup-sheet.tsx);
+ * this card does not, as nobody asked for it back. "Post listings for free" is shown only while POSTING_IS_FREE holds —
  * that flag is the one place the day a fee is announced gets decided (src/lib/site-identity.ts).
  */
 export function CaptureCard() {

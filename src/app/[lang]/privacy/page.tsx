@@ -428,7 +428,8 @@ const ON_DEVICE: Table = {
       { en: 'Not kept at all without Personalisation; deleted as soon as it is off.', vi: 'Không được lưu nếu chưa bật Cá nhân hóa; bị xóa ngay khi tắt.' },
     ],
     [
-      // favorites-context.tsx KEY 'eno:favorites', SAVED_KEY 'eno-saved-cache'
+      // saved-store.ts GUEST_KEY 'eno:favorites' (the device list) + ACCOUNT_KEY 'eno:favorites:acct' (the account copy, wiped
+      // at sign-out: sign-out-storage.ts); favorites-context.tsx SAVED_KEY 'eno-saved-cache' (the cards of either)
       { en: 'Saved listings', vi: 'Tin đã lưu' },
       { en: 'The listings you saved on this device, and a copy of your account’s saved list.', vi: 'Các tin bạn đã lưu trên thiết bị này, và bản sao danh sách tin đã lưu của tài khoản.' },
       { en: 'The account copy when you sign out; the device list when you unsave items or clear site data.', vi: 'Bản sao của tài khoản khi bạn đăng xuất; danh sách trên thiết bị khi bạn bỏ lưu hoặc xóa dữ liệu website.' },
@@ -625,6 +626,13 @@ const SECTIONS: Section[] = [
       {
         en: 'Usage information: device type, language and currency preference, pages viewed, and on-site activity such as searches and listing views. We also keep a limited technical log, including IP address, to apply rate limits and block abuse — that log lives in our own database and is not sent to a third party.',
         vi: 'Thông tin sử dụng: loại thiết bị, ngôn ngữ và đơn vị tiền tệ bạn chọn, các trang đã xem, và hoạt động trên website như tìm kiếm và xem tin đăng. Chúng tôi cũng lưu một nhật ký kỹ thuật có giới hạn, bao gồm địa chỉ IP, để áp dụng giới hạn tần suất truy cập và chặn hành vi lạm dụng — nhật ký này nằm trong cơ sở dữ liệu của chính chúng tôi và không được gửi cho bên thứ ba.',
+      },
+      {
+        // Saves across devices (owner, 2026-11-09: "3 ok"): the SavedListing table (scripts/saved-listings-ddl.mjs) —
+        // listing id + when, per account; /api/saved-listings; a guest's device list moves in at sign-in
+        // (src/lib/saved-sync.ts); unsave = delete; account erasure cascades; in the data export (account/export).
+        en: 'Saved listings: when you are signed in, the listings you save are kept with your account, so they are there on any device where you sign in. Listings you saved on a device before signing in are added to your account when you sign in there. Unsaving a listing removes it, and deleting your account removes them all.',
+        vi: 'Tin đã lưu: khi bạn đã đăng nhập, các tin bạn lưu được giữ cùng tài khoản, để bạn thấy chúng trên mọi thiết bị mà bạn đăng nhập. Các tin bạn đã lưu trên một thiết bị trước khi đăng nhập sẽ được thêm vào tài khoản khi bạn đăng nhập trên thiết bị đó. Bỏ lưu một tin sẽ xóa tin đó khỏi tài khoản, và xóa tài khoản sẽ xóa toàn bộ.',
       },
       {
         // ⛔ NO "SORTS LISTINGS BY DISTANCE": buildFeedOrderBy (api/listings/feed-query.ts:639) has no

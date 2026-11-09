@@ -369,8 +369,8 @@ export function MobileNav() {
 
   // Gate auth-only tabs once auth has resolved logged-out. During the brief boot
   // window (loading) leave them as Links so a logged-in user is never flashed the
-  // modal; the destination page is a backstop. Saved/Explore are public (favorites
-  // are device-local), and Post is draft-first (sign-in at Publish), so none of those
+  // modal; the destination page is a backstop. Saved/Explore are public (a guest's
+  // saves live on the device), and Post is draft-first (sign-in at Publish), so none of those
   // three is ever gated.
   const gate = !loading && !user
 
@@ -474,8 +474,8 @@ export function MobileNav() {
         />
       </Link>
 
-      {/* Saved is public — favorites are stored device-local (localStorage), so a
-          logged-out visitor can save and review listings without an account. */}
+      {/* Saved is public — a guest's saves live on the device (a signed-in person's also on the
+          account), so a logged-out visitor can save and review listings without an account. */}
       <Link href="/saved" prefetch={false} {...warmSaved} aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/saved'))}>
         <TabBody
           active={at('/saved')}

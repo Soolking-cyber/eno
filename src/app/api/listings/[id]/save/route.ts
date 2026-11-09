@@ -7,8 +7,9 @@ import { bumpListingCounter, dropListingSave } from '@/lib/listing-counters'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// Real "saved" (favorite) counter. Favorites are anonymous + device-local (localStorage),
-// so this is intentionally NOT per-user: the client fires { saved: true } on save and
+// Real "saved" (favorite) counter — the public, anonymous AGGREGATE only. A guest's saves live on the
+// device and a signed-in person's on the account (SavedListing via /api/saved-listings, 2026-11-09), and
+// neither list is written here, so this is intentionally NOT per-user: the client fires { saved: true } on save and
 // { saved: false } on unsave, and we move the aggregate savedCount accordingly. The
 // display reconciles the double-count (a device's own save shows via a session delta on
 // top of the SSR base) so a saver never sees their own save twice — see favorites-context.
@@ -27,8 +28,8 @@ export const dynamic = 'force-dynamic'
 //   · THE ERROR ENVELOPE IS DIFFERENT. A bad body answers `{"ok":false,"error":"bad_request"}` —
 //     it carries an `ok` key, so it is not the wrapper's bare `{error}` shape and `body:` /
 //     `invalidBodyCode` cannot reproduce it byte-for-byte.
-// Auth stays 'public' by design: favorites are anonymous and device-local (localStorage), so a
-// guest MUST get a 200 here — any authed mode would 401 the majority of callers.
+// Auth stays 'public' by design: guests save too (on their device), so a guest MUST get a 200
+// here — any authed mode would 401 the majority of callers.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const ip = clientIp(req)

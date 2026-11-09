@@ -368,6 +368,7 @@ export type NicheApiErrorCode =
   | 'reference_listing'                 // api/conversations — an outbound-link (affiliateUrl) listing has nobody to message
   | 'blocked'                           // api/conversations(+/[id]/messages, /offer) — one party blocked the other (ugc-safety gate)
   | 'blocking_unavailable'              // api/blocks — the ugc-safety gate is off (404), or no signing secret for an unblock handle (503)
+  | 'saved_listings_unavailable'        // api/saved-listings — the SavedListing table is not there yet (503: scripts/saved-listings-ddl.mjs)
   | 'cannot_block_staff'                // api/blocks — the eno team (desk owner) cannot be blocked
   | 'objectionable_content'             // chat / review / help reply+post — the severe-only word filter refused it (ugc-safety gate, src/lib/ugc-filter.ts)
   | 'reference_mismatch'
@@ -929,6 +930,7 @@ const ALL = [
   'reference_listing',
   'blocked',
   'blocking_unavailable',
+  'saved_listings_unavailable',
   'cannot_block_staff',
   'objectionable_content',
   'refinement_limit',

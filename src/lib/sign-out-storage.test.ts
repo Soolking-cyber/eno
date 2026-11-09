@@ -35,6 +35,7 @@ describe('sign-out keys match the code that writes them', () => {
     ['eno-convos-v2', 'src/context/chat-context.tsx', /CONVOS_KEY = 'eno-convos-v2'/],
     ['eno-thr2:', 'src/context/chat-context.tsx', /THREAD_PREFIX = 'eno-thr2:'/],
     ['eno-saved-cache', 'src/context/favorites-context.tsx', /SAVED_KEY = 'eno-saved-cache'/],
+    ['eno:favorites:acct', 'src/lib/saved-store.ts', /ACCOUNT_KEY = 'eno:favorites:acct'/],
     ['eno-dashboard', 'src/hooks/use-dashboard.ts', /CACHE_KEY = 'eno-dashboard'/],
     ['eno-notifs', 'src/context/notifications-context.tsx', /'eno-notifs'/],
     ['eno-listing-draft', 'src/components/marketplace/post-wizard.tsx', /'eno-listing-draft'/],
@@ -73,7 +74,7 @@ describe('clearAccountDeviceStorage', () => {
       'eno:rental-check-draft:v1': '{}', 'eno-listing-draft': '{}', 'eno-notifs': '[]',
       // device / visitor state that must survive a sign-out:
       'eno-theme': 'dark', 'lang': 'vi', 'eno-currency': 'USD', 'eno-consent-v2': 'v2.000.1.abcdefgh',
-      'eno:recent_searches': '[]', 'eno:favorites': '[]',
+      'eno:recent_searches': '[]', 'eno:favorites': '[]', 'eno:favorites:acct': '{"u":"x","ids":[]}',
     })
     const ss = memoryStorage({ 'eno:rental-check:hinted': '1', 'eno:feed-snap': '{}', [COMPOSE_KEY]: '{"listingId":"x","body":"hi"}', 'eno.teacherDraft.v1': '{"v":3}' })
     clearAccountDeviceStorage(ls, ss)

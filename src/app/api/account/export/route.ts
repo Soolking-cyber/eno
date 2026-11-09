@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isMissingTable } from '@/lib/user-blocks'
 import { teacherExportOf } from '@/lib/teachers/export'
 import { teacherDraftExportOf } from '@/lib/teachers/draft'
 import { identityVerificationExportOf } from '@/lib/kyc/export'
@@ -53,6 +54,13 @@ export async function GET() {
     db.conversation.findMany({ where: { sellerProfileId: profile.id }, select: { id: true, listingId: true, createdAt: true } }),
     db.message.findMany({ where: { senderProfileId: profile.id }, select: { id: true, conversationId: true, body: true, createdAt: true } }),
   ])
+
+  // Saved listings on the account (2026-11-09) — every row, visible here or not: the access right covers what is held, not
+  // what this edition shows. Null only when the table is not there yet; any other failure fails the export rather than
+  // answer an incomplete copy that does not say so (commit review).
+  const savedListings = await db.savedListing
+    .findMany({ where: { profileId: profile.id }, orderBy: { createdAt: 'desc' }, select: { listingId: true, createdAt: true } })
+    .catch((e: unknown) => { if (isMissingTable(e)) return null; throw e })
 
   // /schools (2026-10-05, diff review: the access right covers it): the teacher's own votes, reviews (with the pay they
   // reported), the timestamped log of their vote changes, helpful votes, reports filed and proofs of employment —
@@ -135,6 +143,7 @@ export async function GET() {
     storefront: seller ?? null,
     listings,
     savedSearches,
+    savedListings,
     notifications,
     reviewsWritten,
     // Summarized per the note above: a description, points and date only — internal reason

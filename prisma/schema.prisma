@@ -119,6 +119,7 @@ model Profile {
   forumBlocksCreated      ForumUserBlock[]        @relation("ForumBlocker")
   forumBlocksReceived     ForumUserBlock[]        @relation("ForumBlocked")
   sellerBlocks            SellerBlock[]
+  savedListings           SavedListing[]
   forumReportsFiled       ForumReport[]           @relation("ForumReportReporter")
   forumReportsReceived    ForumReport[]           @relation("ForumReportTarget")
   forumModerationReceived ForumModerationAction[] @relation("ForumModerationTarget")
@@ -943,6 +944,7 @@ model Listing {
   conversations           Conversation[]
   dailyStats              ListingDailyStat[]
   reviews                 Review[] // verified-buyer reviews that reference this listing
+  savedBy                 SavedListing[]
   contactCount            Int                @default(0) // distinct authenticated viewers who revealed contact
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
@@ -2092,6 +2094,24 @@ model SellerBlock {
 
   @@id([blockerProfileId, sellerId])
   @@index([sellerId])
+}
+
+/// A listing a signed-in person saved (the heart) — their saves follow them to every device (owner, 2026-11-09: "3 ok" to
+/// "Saved listings across devices: needs one new database table"). A guest's saves stay in the browser
+/// (favorites-context.tsx) and move here at sign-in. Read and written only through /api/saved-listings, which stores and
+/// returns only listings the public saved-ids path shows in the reader's edition (src/lib/saved-listings.ts).
+/// Created by scripts/saved-listings-ddl.mjs (RLS on, no policy, API roles revoked) — on production BEFORE the deploy.
+/// Erasure: both cascades (the person's account; a seller's listings, which only account erasure hard-deletes).
+model SavedListing {
+  profileId String   @db.Uuid
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([profileId, listingId])
+  @@index([profileId, createdAt])
+  @@index([listingId])
 }
 
 model ForumReport {

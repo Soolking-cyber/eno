@@ -978,3 +978,8 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within an AuthProvider')
   return ctx
 }
+
+/** The auth context, or null outside an AuthProvider — for providers that tests mount on their own (FavoritesProvider). */
+export function useAuthMaybe() {
+  return useContext(AuthContext) ?? null
+}

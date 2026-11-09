@@ -123,7 +123,7 @@ export function Header() {
   // hydration never see the host.
   const navVariant = () => hereVariant(variant)
   const { user, openSignIn } = useAuth()
-  // The guest's saved count for the desktop heart (NAV-7) — device-local, 0 until it hydrates (client-only).
+  // The saved count for the desktop heart (NAV-7) — the device's list or a signed-in account's, 0 until it hydrates (client-only).
   const savedCount = useFavoriteCount()
   const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false)
   // ⚠️ `open` IS THE RAIL'S OWN STATE, and the header logo hides on exactly it. Using `user`

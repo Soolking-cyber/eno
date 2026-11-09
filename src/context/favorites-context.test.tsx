@@ -181,7 +181,8 @@ describe('FavoritesContext hydration', () => {
     cleanup()
     stubFetch((c) => ({ listings: [id(0)], evaluated: c, gone: [], sold: [id(1)] })) // id-1 sold, id-2 expired
     await mountWith(idsOf(3))
-    await waitFor(() => expect(screen.getByTestId('unavailable').textContent).toBe(`${id(1)}:sold:card,${id(2)}:ended:card`))
+    // Newest saved first (2026-11-09): the device list is oldest first, so id-2 (saved last) leads.
+    await waitFor(() => expect(screen.getByTestId('unavailable').textContent).toBe(`${id(2)}:ended:card,${id(1)}:sold:card`))
     expect(screen.getByTestId('state').textContent).toBe('n=1')
     expect(persisted()).toEqual(idsOf(3)) // nothing deleted
   })

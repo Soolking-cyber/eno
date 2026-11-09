@@ -19,10 +19,10 @@ import { useLanguage } from '@/context/language-context'
  * than this anywhere"), and it now comes back the way this note said it had to: INSIDE the card, as
  * its context line (`openSignIn({ note })` → SignInCard's [data-sign-in-note]), never as another
  * sheet in front of it.
- * ⛔ THE NOTE MAY ONLY PROMISE WHAT SIGNING IN ACTUALLY DOES. Saves are device-local for EVERY user
- * (favorites-context.tsx; there is no server Favorite model, and price-drop.ts notifies buyers who
- * messaged, not savers), so "keep your saves on all devices" or "price-drop alerts on saved items"
- * would be false. What an account does unlock is messaging sellers and saved-search alerts.
+ * ⛔ THE NOTE MAY ONLY PROMISE WHAT SIGNING IN ACTUALLY DOES. Since 2026-11-09 a signed-in account's
+ * saves live on the server and a guest's move into it at sign-in (src/lib/saved-sync.ts), so "keep your
+ * saves on every device" is now true and leads. "Price-drop alerts on saved items" is still false
+ * (price-drop.ts notifies buyers who messaged, not savers) — never promise it here.
  *
  * ⚠️ THE COMPONENT RENDERS NOTHING and is still mounted in providers.tsx on purpose: it is a
  * listener, not a UI. Deleting it would silently drop the first-save prompt altogether.
@@ -39,7 +39,7 @@ export function SaveSignupSheet() {
         localStorage.setItem('eno:save-sheet-done', '1')
       } catch { /* private mode — show it anyway, once per session */ }
       // `first_save`: its own gate in the per-gate sign-in counters (UX3 J1).
-      openSignIn({ note: tr('Saved on this device. Sign in to message sellers and get alerts for new listings.', 'Đã lưu trên thiết bị này. Đăng nhập để nhắn tin với người bán và nhận thông báo tin mới.'), gate: 'first_save' })
+      openSignIn({ note: tr('Saved on this device. Sign in to keep your saves on every device and message sellers.', 'Đã lưu trên thiết bị này. Đăng nhập để giữ tin đã lưu trên mọi thiết bị và nhắn tin với người bán.'), gate: 'first_save' })
     }
     window.addEventListener('eno:first-save', onFirstSave)
     return () => window.removeEventListener('eno:first-save', onFirstSave)

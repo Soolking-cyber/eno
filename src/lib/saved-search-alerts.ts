@@ -40,12 +40,12 @@
 //     `PushSubscription` + `NativePushToken` — the push fan-out. Both already wired.
 //
 // ── WHAT DOES NOT EXIST, AND WHAT THIS MODULE DOES ABOUT IT ───────────────────────────────────
-// THERE IS NO SERVER-SIDE SAVED-LISTINGS TABLE. Hearts live in `localStorage` under
-// `eno:favorites` (src/context/favorites-context.tsx); `POST /api/listings/[id]/save` only bumps
-// the aggregate `Listing.savedCount`. `src/lib/price-drop.ts` says so in its own comment, which is
-// why its audience is conversations + contact reveals rather than savers.
+// SAVES REACH THE SERVER ONLY FOR SIGNED-IN PEOPLE (SavedListing, 2026-11-09 — src/lib/saved-listings.ts); a
+// guest's hearts live in `localStorage` (`eno:favorites`), and `POST /api/listings/[id]/save` only bumps the
+// aggregate `Listing.savedCount`. Telling savers about a price drop is not built (`src/lib/price-drop.ts`'s
+// audience is conversations + contact reveals) — it would need its own notice and consent.
 //
-// So "a price drop on a saved listing" cannot be fanned out from a cron today. The closest thing
+// So "a price drop on a saved listing" is not fanned out from a cron today. The closest thing
 // that IS reachable — and it is a good approximation, because a saved search is a stronger
 // statement of intent than a heart — is a price drop on a listing that matches a search the buyer
 // saved. `planSavedSearchAlert({ kind: 'price_drop' })` is exactly that path: same gates, the

@@ -23,7 +23,8 @@ const noop = () => {}
  * session — not signed in for real on a preview that reads production. Even there a fixture id writes nothing:
  * every route a click reaches looks the listing up first — conversations, contact, sold, status, confirm, buyers
  * and the listing itself answer 404 for an unknown id (403 for someone else's), and save moves no count for a
- * listing that is not live (favorites are device-local).
+ * listing that is not live (and a signed-in save stores only a listing the public saved-ids path shows — a fixture id
+ * is none: src/lib/saved-listings.ts).
  * A page-wide fetch guard was tried and dropped (codex + opus): a monkeypatch leaks — unmount order, XHR, forms —
  * and fakes success for the app's own requests. The server contract above is the bound.
  */

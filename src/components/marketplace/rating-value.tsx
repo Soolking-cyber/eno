@@ -38,11 +38,11 @@ export function VndValue({ value }: { value: number }) {
 }
 
 /**
- * Saved-count proof that reflects the viewer's OWN save optimistically. Favorites
- * are device-local (never posted to the server — see favorites-context), so the
- * server `base` count can't already include this device's save; we add 1 while the
- * listing is hearted so the number moves the instant the user taps (105 → 106),
- * matching the heart fill, and drops back when they un-save. SSR renders `base`
+ * Saved-count proof that reflects the viewer's OWN tap optimistically: `base` is the
+ * server's count (every save persisted before this page loaded — another device's
+ * included), and `savedDelta` adds only THIS session's taps on top, so the number moves
+ * the instant the user taps (105 → 106) and drops back when they un-save, never counting
+ * a save twice (a heart filled from another device adds nothing). SSR renders `base`
  * (provider ids are empty until the post-mount effect reads localStorage), then it
  * swaps — the same hydration-safe pattern as <Tr>/<CountValue>.
  */

@@ -85,9 +85,9 @@ export function SignInCard({
           *   (price-drop.ts notifyPriceDrop) — so "on what you ask about", never "on saved items".
           * · New-listing alerts are saved searches (SavedSearch + the saved-search-alerts cron).
           * · Posting needs an account and costs nothing (no commission, no paid bumps).
-          * ⛔ NOT "save listings": saves are device-local for EVERYONE, guests included, and do not
-          *   follow an account between devices (favorites-context.tsx) — save-signup-sheet.tsx records
-          *   the same trap. Core-sprite glyphs only (scripts/critical-icons.mjs): this card must not be
+          * ⛔ NOT "save listings": guests save too (on their device). Since 2026-11-09 an account's saves DO
+          *   follow it between devices (src/lib/saved-sync.ts) — the first-save note says so
+          *   (save-signup-sheet.tsx); this list does not, as nobody asked for a new row here. Core-sprite glyphs only (scripts/critical-icons.mjs): this card must not be
           *   the thing that pulls the 188 KB deferred sprite onto every page a guest reads for a minute.
           */}
         <ul className="mx-auto mt-3 max-w-xs space-y-2 text-left text-sm leading-snug text-body">

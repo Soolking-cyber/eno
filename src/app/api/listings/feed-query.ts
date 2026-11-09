@@ -18,7 +18,7 @@ import { aliasesFor } from '@/generated/model-lineage'
 import { localizeListingTitles } from '@/lib/translate'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 // The cap lives in a client-safe module because the browser has to chunk to the same number.
-import { IDS_FAST_PATH_MAX } from '@/lib/listing-ids'
+import { IDS_FAST_PATH_MAX, SAVED_KEEPABLE_STATUSES } from '@/lib/listing-ids'
 import { districtScopeForSlug } from '@/lib/district-slug'
 import { hasPlainTextFallback, inferDistrictFromQuery, strippedUnderExplicitDistrict, type DistrictInference } from '@/lib/district-query'
 import { parseRadiusParams, radiusWhere } from '@/lib/geo-radius'
@@ -141,7 +141,7 @@ export function countListingsCached(where: Prisma.ListingWhereInput): Promise<nu
  */
 /** Statuses a saved id survives in: live, or ended by its own lifecycle (sold; the apartment rules'
  *  expired / stale). Anything else — hidden, removed — is `gone`. */
-const KEEPABLE_STATUSES = ['active', 'sold', 'expired', 'stale'] as const
+const KEEPABLE_STATUSES = SAVED_KEEPABLE_STATUSES
 
 export async function idsFastPath(searchParams: URLSearchParams): Promise<NextResponse | null> {
   const idsParam = searchParams.get('ids')
@@ -182,7 +182,8 @@ export async function idsFastPath(searchParams: URLSearchParams): Promise<NextRe
      * ids are kept and are in NEITHER list. Naming deletions explicitly makes an older response —
      * without this field — prune nothing at all (fail closed by shape).
      * ⚠️ A DELIBERATE ONE-BIT ORACLE, and for ANY id — this endpoint is public and cannot know the caller
-     * saved it (saves are device-local). What it adds is only "existed publicly and ended through its
+     * saved it (it serves a guest's device list too; an account's own list is /api/saved-listings, which
+     * stores and answers only what this path keeps). What it adds is only "existed publicly and ended through its
      * own lifecycle" (expired / stale: in neither list). A takedown (hidden, removed) reads exactly like
      * an id that never existed, so nothing about one is confirmed. Never a status beyond `sold`, never a
      * field of the row.

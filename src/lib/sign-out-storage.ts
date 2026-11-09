@@ -11,8 +11,9 @@ import { dropIntent } from '@/lib/pending-intent'
  * and fails when a key here no longer appears there.
  *
  * ⚠️ NOT EVERYTHING ON THE DEVICE IS PER-ACCOUNT. Theme, language, currency, the consent answer,
- * recent searches, favourites and the install-hint counters belong to the device or the visitor and
- * stay. /privacy's on-device table says which is which.
+ * recent searches, the GUEST saved list (`eno:favorites` — a signed-in account's saves live on the
+ * server and in `eno:favorites:acct`, which goes) and the install-hint counters belong to the device
+ * or the visitor and stay. /privacy's on-device table says which is which.
  */
 
 /** Exact localStorage keys. */
@@ -20,6 +21,7 @@ export const SIGN_OUT_LOCAL_KEYS: readonly string[] = [
   'eno-convos-v2', //          inbox cache — src/context/chat-context.tsx CONVOS_KEY
   'eno-convos', //             the pre-v2 inbox cache, still on devices that never reopened the inbox
   'eno-saved-cache', //        saved-listings cache — src/context/favorites-context.tsx SAVED_KEY
+  'eno:favorites:acct', //     the account's saved list, cached — src/lib/saved-store.ts ACCOUNT_KEY (2026-11-09)
   'eno-account', //            legacy account cache
   'eno-dashboard', //          seller dashboard cache — src/hooks/use-dashboard.ts CACHE_KEY
   'eno-notifs', //             notifications cache — src/context/notifications-context.tsx

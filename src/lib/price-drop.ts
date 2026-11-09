@@ -113,8 +113,8 @@ export async function priceChangeEffects(
 
 /**
  * Fan the drop out to buyers who showed real intent on THIS listing: open
- * conversations + contact reveals (server-side favorites don't exist yet — device
- * hearts never reach the DB). Deduped, seller excluded, capped at AUDIENCE_CAP, and
+ * conversations + contact reveals. (Signed-in saves reach the DB since 2026-11-09 — SavedListing —
+ * but telling savers about a drop is not built: it would need its own notice and consent.) Deduped, seller excluded, capped at AUDIENCE_CAP, and
  * each recipient is protected by a 5-per-24h cap so power-browsers aren't blasted.
  * Best-effort: runs via after(), every failure is swallowed.
  */

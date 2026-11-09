@@ -14,6 +14,7 @@ import { SavedSearches } from '@/components/marketplace/saved-searches'
 import { SavedUnavailableSection } from '@/components/marketplace/saved-unavailable'
 import { Mascot } from '@/components/marketplace/mascot'
 import { useFavorites } from '@/context/favorites-context'
+import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -21,7 +22,8 @@ import { ListingCardSkeleton, SAVED_SKELETON_COUNT } from '@/components/marketpl
 import { LISTING_GRID } from '@/components/marketplace/listing-grid'
 
 export default function SavedPage() {
-  const { count, saved, savedUnavailable, savedError, retrySaved } = useFavorites()
+  const { count, saved, savedUnavailable, savedError, retrySaved, synced } = useFavorites()
+  const { user, loading: authLoading, openSignIn } = useAuth()
   const { tr, lang } = useLanguage()
   // A Vietnamese page goes to the `/vi` home twin, never the English-pinned `/` (A1-LANG).
   const variant = variantOfLanguage(lang)
@@ -34,18 +36,32 @@ export default function SavedPage() {
     <div className="flex min-h-page flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
-        {/* ⚠️ "ON THIS DEVICE ONLY" IS TRUE FOR EVERYONE, SIGNED IN OR NOT, AND THAT IS WHY IT IS SAID.
-            Saves live in this browser's storage (favorites-context.tsx); there is no server-side list,
-            so signing in syncs nothing (price-drop.ts: "server-side favorites don't exist yet"). A
-            reader who saves on a phone and looks on a laptop should not have to discover that. Do not
-            add a "sign in to sync" nudge until a Favorite table exists — it would be false. */}
+        {/* ⚠️ WHERE THESE SAVES LIVE, SAID ONLY WHEN IT IS TRUE (saves across devices, owner 2026-11-09: "3 ok").
+            A signed-in account's saves are on the server (favorites-context.tsx `synced`): nothing to say. A signed-out
+            reader's live in this browser only — and signing in now DOES keep them (they move into the account at sign-in,
+            src/lib/saved-sync.ts), so the line says so and opens the ONE sign-in popup (owner 2026-08-28), in the same
+            row, no new one. Signed in but the account list unavailable here (the table missing, a failed first read): "on
+            this device only", true again. While auth is still booting (lazily), only the count — the reader may well be
+            signed in. */}
         <PageHeader
           className="mb-6"
           title={tr('Saved', 'Tin đã lưu')}
           meta={
             <>
               {count} {tr(count === 1 ? 'saved listing' : 'saved listings', 'tin đã lưu')}
-              <span className="text-ink-4"> · {tr('on this device only', 'chỉ trên thiết bị này')}</span>
+              {!synced && !authLoading && (
+                <span className="text-ink-4">
+                  {' · '}{tr('on this device only', 'chỉ trên thiết bị này')}
+                  {!user && count > 0 && (
+                    <>
+                      {' · '}
+                      <Button variant="link" size="none" onClick={() => openSignIn({ gate: 'other' })} className="font-semibold text-accent-foreground underline-offset-2">
+                        {tr('Sign in to keep them', 'Đăng nhập để giữ lại')}
+                      </Button>
+                    </>
+                  )}
+                </span>
+              )}
             </>
           }
         />
@@ -93,7 +109,7 @@ export default function SavedPage() {
           />
         ) : loading ? (
           // Reserve the REAL grid height while loading: one placeholder per saved item
-          // (count is known from the device-local favorites set, which loads before the
+          // (count is known from the saved set — the device's or the account's — which loads before the
           // listings fetch), each matching a card's height — so no layout shift (CLS)
           // when the actual cards swap in.
           // ⚠️ THE FLOOR IS SAVED_SKELETON_COUNT, NOT 2, AND IT IS SHARED WITH

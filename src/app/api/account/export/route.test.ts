@@ -8,6 +8,10 @@ const h = vi.hoisted(() => ({
   signedIn: true,
   consentQuery: null as null | { where: { actorId: string; action: { in: string[] } }; orderBy: unknown; select: unknown },
   consentRows: [] as Array<{ action: string; occurredAt: Date; detail: unknown }>,
+  savedQuery: null as null | { where: { profileId: string }; orderBy: unknown; select: unknown },
+  savedRows: [] as Array<{ listingId: string; createdAt: Date }>,
+  savedMissing: false,
+  savedDown: false,
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/admin', () => ({
@@ -27,6 +31,14 @@ vi.mock('@/lib/db', () => {
       get: (_t, model) => {
         if (model === '$queryRaw') return async () => []
         if (model === 'complianceAudit') return { findMany: async (q: NonNullable<typeof h.consentQuery>) => { h.consentQuery = q; return h.consentRows } }
+        if (model === 'savedListing') return {
+          findMany: async (q: NonNullable<typeof h.savedQuery>) => {
+            h.savedQuery = q
+            if (h.savedMissing) throw Object.assign(new Error('relation "SavedListing" does not exist'), { code: 'P2021' })
+            if (h.savedDown) throw new Error('connection terminated')
+            return h.savedRows
+          },
+        }
         return empty()
       },
     }),
@@ -35,7 +47,28 @@ vi.mock('@/lib/db', () => {
 
 const { GET } = await import('./route')
 
-beforeEach(() => { h.signedIn = true; h.consentQuery = null; h.consentRows = [] })
+beforeEach(() => { h.signedIn = true; h.consentQuery = null; h.consentRows = []; h.savedQuery = null; h.savedRows = []; h.savedMissing = false; h.savedDown = false })
+
+describe('GET /api/account/export — saved listings (2026-11-09)', () => {
+  it('every row the account holds, newest first, ids and dates only', async () => {
+    h.savedRows = [{ listingId: 'l2', createdAt: new Date('2026-11-09T10:00:00Z') }, { listingId: 'l1', createdAt: new Date('2026-11-08T10:00:00Z') }]
+    const body = await (await GET()).json()
+    expect(h.savedQuery).toEqual({ where: { profileId: 'p1' }, orderBy: { createdAt: 'desc' }, select: { listingId: true, createdAt: true } })
+    expect(body.savedListings).toEqual([{ listingId: 'l2', createdAt: '2026-11-09T10:00:00.000Z' }, { listingId: 'l1', createdAt: '2026-11-08T10:00:00.000Z' }])
+  })
+  it('no table yet: null, said — the rest of the export still comes', async () => {
+    h.savedMissing = true
+    const r = await GET()
+    expect(r.status).toBe(200)
+    const body = await r.json()
+    expect(body.savedListings).toBeNull()
+    expect(body.account).toBeTruthy()
+  })
+  it('⛔ any other failure fails the export — never an incomplete copy that does not say so', async () => {
+    h.savedDown = true
+    await expect(GET()).rejects.toThrow('connection terminated')
+  })
+})
 
 describe('GET /api/account/export — the consent records', () => {
   it('selects the CV reading’s and the About rewrite’s records — the consent and the outcome of each — and the opt-ins a new profile left on by default, of this account only', async () => {
