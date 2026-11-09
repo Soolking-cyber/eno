@@ -1,6 +1,6 @@
 import { AlertTriangle, Info, ListChecks } from '@/components/ui/icons'
 import { HereLink, OfficialLink, P, Ul, type ArticleSection } from './seo-article'
-import { parseInline, type InlineToken } from '@/lib/teach-guides/inline'
+import { parseInline, TEACHER_APP_ORIGIN, type InlineToken } from '@/lib/teach-guides/inline'
 import type { TeachBlock, TeachGuide } from '@/lib/teach-guides/schema'
 import { formatArticleDate } from '@/lib/dates'
 
@@ -259,12 +259,18 @@ export function TeachDataLink({ href, label, text }: { href: string; label: stri
 /** English chrome, as a constant (the guides' chrome follows the article, never `tr()` — see the file header). */
 const NEXT_STEP = 'Your next step on eno.vn'
 
+/**
+ * THE SECTION'S ONE WAY IN, in one place (UI climb 2026-11-09): the hub's brand button (teach-in-vietnam/page.tsx), every
+ * guide's button under its Key Points ([slug]/page.tsx) and the first of TeachNextStep's steps. English, like the articles.
+ */
+export const TEACH_PROFILE_CTA = { href: TEACHER_APP_ORIGIN, label: 'Make a free teacher profile' } as const
+
 export function TeachNextStep() {
   const items: { href: string; title: string; text: string; own?: boolean }[] = [
     {
-      href: 'https://teacher.eno.vn',
+      href: TEACH_PROFILE_CTA.href,
       own: true,
-      title: 'Make a free teacher profile',
+      title: TEACH_PROFILE_CTA.label,
       text: 'Schools in Ho Chi Minh City can find and message you; your phone, email and CV stay hidden until you choose to share them.',
     },
     // Most school pages have no review yet, so this promises the directory, not a body of reviews.

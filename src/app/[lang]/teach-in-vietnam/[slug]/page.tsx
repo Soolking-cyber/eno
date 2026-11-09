@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { SITE_NAME } from '@/lib/edition'
 import { pageShare } from '@/lib/site-identity'
 import { SeoArticle, type ArticleContent } from '@/components/marketplace/seo-article'
-import { TeachDataLink, TeachKeyPoints, TeachNextStep, teachGuideSections } from '@/components/marketplace/teach-guide-body'
+import { TEACH_PROFILE_CTA, TeachDataLink, TeachKeyPoints, TeachNextStep, teachGuideSections } from '@/components/marketplace/teach-guide-body'
 import { TEACHER_COST_INDEX_GUIDES, TEACHER_COST_INDEX_NAME, TEACHER_COST_INDEX_PATH } from '@/lib/teacher-cost-index'
 import { guideEntry, isLive, isLiveTeachHref, releasedGuides, TEACH_BASE, teachGuideDates, teachPath } from '@/lib/teach-guides/registry'
 import { teachGuideContent } from '@/lib/teach-guides/content'
@@ -99,6 +99,14 @@ export default async function TeachGuidePage({ params }: Props) {
         )}
       </>
     ),
+    /**
+     * THE GUIDE'S WAY IN, NOT ONLY AT THE END (UI climb 2026-11-09, phone UX hunt): two phone screens of intro and Key Points
+     * held nothing to act on; the profile was offered only in TeachNextStep after every section. The one brand CTA, as the
+     * hub carries it (teach-in-vietnam/page.tsx), under the Key Points (SeoArticle draws `ledeRow` first). Not repeated at the
+     * end: TeachNextStep already leads with the same profile. Not on the leaving checklist: a teacher on the way out of Vietnam
+     * has no use for a new profile at the top of it.
+     */
+    ...(slug === 'leaving-vietnam-checklist-for-teachers' ? {} : { cta: { ...TEACH_PROFILE_CTA } }),
     sections: teachGuideSections(guide, isLiveHref),
     afterSections: <TeachNextStep />,
     // The inventory the guide has just explained how to use (SeoArticle `rail`): it renders only with at

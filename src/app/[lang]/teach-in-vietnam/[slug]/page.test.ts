@@ -28,7 +28,9 @@ vi.mock('@/lib/teach-guides/district-links', () => ({
   },
 }))
 vi.mock('@/components/marketplace/seo-article', () => ({ SeoArticle: () => null }))
-vi.mock('@/components/marketplace/teach-guide-body', () => ({
+vi.mock('@/components/marketplace/teach-guide-body', async () => ({
+  // The real constant: the profile-button test below checks the value the pages actually share.
+  TEACH_PROFILE_CTA: (await vi.importActual<typeof import('@/components/marketplace/teach-guide-body')>('@/components/marketplace/teach-guide-body')).TEACH_PROFILE_CTA,
   TeachKeyPoints: () => null,
   TeachDataLink: () => null,
   TeachNextStep: () => null,
@@ -160,5 +162,39 @@ describe('no layout above these pages sets robots', () => {
   it.each(layouts.map((f) => [f.slice(app.length), f]))('%s sets no robots', (_, file) => {
     const code = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '')
     expect(code).not.toMatch(/\brobots\b/)
+  })
+})
+
+/**
+ * THE GUIDE'S WAY IN UNDER ITS KEY POINTS (UI climb 2026-11-09, phone UX hunt): every guide but the leaving checklist carries the
+ * section's one brand button, the free teacher profile, where SeoArticle draws `cta` (under the lede row). Not repeated at the
+ * end, where TeachNextStep already leads with the same profile.
+ */
+describe('the profile button under the key points', () => {
+  const ctaOf = async (slug: string) => {
+    h.now = LIVE
+    const el = (await page.default({ params: Promise.resolve({ lang: 'en', slug }) })) as ReactElement<{ content: ArticleContent }>
+    return el.props.content.cta
+  }
+
+  it('every guide but the leaving checklist carries it, without repeatAtEnd (TeachNextStep already closes on it)', async () => {
+    for (const e of TEACH_GUIDES) {
+      const cta = await ctaOf(e.slug)
+      if (e.slug === 'leaving-vietnam-checklist-for-teachers') expect(cta, e.slug).toBeUndefined()
+      // Exact: an added `repeatAtEnd: true` fails here.
+      else expect(cta, e.slug).toEqual({ href: 'https://teacher.eno.vn', label: 'Make a free teacher profile' })
+    }
+  })
+
+  it('a Vietnamese reader gets the same English button: the guide is an English article (content.lang), chrome and all', async () => {
+    h.now = LIVE
+    const slug = TEACH_GUIDES[0].slug
+    const el = (await page.default({ params: Promise.resolve({ lang: 'vi', slug }) })) as ReactElement<{ content: ArticleContent }>
+    expect(el.props.content.lang).toBe('en')
+    expect(el.props.content.cta).toEqual(await ctaOf(slug))
+  })
+
+  it('the leaving checklist is a live guide (the exception names a real page)', () => {
+    expect(TEACH_GUIDES.some((e) => e.slug === 'leaving-vietnam-checklist-for-teachers')).toBe(true)
   })
 })

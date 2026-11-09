@@ -15,6 +15,7 @@ import type { SchoolKind } from '@/lib/schools/constants'
 import { formatMoneyFull } from '@/lib/vnd'
 import { formatArticleDate } from '@/lib/dates'
 import { moneyText, TEACHER_APP_ORIGIN } from '@/lib/teach-guides/inline'
+import { TEACH_PROFILE_CTA } from '@/components/marketplace/teach-guide-body'
 import { requestNow } from '@/lib/teach-guides/request-clock'
 import { releasedGuides, TEACH_BASE, TEACH_CLUSTERS, TEACH_HUB_H1, TEACH_START_PATHS, teachGuideDates, teachHubNewest, teachPath, vnToday, type TeachGuideEntry } from '@/lib/teach-guides/registry'
 import { TEACH_ROBOTS } from '@/lib/teach-guides/robots'
@@ -500,7 +501,7 @@ export default async function TeachHubPage() {
       { label: 'Teach in Vietnam', href: TEACH_BASE },
     ],
     ledeRow: facts,
-    cta: { href: 'https://teacher.eno.vn', label: 'Make a free teacher profile', repeatAtEnd: true },
+    cta: { ...TEACH_PROFILE_CTA, repeatAtEnd: true },
     sections,
     faqs: [],
     jsonLd: [
