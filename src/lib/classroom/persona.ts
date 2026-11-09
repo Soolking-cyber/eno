@@ -45,6 +45,8 @@ export const DEFAULT_TRAITS: Traits = { tone: 'warm', pace: 'natural', topics: [
 export const MAX_TOPICS = 5
 /** The avatar's display name ("Ms Anna"). The DDL's CHECK allows 60; the form asks for 40. */
 export const AVATAR_NAME_MAX = 40
+/** The tutor card's "best for" line (the DDL bounds it at 80). */
+export const BEST_FOR_MAX = 80
 /** The persona text the tutor plays — enough for a character, short enough to stay a character and not a script. */
 export const PERSONA_MAX = 1200
 

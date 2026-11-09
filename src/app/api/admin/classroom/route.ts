@@ -205,7 +205,7 @@ export const POST = route({ auth: 'admin', body: postBody }, async ({ admin, bod
           bodyHtml: `<p>Hi ${name},</p><p>Your 3D avatar is ready. Open eno Classroom to switch your class to it.</p>`
             + `<p>Chào ${name},</p><p>Avatar 3D của bạn đã sẵn sàng. Mở eno Classroom để chuyển lớp của bạn sang avatar này.</p>`,
           origin,
-          cta: { label: 'Open eno Classroom · Mở eno Classroom', url: `${origin}/classroom/avatar` },
+          cta: { label: 'Open eno Classroom · Mở eno Classroom', url: `${origin}/classroom` },
         }),
       }).catch((e) => logError(e, { op: 'classroom.likeness.email' }))
     }

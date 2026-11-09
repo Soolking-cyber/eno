@@ -2,7 +2,7 @@ import 'server-only'
 import { db } from '@/lib/db'
 import { teacherTextRefusal } from '@/lib/teachers/text-screen'
 import type { PublishBlockCode } from '@/lib/publish-guard'
-import { AVATAR_NAME_MAX, PERSONA_MAX, cleanText, parseTraits, type Traits } from './persona'
+import { AVATAR_NAME_MAX, BEST_FOR_MAX, PERSONA_MAX, cleanText, parseTraits, type Traits } from './persona'
 import { voiceById } from './voices'
 import { libraryAvatarById } from './library-avatars'
 import { AVATAR_LOOKS, type AvatarLook } from './constants'
@@ -19,6 +19,8 @@ export const GREETING_MAX = 200
 
 export type AvatarInput = {
   name: string
+  /** Who this tutor suits ("calm, for shy beginners") — the tutor card's line. */
+  bestFor: string
   persona: string
   greeting: string
   traits: Traits
@@ -40,6 +42,7 @@ export function validateAvatar(raw: Record<string, unknown>, customStatus: strin
   if (!name) return { ok: false, code: 'name_required' }
   const persona = cleanText(raw.persona, PERSONA_MAX)
   const greeting = cleanText(raw.greeting, GREETING_MAX).replace(/\n/g, ' ')
+  const bestFor = cleanText(raw.bestFor, BEST_FOR_MAX).replace(/\n/g, ' ')
   const voice = voiceById(raw.voice)
   if (!voice) return { ok: false, code: 'voice_invalid' }
   const look = (AVATAR_LOOKS as readonly string[]).includes(String(raw.look)) ? (raw.look as AvatarLook) : null
@@ -51,28 +54,22 @@ export function validateAvatar(raw: Record<string, unknown>, customStatus: strin
     libraryAvatarId = a.id
   }
   if (look === 'custom' && customStatus !== 'ready') return { ok: false, code: 'look_invalid' }
-  for (const [field, text] of [['name', name], ['persona', persona], ['greeting', greeting]] as const) {
-    const code = teacherTextRefusal(field === 'name' ? 'headline' : 'bio', text)
+  for (const [field, text] of [['name', name], ['bestFor', bestFor], ['persona', persona], ['greeting', greeting]] as const) {
+    const code = teacherTextRefusal(field === 'name' || field === 'bestFor' ? 'headline' : 'bio', text)
     if (code) return { ok: false, code }
   }
-  return { ok: true, value: { name, persona, greeting, traits: parseTraits(raw.traits), voice: voice.id, look, libraryAvatarId } }
+  return { ok: true, value: { name, bestFor, persona, greeting, traits: parseTraits(raw.traits), voice: voice.id, look, libraryAvatarId } }
 }
 
-export async function saveAvatar(teacherProfileId: string, v: AvatarInput) {
-  const now = new Date()
-  const data = {
-    name: v.name, persona: v.persona, greeting: v.greeting, traits: v.traits, voice: v.voice, look: v.look,
-    libraryAvatarId: v.libraryAvatarId, updatedAt: now,
+/** The columns a save writes (tutors.ts). */
+export function avatarData(v: AvatarInput) {
+  return {
+    name: v.name, bestFor: v.bestFor, persona: v.persona, greeting: v.greeting, traits: v.traits, voice: v.voice, look: v.look,
+    libraryAvatarId: v.libraryAvatarId,
   }
-  return db.classroomAvatar.upsert({
-    where: { teacherProfileId },
-    create: { teacherProfileId, ...data },
-    update: data,
-    select: AVATAR_SELECT,
-  })
 }
 
 export const AVATAR_SELECT = {
-  id: true, name: true, persona: true, greeting: true, traits: true, voice: true, look: true, libraryAvatarId: true,
-  customStatus: true, photoConsentAt: true, updatedAt: true,
+  id: true, name: true, bestFor: true, persona: true, greeting: true, traits: true, voice: true, look: true, libraryAvatarId: true,
+  customStatus: true, photoConsentAt: true, createdAt: true, updatedAt: true,
 } as const

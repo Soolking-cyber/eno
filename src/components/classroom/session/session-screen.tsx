@@ -146,10 +146,12 @@ const turnId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? 
  * MOBILE-FIRST: a phone-width column (the dark screen fills the window around it on a desktop).
  * A Base UI Dialog, full-screen, dark in both themes (`brand-deeper`) like the call screen (src/components/calls).
  */
-export function SessionScreen({ seatId, test, preview, onClose }: {
+export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
   /** A learner's seat — or `test` for a teacher trying their own avatar. */
   seatId?: string
   test?: boolean
+  /** Which of the teacher's tutors a `test` tries (several since 2026-11-09); the oldest when left out. */
+  tutorId?: string
   /** Shown before the session exists: the avatar's name and the teacher's photo. */
   preview: { name: string; photoUrl: string | null; background?: Background }
   onClose: () => void
@@ -291,7 +293,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
   // (an under-13 without Spatius's written OK, a 2D look, no consent): nothing is loaded from Spatius at all.
   useEffect(() => {
     let live = true
-    const q = test ? 'test=1' : seatId ? `seatId=${encodeURIComponent(seatId)}` : ''
+    const q = test ? `test=1${tutorId ? `&tutorId=${encodeURIComponent(tutorId)}` : ''}` : seatId ? `seatId=${encodeURIComponent(seatId)}` : ''
     // The question itself is bounded too (2026-10-26 review, codex + opus): a lookup that never answers is voice-only, never a
     // Start that stays "Getting ready…".
     const ask = q
@@ -307,7 +309,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
       setPrep('drawing')
     })
     return () => { live = false }
-  }, [seatId, test])
+  }, [seatId, test, tutorId])
   useEffect(() => {
     if (prep !== 'drawing') return
     const t = setTimeout(() => { mark('face: not drawn in time — voice-only'); dropFace() }, FACE_PREP_MS)
@@ -1056,7 +1058,7 @@ export function SessionScreen({ seatId, test, preview, onClose }: {
     mark('mic ready')
     go('connecting')
     setWaiting(true)
-    const r = await fetch('/api/classroom/sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(test ? { test: true } : { seatId }) }).catch(() => null)
+    const r = await fetch('/api/classroom/sessions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(test ? { test: true, ...(tutorId ? { tutorId } : {}) } : { seatId }) }).catch(() => null)
     const body = (await r?.json().catch(() => ({}))) as { session?: StartedSession; error?: string; nextAt?: string }
     if (ended.current) {
       // ⛔ Closed while the start was in flight (C3b review, Opus): the session it made has no screen — end it now, or it

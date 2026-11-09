@@ -105,13 +105,15 @@ export async function claimSeat(raw: string, account: Account, req: JoinBody, no
     const seat = rows[0]
     // Expiry against the time NOW, after the locks (2b round 2, codex): a claim that waited must not outlive its invite.
     if (!seat || seat.status !== 'invited' || !seat.inviteExpiresAt || seat.inviteExpiresAt <= new Date()) throw new ApiError('invite_invalid', 404)
-    const owner = await tx.classroomAvatar.findUnique({ where: { id: seat.avatarId }, select: { teacherProfile: { select: { profileId: true } } } })
+    const owner = await tx.classroomAvatar.findUnique({ where: { id: seat.avatarId }, select: { teacherProfileId: true, teacherProfile: { select: { profileId: true } } } })
     if (owner?.teacherProfile.profileId === account.id) throw new ApiError('invite_own', 409)
     // A class that cannot run takes no family's consents (2b round 1, opus): the teacher's switch, read here too.
     if (!owner || !(await classroomOpenFor(owner.teacherProfile.profileId)).open) throw new ApiError('classroom_closed', 403)
 
     const learner = await learnerFor(tx, account.id, req, now)
-    const already = await tx.classroomEnrollment.count({ where: { avatarId: seat.avatarId, learnerId: learner.id, status: { in: ['active', 'paused'] } } })
+    // ⛔ ONE SEAT PER LEARNER PER TEACHER, not per tutor (several tutors since 2026-11-09): a second invite from the same
+    // teacher would give the child two tutors and two weekly counts. Under the account lock above, like every join.
+    const already = await tx.classroomEnrollment.count({ where: { avatar: { teacherProfileId: owner?.teacherProfileId ?? '' }, learnerId: learner.id, status: { in: ['active', 'paused'] } } })
     if (already) throw new ApiError('already_enrolled', 409)
 
     await classroomAudit(tx, account.id, 'classroom.learner.consent', {

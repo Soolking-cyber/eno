@@ -128,6 +128,11 @@ export type NicheApiErrorCode =
   | 'token_limit'
   | 'turn_cap'
   | 'turn_in_progress'
+  // several tutors per teacher (2026-11-09, src/lib/classroom/tutors.ts)
+  | 'tutor_has_likeness'
+  | 'tutor_has_students'
+  | 'tutor_limit'
+  | 'tutor_not_found'
   | 'tutor_unavailable'
   | 'voice_invalid'
   | 'week_limit'
@@ -701,6 +706,10 @@ const ALL = [
   'token_limit',
   'turn_cap',
   'turn_in_progress',
+  'tutor_has_likeness',
+  'tutor_has_students',
+  'tutor_limit',
+  'tutor_not_found',
   'tutor_unavailable',
   'voice_invalid',
   'week_limit',

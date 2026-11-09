@@ -758,6 +758,46 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     expect(await db.classroomSession.findUnique({ where: { id: s.id } })).toMatchObject({ status: 'ended', endReason: 'kill_switch' })
   })
 
+  // SEVERAL TUTORS PER TEACHER (owner, 2026-11-09). The one-avatar key is gone from the database (classroom-ddl.mjs), so the rules
+  // that hung on it are held by code: one seat per learner per TEACHER, and the teacher's monthly minutes across every tutor.
+  it('⛔ several tutors: a learner with a seat is refused a second one from the same teacher (another tutor); the teacher budget sums every tutor; a tutor with a student cannot be archived', async () => {
+    const tp = await db.teacherProfile.findUniqueOrThrow({ where: { profileId: teacherId }, select: { id: true } })
+    const second = await db.classroomAvatar.create({ data: { teacherProfileId: tp.id, name: 'Mr Ben', voice: 'en-GB-SoniaNeural' } })
+    try {
+      await activeSeat()
+      const other = await newSeat({ avatarId: second.id, seatName: 'Minh again' })
+      await expect(join.claimSeat(other.inviteCode!, account(parentId), { who: 'self', adult: notices.ADULT_NOTICE_VERSION, ...consents() }))
+        .rejects.toMatchObject({ code: 'already_enrolled' })
+      expect((await db.classroomEnrollment.findUnique({ where: { id: other.id } }))!.status).toBe('invited')
+
+      const { budgetUse } = await import('./budget')
+      const ended = { testerId: teacherId, status: 'ended', endedAt: new Date(Date.now() - 60_000), endsAt: new Date(), reservedMinutes: 10 }
+      await db.classroomSession.create({ data: { ...ended, avatarId: second.id, usedSeconds: 7 * 60 } })
+      await db.classroomSession.create({ data: { ...ended, avatarId, usedSeconds: 5 * 60 } })
+      const use = await db.$transaction((tx: Parameters<typeof budgetUse>[0]) => budgetUse(tx, tp.id))
+      expect(use.teacherMonthMinutes).toBe(12)
+
+      // A try of one tutor running: trying ANOTHER tutor is refused (its screen showed the other tutor); the same tutor, or
+      // none named (a page from before several tutors), resumes it.
+      await db.classroomSession.deleteMany({ where: { testerId: teacherId } })
+      const tryA = await start.startTeacherTest(teacherId, avatarId)
+      await expect(start.startTeacherTest(teacherId, second.id)).rejects.toMatchObject({ code: 'session_live' })
+      expect((await start.startTeacherTest(teacherId, avatarId)).id).toBe(tryA.id)
+      expect((await start.startTeacherTest(teacherId)).id).toBe(tryA.id)
+      await expect(start.startTeacherTest(teacherId, 'not-mine')).rejects.toMatchObject({ code: 'tutor_not_found' })
+
+      const { archiveTutor } = await import('./tutors')
+      await expect(archiveTutor(tp.id, second.id)).rejects.toMatchObject({ code: 'tutor_has_students' })
+      await db.classroomEnrollment.deleteMany({ where: { avatarId: second.id } })
+      await archiveTutor(tp.id, second.id)
+      expect((await db.classroomAvatar.findUnique({ where: { id: second.id } }))!.archivedAt).not.toBeNull()
+    } finally {
+      await db.classroomSession.deleteMany({ where: { avatarId: second.id } })
+      await db.classroomEnrollment.deleteMany({ where: { avatarId: second.id } })
+      await db.classroomAvatar.delete({ where: { id: second.id } })
+    }
+  })
+
   it('⛔ deleting a child erases every row of theirs (the likeness queue and its cascade: ddl.pg.test.ts)', async () => {
     const seat = await newSeat()
     const { learnerId } = await join.claimSeat(seat.inviteCode!, account(parentId), { who: 'child', displayName: 'Bao', birthYear: new Date().getFullYear() - 5, guardian: notices.GUARDIAN_NOTICE_VERSION, ...consents() })

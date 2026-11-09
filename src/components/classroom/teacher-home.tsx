@@ -5,20 +5,23 @@ import Link from 'next/link'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ChevronRight, Mic, Pencil, Sparkles, UserPlus } from '@/components/ui/icons'
+import { ChevronRight, Plus, Sparkles, UserPlus } from '@/components/ui/icons'
 import { refusalCopy } from './classroom-copy'
 import type { ClassroomMe } from '@/lib/classroom/me'
-import type { RosterSeat } from '@/lib/classroom/seats'
-import { voiceFor } from '@/lib/classroom/voices'
+import type { RosterSeat, SeatProgress } from '@/lib/classroom/seats'
+import { LIMITS } from '@/lib/classroom/constants'
 import { api } from './api'
 import { SeatSheet } from './seat-sheet'
-import { SessionLauncher } from './session-launcher'
+import { TutorFace } from './tutor-card'
 
 type Teacher = NonNullable<ClassroomMe['teacher']>
 
-/** The teacher's side of /classroom: their avatar, and their class — one row per seat, newest report first. */
+/**
+ * The teacher's side of /classroom (owner, 2026-11-09: "teachers assign and manage ai tutor for each of their students",
+ * Praktika's look): their TUTORS in a row, then their STUDENTS — each with their tutor and where they stand this week
+ * (On track · Behind · Not started · Inactive — Praktika's business view), one row per seat.
+ */
 export function TeacherHome({ teacher, onChanged, secondary }: {
   teacher: Teacher
   onChanged: () => void
@@ -35,7 +38,8 @@ export function TeacherHome({ teacher, onChanged, secondary }: {
       if (r.ok) { setSeats(r.data.seats); setFailed(null) } else setFailed(r.error)
     })
   }, [])
-  useEffect(() => { if (teacher.avatar) load() }, [teacher.avatar, load])
+  const hasTutor = teacher.tutors.length > 0
+  useEffect(() => { if (hasTutor) load() }, [hasTutor, load])
 
   return (
     <section aria-labelledby="teacher-class" className="flex flex-col gap-6">
@@ -48,15 +52,15 @@ export function TeacherHome({ teacher, onChanged, secondary }: {
       {!teacher.open && (
         <p className="text-sm text-body">
           {tr(
-            'eno Classroom is in a small pilot. You can set up your avatar now — we’ll tell you when your class can start practising.',
-            'eno Classroom đang thử nghiệm với số ít giáo viên. Bạn có thể tạo avatar ngay — chúng tôi sẽ báo khi lớp của bạn bắt đầu luyện tập được.',
+            'eno Classroom is in a small pilot. You can make your tutors now — we’ll tell you when your class can start practising.',
+            'eno Classroom đang thử nghiệm với số ít giáo viên. Bạn có thể tạo gia sư ngay — chúng tôi sẽ báo khi lớp của bạn bắt đầu luyện tập được.',
           )}
         </p>
       )}
 
-      {teacher.avatar ? <AvatarCard teacher={teacher} /> : <CreateAvatar />}
+      {hasTutor ? <TutorsRow teacher={teacher} /> : <CreateAvatar />}
 
-      {teacher.avatar && (
+      {hasTutor && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-ink">{tr('Students', 'Học viên')}</h2>
@@ -78,12 +82,12 @@ export function TeacherHome({ teacher, onChanged, secondary }: {
             </p>
           ) : (
             <ul className="divide-y divide-border border-y border-border">
-              {seats.map((s) => <SeatRow key={s.id} seat={s} />)}
+              {seats.map((s) => <SeatRow key={s.id} seat={s} photoUrl={teacher.photoUrl} />)}
             </ul>
           )}
         </div>
       )}
-      <SeatSheet open={adding} onOpenChange={setAdding} onSaved={() => { load(); onChanged() }} />
+      <SeatSheet open={adding} onOpenChange={setAdding} onSaved={() => { load(); onChanged() }} tutors={teacher.tutors} />
     </section>
   )
 }
@@ -96,66 +100,83 @@ function CreateAvatar() {
         <Sparkles className="size-8" />
       </span>
       <div>
-        <h2 className="text-lg font-bold text-ink">{tr('Create your AI avatar', 'Tạo avatar AI của bạn')}</h2>
+        <h2 className="text-lg font-bold text-ink">{tr('Make your first AI tutor', 'Tạo gia sư AI đầu tiên')}</h2>
         <p className="mx-auto mt-1 max-w-sm text-sm text-body">
           {tr(
-            'Your students talk with it at home. You choose how it looks, sounds and teaches.',
-            'Học viên trò chuyện với avatar tại nhà. Bạn chọn diện mạo, giọng nói và cách dạy.',
+            'Your students talk with it at home. You choose how it looks, sounds and teaches — and which student gets which tutor.',
+            'Học viên trò chuyện với gia sư tại nhà. Bạn chọn diện mạo, giọng nói, cách dạy — và học viên nào học với gia sư nào.',
           )}
         </p>
       </div>
-      <Button variant="cta" size="lg" className="min-h-12 w-full max-w-xs" asChild><Link href="/classroom/avatar" prefetch={false}>
+      <Button variant="cta" size="lg" className="min-h-12 w-full max-w-xs" asChild><Link href="/classroom/tutors/new" prefetch={false}>
         {tr('Get started', 'Bắt đầu')}
       </Link></Button>
     </div>
   )
 }
 
-function AvatarCard({ teacher }: { teacher: Teacher }) {
+/** The teacher's tutors, side by side (Praktika's tutor cards): the room and face, the name, who it suits, its students. */
+function TutorsRow({ teacher }: { teacher: Teacher }) {
   const { tr } = useLanguage()
-  const avatar = teacher.avatar!
-  const voice = voiceFor(avatar.voice)
+  const full = teacher.tutors.length >= LIMITS.tutorsPerTeacher
   return (
-    <div className="flex items-center gap-4 border-y border-border py-4">
-      <Avatar name={avatar.name} url={teacher.photoUrl} size="xl" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-base font-bold text-ink">{avatar.name}</p>
-        <p className="text-xs text-ink-4">
-          {tr('AI avatar', 'Avatar AI')}{voice ? ` · ${voice.name}` : ''}
-          {avatar.customStatus === 'requested' ? ` · ${tr('your 3D face is being made', 'đang tạo khuôn mặt 3D của bạn')}` : ''}
-        </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <Button variant="outline" className="min-h-11" asChild><Link href="/classroom/avatar" prefetch={false}>
-            <Pencil aria-hidden />
-            {tr('Edit', 'Chỉnh sửa')}
-          </Link></Button>
-          {teacher.open && (
-            <SessionLauncher test preview={{ name: avatar.name, photoUrl: teacher.photoUrl, background: avatar.background }} className="min-h-11" label={<><Mic aria-hidden />{tr('Try it', 'Thử ngay')}</>} />
-          )}
-        </div>
-      </div>
+    <div className="flex flex-col gap-3">
+      <h2 className="text-lg font-bold text-ink">{tr('Tutors', 'Gia sư')}</h2>
+      {/* Scrolls sideways on a phone; the cards never squeeze. */}
+      <ul className="flex snap-x gap-3 overflow-x-auto pb-1">
+        {teacher.tutors.map((t) => (
+          <li key={t.id} className="snap-start">
+            <Link href={`/classroom/tutors/${encodeURIComponent(t.id)}`} prefetch={false} className="press flex w-28 flex-col gap-1.5">
+              <TutorFace tutor={t} photoUrl={teacher.photoUrl} />
+              <span className="truncate text-sm font-semibold text-ink">{t.name}</span>
+              <span className="line-clamp-2 text-xs text-ink-4">{t.bestFor || (t.students === 1 ? tr('1 student', '1 học viên') : `${t.students} ${tr('students', 'học viên')}`)}</span>
+            </Link>
+          </li>
+        ))}
+        {!full && (
+          <li className="snap-start">
+            <Link href="/classroom/tutors/new" prefetch={false} className="press flex w-28 flex-col gap-1.5">
+              <span className="flex aspect-[3/4] w-28 items-center justify-center rounded-2xl border border-dashed border-border text-ink-4 hover:bg-tint">
+                <Plus aria-hidden className="size-6" />
+              </span>
+              <span className="text-sm font-semibold text-ink">{tr('New tutor', 'Gia sư mới')}</span>
+            </Link>
+          </li>
+        )}
+      </ul>
     </div>
   )
 }
 
-function SeatRow({ seat }: { seat: RosterSeat }) {
+const PROGRESS_LABEL: Record<SeatProgress, { en: string; vi: string }> = {
+  on_track: { en: 'On track', vi: 'Đúng tiến độ' },
+  behind: { en: 'Behind', vi: 'Chậm tiến độ' },
+  not_started: { en: 'Not started', vi: 'Chưa bắt đầu' },
+  inactive: { en: 'Inactive', vi: 'Không hoạt động' },
+  paused: { en: 'Paused', vi: 'Tạm dừng' },
+}
+const PROGRESS_TONE: Record<SeatProgress, 'success' | 'warning' | 'neutral'> = {
+  on_track: 'success', behind: 'warning', not_started: 'neutral', inactive: 'warning', paused: 'neutral',
+}
+
+function SeatRow({ seat, photoUrl }: { seat: RosterSeat; photoUrl: string | null }) {
   const { tr } = useLanguage()
   const name = seat.learner?.displayName ?? seat.seatName
+  // The week in minutes against its target (Praktika's "speaking minutes vs target"), after the tutor's name.
   const sub = seat.status === 'invited'
     ? tr('Invite sent — waiting to join', 'Đã gửi link mời — đang chờ tham gia')
-    : seat.status === 'paused'
-      ? tr('Paused', 'Tạm dừng')
-      : `${seat.sessionsThisWeek}/${seat.settings.sessionsPerWeek} ${tr('this week', 'tuần này')}`
+    : `${seat.tutor.name} · ${seat.minutesThisWeek}/${seat.minutesTarget} ${tr('min this week', 'phút tuần này')}`
   return (
     <li>
       <Link href={`/classroom/students/${seat.id}`} prefetch={false} className="press flex items-center gap-3 py-3 hover:bg-tint">
-        <Avatar name={name} size="md" />
+        <TutorFace tutor={seat.tutor} photoUrl={photoUrl} size="sm" />
         <div className="min-w-0 flex-1">
           {/* The name truncates on its own, the badge never: `truncate` on the flex row itself could not cut a long name. */}
           <p className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink">
             <span className="truncate">{name}</span>
             {seat.learner && seat.learner.band !== 'adult' && <Badge variant="neutral" size="sm" className="shrink-0">{tr('Under 18', 'Dưới 18')}</Badge>}
           </p>
+          <Badge variant={PROGRESS_TONE[seat.progress]} size="sm" className="mt-0.5">{tr(PROGRESS_LABEL[seat.progress].en, PROGRESS_LABEL[seat.progress].vi)}</Badge>
           {/* The status FIRST: after a long seat name it was the part the ellipsis cut ("… evening group · Pa…"). */}
           <p className="truncate text-xs text-ink-4">{sub}{seat.seatName !== name ? ` · ${seat.seatName}` : ''}</p>
         </div>

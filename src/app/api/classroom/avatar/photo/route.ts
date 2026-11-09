@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { ApiError, route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
-import { requireAvatar, requireTeacher } from '@/lib/classroom/guards'
+import { requireDefaultTutor, requireTeacher } from '@/lib/classroom/guards'
+import { likenessTutor } from '@/lib/classroom/tutors'
 import { readCapped } from '@/lib/classroom/http'
 import { classroomAudit, noticeSha } from '@/lib/classroom/audit'
 import { PHOTO_NOTICE_VERSION, photoNoticeBody } from '@/lib/classroom/notices'
@@ -24,7 +25,8 @@ export const POST = route({ auth: 'profile', rateLimit: { bucket: 'classroom-pho
   // Ready-made avatars only for the MVP (LIKENESS_REQUESTS_OPEN): nothing new joins the queue. DELETE below stays open.
   if (!LIKENESS_REQUESTS_OPEN) throw new ApiError('look_invalid', 409)
   const teacher = await requireTeacher(profile.id)
-  const avatar = await requireAvatar(teacher.id)
+  // One likeness per teacher (several tutors since 2026-11-09): the tutor that already holds one, else the oldest.
+  const avatar = (await likenessTutor(teacher.id)) ?? (await requireDefaultTutor(teacher.id))
   const body = await readCapped(req, 2_000)
   if (body.notice !== PHOTO_NOTICE_VERSION) {
     return NextResponse.json({ error: 'notice_changed', notice: 'classroom_photo' }, { status: 409, headers: NO_STORE })
@@ -57,7 +59,7 @@ export const POST = route({ auth: 'profile', rateLimit: { bucket: 'classroom-pho
  */
 export const DELETE = route({ auth: 'profile' }, async ({ profile }) => {
   const teacher = await requireTeacher(profile.id, { open: false })
-  const avatar = await requireAvatar(teacher.id)
+  const avatar = (await likenessTutor(teacher.id)) ?? (await requireDefaultTutor(teacher.id))
   if (avatar.customStatus === 'none' || avatar.customStatus === 'removed') return NextResponse.json({ customStatus: avatar.customStatus }, { headers: NO_STORE })
   const now = new Date()
   await db.$transaction(async (tx) => {

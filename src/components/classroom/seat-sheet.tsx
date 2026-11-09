@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,26 +26,35 @@ const DEFAULTS: SeatSettings = { seatName: '', level: 'A2', sessionMinutes: 10, 
  * On a phone it is a bottom sheet: the chips are the full 36px size (each with its 44px hit area) and the one action sits
  * in the pinned footer, under the thumb.
  */
-export function SeatSheet({ open, onOpenChange, onSaved, seatId, initial }: {
+export function SeatSheet({ open, onOpenChange, onSaved, seatId, initial, tutors, initialTutorId }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSaved: () => void
   /** Editing an existing seat; absent = a new one. */
   seatId?: string
   initial?: SeatSettings
+  /** The teacher's tutors, oldest first (several since 2026-11-09): the student's tutor is picked here when there is a choice. */
+  tutors?: { id: string; name: string }[]
+  initialTutorId?: string
 }) {
   const { tr } = useLanguage()
   const [v, setV] = useState<SeatSettings>(initial ?? DEFAULTS)
+  const [tutorId, setTutorId] = useState<string | undefined>(initialTutorId ?? tutors?.[0]?.id)
+  // ⛔ READ, NOT A DEPENDENCY (commit gate, codex + opus): the parent hands a new tutors array on every refresh of the class —
+  // one runs right after a save — and the reset below would wipe the form and the new seat's invite.
+  const tutorsNow = useRef(tutors)
+  tutorsNow.current = tutors
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [invite, setInvite] = useState<{ seatId: string; code: string } | null>(null)
   useEffect(() => { if (open) { setV(initial ?? DEFAULTS); setError(null); setInvite(null) } }, [open, initial])
+  useEffect(() => { if (open) setTutorId(initialTutorId ?? tutorsNow.current?.[0]?.id) }, [open, initialTutorId])
 
   const save = async () => {
     setBusy(true)
     setError(null)
     type Saved = { id?: string; seats: { id: string; invite: { code: string } | null }[] }
-    const r = await api<Saved>(seatId ? `/api/classroom/seats/${seatId}` : '/api/classroom/seats', { method: seatId ? 'PATCH' : 'POST', body: v })
+    const r = await api<Saved>(seatId ? `/api/classroom/seats/${seatId}` : '/api/classroom/seats', { method: seatId ? 'PATCH' : 'POST', body: { ...v, ...(tutorId && (tutors?.length ?? 0) > 1 ? { tutorId } : {}) } })
     setBusy(false)
     if (!r.ok) return setError(r.error)
     onSaved()
@@ -85,6 +94,13 @@ export function SeatSheet({ open, onOpenChange, onSaved, seatId, initial }: {
           <Input value={v.seatName} maxLength={60} placeholder={tr('e.g. Minh — Grade 3', 'VD: Minh — Lớp 3')}
             onChange={(e) => setV({ ...v, seatName: e.target.value })} />
         </label>
+        {tutors && tutors.length > 1 && (
+          <Field label={tr('Tutor', 'Gia sư')}>
+            <ToggleGroup<string> aria-label={tr('Tutor', 'Gia sư')} value={tutorId ? [tutorId] : []} onValueChange={(x) => x[0] && setTutorId(x[0])}>
+              {tutors.map((t) => <ToggleGroupItem key={t.id} value={t.id}>{t.name}</ToggleGroupItem>)}
+            </ToggleGroup>
+          </Field>
+        )}
         <Field label={tr('Level', 'Trình độ')}>
           <ToggleGroup<Level> aria-label={tr('Level', 'Trình độ')} value={[v.level]} onValueChange={(x) => x[0] && setV({ ...v, level: x[0] })}>
             {LEVELS.map((l) => <ToggleGroupItem key={l} value={l}>{l}</ToggleGroupItem>)}

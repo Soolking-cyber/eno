@@ -114,6 +114,10 @@ export const LIMITS = {
   /** A seat the teacher removed (or the learner left): its sessions are erased this many days later. */
   removedRetentionDays: 90,
   seatsPerTeacher: 30,
+  /** A student who has not spoken in a session for this many days shows as Inactive on the teacher's roster. */
+  inactiveDays: 14,
+  /** Tutors a teacher keeps at once (owner, 2026-11-09: a tutor for each student); archived ones don't count. */
+  tutorsPerTeacher: 5,
 } as const
 
 /** From this age a child also agrees, in their own words, before practising (Vietnam's PDP law). */

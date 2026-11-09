@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ApiError, route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
-import { requireAvatar, requireTeacher } from '@/lib/classroom/guards'
+import { requireTeacher } from '@/lib/classroom/guards'
 import { seatOfTeacher, settingsOf } from '@/lib/classroom/seats'
 import { parseFocusItems } from '@/lib/classroom/focus'
 import { parseFocus, pickPlan } from '@/lib/classroom/plans'
@@ -16,8 +16,7 @@ export const dynamic = 'force-dynamic'
  */
 export const GET = route({ auth: 'profile' }, async ({ profile, params }) => {
   const teacher = await requireTeacher(profile.id, { open: false })
-  const avatar = await requireAvatar(teacher.id)
-  const seat = await seatOfTeacher(params.id, avatar.id)
+  const seat = await seatOfTeacher(params.id, teacher.id)
   if (!seat || seat.status === 'removed') throw new ApiError('seat_not_found', 404)
   const now = new Date()
   const [learner, plans, sessions] = await Promise.all([
@@ -38,6 +37,8 @@ export const GET = route({ auth: 'profile' }, async ({ profile, params }) => {
   return NextResponse.json({
     seat: {
       id: seat.id, status: seat.status, settings: settingsOf(seat),
+      // The seat's tutor (several per teacher since 2026-11-09): the student page shows it and changes it.
+      tutorId: seat.avatarId,
       learner: learner && { displayName: learner.displayName, kind: learner.kind, band: ageBand(learner.kind === 'child' ? 'child' : 'self', learner.birthYear, now) },
       workingOn: parseFocusItems(seat.focusItems),
     },

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { ApiError, route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { teacherTextRefusal } from '@/lib/teachers/text-screen'
-import { requireAvatar, requireTeacher } from '@/lib/classroom/guards'
+import { requireTeacher } from '@/lib/classroom/guards'
 import { readCapped } from '@/lib/classroom/http'
 import { seatOfTeacher } from '@/lib/classroom/seats'
 import { cleanBrief, parseFocus, pickPlan } from '@/lib/classroom/plans'
@@ -20,9 +20,8 @@ export const dynamic = 'force-dynamic'
  */
 export const PUT = route({ auth: 'profile', rateLimit: { bucket: 'classroom-plan', limit: 120, window: '1 h' } }, async ({ req, profile }) => {
   const teacher = await requireTeacher(profile.id)
-  const avatar = await requireAvatar(teacher.id)
   const body = await readCapped(req, 8_000)
-  const seat = typeof body.seatId === 'string' ? await seatOfTeacher(body.seatId, avatar.id) : null
+  const seat = typeof body.seatId === 'string' ? await seatOfTeacher(body.seatId, teacher.id) : null
   if (!seat || seat.status === 'removed') throw new ApiError('seat_not_found', 404)
   const brief = cleanBrief(body.brief)
   if (!brief) throw new ApiError('bad_request', 400)

@@ -5,7 +5,8 @@ import { teacherTextRefusal } from '@/lib/teachers/text-screen'
 import type { PublishBlockCode } from '@/lib/publish-guard'
 import { LEVELS, LIMITS, SESSION_MINUTES, STRICTNESS, type Level, type SessionMinutes, type Strictness } from './constants'
 import { inviteCodeFrom } from './invite-code'
-import { cleanText } from './persona'
+import { cleanText, parseTraits } from './persona'
+import type { Background } from './backgrounds'
 import { ageBand, ictWeekStart, type AgeBand } from './limits'
 
 export type SeatSettings = {
@@ -44,10 +45,34 @@ export function newInvite(now = new Date()): { inviteCode: string; inviteExpires
   return { inviteCode: inviteCodeFrom((n) => randomBytes(n)), inviteExpiresAt: new Date(now.getTime() + LIMITS.inviteDays * 86_400_000) }
 }
 
+/**
+ * WHERE A STUDENT STANDS THIS WEEK (owner, 2026-11-09: teachers "manage" each student's tutor — Praktika's business view:
+ * on track / below target / inactive / never started). From the seat's own rows only. Pure.
+ * - not_started: invited and not joined, or joined and never spoke in a session;
+ * - inactive: the last session they spoke in is LIMITS.inactiveDays or more ago;
+ * - behind: fewer sessions this week than the week's target, prorated to the days gone (Monday is day 1, ICT);
+ * - on_track: otherwise; paused: the teacher paused the seat.
+ */
+export type SeatProgress = 'not_started' | 'on_track' | 'behind' | 'inactive' | 'paused'
+export function progressOf(s: { status: string; lastSpokeAt: Date | null; sessionsThisWeek: number; sessionsPerWeek: number }, now: Date): SeatProgress {
+  if (s.status === 'paused') return 'paused'
+  if (s.status !== 'active' || !s.lastSpokeAt) return 'not_started'
+  if (now.getTime() - s.lastSpokeAt.getTime() >= LIMITS.inactiveDays * 86_400_000) return 'inactive'
+  const daysGone = Math.min(7, Math.floor((now.getTime() - ictWeekStart(now).getTime()) / 86_400_000) + 1)
+  const due = Math.floor((s.sessionsPerWeek * daysGone) / 7)
+  return s.sessionsThisWeek < due ? 'behind' : 'on_track'
+}
+
 export type RosterSeat = {
   id: string
   status: string
   seatName: string
+  /** The seat's tutor (several per teacher since 2026-11-09). */
+  tutor: { id: string; name: string; look: string; libraryAvatarId: string | null; background: Background }
+  progress: SeatProgress
+  /** Minutes spoken in this week's sessions, against the week's target (minutes × sessions a week). */
+  minutesThisWeek: number
+  minutesTarget: number
   settings: SeatSettings
   learner: null | { displayName: string; kind: string; band: AgeBand }
   invite: null | { code: string; expiresAt: string }
@@ -56,29 +81,36 @@ export type RosterSeat = {
   unseenReports: number
 }
 
-/** The teacher's roster: every seat but the removed ones, with what the roster shows at a glance. */
-export async function listSeats(avatarId: string, now = new Date()): Promise<RosterSeat[]> {
+/** The teacher's roster across all their tutors: every seat but the removed ones, with what the roster shows at a glance. */
+export async function listSeats(teacherProfileId: string, now = new Date()): Promise<RosterSeat[]> {
   const weekStart = ictWeekStart(now)
   const seats = await db.classroomEnrollment.findMany({
-    where: { avatarId, status: { not: 'removed' } },
+    where: { avatar: { teacherProfileId }, status: { not: 'removed' } },
     orderBy: { createdAt: 'asc' },
     include: {
       learner: { select: { displayName: true, kind: true, birthYear: true } },
+      avatar: { select: { id: true, name: true, look: true, libraryAvatarId: true, traits: true } },
       sessions: { orderBy: { startedAt: 'desc' }, take: 1, select: { startedAt: true } },
     },
   })
   const ids = seats.map((s) => s.id)
-  const [week, unseen] = ids.length ? await Promise.all([
+  const [week, unseen, spoke] = ids.length ? await Promise.all([
     // Sessions the learner SPOKE in — the rule the week's limit applies (limits.ts frequencyRefusal).
-    db.classroomSession.groupBy({ by: ['enrollmentId'], where: { enrollmentId: { in: ids }, startedAt: { gte: weekStart }, turnCount: { gt: 0 } }, _count: { _all: true } }),
+    db.classroomSession.groupBy({ by: ['enrollmentId'], where: { enrollmentId: { in: ids }, startedAt: { gte: weekStart }, turnCount: { gt: 0 } }, _count: { _all: true }, _sum: { usedSeconds: true } }),
     db.classroomSession.groupBy({ by: ['enrollmentId'], where: { enrollmentId: { in: ids }, feedbackStatus: 'ready', feedback: { is: { teacherSeenAt: null } } }, _count: { _all: true } }),
-  ]) : [[], []]
-  const weekBy = new Map(week.map((r) => [r.enrollmentId, r._count._all]))
+    db.classroomSession.groupBy({ by: ['enrollmentId'], where: { enrollmentId: { in: ids }, turnCount: { gt: 0 } }, _max: { startedAt: true } }),
+  ]) : [[], [], []]
+  const weekBy = new Map(week.map((r) => [r.enrollmentId, r]))
   const unseenBy = new Map(unseen.map((r) => [r.enrollmentId, r._count._all]))
+  const spokeBy = new Map(spoke.map((r) => [r.enrollmentId, r._max.startedAt]))
   return seats.map((s) => ({
     id: s.id,
     status: s.status,
     seatName: s.seatName,
+    tutor: { id: s.avatar.id, name: s.avatar.name, look: s.avatar.look, libraryAvatarId: s.avatar.libraryAvatarId, background: parseTraits(s.avatar.traits).background },
+    progress: progressOf({ status: s.status, lastSpokeAt: spokeBy.get(s.id) ?? null, sessionsThisWeek: weekBy.get(s.id)?._count._all ?? 0, sessionsPerWeek: s.sessionsPerWeek }, now),
+    minutesThisWeek: Math.round((weekBy.get(s.id)?._sum.usedSeconds ?? 0) / 60),
+    minutesTarget: s.sessionMinutes * s.sessionsPerWeek,
     settings: settingsOf(s),
     learner: s.learner && {
       displayName: s.learner.displayName,
@@ -88,7 +120,7 @@ export async function listSeats(avatarId: string, now = new Date()): Promise<Ros
     invite: s.status === 'invited' && s.inviteCode && s.inviteExpiresAt && s.inviteExpiresAt > now
       ? { code: s.inviteCode, expiresAt: s.inviteExpiresAt.toISOString() } : null,
     lastPracticeAt: s.sessions[0]?.startedAt.toISOString() ?? null,
-    sessionsThisWeek: weekBy.get(s.id) ?? 0,
+    sessionsThisWeek: weekBy.get(s.id)?._count._all ?? 0,
     unseenReports: unseenBy.get(s.id) ?? 0,
   }))
 }
@@ -104,7 +136,7 @@ export function settingsOf(s: { seatName: string; level: string; sessionMinutes:
   }
 }
 
-/** The teacher's own seat, or null — every seat route looks the seat up THROUGH the caller's avatar, never by id alone. */
-export async function seatOfTeacher(seatId: string, avatarId: string) {
-  return db.classroomEnrollment.findFirst({ where: { id: seatId, avatarId } })
+/** The teacher's own seat, or null — every seat route looks the seat up THROUGH the caller's tutors, never by id alone. */
+export async function seatOfTeacher(seatId: string, teacherProfileId: string) {
+  return db.classroomEnrollment.findFirst({ where: { id: seatId, avatar: { teacherProfileId } } })
 }

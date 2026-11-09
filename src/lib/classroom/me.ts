@@ -22,7 +22,8 @@ export type ClassroomMe = {
     photoUrl: string | null
     nationality: string
     open: boolean
-    avatar: null | { id: string; name: string; look: string; customStatus: string; libraryAvatarId: string | null; voice: string; background: Background }
+    /** The teacher's tutors, oldest first (several since 2026-11-09; archived ones left out). */
+    tutors: { id: string; name: string; bestFor: string; look: string; customStatus: string; libraryAvatarId: string | null; voice: string; background: Background; students: number }[]
   }
   learners: {
     id: string
@@ -55,7 +56,11 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
     where: { profileId },
     select: {
       id: true, fullName: true, photoUrl: true, nationality: true,
-      classroomAvatar: { select: { id: true, name: true, look: true, customStatus: true, libraryAvatarId: true, voice: true, traits: true } },
+      classroomAvatars: {
+        where: { archivedAt: null },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: { id: true, name: true, bestFor: true, look: true, customStatus: true, libraryAvatarId: true, voice: true, traits: true, _count: { select: { seats: { where: { status: { not: 'removed' } } } } } },
+      },
     },
   })
   const learners = await db.classroomLearner.findMany({
@@ -95,7 +100,7 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
       photoUrl: tp.photoUrl,
       nationality: tp.nationality,
       open: await openFor(profileId),
-      avatar: tp.classroomAvatar && (({ traits, ...a }) => ({ ...a, background: parseTraits(traits).background }))(tp.classroomAvatar),
+      tutors: tp.classroomAvatars.map(({ traits, _count, ...a }) => ({ ...a, background: parseTraits(traits).background, students: _count.seats })),
     },
     learners: await Promise.all(learners.map(async (l) => ({
       id: l.id,

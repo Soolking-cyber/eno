@@ -1184,8 +1184,8 @@ model TeacherProfile {
   /// Every school that saw this teacher's Zalo for urgent cover (2026-10-28 — src/lib/teachers/zalo.ts).
   zaloReveals        TeacherZaloReveal[]
   matches            TeacherJobMatch[]
-  /// eno Classroom (2026-10-25): this teacher's AI avatar (one per teacher).
-  classroomAvatar    ClassroomAvatar?
+  /// eno Classroom (2026-10-25): this teacher's AI tutors (several since 2026-11-09; archived ones included).
+  classroomAvatars   ClassroomAvatar[]
 
   @@index([status, currentCity])
 }
@@ -2864,10 +2864,12 @@ model SchoolReport {
 // src/lib/classroom/ddl.test.ts reads both files and fails if a column drifts. Never `db push` (prisma/CLAUDE.md).
 // ⛔ NO LEARNER AUDIO IS STORED ANYWHERE: pronunciation is scored on the clip in memory and the clip is dropped.
 
-/// One avatar per teacher (MVP). Built on the teacher's TeacherProfile; deleting the profile deletes the classroom.
+/// Built on the teacher's TeacherProfile; deleting the profile deletes the classroom.
+/// A TUTOR: a teacher's AI avatar (face, voice, background, character). Several per teacher since 2026-11-09 (owner: "teachers
+/// assign and manage ai tutor for each of their students") — LIMITS.tutorsPerTeacher, each seat names its own (avatarId).
 model ClassroomAvatar {
   id                     String                @id @default(cuid())
-  teacherProfileId       String                @unique
+  teacherProfileId       String
   teacherProfile         TeacherProfile        @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
   /// The name students see ("Ms Anna"), always shown with "AI avatar of …" (Spatius Terms §4.4).
   name                   String
@@ -2893,8 +2895,15 @@ model ClassroomAvatar {
   photoWithdrawnAt       DateTime?
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @default(now()) @updatedAt
+  /// Who this tutor suits, in the teacher's words ("calm, for shy beginners") — shown on the tutor's card (Praktika's "best for").
+  bestFor                String                @default("")
+  /// Archived = gone from the teacher's tutors. ⛔ NEVER DELETED while sessions or seats point at it (the seat FK cascades):
+  /// archiving is refused while a seat that is not removed still names it (tutors.ts).
+  archivedAt             DateTime?
   seats                  ClassroomEnrollment[]
   sessions               ClassroomSession[]
+
+  @@index([teacherProfileId])
 }
 
 /// Who practises: the account holder (kind self, 18+) or a child they are parent or legal guardian of (kind child — no login

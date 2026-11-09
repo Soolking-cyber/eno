@@ -218,6 +218,21 @@ if (check) {
   process.exit(problems.length ? 3 : 0)
 }
 
+// ⛔ SEVERAL TUTORS PER TEACHER (owner, 2026-11-09): the one-avatar-per-teacher key becomes a plain index. Each step CONCURRENTLY
+// and on its own, outside the transaction (the header's rule — these tables hold rows): the plain index first, then the key
+// goes; a re-run finds both done and does nothing. A fresh database (no table yet) gets the plain index from the declared
+// list below. ⚠️ The deploy that ships several tutors must follow this run: until then the old code's save (an upsert ON
+// CONFLICT on the key) fails — the classroom is staff-only, and its switch can be closed for the minutes in between.
+// ⛔ An interrupted CONCURRENTLY build leaves an INVALID index behind (commit gate, opus): it is dropped and built again, and
+// the key goes only once a VALID plain index stands — never a table with no usable index on the teacher.
+if ((await client.query(`select to_regclass('public."ClassroomAvatar"') as r`)).rows[0].r) {
+  const plainValid = async () => (await client.query(`select i.indisvalid as ok from pg_index i where i.indexrelid = to_regclass('public."ClassroomAvatar_teacherProfileId_idx"')`)).rows[0]?.ok
+  if ((await plainValid()) === false) await client.query(`drop index concurrently if exists "ClassroomAvatar_teacherProfileId_idx"`)
+  if ((await plainValid()) !== true) await client.query(`create index concurrently if not exists "ClassroomAvatar_teacherProfileId_idx" on "ClassroomAvatar"("teacherProfileId")`)
+  if ((await plainValid()) !== true) { console.error('The plain index on ClassroomAvatar("teacherProfileId") is not valid — the one-tutor key is kept. Stopping.'); process.exit(1) }
+  await client.query(`drop index concurrently if exists "ClassroomAvatar_teacherProfileId_key"`)
+}
+
 await client.query('begin')
 // The FKs need a short lock on "Profile" and "TeacherProfile"; never queue sign-ins behind a long wait. A timeout rolls
 // back; re-run.
@@ -271,7 +286,11 @@ await client.query(`
     "photoWithdrawnAt" timestamp(3),
     "createdAt" timestamp(3) not null default current_timestamp,
     "updatedAt" timestamp(3) not null default current_timestamp,
+    "bestFor" text not null default '',
+    "archivedAt" timestamp(3),
     constraint "ClassroomAvatar_pkey" primary key ("id"),
+    constraint "ClassroomAvatar_bestFor_check" check (char_length("bestFor") <= 80),
+    constraint "ClassroomAvatar_archivedAt_check" check ("archivedAt" is null or "archivedAt" >= "createdAt"),
     constraint "ClassroomAvatar_look_check" check ("look" in ('photo', 'library', 'custom')),
     constraint "ClassroomAvatar_customStatus_check" check ("customStatus" in ('none', 'requested', 'ready', 'removed')),
     constraint "ClassroomAvatar_text_bounds" check (char_length("id") <= 64 and char_length("name") between 1 and 60 and char_length("persona") <= 2000 and char_length("greeting") <= 300),
@@ -286,7 +305,11 @@ await client.query(`
     -- (no ':' — so an id can never look like a 'request:' marker, round 9 opus).
     constraint "ClassroomAvatar_spatius_id_bounds" check ("spatiusAvatarId" is null or "spatiusAvatarId" ~ '^[A-Za-z0-9_-]{4,120}$')
   )`)
-await ensureIndex(`create unique index if not exists "ClassroomAvatar_teacherProfileId_key" on "ClassroomAvatar"("teacherProfileId")`)
+await ensureColumn('ClassroomAvatar', 'bestFor', `text not null default ''`, `char_length("bestFor") <= 80`)
+await ensureColumn('ClassroomAvatar', 'archivedAt', 'timestamp(3)', `"archivedAt" is null or "archivedAt" >= "createdAt"`)
+// Several tutors per teacher (2026-11-09): a plain index, made CONCURRENTLY before the transaction on a table that holds rows
+// (the step above `begin`); here it is only declared (and made on a fresh database).
+await ensureIndex(`create index if not exists "ClassroomAvatar_teacherProfileId_idx" on "ClassroomAvatar"("teacherProfileId")`)
 // One likeness, one avatar (round 3, opus): deleting or replacing an avatar's id queues THAT likeness for deletion.
 await ensureIndex(`create unique index if not exists "ClassroomAvatar_spatiusAvatarId_key" on "ClassroomAvatar"("spatiusAvatarId")`)
 

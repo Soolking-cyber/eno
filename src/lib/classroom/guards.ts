@@ -1,8 +1,8 @@
 import 'server-only'
 import { ApiError } from '@/lib/api/handler'
-import { db } from '@/lib/db'
 import { classroomOpenFor } from './config'
 import { teacherForClassroom } from './avatar'
+import { defaultTutor } from './tutors'
 
 /**
  * The two questions every teacher route asks first: is this account a teacher (a TeacherProfile), and is the classroom
@@ -16,9 +16,9 @@ export async function requireTeacher(profileId: string, opts: { open?: boolean }
   return teacher
 }
 
-/** The teacher's avatar, required (seats and tests hang off it). */
-export async function requireAvatar(teacherProfileId: string) {
-  const avatar = await db.classroomAvatar.findUnique({ where: { teacherProfileId } })
+/** The teacher's default tutor (the oldest not archived), required: a teacher with no tutor has no class yet. */
+export async function requireDefaultTutor(teacherProfileId: string) {
+  const avatar = await defaultTutor(teacherProfileId)
   if (!avatar) throw new ApiError('avatar_required', 409)
   return avatar
 }

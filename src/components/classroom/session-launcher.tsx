@@ -12,9 +12,11 @@ const SessionScreen = dynamic(() => import('./session/session-screen').then((m) 
  * The button that opens a practice session — a learner's seat, or `test` for a teacher trying their own avatar. The
  * session itself starts on the screen's Start tap (session-screen.tsx says why).
  */
-export function SessionLauncher({ seatId, test, preview, label, variant = 'outline', size = 'sm', className, disabled }: {
+export function SessionLauncher({ seatId, test, tutorId, preview, label, variant = 'outline', size = 'sm', className, disabled }: {
   seatId?: string
   test?: boolean
+  /** The tutor a teacher's `test` tries (the oldest when left out). */
+  tutorId?: string
   /** What the screen shows before Start: the avatar's name, the teacher's photo, the room behind the avatar. */
   preview?: { name: string; photoUrl: string | null; background?: Background }
   label: React.ReactNode
@@ -27,7 +29,7 @@ export function SessionLauncher({ seatId, test, preview, label, variant = 'outli
   return (
     <>
       <Button variant={variant} size={size} className={className} disabled={disabled} onClick={() => setOpen(true)}>{label}</Button>
-      {open && <SessionScreen seatId={seatId} test={test} preview={preview ?? { name: '', photoUrl: null }} onClose={() => setOpen(false)} />}
+      {open && <SessionScreen seatId={seatId} test={test} tutorId={tutorId} preview={preview ?? { name: '', photoUrl: null }} onClose={() => setOpen(false)} />}
     </>
   )
 }

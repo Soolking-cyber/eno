@@ -20,9 +20,12 @@ import { SeatSheet } from './seat-sheet'
 import { InviteShare } from './invite-share'
 import { PlanEditor } from './plan-editor'
 import { PANEL_BUTTON, Panel } from './panel'
+import { TutorFace } from './tutor-card'
+import type { Background } from '@/lib/classroom/backgrounds'
+import { parseTraits } from '@/lib/classroom/persona'
 
 type Detail = {
-  seat: { id: string; status: string; settings: SeatSettings; learner: { displayName: string; kind: string; band: string } | null; workingOn: FocusItem[] }
+  seat: { id: string; status: string; tutorId: string; settings: SeatSettings; learner: { displayName: string; kind: string; band: string } | null; workingOn: FocusItem[] }
   nextPlan: { id: string; source: string; status: string; brief: string; focus: PlanFocus; openingLine: string; updatedAt: string } | null
   sessions: { id: string; startedAt: string; status: string; feedbackStatus: string; talkSeconds: number; turns: number; scores: { pronunciation?: number | null } | null; mistakes: number; unseen: boolean; flagged: boolean }[]
 }
@@ -63,6 +66,9 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
   const [editing, setEditing] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [invite, setInvite] = useState<string | null>(null)
+  /** The teacher's tutors (several since 2026-11-09): the student's tutor is shown here and changed in Practice settings. */
+  const [tutors, setTutors] = useState<{ id: string; name: string; bestFor: string; look: string; libraryAvatarId: string | null; background: Background }[] | null>(null)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   /** Dropped on unmount: an answer arriving after this account's page is gone sets nothing (C3c review, codex + Opus). */
   const live = useRef(true)
   useEffect(() => { live.current = true; return () => { live.current = false } }, [])
@@ -71,6 +77,13 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
     if (r.ok) { setD(r.data); setError(null) } else if (hasData.current) { setActionError(r.error) } else { setError(r.error) }
   }), [seatId])
   useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void api<{ teacher: { photoUrl: string | null }; tutors: { id: string; name: string; bestFor: string; look: string; libraryAvatarId: string | null; traits: unknown }[] }>('/api/classroom/tutors').then((r) => {
+      if (!live.current || !r.ok) return
+      setPhotoUrl(r.data.teacher.photoUrl)
+      setTutors(r.data.tutors.map((t) => ({ id: t.id, name: t.name, bestFor: t.bestFor, look: t.look, libraryAvatarId: t.libraryAvatarId, background: parseTraits(t.traits).background })))
+    })
+  }, [])
 
   if (error && !d) {
     return <EmptyState icon={UserRound} title={tr(refusalCopy(error).en, refusalCopy(error).vi)} className="mt-12"
@@ -112,6 +125,21 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
         </div>
         {seat.status === 'paused' && <Badge variant="warning" size="sm">{tr('Paused', 'Tạm dừng')}</Badge>}
       </div>
+
+      {/* The student's tutor — its page is where the teacher tries it (Practice settings changes which tutor this is). */}
+      {(() => {
+        const tutor = tutors?.find((t) => t.id === seat.tutorId)
+        return tutor ? (
+          <Link href={`/classroom/tutors/${encodeURIComponent(tutor.id)}`} prefetch={false} className="press -my-2 flex items-center gap-3 rounded-2xl py-2 hover:bg-tint">
+            <TutorFace tutor={tutor} photoUrl={photoUrl} size="sm" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs text-ink-4">{tr('Tutor', 'Gia sư')}</span>
+              <span className="block truncate text-sm font-semibold text-ink">{tutor.name}</span>
+            </span>
+            <ChevronRight aria-hidden className="size-4 text-ink-4" />
+          </Link>
+        ) : null
+      })()}
 
       {/* Two thumb-size actions side by side, and "Remove" on its own quiet row under them — apart from the controls a
           teacher taps every week, but still above the line where any action's error appears (mobile first, 2026-10-26). */}
@@ -176,7 +204,7 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
         </>
       )}
 
-      <SeatSheet open={editing} onOpenChange={setEditing} onSaved={() => void load()} seatId={seat.id} initial={seat.settings} />
+      <SeatSheet open={editing} onOpenChange={setEditing} onSaved={() => void load()} seatId={seat.id} initial={seat.settings} tutors={tutors ?? undefined} initialTutorId={seat.tutorId} />
       <Panel open={confirmRemove} onOpenChange={setConfirmRemove} title={tr('Remove this student?', 'Xoá học viên này?')}
         description={tr('They leave the class at once and you will no longer see their reports.', 'Học viên rời lớp ngay và bạn sẽ không xem được nhận xét nữa.')}
         footer={<>

@@ -20,6 +20,7 @@ import { NextAtRefusal } from './refusal'
 import { containsContactInfo } from '@/lib/publish-guard'
 import { containsPhoneNumber } from '@/lib/phone'
 import { isStaffProfile } from '@/lib/user-blocks'
+import { defaultTutor, tutorOfTeacher } from './tutors'
 
 /**
  * START A SESSION (plan "Concurrency, limits and budget"). ONE transaction under two locks:
@@ -113,6 +114,17 @@ function modeFor(avatar: FaceLook, child13: boolean, spatiusChildrenOk: boolean)
 }
 type FaceLook = Pick<SeatRow['avatar'], 'look' | 'libraryAvatarId' | 'customStatus' | 'spatiusAvatarId'>
 
+/** A teacher's try: which of their tutors (`tutorId`, else their oldest — several tutors since 2026-11-09). */
+export type TestTarget = { test: true; tutorId?: string }
+
+/** The teacher and the tutor a try would use, or null (no teacher profile, or no such tutor of theirs). */
+async function testTutor(accountId: string, tutorId: string | undefined) {
+  const tp = await db.teacherProfile.findUnique({ where: { profileId: accountId }, select: { id: true, photoUrl: true } })
+  if (!tp) return null
+  const avatar = tutorId === undefined ? await defaultTutor(tp.id) : await tutorOfTeacher(tutorId, tp.id)
+  return { tp, avatar }
+}
+
 /** The ids the page needs to DRAW a face before Start (avatar-stage.tsx) — never a token: no Spatius session. */
 export type FacePreview = { avatarId: string; appId: string; region: string }
 
@@ -124,15 +136,15 @@ export type FacePreview = { avatarId: string; appId: string; region: string }
  * record (or withdrawn), a missing assent, the classroom switched off. Null = voice-only, or no start at all: the page loads
  * nothing from Spatius. No session, no token, no minutes — nothing is reserved or billed.
  */
-export async function facePreview(accountId: string, target: { seatId: string } | { test: true }, now = new Date()): Promise<FacePreview | null> {
+export async function facePreview(accountId: string, target: { seatId: string } | TestTarget, now = new Date()): Promise<FacePreview | null> {
   const cfg = spatiusConfig()
   if (!cfg) return null
   let face: { mode: 'avatar' | 'voice'; spatiusAvatarId: string | null }
   if ('test' in target) {
-    const tp = await db.teacherProfile.findUnique({ where: { profileId: accountId }, select: { classroomAvatar: true } })
-    if (!tp?.classroomAvatar) return null
+    const t = await testTutor(accountId, target.tutorId)
+    if (!t?.avatar) return null
     if (!(await classroomOpenFor(accountId)).open) return null
-    face = modeFor(tp.classroomAvatar, false, true)
+    face = modeFor(t.avatar, false, true)
   } else {
     const seat = await loadSeat(target.seatId, accountId)
     if (!seat?.learner || seat.status !== 'active') return null
@@ -216,7 +228,7 @@ export async function startLearnerSession(seatId: string, accountId: string, now
     if (freq) throw new NextAtRefusal(freq, nextPracticeAt(freq, now).toISOString())
 
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${BUDGET_LOCK}, 0))`
-    const over = budgetRefusal(await budgetUse(tx, seat.avatarId), config, minutes)
+    const over = budgetRefusal(await budgetUse(tx, seat.avatar.teacherProfileId), config, minutes)
     if (over === 'teacher') throw new ApiError('budget_teacher', 409)
     if (over) throw new ApiError('budget_classroom', 409)
 
@@ -271,11 +283,10 @@ function planFrom(picked: ReturnType<typeof pickPlan>, seat: { level: string; av
  * Start would say, exactly as the start does, and start making it (session-voice.ts warmLine). Start then finds it made.
  * Read-only (no plan is marked used); a resumed session — its opening is its last reply — is not warmed. Never throws.
  */
-export async function warmOpening(accountId: string, target: { seatId: string } | { test: true }, now = new Date()): Promise<void> {
+export async function warmOpening(accountId: string, target: { seatId: string } | TestTarget, now = new Date()): Promise<void> {
   try {
     if ('test' in target) {
-      const tp = await db.teacherProfile.findUnique({ where: { profileId: accountId }, select: { classroomAvatar: true } })
-      const avatar = tp?.classroomAvatar
+      const avatar = (await testTutor(accountId, target.tutorId))?.avatar
       if (!avatar) return
       if (!(await classroomOpenFor(accountId)).open) return
       if (await db.classroomSession.findFirst({ where: { testerId: accountId, status: 'live', endsAt: { gte: now } }, select: { id: true } })) return
@@ -320,14 +331,16 @@ const DEV_TEST_MINUTES = 15
 export const STAFF_TEST_MINUTES = Math.max(...SESSION_MINUTES)
 
 /**
- * A teacher tries their own avatar: no seat, no learner — LIMITS.teacherTestsPerDay a day, LIMITS.teacherTestMinutes each
- * (the eno team: STAFF_TEST_MINUTES, no daily limit).
+ * A teacher tries one of their tutors (`tutorId`, else the oldest): no seat, no learner — LIMITS.teacherTestsPerDay a day,
+ * LIMITS.teacherTestMinutes each (the eno team: STAFF_TEST_MINUTES, no daily limit). ⛔ A try already running is RESUMED with
+ * the tutor it started with, whichever tutor was asked for now (one live try per teacher — the DDL's partial unique index).
  */
-export async function startTeacherTest(accountId: string, now = new Date()): Promise<StartedSession> {
-  const tp = await db.teacherProfile.findUnique({ where: { profileId: accountId }, select: { id: true, photoUrl: true, classroomAvatar: true } })
-  if (!tp) throw new ApiError('teacher_profile_required', 403)
-  const avatar = tp.classroomAvatar
-  if (!avatar) throw new ApiError('avatar_required', 409)
+export async function startTeacherTest(accountId: string, tutorId?: string, now = new Date()): Promise<StartedSession> {
+  const t = await testTutor(accountId, tutorId)
+  if (!t) throw new ApiError('teacher_profile_required', 403)
+  const { tp } = t
+  const asked = t.avatar
+  if (!asked) throw new ApiError(tutorId === undefined ? 'avatar_required' : 'tutor_not_found', tutorId === undefined ? 409 : 404)
   const { open, config } = await classroomOpenFor(accountId, { fresh: true })
   if (!open) throw new ApiError('classroom_closed', 403)
   if (!sonioxConfig()) throw new ApiError('speech_unavailable', 503)
@@ -335,40 +348,46 @@ export async function startTeacherTest(accountId: string, now = new Date()): Pro
   const staff = await isStaffProfile(accountId).catch(() => false)
   const minutes = devUnlimited() ? DEV_TEST_MINUTES : staff ? STAFF_TEST_MINUTES : LIMITS.teacherTestMinutes
   // The teacher is an adult: modeFor's own rule with no child in it (the same rule facePreview applies before Start).
-  const face = modeFor(avatar, false, true)
-  const plan: SessionPlan = { ...firstPlan('B1', avatar.greeting, avatar.name), planId: null }
-  const fresh = openingOf(plan, avatar.name)
+  const face = modeFor(asked, false, true)
+  const plan: SessionPlan = { ...firstPlan('B1', asked.greeting, asked.name), planId: null }
+  const fresh = openingOf(plan, asked.name)
   // A teacher's test: an adult at B1, with the avatar's own "Slow & simple" if the teacher chose it (pace.ts).
-  const startPace = defaultPace('adult', 'B1', parseTraits(avatar.traits).pace)
+  const startPace = defaultPace('adult', 'B1', parseTraits(asked.traits).pace)
 
   await endExpired({ testerId: accountId }, `eno-classroom-tester:${accountId}`, now)
-  const { session, opening, resumed, pace } = await db.$transaction(async (tx) => {
+  const { session, opening, resumed, pace, avatar, sessionFace } = await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`eno-classroom-tester:${accountId}`}, 0))`
     const live = await tx.classroomSession.findFirst({ where: { testerId: accountId, status: 'live' } })
     if (live) {
+      // A try of ANOTHER tutor is running (another tab): refused, not resumed — the screen asking showed this tutor's name,
+      // room and face (commit gate, codex). With no tutor named (a page from before several tutors) the try running resumes.
+      if (tutorId !== undefined && live.avatarId !== asked.id) throw new ApiError('session_live', 409)
+      const avatar = live.avatarId === asked.id ? asked : await tx.classroomAvatar.findUniqueOrThrow({ where: { id: live.avatarId } })
+      const face = modeFor(avatar, false, true)
       // A reload RESUMES the test where it is (2a reviews, opus + codex): the avatar's latest line and its drill — never a
       // new opening from today's greeting.
       const latest = await tx.classroomTurn.findFirst({ where: { sessionId: live.id, status: 'ok' }, orderBy: { seq: 'desc' }, select: { replyText: true, expectText: true, flag: true } })
       const last = latest?.flag ? { replyText: NEUTRAL_RESUME, expectText: null } : latest
       if (live.mode === 'avatar' && face.mode !== 'avatar') await tx.classroomSession.update({ where: { id: live.id }, data: { mode: 'voice', updatedAt: now } })
       const session = live.mode === 'avatar' && face.mode !== 'avatar' ? { ...live, mode: 'voice' } : live
-      return { session, opening: { text: last?.replyText ?? fresh.text, expect: last?.expectText ?? null }, resumed: true, pace: clampPace(live.voicePace, 'adult', startPace) }
+      const livePace = defaultPace('adult', 'B1', parseTraits(avatar.traits).pace)
+      return { session, opening: { text: last?.replyText ?? openingOf(plan, avatar.name).text, expect: last?.expectText ?? null }, resumed: true, pace: clampPace(live.voicePace, 'adult', livePace), avatar, sessionFace: face }
     }
     const tests = await tx.classroomSession.count({ where: { testerId: accountId, startedAt: { gte: ictDayStart(now) } } })
     if (tests >= LIMITS.teacherTestsPerDay && !devUnlimited() && !staff) throw new NextAtRefusal('test_limit', nextPracticeAt('day_limit', now).toISOString())
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${BUDGET_LOCK}, 0))`
-    const over = budgetRefusal(await budgetUse(tx, avatar.id), config, minutes)
+    const over = budgetRefusal(await budgetUse(tx, tp.id), config, minutes)
     if (over === 'teacher') throw new ApiError('budget_teacher', 409)
     if (over) throw new ApiError('budget_classroom', 409)
     const s = await tx.classroomSession.create({
       data: {
-        avatarId: avatar.id, testerId: accountId, mode: face.mode, startedAt: now, endsAt: new Date(now.getTime() + minutes * 60_000), reservedMinutes: minutes,
+        avatarId: asked.id, testerId: accountId, mode: face.mode, startedAt: now, endsAt: new Date(now.getTime() + minutes * 60_000), reservedMinutes: minutes,
         planSnapshot: { brief: plan.brief, focus: plan.focus, openingLine: plan.openingLine, level: 'B1', strictness: 'balanced', band: 'adult' },
         voicePace: startPace,
       },
     })
     await tx.classroomTurn.create({ data: { sessionId: s.id, seq: 0, status: 'ok', replyText: fresh.text, expectText: fresh.expect } })
-    return { session: s, opening: fresh, resumed: false, pace: startPace }
+    return { session: s, opening: fresh, resumed: false, pace: startPace, avatar: asked, sessionFace: face }
   }, { maxWait: 5_000, timeout: 15_000 })
 
   warmTutorBrain() // while the opening line is voiced (tutor-ai.ts says why)
@@ -379,7 +398,7 @@ export async function startTeacherTest(accountId: string, now = new Date()): Pro
     mode: session.mode === 'avatar' ? 'avatar' : 'voice',
     resumed,
     avatar: {
-      name: avatar.name, photoUrl: tp.photoUrl, voice: avatar.voice, spatiusAvatarId: session.mode === 'avatar' ? face.spatiusAvatarId : null,
+      name: avatar.name, photoUrl: tp.photoUrl, voice: avatar.voice, spatiusAvatarId: session.mode === 'avatar' ? sessionFace.spatiusAvatarId : null,
       background: parseTraits(avatar.traits).background,
     },
     learnerName: '',

@@ -24,10 +24,10 @@ export type BudgetUse = { dayMinutes: number; monthMinutes: number; teacherMonth
  * cost the same vendor minutes. ⚠️ A session counts on the ICT day (and month) it STARTED — where its minutes are
  * reserved; one running past midnight spills at most its own 20 minutes into the next day (2a rounds 5–7, codex).
  */
-export async function budgetUse(tx: Tx, avatarId: string): Promise<BudgetUse> {
+export async function budgetUse(tx: Tx, teacherProfileId: string): Promise<BudgetUse> {
   const rows = await tx.$queryRawUnsafe<{ day: number; month: number; teacher: number }[]>(`
     WITH s AS (
-      SELECT "avatarId",
+      SELECT "avatarId" IN (SELECT "id" FROM "ClassroomAvatar" WHERE "teacherProfileId" = $1) AS mine,
              ("startedAt" AT TIME ZONE 'UTC') AT TIME ZONE ${ICT} AS local_start,
              CASE WHEN "status" = 'live' THEN "reservedMinutes" ELSE CEIL("usedSeconds" / 60.0)::int END AS minutes
         FROM "ClassroomSession"
@@ -36,8 +36,8 @@ export async function budgetUse(tx: Tx, avatarId: string): Promise<BudgetUse> {
     SELECT
       COALESCE(SUM(minutes) FILTER (WHERE local_start >= date_trunc('day', (SELECT t FROM now_local))), 0)::int AS day,
       COALESCE(SUM(minutes) FILTER (WHERE local_start >= date_trunc('month', (SELECT t FROM now_local))), 0)::int AS month,
-      COALESCE(SUM(minutes) FILTER (WHERE local_start >= date_trunc('month', (SELECT t FROM now_local)) AND "avatarId" = $1), 0)::int AS teacher
-    FROM s`, avatarId)
+      COALESCE(SUM(minutes) FILTER (WHERE local_start >= date_trunc('month', (SELECT t FROM now_local)) AND mine), 0)::int AS teacher
+    FROM s`, teacherProfileId)
   const r = rows[0] ?? { day: 0, month: 0, teacher: 0 }
   return { dayMinutes: r.day, monthMinutes: r.month, teacherMonthMinutes: r.teacher }
 }
