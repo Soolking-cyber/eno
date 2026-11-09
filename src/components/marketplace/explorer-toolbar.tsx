@@ -361,7 +361,16 @@ export function SortStrip({
         activeClassName={PILL_ON}
         wrapperClassName="w-auto shrink-0 sm:hidden"
       />
-      {leading ? <div className="min-w-0 basis-full max-sm:shrink-0 max-sm:basis-auto sm:flex-1 sm:basis-auto">{leading}</div> : null}
+      {/* ⛔ ON A TABLET THE STRIP IS ALWAYS TWO LINES — the facet pills on one, the sort tabs under them (UI climb 2026-11-10).
+          From sm the row used to wrap only when it had to, and the undirected home's four pills always had to below
+          1000px, while a category's shorter set fit beside the tabs (measured on production: electronics one line from
+          744px, rentals from 820, jobs from 834). A cold category link paints the home's ISR seed first, so its strip
+          dropped from two lines to one under every result when its own answer landed: CLS 0.16 on /?category=electronics
+          and 0.18 on /?category=rentals at 820px. One shape at every tablet width moves nothing and hides no pill (a
+          one-line strip was tried: the pills had to scroll, and a search lost "Any condition" to fix a jump it never had).
+          From lg the row may share one line again: on production the home, all 18 categories and a search settle on one
+          line at 1024, 1080 and 1180px, in English and Vietnamese. */}
+      {leading ? <div className="min-w-0 basis-full max-sm:shrink-0 max-sm:basis-auto lg:flex-1 lg:basis-auto">{leading}</div> : null}
       {/* ⚠️ THE TABLIST AND THE GOOD-PRICE TOGGLE SHARE ONE FLEX ROW, AND THE WRAPPER IS WHAT KEEPS THEM
           ON ONE LINE. The TabsList is `w-full` on a phone (its own line, see `leading`); as a direct child
           of the wrapping row above, anything after it would wrap onto a third line. Inside this row the

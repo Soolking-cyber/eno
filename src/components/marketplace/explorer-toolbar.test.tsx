@@ -199,3 +199,13 @@ describe('ViewSwitch: one pill for every view', () => {
     expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['List view', 'Grid view'])
   })
 })
+
+describe('on a tablet the strip is always two lines (UI climb 2026-11-10: a cold category link no longer drops a line under its results)', () => {
+  it('the pills take their own line from sm to lg, on every feed; only from lg may the tabs sit beside them', () => {
+    const { container } = render(strip('newest'))
+    const lead = container.querySelector('[data-facet-pills]')!.parentElement!
+    expect(lead.className.split(' ')).toEqual(expect.arrayContaining(['basis-full', 'lg:flex-1', 'lg:basis-auto']))
+    // ⚠️ a `sm:` flex-1/basis-auto would let the home's seed and a category's answer wrap differently again
+    expect(lead.className).not.toMatch(/(^|\s)(sm|md):(flex-1|basis-auto)(\s|$)/)
+  })
+})

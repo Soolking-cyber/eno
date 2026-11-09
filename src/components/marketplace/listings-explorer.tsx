@@ -4516,7 +4516,15 @@ export function ListingsExplorer({
     // ⛔ A `{/* … */}` COMMENT CANNOT LIVE HERE — right after `return (` is expression position,
     // where JSX comment syntax is a syntax error (tsc TS1005). This is the second time in one
     // night; CLAUDE.md records the rule.
-    <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-0 pb-5 max-sm:-mx-3 max-sm:px-3 sm:pt-2 sm:pb-8">
+    // ⛔ THE FEED HOLDS AT LEAST A SCREEN, SO A SHORT ANSWER NEVER PULLS THE FOOTER INTO THE FIRST SCREEN (UI climb 2026-11-10). A cold
+    // directed link lays out the home's ISR seed — twelve cards, the footer a few screens down — until its own answer
+    // replaces it; two results for "iphone" on an iPad mini (744×1133, folded) then ended 63px above the screen's foot, and
+    // the footer rose into the first screen as they landed: CLS 0.07. The sentinel below holds a screen only while more
+    // pages will come. Not on a storefront, whose own short list never stood in for a seed, nor beside the map or the
+    // video feed, which size themselves. Where the answer already reaches past the screen (a 1440×900 desktop: footer at
+    // y≈1384) it changes nothing. A reader who scrolls into the masked seed before the answer lands still sees the page
+    // shorten, as before: one screen is a floor, not the seed's height.
+    <section ref={listingsRef} id="listings" className={cn('scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-0 pb-5 max-sm:-mx-3 max-sm:px-3 sm:pt-2 sm:pb-8', !sellerId && viewMode !== 'map' && viewMode !== 'video' && 'min-h-svh')}>
       <TeacherFlagsReader onChange={setTeacherFlags} />
       {/* Width + edge gutter are owned by the parent page <main> (canonical
           max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}

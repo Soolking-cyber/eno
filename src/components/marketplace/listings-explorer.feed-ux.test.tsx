@@ -1051,6 +1051,29 @@ describe('a short, complete answer ends on a recovery rail (E-ZERO)', () => {
   })
 })
 
+describe('the feed holds a screen, so a short answer never pulls the footer into view (UI climb 2026-11-10)', () => {
+  const holds = () => document.getElementById('listings')!.className.split(' ').includes('min-h-svh')
+  it('a short marketplace answer holds it; the map and a storefront do not', async () => {
+    catalogue = catalogue.slice(0, 2)
+    window.history.replaceState({}, '', '/?q=phone')
+    let view = mount(newClient())
+    await waitFor(() => expect(cardIds()).toHaveLength(2))
+    expect(holds()).toBe(true)
+    view.unmount()
+
+    window.history.replaceState({}, '', '/?q=phone&view=map')
+    view = mount(newClient())
+    await waitFor(() => expect(cardIds()).toHaveLength(2))
+    expect(holds()).toBe(false)
+    view.unmount()
+
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(newClient(), { sellerId: 'shop-1' })
+    await waitFor(() => expect(cardIds()).toHaveLength(2))
+    expect(holds()).toBe(false)
+  })
+})
+
 /**
  * E-SSR phase 1 (2026-09-29): a cold deep link's ISR seed is masked by `html[data-explorer-directed]`
  * (set by the home layout's pre-paint script) until the grid draws the URL's own answer — and while it
