@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { LIMITS, VOICE_RATE } from '@/lib/classroom/constants'
-import { encodeWav, peakNormalize, toPcmAt, trimEnds } from '@/lib/classroom/wav'
+import { encodeWav, peakNormalize, peakOf, toPcmAt, trimEnds } from '@/lib/classroom/wav'
 
 /**
  * THE TEACHER READING THEIR SCRIPT, for their own voice (own-voice-flow.tsx). The lesson's worklet
@@ -68,7 +68,10 @@ export function useVoiceTake() {
     let at = 0
     for (const f of frames.current) { all.set(f, at); at += f.length }
     frames.current = []
-    wav.current = encodeWav(toPcmAt(peakNormalize(trimEnds(all, rate)).samples, rate, VOICE_RATE), VOICE_RATE)
+    // The tap thumps off first: they would hold the gain down, and pass the page's "no voice" check on their own (gate).
+    const trimmed = trimEnds(all, rate)
+    peak.current = peakOf(trimmed)
+    wav.current = encodeWav(toPcmAt(peakNormalize(trimmed, 0.89, 20, rate).samples, rate, VOICE_RATE), VOICE_RATE)
     setState('done')
   }, [release])
 
@@ -139,7 +142,7 @@ export function useVoiceTake() {
     return () => { document.removeEventListener('visibilitychange', hidden); release() }
   }, [interrupt, release])
 
-  /** The finished take (after stop) and how loud the microphone got (0–1, before the take was brought up to level). */
+  /** The finished take (after stop) and how loud it was (0–1, its ends trimmed, before it was brought up to level). */
   const take = useCallback(() => ({ wav: wav.current, peak: peak.current }), [])
   const reset = useCallback(() => { release(); frames.current = []; wav.current = null; setSeconds(0); setState('idle') }, [release])
 

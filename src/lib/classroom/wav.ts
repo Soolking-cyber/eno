@@ -78,30 +78,45 @@ function lowPass(input: Float32Array, cutoff: number, half: number): Float32Arra
 
 /**
  * THE OWN-VOICE TAKE BROUGHT UP TO FULL LEVEL (owner, 2026-11-09: "it says voice too quiet and even i speak close to phone it
- * barely picks up"): one gain for the whole take — a plain volume change, which a clone does not hear as processing.
- * ⛔ THE GAIN FOLLOWS THE VOICE, NOT ITS LOUDEST CLICK (commit gate, opus): it is set from the 99.9th percentile of the
- * level (a histogram — a two-minute take is millions of samples), so one thump (the Stop tap through the phone) cannot
- * hold the voice down; the few samples above `target` after the gain are clipped at full scale. At most `maxGain`
- * (+26 dB). Returns a new array and the gain used; silence comes back as it was.
+ * barely picks up"): its loudest moment at `target` by one plain gain — a volume change, which a clone does not hear as
+ * processing. ⛔ NOTHING IS CLIPPED (a percentile gain flattened every strong "p"/"t" — gate, opus), and ⛔ A CLICK DOES NOT
+ * SET THE GAIN (a knock, a tap thump anywhere in the take — gate, codex + opus): the voice's own level is the 98th
+ * percentile of its 10 ms window peaks, and only a window far louder than that (> TRANSIENT × the voice) is brought down
+ * to the voice's level, its edges eased over the neighbouring windows — normal speech peaks (up to TRANSIENT × the voice)
+ * are never touched. At most `maxGain` (+26 dB). Returns a new array and the gain used; silence comes back as it was.
  */
-export function peakNormalize(input: Float32Array, target = 0.89, maxGain = 20): { samples: Float32Array; gain: number } {
-  const BINS = 2048
-  const hist = new Uint32Array(BINS)
-  let n = 0
-  for (let i = 0; i < input.length; i++) {
-    const a = Math.min(1, Math.abs(input[i]))
-    if (a > 0) { hist[Math.min(BINS - 1, Math.floor(a * BINS))]++; n++ }
-  }
-  if (!n) return { samples: input, gain: 1 }
-  // The level only 0.1% of the take's samples are above.
-  let above = 0
-  let bin = BINS - 1
-  for (; bin > 0; bin--) { above += hist[bin]; if (above >= n * 0.001) break }
-  const level = (bin + 1) / BINS
-  const gain = Math.min(maxGain, target / level)
+export function peakNormalize(input: Float32Array, target = 0.89, maxGain = 20, rate = 48_000): { samples: Float32Array; gain: number } {
+  if (!(peakOf(input) > 0)) return { samples: input, gain: 1 }
+  const w = Math.max(1, Math.round(rate / 100))
+  const windows = Math.ceil(input.length / w)
+  const peaks = new Float32Array(windows)
+  for (let k = 0; k < windows; k++) peaks[k] = peakOf(input.subarray(k * w, Math.min(input.length, (k + 1) * w)))
+  const sorted = Float32Array.from(peaks).sort()
+  const voice = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.98))] || peakOf(input)
+  // Each window's own gain: 1, or down to the voice's level for a transient; eased linearly between window centres.
+  const wg = Float32Array.from(peaks, (p) => (p > TRANSIENT * voice ? voice / p : 1))
   const out = new Float32Array(input.length)
-  for (let i = 0; i < input.length; i++) out[i] = Math.max(-1, Math.min(1, input[i] * gain))
+  for (let i = 0; i < input.length; i++) {
+    const x = i / w - 0.5
+    const k0 = Math.max(0, Math.min(windows - 1, Math.floor(x)))
+    const k1 = Math.min(windows - 1, k0 + 1)
+    const t = Math.max(0, Math.min(1, x - k0))
+    const g = Math.min(wg[Math.max(0, Math.min(windows - 1, Math.round(i / w - 0.5)))], wg[k0] + (wg[k1] - wg[k0]) * t)
+    out[i] = input[i] * g
+  }
+  const peak = peakOf(out)
+  const gain = Math.min(maxGain, target / peak)
+  for (let i = 0; i < out.length; i++) out[i] *= gain
   return { samples: out, gain }
+}
+/** A window this many times louder than the voice's level is a click, a knock or a tap — not speech. */
+const TRANSIENT = 2.5
+
+/** The loudest sample, 0–1. */
+export function peakOf(input: Float32Array): number {
+  let peak = 0
+  for (let i = 0; i < input.length; i++) { const a = Math.abs(input[i]); if (a > peak) peak = a }
+  return peak
 }
 
 /** The take without its first and last `ms` — where the Start and Stop taps land, and nobody is speaking yet. */
