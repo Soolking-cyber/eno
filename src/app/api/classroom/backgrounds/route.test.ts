@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Owner, 2026-11-09: teachers upload rooms for behind their tutors; children see them. The upload and who may see one.
 const h = vi.hoisted(() => {
-  const bg = { count: vi.fn(async () => 0), create: vi.fn(async () => ({ id: 'b9' })), findMany: vi.fn(async () => []), findUnique: vi.fn(), updateMany: vi.fn() }
+  const bg = { count: vi.fn(async () => 0), create: vi.fn(async () => ({ id: 'b9' })), findMany: vi.fn(async () => []), findUnique: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() }
   return {
     bg,
     seat: { findFirst: vi.fn() },
@@ -115,14 +115,15 @@ describe('⛔ who may see an uploaded room', () => {
 })
 
 describe('a teacher removes a room', () => {
-  it('only their own, still ok — the write names the teacher', async () => {
-    h.bg.updateMany.mockResolvedValue({ count: 1 })
+  it('⛔ only their own, still ok — and it is DELETED, picture and all (removed rows never pile up)', async () => {
+    h.bg.deleteMany.mockResolvedValue({ count: 1 })
     const r = await DELETE(new Request('https://eno.vn/api/classroom/backgrounds/b1', { method: 'DELETE' }))
     expect(r.status).toBe(200)
-    expect(h.bg.updateMany.mock.calls[0][0]).toMatchObject({ where: { id: 'b1', teacherProfileId: 'tp1', status: 'ok' }, data: { status: 'removed', removedBy: 'teacher' } })
+    expect(h.bg.deleteMany.mock.calls[0][0]).toEqual({ where: { id: 'b1', teacherProfileId: 'tp1', status: 'ok' } })
+    expect(h.bg.updateMany).not.toHaveBeenCalled()
   })
-  it('another teacher\'s room (or one already removed): 404, nothing written', async () => {
-    h.bg.updateMany.mockResolvedValue({ count: 0 })
+  it('another teacher\'s room (or one an admin took down): 404, nothing deleted', async () => {
+    h.bg.deleteMany.mockResolvedValue({ count: 0 })
     expect((await DELETE(new Request('https://eno.vn/api/classroom/backgrounds/b1', { method: 'DELETE' }))).status).toBe(404)
   })
 })

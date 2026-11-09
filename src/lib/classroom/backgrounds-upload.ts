@@ -38,13 +38,24 @@ export async function prepareBackground(bytes: Buffer): Promise<PreparedBackgrou
     .flatten({ background: '#ffffff' })
     .png()
     .toBuffer()
-  const [image, thumb, check] = await Promise.all([
-    sharp(cropped).webp({ quality: 80 }).toBuffer(),
+  // ⛔ WITHIN THE DATABASE'S BOUND (1 MB — the DDL's CHECK): a very detailed picture is encoded again, lower, rather than
+  // failing at the insert after passing the check (commit gate, codex).
+  let image = await sharp(cropped).webp({ quality: 80 }).toBuffer()
+  for (const quality of [65, 50, 35]) {
+    if (image.length <= MAX_IMAGE_BYTES) break
+    image = await sharp(cropped).webp({ quality }).toBuffer()
+  }
+  // Still over (noise-like detail no photo of a room has): a smaller 9:16 — the call screen covers the phone with it anyway.
+  if (image.length > MAX_IMAGE_BYTES) image = await sharp(cropped).resize(720, 1280).webp({ quality: 35 }).toBuffer()
+  if (image.length > MAX_IMAGE_BYTES) throw new RangeError('background_too_detailed')
+  const [thumb, check] = await Promise.all([
     sharp(cropped).resize(THUMB.width, THUMB.height).webp({ quality: 72 }).toBuffer(),
     sharp(cropped).resize(CHECK_EDGE, CHECK_EDGE, { fit: 'inside' }).jpeg({ quality: 82 }).toBuffer(),
   ])
   return { image, thumb, check }
 }
+/** Under the DDL's 1,048,576-byte CHECK, with room to spare. */
+export const MAX_IMAGE_BYTES = 1_000_000
 
 export const ROOM_CHECK_SCHEMA = {
   type: Type.OBJECT,
@@ -81,16 +92,15 @@ export function roomVerdict(raw: unknown): RoomVerdict | null {
   return { ok: true }
 }
 
-const PRIMARY_TIMEOUT_MS = 10_000
-const BACKUP_TIMEOUT_MS = 15_000
-const HEDGE_MS = 4_000
+const CHECK_TIMEOUT_MS = 12_000
 
 /**
- * One check, hedged like the teacher photo check (teachers/photo-check.ts): Flash-Lite, and 3.8 Flash as soon as Flash-Lite
- * fails or has not answered in 4 s; the first readable answer wins. Throws when both fail — the caller refuses ("try again").
+ * ⛔ BOTH MODELS DECIDE (commit gate, opus: "first answer wins" let the faster, weaker one decide alone for children's
+ * screens). Flash-Lite and 3.8 Flash look at the same picture side by side: kept only when BOTH say ok; either one refusing
+ * refuses (the stricter reason first); either one not answering throws — the caller refuses ("try again"). ~2–4 s.
  */
 export async function checkRoom(ai: GoogleGenAI, jpeg: Buffer): Promise<RoomVerdict> {
-  const ask = async (model: string, timeout: number) => {
+  const ask = async (model: string) => {
     const response = await ai.models.generateContent({
       model,
       contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'image/jpeg', data: jpeg.toString('base64') } }, { text: ASK }] }],
@@ -100,7 +110,8 @@ export async function checkRoom(ai: GoogleGenAI, jpeg: Buffer): Promise<RoomVerd
         responseSchema: ROOM_CHECK_SCHEMA,
         maxOutputTokens: 2_048,
         thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-        httpOptions: { timeout, retryOptions: { attempts: 1 } },
+        // One retry on a rate limit, a 5xx or a timeout (measured: the second model sometimes answers 429/504 at once).
+        httpOptions: { timeout: CHECK_TIMEOUT_MS, retryOptions: { attempts: 2 } },
       },
     })
     let parsed: unknown
@@ -109,18 +120,14 @@ export async function checkRoom(ai: GoogleGenAI, jpeg: Buffer): Promise<RoomVerd
     if (!verdict) throw new SyntaxError('room_check_unreadable_answer')
     return verdict
   }
-  const primary = ask(IMPORT_MODEL_FALLBACK, PRIMARY_TIMEOUT_MS)
-  const backup = new Promise<RoomVerdict>((resolve, reject) => {
-    let started = false
-    const start = () => {
-      if (started) return
-      started = true
-      ask(GEMINI_MODEL, BACKUP_TIMEOUT_MS).then(resolve, reject)
-    }
-    const timer = setTimeout(start, HEDGE_MS)
-    primary.then(() => clearTimeout(timer), () => { clearTimeout(timer); start() })
-  })
-  return Promise.any([primary, backup])
+  return bothAgree(await Promise.all([ask(IMPORT_MODEL_FALLBACK), ask(GEMINI_MODEL)]))
+}
+
+/** Two verdicts → one: ok only when both are; else the stricter refusal (unsafe, then person, then personal details). Pure. */
+export function bothAgree(verdicts: RoomVerdict[]): RoomVerdict {
+  const order: RoomReason[] = ['unsafe', 'person', 'personal_details']
+  for (const reason of order) if (verdicts.some((v) => !v.ok && v.reason === reason)) return { ok: false, reason }
+  return { ok: true }
 }
 
 export { uploadedRoomUrl }

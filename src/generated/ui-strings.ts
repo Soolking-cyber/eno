@@ -2691,6 +2691,7 @@ export const UI_STRINGS: string[] = [
   "Remove banner",
   "Remove filter",
   "Remove for good",
+  "Remove from all my tutors",
   "Remove from list",
   "Remove my 3D face",
   "Remove my proof",

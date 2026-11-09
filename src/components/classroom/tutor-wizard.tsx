@@ -261,6 +261,14 @@ function RoomPicker({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<{ code: string; reason?: string } | null>(null)
   const input = useRef<HTMLInputElement | null>(null)
+  // Remove takes a second tap: it removes the photo from EVERY tutor that shows it (commit gate, opus). ⛔ The confirmation
+  // names ITS photo: picking another one in between cancels it, never moves it onto the new one (commit gate, codex).
+  const [confirming, setConfirming] = useState<string | null>(null)
+  useEffect(() => { setConfirming(null) }, [d.backgroundId])
+  // ⛔ An answer that lands after this step was left (Next) changes nothing: the draft it holds is stale (commit gate, codex).
+  // Set true on every mount — a remount (React's development double-run) must not leave it false.
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   // The draft as it is NOW: a choice made while a photo was being checked is never overwritten by the answer.
   const latest = useRef(d)
   latest.current = d
@@ -279,6 +287,7 @@ function RoomPicker({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
     const pickedAtStart = latest.current.backgroundId ?? latest.current.traits.background
     const small = await compressImageFile(file).catch(() => file)
     const r = await api<{ id: string; backgrounds: Upload[] }>('/api/classroom/backgrounds', { raw: small, headers: { 'content-type': small.type || 'application/octet-stream' } })
+    if (!mounted.current) return
     setBusy(false)
     if (!r.ok) return setErr({ code: r.error, reason: typeof r.body.reason === 'string' ? r.body.reason : undefined })
     setUploads(r.data.backgrounds)
@@ -287,7 +296,9 @@ function RoomPicker({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
   const remove = async (id: string) => {
     setBusy(true); setErr(null)
     const r = await api(`/api/classroom/backgrounds/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    if (!mounted.current) return
     setBusy(false)
+    setConfirming(null)
     if (!r.ok) return setErr({ code: r.error })
     setUploads((u) => (u ?? []).filter((x) => x.id !== id))
     if (latest.current.backgroundId === id) setD({ ...latest.current, backgroundId: null })
@@ -334,15 +345,24 @@ function RoomPicker({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
         <div className="flex flex-col gap-2 pt-2">
           <div className="flex flex-wrap gap-2">
             {/* A hidden file input behind a Button: Base UI has no file picker (the business-verification panel's pattern). */}
-            <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" hidden
+            {/* No HEIC on the list: an iPhone then hands over a JPEG, which the server reads (it has no HEIC decoder). */}
+            <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" hidden
               onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = '' }} />
             <Button variant="outline" className="min-h-11 whitespace-normal" loading={busy} onClick={() => input.current?.click()}>
               <ImagePlus aria-hidden />{busy ? tr('Checking your photo…', 'Đang kiểm tra ảnh…') : tr('Upload a photo', 'Tải ảnh lên')}
             </Button>
-            {d.backgroundId && (
-              <Button variant="ghost" className="min-h-11 text-destructive" disabled={busy} onClick={() => { if (d.backgroundId) void remove(d.backgroundId) }}>
+            {d.backgroundId && confirming !== d.backgroundId && (
+              <Button variant="ghost" className="min-h-11 text-destructive" disabled={busy} onClick={() => setConfirming(d.backgroundId)}>
                 <Trash2 aria-hidden />{tr('Remove this photo', 'Xoá ảnh này')}
               </Button>
+            )}
+            {d.backgroundId && confirming === d.backgroundId && (
+              <>
+                <Button variant="destructive" className="min-h-11 whitespace-normal" loading={busy} onClick={() => { if (confirming) void remove(confirming) }}>
+                  {tr('Remove from all my tutors', 'Xoá khỏi mọi gia sư của tôi')}
+                </Button>
+                <Button variant="ghost" className="min-h-11" disabled={busy} onClick={() => setConfirming(null)}>{tr('Cancel', 'Huỷ')}</Button>
+              </>
             )}
           </div>
           <p className="text-xs text-ink-4">{tr(

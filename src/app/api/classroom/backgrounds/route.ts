@@ -32,8 +32,8 @@ export const GET = route({ auth: 'profile' }, async ({ profile }) => {
 })
 
 /**
- * POST /api/classroom/backgrounds — upload a room (the image's bytes as the body: JPEG, PNG, WebP or HEIC/AVIF that sharp
- * reads, ≤12 MB). Cropped to the call screen, checked (backgrounds-upload.ts — no person, nothing unsafe, no personal
+ * POST /api/classroom/backgrounds — upload a room (the image's bytes as the body: JPEG, PNG or WebP — the page turns an
+ * iPhone's HEIC into JPEG first — ≤12 MB). Cropped to the call screen, checked (backgrounds-upload.ts — no person, nothing unsafe, no personal
  * details; NO ANSWER REFUSES), and kept only when it passes. Refusals: `background_refused` + `reason`, or
  * `background_check_unavailable` (try again) — a refused picture is not stored anywhere.
  */
@@ -48,6 +48,7 @@ export const POST = route({ auth: 'profile', rateLimit: { bucket: 'classroom-bac
   try {
     prepared = await prepareBackground(bytes)
   } catch {
+    // Not an image, or one too detailed to fit even at the lowest quality: either way, "try another photo".
     throw new ApiError('background_not_image', 400)
   }
   const ai = getGeminiVertex()

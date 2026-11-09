@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/db', () => ({ db: {} }))
 
-const { prepareBackground, roomOf, roomVerdict, FULL, THUMB } = await import('./backgrounds-upload')
+const { bothAgree, prepareBackground, roomOf, roomVerdict, FULL, THUMB, MAX_IMAGE_BYTES } = await import('./backgrounds-upload')
 const { getSharp } = await import('@/lib/sharp-lazy')
 
 // Owner, 2026-11-09: "changable backgrounds where they can upload or use from existing backgrounds". Children see these.
@@ -23,7 +23,21 @@ describe('the check decides in code, from the model\'s facts — and anything un
   })
 })
 
+describe('⛔ both models decide (the faster one never decides alone)', () => {
+  it('kept only when both say ok; either refusing refuses, the stricter reason first', () => {
+    expect(bothAgree([{ ok: true }, { ok: true }])).toEqual({ ok: true })
+    expect(bothAgree([{ ok: true }, { ok: false, reason: 'person' }])).toEqual({ ok: false, reason: 'person' })
+    expect(bothAgree([{ ok: false, reason: 'personal_details' }, { ok: false, reason: 'unsafe' }])).toEqual({ ok: false, reason: 'unsafe' })
+  })
+})
+
 describe('the picture kept is the crop students see, with no metadata', () => {
+  it('⛔ a very detailed picture still fits the database\'s 1 MB bound (encoded again, lower)', async () => {
+    const sharp = await getSharp()
+    const noise = await sharp({ create: { width: 1080, height: 1920, channels: 3, background: '#808080', noise: { type: 'gaussian', mean: 128, sigma: 90 } } }).png().toBuffer()
+    const { image } = await prepareBackground(noise)
+    expect(image.length).toBeLessThanOrEqual(MAX_IMAGE_BYTES)
+  }, 30_000) // five encodes of a 1080×1920 picture: ~3.5 s alone, far more under a loaded full run
   it('⛔ a phone photo with EXIF and GPS comes out 9:16, as WebP, carrying neither', async () => {
     const sharp = await getSharp()
     const photo = await sharp({ create: { width: 2400, height: 1600, channels: 3, background: '#7a9' } })
