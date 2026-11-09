@@ -22,7 +22,7 @@ import { PANEL_BUTTON, Panel } from './panel'
 
 type Loaded = {
   teacher: { fullName: string; photoUrl: string | null; nationality: string; open: boolean }
-  tutor: { id: string; name: string; bestFor: string; voice: string; look: string; libraryAvatarId: string | null; customStatus: string; traits: unknown; students: number }
+  tutor: { id: string; name: string; bestFor: string; voice: string; look: string; libraryAvatarId: string | null; customStatus: string; traits: unknown; students: number; backgroundUrl: string | null; backgroundThumbUrl: string | null }
 }
 
 /** A page action: a 44px target that shares its row, its label wrapping (Vietnamese runs long) rather than spilling. */
@@ -103,7 +103,7 @@ function TutorDetailFor({ tutorId }: { tutorId: string }) {
       </Link>
 
       <div className="flex flex-col items-center gap-3 text-center">
-        <TutorFace tutor={{ name: tutor.name, look: tutor.look, libraryAvatarId: tutor.libraryAvatarId, background }} photoUrl={teacher.photoUrl} size="lg" className="max-w-44" />
+        <TutorFace tutor={{ name: tutor.name, look: tutor.look, libraryAvatarId: tutor.libraryAvatarId, background, backgroundThumbUrl: tutor.backgroundThumbUrl }} photoUrl={teacher.photoUrl} size="lg" className="max-w-44" />
         <div className="flex min-w-0 max-w-full flex-col items-center gap-1">
           <h1 className="h-title min-w-0 max-w-full truncate">{tutor.name}</h1>
           {tutor.bestFor && <p className="text-sm text-body">{tutor.bestFor}</p>}
@@ -114,7 +114,7 @@ function TutorDetailFor({ tutorId }: { tutorId: string }) {
         </div>
         <div className="flex w-full max-w-sm gap-2">
           {teacher.open && (
-            <SessionLauncher test tutorId={tutor.id} preview={{ name: tutor.name, photoUrl: teacher.photoUrl, background }}
+            <SessionLauncher test tutorId={tutor.id} preview={{ name: tutor.name, photoUrl: teacher.photoUrl, background, backgroundUrl: tutor.backgroundUrl }}
               variant="cta" className={`${ACTION} flex-1`} label={<><Mic aria-hidden />{tr('Try it', 'Thử ngay')}</>} />
           )}
           <Button variant="outline" className={`${ACTION} flex-1`} asChild>

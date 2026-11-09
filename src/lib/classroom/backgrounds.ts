@@ -25,3 +25,6 @@ export const isBackground = (v: unknown): v is Background => typeof v === 'strin
 export const backgroundImage = (b: Background): string | null => (b === 'plain' ? null : `/classroom/backgrounds/${b}.webp`)
 /** Its small version for the teacher's picker, or null for `plain`. */
 export const backgroundThumb = (b: Background): string | null => (b === 'plain' ? null : `/classroom/backgrounds/${b}-thumb.webp`)
+
+/** Where a teacher's uploaded room is served (only to that teacher, their students and admins — the route checks). Client-safe. */
+export const uploadedRoomUrl = (id: string, size: 'full' | 'thumb') => `/api/classroom/backgrounds/${encodeURIComponent(id)}/image${size === 'thumb' ? '?size=thumb' : ''}`

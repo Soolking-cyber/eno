@@ -95,7 +95,7 @@ function TodayCard({ seat }: { seat: Seat }) {
         ) : (
           <SessionLauncher
             seatId={seat.id}
-            preview={{ name: seat.avatarName, photoUrl: seat.teacherPhotoUrl, background: seat.avatarBackground }}
+            preview={{ name: seat.avatarName, photoUrl: seat.teacherPhotoUrl, background: seat.avatarBackground, backgroundUrl: seat.avatarBackgroundUrl }}
             variant="cta"
             size="lg"
             className="min-h-12 w-full max-w-xs"

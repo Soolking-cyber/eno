@@ -10,6 +10,8 @@ import { TEACHER_SURFACE_ORIGIN } from '@/lib/teachers/surface'
 import { budgetUse } from '@/lib/classroom/budget'
 import { markLikenessDeleted, pendingLikenessDeletions } from '@/lib/classroom/likeness'
 import { libraryAvatarById } from '@/lib/classroom/library-avatars'
+import { uploadedRoomUrl } from '@/lib/classroom/backgrounds'
+import { appendAudit } from '@/lib/compliance/audit'
 
 export const runtime = 'nodejs'
 // "Retry the report" builds it inside the request (2c round 2, opus): the model's own deadlines fit well inside this.
@@ -43,6 +45,7 @@ const postBody = z.discriminatedUnion('action', [
   z.strictObject({ action: z.literal('likeness-ready'), avatarId: z.string().max(40), spatiusAvatarId: z.string().trim().min(4).max(120).regex(/^[A-Za-z0-9_-]+$/) }),
   z.strictObject({ action: z.literal('likeness-deleted'), spatiusAvatarId: z.string().trim().min(4).max(120) }),
   z.strictObject({ action: z.literal('retry-report'), sessionId: z.string().max(40) }),
+  z.strictObject({ action: z.literal('background-remove'), backgroundId: z.string().min(1).max(64) }),
 ])
 
 type ConfigRow = { mode: string; cohort: string[]; day_minutes: number; month_minutes: number; teacher_month_minutes: number; spatius_children_ok: boolean; updated_at: Date; updated_by: string | null; swept_at: Date | null }
@@ -60,7 +63,7 @@ async function describe() {
   const ids = r?.cohort ?? []
   const people = ids.length ? await db.profile.findMany({ where: { id: { in: ids } }, select: { id: true, email: true } }) : []
   const monthStart = new Date(Date.now() - 31 * 86_400_000)
-  const [use, sessions, likeness, failed, flagged, consentRows] = await Promise.all([
+  const [use, sessions, likeness, failed, flagged, consentRows, rooms] = await Promise.all([
     db.$transaction((tx) => budgetUse(tx, '')),
     db.classroomSession.aggregate({ where: { startedAt: { gte: monthStart } }, _count: { _all: true }, _sum: { costMicroUsd: true, usedSeconds: true } }),
     db.classroomAvatar.findMany({
@@ -85,6 +88,12 @@ async function describe() {
       SELECT DISTINCT ON (detail->>'avatarId') detail->>'avatarId' AS avatar_id, detail->>'photoUrl' AS photo_url
         FROM compliance_audit WHERE action = 'classroom.photo.consent'
        ORDER BY detail->>'avatarId', "occurredAt" DESC`,
+    // Teachers' uploaded rooms, newest first — every one already passed the check; an admin takes one down here.
+    // EVERY live one (an older live picture must never fall off the list — commit gate, codex + opus), then the last 20 removed.
+    Promise.all([
+      db.classroomBackground.findMany({ where: { status: 'ok' }, orderBy: { createdAt: 'desc' }, select: { id: true, status: true, createdAt: true, removedBy: true, teacherProfile: { select: { fullName: true, profile: { select: { email: true } } } } } }),
+      db.classroomBackground.findMany({ where: { status: 'removed' }, orderBy: { removedAt: 'desc' }, take: 20, select: { id: true, status: true, createdAt: true, removedBy: true, teacherProfile: { select: { fullName: true, profile: { select: { email: true } } } } } }),
+    ]).then(([live, removed]) => [...live, ...removed]),
   ])
   const consented = new Map(consentRows.flatMap((r) => (r.photo_url ? [[r.avatar_id, r.photo_url] as const] : [])))
   return {
@@ -108,6 +117,7 @@ async function describe() {
       status: a.customStatus, spatiusAvatarId: a.spatiusAvatarId, consentAt: a.photoConsentAt?.toISOString() ?? null,
     })),
     deletions: (await pendingLikenessDeletions()).map((d) => ({ spatiusAvatarId: d.spatius_avatar_id, reason: d.reason, queuedAt: d.queued_at.toISOString() })),
+    rooms: rooms.map((b) => ({ id: b.id, status: b.status, removedBy: b.removedBy, at: b.createdAt.toISOString(), teacher: b.teacherProfile.fullName, email: b.teacherProfile.profile.email, thumbUrl: uploadedRoomUrl(b.id, 'thumb') })),
     failedReports: failed.map((s) => ({ sessionId: s.id, startedAt: s.startedAt.toISOString(), avatar: s.avatar.name })),
     flagged: flagged.map((f) => ({
       sessionId: f.sessionId, at: f.createdAt.toISOString(), avatar: f.session.avatar.name,
@@ -166,6 +176,17 @@ export const PUT = route({ auth: 'admin', body: putBody }, async ({ admin, body 
 export const POST = route({ auth: 'admin', body: postBody }, async ({ admin, body }) => {
   if (body.action === 'likeness-deleted') {
     await markLikenessDeleted(body.spatiusAvatarId, admin)
+    return describe()
+  }
+  if (body.action === 'background-remove') {
+    // A takedown: the picture stops being served at once, and the tutors showing it fall back to their library room. WHO took
+    // it down is on the audit chain (commit gate, opus).
+    await db.$transaction(async (tx) => {
+      const bg = await tx.classroomBackground.findUnique({ where: { id: body.backgroundId }, select: { teacherProfile: { select: { profileId: true } } } })
+      const done = await tx.classroomBackground.updateMany({ where: { id: body.backgroundId, status: 'ok' }, data: { status: 'removed', removedBy: 'admin', removedAt: new Date() } })
+      // The subject is the teacher whose picture it was (the audit's subjects are people, listings, sellers and consents).
+      if (done.count && bg) await appendAudit(tx, { actorType: 'admin', actorId: admin, action: 'classroom.background.removed', subjectType: 'profile', subjectId: bg.teacherProfile.profileId, detail: { backgroundId: body.backgroundId } })
+    })
     return describe()
   }
   if (body.action === 'retry-report') {

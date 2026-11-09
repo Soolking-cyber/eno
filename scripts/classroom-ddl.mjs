@@ -27,10 +27,11 @@ const check = process.argv.includes('--check')
 const url = process.env.DIRECT_URL || process.env.DATABASE_URL
 if (!url) { console.error('Set DIRECT_URL'); process.exit(1) }
 
-const TABLES = ['ClassroomAvatar', 'ClassroomLearner', 'ClassroomEnrollment', 'ClassroomPlan', 'ClassroomSession', 'ClassroomTurn', 'ClassroomFeedback', 'classroom_config', 'classroom_likeness_deletion']
+const TABLES = ['ClassroomBackground', 'ClassroomAvatar', 'ClassroomLearner', 'ClassroomEnrollment', 'ClassroomPlan', 'ClassroomSession', 'ClassroomTurn', 'ClassroomFeedback', 'classroom_config', 'classroom_likeness_deletion']
 
 // FKs — Prisma's own names and actions, so `prisma migrate diff` shows no drift for them.
 const FKS = [
+  ['ClassroomBackground', 'teacherProfileId', 'TeacherProfile'],
   ['ClassroomAvatar', 'teacherProfileId', 'TeacherProfile'],
   ['ClassroomLearner', 'ownerId', 'Profile'],
   ['ClassroomEnrollment', 'avatarId', 'ClassroomAvatar'],
@@ -268,6 +269,25 @@ process.on('unhandledRejection', async (e) => { console.error(e); try { await cl
 const exists = await client.query(`select to_regclass('public."TeacherProfile"') as t`)
 if (!exists.rows[0].t) { console.error('TeacherProfile does not exist — run the teacher DDL first.'); process.exit(1) }
 
+// A teacher's uploaded rooms (2026-11-09) — a NEW table, made empty, so its index is built here. Bounded: a stored picture
+// is at most ~1 MB (backgrounds-upload.ts makes ~150–300 KB), its thumbnail at most 200 KB.
+await client.query(`
+  create table if not exists "ClassroomBackground" (
+    "id" text not null,
+    "teacherProfileId" text not null,
+    "status" text not null default 'ok',
+    "removedBy" text,
+    "removedAt" timestamp(3),
+    "image" bytea not null,
+    "thumb" bytea not null,
+    "createdAt" timestamp(3) not null default current_timestamp,
+    constraint "ClassroomBackground_pkey" primary key ("id"),
+    constraint "ClassroomBackground_status_check" check ("status" in ('ok', 'removed')),
+    constraint "ClassroomBackground_removed_rules" check ((("status" = 'removed') = ("removedAt" is not null)) and ("removedBy" is null or "removedBy" in ('teacher', 'admin'))),
+    constraint "ClassroomBackground_size_bounds" check (char_length("id") <= 64 and octet_length("image") between 1 and 1048576 and octet_length("thumb") between 1 and 204800)
+  )`)
+await ensureIndex(`create index if not exists "ClassroomBackground_teacherProfileId_status_idx" on "ClassroomBackground"("teacherProfileId", "status")`)
+
 await client.query(`
   create table if not exists "ClassroomAvatar" (
     "id" text not null,
@@ -288,7 +308,9 @@ await client.query(`
     "updatedAt" timestamp(3) not null default current_timestamp,
     "bestFor" text not null default '',
     "archivedAt" timestamp(3),
+    "backgroundId" text,
     constraint "ClassroomAvatar_pkey" primary key ("id"),
+    constraint "ClassroomAvatar_backgroundId_check" check ("backgroundId" is null or char_length("backgroundId") <= 64),
     constraint "ClassroomAvatar_bestFor_check" check (char_length("bestFor") <= 80),
     constraint "ClassroomAvatar_archivedAt_check" check ("archivedAt" is null or "archivedAt" >= "createdAt"),
     constraint "ClassroomAvatar_look_check" check ("look" in ('photo', 'library', 'custom')),
@@ -307,6 +329,7 @@ await client.query(`
   )`)
 await ensureColumn('ClassroomAvatar', 'bestFor', `text not null default ''`, `char_length("bestFor") <= 80`)
 await ensureColumn('ClassroomAvatar', 'archivedAt', 'timestamp(3)', `"archivedAt" is null or "archivedAt" >= "createdAt"`)
+await ensureColumn('ClassroomAvatar', 'backgroundId', 'text', `"backgroundId" is null or char_length("backgroundId") <= 64`)
 // Several tutors per teacher (2026-11-09): a plain index, made CONCURRENTLY before the transaction on a table that holds rows
 // (the step above `begin`); here it is only declared (and made on a fresh database).
 await ensureIndex(`create index if not exists "ClassroomAvatar_teacherProfileId_idx" on "ClassroomAvatar"("teacherProfileId")`)

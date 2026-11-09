@@ -153,7 +153,7 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
   /** Which of the teacher's tutors a `test` tries (several since 2026-11-09); the oldest when left out. */
   tutorId?: string
   /** Shown before the session exists: the avatar's name and the teacher's photo. */
-  preview: { name: string; photoUrl: string | null; background?: Background }
+  preview: { name: string; photoUrl: string | null; background?: Background; backgroundUrl?: string | null }
   onClose: () => void
 }) {
   const { tr, lang } = useLanguage()
@@ -1144,7 +1144,10 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
   const secs = String(left % 60).padStart(2, '0')
   const name = start?.avatar.name ?? preview.name
   // The room the teacher set behind the avatar (backgrounds.ts): the intro shows the preview's, the session its own.
-  const room = backgroundImage(start?.avatar.background ?? preview.background ?? DEFAULT_BACKGROUND)
+  // A teacher's uploaded room (backgroundUrl — backgrounds-upload.ts roomOf) when there is one; else the library room's picture.
+  const room = start
+    ? (start.avatar.backgroundUrl !== undefined ? start.avatar.backgroundUrl : backgroundImage(start.avatar.background ?? DEFAULT_BACKGROUND))
+    : (preview.backgroundUrl !== undefined ? preview.backgroundUrl : backgroundImage(preview.background ?? DEFAULT_BACKGROUND))
   // ⛔ 'gone' first, whatever the phase or the mute (review, codex + opus): the session is about to end — say why.
   const status = hearing === 'gone' && phase !== 'ending' ? tr("Can't hear you right now — the practice will end", 'Hiện không nghe được — buổi luyện tập sẽ kết thúc')
     : muted ? tr('Muted', 'Đã tắt micro')

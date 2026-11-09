@@ -20,6 +20,7 @@ type State = {
   likeness: { avatarId: string; avatarName: string; teacher: string; email: string | null; photoUrl: string | null; consentAt: string | null }[]
   deletions: { spatiusAvatarId: string; reason: string; queuedAt: string }[]
   failedReports: { sessionId: string; startedAt: string; avatar: string }[]
+  rooms: { id: string; status: string; removedBy: string | null; at: string; teacher: string; email: string | null; thumbUrl: string }[]
   flagged: { sessionId: string; at: string; avatar: string; teacher: string; teacherEmail: string | null; learner: string; said: string; reply: string }[]
 } | { tables: false }
 
@@ -130,6 +131,22 @@ export function ClassroomAdminClient() {
               <span className="text-ink-4">{new Date(f.at).toLocaleString()} · {f.learner} · {f.teacher} ({f.teacherEmail ?? 'no email'}) · “{f.avatar}” · <code>{f.sessionId}</code></span>
               <span className="text-ink">Learner: “{f.said}”</span>
               <span className="text-ink-3">Avatar: “{f.reply}”</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Teachers' uploaded rooms (2026-11-09): each passed the AI check before it was kept; a takedown here stops it being
+          served at once, and its tutors fall back to their library room. */}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-bold text-ink">Uploaded rooms ({s.rooms.filter((r) => r.status === 'ok').length} live)</h2>
+        <ul className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+          {s.rooms.map((r) => (
+            <li key={r.id} className="flex flex-col gap-1 text-xs">
+              <img src={r.thumbUrl} alt="" width={96} height={170} loading="lazy" className={`aspect-[9/16] h-auto w-full rounded-xl object-cover${r.status === 'ok' ? '' : ' opacity-40'}`} />
+              <span className="truncate text-ink">{r.teacher}</span>
+              <span className="truncate text-ink-4">{new Date(r.at).toLocaleDateString()}{r.status === 'ok' ? '' : ` · removed by ${r.removedBy ?? '?'}`}</span>
+              {r.status === 'ok' && <Button size="sm" variant="outline" onClick={() => call('POST', { action: 'background-remove', backgroundId: r.id })}>Take down</Button>}
             </li>
           ))}
         </ul>

@@ -101,6 +101,7 @@ const RAW_CONTROL_ALLOW = [
   { file: 'src/app/[lang]/reports/[id]/page.tsx', match: 'type="file"', reason: 'hidden screenshot input inside the Add <label>' },
   { file: 'src/components/admin/admin-brands-client.tsx', match: 'type="file"', reason: 'hidden .svg input inside the Upload <label>; needs the raw node for its value="" reset' },
   { file: 'src/app/[lang]/dashboard/visa/apply/apply-client.tsx', match: 'type="file"', reason: 'hidden visa passport/portrait input inside the dashed dropzone <label> (forum-ported UploadCard); needs the raw node for its value="" re-pick reset' },
+  { file: 'src/components/classroom/tutor-wizard.tsx', match: 'type="file"', reason: 'hidden room-photo input, fired by its Upload button via a ref; needs the raw node for the value="" re-pick reset' },
   { file: 'src/components/marketplace/business-verification-panel.tsx', match: 'type="file"', reason: 'two hidden identity/bank document inputs, fired by their Upload buttons via refs; need the raw node for the value="" re-pick reset' },
   { file: 'src/components/teachers/teacher-import-panel.tsx', match: 'type="file"', reason: 'hidden CV input fired by the "Agree & choose my CV" button via a ref (the button IS the consent act, so it cannot be a <label>); needs the raw node for the value="" re-pick reset (teacher CV import, 2026-10-15)' },
 

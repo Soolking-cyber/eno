@@ -21,6 +21,7 @@ import { containsContactInfo } from '@/lib/publish-guard'
 import { containsPhoneNumber } from '@/lib/phone'
 import { isStaffProfile } from '@/lib/user-blocks'
 import { defaultTutor } from './tutors'
+import { okRoomIds, roomOf } from './backgrounds-upload'
 
 /**
  * START A SESSION (plan "Concurrency, limits and budget"). ONE transaction under two locks:
@@ -43,7 +44,9 @@ export type StartedSession = {
   mode: 'avatar' | 'voice'
   resumed: boolean
   /** `background`: the room the teacher set behind the avatar (backgrounds.ts). */
-  avatar: { name: string; photoUrl: string | null; voice: string; spatiusAvatarId: string | null; background: Background }
+  /** `backgroundUrl`: the room to draw — the teacher's uploaded one while it is ok, else the library room's picture (null =
+   *  the plain colour) — backgrounds-upload.ts roomOf. */
+  avatar: { name: string; photoUrl: string | null; voice: string; spatiusAvatarId: string | null; background: Background; backgroundUrl: string | null }
   learnerName: string
   band: AgeBand
   opening: { text: string; audio: string | null; expect: string | null }
@@ -268,6 +271,7 @@ export async function startLearnerSession(seatId: string, accountId: string, now
     avatar: {
       name: seat.avatar.name, photoUrl: seat.avatar.teacherProfile.photoUrl, voice: seat.avatar.voice,
       spatiusAvatarId: result.session.mode === 'avatar' ? face.spatiusAvatarId : null, background: parseTraits(seat.avatar.traits).background,
+      backgroundUrl: roomOf(seat.avatar, await okRoomIds([seat.avatar.backgroundId])).backgroundUrl,
     },
     learnerName: learner.displayName,
     band,
@@ -408,6 +412,7 @@ export async function startTeacherTest(accountId: string, tutorId?: string, now 
     avatar: {
       name: avatar.name, photoUrl: tp.photoUrl, voice: avatar.voice, spatiusAvatarId: session.mode === 'avatar' ? sessionFace.spatiusAvatarId : null,
       background: parseTraits(avatar.traits).background,
+      backgroundUrl: roomOf(avatar, await okRoomIds([avatar.backgroundId])).backgroundUrl,
     },
     learnerName: '',
     band: 'adult',

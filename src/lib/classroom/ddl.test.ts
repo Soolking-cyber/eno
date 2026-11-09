@@ -3,8 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   ASSESS_STATUSES, AVATAR_LOOKS, TURN_FLAGS, TURN_STATUSES, CUSTOM_STATUSES, END_REASONS, FEEDBACK_STATUSES, LEARNER_KINDS, LEVELS, PLAN_SOURCES,
-  PLAN_STATUSES, SEAT_STATUSES, SESSION_MINUTES, SESSION_MODES, SESSION_STATUSES, STRICTNESS,
-} from './constants'
+  PLAN_STATUSES, SEAT_STATUSES, SESSION_MINUTES, SESSION_MODES, SESSION_STATUSES, STRICTNESS, BACKGROUND_STATUSES } from './constants'
 
 /**
  * scripts/classroom-ddl.mjs creates these tables by hand (CLAUDE.md: `prisma db push` would drop the tables Prisma does not
@@ -14,9 +13,9 @@ import {
 const ROOT = join(__dirname, '../../..')
 const SCHEMA = readFileSync(join(ROOT, 'prisma/schema.prisma'), 'utf8')
 const DDL = readFileSync(join(ROOT, 'scripts/classroom-ddl.mjs'), 'utf8')
-const MODELS = ['ClassroomAvatar', 'ClassroomLearner', 'ClassroomEnrollment', 'ClassroomPlan', 'ClassroomSession', 'ClassroomTurn', 'ClassroomFeedback']
-const SCALARS = new Set(['String', 'Boolean', 'Int', 'Float', 'DateTime', 'Json', 'BigInt', 'Decimal'])
-const DDL_TYPE: Record<string, string> = { String: 'text', Boolean: 'boolean', Int: 'integer', DateTime: 'timestamp(3)', Json: 'jsonb' }
+const MODELS = ['ClassroomBackground', 'ClassroomAvatar', 'ClassroomLearner', 'ClassroomEnrollment', 'ClassroomPlan', 'ClassroomSession', 'ClassroomTurn', 'ClassroomFeedback']
+const SCALARS = new Set(['String', 'Boolean', 'Int', 'Float', 'DateTime', 'Json', 'BigInt', 'Decimal', 'Bytes'])
+const DDL_TYPE: Record<string, string> = { String: 'text', Boolean: 'boolean', Int: 'integer', DateTime: 'timestamp(3)', Json: 'jsonb', Bytes: 'bytea' }
 
 const modelBody = (model: string) => {
   const body = new RegExp(`model ${model} \\{([\\s\\S]*?)\\n\\}`).exec(SCHEMA)?.[1]
@@ -125,6 +124,7 @@ describe('scripts/classroom-ddl.mjs ↔ prisma/schema.prisma', () => {
 
 describe('every CHECK list is the constants list the API validates with', () => {
   const cases: [string, string, readonly (string | number)[]][] = [
+    ['ClassroomBackground', 'status', BACKGROUND_STATUSES],
     ['ClassroomAvatar', 'look', AVATAR_LOOKS],
     ['ClassroomAvatar', 'customStatus', CUSTOM_STATUSES],
     ['ClassroomLearner', 'kind', LEARNER_KINDS],

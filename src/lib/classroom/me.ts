@@ -6,6 +6,7 @@ import { effectiveMinutes, ictDayStart, ictWeekStart } from './limits'
 import { parseFocus, pickPlan } from './plans'
 import { parseTraits } from './persona'
 import type { Background } from './backgrounds'
+import { okRoomIds, roomOf } from './backgrounds-upload'
 
 /**
  * What /classroom shows a signed-in account (GET /api/classroom/me): their teacher side (when they have a TeacherProfile)
@@ -23,7 +24,7 @@ export type ClassroomMe = {
     nationality: string
     open: boolean
     /** The teacher's tutors, oldest first (several since 2026-11-09; archived ones left out). */
-    tutors: { id: string; name: string; bestFor: string; look: string; customStatus: string; libraryAvatarId: string | null; voice: string; background: Background; students: number }[]
+    tutors: { id: string; name: string; bestFor: string; look: string; customStatus: string; libraryAvatarId: string | null; voice: string; background: Background; backgroundThumbUrl: string | null; students: number }[]
   }
   learners: {
     id: string
@@ -38,6 +39,8 @@ export type ClassroomMe = {
       avatarName: string
       /** The room the teacher set behind the avatar (backgrounds.ts) — the session's intro shows it before Start. */
       avatarBackground: Background
+      /** The room's picture to draw (the teacher's uploaded one while ok, else the library one; null = plain colour). */
+      avatarBackgroundUrl: string | null
       open: boolean
       minutes: number
       sessionsPerWeek: number
@@ -59,7 +62,7 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
       classroomAvatars: {
         where: { archivedAt: null },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-        select: { id: true, name: true, bestFor: true, look: true, customStatus: true, libraryAvatarId: true, voice: true, traits: true, _count: { select: { seats: { where: { status: { not: 'removed' } } } } } },
+        select: { id: true, name: true, bestFor: true, look: true, customStatus: true, libraryAvatarId: true, voice: true, traits: true, backgroundId: true, _count: { select: { seats: { where: { status: { not: 'removed' } } } } } },
       },
     },
   })
@@ -73,7 +76,7 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
         orderBy: { claimedAt: 'asc' },
         select: {
           id: true, status: true, sessionMinutes: true, sessionsPerWeek: true,
-          avatar: { select: { name: true, traits: true, teacherProfile: { select: { fullName: true, photoUrl: true, profileId: true } } } },
+          avatar: { select: { name: true, traits: true, backgroundId: true, teacherProfile: { select: { fullName: true, photoUrl: true, profileId: true } } } },
           plans: { where: { status: { not: 'used' } }, orderBy: { updatedAt: 'desc' }, take: 10 },
           sessions: {
             orderBy: { startedAt: 'desc' },
@@ -86,6 +89,8 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
     },
   })
 
+  // The uploaded rooms still ok, for every tutor on this page — one query.
+  const okRooms = await okRoomIds([...(tp?.classroomAvatars ?? []).map((t) => t.backgroundId), ...learners.flatMap((l) => l.seats.map((s) => s.avatar.backgroundId))])
   // One switch read per distinct teacher account (the cache makes repeats free).
   const openCache = new Map<string, Promise<boolean>>()
   const openFor = (accountId: string) => {
@@ -100,7 +105,7 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
       photoUrl: tp.photoUrl,
       nationality: tp.nationality,
       open: await openFor(profileId),
-      tutors: tp.classroomAvatars.map(({ traits, _count, ...a }) => ({ ...a, background: parseTraits(traits).background, students: _count.seats })),
+      tutors: tp.classroomAvatars.map(({ traits, _count, backgroundId, ...a }) => ({ ...a, background: parseTraits(traits).background, backgroundThumbUrl: roomOf({ traits, backgroundId }, okRooms).backgroundThumbUrl, students: _count.seats })),
     },
     learners: await Promise.all(learners.map(async (l) => ({
       id: l.id,
@@ -123,6 +128,7 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
           teacherPhotoUrl: s.avatar.teacherProfile.photoUrl,
           avatarName: s.avatar.name,
           avatarBackground: parseTraits(s.avatar.traits).background,
+          avatarBackgroundUrl: roomOf(s.avatar, okRooms).backgroundUrl,
           open: await openFor(s.avatar.teacherProfile.profileId),
           minutes: effectiveMinutes(s.sessionMinutes, kind, l.birthYear, now),
           sessionsPerWeek: s.sessionsPerWeek,

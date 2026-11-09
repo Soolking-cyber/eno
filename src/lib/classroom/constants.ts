@@ -75,6 +75,9 @@ export type AvatarLook = (typeof AVATAR_LOOKS)[number]
  * the queue, consent and deletion paths stay built for when it opens.
  */
 export const LIKENESS_REQUESTS_OPEN: boolean = false
+/** Teachers upload their own rooms behind their tutors (2026-11-09) — every picture checked first (backgrounds-upload.ts). The
+ * classroom's own switch (config.ts) still decides who can use it at all; this one closes uploads alone. */
+export const BACKGROUND_UPLOADS_OPEN: boolean = true
 export const CUSTOM_STATUSES = ['none', 'requested', 'ready', 'removed'] as const
 export type CustomStatus = (typeof CUSTOM_STATUSES)[number]
 
@@ -116,6 +119,8 @@ export const LIMITS = {
   seatsPerTeacher: 30,
   /** A student who has not spoken in a session for this many days shows as Inactive on the teacher's roster. */
   inactiveDays: 14,
+  /** Rooms a teacher keeps uploaded at once (removed ones don't count) — each is up to ~1 MB in the database. */
+  backgroundsPerTeacher: 12,
   /** Tutors a teacher keeps at once (owner, 2026-11-09: a tutor for each student); archived ones don't count. */
   tutorsPerTeacher: 5,
 } as const
@@ -126,3 +131,6 @@ export const CHILD_ASSENT_AGE = 7
 export const SPATIUS_CHILD_AGE = 13
 /** The oldest a CHILD learner can be: 18+ practise as themselves (eno's Terms: account holders are adults). */
 export const ADULT_AGE = 18
+
+/** A teacher's uploaded room (ClassroomBackground.status — the DDL's CHECK list). */
+export const BACKGROUND_STATUSES = ['ok', 'removed'] as const

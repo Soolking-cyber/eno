@@ -18,7 +18,7 @@ export function SessionLauncher({ seatId, test, tutorId, preview, label, variant
   /** The tutor a teacher's `test` tries (the oldest when left out). */
   tutorId?: string
   /** What the screen shows before Start: the avatar's name, the teacher's photo, the room behind the avatar. */
-  preview?: { name: string; photoUrl: string | null; background?: Background }
+  preview?: { name: string; photoUrl: string | null; background?: Background; backgroundUrl?: string | null }
   label: React.ReactNode
   variant?: 'cta' | 'outline'
   size?: 'sm' | 'lg'

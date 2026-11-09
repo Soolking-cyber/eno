@@ -7,6 +7,7 @@ import { LEVELS, LIMITS, SESSION_MINUTES, STRICTNESS, type Level, type SessionMi
 import { inviteCodeFrom } from './invite-code'
 import { cleanText, parseTraits } from './persona'
 import type { Background } from './backgrounds'
+import { okRoomIds, roomOf } from './backgrounds-upload'
 import { ageBand, ictWeekStart, type AgeBand } from './limits'
 
 export type SeatSettings = {
@@ -68,7 +69,7 @@ export type RosterSeat = {
   status: string
   seatName: string
   /** The seat's tutor (several per teacher since 2026-11-09). */
-  tutor: { id: string; name: string; look: string; libraryAvatarId: string | null; background: Background }
+  tutor: { id: string; name: string; look: string; libraryAvatarId: string | null; background: Background; backgroundThumbUrl: string | null }
   progress: SeatProgress
   /** Minutes spoken in this week's sessions, against the week's target (minutes × sessions a week). */
   minutesThisWeek: number
@@ -89,7 +90,7 @@ export async function listSeats(teacherProfileId: string, now = new Date()): Pro
     orderBy: { createdAt: 'asc' },
     include: {
       learner: { select: { displayName: true, kind: true, birthYear: true } },
-      avatar: { select: { id: true, name: true, look: true, libraryAvatarId: true, traits: true } },
+      avatar: { select: { id: true, name: true, look: true, libraryAvatarId: true, traits: true, backgroundId: true } },
       sessions: { orderBy: { startedAt: 'desc' }, take: 1, select: { startedAt: true } },
     },
   })
@@ -100,6 +101,7 @@ export async function listSeats(teacherProfileId: string, now = new Date()): Pro
     db.classroomSession.groupBy({ by: ['enrollmentId'], where: { enrollmentId: { in: ids }, feedbackStatus: 'ready', feedback: { is: { teacherSeenAt: null } } }, _count: { _all: true } }),
     db.classroomSession.groupBy({ by: ['enrollmentId'], where: { enrollmentId: { in: ids }, turnCount: { gt: 0 } }, _max: { startedAt: true } }),
   ]) : [[], [], []]
+  const okRooms = await okRoomIds(seats.map((s) => s.avatar.backgroundId))
   const weekBy = new Map(week.map((r) => [r.enrollmentId, r]))
   const unseenBy = new Map(unseen.map((r) => [r.enrollmentId, r._count._all]))
   const spokeBy = new Map(spoke.map((r) => [r.enrollmentId, r._max.startedAt]))
@@ -107,7 +109,7 @@ export async function listSeats(teacherProfileId: string, now = new Date()): Pro
     id: s.id,
     status: s.status,
     seatName: s.seatName,
-    tutor: { id: s.avatar.id, name: s.avatar.name, look: s.avatar.look, libraryAvatarId: s.avatar.libraryAvatarId, background: parseTraits(s.avatar.traits).background },
+    tutor: { id: s.avatar.id, name: s.avatar.name, look: s.avatar.look, libraryAvatarId: s.avatar.libraryAvatarId, background: parseTraits(s.avatar.traits).background, backgroundThumbUrl: roomOf(s.avatar, okRooms).backgroundThumbUrl },
     progress: progressOf({ status: s.status, lastSpokeAt: spokeBy.get(s.id) ?? null, sessionsThisWeek: weekBy.get(s.id)?._count._all ?? 0, sessionsPerWeek: s.sessionsPerWeek }, now),
     minutesThisWeek: Math.round((weekBy.get(s.id)?._sum.usedSeconds ?? 0) / 60),
     minutesTarget: s.sessionMinutes * s.sessionsPerWeek,

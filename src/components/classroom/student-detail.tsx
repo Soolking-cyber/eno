@@ -67,7 +67,7 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [invite, setInvite] = useState<string | null>(null)
   /** The teacher's tutors (several since 2026-11-09): the student's tutor is shown here and changed in Practice settings. */
-  const [tutors, setTutors] = useState<{ id: string; name: string; bestFor: string; look: string; libraryAvatarId: string | null; background: Background }[] | null>(null)
+  const [tutors, setTutors] = useState<{ id: string; name: string; bestFor: string; look: string; libraryAvatarId: string | null; background: Background; backgroundThumbUrl: string | null }[] | null>(null)
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   /** Dropped on unmount: an answer arriving after this account's page is gone sets nothing (C3c review, codex + Opus). */
   const live = useRef(true)
@@ -78,10 +78,10 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
   }), [seatId])
   useEffect(() => { void load() }, [load])
   useEffect(() => {
-    void api<{ teacher: { photoUrl: string | null }; tutors: { id: string; name: string; bestFor: string; look: string; libraryAvatarId: string | null; traits: unknown }[] }>('/api/classroom/tutors').then((r) => {
+    void api<{ teacher: { photoUrl: string | null }; tutors: { id: string; name: string; bestFor: string; look: string; libraryAvatarId: string | null; traits: unknown; backgroundThumbUrl: string | null }[] }>('/api/classroom/tutors').then((r) => {
       if (!live.current || !r.ok) return
       setPhotoUrl(r.data.teacher.photoUrl)
-      setTutors(r.data.tutors.map((t) => ({ id: t.id, name: t.name, bestFor: t.bestFor, look: t.look, libraryAvatarId: t.libraryAvatarId, background: parseTraits(t.traits).background })))
+      setTutors(r.data.tutors.map((t) => ({ id: t.id, name: t.name, bestFor: t.bestFor, look: t.look, libraryAvatarId: t.libraryAvatarId, background: parseTraits(t.traits).background, backgroundThumbUrl: t.backgroundThumbUrl })))
     })
   }, [])
 

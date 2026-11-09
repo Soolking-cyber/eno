@@ -128,6 +128,12 @@ export type NicheApiErrorCode =
   | 'token_limit'
   | 'turn_cap'
   | 'turn_in_progress'
+  // a teacher's uploaded rooms (2026-11-09, src/lib/classroom/backgrounds-upload.ts)
+  | 'background_check_unavailable'
+  | 'background_limit'
+  | 'background_not_found'
+  | 'background_not_image'
+  | 'background_refused'
   // several tutors per teacher (2026-11-09, src/lib/classroom/tutors.ts)
   | 'tutor_has_likeness'
   | 'tutor_has_students'
@@ -678,6 +684,11 @@ const ALL = [
   'audio_invalid',
   'avatar_required',
   'avatar_unavailable',
+  'background_check_unavailable',
+  'background_limit',
+  'background_not_found',
+  'background_not_image',
+  'background_refused',
   'birth_year_invalid',
   'budget_classroom',
   'budget_teacher',

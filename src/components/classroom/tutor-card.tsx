@@ -5,8 +5,12 @@ import { cn } from '@/lib/utils'
 import { libraryAvatarById } from '@/lib/classroom/library-avatars'
 import { backgroundThumb, type Background } from '@/lib/classroom/backgrounds'
 
-/** What a tutor's picture needs: its face (a ready-made one, or the teacher's own photo) and the room behind it. */
-export type TutorLook = { name: string; look: string; libraryAvatarId: string | null; background: Background }
+/**
+ * What a tutor's picture needs: its face (a ready-made one, or the teacher's own photo) and the room behind it.
+ * `backgroundThumbUrl`: the room's thumbnail — a teacher's uploaded room when there is one (backgrounds-upload.ts roomOf);
+ * left out, the library room's.
+ */
+export type TutorLook = { name: string; look: string; libraryAvatarId: string | null; background: Background; backgroundThumbUrl?: string | null }
 
 /**
  * A TUTOR'S PICTURE (owner, 2026-11-09: tutors per student, "ui ux comes from practika app professional minimal"): the room
@@ -21,7 +25,7 @@ export function TutorFace({ tutor, photoUrl, size = 'md', className }: {
   size?: 'sm' | 'md' | 'lg'
   className?: string
 }) {
-  const thumb = backgroundThumb(tutor.background)
+  const thumb = tutor.backgroundThumbUrl !== undefined ? tutor.backgroundThumbUrl : backgroundThumb(tutor.background)
   const face = tutor.look === 'library' ? libraryAvatarById(tutor.libraryAvatarId) : null
   const ring = size === 'sm' ? 'size-9' : size === 'md' ? 'size-16' : 'size-28'
   return (

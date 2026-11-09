@@ -1186,6 +1186,8 @@ model TeacherProfile {
   matches            TeacherJobMatch[]
   /// eno Classroom (2026-10-25): this teacher's AI tutors (several since 2026-11-09; archived ones included).
   classroomAvatars   ClassroomAvatar[]
+  /// Rooms this teacher uploaded for behind their tutors (2026-11-09).
+  classroomBackgrounds ClassroomBackground[]
 
   @@index([status, currentCity])
 }
@@ -2900,10 +2902,34 @@ model ClassroomAvatar {
   /// Archived = gone from the teacher's tutors. ⛔ NEVER DELETED while sessions or seats point at it (the seat FK cascades):
   /// archiving is refused while a seat that is not removed still names it (tutors.ts).
   archivedAt             DateTime?
+  /// The teacher's own uploaded room (ClassroomBackground), shown instead of traits.background while it is `ok`. No FK on
+  /// purpose: a removed or deleted upload just falls back to the library room (backgrounds-upload.ts roomOf).
+  backgroundId           String?
   seats                  ClassroomEnrollment[]
   sessions               ClassroomSession[]
 
   @@index([teacherProfileId])
+}
+
+/// A ROOM A TEACHER UPLOADED for behind their tutors (owner, 2026-11-09: "changable backgrounds where they can upload or use
+/// from existing backgrounds"). Immutable — a new picture is a new row. ⛔ Only a picture that PASSED the check is stored
+/// (backgrounds-upload.ts: no person, nothing unsafe, no personal details — a refusal keeps nothing). ⛔ Kept in the database,
+/// not in file storage: deleting the teacher deletes it (cascade), and only the teacher, their own students and admins are
+/// ever served it (/api/classroom/backgrounds/<id>/image).
+model ClassroomBackground {
+  id               String         @id @default(cuid())
+  teacherProfileId String
+  teacherProfile   TeacherProfile @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
+  status           String         @default("ok") // ok | removed
+  /// Who took it down and why: 'teacher' (deleted it), 'admin' (a takedown).
+  removedBy        String?
+  removedAt        DateTime?
+  /// 1080×1920 WebP, metadata stripped; and its 288×512 thumbnail.
+  image            Bytes
+  thumb            Bytes
+  createdAt        DateTime       @default(now())
+
+  @@index([teacherProfileId, status])
 }
 
 /// Who practises: the account holder (kind self, 18+) or a child they are parent or legal guardian of (kind child — no login

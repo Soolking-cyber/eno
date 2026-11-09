@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { Camera, Check, Pause, Play, Sparkles, UserRound, Volume2 } from '@/components/ui/icons'
+import { Camera, Check, ImagePlus, Pause, Play, Sparkles, Trash2, UserRound, Volume2 } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { LIBRARY_AVATARS } from '@/lib/classroom/library-avatars'
 import { ACCENT_LABEL, VOICES } from '@/lib/classroom/voices'
@@ -21,7 +21,8 @@ import {
   AVATAR_NAME_MAX, BEST_FOR_MAX, DEFAULT_TRAITS, MAX_TOPICS, PACES, PACE_LABEL, PERSONA_MAX, TONES, TONE_LABEL, TOPICS, TOPIC_LABEL,
   parseTraits, type Pace, type Tone, type Topic, type Traits,
 } from '@/lib/classroom/persona'
-import { BACKGROUNDS, BACKGROUND_LABEL, backgroundThumb, isBackground } from '@/lib/classroom/backgrounds'
+import { BACKGROUNDS, BACKGROUND_LABEL, backgroundThumb, isBackground, uploadedRoomUrl } from '@/lib/classroom/backgrounds'
+import { compressImageFile } from '@/lib/normalize-image'
 import { Radio, RadioGroup } from '@/components/ui/radio-group'
 import { PERSONA_AI_ACTION, PERSONA_AI_NOTICE, PERSONA_AI_NOTICE_VERSION, PHOTO_ACTION, PHOTO_NOTICE, PHOTO_NOTICE_VERSION } from '@/lib/classroom/notices'
 import { LIKENESS_REQUESTS_OPEN, type AvatarLook } from '@/lib/classroom/constants'
@@ -29,7 +30,7 @@ import { api } from './api'
 import { refusalCopy } from './classroom-copy'
 import { TutorFace } from './tutor-card'
 
-type SavedTutor = { id: string; name: string; bestFor: string; persona: string; greeting: string; traits: unknown; voice: string; look: string; libraryAvatarId: string | null; customStatus: string }
+type SavedTutor = { id: string; name: string; bestFor: string; backgroundId: string | null; persona: string; greeting: string; traits: unknown; voice: string; look: string; libraryAvatarId: string | null; customStatus: string }
 type Loaded = {
   teacher: { fullName: string; photoUrl: string | null; nationality: string }
   tutor: null | SavedTutor
@@ -38,7 +39,7 @@ type Loaded = {
   tutors?: unknown[]
   limit?: number
 }
-type Draft = { name: string; bestFor: string; persona: string; greeting: string; traits: Traits; voice: string; look: AvatarLook; libraryAvatarId: string | null }
+type Draft = { name: string; bestFor: string; backgroundId: string | null; persona: string; greeting: string; traits: Traits; voice: string; look: AvatarLook; libraryAvatarId: string | null }
 
 /**
  * MAKE / EDIT A TUTOR (owner, 2026-11-09: a tutor for each student, "take teacher through process nicely", Praktika's
@@ -77,6 +78,7 @@ export function TutorWizard({ tutorId }: { tutorId?: string }) {
       setD({
         name: a?.name ?? r.data.defaults.name,
         bestFor: a?.bestFor ?? '',
+        backgroundId: a?.backgroundId ?? null,
         persona: a?.persona ?? '',
         greeting: a?.greeting ?? '',
         // Parsed here too: an avatar saved before a trait existed (the background) gets its default, shown as picked.
@@ -140,7 +142,7 @@ export function TutorWizard({ tutorId }: { tutorId?: string }) {
         <div className="mb-5 flex flex-col items-center gap-3 text-center">
           <h1 className="h-title self-start">{data.tutor ? tr('Edit tutor', 'Sửa gia sư') : tr('New tutor', 'Gia sư mới')}</h1>
           {/* The tutor as students will see it, on every step (plan: a live preview card). */}
-          <TutorFace tutor={{ name: d.name, look: d.look, libraryAvatarId: d.libraryAvatarId, background: d.traits.background }} photoUrl={data.teacher.photoUrl} size="lg" className="max-w-32" />
+          <TutorFace tutor={{ name: d.name, look: d.look, libraryAvatarId: d.libraryAvatarId, background: d.traits.background, ...(d.backgroundId ? { backgroundThumbUrl: uploadedRoomUrl(d.backgroundId, 'thumb') } : {}) }} photoUrl={data.teacher.photoUrl} size="lg" className="max-w-32" />
           <p className="min-w-0 max-w-full truncate text-base font-bold text-ink">{d.name || tr('Your tutor', 'Gia sư của bạn')}</p>
         </div>
       )}
@@ -211,27 +213,9 @@ function LookStep({ d, setD, photoUrl, customStatus, setCustomStatus }: {
         </span>
         {d.look === 'photo' && <Check aria-hidden className="size-5 text-brand" />}
       </Button>
-      {/* The room behind the avatar (owner, 2026-10-27: "so students feel like they are in classroom with teacher"). */}
-      <div className="flex flex-col gap-2 border-t border-border pt-5">
-        <p className="text-sm font-semibold text-ink">{tr('Background', 'Phông nền')}</p>
-        <p className="text-xs text-ink-4">{tr('The room your students see behind the avatar.', 'Căn phòng học viên nhìn thấy phía sau avatar.')}</p>
-        {/* ONE choice of seven — the ui/radio-group primitive (Base UI), not pressed buttons (review, opus). */}
-        <RadioGroup value={d.traits.background} aria-label={tr('Background', 'Phông nền')} className="grid grid-cols-4 gap-2"
-          onValueChange={(v) => { if (isBackground(v)) setD({ ...d, traits: { ...d.traits, background: v } }) }}>
-          {BACKGROUNDS.map((b) => {
-            const thumb = backgroundThumb(b)
-            return (
-              <Radio key={b} value={b}
-                className={cn('flex min-w-0 flex-col items-center justify-start gap-1 whitespace-normal rounded-2xl p-1.5 text-center hover:bg-tint', d.traits.background === b && 'bg-accent')}>
-                {thumb
-                  ? <img src={thumb} alt="" width={72} height={126} loading="lazy" className="aspect-[4/7] h-auto w-full rounded-xl object-cover" />
-                  : <span aria-hidden className="aspect-[4/7] w-full rounded-xl bg-brand-deeper" />}
-                <span className="text-xs text-ink-2">{tr(BACKGROUND_LABEL[b].en, BACKGROUND_LABEL[b].vi)}</span>
-              </Radio>
-            )
-          })}
-        </RadioGroup>
-      </div>
+      {/* The room behind the avatar (owner, 2026-10-27: "so students feel like they are in classroom with teacher") — a
+          library room, or one the teacher uploads (owner, 2026-11-09: "upload or use from existing backgrounds"). */}
+      <RoomPicker d={d} setD={setD} />
       {ownFace && <div className="flex flex-col gap-3 border-t border-border pt-5">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold text-ink">{tr('Your own face in 3D', 'Khuôn mặt 3D của chính bạn')}</p>
@@ -258,6 +242,118 @@ function LookStep({ d, setD, photoUrl, customStatus, setCustomStatus }: {
         )}
         {err && <p role="alert" className="text-sm text-destructive">{tr(refusalCopy(err).en, refusalCopy(err).vi)}</p>}
       </div>}
+    </div>
+  )
+}
+
+type Upload = { id: string; thumbUrl: string }
+
+/**
+ * THE ROOM: the seven library rooms, the teacher's own uploaded ones, and Upload. ONE choice (the ui/radio-group primitive):
+ * a library room sets traits.background and clears the upload; an upload sets backgroundId (the library room stays as the
+ * fallback when that upload is ever taken down). An upload is checked on the server before it is kept (no people, nothing
+ * unsafe, no personal details — backgrounds-upload.ts); a refusal stores nothing and says why.
+ */
+function RoomPicker({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
+  const { tr } = useLanguage()
+  const [uploads, setUploads] = useState<Upload[] | null>(null)
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<{ code: string; reason?: string } | null>(null)
+  const input = useRef<HTMLInputElement | null>(null)
+  // The draft as it is NOW: a choice made while a photo was being checked is never overwritten by the answer.
+  const latest = useRef(d)
+  latest.current = d
+  useEffect(() => {
+    let gone = false
+    void api<{ backgrounds: Upload[]; open: boolean }>('/api/classroom/backgrounds').then((r) => {
+      if (gone || !r.ok) return
+      setUploads(r.data.backgrounds)
+      setOpen(r.data.open)
+    })
+    return () => { gone = true }
+  }, [])
+  const upload = async (file: File) => {
+    setBusy(true); setErr(null)
+    // The room picked when the upload started: a different one picked while the photo was being checked wins (commit gate, codex).
+    const pickedAtStart = latest.current.backgroundId ?? latest.current.traits.background
+    const small = await compressImageFile(file).catch(() => file)
+    const r = await api<{ id: string; backgrounds: Upload[] }>('/api/classroom/backgrounds', { raw: small, headers: { 'content-type': small.type || 'application/octet-stream' } })
+    setBusy(false)
+    if (!r.ok) return setErr({ code: r.error, reason: typeof r.body.reason === 'string' ? r.body.reason : undefined })
+    setUploads(r.data.backgrounds)
+    if ((latest.current.backgroundId ?? latest.current.traits.background) === pickedAtStart) setD({ ...latest.current, backgroundId: r.data.id })
+  }
+  const remove = async (id: string) => {
+    setBusy(true); setErr(null)
+    const r = await api(`/api/classroom/backgrounds/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    setBusy(false)
+    if (!r.ok) return setErr({ code: r.error })
+    setUploads((u) => (u ?? []).filter((x) => x.id !== id))
+    if (latest.current.backgroundId === id) setD({ ...latest.current, backgroundId: null })
+  }
+  const value = d.backgroundId ? `up:${d.backgroundId}` : d.traits.background
+  const why = err?.code === 'background_refused'
+    ? err.reason === 'person'
+      ? tr('It shows a person. Students should only see the room — use a photo with nobody in it.', 'Ảnh có người. Học viên chỉ nên thấy căn phòng — hãy dùng ảnh không có ai.')
+      : err.reason === 'personal_details'
+        ? tr('It shows personal details (a phone number, an address, a name or a document). Use a photo without them.', 'Ảnh có thông tin cá nhân (số điện thoại, địa chỉ, tên hoặc giấy tờ). Hãy dùng ảnh không có những thông tin này.')
+        : tr('It isn’t suitable for students. Use a photo of a plain room.', 'Ảnh không phù hợp với học viên. Hãy dùng ảnh một căn phòng bình thường.')
+    : null
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-5">
+      <p className="text-sm font-semibold text-ink">{tr('Background', 'Phông nền')}</p>
+      <p className="text-xs text-ink-4">{tr('The room your students see behind the avatar.', 'Căn phòng học viên nhìn thấy phía sau avatar.')}</p>
+      <RadioGroup value={value} aria-label={tr('Background', 'Phông nền')} className="grid grid-cols-4 gap-2"
+        onValueChange={(v) => {
+          if (typeof v !== 'string') return
+          if (v.startsWith('up:')) setD({ ...d, backgroundId: v.slice(3) })
+          else if (isBackground(v)) setD({ ...d, backgroundId: null, traits: { ...d.traits, background: v } })
+        }}>
+        {(uploads ?? []).map((u, i) => (
+          <Radio key={u.id} value={`up:${u.id}`} aria-label={`${tr('Your photo', 'Ảnh của bạn')} ${i + 1}`}
+            className={cn('flex min-w-0 flex-col items-center justify-start gap-1 whitespace-normal rounded-2xl p-1.5 text-center hover:bg-tint', d.backgroundId === u.id && 'bg-accent')}>
+            <img src={u.thumbUrl} alt="" width={72} height={126} loading="lazy" className="aspect-[4/7] h-auto w-full rounded-xl object-cover" />
+            <span className="text-xs text-ink-2">{tr('Your photo', 'Ảnh của bạn')}</span>
+          </Radio>
+        ))}
+        {BACKGROUNDS.map((b) => {
+          const thumb = backgroundThumb(b)
+          return (
+            <Radio key={b} value={b}
+              className={cn('flex min-w-0 flex-col items-center justify-start gap-1 whitespace-normal rounded-2xl p-1.5 text-center hover:bg-tint', !d.backgroundId && d.traits.background === b && 'bg-accent')}>
+              {thumb
+                ? <img src={thumb} alt="" width={72} height={126} loading="lazy" className="aspect-[4/7] h-auto w-full rounded-xl object-cover" />
+                : <span aria-hidden className="aspect-[4/7] w-full rounded-xl bg-brand-deeper" />}
+              <span className="text-xs text-ink-2">{tr(BACKGROUND_LABEL[b].en, BACKGROUND_LABEL[b].vi)}</span>
+            </Radio>
+          )
+        })}
+      </RadioGroup>
+      {open && (
+        <div className="flex flex-col gap-2 pt-2">
+          <div className="flex flex-wrap gap-2">
+            {/* A hidden file input behind a Button: Base UI has no file picker (the business-verification panel's pattern). */}
+            <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" hidden
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = '' }} />
+            <Button variant="outline" className="min-h-11 whitespace-normal" loading={busy} onClick={() => input.current?.click()}>
+              <ImagePlus aria-hidden />{busy ? tr('Checking your photo…', 'Đang kiểm tra ảnh…') : tr('Upload a photo', 'Tải ảnh lên')}
+            </Button>
+            {d.backgroundId && (
+              <Button variant="ghost" className="min-h-11 text-destructive" disabled={busy} onClick={() => { if (d.backgroundId) void remove(d.backgroundId) }}>
+                <Trash2 aria-hidden />{tr('Remove this photo', 'Xoá ảnh này')}
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-ink-4">{tr(
+            'A photo of a room with nobody in it. Google’s AI checks every photo before students see it: no people, nothing unsuitable, no personal details.',
+            'Ảnh một căn phòng không có người. AI của Google kiểm tra mọi ảnh trước khi học viên nhìn thấy: không có người, không có nội dung không phù hợp, không có thông tin cá nhân.',
+          )}</p>
+          {err && (
+            <p role="alert" className="text-sm text-destructive">{tr(refusalCopy(err.code).en, refusalCopy(err.code).vi)}{why ? ` ${why}` : ''}</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }

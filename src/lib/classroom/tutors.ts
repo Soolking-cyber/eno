@@ -27,6 +27,11 @@ type Client = Pick<Prisma.TransactionClient, 'classroomAvatar'>
 
 export type Tutor = Awaited<ReturnType<typeof listTutors>>[number]
 
+/** One of the teacher's OWN uploaded rooms that is still ok, or null — a tutor may show only these. */
+export async function backgroundOfTeacher(backgroundId: string, teacherProfileId: string) {
+  return db.classroomBackground.findFirst({ where: { id: backgroundId, teacherProfileId, status: 'ok' }, select: { id: true } })
+}
+
 /** The teacher's tutors, oldest first (the oldest is a new seat's default), each with how many students it has. */
 export async function listTutors(teacherProfileId: string) {
   const rows = await db.classroomAvatar.findMany({
