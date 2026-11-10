@@ -4557,6 +4557,28 @@ html[data-explorer-directed] #listings .feed-grid > [data-teacher-shelf] {
    (0 → 5px spread), which is not compositable: a main-thread repaint on every frame, forever, for as
    long as the footer was on screen. A 6px dot's 5px ring is 16px across, so the pseudo grows to 2.7×
    from 55% opacity to 0 — the same look, on the compositor. */
+/* THE TUTOR'S BREATHING HALO (classroom lesson, voice mode — avatar-stage.tsx): while the tutor speaks, one soft ring grows
+   out of the portrait's ring and fades. transform + opacity only (the compositor's), and only for a reader who did not
+   turn motion down — the thick static ring says "speaking" either way. */
+@keyframes tutor-breathe {
+  0%   { transform: scale(1);    opacity: 0.45; }
+  100% { transform: scale(1.14); opacity: 0; }
+}
+@layer components {
+  .tutor-halo { position: relative; isolation: isolate; }
+  @media (prefers-reduced-motion: no-preference) {
+    .tutor-halo.is-speaking::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: inherit;
+      background: color-mix(in oklab, var(--primary-foreground) 30%, transparent);
+      animation: tutor-breathe 1.6s var(--ease-out-strong) infinite;
+      pointer-events: none;
+    }
+  }
+}
 @keyframes live-dot-ring {
   0%       { transform: scale(1);   opacity: 0.55; }
   70%, 100% { transform: scale(2.7); opacity: 0; }

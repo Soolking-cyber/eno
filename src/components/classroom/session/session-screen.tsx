@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { Segmented } from '@/components/ui/segmented'
 import { Captions, Lightbulb, Mic, MicOff, PhoneOff, Video } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -25,6 +24,7 @@ import { LIMITS } from '@/lib/classroom/constants'
 import { DEFAULT_BACKGROUND, backgroundImage, type Background } from '@/lib/classroom/backgrounds'
 import { beginTrace, formatMark, mark, traceVisible, useTrace } from './trace'
 import { useSelfView } from './use-self-view'
+import { appendLine, captionLines, nextPace, type CaptionLine } from './captions'
 
 /**
  * intro (the face draws; Start waits for it) → (Start) connecting (the face connects; the opening waits for it) → speaking
@@ -113,10 +113,16 @@ const LIVE_CLIP_LEAD_MS = 1_500
  *  try spends one of the server's few keys an hour (stt-grant.ts STT_KEYS_PER_SESSION). */
 const LIVE_REOPEN_MS = 2_000
 const LIVE_REOPENS = 4
-/** One control in the call's pill — a mobile-nav.tsx tab: the full height, the press spring, rounded inside the pill. */
-const BAR_TAB = 'flex flex-1 items-center justify-center rounded-full transition-[scale,background-color] duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.96] active:duration-[60ms] disabled:opacity-40 [touch-action:manipulation]'
-/** Pressed (camera on, muted): the tab bar's "on" capsule — accent fill, brand ink. */
-const BAR_ON = 'bg-accent text-accent-foreground'
+/** A call control's press (the tab bar's spring): every round button in the call row. */
+const CTRL = 'flex items-center justify-center rounded-full transition-[scale,background-color] duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.96] active:duration-[60ms] disabled:opacity-40 [touch-action:manipulation]'
+/**
+ * PRAKTIKA'S DARK GLASS (owner, 2026-11-10, choosing it over the 10-27 white tab-bar pill: both judges found the white pill
+ * and the white speed switch louder than the mic). A dark see-through disc over the room — a MATERIAL_TINTS tint, so the
+ * reduced-transparency block (globals.css) makes it solid for whoever asked for that.
+ */
+const GLASS = 'bg-black/45 text-primary-foreground material backdrop-blur-md'
+/** The caption's surface: the words never lie straight on the room photo (Praktika comparison, gap 1). */
+const PANEL = 'flex flex-col gap-1.5 rounded-3xl bg-black/55 px-4 py-3 material backdrop-blur-md'
 /** Nothing can hear the learner any more: the session ends this long after the screen says so. */
 const GONE_END_MS = 12_000
 /** A 16 kHz mic chunk louder than this (RMS) is the learner's voice — for the trace's "words came N ms after the voice". */
@@ -168,7 +174,8 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
   const [mode, setMode] = useState<'avatar' | 'voice'>('voice')
   const [muted, setMuted] = useState(false)
   const [captions, setCaptions] = useState(true)
-  const [avatarLine, setAvatarLine] = useState('')
+  /** The tutor's caption as lines, each English or Vietnamese (captions.ts) — the two read differently. */
+  const [avatarLines, setAvatarLines] = useState<CaptionLine[]>([])
   const [learnerLine, setLearnerLine] = useState('')
   const [hint, setHint] = useState<{ en: string; vi: string } | null>(null)
   const [showHint, setShowHint] = useState(false)
@@ -267,6 +274,11 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
   const [pace, setPace] = useState<VoicePace | null>(null)
   const pendingPace = useRef<VoicePace | null>(null)
   const taps = useRef(0)
+  /** The speed a tap just chose, said to a screen reader (the sr-only status under the call row). */
+  const [speedSaid, setSpeedSaid] = useState('')
+  /** The mic's level ring (the call row) — moved by the voice's loudness through a CSS variable, no re-render. */
+  const micRing = useRef<HTMLSpanElement>(null)
+  const levelAt = useRef(0)
   /** When the learner's voice was last heard in the mic (live listening) — the trace's endpoint delay. */
   const lastVoiceAt = useRef(0)
   /** A Start under way (begin): the ref guards synchronously, the state disables the button. */
@@ -680,7 +692,8 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
         return
       }
       let streamed = false
-      let spokenText = ''
+      /** THIS turn's streamed lines — each `say` replaces the caption with them, never adds to an earlier turn's (plan review, opus). */
+      let spoken: CaptionLine[] = []
       await readAnswer(res, (l) => {
         if (ended.current || gen !== turnGen.current) return
         if (l.kind === 'silence') { answered = true; mark('heard nothing'); return }
@@ -688,7 +701,7 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
           // The server took this turn — and the tap with it (saved there; never a silence, never a refusal): it is not sent
           // again — a lost answer must not carry it onto a later turn (session-turn.ts).
           if (taps.current === sentTaps) pendingPace.current = null
-          mark('heard', `${l.learnerText.length} chars`); setLearnerLine(l.learnerText); setAvatarLine(''); return
+          mark('heard', `${l.learnerText.length} chars`); setLearnerLine(l.learnerText); setAvatarLines([]); return
         }
         if (l.kind === 'error') { mark('no answer', l.error); setNotice(l.error); return }
         if (l.kind === 'no-drill') { settled = true; lastExpect.current = null; return }
@@ -697,9 +710,9 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
         if (l.kind === 'say') {
           answered = true
           streamed = true
-          if (!spokenText) mark('first sentence')
-          spokenText = spokenText ? `${spokenText} ${l.text}` : l.text
-          setAvatarLine(spokenText)
+          if (!spoken.length) mark('first sentence')
+          spoken = appendLine(spoken, l.text, l.lang === 'vi')
+          setAvatarLines(spoken)
           return
         }
         if (l.kind === 'pcm') {
@@ -723,7 +736,7 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
           if (l.pace && taps.current === sentTaps) setPace(l.pace)
           // Streamed: the captions grow sentence by sentence with the voice (`say`) — the whole reply is not shown ahead of it.
           if (streamed) return
-          setAvatarLine([l.support, l.reply].filter(Boolean).join(' '))
+          setAvatarLines(captionLines(l.support, l.reply))
           reply.current.parts = l.parts ?? (l.audio ? 1 : 0)
           if (l.audio) { const a = l.audio; chain = chain.then(() => decodeAndGive(a, true, gen)) }
           return
@@ -835,7 +848,14 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
     if (!pcm.length) return
     let sum = 0
     for (let i = 0; i < pcm.length; i++) sum += (pcm[i] / 32768) ** 2
-    if (Math.sqrt(sum / pcm.length) > VOICE_RMS) lastVoiceAt.current = performance.now()
+    const rms = Math.sqrt(sum / pcm.length)
+    if (rms > VOICE_RMS) lastVoiceAt.current = performance.now()
+    // The mic ring follows the voice (a speaking voice ≈ 0.05–0.1 RMS → full; silence ≈ 0.003 → still), ~12 times a second.
+    const ring = micRing.current
+    if (ring && performance.now() - levelAt.current >= 80) {
+      levelAt.current = performance.now()
+      ring.style.setProperty('--lvl', Math.min(1, rms * 14).toFixed(2))
+    }
     pending16k.current.push(pcm)
     if (pending16k.current.reduce((n, a) => n + a.length, 0) >= LIVE_CHUNK) flushLive()
   }
@@ -1100,7 +1120,7 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
     total.current = Math.max(1, Math.round((Date.parse(s.endsAt) - Date.now()) / 1000))
     setLeft(total.current)
     // A resumed session's last line with its Vietnamese help (shown; the voice says the English line again).
-    setAvatarLine([s.opening.support, s.opening.text].filter(Boolean).join(' '))
+    setAvatarLines(captionLines(s.opening.support, s.opening.text))
     setStart(s)
     setPace(s.pace ?? null)
     pendingPace.current = null
@@ -1190,7 +1210,7 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
   useEffect(() => {
     const box = wordsBox.current
     if (box) box.scrollTop = box.scrollHeight
-  }, [avatarLine, captions, hint, learnerLine, live, showHint, waiting])
+  }, [avatarLines, captions, hint, learnerLine, live, showHint, waiting])
   const onCamera = async () => {
     hapticTap()
     const r = await selfView.toggle()
@@ -1198,6 +1218,17 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
     else setNotice((n) => (n?.startsWith('camera_') ? null : n)) // a retry that worked clears the camera's own message
   }
   const cameraOffered = start?.band === 'adult'
+  /** One tap, the next speed (captions.ts nextPace) — the same effect the chips had: from the avatar's next reply. */
+  const onPace = () => {
+    if (!start || !pace) return
+    hapticTap()
+    const p = nextPace(start.paces, pace)
+    setPace(p)
+    pendingPace.current = p
+    taps.current += 1
+    mark('pace chosen', p)
+    setSpeedSaid(`${tr('Voice speed', 'Tốc độ giọng nói')}: ${paceLabel(start.paces.indexOf(p), start.paces.length, tr)}`)
+  }
   /** The round see-through buttons over the face (Praktika's): a white glyph on a dark disc; pressed = a lighter disc and
    *  the bold glyph (`icon-own-ink`). No blur at this size — and a blurred material takes no tint variants (design-lint). */
   const glass = 'icon-own-ink size-11 rounded-full bg-brand-deeper/50 text-primary-foreground hover:bg-brand-deeper/70 aria-pressed:bg-primary-foreground/25'
@@ -1216,7 +1247,12 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
         <div className="relative mx-auto h-full w-full max-w-md overflow-hidden">
           {room && (
             // The room the teacher set (backgrounds.ts); the face's canvas is transparent — the avatar stands in it.
-            <div aria-hidden className="pointer-events-none absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${room})` }} />
+            // Voice mode — a photo, not a 3D tutor standing IN the room: the room is softened so the face is the subject
+            // (Praktika comparison, gap 2). The 3D tutor keeps its room sharp.
+            <>
+              <div aria-hidden className={cn('pointer-events-none absolute inset-0 bg-cover bg-center', mode !== 'avatar' && 'scale-105 blur-xs')} style={{ backgroundImage: `url(${room})` }} />
+              {mode !== 'avatar' && <div aria-hidden className="pointer-events-none absolute inset-0 bg-brand-deeper/25" />}
+            </>
           )}
           <div className="absolute inset-0">
             <AvatarStage
@@ -1233,7 +1269,7 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
           </div>
           {/* Shade only where words sit — the top bar and the captions — so the face stays bright. */}
           <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-brand-deeper/70 to-transparent" />
-          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-brand-deeper via-brand-deeper/60 to-transparent" />
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-brand-deeper via-brand-deeper/60 to-transparent" />
 
           {showTrace && trace.length > 0 && (
             // justify-end: past its height the OLDEST lines go — the latest (a listening failure) is what is needed.
@@ -1244,21 +1280,37 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
 
           {/* The call's top bar: the hint · the avatar and the time left · captions. */}
           {/* z-10: above the intro too — captions can be set before Start (review, codex). */}
-          <header className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-            <IconButton size="lg" aria-pressed={showHint} aria-label={tr('Hint', 'Gợi ý')} disabled={!hint || !live} onClick={() => setShowHint((v) => !v)}
-              className={cn(glass, 'disabled:opacity-40')}>
-              <Lightbulb className="size-6" />
-            </IconButton>
+          {/* The name stays centred whatever sits either side: two EQUAL side columns, wide enough for the two buttons an adult
+              has on the right (commit review, codex — `1fr` sides take their content's minimum, so 44px vs 96px shifted it);
+              the name and the time truncate in what is left. */}
+          <header className="absolute inset-x-0 top-0 z-10 grid grid-cols-[6rem_minmax(0,1fr)_6rem] items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
+            <div className="flex justify-start">
+              <IconButton size="lg" aria-pressed={showHint} aria-label={tr('Hint', 'Gợi ý')} disabled={!hint || !live} onClick={() => setShowHint((v) => !v)}
+                className={cn(glass, 'disabled:opacity-40')}>
+                <Lightbulb className="size-6" />
+              </IconButton>
+            </div>
             <div className="min-w-0 text-center">
               <p className="truncate text-base font-semibold">{name}</p>
-              <p className="text-xs text-primary-foreground/75">
+              <p className="truncate text-xs text-primary-foreground/75">
                 {tr('AI avatar', 'Avatar AI')}
                 {live && <> · <span className="sr-only">{tr('Time left', 'Thời gian còn lại')} </span><span role="timer" className="tabular-nums">{minutes}:{secs}</span></>}
               </p>
             </div>
-            <IconButton size="lg" aria-pressed={captions} aria-label={tr('Captions', 'Phụ đề')} onClick={() => setCaptions((v) => !v)} className={glass}>
-              <Captions className="size-6" />
-            </IconButton>
+            <div className="flex justify-end gap-2">
+              {/* The adult's own camera moved up here from the call row (the row is the mic's — Praktika): reachable in every
+                  phase while its picture is on, as before (review, opus: a camera light nobody can turn off). */}
+              {cameraOffered && (
+                <IconButton size="lg" aria-pressed={!!selfView.stream} disabled={(!live || waiting) && !selfView.stream} onClick={() => void onCamera()}
+                  aria-label={selfView.stream ? tr('Hide my camera', 'Ẩn camera của tôi') : tr('Show my camera — only on this phone', 'Hiện camera của tôi — chỉ trên điện thoại này')}
+                  className={cn(glass, 'disabled:opacity-40')}>
+                  <Video className="size-6" />
+                </IconButton>
+              )}
+              <IconButton size="lg" aria-pressed={captions} aria-label={tr('Captions', 'Phụ đề')} onClick={() => setCaptions((v) => !v)} className={glass}>
+                <Captions className="size-6" />
+              </IconButton>
+            </div>
           </header>
 
           {/* Bottom: the learner's own camera (corner), the words, then the call's three buttons — never above the top bar
@@ -1274,16 +1326,27 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
             )}
             {live && !waiting && (
               <>
-                {/* The words: their own scrolling box that follows the newest line (wordsBox) — the notice and the status
-                    below it never scroll away. */}
+                {/* The words — the notice and the status below them never scroll away. THREE LOOKS (Praktika comparison, gap 1): the learner's words a solid bubble on the right; the tutor's on a
+                    frosted panel — the English large, the Vietnamese help smaller and quieter, in the order they are said;
+                    the hint its own panel. One scrolling box that follows the newest (wordsBox). */}
+                {/* Mounted whenever words may come, empty or not (commit review, opus: a live region that appears WITH its first
+                    words is not announced). */}
                 {(captions || (showHint && hint)) && (
                   <div ref={wordsBox} className="flex min-h-0 shrink flex-col gap-2 overflow-y-auto" aria-live="polite">
-                    {captions && learnerLine && <p className="self-end rounded-2xl bg-primary-foreground/15 px-4 py-2 text-sm text-primary-foreground/90">{learnerLine}</p>}
-                    {captions && avatarLine && <p className="text-base leading-relaxed">{avatarLine}</p>}
+                    {captions && learnerLine && (
+                      <p className="max-w-[85%] self-end rounded-2xl bg-primary-foreground px-4 py-2 text-sm font-medium text-brand-deeper">{learnerLine}</p>
+                    )}
+                    {captions && avatarLines.length > 0 && (
+                      <div className={PANEL}>
+                        {avatarLines.map((ln, i) => ln.vi
+                          ? <p key={i} lang="vi" className="text-sm leading-relaxed text-primary-foreground/75">{ln.text}</p>
+                          : <p key={i} className="text-lg font-semibold leading-snug">{ln.text}</p>)}
+                      </div>
+                    )}
                     {showHint && hint && (
-                      <div className="rounded-2xl bg-primary-foreground/15 px-4 py-3 text-sm">
+                      <div className={cn(PANEL, 'text-sm')}>
                         <p>{hint.en}</p>
-                        {hint.vi && <p lang="vi" className="mt-1 text-primary-foreground/75">{hint.vi}</p>}
+                        {hint.vi && <p lang="vi" className="text-primary-foreground/75">{hint.vi}</p>}
                       </div>
                     )}
                   </div>
@@ -1300,50 +1363,54 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
                 </p>
               </>
             )}
-            {/* THE ENO.VN TAB BAR'S PILL (owner, 2026-10-27: "use our color on bottom navbar of avatar call now its black reuse
-                the eno.vn bottom navbar style"): mobile-nav.tsx's floating surface — bg-popover/95, `material`, a 1px
-                border-foreground/10 edge, shadow-pop, h-14, max-w-sm — and its "on" capsule: bg-accent with the brand ink,
-                inset by the pill's p-1 so its radius stays concentric. End keeps a call's red. Not before Start: the
-                intro's own buttons sit there. */}
-            {/* THE PACE CHIPS (owner, 2026-11-10: "3 chips slow normal fast"): the learner's own range (pace.ts — a child's
-                Fast is an adult's Normal). A tap takes effect from the avatar's next reply. */}
-            {live && start && pace && start.paces.length > 1 && (
-              <Segmented
-                aria-label={tr('Voice speed', 'Tốc độ giọng nói')}
-                value={pace}
-                onValueChange={(p) => { setPace(p); pendingPace.current = p; taps.current += 1; mark('pace chosen', p) }}
-                options={start.paces.map((p, i) => ({ value: p, label: paceLabel(i, start.paces.length, tr) }))}
-                className="mx-auto max-w-[16rem] shrink-0 shadow-pop"
-              />
-            )}
+            {/* THE CALL ROW (owner, 2026-11-10: Praktika's dark glass, replacing the 10-27 white tab-bar pill; then "make speed
+                control a one button tap slow tap normal tap fast in rotation … super clean"). Three fixed slots so the mic is
+                always centred, whichever side is empty (plan review, codex + opus): speed · the mic · End. */}
             {phase !== 'intro' && phase !== 'mic_denied' && (
-            <div className="mx-auto flex h-14 w-full max-w-sm shrink-0 items-stretch gap-1 rounded-full border border-foreground/10 bg-popover/95 p-1 text-body shadow-pop material backdrop-blur-md">
-              {cameraOffered ? (
-                <Button size="none" variant="bare" aria-pressed={!!selfView.stream} disabled={(!live || waiting) && !selfView.stream} onClick={() => void onCamera()}
-                  aria-label={selfView.stream ? tr('Hide my camera', 'Ẩn camera của tôi') : tr('Show my camera — only on this phone', 'Hiện camera của tôi — chỉ trên điện thoại này')}
-                  className={cn(BAR_TAB, selfView.stream && BAR_ON)}>
-                  <Video className="size-6" />
+              <div className="mx-auto grid w-full max-w-xs shrink-0 grid-cols-3 items-center">
+                {/* ONE SPEED BUTTON: each tap the next pace in the learner's range (pace.ts — a child's Fast is an adult's
+                    Normal), wrapping round; it takes effect from the avatar's next reply. The dots show where in the round. */}
+                {live && start && pace && start.paces.length > 1 && (() => {
+                  // A pace outside the range (never sent — the server clamps it, pace.ts) reads as the slowest (commit review, opus).
+                  const at = Math.max(0, start.paces.indexOf(pace))
+                  return (
+                  <Button size="none" variant="bare" onClick={onPace} className={cn(CTRL, GLASS, 'col-start-1 h-12 gap-2 justify-self-start px-4 text-sm font-semibold')}>
+                    <span aria-hidden className="flex gap-0.5">
+                      {start.paces.map((p, i) => (
+                        <span key={p} className={cn('size-1.5 rounded-full', i <= at ? 'bg-primary-foreground' : 'bg-primary-foreground/35')} />
+                      ))}
+                    </span>
+                    <span><span className="sr-only">{tr('Voice speed', 'Tốc độ giọng nói')}: </span>{paceLabel(at, start.paces.length, tr)}</span>
+                  </Button>
+                  )
+                })()}
+                {/* The mic is the call's main control: the largest, solid white while it listens, with a ring that follows
+                    the learner's voice (micLevel — hidden for reduced motion); muted, it turns to glass with the slash. */}
+                <Button
+                  size="none"
+                  variant="bare"
+                  onClick={toggleMute}
+                  disabled={!live}
+                  aria-label={muted ? tr('Unmute', 'Bật micro') : tr('Mute', 'Tắt micro')}
+                  aria-pressed={muted}
+                  className={cn(CTRL, 'relative isolate col-start-2 size-16 justify-self-center', muted ? GLASS : 'bg-primary-foreground text-brand-deeper shadow-pop')}
+                >
+                  {/* Only while the voice actually flows (hearing 'on'): a dropped socket stops the frames, and a ring left at
+                      its last size would say "hearing you" (commit review, opus). */}
+                  {!muted && hearing === 'on' && (phase === 'listening' || phase === 'hearing') && (
+                    <span ref={micRing} aria-hidden className="pointer-events-none absolute inset-0 -z-10 rounded-full bg-primary-foreground/35 transition-transform duration-100 motion-reduce:hidden" style={{ transform: 'scale(calc(1 + var(--lvl, 0) * 0.45))' }} />
+                  )}
+                  {muted ? <MicOff className="size-7" strokeWidth={STROKE_UI} /> : <Mic className="size-7" strokeWidth={STROKE_UI} />}
                 </Button>
-              ) : <span aria-hidden className="flex-1" />}
-              <Button
-                size="none"
-                variant="bare"
-                onClick={toggleMute}
-                disabled={!live}
-                aria-label={muted ? tr('Unmute', 'Bật micro') : tr('Mute', 'Tắt micro')}
-                aria-pressed={muted}
-                className={cn(BAR_TAB, muted && BAR_ON)}
-              >
-                {muted ? <MicOff className="size-6" strokeWidth={STROKE_UI} /> : <Mic className="size-6" strokeWidth={STROKE_UI} />}
-              </Button>
-              {/* End: a call's red, as a COIN in its tab — the tab bar's Post coin geometry (mobile-nav.tsx), not a red slab. */}
-              <Button size="none" variant="bare" aria-label={tr('End', 'Kết thúc')} onClick={() => void end('learner')} disabled={phase === 'ending'} className={BAR_TAB}>
-                <span className="flex size-11 items-center justify-center rounded-full bg-destructive text-destructive-foreground">
+                {/* End: smaller, at the edge, apart from the mic — a call's red. */}
+                <Button size="none" variant="bare" aria-label={tr('End', 'Kết thúc')} onClick={() => void end('learner')} disabled={phase === 'ending'}
+                  className={cn(CTRL, 'col-start-3 size-12 justify-self-end bg-destructive text-destructive-foreground')}>
                   <PhoneOff className="size-6" />
-                </span>
-              </Button>
-            </div>
+                </Button>
+              </div>
             )}
+            {/* A tap's new speed, said (plan review, opus: a button's changed name is often not read again). */}
+            <p role="status" className="sr-only">{speedSaid}</p>
           </div>
 
           {phase === 'intro' && (

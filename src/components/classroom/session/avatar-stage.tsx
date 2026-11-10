@@ -404,10 +404,13 @@ export const AvatarStage = forwardRef<StageHandle, {
       </div>
     )
   }
+  // THE TUTOR LARGER AND HIGHER (Praktika comparison, gap 2): 240px on a phone (less on a short one), in the upper third —
+  // it sat at 160px in the middle, where the captions are. Speaking: the thick ring plus a soft breathing halo
+  // (globals.css .tutor-halo — motion only for those who did not turn it down; the ring stays either way).
   return (
-    <div className="flex h-full w-full items-center justify-center">
-      <span className={cn('rounded-full p-2 ring-primary-foreground/20 transition-[box-shadow] duration-300 motion-reduce:transition-none', speaking ? 'ring-8' : 'ring-0')}>
-        <Avatar name={name} url={photoUrl} size={compact ? 'lg' : '2xl'} className={compact ? undefined : 'size-40 text-3xl'} />
+    <div className={cn('flex h-full w-full justify-center', compact ? 'items-center' : 'items-start pt-[16dvh]')}>
+      <span className={cn('tutor-halo rounded-full p-2 ring-primary-foreground/25 transition-[box-shadow] duration-300 motion-reduce:transition-none', speaking ? 'is-speaking ring-8' : 'ring-0')}>
+        <Avatar name={name} url={photoUrl} size={compact ? 'lg' : '2xl'} className={compact ? undefined : 'size-[min(15rem,30dvh)] text-3xl'} />
       </span>
     </div>
   )
