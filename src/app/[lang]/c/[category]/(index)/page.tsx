@@ -43,6 +43,7 @@ import { Mascot } from '@/components/marketplace/mascot'
 import { PILL_BOX, PILL_ON, PILL_REST } from '@/components/ui/chip-style'
 import { cn } from '@/lib/utils'
 import { SellerListings } from '@/components/marketplace/seller-listings'
+import { SellerListingsPhoneRows } from '@/components/marketplace/seller-listings-phone-rows'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Tr } from '@/context/language-context'
 
@@ -324,6 +325,10 @@ export default async function CategoryPage({ params }: Props) {
     ],
   }
 
+
+  // Jobs read as rows on a phone (owner, 2026-11-10: item 2 of the decision scorecard). A different client component, not a
+  // prop: the row's code then loads on this one category's page only (seller-listings.tsx `phoneRow` has the record).
+  const CategoryListings = cat.slug === 'jobs' ? SellerListingsPhoneRows : SellerListings
   return (
     <>
       {/* The lede renders here, under the skeleton, only if LEDE_PLACEMENT says 'page'; since H1b it says
@@ -402,7 +407,7 @@ export default async function CategoryPage({ params }: Props) {
                 `RENTAL_PLACES`), the params carry `kind=places` under the SAME condition and the total
                 is the places total (`rentals` IS `rentalsFacts`); while homes are live (D1b), `homes=1` and
                 the homes total, beside the homes-only `scopedWhere`. */}
-            <SellerListings
+            <CategoryListings
               listings={listings}
               serverScope={{
                 params: {

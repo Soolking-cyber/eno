@@ -26,6 +26,8 @@ import { ListingCard } from './listing-card'
 import { CompactListingRowSkeleton, COMPACT_LIST_GRID } from './compact-listing-row-skeleton'
 import { CaptureCard } from './capture-card'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
+import { useIsPhone } from '@/hooks/use-is-phone'
+import { preloadable } from '@/lib/preloadable'
 import { useTapGlide } from '@/hooks/use-tap-glide'
 import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
@@ -425,7 +427,12 @@ const AUTO_LOAD_CAP = 100
 // it back down. That placeholder is <CompactListingRowSkeleton>, in its own module: this file
 // used to carry TWO hand-rolled versions of it (here, and in the first-page loading state
 // further down) which had already drifted apart from each other and from the row.
-const CompactListingRow = dynamic(() => import('./compact-listing-row').then((m) => m.CompactListingRow), {
+// ⚠️ `preloadable` (2026-11-10): the placeholder is two title lines tall and a real row is one or two, so a list that drew
+// its placeholders first moved every row under the first short one (layout shift 0.04 on a phone's Jobs feed, where the
+// list is now the default). The explorer asks for the chunk as soon as it knows a list is coming (`compactRowModule.preload`,
+// beside `jobsRows`); if it has arrived by the time the rows draw, they draw with no placeholder at all.
+const compactRowModule = preloadable(() => import('./compact-listing-row'))
+const CompactListingRow = dynamic(() => compactRowModule.loader().then((m) => m.CompactListingRow), {
   ssr: false,
   loading: () => <CompactListingRowSkeleton />,
 })
@@ -735,6 +742,9 @@ export function ListingsExplorer({
   // See DEFAULT_VIEW for why this is 'grid' and not 'compact'. The compact row is one tap away
   // on the view toggles, and ?view=compact still deep-links straight to it.
   const [viewState, setViewMode] = useState<ViewMode>(urlInit?.view ?? DEFAULT_VIEW)
+  /** The reader ASKED for the grid (the view control, or `?view=grid`). It matters in one place: Jobs on a phone, whose
+   *  unasked default is the list (`jobsRows`, beside `gridListings`). Everywhere else grid is the default and this is unread. */
+  const [gridAsked, setGridAsked] = useState(urlInit?.view === 'grid')
   /**
    * ⛔ THE TEACHERS FEED HAS NO MAP VIEW (gate review, 2026-10-09). Every row on `?category=teachers` is a teacher (only the
    * teacher form writes that category — taxonomy.ts NON_POSTING_CATEGORIES — and no other feed returns one: feed-query.ts
@@ -775,6 +785,10 @@ export function ListingsExplorer({
     const cur = viewModeRef.current
     if (m !== cur && m !== 'video' && cur !== 'video' && (m === 'map' || cur === 'map')) commitView()
     setViewMode((c) => { if (m === 'video' && c !== 'video') prevViewRef.current = c; return m })
+    // Grid and list are the reader's say on this; the map and the video takeover are neither, and coming back from
+    // them returns to the presentation chosen before.
+    if (m === 'grid') setGridAsked(true)
+    else if (m === 'compact') setGridAsked(false)
   }, [])
   // Clip to restore when the Video feed re-opens after a back-nav from a listing.
   const [videoReturn, setVideoReturn] = useState<{ id: string; params: string } | null>(null)
@@ -800,7 +814,9 @@ export function ListingsExplorer({
     // Also open the results view — landing + viewMode alone left the footer's
     // "Map" link on the landing hero, which read as a dead link.
     // (⛔ `?view=map` on the teachers feed still shows the default view — `mapOffered`, beside the view state.)
-    if (v === 'map' || v === 'grid' || v === 'compact' || v === 'video') { setViewMode(v); setShowExplorer(true) }
+    // ⚠️ `gridAsked` is set INSIDE this branch: a statement between this `if` and the `else if` below would take the
+    // `else` for itself, and a returning-video marker would then override `?view=map` (commit review, 2026-11-10).
+    if (v === 'map' || v === 'grid' || v === 'compact' || v === 'video') { setViewMode(v); setShowExplorer(true); if (v === 'grid') setGridAsked(true) }
     else if (returning) { setViewMode('video'); setShowExplorer(true) }
   }, [])
   const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -996,6 +1012,39 @@ export function ListingsExplorer({
     restoring || (deferredListings.length === 0 && shownListings.length > 0 && totalCount >= shownListings.length)
       ? shownListings
       : deferredListings
+  /**
+   * ⛔ JOBS READ AS ROWS ON A PHONE (owner, 2026-11-10: "1-6 1 by one go", item 2 of the decision scorecard). A job has no
+   * photo: its card is a square poster of words the title repeats, two to a row, four jobs to a screen. The list row (which
+   * b54 taught to read like a job ad: employer, role, place, age, type) shows eight. Blind A/B on this feed: codex 6.65 to
+   * 7.20, Fable 6.19 to 6.91. Below `sm` only, the Jobs category only, and only while the reader has not asked for the
+   * grid: "Grid view" in the view control still gives the poster cards (`gridAsked`, written to the address as `view=grid`).
+   * ⛔ `viewMode` DOES NOT CHANGE: this is which of the two presentations the DEFAULT view draws here. The state, the
+   * address's default, the map and video fall-backs and every reset stay exactly as they are (DEFAULT_VIEW has the list of
+   * what leans on it); only the first-page skeleton, the grid, the list and the view control read `shownView`.
+   * ⛔ THE PRESENTATION FOLLOWS THE ROWS ON SCREEN, NOT THE CATEGORY ASKED FOR. `activeCategory` changes on the tap; the
+   * rows drawn change a request and a deferred render later. Keyed on the category alone, the stale cards of the feed
+   * before would re-lay as rows the moment Jobs was tapped (and a cold link's masked seed with them, outside the mask's
+   * `.feed-grid` rule), then the answer would replace them: two reflows, one of them of the wrong listings. So:
+   *   · into Jobs: rows from the commit that DRAWS a Jobs answer (every drawn row is a job), or when nothing is drawn
+   *     yet (the first-page skeleton is then the row skeleton);
+   *   · out of Jobs: the Jobs rows already on screen stay rows until the next answer is drawn (`jobsRowsDrawnRef`: the
+   *     very array last drawn as rows, so a new answer, even one that is all jobs, starts as the cards its feed uses).
+   * ⚠️ `useIsPhone` is false on the server and through hydration, so the hydrating render is the server's; a client
+   * mount reads the real width at once.
+   */
+  const phone = useIsPhone()
+  const jobsRowsDrawnRef = useRef<SerializedListingCard[] | null>(null)
+  const jobsOnScreen = activeCategory === 'jobs'
+    ? gridListings.length === 0 || gridListings.every((l) => l.category?.slug === 'jobs')
+    : jobsRowsDrawnRef.current === gridListings
+  const jobsRows = phone && viewMode === 'grid' && !gridAsked && jobsOnScreen
+  useEffect(() => { jobsRowsDrawnRef.current = jobsRows ? gridListings : null })
+  /** The presentation on screen: `viewMode`, except that Jobs on a phone draws its default as the list. */
+  const shownView: ViewMode = jobsRows ? 'compact' : viewMode
+  // The row's chunk, asked for the moment a list is known to be coming: the list view itself, or Jobs on a phone before its
+  // answer has arrived (the request and its 150ms debounce are the head start). See `compactRowModule`.
+  const listComing = viewMode === 'compact' || (phone && activeCategory === 'jobs' && viewMode === 'grid' && !gridAsked)
+  useEffect(() => { if (listComing) compactRowModule.preload().catch(() => {}) }, [listComing])
   const [page, setPage] = useState(1)
   /**
    * The BUILDING (project) the map has drilled into, or null for the normal feed.
@@ -1365,6 +1414,7 @@ export function ListingsExplorer({
     // home page with no banner, no tiles and no shelves: a logo that looks broken, which is the
     // exact class of bug the setListingType line above was added for.
     setViewMode(DEFAULT_VIEW)
+    setGridAsked(false)
     // ⚠️ AND THE PAGE DEPTH, or the line above it only half-happens. Resetting a FILTER drops the
     // loaded pages for free (the filter signature changes, which resets page to 1 during render
     // and makes the sync effect REPLACE the rows). Coming home from the plain unfiltered feed
@@ -1861,6 +1911,11 @@ export function ListingsExplorer({
         const takeover = (window.history.state as { takeover?: unknown } | null)?.takeover === 'video'
         if (v !== 'video' || takeover) {
           setViewMode(v ?? DEFAULT_VIEW)
+          // The address's say on grid or list, by `changeView`'s rule: 'grid' asks, the list or no view withdraws the ask,
+          // and an entry that names the map or the video takeover says nothing about it (Back into the video and out
+          // again must not drop a grid the reader chose).
+          if (v === 'grid') setGridAsked(true)
+          else if (v !== 'map' && v !== 'video') setGridAsked(false)
           if (v === 'map' || v === 'video') setShowExplorer(true)
         } else {
           // …and that entry's URL still says `view=video`: have the writer put the view on screen back into it,
@@ -2104,6 +2159,9 @@ export function ListingsExplorer({
      * URL, like the default sort.
      */
     if (viewMode !== DEFAULT_VIEW) params.set('view', viewMode)
+    // Jobs on a phone: the unasked default there is the list (`jobsRows`), so an asked-for grid is the non-default and is
+    // written, or a reload would put the rows back. Nowhere else: grid is the default and stays out of the address.
+    else if (gridAsked && phone && activeCategory === 'jobs') params.set('view', 'grid')
     else params.delete('view')
 
     /**
@@ -2156,7 +2214,7 @@ export function ListingsExplorer({
       ? [prettyBrand(activeBrand), activeModel !== 'all' ? activeModel : null].filter(Boolean).join(' ')
       : ''
     window.dispatchEvent(new CustomEvent('eno:query', { detail: { query: query.trim() || brandLabel } }))
-  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, activeLine, customFilters, listingType, conditionFilter, goodPriceOnly, priceRange, sort, looseMatch, viewMode, activeProvince, activeWard, nearby, urlApplied, urlNudge])
+  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, activeLine, customFilters, listingType, conditionFilter, goodPriceOnly, priceRange, sort, looseMatch, viewMode, gridAsked, phone, activeProvince, activeWard, nearby, urlApplied, urlNudge])
 
   // Debounce search query input to avoid making API requests on every keystroke
   useEffect(() => {
@@ -5250,7 +5308,7 @@ export function ListingsExplorer({
               {/* The four icons from sm; a phone gets the ONE view pill instead (owner, 2026-10-18 — see the
                   heading box above). Same views, same gates. The pill holds this row's first line at 36px in the
                   directed state too, so a cold deep link's row keeps its height when the heading leaves it. */}
-              <ViewChoices viewMode={viewMode} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} />
+              <ViewChoices viewMode={shownView} onViewMode={changeView} showMap={mapOffered} videoProbeParams={videoProbeParams} />
             </div>
           </div>
 
@@ -5272,7 +5330,7 @@ export function ListingsExplorer({
               ⚠️ Not reached on a cold HOME load: the query is seeded with the ISR listings
               (initialData below), so `isLoading` is false and the real cards paint first. */}
           {viewMode !== 'video' && isLoading && listings.length === 0 && (
-            viewMode === 'grid' ? (
+            shownView === 'grid' ? (
               <div className={LISTING_GRID}>
                 {Array.from({ length: FIRST_PAGE_SIZE }).map((_, i) => (
                   <ListingCardSkeleton key={i} />
@@ -5378,7 +5436,7 @@ export function ListingsExplorer({
                   continuous surface should do — and since the merge that is true across the
                   landing↔search boundary as well, not just within one of them. */}
               <div>
-              {viewMode === 'grid' && (
+              {shownView === 'grid' && (
                 /* Grid Mode (Standard Cards) — the home feed's presentation, and now the DEFAULT
                    everywhere (see the viewMode useState).
                    `data-feed-restoring`: every restored card renders at its REAL size while the
@@ -5753,7 +5811,7 @@ export function ListingsExplorer({
                 </div>
               )}
 
-              {viewMode === 'compact' && (
+              {shownView === 'compact' && (
                 /* Compact Row Mode (bonbanh-style list rows). Two columns on
                    desktop so the wide row doesn't strand the actions far right
                    with a big empty middle; single column on mobile.
@@ -5778,6 +5836,10 @@ export function ListingsExplorer({
                           the grid (commit review: the layout's copy is hidden on a phone in every view, so the list needs its
                           own). These rows are client-only, so nothing here is in the server's HTML or under the cold-link mask. */}
                       {index === Math.min(PARTNER_BAND_AFTER_CARD, gridListings.length) - 1 && showPartnerBand && <PartnerStrip placement="feed" />}
+                      {/* The guest sign-up row, where the grid has it (after the first page). Only when this list IS the
+                          default presentation (`jobsRows`: Jobs on a phone): there it replaces a grid that carried the row,
+                          and a guest must not lose it. The list a reader chose never had it and still does not. */}
+                      {index === FIRST_PAGE_SIZE - 1 && jobsRows && <CaptureCard />}
                     </Fragment>
                   ))}
                   {/* The next page's reserved rows — see `pendingRows`. */}

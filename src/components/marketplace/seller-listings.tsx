@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, ArrowUp, ArrowDown, ArrowUpDown, AlertTriangle } from '@/components/ui/icons'
 import { HELD_FROM_CARD } from '@/lib/image-hold'
@@ -8,6 +8,8 @@ import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 import { LISTING_GRID } from './listing-grid'
+import { CompactListingRowSkeleton, COMPACT_LIST_GRID } from './compact-listing-row-skeleton'
+import type { CompactListingRowProps } from './compact-listing-row'
 import { sortTabClass } from './sort-tab-class'
 import { CustomSelect } from './custom-select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -71,6 +73,7 @@ export function SellerListings({
   priceLabel = 'price',
   homeVariant,
   pinStrip = false,
+  phoneRow: PhoneRow,
 }: {
   listings: SerializedListingCard[]
   searchable?: boolean
@@ -97,6 +100,25 @@ export function SellerListings({
    * the vehicle hub keep their in-flow strip.
    */
   pinStrip?: boolean
+  /**
+   * ON A PHONE THIS LIST IS ROWS, NOT CARDS (owner, 2026-11-10: "1-6 1 by one go", item 2 of the decision scorecard: Jobs).
+   * A job has no photo to show: its card is a square poster of words the title repeats, two to a row, so a phone showed
+   * four jobs a screen and loaded a poster for each. As rows (the explorer's list row, which b54 taught to read like a job
+   * ad) it shows eight, each with employer, role, place, age and type. Blind A/B on the Jobs feed: codex 6.65 to 7.20,
+   * Fable 6.19 to 6.91.
+   * ⛔ THE ROW COMPONENT IS HANDED IN (seller-listings-phone-rows.tsx), NOT IMPORTED HERE, AND NOT `next/dynamic`.
+   *   · Imported here, the row's code would ship on every category page and storefront for the one page that draws it.
+   *   · As a dynamic import its rows hydrated late: a context update reached them first, React showed the import's
+   *     fallback over the server's rows for 170 ms and the list jumped (measured, CLS 0.02 to 0.05 on /c/jobs).
+   * A wrapper that only the Jobs page renders is an ordinary client component: loaded with the page, hydrated in place.
+   * ⛔ BOTH SHAPES ARE IN THE SERVER'S HTML AND A CLASS PICKS ONE (`sm:hidden` / `max-sm:hidden`). The page is one cached
+   * document for every screen; choosing in script would paint cards on a phone and swap them at hydration.
+   * ⛔ THE ROWS COME FIRST IN THE DOM: the page's first paint waits for `#first-screen-end` (the fourth card), and a phone's
+   * rows must already be parsed by then, or its first frame is an empty list.
+   * ⚠️ Images: a hidden `<img>` still loads if it is eager. So here only the first card stays eager (the wide screen's
+   * largest paint, and its preload); the other cards and every row thumbnail are lazy, which a hidden box never fetches.
+   */
+  phoneRow?: ComponentType<CompactListingRowProps>
   /** The order `listings` is already in, so the strip opens on the truth. */
   initialSort?: SortKey
   /**
@@ -129,6 +151,11 @@ export function SellerListings({
     (l: SerializedListingCard) => router.push(localizedHref(`/?focus=${l.id}`, hereVariant(homeVariant ?? variantOfLanguage(lang)))),
     [router, homeVariant, lang],
   )
+  // The phone rows' handlers (`phoneRow`), in the explorer's handler shapes. ⚠️ Up here with the other hooks: the
+  // component returns early for an empty shop further down, and a hook below that line is a hook called conditionally.
+  const prefetchCard = useCallback((id: string) => router.prefetch(`/listings/${id}`), [router])
+  /** The row's "Show on map" takes an id. It is a `sm:` control and these rows are phone-only, so it is never on screen here; it still goes where the card's does. */
+  const locateRow = useCallback((id: string) => router.push(localizedHref(`/?focus=${id}`, hereVariant(homeVariant ?? variantOfLanguage(lang)))), [router, homeVariant, lang])
   const [q, setQ] = useState('')
   const [sort, setSort] = useState<SortKey>(initialSort)
 
@@ -446,15 +473,27 @@ export function SellerListings({
     </p>
   )
 
+  const rowsOnPhone = !!PhoneRow
   const grid = (
-    <div className={LISTING_GRID}>
+    <>
+    {PhoneRow && (
+      <div data-phone-rows="" className={cn(COMPACT_LIST_GRID, 'sm:hidden')}>
+        {shown.map((l, i) => (
+          <div key={l.id} data-sid={l.sellerId}>
+            <PhoneRow listing={l} index={i} onOpen={openCard} onPrefetch={prefetchCard} onLocate={locateRow} clockInHtml lazyThumb />
+          </div>
+        ))}
+      </div>
+    )}
+    <div className={cn(LISTING_GRID, rowsOnPhone && 'max-sm:hidden')}>
       {shown.map((l, i) => (
         // `first-screen-end`: what a category page's first paint waits for (c/[category]/(index)/layout.tsx).
         <div key={l.id} id={i === Math.min(3, shown.length - 1) ? 'first-screen-end' : undefined} data-sid={l.sellerId} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)} onFocus={() => router.prefetch(`/listings/${l.id}`)}>
-          <ListingCard listing={l} onOpen={openCard} onLocate={locateCard} priority={i < 4} lcp={i === 0 && !remote} holdPhoto={i >= HELD_FROM_CARD} />
+          <ListingCard listing={l} onOpen={openCard} onLocate={locateCard} priority={rowsOnPhone ? i === 0 : i < 4} lcp={i === 0 && !remote} holdPhoto={i >= HELD_FROM_CARD} />
         </div>
       ))}
     </div>
+    </>
   )
 
   /**
@@ -509,9 +548,16 @@ export function SellerListings({
       {awaitingFirstRows ? (
         // Placeholders at the page size, so the grid keeps its height and nothing jumps when the
         // real cards land.
-        <div className={LISTING_GRID} aria-hidden="true">
-          {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <ListingCardSkeleton key={i} />)}
-        </div>
+        <>
+          {rowsOnPhone && (
+            <div className={cn(COMPACT_LIST_GRID, 'sm:hidden')} aria-hidden="true">
+              {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <CompactListingRowSkeleton key={i} />)}
+            </div>
+          )}
+          <div className={cn(LISTING_GRID, rowsOnPhone && 'max-sm:hidden')} aria-hidden="true">
+            {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <ListingCardSkeleton key={i} />)}
+          </div>
+        </>
       ) : shown.length === 0 && !loading && !loadError ? (
         // A search that matched nothing names the way out: the one control that caused it.
         <EmptyState

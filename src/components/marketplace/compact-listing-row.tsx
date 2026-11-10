@@ -14,7 +14,7 @@ import { CategoryIcon } from './category-icons'
 import { FavoriteHeart } from './favorite-heart'
 import { IdentityVerifiedMark } from './identity-verified-mark'
 import { useLanguage, Tr } from '@/context/language-context'
-import { useLocalized } from './listing-content'
+import { useLocalized, PostedAgo } from './listing-content'
 import { timeAgo, type SerializedListingCard } from '@/lib/types'
 import { cardTitle, jobTypeLabel } from '@/lib/card-title'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
@@ -26,8 +26,18 @@ import { openerVoice, quickChatOpener } from '@/lib/teachers/first-message'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
-import { EnoSlider } from '@/components/marketplace/eno-slider'
 import { isModifiedClick } from '@/lib/plain-click'
+import dynamic from 'next/dynamic'
+
+/**
+ * THE OFFER SLIDER LOADS WHEN THE OFFER CONTROL IS OPENED (2026-11-10). It is drawn only after "Make an offer" is pressed,
+ * a control that exists from `sm` up, yet its code (the app slider and what it stands on: 8.5 KB compressed, measured in
+ * the built chunk) was two thirds of this row's weight and rode along wherever a row was drawn, a phone's list included.
+ * The placeholder is the slider's own box (`h-5`, the width the call site gives it), so the cluster does not move when it
+ * arrives; the button asks for the chunk on pointer-enter and focus, so a press usually finds it there.
+ */
+const loadOfferSlider = () => import('@/components/marketplace/eno-slider')
+const EnoSlider = dynamic(() => loadOfferSlider().then((m) => m.EnoSlider), { ssr: false, loading: () => <span aria-hidden className="block h-5 w-28" /> })
 
 /** Up to two initials of an employer's name ("Nord Anglia Education" → "NA", "RMIT University Vietnam LLC" → "RU"), for a
  *  linked job's thumbnail; null when the importer stored no employer (the row then keeps the category glyph). An initial is
@@ -42,12 +52,20 @@ export function employerInitials(employer: string | null | undefined): string | 
   return words.slice(0, 2).map((w) => Array.from(w)[0].toUpperCase()).join('')
 }
 
-type Props = {
+export type CompactListingRowProps = {
   listing: SerializedListingCard
   index: number
   onOpen: (l: SerializedListingCard) => void
   onPrefetch: (id: string) => void
   onLocate: (id: string) => void
+  /**
+   * The row is in the SERVER'S HTML (a category page's phone list, seller-listings.tsx `rowsOnPhone`; the explorer's rows
+   * are `ssr: false` and leave this off). The posted time then goes through <PostedAgo inHtml>, the card's own
+   * hydration-safe clock: a cached page's "2d ago" is a day old by the time a reader hydrates it.
+   */
+  clockInHtml?: boolean
+  /** The thumbnail never loads eagerly: this list may be the one a wider screen hides, and an eager image loads hidden or not. */
+  lazyThumb?: boolean
 }
 
 /** A floor under a navigation that never arrives — the same 4s as ListingCard's. */
@@ -57,7 +75,7 @@ const PENDING_MAX_MS = 4000
 // + locate/favorite actions. Memoized — compact is the default view mode, so every
 // row would otherwise re-render on any explorer state change (hover, page, filters).
 // All callbacks passed in are stable useCallback handlers in the explorer.
-export const CompactListingRow = memo(function CompactListingRow({ listing: l, index, onOpen, onPrefetch, onLocate }: Props) {
+export const CompactListingRow = memo(function CompactListingRow({ listing: l, index, onOpen, onPrefetch, onLocate, clockInHtml = false, lazyThumb = false }: CompactListingRowProps) {
   const { lang, tr } = useLanguage()
   const router = useRouter()
   const cover = l.images[0]
@@ -206,7 +224,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             // ⚠️ THE PHOTO DOES NOT SCALE ON HOVER — the owner's rule for every listing photo (2026-08-05,
             // written out on ListingCard's <Image>). This thumbnail was the one surface it never reached.
             className="object-cover"
-            loading={index < 6 ? 'eager' : 'lazy'}
+            loading={!lazyThumb && index < 6 ? 'eager' : 'lazy'}
 
           />
         ) : (
@@ -342,10 +360,11 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             that yields below sm (the row's only location signal on a phone used to be that glyph).
             ⚠️ `timeAgo` DIRECTLY, NOT <PostedAgo>: this row is `ssr: false` (listings-explorer.tsx), so
             there is no server HTML to mismatch, and the mount-gated form would flash an ISO date for a
-            frame first. Same function, so the same string the card and the PDP print. */}
+            frame first. Same function, so the same string the card and the PDP print.
+            ⚠️ …UNLESS THE ROW IS SERVER-RENDERED (`clockInHtml`, a category page's phone list): then <PostedAgo inHtml>, as on the card. */}
         <p className="mt-0.5 truncate text-xs text-muted-foreground sm:hidden">
           {place ? <><Tr text={place} />{' · '}</> : null}
-          {timeAgo(l.postedAt, lang)}
+          {clockInHtml ? <PostedAgo iso={l.postedAt} inHtml /> : timeAgo(l.postedAt, lang)}
           {jobTypeText ? <>{' · '}{jobTypeText}</> : null}
         </p>
       </div>
@@ -397,6 +416,9 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               tapTarget={false}
               aria-label={tr('Make an offer', 'Trả giá')}
               aria-pressed={offer !== null}
+              // A guess at what comes next, so a failure is nobody's error: the press itself asks again.
+              onPointerEnter={() => { loadOfferSlider().catch(() => {}) }}
+              onFocus={() => { loadOfferSlider().catch(() => {}) }}
               onClick={(e) => { e.stopPropagation(); setOffer(offer === null ? 10 : null) }}
               className="press hidden text-foreground hover:bg-accent sm:flex"
             >
