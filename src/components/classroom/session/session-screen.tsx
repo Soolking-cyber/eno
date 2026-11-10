@@ -1374,8 +1374,10 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
                   // A pace outside the range (never sent — the server clamps it, pace.ts) reads as the slowest (commit review, opus).
                   const at = Math.max(0, start.paces.indexOf(pace))
                   return (
-                  <Button size="none" variant="bare" onClick={onPace} className={cn(CTRL, GLASS, 'col-start-1 h-12 gap-2 justify-self-start px-4 text-sm font-semibold')}>
-                    <span aria-hidden className="flex gap-0.5">
+                  <Button size="none" variant="bare" onClick={onPace} className={cn(CTRL, GLASS, 'col-start-1 h-12 gap-2 justify-self-start px-4 text-sm font-semibold max-[359px]:px-3.5')}>
+                    {/* Below 360px the row's slot is ~96px: the dots give way so "Normal" never reaches the mic (commit review,
+                        codex — a 320px phone). The word alone still says the speed. */}
+                    <span aria-hidden className="flex gap-0.5 max-[359px]:hidden">
                       {start.paces.map((p, i) => (
                         <span key={p} className={cn('size-1.5 rounded-full', i <= at ? 'bg-primary-foreground' : 'bg-primary-foreground/35')} />
                       ))}
