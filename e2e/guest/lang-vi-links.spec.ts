@@ -46,13 +46,34 @@ test.describe('Guest · lang=vi — searching and filtering stay Vietnamese', ()
     expect(params.get('category')).toBe('electronics')
   })
 
-  test('the header search on a PDP lands on /vi', async ({ page }) => {
+  // ⚠️ ON A PHONE A LISTING WITH PHOTOS HAS NO SITE HEADER (2026-11-10, owner: item 3 of the decision scorecard): the page
+  // opens on the photo and Back sits over it. So there the way out of the page is Back, and THAT is what must keep the
+  // reader in Vietnamese; the header search is checked wherever the header is (every wider screen, and a phone's listing
+  // without photos). Decided by what the page shows, not by the project's name: if the header went missing anywhere else,
+  // Back would not be there either and this fails on its `toBeVisible`.
+  test('leaving a PDP from its top bar keeps the reader in Vietnamese: the header search, or Back where a phone shows no header', async ({ page }) => {
     await page.goto('/vi', { waitUntil: 'load' })
     const card = page.locator('.feed-grid a[data-card-link]').first()
     await card.waitFor({ timeout: 20_000 })
     await page.goto(new URL((await card.getAttribute('href'))!, page.url()).pathname, { waitUntil: 'load' })
     await expect(page.locator('html')).toHaveAttribute('lang', 'vi')
-    await headerSearch(page, 'xe máy')
+    const header = page.locator('#app-header')
+    if (await header.isVisible()) {
+      await headerSearch(page, 'xe máy')
+      await expectVietnameseHome(page)
+      return
+    }
+    // No header is right in exactly one place: below 768px, on a listing that opens on its photo. Anywhere else a missing
+    // header is a failure, whatever else is on the page (commit review).
+    expect(page.viewportSize()!.width, 'only a phone may be without the site header here').toBeLessThan(768)
+    await expect(page.locator('main [data-photo-first]')).toHaveCount(1)
+    const back = page.locator('main [data-photo-back]')
+    await expect(back).toBeVisible()
+    // A real same-site link, named in Vietnamese, even before it is tapped…
+    await expect(back).toHaveAttribute('href', /^\/(?!\/)/)
+    await expect(back).toHaveAttribute('aria-label', 'Quay lại')
+    // …and the tap returns to the Vietnamese page the reader came from.
+    await back.click()
     await expectVietnameseHome(page)
   })
 
