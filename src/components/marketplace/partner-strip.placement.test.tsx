@@ -106,25 +106,45 @@ describe('only the copy on screen runs the loop', () => {
     expect(feed.host.querySelectorAll('li.partner-strip-item').length).toBe(n() * 6)
     await feed.done()
   })
+
+  it('⛔ the top copy has no repeat below sm, at load or after a desktop window is narrowed: its repeats are plain eager images', async () => {
+    // A repeat is `<img src=logo>` with no media query of its own, so one that existed on a phone would be fetched.
+    const win = atWidth(1280)
+    const top = await mount('top')
+    expect(top.host.querySelectorAll('li[data-copy="1"]').length).toBe(n() * 5)
+    await top.act(async () => { win.set(390) })
+    expect(top.host.querySelectorAll('li[data-copy="1"]').length).toBe(0)
+    expect(top.host.querySelectorAll('li img[src^="/"]').length).toBe(0) // only the blank images are left
+    await top.done()
+  })
 })
 
 /**
- * ⛔ NO LOGO PRELOAD (speed plan R26, 2026-11-10; why: PartnerItem). React writes a `<link rel="preload" as="image">` for
- * every plain `<img>` it server-renders (in `<head>` on a page, before the img in a bare render), so the five logos went
- * out ahead of the first paint on every phone home view. The top copy's logo is a `<source>` that matches only from `sm`
- * up, over a blank data-URI `<img>`; the phone's feed copy is lazy on the server and eager in the repeats.
+ * ⛔ A PHONE NEVER FETCHES THE TOP COPY'S LOGOS; A DESKTOP PRELOADS THEM (speed plan R26, 2026-11-10; why: PartnerItem).
+ * React writes a `<link rel="preload" as="image">` for every plain `<img>` it server-renders, so the five logos went out
+ * ahead of the first paint on every phone home view. The top copy's logo is a `<source>` that matches only from `sm` up,
+ * over a blank data-URI `<img>`, with a preload that carries the same media query (without it a desktop's first painted
+ * frame had no logo in 15 of 15 measured loads); the phone's feed copy is lazy on the server and eager in the repeats.
  */
-describe('the logos are never preloaded, and a phone never fetches the top copy', () => {
+describe('a phone never fetches the top copy, and a desktop preloads it', () => {
   const logos = () => stripPartners().map((p) => p.logo.src)
   const imgs = (html: string) => html.match(/<img\b[^>]*>/g) ?? []
   const attr = (tag: string, name: string) => new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1]
+  const preloads = (html: string) => html.match(/<link\b[^>]*rel="preload"[^>]*>/g) ?? []
 
-  it('the server writes no preload for either copy, alone or in a whole document as the home page renders both', () => {
-    for (const placement of ['top', 'feed'] as const) expect(renderToString(<PartnerStrip placement={placement} />)).not.toContain('rel="preload"')
+  it('⛔ top: one preload per logo, each fetched only from sm up; feed: none', () => {
+    const top = preloads(renderToString(<PartnerStrip />))
+    expect(top.map((l) => [attr(l, 'href'), attr(l, 'as'), attr(l, 'media')])).toEqual(logos().map((src) => [src, 'image', '(min-width: 40rem)']))
+    expect(renderToString(<PartnerStrip placement="feed" />)).not.toContain('rel="preload"')
+  })
+
+  it('in a whole document, as the home page renders both copies, every logo link in <head> carries the sm-up media', () => {
     // React writes the `<head>` itself, preloads in it, when the tree is a whole document.
     const page = renderToString(<html><body><PartnerStrip /><PartnerStrip placement="feed" /></body></html>)
     expect(page).toMatch(/^<html><head>/)
-    expect(page.slice(0, page.indexOf('</head>'))).not.toContain('/partners/')
+    const head = page.slice(0, page.indexOf('</head>'))
+    const links = head.match(/<link\b[^>]*>/g) ?? []
+    expect(links.filter((l) => l.includes('/partners/')).map((l) => [attr(l, 'href'), attr(l, 'media')])).toEqual(logos().map((src) => [src, '(min-width: 40rem)']))
   })
 
   it('top: each logo is a <picture> whose source matches from sm up, over a blank 1x1 <img> that keeps the alt and the size', () => {
@@ -143,8 +163,12 @@ describe('the logos are never preloaded, and a phone never fetches the top copy'
       const gif = Buffer.from(src.slice(src.indexOf(',') + 1), 'base64')
       expect([gif.subarray(0, 6).toString(), gif.readUInt16LE(6), gif.readUInt16LE(8)]).toEqual(['GIF89a', 1, 1])
     })
-    // No logo URL anywhere a phone would fetch it: only in the sources' srcset.
-    for (const src of logos()) expect(html.split(src).length - 1).toBe(1)
+    // No logo URL anywhere a phone would fetch it: only in a source's srcset and in that logo's sm-up preload.
+    for (const src of logos()) {
+      expect(html.split(src).length - 1).toBe(2)
+      expect(html).toContain(`<source media="(min-width: 40rem)" srcSet="${src}"/>`)
+      expect(preloads(html).some((l) => attr(l, 'href') === src && attr(l, 'media') === '(min-width: 40rem)')).toBe(true)
+    }
   })
 
   it('feed: a plain lazy <img> per logo from the server, alt and size kept', () => {
@@ -154,7 +178,7 @@ describe('the logos are never preloaded, and a phone never fetches the top copy'
       stripPartners().map((p) => [p.logo.src, 'lazy', p.name]))
   })
 
-  it("in the browser the feed's repeats are eager, so the loop never slides in a logo still to be fetched; the top's stay pictures", async () => {
+  it("in the browser the feed's repeats are eager, so the loop never slides in a logo still to be fetched; the top's repeats are plain images", async () => {
     atWidth(390)
     const feed = await mount('feed')
     const first = [...feed.host.querySelectorAll('li[data-copy="0"] img')]
@@ -166,7 +190,13 @@ describe('the logos are never preloaded, and a phone never fetches the top copy'
     atWidth(1280)
     const top = await mount('top')
     expect(top.host.querySelectorAll('li.partner-strip-item').length).toBe(stripPartners().length * 6)
-    expect(top.host.querySelectorAll('li.partner-strip-item > a > span > picture > source[media="(min-width: 40rem)"] + img').length).toBe(stripPartners().length * 6)
+    // The server's row keeps its pictures; the repeats, which exist only from sm up, are plain eager images of the same
+    // logos (as pictures WebKit fetched every logo a second time after hydration).
+    expect(top.host.querySelectorAll('li[data-copy="0"] > a > span > picture > source[media="(min-width: 40rem)"] + img').length).toBe(stripPartners().length)
+    const again = [...top.host.querySelectorAll('li[data-copy="1"] > a > span > img')]
+    expect(again).toHaveLength(stripPartners().length * 5)
+    expect(top.host.querySelectorAll('li[data-copy="1"] picture').length).toBe(0)
+    expect(again.slice(0, stripPartners().length).map((img) => [img.getAttribute('src'), img.hasAttribute('loading')])).toEqual(stripPartners().map((p) => [p.logo.src, false]))
     await top.done()
   })
 

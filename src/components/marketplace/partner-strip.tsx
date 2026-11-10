@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState, type CSSProperties, type FocusEvent } from 'react'
+import { preload } from 'react-dom'
 import { Pause, Play } from '@/components/ui/icons'
 import { Toggle } from '@/components/ui/toggle'
 import { useLanguage } from '@/context/language-context'
@@ -58,6 +59,10 @@ const BLANK_GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAA
 export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed' }) {
   const { tr } = useLanguage()
   const partners = stripPartners()
+  // From `sm` up only, so a phone fetches nothing for the hidden top copy (why and what was measured: PartnerItem).
+  // ⚠️ React keys an image preload by its href and the first one wins: a plain eager `<img>` of one of these files
+  // rendered earlier on the page would preload it for every width. Today nothing else on the page draws them eagerly.
+  if (placement === 'top') for (const p of partners) preload(p.logo.src, { as: 'image', media: SM_UP })
   const [looping, setLooping] = useState(false)
   const [paused, setPaused] = useState(false)
   const viewport = useRef<HTMLDivElement>(null)
@@ -118,17 +123,21 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
 }
 
 /**
- * ⛔ NO LOGO PRELOAD, AND A PHONE NEVER FETCHES THE TOP COPY'S LOGOS (speed plan R26, 2026-11-10). React puts a
- * `<link rel="preload" as="image">` in `<head>` for every plain `<img>` it server-renders, so all five logos were fetched
- * with the CSS and fonts on every phone home view, ahead of the first paint, though the top copy is hidden there
- * (FCP −132 ms without them on the 1.6 Mbps phone profile, verdict media-04). Two cases, both with no preload:
- *   · `top`: the logo is the `<source>` of a `<picture>` that matches from `sm` up, over a blank `<img>`. React preloads
- *     nothing inside a `<picture>`; a desktop's preload scanner still finds the logo near the top of the body, so the
- *     band paints with its logos as before (plain lazy left the tiles empty for 215–322 ms after first paint); below
- *     `sm` the browser takes the blank and fetches nothing. The `<img>` keeps the alt and the logo's width/height, which
- *     size it while the logo loads (the `<source>` has none of its own, so the img's apply).
+ * ⛔ A PHONE NEVER FETCHES THE TOP COPY'S LOGOS, AND A DESKTOP STILL HAS THEM IN ITS FIRST PAINTED FRAME (speed plan
+ * R26, 2026-11-10; corrected 2026-11-11). React puts a `<link rel="preload" as="image">` in `<head>` for every plain
+ * `<img>` it server-renders, so all five logos were fetched with the CSS and fonts on every phone home view, ahead of
+ * the first paint, though the top copy is hidden there (FCP −132 ms without them on the 1.6 Mbps phone profile).
+ *   · `top`, the server's row: the logo is the `<source>` of a `<picture>` that matches from `sm` up, over a blank
+ *     `<img>`, so below `sm` the browser takes the blank and fetches nothing. React preloads nothing inside a
+ *     `<picture>`, and ⛔ THE BROWSER'S OWN SCAN IS NOT EARLY ENOUGH: measured in Chromium at 1280px, the band's first
+ *     painted frame had 0 of 5 logos in 15 of 15 loads (3–5 of 5 with the old preload), the requests starting at first
+ *     paint instead of with the CSS. So PartnerStrip asks for each logo itself with `preload(…, { media })`: the same
+ *     early fetch as before from `sm` up, and no request at all below it (a preload whose media does not match is
+ *     never fetched). The `<img>` keeps the alt and the logo's width/height, which size it while the logo loads.
+ *   · `top`, the repeats: they exist only while this copy loops, which is only from `sm` up, so they are plain
+ *     `<img>`s. As `<picture>`s WebKit fetched all five logos a second time after hydration.
  *   · `feed` (phones only, display:none from `sm` up so a desktop never fetches it): `loading="lazy"` on the server's
- *     row, loaded once it is laid out. Its repeats, which exist only after hydration and so are never preloaded, stay
+ *     row, loaded once it is laid out, and never preloaded. Its repeats, which exist only after hydration, stay
  *     eager: they put every logo in the cache before the loop slides a clipped one in from the right, where a browser
  *     that lazy-loads with no margin would show it empty until its own request came back.
  */
@@ -139,7 +148,7 @@ function PartnerItem({ partner: p, repeat, label, placement }: { partner: StripP
       {/* Accessible name = the logo's alt (the partner's name) + the visible word: "GoPlus Apartments". */}
       <Link href={`/${p.handle}`} prefetch={false} tabIndex={repeat ? -1 : undefined} className="partner-strip-link">
         <span className={p.dark ? 'partner-strip-tile partner-strip-tile-dark' : 'partner-strip-tile'}>
-          {placement === 'top' ? (
+          {placement === 'top' && !repeat ? (
             <picture>
               <source media={SM_UP} srcSet={p.logo.src} />
               <img src={BLANK_GIF} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
