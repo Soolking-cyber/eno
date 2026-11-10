@@ -378,3 +378,49 @@ describe('LanguageProvider on a fixed-language guide', () => {
     expect(reload).toHaveBeenCalledTimes(1)
   })
 })
+
+/**
+ * ⚠️ <html lang> IS WRITTEN ONLY WHEN IT DIFFERS. The server already rendered it, and Chromium restyles the
+ * whole document on any write to it, the same value included. A MutationObserver records every attribute
+ * write, a same-value one too, so it counts what Chromium would have restyled for.
+ */
+describe('LanguageProvider and <html lang>', () => {
+  let mo: MutationObserver
+  const htmlLangWrites = () => mo.takeRecords().length
+  const serverRendered = (lang: string) => {
+    document.documentElement.lang = lang
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] })
+  }
+  beforeEach(() => {
+    mo = new MutationObserver(() => {})
+    Object.defineProperty(window, 'location', { configurable: true, value: { pathname: '/c/rentals', hostname: 'eno.vn', search: '', hash: '', reload, assign: vi.fn() } })
+  })
+  afterEach(() => mo.disconnect())
+
+  it('does not rewrite the server\'s value on mount', () => {
+    Object.defineProperty(navigator, 'languages', { configurable: true, get: () => ['vi-VN'] })
+    serverRendered('vi')
+    render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+    expect(screen.getByTestId('probe').textContent?.startsWith('vi|')).toBe(true)
+    expect(htmlLangWrites()).toBe(0)
+    expect(document.documentElement.lang).toBe('vi')
+  })
+
+  it('still writes a value that differs on mount', () => {
+    Object.defineProperty(navigator, 'languages', { configurable: true, get: () => ['vi-VN'] })
+    serverRendered('en')
+    render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)
+    expect(htmlLangWrites()).toBe(1)
+    expect(document.documentElement.lang).toBe('vi')
+  })
+
+  it('still writes a machine-translated choice made after mount', () => {
+    serverRendered('en')
+    render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+    expect(htmlLangWrites()).toBe(0)
+    act(() => setLangRef!('ko'))
+    expect(reload).not.toHaveBeenCalled()
+    expect(htmlLangWrites()).toBe(1)
+    expect(document.documentElement.lang).toBe('ko')
+  })
+})

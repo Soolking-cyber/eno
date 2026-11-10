@@ -141,6 +141,27 @@ const DUE_SLACK_MS = 2_000
 // re-rendered stayed in English for the whole visit after one outage (gate review, 2026-10-07).
 let retryTimer: ReturnType<typeof setTimeout> | null = null
 let retryAt = Infinity
+/**
+ * ⛔ A LANDING REPAINTS THE APP ONLY FOR A TEXT tr() ASKED FOR (speed audit, 2026-11-10). emitTrChange() re-renders every
+ * useLanguage() consumer in one synchronous pass: 1,203 components and a ~175 ms task at 4x on Vietnamese /c/rentals,
+ * 867 on /vi, to land 2 and 16 card titles. Those were asked by useTr / useMachineEn / useAwaitingTranslation, which
+ * take their answer from the promise; tr() alone reads trCache during render and needs the repaint. So tr() asks with
+ * `repaint`, its key waits here until that text lands — whoever's batch carries it — and a miss keeps it waiting.
+ * ⚠️ ITS OWN CAP, NOT THE MISS CACHE'S: forgetting an old miss (MISS_CAP) must not forget that tr() still waits on the
+ * text, or a batch already out could land it with no repaint and the label would stay English (commit-gate review).
+ * A text that never lands (a name) stays here; tr() asks for interface copy, so the cap is far above what a visit holds.
+ * ⚠️ PAST THE CAP EVERY LANDING REPAINTS AGAIN (trAskedLost), as before this rule: a forgotten wait may belong to a
+ * label still on screen, and a label stuck in English costs more than the repaint this rule saves.
+ */
+const trAsked = new Set<string>() // `${lang} ${text}`
+const TR_ASKED_CAP = 5000
+let trAskedLost = false
+/** tr() waits on `ck`. Re-inserted at the end, so past the cap the texts asked longest ago are the ones forgotten. */
+function noteTrAsked(ck: string) {
+  trAsked.delete(ck)
+  trAsked.add(ck)
+  for (const k of trAsked) { if (trAsked.size <= TR_ASKED_CAP) break; trAsked.delete(k); trAskedLost = true }
+}
 function scheduleRetry(at: number) {
   // An earlier timer still pending covers this one; a retryAt already in the past is stale and is replaced.
   if (at >= retryAt && retryAt > Date.now()) return
@@ -169,6 +190,8 @@ export function __resetMtMissesForTests() {
   missUntil.clear()
   missCount.clear()
   definiteMisses.clear()
+  trAsked.clear()
+  trAskedLost = false
   if (retryTimer) clearTimeout(retryTimer)
   retryTimer = null
   retryAt = Infinity
@@ -213,13 +236,20 @@ function flush() {
           // 200s with the source text, and caching that froze English into the
           // session until a full reload (2026-07-06 audit). Resolve it (render
           // something now) but leave the cache empty, so it is retried — after its wait (noteMiss).
-          if (value !== t) { trCache.set(ck, value); missUntil.delete(ck); missCount.delete(ck); definiteMisses.delete(ck); landed = true }
+          // `landed` only for a text tr() is waiting on (trAsked); every other asker repaints from its promise.
+          // …and for an answer that REPLACES an earlier one (two requests for one text can come back worded
+          // differently): a tr() label may already be showing the first.
+          if (value !== t) {
+            const shown = trCache.get(ck)
+            trCache.set(ck, value); missUntil.delete(ck); missCount.delete(ck); definiteMisses.delete(ck)
+            if (trAsked.delete(ck) || trAskedLost || (shown != null && shown !== value)) landed = true
+          }
           // One miss per TEXT per answer (`texts` is the Set above), however many waiters asked for it. `partial` = the
           // route's degrade path or a provider failure: retryable, never counted toward giving up.
           else noteMiss(ck, partial !== true)
         }
         items.forEach((it) => it.resolve(byText.get(it.text) ?? it.text))
-        // Repaint every component reading trCache via tr() — only when there is something new to show.
+        // Repaint every component reading trCache via tr() — only when there is something new for tr() to show.
         if (landed) emitTrChange()
       })
       .catch(() => {
@@ -229,7 +259,8 @@ function flush() {
   }
 }
 
-export function translateText(text: string, lang: Language): Promise<string> {
+/** `repaint`: the caller reads trCache during render (tr()), so the app repaints when this text lands (trAsked). */
+export function translateText(text: string, lang: Language, repaint = false): Promise<string> {
   /**
    * ⛔ VIETNAMESE IS NOT SENT TO BE TRANSLATED INTO VIETNAMESE. Category names, districts and
    * "Hồ Chí Minh" reach here already in Vietnamese, and the server's alreadyInTarget skip returned
@@ -241,6 +272,8 @@ export function translateText(text: string, lang: Language): Promise<string> {
     trCache.set(`vi ${text}`, text)
     return Promise.resolve(text)
   }
+  // Noted before the wait below too: a batch already out may still land this text, and tr() must see it.
+  if (repaint) noteTrAsked(`${lang} ${text}`)
   // Still waiting after a miss (noteMiss): answer the English now, with no request. A wait ending within the slack
   // counts as over, so one repaint retries every nearly-due string together.
   if ((missUntil.get(`${lang} ${text}`) ?? 0) > Date.now() + DUE_SLACK_MS) return Promise.resolve(text)

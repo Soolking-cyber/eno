@@ -121,7 +121,7 @@ describe('a passthrough is not re-asked on every repaint (the 15-requests-a-seco
     vi.stubGlobal('fetch', ok(['日曜日の午後']))
     const repaints = vi.fn()
     const off = subscribeTr(repaints)
-    const hit = translateText(t, 'ja')
+    const hit = translateText(t, 'ja', true) // as tr() asks
     await vi.advanceTimersByTimeAsync(60)
     await expect(hit).resolves.toBe('日曜日の午後')
     expect(repaints).toHaveBeenCalledTimes(1)
@@ -183,7 +183,7 @@ describe('a string that lands before its timer (gate review, 2026-10-07)', () =>
     vi.stubGlobal('fetch', ok(['Jeudi matin']))
     const repaints = vi.fn()
     const off = subscribeTr(repaints)
-    const again = translateText(t, 'fr')
+    const again = translateText(t, 'fr', true) // as tr() asks
     await vi.advanceTimersByTimeAsync(60)
     expect(await again).toBe('Jeudi matin')
     expect(repaints).toHaveBeenCalledTimes(1) // the landing
@@ -212,6 +212,160 @@ describe('a string the provider never translates is left alone (gate review, 202
     await vi.advanceTimersByTimeAsync(3_600_000)
     expect(fetchMock).toHaveBeenCalledTimes(5)
     expect(repaints).not.toHaveBeenCalled()
+    off()
+  })
+})
+
+/** A fetch whose answers wait until the test gives them, by request number. */
+function heldFetch() {
+  const answers: ((translations: string[], partial?: boolean) => void)[] = []
+  const fetchMock = vi.fn(() => new Promise<Response>((resolve) => {
+    answers.push((translations, partial = false) => resolve(new Response(JSON.stringify({ translations, partial }), { status: 200 })))
+  }))
+  return { fetchMock, answer: (i: number, translations: string[], partial?: boolean) => answers[i](translations, partial) }
+}
+
+describe('⛔ a landing repaints the app only for a text tr() asked for (speed audit, 2026-11-10)', () => {
+  it('does not repaint for texts only promise readers asked for (useTr, useMachineEn), and still answers them', async () => {
+    // Vietnamese /c/rentals: 2 card titles landing re-rendered 1,203 components in one ~175 ms task (4x), to draw nothing.
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', ok(['Căn hộ hai phòng ngủ, Quận 2', 'Studio gần sông']))
+    const repaints = vi.fn()
+    const off = subscribeTr(repaints)
+    const asks = [translateText('Two-bedroom flat, District 2', 'vi'), translateText('Studio near the river', 'vi')]
+    await vi.advanceTimersByTimeAsync(60)
+    await expect(Promise.all(asks)).resolves.toEqual(['Căn hộ hai phòng ngủ, Quận 2', 'Studio gần sông'])
+    expect(trCache.get('vi Studio near the river')).toBe('Studio gần sông')
+    expect(repaints).not.toHaveBeenCalled()
+    off()
+  })
+
+  it('repaints once for a batch in which tr() asked one of the texts', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', ok(['Bán xe máy', 'Tìm phòng']))
+    const repaints = vi.fn()
+    const off = subscribeTr(repaints)
+    const asks = [translateText('Motorbike for sale', 'vi'), translateText('Find a room', 'vi', true)]
+    await vi.advanceTimersByTimeAsync(60)
+    await expect(Promise.all(asks)).resolves.toEqual(['Bán xe máy', 'Tìm phòng'])
+    expect(repaints).toHaveBeenCalledTimes(1)
+    off()
+  })
+
+  it("repaints when another caller's batch lands a text tr() still waits on after its own ask missed", async () => {
+    vi.useFakeTimers()
+    const t = 'Garden view, quiet street'
+    const { fetchMock, answer } = heldFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    const repaints = vi.fn()
+    const off = subscribeTr(repaints)
+    const fromTr = translateText(t, 'ko', true)
+    await vi.advanceTimersByTimeAsync(60) // request 0 is out
+    const fromCard = translateText(t, 'ko') // a card's useTr, while it is out
+    await vi.advanceTimersByTimeAsync(60) // request 1
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    answer(0, [t], true) // rate-limited: a miss
+    await expect(fromTr).resolves.toBe(t)
+    expect(repaints).not.toHaveBeenCalled()
+    answer(1, ['정원 전망, 조용한 거리'])
+    await expect(fromCard).resolves.toBe('정원 전망, 조용한 거리')
+    expect(repaints).toHaveBeenCalledTimes(1)
+    off()
+  })
+
+  it('a tr() ask answered from the wait still repaints when a request already out lands the text', async () => {
+    vi.useFakeTimers()
+    const t = 'Pet friendly, balcony'
+    const { fetchMock, answer } = heldFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    const repaints = vi.fn()
+    const off = subscribeTr(repaints)
+    const cardA = translateText(t, 'ko')
+    await vi.advanceTimersByTimeAsync(60) // request 0
+    const cardB = translateText(t, 'ko') // a second card, mounted a moment later
+    await vi.advanceTimersByTimeAsync(60) // request 1
+    answer(0, [t]) // a miss: the text now waits
+    await expect(cardA).resolves.toBe(t)
+    // tr() asks during the wait: English at once, no request.
+    await expect(translateText(t, 'ko', true)).resolves.toBe(t)
+    await vi.advanceTimersByTimeAsync(60)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    answer(1, ['반려동물 가능, 발코니'])
+    await expect(cardB).resolves.toBe('반려동물 가능, 발코니')
+    expect(repaints).toHaveBeenCalledTimes(1)
+    off()
+  })
+
+  it('forgetting an old miss (past the miss cap) does not forget that tr() still waits on the text', async () => {
+    // Commit-gate review: the miss cache drops its oldest entries past 1,000. If that also dropped tr()'s wait, a
+    // request already out could land the text with no repaint and the label would stay English.
+    vi.useFakeTimers()
+    const t = 'Rooftop terrace, river view'
+    const { fetchMock, answer } = heldFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    const repaints = vi.fn()
+    const off = subscribeTr(repaints)
+    const fromTr = translateText(t, 'ko', true)
+    await vi.advanceTimersByTimeAsync(60) // request 0 carries tr()'s ask
+    const fromCard = translateText(t, 'ko') // a card's useTr asks for the same text while it is out
+    await vi.advanceTimersByTimeAsync(60) // request 1
+    answer(0, [t], true) // a miss: the text waits, and its miss is now the oldest on record
+    await expect(fromTr).resolves.toBe(t)
+    const others = Array.from({ length: 1001 }, (_, i) => `Other listing title ${i}`)
+    const otherAsks = Promise.all(others.map((o) => translateText(o, 'ko')))
+    await vi.advanceTimersByTimeAsync(60) // request 2: one request, every text once
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    answer(2, others, true) // all of them miss, which pushes the first miss out of the cache
+    await expect(otherAsks).resolves.toEqual(others)
+    expect(repaints).not.toHaveBeenCalled()
+    answer(1, ['옥상 테라스, 강 전망'])
+    await expect(fromCard).resolves.toBe('옥상 테라스, 강 전망')
+    expect(repaints).toHaveBeenCalledTimes(1)
+    off()
+  })
+
+  it('past its own cap a forgotten wait still gets its repaint: every landing repaints again', async () => {
+    // Commit-gate review: 5,000 newer tr() asks push the oldest wait out while its request is still out.
+    vi.useFakeTimers()
+    const t = 'Furnished studio, monthly'
+    const { fetchMock, answer } = heldFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    const repaints = vi.fn()
+    const off = subscribeTr(repaints)
+    const label = translateText(t, 'ko', true)
+    await vi.advanceTimersByTimeAsync(60) // request 0: the label's own ask, still out
+    const others = Array.from({ length: 5000 }, (_, i) => `Interface text ${i}`)
+    const otherAsks = Promise.all(others.map((o) => translateText(o, 'ko', true)))
+    await vi.advanceTimersByTimeAsync(60) // request 1
+    answer(1, others, true) // they miss; the label's wait is the one the cap dropped
+    await expect(otherAsks).resolves.toEqual(others)
+    expect(repaints).not.toHaveBeenCalled()
+    answer(0, ['가구 완비 스튜디오, 월세'])
+    await expect(label).resolves.toBe('가구 완비 스튜디오, 월세')
+    expect(repaints).toHaveBeenCalledTimes(1)
+    off()
+  })
+
+  it('repaints again when a second answer for the same text replaces the first', async () => {
+    // Commit-gate review: two requests carrying one text can come back worded differently. A tr() label showing the
+    // first wording must not be left behind when the cache takes the second.
+    vi.useFakeTimers()
+    const t = 'Quiet lane, near the market'
+    const { fetchMock, answer } = heldFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    const repaints = vi.fn()
+    const off = subscribeTr(repaints)
+    const label = translateText(t, 'ko', true)
+    await vi.advanceTimersByTimeAsync(60) // request 0
+    const card = translateText(t, 'ko') // a card's useTr, while it is out
+    await vi.advanceTimersByTimeAsync(60) // request 1
+    answer(0, ['조용한 골목, 시장 근처'])
+    await expect(label).resolves.toBe('조용한 골목, 시장 근처')
+    expect(repaints).toHaveBeenCalledTimes(1)
+    answer(1, ['시장 근처의 조용한 골목'])
+    await expect(card).resolves.toBe('시장 근처의 조용한 골목')
+    expect(trCache.get(`ko ${t}`)).toBe('시장 근처의 조용한 골목')
+    expect(repaints).toHaveBeenCalledTimes(2)
     off()
   })
 })

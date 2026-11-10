@@ -489,8 +489,11 @@ function LanguageProviderInner({
   }, [lang])
 
   // Keep <html lang> in sync so screen readers use the right voice (WCAG 3.1.1).
+  // ⚠️ ONLY WHEN IT DIFFERS. The server already wrote this value, and Chromium restyles the whole
+  // document on any write to it, the same value included: on mount that was one full-page style recalc
+  // inside the longest hydration task (~50-165 ms at 4x CPU; WebKit and Firefox skip it themselves).
   useEffect(() => {
-    document.documentElement.lang = lang
+    if (document.documentElement.lang !== lang) document.documentElement.lang = lang
   }, [lang])
 
   /**
@@ -572,8 +575,8 @@ function LanguageProviderInner({
     // Machine translation is a browser fetch; during SSR there is nothing to fetch from.
     if (typeof window !== 'undefined' && !trInflight.has(ck)) {
       trInflight.add(ck)
-      // flush() calls emitTrChange() on resolve, which repaints subscribers.
-      translateText(en, lang).finally(() => trInflight.delete(ck))
+      // `true`: flush() calls emitTrChange() when this lands, which repaints subscribers — no other asker gets that.
+      translateText(en, lang, true).finally(() => trInflight.delete(ck))
     }
     return en // optimistic source fallback until the translation lands
   }
