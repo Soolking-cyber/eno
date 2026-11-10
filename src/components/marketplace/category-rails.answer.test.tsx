@@ -5,7 +5,8 @@ import type { SerializedCategory } from '@/lib/types'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }), usePathname: () => '/', useSearchParams: () => new URLSearchParams() }))
 vi.mock('./listing-card', () => ({ ListingCard: () => null }))
-vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en, t: (en: string) => en }) }))
+const h = vi.hoisted(() => ({ lang: 'en' }))
+vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: h.lang, tr: (en: string) => en, t: (en: string) => en }) }))
 
 import { CategoryRails } from './category-rails'
 
@@ -25,7 +26,7 @@ const answered = async (reply: () => Promise<unknown>) => {
   return onAnswer
 }
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.history.replaceState(null, '', '/') })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.history.replaceState(null, '', '/'); h.lang = 'en' })
 
 describe('CategoryRails answers the place it holds', () => {
   it('no answer while the request is out', async () => {
@@ -65,5 +66,51 @@ describe('CategoryRails answers the place it holds', () => {
       const onAnswer = await answered(async () => ({ ok: true, json: async () => ({ rails: [] }) }))
       expect(onAnswer).toHaveBeenCalledWith('none')
     } finally { Object.defineProperty(AbortSignal, 'timeout', { value: original, configurable: true, writable: true }) }
+  })
+})
+
+/**
+ * The reader's language goes in the URL (audit api-08): without it the answer carried every card's title in nine
+ * machine-translated languages to a reader who needs one, or none. From the URL, never a cookie: the answer is publicly cached.
+ */
+describe('CategoryRails asks in the reader’s language', () => {
+  const four = { ok: true, json: async () => ({ rails: [{ slug: 'rentals', listings: ['a', 'b', 'c', 'd'].map(listing) }] }) }
+  const urls = () => vi.mocked(fetch).mock.calls.map((c) => String(c[0]))
+  /** The ONE mounted tree, re-rendered under another language: English ⇄ a machine-translated one switches in place, no reload. */
+  const mounted = async (reply: () => Promise<unknown>) => {
+    vi.stubGlobal('fetch', vi.fn(reply))
+    vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+    vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} })
+    const onAnswer = vi.fn()
+    const tree = () => <CategoryRails categories={cats} onCategory={() => {}} onAnswer={onAnswer} />
+    const { container, rerender } = render(tree())
+    const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 0)) })
+    await settle()
+    return { onAnswer, container, switchTo: async (lang: string) => { h.lang = lang; rerender(tree()); await settle() } }
+  }
+
+  it.each(['en', 'vi', 'ko', 'zh-Hans'])('%s', async (lang) => {
+    h.lang = lang
+    await answered(async () => four)
+    expect(urls()).toEqual([`/api/category-rails?lang=${lang}`])
+  })
+
+  it('a language switched in place asks again, in the new one', async () => {
+    const { switchTo } = await mounted(async () => four)
+    await switchTo('ko')
+    expect(urls()).toEqual(['/api/category-rails?lang=en', '/api/category-rails?lang=ko'])
+  })
+
+  it.each([
+    ['a failed response', async () => ({ ok: false })],
+    ['a dropped request', async () => { throw new Error('offline') }],
+  ])('a failed re-ask keeps the rails already shown: %s', async (_name, failure) => {
+    let asked = 0
+    const { onAnswer, container, switchTo } = await mounted(async () => (asked++ === 0 ? four : failure()))
+    expect(onAnswer).toHaveBeenLastCalledWith('rails')
+    await switchTo('ko')
+    expect(asked).toBe(2)
+    expect(onAnswer).not.toHaveBeenCalledWith('none')
+    expect(container.querySelector('section')).not.toBeNull()
   })
 })

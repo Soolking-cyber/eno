@@ -108,6 +108,7 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
  *  on a 13-listing catalogue the same card in three adjacent rails reads as padding, not
  *  supply. Each rail dedups against it and hides below the shared sparse floor. */
 export function CategoryRails({ categories, onCategory, excludeIds, onAnswer }: { categories: SerializedCategory[]; onCategory: (slug: string) => void; excludeIds?: string[]; onAnswer?: (a: 'rails' | 'none') => void }) {
+  const { lang } = useLanguage()
   const [rails, setRails] = useState<Rail[] | null>(null)
   const [active, setActive] = useState(true) // default (unfiltered) home view?
 
@@ -117,12 +118,18 @@ export function CategoryRails({ categories, onCategory, excludeIds, onAnswer }: 
   useEffect(() => {
     let off = false
     // A time limit, because the caller holds 1,400px or more of the page until this answers.
-    fetch('/api/category-rails', { signal: fetchTimeLimit(10_000) })
+    // ⛔ `lang` IN THE URL, as the feed sends it (listings-explorer.tsx): the answer then carries only this
+    // reader's title translations instead of nine languages, and any shared cached copy is keyed by it. Asked
+    // again when the language changes in place (English ⇄ a machine-translated one does not reload), or
+    // the cards would fall back to translating on the client.
+    // A failed re-ask keeps the rails already shown (their titles still translate on the client); only a
+    // first ask that fails answers none.
+    fetch(`/api/category-rails?lang=${encodeURIComponent(lang)}`, { signal: fetchTimeLimit(10_000) })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!off) setRails(d ? d.rails || [] : []) })
-      .catch(() => { if (!off) setRails([]) })
+      .then((d) => { if (!off) setRails((prev) => (d ? d.rails || [] : prev ?? [])) })
+      .catch(() => { if (!off) setRails((prev) => prev ?? []) })
     return () => { off = true }
-  }, [])
+  }, [lang])
 
   // Hide when the feed is filtered/searched (same signal the For You rail uses).
   useEffect(() => {

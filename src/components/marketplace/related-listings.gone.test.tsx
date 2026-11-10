@@ -37,9 +37,12 @@ beforeEach(() => {
   urls = []
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
   // Every pass answers with one card, so the rail never reaches "enough" and asks every scope it has.
+  // The id is taken when the request is made: every pass is asked before any is read, so counting at read time
+  // would give them all the same card.
   vi.stubGlobal('fetch', vi.fn(async (u: string) => {
     urls.push(u)
-    return { ok: true, json: async () => ({ listings: [{ id: `c${urls.length}`, sellerId: 's2' }] }) }
+    const id = `c${urls.length}`
+    return { ok: true, json: async () => ({ listings: [{ id, sellerId: 's2' }] }) }
   }))
 })
 afterEach(() => {
@@ -53,18 +56,23 @@ function renderIn(lang: 'en' | 'vi', node: React.ReactNode) {
   return render(<LanguageProvider initialLang={lang} initialViDict={{}}>{node}</LanguageProvider>)
 }
 const params = (u: string) => new URLSearchParams(u.slice(u.indexOf('?') + 1))
+// What a pass asks for: its scope, without the paging and the payload switches (facets=0, lang) every pass carries.
+const PER_REQUEST = ['limit', 'sort', 'facets', 'lang']
+const scopeOf = (u: string) => Object.fromEntries([...params(u)].filter(([k]) => !PER_REQUEST.includes(k)))
 const has = (andFilters: unknown[], clause: unknown) => andFilters.some((f) => JSON.stringify(f) === JSON.stringify(clause))
 
 describe('RelatedListings — the gone variant', () => {
   it('asks narrowest first — brand + model, the shelf’s brand, the shelf, the category — and EVERY pass is condition=used', async () => {
     const { container } = renderIn('en', <RelatedListings listingId="L1" categorySlug="electronics" subcategorySlug="phones-tablets" brandSlug="oppo" model="A6c" variant="gone" />)
     await act(async () => {})
-    expect(urls.map((u) => Object.fromEntries([...params(u)].filter(([k]) => k !== 'limit' && k !== 'sort')))).toEqual([
+    expect(urls.map(scopeOf)).toEqual([
       { category: 'electronics', brand: 'oppo', model: 'A6c', condition: 'used' },
       { category: 'electronics', subcategory: 'phones-tablets', brand: 'oppo', condition: 'used' },
       { category: 'electronics', subcategory: 'phones-tablets', condition: 'used' },
       { category: 'electronics', condition: 'used' },
     ])
+    // …and every pass asks for rows only, in the reader's language (R41).
+    for (const u of urls) expect([params(u).get('facets'), params(u).get('lang')], u).toEqual(['0', 'en'])
     expect(screen.getByText('Similar second-hand listings')).toBeTruthy()
     expect(container.querySelectorAll('[data-card]')).toHaveLength(4)
   })
@@ -79,7 +87,7 @@ describe('RelatedListings — the gone variant', () => {
   it('⛔ a brand but no shelf: the brand within its category — never the plain category', async () => {
     renderIn('en', <RelatedListings listingId="L1" categorySlug="electronics" brandSlug="oppo" variant="gone" />)
     await act(async () => {})
-    expect(urls.map((u) => Object.fromEntries([...params(u)].filter(([k]) => k !== 'limit' && k !== 'sort')))).toEqual([
+    expect(urls.map(scopeOf)).toEqual([
       { category: 'electronics', brand: 'oppo', condition: 'used' },
     ])
   })
@@ -137,7 +145,7 @@ describe('RelatedListings — the gone variant', () => {
 // Sweep 2026-10-22: a GoPlus flat's "More like this" was filled with Toyota and Yamaha hire (6 of 7 cards) — rentals hold
 // homes and vehicle hire in one category, and the last pass was the plain category.
 describe('RelatedListings — a rental stays within its own kind', () => {
-  const asked = () => urls.map((u) => Object.fromEntries([...params(u)].filter(([k]) => k !== 'limit' && k !== 'sort')))
+  const asked = () => urls.map(scopeOf)
   it('a place widens to places only (kind=places), never the whole rentals category', async () => {
     renderIn('en', <RelatedListings listingId="L1" categorySlug="rentals" subcategorySlug="apartment-rental" variant="pdp" />)
     await act(async () => {})

@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
+import { LANGS, type Lang } from '@/lib/i18n/langs'
 import { route } from '@/lib/api/handler'
 import { diversifyRail } from '@/lib/feed-diversity'
 import { isRetiredNavCategory } from '@/lib/retired-categories'
@@ -31,6 +32,21 @@ const MIN_LISTINGS = 4 // skip near-empty rails (can't fill a desktop row)
  */
 const RAIL_POOL = 40
 
+/**
+ * `?lang`, ONLY AS ONE OF THE SITE'S OWN CODES (LANGS, src/lib/i18n/langs.ts), or undefined — the every-language answer.
+ * ⛔ AN ALLOWLIST, BECAUSE THE ROUTE IS PUBLIC AND EVERY MISS RUNS THE GROUPBY AND ~10 FINDMANY: an unknown value (`xx`,
+ * `ko-KR`, `constructor`, an empty or blank one) must not become its own answer. It answers exactly like no `lang`, so the
+ * route has twelve possible bodies whatever the URL says (commit gate, 2026-11-11). Before this, `lang=xx` was a thirteenth
+ * (no titles at all) and `lang=constructor` embedded `Object` as a "translation" (`"titleI18n":{}` on every card).
+ * Case-blind and trimmed, like every other reader of a language tag here (matchSupportedLanguage in lang-variant.ts,
+ * language-context's matchLanguage), returning the canonical spelling: `ZH-HANS` is `zh-Hans`. ⚠️ NO REGION FALLBACK:
+ * `ko-KR` and `zh` are not codes (the client only ever sends a code, from useLanguage()).
+ */
+function readerLang(raw: string | null): Lang | undefined {
+  const lc = raw?.trim().toLowerCase()
+  return lc ? LANGS.find((code) => code.toLowerCase() === lc) : undefined
+}
+
 // ⚠️ WS6 MIGRATION. `auth: 'public'` — the home page calls this logged-out; there was never an auth
 // preamble and adding one would 401 every guest. No rate limit and no body were added either: this
 // route had neither, and the wrapper must not invent policy.
@@ -43,7 +59,7 @@ const RAIL_POOL = 40
 //
 // The success body returns as a NextResponse because the Cache-Control header is the point of the
 // route; route()'s plain-object path would drop it.
-export const GET = route({ auth: 'public' }, async () => {
+export const GET = route({ auth: 'public' }, async ({ req }) => {
   // Rank categories by demand over their live listings (like the brand rail), falling
   // back to listing count where there's no traffic yet.
   const grouped = await db.listing.groupBy({
@@ -117,8 +133,14 @@ export const GET = route({ auth: 'public' }, async () => {
   )
 
   // ONE translation lookup for every rail's titles (was one query per rail).
+  // ⛔ THE READER'S LANGUAGE COMES FROM THE URL, NEVER THE COOKIE: this answer is `public, s-maxage`, so a
+  // cookie-read variant would poison the shared entry with whichever language came first (audit P2, as on
+  // the feed — feed-payload.ts). With `lang` the answer carries that one language's titles, and none for
+  // en/vi (the row has both). Without it, every language, exactly as before: a page loaded before the
+  // client sent `lang` still asks that way (audit api-08, measured 2026-11-10: 30% of the raw answer was
+  // titles in nine languages). Only a site language counts; anything else is no `lang` (readerLang above).
   const present = rails.filter((r): r is NonNullable<typeof rails[number]> => !!r)
-  const localizedFlat = await localizeListingTitles(present.flatMap((r) => r.listings))
+  const localizedFlat = await localizeListingTitles(present.flatMap((r) => r.listings), readerLang(new URL(req.url).searchParams.get('lang')))
   let cursor = 0
   for (const r of present) { r.listings = localizedFlat.slice(cursor, cursor + r.listings.length); cursor += r.listings.length }
 

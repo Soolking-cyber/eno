@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ListingCard } from './listing-card'
 import { ListingCardSkeleton } from './listing-card-skeleton'
@@ -37,6 +37,8 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
   const { tr, lang } = useLanguage()
   // null = not answered yet (the sold page holds the rail's place until then — see below).
   const [items, setItems] = useState<SerializedListingCard[] | null>(null)
+  // Which question the cards on screen answer (everything the requests depend on except the language): see the merge below.
+  const shownFor = useRef<string | null>(null)
   const { ref, near } = useNearViewport<HTMLDivElement>()
 
   /**
@@ -51,10 +53,18 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
    * behaviour so a thin subcategory still fills the rail rather than showing an empty shelf.
    * ⚠️ Results ACCUMULATE and dedupe, so a wider pass only ever tops up what a narrower one found
    * — the closest matches keep their place at the front of the rail.
+   * ⚠️ ALL PASSES ARE ASKED AT ONCE, AND MERGED IN PASS ORDER, NOT ARRIVAL ORDER. Awaited one after another, two or
+   * three edge misses (~0.5 s each, 0 HITs in 46 measured) held the skeleton for a second or more. The merge below
+   * stops at the same point the old loop did, so the cards and their order are the same; the cost is a wider
+   * request started for nothing when a narrow one already filled the rail (2 more requests in 40, on 19 live
+   * listings). It is cancelled as soon as the merge stops, and every request still out is cancelled when the effect
+   * is cleaned up (unmount, another listing, a language switch).
    */
   useEffect(() => {
     if (!near) return
     let off = false
+    // One controller for this run's requests: aborted when the merge stops (passes it no longer needs) and on cleanup.
+    const ac = new AbortController()
     const ENOUGH = 8
     // ⚠️ EVERY SCOPE CARRIES THE CATEGORY. Subcategory slugs are not globally unique — "accessories"
     // exists under more than one category — so a subcategory-only query can pull in another
@@ -93,22 +103,57 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
           wide,
         ].filter(Boolean)) as string[]
 
+    /**
+     * `facets=0`: the rail reads rows only, so an edge miss skips the chip-count aggregates — which matters more now
+     * that two or three misses reach the 20-connection pool together. `lang`: only the reader's own title
+     * translation instead of all nine (none for en/vi, whose rows carry both titles), so the URL varies with it and
+     * the effect re-asks when the reader switches language in place.
+     * A failed pass answers null, which just means the next, wider one fills the rail. The `.catch` is on each request
+     * as it is made: a wider pass failing (or cancelled: an aborted fetch rejects too) while a narrower one is still
+     * awaited would otherwise surface as an unhandled rejection.
+     */
+    const passes = scopes.map((scope) =>
+      fetch(`/api/listings?${scope}&limit=12&sort=newest&facets=0&lang=${lang}`, { signal: ac.signal })
+        .then((r) => r.json())
+        .catch(() => null))
     ;(async () => {
       const seen = new Map<string, SerializedListingCard>()
-      for (const scope of scopes) {
-        if (off || seen.size >= ENOUGH) break
-        try {
-          const r = await fetch(`/api/listings?${scope}&limit=12&sort=newest`)
-          const d = await r.json()
-          for (const l of (d.listings || []) as SerializedListingCard[]) {
-            if (l.id !== listingId && (!excludeSellerId || l.sellerId !== excludeSellerId) && !seen.has(l.id)) seen.set(l.id, l)
-          }
-        } catch { /* a failed pass just means the next, wider one fills the rail */ }
+      // Whether any pass came back with rows to read (an empty list counts): a failed or cancelled one did not.
+      let answered = false
+      try {
+        for (const pass of passes) {
+          if (seen.size >= ENOUGH) break
+          const d = await pass
+          if (off) return
+          if (Array.isArray(d?.listings)) answered = true
+          try {
+            for (const l of (d?.listings || []) as SerializedListingCard[]) {
+              if (l.id !== listingId && (!excludeSellerId || l.sellerId !== excludeSellerId) && !seen.has(l.id)) seen.set(l.id, l)
+            }
+          } catch { /* a malformed pass is skipped like a failed one */ }
+        }
+      } finally {
+        ac.abort()
       }
-      if (!off) setItems([...seen.values()].slice(0, 10))
+      if (off) return
+      const next = [...seen.values()].slice(0, 10)
+      /**
+       * ⚠️ NOTHING ANSWERED, KEEP WHAT IS SHOWN — FOR THE SAME QUESTION ONLY. A language switch re-runs this with cards
+       * already up; offline or on a 5xx every pass fails, and replacing them with [] would empty a rail that was fine.
+       * A different listing, category, brand, model, seller or variant is a different question: when its requests fail,
+       * the previous answer must not stay (another listing's rail, or cards this one excludes), so it settles as the
+       * empty rail, as a first load with no answer does (the skeleton must not wait forever).
+       */
+      const question = JSON.stringify([listingId, categorySlug, subcategorySlug, brandSlug, model, variant, excludeSellerId])
+      const sameQuestion = shownFor.current === question
+      if (answered) shownFor.current = question
+      setItems((shown) => (answered || shown === null || !sameQuestion ? next : shown))
     })()
-    return () => { off = true }
-  }, [near, categorySlug, subcategorySlug, brandSlug, model, variant, listingId, excludeSellerId])
+    return () => {
+      off = true
+      ac.abort()
+    }
+  }, [near, categorySlug, subcategorySlug, brandSlug, model, variant, listingId, excludeSellerId, lang])
 
   const title = variant === 'gone'
     ? tr('Similar second-hand listings', 'Tin tương tự đã qua sử dụng')

@@ -85,7 +85,7 @@ REST API for the eno.vn marketplace. All routes live under `/api`. Unless noted,
 **`GET /api/search/resolve`** — Req `?q` (2–40 chars, ≤5 words) · Resp `{ brand, model?, category? }` | `{ brand: null }`
 **`GET /api/search/suggest`** — Req `?q` (≥2 chars) · Resp `{ q, listings[≤6], categories[≤4] }`
 **`GET /api/recommendations`** — Req `?cats&brands&terms` (csv, ≤6 each) · Resp `{ listings[], personalized }`
-**`GET /api/category-rails`** — Resp `{ rails: [{ slug, listings[] }] }` (≤10 rails, 8 each, skips <4)
+**`GET /api/category-rails`** — Req `?lang` (optional; only a site language code from `LANGS`, `src/lib/i18n/langs.ts`: en, vi, zh-Hans, ko, ja, ru, km, ms, th, fr, hi, case-insensitive. A code = that language's `titleI18n` only, none for en/vi; omitted, empty or any other value = every language) · Resp `{ rails: [{ slug, listings[] }] }` (≤10 rails, 8 each, skips <4)
 **`GET /api/businesses/top`** — Resp `{ listings[] }` (one card per seller, trust-ordered)
 **`GET /api/brands`** — Req `?q&category&limit(≤200)` · Resp `{ brands: [{ slug, name, count, iconPath }] }`
 **`GET /api/brands/[slug]/models`** — Req `?category` · Resp `{ models: [{ model, count }] }`
