@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { ClassroomAppNotice } from '@/components/classroom/classroom-app-notice'
 import { isNativeAppUserAgent } from '@/lib/app-review-gates'
 import { ClassroomHeader } from '@/components/classroom/classroom-header'
+import { ClassroomCspGuard } from '@/components/classroom/csp-guard'
 import { BARS_IN_COLUMN, COLUMN } from '@/components/classroom/column'
 import { cn } from '@/lib/utils'
 
@@ -34,7 +35,7 @@ export default async function ClassroomLayout({ children }: { children: React.Re
     <div data-classroom="" className={cn('flex min-h-page flex-col bg-background', BARS_IN_COLUMN)}>
       <ClassroomHeader />
       <main id="main" tabIndex={-1} className={cn(COLUMN, 'flex flex-1 flex-col pb-[max(3rem,calc(env(safe-area-inset-bottom)+1.5rem))] pt-4')}>
-        {inApp ? <ClassroomAppNotice /> : children}
+        {inApp ? <ClassroomAppNotice /> : <><ClassroomCspGuard />{children}</>}
       </main>
     </div>
   )

@@ -69,13 +69,60 @@ const RECHECK_MS = 60_000
 /** Each lesson's own last reason (commit review, codex + opus: one slot let one lesson's failure erase another's). */
 const lastWhy = new Map<string, string>()
 
+/** A failure, marked on the trace — and, for a classroom session's socket alone, kept for its next key request (the voice
+ *  guide's are never carried into a lesson's — commit review, opus). */
+function noteFailure(source: SttSource, what: string, note?: string) {
+  mark(`live listening: ${what}`, note)
+  // Kept for THIS session's next key request only (commit review, opus: never logged against another lesson).
+  if (typeof source === 'string') {
+    lastWhy.delete(source)
+    lastWhy.set(source, `${what}${note ? ` ${note}` : ''}`.replace(/[^\w .:/()-]/g, '').slice(0, 100))
+    if (lastWhy.size > 8) lastWhy.delete(lastWhy.keys().next().value!)
+  }
+}
+
+/** A thrown error as its NAME alone ("SyntaxError") — never its message: WebKit's refusal of a subprotocol quotes it, and
+ *  the second protocol is the key. */
+function errName(e: unknown): string {
+  const n = e && typeof e === 'object' ? (e as { name?: unknown }).name : undefined
+  return typeof n === 'string' && n ? n : typeof e
+}
+
+/** RFC 7230 token characters — what a WebSocket subprotocol (the key rides as one) may hold. */
+const TOKEN = /^[!#$%&'*+\-.0-9A-Z^_`|a-z~]+$/
+
+/**
+ * Open live listening — it never throws (owner's iPhone, 2026-11-10: voice-only lessons spent four keys each and the
+ * server's log held NO reason, so the try failed on a path that kept none). Every way out without a socket now keeps one: a
+ * key reply missing its key or address, a socket the browser refuses to create (the error's name, whether the key is a
+ * valid subprotocol token, the address's scheme — never a value), anything that throws.
+ */
+export async function openLiveStt(source: SttSource, on: Parameters<typeof openOnce>[1]): Promise<LiveStt | 'refused' | null> {
+  const held: Held = {}
+  try {
+    return await openOnce(source, on, held)
+  } catch (e) {
+    // What the try had made goes with it (commit review, codex + opus): its timers, and its socket — quietly, its handlers
+    // first, so its close is not a second failure (the page opens a new one with a new key).
+    for (const t of held.timers ?? []) clearInterval(t)
+    if (held.ws) {
+      held.ws.onopen = held.ws.onmessage = held.ws.onerror = held.ws.onclose = null
+      try { held.ws.close() } catch { /* closed */ }
+    }
+    noteFailure(source, 'threw', errName(e))
+    return null
+  }
+}
+/** What one try has made so far — closed if it throws. */
+type Held = { ws?: WebSocket; timers?: ReturnType<typeof setInterval>[] }
+
 /**
  * Where the socket's key comes from: a classroom session's id (its own stt-token route) — or the voice concierge's routes
  * (src/components/concierge), as two requests: the key, and the minute-by-minute "may this still be heard?".
  */
 export type SttSource = string | { grant: (signal: AbortSignal) => Promise<Response>; check: () => Promise<Response> }
 
-export async function openLiveStt(source: SttSource, on: {
+async function openOnce(source: SttSource, on: {
   /** One utterance's words, as Soniox finalized them, and its length in ms (from its first word to its last). */
   utterance: (text: string, speechMs: number) => void
   /** The socket broke, or the session may no longer be heard: the page waits, and opens it again (Soniox only). */
@@ -85,19 +132,9 @@ export async function openLiveStt(source: SttSource, on: {
    * (a noise it took back). Called on every answer; the page shows "Hearing you" from it.
    */
   activity?: (speaking: boolean) => void
-}): Promise<LiveStt | 'refused' | null> {
+}, held: Held): Promise<LiveStt | 'refused' | null> {
   const checkReq = typeof source === 'string' ? () => fetch(`/api/classroom/sessions/${source}/stt-token`, { method: 'GET' }) : source.check
-  /** A failure, marked on the trace — and, for a classroom session's socket alone, kept for its next key request (the voice
-   *  guide's are never carried into a lesson's — commit review, opus). */
-  const failedBecause = (what: string, note?: string) => {
-    mark(`live listening: ${what}`, note)
-    // Kept for THIS session's next key request only (commit review, opus: never logged against another lesson).
-    if (typeof source === 'string') {
-      lastWhy.delete(source)
-      lastWhy.set(source, `${what}${note ? ` ${note}` : ''}`.replace(/[^\w .:/()-]/g, '').slice(0, 100))
-      if (lastWhy.size > 8) lastWhy.delete(lastWhy.keys().next().value!)
-    }
-  }
+  const failedBecause = (what: string, note?: string) => noteFailure(source, what, note)
   // Only the server's own FINAL refusals end the tries (FINAL_REFUSALS: the session is over, the switch is off, consent
   // withdrawn, no keys left); anything else — Soniox down, the network, a passing 401 or rate limit, a proxy's 403/404
   // during a deploy (review, codex + opus) — may pass: the page tries again a few times.
@@ -124,11 +161,16 @@ export async function openLiveStt(source: SttSource, on: {
   } finally {
     clearTimeout(giveUp)
   }
-  if (!grant?.apiKey || !grant.url) return null
+  if (!grant?.apiKey || !grant.url) {
+    failedBecause('bad key reply', grant ? `missing ${['apiKey', 'url'].filter((k) => !(grant as Record<string, unknown>)[k]).join(' ')}` : 'unreadable')
+    return null
+  }
   let ws: WebSocket
   try {
     ws = new WebSocket(grant.url, ['soniox-api-key', grant.apiKey])
-  } catch {
+    held.ws = ws
+  } catch (e) {
+    failedBecause('socket refused', `${errName(e)} key ${typeof grant.apiKey === 'string' && TOKEN.test(grant.apiKey) ? 'token' : 'not-token'} url ${String(grant.url).split(':')[0].slice(0, 8)}`)
     return null
   }
   ws.binaryType = 'arraybuffer'
@@ -169,6 +211,7 @@ export async function openLiveStt(source: SttSource, on: {
   let flowingSince = 0
   let lastHeardAt = Date.now()
   const timers: ReturnType<typeof setInterval>[] = []
+  held.timers = timers
   timers.push(setInterval(() => {
     // ⚠️ By the audio, not by `streaming` (plan review, opus): listening streams for minutes, and an iOS interruption (a
     // call, the lock screen) stops the frames without ending it — the socket would close after 20 s of nothing.

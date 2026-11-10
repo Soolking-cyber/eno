@@ -173,6 +173,33 @@ describe('openLiveStt', () => {
     const back2 = await raw('s2')
     expect((back2.fetched.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toEqual({ 'x-live-why': 'error 401 unauthenticated' })
   })
+  it('⛔ the ways out that kept NO reason keep one now (owner’s iPhone, 2026-11-10: four keys a lesson, an empty log) — and never the key', async () => {
+    const once = async (session: string, Ws: unknown, body: unknown = grant) => {
+      vi.stubGlobal('WebSocket', Ws)
+      const fetched = vi.fn(async () => new Response(JSON.stringify(body), { status: 200 }))
+      vi.stubGlobal('fetch', fetched)
+      const l = await openLiveStt(session, { utterance: () => {}, failed: () => {} })
+      return { l, headers: (fetched.mock.calls[0] as unknown as [string, RequestInit])[1].headers as Record<string, string> | undefined }
+    }
+    await once('s9', FakeSocket).then((r) => (r.l as { close: () => void }).close()) // whatever an earlier test left
+    // the browser refuses to make the socket: its error's NAME — WebKit's message quotes the subprotocol, i.e. the key
+    class Refusing { constructor() { const e = new Error(`Wrong protocol for WebSocket '${grant.apiKey}'`); e.name = 'SyntaxError'; throw e } }
+    expect((await once('s9', Refusing)).l).toBeNull()
+    const a = await once('s9', FakeSocket)
+    expect(a.headers).toEqual({ 'x-live-why': 'socket refused SyntaxError key token url wss' })
+    expect(JSON.stringify(a.headers)).not.toContain(grant.apiKey)
+    ;(a.l as { close: () => void }).close()
+    // a key reply without its key
+    expect((await once('s9', FakeSocket, { url: grant.url })).l).toBeNull()
+    const b = await once('s9', FakeSocket)
+    expect(b.headers).toEqual({ 'x-live-why': 'bad key reply missing apiKey' })
+    ;(b.l as { close: () => void }).close()
+    // anything that throws: null (the page tries again), never a rejection — and its name goes
+    class Throwing { static last: Throwing | null = null; closed = false; constructor() { Throwing.last = this } close() { this.closed = true } set binaryType(_v: string) { throw new TypeError('no') } }
+    await expect(once('s9', Throwing).then((r) => r.l)).resolves.toBeNull()
+    expect(Throwing.last!.closed).toBe(true) // what the try made goes with it (commit review, codex + opus)
+    expect((await once('s9', FakeSocket)).headers).toEqual({ 'x-live-why': 'threw TypeError' })
+  })
   it('close(): an empty frame ends Soniox’s stream, and it is not a failure', async () => {
     const { l, got, ws } = await open()
     l!.close()
