@@ -28,6 +28,7 @@
 # database backup's .last-failure: eno-backup.sh deletes that file on every success, so it would
 # erase a storage failure within 24 hours.
 set -Eeuo pipefail
+umask 077   # root-only, like the DB dumps (infrasec-04)
 
 # Overridable only so the whole cycle can be rehearsed against a scratch volume and a scratch
 # remote prefix (the unit sets neither).

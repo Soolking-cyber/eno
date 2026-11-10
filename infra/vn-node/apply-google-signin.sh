@@ -88,7 +88,7 @@ else:
 PYEOF
 echo "  gotrue env updated"
 
-cd /opt/eno/supabase && docker compose up -d auth >/dev/null 2>&1
+cd /opt/eno/supabase && docker compose up -d --no-deps auth >/dev/null 2>&1
 docker rm -f eno-vn-app eno-forum-app >/dev/null 2>&1 || true
 mk() { B=$(mktemp); cp "$2" "$B"; printf '\nNEXT_PUBLIC_ENO_EDITION=%s\n' "$3" >> "$B"
        [ "$3" = marketplace ] && printf 'MARKETPLACE_HOSTS_SERVICES=true\n' >> "$B"

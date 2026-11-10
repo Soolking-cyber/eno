@@ -31,6 +31,7 @@
 # confidence. Every failure path here exits non-zero and leaves a marker file the
 # monitoring can see; the systemd unit surfaces the failure rather than swallowing it.
 set -euo pipefail
+umask 077   # dumps hold every user's data: root-only (infrasec-04)
 STACK=/opt/eno/supabase
 OUT=/opt/eno/backups
 KEEP_DAYS=14

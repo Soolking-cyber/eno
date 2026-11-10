@@ -270,7 +270,7 @@ rollback() {
     sed -i 's/^GOTRUE_EXTERNAL_FACEBOOK_ENABLED=.*/GOTRUE_EXTERNAL_FACEBOOK_ENABLED=false/' "$E"
     echo "  ↩ Facebook sign-in left OFF until a run passes"
   fi
-  (cd /opt/eno/supabase && docker compose up -d auth </dev/null >/dev/null 2>&1) || echo "  ⛔ auth did not come back — run: cd /opt/eno/supabase && docker compose up -d auth"
+  (cd /opt/eno/supabase && docker compose up -d --no-deps auth </dev/null >/dev/null 2>&1) || echo "  ⛔ auth did not come back — run: cd /opt/eno/supabase && docker compose up -d --no-deps auth"
 }
 trap 'rollback' ERR
 # …and an interrupt, a dropped connection or a kill rolls back too — never a half-written config a later restart applies.
@@ -339,7 +339,7 @@ open(p, 'w').write('\n'.join(out) + '\n')
 print(f'  compose override: {len(add)} Facebook vars wired into services.auth.environment')
 PYEOF
 
-cd /opt/eno/supabase && docker compose up -d auth </dev/null >/dev/null 2>&1
+cd /opt/eno/supabase && docker compose up -d --no-deps auth </dev/null >/dev/null 2>&1
 echo "=== VERIFY ==="
 FOK=no
 for i in $(seq 1 15); do

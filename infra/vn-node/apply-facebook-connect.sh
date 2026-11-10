@@ -339,7 +339,7 @@ else
   undo_auth() {
     echo "  ↩ rolling back GoTrue's env from *.bak-fbconnect-$STAMP"
     cp -p "$E.bak-fbconnect-$STAMP" "$E"; cp -p "$OV.bak-fbconnect-$STAMP" "$OV"
-    (cd /opt/eno/supabase && docker compose up -d auth </dev/null >/dev/null 2>&1) || echo "  ⛔ auth did not come back: cd /opt/eno/supabase && docker compose up -d auth"
+    (cd /opt/eno/supabase && docker compose up -d --no-deps auth </dev/null >/dev/null 2>&1) || echo "  ⛔ auth did not come back: cd /opt/eno/supabase && docker compose up -d --no-deps auth"
   }
   trap 'undo_auth' ERR
   trap 'undo_auth; exit 1' INT TERM HUP PIPE
@@ -366,7 +366,7 @@ ind = text[at[0]][:len(text[at[0]]) - len(text[at[0]].lstrip(' '))]
 text.insert(at[0] + 1, f'{ind}{KEY}: ${{{KEY}}}')
 open(ov, 'w').write('\n'.join(text))
 PY
-  (cd /opt/eno/supabase && docker compose up -d auth </dev/null >/dev/null 2>&1)
+  (cd /opt/eno/supabase && docker compose up -d --no-deps auth </dev/null >/dev/null 2>&1)
   FOK=no
   for i in $(seq 1 15); do
     AUTHC=$(cd /opt/eno/supabase && docker compose ps -q auth 2>/dev/null | head -1)
