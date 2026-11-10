@@ -131,9 +131,12 @@ function mount(client: QueryClient, props: Partial<React.ComponentProps<typeof L
 
 const shelfEl = () => document.querySelector('[data-teacher-shelf]')
 const grid = () => document.querySelector('.feed-grid') as HTMLElement
-/** The grid's children as the reader meets them: a card id, 'shelf', 'capture', or another tag. */
+/** The grid's children as the reader meets them: a card id, 'band', 'shelf', 'capture', or another tag. */
 const gridOrder = (g: Element = grid()) => [...g.children].map((el) =>
-  el.getAttribute('data-feed-card') ?? (el.hasAttribute('data-teacher-shelf') ? 'shelf' : el.getAttribute('data-testid') === 'capture-row' ? 'capture' : el.tagName))
+  el.getAttribute('data-feed-card') ?? (el.hasAttribute('data-partner-band') ? 'band' : el.hasAttribute('data-teacher-shelf') ? 'shelf' : el.getAttribute('data-testid') === 'capture-row' ? 'capture' : el.tagName))
+/** Since 2026-11-10 the undirected home feed carries the phone's partner row after its fourth card (partner-strip.tsx): it is
+ *  the grid's fifth child at every width, so every index after it is one further on than the card's own number. */
+const withBand = (ids: string[]) => [...ids.slice(0, 4), 'band', ...ids.slice(4)]
 /** Every h2 on the page in document order, with whether it is the screen-reader-only kind. */
 const h2s = () => [...document.querySelectorAll('h2')].map((el) => `${el.textContent}${el.classList.contains('sr-only') ? ' (sr-only)' : ''}`)
 
@@ -173,10 +176,10 @@ describe('the server HTML and its hydration', () => {
       // In the server HTML already — crawlers and a cold phone see it without JS. Ends at the capture row: no sr-only
       // feed heading after the shelf while it closes page one (the seed is exactly one page).
       const serverGrid = container.querySelector('.feed-grid')!
-      expect(gridOrder(serverGrid)).toEqual([...SEED().map((l) => l.id), 'shelf', 'capture'])
+      expect(gridOrder(serverGrid)).toEqual([...withBand(SEED().map((l) => l.id)), 'shelf', 'capture'])
       await act(async () => { root = hydrateRoot(container, el, { onRecoverableError: (e) => errors.push(e) }) })
       expect(errors).toEqual([])
-      expect(gridOrder(container.querySelector('.feed-grid')!)).toEqual([...SEED().map((l) => l.id), 'shelf', 'capture'])
+      expect(gridOrder(container.querySelector('.feed-grid')!)).toEqual([...withBand(SEED().map((l) => l.id)), 'shelf', 'capture'])
       // The shelf's cards are in it, and none of them is a feed card (the e2e suites count those).
       const shelf = container.querySelector('[data-teacher-shelf]')!
       expect([...shelf.querySelectorAll('[data-testid="card"]')].map((c) => c.getAttribute('data-id'))).toEqual(['t0', 't1', 't2'])
@@ -198,14 +201,14 @@ describe('the server HTML and its hydration', () => {
 describe('only on the undirected home', () => {
   it('present on the home page — and with a sort, which is not a filter (?sort=recent)', async () => {
     mount(newClient())
-    expect(gridOrder()).toEqual([...SEED().map((l) => l.id), 'shelf', 'capture'])
+    expect(gridOrder()).toEqual([...withBand(SEED().map((l) => l.id)), 'shelf', 'capture'])
     cleanup()
     __resetExplorerCommittedForTests()
     window.history.replaceState({}, '', '/?sort=recent')
     mount(newClient())
     // The URL was applied (its own request went out) and the shelf is still after the twelfth card.
     await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('sort') === 'recent')).toBe(true))
-    await waitFor(() => expect(gridOrder().slice(11, 14)).toEqual(['r11', 'shelf', 'capture']))
+    await waitFor(() => expect(gridOrder().slice(12, 15)).toEqual(['r11', 'shelf', 'capture']))
   })
 
   it.each([
@@ -216,7 +219,9 @@ describe('only on the undirected home', () => {
     mount(newClient())
     await waitFor(() => expect(listingsRequests().some(asked)).toBe(true))
     await waitFor(() => expect(shelfEl()).toBeNull())
-    // …while the feed itself is still a grid with its capture row: only the shelf went.
+    // …and the phone's partner row with it (owner, 2026-11-10: a search or a category result shows no band on a phone).
+    await waitFor(() => expect(document.querySelector('[data-partner-band]')).toBeNull())
+    // …while the feed itself is still a grid with its capture row: only the home's own rows went.
     await waitFor(() => expect(document.querySelector('[data-testid="capture-row"]')).not.toBeNull())
   })
 
@@ -224,11 +229,13 @@ describe('only on the undirected home', () => {
     window.history.replaceState({}, '', url)
     mount(newClient())
     await waitFor(() => expect(shelfEl()).toBeNull())
+    await waitFor(() => expect(document.querySelector('[data-partner-band]')).toBeNull())
   })
 
   it('never on a storefront, never below three teachers, never without the prop', () => {
     mount(newClient(), { sellerId: 'shop-1' })
     expect(shelfEl()).toBeNull()
+    expect(document.querySelector('[data-partner-band]')).toBeNull() // nor the partner row: a storefront is not the home feed
     cleanup()
     __resetExplorerCommittedForTests()
     mount(newClient(), { initialTeachers: TEACHERS(2) })
@@ -238,6 +245,20 @@ describe('only on the undirected home', () => {
     __resetExplorerCommittedForTests()
     mount(newClient(), { initialTeachers: undefined })
     expect(shelfEl()).toBeNull()
+    // The partner row does not depend on teachers: it is still the home feed's fifth child.
+    expect(gridOrder()[4]).toBe('band')
+  })
+
+  // Commit review: the layout's own band is hidden on a phone, so a home feed shorter than two rows must still carry one.
+  it('a home feed of three cards still shows the partner row, after its last card', async () => {
+    const full = catalogue
+    catalogue = full.slice(0, 3)
+    try {
+      mount(newClient(), { initialListings: catalogue, initialTotal: 3 })
+      await waitFor(() => expect(gridOrder().slice(0, 4)).toEqual(['r0', 'r1', 'r2', 'band']))
+    } finally {
+      catalogue = full
+    }
   })
 })
 
@@ -288,10 +309,11 @@ describe('signed in (no guest capture row)', () => {
   it('the shelf is the grid\'s last row until "Browse everything"; page two\'s cards then follow it', async () => {
     h.auth.user = { id: 'u1' }
     mount(newClient())
-    expect(gridOrder()).toEqual([...SEED().map((l) => l.id), 'shelf'])
+    expect(gridOrder()).toEqual([...withBand(SEED().map((l) => l.id)), 'shelf'])
     act(() => { screen.getByRole('button', { name: 'Browse everything' }).click() })
-    await waitFor(() => expect(gridOrder().slice(11, 15)).toEqual(['r11', 'shelf', 'H2', 'r12']))
-    expect(gridOrder()).toHaveLength(12 + 1 + 1 + 12)
+    await waitFor(() => expect(gridOrder().slice(12, 16)).toEqual(['r11', 'shelf', 'H2', 'r12']))
+    // twelve cards + the phone's partner row + the shelf + the sr-only heading + page two's twelve
+    expect(gridOrder()).toHaveLength(12 + 1 + 1 + 1 + 12)
   })
 })
 
@@ -306,7 +328,7 @@ describe('the feed\'s heading after the shelf', () => {
     mount(newClient())
     expect(h2s()).toEqual(['Recommended', 'Find a teacher'])
     act(() => { screen.getByRole('button', { name: 'Browse everything' }).click() })
-    await waitFor(() => expect(gridOrder().slice(11, 16)).toEqual(['r11', 'shelf', 'capture', 'H2', 'r12']))
+    await waitFor(() => expect(gridOrder().slice(12, 17)).toEqual(['r11', 'shelf', 'capture', 'H2', 'r12']))
     expect(h2s()).toEqual(['Recommended', 'Find a teacher', 'Recommended (sr-only)'])
   })
 
@@ -316,7 +338,7 @@ describe('the feed\'s heading after the shelf', () => {
     mount(newClient())
     await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('sort') === 'recent')).toBe(true))
     act(() => { screen.getByRole('button', { name: 'Browse everything' }).click() })
-    await waitFor(() => expect(gridOrder().slice(11, 15)).toEqual(['r11', 'shelf', 'H2', 'r12']))
+    await waitFor(() => expect(gridOrder().slice(12, 16)).toEqual(['r11', 'shelf', 'H2', 'r12']))
     expect(h2s()).toEqual(['Latest listings', 'Find a teacher', 'Latest listings (sr-only)'])
   })
 
@@ -324,7 +346,7 @@ describe('the feed\'s heading after the shelf', () => {
     h.auth.user = { id: 'u1' }
     mount(newClient(), { initialTeachers: TEACHERS(2) })
     act(() => { screen.getByRole('button', { name: 'Browse everything' }).click() })
-    await waitFor(() => expect(gridOrder().slice(11, 13)).toEqual(['r11', 'r12']))
+    await waitFor(() => expect(gridOrder().slice(12, 14)).toEqual(['r11', 'r12']))
     expect(h2s()).toEqual(['Recommended'])
   })
 })

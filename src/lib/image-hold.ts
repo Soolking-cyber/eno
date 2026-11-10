@@ -12,11 +12,12 @@
  * sooner, in any scroller (capture: a rail's own scroll does not bubble). The timer covers a `load` that never comes.
  * ⛔ OPT-IN, FROM THE SEVENTH CARD OF A MAIN GRID, NEVER "EVERY LAZY PHOTO". The home grid's card 2 is lazy AND on the first screen (top 390 px at
  * 390x844), so holding every lazy photo left it blank until hydration: a reviewer's catch, measured. A rail or a shelf can sit anywhere on a page:
- * never held. Six cards are three rows at two columns (`HELD_FROM_CARD`): the first held frame starts at 1,148 px or lower on /c/rentals, /c/teachers,
- * /vi and /?category=rentals, from 320x568 to 600x960.
+ * never held. Six cards are three rows at two columns (`HELD_FROM_CARD`): the first held frame starts at 985 px or lower on every page measured
+ * (re-measured 2026-11-10, after the directed fold and the partner band's move raised the phone's grid: /?category=rentals 985 px at 320 px wide,
+ * /c/electronics 1,026, /c/rentals 1,102, /vi 1,206), which is why globals.css holds photos only in a window no taller than 940 px (45 px of margin).
  * ⛔ NEVER ON A RELOAD OR A BACK/FORWARD (2026-11-03): those photos come from the browser's cache, so they compete with nothing, and a reader restored to the middle
  * of the page got grey boxes first, photos popping in after them.
- * ⚠️ ONLY ON A SCREEN THAT CANNOT REACH IT (globals.css): under `sm`, where LISTING_GRID has two columns, and no taller than 1,100 px, so an iPad's
+ * ⚠️ ONLY ON A SCREEN THAT CANNOT REACH IT (globals.css): under `sm`, where LISTING_GRID has two columns, and no taller than 940 px, so an iPad's
  * Slide Over or a tall narrow window keeps today's page.
  */
 export const HELD_FROM_CARD = 6

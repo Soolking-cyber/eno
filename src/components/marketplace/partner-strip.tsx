@@ -40,14 +40,38 @@ const SECONDS_PER_ITEM = 3.8
  * the repeats and the toggle are hidden and the row scrolls by hand.
  *
  * ⛔ NO LAYOUT SHIFT: every logo carries its intrinsic width/height and a fixed CSS height, and the band has a fixed height.
+ *
+ * ⛔ ON A PHONE IT IS IN THE FEED, NOT UNDER THE HEADER (owner, 2026-11-10: "1-6 1 by one go", item 5 of the decision
+ * scorecard). Under the header it was the first thing on Home and on every search and category result, so a search for
+ * "iphone" opened on Motorbikes and Moving, and it was one of five bands before the first listing. Blind A/B against that:
+ * codex 6.85 to 7.03, Fable 7.09 to 7.34. Two placements of this one component, each shown at its own widths by a class:
+ *   · `top`  (the home layout): from `sm` up, exactly as before; hidden below it;
+ *   · `feed` (listings-explorer.tsx): below `sm` only, a full-width row after the second row of the undirected home feed.
+ *     A search or a category result shows no band on a phone at all.
+ * Both are in the server's HTML (a row inserted after hydration would push the feed down), so each sends its one still
+ * row; only the copy that is on screen at this width runs the loop and grows the repeats.
  */
-export function PartnerStrip() {
+export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed' }) {
   const { tr } = useLanguage()
   const partners = stripPartners()
   const [looping, setLooping] = useState(false)
   const [paused, setPaused] = useState(false)
   const viewport = useRef<HTMLDivElement>(null)
-  useEffect(() => { setLooping(true) }, [])
+  useEffect(() => {
+    // `sm` in rem, like the classes that show and hide the two placements (a larger default font moves both together).
+    const mq = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 40rem)') : null
+    const sync = () => {
+      const shown = mq ? (placement === 'feed') !== mq.matches : true
+      // Back to 0 before the loop runs again, as after a pause: a scroll left behind by hand while this copy was the
+      // still row would offset the resumed -50% loop (commit review).
+      if (shown && viewport.current) viewport.current.scrollLeft = 0
+      setLooping(shown)
+    }
+    sync()
+    // `?.` on the method too: a media query list without addEventListener (WebKit before 14) keeps its first answer.
+    mq?.addEventListener?.('change', sync)
+    return () => mq?.removeEventListener?.('change', sync)
+  }, [placement])
   // ⛔ BACK TO 0 BEFORE THE LOOP RUNS AGAIN. Keyboard focus and the paused state both stop the animation and let the row
   // scroll (globals.css); a scroll left behind would offset the resumed -50% loop and show a gap at its end (review).
   useEffect(() => { if (!paused && viewport.current) viewport.current.scrollLeft = 0 }, [paused])
@@ -62,8 +86,13 @@ export function PartnerStrip() {
     partners.map((p) => <PartnerItem key={`${copy}-${p.handle}`} partner={p} repeat={copy > 0} label={label(p)} />))
   const duration = { '--partner-strip-duration': `${Math.round(partners.length * REPEAT * SECONDS_PER_ITEM)}s` } as CSSProperties
   return (
-    <section aria-label={tr('eno partners', 'Đối tác của eno')} className="partner-strip">
-      <div className="mx-auto flex h-full w-full max-w-7xl items-center gap-3 px-3 sm:gap-4 sm:px-6 lg:px-8">
+    <section
+      aria-label={tr('eno partners', 'Đối tác của eno')}
+      data-partner-band={placement === 'feed' ? '' : undefined}
+      className={placement === 'feed' ? 'partner-strip partner-strip-feed col-span-full sm:hidden' : 'partner-strip max-sm:hidden'}
+    >
+      {/* In the feed the grid already puts a full-width row's content on the page gutter (LISTING_GRID's `col-span-full` padding), so this row adds none. */}
+      <div className={placement === 'feed' ? 'flex h-full w-full items-center gap-3' : 'mx-auto flex h-full w-full max-w-7xl items-center gap-3 px-3 sm:gap-4 sm:px-6 lg:px-8'}>
         <span className="shrink-0 text-2xs font-semibold uppercase tracking-wider text-ink-4">{tr('Partners', 'Đối tác')}</span>
         <div ref={viewport} className="partner-strip-viewport" onBlur={onBlur}>
           <ul className="partner-strip-track" data-loop={looping ? '' : undefined} data-paused={paused ? '' : undefined} style={duration}>

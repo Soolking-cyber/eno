@@ -29,6 +29,7 @@ import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { useTapGlide } from '@/hooks/use-tap-glide'
 import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
+import { PartnerStrip } from './partner-strip'
 import { customFilterChipLabel } from './facet-chip-label'
 import { multiFacetValues, removeMultiFacetValue } from '@/lib/multi-facet'
 import { FacetBarFallback } from './facet-bar-fallback'
@@ -309,6 +310,9 @@ function releaseFeedEntry() {
 // AFTER hydration directly above the grid, which is why its slot is height-reserved at the
 // call site (min-h-9 today — the reasoning is spelled out there). ForYouRail + BusinessRail are static imports (they reuse the
 // already-bundled ListingCard), deferred at the call site with their height held: see DeferredShelf.
+/** The phone's partner row follows this many cards of the undirected home feed: two full rows at two columns. */
+const PARTNER_BAND_AFTER_CARD = 4
+
 const CategoryRails = dynamic(() => import('./category-rails').then((m) => m.CategoryRails), { ssr: false })
 
 // Perf Phase 1: mount the per-category rails only when the user approaches them —
@@ -3882,6 +3886,8 @@ export function ListingsExplorer({
    * and below the rails' floor it does not render. Placed after the twelfth card in the grid below (`FIRST_PAGE_SIZE`).
    */
   const showTeacherShelf = showDiscovery && !sellerId && (initialTeachers?.length ?? 0) >= MIN_RAIL_ITEMS
+  // The phone's partner row (owner, 2026-11-10; partner-strip.tsx): the undirected home feed only, never a storefront.
+  const showPartnerBand = showDiscovery && !sellerId
   useEffect(() => {
     if (!showRecentsRow) return
     let stored: string[] = []
@@ -5453,6 +5459,16 @@ export function ListingsExplorer({
                             first card still skips lazy-loading — it just stops claiming the preload. */}
                         <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0} holdPhoto={index >= HELD_FROM_CARD} onLocate={locateListing} />
                       </div>
+                      {/* ⛔ THE PARTNER BAND, ON A PHONE (owner, 2026-11-10: item 5 of the decision scorecard — partner-strip.tsx
+                          has the record). One full-width row after the SECOND row of the undirected home feed: two columns
+                          below `sm`, so after the fourth card. It is in the DOM at every width and shown below `sm` only (from
+                          `sm` up the layout's own copy under the header is the one on screen), so the server's HTML already
+                          holds it and nothing is inserted after hydration. Never `data-feed-card`: no restore anchor, and
+                          the e2e suites count those. globals.css counts it among the grid's first children and takes it
+                          out of a directed cold link's masked seed. */}
+                      {/* A feed shorter than two rows still shows it, after its last card (commit review: with the layout's copy hidden
+                          on a phone, a three-card home would have had no band at all). An empty feed has none. */}
+                      {index === Math.min(PARTNER_BAND_AFTER_CARD, gridListings.length) - 1 && showPartnerBand && <PartnerStrip placement="feed" />}
                       {/* Guest capture (5a #7): one full-width signup ROW after the first page.
                           Renders null once signed in (and while auth is still loading).
                           ⛔ AFTER THE 12TH, NOT THE 8TH, AND FULL WIDTH (E-ORPHAN, 2026-09-29). It was
@@ -5747,16 +5763,22 @@ export function ListingsExplorer({
                    pair or the column collapses and rebounds while the chunk arrives. */
                 <div data-feed-restoring={restoring || undefined} className={COMPACT_LIST_GRID}>
                   {gridListings.map((l, index) => (
-                    /* data-feed-card = the back-nav restore anchor (see the grid above). */
-                    <div key={`${gridRun.generation}:${l.id}`} data-feed-card={l.id} data-sid={l.sellerId}>
-                      <CompactListingRow
-                        listing={l}
-                        index={index}
-                        onOpen={handleOpen}
-                        onPrefetch={prefetchListing}
-                        onLocate={locateOnMap}
-                      />
-                    </div>
+                    <Fragment key={`${gridRun.generation}:${l.id}`}>
+                      {/* data-feed-card = the back-nav restore anchor (see the grid above). */}
+                      <div data-feed-card={l.id} data-sid={l.sellerId}>
+                        <CompactListingRow
+                          listing={l}
+                          index={index}
+                          onOpen={handleOpen}
+                          onPrefetch={prefetchListing}
+                          onLocate={locateOnMap}
+                        />
+                      </div>
+                      {/* The phone's partner row in the LIST view of the undirected home, after the same four listings as in
+                          the grid (commit review: the layout's copy is hidden on a phone in every view, so the list needs its
+                          own). These rows are client-only, so nothing here is in the server's HTML or under the cold-link mask. */}
+                      {index === Math.min(PARTNER_BAND_AFTER_CARD, gridListings.length) - 1 && showPartnerBand && <PartnerStrip placement="feed" />}
+                    </Fragment>
                   ))}
                   {/* The next page's reserved rows — see `pendingRows`. */}
                   {Array.from({ length: pendingRows }, (_, i) => (

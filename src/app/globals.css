@@ -4300,8 +4300,14 @@ html[data-has-recents] .recents-row {
 
 /* ⛔ OFF-SCREEN CARD PHOTOS WAIT FOR THE PAGE'S SCRIPTS, ON A PHONE (src/lib/image-hold.ts): a lazy image with no box is not fetched, and <html> carries
    the attribute only from the head script until `load`, the first scroll or the timer. Two columns (LISTING_GRID turns to three at `sm`), and no
-   taller than the first held frame ever starts (1,148 px at the least, measured), so a tall narrow window never shows one blank. */
-@media (max-width: 639.98px) and (max-height: 1100px) {
+   taller than the first held frame ever starts, so a tall narrow window never shows one blank.
+   ⚠️ 940 px, RE-MEASURED 2026-11-10 (it was 1,100 against a first held frame "at 1,148 at the least"): the folded category row on a directed phone link
+   (2026-11-09) and the partner band leaving the top of the phone's page (2026-11-10) both raised the grid. The seventh card now starts at 985 px at the
+   least (/?category=rentals at 320 px; 1,045 at 360, 1,050 at 390, 1,083 at 412; /c/electronics 1,026 at 320; every other page lower). 940 leaves 45 px
+   for what the measurement did not cover (a smaller default font shortens the rem-sized rows above the grid; commit review). It still covers every
+   common phone (an iPhone Pro Max is 932 px tall); a taller window simply loads its photos as it always did. Re-measure if anything above a phone's
+   grid gets shorter. */
+@media (max-width: 639.98px) and (max-height: 940px) {
   html[data-images-held] img[data-held-photo] {
     display: none;
   }
@@ -4310,9 +4316,13 @@ html[data-has-recents] .recents-row {
 /* The first screen must never be skipped: a card that has not been rendered yet has no remembered
    size, so letting the LCP row start as the intrinsic-size guess would move the fold on first paint. Twelve
    is the first page (FIRST_PAGE_SIZE): three full rows at the widest breakpoint. The guest-capture
-   row comes AFTER it since 2026-09-29 (E-ORPHAN), so these twelve children are all listing cards. */
-.feed-grid > *:nth-child(-n + 12) [data-feed-card],
-.feed-grid > *:nth-child(-n + 12)[data-feed-card] {
+   row comes AFTER it since 2026-09-29 (E-ORPHAN).
+   ⚠️ THIRTEEN CHILDREN, NOT TWELVE (2026-11-10): on the undirected home the phone's partner row is the fifth child of the
+   grid (partner-strip.tsx; it is in the DOM at every width and shown below `sm`), so the first page's twelve cards are
+   children 1-4 and 6-13. Counting twelve would leave the twelfth card to the intrinsic-size guess. Where there is no
+   partner row the thirteenth child is page two's first card, or the shelf: one more cell painted eagerly, nothing else. */
+.feed-grid > *:nth-child(-n + 13) [data-feed-card],
+.feed-grid > *:nth-child(-n + 13)[data-feed-card] {
   content-visibility: visible;
 }
 
@@ -4661,6 +4671,19 @@ body:has([data-concierge-frame]) .back-to-top-chevron {
   height: 3.25rem;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-card);
+}
+/* ⛔ THE PHONE'S COPY, IN THE HOME FEED (owner, 2026-11-10; partner-strip.tsx `placement="feed"`): a full-width row of the
+   feed grid after its second row, with a hairline above as well as below. The grid's own row gap is its spacing.
+   ⛔ NEVER ON A DIRECTED COLD LINK, AND `display` THIS TIME, NOT `visibility`. Every query string gets the same ISR document,
+   so /?q=laptop arrives with this row in its masked seed. The seed cards keep their boxes under the mask so that lifting
+   it moves nothing; this row is the opposite case: the explorer never renders it on a directed page, so a box held for
+   it would close up under the skeleton cards at hydration and move every row below it. Gone from the first frame, nothing
+   moves. (A `?sort=` link is masked but not directed: there the row appears when the mask lifts, a screen below the fold.) */
+.partner-strip-feed {
+  border-top: 1px solid var(--color-border);
+}
+html[data-explorer-directed] #listings .feed-grid > [data-partner-band] {
+  display: none;
 }
 @media (min-width: 640px) {
   .partner-strip { height: 3.5rem; }

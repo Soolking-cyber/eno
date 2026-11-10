@@ -80,7 +80,8 @@ describe('the parts that must stay wired', () => {
 
 describe('the stylesheet rule', () => {
   const css = readFileSync('src/app/globals.css', 'utf8')
-  const rule = new RegExp(`@media \\(max-width: 639\\.98px\\) and \\(max-height: 1100px\\) \\{\\s*html\\[${IMAGES_HELD_ATTR}\\] img\\[${HELD_PHOTO_ATTR}\\] \\{\\s*display: none;`)
+  // 940 px since 2026-11-10 (it was 1,100): the first held frame now starts at 985 px at the least, see globals.css.
+  const rule = new RegExp(`@media \\(max-width: 639\\.98px\\) and \\(max-height: 940px\\) \\{\\s*html\\[${IMAGES_HELD_ATTR}\\] img\\[${HELD_PHOTO_ATTR}\\] \\{\\s*display: none;`)
 
   it('hides only a held photo, only during the hold, only on a screen too short to reach it', () => {
     expect(css).toMatch(rule)
