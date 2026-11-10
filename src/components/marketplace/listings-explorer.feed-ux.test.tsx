@@ -216,7 +216,8 @@ function installDomStubs() {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
   // Every media query answers `false` — i.e. a PHONE (no `min-width: 768px`). `viewport.desktop = true`
   // makes the md-and-up query match instead.
-  vi.stubGlobal('matchMedia', (q: string) => ({ matches: viewport.desktop && q.includes('min-width: 768px'), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false }))
+  // `desktop` answers both breakpoints the explorer asks: md (the rail, useMdUp) and sm (where the chips live, useSmUp).
+  vi.stubGlobal('matchMedia', (q: string) => ({ matches: viewport.desktop && /min-width: (40rem|768px)/.test(q), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false }))
   window.scrollTo = (() => {}) as typeof window.scrollTo
   window.scrollBy = (() => {}) as typeof window.scrollBy
   Element.prototype.scrollIntoView = () => {}
@@ -1186,10 +1187,33 @@ describe('an applied custom filter reads as the taxonomy names it (E-ACTIVE)', (
     window.history.replaceState({}, '', '/?category=rentals&subcategory=apartment-rental&attr_bedrooms=2&range_areaM2=30-80')
     mount(newClient())
     await waitFor(() => expect(cardIds().length).toBeGreaterThan(0))
-    const line = document.querySelector('[data-slot="result-line"]')!
-    await waitFor(() => expect(line.textContent).toContain('Size 30–80 m²'))
-    expect(line.textContent).toContain('2 BR')
-    expect(line.textContent).not.toMatch(/bedrooms:|areaM2/)
+    // The chips' list, wherever the width puts it: the phone's filter row here (PhoneFilterChips), the result line from sm.
+    const chips = await screen.findByRole('list', { name: 'Filters' })
+    await waitFor(() => expect(chips.textContent).toContain('Size 30–80 m²'))
+    expect(chips.textContent).toContain('2 BR')
+    expect(chips.textContent).not.toMatch(/bedrooms:|areaM2/)
+  })
+})
+
+describe('on a phone the applied chips lead the filter row, and the results row is one line (owner, 2026-11-10)', () => {
+  it('phone: the chips sit in the filter row, Clear all first; the result line holds none, and the view pill follows the count', async () => {
+    window.history.replaceState({}, '', '/?category=rentals&subcategory=apartment-rental&attr_bedrooms=2&range_areaM2=30-80')
+    mount(newClient())
+    const chips = await screen.findByRole('list', { name: 'Filters' })
+    expect(chips.hasAttribute('data-phone-chips')).toBe(true)
+    expect(document.querySelector('[data-slot="result-line"] [role="list"]')).toBeNull()
+    // Clear all (two applied filters) comes before the chips, in the same row.
+    const clear = screen.getByRole('button', { name: 'Clear all' })
+    expect(clear.compareDocumentPosition(chips) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(document.querySelector('[data-view-cluster]')!.className).toContain('max-sm:order-5')
+  })
+  it('from sm: the chips stay on the result line, as before', async () => {
+    viewport.desktop = true
+    window.history.replaceState({}, '', '/?category=rentals&subcategory=apartment-rental&attr_bedrooms=2&range_areaM2=30-80')
+    mount(newClient())
+    const chips = await screen.findByRole('list', { name: 'Filters' })
+    expect(chips.closest('[data-slot="result-line"]')).not.toBeNull()
+    expect(document.querySelector('[data-phone-chips]')).toBeNull()
   })
 })
 

@@ -4405,9 +4405,12 @@ html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-rese
     visibility: hidden;
   }
 }
+/* ⛔ 2.75rem SINCE 2026-11-10 (was 86px): on a phone a directed feed's chips moved into the filter row (result-line.tsx
+   PhoneFilterChips), and its results row is ONE line whatever is applied — the count, Save search (min-h-11) and the view
+   pill. The 86px held the old two rows (chips + pill, then the count). Re-measure if that row changes. */
 @media (width < 40rem) {
   html[data-explorer-directed]:not([data-explorer-cat="teachers"]) #results {
-    min-height: 86px;
+    min-height: 2.75rem;
   }
 }
 

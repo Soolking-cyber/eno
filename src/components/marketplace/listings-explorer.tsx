@@ -57,7 +57,7 @@ import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch, hasSavableSearch } from './use-explorer'
 import { ViewToggles, ViewSwitch, SortStrip } from './explorer-toolbar'
 import { rowsContinue } from './grid-run'
-import { ResultLine, resultCountLabel, shouldOfferSaveSearch } from './result-line'
+import { PhoneFilterChips, ResultLine, resultCountLabel, shouldOfferSaveSearch, useSmUp } from './result-line'
 import { Spinner } from '@/components/ui/spinner'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
 import { histogramQueryFrom } from '@/lib/price-histogram'
@@ -1171,6 +1171,10 @@ export function ListingsExplorer({
    * the next search starts folded (adjust-state-during-render, the pattern `filterSig` uses).
    */
   const mdUp = useMdUp()
+  // ⛔ ON A PHONE A DIRECTED FEED'S CHIPS RIDE THE STICKY FILTER ROW (owner, 2026-11-10 — result-line.tsx PhoneFilterChips):
+  // placed once, by width, never twice in the DOM.
+  const smUp = useSmUp()
+  const chipsInStrip = !smUp && !showDiscovery
   /**
    * ⚠️ …BUT NOT UNDER A READER WHO HAS NOT TOUCHED ANYTHING YET, ON A COLD LOAD OF A DIRECTED URL. The
    * ISR HTML is the unfiltered home (one 6h copy for every URL) and the URL's filters are applied in an
@@ -4918,6 +4922,8 @@ export function ListingsExplorer({
             // pending strip onto two lines and back (0.44 at 1180, production). The audit's own rule: what vanishes stays away.
             goodPriceOffered={facetCounts.deal === undefined ? false : offeredKeys(facetCounts.deal, ['good'], null, { hideNoOp: true }).length > 0}
             headerHidden={headerHidden}
+            // The applied chips and Clear all, first in the phone's filter row (owner, 2026-11-10; result-line.tsx PhoneFilterChips).
+            phoneLead={chipsInStrip ? <PhoneFilterChips filters={resultFilters} appliedCount={appliedChips.length} onClearAll={appliedChips.length > 1 ? () => { commitView(); clearAllFilters() } : undefined} /> : undefined}
             leading={
               <div className="min-h-9">
                 <FacetBar
@@ -5148,9 +5154,11 @@ export function ListingsExplorer({
               // deep link still on the seed, a skeleton-first client mount), else the deferred count.
               count={resultLineCount}
               crumbs={ladderCrumbs}
-              filters={resultFilters}
-              appliedCount={appliedChips.length}
-              onClearAll={appliedChips.length > 1 ? () => { commitView(); clearAllFilters() } : undefined}
+              filters={chipsInStrip ? [] : resultFilters}
+              appliedCount={chipsInStrip ? 0 : appliedChips.length}
+              onClearAll={!chipsInStrip && appliedChips.length > 1 ? () => { commitView(); clearAllFilters() } : undefined}
+              // On a phone the chips and Clear all lead the filter row instead; the count takes this line beside the view pill.
+              chipsInStrip={chipsInStrip}
               // The results header on a search (E-RESULTS, O-13): "N results for “q”". Not on the
               // undirected home, where there are no words to answer, and not while the grid still holds
               // the PREVIOUS words' rows (placeholderData): their count beside the new words would be a
@@ -5202,7 +5210,10 @@ export function ListingsExplorer({
                 item and packs to the START, i.e. hard left under the chips, which reads as a
                 different control group rather than the same one displaced. `ml-auto` pins it to
                 the right edge on that line and changes nothing on a line it shares. */}
-            <div data-view-cluster="" className="order-3 flex shrink-0 items-center gap-1 max-sm:ml-auto">
+            {/* ⛔ …AND WITH THE CHIPS IN THE FILTER ROW (chipsInStrip) IT JOINS THE COUNT'S LINE, AFTER Save search (owner,
+                2026-08-12: Save search left of the view modes, on the same line — kept): `max-sm:order-5`. The row that held only
+                this pill on a category link is gone (owner, 2026-11-10). */}
+            <div data-view-cluster="" className={cn('order-3 flex shrink-0 items-center gap-1 max-sm:ml-auto', chipsInStrip && 'max-sm:order-5')}>
               {/* ⚠️ THE LADDER COUNTS AS FILTERS HERE, AND LEAVING IT OUT HID THIS BUTTON ON THE
                   SEARCHES MOST WORTH SAVING. `resultFilters` deliberately EXCLUDES the ladder
                   levels because the breadcrumb beside it already names them — printing "Honda"

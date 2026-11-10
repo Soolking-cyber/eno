@@ -118,6 +118,11 @@ export type ResultLineProps = {
    */
   splitOnMobile?: boolean
   /**
+   * ⛔ ON A PHONE THE CHIPS LIVE IN THE STICKY FILTER ROW (owner, 2026-11-10 — PhoneFilterChips): the caller passes no
+   * filters and no Clear all here, and the count half takes the line beside the view pill instead of a line of its own.
+   */
+  chipsInStrip?: boolean
+  /**
    * A control pinned at the END OF THE COUNT ROW, outside its scroller — the phone's labelled "Save search"
    * pill (UX3 JOIN-SAVE). The count + path half keeps scrolling on its own; this sits beside it at its own
    * width, so a long breadcrumb can never push it off screen. The CALLER decides where it shows (the
@@ -265,6 +270,7 @@ export function ResultLine({
   appliedCount,
   countTrailing,
   countClassName,
+  chipsInStrip = false,
 }: ResultLineProps) {
   const { lang, tr } = useLanguage()
   const ladder = crumbs ?? []
@@ -468,7 +474,8 @@ export function ResultLine({
         trailing={countTrailing}
         className={cn(
           'flex min-w-0 flex-1 basis-1/2 items-center gap-x-2 sm:gap-x-3',
-          splitOnMobile && 'max-sm:order-last max-sm:w-full max-sm:flex-none max-sm:basis-auto',
+          // The chips moved to the phone's filter row (PhoneFilterChips): the count shares ITS line with the view pill.
+          splitOnMobile && (chipsInStrip ? 'max-sm:order-4 max-sm:min-w-0 max-sm:flex-1 max-sm:basis-0' : 'max-sm:order-last max-sm:w-full max-sm:flex-none max-sm:basis-auto'),
         )}
       >
         {/* The count changes on every tap and the change is the whole feedback loop, so it is
@@ -664,5 +671,81 @@ export function ResultLine({
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * Is the viewport at least `sm`, where the result line keeps its chips? "Desktop" on the server and on the hydrating render,
+ * as useMdUp (ladder-compact-row.tsx): chips come from the URL's filters, applied in effects, so none exists in the server
+ * HTML or the hydration pass — the real width is known before the first chip paints.
+ * ⚠️ `40rem`, NOT `640px` (review): Tailwind's `max-sm:` and the cold-link reserve in globals.css are `40rem` queries, which
+ * follow the browser's default font size — with a 20px default, 640px and 40rem disagree from 640 to 800px, and the row would
+ * keep its chips under a one-line reserve. One unit, so the three always agree.
+ */
+const SM_UP = '(min-width: 40rem)'
+function subscribeSmUp(onChange: () => void) {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => {}
+  const mql = window.matchMedia(SM_UP)
+  if (typeof mql.addEventListener === 'function') {
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
+  }
+  mql.addListener(onChange)
+  return () => mql.removeListener(onChange)
+}
+const getSmUp = () => (typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(SM_UP).matches : true)
+export function useSmUp(): boolean {
+  return React.useSyncExternalStore(subscribeSmUp, getSmUp, () => true)
+}
+
+/**
+ * ⛔ ON A PHONE THE APPLIED CHIPS LEAD THE STICKY FILTER ROW (owner, 2026-11-10: "2 yes" — the playbook's applied filters as
+ * one-tap chips in the facet row, "Clear all" first). They had a row of their own above the count, and on a category link
+ * that row held only the ⊞▾ view pill: ~45px of nothing over the first results. Here they open the one phone scroller —
+ * Clear all (from two applied filters, the result line's own rule), the chips, then Sort · Filter · Price · Area — and the
+ * results row is one line whatever is applied (count, Save search, view pill), so a cold link reserves one height
+ * (globals.css). From sm the chips stay on the result line, unchanged. Placed by JS (useSmUp), never twice in the DOM.
+ * ⚠️ A CHIP OR CLEAR ALL REMOVES ITSELF: a keyboard or screen-reader user who activated one lands on the results row
+ * (#results, tabIndex -1) — the count it holds is the live region that says what changed.
+ */
+export function PhoneFilterChips({ filters, appliedCount = 0, onClearAll }: { filters: ResultFilter[]; appliedCount?: number; onClearAll?: () => void }) {
+  const { tr } = useLanguage()
+  const clearAll = !!onClearAll && Math.max(filters.length, appliedCount) > 1
+  if (!clearAll && filters.length === 0) return null
+  const chipKey = (f: ResultFilter) => JSON.stringify([f.id, f.label])
+  const handOn = (hadFocus: boolean) => {
+    if (hadFocus) requestAnimationFrame(() => document.getElementById('results')?.focus({ preventScroll: true }))
+  }
+  return (
+    <>
+      {clearAll && (
+        <Button
+          type="button"
+          variant="bare"
+          size="none"
+          onClick={(e) => { const had = document.activeElement === e.currentTarget; onClearAll?.(); handOn(had) }}
+          className="min-h-9 shrink-0 rounded-full px-3 text-sm font-semibold text-body underline-offset-2 hover:underline"
+        >
+          {tr('Clear all', 'Xóa tất cả')}
+        </Button>
+      )}
+      {filters.length > 0 && (
+        // A list, as on the result line ("Filters, list, 2 items"); a flex box of its own inside the row, never `contents`
+        // (older Safari drops a `display: contents` list from the accessibility tree).
+        <ul role="list" aria-label={tr('Filters', 'Bộ lọc')} data-phone-chips="" className="flex shrink-0 items-center gap-2">
+          {filters.map((f) => (
+            <li key={chipKey(f)} className="shrink-0">
+              <RemovableBadge
+                label={f.label}
+                removeLabel={removeFilterLabel(f.label, tr)}
+                onRemove={() => { const had = !!document.activeElement?.closest('[data-phone-chips]'); f.onRemove(); handOn(had) }}
+                onReopen={f.onReopen}
+                className="min-h-9 border-0 pl-3.5 text-sm text-accent-foreground"
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   )
 }

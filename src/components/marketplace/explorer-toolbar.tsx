@@ -142,6 +142,7 @@ export function SortStrip({
   goodPriceOffered = true,
   headerHidden,
   leading,
+  phoneLead,
   priceLabel = 'price',
 }: {
   sort: SortKey
@@ -200,6 +201,8 @@ export function SortStrip({
    * Measured at 390×844: first card 447 → see listings-explorer.tsx at the SortStrip call site.
    */
   leading?: React.ReactNode
+  /** First in the PHONE row, before the sort pill: the applied chips and Clear all (result-line.tsx PhoneFilterChips). */
+  phoneLead?: React.ReactNode
 }) {
   const { tr } = useLanguage()
   const priceSortActive = sort === 'price-low' || sort === 'price-high'
@@ -341,7 +344,9 @@ export function SortStrip({
         ref={phoneRowRef}
         className="flex flex-wrap items-center justify-between gap-x-4 max-sm:-mx-3 max-sm:flex-nowrap max-sm:justify-start max-sm:gap-x-2 max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:overscroll-x-contain max-sm:px-3 max-sm:py-1 scrollbar-none"
       >
-      {/* THE PHONE SORT PILL — first in the row so the order is visible without a swipe. A facet pill
+      {/* ⛔ THE APPLIED CHIPS LEAD THE PHONE ROW, Clear all first (owner, 2026-11-10: "2 yes"; result-line.tsx PhoneFilterChips). */}
+      {phoneLead}
+      {/* THE PHONE SORT PILL — first in the row (after any applied chips, owner 2026-11-10) so the order is visible without a swipe. A facet pill
           (ui/chip-style PILL_*, ⌄), with the order's glyph in front (⇅, or the price direction). Tinted at rest like
           every pill on the row; the brand tint once an order other than Relevance is picked. */}
       <CustomSelect
