@@ -23,7 +23,7 @@ export const MAX_ATTEMPTS = 3
 /** A word scored below this is one to practise; below 60 Azure itself calls it a mispronunciation. */
 export const PRACTISE_BELOW = 80
 
-type Turn = { seq: number; status: string; learnerText: string | null; replyText: string; reference: string | null; expectText: string | null; pron: unknown; assessStatus: string; heardAs: unknown; flag: string | null; aiCalls: number; learnerMs: number }
+type Turn = { seq: number; status: string; learnerText: string | null; replyText: string; supportText?: string | null; reference: string | null; expectText: string | null; pron: unknown; assessStatus: string; heardAs: unknown; flag: string | null; aiCalls: number; learnerMs: number }
 
 export type WordScore = { word: string; score: number; reliable: boolean; count: number; phonemes?: string }
 
@@ -183,7 +183,8 @@ async function buildFeedbackLocked(sessionId: string, now: Date): Promise<'ready
     band,
     plan: { brief: typeof snap.brief === 'string' ? snap.brief : '', focus: parseFocus(snap.focus) },
     workingOn: workingOnLines(s.enrollment?.focusItems, 8),
-    turns: clean.map((t) => ({ seq: t.seq, learner: t.learnerText, avatar: t.replyText })),
+    // The tutor's Vietnamese help, marked: the report reads the whole exchange, never the help as English.
+    turns: clean.map((t) => ({ seq: t.seq, learner: t.learnerText, avatar: t.supportText ? `(Vietnamese help) ${t.supportText} ${t.replyText}` : t.replyText })),
     flaggedWords: flagged.map((w) => ({ word: w.word, score: w.score, reliable: w.reliable, ...(w.phonemes ? { phonemes: w.phonemes } : {}) })),
     heardAs: clean.flatMap((t) => (Array.isArray(t.heardAs) ? (t.heardAs as { heard: string; meant: string }[]) : [])).slice(0, 10),
   }

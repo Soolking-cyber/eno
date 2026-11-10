@@ -684,7 +684,12 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
       await readAnswer(res, (l) => {
         if (ended.current || gen !== turnGen.current) return
         if (l.kind === 'silence') { answered = true; mark('heard nothing'); return }
-        if (l.kind === 'heard') { mark('heard', `${l.learnerText.length} chars`); setLearnerLine(l.learnerText); setAvatarLine(''); return }
+        if (l.kind === 'heard') {
+          // The server took this turn — and the tap with it (saved there; never a silence, never a refusal): it is not sent
+          // again — a lost answer must not carry it onto a later turn (session-turn.ts).
+          if (taps.current === sentTaps) pendingPace.current = null
+          mark('heard', `${l.learnerText.length} chars`); setLearnerLine(l.learnerText); setAvatarLine(''); return
+        }
         if (l.kind === 'error') { mark('no answer', l.error); setNotice(l.error); return }
         if (l.kind === 'no-drill') { settled = true; lastExpect.current = null; return }
         // The reply's drill, sent with its end — before the saved turn: the learner may answer before `reply` arrives.
@@ -715,7 +720,7 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
           setLeft(l.secondsLeft)
           lastExpect.current = l.expect ?? null
           // The pace as the server now has it (a tap taken, or "speak more slowly" said) — unless the learner tapped since.
-          if (l.pace && taps.current === sentTaps) { pendingPace.current = null; setPace(l.pace) }
+          if (l.pace && taps.current === sentTaps) setPace(l.pace)
           // Streamed: the captions grow sentence by sentence with the voice (`say`) — the whole reply is not shown ahead of it.
           if (streamed) return
           setAvatarLine([l.support, l.reply].filter(Boolean).join(' '))
@@ -1094,7 +1099,8 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
     startRef.current = s
     total.current = Math.max(1, Math.round((Date.parse(s.endsAt) - Date.now()) / 1000))
     setLeft(total.current)
-    setAvatarLine(s.opening.text)
+    // A resumed session's last line with its Vietnamese help (shown; the voice says the English line again).
+    setAvatarLine([s.opening.support, s.opening.text].filter(Boolean).join(' '))
     setStart(s)
     setPace(s.pace ?? null)
     pendingPace.current = null
@@ -1230,7 +1236,8 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
           <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-brand-deeper via-brand-deeper/60 to-transparent" />
 
           {showTrace && trace.length > 0 && (
-            <ol className="pointer-events-none absolute left-2 top-20 z-10 max-h-[50%] overflow-hidden rounded-lg bg-brand-deeper/80 p-2 font-mono text-xs leading-tight text-primary-foreground/90">
+            // justify-end: past its height the OLDEST lines go — the latest (a listening failure) is what is needed.
+            <ol className="pointer-events-none absolute left-2 top-20 z-10 flex max-h-[50%] flex-col justify-end overflow-hidden rounded-lg bg-brand-deeper/80 p-2 font-mono text-xs leading-tight text-primary-foreground/90">
               {trace.map((m, i) => <li key={i}>{formatMark(m)}</li>)}
             </ol>
           )}

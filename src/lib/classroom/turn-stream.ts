@@ -405,7 +405,8 @@ export function voiceOf(q: Pick<LineQueue<TurnLine>, 'push'>, speak: Speaker | n
       q.push({ kind: 'part-end', part, last: false })
     } catch (e) {
       failed += 1
-      if (!help) replyFailed += 1
+      // Only an English line of the reply can carry the drill's "say after me…" (commit review round 2, opus).
+      if (!help && lang !== 'vi') replyFailed += 1
       logWarn('[classroom] reply TTS failed', { part, status: (e as { status?: number } | null)?.status ?? null, ...(lang ? { lang } : {}) })
       q.push({ kind: 'audio-failed', part })
       // Its words were on the screen: seen, if not heard.
@@ -448,7 +449,7 @@ export function voiceOf(q: Pick<LineQueue<TurnLine>, 'push'>, speak: Speaker | n
     },
     /** How many sentences' voices failed or were cut. */
     failed: () => failed,
-    /** …of them, the REPLY's own (not the help's): one of these may have carried the drill's request. */
+    /** …of them, the reply's own ENGLISH lines (not the help's, not a Vietnamese one): one may have carried the drill's request. */
     replyFailed: () => replyFailed,
     /** The page was told the reply's drill (a `drill` line). */
     drilled: () => drilled,

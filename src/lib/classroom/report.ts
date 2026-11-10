@@ -26,7 +26,7 @@ export async function sessionForViewer(sessionId: string, accountId: string) {
       feedback: true,
       // The answered turns — and a FLAGGED turn kept although its reply could not be written (2a round 8, codex: the teacher
       // must be able to read what the alert was about). The family's side drops every flagged turn below either way.
-      turns: { where: { OR: [{ status: 'ok' }, { status: 'failed', flag: { not: null } }] }, orderBy: { seq: 'asc' }, select: { seq: true, learnerText: true, replyText: true, heardAs: true, flag: true, learnerMs: true } },
+      turns: { where: { OR: [{ status: 'ok' }, { status: 'failed', flag: { not: null } }] }, orderBy: { seq: 'asc' }, select: { seq: true, learnerText: true, replyText: true, supportText: true, heardAs: true, flag: true, learnerMs: true } },
       enrollment: { select: { id: true, seatName: true, status: true, avatarId: true, learnerId: true } },
       learner: { select: { ownerId: true, displayName: true, withdrawnAt: true } },
       avatar: { select: { name: true, teacherProfile: { select: { profileId: true, fullName: true, photoUrl: true } } } },
@@ -75,7 +75,9 @@ export function reportFor(s: Awaited<ReturnType<typeof sessionForViewer>>['s'], 
     // ⛔ A CHILD'S NUMBER OR HANDLE NEVER REACHES THE TEACHER (2a round 11, opus): a line the learner said that carries one
     // is shown to the teacher masked — the classroom is no way round the marketplace's contact rules. The family sees
     // their own words as said.
-    transcript: shown.map((t, i) => ({ seq: teacherSide ? t.seq : i + 1, learner: teacherSide ? maskContact(t.learnerText) : t.learnerText, avatar: t.replyText, ...(teacherSide && t.flag ? { flag: t.flag } : {}) })),
+    // ⛔ THE TUTOR'S VIETNAMESE HELP IS SHOWN TOO (commit review round 2, opus): the adults who read the exchange read all the
+    // AI said, in either language.
+    transcript: shown.map((t, i) => ({ seq: teacherSide ? t.seq : i + 1, learner: teacherSide ? maskContact(t.learnerText) : t.learnerText, avatar: t.replyText, ...(t.supportText ? { avatarVi: t.supportText } : {}), ...(teacherSide && t.flag ? { flag: t.flag } : {}) })),
     // "We heard … — did you mean …?" — the tutor's guesses at sound-alike mishearings, shown as QUESTIONS, never scores.
     heardAs: [...new Map(shown.flatMap((t) => (Array.isArray(t.heardAs) ? (t.heardAs as { heard: string; meant: string }[]) : []))
       .filter((h) => typeof h?.heard === 'string' && typeof h?.meant === 'string')

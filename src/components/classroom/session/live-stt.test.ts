@@ -145,6 +145,21 @@ describe('openLiveStt', () => {
     expect(got.failed).toBe(1)
     expect(ws.sent).toHaveLength(1)
   })
+  it('⛔ why a socket failed rides on the NEXT key request (x-live-why — codes only) and only once: the server logs it', async () => {
+    await raw() // carries whatever an earlier test's socket left — sent once, then gone
+    const first = await raw()
+    expect((first.fetched.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toBeUndefined()
+    FakeSocket.last!.say({ tokens: [], error_code: 401, error_type: 'unauthenticated' })
+    const second = await raw()
+    expect((second.fetched.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toEqual({ 'x-live-why': 'error 401 unauthenticated' })
+    ;(second.l as { close: () => void }).close()
+    const third = await raw()
+    expect((third.fetched.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toBeUndefined()
+    // a socket Soniox closes says its close code
+    ;(FakeSocket.last!.onclose as unknown as (e: { code: number; reason: string }) => void)({ code: 1006, reason: '' })
+    const fourth = await raw()
+    expect((fourth.fetched.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toEqual({ 'x-live-why': 'socket closed 1006' })
+  })
   it('close(): an empty frame ends Soniox’s stream, and it is not a failure', async () => {
     const { l, got, ws } = await open()
     l!.close()

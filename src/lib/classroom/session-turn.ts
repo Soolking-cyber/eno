@@ -98,6 +98,9 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
   // The words decide (a drill's clip may be quiet while Soniox heard words — review, opus).
   if (!live.text.trim()) return { kind: 'silence' }
 
+  // ⛔ THE CALL'S PACE CHIPS (owner, 2026-11-10: "3 chips slow normal fast so student can adjust the speech"): a tap, read
+  // inside THIS learner's range (the server's band, never the page's).
+  const tapped = live.pace === undefined ? null : clampPace(live.pace, bandOf(session), paceOf(session, bandOf(session)))
   // ── Reserve the turn: the count, the duplicate and the seq, under the SESSION's lock, in a short transaction —
   // the slow calls run after it commits (codex, plan round 2: parallel distinct turns must never pass the cap).
   const reserved = await db.$transaction(async (tx) => {
@@ -133,6 +136,13 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     const last = await tx.classroomTurn.findFirst({ where: { sessionId }, orderBy: { seq: 'desc' }, select: { seq: true } })
     const seq = (last?.seq ?? 0) + 1
     if (seq > LIMITS.turnsPerSession) throw new ApiError('turn_cap', 409)
+    // ⛔ A TAP IS SAVED THE MOMENT A NEW TURN IS TAKEN (commit review rounds 2–3, codex + opus): the page sends it once and
+    // lets it go when this answer begins — it never rides again on a later turn to undo a spoken change the page did not
+    // hear. Only here: a duplicate (a retried upload) or a refused turn never writes it — the page still holds the tap.
+    if (tapped) {
+      await tx.classroomSession.update({ where: { id: sessionId }, data: { voicePace: tapped, updatedAt: new Date() } })
+      if (now2.learnerId) await tx.classroomLearner.update({ where: { id: now2.learnerId }, data: { voicePace: tapped, updatedAt: new Date() } })
+    }
     const row = await tx.classroomTurn.create({ data: { sessionId, seq, clientTurnId, status: 'processing', learnerMs: info.ms } })
     return { row }
   })
@@ -187,17 +197,12 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
    * THE VOICE'S PACE FOR THIS TURN (pace.ts; owner, 2026-10-26: "adults may adjust pace by saying talk more slowly"): the
    * session's — moved ONE step when the learner asks (the tutor's `pace`, written before its first sentence, so the
    * reply's own "Sure, I'll slow down" is already slower). Saved with the turn — on the session, and as the learner's own
-   * choice for their next sessions — only when it actually moved.
+   * choice for their next sessions — only when it actually moved. A tap on the chips (saved when the turn was taken) is
+   * this turn's base: a spoken "slower" steps from it.
    */
-  const before0 = paceOf(session, band)
+  const before0 = tapped ?? paceOf(session, band)
   let pace: VoicePace = before0
   let paceMoved = false
-  // ⛔ THE CALL'S PACE CHIPS (owner, 2026-11-10: "3 chips slow normal fast so student can adjust the speech"): a tap is this
-  // turn's base — read inside THIS learner's range (the server's band, never the page's) — and a spoken "slower" steps
-  // from it. Sent once, with the first turn after the tap: a turn without it keeps the session's own pace, so a spoken
-  // change the page never heard (a talked-over answer) is never undone by a stale chip.
-  const tapped = live.pace === undefined ? null : clampPace(live.pace, band, before0)
-  if (tapped && tapped !== pace) pace = tapped
   // The page leaving (talked over, closed) ends the brain too: what was said by then is saved (turn-stream.ts).
   const brain = new AbortController()
   const events = tutorTurnStream(ai, {
@@ -242,8 +247,8 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     const ref = reply.safety || !clip ? null : reference
     // ⛔ A FLAGGED TURN SAVES NO PACE (2026-10-26 review round 2, codex + opus): a first brain's "slower" followed by a second
     // brain's harm flag is not the learner's choice for their next sessions.
-    // The learner's own tap is theirs whatever the reply was: kept even on a flagged turn (it came from no brain).
-    const kept: VoicePace | null = paceMoved && !reply.safety ? pace : tapped && tapped !== before0 ? tapped : null
+    // (The learner's own tap was saved when the turn was taken — whatever the reply turns out to be.)
+    const kept: VoicePace | null = paceMoved && !reply.safety ? pace : null
     const keepPace = kept !== null
     try {
       await db.$transaction(async (tx) => {

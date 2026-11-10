@@ -62,6 +62,13 @@ const FINAL_REFUSALS: ReadonlySet<string> = new Set(['session_over', 'session_no
 const RECHECK_MS = 60_000
 
 /**
+ * WHY THE LAST SOCKET FAILED, FOR THE SERVER'S LOG (owner, 2026-11-10: lessons stuck on "Connecting…" while every key was
+ * issued — the reason was only ever on the phone's own screen). The next key request carries it (`x-live-why`) and the
+ * key route logs it. Codes only — a status, a close code, Soniox's error type — never a word heard.
+ */
+let lastWhy = ''
+
+/**
  * Where the socket's key comes from: a classroom session's id (its own stt-token route) — or the voice concierge's routes
  * (src/components/concierge), as two requests: the key, and the minute-by-minute "may this still be heard?".
  */
@@ -79,6 +86,12 @@ export async function openLiveStt(source: SttSource, on: {
   activity?: (speaking: boolean) => void
 }): Promise<LiveStt | 'refused' | null> {
   const checkReq = typeof source === 'string' ? () => fetch(`/api/classroom/sessions/${source}/stt-token`, { method: 'GET' }) : source.check
+  /** A failure, marked on the trace — and, for a classroom session's socket alone, kept for its next key request (the voice
+   *  guide's are never carried into a lesson's — commit review, opus). */
+  const failedBecause = (what: string, note?: string) => {
+    mark(`live listening: ${what}`, note)
+    if (typeof source === 'string') lastWhy = `${what}${note ? ` ${note}` : ''}`.replace(/[^\w .:/()-]/g, '').slice(0, 100)
+  }
   // Only the server's own FINAL refusals end the tries (FINAL_REFUSALS: the session is over, the switch is off, consent
   // withdrawn, no keys left); anything else — Soniox down, the network, a passing 401 or rate limit, a proxy's 403/404
   // during a deploy (review, codex + opus) — may pass: the page tries again a few times.
@@ -90,10 +103,11 @@ export async function openLiveStt(source: SttSource, on: {
   let grant: Grant | null
   try {
     const r = await (typeof source === 'string'
-      ? fetch(`/api/classroom/sessions/${source}/stt-token`, { method: 'POST', signal: abort.signal })
+      ? fetch(`/api/classroom/sessions/${source}/stt-token`, { method: 'POST', signal: abort.signal, ...(lastWhy ? { headers: { 'x-live-why': lastWhy } } : {}) })
       : source.grant(abort.signal)).catch(() => null)
+    if (typeof source === 'string') lastWhy = ''
     if (!r?.ok) {
-      mark('live listening: no key', String(r?.status ?? 'network'))
+      failedBecause('no key', String(r?.status ?? 'network'))
       if (!r || r.status < 400 || r.status >= 500) return null
       const code = ((await r.json().catch(() => null)) as { error?: unknown } | null)?.error
       return typeof code === 'string' && FINAL_REFUSALS.has(code) ? 'refused' : null
@@ -110,12 +124,12 @@ export async function openLiveStt(source: SttSource, on: {
     return null
   }
   ws.binaryType = 'arraybuffer'
-  const opened = await new Promise<boolean>((resolve) => {
-    const t = setTimeout(() => resolve(false), 8_000)
-    ws.onopen = () => { clearTimeout(t); resolve(true) }
-    ws.onerror = () => { clearTimeout(t); resolve(false) }
+  const opened = await new Promise<'open' | 'timeout' | 'error'>((resolve) => {
+    const t = setTimeout(() => resolve('timeout'), 8_000)
+    ws.onopen = () => { clearTimeout(t); resolve('open') }
+    ws.onerror = () => { clearTimeout(t); resolve('error') }
   })
-  if (!opened) { try { ws.close() } catch { /* closed */ } mark('live listening: socket failed'); return null }
+  if (opened !== 'open') { try { ws.close() } catch { /* closed */ } failedBecause('socket failed', opened); return null }
   ws.send(JSON.stringify({
     model: grant.model,
     audio_format: 'pcm_s16le',
@@ -156,11 +170,11 @@ export async function openLiveStt(source: SttSource, on: {
     // A socket that swallows audio and answers nothing (a stalled network) would leave the learner on "Listening" for good.
     const now = Date.now()
     if (closed || !streaming || now - lastSentAt > 1_000) return
-    if (now - Math.max(lastHeardAt, flowingSince) > STALL_MS) { mark('live listening: stalled'); shutDown(true) }
+    if (now - Math.max(lastHeardAt, flowingSince) > STALL_MS) { failedBecause('stalled'); shutDown(true) }
   }, 1_000))
   timers.push(setInterval(() => {
     void checkReq().then((res) => {
-      if (!res.ok && res.status !== 429) { mark('live listening: no longer allowed', String(res.status)); shutDown(true) }
+      if (!res.ok && res.status !== 429) { failedBecause('no longer allowed', String(res.status)); shutDown(true) }
     }).catch(() => { /* a network blip is not a refusal */ })
   }, RECHECK_MS))
 
@@ -170,7 +184,7 @@ export async function openLiveStt(source: SttSource, on: {
     let m: Message
     try { m = JSON.parse(e.data) as Message } catch { return }
     lastHeardAt = Date.now()
-    if (m.error_code) { mark('live listening: error', `${m.error_code} ${m.error_type ?? ''}`); shutDown(true); return }
+    if (m.error_code) { failedBecause('error', `${m.error_code} ${m.error_type ?? ''}`.trim()); shutDown(true); return }
     // In-progress words of THIS utterance (by the audio clock) — with its final words so far, "the learner is speaking".
     let pending = false
     for (const t of m.tokens ?? []) {
@@ -207,8 +221,8 @@ export async function openLiveStt(source: SttSource, on: {
     try { ws.close() } catch { /* closed */ }
     if (broke) on.failed()
   }
-  ws.onclose = () => { if (!closed) { mark('live listening: socket closed'); shutDown(true) } }
-  ws.onerror = () => { if (!closed) shutDown(true) }
+  ws.onclose = (e?: CloseEvent) => { if (!closed) { failedBecause('socket closed', e ? `${e.code}${e.reason ? ` ${e.reason}` : ''}` : undefined); shutDown(true) } }
+  ws.onerror = () => { if (!closed) { failedBecause('socket error'); shutDown(true) } }
 
   return {
     begin() {

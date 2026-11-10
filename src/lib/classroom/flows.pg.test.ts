@@ -327,7 +327,7 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     const s = await db.classroomSession.create({ data: { enrollmentId: seat.id, avatarId, learnerId, status: 'ended', endedAt: new Date(Date.now() - 200_000), endsAt: new Date(), reservedMinutes: 10, usedSeconds: 60, learnerSpeechMs: 3_000 } })
     await db.classroomTurn.create({ data: { sessionId: s.id, seq: 1, status: 'ok', learnerText: 'I go to school yesterday', replyText: 'ok', assessStatus: 'done', learnerMs: 1_000 } })
     await db.classroomTurn.create({ data: { sessionId: s.id, seq: 2, status: 'ok', learnerText: 'someone at home hurts me', replyText: 'Please tell a trusted adult.', flag: 'harm', heardAs: [{ heard: 'hurts', meant: 'hearts' }], learnerMs: 1_000 } })
-    await db.classroomTurn.create({ data: { sessionId: s.id, seq: 3, status: 'ok', learnerText: 'I like football', replyText: 'Great!', assessStatus: 'done', learnerMs: 1_000 } })
+    await db.classroomTurn.create({ data: { sessionId: s.id, seq: 3, status: 'ok', learnerText: 'I like football', replyText: 'Great!', supportText: 'Bóng đá là football.', assessStatus: 'done', learnerMs: 1_000 } })
     await db.classroomTurn.create({ data: { sessionId: s.id, seq: 5, status: 'ok', learnerText: 'my phone is 0901 234 567', replyText: 'Please keep that private.', assessStatus: 'skipped', learnerMs: 1_000 } })
     // a flagged turn kept although its reply could not be written ('failed' but flagged)
     await db.classroomTurn.create({ data: { sessionId: s.id, seq: 4, status: 'failed', learnerText: 'it happened again', replyText: 'Thank you for telling me.', flag: 'harm', learnerMs: 1_000 } })
@@ -352,6 +352,10 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     // a number the child SAID never reaches the teacher; the family sees their own words
     expect(teacher.transcript.find((t) => t.seq === 5)).toMatchObject({ learner: '[contact details hidden]' })
     expect(family.transcript.some((t) => t.learner === 'my phone is 0901 234 567')).toBe(true)
+    // ⛔ the tutor's Vietnamese help is shown to the adults too — and read by the report, marked as help
+    expect(family.transcript.find((t) => t.learner === 'I like football')).toMatchObject({ avatar: 'Great!', avatarVi: 'Bóng đá là football.' })
+    expect(teacher.transcript.find((t) => t.seq === 3)).toMatchObject({ avatarVi: 'Bóng đá là football.' })
+    expect(seen.feedbackTurns[0].find((t) => t.learner === 'I like football')).toMatchObject({ avatar: '(Vietnamese help) Bóng đá là football. Great!' })
     // the report's lock was released by its builder (one conditional DELETE on kv_store)
     expect(await db.$queryRaw<{ n: number }[]>`SELECT count(*)::int AS n FROM kv_store WHERE key = ${`classroom-feedback:${s.id}`}`).toEqual([{ n: 0 }])
     expect(teacher.feedback).toMatchObject({ safetyFlag: 'harm' })
@@ -474,8 +478,16 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
       const gentle = await answered(s.id, parentId, 'turn-chip-00004', null, undefined, { ...said(), pace: 'gentle' })
       expect(gentle.reply).toMatchObject({ pace: 'slowest' })
       // a retried upload of the latest turn (its answer lost on the way): the pace comes back too — the chips never go stale
-      const again = await answered(s.id, parentId, 'turn-chip-00004', null, undefined, said())
-      expect(again.reply).toMatchObject({ pace: 'slowest' })
+      // — and its old tap is NOT written again over what the session has now
+      await db.classroomSession.update({ where: { id: s.id }, data: { voicePace: 'natural' } })
+      const again = await answered(s.id, parentId, 'turn-chip-00004', null, undefined, { ...said(), pace: 'quick' })
+      expect(again.reply).toMatchObject({ pace: 'natural' })
+      expect((await db.classroomSession.findUnique({ where: { id: s.id } }))!.voicePace).toBe('natural')
+      // a silence takes no turn — and no tap
+      seen.silence = true
+      expect((await answered(s.id, parentId, 'turn-chip-00005', null, undefined, { ...said(), pace: 'quick' })).kind).toBe('silence')
+      seen.silence = false
+      expect((await db.classroomSession.findUnique({ where: { id: s.id } }))!.voicePace).toBe('natural')
       await end.endSession(s.id, parentId, 'learner')
     } finally {
       seen.pace = null

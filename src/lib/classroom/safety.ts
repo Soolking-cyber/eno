@@ -41,7 +41,9 @@ export function safetyReply(band: AgeBand): string {
 export function safetySupport(band: AgeBand, level: string): string | null {
   const child = band === 'child-young' || band === 'child'
   if (!child && level !== 'A1' && level !== 'A2') return null
-  return band === 'adult'
-    ? 'Cảm ơn bạn đã chia sẻ. Nếu bạn đang gặp nguy hiểm, hãy tìm đến người bạn tin tưởng hoặc gọi cấp cứu.'
-    : 'Cảm ơn con đã kể. Hãy nói với một người lớn con tin tưởng, như bố mẹ hoặc thầy cô.'
+  // The same message as the English beside it (safetyReply): an adult's names emergency help; a teen's and a child's a
+  // trusted grown-up — "bạn" to a teen, "con" to a child.
+  if (band === 'adult') return 'Cảm ơn bạn đã chia sẻ. Nếu bạn đang gặp nguy hiểm, hãy tìm đến người bạn tin tưởng hoặc gọi cấp cứu.'
+  if (band === 'teen') return 'Cảm ơn bạn đã kể. Hãy nói với một người lớn bạn tin tưởng, như bố mẹ hoặc thầy cô.'
+  return 'Cảm ơn con đã kể. Hãy nói với một người lớn con tin tưởng, như bố mẹ hoặc thầy cô.'
 }

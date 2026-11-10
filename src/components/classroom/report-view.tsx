@@ -30,7 +30,8 @@ type Report = {
     scores: { pronunciation: number | null; fluency: number | null; grammarFixes: number; talkSeconds: number }
     teacherNote?: string; safetyFlag?: string | null
   }
-  transcript: { seq: number; learner: string | null; avatar: string; flag?: string }[]
+  /** `avatarVi`: the tutor's Vietnamese help, said before `avatar` (tutor-ai.ts `support`). */
+  transcript: { seq: number; learner: string | null; avatar: string; avatarVi?: string; flag?: string }[]
   heardAs: { heard: string; meant: string }[]
 }
 
@@ -203,6 +204,7 @@ export function ReportView({ sessionId }: { sessionId: string }) {
             {r.transcript.map((t) => (
               <li key={t.seq} className="flex flex-col gap-1">
                 {t.learner && <p className={cn('self-end rounded-2xl bg-tint px-3 py-2 text-sm text-ink-2', t.flag && 'ring-2 ring-warning')}>{t.learner}</p>}
+                {t.avatarVi && <p lang="vi" className="text-sm text-ink-3">{t.avatarVi}</p>}
                 <p className="text-sm text-ink">{t.avatar}</p>
               </li>
             ))}

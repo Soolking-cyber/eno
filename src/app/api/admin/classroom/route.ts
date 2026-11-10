@@ -82,7 +82,7 @@ async function describe() {
       orderBy: { createdAt: 'desc' },
       take: 30,
       select: {
-        sessionId: true, createdAt: true, learnerText: true, replyText: true,
+        sessionId: true, createdAt: true, learnerText: true, replyText: true, supportText: true,
         session: { select: { learner: { select: { kind: true, birthYear: true } }, avatar: { select: { name: true, teacherProfile: { select: { fullName: true, profile: { select: { email: true } } } } } } } },
       },
     }),
@@ -131,7 +131,7 @@ async function describe() {
       sessionId: f.sessionId, at: f.createdAt.toISOString(), avatar: f.session.avatar.name,
       teacher: f.session.avatar.teacherProfile.fullName, teacherEmail: f.session.avatar.teacherProfile.profile.email,
       learner: f.session.learner ? (f.session.learner.kind === 'child' ? `child, born ${f.session.learner.birthYear}` : 'adult') : 'teacher test',
-      said: f.learnerText ?? '', reply: f.replyText,
+      said: f.learnerText ?? '', reply: [f.supportText, f.replyText].filter(Boolean).join(' '),
     })),
   }
 }

@@ -50,7 +50,8 @@ export type StartedSession = {
   avatar: { name: string; photoUrl: string | null; voice: string; spatiusAvatarId: string | null; background: Background; backgroundUrl: string | null }
   learnerName: string
   band: AgeBand
-  opening: { text: string; audio: string | null; expect: string | null }
+  /** `support`: a RESUMED session's last Vietnamese help — shown with the line; its voice says the English line again. */
+  opening: { text: string; audio: string | null; expect: string | null; support?: string }
   /** The voice's pace now, and the call's pace chips — the learner's range, slowest first (pace.ts: Slow · Normal · Fast). */
   pace: VoicePace
   paces: VoicePace[]
@@ -219,13 +220,13 @@ export async function startLearnerSession(seatId: string, accountId: string, now
       // ⛔ Never a FLAGGED reply (2a round 5, opus): a parent reopening the tab must not hear the safety words aloud. When the
       // latest exchange IS flagged, a neutral line with no drill takes its place — the next turn is scored against the
       // latest turn's drill, and a flagged turn never has one (2a round 10, opus).
-      const latest = await tx.classroomTurn.findFirst({ where: { sessionId: live.id, status: 'ok' }, orderBy: { seq: 'desc' }, select: { replyText: true, expectText: true, flag: true } })
-      const last = latest?.flag ? { replyText: NEUTRAL_RESUME, expectText: null } : latest
+      const latest = await tx.classroomTurn.findFirst({ where: { sessionId: live.id, status: 'ok' }, orderBy: { seq: 'desc' }, select: { replyText: true, supportText: true, expectText: true, flag: true } })
+      const last = latest?.flag ? { replyText: NEUTRAL_RESUME, supportText: null, expectText: null } : latest
       // The face as it may be NOW (round 5, opus): a session that started with the 3D avatar continues voice-only when the
       // under-13 switch, the Spatius set-up or the look changed since — never "avatar" with no avatar to load.
       if (live.mode === 'avatar' && face.mode !== 'avatar') await tx.classroomSession.update({ where: { id: live.id }, data: { mode: 'voice', updatedAt: now } })
       const session = live.mode === 'avatar' && face.mode !== 'avatar' ? { ...live, mode: 'voice' } : live
-      return { session, opening: { text: last?.replyText ?? '', expect: last?.expectText ?? null }, resumed: true, pace: clampPace(live.voicePace, band, startPace) }
+      return { session, opening: { text: last?.replyText ?? '', expect: last?.expectText ?? null, ...(last?.supportText ? { support: last.supportText } : {}) }, resumed: true, pace: clampPace(live.voicePace, band, startPace) }
     }
     // ⛔ A SESSION THE LEARNER NEVER SPOKE IN DOES NOT SPEND THE DAY (core review, opus): a start that died at once — the
     // mic refused, the page closed — is not practice. Only sessions with an answered turn count towards the day and the
@@ -279,7 +280,7 @@ export async function startLearnerSession(seatId: string, accountId: string, now
     },
     learnerName: learner.displayName,
     band,
-    opening: { text: result.opening.text, audio, expect: result.opening.expect },
+    opening: { text: result.opening.text, audio, expect: result.opening.expect, ...helpOf(result.opening) },
     pace: result.pace,
     paces: [...paceRange(band)],
   }
@@ -383,12 +384,12 @@ export async function startTeacherTest(accountId: string, tutorId?: string, now 
       const face = modeFor(avatar, false, true)
       // A reload RESUMES the test where it is (2a reviews, opus + codex): the avatar's latest line and its drill — never a
       // new opening from today's greeting.
-      const latest = await tx.classroomTurn.findFirst({ where: { sessionId: live.id, status: 'ok' }, orderBy: { seq: 'desc' }, select: { replyText: true, expectText: true, flag: true } })
-      const last = latest?.flag ? { replyText: NEUTRAL_RESUME, expectText: null } : latest
+      const latest = await tx.classroomTurn.findFirst({ where: { sessionId: live.id, status: 'ok' }, orderBy: { seq: 'desc' }, select: { replyText: true, supportText: true, expectText: true, flag: true } })
+      const last = latest?.flag ? { replyText: NEUTRAL_RESUME, supportText: null, expectText: null } : latest
       if (live.mode === 'avatar' && face.mode !== 'avatar') await tx.classroomSession.update({ where: { id: live.id }, data: { mode: 'voice', updatedAt: now } })
       const session = live.mode === 'avatar' && face.mode !== 'avatar' ? { ...live, mode: 'voice' } : live
       const livePace = defaultPace('adult', testLevel(avatar.traits), parseTraits(avatar.traits).pace)
-      return { session, opening: { text: last?.replyText ?? openingOf(plan, avatar.name).text, expect: last?.expectText ?? null }, resumed: true, pace: clampPace(live.voicePace, 'adult', livePace), avatar, sessionFace: face }
+      return { session, opening: { text: last?.replyText ?? openingOf(plan, avatar.name).text, expect: last?.expectText ?? null, ...(last?.supportText ? { support: last.supportText } : {}) }, resumed: true, pace: clampPace(live.voicePace, 'adult', livePace), avatar, sessionFace: face }
     }
     const tests = await tx.classroomSession.count({ where: { testerId: accountId, startedAt: { gte: ictDayStart(now) } } })
     if (tests >= LIMITS.teacherTestsPerDay && !devUnlimited() && !staff) throw new NextAtRefusal('test_limit', nextPracticeAt('day_limit', now).toISOString())
@@ -424,10 +425,16 @@ export async function startTeacherTest(accountId: string, tutorId?: string, now 
     },
     learnerName: '',
     band: 'adult',
-    opening: { text: opening.text, audio, expect: opening.expect },
+    opening: { text: opening.text, audio, expect: opening.expect, ...helpOf(opening) },
     pace,
     paces: [...paceRange('adult')],
   }
+}
+
+/** A resumed opening's Vietnamese help, when it has one (a fresh opening never does). */
+function helpOf(o: object): { support?: string } {
+  const support = (o as { support?: unknown }).support
+  return typeof support === 'string' && support ? { support } : {}
 }
 
 /** A teacher's try is a B1 adult — an A2 one with the tutor's "Slow & simple", the way a beginner is met (tutor-ai.ts). */

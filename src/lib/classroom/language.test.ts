@@ -10,10 +10,13 @@ describe('vietnameseSentence', () => {
       'Bạn có thể nói: tôi thích đọc sách.',
       'Đúng rồi!',
       'Hãy nói với bố mẹ hoặc thầy cô nhé.',
+      'Từ "good" nghĩa là tốt.', // the English word it explains is quoted
+      '‘Please’ là làm ơn.',
+      'Chị My rất tốt.', // a name, not the English "my"
     ]) expect(vietnameseSentence(s), s).toBe(true)
   })
   it('English — with a Vietnamese name in it, a dish, or an accented loanword among other words — is English', () => {
-    for (const s of ['I live in Đà Nẵng.', 'Have you been to Hà Nội?', 'Do you like phở?', 'What is your hobby?', 'Hà Nội is big.', 'Let us order a café latte.', '']) {
+    for (const s of ['I live in Đà Nẵng.', 'Have you been to Hà Nội?', 'Do you like phở?', 'What is your hobby?', 'Hà Nội is big.', 'Let us order a café latte.', 'Bánh mì or phở?', 'Phở, please!', 'My phở is hot.', '']) {
       expect(vietnameseSentence(s), s).toBe(false)
     }
   })
