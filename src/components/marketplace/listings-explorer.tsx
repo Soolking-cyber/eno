@@ -48,6 +48,7 @@ import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvives
 import { queryChips } from '@/lib/district-query'
 import { clearPlaceForTypedDistrict, queryAfterAreaPick } from './explorer-place'
 import { warmListing } from '@/lib/warm-listing'
+import { isFocusVisible } from '@/lib/focus-visible'
 import { applyFilterParams, FOLD_ATTR, isSeededFeed, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView, type FilterHrefParam } from '@/lib/explorer-url'
 import { publicPathname, variantOfLanguage } from '@/lib/lang-variant'
 import { localizedHref } from '@/lib/lang-pinned'
@@ -5485,7 +5486,8 @@ export function ListingsExplorer({
                         // event, so every warm-up in this app was mouse-only and they alone paid the
                         // full navigation. `onFocus` is the keyboard's hover. (A `{/* */}` comment
                         // here is a SYNTAX ERROR — it is only valid in child position.)
-                        onFocus={() => prefetchListing(l.id)}
+                        // Only the keyboard's focus (`:focus-visible`): Chromium also focuses what a finger taps, and the touchstart below has warmed that already.
+                        onFocus={(e) => { if (isFocusVisible(e.target)) prefetchListing(l.id) }}
                         onTouchStart={() => prefetchListing(l.id)}
                       >
                         {/* ⚠️ `lcp` IS CONDITIONAL, AND THE CONDITION IS "IS THE PROMO BANNER ON

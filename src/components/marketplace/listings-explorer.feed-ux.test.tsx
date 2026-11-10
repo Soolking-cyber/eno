@@ -1321,3 +1321,35 @@ describe('a tile links to the PUBLIC page on both sides of the lang rewrite (E-T
     }
   })
 })
+
+describe('a grid cell warms its listing on keyboard focus, not on a tap\'s focus (hydration-06)', () => {
+  /**
+   * Focus `el` for real, with the browser's answer to `:focus-visible` fixed: true is a keyboard Tab, false a tap
+   * (Chromium focuses a tapped link or button; the cell's touchstart has warmed it already). Every other selector gets
+   * jsdom's own answer.
+   */
+  function focusAs(el: HTMLElement, visible: boolean) {
+    const real = Element.prototype.matches
+    const spy = vi.spyOn(Element.prototype, 'matches').mockImplementation(function (this: Element, selector: string) {
+      return selector === ':focus-visible' ? visible : real.call(this, selector)
+    })
+    try { act(() => { el.focus() }) } finally { spy.mockRestore() }
+  }
+
+  it('a tap\'s focus inside the cell does not prefetch the listing; a keyboard Tab does', async () => {
+    // Ids of this test's own: warm-listing.ts dedupes a route for five minutes, page-wide.
+    catalogue = Array.from({ length: 12 }, (_, i) => row(`fv${i}`))
+    const prefetch = vi.spyOn(h.router, 'prefetch')
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(newClient())
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    const cardOf = (id: string) => screen.getAllByTestId('card').find((c) => c.getAttribute('data-id') === id)!
+    expect(cardOf('fv0').closest('[data-feed-card]')?.getAttribute('data-feed-card')).toBe('fv0')
+    focusAs(cardOf('fv0'), false)
+    focusAs(cardOf('fv1'), true)
+    // The harness router's prefetch is typed `() => void`, so its recorded calls are read as plain arrays.
+    const warmed = prefetch.mock.calls.map((args: unknown[]) => args[0])
+    expect(warmed).not.toContain('/listings/fv0')
+    expect(warmed).toContain('/listings/fv1')
+  })
+})

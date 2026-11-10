@@ -4,9 +4,11 @@
  * instantly"): a mouse over the card or keyboard focus on it prefetches /listings/<id>, once per five minutes, wherever
  * the card is drawn — never a finger (a scroll starting). Only the feed grid did this before; the rails and shelves did
  * not. src/lib/warm-listing.ts holds the dedupe.
+ * Focus counts only when it is the keyboard's (`:focus-visible`, src/lib/focus-visible.ts): Chromium focuses a tapped link
+ * or button, and that focus warmed the listing and mounted the hidden quick bar on every Android tap (hydration-06).
  */
 import React from 'react'
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { SerializedListingCard } from '@/lib/types'
 
@@ -80,10 +82,31 @@ afterAll(() => { vi.unstubAllGlobals() })
 
 afterEach(() => { cleanup() })
 
+/**
+ * Focus `el` for real, with the browser's answer to `:focus-visible` fixed: true is a keyboard Tab, false a tap or a click
+ * (measured inside the focusin listener in Chromium, Firefox and WebKit), 'throws' a browser that cannot parse the
+ * selector. Every other selector gets jsdom's own answer.
+ */
+function focusAs(el: HTMLElement, visible: boolean | 'throws') {
+  const real = Element.prototype.matches
+  const spy = vi.spyOn(Element.prototype, 'matches').mockImplementation(function (this: Element, selector: string) {
+    if (selector !== ':focus-visible') return real.call(this, selector)
+    if (visible === 'throws') throw new SyntaxError(`'${selector}' is not a valid selector`)
+    return visible
+  })
+  try { act(() => { el.focus() }) } finally { spy.mockRestore() }
+}
+
 describe('ListingCard warms its listing on the way to a click', () => {
   const card = (id: string) => {
     const view = render(<ListingCard listing={{ ...LISTING, id } as SerializedListingCard} onOpen={() => {}} />)
-    return { root: view.container.querySelector<HTMLElement>('[data-card-root]')!, link: view.container.querySelector<HTMLElement>('a[data-card-link]')! }
+    return {
+      root: view.container.querySelector<HTMLElement>('[data-card-root]')!,
+      link: view.container.querySelector<HTMLElement>('a[data-card-link]')!,
+      heart: view.container.querySelector<HTMLElement>('button[aria-label="Save listing"]')!,
+      /** The desktop quick bar is mounted (its Offer control exists only there). */
+      bar: () => view.container.querySelector('button[aria-label="Make an offer"]') !== null,
+    }
   }
   const warms = (id: string) => prefetch.mock.calls.filter(([h]) => h === `/listings/${id}`).length
 
@@ -92,9 +115,27 @@ describe('ListingCard warms its listing on the way to a click', () => {
     expect(warms('warm-mouse')).toBe(1)
   })
 
-  it('keyboard focus on it warms it', () => {
-    fireEvent.focus(card('warm-focus').link)
+  it('keyboard focus on it warms it, and mounts the quick bar', () => {
+    const { link, bar } = card('warm-focus')
+    focusAs(link, true)
     expect(warms('warm-focus')).toBe(1)
+    expect(bar()).toBe(true)
+  })
+
+  it('a tap does neither, though Chromium focuses the tapped link or heart: that focus is not :focus-visible', () => {
+    const { root, link, heart, bar } = card('warm-tap-focus')
+    fireEvent.pointerEnter(root, { pointerType: 'touch' })
+    focusAs(heart, false)
+    focusAs(link, false)
+    expect(warms('warm-tap-focus')).toBe(0)
+    expect(bar()).toBe(false)
+  })
+
+  it('a browser that cannot parse :focus-visible keeps the keyboard\'s warm-up and quick bar', () => {
+    const { link, bar } = card('warm-old-browser')
+    focusAs(link, 'throws')
+    expect(warms('warm-old-browser')).toBe(1)
+    expect(bar()).toBe(true)
   })
 
   it('a finger does not: a touch is usually a scroll starting', () => {
@@ -107,7 +148,7 @@ describe('ListingCard warms its listing on the way to a click', () => {
   it('mouse then focus warm once in all', () => {
     const { root, link } = card('warm-both')
     fireEvent.pointerEnter(root, { pointerType: 'mouse' })
-    fireEvent.focus(link)
+    focusAs(link, true)
     expect(warms('warm-both')).toBe(1)
   })
 

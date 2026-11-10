@@ -49,6 +49,7 @@ import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { openerVoice, quickChatOpener } from '@/lib/teachers/first-message'
 import { isModifiedClick } from '@/lib/plain-click'
 import { warmListing } from '@/lib/warm-listing'
+import { isFocusVisible } from '@/lib/focus-visible'
 
 /**
  * ⛔ THE BLUR PLACEHOLDER IS GONE, AND ITS OWN COMMENT IS WHY. It said "matches the card's bg" and
@@ -430,7 +431,8 @@ function ListingCardImpl({
         if (e.pointerType !== 'touch') warmListing(router, listing.id)
         if (!quickBar && (e.pointerType !== 'touch' || window.matchMedia(PC_QUERY).matches)) setQuickBar(true)
       }}
-      onFocusCapture={() => { warmListing(router, listing.id); if (!quickBar) setQuickBar(true) }}
+      // Focus counts only when it is the keyboard's (`:focus-visible`): Chromium focuses what a finger taps, so on Android every tap on a card warmed it and mounted the bar.
+      onFocusCapture={(e) => { if (!isFocusVisible(e.target)) return; warmListing(router, listing.id); if (!quickBar) setQuickBar(true) }}
       // `data-sid` — the shop, for src/lib/hidden-sellers.ts: a shop the viewer blocked is hidden by one stylesheet
       // (App Store 1.2), so every card of it disappears wherever it is drawn. The cells that hold a card carry it too.
       data-sid={listing.sellerId}
