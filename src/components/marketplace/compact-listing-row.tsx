@@ -6,7 +6,6 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, MapPin, MessageCircle, Tag, Zap } from '@/components/ui/icons'
 import { PartnerBadge } from './partner-badge'
-import { TrustScore } from './trust-score'
 import { Badge } from './card-badges'
 import { Badge as UiBadge } from '@/components/ui/badge'
 import { Price } from './price'
@@ -17,7 +16,6 @@ import { IdentityVerifiedMark } from './identity-verified-mark'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useLocalized } from './listing-content'
 import { timeAgo, type SerializedListingCard } from '@/lib/types'
-import { cardHidesTrust } from '@/lib/linked-seller'
 import { cardTitle, jobTypeLabel } from '@/lib/card-title'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vnd'
@@ -266,14 +264,9 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             l.isSponsored
               ? <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>
               : <PartnerBadge className={cn('relative z-[2] ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')} />
-          ) : cardHidesTrust(l) ? null : (
-            <TrustScore
-              score={l.seller.trustScore}
-              variant="mini"
-              size="sm"
-              className={cn('relative z-[2] ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')}
-            />
-          )}
+          ) : null}
+          {/* ⛔ NO TRUST NUMBER ON A BROWSE SURFACE (owner, 2026-11-10; listing-card.tsx has the note): the mini chip that
+              hung here, and its twin on the sm+ meta line below, are gone. The partner plate and the Ad label keep both slots. */}
         </div>
         {/* min-w-0 is load-bearing: without it this flex row can never shrink below
             its content, so a wide price (shrink-0, and it must stay shrink-0 — a
@@ -342,9 +335,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {l.isSponsored && <UiBadge variant="neutral" size="sm" data-ad-marker="" className={cn('ml-auto hidden shrink-0 sm:inline-flex', offer !== null && 'sm:hidden')}>{tr('Ad', 'Quảng cáo')}</UiBadge>}
           {l.seller.officialPartner ? (
             l.isSponsored ? null : <PartnerBadge className={cn('relative z-[2] ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
-          ) : cardHidesTrust(l) ? null : (
-            <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className={cn('relative z-[2] ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
-          )}
+          ) : null}
         </div>
         {/* PHONES: where and how fresh, on a line of its own — the facts the desktop meta line carries
             beside the price, which a phone row has no width for there. It stands in for the map button

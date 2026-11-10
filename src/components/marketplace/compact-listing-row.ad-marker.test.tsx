@@ -80,9 +80,11 @@ describe('CompactListingRow — Ad marker vs the partner plate', () => {
     expect(c.querySelectorAll('[data-ad-marker]')).toHaveLength(0)
   })
 
-  it('a member listing keeps its trust chip and carries no Ad marker', () => {
+  // Since 2026-11-10 no browse surface draws the trust number (owner; listing-card.tsx has the note): neither of the row's two slots.
+  it('a member listing carries no trust number and no Ad marker', () => {
     const c = row({ isSponsored: false, isPartnerBooking: false, seller: { trustScore: 80, isBusiness: false, officialPartner: false, unrated: false } })
-    expect(c.querySelectorAll('[data-trust-chip]')).toHaveLength(2)
+    expect(c.querySelectorAll('[data-trust-chip]')).toHaveLength(0)
+    expect(c.querySelectorAll('[data-partner-chip]')).toHaveLength(0)
     expect(c.querySelectorAll('[data-ad-marker]')).toHaveLength(0)
   })
 })

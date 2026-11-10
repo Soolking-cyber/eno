@@ -7,8 +7,9 @@
  * "Trusted" chip, on every rental in the feed. Only LINKED JOBS were excluded. The rule is now every id
  * in src/lib/import-sellers.ts, and these tests pin it:
  *   · a portal-import rental and a linked job show no trust chip;
- *   · a member's listing still does — as a named image (role=img + the full sentence), with NO native
- *     `title` (the chip explains itself through ui/tooltip, like the partner chip beside it);
+ *   · ⛔ SINCE 2026-11-10 NOR DOES A MEMBER'S LISTING (owner, item 4 of the decision scorecard: the bare "75" on
+ *     every tile was a number with no word and no scale; blind A/B codex 6.87 to 7.04, Fable 7.13 to 7.41). No tile
+ *     draws the number; it stays on the listing page and the seller's page (buyer-facing-labels.test.tsx pins those);
  *   · an official partner shows the partner chip, never the trust chip.
  *
  * ⚠️ CHIPS ARE COUNTED BY `[data-trust-chip]`, NEVER BY `[title^="Trust score"]` — the title is gone on
@@ -86,7 +87,7 @@ const card = (patch: Record<string, unknown>) =>
 
 afterEach(cleanup)
 
-describe('ListingCard — the trust chip is for sellers eno.vn rated, and only them', () => {
+describe('ListingCard — no tile draws the trust number; the partner chip is the one mark in its slot', () => {
   it('a portal-import rental (Chợ Tốt) shows no trust chip, though its storefront sits at 100', () => {
     const c = card({ sellerId: 'nhatot-import-seller-0001', isPartnerBooking: true })
     expect(c.querySelectorAll('[data-trust-chip]')).toHaveLength(0)
@@ -98,13 +99,13 @@ describe('ListingCard — the trust chip is for sellers eno.vn rated, and only t
     expect(c.querySelectorAll('[data-trust-chip]')).toHaveLength(0)
   })
 
-  it("a member's listing keeps its chip — named for assistive tech, with no native title", () => {
-    const c = card({})
-    const chips = c.querySelectorAll('[data-trust-chip]')
-    expect(chips).toHaveLength(1)
-    expect(chips[0].getAttribute('role')).toBe('img')
-    expect(chips[0].getAttribute('aria-label')).toMatch(/^Trust score: 100 · /)
-    expect(c.querySelectorAll('[title^="Trust score"]')).toHaveLength(0)
+  it("a member's listing shows no trust number either, at any score (owner, 2026-11-10)", () => {
+    for (const trustScore of [100, 75, 65, 10]) {
+      const c = card({ seller: { trustScore, isBusiness: false, officialPartner: false } })
+      expect(c.querySelectorAll('[data-trust-chip]')).toHaveLength(0)
+      expect(c.querySelectorAll('[aria-label^="Trust score"]')).toHaveLength(0)
+      cleanup()
+    }
   })
 
   it('an official partner shows the partner chip instead, never the trust chip', () => {

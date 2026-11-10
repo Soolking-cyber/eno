@@ -10,7 +10,6 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { PartnerBadge } from './partner-badge'
 import { ImageMark } from './image-mark'
-import { TrustScore } from './trust-score'
 import { CardBadges } from './card-badges'
 import { IdentityVerifiedMark } from './identity-verified-mark'
 import { RentalCheckToggle } from './rental-check-toggle'
@@ -19,7 +18,6 @@ import { HELD_PHOTO_ATTR } from '@/lib/image-hold'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
 import { isBookingCategory } from '@/lib/affiliate-kind'
-import { cardHidesTrust } from '@/lib/linked-seller'
 import { rentalCheckApplies } from '@/lib/rental-check/shared'
 import { Badge as UiBadge } from '@/components/ui/badge'
 import { formatMoneyFull, moneyLocale, dropPercent, cardCompactAbove } from '@/lib/vnd'
@@ -1479,11 +1477,14 @@ function ListingCardImpl({
               would put two chips in a meta row that already truncates at 320px; the ad label is the disclosure
               the law asks for, the plate is not. The badge stays on the PDP and storefront, the sr-only name
               above still announces it, and neither branch brings the trust chip back (partner replaces trust). */}
-          {listing.seller.officialPartner
-            ? listing.isSponsored ? null : <PartnerBadge asLink={false} className="shrink-0" />
-            : cardHidesTrust(listing)
-              ? null
-              : <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />}
+          {/* ⛔ NO TRUST NUMBER ON A BROWSE SURFACE (owner, 2026-11-10: "1-6 1 by one go", item 4 of the decision scorecard). The
+              mini chip was a grey shield and "75" or "65" on almost every tile, list row and map card, with no word and no
+              scale: both blind judges read it as one more thing to decode per listing and, beside a person's face, as a
+              poor grade (A/B against today's tiles: codex 6.87 to 7.04, Fable 7.13 to 7.41). The worded marks stay where
+              they were (Official partner, a teacher's Identity verified, the Ad label); the number stays on the listing
+              page and the seller's page, which have room to say what it measures (pdp-shop-link, seller-card, /trust).
+              src/lib/linked-seller.ts cardHidesTrust is no longer asked here. */}
+          {listing.seller.officialPartner && !listing.isSponsored && <PartnerBadge asLink={false} className="shrink-0" />}
         </div>
       </div>
     </div>

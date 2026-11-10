@@ -71,6 +71,10 @@ export function isLinkedShop(s: { id: string; ownerId: string | null; officialPa
  *   · a linked JOB — the job board is not the employer, whoever owns the board's row.
  * ⚠️ The partner check comes FIRST at every call site (partner replaces trust), so this is only asked
  * of a non-partner.
+  *
+ * ⚠️ SINCE 2026-11-10 NO BROWSE SURFACE DRAWS THE TRUST NUMBER AT ALL (owner; listing-card.tsx has the note), so the card,
+ * the list row and the map cards no longer ask this. It stays as the rule for whoever puts a trust mark back on a
+ * browse surface (a worded one, say): a reference listing and an unrated storefront still must not get it.
  */
 export function cardHidesTrust(card: { sellerId: string; isPartnerBooking?: boolean; listingType?: string; seller: { unrated?: boolean } }): boolean {
   return card.seller.unrated === true || isImportSeller(card.sellerId) || (!!card.isPartnerBooking && card.listingType === 'job')

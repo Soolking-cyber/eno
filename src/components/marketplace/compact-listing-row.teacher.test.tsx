@@ -149,8 +149,8 @@ describe('CompactListingRow — the "Identity verified" tick', () => {
     expect(marks(c)).toHaveLength(1)
     expect(c.querySelector('h4')!.nextElementSibling).toBe(marks(c)[0])
     expect(marks(c)[0].getAttribute('aria-label')).toBe('Identity verified')
-    // The trust chip (the row draws one per breakpoint) still hangs off the right edge after it, as before.
-    expect(c.querySelectorAll('[data-trust-chip]').length).toBeGreaterThan(0)
+    // No trust number hangs after it any more (owner, 2026-11-10: none on a browse surface).
+    expect(c.querySelectorAll('[data-trust-chip]')).toHaveLength(0)
   })
   it('an unmarked teacher, and any other row whatever its payload says: none', () => {
     expect(marks(row({ ...TEACHER, city: 'Hồ Chí Minh', district: null, location: 'x' }))).toHaveLength(0)

@@ -6,7 +6,7 @@
  *     row of its own; never a rent or goods card, whatever its payload says;
  *   · the h3 still reads exactly the card link's accessible name (WCAG 2.5.3), and the link names the tick in its
  *     description (aria-describedby → the tick's id);
- *   · the trust chip is untouched (one, as before);
+ *   · no trust number rides the card (none since 2026-11-10);
  *   · ⛔ an UNMARKED card renders as before: the bare h3 straight in the body, the same class, no description.
  * The trust-chip test's harness: TrustScore and the tooltip are real, everything else the card pulls in is stubbed.
  */
@@ -114,8 +114,9 @@ describe('ListingCard — a MARKED teacher card', () => {
     expect(h3.parentElement!.className).toBe('flex min-w-0 items-center gap-1')
   })
 
-  it('the trust chip is untouched — one, as before', () => {
-    expect(card({ identityMark: true }).querySelectorAll('[data-trust-chip]')).toHaveLength(1)
+  // Since 2026-11-10 no tile draws the trust number (listing-card.trust-chip.test.tsx): the tick is the card's one mark of a checked person.
+  it('no trust number beside it', () => {
+    expect(card({ identityMark: true }).querySelectorAll('[data-trust-chip]')).toHaveLength(0)
   })
 
   it('in Vietnamese the tick is named "Đã xác minh danh tính" — never "xác thực"', () => {

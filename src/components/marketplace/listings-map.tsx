@@ -6,7 +6,6 @@ import Image from 'next/image'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { useEffect, useRef, useState } from 'react'
 import { Heart, Info } from '@/components/ui/icons'
-import { TrustScore } from './trust-score'
 import { PartnerBadge } from './partner-badge'
 import { ImageMark } from './image-mark'
 import { RentalCheckToggle } from './rental-check-toggle'
@@ -21,7 +20,6 @@ import { PopupPlace } from './place-name'
 import { useFavorites } from '@/context/favorites-context'
 import { LocalizedText } from './listing-content'
 import { getListingCoordinates } from '@/lib/geo'
-import { cardHidesTrust } from '@/lib/linked-seller'
 import { rentalCheckApplies } from '@/lib/rental-check/shared'
 import { radiusBoundingBox } from '@/lib/geo-radius'
 import { MAP_GLYPH_LABEL, MAP_GLYPH_PATH, mapGlyphFor, type MapGlyph } from '@/lib/listing-map-glyph'
@@ -1684,10 +1682,8 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                     </span>
                   </a>
                 </Button>
-                {card.seller.officialPartner
-                  ? <PartnerBadge asLink={false} className="shrink-0" />
-                  : cardHidesTrust(card) ? null
-                  : <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />}
+                {/* No trust number on a browse surface (owner, 2026-11-10; listing-card.tsx has the note): the partner plate only. */}
+                {card.seller.officialPartner && <PartnerBadge asLink={false} className="shrink-0" />}
                 <MapsDirectionsButton to={getListingCoordinates(card)} className="h-8 w-8 shrink-0" />
               </div>
             ) : (
@@ -1748,10 +1744,8 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                             And a REFERENCE listing (portal import, linked job) shows neither, as on the card:
                             eno.vn never rated its source. Since 2026-10-01 nor does any unrated storefront
                             (no owner, not a partner) — cardHidesTrust is the card's own rule. */}
-                        {card.seller.officialPartner
-                          ? <PartnerBadge asLink={false} className="shrink-0" />
-                          : cardHidesTrust(card) ? null
-                          : <TrustScore score={card.seller.trustScore} variant="mini" className="shrink-0" />}
+                        {/* …and since 2026-11-10 no trust number on any browse surface (owner; listing-card.tsx has the note). */}
+                        {card.seller.officialPartner && <PartnerBadge asLink={false} className="shrink-0" />}
                       </div>
                     </div>
                   </a>
