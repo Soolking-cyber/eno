@@ -19,9 +19,14 @@ import { __resetMtMissesForTests } from '@/lib/i18n/mt-client'
 vi.mock('@/generated/ui-strings', () => ({ UI_STRINGS: [] }))
 vi.mock('@/generated/ui-strings.services', () => ({ UI_STRINGS_SERVICES: [] }))
 
+// ⚠️ NAMED CONSTANTS, NEVER A LITERAL INSIDE tr('…') OR <Tr text="…">. scripts/gen-ui-strings.mjs harvests those literals
+// from every file under src, tests included, so a literal here lands in src/generated/ui-strings.ts as app copy and CI's
+// drift check goes red (it did, on the first version of this file).
+const CARD = 'A card title nobody warmed'
+const LABEL = 'A label no dictionary has'
 const KO: Record<string, string> = {
-  'A card title nobody warmed': '아무도 미리 번역하지 않은 카드 제목',
-  'A label no dictionary has': '사전에 없는 라벨',
+  [CARD]: '아무도 미리 번역하지 않은 카드 제목',
+  [LABEL]: '사전에 없는 라벨',
 }
 
 // Every /api/translate answer waits for the test, so render counts are read on both sides of the landing.
@@ -61,7 +66,7 @@ function Bystander() {
 }
 function Label() {
   const { tr } = useLanguage()
-  return <span data-testid="label">{tr('A label no dictionary has')}</span>
+  return <span data-testid="label">{tr(LABEL)}</span>
 }
 
 const roots: Root[] = []
@@ -91,14 +96,14 @@ afterEach(async () => {
 
 describe('a machine translation landing (speed audit, 2026-11-10)', () => {
   it('a <Tr> title lands without re-rendering the other useLanguage() consumers', async () => {
-    await mount(<><Bystander /><p><Tr text="A card title nobody warmed" /></p></>)
+    await mount(<><Bystander /><p><Tr text={CARD} /></p></>)
     // The Korean catalogue warm-up has repainted (it is stored right after), so the count below moves only for the landing.
     await vi.waitFor(() => expect([...stored.keys()].some((k) => k.startsWith('ui-dict:'))).toBe(true))
     await settle()
-    expect(asked).toEqual(['A card title nobody warmed'])
+    expect(asked).toEqual([CARD])
     const before = bystanderRenders
     await act(async () => { held.splice(0).forEach((answer) => answer()) })
-    await vi.waitFor(() => expect(text()).toContain(KO['A card title nobody warmed']))
+    await vi.waitFor(() => expect(text()).toContain(KO[CARD]))
     await settle()
     expect(bystanderRenders).toBe(before)
   })
@@ -106,9 +111,9 @@ describe('a machine translation landing (speed audit, 2026-11-10)', () => {
   it('⛔ a tr() string missing from the dictionary still turns Korean when it lands', async () => {
     await mount(<><Bystander /><Label /></>)
     await settle()
-    expect(asked).toEqual(['A label no dictionary has'])
-    expect(text()).toContain('A label no dictionary has')
+    expect(asked).toEqual([LABEL])
+    expect(text()).toContain(LABEL)
     await act(async () => { held.splice(0).forEach((answer) => answer()) })
-    await vi.waitFor(() => expect(text()).toContain(KO['A label no dictionary has']))
+    await vi.waitFor(() => expect(text()).toContain(KO[LABEL]))
   })
 })
