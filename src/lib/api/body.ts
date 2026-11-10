@@ -9,6 +9,10 @@ import { logWarn } from '@/lib/log'
  * and ~110 MB per request before any limiter, and through a zod array schema several seconds and gigabytes of issues
  * (audit appsec-02, 2026-11). Every real body is far smaller; a route whose largest real body is over 16 KB passes a cap
  * of at least four times that.
+ * ⚠️ THIS BOUNDS THE PARSE AND THE MEMORY A ROUTE SPENDS, NOT THE UPLOAD. Because /api/* runs through the proxy, Next
+ * has already received the whole body (up to its own 10 MB) before any handler runs: measured on a production build
+ * 2026-11-11, an over-cap body sent slowly got its 413 only after its last byte (48 of 48 requests, with and without
+ * Content-Length). Refusing the bytes themselves is the edge's and nginx's job (client_max_body_size).
  */
 export const JSON_BODY_CAP = 64 * 1024
 

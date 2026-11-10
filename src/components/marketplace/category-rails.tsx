@@ -124,6 +124,9 @@ export function CategoryRails({ categories, onCategory, excludeIds, onAnswer }: 
     // the cards would fall back to translating on the client.
     // A failed re-ask keeps the rails already shown (their titles still translate on the client); only a
     // first ask that fails answers none.
+    // ⚠️ Measured in a browser 2026-11-11: an in-place language switch on Home REMOUNTS this component today, so that
+    // re-ask is a first ask and a failure there shows no rails (the live build does the same). The keep only helps
+    // where the component survives the switch.
     fetch(`/api/category-rails?lang=${encodeURIComponent(lang)}`, { signal: fetchTimeLimit(10_000) })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (!off) setRails((prev) => (d ? d.rails || [] : prev ?? [])) })
