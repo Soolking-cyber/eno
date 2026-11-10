@@ -219,14 +219,18 @@ export function TeacherContact({ listingId, name, image, cover = false }: {
  * action (TEACHER_CONTACT_EVENT), so the outcome lands where the reader now is: the sign-in sheet for a
  * guest, the daily-limit note with its next step for an account over it (the DM ladder, owner 2026-10-13), the chat
  * for everyone else.
- * ⚠️ NO STICKY BAR (owner, §6) — an in-flow button only. Below lg only: on desktop the contact block is the
- * sticky right-hand column, already beside the name.
+ * ⚠️ IN FLOW, AND SINCE 2026-11-10 ALSO MIRRORED BY THE PINNED BAR once it has scrolled away (owner: item 1 of the decision
+ * scorecard, which replaced the earlier "no sticky bar" rule (§6) for listing pages and profiles; pdp-action-bar.tsx has the
+ * terms: it never takes the tab bar's place while the tabs are on screen, and it presses THIS button). Below lg only: on
+ * desktop the contact block is the sticky right-hand column, already beside the name.
  */
 export function TeacherContactJump({ listingId, className }: { listingId: string; className?: string }) {
   const { tr } = useLanguage()
   return (
     <Button
       variant="cta"
+      // The profile's primary control on a phone, for the pinned bar that mirrors it (pdp-action-bar.tsx).
+      data-pdp-primary="teacher"
       className={cn('relative tap-44', className)}
       onClick={() => {
         document.getElementById(TEACHER_CONTACT_ID)?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })

@@ -565,3 +565,49 @@ describe('StickyActionBar marks <html> while mounted', () => {
     expect(document.documentElement.style.getPropertyValue('--sticky-action-bar-clear')).toBe('')
   })
 })
+
+/**
+ * `leading` (2026-11-10, the listing page's pinned action: marketplace/pdp-action-bar.tsx). What the action is about
+ * rides at the start of the row and takes the free width; the actions then keep their own width instead of sharing the
+ * row. Absent, nothing about the panel changes: that half is pinned above ("leaves the panel exactly as it was").
+ */
+describe('StickyActionBar can carry what the action is about, at the start of the row', () => {
+  const panel = () => document.querySelector('[data-slot="sticky-action-bar-panel"]') as HTMLElement
+  const PRICE = '12M đ / month'
+
+  it('puts the leading block first, shrinkable and filling, and stops the action stretching', () => {
+    render(<StickyActionBar primary={{ label: 'Chat now' }} leading={<span>{PRICE}</span>} />)
+    const children = Array.from(panel().children)
+    expect(children).toHaveLength(2)
+    expect(children[0].getAttribute('data-slot')).toBe('sticky-action-bar-leading')
+    expect(children[0].className).toBe('min-w-0 flex-auto')
+    // The 68px row: 10px above and below the 48px action (the tab bar's top edge).
+    expect(panel().className).toBe('mx-auto flex w-full max-w-7xl items-center gap-3 px-3 py-2.5 sm:px-6 lg:px-8')
+    expect(children[0].textContent).toBe('12M đ / month')
+    const action = children[1]
+    expect(action.getAttribute('data-action')).toBe('primary')
+    const cls = action.className.split(' ')
+    // Its own width: never under 9rem, never over 62% of the row; still the 48px floor and still free to wrap.
+    // The action gives way before the leading block does (shrink 999), and the button base's `shrink-0` is gone.
+    expect(cls).toEqual(expect.arrayContaining(['flex-[0_999_auto]', 'min-w-36', 'max-w-[62%]', 'min-h-12', 'whitespace-normal']))
+    expect(cls).not.toContain('flex-1')
+    expect(cls).not.toContain('min-w-0')
+    expect(cls).not.toContain('shrink-0')
+  })
+
+  it('`null` keeps the 68px row with nothing in front: the action takes it whole', () => {
+    render(<StickyActionBar primary={{ label: 'Apply on VietnamWorks' }} leading={null} />)
+    expect(panel().className).toContain('py-2.5')
+    expect(Array.from(panel().children)).toHaveLength(1)
+    const cls = screen.getByRole('button', { name: 'Apply on VietnamWorks' }).className.split(' ')
+    expect(cls).toEqual(expect.arrayContaining(['flex-1', 'min-w-0']))
+  })
+
+  it('without one, the action is the full-width control it has always been', () => {
+    render(<StickyActionBar primary={{ label: 'Chat now' }} />)
+    const cls = screen.getByRole('button', { name: 'Chat now' }).className.split(' ')
+    expect(cls).toEqual(expect.arrayContaining(['flex-1', 'min-w-0', 'min-h-12', 'whitespace-normal']))
+    expect(cls).not.toContain('flex-[0_999_auto]')
+    expect(document.querySelector('[data-slot="sticky-action-bar-leading"]')).toBeNull()
+  })
+})

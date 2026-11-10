@@ -151,6 +151,10 @@ export function AffiliateBooking({
           */}
         <a
           data-affiliate-cta="true"
+          // A commission link must keep its disclosure sentence beside it, so the pinned bar never mirrors one (pdp-action-bar.tsx).
+          // ⛔ ALWAYS STATED, 'true' OR 'false': the bar copies a link only when it reads 'false', so a booking link that
+          // forgets to say (a future second producer of this mark) is left out rather than pinned without its sentence.
+          data-commission={commission ? 'true' : 'false'}
           href={safeUrl}
           target="_blank"
           // A linked JOB is not a paid placement — no commission, no deal with the board — so `sponsored`

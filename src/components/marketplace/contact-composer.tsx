@@ -350,6 +350,8 @@ export function ContactComposer({
       variant="cta"
       size="none"
       onClick={chatNow}
+      // The page's primary control, for the pinned bar that mirrors it once this has scrolled away (pdp-action-bar.tsx).
+      data-pdp-primary="chat"
       // No `active:scale-100` here. It used to sit alongside `press` to stop ui/button's
       // `active:scale-[0.97]` compounding with the press shrink — but .press now writes the
       // same `scale` property from @layer components, so the button's own value simply wins

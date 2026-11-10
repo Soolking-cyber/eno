@@ -44,6 +44,9 @@ import { cn } from '@/lib/utils'
  *       reverted it: buyers lost the app's navigation on the page they spend the most time on.
  *       mobile-nav.tsx still carries the note. Rebuilding this would be repeating a decision
  *       that has already been made against, so it is not on the table.
+ *       (2026-11-10, owner: a listing's action IS pinned again, by marketplace/pdp-action-bar.tsx, and it is not this
+ *       option: it never hides the tab bar. It shows only while the tab bar has already retracted on scroll-down, at
+ *       `offsetBottom="0px"` in the vacated slot, and leaves when the tabs return.)
  *   (b) ONLY EXIST WHERE THE TAB BAR DOES NOT — i.e. `lg:` and up. That deletes the bar from
  *       the only viewport where a sticky CTA earns anything.
  *   (c) SIT ABOVE IT. ← chosen. The bar pads its own bottom by the tab bar's height, so its
@@ -211,6 +214,21 @@ export interface StickyActionBarProps {
    */
   above?: React.ReactNode
   /**
+   * What the action is ABOUT, at the start of the row: a listing's price beside its Chat button (pdp-action-bar.tsx,
+   * 2026-11-10). The block is as wide as its content and takes the free width; the action is as wide as its label (at
+   * least 9rem, at most 62% of the row) instead of sharing the row equally, so a short "Chat now" is not stretched.
+   * When the two do not fit, the ACTION gives way first (its label wraps, down to 9rem); the block is cut only after that,
+   * so a price is not shortened to make room for a button's words. Measured at 320px: "12,000,000 đ" whole beside a
+   * two-line "Buy on …".
+   * `null` = this compact row with nothing in front of the action (a listing with no figure): the action takes the row.
+   * ⚠️ THE ROW IS 68px, NOT THE PLAIN SHAPE'S 72: 10px above and below the 48px action. 68px is where the tab bar's top
+   * edge sits (12px off the bottom + its 56px), so a bar that takes the tab bar's place has the same top edge, and the
+   * install card, which floats 12px above either, does not hop when one replaces the other (it hopped 4px, measured).
+   * ⚠️ Plain shape only: with `above` the row is the wizard's, and no caller has needed both. Absent (undefined), the
+   * panel's DOM is exactly what it was before this prop existed (the same promise `above` makes).
+   */
+  leading?: React.ReactNode
+  /**
    * Merged onto the ROOT via cn(). Put `lg:hidden` here when the surface has a desktop CTA —
    * and pass the SAME class to <StickyActionBarSpacer />. See the second ⚠️⚠️ at the top.
    */
@@ -224,10 +242,13 @@ function BarAction({
   action,
   variant,
   marker,
+  beside = false,
 }: {
   action: StickyActionBarAction
   variant: 'cta' | 'outline'
   marker: 'primary' | 'secondary'
+  /** A `leading` block shares the row: the action keeps its own width (see `leading`). */
+  beside?: boolean
 }) {
   const content = (
     <>
@@ -263,7 +284,13 @@ function BarAction({
   // is CONCATENATED, not merged, so stylesheet order would decide against `whitespace-nowrap`.
   // 2026-11-07 audit: the primary's label is 16px below lg, the phone CTA size ui/button gives a full-width `cta` (Publish,
   // Next); the secondary keeps 14px so the pair still reads as one choice and its alternative.
-  const className = cn('min-h-12 min-w-0 flex-1 gap-1.5 whitespace-normal', marker === 'primary' && 'max-lg:text-base')
+  // ⚠️ `beside` (a `leading` block in the row): the action is as wide as its label, never under 9rem and never over 62% of
+  // the row, and the leading block takes the rest. Still `whitespace-normal`: a label too long for 62% takes two lines, as above.
+  const className = cn(
+    // `flex-[0_999_auto]`: never grows, and shrinks 999 times as readily as the leading block (see `leading`).
+    beside ? 'min-h-12 min-w-36 max-w-[62%] flex-[0_999_auto] gap-1.5 whitespace-normal' : 'min-h-12 min-w-0 flex-1 gap-1.5 whitespace-normal',
+    marker === 'primary' && 'max-lg:text-base',
+  )
 
   if (action.render && !action.disabled) {
     // ui/button's asChild clones the child and does NOT compose handlers, so onClick has to go
@@ -337,6 +364,7 @@ export function StickyActionBar({
   offsetBottom,
   label,
   above,
+  leading,
   className,
 }: StickyActionBarProps) {
   const panelRef = React.useRef<HTMLDivElement>(null)
@@ -569,10 +597,13 @@ export function StickyActionBar({
         <div
           ref={panelRef}
           data-slot="sticky-action-bar-panel"
-          className="mx-auto flex w-full max-w-7xl items-center gap-2 px-3 py-3 sm:px-6 lg:px-8"
+          // The first string is the panel's class as it has always been, byte for byte (the tests pin it); only the `leading`
+          // shape is the 68px row with the wider gap.
+          className={leading === undefined ? 'mx-auto flex w-full max-w-7xl items-center gap-2 px-3 py-3 sm:px-6 lg:px-8' : 'mx-auto flex w-full max-w-7xl items-center gap-3 px-3 py-2.5 sm:px-6 lg:px-8'}
         >
-          {secondary ? <BarAction action={secondary} variant="outline" marker="secondary" /> : null}
-          <BarAction action={primary} variant="cta" marker="primary" />
+          {leading != null ? <div data-slot="sticky-action-bar-leading" className="min-w-0 flex-auto">{leading}</div> : null}
+          {secondary ? <BarAction action={secondary} variant="outline" marker="secondary" beside={leading != null} /> : null}
+          <BarAction action={primary} variant="cta" marker="primary" beside={leading != null} />
         </div>
       )}
     </div>

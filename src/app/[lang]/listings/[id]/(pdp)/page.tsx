@@ -1,6 +1,7 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
 import { PdpBackButton } from '@/components/marketplace/pdp-back-button'
+import { PdpActionBar } from '@/components/marketplace/pdp-action-bar'
 import { categoryBrowsePath } from '@/lib/retired-categories'
 import { pdpBreadcrumbLd, subcategoryCrumb } from '@/lib/pdp-breadcrumb'
 import { FREE_TEXT_ATTRIBUTES, TEACHER_SEEKING_POST, detailRowLabel, isLicenceCheckSlot, isVisaProductSlot, salaryPriceFor } from '@/lib/taxonomy'
@@ -23,7 +24,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { getListing } from './get-listing'
 import { type ReactNode } from 'react'
 import { db } from '@/lib/db'
-import { formatMoneyFull, dropPercent } from '@/lib/vnd'
+import { formatMoneyFull, dropPercent, cardCompactAbove } from '@/lib/vnd'
 import { serializeListing, safeParse } from '@/lib/serialize'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
@@ -903,6 +904,17 @@ export default async function ListingPage({ params }: Props) {
           the moment Block answers on a tap. The page itself stays one cached render for everyone. */}
       {appReviewGate('ugc-safety') && <BlockedSellerNotice sellerId={listing.sellerId} kind="listing" className="flex-1" />}
       <main id="main" tabIndex={-1} data-sid={listing.sellerId} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-8 lg:pb-12">
+        {/* ⛔ THE LISTING'S ACTION, PINNED ONCE ITS BUTTON HAS SCROLLED AWAY (owner, 2026-11-10: item 1 of the decision scorecard;
+            pdp-action-bar.tsx has the record and the terms). Inside <main data-sid>, so a blocked shop's page hides it with
+            everything else. It mirrors whatever control `#contact` holds for this reader and renders nothing when there is
+            none. The price is the buy box's figure in the tiles' short form ("12M đ / month"), with the buy box's "from" on a
+            partner booking; a job with no figure has none to show, and its action takes the whole row. */}
+        <PdpActionBar price={listing.listingType === 'job' && listing.price === 0 ? undefined : (
+          <>
+            {affiliateUrl && isBooking ? <span className="text-sm font-medium text-body"><Tr text="from" /> </span> : null}
+            <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} listingType={listing.listingType} compact compactAbove={cardCompactAbove(listing)} dual="sm" className="text-lg leading-6" />
+          </>
+        )} />
         {/* ONE responsive tree, TWO layouts. On a phone it is a single flex column and the
             `order-*` on each block sequences the whole page — the LEFT/RIGHT column wrappers are
             `display:contents` there, so their children flatten into this one shared order space:
@@ -999,8 +1011,9 @@ export default async function ListingPage({ params }: Props) {
               Tốt): the buy action leads, provenance supports it.
               ⛔ DO NOT "RESTORE" THIS ABOVE THE GALLERY. The gallery is square and full-bleed by the
               owner's decision (2026-07-23/24) and is the hero; anything stacked on top of it is spent
-              from the same 772px budget, and this page has no sticky mobile CTA to fall back on —
-              `PdpMobileBar` was deleted deliberately and must not come back.
+              from the same 772px budget. (`PdpMobileBar`, which hid the tab bar on this page, was deleted deliberately
+              and must not come back; since 2026-11-10 <PdpActionBar> pins the action only in the slot the tab bar has
+              already left, on the owner's word. A reader still at the top of the page has neither.)
               ⚠️ THE ROW ITSELF RENDERS ABOVE THE BREADCRUMB NOW (2026-11-06 audit) — the note there says why. */}
 
           {/* 2 — Gallery, MOBILE mount: edge-to-edge (negative gutter cancels <main>'s padding),
@@ -1267,7 +1280,8 @@ export default async function ListingPage({ params }: Props) {
 
               {/* 6 — Contact + offer (auth-gated; number never in this payload). The mobile action
                   bar mirrors these CTAs and scrolls here (#contact) for "Make offer". */}
-              <div id="contact" className="order-6 scroll-mt-24">
+              {/* `data-no-pin`: an e-visa listing's action follows its disclaimer and is never mirrored by the pinned bar (pdp-action-bar.tsx). */}
+              <div id="contact" data-no-pin={isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug) ? '' : undefined} className="order-6 scroll-mt-24">
                 {/* ⚠️ A VISA PRODUCT DOES NOT OPEN AN EMPTY CHAT. The whole application happens
                     inside the thread (owner: "user click chat then selects available product from
                     admin shop and continues uploading images and filling up the form lastly checks

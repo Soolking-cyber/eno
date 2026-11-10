@@ -29,6 +29,7 @@ import { LocalizedText } from '@/components/marketplace/listing-content'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { TeacherContact, TeacherContactJump } from '@/components/teachers/teacher-contact'
+import { PdpActionBar } from '@/components/marketplace/pdp-action-bar'
 import { TeacherAvailableFrom } from '@/components/teachers/teacher-available-from'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
@@ -294,7 +295,23 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
                 {/* "Message" in the first screen (rentals-12): scrolls to the contact block below and runs
                     its action. Phones and tablets only — on lg the block is the sticky right column. */}
                 {cover && <p className="mt-3 text-lg font-bold text-price lg:hidden">{formatMoneyFull(cover.rate, '₫', moneyLocale(lang))} <span className="text-sm font-semibold"><Bilingual en="/ hour" vi="/ giờ" /></span></p>}
-                <TeacherContactJump listingId={listing.id} className="mt-3 w-full sm:w-auto lg:hidden" />
+                {/* `data-pdp-action-block`: the element the pinned bar measures and reads the button through (pdp-action-bar.tsx:
+                    a node the page keeps, never the button itself). A plain block in a block container (this cell is
+                    neither flex nor grid), so the button inside is laid out as it was: full width on a phone, its own
+                    width from sm, and nothing at lg, where the wrapper is empty and 0px tall. */}
+                <div data-pdp-action-block="">
+                  <TeacherContactJump listingId={listing.id} className="mt-3 w-full sm:w-auto lg:hidden" />
+                </div>
+                {/* The same action, pinned once that button has scrolled away and until the full contact block is on screen
+                    (owner, 2026-11-10: item 1 of the decision scorecard; pdp-action-bar.tsx). It presses the button above. */}
+                <PdpActionBar
+                  block="[data-pdp-action-block]"
+                  control='[data-pdp-primary="teacher"]'
+                  // = '#' + TEACHER_CONTACT_ID (teacher-contact.tsx). Written out: that file is a client module, and a server
+                  // component cannot read a client module's constant. teacher-profile-view.pinned-bar.test.ts keeps the two equal.
+                  hideWhile="#teacher-contact"
+                  price={cover ? <p className="text-lg font-bold leading-6 text-price">{formatMoneyFull(cover.rate, '₫', moneyLocale(lang))} <span className="text-sm font-semibold"><Bilingual en="/ hour" vi="/ giờ" /></span></p> : undefined}
+                />
               </div>
               {/* SHARE (owner, 2026-10-11: "make it easy to share on facebook and zalo or whatsapp") — the page's own
                   link; Facebook and Zalo build the card from its Open Graph tags (the photo, name and headline — never a
