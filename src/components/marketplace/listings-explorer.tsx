@@ -25,7 +25,6 @@ import { CategoryTileGlyph } from './category-art'
 import { ListingCard } from './listing-card'
 import { CompactListingRowSkeleton, COMPACT_LIST_GRID } from './compact-listing-row-skeleton'
 import { CaptureCard } from './capture-card'
-import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { useIsPhone } from '@/hooks/use-is-phone'
 import { preloadable } from '@/lib/preloadable'
 import { useTapGlide } from '@/hooks/use-tap-glide'
@@ -58,7 +57,7 @@ import { peekWard, provinceByCode, rememberWard, resolveWard } from '@/lib/vn-ar
 import { useDropStaleDistrict } from './use-drop-stale-district'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch, hasSavableSearch } from './use-explorer'
-import { ViewToggles, ViewSwitch, SortStrip } from './explorer-toolbar'
+import { ViewToggles, ViewSwitch, SortStrip, createHeaderHiddenSignal, type HeaderHiddenSignal } from './explorer-toolbar'
 import { rowsContinue } from './grid-run'
 import { PhoneFilterChips, ResultLine, resultCountLabel, shouldOfferSaveSearch, useSmUp } from './result-line'
 import { Spinner } from '@/components/ui/spinner'
@@ -453,6 +452,25 @@ const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.Listing
     </div>
   )
 })
+/**
+ * The map view's split (list | sticky map), carrying `--map-top`: the line the desktop map and the drilled-in building
+ * header pin to, under the header and the sort strip while they show, 1rem from the top once they have left.
+ * ⛔ ITS OWN COMPONENT SO A HEADER FLIP RE-RENDERS THIS DIV AND NOTHING ELSE (smooth-01): the list and the map come in as
+ * `children`, elements the explorer made, which keep their identity and bail out. It reads SortStrip's value through the
+ * signal (see `createHeaderHiddenSignal` for why not a hook of its own); `false` on the server, as the hook starts.
+ */
+function MapSplit({ headerHidden: signal, toolbarH, children }: { headerHidden: HeaderHiddenSignal; toolbarH: number; children: React.ReactNode }) {
+  const headerHidden = useSyncExternalStore(signal.subscribe, signal.get, () => false)
+  return (
+    <div
+      className="grid grid-cols-1 lg:grid-cols-12 lg:items-start gap-4"
+      // 3.5rem = the site header's 56px (h-14 since 2026-10-18 — owner: "slimmer + calm"; it was 4rem).
+      style={{ '--map-top': headerHidden ? '1rem' : `calc(3.5rem + max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px)) + ${toolbarH}px + 1rem)` } as CSSProperties}
+    >
+      {children}
+    </div>
+  )
+}
 // The TikTok-style Video view is heavy (video refs + IntersectionObserver) and only used on
 // demand — lazy-load it just like the map so it never ships in the default bundle.
 const VideoFeed = dynamic(() => import('./listings-video-feed').then((m) => m.VideoFeed), {
@@ -866,9 +884,10 @@ export function ListingsExplorer({
   // homes in the facet bar. Deleted rather than re-wired: a second place to pick the same district
   // is a second place for the two to disagree.
   const [showExplorer, setShowExplorer] = useState(urlInit?.directed ?? false)
-  // The sticky sort strip tracks the auto-hiding header (same hook): header shown →
-  // pinned just below it; header rolled away → pinned at the viewport top.
-  const headerHidden = useHideOnScroll()
+  // ⛔ NO useHideOnScroll() IN THIS COMPONENT (smooth-01, 2026-11-10): a flip here re-rendered the whole explorer, 395
+  // components at phone 4x on `/`. The sticky sort strip runs the hook itself and passes each flip to this signal, which
+  // only <MapSplit> reads (the desktop map's `--map-top`). Created once, so it never re-renders this component either.
+  const [headerHiddenSignal] = useState(createHeaderHiddenSignal)
 
   /**
    * ⛔ "THIS TAP IS A STEP BACK CAN UNDO" (UX3 NAV-1). Called at the start of every committed view change —
@@ -4985,7 +5004,7 @@ export function ListingsExplorer({
             // every cold Electronics link, moving the sort tabs 111px — and from 1110 to 1180px its width was what wrapped the
             // pending strip onto two lines and back (0.44 at 1180, production). The audit's own rule: what vanishes stays away.
             goodPriceOffered={facetCounts.deal === undefined ? false : offeredKeys(facetCounts.deal, ['good'], null, { hideNoOp: true }).length > 0}
-            headerHidden={headerHidden}
+            onHeaderHidden={headerHiddenSignal.set}
             // The applied chips and Clear all, first in the phone's filter row (owner, 2026-11-10; result-line.tsx PhoneFilterChips).
             phoneLead={chipsInStrip ? <PhoneFilterChips filters={resultFilters} appliedCount={appliedChips.length} onClearAll={appliedChips.length > 1 ? () => { commitView(); clearAllFilters() } : undefined} /> : undefined}
             leading={
@@ -5582,12 +5601,9 @@ export function ListingsExplorer({
                    1440×900 the map's bottom sat at y=1179, under the fold. Now the grid is as tall as the
                    list, the map pins under the chrome (`--map-top`, set here so the building header in
                    the list can pin to the same line) and ends 1rem above the fold. Phone: unchanged —
-                   the 60dvh inset with the list below is a recorded decision (2026-07-14, see below). */
-                <div
-                  className="grid grid-cols-1 lg:grid-cols-12 lg:items-start gap-4"
-                  // 3.5rem = the site header's 56px (h-14 since 2026-10-18 — owner: "slimmer + calm"; it was 4rem).
-                  style={{ '--map-top': headerHidden ? '1rem' : `calc(3.5rem + max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px)) + ${toolbarH}px + 1rem)` } as CSSProperties}
-                >
+                   the 60dvh inset with the list below is a recorded decision (2026-07-14, see below).
+                   The split is <MapSplit>: it alone re-renders when the header hides or shows (smooth-01). */
+                <MapSplit headerHidden={headerHiddenSignal} toolbarH={toolbarH}>
                   {/* Left: the result list — one column at lg, two from xl, in the page's own scroll. */}
                   <div ref={mapListRef} className="min-w-0 lg:col-span-5 xl:col-span-6 grid grid-cols-1 xl:grid-cols-2 gap-4 content-start order-2 lg:order-1">
                     {/*
@@ -5808,7 +5824,7 @@ export function ListingsExplorer({
                       areaKey={`${activeProvince?.code ?? ''}|${activeWard?.code ?? ''}|${activeDistrict}`}
                     />
                   </div>
-                </div>
+                </MapSplit>
               )}
 
               {shownView === 'compact' && (

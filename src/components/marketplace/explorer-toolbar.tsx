@@ -1,5 +1,6 @@
 'use client'
 
+import { useLayoutEffect } from 'react'
 import { Rows3, LayoutGrid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown, ChevronRight } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -12,10 +13,11 @@ import { cn } from '@/lib/utils'
 import { sortTabClass } from './sort-tab-class'
 import { CustomSelect } from './custom-select'
 import { useScrollArrows } from '@/hooks/use-scroll-arrows'
+import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { STROKE_UI } from '@/lib/icon-tokens'
 
 // Presentational toolbar pieces extracted from ListingsExplorer. Pure: they read a value +
-// call a passed handler, own no state.
+// call a passed handler, own no state — except SortStrip's hide-on-scroll hook (see SortStrip).
 export type SortKey = 'newest' | 'recent' | 'price-low' | 'price-high' | 'popular'
 export type ViewMode = 'compact' | 'grid' | 'map' | 'video'
 /** The sort strip's TAB space, which is deliberately not SortKey: `price` is ONE tab that carries
@@ -130,6 +132,35 @@ export function ViewSwitch({ viewMode, onViewMode, showVideo = true, showMap = t
   )
 }
 
+/**
+ * SortStrip's hide-on-scroll value, for the explorer's desktop map (`--map-top`), which must follow the same flip without
+ * the explorer re-rendering. A plain store read with useSyncExternalStore: the map split mounts with the CURRENT value.
+ * ⛔ NOT A SECOND useHideOnScroll() IN THE MAP SPLIT. Every instance starts "shown" when it mounts, and the map mounts in
+ * the middle of a visit (the Map toggle in the results row, reached by scrolling down, so the header is already hidden):
+ * a hook of its own would pin the map 105px low and short under a header that is gone, until the next scroll.
+ */
+export type HeaderHiddenSignal = {
+  get: () => boolean
+  set: (hidden: boolean) => void
+  subscribe: (onChange: () => void) => () => void
+}
+export function createHeaderHiddenSignal(): HeaderHiddenSignal {
+  let hidden = false
+  const listeners = new Set<() => void>()
+  return {
+    get: () => hidden,
+    set: (next) => {
+      if (next === hidden) return
+      hidden = next
+      listeners.forEach((onChange) => onChange())
+    },
+    subscribe: (onChange) => {
+      listeners.add(onChange)
+      return () => { listeners.delete(onChange) }
+    },
+  }
+}
+
 /** One-row sort strip (Shopee's learned pattern: Liên quan | Mới nhất | Được quan tâm | Giá) —
  *  one-tap tabs on all sizes. Sticky below the header's slot; the offset follows the header
  *  when it auto-hides on scroll-down. The price tab carries its direction arrow (asc → re-tap
@@ -140,7 +171,7 @@ export function SortStrip({
   goodPrice,
   onGoodPrice,
   goodPriceOffered = true,
-  headerHidden,
+  onHeaderHidden,
   leading,
   phoneLead,
   priceLabel = 'price',
@@ -171,7 +202,11 @@ export function SortStrip({
    * when the counts came, it moved the sort tabs 111px sideways about a second into every load.
    */
   goodPriceOffered?: boolean
-  headerHidden: boolean
+  /**
+   * Told every hide/reveal flip of the header, in the same commit (a layout effect), for a reader outside this strip:
+   * the explorer hands `createHeaderHiddenSignal().set` here for its desktop map. Must be a stable function.
+   */
+  onHeaderHidden?: (hidden: boolean) => void
   /**
    * The filter controls, rendered on the LEFT of this same row.
    *
@@ -205,6 +240,13 @@ export function SortStrip({
   phoneLead?: React.ReactNode
 }) {
   const { tr } = useLanguage()
+  // ⛔ THE STRIP RUNS THE SCROLL HOOK ITSELF; THE EXPLORER DOES NOT (smooth-01, 2026-11-10). It used to be called in
+  // ListingsExplorer and passed down, so every hide/reveal flip re-rendered the whole explorer: measured at phone 4x,
+  // 395 components and an ~83 ms task on `/`, as the header and this strip start to move. Here a flip re-renders this
+  // strip and the map split (`onHeaderHidden`). Same hook, same per-visit rule; the strip mounts with the explorer,
+  // so its instance starts at the same moment the explorer's did.
+  const headerHidden = useHideOnScroll()
+  useLayoutEffect(() => { onHeaderHidden?.(headerHidden) }, [headerHidden, onHeaderHidden])
   const priceSortActive = sort === 'price-low' || sort === 'price-high'
   // The strip is a real ARIA tablist (ui/tabs → Base UI Tabs), driven by the URL/parent state, so
   // it uses the CONTROLLED api: value + onValueChange. The two price directions collapse onto ONE

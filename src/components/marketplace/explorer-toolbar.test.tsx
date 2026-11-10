@@ -9,7 +9,7 @@
  *     order it gives, "Price low → high" / "Price high → low" (and the salary twins over jobs).
  */
 import React from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedCategory } from '@/lib/types'
 
@@ -26,7 +26,7 @@ vi.mock('@/context/language-context', () => ({
 }))
 
 import userEvent from '@testing-library/user-event'
-import { SortStrip, ViewSwitch, ViewToggles } from './explorer-toolbar'
+import { SortStrip, ViewSwitch, ViewToggles, createHeaderHiddenSignal } from './explorer-toolbar'
 import { CategoryRail } from './category-rail'
 
 /** Every scroller overflows: 300px wide, 1000px of content — so each row has more to its right. */
@@ -48,7 +48,7 @@ afterEach(() => {
 })
 
 const strip = (sort: Parameters<typeof SortStrip>[0]['sort'], priceLabel: 'price' | 'salary' = 'price') => (
-  <SortStrip sort={sort} onPickSort={() => {}} goodPrice={false} onGoodPrice={() => {}} headerHidden={false} priceLabel={priceLabel} leading={<div data-facet-pills="" />} />
+  <SortStrip sort={sort} onPickSort={() => {}} goodPrice={false} onGoodPrice={() => {}} priceLabel={priceLabel} leading={<div data-facet-pills="" />} />
 )
 
 describe('NAV-4: the phone "›" is a real button that scrolls its row', () => {
@@ -197,6 +197,53 @@ describe('ViewSwitch: one pill for every view', () => {
     render(<ViewSwitch viewMode="compact" onViewMode={() => {}} showMap={false} showVideo={false} />)
     await user.click(screen.getByRole('combobox', { name: /View/ }))
     expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['List view', 'Grid view'])
+  })
+})
+
+/**
+ * ⛔ THE STRIP RUNS THE SCROLL HOOK ITSELF (smooth-01, 2026-11-10). The explorer used to call useHideOnScroll() and pass
+ * `headerHidden` down, so every hide/reveal flip re-rendered the whole explorer (395 components at phone 4x on `/`).
+ * The strip's own instance now moves it, and tells the explorer's desktop map through `onHeaderHidden`.
+ */
+describe('SortStrip follows the header on its own', () => {
+  let Y = 0
+  /** One scroll frame at `y`; rAF runs synchronously here (the hook's own test does the same). */
+  const scroll = (y: number) => { Y = y; act(() => { window.dispatchEvent(new Event('scroll')) }) }
+  const bar = () => document.getElementById('explorer-toolbar')!
+  beforeEach(() => {
+    Y = 0
+    Object.defineProperty(window, 'scrollY', { configurable: true, get: () => Y })
+    Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, get: () => 4000 })
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(0); return 0 })
+  })
+
+  it('down parks it above the viewport (back at the inset when focused), up pins it under the header — and each flip is reported', () => {
+    const onHeaderHidden = vi.fn()
+    render(<SortStrip sort="newest" onPickSort={() => {}} goodPrice={false} onGoodPrice={() => {}} onHeaderHidden={onHeaderHidden} />)
+    expect(bar().className).toContain('top-[calc(max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))+3.5rem)]')
+    scroll(400) // the first frame only anchors
+    scroll(900)
+    expect(bar().className).toContain('top-[-9rem]')
+    expect(bar().className).toContain('focus-within:top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]')
+    expect(onHeaderHidden).toHaveBeenLastCalledWith(true)
+    scroll(600)
+    expect(bar().className).toContain('top-[calc(max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))+3.5rem)]')
+    expect(onHeaderHidden).toHaveBeenLastCalledWith(false)
+  })
+
+  it('the signal the explorer hands it: holds the last flip for a reader that mounts later, and notifies only on a change', () => {
+    const signal = createHeaderHiddenSignal()
+    const seen = vi.fn()
+    const off = signal.subscribe(seen)
+    expect(signal.get()).toBe(false)
+    signal.set(false)
+    expect(seen).not.toHaveBeenCalled()
+    signal.set(true)
+    expect(signal.get()).toBe(true)
+    expect(seen).toHaveBeenCalledTimes(1)
+    off()
+    signal.set(false)
+    expect(seen).toHaveBeenCalledTimes(1)
   })
 })
 
