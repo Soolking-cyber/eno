@@ -298,12 +298,29 @@ describe('the reading panel', () => {
     expect(await screen.findByTestId('import-choose')).toBeTruthy()
   })
 
+  it('a "photo" whose bytes are no image is refused on the device with the unreadable line, and nothing is sent', async () => {
+    // jsdom has no image decoder, as a browser has none for a TIFF or a text file renamed .jpg: compressImageFile then
+    // refuses bytes that are not JPEG, PNG or WebP (the import route would only refuse them after the upload).
+    signIn()
+    const user = mount({ start: PANEL })
+    await onCvPanel(user)
+    const before = calls.length
+    fireEvent.change(fileInput(), { target: { files: [new File([new Uint8Array(2_000)], 'cv.jpg', { type: 'image/jpeg' })] } })
+    expect(await screen.findByText(/We couldn’t read that file/)).toBeTruthy()
+    expect(screen.queryByTestId('import-summary')).toBeNull()
+    expect(calls.slice(before).some((c) => c.method === 'POST')).toBe(false)
+  })
+
   it('⛔ only a PDF becomes the attached CV, and only a phone the form would accept is filled in (gate review, 2026-10-16)', async () => {
     signIn()
     importReply = () => ({ json: { import: { ...IMPORT, phone: 'ext. 12 (office)' } } })
     const user = mount({ start: PANEL })
     await onCvPanel(user)
-    fireEvent.change(fileInput(), { target: { files: [new File([new Uint8Array(2_000)], 'cv.jpg', { type: 'image/jpeg' })] } })
+    // A photo's own bytes: compressImageFile forwards an original only when its first bytes are JPEG, PNG or WebP (the
+    // upload routes refuse anything else), so 2,000 zero bytes named cv.jpg are "unreadable", as they would be for real.
+    const photo = new Uint8Array(2_000)
+    photo.set([0xff, 0xd8, 0xff, 0xe0])
+    fireEvent.change(fileInput(), { target: { files: [new File([photo], 'cv.jpg', { type: 'image/jpeg' })] } })
     expect(await screen.findByTestId('import-summary')).toBeTruthy()
     // A photo of a CV is read, never attached (the panel keeps only a PDF, and the form takes only a PDF) — and a number
     // the form would refuse is not filled into a field the teacher never typed in.
