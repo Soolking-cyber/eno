@@ -10,7 +10,7 @@ import { ICON_SIZE, STROKE_DISPLAY, STROKE_MARK } from '@/lib/icon-tokens'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { deviceOrIntlLocale } from '@/lib/i18n/langs'
-import { compressImageFile } from '@/lib/normalize-image'
+import { compressImageFile, unsupportedPhotoCopy } from '@/lib/normalize-image'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
@@ -130,7 +130,12 @@ export default function DisputeRoomPage() {
   const addFiles = async (list: FileList | null) => {
     if (!list) return
     const arr = Array.from(list).slice(0, 6 - files.length)
-    const next = await Promise.all(arr.map(async (f) => ({ url: URL.createObjectURL(f), file: await compressImageFile(f) })))
+    // One at a time. A photo compressImageFile refuses (this browser cannot read it and its bytes are not JPEG, PNG or
+    // WebP, R37) is left out and named; a refusal used to drop the whole pick with nothing on screen.
+    const next: { url: string; file: File }[] = []
+    for (const f of arr) {
+      try { next.push({ file: await compressImageFile(f), url: URL.createObjectURL(f) }) } catch { setError(unsupportedPhotoCopy(t)) }
+    }
     setFiles((p) => [...p, ...next].slice(0, 6))
   }
 

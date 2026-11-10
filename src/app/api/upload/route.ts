@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
-import { storeListingImage, IMG_ALLOWED, IMG_MAX_BYTES } from '@/lib/core/media'
+import { storeListingImage, sniffImageType, IMG_ALLOWED, IMG_MAX_BYTES } from '@/lib/core/media'
 
 export const runtime = 'nodejs'
 
@@ -77,12 +77,21 @@ export async function POST(req: NextRequest) {
         console.warn('[POST /api/upload] rejected size', file.size)
         failed++; reasons.push(file.size === 0 ? 'empty' : 'size'); continue
       }
-      const url = await storeListingImage(Buffer.from(await file.arrayBuffer()), { watermark })
+      const buf = Buffer.from(await file.arrayBuffer())
+      // ⛔ THE BYTES, NOT THE LABEL, BEFORE ANY SHARP CALL. file.type is whatever the browser or curl said, and sharp
+      // decodes SVG, GIF, TIFF and AVIF too (sniffImageType). Our clients re-encode to JPEG/WebP, or forward the person's
+      // own file (bulk ZIP, compressImageFile's keep-the-original), so a file refused here is an AVIF/GIF wearing a .jpg
+      // name or not from our clients at all, and `head` says which.
+      if (!sniffImageType(buf)) {
+        console.warn('[POST /api/upload] rejected bytes', file.type, 'head', buf.subarray(0, 8).toString('hex'), file.name?.slice(-12))
+        failed++; reasons.push('type'); continue
+      }
+      const url = await storeListingImage(buf, { watermark })
       // A signed-in headshot records its uploader (image-owner.ts): the teacher photo check spends checks only on yours.
       if (url && profileId && !watermark) await recordImageOwner(url, profileId)
       if (url) urls.push(url)
       else {
-        // sharp could not decode it despite an allowed mime — a mislabelled or corrupt file.
+        // sharp could not decode it despite JPEG/PNG/WebP bytes — a corrupt or truncated file.
         console.warn('[POST /api/upload] storeListingImage returned nothing for', file.type, file.size)
         failed++; reasons.push('decode')
       }

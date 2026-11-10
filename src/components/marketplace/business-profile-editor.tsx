@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Field, FieldControl, FieldDescription, FieldError } from '@/components/ui/field'
 import { getInitials } from '@/lib/utils'
-import { compressImageFile } from '@/lib/normalize-image'
+import { compressImageFile, isUnsupportedPhoto, unsupportedPhotoCopy } from '@/lib/normalize-image'
 import { SELLER_INFO_NOTICE_SINCE } from '@/lib/seller-info'
 
 type Seller = { id: string; name: string; bio: string | null; location: string | null; avatarUrl: string | null; bannerUrl?: string | null; phone: string | null; legalName?: string | null; legalAddress?: string | null; idNumber?: string | null; taxCode?: string | null; taxVerdict?: 'verified' | 'mismatch' | 'inactive' | 'not_found' | 'unchecked'; taxRegisteredName?: string | null }
@@ -110,7 +110,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
       const d = await res.json()
       if (d.urls?.[0]) setAvatarUrl(d.urls[0])
       else throw new Error('upload')
-    } catch { setError(tr('Logo upload failed.', 'Tải logo thất bại.')) } finally { setUploading(false) }
+    } catch (e) { setError(isUnsupportedPhoto(e) ? unsupportedPhotoCopy(tr) : tr('Logo upload failed.', 'Tải logo thất bại.')) } finally { setUploading(false) }
   }
 
   const save = async () => {

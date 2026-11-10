@@ -11,8 +11,8 @@ import { containsPhoneNumber } from '@/lib/phone'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { formatInteger, moneyLocale, parseVnd } from '@/lib/vnd'
-import { readZipMedia, resolveRowMedia, mediaTokens, isFilename, type ZipMedia } from '@/lib/bulk-media'
-import { uploadInBatches } from '@/lib/upload-client'
+import { readZipMedia, resolveRowMedia, mediaTokens, isFilename, uploadZipImages, type ZipMedia } from '@/lib/bulk-media'
+import { isUnsupportedPhoto, unsupportedPhotoCopy } from '@/lib/normalize-image'
 
 type Cat = { slug: string; name: string }
 type Raw = { category_slug?: string; title?: string; description?: string; price?: string; district?: string; condition?: string; image_urls?: string }
@@ -156,11 +156,12 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
    * ⛔ THROUGH `/api/upload`, THE SAME PATH A SINGLE LISTING USES — so a bulk photo gets the same
    * type check, the same downscale, the same eno watermark and the same perceptual hash as one
    * posted by hand. Anything else would have meant a second, parallel media pipeline whose
-   * differences only show up months later on somebody's storefront.
+   * differences only show up months later on somebody's storefront. The photos are made ready in the
+   * browser the same way too (`uploadZipImages` → `compressImageFile`).
    */
   const uploadRowMedia = async (row: ParsedRow): Promise<{ image_urls: string; video_url?: string; warning?: string }> => {
     const kept = mediaTokens(row.image_urls).filter((t) => !isFilename(t))
-    const hosted = row._images?.length ? await uploadInBatches(row._images) : []
+    const hosted = row._images?.length ? await uploadZipImages(row._images) : []
     let video_url: string | undefined
     if (row._video) {
       const { uploadListingVideo, hasHevcTrack, VIDEO_UPLOAD_MAX_BYTES } = await import('@/lib/video-upload-client')
@@ -282,9 +283,9 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
             const body = await uploadRowMedia(row)
             if (body.warning) warnings.push({ row: row._row, error: body.warning })
             prepared.push({ row, body })
-          } catch {
+          } catch (e) {
             // Only a PHOTO failure lands here — uploadRowMedia turns clip problems into warnings.
-            mediaFailures.push({ row: row._row, error: tr('Photo upload failed', 'Tải ảnh thất bại') })
+            mediaFailures.push({ row: row._row, error: isUnsupportedPhoto(e) ? unsupportedPhotoCopy(tr) : tr('Photo upload failed', 'Tải ảnh thất bại') })
           }
           if (row._images?.length || row._video) setProgress((p) => (p ? { ...p, done: p.done + 1 } : p))
         }

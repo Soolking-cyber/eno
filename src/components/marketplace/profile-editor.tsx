@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Field, FieldControl, FieldDescription, FieldError } from '@/components/ui/field'
-import { compressImageFile } from '@/lib/normalize-image'
+import { compressImageFile, isUnsupportedPhoto, unsupportedPhotoCopy } from '@/lib/normalize-image'
 import { Avatar } from '@/components/ui/avatar'
 
 type Profile = { displayName: string | null; avatarUrl: string | null; avatarColor: string; phone: string | null }
@@ -42,7 +42,7 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
       const res = await fetch('/api/upload', { method: 'POST', body: form })
       const d = await res.json()
       if (d.urls?.[0]) setAvatarUrl(d.urls[0]); else throw new Error('upload')
-    } catch { setError(tr('Photo upload failed.', 'Tải ảnh thất bại.')) } finally { setUploading(false) }
+    } catch (e) { setError(isUnsupportedPhoto(e) ? unsupportedPhotoCopy(tr) : tr('Photo upload failed.', 'Tải ảnh thất bại.')) } finally { setUploading(false) }
   }
 
   const save = async () => {

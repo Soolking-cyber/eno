@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { compressVideo, VIDEO_PICK_MAX_BYTES, videoCompressionSupported } from '@/lib/video-compress'
 import { hasHevcTrack, VIDEO_UPLOAD_MAX_BYTES } from '@/lib/video-upload-client'
-import { compressImageFile } from '@/lib/normalize-image'
+import { compressImageFile, isUnsupportedPhoto, unsupportedPhotoCopy } from '@/lib/normalize-image'
 import { centerCropSquare } from '@/lib/square-crop'
 import { uploadInBatches } from '@/lib/upload-client'
 import { usePointerReorder } from '@/hooks/use-pointer-reorder'
@@ -94,8 +94,9 @@ export function usePostMedia({
             // reality (an un-cropped photo mustn't claim to be square) (codex).
             return [...p, { url, file: squareFile, original: norm, square: squareFile !== norm }]
           })
-        } catch {
-          toast.error(t('Không đọc được ảnh này.', "Couldn't read that photo."))
+        } catch (e) {
+          // UNSUPPORTED_PHOTO: this browser cannot read it and the upload would refuse its bytes (R37) — say which formats work.
+          toast.error(isUnsupportedPhoto(e) ? unsupportedPhotoCopy((en, vi) => t(vi, en)) : t('Không đọc được ảnh này.', "Couldn't read that photo."))
         }
       }
     } finally {

@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { Loader2, Plus } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
-import { compressImageFile } from '@/lib/normalize-image'
+import { compressImageFile, isUnsupportedPhoto, unsupportedPhotoCopy } from '@/lib/normalize-image'
 import { storefrontUrl } from '@/lib/storefront-host'
 import { cn } from '@/lib/utils'
 
@@ -99,8 +99,8 @@ export function StorefrontBannerEditor({ bannerUrl, handle, onSaved }: Props) {
       const d = await res.json()
       if (!d.urls?.[0]) throw new Error('upload')
       await persist(d.urls[0])
-    } catch {
-      setError(tr('Banner upload failed.', 'Tải ảnh bìa thất bại.'))
+    } catch (e) {
+      setError(isUnsupportedPhoto(e) ? unsupportedPhotoCopy(tr) : tr('Banner upload failed.', 'Tải ảnh bìa thất bại.'))
       setBusy(false)
     }
   }

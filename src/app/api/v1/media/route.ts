@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
-import { storeListingImage, IMG_ALLOWED, IMG_MAX_BYTES } from '@/lib/core/media'
+import { storeListingImage, sniffImageType, IMG_ALLOWED, IMG_MAX_BYTES } from '@/lib/core/media'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
   }
 
   if (!buf) return apiError(422, 'invalid_image', 'Send an image as multipart `file` or a raw JPEG/PNG/WebP body.', r.rate)
+  // The bytes, not the declared type, before any sharp call: sharp also decodes SVG, GIF, TIFF and AVIF (sniffImageType).
+  if (!sniffImageType(buf)) return apiError(422, 'invalid_image', 'The bytes are not a JPEG, PNG or WebP image.', r.rate)
 
   const url = await storeListingImage(buf, { pathPrefix: 'api/' })
   if (!url) return apiError(422, 'invalid_image', 'Could not decode/process the image.', r.rate)

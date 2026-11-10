@@ -8,6 +8,8 @@
 // desktop Chrome). heic-to replaces heic2any, whose stale libheif failed to parse
 // modern iPhone HEIF ("Could not parse HEIF file").
 
+import { sniffImageFile } from './image-sniff'
+
 const isHeicName = (f: File) => /image\/hei[cf]/i.test(f.type) || /\.(heic|heif)$/i.test(f.name)
 const toJpgName = (f: File) => {
   const n = f.name.replace(/\.(heic|heif)$/i, '.jpg')
@@ -51,12 +53,36 @@ const WEBP_QUALITY = 0.82
 const canvasToBlob = (canvas: HTMLCanvasElement, type: string, q: number) =>
   new Promise<Blob | null>((res) => canvas.toBlob((b) => res(b), type, q))
 
+/** compressImageFile's refusal, before any upload. The same code uploadInBatches throws for the server's own 'type'
+ *  refusal, so a caller that already names that one names this one too. */
+export const UNSUPPORTED_PHOTO = 'upload_type'
+export const isUnsupportedPhoto = (e: unknown) => e instanceof Error && e.message === UNSUPPORTED_PHOTO
+/** The existing copy for a refused photo format (the post wizard's 'upload_type' line), for every picker that calls
+ *  compressImageFile. `tr` takes (en, vi). */
+export const unsupportedPhotoCopy = (tr: (en: string, vi: string) => string) =>
+  tr('That photo format is not supported — use a JPG, PNG or WebP.', 'Định dạng ảnh này không được hỗ trợ. Hãy dùng ảnh JPG, PNG hoặc WebP.')
+
 /** HEIC→JPEG (if needed), then downscale to fit MAX_EDGE and re-encode to WebP
  *  (JPEG fallback for browsers whose canvas can't encode WebP). EXIF orientation
  *  is baked in via `imageOrientation`; all other metadata (incl. GPS) is dropped.
- *  Falls back to the (normalized) original if canvas decoding fails. */
+ *  Falls back to the (normalized) original if canvas decoding fails, or if the re-encode is not smaller.
+ *  ⛔ BOTH FALLBACKS HAND BACK THE ORIGINAL ONLY WHEN ITS BYTES ARE JPEG, PNG OR WEBP (R37). /api/upload and
+ *  /api/v1/media sniff the bytes and refuse every other format before sharp, so an AVIF, GIF, TIFF, BMP, SVG or HEIC
+ *  wearing a .jpg/.png/.webp name (common after "Save image as") goes up as this re-encode, even when that is larger.
+ *  When the browser cannot decode such a file at all, this throws UNSUPPORTED_PHOTO and nothing is uploaded. */
 export async function compressImageFile(file: File): Promise<File> {
   const base = isHeicName(file) ? await normalizeImageFile(file) : file
+  const sniffed = await sniffImageFile(base)
+  const sendable = sniffed !== null
+  // The throw inside the try below lands in its catch, which calls this again and so throws it on.
+  // ⚠️ THE ORIGINAL GOES UP UNDER THE TYPE ITS BYTES ARE, NOT THE ONE ITS NAME CLAIMS (commit-gate review). The server
+  // checks the bytes AND the declared type: a JPEG stored as photo.avif passed the first and failed the second.
+  const original = () => {
+    if (!sniffed) throw new Error(UNSUPPORTED_PHOTO)
+    if (base.type === sniffed) return base
+    const ext =sniffed === 'image/jpeg' ? 'jpg' : sniffed === 'image/png' ? 'png' : 'webp'
+    return new File([base], `${base.name.replace(/\.[^.]+$/, '') || 'photo'}.${ext}`, { type: sniffed })
+  }
   try {
     let bitmap: ImageBitmap
     try { bitmap = await createImageBitmap(base, { imageOrientation: 'from-image' }) }
@@ -68,7 +94,7 @@ export async function compressImageFile(file: File): Promise<File> {
     const canvas = document.createElement('canvas')
     canvas.width = w; canvas.height = h
     const ctx = canvas.getContext('2d')
-    if (!ctx) { bitmap.close?.(); return base }
+    if (!ctx) { bitmap.close?.(); return original() }
     ctx.drawImage(bitmap, 0, 0, w, h)
     bitmap.close?.()
     let blob = await canvasToBlob(canvas, 'image/webp', WEBP_QUALITY)
@@ -77,12 +103,12 @@ export async function compressImageFile(file: File): Promise<File> {
       blob = await canvasToBlob(canvas, 'image/jpeg', WEBP_QUALITY)
       ext = 'jpg'; type = 'image/jpeg'
     }
-    if (!blob) return base
-    // If recompression somehow grew the file (tiny/already-optimized source), keep the original.
-    if (blob.size >= base.size && Math.max(ow, oh) <= MAX_EDGE) return base
+    if (!blob) return original()
+    // If recompression somehow grew the file (tiny/already-optimized source), keep the original, when its bytes go up.
+    if (sendable && blob.size >= base.size && Math.max(ow, oh) <= MAX_EDGE) return original()
     const stem = base.name.replace(/\.[^.]+$/, '') || 'photo'
     return new File([blob], `${stem}.${ext}`, { type })
   } catch {
-    return base
+    return original()
   }
 }

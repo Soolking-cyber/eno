@@ -11,11 +11,30 @@ import { isListingVideoUrl, VIDEO_EXTENSIONS } from '@/lib/listing-image'
 // Listing-image media core. Single place that turns raw image bytes into a stored,
 // first-party WebP asset — shared by /api/upload (post wizard), the bulk importer's
 // re-host, and the future /api/v1/media. Validate the content-type + size at the caller
-// (cheap pre-check), then hand the bytes here.
+// (cheap pre-check), sniff the bytes there too (sniffImageType), then hand the bytes here.
 export const IMG_ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp'])
 export const IMG_MAX_BYTES = 12 * 1024 * 1024 // 12MB raw in (modern phone photos) — recompressed below
 const MAX_EDGE = 1600 // longest edge; covers ×2-retina detail hero with no visible loss
 const WEBP_QUALITY = 82
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+/**
+ * Which of the three IMG_ALLOWED formats these bytes really are, or null for anything else.
+ * ⛔ THE UPLOAD ROUTES CALL THIS BEFORE ANY SHARP CALL. sharp picks its decoder from the bytes, not the declared type, and the
+ * prebuilt one decodes SVG (librsvg), GIF, TIFF and AVIF (libheif) from a buffer, so a guest's file labelled image/png used to
+ * reach every one of those parsers. `metadata()` is no check: it runs the same parsers before it answers.
+ * Only the bytes count, not the label: a real JPEG the browser called image/png still goes through.
+ * JPEG `ff d8 ff`, PNG's 8-byte signature, WebP `RIFF....WEBP`. A buffer that starts with one of these and hides another
+ * format behind it goes to that signature's own loader and fails there (measured on sharp 0.35.5 with SVG text and an
+ * `ftyp` box after each signature). Not used by the bulk re-host on purpose: an imported GIF/AVIF source still gets rehosted.
+ */
+export function sniffImageType(head: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | null {
+  if (head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return 'image/jpeg'
+  if (head.length >= 8 && head.subarray(0, 8).equals(PNG_SIGNATURE)) return 'image/png'
+  if (head.length >= 12 && head.subarray(0, 4).toString('latin1') === 'RIFF' && head.subarray(8, 12).toString('latin1') === 'WEBP') return 'image/webp'
+  return null
+}
 
 // ── The eno.vn mark ──────────────────────────────────────────────────────────────
 // ⛔ NOTHING IS BAKED INTO AN UPLOAD ANY MORE (owner, 2026-11-10: item 6 of the decision scorecard, no eno.vn mark on
@@ -52,9 +71,9 @@ async function markInks(png: Buffer, width: number, height: number): Promise<{ c
  * Decode → auto-orient (bake EXIF rotation, then DROP all metadata incl. GPS) →
  * downscale to fit MAX_EDGE → measure the inks a drawn eno.vn mark would use (NOTHING is baked
  * since 2026-11-10, see above; the facts ride in the stored name) →
- * re-encode WebP → store in the listings bucket. sharp throws on anything that
- * isn't a real decodable raster, so a disguised/corrupt file (or an SVG) is
- * rejected here. limitInputPixels guards decompression bombs. Returns the public
+ * re-encode WebP → store in the listings bucket. sharp throws on a corrupt file, but it DECODES
+ * SVG, GIF, TIFF and AVIF (measured), so this does not reject a disguised file: a caller taking
+ * bytes from the public sniffs them first (sniffImageType). limitInputPixels guards decompression bombs. Returns the public
  * URL, or null on any failure (bad input / storage error). Never throws.
  * `watermark: false` is for NON-listing assets (avatars / shop logos) only: their name carries no mark facts, so a
  * mark can never be drawn or baked over them.

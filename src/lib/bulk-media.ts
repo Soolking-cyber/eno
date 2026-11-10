@@ -1,4 +1,6 @@
 import { unzipSync } from 'fflate'
+import { compressImageFile } from './normalize-image'
+import { uploadInBatches } from './upload-client'
 
 /**
  * THE MEDIA HALF OF A BULK IMPORT: a ZIP of photos and clips, matched to the CSV by FILENAME.
@@ -140,4 +142,19 @@ export function resolveRowMedia(cell: string | undefined, zip: ZipMedia | null):
     }
   }
   return { images, video, missing }
+}
+
+/**
+ * Upload one row's ZIP photos through `/api/upload` and return their URLs, in order.
+ *
+ * ⛔ EACH PHOTO GOES THROUGH `compressImageFile` FIRST, THE STEP EVERY PHOTO PICKER TAKES (R37). The upload route refuses
+ * any bytes that are not JPEG, PNG or WebP before sharp sees them, and a ZIP entry's type is only its extension, so the
+ * raw entry used to go up as it was: an AVIF saved as `.jpg` was refused, and a `.avif` / `.heic` entry never uploaded at
+ * all. Now each one goes up as JPEG, PNG or WebP bytes, and a photo the browser cannot read throws UNSUPPORTED_PHOTO
+ * before any of the row is sent. One at a time, so a 200-row import holds one decoded photo at once.
+ */
+export async function uploadZipImages(files: File[]): Promise<string[]> {
+  const ready: File[] = []
+  for (const f of files) ready.push(await compressImageFile(f))
+  return uploadInBatches(ready)
 }
