@@ -66,7 +66,8 @@ const RECHECK_MS = 60_000
  * issued — the reason was only ever on the phone's own screen). The next key request carries it (`x-live-why`) and the
  * key route logs it. Codes only — a status, a close code, Soniox's error type — never a word heard.
  */
-let lastWhy: { session: string; why: string } | null = null
+/** Each lesson's own last reason (commit review, codex + opus: one slot let one lesson's failure erase another's). */
+const lastWhy = new Map<string, string>()
 
 /**
  * Where the socket's key comes from: a classroom session's id (its own stt-token route) — or the voice concierge's routes
@@ -91,7 +92,11 @@ export async function openLiveStt(source: SttSource, on: {
   const failedBecause = (what: string, note?: string) => {
     mark(`live listening: ${what}`, note)
     // Kept for THIS session's next key request only (commit review, opus: never logged against another lesson).
-    if (typeof source === 'string') lastWhy = { session: source, why: `${what}${note ? ` ${note}` : ''}`.replace(/[^\w .:/()-]/g, '').slice(0, 100) }
+    if (typeof source === 'string') {
+      lastWhy.delete(source)
+      lastWhy.set(source, `${what}${note ? ` ${note}` : ''}`.replace(/[^\w .:/()-]/g, '').slice(0, 100))
+      if (lastWhy.size > 8) lastWhy.delete(lastWhy.keys().next().value!)
+    }
   }
   // Only the server's own FINAL refusals end the tries (FINAL_REFUSALS: the session is over, the switch is off, consent
   // withdrawn, no keys left); anything else — Soniox down, the network, a passing 401 or rate limit, a proxy's 403/404
@@ -102,12 +107,13 @@ export async function openLiveStt(source: SttSource, on: {
   const abort = new AbortController()
   const giveUp = setTimeout(() => abort.abort(), KEY_WAIT_MS)
   let grant: Grant | null
+  // TAKEN before the request goes (commit review, codex + opus): a reason recorded while it is on its way is the next one's.
+  const why = typeof source === 'string' ? lastWhy.get(source) : undefined
+  if (typeof source === 'string') lastWhy.delete(source)
   try {
     const r = await (typeof source === 'string'
-      ? fetch(`/api/classroom/sessions/${source}/stt-token`, { method: 'POST', signal: abort.signal, ...(lastWhy?.session === source ? { headers: { 'x-live-why': lastWhy.why } } : {}) })
+      ? fetch(`/api/classroom/sessions/${source}/stt-token`, { method: 'POST', signal: abort.signal, ...(why ? { headers: { 'x-live-why': why } } : {}) })
       : source.grant(abort.signal)).catch(() => null)
-    // Sent (or never this session's): another lesson's request leaves this one's reason alone (commit review, codex + opus).
-    if (typeof source === 'string' && lastWhy?.session === source) lastWhy = null
     if (!r?.ok) {
       failedBecause('no key', String(r?.status ?? 'network'))
       if (!r || r.status < 400 || r.status >= 500) return null

@@ -83,7 +83,7 @@ export function reportFor(s: Awaited<ReturnType<typeof sessionForViewer>>['s'], 
       seq: teacherSide ? t.seq : i + 1,
       learner: teacherSide ? maskContact(t.learnerText) : t.learnerText,
       avatar: (teacherSide ? maskContact(t.replyText) : t.replyText) ?? '',
-      ...(t.supportText ? { avatarVi: (teacherSide ? maskContact(t.supportText) : t.supportText) ?? t.supportText } : {}),
+      ...(t.supportText ? { avatarVi: (teacherSide ? maskContact(t.supportText) : t.supportText) ?? '' } : {}),
       ...(teacherSide && t.flag ? { flag: t.flag } : {}),
     })),
     // "We heard … — did you mean …?" — the tutor's guesses at sound-alike mishearings, shown as QUESTIONS, never scores.

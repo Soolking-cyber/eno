@@ -166,8 +166,12 @@ describe('openLiveStt', () => {
     FakeSocket.last!.say({ tokens: [], error_code: 503, error_type: 'unavailable' })
     const other = await raw('s2')
     expect((other.fetched.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toBeUndefined()
+    // …nor another lesson's FAILURE (each lesson its own reason)
+    FakeSocket.last!.say({ tokens: [], error_code: 401, error_type: 'unauthenticated' }) // s2's socket fails too
     const back = await raw('s1')
     expect((back.fetched.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toEqual({ 'x-live-why': 'error 503 unavailable' })
+    const back2 = await raw('s2')
+    expect((back2.fetched.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toEqual({ 'x-live-why': 'error 401 unauthenticated' })
   })
   it('close(): an empty frame ends Soniox’s stream, and it is not a failure', async () => {
     const { l, got, ws } = await open()
