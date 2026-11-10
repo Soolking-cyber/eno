@@ -7,38 +7,46 @@ import { clampPace, defaultPace, paceOptions, paceRange, stepPace, VOICE_PACES, 
  * slowly"): where a learner starts, how far they may move, and that the speech server knows exactly these names.
  */
 describe('pace', () => {
-  it('a child starts at the slowest and can never be made faster than gentle; a teen or an adult may use them all', () => {
+  it('a child starts at the slowest and can never be made faster than an adult\'s natural voice; a teen or an adult may use all three', () => {
     expect(defaultPace('child-young', 'B2')).toBe('slowest')
     expect(defaultPace('child', 'C1', 'natural')).toBe('slowest')
-    expect(paceRange('child')).toEqual(['slowest', 'gentle'])
-    expect(stepPace('gentle', 'faster', 'child')).toBe('gentle')
+    expect(paceRange('child')).toEqual(['slowest', 'gentle', 'natural'])
+    expect(stepPace('gentle', 'faster', 'child')).toBe('natural')
+    expect(stepPace('natural', 'faster', 'child')).toBe('natural')
     expect(stepPace('slowest', 'faster', 'child-young')).toBe('gentle')
-    expect(paceRange('adult')).toEqual(VOICE_PACES)
-    expect(paceRange('teen')).toEqual(VOICE_PACES)
+    // ⛔ The call's chips (owner, 2026-11-10): Slow · Normal · Fast for a teen or an adult.
+    expect(paceRange('adult')).toEqual(['slowest', 'natural', 'quick'])
+    expect(paceRange('teen')).toEqual(['slowest', 'natural', 'quick'])
   })
-  it('a beginner, or a teacher who chose "Slow & simple", starts gentle; anyone else natural', () => {
-    expect(defaultPace('adult', 'A1')).toBe('gentle')
-    expect(defaultPace('teen', 'A2')).toBe('gentle')
-    expect(defaultPace('adult', 'B1', 'slow')).toBe('gentle')
+  it('a beginner, or a teacher who chose "Slow & simple", starts on Slow; anyone else Normal', () => {
+    expect(defaultPace('adult', 'A1')).toBe('slowest')
+    expect(defaultPace('teen', 'A2')).toBe('slowest')
+    expect(defaultPace('adult', 'B1', 'slow')).toBe('slowest')
     expect(defaultPace('adult', 'B1', 'natural')).toBe('natural')
   })
-  it('one step per request, inside the range; no room → the same pace', () => {
-    expect(stepPace('natural', 'slower', 'adult')).toBe('gentle')
+  it('one step per request, inside the range (a chip each); no room → the same pace', () => {
+    expect(stepPace('natural', 'slower', 'adult')).toBe('slowest')
     expect(stepPace('gentle', 'slower', 'adult')).toBe('slowest')
     expect(stepPace('slowest', 'slower', 'adult')).toBe('slowest')
+    expect(stepPace('slowest', 'faster', 'teen')).toBe('natural')
     expect(stepPace('natural', 'faster', 'adult')).toBe('quick')
     expect(stepPace('quick', 'faster', 'adult')).toBe('quick')
   })
   it('a saved choice is read back inside the learner\'s range NOW (a teen\'s "quick" never reaches them as a child — or junk at all)', () => {
-    expect(clampPace('quick', 'child', 'slowest')).toBe('gentle')
-    expect(clampPace('natural', 'child-young', 'slowest')).toBe('gentle')
+    expect(clampPace('quick', 'child', 'slowest')).toBe('natural')
+    expect(clampPace('natural', 'child-young', 'slowest')).toBe('natural')
     expect(clampPace('slowest', 'adult', 'natural')).toBe('slowest')
     expect(clampPace('NaN', 'adult', 'natural')).toBe('natural')
     expect(clampPace(undefined, 'child', 'slowest')).toBe('slowest')
+    // An adult's 'gentle' saved before the chips: the nearest chip, a tie to the slower — never a jump to Fast.
+    expect(clampPace('gentle', 'adult', 'natural')).toBe('slowest')
+    expect(clampPace('gentle', 'teen', 'natural')).toBe('slowest')
+    expect(clampPace('NaN', 'adult', 'gentle')).toBe('slowest')
   })
   it('the tutor is told which way the pace may still go', () => {
     expect(paceOptions('slowest', 'adult')).toEqual({ now: 'slowest', slower: false, faster: true })
-    expect(paceOptions('gentle', 'child')).toEqual({ now: 'gentle', slower: true, faster: false })
+    expect(paceOptions('gentle', 'child')).toEqual({ now: 'gentle', slower: true, faster: true })
+    expect(paceOptions('natural', 'child')).toEqual({ now: 'natural', slower: true, faster: false })
     expect(paceOptions('natural', 'teen')).toEqual({ now: 'natural', slower: true, faster: true })
   })
   it('a child\'s voice is louder with longer pauses; a teen\'s or an adult\'s pause follows its pace', () => {

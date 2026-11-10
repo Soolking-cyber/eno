@@ -8,10 +8,14 @@ import type { AgeBand } from './limits'
  * quick −0.2 ≈ 12% faster; all of them stayed intelligible. infra/vn-node/classroom-speech/server.py maps the NAMES (a test
  * reads both lists) — never a number: the voice engine takes NaN without a word.
  *
- * A child hears the slowest voice, louder, with longer pauses between sentences, and never faster than 'gentle'; a teen or
- * an adult starts natural (gentle for a beginner, or when the teacher chose "Slow & simple") and moves one step each time
+ * A child hears the slowest voice, louder, with longer pauses between sentences, and never faster than 'natural'; a teen or
+ * an adult starts natural (slowest for a beginner, or when the teacher chose "Slow & simple") and moves one step each time
  * they ask ("talk more slowly", "nói chậm thôi" — the tutor's `pace`, tutor-ai.ts). The learner's choice is kept for their
  * next sessions (ClassroomLearner.voicePace), read back inside these bounds.
+ * ⛔ THE CALL'S PACE CHIPS ARE THE RANGE (owner, 2026-11-10: "speech pace adjuster 3 chips slow normal fast so student can
+ * adjust the speech"): a teen's or an adult's three — Slow · Normal · Fast = slowest · natural · quick; a child's three —
+ * slowest · gentle · natural (a child is never faster than an adult's natural voice). `gentle` is a child's Normal only; an
+ * adult's saved `gentle` (from before the chips) reads back as Slow (clampPace: the nearest, a tie to the slower).
  */
 export const VOICE_PACES = ['slowest', 'gentle', 'natural', 'quick'] as const
 export type VoicePace = (typeof VOICE_PACES)[number]
@@ -21,24 +25,31 @@ export type PaceChange = 'slower' | 'faster'
 const isChild = (b: AgeBand) => b === 'child-young' || b === 'child'
 const isPace = (p: unknown): p is VoicePace => (VOICE_PACES as readonly unknown[]).includes(p)
 
-/** The paces a learner may have, slowest first: a child never faster than 'gentle'; a teen or an adult any. */
+/** The paces a learner may have, slowest first — the call's chips (Slow · Normal · Fast): a child slowest, gentle and
+ *  natural (a child's Fast is an adult's Normal); a teen or an adult slowest, natural and quick. */
 export function paceRange(band: AgeBand): readonly VoicePace[] {
-  return isChild(band) ? ['slowest', 'gentle'] : VOICE_PACES
+  return isChild(band) ? CHILD_PACES : OLDER_PACES
 }
+const CHILD_PACES: readonly VoicePace[] = ['slowest', 'gentle', 'natural']
+const OLDER_PACES: readonly VoicePace[] = ['slowest', 'natural', 'quick']
 
 /** Where a learner starts with no choice of their own: a child the slowest; a beginner (A1–A2), or a teacher's "Slow &
- *  simple" avatar, gentle; anyone else natural. */
+ *  simple" avatar, Slow (slowest — 'gentle' until the chips, 2026-11-10); anyone else natural. */
 export function defaultPace(band: AgeBand, level: string, teacherPace?: unknown): VoicePace {
   if (isChild(band)) return 'slowest'
-  return level === 'A1' || level === 'A2' || teacherPace === 'slow' ? 'gentle' : 'natural'
+  return level === 'A1' || level === 'A2' || teacherPace === 'slow' ? 'slowest' : 'natural'
 }
 
-/** A saved pace — or anything else — inside the learner's range: an unknown one is `fallback`; one past the range its edge. */
+/** A saved pace — or anything else — inside the learner's range: an unknown one is `fallback` (itself kept inside); one
+ *  outside, the NEAREST in the range by speed, a tie to the slower (an adult's old 'gentle' → slowest, never quick). */
 export function clampPace(pace: unknown, band: AgeBand, fallback: VoicePace): VoicePace {
   const range = paceRange(band)
   const p = isPace(pace) ? pace : fallback
   if (range.includes(p)) return p
-  return VOICE_PACES.indexOf(p) < VOICE_PACES.indexOf(range[0]) ? range[0] : range[range.length - 1]
+  const at = VOICE_PACES.indexOf(p)
+  let best = range[0]
+  for (const r of range) if (Math.abs(VOICE_PACES.indexOf(r) - at) < Math.abs(VOICE_PACES.indexOf(best) - at)) best = r
+  return best
 }
 
 /** One step slower or faster inside the range — the same pace when there is no room that way. */

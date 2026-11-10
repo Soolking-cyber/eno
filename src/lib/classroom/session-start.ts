@@ -13,7 +13,7 @@ import { sonioxConfig } from './soniox'
 import { libraryAvatarById } from './library-avatars'
 import { speakLine, warmLine } from './session-voice'
 import { tutorVoice } from './own-voice'
-import { clampPace, defaultPace, voiceStyle } from './pace'
+import { clampPace, defaultPace, paceRange, voiceStyle, type VoicePace } from './pace'
 import { parseTraits } from './persona'
 import type { Background } from './backgrounds'
 import { warmTutorBrain } from './tutor-ai'
@@ -51,6 +51,9 @@ export type StartedSession = {
   learnerName: string
   band: AgeBand
   opening: { text: string; audio: string | null; expect: string | null }
+  /** The voice's pace now, and the call's pace chips — the learner's range, slowest first (pace.ts: Slow · Normal · Fast). */
+  pace: VoicePace
+  paces: VoicePace[]
 }
 
 /**
@@ -277,6 +280,8 @@ export async function startLearnerSession(seatId: string, accountId: string, now
     learnerName: learner.displayName,
     band,
     opening: { text: result.opening.text, audio, expect: result.opening.expect },
+    pace: result.pace,
+    paces: [...paceRange(band)],
   }
 }
 
@@ -359,10 +364,12 @@ export async function startTeacherTest(accountId: string, tutorId?: string, now 
   const minutes = devUnlimited() ? DEV_TEST_MINUTES : staff ? STAFF_TEST_MINUTES : LIMITS.teacherTestMinutes
   // The teacher is an adult: modeFor's own rule with no child in it (the same rule facePreview applies before Start).
   const face = modeFor(asked, false, true)
-  const plan: SessionPlan = { ...firstPlan('B1', asked.greeting, asked.name), planId: null }
+  // A teacher's test: an adult at B1 — at A2 when the teacher chose "Slow & simple" (owner, 2026-11-10: a beginner gets help
+  // in Vietnamese; the teacher hears it), with that avatar's slow pace (pace.ts).
+  const level = testLevel(asked.traits)
+  const plan: SessionPlan = { ...firstPlan(level, asked.greeting, asked.name), planId: null }
   const fresh = openingOf(plan, asked.name)
-  // A teacher's test: an adult at B1, with the avatar's own "Slow & simple" if the teacher chose it (pace.ts).
-  const startPace = defaultPace('adult', 'B1', parseTraits(asked.traits).pace)
+  const startPace = defaultPace('adult', level, parseTraits(asked.traits).pace)
 
   await endExpired({ testerId: accountId }, `eno-classroom-tester:${accountId}`, now)
   const { session, opening, resumed, pace, avatar, sessionFace } = await db.$transaction(async (tx) => {
@@ -380,7 +387,7 @@ export async function startTeacherTest(accountId: string, tutorId?: string, now 
       const last = latest?.flag ? { replyText: NEUTRAL_RESUME, expectText: null } : latest
       if (live.mode === 'avatar' && face.mode !== 'avatar') await tx.classroomSession.update({ where: { id: live.id }, data: { mode: 'voice', updatedAt: now } })
       const session = live.mode === 'avatar' && face.mode !== 'avatar' ? { ...live, mode: 'voice' } : live
-      const livePace = defaultPace('adult', 'B1', parseTraits(avatar.traits).pace)
+      const livePace = defaultPace('adult', testLevel(avatar.traits), parseTraits(avatar.traits).pace)
       return { session, opening: { text: last?.replyText ?? openingOf(plan, avatar.name).text, expect: last?.expectText ?? null }, resumed: true, pace: clampPace(live.voicePace, 'adult', livePace), avatar, sessionFace: face }
     }
     const tests = await tx.classroomSession.count({ where: { testerId: accountId, startedAt: { gte: ictDayStart(now) } } })
@@ -395,7 +402,7 @@ export async function startTeacherTest(accountId: string, tutorId?: string, now 
     const s = await tx.classroomSession.create({
       data: {
         avatarId: asked.id, testerId: accountId, mode: face.mode, startedAt: now, endsAt: new Date(now.getTime() + minutes * 60_000), reservedMinutes: minutes,
-        planSnapshot: { brief: plan.brief, focus: plan.focus, openingLine: plan.openingLine, level: 'B1', strictness: 'balanced', band: 'adult' },
+        planSnapshot: { brief: plan.brief, focus: plan.focus, openingLine: plan.openingLine, level, strictness: 'balanced', band: 'adult' },
         voicePace: startPace,
       },
     })
@@ -418,5 +425,12 @@ export async function startTeacherTest(accountId: string, tutorId?: string, now 
     learnerName: '',
     band: 'adult',
     opening: { text: opening.text, audio, expect: opening.expect },
+    pace,
+    paces: [...paceRange('adult')],
   }
+}
+
+/** A teacher's try is a B1 adult — an A2 one with the tutor's "Slow & simple", the way a beginner is met (tutor-ai.ts). */
+function testLevel(traits: unknown): Level {
+  return parseTraits(traits).pace === 'slow' ? 'A2' : 'B1'
 }

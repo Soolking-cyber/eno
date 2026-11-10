@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { Segmented } from '@/components/ui/segmented'
 import { Captions, Lightbulb, Mic, MicOff, PhoneOff, Video } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
@@ -13,6 +14,7 @@ import { STROKE_UI } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 import type { StartedSession } from '@/lib/classroom/session-start'
 import type { AgeBand } from '@/lib/classroom/limits'
+import type { VoicePace } from '@/lib/classroom/pace'
 import { dayName, refusalCopy } from '../classroom-copy'
 import { AvatarStage, FACE_RATE, audioNeedsGesture, type FaceConfig, type StageHandle } from './avatar-stage'
 import { bufferFromPcm16, decodeLine, partPlayer, pcmFromBase64, resamplePcm16 } from './voice'
@@ -39,11 +41,11 @@ type Phase = 'intro' | 'connecting' | 'listening' | 'hearing' | 'thinking' | 'sp
 type TurnLine =
   | { kind: 'silence' }
   | { kind: 'heard'; learnerText: string }
-  | { kind: 'say'; part: number; text: string }
+  | { kind: 'say'; part: number; text: string; lang?: 'vi' }
   | { kind: 'pcm'; part: number; rate: number; data: string }
   | { kind: 'part-end'; part: number; last: boolean }
   | { kind: 'drill'; expect: string }
-  | { kind: 'reply'; learnerText: string; reply: string; hint: string; hintVi: string; secondsLeft: number; expect?: string | null; parts?: number; audio?: string | null }
+  | { kind: 'reply'; learnerText: string; reply: string; support?: string; hint: string; hintVi: string; secondsLeft: number; expect?: string | null; parts?: number; audio?: string | null; pace?: VoicePace }
   | { kind: 'audio'; part: number; audio: string }
   | { kind: 'audio-failed'; part: number }
   | { kind: 'error'; error: string }
@@ -257,6 +259,14 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
   const openingAtFace = useRef<{ id: number; buffer: AudioBuffer; timer: ReturnType<typeof setTimeout> } | null>(null)
   /** The sentence the last reply asked to be repeated: the next turn sends its clip too, for Azure to score. */
   const lastExpect = useRef<string | null>(null)
+  /**
+   * THE PACE CHIPS (owner, 2026-11-10: "3 chips slow normal fast so student can adjust the speech"): the pace shown, the
+   * learner's tap not yet taken by a turn (sent ONCE, with the next turn — session-turn.ts), and how many taps there were:
+   * a turn's answer sets the chips only when no tap came after that turn was sent (the newer tap wins).
+   */
+  const [pace, setPace] = useState<VoicePace | null>(null)
+  const pendingPace = useRef<VoicePace | null>(null)
+  const taps = useRef(0)
   /** When the learner's voice was last heard in the mic (live listening) — the trace's endpoint delay. */
   const lastVoiceAt = useRef(0)
   /** A Start under way (begin): the ref guards synchronously, the state disables the button. */
@@ -620,6 +630,9 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
     try {
       const id = turnId()
       const headers: Record<string, string> = { 'x-turn-id': id }
+      // A tap on the pace chips since the last answer: this turn takes it (and the next ones keep it — the server saves it).
+      const sentTaps = taps.current
+      if (pendingPace.current) headers['x-voice-pace'] = pendingPace.current
       if (turn.wav) headers['content-type'] = 'audio/wav'
       if (turn.transcript !== undefined) {
         headers['x-transcript'] = base64url(turn.transcript)
@@ -701,9 +714,11 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
           setHint(l.hint ? { en: l.hint, vi: l.hintVi } : null)
           setLeft(l.secondsLeft)
           lastExpect.current = l.expect ?? null
+          // The pace as the server now has it (a tap taken, or "speak more slowly" said) — unless the learner tapped since.
+          if (l.pace && taps.current === sentTaps) { pendingPace.current = null; setPace(l.pace) }
           // Streamed: the captions grow sentence by sentence with the voice (`say`) — the whole reply is not shown ahead of it.
           if (streamed) return
-          setAvatarLine(l.reply)
+          setAvatarLine([l.support, l.reply].filter(Boolean).join(' '))
           reply.current.parts = l.parts ?? (l.audio ? 1 : 0)
           if (l.audio) { const a = l.audio; chain = chain.then(() => decodeAndGive(a, true, gen)) }
           return
@@ -1081,6 +1096,9 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
     setLeft(total.current)
     setAvatarLine(s.opening.text)
     setStart(s)
+    setPace(s.pace ?? null)
+    pendingPace.current = null
+    taps.current = 0
     lastExpect.current = s.opening.expect ?? null
     // Live listening opens alongside (a key from the server, then Soniox's socket); until then the screen says connecting.
     liveReopens.current = 0
@@ -1280,6 +1298,17 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
                 border-foreground/10 edge, shadow-pop, h-14, max-w-sm — and its "on" capsule: bg-accent with the brand ink,
                 inset by the pill's p-1 so its radius stays concentric. End keeps a call's red. Not before Start: the
                 intro's own buttons sit there. */}
+            {/* THE PACE CHIPS (owner, 2026-11-10: "3 chips slow normal fast"): the learner's own range (pace.ts — a child's
+                Fast is an adult's Normal). A tap takes effect from the avatar's next reply. */}
+            {live && start && pace && start.paces.length > 1 && (
+              <Segmented
+                aria-label={tr('Voice speed', 'Tốc độ giọng nói')}
+                value={pace}
+                onValueChange={(p) => { setPace(p); pendingPace.current = p; taps.current += 1; mark('pace chosen', p) }}
+                options={start.paces.map((p, i) => ({ value: p, label: paceLabel(i, start.paces.length, tr) }))}
+                className="mx-auto max-w-[16rem] shrink-0 shadow-pop"
+              />
+            )}
             {phase !== 'intro' && phase !== 'mic_denied' && (
             <div className="mx-auto flex h-14 w-full max-w-sm shrink-0 items-stretch gap-1 rounded-full border border-foreground/10 bg-popover/95 p-1 text-body shadow-pop material backdrop-blur-md">
               {cameraOffered ? (
@@ -1348,6 +1377,12 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
       </DialogContent>
     </Dialog>
   )
+}
+
+/** A pace chip's name by its place in the learner's range, slowest first: Slow · Normal · Fast. */
+function paceLabel(i: number, n: number, tr: (en: string, vi: string) => string): string {
+  if (i === 0) return tr('Slow', 'Chậm')
+  return i === n - 1 && n > 2 ? tr('Fast', 'Nhanh') : tr('Normal', 'Vừa')
 }
 
 /** The learner's own camera, mirrored like a mirror (a call's self-view). Muted — it is a picture, never a microphone. */

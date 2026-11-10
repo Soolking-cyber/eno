@@ -31,7 +31,9 @@ export async function sttGrant(sessionId: string, accountId: string, now = Date.
   try {
     // Valid for a minute to OPEN the socket (the page opens it at once); the stream ends with the session's grace.
     const apiKey = await mintSttKey(cfg, { expiresInSeconds: 60, maxSessionSeconds: (s.endsAt.getTime() - now) / 1000 + LIMITS.deadlineGraceSeconds })
-    return { apiKey, url: cfg.ws, model: cfg.model, settings, languageHints: ['en'] }
+    // English AND Vietnamese (owner, 2026-11-10: "the avatar should recognize english and vietnamese"): the learner may ask
+    // for help in their own language; the tutor answers it (tutor-ai.ts `support`). English first — it is what is practised.
+    return { apiKey, url: cfg.ws, model: cfg.model, settings, languageHints: ['en', 'vi'] }
   } catch (e) {
     logWarn('[classroom] soniox key failed — nothing can hear the learner until it is back', { status: (e as { status?: number }).status ?? null })
     throw new ApiError('speech_unavailable', 503)

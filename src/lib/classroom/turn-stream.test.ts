@@ -487,3 +487,107 @@ describe('replayTurn', () => {
     expect(kinds(await collect(replayTurn({ ...saved, learnerText: '' }, null).lines))).toEqual(['reply', 'end'])
   })
 })
+
+describe('streamTurn — the tutor\'s Vietnamese help (tutor-ai.ts `support`; owner, 2026-11-10)', () => {
+  /** A voice that records each ask with its options. */
+  const recording = (o: { ahead?: () => number; turnMs?: number; slowVi?: boolean } = {}) => {
+    const asked: string[] = []
+    const f = async (text: string, signal: AbortSignal, opt?: { ahead?: boolean; box?: boolean; lang?: 'vi' }) => {
+      asked.push(`${text}${opt?.lang ? `[${opt.lang}]` : ''}${opt?.box ? '+box' : opt?.ahead ? '+ahead' : ''}`)
+      if (o.slowVi && opt?.lang === 'vi' && opt.ahead) await new Promise((r) => setTimeout(r, 60))
+      return { rate: 24_000, chunks: (async function* () { yield new Uint8Array(10).fill(text.charCodeAt(0)) })() }
+    }
+    return Object.assign(f, { asked, ...(o.ahead ? { ahead: o.ahead } : {}), ...(o.turnMs ? { turnMs: o.turnMs } : {}) }) as Speaker & { asked: string[] }
+  }
+  it('the help\'s sentences go out marked Vietnamese — on the `say` line and to the voice — then the English reply', async () => {
+    const speak = recording()
+    const r = REPLY({ support: 'Sở thích là gì?', reply: 'What is your hobby?' })
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Sở thích là gì?', lang: 'vi', help: true }, { kind: 'say', text: 'What is your hobby?' }, { kind: 'final', reply: r, model: 'm', calls: 1 }), { speak })
+    const lines = await collect(t.lines)
+    expect(lines.filter((l) => l.kind === 'say')).toEqual([{ kind: 'say', part: 0, text: 'Sở thích là gì?', lang: 'vi' }, { kind: 'say', part: 1, text: 'What is your hobby?' }])
+    expect(speak.asked).toEqual(['Sở thích là gì?[vi]', 'What is your hobby?'])
+    expect(t.saved[0].a.reply).toMatchObject({ support: 'Sở thích là gì?', reply: 'What is your hobby?' })
+  })
+  it('⛔ a Vietnamese line made ahead is never handed to the box: with no viTurnMs set, its own voice is waited for', async () => {
+    const speak = recording({ ahead: () => 2, turnMs: 10, slowVi: true })
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Hello.' }, { kind: 'say', text: 'Sở thích là gì?', lang: 'vi', help: true }, { kind: 'final', reply: REPLY({ reply: 'Hello.', support: 'Sở thích là gì?' }), model: 'm', calls: 1 }), { speak })
+    await collect(t.lines)
+    expect(speak.asked).toEqual(['Hello.', 'Sở thích là gì?[vi]+ahead'])
+    await t.done
+  })
+  it('⛔ a reply cut off after its help: saved as heard — the help as help, the English as the reply', async () => {
+    async function* broke(): AsyncGenerator<TutorEvent> {
+      yield { kind: 'safety', harm: false }
+      yield { kind: 'say', text: 'Sở thích là gì?', lang: 'vi', help: true }
+      yield { kind: 'say', text: 'Tell me.' }
+      throw Object.assign(new Error('reset'), { status: 502 })
+    }
+    const t = turn(broke())
+    await collect(t.lines)
+    expect(t.saved[0].a).toMatchObject({ model: 'cut-off', reply: { support: 'Sở thích là gì?', reply: 'Tell me.' } })
+  })
+  it('⛔ harm, eno\'s own words: the Vietnamese said FIRST, in Vietnamese, then the English — both saved', async () => {
+    async function* flagged(): AsyncGenerator<TutorEvent> {
+      yield { kind: 'safety', harm: true }
+      throw Object.assign(new SyntaxError('classroom_unusable_reply'), { safety: true, calls: 1 })
+    }
+    const speak = recording()
+    const saved: Answer[] = []
+    const t = streamTurn({
+      learnerText: 'x', events: flagged(), speak,
+      save: async (a) => { saved.push(a); return SAVED(a) },
+      giveUp: async () => {}, safetyLine: 'Please talk to a grown-up you trust.', safetySupport: 'Hãy nói với bố mẹ nhé.',
+    })
+    await collect(t.lines)
+    expect(speak.asked).toEqual(['Hãy nói với bố mẹ nhé.[vi]', 'Please talk to a grown-up you trust.'])
+    expect(saved[0].reply).toMatchObject({ safety: true, support: 'Hãy nói với bố mẹ nhé.' })
+  })
+  it('a replayed turn says its help first, in Vietnamese', async () => {
+    const speak = recording()
+    const r = replayTurn({ seq: 2, learnerText: 'hi', reply: 'What is your hobby?', support: 'Sở thích là gì?', hint: '', hintVi: '', expect: null, heardAs: [], secondsLeft: 100 }, speak)
+    await collect(r.lines)
+    expect(speak.asked).toEqual(['Sở thích là gì?[vi]', 'What is your hobby?'])
+  })
+})
+
+describe('streamTurn — the help never costs the English (commit review, codex + opus)', () => {
+  it('⛔ a Vietnamese help line made ahead that is still silent at viTurnMs goes WITHOUT a voice — the English after it is voiced, no box asked', async () => {
+    const asked: string[] = []
+    const speak = Object.assign(async (text: string, signal: AbortSignal, o?: { ahead?: boolean; box?: boolean; lang?: 'vi' }) => {
+      asked.push(`${text}${o?.lang ? '[vi]' : ''}${o?.box ? '+box' : o?.ahead ? '+ahead' : ''}`)
+      if (o?.lang === 'vi' && o.ahead) return new Promise<never>(() => {}) // never a first sound
+      return { rate: 24_000, chunks: (async function* () { if (text.startsWith('A')) await new Promise((r) => setTimeout(r, 10)); yield new Uint8Array(10).fill(text.charCodeAt(0)) })() }
+    }, { ahead: () => 2, turnMs: 20, viTurnMs: 20 }) as Speaker
+    const t = turn(brain(
+      { kind: 'safety', harm: false }, { kind: 'say', text: 'A hello.' }, { kind: 'say', text: 'Bạn khỏe không?', lang: 'vi', help: true }, { kind: 'say', text: 'C how are you?' },
+      { kind: 'final', reply: REPLY({ reply: 'A hello. C how are you?', support: 'Bạn khỏe không?' }), model: 'm', calls: 1 }), { speak })
+    const lines = await collect(t.lines)
+    expect(asked.some((a) => a.includes('[vi]+box'))).toBe(false)
+    expect(lines.filter((l) => l.kind === 'audio-failed')).toEqual([{ kind: 'audio-failed', part: 1 }])
+    expect(kinds(lines)).toContain('pcm:2') // the English question still voiced
+    await t.done
+  })
+  it('⛔ a help line whose voice failed (Soniox resting) keeps the drill: the drill\'s request is in the English', async () => {
+    const speak = Object.assign(async (text: string, _s: AbortSignal, o?: { lang?: 'vi' }) => {
+      if (o?.lang === 'vi') throw Object.assign(new Error('resting'), { status: 503 })
+      return { rate: 24_000, chunks: (async function* () { yield new Uint8Array(10) })() }
+    }, {}) as Speaker
+    const r = REPLY({ support: 'Hãy nói theo cô.', reply: 'Please say after me: I think so.', expect: 'I think so.' })
+    const t = turn(brain({ kind: 'safety', harm: false }, { kind: 'say', text: 'Hãy nói theo cô.', lang: 'vi', help: true }, { kind: 'say', text: 'Please say after me: I think so.' }, { kind: 'spoken', expect: 'I think so.' }, { kind: 'final', reply: r, model: 'm', calls: 1 }), { speak })
+    const lines = await collect(t.lines)
+    expect(lines.some((l) => l.kind === 'drill')).toBe(true)
+    expect(t.saved[0].a.reply.expect).toBe('I think so.')
+  })
+  it('a cut-off reply\'s own Vietnamese sentence stays in the REPLY — only help lines are saved as help', async () => {
+    async function* broke(): AsyncGenerator<TutorEvent> {
+      yield { kind: 'safety', harm: false }
+      yield { kind: 'say', text: 'Sở thích là gì?', lang: 'vi', help: true }
+      yield { kind: 'say', text: 'Đúng rồi!', lang: 'vi' }
+      yield { kind: 'say', text: 'Tell me.' }
+      throw Object.assign(new Error('reset'), { status: 502 })
+    }
+    const t = turn(broke())
+    await collect(t.lines)
+    expect(t.saved[0].a.reply).toMatchObject({ support: 'Sở thích là gì?', reply: 'Đúng rồi! Tell me.' })
+  })
+})

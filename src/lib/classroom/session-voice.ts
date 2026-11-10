@@ -147,7 +147,11 @@ const voiceProblem = (e: unknown) => { const s = (e as { status?: number }).stat
 export function forgetVoiceLines(own: string) {
   for (const k of madeLines.keys()) if (k.startsWith(`${own}|`)) madeLines.delete(k)
   brokenUntil.delete(own)
+  brokenUntil.delete(viKey(own))
 }
+/** The own voice's broken flag for its VIETNAMESE lines alone: a cloned voice that cannot say Vietnamese never moves its
+ *  English lines to the stock voice (plan review round 2, opus). */
+const viKey = (own: string) => `${own}|vi`
 /** eno's own speech server for a line in this language: English for every speaker; Vietnamese for the voice guide only
  *  (`first` — the server's /vi/ routes are the guide's: Bảo Trang, owner 2026-10-29). Nothing else ever goes there. */
 const boxFor = (style: VoiceStyle, first = false) => {
@@ -205,6 +209,7 @@ export function speakerFor(voice: string | TutorVoice, style: () => VoiceStyle, 
   if (!sonioxConfig() && !box) return null
   if (boxOpts.first && box) return guideSpeaker(v, style, box)
   const speak: Speaker = async (text, signal, o) => {
+    if (o?.lang === 'vi') return vietnameseLine(text, v, { ...style(), language: 'vi' }, signal, !!o.ahead)
     // Its turn came after a voice made ahead failed: the box says it at once when there is one (review, opus).
     if (o?.box && box) return synthesizeStream(box, text, v.id, style(), signal, fetch, boxOpts)
     if (sonioxUp()) {
@@ -241,11 +246,42 @@ export function speakerFor(voice: string | TutorVoice, style: () => VoiceStyle, 
   speak.ahead = () => (sonioxUp() ? SONIOX_AHEAD : 0)
   // A line made ahead keeps its turn waiting no longer than one asked for now, when the box can take it.
   if (box) speak.turnMs = SONIOX_FIRST_SOUND_MS
+  // …and a Vietnamese one no longer than one asked for now, box or not (vietnameseLine).
+  speak.viTurnMs = SONIOX_FIRST_SOUND_MS
   return speak
 }
 
 /** Sentences voiced ahead of the one being heard, on Soniox (≤ its 5 streams a socket with room to spare). */
 export const SONIOX_AHEAD = 2
+
+/**
+ * ⛔ ONE LINE OF THE TUTOR'S VIETNAMESE HELP (tutor-ai.ts `support`; owner, 2026-11-10) — SONIOX ONLY, decided for THIS line
+ * (plan review round 2, codex + opus: a speaker's box and budget are worked out once, from its English style):
+ * - never the box — it speaks English (Phonon); a lesson never sends Vietnamese there;
+ * - asked for in its turn, a first sound within SONIOX_FIRST_SOUND_MS or none — a slow Soniox never holds the English
+ *   question back for long (no voice: 'audio-failed', its words stay on screen, the reply goes on — turn-stream.ts);
+ * - the teacher's own voice while it holds for Vietnamese (its own `|vi` flag), else the stock voice;
+ * - a voice's refusal (voiceProblem) or a slow line rests NOTHING — only Soniox itself failing (the key or credit, the socket)
+ *   rests it for everyone, as for English; the English run of slow lines is left alone.
+ */
+async function vietnameseLine(text: string, v: Spoken, style: VoiceStyle, signal: AbortSignal, ahead: boolean): Promise<VoiceStream> {
+  if (!sonioxUp()) throw new SpeechError(503, 'tts')
+  const budget = ahead ? undefined : SONIOX_FIRST_SOUND_MS
+  const own = !!v.stockSoniox && !broken(v.soniox) && !broken(viKey(v.soniox))
+  try {
+    try {
+      return await sonioxSpeakStream(text, own ? v.soniox : (v.stockSoniox ?? v.soniox), style, signal, budget)
+    } catch (e) {
+      if (!own || signal.aborted || !voiceProblem(e)) throw e
+      markBroken(viKey(v.soniox))
+      return await sonioxSpeakStream(text, v.stockSoniox!, style, signal, budget)
+    }
+  } catch (e) {
+    const status = (e as { status?: number }).status
+    if (!signal.aborted && (status === 401 || status === 402 || status === 403 || status === 502)) sonioxFailed(e, 'stream-vi')
+    throw e
+  }
+}
 
 /*
  * THE VOICE GUIDE: THE BOX FIRST, SONIOX THE OVERFLOW (`first`; owner, 2026-10-29). Each line the box can say (English)

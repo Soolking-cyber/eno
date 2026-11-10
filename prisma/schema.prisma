@@ -3133,6 +3133,8 @@ model ClassroomTurn {
   status       String           @default("processing") // processing | ok | failed
   learnerText  String?
   replyText    String           @default("")
+  /// The tutor's Vietnamese help, said BEFORE replyText (tutor-ai.ts `support`) — null when there was none.
+  supportText  String?
   hint         String           @default("")
   hintVi       String           @default("")
   /// The sentence this REPLY asks the learner to repeat — the known reference that scores their next turn.

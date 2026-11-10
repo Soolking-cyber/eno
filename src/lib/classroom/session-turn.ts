@@ -15,7 +15,7 @@ import { speakerFor } from './session-voice'
 import { tutorVoice } from './own-voice'
 import { replayTurn, streamTurn, type Answer, type SavedReply, type TurnStream } from './turn-stream'
 import { classroomOpenFor } from './config'
-import { alertSafetyTeam, safetyReply } from './safety'
+import { alertSafetyTeam, safetyReply, safetySupport } from './safety'
 import { quietError } from './quiet-error'
 import { TEACHER_VIEW_NOTICE_VERSION, practiceConsentCurrent } from './notices'
 import type { AgeBand } from './limits'
@@ -33,7 +33,8 @@ export const MIN_TURN_MS = 350
 export const BUSY_MS = 120_000
 
 /** A turn heard LIVE (the page streamed it to Soniox): the words, and how long the learner spoke. */
-export type LiveHeard = { text: string; ms: number }
+/** `pace`: the learner's tap on the call's pace chips — sent once, with the first turn after the tap (session-screen.tsx). */
+export type LiveHeard = { text: string; ms: number; pace?: string }
 /** The longest live transcript taken: 45 s of speech is ~120 words, ~700 characters. */
 export const LIVE_TEXT_MAX = 1_000
 
@@ -143,9 +144,12 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     if (d.status === 'ok' && d.learnerText) {
       // ⛔ A FLAGGED turn's retry gives nothing back (2a round 6, codex): not the words, not the hints — only eno's own safe
       // line, without a voice. The family's report hides that exchange; a replayed upload must not hand it over either.
-      if (d.flag) return { kind: 'answer', ...replayTurn({ seq: d.seq, learnerText: '', reply: safetyReply(bandOf(session)), hint: '', hintVi: '', expect: null, heardAs: [], secondsLeft: Math.max(0, Math.round((session.endsAt.getTime() - Date.now()) / 1000)) }, null) }
+      if (d.flag) {
+        const help = safetySupport(bandOf(session), levelOf(session))
+        return { kind: 'answer', ...replayTurn({ seq: d.seq, learnerText: '', reply: safetyReply(bandOf(session)), ...(help ? { support: help } : {}), hint: '', hintVi: '', expect: null, heardAs: [], secondsLeft: Math.max(0, Math.round((session.endsAt.getTime() - Date.now()) / 1000)) }, null) }
+      }
       const latest = await db.classroomTurn.findFirst({ where: { sessionId, status: 'ok' }, orderBy: { seq: 'desc' }, select: { id: true } })
-      return { kind: 'answer', ...replayTurn(replyOf(d, session, now), latest?.id === d.id ? speakerFor(await tutorVoice(session.avatar), () => voiceStyle(bandOf(session), paceOf(session, bandOf(session)))) : null) }
+      return { kind: 'answer', ...replayTurn({ ...replyOf(d, session, now), pace: paceOf(session, bandOf(session)) }, latest?.id === d.id ? speakerFor(await tutorVoice(session.avatar), () => voiceStyle(bandOf(session), paceOf(session, bandOf(session)))) : null) }
     }
     if (d.status === 'processing') throw new ApiError('turn_in_progress', 409)
     throw new ApiError('tutor_unavailable', 503)
@@ -169,7 +173,7 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
   // They are the learner's own words from the learner's own page, trusted like anything the learner says.
   const heard = { text: live.text.trim().slice(0, LIVE_TEXT_MAX) }
 
-  const before = await db.classroomTurn.findMany({ where: { sessionId, seq: { lt: turn.seq }, status: 'ok' }, orderBy: { seq: 'asc' }, select: { learnerText: true, replyText: true, expectText: true, flag: true } })
+  const before = await db.classroomTurn.findMany({ where: { sessionId, seq: { lt: turn.seq }, status: 'ok' }, orderBy: { seq: 'asc' }, select: { learnerText: true, replyText: true, supportText: true, expectText: true, flag: true } })
   // ⛔ A FLAGGED EXCHANGE LEAVES THE TUTOR'S MEMORY (2a review, codex): the safety reply was given once; a later reply
   // that remembered it could repeat the disclosure into the family's transcript and the report model.
   const history = before.filter((h) => !h.flag)
@@ -185,8 +189,15 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
    * reply's own "Sure, I'll slow down" is already slower). Saved with the turn — on the session, and as the learner's own
    * choice for their next sessions — only when it actually moved.
    */
-  let pace: VoicePace = paceOf(session, band)
+  const before0 = paceOf(session, band)
+  let pace: VoicePace = before0
   let paceMoved = false
+  // ⛔ THE CALL'S PACE CHIPS (owner, 2026-11-10: "3 chips slow normal fast so student can adjust the speech"): a tap is this
+  // turn's base — read inside THIS learner's range (the server's band, never the page's) — and a spoken "slower" steps
+  // from it. Sent once, with the first turn after the tap: a turn without it keeps the session's own pace, so a spoken
+  // change the page never heard (a talked-over answer) is never undone by a stale chip.
+  const tapped = live.pace === undefined ? null : clampPace(live.pace, band, before0)
+  if (tapped && tapped !== pace) pace = tapped
   // The page leaving (talked over, closed) ends the brain too: what was said by then is saved (turn-stream.ts).
   const brain = new AbortController()
   const events = tutorTurnStream(ai, {
@@ -198,7 +209,7 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     focusNote: session.enrollment?.focusNote ?? '',
     plan: { brief: typeof snapshot.brief === 'string' ? snapshot.brief : '', focus },
     workingOn: workingOnLines(session.enrollment?.focusItems),
-    history: history.flatMap((h) => [...(h.learnerText ? [{ who: 'learner' as const, text: h.learnerText }] : []), { who: 'avatar' as const, text: h.replyText }]),
+    history: history.flatMap((h) => [...(h.learnerText ? [{ who: 'learner' as const, text: h.learnerText }] : []), { who: 'avatar' as const, text: h.replyText, ...(h.supportText ? { support: h.supportText } : {}) }]),
     learnerText: heard.text,
     secondsLeft: Math.max(0, (session.endsAt.getTime() - now.getTime()) / 1000),
     drillLeft: focus.drill.filter((d) => !practised.has(d)),
@@ -231,24 +242,26 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
     const ref = reply.safety || !clip ? null : reference
     // ⛔ A FLAGGED TURN SAVES NO PACE (2026-10-26 review round 2, codex + opus): a first brain's "slower" followed by a second
     // brain's harm flag is not the learner's choice for their next sessions.
-    const keepPace = paceMoved && !reply.safety
+    // The learner's own tap is theirs whatever the reply was: kept even on a flagged turn (it came from no brain).
+    const kept: VoicePace | null = paceMoved && !reply.safety ? pace : tapped && tapped !== before0 ? tapped : null
+    const keepPace = kept !== null
     try {
       await db.$transaction(async (tx) => {
         // Written only while the turn is still 'processing' (2a round 4, opus): one the sweep already gave up stays given up.
         const written = await tx.classroomTurn.updateMany({
           where: { id: turn.id, status: 'processing' },
           data: {
-            status: 'ok', learnerText, replyText: reply.reply, hint: reply.hint, hintVi: reply.hintVi, expectText: reply.expect,
+            status: 'ok', learnerText, replyText: reply.reply, supportText: reply.support ? reply.support.slice(0, 600) : null, hint: reply.hint, hintVi: reply.hintVi, expectText: reply.expect,
             reference: ref, heardAs: reply.heardAs, assessStatus: ref ? 'pending' : 'skipped', flag: reply.safety ? 'harm' : null, aiCalls: calls, updatedAt: new Date(),
           },
         })
         if (!written.count) throw new ApiError('tutor_unavailable', 503)
         await tx.classroomSession.update({
           where: { id: sessionId },
-          data: { turnCount: { increment: 1 }, learnerSpeechMs: { increment: info.ms }, avatarChars: { increment: reply.reply.length }, ...(keepPace ? { voicePace: pace } : {}), updatedAt: new Date() },
+          data: { turnCount: { increment: 1 }, learnerSpeechMs: { increment: info.ms }, avatarChars: { increment: reply.reply.length + (reply.support?.length ?? 0) }, ...(keepPace ? { voicePace: kept } : {}), updatedAt: new Date() },
         })
         // The learner's own choice, for their next sessions (a teacher's test has no learner: the session alone).
-        if (keepPace && session.learnerId) await tx.classroomLearner.update({ where: { id: session.learnerId }, data: { voicePace: pace, updatedAt: new Date() } })
+        if (keepPace && session.learnerId) await tx.classroomLearner.update({ where: { id: session.learnerId }, data: { voicePace: kept, updatedAt: new Date() } })
       })
     } catch (e) {
       if (reply.safety) {
@@ -280,9 +293,10 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
       }).catch((e) => logError(quietError(e), { op: 'classroom.turn.assess' }))
     })
     return {
-      seq: turn.seq, learnerText, reply: reply.reply, hint: reply.hint, hintVi: reply.hintVi, expect: reply.expect, heardAs: reply.heardAs,
+      seq: turn.seq, learnerText, reply: reply.reply, ...(reply.support ? { support: reply.support } : {}), hint: reply.hint, hintVi: reply.hintVi, expect: reply.expect, heardAs: reply.heardAs,
       // From the moment of the answer, not of the upload (2a round 4, codex): the reply itself took time.
       secondsLeft: Math.max(0, Math.round((session.endsAt.getTime() - Date.now()) / 1000)),
+      pace: kept ?? before0,
     }
   }
 
@@ -299,6 +313,7 @@ export async function processTurn(sessionId: string, accountId: string, clientTu
       save,
       giveUp: (e) => giveBack('tutor_unavailable', e),
       safetyLine: safetyReply(band),
+      safetySupport: safetySupport(band, levelOf(session)) ?? undefined,
       stopBrain: () => brain.abort(),
       dropDrill: async () => {
         const drop = () => db.classroomTurn.update({ where: { id: turn.id }, data: { expectText: null, updatedAt: new Date() } })
@@ -330,9 +345,9 @@ function strictnessOf(s: SessionRow): Strictness {
   return (STRICTNESS as readonly unknown[]).includes(v) ? (v as Strictness) : 'balanced'
 }
 
-function replyOf(d: { seq: number; learnerText: string | null; replyText: string; hint: string; hintVi: string; expectText: string | null; heardAs: unknown; flag: string | null }, s: SessionRow, now: Date): SavedReply {
+function replyOf(d: { seq: number; learnerText: string | null; replyText: string; supportText: string | null; hint: string; hintVi: string; expectText: string | null; heardAs: unknown; flag: string | null }, s: SessionRow, now: Date): SavedReply {
   return {
-    seq: d.seq, learnerText: d.learnerText ?? '', reply: d.replyText, hint: d.hint, hintVi: d.hintVi, expect: d.expectText,
+    seq: d.seq, learnerText: d.learnerText ?? '', reply: d.replyText, ...(d.supportText ? { support: d.supportText } : {}), hint: d.hint, hintVi: d.hintVi, expect: d.expectText,
     heardAs: Array.isArray(d.heardAs) ? (d.heardAs as { heard: string; meant: string }[]) : [],
     secondsLeft: Math.max(0, Math.round((s.endsAt.getTime() - now.getTime()) / 1000)),
   }

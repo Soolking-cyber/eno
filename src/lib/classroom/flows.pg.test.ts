@@ -45,7 +45,7 @@ vi.mock('./speech-local', async (orig) => ({
 }))
 vi.mock('./soniox', async (orig) => ({
   ...(await orig<typeof import('./soniox')>()),
-  sonioxConfig: () => (seen.noSoniox ? null : { key: 'k'.repeat(40), rest: 'https://api.soniox.com', ws: 'wss://stt-rt.soniox.com/transcribe-websocket', model: 'stt-rt-v5', tts: 'wss://tts-rt.soniox.com/tts-websocket', ttsModel: 'tts-rt-v2' }),
+  sonioxConfig: () => (seen.noSoniox ? null : { key: 'k'.repeat(40), rest: 'https://api.soniox.com', ws: 'wss://stt-rt.soniox.com/transcribe-websocket', model: 'stt-rt-v6', tts: 'wss://tts-rt.soniox.com/tts-websocket', ttsModel: 'tts-rt-v2' }),
   mintSttKey: async () => 'temp_live_key',
 }))
 vi.mock('./azure-speech', async (orig) => ({
@@ -229,10 +229,12 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     try {
       seen.spoken.length = 0
       const r = await answered(s.id, parentId, 'turn-harm-0001', null, undefined, said())
-      // the kind words are spoken — only once the turn is saved flagged (turn-stream.ts)
-      expect(r.reply).toMatchObject({ reply: expect.stringMatching(/trust/) })
+      // the kind words are spoken — only once the turn is saved flagged (turn-stream.ts); for a beginner (this learner is
+      // A2) in Vietnamese FIRST, then in English (safety.ts safetySupport)
+      expect(r.reply).toMatchObject({ reply: expect.stringMatching(/trust/), support: expect.stringMatching(/tin tưởng/) })
       expect(r.lines.findIndex((l) => l.kind === 'say')).toBeGreaterThan(r.lines.findIndex((l) => l.kind === 'reply'))
-      expect(seen.spoken.join(' ')).toBe(r.reply?.kind === 'reply' ? r.reply.reply : '')
+      expect(seen.spoken.join(' ')).toBe(r.reply?.kind === 'reply' ? `${r.reply.support} ${r.reply.reply}` : '')
+      expect(r.lines.find((l) => l.kind === 'say')).toMatchObject({ lang: 'vi' })
     } finally { seen.tutorUnusableHarm = false }
     await Promise.all(afterQueue.splice(0))
     expect(await db.classroomTurn.findFirst({ where: { sessionId: s.id, clientTurnId: 'turn-harm-0001' } })).toMatchObject({ flag: 'harm', status: 'ok' })
@@ -405,12 +407,13 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
   ]
 
   it('⛔ "talk more slowly": one step, the reply itself already slower; the session and the LEARNER keep it; the next start reads it', async () => {
-    const seat = await activeSeat() // an adult at A2: starts gentle (pace.ts)
+    const seat = await activeSeat() // an adult at A2: a beginner starts on Slow (pace.ts) — here on Normal, chosen before
     const learnerId = (await db.classroomEnrollment.findUnique({ where: { id: seat.id } }))!.learnerId!
-    await db.classroomLearner.update({ where: { id: learnerId }, data: { voicePace: null } })
+    await db.classroomLearner.update({ where: { id: learnerId }, data: { voicePace: 'natural' } })
     const s = await start.startLearnerSession(seat.id, parentId)
-    expect(seen.openingPace).toBe('gentle')
-    expect((await db.classroomSession.findUnique({ where: { id: s.id } }))!.voicePace).toBe('gentle')
+    expect(seen.openingPace).toBe('natural')
+    expect(s).toMatchObject({ pace: 'natural', paces: ['slowest', 'natural', 'quick'] })
+    expect((await db.classroomSession.findUnique({ where: { id: s.id } }))!.voicePace).toBe('natural')
     try {
       seen.pace = 'slower'
       seen.paces.length = 0
@@ -429,7 +432,7 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
       expect(seen.paces.every((p) => p === 'slowest')).toBe(true)
       seen.pace = 'faster'
       await answered(s.id, parentId, 'turn-pace-0004', null, undefined, said())
-      expect((await db.classroomLearner.findUnique({ where: { id: learnerId } }))!.voicePace).toBe('gentle')
+      expect((await db.classroomLearner.findUnique({ where: { id: learnerId } }))!.voicePace).toBe('natural')
       await end.endSession(s.id, parentId, 'learner')
       // the learner's choice, read back at the next start — inside their bounds
       await db.classroomLearner.update({ where: { id: learnerId }, data: { voicePace: 'quick' } })
@@ -444,18 +447,54 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     }
   })
 
+  it('⛔ the pace chips (owner, 2026-11-10): a tap is the turn\'s base — saved for the session and the learner, given back; a turn without one keeps the session\'s', async () => {
+    const seat = await activeSeat()
+    const learnerId = (await db.classroomEnrollment.findUnique({ where: { id: seat.id } }))!.learnerId!
+    await db.classroomLearner.update({ where: { id: learnerId }, data: { voicePace: 'natural' } })
+    const s = await start.startLearnerSession(seat.id, parentId)
+    const paceOf = async () => [(await db.classroomSession.findUnique({ where: { id: s.id } }))!.voicePace, (await db.classroomLearner.findUnique({ where: { id: learnerId } }))!.voicePace]
+    try {
+      seen.paces.length = 0
+      const fast = await answered(s.id, parentId, 'turn-chip-00001', null, undefined, { ...said(), pace: 'quick' })
+      expect(seen.paces.length).toBeGreaterThan(0)
+      expect(seen.paces.every((p) => p === 'quick')).toBe(true) // this very reply, at the tapped pace
+      expect(fast.reply).toMatchObject({ pace: 'quick' })
+      expect(await paceOf()).toEqual(['quick', 'quick'])
+      // a spoken "slower" steps from the tap
+      seen.pace = 'slower'
+      const both = await answered(s.id, parentId, 'turn-chip-00002', null, undefined, { ...said(), pace: 'natural' })
+      expect(both.reply).toMatchObject({ pace: 'slowest' })
+      seen.pace = null
+      // no tap: the session's own pace — a stale chip never undoes what the server has
+      seen.paces.length = 0
+      const none = await answered(s.id, parentId, 'turn-chip-00003', null, undefined, said())
+      expect(seen.paces.every((p) => p === 'slowest')).toBe(true)
+      expect(none.reply).toMatchObject({ pace: 'slowest' })
+      // an adult's 'gentle' (no chip of theirs) is read as the nearest chip, never a jump to Fast
+      const gentle = await answered(s.id, parentId, 'turn-chip-00004', null, undefined, { ...said(), pace: 'gentle' })
+      expect(gentle.reply).toMatchObject({ pace: 'slowest' })
+      // a retried upload of the latest turn (its answer lost on the way): the pace comes back too — the chips never go stale
+      const again = await answered(s.id, parentId, 'turn-chip-00004', null, undefined, said())
+      expect(again.reply).toMatchObject({ pace: 'slowest' })
+      await end.endSession(s.id, parentId, 'learner')
+    } finally {
+      seen.pace = null
+      await Promise.all(afterQueue.splice(0))
+    }
+  })
+
   it('⛔ a FLAGGED turn saves no pace: a first brain\'s "slower", then a harm flag, is not the learner\'s choice (review round 2)', async () => {
     const seat = await activeSeat()
     const learnerId = (await db.classroomEnrollment.findUnique({ where: { id: seat.id } }))!.learnerId!
-    await db.classroomLearner.update({ where: { id: learnerId }, data: { voicePace: null } })
+    await db.classroomLearner.update({ where: { id: learnerId }, data: { voicePace: 'natural' } })
     const s = await start.startLearnerSession(seat.id, parentId)
     try {
       seen.pace = 'slower'
       seen.finalHarm = true
       await answered(s.id, parentId, 'turn-pace-harm-1', null, undefined, said())
       expect((await db.classroomTurn.findFirst({ where: { sessionId: s.id, clientTurnId: 'turn-pace-harm-1' } }))!.flag).toBe('harm')
-      expect((await db.classroomSession.findUnique({ where: { id: s.id } }))!.voicePace).toBe('gentle') // where it started
-      expect((await db.classroomLearner.findUnique({ where: { id: learnerId } }))!.voicePace).toBeNull()
+      expect((await db.classroomSession.findUnique({ where: { id: s.id } }))!.voicePace).toBe('natural') // where it started
+      expect((await db.classroomLearner.findUnique({ where: { id: learnerId } }))!.voicePace).toBe('natural')
       await end.endSession(s.id, parentId, 'learner')
     } finally {
       seen.pace = null
@@ -661,7 +700,8 @@ describe.skipIf(!live)('eno Classroom against a real Postgres', () => {
     const grant = await import('./stt-grant')
     const seat = await activeSeat()
     const s = await start.startLearnerSession(seat.id, parentId)
-    expect(await grant.sttGrant(s.id, parentId)).toMatchObject({ apiKey: 'temp_live_key', model: 'stt-rt-v5', languageHints: ['en'] })
+    // English AND Vietnamese (owner, 2026-11-10): the learner may ask for help in their own language.
+    expect(await grant.sttGrant(s.id, parentId)).toMatchObject({ apiKey: 'temp_live_key', model: 'stt-rt-v6', languageHints: ['en', 'vi'] })
     await expect(grant.sttGrant(s.id, otherParentId)).rejects.toMatchObject({ code: 'session_not_found' })
     // a notice agreed to under an older version: no audio to Soniox until the family agrees again
     const learner = await db.classroomSession.findUniqueOrThrow({ where: { id: s.id }, select: { learnerId: true } })

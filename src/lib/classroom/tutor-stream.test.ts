@@ -80,10 +80,10 @@ async function events(ai: GoogleGenAI | null) { const out: TutorEvent[] = []; fo
 const said = (ev: TutorEvent[]) => ev.flatMap((e) => (e.kind === 'say' ? [e.text] : []))
 
 describe('tutorTurnStream — the voice pace (owner, 2026-10-26: "adults may adjust pace by saying talk more slowly")', () => {
-  it('the schema writes the pace after safety and BEFORE the reply — OpenAI and Gemini alike', () => {
-    expect(Object.keys(TUTOR_JSON_SCHEMA.properties).slice(0, 3)).toEqual(['safety', 'pace', 'reply'])
+  it('the schema writes the pace after safety and BEFORE the reply (and its Vietnamese help) — OpenAI and Gemini alike', () => {
+    expect(Object.keys(TUTOR_JSON_SCHEMA.properties).slice(0, 4)).toEqual(['safety', 'pace', 'support', 'reply'])
     expect(TUTOR_JSON_SCHEMA.required).toContain('pace')
-    expect(tutorAsk(ctx).schema.propertyOrdering?.slice(0, 3)).toEqual(['safety', 'pace', 'reply'])
+    expect(tutorAsk(ctx).schema.propertyOrdering?.slice(0, 4)).toEqual(['safety', 'pace', 'support', 'reply'])
   })
   it('"slower" comes BEFORE the first sentence (the acknowledgement already sounds slower); "same" is no event', async () => {
     const ev = await events(gemini(answer({ pace: 'slower', reply: 'Sure, I will speak more slowly. How was your day?' })))
@@ -192,9 +192,9 @@ function openAiStream(json: string, chunk = 5, gate?: (sent: string) => Promise<
 
 describe('tutorTurnStream — the reply\'s voice closes at its last sentence (owner, 2026-10-27: "need super fast response")', () => {
   it('the schema writes `expect` right after `reply` — OpenAI and Gemini alike', () => {
-    expect(Object.keys(TUTOR_JSON_SCHEMA.properties).slice(0, 4)).toEqual(['safety', 'pace', 'reply', 'expect'])
-    expect(TUTOR_JSON_SCHEMA.required.slice(0, 4)).toEqual(['safety', 'pace', 'reply', 'expect'])
-    expect(tutorAsk(ctx).schema.propertyOrdering?.slice(0, 4)).toEqual(['safety', 'pace', 'reply', 'expect'])
+    expect(Object.keys(TUTOR_JSON_SCHEMA.properties).slice(0, 5)).toEqual(['safety', 'pace', 'support', 'reply', 'expect'])
+    expect(TUTOR_JSON_SCHEMA.required.slice(0, 5)).toEqual(['safety', 'pace', 'support', 'reply', 'expect'])
+    expect(tutorAsk(ctx).schema.propertyOrdering?.slice(0, 5)).toEqual(['safety', 'pace', 'support', 'reply', 'expect'])
   })
   it('⚡ no drill: `spoken` the moment `expect` is written empty — BEFORE the hint and its Vietnamese exist', async () => {
     const hintWritten = Promise.withResolvers<void>()
@@ -246,5 +246,51 @@ describe('tutorTurnStream — the reply\'s voice closes at its last sentence (ow
     const ev = await events(gemini(late))
     expect(ev.map((e) => e.kind)).toEqual(['safety', 'say', 'say', 'spoken', 'final'])
     expect(ev.at(-1)).toMatchObject({ kind: 'final', reply: { reply: 'Okay. Tell me more.', expect: null } })
+  })
+})
+
+/** An answer with its Vietnamese help in the schema's place — after the pace, BEFORE the reply. */
+const helped = (support: string, o: Record<string, unknown>) => JSON.stringify({ safety: 'none', pace: 'same', support, reply: '', expect: '', hint: '', hintVi: '', heardAs: [], ...o })
+const langs = (ev: TutorEvent[]) => ev.flatMap((e) => (e.kind === 'say' ? [`${e.lang ?? 'en'}${e.help ? '+help' : ''}`] : []))
+
+describe('tutorTurnStream — the Vietnamese help (owner, 2026-11-10: "if student is beginner they should get some support explanation in their language")', () => {
+  it('the help is said FIRST, in Vietnamese, then the English reply; both are in the final, apart', async () => {
+    const ev = await events(gemini(helped('Sở thích là điều bạn thích làm khi rảnh.', { reply: 'What is your hobby?' })))
+    expect(said(ev)).toEqual(['Sở thích là điều bạn thích làm khi rảnh.', 'What is your hobby?'])
+    expect(langs(ev)).toEqual(['vi+help', 'en'])
+    expect(ev.at(-1)).toMatchObject({ kind: 'final', reply: { support: 'Sở thích là điều bạn thích làm khi rảnh.', reply: 'What is your hobby?' } })
+  })
+  it('⛔ the help has its OWN cap: a beginner\'s two sentences, a third never said — and the English reply is said in full', async () => {
+    const ev = await events(gemini(helped('Câu một nhé. Câu hai nhé. Câu ba nhé.', { reply: 'Good! What do you like to do on Sunday?' })))
+    expect(said(ev)).toEqual(['Câu một nhé.', 'Câu hai nhé.', 'Good!', 'What do you like to do on Sunday?'])
+    expect(ev.at(-1)).toMatchObject({ kind: 'final', reply: { support: 'Câu một nhé. Câu hai nhé.' } })
+  })
+  it('B1 and above: one short sentence of help at most', async () => {
+    const out: TutorEvent[] = []
+    for await (const e of tutorTurnStream(gemini(helped('Câu một nhé. Câu hai nhé.', { reply: 'Tell me more.' })), { ...ctx, level: 'B1' })) out.push(e)
+    expect(said(out)).toEqual(['Câu một nhé.', 'Tell me more.'])
+  })
+  it('the tutor is told when it may help in Vietnamese — a beginner when it helps, anyone else only when asked', () => {
+    const text = (c: typeof ctx) => tutorAsk(c).contents[0].parts.map((p) => p.text).join('\n')
+    expect(text(ctx)).toContain('SUPPORT: beginner')
+    expect(text({ ...ctx, level: 'B2' })).toContain('SUPPORT: only when asked')
+  })
+  it('a help written AFTER the reply began (Gemini\'s best-effort order) is never said nor saved — the reply is not held for it', async () => {
+    const late = JSON.stringify({ safety: 'none', pace: 'same', reply: 'Nice! Tell me more.', expect: '', hint: '', hintVi: '', heardAs: [], support: 'Muộn quá rồi.' })
+    const ev = await events(gemini(late))
+    expect(said(ev)).toEqual(['Nice!', 'Tell me more.'])
+    expect((ev.at(-1) as Extract<TutorEvent, { kind: 'final' }>).reply.support).toBeUndefined()
+  })
+  it('⛔ a number spread over the help and the reply is never spoken: the gate reads them together', async () => {
+    const ev = await events(gemini(helped('Gọi số 0901.', { reply: '234 567 now. Bye!' })))
+    expect(said(ev).join(' ')).not.toMatch(/\d/)
+  })
+  it('a sentence the model wrote in Vietnamese inside the English reply anyway is voiced in Vietnamese', async () => {
+    const ev = await events(gemini(helped('', { reply: 'Đúng rồi, rất tốt! What else do you like?' })))
+    expect(langs(ev)).toEqual(['vi', 'en']) // voiced in Vietnamese — but the REPLY's, never saved as help
+  })
+  it('the history shows the tutor its own earlier help, labelled', () => {
+    const text = tutorAsk({ ...ctx, history: [{ who: 'avatar', text: 'What is your hobby?', support: 'Sở thích là gì?' }] }).contents[0].parts.map((p) => p.text).join('\n')
+    expect(text).toContain('You (Vietnamese help): Sở thích là gì?\nYou: What is your hobby?')
   })
 })

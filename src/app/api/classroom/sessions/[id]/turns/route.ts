@@ -4,6 +4,7 @@ import { LIVE_TEXT_MAX, processTurn, type LiveHeard, type TurnResult } from '@/l
 import type { TurnLine } from '@/lib/classroom/turn-stream'
 import { quietError } from '@/lib/classroom/quiet-error'
 import { LIMITS } from '@/lib/classroom/constants'
+import { VOICE_PACES } from '@/lib/classroom/pace'
 import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
@@ -49,7 +50,7 @@ export const POST = route({ auth: 'profile', rateLimit: { bucket: 'classroom-tur
 
 /**
  * A turn heard LIVE (live-stt.ts): `x-transcript` — the words, UTF-8 in base64url (a header carries no raw UTF-8) — and
- * `x-speech-ms`. Null when absent; a malformed one is a 400.
+ * `x-speech-ms`; `x-voice-pace` once after a tap on the pace chips. Null when absent; a malformed one is a 400.
  */
 function liveHeard(h: Headers): LiveHeard | null {
   const raw = h.get('x-transcript')
@@ -60,7 +61,10 @@ function liveHeard(h: Headers): LiveHeard | null {
   const text = Buffer.from(raw, 'base64url').toString('utf8')
   const ms = Number(h.get('x-speech-ms') ?? '0')
   if (!Number.isFinite(ms) || ms < 0) throw new ApiError('bad_request', 400)
-  return { text, ms }
+  // The learner's tap on the call's pace chips, once (session-turn.ts reads it inside the learner's range).
+  const pace = h.get('x-voice-pace')
+  if (pace !== null && !(VOICE_PACES as readonly string[]).includes(pace)) throw new ApiError('bad_request', 400)
+  return { text, ms, ...(pace !== null ? { pace } : {}) }
 }
 
 /**

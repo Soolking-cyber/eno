@@ -28,11 +28,14 @@ const h = vi.hoisted(() => ({
   boxLacks: [] as string[],
   /** Soniox refuses this one voice (a teacher's own cloned voice gone or broken), with this status. */
   failVoice: null as null | { voice: string; status: number },
+  /** The language of each Soniox stream (its style's). */
+  sonioxLangs: [] as string[],
 }))
 vi.mock('./soniox', () => ({ sonioxConfig: () => (h.soniox ? { key: 'k', tts: 'wss://tts', ttsModel: 'tts-rt-v2' } : null) }))
 vi.mock('./soniox-tts', () => ({
-  sonioxSpeakStream: async (_text: string, voice: string, _style: unknown, signal?: AbortSignal, firstSoundMs?: number) => {
+  sonioxSpeakStream: async (_text: string, voice: string, style: { language?: string }, signal?: AbortSignal, firstSoundMs?: number) => {
     h.calls.push(`soniox-stream:${voice}`)
+    h.sonioxLangs.push(style.language ?? 'en')
     h.sonioxBudgets.push(firstSoundMs)
     h.onSoniox?.()
     if (signal?.aborted) throw Object.assign(new Error('aborted'), { status: 499 })
@@ -92,7 +95,7 @@ vi.mock('./speech-local', () => ({
 let sv: typeof import('./session-voice')
 const style = { pace: 'natural' as const, loud: false, gapMs: 120, pauseMs: 0 }
 beforeEach(async () => {
-  Object.assign(h, { soniox: true, box: true, sonioxFails: null, lineMs: 0, calls: [], boxOpts: [], boxFails: null, boxSilent: false, boxEmpty: false, boxLineMs: 0, sonioxBudgets: [], onSoniox: null, boxClosed: 0, boxLangs: [], boxLacks: [], failVoice: null })
+  Object.assign(h, { soniox: true, box: true, sonioxFails: null, lineMs: 0, calls: [], boxOpts: [], boxFails: null, boxSilent: false, boxEmpty: false, boxLineMs: 0, sonioxBudgets: [], onSoniox: null, boxClosed: 0, boxLangs: [], boxLacks: [], failVoice: null, sonioxLangs: [] })
   sv = await import('./session-voice')
   sv.resetSonioxRest()
   sv.resetBoxRest()
@@ -620,5 +623,52 @@ describe('⛔ a teacher\'s OWN voice (own-voice.ts): it speaks while it holds; w
     h.sonioxFails = { status: 402 }
     await sv.speakerFor(tutor, () => style)!('One.', new AbortController().signal)
     expect(h.calls).toEqual([`soniox-stream:${OWN}`, 'box-stream:Harper'])
+  })
+})
+
+describe('⛔ the tutor\'s Vietnamese help in a lesson (`lang: vi` — tutor-ai.ts `support`): Soniox only, decided per line', () => {
+  const OWN = '21b9c8e2-1c3a-4d5e-9f8a-123456789abc'
+  const tutor = { stock: 'Harper', own: OWN }
+  const vi = { lang: 'vi' as const }
+  it('Soniox says it IN VIETNAMESE, with the short first-sound wait in its turn and none ahead; an English line as before', async () => {
+    const speak = sv.speakerFor('Harper', () => style)!
+    await speak('Sở thích là gì?', new AbortController().signal, vi)
+    await speak('Sở thích là gì?', new AbortController().signal, { ahead: true, lang: 'vi' })
+    await speak('What is your hobby?', new AbortController().signal)
+    expect(h.sonioxLangs).toEqual(['vi', 'vi', 'en'])
+    expect(h.sonioxBudgets.slice(0, 2)).toEqual([sv.SONIOX_FIRST_SOUND_MS, undefined])
+  })
+  it('⛔ never the English box — not when Soniox refuses it, not when its turn comes after an ahead failure (o.box)', async () => {
+    h.sonioxFails = { status: 429 }
+    const speak = sv.speakerFor('Harper', () => style)!
+    await expect(speak('Sở thích là gì?', new AbortController().signal, vi)).rejects.toMatchObject({ status: 429 })
+    await expect(speak('Sở thích là gì?', new AbortController().signal, { box: true, lang: 'vi' })).rejects.toMatchObject({ status: 429 })
+    expect(h.calls.some((c) => c.startsWith('box'))).toBe(false)
+  })
+  it('⛔ a refusal of the Vietnamese line (503) rests NOTHING: the next English line is still Soniox\'s', async () => {
+    h.sonioxFails = { status: 503 }
+    const speak = sv.speakerFor('Harper', () => style)!
+    await expect(speak('Sở thích là gì?', new AbortController().signal, vi)).rejects.toBeTruthy()
+    h.sonioxFails = null
+    await speak('What is your hobby?', new AbortController().signal)
+    expect(h.calls.at(-1)).toBe('soniox-stream:Grace')
+  })
+  it('Soniox itself failing on it (402, the credit) rests Soniox for everyone, as for English', async () => {
+    h.sonioxFails = { status: 402 }
+    const speak = sv.speakerFor('Harper', () => style)!
+    await expect(speak('Sở thích là gì?', new AbortController().signal, vi)).rejects.toBeTruthy()
+    h.sonioxFails = null
+    await speak('What is your hobby?', new AbortController().signal)
+    expect(h.calls.at(-1)).toBe('box-stream:Harper')
+  })
+  it('⛔ the teacher\'s own voice refusing Vietnamese: the stock voice says the Vietnamese — its ENGLISH stays the teacher\'s', async () => {
+    const speak = sv.speakerFor(tutor, () => style)!
+    h.failVoice = { voice: OWN, status: 503 }
+    await speak('Sở thích là gì?', new AbortController().signal, vi)
+    expect(h.calls).toEqual([`soniox-stream:${OWN}`, 'soniox-stream:Grace'])
+    h.failVoice = null
+    await speak('Câu hỏi tiếp theo.', new AbortController().signal, vi) // broken for Vietnamese here now: the stock voice
+    await speak('What is your hobby?', new AbortController().signal) // English: still the teacher's own
+    expect(h.calls.slice(2)).toEqual(['soniox-stream:Grace', `soniox-stream:${OWN}`])
   })
 })

@@ -557,6 +557,7 @@ await client.query(`
     "status" text not null default 'processing',
     "learnerText" text,
     "replyText" text not null default '',
+    "supportText" text,
     "hint" text not null default '',
     "hintVi" text not null default '',
     "expectText" text,
@@ -573,10 +574,13 @@ await client.query(`
     constraint "ClassroomTurn_status_check" check ("status" in ('processing', 'ok', 'failed')),
     constraint "ClassroomTurn_assessStatus_check" check ("assessStatus" in ('pending', 'done', 'failed', 'skipped')),
     constraint "ClassroomTurn_flag_check" check ("flag" is null or "flag" in ('harm')),
+    constraint "ClassroomTurn_supportText_check" check ("supportText" is null or char_length("supportText") <= 600),
     constraint "ClassroomTurn_bounds" check ("seq" between 0 and 200 and "learnerMs" between 0 and 60000 and "aiCalls" between 0 and 20)
   )`)
 await ensureIndex(`create unique index if not exists "ClassroomTurn_sessionId_seq_key" on "ClassroomTurn"("sessionId", "seq")`)
 await ensureIndex(`create unique index if not exists "ClassroomTurn_sessionId_clientTurnId_key" on "ClassroomTurn"("sessionId", "clientTurnId")`)
+// The tutor's Vietnamese help, said before the English reply (tutor-ai.ts `support`; owner, 2026-11-10).
+await ensureColumn('ClassroomTurn', 'supportText', 'text', `"supportText" is null or char_length("supportText") <= 600`)
 
 await client.query(`
   create table if not exists "ClassroomFeedback" (

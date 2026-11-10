@@ -33,3 +33,15 @@ export function safetyReply(band: AgeBand): string {
     ? 'Thank you for telling me. If you are in danger, please reach out to someone you trust or to local emergency services.'
     : 'Thank you for telling me. That sounds important. Please talk to a grown-up you trust, like a parent or a teacher.'
 }
+
+/**
+ * The same kind words in VIETNAMESE, said first (owner, 2026-11-10: a beginner gets help in their own language) — for a
+ * child or a beginner (A1–A2), who may not follow the English; null for anyone else. eno's own words, like safetyReply.
+ */
+export function safetySupport(band: AgeBand, level: string): string | null {
+  const child = band === 'child-young' || band === 'child'
+  if (!child && level !== 'A1' && level !== 'A2') return null
+  return band === 'adult'
+    ? 'Cảm ơn bạn đã chia sẻ. Nếu bạn đang gặp nguy hiểm, hãy tìm đến người bạn tin tưởng hoặc gọi cấp cứu.'
+    : 'Cảm ơn con đã kể. Hãy nói với một người lớn con tin tưởng, như bố mẹ hoặc thầy cô.'
+}

@@ -364,7 +364,6 @@ export const UI_STRINGS_SERVICES: string[] = [
   "Size is not a problem — we resize your photo for you. JPG, PNG, HEIC, WebP, AVIF or TIFF.",
   "Skip",
   "Skipped",
-  "Slow",
   "Smart",
   "Social hostels",
   "Some answers are already filled in with the most common ones. They are suggestions, not assumptions about you — change anything that is not right.",
