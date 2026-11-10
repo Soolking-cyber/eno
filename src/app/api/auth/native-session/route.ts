@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
+import { bodyTooLarge, readJsonCapped } from '@/lib/api/body'
 import { createHash } from 'node:crypto'
 
 export const runtime = 'nodejs'
@@ -29,9 +30,11 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: Request) {
   let body: { access_token?: unknown; refresh_token?: unknown }
   try {
-    body = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'invalid_body' }, { status: 400, headers: { 'Cache-Control': 'no-store' } })
+    // Capped (64 KB) before it is parsed: this runs before both limiters. Past it: 413 `payload_too_large`, no-store
+    // like every other answer here.
+    body = await readJsonCapped<typeof body>(request)
+  } catch (e) {
+    return bodyTooLarge(e, { 'Cache-Control': 'no-store' }) ?? NextResponse.json({ error: 'invalid_body' }, { status: 400, headers: { 'Cache-Control': 'no-store' } })
   }
 
   const accessToken = typeof body.access_token === 'string' ? body.access_token : ''

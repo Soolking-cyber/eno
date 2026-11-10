@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { rateLimit } from '@/lib/ratelimit'
+import { readJsonCapped } from '@/lib/api/body'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,8 +23,8 @@ const MAX_BODY = 16 * 1024
 //     has found the cap. "Always 204" is the contract stated in the comment above: a report sink
 //     gives a prober no feedback at all, and the limiter is deliberately fail-OPEN besides.
 //   · THE OVERSIZE AND MALFORMED BRANCHES ARE ALSO 204s, so `body:` / `invalidBodyCode` (a 400)
-//     would change both. The cap is checked on `req.text()` BEFORE JSON.parse; `body:` calls
-//     `req.json()`, which parses first and never sees a length.
+//     would change both. The cap (16 KB, under `body:`'s 64 KB default) is checked as the bytes
+//     arrive, BEFORE JSON.parse.
 //   · THE PAYLOAD IS NOT `application/json`. Browsers send `application/csp-report` (report-uri) or
 //     `application/reports+json` (Reporting API), and the two carry different shapes — one object
 //     under a `csp-report` key, or a batch array of `{type, body}`. That is what the reader below
@@ -34,9 +35,8 @@ export async function POST(req: NextRequest) {
   const rl = await rateLimit('csp-report', clientIp(req), 60, '1 m')
   if (!rl.success) return new NextResponse(null, { status: 204 })
   try {
-    const raw = await req.text()
-    if (raw.length > MAX_BODY) return new NextResponse(null, { status: 204 })
-    const data = JSON.parse(raw)
+    // Read only up to the cap (it used to read the whole body, then measure it); past it, or unparseable, the catch's 204.
+    const data = await readJsonCapped<any>(req, MAX_BODY)
     const reports = Array.isArray(data)
       ? data.map((r) => r?.body ?? r) // Reporting API batch
       : [data?.['csp-report'] ?? data] // single report-uri payload

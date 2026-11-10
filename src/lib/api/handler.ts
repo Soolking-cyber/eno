@@ -7,6 +7,8 @@ import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
 import { logError } from '@/lib/log'
 import type { ApiErrorCode } from '@/lib/api/errors'
+import { ApiError } from '@/lib/api/api-error'
+import { readJsonCapped } from '@/lib/api/body'
 
 /**
  * THE PREAMBLE EVERY FIRST-PARTY ROUTE RETYPES.
@@ -39,13 +41,7 @@ import type { ApiErrorCode } from '@/lib/api/errors'
 
 type Profile = NonNullable<Awaited<ReturnType<typeof getCurrentProfile>>>
 
-/** Thrown by a handler to return a specific code+status without constructing a Response. */
-export class ApiError extends Error {
-  constructor(readonly code: ApiErrorCode, readonly status = 400) {
-    super(code)
-    this.name = 'ApiError'
-  }
-}
+export { ApiError }
 
 export function apiFail(code: ApiErrorCode, status = 400): NextResponse {
   return NextResponse.json({ error: code }, { status })
@@ -175,6 +171,12 @@ type Options<A extends AuthMode, S extends z.ZodTypeAny | undefined> = {
   /** A zod schema. Its absence is what makes the 66 unvalidated handlers visible in a grep. */
   body?: S
   /**
+   * The most bytes `body:` reads; past it the answer is 413 `payload_too_large` and nothing is parsed or validated.
+   * Default `JSON_BODY_CAP` (64 KB, src/lib/api/body.ts). A route whose largest real body is over 16 KB sets at least
+   * four times that, and says where the number comes from. Ignored without `body:`.
+   */
+  maxBodyBytes?: number
+  /**
    * Code returned when the body fails validation. Defaults to `bad_request`, but a route that
    * already returns `invalid_body` keeps returning it — the wrapper must not change the wire.
    */
@@ -245,10 +247,15 @@ export function route<A extends AuthMode = 'public', S extends z.ZodTypeAny | un
       }
 
       // 3. Body. Parsed once, validated once, and a malformed body is a 400 rather than a throw.
+      // ⛔ CAPPED BEFORE IT IS PARSED (readJsonCapped): an uncapped req.json() parsed up to 10 MB, and zod then walked
+      // every element of an array before its .max() — seconds and gigabytes for one signed-in request (appsec-02).
       let body: unknown = undefined
       if (opts.body) {
         let raw: unknown
-        try { raw = await req.json() } catch { return apiFail(opts.invalidBodyCode ?? 'bad_request', 400) }
+        try { raw = await readJsonCapped(req, opts.maxBodyBytes) } catch (e) {
+          if (e instanceof ApiError && e.status === 413) return apiFail('payload_too_large', 413)
+          return apiFail(opts.invalidBodyCode ?? 'bad_request', 400)
+        }
         const parsed = opts.body.safeParse(raw)
         if (!parsed.success) return apiFail(opts.invalidBodyCode ?? 'bad_request', 400)
         body = parsed.data

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyUnsubscribeToken } from '@/lib/unsubscribe-token'
 import { optInWrites } from '@/lib/teachers/publish'
+import { bodyTooLarge, readJsonCapped } from '@/lib/api/body'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,6 +15,8 @@ const ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 //
 // POST /api/unsubscribe?token=… — RFC 8058 one-click target (mail clients POST here) and
 //   the /unsubscribe page's fetch. Body {optIn:true} re-subscribes the weekly digest; default unsubscribes.
+//   One exception: a body over 64 KB is a 413 `{"error":"payload_too_large"}` and changes nothing (the
+//   one-click body is 26 bytes, the page's `{"optIn":…}` about 15).
 // GET  /api/unsubscribe?token=… — a bare GET (or a link scanner) must NOT mutate, so it
 //   just redirects to the confirm page. Only the POST changes state.
 //
@@ -24,8 +27,8 @@ const ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 // so `'public'` is the only correct mode — which means auth contributes nothing.
 // Nor does anything else:
 //  · NO `body:` SCHEMA IS POSSIBLE. One-click POSTs are form-encoded (`List-Unsubscribe=One-Click`),
-//    NOT JSON, so `req.json()` throws on the single most important caller and the catch treats that
-//    as "unsubscribe". A schema turns that into 400 and the mail client reports a failed
+//    NOT JSON, so the JSON read (readJsonCapped) throws on the single most important caller and the
+//    catch treats that as "unsubscribe". A schema turns that into 400 and the mail client reports a failed
 //    unsubscribe — the same class of change as /api/notifications/read, and worse consequences.
 //  · No rate limit today, and adding one is a behaviour change, not a migration.
 // That leaves all four options empty on POST. GET is a bare redirect (and a synchronous function),
@@ -36,9 +39,12 @@ export async function POST(req: NextRequest) {
 
   let optIn = false
   try {
-    const body = await req.json()
+    // Capped (64 KB) before it is parsed: the one-click body is 26 bytes and the page's is `{"optIn":…}`.
+    const body = await readJsonCapped<{ optIn?: unknown } | null>(req)
     if (typeof body?.optIn === 'boolean') optIn = body.optIn
-  } catch {
+  } catch (e) {
+    const tooLarge = bodyTooLarge(e)
+    if (tooLarge) return tooLarge
     /* one-click POST bodies are form-encoded (List-Unsubscribe=One-Click), not JSON → unsubscribe */
   }
 

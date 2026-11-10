@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { translateBatch, uncachedStats, LANGS, type Lang } from '@/lib/translate'
 import { rateLimit, kv } from '@/lib/ratelimit'
+import { bodyTooLarge, readJsonCapped } from '@/lib/api/body'
+
+// ⛔ THE BODY IS CAPPED BEFORE IT IS PARSED, and this runs before any limiter. 1 MB, not the 64 KB default: a request
+// may carry up to 1,500 strings with no per-string limit. The largest real ones are far smaller (a 100-string UI
+// dictionary chunk is ≤9 KB, a feed page's batch of titles and places tens of KB), and 1 MB keeps four times 1,500
+// strings of ~170 bytes. Past it: 413 `payload_too_large`, which both callers treat like any failed chunk (English).
+const MAX_BODY_BYTES = 1024 * 1024
 
 // Global daily ceiling on BILLABLE characters through this public endpoint. The per-request
 // (30k chars) and per-IP guards bound ONE caller; this bounds ALL of them together — worst
@@ -35,7 +42,7 @@ export async function POST(req: Request) {
   // so the per-request size guard below can't be looped to drain the budget.
   const ip = clientIp(req)
   try {
-    const body = await req.json()
+    const body = await readJsonCapped<{ texts?: unknown; target?: unknown } | null>(req, MAX_BODY_BYTES)
     const texts: unknown = body?.texts
     const target: unknown = body?.target
 
@@ -92,6 +99,8 @@ export async function POST(req: Request) {
     const translations = await translateBatch(list, target as Lang, { source: 'api', stats })
     return NextResponse.json(stats.providerFailed ? { translations, partial: true } : { translations })
   } catch (err) {
+    const tooLarge = bodyTooLarge(err)
+    if (tooLarge) return tooLarge
     console.error('[api/translate]', err)
     return NextResponse.json({ error: 'Translation failed' }, { status: 500 })
   }

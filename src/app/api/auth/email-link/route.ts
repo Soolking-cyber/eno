@@ -10,6 +10,7 @@ import { renderSignInEmail } from '@/lib/emails/sign-in-link'
 import { renderSignInCodeEmail } from '@/lib/emails/sign-in-code'
 import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/lib/auth-origin'
 import { route } from '@/lib/api/handler'
+import { bodyTooLarge, readJsonCapped } from '@/lib/api/body'
 import { SITE_NAME } from '@/lib/edition'
 
 // Magic-link sender — eno.vn's own, replacing supabase.auth.signInWithOtp({ email }).
@@ -83,9 +84,10 @@ const okAnswer = () => NextResponse.json({ ok: true, codeLength: lastCodeLength 
 export const POST = route({ auth: 'public' }, async ({ req }) => {
   let body: { email?: string; captchaToken?: string; next?: string; lang?: string; deliver?: string }
   try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+    // Capped (64 KB) before it is parsed: this runs before the captcha and every limiter.
+    body = await readJsonCapped<typeof body>(req)
+  } catch (e) {
+    return bodyTooLarge(e) ?? NextResponse.json({ error: 'Bad request' }, { status: 400 })
   }
 
   const typed = String(body.email || '').trim().toLowerCase()

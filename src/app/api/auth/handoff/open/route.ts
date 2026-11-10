@@ -4,6 +4,7 @@ import { HANDOFF_COOKIE, HANDOFF_TTL_MS, isNonce, openHandoff } from '@/lib/auth
 import { parseHandoffVia } from '@/lib/auth/handoff-client'
 import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/lib/auth-origin'
 import { rateLimit } from '@/lib/ratelimit'
+import { bodyTooLarge, readJsonCapped } from '@/lib/api/body'
 
 // Step 1, run by the ORIGINATING context (in-app browser / home-screen PWA) after it has asked
 // Supabase for the Google URL with skipBrowserRedirect — so the PKCE verifier already exists here.
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
   let body: { nonce?: unknown; authUrl?: unknown }
-  try { body = await request.json() } catch { return NextResponse.json({ error: 'bad_body' }, { status: 400 }) }
+  try { body = await readJsonCapped<typeof body>(request) } catch (e) { return bodyTooLarge(e) ?? NextResponse.json({ error: 'bad_body' }, { status: 400 }) }
   if (!isNonce(body.nonce) || typeof body.authUrl !== 'string') {
     return NextResponse.json({ error: 'bad_request' }, { status: 400 })
   }

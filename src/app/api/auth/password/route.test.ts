@@ -455,3 +455,22 @@ describe('POST /api/auth/password — keys and inputs', () => {
     expect(init.headers.Authorization).toContain(process.env.SUPABASE_SECRET_KEY ?? 'undefined')
   })
 })
+
+describe('POST /api/auth/password — the body cap (appsec-02)', () => {
+  it('⛔ one byte past 64 KB is 413 payload_too_large before it is parsed: no captcha check, no limiter, no lookup', async () => {
+    const shell = JSON.stringify({ captchaToken: 'tok_test', identifier: 'a@b.co', password: 'pw', pad: '' })
+    const body = JSON.stringify({ captchaToken: 'tok_test', identifier: 'a@b.co', password: 'pw', pad: 'a'.repeat(64 * 1024 + 1 - shell.length) })
+    const res = await (POST as unknown as (r: Request) => Promise<Response>)(new Request('https://eno.vn/api/auth/password', { method: 'POST', body }))
+    expect(res.status).toBe(413)
+    expect(await res.json()).toEqual({ error: 'payload_too_large' })
+    expect(verifyTurnstile).not.toHaveBeenCalled()
+    expect(rateLimit).not.toHaveBeenCalled()
+    expect(profileFindFirst).not.toHaveBeenCalled()
+  })
+
+  it('unparseable is still the route\'s own 400 "Bad request"', async () => {
+    const res = await (POST as unknown as (r: Request) => Promise<Response>)(new Request('https://eno.vn/api/auth/password', { method: 'POST', body: '{' }))
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'Bad request' })
+  })
+})

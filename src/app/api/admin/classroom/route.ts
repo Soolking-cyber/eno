@@ -138,7 +138,9 @@ async function describe() {
 
 export const GET = route({ auth: 'admin' }, async () => describe())
 
-export const PUT = route({ auth: 'admin', body: putBody }, async ({ admin, body }) => {
+// The body cap (route() maxBodyBytes): the schema's largest body, 200 entries of 254 characters, is ~52 KB of JSON;
+// 256 KB keeps four times that. The admin check runs before the body is read.
+export const PUT = route({ auth: 'admin', body: putBody, maxBodyBytes: 256 * 1024 }, async ({ admin, body }) => {
   const setMode = (q: Pick<typeof db, '$executeRaw'>) => q.$executeRaw`
     INSERT INTO public.classroom_config (id, mode, updated_at, updated_by) VALUES (1, ${body.mode}, now(), ${admin})
     ON CONFLICT (id) DO UPDATE SET mode = EXCLUDED.mode, updated_at = now(), updated_by = EXCLUDED.updated_by`

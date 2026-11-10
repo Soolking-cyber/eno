@@ -69,3 +69,25 @@ describe('PUT /api/admin/calls', () => {
     expect(h.sql).toEqual([])
   })
 })
+
+describe('PUT /api/admin/calls — the byte cap (appsec-02): 1 MB', () => {
+  // 500 addresses of 254 characters — the schema's largest cohort, ~128 KB, twice the 64 KB default.
+  const cohort = Array.from({ length: 500 }, (_, i) => `${String(i).padStart(3, '0')}${'a'.repeat(243)}@x.co.vn`)
+
+  it('the schema\'s largest cohort fits four times under the cap and is read, validated and written', async () => {
+    expect(cohort[0]).toHaveLength(254)
+    expect(Buffer.byteLength(JSON.stringify({ mode: 'beta', cohortEmails: cohort })) * 4).toBeLessThanOrEqual(1024 * 1024)
+    const r = await put({ mode: 'beta', cohortEmails: cohort })
+    expect(r.status).toBe(200)
+    expect(h.sql[0]).toContain('cohort = EXCLUDED.cohort')
+  })
+
+  it('one byte past 1 MB is 413 payload_too_large and writes nothing', async () => {
+    const shell = JSON.stringify({ mode: 'off', pad: '' })
+    const r = await PUT(new Request('https://eno.vn/api/admin/calls', { method: 'PUT', body: JSON.stringify({ mode: 'off', pad: 'a'.repeat(1024 * 1024 + 1 - shell.length) }) }))
+    expect(r.status).toBe(413)
+    expect(await r.json()).toEqual({ error: 'payload_too_large' })
+    expect(h.sql).toEqual([])
+    expect(h.killed).toBe(0)
+  })
+})

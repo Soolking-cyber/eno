@@ -20,6 +20,12 @@ export const maxDuration = 40
 const HISTORY_ITEMS = 12
 const HISTORY_ITEM_CHARS = 600
 const HISTORY_CHARS = 4_000
+/**
+ * The body cap (route() maxBodyBytes): the schema below allows 10,252 characters (transcript 1,000, href 2,000, history
+ * 12 × 600, session, lang), at most 3 UTF-8 bytes each in the window's eleven languages — ~31 KB with the JSON around
+ * them. 128 KB keeps four times that.
+ */
+const MAX_BODY_BYTES = 128 * 1024
 
 const body = z.object({
   session: z.string().max(40),
@@ -51,7 +57,7 @@ function isPlainYes(transcript: string): boolean {
  * `chips`, `end`. Refusals decided before the answer starts are the usual `{ error }` with a status.
  * ⛔ Nothing is stored — not the words, not the page, not the history.
  */
-export const POST = route({ auth: 'profile', body, rateLimit: { bucket: 'concierge-turn', limit: 240, window: '1 h', strict: true } }, async ({ profile, body: b, req }) => {
+export const POST = route({ auth: 'profile', body, maxBodyBytes: MAX_BODY_BYTES, rateLimit: { bucket: 'concierge-turn', limit: 240, window: '1 h', strict: true } }, async ({ profile, body: b, req }) => {
   const s = await liveSession(b.session, profile.id)
   if (!s) throw new ApiError('session_over', 409)
   if (!(await conciergeOpenFor(profile.id, { ua: req.headers.get('user-agent') }))) throw new ApiError('forbidden', 403)

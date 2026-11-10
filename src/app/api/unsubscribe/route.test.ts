@@ -174,3 +174,17 @@ describe('the weekly digest list is unchanged', () => {
     expect(h.updates).toHaveLength(0)
   })
 })
+
+describe('the body cap (appsec-02)', () => {
+  it('⛔ one byte past 64 KB is 413 payload_too_large and changes nothing', async () => {
+    const shell = JSON.stringify({ optIn: true, pad: '' })
+    const res = await post('token=good-p1', JSON.stringify({ optIn: true, pad: 'a'.repeat(64 * 1024 + 1 - shell.length) }))
+    expect(res.status).toBe(413)
+    expect(await res.json()).toEqual({ error: 'payload_too_large' })
+    expect(h.digest).toHaveLength(0)
+  })
+  it('the RFC 8058 one-click body (form-encoded, not JSON) still unsubscribes', async () => {
+    expect(await (await post('token=good-p1', 'List-Unsubscribe=One-Click', 'application/x-www-form-urlencoded')).json()).toEqual({ ok: true, optIn: false })
+    expect(h.digest[0]).toEqual({ where: { id: 'p1' }, data: { weeklyDigestOptIn: false } })
+  })
+})

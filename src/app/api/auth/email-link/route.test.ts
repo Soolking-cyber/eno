@@ -6,10 +6,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // before any mint) — the field's presence and value say nothing about the address (the route's ENUMERATION rule).
 
 type Gen = { data: { properties?: Record<string, string> } | null; error: { message: string } | null }
-const h = vi.hoisted(() => ({ gen: null as unknown as Gen, mailOk: true }))
+const h = vi.hoisted(() => ({ gen: null as unknown as Gen, mailOk: true, captchas: 0 }))
 
 vi.mock('@/lib/supabase-admin', () => ({ getSupabaseAdmin: () => ({ auth: { admin: { generateLink: async () => h.gen } } }) }))
-vi.mock('@/lib/turnstile-verify', () => ({ verifyTurnstile: async () => true }))
+vi.mock('@/lib/turnstile-verify', () => ({ verifyTurnstile: async () => { h.captchas++; return true } }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true }), escalatingCooldown: async () => ({ allowed: true }) }))
 vi.mock('@/lib/client-ip', () => ({ clientIp: () => '203.0.113.5' }))
 vi.mock('@/lib/mail', () => ({ sendMail: async () => h.mailOk }))
@@ -67,5 +67,22 @@ describe('email-link — codeLength', () => {
     h.gen = minted('123456')
     h.mailOk = false
     expect(await send(POST)).toEqual({ status: 502, body: { error: 'send_failed' } })
+  })
+})
+
+describe('email-link — the body cap (appsec-02)', () => {
+  it('⛔ one byte past 64 KB is 413 payload_too_large before it is parsed: no captcha check, no mint, no mail', async () => {
+    const POST = await freshPost()
+    h.gen = minted('123456')
+    h.captchas = 0
+    const shell = JSON.stringify({ email: 'lan@example.com', captchaToken: 't', pad: '' })
+    const body = JSON.stringify({ email: 'lan@example.com', captchaToken: 't', pad: 'a'.repeat(64 * 1024 + 1 - shell.length) })
+    const res = await POST(new Request('https://eno.vn/api/auth/email-link', { method: 'POST', headers: { 'content-type': 'application/json' }, body }))
+    expect(res.status).toBe(413)
+    expect(await res.json()).toEqual({ error: 'payload_too_large' })
+    expect(h.captchas).toBe(0)
+    // unparseable stays the route's own 400
+    const bad = await POST(new Request('https://eno.vn/api/auth/email-link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{' }))
+    expect({ status: bad.status, body: await bad.json() }).toEqual({ status: 400, body: { error: 'Bad request' } })
   })
 })

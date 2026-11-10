@@ -36,3 +36,30 @@ describe('csp-report', () => {
     expect(lines).toEqual(['[csp] img-src disp=unknown blocked=data doc='])
   })
 })
+
+describe('csp-report — the 16 KB cap is enforced as the body arrives (appsec-02)', () => {
+  it('⛔ a 10 MB flood is cut after 16 KB — the rest is never read — and answered with the same silent 204', async () => {
+    let pulled = 0
+    const flood = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (pulled >= 10 * 1024 * 1024) return c.close()
+        pulled += 4096
+        c.enqueue(new Uint8Array(4096).fill(0x20))
+      },
+    }, { highWaterMark: 0 })
+    const res = await POST(new Request('https://eno.vn/api/csp-report', {
+      method: 'POST', body: flood, headers: { 'content-type': 'application/reports+json' }, duplex: 'half',
+    } as RequestInit) as never)
+    expect(res.status).toBe(204)
+    expect(pulled).toBeLessThanOrEqual(16 * 1024 + 4096)
+    expect(lines).toEqual([])
+  })
+
+  it('a batch just under 16 KB is still read and logged', async () => {
+    const one = { type: 'csp-violation', body: { effectiveDirective: 'img-src', blockedURL: 'data', documentURL: 'https://eno.vn/', disposition: 'enforce' } }
+    const batch = Array.from({ length: 100 }, () => one)
+    expect(Buffer.byteLength(JSON.stringify(batch))).toBeLessThan(16 * 1024)
+    await post(batch, 'application/reports+json')
+    expect(lines).toHaveLength(100)
+  })
+})

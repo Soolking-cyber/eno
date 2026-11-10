@@ -3,6 +3,7 @@ import { clientIp } from '@/lib/client-ip'
 import { cookies } from 'next/headers'
 import { browserCookieName, consentAndMintPair, isNonce, voidHandoff } from '@/lib/auth/handoff'
 import { rateLimit } from '@/lib/ratelimit'
+import { bodyTooLarge, readJsonCapped } from '@/lib/api/body'
 
 // Called by the REAL BROWSER after Google, when the visitor answers "was that you?".
 //
@@ -24,22 +25,26 @@ const NO_STORE = { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragm
 // ⚠️ WS6 — NOT MIGRATED: different envelope, guard-before-everything, and a limiter that must run
 // LAST. Enumerated, every exit:
 //   · `{"error":"bad_origin"}` 403 — decided FIRST, ahead of any wrapper step.
+//   · `{"error":"payload_too_large"}` 413 — a body over 64 KB (readJsonCapped), refused before it is
+//     parsed, before the cookie check and before the limiter. No real client sends one (`{nonce,
+//     agreed}` is a few dozen bytes); handoff-confirm.tsx reads it (no `ok`) as "gone".
 //   · `{"ok":false}` 400 on a JSON parse failure, and again on a non-nonce `nonce`.
 //   · `{"ok":false,"reason":"gone"}` 403 when the per-nonce browser cookie is absent or malformed.
 //   · `{"ok":false}` 429 when throttled.
 //   · `{"ok":true,"voided":true}` / `{"ok":false,"reason":"gone"}` / `{"ok":true,"pair":"…"}` at 200.
 // Three independent blockers follow from that list:
-//   · THE ERROR ENVELOPE IS `{"ok":false,…}`, never the wrapper's bare `{error}`. `invalidBodyCode`
-//     cannot produce `{"ok":false}`, and the throttled 429 is the same shape.
+//   · THE ERROR ENVELOPE IS `{"ok":false,…}`, never the wrapper's bare `{error}` — except the two
+//     refusals decided before the body is parsed, bad_origin (403) and payload_too_large (413).
+//     `invalidBodyCode` cannot produce `{"ok":false}`, and the throttled 429 is the same shape.
 //   · THE LIMITER RUNS AFTER THE BODY AND AFTER THE COOKIE CHECK, deliberately: an attacker with the
 //     nonce but no browser cookie is rejected 403 without ever touching the limiter, so hoisting it
 //     into `rateLimit:` would let that caller consume the honest visitor's per-IP budget. ⚠️ Its key
 //     WAS a raw `cf-connecting-ip || 'unknown'` rather than `clientIp()`; that divergence is gone,
 //     because it also meant this route kept trusting a spoofable header after clientIp() started
 //     verifying the edge proof.
-//   · EVERY RESPONSE CARRIES `Cache-Control: no-store, no-cache, must-revalidate` + `Pragma:
-//     no-cache` — and this is the one endpoint that returns the pairing code, so losing no-store is
-//     not a cosmetic regression.
+//   · EVERY RESPONSE AFTER THE ORIGIN GUARD (the 413 included) CARRIES `Cache-Control: no-store,
+//     no-cache, must-revalidate` + `Pragma: no-cache` — and this is the one endpoint that returns the
+//     pairing code, so losing no-store is not a cosmetic regression.
 export async function POST(request: Request) {
   const appOrigin = new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn').origin
   if (process.env.NODE_ENV === 'production' && request.headers.get('origin') !== appOrigin) {
@@ -47,7 +52,8 @@ export async function POST(request: Request) {
   }
 
   let body: { nonce?: unknown; agreed?: unknown }
-  try { body = await request.json() } catch { return NextResponse.json({ ok: false }, { status: 400, headers: NO_STORE }) }
+  // Capped (64 KB) before it is parsed: this runs before the limiter. Past it: the 413 in the header's list, no-store.
+  try { body = await readJsonCapped<typeof body>(request) } catch (e) { return bodyTooLarge(e, NO_STORE) ?? NextResponse.json({ ok: false }, { status: 400, headers: NO_STORE }) }
   if (!isNonce(body.nonce)) return NextResponse.json({ ok: false }, { status: 400, headers: NO_STORE })
 
   // ⚠️ FROM THE COOKIE, NEVER THE BODY — see the header. The cookie NAME is derived from the nonce

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { HANDOFF_COOKIE, isNonce, redeemPair } from '@/lib/auth/handoff'
 import { rateLimit } from '@/lib/ratelimit'
 import { nonceHash } from '@/lib/auth/handoff'
+import { bodyTooLarge, readJsonCapped } from '@/lib/api/body'
 
 // The ONLY endpoint that returns an authorization code, and it requires BOTH halves:
 //   · the httpOnly cookie — proves this is the jar that started the flow (and holds the verifier)
@@ -14,11 +15,15 @@ export const dynamic = 'force-dynamic'
 
 const NO_STORE = { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' }
 
-// ⚠️ WS6 — NOT MIGRATED: after the origin guard, EVERY failure here is a 200 with an `{"ok":false,
-// "reason":…}` body. Enumerated:
+// ⚠️ WS6 — NOT MIGRATED: after the origin guard, EVERY failure here but one is a 200 with an
+// `{"ok":false,"reason":…}` body; the one is the oversized body (413, below). Enumerated:
 //   · `{"error":"bad_origin"}` 403 — first, ahead of anything the wrapper does.
 //   · `{"ok":false,"reason":"gone"}` 200 — no/malformed handoff cookie. Not a 401: the cookie nonce
 //     is the credential and "gone" is the ordinary end-of-flow answer the app polls for.
+//   · `{"error":"payload_too_large"}` 413 — a body over 64 KB (readJsonCapped), refused before it is
+//     parsed and before the limiter. The bare `{error}` shape every capped route shares, not
+//     `{"ok":false}`: no real client sends one (`{pair}` is a few bytes), and handoff-waiting.tsx
+//     reads it (no `ok`, no `reason`) as its wrong-code message. It still carries the no-store headers.
 //   · `{"ok":false,"reason":"wrong"}` 200 — unparseable body, or a `pair` that is not a string of
 //     ≤32 chars. A `body:` schema would turn both into a 400 with an `{error}` envelope.
 //   · `{"ok":false,"reason":"exhausted"}` 200 — THROTTLED. Not `{"error":"rate_limited"}` 429.
@@ -27,8 +32,9 @@ const NO_STORE = { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragm
 //   · THE LIMITER IS KEYED ON `nonceHash(nonce)` FROM THE COOKIE and runs after the body parse —
 //     explicitly NOT per-IP ("per-IP strict limiting 429s whole carriers behind CGNAT"). `rateLimit:`
 //     keys on the caller or `clientIp(req)`, which is the exact bucketing this route rejects.
-//   · EVERY response carries `Cache-Control: no-store, no-cache, must-revalidate` + `Pragma:
-//     no-cache`. This endpoint returns the authorization code; the no-store is load-bearing.
+//   · EVERY response after the origin guard (the 413 included) carries `Cache-Control: no-store,
+//     no-cache, must-revalidate` + `Pragma: no-cache`. This endpoint returns the authorization code;
+//     the no-store is load-bearing.
 export async function POST(request: Request) {
   const appOrigin = new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn').origin
   if (process.env.NODE_ENV === 'production' && request.headers.get('origin') !== appOrigin) {
@@ -39,7 +45,8 @@ export async function POST(request: Request) {
   if (!isNonce(nonce)) return NextResponse.json({ ok: false, reason: 'gone' }, { headers: NO_STORE })
 
   let body: { pair?: unknown }
-  try { body = await request.json() } catch { return NextResponse.json({ ok: false, reason: 'wrong' }, { headers: NO_STORE }) }
+  // Capped (64 KB) before it is parsed: this runs before the limiter. Past it: the 413 in the header's list, no-store.
+  try { body = await readJsonCapped<typeof body>(request) } catch (e) { return bodyTooLarge(e, NO_STORE) ?? NextResponse.json({ ok: false, reason: 'wrong' }, { headers: NO_STORE }) }
   if (typeof body.pair !== 'string' || body.pair.length > 32) {
     return NextResponse.json({ ok: false, reason: 'wrong' }, { headers: NO_STORE })
   }

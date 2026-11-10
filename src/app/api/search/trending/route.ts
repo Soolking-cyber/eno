@@ -5,6 +5,7 @@ import { getCategoriesByDemand } from '@/lib/categories'
 import { RETIRED_NAV_CATEGORIES } from '@/lib/retired-categories'
 import { clientIp } from '@/lib/client-ip'
 import { route } from '@/lib/api/handler'
+import { readJsonCapped } from '@/lib/api/body'
 
 export const runtime = 'nodejs'
 
@@ -62,15 +63,18 @@ export const GET = route({ auth: 'public' }, async () => {
 // ⛔ NO `body:` SCHEMA, DELIBERATELY. The contract is "always 204, even on a malformed body" — it is
 // a keepalive fetch fired during navigation, so a truncated or absent body is a NORMAL outcome, not
 // a client bug. route()'s `body:` option answers 400 on unparseable JSON, which would turn that
-// normal outcome into an error the client cannot see and would not act on. The tolerant
-// `try { await req.json() } catch {}` stays here verbatim, along with the `typeof q === 'string'`
-// guard that is the actual validation.
+// normal outcome into an error the client cannot see and would not act on. The read stays tolerant —
+// `try { await readJsonCapped(req) } catch {}`, along with the `typeof q === 'string'` guard that is
+// the actual validation. ⛔ Do not put a bare `req.json()` back: it is the uncapped parse (up to
+// Next's 10 MB) that readJsonCapped replaced (64 KB, appsec-02), and this route has no limiter at
+// all. An oversized body lands in the same catch: one more silent 204.
 //
 // ⚠️ 204 HAS NO BODY, so the handler returns the `NextResponse` through route()'s escape hatch
 // rather than a plain object — `NextResponse.json(data ?? {})` would make it a 200 `{}`.
 export const POST = route({ auth: 'public' }, async ({ req }) => {
   try {
-    const { q } = (await req.json()) as { q?: unknown }
+    // Capped (64 KB) before it is parsed; this route has no limiter. An oversized body lands in the catch: a silent 204.
+    const { q } = await readJsonCapped<{ q?: unknown }>(req)
     if (typeof q === 'string') {
       // Per-searcher dedup key = a hash of the client IP (never store the raw IP; the
       // set entry is ephemeral, ~3d TTL). One vote per IP per term per day.

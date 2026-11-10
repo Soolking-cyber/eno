@@ -323,3 +323,22 @@ describe('⛔ O1 — every host, preview and via the real client sends is accept
     expect(preview).toContain("LOCAL_AUTH: '1',")
   })
 })
+
+describe('POST /api/auth/handoff/open — the body cap (appsec-02)', () => {
+  it('⛔ one byte past 64 KB is 413 payload_too_large before it is parsed; nothing is opened', async () => {
+    const url = authorize()
+    const shell = JSON.stringify({ nonce: NONCE, authUrl: url, pad: '' })
+    const body = JSON.stringify({ nonce: NONCE, authUrl: url, pad: 'a'.repeat(64 * 1024 + 1 - shell.length) })
+    const res = await POST(new Request('https://eno.vn/api/auth/handoff/open', {
+      method: 'POST', headers: { origin: 'https://eno.vn', host: 'eno.vn', 'content-type': 'application/json' }, body,
+    }))
+    expect(res.status).toBe(413)
+    expect(await res.json()).toEqual({ error: 'payload_too_large' })
+    expect(h.opened).toEqual([])
+    // unparseable stays bad_body
+    const bad = await POST(new Request('https://eno.vn/api/auth/handoff/open', {
+      method: 'POST', headers: { origin: 'https://eno.vn', host: 'eno.vn', 'content-type': 'application/json' }, body: '{',
+    }))
+    expect({ status: bad.status, body: await bad.json() }).toEqual({ status: 400, body: { error: 'bad_body' } })
+  })
+})

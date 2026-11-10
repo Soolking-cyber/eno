@@ -428,3 +428,25 @@ describe('⛔ the fixed line\'s offer — only a plain YES on the very next turn
     expect((await turnOf({ transcript: "Please don't." })).acceptedOffer).toBe(false)
   })
 })
+
+describe('⛔ the byte cap (appsec-02): 128 KB, read before it is parsed', () => {
+  it('the largest body the schema allows, every field full of 3-byte characters, fits four times under the cap and is answered', async () => {
+    const wide = (n: number) => '東'.repeat(n) // 3 UTF-8 bytes, 1 UTF-16 unit — the most bytes a character can cost here
+    const full = {
+      transcript: wide(1_000), href: `/?q=${wide(1_996)}`, lang: 'zh-Hans',
+      history: Array.from({ length: 12 }, (_, i) => ({ role: i % 2 ? 'assistant' : 'user', text: wide(600) })),
+    }
+    expect(Buffer.byteLength(JSON.stringify({ session: 'x'.repeat(40), ...full })) * 4).toBeLessThanOrEqual(128 * 1024)
+    expect(Buffer.byteLength(JSON.stringify({ session, ...full }))).toBeGreaterThan(16 * 1024) // why the 64 KB default would not do
+    await turnOf(full)
+  })
+
+  it('one byte past 128 KB is 413 payload_too_large — before validation, so not 400 — and no turn', async () => {
+    const shell = JSON.stringify({ session, transcript: 'hi', href: '/', lang: 'en', history: [], pad: '' })
+    const body = JSON.stringify({ session, transcript: 'hi', href: '/', lang: 'en', history: [], pad: 'a'.repeat(128 * 1024 + 1 - shell.length) })
+    const res = await POST(new Request('http://localhost/api/concierge/turn', { method: 'POST', headers: { 'content-type': 'application/json' }, body }))
+    expect(res.status).toBe(413)
+    expect(await res.json()).toEqual({ error: 'payload_too_large' })
+    expect(h.turns).toEqual([])
+  })
+})

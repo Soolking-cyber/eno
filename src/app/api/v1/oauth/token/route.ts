@@ -7,6 +7,8 @@ import { rateLimit, type RateLimitSnapshot } from '@/lib/ratelimit'
 import { rateLimitHeaders, tightestRate } from '@/lib/api/respond'
 import { clientIp } from '@/lib/client-ip'
 import { logError } from '@/lib/log'
+import { JSON_BODY_CAP, readBytesCapped } from '@/lib/api/body'
+import { ApiError } from '@/lib/api/api-error'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -49,11 +51,17 @@ export async function POST(req: NextRequest) {
   // Accept both form-urlencoded (the OAuth standard) and JSON for convenience.
   let body: Record<string, string> = {}
   const ct = req.headers.get('content-type') || ''
+  // Capped (64 KB) before it is parsed: this runs before both limiters. A real token request is a few hundred bytes.
+  let raw: Buffer | null = null
+  try { raw = await readBytesCapped(req, JSON_BODY_CAP) } catch (e) {
+    if (e instanceof ApiError && e.status === 413) return oauthError(413, 'invalid_request', 'Request body too large.')
+  }
   try {
     if (ct.includes('application/json')) {
-      body = (await req.json()) as Record<string, string>
+      body = JSON.parse(raw ? new TextDecoder().decode(raw) : '') as Record<string, string>
     } else {
-      const form = await req.formData()
+      // The same parser req.formData() runs (urlencoded or multipart, by the content-type), over the capped bytes.
+      const form = await new Response(raw && new Uint8Array(raw), { headers: { 'content-type': ct } }).formData()
       for (const [k, v] of form.entries()) body[k] = String(v)
     }
   } catch { /* empty/invalid body → handled by missing-field checks below */ }

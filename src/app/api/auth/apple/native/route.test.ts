@@ -275,3 +275,20 @@ describe('logs', () => {
     expect(all).not.toContain(sha(RAW))
   })
 })
+
+describe('the body cap (appsec-02)', () => {
+  it('⛔ one byte past 64 KB is 413 payload_too_large: never parsed, nothing sent to GoTrue', async () => {
+    const shell = JSON.stringify({ ...credential(), pad: '' })
+    const body = JSON.stringify({ ...credential(), pad: 'a'.repeat(64 * 1024 + 1 - shell.length) })
+    const res = await POST(new Request('https://eno.vn/api/auth/apple/native', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://eno.vn' }, body }))
+    expect(res.status).toBe(413)
+    expect(await res.json()).toEqual({ error: 'payload_too_large' })
+    expect(h.events).toEqual([])
+  })
+
+  it('unparseable is still 400 bad_request', async () => {
+    const res = await POST(new Request('https://eno.vn/api/auth/apple/native', { method: 'POST', headers: { 'content-type': 'application/json', origin: 'https://eno.vn' }, body: '{' }))
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'bad_request' })
+  })
+})

@@ -49,7 +49,9 @@ async function describe() {
 
 export const GET = route({ auth: 'admin' }, async () => describe())
 
-export const PUT = route({ auth: 'admin', body: putBody }, async ({ admin, body }) => {
+// The body cap (route() maxBodyBytes): the schema's largest body, 500 addresses of 254 characters, is ~128 KB of JSON;
+// 1 MB keeps four times that. The admin check runs before the body is read.
+export const PUT = route({ auth: 'admin', body: putBody, maxBodyBytes: 1024 * 1024 }, async ({ admin, body }) => {
   // ⛔ Not 'all' before KYC records a birth year (config.ts MODE_ALL_OPEN).
   if (body.mode === 'all' && !MODE_ALL_OPEN) throw new ApiError('invalid_input', 400)
   // ⛔ Not ON unless the sweep is running (config.ts SWEEP_FRESH_S) — 503 not_configured: enable the timer first.

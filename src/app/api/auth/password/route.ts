@@ -7,6 +7,7 @@ import { normalizePhoneForRouting } from '@/lib/phone'
 import { verifyTurnstile } from '@/lib/turnstile-verify'
 import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
+import { bodyTooLarge, readJsonCapped } from '@/lib/api/body'
 
 // Password sign-in — eno.vn's own endpoint, deliberately NOT the client SDK's
 // signInWithPassword.
@@ -183,9 +184,10 @@ function canonicalPhone(input: string): string {
 export const POST = route({ auth: 'public' }, async ({ req }) => {
   let body: { identifier?: string; password?: string; captchaToken?: string }
   try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+    // Capped (64 KB) before it is parsed: this runs before the captcha and every limiter.
+    body = await readJsonCapped<typeof body>(req)
+  } catch (e) {
+    return bodyTooLarge(e) ?? NextResponse.json({ error: 'Bad request' }, { status: 400 })
   }
   // ⚠️ `null` IS VALID JSON. req.json() parses the body `null` successfully, and the very next
   // property read then throws — a 500 where a 400 was intended. Caught by a reviewer; the
@@ -320,7 +322,7 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
   // read while a partner pays a network call, so the two are trivially distinguishable by
   // latency even though the bodies are identical. Starting the clock before the read makes
   // "not a partner", "no such account" and "wrong password" cost the same wall time.
-  // It still sits AFTER req.json(), so slow-dripping the body cannot exhaust the budget —
+  // It still sits AFTER the body is read, so slow-dripping the body cannot exhaust the budget —
   // which is the separate attack an earlier round of review found.
   const startedAt = Date.now()
 

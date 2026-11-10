@@ -10,6 +10,7 @@ import { safeNextPath } from '@/lib/url'
 import { cleanDisplayName } from '@/lib/display-name'
 import { logError, logWarn } from '@/lib/log'
 import { apiFail } from '@/lib/api/handler'
+import { bodyTooLarge, readJsonCapped } from '@/lib/api/body'
 import { canonicalAuthOrigin } from '@/lib/auth/google-oauth'
 import {
   APPLE_ISSUER,
@@ -41,7 +42,8 @@ import {
 //
 // Branches: 403 bad_origin · 429 rate_limited · 503 not_configured (native Apple not open here — no bundle ID, no `ios`
 // in the rollout flag, or eno.forum: nativeAppleBundleId, as /nonce) · 400 invalid_session
-// (no nonce cookie: missing, expired or already spent) · 400 bad_request (body) · 400 invalid_token (malformed,
+// (no nonce cookie: missing, expired or already spent) · 413 payload_too_large (body over 64 KB, before it is
+// parsed) · 400 bad_request (body) · 400 invalid_token (malformed,
 // no nonce claim, nonce mismatch, foreign aud/iss, or refused by GoTrue) · 502 failed (GoTrue unreachable) ·
 // 200 { to }. ⚠️ NOT route(), for the nonce route's reasons: origin before the limiter, and cookie writes.
 export const runtime = 'nodejs'
@@ -95,7 +97,7 @@ export async function POST(request: Request) {
     }
 
     let raw: unknown
-    try { raw = await request.json() } catch { return apiFail('bad_request', 400) }
+    try { raw = await readJsonCapped(request) } catch (e) { return bodyTooLarge(e) ?? apiFail('bad_request', 400) }
     const parsed = BodySchema.safeParse(raw)
     if (!parsed.success) return apiFail('bad_request', 400)
     const body = parsed.data

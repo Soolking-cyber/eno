@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
+import { readJsonCapped } from '@/lib/api/body'
 import { sendMetaCapiEvent, metaUserDataFromHeaders, metaCapiConfigured } from '@/lib/meta-capi'
 
 export const runtime = 'nodejs'
@@ -24,7 +25,8 @@ export async function POST(req: NextRequest) {
   if (!metaCapiConfigured()) return new NextResponse(null, { status: 204 })
 
   let body: { id?: unknown; eventId?: unknown }
-  try { body = await req.json() } catch { return new NextResponse(null, { status: 204 }) }
+  // Capped (64 KB) before it is parsed, ahead of the limiter; an oversized body is one more silent 204.
+  try { body = await readJsonCapped<typeof body>(req) } catch { return new NextResponse(null, { status: 204 }) }
   const id = typeof body.id === 'string' ? body.id : ''
   const eventId = typeof body.eventId === 'string' ? body.eventId.slice(0, 100) : ''
   if (!id || !eventId) return new NextResponse(null, { status: 204 })
