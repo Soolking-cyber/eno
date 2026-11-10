@@ -13,6 +13,7 @@ describe('vietnameseSentence', () => {
       'Từ "good" nghĩa là tốt.', // the English word it explains is quoted
       '‘Please’ là làm ơn.',
       'Chị My rất tốt.', // a name, not the English "my"
+      'My ơi, con giỏi lắm!',
     ]) expect(vietnameseSentence(s), s).toBe(true)
   })
   it('English — with a Vietnamese name in it, a dish, or an accented loanword among other words — is English', () => {

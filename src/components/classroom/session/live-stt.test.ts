@@ -26,12 +26,14 @@ class FakeSocket {
 }
 
 const grant = { apiKey: 'temp_key_123', url: 'wss://stt-rt.soniox.com/transcribe-websocket', model: 'stt-rt-v5', settings: { endpoint_sensitivity: 0.3, endpoint_latency_adjustment_level: 2, max_endpoint_delay_ms: 1200 }, languageHints: ['en'] }
-const raw = async (status = 200, body: object = {}) => {
+const raw = async (status: number | string = 200, body: object = {}) => {
+  const session = typeof status === 'string' ? status : 's1'
+  if (typeof status === 'string') status = 200
   vi.stubGlobal('WebSocket', FakeSocket)
   const fetched = vi.fn(async () => (status === 200 ? new Response(JSON.stringify(grant), { status }) : new Response(JSON.stringify(body), { status })))
   vi.stubGlobal('fetch', fetched)
   const got = { utterances: [] as [string, number][], failed: 0, activity: [] as boolean[] }
-  const l = await openLiveStt('s1', {
+  const l = await openLiveStt(session, {
     utterance: (t, ms) => got.utterances.push([t, ms]), failed: () => { got.failed += 1 }, activity: (sp) => { got.activity.push(sp) },
   })
   return { l, got, fetched }
@@ -155,10 +157,17 @@ describe('openLiveStt', () => {
     ;(second.l as { close: () => void }).close()
     const third = await raw()
     expect((third.fetched.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toBeUndefined()
-    // a socket Soniox closes says its close code
-    ;(FakeSocket.last!.onclose as unknown as (e: { code: number; reason: string }) => void)({ code: 1006, reason: '' })
-    const fourth = await raw()
+    // a dropped socket: error, then close — its close CODE is what goes (never the free-form reason)
+    FakeSocket.last!.onerror?.()
+    ;(FakeSocket.last!.onclose as unknown as (e: { code: number; reason: string }) => void)({ code: 1006, reason: 'call 0901234567' })
+    const fourth = await raw('s1')
     expect((fourth.fetched.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toEqual({ 'x-live-why': 'socket closed 1006' })
+    // another lesson's key request never carries this one's reason — nor wipes it: this lesson still sends it
+    FakeSocket.last!.say({ tokens: [], error_code: 503, error_type: 'unavailable' })
+    const other = await raw('s2')
+    expect((other.fetched.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toBeUndefined()
+    const back = await raw('s1')
+    expect((back.fetched.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toEqual({ 'x-live-why': 'error 503 unavailable' })
   })
   it('close(): an empty frame ends Soniox’s stream, and it is not a failure', async () => {
     const { l, got, ws } = await open()

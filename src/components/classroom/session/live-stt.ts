@@ -66,7 +66,7 @@ const RECHECK_MS = 60_000
  * issued — the reason was only ever on the phone's own screen). The next key request carries it (`x-live-why`) and the
  * key route logs it. Codes only — a status, a close code, Soniox's error type — never a word heard.
  */
-let lastWhy = ''
+let lastWhy: { session: string; why: string } | null = null
 
 /**
  * Where the socket's key comes from: a classroom session's id (its own stt-token route) — or the voice concierge's routes
@@ -90,7 +90,8 @@ export async function openLiveStt(source: SttSource, on: {
    *  guide's are never carried into a lesson's — commit review, opus). */
   const failedBecause = (what: string, note?: string) => {
     mark(`live listening: ${what}`, note)
-    if (typeof source === 'string') lastWhy = `${what}${note ? ` ${note}` : ''}`.replace(/[^\w .:/()-]/g, '').slice(0, 100)
+    // Kept for THIS session's next key request only (commit review, opus: never logged against another lesson).
+    if (typeof source === 'string') lastWhy = { session: source, why: `${what}${note ? ` ${note}` : ''}`.replace(/[^\w .:/()-]/g, '').slice(0, 100) }
   }
   // Only the server's own FINAL refusals end the tries (FINAL_REFUSALS: the session is over, the switch is off, consent
   // withdrawn, no keys left); anything else — Soniox down, the network, a passing 401 or rate limit, a proxy's 403/404
@@ -103,9 +104,10 @@ export async function openLiveStt(source: SttSource, on: {
   let grant: Grant | null
   try {
     const r = await (typeof source === 'string'
-      ? fetch(`/api/classroom/sessions/${source}/stt-token`, { method: 'POST', signal: abort.signal, ...(lastWhy ? { headers: { 'x-live-why': lastWhy } } : {}) })
+      ? fetch(`/api/classroom/sessions/${source}/stt-token`, { method: 'POST', signal: abort.signal, ...(lastWhy?.session === source ? { headers: { 'x-live-why': lastWhy.why } } : {}) })
       : source.grant(abort.signal)).catch(() => null)
-    if (typeof source === 'string') lastWhy = ''
+    // Sent (or never this session's): another lesson's request leaves this one's reason alone (commit review, codex + opus).
+    if (typeof source === 'string' && lastWhy?.session === source) lastWhy = null
     if (!r?.ok) {
       failedBecause('no key', String(r?.status ?? 'network'))
       if (!r || r.status < 400 || r.status >= 500) return null
@@ -221,8 +223,11 @@ export async function openLiveStt(source: SttSource, on: {
     try { ws.close() } catch { /* closed */ }
     if (broke) on.failed()
   }
-  ws.onclose = (e?: CloseEvent) => { if (!closed) { failedBecause('socket closed', e ? `${e.code}${e.reason ? ` ${e.reason}` : ''}` : undefined); shutDown(true) } }
-  ws.onerror = () => { if (!closed) { failedBecause('socket error'); shutDown(true) } }
+  // The close CODE alone — never its free-form reason (commit review, codex: it reaches the server's log).
+  ws.onclose = (e?: CloseEvent) => { if (!closed) { failedBecause('socket closed', e ? String(e.code) : undefined); shutDown(true) } }
+  // A dropped socket fires `error`, then `close`: the close's code is the reason worth having — it gets a moment to come
+  // (commit review, opus: "socket error" alone says nothing), then the socket is given up either way.
+  ws.onerror = () => { if (!closed) setTimeout(() => { if (!closed) { failedBecause('socket error'); shutDown(true) } }, 1_000) }
 
   return {
     begin() {

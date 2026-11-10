@@ -77,7 +77,15 @@ export function reportFor(s: Awaited<ReturnType<typeof sessionForViewer>>['s'], 
     // their own words as said.
     // ⛔ THE TUTOR'S VIETNAMESE HELP IS SHOWN TOO (commit review round 2, opus): the adults who read the exchange read all the
     // AI said, in either language.
-    transcript: shown.map((t, i) => ({ seq: teacherSide ? t.seq : i + 1, learner: teacherSide ? maskContact(t.learnerText) : t.learnerText, avatar: t.replyText, ...(t.supportText ? { avatarVi: t.supportText } : {}), ...(teacherSide && t.flag ? { flag: t.flag } : {}) })),
+    // The tutor's lines passed the contact gate when they were said (tutor-ai.ts); masked on the teacher's side all the same,
+    // like the learner's — one rule for every line the teacher reads (commit review, codex + opus).
+    transcript: shown.map((t, i) => ({
+      seq: teacherSide ? t.seq : i + 1,
+      learner: teacherSide ? maskContact(t.learnerText) : t.learnerText,
+      avatar: (teacherSide ? maskContact(t.replyText) : t.replyText) ?? '',
+      ...(t.supportText ? { avatarVi: (teacherSide ? maskContact(t.supportText) : t.supportText) ?? t.supportText } : {}),
+      ...(teacherSide && t.flag ? { flag: t.flag } : {}),
+    })),
     // "We heard … — did you mean …?" — the tutor's guesses at sound-alike mishearings, shown as QUESTIONS, never scores.
     heardAs: [...new Map(shown.flatMap((t) => (Array.isArray(t.heardAs) ? (t.heardAs as { heard: string; meant: string }[]) : []))
       .filter((h) => typeof h?.heard === 'string' && typeof h?.meant === 'string')
