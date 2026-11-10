@@ -39,7 +39,10 @@ function subsetUnicodes(): string {
 describe('the Android fallback face', () => {
   it('opens next/font fallback list, so it sits right after "openRunde Fallback" and ahead of the system stack', () => {
     const list = fallbackList()
-    expect(list[0]).toBe(`"${FAMILY}"`)
+    // Single quotes, and no double quote in any item: the build writes this list into a double-quoted JS string as is
+    // (a double-quoted family name failed the production build with "Expected ',', got 'ident'").
+    expect(list[0]).toBe(`'${FAMILY}'`)
+    for (const item of list) expect(item).not.toContain('"')
     expect(list.slice(1)).toEqual(['ui-sans-serif', 'system-ui', 'sans-serif'])
     // The Arial face next/font generates must stay on, or this one would lead on every platform with Roboto.
     expect(LAYOUT).not.toMatch(/adjustFontFallback:\s*false/)

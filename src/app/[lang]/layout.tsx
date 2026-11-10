@@ -174,7 +174,9 @@ const openRunde = localFont({
   // named Arial for local(), so the swap there fell through to unadjusted Roboto; "openRunde Fallback Android" (globals.css)
   // is Roboto with Open Runde's metrics. Where Arial exists the Arial face still wins. ⛔ After the web face, never before
   // it — see the @font-face.
-  fallback: ['"openRunde Fallback Android"', "ui-sans-serif", "system-ui", "sans-serif"],
+  // ⛔ SINGLE QUOTES AROUND THE FAMILY NAME. Turbopack writes this list into a double-quoted JS string (the font
+  // module's style.fontFamily) without escaping it: a double quote in here is a syntax error and the build fails.
+  fallback: ["'openRunde Fallback Android'", "ui-sans-serif", "system-ui", "sans-serif"],
 });
 
 /**
