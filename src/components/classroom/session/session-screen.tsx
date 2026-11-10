@@ -1280,10 +1280,11 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
 
           {/* The call's top bar: the hint · the avatar and the time left · captions. */}
           {/* z-10: above the intro too — captions can be set before Start (review, codex). */}
-          {/* The name stays centred whatever sits either side: two EQUAL side columns, wide enough for the two buttons an adult
-              has on the right (commit review, codex — `1fr` sides take their content's minimum, so 44px vs 96px shifted it);
-              the name and the time truncate in what is left. */}
-          <header className="absolute inset-x-0 top-0 z-10 grid grid-cols-[6rem_minmax(0,1fr)_6rem] items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))]">
+          {/* The name stays centred whatever sits either side: two EQUAL side columns, as wide as the wider side needs — an
+              adult's camera + captions (6rem), else one button (2.75rem) (commit review, codex — `1fr` sides take their
+              content's minimum, so 44px vs 96px shifted it). Measured at 320px wide: one width for both left a child 72px
+              and cut the time off; per band the child keeps 176px. */}
+          <header className={cn('absolute inset-x-0 top-0 z-10 grid items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))]', cameraOffered ? 'grid-cols-[6rem_minmax(0,1fr)_6rem]' : 'grid-cols-[2.75rem_minmax(0,1fr)_2.75rem]')}>
             <div className="flex justify-start">
               <IconButton size="lg" aria-pressed={showHint} aria-label={tr('Hint', 'Gợi ý')} disabled={!hint || !live} onClick={() => setShowHint((v) => !v)}
                 className={cn(glass, 'disabled:opacity-40')}>
@@ -1292,9 +1293,10 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
             </div>
             <div className="min-w-0 text-center">
               <p className="truncate text-base font-semibold">{name}</p>
-              <p className="truncate text-xs text-primary-foreground/75">
-                {tr('AI avatar', 'Avatar AI')}
-                {live && <> · <span className="sr-only">{tr('Time left', 'Thời gian còn lại')} </span><span role="timer" className="tabular-nums">{minutes}:{secs}</span></>}
+              {/* The time left never truncates — only the label gives way on the narrowest adult phone. */}
+              <p className="flex justify-center whitespace-nowrap text-xs text-primary-foreground/75">
+                <span className="min-w-0 truncate">{tr('AI avatar', 'Avatar AI')}</span>
+                {live && <span className="shrink-0">&nbsp;· <span className="sr-only">{tr('Time left', 'Thời gian còn lại')} </span><span role="timer" className="tabular-nums">{minutes}:{secs}</span></span>}
               </p>
             </div>
             <div className="flex justify-end gap-2">
