@@ -95,6 +95,10 @@ const ON_ARRIVAL = [
   // start screen (teacher-start.tsx) was never listed — teacher onboarding v3+v4 deleted it; the step 1 that replaced it
   // is guarded by its rail below.
   'src/components/marketplace/result-line.tsx',
+  // Speed plan R9 (2026-11-10): the UGC Block pill and the hidden "You blocked this seller" notice are in the server HTML
+  // of every non-teacher listing page and storefront, so a deferred glyph in either pulls the whole deferred file there.
+  'src/components/marketplace/block-user-button.tsx',
+  'src/components/marketplace/blocked-seller-notice.tsx',
 ]
 
 function iconImports(file: string): string[] {

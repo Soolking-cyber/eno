@@ -68,6 +68,8 @@ WEB="$(find "$TMP" -type d -name web -not -path '*__MACOSX*' | head -1)"
 # fell back to Arial on ≈ (U+2248) — the dual-currency approximation, which appears on EVERY
 # price. Same for ⚠ (U+26A0) in the prelaunch banner and ✓ (U+2713). Open Runde HAS all of them;
 # only the subset was dropping them, and a missing glyph is invisible until it is on screen.
+# ⛔ globals.css's "openRunde Fallback Android" @font-face COPIES this list as its unicode-range, so it stands in only
+# for what Open Runde draws. Change one, change both (android-font-fallback.test.ts compares them).
 UNICODES="U+0000-00FF,U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+1EA0-1EF9"
 UNICODES+=",U+0300-0304,U+0306,U+0308-0309,U+031B,U+0323,U+0329,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+014F"
 UNICODES+=",U+2000-206F,U+20A9,U+20AB,U+20AC,U+20B9,U+20BD,U+2122,U+2190-2199,U+2212,U+2215,U+221E,U+2248,U+2260"

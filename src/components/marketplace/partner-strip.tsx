@@ -16,6 +16,10 @@ import { stripPartners, type StripPartner } from '@/lib/partner-strip'
 const REPEAT = 3
 /** Seconds per item in one half: the drift speed (~40 px/s on eno.vn), whatever the roster's length. */
 const SECONDS_PER_ITEM = 3.8
+/** `sm` and up, in rem like the classes that show and hide the two placements (a larger default font moves all of them together). */
+const SM_UP = '(min-width: 40rem)'
+/** A transparent 1×1 GIF: what the top copy's `<img>` shows below `sm`, where it is hidden (why: PartnerItem). */
+const BLANK_GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
 /**
  * The home page's partner band (owner, 2026-11-09): eno's official partners' own logos, each with one word for what they do,
@@ -58,8 +62,7 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
   const [paused, setPaused] = useState(false)
   const viewport = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    // `sm` in rem, like the classes that show and hide the two placements (a larger default font moves both together).
-    const mq = typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 40rem)') : null
+    const mq = typeof window.matchMedia === 'function' ? window.matchMedia(SM_UP) : null
     const sync = () => {
       const shown = mq ? (placement === 'feed') !== mq.matches : true
       // Back to 0 before the loop runs again, as after a pause: a scroll left behind by hand while this copy was the
@@ -83,7 +86,7 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
   // Server: the roster once. Browser: two halves of REPEAT rosters each; only the very first roster is the real one.
   const copies = looping ? REPEAT * 2 : 1
   const items = Array.from({ length: copies }, (_, copy) =>
-    partners.map((p) => <PartnerItem key={`${copy}-${p.handle}`} partner={p} repeat={copy > 0} label={label(p)} />))
+    partners.map((p) => <PartnerItem key={`${copy}-${p.handle}`} partner={p} repeat={copy > 0} label={label(p)} placement={placement} />))
   const duration = { '--partner-strip-duration': `${Math.round(partners.length * REPEAT * SECONDS_PER_ITEM)}s` } as CSSProperties
   return (
     <section
@@ -114,13 +117,36 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
   )
 }
 
-function PartnerItem({ partner: p, repeat, label }: { partner: StripPartner; repeat: boolean; label: string }) {
+/**
+ * ⛔ NO LOGO PRELOAD, AND A PHONE NEVER FETCHES THE TOP COPY'S LOGOS (speed plan R26, 2026-11-10). React puts a
+ * `<link rel="preload" as="image">` in `<head>` for every plain `<img>` it server-renders, so all five logos were fetched
+ * with the CSS and fonts on every phone home view, ahead of the first paint, though the top copy is hidden there
+ * (FCP −132 ms without them on the 1.6 Mbps phone profile, verdict media-04). Two cases, both with no preload:
+ *   · `top`: the logo is the `<source>` of a `<picture>` that matches from `sm` up, over a blank `<img>`. React preloads
+ *     nothing inside a `<picture>`; a desktop's preload scanner still finds the logo near the top of the body, so the
+ *     band paints with its logos as before (plain lazy left the tiles empty for 215–322 ms after first paint); below
+ *     `sm` the browser takes the blank and fetches nothing. The `<img>` keeps the alt and the logo's width/height, which
+ *     size it while the logo loads (the `<source>` has none of its own, so the img's apply).
+ *   · `feed` (phones only, display:none from `sm` up so a desktop never fetches it): `loading="lazy"` on the server's
+ *     row, loaded once it is laid out. Its repeats, which exist only after hydration and so are never preloaded, stay
+ *     eager: they put every logo in the cache before the loop slides a clipped one in from the right, where a browser
+ *     that lazy-loads with no margin would show it empty until its own request came back.
+ */
+function PartnerItem({ partner: p, repeat, label, placement }: { partner: StripPartner; repeat: boolean; label: string; placement: 'top' | 'feed' }) {
+  const fit = p.size === 'wide' ? 'partner-strip-logo-wide' : 'partner-strip-logo'
   return (
     <li className="partner-strip-item" aria-hidden={repeat || undefined} data-copy={repeat ? '1' : '0'}>
       {/* Accessible name = the logo's alt (the partner's name) + the visible word: "GoPlus Apartments". */}
       <Link href={`/${p.handle}`} prefetch={false} tabIndex={repeat ? -1 : undefined} className="partner-strip-link">
         <span className={p.dark ? 'partner-strip-tile partner-strip-tile-dark' : 'partner-strip-tile'}>
-          <img src={p.logo.src} alt={p.name} width={p.logo.width} height={p.logo.height} className={p.size === 'wide' ? 'partner-strip-logo-wide' : 'partner-strip-logo'} />
+          {placement === 'top' ? (
+            <picture>
+              <source media={SM_UP} srcSet={p.logo.src} />
+              <img src={BLANK_GIF} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
+            </picture>
+          ) : (
+            <img src={p.logo.src} loading={repeat ? undefined : 'lazy'} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
+          )}
         </span>
         <span className="text-xs font-medium text-ink-4">{label}</span>
       </Link>

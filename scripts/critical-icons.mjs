@@ -131,7 +131,9 @@ export const CRITICAL_GLYPHS = [
    *    deeper of two scroll depths tried — not on arrival, but nearly every home visit scrolls, and each one then paid the
    *    full deferred file for six glyphs. Promoted on that measured cost, the exception the "after an interaction" rule
    *    above allows when the interaction is the page's normal use.
-   * Listing pages, /c/rentals and /c/teachers fetched no deferred glyph at all, scrolled or not.
+   * Listing pages, /c/rentals and /c/teachers fetched no deferred glyph at all, scrolled or not — on 10-16 only: rental
+   * listings have drawn deferred amenity glyphs since 10-20 (rental-facts.tsx), and every non-teacher listing page drew
+   * the Block glyph from 10-29 until the 2026-11-10 entry below.
    */
   'Briefcase', 'FileText', 'PencilLine', 'Bookmark', 'Wrench', 'Smartphone', 'Plane', 'UtensilsCrossed', 'Sofa',
   /**
@@ -145,6 +147,20 @@ export const CRITICAL_GLYPHS = [
    * on-arrival use with the start screen and stays, by the never-drop-on-one-sweep rule below.
    */
   'BookOpen', 'Camera', 'ExternalLink',
+  /**
+   * ⛔ RE-DERIVED 2026-11-10 (speed plan R9; audits network-01, media-01). The UGC Block control (fc2d76033, 10-29) put
+   * `Ban` in the server HTML of every non-teacher listing page and storefront, twice: the "Block" pill
+   * (block-user-button.tsx) and the hidden "You blocked this seller" notice (blocked-seller-notice.tsx). Measured GET-only
+   * on production: electronics, vehicle, services and job listings and the /blvck storefront referenced the deferred file
+   * for `Ban` alone, so each first view pulled all of it (202 KB gzip, 746 KB decoded) for one glyph; on the throttled
+   * phone profile the `load` event came 0.7-0.9 s later. Cost here: 913 B raw (614 + 299, both weights), +213 B gzip -9,
+   * on every page. Both files are now in the guard's ON_ARRIVAL list (src/lib/critical-glyphs.guard.test.ts).
+   * ⚠️ STILL ON THE DEFERRED FILE, on purpose: rental listings (their amenity glyphs, rental-facts.tsx — ~19 KB gzip
+   * for every page if promoted, so a separate step), a job listing linked to a school (`GraduationCap`,
+   * school-link-for-job.tsx), and /signin, /messages as a guest and /hcmc-rent-index (`Phone`, `Mail`, `ArrowLeft`,
+   * `LogIn`, `Copy`; those five and Ban together are +3.4 KB gzip on every page) until page views say they pay for it.
+   */
+  'Ban',
 ]
 
 /** Measured so a later reader can tell whether the split still earns its complexity. */
@@ -155,11 +171,13 @@ export const CRITICAL_MEASUREMENT = {
    * (content-hashed, immutable), against ~188 KB for the deferred file on the teacher landing, search and a scrolled
    * home page. 2026-10-17 (the step rail, the last re-derivation above): 154,741 → 163,036 B raw (BookOpen 3,010 +
    * Camera 3,088 + ExternalLink 2,197, both weights), 46.9 → 49.5 KB gzip, against the deferred file's 191 KB gzip on
-   * both teacher landings.
+   * both teacher landings. 2026-11-10 (`Ban`, the last re-derivation above): 163,036 → 163,949 B raw, gzip -9
+   * 49,544 → 49,757 B (production served the old file at 49,528), against the deferred file's 202 KB gzip on every
+   * non-rental, non-teacher listing page and storefront.
    */
-  coreBytes: { raw: 163_036, gzip: 49_528, on: '2026-10-17' },
+  coreBytes: { raw: 163_949, gzip: 49_757, on: '2026-11-10' },
   /** The latest re-derivation (the routes and counts below are still the 2026-09-06 sweep's). */
-  rederivedOn: '2026-10-17',
+  rederivedOn: '2026-11-10',
   /**
    * ⚠️ FIVE ROUTES ACROSS BOTH EDITIONS, not four on one — the 2026-08-17 note above records why a
    * marketplace-only derivation silently deferred the forum's above-the-fold tiles.

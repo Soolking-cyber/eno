@@ -108,6 +108,98 @@ describe('only the copy on screen runs the loop', () => {
   })
 })
 
+/**
+ * ⛔ NO LOGO PRELOAD (speed plan R26, 2026-11-10; why: PartnerItem). React writes a `<link rel="preload" as="image">` for
+ * every plain `<img>` it server-renders (in `<head>` on a page, before the img in a bare render), so the five logos went
+ * out ahead of the first paint on every phone home view. The top copy's logo is a `<source>` that matches only from `sm`
+ * up, over a blank data-URI `<img>`; the phone's feed copy is lazy on the server and eager in the repeats.
+ */
+describe('the logos are never preloaded, and a phone never fetches the top copy', () => {
+  const logos = () => stripPartners().map((p) => p.logo.src)
+  const imgs = (html: string) => html.match(/<img\b[^>]*>/g) ?? []
+  const attr = (tag: string, name: string) => new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1]
+
+  it('the server writes no preload for either copy, alone or in a whole document as the home page renders both', () => {
+    for (const placement of ['top', 'feed'] as const) expect(renderToString(<PartnerStrip placement={placement} />)).not.toContain('rel="preload"')
+    // React writes the `<head>` itself, preloads in it, when the tree is a whole document.
+    const page = renderToString(<html><body><PartnerStrip /><PartnerStrip placement="feed" /></body></html>)
+    expect(page).toMatch(/^<html><head>/)
+    expect(page.slice(0, page.indexOf('</head>'))).not.toContain('/partners/')
+  })
+
+  it('top: each logo is a <picture> whose source matches from sm up, over a blank 1x1 <img> that keeps the alt and the size', () => {
+    const html = renderToString(<PartnerStrip />)
+    const pictures = html.match(/<picture><source [^>]*\/><img [^>]*\/><\/picture>/g) ?? []
+    expect(pictures).toHaveLength(stripPartners().length)
+    // The same query the loop and the `max-sm:hidden` class answer to (40rem): shown is exactly when the source matches.
+    expect(html.match(/<source [^>]*>/g)).toEqual(logos().map((src) => `<source media="(min-width: 40rem)" srcSet="${src}"/>`))
+    stripPartners().forEach((p, i) => {
+      const img = imgs(html)[i]
+      expect(attr(img, 'alt')).toBe(p.name)
+      expect([attr(img, 'width'), attr(img, 'height')]).toEqual([String(p.logo.width), String(p.logo.height)])
+      expect(attr(img, 'loading')).toBeUndefined() // a desktop paints the band with its logos
+      const src = attr(img, 'src')!
+      expect(src).toMatch(/^data:image\/gif;base64,/)
+      const gif = Buffer.from(src.slice(src.indexOf(',') + 1), 'base64')
+      expect([gif.subarray(0, 6).toString(), gif.readUInt16LE(6), gif.readUInt16LE(8)]).toEqual(['GIF89a', 1, 1])
+    })
+    // No logo URL anywhere a phone would fetch it: only in the sources' srcset.
+    for (const src of logos()) expect(html.split(src).length - 1).toBe(1)
+  })
+
+  it('feed: a plain lazy <img> per logo from the server, alt and size kept', () => {
+    const html = renderToString(<PartnerStrip placement="feed" />)
+    expect(html).not.toContain('<picture')
+    expect(imgs(html).map((img) => [attr(img, 'src'), attr(img, 'loading'), attr(img, 'alt')])).toEqual(
+      stripPartners().map((p) => [p.logo.src, 'lazy', p.name]))
+  })
+
+  it("in the browser the feed's repeats are eager, so the loop never slides in a logo still to be fetched; the top's stay pictures", async () => {
+    atWidth(390)
+    const feed = await mount('feed')
+    const first = [...feed.host.querySelectorAll('li[data-copy="0"] img')]
+    const repeats = [...feed.host.querySelectorAll('li[data-copy="1"] img')]
+    expect(first.map((img) => img.getAttribute('loading'))).toEqual(stripPartners().map(() => 'lazy'))
+    expect(repeats).toHaveLength(stripPartners().length * 5)
+    expect(repeats.every((img) => !img.hasAttribute('loading'))).toBe(true)
+    await feed.done()
+    atWidth(1280)
+    const top = await mount('top')
+    expect(top.host.querySelectorAll('li.partner-strip-item').length).toBe(stripPartners().length * 6)
+    expect(top.host.querySelectorAll('li.partner-strip-item > a > span > picture > source[media="(min-width: 40rem)"] + img').length).toBe(stripPartners().length * 6)
+    await top.done()
+  })
+
+  it('hydrates the server row of either copy without a mismatch', async () => {
+    const { hydrateRoot } = await import('react-dom/client')
+    const { act } = await import('react')
+    atWidth(1280)
+    // React's own test-environment flag, so the only console errors left are what hydration reports.
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const recovered: unknown[] = []
+    try {
+      for (const placement of ['top', 'feed'] as const) {
+        const host = document.createElement('div')
+        host.innerHTML = renderToString(<PartnerStrip placement={placement} />)
+        document.body.append(host)
+        const served = [...host.querySelectorAll('img')]
+        expect(served).toHaveLength(stripPartners().length)
+        let root: ReturnType<typeof hydrateRoot> | undefined
+        await act(async () => { root = hydrateRoot(host, <PartnerStrip placement={placement} />, { onRecoverableError: (e) => recovered.push(e) }) })
+        // Hydrated in place: the server's img nodes were adopted, not thrown away for a client render.
+        expect(served.every((img) => host.contains(img))).toBe(true)
+        await act(async () => { root!.unmount() })
+        host.remove()
+      }
+      expect(recovered).toEqual([])
+      expect(error).not.toHaveBeenCalled()
+    } finally {
+      error.mockRestore()
+    }
+  })
+})
+
 describe('the stylesheet side', () => {
   it('takes the feed row out of a directed cold link from the first frame, with display, not visibility', () => {
     const rule = /html\[data-explorer-directed\] #listings \.feed-grid > \[data-partner-band\] \{\s*display: none;\s*\}/

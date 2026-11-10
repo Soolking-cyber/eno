@@ -170,7 +170,11 @@ const openRunde = localFont({
   variable: "--font-open-runde",
   display: "swap",
   preload: true,
-  fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
+  // next/font puts its own adjusted "openRunde Fallback" (local(Arial)) first and this list after it. Android has no face
+  // named Arial for local(), so the swap there fell through to unadjusted Roboto; "openRunde Fallback Android" (globals.css)
+  // is Roboto with Open Runde's metrics. Where Arial exists the Arial face still wins. ⛔ After the web face, never before
+  // it — see the @font-face.
+  fallback: ['"openRunde Fallback Android"', "ui-sans-serif", "system-ui", "sans-serif"],
 });
 
 /**
