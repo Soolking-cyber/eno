@@ -125,6 +125,9 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
   const stat = (v: number) => (v < 10_000 ? grouped(v) : <><span className="sm:hidden">{compact(v)}</span><span className="max-sm:hidden">{grouped(v)}</span></>)
   const router = useRouter()
   const { dash: cachedDash, refresh, error } = useDashboard()
+  // The account summary (the device cache, the rail's answer) for the greeting's name only, while the full answer is on
+  // its way: without it the greeting read "Hi" until the listings landed (speed plan R13). The same store, so no request.
+  const { dash: cachedAccount } = useDashboard('summary')
   /**
    * ⛔ NEVER STUCK (inbox-10). A failed /api/dashboard with no cache used to leave the pill, the tiles and
    * the rows on their skeletons forever — a loading screen that would never load. Now:
@@ -182,8 +185,9 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
     )
   }
 
-  // First name for the greeting (business name → display name → nothing).
-  const name = (dash?.profile.businessName || dash?.profile.displayName || '').trim().split(/\s+/)[0]
+  // First name for the greeting (business name → display name → nothing). Never from an expired session's copy.
+  const account = dash ?? (error === 'auth' ? null : cachedAccount)
+  const name = (account?.profile.businessName || account?.profile.displayName || '').trim().split(/\s+/)[0]
 
   return (
     <>

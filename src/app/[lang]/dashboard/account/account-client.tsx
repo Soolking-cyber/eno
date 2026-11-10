@@ -101,7 +101,7 @@ export function AccountClient() {
   const router = useRouter()
   // The SAME cache-first source the rail and the section pages read, so identity and counters
   // can never disagree between surfaces or double-fetch.
-  const { dash, refresh, error } = useDashboard()
+  const { dash, refresh, error } = useDashboard('summary')
   const { unread } = useChat()
   const { count: savedCount } = useFavorites()
 

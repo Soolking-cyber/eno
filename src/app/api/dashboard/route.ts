@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { getAdmin, getCurrentProfile, isCurrentUserAdminByClaims, missingProfileReason } from '@/lib/admin'
 import { computeTrustV2 } from '@/lib/trust'
 import { FLAG_REASONS, getEnforcement } from '@/lib/enforcement'
-import { dashboardStatsCore } from '@/lib/core/dashboard'
+import { dashboardStatsCore, dashboardSummaryCore } from '@/lib/core/dashboard'
 import { userHasVisaApplication } from '@/lib/visa/records'
 
 export const runtime = 'nodejs'
@@ -65,6 +65,35 @@ async function enforcementPayload(profileId: string, sellerId: string | null) {
   return { state, until: until?.toISOString() ?? null, action, openReports }
 }
 
+// The rail's role and row flags — in BOTH views (the summary is what the rail reads), from one place so they cannot drift.
+async function accountFlags(profileId: string, includeSupportDesk: boolean) {
+  const [teacher, teacherDraft] = await Promise.all([
+    // Gates the "Teacher profile" row — the way back to /teachers/edit (cover lessons, 2026-10-07). Read beside the
+    // enforcement payload, never after it: every dashboard load would pay one more round-trip (gate review).
+    db.teacherProfile.findUnique({ where: { profileId }, select: { id: true } }),
+    // An unfinished one (owner, 2026-10-11): the same row, "Step X of Y · Continue" → /teachers/join. METADATA ONLY —
+    // this response is cached in the browser (use-dashboard.ts), so it never carries an answer (src/lib/teachers/draft.ts).
+    teacherDraftProgress(profileId),
+  ])
+  return {
+    // Role flag for the nav rail's admin group. Server-computed against ADMIN_EMAILS;
+    // profile.email is the auth session email (ensureProfile mirrors it), so this
+    // matches getAdmin()'s verdict without a second auth round-trip. Display-only:
+    // every /admin page + API still enforces getAdmin() server-side.
+    // Session email, not Profile.email — an email change resyncs the JWT immediately
+    // but existing Profile rows are not re-synced, and the rail must agree with the
+    // server's own getAdmin() verdict.
+    // ⚠️ PRE-FILTERED BY THE LOCALLY VERIFIED CLAIMS (speed plan item 6): getAdmin() is an auth-server round trip
+    // on a route the home page, storefronts and every dashboard page fire; `includeSupportDesk` (the claims check
+    // in GET) is "no" for everyone but the operators, and those are still confirmed by getAdmin().
+    isAdmin: includeSupportDesk && !!(await getAdmin()),
+    // Gates the "My e-Visa" rail row to people who have actually applied (chat-only flow).
+    hasVisa: await userHasVisaApplication(profileId),
+    hasTeacher: !!teacher,
+    teacherDraft: teacher ? null : teacherDraft,
+  }
+}
+
 // The seller CRM dashboard payload (owner-scoped). Answers the three questions a
 // seller opens the dashboard for: new messages? how are my listings doing? what
 // needs action? auth → core → respond (the aggregation is the shared
@@ -76,7 +105,7 @@ async function enforcementPayload(profileId: string, sellerId: string | null) {
 // `data.error`. `auth: 'profile'` would replace it with `{"error":"auth_required"}` and the page
 // would render its loaded state against `undefined`. Everything else here is a single authed read
 // path with no rate limit and no body, so the wrapper has nothing left to contribute.
-export async function GET() {
+export async function GET(request: Request) {
   const profile = await getCurrentProfile()
   if (!profile) {
     // ⚠️ 401 MEANS "NO SESSION", NOTHING ELSE: the dashboard page answers it with "your session has expired"
@@ -91,20 +120,26 @@ export async function GET() {
   // The unread tile counts exactly what the header badge counts (inbox-11): the same
   // conversationUnread() options /api/notifications passes, including its admin claims read.
   const includeSupportDesk = await isCurrentUserAdminByClaims()
+  /**
+   * ⛔ ?view=summary: NO LISTINGS, NO STATS (speed plan R13, audit api-01). The desktop rail fires this route on every
+   * page, the explorer on home, category and storefront pages, and neither reads a listing: one account with thousands
+   * of them got 16.5 MB per page view and stalled the only Node process for 0.4-0.65 s each time. The summary also
+   * skips the trust and enforcement reads, which nothing on the web reads (the full answer below still carries both).
+   * The plain URL keeps the full answer, unchanged, for /dashboard/listings and /dashboard/availability.
+   */
+  if (new URL(request.url).searchParams.get('view') === 'summary') {
+    const [summary, flags] = await Promise.all([dashboardSummaryCore(profile), accountFlags(profile.id, includeSupportDesk)])
+    return NextResponse.json({ dashboard: { ...summary, ...flags } })
+  }
   const [dashboard, breakdown] = await Promise.all([
     dashboardStatsCore(profile, { includeSupportDesk }),
     computeTrustV2(profile.id).catch(() => null),
   ])
   // Sequential (needs the core's seller id) but cheap: 2–3 indexed PK reads on an
   // authed, owner-scoped route — never a public hot path.
-  const [enforcement, teacher, teacherDraft] = await Promise.all([
+  const [enforcement, flags] = await Promise.all([
     enforcementPayload(profile.id, dashboard.seller?.id ?? null),
-    // Gates the "Teacher profile" row — the way back to /teachers/edit (cover lessons, 2026-10-07). Read beside the
-    // enforcement payload, never after it: every dashboard load would pay one more round-trip (gate review).
-    db.teacherProfile.findUnique({ where: { profileId: profile.id }, select: { id: true } }),
-    // An unfinished one (owner, 2026-10-11): the same row, "Step X of Y · Continue" → /teachers/join. METADATA ONLY —
-    // this response is cached in the browser (use-dashboard.ts), so it never carries an answer (src/lib/teachers/draft.ts).
-    teacherDraftProgress(profile.id),
+    accountFlags(profile.id, includeSupportDesk),
   ])
   const i = breakdown?.inputs
   // Days since the most recent DEMOTION-RELEVANT confirmed report (the dual-threshold
@@ -113,21 +148,7 @@ export async function GET() {
   return NextResponse.json({
     dashboard: {
       ...dashboard,
-      // Role flag for the nav rail's admin group. Server-computed against ADMIN_EMAILS;
-      // profile.email is the auth session email (ensureProfile mirrors it), so this
-      // matches getAdmin()'s verdict without a second auth round-trip. Display-only:
-      // every /admin page + API still enforces getAdmin() server-side.
-      // Session email, not Profile.email — an email change resyncs the JWT immediately
-      // but existing Profile rows are not re-synced, and the rail must agree with the
-      // server's own getAdmin() verdict.
-      // ⚠️ PRE-FILTERED BY THE LOCALLY VERIFIED CLAIMS (speed plan item 6): getAdmin() is an auth-server round trip
-      // on a route the home page, storefronts and every dashboard page fire; `includeSupportDesk` (the claims check
-      // above) is "no" for everyone but the operators, and those are still confirmed by getAdmin().
-      isAdmin: includeSupportDesk && !!(await getAdmin()),
-      // Gates the "My e-Visa" rail row to people who have actually applied (chat-only flow).
-      hasVisa: await userHasVisaApplication(profile.id),
-      hasTeacher: !!teacher,
-      teacherDraft: teacher ? null : teacherDraft,
+      ...flags,
       enforcement,
       trustProgress: i
         ? {

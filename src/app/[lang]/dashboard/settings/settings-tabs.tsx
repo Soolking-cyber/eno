@@ -82,7 +82,7 @@ function PreferencesTab() {
 
 export function SettingsTabs() {
   const { tr } = useLanguage()
-  const { dash, loading } = useDashboard()
+  const { dash, loading } = useDashboard('summary')
   const requested = useSearchParams().get('tab')
 
   // ⚠️ DEVELOPERS IS BUSINESS-TIER ONLY — the same gate the nav rail applied as `role: 'business'`.

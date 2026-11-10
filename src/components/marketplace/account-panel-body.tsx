@@ -41,7 +41,8 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   const pathname = usePathname()
   // ONE shared cache-first source, identical to what the /dashboard/* pages read — so the
   // rail's stats/identity and the section pages never diverge or double-fetch.
-  const { dash, error: dashError } = useDashboard()
+  // The SUMMARY (speed plan R13): the rail reads no listing, and the full answer was 16.5 MB for one account on every page.
+  const { dash, error: dashError } = useDashboard('summary')
   // A refused session (the dashboard answered 401 — inbox-10): the identity row becomes the way back in.
   // Sign in returns to the page the person is on.
   const signInAgain = useSignInAgain(pathname || '/dashboard/listings')

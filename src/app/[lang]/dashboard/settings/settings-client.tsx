@@ -52,7 +52,7 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const router = useRouter()
-  const { dash, refresh, error } = useDashboard()
+  const { dash, refresh, error } = useDashboard('summary')
 
   useEffect(() => {
     // The page's own path AND query: /account-deletion's "Settings → Account" link names its tab (?tab=account), and a

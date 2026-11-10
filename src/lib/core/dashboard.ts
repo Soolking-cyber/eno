@@ -3,9 +3,23 @@ import { db } from '@/lib/db'
 import { taxVerdict } from '@/lib/tax-lookup'
 import { serializeListing } from '@/lib/serialize'
 import { inAvailabilityReview, isStale } from '@/lib/stale'
-import type { Profile } from '@/generated/prisma/client'
+import type { Profile, Seller } from '@/generated/prisma/client'
 import { NOT_REMOVED } from '@/lib/listing-removed'
 import { conversationUnread } from '@/lib/unread'
+
+/**
+ * The SUMMARY (GET /api/dashboard?view=summary, speed plan R13): the same tier, profile and seller as
+ * dashboardStatsCore, without the listings and the stats counted from them. The desktop rail, the explorer's teacher
+ * chips and the dashboard pages that list no listings read only these; loading every listing for them sent one account
+ * a 16.5 MB answer on every page and stalled the server for 0.4-0.65 s each time (audit api-01).
+ */
+export async function dashboardSummaryCore(profile: Profile) {
+  const seller = await db.seller.findUnique({
+    where: { ownerId: profile.id },
+    include: { handle: { select: { handle: true } } },
+  })
+  return { tier: tierOf(profile), profile: profileFields(profile), seller: seller ? sellerFields(seller) : null }
+}
 
 // Dashboard payload core (Phase 0). Owner-scoped CRM stats for an ALREADY-RESOLVED
 // profile, decoupled from auth — reused by the session GET /api/dashboard and the future
@@ -55,51 +69,56 @@ export async function dashboardStatsCore(profile: Profile, { includeSupportDesk 
   }
 
   return {
-    tier: profile.accountType === 'business' ? ('business' as const) : ('individual' as const),
-    profile: {
-      displayName: profile.displayName,
-      email: profile.email,
-      phone: profile.phone,
-      avatarUrl: profile.avatarUrl,
-      avatarColor: profile.avatarColor,
-      businessName: profile.businessName,
-      trustScore: profile.trustScore,
-      trustTier: profile.trustTier,
-      availabilitySkips: profile.availabilitySkips,
-    },
-    seller: seller
-      ? {
-          id: seller.id,
-          name: seller.name,
-          handle: seller.handle?.handle ?? null,
-          verifiedSeller: seller.verifiedSeller,
-          // Drives the Settings → Security section: password sign-in is a PARTNER-ONLY
-          // feature (owner, 2026-08-10), so a non-partner must not be offered a password
-          // they could set and then never use — api/auth/password refuses them.
-          officialPartner: seller.officialPartner,
-          trustScore: seller.trustScore,
-          trustTier: seller.trustTier,
-          responseRate: seller.responseRate,
-          bio: seller.bio,
-          location: seller.location,
-          phone: seller.phone,
-          avatarUrl: seller.avatarUrl,
-          // The storefront cover the shop sets for itself. Owner-scoped like the rest of this
-          // payload; the PUBLIC copy is selected separately in storefront.ts.
-          bannerUrl: seller.bannerUrl,
-          // Legal identity (owner-scoped payload only — never in public serializers)
-          legalName: seller.legalName,
-          legalAddress: seller.legalAddress,
-          idNumber: seller.idNumber,
-          taxCode: seller.taxCode,
-          // VietQR/GDT soft-check outcome — DERIVED at read time (tax-lookup.ts), so a
-          // later legalName edit re-verdicts instantly. Facts, never a gate; the editor
-          // renders it beside the tax-code field.
-          taxVerdict: taxVerdict(seller),
-          taxRegisteredName: seller.taxRegisteredName,
-        }
-      : null,
+    tier: tierOf(profile),
+    profile: profileFields(profile),
+    seller: seller ? sellerFields(seller) : null,
     stats,
     listings,
   }
 }
+
+// Shared by both views, so the summary and the full answer can never disagree about the account.
+const tierOf = (profile: Profile) => (profile.accountType === 'business' ? ('business' as const) : ('individual' as const))
+
+const profileFields = (profile: Profile) => ({
+  displayName: profile.displayName,
+  email: profile.email,
+  phone: profile.phone,
+  avatarUrl: profile.avatarUrl,
+  avatarColor: profile.avatarColor,
+  businessName: profile.businessName,
+  trustScore: profile.trustScore,
+  trustTier: profile.trustTier,
+  availabilitySkips: profile.availabilitySkips,
+})
+
+const sellerFields = (seller: Seller & { handle: { handle: string } | null }) => ({
+  id: seller.id,
+  name: seller.name,
+  handle: seller.handle?.handle ?? null,
+  verifiedSeller: seller.verifiedSeller,
+  // Drives the Settings → Security section: password sign-in is a PARTNER-ONLY
+  // feature (owner, 2026-08-10), so a non-partner must not be offered a password
+  // they could set and then never use — api/auth/password refuses them.
+  officialPartner: seller.officialPartner,
+  trustScore: seller.trustScore,
+  trustTier: seller.trustTier,
+  responseRate: seller.responseRate,
+  bio: seller.bio,
+  location: seller.location,
+  phone: seller.phone,
+  avatarUrl: seller.avatarUrl,
+  // The storefront cover the shop sets for itself. Owner-scoped like the rest of this
+  // payload; the PUBLIC copy is selected separately in storefront.ts.
+  bannerUrl: seller.bannerUrl,
+  // Legal identity (owner-scoped payload only — never in public serializers)
+  legalName: seller.legalName,
+  legalAddress: seller.legalAddress,
+  idNumber: seller.idNumber,
+  taxCode: seller.taxCode,
+  // VietQR/GDT soft-check outcome — DERIVED at read time (tax-lookup.ts), so a
+  // later legalName edit re-verdicts instantly. Facts, never a gate; the editor
+  // renders it beside the tax-code field.
+  taxVerdict: taxVerdict(seller),
+  taxRegisteredName: seller.taxRegisteredName,
+})

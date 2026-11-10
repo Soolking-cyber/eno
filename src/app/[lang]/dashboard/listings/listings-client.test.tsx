@@ -12,6 +12,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 
 const h = vi.hoisted(() => ({
   dash: null as unknown,
+  // What useDashboard('summary') hands over; undefined = the same as `dash`.
+  summary: undefined as unknown,
   error: null as 'auth' | 'failed' | null,
   refresh: vi.fn(),
   // The auth context's user — what /signin's bounce reads. A real SIGNED_OUT event clears it.
@@ -30,7 +32,7 @@ vi.mock('next/link', () => ({ default: ({ href, children, ...rest }: { href: str
 // `signOut` is the app's standard sign-out (push teardown + per-account device storage), as in auth-context.
 vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: h.authUser ?? { id: 'u1' }, loading: false, signOut: h.signOut }) }))
 vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
-vi.mock('@/hooks/use-dashboard', () => ({ useDashboard: () => ({ dash: h.dash, error: h.error, refresh: h.refresh, loading: false }) }))
+vi.mock('@/hooks/use-dashboard', () => ({ useDashboard: (view?: 'summary') => ({ dash: view === 'summary' && h.summary !== undefined ? h.summary : h.dash, error: h.error, refresh: h.refresh, loading: false }) }))
 vi.mock('@/lib/supabase/browser', () => ({ createSupabaseBrowser: () => ({ auth: { signOut: h.localSignOut } }) }))
 vi.mock('@/lib/sign-out-storage', () => ({ clearAccountDeviceStorage: h.clearStorage }))
 vi.mock('@/lib/post-draft-photos', () => ({ clearDraftPhotos: async () => {} }))
@@ -46,6 +48,7 @@ afterEach(() => { cleanup(); docNav.mockRestore() })
 beforeEach(() => {
   docNav = vi.spyOn(documentNav, 'replace').mockImplementation((url: string) => { h.order.push(`document ${url}`) })
   h.dash = null
+  h.summary = undefined
   h.error = null
   h.authUser = { id: 'u1' }
   h.userAtNavigation = undefined
@@ -145,6 +148,28 @@ describe('with a cache', () => {
     h.dash = DASH
     const { container } = render(<ListingsClient embedded />)
     expect(container.querySelector('[data-dash-stale]')).toBeNull()
+  })
+})
+
+describe('the greeting while the full answer loads (speed plan R13)', () => {
+  const SUMMARY = { tier: 'individual', profile: { displayName: 'An Nguyen', businessName: null }, seller: null, isAdmin: false, hasVisa: false }
+
+  it('names the account from the summary while the listings are still on their way', () => {
+    h.summary = SUMMARY
+    const { container } = render(<ListingsClient embedded />)
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Hi An')
+    // The listings part is still loading: no empty state read from the summary.
+    expect(screen.queryByText('No listings yet')).toBeNull()
+    expect(container.querySelector('[data-slot="skeleton"], .animate-pulse')).not.toBeNull()
+  })
+
+  it('⛔ never a name under an expired session', () => {
+    h.summary = SUMMARY
+    h.error = 'auth'
+    render(<ListingsClient embedded />)
+    expect(screen.getByText('Your session has expired')).toBeTruthy()
+    expect(screen.getAllByRole('heading').map((e) => e.textContent)).toContain('Hi')
+    expect(document.body.textContent).not.toContain('An')
   })
 })
 

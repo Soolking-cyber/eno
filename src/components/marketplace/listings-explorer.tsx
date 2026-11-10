@@ -600,7 +600,7 @@ const NO_TEACHER_FLAGS = { profile: false, draft: false }
  * teacher profile" and reopens it on this host (/teachers/join), where the session is: the teacher host has none.
  */
 function TeacherFlagsReader({ onChange }: { onChange: Dispatch<SetStateAction<typeof NO_TEACHER_FLAGS>> }) {
-  const { dash } = useDashboard()
+  const { dash } = useDashboard('summary') // two flags, never the listings (speed plan R13)
   const profile = dash?.hasTeacher === true
   const draft = !profile && !!dash?.teacherDraft
   useEffect(() => { onChange((was) => (was.profile === profile && was.draft === draft ? was : { profile, draft })) }, [onChange, profile, draft])

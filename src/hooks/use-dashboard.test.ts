@@ -9,7 +9,10 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
  * forced refresh clears it. The store is module-level, so every test imports a fresh copy.
  */
 
-vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: { id: 'u1' }, loading: false }) }))
+// One auth object, as the real context keeps between renders: a new `user` per render re-runs the load effect on every
+// store update, and the views tests below count requests.
+const auth = vi.hoisted(() => ({ user: { id: 'u1' }, loading: false }))
+vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
 // The browser client's session refresh — tried ONCE on a 401 before "session expired".
 const sb = vi.hoisted(() => ({ refreshOk: false, refreshCalls: 0, network: false }))
 vi.mock('@/lib/supabase/browser', () => ({
@@ -57,9 +60,9 @@ afterEach(() => { vi.unstubAllGlobals() })
 
 const DASH = { tier: 'individual', profile: {}, seller: null, stats: { unreadMessages: 0, staleCount: 0, totalViews: 0, totalLeads: 0 }, listings: [], isAdmin: false, hasVisa: false }
 
-async function mount() {
+async function mount(view?: 'summary') {
   const { useDashboard } = await import('./use-dashboard')
-  return renderHook(() => useDashboard())
+  return renderHook(() => (view ? useDashboard(view) : useDashboard()))
 }
 
 describe('useDashboard error', () => {
@@ -123,9 +126,18 @@ describe('useDashboard error', () => {
   it('a cache stays on screen when the refetch fails — with the error beside it', async () => {
     localStorage.setItem('eno-dashboard', JSON.stringify({ userId: 'u1', dashboard: DASH }))
     queue = [{ status: 503 }]
-    const { result } = await mount()
+    const { result } = await mount('summary')
     await waitFor(() => expect(result.current.error).toBe('failed'))
     expect(result.current.dash).not.toBeNull()
+  })
+
+  it('⛔ the cache is a summary: a page that lists listings gets the error, never the cache read as "no listings"', async () => {
+    localStorage.setItem('eno-dashboard', JSON.stringify({ userId: 'u1', dashboard: DASH }))
+    queue = [{ status: 503 }]
+    const { result } = await mount()
+    await waitFor(() => expect(result.current.error).toBe('failed'))
+    expect(result.current.dash).toBeNull()
+    expect(result.current.fresh).toBe(false)
   })
 })
 
@@ -171,3 +183,183 @@ describe('⛔ Retry re-enters loading (never "loaded and empty" mid-retry)', () 
   })
 })
 
+
+/**
+ * SUMMARY AND FULL (speed plan R13, audit api-01). The rail, the explorer and the dashboard pages that show no listing
+ * read the summary (no listings, no stats); only a page that lists listings reads the full answer. One account's full
+ * answer was 16.5 MB, fetched by the desktop rail on every page. The device cache keeps the summary only.
+ */
+describe('summary and full views', () => {
+  type Held = { url: string; reply: (status: number, body?: unknown) => Promise<void> }
+  let held: Held[] = []
+  beforeEach(() => {
+    held = []
+    // Every request waits until the test answers it, so the order of requests and answers is the test's.
+    vi.stubGlobal('fetch', vi.fn((url: string) => new Promise((resolve) => {
+      held.push({
+        url: String(url),
+        reply: async (status, body) => {
+          await act(async () => { resolve({ ok: status >= 200 && status < 300, status, json: async () => body }) })
+        },
+      })
+    })))
+  })
+  const urls = () => held.map((r) => r.url)
+  const SUMMARY_URL = '/api/dashboard?view=summary'
+  const FULL_URL = '/api/dashboard'
+  const SUMMARY = { tier: 'individual', profile: { displayName: 'An' }, seller: null, isAdmin: false, hasVisa: false, hasTeacher: true, teacherDraft: null }
+  const FULL = { ...SUMMARY, stats: { unreadMessages: 0, staleCount: 0, totalViews: 3, totalLeads: 0 }, listings: [{ id: 'L1', status: 'active' }] }
+  const hooks = async () => (await import('./use-dashboard')).useDashboard
+  const rail = async () => { const useDashboard = await hooks(); return renderHook(() => useDashboard('summary')) }
+  const page = async () => { const useDashboard = await hooks(); return renderHook(() => useDashboard()) }
+
+  it('the rail asks for the summary, a page that lists listings for the full answer', async () => {
+    await rail()
+    expect(urls()).toEqual([SUMMARY_URL])
+    vi.resetModules()
+    held = []
+    await page()
+    expect(urls()).toEqual([FULL_URL])
+  })
+
+  it('⛔ the device cache keeps the summary only — never the listings, the stats or the trust and enforcement panels', async () => {
+    const p = await page()
+    await held[0].reply(200, { dashboard: { ...FULL, enforcement: { state: 'good_standing', openReports: [] }, trustProgress: null } })
+    expect(p.result.current.dash?.listings).toHaveLength(1)
+    const cached = JSON.parse(localStorage.getItem('eno-dashboard') || 'null')
+    expect(cached.userId).toBe('u1')
+    expect(cached.summary).toEqual(SUMMARY)
+    // ⛔ Never under `dashboard`: a pre-R13 build (a rollback) reads that as a full answer and reads its listings and
+    // stats unguarded. Without it, that build finds no cache and loads cold.
+    expect(cached).not.toHaveProperty('dashboard')
+  })
+
+  it('the summary this build stored paints the rail at once on the next load (isAdmin still forced false)', async () => {
+    localStorage.setItem('eno-dashboard', JSON.stringify({ userId: 'u1', summary: { ...SUMMARY, isAdmin: true } }))
+    const r = await rail()
+    expect(r.result.current.dash?.hasTeacher).toBe(true)
+    expect(r.result.current.dash?.profile.displayName).toBe('An')
+    expect(r.result.current.dash?.isAdmin).toBe(false)
+    expect(r.result.current.loading).toBe(false)
+    expect(r.result.current.fresh).toBe(false)
+  })
+
+  it('⛔ a page that lists listings never reads the summary as "no listings": loading until its own answer lands', async () => {
+    // A copy cached before this change still holds listings: they are not painted either.
+    localStorage.setItem('eno-dashboard', JSON.stringify({ userId: 'u1', dashboard: FULL }))
+    const r = await rail()
+    const p = await page()
+    expect(r.result.current.dash?.hasTeacher).toBe(true) // the rail paints from the cache at once
+    expect(r.result.current.dash).not.toHaveProperty('listings')
+    expect(p.result.current.dash).toBeNull()
+    expect(p.result.current.loading).toBe(true)
+    expect(p.result.current.fresh).toBe(false)
+    await held[held.length - 1].reply(200, { dashboard: FULL })
+    expect(p.result.current.dash?.listings).toHaveLength(1)
+    expect(p.result.current.loading).toBe(false)
+    expect(p.result.current.fresh).toBe(true)
+  })
+
+  it('a page mounting while the rail\'s summary is in flight: its full request supersedes it, and the late summary is dropped', async () => {
+    const r = await rail()
+    const p = await page()
+    expect(urls()).toEqual([SUMMARY_URL, FULL_URL])
+    await held[1].reply(200, { dashboard: FULL })
+    await held[0].reply(200, { dashboard: SUMMARY })
+    expect(p.result.current.dash?.listings).toHaveLength(1)
+    expect(r.result.current.dash?.hasTeacher).toBe(true)
+  })
+
+  it('a full request in flight serves the rail too: no second request', async () => {
+    const p = await page()
+    const r = await rail()
+    expect(urls()).toEqual([FULL_URL])
+    await held[0].reply(200, { dashboard: FULL })
+    expect(r.result.current.dash?.hasTeacher).toBe(true)
+    expect(p.result.current.dash?.listings).toHaveLength(1)
+  })
+
+  it('a refresh asks for the full answer while the page is mounted, and the summary once it has gone', async () => {
+    const r = await rail()
+    const p = await page()
+    await held[1].reply(200, { dashboard: FULL })
+    act(() => { r.result.current.refresh() })
+    expect(urls()[2]).toBe(FULL_URL)
+    await held[2].reply(200, { dashboard: FULL })
+    p.unmount()
+    act(() => { r.result.current.refresh() })
+    expect(urls()[3]).toBe(SUMMARY_URL)
+    await held[3].reply(200, { dashboard: { ...SUMMARY, profile: { displayName: 'Bình' } } })
+    // The summary refreshes the account fields and keeps the listings: coming back, the page paints at once from memory
+    // and asks for a new full answer behind it, as it did before the summary existed.
+    const again = await page()
+    expect(again.result.current.dash?.listings).toHaveLength(1)
+    expect(again.result.current.dash?.profile.displayName).toBe('Bình')
+    expect(again.result.current.loading).toBe(false)
+    expect(urls()).toHaveLength(5)
+    expect(urls()[4]).toBe(FULL_URL)
+  })
+
+  it('⛔ a summary consumer mounting after the page keeps the listings in memory: the page comes back at once', async () => {
+    const p = await page()
+    await held[0].reply(200, { dashboard: FULL })
+    p.unmount()
+    // The phone's Account tab, Settings, the explorer on home: any summary consumer that mounts revalidates.
+    const account = await rail()
+    expect(urls()).toEqual([FULL_URL, SUMMARY_URL])
+    await held[1].reply(200, { dashboard: SUMMARY })
+    expect(account.result.current.dash?.hasTeacher).toBe(true)
+    const again = await page()
+    expect(again.result.current.dash?.listings).toHaveLength(1)
+    expect(again.result.current.loading).toBe(false)
+    expect(again.result.current.error).toBeNull()
+    expect(urls()).toEqual([FULL_URL, SUMMARY_URL, FULL_URL])
+    // The device cache still keeps the summary only.
+    const cached = JSON.parse(localStorage.getItem('eno-dashboard') || 'null')
+    expect(cached).not.toHaveProperty('dashboard')
+    expect(cached.summary.hasTeacher).toBe(true)
+    expect(cached.summary).not.toHaveProperty('listings')
+    expect(cached.summary).not.toHaveProperty('stats')
+    // The page's own full answer replaces the kept listings.
+    await held[2].reply(200, { dashboard: { ...FULL, listings: [] } })
+    expect(again.result.current.dash?.listings).toHaveLength(0)
+  })
+
+  it('⛔ an account switch never carries one account\'s listings into the next account\'s summary', async () => {
+    const p = await page()
+    await held[0].reply(200, { dashboard: FULL })
+    p.unmount()
+    try {
+      auth.user = { id: 'u2' }
+      const r = await rail()
+      expect(urls()).toEqual([FULL_URL, SUMMARY_URL])
+      await held[1].reply(200, { dashboard: SUMMARY })
+      expect(r.result.current.dash?.hasTeacher).toBe(true)
+      expect(r.result.current.dash).not.toHaveProperty('listings')
+    } finally {
+      auth.user = { id: 'u1' }
+    }
+  })
+
+  it('a failed summary is not the page\'s failure: its first full request shows loading, not the error', async () => {
+    const r = await rail()
+    await held[0].reply(500)
+    expect(r.result.current.error).toBe('failed')
+    const p = await page()
+    expect(urls()).toEqual([SUMMARY_URL, FULL_URL])
+    expect(p.result.current.error).toBeNull()
+    expect(p.result.current.loading).toBe(true)
+    await held[1].reply(200, { dashboard: FULL })
+    expect(p.result.current.dash?.listings).toHaveLength(1)
+  })
+
+  it('a consumer that switches to the full view asks for it instead of waiting on the summary it has', async () => {
+    const useDashboard = await hooks()
+    const h = renderHook(({ view }: { view?: 'summary' }) => (view ? useDashboard(view) : useDashboard()), { initialProps: { view: 'summary' as 'summary' | undefined } })
+    await held[0].reply(200, { dashboard: SUMMARY })
+    h.rerender({ view: undefined })
+    expect(urls()).toEqual([SUMMARY_URL, FULL_URL])
+    await held[1].reply(200, { dashboard: FULL })
+    expect(h.result.current.dash).toHaveProperty('listings')
+  })
+})

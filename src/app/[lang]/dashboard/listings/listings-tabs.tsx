@@ -21,7 +21,8 @@ import { FacebookImportPanel } from '@/components/marketplace/facebook-import-pa
  */
 export function ListingsTabs() {
   const { tr } = useLanguage()
-  const { dash, loading } = useDashboard()
+  // The summary: only the tier. The All tab's ListingsClient asks for the full answer while it is mounted.
+  const { dash, loading } = useDashboard('summary')
   const requested = useSearchParams().get('tab')
 
   // ⚠️ BULK UPLOAD IS BUSINESS-TIER ONLY — the rail's `role: 'business'` gate. BulkClient bounces a

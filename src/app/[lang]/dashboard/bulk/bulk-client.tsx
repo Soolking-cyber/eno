@@ -16,7 +16,7 @@ import { SectionHeader } from '@/components/marketplace/section-header'
 export function BulkClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
-  const { dash, refresh, error } = useDashboard()
+  const { dash, refresh, error } = useDashboard('summary')
   const router = useRouter()
 
   useEffect(() => {

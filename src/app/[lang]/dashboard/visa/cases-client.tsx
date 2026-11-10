@@ -466,7 +466,7 @@ export function VisaCasesClient({ threads, embedded = false }: {
 }) {
   const { tr, lang } = useLanguage()
   const { user, loading: authLoading } = useAuth()
-  const { refresh: refreshDashboard } = useDashboard()
+  const { refresh: refreshDashboard } = useDashboard('summary')
   // One minute tick for every row's promise line — never an interval per row.
   const now = useMinuteTick()
   const router = useRouter()
