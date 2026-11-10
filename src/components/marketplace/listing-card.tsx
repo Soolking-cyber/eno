@@ -8,6 +8,7 @@ import { OwnerEditButton } from '@/components/marketplace/owner-edit-button'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
+import { IslandGuard } from '@/components/ui/island-guard'
 import { PartnerBadge } from './partner-badge'
 import { ImageMark } from './image-mark'
 import { CardBadges } from './card-badges'
@@ -41,7 +42,10 @@ import { useAuth } from '@/context/auth-context'
 // Perf Phase 1: both are OPTIONAL card features — the video enhancement mounts only
 // on in-viewport video cards, the discount slider only inside the owner's popover —
 // so neither belongs in the default card path every page pays for.
-const CardVideo = dynamic(() => import('./card-video').then((m) => m.CardVideo), { ssr: false })
+// ⚠️ The clip is decoration, so its chunk failing must cost the clip and nothing else (R22): the loader asks once more
+// after 1.5 s (`withOneRetry`), and the card wraps it in an `IslandGuard`, which draws nothing if it still failed.
+// Slider is the owner's discount control, not decoration: it gets neither.
+const CardVideo = dynamic(() => withOneRetry(() => import('./card-video')).then((m) => m.CardVideo), { ssr: false })
 const Slider = dynamic(() => import('@/components/ui/slider').then((m) => m.Slider), { ssr: false })
 
 import { quickActionSignIn, stashQuickCompose } from '@/lib/quick-contact'
@@ -50,6 +54,7 @@ import { openerVoice, quickChatOpener } from '@/lib/teachers/first-message'
 import { isModifiedClick } from '@/lib/plain-click'
 import { warmListing } from '@/lib/warm-listing'
 import { isFocusVisible } from '@/lib/focus-visible'
+import { withOneRetry } from '@/lib/import-retry'
 
 /**
  * ⛔ THE BLUR PLACEHOLDER IS GONE, AND ITS OWN COMMENT IS WHY. It said "matches the card's bg" and
@@ -921,8 +926,13 @@ function ListingCardImpl({
         {/* Video: autoplays over the cover once the card settles in view (see CardVideo —
             IO-gated, cover-beat fade-in, page-wide concurrency cap, Save-Data respected).
             pointer-events-none inside, so the card still handles hover + click. Swiping the
-            photo carousel suspends it — the clip belongs to the cover slide. */}
-        {listing.video && <CardVideo src={listing.video} hover={hoverVideo} suspend={idx !== 0} />}
+            photo carousel suspends it — the clip belongs to the cover slide. IslandGuard: a clip that cannot load
+            leaves the photo, not an error page (see the CardVideo definition). */}
+        {listing.video && (
+          <IslandGuard>
+            <CardVideo src={listing.video} hover={hoverVideo} suspend={idx !== 0} />
+          </IslandGuard>
+        )}
 
         {/* ⛔ NO LEGIBILITY SCRIMS (owner, 2026-10-18: "look super professional … like top marketplace").
             Two 48px black/10 gradients darkened the top and bottom of EVERY photo, and on a white packshot
