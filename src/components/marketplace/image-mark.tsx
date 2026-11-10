@@ -8,6 +8,23 @@ export const IMAGE_MARK_SPRITE = '/brand/eno-mark.svg#m'
  *  watermark-mark.test.ts. */
 export const IMAGE_MARK_BOX = { w: 9132.3, h: 1588.3 }
 
+/**
+ * ⛔ THE MARK IS NOT DRAWN ON SCREEN ANY MORE (owner, 2026-11-10: "1-6 1 by one go", item 6 of the decision scorecard).
+ * Blind A/B against today's pages, both judges for no mark (codex 7.09 to 7.20, Fable 7.43 to 7.55): on a partner's rental the
+ * photo carried two marks, GoPlus's and ours; on a linked shop's product ours sat on a photo the page itself says eno.vn did
+ * not verify; and on every tile it was one more thing between the buyer and the photo. The owner took the stated cost: a
+ * screenshot of a listing photo no longer carries the eno.vn name.
+ * ONE SWITCH FOR EVERY SURFACE (cards, map cards, SEO rails, the listing's photo, the full-screen viewer), so the 2026-09-13
+ * rule below holds either way: when it is drawn, it is one size and one corner everywhere.
+ * ⚠️ TURNING IT BACK ON IS TWO STEPS, NOT ONE. `true` here draws the mark again on every IMPORTED photo, exactly as before
+ * (their names carry what the renderer needs, image-mark-url.ts). A MEMBER's photo uploaded since the same day is stored
+ * clean with the same facts in its name (core/media.ts), but `overlayMarkFromUrl` reads only `affiliate/m/` names: it has
+ * to learn the member shape as well, or those photos stay unmarked. No stored file needs touching either way.
+ * ⚠️ What is NOT this switch: the `.img-watermark` shield (image-shield.tsx) still flashes over a photo on a save, copy or
+ * drag attempt; and a photo uploaded before 2026-11-10 keeps the mark baked into its pixels, which nothing can take out.
+ */
+export const ON_SCREEN_MARK: boolean = false
+
 // ⚠️ THE OWNER'S RULE IS ONE SIZE AND ONE CORNER (below), NOT THIS STRENGTH. At white/85 and black/40 the mark out-shouted the
 // card's own title on every photo (UI climb 2026-11-05). A save or copy still gets the full-strength `.img-watermark`
 // (image-shield.tsx); a screenshot carries this mark at the lighter ink, and that is the trade.
@@ -41,6 +58,7 @@ const INK = { dark: 'text-black/25', light: 'text-white/60' } as const
  * cannot style inside a `<use>` shadow tree, but inherited `color` crosses it.
  */
 export function ImageMark({ src, fit = 'cover', className }: { src: string | null | undefined; fit?: 'cover' | 'contain'; className?: string }) {
+  if (!ON_SCREEN_MARK) return null
   const mark = overlayMarkFromUrl(src)
   if (!mark) return null
 

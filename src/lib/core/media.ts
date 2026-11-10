@@ -4,7 +4,7 @@ import 'server-only'
 // native import here reached /api/listings for code paths that only run on upload.
 import { getSharp } from '@/lib/sharp-lazy'
 import { getSupabaseAdmin, LISTINGS_BUCKET, EVIDENCE_BUCKET, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
-import { watermarkSvg, watermarkPlacement, inkForLuminance } from '@/lib/core/watermark-mark'
+import { cardMarkRegion, inkForGreyPixels, watermarkPlacement } from '@/lib/core/watermark-mark'
 import { dHash } from '@/lib/image-hash'
 import { isListingVideoUrl, VIDEO_EXTENSIONS } from '@/lib/listing-image'
 
@@ -17,35 +17,47 @@ export const IMG_MAX_BYTES = 12 * 1024 * 1024 // 12MB raw in (modern phone photo
 const MAX_EDGE = 1600 // longest edge; covers ×2-retina detail hero with no visible loss
 const WEBP_QUALITY = 82
 
-// ── Watermark ────────────────────────────────────────────────────────────────────
-// The wordmark, its box, the placement rule and the ink threshold all live in
-// ./watermark-mark.ts — pure, so a maintenance script can share them instead of growing a
-// third copy that drifts. Read the header there before changing any of it.
+// ── The eno.vn mark ──────────────────────────────────────────────────────────────
+// ⛔ NOTHING IS BAKED INTO AN UPLOAD ANY MORE (owner, 2026-11-10: item 6 of the decision scorecard, no eno.vn mark on
+// photos on screen). Until then every member photo got the wordmark composited into its pixels here, which is why a photo
+// uploaded before that day still shows one and always will: a baked mark cannot be taken out of a file.
+// The file is now stored CLEAN, exactly as an imported photo has been since 2026-09-13 (host-product-image.ts), and what a
+// drawn mark would need is measured here and written into the name the same way (image-mark-url.ts):
+//   <ts>-<rand>-i<cover><contain>-<W>x<H>[-h<16hex>].webp
+// so the mark can be drawn again (image-mark.tsx ON_SCREEN_MARK), or baked by a script, without guessing which of a
+// MEMBER'S LISTING PHOTOS are clean: among those, a name with `-i..-WxH` is clean and a name without it was stored before
+// this day and is baked.
+// ⛔ THAT RULE IS FOR A MEMBER'S LISTING PHOTO ONLY. An avatar or a shop logo (`watermark: false`) never has the segment and
+// was never marked; an import under `affiliate/m/` is clean under its own name. A script that read "no segment" as "baked"
+// for those would be wrong about every one of them, and one that baked on the strength of it could not be undone.
+// ⚠️ `overlayMarkFromUrl` still reads only `affiliate/m/` names. Widening it to these is the step to take WITH turning the
+// mark back on, not before: rentals-feed.ts reads sizes through it for Meta's minimum edge.
+// The wordmark, its box, the placement rule and the ink threshold live in ./watermark-mark.ts (pure, shared with scripts).
 
-/** Read the patch of photo the mark will sit on and pick an ink that stays legible there
- *  WITHOUT a shadow. Bright backdrop (white studio cyc, sky, pale wall) → near-black ink;
- *  anything mid or dark → white. Falls back to white if the probe fails — the old
- *  behaviour, and the safe one for the average photo. */
-async function pickInk(png: Buffer, region: { left: number; top: number; width: number; height: number }): Promise<{ fill: string; opacity: number }> {
-  const WHITE = { fill: '#ffffff', opacity: 0.85 }
-  try {
-    const sharp = await getSharp()
-    const { channels } = await sharp(png).extract(region).greyscale().stats()
-    return inkForLuminance((channels[0]?.mean ?? 0) / 255)
-  } catch {
-    return WHITE
+/** The two inks a drawn mark would use on this photo, read off the normalised PNG: on the centred square a card shows
+ *  (`cover`) and on the photo's own corner (`contain`). 'light', the mark's default ink, for a probe that fails.
+ *  ⛔ IT NEVER THROWS: these are facts for a mark that may never be drawn, so nothing here may cost a member their upload
+ *  (commit review: the region maths ran outside the probe's own catch). A photo too small to hold a mark gets 'light'. */
+async function markInks(png: Buffer, width: number, height: number): Promise<{ cover: 'dark' | 'light'; contain: 'dark' | 'light' }> {
+  const probe = async (region: () => { left: number; top: number; width: number; height: number }) => {
+    try {
+      const sharp = await getSharp()
+      return inkForGreyPixels(await sharp(png).extract(region()).greyscale().raw().toBuffer())
+    } catch { return 'light' as const }
   }
+  return { cover: await probe(() => cardMarkRegion(width, height)), contain: await probe(() => watermarkPlacement(width, height).region) }
 }
 
 /**
  * Decode → auto-orient (bake EXIF rotation, then DROP all metadata incl. GPS) →
- * downscale to fit MAX_EDGE → bake the eno wordmark bottom-right (listing photos
- * are scraped/re-shared; the mark survives "save image" — CSS shields don't) →
+ * downscale to fit MAX_EDGE → measure the inks a drawn eno.vn mark would use (NOTHING is baked
+ * since 2026-11-10, see above; the facts ride in the stored name) →
  * re-encode WebP → store in the listings bucket. sharp throws on anything that
  * isn't a real decodable raster, so a disguised/corrupt file (or an SVG) is
  * rejected here. limitInputPixels guards decompression bombs. Returns the public
  * URL, or null on any failure (bad input / storage error). Never throws.
- * `watermark: false` is for NON-listing assets (avatars / shop logos) only.
+ * `watermark: false` is for NON-listing assets (avatars / shop logos) only: their name carries no mark facts, so a
+ * mark can never be drawn or baked over them.
  * `beforeUpload` runs with the object's path after the image is encoded and BEFORE a byte is stored; if it throws,
  * nothing is uploaded and the answer is null. Bulk re-hosting writes the object's tombstone there, so no object of its
  * ever exists untombstoned (core/bulk.ts rehost).
@@ -55,39 +67,35 @@ export async function storeListingImage(
   opts: { pathPrefix?: string; watermark?: boolean; beforeUpload?: (path: string) => Promise<void> } = {},
 ): Promise<string | null> {
   let out: Buffer
-  // Perceptual hash for duplicate detection — computed from the normalized (pre-watermark,
-  // pre-WebP) intermediate so a re-upload of the same source hashes identically, and embedded
+  // Perceptual hash for duplicate detection — computed from the normalized (pre-WebP)
+  // intermediate so a re-upload of the same source hashes identically, and embedded
   // in the filename so it rides in the stored URL (no DB column). Best-effort; null on failure.
   let hash: string | null = null
+  // "-i<cover><contain>-<W>x<H>" for a listing photo (stored clean, see the header above); empty for an avatar or a logo.
+  let markFacts = ''
   try {
     const sharp = await getSharp()
-    // Pass 1 — normalize to a lossless intermediate so the watermark composite
-    // doesn't double-lossy-encode (PNG → final WebP = single quality loss).
+    // Pass 1 — normalize to a lossless intermediate, so the hash and the ink probes read
+    // pixels and the one lossy step is the final WebP.
     const { data, info } = await sharp(buf, { limitInputPixels: 50_000_000 })
       .rotate()
       .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: 'inside', withoutEnlargement: true })
       // Flatten alpha onto white: listing photos render over a blurred self-backdrop
       // in the gallery, so a transparent cut-out PNG would otherwise let the backdrop
-      // + brand pattern bleed through the subject — and the baked watermark would
-      // composite onto empty pixels. A no-op for the common opaque camera JPEG.
+      // + brand pattern bleed through the subject. A no-op for the common opaque camera JPEG.
       .flatten({ background: '#ffffff' })
       .png()
       .toBuffer({ resolveWithObject: true })
-    hash = await dHash(data) // from the normalized source, before watermark/WebP
+    hash = await dHash(data) // from the normalized source, before WebP
     if (opts.watermark !== false) {
-      const { markWidth, left, top, region } = watermarkPlacement(info.width, info.height)
-      const mark = watermarkSvg(markWidth, await pickInk(data, region))
-      out = await sharp(data)
-        .composite([{ input: mark.svg, left, top }])
-        .webp({ quality: WEBP_QUALITY })
-        .toBuffer()
-    } else {
-      out = await sharp(data).webp({ quality: WEBP_QUALITY }).toBuffer()
+      const inks = await markInks(data, info.width, info.height)
+      markFacts = `-i${inks.cover === 'dark' ? 'd' : 'l'}${inks.contain === 'dark' ? 'd' : 'l'}-${info.width}x${info.height}`
     }
+    out = await sharp(data).webp({ quality: WEBP_QUALITY }).toBuffer()
   } catch {
     return null
   }
-  const path = `${opts.pathPrefix ?? ''}${Date.now()}-${Math.random().toString(36).slice(2, 8)}${hash ? `-h${hash}` : ''}.webp`
+  const path = `${opts.pathPrefix ?? ''}${Date.now()}-${Math.random().toString(36).slice(2, 8)}${markFacts}${hash ? `-h${hash}` : ''}.webp`
   if (opts.beforeUpload) {
     try { await opts.beforeUpload(path) } catch (e) {
       console.error('[media] beforeUpload', e)

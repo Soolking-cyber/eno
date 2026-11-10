@@ -7,6 +7,15 @@
 import pg from 'pg'
 import sharp from 'sharp'
 
+// ⛔ RETIRED, AND IT REFUSES TO RUN (2026-11-10). The owner took the eno.vn mark off photos on screen that day (item 6 of
+// the decision scorecard), and src/lib/core/media.ts stopped baking it into uploads: a member's photo is now stored clean,
+// with what a drawn mark would need written into its name. This script stamps EVERY first-party listing image it finds, so
+// one run would bake the mark into every clean upload stored since, and a baked mark can never be taken out of a file.
+// If marks are ever wanted again, draw them (src/components/marketplace/image-mark.tsx has the two steps); do not bake.
+// The code below stays as the record of what the 2026-07 backfill did.
+console.error('watermark-existing.mjs is retired (2026-11-10): nothing is baked into photos any more. See the note at the top of this file.')
+process.exit(1)
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SECRET = process.env.SUPABASE_SECRET_KEY
 if (!SUPABASE_URL || !SECRET) { console.error('missing supabase env'); process.exit(1) }
