@@ -91,6 +91,28 @@ describe('<Price> jobMeta (card only)', () => {
     expect(el.className).not.toMatch(/\btext-price\b/)
   })
 
+  // The LIST ROW's job line (compact-listing-row.tsx, 2026-11-10): the role above it is the strongest line, so the row asks
+  // for the title's size and a regular weight. Both must reach the element that carries the weight, or the row's mock-only
+  // tests would pass while the employer stayed semibold on screen (commit review).
+  it("a caller's size and weight win on the no-figure job slot, and the muted ink stays", () => {
+    const cls = 'text-sm leading-6 sm:shrink-0 font-normal'
+    const employer = root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" linked jobMeta="RMIT University Vietnam" className={cls} />)
+    expect(employer.textContent?.replace(/\s+/g, ' ')).toBe('RMIT University Vietnam')
+    expect(employer.className.split(' ')).toEqual(expect.arrayContaining(['text-sm', 'leading-6', 'font-normal', 'text-muted-foreground', 'truncate']))
+    expect(employer.className).not.toMatch(/\bfont-semibold\b|\btext-base\b/)
+    cleanup()
+    const own = root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" linked={false} className={cls} />)
+    expect(own.textContent).toBe('Salary: negotiable')
+    expect(own.className.split(' ')).toEqual(expect.arrayContaining(['text-sm', 'font-normal', 'text-body']))
+    expect(own.className).not.toMatch(/\bfont-semibold\b/)
+  })
+
+  it('a real salary keeps its bold price ink at the size the row asks for', () => {
+    const el = root(<Price native price={80_000_000} currency="₫" priceUnit="VND/month" listingType="job" linked className="text-sm leading-6 sm:shrink-0" />)
+    expect(el.className.split(' ')).toEqual(expect.arrayContaining(['font-bold', 'text-price', 'text-sm', 'leading-6']))
+    expect(el.className).not.toMatch(/\bfont-normal\b/)
+  })
+
   it('null keeps the no-figure label, in muted ink: a linked job points at the posting', () => {
     const el = root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" linked jobMeta={null} />)
     expect(el.textContent).toBe('Salary: see posting')

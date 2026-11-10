@@ -186,7 +186,25 @@ describe('GoPlus\'s location tail (the info line prints the area)', () => {
   const run = (title: string, sellerId: string, lang = 'en', location: string | null = 'Quận 12 (Phường An Phú Đông)') => cardTitle({ title, lang, sellerId, categorySlug: 'rentals', location })
   it('comes off, in both languages', () => {
     expect(run('Duplex 20 m² · An Phu Dong Ward, District 12', GOPLUS)).toBe('Duplex 20 m²')
-    expect(run('Căn hộ 1 phòng ngủ 20 m² · Phường Đức Nhuận, Quận Phú Nhuận', GOPLUS, 'vi')).toBe('Căn hộ 1 phòng ngủ 20 m²')
+    expect(run('Căn hộ 1 phòng ngủ 20 m² · Phường Đức Nhuận, Quận Phú Nhuận', GOPLUS, 'vi')).toBe('Căn hộ 1PN 20 m²')
+  })
+  // 2026-11-10: "2-bedroom apartment 45 m²" is 25 characters on a line that holds about 22, so the one template naming its rooms lost its size.
+  it('writes the bedroom count short, so the size stays on the card\'s one line', () => {
+    expect(run('1-bedroom apartment 20 m² · Duc Nhuan Ward, Phu Nhuan District', GOPLUS)).toBe('1-bed apartment 20 m²')
+    expect(run('3-bedroom apartment 80 m² · Hoa Hung Ward, District 10', GOPLUS)).toBe('3-bed apartment 80 m²')
+    expect(run('Căn hộ 2 phòng ngủ 45 m² · Phường Hòa Hưng, Quận 10', GOPLUS, 'vi')).toBe('Căn hộ 2PN 45 m²')
+    // With no size, and with the tail kept (the info line would print only the city): the count is still short.
+    expect(run('2-bedroom apartment · Tan Hung Ward, District 7', GOPLUS)).toBe('2-bed apartment')
+    expect(run('2-bedroom apartment 45 m² · Tan Hung Ward, District 7', GOPLUS, 'en', 'Hồ Chí Minh')).toBe('2-bed apartment 45 m² · Tan Hung Ward, District 7')
+    // No tail at all, under a location that names an area: the count is short and nothing else is cut (commit review).
+    expect(run('2-bedroom apartment 45 m²', GOPLUS)).toBe('2-bed apartment 45 m²')
+    expect(run('Căn hộ 2 phòng ngủ 45 m²', GOPLUS, 'vi')).toBe('Căn hộ 2PN 45 m²')
+  })
+  it('only at the start of GoPlus\'s own template', () => {
+    expect(run('Duplex 20 m² near a 2-bedroom apartment · An Phu Dong Ward, District 12', GOPLUS)).toBe('Duplex 20 m² near a 2-bedroom apartment')
+    expect(run('2-bedroom apartments wanted · An Phu Dong Ward, District 12', GOPLUS)).toBe('2-bedroom apartments wanted')
+    expect(run('2-bedroom apartment 45 m² · Tan Hung Ward, District 7', 'some-member')).toBe('2-bedroom apartment 45 m² · Tan Hung Ward, District 7')
+    expect(run('Căn hộ 2 phòng ngủ 45 m² — Masteri An Phu', 'honeycomb-import-seller-0001', 'vi')).toBe('Căn hộ 2 phòng ngủ 45 m² — Masteri An Phu')
   })
   it('stays when it would leave one word, or names no place', () => {
     expect(run('Studio · Nha Be Commune, Nha Be District', GOPLUS)).toBe('Studio · Nha Be Commune, Nha Be District')

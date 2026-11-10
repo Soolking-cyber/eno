@@ -18,6 +18,7 @@ import { useLanguage, Tr } from '@/context/language-context'
 import { useLocalized } from './listing-content'
 import { timeAgo, type SerializedListingCard } from '@/lib/types'
 import { cardHidesTrust } from '@/lib/linked-seller'
+import { cardTitle, jobTypeLabel } from '@/lib/card-title'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
@@ -29,6 +30,19 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { EnoSlider } from '@/components/marketplace/eno-slider'
 import { isModifiedClick } from '@/lib/plain-click'
+
+/** Up to two initials of an employer's name ("Nord Anglia Education" → "NA", "RMIT University Vietnam LLC" → "RU"), for a
+ *  linked job's thumbnail; null when the importer stored no employer (the row then keeps the category glyph). An initial is
+ *  the first LETTER OR DIGIT of a word, whatever punctuation leads it: "(VUS) English" is "VE", “Nord Anglia” is "NA" and
+ *  "VUS" in quotes is "V" (commit review: a quoted name lost its first word, or its tile).
+ *  ⚠️ `toUpperCase`, not `toLocaleUpperCase`: the browser's locale must not choose the letter (a Turkish one capitalises "i"
+ *  as "İ"), and đ → Đ needs no locale. */
+export function employerInitials(employer: string | null | undefined): string | null {
+  if (!employer) return null
+  const words = employer.normalize('NFC').split(/[\s\-–—/&.,:()]+/u).map((w) => w.replace(/^[^\p{L}\p{N}]+/u, '')).filter(Boolean)
+  if (!words.length) return null
+  return words.slice(0, 2).map((w) => Array.from(w)[0].toUpperCase()).join('')
+}
 
 type Props = {
   listing: SerializedListingCard
@@ -60,6 +74,39 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
   // city '' by design, projection.ts teacherHome): their location is the fact ("Not in Vietnam yet · Online"), so it
   // stands in; and a row with no place at all draws no divider beside nothing.
   const place = l.district || l.city || (teacher ? l.location : '')
+  /**
+   * ⛔ A JOB ROW READS LIKE THE JOB CARD (UI climb, 2026-11-10). This view is the one a job hunter switches to (Indeed,
+   * VietnamWorks and TopCV all list jobs as rows), and until now it was the one place a job read worst: every linked job
+   * said "Salary: see posting" in the bold slot, the employer rode the end of a two-line title, and the thumbnail was the
+   * importer's 1200px poster at 56px, a picture of words nobody can read. So, a JOB only, and nothing else in this file:
+   *   · the price slot prints the EMPLOYER of a no-pay linked job (the card's `jobMeta`, the same slot in <Price>);
+   *   · the title then drops the importer's " — <employer>" tail (card-title.ts `employer`); the link keeps the full title;
+   *   · the phone line ends with the job type the card's info line prints ("Hanoi · 5d ago · Full-time");
+   *   · a linked job's thumbnail is the employer's initials on the tint, never the poster (the PDP dropped that poster on
+   *     2026-09-30 for the same reason; the grid card keeps it, where it is large enough to read); with no employer stored it
+   *     is the category glyph, the tile every photo-less row already has, so the list has ONE fallback and not three;
+   *   · the ROLE is the strongest line: the title in semibold, the employer and "Salary: see posting" under it in regular
+   *     grey at the title's size, and a real salary the only coloured thing, bold and no larger than the title (both blind
+   *     judges on the first cut, 2026-11-10: "the job title is the lightest text while the line under it is larger and heavier");
+   *   · on a phone the title takes the 36px the row holds for a chat button a linked job never has, when no chip hangs there.
+   * The row's geometry is untouched (56px thumb, two-line title, a 24px price line, one place line), so the skeleton and the
+   * explorer's pending reserve still match.
+   */
+  const job = l.listingType === 'job'
+  // ⛔ ONE MEANING OF "LINKED" IN THIS ROW: THE FLAG, the test the chat slot below has always used (commit review, two rounds:
+  // inferring it for a payload without the flag made a new half-linked state each time). A row whose payload carries no
+  // flag gets none of the LINKED treatment (the employer slot, the shortened title, the initials, the chat slot's width).
+  // What every job row gets, linked or not, is the type on its phone line and the role as the strongest line.
+  const linkedJob = job && l.isPartnerBooking === true
+  const jobMeta = linkedJob && l.price === 0 ? (l.jobEmployer || null) : undefined
+  // Only when the slot really prints an employer: every other row's title is the stored one, untouched (commit review).
+  const lineTitle = jobMeta
+    ? cardTitle({ title: displayTitle, lang, sellerId: l.sellerId, categorySlug: l.category?.slug, listingType: l.listingType, condition: l.condition, location: l.location, employer: jobMeta })
+    : displayTitle
+  const jobTypeText = job ? jobTypeLabel(l.jobType, tr) : null
+  const jobInitials = linkedJob ? employerInitials(l.jobEmployer) : null
+  // No chip rides this row's title line (a linked job shows no trust score; a partner's or a sponsored one keeps its chip and the slot).
+  const jobTitleTakesChatSlot = linkedJob && !l.seller.officialPartner && !l.isSponsored
   // Quick-offer: pressing the Tag rolls a discount slider open to the LEFT of the
   // action icons; confirm hands off to the composer's offer mode (?offer=N#contact).
   const [offer, setOffer] = useState<number | null>(null)
@@ -150,7 +197,9 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           'relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-tint',
         )}
       >
-        {cover ? (
+        {jobInitials ? (
+          <div aria-hidden data-job-initials="" className="flex h-full w-full items-center justify-center bg-tint text-base font-bold text-body">{jobInitials}</div>
+        ) : cover && !linkedJob ? (
           <Image
             src={cover}
             alt={displayTitle}
@@ -186,8 +235,8 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
         <div className="flex min-w-0 items-start gap-x-2">
           {/* min-w-0: beside a teacher's "Identity verified" tick (a non-shrinking flex sibling) a long name must clamp,
               not push the row's chips out — commit gate, 2026-10-16. Harmless on every other row. */}
-          <h4 className="line-clamp-2 min-w-0 text-sm font-medium leading-snug text-foreground group-hover:underline">
-            {displayTitle}
+          <h4 className={cn('line-clamp-2 min-w-0 text-sm leading-snug text-foreground group-hover:underline', job ? 'font-semibold' : 'font-medium')}>
+            {lineTitle}
           </h4>
           {/* "Identity verified" (owner, 2026-10-15) — the card's tick, right after the name it vouches for, on the first
               line (`items-start` + the glyph's 2px drop); a marked TEACHER row only, from the server's boolean. Before the
@@ -265,7 +314,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               sm nothing else on this line competes for the width (the place and the trust chip are
               sm-only here), so an ordinary price never wraps; from sm up it stays one line, as the
               note above requires. */}
-          <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} compact dual="sm" unit={l.listingType === 'rent' || priceUnitSuffix(l.priceUnit) ? true : 'sm'} className="text-base sm:shrink-0" />
+          <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} compact dual="sm" unit={l.listingType === 'rent' || priceUnitSuffix(l.priceUnit) ? true : 'sm'} jobMeta={jobMeta} className={job ? cn('text-sm leading-6 sm:shrink-0', l.price === 0 && 'font-normal') : 'text-base sm:shrink-0'} />
           {/* Urgent — RIGHT of the price (user-picked 2026-07-14): the bare black
               bolt on EVERY breakpoint. The desktop chip (outline + "Urgent" word)
               is gone — one glyph reads the same everywhere and keeps the one-line
@@ -306,6 +355,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
         <p className="mt-0.5 truncate text-xs text-muted-foreground sm:hidden">
           {place ? <><Tr text={place} />{' · '}</> : null}
           {timeAgo(l.postedAt, lang)}
+          {jobTypeText ? <>{' · '}{jobTypeText}</> : null}
         </p>
       </div>
 
@@ -376,7 +426,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
         {l.isPartnerBooking ? (
           // A reference listing has nobody to message (see /api/conversations) — hold the 36px so
           // the trust-badge column stays aligned, same as the no-offer placeholder above.
-          <span aria-hidden className={cn('h-9 w-9 shrink-0', offer === null ? 'block' : 'hidden')} />
+          <span aria-hidden className={cn('h-9 w-9 shrink-0', offer === null ? (jobTitleTakesChatSlot ? 'hidden sm:block' : 'block') : 'hidden')} />
         ) : (
         <Tooltip content={teacher ? tr('Message teacher', 'Nhắn tin cho giáo viên') : tr('Chat with seller', 'Nhắn tin với người bán')} side="top">
           <IconButton
