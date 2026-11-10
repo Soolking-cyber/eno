@@ -1,5 +1,6 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
+import { PdpBackButton } from '@/components/marketplace/pdp-back-button'
 import { categoryBrowsePath } from '@/lib/retired-categories'
 import { pdpBreadcrumbLd, subcategoryCrumb } from '@/lib/pdp-breadcrumb'
 import { FREE_TEXT_ATTRIBUTES, TEACHER_SEEKING_POST, detailRowLabel, isLicenceCheckSlot, isVisaProductSlot, salaryPriceFor } from '@/lib/taxonomy'
@@ -1015,9 +1016,18 @@ export default async function ListingPage({ params }: Props) {
               full-bleed square. It is the first block of the phone's order (order-2; nothing above it shows below md),
               and only it pulls up: a page without a gallery (`noGallery`) keeps the padding over its buy box. This one
               wrapper covers both gallery branches — the single photo and the carousel render inside it. */}
+          {/* ⛔ ON A PHONE THE PAGE OPENS ON THIS PHOTO, WITH NO SITE HEADER ABOVE IT (owner, 2026-11-10: item 3 of the decision
+              scorecard; blind A/B against the header-on-top page: codex 7.32 to 7.55, Fable 7.60 to 7.92). `data-photo-first`
+              is the one hook: globals.css hides `#app-header` below md on a page that carries it and shows the Back control
+              below, which stands in for the way back the header gave (pdp-back-button.tsx). Only a page with a gallery has
+              the hook, so a linked job and a teacher's profile, which have no photo to open on, keep the header. */}
           {!noGallery && (
-          <div className="relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden">
+          <div data-photo-first="" className="relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden">
             <ListingGallery variant="mobile" images={listing.images} title={galleryTitle} video={listing.video} showAllLabel="View all photos" />
+            {/* Back: opposite Share and Save, the same offsets. Its fallback is the listing's category, for a visitor who opened the listing cold. */}
+            <div className="absolute left-3 top-3 z-10 flex items-center">
+              <PdpBackButton fallbackHref={localizedHref(categoryBrowsePath(rawListing.category.slug), pageVariant)} />
+            </div>
             <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
               <ShareButton url={canonicalUrl} title={displayTitle} price={listing.listingType === 'job' ? undefined : listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact />
               <SaveListingButton id={listing.id} compact />
@@ -1399,7 +1409,17 @@ export default async function ListingPage({ params }: Props) {
                   See the notes in safety-strip.tsx and protections-row.tsx for why the merge went
                   in this direction rather than the other.
                   `order-7` (2026-11-05): after the seller and the costs, before the description (slot 8), so a buyer meets the warning
-                  while deciding to contact, on a phone as on desktop, instead of after the whole listing. */}
+                  while deciding to contact, instead of after the whole listing.
+                  ⛔ ON A PHONE IT NOW FOLLOWS THE LISTING'S OWN FACTS: `order-9` below md (owner, 2026-11-10: "also 8 Safety notes
+                  after the description do it", item 8 of the decision scorecard). There the page is one column, and this block
+                  stood between the costs and the description: a third of the second screen was cautions and a red Report link
+                  before the item had been described. Blind A/B: codex 7.25 to 7.47, Fable 7.20 to 7.31, and both took trust
+                  down by 0.2 because the deposit warning is met a screen later; the owner was shown that and chose it. Slot 9
+                  is after the description, the details and the Decree's seller information (all slot 8) and before the
+                  reviews (10) and the map (11). From md the buy box is its own column and nothing moves (`md:order-7`).
+                  ⚠️ ONE STRIP, MOVED BY `order`, NOT A PHONE TWIN: the reports row inside it must exist once on the page
+                  (e2e/ci/protections-row.spec.ts counts it, and a second copy once made strict locators throw). The DOM
+                  order, which a screen reader follows, is unchanged: costs, this block, then the description. */}
               {/* The storefront link, DESKTOP/TABLET: in the buy box, right under the action it answers for (who am I contacting?),
                     which also lets the photo start level with the price; hidden below md (mobile twin above). */}
               <div className="order-7 hidden md:block">
@@ -1409,7 +1429,7 @@ export default async function ListingPage({ params }: Props) {
               {/* A RENTAL'S COSTS SIT WITH THE ACTION, as a booking card's fee lines do (Airbnb; 2026-11-05): the deposit and the monthly
                   fees decide a rental, and they were a screen below Chat now while the column beside it stood empty. */}
               {costRows.length > 0 && <div className="order-7"><RentalCosts rent={monthlyRent} rows={costRows} /></div>}
-              <div className="order-7">
+              <div data-safety-block="" className="order-9 md:order-7">
                 {/*
                   * ⛔ NO REPORTS-AND-DISPUTES ROW ON A PARTNER LISTING. ProtectionsRow explains eno's
                   * report process and tells the buyer to pay the seller directly after meeting, and

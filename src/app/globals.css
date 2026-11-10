@@ -2392,6 +2392,42 @@ html.os-android [data-store="ios"] {
   display: none !important;
 }
 
+/* ⛔ ON A PHONE A LISTING WITH PHOTOS OPENS ON ITS PHOTO: NO SITE HEADER (owner, 2026-11-10: item 3 of the decision scorecard).
+   The header spent 56px of a listing's first screen on a logo, search, voice, notifications and install, none of them about
+   this listing; without it the photo starts at the top and the whole seller line fits the first screen (blind A/B: codex
+   7.32 to 7.55, Fable 7.60 to 7.92). The owner took the cost: the logo and the search field are not on this page; search is
+   one tap away on the Explore tab.
+   · `[data-photo-first]` is on the phone gallery of a listing page (listings/[id]/(pdp)/page.tsx), so this is decided by
+     the server's HTML and holds from the first frame: nothing shifts. A page without a gallery (a linked job, a teacher's
+     profile) has no hook and keeps its header.
+   · Below md only: from md the gallery is one column of two and the header stays.
+   · `html:not(.native)`: the store apps keep their header (their top bar is theirs to change, with a store review behind it).
+   · The Back control over the photo (pdp-back-button.tsx) is shown by the SAME condition, so a browser without `:has()`
+     keeps the header and shows no second Back.
+   · ⚠️ THE NOTCH. In the installed PWA the page runs under the status bar and `#status-bar-backdrop` covers that strip in
+     the page colour. The header used to supply the inset; with it gone <main> takes it, so the photo starts under the strip
+     and the controls over the photo are never behind it. In a browser tab the inset is 0 and the photo starts at the top.
+     UNLAYERED, so it beats <main>'s `pt-4` utility; 1rem is that same padding, which the gallery's `-mt-4` takes back.
+   · ⚠️ THE VIDEO CHIP. A listing whose first slide is a video carries a "Video" chip in the photo's top-left corner
+     (listing-gallery.tsx), exactly where Back now sits: the arrow covered the word (commit review, measured: chip at 8,8,
+     Back at 12,12). While Back is shown the chip stands beside it: 3.5rem is Back's 12px + 36px + 8px, 1.25rem centres the
+     19px chip on Back's 36px. Anywhere Back is not shown the chip keeps its corner. */
+@media (max-width: 767.98px) {
+  html:not(.native):has(main [data-photo-first]) #app-header {
+    display: none;
+  }
+  html:not(.native):has(main [data-photo-first]) main#main {
+    padding-top: calc(1rem + max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px)));
+  }
+  html:not(.native):has(main [data-photo-first]) [data-photo-back] {
+    display: flex;
+  }
+  html:not(.native):has(main [data-photo-first]) [data-photo-first] [data-video-chip] {
+    left: 3.5rem;
+    top: 1.25rem;
+  }
+}
+
 /* ⚠️ THE INSTALLED PWA GETS A BACK BUTTON WHERE THE LOGO WAS. manifest.ts installs the site as
    `display: standalone` (the owner's only route to iOS web push), which removes the browser's own Back
    — so a listing opened from a notification had no way back but the tab bar. header.tsx renders

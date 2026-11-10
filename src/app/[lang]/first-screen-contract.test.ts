@@ -74,9 +74,12 @@ describe('the first screen', () => {
     expect(s.match(/className=\{OTHER_CATEGORY_CHIP\}/g)).toHaveLength(2)
   })
 
-  it('the PDP: the phone gallery sits flush under the header (`-mt-4` takes back <main>\'s pt-4)', () => {
+  // Since 2026-11-10 (owner, item 3 of the decision scorecard) a phone hides the header on this page, so "flush under the
+  // header" is "at the top of the page" there: the same `-mt-4`, and the wrapper now carries the hook that hides it
+  // (`data-photo-first`; the rules and their pins are in (pdp)/photo-first.contract.test.ts).
+  it('the PDP: the phone gallery sits flush under the header, or at the top where a phone hides it (`-mt-4` takes back <main>\'s pt-4)', () => {
     const s = code('src/app/[lang]/listings/[id]/(pdp)/page.tsx')
     expect(s).toMatch(/<main id="main"[^>]*className="[^"]*\bpt-4\b/)
-    expect(s).toMatch(/<div className="relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden">\s*<ListingGallery variant="mobile"/)
+    expect(s).toMatch(/<div data-photo-first="" className="relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden">\s*<ListingGallery variant="mobile"/)
   })
 })

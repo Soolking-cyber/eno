@@ -141,6 +141,27 @@ const VARIANTS = {
   overlay: 'plate-host text-white dark:text-neutral-900',
 } as const
 
+/**
+ * The icon button's shell as a class string, for the one thing <IconButton> cannot be: a LINK that looks like one
+ * (`<Button asChild variant="bare" size="none" className={iconButtonClass(…)}><Link …/></Button>`, the bridge ui/button
+ * documents: the child stays a real `<a href>`, announced as a link). The component below builds its own class from this
+ * same function, so the two cannot drift.
+ */
+export function iconButtonClass({ size = 'md', variant = 'ghost', tapTarget = true, className }: {
+  size?: keyof typeof SIZES
+  variant?: keyof typeof VARIANTS
+  tapTarget?: boolean
+  className?: string
+} = {}): string {
+  return cn(
+    'relative flex shrink-0 cursor-pointer items-center justify-center rounded-full',
+    tapTarget && 'tap-44',
+    SIZES[size],
+    VARIANTS[variant],
+    className,
+  )
+}
+
 export function IconButton({
   size = 'md',
   variant = 'ghost',
@@ -166,13 +187,7 @@ export function IconButton({
     <ButtonPrimitive
       type={type}
       data-slot="icon-button"
-      className={cn(
-        'relative flex shrink-0 cursor-pointer items-center justify-center rounded-full',
-        tapTarget && 'tap-44',
-        SIZES[size],
-        VARIANTS[variant],
-        className,
-      )}
+      className={iconButtonClass({ size, variant, tapTarget, className })}
       {...props}
     >
       {children}

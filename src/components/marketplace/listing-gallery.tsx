@@ -126,7 +126,9 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
       )}
       {/* z-10: the cover overlay is z-[5] and would otherwise paint over this z-auto chip
           (permanently, for needsTap viewers whose cover never reveals). */}
-      <span className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-1 rounded-lg bg-black/55 px-1.5 py-0.5 text-2xs font-bold text-white material backdrop-blur-[2px]">
+      {/* `data-video-chip`: on a phone's photo-first listing page Back sits in this corner, and the stylesheet moves the chip
+          beside it (globals.css, the `[data-photo-first]` rules). */}
+      <span data-video-chip="" className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-1 rounded-lg bg-black/55 px-1.5 py-0.5 text-2xs font-bold text-white material backdrop-blur-[2px]">
         <Play className="h-3 w-3 fill-current" /> {tr('Video', 'Video')}
       </span>
       {showPlayGlyph && (
