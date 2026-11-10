@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { IN_APP_ONLY } from '@/lib/in-app-listing'
 import type { Prisma } from '@/generated/prisma/client'
+import { railListing } from './rail-listing'
 
 /** "Outstanding businesses" rail data — ONE flagship (most-viewed active) listing per
  *  highest-trust business storefront. Single source for GET /api/businesses/top AND the
@@ -58,5 +59,6 @@ export async function topBusinessListings() {
     ),
   )
 
-  return rows.filter((l): l is NonNullable<typeof l> => !!l).map(serializeListing)
+  // Without the description: no rail card reads it (rail-listing.ts).
+  return rows.filter((l): l is NonNullable<typeof l> => !!l).map((l) => railListing(serializeListing(l)))
 }

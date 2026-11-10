@@ -4,6 +4,7 @@ import { safeParse, serializeListing } from '@/lib/serialize'
 import { diversifyRail } from '@/lib/feed-diversity'
 import { inAppOnly } from '@/lib/in-app-listing'
 import { Prisma } from '@/generated/prisma/client'
+import { railListing } from './rail-listing'
 
 const LIMIT = 16
 /**
@@ -63,9 +64,10 @@ export async function diverseRailListings(
     include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
   })
   const byId = new Map(rows.map((r) => [r.id, r] as const))
+  // Without the description: no rail card reads it (rail-listing.ts).
   return picked.flatMap((id) => {
     const r = byId.get(id)
-    return r ? [serializeListing(r)] : []
+    return r ? [railListing(serializeListing(r))] : []
   })
 }
 
@@ -110,7 +112,11 @@ export async function trendingRailListings({ excludeIds }: { excludeIds?: readon
   // ⚠️ A PROBE, NOT count(): the guard only asks "are there at least MIN_POOL?", and the exact number was never used.
   // /api/recommendations serves this uncached, and the COUNT over every live in-app row measured ~128 ms a call on prod
   // (pg_stat_statements, speed audit 2026-11-01); the MIN_POOL-th row answers the same question and stops there.
-  const lastNeeded = await db.listing.findFirst({ where: base, skip: MIN_POOL - 1, select: { id: true } })
+  // ⚠️ ORDERED BY rankScore, NOT LEFT BARE (speed audit 2026-11-10, db-02): with `skip` and no orderBy Prisma adds
+  // `ORDER BY id ASC`, which sorts every live in-app row first (~17 ms, ~4,000 buffers a call on prod). `rankScore DESC`
+  // walks Listing_live_rankScore_idx backward and stops at the 24th match (~0.5 ms). Whether a 24th row exists does not
+  // depend on the order.
+  const lastNeeded = await db.listing.findFirst({ where: base, orderBy: [{ rankScore: 'desc' }], skip: MIN_POOL - 1, select: { id: true } })
   if (!lastNeeded) return []
   // ⚠️ /api/recommendations calls this with no ids and gets exactly the rail it always served.
   return diverseRailListings(base, TRENDING_ORDER, { pool: POOL, take: LIMIT, excludeIds })

@@ -10,10 +10,11 @@ const findMany = vi.fn()
 const findFirst = vi.fn()
 vi.mock('@/lib/db', () => ({ db: { listing: { findMany: (a: unknown) => findMany(a), findFirst: (a: unknown) => findFirst(a) } } }))
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: unknown) => w }))
-// The serializer's own shape is not under test: keep the id so the order can be read.
+// The serializer's own shape is not under test: keep the id so the order can be read, and the two description columns
+// so R20's strip can be.
 vi.mock('@/lib/serialize', () => ({
   safeParse: (v: unknown, d: unknown) => (typeof v === 'string' ? JSON.parse(v) : d),
-  serializeListing: (r: { id: string }) => ({ id: r.id }),
+  serializeListing: (r: { id: string }) => ({ id: r.id, description: 'Long text', descriptionVi: 'Văn bản dài' }),
 }))
 
 const { trendingRailListings } = await import('./trending-rail')
@@ -73,6 +74,19 @@ describe('trendingRailListings', () => {
   })
 })
 
+// Speed plan R20 (2026-11-10): Trending (the home seed and /api/recommendations' fallback) and the personalized For You
+// answer both come from here, both draw only cards, and no card reads the description (rail-listing.ts).
+describe('diverseRailListings — no description on the wire', () => {
+  it('the trending rail and the personalized one ship no description or descriptionVi', async () => {
+    const { diverseRailListings } = await import('./trending-rail')
+    const trending = await trendingRailListings()
+    const personal = await diverseRailListings({ verified: true }, [{ views: 'desc' }], { pool: 48, take: 16 })
+    expect(trending).toHaveLength(16)
+    expect(personal).toHaveLength(16)
+    for (const r of [...trending, ...personal]) expect(Object.keys(r)).toEqual(['id'])
+  })
+})
+
 // ⛔ ONLY LISTINGS DEALT ON eno (owner, 2026-10-28 — in-app-listing.ts): Trending is a home-page rail, and its pool probe
 // (the thin-catalogue guard), its pick and its whole-row read all read the narrowed predicate.
 describe('trendingRailListings — in-app listings only', () => {
@@ -91,6 +105,12 @@ describe('trendingRailListings — the thin-catalogue guard', () => {
   it('asks for the 24th row and no column it does not need', async () => {
     await trendingRailListings()
     expect(findFirst.mock.calls[0][0]).toMatchObject({ skip: 23, select: { id: true } })
+  })
+  // ⚠️ db-02 (speed audit 2026-11-10): left without an orderBy, Prisma sorts the probe by id, which sorts every live
+  // in-app row (~17 ms a call); rankScore DESC walks the live rankScore index and stops at the 24th row (~0.5 ms).
+  it('walks rankScore DESC, so the probe stops at the 24th row instead of sorting the catalogue by id', async () => {
+    await trendingRailListings()
+    expect(findFirst.mock.calls[0][0].orderBy).toEqual([{ rankScore: 'desc' }])
   })
   it('no 24th row: the rail hides and reads nothing else', async () => {
     findFirst.mockResolvedValue(null)

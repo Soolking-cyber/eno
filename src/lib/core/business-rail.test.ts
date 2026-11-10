@@ -34,7 +34,8 @@ vi.mock('@/lib/edition-scope', () => ({
   marketplaceListingScope: async () => ({ sellerId: { notIn: ['desk'] } }),
   teacherExclusion: async () => (h.teachersId ? { categoryId: { not: h.teachersId } } : null),
 }))
-vi.mock('@/lib/serialize', () => ({ serializeListing: (l: Row) => ({ id: l.id, sellerId: l.sellerId }) }))
+// The serializer's own shape is not under test; the two description columns are kept so R20's strip can be read.
+vi.mock('@/lib/serialize', () => ({ serializeListing: (l: Row) => ({ id: l.id, sellerId: l.sellerId, description: 'Long text', descriptionVi: 'Văn bản dài' }) }))
 vi.mock('@/lib/db', () => ({
   db: {
     seller: {
@@ -102,6 +103,19 @@ describe('topBusinessListings — no teacher profile on the businesses rail', ()
     const rows = await topBusinessListings()
     expect(rows.map((r) => r.id)).toEqual(['demo-teacher', 'school-teacher', 'shop-goods'])
     expect(JSON.stringify(h.sellerWheres[0])).not.toContain('cat-teachers')
+  })
+})
+
+// Speed plan R20 (2026-11-10): the rail draws only cards, and no card reads the description (rail-listing.ts).
+describe('topBusinessListings — no description on the wire', () => {
+  it('ships each flagship without description or descriptionVi, every other field as serialized', async () => {
+    const rows = await topBusinessListings()
+    expect(rows.length).toBeGreaterThan(0)
+    for (const r of rows) {
+      expect(r).not.toHaveProperty('description')
+      expect(r).not.toHaveProperty('descriptionVi')
+    }
+    expect(rows[0]).toEqual({ id: 'eno-goods', sellerId: 'eno-co' })
   })
 })
 
