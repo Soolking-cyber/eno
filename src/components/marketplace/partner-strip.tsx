@@ -19,8 +19,6 @@ const REPEAT = 3
 const SECONDS_PER_ITEM = 3.8
 /** `sm` and up, in rem like the classes that show and hide the two placements (a larger default font moves all of them together). */
 const SM_UP = '(min-width: 40rem)'
-/** A transparent 1×1 GIF: what the top copy's `<img>` shows below `sm`, where it is hidden (why: PartnerItem). */
-const BLANK_GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
 
 /**
  * The home page's partner band (owner, 2026-11-09): eno's official partners' own logos, each with one word for what they do,
@@ -59,10 +57,10 @@ const BLANK_GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAA
 export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed' }) {
   const { tr } = useLanguage()
   const partners = stripPartners()
-  // From `sm` up only, so a phone fetches nothing for the hidden top copy (why and what was measured: PartnerItem).
+  // From `sm` up only, and ahead of the stylesheets (why and what was measured: PartnerItem).
   // ⚠️ React keys an image preload by its href and the first one wins: a plain eager `<img>` of one of these files
   // rendered earlier on the page would preload it for every width. Today nothing else on the page draws them eagerly.
-  if (placement === 'top') for (const p of partners) preload(p.logo.src, { as: 'image', media: SM_UP })
+  if (placement === 'top') for (const p of partners) preload(p.logo.src, { as: 'image', media: SM_UP, fetchPriority: 'high' })
   const [looping, setLooping] = useState(false)
   const [paused, setPaused] = useState(false)
   const viewport = useRef<HTMLDivElement>(null)
@@ -91,7 +89,7 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
   // Server: the roster once. Browser: two halves of REPEAT rosters each; only the very first roster is the real one.
   const copies = looping ? REPEAT * 2 : 1
   const items = Array.from({ length: copies }, (_, copy) =>
-    partners.map((p) => <PartnerItem key={`${copy}-${p.handle}`} partner={p} repeat={copy > 0} label={label(p)} placement={placement} />))
+    partners.map((p) => <PartnerItem key={`${copy}-${p.handle}`} partner={p} repeat={copy > 0} label={label(p)} />))
   const duration = { '--partner-strip-duration': `${Math.round(partners.length * REPEAT * SECONDS_PER_ITEM)}s` } as CSSProperties
   return (
     <section
@@ -123,39 +121,40 @@ export function PartnerStrip({ placement = 'top' }: { placement?: 'top' | 'feed'
 }
 
 /**
- * ⛔ A PHONE NEVER FETCHES THE TOP COPY'S LOGOS, AND A DESKTOP STILL HAS THEM IN ITS FIRST PAINTED FRAME (speed plan
- * R26, 2026-11-10; corrected 2026-11-11). React puts a `<link rel="preload" as="image">` in `<head>` for every plain
- * `<img>` it server-renders, so all five logos were fetched with the CSS and fonts on every phone home view, ahead of
- * the first paint, though the top copy is hidden there (FCP −132 ms without them on the 1.6 Mbps phone profile).
- *   · `top`, the server's row: the logo is the `<source>` of a `<picture>` that matches from `sm` up, over a blank
- *     `<img>`, so below `sm` the browser takes the blank and fetches nothing. React preloads nothing inside a
- *     `<picture>`, and ⛔ THE BROWSER'S OWN SCAN IS NOT EARLY ENOUGH: measured in Chromium at 1280px, the band's first
- *     painted frame had 0 of 5 logos in 15 of 15 loads (3–5 of 5 with the old preload), the requests starting at first
- *     paint instead of with the CSS. So PartnerStrip asks for each logo itself with `preload(…, { media })`: the same
- *     early fetch as before from `sm` up, and no request at all below it (a preload whose media does not match is
- *     never fetched). The `<img>` keeps the alt and the logo's width/height, which size it while the logo loads.
- *   · `top`, the repeats: they exist only while this copy loops, which is only from `sm` up, so they are plain
- *     `<img>`s. As `<picture>`s WebKit fetched all five logos a second time after hydration.
+ * ⛔ A PHONE NEVER FETCHES THE TOP COPY'S LOGOS, AND A DESKTOP HAS THEM IN ITS FIRST PAINTED FRAME (speed plan R26,
+ * 2026-11-10; third version 2026-11-11, each one measured in real browsers against the live build).
+ * React puts a `<link rel="preload" as="image">` in `<head>` for every plain eager `<img>` it server-renders, so all
+ * five logos were fetched with the CSS and fonts on every phone home view, ahead of the first paint, though the top
+ * copy is hidden there (FCP −132 ms without them on the 1.6 Mbps phone profile).
+ *   · `top`, the server's row: `<img loading="lazy">`. React preloads no lazy image, and a lazy image in a
+ *     `display: none` band (below `sm`) is never fetched (a browser with no lazy loading, iOS before 15.4, or with
+ *     scripting off fetches them, as every phone did before). From `sm` up a lazy image alone is late (requests at 140 ms,
+ *     0 of 5 logos in the first painted frame), so PartnerStrip preloads each logo itself, with the band's own media
+ *     query and ⛔ `fetchPriority: 'high'`: that is what makes React write the link AHEAD of the stylesheets, where the
+ *     old automatic preloads sat. Without it the link lands after the CSS and ~47 script tags and the logos still miss
+ *     the first frame (0 of 5 in 21 of 21 loads); with it 5 of 5, at full speed and at 1.6 Mbps (the live build: 5 and
+ *     3 of 5). A preload whose media does not match is not fetched (Firefox notes each one in the console).
+ *     ⚠️ THE PRICE, MEASURED: high priority puts 35 KB of logos ahead of the CSS, so a desktop's first paint is a
+ *     little later than the live build's (median +8 ms unthrottled, +24 ms at 10 Mbps, +84 ms at 1.6 Mbps, n=3 each);
+ *     with the logos left to arrive late it was 140 ms EARLIER at 1.6 Mbps but the band painted empty. Chosen: a
+ *     complete first frame on desktop. On a phone at 1.6 Mbps first paint is 100–190 ms earlier than the live build's.
+ *     WebKit: each logo reaches the server once per view (checked with a persistent profile and production's
+ *     Cache-Control; a throwaway profile shows a second, cache-less fetch that visitors do not make).
+ *     ⛔ NOT A `<picture>` over a blank image (the first version): WebKit then downloaded every logo twice.
+ *   · `top`, the repeats: they exist only while this copy loops, which is only from `sm` up: plain eager `<img>`s.
  *   · `feed` (phones only, display:none from `sm` up so a desktop never fetches it): `loading="lazy"` on the server's
  *     row, loaded once it is laid out, and never preloaded. Its repeats, which exist only after hydration, stay
  *     eager: they put every logo in the cache before the loop slides a clipped one in from the right, where a browser
  *     that lazy-loads with no margin would show it empty until its own request came back.
  */
-function PartnerItem({ partner: p, repeat, label, placement }: { partner: StripPartner; repeat: boolean; label: string; placement: 'top' | 'feed' }) {
+function PartnerItem({ partner: p, repeat, label }: { partner: StripPartner; repeat: boolean; label: string }) {
   const fit = p.size === 'wide' ? 'partner-strip-logo-wide' : 'partner-strip-logo'
   return (
     <li className="partner-strip-item" aria-hidden={repeat || undefined} data-copy={repeat ? '1' : '0'}>
       {/* Accessible name = the logo's alt (the partner's name) + the visible word: "GoPlus Apartments". */}
       <Link href={`/${p.handle}`} prefetch={false} tabIndex={repeat ? -1 : undefined} className="partner-strip-link">
         <span className={p.dark ? 'partner-strip-tile partner-strip-tile-dark' : 'partner-strip-tile'}>
-          {placement === 'top' && !repeat ? (
-            <picture>
-              <source media={SM_UP} srcSet={p.logo.src} />
-              <img src={BLANK_GIF} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
-            </picture>
-          ) : (
-            <img src={p.logo.src} loading={repeat ? undefined : 'lazy'} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
-          )}
+          <img src={p.logo.src} loading={repeat ? undefined : 'lazy'} alt={p.name} width={p.logo.width} height={p.logo.height} className={fit} />
         </span>
         <span className="text-xs font-medium text-ink-4">{label}</span>
       </Link>
