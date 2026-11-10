@@ -131,8 +131,21 @@ describe('useDashboard error', () => {
     expect(result.current.dash).not.toBeNull()
   })
 
-  it('⛔ the cache is a summary: a page that lists listings gets the error, never the cache read as "no listings"', async () => {
-    localStorage.setItem('eno-dashboard', JSON.stringify({ userId: 'u1', dashboard: DASH }))
+  it('a page that lists listings keeps the device\'s rows on screen when the refetch fails, with the error beside them', async () => {
+    // What the live build did before the summary existed: My listings never fell back to an error page over a saved copy.
+    localStorage.setItem('eno-dashboard', JSON.stringify({ userId: 'u1', dashboard: { ...DASH, listings: [{ id: 'L1' }] } }))
+    queue = [{ status: 503 }]
+    const { useDashboard } = await import('./use-dashboard')
+    const { result } = renderHook(() => useDashboard())
+    await waitFor(() => expect(result.current.error).toBe('failed'))
+    expect(result.current.dash?.listings).toHaveLength(1)
+    expect(result.current.loading).toBe(false)
+    expect(result.current.fresh).toBe(false) // the device's copy is never "fetched this session"
+  })
+
+  it('⛔ a device entry with a summary alone: a page that lists listings gets the error, never the summary read as "no listings"', async () => {
+    // An account whose full answer is over the storage quota has only this.
+    localStorage.setItem('eno-dashboard', JSON.stringify({ userId: 'u1', summary: { tier: 'individual', profile: {}, seller: null, isAdmin: false, hasVisa: false } }))
     queue = [{ status: 503 }]
     const { result } = await mount()
     await waitFor(() => expect(result.current.error).toBe('failed'))
@@ -187,7 +200,8 @@ describe('⛔ Retry re-enters loading (never "loaded and empty" mid-retry)', () 
 /**
  * SUMMARY AND FULL (speed plan R13, audit api-01). The rail, the explorer and the dashboard pages that show no listing
  * read the summary (no listings, no stats); only a page that lists listings reads the full answer. One account's full
- * answer was 16.5 MB, fetched by the desktop rail on every page. The device cache keeps the summary only.
+ * answer was 16.5 MB, fetched by the desktop rail on every page. The device keeps the summary and, when it fits, the
+ * last full answer for the two pages that list listings.
  */
 describe('summary and full views', () => {
   type Held = { url: string; reply: (status: number, body?: unknown) => Promise<void> }
@@ -222,16 +236,170 @@ describe('summary and full views', () => {
     expect(urls()).toEqual([FULL_URL])
   })
 
-  it('⛔ the device cache keeps the summary only — never the listings, the stats or the trust and enforcement panels', async () => {
+  /** The device entry as stored: line 1 parsed (`head`), line 2 parsed (`full`, null when there is none). */
+  const entry = () => {
+    const raw = localStorage.getItem('eno-dashboard')
+    if (raw === null) return null
+    const [line1, ...rest] = raw.split('\n')
+    expect(rest.length).toBeLessThanOrEqual(1)
+    return { raw, head: JSON.parse(line1), full: rest.length ? JSON.parse(rest[0]) : null }
+  }
+  const twoLines = (head: unknown, full: unknown) => `${JSON.stringify(head)}\n${JSON.stringify(full)}`
+
+  it('the device entry: line 1 the summary, line 2 the full answer without the trust and enforcement panels', async () => {
     const p = await page()
-    await held[0].reply(200, { dashboard: { ...FULL, enforcement: { state: 'good_standing', openReports: [] }, trustProgress: null } })
+    await held[0].reply(200, { dashboard: { ...FULL, enforcement: { state: 'good_standing', openReports: [{ id: 'r1' }] }, trustProgress: { step: 2 } } })
     expect(p.result.current.dash?.listings).toHaveLength(1)
-    const cached = JSON.parse(localStorage.getItem('eno-dashboard') || 'null')
-    expect(cached.userId).toBe('u1')
-    expect(cached.summary).toEqual(SUMMARY)
-    // ⛔ Never under `dashboard`: a pre-R13 build (a rollback) reads that as a full answer and reads its listings and
-    // stats unguarded. Without it, that build finds no cache and loads cold.
-    expect(cached).not.toHaveProperty('dashboard')
+    expect(entry()!.head).toEqual({ userId: 'u1', summary: SUMMARY }) // no listings, stats, trust or enforcement
+    expect(entry()!.full).toEqual(FULL) // listings and stats; no report details left on the device
+    // ⛔ A build from before the summary reads this key with one JSON.parse inside a try: two lines must throw there, so
+    // it finds no cache and loads cold instead of reading a summary as the full answer (a TypeError at render).
+    expect(() => JSON.parse(entry()!.raw)).toThrow()
+  })
+
+  it('⛔ a summary answer writes line 1 alone when the device holds no listings: never a `dashboard` an earlier build would misread', async () => {
+    await rail()
+    await held[0].reply(200, { dashboard: SUMMARY })
+    expect(entry()!.raw).toBe(JSON.stringify({ userId: 'u1', summary: SUMMARY }))
+    expect(JSON.parse(entry()!.raw)).not.toHaveProperty('dashboard')
+  })
+
+  it('a summary answer refreshes line 1 and keeps the listings: an entry the live build stored is converted once', async () => {
+    localStorage.setItem('eno-dashboard', JSON.stringify({ userId: 'u1', dashboard: { ...FULL, enforcement: { openReports: [{ id: 'r1' }] } } }))
+    const r = await rail()
+    expect(r.result.current.dash?.hasTeacher).toBe(true) // painted from that entry's account fields
+    await held[0].reply(200, { dashboard: { ...SUMMARY, profile: { displayName: 'Bình' } } })
+    expect(entry()!.head.summary.profile.displayName).toBe('Bình')
+    expect(entry()!.full).toEqual(FULL)
+  })
+
+  it('⛔ two tabs: a summary answer keeps the listings ANOTHER TAB stored meanwhile, not the copy this tab loaded with', async () => {
+    const monday = { ...FULL, listings: [{ id: 'L1', status: 'active' }, { id: 'L-deleted-on-tuesday', status: 'active' }] }
+    localStorage.setItem('eno-dashboard', twoLines({ userId: 'u1', summary: SUMMARY }, monday))
+    const p = await page() // this tab paints Monday's copy, and its own answer still has both listings
+    expect(p.result.current.dash?.listings).toHaveLength(2)
+    await held[0].reply(200, { dashboard: monday })
+    p.unmount()
+    // Another tab deletes a listing and stores its own full answer.
+    localStorage.setItem('eno-dashboard', twoLines({ userId: 'u1', summary: SUMMARY }, FULL))
+    const r = await rail()
+    expect(urls()).toEqual([FULL_URL, SUMMARY_URL])
+    await held[1].reply(200, { dashboard: { ...SUMMARY, profile: { displayName: 'Bình' } } })
+    expect(r.result.current.dash?.profile.displayName).toBe('Bình')
+    expect(entry()!.full).toEqual(FULL) // Tuesday's, not Monday's written back from memory
+  })
+
+  it('⛔ after sign-out cleared the device, a late summary answer does not bring the listings back', async () => {
+    localStorage.setItem('eno-dashboard', twoLines({ userId: 'u1', summary: SUMMARY }, FULL))
+    const p = await page()
+    await held[0].reply(200, { dashboard: FULL })
+    p.unmount()
+    await rail()
+    localStorage.removeItem('eno-dashboard') // sign-out-storage.ts, while the rail's request is still in flight
+    await held[1].reply(200, { dashboard: SUMMARY })
+    expect(entry()!.full).toBeNull()
+  })
+
+  it('⛔ another account\'s listings are never painted, nor written back under this account', async () => {
+    localStorage.setItem('eno-dashboard', twoLines({ userId: 'someone-else', summary: SUMMARY }, FULL))
+    const p = await page()
+    expect(p.result.current.dash).toBeNull()
+    expect(p.result.current.loading).toBe(true)
+    p.unmount()
+    vi.resetModules()
+    held = []
+    const r = await rail()
+    expect(r.result.current.dash).toBeNull()
+    await held[0].reply(200, { dashboard: SUMMARY })
+    expect(entry()!.raw).toBe(JSON.stringify({ userId: 'u1', summary: SUMMARY }))
+  })
+
+  it('an answer that changes nothing writes nothing (the rail asks on every page), with listings stored or without', async () => {
+    for (const seed of [twoLines({ userId: 'u1', summary: SUMMARY }, FULL), JSON.stringify({ userId: 'u1', summary: SUMMARY })]) {
+      vi.resetModules()
+      held = []
+      localStorage.setItem('eno-dashboard', seed)
+      const set = vi.spyOn(localStorage, 'setItem')
+      const r = await rail()
+      await held[0].reply(200, { dashboard: SUMMARY })
+      expect(set).not.toHaveBeenCalled()
+      act(() => { r.result.current.refresh() })
+      await held[1].reply(200, { dashboard: { ...SUMMARY, hasTeacher: false } })
+      expect(set).toHaveBeenCalledTimes(1)
+      expect(entry()!.head.summary.hasTeacher).toBe(false)
+      expect(entry()!.raw.split('\n').slice(1)).toEqual(seed.split('\n').slice(1)) // line 2 exactly as it was, or still none
+      set.mockRestore()
+      r.unmount()
+    }
+  })
+
+  it('⛔ the listings copy has a fixed ceiling: a larger account stores line 1 alone, and its answer is never turned into text', async () => {
+    const { DEVICE_LISTINGS_MAX, DEVICE_CHARS_MAX } = await import('./use-dashboard')
+    expect(DEVICE_CHARS_MAX).toBeLessThanOrEqual(1_000_000) // a fifth of the smallest quota, at most: the rest of the site shares it
+    const many = (n: number, pad = '') => ({ ...FULL, listings: Array.from({ length: n }, (_, i) => ({ id: `L${i}`, status: 'active', description: pad })) })
+    localStorage.setItem('eno-dashboard', twoLines({ userId: 'u1', summary: SUMMARY }, FULL)) // from when the account was small
+    const p = await page()
+    // Too many listings: not serialised at all (JSON.stringify sees the summary alone), and the old copy goes.
+    const json = vi.spyOn(JSON, 'stringify')
+    await held[0].reply(200, { dashboard: many(DEVICE_LISTINGS_MAX + 1) })
+    expect(json.mock.calls.some(([v]) => Array.isArray((v as { listings?: unknown })?.listings))).toBe(false)
+    json.mockRestore()
+    expect(p.result.current.dash?.listings).toHaveLength(DEVICE_LISTINGS_MAX + 1) // the page has its answer all the same
+    expect(entry()!.raw).toBe(JSON.stringify({ userId: 'u1', summary: SUMMARY }))
+    // Few listings but long ones: over the character ceiling, so not stored either.
+    act(() => { p.result.current.refresh() })
+    await held[1].reply(200, { dashboard: many(2, 'x'.repeat(DEVICE_CHARS_MAX / 2)) })
+    expect(entry()!.full).toBeNull()
+    // At the listing ceiling and under the character one: stored.
+    act(() => { p.result.current.refresh() })
+    await held[2].reply(200, { dashboard: many(DEVICE_LISTINGS_MAX) })
+    expect(entry()!.full.listings).toHaveLength(DEVICE_LISTINGS_MAX)
+    expect(entry()!.raw.length).toBeLessThan(DEVICE_CHARS_MAX + 1_000)
+  })
+
+  it('an entry the live build stored for a larger account is not carried over by a summary answer', async () => {
+    const { DEVICE_LISTINGS_MAX } = await import('./use-dashboard')
+    vi.resetModules()
+    const big = { ...FULL, listings: Array.from({ length: DEVICE_LISTINGS_MAX + 1 }, (_, i) => ({ id: `L${i}`, status: 'active' })) }
+    localStorage.setItem('eno-dashboard', JSON.stringify({ userId: 'u1', dashboard: big }))
+    await rail()
+    await held[0].reply(200, { dashboard: SUMMARY })
+    expect(entry()!.raw).toBe(JSON.stringify({ userId: 'u1', summary: SUMMARY }))
+  })
+
+  it('⛔ a full answer that lands after sign-out is dropped: nothing of the account is written back', async () => {
+    const useDashboard = await hooks()
+    const h = renderHook(() => useDashboard())
+    expect(urls()).toEqual([FULL_URL])
+    try {
+      auth.user = null as unknown as { id: string } // signed out: the auth context hands every consumer no user
+      h.rerender()
+      localStorage.removeItem('eno-dashboard') // sign-out-storage.ts
+      await held[0].reply(200, { dashboard: FULL })
+      expect(entry()).toBeNull()
+      expect(h.result.current.dash).toBeNull()
+    } finally {
+      auth.user = { id: 'u1' }
+    }
+  })
+
+  it('the browser refuses the write (its quota is full): line 1 alone is kept, and no stale listings; with no room at all, nothing', async () => {
+    const real = localStorage.setItem.bind(localStorage)
+    localStorage.setItem('eno-dashboard', twoLines({ userId: 'u1', summary: SUMMARY }, { ...FULL, listings: [] })) // an old, smaller copy
+    let room: 'summary' | 'none' = 'summary'
+    localStorage.setItem = (k: string, v: string) => { if (room === 'none' || v.includes('"L-big"')) throw new DOMException('quota', 'QuotaExceededError'); real(k, v) }
+    const p = await page()
+    await held[0].reply(200, { dashboard: { ...FULL, listings: [{ id: 'L-big', status: 'active' }] } })
+    expect(p.result.current.dash?.listings).toHaveLength(1) // the page has its answer all the same
+    expect(entry()!.raw).toBe(JSON.stringify({ userId: 'u1', summary: SUMMARY }))
+    // Both writes fail: the old entry goes rather than stay to be painted on the next visit.
+    localStorage.setItem = real
+    localStorage.setItem('eno-dashboard', twoLines({ userId: 'u1', summary: SUMMARY }, { ...FULL, listings: [] }))
+    localStorage.setItem = () => { throw new DOMException('quota', 'QuotaExceededError') }
+    room = 'none'
+    act(() => { p.result.current.refresh() })
+    await held[1].reply(200, { dashboard: { ...FULL, listings: [{ id: 'L-big', status: 'active' }] } })
+    expect(entry()).toBeNull()
   })
 
   it('the summary this build stored paints the rail at once on the next load (isAdmin still forced false)', async () => {
@@ -244,9 +412,57 @@ describe('summary and full views', () => {
     expect(r.result.current.fresh).toBe(false)
   })
 
-  it('⛔ a page that lists listings never reads the summary as "no listings": loading until its own answer lands', async () => {
-    // A copy cached before this change still holds listings: they are not painted either.
-    localStorage.setItem('eno-dashboard', JSON.stringify({ userId: 'u1', dashboard: FULL }))
+  it('⛔ a page that lists listings paints the device\'s copy at once, and it is not `fresh` until its own answer lands', async () => {
+    // An entry the live build stored (no `summary`), with the admin flag a cache may never assert.
+    localStorage.setItem('eno-dashboard', JSON.stringify({ userId: 'u1', dashboard: { ...FULL, isAdmin: true } }))
+    const p = await page()
+    expect(urls()).toEqual([FULL_URL]) // and asks for a new answer behind it
+    expect(p.result.current.dash?.listings).toHaveLength(1)
+    expect(p.result.current.dash?.isAdmin).toBe(false)
+    expect(p.result.current.loading).toBe(false)
+    expect(p.result.current.fresh).toBe(false)
+    await held[0].reply(200, { dashboard: { ...FULL, listings: [] } })
+    expect(p.result.current.dash?.listings).toHaveLength(0)
+    expect(p.result.current.fresh).toBe(true)
+  })
+
+  it('⛔ the rail\'s summary landing first never makes the device\'s listings read as fetched today', async () => {
+    // The availability review marks today DONE on an empty `fresh` list: an old empty copy plus a new summary must not be one.
+    localStorage.setItem('eno-dashboard', twoLines({ userId: 'u1', summary: SUMMARY }, { ...FULL, listings: [] }))
+    const r = await rail()
+    await held[0].reply(200, { dashboard: { ...SUMMARY, isAdmin: true } })
+    expect(r.result.current.fresh).toBe(true)
+    const p = await page() // a soft navigation to the review: the store holds only the summary
+    expect(p.result.current.dash?.listings).toEqual([])
+    expect(p.result.current.dash?.isAdmin).toBe(true) // this session's account fields win over the copy's
+    expect(p.result.current.loading).toBe(false)
+    expect(p.result.current.fresh).toBe(false)
+    expect(urls()).toEqual([SUMMARY_URL, FULL_URL])
+    await held[1].reply(200, { dashboard: FULL })
+    expect(p.result.current.fresh).toBe(true)
+    expect(p.result.current.dash?.listings).toHaveLength(1)
+  })
+
+  it('⛔ a stored copy without what the pages read unguarded (stats, profile) is not painted as a full answer', async () => {
+    for (const broken of [{ listings: [] }, { listings: [], stats: FULL.stats }, { ...FULL, listings: 'x' }, null, 7]) {
+      vi.resetModules()
+      held = []
+      localStorage.setItem('eno-dashboard', twoLines({ userId: 'u1', summary: SUMMARY }, broken))
+      const p = await page()
+      expect(p.result.current.dash).toBeNull()
+      expect(p.result.current.loading).toBe(true)
+      p.unmount()
+      vi.resetModules()
+      held = []
+      localStorage.setItem('eno-dashboard', JSON.stringify({ userId: 'u1', dashboard: broken })) // the same, as the live build's entry
+      const q = await page()
+      expect(q.result.current.dash).toBeNull()
+      q.unmount()
+    }
+  })
+
+  it('⛔ with only a summary on the device, a page that lists listings is loading until its own answer lands, never "no listings"', async () => {
+    localStorage.setItem('eno-dashboard', JSON.stringify({ userId: 'u1', summary: SUMMARY }))
     const r = await rail()
     const p = await page()
     expect(r.result.current.dash?.hasTeacher).toBe(true) // the rail paints from the cache at once
@@ -314,12 +530,11 @@ describe('summary and full views', () => {
     expect(again.result.current.loading).toBe(false)
     expect(again.result.current.error).toBeNull()
     expect(urls()).toEqual([FULL_URL, SUMMARY_URL, FULL_URL])
-    // The device cache still keeps the summary only.
-    const cached = JSON.parse(localStorage.getItem('eno-dashboard') || 'null')
-    expect(cached).not.toHaveProperty('dashboard')
-    expect(cached.summary.hasTeacher).toBe(true)
-    expect(cached.summary).not.toHaveProperty('listings')
-    expect(cached.summary).not.toHaveProperty('stats')
+    // The device entry: the summary without listings or stats, and the page's full answer still on line 2.
+    expect(entry()!.full).toEqual(FULL)
+    expect(entry()!.head.summary.hasTeacher).toBe(true)
+    expect(entry()!.head.summary).not.toHaveProperty('listings')
+    expect(entry()!.head.summary).not.toHaveProperty('stats')
     // The page's own full answer replaces the kept listings.
     await held[2].reply(200, { dashboard: { ...FULL, listings: [] } })
     expect(again.result.current.dash?.listings).toHaveLength(0)

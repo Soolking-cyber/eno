@@ -65,25 +65,127 @@ export type DashSummary = Omit<Dash, 'listings' | 'stats'>
 
 const CACHE_KEY = 'eno-dashboard'
 /**
- * ⛔ THE SUMMARY IS STORED AS `{ userId, summary }`, NEVER UNDER `dashboard`. A build from before R13 (an eno-deploy
- * auto-rollback, a revert of this change) reads `dashboard` as a full answer and its `listings` and `stats` unguarded
- * (listings-client's stats strip, availability-client's listing filter): a summary stored there was a TypeError at
- * render on My listings and the review — on every visit for an account whose full answer is over the quota, since that
- * build's own write fails and the summary entry stays. Without `dashboard` that build finds no cache and loads cold.
- * The key is the same, so sign-out-storage.ts still clears it. A copy that build stored (`dashboard`) is still read,
- * stripped to its summary (below).
+ * THE DEVICE ENTRY, ONE KEY (sign-out-storage.ts clears it, in this build and in every earlier one; /privacy lists it
+ * as the dashboard copy removed at sign-out). Its value is one or two lines:
+ *   line 1  `{ userId, summary }` as JSON: the account fields from the last answer of either view. Paints the rail.
+ *   line 2  the last FULL answer as JSON (without the trust and enforcement panels, which nothing paints), for an
+ *           account of ordinary size (DEVICE_LISTINGS_MAX, DEVICE_CHARS_MAX). Paints My listings and the availability review at once, as the cache did when every request
+ *           was the full one: a page that showed its rows on arrival must not start on a skeleton (measured against the
+ *           live build, 2026-11-11), nor fall back to an error page over a saved copy when the refetch fails.
+ * ⛔ TWO LINES, NOT ONE OBJECT, FOR THREE REASONS.
+ *   · The rail is on every signed-in page and must not pay for the listings: it parses line 1 only, and an answer that
+ *     changes nothing writes nothing. As one object, every page parsed (and every answer re-serialised) the whole copy.
+ *   · A summary answer rewrites line 1 and carries over line 2 AS STORED AT THAT MOMENT, never a copy this tab read
+ *     earlier: another tab's newer listings (a listing deleted or held there) must not be rolled back, and an entry
+ *     sign-out has just cleared must not come back with the listings.
+ *   · A build from before R13 (an eno-deploy auto-rollback, a revert) reads this key as `{ userId, dashboard }` and its
+ *     `listings` and `stats` unguarded: a summary under `dashboard` was a TypeError at render. Two lines are not JSON, so
+ *     that build's read throws inside its own try, it finds no cache and loads cold. Its own entry (one object with
+ *     `dashboard`) is still read here: `legacy` below.
  */
-type CachedDash = { userId?: string; summary?: DashSummary; dashboard?: DashSummary } | null
+type StoredHead = { userId?: string; summary?: DashSummary; dashboard?: Dash } | null
 
-/**
- * ⛔ THE DEVICE CACHE KEEPS THE SUMMARY ONLY. The whole answer was over the storage quota for a large account, so its
- * cache never saved and every load was cold; and a listings table painted from a days-old copy is a wrong answer
- * wearing a right one's clothes. Stripped on the way in too, so a copy cached before this change paints no listings.
- */
+/** The account fields of an answer: what the summary view carries (the full one adds the listings, their stats and the
+ *  trust and enforcement panels). */
 function summaryOf(d: DashSummary): DashSummary {
-  // The same keys the summary answer leaves out: the full one also carries the trust and enforcement panels.
   const { listings, stats, enforcement, trustProgress, ...summary } = d as Dash & { enforcement?: unknown; trustProgress?: unknown }
   return summary
+}
+
+/** What line 2 keeps of a full answer: everything a page paints. The trust and enforcement panels (open reports) are
+ *  read by no page from this store, so they are not left on the device. */
+function listingsCopy(d: Dash): Dash {
+  const { enforcement, trustProgress, ...kept } = d as Dash & { enforcement?: unknown; trustProgress?: unknown }
+  return kept
+}
+
+/**
+ * What a copy read from the device may say. isAdmin default-first: caches written before the field existed lack it,
+ * and it is FORCED false from cache: a revoked admin must never see the Admin rail group replayed from localStorage
+ * (offline, or before revalidate lands). Real admins get it back one fetch later, the safe direction to flash.
+ */
+const fromDevice = <D extends DashSummary>(d: D): D =>
+  ({ ...d, isAdmin: false, hasVisa: d.hasVisa ?? false, hasTeacher: d.hasTeacher ?? false, teacherDraft: d.teacherDraft ?? null })
+
+/** The stored value for `uid`, split: line 1 parsed, line 2 as text. Null when there is none for this account. */
+function stored(uid: string): { raw: string; head: NonNullable<StoredHead>; line1: string; line2: string | null } | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    if (!raw) return null
+    const nl = raw.indexOf('\n') // JSON.stringify never writes a raw newline, so the first one is the separator
+    const line1 = nl < 0 ? raw : raw.slice(0, nl)
+    const head = JSON.parse(line1) as StoredHead
+    return head && head.userId === uid ? { raw, head, line1, line2: nl < 0 ? null : raw.slice(nl + 1) } : null
+  } catch { return null } // corrupt entry, or storage blocked
+}
+
+/** A stored copy is painted as a full answer only with what the two pages read unguarded: the listings and the stats. */
+const isFull = (d: unknown): d is Dash =>
+  !!d && typeof d === 'object' && Array.isArray((d as Dash).listings) && !!(d as Dash).stats && typeof (d as Dash).stats === 'object' && !!(d as Dash).profile
+
+/** `legacy`: the full answer inside an entry a build from before the summary stored (one object, no second line). */
+const legacy = (head: NonNullable<StoredHead>): Dash | null => (isFull(head.dashboard) ? head.dashboard : null)
+
+/** The account fields on the device for `uid`. Parses line 1 only. */
+function readSummary(uid: string): DashSummary | null {
+  const s = stored(uid)
+  const kept = s && (s.head.summary ?? (legacy(s.head) ? summaryOf(legacy(s.head)!) : null))
+  return kept ? fromDevice(kept) : null
+}
+
+/** The device's copy of the last full answer for `uid`. Called only for a page that lists listings. */
+function readFull(uid: string): Dash | null {
+  const s = stored(uid)
+  if (!s) return null
+  try {
+    const full: unknown = s.line2 === null ? legacy(s.head) : JSON.parse(s.line2)
+    return isFull(full) ? full : null
+  } catch { return null }
+}
+
+function dropDevice(): void {
+  try { localStorage.removeItem(CACHE_KEY) } catch { /* private mode */ }
+}
+
+/**
+ * ⛔ LINE 2 HAS A FIXED CEILING, FAR BELOW THE BROWSER'S QUOTA. The quota (about 5 million characters) is shared by
+ * everything this site keeps on the device: a copy that grew until the browser refused it left no room for the inbox
+ * cache or a half-written listing, and for the account with thousands of listings (a 16.5 MB answer) every visit turned
+ * the whole answer into text only to have the write refused. So: an answer with more listings than this is not
+ * serialised at all, and one whose text is longer is not stored. Such an account opens My listings on its skeleton and
+ * its own request, as it does today whenever its copy does not fit.
+ */
+export const DEVICE_LISTINGS_MAX = 300
+export const DEVICE_CHARS_MAX = 1_000_000
+
+/** Line 2 for a full answer, or null when the account is over the ceiling. */
+function line2Of(d: Dash): string | null {
+  if (d.listings.length > DEVICE_LISTINGS_MAX) return null
+  const text = JSON.stringify(listingsCopy(d))
+  return text.length <= DEVICE_CHARS_MAX ? text : null
+}
+
+/** Store an answer: line 1 always; line 2 from a full answer, else whatever line 2 the device holds for `uid` NOW. */
+function writeDevice(uid: string, d: DashSummary, view: DashView): void {
+  let line1: string
+  let line2: string | null = null
+  try {
+    line1 = JSON.stringify({ userId: uid, summary: summaryOf(d) })
+    if (view === 'full') line2 = line2Of(d as Dash)
+    else {
+      const s = stored(uid)
+      if (s?.line1 === line1) return // nothing changed: nothing to write (the rail asks on every page)
+      // An entry the build before the summary stored is converted once, here; after this write it has two lines.
+      if (s) line2 = s.line2 ?? (legacy(s.head) ? line2Of(legacy(s.head)!) : null)
+    }
+  } catch { return }
+  try {
+    localStorage.setItem(CACHE_KEY, line2 === null ? line1 : `${line1}\n${line2}`)
+  } catch {
+    // The quota is full, or storage is blocked. Line 1 alone; and if even that is refused, nothing: an entry that can
+    // no longer be replaced would only grow older.
+    try { localStorage.setItem(CACHE_KEY, line1) } catch { dropDevice() }
+  }
 }
 
 // ── ONE shared store for the whole app ────────────────────────────────────────────────
@@ -104,14 +206,17 @@ function summaryOf(d: DashSummary): DashSummary {
  */
 export type DashError = 'auth' | 'failed' | null
 /** `fresh`: `dash` came from a fetch that SUCCEEDED in this session (not only the device cache).
- *  `full`: `dash` carries the listings of a full answer fetched in this session (a later summary only refreshes the
- *  account fields around them), not just the summary or the device cache. */
-type State = { userId: string | null; dash: DashSummary | null; full: boolean; loading: boolean; error: DashError; fresh: boolean }
+ *  `full`: `dash` carries the listings of a full answer: one fetched in this session, or the device's copy (a later
+ *  summary only refreshes the account fields around them).
+ *  `fullFresh`: those listings came from a full answer fetched in this session. A page that lists listings reports
+ *  THIS as its `fresh`: the summary landing first must not make the device's days-old listings read as today's (the
+ *  availability review marks today done on an empty FRESH list). */
+type State = { userId: string | null; dash: DashSummary | null; full: boolean; fullFresh: boolean; loading: boolean; error: DashError; fresh: boolean }
 // ⚠️ `state` STARTS as the exact same reference as SERVER_SNAPSHOT (below). During hydration
 // useSyncExternalStore renders once from getServerSnapshot, then reads getSnapshot; if those
 // returned equal-but-DIFFERENT objects React would force an extra re-render (and risk tearing).
 // Sharing the reference makes the first client snapshot identical to the server's.
-const SERVER_SNAPSHOT: State = { userId: null, dash: null, full: false, loading: true, error: null, fresh: false }
+const SERVER_SNAPSHOT: State = { userId: null, dash: null, full: false, fullFresh: false, loading: true, error: null, fresh: false }
 let state: State = SERVER_SNAPSHOT
 const subscribers = new Set<() => void>()
 const emit = () => subscribers.forEach((fn) => fn())
@@ -198,14 +303,14 @@ function revalidate(uid: string, force = false) {
         // The summary's fields are newer, so they win; the listings and stats are this session's last full answer, and
         // the page asks for a new one on mount. The ticket and uid check above make the held answer this account's own.
         const held = view === 'summary' && state.full ? state.dash : null
-        set({ dash: held ? { ...held, ...d.dashboard } : d.dashboard, full: view === 'full' || held !== null, loading: false, error: null, fresh: true })
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ userId: uid, summary: summaryOf(d.dashboard) })) } catch { /* private mode */ }
+        set({ dash: held ? { ...held, ...d.dashboard } : d.dashboard, full: view === 'full' || held !== null, fullFresh: view === 'full' || state.fullFresh, loading: false, error: null, fresh: true })
+        writeDevice(uid, d.dashboard, view)
       } else if (d === UNAUTHORIZED) {
         // ⛔ A 401 = THE SESSION THIS CACHE BELONGS TO IS GONE (the server answers 401 only for "no session" —
         // an auth-server blip is a 503). Never keep painting that account's listings and stats: on a shared
         // device the next person would read them. The in-memory copy and the device cache go together.
-        set({ dash: null, full: false, loading: false, error: 'auth', fresh: false })
-        try { localStorage.removeItem(CACHE_KEY) } catch { /* private mode */ }
+        set({ dash: null, full: false, fullFresh: false, loading: false, error: 'auth', fresh: false })
+        dropDevice()
       } else {
         set({ loading: false, error: 'failed' })
       }
@@ -221,19 +326,16 @@ function revalidate(uid: string, force = false) {
  *  consumer mounting for the same uid reuses the in-flight fetch instead of firing another. */
 function load(uid: string) {
   if (state.userId !== uid) {
-    let cached: DashSummary | null = null
-    try {
-      const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null') as CachedDash
-      // This build's summary, else a full answer a pre-R13 build stored (see CachedDash).
-      const kept = c?.summary ?? c?.dashboard
-      // isAdmin default-first: caches written before the field existed lack it — paint
-      // false (a brief non-admin flash for admins) and let revalidate() correct it.
-      // isAdmin is FORCED false from cache: a revoked admin must never see the Admin
-      // rail group replayed from localStorage (offline, or before revalidate lands).
-      // Real admins get it back one fetch later — the safe direction to flash.
-      if (c?.userId === uid && kept) cached = { ...summaryOf(kept), isAdmin: false, hasVisa: kept.hasVisa ?? false, hasTeacher: kept.hasTeacher ?? false, teacherDraft: kept.teacherDraft ?? null }
-    } catch { /* corrupt cache — ignore */ }
-    set({ userId: uid, dash: cached, full: false, loading: !cached, error: null, fresh: false })
+    const cached = readSummary(uid)
+    set({ userId: uid, dash: cached, full: false, fullFresh: false, loading: !cached, error: null, fresh: false })
+  }
+  // ⛔ A PAGE THAT LISTS LISTINGS PAINTS THE DEVICE'S COPY AT ONCE and asks for a new answer behind it, whether it is the
+  // first consumer of a load or arrives after the rail (a soft navigation: the store then holds only the summary).
+  // The account fields already in the store win: they are this session's, or the same entry's own summary. Not `fresh`
+  // for that page until its own answer lands (`fullFresh`).
+  if (!state.full && wantedView() === 'full') {
+    const full = readFull(uid)
+    if (full) set({ dash: { ...fromDevice(full), ...(state.dash ?? {}) }, full: true, loading: false })
   }
   revalidate(uid) // deduped: no-op if a fetch for this uid is already running (and it answers the view needed)
 }
@@ -270,7 +372,7 @@ export function useDashboard(view: DashView = 'full'): DashboardHook<DashSummary
 
   useEffect(() => {
     if (authLoading) return              // wait for auth to resolve before deciding logged-out
-    if (!user) { set({ userId: null, dash: null, full: false, loading: false, error: null, fresh: false }); return }
+    if (!user) { set({ userId: null, dash: null, full: false, fullFresh: false, loading: false, error: null, fresh: false }); return }
     load(user.id)
     // `view` too: a consumer that switched to the full view must ask for it, not wait on the summary it already has.
   }, [user, authLoading, view])
@@ -281,12 +383,12 @@ export function useDashboard(view: DashView = 'full'): DashboardHook<DashSummary
   // still hold A's snapshot for a beat (before the effect runs load(B)); treat that as loading so
   // B never briefly sees A's dashboard.
   const ready = !!user && snap.userId === user.id
-  // ⛔ A FULL CONSUMER READS ONLY THE FULL ANSWER. The summary (device cache or a summary request) has no listings, and
-  // "not loaded" must never read as "no listings": the availability review marks today done on an empty list. Until
-  // the full answer lands it gets no dashboard and `loading` — or, once a request has failed, the error.
+  // ⛔ A FULL CONSUMER READS ONLY AN ANSWER THAT HAS THE LISTINGS: this session's, or the device's copy of the last one.
+  // A summary has none, and "not loaded" must never read as "no listings": the availability review marks today done on
+  // an empty list. With neither it gets no dashboard and `loading` — or, once a request has failed, the error.
   const dash = view === 'full' && !snap.full ? null : snap.dash
   const pending = view === 'full' ? dash === null && snap.error === null : dash === null && snap.loading
   const loading = authLoading || (!!user && (!ready || pending))
   // Belt and braces for 'auth': whatever the store still holds, no consumer is handed an expired account's data.
-  return { dash: ready && snap.error !== 'auth' ? dash : null, refresh, loading, error: ready ? snap.error : null, fresh: ready && snap.fresh && dash !== null }
+  return { dash: ready && snap.error !== 'auth' ? dash : null, refresh, loading, error: ready ? snap.error : null, fresh: ready && dash !== null && (view === 'full' ? snap.fullFresh : snap.fresh) }
 }
