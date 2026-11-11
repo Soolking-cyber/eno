@@ -76,6 +76,18 @@ describe('a text of place names only is spelled, never translated', () => {
     expect(await translateBatch(['Thủ Đức'], 'en', { source: 'api' })).toEqual(['Thu Duc'])
   })
 
+  it('a text over 120 characters is never looked at as a location, even a list of real places', async () => {
+    const long = Array(12).fill('Thủ Đức, Gò Vấp').join(', ')
+    expect(long.length).toBeGreaterThan(120)
+    await translateBatch([long, 'Thủ Đức, Gò Vấp'], 'en', { source: 'api' })
+    expect(state.sent).toEqual([long])
+  })
+
+  it('a list of English districts alone goes to the engine (it may be two film titles: "District 9 / District 13")', async () => {
+    await translateBatch(['District 2, District 7'], 'vi', { source: 'api' })
+    expect(state.sent).toEqual(['District 2, District 7'])
+  })
+
   it('is not billed (uncachedStats counts nothing for it)', async () => {
     expect(await uncachedStats(['Thủ Đức', 'Bình Thạnh'], 'en')).toEqual({ count: 0, chars: 0 })
     expect(await uncachedStats(['Căn hộ Thủ Đức gần chợ'], 'en')).toEqual({ count: 1, chars: 'Căn hộ Thủ Đức gần chợ'.length })

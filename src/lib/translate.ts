@@ -72,6 +72,8 @@ function hash(text: string): string {
  * goes to the engine, which measured right on them ("Bán xe máy ở Thủ Đức" → "Motorbike for sale in Thu Duc").
  */
 export function spelledPlace(text: string, target: Lang): string | null {
+  // A location line is short and has no template placeholder; nothing else is looked at.
+  if (text.length > 120 || /[{｛]/.test(text)) return null
   return (target === 'en' ? adminPlaceEn(text) : null) ?? placeOnlyTranslation(text, target)
 }
 // The other nine languages are left to the engine, which writes a place in their own script.

@@ -156,6 +156,10 @@ describe('place-names — spelling for the reader', () => {
     expect(placeOnlyTranslation('Đà Nẵng', 'en')).toBe('Da Nang')
     expect(placeOnlyTranslation('Da Nang, Hoi An', 'vi')).toBe('Đà Nẵng, Hội An')
     expect(placeOnlyTranslation('District 9', 'vi')).toBeNull() // a film as often as a district
+    expect(placeOnlyTranslation('District 9 / District 13', 'vi')).toBeNull() // two films
+    expect(placeOnlyTranslation('Ha Noi', 'en')).toBe('Ha Noi') // an English reader's own spelling stays
+    expect(placeOnlyTranslation('HCMC', 'en')).toBe('HCMC')
+    expect(placeOnlyTranslation('Hà Nội', 'en')).toBe('Hanoi')
     expect(placeOnlyTranslation('District 7, Thu Duc', 'vi')).toBe('Quận 7, Thủ Đức')
   })
 

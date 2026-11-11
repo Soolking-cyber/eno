@@ -394,6 +394,8 @@ export function placeOnlyTranslation(text: string, target: string): string | nul
     const unmarked = fold(span) === span.toLowerCase()
     if (noAdmin && (AMBIGUOUS.has(f.id) || (unmarked && AMBIGUOUS_UNMARKED.has(f.id)) || /^District\s/i.test(span))) return null
   }
+  // English numbered units with no named place beside them are titles as often as districts ("District 9 / District 13").
+  if (found.every((f) => /^District\s/i.test(s.slice(f.start, f.end)))) return null
   const parts: string[] = []
   let last = 0
   for (const f of found) {
@@ -402,6 +404,7 @@ export function placeOnlyTranslation(text: string, target: string): string | nul
     // ⛔ An unmarked name gets its marks only when its letters have ONE reading: "Thanh Hoa" alone may be a woman's name,
     // not the province Thanh Hóa — that text goes to the engine. Numbered units ("District 7") are always "Quận 7".
     if (target === 'vi' && fold(span) === span.toLowerCase() && !/^(Quận|Phường) \d/.test(f.id) && !ONE_READING_VI.has(f.id)) return null
+    // (An English spelling keeps its own form for an English reader: "Ha Noi", "HCMC" are registered with themselves.)
     parts.push(s.slice(last, f.start), placeFor(f.term, target))
     last = f.end
   }
