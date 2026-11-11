@@ -55,14 +55,22 @@ describe('the celebration', () => {
   })
 })
 
-describe('the celebration stays with its own report (commit review, codex)', () => {
-  it('given another session, the view lets go of the grant — the next report shows none unless the server grants it', async () => {
+describe('the celebration stays with its own report (commit review, codex + opus)', () => {
+  it('given another session, the view lets go of the grant AT ONCE — before the new report has even answered', async () => {
     answer.next = () => ({ ok: true, data: { viewer: 'learner', report: report() } })
     const view = render(<ReportView sessionId="s1" justEnded />)
     expect(await screen.findByText('Well done!')).toBeTruthy()
-    answer.next = () => ({ ok: true, data: { viewer: 'learner', report: report({ id: 's2', celebrate: null }) } })
+    // s2 never answers: s1's report is still the one on screen, so only the reset on the new id can take the card away
+    // (the id check alone would keep it — s1's grant matches s1's report).
+    answer.next = () => new Promise(() => {})
     view.rerender(<ReportView sessionId="s2" justEnded />)
     await waitFor(() => expect(screen.queryByText('Well done!')).toBeNull())
+    // …and back to s1, which now grants nothing (its 15 minutes are over): no grant from before comes back. Waited for on
+    // something only that NEW answer carries (commit review, codex + opus: the old s1 report was still on screen).
+    answer.next = () => ({ ok: true, data: { viewer: 'learner', report: report({ celebrate: null, learner: { name: 'Gia Huy, later', seatId: 'seat-1' } }) } })
+    view.rerender(<ReportView sessionId="s1" justEnded />)
+    await screen.findByText('Gia Huy, later', { exact: false })
+    expect(screen.queryByText('Well done!')).toBeNull()
   })
 })
 
