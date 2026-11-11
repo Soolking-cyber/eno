@@ -325,7 +325,10 @@ describe('the "Identity verified" line', () => {
     const l = line(p.el)!
     expect(l).toBeTruthy()
     expect(l.textContent).toContain('Identity verified')
-    expect(l.textContent).toContain('eno’s team checked this teacher’s ID document and a selfie, and the name above matches that ID. Nationality, qualifications and work permits are as the teacher states. Ask to see documents before hiring.')
+    // One sentence (owner 2026-10-15; batch 65): what was checked and what was not; the hiring advice is said once on the page.
+    // The default fixture lists no qualifications, so the sentence carries the hiring advice itself.
+    expect(l.textContent).toBe('Identity verified' + 'eno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states, so ask to see documents before hiring.')
+    expect((l.textContent?.match(/\./g) || []).length).toBe(1)
     expect(l.previousElementSibling?.tagName).toBe('HEADER')
   })
   it('in Vietnamese — "xác minh", never "xác thực"', async () => {
@@ -333,8 +336,21 @@ describe('the "Identity verified" line', () => {
     const p = await page('vi')
     const l = line(p.el)!
     expect(l.textContent).toContain('Đã xác minh danh tính')
-    expect(l.textContent).toContain('Đội ngũ eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên này; tên ở trên khớp với giấy tờ đó. Quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai — hãy đề nghị xem giấy tờ trước khi tuyển dụng.')
+    expect(l.textContent).toContain('eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai, hãy đề nghị xem giấy tờ trước khi tuyển dụng.')
     expect(p.el.innerHTML).not.toContain('xác thực')
+  })
+  it('with a qualifications section (a degree, certificates, or both) the hiring advice is that section\'s line, said once on the page', async () => {
+    h.shown = true
+    const CERT = [{ type: 'celta', hours: 120, provider: 'Cambridge', year: 2020 }]
+    for (const over of [{ degreeLevel: 'phd', certificates: CERT }, { degreeLevel: 'phd' }, { certificates: CERT }]) {
+      const p = await page('en', over)
+      const l = line(p.el)!
+      expect(l.textContent).toBe('Identity verifiedeno checked this teacher’s ID and a selfie, and the name above matches it; nationality, qualifications and work permits are as the teacher states.')
+      expect((p.el.textContent?.match(/ask to see documents before hiring/gi) || []).length).toBe(1)
+      const v = await page('vi', over)
+      expect(line(v.el)!.textContent).toContain('eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên, tên ở trên khớp với giấy tờ đó; quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai.')
+      expect((v.el.textContent?.match(/hãy đề nghị xem giấy tờ trước khi tuyển dụng/gi) || []).length).toBe(1)
+    }
   })
   it('the predicate is asked about THIS teacher, with exactly the four inputs it decides from and the card cache', async () => {
     h.shown = true
