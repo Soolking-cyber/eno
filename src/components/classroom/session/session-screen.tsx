@@ -565,8 +565,10 @@ export function SessionScreen({ seatId, test, tutorId, preview, onClose }: {
     ended.current = true
     go('ending')
     releaseAll()
-    await fetch(`/api/classroom/sessions/${start.id}/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason }) }).catch(() => {})
-    router.push(`/classroom/reports/${start.id}`)
+    const closed = await fetch(`/api/classroom/sessions/${start.id}/end`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason }) }).then((r) => r.ok, () => false)
+    // `done`: the report may open with the celebration (gap 4) — asked for only when the end was recorded; the server still
+    // decides (report.ts celebrationFor: the family's side, a session that ended minutes ago, one they spoke in).
+    router.push(`/classroom/reports/${start.id}${closed ? '?done=1' : ''}`)
     onClose()
   }, [go, onClose, releaseAll, router, start])
 

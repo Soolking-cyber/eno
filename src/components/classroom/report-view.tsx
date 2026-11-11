@@ -9,11 +9,13 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Meter } from '@/components/ui/meter'
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ArrowLeft, Check, ChevronDown, FileText, ShieldAlert } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { api } from './api'
 import { refusalCopy, sessionDate } from './classroom-copy'
+import { WeekLine } from './week-line'
 
 type Mistake = { said: string; better: string; type: string; why: string }
 type Word = { word: string; score: number; reliable: boolean; tip: string | null }
@@ -33,6 +35,10 @@ type Report = {
   /** `avatarVi`: the tutor's Vietnamese help, said before `avatar` (tutor-ai.ts `support`). */
   transcript: { seq: number; learner: string | null; avatar: string; avatarVi?: string; flag?: string }[]
   heardAs: { heard: string; meant: string }[]
+  /** Each score's last value in an earlier session of the same seat and learner (report.ts previousScores). */
+  previous: { pronunciation: number | null; fluency: number | null } | null
+  /** Right after a lesson, on the family's side: the week for the celebration (report.ts celebrationFor) — else null. */
+  celebrate: { done: number; of: number; streak: number } | null
 }
 
 /**
@@ -40,11 +46,17 @@ type Report = {
  * well, "Say it better" — their words beside the better ones — words to practise coloured by score, new words, and the
  * whole transcript. The teacher sees the same, plus their private note and a safety flag when there is one.
  */
-export function ReportView({ sessionId }: { sessionId: string }) {
+export function ReportView({ sessionId, justEnded = false }: { sessionId: string; justEnded?: boolean }) {
   const { tr, lang } = useLanguage()
   const [data, setData] = useState<{ viewer: string; report: Report } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
+  /**
+   * The celebration as first granted: the report keeps polling for up to ~17 minutes while it is built, and the server's
+   * window is 15 (report.ts CELEBRATE_WITHIN_MS) — a card already on screen never vanishes under the reader.
+   */
+  // Held WITH its session id (commit review, codex): a grant never carries over to another report this view is given.
+  const [granted, setGranted] = useState<{ id: string; c: NonNullable<Report['celebrate']> } | null>(null)
 
   /**
    * The report is built just after the session ends (feedback.ts): poll gently until it is there.
@@ -61,6 +73,8 @@ export function ReportView({ sessionId }: { sessionId: string }) {
       if (gone) return
       if (r.ok) {
         setData(r.data)
+        const c = r.data.report.celebrate
+        if (r.data.viewer === 'learner' && c) setGranted((g) => (g?.id === sessionId ? g : { id: sessionId, c }))
         setError(null)
         // Every 4 s for two minutes, then every 15 s for about fifteen more: the sweep retries a stuck report every 5 min
         // (C3a round 2, Opus — polling used to stop at two minutes on "Building your report…").
@@ -86,6 +100,9 @@ export function ReportView({ sessionId }: { sessionId: string }) {
   const teacherSide = viewer !== 'learner'
   const f = r.feedback
   const back = teacherSide && r.learner ? `/classroom/students/${r.learner.seatId}` : '/classroom'
+  // The lesson that just ended asked for it (`?done=1`), and the server agreed (report.ts celebrationFor).
+  const celebrate = justEnded && viewer === 'learner' && granted?.id === r.id ? granted.c : null
+  const talk = `${Math.floor(r.talkSeconds / 60)}:${String(r.talkSeconds % 60).padStart(2, '0')}`
 
   return (
     <article className="flex flex-col gap-8 pt-2">
@@ -101,6 +118,20 @@ export function ReportView({ sessionId }: { sessionId: string }) {
           </p>
         </div>
       </div>
+
+      {/* THE CELEBRATION (gap 4), under the way back: the first thing a learner sees after End, while the report is built. */}
+      {celebrate && (
+        <section aria-label={tr('Lesson done', 'Đã xong buổi luyện')} className="celebrate-in flex flex-col items-center gap-4 rounded-3xl bg-brand-deeper px-6 py-8 text-center text-primary-foreground">
+          <Avatar name={r.teacher.avatarName} url={r.teacher.photoUrl} size="2xl" className="ring-4 ring-primary-foreground/90" />
+          <div className="flex flex-col gap-1">
+            <p className="h-display">{tr('Well done!', 'Giỏi lắm!')}</p>
+            <p className="text-base text-primary-foreground/85">
+              {tr('You spoke with', 'Bạn đã nói chuyện với')} {r.teacher.avatarName} · <span className="tabular-nums">{talk}</span>
+            </p>
+          </div>
+          <WeekLine done={celebrate.done} of={celebrate.of} streak={celebrate.streak} />
+        </section>
+      )}
 
       {r.feedbackStatus === 'pending' && (
         <div className="flex flex-col items-center gap-3 py-10 text-center">
@@ -119,13 +150,18 @@ export function ReportView({ sessionId }: { sessionId: string }) {
 
       {f && (
         <>
-          {/* Two by two at every size: the page is a phone-width column even on a wide window (column.ts). */}
-          <dl className="grid grid-cols-2 gap-4 border-y border-border py-4">
-            <Stat label={tr('Pronunciation', 'Phát âm')} value={f.scores.pronunciation != null ? String(f.scores.pronunciation) : '—'} />
-            <Stat label={tr('Fluency', 'Độ trôi chảy')} value={f.scores.fluency != null ? String(f.scores.fluency) : '—'} />
-            <Stat label={tr('Grammar fixes', 'Lỗi ngữ pháp')} value={String(f.scores.grammarFixes)} />
-            <Stat label={tr('Talk time', 'Thời gian nói')} value={`${Math.floor(r.talkSeconds / 60)}:${String(r.talkSeconds % 60).padStart(2, '0')}`} />
-          </dl>
+          {/* THE SCALE (gap 7): the two scores out of 100 with a bar and the change since an earlier session; the counts on a
+              smaller second row. Two by two at every size: the page is a phone-width column even on a wide window (column.ts). */}
+          <div className="flex flex-col gap-4 border-y border-border py-4">
+            <dl className="grid grid-cols-2 gap-4">
+              <ScoreStat label={tr('Pronunciation', 'Phát âm')} value={f.scores.pronunciation} previous={r.previous?.pronunciation ?? null} />
+              <ScoreStat label={tr('Fluency', 'Độ trôi chảy')} value={f.scores.fluency} previous={r.previous?.fluency ?? null} />
+            </dl>
+            <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+              <div className="flex gap-1.5"><dt className="text-ink-4">{tr('Grammar fixes', 'Lỗi ngữ pháp')}</dt><dd className="font-semibold tabular-nums text-ink">{f.scores.grammarFixes}</dd></div>
+              <div className="flex gap-1.5"><dt className="text-ink-4">{tr('Talk time', 'Thời gian nói')}</dt><dd className="font-semibold tabular-nums text-ink">{talk}</dd></div>
+            </dl>
+          </div>
 
           {f.summary && (
             <section className="flex flex-col gap-2">
@@ -215,11 +251,29 @@ export function ReportView({ sessionId }: { sessionId: string }) {
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+/** A change smaller than this is the noise of a few scored sentences, not progress (plan review, opus). */
+const DELTA_MIN = 3
+
+/** A score out of 100: the number, its scale, a bar, and the change since an earlier session when there is one worth saying. */
+function ScoreStat({ label, value, previous }: { label: string; value: number | null; previous: number | null }) {
+  const { tr } = useLanguage()
+  const v = value == null ? null : Math.max(0, Math.min(100, Math.round(value)))
+  const delta = v != null && previous != null ? v - Math.round(previous) : null
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1.5">
       <dt className="text-xs text-ink-4">{label}</dt>
-      <dd className="text-2xl font-bold tabular-nums text-ink">{value}</dd>
+      <dd className="flex flex-col gap-1.5">
+        <span className="text-2xl font-bold tabular-nums text-ink">
+          {v ?? '—'}{v != null && <span className="ml-0.5 text-sm font-semibold text-ink-4">/100</span>}
+        </span>
+        {v != null && <Meter value={v} aria-label={label} valueText={`${v}/100`} />}
+        {/* A drop is said plainly, never in red — the reader may be a child. */}
+        {delta != null && Math.abs(delta) >= DELTA_MIN && (
+          <span className={cn('text-xs tabular-nums', delta > 0 ? 'text-success' : 'text-ink-4')}>
+            {delta > 0 ? '+' : '−'}{Math.abs(delta)} {tr('since last time', 'so với lần trước')}
+          </span>
+        )}
+      </dd>
     </div>
   )
 }

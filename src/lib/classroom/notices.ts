@@ -73,6 +73,18 @@ export const VOICE_NOTICE: readonly NoticeText[] = [
     vi: 'Bạn có thể xóa giọng nói bất cứ lúc nào: giọng sẽ bị xóa tại Soniox, và gia sư quay lại giọng thường từ câu trả lời tiếp theo.',
   },
 ]
+/**
+ * A LEAD-IN for each paragraph above, same order (Praktika comparison 2026-11-11, gap 6: four paragraphs read as a wall).
+ * ⛔ HEADINGS ONLY, NOT TERMS: they summarise the paragraph they lead and promise nothing of their own, so they are NOT part
+ * of voiceNoticeBody (the agreement text recorded with VOICE_NOTICE_VERSION) — adding them asked no one again. A lead that
+ * ever says more than its paragraph is a change of terms: put it in the paragraph and move the version.
+ */
+export const VOICE_NOTICE_LEADS: readonly NoticeText[] = [
+  { en: 'Where it goes', vi: 'Gửi đến đâu' },
+  { en: 'What it is used for', vi: 'Dùng để làm gì' },
+  { en: 'What is kept — and what is not', vi: 'Những gì được lưu — và không' },
+  { en: 'How to delete it', vi: 'Cách xóa' },
+]
 export const VOICE_ATTESTATION: NoticeText = { en: 'This is my own voice, and I am the person reading.', vi: 'Đây là giọng nói của chính tôi, và tôi là người đang đọc.' }
 export const voiceNoticeBody = (): string => noticeBody([VOICE_ACTION, ...VOICE_NOTICE, VOICE_ATTESTATION])
 

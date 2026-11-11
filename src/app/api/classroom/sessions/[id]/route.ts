@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { ApiError, route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { readCapped } from '@/lib/classroom/http'
-import { reportFor, sessionForViewer } from '@/lib/classroom/report'
+import { celebrationFor, previousScores, reportFor, sessionForViewer } from '@/lib/classroom/report'
 import { cleanText } from '@/lib/classroom/persona'
 
 export const runtime = 'nodejs'
@@ -21,7 +21,10 @@ export const GET = route({ auth: 'profile' }, async ({ profile, params }) => {
     if (viewer === 'teacher' && !s.feedback.teacherSeenAt) await db.classroomFeedback.update({ where: { sessionId: s.id }, data: { teacherSeenAt: now } })
     if (viewer === 'learner' && !s.feedback.learnerSeenAt) await db.classroomFeedback.update({ where: { sessionId: s.id }, data: { learnerSeenAt: now } })
   }
-  return NextResponse.json({ viewer, report: reportFor(s, viewer) }, { headers: NO_STORE })
+  // The scale's "since last time" (both sides), and the celebration right after a lesson (the family's side only, report.ts).
+  const report = reportFor(s, viewer)
+  const [previous, celebrate] = await Promise.all([previousScores(s), celebrationFor(s, viewer, report.talkSeconds)])
+  return NextResponse.json({ viewer, report: { ...report, previous, celebrate } }, { headers: NO_STORE })
 })
 
 /** PATCH /api/classroom/sessions/<id> — `{ teacherNote }`: the teacher's private note on the report. Never shown to the learner. */

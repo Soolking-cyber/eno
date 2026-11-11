@@ -2,7 +2,7 @@ import 'server-only'
 import { db } from '@/lib/db'
 import { classroomOpenFor } from './config'
 import { LIMITS } from './constants'
-import { effectiveMinutes, ictDayStart, ictWeekStart } from './limits'
+import { effectiveMinutes, ictDayStart, ictWeekStart, streakWindowStart, weeksInARow } from './limits'
 import { parseFocus, pickPlan } from './plans'
 import { parseTraits } from './persona'
 import type { Background } from './backgrounds'
@@ -45,6 +45,8 @@ export type ClassroomMe = {
       minutes: number
       sessionsPerWeek: number
       sessionsThisWeek: number
+      /** Practice weeks in a row the learner spoke in, on this seat (limits.ts weeksInARow) — the home's streak. */
+      weeksInARow: number
       practisedToday: boolean
       liveSessionId: string | null
       /** What the next session is about — the first goal of the plan waiting, else its brief. */
@@ -88,6 +90,16 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
       },
     },
   })
+
+  // The streak's sessions, for every seat on this page — one query: the weeks the learner SPOKE in, back STREAK_WEEKS.
+  // The seat's 40 latest sessions above cannot cover half a year.
+  const seatIds = learners.flatMap((l) => l.seats.map((s) => s.id))
+  const spokenRows = seatIds.length
+    ? await db.classroomSession.findMany({
+      where: { enrollmentId: { in: seatIds }, turnCount: { gt: 0 }, startedAt: { gte: streakWindowStart(now) } },
+      select: { enrollmentId: true, learnerId: true, startedAt: true },
+    })
+    : []
 
   // The uploaded rooms still ok, for every tutor on this page — one query.
   const okRooms = await okRoomIds([...(tp?.classroomAvatars ?? []).map((t) => t.backgroundId), ...learners.flatMap((l) => l.seats.map((s) => s.avatar.backgroundId))])
@@ -133,6 +145,8 @@ export async function classroomMe(profileId: string, now = new Date()): Promise<
           minutes: effectiveMinutes(s.sessionMinutes, kind, l.birthYear, now),
           sessionsPerWeek: s.sessionsPerWeek,
           sessionsThisWeek: spoke.filter((x) => x.startedAt >= weekStart).length,
+          // This learner's own sessions on this seat only (the `mine` rule): a seat's earlier learner never lends them a run.
+          weeksInARow: weeksInARow(spokenRows.filter((x) => x.enrollmentId === s.id && x.learnerId === l.id).map((x) => x.startedAt), now),
           practisedToday: spoke.some((x) => x.startedAt >= dayStart) || mine.filter((x) => x.startedAt >= dayStart).length >= LIMITS.startsPerDay,
           liveSessionId: mine.find((x) => x.status === 'live')?.id ?? null,
           nextTopic: next ? (parseFocus(next.focus).goals[0] ?? next.brief.slice(0, 120)) : null,

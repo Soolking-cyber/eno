@@ -4,7 +4,7 @@ import { mintSessionToken, spatiusConfig, tokenExpireAt, SpatiusError } from './
 import { budgetRefusal } from './budget'
 import { estimateCostMicroUsd } from './costs'
 import { parseJoin } from './join'
-import { ADULT_ATTESTATION, ADULT_NOTICE_VERSION, ASSENT_TEXT, ASSENT_YES, GUARDIAN_ATTESTATION, PERSONA_AI_NOTICE, PHOTO_NOTICE, PRACTICE_NOTICE, TEACHER_VIEW_NOTICE, PRACTICE_NOTICE_VERSION, TEACHER_VIEW_NOTICE_VERSION, GUARDIAN_NOTICE_VERSION, ASSENT_VERSION } from './notices'
+import { ADULT_ATTESTATION, ADULT_NOTICE_VERSION, ASSENT_TEXT, ASSENT_YES, GUARDIAN_ATTESTATION, PERSONA_AI_NOTICE, PHOTO_NOTICE, PRACTICE_NOTICE, TEACHER_VIEW_NOTICE, PRACTICE_NOTICE_VERSION, TEACHER_VIEW_NOTICE_VERSION, GUARDIAN_NOTICE_VERSION, ASSENT_VERSION, VOICE_NOTICE, VOICE_NOTICE_LEADS, VOICE_NOTICE_VERSION, voiceNoticeBody } from './notices'
 import { VOICES, defaultVoice, voiceById, voiceFor } from './voices'
 
 vi.mock('server-only', () => ({}))
@@ -123,5 +123,16 @@ describe('notices', () => {
       expect(part.vi.trim().length).toBeGreaterThan(0)
       expect(part.en).not.toMatch(/[{}]/)
     }
+  })
+  it('⛔ the own-voice lead-ins are headings, not terms: one per paragraph, and never in the recorded agreement text', () => {
+    expect(VOICE_NOTICE_LEADS).toHaveLength(VOICE_NOTICE.length)
+    const body = voiceNoticeBody()
+    for (const lead of VOICE_NOTICE_LEADS) {
+      expect(lead.vi.trim().length).toBeGreaterThan(0)
+      expect(body).not.toContain(lead.en)
+    }
+    for (const part of VOICE_NOTICE) expect(body).toContain(part.en)
+    // The leads changed no term, so no teacher is asked again: moving this is a change of terms (notices.ts).
+    expect(VOICE_NOTICE_VERSION).toBe('2026-11-09')
   })
 })

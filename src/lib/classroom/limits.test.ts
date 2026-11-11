@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ageBand, ageRange, childBirthYearOk, effectiveMinutes, frequencyRefusal, ictDayStart, ictWeekStart, needsAssent, nextPracticeAt, under13 } from './limits'
+import { STREAK_WEEKS, ageBand, ageRange, childBirthYearOk, effectiveMinutes, frequencyRefusal, ictDayStart, ictWeekStart, needsAssent, nextPracticeAt, streakWindowStart, under13, weeksInARow } from './limits'
 
 const at = (iso: string) => new Date(iso)
 
@@ -65,5 +65,32 @@ describe('frequency', () => {
     const now = at('2026-10-22T03:00:00Z') // Thursday 10:00 ICT
     expect(nextPracticeAt('day_limit', now).toISOString()).toBe('2026-10-22T17:00:00.000Z')
     expect(nextPracticeAt('week_limit', now).toISOString()).toBe('2026-10-25T17:00:00.000Z')
+  })
+})
+
+describe('weeksInARow — the streak', () => {
+  const now = at('2026-11-12T03:00:00Z') // Thursday 10:00 ICT; the week began Mon 2026-11-09 00:00 ICT = 2026-11-08T17:00Z
+  const lastWeek = at('2026-11-03T02:00:00Z')
+  const weekBefore = at('2026-10-27T02:00:00Z')
+  it('counts the weeks practised back from last week; this week adds one once it has a session', () => {
+    expect(weeksInARow([lastWeek, weekBefore], now)).toBe(2)
+    expect(weeksInARow([lastWeek, weekBefore, at('2026-11-10T02:00:00Z')], now)).toBe(3)
+    expect(weeksInARow([lastWeek, at('2026-11-04T02:00:00Z'), weekBefore], now)).toBe(2) // two in a week is still one week
+  })
+  it('a week with no session ends the run; an unfinished week never does', () => {
+    expect(weeksInARow([weekBefore], now)).toBe(0)
+    expect(weeksInARow([weekBefore, at('2026-11-10T02:00:00Z')], now)).toBe(1)
+    expect(weeksInARow([], now)).toBe(0)
+  })
+  it('weeks are ICT: Sunday 23:30 ICT is last week, Monday 00:10 ICT is this week', () => {
+    expect(weeksInARow([at('2026-11-08T16:30:00Z')], now)).toBe(1) // Sun 23:30 ICT — last week
+    expect(weeksInARow([at('2026-11-08T17:10:00Z')], now)).toBe(1) // Mon 00:10 ICT — this week
+    expect(weeksInARow([at('2026-11-08T16:30:00Z'), at('2026-11-08T17:10:00Z')], now)).toBe(2)
+  })
+  it('never more than the window, never from a future start', () => {
+    const every = Array.from({ length: 40 }, (_, k) => new Date(now.getTime() - k * 7 * 86_400_000))
+    expect(weeksInARow(every, now)).toBe(STREAK_WEEKS)
+    expect(weeksInARow([new Date(now.getTime() + 3_600_000)], now)).toBe(0)
+    expect(streakWindowStart(now).toISOString()).toBe('2026-05-17T17:00:00.000Z')
   })
 })

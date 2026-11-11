@@ -41,3 +41,19 @@ export function TutorFace({ tutor, photoUrl, size = 'md', className }: {
     </span>
   )
 }
+
+/**
+ * THE TUTOR AS A BADGE (Praktika comparison, gap 8): the face alone in a small ring, at the corner of a student's initials —
+ * on the roster each row is the STUDENT, and students who share a tutor no longer look identical. The face is the one the
+ * tutor's picture shows (a ready-made one, or the teacher's photo). Decorative: the row prints the tutor's name.
+ */
+export function TutorBadge({ tutor, photoUrl, className }: { tutor: Pick<TutorLook, 'name' | 'look' | 'libraryAvatarId'>; photoUrl: string | null; className?: string }) {
+  const face = tutor.look === 'library' ? libraryAvatarById(tutor.libraryAvatarId) : null
+  return (
+    <span aria-hidden className={cn('flex size-6 overflow-hidden rounded-full ring-2 ring-background', className)}>
+      {face
+        ? <img src={face.preview} alt="" width={48} height={48} loading="lazy" className="size-full object-cover" />
+        : <Avatar name={tutor.name} url={photoUrl} size="sm" className="size-full text-3xs" />}
+    </span>
+  )
+}

@@ -13,7 +13,8 @@ import type { RosterSeat, SeatProgress } from '@/lib/classroom/seats'
 import { LIMITS } from '@/lib/classroom/constants'
 import { api } from './api'
 import { SeatSheet } from './seat-sheet'
-import { TutorFace } from './tutor-card'
+import { Avatar } from '@/components/ui/avatar'
+import { TutorBadge, TutorFace } from './tutor-card'
 
 type Teacher = NonNullable<ClassroomMe['teacher']>
 
@@ -82,7 +83,8 @@ export function TeacherHome({ teacher, onChanged, secondary }: {
             </p>
           ) : (
             <ul className="divide-y divide-border border-y border-border">
-              {seats.map((s) => <SeatRow key={s.id} seat={s} photoUrl={teacher.photoUrl} />)}
+              {/* A stable sort: within a status, the order the teacher added them. */}
+              {[...seats].sort((a, b) => PROGRESS_ORDER[a.progress] - PROGRESS_ORDER[b.progress]).map((s) => <SeatRow key={s.id} seat={s} photoUrl={teacher.photoUrl} />)}
             </ul>
           )}
         </div>
@@ -155,9 +157,12 @@ const PROGRESS_LABEL: Record<SeatProgress, { en: string; vi: string }> = {
   inactive: { en: 'Inactive', vi: 'Không hoạt động' },
   paused: { en: 'Paused', vi: 'Tạm dừng' },
 }
-const PROGRESS_TONE: Record<SeatProgress, 'success' | 'warning' | 'neutral'> = {
-  on_track: 'success', behind: 'warning', not_started: 'neutral', inactive: 'warning', paused: 'neutral',
+/** Each its own tone (gap 8: Behind and Inactive shared one tan pill) — Inactive, a student who has stopped, the strongest. */
+const PROGRESS_TONE: Record<SeatProgress, 'success' | 'warning' | 'destructive' | 'neutral'> = {
+  on_track: 'success', behind: 'warning', not_started: 'neutral', inactive: 'destructive', paused: 'neutral',
 }
+/** The roster's order — who needs the teacher first (gap 8: "Behind first"); the class's own order within each. */
+const PROGRESS_ORDER: Record<SeatProgress, number> = { behind: 0, inactive: 1, not_started: 2, on_track: 3, paused: 4 }
 
 function SeatRow({ seat, photoUrl }: { seat: RosterSeat; photoUrl: string | null }) {
   const { tr } = useLanguage()
@@ -169,7 +174,12 @@ function SeatRow({ seat, photoUrl }: { seat: RosterSeat; photoUrl: string | null
   return (
     <li>
       <Link href={`/classroom/students/${seat.id}`} prefetch={false} className="press flex items-center gap-3 py-3 hover:bg-tint">
-        <TutorFace tutor={seat.tutor} photoUrl={photoUrl} size="sm" />
+        {/* The STUDENT, with their tutor at the corner (gap 8). */}
+        <span className="relative shrink-0">
+          {/* Initials a size down and the badge hung past the corner: at text-base the badge covered the second letter. */}
+          <Avatar name={name} size="lg" className="text-sm" />
+          <TutorBadge tutor={seat.tutor} photoUrl={photoUrl} className="absolute -bottom-1.5 -right-1.5" />
+        </span>
         <div className="min-w-0 flex-1">
           {/* The name truncates on its own, the badge never: `truncate` on the flex row itself could not cut a long name. */}
           <p className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink">
@@ -180,8 +190,13 @@ function SeatRow({ seat, photoUrl }: { seat: RosterSeat; photoUrl: string | null
           {/* The status FIRST: after a long seat name it was the part the ellipsis cut ("… evening group · Pa…"). */}
           <p className="truncate text-xs text-ink-4">{sub}{seat.seatName !== name ? ` · ${seat.seatName}` : ''}</p>
         </div>
+        {/* Says what the number is (gap 8: a bare blue "1") — "1 new" in words, read as part of the row's link; a screen
+            reader hears the whole: "2 new reports". (An aria-label on a plain span is not announced.) */}
         {seat.unseenReports > 0 && (
-          <Badge variant="brand" size="sm" aria-label={tr('New report', 'Nhận xét mới')}>{seat.unseenReports}</Badge>
+          <Badge variant="brand" size="sm" className="shrink-0">
+            <span aria-hidden>{seat.unseenReports} {tr('new', 'mới')}</span>
+            <span className="sr-only">{seat.unseenReports === 1 ? tr('1 new report', '1 nhận xét mới') : `${seat.unseenReports} ${tr('new reports', 'nhận xét mới')}`}</span>
+          </Badge>
         )}
         <ChevronRight aria-hidden className="size-4 text-ink-4" />
       </Link>

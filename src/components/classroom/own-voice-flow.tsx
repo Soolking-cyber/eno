@@ -12,7 +12,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { SwitchRow } from '@/components/ui/switch'
 import { AlertCircle, ArrowLeft, Mic, Pause, Play, RotateCcw, Trash2, UserRound } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
-import { VOICE_ATTESTATION, VOICE_NOTICE, VOICE_NOTICE_VERSION } from '@/lib/classroom/notices'
+import { VOICE_ATTESTATION, VOICE_NOTICE, VOICE_NOTICE_LEADS, VOICE_NOTICE_VERSION } from '@/lib/classroom/notices'
 import { LIMITS, type VoiceFailReason } from '@/lib/classroom/constants'
 import { api } from './api'
 import { refusalCopy } from './classroom-copy'
@@ -178,7 +178,13 @@ function Flow() {
           <Checkbox checked={agreed} onChange={setAgreed} className="mt-0.5 h-5 w-5" />
           <span className="flex flex-col gap-1.5">
             <span className="text-base font-semibold text-ink">{tr(VOICE_ATTESTATION.en, VOICE_ATTESTATION.vi)}</span>
-            {VOICE_NOTICE.map((l) => <span key={l.en} className="text-sm text-body">{tr(l.en, l.vi)}</span>)}
+            {/* Each paragraph opens with its lead-in (gap 6) — spans, not headings: this is all one checkbox's label. */}
+            {VOICE_NOTICE.map((l, i) => (
+              <span key={l.en} className="text-sm text-body">
+                {VOICE_NOTICE_LEADS[i] && <span className="font-semibold text-ink">{tr(VOICE_NOTICE_LEADS[i].en, VOICE_NOTICE_LEADS[i].vi)}. </span>}
+                {tr(l.en, l.vi)}
+              </span>
+            ))}
           </span>
         </label>
         {alert}

@@ -65,6 +65,8 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
   hasData.current = d !== null
   const [editing, setEditing] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
+  /** Remove failed: said beside Remove, at the page's end, where the teacher is. */
+  const [removeError, setRemoveError] = useState<string | null>(null)
   const [invite, setInvite] = useState<string | null>(null)
   /** The teacher's tutors (several since 2026-11-09): the student's tutor is shown here and changed in Practice settings. */
   const [tutors, setTutors] = useState<{ id: string; name: string; bestFor: string; look: string; libraryAvatarId: string | null; background: Background; backgroundThumbUrl: string | null }[] | null>(null)
@@ -101,10 +103,10 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
     void load()
   }
   const remove = async () => {
-    setActionError(null)
+    setRemoveError(null)
     const r = await api(`/api/classroom/seats/${seatId}`, { method: 'DELETE' })
     if (r.ok) router.push('/classroom')
-    else { setConfirmRemove(false); setActionError(r.error) }
+    else { setConfirmRemove(false); setRemoveError(r.error) }
   }
 
   const open = seat.workingOn.filter((i) => !i.fixed)
@@ -141,8 +143,8 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
         ) : null
       })()}
 
-      {/* Two thumb-size actions side by side, and "Remove" on its own quiet row under them — apart from the controls a
-          teacher taps every week, but still above the line where any action's error appears (mobile first, 2026-10-26). */}
+      {/* Two thumb-size actions side by side. "Remove" is at the page's END (gap 8: a red action in the first block, beside
+          the controls a teacher taps every week). */}
       <div className="flex flex-col gap-2">
         <div className="grid grid-cols-2 gap-3">
           <Button variant="outline" className={ACTION} onClick={() => setEditing(true)}>{tr('Practice settings', 'Cài đặt luyện tập')}</Button>
@@ -150,7 +152,6 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
           {seat.status === 'paused' && <Button variant="outline" className={ACTION} onClick={() => patch({ status: 'active' })}><Play aria-hidden />{tr('Resume', 'Tiếp tục')}</Button>}
           {seat.status === 'invited' && <Button variant="outline" className={ACTION} onClick={() => patch({ reinvite: true })}>{tr('New invite link', 'Tạo link mời mới')}</Button>}
         </div>
-        <Button variant="ghost" className="-ml-3 min-h-11 self-start text-destructive" onClick={() => setConfirmRemove(true)}><Trash2 aria-hidden />{tr('Remove', 'Xoá')}</Button>
       </div>
       {actionError && <p role="alert" className="-mt-4 text-sm text-destructive">{tr(refusalCopy(actionError).en, refusalCopy(actionError).vi)}</p>}
 
@@ -203,6 +204,12 @@ function StudentDetailFor({ seatId }: { seatId: string }) {
           </section>
         </>
       )}
+
+      {/* REMOVE, LAST (gap 8): apart from everything a teacher taps every week; it still asks first (the panel below). */}
+      <div className="flex flex-col gap-1 border-t border-border pt-4">
+        <Button variant="ghost" className="-ml-3 min-h-11 self-start text-destructive" onClick={() => { setRemoveError(null); setConfirmRemove(true) }}><Trash2 aria-hidden />{tr('Remove from class', 'Xoá khỏi lớp')}</Button>
+        {removeError && <p role="alert" className="text-sm text-destructive">{tr(refusalCopy(removeError).en, refusalCopy(removeError).vi)}</p>}
+      </div>
 
       <SeatSheet open={editing} onOpenChange={setEditing} onSaved={() => void load()} seatId={seat.id} initial={seat.settings} tutors={tutors ?? undefined} initialTutorId={seat.tutorId} />
       <Panel open={confirmRemove} onOpenChange={setConfirmRemove} title={tr('Remove this student?', 'Xoá học viên này?')}

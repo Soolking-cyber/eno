@@ -94,3 +94,34 @@ export function nextPracticeAt(refusal: StartRefusal, now: Date): Date {
     ? new Date(ictDayStart(now).getTime() + 86_400_000)
     : new Date(ictWeekStart(now).getTime() + 7 * 86_400_000)
 }
+
+/** How far back a streak is counted: this week and the 25 before it. */
+export const STREAK_WEEKS = 26
+
+/** Monday 00:00 ICT of the oldest week a streak looks at — the lower bound of the query that feeds weeksInARow. */
+export function streakWindowStart(now: Date): Date {
+  return new Date(ictWeekStart(now).getTime() - (STREAK_WEEKS - 1) * 7 * 86_400_000)
+}
+
+/**
+ * THE STREAK (Praktika comparison, 2026-11-11, gap 4: "a reason to come back"): how many practice weeks IN A ROW the learner
+ * practised — `spokenAt` are the starts of the sessions they SPOKE in (the rule the week limit counts). Counted back from
+ * last week; this week adds one once it has a session, and an unfinished week never breaks the run.
+ * ⛔ ONE SESSION MAKES A WEEK, NOT THE TEACHER'S TARGET (plan review, opus): the target is also the week's CAP, so "met" meant
+ * hitting the cap exactly — a seat keeps no history of its setting (a raised target would wipe a run backwards, a lowered
+ * one inflate it), and a child would lose the run for a week the teacher paused. The target is shown beside it ("2/5 this
+ * week"). A week with no session still ends the run, whatever the reason. Pure; weeks are ICT (no DST), at most STREAK_WEEKS.
+ */
+export function weeksInARow(spokenAt: readonly Date[], now: Date): number {
+  const thisWeek = ictWeekStart(now).getTime()
+  const practised = new Array<boolean>(STREAK_WEEKS).fill(false)
+  for (const at of spokenAt) {
+    const t = at.getTime()
+    if (t > now.getTime()) continue
+    const back = t >= thisWeek ? 0 : Math.ceil((thisWeek - t) / (7 * 86_400_000))
+    if (back < STREAK_WEEKS) practised[back] = true
+  }
+  let run = 0
+  for (let k = 1; k < STREAK_WEEKS && practised[k]; k++) run++
+  return run + (practised[0] ? 1 : 0)
+}

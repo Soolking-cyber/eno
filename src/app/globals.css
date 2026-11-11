@@ -4711,6 +4711,31 @@ body:has([data-classroom]) .back-to-top-chevron {
   display: none;
 }
 
+/* ⛔ NO WEB BAR ON A LEARNER'S PAGES (Praktika comparison 2026-11-11, gap 10: the 56px "Classroom · eno.vn" bar made the
+   child's home and report read as a web console). A page marks itself with <span data-classroom-bare hidden> — the learner
+   home of an account with no teacher side (learner-home.tsx, once its data is in), and every report (its route file, so
+   from the first paint; it has its own back arrow) — and the classroom header stands down; the page's top then clears the status bar itself, with the header's own sum
+   (env() on iOS and recent WebViews, Capacitor's injected property on older ones). Unlayered, so it beats main's `pt-4`
+   utility; without `:has()` the bar simply stays. */
+[data-classroom]:has([data-classroom-bare]) > header {
+  display: none;
+}
+[data-classroom]:has([data-classroom-bare]) > main {
+  padding-top: max(1rem, env(safe-area-inset-top), var(--safe-area-inset-top, 0px));
+}
+
+/* THE CELEBRATION AFTER A LESSON (report-view.tsx, gap 4): the card arrives with one soft rise — transform + opacity only,
+   and only for a reader who did not turn motion down. */
+@keyframes celebrate-in {
+  0%   { transform: translateY(12px) scale(0.96); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+@layer components {
+  @media (prefers-reduced-motion: no-preference) {
+    .celebrate-in { animation: celebrate-in 520ms var(--ease-spring-snappy) both; }
+  }
+}
+
 /* The voice concierge's window is its own page inside a frame (/concierge, src/components/concierge): the same stand-down,
    from the first paint, so nothing of the marketplace sits inside the floating square. */
 body:has([data-concierge-frame]) .mobile-nav,

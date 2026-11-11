@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { ApiError } from '@/lib/api/handler'
 import { containsContactInfo } from '@/lib/publish-guard'
 import { containsPhoneNumber } from '@/lib/phone'
+import { ictWeekStart, streakWindowStart, weeksInARow } from './limits'
 
 export type Viewer = 'learner' | 'teacher' | 'tester'
 
@@ -27,7 +28,7 @@ export async function sessionForViewer(sessionId: string, accountId: string) {
       // The answered turns — and a FLAGGED turn kept although its reply could not be written (2a round 8, codex: the teacher
       // must be able to read what the alert was about). The family's side drops every flagged turn below either way.
       turns: { where: { OR: [{ status: 'ok' }, { status: 'failed', flag: { not: null } }] }, orderBy: { seq: 'asc' }, select: { seq: true, learnerText: true, replyText: true, supportText: true, heardAs: true, flag: true, learnerMs: true } },
-      enrollment: { select: { id: true, seatName: true, status: true, avatarId: true, learnerId: true } },
+      enrollment: { select: { id: true, seatName: true, status: true, avatarId: true, learnerId: true, sessionsPerWeek: true } },
       learner: { select: { ownerId: true, displayName: true, withdrawnAt: true } },
       avatar: { select: { name: true, teacherProfile: { select: { profileId: true, fullName: true, photoUrl: true } } } },
     },
@@ -92,5 +93,61 @@ export function reportFor(s: Awaited<ReturnType<typeof sessionForViewer>>['s'], 
       // the teacher's side screens these too (2b round 1): they are the learner's words as heard
       .filter((h) => !teacherSide || (maskContact(h.heard) === h.heard && maskContact(h.meant) === h.meant))
       .map((h) => [`${h.heard.toLowerCase()}>${h.meant.toLowerCase()}`, { heard: h.heard, meant: h.meant }] as const)).values()].slice(0, 6),
+  }
+}
+
+type ViewedSession = Awaited<ReturnType<typeof sessionForViewer>>['s']
+type Scores = { pronunciation: number | null; fluency: number | null }
+
+/** A stored score, or null — the feedback row's `scores` is JSON written by feedback.ts, read defensively. */
+function scoreOf(scores: unknown, key: 'pronunciation' | 'fluency'): number | null {
+  const v = scores && typeof scores === 'object' ? (scores as Record<string, unknown>)[key] : null
+  return typeof v === 'number' && Number.isFinite(v) ? v : null
+}
+
+/** How many earlier ready reports previousScores looks through for each score. */
+export const PREVIOUS_SCAN = 30
+
+/**
+ * THE SCALE'S "SINCE LAST TIME" (Praktika comparison, gap 7): each score's value in the latest EARLIER session of the same
+ * seat AND the same learner that HAS that score (plan review, opus: pronunciation is null whenever no repeat-after-me sentence
+ * was scored, so "the last session" would often compare against nothing). Looked for in the PREVIOUS_SCAN ready reports
+ * before this one (commit review, codex: ten was too few) — a score older than that is no "last time" worth comparing to
+ * (at the week's cap that is over a month back), so no change is shown. Only the two numbers leave those rows. A tester's
+ * session (no seat) has none; neither has a report still being built (the route skips it while the report view polls).
+ */
+export async function previousScores(s: ViewedSession): Promise<Scores | null> {
+  if (!s.enrollment || !s.learnerId || s.feedbackStatus !== 'ready') return null
+  const rows = await db.classroomSession.findMany({
+    where: { enrollmentId: s.enrollment.id, learnerId: s.learnerId, startedAt: { lt: s.startedAt }, feedbackStatus: 'ready', feedback: { isNot: null } },
+    orderBy: { startedAt: 'desc' },
+    take: PREVIOUS_SCAN,
+    select: { feedback: { select: { scores: true } } },
+  })
+  const first = (key: 'pronunciation' | 'fluency') => rows.map((r) => scoreOf(r.feedback?.scores, key)).find((v) => v !== null) ?? null
+  return { pronunciation: first('pronunciation'), fluency: first('fluency') }
+}
+
+/** How long after a lesson ends its report still opens with the celebration (plan review: never on an old report). */
+export const CELEBRATE_WITHIN_MS = 15 * 60_000
+
+/**
+ * THE CELEBRATION AFTER A LESSON (gap 4): the family's side only, only for a session that ENDED in the last
+ * CELEBRATE_WITHIN_MS and that the learner spoke in — decided here, never by the URL (plan review, codex + opus: `?done=1`
+ * survives a refresh, a bookmark, the back button). Carries the week as the home shows it (me.ts): the learner's sessions
+ * this week against the seat's target, and the streak — for this session's own seat and learner.
+ */
+export async function celebrationFor(s: ViewedSession, viewer: Viewer, talkSeconds: number, now = new Date()): Promise<{ done: number; of: number; streak: number } | null> {
+  if (viewer !== 'learner' || !s.enrollment || !s.learnerId || !s.endedAt || talkSeconds <= 0) return null
+  if (now.getTime() - s.endedAt.getTime() > CELEBRATE_WITHIN_MS) return null
+  const rows = await db.classroomSession.findMany({
+    where: { enrollmentId: s.enrollment.id, learnerId: s.learnerId, turnCount: { gt: 0 }, startedAt: { gte: streakWindowStart(now) } },
+    select: { startedAt: true },
+  })
+  const weekStart = ictWeekStart(now)
+  return {
+    done: rows.filter((r) => r.startedAt >= weekStart).length,
+    of: s.enrollment.sessionsPerWeek,
+    streak: weeksInARow(rows.map((r) => r.startedAt), now),
   }
 }

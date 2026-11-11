@@ -9,11 +9,11 @@ import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { ChevronRight, Cog, Mic } from '@/components/ui/icons'
 import type { ClassroomMe } from '@/lib/classroom/me'
-import { cn } from '@/lib/utils'
 import { SessionLauncher } from './session-launcher'
 import { ParentGate } from './parent-gate'
 import { LearnerControls } from './learner-controls'
 import { sessionDate } from './classroom-copy'
+import { WeekLine } from './week-line'
 
 type Learner = ClassroomMe['learners'][number]
 type Seat = Learner['seats'][number]
@@ -39,8 +39,10 @@ export function LearnerHome({ me, onChanged }: { me: ClassroomMe; onChanged: () 
 
   return (
     <section aria-labelledby="practice-title" className="flex flex-col gap-6">
+      {/* An account with no teacher side: the classroom's web bar stands down on this page (globals.css, gap 10). */}
+      {!me.teacher && <span data-classroom-bare hidden />}
       <div className="flex items-center justify-between gap-3">
-        <h1 id="practice-title" className="h-title">
+        <h1 id="practice-title" className="h-display min-w-0 truncate">
           {learner.kind === 'child' ? learner.displayName : tr('Your practice', 'Luyện tập của bạn')}
         </h1>
         {/* -mr-3: the 44px button's padding hangs into the gutter, so its label still ends on the column's edge. */}
@@ -80,29 +82,35 @@ function TodayCard({ seat }: { seat: Seat }) {
             : null
   return (
     <article className="flex flex-col gap-5">
-      <div className="flex flex-col items-center gap-4 rounded-2xl bg-brand-deeper px-6 py-8 text-center text-primary-foreground">
-        <Avatar name={seat.avatarName} url={seat.teacherPhotoUrl} size="2xl" />
-        <div>
-          <p className="text-lg font-bold">{seat.avatarName}</p>
-          <p className="text-xs text-primary-foreground/70">{tr('AI avatar of', 'Avatar AI của')} {seat.teacherName}</p>
+      {/* THE TUTOR'S ROOM AS THE CARD (gap 4): the room the lesson opens in, under a scrim that keeps the white words legible;
+          the plain room (no picture) is the brand's deep blue. */}
+      <div className="relative isolate overflow-hidden rounded-3xl bg-brand-deeper text-primary-foreground">
+        {seat.avatarBackgroundUrl && <img src={seat.avatarBackgroundUrl} alt="" decoding="async" className="absolute inset-0 -z-10 size-full object-cover" />}
+        <span aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-b from-black/35 via-black/50 to-black/75" />
+        <div className="flex flex-col items-center gap-4 px-6 pb-6 pt-8 text-center">
+          <Avatar name={seat.avatarName} url={seat.teacherPhotoUrl} size="2xl" className="size-32 ring-4 ring-primary-foreground/90" />
+          <div>
+            <p className="text-xl font-bold">{seat.avatarName}</p>
+            <p className="text-xs text-primary-foreground/80">{tr('AI avatar of', 'Avatar AI của')} {seat.teacherName}</p>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-sm text-primary-foreground/85">{tr("Today's practice", 'Bài luyện hôm nay')} · {seat.minutes} {tr('min', 'phút')}</p>
+            {seat.nextTopic && <p className="max-w-xs text-lg font-semibold leading-snug">{seat.nextTopic}</p>}
+          </div>
+          {blocked ? (
+            <p className="text-sm text-primary-foreground/90">{blocked}</p>
+          ) : (
+            <SessionLauncher
+              seatId={seat.id}
+              preview={{ name: seat.avatarName, photoUrl: seat.teacherPhotoUrl, background: seat.avatarBackground, backgroundUrl: seat.avatarBackgroundUrl }}
+              variant="cta"
+              size="lg"
+              className="min-h-12 w-full max-w-xs"
+              label={<><Mic aria-hidden />{seat.liveSessionId ? tr('Continue', 'Tiếp tục') : tr('Start practice', 'Bắt đầu luyện')}</>}
+            />
+          )}
+          <WeekLine done={seat.sessionsThisWeek} of={seat.sessionsPerWeek} streak={seat.weeksInARow} className="mt-1" />
         </div>
-        <div className="flex flex-col items-center gap-1">
-          <p className="text-sm text-primary-foreground/80">{tr("Today's practice", 'Bài luyện hôm nay')} · {seat.minutes} {tr('min', 'phút')}</p>
-          {seat.nextTopic && <p className="max-w-xs text-base font-semibold">{seat.nextTopic}</p>}
-        </div>
-        {blocked ? (
-          <p className="text-sm text-primary-foreground/90">{blocked}</p>
-        ) : (
-          <SessionLauncher
-            seatId={seat.id}
-            preview={{ name: seat.avatarName, photoUrl: seat.teacherPhotoUrl, background: seat.avatarBackground, backgroundUrl: seat.avatarBackgroundUrl }}
-            variant="cta"
-            size="lg"
-            className="min-h-12 w-full max-w-xs"
-            label={<><Mic aria-hidden />{seat.liveSessionId ? tr('Continue', 'Tiếp tục') : tr('Start practice', 'Bắt đầu luyện')}</>}
-          />
-        )}
-        <WeekDots done={seat.sessionsThisWeek} of={seat.sessionsPerWeek} />
       </div>
       {seat.reports.length > 0 && (
         <div className="flex flex-col gap-2">
@@ -124,17 +132,5 @@ function TodayCard({ seat }: { seat: Seat }) {
         </div>
       )}
     </article>
-  )
-}
-
-/** The week at a glance: one dot per session the teacher set, filled for each one done (Mon–Sun, ICT). */
-function WeekDots({ done, of }: { done: number; of: number }) {
-  const { tr } = useLanguage()
-  return (
-    <div className="flex items-center gap-2" role="img" aria-label={`${done}/${of} ${tr('sessions this week', 'buổi tuần này')}`}>
-      {Array.from({ length: of }, (_, i) => (
-        <span key={i} aria-hidden className={cn('size-2.5 rounded-full', i < done ? 'bg-primary-foreground' : 'bg-primary-foreground/25')} />
-      ))}
-    </div>
   )
 }

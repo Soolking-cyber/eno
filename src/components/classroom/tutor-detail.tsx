@@ -121,7 +121,8 @@ function TutorDetailFor({ tutorId }: { tutorId: string }) {
           <h1 className="h-title min-w-0 max-w-full truncate">{tutor.name}</h1>
           {tutor.bestFor && <p className="text-sm text-body">{tutor.bestFor}</p>}
           <p className="text-xs text-ink-4">
-            {tr('AI avatar', 'Avatar AI')}{tutor.ownVoice && own?.status === 'ready' ? ` · ${tr('your voice', 'giọng của bạn')}` : voice ? ` · ${voice.name}` : ''}
+            {/* "· voice: Imogen" — a bare "Imogen" did not say it was the voice (gap 8). */}
+            {tr('AI avatar', 'Avatar AI')}{tutor.ownVoice && own?.status === 'ready' ? ` · ${tr('your voice', 'giọng của bạn')}` : voice ? ` · ${tr('voice:', 'giọng')} ${voice.name}` : ''}
             {tutor.customStatus === 'requested' ? ` · ${tr('your 3D face is being made', 'đang tạo khuôn mặt 3D của bạn')}` : ''}
           </p>
         </div>

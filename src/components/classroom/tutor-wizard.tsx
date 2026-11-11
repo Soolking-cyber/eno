@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -142,9 +143,21 @@ export function TutorWizard({ tutorId }: { tutorId?: string }) {
       steps={steps}
       current={step}
       onStepSelect={(key) => setStep(key)}
+      // A saved tutor has every step answered: any step is one tap away (the API checks the whole tutor again on Save).
+      allowForward={!!data.tutor}
+      // Each step named, and its place: "Look · 1/3 · Next: Voice" on a phone, the names under the nodes from md (gap 9 —
+      // the teacher form's pattern; three glyphs alone did not say what the steps were).
+      showStepName
+      captionNext={step === 'look' ? `${tr('Next', 'Tiếp theo')}: ${steps[1].label}` : step === 'voice' ? `${tr('Next', 'Tiếp theo')}: ${steps[2].label}` : null}
       header={(
         <div className="mb-5 flex flex-col items-center gap-3 text-center">
-          <h1 className="h-title self-start">{data.tutor ? tr('Edit tutor', 'Sửa gia sư') : tr('New tutor', 'Gia sư mới')}</h1>
+          <div className="flex w-full items-center justify-between gap-3">
+            <h1 className="h-title min-w-0 truncate">{data.tutor ? tr('Edit tutor', 'Sửa gia sư') : tr('New tutor', 'Gia sư mới')}</h1>
+            {/* THE WAY OUT (gap 9): "Cancel", so leaving says what happens to the changes — nothing is saved until Save. */}
+            <Button variant="ghost" className="-mr-3 min-h-11 shrink-0" asChild>
+              <Link href={tutorId ? `/classroom/tutors/${encodeURIComponent(tutorId)}` : '/classroom'} prefetch={false}>{tr('Cancel', 'Huỷ')}</Link>
+            </Button>
+          </div>
           {/* The tutor as students will see it, on every step (plan: a live preview card). */}
           <TutorFace tutor={{ name: d.name, look: d.look, libraryAvatarId: d.libraryAvatarId, background: d.traits.background, ...(d.backgroundId ? { backgroundThumbUrl: uploadedRoomUrl(d.backgroundId, 'thumb') } : {}) }} photoUrl={data.teacher.photoUrl} size="lg" className="max-w-32" />
           <p className="min-w-0 max-w-full truncate text-base font-bold text-ink">{d.name || tr('Your tutor', 'Gia sư của bạn')}</p>
@@ -186,29 +199,43 @@ function LookStep({ d, setD, photoUrl, customStatus, setCustomStatus }: {
     if (d.look === 'custom') setD({ ...d, look: 'photo', libraryAvatarId: null })
   }
   // whitespace-normal: ui/button's base is nowrap, and a two-line label ran past the card at 390px.
-  const option = (selected: boolean) => cn('press flex w-full items-center gap-4 whitespace-normal rounded-2xl p-3 text-left hover:bg-tint', selected && 'bg-accent')
+  // A picked option is ringed in brand with a tick (gap 5) — the pale wash it had read as a hover.
+  const option = (selected: boolean) => cn('press flex w-full items-center gap-4 whitespace-normal rounded-2xl p-3 text-left hover:bg-tint', selected && 'ring-2 ring-brand')
   // The own-face section: offered while requests are open, and always shown to a teacher who already has a request or a
   // likeness, so they can still use or withdraw it (LIKENESS_REQUESTS_OPEN — closed for the MVP).
   const ownFace = LIKENESS_REQUESTS_OPEN || customStatus === 'requested' || customStatus === 'ready'
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-body">{tr('The face and the room your students see.', 'Khuôn mặt và căn phòng học viên nhìn thấy.')}</p>
-      {LIBRARY_AVATARS.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-ink">{tr('Ready-made 3D avatars', 'Avatar 3D có sẵn')}</p>
-          <div className="grid grid-cols-3 gap-3">
-            {LIBRARY_AVATARS.map((a) => (
-              <Button variant="bare" size="none" key={a.id} aria-pressed={d.look === 'library' && d.libraryAvatarId === a.id}
-                className={cn('press flex min-w-0 flex-col items-center gap-2 whitespace-normal rounded-2xl p-2 text-center hover:bg-tint', d.look === 'library' && d.libraryAvatarId === a.id && 'bg-accent')}
-                onClick={() => setD({ ...d, look: 'library', libraryAvatarId: a.id })}>
-                {/* Square at any width: a fixed 96px box was squeezed to 72×96 by the 3 columns of a 320px phone. */}
-                <img src={a.preview} alt="" width={96} height={96} className="aspect-square h-auto w-full max-w-24 rounded-2xl object-cover" />
-                <span className="text-xs text-ink-2">{tr(a.label.en, a.label.vi)}</span>
-              </Button>
-            ))}
+      {/* THE CAST IN ITS TWO STYLES (Praktika comparison, gap 5): the ready-made faces are Spatius's library — three animated,
+          six lifelike — so each style is its own labelled group and the mix reads as a choice, not as two renderers. */}
+      {(['stylised', 'realistic'] as const).map((style) => {
+        const cast = LIBRARY_AVATARS.filter((a) => a.style === style)
+        if (cast.length === 0) return null
+        return (
+          <div key={style} className="flex flex-col gap-2">
+            <p className="text-sm font-semibold text-ink">
+              {style === 'stylised' ? tr('Animated — good for young learners', 'Hoạt hình — hợp với các bạn nhỏ') : tr('Lifelike', 'Chân thật')}
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              {cast.map((a) => {
+                const picked = d.look === 'library' && d.libraryAvatarId === a.id
+                return (
+                  <Button variant="bare" size="none" key={a.id} aria-pressed={picked}
+                    className="press flex min-w-0 flex-col items-center gap-2 whitespace-normal rounded-2xl p-1.5 text-center hover:bg-tint"
+                    onClick={() => setD({ ...d, look: 'library', libraryAvatarId: a.id })}>
+                    {/* Square at any width: a fixed 96px box was squeezed to 72×96 by the 3 columns of a 320px phone. */}
+                    <Picked picked={picked} className="w-full max-w-24">
+                      <img src={a.preview} alt="" width={96} height={96} className="aspect-square h-auto w-full rounded-2xl object-cover" />
+                    </Picked>
+                    <span className={cn('text-xs', picked ? 'font-semibold text-ink' : 'text-ink-2')}>{tr(a.label.en, a.label.vi)}</span>
+                  </Button>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })}
       <Button variant="bare" size="none" aria-pressed={d.look === 'photo'} className={option(d.look === 'photo')} onClick={() => setD({ ...d, look: 'photo', libraryAvatarId: null })}>
         <Avatar name={d.name} url={photoUrl} size="xl" />
         <span className="min-w-0 flex-1">
@@ -247,6 +274,23 @@ function LookStep({ d, setD, photoUrl, customStatus, setCustomStatus }: {
         {err && <p role="alert" className="text-sm text-destructive">{tr(refusalCopy(err).en, refusalCopy(err).vi)}</p>}
       </div>}
     </div>
+  )
+}
+
+/**
+ * A PICKED PICTURE (Praktika comparison, gap 5): a 2px brand ring off the picture and a tick in its corner — the pale wash
+ * the tiles had was read as a hover, not a choice. Decorative: the button's aria-pressed / the radio's checked state says it.
+ */
+function Picked({ picked, className, children }: { picked: boolean; className?: string; children: React.ReactNode }) {
+  return (
+    <span className={cn('relative block rounded-2xl', picked && 'ring-2 ring-brand ring-offset-2 ring-offset-background', className)}>
+      {children}
+      {picked && (
+        <span aria-hidden className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-brand text-primary-foreground ring-2 ring-background">
+          <Check className="size-3" />
+        </span>
+      )}
+    </span>
   )
 }
 
@@ -327,7 +371,8 @@ function RoomPicker({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
     <div className="flex flex-col gap-2 border-t border-border pt-5">
       <p className="text-sm font-semibold text-ink">{tr('Background', 'Phông nền')}</p>
       <p className="text-xs text-ink-4">{tr('The room your students see behind the avatar.', 'Căn phòng học viên nhìn thấy phía sau avatar.')}</p>
-      <RadioGroup value={value} aria-label={tr('Background', 'Phông nền')} className="grid grid-cols-4 gap-2"
+      {/* Three across, 3:4 and rounded-2xl — the tutor card's own proportion and corner, and the faces' grid (gap 5, gap 9). */}
+      <RadioGroup value={value} aria-label={tr('Background', 'Phông nền')} className="grid grid-cols-3 gap-3"
         onValueChange={(v) => {
           if (typeof v !== 'string') return
           if (v.startsWith('up:')) setD({ ...d, backgroundId: v.slice(3) })
@@ -335,20 +380,24 @@ function RoomPicker({ d, setD }: { d: Draft; setD: (d: Draft) => void }) {
         }}>
         {(uploads ?? []).map((u, i) => (
           <Radio key={u.id} value={`up:${u.id}`} aria-label={`${tr('Your photo', 'Ảnh của bạn')} ${i + 1}`}
-            className={cn('flex min-w-0 flex-col items-center justify-start gap-1 whitespace-normal rounded-2xl p-1.5 text-center hover:bg-tint', d.backgroundId === u.id && 'bg-accent')}>
-            <img src={u.thumbUrl} alt="" width={72} height={126} loading="lazy" className="aspect-[4/7] h-auto w-full rounded-xl object-cover" />
-            <span className="text-xs text-ink-2">{tr('Your photo', 'Ảnh của bạn')}</span>
+            className="flex min-w-0 flex-col items-center justify-start gap-1.5 whitespace-normal rounded-2xl p-1.5 text-center hover:bg-tint">
+            <Picked picked={d.backgroundId === u.id} className="w-full">
+              <img src={u.thumbUrl} alt="" width={96} height={128} loading="lazy" className="aspect-[3/4] h-auto w-full rounded-2xl object-cover" />
+            </Picked>
+            <span className={cn('text-xs', d.backgroundId === u.id ? 'font-semibold text-ink' : 'text-ink-2')}>{tr('Your photo', 'Ảnh của bạn')}</span>
           </Radio>
         ))}
         {BACKGROUNDS.map((b) => {
           const thumb = backgroundThumb(b)
           return (
             <Radio key={b} value={b}
-              className={cn('flex min-w-0 flex-col items-center justify-start gap-1 whitespace-normal rounded-2xl p-1.5 text-center hover:bg-tint', !d.backgroundId && d.traits.background === b && 'bg-accent')}>
-              {thumb
-                ? <img src={thumb} alt="" width={72} height={126} loading="lazy" className="aspect-[4/7] h-auto w-full rounded-xl object-cover" />
-                : <span aria-hidden className="aspect-[4/7] w-full rounded-xl bg-brand-deeper" />}
-              <span className="text-xs text-ink-2">{tr(BACKGROUND_LABEL[b].en, BACKGROUND_LABEL[b].vi)}</span>
+              className="flex min-w-0 flex-col items-center justify-start gap-1.5 whitespace-normal rounded-2xl p-1.5 text-center hover:bg-tint">
+              <Picked picked={!d.backgroundId && d.traits.background === b} className="w-full">
+                {thumb
+                  ? <img src={thumb} alt="" width={96} height={128} loading="lazy" className="aspect-[3/4] h-auto w-full rounded-2xl object-cover" />
+                  : <span aria-hidden className="block aspect-[3/4] w-full rounded-2xl bg-brand-deeper" />}
+              </Picked>
+              <span className={cn('text-xs', !d.backgroundId && d.traits.background === b ? 'font-semibold text-ink' : 'text-ink-2')}>{tr(BACKGROUND_LABEL[b].en, BACKGROUND_LABEL[b].vi)}</span>
             </Radio>
           )
         })}
