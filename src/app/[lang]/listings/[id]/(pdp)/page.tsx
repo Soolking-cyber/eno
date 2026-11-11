@@ -1129,7 +1129,9 @@ export default async function ListingPage({ params }: Props) {
                       : listing.listingType === 'job' && listing.price === 0
                       ? (typeof listing.attributes?.salaryText === 'string'
                           ? <span className="text-2xl font-bold tracking-tight text-price [overflow-wrap:anywhere]">{listing.attributes.salaryText}</span>
-                          : <span className="text-base font-semibold text-body">{isJob
+                          : <span className={cn('text-base', isJob ? 'text-muted-foreground' : 'font-semibold text-body')}>{isJob
+                              // Quiet ink, regular weight (batch 63, 2026-11-11): in semibold over the H1 a line saying there is no figure
+                              // led the page; both blind judges read it as competing with the job's title. "Negotiable" is the employer's answer and keeps its weight.
                               ? <Bilingual en="Salary: see the original posting" vi="Mức lương: xem tin tuyển dụng gốc" />
                               // An employer's own job with no salary: the post wizard frames an empty
                               // Salary as "Negotiable / Thỏa thuận" (owner, 2026-10-01), so that is

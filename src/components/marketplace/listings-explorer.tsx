@@ -5569,7 +5569,7 @@ export function ListingsExplorer({
                       {index === FIRST_PAGE_SIZE - 1 && showTeacherShelf && (
                         <TeacherShelf listings={initialTeachers ?? []} onOpen={openFromShelf} teacherProfile={hasTeacherProfile} teacherDraft={hasTeacherDraft} />
                       )}
-                      {index === FIRST_PAGE_SIZE - 1 && <CaptureCard />}
+                      {index === FIRST_PAGE_SIZE - 1 && <CaptureCard jobs={jobsOnScreen} />}
                       {/* ⚠️ THE FEED'S OWN HEADING AGAIN, FOR A SCREEN READER, ONCE CARDS FOLLOW THE SHELF (canon §3b, WCAG
                           1.3.1 — review, 2026-10-13). The shelf's <h2> "Find a teacher" sits INSIDE the grid, so after
                           "Browse everything" every later card's <h3> was outlined under it. This hands them back to the
@@ -5857,7 +5857,7 @@ export function ListingsExplorer({
                       {/* The guest sign-up row, where the grid has it (after the first page). Only when this list IS the
                           default presentation (`jobsRows`: Jobs on a phone): there it replaces a grid that carried the row,
                           and a guest must not lose it. The list a reader chose never had it and still does not. */}
-                      {index === FIRST_PAGE_SIZE - 1 && jobsRows && <CaptureCard />}
+                      {index === FIRST_PAGE_SIZE - 1 && jobsRows && <CaptureCard jobs />}
                     </Fragment>
                   ))}
                   {/* The next page's reserved rows — see `pendingRows`. */}

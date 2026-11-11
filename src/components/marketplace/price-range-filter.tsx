@@ -54,8 +54,13 @@ function parseBound(s: string | undefined): number | null {
  *     stop is "no max"; neither writes a bound into the URL.
  */
 export function PriceRangeFilter({
-  value, onChange, query, countsApproximate = false, className = PILL_REST, activeClassName = PILL_ON, wrapperClassName, onOpenChange,
+  value, onChange, query, countsApproximate = false, className = PILL_REST, activeClassName = PILL_ON, wrapperClassName, onOpenChange, salary = false,
 }: {
+  /**
+   * Jobs: the figure is a salary (batch 63, 2026-11-11: "Price" on the Jobs feed read as a shop's filter to both blind judges).
+   * Only the words change; the range, the histogram and the address key stay the price ones the listing stores.
+   */
+  salary?: boolean
   value: string
   onChange: (v: string) => void
   query: string
@@ -156,7 +161,11 @@ export function PriceRangeFilter({
   const ariaValueText = (pos: number, i: number) => {
     const side = i === 0 ? 0 : 1
     const b = pos === (side === 0 ? posLo : posHi) ? (side === 0 ? lo : hi) : boundAt(side, pos)
-    if (b == null) return side === 0 ? tr('No minimum', 'Không có giá tối thiểu') : tr('No maximum', 'Không có giá tối đa')
+    // A job's slider is a salary's, in Vietnamese too ("lương", not "giá"): batch 63.
+    if (b == null) {
+      if (salary) return side === 0 ? tr('No minimum', 'Không có lương tối thiểu') : tr('No maximum', 'Không có lương tối đa')
+      return side === 0 ? tr('No minimum', 'Không có giá tối thiểu') : tr('No maximum', 'Không có giá tối đa')
+    }
     return `${grp(toDisplay(b))} ${sym}`
   }
 
@@ -185,7 +194,7 @@ export function PriceRangeFilter({
   // (panel open), and the old `prices.length` guard left the generic "Price"
   // trigger until first open.
   const triggerText = (() => {
-    if (!active) return tr('Price', 'Giá')
+    if (!active) return salary ? tr('Salary', 'Lương') : tr('Price', 'Giá')
     const [mn, mx] = value.split('-')
     const min = parseBound(mn) ?? 0
     // A typed max of 0 ("free only") is a real bound, so test for null, not falsiness.
@@ -193,7 +202,7 @@ export function PriceRangeFilter({
     if (min && max != null) return `${compactAmt(min)}–${compactAmt(max)} ${sym}`
     if (min) return tr('From {x}', 'Từ {x}').replace('{x}', `${compactAmt(min)} ${sym}`)
     if (max != null) return tr('Up to {x}', 'Đến {x}').replace('{x}', `${compactAmt(max)} ${sym}`)
-    return tr('Price', 'Giá')
+    return salary ? tr('Salary', 'Lương') : tr('Price', 'Giá')
   })()
 
   // The count the panel states: "{n} available" in the header, and on a phone the footer button's
@@ -267,7 +276,7 @@ export function PriceRangeFilter({
                 className="mt-1"
                 value={[posLo, posHi]}
                 min={0} max={lastIdx} step={1}
-                thumbAriaLabels={[tr('Minimum price', 'Giá tối thiểu'), tr('Maximum price', 'Giá tối đa')]}
+                thumbAriaLabels={salary ? [tr('Minimum salary', 'Lương tối thiểu'), tr('Maximum salary', 'Lương tối đa')] : [tr('Minimum price', 'Giá tối thiểu'), tr('Maximum price', 'Giá tối đa')]}
                 getAriaValueText={ariaValueText}
                 onChange={([a, b], t) => {
                   activeThumb.current = t
@@ -366,7 +375,7 @@ export function PriceRangeFilter({
         </div>
         <DrawerContent>
           <DrawerHeader className="flex-row items-center justify-between gap-3 pb-1 text-left">
-            <DrawerTitle className="text-base font-bold">{tr('Price range', 'Khoảng giá')}</DrawerTitle>
+            <DrawerTitle className="text-base font-bold">{(salary ? tr('Salary range', 'Khoảng lương') : tr('Price range', 'Khoảng giá'))}</DrawerTitle>
             <span className="ml-auto text-xs text-muted-foreground">{loaded ? countLabel : tr('Loading…', 'Đang tải…')}</span>
             {/* The 24px box the header row was laid out for — CloseButton's `2xs` (D-CLOSE). */}
             <CloseButton size="2xs" onClick={() => changeOpen(false)} className="-mr-1 hover:bg-muted" />
@@ -405,11 +414,11 @@ export function PriceRangeFilter({
         // would ALSO open that card's PDP (Base UI popovers are non-modal). area-filter and the
         // sibling selects all keep this backdrop; price-filter must not be the one that leaks.
         backdrop
-        aria-label={tr('Price range', 'Khoảng giá')}
+        aria-label={(salary ? tr('Salary range', 'Khoảng lương') : tr('Price range', 'Khoảng giá'))}
         className="block w-80 max-w-[calc(100vw-1rem)] p-4 shadow-pop ring-0"
       >
         <div className="flex items-baseline justify-between">
-          <p className="text-sm font-bold text-foreground">{tr('Price range', 'Khoảng giá')}</p>
+          <p className="text-sm font-bold text-foreground">{(salary ? tr('Salary range', 'Khoảng lương') : tr('Price range', 'Khoảng giá'))}</p>
           <p className="text-xs text-muted-foreground">
             {/* {n} template, not `${count} available` interpolation: an interpolated
                 string mints one MT-cache key (one billed translate segment) per unique

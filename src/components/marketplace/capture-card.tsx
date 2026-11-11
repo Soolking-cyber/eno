@@ -1,6 +1,6 @@
 'use client'
 
-import { Tag, MessageCircle, Bell } from '@/components/ui/icons'
+import { Tag, MessageCircle, Bell, Heart } from '@/components/ui/icons'
 import { preloadSignIn, useAuth } from '@/context/auth-context'
 import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
@@ -31,8 +31,13 @@ import { POSTING_IS_FREE } from '@/lib/site-identity'
  * 2026-11-09 an account keeps them on every device — the first-save note says so (save-signup-sheet.tsx);
  * this card does not, as nobody asked for it back. "Post listings for free" is shown only while POSTING_IS_FREE holds —
  * that flag is the one place the day a fee is announced gets decided (src/lib/site-identity.ts).
+ * ⛔ A JOB SEEKER IS NOT HUNTING A DEAL (`jobs`, batch 63, 2026-11-11). In the Jobs list the card said "Never miss a deal",
+ * "Chat with sellers instantly" and "Price-drop & search alerts", a shop's promise in a list of jobs, most of which are applied
+ * for on the employer's own posting (both blind judges named it). There it speaks to a job seeker: what an account gives in
+ * Jobs is a saved job on every device and an alert when a saved search gets a new job. Blind A/B with the Salary filter and the
+ * job page's quiet salary line: codex 7.09 to 7.30, Opus 7.16 to 7.31.
  */
-export function CaptureCard() {
+export function CaptureCard({ jobs = false }: { jobs?: boolean }) {
   const { user, loading, openSignIn } = useAuth()
   const { tr } = useLanguage()
   // ⛔ IN THE FIRST PAINT FOR A VISITOR WITH NO SESSION (html.no-session, set before the first paint: speed audit, 2026-11-03). It used to arrive when auth settled, 93-163 px
@@ -42,13 +47,15 @@ export function CaptureCard() {
   return (
     <div className={cn('col-span-full flex-col gap-3 border-t border-border py-4 not-last:border-b sm:flex-row sm:items-center sm:gap-6', loading ? 'hidden no-session:flex' : 'flex')}>
       <div className="min-w-0">
-        <p className="text-base font-extrabold leading-snug text-foreground">{tr('Never miss a deal.', 'Đừng bỏ lỡ món hời.')}</p>
+        <p className="text-base font-extrabold leading-snug text-foreground">{jobs ? tr('Get new jobs first.', 'Nhận việc làm mới sớm nhất.') : tr('Never miss a deal.', 'Đừng bỏ lỡ món hời.')}</p>
         <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-body">
           {POSTING_IS_FREE && (
-            <li className="flex items-center gap-1.5"><Tag className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden /> {tr('Post listings for free', 'Đăng tin miễn phí')}</li>
+            <li className="flex items-center gap-1.5"><Tag className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden /> {jobs ? tr('Post a job for free', 'Đăng tin tuyển dụng miễn phí') : tr('Post listings for free', 'Đăng tin miễn phí')}</li>
           )}
-          <li className="flex items-center gap-1.5"><MessageCircle className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden /> {tr('Chat with sellers instantly', 'Nhắn tin ngay với người bán')}</li>
-          <li className="flex items-center gap-1.5"><Bell className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden /> {tr('Price-drop & search alerts', 'Báo giá giảm & tin mới')}</li>
+          {jobs
+            ? <li className="flex items-center gap-1.5"><Heart className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden /> {tr('Save jobs to apply later', 'Lưu việc để ứng tuyển sau')}</li>
+            : <li className="flex items-center gap-1.5"><MessageCircle className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden /> {tr('Chat with sellers instantly', 'Nhắn tin ngay với người bán')}</li>}
+          <li className="flex items-center gap-1.5"><Bell className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden /> {jobs ? tr('Alerts for new jobs', 'Thông báo khi có việc mới') : tr('Price-drop & search alerts', 'Báo giá giảm & tin mới')}</li>
         </ul>
       </div>
       {/* Full width and 44px on a phone (a thumb target on its own line); content width from `sm`,

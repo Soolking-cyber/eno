@@ -441,6 +441,7 @@ export function FacetBar({
   facets.push(
     <PriceRangeFilter
       key="price"
+      salary={activeCategory === 'jobs'}
       value={priceRange}
       onChange={setPriceRange}
       query={histogramQuery}

@@ -2,6 +2,8 @@
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import userEvent from '@testing-library/user-event'
 
 import { CurrencyProvider } from '@/context/currency-context'
@@ -48,12 +50,12 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function renderFilter(value = 'all', countsApproximate = false) {
+function renderFilter(value = 'all', countsApproximate = false, salary = false) {
   const onChange = vi.fn()
   render(
     <LanguageProvider>
       <CurrencyProvider>
-        <PriceRangeFilter value={value} onChange={onChange} query="histogram=1&category=electronics" countsApproximate={countsApproximate} />
+        <PriceRangeFilter value={value} onChange={onChange} query="histogram=1&category=electronics" countsApproximate={countsApproximate} salary={salary} />
       </CurrencyProvider>
     </LanguageProvider>,
   )
@@ -64,6 +66,20 @@ async function open(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getAllByRole('button')[0])
   return await screen.findByRole('dialog', { name: 'Price range' })
 }
+
+describe('PriceRangeFilter — Jobs say Salary (batch 63)', () => {
+  it('the trigger and the panel say Salary for a job; the same range otherwise', async () => {
+    const user = userEvent.setup()
+    renderFilter('all', false, true)
+    expect(screen.getAllByRole('button')[0].textContent).toContain('Salary')
+    await user.click(screen.getAllByRole('button')[0])
+    expect(await screen.findByRole('dialog', { name: 'Salary range' })).toBeTruthy()
+  })
+  it('the facet bar asks for it only in Jobs', () => {
+    const src = readFileSync(join(process.cwd(), 'src/components/marketplace/facet-bar.tsx'), 'utf8')
+    expect(src).toContain("salary={activeCategory === 'jobs'}")
+  })
+})
 
 describe('PriceRangeFilter — binned histogram', () => {
   it('counts the whole distribution, not a 5,000 slice', async () => {
