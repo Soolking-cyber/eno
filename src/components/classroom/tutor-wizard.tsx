@@ -110,6 +110,10 @@ export function TutorWizard({ tutorId }: { tutorId?: string }) {
     { key: 'character', icon: <Sparkles className="size-4" />, label: tr('Personality', 'Tính cách') },
   ]
 
+  // What Next opens, named in the rail's caption (gap 9): nothing on the last step, nor for a step not in the list.
+  const at = steps.findIndex((s) => s.key === step)
+  const captionNext = at >= 0 && at < steps.length - 1 ? `${tr('Next', 'Tiếp theo')}: ${steps[at + 1].label}` : null
+
   const save = async () => {
     setBusy(true)
     setError(null)
@@ -148,7 +152,7 @@ export function TutorWizard({ tutorId }: { tutorId?: string }) {
       // Each step named, and its place: "Look · 1/3 · Next: Voice" on a phone, the names under the nodes from md (gap 9 —
       // the teacher form's pattern; three glyphs alone did not say what the steps were).
       showStepName
-      captionNext={step === 'look' ? `${tr('Next', 'Tiếp theo')}: ${steps[1].label}` : step === 'voice' ? `${tr('Next', 'Tiếp theo')}: ${steps[2].label}` : null}
+      captionNext={captionNext}
       header={(
         <div className="mb-5 flex flex-col items-center gap-3 text-center">
           <div className="flex w-full items-center justify-between gap-3">

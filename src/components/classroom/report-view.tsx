@@ -57,6 +57,10 @@ export function ReportView({ sessionId, justEnded = false }: { sessionId: string
    */
   // Held WITH its session id (commit review, codex): a grant never carries over to another report this view is given.
   const [granted, setGranted] = useState<{ id: string; c: NonNullable<Report['celebrate']> } | null>(null)
+  // …and let go of when the view is given another session (commit review round 2, codex), so no grant outlives its own
+  // report. (Next mounts a fresh view per session id today — layout-router keys a dynamic segment by its value, measured
+  // 2026-10-06 — so this is a guard on the celebration only; the rest of the view's state assumes that remount.)
+  useEffect(() => { setGranted((g) => (g && g.id !== sessionId ? null : g)) }, [sessionId])
 
   /**
    * The report is built just after the session ends (feedback.ts): poll gently until it is there.
@@ -89,13 +93,21 @@ export function ReportView({ sessionId, justEnded = false }: { sessionId: string
     return () => { gone = true; if (t) clearTimeout(t) }
   }, [sessionId, attempt])
 
+  // ⛔ A WAY BACK IN EVERY STATE (commit review round 2, opus): a report page has no classroom bar (globals.css, gap 10), so
+  // while it loads, and when it cannot load, the arrow home is still there.
+  const homeArrow = (
+    <Button variant="ghost" size="icon" className="-ml-3 size-11 self-start" aria-label={tr('Back', 'Quay lại')} asChild><Link href="/classroom" prefetch={false}><ArrowLeft aria-hidden className="size-5" /></Link></Button>
+  )
   if (error && !data) {
     return (
-      <EmptyState icon={FileText} title={tr(refusalCopy(error).en, refusalCopy(error).vi)} className="mt-12"
-        action={<Button variant="outline" className="min-h-11" onClick={() => { setError(null); setAttempt((n) => n + 1) }}>{tr('Try again', 'Thử lại')}</Button>} />
+      <div className="flex flex-col pt-2">
+        {homeArrow}
+        <EmptyState icon={FileText} title={tr(refusalCopy(error).en, refusalCopy(error).vi)} className="mt-8"
+          action={<Button variant="outline" className="min-h-11" onClick={() => { setError(null); setAttempt((n) => n + 1) }}>{tr('Try again', 'Thử lại')}</Button>} />
+      </div>
     )
   }
-  if (!data) return <Skeleton className="mt-6 h-96 w-full rounded-2xl" />
+  if (!data) return <div className="flex flex-col gap-4 pt-2">{homeArrow}<Skeleton className="h-96 w-full rounded-2xl" /></div>
   const { report: r, viewer } = data
   const teacherSide = viewer !== 'learner'
   const f = r.feedback
@@ -258,7 +270,9 @@ const DELTA_MIN = 3
 function ScoreStat({ label, value, previous }: { label: string; value: number | null; previous: number | null }) {
   const { tr } = useLanguage()
   const v = value == null ? null : Math.max(0, Math.min(100, Math.round(value)))
-  const delta = v != null && previous != null ? v - Math.round(previous) : null
+  // Both ends on the same 0–100 scale (commit review round 2, opus): a stored score outside it never skews the change.
+  const before = previous == null ? null : Math.max(0, Math.min(100, Math.round(previous)))
+  const delta = v != null && before != null ? v - before : null
   return (
     <div className="flex flex-col gap-1.5">
       <dt className="text-xs text-ink-4">{label}</dt>
