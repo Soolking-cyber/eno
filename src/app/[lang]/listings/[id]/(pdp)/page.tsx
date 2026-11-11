@@ -1464,7 +1464,15 @@ export default async function ListingPage({ params }: Props) {
                   * seeded listings, exactly the kind of claim that has to be true. The Report
                   * affordance stays either way. Tests count `[data-protections-row]`, not its words.
                   */}
+                {/* ONE SAFETY CARD ON A PHONE (UI climb batch 70, 2026-11-12; blind A/B on live pages, Report kept red: +0.10 GPT /
+                    +0.15 Opus, trust +0.2 / +0.3): below md the warning, the reports-and-disputes row, the guide link and Report /
+                    Block sit in one `tint` well (canon §3b allows a tint well for content that must sit apart) instead of loose
+                    lines; its PLACE is unchanged — after the details, above the map (order-9). md and up keep the flat buy-box line
+                    (the 2026-11-05 rule beside the CTA). Block reads in ink-4 there: muted-foreground is 4.35:1 on tint, under AA.
+                    Measured in a browser (2026-11-12): on the well, light — line 16.4, guide 5.2, Report 5.9, Block 5.7:1; dark —
+                    13.3, 6.8, 5.5, 5.8:1. */}
                 <SafetyStrip
+                  className="max-md:rounded-2xl max-md:border-t-0 max-md:bg-tint max-md:px-3.5 max-md:pb-2.5 max-md:pt-3.5"
                   categorySlug={rawListing.category.slug}
                   subcategorySlug={rawListing.subcategorySlug}
                   job={listing.listingType === 'job'}
@@ -1477,7 +1485,7 @@ export default async function ListingPage({ params }: Props) {
                     <span className="flex items-center">
                       {/* 14px from lg, with the strip's text (2026-11-06 audit). The storefront and the chat keep their 12px pair. */}
                       <ReportButton listingId={listing.id} className="lg:text-sm" />
-                      <BlockUserButton sellerId={listing.sellerId} listingId={listing.id} shopOnly={blockShopOnly} name={listing.seller.name} className="lg:text-sm" />
+                      <BlockUserButton sellerId={listing.sellerId} listingId={listing.id} shopOnly={blockShopOnly} name={listing.seller.name} className="max-md:text-ink-4 lg:text-sm" />
                     </span>
                   }
                 />
