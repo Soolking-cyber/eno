@@ -1,0 +1,391 @@
+{
+  "slug": "renting-to-foreigners-ho-chi-minh-city",
+  "title": "Renting to foreigners in Ho Chi Minh City: landlord's guide",
+  "description": "Lease rules, deposits in đồng, the 2026 rental tax threshold, what foreign tenants ask, and asking rents from the eno.vn Rent Index of 10 November 2026.",
+  "h1": "Renting your home to foreigners in Ho Chi Minh City: lease, deposit, tax and pricing",
+  "eyebrow": "Letting your home",
+  "intro": "A Ho Chi Minh City landlord can rent to a foreigner on a written lease that does not need notarising, and since 1 January 2026 pays rental tax only above the threshold set by Decree 141/2026/ND-CP. Below that threshold you still notify the tax office of your rental income. You also need to declare a foreign tenant to the local authorities, agree the rent and deposit in đồng, and price close to what similar homes nearby are asking.",
+  "keyPoints": [
+    "A residential lease must be **in writing** (Article 163, Housing Law 2023) but **does not need notarising or certifying** (Article 164). Unless you agree otherwise, the lease takes effect on the day it is signed.",
+    "According to the Government News portal (12 June 2026), since 1 January 2026 an individual whose rental income is {{vnd:1000000000}} a year or less pays no VAT or personal income tax on it, but must still notify the tax office of that income.",
+    "Write the rent and the deposit in **đồng**. Foreign currency is allowed in Vietnam only in the cases the foreign-exchange rules list, and an ordinary home rental is not one of them.",
+    "On 10 November 2026 the eno.vn Rent Index put the median asking rent for a one-bedroom flat across Ho Chi Minh City at {{vnd:7300000}} a month.",
+    "Listing a home for rent on eno.vn is free. The owner or building manager declares a foreign tenant, not the tenant: see [renting an apartment in Vietnam as a foreigner](/renting-an-apartment-vietnam-foreigner)."
+  ],
+  "sections": [
+    {
+      "id": "lease-for-a-foreign-tenant",
+      "title": "What does a lease for a foreign tenant need?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "A lease to a foreigner must be **in writing**, but it does not have to be notarised or certified. Article 163 of the Housing Law 2023 requires housing contracts, leases included, to be made in writing, as [Báo Pháp luật Việt Nam](https://baophapluat.vn/co-bat-buoc-phai-lap-hop-dong-thue-nha-bang-van-ban.html) explains. Clause 2 of [Article 164](https://hethongphapluat.com/luat-nha-o-2023/dieu-164) exempts leases from notarisation unless both sides want it. A lease takes effect on the date the two of you agree, or on the day it is signed if you agree nothing."
+        },
+        {
+          "type": "p",
+          "text": "For a foreign tenant, a bilingual Vietnamese–English lease avoids most misunderstandings. Add a clause saying the Vietnamese text prevails if the two versions differ. Write the tenant's name and passport number exactly as they appear on the passport."
+        },
+        {
+          "type": "h3",
+          "text": "What Article 163 says the lease must contain"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "The names and addresses of both parties.",
+            "A description of the home and the land plot it stands on.",
+            "The rent, and how and when it is paid.",
+            "The handover date and the length of the lease.",
+            "Each party's rights and obligations.",
+            "Any other commitments, the date the lease takes effect, the signing date, and both signatures with full names."
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Clauses worth adding for a foreign tenant"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Early termination**: how many days' notice the tenant gives, and how much of the deposit they lose if they leave before the end. Tenants on one-year work contracts ask about this more than anything else.",
+            "**A bills schedule**: electricity, water, internet, management fee, parking and cleaning. Say which are included in the rent and which the tenant pays, with the electricity rate you will charge.",
+            "**An inventory** with photos taken at handover, so the deposit return has something to rest on.",
+            "**The address** as it appears on your property papers. Since 1 July 2025 official addresses use the new ward names, even though most listings, and tenants, still use the old district names."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "deposit-for-a-foreign-tenant",
+      "title": "How much deposit should you take, and on what terms?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The deposit amount and the terms for returning it are whatever you and the tenant agree and write into the lease. Article 328 of the Civil Code 2015 treats a deposit as security for performing an obligation, and the deposit can be money, precious metals, precious stones or other valuables, according to [Vietnam Lawyers' Journal (Tạp chí Luật sư Việt Nam)](https://lsvn.vn/co-duoc-phep-dat-coc-bang-vang-ngoai-te-hay-sec-khong-1705289712-a139985.html)."
+        },
+        {
+          "type": "p",
+          "text": "Getting the deposit back is what foreign tenants worry about most. Put three things in the lease: how many days after handover you return it, what you may deduct (damage beyond normal wear, unpaid bills), and that you return it by bank transfer to an account the tenant names. The usual deposit disputes are covered in [rental deposits in Vietnam](/rental-deposit-vietnam)."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Do not set the rent or deposit in dollars",
+          "text": "According to Vietnam Lawyers' Journal, Article 22 of the Ordinance on Foreign Exchange (amended 2013) and Article 4 of Circular 32/2013/TT-NHNN allow foreign currency in transactions in Vietnam only in specific listed cases. If a tenant offers to pay in dollars, still write the price in đồng, for example {{vnd:8000000}} a month, and take payment by bank transfer in đồng."
+        }
+      ]
+    },
+    {
+      "id": "what-foreign-tenants-ask",
+      "title": "What do foreign tenants ask a landlord?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Before signing, foreign tenants mostly ask about costs on top of the rent, the deposit, and the paperwork the landlord handles for them. Answer these in English in your listing and you cut out most of the back-and-forth messages."
+        },
+        {
+          "type": "table",
+          "caption": "Questions foreign tenants commonly ask, and what a landlord should have ready",
+          "headers": [
+            "The tenant asks",
+            "Have this answer ready"
+          ],
+          "rows": [
+            [
+              "What does the rent include?",
+              "Electricity, water, internet, management fee, cleaning: which are included, which are extra, and at what rate"
+            ],
+            [
+              "How much is the deposit and when do I get it back?",
+              "The amount, what can be deducted, how many days after move-out it is returned"
+            ],
+            [
+              "Can I rent short term or leave early?",
+              "The minimum term, the notice period, what is forfeited for leaving early"
+            ],
+            [
+              "Is there an English lease?",
+              "Yes, bilingual, with the Vietnamese version prevailing"
+            ],
+            [
+              "Do you register me with the authorities?",
+              "Yes, the owner or building manager does it, and needs a copy of the tenant's passport"
+            ],
+            [
+              "What furniture is included?",
+              "An inventory with real photos"
+            ],
+            [
+              "How do I pay?",
+              "Bank transfer in đồng, and the due date each month"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Declaring a foreign tenant to the local authorities is **the owner's or the building manager's job, not the tenant's**, and most of it is now done online. What tenants are told to expect is in [renting an apartment in Vietnam as a foreigner](/renting-an-apartment-vietnam-foreigner), including that they will ask for a copy of the confirmation. In an apartment block, check what the building management requires as well."
+        },
+        {
+          "type": "p",
+          "text": "If you are letting an empty or part-furnished home, [furnishing a home in Vietnam](/furnishing-a-home-in-vietnam) shows what tenants expect to find."
+        }
+      ]
+    },
+    {
+      "id": "tax-on-rental-income-2026",
+      "title": "Do you pay tax when you rent to a foreigner?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Rental tax is the same whether your tenant is Vietnamese or foreign, and it is owed only when your total rental income for the year passes the threshold. According to the [Government News portal (Báo Điện tử Chính phủ)](https://baochinhphu.vn/doanh-thu-cho-thue-nha-duoi-1-ty-dong-van-phai-khai-bao-thue-10226061216052641.htm) on 12 June 2026, Decree 141/2026/ND-CP means that from 1 January 2026 an individual with rental income of {{vnd:1000000000}} a year or less pays no VAT and no personal income tax on it."
+        },
+        {
+          "type": "table",
+          "caption": "Tax on an individual's rental income in 2026, from the Government News portal (12 June 2026) and the government's policy portal",
+          "headers": [
+            "Rental income for the year",
+            "VAT",
+            "Personal income tax",
+            "What you file"
+          ],
+          "rows": [
+            [
+              "{{vnd:1000000000}} or less",
+              "None",
+              "None",
+              "Notify your rental income and the bank account or e-wallet you receive rent into (form 01/BĐS)"
+            ],
+            [
+              "Above {{vnd:1000000000}}",
+              "5% of total rental income",
+              "5% of income above the threshold",
+              "Declare and pay at the tax office where the property is"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "The 5% rates come from the government's policy portal, [Xây dựng chính sách](https://xaydungchinhsach.chinhphu.vn/chinh-sach-moi-ve-thue-voi-ho-ca-nhan-cho-thue-bat-dong-san-119260312092953897.htm), in an article written when the threshold was still {{vnd:500000000}}, before Decree 141/2026 raised it. How the rates apply under the new threshold may still need guidance, so if your income is near or above it, ask the tax office where the property is."
+        },
+        {
+          "type": "h3",
+          "text": "Notification deadlines"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Once a year: by 31 January of the following year.",
+            "Twice a year: the first by 31 July of the tax year, the second by 31 January of the following year.",
+            "The bank account or e-wallet notice follows the same deadline as the income notice you chose. Both are filed electronically, according to the Government News portal.",
+            "With two or more rental properties, attach the 01/BK-BĐS schedule. Income is added up across every lease in the year, according to [VOV2](https://vov2.vov.vn/phap-luat/cho-thue-nha-bat-dong-san-khai-thue-the-nao-tu-112026-57510.vov2)."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "If the tenant is a company, for example one renting a flat for a foreign employee, it files and pays tax for you only if the lease says so. Otherwise you file yourself, according to the government's policy portal."
+        }
+      ]
+    },
+    {
+      "id": "setting-the-rent-from-the-rent-index",
+      "title": "How much rent should you ask a foreign tenant?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "The quickest check is the median asking rent for the same type of home in the same area. On 10 November 2026 the [eno.vn Rent Index](/hcmc-rent-index) put the citywide median asking rent at {{vnd:4300000}} a month for a studio, {{vnd:7300000}} for a one-bedroom flat and {{vnd:8800000}} for a two-bedroom flat."
+        },
+        {
+          "type": "p",
+          "text": "The eno.vn Rent Index is calculated by eno.vn from the monthly asking rents of homes listed on eno.vn, by district and type of home, and is recalculated daily. These are **asking prices, not signed rents**, and negotiated rents are often lower. The 10 November 2026 snapshot drew on listings from GoPlus, an official eno.vn partner, and listings posted by eno.vn members. The index published a median only where there were at least 10 listings."
+        },
+        {
+          "type": "table",
+          "caption": "Median monthly asking rent for flats, eno.vn Rent Index snapshot of 10 November 2026 (— means fewer than 10 listings, no median)",
+          "headers": [
+            "Area",
+            "Studio",
+            "1 bedroom",
+            "2 bedrooms"
+          ],
+          "rows": [
+            [
+              "Binh Thanh",
+              "{{vnd:5500000}}",
+              "{{vnd:8000000}}",
+              "{{vnd:9400000}}"
+            ],
+            [
+              "Tan Binh",
+              "{{vnd:5500000}}",
+              "{{vnd:7200000}}",
+              "{{vnd:10500000}}"
+            ],
+            [
+              "Go Vap",
+              "{{vnd:4800000}}",
+              "{{vnd:6600000}}",
+              "{{vnd:8200000}}"
+            ],
+            [
+              "District 7 (Phu My Hung)",
+              "{{vnd:4700000}}",
+              "{{vnd:15000000}}",
+              "—"
+            ],
+            [
+              "Tan Phu",
+              "{{vnd:3500000}}",
+              "{{vnd:7000000}}",
+              "—"
+            ],
+            [
+              "District 12",
+              "{{vnd:4100000}}",
+              "{{vnd:5800000}}",
+              "—"
+            ],
+            [
+              "District 1",
+              "{{vnd:7000000}}",
+              "—",
+              "—"
+            ],
+            [
+              "Phu Nhuan",
+              "{{vnd:5500000}}",
+              "—",
+              "—"
+            ],
+            [
+              "Thu Duc City (incl. District 2 and District 9)",
+              "{{vnd:4000000}}",
+              "—",
+              "—"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "On 10 November 2026, of the areas with enough listings, District 7 (Phu My Hung) had the highest one-bedroom median and District 12 the lowest. The index uses the old district names because listings still do. In that snapshot many districts had fewer than 10 one- and two-bedroom listings, and houses and rooms had no median at all. For the blank cells, compare similar homes in [homes for rent](/c/rentals). The areas foreigners tend to choose are covered in [where to live in Ho Chi Minh City](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher)."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "text": "If you ask more than the local median, say why in the listing with specifics: fully furnished, cleaning or internet included, near a metro station, bilingual lease. Foreign tenants compare the total monthly cost, not just the rent."
+        }
+      ]
+    },
+    {
+      "id": "list-your-home-on-eno",
+      "title": "Where can you list a home for foreign tenants?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "You can list a home for rent free on eno.vn, a free classifieds marketplace for expats and locals in Vietnam. Ho Chi Minh City rentals appear in [homes for rent](/c/rentals), and the asking prices in those listings feed the Rent Index."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Check the local price",
+              "text": "Open the [eno.vn Rent Index](/hcmc-rent-index), find your district and type of home, and note the snapshot date."
+            },
+            {
+              "title": "Write the listing in English",
+              "text": "Give the rent in đồng, what is included and what is extra, the deposit, the minimum term, the furniture and real photos."
+            },
+            {
+              "title": "Post it",
+              "text": "Go to [post a listing](/post), choose the rentals category and pick the right district so the home shows in the right area."
+            },
+            {
+              "title": "Answer questions and arrange viewings",
+              "text": "When a tenant wants the home, send the bilingual lease so they can read it before signing."
+            },
+            {
+              "title": "Sign, take the deposit and declare the tenant",
+              "text": "Sign the lease, take the deposit by bank transfer, hand over with an inventory and photos, then declare the tenant as set out in [this guide](/renting-an-apartment-vietnam-foreigner)."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Questions about accounts and posting are answered in the [help centre](/help)."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Does a lease to a foreigner in Vietnam need to be notarised?",
+      "a": "A lease to a foreigner in Vietnam does not need to be notarised. Clause 2 of Article 164 of the Housing Law 2023 exempts residential leases from notarisation and certification unless both parties want it. Article 163 still requires the lease to be in writing, with the parties' details, a description of the home, the rent, how it is paid and the length of the lease. Unless the parties agree otherwise, the lease takes effect on the day it is signed."
+    },
+    {
+      "q": "Do I pay tax on renting my apartment to a foreigner in Vietnam?",
+      "a": "Tax on renting an apartment is the same whether the tenant is Vietnamese or foreign. According to the Government News portal on 12 June 2026, from 1 January 2026 an individual whose rental income is under the threshold in Decree 141/2026/ND-CP pays no VAT or personal income tax, but must still notify the tax office using form 01/BĐS by 31 January of the following year. Above the threshold, VAT and personal income tax are each charged at 5%."
+    },
+    {
+      "q": "Who registers a foreign tenant with the authorities in Vietnam?",
+      "a": "The property owner or the building manager declares a foreign tenant to the local authorities in Vietnam, not the tenant, and most of the process is now done online. A landlord should ask for a copy of the tenant's passport when the lease is signed and give the tenant a copy of the confirmation afterwards. In an apartment block, the building management may have its own requirements, so landlords should check with them as well."
+    },
+    {
+      "q": "Can a foreign tenant pay rent in US dollars in Vietnam?",
+      "a": "A landlord in Vietnam should not set rent in US dollars. According to Vietnam Lawyers' Journal, Article 22 of the Ordinance on Foreign Exchange (amended 2013) and Article 4 of Circular 32/2013/TT-NHNN allow foreign currency in transactions in Vietnam only in specific listed cases, and an ordinary home rental is not among them. Write the rent and the deposit in đồng in the lease and take payment by bank transfer in đồng."
+    },
+    {
+      "q": "How much rent can I charge a foreigner for a one-bedroom flat in Ho Chi Minh City?",
+      "a": "On 10 November 2026 the eno.vn Rent Index showed District 7 (Phu My Hung) with the highest median asking rent for a one-bedroom flat among the areas with enough listings, and District 12 and Go Vap well below it. The district figures are in the pricing table above. The Rent Index measures asking prices on eno.vn, not signed rents, so the final rent also depends on furniture, what is included and negotiation."
+    },
+    {
+      "q": "Where can I list my apartment for foreign tenants in Ho Chi Minh City for free?",
+      "a": "Landlords can list an apartment for foreign tenants in Ho Chi Minh City free on eno.vn, a free classifieds marketplace for expats and locals in Vietnam. Rentals appear in the homes for rent category, by district. A listing written in English, with the rent in đồng, a clear list of included and extra costs, the deposit and the minimum term, draws fewer repeat questions from tenants."
+    },
+    {
+      "q": "What should a bilingual lease for a foreign tenant include?",
+      "a": "A bilingual lease for a foreign tenant in Vietnam should include everything Article 163 of the Housing Law 2023 requires: the parties, the home, the rent, payment terms, handover date and lease length, rights and obligations, and signatures. Landlords should add an early-termination clause, a schedule of bills, a photographed inventory, deposit-return terms and a clause saying the Vietnamese text prevails if the two versions differ."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Doanh thu cho thuê nhà dưới 1 tỷ đồng vẫn phải khai báo thuế",
+      "publisher": "Báo Điện tử Chính phủ (Government News portal)",
+      "url": "https://baochinhphu.vn/doanh-thu-cho-thue-nha-duoi-1-ty-dong-van-phai-khai-bao-thue-10226061216052641.htm"
+    },
+    {
+      "title": "Chính sách thuế mới đối với hộ, cá nhân cho thuê bất động sản",
+      "publisher": "Xây dựng chính sách, pháp luật - Cổng TTĐT Chính phủ",
+      "url": "https://xaydungchinhsach.chinhphu.vn/chinh-sach-moi-ve-thue-voi-ho-ca-nhan-cho-thue-bat-dong-san-119260312092953897.htm"
+    },
+    {
+      "title": "HCMC Rent Index",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/hcmc-rent-index"
+    },
+    {
+      "title": "Điều 164 Luật Nhà ở 2023",
+      "publisher": "Hệ thống pháp luật",
+      "url": "https://hethongphapluat.com/luat-nha-o-2023/dieu-164"
+    },
+    {
+      "title": "Có bắt buộc phải lập hợp đồng thuê nhà bằng văn bản?",
+      "publisher": "Báo Pháp luật Việt Nam",
+      "url": "https://baophapluat.vn/co-bat-buoc-phai-lap-hop-dong-thue-nha-bang-van-ban.html"
+    },
+    {
+      "title": "Có được phép đặt cọc bằng vàng, ngoại tệ hay séc không?",
+      "publisher": "Tạp chí Luật sư Việt Nam",
+      "url": "https://lsvn.vn/co-duoc-phep-dat-coc-bang-vang-ngoai-te-hay-sec-khong-1705289712-a139985.html"
+    },
+    {
+      "title": "Cho thuê nhà, bất động sản khai thuế thế nào từ 1/1/2026?",
+      "publisher": "VOV2",
+      "url": "https://vov2.vov.vn/phap-luat/cho-thue-nha-bat-dong-san-khai-thue-the-nao-tu-112026-57510.vov2"
+    }
+  ],
+  "related": [
+    "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "your-first-weeks-in-ho-chi-minh-city"
+  ],
+  "lastChecked": "2026-11-11"
+}
