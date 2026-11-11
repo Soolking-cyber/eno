@@ -339,6 +339,17 @@ export type NicheApiErrorCode =
   | 'not_participant'
   | 'not_recallable'                    // added 2026-08-16 — chat recall refuses offers + wizard cards
   | 'not_transacted'
+  // POST /api/conversations/[id]/deal + the review POST's service branch (src/lib/service-deal.ts, 2026-11-11)
+  | 'not_reviewable'
+  | 'deal_declined'
+  | 'confirm_budget_spent'
+  | 'too_few_messages'
+  | 'not_yet_confirmable'
+  | 'confirm_cap'
+  | 'withdraw_window_closed'
+  | 'deal_withdrawn'
+  | 'review_not_open'                   // spec v3 A2: the review / the buyer's "No" before the seller's 10-minute undo closed
+  | 'review_window_closed'
   | 'not_your_card'
   | 'own_listing'
   | 'parent_not_found'
@@ -910,6 +921,16 @@ const ALL = [
   'not_recallable',
   'not_signed_in',
   'not_transacted',
+  'not_reviewable',
+  'deal_declined',
+  'confirm_budget_spent',
+  'too_few_messages',
+  'not_yet_confirmable',
+  'confirm_cap',
+  'withdraw_window_closed',
+  'deal_withdrawn',
+  'review_not_open',
+  'review_window_closed',
   'origin_not_allowed',
   'own_listing',
   'parent_not_found',

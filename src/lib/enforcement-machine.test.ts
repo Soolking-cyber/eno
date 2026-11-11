@@ -316,6 +316,8 @@ describe('flag-only reasons (silent review annotations)', () => {
   it('velocity + ban-evasion EMAIL are flags; ban-evasion PHONE review is a real held action', () => {
     expect(isFlagReason(ENFORCEMENT_REASON.VELOCITY_REVIEW)).toBe(true)
     expect(isFlagReason(ENFORCEMENT_REASON.BAN_EVASION_EMAIL)).toBe(true)
+    // The service-deal loop's "buyers said 3 confirmed deals didn't happen" — a silent annotation, never a ladder state.
+    expect(isFlagReason(ENFORCEMENT_REASON.DEAL_DECLINES)).toBe(true)
     expect(isFlagReason(ENFORCEMENT_REASON.BAN_EVASION_REVIEW)).toBe(false)
     expect(isFlagReason(ENFORCEMENT_REASON.ADMIN_MANUAL)).toBe(false)
   })

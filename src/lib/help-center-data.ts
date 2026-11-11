@@ -5,6 +5,7 @@ import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
 import { forumAuthorSelect, serializeForumPost } from '@/lib/forum/serialize'
 import { liveStorefrontWhere } from '@/lib/storefront-gone'
 import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
+import { isMissingRelation, reviewBasis, type ServiceDealKind } from '@/lib/service-deal'
 
 // Server-side reads for the Help Center at /help.
 //
@@ -30,6 +31,12 @@ export type HelpReview = {
   text: string
   author: string
   verifiedBuyer: boolean
+  /**
+   * What the review is OF when it came through a seller-confirmed rental / lesson / service (Review.basis,
+   * src/lib/service-deal.ts): the badge then reads "Confirmed rental / lesson / service" — ⛔ never "Verified" (spec v3
+   * A1). Null for a goods sale or an accepted offer, which keep "Verified buyer".
+   */
+  basis: ServiceDealKind | null
   createdAt: string
 }
 
@@ -109,11 +116,11 @@ export async function loadHelpCenter(): Promise<HelpCenterData> {
     // Review, so a copy on the forum could outlive a removal on the storefront.
     // ⛔ NOT A REVIEW OF A GONE STOREFRONT (src/lib/storefront-gone.ts, owner 2026-10-02): the card's
     // only action is the link to the shop, and an ownerless shop with nothing public 404s.
-    db.review.findMany({
-      where: { text: { not: '' }, seller: liveStorefrontWhere() },
-      orderBy: { createdAt: 'desc' },
-      take: 12,
-      select: {
+    // `basis` (scripts/deal-confirmation-ddl.mjs) is read with the storefront's missing-column fallback: a database without
+    // the column answers the same read without it, and every badge then reads as before.
+    (async () => {
+      const where = { text: { not: '' }, seller: liveStorefrontWhere() }
+      const base = {
         id: true,
         sellerId: true,
         rating: true,
@@ -123,8 +130,17 @@ export async function loadHelpCenter(): Promise<HelpCenterData> {
         conversationId: true,
         createdAt: true,
         seller: { select: { name: true, avatarUrl: true, avatarColor: true, verified: true, verifiedSeller: true, owner: { select: { avatarUrl: true, accountType: true } } } },
-      },
-    }),
+      } as const
+      try {
+        return await db.review.findMany({ where, orderBy: { createdAt: 'desc' }, take: 12, select: { ...base, basis: true } })
+      } catch (e) {
+        // ⛔ ONLY A MISSING COLUMN reads without basis (codex, 2026-11-11): after any other failure the provenance would make a
+        // confirmed rental read "Verified buyer" — so those rows lose their provenance too (no badge, never a wrong one).
+        const missing = isMissingRelation(e)
+        const rows = await db.review.findMany({ where, orderBy: { createdAt: 'desc' }, take: 12, select: base })
+        return rows.map((r) => ({ ...r, ...(missing ? {} : { conversationId: null, authorProfileId: null }), basis: null as string | null }))
+      }
+    })(),
   ])
 
   return {
@@ -143,6 +159,7 @@ export async function loadHelpCenter(): Promise<HelpCenterData> {
       // Same provenance rule the storefront uses: a review born from a real
       // conversation is a verified purchase; seeded/legacy rows carry no badge.
       verifiedBuyer: Boolean(review.authorProfileId && review.conversationId),
+      basis: review.authorProfileId && review.conversationId ? reviewBasis(review.basis) : null,
       createdAt: review.createdAt.toISOString(),
     })),
   }

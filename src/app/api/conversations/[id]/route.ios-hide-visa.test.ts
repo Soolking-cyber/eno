@@ -27,7 +27,7 @@ vi.mock('@/lib/admin', () => ({
 }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true }) }))
 vi.mock('@/lib/log', () => ({ logError: vi.fn() }))
-vi.mock('@/lib/edition-scope', () => ({ isSellerHiddenHere: async () => false }))
+vi.mock('@/lib/edition-scope', () => ({ HIDDEN_DESK_OWNER_EMAILS: [], isSellerHiddenHere: async () => false }))
 vi.mock('@/lib/thread-kind', () => ({ threadKind: async () => h.kind }))
 vi.mock('@/lib/reaction-tally', () => ({ globalTopReactions: async () => [] }))
 vi.mock('@/lib/native-push', () => ({ syncBadgeToProfile: async () => {} }))

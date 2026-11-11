@@ -691,6 +691,11 @@ model Review {
   listing         Listing? @relation(fields: [listingId], references: [id], onDelete: SetNull)
   // One review per conversation — perfect dedup + the verified-buyer proof.
   conversationId  String?  @unique
+  /// What the review is a review OF, when it came through a seller-confirmed service deal (2026-11-11,
+  /// src/lib/service-deal.ts): 'rental' | 'lesson' | 'service'. NULL = today's goods sale / accepted offer ("Verified
+  /// buyer"). Written ONLY by the service-deal branch of POST /api/sellers/[id]/reviews — the goods path never selects or
+  /// writes it. ADDITIVE, applied by scripts/deal-confirmation-ddl.mjs (never `db push`), BEFORE the deploy that declares it.
+  basis           String?
   createdAt       DateTime @default(now())
 
   @@index([sellerId])
@@ -1537,6 +1542,9 @@ model Conversation {
   teacherVideoShare   TeacherVideoShare?
   /// Teachers: the last message email about this thread's current unread episode (src/lib/teachers/message-emails.ts).
   teacherMessageEmail TeacherMessageEmailThread?
+  /// A seller's confirmation that the rental, lesson or service in THIS thread happened (2026-11-11) — a back-relation
+  /// only (the FK lives on DealConfirmation). Applied by scripts/deal-confirmation-ddl.mjs, never `db push`.
+  dealConfirmation  DealConfirmation?
   lastMessageAt     DateTime  @default(now())
   lastMessageText   String?
   buyerUnread       Int       @default(0)
@@ -2094,6 +2102,55 @@ model SellerBlock {
 
   @@id([blockerProfileId, sellerId])
   @@index([sellerId])
+}
+
+/// A SELLER'S CONFIRMATION THAT A RENTAL, LESSON OR SERVICE HAPPENED, in one conversation (owner, 2026-11-11: "a renter,
+/// student or client can review once the seller confirms in chat that the rental or lesson happened — both sides
+/// confirming keeps fake reviews out"). One row per conversation, holding the CURRENT state; the rules are the pure module
+/// src/lib/service-deal.ts and the only writers are POST /api/conversations/[id]/deal and the review POST (reviewId).
+/// It mints nothing by itself — no trust, no rating, no probation lift — it only opens the review card for that one buyer.
+/// Profile ids are SCALARS (no FK), so nothing touches the cross-schema profile_auth_fk; account erasure deletes the rows
+/// itself (src/lib/core/account-erasure.ts). `reviewId` has no FK on purpose: once set it locks the row, even after a
+/// moderator removes the review. ADDITIVE, created by scripts/deal-confirmation-ddl.mjs (never `db push`), RLS on.
+model DealConfirmation {
+  id              String       @id @default(cuid())
+  conversationId  String       @unique
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  /// The listing at the latest confirm — a scalar, because a thread could retarget (it no longer does once this row exists).
+  listingId       String
+  sellerId        String
+  sellerProfileId String       @db.Uuid
+  buyerProfileId  String       @db.Uuid
+  /// 'rental' | 'lesson' | 'service' — serviceDealKind at the latest confirm. Plain TEXT, validated in code.
+  kind            String
+  confirmedAt     DateTime?
+  /// The seller's undo (10 minutes, before the buyer's next message): confirmedAt is cleared, this is stamped.
+  revokedAt       DateTime?
+  /// The buyer's "No, I didn't" — no review is possible on this deal any more.
+  declinedAt      DateTime?
+  confirmCount    Int          @default(0)
+  reviewId        String?      @unique
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([sellerId, confirmedAt])
+}
+
+/// The append-only audit of DealConfirmation — who did what, when, on which listing. NO foreign keys, so it outlives a
+/// listing or conversation cascade; it also feeds the fail-closed daily confirm cap. action: 'confirm' | 'withdraw' |
+/// 'declined' | 'reviewed'. Created by scripts/deal-confirmation-ddl.mjs, RLS on; erased with the profile it names.
+model DealConfirmationEvent {
+  id             String   @id @default(cuid())
+  conversationId String
+  listingId      String
+  sellerId       String
+  actorProfileId String   @db.Uuid
+  buyerProfileId String   @db.Uuid
+  action         String
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([actorProfileId, action, createdAt])
 }
 
 /// A listing a signed-in person saved (the heart) — their saves follow them to every device (owner, 2026-11-09: "3 ok" to

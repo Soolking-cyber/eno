@@ -6,7 +6,7 @@ import { CalendarDay } from '@/components/marketplace/calendar-day'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
-import { AlertTriangle, Star, ShieldCheck } from "@/components/ui/icons"
+import { AlertTriangle, Star, ShieldCheck, CheckCircle2 } from "@/components/ui/icons"
 import { db } from '@/lib/db'
 import { Button } from '@/components/ui/button'
 import { serializeListing, serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -28,6 +28,7 @@ import { isShopOnlyBlock } from '@/lib/user-blocks'
 import { ReportContentButton } from '@/components/marketplace/report-content-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
 import { ShareButton } from '@/components/marketplace/share-button'
+import { isMissingRelation, reviewBasis } from '@/lib/service-deal'
 import { shopShareUrl } from '@/lib/storefront'
 import { Badge } from '@/components/ui/badge'
 import { StorefrontSellerCard } from '@/components/marketplace/storefront-seller-card'
@@ -173,25 +174,45 @@ export async function storefrontMetaDescription(id: string): Promise<string | nu
 // fall back to the legacy column set (nothing shows the badge) — this page then
 // works whichever of code/migration ships first.
 const loadReviews = cache(async (sellerId: string) => {
+  // "Verified buyer" is EARNED: only reviews born from a real conversation
+  // (post-transaction, api/sellers/[id]/reviews) carry provenance. Seeded/legacy
+  // rows have neither field → no badge.
+  // createdAt is SELECTED and serialized: the review row shows when it was left, which
+  // is half of what makes a rating credible.
+  // `basis` (Review.basis — a seller-confirmed rental / lesson / service, src/lib/service-deal.ts) words the badge
+  // "Confirmed rental / lesson / service" — never "Verified" (spec v3 A1); a database without the column
+  // (scripts/deal-confirmation-ddl.mjs not yet run) falls back to the provenance-only select — every badge then reads
+  // "Verified buyer" (no basis review can exist there).
+  const shape = (r: { id: string; author: string; rating: number; text: string; createdAt: Date; conversationId: string | null; authorProfileId: string | null; basis?: string | null }) => {
+    const verified = !!(r.conversationId || r.authorProfileId)
+    return { id: r.id, author: r.author, rating: r.rating, text: r.text, createdAt: r.createdAt.toISOString(), verified, basis: verified ? reviewBasis(r.basis) : null }
+  }
   try {
-    const rows = await db.review.findMany({
-      where: { sellerId },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, author: true, rating: true, text: true, createdAt: true, conversationId: true, authorProfileId: true },
-    })
-    // "Verified buyer" is EARNED: only reviews born from a real conversation
-    // (post-transaction, api/sellers/[id]/reviews) carry provenance. Seeded/legacy
-    // rows have neither field → no badge.
-    // createdAt is SELECTED and serialized: the review row shows when it was left, which
-    // is half of what makes a rating credible.
-    return rows.map((r) => ({ id: r.id, author: r.author, rating: r.rating, text: r.text, createdAt: r.createdAt.toISOString(), verified: !!(r.conversationId || r.authorProfileId) }))
+    try {
+      const rows = await db.review.findMany({
+        where: { sellerId },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, author: true, rating: true, text: true, createdAt: true, conversationId: true, authorProfileId: true, basis: true },
+      })
+      return rows.map(shape)
+    } catch (e) {
+      // ⛔ ONLY A MISSING COLUMN steps down to the provenance set (codex, 2026-11-11): after any other failure it would show
+      // a confirmed rental as "Verified buyer" — rethrow into the no-badge set below instead.
+      if (!isMissingRelation(e)) throw e
+      const rows = await db.review.findMany({
+        where: { sellerId },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, author: true, rating: true, text: true, createdAt: true, conversationId: true, authorProfileId: true },
+      })
+      return rows.map(shape)
+    }
   } catch {
     const rows = await db.review.findMany({
       where: { sellerId },
       orderBy: { createdAt: 'desc' },
       select: { id: true, author: true, rating: true, text: true, createdAt: true },
     })
-    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), verified: false }))
+    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), verified: false, basis: null }))
   }
 })
 
@@ -581,7 +602,14 @@ export async function SellerStorefront({ id }: { id: string }) {
                         surfaces are one click apart and must read as one hand. */}
                     {r.verified && (
                       <Badge variant="neutral" size="sm" className="gap-0.5 px-1.5 font-medium text-accent-foreground">
-                        <ShieldCheck aria-hidden className="h-3 w-3" /> <Tr text="Verified buyer" />
+                        {/* Worded by what the review is OF (Review.basis — curated VI in vi-overrides.ts). ⛔ A
+                            seller-confirmed rental / lesson / service is "Confirmed …", never "Verified", and carries
+                            no seal (spec v3 A1): a confirmation plus the buyer's "yes" is not proof of fulfilment. */}
+                        {r.basis ? <CheckCircle2 aria-hidden className="h-3 w-3" /> : <ShieldCheck aria-hidden className="h-3 w-3" />}{' '}
+                        {r.basis === 'rental' ? <Tr text="Confirmed rental" />
+                          : r.basis === 'lesson' ? <Tr text="Confirmed lesson" />
+                          : r.basis === 'service' ? <Tr text="Confirmed service" />
+                          : <Tr text="Verified buyer" />}
                       </Badge>
                     )}
                     {/* Rating + date: pushed right when the row fits, but a plain LEFT-aligned

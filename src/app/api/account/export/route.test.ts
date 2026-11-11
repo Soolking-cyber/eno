@@ -12,6 +12,12 @@ const h = vi.hoisted(() => ({
   savedRows: [] as Array<{ listingId: string; createdAt: Date }>,
   savedMissing: false,
   savedDown: false,
+  /** Service deals (spec v3 A6): the queries made, the rows answered, and a table that is not there yet. */
+  dealQuery: null as null | { where: unknown; select: Record<string, boolean> },
+  dealEventQuery: null as null | { where: unknown; select: Record<string, boolean> },
+  dealRows: [] as Array<Record<string, unknown>>,
+  dealEventRows: [] as Array<Record<string, unknown>>,
+  dealMissing: false,
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/admin', () => ({
@@ -30,6 +36,9 @@ vi.mock('@/lib/db', () => {
     db: new Proxy({}, {
       get: (_t, model) => {
         if (model === '$queryRaw') return async () => []
+        const missingDeal = () => Object.assign(new Error('relation "DealConfirmation" does not exist'), { code: 'P2021' })
+        if (model === 'dealConfirmation') return { findMany: async (q: NonNullable<typeof h.dealQuery>) => { h.dealQuery = q; if (h.dealMissing) throw missingDeal(); return h.dealRows } }
+        if (model === 'dealConfirmationEvent') return { findMany: async (q: NonNullable<typeof h.dealEventQuery>) => { h.dealEventQuery = q; if (h.dealMissing) throw missingDeal(); return h.dealEventRows } }
         if (model === 'complianceAudit') return { findMany: async (q: NonNullable<typeof h.consentQuery>) => { h.consentQuery = q; return h.consentRows } }
         if (model === 'savedListing') return {
           findMany: async (q: NonNullable<typeof h.savedQuery>) => {
@@ -47,7 +56,39 @@ vi.mock('@/lib/db', () => {
 
 const { GET } = await import('./route')
 
-beforeEach(() => { h.signedIn = true; h.consentQuery = null; h.consentRows = []; h.savedQuery = null; h.savedRows = []; h.savedMissing = false; h.savedDown = false })
+beforeEach(() => {
+  h.signedIn = true; h.consentQuery = null; h.consentRows = []; h.savedQuery = null; h.savedRows = []; h.savedMissing = false; h.savedDown = false
+  h.dealQuery = null; h.dealEventQuery = null; h.dealRows = []; h.dealEventRows = []; h.dealMissing = false
+})
+
+describe('GET /api/account/export — service deals (spec v3 A6, 2026-11-11)', () => {
+  it('every DealConfirmation naming the person as buyer or seller, and every event they acted in or were the buyer of — with their role, never the other person\'s id', async () => {
+    const at = new Date('2026-11-11T08:00:00Z')
+    h.dealRows = [
+      { conversationId: 'c1', listingId: 'L1', kind: 'rental', confirmedAt: at, revokedAt: null, declinedAt: null, confirmCount: 1, reviewId: null, createdAt: at, buyerProfileId: 'p1', sellerProfileId: 'seller-x' },
+      { conversationId: 'c2', listingId: 'L2', kind: 'lesson', confirmedAt: at, revokedAt: null, declinedAt: null, confirmCount: 1, reviewId: 'r1', createdAt: at, buyerProfileId: 'buyer-y', sellerProfileId: 'p1' },
+    ]
+    h.dealEventRows = [
+      { conversationId: 'c1', listingId: 'L1', action: 'confirm', createdAt: at, actorProfileId: 'seller-x', buyerProfileId: 'p1' },
+      { conversationId: 'c2', listingId: 'L2', action: 'confirm', createdAt: at, actorProfileId: 'p1', buyerProfileId: 'buyer-y' },
+    ]
+    const body = await (await GET()).json()
+    expect(h.dealQuery?.where).toEqual({ OR: [{ buyerProfileId: 'p1' }, { sellerProfileId: 'p1' }] })
+    expect(h.dealEventQuery?.where).toEqual({ OR: [{ actorProfileId: 'p1' }, { buyerProfileId: 'p1' }] })
+    expect(body.serviceDeals.confirmations.map((d: { conversationId: string; role: string }) => [d.conversationId, d.role])).toEqual([['c1', 'buyer'], ['c2', 'seller']])
+    expect(body.serviceDeals.events.map((e: { action: string; byYou: boolean; youWereTheBuyer: boolean }) => [e.action, e.byYou, e.youWereTheBuyer])).toEqual([['confirm', false, true], ['confirm', true, false]])
+    expect(JSON.stringify(body.serviceDeals)).not.toMatch(/seller-x|buyer-y/)
+  })
+
+  it('no deal tables yet (or a failed read): null for each, said — the rest of the export still comes', async () => {
+    h.dealMissing = true
+    const r = await GET()
+    expect(r.status).toBe(200)
+    const body = await r.json()
+    expect(body.serviceDeals).toEqual({ confirmations: null, events: null })
+    expect(body.account).toBeTruthy()
+  })
+})
 
 describe('GET /api/account/export — saved listings (2026-11-09)', () => {
   it('every row the account holds, newest first, ids and dates only', async () => {

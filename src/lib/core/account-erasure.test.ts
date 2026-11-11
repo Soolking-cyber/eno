@@ -41,6 +41,12 @@ const h = vi.hoisted(() => ({
   /** In-app calls (2026-10-21): whether the calls DDL has reached this database, and the statements the erasure ran. */
   callTables: false,
   callSql: [] as string[],
+  /** The service-deal tables (scripts/deal-confirmation-ddl.mjs, 2026-11-11): present in this database, and the writes run. */
+  dealTables: false,
+  dealDeletes: [] as Array<{ table: string; where: unknown }>,
+  /** DealConfirmationEvent rows in this database (kept, anonymised — spec v3 A5), and any delete attempted on them. */
+  dealEvents: [] as Array<Record<string, string>>,
+  dealEventDeletes: 0,
   liveCalls: [] as Record<string, unknown>[],
   callsEndedFor: [] as string[],
   finishedCalls: [] as { row: Record<string, unknown>; reason: string }[],
@@ -105,7 +111,19 @@ vi.mock('@/lib/db', () => {
     },
     profile: { delete: async () => { h.events.push('profile-deleted'); return {} } },
     teacherPrivate: { findFirst: async () => h.teacherPrivate },
-    $queryRaw: async () => [{ ok: h.callTables }],
+    $queryRaw: async (strings: TemplateStringsArray) =>
+      strings.join('?').includes('DealConfirmation') ? [{ deals: h.dealTables, events: h.dealTables }] : [{ ok: h.callTables }],
+    dealConfirmation: { deleteMany: async ({ where }: { where: unknown }) => { h.dealDeletes.push({ table: 'DealConfirmation', where }); h.events.push('deal-rows'); return { count: 1 } } },
+    dealConfirmationEvent: {
+      deleteMany: async () => { h.dealEventDeletes++; h.events.push('deal-events-deleted'); return { count: 0 } },
+      // Prisma's updateMany on a flat equality where, applied to the in-memory rows.
+      updateMany: async ({ where, data }: { where: Record<string, string>; data: Record<string, string> }) => {
+        const hit = h.dealEvents.filter((e) => Object.entries(where).every(([k, v]) => e[k] === v))
+        for (const e of hit) Object.assign(e, data)
+        h.events.push('deal-events')
+        return { count: hit.length }
+      },
+    },
     $executeRaw: async (strings: TemplateStringsArray) => { h.callSql.push(strings.join('?').replace(/\s+/g, ' ').trim()); h.events.push('call-rows'); return 1 },
   }
   return {
@@ -252,6 +270,7 @@ beforeEach(() => {
   h.ownedIdentity = [{ id: 'i1', name: 'document-1.jpg' }, { id: 'i2', name: 'selfie-1.jpg' }]
   h.authDeleteStatus = 200; h.authDeleteBody = {}; h.duringAuthDelete = null; h.crashAfterCommit = false; h.pendingTx = []; h.txFails = false
   h.callTables = false; h.callSql = []; h.liveCalls = []; h.callsEndedFor = []; h.finishedCalls = []
+  h.dealTables = false; h.dealDeletes = []; h.dealEvents = []; h.dealEventDeletes = 0
   h.appleRows = []; h.appleMissingTable = false; h.appleQueueTxFails = false; h.appleIdentity = 'none'
   h.appleOutcome = new Map(); h.appleSettleThrows = false; h.appleSweepFails = false; h.appleQueueTx = null; h.settleCalls = []
   h.duringIdentityRead = null; h.appleSettleSkips = false; h.authUser = 'gone'; h.queuedLeft = false
@@ -343,6 +362,43 @@ describe('eraseAccount', () => {
     h.liveCalls = [{ id: 'call-1', caller_id: 'p1', callee_id: 'peer', state: 'ringing' }]
     await eraseAccount('p1', { kind: 'self' }).catch(() => null)
     expect(h.finishedCalls).toEqual([])
+  })
+
+  it('⛔ service deals (2026-11-11): every DealConfirmation row naming the person as buyer or seller goes, inside the transaction, before the profile row', async () => {
+    h.dealTables = true
+    expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
+    expect(h.dealDeletes).toEqual([
+      { table: 'DealConfirmation', where: { OR: [{ buyerProfileId: 'p1' }, { sellerProfileId: 'p1' }] } },
+    ])
+    expect(h.events.indexOf('deal-rows')).toBeLessThan(h.events.indexOf('profile-deleted'))
+    expect(h.events.indexOf('deal-events')).toBeLessThan(h.events.indexOf('profile-deleted'))
+    expect(h.events.indexOf('profile-deleted')).toBeLessThan(h.events.indexOf('committed'))
+  })
+
+  it('⛔ A5: DealConfirmationEvent rows are KEPT — the erased id becomes the nil UUID as actor and as buyer; nobody else\'s id changes; nothing is deleted', async () => {
+    h.dealTables = true
+    const NIL = '00000000-0000-0000-0000-000000000000'
+    h.dealEvents = [
+      { id: 'e1', action: 'confirm', actorProfileId: 'seller-x', buyerProfileId: 'p1' }, // the erased person was the buyer
+      { id: 'e2', action: 'declined', actorProfileId: 'p1', buyerProfileId: 'p1' }, // …and answered "No" themselves
+      { id: 'e3', action: 'confirm', actorProfileId: 'p1', buyerProfileId: 'buyer-y' }, // the erased person was the seller
+      { id: 'e4', action: 'confirm', actorProfileId: 'seller-x', buyerProfileId: 'buyer-y' }, // someone else's deal
+    ]
+    expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
+    expect(h.dealEventDeletes).toBe(0)
+    expect(h.dealEvents).toEqual([
+      { id: 'e1', action: 'confirm', actorProfileId: 'seller-x', buyerProfileId: NIL },
+      { id: 'e2', action: 'declined', actorProfileId: NIL, buyerProfileId: NIL },
+      { id: 'e3', action: 'confirm', actorProfileId: NIL, buyerProfileId: 'buyer-y' },
+      { id: 'e4', action: 'confirm', actorProfileId: 'seller-x', buyerProfileId: 'buyer-y' },
+    ])
+  })
+
+  it('a database the deal DDL has not reached erases exactly as before — no deal statement runs', async () => {
+    h.dealTables = false
+    expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
+    expect(h.dealDeletes).toEqual([])
+    expect(h.events).not.toContain('deal-events')
   })
 
   it('a database the calls DDL has not reached erases exactly as before — no call statement runs', async () => {

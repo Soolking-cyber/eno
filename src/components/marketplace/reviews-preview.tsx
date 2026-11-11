@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Star, ChevronRight, ShieldCheck } from "@/components/ui/icons"
+import { Star, ChevronRight, ShieldCheck, CheckCircle2 } from "@/components/ui/icons"
 import { useLanguage, Tr } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { getInitials } from '@/lib/utils'
@@ -62,8 +62,14 @@ export function ReviewsPreview({
                     size="sm"
                     className="gap-0.5 px-1.5 font-medium text-accent-foreground"
                   >
-                    <ShieldCheck aria-hidden className="h-3 w-3" />
-                    {tr('Verified buyer', 'Đã mua')}
+                    {/* What the review is OF (Review.basis, a seller-confirmed service deal): ⛔ "Confirmed …", never
+                        "Verified", and no seal (spec v3 A1) — the storefront's words. No basis: a goods sale or an
+                        accepted offer, as before. */}
+                    {r.basis ? <CheckCircle2 aria-hidden className="h-3 w-3" /> : <ShieldCheck aria-hidden className="h-3 w-3" />}
+                    {r.basis === 'rental' ? tr('Confirmed rental', 'Thuê đã xác nhận')
+                      : r.basis === 'lesson' ? tr('Confirmed lesson', 'Buổi học đã xác nhận')
+                      : r.basis === 'service' ? tr('Confirmed service', 'Dịch vụ đã xác nhận')
+                      : tr('Verified buyer', 'Đã mua')}
                   </Badge>
                 )}
               </div>

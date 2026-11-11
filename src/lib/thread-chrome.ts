@@ -65,6 +65,11 @@ export type StripThread = {
   closed?: string | null
   listing: { negotiable?: boolean; status?: string; listingType?: string | null } | null
   messages: readonly { mine: boolean }[]
+  /**
+   * The seller's service deal (src/lib/service-deal.ts) — sent by the server ONLY on the seller side of an in-scope thread
+   * (a rental, lesson or service). Absent everywhere else, and on a cached payload: absent shows nothing.
+   */
+  deal?: { state?: string; confirmsLeft?: number } | null
 }
 
 export type StripGates = {
@@ -80,6 +85,12 @@ export type StripGates = {
   contact: boolean
   /** The composer's tag button (the offer-mode toggle). */
   composerTag: boolean
+  /**
+   * The seller's service-deal SLOT ('Xác nhận…' / 'Rút lại xác nhận'): inside the 'Đã bán' menu when `sold`, else its own
+   * pill. ⚠️ True for a DECLINED deal too (spec v3 A8), where the page draws only the non-interactive line "{name} said this
+   * didn't happen" in that slot — never a confirm (the server refuses one: a declined deal is never confirmed again).
+   */
+  deal: boolean
 }
 
 /**
@@ -106,6 +117,12 @@ export type StripGates = {
  * `productThreadStrip` = the services edition, where the desks are legitimate.
  * ⛔ A thread CLOSED BY A BLOCK (`closed`, App Store gate `ugc-safety`) offers neither `offer` nor `contact`:
  * the server refuses both there, and the closed banner replaces the composer. Absent while the gate is off.
+ * ⛔ `deal` (the service-deal loop, 2026-11-11): the SELLER's confirm / undo, beside `sold` — never a new row. Only on an
+ * ordinary listing thread (`kind === 'listing'` positively), never closed, and only when the SERVER sent `deal` (it does
+ * so on the seller side of a rental / lesson / service thread only — a cached payload without it shows nothing, the
+ * `teacher === null` rule), while something can still be done — never once reviewed; either confirmed (the undo) or with a
+ * confirm left — OR when the buyer DECLINED (spec v3 A8): the slot then holds the text "{name} said this didn't happen"
+ * and nothing to tap. Goods never get it (the server sends no `deal` there); a teacher thread does, as a pill.
  */
 export function threadStripGates(
   thread: StripThread | null | undefined,
@@ -122,5 +139,8 @@ export function threadStripGates(
   const contact = strip && !!thread && !closed && thread.teacher === null && !thread.iAmSeller && !contactRevealed &&
     !thread.sellerIsPartner && thread.messages.some((m) => !m.mine)
   const composerTag = negotiable && (showOffer || (listingLive && !offer))
-  return { strip, listingLive, offer, sold, contact, composerTag }
+  const d = thread?.deal ?? null
+  const deal = strip && !!thread?.iAmSeller && thread.kind === 'listing' && !closed && !!d &&
+    d.state !== 'reviewed' && (d.state === 'declined' || d.state === 'confirmed' || (d.confirmsLeft ?? 0) > 0)
+  return { strip, listingLive, offer, sold, contact, composerTag, deal }
 }

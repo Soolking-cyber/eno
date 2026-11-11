@@ -25,6 +25,8 @@ vi.mock('@/lib/db', () => ({
     message: { count: async ({ where }: Row) => (where.offerStatus === 'accepted' ? h.accepted : 0) },
     review: { create: async ({ data }: Row) => { h.created.push(data); return { id: 'r1' } } },
     forumModerationAction: { findFirst: async () => null },
+    // The service-deal row is read on every listing thread (the row decides) — none in these goods threads.
+    dealConfirmation: { findUnique: async () => null },
   },
 }))
 

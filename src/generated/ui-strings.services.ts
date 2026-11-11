@@ -98,7 +98,6 @@ export const UI_STRINGS_SERVICES: string[] = [
   "Compare the details below with your passport and trip. eno will use only this approved snapshot to prepare the official form.",
   "Complete your payment",
   "Con Dao",
-  "Confirmed",
   "Confirming your payment…",
   "Connectivity",
   "Continue in chat",

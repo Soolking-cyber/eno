@@ -112,7 +112,14 @@ vi.mock('@/lib/db', () => {
         },
         updateMany: async (a: Row) => { rec('seller.updateMany', a); return { count: 1 } },
       },
-      review: { findMany: async () => h.reviews },
+      // Prisma's `basis: null` filter, modelled (spec v3 A4): a where without it answers every row, so dropping the filter
+      // from trust.ts lets a service-deal review back into Q and the A4 tests below fail.
+      review: {
+        findMany: async (a: Row) => {
+          rec('review.findMany', a)
+          return a?.where && 'basis' in a.where && a.where.basis === null ? h.reviews.filter((r: Row) => r.basis == null) : h.reviews
+        },
+      },
       conversation: { count: async () => 0 },
       message: { findMany: async () => h.acceptedOffers },
       listing: {
@@ -841,5 +848,52 @@ describe('⚖️ R1 — recomputeTrust: the identity step lands in full; everyth
     await recomputeTrust('p1')
     expect(called('$transaction')).toHaveLength(1)
     expect(creates().filter((d) => d.type === 'recompute_lift').map((d) => d.delta)).toEqual([6])
+  })
+})
+
+// ⛔ THE SERVICE-DEAL LOOP (src/lib/service-deal.ts): a seller's confirmation of a rental, lesson or service is NOT a
+// transaction (T and probation unchanged — spec v2), and (spec v3 A4, 2026-11-11) a review born of one is NO TRUST INPUT
+// AT ALL: Q, distinctBuyerReviews and the review velocity counts read only reviews with basis IS NULL. It counts in the
+// shown rating and review count only. Nothing in trust reads the deal table — the mock db here has no dealConfirmation.
+describe('⛔ a service-deal review is excluded from trust (A4)', () => {
+  const rater = () => { h.raters = [{ id: 'r1', trustScore: 90, createdAt: new Date(Date.now() - 60 * DAY), falseReportStrikes: 0 }, { id: 'r2', trustScore: 90, createdAt: new Date(Date.now() - 60 * DAY), falseReportStrikes: 0 }] }
+
+  it('a review of a confirmed rental adds nothing to Q, distinctBuyerReviews or the review velocity — and no transaction', async () => {
+    rater()
+    h.reviews = []
+    const none = (await computeTrustV2('p1'))!
+    h.reviews = [{ rating: 5, authorProfileId: 'r1', createdAt: new Date(Date.now() - 2 * 3_600_000), basis: 'rental' }]
+    const b = (await computeTrustV2('p1'))!
+    expect(b.Q).toBe(none.Q)
+    expect(b.score).toBe(none.score)
+    expect(b.inputs.distinctBuyerReviews).toBe(0)
+    expect(b.inputs.velocity.reviews24h).toBe(0)
+    expect(b.inputs.velocity.reviews30d).toBe(0)
+    expect(b.inputs.transactions365).toBe(0)
+  })
+
+  it('lesson and service reviews are dropped too, while a goods / offer review beside them still counts in full', async () => {
+    rater()
+    h.reviews = [{ rating: 4, authorProfileId: 'r1', createdAt: new Date(Date.now() - 5 * DAY) }]
+    const goodsOnly = (await computeTrustV2('p1'))!
+    h.reviews = [
+      { rating: 4, authorProfileId: 'r1', createdAt: new Date(Date.now() - 5 * DAY) },
+      { rating: 1, authorProfileId: 'r2', createdAt: new Date(Date.now() - 4 * DAY), basis: 'lesson' },
+      { rating: 1, authorProfileId: 'r2', createdAt: new Date(Date.now() - 3 * DAY), basis: 'service' },
+    ]
+    const mixed = (await computeTrustV2('p1'))!
+    expect(mixed.Q).toBe(goodsOnly.Q)
+    expect(mixed.score).toBe(goodsOnly.score)
+    expect(mixed.inputs.distinctBuyerReviews).toBe(1)
+    expect(mixed.inputs.velocity.reviews30d).toBe(1)
+    expect(goodsOnly.Q - TRUST.FRESH_MAX).toBeCloseTo(reviewScore([{ rating: 4, weight: TRUST.CRED_DEFAULT }]), 10)
+  })
+
+  it('the reviews read asks for basis IS NULL, and T\'s sources stay sold listings + accepted offers (no deal table)', async () => {
+    await computeTrustV2('p1')
+    expect(called('review.findMany')[0]!.args.where).toMatchObject({ conversationId: { not: null }, authorProfileId: { not: null }, basis: null })
+    const src = (await import('node:fs')).readFileSync('src/lib/trust.ts', 'utf8') + (await import('node:fs')).readFileSync('src/lib/enforcement.ts', 'utf8')
+    const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).join('\n')
+    expect(code).not.toMatch(/dealConfirmation/)
   })
 })

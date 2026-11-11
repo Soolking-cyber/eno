@@ -41,6 +41,10 @@ const h = vi.hoisted(() => ({
     offerThreads: [] as string[],
     // The status of the offer those threads hold.
     offerKind: 'pending' as 'pending' | 'accepted' | 'declined',
+    // Conversation ids holding a service-deal confirmation (DealConfirmation, any state — src/lib/service-deal.ts).
+    dealThreads: [] as string[],
+    // The deal table is not in this database yet (before scripts/deal-confirmation-ddl.mjs): Prisma's P2021.
+    dealTableMissing: false,
     // Buyers docked by the fixed-price offer guard (recordFixedPriceOfferAttempt).
     docked: [] as string[],
     // Every `where` conversation.findFirst was handed — the P2002 fallback is held to its filter, not just its result.
@@ -105,8 +109,8 @@ vi.mock('@/lib/edition-scope', () => ({
   marketplaceListingScope: async () => ({}),
   deskSellerIds: async () => [],
 }))
-vi.mock('@/lib/db', () => ({
-  db: {
+vi.mock('@/lib/db', () => {
+  const db: Row = {
     listing: {
       // ⚠️ findFirst, because the route converted from findUnique when the edition scope landed:
       // scopedListingWhere returns an { AND: [...] } wrapper, which ListingWhereUniqueInput rejects.
@@ -187,8 +191,19 @@ vi.mock('@/lib/db', () => ({
     notification: { create: ({ data }: Row) => { ((h.state as Row).notifications ??= []).push(data); return Promise.resolve({}) } },
     // App Store gate `ugc-safety`: the block lookup the route makes once the gate is on (no block here).
     forumUserBlock: { findFirst: () => Promise.resolve(null) },
-  },
-}))
+    dealConfirmation: {
+      findUnique: ({ where }: Row) => {
+        if (h.state.dealTableMissing) return Promise.reject(Object.assign(new Error('The table `public.DealConfirmation` does not exist'), { code: 'P2021' }))
+        return Promise.resolve(h.state.dealThreads.includes(where.conversationId) ? { id: `deal-on-${where.conversationId}` } : null)
+      },
+    },
+  }
+  // The retarget moves a thread under its row lock and re-checks the deal there (conversations/route.ts): the lock read and an
+  // interactive transaction that runs on the same mock.
+  db.$queryRaw = () => Promise.resolve([])
+  db.$transaction = (fn: (tx: Row) => Promise<unknown>) => fn(db)
+  return { db }
+})
 
 vi.mock('@/lib/admin', () => ({
   getCurrentProfile: () => Promise.resolve(h.state.profile),
@@ -290,6 +305,8 @@ beforeEach(() => {
   // Reset with the rest: the pending-offer test used to leave its thread id behind for every later test.
   h.state.offerThreads = []
   h.state.offerKind = 'pending'
+  h.state.dealThreads = []
+  h.state.dealTableMissing = false
   h.state.findFirstWheres = []
   h.state.dm = {
     standing: unverifiedDay(0), lockedStanding: null, concurrentThread: null, mayWrite: true, guardRefuses: false,
@@ -413,6 +430,35 @@ describe('ordinary storefronts keep the one-thread-per-seller rule exactly as be
     expect(h.state.convos.find((c) => c.id === 'shop-thread')!.listingId).toBe(SHOP_A)
     expect(json.id).not.toBe('shop-thread')
     expect(h.state.convos.find((c) => c.id === json.id)!.listingId).toBe(SHOP_B)
+  })
+
+  // ⚠️ THE SERVICE-DEAL BINDING (2026-11-11). A seller's confirmation opens a review of THIS thread's rental / lesson /
+  // service; moving the thread would let it open a review of whatever the buyer asks about next.
+  it('refuses to retarget a thread that holds a service-deal confirmation (any state) — the buyer goes to a fresh thread', async () => {
+    h.state.convos = [convo('shop-thread', SHOP_A, OTHER_SELLER, 1000)]
+    h.state.dealThreads = ['shop-thread']
+    const { status, json } = await post({ listingId: SHOP_B, message: 'is the other room free?' })
+    expect(status).toBe(200)
+    expect(h.state.convos.find((c) => c.id === 'shop-thread')!.listingId).toBe(SHOP_A)
+    expect(json.id).not.toBe('shop-thread')
+    expect(h.state.convos.find((c) => c.id === json.id)!.listingId).toBe(SHOP_B)
+  })
+
+  it('…and to the canonical thread when the buyer already has one for the new listing', async () => {
+    h.state.convos = [convo('shop-thread', SHOP_A, OTHER_SELLER, 2000), convo('canonical-b', SHOP_B, OTHER_SELLER, 1000)]
+    h.state.dealThreads = ['shop-thread']
+    const { json } = await post({ listingId: SHOP_B, message: 'hello again' })
+    expect(json.id).toBe('canonical-b')
+    expect(h.state.convos.find((c) => c.id === 'shop-thread')!.listingId).toBe(SHOP_A)
+  })
+
+  it('before the deal DDL (the table missing) nothing can be bound — the thread moves as before', async () => {
+    h.state.convos = [convo('shop-thread', SHOP_A, OTHER_SELLER, 1000)]
+    h.state.dealTableMissing = true
+    const { status, json } = await post({ listingId: SHOP_B, message: 'is this still available?' })
+    expect(status).toBe(200)
+    expect(json.id).toBe('shop-thread')
+    expect(h.state.convos.find((c) => c.id === 'shop-thread')!.listingId).toBe(SHOP_B)
   })
 
   it('…but a thread whose offer was DECLINED still moves to the next item (one thread per seller stays the rule)', async () => {

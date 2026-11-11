@@ -130,6 +130,27 @@ export async function GET() {
   // the whole export lost to one section (commit gate, opus round 2), as with the consent records above.
   const identityVerifications = await identityVerificationExportOf(profile.id).catch(() => null)
 
+  // Service deals (2026-11-11, src/lib/service-deal.ts — spec v3 A6): every DealConfirmation naming this person as the deal's
+  // buyer or seller, and every DealConfirmationEvent they acted in or were the buyer of. Each read is its own .catch → null:
+  // a database scripts/deal-confirmation-ddl.mjs has not reached (or any failed read) says "not available", never costing
+  // the rest of the export.
+  const [dealConfirmations, dealConfirmationEvents] = await Promise.all([
+    db.dealConfirmation.findMany({
+      where: { OR: [{ buyerProfileId: profile.id }, { sellerProfileId: profile.id }] },
+      orderBy: { createdAt: 'asc' },
+      select: { conversationId: true, listingId: true, kind: true, confirmedAt: true, revokedAt: true, declinedAt: true, confirmCount: true, reviewId: true, createdAt: true, buyerProfileId: true, sellerProfileId: true },
+    })
+      .then((rows) => rows.map(({ buyerProfileId, sellerProfileId, ...r }) => ({ ...r, role: buyerProfileId === profile.id ? 'buyer' : sellerProfileId === profile.id ? 'seller' : null })))
+      .catch(() => null),
+    db.dealConfirmationEvent.findMany({
+      where: { OR: [{ actorProfileId: profile.id }, { buyerProfileId: profile.id }] },
+      orderBy: { createdAt: 'asc' },
+      select: { conversationId: true, listingId: true, action: true, createdAt: true, actorProfileId: true, buyerProfileId: true },
+    })
+      .then((rows) => rows.map(({ actorProfileId, buyerProfileId, ...r }) => ({ ...r, byYou: actorProfileId === profile.id, youWereTheBuyer: buyerProfileId === profile.id })))
+      .catch(() => null),
+  ])
+
   // The Profile row minus purely-internal fields the user didn't provide and that
   // aren't "their" personal data (denormalized trust internals stay out).
   const { trustScore, trustTier, positiveInteractions, falseReportStrikes, enforcementState, ...profilePublicish } = profile
@@ -164,6 +185,7 @@ export async function GET() {
     signInMethods,
     consentRecords,
     identityVerifications,
+    serviceDeals: { confirmations: dealConfirmations, events: dealConfirmationEvents },
     schools: { votes: schoolVotes, voteLog: schoolVoteLog, reviews: schoolReviews, helpfulVotes: schoolHelpfulVotes, proofsOfEmployment: schoolProofs, reportsFiled: schoolReports, suggestions: schoolSuggestions },
   }
 

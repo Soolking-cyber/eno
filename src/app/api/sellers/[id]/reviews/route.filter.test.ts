@@ -26,6 +26,8 @@ vi.mock('@/lib/db', () => ({
     review: { create: async ({ data }: Row) => { h.created.push(data); return { id: 'r1' } } },
     // The removed-review guard (ugc-safety, R5 report half): no removal on record here.
     forumModerationAction: { findFirst: async () => null },
+    // The service-deal row is read on every listing thread (the row decides) — none in these goods threads.
+    dealConfirmation: { findUnique: async () => null },
   },
 }))
 

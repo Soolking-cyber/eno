@@ -37,6 +37,11 @@ export const ENFORCEMENT_REASON = {
   BAN_EVASION_REVIEW: 'ban_evasion_review', // verified phone matches a suspended account → held for HUMAN review (never auto-ban: VN families share numbers)
   BAN_EVASION_EMAIL: 'ban_evasion_email', // email matches a suspended account — weaker signal → silent flag only, state unchanged
   VELOCITY_REVIEW: 'velocity_review', // positive-event spike far above baseline → silent flag only, state unchanged
+  // ── the service-deal loop (2026-11-11, src/lib/service-deal.ts) ──
+  // Buyers said "No, this didn't happen" to DECLINE_FLAG_THRESHOLD of this seller's confirmed rentals / lessons / services
+  // in DECLINE_FLAG_WINDOW_DAYS (counted from DealConfirmationEvent, which survives erasure) → silent flag only, state
+  // unchanged (POST /api/conversations/[id]/deal, the buyer's 'decline').
+  DEAL_DECLINES: 'deal_declines',
 } as const
 
 /**
@@ -46,7 +51,7 @@ export const ENFORCEMENT_REASON = {
  * system-precedence reads, the seller-facing dashboard/appeal action lookups) so a
  * silent flag can neither leak to the seller nor shadow a real action.
  */
-export const FLAG_REASONS = [ENFORCEMENT_REASON.VELOCITY_REVIEW, ENFORCEMENT_REASON.BAN_EVASION_EMAIL] as const
+export const FLAG_REASONS = [ENFORCEMENT_REASON.VELOCITY_REVIEW, ENFORCEMENT_REASON.BAN_EVASION_EMAIL, ENFORCEMENT_REASON.DEAL_DECLINES] as const
 export type FlagReason = (typeof FLAG_REASONS)[number]
 
 export function isFlagReason(reason: string): reason is FlagReason {

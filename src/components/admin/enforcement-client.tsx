@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { shortDate } from '@/lib/dates'
 import { TRUST } from '@/lib/trust-math'
 import { ENFORCEMENT } from '@/lib/enforcement-machine'
+import { SERVICE_DEAL } from '@/lib/service-deal'
 
 // Mirrors SCAM_RELEASE_PLAN_MIN (src/lib/scam-hold.ts — server-only, so not importable here). The
 // server is the authority and answers `plan_required` with its own minimum; this only keeps the
@@ -115,7 +116,8 @@ const STATE_VARIANT: Record<string, 'warning' | 'destructive' | 'success'> = {
   good_standing: 'success',
 }
 
-const REASON_LABEL: Record<string, string> = {
+/** Every EnforcementAction reason slug → its console label (enforcement-client.test.ts: no slug goes unlabelled). */
+export const REASON_LABEL: Record<string, string> = {
   scam_hold: 'Scam hold (awaiting release)',
   conduct_restricted: 'Conduct — score below 60',
   conduct_warning: 'Conduct warning (dual-threshold)',
@@ -124,6 +126,8 @@ const REASON_LABEL: Record<string, string> = {
   ban_evasion_review: 'Ban evasion — phone matches a suspended account',
   ban_evasion_email: 'Ban-evasion signal — email matches a suspended account',
   velocity_review: 'Velocity spike — positive events far above baseline',
+  // The service-deal loop's silent flag (src/lib/service-deal.ts): the numbers ARE the rule's, so they cannot drift.
+  deal_declines: `Buyers said ${SERVICE_DEAL.DECLINE_FLAG_THRESHOLD} confirmed deals didn't happen (${SERVICE_DEAL.DECLINE_FLAG_WINDOW_DAYS} days)`,
 }
 
 const fmtAge = (iso: string) => {

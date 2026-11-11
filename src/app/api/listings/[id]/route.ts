@@ -16,6 +16,7 @@ import { JOB_TEXT_REFUSAL } from '@/lib/job-listing'
 import { serializeListing } from '@/lib/serialize'
 import { getPriceBand } from '@/lib/price-stat'
 import { topSellerReviews, sameSellerListings } from '@/lib/seller-metrics'
+import { apiReviewsPayload } from '@/lib/service-deal'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -89,7 +90,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // weaker, similar-items comparison, and the shipped native builds ignore unknown keys — they would
   // print it under their "Good price" / "Above typical" verdicts as if it were the same-model band.
   // A native build that renders `basis` can take it; until then it is withheld, not relabelled.
-  const res = NextResponse.json({ listing: serializeListing(listing), priceBand: priceBand?.basis === 'model' ? priceBand : null, reviews, sameSellerListings: moreFromSeller })
+  // ⛔ `apiReviewsPayload`: a review of a seller-confirmed rental / lesson / service goes out with `verified: false` — the
+  // native PDP prints "Verified buyer" for `verified` and cannot read `basis` (spec v3 A1; src/lib/service-deal.ts).
+  const res = NextResponse.json({ listing: serializeListing(listing), priceBand: priceBand?.basis === 'model' ? priceBand : null, reviews: apiReviewsPayload(reviews), sameSellerListings: moreFromSeller })
   res.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120')
   return res
 }

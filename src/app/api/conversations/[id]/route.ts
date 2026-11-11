@@ -15,7 +15,7 @@ import { MESSAGE_ROW_SELECT, serializeMessage } from '@/lib/messages'
 import { globalTopReactions } from '@/lib/reaction-tally'
 import { maskEmailHandle } from '@/lib/utils'
 import { threadKind } from '@/lib/thread-kind'
-import { isSellerHiddenHere } from '@/lib/edition-scope'
+import { HIDDEN_DESK_OWNER_EMAILS, isSellerHiddenHere } from '@/lib/edition-scope'
 import { isPublicListing, isStorefrontGone } from '@/lib/storefront-gone'
 import { syncBadgeToProfile } from '@/lib/native-push'
 import { dayCoarse } from '@/lib/last-seen'
@@ -27,6 +27,8 @@ import { isEVisaProductListing } from '@/lib/evisa-listing'
 import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
 import { SALE_FACTS_SELECT, saleFacts } from '@/lib/core/sale-loop'
 import { mayReviewDeal } from '@/lib/trade-loop'
+import { confirmsLeft, dealState, mayReviewServiceDeal, reviewBasis, serviceDealInScope, withdrawUntil } from '@/lib/service-deal'
+import { dealListingCompliance, readDealConfirmation } from '@/lib/service-deal-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -189,7 +191,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       // (`identityMarkNotice` — a scalar of the row already read, so no round-trip of its own) are read for the school's
       // ONE boolean below (`teacherIdentityVerified`) and never sent — not the account id, the name, the hide or the
       // cached version (the `listing` below is built field by field).
-      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, ...SALE_FACTS_SELECT, status: true, listingType: true, verified: true, subcategorySlug: true, identityMarkNotice: true, category: { select: { slug: true } }, teacherProfile: { select: { status: true, videoOnRequest: true, ...IDENTITY_MARK_TP_SELECT, private: { select: { videoPath: true, phone: true } } } } } },
+      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, ...SALE_FACTS_SELECT, status: true, listingType: true, verified: true, verificationNotes: true, subcategorySlug: true, identityMarkNotice: true, category: { select: { slug: true } }, teacherProfile: { select: { status: true, videoOnRequest: true, ...IDENTITY_MARK_TP_SELECT, private: { select: { videoPath: true, phone: true } } } } } },
       // Teachers (2026-09-30): the teacher's revocable share — decides the thread's contact strip.
       teacherContactShare: { select: { revokedAt: true, phoneShared: true } },
       // …and the intro video sent on request (2026-10-07): its own grant, and the school's ask.
@@ -209,7 +211,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       // server's refusal will disagree and the buyer gets a hidden strip on a revealable listing.
       // Belt: the server is authoritative either way, so the failure is a missing affordance, not
       // a leak.
-      seller: { select: { id: true, ownerId: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true, officialPartner: true, owner: { select: { lastSeenAt: true, locale: true, avatarUrl: true, accountType: true } } } },
+      seller: { select: { id: true, ownerId: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true, officialPartner: true, owner: { select: { lastSeenAt: true, locale: true, avatarUrl: true, accountType: true, email: true } } } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true, lastSeenAt: true, locale: true } },
       // Bounded (audit P2): the full history shipped on EVERY call × a 15s poll per
       // open tab. Last 200 in reverse, un-reversed below — covers any realistic
@@ -391,6 +393,86 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
   const kind = convo.listing ? await threadKind({ listingId: convo.listing.id }) : null
 
   /**
+   * THE SERVICE-DEAL LOOP (src/lib/service-deal.ts, owner 2026-11-11): on a rental / lesson / service thread, the SELLER's
+   * confirm control (`deal`) and the BUYER's review card (`mayReviewService`, `dealKind`). In scope: an ordinary
+   * 'listing' thread, never a desk (DESK_BY_SELLER_ID), never a taken-down listing — the same pure predicate the deal
+   * route asks (it adds the visa / trip desk check by seller AND listing, which only the write pays for).
+   * ⚠️ THE MOST-POLLED ROUTE: the row is read only by the thread's two people on an ordinary 'listing' thread (never a
+   * desk, a visa / itinerary or a support thread), in its OWN fail-soft findUnique (never a relation of the query above —
+   * a missing table would 500 every chat on both editions before the DDL); a failure reads as "no deal". The seller side
+   * reads it only when in scope, and adds the same unique Review read the buyer side already makes, so an offer-path
+   * review shows as 'reviewed'. With no deal to show, the keys are OMITTED, so every other payload is byte-identical.
+   * ⛔ UNDO AND REVIEW NEVER OVERLAP (spec v3 A2): `withdrawUntil` only while now < confirmedAt + 10 min; `mayReviewService`
+   * only from that instant on (mayReviewServiceDeal's 'review_not_open') — the next poll after it opens the buyer's card.
+   * ⛔ THE BUYER'S SIDE: THE ROW DECIDES (2026-11-11). Once a DealConfirmation exists, `mayReviewService` and `dealKind`
+   * come from the ROW (its kind, its listing, its storefront) — never the listing's CURRENT type — so a seller who
+   * switched a confirmed rental to 'wanted' or 'sell' cannot hide the buyer's card. So the buyer side reads the row on
+   * EVERY ordinary listing thread (one unique-index read, the hasReviewed lookup's cost; skipped once this out-of-scope
+   * thread has a review — nothing could open then), and only a takedown of the deal's listing still closes the card. With
+   * no row and an out-of-scope listing the keys stay OMITTED (byte-identical). The SELLER side stays scoped to the
+   * listing as it is now: a confirm is a new act about a rental / lesson / service, and the deal route refuses any other.
+   */
+  const dealThread = (iAmBuyer || iAmSeller) && !isDeskThread && kind === 'listing' && !!convo.listing
+  const dealKindHere = dealThread
+    ? serviceDealInScope({
+      listing: convo.listing ? { listingType: convo.listing.listingType, categorySlug: convo.listing.category?.slug ?? null, complianceStatus: convo.listing.complianceStatus, verified: convo.listing.verified, verificationNotes: convo.listing.verificationNotes } : null,
+      threadKind: kind,
+      enoDesk: false,
+    })
+    : null
+  let dealPayload: Record<string, unknown> = {}
+  if (iAmBuyer && !iAmSeller && dealThread && convo.listing && (dealKindHere || !hasReviewed)) {
+    const dealRow = await readDealConfirmation(id, { failSoft: true })
+    const rowKind = reviewBasis(dealRow?.kind)
+    const shownKind = rowKind ?? dealKindHere
+    if (shownKind) {
+      let mayReviewService = false
+      if (!hasReviewed && dealRow && rowKind) {
+        try {
+          const complianceStatus = await dealListingCompliance(dealRow, convo.listing)
+          mayReviewService = mayReviewServiceDeal(dealRow, meId, { sellerId: convo.seller.id, complianceStatus }, new Date()).ok
+        } catch (e) {
+          // The polled route fails soft: an unreadable deal listing closes the card for this poll, never the chat.
+          console.error('[conversations] deal listing read failed', e)
+        }
+      }
+      dealPayload = { mayReviewService, dealKind: shownKind }
+    }
+  } else if (iAmSeller && dealThread) {
+    // ⛔ THE SELLER'S CONTROL FOLLOWS THE STORED DEAL TOO (codex + opus, 2026-11-11): a confirmed rental switched to 'sell'
+    // inside the 10 minutes keeps its undo (the deal route takes it from the row). No row and an out-of-scope listing: no keys.
+    const dealRow = await readDealConfirmation(id, { failSoft: true })
+    const shownKind = reviewBasis(dealRow?.kind) ?? dealKindHere
+    if (shownKind) {
+      let threadReviewed = false
+      try {
+        threadReviewed = !!(await db.review.findUnique({ where: { conversationId: id }, select: { id: true } }))
+      } catch { threadReviewed = false }
+      const until = withdrawUntil(dealRow, threadReviewed, new Date())
+      // Off a listing that is no longer a rental / lesson / service, the control only stands while it can DO something —
+      // the undo, or the state a buyer gave it; a fresh confirm there would always be refused (opus, round 2).
+      const state = dealState(dealRow, threadReviewed)
+      // A FRESH confirm is offered only where the deal route would take it (opus, round 5): the route also refuses eno's own
+      // visa / trip storefront, which is no DESK_BY_SELLER_ID desk. That storefront is the one a HIDDEN_DESK_OWNER_EMAILS
+      // account owns (deskSellerIds), and this thread's seller row already carries its owner — so the same question is
+      // answered from the join already made, with NO query on this polled route (opus, round 6). Its visa and trip
+      // threads never get here: they are 'visa' / 'itinerary' threads where those run, and that seller is hidden where not.
+      const ownerEmail = convo.seller.owner?.email?.toLowerCase() ?? ''
+      const confirmable = !!dealKindHere && (!!dealRow || !HIDDEN_DESK_OWNER_EMAILS.includes(ownerEmail))
+      if (confirmable || state !== 'none') {
+        dealPayload = {
+          deal: {
+            kind: shownKind,
+            state,
+            confirmsLeft: confirmsLeft(dealRow),
+            ...(until ? { withdrawUntil: until.toISOString() } : {}),
+          },
+        }
+      }
+    }
+  }
+
+  /**
    * App Store gate `ugc-safety`: is this thread CLOSED by a block between its two people? The thread page
    * swaps the composer for a "conversation closed" banner instead of letting a send fail into a toast.
    * 'you_blocked' tells the blocker the way back (Settings › Privacy); 'blocked' tells the other side the
@@ -524,6 +606,9 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     hasReviewed,
     mayReviewSale,
     mayReviewOffer,
+    // The service-deal loop (above): `deal` on the seller side, `mayReviewService` + `dealKind` on the buyer side — present
+    // only on an in-scope thread.
+    ...dealPayload,
     // `locale` drives the live-translation toggle: the client offers it ONLY when the
     // counterpart's app language is KNOWN and differs from the viewer's. Null (they have
     // never synced a language) means no toggle at all — we never guess a language from a

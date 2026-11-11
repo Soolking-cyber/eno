@@ -27,6 +27,7 @@ import {
 } from '@/lib/rental-check/shared'
 import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
 import { cutText } from '@/lib/feed-text'
+import { DEAL_WITHDRAWN_LINE, SERVICE_DEAL_KINDS, dealConfirmedLine, isDealLineKind } from '@/lib/service-deal'
 
 // ---------------------------------------------------------------------------
 // Structured message kinds
@@ -82,6 +83,14 @@ export const MESSAGE_KINDS = [
   // author is always the CALLER of a call the box ended — the call request's, the participant who asked.
   'call',
   'call_request',
+  // ⚠️ THE SERVICE-DEAL LINES (src/lib/service-deal.ts, 2026-11-11) — NOT CARDS, the 'call' class: no metaJson, a fixed
+  // bilingual body ("✅ Đã xác nhận cho thuê · Rental confirmed", "↩️ Đã rút lại xác nhận · Confirmation withdrawn"), so an
+  // older build still shows a readable bubble; the thread page shows each viewer their language's half (localizeDealLine).
+  // SERVER-AUTHORED ONLY, by POST /api/conversations/[id]/deal: no send route forwards a client-chosen kind (gate zero),
+  // and insertMessage below refuses one unless the sender is the thread's seller and the body is a canonical line. Only
+  // 'text' is recallable, so these stay as the in-thread record for both people and for an admin reading a reported thread.
+  'deal_confirmed',
+  'deal_withdrawn',
 ] as const
 export type MessageKind = (typeof MESSAGE_KINDS)[number]
 export type VisaCardKind = 'visa_step' | 'visa_checkout' | 'visa_result' | 'visa_picker'
@@ -952,6 +961,13 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
   // a card the renderers don't gate on, so refuse rather than silently drop it.
   if (opts?.meta && !isCard) throw new Error('message_meta_not_allowed')
   if (opts?.alongside?.length && isCard) throw new Error('message_alongside_not_allowed')
+  // THE SERVICE-DEAL LINES (see MESSAGE_KINDS): only the thread's seller, only a canonical bilingual body. Gate zero (no
+  // route forwards a client kind) is an absence, so it is not trusted alone — the visa gates' rule.
+  if (isDealLineKind(kind)) {
+    if (!convo.sellerProfileId || convo.sellerProfileId !== senderId) throw new Error('deal_line_author_forbidden')
+    const canonical = kind === 'deal_withdrawn' ? text === DEAL_WITHDRAWN_LINE : SERVICE_DEAL_KINDS.some((k) => text === dealConfirmedLine(k))
+    if (!canonical) throw new Error('deal_line_body_invalid')
+  }
   const card = isVisaCard ? await buildCardMeta(kind, convo, senderId, opts?.meta) : null
   const tripCard = isTripCard ? await buildTripCardMeta(kind, convo, senderId, opts?.meta) : null
   const rentalCard = isRentalCard ? buildRentalCheckMeta(convo, senderId, opts?.meta) : null

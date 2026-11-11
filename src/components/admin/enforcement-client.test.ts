@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { defaultOverturnPick, overturnSubmission } from './enforcement-client'
+import { REASON_LABEL, defaultOverturnPick, overturnSubmission } from './enforcement-client'
+import { ENFORCEMENT_REASON, FLAG_REASONS } from '@/lib/enforcement-machine'
 
 /**
  * The overturn dialog's starting selection (review, 2026-09-24). An overturn tells every chosen report's
@@ -43,5 +44,17 @@ describe('overturnSubmission — what the dialog may send (review, 2026-09-24)',
 
   it('⛔ with NO charge standing (a stale row) it can still be sent — without a selection, so the server ends the row', () => {
     expect(overturnSubmission([], new Set())).toEqual({ ok: true })
+  })
+})
+
+describe('REASON_LABEL — the console names every reason', () => {
+  it('every reason slug the ladder or a detector can write has a label (no raw slug in the console)', () => {
+    for (const r of Object.values(ENFORCEMENT_REASON)) expect([r, REASON_LABEL[r]]).toEqual([r, expect.any(String)])
+  })
+
+  it('⛔ the service-deal decline flag is its OWN flag reason, labelled with the rule\'s numbers — never the velocity one', () => {
+    expect(ENFORCEMENT_REASON.DEAL_DECLINES).toBe('deal_declines')
+    expect(FLAG_REASONS).toContain('deal_declines')
+    expect(REASON_LABEL.deal_declines).toBe("Buyers said 3 confirmed deals didn't happen (90 days)")
   })
 })

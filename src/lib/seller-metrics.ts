@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { dayCoarse } from '@/lib/last-seen'
 import type { SerializedListingCard } from '@/lib/types'
+import { isMissingRelation, reviewBasis, type ServiceDealKind } from '@/lib/service-deal'
 
 // ── Seller display metrics (SellerCard / storefront / PDP) ───────────────────────
 //
@@ -165,6 +166,12 @@ export type SellerReviewPreview = {
   rating: number
   text: string
   verified: boolean
+  /**
+   * What the review is OF when it came through a seller-confirmed service deal (Review.basis — 'rental' | 'lesson' |
+   * 'service', src/lib/service-deal.ts): the badge then reads "Confirmed rental / lesson / service" — never "Verified"
+   * (spec v3 A1). Present ONLY when set, so a goods review's preview is byte-for-byte what it was.
+   */
+  basis?: ServiceDealKind
   createdAt: string
 }
 
@@ -190,34 +197,57 @@ export const topSellerReviews = cache(async (sellerId: string, take = 2, known?:
     // has them on the serialized listing) — otherwise read the denormalized totals.
     known ? Promise.resolve(null) : db.seller.findUnique({ where: { id: sellerId }, select: { reviewCount: true, rating: true } }),
     (async () => {
+      // Three column sets, widest first: with Review.basis (scripts/deal-confirmation-ddl.mjs), without it, and the
+      // legacy set from before the provenance columns — each step down only when the wider one is not in this database.
       try {
         return await db.review.findMany({
           where: { sellerId },
           orderBy: { createdAt: 'desc' },
           take: SCAN,
-          select: { id: true, author: true, rating: true, text: true, createdAt: true, conversationId: true, authorProfileId: true },
+          select: { id: true, author: true, rating: true, text: true, createdAt: true, conversationId: true, authorProfileId: true, basis: true },
         })
-      } catch {
-        const legacy = await db.review.findMany({
-          where: { sellerId },
-          orderBy: { createdAt: 'desc' },
-          take: SCAN,
-          select: { id: true, author: true, rating: true, text: true, createdAt: true },
-        })
-        return legacy.map((r) => ({ ...r, conversationId: null as string | null, authorProfileId: null as string | null }))
+      } catch (e) {
+        // ⛔ ONLY A MISSING COLUMN steps down to the provenance set (codex, 2026-11-11): after any other failure that set would
+        // show a confirmed rental as "Verified buyer". Then the no-badge set below — no badge beats a wrong one.
+        if (!isMissingRelation(e)) {
+          const plain = await db.review.findMany({ where: { sellerId }, orderBy: { createdAt: 'desc' }, take: SCAN, select: { id: true, author: true, rating: true, text: true, createdAt: true } })
+          return plain.map((r) => ({ ...r, conversationId: null as string | null, authorProfileId: null as string | null, basis: null as string | null }))
+        }
+        try {
+          const noBasis = await db.review.findMany({
+            where: { sellerId },
+            orderBy: { createdAt: 'desc' },
+            take: SCAN,
+            select: { id: true, author: true, rating: true, text: true, createdAt: true, conversationId: true, authorProfileId: true },
+          })
+          return noBasis.map((r) => ({ ...r, basis: null as string | null }))
+        } catch {
+          const legacy = await db.review.findMany({
+            where: { sellerId },
+            orderBy: { createdAt: 'desc' },
+            take: SCAN,
+            select: { id: true, author: true, rating: true, text: true, createdAt: true },
+          })
+          return legacy.map((r) => ({ ...r, conversationId: null as string | null, authorProfileId: null as string | null, basis: null as string | null }))
+        }
       }
     })(),
   ])
 
   const withIds = appReviewGate('ugc-safety')
-  const mapped: SellerReviewPreview[] = rows.map((r) => ({
-    ...(withIds ? { id: r.id } : {}),
-    author: r.author,
-    rating: r.rating,
-    text: r.text,
-    verified: !!(r.conversationId || r.authorProfileId),
-    createdAt: r.createdAt.toISOString(),
-  }))
+  const mapped: SellerReviewPreview[] = rows.map((r) => {
+    const verified = !!(r.conversationId || r.authorProfileId)
+    const basis = verified ? reviewBasis(r.basis) : null
+    return {
+      ...(withIds ? { id: r.id } : {}),
+      author: r.author,
+      rating: r.rating,
+      text: r.text,
+      verified,
+      ...(basis ? { basis } : {}),
+      createdAt: r.createdAt.toISOString(),
+    }
+  })
   // Verified-buyer first, then most recent (stable — rows already came in desc order).
   mapped.sort((a, b) => (a.verified === b.verified ? 0 : a.verified ? -1 : 1))
 

@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { topSellerReviews, sellerMetrics } from '@/lib/seller-metrics'
+import { apiReviewsPayload } from '@/lib/service-deal'
 import { lastSeenBucket } from '@/lib/last-seen'
 import { isBusinessVerified } from '@/lib/business-verification'
 import { isStorefrontGone } from '@/lib/storefront-gone'
@@ -117,7 +118,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       })(),
     },
     listings,
-    reviews,
+    // ⛔ A review of a seller-confirmed rental / lesson / service goes out with `verified: false`: the native storefront
+    // prints "Verified" for it and cannot read `basis` (spec v3 A1; apiReviewsPayload, src/lib/service-deal.ts).
+    reviews: apiReviewsPayload(reviews),
   })
   res.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120')
   return res

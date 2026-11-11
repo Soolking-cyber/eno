@@ -27,6 +27,7 @@ import { refusalToast } from '@/lib/refusal-toast'
 import { ACCOUNT_CHANGED, actingAccountHeaders } from '@/lib/api/acting-account'
 import { haptic } from '@/lib/haptics'
 import { localizeOfferLine } from '@/lib/offer-lines'
+import { isDealLineKind, localizeDealLine, type ServiceDealKind } from '@/lib/service-deal'
 import { formatMoneyFull, groupVnd, moneyLocale } from '@/lib/vnd'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -373,6 +374,15 @@ type Thread = {
   hasReviewed?: boolean // buyer side: this conversation already produced a review → no prompt
   mayReviewSale?: boolean // buyer side: the seller named ME as the buyer and I never said "No" (the server's mayReviewDeal)
   mayReviewOffer?: boolean // buyer side: an accepted offer here would count (not taken down; I never said "No")
+  /**
+   * THE SERVICE-DEAL LOOP (src/lib/service-deal.ts) — present only on a rental / lesson / service thread, and only on its
+   * side: the BUYER gets `mayReviewService` (the seller confirmed it here and the card may open) and `dealKind` (what the
+   * card asks about); the SELLER gets `deal` — what the strip's confirm control shows. Absent on every other thread and on
+   * a cached / pending payload, which then shows nothing.
+   */
+  mayReviewService?: boolean
+  dealKind?: ServiceDealKind | null
+  deal?: { kind: ServiceDealKind; state: 'none' | 'confirmed' | 'reviewed' | 'declined'; confirmsLeft: number; withdrawUntil?: string } | null
   // The e-Visa case this thread is bound to + the desk state its cards render against
   // (mode · picked product · server-issued USD quote · live payment providers). Absent on
   // every ordinary conversation.
@@ -766,6 +776,13 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
   // The item strip's 'Đã bán' (inbox-03): its confirm dialog, and the POST in flight — one tap, one request.
   const [confirmSoldOpen, setConfirmSoldOpen] = useState(false)
   const [markingSold, setMarkingSold] = useState(false)
+  // The seller's service-deal confirm / undo (the strip's 'Xác nhận…'): the dialog works on a SNAPSHOT taken at the tap —
+  // the 15s poll can retarget a thread while it is open, and the POST sends the listing it showed (409 listing_changed
+  // otherwise) — and one request at a time.
+  const [dealDialog, setDealDialog] = useState<{ mode: 'confirm' | 'withdraw'; threadId: string; listingId: string; title: string; name: string; kind: ServiceDealKind; confirmsLeft: number } | null>(null)
+  const [dealBusy, setDealBusy] = useState(false)
+  // Open/closed apart from the snapshot, so the dialog's words stay put through its own close animation.
+  const [dealDialogOpen, setDealDialogOpen] = useState(false)
   // B6: on a SALE the strip's 'Đã bán', the "Deal!" chip and the post-accept prompt all open "Who bought it?",
   // about the sale as it stood at the tap — thread, listing, agreed price and whether there was a deal (see
   // openSoldSheet).
@@ -2429,7 +2446,10 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
   const hasAcceptedOffer = !!acceptedOfferId
   const declinedHere = !!saleAnswer && saleAnswer.status === 'declined' && saleAnswer.conversationId === thread?.id &&
     saleAnswer.listingId === thread?.listing?.id
-  const reviewableDeal = !declinedHere && (thread?.mayReviewSale === true || (hasAcceptedOffer && thread?.mayReviewOffer === true))
+  // …OR the seller confirmed a rental / lesson / service here (`mayReviewService` — the server's mayReviewServiceDeal); the
+  // card then asks "did you…?" first (ReviewPrompt `dealKind`).
+  const serviceReview = thread?.mayReviewService === true
+  const reviewableDeal = !declinedHere && (thread?.mayReviewSale === true || (hasAcceptedOffer && thread?.mayReviewOffer === true) || serviceReview)
   const showReviewPrompt = !!thread && !thread.iAmSeller && !thread.hasReviewed && !!thread.counterpart.sellerId &&
     reviewableDeal && (!askBuyerAboutSales || saleQuestionState === 'none')
   // ⚠️ NOT gated by a block, on purpose (runbook §6, R3): a seller who could close the thread could otherwise veto the
@@ -2476,7 +2496,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
    * ordinary listing thread (never a desk, a job or a teacher). The revealed number and the "once they
    * reply" hint keep their own row under the strip.
    */
-  const { strip: showStrip, listingLive, offer: stripOffer, sold: stripSold, contact: stripContact, composerTag } =
+  const { strip: showStrip, listingLive, offer: stripOffer, sold: stripSold, contact: stripContact, composerTag, deal: stripDeal } =
     threadStripGates(thread, { contactRevealed: !!contact, showOffer, productThreadStrip: IS_SERVICES })
   const stripTitle = thread?.listing?.title ?? ''
   // A room is rented, not sold: the strip's button, its confirm and its toast use the word its owner would.
@@ -2513,6 +2533,98 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
     } finally {
       setMarkingSold(false)
       void load()
+    }
+  }
+
+  /**
+   * THE SERVICE-DEAL CONTROL (src/lib/service-deal.ts, owner 2026-11-11) — the SELLER says the rental / lesson / service
+   * in this thread happened, which opens the buyer's review card (after their own "did you…?"). It EXTENDS the strip's
+   * existing seller slot, never a new row: on a live rental / service listing the 'Đã cho thuê' / 'Đã bán' pill becomes a
+   * menu (confirm, then the old mark-rented item, unchanged); on a teacher thread, or a listing already rented, it is a
+   * single pill in the same slot. The undo ('Rút lại xác nhận') exists only for the 10 minutes after the confirm
+   * (`withdrawUntil`, the server's — spec v3 A2) — after that the confirmation stands, and only then can the buyer review.
+   * ⛔ A DECLINED deal (spec v3 A8) keeps the slot but holds only the line "{name} said this didn't happen" — nothing to
+   * tap, no other fact about the buyer.
+   * markSoldFromStrip's discipline: an optimistic flip, a rollback on refusal (only if nothing newer replaced it), the
+   * refusal's own words in a toast, and load() to reconcile.
+   */
+  const dealKindShown: ServiceDealKind = thread?.deal?.kind ?? 'service'
+  const dealCanUndo = thread?.deal?.state === 'confirmed' && !!thread.deal.withdrawUntil && Date.parse(thread.deal.withdrawUntil) > Date.now()
+  const dealName = thread?.counterpart.name ?? ''
+  const dealDeclined = thread?.deal?.state === 'declined'
+  /** A8 — the declined slot's whole content. A replacer FUNCTION: a name with `$&` in it is not a pattern. */
+  const dealDeclinedLine = tr('{name} said this didn’t happen', '{name} cho biết việc này không diễn ra').replace('{name}', () => dealName)
+  /** The pill's full label — its accessible name at every width ('Xác nhận' alone is the visible word below sm). */
+  const dealPillLabel = dealKindShown === 'rental' ? tr('Confirm rental', 'Xác nhận đã cho thuê')
+    : dealKindShown === 'lesson' ? tr('Confirm lesson', 'Xác nhận buổi học')
+    : tr('Confirm service', 'Xác nhận dịch vụ')
+  /** The menu item on a live listing. A replacer FUNCTION: a name with `$&` in it is not a pattern. */
+  const dealMenuLabel = (dealKindShown === 'rental' ? tr('Confirm {name} rented it', 'Xác nhận {name} đã thuê')
+    : dealKindShown === 'lesson' ? tr('Confirm lesson', 'Xác nhận buổi học')
+    : tr('Confirm the service for {name}', 'Xác nhận đã cung cấp dịch vụ cho {name}')).replace('{name}', () => dealName)
+  const openDealDialog = (mode: 'confirm' | 'withdraw') => {
+    const l = thread?.listing
+    if (!thread || !l || !thread.deal) return
+    setDealDialog({ mode, threadId: thread.id, listingId: l.id, title: l.title, name: thread.counterpart.name ?? '', kind: thread.deal.kind, confirmsLeft: thread.deal.confirmsLeft })
+    setDealDialogOpen(true)
+  }
+  const dealRefusalCopy = (code: string | undefined, name: string, mode: 'confirm' | 'withdraw'): string => {
+    const named = (s: string) => s.replace('{name}', () => name)
+    switch (code) {
+      case 'too_few_messages': return named(tr('Chat with {name} here first — you can confirm once you have both written in this chat.', 'Hãy nhắn tin với {name} tại đây trước — bạn có thể xác nhận khi cả hai đã nhắn trong cuộc trò chuyện này.'))
+      // Generic on purpose (the server's too): never the other person's account age, phone or standing.
+      case 'not_yet_confirmable': return tr("This can't be confirmed yet — please try again later.", 'Hiện chưa thể xác nhận — vui lòng thử lại sau.')
+      case 'confirm_cap': return tr('You have confirmed a lot in the last 24 hours — please try again later.', 'Bạn đã xác nhận nhiều lần trong 24 giờ qua — vui lòng thử lại sau.')
+      case 'confirm_budget_spent': return tr("This chat can't be confirmed again.", 'Không thể xác nhận lại cuộc trò chuyện này.')
+      case 'already_reviewed': return named(tr('{name} has already reviewed you, so this can no longer change.', '{name} đã đánh giá bạn nên không thể thay đổi nữa.'))
+      case 'deal_declined': return named(tr('{name} said this didn’t happen, so it can’t be confirmed again.', '{name} cho biết việc này không diễn ra nên không thể xác nhận nữa.'))
+      case 'blocked': return tr('This conversation is closed.', 'Cuộc trò chuyện này đã đóng.')
+      case 'withdraw_window_closed': return tr('The time to undo has passed. To have it removed, report this chat.', 'Đã hết thời gian rút lại. Để gỡ bỏ, hãy báo cáo cuộc trò chuyện này.')
+      case 'listing_changed': return tr('This chat is now about another listing — please try again.', 'Cuộc trò chuyện này giờ về một tin khác — vui lòng thử lại.')
+      case 'rate_limited': return tr('Too many requests — please try again shortly.', 'Quá nhiều yêu cầu — vui lòng thử lại sau.')
+      // Refusals that asking again cannot change get their own words, never "try again" (opus, round 3).
+      case 'not_reviewable': return tr("This listing can't take a confirmation now.", 'Tin đăng này hiện không thể xác nhận.')
+      case 'migration_pending': return tr("Confirmations aren't available yet.", 'Tính năng xác nhận chưa sẵn sàng.')
+      case 'buyer_is_seller': return tr("You can't confirm a deal with yourself.", 'Bạn không thể tự xác nhận với chính mình.')
+      case 'not_confirmed': return tr('There is no confirmation to undo.', 'Không có xác nhận nào để rút lại.')
+      default: return mode === 'confirm'
+        ? tr('Could not confirm — please try again.', 'Chưa xác nhận được — vui lòng thử lại.')
+        : tr('Could not withdraw — please try again.', 'Chưa rút lại được — vui lòng thử lại.')
+    }
+  }
+  const actOnDeal = async () => {
+    const d = dealDialog
+    if (!d || dealBusy) return
+    setDealDialogOpen(false)
+    setDealBusy(true)
+    haptic(18)
+    const before = thread?.id === d.threadId ? thread.deal ?? null : null
+    const optimistic = d.mode === 'confirm'
+      ? { kind: d.kind, state: 'confirmed' as const, confirmsLeft: Math.max(0, d.confirmsLeft - 1), withdrawUntil: new Date(Date.now() + 10 * 60_000).toISOString() }
+      : { kind: d.kind, state: 'none' as const, confirmsLeft: d.confirmsLeft }
+    setThread((t) => (t && t.id === d.threadId && t.deal ? { ...t, deal: optimistic } : t))
+    try {
+      const res = await fetch(`/api/conversations/${d.threadId}/deal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d.mode === 'confirm' ? { action: 'confirm', listingId: d.listingId } : { action: 'withdraw' }),
+      })
+      if (!res.ok) {
+        const code = (await res.json().catch(() => null))?.error as string | undefined
+        throw Object.assign(new Error('deal_failed'), { code })
+      }
+      toast.success(d.mode === 'withdraw'
+        ? tr('Confirmation withdrawn', 'Đã rút lại xác nhận')
+        // A2: the review opens only once the 10-minute undo has closed — the toast says when, never "now".
+        : (d.kind === 'rental' ? tr('Rental confirmed — {name} can review you in 10 minutes', 'Đã xác nhận cho thuê — {name} có thể đánh giá bạn sau 10 phút')
+          : d.kind === 'lesson' ? tr('Lesson confirmed — {name} can review you in 10 minutes', 'Đã xác nhận buổi học — {name} có thể đánh giá bạn sau 10 phút')
+          : tr('Service confirmed — {name} can review you in 10 minutes', 'Đã xác nhận dịch vụ — {name} có thể đánh giá bạn sau 10 phút')).replace('{name}', () => d.name))
+    } catch (e) {
+      setThread((t) => (t && t.id === d.threadId && t.deal === optimistic ? { ...t, deal: before } : t))
+      toast.error(dealRefusalCopy((e as { code?: string }).code, d.name, d.mode))
+    } finally {
+      setDealBusy(false)
+      if (idRef.current === d.threadId) void load()
     }
   }
 
@@ -2745,7 +2857,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   <span className="max-sm:sr-only">{tr('Make an offer', 'Trả giá')}</span>
                 </Button>
               )}
-              {stripSold && (
+              {stripSold && !stripDeal && (
                 <Button
                   variant="cta"
                   size="none"
@@ -2756,6 +2868,92 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   {stripRental ? tr('Mark rented', 'Đã cho thuê') : tr('Mark sold', 'Đã bán')}
                 </Button>
               )}
+              {/* THE SERVICE DEAL ON A LIVE RENTAL / SERVICE LISTING (stripDeal — see actOnDeal): the SAME pill, now the
+                  trigger of a Base UI menu (ui/dropdown-menu — a sheet on phones): the confirm (or, for its 10 minutes,
+                  the undo), then the old mark-rented item, which opens the old dialog unchanged. Never a new row. */}
+              {stripSold && stripDeal && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        variant="cta"
+                        size="none"
+                        disabled={markingSold || dealBusy}
+                        className="relative shrink-0 gap-1 rounded-full px-3 py-1.5 text-xs cursor-pointer tap-44"
+                      >
+                        {stripRental ? tr('Mark rented', 'Đã cho thuê') : tr('Mark sold', 'Đã bán')}
+                        <ChevronDown className="size-3 shrink-0 opacity-80" aria-hidden />
+                      </Button>
+                    }
+                  />
+                  <DropdownMenuContent align="end" sideOffset={6} sheetTitle={stripTitle} className="min-w-60">
+                    {/* A8: the buyer said it didn't happen — the deal's place in the menu is that line, disabled; no
+                        confirm (a declined deal is never confirmed again). */}
+                    {dealDeclined ? (
+                      <DropdownMenuItem disabled className="rounded-lg">
+                        {dealDeclinedLine}
+                      </DropdownMenuItem>
+                    ) : thread.deal?.state === 'confirmed' ? (
+                      dealCanUndo ? (
+                        <DropdownMenuItem onClick={() => openDealDialog('withdraw')} className="rounded-lg">
+                          <Undo2 /> {tr('Withdraw confirmation', 'Rút lại xác nhận')}
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem disabled className="rounded-lg">
+                          <Check /> {tr('Confirmed', 'Đã xác nhận')}
+                        </DropdownMenuItem>
+                      )
+                    ) : (
+                      <DropdownMenuItem onClick={() => openDealDialog('confirm')} className="rounded-lg">
+                        <Check /> {dealMenuLabel}
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => (soldSheetFits ? openSoldSheet() : setConfirmSoldOpen(true))} className="rounded-lg">
+                      {stripRental ? tr('Mark as rented', 'Đánh dấu đã cho thuê') : tr('Mark as sold', 'Đánh dấu đã bán')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              {/* …AND IN THE SAME SLOT WHEN THERE IS NO 'Đã bán': a teacher thread (the sold gate excludes teachers), or a
+                  rental / service already rented or hidden. One pill: 'Xác nhận' below sm, its full label as the accessible
+                  name at every width (the offer pill's pattern); 'Đã xác nhận' once confirmed — a button only while the
+                  undo is open. A8: once the buyer declined, the slot holds only the line "{name} said this didn't
+                  happen" — plain text, nothing to tap. */}
+              {!stripSold && stripDeal && (dealDeclined ? (
+                <span className="line-clamp-2 min-w-0 max-w-48 shrink text-xs leading-tight text-muted-foreground [overflow-wrap:anywhere]">
+                  {dealDeclinedLine}
+                </span>
+              ) : thread.deal?.state === 'confirmed' ? (
+                dealCanUndo ? (
+                  <Button
+                    variant="outline"
+                    size="none"
+                    onClick={() => openDealDialog('withdraw')}
+                    disabled={dealBusy}
+                    aria-label={`${tr('Confirmed', 'Đã xác nhận')} — ${tr('Withdraw confirmation', 'Rút lại xác nhận')}`}
+                    className="relative shrink-0 gap-1 rounded-full px-3 py-1.5 text-xs font-semibold cursor-pointer tap-44"
+                  >
+                    <Check className="size-3.5 shrink-0" aria-hidden />
+                    {tr('Confirmed', 'Đã xác nhận')}
+                  </Button>
+                ) : (
+                  <Badge variant="neutral" size="sm" className="shrink-0 gap-1">
+                    <Check className="size-3.5 shrink-0" aria-hidden />
+                    {tr('Confirmed', 'Đã xác nhận')}
+                  </Badge>
+                )
+              ) : (
+                <Button
+                  variant="cta"
+                  size="none"
+                  onClick={() => openDealDialog('confirm')}
+                  disabled={dealBusy}
+                  className="relative shrink-0 rounded-full px-3 py-1.5 text-xs cursor-pointer tap-44"
+                >
+                  <span aria-hidden className="sm:hidden">{tr('Confirm', 'Xác nhận')}</span>
+                  <span className="max-sm:sr-only">{dealPillLabel}</span>
+                </Button>
+              ))}
               {/* The confirm for 'Đã bán' (portalled — where it sits in the tree changes nothing on screen).
                   The action returns nothing, so the dialog closes on the tap and the strip flips at once
                   (markSoldFromStrip is optimistic); a refused POST repaints through its refetch. */}
@@ -2770,6 +2968,50 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                     <AlertDialogCancel>{tr('Cancel', 'Hủy')}</AlertDialogCancel>
                     <AlertDialogAction variant="cta" onClick={() => { void markSoldFromStrip() }}>{stripRental ? tr('Mark as rented', 'Đánh dấu đã cho thuê') : tr('Mark as sold', 'Đánh dấu đã bán')}</AlertDialogAction>
                   </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              {/* The service deal's confirm and undo (portalled, like the one above). Both render from the snapshot taken at
+                  the tap (dealDialog), so a retarget by the poll cannot change what is being confirmed. 'Rút lại xác nhận',
+                  never 'Hủy' — that is the dialog's own Cancel. */}
+              <AlertDialog open={dealDialogOpen} onOpenChange={setDealDialogOpen}>
+                <AlertDialogContent size="sm">
+                  {dealDialog?.mode === 'withdraw' ? (
+                    <>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>{tr('Withdraw your confirmation?', 'Rút lại xác nhận?')}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {(dealDialog.confirmsLeft > 0
+                            ? tr('{name} will no longer be able to review you from this chat. You can confirm again once.', '{name} sẽ không thể đánh giá bạn từ cuộc trò chuyện này nữa. Bạn chỉ có thể xác nhận lại một lần.')
+                            : tr("{name} will no longer be able to review you from this chat, and it can't be confirmed again.", '{name} sẽ không thể đánh giá bạn từ cuộc trò chuyện này nữa, và bạn sẽ không thể xác nhận lại.')
+                          ).replace('{name}', () => dealDialog.name)}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>{tr('Cancel', 'Hủy')}</AlertDialogCancel>
+                        <AlertDialogAction variant="cta" onClick={() => { void actOnDeal() }}>{tr('Withdraw', 'Rút lại xác nhận')}</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </>
+                  ) : dealDialog ? (
+                    <>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="[overflow-wrap:anywhere]">
+                          {(dealDialog.kind === 'rental' ? tr('Confirm {name} rented "{title}"?', 'Xác nhận {name} đã thuê "{title}"?')
+                            : dealDialog.kind === 'lesson' ? tr('Confirm you taught {name}?', 'Xác nhận bạn đã dạy {name}?')
+                            : tr('Confirm you provided "{title}" to {name}?', 'Xác nhận bạn đã cung cấp "{title}" cho {name}?')
+                          ).replace('{name}', () => dealDialog.name).replace('{title}', () => dealDialog.title)}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {/* A2: the undo and the review never overlap — say both edges of the 10 minutes. */}
+                          {tr('You can undo this in the next 10 minutes; after that {name} can review you.', 'Bạn có thể rút lại xác nhận trong 10 phút tới; sau đó {name} có thể đánh giá bạn.').replace('{name}', () => dealDialog.name)}
+                          {dealDialog.kind !== 'lesson' && ` ${tr('Your listing stays up.', 'Tin đăng của bạn vẫn hiển thị.')}`}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>{tr('Cancel', 'Hủy')}</AlertDialogCancel>
+                        <AlertDialogAction variant="cta" onClick={() => { void actOnDeal() }}>{tr('Confirm', 'Xác nhận')}</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </>
+                  ) : null}
                 </AlertDialogContent>
               </AlertDialog>
             </div>
@@ -3373,10 +3615,13 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
                   // toggle is on and a translation landed, unless this message is showing its
                   // original. The child stays a STRING so MessageBubble's ContactChips safety
                   // scanner still runs (it only fires for string children).
-                  const translated = translate.translationFor(m.id)
+                  // A service-deal line (server-authored, bilingual, src/lib/service-deal.ts) is shown in the viewer's own
+                  // language and never machine-translated — the stored body already carries both.
+                  const dealLine = isDealLineKind(m.kind)
+                  const translated = dealLine ? null : translate.translationFor(m.id)
                   // An accepted / declined offer line is stored with English grouping; it reads "3.000.000 đ" for a
                   // Vietnamese reader, like the offer card above it (localizeOfferLine; any other text is unchanged).
-                  const shown = translated && !revealOriginal.has(m.id) ? translated : localizeOfferLine(m.body, locale)
+                  const shown = dealLine ? localizeDealLine(m.body, lang) : translated && !revealOriginal.has(m.id) ? translated : localizeOfferLine(m.body, locale)
                   // `quote` and `meta` are siblings of the text INSIDE the bubble. The child stays a
                   // bare string so ContactChips' scanner still runs — it only fires for a string
                   // child, and wrapping the text to add the timestamp would have silently disabled
@@ -3529,9 +3774,16 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
               composer; ✕ hides it for the session, it stays gone once reviewed. */}
           {showReviewPrompt && thread && (
             <ReviewPrompt
+              // A new card when what it is about changes (the seller's confirmation arriving under an open offer-path card).
+              // Keyed by the QUESTION it asks (the dealKind prop below), so a sale or an accepted offer that starts to qualify
+              // under an open "did you rent…?" card remounts it as the plain card (codex + opus, 2026-11-11).
+              key={serviceReview && !(thread?.mayReviewSale === true || (hasAcceptedOffer && thread?.mayReviewOffer === true)) ? `deal:${thread.dealKind ?? ''}` : 'deal:none'}
               sellerId={thread.counterpart.sellerId!}
               sellerName={thread.counterpart.name}
               conversationId={thread.id}
+              // The service question only when the SERVICE path is what opens the card: with a sale to me or an accepted offer the
+              // review POST writes the plain review (the offer wins), so asking "did you rent it?" — and a "No" — would contradict it.
+              dealKind={serviceReview && !(thread?.mayReviewSale === true || (hasAcceptedOffer && thread?.mayReviewOffer === true)) ? (thread.dealKind ?? 'service') : null}
               className="px-4 pt-1.5"
             />
           )}

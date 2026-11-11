@@ -333,6 +333,12 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   let freshActiveListings = 0
   // Transaction = a sold listing OR a conversation with an accepted offer, unioned by
   // listing so a sold listing whose thread also had an accepted offer counts once.
+  // ⛔ A SERVICE DEAL IS NOT A TRANSACTION (spec v2, 2026-11-11 — src/lib/service-deal.ts): a seller's confirmation of a
+  // rental, lesson or service (DealConfirmation) adds nothing here, nor to probation (enforcement.ts
+  // sellerTransactionCount must keep agreeing with this). ⛔ AND ITS REVIEW IS NO TRUST INPUT EITHER (spec v3 A4): the
+  // reviews read below takes only `basis: null` rows (a goods sale or an accepted offer), so Q, distinctBuyerReviews and
+  // the review velocity counts never see a review born of a seller's confirmation — a confirmation plus a "yes" is not
+  // proof of fulfilment. It counts in the storefront's shown rating and review count only.
   // Timing: sold → Listing.soldAt, falling back to updatedAt only for sold rows with no
   // soldAt (saleTimeMs — see why in trust-math.ts); accepted offer → the offer Message's
   // createdAt.
@@ -348,8 +354,10 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
     const [reviews, convo90, active, fresh, sold, acceptedOffers, declinedSales] = await Promise.all([
       // Verified reviews only (conversation-backed) — Q reads the Review table
       // directly; legacy positive_review ledger deltas are excluded (no double count).
+      // ⛔ `basis: null` (A4, above): never a review of a seller-confirmed rental / lesson / service. ⚠️ A filter on the
+      // column, so Review.basis must exist first — scripts/deal-confirmation-ddl.mjs runs BEFORE the deploy (its header).
       db.review.findMany({
-        where: { sellerId: seller.id, conversationId: { not: null }, authorProfileId: { not: null } },
+        where: { sellerId: seller.id, conversationId: { not: null }, authorProfileId: { not: null }, basis: null },
         select: { rating: true, authorProfileId: true, createdAt: true },
         orderBy: { createdAt: 'desc' },
         take: 2000, // bounded; newest reviews are the ones that matter

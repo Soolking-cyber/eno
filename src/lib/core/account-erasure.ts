@@ -27,6 +27,9 @@ import type { Prisma } from '@/generated/prisma/client'
 import { endCallsOfIn, type EndedCallRow } from '@/lib/calls/server/session'
 import { afterCallEnded } from '@/lib/calls/server/finish'
 
+/** The nil UUID — a value no Profile can hold. An erased person's id in DealConfirmationEvent becomes this (spec v3 A5). */
+export const NIL_UUID = '00000000-0000-0000-0000-000000000000'
+
 // ── ACCOUNT ERASURE (PDPL 91/2025: delete ≤20 days — we do it now) ──────────────────────────────
 //
 // The ONE erasure path, whoever asks for it: the person themselves (POST /api/account/delete, which
@@ -267,6 +270,22 @@ export async function eraseAccount(profileId: string, actor: EraseActor, signals
       await tx.$executeRaw`DELETE FROM public.call_lock WHERE profile_id = ${profile.id}::uuid`
       await tx.$executeRaw`DELETE FROM public.call_consent WHERE granter_id = ${profile.id}::uuid OR grantee_id = ${profile.id}::uuid`
       await tx.$executeRaw`UPDATE public.call_config SET cohort = array_remove(cohort, ${profile.id}::uuid) WHERE ${profile.id}::uuid = ANY(cohort)`
+    }
+    // ⛔ THE SERVICE-DEAL LOOP (scripts/deal-confirmation-ddl.mjs, 2026-11-11): DealConfirmation and its audit
+    // DealConfirmationEvent hold PROFILE UUIDs as scalars with no FK to Profile (the event table has no FK at all, so it
+    // outlives every cascade) — nothing would take them with the person. Every DealConfirmation row naming them as the
+    // deal's buyer or seller goes. ⛔ The EVENTS ARE KEPT, ANONYMISED (spec v3 A5): their actorProfileId / buyerProfileId
+    // become the nil UUID wherever they hold this person — the per-seller daily cap and the decline flag count events, and
+    // deleting a buyer's account must not hand the seller back the confirms it spent; no personal id survives. Guarded by
+    // to_regclass like the call tables: a database the DDL has not reached erases exactly as before. Any OTHER failure
+    // fails the erasure.
+    const dealTables = await tx.$queryRaw<{ deals: boolean; events: boolean }[]>`SELECT to_regclass('public."DealConfirmation"') IS NOT NULL AS deals, to_regclass('public."DealConfirmationEvent"') IS NOT NULL AS events`
+    if (dealTables[0]?.deals) {
+      await tx.dealConfirmation.deleteMany({ where: { OR: [{ buyerProfileId: profile.id }, { sellerProfileId: profile.id }] } })
+    }
+    if (dealTables[0]?.events) {
+      await tx.dealConfirmationEvent.updateMany({ where: { actorProfileId: profile.id }, data: { actorProfileId: NIL_UUID } })
+      await tx.dealConfirmationEvent.updateMany({ where: { buyerProfileId: profile.id }, data: { buyerProfileId: NIL_UUID } })
     }
     appleQueue = await queueTokensForErasure(tx, profile.id)
     await tx.profile.delete({ where: { id: profile.id } })

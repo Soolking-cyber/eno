@@ -18,6 +18,7 @@ import {
   UserRoundCog,
   UsersRound,
   ShieldCheck,
+  CheckCircle2,
 } from '@/components/ui/icons'
 import type { IconComponent } from '@/components/ui/icons'
 import { Tr, useLanguage, useTr } from '@/context/language-context'
@@ -313,13 +314,24 @@ function ReviewCard({ review }: { review: HelpReview }) {
         <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
           <span className="truncate">{review.author}</span>
           {review.verifiedBuyer && (
-            <Badge variant="brand" size="sm">
-              {/* Micro-tier seal echo (§0b ladder: trust chips on cards carry the mark
-                  at 10–12px) — same construction as the PDP reviews-preview pill, so
-                  "verified buyer" is one glyph everywhere it is claimed. */}
-              <ShieldCheck className="size-3" />
-              <Tr text="Verified buyer" />
-            </Badge>
+            review.basis ? (
+              // ⛔ A SELLER-CONFIRMED rental / lesson / service (Review.basis, spec v3 A1): "Confirmed …", never
+              // "Verified", and never the seal — a confirmation plus the buyer's "yes" is not proof of fulfilment.
+              <Badge variant="brand" size="sm">
+                <CheckCircle2 className="size-3" />
+                {review.basis === 'rental' ? <Tr text="Confirmed rental" />
+                  : review.basis === 'lesson' ? <Tr text="Confirmed lesson" />
+                  : <Tr text="Confirmed service" />}
+              </Badge>
+            ) : (
+              <Badge variant="brand" size="sm">
+                {/* Micro-tier seal echo (§0b ladder: trust chips on cards carry the mark
+                    at 10–12px) — same construction as the PDP reviews-preview pill, so
+                    "verified buyer" is one glyph everywhere it is claimed. */}
+                <ShieldCheck className="size-3" />
+                <Tr text="Verified buyer" />
+              </Badge>
+            )
           )}
         </p>
       </Link>

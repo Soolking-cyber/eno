@@ -219,3 +219,46 @@ describe('⛔ a thread CLOSED by a block (App Store gate `ugc-safety`) — no of
     }
   })
 })
+
+describe('the seller\'s service-deal control (2026-11-11) — only where the server sent `deal`', () => {
+  const live = { state: 'none', confirmsLeft: 2 }
+  it('seller side + an ordinary listing thread + the server flag + a confirm left: on', () => {
+    expect(gates(seller({ deal: live })).deal).toBe(true)
+    // Confirmed: the undo is still a thing the control can do, whatever the budget.
+    expect(gates(seller({ deal: { state: 'confirmed', confirmsLeft: 0 } })).deal).toBe(true)
+    // A teacher thread (no `sold`) carries it too — the page draws it as its own pill.
+    const teacher = gates(seller({ listing: listing({ listingType: 'teacher' }), teacher: { shared: false }, deal: live }))
+    expect(teacher.sold).toBe(false)
+    expect(teacher.deal).toBe(true)
+  })
+
+  it('⛔ never on the buyer side, a cached payload without the flag, a closed thread, a desk thread, or a listing-less one', () => {
+    expect(gates(buyer({ deal: live })).deal).toBe(false)
+    expect(gates(seller()).deal).toBe(false)
+    expect(gates(seller({ deal: null })).deal).toBe(false)
+    expect(gates(seller({ deal: live, closed: 'blocked' })).deal).toBe(false)
+    expect(gates(seller({ deal: live, kind: 'visa' }), { productThreadStrip: true }).deal).toBe(false)
+    expect(gates(seller({ deal: live, kind: null })).deal).toBe(false)
+    expect(gates(seller({ deal: live, listing: null })).deal).toBe(false)
+  })
+
+  it('⛔ nothing left to do: reviewed, or the budget spent with nothing standing', () => {
+    expect(gates(seller({ deal: { state: 'reviewed', confirmsLeft: 1 } })).deal).toBe(false)
+    expect(gates(seller({ deal: { state: 'none', confirmsLeft: 0 } })).deal).toBe(false)
+  })
+
+  it('⛔ A8: a DECLINED deal keeps the slot (the page draws only "{name} said this didn’t happen" there) — whatever the budget, never on a closed or buyer-side thread', () => {
+    expect(gates(seller({ deal: { state: 'declined', confirmsLeft: 0 } })).deal).toBe(true)
+    expect(gates(seller({ deal: { state: 'declined', confirmsLeft: 1 } })).deal).toBe(true)
+    expect(gates(seller({ deal: { state: 'declined', confirmsLeft: 0 }, closed: 'blocked' })).deal).toBe(false)
+    expect(gates(buyer({ deal: { state: 'declined', confirmsLeft: 0 } })).deal).toBe(false)
+  })
+
+  it('the other gates are untouched by it', () => {
+    const without = gates(seller())
+    const withDeal = gates(seller({ deal: live }))
+    expect({ ...withDeal, deal: false }).toEqual(without)
+    const b = gates(buyer({ deal: live }))
+    expect({ ...b, deal: false }).toEqual(gates(buyer()))
+  })
+})

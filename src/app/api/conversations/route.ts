@@ -9,6 +9,7 @@ import { IS_MARKETPLACE } from '@/lib/edition'
 import { NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
+import { threadHoldsDeal, threadHoldsDealTx } from '@/lib/service-deal-server'
 import { pickLocale } from '@/lib/admin-macros'
 import { ApiError, route } from '@/lib/api/handler'
 import { blockedConversationIds, isBlockedBetween } from '@/lib/user-blocks'
@@ -418,7 +419,12 @@ export const POST = route(
       where: { conversationId: candidate.id, kind: 'offer', offerStatus: { in: ['pending', 'accepted'] } },
       select: { id: true },
     })
-    if (boundOffer) {
+    // ⚠️ AND A THREAD HOLDING A SERVICE DEAL (DealConfirmation, any state — src/lib/service-deal.ts, 2026-11-11), for the
+    // same reason: the seller's confirmation, the buyer's review card and the review's listing are bound to THIS thread's
+    // listing. Moving it would let a confirmation for a room open a review of whatever the buyer asks about next. The row's
+    // own listingId is the belt behind this. Asked only when no offer already binds it; a missing table (before
+    // scripts/deal-confirmation-ddl.mjs) is "no deal" — nothing can be bound before the table exists.
+    const toCanonical = async () => {
       const existing = await db.conversation.findUnique({
         where: { listingId_buyerProfileId: { listingId, buyerProfileId: profile.id } },
         select: { id: true },
@@ -430,8 +436,20 @@ export const POST = route(
       })
       return { id: fresh.id, listingId }
     }
+    // A deal read that fails for any other reason sends the buyer to the canonical thread rather than failing the send (opus,
+    // round 2): never moving a thread is always safe; refusing to deliver a message is not.
+    if (boundOffer || await threadHoldsDeal(candidate.id).catch(() => true)) return toCanonical()
     try {
-      await db.conversation.update({ where: { id: candidate.id }, data: { listingId } })
+      // ⛔ THE MOVE AND THE DEAL CHECK UNDER THE THREAD'S ROW LOCK (codex, 2026-11-11): the seller's confirm takes the same lock
+      // (deal/route.ts) and re-reads the thread's listing under it, so a confirm and a retarget can never interleave — either
+      // the deal lands first and the thread stays bound, or the move lands first and the confirm answers listing_changed.
+      const moved = await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT 1 FROM "Conversation" WHERE "id" = ${candidate.id} FOR UPDATE`
+        if (await threadHoldsDealTx(tx, candidate.id)) return false
+        await tx.conversation.update({ where: { id: candidate.id }, data: { listingId } })
+        return true
+      })
+      if (!moved) return toCanonical()
       return { id: candidate.id, listingId }
     } catch (e) {
       if ((e as { code?: string })?.code !== 'P2002') throw e
