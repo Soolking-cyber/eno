@@ -4498,6 +4498,42 @@ html[data-explorer-directed][data-explorer-cat="hobbies-sports"] .brand-row-rese
     min-height: 2.75rem;
   }
 }
+/* ⛔ …AND UNDER THE MASK THE SEED'S OWN ROW IS THAT ONE LINE TOO (speed wave 3, c1). The row on screen until the explorer
+   directs the feed is the ISR home's (`data-home-row`), which the mask keeps out of the home grid (E-FOLD, above), so its
+   count half (`max-sm:order-last max-sm:w-full`) wrapped to a line of its own: 36 + 6 + 16 = 58px, which a min-height cannot
+   bring down to the answer's 44. The directed row then committed 14px shorter while the seed was still masked and took the
+   first screen up with it — on a search link in the same frame as the query chip (one entry: 0.0999 on /?q=iphone, 0.0120
+   on /?category=rentals, 390×844, local production build). Under the mask that half shows nothing — the count is hidden
+   (above) and the home has no crumbs, chips or Save search — so it leaves the box tree, and the row is the heading and the
+   view pill on one line, held at 44px by the rule above with the pill centred where the answer's sits (the teachers feed,
+   which that rule leaves out, is one 36px line on both sides: /?category=teachers 0.031 → 0.003).
+   ⚠️ ONE FLEX LINE, NOT ONE LINE OF TEXT: on a narrow phone the hidden heading (title and count, 224px with a 3-digit
+   count) and the pill do not fit beside each other, and the pill wrapped under it — measured at 320×568 and 280×653 with
+   only the line removed, the row was still 34px taller than the answer's (/?category=rentals at 320: 0.0584 as served,
+   0.0396 with the line removed alone, 0 with the three rules below). So the row does not wrap here and the hidden heading
+   gives way. The ISR heading keeps the row at 44px at 280, 320 and 360 wide, EN and VI, with a 4-digit count as on
+   production too. A longer title that hydration draws while the mask is still up DOES wrap its own text: /?sort=recent
+   at 320×568 ("Latest listings", `data-home-row` still on) goes 44 → 56px, the height the undirected home settles at
+   there (as served it went 100 → 56; CLS 0.0292–0.0351 → 0.0170).
+   The answer's row has no `data-home-row`, so all of this ends at its commit (on a link the explorer leaves undirected,
+   when the mask lifts); the count's live region was out of the accessibility tree already.
+   ⚠️ WHERE THE PAGE ENDS ON THE UNDIRECTED HOME WITH ITS RAILS BACK, THIS COSTS A LITTLE (Chromium, 3 of 3 runs): the
+   masked row now matches the directed answer, so it sits 14px (56px at 320) further from that end. (1) A cold
+   /?view=compact with JS: the pre-paint script folds it (explorer-url.ts explorerUrlFolds), the explorer un-latches it to
+   the undirected home, and mask and fold drop in one mutation, rails and all — 0.2154 → 0.2156 at 390×844,
+   0.1633 → 0.1645 at 320×568. (2) No JS, at the 15s net: /?q=iphone 0.1561 → 0.1688 at 390×844, /?category=rentals
+   0.1491 → 0.1503 at 320×568. */
+@media (width < 40rem) {
+  html[data-explorer-directed] #results[data-home-row] {
+    flex-wrap: nowrap;
+  }
+  html[data-explorer-directed] #results[data-home-row] > [data-feed-heading] {
+    flex-shrink: 1;
+  }
+  html[data-explorer-directed] #results[data-home-row] > [data-slot="result-line"] {
+    display: none;
+  }
+}
 
 /* ⛔ …AND THE HOME "FIND A TEACHER" SHELF WITH IT (owner, 2026-10-13 — teacher-shelf.tsx). Every query string gets the
    same ISR document, so a cold directed deep link (/?q=laptop) would paint the live shelf under its masked seed, as if

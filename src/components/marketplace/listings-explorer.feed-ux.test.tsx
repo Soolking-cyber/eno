@@ -9,6 +9,7 @@
  * the sync effect — is the real one. Same harness shape as listings-explorer.back-nav-filter.test.tsx.
  */
 import React from 'react'
+import { readFileSync } from 'node:fs'
 import { act, cleanup, configure, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query'
 import { renderToString } from 'react-dom/server'
@@ -1147,6 +1148,56 @@ describe('a cold directed deep link waits for its own answer behind the mask (E-
       expect(document.documentElement.hasAttribute('data-explorer-directed')).toBe(false)
     } finally {
       v.unmount()
+    }
+  })
+
+  /**
+   * ⛔ ON A PHONE THE SEED'S RESULTS ROW IS THE ANSWER'S ONE LINE UNDER THE MASK (speed wave 3, c1). globals.css takes the
+   * seed row's result line out of the box tree while the mask is up (and keeps the row to one line): wrapped onto a second
+   * line it made the row 58px, and the directed row's 44 then moved the first screen up 14px (one entry with the query
+   * chip: 0.0999 on /?q=iphone at 390×844). That is only safe while the line paints nothing under the mask, and while the
+   * row stops being the home row (`data-home-row`, which the rules key on) in the commit that draws the directed one-line row.
+   */
+  it('⛔ the seed row\'s line that the mask removes holds only the hidden count, and the rule ends with the commit that directs the row', async () => {
+    const css = readFileSync('src/app/globals.css', 'utf8')
+    const masked = String.raw`html\[data-explorer-directed\] #results\[data-home-row\]`
+    expect(css).toMatch(new RegExp(String.raw`@media \(width < 40rem\) \{\s*` +
+      String.raw`${masked} \{\s*flex-wrap: nowrap;\s*\}\s*` +
+      String.raw`${masked} > \[data-feed-heading\] \{\s*flex-shrink: 1;\s*\}\s*` +
+      String.raw`${masked} > \[data-slot="result-line"\] \{\s*display: none;\s*\}\s*\}`))
+    window.history.replaceState({}, '', '/?q=phone')
+    document.documentElement.setAttribute('data-explorer-directed', '')
+    const el = (
+      <QueryClientProvider client={newClient()}>
+        <ListingsExplorer categories={[]} initialListings={Array.from({ length: 12 }, (_, i) => row(`seed${i}`))} initialTotal={999} />
+      </QueryClientProvider>
+    )
+    const container = document.body.appendChild(document.createElement('div'))
+    container.innerHTML = renderToString(el)
+    // The ISR row the first paint lays out: the line is the row's own child, and all it holds is the count (masked).
+    const line = container.querySelector('#results[data-home-row] > [data-slot="result-line"]')
+    expect(line).not.toBeNull()
+    const countEl = line!.querySelector('p[aria-live]')
+    expect(countEl?.textContent).toMatch(/999/)
+    expect([...line!.querySelectorAll('*')].every((e) => e === countEl || e.contains(countEl))).toBe(true)
+    // Every change of the row's mark, with what the row held at that moment.
+    const results = container.querySelector('#results')!
+    const seen: string[] = []
+    const mo = new MutationObserver(() => seen.push(
+      `home=${results.hasAttribute('data-home-row')} heading=${results.querySelector('[data-feed-heading] h2')?.className} ` +
+      `oneLine=${results.querySelector('[data-view-cluster]')!.className.includes('max-sm:order-5')}`,
+    ))
+    mo.observe(results, { attributes: true, attributeFilter: ['data-home-row'] })
+    let root: Root | null = null
+    await act(async () => { root = hydrateRoot(container, el) })
+    try {
+      await waitFor(() => expect(results.hasAttribute('data-home-row')).toBe(false))
+      expect(seen).toEqual(['home=false heading=sr-only oneLine=true'])
+      expect(results.querySelector(':scope > [data-slot="result-line"]')).not.toBeNull()
+    } finally {
+      mo.disconnect()
+      act(() => { root?.unmount() })
+      container.remove()
     }
   })
 })
