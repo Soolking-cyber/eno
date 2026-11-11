@@ -263,6 +263,9 @@ export function ReportView({ sessionId, justEnded = false }: { sessionId: string
   )
 }
 
+/** The scale beside a score — a number, the same in every language (react/jsx-no-literals wants it out of the markup). */
+const OUT_OF = '/100'
+
 /** A change smaller than this is the noise of a few scored sentences, not progress (plan review, opus). */
 const DELTA_MIN = 3
 
@@ -278,7 +281,7 @@ function ScoreStat({ label, value, previous }: { label: string; value: number | 
       <dt className="text-xs text-ink-4">{label}</dt>
       <dd className="flex flex-col gap-1.5">
         <span className="text-2xl font-bold tabular-nums text-ink">
-          {v ?? '—'}{v != null && <span className="ml-0.5 text-sm font-semibold text-ink-4">/100</span>}
+          {v ?? '—'}{v != null && <span className="ml-0.5 text-sm font-semibold text-ink-4">{OUT_OF}</span>}
         </span>
         {v != null && <Meter value={v} aria-label={label} valueText={`${v}/100`} />}
         {/* A drop is said plainly, never in red — the reader may be a child. */}
