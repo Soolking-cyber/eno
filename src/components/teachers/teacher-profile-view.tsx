@@ -50,6 +50,7 @@ import { ExperienceMonth } from '@/components/teachers/experience-month'
 import { storedLanguageLabel } from '@/components/teachers/language-list'
 import { formatCalendarDay, vnIsoDay } from '@/lib/calendar-day'
 import { ShareButton } from '@/components/marketplace/share-button'
+import { TeacherBio } from '@/components/teachers/teacher-bio'
 
 type Opt = { value: string; label: string; labelVi?: string }
 const labelOf = (opts: readonly Opt[], v: string) => opts.find((o) => o.value === v)?.label ?? v
@@ -356,6 +357,30 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
               </div>
             )}
 
+            {/* TEACHING FACTS FIRST (UI climb batch 69, 2026-11-11; blind A/B +0.39 GPT / +0.18 Opus): subjects, ages, where and
+                languages sit right under the identity line, before the video, the cover week and the long About — a school or a
+                parent decides fit on these, and they used to sit two to three phone screens down, under the whole story. */}
+            {tp && (
+              <section aria-labelledby="t-teaching" className="space-y-4">
+                <h2 id="t-teaching" className="text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Teaching" vi="Giảng dạy" /></h2>
+                <dl className="divide-y divide-border">
+                  {/* Row labels say what the /c/teachers filter calls the same facet (taxonomy labelVi). */}
+                  <Row label={<Bilingual en="Subjects" vi="Môn dạy" />}><Chips items={subjectChips} /></Row>
+                  <Row label={<Bilingual en="Teaches" vi="Dạy lứa tuổi" />}><Chips items={tp.ageGroups.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.ageGroup} value={s} /> }))} /></Row>
+                  {jobTypes.length > 0 && <Row label={<Bilingual en="Looking for" vi="Tìm việc" />}><Chips items={jobTypes.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.jobType} value={s} /> }))} /></Row>}
+                  {/* THE ONE TEACH-AREA LIST (2026-10-08), split by the home area: where they can teach from home (and
+                      Online), and where they would move. A school's "Can teach in" filter matches the whole list. */}
+                  {places.canTeachIn.length > 0 && <Row label={<Bilingual en="Can teach in" vi="Có thể dạy tại" />}><Chips items={places.canTeachIn.map(placeChip)} /></Row>}
+                  {places.wouldMoveTo.length > 0 && <Row label={<Bilingual en="Would move to" vi="Sẵn sàng chuyển đến" />}><Chips items={places.wouldMoveTo.map(placeChip)} /></Row>}
+                  {/* "Available: From November 2026", or "Now" once the start has come — decided after mount, on the
+                      reader's clock (TeacherAvailableFrom): no clock in this ISR-cached HTML. */}
+                  {startDay && <Row label={<Bilingual en="Available" vi="Có thể bắt đầu" />}><TeacherAvailableFrom from={startDay} /></Row>}
+                  {tp.expectedSalaryM != null && tp.expectedSalaryM > 0 && <Row label={<Bilingual en="Expected salary" vi="Mức lương mong muốn" />}>{formatMoneyFull(tp.expectedSalaryM * 1_000_000, '₫', moneyLocale(lang))} / <Bilingual en="month" vi="tháng" /></Row>}
+                  {tp.languages.length > 0 && <Row label={<Bilingual en="Languages" vi="Ngôn ngữ" />}>{tp.languages.map((l) => storedLanguageLabel(l, lang)).join(', ')}</Row>}
+                </dl>
+              </section>
+            )}
+
             {publicVideo && (
               <section aria-labelledby="t-video">
                 <h2 id="t-video" className="mb-3 text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Intro video" vi="Video giới thiệu" /></h2>
@@ -431,28 +456,7 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
             {tp?.bio && (
               <section aria-labelledby="t-about">
                 <h2 id="t-about" className="mb-2 text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="About" vi="Giới thiệu" /></h2>
-                <p className="max-w-prose whitespace-pre-line text-body"><LocalizedText text={tp.bio} /></p>
-              </section>
-            )}
-
-            {tp && (
-              <section aria-labelledby="t-teaching" className="space-y-4">
-                <h2 id="t-teaching" className="text-lg font-semibold text-foreground sm:text-xl"><Bilingual en="Teaching" vi="Giảng dạy" /></h2>
-                <dl className="divide-y divide-border">
-                  {/* Row labels say what the /c/teachers filter calls the same facet (taxonomy labelVi). */}
-                  <Row label={<Bilingual en="Subjects" vi="Môn dạy" />}><Chips items={subjectChips} /></Row>
-                  <Row label={<Bilingual en="Teaches" vi="Dạy lứa tuổi" />}><Chips items={tp.ageGroups.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.ageGroup} value={s} /> }))} /></Row>
-                  {jobTypes.length > 0 && <Row label={<Bilingual en="Looking for" vi="Tìm việc" />}><Chips items={jobTypes.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.jobType} value={s} /> }))} /></Row>}
-                  {/* THE ONE TEACH-AREA LIST (2026-10-08), split by the home area: where they can teach from home (and
-                      Online), and where they would move. A school's "Can teach in" filter matches the whole list. */}
-                  {places.canTeachIn.length > 0 && <Row label={<Bilingual en="Can teach in" vi="Có thể dạy tại" />}><Chips items={places.canTeachIn.map(placeChip)} /></Row>}
-                  {places.wouldMoveTo.length > 0 && <Row label={<Bilingual en="Would move to" vi="Sẵn sàng chuyển đến" />}><Chips items={places.wouldMoveTo.map(placeChip)} /></Row>}
-                  {/* "Available: From November 2026", or "Now" once the start has come — decided after mount, on the
-                      reader's clock (TeacherAvailableFrom): no clock in this ISR-cached HTML. */}
-                  {startDay && <Row label={<Bilingual en="Available" vi="Có thể bắt đầu" />}><TeacherAvailableFrom from={startDay} /></Row>}
-                  {tp.expectedSalaryM != null && tp.expectedSalaryM > 0 && <Row label={<Bilingual en="Expected salary" vi="Mức lương mong muốn" />}>{formatMoneyFull(tp.expectedSalaryM * 1_000_000, '₫', moneyLocale(lang))} / <Bilingual en="month" vi="tháng" /></Row>}
-                  {tp.languages.length > 0 && <Row label={<Bilingual en="Languages" vi="Ngôn ngữ" />}>{tp.languages.map((l) => storedLanguageLabel(l, lang)).join(', ')}</Row>}
-                </dl>
+                <TeacherBio><LocalizedText text={tp.bio} /></TeacherBio>
               </section>
             )}
 

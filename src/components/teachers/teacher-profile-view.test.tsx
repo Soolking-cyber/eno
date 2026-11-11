@@ -515,3 +515,27 @@ describe('the ProfilePage — dateCreated', () => {
     expect(ld.dateModified).toBe('2026-10-08T00:00:00.000Z')
   })
 })
+
+/**
+ * TEACHING FACTS FIRST, ABOUT CLAMPED ON A PHONE (UI climb batch 69, 2026-11-11; blind A/B +0.39 GPT / +0.18 Opus). The
+ * facts a school or a parent decides on sit under the header and the identity line, before the video, the cover week and
+ * the story. A long About is clamped on a mounted phone page only (teacher-bio.test.tsx); the server HTML carries it whole.
+ */
+describe('batch 69 — Teaching first, About clamped', () => {
+  const ids = (el: HTMLElement) => [...el.querySelectorAll('section[aria-labelledby]')].map((s) => s.getAttribute('aria-labelledby'))
+  it('Teaching comes before the video, the cover week and About', async () => {
+    const order = ids((await page('en', { bio: 'Hello. '.repeat(80) }, true, { ...LISTING, video: 'https://eno.vn/v.mp4' })).el)
+    // Every section this asserts on is present — a fixture that stopped drawing one must fail here, not pass silently.
+    for (const id of ['t-teaching', 't-video', 't-about']) expect(order).toContain(id)
+    expect(order.indexOf('t-teaching')).toBeLessThan(order.indexOf('t-video'))
+    expect(order.indexOf('t-teaching')).toBeLessThan(order.indexOf('t-about'))
+  })
+  it('⛔ the server HTML carries a long About WHOLE, with no clamp and no button — a phone without the script still reads it all (codex, round 3)', async () => {
+    const bio = 'I teach English to children and adults. '.repeat(12).trim()
+    const { el } = await page('en', { bio })
+    const p = el.querySelector('section[aria-labelledby="t-about"] p')!
+    expect(p.className).not.toContain('line-clamp')
+    expect(p.textContent).toContain(bio.slice(-60))
+    expect(el.querySelector('section[aria-labelledby="t-about"] button')).toBeNull()
+  })
+})
