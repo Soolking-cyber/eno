@@ -80,8 +80,13 @@ export default function HomeLayout({ children, params }: { children: React.React
             16px row of its own above the category tiles. It stays a server-rendered `<a hreflang>` to the twin (CS-3
             V3b-4: crawlers and readers without JavaScript keep the link), now at the end of the page; on a phone the
             Account sheet's Language row, on a desktop the header's language button (owner, same day), and the footer's
-            picker go to the twin as well (setLang → pinnedPair). */}
-        {PILOTED && <div className="flex justify-end pb-6 pt-2"><LangPilotSwitch path="/" params={params} /></div>}
+            picker go to the twin as well (setLang → pinnedPair).
+            ⚠️ NOT DRAWN ON A PHONE (batch 66, 2026-11-11): there it stood alone in a 48px row between a thin answer and the
+            footer, whose own language picker sits right under it. `max-sm:sr-only` keeps the server-rendered <a hreflang> in the
+            HTML and the accessibility tree (crawlers, screen readers), and `focus-within:not-sr-only` draws it again while a keyboard
+            is on it (WCAG 2.4.7: no invisible focus) — on an OUTER wrapper, because `not-sr-only` also zeroes padding and the row keeps
+            its own on the inner one; from sm it is drawn where it was. */}
+        {PILOTED && <div className="max-sm:sr-only max-sm:focus-within:not-sr-only"><div className="flex justify-end pb-6 pt-2"><LangPilotSwitch path="/" params={params} /></div></div>}
       </main>
       {PILOTED && <LangSuggestionBanner />}
       <Footer />

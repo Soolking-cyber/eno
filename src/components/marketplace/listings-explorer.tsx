@@ -4612,7 +4612,12 @@ export function ListingsExplorer({
     // video feed, which size themselves. Where the answer already reaches past the screen (a 1440×900 desktop: footer at
     // y≈1384) it changes nothing. A reader who scrolls into the masked seed before the answer lands still sees the page
     // shorten, as before: one screen is a floor, not the seed's height.
-    <section ref={listingsRef} id="listings" className={cn('scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-0 pb-5 max-sm:-mx-3 max-sm:px-3 sm:pt-2 sm:pb-8', !sellerId && viewMode !== 'map' && viewMode !== 'video' && 'min-h-svh')}>
+    // ⚠️ ON A PHONE THE FLOOR ENDS AT THE SCREEN'S FOOT, NOT A HEADER BELOW IT (batch 66, 2026-11-11). Below sm this section starts
+    // under the 56px header and <main>'s 16px top padding (4.5rem), so a full-screen floor ran 72px past the first screen: a thin
+    // answer ("iphone": two results and the Trending rail) left that band empty above the footer, and a blind judge named it.
+    // The floor still ends at or below the screen's foot whatever sits above (a banner only pushes the section down), so the
+    // footer still cannot rise into the first screen.
+    <section ref={listingsRef} id="listings" className={cn('scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-0 pb-5 max-sm:-mx-3 max-sm:px-3 sm:pt-2 sm:pb-8', !sellerId && viewMode !== 'map' && viewMode !== 'video' && 'min-h-svh max-sm:min-h-[calc(100svh-4.5rem)]')}>
       <TeacherFlagsReader onChange={setTeacherFlags} />
       {/* Width + edge gutter are owned by the parent page <main> (canonical
           max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}

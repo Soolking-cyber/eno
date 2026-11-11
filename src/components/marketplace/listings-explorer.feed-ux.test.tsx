@@ -1061,6 +1061,8 @@ describe('the feed holds a screen, so a short answer never pulls the footer into
     let view = mount(newClient())
     await waitFor(() => expect(cardIds()).toHaveLength(2))
     expect(holds()).toBe(true)
+    // Batch 66: below sm the floor ends at the screen's foot — the section starts 4.5rem down (header + <main>'s top padding).
+    expect(document.getElementById('listings')!.className.split(' ')).toContain('max-sm:min-h-[calc(100svh-4.5rem)]')
     view.unmount()
 
     window.history.replaceState({}, '', '/?q=phone&view=map')
