@@ -84,6 +84,9 @@ const DEVELOPER_SECTION = `## For developers and agents
 - [Developer documentation](${SITE_ORIGIN}/developers) — authentication, scopes, endpoints, copy-pasteable requests.
 - [MCP server](${SITE_ORIGIN}/developers/mcp) — connect an AI agent (Claude Code, Cursor, any MCP client) to a
   storefront: the endpoint, the header, and every tool with the scope it needs.
+- [eno-vn CLI](${SITE_ORIGIN}/developers/cli) — the command-line client on npm (${SITE_ORIGIN === 'https://eno.vn' ? '' : `\`export ENO_BASE_URL=${SITE_ORIGIN}\` then `}\`npx eno-vn status\`): listings,
+  catalogue sync, photos, analytics and webhooks from a terminal or a script; one API call per command (--all
+  follows every page).
 - [Versioning and deprecation policy](${SITE_ORIGIN}/developers/versioning) — URL-path versioning, what may change
   inside v1 without notice, and the Deprecation / Sunset headers that announce a removal.
 - [API catalogue](${SITE_ORIGIN}/.well-known/api-catalog) — RFC 9727 Linkset of this host's APIs (the REST API and the

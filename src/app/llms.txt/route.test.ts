@@ -283,7 +283,8 @@ describe('/llms.txt on the marketplace', () => {
     expect(dev).toContain('[MCP server](https://eno.vn/developers/mcp)')
     expect(dev).toContain('[Versioning and deprecation policy](https://eno.vn/developers/versioning)')
     expect(dev).toContain('[API catalogue](https://eno.vn/.well-known/api-catalog)')
-    for (const page of ['developers/mcp', 'developers/versioning']) {
+    expect(dev).toContain('[eno-vn CLI](https://eno.vn/developers/cli)')
+    for (const page of ['developers/mcp', 'developers/cli', 'developers/versioning']) {
       expect(existsSync(join(process.cwd(), 'src/app/[lang]', page, 'page.tsx')), page).toBe(true)
     }
     expect(existsSync(join(process.cwd(), 'src/app/api/well-known/api-catalog/route.ts'))).toBe(true)

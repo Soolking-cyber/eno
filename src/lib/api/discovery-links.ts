@@ -14,6 +14,8 @@ export const DOC_PATHS = {
   developers: '/developers',
   /** The MCP server's own page (src/app/[lang]/developers/mcp). */
   mcp: '/developers/mcp',
+  /** The eno-vn command-line client (src/app/[lang]/developers/cli; the package is packages/eno-vn). */
+  cli: '/developers/cli',
   /** Versioning and deprecation policy (src/app/[lang]/developers/versioning). */
   versioning: '/developers/versioning',
   /** The OpenAPI 3.1 document (src/app/openapi.json/route.ts). */

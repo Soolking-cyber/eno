@@ -389,9 +389,9 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
   // inbound link in the whole app (the 404 page). None names a partner or a service either edition
   // may not offer.
   //
-  // 'developers/mcp' AND 'developers/versioning' JOINED 2026-11-11 with the pages themselves: the MCP server's page and the
+  // 'developers/mcp', 'developers/cli' AND 'developers/versioning' JOINED 2026-11-11 with the pages themselves: the MCP server's page and the
   // deprecation policy, both shared by the two editions like /developers.
-  for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'returns', 'prohibited', 'brands', 'developers', 'developers/mcp', 'developers/versioning', 'contact', 'partners', 'legal/ranking']) {
+  for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'returns', 'prohibited', 'brands', 'developers', 'developers/mcp', 'developers/cli', 'developers/versioning', 'contact', 'partners', 'legal/ranking']) {
     urls.push(`  <url><loc>${hostUrl}/${p}</loc></url>\n`)
   }
 

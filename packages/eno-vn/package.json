@@ -1,0 +1,14 @@
+{
+  "name": "eno-vn",
+  "version": "1.0.0",
+  "description": "Command-line client for the eno.vn Partner API: manage your eno.vn shop's listings, catalogue sync, media, analytics and webhooks.",
+  "keywords": ["eno", "eno.vn", "vietnam", "marketplace", "classifieds", "api", "cli", "mcp"],
+  "homepage": "https://eno.vn/developers/cli",
+  "bugs": { "email": "support@eno.vn" },
+  "license": "MIT",
+  "author": "ENO Company Limited <support@eno.vn>",
+  "type": "module",
+  "bin": { "eno-vn": "bin/eno-vn.mjs" },
+  "files": ["bin/eno-vn.mjs", "README.md", "LICENSE"],
+  "engines": { "node": ">=18" }
+}

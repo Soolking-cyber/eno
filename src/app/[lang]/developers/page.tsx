@@ -152,6 +152,12 @@ export default function DevelopersPage() {
             call before you have a key:
           </p>
           <div className="mt-3"><Code whole>{`curl ${SITE_ORIGIN}/openapi.json`}</Code></div>
+          {/* 2026-11-11: the CLI, beside the first request a reader makes, rather than a new section. */}
+          <p className="mt-3 text-sm leading-relaxed text-body">
+            Or from a terminal, with the <Link href={DOC_PATHS.cli} className="font-semibold text-accent-foreground hover:underline">{SITE_NAME} CLI</Link>:{' '}
+            {/* The CLI defaults to https://eno.vn; any other edition names its own origin (as /developers/cli does). */}
+            <code className="font-mono text-foreground">{SITE_ORIGIN === 'https://eno.vn' ? '' : `ENO_BASE_URL=${SITE_ORIGIN} `}npx eno-vn status</code>.
+          </p>
         </section>
 
         {/* Authentication BEFORE the MCP server (2026-11-06 audit): the MCP setup connects with the key minted here, so
