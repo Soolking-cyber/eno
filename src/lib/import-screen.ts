@@ -49,6 +49,12 @@ export type ImportScreenRow = AdBanInput & {
   extraTexts?: (string | null | undefined)[]
   /** For the review file and the existing-row lookup: the row's key at the source (the upsert key). */
   externalId?: string | null
+  /**
+   * A row from a PRIVATE source (a LinkedIn job alert — /privacy: kept 30 days unless eno.vn lists it): a refusal of a row that
+   * was never listed is recorded without its title or link, which the review file would otherwise keep for good (opus review
+   * 2026-11-11). A row already listed is public: recorded as any other.
+   */
+  privateUntilListed?: boolean
   url?: string | null
 }
 
@@ -146,7 +152,8 @@ export class ImportScreen {
     const out = screenImportRow(row)
     if (out.action === 'import') return true
     const ex = existing === undefined ? await this.lookup(row.externalId) : existing
-    const title = String(row.titleVi || row.title || '').slice(0, 160)
+    const unlisted = !!row.privateUntilListed && !ex
+    const title = unlisted ? '(private source, never listed)' : String(row.titleVi || row.title || '').slice(0, 160)
     const live = !!ex && LIVE.has(ex.status)
     // ⛔ ONLY A LIVE ROW IS REFRESHED FOR REVIEW: a hidden/draft row is a human's hold and a tombstone is
     // the record — 'review' leaves both exactly as they are, like every other refusal.
@@ -159,7 +166,7 @@ export class ImportScreen {
     this.byRule.set(key, (this.byRule.get(key) ?? 0) + 1)
     this.reviews.push({
       externalId: row.externalId ?? null, listingId: ex?.id ?? null, existingStatus: ex?.status ?? null,
-      title, reason: out.reason, rule: out.rule, matched: out.matched, url: row.url ?? null, action,
+      title, reason: out.reason, rule: out.rule, matched: unlisted ? '' : out.matched, url: unlisted ? null : row.url ?? null, action,
     })
     if (action === 'hide') this.toHide.push({ id: ex!.id, sellerId: ex!.sellerId ?? null, rule: out.rule, matched: out.matched || null, title })
     // An ambiguous row that is already up is refreshed — never frozen on stale text, price or stock.

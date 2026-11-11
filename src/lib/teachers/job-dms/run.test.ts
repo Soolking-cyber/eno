@@ -9,6 +9,8 @@ vi.mock('server-only', () => ({}))
 
 type Row = Record<string, unknown>
 const T = { posts: [] as Row[], dms: [] as Row[], teachers: [] as Row[], listings: [] as Row[] }
+/** Which listings a scoped read (loadJobs) returns — all, unless a test hides some. */
+let listingLoaded: (l: Row) => boolean = () => true
 const calls = { teacherWhere: [] as unknown[], createMany: [] as Row[][], consentUpdates: [] as unknown[] }
 
 /**
@@ -74,7 +76,8 @@ vi.mock('@/lib/db', () => ({
     teacherJobDmConsent: { updateMany: vi.fn(async (a: unknown) => { calls.consentUpdates.push(a); return { count: 0 } }) },
     teacherJobDmDay: { findMany: vi.fn(async () => []) },
     conversation: { findMany: vi.fn(async () => []) },
-    listing: { findMany: vi.fn(async () => T.listings) },
+    // A scoped read (loadJobs) sees only what listingLoaded lets through; a read by id (linkedinIdsOf) sees every row.
+    listing: { findMany: vi.fn(async (a: { where?: Row }) => (a.where && 'id' in a.where ? T.listings.filter((l) => match(l, a.where)) : T.listings.filter(listingLoaded))) },
     $queryRaw: vi.fn(async () => stops.rows),
     $executeRaw: vi.fn(async (_s: TemplateStringsArray, key: string, token: string) => { if (key === 'job-dms:run' && lock.token === token) lock.held = false; return 1 }),
   },
@@ -127,7 +130,7 @@ const AD = 'Our English centre in District 7 is hiring a part-time teacher for k
 
 function post(id: string, o: Row = {}): Row {
   return {
-    id, source: 'fb', text: AD, title: null, company: null, locationText: null, postedAt: new Date('2026-10-21T01:00:00Z'),
+    id, source: 'fb', externalKey: id, text: AD, title: null, company: null, locationText: null, postedAt: new Date('2026-10-21T01:00:00Z'),
     receivedAt: new Date('2026-10-21T01:30:00Z'), groupPublic: true, url: `https://www.facebook.com/groups/1/posts/${id}/`, applyText: null,
     status: 'new', statusReason: null, factsVersion: null, textSig: null, sourceName: 'Saigon Teachers', expiresAt: null, facts: null, ...o,
   }
@@ -139,6 +142,7 @@ const teacher = {
 }
 
 beforeEach(() => {
+  listingLoaded = () => true
   T.posts = []; T.dms = []; T.teachers = [teacher]; T.listings = []
   calls.teacherWhere = []; calls.createMany = []; calls.consentUpdates = []
   mode.value = 'shadow'; desk.operator = 'op-1'
@@ -477,6 +481,62 @@ describe("eno.vn's own listings — the first shadow grading (2026-10-21)", () =
     expect(offered.has('post:4490000001')).toBe(false)
     expect(offered.has('listing:generic')).toBe(true)
     expect(offered.has('post:4490000002')).toBe(true)
+  })
+
+  it('a LinkedIn job imported as a listing ("<role> — <employer>", filed linkedin:<id>) is offered once, as the listing — today and on a later day (2026-11-11)', async () => {
+    const t = 'English Teacher'
+    const li = post('4490000003', {
+      source: 'linkedin', title: t, company: 'Sunrise Academy', locationText: 'District 7, Ho Chi Minh City', text: `${t} · Sunrise Academy · District 7, Ho Chi Minh City`,
+      groupPublic: null, url: 'https://www.linkedin.com/jobs/view/4490000003/', sourceName: 'LinkedIn',
+    })
+    const imported = listing('li-import', { title: `${t} — Sunrise Academy`, description: 'Kids classes in District 7, part-time.', ...jobExternalId('linkedin', 'https://www.linkedin.com/jobs/view/4490000003/') })
+    expect(imported.externalId).toBe('linkedin:4490000003')
+    T.listings = [imported]
+    T.posts = [li]
+    await runJobDms({ dryRun: false, now: DAY })
+    let offered = calls.createMany.flat().map((r) => r.jobKey)
+    expect(offered).toContain('listing:li-import')
+    expect(offered).not.toContain('post:4490000003')
+    // a later day: the alert is not offered after its listing (nor, gate 12m, the other way round)
+    T.dms = [{ profileId: 't-1', jobKey: 'listing:li-import', kind: 'jobs', day: '2026-10-20', mode: 'shadow' }]
+    calls.createMany = []
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(calls.createMany.flat().map((r) => r.jobKey)).not.toContain('post:4490000003')
+    // the control: a listing a school posted itself, claiming that id without the board's seller, proves nothing
+    T.listings = [{ ...imported, sellerId: 'a-school' }]
+    T.dms = []
+    calls.createMany = []
+    await runJobDms({ dryRun: false, now: DAY })
+    offered = calls.createMany.flat().map((r) => r.jobKey)
+    expect(offered).toContain('post:4490000003')
+  })
+
+  it('…and once its alert has left the loaded jobs (past the DMs\' 5 days), the listing is still not a second offer; nor the alert after a listing since hidden (codex review 2026-11-11)', async () => {
+    const t = 'English Teacher'
+    const li = post('4490000004', {
+      source: 'linkedin', title: t, company: 'Sunrise Academy', locationText: 'District 7, Ho Chi Minh City', text: `${t} · Sunrise Academy · District 7, Ho Chi Minh City`,
+      groupPublic: null, url: 'https://www.linkedin.com/jobs/view/4490000004/', sourceName: 'LinkedIn',
+    })
+    const imported = listing('li-import-2', { title: `${t} — Sunrise Academy`, description: 'Kids classes in District 7, part-time.', ...jobExternalId('linkedin', 'https://www.linkedin.com/jobs/view/4490000004/') })
+    // day 6: the alert is expired (not loaded as a job), the teacher had it on day 1; the listing is live
+    T.posts = [{ ...li, status: 'expired', expiresAt: new Date(DAY.getTime() - 86_400_000) }]
+    T.listings = [imported]
+    T.dms = [{ profileId: 't-1', jobKey: 'post:4490000004', kind: 'jobs', day: '2026-10-16', mode: 'shadow' }]
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(calls.createMany.flat().map((r) => r.jobKey)).not.toContain('listing:li-import-2')
+    // the control: a teacher never sent the alert gets the listing
+    T.dms = []
+    calls.createMany = []
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(calls.createMany.flat().map((r) => r.jobKey)).toContain('listing:li-import-2')
+    // the other way: the listing was sent, then hidden (not loaded); the alert, still loaded, is not sent after it
+    T.posts = [li]
+    T.listings = [{ ...imported, status: 'hidden' }]
+    listingLoaded = (l) => l.status !== 'hidden'
+    T.dms = [{ profileId: 't-1', jobKey: 'listing:li-import-2', kind: 'jobs', day: '2026-10-20', mode: 'shadow' }]
+    calls.createMany = []
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(calls.createMany.flat().map((r) => r.jobKey)).not.toContain('post:4490000004')
   })
 
   it('two listings with the same long title are two jobs — one a day, as two same lines always were; only a LinkedIn copy ever gives way for good (gate 12l)', async () => {

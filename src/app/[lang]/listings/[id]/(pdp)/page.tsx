@@ -103,7 +103,7 @@ import { SellerInfo } from '@/components/marketplace/seller-info'
 import { buildSellerInfo } from '@/lib/seller-info'
 import { approximateArea, hasRealCoords } from '@/lib/geo'
 import { isVehicleHireReference } from '@/lib/rental-places'
-import { isLinkedJobReference } from '@/lib/job-listing'
+import { isLinkedJobReference, JOB_BOARDS } from '@/lib/job-listing'
 import { VisaInAppNote, VisaPartnerNote, VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
 import { IosAppHidden } from '@/components/marketplace/ios-app-hidden'
 import { appReviewGate } from '@/lib/app-review-gates'
@@ -637,6 +637,9 @@ export default async function ListingPage({ params }: Props) {
   // Source row (pdp-09): the same "Nguồn" twice, one section above the other. SellerInfo's row stays —
   // it is the Decree 248 statement of who the reader deals with.
   if (sellerInfo?.kind === 'source' && sellerInfo.source.trim()) hiddenAttrs.add('source')
+  // A LinkedIn job's day is the ALERT's, not a posting day: the Details table never prints it as "Posted" (nor the header —
+  // showPosted below; opus review 2026-11-11). The attribute stays (the job-ad history reads it).
+  if (listing.sellerId === JOB_BOARDS.linkedin.sellerId) hiddenAttrs.add('postedOn')
   /**
    * A RENTAL'S STRUCTURED FACTS (GoPlus partnership, owner 2026-10-19 — src/lib/rental-facts.ts): its monthly costs
    * (deposit, electricity, water, service/management fee, parking), its occupancy rows (max occupants, floor, available
@@ -840,7 +843,8 @@ export default async function ListingPage({ params }: Props) {
   // ad re-imported this week read as fresh; the line under the CTA now says which date it is and whose.
   // A partner rental with no line (an affiliate rent row from a seller outside the rental importers)
   // keeps the row as before.
-  const showPosted = !affiliateUrl || isJob || (listing.listingType === 'rent' && !provenance)
+  // A LinkedIn job's day is the day of the alert that carried it, never a posting day: no "Posted" row (opus review 2026-11-11).
+  const showPosted = (!affiliateUrl || isJob || (listing.listingType === 'rent' && !provenance)) && listing.sellerId !== JOB_BOARDS.linkedin.sellerId
   // ⚠️ A SELLER'S OWN LISTING WITH NO STORED COORDINATE SHOWS ITS AREA, NOT A PIN (owner, 2026-09-30,
   // P-MAP). The pin was the city/district centroid plus a ±1km jitter (geo.ts getListingCoordinates):
   // a precise-looking point that is not the item's place. approximateArea is null when the city is not

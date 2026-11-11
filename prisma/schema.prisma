@@ -1403,6 +1403,9 @@ model JobAdSighting {
 /// account") — src/lib/teachers/job-dms. A job or cover post from a Facebook group (contacts redacted on the Mac), a
 /// LinkedIn job-alert email or a post the outreach team forwarded. ⛔ PRIVATE: never a Listing, never public, never
 /// quoted to anyone — a teacher gets eno's own summary and the link. Deleted after JOB_DM_RULES.retentionDays.
+/// ONE EXCEPTION (owner, 2026-11-11: "Amend privacy page"; /privacy says so): a LinkedIn alert's job — its title, employer,
+/// city and link, for a role open to foreign teachers — is also listed as a linked job (job-listing.ts JOB_BOARDS.linkedin),
+/// by the jobs pipeline (~/eno-lead-pipeline src/cli/linkedinJobs.ts), which reads this table read-only.
 /// DDL: scripts/teacher-job-dms-ddl.mjs (RLS on, no policies).
 model ExternalJobPost {
   id           String    @id @default(cuid())

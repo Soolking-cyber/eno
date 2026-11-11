@@ -252,7 +252,8 @@ async function main() {
   const stageDir = SRC ? resolve(SRC, '..') : ''
   for (const j of stage?.jobs ?? []) {
     const r = mapStagedJob(j, now)
-    if (!r.ok) { drop(r.reason, `${j.source} ${j.title?.slice(0, 60)}`); continue }
+    // A LinkedIn job that is not listed leaves no title in the logs (/privacy: its content goes after 30 days — opus review 2026-11-11).
+    if (!r.ok) { drop(r.reason, j.source === 'linkedin' ? `${j.source} ${j.key}` : `${j.source} ${j.title?.slice(0, 60)}`); continue }
     const cover = resolve(stageDir, '..', '..', r.job.coverPath)
     const coverAlt = resolve(stageDir, 'covers', basename(r.job.coverPath))
     const coverFile = existsSync(coverAlt) ? coverAlt : existsSync(cover) ? cover : null
@@ -262,7 +263,7 @@ async function main() {
     // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts). mapStagedJob already ran
     // assertCleanTexts; this is the shared screen every importer runs (a job is not goods, so the
     // advertising classifier passes it — the banned-word half is what applies).
-    if (!(await screen.check({ title: r.job.title, description: r.job.description, descriptionVi: r.job.descriptionVi, category: 'jobs', subcategory: r.job.subcategorySlug, merchant: r.job.sellerName, extraTexts: [r.job.location], externalId: r.job.externalId, url: r.job.affiliateUrl }))) continue
+    if (!(await screen.check({ title: r.job.title, description: r.job.description, descriptionVi: r.job.descriptionVi, category: 'jobs', privateUntilListed: r.job.sellerId === JOB_BOARDS.linkedin.sellerId, subcategory: r.job.subcategorySlug, merchant: r.job.sellerName, extraTexts: [r.job.location], externalId: r.job.externalId, url: r.job.affiliateUrl }))) continue
     keep.push({ ...r.job, coverPath: coverFile })
     if (implausibleJobPay(j.salary)) payLeftOff.push(`${r.job.externalId} "${j.salary!.replace(/\s+/g, ' ').trim().slice(0, 60)}"`)
     // ⛔ The history log never fails an import, and this runs before any write: a row it cannot make is skipped, said so.

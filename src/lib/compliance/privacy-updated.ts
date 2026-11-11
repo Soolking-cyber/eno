@@ -192,8 +192,13 @@
  * device's guest saves added at sign-in, unsave deletes, account deletion removes them all). ⛔ THE PLANNED DAY, like the
  * rest: if the deploy slips again, re-date it to the day it runs (it needs the SavedListing DDL first), then retake the
  * fingerprint.
+ * And 2026-11-12, LinkedIn jobs listed (owner, 2026-11-11: "the linkedin jobs that we send to teachers add them to jobs part of
+ * eno.vn too", then "Amend privacy page"): "Job messages for teachers" says the collected posts are never published EXCEPT a job
+ * advertised in a LinkedIn job-alert email for a role open to foreign teachers — its title, employer, city and link, listed like
+ * a job-board job and kept as job listings are. No new personal data, no new recipient. ⛔ THE PLANNED DAY, like the rest:
+ * re-date it to the day the deploy that carries it runs, then retake the fingerprint.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-10'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-12'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -202,4 +207,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-11-10'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '50ece7b8ff56d7b1'
+export const PRIVACY_TEXT_FINGERPRINT = 'dfebd114d6707346'

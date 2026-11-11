@@ -111,6 +111,22 @@ describe('ImportScreen — a new row', () => {
     expect(out.journal).toBeNull()
   })
 
+  it('a private source\'s row that was never listed is recorded without its title, link or matched word (LinkedIn alerts — 2026-11-11)', async () => {
+    const dir = tmp()
+    const s = new ImportScreen('test', { dir })
+    expect(await s.check({ title: 'Rượu HALICO 30°', externalId: 'linkedin:4400000001', url: 'https://www.linkedin.com/jobs/view/4400000001/', privateUntilListed: true })).toBe(false)
+    expect(await s.check({ title: 'Soju Jinro combo tự chọn vị', externalId: 'x2', url: 'https://tiki.vn/x2' })).toBe(false)
+    const out = await s.finish({ apply: false, log: () => {} })
+    const rows = JSON.parse(readFileSync(out.review!, 'utf8')).rows as { externalId: string; title: string; url: string | null; matched: string }[]
+    const li = rows.find((r) => r.externalId === 'linkedin:4400000001')!
+    expect(li.title).toBe('(private source, never listed)')
+    expect(li.url).toBeNull()
+    expect(li.matched).toBe('')
+    expect(JSON.stringify(li)).not.toMatch(/HALICO/i)
+    // the control: an ordinary row keeps its title and link
+    expect(rows.find((r) => r.externalId === 'x2')).toMatchObject({ title: 'Soju Jinro combo tự chọn vị', url: 'https://tiki.vn/x2' })
+  })
+
   it('writes no file when nothing was refused, and an accepted row never queries the database', async () => {
     const { db, finds } = fakeDb([])
     const s = new ImportScreen('test', { dir: tmp(), db })

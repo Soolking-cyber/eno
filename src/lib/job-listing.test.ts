@@ -20,6 +20,37 @@ const base: StagedJob = {
 }
 const map = (over: Partial<StagedJob> = {}) => mapStagedJob({ ...base, ...over }, NOW)
 
+describe('mapStagedJob — a LinkedIn alert job (owner, 2026-11-11)', () => {
+  it('lists title, employer, city and the link only, dated as an alert, never as a LinkedIn posting date', () => {
+    const r = map({
+      url: 'https://www.linkedin.com/jobs/view/4437254355/', source: 'linkedin', sourceName: 'LinkedIn',
+      title: 'Lecturer, Management', employer: 'RMIT University Vietnam', city: 'Ho Chi Minh City', salary: null, employment: null, category: 'teaching',
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.job.externalId).toBe('linkedin:4437254355')
+    expect(r.job.sellerId).toBe('linkedin-com-import-seller-0001')
+    expect(r.job.description).toContain(`seen in a LinkedIn job alert on ${r.job.attributes.postedOn}`)
+    expect(r.job.description).not.toContain('posted on LinkedIn')
+    expect(r.job.descriptionVi).toContain(`có trong thông báo việc làm của LinkedIn ngày ${r.job.attributes.postedOn}`)
+    expect(r.job.attributes.salaryText).toBeUndefined()
+    expect(r.job.attributes.jobtype).toBeUndefined()
+  })
+  it('never a job type, even one its title names (codex review 2026-11-11)', () => {
+    const r = map({
+      url: 'https://www.linkedin.com/jobs/view/4437254356/', source: 'linkedin', sourceName: 'LinkedIn',
+      title: 'Part-time Native English Teacher', employer: 'Sunrise Academy', city: 'Ho Chi Minh City', salary: null, employment: null, category: 'teaching',
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.job.attributes.jobtype).toBeUndefined()
+    expect(r.job.description).not.toMatch(/part-time\)/)
+    // the control: a board's job keeps the type its title names
+    const b = map({ title: 'Part-time Native English Teacher', employment: null })
+    expect(b.ok && b.job.attributes.jobtype).toBe('parttime')
+  })
+})
+
 describe('mapStagedJob — a real CareerLink row', () => {
   it('maps to a clean reference listing', () => {
     const r = map()
@@ -302,6 +333,12 @@ describe('ids and urls', () => {
     expect(id('eslbase', 'https://www.eslbase.com/job/english-teaching-jobs-in-vietnam-with-vus-october-2026/')).toBe('english-teaching-jobs-in-vietnam-with-vus-october-2026')
     expect(id('eslbase', 'https://www.eslbase.com/tefl-jobs/?_jobs_country_filter=vietnam')).toBeNull()
     expect(id('eslbase', 'https://www.eslbase.com.evil.example/job/x')).toBeNull()
+    // LinkedIn (owner 2026-11-11): the alert's job id, from the canonical address the pipeline writes.
+    expect(id('linkedin', 'https://www.linkedin.com/jobs/view/4481568633/')).toBe('4481568633')
+    expect(id('linkedin', 'https://linkedin.com/jobs/view/4481568633')).toBe('4481568633')
+    expect(id('linkedin', 'https://www.linkedin.com/jobs/search/?keywords=teacher')).toBeNull()
+    expect(id('linkedin', 'https://www.linkedin.com/jobs/view/teacher-of-english-at-nord-anglia-4481568633/')).toBeNull()
+    expect(id('linkedin', 'https://www.linkedin.com.evil.example/jobs/view/4481568633/')).toBeNull()
     expect(jobNativeId('wish', normaliseJobUrl('https://www.wishlistjobs.com/teaching-jobs-in-vietnam#job-post-25658')!, '#job-post-25658')).toBe('25658')
     expect(jobNativeId('wish', normaliseJobUrl('https://www.wishlistjobs.com/teaching-jobs-in-vietnam')!, '')).toBeNull()
     expect(jobNativeId('wish', normaliseJobUrl('https://www.wishlistjobs.com/teaching-jobs-in-thailand#job-post-1')!, '#job-post-1')).toBeNull()

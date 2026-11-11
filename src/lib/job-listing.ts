@@ -123,6 +123,12 @@ export const JOB_BOARDS = {
   // link and ask for written permission beyond that — requested by email the same day; the permission is the owner's
   // until they answer, and the board comes off if they object. The id is the job's slug.
   eslbase: { sellerId: 'eslbase-com-import-seller-0001', name: 'ESLbase', hosts: ['www.eslbase.com', 'eslbase.com'], id: /^\/job\/([^/]+)$/ },
+  // ⚠️ PUBLISHED ON THE OWNER'S WORD (2026-11-11: "the linkedin jobs that we send to teachers add them to jobs part of eno.vn
+  // too", then, told LinkedIn's terms forbid republishing its listings: "hybrid ones have in their website link original the ones
+  // cant find do linkedin"). The jobs come from the LinkedIn job-alert emails the teacher job DMs already read, never from its
+  // pages; the pipeline (~/eno-lead-pipeline src/cli/linkedinJobs.ts) keeps the employer's own posting whenever a board above has
+  // it, so only a vacancy no employer site lists is linked here. Expat roles only, scoped like every board. The id is the job id.
+  linkedin: { sellerId: 'linkedin-com-import-seller-0001', name: 'LinkedIn', hosts: ['www.linkedin.com', 'linkedin.com'], id: /^\/jobs\/view\/(\d{6,15})$/ },
 } as const satisfies Record<string, Board>
 export type BoardKey = keyof typeof JOB_BOARDS
 
@@ -134,6 +140,7 @@ export const JOB_SOURCES: Record<string, BoardKey> = {
   'tefl-org': 'teflorg', vas: 'vas', eiv: 'eiv', nordanglia: 'nordanglia', inspired: 'inspired',
   'vieclam24h-teach': 'vieclam24h', 'vieclam24h-english': 'vieclam24h', rmit: 'rmit', tta: 'tta',
   vietnamworks: 'vietnamworks', tesljobs: 'tesljobs', fpt: 'fpt', wish: 'wish', asq: 'asq', languagelink: 'languagelink', eslbase: 'eslbase',
+  linkedin: 'linkedin',
 }
 
 export const JOB_SELLER_IDS: string[] = Object.values(JOB_BOARDS).map((b) => b.sellerId)
@@ -961,7 +968,8 @@ export function mapStagedJob(j: StagedJob, now: number): { ok: true; job: Mapped
   // Tested on the FULL line, before it is cut to 120 characters — a visa clause past the cut still counts. A figure no
   // month's or hour's pay can be leaves the line off too (implausibleJobPay): a wrong salary printed is worse than none.
   const salaryText = salaryFull && !hasVisaWord(salaryFull) && !implausibleJobPay(salaryFull) ? salaryFull.slice(0, 120) : null
-  const type = jobType(j.employment, rawTitle)
+  // A LinkedIn job publishes its title, employer, city and link only (/privacy) — no job type read from anything (codex review 2026-11-11).
+  const type = b === JOB_BOARDS.linkedin ? null : jobType(j.employment, rawTitle)
 
   // ⛔ SCREEN THE SOURCE'S WORDS, not eno's own intro (which names the board's domain and would trip
   // the link rule on every row) — same split as nhatot-listing.ts.
@@ -989,8 +997,11 @@ export function mapStagedJob(j: StagedJob, now: number): { ok: true; job: Mapped
   // as one run-on line, since the description renderer joins single newlines.
   const pay = salaryText ? ` Salary: ${salaryText}.` : ''
   const payVi = salaryText ? ` Mức lương: ${salaryText}.` : ''
-  const description = `${lead}${employer ? ` at ${employer}` : ''} in ${place}${type ? ` (${EN_TYPE[type]!.toLowerCase()})` : ''}, posted on ${b.name} on ${postedOn}; apply by ${applyBy}.${pay}\n\neno.vn links to the original posting — read the full ad and apply there. eno.vn does not handle applications, has not verified this employer, and never charges a fee. Never pay to get a job.`
-  const descriptionVi = `${leadVi}${employer ? ` tại ${employer}` : ''}, ${place}${type ? ` (${VI_TYPE[type]!.toLowerCase()})` : ''}, đăng trên ${b.name} ngày ${postedOn}; hạn nộp hồ sơ ${applyBy}.${payVi}\n\neno.vn dẫn link tới tin tuyển dụng gốc — xem đầy đủ và ứng tuyển tại đó. eno.vn không xử lý hồ sơ, chưa xác minh nhà tuyển dụng này và không bao giờ thu phí. Đừng bao giờ trả tiền để có việc làm.`
+  // A LinkedIn job is dated by the alert email that carried it, not by LinkedIn's own posting date (opus review 2026-11-11).
+  const seenEn = b === JOB_BOARDS.linkedin ? `seen in a LinkedIn job alert on ${postedOn}` : `posted on ${b.name} on ${postedOn}`
+  const seenVi = b === JOB_BOARDS.linkedin ? `có trong thông báo việc làm của LinkedIn ngày ${postedOn}` : `đăng trên ${b.name} ngày ${postedOn}`
+  const description = `${lead}${employer ? ` at ${employer}` : ''} in ${place}${type ? ` (${EN_TYPE[type]!.toLowerCase()})` : ''}, ${seenEn}; apply by ${applyBy}.${pay}\n\neno.vn links to the original posting — read the full ad and apply there. eno.vn does not handle applications, has not verified this employer, and never charges a fee. Never pay to get a job.`
+  const descriptionVi = `${leadVi}${employer ? ` tại ${employer}` : ''}, ${place}${type ? ` (${VI_TYPE[type]!.toLowerCase()})` : ''}, ${seenVi}; hạn nộp hồ sơ ${applyBy}.${payVi}\n\neno.vn dẫn link tới tin tuyển dụng gốc — xem đầy đủ và ứng tuyển tại đó. eno.vn không xử lý hồ sơ, chưa xác minh nhà tuyển dụng này và không bao giờ thu phí. Đừng bao giờ trả tiền để có việc làm.`
 
   const attributes: Record<string, string> = {}
   if (employer) attributes.employer = employer
