@@ -595,6 +595,9 @@ describe('crumbNames (V2-7, V2-11, V2-12)', () => {
       expect(s, f).toMatch(/<BreadcrumbLink render=\{<Link href=\{localizedHref\('\/', lang\)\}(?: prefetch=\{false\})? \/>\} className="[^"]*">\{SITE_NAME\}<\/BreadcrumbLink>/)
       expect(s, f).not.toContain('<Tr text="Home" />')
     }
+    // Batch 64: the category index's trail is off below sm (CSS, never [hidden]); a district page keeps its own at every width.
+    expect(read('(index)/layout.tsx')).toContain('<Breadcrumb className="mb-4 max-sm:hidden">')
+    expect(read('[district]/page.tsx')).toContain('<Breadcrumb className="mb-4">')
   })
 
   it('both pages build their JSON-LD crumbs from it (source contract)', () => {

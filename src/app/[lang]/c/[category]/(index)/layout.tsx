@@ -79,7 +79,13 @@ export default async function CategoryIndexLayout({
       <Header />
       {/* `pt-4`, the home page's and the PDP's top (owner, 2026-10-18: one top padding; this was pt-6). */}
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
-        <Breadcrumb className="mb-4">
+        {/* ⛔ NOT ON A PHONE (batch 64, 2026-11-11), the owner's 2026-10-18 rule for this page: the products are the first
+            screen's job. Below sm the trail was "eno.vn / Rentals" over an H1 that names the same page, under a header whose
+            logo is the way home: 40px of the first screen saying nothing to act on. Blind A/B on four category pages: codex
+            7.17 to 7.32, Opus 7.16 to 7.26 (the listings start that much higher). Still in the HTML for crawlers (CSS only,
+            never [hidden]: crawler-html.spec.ts) with the BreadcrumbList JSON-LD; from sm it is the trail it was. A district
+            page keeps its three-step trail at every width — there it is the way back up to the category. */}
+        <Breadcrumb className="mb-4 max-sm:hidden">
           <BreadcrumbList>
             <BreadcrumbItem>
               {/* Base UI render prop (never asChild) — keeps the Next.js client-side nav. */}
