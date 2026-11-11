@@ -6,6 +6,8 @@ import { LANGS, type Lang } from './i18n/langs'
 import { rateLimit } from '@/lib/ratelimit'
 import { INTERACTIVE_TIMEOUT_MS, localMtConfigured, localTranslate } from './mt-local'
 import { numberPlaceholders, restorePlaceholders, templateIntact } from './i18n/placeholders'
+import { adminPlaceEn } from './city-short'
+import { placeOnlyTranslation } from './i18n/place-names'
 
 // Supported-language roster: canonical definition lives in the isomorphic
 // @/lib/i18n/langs; re-exported here so existing importers keep working.
@@ -60,6 +62,19 @@ const MAX_CHARS = 28000
 function hash(text: string): string {
   return crypto.createHash('sha1').update(text).digest('hex')
 }
+
+/**
+ * ⛔ A TEXT THAT IS ONLY PLACE NAMES IS SPELLED, NEVER TRANSLATED (owner, 2026-11-11: "thu duc is german general in
+ * english"; measured: "Thủ Đức" alone → "The German leader", "Quận 7, TP.HCM" → "District 7, HCMC HCMC"). English gets
+ * the administrative spelling where the whole text is administrative (city-short.ts adminPlaceEn: "Quận Bình Thạnh" →
+ * "Binh Thanh District"), else each name unaccented; Vietnamese gets the names with their marks (src/lib/i18n/place-
+ * names.ts). No engine, no cache row, no bill. Null for anything else — another language, or a sentence, which
+ * goes to the engine, which measured right on them ("Bán xe máy ở Thủ Đức" → "Motorbike for sale in Thu Duc").
+ */
+export function spelledPlace(text: string, target: Lang): string | null {
+  return (target === 'en' ? adminPlaceEn(text) : null) ?? placeOnlyTranslation(text, target)
+}
+// The other nine languages are left to the engine, which writes a place in their own script.
 
 // A word-free, universal string — a bare year, a phone number, an ASCII price ("12000000"),
 // pure emoji or symbols — is identical in every language, so it must never reach the paid provider.
@@ -556,6 +571,10 @@ export async function translateBatch(
   // rather than 503.
   const misses: string[] = []
   for (const t of uniq) {
+    // Place names alone: spelled for the target before the cache is even read (a row written before this rule may say
+    // "The German leader"), and never written to it.
+    const spelled = spelledPlace(t, target)
+    if (spelled != null) { out.set(t, spelled); continue }
     const hit = cachedByHash.get(hash(t))
     // refreshBrokenTemplates (the nightly warm cron only): a cached TEMPLATE whose {placeholders} an
     // engine renamed or dropped is re-translated, numbered this time, and overwritten — bounded to one
@@ -691,7 +710,8 @@ export async function uncachedStats(texts: string[], target: Lang): Promise<{ co
   // estimate and the actual paid work must stay in LOCK-STEP (see worthTranslating). Counting
   // a string translateBatch will now skip would over-state the bill and could reject a batch
   // that is in fact free.
-  const uniq = translatableUniq(texts).filter((t) => !alreadyInTarget(t, target))
+  // A text of place names only is spelled, not billed (spelledPlace) — same lock-step.
+  const uniq = translatableUniq(texts).filter((t) => !alreadyInTarget(t, target) && spelledPlace(t, target) == null)
   if (uniq.length === 0) return { count: 0, chars: 0 }
   const cached = await db.translation.findMany({
     where: { target, hash: { in: uniq.map(hash) } },
@@ -774,6 +794,15 @@ export async function cachedTranslations(texts: string[]): Promise<Record<string
     const src = byHashSource.get(r.hash)
     if (!src) continue
     ;(out[src] ||= {})[r.target] = r.value
+  }
+  // A text of place names only ("Thủ Đức", a listing's location) is spelled for English and Vietnamese instead of read: a
+  // row written before the rule may hold an engine's guess ("The German leader"). Both are always embedded, so the page
+  // renders them with no client translation at all.
+  for (const src of clean) {
+    for (const l of ['en', 'vi'] as const) {
+      const spelled = spelledPlace(src, l)
+      if (spelled != null) (out[src] ||= {})[l] = spelled
+    }
   }
   return out
 }

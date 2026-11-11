@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
-import { translateBatch, LANGS, type Lang } from '@/lib/translate'
+import { translateBatch, spelledPlace, LANGS, type Lang } from '@/lib/translate'
 import { UI_STRINGS } from '@/generated/ui-strings'
 import { templateIntact } from '@/lib/i18n/placeholders'
 
@@ -104,7 +104,9 @@ export async function GET(req: Request) {
     // Broken templates FIRST: a big uncached backlog must not push them past the per-run cap below.
     const missing = [
       ...corpus.filter((s, i) => broken.has(hashes[i])),
-      ...corpus.filter((s, i) => !have.has(hashes[i]) && !broken.has(hashes[i])),
+      // A text of place names only is spelled at read time and never gets a row (translate.ts spelledPlace): it is not
+      // missing, and must not hold a slot under the cap or count as a failure every night.
+      ...corpus.filter((s, i) => !have.has(hashes[i]) && !broken.has(hashes[i]) && spelledPlace(s, lang) == null),
     ]
     let healed = 0
     if (missing.length > 0) {
