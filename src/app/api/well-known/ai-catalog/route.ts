@@ -155,7 +155,7 @@ export async function GET() {
            * server fault rather than a missing document.
            */
           url: `${OAUTH_ISSUER}/.well-known/mcp.json`,
-          description: `Hosted MCP server at ${OAUTH_ISSUER}/api/mcp — Streamable HTTP, JSON-RPC over POST, stateless. Manage one storefront: listings, bulk import, catalogue sync, analytics, webhooks. An API key is the Bearer token, held in the client's connection config, so it never reaches the model.`,
+          description: `Hosted MCP server at ${OAUTH_ISSUER}/api/mcp — Streamable HTTP, JSON-RPC over POST, stateless. Manage one storefront: listings, bulk import, catalogue sync, analytics, webhooks. An API key is the Bearer token, held in the client's connection config; no tool takes it as an argument.`,
           tags: ['mcp', 'tools', 'storefront'],
           /**
            * ARD: "Skill identifiers". The tool names are the only honest answer to that here — and

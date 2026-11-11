@@ -88,7 +88,7 @@ only ever sees that storefront's data.
 - **MCP** — \`${SITE_ORIGIN}/api/mcp\`. A stateless Model Context Protocol server over the
   Streamable-HTTP transport, wrapping the same shop-scoped operations. \`POST\` only; \`GET\`
   answers 405. Put the key in your MCP client's connection config as the Bearer token, never as a
-  tool argument — the model then sees tool names, schemas and results, and never the credential.
+  tool argument. No tool takes it as an argument.
 
 ### MCP tools
 

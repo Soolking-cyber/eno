@@ -159,7 +159,10 @@ function serverCard() {
         headers: [
           {
             name: 'Authorization',
-            description: 'Bearer credential for one shop. Sent by the client on every request; never passed to the model.',
+            // ⚠️ NOT "never passed to the model" (corrected 2026-11-11): the server never asks the model for the key, but a
+            // client can show its own settings to a model. Say only what the server controls — the MCP Registry entry
+            // (vn.eno/partner-api) carries this same sentence.
+            description: 'Bearer credential for one shop, set in the client and sent on every request. No tool takes it as an argument.',
             isRequired: true,
             isSecret: true,
             value: 'Bearer {api_key}',

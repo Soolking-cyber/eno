@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic'
 // A stateless Model Context Protocol server over the Streamable-HTTP transport, wrapping
 // the same shop-scoped cores as /api/v1. Partners point an AI client (Claude, etc.) at
 // https://eno.vn/api/mcp with their eno_live_ key as the Bearer token — the key lives in the
-// client's connection config, NEVER as a tool argument, so it never reaches the model. The
+// client's connection config, NEVER as a tool argument, so the server never asks the model for it. The
 // model only sees tool names, schemas, and results. JSON-RPC requests get JSON responses
 // (no SSE needed — every tool is request/response). Auth + per-key rate limit reuse resolveApiKey.
 

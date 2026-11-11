@@ -40,7 +40,7 @@ type Card = {
     type: string
     url: string
     supportedProtocolVersions: string[]
-    headers: Array<{ name: string; isRequired?: boolean; isSecret?: boolean; value?: string; variables?: Record<string, unknown> }>
+    headers: Array<{ name: string; description?: string; isRequired?: boolean; isSecret?: boolean; value?: string; variables?: Record<string, unknown> }>
   }>
   _meta: Record<string, Record<string, unknown>>
 }
@@ -171,10 +171,14 @@ describe('MCP server card — every claim matches src/app/api/mcp/route.ts', () 
     expect(h.value).toBe('Bearer {api_key}')
     expect(h.isRequired).toBe(true)
     // ⛔ THE WHOLE POINT. The key lives in the client's connection config, never in a tool argument,
-    // so it never reaches the model (src/lib/mcp/tools.ts header). isSecret is what tells a client
-    // to mask it and keep it out of logs.
+    // so the server never asks the model for it (src/lib/mcp/tools.ts header). isSecret is what tells a
+    // client to mask it and keep it out of logs.
     expect(h.isSecret).toBe(true)
     expect((h.variables as Record<string, { isSecret?: boolean }>).api_key.isSecret).toBe(true)
+    // ⛔ Only what the server controls (2026-11-11): never "never passed to / never reaches the model" — a client can show
+    // its own settings to a model. The MCP Registry entry vn.eno/partner-api carries the same sentence.
+    expect(h.description).toBe('Bearer credential for one shop, set in the client and sent on every request. No tool takes it as an argument.')
+    expect(JSON.stringify(doc)).not.toMatch(/never (passed to|reaches) the model/i)
   })
 
   it('enumerates NO tools, even though the server has them', async () => {
