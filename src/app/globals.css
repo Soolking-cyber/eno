@@ -54,6 +54,17 @@
    auth-context removes it the moment a user appears, but a stale class must never be able to hide
    a signed-in surface on its own. */
 @custom-variant no-session (&:is(.no-session *));
+/* `rail-hint:` applies when <html> has the class `rail-hint` — set by the same pre-paint script, at any width, when the
+   document started with a session THIS build's client returns without a network call (unexpired, readable: the rules
+   are in layout.tsx) — AND the window is at least 73rem (1168px) wide with a fine pointer: only the variant is gated by
+   width, not the class. AccountPanelShell (account-panel.tsx) holds the signed-in desktop rail's 72px gutters under it
+   from the first frame, on its closed state only, and drops the class once the rail is open or auth settles with no
+   user.
+   ⚠️ 73rem, NOT `pc`'s 64rem: narrower, the server's facet row does not fit inside the gutters and some cold links
+   shifted MORE with the reservation than without it (the note in account-panel.tsx), so from 64rem to 73rem the
+   gutters arrive after auth, as before. Written in `pc`'s own shape (one @media, min-width + pointer:fine), the shape
+   the built CSS already carries for `pc` with its selectors intact; the integrated build's CSS must still be read. */
+@custom-variant rail-hint { @media (min-width: 73rem) and (pointer: fine) { &:is(.rail-hint *) { @slot; } } }
 
 /* THE ANDROID FALLBACK FACE (speed plan R64, audit media-05). next/font's adjusted "openRunde Fallback" is
    `local(Arial)`, and Chrome on Android (WebView too) matches local() against full and PostScript names only: there is
