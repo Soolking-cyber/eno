@@ -6,6 +6,7 @@ import { ListingCard } from './listing-card'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 import { categoryBrowsePath } from '@/lib/retired-categories'
 import { Shelf, RAIL_CARD_W, RAIL_SKELETON_COUNT } from './shelf'
+import { JobRailRows, JobRailRowsSkeleton, allJobs } from './job-rail-rows'
 import { useLanguage } from '@/context/language-context'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -185,7 +186,8 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
   if (items === null) {
     return (
       <div ref={ref} data-related-loading="">
-        <Shelf title={title} seeAllHref={seeAllHref} sectionClassName={sectionClassName}>
+        {/* A job's rail loads as rows on a phone (batch 67), so its placeholder is rows there too: the category is known before the answer. */}
+        <Shelf title={title} seeAllHref={seeAllHref} sectionClassName={sectionClassName} phoneRows={categorySlug === 'jobs' ? <JobRailRowsSkeleton /> : undefined}>
           {Array.from({ length: RAIL_SKELETON_COUNT }).map((_, i) => <ListingCardSkeleton key={i} className={RAIL_CARD_W} />)}
         </Shelf>
       </div>
@@ -205,6 +207,7 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
       seeAllHref={seeAllHref}
       sectionClassName={sectionClassName}
       watch={items.length}
+      phoneRows={allJobs(items) ? <JobRailRows listings={items} /> : undefined}
     >
       {items.map((l) => (
         <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>

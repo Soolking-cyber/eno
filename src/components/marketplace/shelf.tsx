@@ -9,6 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { SECTION_TITLE } from './section-title'
+import { COMPACT_LIST_GRID } from './compact-listing-row-skeleton'
 
 // Horizontal "shelf" rail primitive — the section header (optional icon + bold title +
 // optional "See all") and the snap scroller that ~8 rails hand-rolled identically.
@@ -200,6 +201,7 @@ export function Shelf({
   seeAllOnClick,
   sectionClassName,
   watch,
+  phoneRows,
   children,
 }: {
   title: React.ReactNode
@@ -216,6 +218,12 @@ export function Shelf({
    *  2026-07-23). Threading the count into useScrollArrows re-syncs on change;
    *  harmless for server-seeded rails whose count never moves. */
   watch?: unknown
+  /**
+   * Below sm, rows instead of the rail (batch 67: a job page's rails, job-rail-rows.tsx). Both shapes are in the HTML and a class
+   * picks one, as the Jobs list does (seller-listings.tsx, batch 60); the header and "See all" are shared. Without it the shelf
+   * renders exactly as before.
+   */
+  phoneRows?: React.ReactNode
   children: React.ReactNode
 }) {
   const { tr } = useLanguage()
@@ -249,10 +257,15 @@ export function Shelf({
         </div>
         {seeAll}
       </div>
-      <RailBeam scrollerRef={scrollerRef} canRight={canRight} seedItems={Children.count(children)} />
-      <div className="relative">
-        <div ref={scrollerRef} data-shelf-items="" className={RAIL_SCROLLER}>{children}</div>
-        <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />
+      {phoneRows && <div data-phone-rows="" className={`${COMPACT_LIST_GRID} sm:hidden`}>{phoneRows}</div>}
+      {/* ONE tree position for the rail, rows or not, so the scroller never remounts under useScrollArrows when `phoneRows`
+          comes or goes (review, batch 67). A plain block box without them: the layout is the one it always was. */}
+      <div className={phoneRows ? 'max-sm:hidden' : undefined}>
+        <RailBeam scrollerRef={scrollerRef} canRight={canRight} seedItems={Children.count(children)} />
+        <div className="relative">
+          <div ref={scrollerRef} data-shelf-items="" className={RAIL_SCROLLER}>{children}</div>
+          <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />
+        </div>
       </div>
     </section>
   )

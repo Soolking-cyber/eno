@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { ListingCard } from './listing-card'
 import { Shelf, RAIL_CARD_W } from './shelf'
+import { JobRailRows } from './job-rail-rows'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListingCard } from '@/lib/types'
 
@@ -49,6 +50,8 @@ export function SameSellerShelf({
       seeAllHref={sellerHref}
       sectionClassName="mt-12"
       watch={listings.length}
+      // A job page's rail is rows on a phone (batch 67), like the Jobs list. Server data: the rows are in the HTML.
+      phoneRows={allJobs ? <JobRailRows listings={listings} /> : undefined}
     >
       {listings.map((l) => (
         <div key={l.id} data-sid={l.sellerId} className={RAIL_CARD_W}>
