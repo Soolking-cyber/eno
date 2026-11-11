@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { EDITION, SITE_NAME } from '@/lib/edition'
 import { OAUTH_ISSUER } from '@/lib/api/oauth'
+import { DOC_PATHS, docUrl } from '@/lib/api/discovery-links'
 import { API_RATE_PER_MIN, API_RATE_WINDOW_SEC } from '@/lib/api/auth'
 import { rateLimit } from '@/lib/ratelimit'
 import { apiOk, apiError } from '@/lib/api/respond'
@@ -137,6 +138,10 @@ export async function GET(req: NextRequest) {
       oauth_protected_resource: `${OAUTH_ISSUER}/.well-known/oauth-protected-resource`,
       developers: `${OAUTH_ISSUER}/developers`,
       llms_txt: `${OAUTH_ISSUER}/llms.txt`,
+      // Added 2026-11-11 (additive, like every v1 change): the three documents in src/lib/api/discovery-links.ts.
+      api_catalog: docUrl(DOC_PATHS.apiCatalog),
+      mcp: docUrl(DOC_PATHS.mcp),
+      versioning: docUrl(DOC_PATHS.versioning),
     },
     /**
      * ⚠️ READ OFF THE SAME SNAPSHOT OBJECT THE HEADERS ARE BUILT FROM — never re-derived. The

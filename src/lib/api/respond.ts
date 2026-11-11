@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import type { ApiAuthResult } from './auth'
 import type { RateLimitSnapshot } from '@/lib/ratelimit'
+import { apiLinkHeader, bearerChallenge } from './discovery-links'
 
 // Standard JSON envelopes + headers for /api/v1. Success returns the payload directly
 // (list endpoints add a top-level `next_cursor`); errors are `{ error: { code, message } }`.
@@ -51,7 +52,8 @@ export function rateLimitHeaders(rate: RateLimitSnapshot): Record<string, string
 }
 
 function baseHeaders(rate?: RateLimitSnapshot): Record<string, string> {
-  const h: Record<string, string> = { 'X-Request-Id': crypto.randomUUID() }
+  // `Link`: the spec, the docs, the deprecation policy and the API catalogue, on every response (discovery-links.ts).
+  const h: Record<string, string> = { 'X-Request-Id': crypto.randomUUID(), Link: apiLinkHeader() }
   if (rate) Object.assign(h, rateLimitHeaders(rate))
   return h
 }
@@ -76,8 +78,14 @@ export function apiError(status: number, code: string, message: string, rate?: R
 // Turn a failed resolveApiKey() result into its response (handy guard at the top of a route).
 // ⚠️ Passes `r.rate` through: a 429 is precisely the response a self-throttling client needs the
 // headers on, and it is the one path that used to answer with none of them.
+// ⛔ A 401 MUST CARRY WWW-Authenticate (RFC 9110 §15.5.2), and a 403 for a missing scope carries one too (RFC 6750 §3.1):
+// the Bearer challenge names the RFC 9728 metadata, so a client holding only this response can find the token endpoint.
+// The 429 and 503 refusals are not challenges and get none. Body and status are unchanged.
 export function apiAuthError(r: Extract<ApiAuthResult, { ok: false }>): NextResponse {
-  return apiError(r.status, r.code, r.message, r.rate)
+  const res = apiError(r.status, r.code, r.message, r.rate)
+  if (r.status === 401) res.headers.set('WWW-Authenticate', bearerChallenge({ error: r.challenge?.error }))
+  else if (r.status === 403 && r.code === 'insufficient_scope') res.headers.set('WWW-Authenticate', bearerChallenge({ error: 'insufficient_scope', scope: r.challenge?.scope }))
+  return res
 }
 
 /**

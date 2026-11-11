@@ -147,7 +147,26 @@ describe('GET /api/v1/status', () => {
       oauth_protected_resource: 'https://www.eno.forum/.well-known/oauth-protected-resource',
       developers: 'https://www.eno.forum/developers',
       llms_txt: 'https://www.eno.forum/llms.txt',
+      api_catalog: 'https://www.eno.forum/.well-known/api-catalog',
+      mcp: 'https://www.eno.forum/developers/mcp',
+      versioning: 'https://www.eno.forum/developers/versioning',
     })
+  })
+
+  it('carries the discovery Link header and documents every documentation key it returns', async () => {
+    const { GET } = await load()
+    const res = await GET(req())
+    const link = res.headers.get('link') || ''
+    expect(link).toContain('<https://eno.vn/openapi.json>; rel="service-desc"')
+    expect(link).toContain('<https://eno.vn/developers/versioning>; rel="deprecation"')
+    expect(link).toContain('<https://eno.vn/.well-known/api-catalog>; rel="api-catalog"')
+    // ⛔ The deprecation LINK names the policy; only a Deprecation FIELD would declare this operation deprecated.
+    expect(res.headers.get('deprecation')).toBeNull()
+    expect(res.headers.get('sunset')).toBeNull()
+    // Every key the route returns is a property in the spec's status schema (the spec is the other half of the contract).
+    const { SPEC } = await import('../openapi.json/route')
+    const props = JSON.stringify(SPEC)
+    for (const k of Object.keys((await res.json()).documentation)) expect(props).toContain(`"${k}":{"type":"string","format":"uri"`)
   })
 
   it('names itself correctly on the marketplace edition', async () => {

@@ -7,6 +7,9 @@ import { Footer } from '@/components/marketplace/footer'
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown } from '@/components/ui/icons'
 import { API_BASE, API_NAME, DISCOVERY, MEDIA_ORIGIN, SCOPES, SITE_ORIGIN, SUPPORT_EMAIL } from './reference'
+import { Code } from './doc-parts'
+import { DOC_PATHS } from '@/lib/api/discovery-links'
+import { TOOLS } from '@/lib/mcp/tools'
 
 /**
  * ⚠️ EVERY SELF-NAMING VALUE ON THIS PAGE COMES FROM ./reference, WHICH DERIVES IT FROM THE
@@ -42,7 +45,7 @@ const BASE = API_BASE
  * protocol files between a reader and Authentication. Still real anchors in the server HTML (the header note: agents and
  * crawlers follow an <a href>, and a closed <details> keeps its children in the document); opening it runs no script.
  */
-const TUCKED = new Set(['/api/v1/openapi.json', '/.well-known/oauth-authorization-server', '/.well-known/oauth-protected-resource', '/.well-known/mcp.json'])
+const TUCKED = new Set(['/api/v1/openapi.json', '/.well-known/oauth-authorization-server', '/.well-known/oauth-protected-resource', '/.well-known/mcp.json', DOC_PATHS.apiCatalog])
 
 /** One discovery document: its path as the link, what it is under it. */
 function DiscoveryItem({ href, label, note }: { href: string; label: string; note: string }) {
@@ -56,26 +59,11 @@ function DiscoveryItem({ href, label, note }: { href: string; label: string; not
   )
 }
 
-/** The hosted MCP server's tools, one chip each below. */
-const MCP_TOOLS = [
-  'get_shop', 'update_shop', 'list_listings', 'get_listing', 'create_listing', 'update_listing', 'set_listing_status',
-  'delete_listing', 'bulk_create_listings', 'sync_catalogue', 'analytics_summary', 'analytics_listings', 'list_webhooks',
-  'register_webhook', 'delete_webhook',
-]
-
 /**
- * ⚠️ `whole`: ONE TAP OR CLICK SELECTS THE WHOLE VALUE (`user-select: all`), ready to copy (2026-11-06 audit). A Copy
- * button would be client JavaScript on a page whose readers are mostly agents that run none (the header note); the
- * selection is its no-JS form. Only on blocks that are ONE value to paste — the base URL, a header, a one-line command —
- * so a multi-line example keeps ordinary selection and a reader can still take one line of it.
+ * The hosted MCP server's tools, one chip each below — the names from `TOOLS`, the array the server dispatches (2026-11-11:
+ * this was a hand-typed copy, and /developers/mcp renders the same array, so the two lists can no longer disagree).
  */
-function Code({ children, whole = false }: { children: string; whole?: boolean }) {
-  return (
-    <pre className="overflow-x-auto rounded-xl bg-foreground/[0.04] p-3.5 text-xs leading-relaxed text-foreground ring-1 ring-border">
-      <code className={whole ? 'select-all font-mono' : 'font-mono'}>{children}</code>
-    </pre>
-  )
-}
+const MCP_TOOLS = TOOLS.map((t) => t.name)
 
 function Endpoint({ method, path, desc, children }: { method: string; path: string; desc: string; children?: React.ReactNode }) {
   return (
@@ -146,7 +134,7 @@ export default function DevelopersPage() {
           </ul>
           <details className="group mt-3 border-t border-border">
             <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
-              <span>OAuth and MCP metadata, and the spec alias</span>
+              <span>OAuth, MCP and catalogue metadata, and the spec alias</span>
               <ChevronDown className="size-5 shrink-0 text-foreground transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
             </summary>
             <ul className="space-y-3 pb-1">
@@ -200,7 +188,9 @@ export default function DevelopersPage() {
               (write is opt-in when you mint the key).
             </li>
             <li>• <strong className="text-foreground">One shop per key:</strong> requests only ever see that shop&apos;s own data.</li>
-            <li>• <strong className="text-foreground">Revoke anytime:</strong> it takes effect immediately.</li>
+            {/* ⚠️ Corrected 2026-11-11: access tokens are stateless (src/lib/api/oauth.ts header), so one minted before the
+                revoke lives out its hour; only the raw key stops at once. */}
+            <li>• <strong className="text-foreground">Revoke anytime:</strong> the key stops working at once; an OAuth token already minted from it keeps working until its one-hour lifetime ends.</li>
           </ul>
           <p className="mt-3 text-sm leading-relaxed text-body">
             {SITE_NAME} and its sibling site run the same software on separate deployments, and they share one database — so a key
@@ -251,8 +241,12 @@ export default function DevelopersPage() {
           <div className="mt-3"><Code>{`${SITE_ORIGIN}/api/mcp
 Authorization: Bearer eno_live_…`}</Code></div>
           <p className="mt-3 text-sm leading-relaxed text-body">
-            Your key stays in the client&apos;s connection settings — it is <strong className="text-foreground">never passed as a tool argument, so it never reaches the model</strong>.
-            Tools are scoped exactly like the REST API (a read-only key exposes only the read tools). Available tools:
+            {/* ⚠️ NOT "so it never reaches the model" (corrected 2026-11-11): the server never asks for it, but a client can show its
+                settings to a model, and a person can paste the key into a chat. Claim only what the server controls. */}
+            Your key stays in the client&apos;s connection settings — <strong className="text-foreground">no tool takes it as an argument, so the server never asks the model for it</strong>. Keep it out of chats.
+            {/* ⚠️ NOT "a read-only key exposes only the read tools": tools/list answers WITHOUT a key (src/app/api/mcp/route.ts,
+                discovery is open), so every key sees every tool; the scope is enforced on tools/call. Corrected 2026-11-11. */}
+            Tools are scoped exactly like the REST API: a call whose key lacks the tool&apos;s scope is refused. Available tools:
           </p>
           {/* One chip per tool (2026-11-06 audit): fifteen names run together with dots wrapped mid-list and could not be scanned. */}
           <ul className="mt-2 flex flex-wrap gap-1.5">
@@ -262,6 +256,12 @@ Authorization: Bearer eno_live_…`}</Code></div>
               </li>
             ))}
           </ul>
+          {/* 2026-11-11: the server's own page (setup per client, each tool with its scope), so a search for the MCP server
+              lands on a page named for it rather than on a section of this one. */}
+          <p className="mt-3 text-sm leading-relaxed text-body">
+            Setup for Claude Code and other clients, and what each tool needs:{' '}
+            <Link href={DOC_PATHS.mcp} className="font-semibold text-accent-foreground hover:underline">{SITE_NAME} MCP server</Link>.
+          </p>
         </section>
 
         <section className="mt-8">
@@ -270,6 +270,8 @@ Authorization: Bearer eno_live_…`}</Code></div>
             <li>• <strong className="text-foreground">Rate limit:</strong> 600 requests/min per key. Responses carry <code className="rounded-lg bg-muted px-1 text-xs">X-RateLimit-Limit</code> / <code className="rounded-lg bg-muted px-1 text-xs">X-RateLimit-Remaining</code> and an <code className="rounded-lg bg-muted px-1 text-xs">X-Request-Id</code>.</li>
             <li>• <strong className="text-foreground">Pagination:</strong> list endpoints are keyset-paged — pass <code className="rounded-lg bg-muted px-1 text-xs">?limit=</code> (≤100) and <code className="rounded-lg bg-muted px-1 text-xs">?cursor=</code>; follow <code className="rounded-lg bg-muted px-1 text-xs">next_cursor</code> until it&apos;s <code className="rounded-lg bg-muted px-1 text-xs">null</code>.</li>
             <li>• <strong className="text-foreground">Errors:</strong> <code className="rounded-lg bg-muted px-1 text-xs">{`{ "error": { "code", "message" } }`}</code> — e.g. <code className="rounded-lg bg-muted px-1 text-xs">401 unauthorized</code>, <code className="rounded-lg bg-muted px-1 text-xs">403 insufficient_scope</code>, <code className="rounded-lg bg-muted px-1 text-xs">404 not_found</code>, <code className="rounded-lg bg-muted px-1 text-xs">422 invalid_input</code>, <code className="rounded-lg bg-muted px-1 text-xs">429 rate_limited</code>.</li>
+            {/* 2026-11-11: the policy agents look for before integrating; every response names it in `Link: rel="deprecation"`. */}
+            <li>• <strong className="text-foreground">Versioning:</strong> the version is in the path (<code className="rounded-lg bg-muted px-1 text-xs">/api/v1</code>); additions ship without notice, a breaking change ships as a new path. How a deprecation is announced: <Link href={DOC_PATHS.versioning} className="font-semibold text-accent-foreground hover:underline">versioning and deprecation policy</Link>.</li>
             <li>• <strong className="text-foreground">Idempotency:</strong> on a create, send <code className="rounded-lg bg-muted px-1 text-xs">Idempotency-Key: &lt;unique-id&gt;</code> — a retry replays the first result instead of creating twice.</li>
           </ul>
         </section>

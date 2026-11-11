@@ -190,7 +190,8 @@ function serverCard() {
         protectedResourceMetadata: `${OAUTH_ISSUER}/.well-known/oauth-protected-resource`,
         authorizationServerMetadata: `${OAUTH_ISSUER}/.well-known/oauth-authorization-server`,
         scopes: [...OAUTH_SCOPES],
-        documentation: `${OAUTH_ISSUER}/developers`,
+        // The MCP server's own page (2026-11-11), not the REST reference: setup per client and each tool's scope.
+        documentation: `${OAUTH_ISSUER}/developers/mcp`,
       },
     },
   }

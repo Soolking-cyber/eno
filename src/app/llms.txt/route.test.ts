@@ -277,6 +277,18 @@ describe('/llms.txt on the marketplace', () => {
    * eno.vn's own data, each page with its file (d1-spec §13: the Rent Index CSV was missing here): an agent asked for HCMC
    * rents, or for what a teacher keeps after rent, should find the open files without scraping a page.
    */
+  it('lists the MCP server page, the versioning policy and the API catalogue under developers, each a real route', async () => {
+    const body = await bodyOf()
+    const dev = body.split('## For developers and agents')[1]
+    expect(dev).toContain('[MCP server](https://eno.vn/developers/mcp)')
+    expect(dev).toContain('[Versioning and deprecation policy](https://eno.vn/developers/versioning)')
+    expect(dev).toContain('[API catalogue](https://eno.vn/.well-known/api-catalog)')
+    for (const page of ['developers/mcp', 'developers/versioning']) {
+      expect(existsSync(join(process.cwd(), 'src/app/[lang]', page, 'page.tsx')), page).toBe(true)
+    }
+    expect(existsSync(join(process.cwd(), 'src/app/api/well-known/api-catalog/route.ts'))).toBe(true)
+  })
+
   it('lists the data pages and both CSVs under Data feeds, each as a link', async () => {
     const body = await bodyOf()
     const feeds = body.split('## Data feeds')[1].split('## Notes')[0]

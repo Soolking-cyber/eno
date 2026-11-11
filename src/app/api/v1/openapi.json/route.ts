@@ -93,6 +93,7 @@ const json = (schema: Obj): Obj => ({ 'application/json': { schema } })
  * function changes, this list is the other half of the contract.
  */
 const RATE_HEADERS: Obj = {
+  Link: headerRef('Link'),
   RateLimit: headerRef('RateLimit'),
   'RateLimit-Policy': headerRef('RateLimit-Policy'),
   'X-RateLimit-Limit': headerRef('X-RateLimit-Limit'),
@@ -107,7 +108,10 @@ const RATE_HEADERS: Obj = {
  * advertising `limit=600, remaining=600` to an unauthenticated caller would be inventing one.
  * See the comment on ApiAuthResult in src/lib/api/auth.ts.
  */
-const ID_ONLY: Obj = { 'X-Request-Id': headerRef('X-Request-Id') }
+const ID_ONLY: Obj = { Link: headerRef('Link'), 'X-Request-Id': headerRef('X-Request-Id') }
+
+/** `apiAuthError()` in src/lib/api/respond.ts adds the Bearer challenge on a 401 and on a 403 `insufficient_scope`. */
+const CHALLENGE: Obj = { 'WWW-Authenticate': headerRef('WWW-Authenticate') }
 
 function ok(description: string, schema: Obj, extraHeaders: Obj = {}): Obj {
   return { description, headers: { ...RATE_HEADERS, ...extraHeaders }, content: json(schema) }
@@ -123,12 +127,13 @@ function ok(description: string, schema: Obj, extraHeaders: Obj = {}): Obj {
  * which grow without touching this file. A client that pattern-matched a generated enum would
  * break on the thirteenth publish code; a client reading the prose knows to have a default arm.
  */
-function fail(description: string, codes: readonly string[], opts: { rate?: boolean; retryAfter?: boolean } = {}): Obj {
+function fail(description: string, codes: readonly string[], opts: { rate?: boolean; retryAfter?: boolean; challenge?: boolean } = {}): Obj {
   return {
     description: `${description} \`error.code\` is one of: ${codes.map((c) => `\`${c}\``).join(', ')}.`,
     headers: {
       ...(opts.rate === false ? ID_ONLY : RATE_HEADERS),
       ...(opts.retryAfter ? { 'Retry-After': headerRef('Retry-After') } : {}),
+      ...(opts.challenge ? CHALLENGE : {}),
     },
     content: json(schemaRef('Error')),
   }
@@ -142,14 +147,14 @@ function fail(description: string, codes: readonly string[], opts: { rate?: bool
 function authFailures(): Obj {
   return {
     '401': fail(
-      'No credential, a malformed one, or a revoked key / expired access token. Rejected before the rate limiter, so no rate-limit headers are present.',
+      'No credential, a malformed one, or a revoked key / expired access token. A missing, malformed, unknown or revoked key is counted by the anonymous per-IP limiter, so those 401s carry the rate-limit headers listed here; an invalid access token is refused before any limiter and carries none (response headers are optional in OpenAPI unless marked required). `WWW-Authenticate` names the RFC 9728 document.',
       ['unauthorized'],
-      { rate: false },
+      { challenge: true },
     ),
     '403': fail(
       'The credential is valid but does not carry the scope this operation requires.',
       ['insufficient_scope'],
-      { rate: false },
+      { rate: false, challenge: true },
     ),
     '429': fail(
       'Per-API-key rate limit exceeded (600 requests per 60s, shared between a raw key and any access token minted from it). `Retry-After` and `RateLimit` say when to try again.',
@@ -271,6 +276,7 @@ export const SPEC = {
       '- Additive changes ship inside v1 without notice: new response fields, new optional request fields, new operations, new `error.code` values. Clients MUST ignore fields they do not recognise and MUST NOT treat any enumeration in this document as closed unless it says otherwise.',
       '- When an operation is scheduled for removal it is marked `deprecated: true` in this document and its responses carry the `Deprecation` (RFC 9745) and `Sunset` (RFC 8594) headers naming the date. Those headers are the machine-readable signal to watch for; this document is the human-readable one.',
       '- Nothing in this version is deprecated today and no sunset date has been set for anything in it. That is a statement of current fact, not a commitment to a notice period — no retirement timeline has been published.',
+      `- The policy has its own page, \`${CANONICAL_ORIGIN}/developers/versioning\`, and every response from an operation here except \`POST /oauth/token\` names it in a \`Link: <…>; rel="deprecation"\` header (RFC 9745 §3).`,
       '- This document is served by the same deployment it describes, so it cannot describe a build that is not running.',
       '',
       '## Discovery',
@@ -278,8 +284,11 @@ export const SPEC = {
       `- \`${CANONICAL_ORIGIN}/openapi.json\` — this document (also at \`${CANONICAL_ORIGIN}/api/v1/openapi.json\`).`,
       `- \`${CANONICAL_ORIGIN}/.well-known/oauth-authorization-server\` — RFC 8414 authorization-server metadata for the token endpoint below.`,
       `- \`${CANONICAL_ORIGIN}/.well-known/oauth-protected-resource\` — RFC 9728 metadata for this API as a protected resource.`,
+      `- \`${CANONICAL_ORIGIN}/.well-known/api-catalog\` — RFC 9727 catalogue of this host's APIs (this one and the MCP server).`,
       `- \`${CANONICAL_ORIGIN}/llms.txt\` — site index for agents.`,
       `- \`${CANONICAL_ORIGIN}/developers\` — the human guide, with worked examples.`,
+      `- \`${CANONICAL_ORIGIN}/developers/mcp\` — the hosted MCP server: how to connect an agent, and its tools.`,
+      `- \`${CANONICAL_ORIGIN}/developers/versioning\` — the versioning and deprecation policy.`,
     ].join('\n'),
     contact: { name: `${SITE_NAME} partner support`, url: `${CANONICAL_ORIGIN}/developers` },
   },
@@ -290,6 +299,7 @@ export const SPEC = {
   // introduced eno.forum as eno.vn — and worse here, because a spec is consumed by
   // codegen and tool-callers that will not notice the name is wrong.
   servers: SERVERS,
+  externalDocs: { description: `${SITE_NAME} Partner API guide, with worked examples`, url: `${CANONICAL_ORIGIN}/developers` },
   // Fallback only: every operation below states its own requirement. Both entries are
   // alternatives — one credential satisfies the operation.
   security: [{ bearerAuth: [] }, { oauth2: [] }],
@@ -309,6 +319,8 @@ export const SPEC = {
       headers: ['Deprecation (RFC 9745)', 'Sunset (RFC 8594)'],
     },
     breakingChangePolicy: 'A breaking change ships as a new major version under a new URL path; /api/v1 is not reshaped in place.',
+    // The human-readable policy, the same URL every response names in `Link: <…>; rel="deprecation"`.
+    policyUrl: `${CANONICAL_ORIGIN}/developers/versioning`,
     additiveChangePolicy: 'New fields, operations and error codes may be added to v1 without notice. Clients must ignore unknown fields.',
   },
   components: {
@@ -339,6 +351,16 @@ export const SPEC = {
       },
     },
     headers: {
+      Link: {
+        description: `On every response from a documented /api/v1 operation except \`POST /oauth/token\` (which builds its own headers; an unmatched path's JSON 404 carries none): \`rel="service-desc"\` (this document) and \`rel="service-doc"\` (the human guide), RFC 8631; \`rel="deprecation"\`, the versioning and deprecation policy (RFC 9745 §3 — sent while nothing is deprecated, to make the policy discoverable; a deprecated operation would ALSO carry a \`Deprecation\` field); \`rel="api-catalog"\`, the RFC 9727 catalogue.`,
+        example: `<${CANONICAL_ORIGIN}/openapi.json>; rel="service-desc"; type="application/vnd.oai.openapi+json", <${CANONICAL_ORIGIN}/developers>; rel="service-doc"; type="text/html", <${CANONICAL_ORIGIN}/developers/versioning>; rel="deprecation"; type="text/html", <${CANONICAL_ORIGIN}/.well-known/api-catalog>; rel="api-catalog"`,
+        schema: { type: 'string' },
+      },
+      'WWW-Authenticate': {
+        description: 'The Bearer challenge (RFC 6750 §3) on a 401 and on a 403 `insufficient_scope`. `resource_metadata` (RFC 9728 §5.1) is the protected-resource document for this API. `error` is absent when no credential was sent, `invalid_token` for a bad, expired or revoked one, and `insufficient_scope` (with the `scope` the operation needs) on a 403.',
+        example: `Bearer realm="${new URL(CANONICAL_ORIGIN).host} Partner API", error="invalid_token", resource_metadata="${CANONICAL_ORIGIN}/.well-known/oauth-protected-resource/api/v1"`,
+        schema: { type: 'string' },
+      },
       'X-Request-Id': {
         description: 'Unique id for this response. On every /api/v1 response except `POST /oauth/token` (which builds its headers separately). Quote it in a support request.',
         schema: { type: 'string', format: 'uuid' },
@@ -430,6 +452,9 @@ export const SPEC = {
               oauth_protected_resource: { type: 'string', format: 'uri', description: 'RFC 9728 metadata describing this API as a protected resource.' },
               developers: { type: 'string', format: 'uri', description: 'The human guide, with worked examples.' },
               llms_txt: { type: 'string', format: 'uri', description: 'Site index for agents.' },
+              api_catalog: { type: 'string', format: 'uri', description: 'RFC 9727 API catalogue (application/linkset+json).' },
+              mcp: { type: 'string', format: 'uri', description: 'The hosted MCP server\'s page: how to connect, and its tools.' },
+              versioning: { type: 'string', format: 'uri', description: 'The versioning and deprecation policy.' },
             },
           },
           rate_limit: {

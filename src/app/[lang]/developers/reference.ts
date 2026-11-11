@@ -142,6 +142,13 @@ export const DISCOVERY: ReadonlyArray<{ href: string; label: string; note: strin
     note: 'MCP Server Card: the hosted Model Context Protocol server at /api/mcp, its transport, its protocol versions, and the Bearer header to connect with. Point an MCP client here.',
   },
   {
+    // 2026-11-11: RFC 9727. Curled before writing? NO — new in the same commit as its route and rewrite, like
+    // /.well-known/mcp.json was (the note above): delete this entry if the rewrite in next.config.ts does not land.
+    href: '/.well-known/api-catalog',
+    label: '/.well-known/api-catalog',
+    note: 'RFC 9727 API catalogue: this API and the MCP server, each with its spec, docs and status links, as a Linkset.',
+  },
+  {
     href: '/llms.txt',
     label: '/llms.txt',
     note: 'What this site is and when to use it, written for an agent rather than a crawler.',

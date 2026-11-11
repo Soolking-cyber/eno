@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { isTeacherHost, apexOrigin } from '@/lib/teachers/host'
 import { isSchoolsHost, schoolsRedirectUrl } from '@/lib/schools/host'
 import { classroomRedirectUrl, isClassroomHost } from '@/lib/classroom/host'
+import { docsHostRedirectUrl, docsHostServesInPlace, isDocsHost } from '@/lib/docs-host'
 import { IS_SERVICES } from '@/lib/edition'
 import { storefrontBaseHost, storefrontHandleFromHost, storefrontLabelUrl, underscoreHost } from '@/lib/storefront-host'
 import { LANG_COOKIE, langVariantFor, type LangVariant } from '@/lib/lang-variant'
@@ -427,6 +428,22 @@ export function proxy(req: NextRequest) {
   if (!IS_SERVICES && isClassroomHost(req.headers.get('host'), process.env.NEXT_PUBLIC_APP_URL) && !isApi(req.nextUrl.pathname)) {
     if (req.method !== 'GET' && req.method !== 'HEAD') return new NextResponse('Method Not Allowed', { status: 405, headers: { allow: 'GET, HEAD' } })
     const to = classroomRedirectUrl(process.env.NEXT_PUBLIC_APP_URL, req.nextUrl.pathname, req.nextUrl.search)
+    if (to) return NextResponse.redirect(to, 302)
+  }
+
+  /**
+   * docs.<base> AND api.<base> — NAMES FOR /developers (2026-11-11; src/lib/docs-host.ts says why). Both served the whole
+   * homepage. A GET/HEAD page request 302s to the app origin (`/` → /developers, other paths kept); `/api/*`,
+   * `/.well-known/*` and other methods are untouched. ⚠️ BEFORE the storefront branch, like schools./classroom.: `docs` is
+   * a reserved handle and `api` an infrastructure label, so neither ever resolves as a shop. Both editions.
+   */
+  if (
+    (req.method === 'GET' || req.method === 'HEAD') &&
+    isDocsHost(req.headers.get('host'), process.env.NEXT_PUBLIC_APP_URL) &&
+    !docsHostServesInPlace(req.nextUrl.pathname)
+  ) {
+    const to = docsHostRedirectUrl(process.env.NEXT_PUBLIC_APP_URL, req.nextUrl.pathname, req.nextUrl.search)
+    // 302, like schools./classroom.: a browser caches a 301 for good, and api.<base> may yet get a real job.
     if (to) return NextResponse.redirect(to, 302)
   }
 

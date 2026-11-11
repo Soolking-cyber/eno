@@ -82,6 +82,12 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`
 const DEVELOPER_SECTION = `## For developers and agents
 
 - [Developer documentation](${SITE_ORIGIN}/developers) — authentication, scopes, endpoints, copy-pasteable requests.
+- [MCP server](${SITE_ORIGIN}/developers/mcp) — connect an AI agent (Claude Code, Cursor, any MCP client) to a
+  storefront: the endpoint, the header, and every tool with the scope it needs.
+- [Versioning and deprecation policy](${SITE_ORIGIN}/developers/versioning) — URL-path versioning, what may change
+  inside v1 without notice, and the Deprecation / Sunset headers that announce a removal.
+- [API catalogue](${SITE_ORIGIN}/.well-known/api-catalog) — RFC 9727 Linkset of this host's APIs (the REST API and the
+  MCP server), each with its spec, docs and status links.
 - [OpenAPI 3.1 spec](${SITE_ORIGIN}/openapi.json) — the Partner API, machine-readable. The same document is also served at [/api/v1/openapi.json](${SITE_ORIGIN}/api/v1/openapi.json).
 - [OAuth authorization server metadata](${SITE_ORIGIN}/.well-known/oauth-authorization-server) — RFC 8414: token endpoint, grant, scopes.
 - [OAuth protected resource metadata](${SITE_ORIGIN}/.well-known/oauth-protected-resource) — RFC 9728: which resource a token is for.

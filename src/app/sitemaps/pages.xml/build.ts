@@ -388,7 +388,10 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
   // live, self-canonical and indexable on both editions, and none was in this list — /contact had one
   // inbound link in the whole app (the 404 page). None names a partner or a service either edition
   // may not offer.
-  for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'returns', 'prohibited', 'brands', 'developers', 'contact', 'partners', 'legal/ranking']) {
+  //
+  // 'developers/mcp' AND 'developers/versioning' JOINED 2026-11-11 with the pages themselves: the MCP server's page and the
+  // deprecation policy, both shared by the two editions like /developers.
+  for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'returns', 'prohibited', 'brands', 'developers', 'developers/mcp', 'developers/versioning', 'contact', 'partners', 'legal/ranking']) {
     urls.push(`  <url><loc>${hostUrl}/${p}</loc></url>\n`)
   }
 

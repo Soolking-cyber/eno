@@ -88,7 +88,14 @@ export type ApiAuthResult =
    * a self-throttling client most needs the numbers and `Retry-After` on, and until 2026-08-23
    * it was the only /api/v1 response that shipped none of them.
    */
-  | { ok: false; status: number; code: string; message: string; rate?: RateLimitSnapshot }
+  | { ok: false; status: number; code: string; message: string; rate?: RateLimitSnapshot; challenge?: AuthChallenge }
+
+/**
+ * What the refusal's `WWW-Authenticate` says (respond.ts apiAuthError, RFC 6750 §3.1): `invalid_token` when a credential
+ * was sent and is bad, expired or revoked; `insufficient_scope` with the scope the call needed. Absent when no credential
+ * was sent at all, which per §3.1 carries no error code.
+ */
+export type AuthChallenge = { error?: 'invalid_token' | 'insufficient_scope'; scope?: string }
 
 /**
  * Resolve + authorize a partner request. Reads the `Authorization: Bearer <key>` header,
@@ -105,9 +112,9 @@ export async function resolveApiKey(req: Request, requiredScope?: string): Promi
   // travel in the token; rate-limit keyed by the underlying key id (shared with the key).
   if (raw && looksLikeAccessToken(raw)) {
     const tok = verifyAccessToken(raw, Math.floor(Date.now() / 1000))
-    if (!tok) return { ok: false, status: 401, code: 'unauthorized', message: 'Invalid or expired access token.' }
+    if (!tok) return { ok: false, status: 401, code: 'unauthorized', message: 'Invalid or expired access token.', challenge: { error: 'invalid_token' } }
     if (requiredScope && !tok.scopes.has(requiredScope)) {
-      return { ok: false, status: 403, code: 'insufficient_scope', message: `This token is missing the "${requiredScope}" scope.` }
+      return { ok: false, status: 403, code: 'insufficient_scope', message: `This token is missing the "${requiredScope}" scope.`, challenge: { error: 'insufficient_scope', scope: requiredScope } }
     }
     const rl = await rateLimit('apiv1', tok.keyId, API_RATE_PER_MIN, '1 m')
     if (!rl.success) return { ok: false, status: 429, code: 'rate_limited', message: 'Rate limit exceeded. Slow down or back off.', rate: rl }
@@ -138,7 +145,8 @@ export async function resolveApiKey(req: Request, requiredScope?: string): Promi
     if (!rl.success) {
       return { ok: false, status: 429, code: 'rate_limited', message: 'Too many unauthenticated requests. Slow down.', rate: rl }
     }
-    return { ok: false, status: 401, code: 'unauthorized', message: 'Missing or malformed API key. Send `Authorization: Bearer eno_live_…`.', rate: rl }
+    // A credential of the wrong shape is a bad token; no credential at all is no error code (RFC 6750 §3.1).
+    return { ok: false, status: 401, code: 'unauthorized', message: 'Missing or malformed API key. Send `Authorization: Bearer eno_live_…`.', rate: rl, challenge: raw ? { error: 'invalid_token' } : undefined }
   }
   let key: { id: string; sellerId: string; profileId: string; scopes: string; revokedAt: Date | null } | null = null
   try {
@@ -163,11 +171,11 @@ export async function resolveApiKey(req: Request, requiredScope?: string): Promi
     if (!rl.success) {
       return { ok: false, status: 429, code: 'rate_limited', message: 'Too many unauthenticated requests. Slow down.', rate: rl }
     }
-    return { ok: false, status: 401, code: 'unauthorized', message: 'Invalid or revoked API key.', rate: rl }
+    return { ok: false, status: 401, code: 'unauthorized', message: 'Invalid or revoked API key.', rate: rl, challenge: { error: 'invalid_token' } }
   }
   const scopes = new Set(key.scopes.split(/\s+/).filter(Boolean))
   if (requiredScope && !scopes.has(requiredScope)) {
-    return { ok: false, status: 403, code: 'insufficient_scope', message: `This key is missing the "${requiredScope}" scope.` }
+    return { ok: false, status: 403, code: 'insufficient_scope', message: `This key is missing the "${requiredScope}" scope.`, challenge: { error: 'insufficient_scope', scope: requiredScope } }
   }
   // ⛔ strict: FAIL CLOSED. Without it a limiter backend error returns success:true and
   // every API key becomes unlimited for the duration of the outage — the one moment

@@ -71,6 +71,7 @@ const REQUIRED_LINKS = [
   '/.well-known/oauth-authorization-server',
   '/.well-known/oauth-protected-resource',
   '/.well-known/mcp.json',
+  '/.well-known/api-catalog',
   '/llms.txt',
   '/sitemap.xml',
 ]
@@ -86,7 +87,7 @@ describe('/developers reference — marketplace edition (eno.vn)', () => {
     expect(m.SUPPORT_EMAIL).toBe('support@eno.vn')
   })
 
-  it('publishes all eight discovery URLs as root-relative hrefs', async () => {
+  it('publishes all nine discovery URLs as root-relative hrefs', async () => {
     const m = await load('marketplace', 'https://eno.vn')
     expect(m.DISCOVERY.map((d) => d.href)).toEqual(REQUIRED_LINKS)
     // Root-relative, so a link resolves to THIS deployment's copy and carries no hostname that
@@ -109,7 +110,7 @@ describe('/developers reference — services edition (eno.forum)', () => {
     expect(everything).not.toContain('eno.vn')
   })
 
-  it('publishes the same eight discovery URLs — both deployments serve them identically', async () => {
+  it('publishes the same nine discovery URLs — both deployments serve them identically', async () => {
     const m = await load('services', 'https://www.eno.forum')
     expect(m.DISCOVERY.map((d) => d.href)).toEqual(REQUIRED_LINKS)
   })

@@ -1220,6 +1220,9 @@ const nextConfig: NextConfig = {
         { source: "/.well-known/mcp/server-card", destination: "/api/well-known/mcp-server-card" },
         { source: "/.well-known/mcp/server-card.json", destination: "/api/well-known/mcp-server-card" },
         { source: "/.well-known/ai-catalog.json", destination: "/api/well-known/ai-catalog" },
+        // RFC 9727 API catalogue (2026-11-11; src/app/api/well-known/api-catalog/route.ts). The exact well-known name,
+        // no extension — the RFC registers `api-catalog`, and a `.json` alias would be a second document to keep equal.
+        { source: "/.well-known/api-catalog", destination: "/api/well-known/api-catalog" },
         { source: "/agents.md", destination: "/md/agents" },
         { source: "/index.md", destination: "/md/index" },
         { source: "/auth.md", destination: "/md/auth" },
