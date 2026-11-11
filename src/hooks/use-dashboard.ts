@@ -237,6 +237,8 @@ let inflightView: DashView = 'summary'  // what that in-flight request asks for
  */
 let fullConsumers = 0
 const wantedView = (): DashView => (fullConsumers > 0 ? 'full' : 'summary')
+/** The view of the request whose failure `error: 'failed'` reports (read by revalidate's `firstFull`). */
+let failedView: DashView | null = null
 /** The 401 marker: the server refused this browser's session. */
 const UNAUTHORIZED = { unauthorized: true as const }
 const fetchDashboard = (view: DashView): Promise<{ dashboard?: DashSummary } | typeof UNAUTHORIZED | null> =>
@@ -280,9 +282,18 @@ function revalidate(uid: string, force = false) {
   // ⛔ AND RE-ENTER LOADING WHEN THERE IS NO DATA. Clearing the error alone left `{ dash: null, loading: false,
   // error: null }` for the length of the retry — which reads as "loaded, and empty": the availability
   // review took that as nothing to review, marked today's review done and left.
-  // A full request while the store holds no listings does the same with an earlier failure (the summary's, say): the
+  // A full request while the store holds no listings does the same with an earlier failure of a SUMMARY (the rail's): the
   // page that needs them has nothing to show yet, and this request is a new try, not the one that failed.
-  const firstFull = view === 'full' && !state.full && state.error === 'failed'
+  // ⛔ NEVER WITH A FAILED FULL REQUEST (2026-11-11). When the desktop rail mounts after the page's own answer has landed,
+  // it asks again: not forced, and the full view while the page is mounted (local builds, 1024px or wider, the first full
+  // answer failing at once: a second full request in 60 of 63 loads; in the other 3 the rail mounted while the page's
+  // request was in flight and was deduped, as in 9 of 9 loads with that answer held 1.5 s). Clearing the page's own
+  // failure there flipped My listings from "Couldn't load your listings" back to its skeleton, then to the error again
+  // when that request failed too: two more layout shifts of 0.1358 each, moving the content panel (div.mt-6) and
+  // footer#app-footer (local build, Chromium, 1350x940, a failed answer or a rejected fetch alike: CLS 0.489 against
+  // 0.31-0.37 on the build before the summary). The error now stays until an answer replaces it, as it did then; Retry
+  // and a mutation's re-pull (forced) still re-enter loading.
+  const firstFull = view === 'full' && !state.full && state.error === 'failed' && failedView === 'summary'
   if ((force && state.error) || firstFull) set({ error: null, loading: state.dash === null })
   fetchDashboard(view)
     // A 401: one session refresh, then one retry (see refreshSessionOnce) — unless a newer request or another
@@ -312,10 +323,11 @@ function revalidate(uid: string, force = false) {
         set({ dash: null, full: false, fullFresh: false, loading: false, error: 'auth', fresh: false })
         dropDevice()
       } else {
+        failedView = view
         set({ loading: false, error: 'failed' })
       }
     })
-    .catch(() => { if (ticket === inflight && state.userId === uid) set({ loading: false, error: 'failed' }) })
+    .catch(() => { if (ticket === inflight && state.userId === uid) { failedView = view; set({ loading: false, error: 'failed' }) } })
     // Only the LATEST request may clear the in-flight marker. A forced refresh can overlap an
     // older same-uid fetch; if the older one's finally cleared the marker, a third load could
     // start concurrently. Gating on `ticket === inflight` means only the newest resolves it.

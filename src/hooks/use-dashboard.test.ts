@@ -204,16 +204,20 @@ describe('⛔ Retry re-enters loading (never "loaded and empty" mid-retry)', () 
  * last full answer for the two pages that list listings.
  */
 describe('summary and full views', () => {
-  type Held = { url: string; reply: (status: number, body?: unknown) => Promise<void> }
+  type Held = { url: string; reply: (status: number, body?: unknown) => Promise<void>; fail: () => Promise<void> }
   let held: Held[] = []
   beforeEach(() => {
     held = []
-    // Every request waits until the test answers it, so the order of requests and answers is the test's.
-    vi.stubGlobal('fetch', vi.fn((url: string) => new Promise((resolve) => {
+    // Every request waits until the test answers it, so the order of requests and answers is the test's. `fail()` is
+    // the request that never gets an answer (offline): fetch rejects, as the browser's does.
+    vi.stubGlobal('fetch', vi.fn((url: string) => new Promise((resolve, reject) => {
       held.push({
         url: String(url),
         reply: async (status, body) => {
           await act(async () => { resolve({ ok: status >= 200 && status < 300, status, json: async () => body }) })
+        },
+        fail: async () => {
+          await act(async () => { reject(new TypeError('Failed to fetch')) })
         },
       })
     })))
@@ -559,6 +563,93 @@ describe('summary and full views', () => {
   it('a failed summary is not the page\'s failure: its first full request shows loading, not the error', async () => {
     const r = await rail()
     await held[0].reply(500)
+    expect(r.result.current.error).toBe('failed')
+    const p = await page()
+    expect(urls()).toEqual([SUMMARY_URL, FULL_URL])
+    expect(p.result.current.error).toBeNull()
+    expect(p.result.current.loading).toBe(true)
+    await held[1].reply(200, { dashboard: FULL })
+    expect(p.result.current.dash?.listings).toHaveLength(1)
+  })
+
+  /**
+   * ⛔ THE PAGE'S OWN FAILURE STAYS ON SCREEN (2026-11-11). When the desktop rail mounts after the page's answer has
+   * landed, it asks again (not forced; the full view while the page is mounted). Local builds, 1024px or wider, the first
+   * full answer failing at once: a second full request in 60 of 63 loads; in the other 3 the rail mounted while the
+   * page's request was in flight, was deduped, and nothing flipped (as in 9 of 9 loads with that answer held 1.5 s). That
+   * request used to clear the page's error, so My listings went from "Couldn't load your listings" back to its skeleton
+   * and, when it failed too, to the error again: CLS 0.489 on the local build at 1350x940 with the full answer failing or
+   * the fetch rejecting, against 0.31-0.37 on the build before the summary.
+   */
+  it('⛔ a page whose own full request failed keeps the error while a later mount asks again: never back to loading', async () => {
+    const p = await page()
+    await held[0].reply(500)
+    expect(p.result.current.error).toBe('failed')
+    expect(p.result.current.loading).toBe(false)
+    await rail() // the desktop rail, mounting after the answer
+    expect(urls()).toEqual([FULL_URL, FULL_URL])
+    expect(p.result.current.error).toBe('failed')
+    expect(p.result.current.loading).toBe(false)
+    expect(p.result.current.dash).toBeNull()
+    await held[1].reply(500)
+    expect(p.result.current.error).toBe('failed')
+    expect(p.result.current.loading).toBe(false)
+  })
+
+  it('…and that request\'s answer replaces the error when it lands', async () => {
+    const p = await page()
+    await held[0].reply(500)
+    await rail()
+    expect(p.result.current.error).toBe('failed')
+    await held[1].reply(200, { dashboard: FULL })
+    expect(p.result.current.error).toBeNull()
+    expect(p.result.current.dash?.listings).toHaveLength(1)
+    expect(p.result.current.fresh).toBe(true)
+  })
+
+  it('after the page\'s own failure, Retry (forced) still shows loading while it asks', async () => {
+    const p = await page()
+    await held[0].reply(500)
+    act(() => { p.result.current.refresh() })
+    expect(urls()).toEqual([FULL_URL, FULL_URL])
+    expect(p.result.current.error).toBeNull()
+    expect(p.result.current.loading).toBe(true)
+    await held[1].reply(200, { dashboard: FULL })
+    expect(p.result.current.dash?.listings).toHaveLength(1)
+  })
+
+  it('a failed summary, then the page\'s own full request failing: the next mount does not clear the page\'s error', async () => {
+    const r = await rail()
+    await held[0].reply(500)
+    const p = await page()
+    expect(p.result.current.loading).toBe(true) // the summary's failure is not the page's (above)
+    await held[1].reply(500)
+    expect(p.result.current.error).toBe('failed')
+    await rail()
+    expect(urls()).toEqual([SUMMARY_URL, FULL_URL, FULL_URL])
+    expect(p.result.current.error).toBe('failed')
+    expect(p.result.current.loading).toBe(false)
+    expect(r.result.current.error).toBe('failed')
+  })
+
+  it('⛔ offline: a failed summary, then the page\'s own full request REJECTING (fetch throws): the next mount keeps the error', async () => {
+    const r = await rail()
+    await held[0].reply(500)
+    const p = await page()
+    expect(p.result.current.loading).toBe(true)
+    await held[1].fail()
+    expect(p.result.current.error).toBe('failed')
+    expect(p.result.current.loading).toBe(false)
+    await rail()
+    expect(urls()).toEqual([SUMMARY_URL, FULL_URL, FULL_URL])
+    expect(p.result.current.error).toBe('failed')
+    expect(p.result.current.loading).toBe(false)
+    expect(r.result.current.error).toBe('failed')
+  })
+
+  it('a summary that REJECTS (offline) is not the page\'s failure either: its first full request shows loading', async () => {
+    const r = await rail()
+    await held[0].fail()
     expect(r.result.current.error).toBe('failed')
     const p = await page()
     expect(urls()).toEqual([SUMMARY_URL, FULL_URL])
