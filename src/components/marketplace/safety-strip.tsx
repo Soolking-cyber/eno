@@ -5,6 +5,7 @@ import { ShieldCheck } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { VEHICLE_RENTAL_SUBCATS } from '@/lib/rental-places'
+import { stripLineKind } from '@/lib/pdp-safety-note'
 
 /** The vehicle-hire slugs whose driver needs a licence (a bicycle or an e-bike does not). */
 const LICENSED_VEHICLE_HIRE = ['car-rental', 'motorbike-rental']
@@ -38,6 +39,9 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
   const licensedVehicle = vehicleHire && LICENSED_VEHICLE_HIRE.includes(subcategorySlug!)
   // A job's strip: the Jobs category, or a job listing wherever it is filed (`job`), for all three job lines below.
   const isJobStrip = categorySlug === 'jobs' || job
+  // The line for a listing that does not link out, from the ONE selector the listing page's bottom note is judged against
+  // (src/lib/pdp-safety-note.ts, batch 62): the page drops its note only where this line already says it.
+  const ownLine = stripLineKind(categorySlug, subcategorySlug, job)
 
   // ⚠️ "partner tickets" IS WRONG ON A PHONE. The affiliate line was written for VinWonders and
   // then inherited by an imported electronics catalogue, where it told a reader buying a laptop
@@ -106,19 +110,28 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
       // A seller's OWN vehicle-hire listing gets the vehicles line, not the "hold a place" housing one.
       // ⚠️ NOT Vehicles › Parts (pdp-08): a helmet or a tyre has no papers or chassis number to check —
       // it is goods, and gets the goods line below ("Meet, inspect, then pay").
-      : (categorySlug === 'vehicles' && subcategorySlug !== 'parts-gear') || vehicleHire
+      // "See the vehicle … eno never asks for one" (batch 62, 2026-11-11): a vehicle hire's listing page had a bottom note saying
+      // to visit in person and that eno never asks for a deposit through a link; the note is gone where this line stands, so
+      // both facts live here (and a vehicle for sale gains the impersonation rebuttal too).
+      : ownLine === 'vehicle'
       ? tr(
-          'Check the papers match the chassis before paying — and never pay a deposit through a link.',
-          'Kiểm tra giấy tờ trùng số khung, số máy trước khi trả tiền — và đừng bao giờ đặt cọc qua đường link.',
+          'See the vehicle and check its papers match the chassis before paying. Never pay a deposit through a link — eno never asks for one.',
+          'Xem xe tận nơi và kiểm tra giấy tờ trùng số khung, số máy trước khi trả tiền. Đừng bao giờ đặt cọc qua đường link — eno không bao giờ yêu cầu điều đó.',
         )
-      : categorySlug === 'property' || categorySlug === 'rentals'
+      // "and check the owner's papers" (batch 62, 2026-11-11): the listing page's bottom note said it a screen below this
+      // line, which it otherwise repeated; the note is gone on a rental and the one fact it added lives here.
+      // "through a link … eno never asks for one" too: the anti-impersonation half of that note ("eno.vn never asks for a deposit
+      // via a link"), in the strip's both-editions voice.
+      : ownLine === 'housing'
         ? tr(
-            'Visit in person before paying any deposit — never wire money to hold a place.',
-            'Đến xem tận nơi trước khi đặt cọc — đừng bao giờ chuyển khoản để giữ chỗ.',
+            "Visit in person and check the owner's papers before paying any deposit. Never pay it through a link or wire money to hold a place — eno never asks for one.",
+            'Đến xem tận nơi và kiểm tra giấy tờ của chủ sở hữu trước khi đặt cọc. Đừng bao giờ đặt cọc qua đường link hay chuyển khoản để giữ chỗ — eno không bao giờ yêu cầu điều đó.',
           )
+        // "in a public place" (batch 62, 2026-11-11): the listing page's bottom note said it under this line, which it otherwise
+        // repeated; on eno.vn that note is gone on plain goods and its one personal-safety fact lives here.
         : tr(
-            'Never send a deposit through a link — eno.vn never asks for one. Meet, inspect, then pay.',
-            'Đừng bao giờ chuyển tiền cọc qua đường link — eno.vn không bao giờ yêu cầu đặt cọc. Gặp trực tiếp, kiểm tra hàng rồi mới trả tiền.',
+            'Never send a deposit through a link — eno.vn never asks for one. Meet in a public place, inspect, then pay.',
+            'Đừng bao giờ chuyển tiền cọc qua đường link — eno.vn không bao giờ yêu cầu đặt cọc. Gặp ở nơi công cộng, kiểm tra hàng rồi mới trả tiền.',
           )
 
   return (

@@ -23,6 +23,7 @@ vi.mock('@/context/language-context', () => ({
 }))
 vi.mock('@/hooks/use-mounted', () => ({ useMounted: () => false }))
 
+import { stripLineKind } from '@/lib/pdp-safety-note'
 import { SafetyStrip } from './safety-strip'
 import { AffiliateBooking, AffiliateCtaRepeat } from './affiliate-booking'
 import { PdpShopLink } from './pdp-shop-link'
@@ -65,24 +66,47 @@ describe('SafetyStrip — vehicle hire is not a home (2026-10-01)', () => {
 
   it("a seller's OWN car rental gets the vehicles papers line, not the housing \"hold a place\" one", () => {
     const en = strip('car-rental')
-    expect(en).toContain('Check the papers match the chassis before paying')
+    expect(en).toContain('check its papers match the chassis before paying')
     expect(en).not.toContain('hold a place')
     expect(en).toContain('Driving a hired car or motorbike yourself')
   })
 
   it('Vehicles › Parts is goods: the goods line, not papers-and-chassis (pdp-08); a car keeps the papers line', () => {
     const parts = both(() => text(renderToString(<SafetyStrip categorySlug="vehicles" subcategorySlug="parts-gear" />)))
-    expect(parts.en).toContain('Meet, inspect, then pay.')
-    expect(parts.vi).toContain('Gặp trực tiếp, kiểm tra hàng rồi mới trả tiền.')
+    expect(parts.en).toContain('Meet in a public place, inspect, then pay.')
+    expect(parts.vi).toContain('Gặp ở nơi công cộng, kiểm tra hàng rồi mới trả tiền.')
     expect(parts.en).not.toContain('chassis')
-    expect(text(renderToString(<SafetyStrip categorySlug="vehicles" subcategorySlug="car" />))).toContain('Check the papers match the chassis before paying')
-    expect(text(renderToString(<SafetyStrip categorySlug="vehicles" />))).toContain('Check the papers match the chassis before paying')
+    expect(text(renderToString(<SafetyStrip categorySlug="vehicles" subcategorySlug="car" />))).toContain('check its papers match the chassis before paying')
+    expect(text(renderToString(<SafetyStrip categorySlug="vehicles" />))).toContain('check its papers match the chassis before paying')
+  })
+
+  /** The strip and the listing page's bottom note judge by ONE selector (batch 62): what the strip RENDERS must be that line. */
+  it('the rendered line is the one stripLineKind names, for every shape the page passes', () => {
+    const phrase = { job: 'Never pay a fee or a deposit to get a job', vehicle: 'check its papers match the chassis before paying', housing: "check the owner's papers before paying any deposit", goods: 'Meet in a public place, inspect, then pay.' } as const
+    const shapes: [string, string | null, boolean][] = [
+      ['jobs', null, false], ['electronics', null, true], ['vehicles', 'motorbike', false], ['vehicles', 'parts-gear', false],
+      ['rentals', 'motorbike-rental', false], ['rentals', 'apartment-rental', false], ['rentals', null, false], ['property', null, false],
+      ['furniture-appliances', null, false], ['services', 'cleaning', false], ['services', 'visa-legal', false],
+    ]
+    for (const [cat, sub, job] of shapes) {
+      const html = text(renderToString(<SafetyStrip categorySlug={cat} subcategorySlug={sub} job={job} />))
+      const kind = stripLineKind(cat, sub, job)
+      expect(html, `${cat}/${sub}/${job}`).toContain(phrase[kind])
+      for (const other of Object.keys(phrase) as (keyof typeof phrase)[]) if (other !== kind) expect(html, `${cat}/${sub} not ${other}`).not.toContain(phrase[other])
+    }
   })
 
   it('an apartment is unchanged — the housing line, no licence line', () => {
     expect(strip('apartment-rental', 'affiliate-rental')).toContain('See the place and meet the landlord or agent before you pay anything.')
     expect(strip('apartment-rental', 'affiliate-rental')).not.toContain('valid licence')
-    expect(strip(null)).toContain('Visit in person before paying any deposit')
+    // Batch 62: the housing line carries the owner's papers (the PDP's bottom note, which said it, is gone on a rental).
+    expect(strip(null)).toContain("Visit in person and check the owner's papers before paying any deposit")
+    const housing = both(() => strip('apartment-rental'))
+    expect(housing.vi).toContain('Đến xem tận nơi và kiểm tra giấy tờ của chủ sở hữu trước khi đặt cọc')
+    // …and the note's anti-impersonation half, in both languages: never through a link, eno never asks.
+    expect(housing.en).toContain('Never pay it through a link or wire money to hold a place — eno never asks for one.')
+    expect(housing.vi).toContain('Đừng bao giờ đặt cọc qua đường link hay chuyển khoản để giữ chỗ — eno không bao giờ yêu cầu điều đó.')
+    expect(text(renderToString(<SafetyStrip categorySlug="property" />))).toContain("check the owner's papers")
   })
 
   it('no "partner" and no "eno.vn" on a vehicle rental (the strip renders on both editions)', () => {

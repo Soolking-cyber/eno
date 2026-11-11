@@ -67,6 +67,7 @@ import { CalendarDay } from '@/components/marketplace/calendar-day'
 import { cachedTranslations } from '@/lib/translate'
 import { detectContentLang, mayBeVietnamese } from '@/lib/detect-lang'
 import { cn } from '@/lib/utils'
+import { pdpSafetyNoteKind } from '@/lib/pdp-safety-note'
 import { ReviewsPreview } from '@/components/marketplace/reviews-preview'
 import { SameSellerShelf } from '@/components/marketplace/same-seller-shelf'
 import { SoldListing } from '@/components/marketplace/sold-listing'
@@ -805,14 +806,15 @@ export default async function ListingPage({ params }: Props) {
   // the page. Both are now the strip's own quiet line on every job, beside Apply (safety-strip.tsx `data-job-id-line`);
   // the rest (never pay a fee or a deposit) repeated the strip's first line a screen further down, and the linked
   // job page said "never pay" four times. Only the Details 'Nguồn' row was a true repeat, and it is gone.
-  const safetyNote = listing.listingType === 'job'
-    ? null
-    : affiliateUrl ? null
-    : (catSlug === 'rentals' || catSlug === 'property' || listing.listingType === 'rent')
+  // ⛔ NOR, SINCE BATCH 62 (2026-11-11), WHERE THE STRIP ON THIS PAGE ALREADY SAYS IT: a rental (its one extra fact, the owner's
+  // papers, is now in the strip's housing line) and, on eno.vn, plain goods. Which listing gets which note is decided in one
+  // pure, tested place, keyed on the same category facts the strip picks its line by (src/lib/pdp-safety-note.ts).
+  const safetyNoteKind = pdpSafetyNoteKind({ listingType: listing.listingType, categorySlug: catSlug, subcategorySlug: rawListing.subcategorySlug, linked: !!affiliateUrl, visaCopyHeld, forum: IS_SERVICES })
+  const safetyNote = safetyNoteKind === 'rent'
       ? (IS_SERVICES
         ? tr("Visit in person and check the owner's papers before paying any deposit. eno.forum never asks for a deposit via a link.", 'Hãy đến xem tận nơi và kiểm tra giấy tờ của chủ sở hữu trước khi đặt cọc. eno.forum không bao giờ yêu cầu đặt cọc qua đường link.')
         : <Tr text="Visit in person and check the owner's papers before paying any deposit. eno.vn never asks for a deposit via a link." />)
-    : (catSlug === 'services' || listing.listingType === 'service') && !visaCopyHeld
+    : safetyNoteKind === 'service'
       // + who answers for the service itself (owner, 2026-10-14: providers can be "local businesses, individuals … or
       // foreign workers"): the provider holds any licence or work permit THEY need — not the marketplace. Each edition
       // words it the way its neighbour sentence is worded (eno.vn: <Tr> with a curated vi-override, so the nine MT
@@ -820,6 +822,8 @@ export default async function ListingPage({ params }: Props) {
       ? (IS_SERVICES
         ? <>{tr('Agree what is included and the price in chat before paying, and never send a deposit through a link. eno.forum never asks for one.', 'Thống nhất nội dung và giá dịch vụ trong khung chat trước khi thanh toán, và đừng bao giờ chuyển tiền cọc qua đường link. eno.forum không bao giờ yêu cầu điều đó.')}{' '}{tr('Each provider is responsible for holding any licence or work permit they need to offer their service.', 'Mỗi nhà cung cấp tự chịu trách nhiệm có đủ giấy phép hoặc giấy phép lao động cần thiết để cung cấp dịch vụ của mình.')}</>
         : <><Tr text="Agree what is included and the price in chat before paying, and never send a deposit through a link. eno.vn never asks for one." />{' '}<Tr text="Each provider is responsible for holding any licence or work permit they need to offer their service." /></>)
+    : safetyNoteKind !== 'goods'
+      ? null
     : IS_SERVICES && !visaCopyHeld
       ? tr('Meet in a public place and inspect the item before paying. eno.forum never asks for a deposit via a link.', 'Hãy gặp ở nơi công cộng và kiểm tra món hàng trước khi trả tiền. eno.forum không bao giờ yêu cầu đặt cọc qua đường link.')
     : <Tr text="Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link." />

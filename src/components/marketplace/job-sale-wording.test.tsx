@@ -71,10 +71,10 @@ describe('the listing page safety line on an employer\'s own job', () => {
     }
   })
 
-  it('CONTROL: a sale keeps "Meet, inspect, then pay" and the trading guide', () => {
+  it('CONTROL: a sale keeps "Meet in a public place, inspect, then pay" and the trading guide', () => {
     LANG = 'en'
     const sale = strip('electronics')
-    expect(sale).toContain('Meet, inspect, then pay.')
+    expect(sale).toContain('Meet in a public place, inspect, then pay.')
     expect(sale).toContain('Safe trading guide')
     expect(sale).not.toContain('ID documents')
   })

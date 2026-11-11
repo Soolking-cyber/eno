@@ -35,7 +35,7 @@ describe('PDP safety note — one copy per edition', () => {
     renderToString(<LanguageProvider initialLang="vi" initialViDict={VI_OVERRIDES}>{node}</LanguageProvider>)
 
   it('the scan is not vacuous', () => {
-    expect(NOTE).toContain('listing.listingType === \'job\'')
+    expect(NOTE).toContain("safetyNoteKind === 'rent'") // which listing gets which note: src/lib/pdp-safety-note.ts
     expect(pairs).toHaveLength(3)
     expect(allPairs).toHaveLength(4) // + the provider sentence (below)
   })
@@ -76,6 +76,23 @@ describe('PDP safety note — one copy per edition', () => {
     }
   })
 
+  /**
+   * ⛔ THE NOTE IS DROPPED ONLY BECAUSE THE STRIP SAYS IT (batch 62), so the page must hand the strip the same facts the
+   * note is judged by (pdpSafetyNoteKind ← stripLineKind), render it unconditionally, and pick a partner line only for a
+   * listing that links out — the one case where the note is null for its own reason.
+   */
+  it('the strip is in every safety block, fed the same category, subcategory and job facts, partner lines only when linked', () => {
+    const block = PAGE.slice(PAGE.indexOf('<div data-safety-block="" className="order-9 md:order-7">'), PAGE.indexOf('</div>', PAGE.indexOf('<SafetyStrip')))
+    const beforeStrip = block.slice(0, block.indexOf('<SafetyStrip')).replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+    expect(beforeStrip).not.toMatch(/&&|\?/) // nothing conditional between the block and the strip
+    expect(block).toContain('categorySlug={rawListing.category.slug}')
+    expect(block).toContain('subcategorySlug={rawListing.subcategorySlug}')
+    expect(block).toContain("job={listing.listingType === 'job'}")
+    expect(block).toMatch(/variant=\{affiliateUrl \? \(/)
+    expect(PAGE).toContain('const catSlug = rawListing.category.slug')
+    expect(PAGE).toContain('const safetyNoteKind = pdpSafetyNoteKind({ listingType: listing.listingType, categorySlug: catSlug, subcategorySlug: rawListing.subcategorySlug, linked: !!affiliateUrl,')
+  })
+
   it('⛔ the e-visa page keeps the line it had — visa copy is held for the owner', () => {
     // The last branch is the old default, and an e-visa listing (visaCopyHeld) reaches it on both editions.
     expect(NOTE.trimEnd().endsWith('<Tr text="Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link." />')).toBe(true)
@@ -112,9 +129,10 @@ describe('PDP description — rows Details already shows are hidden', () => {
  */
 describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip keeps the reader’s language', () => {
   it('a job has no bottom safety note: its ID-documents advice is the SafetyStrip line beside Apply (2026-11-06 audit)', () => {
-    // The first branch is every job, linked or not, and it renders nothing: the strip carries never-pay, the training fee and the ID advice.
-    expect(NOTE.startsWith("const safetyNote = listing.listingType === 'job'\n")).toBe(true)
-    expect(NOTE.split('\n')[1].trim()).toBe('? null')
+    // Every job, linked or not, gets no note (pdpSafetyNoteKind's first rule; pdp-safety-note.test.ts renders the matrix): the
+    // strip carries never-pay, the training fee and the ID advice.
+    expect(PAGE).toContain('const safetyNoteKind = pdpSafetyNoteKind({ listingType: listing.listingType,')
+    expect(NOTE).toMatch(/: safetyNoteKind !== 'goods'\s*\n\s*\?\s*null/)
     const STRIP = readFileSync(join(process.cwd(), 'src/components/marketplace/safety-strip.tsx'), 'utf8')
     expect(STRIP).toMatch(/\{isJobStrip && \(\s*<p data-job-id-line=""/)
     expect(STRIP).toContain("const isJobStrip = categorySlug === 'jobs' || job")
