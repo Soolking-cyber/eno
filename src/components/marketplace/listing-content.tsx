@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from 'react'
 import { RelativeTime } from './relative-time'
 import { useLanguage, useTr } from '@/context/language-context'
 import { VI_PASSAGE_LABEL, detectContentLang, looksVietnamese, mayBeVietnamese, readsAsVietnamese } from '@/lib/detect-lang'
-import { trCache, translateText } from '@/lib/i18n/mt-client'
+import { trCache, translateText, waitForTranslation } from '@/lib/i18n/mt-client'
 import { formatRichText } from '@/components/marketplace/rich-text'
 import { Button } from '@/components/ui/button'
 
@@ -261,8 +261,14 @@ function useMachineEn(text: string): string {
     const hit = trCache.get(`en ${text}`)
     if (hit) { setVal(hit); return }
     let off = false
-    translateText(text, 'en').then((out) => { if (!off && out) setVal(out) })
-    return () => { off = true }
+    let stopWaiting: (() => void) | undefined
+    translateText(text, 'en').then((out) => {
+      if (off) return
+      if (out) setVal(out)
+      // The original came back (a failed request, say): wait for a later landing, as useTr does (mt-client waitForTranslation).
+      if (out === text) stopWaiting = waitForTranslation(text, 'en', (later) => { if (!off) setVal(later) })
+    })
+    return () => { off = true; stopWaiting?.() }
   }, [text])
   return val
 }

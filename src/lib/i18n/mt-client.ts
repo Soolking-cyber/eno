@@ -162,6 +162,59 @@ function noteTrAsked(ck: string) {
   trAsked.add(ck)
   for (const k of trAsked) { if (trAsked.size <= TR_ASKED_CAP) break; trAsked.delete(k); trAskedLost = true }
 }
+/**
+ * ⛔ A TEXT A FAILED REQUEST LEFT IN ENGLISH IS ASKED AGAIN FOR WHOEVER STILL SHOWS IT (2026-11-11). useTr and useMachineEn
+ * take their answer from translateText's promise, once, in an effect keyed on text and language. A failed request answers
+ * that promise with the English, and the retry below only repainted, which re-runs tr() but not those effects: after one
+ * 500, every card title, place name and <Tr> label of that batch stayed English for the visit, even once the UI
+ * dictionary held the label (measured on the wave-1 build: 0/12 card titles on Korean / and on /vi, 14 texts of the
+ * failed batch still English on Korean /, 3 on /c/rentals). So a reader left with the English waits here
+ * (waitForTranslation). When its text lands — from a retry, another batch or the UI dictionary (wakeTranslationWaiters) —
+ * it gets the translation, and only it re-renders (render counts in language-context.mt-repaint.test.tsx; jsdom, not a
+ * browser).
+ * ⚠️ ONLY A FAILURE IS ASKED AGAIN FOR A WAITER: a text whose every miss was a failed request or a `partial` reply. A
+ * DEFINITE passthrough (a name, a brand) is not, so a visit with no failure never sends more requests than before: the
+ * waiter adds none (the flush filter below can only send fewer).
+ * ⚠️ BOUNDED BY THE MISS WAIT: once per wait (15 s, ×4 each time, at most 10 min), in the timer's one wave, and only while
+ * a mounted reader still shows the text — an unmount ends it.
+ * ⚠️ NEVER TWICE IN FLIGHT (review, 2026-11-11): while a re-ask is still out (a slow origin that has not answered yet),
+ * the timer wave of a later miss finds the same text due again — its missUntil is still the old one, in the past — and
+ * posted it again (unit test, a re-ask that never settles: the text went out 3 times, not 2). `reasking` holds a
+ * waiter's text from its re-ask until that request settles; the failure that ends it sets a new wait.
+ * ⛔ NOT trInflight: a tr() that first renders the text while this re-ask is out would then skip noteTrAsked, and the
+ * landing would not repaint it.
+ */
+type TranslationWaiter = { text: string; lang: Language; cbs: Set<(translated: string) => void> }
+const waiters = new Map<string, TranslationWaiter>() // `${lang} ${text}`
+const reasking = new Set<string>() // `${lang} ${text}`: a waiter's re-ask still out
+function wake(ck: string, value: string) {
+  const w = waiters.get(ck)
+  if (!w) return
+  waiters.delete(ck)
+  w.cbs.forEach((cb) => cb(value))
+}
+/** Call `cb` once with the translation of `text` when it lands. Returns the unsubscribe (an effect's cleanup). */
+export function waitForTranslation(text: string, lang: Language, cb: (translated: string) => void): () => void {
+  const ck = `${lang} ${text}`
+  const hit = trCache.get(ck)
+  if (hit != null && hit !== text) { cb(hit); return () => {} }
+  let w = waiters.get(ck)
+  if (!w) waiters.set(ck, (w = { text, lang, cbs: new Set() }))
+  const mine = w
+  mine.cbs.add(cb)
+  return () => {
+    mine.cbs.delete(cb)
+    if (!mine.cbs.size && waiters.get(ck) === mine) waiters.delete(ck)
+  }
+}
+/** trCache was seeded outside a request (the UI dictionary): hand every waiter whose text it now holds its translation. */
+export function wakeTranslationWaiters() {
+  for (const [ck, w] of waiters) {
+    const v = trCache.get(ck)
+    // A dictionary chunk that failed seeds the English; that is no answer, so the waiter keeps waiting.
+    if (v != null && v !== w.text) wake(ck, v)
+  }
+}
 function scheduleRetry(at: number) {
   // An earlier timer still pending covers this one; a retryAt already in the past is stale and is replaced.
   if (at >= retryAt && retryAt > Date.now()) return
@@ -173,9 +226,21 @@ function scheduleRetry(at: number) {
     const now = Date.now()
     let due = false
     let next = Infinity
-    for (const t of missUntil.values()) {
-      if (t <= now + DUE_SLACK_MS) due = true
+    for (const [ck, t] of missUntil) {
+      // The repaint is for tr(), which asks again while it renders — only for a text the cache still lacks (the UI
+      // dictionary may have seeded it since, and repainted then). A text only waiters show is asked below instead. On the
+      // wave-1 build, 15 s after one failed request, this repaint rendered 314 components on /c/rentals and 668 on the
+      // home page, in Korean and in Vietnamese alike, and asked for nothing: no request left after the failure (Chromium,
+      // 2 runs per page and language).
+      if (t <= now + DUE_SLACK_MS) { if ((trAskedLost || trAsked.has(ck)) && !trCache.has(ck)) due = true }
       else if (t < next) next = t
+    }
+    // Asked again for a waiter after a failure only (see `waiters`); its landing wakes it, and a new miss re-arms this timer.
+    for (const [ck, w] of waiters) {
+      const t = missUntil.get(ck)
+      if (t == null || t > now + DUE_SLACK_MS || definiteMisses.get(ck) || reasking.has(ck)) continue
+      reasking.add(ck)
+      void translateText(w.text, w.lang).finally(() => reasking.delete(ck))
     }
     // Repaint only for a string whose wait is over: one that landed meanwhile (in the slack before this timer) was
     // repainted then, and its wait deleted — an app-wide repaint for nothing otherwise (gate review, 2026-10-07).
@@ -192,6 +257,8 @@ export function __resetMtMissesForTests() {
   definiteMisses.clear()
   trAsked.clear()
   trAskedLost = false
+  waiters.clear()
+  reasking.clear()
   if (retryTimer) clearTimeout(retryTimer)
   retryTimer = null
   retryAt = Infinity
@@ -213,8 +280,30 @@ function noteMiss(ck: string, definite: boolean) {
 function flush() {
   scheduled = false
   for (const key of Object.keys(pending) as Language[]) {
-    const items = pending[key]!
+    /**
+     * ⚠️ A TEXT THE CACHE GOT WHILE IT WAITED HERE IS ANSWERED FROM IT, NOT POSTED (2026-11-11). On a repeat Korean visit
+     * the first Korean render asks for every label on screen before the stored UI dictionary is read, and 125 of this
+     * batch's 127 texts on /c/rentals (141 of 153 on /) are dictionary labels. The seeding has repainted tr() already.
+     * ⚠️ CHROMIUM ONLY. Wave-1 build, persistent profile, warm HTTP cache: in Chromium the dictionary was read (and
+     * seeded, synchronously) BEFORE this batch left in every run — 30-200 ms ahead unthrottled, 162-770 ms at 4x CPU
+     * throttle, 418-1413 ms at 6x — so there the batch shrinks to the non-dictionary texts. In WebKit (Playwright's) it
+     * was read 3-8 ms AFTER the batch left (12 of 12 runs), so there this filter skips nothing and the batch goes whole, as
+     * before — expect the same on Safari, iOS and the Capacitor iOS app, which run WebKit (no device measured).
+     * An English value (a dictionary chunk that failed seeds the source) is no answer, so that text is still posted.
+     */
+    const items = pending[key]!.filter((it) => {
+      const ck = `${key} ${it.text}`
+      const hit = trCache.get(ck)
+      if (hit == null || hit === it.text) return true
+      trAsked.delete(ck)
+      it.resolve(hit)
+      // Whoever wrote the cache may not have woken the waiters (seedViDict, a title the server sent); a waiter's own
+      // re-ask ends here too, and nobody reads its promise. So the reader still showing the English gets it now.
+      wake(ck, hit)
+      return false
+    })
     delete pending[key]
+    if (!items.length) continue
     // ⚠️ ONE COPY OF EACH TEXT PER REQUEST. Every card asks for its own location and a batch window
     // holds a whole feed page, so the same string was queued many times and all of them were posted
     // (one vi home view: "Hồ Chí Minh" ×54 across 5 requests, 2026-09-29). Every waiter still
@@ -243,6 +332,7 @@ function flush() {
             const shown = trCache.get(ck)
             trCache.set(ck, value); missUntil.delete(ck); missCount.delete(ck); definiteMisses.delete(ck)
             if (trAsked.delete(ck) || trAskedLost || (shown != null && shown !== value)) landed = true
+            wake(ck, value)
           }
           // One miss per TEXT per answer (`texts` is the Set above), however many waiters asked for it. `partial` = the
           // route's degrade path or a provider failure: retryable, never counted toward giving up.

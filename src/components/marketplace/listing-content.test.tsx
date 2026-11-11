@@ -6,6 +6,7 @@ import { renderToString } from 'react-dom/server'
 
 import { LanguageProvider } from '@/context/language-context'
 import { detectContentLang, mayBeVietnamese } from '@/lib/detect-lang'
+import { __resetMtMissesForTests } from '@/lib/i18n/mt-client'
 import { DESCRIPTION_CLAMP_CHARS, DESCRIPTION_CLAMP_LINES, ListingDescription, LocalizedTitle, LocalizedTitleHeading, RichText, localizedPlan, ownDescriptionVi, useLocalized, type LocalizedColumn } from './listing-content'
 
 /**
@@ -335,6 +336,28 @@ describe('useLocalized — an English slot that names a Vietnamese place', () =>
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const body = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body))
     expect(body).toEqual({ texts: [src], target: 'en' })
+  })
+
+  it('⛔ an English reader of a Vietnamese title whose request FAILED gets the English when the retry lands (2026-11-11)', async () => {
+    // useMachineEn took its one answer from the promise, and a failed request answered with the original: the title
+    // stayed Vietnamese for the visit, as useTr's did for the other languages (mt-client waitForTranslation).
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    try {
+      const src = 'Xe đạp thành phố — Quận 3'
+      let n = 0
+      const fetchMock = vi.fn(async () => (n++ === 0 ? new Response('{}', { status: 500 }) : new Response(JSON.stringify({ translations: ['City bicycle — District 3'] }), { status: 200 })))
+      vi.stubGlobal('fetch', fetchMock)
+      const { container } = renderIn('en', <LocalizedTitle title={src} titleVi={null} />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(container.textContent).toBe(src)
+      await act(async () => { await vi.advanceTimersByTimeAsync(15_200) })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(container.textContent).toBe('City bicycle — District 3')
+    } finally {
+      vi.useRealTimers()
+      __resetMtMissesForTests()
+    }
   })
 })
 

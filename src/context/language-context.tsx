@@ -19,6 +19,8 @@ import {
   getTrSnapshot,
   translateText,
   seedViDict,
+  waitForTranslation,
+  wakeTranslationWaiters,
 } from '@/lib/i18n/mt-client'
 import { LANG_COOKIE, variantOfLanguage } from '@/lib/lang-variant'
 import { pilotOnHost, pinnedPair, pinnedVariant } from '@/lib/lang-pinned'
@@ -389,7 +391,8 @@ function LanguageProviderInner({
       for (const k of Object.keys(EN)) dict[k] = map[EN[k]] ?? EN[k]
       setDicts((d) => ({ ...d, [target]: dict }))
     }
-    emitTrChange() // repaint <Tr>/tr consumers now that the cache is warm
+    emitTrChange() // repaint tr() consumers now that the cache is warm
+    wakeTranslationWaiters() // and a <Tr>/useTr text an earlier failed request left in English
   }
 
   // Warm EVERY static UI string for the active language in ONE batch (then cache
@@ -640,19 +643,29 @@ export function useTr(text: string | null | undefined, ctx?: string): string {
 
   useEffect(() => {
     if (!safe || lang === 'en') { setVal(safe); return }
+    let cancelled = false
+    let stopWaiting: (() => void) | undefined
+    // An answer that is the English itself — a failed request, or a text the provider leaves as it is — waits for the
+    // text to land later (a retry, another batch, the UI dictionary) instead of keeping the English for the visit.
+    // Only this component re-renders then (mt-client waitForTranslation).
+    const ask = () => translateText(safe, lang).then((tr) => {
+      if (cancelled) return
+      setVal(safeTemplate(tr, safe))
+      if (tr === safe) stopWaiting = waitForTranslation(safe, lang, (later) => { if (!cancelled) setVal(safeTemplate(later, safe)) })
+    })
+    const cleanup = () => { cancelled = true; stopWaiting?.() }
     // Hand-authored Vietnamese wins over machine translation.
     if (lang === 'vi' && !viLoaded) {
       // Dict inbound — wait for it before falling back to machine translation.
-      let c = false
       // Settles either way: a dictionary chunk that failed to load falls back to machine translation.
       const settle = () => {
-        if (c) return
+        if (cancelled) return
         const hv = viDict[safe]
         if (hv != null) setVal(hv)
-        else translateText(safe, lang).then((t2) => { if (!c) setVal(safeTemplate(t2, safe)) })
+        else void ask()
       }
       loadViOverrides().then(settle, settle)
-      return () => { c = true }
+      return cleanup
     }
     if (lang === 'vi') { const hv = viDict[safe]; if (hv != null) { setVal(hv); return } }
     // Curated glossary before the MT cache (mirrors tr()).
@@ -661,9 +674,8 @@ export function useTr(text: string | null | undefined, ctx?: string): string {
     const ck = `${lang} ${safe}`
     const hit = trCache.get(ck)
     if (hit != null) { setVal(safeTemplate(hit, safe)); return }
-    let cancelled = false
-    translateText(safe, lang).then((tr) => { if (!cancelled) setVal(safeTemplate(tr, safe)) })
-    return () => { cancelled = true }
+    void ask()
+    return cleanup
   }, [safe, lang, ctx])
 
   return val

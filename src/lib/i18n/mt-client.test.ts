@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { looksVietnamese } from '@/lib/detect-lang'
-import { __resetMtMissesForTests, subscribeTr, trCache, translateText } from './mt-client'
+import { __resetMtMissesForTests, subscribeTr, trCache, translateText, waitForTranslation, wakeTranslationWaiters } from './mt-client'
 
 /**
  * THE CLIENT MACHINE-TRANSLATION BATCHER — what reaches POST /api/translate.
@@ -137,12 +137,42 @@ describe('the wait ends on its own (gate review, 2026-10-07)', () => {
     vi.stubGlobal('fetch', ok([t]))
     const repaints = vi.fn()
     const off = subscribeTr(repaints)
-    const miss = translateText(t, 'th')
+    const miss = translateText(t, 'th', true) // as tr() asks: the repaint is for tr(), which asks again while it renders
     await vi.advanceTimersByTimeAsync(60)
     await miss
     expect(repaints).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(15_000)
     expect(repaints).toHaveBeenCalledTimes(1)
+    off()
+  })
+
+  it('does not repaint the app for a text only promise readers asked (useTr, useMachineEn): a repaint never asks for it', async () => {
+    // Wave-1 build, Vietnamese /c/rentals and /vi after one failed request: this repaint rendered 314 and 668 components.
+    vi.useFakeTimers()
+    const t = 'Weekday evenings, a card title'
+    vi.stubGlobal('fetch', ok([t]))
+    const repaints = vi.fn()
+    const off = subscribeTr(repaints)
+    const miss = translateText(t, 'th')
+    await vi.advanceTimersByTimeAsync(60)
+    await miss
+    await vi.advanceTimersByTimeAsync(15_000)
+    expect(repaints).not.toHaveBeenCalled()
+    off()
+  })
+
+  it('does not repaint for a tr() text the UI dictionary has seeded since: tr() already shows it', async () => {
+    vi.useFakeTimers()
+    const t = 'Weekday evenings, a seeded label'
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 500 })))
+    const repaints = vi.fn()
+    const off = subscribeTr(repaints)
+    const miss = translateText(t, 'th', true)
+    await vi.advanceTimersByTimeAsync(60)
+    await miss
+    trCache.set(`th ${t}`, 'ตอนเย็นวันธรรมดา') // what language-context's seedFromMap does (and it repaints then)
+    await vi.advanceTimersByTimeAsync(15_000)
+    expect(repaints).not.toHaveBeenCalled()
     off()
   })
 })
@@ -152,13 +182,13 @@ describe('every waiting string gets its retry (gate review, 2026-10-07)', () => 
     vi.useFakeTimers()
     const a = 'Monday evening, first miss'
     vi.stubGlobal('fetch', ok([a]))
-    const first = translateText(a, 'fr')
+    const first = translateText(a, 'fr', true) // as tr() asks
     await vi.advanceTimersByTimeAsync(60)
     await first
     await vi.advanceTimersByTimeAsync(5_000)
     const b = 'Tuesday evening, a later miss'
     vi.stubGlobal('fetch', ok([b]))
-    const second = translateText(b, 'fr')
+    const second = translateText(b, 'fr', true)
     await vi.advanceTimersByTimeAsync(60)
     await second
     const repaints = vi.fn()
@@ -387,5 +417,262 @@ describe('only a definite passthrough counts toward giving up (gate review, 2026
     const after = translateText(t, 'ko')
     await vi.advanceTimersByTimeAsync(60)
     await expect(after).resolves.toBe('주말 아침')
+  })
+})
+
+/** A fetch answering 500 for every request listed in `failing` (by request number), and `translations` otherwise. */
+function scriptedFetch(failing: (i: number) => boolean, translations: (texts: string[]) => string[]) {
+  let i = 0
+  return vi.fn(async (_url: string, init?: RequestInit) => {
+    const { texts } = JSON.parse(String(init?.body)) as { texts: string[] }
+    return failing(i++) ? new Response('{"error":"Translation failed"}', { status: 500 }) : new Response(JSON.stringify({ translations: translations(texts) }), { status: 200 })
+  })
+}
+
+describe('⛔ a text a failed request left in English is asked again for whoever still shows it (2026-11-11)', () => {
+  beforeEach(() => trCache.clear())
+  // Wave-1 build, one 500 on the first per-string batch: 0/12 card titles translated on Korean / and on /vi for the rest
+  // of the visit, and the <Tr> labels of that batch ("Listings", "Other categories") stayed English on Korean /c/rentals.
+  it('asks again when the wait ends and hands the translation to the waiter alone — no app repaint', async () => {
+    vi.useFakeTimers()
+    const t = 'Two-bedroom flat near the river'
+    const fetchMock = scriptedFetch((i) => i === 0, () => ['강 근처 방 두 개 아파트'])
+    vi.stubGlobal('fetch', fetchMock)
+    const repaints = vi.fn()
+    const off = subscribeTr(repaints)
+    const first = translateText(t, 'ko') // a card's useTr
+    await vi.advanceTimersByTimeAsync(60)
+    await expect(first).resolves.toBe(t) // the 500: English for now
+    const got = vi.fn()
+    waitForTranslation(t, 'ko', got)
+    await vi.advanceTimersByTimeAsync(14_900)
+    expect(fetchMock).toHaveBeenCalledTimes(1) // not before its wait ends
+    await vi.advanceTimersByTimeAsync(200)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(bodyOf(fetchMock.mock.calls[1])).toEqual({ texts: [t], target: 'ko' })
+    expect(got).toHaveBeenCalledExactlyOnceWith('강 근처 방 두 개 아파트')
+    expect(repaints).not.toHaveBeenCalled()
+    off()
+  })
+
+  it('a `partial` reply (rate limit, provider down) counts as a failure: asked again', async () => {
+    vi.useFakeTimers()
+    const t = 'Studio with balcony'
+    let n = 0
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(n++ === 0 ? { translations: [t], partial: true } : { translations: ['발코니가 있는 스튜디오'] }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const first = translateText(t, 'ko')
+    await vi.advanceTimersByTimeAsync(60)
+    await first
+    const got = vi.fn()
+    waitForTranslation(t, 'ko', got)
+    await vi.advanceTimersByTimeAsync(15_100)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(got).toHaveBeenCalledExactlyOnceWith('발코니가 있는 스튜디오')
+  })
+
+  it('a Vietnamese reader too: the same retry for target vi', async () => {
+    vi.useFakeTimers()
+    const t = 'Fixture imported flat'
+    const fetchMock = scriptedFetch((i) => i === 0, () => ['Căn hộ nhập khẩu'])
+    vi.stubGlobal('fetch', fetchMock)
+    const first = translateText(t, 'vi')
+    await vi.advanceTimersByTimeAsync(60)
+    await first
+    const got = vi.fn()
+    waitForTranslation(t, 'vi', got)
+    await vi.advanceTimersByTimeAsync(15_100)
+    expect(bodyOf(fetchMock.mock.calls[1])).toEqual({ texts: [t], target: 'vi' })
+    expect(got).toHaveBeenCalledExactlyOnceWith('Căn hộ nhập khẩu')
+  })
+
+  it('⛔ a DEFINITE passthrough (a name) is never asked again for a waiter: in a visit with no failure the waiter adds no request', async () => {
+    vi.useFakeTimers()
+    const t = 'Zalo OA'
+    const fetchMock = ok([t])
+    vi.stubGlobal('fetch', fetchMock)
+    const repaints = vi.fn()
+    const off = subscribeTr(repaints)
+    const first = translateText(t, 'ko')
+    await vi.advanceTimersByTimeAsync(60)
+    await first
+    const got = vi.fn()
+    waitForTranslation(t, 'ko', got)
+    await vi.advanceTimersByTimeAsync(3_600_000)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(got).not.toHaveBeenCalled()
+    expect(repaints).not.toHaveBeenCalled()
+    off()
+  })
+
+  it('⛔ bounded against a server that keeps failing: one request per wait (15 s, ×4, at most 10 min), none once the reader is gone', async () => {
+    vi.useFakeTimers()
+    const texts = ['Scooter for rent, monthly', 'Desk lamp, barely used']
+    const fetchMock = scriptedFetch(() => true, (x) => x)
+    vi.stubGlobal('fetch', fetchMock)
+    const asks = texts.map((t) => translateText(t, 'ja'))
+    await vi.advanceTimersByTimeAsync(60)
+    await Promise.all(asks)
+    const stops = texts.map((t) => waitForTranslation(t, 'ja', () => {}))
+    await vi.advanceTimersByTimeAsync(3_600_000 - 60)
+    // One request per wave, both texts in it: at 0 s, 15 s, 75 s, 315 s, 915 s, then every 600 s — 9 in the first hour.
+    expect(fetchMock).toHaveBeenCalledTimes(9)
+    for (const call of fetchMock.mock.calls) expect(bodyOf(call).texts).toEqual(texts)
+    stops.forEach((stop) => stop())
+    await vi.advanceTimersByTimeAsync(3_600_000)
+    expect(fetchMock).toHaveBeenCalledTimes(9)
+  })
+
+  it('⛔ never twice in flight: a retry still out (a hanging 524) is not posted again by the next wave; once it fails, it is asked again', async () => {
+    vi.useFakeTimers()
+    const A = 'Card title A'
+    const B = 'Card title B'
+    const calls: string[][] = []
+    let failHungA: (() => void) | undefined
+    // #0 (A) and #1 (B) fail at once; #2 (A's retry) hangs until the test fails it; later requests succeed.
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      const { texts } = JSON.parse(String(init?.body)) as { texts: string[] }
+      const n = calls.push(texts) - 1
+      if (n < 2) return Promise.resolve(new Response('{}', { status: 500 }))
+      if (n === 2) return new Promise<Response>((resolve) => { failHungA = () => resolve(new Response('{}', { status: 524 })) })
+      return Promise.resolve(new Response(JSON.stringify({ translations: texts.map((t) => `[ko] ${t}`) }), { status: 200 }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const a = translateText(A, 'ko')
+    await vi.advanceTimersByTimeAsync(60)
+    await a
+    const gotA = vi.fn()
+    waitForTranslation(A, 'ko', gotA)
+    await vi.advanceTimersByTimeAsync(5_000) // B's card scrolls in 5 s later: its own failure, its own wait
+    const b = translateText(B, 'ko')
+    await vi.advanceTimersByTimeAsync(60)
+    await b
+    const gotB = vi.fn()
+    waitForTranslation(B, 'ko', gotB)
+    await vi.advanceTimersByTimeAsync(10_100) // A's wait ends: its retry goes, and hangs
+    await vi.advanceTimersByTimeAsync(5_100) // B's wait ends: B goes, A (still out) does not
+    expect(calls).toEqual([[A], [B], [A], [B]])
+    expect(gotB).toHaveBeenCalledExactlyOnceWith(`[ko] ${B}`)
+    expect(gotA).not.toHaveBeenCalled()
+    failHungA!() // the hanging retry ends in a 524: a new miss, a new wait (60 s), then A is asked again
+    await vi.advanceTimersByTimeAsync(59_000)
+    expect(calls).toHaveLength(4)
+    await vi.advanceTimersByTimeAsync(2_100)
+    expect(calls).toEqual([[A], [B], [A], [B], [A]])
+    expect(gotA).toHaveBeenCalledExactlyOnceWith(`[ko] ${A}`)
+  })
+
+  it('an unmounted reader is not asked for: unsubscribing before the wait ends sends nothing', async () => {
+    vi.useFakeTimers()
+    const t = 'Bicycle, city size'
+    const fetchMock = scriptedFetch((i) => i === 0, () => ['도시형 자전거'])
+    vi.stubGlobal('fetch', fetchMock)
+    const first = translateText(t, 'ko')
+    await vi.advanceTimersByTimeAsync(60)
+    await first
+    const got = vi.fn()
+    const stop = waitForTranslation(t, 'ko', got)
+    stop()
+    await vi.advanceTimersByTimeAsync(600_000)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(got).not.toHaveBeenCalled()
+  })
+
+  it('the UI dictionary wakes a waiter; an English passthrough in it (a failed chunk) does not', async () => {
+    const t = 'Other categories'
+    const got = vi.fn()
+    waitForTranslation(t, 'ko', got)
+    trCache.set(`ko ${t}`, t) // a dictionary chunk that failed seeds the English
+    wakeTranslationWaiters()
+    expect(got).not.toHaveBeenCalled()
+    trCache.set(`ko ${t}`, '다른 카테고리')
+    wakeTranslationWaiters()
+    expect(got).toHaveBeenCalledExactlyOnceWith('다른 카테고리')
+    wakeTranslationWaiters() // once only
+    expect(got).toHaveBeenCalledTimes(1)
+  })
+
+  it('another batch landing the text wakes the waiter, and a translation already cached answers at once', async () => {
+    vi.useFakeTimers()
+    const t = 'Listings'
+    vi.stubGlobal('fetch', ok(['목록']))
+    const got = vi.fn()
+    waitForTranslation(t, 'ko', got)
+    const fromTr = translateText(t, 'ko', true) // tr() asks for the same text
+    await vi.advanceTimersByTimeAsync(60)
+    await fromTr
+    expect(got).toHaveBeenCalledExactlyOnceWith('목록')
+    const later = vi.fn()
+    waitForTranslation(t, 'ko', later)
+    expect(later).toHaveBeenCalledExactlyOnceWith('목록')
+  })
+})
+
+describe('a text the cache got while it waited for its batch (repeat Korean visit, 2026-11-11)', () => {
+  beforeEach(() => trCache.clear())
+  // Wave-1 build, Chromium: the stored UI dictionary was read 30-200 ms before the first batch left (every run), and 125 of
+  // its 127 texts on Korean /c/rentals were dictionary labels — posted anyway, every repeat visit. In WebKit the
+  // dictionary is read 3-8 ms after the batch left (12 of 12 runs), so there this changes nothing.
+  it('is answered from the cache and not posted; only the rest of the batch goes', async () => {
+    vi.useFakeTimers()
+    const label = 'Other categories'
+    const title = 'Fixture imported flat'
+    const fetchMock = ok(['수입 아파트'])
+    vi.stubGlobal('fetch', fetchMock)
+    const repaints = vi.fn()
+    const off = subscribeTr(repaints)
+    const fromTr = translateText(label, 'ko', true) // the first Korean render, before the dictionary is read
+    const fromCard = translateText(title, 'ko')
+    trCache.set(`ko ${label}`, '다른 카테고리') // seedFromMap, inside the 60 ms window
+    await vi.advanceTimersByTimeAsync(60)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ texts: [title], target: 'ko' })
+    await expect(fromTr).resolves.toBe('다른 카테고리')
+    await expect(fromCard).resolves.toBe('수입 아파트')
+    expect(repaints).not.toHaveBeenCalled() // the dictionary's own seeding repainted tr(); the title is a promise reader's
+    off()
+  })
+
+  it('sends nothing at all when the cache holds every text', async () => {
+    vi.useFakeTimers()
+    const fetchMock = ok([])
+    vi.stubGlobal('fetch', fetchMock)
+    const ask = translateText('Listings', 'ko', true)
+    trCache.set('ko Listings', '목록')
+    await vi.advanceTimersByTimeAsync(200)
+    expect(fetchMock).not.toHaveBeenCalled()
+    await expect(ask).resolves.toBe('목록')
+  })
+
+  it('⛔ wakes a waiter whose re-ask is answered from the cache: its reader does not stay in English (commit-gate review)', async () => {
+    // A failed request left the reader with the English and a waiter. Before its retry leaves, the cache gets the text
+    // from a writer that wakes nobody (seedViDict, a server-sent title). The retry is then answered here, with no request,
+    // and nobody reads its promise: without the wake the reader kept the English for the visit.
+    vi.useFakeTimers()
+    const t = 'Flat with a balcony'
+    const fetchMock = scriptedFetch(() => true, () => [])
+    vi.stubGlobal('fetch', fetchMock)
+    const first = translateText(t, 'vi')
+    await vi.advanceTimersByTimeAsync(60)
+    await expect(first).resolves.toBe(t) // the failure
+    const got = vi.fn()
+    waitForTranslation(t, 'vi', got)
+    await vi.advanceTimersByTimeAsync(15_010) // the wait is over: the timer re-asks, the text sits in its 60 ms batch
+    trCache.set(`vi ${t}`, 'Căn hộ có ban công') // written meanwhile, no waiter woken
+    await vi.advanceTimersByTimeAsync(100)
+    expect(fetchMock).toHaveBeenCalledTimes(1) // answered from the cache: no second request
+    expect(got).toHaveBeenCalledExactlyOnceWith('Căn hộ có ban công')
+  })
+
+  it('still posts a text the cache holds only as its English (a dictionary chunk that failed)', async () => {
+    vi.useFakeTimers()
+    const t = 'Show more'
+    const fetchMock = ok(['더 보기'])
+    vi.stubGlobal('fetch', fetchMock)
+    const ask = translateText(t, 'ko', true)
+    trCache.set(`ko ${t}`, t)
+    await vi.advanceTimersByTimeAsync(60)
+    expect(bodyOf(fetchMock.mock.calls[0])).toEqual({ texts: [t], target: 'ko' })
+    await expect(ask).resolves.toBe('더 보기')
   })
 })
