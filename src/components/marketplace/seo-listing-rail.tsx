@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils'
 import { diversifyRail } from '@/lib/feed-diversity'
 import { provinceWhere } from '@/lib/province-match'
 import { ImageMark } from './image-mark'
+import { PhotoFill } from './photo-fill'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { cardCompactAbove } from '@/lib/vnd'
 import { LISTING_CARD_SIZES, LISTING_GRID } from './listing-grid'
 import { Price } from './price'
@@ -197,18 +199,23 @@ export function SeoListingGrid({
                 the tile, and the grid's derived `sizes`. */}
             <div className="media-hairline relative isolate aspect-square w-full overflow-hidden rounded-media bg-tint">
               {l.images[0] && (
-                // ⛔ NO HOVER ZOOM. This photo carried `group-hover:scale-[1.03]`, against the owner's
-                // rule that a listing photo never scales on hover — every other card obeys it; the
-                // title's underline is the hover signal here, as on <ListingCard>.
-                <Image
-                  src={l.images[0]}
-                  alt={l.title}
-                  fill
-                  unoptimized={isMockImageUrl(l.images[0]) || undefined}
-                  sizes={LISTING_CARD_SIZES}
-                  quality={60}
-                  className="object-cover"
-                />
+                <>
+                  {/* ⛔ THE WHOLE PHOTO OVER ITS OWN BLURRED FILL, as on <ListingCard> (owner, 2026-11-12; photo-fill.tsx). A teacher's
+                      portrait stays cover with no fill, as on the card and the row. */}
+                  {l.listingType !== TEACHER_LISTING_TYPE && <PhotoFill src={l.images[0]} sizes={LISTING_CARD_SIZES} quality={60} unoptimized={isMockImageUrl(l.images[0]) || undefined} />}
+                  {/* ⛔ NO HOVER ZOOM. This photo carried `group-hover:scale-[1.03]`, against the owner's
+                      rule that a listing photo never scales on hover — every other card obeys it; the
+                      title's underline is the hover signal here, as on <ListingCard>. */}
+                  <Image
+                    src={l.images[0]}
+                    alt={l.title}
+                    fill
+                    unoptimized={isMockImageUrl(l.images[0]) || undefined}
+                    sizes={LISTING_CARD_SIZES}
+                    quality={60}
+                    className={l.listingType === TEACHER_LISTING_TYPE ? 'object-cover' : 'object-contain'}
+                  />
+                </>
               )}
               <ImageMark src={l.images[0]} />
             </div>

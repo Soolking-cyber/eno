@@ -111,7 +111,8 @@ describe('ListingCard — the one-line title', () => {
     expect(desc.textContent).toBe(BASE.titleVi)
     // Out of the reading flow (no second reading in browse mode) — aria-describedby still reads hidden text.
     expect(desc.hasAttribute('hidden')).toBe(true)
-    expect(c.querySelector('img')!.getAttribute('alt')).toBe(BASE.titleVi)
+    // The photo, not its blurred fill (photo-fill.tsx: alt="", aria-hidden, painted first under it).
+    expect(c.querySelector('img:not([aria-hidden])')!.getAttribute('alt')).toBe(BASE.titleVi)
   })
 
   it('an unshortened title needs no description', () => {

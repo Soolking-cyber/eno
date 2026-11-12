@@ -12,6 +12,8 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/db', () => ({ db: {} }))
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: unknown) => w }))
 vi.mock('@/lib/translate', () => ({ localizeListingTitles: async (x: unknown) => x }))
+// The tile's price needs the currency context; the photo tests below do not look at it.
+vi.mock('./price', () => ({ Price: () => null }))
 
 const { SeoListingGrid } = await import('./seo-listing-rail')
 // The grid's links are LocalizedLink (A1-LANG), which reads the language context — render inside a provider.
@@ -44,3 +46,25 @@ describe('SeoListingGrid — the browse link', () => {
     expect(a!.hasAttribute('rel')).toBe(false)
   })
 })
+
+// ⛔ THE SEO TILE SHOWS THE WHOLE PHOTO OVER ITS OWN BLURRED FILL, as <ListingCard> does (owner, 2026-11-12; photo-fill.tsx).
+describe('SeoListingGrid — the whole photo', () => {
+  const tile = (listingType: string) => {
+    const l = { id: 'l1', sellerId: 's1', title: 'Flat', images: ['https://picsum.photos/seed/a/400'], price: 1, currency: '₫', priceUnit: 'VND/month', listingType, isPartnerBooking: false, location: 'Hồ Chí Minh', city: 'Hồ Chí Minh' }
+    const doc = new DOMParser().parseFromString(wrap(<SeoListingGrid listings={[l] as never} title="Homes" cta="Browse" href="/c/rentals" />), 'text/html')
+    return { fill: doc.querySelector('img[aria-hidden]'), photo: doc.querySelector('img:not([aria-hidden])')! }
+  }
+  it('fits the photo over a fill made from the same file', () => {
+    const { fill, photo } = tile('rent')
+    expect(photo.getAttribute('class')).toContain('object-contain')
+    expect(fill).not.toBeNull()
+    expect(fill!.getAttribute('src')).toBe(photo.getAttribute('src'))
+    expect(fill!.getAttribute('srcset') ?? '').toBe(photo.getAttribute('srcset') ?? '')
+  })
+  it('a teacher keeps the cover crop and gets no fill', () => {
+    const { fill, photo } = tile('teacher')
+    expect(fill).toBeNull()
+    expect(photo.getAttribute('class')).toContain('object-cover')
+  })
+})
+

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { cleanup, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { HELD_PHOTO_ATTR } from '@/lib/image-hold'
 import type { SerializedListingCard } from '@/lib/types'
@@ -82,7 +82,8 @@ afterEach(() => { cleanup(); lang.current = 'vi'; push.mockClear(); localized.mo
 
 // ⛔ OPT-IN (src/lib/image-hold.ts): the home grid's card 2 is lazy and on the first screen, so lazy alone must never mean held.
 describe('which card photo waits', () => {
-  const photo = (extra: Record<string, unknown> = {}) => render(<ListingCard listing={BASE} onOpen={vi.fn()} {...extra} />).container.querySelector('img') as HTMLImageElement
+  // The photo, not its blurred fill (photo-fill.tsx), which is painted first under it.
+  const photo = (extra: Record<string, unknown> = {}) => render(<ListingCard listing={BASE} onOpen={vi.fn()} {...extra} />).container.querySelector('img:not([aria-hidden])') as HTMLImageElement
 
   it('a lazy card nobody marked is not held: a rail, a shelf, the first screen', () => {
     const img = photo()
@@ -103,5 +104,63 @@ describe('which card photo waits', () => {
 
   it('a held photo keeps its address in the HTML, for whoever runs no script', () => {
     expect(photo({ holdPhoto: true }).getAttribute('src')).toBeTruthy()
+  })
+})
+
+// ⛔ A CARD SHOWS THE WHOLE PHOTO OVER ITS OWN BLURRED FILL (owner, 2026-11-12; photo-fill.tsx).
+describe('the whole photo and its fill', () => {
+  const imgs = (extra: Record<string, unknown> = {}, listing = BASE) => {
+    const c = render(<ListingCard listing={listing} onOpen={vi.fn()} {...extra} />).container
+    return { fill: c.querySelector('img[aria-hidden]') as HTMLImageElement | null, photo: c.querySelector('img:not([aria-hidden])') as HTMLImageElement }
+  }
+
+  it('the photo is fitted whole, over a decorative fill made from the SAME file (no second request)', () => {
+    const { fill, photo } = imgs()
+    expect(photo.className).toContain('object-contain')
+    expect(photo.className).not.toContain('object-cover')
+    expect(fill).not.toBeNull()
+    expect(fill!.getAttribute('alt')).toBe('')
+    expect(fill!.getAttribute('src')).toBe(photo.getAttribute('src'))
+    expect(fill!.getAttribute('sizes')).toBe(photo.getAttribute('sizes'))
+    expect(fill!.className).toContain('blur-lg')
+    // Painted first, so the photo sits on top of it.
+    expect(fill!.compareDocumentPosition(photo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('a held photo holds its fill with it, and a lazy one loads it lazily', () => {
+    const held = imgs({ holdPhoto: true })
+    expect(held.fill!.hasAttribute(HELD_PHOTO_ATTR)).toBe(true)
+    expect(held.fill!.getAttribute('loading')).toBe('lazy')
+    cleanup()
+    const lazy = imgs()
+    expect(lazy.fill!.hasAttribute(HELD_PHOTO_ATTR)).toBe(false)
+    expect(lazy.fill!.getAttribute('loading')).toBe('lazy')
+  })
+
+  it('on the LCP card the fill is eager and never held (it can be the LCP element)', () => {
+    const { fill } = imgs({ lcp: true, priority: true, holdPhoto: true })
+    expect(fill!.getAttribute('loading')).toBe('eager')
+    expect(fill!.hasAttribute(HELD_PHOTO_ATTR)).toBe(false)
+  })
+
+  it('a photo that fails takes its fill with it (the placeholder, no blurred stale image), and a retry brings both back', () => {
+    vi.useFakeTimers()
+    try {
+      const c = render(<ListingCard listing={BASE} onOpen={vi.fn()} />).container
+      act(() => { fireEvent.error(c.querySelector('img:not([aria-hidden])')!) })
+      expect(c.querySelectorAll('img')).toHaveLength(0)
+      act(() => { vi.advanceTimersByTime(3000) })
+      expect(c.querySelector('img[aria-hidden]')).not.toBeNull()
+      expect(c.querySelector('img:not([aria-hidden])')).not.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a teacher keeps the face crop and gets no fill', () => {
+    const { fill, photo } = imgs({}, { ...BASE, listingType: 'teacher' } as SerializedListingCard)
+    expect(fill).toBeNull()
+    expect(photo.className).toContain('object-cover')
+    expect(photo.className).toContain('object-[50%_18%]')
   })
 })

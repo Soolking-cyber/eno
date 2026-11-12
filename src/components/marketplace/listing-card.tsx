@@ -16,6 +16,7 @@ import { IdentityVerifiedMark } from './identity-verified-mark'
 import { RentalCheckToggle } from './rental-check-toggle'
 import Image from 'next/image'
 import { HELD_PHOTO_ATTR } from '@/lib/image-hold'
+import { PhotoFill } from './photo-fill'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
 import { isBookingCategory } from '@/lib/affiliate-kind'
@@ -169,6 +170,10 @@ function ListingCardImpl({
    * the storefronts too.
    */
   const isTeacher = listing.listingType === TEACHER_LISTING_TYPE
+  // How slide `i`'s photo loads when it is not the LCP preload (the photo's own comment says why slides 2..n are eager and why a later
+  // card's first photo is held). Shared with its blurred fill (photo-fill.tsx), so the two load, and are held, together.
+  const slideLoad = (i: number): { loading: 'eager' | 'lazy' } & Record<`data-${string}`, string> =>
+    ({ loading: i === 0 ? (priority ? 'eager' : 'lazy') : 'eager', ...(i === 0 && !priority && holdPhoto ? { [HELD_PHOTO_ATTR]: '' } : {}) })
   const localizedTitle = useLocalized(isTeacher ? '' : listing.title, isTeacher ? null : listing.titleVi, isTeacher ? null : listing.titleI18n)
   const displayTitle = isTeacher ? listing.title : localizedTitle
   /**
@@ -795,6 +800,21 @@ function ListingCardImpl({
                     <CategoryIcon name={listing.category.icon} className="h-11 w-11 text-muted-foreground" />
                   </div>
                 ) : (
+                  <>
+                  {/* ⛔ THE WHOLE PHOTO, OVER ITS OWN BLURRED FILL (owner, 2026-11-12; photo-fill.tsx). Not for a teacher: a
+                      portrait keeps its face crop below. Same file as the photo, so no second request. */}
+                  {!isTeacher && (
+                    <PhotoFill
+                      key={`fill-${i}:${slideTry[i] ?? 0}`}
+                      src={src}
+                      sizes={sizes}
+                      quality={60}
+                      unoptimized={isMockImageUrl(src)}
+                      // Brightens on hover WITH the photo (the same classes), or the photo lifts off its fill in a visible seam.
+                      className="transition-[filter] duration-200 group-hover:brightness-105 dark:group-hover:brightness-[0.97]"
+                      {...(lcp && i === 0 ? { loading: 'eager' as const } : slideLoad(i))}
+                    />
+                  )}
                   <Image
                     key={`${i}:${slideTry[i] ?? 0}`}
                     src={src}
@@ -822,7 +842,8 @@ function ListingCardImpl({
                     // ⚠️ A TEACHER'S PHOTO IS A FACE (2026-11-08, codex all17 on /c/teachers: "the square crop cuts off most of the
                     // teacher's face"): a portrait centred in the square lost the forehead and eyes. Anchored near the top, where a
                     // portrait keeps its face; a landscape photo crops sideways and is unchanged. Every other card stays centred.
-                    className={cn('object-cover transition-[filter] duration-200 group-hover:brightness-105 dark:brightness-[0.92] dark:group-hover:brightness-[0.97]', isTeacher && 'object-[50%_18%]')}
+                    // ⛔ object-contain: the card shows the WHOLE photo (owner, 2026-11-12, above); a teacher's portrait stays cover.
+                    className={cn('transition-[filter] duration-200 group-hover:brightness-105 dark:brightness-[0.92] dark:group-hover:brightness-[0.97]', isTeacher ? 'object-cover object-[50%_18%]' : 'object-contain')}
                     quality={60}
                     // Mock/seed images (picsum) are already CDN-sized — bypass the Vercel
                     // optimizer (saves transformations AND removes a failure hop). No-op
@@ -862,8 +883,9 @@ function ListingCardImpl({
                     // reaches 21 off-screen photos, which cost over a second of tap-ready on a mid phone.
                     {...(lcp && i === 0
                       ? { priority: true, fetchPriority: 'high' as const }
-                      : { loading: i === 0 ? (priority ? 'eager' : 'lazy') : 'eager', ...(i === 0 && !priority && holdPhoto ? { [HELD_PHOTO_ATTR]: '' } : {}) })}
+                      : slideLoad(i))}
                   />
+                  </>
                 )}
                 {/* The app-drawn eno.vn mark, per SLIDE so each photo gets the ink measured for it. Renders
                     nothing for a photo that still carries a burned mark — see image-mark.tsx. */}

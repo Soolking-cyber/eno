@@ -158,3 +158,24 @@ describe('CompactListingRow — the "Identity verified" tick', () => {
     expect(marks(row({ identityMark: true, city: 'Hồ Chí Minh', district: null }))).toHaveLength(0)
   })
 })
+
+// ⛔ THE ROW'S THUMBNAIL SHOWS THE WHOLE PHOTO OVER ITS OWN BLURRED FILL (owner, 2026-11-12; photo-fill.tsx) — a teacher's portrait excepted.
+describe('CompactListingRow — the whole photo', () => {
+  const thumb = (c: HTMLElement) => ({ fill: c.querySelector('img[aria-hidden]') as HTMLImageElement | null, photo: c.querySelector('img:not([aria-hidden])') as HTMLImageElement })
+  it('fits the photo over a decorative fill made from the same file', () => {
+    const { fill, photo } = thumb(row({}))
+    expect(photo.className).toContain('object-contain')
+    expect(fill).not.toBeNull()
+    expect(fill!.getAttribute('alt')).toBe('')
+    expect(fill!.getAttribute('src')).toBe(photo.getAttribute('src'))
+    expect(fill!.getAttribute('sizes')).toBe(photo.getAttribute('sizes'))
+    expect(fill!.getAttribute('loading')).toBe(photo.getAttribute('loading'))
+    expect(fill!.className).toContain('blur-xs')
+  })
+  it('a teacher keeps the cover crop and gets no fill', () => {
+    const { fill, photo } = thumb(row(TEACHER))
+    expect(fill).toBeNull()
+    expect(photo.className).toContain('object-cover')
+  })
+})
+

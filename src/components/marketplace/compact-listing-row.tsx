@@ -3,6 +3,7 @@
 import { fillTemplate } from '@/lib/i18n/placeholders'
 import { memo, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
+import { PhotoFill } from './photo-fill'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, MapPin, MessageCircle, Tag, Zap } from '@/components/ui/icons'
 import { PartnerBadge } from './partner-badge'
@@ -198,7 +199,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           letterbox a square source — `object-cover` SHAVED IT, ~12% off the top and bottom of every
           thumbnail in the default browse view. ⚠️ SINCE 2026-11-12 UPLOADS ARE NO LONGER SQUARED (owner:
           "do not crop but fit in"; use-post-media.ts), so a new photo is often NOT square and
-          `object-cover` here trims its long sides; the box stays square. The width came down rather than the
+          the photo is shown whole (object-contain) over a blurred fill (photo-fill.tsx); the box stays square. The width came down rather than the
           height going up: the thumb sets the row height (measured 68px = 56 + the 12px of `p-1.5`,
           against a 45px text column and 36px actions), so `w-14` keeps the list at exactly the
           density it has today and hands the 8px to the title, which on a 390pt phone is a 162px
@@ -227,17 +228,21 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
         )}
       >
         {cover ? (
-          <Image
-            src={cover}
-            alt={displayTitle}
-            fill
-            sizes="56px"
-            // ⚠️ THE PHOTO DOES NOT SCALE ON HOVER — the owner's rule for every listing photo (2026-08-05,
-            // written out on ListingCard's <Image>). This thumbnail was the one surface it never reached.
-            className="object-cover"
-            loading={!lazyThumb && index < 6 ? 'eager' : 'lazy'}
-
-          />
+          <>
+            {/* ⛔ THE WHOLE PHOTO OVER ITS OWN BLURRED FILL (owner, 2026-11-12; photo-fill.tsx): same file, no second request.
+                A teacher's portrait stays cover, as on <ListingCard>: it is a face, not a product photo. */}
+            {!teacher && <PhotoFill src={cover} sizes="56px" blur="small" loading={!lazyThumb && index < 6 ? 'eager' : 'lazy'} />}
+            <Image
+              src={cover}
+              alt={displayTitle}
+              fill
+              sizes="56px"
+              // ⚠️ THE PHOTO DOES NOT SCALE ON HOVER — the owner's rule for every listing photo (2026-08-05,
+              // written out on ListingCard's <Image>). This thumbnail was the one surface it never reached.
+              className={teacher ? 'object-cover' : 'object-contain'}
+              loading={!lazyThumb && index < 6 ? 'eager' : 'lazy'}
+            />
+          </>
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-tint">
             <CategoryIcon name={l.category.icon} className="h-5 w-5 text-ink-4" />
