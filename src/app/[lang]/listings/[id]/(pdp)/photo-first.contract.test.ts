@@ -75,8 +75,9 @@ describe('item 8: the safety block follows the facts on a phone', () => {
   it('sits after the description, the details and the seller information, before the reviews and the map', () => {
     // The slots those blocks hold on the phone's single column.
     expect(PAGE).toContain('<div className="order-8 flex flex-col gap-8">')
-    expect(PAGE).toContain('{sellerInfo && <SellerInfo info={sellerInfo} className="order-8" />}')
+    // The `max-md:` hairline classes are batch 79's phone section line (./section-hairline.test.tsx); the slots are unchanged.
+    expect(PAGE).toContain('{sellerInfo && <SellerInfo info={sellerInfo} className="order-8 max-md:border-t max-md:border-border max-md:pt-6" />}')
     expect(PAGE).toContain('<div className="order-10 border-t border-border pt-4">')
-    expect(PAGE).toContain('<div id="location-on-map" className="order-11 space-y-2 scroll-mt-20">')
+    expect(PAGE).toContain('<div id="location-on-map" className="order-11 space-y-2 scroll-mt-20 max-md:border-t max-md:border-border max-md:pt-6">')
   })
 })

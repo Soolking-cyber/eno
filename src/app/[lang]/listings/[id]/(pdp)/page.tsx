@@ -943,7 +943,13 @@ export default async function ListingPage({ params }: Props) {
               CRUMB (2026-11-06 audit): both paint in slot 7, below `#contact`, and equal `order` falls back to source order — with
               the crumb first, "eno.vn / Rentals / Motorbike" sat between "Chat now" and the seller it answers for. Both still lead
               the DOM, so the focus order is the one the breadcrumb note argues for, one row lower. */}
-          <div className="order-7 md:hidden">
+          {/* THE "HOSTED BY" BAND ON A PHONE (UI climb batch 79; owner, 2026-11-12: "continue the ui ux improvement towards
+              10/10"; blind A/B on live eno.vn, GPT 7.56 → 7.71, Opus 7.61 → 7.74, trust ±0): one hairline over the row and 16px
+              to it, the canon's §3b section line (owner, 2026-07-24: "lines between elements … almost no boxes"), as Airbnb
+              frames its host row. ⛔ ONE LINE, OVER IT ONLY: the band closes on the next section's own line (Costs or
+              Description), with the breadcrumb inside it — a second line under the row put the crumb between two hairlines
+              ~60px apart, which read as noise (the mock's first round). Below md only (`max-md:`); nothing moves. */}
+          <div className="order-7 md:hidden max-md:border-t max-md:border-border max-md:pt-4">
             <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} linked={linkedSeller} partnerListingCount={partnerListingCount} unrated={sellerUnrated} linkedShop={sellerLinkedShop} />
           </div>
 
@@ -1452,7 +1458,9 @@ export default async function ListingPage({ params }: Props) {
 
               {/* A RENTAL'S COSTS SIT WITH THE ACTION, as a booking card's fee lines do (Airbnb; 2026-11-05): the deposit and the monthly
                   fees decide a rental, and they were a screen below Chat now while the column beside it stood empty. */}
-              {costRows.length > 0 && <div className="order-7"><RentalCosts rent={monthlyRent} rows={costRows} /></div>}
+              {/* Below md it opens on the section hairline (batch 79; owner, 2026-11-12: "continue … towards 10/10"; A/B GPT +0.15,
+                  Opus +0.13; canon §3b, owner 2026-07-24: "lines between elements … almost no boxes"): the note at Description. */}
+              {costRows.length > 0 && <div className="order-7 max-md:border-t max-md:border-border max-md:pt-6"><RentalCosts rent={monthlyRent} rows={costRows} /></div>}
               <div data-safety-block="" className="order-9 md:order-7">
                 {/*
                   * ⛔ NO REPORTS-AND-DISPUTES ROW ON A PARTNER LISTING. ProtectionsRow explains eno's
@@ -1533,8 +1541,17 @@ export default async function ListingPage({ params }: Props) {
             <div className="order-8 flex flex-col gap-8">
               {/* Section headers on this page share ONE treatment, SECTION_TITLE (section-title.ts) — the shelves' and
                   the reviews header's below — with more space above (section gap) than below. */}
+              {/* …AND, BELOW md, ONE FRAME: A HAIRLINE OVER EVERY SECTION (UI climb batch 79; owner, 2026-11-12: "continue the ui ux
+                  improvement towards 10/10"; blind A/B on live eno.vn, GPT 7.56 → 7.71, Opus 7.61 → 7.74, trust ±0). Each section
+                  that opens on the SECTION_TITLE h2 — Costs, Description, Amenities, Details, Seller information, Location — wears
+                  `max-md:border-t max-md:border-border max-md:pt-6`: the canon's §3b section rule (owner, 2026-07-24: "minimal boxes
+                  as much as open borders with lines between elements … almost no boxes"; "Sections → a single border-t
+                  border-border + vertical rhythm"), the idiom Reviews already wears (order-10). On the phone's one column they
+                  carried spacing only and read as one dense run. No box, no fill, no new element, nothing moves (orders untouched);
+                  md and up are unchanged. The shelves below <main>'s grid ('More from this seller', 'More like this') get none:
+                  the safety well above them is their boundary. ./section-hairline.test.tsx pins the set. */}
               {showDescription && (
-              <div className="space-y-2">
+              <div className="space-y-2 max-md:border-t max-md:border-border max-md:pt-6">
                 <h2 className={SECTION_TITLE}><Tr text="Description" /></h2>
                 {/* max-w-prose caps the reading measure at ~65ch — the col-7 body otherwise runs wide. */}
                 <ListingDescription text={listing.description} vi={listing.descriptionVi} i18n={i18n[listing.description]} className={`max-w-prose space-y-3 text-base leading-relaxed text-body ${repeatedFacts}`} />
@@ -1542,11 +1559,15 @@ export default async function ListingPage({ params }: Props) {
               )}
 
               {/* A rental's amenities (rental-facts.tsx), right after the words and before the reference table; rendered only when
-                  the listing states them. Its monthly bill is in the buy box above. */}
-              {amenities.length > 0 && <RentalAmenities items={amenities} />}
+                  the listing states them. Its monthly bill is in the buy box above. Its section hairline (batch 79; owner,
+                  2026-11-12: "continue … towards 10/10"; A/B GPT +0.15, Opus +0.13; canon §3b) is on a wrapper here, as the
+                  Costs' is in the buy box: the component stays the bare section. */}
+              {amenities.length > 0 && <div className="max-md:border-t max-md:border-border max-md:pt-6"><RentalAmenities items={amenities} /></div>}
 
+              {/* Details: the section hairline below md (batch 79; owner, 2026-11-12: "continue … towards 10/10"; A/B GPT +0.15,
+                  Opus +0.13; canon §3b, owner 2026-07-24: "lines between elements … almost no boxes"): the note at Description. */}
               {showDetails && (
-                <div className="space-y-2">
+                <div className="space-y-2 max-md:border-t max-md:border-border max-md:pt-6">
                   <h2 className={SECTION_TITLE}><Tr text="Details" /></h2>
                   {/* Spec table: hairline row dividers, muted label / strong value, even row height.
                       `data-fab-avoid` on every value: the floating support mark yields (fades) when it
@@ -1625,17 +1646,22 @@ export default async function ListingPage({ params }: Props) {
 
             {/* 8b — Seller information (owner, 2026-10-01): right after Description/Details, sharing their
                 `order-8` slot so DOM order places it below them on phones too. Renders nothing when there is
-                nothing to state (an individual seller, or a business that entered no legal details). */}
-            {sellerInfo && <SellerInfo info={sellerInfo} className="order-8" />}
+                nothing to state (an individual seller, or a business that entered no legal details). Below md its <section> opens
+                on the section hairline (batch 79; owner, 2026-11-12: "continue … towards 10/10"; A/B GPT +0.15, Opus +0.13;
+                canon §3b, owner 2026-07-24: "lines between elements … almost no boxes"; the note at Description), passed as a
+                class so a seller with nothing to state still leaves no stray line. */}
+            {sellerInfo && <SellerInfo info={sellerInfo} className="order-8 max-md:border-t max-md:border-border max-md:pt-6" />}
 
             {/* 11 — Map. Not on a linked job or a partner row without a stored coordinate: the map would
                 pin a city centroid (±1km jitter, geo.ts getListingCoordinates) that is not the item's
                 place — an eSIM or a shop's phone 'in District 1'. When there is no map, render NOTHING:
                 the meta row under the title already shows the location beside its pin glyph, so a
                 text-only Location section would only repeat it. A seller's own listing keeps its map
-                as before, district-level or not. */}
+                as before, district-level or not. Below md it opens on the section hairline (batch 79; owner, 2026-11-12:
+                "continue … towards 10/10"; A/B GPT +0.15, Opus +0.13; canon §3b, owner 2026-07-24: "lines between elements …
+                almost no boxes"; the note at Description). */}
             {showMap && (
-            <div id="location-on-map" className="order-11 space-y-2 scroll-mt-20">
+            <div id="location-on-map" className="order-11 space-y-2 scroll-mt-20 max-md:border-t max-md:border-border max-md:pt-6">
               <h2 className={SECTION_TITLE}><Tr text="Location" /></h2>
               {approxArea && (
                 <p data-map-approximate className="text-xs text-muted-foreground">
