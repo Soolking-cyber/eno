@@ -26,6 +26,14 @@ type PhotonFeature = { geometry?: { coordinates?: unknown }; properties?: Record
 
 const text = (v: unknown) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '')
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase()
+/**
+ * One CITY under its two languages' words: "Ho Chi Minh City", "Thành phố Hồ Chí Minh" and "TP. Hồ Chí Minh" are one city.
+ * Measured on eno-photon 11-12 (English answers): `city` came back English and `state` Vietnamese, so every HCMC row read
+ * "Ho Chi Minh City, Thành phố Hồ Chí Minh". City words only — "Tỉnh Thanh Hóa" (the province) and "Thanh Hóa City" are two
+ * places and both stay (commit gate, codex).
+ */
+// Spacing ignored: OpenStreetMap's English "Hanoi" / "Haiphong" are "Hà Nội" / "Hải Phòng" run together (agy + opus).
+const cityKey = (s: string) => fold(s).replace(/^(thanh pho\s+|tp\.\s*|tp\s+)/, '').replace(/\s+city$/, '').replace(/\s+/g, '')
 
 /**
  * A Photon result as a suggestion: the place's name, or its house number and street; then the street (under a named
@@ -43,9 +51,22 @@ export function toSuggestion(f: PhotonFeature): PlaceSuggestion | null {
   const name = text(p.name)
   const title = name || street || text(p.district) || text(p.city) || text(p.state)
   if (!title) return null
+  // The title is compared as written (a shop called "Huế City" keeps its city — commit gate, opus); the address parts among
+  // themselves also as cities. A result that IS the city (its name is one of its own address parts) counts as that city.
   const seen = new Set([fold(title)])
-  const detail = [name ? street : '', text(p.district), text(p.city), text(p.county), text(p.state)]
-    .filter((x) => { if (!x || seen.has(fold(x))) return false; seen.add(fold(x)); return true })
+  // Only a result that IS a place (a city, a province) counts as its own city, matched across languages; a shop called
+  // "Huế City" or a road called "Hồ Chí Minh" is compared as written and keeps the city after it (agy + opus).
+  const isPlace = p.osm_key === 'place' || p.osm_key === 'boundary'
+  const cities = new Set<string>(isPlace && [text(p.city), text(p.county), text(p.state)].some((x) => x && cityKey(x) === cityKey(title)) ? [cityKey(title)] : [])
+  // Only the city, county and province fields are compared as cities: a street or ward that happens to share a city's name
+  // ("Hồ Chí Minh" street) never hides the city after it (agy).
+  const parts: [string, boolean][] = [[name ? street : '', false], [text(p.district), false], [text(p.city), true], [text(p.county), true], [text(p.state), true]]
+  const detail = parts
+    .filter(([x, isCity]) => {
+      if (!x || seen.has(fold(x)) || (isCity && cities.has(cityKey(x)))) return false
+      seen.add(fold(x)); if (isCity) cities.add(cityKey(x)); return true
+    })
+    .map(([x]) => x)
     .join(', ')
   return { title: title.slice(0, 120), detail: detail.slice(0, 200), lat, lng }
 }
@@ -53,7 +74,10 @@ export function toSuggestion(f: PhotonFeature): PlaceSuggestion | null {
 /**
  * The suggestions in Photon's order, each place once: one shop is often two OpenStreetMap objects (the node and its
  * building) a few metres apart. Only NEAR twins merge — two branches with the same name and ward a kilometre apart are two
- * places (commit gate, codex).
+ * places (commit gate, codex). ⛔ A ROAD IN PIECES IS LEFT AS IT COMES: "Nguyễn Văn Hưởng, An Khánh" shows twice (two
+ * OpenStreetMap ways ~300 m apart, measured on eno-photon 11-12), but two different "Đường số 7" in neighbouring estates
+ * read the same and can sit as close — no distance tells them apart, and a merged one pins the seller to the wrong street.
+ * A repeated row is the safe miss (commit gate, codex + opus).
  */
 export function toSuggestions(features: unknown): PlaceSuggestion[] {
   const out: PlaceSuggestion[] = []

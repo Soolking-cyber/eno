@@ -21,6 +21,33 @@ describe('a Photon result as the picker shows it', () => {
     expect(toSuggestion({ geometry: { coordinates: [114.33, 10.38] }, properties: { name: 'Đảo Trường Sa' } })).not.toBeNull()
     expect(toSuggestion({ geometry: { coordinates: [111.6, 16.5] }, properties: { name: 'Quần đảo Hoàng Sa' } })).not.toBeNull()
   })
+  it('a city once, whatever language its two fields came back in (measured on eno-photon: "Ho Chi Minh City, Thành phố Hồ Chí Minh")', () => {
+    const en = { geometry: { coordinates: [106.74157, 10.80244] }, properties: { name: "McDonald's", housenumber: '159-161', street: 'Vo Nguyen Giap Highway', district: 'An Khánh', city: 'Ho Chi Minh City', state: 'Thành phố Hồ Chí Minh' } }
+    expect(toSuggestion(en)?.detail).toBe('159-161 Vo Nguyen Giap Highway, An Khánh, Ho Chi Minh City')
+    expect(toSuggestion({ ...en, properties: { ...en.properties, city: undefined, state: 'TP. Hồ Chí Minh', county: 'Hồ Chí Minh' } })?.detail).toBe('159-161 Vo Nguyen Giap Highway, An Khánh, Hồ Chí Minh')
+  })
+  it('⛔ two same-named roads ~300 m apart stay two: a road in pieces and two different "Đường số 7" read the same', () => {
+    const way = (lng: number) => ({ geometry: { coordinates: [lng, 10.80082] }, properties: { name: 'Đường số 7', district: 'An Khánh', city: 'Ho Chi Minh City', osm_key: 'highway', osm_value: 'residential' } })
+    expect(toSuggestions([way(106.72913), way(106.73204)])).toHaveLength(2)
+  })
+  it('Hanoi once (English "Hanoi" is "Hà Nội" run together); a street named like the city keeps the city', () => {
+    expect(toSuggestion({ geometry: { coordinates: [105.85, 21.03] }, properties: { name: 'Hoan Kiem Lake', district: 'Hoàn Kiếm', city: 'Hanoi', state: 'Thành phố Hà Nội' } })?.detail).toBe('Hoàn Kiếm, Hanoi')
+    expect(toSuggestion({ geometry: { coordinates: [106.7, 10.78] }, properties: { housenumber: '5', street: 'Hồ Chí Minh', district: 'Bến Thành', city: 'Ho Chi Minh City' } })?.detail).toBe('Bến Thành, Ho Chi Minh City')
+    // The city's own row (a place) with only the other-language field: still once.
+    expect(toSuggestion({ geometry: { coordinates: [106.7, 10.78] }, properties: { name: 'Thành phố Hồ Chí Minh', state: 'Ho Chi Minh City', osm_key: 'place', osm_value: 'city' } })?.detail).toBe('')
+    // ⛔ Not a place: a shop called "Huế City" and a road called "Hồ Chí Minh" keep the city after them.
+    expect(toSuggestion({ geometry: { coordinates: [107.59, 16.46] }, properties: { name: 'Huế City', city: 'Huế', osm_key: 'tourism', osm_value: 'hotel' } })?.detail).toBe('Huế')
+    expect(toSuggestion({ geometry: { coordinates: [106.7, 10.78] }, properties: { name: 'Hồ Chí Minh', district: 'Bến Thành', city: 'Ho Chi Minh City', osm_key: 'highway', osm_value: 'primary' } })?.detail).toBe('Bến Thành, Ho Chi Minh City')
+  })
+  it('the city itself reads once, not "Ho Chi Minh City, Thành phố Hồ Chí Minh" (commit gate, opus)', () => {
+    expect(toSuggestion({ geometry: { coordinates: [106.7, 10.78] }, properties: { name: 'Ho Chi Minh City', city: 'Ho Chi Minh City', state: 'Thành phố Hồ Chí Minh', osm_key: 'place', osm_value: 'city' } })?.detail).toBe('')
+    // "TP." only as the abbreviation: "Thanh Phong" is not "thanh pho" + "ng".
+    expect(toSuggestion({ geometry: { coordinates: [106.4, 10.2] }, properties: { name: 'Chợ Thạnh Phong', district: 'Thạnh Phong', state: 'Tỉnh Vĩnh Long' } })?.detail).toBe('Thạnh Phong, Tỉnh Vĩnh Long')
+  })
+  it('a province and its city are two places; a shop called "… City" keeps its city', () => {
+    expect(toSuggestion({ geometry: { coordinates: [105.78, 19.8] }, properties: { name: 'Chợ Vườn Hoa', city: 'Thanh Hóa City', state: 'Tỉnh Thanh Hóa' } })?.detail).toBe('Thanh Hóa City, Tỉnh Thanh Hóa')
+    expect(toSuggestion({ geometry: { coordinates: [107.59, 16.46] }, properties: { name: 'Hue City Hotel', city: 'Huế' } })?.detail).toBe('Huế')
+  })
   it('nothing outside Vietnam, nothing without a name or a point', () => {
     expect(toSuggestion({ geometry: { coordinates: [2.35, 48.85] }, properties: { name: 'Paris' } })).toBeNull()
     expect(toSuggestion({ geometry: { coordinates: [106.7, 10.8] }, properties: {} })).toBeNull()
