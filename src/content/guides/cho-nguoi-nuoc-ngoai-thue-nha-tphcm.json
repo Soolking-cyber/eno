@@ -1,0 +1,387 @@
+{
+  "slug": "cho-nguoi-nuoc-ngoai-thue-nha-tphcm",
+  "title": "Cho người nước ngoài thuê nhà ở TP.HCM: chủ nhà cần biết",
+  "description": "Hợp đồng không bắt buộc công chứng, ngưỡng thuế cho thuê nhà mới từ 2026, tiền cọc, câu khách nước ngoài hay hỏi và giá thuê theo eno.vn Rent Index ngày 10/11/2026.",
+  "h1": "Cho người nước ngoài thuê nhà ở TP.HCM: hợp đồng, tiền cọc, thuế và cách định giá",
+  "eyebrow": "Cho thuê nhà",
+  "intro": "Chủ nhà ở TP.HCM có thể cho người nước ngoài thuê bằng hợp đồng lập thành văn bản, không bắt buộc công chứng. Từ năm 2026, chủ nhà chỉ phải nộp thuế khi doanh thu cho thuê vượt ngưỡng của Nghị định 141/2026/NĐ-CP. Ngoài hợp đồng và thuế, chủ nhà còn phải khai báo với công an khi khách nước ngoài vào ở, thống nhất tiền cọc bằng đồng Việt Nam và đặt giá thuê sát mặt bằng khu vực.",
+  "keyPoints": [
+    "Hợp đồng thuê nhà phải **lập thành văn bản** (Điều 163 Luật Nhà ở 2023) nhưng **không bắt buộc công chứng** (Điều 164). Nếu hai bên không thỏa thuận khác, hợp đồng có hiệu lực từ ngày ký.",
+    "Theo Báo Điện tử Chính phủ (12/6/2026), từ 1/1/2026 cá nhân có doanh thu cho thuê từ {{vnd:1000000000}} một năm trở xuống không phải nộp thuế GTGT và thuế TNCN, nhưng vẫn phải thông báo doanh thu với cơ quan thuế.",
+    "Tiền thuê và tiền cọc nên ghi bằng đồng Việt Nam. Ngoại tệ chỉ được dùng trong những trường hợp pháp luật ngoại hối cho phép.",
+    "Theo eno.vn Rent Index ngày 10/11/2026, giá chào thuê trung vị của căn hộ 1 phòng ngủ trên toàn TP.HCM là {{vnd:7300000}} một tháng.",
+    "Đăng tin cho thuê trên eno.vn là miễn phí. Khi có khách nước ngoài vào ở, chủ nhà phải khai báo với công an, xem [hướng dẫn thuê nhà cho người nước ngoài](/renting-an-apartment-vietnam-foreigner)."
+  ],
+  "sections": [
+    {
+      "id": "hop-dong-cho-nguoi-nuoc-ngoai-thue-nha",
+      "title": "Hợp đồng cho người nước ngoài thuê nhà cần những gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Hợp đồng thuê nhà phải **lập thành văn bản** và không bắt buộc công chứng hay chứng thực. Điều 163 Luật Nhà ở 2023 yêu cầu hợp đồng về nhà ở có dạng văn bản, theo [Báo Pháp luật Việt Nam](https://baophapluat.vn/co-bat-buoc-phai-lap-hop-dong-thue-nha-bang-van-ban.html). Khoản 2 [Điều 164](https://hethongphapluat.com/luat-nha-o-2023/dieu-164) cho phép hợp đồng thuê không công chứng, trừ khi hai bên muốn công chứng."
+        },
+        {
+          "type": "p",
+          "text": "Khi khách là người nước ngoài, hợp đồng song ngữ Việt - Anh giúp tránh hiểu lầm. Bạn nên ghi rõ bản tiếng Việt được ưu tiên áp dụng nếu hai bản có chỗ khác nhau. Phần thông tin bên thuê ghi họ tên và số hộ chiếu đúng như trên giấy tờ của khách."
+        },
+        {
+          "type": "h3",
+          "text": "Nội dung bắt buộc theo Điều 163"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Họ tên và địa chỉ của các bên.",
+            "Mô tả nhà ở và thửa đất gắn với nhà.",
+            "Giá thuê, phương thức và thời hạn thanh toán.",
+            "Thời điểm bàn giao và thời hạn thuê.",
+            "Quyền và nghĩa vụ của mỗi bên.",
+            "Cam kết, thỏa thuận khác, ngày hiệu lực, ngày ký và chữ ký."
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Điều khoản nên thêm khi cho người nước ngoài thuê"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Điều khoản chấm dứt sớm**: báo trước bao nhiêu ngày, và mất bao nhiêu tiền cọc nếu khách rời đi trước hạn. Khách đi làm theo hợp đồng một năm học thường hỏi kỹ điều này.",
+            "**Bảng kê chi phí**: tiền điện, nước, internet, phí quản lý, phí gửi xe, dọn phòng. Ghi rõ khoản nào đã gồm trong giá thuê và khoản nào khách tự trả, kèm đơn giá tính tiền điện.",
+            "**Danh mục đồ đạc** có ảnh chụp lúc bàn giao, để làm căn cứ khi trả cọc.",
+            "**Địa chỉ** ghi theo tên phường, xã hiện hành trên giấy tờ nhà, kể cả khi tin đăng vẫn dùng tên quận cũ."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tien-coc-khi-cho-nguoi-nuoc-ngoai-thue",
+      "title": "Tiền cọc khi cho người nước ngoài thuê nhà nên thỏa thuận thế nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Mức cọc và điều kiện hoàn cọc do hai bên thỏa thuận, rồi ghi vào hợp đồng. Bộ luật Dân sự 2015 (Điều 328) coi đặt cọc là một biện pháp bảo đảm thực hiện nghĩa vụ. Tài sản đặt cọc có thể là tiền, kim khí quý, đá quý hoặc vật có giá trị khác, theo [Tạp chí Luật sư Việt Nam](https://lsvn.vn/co-duoc-phep-dat-coc-bang-vang-ngoai-te-hay-sec-khong-1705289712-a139985.html)."
+        },
+        {
+          "type": "p",
+          "text": "Khách nước ngoài thường lo nhất về việc lấy lại tiền cọc. Hợp đồng nên ghi rõ ba điều: trả cọc trong bao nhiêu ngày sau khi bàn giao nhà, những khoản nào được trừ (hư hỏng ngoài hao mòn thông thường, hóa đơn còn nợ), và trả bằng chuyển khoản vào tài khoản nào. Những tranh chấp thường gặp về tiền cọc được nói trong [hướng dẫn về tiền cọc thuê nhà](/rental-deposit-vietnam)."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Đừng ghi giá thuê hay tiền cọc bằng đô la",
+          "text": "Theo Tạp chí Luật sư Việt Nam, Điều 22 Pháp lệnh Ngoại hối (sửa đổi 2013) và Điều 4 Thông tư 32/2013/TT-NHNN chỉ cho phép dùng ngoại tệ trong giao dịch tại Việt Nam ở một số trường hợp cụ thể. Khách đề nghị trả bằng đô la thì bạn vẫn nên ghi giá bằng đồng, ví dụ {{vnd:8000000}} một tháng, và nhận chuyển khoản bằng đồng."
+        }
+      ]
+    },
+    {
+      "id": "nguoi-nuoc-ngoai-thue-nha-thuong-hoi-gi",
+      "title": "Người nước ngoài thuê nhà thường hỏi chủ nhà những gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Trước khi ký, khách nước ngoài thường hỏi về chi phí ngoài giá thuê, về tiền cọc và về giấy tờ chủ nhà làm cho họ. Nếu tin đăng trả lời sẵn những câu này bằng tiếng Anh, bạn đỡ được nhiều tin nhắn hỏi đi hỏi lại."
+        },
+        {
+          "type": "table",
+          "caption": "Câu hỏi thường gặp từ khách nước ngoài và thông tin chủ nhà nên chuẩn bị",
+          "headers": [
+            "Khách hỏi",
+            "Chủ nhà nên trả lời sẵn"
+          ],
+          "rows": [
+            [
+              "Giá đã gồm những gì?",
+              "Điện, nước, internet, phí quản lý, dọn phòng: khoản nào đã gồm, khoản nào tính riêng và tính theo đơn giá nào"
+            ],
+            [
+              "Cọc bao nhiêu, khi nào được trả lại?",
+              "Số tiền cọc, các khoản được trừ, số ngày hoàn cọc sau khi trả nhà"
+            ],
+            [
+              "Thuê ngắn hạn hoặc trả nhà sớm được không?",
+              "Thời hạn tối thiểu, số ngày báo trước, khoản bị mất khi trả nhà sớm"
+            ],
+            [
+              "Có hợp đồng tiếng Anh không?",
+              "Hợp đồng song ngữ, bản tiếng Việt được ưu tiên áp dụng"
+            ],
+            [
+              "Chủ nhà có khai báo với công an cho tôi không?",
+              "Có. Chủ nhà làm việc này và cần bản chụp giấy tờ của khách"
+            ],
+            [
+              "Nội thất có những gì?",
+              "Danh sách đồ đạc kèm ảnh chụp thật"
+            ],
+            [
+              "Trả tiền bằng cách nào?",
+              "Chuyển khoản ngân hàng bằng đồng Việt Nam, ngày đến hạn mỗi tháng"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Khai báo với công an khi khách nước ngoài vào ở là **nghĩa vụ của chủ nhà**, không phải của khách. Cách làm và những giấy tờ cần chuẩn bị được nói trong [hướng dẫn thuê nhà cho người nước ngoài](/renting-an-apartment-vietnam-foreigner). Ở chung cư, nên hỏi thêm ban quản lý tòa nhà xem họ yêu cầu những gì."
+        },
+        {
+          "type": "p",
+          "text": "Nếu cho thuê căn trống hoặc mới trang bị một phần, bạn có thể tham khảo [hướng dẫn sắm đồ cho nhà ở Việt Nam](/furnishing-a-home-in-vietnam) để biết khách thường cần những món gì."
+        }
+      ]
+    },
+    {
+      "id": "thue-cho-thue-nha-2026",
+      "title": "Cho người nước ngoài thuê nhà phải đóng thuế gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Thuế cho thuê nhà không phụ thuộc vào việc khách là người Việt hay người nước ngoài. Thuế chỉ phát sinh khi tổng doanh thu cho thuê trong năm vượt ngưỡng. Theo [Báo Điện tử Chính phủ](https://baochinhphu.vn/doanh-thu-cho-thue-nha-duoi-1-ty-dong-van-phai-khai-bao-thue-10226061216052641.htm) (12/6/2026), Nghị định 141/2026/NĐ-CP quy định từ 1/1/2026 cá nhân có doanh thu cho thuê từ {{vnd:1000000000}} một năm trở xuống không phải nộp thuế GTGT và thuế TNCN cho hoạt động này."
+        },
+        {
+          "type": "table",
+          "caption": "Thuế cho thuê nhà của cá nhân năm 2026, theo Báo Điện tử Chính phủ (12/6/2026) và trang Xây dựng chính sách của Chính phủ (8/5/2026). Mức 5% và cách tính lấy từ bài ngày 8/5/2026, viết khi ngưỡng còn là {{vnd:500000000}}",
+          "headers": [
+            "Doanh thu cho thuê cả năm",
+            "Thuế GTGT",
+            "Thuế TNCN",
+            "Việc phải làm"
+          ],
+          "rows": [
+            [
+              "Từ {{vnd:1000000000}} trở xuống",
+              "Không nộp",
+              "Không nộp",
+              "Thông báo doanh thu và tài khoản nhận tiền thuê (mẫu 01/BĐS)"
+            ],
+            [
+              "Trên {{vnd:1000000000}}",
+              "5% trên toàn bộ doanh thu",
+              "5% trên phần doanh thu vượt ngưỡng",
+              "Khai và nộp thuế tại cơ quan thuế nơi có nhà"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Theo [Xây dựng chính sách - Chính phủ](https://xaydungchinhsach.chinhphu.vn/chinh-sach-moi-ve-thue-voi-ho-ca-nhan-cho-thue-bat-dong-san-119260312092953897.htm) (8/5/2026), khi doanh thu vượt ngưỡng, thuế GTGT bằng 5% trên **toàn bộ doanh thu**, còn thuế TNCN bằng 5% trên **phần doanh thu vượt ngưỡng**. Bài này viết khi ngưỡng còn là {{vnd:500000000}}, trước khi Nghị định 141/2026 nâng ngưỡng. Các bài của Chính phủ đọc ngày 12/11/2026 chưa nói rõ hai loại thuế này tính thế nào theo ngưỡng mới, vì vậy khi doanh thu gần hoặc vượt ngưỡng, bạn nên hỏi cơ quan thuế nơi có nhà."
+        },
+        {
+          "type": "h3",
+          "text": "Thời hạn thông báo doanh thu"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "Thông báo một lần: chậm nhất 31/1 năm sau.",
+            "Thông báo hai lần: lần đầu chậm nhất 31/7 năm tính thuế, lần hai chậm nhất 31/1 năm sau.",
+            "Nộp điện tử qua ứng dụng eTax Mobile hoặc dichvucong.gdt.gov.vn. Người cao tuổi, người khuyết tật và một số trường hợp đặc biệt khác được nộp trực tiếp tại Trung tâm phục vụ hành chính công cấp xã.",
+            "Có từ hai nhà cho thuê trở lên thì nộp kèm bảng kê 01/BK-BĐS. Doanh thu được cộng từ tất cả hợp đồng trong năm, theo [VOV2](https://vov2.vov.vn/phap-luat/cho-thue-nha-bat-dong-san-khai-thue-the-nao-tu-112026-57510.vov2)."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Khách thuê là công ty, ví dụ công ty thuê nhà cho nhân viên nước ngoài, chỉ khai và nộp thuế thay chủ nhà khi hợp đồng ghi rõ điều đó. Nếu hợp đồng không ghi, chủ nhà tự khai với cơ quan thuế, theo trang Xây dựng chính sách của Chính phủ."
+        }
+      ]
+    },
+    {
+      "id": "dinh-gia-thue-theo-rent-index",
+      "title": "Nên đặt giá thuê bao nhiêu khi cho người nước ngoài thuê?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Cách nhanh nhất là đối chiếu với giá chào thuê trung vị của cùng loại nhà ở cùng khu. Theo [eno.vn Rent Index](/hcmc-rent-index) ngày 10/11/2026, giá chào thuê trung vị trên toàn TP.HCM là {{vnd:4300000}} một tháng cho studio, {{vnd:7300000}} cho căn 1 phòng ngủ và {{vnd:8800000}} cho căn 2 phòng ngủ."
+        },
+        {
+          "type": "p",
+          "text": "eno.vn Rent Index do eno.vn tính, dựa trên giá chào thuê theo tháng của các tin cho thuê đăng trên eno.vn, chia theo quận và loại nhà. Index cập nhật hằng ngày. Đây là **giá chào**, không phải giá đã ký sau khi thương lượng. Ở snapshot ngày 10/11/2026, nguồn tin gồm tin của GoPlus (đối tác chính thức của eno.vn) và tin do thành viên eno.vn đăng. Index chỉ công bố trung vị khi có ít nhất 10 tin."
+        },
+        {
+          "type": "table",
+          "caption": "Giá chào thuê căn hộ trung vị một tháng theo eno.vn Rent Index, snapshot ngày 10/11/2026 (— là dưới 10 tin, không công bố)",
+          "headers": [
+            "Khu vực",
+            "Studio",
+            "1 phòng ngủ",
+            "2 phòng ngủ"
+          ],
+          "rows": [
+            [
+              "Bình Thạnh",
+              "{{vnd:5500000}}",
+              "{{vnd:8000000}}",
+              "{{vnd:9400000}}"
+            ],
+            [
+              "Tân Bình",
+              "{{vnd:5500000}}",
+              "{{vnd:7200000}}",
+              "{{vnd:10500000}}"
+            ],
+            [
+              "Gò Vấp",
+              "{{vnd:4800000}}",
+              "{{vnd:6600000}}",
+              "{{vnd:8200000}}"
+            ],
+            [
+              "Quận 7 (Phú Mỹ Hưng)",
+              "{{vnd:4700000}}",
+              "{{vnd:15000000}}",
+              "—"
+            ],
+            [
+              "Tân Phú",
+              "{{vnd:3500000}}",
+              "{{vnd:7000000}}",
+              "—"
+            ],
+            [
+              "Quận 12",
+              "{{vnd:4100000}}",
+              "{{vnd:5800000}}",
+              "—"
+            ],
+            [
+              "Quận 1",
+              "{{vnd:7000000}}",
+              "—",
+              "—"
+            ],
+            [
+              "Phú Nhuận",
+              "{{vnd:5500000}}",
+              "—",
+              "—"
+            ],
+            [
+              "TP. Thủ Đức (gồm Quận 2, Quận 9 cũ)",
+              "{{vnd:4000000}}",
+              "—",
+              "—"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Rent Index dùng tên quận cũ vì tin đăng vẫn ghi như vậy. Ở snapshot ngày 10/11/2026, nhiều quận chưa đủ 10 tin căn 1-2 phòng ngủ, và nhà nguyên căn, phòng trọ chưa có trung vị. Với những ô trống, bạn nên tham khảo thêm tin cùng loại trong [mục nhà cho thuê](/c/rentals). Khu vực khách nước ngoài hay chọn được nói trong [bài chọn nơi ở tại TP.HCM](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher)."
+        },
+        {
+          "type": "callout",
+          "tone": "tip",
+          "text": "Đặt giá cao hơn trung vị khu vực thì tin đăng cần giải thích lý do bằng thông tin cụ thể: nội thất đầy đủ, đã gồm dọn phòng hoặc internet, gần tuyến metro, có hợp đồng song ngữ. Khách nước ngoài thường so giá theo tổng chi phí mỗi tháng, không chỉ tiền thuê."
+        }
+      ]
+    },
+    {
+      "id": "dang-tin-cho-thue-mien-phi-tren-eno",
+      "title": "Đăng tin cho người nước ngoài thuê nhà miễn phí ở đâu?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Bạn có thể đăng tin cho thuê miễn phí trên eno.vn, một chợ rao vặt miễn phí cho người nước ngoài và người Việt tại Việt Nam. Tin cho thuê ở TP.HCM hiện trong [mục nhà cho thuê](/c/rentals), và giá chào trong tin được tính vào Rent Index."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Tra giá khu vực",
+              "text": "Mở [eno.vn Rent Index](/hcmc-rent-index), tìm quận và loại nhà của bạn, ghi lại ngày snapshot."
+            },
+            {
+              "title": "Chuẩn bị tin bằng tiếng Anh",
+              "text": "Ghi giá bằng đồng, kèm danh sách khoản đã gồm và khoản tính riêng, mức cọc, thời hạn thuê tối thiểu, đồ đạc, ảnh thật."
+            },
+            {
+              "title": "Đăng tin",
+              "text": "Vào [trang đăng tin](/post), chọn danh mục cho thuê nhà, ghi đúng quận để tin hiện đúng khu vực."
+            },
+            {
+              "title": "Trả lời và hẹn xem nhà",
+              "text": "Trả lời khách trong khung chat của eno.vn. Khi khách đồng ý thuê, gửi bản hợp đồng song ngữ để khách đọc trước."
+            },
+            {
+              "title": "Ký hợp đồng, nhận cọc và khai báo",
+              "text": "Ký hợp đồng, nhận cọc bằng chuyển khoản, bàn giao nhà kèm biên bản và ảnh, rồi khai báo với công an theo [hướng dẫn này](/renting-an-apartment-vietnam-foreigner)."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Những câu hỏi về tài khoản và cách đăng tin có trong [trung tâm trợ giúp](/help)."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Cho người nước ngoài thuê nhà có cần công chứng hợp đồng không?",
+      "a": "Hợp đồng cho người nước ngoài thuê nhà không bắt buộc công chứng. Khoản 2 Điều 164 Luật Nhà ở 2023 miễn công chứng, chứng thực cho hợp đồng thuê nhà ở, trừ khi hai bên muốn làm. Tuy vậy, Điều 163 vẫn yêu cầu hợp đồng lập thành văn bản, ghi đủ thông tin các bên, mô tả nhà, giá thuê, cách thanh toán và thời hạn thuê. Nếu không có thỏa thuận khác, hợp đồng có hiệu lực từ ngày ký."
+    },
+    {
+      "q": "Cho người nước ngoài thuê nhà có phải đóng thuế không?",
+      "a": "Chủ nhà cho người nước ngoài thuê nhà nộp thuế như khi cho người Việt thuê. Theo Báo Điện tử Chính phủ (12/6/2026), từ 1/1/2026 doanh thu cho thuê không vượt ngưỡng của Nghị định 141/2026/NĐ-CP thì không nộp thuế GTGT và TNCN, nhưng vẫn phải thông báo doanh thu. Theo trang Xây dựng chính sách (8/5/2026), vượt ngưỡng thì GTGT là 5% toàn bộ doanh thu, TNCN là 5% phần vượt. Bài đó viết trước khi ngưỡng được nâng, nên hỏi cơ quan thuế về cách tính mới."
+    },
+    {
+      "q": "Chủ nhà có phải khai báo khi cho người nước ngoài thuê nhà không?",
+      "a": "Có. Khi người nước ngoài thuê nhà và ở tại nhà mình, chủ nhà phải khai báo với công an. Đây là nghĩa vụ của chủ nhà, không phải của người thuê, nên khi ký hợp đồng chủ nhà nên xin bản chụp giấy tờ của khách. Hướng dẫn thuê nhà cho người nước ngoài trên eno.vn trình bày cách làm. Nếu nhà là căn hộ chung cư, chủ nhà nên hỏi thêm ban quản lý tòa nhà về yêu cầu riêng."
+    },
+    {
+      "q": "Người nước ngoài trả tiền thuê nhà bằng đô la được không?",
+      "a": "Thường là không nên. Theo Tạp chí Luật sư Việt Nam, Điều 22 Pháp lệnh Ngoại hối (sửa đổi 2013) và Điều 4 Thông tư 32/2013/TT-NHNN chỉ cho dùng ngoại tệ trong giao dịch tại Việt Nam ở một số trường hợp cụ thể. Chủ nhà cho người nước ngoài thuê nên ghi giá thuê và tiền cọc bằng đồng Việt Nam trong hợp đồng, và nhận chuyển khoản bằng đồng."
+    },
+    {
+      "q": "Cho người nước ngoài thuê căn hộ 1 phòng ngủ ở TP.HCM giá bao nhiêu?",
+      "a": "Theo eno.vn Rent Index ngày 10/11/2026, căn hộ 1 phòng ngủ ở Quận 7 (Phú Mỹ Hưng) có giá chào trung vị cao nhất trong các khu có đủ số tin. Gò Vấp và Quận 12 thấp hơn nhiều. Con số cụ thể theo từng quận có trong bảng ở mục định giá phía trên. Rent Index tính giá chào trên eno.vn, không phải giá đã ký, nên giá cuối cùng còn tùy nội thất và thương lượng."
+    },
+    {
+      "q": "Đăng tin cho người nước ngoài thuê nhà ở đâu miễn phí?",
+      "a": "Chủ nhà có thể đăng tin cho người nước ngoài thuê nhà miễn phí trên eno.vn, một chợ rao vặt miễn phí cho người nước ngoài và người Việt tại Việt Nam. Tin cho thuê ở TP.HCM được xếp vào mục nhà cho thuê, và khách có thể nhắn tin hỏi qua khung chat. Tin viết bằng tiếng Anh, ghi giá bằng đồng, liệt kê đủ chi phí và mức cọc thì nhận được ít câu hỏi lặp lại hơn."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Doanh thu cho thuê nhà dưới 1 tỷ đồng vẫn phải khai báo thuế",
+      "publisher": "Báo Điện tử Chính phủ",
+      "url": "https://baochinhphu.vn/doanh-thu-cho-thue-nha-duoi-1-ty-dong-van-phai-khai-bao-thue-10226061216052641.htm"
+    },
+    {
+      "title": "Chính sách thuế mới đối với hộ, cá nhân cho thuê bất động sản",
+      "publisher": "Xây dựng chính sách, pháp luật - Cổng TTĐT Chính phủ",
+      "url": "https://xaydungchinhsach.chinhphu.vn/chinh-sach-moi-ve-thue-voi-ho-ca-nhan-cho-thue-bat-dong-san-119260312092953897.htm"
+    },
+    {
+      "title": "HCMC Rent Index",
+      "publisher": "eno.vn",
+      "url": "https://eno.vn/hcmc-rent-index"
+    },
+    {
+      "title": "Điều 164 Luật Nhà ở 2023",
+      "publisher": "Hệ thống pháp luật",
+      "url": "https://hethongphapluat.com/luat-nha-o-2023/dieu-164"
+    },
+    {
+      "title": "Có bắt buộc phải lập hợp đồng thuê nhà bằng văn bản?",
+      "publisher": "Báo Pháp luật Việt Nam",
+      "url": "https://baophapluat.vn/co-bat-buoc-phai-lap-hop-dong-thue-nha-bang-van-ban.html"
+    },
+    {
+      "title": "Cho thuê nhà, bất động sản khai thuế thế nào từ 1/1/2026?",
+      "publisher": "VOV2",
+      "url": "https://vov2.vov.vn/phap-luat/cho-thue-nha-bat-dong-san-khai-thue-the-nao-tu-112026-57510.vov2"
+    },
+    {
+      "title": "Có được phép đặt cọc bằng vàng, ngoại tệ hay séc không?",
+      "publisher": "Tạp chí Luật sư Việt Nam",
+      "url": "https://lsvn.vn/co-duoc-phep-dat-coc-bang-vang-ngoai-te-hay-sec-khong-1705289712-a139985.html"
+    }
+  ],
+  "related": [
+    "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+    "cost-of-living-in-ho-chi-minh-city-for-teachers",
+    "your-first-weeks-in-ho-chi-minh-city"
+  ],
+  "lastChecked": "2026-11-12"
+}

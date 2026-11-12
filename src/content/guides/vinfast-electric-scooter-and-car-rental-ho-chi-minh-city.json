@@ -1,0 +1,601 @@
+{
+  "slug": "vinfast-electric-scooter-and-car-rental-ho-chi-minh-city",
+  "title": "VinFast rental in Ho Chi Minh City: scooters and cars (2026)",
+  "description": "What VinFast electric scooters and cars cost to rent in Ho Chi Minh City, each company's deposit, who pays for charging, and when you need a licence.",
+  "h1": "Renting a VinFast in Ho Chi Minh City: real costs, deposits, charging and the licence you need",
+  "eyebrow": "Getting around Saigon",
+  "intro": "Renting a VinFast in Ho Chi Minh City costs least on an electric scooter, by the day or month, while cars run from the VF 3 to the VF 9; prices here were checked on 11 November 2026. Car deposits vary several-fold between companies, so compare the total, including weekend surcharges, kilometre caps and charging. An Evo200 Lite needs no licence; the Feliz II and Evo Max do.",
+  "keyPoints": [
+    "Electric scooters: according to Izigo, as of November 2026, its general rate is {{vnd:100000-150000}} a day depending on length of hire, or {{vnd:1800000}} a month; the Feliz II and Evo Max cost {{vnd:200000}} a day.",
+    "Electric cars: according to Green Future, as of November 2026, a VF 3 costs from {{vnd:550000}} a day plus {{vnd:100000}} for each Saturday or Sunday, or {{vnd:9900000}} a month.",
+    "Car deposits range from {{vnd:5000000}} at Green Future to {{vnd:15000000-20000000}} in cash at Nhiều Xe. Izigo lists no deposit for scooters; Motogo puts typical scooter deposits at {{vnd:1000000-5000000}}.",
+    "V-Green, VinFast's charging network, charges {{vnd:3858}} per kWh. Two Green Future pages promise free charging at V-Green until the end of 2027; BonbonCar has you repay the owner's charging bill when you return the car.",
+    "A scooter needs no licence only if it is designed for 50 km/h or less and has a motor of 4 kW or less. The standard Evo200 and the Feliz II reach 70 km/h, so they need an A1 licence.",
+    "From the 11th minute after a car finishes charging, V-Green bills for every minute it stays plugged in, up to {{vnd:1000000}} a time. Ask who pays before you set off."
+  ],
+  "sections": [
+    {
+      "id": "electric-scooter-rental-prices",
+      "title": "How much does it cost to rent a VinFast electric scooter in Ho Chi Minh City?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Most published rates for a VinFast electric scooter in Ho Chi Minh City fall between {{vnd:100000}} and {{vnd:200000}} a day, and the daily rate drops the longer you rent. On Izigo's general rates, a monthly hire works out cheaper than paying by the day once you need the scooter for about 18 days or more."
+        },
+        {
+          "type": "p",
+          "text": "VinFast is the Vietnamese manufacturer behind the Evo, Feliz and Klara scooters and the VF car range. Its sister company **V-Green** runs the charging and battery-swap network, which serves VinFast vehicles only. Rentals come from independent shops and fleets, not from VinFast itself."
+        },
+        {
+          "type": "table",
+          "caption": "Scooter rental prices as published by each company, read on 11 November 2026. Motogo's figures are reference prices for several cities from a post dated 8 September 2026.",
+          "headers": [
+            "Company / model",
+            "Per day",
+            "Per month",
+            "Deposit and documents"
+          ],
+          "rows": [
+            [
+              "[Izigo Ho Chi Minh City](https://izigo.vn/thue-xe-may-dien-tai-ho-chi-minh/), general rate",
+              "{{vnd:150000}} (1–3 days), {{vnd:130000}} (4–7 days), {{vnd:100000}} (over 7 days)",
+              "{{vnd:1800000}}",
+              "No deposit; a photo of your ID card or passport"
+            ],
+            [
+              "Izigo: Feliz II, Evo Max",
+              "{{vnd:200000}}",
+              "{{vnd:2100000}}",
+              "Driving licence required"
+            ],
+            [
+              "[Motogo](https://motogo.vn/gia-thue-xe-may-dien/): Ludo, Evo Lite (basic group)",
+              "{{vnd:80000-150000}}",
+              "{{vnd:1200000-1800000}}",
+              "Typically {{vnd:1000000-5000000}}, depending on the bike and shop"
+            ],
+            [
+              "Motogo: Feliz",
+              "{{vnd:150000-220000}}",
+              "No separate figure; mid-range group {{vnd:1800000-2500000}}",
+              "As above"
+            ],
+            [
+              "Motogo: Klara S",
+              "{{vnd:220000-300000}}",
+              "{{vnd:2500000-3500000}}",
+              "As above"
+            ],
+            [
+              "A VinFast Evo 200 in District 1 on [eno.vn's motorbike rental page](/motorbike-rental-ho-chi-minh-city)",
+              "{{vnd:150000}}",
+              "Not listed",
+              "Agreed with the owner in the app; ask whether it is the standard Evo200 or the Lite, because that decides the licence"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Izigo's general rate includes two helmets, rain gear and a charger, according to its Ho Chi Minh City page as of November 2026. Its general monthly rate of {{vnd:1800000}} and its {{vnd:2100000}} for the Feliz II and Evo Max sit side by side on the same page, so get the model, price and number of days confirmed in a message before you pay."
+        },
+        {
+          "type": "h3",
+          "text": "Quick sums"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**A week on an Izigo general-rate scooter:** 7 × {{vnd:130000}} = {{vnd:910000}}.",
+            "**A month on the same rate:** {{vnd:1800000}}, against 30 × {{vnd:100000}} = {{vnd:3000000}} paid by the day.",
+            "**A week on a Feliz II or Evo Max at Izigo:** 7 × {{vnd:200000}} = {{vnd:1400000}}."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "electric-car-rental-prices",
+      "title": "How much does it cost to rent a VinFast electric car in Ho Chi Minh City?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "A self-drive VinFast car in Ho Chi Minh City costs from about {{vnd:500000}} a day for a VF 3 to over {{vnd:2000000}} for a VF 9, before weekend surcharges. Green Future, a VinFast-only rental company, publishes the fullest price list; its [main service page](https://greenfuture.tech/thue-xe-tu-lai) and its [District 12 page](https://greenfuture.tech/tin-tuc/thue-xe-tu-lai-quan-12) give different daily prices but the same monthly ones."
+        },
+        {
+          "type": "table",
+          "caption": "Green Future self-drive prices, read on 11 November 2026. Daily prices exclude a weekend surcharge of {{vnd:100000}} a day. The main page says prices include VAT, maintenance, road fees and the battery; the District 12 page adds insurance.",
+          "headers": [
+            "Model",
+            "Main page: per day",
+            "District 12 page: per day",
+            "Per month"
+          ],
+          "rows": [
+            [
+              "VF 3",
+              "{{vnd:550000}}",
+              "{{vnd:590000}}",
+              "{{vnd:9900000}}"
+            ],
+            [
+              "VF 6S",
+              "{{vnd:1000000}}",
+              "{{vnd:1100000}}",
+              "{{vnd:16500000}}"
+            ],
+            [
+              "VF 6 Plus",
+              "{{vnd:1100000}}",
+              "{{vnd:1250000}}",
+              "{{vnd:18700000}}"
+            ],
+            [
+              "VF 8 Eco",
+              "{{vnd:1250000}}",
+              "{{vnd:1700000}}",
+              "{{vnd:20400000}}"
+            ],
+            [
+              "VF 8 Plus",
+              "{{vnd:1400000}}",
+              "{{vnd:1800000}}",
+              "{{vnd:22100000}}"
+            ],
+            [
+              "VF 9 Eco",
+              "{{vnd:1850000}}",
+              "{{vnd:2400000}}",
+              "{{vnd:28350000}}"
+            ],
+            [
+              "VF 9 Plus",
+              "{{vnd:2100000}}",
+              "{{vnd:2600000}}",
+              "{{vnd:31400000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Green Future's main page also quotes a daily range up to {{vnd:2600000}} in its FAQ, above the {{vnd:2100000}} top price in its own table, so ask for a written quote for your dates."
+        },
+        {
+          "type": "table",
+          "caption": "Prices published by other companies, read on 11 November 2026. Dates in brackets are the page's publication date where shown.",
+          "headers": [
+            "Company",
+            "Model",
+            "Price",
+            "Deposit",
+            "Kilometre cap"
+          ],
+          "rows": [
+            [
+              "[Nhiều Xe](https://nhieuxe.vn/thue-xe-vf3.html)",
+              "VF 3",
+              "{{vnd:550000}} Monday–Friday, {{vnd:650000}} Saturday–Sunday, {{vnd:11000000}} a month including charging; all excluding VAT",
+              "{{vnd:15000000-20000000}} in cash, or a motorbike left as collateral with its original registration papers",
+              "About 250 km a day; 3,000 km on the monthly plan"
+            ],
+            [
+              "[BonbonCar](https://www.bonboncar.vn/blog/bang-gia-thue-xe-tu-lai-vinfast-tai-tp-hcm-cap-nhat-moi-nhat-2026/) (31 March 2026)",
+              "VF 3, VF 5 Plus, VF 6, VF 8",
+              "Weekday reference prices: from {{vnd:500000}}, {{vnd:400000-600000}}, {{vnd:900000-1100000}}, {{vnd:1200000-1500000}}",
+              "The post gives two figures: {{vnd:3000000-5000000}} and {{vnd:10000000-15000000}}",
+              "Typically 400 km a day"
+            ],
+            [
+              "[Sigo](https://sigo.vn/news/thue-xe-vinfast-vf5-tu-lai) (25 August 2025)",
+              "VF 5",
+              "{{vnd:650000}} a day (24 hours), {{vnd:12000000}} a month",
+              "Amount not stated; waived on contracts of 6 months or more",
+              "Not stated"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Treat prices in blog posts as a guide only. The price that counts is the one on the booking page for the exact car you rent."
+        },
+        {
+          "type": "h3",
+          "text": "Quick sums for a car"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**A VF 3 for a weekend at Green Future:** 2 × ({{vnd:550000}} + {{vnd:100000}}) = {{vnd:1300000}} on the main price list, plus a deposit from {{vnd:5000000}}.",
+            "**A VF 3 for a month at Green Future:** {{vnd:9900000}}, against 30 × {{vnd:550000}} = {{vnd:16500000}} by the day before weekend surcharges."
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "Extra charges people miss"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Extra kilometres:** Green Future caps hire at 300 km a day and 3,000 km a month; its [4-seat price page](https://greenfuture.tech/tin-tuc/thue-xe-4-cho-tu-lai-va-co-tai) charges {{vnd:2500}} per extra km on daily white-plate hire. Nhiều Xe charges about {{vnd:3000}} per km over its cap.",
+            "**Delivery:** Green Future's District 12 page delivers free within 1 km, then charges {{vnd:20000}} per km from 8:00 to 18:00, {{vnd:25000}} per km outside those hours and {{vnd:40000}} per km on public holidays and Tết. District 12 is the old name everyone still uses: since July 2025, official addresses use the new ward names.",
+            "**Holidays:** Green Future's main page adds a holiday and peak-period surcharge but does not give the amount.",
+            "**Traffic fines:** BonbonCar makes the renter liable for every fine incurred during the hire, including camera fines that arrive later. Ask other companies the same question."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "deposit",
+      "title": "How much deposit do you pay to rent a VinFast?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Car deposits in Ho Chi Minh City run from {{vnd:5000000}} to {{vnd:20000000}}, while scooter deposits range from nothing to {{vnd:5000000}}. Green Future asks for a deposit from {{vnd:5000000}} depending on the model, and its District 12 page gives {{vnd:5000000-10000000}}, as of November 2026."
+        },
+        {
+          "type": "p",
+          "text": "Motogo says a shop may ask for a bigger deposit if you lack a licence or ID card, and less if your papers are complete. BonbonCar says the deposit is refunded after the contract ends, but gives no number of days, and Green Future's main page does not state a refund period at all. Ask before you transfer anything."
+        },
+        {
+          "type": "ol",
+          "items": [
+            "Ask the deposit amount, how it is paid and how many days the refund takes, and get the answer in the contract or a message.",
+            "If the company keeps an original document or a motorbike as collateral, get a receipt listing each item.",
+            "Film the whole vehicle, the odometer and the battery percentage at pick-up and at return.",
+            "Ask whether part of the deposit is held back to cover camera traffic fines, and for how long."
+          ]
+        },
+        {
+          "type": "p",
+          "text": "For deposits on a home rather than a vehicle, see [the rental deposit guide](/rental-deposit-vietnam)."
+        }
+      ]
+    },
+    {
+      "id": "charging",
+      "title": "How do you charge a rented VinFast, and who pays?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Rented VinFast cars charge at V-Green stations, and who pays depends on the company: some include charging, others pass the bill on to you. According to [V-Green](https://vgreen.net/vi/cau-hoi-thuong-gap), as of November 2026, charging costs **{{vnd:3858}} per kWh including VAT** for cars and scooters alike, a price in force since 19 March 2024, and the network serves VinFast vehicles only."
+        },
+        {
+          "type": "h3",
+          "text": "Cars"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Green Future:** its [District 12 page](https://greenfuture.tech/tin-tuc/thue-xe-tu-lai-quan-12) and [4-seat page](https://greenfuture.tech/tin-tuc/thue-xe-4-cho-tu-lai-va-co-tai) offer free charging at V-Green until 31 December 2027, but its main service page does not mention the offer, and none of them says whether post-charging fees are covered.",
+            "**BonbonCar:** charging is billed to the owner's VinFast app account and you pay it back when you return the car.",
+            "**Nhiều Xe:** the monthly VF 3 plan includes charging; its page does not say whether the daily price does, so ask.",
+            "**Rough costs:** Nhiều Xe estimates a full charge of the VF 3's roughly 18.6 kWh battery at about {{vnd:72000}}. Sigo lists the VF 5's battery at 37.23 kWh, which at V-Green's price comes to about {{vnd:144000}} for a full charge.",
+            "**Range:** Nhiều Xe puts the VF 3 at about 180–200 km per full charge, and a fast charge from 10% to 70% at about 30–35 minutes. Plan on the lower figure."
+          ]
+        },
+        {
+          "type": "table",
+          "caption": "V-Green's fee for cars left plugged in after charging ends, in force since 1 November 2025, read on 11 November 2026. It does not apply to scooters or to standard 11 kW AC car chargers.",
+          "headers": [
+            "Time after charging ends",
+            "Rate"
+          ],
+          "rows": [
+            [
+              "Minutes 1–10",
+              "No charge"
+            ],
+            [
+              "Minutes 11–60",
+              "{{vnd:1000}} a minute"
+            ],
+            [
+              "Minutes 61–120",
+              "{{vnd:2000}} a minute"
+            ],
+            [
+              "From minute 121",
+              "{{vnd:4000}} a minute, capped at {{vnd:1000000}} a time"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Unplug as soon as the car is full",
+          "text": "BonbonCar tells renters to move the car within 30 minutes of a full charge, but V-Green starts billing from the 11th minute, so go by the earlier deadline. [V-Green](https://vgreen.net/vi/san-pham-dich-vu) also charges {{vnd:200000}} an hour, capped at {{vnd:1500000}} a time, for a car parked in a charging bay without charging. In Ho Chi Minh City that fee applies at the main entrance of Vincom Center Landmark 81."
+        },
+        {
+          "type": "p",
+          "text": "[Tuổi Trẻ](https://tuoitre.vn/vinfast-mien-phi-sac-pin-o-to-den-dau-nam-2029-xe-may-dien-mien-phi-doi-pin-den-giua-nam-2028-20260209080709921.htm) reported that individuals buying a VinFast car from 10 February 2026 get up to 10 free charges a month at V-Green until 10 February 2029. That offer is for buyers, and the report does not mention rental companies, so count on it only if your rental company confirms it applies."
+        },
+        {
+          "type": "h3",
+          "text": "Scooters"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Public stations:** the same {{vnd:3858}} per kWh, and no fee for staying plugged in after the battery is full. V-Green says a [standard full charge takes about 4 hours](https://vgreen.net/en/tram-sac-xe-may-dien), so it suits long stops.",
+            "**Where you stay:** Izigo says its scooters come with a charger, take about 8 hours to charge fully, and can be charged at your hotel or swapped for a charged bike at its nearest branch.",
+            "**Battery swaps:** V-Green charges {{vnd:9000}} a swap including VAT. Its 20 free swaps a month until 30 June 2028 apply only to MAX models built for swapping.",
+            "**The catch:** V-Green only lets the vehicle's owner swap, with a valid battery lease and no overdue debt. Ask the rental shop whether its scooter can swap at all, on whose account, and who pays."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "licence",
+      "title": "Do you need a licence to rent a VinFast scooter or car?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "You need a licence for most VinFast scooters and for every car; only a scooter limited to 50 km/h with a motor of 4 kW or less can be ridden without one. Under the 2024 Road Traffic Order and Safety Law (36/2024/QH15), a [moped-class vehicle (xe gắn máy)](https://lsvn.vn/cuc-csgt-lam-ro-quy-dinh-ve-xu-phat-nguoi-16-18-tuoi-lai-xe-moto-tu-15-8-a175536.html) has a design speed of no more than 50 km/h and, if electric, a motor of no more than 4 kW. Anything faster or more powerful is a motorcycle."
+        },
+        {
+          "type": "table",
+          "caption": "Classes under Law 36/2024/QH15. Model figures come from the press and rental pages cited, not from the spec sheet of any particular rental bike.",
+          "headers": [
+            "Type",
+            "What you need",
+            "Examples from the sources"
+          ],
+          "rows": [
+            [
+              "Moped class: up to 50 km/h and 4 kW",
+              "Age 16 or over, no licence ([Article 59](https://hcc.nghean.gov.vn/tin-tong-hop/toan-van-luat-trat-tu-an-toan-giao-thong-duong-bo-1545.html))",
+              "Evo200 Lite, [limited to 49 km/h](https://vietnamfinance.vn/chi-tiet-xe-may-dien-vinfast-evo200-gia-thap-nhat-chay-xa-nhat-d86691.html) according to a 2022 article; Izigo lists it as needing no licence"
+            ],
+            [
+              "Electric motorcycle up to 11 kW",
+              "An A1 licence, or a B1 under the classes in force since 1 January 2025 ([LuatVietnam](https://luatvietnam.vn/tin-van-ban-moi/tu-01-01-2025-truong-hop-dieu-khien-mo-to-dien-phai-co-giay-phep-lai-xe-186-99295-article.html)); age 18 or over. **A B1 issued before 1 January 2025 is a car licence and does not cover this.**",
+              "Standard Evo200: 1.5 kW but 70 km/h according to the 2022 article; [Feliz II](https://baohatinh.vn/tv/vinfast-feliz-ii-xe-may-dien-pho-thong-gia-249-trieu-dong-pham-vi-toi-156-km-32222.html): up to 3 kW and 70 km/h according to Báo Hà Tĩnh, 2 March 2026; Izigo requires a licence for the Feliz II and Evo Max"
+            ],
+            [
+              "Electric motorcycle over 11 kW",
+              "An A licence; age 18 or over",
+              "Ask for the exact model's figures"
+            ]
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Low power alone does not make a scooter licence-free",
+          "text": "The standard Evo200 has a small motor but a 70 km/h top speed, so it is a motorcycle. Ask the shop for the exact version, design speed and motor power of your bike. Riding a motorcycle of up to 11 kW without a licence, or with one that does not cover that vehicle, is fined {{vnd:2000000-4000000}} under Article 18(5)(a) of [Decree 168/2024/ND-CP](https://xaydungchinhsach.chinhphu.vn/toan-van-nghi-dinh-168-2024-nd-cp-quy-dinh-xu-phat-vi-pham-hanh-chinh-ve-trat-tu-an-toan-giao-thong-duong-bo-119241231164556785.htm). Riders aged 16 to 17 on a motorcycle face {{vnd:400000-600000}}, according to the [Traffic Police Department](https://lsvn.vn/cuc-csgt-lam-ro-quy-dinh-ve-xu-phat-nguoi-16-18-tuoi-lai-xe-moto-tu-15-8-a175536.html). Decree 238/2026/ND-CP amended Decree 168 from 15 August 2026 but changed neither fine: in Article 18 it rewords point 4(a), which the Traffic Police Department says leaves the fine unchanged, and a phrase in point 3(c), and leaves clause 5 alone, according to [the full text republished by ketoananpha.vn](https://ketoananpha.vn/nghi-dinh-238-2026-nd-cp). The traffic police have the final word."
+        },
+        {
+          "type": "p",
+          "text": "An A1 licence issued before 1 January 2025 and not yet exchanged still covers electric motorcycles from 4 kW to under 14 kW, according to LuatVietnam."
+        },
+        {
+          "type": "h3",
+          "text": "Cars"
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Green Future:** ID card and a valid driving licence; its District 12 page asks for the originals.",
+            "**BonbonCar:** an original chip ID card or level-2 VNeID account, plus a valid B1, B2 or C licence.",
+            "**Sigo:** ID card and a B1 licence or higher, plus a deposit.",
+            "**Old and new class names:** under [Law 36/2024/QH15](https://hcc.nghean.gov.vn/tin-tong-hop/toan-van-luat-trat-tu-an-toan-giao-thong-duong-bo-1545.html), new licences for cars are class B, while the new B1 covers three-wheelers and A1 vehicles; many rental sites still use the old names. B1 and B2 licences issued before 1 January 2025 stay valid until their printed expiry, and an old B1 covers cars, not motorcycles. If your licence uses the new classes, send the company a photo to confirm."
+          ]
+        },
+        {
+          "type": "h3",
+          "text": "If you are a foreign driver"
+        },
+        {
+          "type": "p",
+          "text": "To drive a car in Vietnam, the law requires either a Vietnamese licence or an international driving permit issued by a country in the 1968 Vienna Convention on Road Traffic, carried together with your home licence for the same vehicle class, under Article 57 of [Law 36/2024/QH15](https://hcc.nghean.gov.vn/tin-tong-hop/toan-van-luat-trat-tu-an-toan-giao-thong-duong-bo-1545.html). A licence from an ASEAN country can be used for the class of vehicle it covers. Permits from countries in the 1949 Geneva Convention only, such as the US, Canada and Australia, are not valid in Vietnam, according to [Việt Nam News](https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html), May 2026. **A company accepting your licence does not make it legal to drive on it.**"
+        },
+        {
+          "type": "p",
+          "text": "[Green Future](https://greenfuture.tech/tin-tuc/thue-xe-4-cho-tu-lai-va-co-tai) asks for a valid passport and a valid driving licence. BonbonCar asks for an international driving permit, a passport valid for at least six months and a Vietnamese citizen as guarantor. Which licences are accepted depends on your nationality and what you hold, so ask before you book. For scooters, see [the motorbike licence guide for foreigners](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners)."
+        }
+      ]
+    },
+    {
+      "id": "where-to-compare",
+      "title": "Where to rent a vehicle in Ho Chi Minh City and compare prices",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Compare at least two or three sources for the same dates: a listings page, a fleet's own price list and one other company. Pick the vehicle by days, distance and passengers first, then compare the total, not the headline daily rate."
+        },
+        {
+          "type": "table",
+          "caption": "What to rent for which need, based on the prices and terms above",
+          "headers": [
+            "Need",
+            "Rent",
+            "Why"
+          ],
+          "rows": [
+            [
+              "Commuting in the city for a few weeks or more",
+              "Electric scooter, monthly rate",
+              "Far cheaper in total than a car"
+            ],
+            [
+              "City driving, two to four people",
+              "VF 3",
+              "The cheapest car on Green Future's list; Nhiều Xe advises against it for long trips with more than 3 adults and bulky luggage"
+            ],
+            [
+              "Family weekend trips out of the city",
+              "VF 6 or VF 8",
+              "Five seats on Green Future's list; check the kilometre cap and plan charging stops"
+            ],
+            [
+              "No motorbike licence",
+              "A moped-class scooter such as the Evo200 Lite",
+              "No licence needed if it really is moped class, but it tops out below 50 km/h"
+            ]
+          ]
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Decide what you need",
+              "text": "Estimate the number of days, the distance each day and how many people are going. Work out where you will charge before choosing a vehicle."
+            },
+            {
+              "title": "Check two or three sources",
+              "text": "For scooters, see [eno.vn's motorbike rental page](/motorbike-rental-ho-chi-minh-city), where you message the owner in the app to agree price, deposit and papers. For cars, see [eno.vn's car rental page](/car-rental-ho-chi-minh-city), which on 11 November 2026 listed ten self-drive cars from Mioto and BonbonCar, one of them a VinFast VF5 in Binh Thanh. Then compare with [Green Future's price list](https://greenfuture.tech/thue-xe-tu-lai)."
+            },
+            {
+              "title": "Ask every company the same questions",
+              "text": "Is VAT included; weekend and holiday surcharges; delivery fee; kilometre cap and overage rate; who pays for charging; battery level at pick-up and return; charging stops on your route; deposit and refund period; insurance and what you pay yourself after an accident."
+            },
+            {
+              "title": "Get it in writing",
+              "text": "Do not pay a deposit until a contract or message covers all of the above. eno.vn does not take bookings: for Mioto and BonbonCar cars you book, pay, sign and pay the deposit with the original company, so check its deposit, delivery fee, kilometre cap and insurance on its booking page."
+            }
+          ]
+        },
+        {
+          "type": "p",
+          "text": "For buses, the metro and ride-hailing instead of renting, see [getting around Ho Chi Minh City](/teach-in-vietnam/getting-around-ho-chi-minh-city)."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Is a daily car rental in Ho Chi Minh City a full 24 hours?",
+      "a": "At Green Future, a daily self-drive car rental in Ho Chi Minh City runs for 24 hours from the moment the car is handed over, according to its service page as of November 2026. Sigo also prices its VF 5 day rate as 24 hours. Other rental companies may count a day differently, so ask for the pick-up time, the return time and the late-return charge before booking."
+    },
+    {
+      "q": "Can a foreigner rent a VinFast car in Ho Chi Minh City?",
+      "a": "A foreigner can rent a VinFast car in Ho Chi Minh City, but Vietnamese law requires a Vietnamese licence, or a 1968-Convention international driving permit with the home licence, to drive it; an ASEAN licence covers its own class. Permits from 1949-Convention-only countries such as the US, Canada and Australia are not valid, according to Việt Nam News, May 2026. A company accepting a licence does not make driving legal. Green Future asks for a passport and licence; BonbonCar for an international driving permit, passport and Vietnamese guarantor."
+    },
+    {
+      "q": "Do I need a licence to rent an electric scooter in Ho Chi Minh City?",
+      "a": "Whether an electric scooter in Ho Chi Minh City needs a licence depends on the exact model. Under Vietnam's 2024 road traffic law, a scooter is licence-free only if its design speed is 50 km/h or less and its motor 4 kW or less, and the rider is at least 16. Full-speed VinFast scooters such as the Feliz II, at 70 km/h, are motorcycles and need an A1 licence."
+    },
+    {
+      "q": "What happens if a rented VinFast runs out of battery?",
+      "a": "If a rented VinFast runs out of charge in Ho Chi Minh City, call the rental company's support line first. Nhiều Xe says it has a support team available 24/7, but its VF 3 page does not say what a rescue costs, and Green Future's main page does not cover the situation. Ask before booking who pays for recovery, and plan charging stops on the low end of the quoted range."
+    },
+    {
+      "q": "Can I charge a rented VinFast at non-V-Green charging stations?",
+      "a": "The sources checked for this guide do not confirm whether a rented VinFast can use each non-V-Green charging network in Ho Chi Minh City, or how payment works there. V-Green, VinFast's own charging network, serves VinFast vehicles only and publishes one price per kWh. Before relying on another network, ask the rental company whether its cars can use it and whose account pays."
+    },
+    {
+      "q": "Is a VinFast VF 3 good for a trip to Vung Tau?",
+      "a": "Nhiều Xe, a Ho Chi Minh City rental company, rates the VinFast VF 3 as suitable for weekend trips near Saigon such as Vung Tau and Ho Tram, but better for city driving than long journeys. It puts the VF 3's range at about 180 to 200 km per full charge. Count the return leg, choose charging stations in advance and do not plan on the maximum range."
+    },
+    {
+      "q": "Can I rent a VinFast VF 5 from Green Future?",
+      "a": "Green Future's self-drive price list for Ho Chi Minh City did not include the VinFast VF 5 when checked on 11 November 2026; it ran from the VF 3 to the VF 9. For a VF 5, look at Sigo, BonbonCar or eno.vn's car rental page, which on 11 November 2026 showed one VinFast VF5 in Binh Thanh."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Câu hỏi thường gặp",
+      "publisher": "V-Green",
+      "url": "https://vgreen.net/vi/cau-hoi-thuong-gap"
+    },
+    {
+      "title": "Sản phẩm dịch vụ",
+      "publisher": "V-Green",
+      "url": "https://vgreen.net/vi/san-pham-dich-vu"
+    },
+    {
+      "title": "Charging Station for Electric Scooters",
+      "publisher": "V-Green",
+      "url": "https://vgreen.net/en/tram-sac-xe-may-dien"
+    },
+    {
+      "title": "Toàn văn Nghị định 168/2024/NĐ-CP quy định xử phạt vi phạm hành chính về trật tự, an toàn giao thông đường bộ",
+      "publisher": "Chính sách và cuộc sống, Cổng TTĐT Chính phủ",
+      "url": "https://xaydungchinhsach.chinhphu.vn/toan-van-nghi-dinh-168-2024-nd-cp-quy-dinh-xu-phat-vi-pham-hanh-chinh-ve-trat-tu-an-toan-giao-thong-duong-bo-119241231164556785.htm"
+    },
+    {
+      "title": "TOÀN VĂN: Luật Trật tự, an toàn giao thông đường bộ",
+      "publisher": "Trung tâm Phục vụ Hành chính công tỉnh Nghệ An",
+      "url": "https://hcc.nghean.gov.vn/tin-tong-hop/toan-van-luat-trat-tu-an-toan-giao-thong-duong-bo-1545.html"
+    },
+    {
+      "title": "Using the roads in Việt Nam as a foreigner",
+      "publisher": "Việt Nam News",
+      "url": "https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html"
+    },
+    {
+      "title": "Dịch vụ cho thuê xe ô tô điện tự lái, có tài xế",
+      "publisher": "Green Future",
+      "url": "https://greenfuture.tech/thue-xe-tu-lai"
+    },
+    {
+      "title": "Dịch vụ thuê xe tự lái Quận 12",
+      "publisher": "Green Future",
+      "url": "https://greenfuture.tech/tin-tuc/thue-xe-tu-lai-quan-12"
+    },
+    {
+      "title": "Bảng giá thuê xe 4 chỗ tự lái và có tài",
+      "publisher": "Green Future",
+      "url": "https://greenfuture.tech/tin-tuc/thue-xe-4-cho-tu-lai-va-co-tai"
+    },
+    {
+      "title": "Cục CSGT làm rõ quy định về xử phạt người 16-18 tuổi lái xe môtô từ 15/8",
+      "publisher": "Luật sư Việt Nam",
+      "url": "https://lsvn.vn/cuc-csgt-lam-ro-quy-dinh-ve-xu-phat-nguoi-16-18-tuoi-lai-xe-moto-tu-15-8-a175536.html"
+    },
+    {
+      "title": "Nghị định 238/2026/NĐ-CP (bản đăng lại toàn văn)",
+      "publisher": "ketoananpha.vn",
+      "url": "https://ketoananpha.vn/nghi-dinh-238-2026-nd-cp"
+    },
+    {
+      "title": "Từ 01/01/2025: Trường hợp điều khiển mô tô điện phải có Giấy phép lái xe",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/tin-van-ban-moi/tu-01-01-2025-truong-hop-dieu-khien-mo-to-dien-phai-co-giay-phep-lai-xe-186-99295-article.html"
+    },
+    {
+      "title": "Chi tiết xe máy điện VinFast Evo200: Giá thấp nhất, chạy xa nhất",
+      "publisher": "VietnamFinance",
+      "url": "https://vietnamfinance.vn/chi-tiet-xe-may-dien-vinfast-evo200-gia-thap-nhat-chay-xa-nhat-d86691.html"
+    },
+    {
+      "title": "VinFast Feliz II: Xe máy điện phổ thông giá 24,9 triệu đồng, phạm vi tới 156 km",
+      "publisher": "Báo Hà Tĩnh",
+      "url": "https://baohatinh.vn/tv/vinfast-feliz-ii-xe-may-dien-pho-thong-gia-249-trieu-dong-pham-vi-toi-156-km-32222.html"
+    },
+    {
+      "title": "VinFast miễn phí sạc pin ô tô đến đầu năm 2029, xe máy điện miễn phí đổi pin đến giữa năm 2028",
+      "publisher": "Tuổi Trẻ",
+      "url": "https://tuoitre.vn/vinfast-mien-phi-sac-pin-o-to-den-dau-nam-2029-xe-may-dien-mien-phi-doi-pin-den-giua-nam-2028-20260209080709921.htm"
+    },
+    {
+      "title": "Thuê xe máy điện tại Hồ Chí Minh",
+      "publisher": "Izigo",
+      "url": "https://izigo.vn/thue-xe-may-dien-tai-ho-chi-minh/"
+    },
+    {
+      "title": "Giá thuê xe máy điện: Bảng giá chi tiết các dòng xe phổ biến 2026",
+      "publisher": "Motogo",
+      "url": "https://motogo.vn/gia-thue-xe-may-dien/"
+    },
+    {
+      "title": "Bảng giá thuê xe tự lái VinFast tại TP.HCM cập nhật mới nhất 2026",
+      "publisher": "BonbonCar",
+      "url": "https://www.bonboncar.vn/blog/bang-gia-thue-xe-tu-lai-vinfast-tai-tp-hcm-cap-nhat-moi-nhat-2026/"
+    },
+    {
+      "title": "Thuê xe VF3 tự lái, có tài",
+      "publisher": "Nhiều Xe",
+      "url": "https://nhieuxe.vn/thue-xe-vf3.html"
+    },
+    {
+      "title": "Cho thuê xe VinFast VF5 tự lái",
+      "publisher": "Sigo",
+      "url": "https://sigo.vn/news/thue-xe-vinfast-vf5-tu-lai"
+    }
+  ],
+  "related": [
+    "getting-around-ho-chi-minh-city",
+    "motorbike-licence-in-vietnam-for-foreigners",
+    "your-first-weeks-in-ho-chi-minh-city"
+  ],
+  "lastChecked": "2026-11-12"
+}

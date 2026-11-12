@@ -1,0 +1,405 @@
+{
+  "slug": "kinh-nghiem-thue-xe-may-viet-nam",
+  "title": "Kinh nghiệm thuê xe máy ở Việt Nam: giá, cọc, giấy tờ (2026)",
+  "description": "Giá thuê xe máy theo ngày, tuần, tháng ở Sài Gòn, Hà Nội, Đà Nẵng kèm nguồn và ngày, tiền cọc, giấy tờ cửa hàng hỏi, bằng A1/A, mức phạt và cách kiểm tra xe.",
+  "h1": "Thuê xe máy ở Việt Nam: giá bao nhiêu, cọc gì, cần giấy tờ gì và kiểm tra xe ra sao",
+  "eyebrow": "Đi lại",
+  "intro": "Khi thuê xe máy ở Việt Nam, bạn thường phải đặt cọc tiền mặt hoặc để lại giấy tờ tùy thân, cần bằng A1 cho xe đến 125 cc, và thuê theo tháng rẻ hơn nhiều so với thuê lẻ từng ngày. Giá ở từng nơi có ghi nguồn và ngày trong bảng bên dưới. Trước khi nhận xe, hãy kiểm tra phanh, lốp, đèn và hai loại giấy phải đi cùng xe: giấy đăng ký xe và giấy chứng nhận bảo hiểm bắt buộc.",
+  "keyPoints": [
+    "Theo trang của Saigon Motorcycles đọc ngày 11/11/2026, xe ga ở Sài Gòn có giá từ {{vnd:160000}} một ngày cho Yamaha Nouvo 4, loại xe cũ hơn, tới {{vnd:300000}} cho Honda PCX. Theo các bài hướng dẫn tháng 12/2025, xe ga phổ thông ở Hà Nội và Đà Nẵng có giá khoảng {{vnd:100000-190000}} một ngày.",
+    "Thuê theo tháng giúp tiết kiệm nhiều nhất. Theo Saigon Motorcycles (đọc ngày 11/11/2026), Honda Air Blade 125 bản mới có giá {{vnd:250000}} một ngày nhưng chỉ {{vnd:2600000}} một tháng.",
+    "Tiền cọc xe ga thường vào khoảng {{vnd:1000000-3000000}} tiền mặt, hoặc cửa hàng giữ giấy tờ tùy thân. Đặt cọc bằng tiền mặt và lấy biên nhận thì an toàn hơn.",
+    "Theo Luật 36/2024/QH15, bằng **A1** chạy xe đến 125 cc, bằng **A** chạy xe trên 125 cc. Bằng A1 cấp trước năm 2025 mà chưa đổi vẫn được chạy xe từ 50 cc tới dưới 175 cc.",
+    "Theo Nghị định 168/2024/NĐ-CP, chạy xe không có bằng hợp lệ bị phạt {{vnd:2000000-4000000}} nếu xe đến 125 cc và {{vnd:6000000-8000000}} nếu xe trên 125 cc. Không mang giấy đăng ký xe hoặc bảo hiểm bắt buộc bị phạt {{vnd:200000-300000}}."
+  ],
+  "sections": [
+    {
+      "id": "gia-thue-xe-may-hien-tai",
+      "title": "Giá thuê xe máy hiện tại bao nhiêu một ngày, một tháng?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Giá thuê xe máy hiện tại tùy vào thành phố, loại xe, xe mới hay cũ và thời gian thuê. Theo các nguồn trong bảng dưới, xe ga phổ thông thường có giá khoảng {{vnd:100000-300000}} một ngày, còn thuê theo tháng thì tính ra mỗi ngày rẻ hơn rất nhiều."
+        },
+        {
+          "type": "p",
+          "text": "Ít cửa hàng công bố giá, và những nơi có công bố cũng hiếm khi ghi ngày. Vì vậy con số nào dưới đây cũng kèm nguồn và thời điểm. Hãy dùng chúng làm mốc khi hỏi giá, đừng coi là giá cố định."
+        },
+        {
+          "type": "table",
+          "caption": "Giá thuê xe máy được công bố theo thành phố (mỗi con số lấy từ nguồn và ngày ghi bên cạnh)",
+          "headers": [
+            "Thành phố",
+            "Loại xe",
+            "Giá một ngày",
+            "Thuê dài hơn",
+            "Nguồn và ngày"
+          ],
+          "rows": [
+            [
+              "Sài Gòn",
+              "Yamaha Nouvo 4",
+              "{{vnd:160000}}",
+              "{{vnd:800000}} một tuần, {{vnd:1500000}} một tháng",
+              "Saigon Motorcycles, đọc ngày 11/11/2026"
+            ],
+            [
+              "Sài Gòn",
+              "Yamaha Nouvo 6",
+              "{{vnd:220000}}",
+              "{{vnd:900000}} một tuần, {{vnd:2000000}} một tháng",
+              "Saigon Motorcycles, đọc ngày 11/11/2026"
+            ],
+            [
+              "Sài Gòn",
+              "Honda Air Blade 125 (bản mới)",
+              "{{vnd:250000}}",
+              "{{vnd:1200000}} một tuần, {{vnd:2600000}} một tháng",
+              "Saigon Motorcycles, đọc ngày 11/11/2026"
+            ],
+            [
+              "Sài Gòn",
+              "Honda PCX",
+              "{{vnd:300000}}",
+              "{{vnd:1400000}} một tuần, {{vnd:3500000}} một tháng",
+              "Saigon Motorcycles, đọc ngày 11/11/2026"
+            ],
+            [
+              "Hà Nội",
+              "Xe ga phổ thông",
+              "khoảng {{vnd:150000}} (các cửa hàng niêm yết từ {{vnd:100000}} tới {{vnd:190000}})",
+              "Một số nơi giảm giá khi thuê dài ngày nhưng không công bố mức giảm",
+              "VinWonders, 04/12/2025"
+            ],
+            [
+              "Hà Nội",
+              "Xe cao cấp hơn",
+              "{{vnd:200000-300000}}",
+              "Không công bố",
+              "VinWonders, 04/12/2025"
+            ],
+            [
+              "Đà Nẵng",
+              "Xe ga (ví dụ Honda Vision)",
+              "{{vnd:100000-150000}}",
+              "{{vnd:600000-900000}} một tuần",
+              "Motorbike Tour Expert, cập nhật 09/12/2025"
+            ],
+            [
+              "Đà Nẵng",
+              "Xe số (ví dụ Honda Wave)",
+              "{{vnd:80000-120000}}",
+              "{{vnd:500000-800000}} một tuần",
+              "Motorbike Tour Expert, cập nhật 09/12/2025"
+            ],
+            [
+              "Đà Nẵng",
+              "Xe côn tay (ví dụ Honda XR150)",
+              "{{vnd:250000-350000}}",
+              "{{vnd:1500000-2200000}} một tuần",
+              "Motorbike Tour Expert, cập nhật 09/12/2025"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "**Thuê theo tháng mới thật sự tiết kiệm.** Theo Saigon Motorcycles (đọc ngày 11/11/2026), Air Blade 125 bản mới có giá {{vnd:2600000}} một tháng, chỉ bằng khoảng một phần ba tiền thuê lẻ 30 ngày. Nếu ở lâu, hãy hỏi thẳng giá tháng thay vì trả theo ngày."
+        },
+        {
+          "type": "p",
+          "text": "Ngoài tiền thuê, hãy tính thêm tiền xăng (xe thường được giao với ít xăng), chi phí sửa nếu bạn làm hỏng xe và phí trả xe trễ. Một số cửa hàng bán thêm gói miễn trừ hư hỏng. Theo trang của Saigon Motorcycles đọc ngày 11/11/2026, gói này chỉ áp dụng cho các xe phượt lớn như Honda XR150 hay CB500X, và không bao gồm mất cắp hay thiệt hại cho người khác."
+        }
+      ]
+    },
+    {
+      "id": "tien-coc-va-giay-to",
+      "title": "Thuê xe máy cần cọc bao nhiêu và giấy tờ gì?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Phần lớn cửa hàng yêu cầu hoặc đặt tiền cọc, hoặc giữ giấy tờ tùy thân của bạn. Theo Motorbike Tour Expert (cập nhật 09/12/2025), tiền cọc xe ga thường vào khoảng {{vnd:1000000-3000000}}."
+        },
+        {
+          "type": "p",
+          "text": "Theo trang của Saigon Motorcycles đọc ngày 11/11/2026, tiền cọc xe ga chạy trong thành phố là {{vnd:2000000}}, được hoàn lại khi trả xe, và có thể trả bằng tiền mặt, thẻ hoặc thanh toán trực tuyến trước."
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Bằng lái phù hợp với xe** (xem phần bằng lái bên dưới). Nhiều cửa hàng không hỏi, nhưng cảnh sát giao thông thì có.",
+            "**Giấy tờ tùy thân** như căn cước hoặc hộ chiếu. Có nơi giữ bản gốc tới khi bạn trả xe, có nơi nhận tiền cọc thay thế.",
+            "**Hợp đồng thuê có chữ ký.** Đọc kỹ điều khoản bồi thường khi xe hỏng hoặc mất, và xem cửa hàng có hỗ trợ khi xe chết máy giữa đường hay không."
+          ]
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Nên đặt cọc tiền mặt thay vì để lại giấy tờ gốc",
+          "text": "Khi cửa hàng giữ giấy tờ gốc, họ nắm thế chủ động nếu hai bên tranh cãi về vết trầy, và bạn có thể cần giấy tờ đó cho việc khác như ra ngân hàng hay ký [hợp đồng thuê nhà](/renting-an-apartment-vietnam-foreigner). Hãy đề nghị đặt cọc tiền mặt hoặc đưa bản photo, và lấy biên nhận ghi rõ số tiền cùng điều kiện được hoàn cọc."
+        },
+        {
+          "type": "p",
+          "text": "Hỏi thêm hai loại giấy phải đi cùng xe: **giấy đăng ký xe** (cà vẹt) và **giấy chứng nhận bảo hiểm trách nhiệm dân sự bắt buộc**. Theo Nghị định 168/2024/NĐ-CP, không mang một trong hai loại này bị phạt {{vnd:200000-300000}}. Đối chiếu biển số trên cà vẹt với biển trên xe. Theo Công an tỉnh Phú Thọ, từ 15/8/2026 xe máy có biển số bị che, bẻ cong, mờ không đọc được hoặc bị sửa chữ số bị phạt {{vnd:4000000-6000000}}, nên đừng nhận xe có biển như vậy."
+        }
+      ]
+    },
+    {
+      "id": "cach-kiem-tra-xe",
+      "title": "Cách kiểm tra xe thuê trước khi chạy đi",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Hãy dành năm phút kiểm tra xe ngay tại cửa hàng, khi có mặt chủ xe. Phần lớn tranh chấp tiền cọc là về những vết trầy đã có sẵn từ trước."
+        },
+        {
+          "type": "steps",
+          "items": [
+            {
+              "title": "Chụp ảnh và quay video xe",
+              "text": "Chụp mọi phía, gương, yên và đồng hồ khi có mặt chủ cửa hàng. Gửi ảnh qua Zalo cho chủ xe để cả hai cùng lưu một bản."
+            },
+            {
+              "title": "Thử hai phanh",
+              "text": "Bóp từng tay phanh và dắt xe đi. Phanh phải ăn chắc trước khi tay phanh chạm sát tay lái."
+            },
+            {
+              "title": "Xem lốp",
+              "text": "Kiểm tra độ sâu gai lốp, tìm vết nứt hoặc phồng. Lốp mòn rất nguy hiểm trên đường ướt, nhất là vào mùa mưa."
+            },
+            {
+              "title": "Thử đèn và còi",
+              "text": "Bật đèn pha, đèn phanh, xi nhan và bấm còi. Giờ cao điểm trong thành phố, bạn sẽ dùng chúng liên tục."
+            },
+            {
+              "title": "Ghi mức xăng và số km",
+              "text": "Chụp ảnh đồng hồ để lúc trả xe không có gì phải tranh cãi."
+            },
+            {
+              "title": "Kiểm tra giấy tờ và mũ bảo hiểm",
+              "text": "Bảo đảm cà vẹt và giấy bảo hiểm nằm trong cốp và khớp với biển số. Thử mũ cho vừa đầu và cài được quai. Theo Nghị định 168/2024/NĐ-CP, không đội mũ hoặc không cài quai đúng cách bị phạt {{vnd:400000-600000}}, người ngồi sau cũng chịu mức phạt này."
+            },
+            {
+              "title": "Lưu số điện thoại cửa hàng",
+              "text": "Lưu số điện thoại hoặc Zalo của cửa hàng trước khi đi, và hỏi họ hỗ trợ ra sao khi xe hỏng giữa đường. Nếu cần sim hoặc eSIM, xem [hướng dẫn sim và eSIM](/esim-vietnam-guide)."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bang-lai-va-bao-hiem",
+      "title": "Thuê xe máy cần bằng lái gì, bảo hiểm có trả không?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Xe cho thuê phổ biến có dung tích tới 125 cc nên chỉ cần bằng A1; xe trên 125 cc cần bằng A. Quy định này nằm trong [Luật Trật tự, an toàn giao thông đường bộ (Luật 36/2024/QH15)](https://luatvietnam.vn/giao-thong/luat-trat-tu-an-toan-giao-thong-duong-bo-2024-quy-dinh-nhu-the-nao-ve-giay-phep-lai-xe-hang-a1-863-100479-article.html), có hiệu lực từ 01/01/2025."
+        },
+        {
+          "type": "p",
+          "text": "Theo luật này, bằng **A1** cho phép lái xe hai bánh tới 125 cc (hoặc động cơ điện tới 11 kW), còn bằng **A** dành cho xe trên mức đó. Bằng A1 và A không có thời hạn. Nhiều người cần biết điểm này: **bằng A1 cấp trước 01/01/2025 mà chưa đổi** vẫn được lái xe hai bánh từ 50 cc tới dưới 175 cc, nên vẫn chạy được các xe như PCX 160. Bằng A1 cấp theo luật mới thì chỉ được lái xe tới 125 cc."
+        },
+        {
+          "type": "p",
+          "text": "Nếu bạn (hoặc người thân từ nước ngoài về) dùng bằng nước ngoài, cần có cả bằng lái xe máy của nước mình lẫn **giấy phép lái xe quốc tế cấp theo Công ước Viên 1968**. Theo Vietcetera, giấy phép cấp theo Công ước Geneva 1949, loại mà Mỹ và Canada chủ yếu cấp, không có giá trị ở Việt Nam, và các trang web bán “bằng lái quốc tế” chỉ cung cấp bản dịch không có giá trị pháp lý. Hướng dẫn tiếng Anh về [bằng lái xe máy cho người nước ngoài](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners) nói về việc đổi bằng và thi sát hạch."
+        },
+        {
+          "type": "table",
+          "caption": "Mức phạt về bằng lái và giấy tờ khi đi xe máy theo Nghị định 168/2024/NĐ-CP, theo tổng hợp của Thư viện Nhà đất đọc ngày 11/11/2026",
+          "headers": [
+            "Lỗi",
+            "Mức phạt"
+          ],
+          "rows": [
+            [
+              "Không có bằng lái hợp lệ, xe tới 125 cc",
+              "{{vnd:2000000-4000000}}"
+            ],
+            [
+              "Không có bằng lái hợp lệ, xe trên 125 cc",
+              "{{vnd:6000000-8000000}}"
+            ],
+            [
+              "Không mang bằng lái",
+              "{{vnd:200000-300000}}"
+            ],
+            [
+              "Không mang giấy đăng ký xe",
+              "{{vnd:200000-300000}}"
+            ],
+            [
+              "Không có hoặc không mang bảo hiểm bắt buộc",
+              "{{vnd:200000-300000}}"
+            ],
+            [
+              "Không đội mũ bảo hiểm hoặc không cài quai đúng cách",
+              "{{vnd:400000-600000}}"
+            ]
+          ]
+        },
+        {
+          "type": "p",
+          "text": "Nghị định 238/2026/NĐ-CP sửa một số điểm của Nghị định 168 từ 15/8/2026. [Bản tổng hợp của Công an tỉnh Phú Thọ](https://congan.phutho.gov.vn/article/Tu-1582026-Nhung-thay-doi-dang-chu-y-ve-xu-31345-36), đọc ngày 11/11/2026, không nêu thay đổi nào về mức phạt bằng lái xe máy, bảo hiểm hay mũ bảo hiểm. Lực lượng chức năng khi xử lý vi phạm là bên có tiếng nói cuối cùng."
+        },
+        {
+          "type": "h3",
+          "text": "Bảo hiểm bắt buộc trả gì, không trả gì"
+        },
+        {
+          "type": "p",
+          "text": "Mọi xe máy phải có **bảo hiểm trách nhiệm dân sự bắt buộc** theo Nghị định 67/2023/NĐ-CP. Theo [trang sản phẩm của Chubb Việt Nam](https://www.chubb.com/vn-en/assurance/products/motorbike-ctpl.html), đọc ngày 11/11/2026, phí cho xe trên 50 cc là {{vnd:60000}} một năm, chưa gồm 10% VAT. Bảo hiểm này trả tối đa {{vnd:150000000}} mỗi người mỗi vụ cho thương tật hoặc tử vong của người khác, kể cả người ngồi sau, và tối đa {{vnd:50000000}} mỗi vụ cho tài sản của người khác."
+        },
+        {
+          "type": "callout",
+          "tone": "warning",
+          "title": "Không có bằng hợp lệ thì bảo hiểm thường không trả",
+          "text": "Chubb ghi rõ bảo hiểm bắt buộc không chi trả khi người lái không có giấy phép lái xe hợp lệ. Bảo hiểm này cũng không trả cho thương tích của chính bạn. Theo Vietcetera, phần lớn bảo hiểm du lịch và sức khỏe cũng có thể từ chối bồi thường tai nạn xe máy nếu người lái không có bằng hợp lệ tại Việt Nam."
+        },
+        {
+          "type": "p",
+          "text": "Cửa hàng chịu cho thuê không có nghĩa là bạn đủ điều kiện lái. Theo Vietnam Tourism, phần lớn cửa hàng không kiểm tra bằng lái; việc kiểm tra chủ yếu diễn ra ở các chốt cảnh sát."
+        }
+      ]
+    },
+    {
+      "id": "sai-gon-ha-noi-da-nang",
+      "title": "Thuê xe máy ở Sài Gòn, Hà Nội và Đà Nẵng khác nhau thế nào?",
+      "blocks": [
+        {
+          "type": "p",
+          "text": "Trong các nguồn đã đọc, Sài Gòn có giá thuê tháng được công bố rõ nhất, Hà Nội hạn chế xe vào khu quanh Hồ Gươm cuối tuần, còn Đà Nẵng có giá ngày thấp nhất."
+        },
+        {
+          "type": "h3",
+          "text": "Sài Gòn (TP.HCM)"
+        },
+        {
+          "type": "p",
+          "text": "Cửa hàng ở Sài Gòn cho cả khách ở dài ngày thuê, và giá chênh nhiều theo đời xe. Theo Saigon Motorcycles (đọc ngày 11/11/2026), Nouvo 4 có giá {{vnd:160000}} một ngày, còn Nouvo 6 là {{vnd:220000}}. Muốn so sánh nơi thuê trong thành phố, xem trang [thuê xe máy TP.HCM](/thue-xe-may-tphcm), nơi có xe của Blvck Motorbike, đối tác chính thức của eno.vn ([gian hàng Blvck](/blvck)). Cần ô tô thì xem [thuê xe tự lái TP.HCM](/thue-xe-tu-lai-tphcm)."
+        },
+        {
+          "type": "h3",
+          "text": "Hà Nội"
+        },
+        {
+          "type": "p",
+          "text": "Theo VinWonders (04/12/2025), giá ngày ở Hà Nội thấp nhất khoảng {{vnd:100000}}, và một số cửa hàng nói có giảm giá khi thuê dài ngày nhưng không công bố mức giảm. [Báo Công lý đưa tin ngày 22/10/2026](https://congly.vn/ha-noi-hoan-thien-va-mo-rong-vung-phat-thai-thap-544266.html) rằng vùng phát thải thấp thí điểm tại phường Hoàn Kiếm chạy từ 01/07/2026 tới hết 31/12/2026, gồm khu phố cổ và quanh Hồ Hoàn Kiếm. Xe cơ giới không được vào khu đi bộ ven hồ từ tối thứ Sáu tới hết Chủ nhật."
+        },
+        {
+          "type": "p",
+          "text": "Theo [phương án Dân trí đưa tin ngày 30/05/2026](https://dantri.com.vn/thoi-su/ha-noi-doi-phuong-an-du-kien-chua-cam-xe-may-xang-o-vung-loi-hoan-kiem-20260530140808961.htm), thành phố đề xuất cấm mọi xe cơ giới, cả xe xăng lẫn xe điện, vào vùng lõi từ 19 giờ tới nửa đêm các ngày thứ Sáu, thứ Bảy, Chủ nhật, và tạm chưa cấm xe máy xăng. Các giai đoạn mở rộng được lên kế hoạch cho năm 2027 và 2028-2029. Báo Công lý cho biết tới tháng 10/2026 vẫn chưa xử phạt chính thức."
+        },
+        {
+          "type": "callout",
+          "tone": "note",
+          "text": "Các bài báo mô tả khác nhau về loại xe và khung giờ bị hạn chế, và chúng tôi không tìm được văn bản quy định đầy đủ. Hãy làm theo biển báo tại các chốt và hỏi cửa hàng cho thuê trước khi chạy vào phố cổ cuối tuần."
+        },
+        {
+          "type": "h3",
+          "text": "Đà Nẵng"
+        },
+        {
+          "type": "p",
+          "text": "Theo Motorbike Tour Expert (cập nhật 09/12/2025), giá ở Đà Nẵng thấp nhất trong các nguồn đã đọc: xe số từ {{vnd:80000}} một ngày, xe côn tay cho chuyến đi xa {{vnd:250000-350000}} một ngày. Xe côn tay hợp với người đã quen chạy đường dài, như qua đèo Hải Vân; nếu chưa quen, nguồn này gợi ý đi cùng hướng dẫn viên. Mùa mưa kéo dài từ tháng 9 tới tháng 12, đường trơn, nên kiểm tra lốp kỹ hơn trước khi nhận xe."
+        }
+      ]
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Giá thuê xe máy hiện tại còn bao nhiêu một ngày?",
+      "a": "Giá thuê xe máy hiện tại tùy thành phố và đời xe. Theo trang Saigon Motorcycles đọc ngày 11/11/2026, xe ga ở Sài Gòn rẻ nhất là Yamaha Nouvo 4 và đắt nhất là Honda PCX. Theo các bài hướng dẫn tháng 12/2025, Hà Nội và Đà Nẵng rẻ hơn, xe số ở Đà Nẵng rẻ nhất. Bảng giá cụ thể theo từng nguồn nằm ở phần giá thuê của bài này."
+    },
+    {
+      "q": "Thuê xe máy theo tháng có rẻ hơn không?",
+      "a": "Thuê xe máy theo tháng rẻ hơn nhiều so với thuê lẻ từng ngày. Theo Saigon Motorcycles đọc ngày 11/11/2026, giá tháng của Honda Air Blade 125 bản mới chỉ bằng khoảng một phần ba tổng tiền thuê lẻ 30 ngày. Cửa hàng ở Hà Nội và Đà Nẵng cũng nói có giảm giá khi thuê dài ngày, nên ai ở lâu hãy hỏi thẳng giá tháng."
+    },
+    {
+      "q": "Thuê xe máy cần giấy tờ gì?",
+      "a": "Thuê xe máy thường cần bằng lái phù hợp với xe, giấy tờ tùy thân như căn cước hoặc hộ chiếu, và hợp đồng thuê có chữ ký. Có cửa hàng giữ giấy tờ gốc, có nơi nhận tiền cọc thay thế. Khi nhận xe, hãy đòi giấy đăng ký xe và giấy chứng nhận bảo hiểm bắt buộc, vì không mang hai loại giấy này sẽ bị phạt."
+    },
+    {
+      "q": "Thuê xe máy có phải để lại căn cước hay hộ chiếu không?",
+      "a": "Không phải cửa hàng cho thuê xe máy nào cũng bắt giữ căn cước hay hộ chiếu. Nhiều nơi nhận tiền cọc tiền mặt thay thế, mức cọc thường gặp được nêu ở phần tiền cọc phía trên. Đặt cọc tiền mặt kèm biên nhận ghi rõ số tiền và điều kiện hoàn cọc an toàn hơn để lại giấy tờ gốc, vì bạn có thể cần giấy tờ đó cho việc khác."
+    },
+    {
+      "q": "Bằng A1 chạy được xe PCX 160 không?",
+      "a": "Bằng A1 cấp trước ngày 01/01/2025 mà chưa đổi vẫn được lái xe hai bánh từ 50 cc tới dưới 175 cc, nên chạy được PCX 160. Bằng A1 cấp theo Luật 36/2024/QH15 chỉ được lái xe tới 125 cc, nên PCX 160, ADV160 hay XR150 cần bằng A. Phần lớn xe cho thuê như Vision, Wave, Air Blade 125 vẫn nằm trong phạm vi bằng A1."
+    },
+    {
+      "q": "Thuê xe máy không có bằng lái bị phạt bao nhiêu?",
+      "a": "Theo Nghị định 168/2024/NĐ-CP, người lái xe máy không có bằng hợp lệ bị phạt nặng hơn nhiều so với lỗi quên mang bằng, và xe trên 125 cc bị phạt cao hơn xe tới 125 cc. Mức phạt cụ thể nằm trong bảng ở phần bằng lái. Ngoài ra, bảo hiểm bắt buộc không chi trả khi người lái không có bằng hợp lệ."
+    },
+    {
+      "q": "Bảo hiểm xe máy thuê có trả tiền khi bị tai nạn không?",
+      "a": "Bảo hiểm trách nhiệm dân sự bắt buộc của xe máy thuê chỉ trả cho thương tật và tài sản của người khác, kể cả người ngồi sau, trong hạn mức theo Nghị định 67/2023/NĐ-CP. Bảo hiểm bắt buộc không trả cho thương tích của chính người lái, và theo Chubb Việt Nam, không chi trả khi người lái không có giấy phép lái xe hợp lệ."
+    },
+    {
+      "q": "Đi xe máy vào phố cổ Hà Nội cuối tuần được không?",
+      "a": "Từ 01/07/2026, phường Hoàn Kiếm thí điểm vùng phát thải thấp quanh Hồ Hoàn Kiếm và khu phố cổ, tới hết 31/12/2026. Theo Báo Công lý, xe cơ giới không được vào khu đi bộ ven hồ từ tối thứ Sáu tới hết Chủ nhật. Các bài báo mô tả khung giờ khác nhau, nên hãy theo biển báo tại chốt và hỏi cửa hàng cho thuê trước khi đi."
+    }
+  ],
+  "sources": [
+    {
+      "title": "Luật Trật tự, an toàn giao thông đường bộ 2024 quy định như thế nào về GPLX hạng A1?",
+      "publisher": "LuatVietnam",
+      "url": "https://luatvietnam.vn/giao-thong/luat-trat-tu-an-toan-giao-thong-duong-bo-2024-quy-dinh-nhu-the-nao-ve-giay-phep-lai-xe-hang-a1-863-100479-article.html"
+    },
+    {
+      "title": "Từ 15/8/2026: Những thay đổi đáng chú ý về xử phạt giao thông",
+      "publisher": "Công an tỉnh Phú Thọ",
+      "url": "https://congan.phutho.gov.vn/article/Tu-1582026-Nhung-thay-doi-dang-chu-y-ve-xu-31345-36"
+    },
+    {
+      "title": "Nghị định 168 đối với xe máy: 10 mức phạt cần biết",
+      "publisher": "Thư viện Nhà đất",
+      "url": "https://thuviennhadat.vn/phap-luat/nghi-dinh-168-doi-voi-xe-may-10-muc-phat-can-biet-632712.html"
+    },
+    {
+      "title": "Motorbike Compulsory Third Party Liability",
+      "publisher": "Chubb Việt Nam",
+      "url": "https://www.chubb.com/vn-en/assurance/products/motorbike-ctpl.html"
+    },
+    {
+      "title": "Bike Rental",
+      "publisher": "Saigon Motorcycles",
+      "url": "https://saigonmotorcycles.com/rentals/"
+    },
+    {
+      "title": "Motorbike rental in Hanoi: Requirements, costs and more",
+      "publisher": "VinWonders",
+      "url": "https://vinwonders.com/en/wonderpedia/news/motorbike-rental-in-hanoi/"
+    },
+    {
+      "title": "Motorbike Rental Da Nang",
+      "publisher": "Motorbike Tour Expert",
+      "url": "https://motorbiketourexpert.com/useful-blog/motorbike-rental-da-nang"
+    },
+    {
+      "title": "Hà Nội hoàn thiện và mở rộng vùng phát thải thấp",
+      "publisher": "Báo Công lý",
+      "url": "https://congly.vn/ha-noi-hoan-thien-va-mo-rong-vung-phat-thai-thap-544266.html"
+    },
+    {
+      "title": "Hà Nội đổi phương án, dự kiến chưa cấm xe máy xăng ở vùng lõi Hoàn Kiếm",
+      "publisher": "Dân trí",
+      "url": "https://dantri.com.vn/thoi-su/ha-noi-doi-phuong-an-du-kien-chua-cam-xe-may-xang-o-vung-loi-hoan-kiem-20260530140808961.htm"
+    },
+    {
+      "title": "Why Many Foreigners Ride Illegally In Vietnam Without Realizing It?",
+      "publisher": "Vietcetera",
+      "url": "https://vietcetera.com/en/why-many-foreigners-ride-illegally-in-vietnam-without-realizing-it"
+    },
+    {
+      "title": "Renting a motorbike in Vietnam: the legal truth nobody tells tourists",
+      "publisher": "Vietnam Tourism",
+      "url": "https://vietnamtourism.com/en/renting-a-motorbike-in-vietnam-the-legal-truth-nobody-tells-tourists"
+    }
+  ],
+  "related": [
+    "motorbike-licence-in-vietnam-for-foreigners",
+    "getting-around-ho-chi-minh-city",
+    "healthcare-and-health-insurance-in-ho-chi-minh-city",
+    "hanoi-vs-ho-chi-minh-city-for-teachers"
+  ],
+  "lastChecked": "2026-11-12"
+}
