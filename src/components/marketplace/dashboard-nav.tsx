@@ -48,7 +48,7 @@ import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_PAYMENTS, SERVICES_NAV_SERVICES 
 import {
   Store, SquareArrowOutUpRight, MessageSquare, Heart, Scale, Wallet,
   CircleHelp, Route,
-  Flag, ClipboardList, Star, Stamp, Gavel, Users, GraduationCap, Presentation,
+  Flag, ClipboardList, Star, Stamp, Gavel, Users, GraduationCap, Presentation, Inbox,
   type IconComponent, ShieldCheck } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 
@@ -127,7 +127,7 @@ export type NavItem = {
    */
   iosAppHidden?: boolean
   /** Live counter to show on this row — the renderer maps it to its real-time source. */
-  badge?: 'unread' | 'saved'
+  badge?: 'unread' | 'saved' | 'partnerUnread'
   /** Item-level visibility; defaults to the owning group's role. */
   role?: NavRole
   /** Show ONLY to a viewer who holds an e-Visa case (dash.hasVisa). The apply flow is
@@ -309,6 +309,9 @@ export const DASHBOARD_NAV: NavGroup[] = [
       { href: '/admin/classroom', en: 'Classroom', icon: Presentation },
       ...(IS_SERVICES ? [{ ...SERVICES_NAV_ADMIN_QUEUE, icon: Stamp, servicesOnly: true }] : []),
       { href: '/admin/insights', en: 'Insights', icon: Star },
+      // The partner shops' waiting chats, as counts only (owner, 2026-11-12: "Counter only, no reading"; src/lib/partner-inbox.ts).
+      // Its own glyph: two red counts on one icon in the collapsed rail could not be told apart (the no-shared-icons rule above).
+      { href: '/admin/partner-inbox', en: 'Partner inbox', icon: Inbox, badge: 'partnerUnread' },
     ],
   },
 ]

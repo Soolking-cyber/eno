@@ -29,6 +29,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
 import { useFocusTrap } from '@/lib/use-focus-trap'
 import { useDashboard } from '@/hooks/use-dashboard'
+import { usePartnerUnread } from '@/hooks/use-partner-unread'
 import { useSignInAgain } from './dashboard-fetch-error'
 import { DASHBOARD_NAV } from './dashboard-nav'
 import { resolveNavGroups, type ResolvedNavItem } from './dashboard-nav-resolve'
@@ -50,6 +51,9 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   // icons used, so the counts stay real-time and consistent.
   const { unread } = useChat()
   const { count: savedCount } = useFavorites()
+  // Admin > Partner inbox's badge: live, in memory only, admins only (src/hooks/use-partner-unread.ts). Above every early
+  // return (rules of hooks); the server's own isAdmin, as the rail's admin group reads it.
+  const partnerUnread = usePartnerUnread(dash?.isAdmin === true)
 
   // DESKTOP expand — HOVER-DRIVEN (owner 2026-07-23; the pinned toggle it replaced is gone). The
   // aside's onMouseEnter/Leave flip this; when collapsed, a hovered icon still shows its NAME as a
@@ -268,7 +272,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
     hasTeacher: dash?.hasTeacher === true,
     teacherDraft: dash?.teacherDraft ?? null,
     seller: dash?.seller ?? null,
-    counters: { unread, saved: savedCount },
+    counters: { unread, saved: savedCount, partnerUnread },
     label: tr,
   })
 

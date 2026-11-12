@@ -9,6 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { useFavorites } from '@/context/favorites-context'
 import { useDashboard } from '@/hooks/use-dashboard'
+import { usePartnerUnread } from '@/hooks/use-partner-unread'
 import { DashboardFetchError } from '@/components/marketplace/dashboard-fetch-error'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -104,6 +105,8 @@ export function AccountClient() {
   const { dash, refresh, error } = useDashboard('summary')
   const { unread } = useChat()
   const { count: savedCount } = useFavorites()
+  // Admin > Partner inbox's badge, as on the desktop rail (the phone never mounts the rail — opus review 2026-11-12).
+  const partnerUnread = usePartnerUnread(dash?.isAdmin === true)
 
   const groups = resolveNavGroups(DASHBOARD_NAV, {
     isBusiness: dash?.tier === 'business',
@@ -112,7 +115,7 @@ export function AccountClient() {
     hasTeacher: dash?.hasTeacher === true,
     teacherDraft: dash?.teacherDraft ?? null,
     seller: dash?.seller ?? null,
-    counters: { unread, saved: savedCount },
+    counters: { unread, saved: savedCount, partnerUnread },
     label: tr,
   })
 

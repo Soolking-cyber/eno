@@ -51,7 +51,7 @@ export type NavResolveCtx = {
   /** The signed-in user's seller profile, when one exists (drives 'seller' role + storefront). */
   seller: { id: string; handle: string | null } | null
   /** Live badge counters, bound to config `badge` keys. */
-  counters: { unread: number; saved: number }
+  counters: { unread: number; saved: number; /** Admins: chats waiting in the partner shops (src/lib/partner-inbox.ts). */ partnerUnread?: number }
   /**
    * Localizer for {en, vi} label pairs — pass the app's tr(). Only called when `vi` exists;
    * vi-less labels (admin chrome, EN-only by convention) render `en` verbatim.
@@ -101,9 +101,9 @@ const toRail = (it: NavItem, ctx: NavResolveCtx): ResolvedNavItem | null => {
     icon: it.icon,
     exact: it.exact,
     external: it.external,
-    badge: it.badge === 'unread' ? ctx.counters.unread : it.badge === 'saved' ? ctx.counters.saved : undefined,
+    badge: it.badge === 'unread' ? ctx.counters.unread : it.badge === 'saved' ? ctx.counters.saved : it.badge === 'partnerUnread' ? ctx.counters.partnerUnread : undefined,
     // Saved went grey on 2026-09-30 (O-08) and back to red the same day (owner: "make it red as before").
-    badgeTone: it.badge === 'unread' || it.badge === 'saved' ? 'alert' : undefined,
+    badgeTone: it.badge === 'unread' || it.badge === 'saved' || it.badge === 'partnerUnread' ? 'alert' : undefined,
     ...(it.iosAppHidden ? { iosAppHidden: true } : {}),
   }
 }

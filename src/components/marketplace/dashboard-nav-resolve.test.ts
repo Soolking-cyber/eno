@@ -119,6 +119,14 @@ describe('resolveNavGroups binding', () => {
     expect(tone).toEqual({ '/dashboard': undefined, '/messages': 'alert', '/saved': 'alert' })
   })
 
+  it('Admin > Partner inbox carries the partner shops\' unread chats as a red count, for admins only (owner, 2026-11-12)', () => {
+    const forAdmin = resolveNavGroups(DASHBOARD_NAV, ctx({ isAdmin: true, counters: { unread: 0, saved: 0, partnerUnread: 4 } }))
+    const row = forAdmin.flatMap((g) => g.items).find((i) => i.href === '/admin/partner-inbox')
+    expect(row).toMatchObject({ label: 'Partner inbox', badge: 4, badgeTone: 'alert' })
+    const forUser = resolveNavGroups(DASHBOARD_NAV, ctx({ counters: { unread: 0, saved: 0, partnerUnread: 4 } }))
+    expect(forUser.flatMap((g) => g.items).some((i) => i.href === '/admin/partner-inbox')).toBe(false)
+  })
+
   it('belt-and-braces: a dynamic storefront row without a seller never renders its placeholder href', () => {
     const leaky: NavGroup[] = [{ en: 'G', role: 'all', items: [{ href: '/sellers', en: 'Storefront', icon, dynamic: 'storefront' }] }]
     expect(resolveNavGroups(leaky, ctx())[0].items).toEqual([])
