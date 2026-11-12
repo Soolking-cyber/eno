@@ -92,7 +92,13 @@ const RECEIPTS = join(ROOT, '.second-opinion')
 // 2026 11:42 PM", which blocked every commit in every session; owner, asked: "Use Gemini meanwhile". agy probed the same
 // hour (answered a one-line prompt on 'Gemini 3.8 Flash (High)'). ⛔ RESTORE ON/AFTER 2026-11-16 23:42: put 'codex' back in
 // place of 'agy' (its seat below is untouched), after one probe that codex answers.
-const REVIEWER_NAMES = ['agy', 'opus']
+// ⏸ AND agy OUT TOO the same evening ("RESOURCE_EXHAUSTED (429): Individual quota reached … Resets in 106h45m", ≈ 11-17
+// 08:00) — no outside lab left. Owner, asked (buy codex credits / wait): "continue withut reviews until 16th". So until
+// UNTIL_CODEX the panel is opus alone and one lab is enough (MIN_LABS). ⛔ IT EXPIRES BY ITSELF: from UNTIL_CODEX the minimum
+// is two labs again while the panel is still opus alone, so every commit is refused until codex is put back here.
+const UNTIL_CODEX = Date.parse('2026-11-16T23:42:00+07:00')
+const MIN_LABS = Date.now() < UNTIL_CODEX ? 1 : 2
+const REVIEWER_NAMES = ['opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
@@ -210,7 +216,7 @@ if (process.argv.includes('--status')) {
         .map((x) => x.name)
         .filter((n) => known.has(n)))]
       if (r.hash !== hash) why = `receipt is for a different diff (${r.hash})`
-      else if (counted.length < 2) why = `receipt records only ${counted.length} distinct full-diff verdict(s)`
+      else if (counted.length < MIN_LABS) why = `receipt records only ${counted.length} distinct full-diff verdict(s)`
       else ok = true
     } catch { why = 'receipt is unreadable/corrupt' }
   }
@@ -250,7 +256,7 @@ if (process.env.SECOND_OPINION_SKIP_SECRET_SCAN !== '1') {
     // ⚠️ THIS IS THE THIRD PLACE THE SEAT LIST IS WRITTEN — after REVIEWER_NAMES and REVIEWERS —
     // and opus flagged it reviewing this very change: the diff's own lesson is that duplicated seat
     // lists drift, and it fixed two of the three. Update this string whenever a seat moves.
-    console.error('   agy and opus are third-party services; a credential sent to them cannot be recalled.')
+    console.error('   The reviewers (REVIEWER_NAMES) are third-party services; a credential sent to them cannot be recalled.')
     console.error('   Remove the value from the staged content (git reset the file, move it to Secret Manager via')
     console.error('   scripts/secret-set.sh), then re-run. If this is a FALSE POSITIVE — a fixture, a public key, a')
     console.error('   sample in documentation — re-run with SECOND_OPINION_SKIP_SECRET_SCAN=1 and say so out loud.')
@@ -740,7 +746,8 @@ if (independentLabs.length >= 2 && new Set(independent.map((r) => r.verdict)).si
  * them satisfy a two-family minimum would mean a diff certified by a single lab, which is exactly
  * the property this gate exists to guarantee against.
  */
-if (labsCounted < 2) {
+if (labsCounted < MIN_LABS) {
+  if (Date.now() >= UNTIL_CODEX && REVIEWER_NAMES.length === 1) console.error('⛔ The no-outside-review window (owner, 2026-11-12) ENDED 2026-11-16 23:42 ICT: put codex back in REVIEWER_NAMES.')
   console.error(`⚠️  Only ${labsCounted} lab(s) reviewed the FULL diff (${counted.length} seat(s)) — that is NOT a passed`)
   console.error('    review, and NO receipt was written. A truncated or errored reviewer does not count.')
   console.error('    Fix the reviewer (missing binary? no key? rate limited?) and re-run.')
