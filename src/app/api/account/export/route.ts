@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { describeTrustEvent } from '@/lib/trust'
+import { MODERATION_ACTOR_ID } from '@/lib/service-deal-server'
 
 // Self-service data export (PDPL access right — "copies provided within 10 days";
 // this does it instantly). Returns EVERYTHING we hold about the authenticated
@@ -134,6 +135,10 @@ export async function GET() {
   // buyer or seller, and every DealConfirmationEvent they acted in or were the buyer of. Each read is its own .catch → null:
   // a database scripts/deal-confirmation-ddl.mjs has not reached (or any failed read) says "not available", never costing
   // the rest of the export.
+  // ⛔ A MODERATOR'S UNDO ON THEIR OWN DEAL TOO (2026-11-12): its actor is MODERATION_ACTOR_ID, not the seller, so the
+  // seller is named by the storefront this person owns (`seller` above — one per owner) — 'admin_withdraw' events only,
+  // flagged byModeration. Never the admin's identity (that is on the compliance_audit row).
+  const dealEventWho = [{ actorProfileId: profile.id }, { buyerProfileId: profile.id }, ...(seller ? [{ sellerId: { in: [seller.id] }, action: 'admin_withdraw' }] : [])]
   const [dealConfirmations, dealConfirmationEvents] = await Promise.all([
     db.dealConfirmation.findMany({
       where: { OR: [{ buyerProfileId: profile.id }, { sellerProfileId: profile.id }] },
@@ -143,11 +148,11 @@ export async function GET() {
       .then((rows) => rows.map(({ buyerProfileId, sellerProfileId, ...r }) => ({ ...r, role: buyerProfileId === profile.id ? 'buyer' : sellerProfileId === profile.id ? 'seller' : null })))
       .catch(() => null),
     db.dealConfirmationEvent.findMany({
-      where: { OR: [{ actorProfileId: profile.id }, { buyerProfileId: profile.id }] },
+      where: { OR: dealEventWho },
       orderBy: { createdAt: 'asc' },
       select: { conversationId: true, listingId: true, action: true, createdAt: true, actorProfileId: true, buyerProfileId: true },
     })
-      .then((rows) => rows.map(({ actorProfileId, buyerProfileId, ...r }) => ({ ...r, byYou: actorProfileId === profile.id, youWereTheBuyer: buyerProfileId === profile.id })))
+      .then((rows) => rows.map(({ actorProfileId, buyerProfileId, ...r }) => ({ ...r, byYou: actorProfileId === profile.id, byModeration: actorProfileId === MODERATION_ACTOR_ID, youWereTheBuyer: buyerProfileId === profile.id })))
       .catch(() => null),
   ])
 

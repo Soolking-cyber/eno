@@ -25,7 +25,8 @@ export const dynamic = 'force-dynamic'
  *                  the server-authored 'deal_confirmed' timeline line.
  *   · 'withdraw' — the SELLER's undo: only while now < confirmedAt + WITHDRAW_WINDOW_MINUTES (spec v3 A2 — the buyer's
  *                  next message no longer closes it). After that the confirmation stands; only an admin removes it, through
- *                  a Report on the thread.
+ *                  a Report on the thread: Admin › Moderation's ⋯ "Undo the seller's confirmation" (POST
+ *                  /api/admin/moderate 'withdraw-deal' → service-deal-server.ts adminWithdrawDeal — not this route).
  *   · 'decline'  — the BUYER's "No, this didn't happen" from the review card, which opens only when now >= confirmedAt +
  *                  WITHDRAW_WINDOW_MINUTES (A2 — undo and review never overlap): the deal is marked declined by a
  *                  CONDITIONAL update (A3), no review is possible on it and it can never be confirmed again, and 3 declines

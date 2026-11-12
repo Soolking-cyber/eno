@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import Image from 'next/image'
-import { X, Loader2, ExternalLink, MessageSquare, Check, ChevronDown, Keyboard, StickyNote, Users, ShieldQuestion, MoreHorizontal, Sparkles , Scale } from '@/components/ui/icons'
+import { X, Loader2, ExternalLink, MessageSquare, Check, ChevronDown, Keyboard, StickyNote, Users, ShieldQuestion, MoreHorizontal, Sparkles , Scale, Undo2 } from '@/components/ui/icons'
 import { STROKE_MARK } from '@/lib/icon-tokens'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { useLanguage } from '@/context/language-context'
@@ -29,6 +29,10 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 
 export type Reporter = {
@@ -68,6 +72,13 @@ export type ModCase = {
    * content and tells its author; nobody's trust is docked.
    */
   content?: { kind: 'review' | 'help-comment' | 'help-post'; description: string; href: string | null; present: boolean; authorProfileId: string | null } | null
+  /**
+   * A LIVE service-deal confirmation on this OPEN chat report's own thread (Report.conversationId — never the thread
+   * derived for a listing or account report): confirmed, not withdrawn, declined or reviewed (service-deal-server.ts
+   * liveDealsFor). Its presence puts "Undo the seller's confirmation" in the ⋯ menu; `confirmedAt` is sent back so the
+   * server undoes exactly the confirmation shown here.
+   */
+  dealConfirmation?: { kind: 'rental' | 'lesson' | 'service'; confirmedAt: string } | null
 }
 
 const REASON_LABEL: Record<string, string> = {
@@ -346,7 +357,7 @@ const SEVERITY_DOT = { critical: 'bg-destructive', high: 'bg-warning', standard:
  */
 const metaLine = (...parts: (string | null | undefined)[]) => parts.map((p) => (p ?? '').trim()).filter(Boolean).join(' · ')
 
-function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onSeverity, onSelect, onAction, onListing, onDismissTarget, refresh }: {
+function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onSeverity, onSelect, onAction, onListing, onDismissTarget, onWithdrawDeal, refresh }: {
   c: ModCase; selected: boolean; busy: boolean; severity: string; readOnly?: boolean
   checked?: boolean; onCheck?: () => void
   onSeverity: (id: string, s: string) => void
@@ -354,6 +365,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
   onAction: (action: string, id: string, severity?: string) => void
   onListing: (action: string, listingId: string) => void
   onDismissTarget: (id: string) => void
+  onWithdrawDeal: (c: ModCase) => void
   refresh: () => void
 }) {
   const t = c.target
@@ -514,7 +526,10 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
               <MoreMenu>
                 {isListing && <DropdownMenuItem variant="destructive" onClick={() => onListing('reject', t.listing!.id)} disabled={busy} className="text-2xs font-semibold cursor-pointer"><X className="size-3" /> Remove listing (kept as evidence)</DropdownMenuItem>}
                 {c.communityCount > 1 && <DropdownMenuItem onClick={() => onDismissTarget(c.id)} disabled={busy} className="text-2xs font-semibold cursor-pointer"><Users className="size-3" /> Dismiss all {c.communityCount} on this target</DropdownMenuItem>}
-                {(isListing || c.communityCount > 1) && (msgTargets.length > 0 || t.isGuest) && <DropdownMenuSeparator />}
+                {/* A live confirmation past the seller's own 10-minute undo: withdrawn here, the buyer's review card closes.
+                    The case stays open — Confirm / Dismiss still decide it. */}
+                {c.dealConfirmation && <DropdownMenuItem variant="destructive" onClick={() => onWithdrawDeal(c)} disabled={busy} className="text-2xs font-semibold cursor-pointer"><Undo2 className="size-3" /> Undo the seller&apos;s confirmation ({c.dealConfirmation.kind})</DropdownMenuItem>}
+                {(isListing || c.communityCount > 1 || c.dealConfirmation) && (msgTargets.length > 0 || t.isGuest) && <DropdownMenuSeparator />}
                 {msgTargets.map((m) => <MacroSender key={m.recipientId} recipientId={m.recipientId} label={m.label} listingId={isListing ? t.listing!.id : null} conversationId={c.conversationId} />)}
                 {t.isGuest && <p className="px-2 py-1 text-3xs italic text-ink-4">Reported party is a guest — can&apos;t be messaged.</p>}
               </MoreMenu>
@@ -641,6 +656,34 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
     setBusyId(id)
     try { await post({ action: 'dismiss-target', id }); refresh() } catch { toast.error('Dismiss failed — the reports are unchanged.') } finally { setBusyId(null) }
   }
+  // Undo the seller's confirmation (POST withdraw-deal). Its own fetch, not post(): post() drops the error body, and a
+  // refusal here has to say WHY (reviewed, closed, changed). The queue is refreshed whatever the answer, so a stale item
+  // leaves the menu.
+  const WITHDRAW_UNKNOWN = 'Could not confirm the result — check the refreshed case before trying again.'
+  // ⛔ ASKED FIRST (gate review round 2, opus): the undo cannot be undone — the buyer's review card closes and the
+  // thread's confirm budget is spent, so the seller cannot confirm it again — so one misclick in the ⋯ menu must not
+  // cost a genuine buyer their review. The menu item only opens this question; the dialog's button sends the request.
+  const [withdrawAsk, setWithdrawAsk] = useState<ModCase | null>(null)
+  const withdrawDeal = async (c: ModCase) => {
+    if (!c.dealConfirmation) return
+    setBusyId(c.id)
+    try {
+      const res = await fetch('/api/admin/moderate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'withdraw-deal', id: c.id, confirmedAt: c.dealConfirmation.confirmedAt }),
+      })
+      const err = res.ok ? null : ((await res.json().catch(() => null)) as { error?: unknown } | null)?.error
+      if (res.ok) toast.success('Seller\'s confirmation withdrawn — the buyer can no longer review this chat.')
+      else if (err === 'already_reviewed') toast.warning('The buyer has already reviewed — nothing was withdrawn.')
+      else if (err === 'already_resolved') toast.warning('This case is closed — nothing was withdrawn.')
+      else if (err === 'not_confirmed' || err === 'deal_declined') toast.warning('This confirmation changed or is gone — the case was refreshed.')
+      // Any other answer, or none (a dropped connection, a gateway timeout): the withdrawal may have committed before the
+      // answer was lost, so never claim "unchanged" (gate review, codex) — say the result is unknown and let the refreshed
+      // case show it.
+      else toast.error(WITHDRAW_UNKNOWN)
+    } catch { toast.error(WITHDRAW_UNKNOWN) } finally { setBusyId(null); refresh() }
+  }
   const bulk = async (action: 'bulk-dismiss' | 'bulk-confirm') => {
     const ids = [...checked]
     if (!ids.length) return
@@ -708,12 +751,29 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
       onAction={act}
       onListing={listingAct}
       onDismissTarget={dismissTarget}
+      onWithdrawDeal={setWithdrawAsk}
       refresh={refresh}
     />
   )
 
   return (
     <div>
+      <AlertDialog open={withdrawAsk !== null} onOpenChange={(open) => { if (!open) setWithdrawAsk(null) }}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Undo the seller&apos;s confirmation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The buyer&apos;s review card closes and the seller cannot confirm this chat again. There is no redo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => { const c = withdrawAsk; setWithdrawAsk(null); if (c) void withdrawDeal(c) }}>
+              Undo confirmation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="mb-4 flex flex-wrap items-center gap-1.5">
         {/* Queue filters — segmented control. ui/button renders a native <button>, so
             these keep role=button with "Label (count)" accessible names — the e2e suite

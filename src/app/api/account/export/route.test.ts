@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   dealRows: [] as Array<Record<string, unknown>>,
   dealEventRows: [] as Array<Record<string, unknown>>,
   dealMissing: false,
+  /** The storefront this person owns (db.seller.findUnique by ownerId), or none. */
+  seller: null as null | { id: string },
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/admin', () => ({
@@ -40,6 +42,7 @@ vi.mock('@/lib/db', () => {
         if (model === 'dealConfirmation') return { findMany: async (q: NonNullable<typeof h.dealQuery>) => { h.dealQuery = q; if (h.dealMissing) throw missingDeal(); return h.dealRows } }
         if (model === 'dealConfirmationEvent') return { findMany: async (q: NonNullable<typeof h.dealEventQuery>) => { h.dealEventQuery = q; if (h.dealMissing) throw missingDeal(); return h.dealEventRows } }
         if (model === 'complianceAudit') return { findMany: async (q: NonNullable<typeof h.consentQuery>) => { h.consentQuery = q; return h.consentRows } }
+        if (model === 'seller') return { findUnique: async () => h.seller }
         if (model === 'savedListing') return {
           findMany: async (q: NonNullable<typeof h.savedQuery>) => {
             h.savedQuery = q
@@ -55,10 +58,11 @@ vi.mock('@/lib/db', () => {
 })
 
 const { GET } = await import('./route')
+const { MODERATION_ACTOR_ID } = await import('@/lib/service-deal-server')
 
 beforeEach(() => {
   h.signedIn = true; h.consentQuery = null; h.consentRows = []; h.savedQuery = null; h.savedRows = []; h.savedMissing = false; h.savedDown = false
-  h.dealQuery = null; h.dealEventQuery = null; h.dealRows = []; h.dealEventRows = []; h.dealMissing = false
+  h.dealQuery = null; h.dealEventQuery = null; h.dealRows = []; h.dealEventRows = []; h.dealMissing = false; h.seller = null
 })
 
 describe('GET /api/account/export — service deals (spec v3 A6, 2026-11-11)', () => {
@@ -78,6 +82,28 @@ describe('GET /api/account/export — service deals (spec v3 A6, 2026-11-11)', (
     expect(body.serviceDeals.confirmations.map((d: { conversationId: string; role: string }) => [d.conversationId, d.role])).toEqual([['c1', 'buyer'], ['c2', 'seller']])
     expect(body.serviceDeals.events.map((e: { action: string; byYou: boolean; youWereTheBuyer: boolean }) => [e.action, e.byYou, e.youWereTheBuyer])).toEqual([['confirm', false, true], ['confirm', true, false]])
     expect(JSON.stringify(body.serviceDeals)).not.toMatch(/seller-x|buyer-y/)
+  })
+
+  it('⛔ a seller\'s export includes a moderator\'s undo on their own deal (actor = MODERATION_ACTOR_ID, not them): byModeration, never the admin', async () => {
+    const at = new Date('2026-11-12T08:00:00Z')
+    h.seller = { id: 'shop-1' }
+    h.dealEventRows = [
+      { conversationId: 'c2', listingId: 'L2', action: 'confirm', createdAt: at, actorProfileId: 'p1', buyerProfileId: 'buyer-y' },
+      { conversationId: 'c2', listingId: 'L2', action: 'admin_withdraw', createdAt: at, actorProfileId: MODERATION_ACTOR_ID, buyerProfileId: 'buyer-y' },
+    ]
+    const body = await (await GET()).json()
+    expect(h.dealEventQuery?.where).toEqual({ OR: [{ actorProfileId: 'p1' }, { buyerProfileId: 'p1' }, { sellerId: { in: ['shop-1'] }, action: 'admin_withdraw' }] })
+    expect(body.serviceDeals.events.map((e: { action: string; byYou: boolean; byModeration: boolean; youWereTheBuyer: boolean }) => [e.action, e.byYou, e.byModeration, e.youWereTheBuyer]))
+      .toEqual([['confirm', true, false, false], ['admin_withdraw', false, true, false]])
+    expect(JSON.stringify(body.serviceDeals)).not.toContain(MODERATION_ACTOR_ID)
+  })
+
+  it('no storefront → the events read is exactly as before (actor or buyer), and every event says byModeration: false', async () => {
+    const at = new Date('2026-11-12T08:00:00Z')
+    h.dealEventRows = [{ conversationId: 'c1', listingId: 'L1', action: 'confirm', createdAt: at, actorProfileId: 'seller-x', buyerProfileId: 'p1' }]
+    const body = await (await GET()).json()
+    expect(h.dealEventQuery?.where).toEqual({ OR: [{ actorProfileId: 'p1' }, { buyerProfileId: 'p1' }] })
+    expect(body.serviceDeals.events[0].byModeration).toBe(false)
   })
 
   it('no deal tables yet (or a failed read): null for each, said — the rest of the export still comes', async () => {

@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { ModerationClient, type ModCase } from '@/components/admin/moderation-client'
 import { reportContext, reportTargetKey, targetContext, type RawReport } from '@/lib/admin-reports'
 import { reportedContentFor } from '@/lib/reported-content'
+import { liveDealsFor } from '@/lib/service-deal-server'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Monitor } from '@/components/ui/icons'
 
@@ -38,7 +39,11 @@ export async function ReportsInbox() {
   const raw: RawReport[] = [...openRows, ...resolvedRows].map((r) => ({ id: r.id, reporterProfileId: r.reporterProfileId, listingId: r.listingId, conversationId: r.conversationId, targetSellerId: r.targetSellerId, targetProfileId: r.targetProfileId }))
   // CONTENT cases (ugc-safety, R5): the review / help reply / help post each one names, resolved live.
   // One DisputeMessage query for the page, plus one per content kind present.
-  const [{ reporterById, convoByReportId }, { targetByReportId }, contentByReportId] = await Promise.all([reportContext(raw), targetContext(raw), reportedContentFor(raw.map((r) => r.id))])
+  // A live service-deal confirmation on an OPEN chat report's own thread (the "Undo the seller's confirmation" item):
+  // ⛔ read off the report's OWN conversationId column, never convoByReportId — that also holds the thread DERIVED for a
+  // listing or account report. Fail-soft (service-deal-server.ts liveDealsFor): no deals, never a 500.
+  const chatIds = openRows.map((r) => r.conversationId).filter((c): c is string => !!c)
+  const [{ reporterById, convoByReportId }, { targetByReportId }, contentByReportId, liveDeals] = await Promise.all([reportContext(raw), targetContext(raw), reportedContentFor(raw.map((r) => r.id)), liveDealsFor(chatIds)])
   const CONTENT_LABEL = { review: 'Reported review', 'help-comment': 'Reported help-centre reply', 'help-post': 'Reported help-centre post' } as const
   // The pile-on key: a content case groups with every other open report on the SAME content, not by its
   // (absent) target — several people reporting one review is exactly the signal the count exists for.
@@ -65,6 +70,7 @@ export async function ReportsInbox() {
       isAppeal || community >= 3 || (sevKey === 'severe' && cred >= 1.2) || priority >= 5 ? 'critical' : priority >= 2.8 ? 'high' : 'standard'
     let appealImages: string[] = []
     try { appealImages = r.appealImages ? JSON.parse(r.appealImages) : [] } catch { /* ignore */ }
+    const deal = !resolved && r.conversationId ? liveDeals.get(r.conversationId) : undefined
     return {
       id: r.id, reason: r.reason, detail: r.detail, severity: r.severity, createdAt: r.createdAt.toISOString(),
       ageDays: Math.floor(ageDays), bucket, priority,
@@ -75,6 +81,7 @@ export async function ReportsInbox() {
       sellerRespondedAt: r.sellerRespondedAt ? r.sellerRespondedAt.toISOString() : null,
       appeal: r.appealedAt ? { note: r.appealNote ?? null, images: Array.isArray(appealImages) ? appealImages : [], at: r.appealedAt.toISOString() } : null,
       resolution: resolved ? { status: r.status, by: r.resolvedBy, at: r.resolvedAt ? r.resolvedAt.toISOString() : null } : null,
+      dealConfirmation: deal ? { kind: deal.kind, confirmedAt: deal.confirmedAt.toISOString() } : null,
     }
   }
 

@@ -149,11 +149,13 @@ export function ReviewPrompt({
         toast.error(notOpenYet())
         return
       }
-      // The service deal stopped counting since the card was shown: the seller's undo (within its 10 minutes), or the
-      // 30-day window closed. Retrying cannot help either — the card goes, with its own reason.
+      // The service deal stopped counting since the card was shown: the seller's undo (within its 10 minutes) or a
+      // moderator's (Admin › Moderation, any time while unreviewed), or the 30-day window closed. Retrying cannot help
+      // either — the card goes, with its own reason. ⛔ NEUTRAL, NAMING NOBODY: after a moderator's undo, "{seller} withdrew
+      // it" would put eno's act in the seller's name.
       if (res.status === 403 && err === 'deal_withdrawn') {
         setState('dismissed')
-        toast.error(tr("{name} withdrew the confirmation, so a review can't be left now.", '{name} đã rút lại xác nhận nên hiện chưa thể đánh giá.').replace('{name}', () => sellerName))
+        toast.error(tr("The confirmation was withdrawn, so a review can't be left now.", 'Xác nhận đã được rút lại nên hiện chưa thể đánh giá.'))
         return
       }
       if (res.status === 403 && err === 'review_window_closed') {

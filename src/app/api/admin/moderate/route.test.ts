@@ -73,6 +73,10 @@ const h = vi.hoisted(() => ({
   licenceBlocked: [] as string[],
   /** Successive licenceBlockedIds answers before falling back to `licenceBlocked` — a row whose state changes mid-request. */
   licenceBlockedQueue: [] as string[][],
+  /** withdraw-deal: what adminWithdrawDeal answers (or throws), and every call it got. */
+  withdrawResult: { ok: true } as Row,
+  withdrawThrows: null as unknown,
+  withdrawCalls: [] as unknown[][],
 }))
 
 // ── the database ────────────────────────────────────────────────────────────────
@@ -247,6 +251,16 @@ vi.mock('@/lib/core/licence-check', () => ({
     return new Set(ids.filter((i) => blocked.includes(i)))
   },
 }))
+// withdraw-deal's transaction (the moderator's undo) — its own rules are tested in
+// src/lib/service-deal-server.admin-withdraw.test.ts; here only the route's wiring: which thread, which reason → which code.
+vi.mock('@/lib/service-deal-server', async () => ({
+  isMissingRelation: (await import('@/lib/service-deal')).isMissingRelation,
+  adminWithdrawDeal: async (...a: unknown[]) => {
+    h.withdrawCalls.push(a)
+    if (h.withdrawThrows) throw h.withdrawThrows
+    return h.withdrawResult
+  },
+}))
 vi.mock('@/lib/mail', () => ({ sendMail: async () => true, mailEnabled: () => false }))
 vi.mock('@/lib/log', () => ({ logError: () => {}, logWarn: () => {}, logInfo: () => {} }))
 vi.mock('next/cache', () => ({ revalidatePath: (p: string) => { h.revalidated.push(p) } }))
@@ -304,6 +318,9 @@ beforeEach(() => {
   h.licenceBlockedQueue = []
   h.approveCount = 1
   h.listingTypes = {}
+  h.withdrawResult = { ok: true }
+  h.withdrawThrows = null
+  h.withdrawCalls = []
 })
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -1513,5 +1530,106 @@ describe('/c/teachers — every moderation takedown of a teacher profile purges 
     h.listing = { id: 'l1', verified: true, listingType: 'sell' }
     await post({ action: 'reject', id: 'l1' })
     expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en', '/vi'])
+  })
+})
+
+/**
+ * withdraw-deal — UNDO THE SELLER'S CONFIRMATION (owner, 2026-11-12). The route reads the REPORT, never the client, for
+ * the thread: only a report filed FROM the chat (Report.conversationId) — never the reporter↔seller thread the console
+ * derives for a listing or account report — and only while the case is open. The transaction itself
+ * (service-deal-server.ts adminWithdrawDeal) is mocked; here the wiring, the codes and what the branch never touches.
+ */
+describe('withdraw-deal', () => {
+  const SEEN = '2026-11-09T08:00:00.123Z'
+  const R = { id: 'r1', status: 'open', conversationId: 'c1' }
+  const withdraw = (over: Row = {}) => post({ action: 'withdraw-deal', id: 'r1', confirmedAt: SEEN, ...over })
+
+  it('→ 200 {"ok":true}: the REPORT\'s own thread, the admin\'s email, the confirmation the card showed — and the case stays open', async () => {
+    h.report = { ...R }
+    const r = await withdraw()
+    expect(r.status).toBe(200)
+    expect(r.text).toBe('{"ok":true}')
+    expect(args('report.findUnique')).toEqual({ where: { id: 'r1' }, select: { id: true, status: true, conversationId: true } })
+    expect(h.withdrawCalls).toEqual([['c1', { admin: 'mod@eno.vn', reportId: 'r1', seenConfirmedAt: new Date(SEEN) }]])
+    // Nothing else moves: no resolution, no listing write, no trust / enforcement / dispute effect, nothing purged.
+    expect(called('report.update')).toHaveLength(0)
+    expect(called('report.updateMany')).toHaveLength(0)
+    expect(called('listing.update')).toHaveLength(0)
+    expect(called('listing.updateMany')).toHaveLength(0)
+    expect(called('$transaction')).toHaveLength(0)
+    expect(h.fx).toEqual([])
+    expect(h.revalidated).toEqual([])
+  })
+
+  it('⛔ a conversation id in the body is ignored — the thread is the report\'s', async () => {
+    h.report = { ...R }
+    await withdraw({ conversationId: 'someone-elses-thread' })
+    expect(h.withdrawCalls[0][0]).toBe('c1')
+  })
+
+  it('unknown report → 404 {"error":"Not found"}, helper never called', async () => {
+    const r = await withdraw()
+    expect(r.status).toBe(404)
+    expect(r.text).toBe('{"error":"Not found"}')
+    expect(h.withdrawCalls).toEqual([])
+  })
+
+  it.each(['confirmed', 'dismissed', 'abusive'])('a %s case → 409 {"error":"already_resolved"}, helper never called', async (status) => {
+    h.report = { ...R, status }
+    const r = await withdraw()
+    expect(r.status).toBe(409)
+    expect(r.text).toBe('{"error":"already_resolved"}')
+    expect(h.withdrawCalls).toEqual([])
+  })
+
+  it('⛔ a report with no conversationId (a listing / account report, whose thread the console only DERIVES) → 409 not_confirmed, helper never called', async () => {
+    h.report = { ...R, conversationId: null }
+    const r = await withdraw()
+    expect(r.status).toBe(409)
+    expect(r.text).toBe('{"error":"not_confirmed"}')
+    expect(h.withdrawCalls).toEqual([])
+  })
+
+  it.each([
+    ['missing', undefined],
+    ['garbage', 'not-a-date'],
+    ['a number', 1731139200000],
+    ['empty', ''],
+  ])('confirmedAt %s → 409 {"error":"not_confirmed"}, helper never called', async (_l, confirmedAt) => {
+    h.report = { ...R }
+    const r = await withdraw({ confirmedAt })
+    expect(r.status).toBe(409)
+    expect(r.text).toBe('{"error":"not_confirmed"}')
+    expect(h.withdrawCalls).toEqual([])
+  })
+
+  it.each([
+    ['already_reviewed', '{"error":"already_reviewed"}'],
+    ['deal_declined', '{"error":"deal_declined"}'],
+    ['not_confirmed', '{"error":"not_confirmed"}'],
+    ['already_resolved', '{"error":"already_resolved"}'],
+  ])('the helper refuses with %s → 409 %s', async (reason, text) => {
+    h.report = { ...R }
+    h.withdrawResult = { ok: false, reason }
+    const r = await withdraw()
+    expect(r.status).toBe(409)
+    expect(r.text).toBe(text)
+    expect(h.fx).toEqual([])
+  })
+
+  it('before the deal DDL (a missing table) → 503 {"error":"migration_pending"}', async () => {
+    h.report = { ...R }
+    h.withdrawThrows = Object.assign(new Error('The table `public.DealConfirmation` does not exist in the current database.'), { code: 'P2021' })
+    const r = await withdraw()
+    expect(r.status).toBe(503)
+    expect(r.text).toBe('{"error":"migration_pending"}')
+  })
+
+  it('any other failure (a lock timeout, say) → 500 {"error":"internal_error"}, never the exception text', async () => {
+    h.report = { ...R }
+    h.withdrawThrows = new Error('canceling statement due to lock timeout')
+    const r = await withdraw()
+    expect(r.status).toBe(500)
+    expect(r.text).toBe('{"error":"internal_error"}')
   })
 })

@@ -47,7 +47,9 @@ export const SERVICE_DEAL = {
    * THE UNDO, AND THE INSTANT THE REVIEW OPENS (spec v3 A2): a seller may withdraw only while now < confirmedAt + this;
    * the buyer may review (or say "No") only when now >= confirmedAt + this. The two never overlap, so a review can never
    * be pulled by an undo. After the undo the confirmation stands; only an admin removes it (through a Report on the
-   * thread). v1's "withdraw any time until reviewed" was refuted: it let a seller see a complaint coming and pull the door;
+   * thread — Admin › Moderation's "Undo the seller's confirmation", service-deal-server.ts adminWithdrawDeal: not
+   * windowed, only while unreviewed, and it spends the thread's confirm budget). v1's "withdraw any time until reviewed"
+   * was refuted: it let a seller see a complaint coming and pull the door;
    * v2's "…and before the buyer's next message" clause is dropped (the windows alone keep the two apart).
    */
   WITHDRAW_WINDOW_MINUTES: 10,

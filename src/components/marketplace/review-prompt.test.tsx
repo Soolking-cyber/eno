@@ -103,7 +103,7 @@ describe('ReviewPrompt — a service deal asks "did you…?" first', () => {
     expect(container.textContent).not.toContain(QUESTION.rental)
   })
 
-  it('403 deal_withdrawn: the card goes, naming who withdrew', async () => {
+  it('403 deal_withdrawn: the card goes, naming nobody (the seller\'s undo or a moderator\'s — never "{seller} withdrew")', async () => {
     answer(403, { error: 'deal_withdrawn' })
     render(dealUi('rental'))
     const user = userEvent.setup()
@@ -111,7 +111,8 @@ describe('ReviewPrompt — a service deal asks "did you…?" first', () => {
     await user.click(screen.getByRole('radio', { name: '4 stars' }))
     await user.click(screen.getByRole('button', { name: 'Submit' }))
     await waitFor(() => expect(screen.queryByText('How was your experience with Minh Shop?')).toBeNull())
-    expect(toastError).toHaveBeenCalledWith("Minh Shop withdrew the confirmation, so a review can't be left now.")
+    expect(toastError).toHaveBeenCalledWith("The confirmation was withdrawn, so a review can't be left now.")
+    expect(toastError.mock.calls.flat().join(' ')).not.toContain('Minh Shop')
   })
 
   it('403 review_window_closed: the card goes, with its own reason', async () => {

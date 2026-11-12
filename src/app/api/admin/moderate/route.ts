@@ -18,6 +18,7 @@ import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 import { contentCaseWhere, takeDownReportedContent } from '@/lib/reported-content'
 import { windowExtendedBody } from '@/lib/dispute-window-row'
 import { TEACHER_LISTING_TYPE, TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
+import { adminWithdrawDeal, isMissingRelation, type AdminWithdrawResult } from '@/lib/service-deal-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -110,8 +111,9 @@ function purgeHome(op: string, teacher = false): void {
 // (2) RESOLVING reports — which is what moves trust scores.
 //
 // ⚠️ WS6 MIGRATION — THE AUTH PREAMBLE AND NOTHING ELSE, DELIBERATELY. This is the most
-// consequential handler in the app: fourteen actions that dock trust, apply the enforcement ladder,
-// pull listings from sale, purge a false reporter's confirmed history and write into dispute rooms.
+// consequential handler in the app: fourteen actions (fifteen since 'withdraw-deal', 2026-11-12) that
+// dock trust, apply the enforcement ladder, pull listings from sale, purge a false reporter's confirmed
+// history and write into dispute rooms.
 // Every one of those is irreversible. So exactly two lines were replaced — `getAdmin()` and its 403
 // — and the 350-line switch below is byte-for-byte what it was, including every `NextResponse.json`
 // return, every `.catch(logError)` and the idempotency guards (`upd.count === 0 → 200 {"ok":true}`)
@@ -125,9 +127,9 @@ function purgeHome(op: string, teacher = false): void {
 //
 // ⚠️ NO `body:` SCHEMA, AND ON THIS ROUTE IT IS NOT A CLOSE CALL. Malformed JSON answers
 // `{"error":"Invalid body"}` and a missing id answers `{"error":"Missing id"}` — both free text,
-// neither an ApiErrorCode, so neither is expressible as `invalidBodyCode`. The fourteen actions
+// neither an ApiErrorCode, so neither is expressible as `invalidBodyCode`. The actions
 // read disjoint field sets (`ids` for the bulk pair, `severity` for confirms, `message` for
-// dispute-message, `note` for the note pair), so one schema could only be a permissive union that
+// dispute-message, `note` for the note pair, `confirmedAt` for withdraw-deal), so one schema could only be a permissive union that
 // validates nothing while still 400ing the `String(body.x ?? '')` coercions that today accept a
 // number. The hand parse stays.
 //
@@ -136,12 +138,15 @@ function purgeHome(op: string, teacher = false): void {
 // BEFORE the body is read, so it could not distinguish a bulk-confirm over 100 reports from a
 // set-note keystroke.
 //
-// Branches held, all fourteen actions: guest / non-admin → 403 `{"error":"Forbidden"}` · malformed
+// Branches held, all fifteen actions: guest / non-admin → 403 `{"error":"Forbidden"}` · malformed
 // JSON → 400 `{"error":"Invalid body"}` · no id on a non-bulk action → 400 `{"error":"Missing id"}`
 // · empty ids on bulk-dismiss/bulk-confirm → 400 `{"error":"No ids"}` · unknown report or listing →
-// 404 `{"error":"Not found"}` · extend-window on an already-resolved case → 409
+// 404 `{"error":"Not found"}` · extend-window or withdraw-deal on an already-resolved case → 409
 // `{"error":"already_resolved"}` · remediated on a non-confirmed report → 400
-// `{"error":"not_confirmed"}` · dispute-message with empty text → 400 `{"error":"empty"}` ·
+// `{"error":"not_confirmed"}` · withdraw-deal with no live confirmation the admin saw (no chat on the
+// report, no / a stale `confirmedAt`, withdrawn meanwhile) → 409 `{"error":"not_confirmed"}`, reviewed
+// → 409 `{"error":"already_reviewed"}`, declined → 409 `{"error":"deal_declined"}`, before the deal
+// DDL → 503 `{"error":"migration_pending"}` · dispute-message with empty text → 400 `{"error":"empty"}` ·
 // unrecognised action → 400 `{"error":"Unknown action"}` · a takedown write that failed after the
 // trust dock landed → 500 `{"error":"takedown_failed", …}` with the still-public listing ids (the
 // partial-success contract moderation-client.tsx depends on, preserved exactly) · success → 200,
@@ -157,7 +162,7 @@ function purgeHome(op: string, teacher = false): void {
 // 500s are untouched: `takedown_failed` still returns its own body, because its whole point is that
 // the trust dock landed and the listing did not come down.
 export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
-  let body: { action?: string; id?: string; severity?: string; ids?: string[]; note?: string; decisionNote?: string; message?: string }
+  let body: { action?: string; id?: string; severity?: string; ids?: string[]; note?: string; decisionNote?: string; message?: string; confirmedAt?: string }
   try {
     body = await req.json()
   } catch {
@@ -780,6 +785,37 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, onHeld })
       }
       return NextResponse.json(withHeld({ ok: true, remediated: marked > 0 }))
+    }
+
+    case 'withdraw-deal': {
+      // UNDO THE SELLER'S CONFIRMATION (owner, 2026-11-12) — a service deal's confirmation that stands past the seller's
+      // own 10-minute undo, withdrawn by a moderator from the reported chat's case card (src/lib/service-deal-server.ts
+      // adminWithdrawDeal holds the transaction and says what it does not do). ⛔ THE REPORT'S OWN CHAT ONLY: the thread
+      // is read off Report.conversationId — set only for a report filed FROM the chat — never the reporter↔seller thread
+      // the console DERIVES for a listing or account report, and never a conversation id the client sends. The case must
+      // be open; its status is not changed here (the admin still confirms or dismisses it). `confirmedAt` is the
+      // confirmation the card showed: a stale card loses with not_confirmed rather than undo one nobody looked at.
+      const report = await db.report.findUnique({ where: { id }, select: { id: true, status: true, conversationId: true } })
+      if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      if (report.status !== 'open') return NextResponse.json({ error: 'already_resolved' }, { status: 409 })
+      if (!report.conversationId) return NextResponse.json({ error: 'not_confirmed' }, { status: 409 })
+      const seenMs = typeof body.confirmedAt === 'string' ? Date.parse(body.confirmedAt) : NaN
+      if (!Number.isFinite(seenMs)) return NextResponse.json({ error: 'not_confirmed' }, { status: 409 })
+      let res: AdminWithdrawResult
+      try {
+        res = await adminWithdrawDeal(report.conversationId, { admin, reportId: report.id, seenConfirmedAt: new Date(seenMs) })
+      } catch (e) {
+        if (isMissingRelation(e)) return NextResponse.json({ error: 'migration_pending' }, { status: 503 })
+        throw e
+      }
+      if (!res.ok) {
+        if (res.reason === 'already_reviewed') return NextResponse.json({ error: 'already_reviewed' }, { status: 409 })
+        if (res.reason === 'deal_declined') return NextResponse.json({ error: 'deal_declined' }, { status: 409 })
+        // Decided by another moderator between the status read above and the helper's lock on the report row.
+        if (res.reason === 'already_resolved') return NextResponse.json({ error: 'already_resolved' }, { status: 409 })
+        return NextResponse.json({ error: 'not_confirmed' }, { status: 409 })
+      }
+      return NextResponse.json({ ok: true })
     }
 
     default:

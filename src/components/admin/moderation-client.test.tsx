@@ -14,10 +14,13 @@
  * ⚠️ EXPLICIT CLEANUP: no vitest `globals`, so Testing Library registers no afterEach of its own.
  */
 import React from 'react'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), prefetch: vi.fn() }) }))
+const nav = vi.hoisted(() => ({ refresh: vi.fn() }))
+const toastMock = vi.hoisted(() => ({ success: vi.fn(), warning: vi.fn(), error: vi.fn() }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: nav.refresh, push: vi.fn(), prefetch: vi.fn() }) }))
+vi.mock('sonner', () => ({ toast: toastMock }))
 vi.mock('next/image', () => ({
   // eslint-disable-next-line jsx-a11y/alt-text
   default: ({ fill: _f, sizes: _s, ...rest }: Record<string, unknown>) => <img {...(rest as React.ImgHTMLAttributes<HTMLImageElement>)} />,
@@ -81,5 +84,106 @@ describe('moderation case card: the "<category> · <location>" line', () => {
     const texts = Array.from(container.querySelectorAll('p')).map((p) => (p.textContent ?? '').trim())
     expect(texts).not.toContain('·')
     expect(texts).not.toContain('')
+  })
+})
+
+/**
+ * UNDO THE SELLER'S CONFIRMATION (owner, 2026-11-12) — one destructive item in the case card's existing ⋯ menu, never a
+ * new row. Present only while reports-inbox.tsx found a live confirmation on an OPEN chat report's own thread
+ * (`dealConfirmation`); the click posts the confirmation the card SHOWS, says what happened whatever the answer, and
+ * refreshes the queue every time so a stale item leaves the menu.
+ */
+describe('moderation case card: "Undo the seller\'s confirmation"', () => {
+  const CONFIRMED_AT = '2026-11-09T08:00:00.123Z'
+  const chatCase = (over: Partial<ModCase> = {}): ModCase => ({
+    id: 'r9', reason: 'scam', detail: null, severity: null, createdAt: new Date().toISOString(), ageDays: 0,
+    bucket: 'standard', priority: 1, reporter: null, conversationId: 'c9', communityCount: 1,
+    target: { kind: 'chat', name: 'Minh Shop', trustScore: 90, trustTier: 'standard', sellerId: 's9', profileId: 'p9', isGuest: false, listing: null },
+    internalNote: null, sellerResponse: null, sellerRespondedAt: null,
+    dealConfirmation: { kind: 'rental', confirmedAt: CONFIRMED_AT },
+    ...over,
+  })
+  const ITEM = /Undo the seller's confirmation/
+  const openMenu = async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
+    return screen.findByRole('menuitem', { name: ITEM })
+  }
+  /** The item only ASKS (no redo exists); the dialog's button sends it. */
+  const confirmUndo = async () => fireEvent.click(await screen.findByRole('button', { name: 'Undo confirmation' }))
+  const answer = (status: number, body: unknown) => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+
+  beforeEach(() => {
+    nav.refresh.mockClear(); toastMock.success.mockClear(); toastMock.warning.mockClear(); toastMock.error.mockClear()
+  })
+
+  it('the item only asks — Cancel sends nothing, and nothing refreshes', async () => {
+    const fetchMock = answer(200, { ok: true })
+    render(<ModerationClient cases={[chatCase()]} resolved={[]} />)
+    fireEvent.click(await openMenu())
+    expect(await screen.findByText(/There is no redo/)).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByText(/There is no redo/)).toBeNull())
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(nav.refresh).not.toHaveBeenCalled()
+  })
+
+  it('a chat case with a live confirmation: the item is in ⋯ (with its kind), and the click posts withdraw-deal with the confirmation it shows', async () => {
+    const fetchMock = answer(200, { ok: true })
+    render(<ModerationClient cases={[chatCase()]} resolved={[]} />)
+    const item = await openMenu()
+    expect(item.textContent).toContain("Undo the seller's confirmation (rental)")
+    fireEvent.click(item)
+    await confirmUndo()
+    await waitFor(() => expect(nav.refresh).toHaveBeenCalledTimes(1))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('/api/admin/moderate')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(String(init.body))).toEqual({ action: 'withdraw-deal', id: 'r9', confirmedAt: CONFIRMED_AT })
+    expect(toastMock.success).toHaveBeenCalledWith("Seller's confirmation withdrawn — the buyer can no longer review this chat.")
+  })
+
+  it('without the field the item is absent (the menu still opens)', async () => {
+    render(<ModerationClient cases={[chatCase({ dealConfirmation: null })]} resolved={[]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'More' }))
+    await screen.findAllByRole('menuitem')
+    expect(screen.queryByRole('menuitem', { name: ITEM })).toBeNull()
+  })
+
+  it('a resolved case has no menu at all, even if the field were set', () => {
+    const closed = chatCase({ resolution: { status: 'dismissed', by: 'mod@eno.vn', at: new Date().toISOString() } })
+    render(<ModerationClient cases={[]} resolved={[closed]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Resolved (1)' }))
+    expect(screen.queryByRole('button', { name: 'More' })).toBeNull()
+  })
+
+  it.each([
+    [409, { error: 'already_reviewed' }, 'warning', 'The buyer has already reviewed — nothing was withdrawn.'],
+    [409, { error: 'already_resolved' }, 'warning', 'This case is closed — nothing was withdrawn.'],
+    [409, { error: 'not_confirmed' }, 'warning', 'This confirmation changed or is gone — the case was refreshed.'],
+    [409, { error: 'deal_declined' }, 'warning', 'This confirmation changed or is gone — the case was refreshed.'],
+    [503, { error: 'migration_pending' }, 'error', 'Could not confirm the result — check the refreshed case before trying again.'],
+    [500, { error: 'internal_error' }, 'error', 'Could not confirm the result — check the refreshed case before trying again.'],
+  ] as const)('%s %o → a %s toast that says so, and the queue refreshes', async (status, body, kind, line) => {
+    answer(status, body)
+    render(<ModerationClient cases={[chatCase()]} resolved={[]} />)
+    fireEvent.click(await openMenu())
+    await confirmUndo()
+    await waitFor(() => expect(nav.refresh).toHaveBeenCalledTimes(1))
+    expect(toastMock[kind]).toHaveBeenCalledWith(line)
+    expect(toastMock.success).not.toHaveBeenCalled()
+  })
+
+  it('a network failure → "could not confirm the result" (it may have committed), never "unchanged", and the queue still refreshes', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
+    render(<ModerationClient cases={[chatCase()]} resolved={[]} />)
+    fireEvent.click(await openMenu())
+    await confirmUndo()
+    await waitFor(() => expect(nav.refresh).toHaveBeenCalledTimes(1))
+    expect(toastMock.error).toHaveBeenCalledWith('Could not confirm the result — check the refreshed case before trying again.')
   })
 })
