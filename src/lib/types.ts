@@ -88,6 +88,14 @@ export type SerializedListingCard = {
    * draws the tick beside the name (identity-verified-mark.tsx).
    */
   identityMark?: true
+  /**
+   * THE PROOF LINE'S FACTS (owner, 2026-11-12, "build 2") — a TEACHER card's at most two facet slugs, best first
+   * ('celta', '5-10-years'), projected by serializeListingCard from Listing.facetTokens through
+   * src/lib/teachers/card-proof.ts `teacherProofFacts`; the card prints them with `teacherProofLine`. ABSENT on every other
+   * card and on a teacher with nothing printable — never empty, and never the tokens themselves (they also hold where a
+   * teacher will teach or cover).
+   */
+  teacherProof?: string[]
   // Active price-drop anchor (server-normalized): the struck-through "was" price
   // while the drop badge is live (3 days — see DROP.BADGE_MS in src/lib/price-drop.ts),
   // else null. Server-computed 30-day-min reference — never a seller-entered number.

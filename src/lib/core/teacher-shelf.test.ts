@@ -36,7 +36,7 @@ const row = (id: string, over: Record<string, unknown> = {}) => ({
   images: JSON.stringify([`https://sb.eno.vn/storage/v1/object/public/listings/${id}.webp`]), video: null,
   buildingKey: null, subcategorySlug: 'teachers-fulltime', brandSlug: null, model: null, condition: null, marketPosition: null,
   verified: true, postedAt: new Date('2026-10-01T00:00:00Z'), createdAt: new Date('2026-10-01T00:00:00Z'), savedCount: 0, contactCount: 0,
-  affiliateUrl: null, listingType: 'teacher', attributes: null,
+  affiliateUrl: null, listingType: 'teacher', attributes: null, identityMarkNotice: null, facetTokens: null,
   category: { id: 'cat-teachers', name: 'Teachers', nameVi: 'Giáo viên', slug: 'teachers', icon: 'graduation-cap', color: 'blue' },
   seller: { trustScore: 60, officialPartner: false, ownerId: `owner-${id}`, owner: { accountType: 'individual' } },
   ...over,
@@ -126,6 +126,19 @@ describe('homeTeacherShelf', () => {
     for (const c of cards) {
       expect(c).not.toHaveProperty('description')
       expect(JSON.stringify(c)).not.toContain('owner-')
+    }
+  })
+
+  // The proof line (owner, 2026-11-12, "build 2"): the shelf's cards carry the same ≤ 2 slugs as /c/teachers' — the
+  // `{ ...c }` spread above keeps the key — and never the tokens they came from.
+  it('a shelf card carries its teacherProof, and never the facet tokens', async () => {
+    h.rows = [row('t0', { facetTokens: '|workIn:quan-go-vap|experience:3-5-years|cert:tesol|degree:bachelor|' }), row('t1')]
+    const cards = await homeTeacherShelf()
+    expect(cards[0].teacherProof).toEqual(['tesol', '3-5-years'])
+    expect(cards[1]).not.toHaveProperty('teacherProof')
+    for (const c of cards) {
+      expect(JSON.stringify(c)).not.toContain('facetTokens')
+      expect(JSON.stringify(c)).not.toContain('quan-go-vap')
     }
   })
 

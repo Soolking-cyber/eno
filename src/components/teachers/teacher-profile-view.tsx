@@ -34,6 +34,7 @@ import { TeacherAvailableFrom } from '@/components/teachers/teacher-available-fr
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { TEACHER_OPTIONS } from '@/lib/teachers/profile'
+import { EXPERIENCE_BAND_PHRASE } from '@/lib/teachers/card-proof'
 import { countryName } from '@/lib/teachers/countries'
 import { teacherProfileLd } from '@/lib/teachers/jsonld'
 import { ANYWHERE, ONLINE, coverReachOf, placeLabel } from '@/lib/teachers/places'
@@ -75,14 +76,6 @@ const ENGLISH_LEVEL: Record<string, { en: string; vi: string }> = {
   native: { en: 'Native English speaker', vi: 'Người bản ngữ tiếng Anh' },
   fluent: { en: 'Fluent English', vi: 'Tiếng Anh lưu loát' },
   working: { en: 'Working English', vi: 'Tiếng Anh dùng được trong công việc' },
-}
-/** "How long have you been teaching?" — the experience facet's five bands, as a phrase. */
-const EXPERIENCE_BAND: Record<string, { en: string; vi: string }> = {
-  'under-1-year': { en: 'Under 1 year teaching', vi: 'Dạy dưới 1 năm' },
-  '1-3-years': { en: '1–3 years teaching', vi: 'Dạy 1–3 năm' },
-  '3-5-years': { en: '3–5 years teaching', vi: 'Dạy 3–5 năm' },
-  '5-10-years': { en: '5–10 years teaching', vi: 'Dạy 5–10 năm' },
-  'over-10-years': { en: '10+ years teaching', vi: 'Dạy 10 năm trở lên' },
 }
 
 /**
@@ -173,7 +166,8 @@ export async function TeacherProfileView({ listing, hostUrl, live, lang }: {
   const home = livesInLine(situation, lang)
   const places = teachAreaRows(situation)
   const englishLevel = tp?.englishLevel ? ENGLISH_LEVEL[tp.englishLevel] : undefined
-  const band = tp?.experienceBand ? EXPERIENCE_BAND[tp.experienceBand] : undefined
+  // The experience band as a phrase — ONE table with the teacher card's proof line (card-proof.ts, batch 80).
+  const band = tp?.experienceBand ? EXPERIENCE_BAND_PHRASE[tp.experienceBand] : undefined
   const teachLanguages = tp?.teachLanguages ?? []
   const experience = (Array.isArray(tp?.experience) ? tp.experience : []) as Experience[]
   const certificates = (Array.isArray(tp?.certificates) ? tp.certificates : []) as Certificate[]

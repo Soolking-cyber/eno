@@ -51,6 +51,7 @@ const Slider = dynamic(() => import('@/components/ui/slider').then((m) => m.Slid
 
 import { quickActionSignIn, stashQuickCompose } from '@/lib/quick-contact'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { teacherProofLine } from '@/lib/teachers/card-proof'
 import { openerVoice, quickChatOpener } from '@/lib/teachers/first-message'
 import { isModifiedClick } from '@/lib/plain-click'
 import { warmListing } from '@/lib/warm-listing'
@@ -133,9 +134,13 @@ const TITLE_LINE = 'truncate text-sm font-normal leading-snug sm:text-base text-
 /**
  * The teacher card's name line (owner, 2026-11-12, above): TITLE_LINE a step up and bold — 16px on a phone, 18px from sm —
  * so truncation, ink and the hover underline stay one string. Its rate drops a step to match (`text-sm sm:text-base`
- * on <Price>, the body below), which keeps the body's height: 16·1.375 + 14·1.25 = 39.5px on a phone (39.25 before),
- * 18·1.375 + 16·1.25 = 44.75px from sm (44.5) — measured on a local build, the text column is 72 vs 71.3px on a phone
- * and 80.8 vs 80.5px at 1280 against a price-first card, so the shared skeleton (listing-card-skeleton.tsx) serves both.
+ * on <Price>, the body below), which keeps the name + rate line boxes at the price-first card's: 16·1.375 + 14·1.25 =
+ * 39.5px on a phone (39.25 before), 18·1.375 + 16·1.25 = 44.75px from sm (44.5) — measured on a local build, the text
+ * column was 72 vs 71.3px on a phone and 80.8 vs 80.5px at 1280 against a price-first card.
+ * ⚠️ SINCE BATCH 80 (owner, 2026-11-12, "build 2") A TEACHER BODY IS 18px TALLER: the proof line (gap-0.5 2 + a 16px
+ * text-xs line) between the rate and the info line, reserved on every teacher card — about 89.5px on a phone, 94.75px
+ * from sm. Those sums still hold for the two lines above it; the skeleton reserves the extra line only where it is told
+ * the cells are teachers (listing-card-skeleton.tsx `teacher`).
  * ⚠️ `leading-snug` IS RESTATED ON PURPOSE: tailwind-merge 3 lets a later font size drop an earlier `leading-*`, so
  * `cn(TITLE_LINE, 'text-base')` loses it and the line falls back to Tailwind's 1.5 (a 24px line, not 22).
  */
@@ -226,6 +231,12 @@ function ListingCardImpl({
    */
   const identityMarked = isTeacher && listing.identityMark === true
   const identityMarkId = useId()
+  /**
+   * THE PROOF LINE (owner, 2026-11-12, "build 2"): a teacher card's 1–2 strongest SELF-STATED facts ("CELTA · 5–10 yrs"),
+   * from the server's slugs (serialize.ts `teacherProof`) through src/lib/teachers/card-proof.ts; null when there is
+   * nothing to say, or on a payload that predates the key. Never computed for another card, whatever its payload says.
+   */
+  const proofLine = isTeacher ? teacherProofLine(listing.teacherProof, tr) : null
   /**
    * ⚠️ ABBREVIATED ON THE CARD ONLY, AND ONLY FOR THE ONE CITY THAT NEEDS IT. Measured on the feed:
    * below `sm` this row renders just "New · Hồ Chí Minh", which needs 96px and had 67px at 320px
@@ -1293,10 +1304,11 @@ function ListingCardImpl({
           reference: "image price 1 line description … similar format for cleaner view all cards
           across the app including on map view"): PRICE → ONE-LINE TITLE → the info line.
           ⛔ EXCEPT A TEACHER CARD, WHICH LEADS WITH THE NAME (owner, 2026-11-12: "go all" — after a blind A/B, +0.15 GPT /
-          +0.39 Opus): NAME (bold, TEACHER_TITLE_LINE) → rate (a step smaller) → the info line. That supersedes the 09-13
-          order FOR TEACHERS ONLY; every other card keeps PRICE → title → info line byte-for-byte. It is REAL DOM order,
-          not CSS `order`: a screen reader hears the name first, as the eye sees it. `titleBlock` (built above the return)
-          renders in one of the two slots below, never both.
+          +0.39 Opus): NAME (bold, TEACHER_TITLE_LINE) → rate (a step smaller) → PROOF (since 2026-11-12 "build 2": one
+          12px line of self-stated facts, `proofLine`, reserved when empty) → the info line, still untouched. That
+          supersedes the 09-13 order FOR TEACHERS ONLY; every other card keeps PRICE → title → info line byte-for-byte. It
+          is REAL DOM order, not CSS `order`: a screen reader hears the name first, as the eye sees it. `titleBlock` (built
+          above the return) renders in one of the two slots below, never both.
           ⛔ THE INFO LINE IS UNCHANGED, ON PURPOSE. A first cut reduced it to the location alone and
           the owner rejected that the same day: "dont alter this info line it should function as
           before not only location" — condition · area · posted-ago · brand·model, the Business glyph
@@ -1399,6 +1411,20 @@ function ListingCardImpl({
             <Price native compact compactAbove={pairCompactAbove} fabAvoid price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" className="whitespace-nowrap text-2xs font-medium text-ink-4 line-through" approxClassName="text-3xs" />
           )}
         </span>
+
+        {/* THE PROOF LINE — teacher cards only (owner, 2026-11-12 "build 2"; round-8 A/B test 4). NAME → rate → THIS → the info
+            line, which it never touches (09-13). ⛔ Self-stated (no documents are uploaded): no tick, never "verified".
+            RESERVED on every teacher card (a no-break space, aria-hidden) so a row's rates and info lines stay level and the
+            skeleton reserves one fixed line (listing-card-skeleton.tsx `teacher`). 12px in foreground ink: a fact to decide
+            with, darker than the meta under it (the tested design).
+            ⚠️ THE RESERVE IS THE ESCAPE '\u00a0', NEVER A TYPED CHARACTER: an editor that turns it into a plain space leaves
+            this nowrap <p> holding collapsible whitespace — 0px tall, and the reserve is gone (the teacher-order test pins
+            the code point). Not inside `titleBlock`: on a teacher card that is the name slot, BEFORE the rate. */}
+        {isTeacher && (
+          <p data-teacher-proof="" aria-hidden={proofLine ? undefined : true} className="truncate text-xs text-foreground">
+            {proofLine ?? '\u00a0'}
+          </p>
+        )}
 
         {/* SECONDARY on every card but a teacher's — the one-line title and its hidden full title (`titleBlock`, above
             the return, where its notes live). */}

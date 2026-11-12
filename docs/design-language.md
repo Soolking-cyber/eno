@@ -61,10 +61,15 @@ was meta), 15→`base`.
   below the "More like this" / "More from this seller" shelves on the same page.
 
 **Teacher cards lead with the name (owner, 2026-11-12, "go all").** A teacher `<ListingCard>` reads
-name → rate → info line, in DOM order: the name bold at `text-base sm:text-lg`, the rate a step down
-at `text-sm sm:text-base` — both still under `SECTION_TITLE` — so the card body keeps its height
-(39.5 / 44.75px against 39.25 / 44.5) and the shared skeleton holds. Every other card keeps the
-09-13 price → title → info line format.
+name → rate → proof → info line, in DOM order: the name bold at `text-base sm:text-lg`, the rate a step
+down at `text-sm sm:text-base` — both still under `SECTION_TITLE` — so those two lines keep the
+price-first card's line boxes (39.5 / 44.75px against 39.25 / 44.5). The **proof line** ("build 2",
+same day) is one `truncate text-xs text-foreground` line of the teacher's 1–2 strongest self-stated
+facts ("CELTA · 5–10 yrs", ≤ 22 characters — `src/lib/teachers/card-proof.ts`), never a tick, and
+RESERVED on every teacher card (a no-break space, `aria-hidden`) so teacher rows stay level: a teacher
+body is 18px taller, and the skeleton adds the line where its cells are known to be teachers
+(`<ListingCardSkeleton teacher>`). The info line is unchanged. Every other card keeps the 09-13
+price → title → info line format.
 
 **Page titles sit on the heading ramp.** A page's `<h1>` is `.h-display` (28→40px — landing,
 category, SEO, /post) or `.h-title` (20→24px — app screens) — `.h-greeting` for the dashboard's

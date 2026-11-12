@@ -393,3 +393,29 @@ describe('SellerListings as a paged continuation with no controls', () => {
     expect(screen.queryByText(/listing\./)).toBeNull()
   })
 })
+
+/**
+ * /c/teachers (owner, 2026-11-12, "build 2"): every teacher card reserves a proof line, 18px the plain skeleton does not
+ * have — so while a sort is on its way the grid's placeholders carry the skeleton's proof bar there, and only there.
+ */
+describe('SellerListings sort placeholders on the teachers category', () => {
+  async function sortInFlight(category: string) {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    render(<SellerListings listings={PAGE.slice(0, 6)} sortable initialSort="recent" serverScope={{ params: { category }, total: 900, pageSize: 6 }} />)
+    await userEvent.click(screen.getByRole('tab', { name: /price/i }))
+    const held = Array.from(document.querySelectorAll('div[aria-hidden="true"]')).find((e) => e.querySelector('.skeleton-photo'))!
+    expect(held).toBeTruthy()
+    expect(held.children.length).toBe(6)
+    return held
+  }
+
+  it('teachers: every grid placeholder carries the proof bar', async () => {
+    const held = await sortInFlight('teachers')
+    for (const sk of Array.from(held.children)) expect(sk.querySelectorAll('[data-skeleton-proof]')).toHaveLength(1)
+  })
+
+  it('any other category: none does', async () => {
+    const held = await sortInFlight('electronics')
+    expect(held.querySelectorAll('[data-skeleton-proof]')).toHaveLength(0)
+  })
+})

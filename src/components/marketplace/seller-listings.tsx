@@ -24,6 +24,7 @@ import { hapticSelection } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
 import { hereVariant, localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 
 /**
  * ⚠️ ENGLISH PLURALISES, VIETNAMESE DOES NOT — and the count line read "1 listings." until an
@@ -171,6 +172,9 @@ export function SellerListings({
    */
   const serverMode = !!serverScope
   const pageSize = serverScope?.pageSize ?? 48
+  // /c/teachers and /c/teachers/<district>: every cell is a teacher card, so a sort's placeholders reserve its proof line
+  // (listing-card-skeleton.tsx `teacher`, batch 80) and nothing jumps 18px when the answer lands.
+  const teacherCells = serverScope?.params.category === TEACHERS_CATEGORY_SLUG
   const [debouncedQ, setDebouncedQ] = useState('')
   useEffect(() => {
     if (!serverMode) return
@@ -558,7 +562,7 @@ export function SellerListings({
             </div>
           )}
           <div className={cn(LISTING_GRID, rowsOnPhone && 'max-sm:hidden')} aria-hidden="true">
-            {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <ListingCardSkeleton key={i} />)}
+            {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <ListingCardSkeleton key={i} teacher={teacherCells} />)}
           </div>
         </>
       ) : shown.length === 0 && !loading && !loadError ? (

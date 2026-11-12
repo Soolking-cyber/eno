@@ -8,6 +8,7 @@ import { categoryDescriptionFor, takesOffers } from './taxonomy'
 import { NEW_LISTING_MS, type SerializedListing, type SerializedListingCard, type SerializedCategory, type CategoryColor } from './types'
 import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
 import { IDENTITY_MARK_NOTICE_VERSION, TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { teacherProofFacts } from '@/lib/teachers/card-proof'
 
 export function safeParse<T>(value: string | null, fallback: T): T {
   if (!value) return fallback
@@ -204,6 +205,20 @@ export const LISTING_CARD_SELECT = {
    * value and drops it otherwise; the version string never leaves the server. Null on every other listing.
    */
   identityMarkNotice: true,
+  /**
+   * ⚠️ READ FOR A TEACHER'S PROOF LINE ONLY, NEVER SHIPPED WHOLE (owner, 2026-11-12, "build 2"): serializeListingCard turns
+   * a teacher row's tokens into `teacherProof`, at most two facet slugs (a certificate, the experience band, a degree —
+   * src/lib/teachers/card-proof.ts), and drops the rest. The column ALSO holds where a teacher will teach (`workIn`) and
+   * cover (`coverArea`), an importer's amenities, sizes and rental periods: none of that leaves the server. Same row, no
+   * join (a `teacherProfile` relation select would be a second query on every card query — no `relationJoins`).
+   * A teacher row's tokens are written by the teacher save and by the cover and native re-derivations (publish.ts
+   * saveTeacherProfile and the cover withdrawal, projection.ts withNativeFacet / scripts/teacher-native-backfill.ts,
+   * scripts/teachers-backfill.ts) — all from the stored profile, all keeping its cert, degree and experience tokens.
+   * MEASURED 2026-11-12 over active + verified rows: rent 5,410 rows avg 166 B (max 421), teacher 186 avg 434 (max 894);
+   * sell, job, service and wholesale rows hold NULL. Under 1 KB everywhere, so it is read here rather than only at the
+   * teacher-capable callers. Drift between the tokens and TeacherProfile, both directions, all 186 live teachers: 0.
+   */
+  facetTokens: true,
   category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
   // `ownerId` is read for ONE boolean (`unrated`, src/lib/linked-seller.ts) and never leaves the server:
   // it is a real person's account UUID on every storefront a human owns.
@@ -228,6 +243,9 @@ type ListingCardRow = {
   /** The "Identity verified" display cache (see LISTING_CARD_SELECT) — read for `identityMark` only. Optional: a
    *  hand-built row without it shows no tick (fails closed). */
   identityMarkNotice?: string | null
+  /** The facet tokens (see LISTING_CARD_SELECT) — read for a teacher's `teacherProof` only. Optional: a hand-built row
+   *  without it shows the reserved empty line (fails closed). */
+  facetTokens?: string | null
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
   /** `ownerId` REQUIRED, so a card query that forgets it fails to compile instead of showing every
    *  ownerless storefront's default 100 as a trust chip. */
@@ -247,6 +265,16 @@ function cardJobFacts(attributes: string | null | undefined, linked: boolean): {
   const t = a?.jobtype
   const e = linked && typeof a?.employer === 'string' ? a.employer.replace(/\s+/g, ' ').trim() : ''
   return { jobType: typeof t === 'string' && t.length <= 32 ? t : null, jobEmployer: e && e.length <= 120 ? e : null }
+}
+
+/**
+ * A teacher card's proof facts (src/lib/teachers/card-proof.ts): `{ teacherProof }` with ≤ 2 facet slugs, best first, or
+ * `{}` — the identityMark convention: never an empty array, never the tokens (they also hold where the teacher will teach
+ * or cover). The caller passes a teacher row's tokens only.
+ */
+function teacherProofEntry(tokens: string | null | undefined): { teacherProof?: string[] } {
+  const teacherProof = teacherProofFacts(tokens)
+  return teacherProof ? { teacherProof } : {}
 }
 
 export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
@@ -294,6 +322,8 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
      * mark was not judged on.
      */
     ...(l.listingType === TEACHER_LISTING_TYPE && l.identityMarkNotice === IDENTITY_MARK_NOTICE_VERSION ? { identityMark: true as const } : {}),
+    // The proof line's facts (owner, 2026-11-12, "build 2"): a teacher card's ≤ 2 slugs, or no key — never the tokens.
+    ...(l.listingType === TEACHER_LISTING_TYPE ? teacherProofEntry(l.facetTokens) : {}),
     currency: l.currency,
     negotiable: takesOffers(l), // never on a job — see serializeListing
     prevPrice: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price),

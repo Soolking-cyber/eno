@@ -94,6 +94,7 @@ import { AISearchButton } from './ai-concierge'
 import { useSuggestKeyboardNav, activeSuggestOptionId, visualSearchFromPaste, RECENT_LOCATIONS_KEY } from '@/hooks/use-search-box'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 import { ListingCardSkeleton } from './listing-card-skeleton'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { scrollBehavior } from '@/lib/reduced-motion'
 
 // Custom filters → the request / URL is `applyFilterParams` (src/lib/explorer-url.ts, moved there 2026-10-09 beside its
@@ -1143,6 +1144,9 @@ export function ListingsExplorer({
     : jobsRowsDrawnRef.current === gridListings
   const jobsRows = phone && viewMode === 'grid' && !gridAsked && jobsOnScreen
   useEffect(() => { jobsRowsDrawnRef.current = jobsRows ? gridListings : null })
+  /** `/?category=teachers`: every cell is a teacher card, so the first page's and Show-more's placeholders reserve its proof
+   *  line (listing-card-skeleton.tsx `teacher`, batch 80). Every other feed keeps the plain skeleton, byte for byte. */
+  const teacherCells = activeCategory === TEACHERS_CATEGORY_SLUG
   /** The presentation on screen: `viewMode`, except that Jobs on a phone draws its default as the list. */
   const shownView: ViewMode = jobsRows ? 'compact' : viewMode
   // The row's chunk, asked for the moment a list is known to be coming: the list view itself, or Jobs on a phone before its
@@ -5442,7 +5446,7 @@ export function ListingsExplorer({
             shownView === 'grid' ? (
               <div className={LISTING_GRID}>
                 {Array.from({ length: FIRST_PAGE_SIZE }).map((_, i) => (
-                  <ListingCardSkeleton key={i} />
+                  <ListingCardSkeleton key={i} teacher={teacherCells} />
                 ))}
               </div>
             ) : (
@@ -5569,6 +5573,8 @@ export function ListingsExplorer({
                         data-feed-card={l.id}
                         // The shop, for src/lib/hidden-sellers.ts: a blocked shop's cell goes with its card (App Store 1.2).
                         data-sid={l.sellerId}
+                        // A teacher card is 18px taller (batch 80's proof line): globals.css sizes its unrendered guess from this.
+                        data-teacher-cell={l.listingType === 'teacher' || undefined}
                         className="flex flex-col h-full"
                         onMouseEnter={() => prefetchListing(l.id)}
                         // ⚠️ FOCUS AS WELL AS HOVER. Keyboard and switch users never fire a pointer
@@ -5678,7 +5684,7 @@ export function ListingsExplorer({
                       they stand in for announce themselves when they land. */}
                   {Array.from({ length: pendingRows }, (_, i) => (
                     <div key={`pending-${i}`} data-feed-skeleton="" aria-hidden="true" className="flex flex-col h-full">
-                      <ListingCardSkeleton />
+                      <ListingCardSkeleton teacher={teacherCells} />
                     </div>
                   ))}
                 </div>

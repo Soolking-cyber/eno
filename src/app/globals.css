@@ -4346,7 +4346,12 @@ html[data-has-recents] .recents-row {
    column formulas of LISTING_CARD_SIZES (listing-grid.ts) plus the body under the square photo —
    71px on a phone (pt-2 8 + price 20 + 2 + title 19.25 + 2 + meta pt-1 4 + 16), 73px from sm (the
    sm text sizes). MEASURED on the preview build: 260px at 390, 265 at 640, 307 at 768 and at 1024,
-   392 at 1023, 371 from 1280 (the 7xl frame caps the column at 298). ⛔ ONE NUMBER CANNOT FIT A
+   392 at 1023, 371 from 1280 (the 7xl frame caps the column at 298). ⚠️ EXCEPT A TEACHER CARD, SINCE
+   BATCH 80 (owner, 2026-11-12, "build 2"): its reserved proof line makes the body taller (89.5px on a
+   phone, 94.75 from sm — listing-card.tsx `data-teacher-proof`; measured 279px vs 260 at 390). The explorer
+   marks a teacher's cell `data-teacher-cell` and the rules below give it its own fallback (commit review: a
+   deep /?category=teachers feed would otherwise guess every never-rendered card 18px short).
+   ⛔ ONE NUMBER CANNOT FIT A
    COLUMN THAT RUNS 154–320px: the first cut, 260 everywhere, guessed a desktop card ~110px short
    (gate review, 2026-10-18) — every never-rendered card past the first twelve, so a deep scroll and
    a Back into the feed drifted further than under the old single guess. A rent that still wraps
@@ -4383,14 +4388,18 @@ html[data-has-recents] .recents-row {
   content-visibility: auto;
   contain-intrinsic-size: auto calc(50vw + 65px);
 }
+[data-feed-card][data-teacher-cell] { contain-intrinsic-size: auto calc(50vw + 83.5px); }
 @media (min-width: 640px) {
   [data-feed-card] { contain-intrinsic-size: auto calc((100vw - 64px) / 3 + 73px); }
+  [data-feed-card][data-teacher-cell] { contain-intrinsic-size: auto calc((100vw - 64px) / 3 + 94.75px); }
 }
 @media (min-width: 1024px) {
   [data-feed-card] { contain-intrinsic-size: auto calc((100vw - 88px) / 4 + 73px); }
+  [data-feed-card][data-teacher-cell] { contain-intrinsic-size: auto calc((100vw - 88px) / 4 + 94.75px); }
 }
 @media (min-width: 1280px) {
   [data-feed-card] { contain-intrinsic-size: auto 371px; }
+  [data-feed-card][data-teacher-cell] { contain-intrinsic-size: auto 392.75px; }
 }
 
 /* ⛔ OFF-SCREEN CARD PHOTOS WAIT FOR THE PAGE'S SCRIPTS, ON A PHONE (src/lib/image-hold.ts): a lazy image with no box is not fetched, and <html> carries
