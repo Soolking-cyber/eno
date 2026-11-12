@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, type CSSProperties, type MouseEvent } from 'react'
+import { Fragment, useEffect, useState, type CSSProperties, type MouseEvent } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/context/language-context'
 import { Bilingual } from './bilingual'
@@ -65,6 +65,46 @@ function TileLabel({ en, vi }: { en: string; vi?: string | null }) {
   const out = tr(en, vi || en).replace(/-/g, '\u2011')
   const cl = detectContentLang(out)
   return cl && cl !== lang ? <span lang={cl}>{out}</span> : <>{out}</>
+}
+
+/**
+ * THE PHONE ROW'S SWIPE CUE IS A CLIPPED TILE (batch 72 review, codex + opus, 2026-11-12). Below 640px the tiles are a
+ * fixed 84px and the More arrow is hidden, so the only cue that more categories exist is a tile cut by the scroller's
+ * right edge. With no gap that fails where the scroller (100vw − 24px) is a multiple of 84: at 360px it is 336px,
+ * exactly four whole tiles, and at 440px the fifth shows 80 of its 84px. A 4px gap moves the cut there but loses it at
+ * 375 (the edge lands in a gap). No ONE width+gap cuts a tile at every common phone width (searched 76-92px × 0-12px
+ * gaps × gutter/bleed), so the gap is set by range — three EXCLUSIVE ranges, never two at once, so no cascade decides:
+ *   < 372px → 4px gap (360: 72 of the 4th tile shows, 12 cut; 320: 32 shown)
+ *   372-431px → no gap — the measured A/B layout (375: 15px of the 5th; 390: 30; 393: 33; 412: 52; 414: 54; 430: 70)
+ *   432-639px → 4px gap (440: 64 shown, 20 cut)
+ * ⛔ NOT AN EDGE FADE: the owner removed the fade from THIS rail on 2026-08-26 ("remove these effects on sides of category
+ *   model rails the cloudy effect" — the note on the scroller below). The edge hard-clips; the clip IS the cue.
+ */
+const PHONE_GAP = 'max-[23.25rem]:gap-x-1 min-[23.25rem]:max-[27rem]:gap-x-0 min-[27rem]:max-sm:gap-x-1'
+
+/**
+ * Does the scroller's VISIBLE right edge, where the row is now, cut a child — a tile, or the subcategory box — with at
+ * least 12px of it shown and 12px hidden? Judged where the person is looking (review round 5): after a swipe, or after a
+ * picked category slid to the left edge with its box beside it, the edge can land between tiles even at a width
+ * PHONE_GAP covers at rest. `null` when there is no layout to read (every child 0px wide): the caller keeps what it had.
+ * Where it reads false — those positions, and widths PHONE_GAP does not cover (round 4: 280, 464, 552px) — the phone
+ * row's More arrow comes back.
+ */
+export function edgeClipsChild(el: HTMLElement): boolean | null {
+  const edge = el.clientWidth
+  const box = el.getBoundingClientRect()
+  let laidOut = false
+  for (const child of Array.from(el.children)) {
+    const r = child.getBoundingClientRect()
+    if (r.width <= 0) continue
+    laidOut = true
+    const left = r.left - box.left - el.clientLeft
+    if (left < edge && left + r.width > edge) {
+      const shown = edge - left
+      return shown >= 12 && r.width - shown >= 12
+    }
+  }
+  return laidOut && edge > 0 ? false : null
 }
 
 // Line 1 of the search header. Large, flat category tiles (icon + name + live count, on the
@@ -206,6 +246,42 @@ export function CategoryRail({
   const { scrollerRef: railRef, canLeft, canRight, page, arrowTop } = useScrollArrows<HTMLDivElement>({
     watch: `${activeCategory}:${activeSubcategory}:${countsPending}:${lang}`,
   })
+  /**
+   * Does the visible right edge CLIP something (edgeClipsChild, PHONE_GAP — above)? The phone row's More arrow stays
+   * hidden only while it does. Starts true (the server and first paint match the common widths, where it does). Judged
+   * where the row COMES TO REST — 120ms after the last scroll event, so a moving swipe, whose edge crosses a tile or a
+   * gap every few pixels, never blinks the arrow — and again on a resize, when the subcategory box's slide-in ends (it
+   * moves while it animates), and when the row's content changes (counts arriving widen the chips without resizing the
+   * scroller). Left alone where there is no layout (jsdom, display:none).
+   */
+  const [edgeClip, setEdgeClip] = useState(true)
+  useEffect(() => {
+    const el = railRef.current
+    if (!el) return
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const measure = () => {
+      const clipped = edgeClipsChild(el)
+      if (clipped !== null) setEdgeClip(clipped)
+    }
+    const settle = () => {
+      clearTimeout(timer)
+      timer = setTimeout(measure, 120)
+    }
+    measure()
+    el.addEventListener('scroll', settle, { passive: true })
+    el.addEventListener('animationend', measure)
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(settle)
+    ro?.observe(el)
+    const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(settle)
+    mo?.observe(el, { childList: true, subtree: true, characterData: true })
+    return () => {
+      clearTimeout(timer)
+      el.removeEventListener('scroll', settle)
+      el.removeEventListener('animationend', measure)
+      ro?.disconnect()
+      mo?.disconnect()
+    }
+  }, [railRef, canRight, activeCategory, allCategories.length, lang])
 
   // When a category is chosen, slide the rail so that category sits at the left edge
   // — the user immediately sees their pick with its subcategories rolled out beside it.
@@ -339,14 +415,20 @@ export function CategoryRail({
   // `.press` (icon-language §8): the browse rail's tiles press with the same spring as the
   // home grid's — one tile, one feel, wherever the grid appears.
   /**
-   * ⛔ A TWO-ROW SWIPEABLE GRID, NOT A ONE-ROW STRIP (owner, 2026-09-18, from the 58 study: "2 rows
-   * of catogories rest reveal upon swipe", and on mobile "bigger … big top 4 categories rest reveal
-   * in 3 rows"). 58's home opens on a paged icon grid and that is what this now is.
+   * ⛔ ON A PHONE (<640px) ONE COMPACT ROW; FROM 640px THE SWIPEABLE MULTI-ROW GRID (owner, 2026-11-12:
+   * "go all" — one compact row of 84px tiles with one-line labels and no More arrow below 640px, after a
+   * blind A/B scored it +0.15 (GPT) / +0.11 (Opus) over the grid). That REPLACED, below 640px only, the
+   * two-row grid of the 58 study (owner, 2026-09-18: "2 rows of catogories rest reveal upon swipe", "big
+   * top 4 categories rest reveal in 3 rows"), which still holds from 640px.
    *
-   * ONE grid expresses both shapes, with no duplicated DOM and no JS breakpoint:
-   *   mobile  — 3 rows, every tile one cell → 3 COLUMNS × 3 ROWS = 9 tiles per screen, the rest a
-   *             swipe right (owner, 2026-09-18: "grid 3x3 not 2x2").
-   *   sm+     — 2 rows, every tile one cell, so 8 COLUMNS × 2 ROWS = 16 tiles per screen; the rest
+   * ONE grid expresses every shape, with no duplicated DOM and no JS breakpoint — the phone is `max-sm:`
+   * overrides on the same classes, so 640px and up render exactly as before:
+   *   <640px  — ONE row, every tile one column (`max-sm:grid-rows-1`, `max-sm:row-span-1`): an 84px tile, a
+   *             44px glyph, a one-line label, a 0 or 4px column gap by width (PHONE_GAP — the tile's own `gap-1`
+   *             is the icon-to-label space). A tile clipped by the right edge is the swipe cue; where none is,
+   *             the More arrow comes back (edgeClipsChild).
+   *   640-767 — six unit rows: two rows on the opening screen, three after the swipe (see the span note).
+   *   md+     — 2 rows, every tile one cell, so 8 COLUMNS × 2 ROWS = 16 tiles per screen; the rest
    *             are a swipe away. (Measured at 1280: 16 of the 18 tiles fully visible, 1.38 pages.
    *             An earlier version of this line said "8 per screen", which is the column count — a
    *             reviewer read it as the tile count, and the tile count is what a reader wants.)
@@ -354,16 +436,23 @@ export function CategoryRail({
    */
   // `h-full justify-center` so a tile FILLS its cell instead of sitting at the top of it — measured
   // when the cells were larger: without it a tile drew 93px of content inside a 134px cell and the
-  // grid read as icons adrift in whitespace. Still true at 3×3, where a cell is ~85px tall.
+  // grid read as icons adrift in whitespace. Still true from 640px, where a cell is taller than its tile.
+  // ⚠️ On a phone the one row is exactly as tall as a tile (63px), so there is nothing to centre — unless
+  // something else in the row is taller, which is why the phone's subcategory plate is held under 63px.
   /**
    * ⛔ THE TILE CARRIES ITS OWN WIDTH, BECAUSE THE GRID'S COLUMNS ARE `auto-cols-max` NOW. The rail
    * used to fix every column at a fraction of the viewport, which made every grid item that width —
    * including the subcategory box, which has to be as wide as its chips (owner, 2026-09-18:
-   * "subcategories will pop next to like brand subbrand but will take all 2 rows to the right").
+   * "subcategories will pop next to like brand subbrand but will take all 2 rows to the right" — on
+   * a phone since 2026-11-12 that is the one row, beside the pressed tile).
    * With `max-content` columns, each column is as wide as what is in it: a tile column is this
-   * width, the box's column is the box. The phone number is the same arithmetic as before — three
-   * tiles and two 8px gaps inside a viewport less its 12px gutters — and the desktop one is seven
-   * columns filling the page frame (--container-7xl, less its 64px gutters and six 12.5px gaps).
+   * width, the box's column is the box. The 640-767px number is the same arithmetic as before —
+   * three tiles and two 8px gaps inside a viewport less its 12px gutters — and the desktop one is
+   * seven columns filling the page frame (--container-7xl, less its 64px gutters and six 12.5px gaps).
+   * ⛔ BELOW 640px `max-sm:w-21` (84px) OVERRIDES IT (owner, 2026-11-12: "go all" — the one compact
+   * row). The scroller is the viewport less its 24px of gutters; with no gap that would put the edge
+   * exactly between tiles at 360px (336px = 4 × 84), so PHONE_GAP (above) sets a 4px gap there — the
+   * 4th tile shows 72px — and none at 372-431px (the 5th shows 15px at 375, 30 at 390, 70 at 430).
    */
   const TILE_W = 'w-[calc((100vw-40px)/3)] md:w-[141px] xl:w-[calc((max(1200px,min(1296px,100vw-152px))-75px)/7)]'
   /**
@@ -375,14 +464,16 @@ export function CategoryRail({
    * ⚠️ With no aligned child the container has NO snap points, so `snap-x` is inert and the rail
    * scrolls freely. Nothing re-aligns at rest — an earlier comment here claimed otherwise.
    */
-  const tileCls = `press group flex h-full ${TILE_W} flex-col items-center justify-center gap-1 py-0 text-center md:py-0.5 cursor-pointer select-none`
+  const tileCls = `press group flex h-full ${TILE_W} max-sm:w-21 flex-col items-center justify-center gap-1 py-0 text-center md:py-0.5 cursor-pointer select-none`
   /**
-   * ⛔ TWO ROWS FIRST, THREE AFTER THE SWIPE (owner, 2026-09-18: "on mobile 2 rows when swiped
-   * transitions into 3"). One grid expresses both: six unit rows, where the first six tiles span
-   * THREE units (two to a column → the opening screen is 3 × 2) and every tile after them spans TWO
-   * (three to a column → 3 × 3 once the visitor swipes). The rail's height is the same in both
+   * ⛔ FROM 640px TO md: TWO ROWS FIRST, THREE AFTER THE SWIPE (owner, 2026-09-18: "on mobile 2 rows
+   * when swiped transitions into 3"). One grid expresses both: six unit rows, where the first six tiles
+   * span THREE units (two to a column → the opening screen is 3 × 2) and every tile after them spans
+   * TWO (three to a column → 3 × 3 once the visitor swipes). The rail's height is the same in both
    * states, which is what lets the subcategory box span all of it without the row heights moving.
    * Desktop is unaffected: one unit row each, two rows, as asked.
+   * ⛔ BELOW 640px EVERY TILE IS `max-sm:row-span-1` IN ONE ROW (owner, 2026-11-12: "go all"), which
+   * replaced this two-then-three shape on phones; the spans below still shape 640-767px.
    */
   const shortcutCount = shortcuts?.length ?? 0
   /**
@@ -410,6 +501,10 @@ export function CategoryRail({
    * at least that tall or picking a category grows the rail and re-centres every tile (measured 154 → 160
    * with gap-y-1; kept `md:gap-y-2` for that reason). A two-line label on a swiped tile would also grow
    * the rows — none wraps today in either language.
+   * ⛔ THE 60/52 OPENING GLYPHS AND THE 201px RAIL ABOVE ARE 640-767px NUMBERS NOW (owner, 2026-11-12:
+   * "go all"). Below 640px every tile is the SMALL one — the big branch carries `max-sm:` 44px box / `p-0.5`
+   * / 40px mark — in one row of 44 + 4 + a one-line 15px label = a 63px rail at 360-430, en and vi
+   * (computed from the classes; the 201px was measured when phones had the six-row grid).
    */
   /**
    * ⚠️ THE PRESSED TILE GETS A TINTED DISC, because colour stopped being the selection cue when the
@@ -425,10 +520,10 @@ export function CategoryRail({
          all a tint needs, and the tile still fits: 60 + 6 gap + a two-line 28px label + 8 padding is
          102px inside the opening tile (118px measured at 390, 2026-09-30). */
       'flex items-center justify-center rounded-2xl p-1 transition-colors duration-200',
-      big ? 'h-15 w-15 md:h-14 md:w-14' : 'h-11 w-11 p-0.5 md:h-14 md:w-14 md:p-1',
+      big ? 'h-15 w-15 max-sm:h-11 max-sm:w-11 max-sm:p-0.5 md:h-14 md:w-14' : 'h-11 w-11 p-0.5 md:h-14 md:w-14 md:p-1',
       on && 'bg-brand-50',
     )
-  const glyphSize = (big: boolean) => (big ? 'h-13 w-13 md:h-12 md:w-12' : 'h-10 w-10 md:h-12 md:w-12')
+  const glyphSize = (big: boolean) => (big ? 'h-13 w-13 max-sm:h-10 max-sm:w-10 md:h-12 md:w-12' : 'h-10 w-10 md:h-12 md:w-12')
   /**
    * Is one of eno's own product tiles the current view? Only a `filter` shortcut can be — a `route`
    * one navigates away, so it is never "on" while this rail is showing.
@@ -461,16 +556,25 @@ export function CategoryRail({
   // ⚠️ It needs the element's language to be known, which `TileLabel` already sets whenever the
   // content language differs from the page's (WCAG 3.1.2) — so the hyphenation follows the word,
   // not the interface.
+  // ⛔ BELOW 640px ONE LINE, CUT WITH AN ELLIPSIS AT THE TILE'S EDGE (owner, 2026-11-12: "go all" — one-line
+  // labels on the 84px phone tile; same 12px bold, same leading). `truncate`, NOT `line-clamp-1`: the clamp
+  // still WRAPS first and shows only line one, so a label a little wider than 84px loses its whole last
+  // word — measured with Open Runde Bold 12px in Chromium: "Free &…" and "Cho tặng…" against truncate's
+  // "Free & Givea…" and "Cho tặng mi…", and "Find a teacher" (83.3px) would read "Find a…" under any wider
+  // face. `max-sm:block` because text-overflow is defined for a block container, not the -webkit-box the
+  // base clamp sets. So on a phone the wrap fallbacks above (hyphens, break-words) never act: OS text
+  // scaling cuts a label with "…" instead of hyphenating it. From 640px the two-line clamp is unchanged.
   const nameCls = (active: boolean) =>
-    cn('line-clamp-2 w-full hyphens-auto break-words text-xs font-bold leading-tight transition-colors md:text-sm', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
+    cn('line-clamp-2 w-full hyphens-auto break-words text-xs font-bold leading-tight transition-colors max-sm:block max-sm:truncate md:text-sm', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
 
 
 
   // ⛔ A FLAT PILL, NOT A RAISED PLATE (owner, 2026-10-18: one chip style). The chosen subcategory used to lift off the
   // plate as a white card with `shadow-sm` — the one raised chip on the page, and the canon keeps shadows for things
   // that float (§3b). It is now the browse chip's pill shape, chosen = the plate's white fill without the shadow.
-  // ⚠️ THE ROW STAYS 28px (`py-1`), NOT the chip's 36: the plate's six-row cap is measured against the tile rail's
-  // height (the note on its grid below — 6×28 + gaps ≈ 190px under a ~201px rail); a taller chip grows the rail.
+  // ⚠️ THE ROW STAYS 28px (`py-1`), NOT the chip's 36: the plate's row cap is measured against the tile rail's
+  // height (the note on its grid below — 640-767px: 6×28 + gaps ≈ 190px under a ~201px rail; below 640px: 2×28 +
+  // 4px of padding = 60px under the 63px one-row rail); a taller chip grows the rail.
   const subChip = (active: boolean) =>
     cn('w-full shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
 
@@ -501,11 +605,13 @@ export function CategoryRail({
 
 
   /**
-   * ⛔ THE SPANS COME FROM A FLOW CURSOR, AND NO TILE EVER CHANGES ITS OWN. The opening screen is two
-   * rows and the swiped pages are three (owner: "on mobile 2 rows when swiped transitions into 3"),
-   * so a tile takes 3 unit rows while the cursor is still in the first `FIRST_COLS` columns and 2
-   * after that — decided by where the tile LANDS, simulated in render order exactly as
+   * ⛔ THE SPANS COME FROM A FLOW CURSOR, AND NO TILE EVER CHANGES ITS OWN. From 640px to md the
+   * opening screen is two rows and the swiped pages are three (owner: "on mobile 2 rows when swiped
+   * transitions into 3"), so a tile takes 3 unit rows while the cursor is still in the first `FIRST_COLS`
+   * columns and 2 after that — decided by where the tile LANDS, simulated in render order exactly as
    * `grid-flow-col` will place it, because the two-row/three-row boundary must fall on a column edge.
+   * Below 640px every tile is `max-sm:row-span-1` in the one row (owner, 2026-11-12: "go all"), so a
+   * phone column is one tile and the phone's box column needs no cursor of its own beyond the index.
    *
    * ⛔ AND THE SELECTED TILE IS NOT SPECIAL, WHICH IS THE WHOLE POINT OF THE SECOND VERSION. It used
    * to stretch to fill its column so the full-height subcategory box could start beside it, and the
@@ -528,13 +634,14 @@ export function CategoryRail({
     const activeAt = plateOpen && catAt >= 0 ? shortcutCount + catAt : -1
     const spans: string[] = []
     const big: boolean[] = []
-    let col = 0, used = 0   // phone cursor: 6 unit rows per column
+    // phone cursor (<640px): `i` itself — one row, so tile i is column i
+    let col = 0, used = 0   // 640-767px cursor: 6 unit rows per column (the `m` column, named when it was the phone's)
     let dCol = 0, dUsed = 0 // desktop cursor: 2 rows per column
-    let subCol = { m: 0, d: 0 }
+    let subCol = { p: 0, m: 0, d: 0 }
     for (let i = 0; i < total; i++) {
       let span = col < FIRST_COLS ? 3 : 2
       if (used + span > 6) { col++; used = 0; span = col < FIRST_COLS ? 3 : 2 }
-      spans[i] = SPAN[span] + ' md:row-span-1'
+      spans[i] = SPAN[span] + ' max-sm:row-span-1 md:row-span-1'
       big[i] = span >= 3
       if (i === activeAt) {
         /**
@@ -542,9 +649,10 @@ export function CategoryRail({
          * subcategory pops the right of it … categories below it stays at the same place" — the
          * tiles UNDER the pressed one share its column, so the box has to clear the column rather
          * than split it. 1-based, and `+2` because these cursors are 0-based and the box takes the
-         * column AFTER the one the tile is in.
+         * column AFTER the one the tile is in. On a phone (<640px) a column IS the tile, so `p` puts
+         * the box directly right of the pressed tile (owner, 2026-11-12: "go all").
          */
-        subCol = { m: col + 2, d: dCol + 2 }
+        subCol = { p: i + 2, m: col + 2, d: dCol + 2 }
       }
       used += span; if (used >= 6) { col++; used = 0 }
       dUsed += 1; if (dUsed >= 2) { dCol++; dUsed = 0 }
@@ -626,10 +734,14 @@ export function CategoryRail({
       /* ⚠️ `auto-cols-max`, AND THE TILES CARRY THEIR OWN WIDTH — see TILE_W. A fixed fractional
          column would force the subcategory box to a tile's width, and the box has to be as wide as
          the chips it holds so the visitor swipes THROUGH them rather than into a second scroller.
-         ⚠️ SIX UNIT ROWS ON A PHONE, TWO FROM `md`. The unit rows are what let the opening screen be
-         2 rows (tiles spanning 3 units) and the rest 3 rows (spanning 2) in ONE scroller, with a
-         constant rail height — see `tileSpan`. */
-      className="grid grid-flow-col grid-rows-6 auto-cols-max gap-x-2 gap-y-0.5 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1 md:grid-rows-2 md:gap-x-3 md:gap-y-2"
+         ⚠️ ONE ROW BELOW 640px, SIX UNIT ROWS FROM 640px, TWO FROM `md`. The unit rows are what let the
+         640-767px opening screen be 2 rows (tiles spanning 3 units) and the rest 3 rows (spanning 2) in
+         ONE scroller, with a constant rail height — see the flow cursor (`layout`). Below 640px the
+         `max-sm:` overrides make it one compact row with no gaps or padding (owner, 2026-11-12: "go all").
+         `grid-rows-1` is `repeat(1,minmax(0,1fr))`, and in this auto-height scroller an fr row with
+         indefinite free space resolves to its tallest item's max-content (CSS Grid §12.7.1) — exactly
+         `auto`, so the row is the 63px tile; the token form keeps it beside `grid-rows-6`. */
+      className={`grid grid-flow-col grid-rows-6 auto-cols-max gap-x-2 gap-y-0.5 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1 max-sm:grid-rows-1 ${PHONE_GAP} max-sm:gap-y-0 max-sm:py-0 md:grid-rows-2 md:gap-x-3 md:gap-y-2`}
     >
       {/* ⛔ NO "ALL" TILE (owner, 2026-09-18: "remove All category from both desktop and mobile").
           Clearing a category is still one tap — a category tile is a TOGGLE, `onCategory(isActive ?
@@ -695,9 +807,12 @@ export function CategoryRail({
               * ⛔ THE SUBCATEGORIES SIT NEXT TO THEIR CATEGORY, FULL HEIGHT, INSIDE THE SAME SCROLLER
               * (owner, 2026-09-18: "subcategories will pop next to like brand subbrand but will take
               * all 2 rows to the right … and when swiped to 3 rail version … the subcat box will take
-              * all 3 rows, both no dropdowns"). `row-span-6` is the WHOLE mobile grid and
-              * `md:row-span-2` the whole desktop one, so the box fills the rail's height in every
-              * state — including the 3-row state, because the rail is six unit rows either way.
+              * all 3 rows, both no dropdowns"). `[grid-row:1/-1]` is the WHOLE grid at every width, so
+              * the box fills the rail's height in every state — from 640px including the 3-row state,
+              * because the rail is six unit rows either way. ⛔ BELOW 640px THE WHOLE GRID IS THE ONE
+              * ROW (owner, 2026-11-12: "go all"): the box sits directly right of the pressed tile and its
+              * plate is capped at TWO chip rows that flow sideways, so opening a category does not
+              * stretch the 63px rail (see the plate's note).
               * ⚠️ BEING A CHILD OF `categories.map` IS ALSO THE EDITION GATE: a box can only exist
               * beside a tile this edition renders, so `?category=<other edition's slug>` cannot open
               * one. That guard had to be written by hand while this lived below the grid.
@@ -709,12 +824,13 @@ export function CategoryRail({
                  * in either breakpoint's row count, and an explicit `grid-column` puts it in the
                  * column AFTER the pressed tile's — auto-placement then flows every other tile
                  * around it, so no tile changes size or row and only the ones past the box move
-                 * aside. The column index differs per breakpoint (a phone column holds 2-3 tiles, a
-                 * desktop one holds 2), which is why it arrives as two custom properties rather than
-                 * a class.
+                 * aside. The column index differs per breakpoint (a phone column below 640px holds one
+                 * tile, a 640-767px one 2-3, a desktop one 2), which is why it arrives as three custom
+                 * properties rather than a class: `--sub-col-p` <640px, `--sub-col-m` 640-767px,
+                 * `--sub-col-d` from md.
                  */
-                style={{ '--sub-col-m': layout.subCol.m, '--sub-col-d': layout.subCol.d } as CSSProperties}
-                className="[grid-row:1/-1] [grid-column:var(--sub-col-m)] md:[grid-column:var(--sub-col-d)] flex shrink-0 items-stretch gap-2 animate-in fade-in slide-in-from-left-2 duration-200"
+                style={{ '--sub-col-p': layout.subCol.p, '--sub-col-m': layout.subCol.m, '--sub-col-d': layout.subCol.d } as CSSProperties}
+                className="[grid-row:1/-1] [grid-column:var(--sub-col-m)] max-sm:[grid-column:var(--sub-col-p)] md:[grid-column:var(--sub-col-d)] flex shrink-0 items-stretch gap-2 animate-in fade-in slide-in-from-left-2 duration-200"
               >
                 {/* ⛔ `items-stretch` + the plate's `min-h-full`/`content-center` below are the fix for
                     "different categories have different-sized plates" (owner, 2026-10-16). The grey
@@ -743,8 +859,16 @@ export function CategoryRail({
                     only at extreme sizes; (2) fewer rows means WIDER plates — "All" + the teacher door are
                     cells too, so e.g. 17 subcategories (≈19 cells) wrap to ⌈19/6⌉=4 columns, not 3. The
                     extra width is swiped through (`auto-cols-max` + horizontal scroll), the trade for a
-                    constant height. Re-measure the 190/201 headroom before changing the cap. */}
-                <div role="group" aria-label={tr('Subcategories', 'Danh mục con')} className="grid min-h-full grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 [grid-template-rows:repeat(6,min-content)] md:gap-y-0 md:py-1 md:[grid-template-rows:repeat(5,min-content)]">
+                    constant height. Re-measure the 190/201 headroom before changing the cap.
+                    (The six-row cap and its 190/201 numbers are 640-767px since 2026-11-12.)
+                    ⛔ BELOW 640px TWO ROWS, NO ROW GAP, 2px TOP AND BOTTOM (owner, 2026-11-12: "go all" — the
+                    rail is one row there). The rail row is a 63px tile (44 + 4 + a 15px one-line label), and
+                    the plate's base box would be 2×28 + 2 + 2×6 = 70px — taller, so opening a category would
+                    grow the rail 7px and re-centre every tile (`h-full justify-center`). With `max-sm:gap-y-0
+                    max-sm:py-0.5` it is 2×28 + 2×2 = 60px, under the tile, and `min-h-full` + `content-center`
+                    fill and centre it as above. The chips flow sideways in two rows and the rail scrolls
+                    (Electronics' ~19 cells → 10 columns), the same trade as the six-row cap, made harder. */}
+                <div role="group" aria-label={tr('Subcategories', 'Danh mục con')} className="grid min-h-full grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 [grid-template-rows:repeat(6,min-content)] max-sm:gap-y-0 max-sm:py-0.5 max-sm:[grid-template-rows:repeat(2,min-content)] md:gap-y-0 md:py-1 md:[grid-template-rows:repeat(5,min-content)]">
                   {/* ⚠️ `flex items-center justify-start gap-0` OVERRIDES ui/button's base
                       `inline-flex … justify-center gap-2` — without `justify-start` the row would centre,
                       without `gap-0` the base 8px gap would double the icon/count margins. An empty
@@ -878,6 +1002,13 @@ export function CategoryRail({
         * result-0-results). It now scrolls the rail by the desktop arrows' own step (`page(1)`, 85%), the
         * same thing their "Scroll right" does. `tap-44` gives the 32px disc a 44px hit area; the look is
         * unchanged. A swipe that STARTS on the disc no longer pans the rail — the rest of the rail does.
+        * ⛔ BELOW 640px ONLY AS A FALLBACK (owner, 2026-11-12: "go all" — no More arrow on the one compact row; the
+        * tile the right edge clips is the swipe cue there, and PHONE_GAP keeps one clipped at every common phone
+        * width). Where the edge still lands between tiles at rest — odd widths like 280, 464 or 552px (review round
+        * 4) — `edgeClip` reads false and the arrow comes back, so a phone never shows whole tiles with nothing saying
+        * there are more. It still shows from 640px until `pc:`.
+        * display:none takes it out of the tab order too, which costs nothing: every tile is a real
+        * link/button and a focused one scrolls into view.
         */}
       {canRight && (
         <IconButton
@@ -886,7 +1017,8 @@ export function CategoryRail({
           aria-label={tr('More', 'Xem thêm')}
           // ⚠️ 12px BELOW CENTRE (UI climb 2026-11-05): at dead centre the 32px disc sat on the end of the top row's third label ("Electronics").
           // Here it lands in the gap beside the second row's art, and it is solid: a glass disc over a label read as a layout bug.
-          className="absolute right-0 top-[calc(50%+0.75rem)] z-10 -translate-y-1/2 border border-border bg-popover text-body pc:hidden"
+          // On the one-row phone rail (the fallback above) it centres on the 44px glyph discs instead.
+          className={cn('absolute right-0 top-[calc(50%+0.75rem)] z-10 -translate-y-1/2 border border-border bg-popover text-body max-sm:top-5.5 pc:hidden', edgeClip && 'max-sm:hidden')}
         >
           {/* ⛔ STATIC — the owner removed the drift the moment they saw it ("remove animation from
               right arrow"). */}

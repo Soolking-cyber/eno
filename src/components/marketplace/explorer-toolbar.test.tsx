@@ -62,7 +62,7 @@ describe('NAV-4: the phone "›" is a real button that scrolls its row', () => {
     expect(scrollBy).toHaveBeenCalledWith({ left: 255, behavior: expect.any(String) })
   })
 
-  it('on the category rail too (phone only: `pc:hidden`; the desktop keeps its own arrows)', async () => {
+  it('on the category rail too (touch 640px up to pc: `max-sm:hidden pc:hidden` — below 640px the one-row rail peeks instead, owner 2026-11-12; the desktop keeps its own arrows)', async () => {
     const cats = [
       { id: 'c1', slug: 'rentals', name: 'Rentals', nameVi: 'Cho thuê', icon: 'home', verifiedCount: 5 },
       { id: 'c2', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử', icon: 'tv', verifiedCount: 5 },
