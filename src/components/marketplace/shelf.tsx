@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/button'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { SECTION_TITLE } from './section-title'
 import { COMPACT_LIST_GRID } from './compact-listing-row-skeleton'
+import { ListingCardSkeleton } from './listing-card-skeleton'
+import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 
 // Horizontal "shelf" rail primitive — the section header (optional icon + bold title +
 // optional "See all") and the snap scroller that ~8 rails hand-rolled identically.
@@ -99,6 +102,32 @@ export const RAIL_CARD_W =
  *  before the page sees it, and `touch-action` can't refuse it either
  *  (w3c/pointerevents#358). Containment is a real improvement, not a guarantee. */
 export const RAIL_SCROLLER = '-mx-2 flex gap-1 overflow-x-auto overscroll-x-contain scrollbar-none snap-x sm:mx-0 sm:gap-2'
+
+/**
+ * ⛔ A RAIL THAT IS NOT DRAWN YET SHOWS ITS SHAPE, NEVER AN EMPTY PAGE (owner, 2026-11-12: "on mobile landing page from
+ * services downwards loads slow and upon scroll user sees big blank page"). Home holds the place of the shelves under its
+ * feed from the first byte (listings-explorer.tsx DeferredShelf / DeferredCategoryRails) and draws them later; that place
+ * was empty, so a quick scroll met 1,900px of nothing on a phone (measured on eno.vn at 390). This is the header row and a
+ * row of card placeholders at the rail's own geometry (RAIL_CARD_W, the scroller's bleed and gaps), not scrollable.
+ * Decorative: aria-hidden, and the caller clips it to the height it already reserves, so nothing moves when it goes.
+ * Still, not sweeping (globals.css `.skeleton-still`): measured, the sweeps of every held place cost the scroll more than they say.
+ */
+export function ShelfSkeleton() {
+  // `skeleton-still`: the colour without the sweep (globals.css) — ~90 sweeping boxes under the fold cost a phone's scroll.
+  return (
+    <div aria-hidden="true" className="skeleton-still">
+      <div className={cn(SECTION_HEADER_ROW, 'h-7 sm:h-8')}>
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-4 w-14" />
+      </div>
+      <div className="-mx-2 flex gap-1 overflow-hidden sm:mx-0 sm:gap-2">
+        {Array.from({ length: RAIL_SKELETON_COUNT }, (_, i) => (
+          <ListingCardSkeleton key={i} className={RAIL_CARD_W} />
+        ))}
+      </div>
+    </div>
+  )
+}
 
 /**
  * ⛔ THE SWIPE HINT — A COMPONENT, NOT A LINE OF JSX IN `Shelf`, AND THAT WAS THE WHOLE BUG.

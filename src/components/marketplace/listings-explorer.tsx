@@ -40,10 +40,9 @@ import { ForYouRail } from './for-you-rail'
 import { RelatedShelf } from './related-shelf'
 import { useRecoveryRail } from './use-recovery-rail'
 import { RecentlyViewedRail } from './recently-viewed-rail'
-import { useNearViewport } from '@/hooks/use-near-viewport'
 import { BusinessRail } from './business-rail'
 import { TeacherShelf } from './teacher-shelf'
-import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE } from './shelf'
+import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE, ShelfSkeleton } from './shelf'
 import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { queryChips } from '@/lib/district-query'
 import { clearPlaceForTypedDistrict, queryAfterAreaPick } from './explorer-place'
@@ -315,7 +314,59 @@ function releaseFeedEntry() {
 /** The phone's partner row follows this many cards of the undirected home feed: two full rows at two columns. */
 const PARTNER_BAND_AFTER_CARD = 4
 
-const CategoryRails = dynamic(() => import('./category-rails').then((m) => m.CategoryRails), { ssr: false })
+/**
+ * ⛔ HOW FAR AHEAD THE SHELVES UNDER THE FEED START (owner, 2026-11-12: "on mobile landing page from services downwards loads
+ * slow and upon scroll user sees big blank page"). Two viewports, not one: measured on eno.vn at 390 with a phone's CPU and
+ * 4G, a one-viewport start left the Trending and Outstanding-businesses places empty on screen for ~2.5s and the category
+ * rails for ~5s of an ordinary scroll, because each still waits for an idle moment (and the rails for their chunk and
+ * answer, now prefetched — DeferredCategoryRails) after `near` fires. Starting earlier moves nothing on screen: the places
+ * are height-held from the first byte, and what renders lands below the fold.
+ */
+const SHELF_LOOKAHEAD = '200% 0px'
+/**
+ * ⛔ DUE = ON SCREEN NOW, OR WITHIN SHELF_LOOKAHEAD ONCE THE READER HAS SCROLLED. The wider look-ahead alone reached the shelves
+ * during page load on a shorter feed, and drawing them there added ~100ms of blocking time on a phone's load (measured A/B,
+ * 4x CPU). Waiting for the first scroll keeps a visit that never scrolls exactly as cheap as before; a reader who scrolls
+ * still has two viewports of head start.
+ * ⚠️ ANY SCROLL, NOT THE WINDOW'S (review): the scroll listener captures on the document, so a page that scrolls inside an
+ * element counts too. And whatever the scroller, a place that is ON SCREEN is due by its own observer — no state of the
+ * page can leave a shelf as a placeholder while the reader looks at it.
+ */
+function useShelfDue<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null)
+  const [due, setDue] = useState(false)
+  useEffect(() => {
+    if (due) return
+    const el = ref.current
+    if (!el || typeof IntersectionObserver === 'undefined') { setDue(true); return }
+    let near = false
+    let scrolled = window.scrollY > 0
+    const ahead = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { near = true; if (scrolled) setDue(true) } }, { rootMargin: SHELF_LOOKAHEAD })
+    const onScreen = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) setDue(true) })
+    const onScroll = () => { scrolled = true; if (near) setDue(true) }
+    ahead.observe(el)
+    onScreen.observe(el)
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => { ahead.disconnect(); onScreen.disconnect(); document.removeEventListener('scroll', onScroll, { capture: true }) }
+  }, [due])
+  return { ref, due }
+}
+/** The category rails' held height (the 2026-11-03 note below). Shared by the place and its placeholder so they cannot differ. */
+const CATEGORY_RAILS_HELD = 'min-h-[calc(200vw+520px)] sm:min-h-[1400px] lg:min-h-[1480px] xl:min-h-[1735px]'
+const CATEGORY_RAILS_HEIGHT = 'h-[calc(200vw+520px)] sm:h-[1400px] lg:h-[1480px] xl:h-[1735px]'
+/** What fills the rails' held place until they are drawn: four rails' shape, clipped to exactly the held height (shelf.tsx ShelfSkeleton). */
+function CategoryRailsSkeleton() {
+  return (
+    <div className={`space-y-7 overflow-hidden ${CATEGORY_RAILS_HEIGHT}`}>
+      <ShelfSkeleton />
+      <ShelfSkeleton />
+      <ShelfSkeleton />
+      <ShelfSkeleton />
+    </div>
+  )
+}
+
+const CategoryRails = dynamic(() => import('./category-rails').then((m) => m.CategoryRails), { ssr: false, loading: () => <CategoryRailsSkeleton /> })
 
 // Perf Phase 1: mount the per-category rails only when the user approaches them —
 // they injected many sections above the feed right after hydration (layout shift +
@@ -341,39 +392,72 @@ const CategoryRails = dynamic(() => import('./category-rails').then((m) => m.Cat
  * The height is the rail's, measured on production per width: it only has to keep what is below off the screen until they land.
  */
 function DeferredShelf({ children }: { children: React.ReactNode }) {
-  const { ref, near } = useNearViewport<HTMLDivElement>()
+  const { ref, due } = useShelfDue<HTMLDivElement>()
   const [show, setShow] = useState(false)
   useEffect(() => {
-    if (!near) return
+    if (!due) return
     const start = () => startTransition(() => setShow(true))
     if (typeof requestIdleCallback === 'function') { const id = requestIdleCallback(start, { timeout: 2000 }); return () => cancelIdleCallback(id) }
     const t = setTimeout(start, 300); return () => clearTimeout(t)
-  }, [near])
-  return <div ref={ref} className={show ? undefined : 'min-h-[calc(50vw+107px)] sm:min-h-[349px] xl:min-h-[413px]'}>{show && children}</div>
+  }, [due])
+  // Until it shows, the held height (exact, clipped) carries the rail's shape — never an empty band (SHELF_LOOKAHEAD).
+  return show
+    ? <div ref={ref}>{children}</div>
+    : <div ref={ref} className="h-[calc(50vw+107px)] overflow-hidden sm:h-[349px] xl:h-[413px]"><ShelfSkeleton /></div>
 }
 
 /** Only a seed the rail will draw: below the floor it renders nothing, and held height would collapse (that collapse was once the home's whole 0.142 of layout shift). */
 const deferShelf = (seed: readonly unknown[] | undefined, rail: React.ReactNode) => ((seed?.length ?? 0) >= MIN_RAIL_ITEMS ? <DeferredShelf>{rail}</DeferredShelf> : rail)
 
 function DeferredCategoryRails(props: React.ComponentProps<typeof CategoryRails>) {
-  const { ref, near } = useNearViewport<HTMLDivElement>()
-  // Idle-armed on top of near-viewport: when the sentinel starts at the first-paint fold
-  // (see above) `near` fires immediately, and without this gate the rails — and their
-  // /api/category-rails fetch — would still land inside the critical window.
+  const { ref, due } = useShelfDue<HTMLDivElement>()
+  const { lang } = useLanguage()
+  const langRef = useRef(lang)
+  useEffect(() => { langRef.current = lang }, [lang])
+  // Idle-armed on top of being due: when the place starts at the first-paint fold (see above) it is due at once, and
+  // without this gate the rails — and their /api/category-rails fetch — would still land inside the critical window.
   const [armed, setArmed] = useState(false)
   useEffect(() => {
     const arm = () => setArmed(true)
     if (typeof requestIdleCallback === 'function') { const id = requestIdleCallback(arm, { timeout: 8000 }); return () => cancelIdleCallback(id) }
     const t = setTimeout(arm, 3500); return () => clearTimeout(t)
   }, [])
+  // ⛔ THE CHUNK AND THE ANSWER ARE PREFETCHED AT THE READER'S FIRST SCROLL AFTER `load` (2026-11-12), so that when they reach
+  // the rails they draw at once instead of waiting ~1.3s for /api/category-rails behind a chunk download (category-rails.tsx
+  // prefetchCategoryRails). Never before `load`: neither may compete with the first paint's image and feed (the speed pass's
+  // rule). Not at `load` itself (review): the answer is uncached and costs the database a groupBy and a read per rail, and
+  // a visit that never scrolls must not pay that — before this change only a reader who reached the rails asked. From the
+  // first scroll the rails are still two viewports or more away, about the 1.3s the answer takes. Separate from `armed` on
+  // purpose (review): a reader who reaches the rails before `load` still gets them as soon as they did before.
+  useEffect(() => {
+    let done = false
+    const prefetch = () => {
+      if (done) return
+      done = true
+      document.removeEventListener('scroll', prefetch, { capture: true })
+      void import('./category-rails').then((m) => m.prefetchCategoryRails(langRef.current)).catch(() => {})
+    }
+    const afterLoad = () => document.addEventListener('scroll', prefetch, { capture: true, passive: true })
+    if (document.readyState === 'complete') afterLoad()
+    else window.addEventListener('load', afterLoad, { once: true })
+    return () => {
+      done = true
+      window.removeEventListener('load', afterLoad)
+      document.removeEventListener('scroll', prefetch, { capture: true })
+    }
+  }, [])
   const [answer, setAnswer] = useState<'pending' | 'rails' | 'none'>('pending')
   // ⚠️ NOTHING TO SHOW GOES OUT OF FLOW, in the space-y container this sits in: even a zero-height in-flow div
   // earns a full spacing unit there, a permanent 32–48px dead band. It stays mounted, because the answer can
   // change (a filter cleared). NOT `hidden`/display:none: those never intersect and would kill the rails forever.
-  const place = answer === 'pending' ? 'min-h-[calc(200vw+520px)] sm:min-h-[1400px] lg:min-h-[1480px] xl:min-h-[1735px]' : answer === 'none' ? 'absolute h-0 w-0' : undefined
+  const place = answer === 'pending' ? CATEGORY_RAILS_HELD : answer === 'none' ? 'absolute h-0 w-0' : undefined
+  // The placeholder fills the held place until the rails draw: here before they mount, then as their own `fallback` while the
+  // answer is awaited and as the chunk's `loading`, so the hand-over is one picture, never a blank in between.
   return (
     <div ref={ref} className={place}>
-      {armed && near && <CategoryRails {...props} onAnswer={setAnswer} />}
+      {armed && due
+        ? <CategoryRails {...props} onAnswer={setAnswer} fallback={<CategoryRailsSkeleton />} />
+        : answer === 'pending' && <CategoryRailsSkeleton />}
     </div>
   )
 }

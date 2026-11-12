@@ -1937,6 +1937,14 @@ body:has(.dashboard-canvas) #status-bar-backdrop {
   animation: shimmer 0.9s linear infinite;
 }
 
+/* ⛔ A HELD PLACE'S SILHOUETTE DOES NOT SWEEP (shelf.tsx ShelfSkeleton, 2026-11-12). Home draws one under its feed from the
+   first byte — the Trending and businesses places and four category rails, ~90 skeleton boxes — and every sweep is an
+   infinite animated layer. Measured on a phone-throttled A/B, they made the first 2,000px of a scroll ~0.4s slower to get
+   through, and the look-ahead means they are rarely on screen at all. The colour stays; only the sweep goes. */
+.skeleton-still .shimmer::after {
+  display: none;
+}
+
 /* Branded skeleton — a centred, faint eno wordmark over the shimmer so loading
    photo tiles read as eno.vn instead of blank grey. Uses ::before so the shimmer
    sweep (::after) is left untouched; the parent .shimmer is already relative. */

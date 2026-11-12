@@ -20,6 +20,59 @@ const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district'
 
 type Rail = { slug: string; listings: SerializedListingCard[] }
 
+/**
+ * ⛔ THE ANSWER CAN BE ASKED FOR BEFORE THE RAILS ARE DRAWN (owner, 2026-11-12: "from services downwards loads slow").
+ * Home draws these rails only when the reader nears them, and they then waited for this chunk AND for
+ * /api/category-rails (1.3s on eno.vn, not edge-cached) before showing anything. Home now calls
+ * `prefetchCategoryRails` at its first idle moment after `load` (listings-explorer.tsx DeferredCategoryRails), never
+ * earlier, so neither competes with the first paint; the first CategoryRails to mount takes that answer instead of asking.
+ * ONE SLOT, whatever the language (review): the latest ask, a prefetch or a mount's own.
+ * - TAKEN ONCE: a later mount (a return to Home, a language switch) asks afresh, as it always did.
+ * - Never on a directed feed (urlIsFiltered): the rails hide there, so the answer would go unused.
+ * - An untaken answer older than PREFETCH_MAX_AGE_MS is not shown; a prefetch does not repeat an ask (either kind) younger
+ *   than PREFETCH_REPEAT_MS, so a mount that asked first is not asked twice, and a Home visited again gets a fresh one.
+ * - A prefetch that fails — before the mount or while it waits — is asked again by the mount, never shown as "no rails".
+ */
+// ONE MINUTE (review): an answer shown later than this could still carry a listing taken down since (a licence hold, a
+// moderation unpublish), on top of the answer's own browser cache (max-age=120) — at most ~3 minutes in all, against ~2
+// before the prefetch. A reader who pauses longer than this before reaching the rails gets a fresh ask, as before.
+const PREFETCH_MAX_AGE_MS = 60_000
+const PREFETCH_REPEAT_MS = 60_000
+let asked: { lang: string; at: number; answer: Promise<Rail[] | null>; taken: boolean } | null = null
+
+function askRails(lang: string): Promise<Rail[] | null> {
+  // A time limit, because the caller holds 1,400px or more of the page until this answers.
+  // ⛔ `lang` IN THE URL, as the feed sends it (listings-explorer.tsx): the answer then carries only this
+  // reader's title translations instead of nine languages, and any shared cached copy is keyed by it.
+  return fetch(`/api/category-rails?lang=${encodeURIComponent(lang)}`, { signal: fetchTimeLimit(10_000) })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d: { rails?: Rail[] } | null) => (d ? d.rails || [] : null))
+    .catch(() => null)
+}
+
+/** A query or filter in the URL: the rails hide (the same signal the For You rail uses). */
+function urlIsFiltered(): boolean {
+  const p = new URLSearchParams(window.location.search)
+  return FILTER_KEYS.some((k) => p.has(k)) || Array.from(p.keys()).some((k) => k.startsWith('attr_') || k.startsWith('range_'))
+}
+
+export function prefetchCategoryRails(lang: string) {
+  if (urlIsFiltered()) return
+  if (asked && asked.lang === lang && Date.now() - asked.at < PREFETCH_REPEAT_MS) return
+  asked = { lang, at: Date.now(), answer: askRails(lang), taken: false }
+}
+
+function takeRails(lang: string): Promise<Rail[] | null> {
+  const prior = asked
+  if (prior && prior.lang === lang && !prior.taken && Date.now() - prior.at < PREFETCH_MAX_AGE_MS) {
+    prior.taken = true
+    return prior.answer.then((answer) => answer ?? askRails(lang))
+  }
+  const answer = askRails(lang)
+  asked = { lang, at: Date.now(), answer, taken: true }
+  return answer
+}
+
 /** One category rail. The cards (and therefore their images) only mount once the rail
  *  scrolls near the viewport — with up to ~10 rails on the home page, mounting every
  *  card up front flooded the page with images. A same-height skeleton holds the space
@@ -36,7 +89,9 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
     if (!el || show) return
     const io = new IntersectionObserver(
       (entries) => { if (entries[0].isIntersecting) { setShow(true); io.disconnect() } },
-      { rootMargin: '400px 0px' }, // mount just before it scrolls in
+      // A viewport ahead (was 400px): the cards' photos start loading only when the cards mount, and at a phone's
+      // flick 400px was a third of a second — the rail arrived as placeholders (owner, 2026-11-12).
+      { rootMargin: '100% 0px' },
     )
     io.observe(el)
     return () => io.disconnect()
@@ -107,7 +162,7 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
  *  `excludeIds`: listings the rails ABOVE already showed (For You / Outstanding seeds) —
  *  on a 13-listing catalogue the same card in three adjacent rails reads as padding, not
  *  supply. Each rail dedups against it and hides below the shared sparse floor. */
-export function CategoryRails({ categories, onCategory, excludeIds, onAnswer }: { categories: SerializedCategory[]; onCategory: (slug: string) => void; excludeIds?: string[]; onAnswer?: (a: 'rails' | 'none') => void }) {
+export function CategoryRails({ categories, onCategory, excludeIds, onAnswer, fallback }: { categories: SerializedCategory[]; onCategory: (slug: string) => void; excludeIds?: string[]; onAnswer?: (a: 'rails' | 'none') => void; /** Drawn while the answer is awaited — the caller's placeholder, so the hand-over from it is seamless. */ fallback?: React.ReactNode }) {
   const { lang } = useLanguage()
   const [rails, setRails] = useState<Rail[] | null>(null)
   const [active, setActive] = useState(true) // default (unfiltered) home view?
@@ -117,30 +172,20 @@ export function CategoryRails({ categories, onCategory, excludeIds, onAnswer }: 
 
   useEffect(() => {
     let off = false
-    // A time limit, because the caller holds 1,400px or more of the page until this answers.
-    // ⛔ `lang` IN THE URL, as the feed sends it (listings-explorer.tsx): the answer then carries only this
-    // reader's title translations instead of nine languages, and any shared cached copy is keyed by it. Asked
-    // again when the language changes in place (English ⇄ a machine-translated one does not reload), or
-    // the cards would fall back to translating on the client.
+    // Asked again when the language changes in place (English ⇄ a machine-translated one does not reload), or
+    // the cards would fall back to translating on the client (askRails has the URL's rules).
     // A failed re-ask keeps the rails already shown (their titles still translate on the client); only a
     // first ask that fails answers none.
     // ⚠️ Measured in a browser 2026-11-11: an in-place language switch on Home REMOUNTS this component today, so that
     // re-ask is a first ask and a failure there shows no rails (the live build does the same). The keep only helps
     // where the component survives the switch.
-    fetch(`/api/category-rails?lang=${encodeURIComponent(lang)}`, { signal: fetchTimeLimit(10_000) })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!off) setRails((prev) => (d ? d.rails || [] : prev ?? [])) })
-      .catch(() => { if (!off) setRails((prev) => prev ?? []) })
+    void takeRails(lang).then((answer) => { if (!off) setRails((prev) => answer ?? prev ?? []) })
     return () => { off = true }
   }, [lang])
 
   // Hide when the feed is filtered/searched (same signal the For You rail uses).
   useEffect(() => {
-    const check = () => {
-      const p = new URLSearchParams(window.location.search)
-      const filtered = FILTER_KEYS.some((k) => p.has(k)) || Array.from(p.keys()).some((k) => k.startsWith('attr_') || k.startsWith('range_'))
-      setActive(!filtered)
-    }
+    const check = () => setActive(!urlIsFiltered())
     check()
     window.addEventListener('eno:query', check)
     window.addEventListener('popstate', check)
@@ -168,7 +213,7 @@ export function CategoryRails({ categories, onCategory, excludeIds, onAnswer }: 
   useEffect(() => { if (answer) onAnswer?.(answer) }, [answer, onAnswer])
 
   if (!active) return null
-  if (rails === null) return null // wait for data; the feed below already fills the page
+  if (rails === null) return fallback ?? null // wait for data, in the caller's placeholder
   if (visible.length === 0) return null
 
   return (
