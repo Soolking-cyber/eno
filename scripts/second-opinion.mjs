@@ -84,11 +84,15 @@ const RECEIPTS = join(ROOT, '.second-opinion')
  * (HISTORY) To restore it then: put 'codex' back in this array AND uncomment its seat in REVIEWERS
  * below. BOTH — the two lists drifting apart is what silently jammed this gate on 2026-09-16..20.
  */
-// ⏸ agy SKIPPED 2026-09-29 — owner: "skip agy" (Google quota: "Individual quota reached … Resets in
-// 14h54m"). codex's OpenAI quota was measured back the same hour, so the panel is codex + opus — two
-// labs, codex the independent vote. To restore agy: add 'agy' here; its seat below is only skipped
-// (dispatch runs only the seats named here; a name with no seat is refused below, never dropped).
-const REVIEWER_NAMES = ['codex', 'opus']
+// (HISTORY, superseded by the 2026-11-12 note below) ⏸ agy SKIPPED 2026-09-29 — owner: "skip agy" (Google quota:
+// "Individual quota reached … Resets in 14h54m"); the panel was codex + opus until 2026-11-12.
+// Dispatch runs only the seats named here; a seat left out is only skipped, never deleted, and a name with no seat is
+// refused below, never dropped.
+// ⏸ codex SKIPPED 2026-11-12, agy BACK IN ITS PLACE — codex answered "You've hit your usage limit … try again at Nov 16th,
+// 2026 11:42 PM", which blocked every commit in every session; owner, asked: "Use Gemini meanwhile". agy probed the same
+// hour (answered a one-line prompt on 'Gemini 3.8 Flash (High)'). ⛔ RESTORE ON/AFTER 2026-11-16 23:42: put 'codex' back in
+// place of 'agy' (its seat below is untouched), after one probe that codex answers.
+const REVIEWER_NAMES = ['agy', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
