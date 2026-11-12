@@ -63,6 +63,7 @@ vi.mock('./trending-searches', () => ({ TrendingSearches: () => null }))
 vi.mock('./ai-concierge', () => ({ AISearchButton: () => null }))
 
 import { ListingsExplorer, __resetExplorerCommittedForTests } from './listings-explorer'
+import { JOB_ROWS_RULED } from './compact-listing-row-skeleton'
 
 // ─── A fake /api/listings ────────────────────────────────────────────────────────────────────────
 const row = (id: string, category: string, extra: Record<string, unknown> = {}): SerializedListingCard =>
@@ -168,6 +169,19 @@ describe('Jobs read as rows on a phone (owner, 2026-11-10: item 2)', () => {
     // …directly after the twelfth row.
     const twelfth = screen.getAllByTestId('row')[11].closest('[data-feed-card]')!
     expect(twelfth.nextElementSibling).toBe(capture[0])
+  })
+
+  it('a list of jobs is ruled (batch 78): a hairline under each row in place of the gap; a list of anything else is not', async () => {
+    const listOf = () => screen.getAllByTestId('row')[0].closest('[data-feed-card]')!.parentElement!.className.split(' ')
+    const jobs = mountAt('/?category=jobs')
+    await waitFor(() => expect(rowIds()).toHaveLength(12))
+    expect(listOf()).toEqual(expect.arrayContaining(JOB_ROWS_RULED.split(' ')))
+    expect(listOf()).not.toContain('gap-y-1.5')
+    jobs.unmount()
+    mountAt('/?category=rentals&view=compact')
+    await waitFor(() => expect(rowIds()).toHaveLength(12))
+    expect(listOf()).toContain('gap-y-1.5')
+    expect(listOf()).not.toContain('*:border-b')
   })
 
   it('the list a reader CHOSE (`view=compact`) has no sign-up row, as before', async () => {

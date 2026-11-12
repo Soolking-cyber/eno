@@ -8,7 +8,7 @@ import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 import { LISTING_GRID } from './listing-grid'
-import { CompactListingRowSkeleton, COMPACT_LIST_GRID } from './compact-listing-row-skeleton'
+import { CompactListingRowSkeleton, COMPACT_LIST_GRID, JOB_ROWS_RULED } from './compact-listing-row-skeleton'
 import type { CompactListingRowProps } from './compact-listing-row'
 import { sortTabClass } from './sort-tab-class'
 import { CustomSelect } from './custom-select'
@@ -117,6 +117,9 @@ export function SellerListings({
    * rows must already be parsed by then, or its first frame is an empty list.
    * ⚠️ Images: a hidden `<img>` still loads if it is eager. So here only the first card stays eager (the wide screen's
    * largest paint, and its preload); the other cards and every row thumbnail are lazy, which a hidden box never fetches.
+   * ⛔ ITS ROWS ARE JOBS, SO THE LIST IS RULED (batch 78, owner 2026-11-12: `JOB_ROWS_RULED`, a hairline under each row in
+   * place of the gap) and its placeholder is the job row's (`CompactListingRowSkeleton job`). A category other than Jobs
+   * that takes this prop must drop both.
    */
   phoneRow?: ComponentType<CompactListingRowProps>
   /** The order `listings` is already in, so the strip opens on the truth. */
@@ -477,7 +480,7 @@ export function SellerListings({
   const grid = (
     <>
     {PhoneRow && (
-      <div data-phone-rows="" className={cn(COMPACT_LIST_GRID, 'sm:hidden')}>
+      <div data-phone-rows="" className={cn(COMPACT_LIST_GRID, JOB_ROWS_RULED, 'sm:hidden')}>
         {shown.map((l, i) => (
           <div key={l.id} data-sid={l.sellerId}>
             <PhoneRow listing={l} index={i} onOpen={openCard} onPrefetch={prefetchCard} onLocate={locateRow} clockInHtml lazyThumb />
@@ -550,8 +553,8 @@ export function SellerListings({
         // real cards land.
         <>
           {rowsOnPhone && (
-            <div className={cn(COMPACT_LIST_GRID, 'sm:hidden')} aria-hidden="true">
-              {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <CompactListingRowSkeleton key={i} />)}
+            <div className={cn(COMPACT_LIST_GRID, JOB_ROWS_RULED, 'sm:hidden')} aria-hidden="true">
+              {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => <CompactListingRowSkeleton key={i} job />)}
             </div>
           )}
           <div className={cn(LISTING_GRID, rowsOnPhone && 'max-sm:hidden')} aria-hidden="true">

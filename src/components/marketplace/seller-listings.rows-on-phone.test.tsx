@@ -6,7 +6,8 @@
  * order they come in (a phone's rows must be parsed before the first-paint mark), and which images may load eagerly.
  */
 import React from 'react'
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedListingCard } from '@/lib/types'
 
@@ -21,6 +22,7 @@ vi.mock('./listing-card', () => ({
   ),
 }))
 import { SellerListings } from './seller-listings'
+import { JOB_ROWS_RULED } from './compact-listing-row-skeleton'
 
 /** The row is handed in (`phoneRow`); here it is a marker that records what it was handed. */
 function Row({ listing, index, clockInHtml, lazyThumb }: { listing: SerializedListingCard; index: number; clockInHtml?: boolean; lazyThumb?: boolean }) {
@@ -86,6 +88,28 @@ describe('SellerListings phoneRow', () => {
     const wrapper = readFileSync('src/components/marketplace/seller-listings-phone-rows.tsx', 'utf8')
     expect(wrapper).toContain("import { CompactListingRow } from './compact-listing-row'")
     expect(wrapper).toContain('<SellerListings {...props} phoneRow={CompactListingRow} />')
+  })
+
+  it('rules the rows (batch 78, owner 2026-11-12): a hairline under each job in place of the gap', () => {
+    render(<SellerListings listings={JOBS} phoneRow={Row} />)
+    const cls = (document.querySelector('[data-phone-rows]') as HTMLElement).className.split(' ')
+    expect(cls).toEqual(expect.arrayContaining(JOB_ROWS_RULED.split(' ')))
+    expect(cls).not.toContain('gap-y-1.5')
+    expect(cls).toContain('sm:hidden')
+  })
+
+  it('…and while a sort is on its way, the rows\' placeholder is the job row\'s: ruled, with no tile', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    render(<SellerListings listings={JOBS} phoneRow={Row} sortable initialSort="recent" serverScope={{ params: { category: 'jobs' }, total: 900, pageSize: 6 }} />)
+    await userEvent.click(screen.getByRole('tab', { name: /price/i }))
+    const held = Array.from(document.querySelectorAll('div[aria-hidden="true"]')).find((e) => e.className.split(' ').includes('sm:hidden'))!
+    expect(held).toBeTruthy()
+    expect(held.className.split(' ')).toEqual(expect.arrayContaining(JOB_ROWS_RULED.split(' ')))
+    expect(held.children.length).toBe(6)
+    for (const sk of Array.from(held.children)) {
+      expect(sk.className.split(' ')).toEqual(expect.arrayContaining(['items-start', 'py-3']))
+      expect(sk.querySelector('.h-14')).toBeNull()
+    }
   })
 
   it('without the prop nothing changes: no rows, no class on the grid, four eager cards', () => {

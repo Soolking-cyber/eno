@@ -91,7 +91,8 @@ describe('CompactListingRow in server HTML', () => {
   })
 
   it('`lazyThumb` makes even the first rows\' photos lazy; without it the first six are eager', () => {
-    const photo = { images: ['https://sb.eno.vn/storage/v1/object/public/listings/a.webp'], isPartnerBooking: false }
+    // A row that draws a thumbnail: since batch 78 (2026-11-12) a job row draws none, its own photo included.
+    const photo = { images: ['https://sb.eno.vn/storage/v1/object/public/listings/a.webp'], isPartnerBooking: false, listingType: 'sell', price: 4_000_000, priceUnit: 'VND' }
     expect(mount({ lazyThumb: true }, photo, 0).querySelector('img')!.getAttribute('loading')).toBe('lazy')
     cleanup()
     expect(mount({}, photo, 0).querySelector('img')!.getAttribute('loading')).toBe('eager')

@@ -23,7 +23,7 @@ import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
 import { CategoryIcon } from './category-icons'
 import { CategoryTileGlyph } from './category-art'
 import { ListingCard } from './listing-card'
-import { CompactListingRowSkeleton, COMPACT_LIST_GRID } from './compact-listing-row-skeleton'
+import { CompactListingRowSkeleton, COMPACT_LIST_GRID, JOB_ROWS_RULED } from './compact-listing-row-skeleton'
 import { CaptureCard } from './capture-card'
 import { useIsPhone } from '@/hooks/use-is-phone'
 import { preloadable } from '@/lib/preloadable'
@@ -5362,9 +5362,9 @@ export function ListingsExplorer({
                 ))}
               </div>
             ) : (
-              <div className={COMPACT_LIST_GRID}>
+              <div className={cn(COMPACT_LIST_GRID, jobsOnScreen && JOB_ROWS_RULED)}>
                 {Array.from({ length: FIRST_PAGE_SIZE }).map((_, i) => (
-                  <CompactListingRowSkeleton key={i} />
+                  <CompactListingRowSkeleton key={i} job={jobsOnScreen} />
                 ))}
               </div>
             )
@@ -5842,7 +5842,7 @@ export function ListingsExplorer({
                    <CompactListingRow> is a `ssr:false` dynamic with a geometry-matched
                    skeleton (compact-listing-row-skeleton.tsx) — a replacement needs the same
                    pair or the column collapses and rebounds while the chunk arrives. */
-                <div data-feed-restoring={restoring || undefined} className={COMPACT_LIST_GRID}>
+                <div data-feed-restoring={restoring || undefined} className={cn(COMPACT_LIST_GRID, jobsOnScreen && JOB_ROWS_RULED)}>
                   {gridListings.map((l, index) => (
                     <Fragment key={`${gridRun.generation}:${l.id}`}>
                       {/* data-feed-card = the back-nav restore anchor (see the grid above). */}
@@ -5868,7 +5868,8 @@ export function ListingsExplorer({
                   {/* The next page's reserved rows — see `pendingRows`. */}
                   {Array.from({ length: pendingRows }, (_, i) => (
                     <div key={`pending-${i}`} data-feed-skeleton="" aria-hidden="true">
-                      <CompactListingRowSkeleton />
+                      {/* Jobs: the tile-less job placeholder (batch 78, commit review) — the list is ruled and its rows have no tile. */}
+                      <CompactListingRowSkeleton job={jobsOnScreen} />
                     </div>
                   ))}
                 </div>

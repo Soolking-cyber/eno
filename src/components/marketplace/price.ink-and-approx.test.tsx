@@ -91,26 +91,27 @@ describe('<Price> jobMeta (card only)', () => {
     expect(el.className).not.toMatch(/\btext-price\b/)
   })
 
-  // The LIST ROW's job line (compact-listing-row.tsx, 2026-11-10): the role above it is the strongest line, so the row asks
-  // for the title's size and a regular weight. Both must reach the element that carries the weight, or the row's mock-only
-  // tests would pass while the employer stayed semibold on screen (commit review).
-  it("a caller's size and weight win on the no-figure job slot, and the muted ink stays", () => {
-    const cls = 'text-sm leading-6 sm:shrink-0 font-normal'
+  // The LIST ROW's job line (compact-listing-row.tsx, 2026-11-10; batch 78, 2026-11-12): the role above it is the strongest
+  // line, so at 0 the row asks for `text-sm`, a regular weight and ink-3. All three must reach the element that carries them,
+  // or the row's mock-only tests would pass while the employer stayed semibold, or grey, on screen (commit review). The class
+  // strings below are the row's own, copied.
+  it("a caller's size, weight and ink-3 win on the no-figure job slot (the employer, and an employer's own \"Salary: negotiable\")", () => {
+    const cls = 'text-sm leading-5 sm:shrink-0 font-normal text-ink-3'
     const employer = root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" linked jobMeta="RMIT University Vietnam" className={cls} />)
     expect(employer.textContent?.replace(/\s+/g, ' ')).toBe('RMIT University Vietnam')
-    expect(employer.className.split(' ')).toEqual(expect.arrayContaining(['text-sm', 'leading-6', 'font-normal', 'text-muted-foreground', 'truncate']))
-    expect(employer.className).not.toMatch(/\bfont-semibold\b|\btext-base\b/)
+    expect(employer.className.split(' ')).toEqual(expect.arrayContaining(['text-sm', 'leading-5', 'font-normal', 'text-ink-3', 'truncate']))
+    expect(employer.className).not.toMatch(/\bfont-semibold\b|\btext-base\b|\btext-muted-foreground\b|\btext-body\b/)
     cleanup()
     const own = root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" linked={false} className={cls} />)
     expect(own.textContent).toBe('Salary: negotiable')
-    expect(own.className.split(' ')).toEqual(expect.arrayContaining(['text-sm', 'font-normal', 'text-body']))
-    expect(own.className).not.toMatch(/\bfont-semibold\b/)
+    expect(own.className.split(' ')).toEqual(expect.arrayContaining(['text-sm', 'font-normal', 'text-ink-3']))
+    expect(own.className).not.toMatch(/\bfont-semibold\b|\btext-body\b/)
   })
 
   it('a real salary keeps its bold price ink at the size the row asks for', () => {
-    const el = root(<Price native price={80_000_000} currency="₫" priceUnit="VND/month" listingType="job" linked className="text-sm leading-6 sm:shrink-0" />)
-    expect(el.className.split(' ')).toEqual(expect.arrayContaining(['font-bold', 'text-price', 'text-sm', 'leading-6']))
-    expect(el.className).not.toMatch(/\bfont-normal\b/)
+    const el = root(<Price native price={80_000_000} currency="₫" priceUnit="VND/month" listingType="job" linked className="text-sm leading-5 sm:shrink-0" />)
+    expect(el.className.split(' ')).toEqual(expect.arrayContaining(['font-bold', 'text-price', 'text-sm', 'leading-5']))
+    expect(el.className).not.toMatch(/\bfont-normal\b|\btext-ink-3\b/)
   })
 
   it('null keeps the no-figure label, in muted ink: a linked job points at the posting', () => {

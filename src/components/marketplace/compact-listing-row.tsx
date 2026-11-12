@@ -39,19 +39,6 @@ import dynamic from 'next/dynamic'
 const loadOfferSlider = () => import('@/components/marketplace/eno-slider')
 const EnoSlider = dynamic(() => loadOfferSlider().then((m) => m.EnoSlider), { ssr: false, loading: () => <span aria-hidden className="block h-5 w-28" /> })
 
-/** Up to two initials of an employer's name ("Nord Anglia Education" → "NA", "RMIT University Vietnam LLC" → "RU"), for a
- *  linked job's thumbnail; null when the importer stored no employer (the row then keeps the category glyph). An initial is
- *  the first LETTER OR DIGIT of a word, whatever punctuation leads it: "(VUS) English" is "VE", “Nord Anglia” is "NA" and
- *  "VUS" in quotes is "V" (commit review: a quoted name lost its first word, or its tile).
- *  ⚠️ `toUpperCase`, not `toLocaleUpperCase`: the browser's locale must not choose the letter (a Turkish one capitalises "i"
- *  as "İ"), and đ → Đ needs no locale. */
-export function employerInitials(employer: string | null | undefined): string | null {
-  if (!employer) return null
-  const words = employer.normalize('NFC').split(/[\s\-–—/&.,:()]+/u).map((w) => w.replace(/^[^\p{L}\p{N}]+/u, '')).filter(Boolean)
-  if (!words.length) return null
-  return words.slice(0, 2).map((w) => Array.from(w)[0].toUpperCase()).join('')
-}
-
 export type CompactListingRowProps = {
   listing: SerializedListingCard
   index: number
@@ -91,28 +78,39 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
   // stands in; and a row with no place at all draws no divider beside nothing.
   const place = l.district || l.city || (teacher ? l.location : '')
   /**
-   * ⛔ A JOB ROW READS LIKE THE JOB CARD (UI climb, 2026-11-10). This view is the one a job hunter switches to (Indeed,
-   * VietnamWorks and TopCV all list jobs as rows), and until now it was the one place a job read worst: every linked job
-   * said "Salary: see posting" in the bold slot, the employer rode the end of a two-line title, and the thumbnail was the
-   * importer's 1200px poster at 56px, a picture of words nobody can read. So, a JOB only, and nothing else in this file:
-   *   · the price slot prints the EMPLOYER of a no-pay linked job (the card's `jobMeta`, the same slot in <Price>);
-   *   · the title then drops the importer's " — <employer>" tail (card-title.ts `employer`); the link keeps the full title;
+   * ⛔ A JOB ROW IS TEXT BETWEEN HAIRLINES, WITH NO TILE (UI climb batch 78; owner, 2026-11-12: "continue the ui ux
+   * improvement towards 10/10"). Blind A/B on the live Jobs list, phone: codex 7.07 → 7.46 (+0.39, trust +0.1), Opus
+   * 6.60 → 7.15 (+0.55, trust +0.3). This view is the one a job hunter switches to (Indeed, VietnamWorks and TopCV all list
+   * jobs as rows). It REPLACES batch 54/60's tile (UI climb, 2026-11-10): a linked job's thumbnail was the employer's
+   * initials on the tint, or the category glyph with no employer stored, and both judges read every one of them as a
+   * placeholder ("a grey two-letter monogram tile or a generic briefcase icon"). "Never the poster" still holds — the
+   * importer's 1200px poster at 56px is a picture of words nobody can read (the PDP dropped it on 2026-09-30; the grid card
+   * keeps it, where it is large enough to read) — and now there is nothing in its place. So, a JOB only (`job`, linked or
+   * an employer's own), and nothing else in this file:
+   *   · NO THUMBNAIL: not the initials, not the glyph, not a photo (`!job &&` around the block below). The role takes the
+   *     width, and on a phone it starts on the page gutter (no side padding below `sm`);
+   *   · the ROLE is the strongest line, one step up the ramp: the title `text-base` semibold, snug leading;
+   *   · the price slot prints the EMPLOYER of a no-pay linked job (the card's `jobMeta`, the same slot in <Price>), and the
+   *     title then drops the importer's " — <employer>" tail (card-title.ts `employer`); the link keeps the full title;
+   *   · a no-pay slot (the employer, an employer's own "Salary: negotiable") is regular `text-sm` in ink-3; a real salary is
+   *     the only coloured thing, bold and no larger than the title (both blind judges on the first cut, 2026-11-10: "the job
+   *     title is the lightest text while the line under it is larger and heavier");
+   *   · ⛔ A LINKED JOB WITH NO PAY AND NO EMPLOYER PRINTS NO SLOT AT ALL (`salaryLine`): "Salary: see posting" told a list
+   *     reader nothing, on every such row. The job PAGE's "Salary: see the original posting" is untouched, <Price> keeps its
+   *     words for every other surface, and an employer's own job keeps "Salary: negotiable" (price.tsx's ⛔ `jobMeta` rule);
    *   · the phone line ends with the job type the card's info line prints ("Hanoi · 5d ago · Full-time");
-   *   · a linked job's thumbnail is the employer's initials on the tint, never the poster (the PDP dropped that poster on
-   *     2026-09-30 for the same reason; the grid card keeps it, where it is large enough to read); with no employer stored it
-   *     is the category glyph, the tile every photo-less row already has, so the list has ONE fallback and not three;
-   *   · the ROLE is the strongest line: the title in semibold, the employer and "Salary: see posting" under it in regular
-   *     grey at the title's size, and a real salary the only coloured thing, bold and no larger than the title (both blind
-   *     judges on the first cut, 2026-11-10: "the job title is the lightest text while the line under it is larger and heavier");
+   *   · 12px above and below the text, and the heart (or chat) level with the title's first line. A LIST of jobs is ruled
+   *     by the canon's hairline between its rows (docs/design-language.md §3b, "lines, not boxes"): the CONTAINER draws it
+   *     (`JOB_ROWS_RULED`, compact-listing-row-skeleton.tsx), so a job row inside a mixed list draws no stray line;
    *   · on a phone the title takes the 36px the row holds for a chat button a linked job never has, when no chip hangs there.
-   * The row's geometry is untouched (56px thumb, two-line title, a 24px price line, one place line), so the skeleton and the
-   * explorer's pending reserve still match.
+   * ⚠️ compact-listing-row-skeleton.tsx carries a job row's numbers in its `job` variant (one title line + the employer line
+   * + the phone's place line): change both or neither.
    */
   const job = l.listingType === 'job'
   // ⛔ ONE MEANING OF "LINKED" IN THIS ROW: THE FLAG, the test the chat slot below has always used (commit review, two rounds:
   // inferring it for a payload without the flag made a new half-linked state each time). A row whose payload carries no
-  // flag gets none of the LINKED treatment (the employer slot, the shortened title, the initials, the chat slot's width).
-  // What every job row gets, linked or not, is the type on its phone line and the role as the strongest line.
+  // flag gets none of the LINKED treatment (the employer slot, the shortened title, the chat slot's width).
+  // What every job row gets, linked or not, is no thumbnail, the type on its phone line and the role as the strongest line.
   const linkedJob = job && l.isPartnerBooking === true
   const jobMeta = linkedJob && l.price === 0 ? (l.jobEmployer || null) : undefined
   // Only when the slot really prints an employer: every other row's title is the stored one, untouched (commit review).
@@ -120,7 +118,12 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
     ? cardTitle({ title: displayTitle, lang, sellerId: l.sellerId, categorySlug: l.category?.slug, listingType: l.listingType, condition: l.condition, location: l.location, employer: jobMeta })
     : displayTitle
   const jobTypeText = job ? jobTypeLabel(l.jobType, tr) : null
-  const jobInitials = linkedJob ? employerInitials(l.jobEmployer) : null
+  // `null` is exactly a linked job at 0 with no employer stored, whose slot would say "Salary: see posting" (see above).
+  const salaryLine = jobMeta !== null
+  const drop = l.prevPrice != null ? dropPercent(l.prevPrice, l.price) : null
+  // Anything on the meta line before the place: without it the sm+ divider would stand beside nothing, and on a phone, where
+  // every other thing on that line is `sm:` only, the line would be an empty 2px gap.
+  const metaLead = salaryLine || l.urgent || !!drop
   // No chip rides this row's title line (a linked job shows no trust score; a partner's or a sponsored one keeps its chip and the slot).
   const jobTitleTakesChatSlot = linkedJob && !l.seller.officialPartner && !l.isSponsored
   // Quick-offer: pressing the Tag rolls a discount slider open to the LEFT of the
@@ -165,7 +168,12 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
       onMouseEnter={() => onPrefetch(l.id)}
       onTouchStart={() => onPrefetch(l.id)}
       data-pending={pending || undefined}
-      className="group relative flex items-center gap-3 rounded-xl p-1.5 pr-1 text-left transition-[background-color,scale] duration-100 hover:bg-muted active:scale-[0.99] has-[button:active]:scale-100 data-pending:scale-[0.99] cursor-pointer"
+      // A job (batch 78, the note on `job`): top-aligned, 12px above and below the text, no side padding on a phone so the
+      // role sits on the page gutter; from `sm` the usual side padding, so the hover fill a pointer gets still has an inset.
+      className={cn(
+        'group relative flex rounded-xl text-left transition-[background-color,scale] duration-100 hover:bg-muted active:scale-[0.99] has-[button:active]:scale-100 data-pending:scale-[0.99] cursor-pointer',
+        job ? 'items-start gap-2 py-3 sm:pl-1.5 sm:pr-1' : 'items-center gap-3 p-1.5 pr-1',
+      )}
     >
       {/* ⛔ THE ROW'S LINK (owner, 2026-11-07: "on desktop clicking right and opening in new tab doesnt work"). The row was
           a clickable div with no href anywhere in it: no right-click "Open link in new tab", no Cmd/Ctrl or middle click,
@@ -203,7 +211,10 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           and the owner reported it invisible three times running. Measured, not reasoned:
           `document.querySelectorAll('.partner-ring-media').length` was 0 on /?category=services
           with all eight partner listings on screen. Any NEW listing surface has to opt in the
-          same way; there is no inherited styling to rely on. */}
+          same way; there is no inherited styling to rely on.
+          ⛔ A JOB ROW DRAWS NONE (batch 78, owner 2026-11-12; the note on `job` above): not the employer's initials, not the
+          category glyph, not a photo. The guard wraps the whole block and nothing else; every other row's tile is as it was. */}
+      {!job && (
       <div
         // `title` is for the SIGHTED reader the sr-only line cannot reach — roughly 8% of men see
         // this gold as a grey-green, and for them a ring with no hover text is decoration with no
@@ -215,9 +226,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           'relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-tint',
         )}
       >
-        {jobInitials ? (
-          <div aria-hidden data-job-initials="" className="flex h-full w-full items-center justify-center bg-tint text-base font-bold text-body">{jobInitials}</div>
-        ) : cover && !linkedJob ? (
+        {cover ? (
           <Image
             src={cover}
             alt={displayTitle}
@@ -235,6 +244,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           </div>
         )}
       </div>
+      )}
 
       {/* Title (up to two lines) on top, then price · location · trust score on a tight meta line —
           and on phones, where that line has room for the price alone, place · time under it. */}
@@ -253,7 +263,10 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
         <div className="flex min-w-0 items-start gap-x-2">
           {/* min-w-0: beside a teacher's "Identity verified" tick (a non-shrinking flex sibling) a long name must clamp,
               not push the row's chips out — commit gate, 2026-10-16. Harmless on every other row. */}
-          <h4 className={cn('line-clamp-2 min-w-0 text-sm leading-snug text-foreground group-hover:underline', job ? 'font-semibold' : 'font-medium')}>
+          {/* A job's role is one step up the ramp (batch 78): 16px on a snug 22px line, so the skeleton's job variant holds 22px.
+              ⚠️ The size BEFORE `leading-snug`, in each branch: tailwind-merge drops a leading that a later `text-<size>`
+              follows (a size carries its own line height), which would leave every row on the size's default line. */}
+          <h4 className={cn('line-clamp-2 min-w-0 text-foreground group-hover:underline', job ? 'text-base leading-snug font-semibold' : 'text-sm leading-snug font-medium')}>
             {lineTitle}
           </h4>
           {/* "Identity verified" (owner, 2026-10-15) — the card's tick, right after the name it vouches for, on the first
@@ -293,7 +306,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             truncated price is a wrong price) overflowed the column and painted
             straight over the action icons to its right. (Below sm the price may
             now WRAP instead — never truncate; see the note on it.) */}
-        <div className="mt-0.5 flex min-w-0 items-center gap-x-2 overflow-hidden text-xs text-muted-foreground">
+        <div className={cn('mt-0.5 flex min-w-0 items-center gap-x-2 overflow-hidden text-xs text-muted-foreground', !metaLead && 'max-sm:hidden')}>
           {/* Same app-wide badges as the grid card (card-badges.tsx), inline form:
               urgent before the price, drop % after — the row is one line, so signals
               stay glyph-sized. */}
@@ -327,7 +340,10 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               sm nothing else on this line competes for the width (the place and the trust chip are
               sm-only here), so an ordinary price never wraps; from sm up it stays one line, as the
               note above requires. */}
-          <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} compact dual="sm" unit={l.listingType === 'rent' || priceUnitSuffix(l.priceUnit) ? true : 'sm'} jobMeta={jobMeta} className={job ? cn('text-sm leading-6 sm:shrink-0', l.price === 0 && 'font-normal') : 'text-base sm:shrink-0'} />
+          {/* A JOB's slot (batch 78): `text-sm` on its own 20px line; at 0 (the employer, "Salary: negotiable") regular weight
+              in ink-3, a real salary keeps <Price>'s bold price ink. ⛔ Not drawn at all for a linked job with no pay and no
+              employer (`salaryLine`; the note on `job`) — <Price>'s words stay as they are everywhere else. */}
+          {salaryLine && <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} compact dual="sm" unit={l.listingType === 'rent' || priceUnitSuffix(l.priceUnit) ? true : 'sm'} jobMeta={jobMeta} className={job ? cn('text-sm leading-5 sm:shrink-0', l.price === 0 && 'font-normal text-ink-3') : 'text-base sm:shrink-0'} />}
           {/* Urgent — RIGHT of the price (user-picked 2026-07-14): the bare black
               bolt on EVERY breakpoint. The desktop chip (outline + "Urgent" word)
               is gone — one glyph reads the same everywhere and keeps the one-line
@@ -338,12 +354,13 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               aria-label={l.listingType === 'job' ? tr('Urgent hiring', 'Tuyển gấp') : tr('Urgent', 'Bán gấp')}
             />
           )}
-          {l.prevPrice != null && dropPercent(l.prevPrice, l.price) && (
-            <Badge kind="drop" variant="inline" className="shrink-0">{dropPercent(l.prevPrice, l.price)}</Badge>
+          {drop && (
+            <Badge kind="drop" variant="inline" className="shrink-0">{drop}</Badge>
           )}
           {/* Address text on this line is desktop-only (user-picked: it truncated uselessly
-              beside the price on phones). Phones get it on its own line below instead. */}
-          {place && <span className="hidden h-3 w-px shrink-0 bg-border sm:block" />}
+              beside the price on phones). Phones get it on its own line below instead.
+              The divider only when something stands before it (`metaLead`). */}
+          {place && metaLead && <span className="hidden h-3 w-px shrink-0 bg-border sm:block" />}
           {place && <span className="hidden truncate sm:inline"><Tr text={place} /></span>}
           {/* Demand proof (≥3 contact reveals) — desktop only: the one-line meta row
               can't spare the width on mobile. */}
@@ -372,8 +389,10 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
       </div>
 
       {/* Actions paired together (not stranded): offer + quick-chat + locate + favorite.
-          The offer slider rolls open leftwards, replacing nothing — icons stay put. */}
-      <div className="relative z-[2] flex shrink-0 items-center" onMouseLeave={() => setOffer(null)}>
+          The offer slider rolls open leftwards, replacing nothing — icons stay put.
+          On a job row (top-aligned, batch 78) the cluster rises 6px into the row's 12px padding, so the 20px glyph in each
+          36px button centres on the title's first 22px line (24px from the row's top against the line's 23px). */}
+      <div className={cn('relative z-[2] flex shrink-0 items-center', job && '-mt-1.5')} onMouseLeave={() => setOffer(null)}>
         {offer !== null && (
           // A div, not a span: <EnoSlider> renders a <div> root, which is not
           // phrasing content — a span wrapper would be invalid nesting. Same
