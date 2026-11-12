@@ -8,7 +8,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 const h = vi.hoisted(() => ({
   picked: [] as string[], pickedSub: [] as string[], pickArgs: [] as unknown[], calls: [] as unknown[][], found: [] as unknown[], findWhere: null as unknown,
+  /** Every card load's where-clause, in order (the subcategory's and the aisle's both land here). */
+  loads: [] as unknown[],
+  /** The whole-aisle pick rejects; the subcategory pick rejects. */
+  wholeRejects: false, subRejects: false,
+  logged: [] as { op: string; message: string }[],
 }))
+vi.mock('@/lib/log', () => ({ logError: (e: Error, ctx: { op: string }) => { h.logged.push({ op: ctx.op, message: e.message }) } }))
 vi.mock('@/lib/taxonomy', () => ({
   subcategoriesFor: (c: string) => (c === 'rentals'
     ? [{ slug: 'apartment-rental', name: 'Apartment', nameVi: 'Căn hộ' }, { slug: 'motorbike-rental', name: 'Motorbike', nameVi: 'Xe máy' }, { slug: 'rental-other', name: 'Other', nameVi: 'Khác' }]
@@ -16,24 +22,27 @@ vi.mock('@/lib/taxonomy', () => ({
 }))
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: object) => ({ scoped: w }) }))
 vi.mock('@/lib/serialize', () => ({ LISTING_CARD_SELECT: { card: true }, serializeListingCard: (r: object) => ({ ...r, serialized: true }) }))
-vi.mock('@/lib/db', () => ({ db: { listing: { findMany: vi.fn(async (a: { where: unknown }) => { h.findWhere = a.where; return h.found }) } } }))
+vi.mock('@/lib/db', () => ({ db: { listing: { findMany: vi.fn(async (a: { where: unknown }) => { h.findWhere = a.where; h.loads.push(a.where); return h.found }) } } }))
 vi.mock('./trending-rail', () => ({
   TRENDING_ORDER: ['trending-order'],
   // A subcategory-narrowed pick answers from `pickedSub`, a category pick from `picked`; every call is recorded.
   pickRailIds: vi.fn(async (...a: unknown[]) => {
     h.calls.push(a)
     h.pickArgs = h.calls[0]
-    return JSON.stringify(a[0]).includes('subcategorySlug') ? h.pickedSub : h.picked
+    const narrowed = JSON.stringify(a[0]).includes('subcategorySlug')
+    if (!narrowed && h.wholeRejects) throw new Error('pool exhausted')
+    if (narrowed && h.subRejects) throw new Error('statement timeout')
+    return narrowed ? h.pickedSub : h.picked
   }),
 }))
 
-import { relatedCategorySlug, relatedRail, relatedSubcategorySlug, wantsRelatedRail, withinDeadline, RELATED_DEADLINE_MS, RELATED_MAX_TOTAL } from './related-rail'
+import { relatedCategorySlug, relatedRail, relatedSubcategorySlug, wantsRelatedRail, withinDeadline, RELATED_DEADLINE_MS, RELATED_MAX_TOTAL, WIDEN_TO_CATEGORY } from './related-rail'
 
 const row = (id: string, slug = 'electronics', name = 'Electronics', nameVi = 'Điện tử', subcategorySlug: string | null = 'phones') =>
   ({ id, category: { slug, name, nameVi }, subcategorySlug })
 const rental = (id: string, sub: string) => row(id, 'rentals', 'Rentals', 'Cho thuê', sub)
 
-beforeEach(() => { h.picked = []; h.pickedSub = []; h.pickArgs = []; h.calls = []; h.found = []; h.findWhere = null })
+beforeEach(() => { h.picked = []; h.pickedSub = []; h.pickArgs = []; h.calls = []; h.found = []; h.findWhere = null; h.loads = []; h.wholeRejects = false; h.subRejects = false; h.logged = [] })
 
 describe('wantsRelatedRail', () => {
   it('words, page 1, 1-7 found — the explorer\'s recovery window', () => {
@@ -79,15 +88,19 @@ describe('relatedRail', () => {
     h.pickedSub = ['r2', 'r1', 'r3']
     h.found = [row('r1'), row('r3'), row('r2')]
     const rail = await relatedRail({ rows: [row('a1'), row('a2')], category: null, hiddenSellerIds: ['s9'] })
+    // Electronics widens (WIDEN_TO_CATEGORY) only when Phones cannot answer; here it can, so ONE read.
     expect(h.calls).toHaveLength(1)
-    const [scoped, order, opts] = h.calls[0] as [unknown, unknown, { pool: number; take: number; excludeIds: string[] }]
+    const [scoped, order, opts] = h.calls.find((c) => JSON.stringify(c[0]).includes('subcategorySlug')) as [unknown, unknown, { pool: number; take: number; excludeIds: string[] }]
     // The blocked shops are their OWN AND element beside the scoped where, never a key inside it.
     const base = { AND: [{ scoped: { verified: true, status: 'active', category: { slug: 'electronics' } } }, { sellerId: { notIn: ['s9'] } }] }
     expect(scoped).toEqual({ AND: [base, { subcategorySlug: 'phones' }] })
     expect(order).toEqual(['trending-order'])
     expect(opts.excludeIds).toEqual(['a1', 'a2'])
     expect(opts).toMatchObject({ pool: 48, take: 12 })
-    expect(h.findWhere).toEqual({ AND: [scoped, { id: { in: ['r2', 'r1', 'r3'] } }] })
+    // The card load re-applies the public scope (verified, active, edition) beside the picked ids — a row unpublished
+    // between the pick and the load stays out. Asserted on EVERY load, the subcategory's and the aisle's.
+    expect(h.loads).toContainEqual({ AND: [scoped, { id: { in: ['r2', 'r1', 'r3'] } }] })
+    for (const w of h.loads) expect(JSON.stringify(w)).toContain('"verified":true')
     expect(rail?.listings.map((l) => l.id)).toEqual(['r2', 'r1', 'r3'])
     expect(rail).toMatchObject({ slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử', subcategory: 'phones', subName: 'Phones', subNameVi: 'Điện thoại' })
     expect(rail?.listings.every((l) => (l as unknown as { serialized: boolean }).serialized)).toBe(true)
@@ -96,13 +109,13 @@ describe('relatedRail', () => {
     h.pickedSub = ['r1', 'r2', 'r3']
     h.found = [row('r1'), row('r2'), row('r3')]
     await relatedRail({ rows: [row('a1')], category: 'electronics', hiddenSellerIds: [] })
-    expect(h.calls[0][0]).toEqual({ AND: [{ scoped: { verified: true, status: 'active', category: { slug: 'electronics' } } }, { subcategorySlug: 'phones' }] })
+    expect(h.calls.map((c) => c[0])).toContainEqual({ AND: [{ scoped: { verified: true, status: 'active', category: { slug: 'electronics' } } }, { subcategorySlug: 'phones' }] })
   })
   it('linked listings are NOT filtered out (owner 2026-11-09): no affiliateUrl clause in the pick or the load', async () => {
     h.pickedSub = ['r1', 'r2', 'r3']
     h.found = [row('r1'), row('r2'), row('r3')]
     await relatedRail({ rows: [row('a1')], category: 'electronics', hiddenSellerIds: ['s9'] })
-    expect(JSON.stringify(h.calls[0][0])).not.toContain('affiliateUrl')
+    expect(JSON.stringify(h.calls)).not.toContain('affiliateUrl')
     expect(JSON.stringify(h.findWhere)).not.toContain('affiliateUrl')
   })
   it('"vespa" found a motorbike rental: more motorbike rentals, named by the taxonomy, not apartments', async () => {
@@ -127,8 +140,83 @@ describe('relatedRail', () => {
     h.calls = []
     expect(await relatedRail({ rows: [rental('a1', 'rental-other')], category: null, hiddenSellerIds: [] })).toBeNull()
     expect(await relatedRail({ rows: [rental('a1', 'legacy-sub')], category: null, hiddenSellerIds: [] })).toBeNull()
-    expect(await relatedRail({ rows: [row('a1', 'electronics', 'Electronics', 'Điện tử', null)], category: null, hiddenSellerIds: [] })).toBeNull()
+    expect(await relatedRail({ rows: [rental('a1', null as unknown as string)], category: null, hiddenSellerIds: [] })).toBeNull()
     expect(h.calls).toEqual([])
+  })
+
+  describe('WIDEN_TO_CATEGORY — a thin goods subcategory gives way to its whole category (2026-11-12)', () => {
+    const base = { scoped: { verified: true, status: 'active', category: { slug: 'electronics' } } }
+    it('is an explicit allow-list, Electronics only, never a mixed aisle', () => {
+      expect([...WIDEN_TO_CATEGORY]).toEqual(['electronics'])
+      for (const mixed of ['rentals', 'services', 'jobs', 'community-events', 'tickets-travel', 'food-drink']) expect(WIDEN_TO_CATEGORY.has(mixed)).toBe(false)
+    })
+    it('"iphone": 2 in Phones, 3+ in Electronics → "More in Electronics", no subcategory named, the picker\'s order kept', async () => {
+      h.pickedSub = ['p1', 'p2']
+      h.picked = ['e3', 'e1', 'e2']
+      h.found = [row('e1'), row('e2'), row('e3')]
+      const rail = await relatedRail({ rows: [row('a1'), row('a2')], category: null, hiddenSellerIds: [] })
+      expect(rail).toMatchObject({ slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử', subcategory: null, subName: null, subNameVi: null })
+      expect(rail?.listings.map((l) => l.id)).toEqual(['e3', 'e1', 'e2'])
+      // The category read is the whole aisle — the same public base, no subcategory clause — with the answer left out.
+      const whole = h.calls.find((c) => !JSON.stringify(c[0]).includes('subcategorySlug'))!
+      expect(whole[0]).toEqual(base)
+      expect((whole[2] as { excludeIds: string[] }).excludeIds).toEqual(['a1', 'a2'])
+    })
+    it('a missing or "-other" subcategory widens too (Electronics only)', async () => {
+      h.picked = ['e1', 'e2', 'e3']
+      h.found = [row('e1'), row('e2'), row('e3')]
+      expect(await relatedRail({ rows: [row('a1', 'electronics', 'Electronics', 'Điện tử', null)], category: null, hiddenSellerIds: [] })).toMatchObject({ subcategory: null })
+      expect(await relatedRail({ rows: [row('a1', 'electronics', 'Electronics', 'Điện tử', 'electronics-other')], category: null, hiddenSellerIds: [] })).toMatchObject({ subcategory: null })
+    })
+    it('⛔ never past a subcategory the reader ASKED for: thin → null, and no category read at all', async () => {
+      h.pickedSub = ['p1', 'p2']
+      h.picked = ['e1', 'e2', 'e3']
+      h.found = [row('e1'), row('e2'), row('e3')]
+      expect(await relatedRail({ rows: [row('a1')], category: 'electronics', subcategory: 'phones', hiddenSellerIds: [] })).toBeNull()
+      expect(h.calls).toHaveLength(1)
+      expect(JSON.stringify(h.calls[0][0])).toContain('"subcategorySlug":"phones"')
+    })
+    it('the whole category under the floor too → null, Trending stays', async () => {
+      h.pickedSub = ['p1']
+      h.picked = ['e1', 'e2']
+      expect(await relatedRail({ rows: [row('a1')], category: null, hiddenSellerIds: [] })).toBeNull()
+    })
+    it('⛔ the aisle is read ONLY when the subcategory cannot answer: Phones with enough → one read, no aisle read at all', async () => {
+      h.wholeRejects = true // would fail the answer if it were read
+      h.pickedSub = ['p1', 'p2', 'p3']
+      h.found = [row('p1'), row('p2'), row('p3')]
+      expect(await relatedRail({ rows: [row('a1')], category: null, hiddenSellerIds: [] })).toMatchObject({ subcategory: 'phones' })
+      expect(h.calls).toHaveLength(1)
+      expect(JSON.stringify(h.calls[0][0])).toContain('"subcategorySlug":"phones"')
+    })
+    it('a thin subcategory, then the aisle — in that order', async () => {
+      h.pickedSub = ['p1']
+      h.picked = ['e1', 'e2', 'e3']
+      h.found = [row('e1'), row('e2'), row('e3')]
+      await relatedRail({ rows: [row('a1')], category: null, hiddenSellerIds: [] })
+      expect(h.calls.map((c) => JSON.stringify(c[0]).includes('subcategorySlug'))).toEqual([true, false])
+    })
+    it('a failed subcategory read in a widening aisle is LOGGED, then falls back to the aisle; in a mixed aisle it fails as before', async () => {
+      h.subRejects = true
+      h.picked = ['e1', 'e2', 'e3']
+      h.found = [row('e1'), row('e2'), row('e3')]
+      expect(await relatedRail({ rows: [row('a1')], category: null, hiddenSellerIds: [] })).toMatchObject({ subcategory: null })
+      expect(h.logged).toEqual([{ op: 'feed.related-rail.subcategory', message: 'statement timeout' }])
+      await expect(relatedRail({ rows: [rental('a1', 'motorbike-rental')], category: null, hiddenSellerIds: [] })).rejects.toThrow('statement timeout')
+    })
+    it('the aisle\'s card load re-applies the public scope too', async () => {
+      h.pickedSub = ['p1']
+      h.picked = ['e1', 'e2', 'e3']
+      h.found = [row('e1'), row('e2'), row('e3')]
+      await relatedRail({ rows: [row('a1')], category: null, hiddenSellerIds: [] })
+      expect(h.loads).toContainEqual({ AND: [base, { id: { in: ['e1', 'e2', 'e3'] } }] })
+    })
+    it('a mixed aisle never widens: thin Motorbike stays null with ONE read', async () => {
+      h.pickedSub = ['m1', 'm2']
+      h.picked = ['x1', 'x2', 'x3']
+      expect(await relatedRail({ rows: [rental('a1', 'motorbike-rental')], category: null, hiddenSellerIds: [] })).toBeNull()
+      expect(h.calls).toHaveLength(1)
+    })
   })
   it('teachers: null without a query', async () => {
     expect(await relatedRail({ rows: [row('a1', 'teachers')], category: null, hiddenSellerIds: [] })).toBeNull()

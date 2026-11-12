@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { logError } from '@/lib/log'
 import type { Prisma } from '@/generated/prisma/client'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { LISTING_CARD_SELECT, serializeListingCard } from '@/lib/serialize'
@@ -51,17 +52,28 @@ const TAKE = 12
 
 /**
  * What the rail holds: one subcategory of one category, both named (the taxonomy's subcategory names are short labels —
- * "Motorbike", "Gear" — that need their category beside them: "More in Rentals · Motorbike").
+ * "Motorbike", "Gear" — that need their category beside them: "More in Rentals · Motorbike") — or, in a category on
+ * WIDEN_TO_CATEGORY whose subcategory is too thin, the whole category, with the three sub* fields null ("More in Electronics").
  */
 export type RelatedRail = {
   slug: string
   name: string
   nameVi: string
-  subcategory: string
-  subName: string
-  subNameVi: string
+  subcategory: string | null
+  subName: string | null
+  subNameVi: string | null
   listings: SerializedListingCard[]
 }
+
+/**
+ * ⛔ THE CATEGORIES WHOSE WHOLE AISLE IS "MORE OF THE SAME" — an explicit allow-list (UI climb 2026-11-12; plan review, codex +
+ * opus: a test on the category's listing `types` measures intent, not topic, and a later taxonomy change would silently move
+ * it). Measured live 2026-11-12: Electronics held 10 rows over 8 subcategories, none with more than 2, so "iphone", "samsung",
+ * "airpods", "ps5" and "sony" never reached RELATED_MIN in their subcategory and ended on marketplace-wide Trending (a
+ * keyboard, then rentals). The whole of Electronics is the next-best answer to any of them. Add a category here only after
+ * measuring that its whole aisle reads as one kind; the mixed aisles of the 2026-11-09 note below never belong here.
+ */
+export const WIDEN_TO_CATEGORY: ReadonlySet<string> = new Set(['electronics'])
 
 /** Answers 1-7, page 1 only, and only for words: a filter-only sparse page keeps Trending, as it is a browse, not a query. */
 export function wantsRelatedRail({ offset, q, total }: { offset: number; q: string | null | undefined; total: number }): boolean {
@@ -84,9 +96,10 @@ export function relatedCategorySlug(
 /**
  * The subcategory the rail is about: the one the reader asked for, else the one most of the answer's rows IN THIS CATEGORY
  * share (first seen wins a tie).
- * ⛔ SUBCATEGORY ONLY, NEVER THE WHOLE CATEGORY (measured on the local build, 2026-11-09): a category is too coarse — "vespa"
+ * ⛔ SUBCATEGORY ONLY IN A MIXED AISLE (measured on the local build, 2026-11-09): such a category is too coarse — "vespa"
  * found one motorbike rental and "More in Rentals" was apartments; "dress" and "son môi" fell back to "More in Services"
- * and showed house moving. Under the subcategory's floor the explorer keeps Trending, which at least says what it is.
+ * and showed house moving. Under the subcategory's floor the explorer keeps Trending, which at least says what it is. The
+ * one exception is a category on WIDEN_TO_CATEGORY (above, 2026-11-12), and never past a subcategory the reader asked for.
  */
 export function relatedSubcategorySlug(
   rows: readonly { category?: { slug: string } | null; subcategorySlug?: string | null }[],
@@ -117,7 +130,16 @@ function modal(values: readonly (string | null | undefined)[]): string | null {
  * header), the answer's rows and the viewer's blocked shops left out of the pool BEFORE choosing, then Trending's order and
  * seller diversity (pickRailIds). Card-shaped rows (LISTING_CARD_SELECT), like the answer's own: this rides on a search response.
  * Only the answer's subcategory (relatedSubcategorySlug), named by the taxonomy; never a "-other" catch-all (a rail of
- * "Other" says nothing). Null without one or under RELATED_MIN, so the explorer keeps Trending.
+ * "Other" says nothing). Null without one or under RELATED_MIN, so the explorer keeps Trending — EXCEPT in a category on
+ * WIDEN_TO_CATEGORY, where a subcategory that is missing, a catch-all or too thin gives way to the whole category, unless
+ * the reader asked for that subcategory (a filter is never widened past).
+ * ⚠️ THE AISLE IS READ ONLY WHEN THE SUBCATEGORY CANNOT ANSWER — one read after the other, never both on speculation
+ * (commit review round 2, codex + opus). Reading both at once spent an aisle read that kept running after every
+ * subcategory that had enough, and still left a stalled subcategory holding up a ready aisle; reading the aisle only for a
+ * thin, missing or failed subcategory costs nothing when the subcategory answers, and the two small reads in series sit
+ * well inside RELATED_DEADLINE_MS on the box, where the database is local. Everywhere else it is the one subcategory read
+ * it always was, failing exactly as before. A failed subcategory read in a widening aisle is LOGGED, then falls back.
+ * The category pick keeps Trending's order and seller spread (pickRailIds) untouched — nothing reorders after it.
  */
 export async function relatedRail({
   rows,
@@ -137,11 +159,27 @@ export async function relatedRail({
   const base = hiddenSellerIds.length ? { AND: [scoped, { sellerId: { notIn: [...hiddenSellerIds] } }] } : scoped
   const subSlug = relatedSubcategorySlug(rows, slug, subcategory)
   const sub = subSlug && !subSlug.endsWith('-other') ? subcategoriesFor(slug).find((s) => s.slug === subSlug) ?? null : null
-  if (!sub) return null
-  const listings = await cardsFor({ AND: [base, { subcategorySlug: sub.slug }] }, rows.map((r) => r.id))
-  if (listings.length < RELATED_MIN) return null
-  const { name, nameVi } = listings[0].category
-  return { slug, name, nameVi, subcategory: sub.slug, subName: sub.name, subNameVi: sub.nameVi, listings }
+  const widens = WIDEN_TO_CATEGORY.has(slug) && !subcategory
+  if (!sub && !widens) return null
+  const exclude = rows.map((r) => r.id)
+  if (sub) {
+    let subCards: SerializedListingCard[] = []
+    try {
+      subCards = await cardsFor({ AND: [base, { subcategorySlug: sub.slug }] }, exclude)
+    } catch (e) {
+      if (!widens) throw e // a mixed aisle fails exactly as it always did (the caller logs it)
+      logError(e, { op: 'feed.related-rail.subcategory' }) // a widening aisle says so, then falls back to the aisle
+    }
+    if (subCards.length >= RELATED_MIN) {
+      const { name, nameVi } = subCards[0].category
+      return { slug, name, nameVi, subcategory: sub.slug, subName: sub.name, subNameVi: sub.nameVi, listings: subCards }
+    }
+  }
+  if (!widens) return null
+  const wholeCards = await cardsFor(base, exclude)
+  if (wholeCards.length < RELATED_MIN) return null
+  const { name, nameVi } = wholeCards[0].category
+  return { slug, name, nameVi, subcategory: null, subName: null, subNameVi: null, listings: wholeCards }
 }
 
 /** Trending's choice (pickRailIds) over `scoped`, loaded card-shaped in the picker's order. */

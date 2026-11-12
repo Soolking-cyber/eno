@@ -38,6 +38,11 @@ describe('RelatedShelf', () => {
     expect(title(rail(3))).toBe('More in Rentals · Motorbike')
     expect(title(rail(3), 'vi')).toBe('Tin khác trong mục Cho thuê · Xe máy')
   })
+  it('a rail of the whole category (no subcategory, 2026-11-12) names the category alone', () => {
+    const whole = { ...(rail(3, 'Electronics') as object), nameVi: 'Điện tử', subcategory: null, subName: null, subNameVi: null }
+    expect(title(whole)).toBe('More in Electronics')
+    expect(title(whole, 'vi')).toBe('Tin khác trong mục Điện tử')
+  })
   it('a translation that lost the slot keeps the English template, with the names', () => {
     expect(title(rail(3), 'ko')).toBe('More in Rentals · Motorbike')
   })

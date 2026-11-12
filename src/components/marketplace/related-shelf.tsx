@@ -26,8 +26,10 @@ export const RelatedShelf = memo(function RelatedShelf({ related }: { related: R
   // language can lose the slot, and a title with no category name says nothing — so it falls back to the English template.
   // The replacer is a function, so a `$` in a name is never read as a replacement pattern.
   const template = tr('More in {category}', 'Tin khác trong mục {category}')
-  // The subcategory beside its category: the taxonomy's subcategory names are short labels ("Motorbike", "Gear").
-  const name = `${tr(related.name, related.nameVi)} · ${tr(related.subName, related.subNameVi)}`
+  // The subcategory beside its category: the taxonomy's subcategory names are short labels ("Motorbike", "Gear"). A rail of the
+  // whole category (related-rail.ts WIDEN_TO_CATEGORY, 2026-11-12) has no subcategory: the category alone ("More in Electronics").
+  const category = tr(related.name, related.nameVi)
+  const name = related.subName ? `${category} · ${tr(related.subName, related.subNameVi ?? undefined)}` : category
   const title = (template.includes('{category}') ? template : 'More in {category}').replace('{category}', () => name)
   return (
     <Shelf icon={LayoutGrid} title={title}>
