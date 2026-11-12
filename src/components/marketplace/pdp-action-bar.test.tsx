@@ -4,8 +4,9 @@
  * the rules that are decisions rather than pixels:
  *   · WHEN it may show: the page's control has scrolled off the top AND the tab bar has left; never otherwise (the
  *     July 2026 bar was reverted for taking the tabs away);
- *   · WHAT it is: a mirror of the page's own control (same words; a button is pressed through, a link keeps its address
- *     and its rel), never a second action with rules of its own;
+ *   · WHAT it is: a mirror of the page's own control (its words; a button is pressed through, a link keeps its address
+ *     and its rel), never a second action with rules of its own. The one change of words: a 'buy' link reads "Visit shop"
+ *     with "Source: <shop>" under the price (owner, 2026-11-12), checked against the real buy box (AffiliateBooking);
  *   · WHO is left out: a commission link, an e-visa block, a disabled or unrendered control.
  * The geometry (the slot, the tab bar's breakpoint, the motion) was measured on the build; the commit has the numbers.
  */
@@ -13,20 +14,31 @@ import React from 'react'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const h = vi.hoisted(() => ({ hidden: false }))
+const h = vi.hoisted(() => ({ hidden: false, lang: 'en' }))
 vi.mock('@/hooks/use-hide-on-scroll', () => ({ useHideOnScroll: () => h.hidden }))
-vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
-vi.mock('@/components/ui/icons', () => ({
+// English, or the page's authored Vietnamese: a pair's own `vi`, and for <Tr> (the buy box's "Buy on") the curated
+// vi-overrides the real <Tr> reads.
+vi.mock('@/context/language-context', async () => {
+  const { VI_OVERRIDES } = await import('@/generated/vi-overrides')
+  return {
+    useLanguage: () => ({ lang: h.lang, tr: (en: string, vi?: string) => (h.lang === 'vi' && vi != null ? vi : en) }),
+    Tr: ({ text }: { text: string }) => (h.lang === 'vi' ? VI_OVERRIDES[text] ?? text : text),
+  }
+})
+vi.mock('@/components/ui/icons', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   ArrowUpRight: (p: React.SVGProps<SVGSVGElement>) => <svg data-arrow="" {...p} />,
   MessageCircle: (p: React.SVGProps<SVGSVGElement>) => <svg data-bubble="" {...p} />,
 }))
 
 import { PdpActionBar, readPrimary } from './pdp-action-bar'
+import { AffiliateBooking } from './affiliate-booking'
 
 /** The words on the page (constants: the repo's lint allows no string literal inside JSX, tests included). */
 const T = {
   price: '12M đ / month', title: 'Studio  near the river', chat: 'Chat now', chatSpaced: '  Chat   now ', teacher: 'Contact teacher',
   rent: 'Rent on GoPlus', apply: 'Apply on VietnamWorks', buy: 'Buy on Shopee', opening: 'Opening chat…', own: 'This is your listing.', plan: 'Plan my trip in chat',
+  shop: 'Tuấn Nguyễn Mobile',
 }
 
 /** An IntersectionObserver the test drives: `fire(el, entry)` calls every observer watching `el`. */
@@ -67,6 +79,7 @@ afterEach(() => {
   cleanup()
   observers.length = 0
   h.hidden = false
+  h.lang = 'en'
   HTMLElement.prototype.getClientRects = realRects
   vi.unstubAllGlobals()
   vi.useRealTimers()
@@ -258,15 +271,17 @@ describe('PdpActionBar: a mirror of the page\'s own control', () => {
       return this.getAttribute('data-action') === 'primary' ? (this.closest('[data-slot="sticky-action-bar"]')!.querySelector('[data-slot="sticky-action-bar-leading"]') ? 72 : 48) : 0
     } })
     try {
-      const ui = <Page><a data-affiliate-cta="true" data-commission="false" href="https://shop.example/p/1" rel="sponsored nofollow noopener noreferrer">{T.buy}</a></Page>
+      const ui = <Page><a data-affiliate-cta="true" data-commission="false" data-cta-verb="buy" data-cta-shop="Shopee" href="https://shop.example/p/1" rel="sponsored nofollow noopener noreferrer">{T.buy}</a></Page>
       const view = render(ui)
       await scrollPast(view, ui)
       expect(bar()!.querySelector('[data-slot="sticky-action-bar-leading"]')).toBeNull()
       const action = bar()!.querySelector('[data-action="primary"]') as HTMLElement
       expect(action.className.split(' ')).toContain('flex-1')
-      // Still the 68px row, and still the page's own words.
+      // Still the 68px row. And a 'buy' link whose caption ("Source: Shopee") went with the price carries the page's own
+      // words again, which name the shop: "Visit shop" with the shop named nowhere on the bar is never shown.
       expect(bar()!.querySelector('[data-slot="sticky-action-bar-panel"]')!.className).toContain('py-2.5')
       expect(action.textContent!.trim()).toBe(T.buy)
+      expect(action.hasAttribute('aria-label')).toBe(false)
     } finally {
       if (real) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', real)
     }
@@ -278,6 +293,113 @@ describe('PdpActionBar: a mirror of the page\'s own control', () => {
     await act(async () => { view.rerender(ui('Plan my trip in chat')) })
     await scrollPast(view, ui('Plan my trip in chat'))
     expect(bar()!.querySelector('[data-action="primary"]')!.textContent).toBe('Plan my trip in chat')
+  })
+})
+
+describe('PdpActionBar: a \'buy\' link reads "Visit shop" and names the shop under the price (owner, 2026-11-12)', () => {
+  /** The real buy box in the page's `#contact`, as the PDP renders it: the bar reads its marks, not a hand-made copy of them. */
+  const shopPage = (p: { url?: string; partnerName?: string; rental?: boolean; booking?: boolean; job?: boolean } = {}) => (
+    <Page>
+      <AffiliateBooking url={p.url ?? 'https://shop.example/p/1'} partnerName={p.partnerName ?? T.shop} listingId="l1" booking={!!p.booking} rental={!!p.rental} job={!!p.job} />
+    </Page>
+  )
+  const words = (el: Element | null) => (el?.textContent || '').replace(/\s+/g, ' ').trim()
+  const buyBox = () => document.querySelector('[data-affiliate-cta]') as HTMLAnchorElement
+  const action = () => bar()!.querySelector('[data-action="primary"]') as HTMLAnchorElement
+  const caption = () => bar()!.querySelector('[data-slot="sticky-action-bar-leading"] p')
+
+  it.each([
+    ['en', 'Visit shop', 'Source: Tuấn Nguyễn Mobile', 'Buy on Tuấn Nguyễn Mobile'],
+    ['vi', 'Đến cửa hàng', 'Nguồn: Tuấn Nguyễn Mobile', 'Mua trên Tuấn Nguyễn Mobile'],
+  ])('%s: the bar\'s button reads "%s", its name starts with those words and names the shop, the caption says "%s"', async (lang, visit, source, buyWords) => {
+    h.lang = lang
+    const ui = shopPage()
+    const view = render(ui)
+    await scrollPast(view, ui)
+    expect(buyBox().getAttribute('data-cta-verb')).toBe('buy')
+    expect(words(action())).toBe(visit)
+    // Label in name (WCAG 2.5.3): the visible words first, then the shop they lead to.
+    expect(action().getAttribute('aria-label')).toBe(`${visit}: ${T.shop}`)
+    expect(action().getAttribute('aria-label')!.startsWith(words(action()))).toBe(true)
+    expect(action().querySelector('[data-arrow]')).not.toBeNull()
+    // The price stays, and the caption under it is Seller information's "Source" row in place of the title.
+    expect(bar()!.querySelector('[data-pdp-bar-price]')!.textContent).toBe(T.price)
+    expect(words(caption())).toBe(source)
+    // Still the same link: address, rel and target are the buy box's, marked as its repeat.
+    expect(action().href).toBe(buyBox().href)
+    expect(action().rel).toBe('sponsored nofollow noopener noreferrer')
+    expect(action().target).toBe('_blank')
+    expect(action().getAttribute('data-affiliate-cta-repeat')).toBe('true')
+    expect(document.querySelectorAll('[data-affiliate-cta]')).toHaveLength(1)
+    // The buy box itself keeps its full words: the listing still names its source site on its button.
+    expect(words(buyBox())).toBe(buyWords)
+  })
+
+  it.each([
+    ['rent', { rental: true }, 'en', 'Rent on GoPlus'],
+    ['rent', { rental: true }, 'vi', 'Thuê trên GoPlus'],
+    ['book', { booking: true }, 'en', 'Book on GoPlus'],
+    ['book', { booking: true }, 'vi', 'Đặt trên GoPlus'],
+    ['apply', { job: true }, 'en', 'Apply on GoPlus'],
+    ['apply', { job: true }, 'vi', 'Ứng tuyển trên GoPlus'],
+    // A job is applied for whatever else it says it is (CtaLabel's order).
+    ['apply', { job: true, rental: true, booking: true }, 'en', 'Apply on GoPlus'],
+  ] as const)('a \'%s\' link is pinned word for word (%j, %s): "%s", the title under the price, no name of its own', async (verb, props, lang, pinned) => {
+    h.lang = lang
+    const ui = shopPage({ partnerName: 'GoPlus', ...props })
+    const view = render(ui)
+    await scrollPast(view, ui)
+    expect(buyBox().getAttribute('data-cta-verb')).toBe(verb)
+    expect(words(buyBox())).toBe(pinned)
+    expect(words(action())).toBe(pinned)
+    expect(action().hasAttribute('aria-label')).toBe(false)
+    expect(words(caption())).toBe('Studio near the river')
+  })
+
+  it('⛔ a commission link is still never pinned, "buy" or not', async () => {
+    const ui = shopPage({ url: 'https://shorten.asia/abc123' })
+    const view = render(ui)
+    await scrollPast(view, ui)
+    expect(buyBox().getAttribute('data-commission')).toBe('true')
+    expect(buyBox().getAttribute('data-cta-verb')).toBe('buy')
+    expect(bar()).toBeNull()
+  })
+
+  it('a \'buy\' link with no price beside it keeps the page\'s words (the shop would be named nowhere on the bar)', async () => {
+    const ui = <Page price={null}><a data-affiliate-cta="true" data-commission="false" data-cta-verb="buy" data-cta-shop="Shopee" href="https://shop.example/p/1" rel="sponsored nofollow noopener noreferrer">{T.buy}</a></Page>
+    const view = render(ui)
+    await scrollPast(view, ui)
+    expect(bar()!.querySelector('[data-slot="sticky-action-bar-leading"]')).toBeNull()
+    expect(words(action())).toBe(T.buy)
+    expect(action().hasAttribute('aria-label')).toBe(false)
+  })
+
+  it('a \'buy\' link that does not name its shop keeps the page\'s words and the title', async () => {
+    const ui = <Page><a data-affiliate-cta="true" data-commission="false" data-cta-verb="buy" data-cta-shop=" " href="https://shop.example/p/1" rel="sponsored nofollow noopener noreferrer">{T.buy}</a></Page>
+    const view = render(ui)
+    await scrollPast(view, ui)
+    expect(words(action())).toBe(T.buy)
+    expect(action().hasAttribute('aria-label')).toBe(false)
+    expect(words(caption())).toBe('Studio near the river')
+  })
+
+  it('a link that does not say which action it is keeps the page\'s words (the words themselves are never parsed)', async () => {
+    const ui = <Page><a data-affiliate-cta="true" data-commission="false" href="https://shop.example/p/1" rel="sponsored nofollow noopener noreferrer">{T.buy}</a></Page>
+    const view = render(ui)
+    await scrollPast(view, ui)
+    expect(words(action())).toBe(T.buy)
+    expect(words(caption())).toBe('Studio near the river')
+  })
+
+  it('follows the shop the page names while the bar is up', async () => {
+    const ui = (shop: string) => <Page><a data-affiliate-cta="true" data-commission="false" data-cta-verb="buy" data-cta-shop={shop} href="https://shop.example/p/1" rel="sponsored nofollow noopener noreferrer">{T.buy}</a></Page>
+    const view = render(ui('Shopee'))
+    await scrollPast(view, ui('Shopee'))
+    expect(words(caption())).toBe('Source: Shopee')
+    await act(async () => { view.rerender(ui('Lazada')) })
+    await act(async () => { await Promise.resolve() })
+    expect(words(caption())).toBe('Source: Lazada')
+    expect(action().getAttribute('aria-label')).toBe('Visit shop: Lazada')
   })
 })
 
@@ -433,6 +555,12 @@ describe('readPrimary', () => {
   it('accepts the block itself as the control', () => {
     const m = readPrimary(el('<button data-pdp-primary="teacher">Contact teacher</button>'), '[data-pdp-primary="teacher"]')
     expect(m).toMatchObject({ kind: 'button', what: 'teacher', label: 'Contact teacher' })
+  })
+  it('reads a link\'s action and shop from its marks, the shop\'s spacing tidied; \'\' for a link that does not say', () => {
+    expect(readPrimary(el('<div><a data-affiliate-cta="true" data-commission="false" data-cta-verb="buy" data-cta-shop="  Tuấn   Nguyễn Mobile " href="https://x.example/">Buy on Tuấn Nguyễn Mobile</a></div>'), '[data-affiliate-cta]'))
+      .toMatchObject({ kind: 'link', verb: 'buy', shop: 'Tuấn Nguyễn Mobile', label: 'Buy on Tuấn Nguyễn Mobile' })
+    expect(readPrimary(el('<div><a data-affiliate-cta="true" data-commission="false" href="https://x.example/">Rent on GoPlus</a></div>'), '[data-affiliate-cta]'))
+      .toMatchObject({ kind: 'link', verb: '', shop: '' })
   })
   it('prefers nothing over a link with no address or no words', () => {
     expect(readPrimary(el('<div><a data-affiliate-cta="true" data-commission="false">Rent</a></div>'), '[data-affiliate-cta]')).toBeNull()

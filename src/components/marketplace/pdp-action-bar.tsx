@@ -29,10 +29,31 @@ import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
  * their own listing. Re-deciding any of it here would be a second copy that drifts, so this component READS the control
  * when it is about to show and mirrors it:
  *   · a button (`data-pdp-primary`): the bar's button carries the same words and presses THAT button;
- *   · a link (`data-affiliate-cta`): the bar's link has the same address, the same `rel` and the same words (owner,
- *     2026-09-30: a repeat CTA that differed in any of them would be a second, different claim), marked
+ *   · a link (`data-affiliate-cta`): the bar's link has the same address, the same `rel` and the same target, marked
  *     `data-affiliate-cta-repeat` like the in-flow repeat, so the guest e2e still counts one `[data-affiliate-cta]` and
- *     AffiliateProductStep still hears the click.
+ *     AffiliateProductStep still hears the click. It carries the page's own words, with ONE exception:
+ * ⛔ A 'BUY' LINK READS "Visit shop ↗" / "Đến cửa hàng ↗", AND THE CAPTION UNDER THE PRICE NAMES THE SHOP: "Source: <shop>" /
+ *   "Nguồn: <shop>", Seller information's own "Source" row wording, in place of the title (owner, 2026-11-12: "do all with
+ *   recommended", i.e. yes to the tested variant B).
+ *   WHAT IT REPLACES: until that day this note said the link had "the same words" as the buy box, labelled "owner,
+ *   2026-09-30". That day's record (commit 6fb853901) has the owner saying only "do what's recommended" to an in-flow repeat
+ *   with the "same target"; "same words" was the implementer's reason, and it still holds for that in-flow repeat
+ *   (affiliate-booking.tsx AffiliateCtaRepeat), which keeps the buy box's words.
+ *   WHY: "Buy on Tuấn Nguyễn Mobile ↗" filled the 48px button on two lines, squeezed the price block to 127px at 390px
+ *   and cut the caption to "Used iPhone 16 128…"; at 320px the three-line rule below took the price away. With "Visit
+ *   shop ↗" the button is one line (227 → 144px wide), the price block 210px, and at 320px the price stays. Blind A/B on
+ *   eno.vn's goods page (pdp_product, 390px, real scroll) against the bar as it was: gpt-6.1-sol 7.45 → 7.66 (+0.21, trust
+ *   +0.3), Opus 7.31 → 7.47 (+0.16, trust ±0), both picked it. The same short words with the title kept as the caption
+ *   (variant A) scored +0.18 / +0.13 but LOST trust (−0.2 / −0.1): nothing on the bar said where "Visit shop" goes. Hence
+ *   the caption.
+ *   WHAT STAYS: the button's accessible name starts with its visible words and names the shop ("Visit shop: <shop>",
+ *   WCAG 2.5.3 label in name); the buy box and its in-flow repeat keep "Buy on <shop>", so the listing still names its
+ *   source site and its button still opens it (/terms, /regulations Art 3, /partners); Rent on / Book on / Apply on are
+ *   mirrored word for word (owner, 2026-09-21: "action button not buy but rent on rever.vn"); a commission link is never
+ *   pinned (below). The action and the shop are read from the link's `data-cta-verb` / `data-cta-shop`
+ *   (affiliate-booking.tsx), never parsed out of words that arrive in eleven languages. And the short words are only ever
+ *   shown BESIDE the caption that names the shop: a 'buy' link with no shop name, or a bar whose price has stepped aside
+ *   (the three-line rule below), carries the page's own words.
  * No control, a control that is not rendered, a disabled one: no bar.
  * ⛔ AND IT KEEPS READING WHILE IT IS UP (commit review, 2026-11-10). The page's control changes under it: a press makes
  * Chat now say "Opening chat…" and refuse a second press, sign-in or a language switch replaces its words, a job closes
@@ -63,7 +84,8 @@ const PC_QUERY = '(min-width: 64rem) and (pointer: fine)'
 
 export type Mirror =
   | { kind: 'button'; what: string; label: string; busy: boolean; press: () => void }
-  | { kind: 'link'; href: string; rel: string; target: string; label: string; allowed: () => boolean }
+  /** `verb` / `shop`: the link's `data-cta-verb` / `data-cta-shop` (affiliate-booking.tsx), '' when it does not say. */
+  | { kind: 'link'; href: string; rel: string; target: string; label: string; verb: string; shop: string; allowed: () => boolean }
 
 /**
  * The page's own primary control inside `block` if it can be acted on NOW: in the document, rendered (the iOS app hides some
@@ -97,7 +119,11 @@ export function readPrimary(block: Element | null, selector: string, find: () =>
     // that same link (the page can hide it from outside the block, where the observer below does not look).
     const href = el.href
     const allowed = () => { const now = liveControl(find(), selector); return now instanceof HTMLAnchorElement && now.getAttribute('data-commission') === 'false' && now.href === href }
-    return { kind: 'link', href, rel: el.rel, target: el.target, label, allowed }
+    // Which action the link names and whose site it opens, as the page states them (owner, 2026-11-12: a 'buy' link is
+    // pinned as "Visit shop"). Read as data, never parsed out of the words, which are translated.
+    const verb = el.getAttribute('data-cta-verb') || ''
+    const shop = (el.getAttribute('data-cta-shop') || '').replace(/\s+/g, ' ').trim()
+    return { kind: 'link', href, rel: el.rel, target: el.target, label, verb, shop, allowed }
   }
   if ((el as HTMLButtonElement).disabled) return null
   // `aria-disabled` is the page's "working on it" (contact-composer: "Opening chat…"): the bar stays, says so in the page's
@@ -120,7 +146,7 @@ function sameMirror(a: Mirror | null, b: Mirror | null): boolean {
   // (`press` and `allowed` are fresh closures every time and always look the control up again.)
   if (!a || !b) return a === b
   if (a.kind !== b.kind || a.label !== b.label) return false
-  if (a.kind === 'link' && b.kind === 'link') return a.href === b.href && a.rel === b.rel && a.target === b.target
+  if (a.kind === 'link' && b.kind === 'link') return a.href === b.href && a.rel === b.rel && a.target === b.target && a.verb === b.verb && a.shop === b.shop
   if (a.kind === 'button' && b.kind === 'button') return a.what === b.what && a.busy === b.busy
   return false
 }
@@ -222,6 +248,9 @@ export function PdpActionBar({
    * is its caption, so when the action stands taller than its two-line box the price goes and the action takes the row.
    * A measurement, not a width rule: it also holds for a long partner name on a wide phone and for a reader's larger text
    * size. In a layout effect, so the three-line state is never painted, and re-checked when the action's box changes.
+   * (Since 2026-11-12 that listing's bar reads "Visit shop ↗" beside the price, one line, so it no longer trips this; when
+   * the rule does trip on a 'buy' link, the caption naming the shop goes with the price and the words go back to the
+   * page's own "Buy on <shop>", which name it. See the note at the top.)
    */
   React.useLayoutEffect(() => {
     if (!shown || noPrice || !price) return
@@ -238,6 +267,14 @@ export function PdpActionBar({
 
   if (!shown) return null
   const { mirror, title } = shown
+  // The price block stands beside the action (the rule above has not moved it aside).
+  const withPrice = !!price && !noPrice
+  // ⛔ A 'buy' link: "Visit shop ↗", and the caption under the price says whose shop (owner, 2026-11-12; the note at the top).
+  // Only while that caption is on screen: with no shop name, or no price block, the shop would be named nowhere on the bar.
+  const shop = mirror.kind === 'link' && mirror.verb === 'buy' && withPrice ? mirror.shop : ''
+  const visit = shop ? tr('Visit shop', 'Đến cửa hàng') : null
+  // Seller information's own words for the shop ("Source" / "Nguồn", seller-info.tsx), the shop's name as written.
+  const caption = shop ? `${tr('Source', 'Nguồn')}: ${shop}` : title
 
   return (
     // A box of no size around a fixed bar: somewhere to measure from, and `inert` the moment the bar starts to leave, so
@@ -249,17 +286,19 @@ export function PdpActionBar({
       offsetBottom="0px"
       label={tr('This listing', 'Tin đăng này')}
       // `null`, never undefined: the bar is the 68px row either way (ui/sticky-action-bar `leading`).
-      leading={price && !noPrice ? (
+      leading={withPrice ? (
         <>
           <div data-pdp-bar-price="" className="truncate">{price}</div>
-          {/* `w-0 min-w-full`: the title fills the block and never widens it. The block's own width is the price's, so a long
-              title cannot push the action into wrapping. */}
-          {title ? <p className="w-0 min-w-full truncate text-xs text-muted-foreground">{title}</p> : null}
+          {/* `w-0 min-w-full`: the caption (the title, or a 'buy' link's "Source: <shop>") fills the block and never widens it.
+              The block's own width is the price's, so a long caption cannot push the action into wrapping. */}
+          {caption ? <p className="w-0 min-w-full truncate text-xs text-muted-foreground">{caption}</p> : null}
         </>
       ) : null}
       primary={mirror.kind === 'link'
         ? {
-            label: <>{mirror.label} <ArrowUpRight className="size-4" aria-hidden /></>,
+            label: <>{visit ?? mirror.label} <ArrowUpRight className="size-4" aria-hidden /></>,
+            // The visible words first, then the shop they lead to (WCAG 2.5.3): "Visit shop: Tuấn Nguyễn Mobile".
+            ariaLabel: visit ? `${visit}: ${shop}` : undefined,
             render: <a href={mirror.href} target={mirror.target || undefined} rel={mirror.rel} data-affiliate-cta-repeat="true" data-pdp-bar-action="" />,
             // Not followed if the page no longer shows this link (see `allowed`).
             onClick: (e) => { if (!mirror.allowed()) e.preventDefault() },

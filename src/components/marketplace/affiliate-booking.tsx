@@ -105,6 +105,8 @@ export function AffiliateBooking({
   const productStep = embeddedProductUrl(safeUrl)
   // Can this link earn eno a commission? Decides the disclosure at the end of this box (2026-10-01).
   const commission = isCommissionLink(safeUrl)
+  // Which action the button names: its words (CtaLabel) and its `data-cta-verb` come from this one decision.
+  const verb = ctaVerb({ job, rental, booking })
 
   return (
     <section aria-labelledby="affiliate-booking-heading" className="flex flex-col gap-4">
@@ -155,6 +157,11 @@ export function AffiliateBooking({
           // ⛔ ALWAYS STATED, 'true' OR 'false': the bar copies a link only when it reads 'false', so a booking link that
           // forgets to say (a future second producer of this mark) is left out rather than pinned without its sentence.
           data-commission={commission ? 'true' : 'false'}
+          // What the pinned bar needs to know about this link, as DATA, never by reading its (translated) words
+          // (pdp-action-bar.tsx; owner, 2026-11-12): the action it names (apply | rent | book | buy) and whose site it
+          // opens. On a 'buy' link the bar's button reads "Visit shop ↗" and its caption names this shop.
+          data-cta-verb={verb}
+          data-cta-shop={partnerName}
           href={safeUrl}
           target="_blank"
           // A linked JOB is not a paid placement — no commission, no deal with the board — so `sponsored`
@@ -162,7 +169,7 @@ export function AffiliateBooking({
           // the applicant came from eno.vn.
           rel={job ? 'nofollow noopener' : 'sponsored nofollow noopener noreferrer'}
         >
-          <CtaLabel job={job} rental={rental} booking={booking} partnerName={partnerName} />
+          <CtaLabel verb={verb} partnerName={partnerName} />
         </a>
       </Button>
 
@@ -273,11 +280,23 @@ function CommissionNote({ className }: { className?: string }) {
   )
 }
 
+/** The action a partner CTA names. A job is applied for whatever else it is, a rental rented, a ticket booked (see the props). */
+type CtaVerb = 'apply' | 'rent' | 'book' | 'buy'
+
+/**
+ * The one decision behind CtaLabel's words AND the buy box's `data-cta-verb`, so the words and the mark cannot disagree:
+ * the pinned bar (pdp-action-bar.tsx) shortens the 'buy' link only, and it must learn that from data, not by parsing words
+ * that arrive in eleven languages.
+ */
+function ctaVerb({ job, rental, booking }: { job: boolean; rental: boolean; booking: boolean }): CtaVerb {
+  return job ? 'apply' : rental ? 'rent' : booking ? 'book' : 'buy'
+}
+
 /** The CTA's words — one source for the buy box and its in-flow repeat, so the two can never disagree. */
-function CtaLabel({ job, rental, booking, partnerName }: { job: boolean; rental: boolean; booking: boolean; partnerName: string }) {
+function CtaLabel({ verb, partnerName }: { verb: CtaVerb; partnerName: string }) {
   return (
     <>
-      {job ? <Tr text="Apply on" /> : rental ? <Tr text="Rent on" /> : booking ? <Tr text="Book on" /> : <Tr text="Buy on" />} {partnerName}
+      {verb === 'apply' ? <Tr text="Apply on" /> : verb === 'rent' ? <Tr text="Rent on" /> : verb === 'book' ? <Tr text="Book on" /> : <Tr text="Buy on" />} {partnerName}
       <ArrowUpRight className="size-4" aria-hidden />
     </>
   )
@@ -295,6 +314,8 @@ function CtaLabel({ job, rental, booking, partnerName }: { job: boolean; rental:
  * ⚠️ Same URL, same rel, same words (CtaLabel) as the buy box: a second button that differed in any of
  * them would be a second, different claim. `lg:hidden` — from lg the buy box is sticky, so the original
  * CTA is already on screen beside the description and a repeat would only be noise.
+ * (The PINNED phone bar is the one copy whose words differ, on a 'buy' link only, by the owner's decision of 2026-11-12:
+ * pdp-action-bar.tsx has the record. This in-flow repeat keeps the buy box's words.)
  */
 export function AffiliateCtaRepeat({ url, partnerName, booking, rental = false, job = false, className }: {
   url: string
@@ -315,7 +336,7 @@ export function AffiliateCtaRepeat({ url, partnerName, booking, rental = false, 
           target="_blank"
           rel={job ? 'nofollow noopener' : 'sponsored nofollow noopener noreferrer'}
         >
-          <CtaLabel job={job} rental={rental} booking={booking} partnerName={partnerName} />
+          <CtaLabel verb={ctaVerb({ job, rental, booking })} partnerName={partnerName} />
         </a>
       </Button>
       {/* The same disclosure as the buy box, under the same CTA (owner, 2026-10-01). */}
