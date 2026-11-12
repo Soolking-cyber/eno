@@ -200,7 +200,9 @@ export function MediaSection({
               draggingPhoto === i && 'z-10 scale-105 shadow-xl ring-2 ring-brand/50',
             )}
           >
-            <img src={p.url} alt="" draggable={false} className="pointer-events-none h-full w-full object-cover" />
+            {/* object-contain: the tile shows the WHOLE photo that will be uploaded, never a crop of it (owner, 2026-11-12:
+                "do not crop but fit in"; use-post-media.ts). A square photo still fills the tile. */}
+            <img src={p.url} alt="" draggable={false} className="pointer-events-none h-full w-full object-contain" />
             {i === 0 ? (
               <span className="absolute left-1.5 top-1.5 rounded-lg bg-primary px-1.5 py-0.5 text-3xs font-bold text-white">{t('Bìa', 'Cover')}</span>
             ) : (

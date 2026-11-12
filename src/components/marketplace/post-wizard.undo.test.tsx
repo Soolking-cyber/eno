@@ -39,7 +39,6 @@ vi.mock('@/context/currency-context', () => ({
 }))
 vi.mock('./square-crop-dialog', () => ({ SquareCropDialog: () => null }))
 vi.mock('@/lib/normalize-image', () => ({ compressImageFile: async (f: File) => f }))
-vi.mock('@/lib/square-crop', () => ({ centerCropSquare: async (f: File) => f }))
 
 const { PostWizard } = await import('./post-wizard')
 

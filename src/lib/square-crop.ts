@@ -1,7 +1,7 @@
-// Square (1:1) cropping for the post wizard — the platform format is square (cards + PDP hero
-// are aspect-square). Owner, 2026-07-24: new photos should be square BY DEFAULT with a keep-full
-// escape, and the seller can reframe which square part is kept. Video is deliberately NOT squared
-// (the TikTok-style video feed needs its native portrait aspect).
+// Square (1:1) cropping for the post wizard, ONLY when the seller asks for it on a photo's Full/Square chip.
+// ⛔ A new photo is never cropped by default (owner, 2026-11-12: "do not crop but fit in so nothing from original image
+// misses"). From 2026-07-24 to then, every new photo was center-cropped to a square on the way in (`centerCropSquare`,
+// removed). Video is never squared (the TikTok-style video feed needs its native portrait aspect).
 //
 // Everything here is browser-only (Canvas / createImageBitmap) and runs on the client during
 // posting. Two memory disciplines the reviewers insisted on (codex + Gemini): decode ORIENTATION-
@@ -38,12 +38,6 @@ function decodeOriented(file: File): Promise<ImageBitmap> {
   return createImageBitmap(file, { imageOrientation: 'from-image' })
 }
 
-/** The largest centered square that fits WxH — the default framing before the seller reframes. */
-export function centerSquare(w: number, h: number): CropArea {
-  const side = Math.min(w, h)
-  return { x: Math.round((w - side) / 2), y: Math.round((h - side) / 2), width: side, height: side }
-}
-
 /** Draw a square region of `bitmap` into a fresh OUT_EDGE-bounded square canvas. The output side is
  *  min(source side, OUT_EDGE) so we never UPSCALE a small source. */
 function squareCanvas(bitmap: ImageBitmap, area: CropArea): HTMLCanvasElement {
@@ -66,25 +60,7 @@ function squareCanvas(bitmap: ImageBitmap, area: CropArea): HTMLCanvasElement {
 }
 
 /**
- * Center-crop `file` to 1:1 — the DEFAULT square (owner: "square by default"). `file` must already
- * be a canvas-decodable image (the wizard passes compressImageFile's output, so HEIC is already
- * JPEG/WebP — createImageBitmap can't decode HEIC on Android). Returns the input on any failure, so
- * a photo is never lost; it just stays its natural aspect (shown blur-filled), exactly like today.
- */
-export async function centerCropSquare(file: File): Promise<File> {
-  let bitmap: ImageBitmap | null = null
-  try {
-    bitmap = await decodeOriented(file)
-    return await canvasToFile(squareCanvas(bitmap, centerSquare(bitmap.width, bitmap.height)), file.name)
-  } catch {
-    return file
-  } finally {
-    bitmap?.close()
-  }
-}
-
-/**
- * Re-crop an already-downscaled `original` to the square `area` the seller framed (react-easy-crop's
+ * Crop an already-downscaled `original` to the square `area` the seller framed (react-easy-crop's
  * croppedAreaPixels, in `original`'s pixel space). Returns the input on failure.
  */
 export async function cropToSquare(original: File, area: CropArea): Promise<File> {

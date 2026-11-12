@@ -14,7 +14,6 @@ import { toast } from 'sonner'
 import { compressVideo, VIDEO_PICK_MAX_BYTES, videoCompressionSupported } from '@/lib/video-compress'
 import { hasHevcTrack, VIDEO_UPLOAD_MAX_BYTES } from '@/lib/video-upload-client'
 import { compressImageFile, isUnsupportedPhoto, unsupportedPhotoCopy } from '@/lib/normalize-image'
-import { centerCropSquare } from '@/lib/square-crop'
 import { uploadInBatches } from '@/lib/upload-client'
 import { usePointerReorder } from '@/hooks/use-pointer-reorder'
 
@@ -34,9 +33,13 @@ export function usePostMedia({
 }) {
   // In edit mode, existing images seed as URL-only entries (no File); new uploads add a
   // File. Submit uploads only the File ones and keeps the URL ones (preserving order).
-  // `file` is what gets uploaded (square by default). `original` is the un-cropped, ≤1600
-  // natural-aspect source kept per NEW photo so the seller can reframe the square or "keep full"
-  // non-lossily (owner: "square by default, keep-full option"). `square` = is `file` a 1:1 crop.
+  // `file` is what gets uploaded: the WHOLE photo unless the seller chose to crop it. `original` is the un-cropped, ≤1600
+  // natural-aspect source kept per NEW photo so the seller can crop a square and go back to the full photo non-lossily.
+  // `square` = is `file` a 1:1 crop.
+  // ⛔ NEVER CROPPED BY DEFAULT (owner, 2026-11-12: "when person uploads image do not crop but fit in so nothing from
+  // original image misses"). From 2026-07-24 every new photo was center-cropped to a square ("square by default,
+  // keep-full option"), which cut a wide banner down to its middle third before it was ever uploaded. Cropping is now
+  // only what the seller picks on the tile's Full/Square chip.
   // Edit-mode seeds (URL-only, already hosted) have no File/original → not re-croppable.
   const [photos, setPhotos] = useState<{ url: string; file?: File; original?: File; square?: boolean }[]>(() => edit?.images?.map((url) => ({ url })) ?? [])
   // Optional single video: url-only in edit mode (already hosted); a new pick carries a File
@@ -83,16 +86,12 @@ export function usePostMedia({
         try {
           // HEIC (iPhone) → JPEG + downscale/recompress in-browser so it previews,
           // uploads small (no 413 on big phone photos), and AI-reads cleanly. `norm` is the
-          // un-cropped source; the platform format is 1:1, so we default `file` to a centered
-          // square crop of it (owner: "square by default") while keeping `norm` for reframe/full.
+          // un-cropped source and is what gets uploaded: the whole photo (owner, 2026-11-12, above).
           const norm = await compressImageFile(f)
-          const squareFile = await centerCropSquare(norm)
-          const url = trackBlobUrl(URL.createObjectURL(squareFile))
+          const url = trackBlobUrl(URL.createObjectURL(norm))
           setPhotos((p) => {
             if (p.length >= MAX_PHOTOS) { URL.revokeObjectURL(url); return p }
-            // centerCropSquare returns `norm` ITSELF if it couldn't crop → the flag must reflect
-            // reality (an un-cropped photo mustn't claim to be square) (codex).
-            return [...p, { url, file: squareFile, original: norm, square: squareFile !== norm }]
+            return [...p, { url, file: norm, original: norm, square: false }]
           })
         } catch (e) {
           // UNSUPPORTED_PHOTO: this browser cannot read it and the upload would refuse its bytes (R37) — say which formats work.
@@ -104,8 +103,8 @@ export function usePostMedia({
     }
   }
 
-  // Reframe photo `index` to the square the seller chose (a 1:1 File), or fall back to the full
-  // non-square `original`. Both are non-lossy — `original` is retained. No-op unless the photo has
+  // Crop photo `index` to the square the seller chose (a 1:1 File), or go back to the full
+  // `original`. Both are non-lossy — `original` is retained. No-op unless the photo has
   // an `original` (edit-mode hosted images are excluded). Guard on the render value + create the
   // blob url OUTSIDE the state updater: updaters must be side-effect-free (React can replay them),
   // and the crop dialog is MODAL so no tile can be removed/reordered while it's open. The previous

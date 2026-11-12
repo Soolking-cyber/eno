@@ -33,7 +33,6 @@ vi.mock('@/context/currency-context', () => ({
 vi.mock('./square-crop-dialog', () => ({ SquareCropDialog: () => null }))
 // jsdom has no canvas: a picked photo goes in as it is (the autofill test only needs a File in the wizard's photo list).
 vi.mock('@/lib/normalize-image', () => ({ compressImageFile: async (f: File) => f }))
-vi.mock('@/lib/square-crop', () => ({ centerCropSquare: async (f: File) => f }))
 
 const { PostWizard } = await import('./post-wizard')
 

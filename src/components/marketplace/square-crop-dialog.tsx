@@ -10,9 +10,9 @@ import { EnoSlider } from '@/components/ui/slider'
 import { useLanguage } from '@/context/language-context'
 import { cropToSquare } from '@/lib/square-crop'
 
-// The reframe step for a photo the wizard already squared by default (owner: "square by default,
-// keep-full option"). The seller pans/pinch-zooms to choose WHICH 1:1 region to keep, or bails out
-// to "keep full photo" (the un-cropped original, shown blur-filled like today). react-easy-crop
+// The OPT-IN square crop, opened from a photo's Full/Square chip. A new photo arrives whole (owner, 2026-11-12: "do not
+// crop but fit in"); here the seller pans/pinch-zooms to choose WHICH 1:1 region to keep, or keeps the full photo
+// (the un-cropped original, shown whole on the listing page). react-easy-crop
 // owns the mobile gesture surface (both reviewers: don't hand-roll pinch/pan in a WebView); we own
 // the pixels — cropToSquare re-crops the downscaled `original`, so this is non-lossy and bounded.
 export function SquareCropDialog({ file, onApply, onKeepFull, onCancel }: {

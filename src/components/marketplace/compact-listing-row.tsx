@@ -186,9 +186,11 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
       {/* Thumbnail — SQUARE, small enough that the row reads as one line.
           ⚠️ IT WAS `h-14 w-16` — 64×56 — AND IT WAS THE ONLY NON-SQUARE PRODUCT PHOTO LEFT IN THE
           APP (owner, 2026-08-12: "make sure all product images are square"). Every other surface
-          is square, and the post wizard CROPS UPLOADS TO SQUARE (square-crop-dialog.tsx), so a 7:8
-          box does not letterbox a square source — `object-cover` SHAVES IT, ~12% off the top and
-          bottom of every thumbnail in the default browse view. The width came down rather than the
+          is square, and the post wizard then cropped uploads to square, so a 7:8 box did not
+          letterbox a square source — `object-cover` SHAVED IT, ~12% off the top and bottom of every
+          thumbnail in the default browse view. ⚠️ SINCE 2026-11-12 UPLOADS ARE NO LONGER SQUARED (owner:
+          "do not crop but fit in"; use-post-media.ts), so a new photo is often NOT square and
+          `object-cover` here trims its long sides; the box stays square. The width came down rather than the
           height going up: the thumb sets the row height (measured 68px = 56 + the 12px of `p-1.5`,
           against a 45px text column and 36px actions), so `w-14` keeps the list at exactly the
           density it has today and hands the 8px to the title, which on a 390pt phone is a 162px

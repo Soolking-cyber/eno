@@ -64,7 +64,6 @@ vi.mock('./square-crop-dialog', () => ({ SquareCropDialog: () => null }))
 vi.mock('@/lib/analytics', () => ({ trackPostListing: () => {} }))
 // jsdom has no canvas: a picked photo goes in as it is, and "uploads" to a fixed URL.
 vi.mock('@/lib/normalize-image', () => ({ compressImageFile: async (f: File) => f }))
-vi.mock('@/lib/square-crop', () => ({ centerCropSquare: async (f: File) => f }))
 vi.mock('@/lib/upload-client', () => ({
   uploadInBatches: async (files: File[], onBatch?: (f: File[], urls: string[]) => void) => {
     const urls = files.map((_, i) => `https://cdn.eno.vn/test/${i}.jpg`)
