@@ -36,6 +36,10 @@
  * fees: electricity (đ/kWh) 2,652 · service 2,525 · water per person 2,472 / per m³ 152 · parking (đ/vehicle/month)
  * 1,283; 23 amenity keys; 768 rooms with a video (773 MP4s, 19–35 s sampled, median 5.9 MB); photos 0–34 a room
  * (171 rooms under 3); every photo and video on goplus.com.vn itself; every photo carries GoPlus's own watermark.
+ * ⚠️ "HCMC ONLY" IS HISTORY (2026-11-12): by then GoPlus listed 5,812 rooms and 1,586 buildings, and the weekly import's
+ * own by-district line placed vacant rooms in Cần Thơ (Ninh Kiều, Cái Răng), Hà Nội (Tây Hồ, Cầu Giấy, Hoàng Mai, Nam Từ
+ * Liêm…), Đà Nẵng (Hải Châu, Ngũ Hành Sơn…), Biên Hòa, Cao Lãnh and Long Xuyên — every one stored in Hồ Chí Minh until
+ * the city came from GoPlus's own `region` (goplusCity).
  */
 import { createHash } from 'node:crypto'
 import { buildSearchText, fold } from './fold'
@@ -49,10 +53,17 @@ import { haversineKm } from './geo'
 import { deriveVerification, type VerificationRow } from './compliance/derive-verification'
 import { decideBeforeStatus, decideOwned, type SellerPublishDecision } from './compliance/seller-publish-decision'
 import { ELECTRICITY_ESTIMATED, plausibleFee } from './rental-facts'
+import { VN_PROVINCES, type AreaGeo } from './vn-areas'
 
 /** Ho Chi Minh City's centre (District 1) and the radius a GoPlus building's point must fall within — see toListing. */
 const HCMC_CENTRE = { lat: 10.7769, lng: 106.7009 }
 const HCMC_RADIUS_KM = 100
+/**
+ * Old Ho Chi Minh City's districts — the only ones goplusDistrict canonicalises — all lie within ~57 km of District 1 (Củ
+ * Chi's north-west edge; Cần Giờ's coast ~47 km). A building point farther than this beside one of their NAMES is another
+ * province's namesake — Đồng Nai's Tân Phú (~97 km), Vĩnh Long's Bình Tân (~124 km) — never HCMC (goplusCity).
+ */
+const HCMC_DISTRICT_KM = 70
 
 // ─── the source ─────────────────────────────────────────────────────────────────────────────────
 
@@ -166,6 +177,8 @@ export type GoplusRoom = {
 }
 export type GoplusProject = {
   projectId: string
+  /** GoPlus's own province for the building ("Thành phố Hồ Chí Minh", "Thành phố Cần Thơ") — the room's city (goplusCity). */
+  region: string | null
   district: string | null
   ward: string | null
   street: string | null
@@ -234,6 +247,7 @@ export function stageGoplusProject(raw: unknown): GoplusProject | null {
   const roomCount = n(raw.roomCount)
   return {
     projectId: raw.projectId,
+    region: s(raw.region),
     district: s(raw.district),
     ward: s(raw.ward),
     street: s(raw.street),
@@ -554,10 +568,12 @@ export function goplusWard(raw: string | null): { vi: string; en: string } | nul
  * asserts that), i.e. exactly the values Nhà Tốt's rows carry. GoPlus sends the bare name ("Gò Vấp", "Quận 12").
  * ⚠️ Bến Cát and Thuận An (old Bình Dương, in HCMC since the 2025 merger; 6 rooms) have no HCMC district chip: they
  * keep `district` NULL — never an invented district string — and their name in the location text.
+ * ⛔ `hcmc: false` (a building goplusCity places OUTSIDE Ho Chi Minh City) never canonicalises: HCMC's district strings are
+ * what the HCMC district chips match, and Đồng Nai's Tân Phú or Vĩnh Long's Bình Tân share a name with one.
  */
-export function goplusDistrict(raw: string | null): { vi: string; en: string; canonical: boolean } | null {
+export function goplusDistrict(raw: string | null, opts: { hcmc?: boolean } = {}): { vi: string; en: string; canonical: boolean } | null {
   if (!raw) return null
-  const d = districtOf(raw, null)
+  const d = opts.hcmc === false ? null : districtOf(raw, null)
   if (d) return { ...d, canonical: true }
   const v = raw.replace(/\s+/g, ' ').trim()
   if (!v || v.length > 40 || /\d+\s*\/\s*\d+/.test(v)) return null
@@ -565,6 +581,112 @@ export function goplusDistrict(raw: string | null): { vi: string; en: string; ca
 }
 
 const HCM = NHATOT_CITIES.hcm
+
+// ─── the city ───────────────────────────────────────────────────────────────────────────────────
+
+/** The room's province as `Listing.city` stores it (the vn-units name — what the Area filter matches, province-match.ts),
+ *  and the names the description and the search text use. */
+export type GoplusCity = { code: string; city: string; cityVi: string; cityEn: string }
+
+/** vn-units' code for Ho Chi Minh City (vn-areas.ts VN_PROVINCES). */
+export const GOPLUS_HCMC_CODE = HCM.provinceCode
+/** HCMC and the provinces that border it INSIDE the 100 km point radius (after the July 2025 merger: Đồng Nai with Bình
+ *  Phước, Tây Ninh with Long An, Đồng Tháp with Tiền Giang) — the only cities whose rooms may keep a building's point
+ *  (mapGoplusRoom `coords`). Codes are vn-areas VN_PROVINCES'. */
+export const GOPLUS_NEAR_HCMC: ReadonlySet<string> = new Set([GOPLUS_HCMC_CODE, '75', '80', '82'])
+
+/**
+ * THE 63 → 34 MERGER (in force 1 July 2025): every FORMER province (one that is no longer a unit) → the unit it merged
+ * into, whole — no former province was split. A `region` still written the old way names the province it is in today.
+ * ⚠️ Bình Dương and Bà Rịa–Vũng Tàu are HO CHI MINH CITY (GoPlus's Thuận An, Dĩ An, Bến Cát, Tân Uyên, Thủ Dầu Một and Phú
+ * Mỹ rooms) — without them those rooms would stop counting as HCMC. Same table as job-listing.ts PLACES (its free-text
+ * aliases aside); goplus-listing.test.ts proves every target is one of the 34.
+ */
+export const GOPLUS_FORMER_PROVINCES: Readonly<Record<string, string>> = {
+  'Hà Giang': 'Tuyên Quang', 'Yên Bái': 'Lào Cai', 'Bắc Kạn': 'Thái Nguyên',
+  'Vĩnh Phúc': 'Phú Thọ', 'Hoà Bình': 'Phú Thọ', 'Bắc Giang': 'Bắc Ninh', 'Thái Bình': 'Hưng Yên',
+  'Hải Dương': 'Hải Phòng', 'Hà Nam': 'Ninh Bình', 'Nam Định': 'Ninh Bình', 'Quảng Bình': 'Quảng Trị',
+  'Thừa Thiên Huế': 'Huế', 'Quảng Nam': 'Đà Nẵng', 'Kon Tum': 'Quảng Ngãi', 'Bình Định': 'Gia Lai',
+  'Ninh Thuận': 'Khánh Hoà', 'Đắk Nông': 'Lâm Đồng', 'Bình Thuận': 'Lâm Đồng', 'Phú Yên': 'Đắk Lắk',
+  'Bình Dương': 'Hồ Chí Minh', 'Bà Rịa - Vũng Tàu': 'Hồ Chí Minh', 'Bình Phước': 'Đồng Nai', 'Long An': 'Tây Ninh',
+  'Sóc Trăng': 'Cần Thơ', 'Hậu Giang': 'Cần Thơ', 'Bến Tre': 'Vĩnh Long', 'Trà Vinh': 'Vĩnh Long',
+  'Tiền Giang': 'Đồng Tháp', 'Bạc Liêu': 'Cà Mau', 'Kiên Giang': 'An Giang',
+}
+
+/** Variant spellings of a province's name in common use (k ↔ c) → the name in vn-units or GOPLUS_FORMER_PROVINCES
+ *  (a reviewer's catch, codex 2026-11-12: "Tỉnh Đắc Lắc" named no province). */
+export const GOPLUS_PROVINCE_SPELLINGS: Readonly<Record<string, string>> = {
+  'Đắc Lắc': 'Đắk Lắk', 'Đắc Nông': 'Đắk Nông', 'Bắc Cạn': 'Bắc Kạn',
+}
+
+/**
+ * A province name as a lookup key: no tone marks, no case, no spaces or punctuation, and without its "Thành phố" /
+ * "Tỉnh" / "TP." in front or "City" / "Province" behind — so "Thanh Hóa" and "Thanh Hoá", "Thành phố Huế" and "Huế",
+ * "Bà Rịa - Vũng Tàu" and "Bà Rịa–Vũng Tàu", "Hanoi" and "Hà Nội" are one key each (fold.ts: NFD, marks off, đ → d).
+ */
+const provinceKey = (v: string) => fold(v).replace(/[^a-z0-9]+/g, ' ').trim()
+  // "t p": "T.P. Hồ Chí Minh" (its dots are spaces by now — a reviewer's catch, codex 2026-11-12).
+  .replace(/^(?:thanh pho|tinh|tp|t p)\s+/, '').replace(/\s+(?:city|province)$/, '').replace(/ /g, '')
+
+const PROVINCE_BY_KEY: ReadonlyMap<string, AreaGeo> = (() => {
+  const m = new Map<string, AreaGeo>()
+  for (const p of VN_PROVINCES) { m.set(provinceKey(p.name), p); m.set(provinceKey(p.nameEn), p) }
+  for (const [former, now] of Object.entries(GOPLUS_FORMER_PROVINCES)) {
+    const unit = m.get(provinceKey(now))
+    if (unit) m.set(provinceKey(former), unit)
+  }
+  // The other accepted spellings of a province's own name (k/c, as "Đắc Lắc" for Đắk Lắk) → the name they spell.
+  for (const [variant, name] of Object.entries(GOPLUS_PROVINCE_SPELLINGS)) {
+    const unit = m.get(provinceKey(name))
+    if (unit) m.set(provinceKey(variant), unit)
+  }
+  const hcmc = VN_PROVINCES.find((p) => p.code === GOPLUS_HCMC_CODE)
+  // The city's everyday short names, as a staff member might type them ("TP.HCM", "TPHCM", "Sài Gòn").
+  if (hcmc) for (const k of ['hcm', 'tphcm', 'hcmc', 'saigon']) m.set(k, hcmc)
+  return m
+})()
+
+const cityOfUnit = (u: AreaGeo): GoplusCity =>
+  u.code === GOPLUS_HCMC_CODE ? { code: u.code, city: HCM.city, cityVi: HCM.cityVi, cityEn: HCM.cityEn }
+    // vn-units writes the capital "Ha Noi"; English prose writes "Hanoi" (as Nhà Tốt's rows do — NHATOT_CITIES).
+    : u.code === NHATOT_CITIES.hn.provinceCode ? { code: u.code, city: u.name, cityVi: u.name, cityEn: NHATOT_CITIES.hn.cityEn }
+      : { code: u.code, city: u.name, cityVi: u.name, cityEn: u.nameEn }
+
+/** The province a `region` value names — one of the 34, or a former one (GOPLUS_FORMER_PROVINCES) — or null. */
+export function goplusProvince(region: string | null | undefined): GoplusCity | null {
+  if (typeof region !== 'string') return null
+  const k = provinceKey(region)
+  const unit = k ? PROVINCE_BY_KEY.get(k) : undefined
+  return unit ? cityOfUnit(unit) : null
+}
+
+/**
+ * ⛔ THE ROOM'S CITY IS ITS BUILDING'S OWN `region` (owner, 2026-11-12: "deploy and fix do all with recommended"). Every room was
+ * stored in Hồ Chí Minh — the 2026-10-19 catalogue was HCMC only — and by 2026-11-12 GoPlus also let rooms in Cần Thơ, Hà
+ * Nội, Đà Nẵng and more (the header): /c/rentals printed "in Ho Chi Minh City" over a Cái Răng card, the Area filter found
+ * every one of them under Hồ Chí Minh and none under its own province, and a Ninh Kiều room's page placed it in "Ho Chi
+ * Minh City" (structured data too).
+ *  · `region` names a province (goplusProvince) → that province;
+ *  · NO `region` at all → Ho Chi Minh City only when the district is one of HCMC's own (goplusDistrict `canonical`: the
+ *    districts the HCMC chips match) AND the building's map point, when it has one inside Vietnam, is within HCMC_DISTRICT_KM of
+ *    District 1 — a far point refuses it (a reviewer's catch, codex 2026-11-12: Đồng Nai's Tân Phú and Vĩnh Long's Bình
+ *    Tân share a name with an HCMC district) — else none. ⚠️ With no region, a namesake whose point is missing or wrongly
+ *    pinned near HCMC still reads as HCMC (and an HCMC room pinned far away reads as none — the safe way): the importer's
+ *    "by region" line counts every "(none → …)" before an --apply;
+ *  · a `region` that names no province (a new spelling, a typo) → NONE. ⛔ The safe direction: such a room still
+ *    publishes, it only stops claiming HCMC — never a city guessed from its ward, its district or its map point. The
+ *    importer's report lists every `region` value it saw, so a new spelling is added here rather than guessed.
+ * Null is stored as `city` '' (Listing.city is NOT NULL — the teacher rows' empty city, teachers/projection.ts).
+ */
+export function goplusCity(
+  region: string | null | undefined,
+  district: { canonical: boolean } | null,
+  point: { lat: number; lng: number } | null = null,
+): GoplusCity | null {
+  if (typeof region === 'string' && region.trim()) return goplusProvince(region)
+  if (!district?.canonical) return null
+  return point && haversineKm(point, HCMC_CENTRE) > HCMC_DISTRICT_KM ? null : goplusProvince(HCM.city)
+}
 
 // ─── the row ────────────────────────────────────────────────────────────────────────────────────
 
@@ -603,6 +725,7 @@ export type GoplusMapped = {
     subcategorySlug: string
     location: string
     district: string | null
+    /** The province (goplusCity) — '' when GoPlus's `region` names none: no city is claimed (the column is NOT NULL). */
     city: string
     lat: number | null
     lng: number | null
@@ -637,7 +760,14 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
    * the 2025 merger and have no HCMC district chip. Those keep `district` NULL and their ward in the location text, as
    * Bến Cát and Thuận An already did; a room with neither a district nor a ward is still not published.
    */
-  const district = goplusDistrict(project.district)
+  const hcmcDistrict = goplusDistrict(project.district)
+  /** The building's point inside Vietnam's box (nhatotCoords), or null — goplusCity's veto, and `coords` below. */
+  const rawCoords = project.geo ? nhatotCoords(project.geo.lat, project.geo.lng) : null
+  /** The room's province (goplusCity) — the city column, the description's place sentence and the search text, all one. */
+  const where = goplusCity(project.region, hcmcDistrict, rawCoords)
+  /** ⛔ An HCMC district string only for a room stored IN HCMC (goplusDistrict `hcmc: false`): never a district chip's
+   *  string beside another province, or a city of none. */
+  const district = hcmcDistrict?.canonical && where?.code !== GOPLUS_HCMC_CODE ? goplusDistrict(project.district, { hcmc: false }) : hcmcDistrict
   const ward = goplusWard(room.ward ?? project.ward)
   if (!district && !ward) return { ok: false, reason: 'noDistrict' }
   /**
@@ -669,13 +799,18 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
   // (rental-facts.ts). Only a date still ahead is stored; one that passes before next week's run the page stops printing.
   const vnToday = new Date(opts.now + 7 * 3_600_000).toISOString().slice(0, 10)
   const availableFrom = room.availableDate && /^\d{4}-\d{2}-\d{2}$/.test(room.availableDate) && room.availableDate > vnToday ? room.availableDate : null
-  // ⚠️ A BUILDING'S POINT MUST BE NEAR HO CHI MINH CITY, where every GoPlus home is (city: HCM below). nhatotCoords checks
+  // ⚠️ A BUILDING'S POINT MUST BE NEAR HO CHI MINH CITY, where nearly every GoPlus home is — AND ITS ROOM MUST BE STORED IN
+  // HCMC OR A NEIGHBOUR INSIDE THAT RADIUS (GOPLUS_NEAR_HCMC: Đồng Nai, Tây Ninh, Đồng Tháp) (commit review rounds 1-2,
+  // codex + opus, 2026-11-12): since that day a room in another province is stored in its own city (goplusCity). A Hà Nội
+  // room pinned near HCMC by a bad GoPlus point would otherwise sit on the HCMC Rentals map while the Area filter files it
+  // under Hà Nội, and a room of no city would keep a pin its city check had just rejected; while a Biên Hòa room (~25 km)
+  // keeps the genuine point it always had. A Hà Nội or Cần Thơ room carries no pin, as before (its point was over 100 km
+  // out anyway); the page falls back to the district's area, as for any unknown point. nhatotCoords checks
   // only Vietnam's bounding box, and one HCMC rental came pinned in Hà Nội (21.17, 105.93): the Rentals map fitted the
   // whole country with every HCMC pin stacked at its edge (sweep, 2026-10-22). A point more than 100 km from District 1
   // → no point: the page falls back to the district's area, as for any unknown point. 100 km, not less: the city merged
   // in July 2025 reaches former Bình Dương and Bà Rịa–Vũng Tàu (Vũng Tàu ~64 km, Hồ Tràm ~85 km; Côn Đảo aside).
-  const rawCoords = project.geo ? nhatotCoords(project.geo.lat, project.geo.lng) : null
-  const coords = rawCoords && haversineKm(rawCoords, HCMC_CENTRE) <= HCMC_RADIUS_KM ? rawCoords : null
+  const coords = rawCoords && where && GOPLUS_NEAR_HCMC.has(where.code) && haversineKm(rawCoords, HCMC_CENTRE) <= HCMC_RADIUS_KM ? rawCoords : null
   const sourceTime = room.updatedAt ? Date.parse(room.updatedAt) : NaN
   const sourceAt = new Date(Number.isFinite(sourceTime) ? Math.min(sourceTime, opts.now) : opts.now)
 
@@ -692,8 +827,9 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
    * everything twice. It names what and where, and how to reach GoPlus. The free-text extras GoPlus staff typed have no
    * section of their own, so they stay — in Vietnamese only, the language they were typed in.
    */
-  const placeEn = [street, ward?.en, district?.en, HCM.cityEn].filter(Boolean).join(', ')
-  const placeVi = [street, ward?.vi, district?.vi, HCM.cityVi].filter(Boolean).join(', ')
+  // The room's own city (goplusCity), left out when none is known — never Ho Chi Minh City by default.
+  const placeEn = [street, ward?.en, district?.en, where?.cityEn].filter(Boolean).join(', ')
+  const placeVi = [street, ward?.vi, district?.vi, where?.cityVi].filter(Boolean).join(', ')
   const sentenceEn = `${label.en}${area ? ` of ${area} m²` : ''} ${street ? 'on' : 'in'} ${placeEn}.`
   const sentenceVi = `${label.vi}${area ? ` ${area} m²` : ''} tại ${placeVi}.${extras.length ? ` Tiện ích khác: ${extras.join(', ')}.` : ''}`
 
@@ -765,7 +901,7 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
         subcategorySlug: unit === 'commercial' ? GOPLUS_COMMERCIAL_SUBCAT : GOPLUS_SUBCAT,
         location,
         district: district?.canonical ? district.vi : null,
-        city: HCM.city,
+        city: where?.city ?? '',
         lat: coords?.lat ?? null,
         lng: coords?.lng ?? null,
         areaM2: area,
@@ -775,7 +911,7 @@ export function mapGoplusRoom(room: GoplusRoom, project: GoplusProject | null, o
         facetTokens: unit === 'commercial' ? null : buildFacetTokens({ amenities: am.list.map((a) => a.value) }),
         /** ⚠️ title and titleVi FIRST, as every importer writes it (import-i18n.ts rebaseSearchText relies on it). */
         searchText: buildSearchText([
-          title, titleVi, location, district?.vi, district?.en, ward?.vi, street, HCM.cityVi, HCM.cityEn, 'GoPlus',
+          title, titleVi, location, district?.vi, district?.en, ward?.vi, street, where?.cityVi, where?.cityEn, 'GoPlus',
           // An apartment's amenities are searchable; a shopfront's are not (no amenities facet there — "balcony" finds homes).
           ...(unit === 'commercial' ? [] : am.list.flatMap((a) => [a.vi, a.en])), am.furnished ? 'nội thất đầy đủ fully furnished' : null, ...extras,
         ]),

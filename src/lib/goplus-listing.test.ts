@@ -8,7 +8,10 @@ import {
   goplusBuildingAmenityKeys, GOPLUS_BUILDING_WIDE_KEYS, goplusPartialTokens, goplusOverlaySlug,
   stageGoplusRoom, type GoplusProject, type GoplusRoom, goplusElectricityGuess, GOPLUS_ELECTRICITY_TYPICAL,
   GOPLUS_ELECTRICITY_GUESS_MAX_OFF, GOPLUS_COMMERCIAL_SUBCAT, goplusRoomPageUrl,
+  GOPLUS_FORMER_PROVINCES, GOPLUS_HCMC_CODE, goplusCity, goplusProvince,
 } from './goplus-listing'
+import { VN_PROVINCES } from './vn-areas'
+import { matchesProvinceRow } from './province-match'
 import { parseFacetTokens } from './facet-tokens'
 import { ELECTRICITY_ESTIMATED, plausibleFee, rentalCostRows } from './rental-facts'
 import { isOverlayImageUrl, overlayImagePath } from './image-mark-url'
@@ -79,10 +82,14 @@ describe('stageGoplusRoom / stageGoplusProject — whitelists', () => {
     expect(stageGoplusRoom({ ...RAW_ROOM, availableDate: '2026-02-31' })!.availableDate).toBeNull()
     expect(stageGoplusRoom({ ...RAW_ROOM, availableDate: '2026-99-99' })!.availableDate).toBeNull()
   })
-  it('a building: id, district, ward, street, its map point — and (only from the detail endpoint) its amenities', () => {
-    expect(stageGoplusProject(RAW_PROJECT)).toEqual({ projectId: 'PRJ-9b078ddb12efe4b1632a', district: 'Quận 12', ward: 'Phường Trung Mỹ Tây', street: 'Ql1a', geo: { lat: 10.8598, lng: 106.6209, approx: true }, amenityKeys: [], amenitiesComplete: false, roomCount: null })
+  it('a building: id, its province (region), district, ward, street, its map point — and (only from the detail endpoint) its amenities', () => {
+    expect(stageGoplusProject(RAW_PROJECT)).toEqual({ projectId: 'PRJ-9b078ddb12efe4b1632a', region: 'Thành phố Hồ Chí Minh', district: 'Quận 12', ward: 'Phường Trung Mỹ Tây', street: 'Ql1a', geo: { lat: 10.8598, lng: 106.6209, approx: true }, amenityKeys: [], amenitiesComplete: false, roomCount: null })
     expect(stageGoplusProject({ ...RAW_PROJECT, geo: null })!.geo).toBeNull()
     expect(stageGoplusProject({ ...RAW_PROJECT, projectId: 'nope' })).toBeNull()
+  })
+  it('the region is one line or nothing: whitespace folded, a missing, blank or non-string one is null', () => {
+    expect(stageGoplusProject({ ...RAW_PROJECT, region: '  Thành phố\nCần Thơ ' })!.region).toBe('Thành phố Cần Thơ')
+    for (const region of [undefined, null, '', '   ', 92, { name: 'Cần Thơ' }]) expect(stageGoplusProject({ ...RAW_PROJECT, region })!.region, JSON.stringify(region)).toBeNull()
   })
 })
 
@@ -229,6 +236,184 @@ describe('goplusWard / goplusDistrict', () => {
     const r = mapped(room(), project({ district: 'Bến Cát', ward: 'Phường Bến Cát' }))
     expect(r.mutable.district).toBeNull()
     expect(r.mutable.location).toBe('Phường Trung Mỹ Tây, Bến Cát')
+  })
+  it('⛔ outside HCMC (hcmc: false) a name an HCMC district shares is kept as a name, never the chip\'s string', () => {
+    expect(goplusDistrict('Tân Phú', { hcmc: false })).toEqual({ vi: 'Tân Phú', en: 'Tan Phu', canonical: false })
+    expect(goplusDistrict('Tân Phú')).toEqual({ vi: 'Quận Tân Phú', en: 'Tan Phu District', canonical: true })
+  })
+})
+
+/**
+ * THE ROOM'S REAL CITY (owner, 2026-11-12: "deploy and fix do all with recommended"). Every GoPlus room was stored in Hồ
+ * Chí Minh: live that day, /c/rentals' "Apartments & houses for rent in Ho Chi Minh City" sat over a Cái Răng card, the
+ * Area filter found 0 apartments in Hà Nội, Đà Nẵng and Cần Thơ, and a Ninh Kiều room's page said "Ho Chi Minh City".
+ * The city is now the building's own `region`, matched without tone marks; a region that names no province is no city.
+ */
+describe('goplusProvince / goplusCity — the building\'s own region', () => {
+  it.each([
+    ['Thành phố Hồ Chí Minh', '79', 'Hồ Chí Minh'], ['TP. Hồ Chí Minh', '79', 'Hồ Chí Minh'], ['TP.HCM', '79', 'Hồ Chí Minh'],
+    ['T.P. Hồ Chí Minh', '79', 'Hồ Chí Minh'], ['Tp Cần Thơ', '92', 'Cần Thơ'],
+    ['Ho Chi Minh City', '79', 'Hồ Chí Minh'], ['Hồ Chí Minh', '79', 'Hồ Chí Minh'],
+    ['Thành phố Cần Thơ', '92', 'Cần Thơ'], ['  thành phố   CẦN THƠ ', '92', 'Cần Thơ'], ['Can Tho', '92', 'Cần Thơ'],
+    ['Thành phố Hà Nội', '01', 'Hà Nội'], ['Hanoi', '01', 'Hà Nội'], ['Thành phố Đà Nẵng', '48', 'Đà Nẵng'],
+    ['Thành phố Huế', '46', 'Huế'], ['Huế', '46', 'Huế'], ['Tỉnh Đồng Nai', '75', 'Đồng Nai'], ['Tỉnh Đồng Tháp', '82', 'Đồng Tháp'],
+    // The tone mark's place: vn-units writes "Khánh Hoà" / "Thanh Hoá"; GoPlus may write "Hòa" / "Hóa".
+    ['Tỉnh Khánh Hòa', '56', 'Khánh Hoà'], ['Tỉnh Khánh Hoà', '56', 'Khánh Hoà'], ['Thanh Hóa', '38', 'Thanh Hoá'], ['Thanh Hoá', '38', 'Thanh Hoá'],
+    // FORMER provinces (before 1 July 2025) → the unit they merged into; Bình Dương and Bà Rịa–Vũng Tàu are HCMC.
+    ['Tỉnh Bình Dương', '79', 'Hồ Chí Minh'], ['Bình Dương', '79', 'Hồ Chí Minh'],
+    ['Tỉnh Bà Rịa - Vũng Tàu', '79', 'Hồ Chí Minh'], ['Bà Rịa–Vũng Tàu', '79', 'Hồ Chí Minh'],
+    ['Tỉnh Quảng Nam', '48', 'Đà Nẵng'], ['Tỉnh Long An', '80', 'Tây Ninh'], ['Tỉnh Thừa Thiên Huế', '46', 'Huế'],
+    ['Tỉnh Hòa Bình', '25', 'Phú Thọ'], ['Tỉnh Hoà Bình', '25', 'Phú Thọ'],
+  ])('%s → %s %s', (region, code, city) => {
+    expect(goplusProvince(region)).toMatchObject({ code, city })
+  })
+
+  it('a region that names no province is NO city — never Ho Chi Minh City, never the district\'s guess', () => {
+    for (const r of ['Thủ Đức', 'Bangkok', 'Hồ Chí', 'Tỉnh', 'Thành phố', '—', '', '   ', null, undefined]) expect(goplusProvince(r), String(r)).toBeNull()
+    expect(goplusCity('Bangkok', goplusDistrict('Quận 12'))).toBeNull()
+  })
+
+  it('NO region: Ho Chi Minh City only by one of HCMC\'s own districts, else none', () => {
+    expect(goplusCity(null, goplusDistrict('Quận 12'))).toEqual({ code: GOPLUS_HCMC_CODE, city: 'Hồ Chí Minh', cityVi: 'TP. Hồ Chí Minh', cityEn: 'Ho Chi Minh City' })
+    expect(goplusCity('  ', goplusDistrict('Gò Vấp'))?.code).toBe('79')
+    expect(goplusCity(null, goplusDistrict('Ninh Kiều'))).toBeNull()
+    expect(goplusCity(null, null)).toBeNull()
+  })
+
+  it('names for the text: the vn-units name, "Hanoi" in English prose, HCMC exactly as before', () => {
+    expect(goplusProvince('Thành phố Hà Nội')).toEqual({ code: '01', city: 'Hà Nội', cityVi: 'Hà Nội', cityEn: 'Hanoi' })
+    expect(goplusProvince('Thành phố Cần Thơ')).toEqual({ code: '92', city: 'Cần Thơ', cityVi: 'Cần Thơ', cityEn: 'Can Tho' })
+    expect(goplusProvince('Thành phố Hồ Chí Minh')).toEqual({ code: '79', city: 'Hồ Chí Minh', cityVi: 'TP. Hồ Chí Minh', cityEn: 'Ho Chi Minh City' })
+  })
+
+  it('every former province names one of the 34 — 29 merged away (63 − 34) + Thừa Thiên Huế renamed Huế', () => {
+    expect(Object.keys(GOPLUS_FORMER_PROVINCES)).toHaveLength(30)
+    for (const [former, now] of Object.entries(GOPLUS_FORMER_PROVINCES)) {
+      const unit = VN_PROVINCES.find((p) => p.name === now)
+      expect(unit, `${former} → ${now}`).toBeDefined()
+      expect(goplusProvince(former)?.code, former).toBe(unit!.code)
+    }
+    for (const p of VN_PROVINCES) expect(GOPLUS_FORMER_PROVINCES[p.name], p.name).toBeUndefined()
+  })
+
+  // Written out independently of the table (a reviewer's catch: a table checked only against itself proves nothing) —
+  // the July 2025 merger, by unit code, each former province as GoPlus would write it ("Tỉnh …").
+  it.each([
+    ['Hà Giang', '08'], ['Yên Bái', '15'], ['Bắc Kạn', '19'], ['Vĩnh Phúc', '25'], ['Hòa Bình', '25'], ['Bắc Giang', '24'],
+    ['Thái Bình', '33'], ['Hải Dương', '31'], ['Hà Nam', '37'], ['Nam Định', '37'], ['Quảng Bình', '44'], ['Thừa Thiên Huế', '46'],
+    ['Quảng Nam', '48'], ['Kon Tum', '51'], ['Bình Định', '52'], ['Ninh Thuận', '56'], ['Đắk Nông', '68'], ['Bình Thuận', '68'],
+    ['Phú Yên', '66'], ['Bình Dương', '79'], ['Bà Rịa - Vũng Tàu', '79'], ['Bình Phước', '75'], ['Long An', '80'],
+    ['Sóc Trăng', '92'], ['Hậu Giang', '92'], ['Bến Tre', '86'], ['Trà Vinh', '86'], ['Tiền Giang', '82'], ['Bạc Liêu', '96'],
+    ['Kiên Giang', '91'],
+  ])('Tỉnh %s (former) → unit %s', (former, code) => {
+    expect(goplusProvince(`Tỉnh ${former}`)?.code).toBe(code)
+  })
+
+  it('the other spellings in use (k / c): Đắc Lắc, Đắc Nông, Bắc Cạn', () => {
+    expect(goplusProvince('Tỉnh Đắc Lắc')?.code).toBe('66')
+    expect(goplusProvince('Daklak')?.code).toBe('66')
+    expect(goplusProvince('Tỉnh Đắc Nông')?.code).toBe('68')
+    expect(goplusProvince('Bắc Cạn')?.code).toBe('19')
+  })
+
+  it('⛔ NO region and an HCMC district name, but a map point far from HCMC → no city (Đồng Nai\'s Tân Phú)', () => {
+    const tanPhuDongNai = { lat: 11.268, lng: 107.43 }
+    expect(goplusCity(null, goplusDistrict('Tân Phú'), tanPhuDongNai)).toBeNull()
+    expect(goplusCity(null, goplusDistrict('Tân Phú'), { lat: 10.79, lng: 106.63 })?.code).toBe('79')   // HCMC's own Tân Phú
+    expect(goplusCity(null, goplusDistrict('Tân Phú'), null)?.code).toBe('79')                         // no point: the district decides
+    expect(goplusCity(null, goplusDistrict('Bình Tân'), { lat: 10.09, lng: 105.81 })).toBeNull()      // Vĩnh Long's Bình Tân
+    // Old HCMC's own far edges stay HCMC: Củ Chi's north-west (~57 km), Cần Giờ's coast (~47 km).
+    expect(goplusCity(null, goplusDistrict('Củ Chi'), { lat: 11.16, lng: 106.36 })?.code).toBe('79')
+    expect(goplusCity(null, goplusDistrict('Cần Giờ'), { lat: 10.4, lng: 106.9 })?.code).toBe('79')
+    // A region always wins over the point (a stated HCMC building with a wrong pin keeps its city; the pin is dropped).
+    expect(goplusCity('Thành phố Hồ Chí Minh', goplusDistrict('Quận 12'), { lat: 21.17, lng: 105.931 })?.code).toBe('79')
+  })
+
+  it('every one of the 34 is found by its own names, and the stored city is what the Area filter matches (province-match.ts)', () => {
+    for (const p of VN_PROVINCES) {
+      expect(goplusProvince(p.name)?.code, p.name).toBe(p.code)
+      expect(goplusProvince(p.nameEn)?.code, p.nameEn).toBe(p.code)
+      expect(matchesProvinceRow({ city: goplusProvince(p.name)!.city, location: '' }, p.nameEn), p.nameEn).toBe(true)
+    }
+  })
+})
+
+describe('mapGoplusRoom — every room in its own city', () => {
+  const CAN_THO = { ...RAW_PROJECT, region: 'Thành phố Cần Thơ', district: 'Ninh Kiều', ward: 'Phường Ninh Kiều', street: 'Nguyễn Văn Cừ Nối Dài', geo: { lat: 10.0341, lng: 105.7722, approx: true } }
+  const there = (p: Record<string, unknown>) => mapped(room({ ward: null, street: null }), stageGoplusProject(p)!)
+
+  it('a Cần Thơ building → city Cần Thơ, in the place sentence and the search text — no Ho Chi Minh City anywhere', () => {
+    const r = there(CAN_THO)
+    expect(r.mutable).toMatchObject({ city: 'Cần Thơ', district: null, location: 'Phường Ninh Kiều, Ninh Kiều', lat: null, lng: null })
+    expect(r.mutable.title).toBe('Duplex 20 m² · Ninh Kieu Ward, Ninh Kieu')
+    expect(r.mutable.description).toBe('Duplex of 20 m² on Nguyễn Văn Cừ Nối Dài, Ninh Kieu Ward, Ninh Kieu, Can Tho.\n\nMessage GoPlus to check availability and book a viewing.')
+    expect(r.mutable.descriptionVi).toBe('Duplex 20 m² tại Nguyễn Văn Cừ Nối Dài, Phường Ninh Kiều, Ninh Kiều, Cần Thơ.\n\nNhắn tin cho GoPlus để kiểm tra phòng trống và đặt lịch xem phòng.')
+    expect(r.mutable.searchText).toContain('can tho')
+    expect(JSON.stringify(r.mutable)).not.toMatch(/ho chi minh|hồ chí minh/i)
+  })
+
+  it('an HCMC building is unchanged: Hồ Chí Minh, its district chip string, "Ho Chi Minh City" / "TP. Hồ Chí Minh"', () => {
+    const r = mapped()
+    expect(r.mutable).toMatchObject({ city: 'Hồ Chí Minh', district: 'Quận 12', location: 'Quận 12 (Phường Trung Mỹ Tây)' })
+    expect(r.mutable.description.startsWith('Duplex of 20 m² on Ql1a, Trung My Tay Ward, District 12, Ho Chi Minh City.')).toBe(true)
+    expect(r.mutable.searchText).toContain('tp. ho chi minh ho chi minh city goplus')
+  })
+
+  it('a former Bình Dương building → Ho Chi Minh City (the 2025 merger), its district kept as a name', () => {
+    const r = there({ ...RAW_PROJECT, region: 'Tỉnh Bình Dương', district: 'Thuận An', ward: 'Phường Thuận An', street: null })
+    expect(r.mutable).toMatchObject({ city: 'Hồ Chí Minh', district: null, location: 'Phường Thuận An, Thuận An' })
+    expect(r.mutable.description.startsWith('Duplex of 20 m² in Thuan An Ward, Thuan An, Ho Chi Minh City.')).toBe(true)
+    expect(r.mutable.descriptionVi.startsWith('Duplex 20 m² tại Phường Thuận An, Thuận An, TP. Hồ Chí Minh.')).toBe(true)
+    // The Bà Rịa–Vũng Tàu side of the merger too (GoPlus's Phú Mỹ rooms).
+    expect(there({ ...RAW_PROJECT, region: 'Tỉnh Bà Rịa - Vũng Tàu', district: 'Phú Mỹ', ward: 'Phường Tân Phước', street: null }).mutable.city).toBe('Hồ Chí Minh')
+  })
+
+  it('Hà Nội and Đà Nẵng buildings name their own city ("Hanoi" in English)', () => {
+    const hn = there({ ...RAW_PROJECT, region: 'Thành phố Hà Nội', district: 'Hà Đông', ward: 'Phường Hà Đông', street: null })
+    expect(hn.mutable.city).toBe('Hà Nội')
+    expect(hn.mutable.description.startsWith('Duplex of 20 m² in Ha Dong Ward, Ha Dong, Hanoi.')).toBe(true)
+    expect(hn.mutable.descriptionVi.startsWith('Duplex 20 m² tại Phường Hà Đông, Hà Đông, Hà Nội.')).toBe(true)
+    const dn = there({ ...RAW_PROJECT, region: 'Thành phố Đà Nẵng', district: 'Liên Chiểu', ward: 'Phường Liên Chiểu', street: null })
+    expect(dn.mutable.city).toBe('Đà Nẵng')
+    expect(dn.mutable.description.startsWith('Duplex of 20 m² in Lien Chieu Ward, Lien Chieu, Da Nang.')).toBe(true)
+  })
+
+  it('⛔ outside HCMC an HCMC district\'s name is not stored as its chip string (Đồng Nai\'s Tân Phú is not Quận Tân Phú)', () => {
+    const r = there({ ...RAW_PROJECT, region: 'Tỉnh Đồng Nai', district: 'Tân Phú', ward: 'Xã Tà Lài', street: null })
+    expect(r.mutable).toMatchObject({ city: 'Đồng Nai', district: null, location: 'Xã Tà Lài, Tân Phú' })
+    expect(r.mutable.title).toBe('Duplex 20 m² · Ta Lai Commune, Tan Phu')
+  })
+
+  it('no region: an HCMC district → Ho Chi Minh City as before; anything else → no city claimed, the room still published', () => {
+    expect(mapped(room(), project({ region: null })).mutable).toMatchObject({ city: 'Hồ Chí Minh', district: 'Quận 12' })
+    // …unless the building's point is far from HCMC: Đồng Nai's Tân Phú is no HCMC room, and keeps no chip string.
+    const far = there({ ...RAW_PROJECT, region: null, district: 'Tân Phú', ward: 'Xã Tà Lài', street: null, geo: { lat: 11.268, lng: 107.43, approx: true } })
+    // (Its pin stays: ~97 km is inside the 100 km map rule, which this change leaves as it was.)
+    // …and its point goes with the city it was refused: a room stored outside HCMC (or in no city) carries no pin (commit review).
+    expect(far.mutable).toMatchObject({ city: '', district: null, location: 'Xã Tà Lài, Tân Phú', lat: null, lng: null })
+    const r = there({ ...CAN_THO, region: undefined })
+    expect(r.mutable.city).toBe('')
+    expect(r.mutable.description.startsWith('Duplex of 20 m² on Nguyễn Văn Cừ Nối Dài, Ninh Kieu Ward, Ninh Kieu.\n\n')).toBe(true)
+    expect(r.mutable.descriptionVi.startsWith('Duplex 20 m² tại Nguyễn Văn Cừ Nối Dài, Phường Ninh Kiều, Ninh Kiều.\n\n')).toBe(true)
+    expect(r.mutable.searchText).not.toMatch(/ho chi minh/)
+  })
+
+  it('⛔ a point is kept only for a room stored IN HCMC: a Hà Nội room pinned near District 1 by a bad GoPlus point gets no pin (commit review, codex + opus)', () => {
+    const r = there({ ...RAW_PROJECT, region: 'Thành phố Hà Nội', district: 'Cầu Giấy', ward: 'Phường Dịch Vọng', street: null, geo: { lat: 10.78, lng: 106.70, approx: false } })
+    expect(r.mutable).toMatchObject({ city: 'Hà Nội', lat: null, lng: null })
+    // An HCMC room keeps its point exactly as before.
+    expect(mapped(room(), project()).mutable.lat).not.toBeNull()
+  })
+
+  it('a neighbour inside the radius keeps its genuine point: a Biên Hòa (Đồng Nai) room pinned 25 km from District 1 (commit review round 2)', () => {
+    const r = there({ ...RAW_PROJECT, region: 'Tỉnh Đồng Nai', district: 'Biên Hòa', ward: 'Phường Tân Phong', street: null, geo: { lat: 10.957, lng: 106.843, approx: false } })
+    expect(r.mutable).toMatchObject({ city: 'Đồng Nai', lat: 10.957, lng: 106.843 })
+  })
+
+  it('a region that names no province: no city — even over an HCMC district, whose chip string then goes too', () => {
+    const r = mapped(room(), project({ region: 'Thành phố Thủ Đức' }))
+    expect(r.mutable).toMatchObject({ city: '', district: null, location: 'Phường Trung Mỹ Tây, Quận 12' })
+    expect(r.mutable.description.startsWith('Duplex of 20 m² on Ql1a, Trung My Tay Ward, Quan 12.')).toBe(true)
   })
 })
 

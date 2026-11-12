@@ -127,7 +127,7 @@ import {
   GOPLUS_PROJECTS_API, GOPLUS_ROOMS_API, GOPLUS_UA, GOPLUS_UA_TOKEN, GOPLUS_VIDEO_MAX_BYTES,
   goplusApplyExitCode, goplusPhotoAction, goplusPhotoPlan, goplusPublishGate, goplusReadProblem, goplusSellerRefusal, goplusSourceKey,
   goplusVideoAction, goplusVideoObjectName, goplusVideoVerdict, mapGoplusRoom, mp4Info, planGoplusExpiry,
-  stageGoplusProject, stageGoplusRoom,
+  goplusProvince, stageGoplusProject, stageGoplusRoom,
   type GoplusMapped, type GoplusPhotoOutcome, type GoplusProject, type GoplusRoom, type GoplusSeller,
 } from '../src/lib/goplus-listing'
 
@@ -413,7 +413,7 @@ async function readBuildingDetails(projects: Map<string, GoplusProject>, scope: 
     if (!staged || staged.projectId !== id || !staged.amenitiesComplete) { failed++; return }
     read++
     // Place facts stay the list's when the detail lacks one; the amenity list and room count are the detail's.
-    projects.set(id, { ...listed, district: staged.district ?? listed.district, ward: staged.ward ?? listed.ward, street: staged.street ?? listed.street, geo: staged.geo ?? listed.geo, amenityKeys: staged.amenityKeys, amenitiesComplete: true, roomCount: staged.roomCount ?? listed.roomCount })
+    projects.set(id, { ...listed, region: staged.region ?? listed.region, district: staged.district ?? listed.district, ward: staged.ward ?? listed.ward, street: staged.street ?? listed.street, geo: staged.geo ?? listed.geo, amenityKeys: staged.amenityKeys, amenitiesComplete: true, roomCount: staged.roomCount ?? listed.roomCount })
   }))
   return { read, failed }
 }
@@ -699,6 +699,16 @@ async function main() {
     if (unknownAmenities.size) console.log(`⚠️ amenity keys this importer does not know (not published): ${JSON.stringify(Object.fromEntries(unknownAmenities))}`)
     console.log(`vacant + publishable ${mapped.length}${SAMPLE ? ` (this run: ${batch.length} — a SAMPLE, the expiry is skipped)` : ''}`)
     console.log(`  by district     ${hist((r) => r.mutable.district ?? `(${r.mutable.location})`)}`)
+    /**
+     * THE CITY, AND THE `region` VALUES OF THIS RUN'S VACANT, PUBLISHABLE ROOMS (goplus-listing.ts goplusCity; the building
+     * detail's value where it has one, else the list's): read these before an --apply. A value marked NOT A PROVINCE
+     * stores its rooms with no city (they still publish) — a spelling to add to goplusProvince, never a reason to guess;
+     * "(none)" is Ho Chi Minh City only where the district is one of HCMC's own and no map point is far from it.
+     */
+    const regionOf = new Map(scope.map((room) => [room.id, room.projectId ? read.projects.get(room.projectId)?.region ?? null : null]))
+    console.log(`  by city         ${hist((r) => r.mutable.city || '(no city)')}`)
+    // "(none)" is split by what the district fallback decided, so an HCMC claim made without a region is counted apart.
+    console.log(`  by region       ${hist((r) => { const g = regionOf.get(r.roomId) ?? null; return g === null ? (r.mutable.city ? `(none → ${r.mutable.city} by its district)` : '(none → no city)') : goplusProvince(g) ? g : `${g} [NOT A PROVINCE → no city]` })}`)
     console.log(`  by type         ${hist((r) => attr(r).aptType ?? 'room')}`)
     console.log(`  with video ${batch.filter((r) => r.videos.length).length} · with a map point ${batch.filter((r) => r.mutable.lat !== null).length} · with size ${batch.filter((r) => r.mutable.areaM2 !== null).length} · electricity ${batch.filter((r) => attr(r).electricityPrice).length} (an estimate: ${batch.filter((r) => attr(r).electricityEstimated).length}) · service fee ${batch.filter((r) => attr(r).serviceFee).length} · parking ${batch.filter((r) => attr(r).parkingFee).length} · deposit ${batch.filter((r) => attr(r).deposit).length} · amenities ${batch.filter((r) => r.mutable.facetTokens).length}`)
     console.log(`storefront        ${seller ? `${seller.name} (${seller.id}) owner ${seller.ownerEmail ?? seller.ownerId ?? 'none'} · officialPartner ${seller.officialPartner} · trust ${seller.trustScore}` : '(not registered yet)'}`)
@@ -707,6 +717,9 @@ async function main() {
     if (GATE_ARG === null) console.log(`  ⚠️ read from THIS shell's env, not production's: when production enforces IDENTITY_GATE_ENFORCED, set it (and NEXT_PUBLIC_ENO_EDITION=marketplace) for this job too, or pass --identity-gate on`)
     console.log(`existing rows     ${existing.size} (active ${byStatus('active')} · expired ${byStatus(EXPIRED_STATUS)} · hidden ${byStatus('hidden')} · sold ${byStatus('sold')} · removed ${byStatus('removed')})`)
     console.log(`PLAN              create ${creates.length} · refresh-or-keep ${batch.length - creates.length} (revive ${revivals.length})`)
+    // The existing rows whose stored city this read changes (goplusCity), stored → now — what a refresh rewrites.
+    const cityMoves = batch.flatMap((r) => { const cur = existing.get(r.externalId); return cur && cur.status !== 'removed' && cur.city !== r.mutable.city ? [`${(typeof cur.city === 'string' && cur.city) || '(none)'} → ${r.mutable.city || '(none)'}`] : [] })
+    console.log(`  city changes    ${cityMoves.length ? Object.entries(cityMoves.reduce<Record<string, number>>((a, k) => { a[k] = (a[k] ?? 0) + 1; return a }, {})).sort((a, b) => b[1] - a[1]).map(([k, c]) => `${k} ${c}`).join(' · ') : 'none'}`)
     console.log(`  expiry          ${SAMPLE ? 'skipped (a sample run)' : `${expiryPlan.expire.length} of ${liveNow.length} live rows no longer vacant/publishable → '${EXPIRED_STATUS}'${expiryPlan.refusal ? `  ⛔ WOULD REFUSE: ${expiryPlan.refusal}` : ''}`}`)
     console.log(`  media (creates) ${photosNew} candidate photos (≥${GOPLUS_MIN_PHOTOS} real + distinct kept or the room is not created) · ${NO_VIDEO ? 'videos OFF (--no-video)' : `${videosNew} rooms with a video (the first clip ≤ 60 s / 50 MB)`}`)
 
