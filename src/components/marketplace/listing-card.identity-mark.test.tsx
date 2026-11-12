@@ -7,7 +7,8 @@
  *   · the h3 still reads exactly the card link's accessible name (WCAG 2.5.3), and the link names the tick in its
  *     description (aria-describedby → the tick's id);
  *   · no trust number rides the card (none since 2026-11-10);
- *   · ⛔ an UNMARKED card renders as before: the bare h3 straight in the body, the same class, no description.
+ *   · ⛔ an UNMARKED card renders as before: the bare h3 straight in the body, the same class (a teacher's name line since
+ *     2026-11-12, TITLE_LINE on every other card), no description.
  * The trust-chip test's harness: TrustScore and the tooltip are real, everything else the card pulls in is stubbed.
  */
 import React from 'react'
@@ -79,6 +80,9 @@ const TEACHER = {
 } as unknown as SerializedListingCard
 
 const TITLE_CLASS = 'truncate text-sm font-normal leading-snug sm:text-base text-foreground group-hover:underline decoration-1 underline-offset-2'
+// A teacher card's name line since 2026-11-12 (owner, "go all": name first, bold, a step up — listing-card.tsx
+// TEACHER_TITLE_LINE; the order itself is pinned by listing-card.teacher-order.test.tsx). Every other card keeps TITLE_CLASS.
+const TEACHER_TITLE_CLASS = 'truncate text-foreground group-hover:underline decoration-1 underline-offset-2 text-base font-bold leading-snug sm:text-lg'
 const card = (patch: Record<string, unknown> = {}) =>
   render(<ListingCard listing={{ ...TEACHER, ...patch } as SerializedListingCard} onOpen={vi.fn()} />).container
 
@@ -110,7 +114,7 @@ describe('ListingCard — a MARKED teacher card', () => {
   it('the name truncates before the tick: the h3 gains min-w-0 in a flex row, and the line keeps one row', () => {
     const c = card({ identityMark: true })
     const h3 = c.querySelector('h3')!
-    expect(h3.className).toBe(`${TITLE_CLASS} min-w-0`)
+    expect(h3.className).toBe(`${TEACHER_TITLE_CLASS} min-w-0`)
     expect(h3.parentElement!.className).toBe('flex min-w-0 items-center gap-1')
   })
 
@@ -133,7 +137,7 @@ describe('ListingCard — ⛔ every UNMARKED card renders as before', () => {
       const c = card(patch)
       expect(c.querySelectorAll('[data-identity-mark]')).toHaveLength(0)
       const h3 = c.querySelector('h3')!
-      expect(h3.className).toBe(TITLE_CLASS)
+      expect(h3.className).toBe(TEACHER_TITLE_CLASS)
       // The body column, not a row made for the tick.
       expect(h3.parentElement!.className).toContain('flex-col')
       expect(c.querySelector('[data-card-link]')!.hasAttribute('aria-describedby')).toBe(false)

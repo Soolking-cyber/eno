@@ -21,6 +21,13 @@ export const SAVED_SKELETON_COUNT = 8
  *  pt-2 (8) + price + gap-0.5 (2) + title + 2 + the info row's pt-1 (4) + its line:
  *      phone (<640)    8 + 20 + 2 + 19.25 + 2 + 4 + 16  = 71.25px   (under a 189px photo at 390)
  *      sm and up       8 + 22.5 + 2 + 19.25 + 2 + 4 + 16 = 73.75px  (under 192–298px photos)
+ *  A TEACHER card leads with the name since 2026-11-12 (owner, "go all"; listing-card.tsx TEACHER_TITLE_LINE): name
+ *  then rate, at sizes chosen to keep the same line-box total — 16·1.375 + 14·1.25 = 39.5 against the price-first
+ *  card's 16·1.25 + 14·1.375 = 39.25 on a phone, and 18·1.375 + 16·1.25 = 44.75 against 18·1.25 + 16·1.375 = 44.5
+ *  from sm. MEASURED on a local production build (2026-11-12), the teacher card's text column against a price-first
+ *  card's on the same page: 72 vs 71.3px on an iPhone 14, 80.8 vs 80.5px at 1280 — so this one skeleton serves both
+ *  (its bars keep the price-first order). ⚠️ The sm row of the table above counts the title at 19.25px; the title is
+ *  `sm:text-base` (22px line) there, so that row under-counts by ~2.75px for EVERY card — older than this note.
  *  The bar heights below are those line boxes, so keep them tied to the type they stand in for
  *  rather than rounding them to spacing steps. (The 2026-08-07 table that sat here — 117 / 94 / 75px —
  *  measured the old two-title-line card.)
@@ -36,7 +43,8 @@ export function ListingCardSkeleton({ className }: { className?: string }) {
     <div className={cn('flex flex-col', className)}>
       <div className="aspect-square w-full rounded-media shimmer skeleton-photo" />
       {/* Mirrors the Facebook-Marketplace-shaped card body (2026-09-13): one price line, ONE title
-          line, one info line, inset like the card's text on a phone. Heights are the real line boxes —
+          line, one info line, inset like the card's text on a phone (a teacher card swaps the first two
+          since 2026-11-12, at the same total height — the note above). Heights are the real line boxes —
           re-derive them if any of the card's type sizes change. */}
       <div className="flex flex-col gap-0.5 px-2 pt-2 sm:px-0.5">
         {/* PRICE — text-base/leading-tight below sm (20px), text-lg/leading-tight above (22.5px): ONE line.

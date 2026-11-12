@@ -120,12 +120,25 @@ type Props = {
 /**
  * The card's one-line title (the h3 below). ONE string for both shapes of the line — the bare h3, and the marked teacher
  * card's row, which adds only `min-w-0` — so the two can never drift apart.
- * `font-normal` (owner, 2026-10-18 — "look like top marketplace"): a regular title under the bold price, the contrast
- * Facebook Marketplace, eBay and Chợ Tốt all draw. It was `font-medium`, which globals.css retargets to 400 anyway
- * (two shipped cuts, 2026-08-13), so nothing repaints today; the class now says what the card means, and keeps
- * meaning it if a 500 cut ever ships.
+ * `font-normal` (owner, 2026-10-18 — "look like top marketplace"): on every card but a teacher's, a regular title under
+ * the bold price, the contrast Facebook Marketplace, eBay and Chợ Tốt all draw. It was `font-medium`, which globals.css
+ * retargets to 400 anyway (two shipped cuts, 2026-08-13), so nothing repaints today; the class now says what the card
+ * means, and keeps meaning it if a 500 cut ever ships.
+ * ⛔ A TEACHER CARD LEADS WITH THE NAME (owner, 2026-11-12: "go all" — after a blind A/B, +0.15 GPT / +0.39 Opus): its
+ * line is TEACHER_TITLE_LINE, below, and it sits ABOVE the rate. Every other card keeps the 09-13 order (price → this
+ * line → the info line) and this string byte-for-byte.
  */
 const TITLE_LINE = 'truncate text-sm font-normal leading-snug sm:text-base text-foreground group-hover:underline decoration-1 underline-offset-2'
+/**
+ * The teacher card's name line (owner, 2026-11-12, above): TITLE_LINE a step up and bold — 16px on a phone, 18px from sm —
+ * so truncation, ink and the hover underline stay one string. Its rate drops a step to match (`text-sm sm:text-base`
+ * on <Price>, the body below), which keeps the body's height: 16·1.375 + 14·1.25 = 39.5px on a phone (39.25 before),
+ * 18·1.375 + 16·1.25 = 44.75px from sm (44.5) — measured on a local build, the text column is 72 vs 71.3px on a phone
+ * and 80.8 vs 80.5px at 1280 against a price-first card, so the shared skeleton (listing-card-skeleton.tsx) serves both.
+ * ⚠️ `leading-snug` IS RESTATED ON PURPOSE: tailwind-merge 3 lets a later font size drop an earlier `leading-*`, so
+ * `cn(TITLE_LINE, 'text-base')` loses it and the line falls back to Tailwind's 1.5 (a 24px line, not 22).
+ */
+const TEACHER_TITLE_LINE = cn(TITLE_LINE, 'text-base font-bold leading-snug sm:text-lg')
 
 /** The travel (px) after which a card's touch is judged sideways (the strip follows) or not (the page scrolls). */
 const CARD_DRAG_LOCK_PX = 8
@@ -203,7 +216,8 @@ function ListingCardImpl({
    * not hidden by them, from the display cache identity-mark-card.ts keeps true), never a client clock or a guess; a
    * card that is not a teacher's never draws it, whatever its payload says. It is a SIBLING of the h3 — the h3 still reads
    * exactly the link's accessible name (WCAG 2.5.3, above) — and the link carries it as a description.
-   * ⛔ AN UNMARKED CARD RENDERS BYTE-FOR-BYTE AS BEFORE: no wrapper, no description, the same h3 (TITLE_LINE).
+   * ⛔ AN UNMARKED CARD RENDERS BYTE-FOR-BYTE AS BEFORE: no wrapper, no description, the same h3 (`titleLine` —
+   * TITLE_LINE, or TEACHER_TITLE_LINE on a teacher card since 2026-11-12).
    */
   const identityMarked = isTeacher && listing.identityMark === true
   const identityMarkId = useId()
@@ -417,6 +431,39 @@ function ListingCardImpl({
     pendingTimer.current = setTimeout(() => { pendingTimer.current = null; setPending(false) }, PENDING_MAX_MS)
     onOpen(listing)
   }
+
+  // ONE line class for both shapes of the title (TITLE_LINE, above); a teacher card's is the name-first one (2026-11-12).
+  const titleLine = isTeacher ? TEACHER_TITLE_LINE : TITLE_LINE
+  /**
+   * SECONDARY — title, ONE line (FIRST on a teacher card: the body note below). `truncate` rather than `line-clamp-1`: a
+   * single-line clamp still reserves the second line's leading in some engines, and one line is the spec. The full title
+   * is the h3's `title`, the card link's accessible name, and on the PDP; the line itself prints the card-title.ts
+   * shortening (`lineTitle`). Built once here and rendered in ONE of the body's two slots, so the markup never forks.
+   * "Identity verified" (owner, 2026-10-15): on a MARKED teacher card only, the line becomes a row — the truncating h3
+   * (`min-w-0`, so the name ellipsises before the tick) and the tick after it, ~18px of the line. Same height: the 14px
+   * glyph sits inside the teacher h3's 22px line box (24.75px from sm; it was 19px before the 2026-11-12 name-first card),
+   * so the skeleton's one-line reserve holds. Every other card keeps the bare h3, byte-for-byte.
+   */
+  const titleBlock = (
+    <>
+      {identityMarked ? (
+        <div className="flex min-w-0 items-center gap-1">
+          <h3 title={displayTitle} className={cn(titleLine, 'min-w-0')}>
+            {lineTitle}
+          </h3>
+          <IdentityVerifiedMark id={identityMarkId} />
+        </div>
+      ) : (
+        <h3 title={displayTitle} className={titleLine}>
+          {lineTitle}
+        </h3>
+      )}
+      {/* `hidden`, not sr-only: aria-describedby still reads a hidden element's text, and hidden keeps it out of the
+          browse-mode reading flow (sr-only would read the title a second time after the h3). Right after the h3 block on
+          every card, teacher or not. */}
+      {titleShortened && <span id={fullTitleId} hidden>{displayTitle}</span>}
+    </>
+  )
 
   return (
     // `data-card-root` is the hook for the NATIVE long-press action sheet (native-bootstrap.tsx),
@@ -1223,6 +1270,11 @@ function ListingCardImpl({
       {/* Body — the Facebook Marketplace shape (owner, 2026-09-13, with a Marketplace grid as the
           reference: "image price 1 line description … similar format for cleaner view all cards
           across the app including on map view"): PRICE → ONE-LINE TITLE → the info line.
+          ⛔ EXCEPT A TEACHER CARD, WHICH LEADS WITH THE NAME (owner, 2026-11-12: "go all" — after a blind A/B, +0.15 GPT /
+          +0.39 Opus): NAME (bold, TEACHER_TITLE_LINE) → rate (a step smaller) → the info line. That supersedes the 09-13
+          order FOR TEACHERS ONLY; every other card keeps PRICE → title → info line byte-for-byte. It is REAL DOM order,
+          not CSS `order`: a screen reader hears the name first, as the eye sees it. `titleBlock` (built above the return)
+          renders in one of the two slots below, never both.
           ⛔ THE INFO LINE IS UNCHANGED, ON PURPOSE. A first cut reduced it to the location alone and
           the owner rejected that the same day: "dont alter this info line it should function as
           before not only location" — condition · area · posted-ago · brand·model, the Business glyph
@@ -1237,8 +1289,11 @@ function ListingCardImpl({
           (173px at 390 against 175 before), so the width budgets measured below still hold. From sm the
           grid keeps the gutter and the text stays flush. The skeleton mirrors it. */}
       <div className="flex flex-1 flex-col gap-0.5 px-2 pt-2 sm:px-0.5">
-        {/* PRIMARY — price. `flex-wrap` so a struck "was" price takes its own line, complete,
-            instead of being clipped mid-number beside a price that already fills the row.
+        {/* A teacher card's name comes FIRST (owner, 2026-11-12 — the Body note above). */}
+        {isTeacher && titleBlock}
+        {/* PRIMARY — price (on a teacher card, the rate under the name). `flex-wrap` so a struck
+            "was" price takes its own line, complete, instead of being clipped mid-number beside a
+            price that already fills the row.
             ⛔ THE "≈ $" ESTIMATE STAYS ON EVERY WIDTH — owner, 2026-09-13 ("approximate price in usd
             disappeared add it back"). UX program 2 tried hiding it on narrow per-unit rows to keep rents on
             one line (quality-08); that reversed this instruction and was withdrawn at the commit gate
@@ -1298,7 +1353,8 @@ function ListingCardImpl({
             price={listing.price}
             currency={listing.currency}
             priceUnit={listing.priceUnit}
-            className="text-base leading-tight sm:text-lg"
+            // A teacher's rate sits a step down under the bold name (owner, 2026-11-12; TEACHER_TITLE_LINE has the heights).
+            className={isTeacher ? 'text-sm leading-tight sm:text-base' : 'text-base leading-tight sm:text-lg'}
             listingType={listing.listingType}
             linked={listing.isPartnerBooking}
             jobMeta={jobMeta}
@@ -1322,29 +1378,9 @@ function ListingCardImpl({
           )}
         </span>
 
-        {/* SECONDARY — title, ONE line. `truncate` rather than `line-clamp-1`: a single-line clamp
-            still reserves the second line's leading in some engines, and one line is the spec. The
-            full title is the h3's `title`, the card link's accessible name, and on the PDP; the line
-            itself prints the card-title.ts shortening (`lineTitle`). */}
-        {/* "Identity verified" (owner, 2026-10-15): on a MARKED teacher card only, the line becomes a row — the truncating
-            h3 (`min-w-0`, so the name ellipsises before the tick) and the tick after it, ~18px of the line. Same height:
-            the 14px glyph sits inside the h3's 19px line box, so the skeleton's one-line reserve holds. Every other card
-            keeps the bare h3 below, byte-for-byte. */}
-        {identityMarked ? (
-          <div className="flex min-w-0 items-center gap-1">
-            <h3 title={displayTitle} className={cn(TITLE_LINE, 'min-w-0')}>
-              {lineTitle}
-            </h3>
-            <IdentityVerifiedMark id={identityMarkId} />
-          </div>
-        ) : (
-          <h3 title={displayTitle} className={TITLE_LINE}>
-            {lineTitle}
-          </h3>
-        )}
-        {/* `hidden`, not sr-only: aria-describedby still reads a hidden element's text, and hidden keeps it out of the
-            browse-mode reading flow (sr-only would read the title a second time after the h3). */}
-        {titleShortened && <span id={fullTitleId} hidden>{displayTitle}</span>}
+        {/* SECONDARY on every card but a teacher's — the one-line title and its hidden full title (`titleBlock`, above
+            the return, where its notes live). */}
+        {!isTeacher && titleBlock}
 
         {/* TERTIARY — one subdued metadata line: condition · area · posted-ago · brand/model
             truncate on the left; business + trust cluster (shrink-0) on the right. Everything on

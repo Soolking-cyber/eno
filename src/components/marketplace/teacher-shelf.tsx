@@ -28,7 +28,9 @@ const DOOR_LINK = 'relative tap-44 inline-flex items-center gap-1 font-semibold 
  * single LCP preload, "no full-width media above the grid" and the first twelve grid children all being listing cards
  * (globals.css) all hold. The explorer owns WHERE (listings-explorer.tsx, `showTeacherShelf`: the undirected home only —
  * never a search, a filter, an area, the map or video view, or a storefront).
- * ⛔ THE CANON'S OWN PARTS: <Shelf> and <ListingCard>, unchanged — a flat section under one hairline, no eyebrow, no fill.
+ * ⛔ THE CANON'S OWN PARTS: <Shelf> and <ListingCard>, as every surface draws them — a flat section under one hairline, no
+ * eyebrow, no fill. The card's name-first teacher shape (owner, 2026-11-12, "go all") is ListingCard's own, keyed on the
+ * listing type; this shelf passes nothing for it.
  * The cards take no `priority`/`lcp` (lazy photos; the page's one preload stays card 0's) and no `onLocate`.
  * ⚠️ ONE HAIRLINE BETWEEN BLOCKS. Its own on top; below, only when rows follow it (`not-last:`) — as the grid's last child
  * the feed footer's own top line ("Browse everything") is the next one. The guest capture row that follows it drops its
@@ -40,7 +42,7 @@ const DOOR_LINK = 'relative tap-44 inline-flex items-center gap-1 font-semibold 
  * swap happens after hydration, a page below the fold.
  * ⛔ ON eno.forum EVERY LINK HERE BUT THE CARDS GOES TO eno.vn DIRECTLY (teacherSurfaceHref / teacherJoinUrl): the forum 308s
  * the teacher pages there (owner decision 6, 2026-10-20; src/lib/teachers/surface.ts). A card still opens /listings/<id>,
- * whose PDP sends a teacher's profile on to eno.vn ((pdp)/layout.tsx) — one hop, and <ListingCard> stays untouched.
+ * whose PDP sends a teacher's profile on to eno.vn ((pdp)/layout.tsx) — one hop, and <ListingCard>'s link needs no forum branch.
  * ⚠️ NO NEW COPY: the title is the category's entry label ("Find a teacher" — category-entry-label.ts), the door lines are
  * the plate's and /c/jobs' own. No counts, and no "free" (POSTING_IS_FREE governs that word).
  * ⚠️ ONE EXCEPTION, THE OWNER'S (teacher visibility plan, approved 2026-10-18): a second line to the teacher library's hub,

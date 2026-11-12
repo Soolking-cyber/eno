@@ -60,6 +60,12 @@ was meta), 15→`base`.
   module `section-title.ts` so those server components can import it — so they no longer sit a step
   below the "More like this" / "More from this seller" shelves on the same page.
 
+**Teacher cards lead with the name (owner, 2026-11-12, "go all").** A teacher `<ListingCard>` reads
+name → rate → info line, in DOM order: the name bold at `text-base sm:text-lg`, the rate a step down
+at `text-sm sm:text-base` — both still under `SECTION_TITLE` — so the card body keeps its height
+(39.5 / 44.75px against 39.25 / 44.5) and the shared skeleton holds. Every other card keeps the
+09-13 price → title → info line format.
+
 **Page titles sit on the heading ramp.** A page's `<h1>` is `.h-display` (28→40px — landing,
 category, SEO, /post) or `.h-title` (20→24px — app screens) — `.h-greeting` for the dashboard's
 display-size greeting — or `sr-only` where a mobile SectionHeader carries the visible title. Reach for `<PageHeader>` (ui/page-header: title +
