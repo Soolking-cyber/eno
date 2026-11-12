@@ -372,7 +372,7 @@ export function jobFromListing(l: ListingRow): Job | null {
  * — so the ledger's own keys are read back to `linkedin:<id>` from their rows (an alert's identifier is kept 6 months, a
  * listing's for good). Keyed by job key; only keys no loaded job carries.
  */
-async function linkedinIdsOf(keys: Iterable<string>, jobs: readonly Job[]): Promise<Map<string, string>> {
+async function linkedinIdsOf(keys: Iterable<string>, jobs: readonly Job[]): Promise<Map<string, string[]>> {
   const loaded = new Set(jobs.map((j) => j.key))
   const postIds = new Set<string>()
   const listingIds = new Set<string>()
@@ -382,19 +382,28 @@ async function linkedinIdsOf(keys: Iterable<string>, jobs: readonly Job[]): Prom
     else if (k.startsWith('listing:')) listingIds.add(k.slice(8))
   }
   const [posts, listings] = await Promise.all([
-    postIds.size ? db.externalJobPost.findMany({ where: { id: { in: [...postIds] }, source: 'linkedin' }, select: { id: true, externalKey: true } }) : [],
+    postIds.size ? db.externalJobPost.findMany({ where: { id: { in: [...postIds] }, source: 'linkedin' }, select: { id: true, externalKey: true, title: true } }) : [],
     // edition-lint-allow: ids the ledger already holds, read for their LinkedIn id only — never offered or shown from here.
     listingIds.size ? db.listing.findMany({ where: { id: { in: [...listingIds] }, externalId: { startsWith: 'linkedin:' } }, select: { id: true, sellerId: true, externalId: true } }) : [],
   ])
-  const out = new Map<string, string>()
-  for (const p of posts) if (postIds.has(p.id)) for (const v of linkedinVacancy(`linkedin:${p.externalKey}`)) out.set(`post:${p.id}`, v)
-  for (const l of listings) if (listingIds.has(l.id) && importedListing(l)) for (const v of linkedinVacancy(l.externalId)) out.set(`listing:${l.id}`, v)
+  // An alert sent before brings its long-title identity too (vacancyTitles): no alert is loaded as a job since 2026-11-12, so the
+  // ledger is the only place a sent alert's "same whole title" can come from (the listing of a school's own posting, 12m).
+  const out = new Map<string, string[]>()
+  for (const p of posts) if (postIds.has(p.id)) out.set(`post:${p.id}`, [...linkedinVacancy(`linkedin:${p.externalKey}`), ...vacancyTitles(p.title)])
+  for (const l of listings) if (listingIds.has(l.id) && importedListing(l)) out.set(`listing:${l.id}`, linkedinVacancy(l.externalId))
   return out
 }
 
 async function loadJobs(now: Date): Promise<Job[]> {
+  /**
+   * ⛔ NO LINKEDIN ALERT IS OFFERED IN A MESSAGE (owner, 2026-11-12: "no more direct linkedin offers, we import to web first and
+   * offer from jobs and fb"). A LinkedIn job reaches a teacher only as the eno.vn listing the jobs pipeline imports from it (its
+   * page, apply on LinkedIn) — or as the employer's own listing when eno.vn reads that employer's site. The alerts are still READ
+   * and decided here (readNewPosts): their 'ready' is what the pipeline (~/eno-lead-pipeline src/cli/linkedinJobs.ts) lists from.
+   * The ledger still knows the alerts offered before this (linkedinIdsOf), so their listings are not a second offer.
+   */
   const posts = await db.externalJobPost.findMany({
-    where: { status: 'ready', expiresAt: { gt: now }, NOT: { text: PURGED_TEXT } },
+    where: { status: 'ready', expiresAt: { gt: now }, source: { not: 'linkedin' }, NOT: { text: PURGED_TEXT } },
     select: { id: true, source: true, externalKey: true, sourceName: true, title: true, url: true, applyText: true, postedAt: true, receivedAt: true, facts: true },
     take: 2000,
   })
@@ -445,14 +454,14 @@ async function loadTeachers(): Promise<TeacherRow[]> {
 }
 
 /** The jobs to offer one teacher, per kind: passed every gate, not offered before (this mode), best first, ≤ jobsPerDm. */
-export function planFor(t: MatchTeacher, jobs: readonly Job[], offered: ReadonlySet<string>, emailed: ReadonlySet<string>, now: Date, linkedinIds: ReadonlyMap<string, string> = new Map()) {
+export function planFor(t: MatchTeacher, jobs: readonly Job[], offered: ReadonlySet<string>, emailed: ReadonlySet<string>, now: Date, linkedinIds: ReadonlyMap<string, string[]> = new Map()) {
   const out: Record<'jobs' | 'cover', { job: Job; score: number; reasons: string[] }[]> = { jobs: [], cover: [] }
   // A vacancy the teacher was already offered under the OTHER source is not offered again — yesterday's listing, today's
   // LinkedIn copy, or the other way round (opus, codex, gates 12k–12m; vacancyTitles). Two listings are two jobs (12l).
   // …and a job sent before that is no longer loaded still counts, by its LinkedIn id (linkedinIdsOf).
   const offeredAs = (src: string) => new Set([
     ...jobs.filter((j) => j.key.startsWith(src) && (offered.has(j.key) || emailed.has(j.key))).flatMap((j) => j.vacancy ?? []),
-    ...[...offered, ...emailed].flatMap((k) => (k.startsWith(src) && linkedinIds.has(k) ? [linkedinIds.get(k)!] : [])),
+    ...[...offered, ...emailed].flatMap((k) => (k.startsWith(src) ? linkedinIds.get(k) ?? [] : [])),
   ])
   const hadListed = offeredAs('listing:')
   const hadPosted = offeredAs('post:')
@@ -567,10 +576,11 @@ async function runOnce(opts: { dryRun: boolean }, now: Date, mode: JobDmsMode, w
   ])
   const offered = groupSet(offeredRows.map((r) => [r.profileId, r.jobKey]))
   const emailed = groupSet(emailedRows.map((r) => [r.teacherProfile?.profileId ?? '', `listing:${r.listingId}`]))
-  // Only the last 20 days' offers can be the same vacancy as a loaded job: a LinkedIn listing lives at most 14 days after its alert,
-  // an alert 5 (opus review 2026-11-11 — the ledger is never pruned, so all of it would be sent each run).
-  const since = vnToday(new Date(now.getTime() - 20 * 86_400_000))
-  const recentAt = now.getTime() - 20 * 86_400_000
+  // Only offers of the last JOB_DM_RULES.retentionDays (30) can still name a vacancy: an alert's title and id stay that long, and a
+  // school's own listing of the same job may be newer than the alert's 14 days (codex review 2026-11-12). The ledger is never
+  // pruned, so all of it would otherwise be sent each run (opus review 2026-11-11).
+  const recentAt = now.getTime() - JOB_DM_RULES.retentionDays * 86_400_000
+  const since = vnToday(new Date(recentAt))
   const linkedinIds = await linkedinIdsOf([
     ...offeredRows.filter((r) => r.day >= since).map((r) => r.jobKey),
     ...emailedRows.filter((r) => !r.emailedAt || r.emailedAt.getTime() >= recentAt).map((r) => `listing:${r.listingId}`),

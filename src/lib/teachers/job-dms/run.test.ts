@@ -476,11 +476,11 @@ describe("eno.vn's own listings — the first shadow grading (2026-10-21)", () =
     T.posts = [li('4490000001', title, 'Sunrise Academy'), li('4490000002', 'English Teacher', 'Other School')]
     await runJobDms({ dryRun: false, now: DAY })
     const offered = new Set(calls.createMany.flat().map((r) => r.jobKey))
-    // the listing stays — its page and its pay; the LinkedIn copy gives way (gates 12h–12l)
+    // the listings go out; no LinkedIn alert is ever offered itself (owner, 2026-11-12: "import to web first and offer from jobs")
     expect(offered.has('listing:sunrise')).toBe(true)
     expect(offered.has('post:4490000001')).toBe(false)
     expect(offered.has('listing:generic')).toBe(true)
-    expect(offered.has('post:4490000002')).toBe(true)
+    expect(offered.has('post:4490000002')).toBe(false)
   })
 
   it('a LinkedIn job imported as a listing ("<role> — <employer>", filed linkedin:<id>) is offered once, as the listing — today and on a later day (2026-11-11)', async () => {
@@ -502,13 +502,15 @@ describe("eno.vn's own listings — the first shadow grading (2026-10-21)", () =
     calls.createMany = []
     await runJobDms({ dryRun: false, now: DAY })
     expect(calls.createMany.flat().map((r) => r.jobKey)).not.toContain('post:4490000003')
-    // the control: a listing a school posted itself, claiming that id without the board's seller, proves nothing
+    // the control: a listing a school posted itself, claiming that id without the board's seller, proves nothing — a teacher
+    // sent the alert before (the ledger) still gets the school's listing
     T.listings = [{ ...imported, sellerId: 'a-school' }]
-    T.dms = []
+    T.dms = [{ profileId: 't-1', jobKey: 'post:4490000003', kind: 'jobs', day: '2026-10-20', mode: 'shadow' }]
     calls.createMany = []
     await runJobDms({ dryRun: false, now: DAY })
     offered = calls.createMany.flat().map((r) => r.jobKey)
-    expect(offered).toContain('post:4490000003')
+    expect(offered).toContain('listing:li-import')
+    expect(offered).not.toContain('post:4490000003')
   })
 
   it('…and once its alert has left the loaded jobs (past the DMs\' 5 days), the listing is still not a second offer; nor the alert after a listing since hidden (codex review 2026-11-11)', async () => {
@@ -577,12 +579,12 @@ describe("eno.vn's own listings — the first shadow grading (2026-10-21)", () =
     T.dms = [{ profileId: 't-1', jobKey: 'listing:sunrise', kind: 'jobs', day: '2026-10-20', mode: 'shadow' }]
     await runJobDms({ dryRun: false, now: DAY })
     expect(calls.createMany.flat().map((r) => r.jobKey)).not.toContain('post:4490000001')
-    // the control: without the listing, the LinkedIn copy goes out (opus, gate 12o)
+    // and without the listing the alert is not offered either: a LinkedIn job reaches a teacher only as a listing (owner, 2026-11-12)
     T.listings = []
     T.dms = []
     calls.createMany = []
     await runJobDms({ dryRun: false, now: DAY })
-    expect(calls.createMany.flat().map((r) => r.jobKey)).toContain('post:4490000001')
+    expect(calls.createMany.flat().map((r) => r.jobKey)).not.toContain('post:4490000001')
   })
 
   it('…but a shorter title is not proof: another school\'s "Part-time English Teacher for Kids" stays its own job (codex + opus, gate 12h)', async () => {
@@ -596,7 +598,45 @@ describe("eno.vn's own listings — the first shadow grading (2026-10-21)", () =
     await runJobDms({ dryRun: false, now: DAY })
     const offered = new Set(calls.createMany.flat().map((r) => r.jobKey))
     expect(offered.has('listing:sunrise')).toBe(true)
-    expect(offered.has('post:4490000003')).toBe(true)
+    // the other school's LinkedIn alert is not hidden by the listing — it is simply never offered itself (owner, 2026-11-12)
+    expect(offered.has('post:4490000003')).toBe(false)
+  })
+
+  it('an alert sent three weeks ago still stands for its vacancy: the school\'s own listing of the same long title is not a second offer (codex review 2026-11-12)', async () => {
+    const title = 'Part-time English Teacher for Kids – Sunrise Academy, District 7'
+    T.posts = [post('4490000010', {
+      source: 'linkedin', title, company: 'Sunrise Academy', locationText: 'District 7, Ho Chi Minh City', text: `${title} · Sunrise Academy · District 7, Ho Chi Minh City`,
+      groupPublic: null, url: 'https://www.linkedin.com/jobs/view/4490000010/', sourceName: 'LinkedIn', status: 'expired', expiresAt: new Date(DAY.getTime() - 16 * 86_400_000),
+    })]
+    T.listings = [listing('sunrise-own', { title, description: 'Kids classes in District 7, part-time.', createdAt: new Date(DAY.getTime() - 86_400_000) })]
+    const threeWeeks = new Date(DAY.getTime() - 21 * 86_400_000).toISOString().slice(0, 10)
+    T.dms = [{ profileId: 't-1', jobKey: 'post:4490000010', kind: 'jobs', day: threeWeeks, mode: 'shadow' }]
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(calls.createMany.flat().map((r) => r.jobKey)).not.toContain('listing:sunrise-own')
+    // the control: a teacher never sent the alert gets the listing
+    T.dms = []
+    calls.createMany = []
+    await runJobDms({ dryRun: false, now: DAY })
+    expect(calls.createMany.flat().map((r) => r.jobKey)).toContain('listing:sunrise-own')
+  })
+
+  it('⛔ a LinkedIn alert is never offered in a message; a Facebook post and eno.vn listings are (owner, 2026-11-12)', async () => {
+    T.listings = [listing('esl', { title: 'ESL Teacher for kids — Power English', description: 'Teach English to kids in District 7, part-time.' })]
+    T.posts = [
+      post('fb-1'),
+      post('4490000009', {
+        source: 'linkedin', title: 'Part-time English Teacher for Kids – Sunrise Academy, District 7', company: 'Sunrise Academy', locationText: 'District 7, Ho Chi Minh City',
+        text: 'Part-time English Teacher for Kids – Sunrise Academy, District 7 · Sunrise Academy · District 7, Ho Chi Minh City', groupPublic: null,
+        url: 'https://www.linkedin.com/jobs/view/4490000009/', sourceName: 'LinkedIn',
+      }),
+    ]
+    await runJobDms({ dryRun: false, now: DAY })
+    const offered = new Set(calls.createMany.flat().map((r) => r.jobKey))
+    expect(offered.has('listing:esl')).toBe(true)
+    expect(offered.has('post:fb-1')).toBe(true)
+    expect(offered.has('post:4490000009')).toBe(false)
+    // still READ and decided: its 'ready' is what the jobs pipeline lists from
+    expect(T.posts.find((p) => p.id === '4490000009')).toMatchObject({ status: 'ready' })
   })
 })
 
